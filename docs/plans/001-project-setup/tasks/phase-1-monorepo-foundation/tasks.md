@@ -121,10 +121,10 @@ flowchart TD
     style Verification fill:#FFEBEE,stroke:#C62828
 
     subgraph Bootstrap["1. Bootstrap (Sequential)"]
-        T001["T001: Root package.json"]:::pending
-        T002["T002: pnpm-workspace.yaml"]:::pending
-        T003["T003: Package stubs"]:::pending
-        T004["T004: pnpm install"]:::pending
+        T001["T001: Root package.json ✓"]:::completed
+        T002["T002: pnpm-workspace.yaml ✓"]:::completed
+        T003["T003: Package stubs ✓"]:::completed
+        T004["T004: pnpm install ✓"]:::completed
 
         T001 --> T002
         T002 --> T003
@@ -132,11 +132,11 @@ flowchart TD
     end
 
     subgraph Config["2. Configuration (Sequential)"]
-        T005["T005: Base tsconfig.json"]:::pending
-        T006["T006: Package tsconfigs"]:::pending
-        T007["T007: biome.json"]:::pending
-        T008["T008: turbo.json"]:::pending
-        T009["T009: justfile"]:::pending
+        T005["T005: Base tsconfig.json ✓"]:::completed
+        T006["T006: Package tsconfigs ✓"]:::completed
+        T007["T007: biome.json ✓"]:::completed
+        T008["T008: turbo.json ✓"]:::completed
+        T009["T009: justfile ✓"]:::completed
 
         T004 --> T005
         T005 --> T006
@@ -146,34 +146,34 @@ flowchart TD
     end
 
     subgraph TestInfra["3. Test Infrastructure"]
-        T010["T010: vitest.config.ts"]:::pending
-        T011["T011: test/setup.ts"]:::pending
+        T010["T010: vitest.config.ts ✓"]:::completed
+        T011["T011: test/setup.ts ✓"]:::completed
 
         T009 --> T010
         T010 --> T011
     end
 
     subgraph Verification["4. Verification Gate"]
-        T012["T012: Phase 1 Gate"]:::pending
+        T012["T012: Phase 1 Gate ✓"]:::completed
 
         T011 --> T012
     end
 
     subgraph Files["Files"]
-        F01["/package.json"]:::pending
-        F02["/pnpm-workspace.yaml"]:::pending
-        F03["/packages/shared/package.json"]:::pending
-        F04["/packages/cli/package.json"]:::pending
-        F05["/packages/mcp-server/package.json"]:::pending
-        F06["/apps/web/package.json"]:::pending
-        F07["/tsconfig.json"]:::pending
-        F08["/packages/*/tsconfig.json"]:::pending
-        F09["/apps/web/tsconfig.json"]:::pending
-        F10["/biome.json"]:::pending
-        F11["/turbo.json"]:::pending
-        F12["/justfile"]:::pending
-        F13["/test/vitest.config.ts"]:::pending
-        F14["/test/setup.ts"]:::pending
+        F01["/package.json ✓"]:::completed
+        F02["/pnpm-workspace.yaml ✓"]:::completed
+        F03["/packages/shared/package.json ✓"]:::completed
+        F04["/packages/cli/package.json ✓"]:::completed
+        F05["/packages/mcp-server/package.json ✓"]:::completed
+        F06["/apps/web/package.json ✓"]:::completed
+        F07["/tsconfig.json ✓"]:::completed
+        F08["/packages/*/tsconfig.json ✓"]:::completed
+        F09["/apps/web/tsconfig.json ✓"]:::completed
+        F10["/biome.json ✓"]:::completed
+        F11["/turbo.json ✓"]:::completed
+        F12["/justfile ✓"]:::completed
+        F13["/test/vitest.config.ts ✓"]:::completed
+        F14["/test/setup.ts ✓"]:::completed
     end
 
     T001 -.-> F01
@@ -198,18 +198,18 @@ flowchart TD
 
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
-| T001 | Root Config | `/package.json` | ⬜ Pending | pnpm init + bin exports |
-| T002 | Workspace | `/pnpm-workspace.yaml` | ⬜ Pending | Define packages/* and apps/* |
-| T003 | Package Stubs | `/packages/*/package.json`, `/apps/web/package.json` | ⬜ Pending | Minimal name+version only |
-| T004 | Dependency Link | N/A (command) | ⬜ Pending | Verify `pnpm install` success |
-| T005 | TypeScript | `/tsconfig.json` | ⬜ Pending | Strict mode + path aliases |
-| T006 | TypeScript | `/packages/*/tsconfig.json`, `/apps/web/tsconfig.json` | ⬜ Pending | Extends root, composite mode |
-| T007 | Linting | `/biome.json` | ⬜ Pending | Recommended rules |
-| T008 | Build | `/turbo.json` | ⬜ Pending | Pipeline with ^build deps |
-| T009 | Task Runner | `/justfile` | ⬜ Pending | Developer commands |
-| T010 | Test Config | `/test/vitest.config.ts` | ⬜ Pending | Path resolution setup |
-| T011 | Test Setup | `/test/setup.ts`, `/test/unit/placeholder.test.ts` | ⬜ Pending | DI reset + placeholder test |
-| T012 | Gate | N/A (verification) | ⬜ Pending | All checks pass |
+| T001 | Root Config | `/package.json` | ✅ Complete | pnpm init + bin exports |
+| T002 | Workspace | `/pnpm-workspace.yaml` | ✅ Complete | Define packages/* and apps/* |
+| T003 | Package Stubs | `/packages/*/package.json`, `/apps/web/package.json` | ✅ Complete | Minimal name+version only |
+| T004 | Dependency Link | N/A (command) | ✅ Complete | Verify `pnpm install` success |
+| T005 | TypeScript | `/tsconfig.json` | ✅ Complete | Strict mode + path aliases |
+| T006 | TypeScript | `/packages/*/tsconfig.json`, `/apps/web/tsconfig.json` | ✅ Complete | Extends root, composite mode |
+| T007 | Linting | `/biome.json` | ✅ Complete | Recommended rules |
+| T008 | Build | `/turbo.json` | ✅ Complete | Pipeline with ^build deps |
+| T009 | Task Runner | `/justfile` | ✅ Complete | Developer commands |
+| T010 | Test Config | `/test/vitest.config.ts` | ✅ Complete | Path resolution setup |
+| T011 | Test Setup | `/test/setup.ts`, `/test/unit/placeholder.test.ts` | ✅ Complete | DI reset + placeholder test |
+| T012 | Gate | N/A (verification) | ✅ Complete | All checks pass |
 
 ---
 
@@ -217,18 +217,18 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|------|------|-----|------|--------------|------------------|------------|----------|-------|
-| [ ] | T001 | Create root package.json with workspace config and bin exports | 1 | Setup | – | `/Users/jordanknight/substrate/chainglass/package.json` | `pnpm init` succeeds; `bin.cg` and `bin.chainglass` defined | – | |
-| [ ] | T002 | Create pnpm-workspace.yaml defining workspace packages | 1 | Setup | T001 | `/Users/jordanknight/substrate/chainglass/pnpm-workspace.yaml` | References `packages/*` and `apps/*` | – | Must exist before `pnpm install` |
-| [ ] | T003 | Create minimal package stubs (shared, cli, mcp-server, web) | 1 | Setup | T002 | `/Users/jordanknight/substrate/chainglass/packages/shared/package.json`, `/Users/jordanknight/substrate/chainglass/packages/cli/package.json`, `/Users/jordanknight/substrate/chainglass/packages/mcp-server/package.json`, `/Users/jordanknight/substrate/chainglass/apps/web/package.json` | Each has `name` and `version` fields; names match workspace patterns | – | Per Critical Discovery 01: staged bootstrap |
-| [ ] | T004 | Run initial pnpm install and verify workspace linking | 1 | Setup | T003 | N/A | `pnpm install` completes without errors; `node_modules/@chainglass` contains symlinks | – | Gate before configuration |
-| [ ] | T005 | Create base tsconfig.json with strict mode and path aliases | 2 | Config | T004 | `/Users/jordanknight/substrate/chainglass/tsconfig.json` | Strict mode enabled; paths for `@chainglass/shared`, `@chainglass/cli`, `@test/*` defined | – | Per Critical Discovery 05 |
-| [ ] | T006 | Create package-level tsconfigs extending root with composite mode | 2 | Config | T005 | `/Users/jordanknight/substrate/chainglass/packages/shared/tsconfig.json`, `/Users/jordanknight/substrate/chainglass/packages/cli/tsconfig.json`, `/Users/jordanknight/substrate/chainglass/packages/mcp-server/tsconfig.json`, `/Users/jordanknight/substrate/chainglass/apps/web/tsconfig.json` | Each extends root; `composite: true`; `pnpm tsc --build --dry` shows correct order | – | |
-| [ ] | T007 | Create biome.json with recommended linter and formatter rules | 1 | Config | T006 | `/Users/jordanknight/substrate/chainglass/biome.json` | `pnpm biome check .` runs without config errors; recommended preset active | – | Must exist before writing source code |
-| [ ] | T008 | Create turbo.json with build pipeline and caching | 2 | Config | T007 | `/Users/jordanknight/substrate/chainglass/turbo.json` | `build` task has `dependsOn: ["^build"]`; `outputs: ["dist/**"]` defined; cached builds work | – | |
-| [ ] | T009 | Create justfile with developer commands | 2 | Config | T008 | `/Users/jordanknight/substrate/chainglass/justfile` | Commands: install, dev, build, test, lint, format, fft, typecheck, check; `just --list` shows all | – | |
-| [ ] | T010 | Create test/vitest.config.ts with path resolution | 2 | Test | T009 | `/Users/jordanknight/substrate/chainglass/test/vitest.config.ts` | `vite-tsconfig-paths` plugin configured; aliases for workspace packages resolve | – | Per Critical Discovery 05 |
-| [ ] | T011 | Create test/setup.ts and placeholder test | 1 | Test | T010 | `/Users/jordanknight/substrate/chainglass/test/setup.ts`, `/Users/jordanknight/substrate/chainglass/test/unit/placeholder.test.ts` | TSyringe container cleared in beforeEach; `just test` passes with 1 test | – | NO @chainglass/* imports; placeholder deleted in Phase 2 |
-| [ ] | T012 | Verify Phase 1 gate: pnpm install && just --list && just typecheck | 1 | Gate | T011 | N/A | All three commands pass without errors | – | GATE: Must pass before Phase 2 |
+| [x] | T001 | Create root package.json with workspace config and bin exports | 1 | Setup | – | `/Users/jordanknight/substrate/chainglass/package.json` | `pnpm init` succeeds; `bin.cg` and `bin.chainglass` defined | – | log#T001 [^1] |
+| [x] | T002 | Create pnpm-workspace.yaml defining workspace packages | 1 | Setup | T001 | `/Users/jordanknight/substrate/chainglass/pnpm-workspace.yaml` | References `packages/*` and `apps/*` | – | Must exist before `pnpm install` · log#T002 [^1] |
+| [x] | T003 | Create minimal package stubs (shared, cli, mcp-server, web) | 1 | Setup | T002 | `/Users/jordanknight/substrate/chainglass/packages/shared/package.json`, `/Users/jordanknight/substrate/chainglass/packages/cli/package.json`, `/Users/jordanknight/substrate/chainglass/packages/mcp-server/package.json`, `/Users/jordanknight/substrate/chainglass/apps/web/package.json` | Each has `name` and `version` fields; names match workspace patterns | – | Per Critical Discovery 01: staged bootstrap · log#T003 [^1] |
+| [x] | T004 | Run initial pnpm install and verify workspace linking | 1 | Setup | T003 | N/A | `pnpm install` completes without errors; `node_modules/@chainglass` contains symlinks | – | Gate before configuration · log#T004 [^1] |
+| [x] | T005 | Create base tsconfig.json with strict mode and path aliases | 2 | Config | T004 | `/Users/jordanknight/substrate/chainglass/tsconfig.json` | Strict mode enabled; paths for `@chainglass/shared`, `@chainglass/cli`, `@test/*` defined | – | Per Critical Discovery 05 · log#T005 [^2] |
+| [x] | T006 | Create package-level tsconfigs extending root with composite mode | 2 | Config | T005 | `/Users/jordanknight/substrate/chainglass/packages/shared/tsconfig.json`, `/Users/jordanknight/substrate/chainglass/packages/cli/tsconfig.json`, `/Users/jordanknight/substrate/chainglass/packages/mcp-server/tsconfig.json`, `/Users/jordanknight/substrate/chainglass/apps/web/tsconfig.json` | Each extends root; `composite: true`; `pnpm tsc --build --dry` shows correct order | – | log#T006 [^2] |
+| [x] | T007 | Create biome.json with recommended linter and formatter rules | 1 | Config | T006 | `/Users/jordanknight/substrate/chainglass/biome.json` | `pnpm biome check .` runs without config errors; recommended preset active | – | Must exist before writing source code · log#T007 [^1] |
+| [x] | T008 | Create turbo.json with build pipeline and caching | 2 | Config | T007 | `/Users/jordanknight/substrate/chainglass/turbo.json` | `build` task has `dependsOn: ["^build"]`; `outputs: ["dist/**"]` defined; cached builds work | – | log#T008 [^1] |
+| [x] | T009 | Create justfile with developer commands | 2 | Config | T008 | `/Users/jordanknight/substrate/chainglass/justfile` | Commands: install, dev, build, test, lint, format, fft, typecheck, check; `just --list` shows all | – | log#T009 [^1] |
+| [x] | T010 | Create test/vitest.config.ts with path resolution | 2 | Test | T009 | `/Users/jordanknight/substrate/chainglass/test/vitest.config.ts` | `vite-tsconfig-paths` plugin configured; aliases for workspace packages resolve | – | Per Critical Discovery 05 · log#T010 [^3] |
+| [x] | T011 | Create test/setup.ts and placeholder test | 1 | Test | T010 | `/Users/jordanknight/substrate/chainglass/test/setup.ts`, `/Users/jordanknight/substrate/chainglass/test/unit/placeholder.test.ts` | TSyringe container cleared in beforeEach; `just test` passes with 1 test | – | NO @chainglass/* imports; placeholder deleted in Phase 2 · log#T011 [^3] |
+| [x] | T012 | Verify Phase 1 gate: pnpm install && just --list && just typecheck | 1 | Gate | T011 | N/A | All three commands pass without errors | – | GATE: Must pass before Phase 2 · log#T012 |
 
 ---
 
@@ -425,7 +425,38 @@ pnpm install && just --list && just typecheck
 
 | Footnote | Task | Description | Date |
 |----------|------|-------------|------|
-| | | | |
+| [^1] | T001-T004, T007-T009 | Root configuration files | 2026-01-18 |
+| [^2] | T003, T005-T006 | Package configurations | 2026-01-18 |
+| [^3] | T003, T006, T010-T011 | Web app and test configurations | 2026-01-18 |
+
+[^1]: Phase 1 - Root configuration files
+  - `file:/Users/jordanknight/substrate/chainglass/package.json`
+  - `file:/Users/jordanknight/substrate/chainglass/pnpm-workspace.yaml`
+  - `file:/Users/jordanknight/substrate/chainglass/tsconfig.json`
+  - `file:/Users/jordanknight/substrate/chainglass/biome.json`
+  - `file:/Users/jordanknight/substrate/chainglass/turbo.json`
+  - `file:/Users/jordanknight/substrate/chainglass/justfile`
+
+[^2]: Phase 1 - Package configurations
+  - `file:/Users/jordanknight/substrate/chainglass/packages/shared/package.json`
+  - `file:/Users/jordanknight/substrate/chainglass/packages/shared/tsconfig.json`
+  - `file:/Users/jordanknight/substrate/chainglass/packages/shared/src/index.ts`
+  - `file:/Users/jordanknight/substrate/chainglass/packages/cli/package.json`
+  - `file:/Users/jordanknight/substrate/chainglass/packages/cli/tsconfig.json`
+  - `file:/Users/jordanknight/substrate/chainglass/packages/cli/src/index.ts`
+  - `file:/Users/jordanknight/substrate/chainglass/packages/mcp-server/package.json`
+  - `file:/Users/jordanknight/substrate/chainglass/packages/mcp-server/tsconfig.json`
+  - `file:/Users/jordanknight/substrate/chainglass/packages/mcp-server/src/index.ts`
+
+[^3]: Phase 1 - Web app and test configurations
+  - `file:/Users/jordanknight/substrate/chainglass/apps/web/package.json`
+  - `file:/Users/jordanknight/substrate/chainglass/apps/web/tsconfig.json`
+  - `file:/Users/jordanknight/substrate/chainglass/apps/web/next.config.ts`
+  - `file:/Users/jordanknight/substrate/chainglass/apps/web/app/page.tsx`
+  - `file:/Users/jordanknight/substrate/chainglass/apps/web/app/layout.tsx`
+  - `file:/Users/jordanknight/substrate/chainglass/test/vitest.config.ts`
+  - `file:/Users/jordanknight/substrate/chainglass/test/setup.ts`
+  - `file:/Users/jordanknight/substrate/chainglass/test/unit/placeholder.test.ts`
 
 ---
 
