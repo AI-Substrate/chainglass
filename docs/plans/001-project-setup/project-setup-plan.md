@@ -1,0 +1,1387 @@
+# Chainglass Project Setup Implementation Plan
+
+**Plan Version**: 1.0.0
+**Created**: 2026-01-18
+**Spec**: [./project-setup-spec.md](./project-setup-spec.md)
+**Status**: DRAFT
+
+---
+
+## Table of Contents
+
+1. [Executive Summary](#executive-summary)
+2. [Technical Context](#technical-context)
+3. [Critical Research Findings](#critical-research-findings)
+4. [Testing Philosophy](#testing-philosophy)
+5. [Implementation Phases](#implementation-phases)
+   - [Phase 1: Monorepo Foundation](#phase-1-monorepo-foundation)
+   - [Phase 2: Shared Package](#phase-2-shared-package)
+   - [Phase 3: Next.js App with Clean Architecture](#phase-3-nextjs-app-with-clean-architecture)
+   - [Phase 4: CLI Package](#phase-4-cli-package)
+   - [Phase 5: MCP Server Package](#phase-5-mcp-server-package)
+   - [Phase 6: Documentation & Polish](#phase-6-documentation--polish)
+6. [Cross-Cutting Concerns](#cross-cutting-concerns)
+7. [Complexity Tracking](#complexity-tracking)
+8. [Progress Tracking](#progress-tracking)
+9. [Deviation Ledger](#deviation-ledger)
+10. [ADR Ledger](#adr-ledger)
+11. [Change Footnotes Ledger](#change-footnotes-ledger)
+
+---
+
+## Executive Summary
+
+### Problem Statement
+
+Chainglass needs a robust, maintainable foundation for a spec-driven development enrichment workflow tool. The project requires a CLI (`cg`), MCP server for AI agent integration, and a Next.js web application, all sharing business logic while maintaining clean architecture boundaries.
+
+### Solution Approach
+
+- **Monorepo Structure**: pnpm workspaces + Turborepo for efficient package management and build orchestration
+- **Clean Architecture**: Strict Services ← Adapters dependency direction with interface-based DI via TSyringe
+- **TDD-First**: Fakes over mocks, centralized test suite, interface-driven design from day one
+- **Fast Tooling**: Vitest (10x faster), Biome (20x faster), Just task runner for developer experience
+- **npx Distribution**: Bundled CLI via esbuild for zero-install execution
+
+### Expected Outcomes
+
+- Developers productive in 5 minutes: `just install && just dev`
+- Clean architecture physically enforced via import restrictions
+- Sub-200ms test feedback for TDD flow
+- CLI accessible via `npx cg` or `npx chainglass`
+
+### Success Metrics
+
+- All 10 acceptance criteria from spec pass
+- Test execution under 5 seconds
+- `just check` passes all quality gates
+- `cg --help`, `cg dev`, `cg mcp` functional
+
+---
+
+## Technical Context
+
+### Current System State
+
+- **Greenfield project**: Empty repository with only README.md, .gitignore, and planning docs
+- **Branch**: `001-project-setup`
+- **No existing code**: All components to be created
+
+### Integration Requirements
+
+- **npm Registry**: CLI distributable via npx (future npm publish)
+- **MCP Protocol**: stdio and HTTP transports for AI agent integration
+- **Next.js 15**: App Router with React Server Components
+
+### Constraints and Limitations
+
+- **Node.js 18+**: Required for native ESM support
+- **pnpm**: Required package manager (not npm or yarn)
+- **Just**: Optional but recommended task runner (npm script fallbacks available)
+- **No decorators in RSC**: TSyringe must use decorator-free pattern in server components
+
+### Assumptions
+
+1. Developers have Node.js 18+ installed
+2. pnpm is acceptable as the package manager
+3. TypeScript strict mode is acceptable
+4. Clean architecture boundaries are non-negotiable
+
+---
+
+## Critical Research Findings
+
+### 🚨 Critical Discovery 01: Bootstrap Sequence Dependency Chain
+**Impact**: Critical
+**Sources**: [I1-01, R1-01]
+
+**Problem**: Phase 1 has a strict internal dependency order. Running `pnpm install` on incomplete configuration fails with cryptic errors. Turborepo needs packages that don't exist yet.
+
+**Root Cause**: pnpm workspaces + Turborepo expect all referenced packages to exist when initialized.
+
+**Solution**: Staged bootstrap approach:
+1. Create minimal `pnpm-workspace.yaml` first
+2. Create package directories with minimal `package.json` (name + version only)
+3. Run `pnpm install` to establish linking
+4. Add `turbo.json` after packages have build scripts
+
+**Action Required**: Follow exact file creation order in Phase 1.
+
+**Affects Phases**: 1
+
+---
+
+### 🚨 Critical Discovery 02: TSyringe Decorators Fail in React Server Components
+**Impact**: Critical
+**Sources**: [R1-03]
+
+**Problem**: TSyringe's `@injectable()` and `@inject()` decorators require runtime metadata that may not survive RSC compilation. Next.js 15 App Router uses RSC by default.
+
+**Root Cause**: RSC have restrictions on JavaScript features. Decorator metadata can be stripped during bundling.
+
+**Solution**: Use decorator-free pattern with explicit `container.register()` calls:
+```typescript
+// ❌ WRONG - Decorators may fail in RSC
+@injectable()
+class EnrichmentService {
+  constructor(@inject('ILogger') private logger: ILogger) {}
+}
+
+// ✅ CORRECT - Explicit registration
+container.register<ILogger>('ILogger', { useClass: PinoLoggerAdapter });
+const service = container.resolve(EnrichmentService);
+```
+
+**Action Required**: All DI setup uses explicit registration, no decorators.
+
+**Affects Phases**: 3, 4, 5
+
+---
+
+### High Impact Discovery 03: Shared Package is Hard Dependency Gate
+**Impact**: High
+**Sources**: [I1-02]
+
+**Problem**: Phase 3, 4, and 5 all import from `@chainglass/shared`. If Phase 2 isn't buildable, subsequent phases cannot start.
+
+**Root Cause**: `workspace:*` imports fail if the target package doesn't exist or build.
+
+**Solution**: Phase 2 must be 100% complete with:
+- Package builds successfully
+- ILogger interface exported
+- FakeLogger implemented and tested
+- Verification: `import { ILogger } from '@chainglass/shared'` resolves
+
+**Action Required**: Gate before Phase 3: `pnpm -F @chainglass/shared build && pnpm -F @chainglass/shared test`
+
+**Affects Phases**: 2, 3, 4, 5
+
+---
+
+### High Impact Discovery 04: DI Container Requires Child Container Pattern
+**Impact**: High
+**Sources**: [I1-04, R1-03]
+
+**Problem**: Tests using TSyringe pollute the global container. State leaks cause flaky test failures.
+
+**Root Cause**: TSyringe's `container` is a singleton. `clearInstances()` alone doesn't reset registrations.
+
+**Solution**: Use child containers:
+```typescript
+// Production
+export function createProductionContainer() {
+  const c = container.createChildContainer();
+  c.register<ILogger>('ILogger', { useClass: PinoLoggerAdapter });
+  return c;
+}
+
+// Testing
+export function createTestContainer() {
+  const c = container.createChildContainer();
+  c.register<ILogger>('ILogger', { useClass: FakeLogger });
+  return c;
+}
+```
+
+**Action Required**: Implement dual container setup in Phase 3.
+
+**Affects Phases**: 3, 4, 5
+
+---
+
+### High Impact Discovery 05: Vitest Path Resolution Requires Triple Alignment
+**Impact**: High
+**Sources**: [I1-06, R1-04]
+
+**Problem**: Centralized test suite at `test/` must resolve imports from multiple packages. Three systems must agree: pnpm, TypeScript, Vitest.
+
+**Root Cause**: Each system has separate path resolution. Misconfiguration causes "Cannot find module" despite code working elsewhere.
+
+**Solution**: Configure all three:
+```typescript
+// vitest.config.ts
+import tsconfigPaths from 'vite-tsconfig-paths';
+export default defineConfig({
+  plugins: [tsconfigPaths()],
+  test: {
+    alias: {
+      '@chainglass/shared': './packages/shared/src',
+      '@test/': './test/',
+    },
+  },
+});
+```
+
+**Action Required**: Configure path aliases in tsconfig.json AND vitest.config.ts.
+
+**Affects Phases**: 1, 2, 3
+
+---
+
+### High Impact Discovery 06: CLI Bundle Must Include Workspace Dependencies
+**Impact**: High
+**Sources**: [I1-05, R1-06]
+
+**Problem**: esbuild must bundle `@chainglass/shared` for npx distribution, but NOT bundle Node.js built-ins or lazy-loaded deps.
+
+**Root Cause**: `workspace:*` protocol is for local dev. Published bundle must be self-contained.
+
+**Solution**: esbuild with `packages: 'bundle'`:
+```typescript
+await esbuild.build({
+  bundle: true,
+  packages: 'bundle', // Include workspace packages
+  external: ['pino', 'next', '@modelcontextprotocol/*'], // Lazy-loaded
+});
+```
+
+**Action Required**: Configure two build modes: dev (external shared) and prod (bundled).
+
+**Affects Phases**: 4
+
+---
+
+### High Impact Discovery 07: Clean Architecture Needs Automated Enforcement
+**Impact**: High
+**Sources**: [R1-05]
+
+**Problem**: TypeScript cannot prevent services from importing concrete adapters. Without enforcement, architecture erodes.
+
+**Root Cause**: Import restrictions are semantic, not syntactic. TypeScript allows any valid import.
+
+**Solution**: Add architecture check to CI:
+```bash
+# Quick check for violations
+grep -r "from.*adapter" packages/shared/src/services/ apps/web/src/services/ \
+  | grep -v ".interface" && echo "VIOLATION" || echo "OK"
+```
+
+**Action Required**: Add `just check-architecture` command, run in CI.
+
+**Affects Phases**: 2, 3, 4
+
+---
+
+### Medium Impact Discovery 08: Interface-First TDD Cycle
+**Impact**: Medium
+**Sources**: [I1-03]
+
+**Problem**: Writing adapters first tempts interface design around implementation (e.g., Pino API), not consumer needs.
+
+**Solution**: TDD order for each interface:
+1. Write interface (method signatures)
+2. Write fake (test helpers for assertions)
+3. Write test using fake (drive interface from test needs)
+4. Write real adapter (implements same interface)
+
+**Action Required**: Phase 2 ILogger follows this exact sequence.
+
+**Affects Phases**: 2, 3
+
+---
+
+### Medium Impact Discovery 09: Contract Tests Prevent Fake Drift
+**Impact**: Medium
+**Sources**: [R1-07]
+
+**Problem**: Fakes can drift from real adapter behavior. TypeScript checks interface compliance, not behavioral equivalence.
+
+**Solution**: Shared contract test suites:
+```typescript
+export function loggerContractTests(name: string, createLogger: () => ILogger) {
+  it('should not throw when logging info', () => {
+    expect(() => createLogger().info('test')).not.toThrow();
+  });
+}
+// Run for both FakeLogger and PinoLoggerAdapter
+```
+
+**Action Required**: Create `test/contracts/` directory with contract tests.
+
+**Affects Phases**: 2, 3
+
+---
+
+### Medium Impact Discovery 10: MCP stdio Transport Requires stdout Discipline
+**Impact**: Medium
+**Sources**: [R1-08]
+
+**Problem**: In stdio mode, stdout is reserved for JSON-RPC. Any extraneous output (logs, console.log) corrupts the protocol.
+
+**Solution**: Redirect all logging to stderr in stdio mode:
+```typescript
+if (options.stdio) {
+  console.log = (...args) => console.error('[LOG]', ...args);
+}
+```
+
+**Action Required**: Implement strict stdout discipline in Phase 5.
+
+**Affects Phases**: 5
+
+---
+
+### Medium Impact Discovery 11: Phases 3 and 4 Can Parallelize
+**Impact**: Medium
+**Sources**: [I1-07]
+
+**Problem**: Strict sequential execution is suboptimal. Web and CLI don't depend on each other.
+
+**Solution**: After Phase 2, develop Phase 3 (web) and Phase 4 (CLI) in parallel. Integration point (`cg dev` starting Next.js) comes later.
+
+**Action Required**: Consider parallel development tracks if resources allow.
+
+**Affects Phases**: 3, 4
+
+---
+
+## Testing Philosophy
+
+### Testing Approach
+
+**Selected Approach**: Full TDD
+**Rationale**: Foundational architecture requires comprehensive test coverage. Patterns established here affect all future development.
+**Focus Areas**: DI container, service-adapter wiring, clean architecture boundaries, CLI commands
+
+### Test-Driven Development
+
+Every implementation task follows RED-GREEN-REFACTOR:
+
+1. **RED**: Write test first, verify it fails
+2. **GREEN**: Implement minimal code to pass test
+3. **REFACTOR**: Improve code quality while keeping tests green
+
+### Mock Usage Policy
+
+**Policy**: Fakes only, avoid mocks
+
+- All test doubles are full fake implementations
+- No `vi.mock()`, `jest.mock()`, or similar
+- Fakes implement the same interface as real adapters
+- Fakes provide test helper methods (e.g., `assertLoggedAtLevel()`)
+- Fakes live in `@chainglass/shared/fakes/`
+- Contract tests ensure fakes match real adapter behavior
+
+```typescript
+// ❌ WRONG - Using mocks
+const mockLogger = vi.fn();
+mockLogger.mockReturnValue(undefined);
+
+// ✅ CORRECT - Using fakes
+const fakeLogger = new FakeLogger();
+// ... run test ...
+fakeLogger.assertLoggedAtLevel('INFO', 'Expected message');
+```
+
+### Test Organization
+
+```
+test/                          # CENTRAL test suite
+├── setup.ts                   # Global Vitest setup
+├── vitest.config.ts           # Root config
+├── fixtures/                  # Shared test data
+├── contracts/                 # Contract tests (both fake and real must pass)
+├── base/                      # Base test classes, utilities
+├── unit/                      # Unit tests
+│   ├── shared/                # @chainglass/shared tests
+│   ├── cli/                   # @chainglass/cli tests
+│   └── web/                   # apps/web tests
+├── integration/               # Integration tests
+└── e2e/                       # End-to-end (future)
+```
+
+### Test Documentation
+
+Every test must include:
+```typescript
+test('should process input and log operations', async () => {
+  /**
+   * Purpose: Proves SampleService correctly processes input and logs
+   * Quality Contribution: Prevents silent failures in processing
+   * Acceptance Criteria:
+   * - Returns processed string
+   * - Logs processing start and completion
+   */
+  // ... test implementation
+});
+```
+
+---
+
+## Implementation Phases
+
+### Phase 1: Monorepo Foundation
+
+**Objective**: Establish the monorepo infrastructure with pnpm, Turborepo, TypeScript, Biome, and Just.
+
+#### Tool Overview
+
+**pnpm (Performant npm)**
+
+pnpm is a disk-space efficient package manager that uses a content-addressable store. Unlike npm/yarn which copy dependencies into each project's `node_modules`, pnpm hard-links them from a single global store.
+
+*Value Contribution*:
+- **50-70% disk savings**: Each dependency version stored once, hard-linked everywhere
+- **Strict dependency resolution**: Prevents "phantom dependencies" (using packages not in package.json)
+- **workspace:* protocol**: Links local packages for development, resolves to versions for publishing
+- **Fast installs**: Only downloads what's new, reuses cached packages
+
+*How it works in Chainglass*:
+```
+chainglass/
+├── packages/shared/     ← workspace:* links to this during dev
+├── packages/cli/        ← imports from @chainglass/shared
+└── node_modules/
+    └── @chainglass/shared → symlink to packages/shared
+```
+
+**Turborepo**
+
+Turborepo is a build system for JavaScript/TypeScript monorepos that understands package dependencies and orchestrates tasks intelligently.
+
+*Value Contribution*:
+- **Dependency-aware builds**: Knows `cli` depends on `shared`, builds `shared` first
+- **Intelligent caching**: Skips rebuilding unchanged packages (70-80% faster CI)
+- **Parallel execution**: Runs independent tasks simultaneously
+- **Incremental adoption**: Works with existing npm scripts, no lock-in
+
+*How it works in Chainglass*:
+```json
+// turbo.json - defines task dependencies
+{
+  "pipeline": {
+    "build": {
+      "dependsOn": ["^build"],  // Build dependencies first
+      "outputs": ["dist/**"]    // Cache these outputs
+    }
+  }
+}
+```
+
+When you run `turbo build`:
+1. Turborepo builds `@chainglass/shared` first (no dependencies)
+2. Then builds `@chainglass/cli` and `apps/web` in parallel (both depend on shared)
+3. Caches results - next build with no changes completes in <1 second
+
+**Why Both Together**
+
+| Concern | pnpm | Turborepo |
+|---------|------|-----------|
+| Dependency installation | ✓ | - |
+| Disk efficiency | ✓ | - |
+| Workspace linking | ✓ | - |
+| Build orchestration | - | ✓ |
+| Task caching | - | ✓ |
+| Parallel execution | - | ✓ |
+
+pnpm manages *what* packages exist and how they're linked. Turborepo manages *how* to build them efficiently.
+
+**Deliverables**:
+- Root `package.json` with bin exports (`cg`, `chainglass`)
+- `pnpm-workspace.yaml` defining workspace packages
+- Base `tsconfig.json` with path aliases
+- `biome.json` for linting and formatting
+- `turbo.json` for build orchestration
+- `justfile` with development commands
+- Minimal package stubs for shared, cli, mcp-server, web
+
+**Dependencies**: None (foundational phase)
+
+**Risks**:
+| Risk | Likelihood | Impact | Mitigation |
+|------|------------|--------|------------|
+| Bootstrap chicken-and-egg (R1-01) | Medium | High | Staged bootstrap: minimal packages first, then tooling |
+| TypeScript path resolution (R1-02) | Medium | Medium | Verify `tsc --build --dry` after setup |
+
+### Tasks (TDD Approach)
+
+| #   | Status | Task | CS | Success Criteria | Log | Notes |
+|-----|--------|------|----|------------------|-----|-------|
+| 1.1 | [ ] | Create root package.json with workspace config | 1 | `pnpm init` succeeds, bin exports defined | - | |
+| 1.2 | [ ] | Create pnpm-workspace.yaml | 1 | References packages/* and apps/* | - | Must exist before `pnpm install` |
+| 1.3 | [ ] | Create minimal package stubs | 1 | packages/shared, packages/cli, packages/mcp-server, apps/web each have package.json with name+version | - | R1-01 mitigation |
+| 1.4 | [ ] | Run initial pnpm install | 1 | `pnpm install` completes without errors | - | Gate before next steps |
+| 1.5 | [ ] | Create base tsconfig.json | 2 | Strict mode, path aliases for all packages | - | |
+| 1.6 | [ ] | Create package-level tsconfigs | 2 | Each package has tsconfig extending root, composite: true | - | R1-02 mitigation |
+| 1.7 | [ ] | Create biome.json | 1 | Linter + formatter configured, recommended rules | - | Must exist before writing source code |
+| 1.8 | [ ] | Create turbo.json | 2 | Build pipeline with ^build dependencies, caching enabled | - | |
+| 1.9 | [ ] | Create justfile | 2 | Commands: install, dev, build, test, lint, format, fft, typecheck | - | |
+| 1.10 | [ ] | Create test/vitest.config.ts | 2 | Root Vitest config with tsconfigPaths plugin | - | I1-06 |
+| 1.11 | [ ] | Create test/setup.ts | 1 | Global test setup with DI container reset | - | |
+| 1.12 | [ ] | Verify Phase 1 gate | 1 | `pnpm install && just --list && just typecheck` passes | - | GATE |
+
+### Test Examples
+
+```typescript
+// No tests in Phase 1 - configuration only
+// Verification is via CLI commands
+
+// test/setup.ts (created but minimal)
+import { container } from 'tsyringe';
+
+beforeEach(() => {
+  container.clearInstances();
+});
+```
+
+### Non-Happy-Path Coverage
+- [ ] Verify `pnpm install` fails gracefully with missing workspace.yaml
+- [ ] Verify `just` commands show helpful errors if tools not installed
+
+### Acceptance Criteria
+- [ ] `pnpm install` completes without errors
+- [ ] `just --list` shows all commands
+- [ ] `pnpm tsc --build --dry` shows correct build order
+- [ ] `just typecheck` passes (empty project)
+- [ ] `just lint` runs without errors
+
+---
+
+### Phase 2: Shared Package
+
+**Objective**: Create the core `@chainglass/shared` package with ILogger interface, FakeLogger, and PinoLoggerAdapter using interface-first TDD.
+
+#### Shared Package Architecture
+
+`@chainglass/shared` is the **core package** that both CLI and web depend on. This is not just a "utilities" package - it contains the majority of the system's business logic and infrastructure.
+
+**Key Principle**: Most services and adapters are shared between CLI and web. We don't want to write them twice.
+
+**What Lives in Shared**:
+
+| Category | Examples (real + illustrative) | Rationale |
+|----------|-------------------------------|-----------|
+| **ALL Interfaces** | `ILogger` (real), `ISampleService`, `ISampleAdapter` | Single source of truth for contracts |
+| **ALL Fakes** | `FakeLogger` (real), `FakeSampleAdapter` | Colocated with interfaces for TDD |
+| **Shared Services** | `SampleService` (illustrative - future: real business services) | Business logic used by both CLI and web |
+| **Shared Adapters** | `PinoLoggerAdapter` (real), `SampleStorageAdapter` (illustrative) | Infrastructure used by both CLI and web |
+| **Types/DTOs** | `SampleResult`, `SampleConfig` (illustrative) | Shared data structures |
+
+*Note: "Sample*" names are placeholders demonstrating the pattern. Real business implementations (e.g., enrichment, spec parsing) will be added in future feature phases.*
+
+**What Lives in Package-Specific Locations**:
+
+| Package | Examples (illustrative) | Rationale |
+|---------|------------------------|-----------|
+| `packages/cli/` | `SampleTerminalAdapter`, `SampleCLIService` | Terminal-specific UI concerns |
+| `apps/web/` | `SampleSessionService`, `SampleWebAdapter` | Browser/server-specific concerns |
+
+*Note: These are illustrative names. Real implementations depend on actual feature requirements.*
+
+**Directory Structure**:
+```
+packages/shared/src/
+├── interfaces/           # ALL interfaces (single source of truth)
+│   ├── logger.interface.ts        # Real - implemented in Phase 2
+│   ├── sample.interface.ts        # Illustrative pattern
+│   └── index.ts
+├── services/             # Shared business logic (MAJORITY lives here)
+│   ├── sample.service.ts          # Illustrative pattern
+│   └── index.ts
+├── adapters/             # Shared infrastructure (MAJORITY lives here)
+│   ├── pino-logger.adapter.ts     # Real - implemented in Phase 2
+│   ├── sample-storage.adapter.ts  # Illustrative pattern
+│   └── index.ts
+├── fakes/                # ALL fakes (colocated with interfaces)
+│   ├── fake-logger.ts             # Real - implemented in Phase 2
+│   ├── fake-sample-adapter.ts     # Illustrative pattern
+│   └── index.ts
+├── types/                # Shared DTOs and type definitions
+│   ├── sample-result.ts           # Illustrative pattern
+│   └── index.ts
+└── index.ts              # Package exports
+```
+
+**Why This Matters**: When you add a new capability, the interface, adapter, fake, and service all go in `@chainglass/shared`. Both CLI and web use the same shared services. Only truly package-specific code (terminal formatting, browser sessions) lives outside shared.
+
+**Phase 2 Scope**: This phase establishes the pattern with ILogger as the first example. Future phases will add more interfaces/services/adapters following this same structure.
+
+**Deliverables**:
+- `ILogger` interface with all log levels
+- `FakeLogger` with test helper methods
+- `PinoLoggerAdapter` implementing ILogger
+- Contract tests verifying both implementations
+- Package exports properly configured
+
+**Dependencies**: Phase 1 complete (workspace functional)
+
+**Risks**:
+| Risk | Likelihood | Impact | Mitigation |
+|------|------------|--------|------------|
+| Fake contract drift (R1-07) | Low | Medium | Contract tests from day one |
+| Path resolution in tests (R1-04) | Medium | Medium | Verify imports resolve before continuing |
+
+### Tasks (TDD Approach)
+
+| #   | Status | Task | CS | Success Criteria | Log | Notes |
+|-----|--------|------|----|------------------|-----|-------|
+| 2.1 | [ ] | Create packages/shared/src structure | 1 | interfaces/, adapters/, fakes/, types/ directories | - | |
+| 2.2 | [ ] | Write ILogger interface | 1 | All log levels, child() method, typed parameters | - | I1-03: Interface first |
+| 2.3 | [ ] | Write FakeLogger implementing ILogger | 2 | Captures all log entries, test helpers for assertions | - | I1-03: Fake second |
+| 2.4 | [ ] | Write test for FakeLogger | 2 | Tests: log capture, level filtering, message matching, clear() | - | I1-03: Test third |
+| 2.5 | [ ] | Run test - expect RED | 1 | Test fails (FakeLogger not exported) | - | TDD: RED |
+| 2.6 | [ ] | Fix exports, run test - expect GREEN | 1 | All FakeLogger tests pass | - | TDD: GREEN |
+| 2.7 | [ ] | Create logger contract tests | 2 | Shared test suite both fake and real must pass | - | R1-07 mitigation |
+| 2.8 | [ ] | Write PinoLoggerAdapter | 2 | Implements ILogger using pino | - | I1-03: Adapter last |
+| 2.9 | [ ] | Run contract tests for PinoLoggerAdapter | 1 | All contract tests pass | - | |
+| 2.10 | [ ] | Configure package exports | 1 | Exports: index, interfaces, fakes, adapters | - | |
+| 2.11 | [ ] | Write package build script | 1 | `pnpm -F @chainglass/shared build` succeeds | - | |
+| 2.12 | [ ] | Verify Phase 2 gate | 1 | Build + test pass, imports resolve from root test/ | - | GATE |
+
+### Test Examples
+
+```typescript
+// test/unit/shared/fake-logger.test.ts
+import { describe, it, expect, beforeEach } from 'vitest';
+import { FakeLogger, LogLevel } from '@chainglass/shared';
+
+describe('FakeLogger', () => {
+  let logger: FakeLogger;
+
+  beforeEach(() => {
+    logger = new FakeLogger();
+  });
+
+  it('should capture log entries at all levels', () => {
+    /**
+     * Purpose: Proves FakeLogger captures all log levels for test assertions
+     * Quality Contribution: Enables testing of logging behavior in services
+     * Acceptance Criteria:
+     * - All log levels captured
+     * - Entries contain level, message, data
+     */
+    logger.trace('trace msg');
+    logger.debug('debug msg');
+    logger.info('info msg');
+    logger.warn('warn msg');
+    logger.error('error msg', new Error('test'));
+    logger.fatal('fatal msg', new Error('critical'));
+
+    const entries = logger.getEntries();
+    expect(entries).toHaveLength(6);
+    expect(entries.map(e => e.level)).toEqual([
+      LogLevel.TRACE, LogLevel.DEBUG, LogLevel.INFO,
+      LogLevel.WARN, LogLevel.ERROR, LogLevel.FATAL
+    ]);
+  });
+
+  it('should filter entries by level', () => {
+    /**
+     * Purpose: Enables targeted assertions in tests
+     * Quality Contribution: Simplifies test assertions
+     */
+    logger.info('info 1');
+    logger.error('error 1', new Error('e1'));
+    logger.info('info 2');
+
+    const infoEntries = logger.getEntriesByLevel(LogLevel.INFO);
+    expect(infoEntries).toHaveLength(2);
+  });
+
+  it('should assert message was logged', () => {
+    /**
+     * Purpose: Provides ergonomic assertion API
+     * Quality Contribution: Makes tests readable
+     */
+    logger.info('Processing request', { requestId: '123' });
+
+    // Should not throw
+    logger.assertLoggedAtLevel(LogLevel.INFO, 'Processing request');
+
+    // Should throw for non-existent message
+    expect(() => {
+      logger.assertLoggedAtLevel(LogLevel.INFO, 'Non-existent');
+    }).toThrow();
+  });
+});
+
+// test/contracts/logger.contract.ts
+import { describe, it, expect } from 'vitest';
+import type { ILogger } from '@chainglass/shared';
+
+export function loggerContractTests(name: string, createLogger: () => ILogger) {
+  describe(`${name} implements ILogger contract`, () => {
+    it('should not throw when logging at any level', () => {
+      /**
+       * Purpose: Verifies interface compliance
+       * Quality Contribution: Ensures fakes match real behavior
+       */
+      const logger = createLogger();
+      expect(() => logger.trace('trace')).not.toThrow();
+      expect(() => logger.debug('debug')).not.toThrow();
+      expect(() => logger.info('info')).not.toThrow();
+      expect(() => logger.warn('warn')).not.toThrow();
+      expect(() => logger.error('error', new Error('e'))).not.toThrow();
+      expect(() => logger.fatal('fatal', new Error('f'))).not.toThrow();
+    });
+
+    it('should create child logger with metadata', () => {
+      /**
+       * Purpose: Verifies child logger creation
+       * Quality Contribution: Ensures context propagation works
+       */
+      const logger = createLogger();
+      const child = logger.child({ requestId: '123' });
+      expect(child).toBeDefined();
+      expect(() => child.info('child log')).not.toThrow();
+    });
+  });
+}
+```
+
+### Non-Happy-Path Coverage
+- [ ] Error with null message
+- [ ] Error with undefined data
+- [ ] Child logger with empty metadata
+
+### Acceptance Criteria
+- [ ] `pnpm -F @chainglass/shared build` succeeds
+- [ ] `pnpm -F @chainglass/shared test` passes
+- [ ] FakeLogger has assertLoggedAtLevel(), getEntries(), getEntriesByLevel(), clear()
+- [ ] Contract tests pass for both FakeLogger and PinoLoggerAdapter
+- [ ] `import { ILogger, FakeLogger } from '@chainglass/shared'` resolves
+
+---
+
+### Phase 3: Next.js App with Clean Architecture
+
+**Objective**: Create the Next.js web application with clean architecture patterns, DI container, and sample service demonstrating the pattern.
+
+#### Web App Architecture
+
+The web app at `apps/web/` imports most of its services and adapters from `@chainglass/shared`. Only web-specific concerns live in this package.
+
+**What the Web App Imports from Shared**:
+- All interfaces (`ILogger` (real), `ISampleService` (illustrative), etc.)
+- All shared services (`SampleService` (illustrative) - future: real business services)
+- All shared adapters (`PinoLoggerAdapter` (real), `SampleStorageAdapter` (illustrative))
+- All fakes for testing (`FakeLogger` (real), `FakeSampleAdapter` (illustrative))
+
+**What Lives in Web App Only** (illustrative - created as features require):
+| Component | Purpose |
+|-----------|---------|
+| `services/SampleSessionService` | Illustrative: web-specific session handling |
+| `adapters/SampleWebAdapter` | Illustrative: browser-specific concerns |
+| `lib/di-container.ts` | Web-specific DI wiring (real - created in Phase 3) |
+
+*Note: "Sample*" names are placeholders. Real web-specific implementations depend on feature requirements.*
+
+**Directory Structure**:
+```
+apps/web/src/
+├── app/                    # Next.js App Router pages
+├── services/               # Web-ONLY services (minimal - most in shared)
+├── adapters/               # Web-ONLY adapters (minimal - most in shared)
+└── lib/
+    └── di-container.ts     # Wires shared + web-specific together
+```
+
+**Phase 3 Scope**: This phase creates the DI container that wires `@chainglass/shared` services/adapters. A `SampleService` demonstrates the pattern - it's intentionally simple to show how services receive adapters via DI.
+
+**Deliverables**:
+- Next.js 15 app with App Router
+- DI container setup with child container pattern
+- Sample service demonstrating adapter injection
+- Tests using FakeLogger
+- Clean architecture directory structure
+
+**Dependencies**: Phase 2 complete (shared package buildable)
+
+**Risks**:
+| Risk | Likelihood | Impact | Mitigation |
+|------|------------|--------|------------|
+| TSyringe in RSC (R1-03) | Medium | High | Decorator-free pattern, test RSC rendering |
+| Architecture boundary violation (R1-05) | Low | High | Add check-architecture command early |
+
+### Tasks (TDD Approach)
+
+| #   | Status | Task | CS | Success Criteria | Log | Notes |
+|-----|--------|------|----|------------------|-----|-------|
+| 3.1 | [ ] | Create Next.js app structure | 2 | `create-next-app` with App Router, TypeScript | - | |
+| 3.2 | [ ] | Create services/ and adapters/ directories | 1 | Directory structure for clean architecture | - | |
+| 3.3 | [ ] | Write test for DI container | 2 | Tests: production container, test container, isolation | - | TDD: RED |
+| 3.4 | [ ] | Implement DI container with child containers | 2 | createProductionContainer(), createTestContainer() | - | I1-04 |
+| 3.5 | [ ] | Run DI tests - expect GREEN | 1 | All container tests pass | - | TDD: GREEN |
+| 3.6 | [ ] | Write test for sample service | 2 | Tests: processes input, logs operations, uses injected logger | - | TDD: RED |
+| 3.7 | [ ] | Implement SampleService | 2 | Accepts ILogger via constructor, business logic | - | |
+| 3.8 | [ ] | Run service tests - expect GREEN | 1 | All service tests pass with FakeLogger | - | TDD: GREEN |
+| 3.9 | [ ] | Create minimal app/page.tsx | 1 | Home page renders without errors | - | |
+| 3.10 | [ ] | Create health check API route | 1 | /api/health returns { status: 'ok' } | - | |
+| 3.11 | [ ] | Add architecture check command | 2 | `just check-architecture` detects service→adapter imports | - | R1-05 |
+| 3.12 | [ ] | Verify Phase 3 gate | 1 | `just dev` starts server, `just test` passes | - | GATE |
+
+### Test Examples
+
+```typescript
+// test/unit/web/di-container.test.ts
+import { describe, it, expect, beforeEach } from 'vitest';
+import { container } from 'tsyringe';
+import {
+  createProductionContainer,
+  createTestContainer,
+} from '@/lib/di-container';
+import { ILogger, FakeLogger, PinoLoggerAdapter } from '@chainglass/shared';
+
+describe('DI Container', () => {
+  beforeEach(() => {
+    container.clearInstances();
+  });
+
+  it('should create production container with real adapters', () => {
+    /**
+     * Purpose: Verifies production wiring
+     * Quality Contribution: Ensures real adapters used in production
+     */
+    const prodContainer = createProductionContainer();
+    const logger = prodContainer.resolve<ILogger>('ILogger');
+
+    expect(logger).toBeInstanceOf(PinoLoggerAdapter);
+  });
+
+  it('should create test container with fakes', () => {
+    /**
+     * Purpose: Verifies test wiring
+     * Quality Contribution: Ensures tests use fakes
+     */
+    const testContainer = createTestContainer();
+    const logger = testContainer.resolve<ILogger>('ILogger');
+
+    expect(logger).toBeInstanceOf(FakeLogger);
+  });
+
+  it('should isolate containers from each other', () => {
+    /**
+     * Purpose: Prevents test pollution
+     * Quality Contribution: Eliminates flaky tests from DI leakage
+     */
+    const container1 = createTestContainer();
+    const container2 = createTestContainer();
+
+    const logger1 = container1.resolve<ILogger>('ILogger') as FakeLogger;
+    const logger2 = container2.resolve<ILogger>('ILogger') as FakeLogger;
+
+    logger1.info('container 1 message');
+
+    expect(logger1.getEntries()).toHaveLength(1);
+    expect(logger2.getEntries()).toHaveLength(0);
+  });
+});
+
+// test/unit/web/sample-service.test.ts
+import { describe, it, expect, beforeEach } from 'vitest';
+import { SampleService } from '@/services/sample.service';
+import { FakeLogger, LogLevel } from '@chainglass/shared';
+
+describe('SampleService', () => {
+  let service: SampleService;
+  let fakeLogger: FakeLogger;
+
+  beforeEach(() => {
+    fakeLogger = new FakeLogger();
+    service = new SampleService(fakeLogger);
+  });
+
+  it('should process input and return result', async () => {
+    /**
+     * Purpose: Verifies core business logic
+     * Quality Contribution: Ensures processing works correctly
+     */
+    const result = await service.doSomething('test-input');
+
+    expect(result).toBe('Processed: test-input');
+  });
+
+  it('should log processing operations', async () => {
+    /**
+     * Purpose: Verifies observability
+     * Quality Contribution: Ensures operations are logged for debugging
+     */
+    await service.doSomething('test');
+
+    fakeLogger.assertLoggedAtLevel(LogLevel.INFO, 'Processing input');
+    fakeLogger.assertLoggedAtLevel(LogLevel.INFO, 'Processing complete');
+  });
+
+  it('should include input in log metadata', async () => {
+    /**
+     * Purpose: Verifies structured logging
+     * Quality Contribution: Ensures context is captured in logs
+     */
+    await service.doSomething('my-value');
+
+    const entries = fakeLogger.getEntriesByLevel(LogLevel.INFO);
+    const inputEntry = entries.find(e => e.message.includes('Processing input'));
+
+    expect(inputEntry?.data?.input).toBe('my-value');
+  });
+});
+```
+
+### Non-Happy-Path Coverage
+- [ ] Service handles null input gracefully
+- [ ] Container handles unregistered token
+- [ ] RSC page renders without DI errors
+
+### Acceptance Criteria
+- [ ] `just dev` starts Next.js on localhost:3000
+- [ ] `/api/health` returns `{ status: 'ok' }`
+- [ ] All DI container tests pass
+- [ ] All sample service tests pass
+- [ ] `just check-architecture` reports no violations
+- [ ] TypeScript strict mode passes
+
+---
+
+### Phase 4: CLI Package
+
+**Objective**: Create the CLI package with Commander.js, `cg` command entry point, and bundled distribution via esbuild.
+
+#### CLI Architecture
+
+The CLI at `packages/cli/` imports most of its services and adapters from `@chainglass/shared`. Only CLI-specific concerns (terminal UI, command parsing) live in this package.
+
+**What the CLI Imports from Shared**:
+- All interfaces (`ILogger` (real), `ISampleService` (illustrative), etc.)
+- All shared services (`SampleService` (illustrative) - future: real business services)
+- All shared adapters (`PinoLoggerAdapter` (real), `SampleStorageAdapter` (illustrative))
+- All fakes for testing (`FakeLogger` (real), `FakeSampleAdapter` (illustrative))
+
+**What Lives in CLI Only** (illustrative - created as features require):
+| Component | Purpose |
+|-----------|---------|
+| `bin/cg.ts` | Entry point with shebang (real - created in Phase 4) |
+| `commands/*.ts` | Commander.js command definitions (real - created in Phase 4) |
+| `adapters/SampleTerminalAdapter` | Illustrative: terminal output formatting |
+| `services/SampleCLIService` | Illustrative: CLI-specific operations |
+
+*Note: "Sample*" names are placeholders. Real CLI-specific implementations depend on feature requirements.*
+
+**Directory Structure**:
+```
+packages/cli/src/
+├── bin/
+│   └── cg.ts               # #!/usr/bin/env node entry (real)
+├── commands/               # Command handlers (real)
+│   ├── dev.command.ts
+│   ├── mcp.command.ts
+│   └── index.ts
+├── services/               # CLI-ONLY services (minimal - most in shared)
+├── adapters/               # CLI-ONLY adapters (minimal - most in shared)
+└── index.ts
+```
+
+**Phase 4 Scope**: This phase creates the CLI entry point and command structure. Commands like `cg dev` and `cg mcp` orchestrate shared services. Future commands will use real services from `@chainglass/shared`.
+
+**Deliverables**:
+- Commander.js CLI with `--help`, `--version`, `dev`, `mcp` commands
+- esbuild bundling to `dist/cli.js`
+- `npm link` workflow functional
+- Development and production build modes
+
+**Dependencies**: Phase 2 complete (shared package), Phase 3 partial (Next.js can start)
+
+**Risks**:
+| Risk | Likelihood | Impact | Mitigation |
+|------|------------|--------|------------|
+| Bundle includes wrong deps (R1-06) | Medium | High | Test bundle in isolation |
+| workspace:* not resolved (R1-06) | Low | High | Use `packages: 'bundle'` in esbuild |
+
+### Tasks (TDD Approach)
+
+| #   | Status | Task | CS | Success Criteria | Log | Notes |
+|-----|--------|------|----|------------------|-----|-------|
+| 4.1 | [ ] | Create packages/cli/src structure | 1 | bin/, commands/ directories | - | |
+| 4.2 | [ ] | Write test for CLI argument parsing | 2 | Tests: --help, --version, dev command, mcp command | - | TDD: RED |
+| 4.3 | [ ] | Implement cg.ts entry point | 2 | Commander program with commands | - | |
+| 4.4 | [ ] | Implement help and version commands | 1 | `cg --help` and `cg --version` work | - | |
+| 4.5 | [ ] | Run CLI tests - expect GREEN | 1 | All argument parsing tests pass | - | TDD: GREEN |
+| 4.6 | [ ] | Write test for dev command | 2 | Tests: starts Next.js, handles missing web app | - | TDD: RED |
+| 4.7 | [ ] | Implement dev command | 2 | Spawns `next dev` in apps/web | - | |
+| 4.8 | [ ] | Run dev tests - expect GREEN | 1 | Dev command tests pass | - | TDD: GREEN |
+| 4.9 | [ ] | Create esbuild configuration | 2 | Dev mode (external shared) + prod mode (bundled) | - | I1-05, R1-06 |
+| 4.10 | [ ] | Add CLI build scripts | 1 | `pnpm -F @chainglass/cli build` creates dist/cli.js | - | |
+| 4.11 | [ ] | Test bundle in isolation | 2 | Copy dist/cli.js to /tmp, run without node_modules | - | R1-06 safety check |
+| 4.12 | [ ] | Test npm link workflow | 1 | `npm link && cg --help` works | - | |
+| 4.13 | [ ] | Verify Phase 4 gate | 1 | Built CLI, npm link, `cg dev` starts server | - | GATE |
+
+### Test Examples
+
+```typescript
+// test/unit/cli/cli-parser.test.ts
+import { describe, it, expect } from 'vitest';
+import { createProgram } from '@chainglass/cli';
+
+describe('CLI Parser', () => {
+  it('should parse --help flag', () => {
+    /**
+     * Purpose: Verifies help output
+     * Quality Contribution: Ensures CLI is discoverable
+     */
+    const program = createProgram();
+    const output = program.helpInformation();
+
+    expect(output).toContain('cg');
+    expect(output).toContain('dev');
+    expect(output).toContain('mcp');
+  });
+
+  it('should parse dev command', () => {
+    /**
+     * Purpose: Verifies dev command parsing
+     * Quality Contribution: Ensures CLI routes to correct handler
+     */
+    const program = createProgram();
+    const devCmd = program.commands.find(c => c.name() === 'dev');
+
+    expect(devCmd).toBeDefined();
+    expect(devCmd?.description()).toContain('development');
+  });
+
+  it('should parse mcp command with options', () => {
+    /**
+     * Purpose: Verifies MCP command parsing
+     * Quality Contribution: Ensures MCP options are available
+     */
+    const program = createProgram();
+    const mcpCmd = program.commands.find(c => c.name() === 'mcp');
+
+    expect(mcpCmd).toBeDefined();
+    expect(mcpCmd?.options.some(o => o.flags.includes('--stdio'))).toBe(true);
+  });
+});
+
+// test/integration/cli-dev.test.ts
+import { describe, it, expect, afterEach } from 'vitest';
+import { spawn, ChildProcess } from 'child_process';
+
+describe('CLI dev command', () => {
+  let proc: ChildProcess | null = null;
+
+  afterEach(() => {
+    if (proc) {
+      proc.kill();
+      proc = null;
+    }
+  });
+
+  it('should start Next.js development server', async () => {
+    /**
+     * Purpose: Verifies dev command starts server
+     * Quality Contribution: Ensures developers can use `cg dev`
+     */
+    proc = spawn('node', ['dist/cli.js', 'dev'], {
+      cwd: process.cwd(),
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    const output = await new Promise<string>((resolve) => {
+      let data = '';
+      proc!.stdout?.on('data', (chunk) => {
+        data += chunk.toString();
+        if (data.includes('Ready') || data.includes('localhost:3000')) {
+          resolve(data);
+        }
+      });
+      setTimeout(() => resolve(data), 10000);
+    });
+
+    expect(output).toMatch(/Ready|localhost:3000|started/i);
+  });
+});
+```
+
+### Non-Happy-Path Coverage
+- [ ] CLI handles unknown command
+- [ ] dev command handles missing apps/web
+- [ ] Bundle handles missing lazy-loaded deps gracefully
+
+### Acceptance Criteria
+- [ ] `pnpm -F @chainglass/cli build` creates dist/cli.js
+- [ ] Bundle size < 1MB
+- [ ] `npm link && cg --help` shows help
+- [ ] `cg dev` starts Next.js development server
+- [ ] Bundle works without node_modules present
+
+---
+
+### Phase 5: MCP Server Package
+
+**Objective**: Create the MCP server package with basic structure, stdio transport, and CLI integration via `cg mcp`.
+
+**Deliverables**:
+- Basic MCP server structure
+- stdio transport support
+- CLI `cg mcp` command integration
+- Strict stdout discipline for protocol compliance
+
+**Dependencies**: Phase 4 complete (CLI functional)
+
+**Risks**:
+| Risk | Likelihood | Impact | Mitigation |
+|------|------------|--------|------------|
+| stdout pollution (R1-08) | Medium | Medium | Test stdio cleanliness explicitly |
+
+### Tasks (TDD Approach)
+
+| #   | Status | Task | CS | Success Criteria | Log | Notes |
+|-----|--------|------|----|------------------|-----|-------|
+| 5.1 | [ ] | Create packages/mcp-server/src structure | 1 | server.ts, index.ts | - | |
+| 5.2 | [ ] | Write test for MCP server initialization | 2 | Tests: server creates, handles stdio mode | - | TDD: RED |
+| 5.3 | [ ] | Implement basic MCP server | 2 | Server initializes, handles initialize request | - | |
+| 5.4 | [ ] | Run server tests - expect GREEN | 1 | Server initialization tests pass | - | TDD: GREEN |
+| 5.5 | [ ] | Write test for stdio cleanliness | 2 | Tests: no stdout before input, only JSON-RPC on stdout | - | R1-08 |
+| 5.6 | [ ] | Implement strict stdout discipline | 2 | Redirect logs to stderr in stdio mode | - | R1-08 |
+| 5.7 | [ ] | Run stdio tests - expect GREEN | 1 | Stdio cleanliness tests pass | - | TDD: GREEN |
+| 5.8 | [ ] | Write test for mcp command | 2 | Tests: `cg mcp --help`, `cg mcp --stdio` | - | TDD: RED |
+| 5.9 | [ ] | Implement mcp command in CLI | 2 | Lazy-loads MCP server, passes options | - | |
+| 5.10 | [ ] | Run mcp command tests - expect GREEN | 1 | MCP command tests pass | - | TDD: GREEN |
+| 5.11 | [ ] | Verify Phase 5 gate | 1 | `cg mcp --help` shows options, stdio works | - | GATE |
+
+### Test Examples
+
+```typescript
+// test/integration/mcp-stdio.test.ts
+import { describe, it, expect, afterEach } from 'vitest';
+import { spawn, ChildProcess } from 'child_process';
+
+describe('MCP stdio transport', () => {
+  let proc: ChildProcess | null = null;
+
+  afterEach(() => {
+    if (proc) {
+      proc.kill();
+      proc = null;
+    }
+  });
+
+  it('should not output anything to stdout before receiving input', async () => {
+    /**
+     * Purpose: Verifies protocol compliance
+     * Quality Contribution: Prevents JSON-RPC corruption
+     */
+    proc = spawn('node', ['dist/cli.js', 'mcp', '--stdio'], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+
+    const stdout: string[] = [];
+    proc.stdout?.on('data', (data) => stdout.push(data.toString()));
+
+    // Wait briefly for any startup messages
+    await new Promise((r) => setTimeout(r, 500));
+
+    // Should have no stdout output
+    expect(stdout.join('')).toBe('');
+  });
+
+  it('should respond to valid JSON-RPC request', async () => {
+    /**
+     * Purpose: Verifies MCP protocol works
+     * Quality Contribution: Ensures AI agents can communicate
+     */
+    proc = spawn('node', ['dist/cli.js', 'mcp', '--stdio'], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+
+    const request = JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'initialize',
+      params: {
+        protocolVersion: '2024-11-05',
+        capabilities: {},
+        clientInfo: { name: 'test', version: '1.0.0' },
+      },
+    });
+
+    proc.stdin?.write(request + '\n');
+
+    const response = await new Promise<string>((resolve) => {
+      proc!.stdout?.once('data', (data) => resolve(data.toString()));
+      setTimeout(() => resolve(''), 5000);
+    });
+
+    const parsed = JSON.parse(response);
+    expect(parsed.jsonrpc).toBe('2.0');
+    expect(parsed.id).toBe(1);
+    expect(parsed.result).toBeDefined();
+  });
+});
+```
+
+### Non-Happy-Path Coverage
+- [ ] Invalid JSON-RPC request
+- [ ] Unknown method
+- [ ] Server handles shutdown gracefully
+
+### Acceptance Criteria
+- [ ] `cg mcp --help` shows available options
+- [ ] `cg mcp --stdio` starts without stdout pollution
+- [ ] Valid JSON-RPC requests get valid responses
+- [ ] Errors go to stderr, not stdout
+
+---
+
+### Phase 6: Documentation & Polish
+
+**Objective**: Create architecture documentation, update README, verify all commands work, and ensure all acceptance criteria from spec pass.
+
+**Deliverables**:
+- `docs/rules/architecture.md` with clean architecture patterns
+- Updated `README.md` with getting started guide
+- All 10 spec acceptance criteria verified
+- Full quality check passing
+
+**Dependencies**: All previous phases complete
+
+**Risks**:
+| Risk | Likelihood | Impact | Mitigation |
+|------|------------|--------|------------|
+| Documentation drift | Low | Low | Write docs from actual working code |
+
+### Tasks (Documentation Approach)
+
+| #   | Status | Task | CS | Success Criteria | Log | Notes |
+|-----|--------|------|----|------------------|-----|-------|
+| 6.1 | [ ] | Survey existing docs structure | 1 | Document what exists, plan new docs | - | |
+| 6.2 | [ ] | Create docs/rules/architecture.md | 2 | Dependency direction, service/adapter patterns, DI usage | - | |
+| 6.3 | [ ] | Update README.md | 2 | Prerequisites, installation, getting started, commands table | - | |
+| 6.4 | [ ] | Verify AC-1: Monorepo Structure | 1 | `pnpm install` links all packages | - | |
+| 6.5 | [ ] | Verify AC-2: Development Server | 1 | `just dev` starts localhost:3000 | - | |
+| 6.6 | [ ] | Verify AC-3: Test Execution | 1 | `just test` passes, <5s | - | |
+| 6.7 | [ ] | Verify AC-4: Linting and Formatting | 1 | `just lint`, `just format`, `just fft` work | - | |
+| 6.8 | [ ] | Verify AC-5: CLI Availability | 1 | `npm link && cg --help` works | - | |
+| 6.9 | [ ] | Verify AC-6: CLI Subcommands | 1 | `cg dev` and `cg mcp` work | - | |
+| 6.10 | [ ] | Verify AC-7: Clean Architecture | 1 | Import restrictions enforced | - | |
+| 6.11 | [ ] | Verify AC-8: Dependency Injection | 1 | Services receive injected adapters | - | |
+| 6.12 | [ ] | Verify AC-9: Type Check | 1 | `just typecheck` passes | - | |
+| 6.13 | [ ] | Verify AC-10: Build Pipeline | 1 | `just build` creates dist/cli.js, cached builds <1s | - | |
+| 6.14 | [ ] | Run full quality suite | 1 | `just check` passes | - | GATE |
+
+### Documentation Content Outline
+
+**docs/rules/architecture.md**:
+1. Overview and Principles
+2. Dependency Direction (Services ← Adapters)
+3. Layer Rules Table
+4. Interface-First Design
+5. DI Container Usage
+6. Testing with Fakes
+7. Adding New Services (step-by-step)
+8. Adding New Adapters (step-by-step)
+
+**README.md**:
+1. What is Chainglass
+2. Prerequisites (Node 18+, pnpm, Just)
+3. Quick Start (`just install && just dev`)
+4. Common Commands Table
+5. Link to docs/rules/architecture.md
+
+### Acceptance Criteria
+- [ ] docs/rules/architecture.md is complete and accurate
+- [ ] README.md has quick-start that works
+- [ ] All 10 spec acceptance criteria pass
+- [ ] `just check` passes all quality gates
+- [ ] No broken links in documentation
+
+---
+
+## Cross-Cutting Concerns
+
+### Security Considerations
+
+- **No secrets in code**: Environment variables for any sensitive config
+- **Input validation**: CLI validates arguments before processing
+- **Dependency audit**: `pnpm audit` in CI pipeline (future)
+
+### Observability
+
+- **Logging**: ILogger interface used throughout
+- **Structured logs**: Pino JSON format in production
+- **Log levels**: Configurable via LOG_LEVEL env var
+- **Health check**: `/api/health` endpoint for monitoring
+
+### Documentation
+
+**Location**: Hybrid (README.md + docs/rules/)
+
+**Structure**:
+- `README.md`: Getting started, prerequisites, common commands
+- `docs/rules/architecture.md`: Clean architecture patterns and rules
+
+**Target Audience**:
+- README: New developers, first 5 minutes
+- docs/rules/: Feature implementers, pattern reference
+
+**Maintenance**: Update when patterns change; README stable after setup
+
+---
+
+## Complexity Tracking
+
+| Component | CS | Label | Breakdown (S,I,D,N,F,T) | Justification | Mitigation |
+|-----------|-----|-------|------------------------|---------------|------------|
+| Monorepo bootstrap | 3 | Medium | S=1,I=1,D=0,N=1,F=0,T=0 | pnpm+Turborepo+TS coordination | Staged bootstrap, verification gates |
+| DI container | 3 | Medium | S=1,I=1,D=0,N=1,F=0,T=0 | TSyringe in RSC, child containers | Decorator-free pattern |
+| CLI bundling | 3 | Medium | S=1,I=1,D=0,N=0,F=1,T=0 | workspace:* resolution, bundle size | Two build modes, isolation test |
+| Architecture enforcement | 2 | Small | S=1,I=0,D=0,N=1,F=0,T=0 | No native TS support | grep-based check, CI gate |
+
+---
+
+## Progress Tracking
+
+### Phase Completion Checklist
+
+- [ ] Phase 1: Monorepo Foundation - NOT STARTED
+- [ ] Phase 2: Shared Package - NOT STARTED
+- [ ] Phase 3: Next.js App with Clean Architecture - NOT STARTED
+- [ ] Phase 4: CLI Package - NOT STARTED
+- [ ] Phase 5: MCP Server Package - NOT STARTED
+- [ ] Phase 6: Documentation & Polish - NOT STARTED
+
+### STOP Rule
+
+**IMPORTANT**: This plan must be validated before creating detailed task dossiers.
+
+After reviewing this plan:
+1. Run `/plan-4-complete-the-plan` to validate readiness
+2. Only proceed to `/plan-5-phase-tasks-and-brief` after validation passes
+
+---
+
+## Deviation Ledger
+
+| Principle Violated | Why Needed | Simpler Alternative Rejected | Risk Mitigation |
+|-------------------|------------|------------------------------|-----------------|
+| (none) | - | - | - |
+
+No constitution or architecture deviations required for this greenfield project setup.
+
+---
+
+## ADR Ledger
+
+| ADR | Status | Affects Phases | Notes |
+|-----|--------|----------------|-------|
+| ADR-001: Monorepo Structure | SEED (in spec) | 1, 2, 3, 4, 5 | pnpm + Turborepo selected |
+| ADR-002: Dependency Injection | SEED (in spec) | 2, 3, 4, 5 | TSyringe selected |
+| ADR-003: Test Strategy | SEED (in spec) | All | Vitest + fakes over mocks |
+
+Note: ADR seeds defined in spec. Consider running `/plan-3a-adr` to formalize before implementation.
+
+---
+
+## Change Footnotes Ledger
+
+**NOTE**: This section will be populated during implementation by plan-6a-update-progress.
+
+**Footnote Numbering Authority**: plan-6a-update-progress is the single source of truth for footnote numbering.
+
+[^1]: [To be added during implementation via plan-6a]
+[^2]: [To be added during implementation via plan-6a]
+[^3]: [To be added during implementation via plan-6a]
+
+---
+
+**Plan Created**: 2026-01-18
+**Plan Location**: `docs/plans/001-project-setup/project-setup-plan.md`
+**Next Step**: Run `/plan-4-complete-the-plan` to validate readiness
