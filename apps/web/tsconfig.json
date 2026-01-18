@@ -3,7 +3,6 @@
   "compilerOptions": {
     "rootDir": ".",
     "outDir": "./dist",
-    "composite": true,
     "noEmit": false,
     "declaration": true,
     "declarationMap": true,
@@ -15,13 +14,14 @@
       }
     ],
     "incremental": true,
-    "allowJs": true
+    "allowJs": true,
+    "paths": {
+      "@chainglass/shared": ["../../packages/shared/dist"],
+      "@chainglass/shared/*": ["../../packages/shared/dist/*"],
+      "@chainglass/web": ["./src"],
+      "@chainglass/web/*": ["./src/*"]
+    }
   },
   "include": ["src/**/*", "app/**/*", "next-env.d.ts", ".next/types/**/*.ts"],
-  "exclude": ["node_modules", "dist", ".next"],
-  "references": [
-    {
-      "path": "../../packages/shared"
-    }
-  ]
+  "exclude": ["node_modules", "dist", ".next"]
 }

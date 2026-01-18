@@ -3,7 +3,7 @@
 **Spec**: [../../project-setup-spec.md](../../project-setup-spec.md)
 **Plan**: [../../project-setup-plan.md](../../project-setup-plan.md)
 **Date**: 2026-01-18
-**Status**: PENDING APPROVAL
+**Status**: COMPLETE
 
 ---
 
@@ -115,18 +115,18 @@ flowchart TD
     end
 
     subgraph Phase["Phase 3: Next.js App"]
-        T001["T001: Next.js app structure"]:::pending
-        T002["T002: Clean arch directories"]:::pending
-        T002a["T002a: Test fixtures"]:::pending
-        T003["T003: DI container tests"]:::pending
-        T004["T004: DI container impl"]:::pending
-        T005["T005: DI tests GREEN"]:::pending
-        T006["T006: SampleService tests"]:::pending
-        T007["T007: SampleService impl"]:::pending
-        T008["T008: Service tests GREEN"]:::pending
-        T009["T009: Minimal page.tsx"]:::pending
-        T010["T010: Health check API"]:::pending
-        T011["T011: Gate verification"]:::pending
+        T001["T001: Next.js app structure ✓"]:::completed
+        T002["T002: Clean arch directories ✓"]:::completed
+        T002a["T002a: Test fixtures ✓"]:::completed
+        T003["T003: DI container tests ✓"]:::completed
+        T004["T004: DI container impl ✓"]:::completed
+        T005["T005: DI tests GREEN ✓"]:::completed
+        T006["T006: SampleService tests ✓"]:::completed
+        T007["T007: SampleService impl ✓"]:::completed
+        T008["T008: Service tests GREEN ✓"]:::completed
+        T009["T009: Minimal page.tsx ✓"]:::completed
+        T010["T010: Health check API ✓"]:::completed
+        T011["T011: Gate verification ✓"]:::completed
 
         T001 --> T002
         T002 --> T002a
@@ -142,16 +142,16 @@ flowchart TD
     end
 
     subgraph Files["Files"]
-        F1["/apps/web/src/lib/di-container.ts"]:::pending
-        F2["/apps/web/src/services/sample.service.ts"]:::pending
+        F1["/apps/web/src/lib/di-container.ts ✓"]:::completed
+        F2["/apps/web/src/services/sample.service.ts ✓"]:::completed
         F3["/apps/web/app/page.tsx"]:::pending
-        F4["/apps/web/app/api/health/route.ts"]:::pending
-        F5["/test/base/web-test.ts"]:::pending
+        F4["/apps/web/app/api/health/route.ts ✓"]:::completed
+        F5["/test/base/web-test.ts ✓"]:::completed
     end
 
     subgraph Tests["Tests"]
-        T_DI["/test/unit/web/di-container.test.ts"]:::pending
-        T_Svc["/test/unit/web/sample-service.test.ts"]:::pending
+        T_DI["/test/unit/web/di-container.test.ts ✓"]:::completed
+        T_Svc["/test/unit/web/sample-service.test.ts ✓"]:::completed
     end
 
     %% Dependencies from shared
@@ -177,18 +177,18 @@ flowchart TD
 
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
-| T001 | Next.js App | `/apps/web/` existing structure | ⬜ Pending | Verify/update create-next-app output |
-| T002 | Directory Structure | `/apps/web/src/services/`, `/apps/web/src/adapters/`, `/apps/web/src/lib/` | ⬜ Pending | Clean architecture directories |
-| T002a | Test Infrastructure | `/test/base/web-test.ts`, `/test/vitest.config.ts` | ⬜ Pending | Vitest fixtures for DI (DYK-04) |
-| T003 | DI Container Tests | `/test/unit/web/di-container.test.ts` | ⬜ Pending | TDD: RED - Uses web-test fixtures |
-| T004 | DI Container | `/apps/web/src/lib/di-container.ts` | ⬜ Pending | Child container pattern per Critical Discovery 04 |
-| T005 | DI Verification | Tests | ⬜ Pending | TDD: GREEN |
-| T006 | SampleService Tests | `/test/unit/web/sample-service.test.ts` | ⬜ Pending | TDD: RED |
-| T007 | SampleService | `/apps/web/src/services/sample.service.ts` | ⬜ Pending | Demonstrates adapter injection |
-| T008 | Service Verification | Tests | ⬜ Pending | TDD: GREEN |
-| T009 | Home Page | `/apps/web/app/page.tsx` | ⬜ Pending | Minimal page that renders |
-| T010 | Health API | `/apps/web/app/api/health/route.ts` | ⬜ Pending | Returns `{ status: 'ok' }` |
-| T011 | Gate Verification | All | ⬜ Pending | `just dev`, `just test`, `just build` pass |
+| T001 | Next.js App | `/apps/web/` existing structure | ✅ Complete | Verified complete from Phase 1 |
+| T002 | Directory Structure | `/apps/web/src/services/`, `/apps/web/src/adapters/`, `/apps/web/src/lib/` | ✅ Complete | Clean architecture directories |
+| T002a | Test Infrastructure | `/test/base/web-test.ts`, `/test/vitest.config.ts` | ✅ Complete | Vitest fixtures for DI (DYK-04) |
+| T003 | DI Container Tests | `/test/unit/web/di-container.test.ts` | ✅ Complete | TDD: RED achieved |
+| T004 | DI Container | `/apps/web/src/lib/di-container.ts` | ✅ Complete | Factory-based, decorator-free |
+| T005 | DI Verification | Tests | ✅ Complete | TDD: GREEN - 4/4 pass |
+| T006 | SampleService Tests | `/test/unit/web/sample-service.test.ts` | ✅ Complete | TDD: RED achieved |
+| T007 | SampleService | `/apps/web/src/services/sample.service.ts` | ✅ Complete | REFERENCE IMPLEMENTATION with DI |
+| T008 | Service Verification | Tests | ✅ Complete | TDD: GREEN - 3/3 pass |
+| T009 | Home Page | `/apps/web/app/page.tsx` | ✅ Complete | Verified renders correctly |
+| T010 | Health API | `/apps/web/app/api/health/route.ts` | ✅ Complete | Returns `{ status: 'ok' }` |
+| T011 | Gate Verification | All | ✅ Complete | Gate passed - all criteria met |
 
 ---
 
@@ -196,18 +196,18 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|------|------|-----|------|--------------|------------------|------------|----------|-------|
-| [ ] | T001 | Verify/update Next.js app structure with App Router | 1 | Setup | – | `/Users/jordanknight/substrate/chainglass/apps/web/` | `pnpm -F @chainglass/web dev` starts without errors | – | Existing minimal structure from Phase 1; verified complete (DYK-02) |
-| [ ] | T002 | Create services/, adapters/, lib/ directories | 1 | Setup | T001 | `/Users/jordanknight/substrate/chainglass/apps/web/src/services/`, `/Users/jordanknight/substrate/chainglass/apps/web/src/adapters/`, `/Users/jordanknight/substrate/chainglass/apps/web/src/lib/` | Directories exist with .gitkeep or index.ts | – | Clean architecture structure |
-| [ ] | T002a | Create test/base/web-test.ts with Vitest fixtures | 2 | Setup | T002 | `/Users/jordanknight/substrate/chainglass/test/base/web-test.ts`, `/Users/jordanknight/substrate/chainglass/test/vitest.config.ts` | `@test/base/web-test` import resolves; fixtures provide container + logger | – | DRY test infrastructure (DYK-04) |
-| [ ] | T003 | Write tests for DI container | 2 | Test | T002a | `/Users/jordanknight/substrate/chainglass/test/unit/web/di-container.test.ts` | Tests compile, all fail (RED) | – | TDD: RED per Critical Discovery 04; use web-test fixtures |
-| [ ] | T004 | Implement DI container with child containers | 2 | Core | T003 | `/Users/jordanknight/substrate/chainglass/apps/web/src/lib/di-container.ts` | `createProductionContainer()`, `createTestContainer()` both resolve ILogger AND SampleService | – | Per Critical Discovery 04; decorator-free per Critical Discovery 02; explicit SampleService registration required (DYK-01) |
-| [ ] | T005 | Run DI container tests - expect GREEN | 1 | Test | T004 | `/Users/jordanknight/substrate/chainglass/test/unit/web/di-container.test.ts` | All 4 DI tests pass | – | TDD: GREEN |
-| [ ] | T006 | Write tests for SampleService | 2 | Test | T005 | `/Users/jordanknight/substrate/chainglass/test/unit/web/sample-service.test.ts` | Tests compile, all fail (RED) | – | TDD: RED; tests use FakeLogger |
-| [ ] | T007 | Implement SampleService with ILogger injection | 2 | Core | T006 | `/Users/jordanknight/substrate/chainglass/apps/web/src/services/sample.service.ts` | Service accepts ILogger via constructor, has `doSomething()` method, includes REFERENCE IMPLEMENTATION header | – | Demonstrates DI pattern; add "DO NOT MODIFY FOR FEATURES" JSDoc (DYK-05) |
-| [ ] | T008 | Run SampleService tests - expect GREEN | 1 | Test | T007 | `/Users/jordanknight/substrate/chainglass/test/unit/web/sample-service.test.ts` | All 3 service tests pass | – | TDD: GREEN |
-| [ ] | T009 | Create minimal app/page.tsx | 1 | Core | T008 | `/Users/jordanknight/substrate/chainglass/apps/web/app/page.tsx` | Page renders at localhost:3000 without errors | – | Existing file - verify/update |
-| [ ] | T010 | Create health check API route | 1 | Core | T009 | `/Users/jordanknight/substrate/chainglass/apps/web/app/api/health/route.ts` | GET /api/health returns `{ status: 'ok' }` with 200 | – | – |
-| [ ] | T011 | Verify Phase 3 gate | 1 | Gate | T010 | All Phase 3 files | `just dev` starts, `just test` passes, `just build` succeeds | – | GATE; architecture enforcement via code review (DYK-03) |
+| [x] | T001 | Verify/update Next.js app structure with App Router | 1 | Setup | – | `/Users/jordanknight/substrate/chainglass/apps/web/` | `pnpm -F @chainglass/web dev` starts without errors | – | Existing minimal structure from Phase 1; verified complete (DYK-02) |
+| [x] | T002 | Create services/, adapters/, lib/ directories | 1 | Setup | T001 | `/Users/jordanknight/substrate/chainglass/apps/web/src/services/`, `/Users/jordanknight/substrate/chainglass/apps/web/src/adapters/`, `/Users/jordanknight/substrate/chainglass/apps/web/src/lib/` | Directories exist with .gitkeep or index.ts | – | Clean architecture structure |
+| [x] | T002a | Create test/base/web-test.ts with Vitest fixtures | 2 | Setup | T002 | `/Users/jordanknight/substrate/chainglass/test/base/web-test.ts`, `/Users/jordanknight/substrate/chainglass/test/vitest.config.ts` | `@test/base/web-test` import resolves; fixtures provide container + logger | – | DRY test infrastructure (DYK-04) |
+| [x] | T003 | Write tests for DI container | 2 | Test | T002a | `/Users/jordanknight/substrate/chainglass/test/unit/web/di-container.test.ts` | Tests compile, all fail (RED) | – | TDD: RED per Critical Discovery 04; use web-test fixtures |
+| [x] | T004 | Implement DI container with child containers | 2 | Core | T003 | `/Users/jordanknight/substrate/chainglass/apps/web/src/lib/di-container.ts` | `createProductionContainer()`, `createTestContainer()` both resolve ILogger AND SampleService | – | Per Critical Discovery 04; decorator-free per Critical Discovery 02; explicit SampleService registration required (DYK-01) |
+| [x] | T005 | Run DI container tests - expect GREEN | 1 | Test | T004 | `/Users/jordanknight/substrate/chainglass/test/unit/web/di-container.test.ts` | All 4 DI tests pass | – | TDD: GREEN |
+| [x] | T006 | Write tests for SampleService | 2 | Test | T005 | `/Users/jordanknight/substrate/chainglass/test/unit/web/sample-service.test.ts` | Tests compile, all fail (RED) | – | TDD: RED; tests use FakeLogger |
+| [x] | T007 | Implement SampleService with ILogger injection | 2 | Core | T006 | `/Users/jordanknight/substrate/chainglass/apps/web/src/services/sample.service.ts` | Service accepts ILogger via constructor, has `doSomething()` method, includes REFERENCE IMPLEMENTATION header | – | Demonstrates DI pattern; add "DO NOT MODIFY FOR FEATURES" JSDoc (DYK-05) |
+| [x] | T008 | Run SampleService tests - expect GREEN | 1 | Test | T007 | `/Users/jordanknight/substrate/chainglass/test/unit/web/sample-service.test.ts` | All 3 service tests pass | – | TDD: GREEN |
+| [x] | T009 | Create minimal app/page.tsx | 1 | Core | T008 | `/Users/jordanknight/substrate/chainglass/apps/web/app/page.tsx` | Page renders at localhost:3000 without errors | – | Existing file - verify/update |
+| [x] | T010 | Create health check API route | 1 | Core | T009 | `/Users/jordanknight/substrate/chainglass/apps/web/app/api/health/route.ts` | GET /api/health returns `{ status: 'ok' }` with 200 | – | – |
+| [x] | T011 | Verify Phase 3 gate | 1 | Gate | T010 | All Phase 3 files | `just dev` starts, `just test` passes, `just build` succeeds | – | GATE; architecture enforcement via code review (DYK-03) |
 
 ---
 
@@ -494,7 +494,7 @@ _Populated during implementation by plan-6a-update-progress._
 
 | Footnote | Task(s) | Files | Notes |
 |----------|---------|-------|-------|
-| | | | |
+| [^19] | T001-T011 + T002a | di-container.ts, sample.service.ts, health/route.ts, web-test.ts, *.test.ts | Phase 3 complete - 12 tasks, 25 tests |
 
 ---
 
@@ -516,7 +516,9 @@ _Populated during implementation by plan-6. Log anything of interest to your fut
 
 | Date | Task | Type | Discovery | Resolution | References |
 |------|------|------|-----------|------------|------------|
-| | | | | | |
+| 2026-01-18 | T004 | gotcha | TSyringe `useClass` fails with "TypeInfo not known" without decorators | Use `useFactory: () => new ClassName()` pattern instead | log#task-t004-di-container |
+| 2026-01-18 | T007 | gotcha | `require()` doesn't work in ESM test environments via Vitest | Use static imports at module level instead of lazy require() | log#task-t007-sampleservice |
+| 2026-01-18 | T011 | gotcha | Next.js build fails with "rootDir" error importing @chainglass/shared from src/ | Override tsconfig paths in web app to point to dist/ | log#task-t011-gate |
 
 **Types**: `gotcha` | `research-needed` | `unexpected-behavior` | `workaround` | `decision` | `debt` | `insight`
 
