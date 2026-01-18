@@ -45,7 +45,7 @@ Chainglass needs a robust, maintainable foundation for a spec-driven development
 
 ### Expected Outcomes
 
-- Developers productive in 5 minutes: `just install && just dev`
+- Developers productive quickly: `just install && just dev` (after installing prerequisites)
 - Clean architecture physically enforced via import restrictions
 - Sub-200ms test feedback for TDD flow
 - CLI accessible via `npx cg` or `npx chainglass`
@@ -392,19 +392,28 @@ test/                          # CENTRAL test suite
 
 ### Test Documentation
 
-Every test must include:
+Every test must include a Test Doc comment with these 5 mandatory fields:
+
 ```typescript
 test('should process input and log operations', async () => {
-  /**
-   * Purpose: Proves SampleService correctly processes input and logs
-   * Quality Contribution: Prevents silent failures in processing
-   * Acceptance Criteria:
-   * - Returns processed string
-   * - Logs processing start and completion
-   */
+  /*
+  Test Doc:
+  - Why: Business/regression reason - explains why this test exists and what triggered its creation
+  - Contract: Plain-English invariants - what must always be true for this test to pass
+  - Usage Notes: How to call the API being tested, any gotchas or edge cases to be aware of
+  - Quality Contribution: What bugs/failures this test catches, what regressions it prevents
+  - Worked Example: Concrete input/output summary showing expected behavior
+  */
   // ... test implementation
 });
 ```
+
+**Field Descriptions**:
+- **Why**: The business reason, bug fix, or regression that motivated this test. Answers "why does this test exist?"
+- **Contract**: The invariants being asserted in plain English. What must always hold true?
+- **Usage Notes**: How to use the API being tested, including any gotchas or common mistakes
+- **Quality Contribution**: What types of bugs or failures this test would catch if they occurred
+- **Worked Example**: A concrete example showing specific inputs and their expected outputs
 
 ---
 
@@ -507,20 +516,41 @@ pnpm manages *what* packages exist and how they're linked. Turborepo manages *ho
 | 1.8 | [ ] | Create turbo.json | 2 | Build pipeline with ^build dependencies, caching enabled | - | |
 | 1.9 | [ ] | Create justfile | 2 | Commands: install, dev, build, test, lint, format, fft, typecheck | - | |
 | 1.10 | [ ] | Create test/vitest.config.ts | 2 | Root Vitest config with tsconfigPaths plugin | - | I1-06 |
-| 1.11 | [ ] | Create test/setup.ts | 1 | Global test setup with DI container reset | - | |
+| 1.11 | [ ] | Create test/setup.ts and placeholder test | 1 | Global test setup with DI container reset + placeholder test proving infra works | - | |
 | 1.12 | [ ] | Verify Phase 1 gate | 1 | `pnpm install && just --list && just typecheck` passes | - | GATE |
 
 ### Test Examples
 
 ```typescript
-// No tests in Phase 1 - configuration only
-// Verification is via CLI commands
-
-// test/setup.ts (created but minimal)
+// test/setup.ts (minimal - NO @chainglass/* imports yet)
 import { container } from 'tsyringe';
+
+// NOTE: Do NOT import from @chainglass/shared here - it doesn't exist until Phase 2
+// Shared package imports will be added in Phase 2 after the package is created
 
 beforeEach(() => {
   container.clearInstances();
+});
+```
+
+```typescript
+// test/unit/placeholder.test.ts
+// Proves test infrastructure works. Delete after Phase 2 adds real tests.
+import { describe, it, expect } from 'vitest';
+import { container } from 'tsyringe';
+
+describe('Test Infrastructure', () => {
+  it('should have working test setup', () => {
+    /*
+    Test Doc:
+    - Why: Validates Vitest + tsyringe integration works before real tests exist
+    - Contract: container from tsyringe is defined and accessible in tests
+    - Usage Notes: This is a placeholder - delete once Phase 2 adds real tests
+    - Quality Contribution: Catches broken test infrastructure early in Phase 1
+    - Worked Example: container !== undefined proves DI is available to tests
+    */
+    expect(container).toBeDefined();
+  });
 });
 ```
 
@@ -643,13 +673,14 @@ describe('FakeLogger', () => {
   });
 
   it('should capture log entries at all levels', () => {
-    /**
-     * Purpose: Proves FakeLogger captures all log levels for test assertions
-     * Quality Contribution: Enables testing of logging behavior in services
-     * Acceptance Criteria:
-     * - All log levels captured
-     * - Entries contain level, message, data
-     */
+    /*
+    Test Doc:
+    - Why: FakeLogger is the primary test double for logging; must capture all levels to enable assertions
+    - Contract: Every log method call is recorded with level, message, and optional data intact
+    - Usage Notes: Call any log method (trace/debug/info/warn/error/fatal), then use getEntries() to inspect
+    - Quality Contribution: Catches missing log level implementations, ensures services can be tested for logging behavior
+    - Worked Example: logger.info('msg') -> getEntries() returns [{level: INFO, message: 'msg', data: undefined}]
+    */
     logger.trace('trace msg');
     logger.debug('debug msg');
     logger.info('info msg');
@@ -666,10 +697,14 @@ describe('FakeLogger', () => {
   });
 
   it('should filter entries by level', () => {
-    /**
-     * Purpose: Enables targeted assertions in tests
-     * Quality Contribution: Simplifies test assertions
-     */
+    /*
+    Test Doc:
+    - Why: Tests often need to assert on specific log levels without noise from other levels
+    - Contract: getEntriesByLevel(level) returns only entries matching that exact level
+    - Usage Notes: Pass a LogLevel enum value; returns empty array if no matches
+    - Quality Contribution: Catches filtering bugs that could cause false-positive test assertions
+    - Worked Example: After info('a'), error('b'), info('c') -> getEntriesByLevel(INFO) returns 2 entries
+    */
     logger.info('info 1');
     logger.error('error 1', new Error('e1'));
     logger.info('info 2');
@@ -679,10 +714,14 @@ describe('FakeLogger', () => {
   });
 
   it('should assert message was logged', () => {
-    /**
-     * Purpose: Provides ergonomic assertion API
-     * Quality Contribution: Makes tests readable
-     */
+    /*
+    Test Doc:
+    - Why: Manual inspection of log entries is verbose; need a one-liner assertion method
+    - Contract: assertLoggedAtLevel throws if no entry matches level+message substring, otherwise succeeds
+    - Usage Notes: Uses substring matching for message; throws descriptive error on failure
+    - Quality Contribution: Catches missing or incorrect log calls in services; improves test readability
+    - Worked Example: After info('Processing request'), assertLoggedAtLevel(INFO, 'Processing') succeeds
+    */
     logger.info('Processing request', { requestId: '123' });
 
     // Should not throw
@@ -702,10 +741,14 @@ import type { ILogger } from '@chainglass/shared';
 export function loggerContractTests(name: string, createLogger: () => ILogger) {
   describe(`${name} implements ILogger contract`, () => {
     it('should not throw when logging at any level', () => {
-      /**
-       * Purpose: Verifies interface compliance
-       * Quality Contribution: Ensures fakes match real behavior
-       */
+      /*
+      Test Doc:
+      - Why: Contract tests ensure FakeLogger and PinoLoggerAdapter behave identically; prevents fake drift
+      - Contract: All ILogger implementations must accept log calls at every level without throwing
+      - Usage Notes: Run this test suite for both FakeLogger and real adapters via parameterized factory
+      - Quality Contribution: Catches breaking changes in either implementation; ensures test doubles are trustworthy
+      - Worked Example: createLogger().info('test') must not throw for both FakeLogger and PinoLoggerAdapter
+      */
       const logger = createLogger();
       expect(() => logger.trace('trace')).not.toThrow();
       expect(() => logger.debug('debug')).not.toThrow();
@@ -716,10 +759,14 @@ export function loggerContractTests(name: string, createLogger: () => ILogger) {
     });
 
     it('should create child logger with metadata', () => {
-      /**
-       * Purpose: Verifies child logger creation
-       * Quality Contribution: Ensures context propagation works
-       */
+      /*
+      Test Doc:
+      - Why: Child loggers enable request-scoped context (e.g., requestId); both fake and real must support this
+      - Contract: child(metadata) returns a valid ILogger that can log without throwing
+      - Usage Notes: Pass object with context fields; child inherits parent config plus new metadata
+      - Quality Contribution: Catches child logger creation failures; ensures structured logging context works
+      - Worked Example: createLogger().child({requestId: '123'}).info('msg') must not throw
+      */
       const logger = createLogger();
       const child = logger.child({ requestId: '123' });
       expect(child).toBeDefined();
@@ -828,10 +875,14 @@ describe('DI Container', () => {
   });
 
   it('should create production container with real adapters', () => {
-    /**
-     * Purpose: Verifies production wiring
-     * Quality Contribution: Ensures real adapters used in production
-     */
+    /*
+    Test Doc:
+    - Why: Production must use real adapters (PinoLoggerAdapter) not fakes; wrong wiring causes silent failures
+    - Contract: createProductionContainer() resolves 'ILogger' to PinoLoggerAdapter instance
+    - Usage Notes: Use createProductionContainer() in app startup; never in tests
+    - Quality Contribution: Catches misconfigured production DI that would ship fakes to production
+    - Worked Example: createProductionContainer().resolve('ILogger') returns PinoLoggerAdapter
+    */
     const prodContainer = createProductionContainer();
     const logger = prodContainer.resolve<ILogger>('ILogger');
 
@@ -839,10 +890,14 @@ describe('DI Container', () => {
   });
 
   it('should create test container with fakes', () => {
-    /**
-     * Purpose: Verifies test wiring
-     * Quality Contribution: Ensures tests use fakes
-     */
+    /*
+    Test Doc:
+    - Why: Tests must use fakes for deterministic assertions; real adapters cause flaky/slow tests
+    - Contract: createTestContainer() resolves 'ILogger' to FakeLogger instance
+    - Usage Notes: Use createTestContainer() in all test setup; provides assertion helpers
+    - Quality Contribution: Catches test container misconfiguration that would use real I/O in tests
+    - Worked Example: createTestContainer().resolve('ILogger') returns FakeLogger with getEntries()
+    */
     const testContainer = createTestContainer();
     const logger = testContainer.resolve<ILogger>('ILogger');
 
@@ -850,10 +905,14 @@ describe('DI Container', () => {
   });
 
   it('should isolate containers from each other', () => {
-    /**
-     * Purpose: Prevents test pollution
-     * Quality Contribution: Eliminates flaky tests from DI leakage
-     */
+    /*
+    Test Doc:
+    - Why: TSyringe singleton pollution caused flaky tests; child containers solve this
+    - Contract: Each createTestContainer() call returns independent container with isolated state
+    - Usage Notes: Always create fresh container per test; never share containers between tests
+    - Quality Contribution: Eliminates test order dependencies and state leakage between tests
+    - Worked Example: container1.resolve('ILogger').info('x') does not affect container2.resolve('ILogger').getEntries()
+    */
     const container1 = createTestContainer();
     const container2 = createTestContainer();
 
@@ -882,20 +941,28 @@ describe('SampleService', () => {
   });
 
   it('should process input and return result', async () => {
-    /**
-     * Purpose: Verifies core business logic
-     * Quality Contribution: Ensures processing works correctly
-     */
+    /*
+    Test Doc:
+    - Why: Core business logic must transform input correctly; this is the primary happy path
+    - Contract: doSomething(input) returns 'Processed: {input}' string
+    - Usage Notes: Pass any string; async method returns Promise<string>
+    - Quality Contribution: Catches transformation logic bugs; ensures service does its primary job
+    - Worked Example: doSomething('test-input') returns 'Processed: test-input'
+    */
     const result = await service.doSomething('test-input');
 
     expect(result).toBe('Processed: test-input');
   });
 
   it('should log processing operations', async () => {
-    /**
-     * Purpose: Verifies observability
-     * Quality Contribution: Ensures operations are logged for debugging
-     */
+    /*
+    Test Doc:
+    - Why: Operations must be observable for debugging and monitoring; silent services are hard to troubleshoot
+    - Contract: doSomething() logs INFO 'Processing input' at start and 'Processing complete' at end
+    - Usage Notes: Use FakeLogger.assertLoggedAtLevel() to verify; checks substring match
+    - Quality Contribution: Catches missing log statements; ensures observability contract is maintained
+    - Worked Example: After doSomething('x'), fakeLogger contains INFO entries for start and complete
+    */
     await service.doSomething('test');
 
     fakeLogger.assertLoggedAtLevel(LogLevel.INFO, 'Processing input');
@@ -903,10 +970,14 @@ describe('SampleService', () => {
   });
 
   it('should include input in log metadata', async () => {
-    /**
-     * Purpose: Verifies structured logging
-     * Quality Contribution: Ensures context is captured in logs
-     */
+    /*
+    Test Doc:
+    - Why: Structured logging with context enables filtering and correlation in production log systems
+    - Contract: 'Processing input' log entry includes {input: <value>} in metadata
+    - Usage Notes: Access entry.data to inspect structured metadata; data is optional object
+    - Quality Contribution: Catches missing context in logs; ensures production debugging is possible
+    - Worked Example: After doSomething('my-value'), log entry has data.input === 'my-value'
+    */
     await service.doSomething('my-value');
 
     const entries = fakeLogger.getEntriesByLevel(LogLevel.INFO);
@@ -1013,10 +1084,14 @@ import { createProgram } from '@chainglass/cli';
 
 describe('CLI Parser', () => {
   it('should parse --help flag', () => {
-    /**
-     * Purpose: Verifies help output
-     * Quality Contribution: Ensures CLI is discoverable
-     */
+    /*
+    Test Doc:
+    - Why: CLI must be self-documenting; --help is the primary discovery mechanism for users
+    - Contract: helpInformation() returns string containing 'cg', 'dev', and 'mcp' command names
+    - Usage Notes: createProgram() returns Commander instance; helpInformation() gets formatted help text
+    - Quality Contribution: Catches missing command registrations; ensures all commands are discoverable
+    - Worked Example: createProgram().helpInformation() contains 'cg', 'dev', 'mcp' substrings
+    */
     const program = createProgram();
     const output = program.helpInformation();
 
@@ -1026,10 +1101,14 @@ describe('CLI Parser', () => {
   });
 
   it('should parse dev command', () => {
-    /**
-     * Purpose: Verifies dev command parsing
-     * Quality Contribution: Ensures CLI routes to correct handler
-     */
+    /*
+    Test Doc:
+    - Why: 'cg dev' is the primary developer workflow command; must be registered and documented
+    - Contract: Program contains 'dev' command with description containing 'development'
+    - Usage Notes: Access program.commands array to find command by name()
+    - Quality Contribution: Catches missing dev command or incorrect description; ensures DX is correct
+    - Worked Example: program.commands.find(c => c.name() === 'dev') is defined with 'development' in description
+    */
     const program = createProgram();
     const devCmd = program.commands.find(c => c.name() === 'dev');
 
@@ -1038,10 +1117,14 @@ describe('CLI Parser', () => {
   });
 
   it('should parse mcp command with options', () => {
-    /**
-     * Purpose: Verifies MCP command parsing
-     * Quality Contribution: Ensures MCP options are available
-     */
+    /*
+    Test Doc:
+    - Why: MCP server needs --stdio flag for AI agent integration; missing option breaks agent workflows
+    - Contract: Program contains 'mcp' command with --stdio option in its flags
+    - Usage Notes: Check mcpCmd.options array for option with flags containing '--stdio'
+    - Quality Contribution: Catches missing MCP options; ensures AI agent integration is possible
+    - Worked Example: program.commands.find(c => c.name() === 'mcp').options includes --stdio flag
+    */
     const program = createProgram();
     const mcpCmd = program.commands.find(c => c.name() === 'mcp');
 
@@ -1065,10 +1148,14 @@ describe('CLI dev command', () => {
   });
 
   it('should start Next.js development server', async () => {
-    /**
-     * Purpose: Verifies dev command starts server
-     * Quality Contribution: Ensures developers can use `cg dev`
-     */
+    /*
+    Test Doc:
+    - Why: 'cg dev' must spawn Next.js correctly; broken dev command blocks all local development
+    - Contract: Running 'cg dev' outputs text containing 'Ready', 'localhost:3000', or 'started' within 10s
+    - Usage Notes: Spawns child process; must clean up proc in afterEach; uses stdout pipe for assertion
+    - Quality Contribution: Catches broken dev command wiring; ensures developers can start local server
+    - Worked Example: spawn('node', ['dist/cli.js', 'dev']) stdout eventually contains 'Ready' or 'localhost:3000'
+    */
     proc = spawn('node', ['dist/cli.js', 'dev'], {
       cwd: process.cwd(),
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -1155,10 +1242,14 @@ describe('MCP stdio transport', () => {
   });
 
   it('should not output anything to stdout before receiving input', async () => {
-    /**
-     * Purpose: Verifies protocol compliance
-     * Quality Contribution: Prevents JSON-RPC corruption
-     */
+    /*
+    Test Doc:
+    - Why: MCP stdio protocol requires stdout be reserved for JSON-RPC only; any startup noise corrupts the protocol
+    - Contract: After spawn with --stdio, stdout remains empty until first JSON-RPC input is received
+    - Usage Notes: Wait 500ms for any accidental startup messages; stderr is allowed for logs
+    - Quality Contribution: Catches console.log or logger misconfiguration that would break AI agent integration
+    - Worked Example: spawn mcp --stdio, wait 500ms, stdout.join('') === '' (empty string)
+    */
     proc = spawn('node', ['dist/cli.js', 'mcp', '--stdio'], {
       stdio: ['pipe', 'pipe', 'pipe'],
     });
@@ -1174,10 +1265,14 @@ describe('MCP stdio transport', () => {
   });
 
   it('should respond to valid JSON-RPC request', async () => {
-    /**
-     * Purpose: Verifies MCP protocol works
-     * Quality Contribution: Ensures AI agents can communicate
-     */
+    /*
+    Test Doc:
+    - Why: MCP server must handle JSON-RPC initialize request for AI agent handshake; broken init blocks all MCP usage
+    - Contract: Valid JSON-RPC initialize request returns response with jsonrpc='2.0', matching id, and result object
+    - Usage Notes: Write request to stdin with trailing newline; read response from stdout; 5s timeout
+    - Quality Contribution: Catches broken JSON-RPC handling; ensures MCP server can complete agent handshake
+    - Worked Example: stdin '{"jsonrpc":"2.0","id":1,"method":"initialize",...}' -> stdout contains {jsonrpc:'2.0',id:1,result:{...}}
+    */
     proc = spawn('node', ['dist/cli.js', 'mcp', '--stdio'], {
       stdio: ['pipe', 'pipe', 'pipe'],
     });

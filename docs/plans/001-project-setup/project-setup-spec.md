@@ -32,7 +32,7 @@ Extensive research was conducted via Perplexity Deep Research covering 9 topics.
 
 ## Goals
 
-1. **Developer Experience**: Developers can clone the repo and be productive within 5 minutes using `just install && just dev`
+1. **Developer Experience**: Developers can clone the repo and be productive quickly using `just install && just dev` (after installing prerequisites)
 2. **Clean Architecture Enforcement**: The codebase structure physically prevents concept leakage (adapters cannot import from services)
 3. **TDD-First Workflow**: Every service has a corresponding fake adapter, enabling isolated unit testing without mocks
 4. **CLI Distribution**: Users can run `npx cg` or `npx chainglass` to access CLI functionality without global installation
