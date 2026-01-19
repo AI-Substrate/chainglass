@@ -1,3 +1,6 @@
+import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 /**
  * esbuild Configuration for CLI Package
  *
@@ -7,9 +10,6 @@
  * (@chainglass/shared, chalk) but externalize runtime-loaded deps (pino).
  */
 import * as esbuild from 'esbuild';
-import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, rmSync } from 'fs';
-import { resolve, dirname } from 'path';
-import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 

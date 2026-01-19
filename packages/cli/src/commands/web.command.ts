@@ -1,3 +1,8 @@
+import { type ChildProcess, spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import chalk from 'chalk';
 /**
  * web command - Start the Chainglass web interface
  *
@@ -9,12 +14,7 @@
  *
  * Critical Insight #4: SIGINT must be forwarded to child server for clean shutdown.
  */
-import { Command } from 'commander';
-import { spawn, ChildProcess } from 'child_process';
-import { resolve, dirname } from 'path';
-import { existsSync } from 'fs';
-import { fileURLToPath } from 'url';
-import chalk from 'chalk';
+import type { Command } from 'commander';
 
 interface WebCommandOptions {
   port: number;
@@ -60,16 +60,14 @@ export function findStandaloneAssets(): string {
 export function validateStandaloneAssets(assetsPath: string): void {
   if (!existsSync(assetsPath)) {
     throw new Error(
-      `Standalone assets not found at ${assetsPath}. ` +
-        `Run 'just build' to build the CLI with bundled web assets.`
+      `Standalone assets not found at ${assetsPath}. Run 'just build' to build the CLI with bundled web assets.`
     );
   }
 
   const serverPath = resolve(assetsPath, 'server.js');
   if (!existsSync(serverPath)) {
     throw new Error(
-      `Server entry point not found at ${serverPath}. ` +
-        `The standalone build may be incomplete.`
+      `Server entry point not found at ${serverPath}. The standalone build may be incomplete.`
     );
   }
 }
@@ -103,13 +101,11 @@ Examples:
  * Per Critical Insight #4: Forwards SIGINT to child server.
  */
 export async function runWebCommand(options: WebCommandOptions): Promise<void> {
-  const port = parseInt(String(options.port), 10);
+  const port = Number.parseInt(String(options.port), 10);
 
   // FIX-001: Validate port range (1-65535)
-  if (isNaN(port) || port < 1 || port > 65535) {
-    throw new Error(
-      `Invalid port: ${options.port}. Port must be a number between 1 and 65535.`
-    );
+  if (Number.isNaN(port) || port < 1 || port > 65535) {
+    throw new Error(`Invalid port: ${options.port}. Port must be a number between 1 and 65535.`);
   }
 
   console.log(chalk.cyan(`Chainglass starting on http://localhost:${port}...`));
@@ -121,20 +117,10 @@ export async function runWebCommand(options: WebCommandOptions): Promise<void> {
   // If not, show helpful message for development
   if (!existsSync(assetsPath)) {
     console.log(
-      chalk.yellow(
-        'Standalone assets not found. In development, use `just dev` instead.'
-      )
+      chalk.yellow('Standalone assets not found. In development, use `just dev` instead.')
     );
-    console.log(
-      chalk.gray(
-        `Looking for assets at: ${assetsPath}`
-      )
-    );
-    console.log(
-      chalk.gray(
-        'Run `just build` to create the production bundle.'
-      )
-    );
+    console.log(chalk.gray(`Looking for assets at: ${assetsPath}`));
+    console.log(chalk.gray('Run `just build` to create the production bundle.'));
     return;
   }
 
@@ -174,8 +160,12 @@ export async function runWebCommand(options: WebCommandOptions): Promise<void> {
     if (output) {
       // FIX-006: Case-insensitive ready detection
       const lowerOutput = output.toLowerCase();
-      if (lowerOutput.includes('ready') || lowerOutput.includes('started') || lowerOutput.includes('listening')) {
-        console.log(chalk.green(`✓ Ready`));
+      if (
+        lowerOutput.includes('ready') ||
+        lowerOutput.includes('started') ||
+        lowerOutput.includes('listening')
+      ) {
+        console.log(chalk.green('✓ Ready'));
       } else {
         console.log(output);
       }

@@ -1,12 +1,12 @@
+import { createProgram } from '@chainglass/cli/bin';
+import { CommanderError } from 'commander';
 /**
  * CLI Parser Tests
  *
  * Tests for Commander.js CLI argument parsing using createProgram({ testMode: true }).
  * testMode enables exitOverride() + configureOutput() to prevent process.exit() in tests.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
-import { createProgram } from '@chainglass/cli/bin';
-import { CommanderError } from 'commander';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 describe('CLI Parser', () => {
   describe('Default behavior', () => {
@@ -65,7 +65,7 @@ describe('CLI Parser', () => {
       // Verify the web command has help text with examples by checking its description includes relevant info
       // The actual 'Examples:' text is in addHelpText which Commander shows on help() call
       // For now, verify commands are properly configured with descriptions
-      expect(webCmd!.description()).toContain('web');
+      expect(webCmd?.description()).toContain('web');
     });
   });
 
@@ -116,9 +116,9 @@ describe('CLI Parser', () => {
       const webCmd = program.commands.find((c) => c.name() === 'web');
 
       expect(webCmd).toBeDefined();
-      const portOption = webCmd!.options.find((o) => o.flags.includes('--port'));
+      const portOption = webCmd?.options.find((o) => o.flags.includes('--port'));
       expect(portOption).toBeDefined();
-      expect(portOption!.flags).toContain('-p');
+      expect(portOption?.flags).toContain('-p');
     });
 
     it('should have description containing web interface', () => {
@@ -134,7 +134,7 @@ describe('CLI Parser', () => {
       const webCmd = program.commands.find((c) => c.name() === 'web');
 
       expect(webCmd).toBeDefined();
-      expect(webCmd!.description().toLowerCase()).toMatch(/web|interface|start/);
+      expect(webCmd?.description().toLowerCase()).toMatch(/web|interface|start/);
     });
   });
 
@@ -167,7 +167,7 @@ describe('CLI Parser', () => {
       const mcpCmd = program.commands.find((c) => c.name() === 'mcp');
 
       expect(mcpCmd).toBeDefined();
-      const stdioOption = mcpCmd!.options.find((o) => o.flags.includes('--stdio'));
+      const stdioOption = mcpCmd?.options.find((o) => o.flags.includes('--stdio'));
       expect(stdioOption).toBeDefined();
     });
   });

@@ -1,3 +1,5 @@
+import { type ChildProcess, spawn } from 'node:child_process';
+import { dirname, resolve } from 'node:path';
 /**
  * Web Command Tests
  *
@@ -6,9 +8,7 @@
  *
  * Per Critical Insight #2: Uses afterEach proc.kill() cleanup with random ports.
  */
-import { describe, it, expect, afterEach, vi, beforeEach } from 'vitest';
-import { spawn, ChildProcess } from 'child_process';
-import { resolve, dirname } from 'path';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Helper to generate random high port
 function getRandomPort(): number {
@@ -126,7 +126,10 @@ describe('Web Command', () => {
       - Worked Example: runWebCommand({ port: NaN }) throws 'Port must be'
       */
       const { runWebCommand } = await import('@chainglass/cli/commands/web.command');
-      await expect(runWebCommand({ port: NaN } as any)).rejects.toThrow(/port must be|invalid port/i);
+      // biome-ignore lint/suspicious/noExplicitAny: Test intentionally passes invalid type
+      await expect(runWebCommand({ port: Number.NaN } as any)).rejects.toThrow(
+        /port must be|invalid port/i
+      );
     });
 
     it('should reject port out of range (too high)', async () => {
@@ -199,7 +202,9 @@ describe('Web Command', () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
       // Should not throw validation error (may fail for other reasons like missing assets)
-      await expect(runWebCommand({ port: 65535 })).resolves.not.toThrow(/port must be|invalid port/i);
+      await expect(runWebCommand({ port: 65535 })).resolves.not.toThrow(
+        /port must be|invalid port/i
+      );
 
       consoleSpy.mockRestore();
     });

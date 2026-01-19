@@ -1214,17 +1214,17 @@ describe('CLI dev command', () => {
 
 | #   | Status | Task | CS | Success Criteria | Log | Notes |
 |-----|--------|------|----|------------------|-----|-------|
-| 5.1 | [ ] | Create packages/mcp-server/src structure | 1 | server.ts, index.ts | - | |
-| 5.2 | [ ] | Write test for MCP server initialization | 2 | Tests: server creates, handles stdio mode | - | TDD: RED |
-| 5.3 | [ ] | Implement basic MCP server | 2 | Server initializes, handles initialize request | - | |
-| 5.4 | [ ] | Run server tests - expect GREEN | 1 | Server initialization tests pass | - | TDD: GREEN |
-| 5.5 | [ ] | Write test for stdio cleanliness | 2 | Tests: no stdout before input, only JSON-RPC on stdout | - | R1-08 |
-| 5.6 | [ ] | Implement strict stdout discipline | 2 | Redirect logs to stderr in stdio mode | - | R1-08 |
-| 5.7 | [ ] | Run stdio tests - expect GREEN | 1 | Stdio cleanliness tests pass | - | TDD: GREEN |
-| 5.8 | [ ] | Write test for mcp command | 2 | Tests: `cg mcp --help`, `cg mcp --stdio` | - | TDD: RED |
-| 5.9 | [ ] | Implement mcp command in CLI | 2 | Lazy-loads MCP server, passes options | - | |
-| 5.10 | [ ] | Run mcp command tests - expect GREEN | 1 | MCP command tests pass | - | TDD: GREEN |
-| 5.11 | [ ] | Verify Phase 5 gate | 1 | `cg mcp --help` shows options, stdio works | - | GATE |
+| 5.1 | [x] | Create packages/mcp-server/src structure | 1 | server.ts, index.ts | [📋](tasks/phase-5-mcp-server-package/execution.log.md) | Complete [^21] |
+| 5.2 | [x] | Write test for MCP server initialization | 2 | Tests: server creates, handles stdio mode | [📋](tasks/phase-5-mcp-server-package/execution.log.md) | Complete [^21] |
+| 5.3 | [x] | Implement basic MCP server | 2 | Server initializes, handles initialize request | [📋](tasks/phase-5-mcp-server-package/execution.log.md) | Complete [^21] |
+| 5.4 | [x] | Run server tests - expect GREEN | 1 | Server initialization tests pass | [📋](tasks/phase-5-mcp-server-package/execution.log.md) | Complete [^21] |
+| 5.5 | [x] | Write test for stdio cleanliness | 2 | Tests: no stdout before input, only JSON-RPC on stdout | [📋](tasks/phase-5-mcp-server-package/execution.log.md) | Complete [^21] |
+| 5.6 | [x] | Implement strict stdout discipline | 2 | Redirect logs to stderr in stdio mode | [📋](tasks/phase-5-mcp-server-package/execution.log.md) | Complete [^21] |
+| 5.7 | [x] | Run stdio tests - expect GREEN | 1 | Stdio cleanliness tests pass | [📋](tasks/phase-5-mcp-server-package/execution.log.md) | Complete [^21] |
+| 5.8 | [x] | Write test for mcp command | 2 | Tests: `cg mcp --help`, `cg mcp --stdio` | [📋](tasks/phase-5-mcp-server-package/execution.log.md) | Complete [^21] |
+| 5.9 | [x] | Implement mcp command in CLI | 2 | Lazy-loads MCP server, passes options | [📋](tasks/phase-5-mcp-server-package/execution.log.md) | Complete [^21] |
+| 5.10 | [x] | Run mcp command tests - expect GREEN | 1 | MCP command tests pass | [📋](tasks/phase-5-mcp-server-package/execution.log.md) | Complete [^21] |
+| 5.11 | [x] | Verify Phase 5 gate | 1 | `cg mcp --help` shows options, stdio works | [📋](tasks/phase-5-mcp-server-package/execution.log.md) | Complete [^21] |
 
 ### Test Examples
 
@@ -1432,7 +1432,7 @@ describe('MCP stdio transport', () => {
 - [x] Phase 2: Shared Package - COMPLETE (12/12 tasks, 18 tests passing)
 - [x] Phase 3: Next.js App with Clean Architecture - COMPLETE (12/12 tasks, 25 tests passing)
 - [x] Phase 4: CLI Package - COMPLETE (16/16 tasks, 39 tests passing) [^20]
-- [ ] Phase 5: MCP Server Package - NOT STARTED
+- [x] Phase 5: MCP Server Package - COMPLETE
 - [ ] Phase 6: Documentation & Polish - NOT STARTED
 
 ### STOP Rule
@@ -1584,6 +1584,19 @@ Note: ADR seeds defined in spec. Consider running `/plan-3a-adr` to formalize be
   - Discoveries: Commander.js exitOverride() for tests, CJS format for esbuild, isMain needs /cg paths
   - Known limitation: T013 pnpm symlink issue prevents full isolation test
   - Gate verification: 39 tests passing (14 CLI + 25 prior), npx + npm link both work
+
+[^21]: Phase 5 - MCP Server Package implementation
+  - `file:packages/mcp-server/src/server.ts` - Main MCP server with check_health tool
+  - `file:packages/mcp-server/src/lib/di-container.ts` - DI container for MCP server
+  - `file:packages/mcp-server/src/lib/index.ts` - Lib exports
+  - `file:packages/mcp-server/src/tools/index.ts` - Tools exports
+  - `file:packages/mcp-server/src/index.ts` - Package exports
+  - `file:packages/cli/src/commands/mcp.command.ts` - CLI mcp command with lazy loading
+  - `file:packages/shared/src/adapters/pino-logger.adapter.ts` - Added createForStderr() factory
+  - `file:test/unit/mcp-server/server.test.ts` - Server initialization tests (6 tests)
+  - `file:test/unit/mcp-server/stdio-transport.test.ts` - Stdio cleanliness tests (4 tests)
+  - `file:test/unit/mcp-server/check-health.test.ts` - ADR-0001 compliance tests (6 tests)
+  - `file:test/integration/mcp-stdio.test.ts` - MCP command integration tests (5 tests)
 
 ---
 

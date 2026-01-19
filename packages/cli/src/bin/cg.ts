@@ -13,8 +13,8 @@
  *   cg --version    - Show version
  */
 import { Command } from 'commander';
-import { registerWebCommand } from '../commands/web.command.js';
 import { registerMcpCommand } from '../commands/mcp.command.js';
+import { registerWebCommand } from '../commands/web.command.js';
 
 // Read version from package.json at build time
 // For now, hardcode as we'll update build process later

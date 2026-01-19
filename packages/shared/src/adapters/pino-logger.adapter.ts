@@ -18,6 +18,25 @@ export class PinoLoggerAdapter implements ILogger {
       });
   }
 
+  /**
+   * Creates a PinoLoggerAdapter configured to write to stderr instead of stdout.
+   *
+   * Per Critical Insights Discussion (2026-01-19) for Phase 5 MCP Server:
+   * MCP stdio transport requires stdout reserved for JSON-RPC only.
+   * All logs MUST go to stderr to avoid corrupting the MCP protocol.
+   *
+   * @returns PinoLoggerAdapter configured for stderr output
+   */
+  static createForStderr(): PinoLoggerAdapter {
+    const stderrLogger = pino(
+      {
+        serializers: { err: pino.stdSerializers.err },
+      },
+      pino.destination({ dest: 2 }) // fd 2 = stderr
+    );
+    return new PinoLoggerAdapter(stderrLogger);
+  }
+
   trace(message: string, data?: Record<string, unknown>): void {
     if (data) {
       this.logger.trace(data, message);
