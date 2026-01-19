@@ -20,6 +20,7 @@ An MCP server at `packages/mcp-server/` that:
 - Maintains strict stdout discipline (JSON-RPC only on stdout, logs to stderr)
 - Integrates with CLI via `cg mcp --stdio` command
 - Uses the same DI patterns established in Phase 3 for testability
+- Includes an **exemplar `check_health` tool** that demonstrates best practices for all future MCP tools (see ADR-0001)
 
 ### User Value
 
@@ -54,13 +55,14 @@ Implement the MCP server package as specified in the plan, with stdio transport 
 - ✅ Redirect all logging to stderr in stdio mode
 - ✅ Update CLI `cg mcp` command to lazy-load and start the server
 - ✅ Add tests verifying protocol compliance and stdout cleanliness
+- ✅ Implement `check_health` tool as exemplar following ADR-0001 best practices
 
 ### Non-Goals
 
 - ❌ HTTP transport (defer to future phase or feature)
 - ❌ SSE transport (defer to future phase or feature)
-- ❌ Tool implementations (this phase focuses on server scaffolding)
-- ❌ Resource implementations (this phase focuses on server scaffolding)
+- ❌ Additional tools beyond `check_health` (this phase establishes the pattern)
+- ❌ Resource implementations (future feature)
 - ❌ MCP prompts implementation (future feature)
 - ❌ Authentication/authorization (out of scope for MVP)
 - ❌ Rate limiting or request validation beyond protocol (future)
@@ -97,7 +99,10 @@ flowchart TD
         T008["T008: Write mcp command tests (RED)"]:::pending
         T009["T009: Implement CLI integration"]:::pending
         T010["T010: Run mcp command tests (GREEN)"]:::pending
-        T011["T011: Verify Phase 5 gate"]:::pending
+        T011["T011: Write check_health tool tests (RED)"]:::pending
+        T012["T012: Implement check_health exemplar tool"]:::pending
+        T013["T013: Run check_health tests (GREEN)"]:::pending
+        T014["T014: Verify Phase 5 gate"]:::pending
 
         T001 --> T002
         T002 --> T003
@@ -109,6 +114,9 @@ flowchart TD
         T008 --> T009
         T009 --> T010
         T010 --> T011
+        T011 --> T012
+        T012 --> T013
+        T013 --> T014
     end
 
     subgraph ServerFiles["MCP Server Files"]
@@ -116,16 +124,22 @@ flowchart TD
         S2["/packages/mcp-server/src/index.ts"]:::pending
         S3["/packages/mcp-server/src/lib/di-container.ts"]:::pending
         S4["/packages/mcp-server/src/lib/stdio-transport.ts"]:::pending
+        S5["/packages/mcp-server/src/tools/check-health.tool.ts"]:::pending
     end
 
     subgraph CLIFiles["CLI Files"]
         C1["/packages/cli/src/commands/mcp.command.ts"]:::pending
     end
 
+    subgraph DocsFiles["Documentation"]
+        D1["/docs/adr/adr-0001-mcp-tool-design-patterns.md"]:::completed
+    end
+
     subgraph TestFiles["Test Files"]
         Te1["/test/unit/mcp-server/server.test.ts"]:::pending
         Te2["/test/unit/mcp-server/stdio-transport.test.ts"]:::pending
         Te3["/test/integration/mcp-stdio.test.ts"]:::pending
+        Te4["/test/unit/mcp-server/check-health.test.ts"]:::pending
     end
 
     T001 -.-> S1
@@ -134,9 +148,11 @@ flowchart TD
     T003 -.-> S3
     T006 -.-> S4
     T009 -.-> C1
+    T012 -.-> S5
     T002 -.-> Te1
     T005 -.-> Te2
     T008 -.-> Te3
+    T011 -.-> Te4
 ```
 
 ### Task-to-Component Mapping
@@ -145,17 +161,20 @@ flowchart TD
 
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
-| T001 | Package Structure | /packages/mcp-server/src/ | ⬜ Pending | Create server.ts, lib/ directory structure |
+| T001 | Package Structure | /packages/mcp-server/src/ | ⬜ Pending | Create server.ts, lib/, tools/ directory structure |
 | T002 | Test Suite | /test/unit/mcp-server/server.test.ts | ⬜ Pending | TDD: Write failing tests for server init |
 | T003 | MCP Server | /packages/mcp-server/src/server.ts | ⬜ Pending | Core implementation using @modelcontextprotocol/sdk |
 | T004 | Test Verification | (same as T002) | ⬜ Pending | TDD: GREEN - verify server tests pass |
-| T005 | Stdio Tests | /test/unit/mcp-server/stdio-transport.test.ts | ⬜ Pending | TDD: Write failing tests for stdout cleanliness |
-| T006 | Stdout Discipline | /packages/mcp-server/src/lib/stdio-transport.ts | ⬜ Pending | Redirect logs to stderr, JSON-RPC only on stdout |
-| T007 | Test Verification | (same as T005) | ⬜ Pending | TDD: GREEN - verify stdio tests pass |
+| T005 | Stdio Tests | /test/unit/mcp-server/stdio-transport.test.ts | ⬜ Pending | TDD: RED; ADR-0001 IMP-001 |
+| T006 | Stdout Discipline | /packages/mcp-server/src/lib/stdio-transport.ts | ⬜ Pending | ADR-0001 Decision #1: stdout reserved for JSON-RPC |
+| T007 | Test Verification | (same as T005) | ⬜ Pending | TDD: GREEN |
 | T008 | CLI Integration Tests | /test/integration/mcp-stdio.test.ts | ⬜ Pending | TDD: Write failing tests for `cg mcp --stdio` |
 | T009 | CLI Command | /packages/cli/src/commands/mcp.command.ts | ⬜ Pending | Update stub to lazy-load and start MCP server |
 | T010 | Test Verification | (same as T008) | ⬜ Pending | TDD: GREEN - verify CLI integration tests pass |
-| T011 | Gate Verification | All | ⬜ Pending | Full quality gate: build, test, fft |
+| T011 | Tool Tests | /test/unit/mcp-server/check-health.test.ts | ⬜ Pending | TDD: RED; ADR-0001 IMP-002, IMP-003 |
+| T012 | Exemplar Tool | /packages/mcp-server/src/tools/check-health.tool.ts | ⬜ Pending | ADR-0001 Decisions #2-7: naming, descriptions, params, responses, errors, annotations |
+| T013 | Test Verification | (same as T011) | ⬜ Pending | TDD: GREEN |
+| T014 | Gate Verification | All | ⬜ Pending | Full quality gate: build, test, fft, tool invocation |
 
 ---
 
@@ -163,17 +182,20 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|------|-----------------------------------|-----|------|--------------|-------------------------------|-------------------------------|----------|-------------------|
-| [ ] | T001 | Create packages/mcp-server/src structure with server.ts, lib/ directories | 1 | Setup | – | `/Users/jordanknight/substrate/chainglass/packages/mcp-server/src/server.ts`, `/Users/jordanknight/substrate/chainglass/packages/mcp-server/src/lib/` | Files exist, TypeScript compiles | – | – |
+| [ ] | T001 | Create packages/mcp-server/src structure with server.ts, lib/, tools/ directories | 1 | Setup | – | `/Users/jordanknight/substrate/chainglass/packages/mcp-server/src/server.ts`, `/Users/jordanknight/substrate/chainglass/packages/mcp-server/src/lib/`, `/Users/jordanknight/substrate/chainglass/packages/mcp-server/src/tools/` | Files exist, TypeScript compiles | – | – |
 | [ ] | T002 | Write tests for MCP server initialization (server creates, handles initialize request) | 2 | Test | T001 | `/Users/jordanknight/substrate/chainglass/test/unit/mcp-server/server.test.ts` | Tests compile, all fail (RED) | – | TDD: RED |
 | [ ] | T003 | Implement basic MCP server using @modelcontextprotocol/sdk | 2 | Core | T002 | `/Users/jordanknight/substrate/chainglass/packages/mcp-server/src/server.ts`, `/Users/jordanknight/substrate/chainglass/packages/mcp-server/src/lib/di-container.ts` | Server initializes, responds to initialize request | – | Per CD-02: decorator-free DI |
 | [ ] | T004 | Run server tests - expect GREEN | 1 | Test | T003 | (same as T002) | All server initialization tests pass | – | TDD: GREEN |
-| [ ] | T005 | Write tests for stdio cleanliness (no stdout before input, only JSON-RPC on stdout) | 2 | Test | T004 | `/Users/jordanknight/substrate/chainglass/test/unit/mcp-server/stdio-transport.test.ts` | Tests compile, all fail (RED) | – | TDD: RED; Per CD-10 |
-| [ ] | T006 | Implement strict stdout discipline (redirect logs to stderr in stdio mode) | 2 | Core | T005 | `/Users/jordanknight/substrate/chainglass/packages/mcp-server/src/lib/stdio-transport.ts`, `/Users/jordanknight/substrate/chainglass/packages/mcp-server/src/server.ts` | No startup noise, logs go to stderr | – | Per CD-10 |
-| [ ] | T007 | Run stdio tests - expect GREEN | 1 | Test | T006 | (same as T005) | All stdio cleanliness tests pass | – | TDD: GREEN |
+| [ ] | T005 | Write tests for stdio cleanliness (no stdout before input, only JSON-RPC on stdout) | 2 | Test | T004 | `/Users/jordanknight/substrate/chainglass/test/unit/mcp-server/stdio-transport.test.ts` | Tests compile, all fail (RED) | – | TDD: RED; Per CD-10; ADR-0001 IMP-001 |
+| [ ] | T006 | Implement strict stdout discipline (redirect logs to stderr in stdio mode) | 2 | Core | T005 | `/Users/jordanknight/substrate/chainglass/packages/mcp-server/src/lib/stdio-transport.ts`, `/Users/jordanknight/substrate/chainglass/packages/mcp-server/src/server.ts` | No startup noise, logs go to stderr | – | Per CD-10; ADR-0001 Decision #1 |
+| [ ] | T007 | Run stdio tests - expect GREEN | 1 | Test | T006 | (same as T005) | All stdio cleanliness tests pass | – | TDD: GREEN; ADR-0001 |
 | [ ] | T008 | Write tests for mcp command (`cg mcp --help`, `cg mcp --stdio` starts server) | 2 | Test | T007 | `/Users/jordanknight/substrate/chainglass/test/integration/mcp-stdio.test.ts` | Tests compile, all fail (RED) | – | TDD: RED |
 | [ ] | T009 | Implement mcp command CLI integration (lazy-load MCP server, pass options) | 2 | Core | T008 | `/Users/jordanknight/substrate/chainglass/packages/cli/src/commands/mcp.command.ts` | `cg mcp --stdio` starts server, JSON-RPC works | – | Update existing stub |
 | [ ] | T010 | Run mcp command tests - expect GREEN | 1 | Test | T009 | (same as T008) | All MCP command tests pass | – | TDD: GREEN |
-| [ ] | T011 | Verify Phase 5 gate | 1 | Gate | T010 | All | `just build`, `just test`, `just fft` pass; `cg mcp --help` shows options | – | GATE |
+| [ ] | T011 | Write tests for check_health tool (tool invocation, response format, annotations) | 2 | Test | T010 | `/Users/jordanknight/substrate/chainglass/test/unit/mcp-server/check-health.test.ts` | Tests compile, all fail (RED) | – | TDD: RED; Exemplar; ADR-0001 IMP-002, IMP-003 |
+| [ ] | T012 | Implement check_health tool following ADR-0001 best practices | 2 | Core | T011 | `/Users/jordanknight/substrate/chainglass/packages/mcp-server/src/tools/check-health.tool.ts` | Tool registered, returns health status | – | EXEMPLAR TOOL; ADR-0001 Decisions #2-7 |
+| [ ] | T013 | Run check_health tests - expect GREEN | 1 | Test | T012 | (same as T011) | All check_health tests pass | – | TDD: GREEN; ADR-0001 |
+| [ ] | T014 | Verify Phase 5 gate | 1 | Gate | T013 | All | `just build`, `just test`, `just fft` pass; `cg mcp --help` shows options; check_health tool invocable | – | GATE |
 
 ---
 
@@ -349,7 +371,31 @@ if (options.stdio) {
 
 ### ADR Decision Constraints
 
-No formal ADRs exist for this project. ADR seeds are defined in spec but not formalized.
+#### ADR-0001: MCP Tool Design Patterns (Accepted)
+
+**Location**: [../../adr/adr-0001-mcp-tool-design-patterns.md](../../../../adr/adr-0001-mcp-tool-design-patterns.md)
+
+**Key Decisions Affecting This Phase**:
+
+| Decision | Constraint | Tasks Affected |
+|----------|------------|----------------|
+| STDIO Protocol Compliance | stdout reserved for JSON-RPC only; all logs to stderr | T005, T006, T007 |
+| Tool Naming | `verb_object` format, snake_case | T011, T012 |
+| Tool Descriptions | 3-4 sentences: action, scope, returns, alternatives | T012 |
+| Parameter Design | JSON Schema constraints (`enum`, `minimum`/`maximum`) over natural language | T012 |
+| Response Design | Semantic fields + `summary` field mandatory | T012 |
+| Error Handling | `action` field with remediation guidance | T012 |
+| Annotations | Complete `readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint` | T012 |
+| Testing | Three-level strategy: Unit → Integration → E2E | T002, T005, T008, T011 |
+
+**Implementation Notes from ADR**:
+- **IMP-001**: STDIO compliance must be configured BEFORE any imports in the entry point
+- **IMP-002**: The `check_health` tool serves as the exemplar implementation
+- **IMP-003**: Tool PRs must include evidence of all three test levels
+- **IMP-005**: Tool count should remain under 25 total
+
+**References**:
+- [ADR-0001](../../../../adr/adr-0001-mcp-tool-design-patterns.md) - Architectural decision record for MCP tool design
 
 ---
 
@@ -374,6 +420,93 @@ No formal ADRs exist for this project. ADR seeds are defined in spec but not for
 | `/Users/jordanknight/substrate/chainglass/packages/cli/src/commands/mcp.command.ts` | CLI stub to update |
 | `/Users/jordanknight/substrate/chainglass/apps/web/src/lib/di-container.ts` | Reference DI pattern |
 | `/Users/jordanknight/substrate/chainglass/test/base/web-test.ts` | Reference test fixtures |
+| `/Users/jordanknight/substrate/chainglass/docs/adr/adr-0001-mcp-tool-design-patterns.md` | **ADR-0001: MCP tool design patterns (MUST READ before T011)** |
+
+---
+
+### Exemplar Tool: `check_health`
+
+This is the **reference implementation** for all future MCP tools. Study this pattern before implementing any new tools.
+
+**Why an Exemplar?**
+- Establishes patterns that future tools MUST follow
+- Demonstrates best practices from ADR-0001
+- Provides a working template for copy-paste-modify development
+- Validates the MCP server infrastructure end-to-end
+
+#### Tool Definition
+
+```typescript
+{
+  name: 'check_health',
+
+  description: `Check the health status of all Chainglass system components.
+Use this tool to verify the system is operational before performing other
+operations or when diagnosing issues. Returns component-level status
+(ok/degraded/error) with diagnostic details for any unhealthy components.`,
+
+  inputSchema: {
+    type: 'object',
+    properties: {
+      components: {
+        type: 'array',
+        items: {
+          type: 'string',
+          enum: ['all', 'api', 'database', 'cache', 'queue']
+        },
+        default: ['all'],
+        description: "Components to check. Defaults to ['all']. Example: ['api', 'database']"
+      },
+      include_details: {
+        type: 'boolean',
+        default: false,
+        description: 'Include detailed diagnostics for each component. Defaults to false.'
+      }
+    },
+    required: []
+  },
+
+  annotations: {
+    title: 'Check System Health',
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false
+  }
+}
+```
+
+#### Expected Response (for MVP)
+
+For Phase 5, the tool returns a simple "ok" status. Future phases will add real component checks.
+
+```json
+{
+  "status": "ok",
+  "components": [
+    {
+      "name": "api",
+      "status": "ok",
+      "message": "API server responding normally"
+    }
+  ],
+  "summary": "All 1 components healthy",
+  "checked_at": "2026-01-19T10:30:00Z"
+}
+```
+
+#### Best Practices Demonstrated
+
+| Practice | How check_health Demonstrates It |
+|----------|----------------------------------|
+| `verb_object` naming | `check_health` - action verb + noun |
+| snake_case | `check_health`, `include_details` |
+| 3+ sentence description | Covers what, when to use, what returns |
+| Explicit enum | `components` uses enum for valid values |
+| Sensible defaults | `components: ['all']`, `include_details: false` |
+| Semantic response | `summary` field, `name` not just IDs |
+| Accurate annotations | `readOnlyHint: true`, `idempotentHint: true` |
+| No required params | All parameters optional with defaults |
 
 ---
 
@@ -553,7 +686,7 @@ describe('MCP stdio transport', () => {
 
 | Step | Task | Action | Validation |
 |------|------|--------|------------|
-| 1 | T001 | Create `server.ts`, `lib/` directory structure | Files exist, `tsc` compiles |
+| 1 | T001 | Create `server.ts`, `lib/`, `tools/` directory structure | Files exist, `tsc` compiles |
 | 2 | T002 | Write server tests (createMcpServer, handleRequest) | Tests fail (RED) |
 | 3 | T003 | Implement MCP server with @modelcontextprotocol/sdk | Code compiles |
 | 4 | T004 | Run tests | All server tests GREEN |
@@ -563,7 +696,10 @@ describe('MCP stdio transport', () => {
 | 8 | T008 | Write CLI integration tests | Tests fail (RED) |
 | 9 | T009 | Update mcp.command.ts to lazy-load server | Code compiles |
 | 10 | T010 | Run tests | All CLI tests GREEN |
-| 11 | T011 | Run full gate verification | `just build`, `just test`, `just fft` pass |
+| 11 | T011 | Write check_health tool tests | Tests fail (RED) |
+| 12 | T012 | Implement check_health tool per ADR-0001 best practices | Code compiles, tool registered |
+| 13 | T013 | Run tests | All check_health tests GREEN |
+| 14 | T014 | Run full gate verification | `just build`, `just test`, `just fft` pass; tool invocable |
 
 ---
 
@@ -620,7 +756,9 @@ node packages/cli/dist/cli.cjs mcp --stdio
 - [ ] Test infrastructure ready (Vitest, FakeLogger)
 - [ ] DI patterns from Phase 3 understood (useFactory, child containers)
 - [ ] Process cleanup patterns from Phase 4 understood
-- [ ] ADR constraints mapped to tasks (IDs noted in Notes column) - N/A (no ADRs exist)
+- [ ] **ADR-0001 reviewed** (`docs/adr/adr-0001-mcp-tool-design-patterns.md`)
+- [ ] **Exemplar tool definition understood** (check_health in this doc)
+- [ ] ADR constraints mapped to tasks (see ADR Decision Constraints section above)
 
 **Awaiting explicit GO/NO-GO from human sponsor.**
 

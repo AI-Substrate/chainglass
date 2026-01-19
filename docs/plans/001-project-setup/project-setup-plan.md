@@ -1457,6 +1457,12 @@ No constitution or architecture deviations required for this greenfield project 
 
 ## ADR Ledger
 
+| ADR | Title | Status | Date | Affects Phases |
+|-----|-------|--------|------|----------------|
+| 0001 | [MCP Tool Design Patterns](../../adr/adr-0001-mcp-tool-design-patterns.md) | Accepted | 2026-01-19 | 5 |
+
+### ADR Seeds (from spec)
+
 | ADR | Status | Affects Phases | Notes |
 |-----|--------|----------------|-------|
 | ADR-001: Monorepo Structure | SEED (in spec) | 1, 2, 3, 4, 5 | pnpm + Turborepo selected |

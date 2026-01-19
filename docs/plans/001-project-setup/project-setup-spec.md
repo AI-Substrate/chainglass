@@ -207,6 +207,12 @@ Extensive research was conducted via Perplexity Deep Research covering 9 topics.
 
 ---
 
+## ADRs
+
+- ADR-0001: [MCP Tool Design Patterns](../../adr/adr-0001-mcp-tool-design-patterns.md) (2026-01-19) – status: Accepted
+
+---
+
 ## ADR Seeds (Optional)
 
 ### ADR-001: Monorepo Structure
