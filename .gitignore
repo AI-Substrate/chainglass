@@ -143,3 +143,5 @@ vite.config.ts.timestamp-*
 
 # FlowSpace MCP state
 .fs2/
+!.fs2/config.yaml
+scratch/*

@@ -13,6 +13,7 @@
     "next": "^15.1.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "styled-jsx": "5.1.6",
     "tsyringe": "^4.8.0",
     "reflect-metadata": "^0.2.2"
   },

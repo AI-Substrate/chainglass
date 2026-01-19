@@ -1059,21 +1059,23 @@ packages/cli/src/
 
 ### Tasks (TDD Approach)
 
+> **Note**: Actual implementation used refined task breakdown (T001-T016) documented in [tasks/phase-4-cli-package/tasks.md](tasks/phase-4-cli-package/tasks.md). Key changes: `cg web` replaces `cg dev` for production-first design, Next.js standalone bundling added.
+
 | #   | Status | Task | CS | Success Criteria | Log | Notes |
 |-----|--------|------|----|------------------|-----|-------|
-| 4.1 | [ ] | Create packages/cli/src structure | 1 | bin/, commands/ directories | - | |
-| 4.2 | [ ] | Write test for CLI argument parsing | 2 | Tests: --help, --version, dev command, mcp command | - | TDD: RED |
-| 4.3 | [ ] | Implement cg.ts entry point | 2 | Commander program with commands | - | |
-| 4.4 | [ ] | Implement help and version commands | 1 | `cg --help` and `cg --version` work | - | |
-| 4.5 | [ ] | Run CLI tests - expect GREEN | 1 | All argument parsing tests pass | - | TDD: GREEN |
-| 4.6 | [ ] | Write test for dev command | 2 | Tests: starts Next.js, handles missing web app | - | TDD: RED |
-| 4.7 | [ ] | Implement dev command | 2 | Spawns `next dev` in apps/web | - | |
-| 4.8 | [ ] | Run dev tests - expect GREEN | 1 | Dev command tests pass | - | TDD: GREEN |
-| 4.9 | [ ] | Create esbuild configuration | 2 | Dev mode (external shared) + prod mode (bundled) | - | I1-05, R1-06 |
-| 4.10 | [ ] | Add CLI build scripts | 1 | `pnpm -F @chainglass/cli build` creates dist/cli.js | - | |
-| 4.11 | [ ] | Test bundle in isolation | 2 | Copy dist/cli.js to /tmp, run without node_modules | - | R1-06 safety check |
-| 4.12 | [ ] | Test npm link workflow | 1 | `npm link && cg --help` works | - | |
-| 4.13 | [ ] | Verify Phase 4 gate | 1 | Built CLI, npm link, `cg dev` starts server | - | GATE |
+| 4.1 | [x] | Create packages/cli/src structure | 1 | bin/, commands/ directories | [📋](tasks/phase-4-cli-package/execution.log.md#task-t001) | T001 [^20] |
+| 4.2 | [x] | Write test for CLI argument parsing | 2 | Tests: --help, --version, web, mcp commands | [📋](tasks/phase-4-cli-package/execution.log.md#task-t002) | TDD: RED; T002 [^21] |
+| 4.3 | [x] | Implement cg.ts entry point | 2 | Commander program with commands | [📋](tasks/phase-4-cli-package/execution.log.md#task-t003) | T003 [^22] |
+| 4.4 | [x] | Implement help and version commands | 1 | `cg --help` and `cg --version` work | [📋](tasks/phase-4-cli-package/execution.log.md#task-t004) | T004 [^23] |
+| 4.5 | [x] | Run CLI tests - expect GREEN | 1 | All 9 argument parsing tests pass | [📋](tasks/phase-4-cli-package/execution.log.md#task-t005) | TDD: GREEN; T005 [^24] |
+| 4.6 | [x] | Write test for web command | 2 | Tests: starts Next.js standalone, port option | [📋](tasks/phase-4-cli-package/execution.log.md#task-t007) | TDD: RED; T007 [^26] |
+| 4.7 | [x] | Implement web command | 2 | Starts bundled standalone server | [📋](tasks/phase-4-cli-package/execution.log.md#task-t008) | T008 [^27] |
+| 4.8 | [x] | Run web tests - expect GREEN | 1 | All 5 web command tests pass | [📋](tasks/phase-4-cli-package/execution.log.md#task-t009) | TDD: GREEN; T009 [^28] |
+| 4.9 | [x] | Create esbuild configuration | 2 | CJS bundle + standalone asset copy | [📋](tasks/phase-4-cli-package/execution.log.md#task-t011) | T011 [^30] |
+| 4.10 | [x] | Add CLI build scripts | 1 | `pnpm -F @chainglass/cli build` creates dist/cli.cjs | [📋](tasks/phase-4-cli-package/execution.log.md#task-t012) | T012 [^31] |
+| 4.11 | [~] | Test bundle in isolation | 2 | PARTIAL: pnpm symlink issue prevents full isolation | [📋](tasks/phase-4-cli-package/execution.log.md#task-t013) | T013 [^32] Known limitation |
+| 4.12 | [x] | Test npm link workflow | 1 | `npm link && cg --help` works | [📋](tasks/phase-4-cli-package/execution.log.md#task-t014) | T014 [^33] |
+| 4.13 | [x] | Verify Phase 4 gate | 1 | Built CLI, npm link, `cg web` starts server, npx works | [📋](tasks/phase-4-cli-package/execution.log.md#task-t016) | GATE; T016 [^35] |
 
 ### Test Examples
 
@@ -1429,7 +1431,7 @@ describe('MCP stdio transport', () => {
 - [x] Phase 1: Monorepo Foundation - COMPLETE
 - [x] Phase 2: Shared Package - COMPLETE (12/12 tasks, 18 tests passing)
 - [x] Phase 3: Next.js App with Clean Architecture - COMPLETE (12/12 tasks, 25 tests passing)
-- [ ] Phase 4: CLI Package - NOT STARTED
+- [x] Phase 4: CLI Package - COMPLETE (16/16 tasks, 39 tests passing) [^20]
 - [ ] Phase 5: MCP Server Package - NOT STARTED
 - [ ] Phase 6: Documentation & Polish - NOT STARTED
 
@@ -1560,6 +1562,22 @@ Note: ADR seeds defined in spec. Consider running `/plan-3a-adr` to formalize be
   - `file:/Users/jordanknight/substrate/chainglass/test/unit/web/sample-service.test.ts` - Service tests (3 tests)
   - Discoveries: useFactory pattern required, static imports for ESM, tsconfig dist paths
   - Gate verification: 25 tests passing, just build/test/fft all pass
+
+[^20]: Phase 4 Tasks T001-T016 - CLI Package (cg command)
+  - `file:/Users/jordanknight/substrate/chainglass/packages/cli/src/bin/cg.ts` - CLI entry point with Commander.js
+  - `function:/Users/jordanknight/substrate/chainglass/packages/cli/src/bin/cg.ts:createProgram` - Factory with testMode option
+  - `file:/Users/jordanknight/substrate/chainglass/packages/cli/src/commands/web.command.ts` - Web command (starts standalone server)
+  - `function:/Users/jordanknight/substrate/chainglass/packages/cli/src/commands/web.command.ts:findStandaloneAssets` - Asset discovery
+  - `function:/Users/jordanknight/substrate/chainglass/packages/cli/src/commands/web.command.ts:validateStandaloneAssets` - Asset validation
+  - `function:/Users/jordanknight/substrate/chainglass/packages/cli/src/commands/web.command.ts:runWebCommand` - Server startup
+  - `file:/Users/jordanknight/substrate/chainglass/packages/cli/src/commands/mcp.command.ts` - MCP command stub (Phase 5)
+  - `file:/Users/jordanknight/substrate/chainglass/packages/cli/esbuild.config.ts` - Bundle configuration (CJS format)
+  - `file:/Users/jordanknight/substrate/chainglass/apps/web/next.config.ts` - Standalone output configuration
+  - `file:/Users/jordanknight/substrate/chainglass/test/unit/cli/cli-parser.test.ts` - Parser tests (9 tests)
+  - `file:/Users/jordanknight/substrate/chainglass/test/unit/cli/web-command.test.ts` - Web command tests (5 tests)
+  - Discoveries: Commander.js exitOverride() for tests, CJS format for esbuild, isMain needs /cg paths
+  - Known limitation: T013 pnpm symlink issue prevents full isolation test
+  - Gate verification: 39 tests passing (14 CLI + 25 prior), npx + npm link both work
 
 ---
 
