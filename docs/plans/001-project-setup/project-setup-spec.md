@@ -119,7 +119,6 @@ Extensive research was conducted via Perplexity Deep Research covering 9 topics.
 **When** I run `just test`
 **Then** Vitest executes all tests across all packages
 **And** all tests pass
-**And** total execution time is under 5 seconds for the initial test suite
 
 ### AC-4: Linting and Formatting
 **Given** source files exist
@@ -134,20 +133,23 @@ Extensive research was conducted via Perplexity Deep Research covering 9 topics.
 **Given** the CLI package is built
 **When** I run `npm link` from the root
 **And** I run `cg --help`
-**Then** I see the help output listing available commands (dev, mcp, version)
+**Then** I see the help output listing available commands (web, mcp, version)
 
 ### AC-6: CLI Subcommands
 **Given** the CLI is linked
-**When** I run `cg dev`
-**Then** the Next.js development server starts
+**When** I run `cg web`
+**Then** the Next.js production server starts (bundled standalone)
 **When** I run `cg mcp`
 **Then** the MCP server starts (stdio transport by default)
 
+*Note: Development mode uses `just dev` (monorepo workflow with hot reload). The CLI provides production commands only.*
+
 ### AC-7: Clean Architecture Enforcement
 **Given** a service file in `apps/web/src/services/`
-**When** I attempt to import from `apps/web/src/adapters/*.adapter.ts` (concrete implementation)
-**Then** TypeScript compilation fails or linting warns
-**But** importing from `*.interface.ts` (adapter interface) succeeds
+**When** the code is reviewed
+**Then** services import only from interfaces (e.g., `@chainglass/shared`), never from concrete adapters (`*.adapter.ts`)
+
+*Note: Enforcement is via code review during development/PR process. Automated tooling was evaluated and rejected due to false positive risks (see Phase 3 DYK-03).*
 
 ### AC-8: Dependency Injection
 **Given** a service that requires ILogger

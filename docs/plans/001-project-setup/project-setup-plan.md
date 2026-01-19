@@ -53,9 +53,8 @@ Chainglass needs a robust, maintainable foundation for a spec-driven development
 ### Success Metrics
 
 - All 10 acceptance criteria from spec pass
-- Test execution under 5 seconds
 - `just check` passes all quality gates
-- `cg --help`, `cg dev`, `cg mcp` functional
+- `cg --help`, `cg web`, `cg mcp` functional
 
 ---
 
@@ -256,7 +255,7 @@ grep -r "from.*adapter" packages/shared/src/services/ apps/web/src/services/ \
   | grep -v ".interface" && echo "VIOLATION" || echo "OK"
 ```
 
-**Action Required**: Add `just check-architecture` command, run in CI.
+**Action Required**: Enforce via code review during development/PR process. (Note: Automated grep-based checks were evaluated but rejected in Phase 3 DYK-03 due to false positive risks.)
 
 **Affects Phases**: 2, 3, 4
 
@@ -1188,7 +1187,7 @@ describe('CLI dev command', () => {
 - [ ] `pnpm -F @chainglass/cli build` creates dist/cli.js
 - [ ] Bundle size < 1MB
 - [ ] `npm link && cg --help` shows help
-- [ ] `cg dev` starts Next.js development server
+- [ ] `cg web` starts Next.js production server
 - [ ] Bundle works without node_modules present
 
 ---
@@ -1344,10 +1343,10 @@ describe('MCP stdio transport', () => {
 | 6.3 | [ ] | Update README.md | 2 | Prerequisites, installation, getting started, commands table | - | |
 | 6.4 | [ ] | Verify AC-1: Monorepo Structure | 1 | `pnpm install` links all packages | - | |
 | 6.5 | [ ] | Verify AC-2: Development Server | 1 | `just dev` starts localhost:3000 | - | |
-| 6.6 | [ ] | Verify AC-3: Test Execution | 1 | `just test` passes, <5s | - | |
+| 6.6 | [ ] | Verify AC-3: Test Execution | 1 | `just test` passes | - | |
 | 6.7 | [ ] | Verify AC-4: Linting and Formatting | 1 | `just lint`, `just format`, `just fft` work | - | |
 | 6.8 | [ ] | Verify AC-5: CLI Availability | 1 | `npm link && cg --help` works | - | |
-| 6.9 | [ ] | Verify AC-6: CLI Subcommands | 1 | `cg dev` and `cg mcp` work | - | |
+| 6.9 | [ ] | Verify AC-6: CLI Subcommands | 1 | `cg web` and `cg mcp` work | - | |
 | 6.10 | [ ] | Verify AC-7: Clean Architecture | 1 | Import restrictions enforced | - | |
 | 6.11 | [ ] | Verify AC-8: Dependency Injection | 1 | Services receive injected adapters | - | |
 | 6.12 | [ ] | Verify AC-9: Type Check | 1 | `just typecheck` passes | - | |

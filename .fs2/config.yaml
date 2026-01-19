@@ -18,5 +18,5 @@ scan:
 other_graphs:
   graphs:
     - name: vibe-kanban
-      path: /Users/jordanknight/substrate/chainglass/scratch/vk/graph.pickle
+      path: /Users/jordanknight/github/vibe-kanban/.fs2/graph.pickle
       description: Vibe Kanban
