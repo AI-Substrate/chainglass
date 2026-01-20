@@ -836,6 +836,181 @@ loop {
 
 ---
 
+## Model Selection & Token Tracking
+
+### Comparison Table
+
+| Capability | Claude Code | GitHub Copilot |
+|------------|-------------|----------------|
+| **Model Selection** | `--model <name>` | `--model <name>` |
+| **Model in Output** | ✅ stream-json init | ✅ debug logs |
+| **Token Usage** | ✅ stream-json | ✅ debug logs |
+| **Context Window** | ❌ Not available | ✅ debug logs |
+| **Cost Tracking** | ✅ result message | ❌ Not available |
+
+### Claude Code
+
+#### Model Selection
+
+Specify model with `--model` flag:
+
+```bash
+claude -p "prompt" --model haiku    # Fast, cheap
+claude -p "prompt" --model sonnet   # Balanced
+claude -p "prompt" --model opus     # Most capable
+```
+
+**Model visible in stream-json init message**:
+```json
+{"type":"system","subtype":"init","session_id":"...","model":"claude-opus-4-5-20251101",...}
+```
+
+**Available model aliases**: `haiku`, `sonnet`, `opus` (resolve to full model IDs)
+
+#### Token Usage
+
+Token data is available in stream-json output via `usage` objects:
+
+```typescript
+interface ClaudeUsage {
+  input_tokens: number;
+  output_tokens: number;
+  cache_creation_input_tokens?: number;  // New cache entries
+  cache_read_input_tokens?: number;       // Cached content reuse
+}
+```
+
+**Example from result message**:
+```json
+{
+  "type": "result",
+  "total_cost_usd": 0.077323,
+  "usage": {
+    "input_tokens": 3,
+    "output_tokens": 5,
+    "cache_creation_input_tokens": 11228,
+    "cache_read_input_tokens": 14015
+  }
+}
+```
+
+**Calculating remaining context**:
+- Context window NOT directly provided in output
+- Known limits: Opus/Sonnet = 200k tokens, Haiku = 200k tokens
+- Calculate remaining: `context_limit - (input_tokens + cache_creation + cache_read)`
+
+#### Cost Tracking
+
+Cost is reported in the final result message:
+```json
+{"type":"result","subtype":"success","total_cost_usd":0.077323,...}
+```
+
+### GitHub Copilot
+
+#### Model Selection
+
+Specify model with `--model` flag:
+
+```bash
+npx -y @github/copilot --model gpt-4.1 -p "prompt"
+npx -y @github/copilot --model claude-opus-4.5 -p "prompt"
+npx -y @github/copilot --model claude-sonnet-4.5 -p "prompt"
+npx -y @github/copilot --model gemini-3-pro-preview -p "prompt"
+```
+
+**Available models** (from Vibe Kanban profiles):
+- `gpt-4.1`, `gpt-5`, `gpt-5.1`, `gpt-5.2`, `gpt-5-mini`
+- `gpt-5.1-codex`, `gpt-5.1-codex-max`, `gpt-5.1-codex-mini`
+- `claude-opus-4.5`, `claude-sonnet-4.5`, `claude-haiku-4.5`
+- `gemini-3-pro-preview`
+
+**Model visible in debug logs**:
+```
+2026-01-20T09:18:04.232Z [DEBUG] Using model: claude-opus-4.5
+```
+
+#### Token Usage & Context Window
+
+Token data available in debug logs (requires `--log-level debug --log-dir <path>`):
+
+**Direct token usage**:
+```json
+"usage": {
+  "completion_tokens": 25,
+  "prompt_tokens": 23283,
+  "total_tokens": 23308
+}
+```
+
+**Context window per model**:
+```json
+"max_context_window_tokens": 160000  // claude-opus-4.5
+"max_context_window_tokens": 128000  // gpt-4.1
+```
+
+**Utilization tracking** (Copilot automatically tracks this):
+```
+CompactionProcessor: Utilization 15.0% (19138/128000 tokens) below threshold 80%
+```
+
+This tells you:
+- Current token usage: 19,138 tokens
+- Context limit: 128,000 tokens
+- Utilization: 15.0%
+- Auto-compact threshold: 80%
+
+**Parsing token info from logs**:
+
+```typescript
+interface CopilotTokenInfo {
+  model: string;
+  contextWindow: number;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  utilizationPercent: number;
+}
+
+async function extractTokenInfo(logDir: string): Promise<CopilotTokenInfo | null> {
+  const logContent = await readAllLogs(logDir);
+
+  // Extract model
+  const modelMatch = logContent.match(/Using model: (\S+)/);
+  const model = modelMatch?.[1] ?? null;
+
+  // Extract context window
+  const windowMatch = logContent.match(/"max_context_window_tokens":\s*(\d+)/);
+  const contextWindow = windowMatch ? parseInt(windowMatch[1]) : null;
+
+  // Extract usage
+  const usageMatch = logContent.match(/"usage":\s*\{[^}]*"total_tokens":\s*(\d+)/);
+  const totalTokens = usageMatch ? parseInt(usageMatch[1]) : null;
+
+  // Extract utilization (most informative)
+  const utilMatch = logContent.match(/Utilization (\d+\.?\d*)% \((\d+)\/(\d+) tokens\)/);
+  if (utilMatch) {
+    return {
+      model: model ?? 'unknown',
+      contextWindow: parseInt(utilMatch[3]),
+      promptTokens: parseInt(utilMatch[2]),
+      completionTokens: 0,  // Not in this log line
+      totalTokens: parseInt(utilMatch[2]),
+      utilizationPercent: parseFloat(utilMatch[1]),
+    };
+  }
+
+  return null;
+}
+```
+
+### Demo Scripts
+
+- `scripts/agents/test-model-tokens-claude.ts` - Test Claude Code model selection & token tracking
+- `scripts/agents/test-model-tokens-copilot.ts` - Test Copilot model selection & token tracking
+
+---
+
 ## Summary
 
 | Feature | Claude Code | Copilot | OpenCode | Codex | Amp |
@@ -845,6 +1020,10 @@ loop {
 | **Approval protocol** | Yes (stdin/stdout JSON) | No | Yes (HTTP) | Yes (JSON-RPC) | No |
 | **Interrupt support** | Yes | No | Yes | Yes | No |
 | **External `/compact`** | ✅ Yes (`-p`) | ✅ Yes (stdin only) | Unknown | Unknown | Unknown |
+| **Model selection** | ✅ `--model` | ✅ `--model` | Unknown | Unknown | Unknown |
+| **Token tracking** | ✅ stream-json | ✅ debug logs | Unknown | Unknown | Unknown |
+| **Context window** | ❌ | ✅ debug logs | Unknown | Unknown | Unknown |
+| **Cost tracking** | ✅ stream-json | ❌ | Unknown | Unknown | Unknown |
 
 For a unified UI, the key abstraction is:
 1. **Spawn** with initial prompt
@@ -853,4 +1032,6 @@ For a unified UI, the key abstraction is:
 4. **Follow-up** with session ID for multi-turn
 5. **Detect** state from output and process status
 6. **Handle** approvals when protocol supports it
-7. **Compact** context when approaching limits (Claude Code only)
+7. **Compact** context when approaching limits
+8. **Track** token usage for UI display (progress bar, warnings)
+9. **Select** model based on task requirements

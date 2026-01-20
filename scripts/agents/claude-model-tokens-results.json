@@ -1,0 +1,211 @@
+{
+  "test1": {
+    "model": {
+      "model": "claude-opus-4-5-20251101",
+      "contextWindow": null
+    },
+    "tokens": {
+      "inputTokens": 3,
+      "outputTokens": 5,
+      "cacheCreationInputTokens": 11228,
+      "cacheReadInputTokens": 14015,
+      "totalTokens": 8
+    },
+    "cost": 0.0773225
+  },
+  "test2": {
+    "model": {
+      "model": "claude-haiku-4-5-20251001",
+      "contextWindow": null
+    },
+    "tokens": {
+      "inputTokens": 3,
+      "outputTokens": 5,
+      "cacheCreationInputTokens": 11230,
+      "cacheReadInputTokens": 14017,
+      "totalTokens": 8
+    },
+    "cost": 0.015467200000000002
+  },
+  "rawMessagesTest1": [
+    {
+      "type": "system",
+      "subtype": "init",
+      "cwd": "/Users/jordanknight/substrate/chainglass",
+      "session_id": "051892a1-fdf9-4eb7-8eb6-9290601ef768",
+      "tools": [
+        "Task",
+        "TaskOutput",
+        "Bash",
+        "Glob",
+        "Grep",
+        "ExitPlanMode",
+        "Read",
+        "Edit",
+        "Write",
+        "NotebookEdit",
+        "WebFetch",
+        "TodoWrite",
+        "WebSearch",
+        "KillShell",
+        "AskUserQuestion",
+        "Skill",
+        "EnterPlanMode",
+        "MCPSearch",
+        "mcp__perplexity__perplexity_ask",
+        "mcp__perplexity__perplexity_research",
+        "mcp__perplexity__perplexity_reason",
+        "mcp__perplexity__perplexity_search",
+        "mcp__flowspace__tree",
+        "mcp__flowspace__get_node",
+        "mcp__flowspace__search",
+        "mcp__flowspace__docs_list",
+        "mcp__flowspace__docs_get",
+        "mcp__flowspace__list_graphs",
+        "ListMcpResourcesTool",
+        "ReadMcpResourceTool"
+      ],
+      "mcp_servers": [
+        {
+          "name": "perplexity",
+          "status": "connected"
+        },
+        {
+          "name": "flowspace",
+          "status": "connected"
+        }
+      ],
+      "model": "claude-opus-4-5-20251101",
+      "permissionMode": "bypassPermissions",
+      "slash_commands": [
+        "pack-code",
+        "didyouknow",
+        "profile",
+        "flowspace-research",
+        "plan-2-clarify",
+        "test-rules",
+        "plan-5a-subtask-tasks-and-brief",
+        "util-0-handover",
+        "special-reminders",
+        "deepresearch",
+        "codebase",
+        "plan-4-complete-the-plan",
+        "plan-0-constitution",
+        "tad",
+        "changes",
+        "plan-3a-adr",
+        "plan-6a-update-progress",
+        "plan-7-code-review",
+        "debugrepl",
+        "plan-5-phase-tasks-and-brief",
+        "plan-2b-prep-issue",
+        "README",
+        "GETTING-STARTED",
+        "unit-tester",
+        "plan-1b-specify",
+        "plan-1-specify",
+        "plan-3-architect",
+        "plan-1a-explore",
+        "plan-8-merge",
+        "implement",
+        "plan-6-implement-phase",
+        "compact",
+        "context",
+        "cost",
+        "init",
+        "pr-comments",
+        "release-notes",
+        "review",
+        "security-review"
+      ],
+      "apiKeySource": "none",
+      "claude_code_version": "2.1.12",
+      "output_style": "default",
+      "agents": [
+        "Bash",
+        "general-purpose",
+        "statusline-setup",
+        "Explore",
+        "Plan",
+        "claude-code-guide"
+      ],
+      "skills": [
+        "pack-code"
+      ],
+      "plugins": [],
+      "uuid": "6d69fc02-f7f2-4903-ba3d-f2f70a7da1ad"
+    },
+    {
+      "type": "assistant",
+      "message": {
+        "model": "claude-opus-4-5-20251101",
+        "id": "msg_019MY4KwK87BepTGYoEYkmU5",
+        "type": "message",
+        "role": "assistant",
+        "content": [
+          {
+            "type": "text",
+            "text": "4"
+          }
+        ],
+        "stop_reason": null,
+        "stop_sequence": null,
+        "usage": {
+          "input_tokens": 3,
+          "cache_creation_input_tokens": 11228,
+          "cache_read_input_tokens": 14015,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 11228,
+            "ephemeral_1h_input_tokens": 0
+          },
+          "output_tokens": 2,
+          "service_tier": "standard"
+        },
+        "context_management": null
+      },
+      "parent_tool_use_id": null,
+      "session_id": "051892a1-fdf9-4eb7-8eb6-9290601ef768",
+      "uuid": "afa6a5da-34f7-4b61-ae60-d939aed3a193"
+    },
+    {
+      "type": "result",
+      "subtype": "success",
+      "is_error": false,
+      "duration_ms": 2896,
+      "duration_api_ms": 2879,
+      "num_turns": 1,
+      "result": "4",
+      "session_id": "051892a1-fdf9-4eb7-8eb6-9290601ef768",
+      "total_cost_usd": 0.0773225,
+      "usage": {
+        "input_tokens": 3,
+        "cache_creation_input_tokens": 11228,
+        "cache_read_input_tokens": 14015,
+        "output_tokens": 5,
+        "server_tool_use": {
+          "web_search_requests": 0,
+          "web_fetch_requests": 0
+        },
+        "service_tier": "standard",
+        "cache_creation": {
+          "ephemeral_1h_input_tokens": 0,
+          "ephemeral_5m_input_tokens": 11228
+        }
+      },
+      "modelUsage": {
+        "claude-opus-4-5-20251101": {
+          "inputTokens": 3,
+          "outputTokens": 5,
+          "cacheReadInputTokens": 14015,
+          "cacheCreationInputTokens": 11228,
+          "webSearchRequests": 0,
+          "costUSD": 0.0773225,
+          "contextWindow": 200000,
+          "maxOutputTokens": 64000
+        }
+      },
+      "permission_denials": [],
+      "uuid": "db1bf191-b43d-48ec-8ce2-afac3a4f194c"
+    }
+  ]
+}
