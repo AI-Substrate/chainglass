@@ -19,12 +19,12 @@ Chainglass follows **Clean Architecture** principles to maintain a modular, test
 
 ```
 chainglass/
+├── apps/
+│   ├── web/              # Next.js web application
+│   └── cli/              # @chainglass/cli - Command-line interface
 ├── packages/
 │   ├── shared/           # @chainglass/shared - Interfaces, fakes, utilities
-│   ├── cli/              # @chainglass/cli - Command-line interface
 │   └── mcp-server/       # @chainglass/mcp-server - MCP server
-├── apps/
-│   └── web/              # Next.js web application
 └── test/                 # Centralized test suite
 ```
 

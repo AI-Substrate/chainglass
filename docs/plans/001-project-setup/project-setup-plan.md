@@ -3,7 +3,7 @@
 **Plan Version**: 1.0.0
 **Created**: 2026-01-18
 **Spec**: [./project-setup-spec.md](./project-setup-spec.md)
-**Status**: DRAFT
+**Status**: COMPLETE
 
 ---
 
@@ -1338,20 +1338,20 @@ describe('MCP stdio transport', () => {
 
 | #   | Status | Task | CS | Success Criteria | Log | Notes |
 |-----|--------|------|----|------------------|-----|-------|
-| 6.1 | [ ] | Survey existing docs structure | 1 | Document what exists, plan new docs | - | |
-| 6.2 | [ ] | Create docs/rules/architecture.md | 2 | Dependency direction, service/adapter patterns, DI usage | - | |
-| 6.3 | [ ] | Update README.md | 2 | Prerequisites, installation, getting started, commands table | - | |
-| 6.4 | [ ] | Verify AC-1: Monorepo Structure | 1 | `pnpm install` links all packages | - | |
-| 6.5 | [ ] | Verify AC-2: Development Server | 1 | `just dev` starts localhost:3000 | - | |
-| 6.6 | [ ] | Verify AC-3: Test Execution | 1 | `just test` passes | - | |
-| 6.7 | [ ] | Verify AC-4: Linting and Formatting | 1 | `just lint`, `just format`, `just fft` work | - | |
-| 6.8 | [ ] | Verify AC-5: CLI Availability | 1 | `npm link && cg --help` works | - | |
-| 6.9 | [ ] | Verify AC-6: CLI Subcommands | 1 | `cg web` and `cg mcp` work | - | |
-| 6.10 | [ ] | Verify AC-7: Clean Architecture | 1 | Import restrictions enforced | - | |
-| 6.11 | [ ] | Verify AC-8: Dependency Injection | 1 | Services receive injected adapters | - | |
-| 6.12 | [ ] | Verify AC-9: Type Check | 1 | `just typecheck` passes | - | |
-| 6.13 | [ ] | Verify AC-10: Build Pipeline | 1 | `just build` creates dist/cli.js, cached builds <1s | - | |
-| 6.14 | [ ] | Run full quality suite | 1 | `just check` passes | - | GATE |
+| 6.1 | [x] | Survey existing docs structure | 1 | Document what exists, plan new docs | - | Complete [^22] |
+| 6.2 | [x] | Create docs/rules/architecture.md | 2 | Dependency direction, service/adapter patterns, DI usage | - | Complete [^22] |
+| 6.3 | [x] | Update README.md | 2 | Prerequisites, installation, getting started, commands table | - | Complete [^22] |
+| 6.4 | [x] | Verify AC-1: Monorepo Structure | 1 | `pnpm install` links all packages | - | Verified |
+| 6.5 | [x] | Verify AC-2: Development Server | 1 | `just dev` starts localhost:3000 | - | Verified |
+| 6.6 | [x] | Verify AC-3: Test Execution | 1 | `just test` passes | - | 66 tests pass |
+| 6.7 | [x] | Verify AC-4: Linting and Formatting | 1 | `just lint`, `just format`, `just fft` work | - | Verified |
+| 6.8 | [x] | Verify AC-5: CLI Availability | 1 | `npm link && cg --help` works | - | Verified |
+| 6.9 | [x] | Verify AC-6: CLI Subcommands | 1 | `cg web` and `cg mcp` work | - | Verified |
+| 6.10 | [x] | Verify AC-7: Clean Architecture | 1 | Import restrictions enforced | - | Code review based |
+| 6.11 | [x] | Verify AC-8: Dependency Injection | 1 | Services receive injected adapters | - | Tests prove DI works |
+| 6.12 | [x] | Verify AC-9: Type Check | 1 | `just typecheck` passes | - | Verified |
+| 6.13 | [x] | Verify AC-10: Build Pipeline | 1 | `just build` creates dist/cli.js, cached builds <1s | - | FULL TURBO caching |
+| 6.14 | [x] | Run full quality suite | 1 | `just check` passes | - | GATE passed |
 
 ### Documentation Content Outline
 
@@ -1373,11 +1373,11 @@ describe('MCP stdio transport', () => {
 5. Link to docs/rules/architecture.md
 
 ### Acceptance Criteria
-- [ ] docs/rules/architecture.md is complete and accurate
-- [ ] README.md has quick-start that works
-- [ ] All 10 spec acceptance criteria pass
-- [ ] `just check` passes all quality gates
-- [ ] No broken links in documentation
+- [x] docs/rules/architecture.md is complete and accurate
+- [x] README.md has quick-start that works
+- [x] All 10 spec acceptance criteria pass
+- [x] `just check` passes all quality gates
+- [x] No broken links in documentation
 
 ---
 
@@ -1432,7 +1432,7 @@ describe('MCP stdio transport', () => {
 - [x] Phase 3: Next.js App with Clean Architecture - COMPLETE (12/12 tasks, 25 tests passing)
 - [x] Phase 4: CLI Package - COMPLETE (16/16 tasks, 39 tests passing) [^20]
 - [x] Phase 5: MCP Server Package - COMPLETE
-- [ ] Phase 6: Documentation & Polish - NOT STARTED
+- [x] Phase 6: Documentation & Polish - COMPLETE (14/14 tasks, 66 tests passing) [^22]
 
 ### STOP Rule
 
@@ -1605,10 +1605,19 @@ Mid-implementation detours requiring structured tracking.
 
 | ID | Created | Phase | Parent Task | Reason | Status | Dossier |
 |----|---------|-------|-------------|--------|--------|---------|
-| 001-subtask-relocate-cli-to-apps | 2026-01-20 | Phase 6: Documentation & Polish | T015 | CLI mislocated in packages/ - should be in apps/ per monorepo conventions | [ ] Pending | [Link](tasks/phase-6-documentation-polish/001-subtask-relocate-cli-to-apps.md) |
+| 001-subtask-relocate-cli-to-apps | 2026-01-20 | Phase 6: Documentation & Polish | T015 | CLI mislocated in packages/ - should be in apps/ per monorepo conventions | [x] Complete | [Link](tasks/phase-6-documentation-polish/001-subtask-relocate-cli-to-apps.md) |
+
+[^22]: Phase 6 - Documentation & Polish
+  - CLI relocated from `packages/cli` to `apps/cli` (subtask 001)
+  - `file:docs/rules/architecture.md` - Clean architecture documentation
+  - `file:README.md` - Updated project structure and quick start
+  - `file:tsconfig.json` - Added `scripts` to exclude list
+  - `file:biome.json` - Added `scripts` and `.vsc-bridge` to ignore list
+  - All 10 acceptance criteria verified
+  - 66 tests passing, `just check` passes
 
 ---
 
 **Plan Created**: 2026-01-18
+**Plan Completed**: 2026-01-20
 **Plan Location**: `docs/plans/001-project-setup/project-setup-plan.md`
-**Next Step**: Run `/plan-5-phase-tasks-and-brief --phase 4` to generate Phase 4 dossier

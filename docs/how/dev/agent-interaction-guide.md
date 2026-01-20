@@ -62,14 +62,14 @@ pub struct SpawnedChild {
 
 ## Agent Comparison Table
 
-| Agent | Input Method | Output Format | Session ID Source | Resume Flag | Control Protocol |
-|-------|--------------|---------------|-------------------|-------------|------------------|
-| **Claude Code** | `-p` flag + stdin for control | stream-json (NDJSON) | JSON output field | `--fork-session --resume <id>` | Bidirectional JSON via stdin/stdout |
-| **GitHub Copilot** | `-p` flag or stdin | Plain text | Log file polling | `--resume <id>` | None (use `--yolo`) |
-| **OpenCode** | HTTP API | Server-Sent Events | HTTP response | Fork via API | HTTP API |
-| **Codex** | stdin (JSON-RPC) | JSON-RPC responses | Rollout file | Fork rollout file | JSON-RPC over stdin/stdout |
-| **Amp** | stdin (write + close) | stream-json | JSON output field | `--session <id>` | None |
-| **Cursor Agent** | stdin (write + close) | Plain text | Not supported | Not supported | None |
+| Agent | Input Method | Output Format | Session ID Source | Resume Flag | External `/compact` |
+|-------|--------------|---------------|-------------------|-------------|---------------------|
+| **Claude Code** | `-p` flag + stdin for control | stream-json (NDJSON) | JSON output field | `--fork-session --resume <id>` | ✅ Yes |
+| **GitHub Copilot** | `-p` flag or stdin | Plain text | Log file polling | `--resume <id>` | ✅ Yes (stdin only) |
+| **OpenCode** | HTTP API | Server-Sent Events | HTTP response | Fork via API | Unknown |
+| **Codex** | stdin (JSON-RPC) | JSON-RPC responses | Rollout file | Fork rollout file | Unknown |
+| **Amp** | stdin (write + close) | stream-json | JSON output field | `--session <id>` | Unknown |
+| **Cursor Agent** | stdin (write + close) | Plain text | Not supported | Not supported | ❌ No |
 
 ---
 
@@ -231,16 +231,43 @@ For interactive approval handling, use `--input-format=stream-json --permission-
 | **Waiting for Approval** | Received `control_request` with `type: "can_use_tool"` |
 | **Error** | Received `{"type": "result", "subtype": "error", ...}` or process exited non-zero |
 
-### Compaction
+### Compaction (External `/compact` Support)
 
-Claude Code manages context internally. No explicit compaction API. If context exceeds limit, agent will summarize or fail.
+**Claude Code supports external `/compact` triggers!**
 
-### Demo Script
+To trigger compaction from an external caller, simply send `/compact` as the prompt in a resumed session:
+
+```bash
+claude -p "/compact" \
+  --fork-session \
+  --resume <session_id> \
+  --verbose \
+  --output-format=stream-json \
+  --dangerously-skip-permissions
+```
+
+**Output when compacting**:
+```json
+{"type":"system","subtype":"status","status":"compacting","session_id":"..."}
+{"type":"system","subtype":"status","status":null,"session_id":"..."}
+{"type":"system","subtype":"init","session_id":"...","tools":[...]}
+```
+
+**Detection**:
+1. `"status":"compacting"` - Compaction started
+2. `"status":null` - Compaction finished
+3. `"subtype":"init"` - Session reinitialized with compacted context
+
+This allows external orchestrators to proactively manage context before hitting limits.
+
+### Demo Scripts
 
 See `scripts/agents/claude-code-session-demo.ts` for a working TypeScript example demonstrating:
 - Real-time NDJSON parsing and formatted display
 - Session ID extraction
 - Multi-turn conversations with `--fork-session --resume`
+
+See `scripts/agents/test-external-compact.ts` for testing external `/compact` triggers.
 
 ---
 
@@ -372,13 +399,36 @@ the `<org>` organization has enabled OAuth App access restrictions
 
 **Fix**: Enable GitHub Copilot CLI in organization OAuth settings, or run from a non-restricted directory.
 
-### Compaction
+### Compaction (External `/compact` Support)
 
-Not supported. Start a new session if context exceeds limit.
+**Copilot supports `/compact` but ONLY via stdin, NOT via `-p` flag!**
 
-### Demo Script
+The `-p` flag treats everything as a regular prompt. To trigger `/compact`, you must use stdin:
 
-See `scripts/agents/copilot-session-demo.ts` for a working TypeScript example demonstrating multi-turn conversations.
+```bash
+# This WORKS - stdin respects slash commands
+echo "/compact" | npx -y @github/copilot \
+  --no-color \
+  --yolo \
+  --log-level debug \
+  --log-dir /tmp/copilot_logs \
+  --resume <session_id>
+
+# Output: "Conversation compacted. Ready for your next request."
+```
+
+```bash
+# This does NOT work - -p treats it as a regular prompt
+npx -y @github/copilot -p "/compact" --resume <session_id>
+# Output: (Copilot just responds to "/compact" as text)
+```
+
+**Key insight**: Use stdin for slash commands, `-p` for regular prompts.
+
+### Demo Scripts
+
+- `scripts/agents/copilot-session-demo.ts` - Multi-turn conversation demo
+- `scripts/agents/test-external-compact.ts` - Tests external `/compact` on both Claude Code and Copilot
 
 ---
 
@@ -794,7 +844,7 @@ loop {
 | **Session ID in stdout** | Yes | No (log files) | N/A (HTTP) | Via JSON-RPC | Yes |
 | **Approval protocol** | Yes (stdin/stdout JSON) | No | Yes (HTTP) | Yes (JSON-RPC) | No |
 | **Interrupt support** | Yes | No | Yes | Yes | No |
-| **Compaction** | Internal | No | Internal | Internal | Internal |
+| **External `/compact`** | ✅ Yes (`-p`) | ✅ Yes (stdin only) | Unknown | Unknown | Unknown |
 
 For a unified UI, the key abstraction is:
 1. **Spawn** with initial prompt
@@ -803,3 +853,4 @@ For a unified UI, the key abstraction is:
 4. **Follow-up** with session ID for multi-turn
 5. **Detect** state from output and process status
 6. **Handle** approvals when protocol supports it
+7. **Compact** context when approaching limits (Claude Code only)

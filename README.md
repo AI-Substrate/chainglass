@@ -62,10 +62,10 @@ cg --help
 ```
 chainglass/
 ├── apps/
-│   └── web/              # Next.js web application
+│   ├── web/              # Next.js web application
+│   └── cli/              # @chainglass/cli - Command-line interface
 ├── packages/
 │   ├── shared/           # @chainglass/shared - Interfaces, fakes, utilities
-│   ├── cli/              # @chainglass/cli - Command-line interface
 │   └── mcp-server/       # @chainglass/mcp-server - MCP server
 ├── test/                 # Centralized test suite
 │   ├── unit/             # Unit tests (by package)
