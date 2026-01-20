@@ -137,3 +137,11 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Turborepo cache
+.turbo/
+
+# FlowSpace MCP state
+.fs2/
+!.fs2/config.yaml
+scratch/*
