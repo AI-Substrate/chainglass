@@ -84,7 +84,7 @@ describe('check_health tool - ADR-0001 Exemplar', () => {
 
   describe('E2E tool invocation via stdio', () => {
     let proc: ChildProcess | null = null;
-    const cliPath = path.resolve('packages/cli/dist/cli.cjs');
+    const cliPath = path.resolve('apps/cli/dist/cli.cjs');
 
     afterEach(() => {
       if (proc) {

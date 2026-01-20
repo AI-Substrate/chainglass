@@ -23,6 +23,15 @@
     }
   },
   "files": {
-    "ignore": ["node_modules", "dist", ".next", ".turbo", "pnpm-lock.yaml", "*.md"]
+    "ignore": [
+      "node_modules",
+      "dist",
+      ".next",
+      ".turbo",
+      "pnpm-lock.yaml",
+      "*.md",
+      "scripts",
+      ".vsc-bridge"
+    ]
   }
 }

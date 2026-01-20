@@ -33,6 +33,34 @@ importers:
         specifier: ^3.0.4
         version: 3.2.4(@types/node@25.0.9)(tsx@4.21.0)
 
+  apps/cli:
+    dependencies:
+      '@chainglass/mcp-server':
+        specifier: workspace:*
+        version: link:../../packages/mcp-server
+      '@chainglass/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      '@chainglass/web':
+        specifier: workspace:*
+        version: link:../web
+      chalk:
+        specifier: ^5.6.2
+        version: 5.6.2
+      commander:
+        specifier: ^13.1.0
+        version: 13.1.0
+    devDependencies:
+      esbuild:
+        specifier: ^0.27.2
+        version: 0.27.2
+      tsx:
+        specifier: ^4.21.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+
   apps/web:
     dependencies:
       '@chainglass/shared':
@@ -63,34 +91,6 @@ importers:
       '@types/react-dom':
         specifier: ^19.0.3
         version: 19.2.3(@types/react@19.2.8)
-      typescript:
-        specifier: ^5.7.3
-        version: 5.9.3
-
-  packages/cli:
-    dependencies:
-      '@chainglass/mcp-server':
-        specifier: workspace:*
-        version: link:../mcp-server
-      '@chainglass/shared':
-        specifier: workspace:*
-        version: link:../shared
-      '@chainglass/web':
-        specifier: workspace:*
-        version: link:../../apps/web
-      chalk:
-        specifier: ^5.6.2
-        version: 5.6.2
-      commander:
-        specifier: ^13.1.0
-        version: 13.1.0
-    devDependencies:
-      esbuild:
-        specifier: ^0.27.2
-        version: 0.27.2
-      tsx:
-        specifier: ^4.21.0
-        version: 4.21.0
       typescript:
         specifier: ^5.7.3
         version: 5.9.3

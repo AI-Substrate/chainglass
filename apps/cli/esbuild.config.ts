@@ -86,7 +86,7 @@ async function build() {
  * These must be copied separately.
  */
 async function copyStandaloneAssets(outdir: string) {
-  const webRoot = resolve(__dirname, '..', '..', 'apps', 'web');
+  const webRoot = resolve(__dirname, '..', 'web');
   const standaloneRoot = resolve(webRoot, '.next', 'standalone');
 
   if (!existsSync(standaloneRoot)) {

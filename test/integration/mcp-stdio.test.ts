@@ -15,7 +15,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 describe('cg mcp command integration', () => {
   let proc: ChildProcess | null = null;
-  const cliPath = path.resolve('packages/cli/dist/cli.cjs');
+  const cliPath = path.resolve('apps/cli/dist/cli.cjs');
 
   afterEach(() => {
     if (proc) {

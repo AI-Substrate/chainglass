@@ -21,8 +21,8 @@
     "paths": {
       "@chainglass/shared": ["./packages/shared/src"],
       "@chainglass/shared/*": ["./packages/shared/src/*"],
-      "@chainglass/cli": ["./packages/cli/src"],
-      "@chainglass/cli/*": ["./packages/cli/src/*"],
+      "@chainglass/cli": ["./apps/cli/src"],
+      "@chainglass/cli/*": ["./apps/cli/src/*"],
       "@chainglass/mcp-server": ["./packages/mcp-server/src"],
       "@chainglass/mcp-server/*": ["./packages/mcp-server/src/*"],
       "@chainglass/web": ["./apps/web/src"],

@@ -183,6 +183,7 @@ flowchart TD
 | [x] | T012 | Verify AC-9: Type Check | 1 | Verify | T011 | /Users/jordanknight/substrate/chainglass/tsconfig.json | `just typecheck` passes with strict mode | – | Per spec AC-9 |
 | [x] | T013 | Verify AC-10: Build Pipeline | 1 | Verify | T012 | /Users/jordanknight/substrate/chainglass/packages/cli/dist/ | `just build` creates dist/cli.cjs, cached build <1s | – | Per spec AC-10 |
 | [x] | T014 | Run full quality suite | 1 | Gate | T013 | /Users/jordanknight/substrate/chainglass/ | `just check` passes all quality gates | – | FINAL GATE |
+| [ ] | T015 | Relocate CLI to apps/ | 2 | Refactor | T014 | /Users/jordanknight/substrate/chainglass/apps/cli/ | CLI at apps/cli, all tests pass, CLI works | [001-subtask-relocate-cli-to-apps](./001-subtask-relocate-cli-to-apps.md) | Post-phase structure improvement |
 
 ---
 

@@ -15,7 +15,7 @@ export default defineConfig({
     setupFiles: [resolve(testDir, 'setup.ts')],
     alias: {
       '@chainglass/shared': resolve(rootDir, 'packages/shared/src'),
-      '@chainglass/cli': resolve(rootDir, 'packages/cli/src'),
+      '@chainglass/cli': resolve(rootDir, 'apps/cli/src'),
       '@chainglass/mcp-server': resolve(rootDir, 'packages/mcp-server/src'),
       '@chainglass/web': resolve(rootDir, 'apps/web/src'),
       '@test/': `${testDir}/`,

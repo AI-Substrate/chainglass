@@ -1599,6 +1599,16 @@ Note: ADR seeds defined in spec. Consider running `/plan-3a-adr` to formalize be
 
 ---
 
+## Subtasks Registry
+
+Mid-implementation detours requiring structured tracking.
+
+| ID | Created | Phase | Parent Task | Reason | Status | Dossier |
+|----|---------|-------|-------------|--------|--------|---------|
+| 001-subtask-relocate-cli-to-apps | 2026-01-20 | Phase 6: Documentation & Polish | T015 | CLI mislocated in packages/ - should be in apps/ per monorepo conventions | [ ] Pending | [Link](tasks/phase-6-documentation-polish/001-subtask-relocate-cli-to-apps.md) |
+
+---
+
 **Plan Created**: 2026-01-18
 **Plan Location**: `docs/plans/001-project-setup/project-setup-plan.md`
 **Next Step**: Run `/plan-5-phase-tasks-and-brief --phase 4` to generate Phase 4 dossier

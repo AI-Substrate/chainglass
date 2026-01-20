@@ -5,8 +5,8 @@
   "type": "module",
   "description": "Spec-driven development enrichment workflow tool",
   "bin": {
-    "cg": "./packages/cli/dist/cli.js",
-    "chainglass": "./packages/cli/dist/cli.js"
+    "cg": "./apps/cli/dist/cli.js",
+    "chainglass": "./apps/cli/dist/cli.js"
   },
   "scripts": {
     "build": "turbo build",
