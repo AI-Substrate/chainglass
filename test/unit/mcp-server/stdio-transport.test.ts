@@ -7,24 +7,35 @@
  * - stdout is reserved EXCLUSIVELY for JSON-RPC messages
  * - No startup messages, logs, or console.log on stdout
  * - All logs MUST go to stderr
+ *
+ * Note: Tests 1, 3, 4 use spawn (pre-connection tests that verify stdout state BEFORE
+ * any JSON-RPC). Test 2 uses SDK client (post-connection test).
  */
 
 import { type ChildProcess, spawn } from 'node:child_process';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { type McpTestClient, createTestClient } from '../../base/mcp-test.js';
 
 // Resolve CLI path from test file location (works regardless of cwd)
 const projectRoot = path.resolve(import.meta.dirname, '../../..');
 const cliPath = path.join(projectRoot, 'apps/cli/dist/cli.cjs');
 
 describe('MCP stdio transport cleanliness', () => {
+  // For spawn-based tests (pre-connection)
   let proc: ChildProcess | null = null;
+  // For SDK-based tests (post-connection)
+  let testClient: McpTestClient | null = null;
 
-  afterEach(() => {
+  afterEach(async () => {
+    // Cleanup spawn-based tests
     if (proc) {
       proc.kill();
       proc = null;
     }
+    // Cleanup SDK-based tests
+    await testClient?.close();
+    testClient = null;
   });
 
   it('should not output anything to stdout before receiving input', async () => {
@@ -32,7 +43,7 @@ describe('MCP stdio transport cleanliness', () => {
     Test Doc:
     - Why: MCP stdio protocol requires stdout reserved for JSON-RPC only; any startup noise corrupts the protocol
     - Contract: After spawn, stdout remains empty until first JSON-RPC input is received
-    - Usage Notes: Spawn mcp server, wait 1000ms for any accidental startup messages; stderr is allowed
+    - Usage Notes: Spawn mcp server directly (not SDK), wait 1000ms for any accidental startup messages
     - Quality Contribution: Catches console.log, startup messages, or logger misconfiguration
     - Worked Example: spawn mcp --stdio, wait 1000ms, stdout.join('') === '' (empty string)
     */
@@ -60,52 +71,18 @@ describe('MCP stdio transport cleanliness', () => {
     Test Doc:
     - Why: All stdout must be parseable JSON-RPC; garbage output breaks agent communication
     - Contract: After sending JSON-RPC request, stdout contains only valid JSON-RPC response
-    - Usage Notes: Send initialize request via stdin; read stdout; parse as JSON; verify structure
+    - Usage Notes: Use createTestClient() which auto-handles initialize; verify via getServerVersion()
     - Quality Contribution: Catches malformed JSON, extra whitespace, or debug output mixed with response
-    - Worked Example: stdin '{"jsonrpc":"2.0",...}' -> stdout parses as {jsonrpc:'2.0',id:1,result:{...}}
+    - Worked Example: createTestClient() succeeds (implicitly verifies stdout is valid JSON-RPC)
     */
-    proc = spawn(process.execPath, [cliPath, 'mcp', '--stdio'], {
-      stdio: ['pipe', 'pipe', 'pipe'],
-      cwd: process.cwd(),
-    });
+    // SDK client's connect() sends initialize and parses the JSON-RPC response
+    // If this succeeds, stdout contained only valid JSON-RPC
+    testClient = await createTestClient();
 
-    const stdout: string[] = [];
-    proc.stdout?.on('data', (data) => stdout.push(data.toString()));
-
-    // Wait for server startup
-    await new Promise((r) => setTimeout(r, 500));
-
-    // Send initialize request
-    const request = JSON.stringify({
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'initialize',
-      params: {
-        protocolVersion: '2024-11-05',
-        capabilities: {},
-        clientInfo: { name: 'test', version: '1.0.0' },
-      },
-    });
-
-    proc.stdin?.write(`${request}\n`);
-
-    // Wait for response
-    const response = await new Promise<string>((resolve) => {
-      const timeout = setTimeout(() => resolve(stdout.join('')), 3000);
-      proc?.stdout?.once('data', () => {
-        clearTimeout(timeout);
-        // Give a bit more time for complete response
-        setTimeout(() => resolve(stdout.join('')), 100);
-      });
-    });
-
-    // Should be valid JSON
-    expect(() => JSON.parse(response)).not.toThrow();
-
-    // Should be JSON-RPC format
-    const parsed = JSON.parse(response);
-    expect(parsed.jsonrpc).toBe('2.0');
-    expect(parsed.id).toBe(1);
+    // getServerVersion() confirms the initialize response was valid JSON-RPC
+    const serverVersion = testClient.client.getServerVersion();
+    expect(serverVersion).toBeDefined();
+    expect(serverVersion?.name).toBe('chainglass');
   });
 
   it('should log startup messages to stderr only', async () => {

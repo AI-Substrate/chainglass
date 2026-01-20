@@ -195,7 +195,7 @@ flowchart TD
 | [x] | T011 | Write tests for check_health tool (tool invocation, response format, annotations) | 2 | Test | T010 | `/Users/jordanknight/substrate/chainglass/test/unit/mcp-server/check-health.test.ts` | Tests compile, all fail (RED) | – | TDD: RED; Exemplar; ADR-0001 IMP-002, IMP-003 |
 | [x] | T012 | Implement check_health tool following ADR-0001 best practices | 2 | Core | T011 | `/Users/jordanknight/substrate/chainglass/packages/mcp-server/src/tools/check-health.tool.ts` | Tool registered, returns health status | – | EXEMPLAR TOOL; ADR-0001 Decisions #2-7 |
 | [x] | T013 | Run check_health tests - expect GREEN | 1 | Test | T012 | (same as T011) | All check_health tests pass | – | TDD: GREEN; ADR-0001 |
-| [x] | T014 | Verify Phase 5 gate | 1 | Gate | T013 | All | `just build`, `just test`, `just fft` pass; `cg mcp --help` shows options; check_health tool invocable | – | GATE |
+| [x] | T014 | Verify Phase 5 gate | 1 | Gate | T013 | All | `just build`, `just test`, `just fft` pass; `cg mcp --help` shows options; check_health tool invocable | 001-subtask-migrate-mcp-tests-to-sdk-client | GATE |
 
 ---
 

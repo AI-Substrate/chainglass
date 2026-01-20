@@ -1606,6 +1606,7 @@ Mid-implementation detours requiring structured tracking.
 | ID | Created | Phase | Parent Task | Reason | Status | Dossier |
 |----|---------|-------|-------------|--------|--------|---------|
 | 001-subtask-relocate-cli-to-apps | 2026-01-20 | Phase 6: Documentation & Polish | T015 | CLI mislocated in packages/ - should be in apps/ per monorepo conventions | [x] Complete | [Link](tasks/phase-6-documentation-polish/001-subtask-relocate-cli-to-apps.md) |
+| 001-subtask-migrate-mcp-tests-to-sdk-client | 2026-01-21 | Phase 5: MCP Server Package | T014 | MCP tests use manual JSON-RPC boilerplate; SDK provides proper Client class for cleaner tests | [x] Complete | [Link](tasks/phase-5-mcp-server-package/001-subtask-migrate-mcp-tests-to-sdk-client.md) |
 
 [^22]: Phase 6 - Documentation & Polish
   - CLI relocated from `packages/cli` to `apps/cli` (subtask 001)

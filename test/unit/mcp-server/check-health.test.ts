@@ -12,15 +12,10 @@
  * - Annotations (readOnlyHint, destructiveHint, etc.)
  */
 
-import { type ChildProcess, spawn } from 'node:child_process';
-import path from 'node:path';
 import { createMcpServer } from '@chainglass/mcp-server';
 import { FakeLogger } from '@chainglass/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-
-// Resolve CLI path from test file location (works regardless of cwd)
-const projectRoot = path.resolve(import.meta.dirname, '../../..');
-const cliPath = path.join(projectRoot, 'apps/cli/dist/cli.cjs');
+import { type McpTestClient, createTestClient } from '../../base/mcp-test.js';
 
 describe('check_health tool - ADR-0001 Exemplar', () => {
   let fakeLogger: FakeLogger;
@@ -87,13 +82,11 @@ describe('check_health tool - ADR-0001 Exemplar', () => {
   });
 
   describe('E2E tool invocation via stdio', () => {
-    let proc: ChildProcess | null = null;
+    let testClient: McpTestClient | null = null;
 
-    afterEach(() => {
-      if (proc) {
-        proc.kill();
-        proc = null;
-      }
+    afterEach(async () => {
+      await testClient?.close();
+      testClient = null;
     });
 
     it('should return semantic response with summary field (ADR-0001 Decision #5)', async () => {
@@ -101,64 +94,21 @@ describe('check_health tool - ADR-0001 Exemplar', () => {
       Test Doc:
       - Why: ADR-0001 mandates semantic response with summary for agent reasoning
       - Contract: tools/call returns response with status, components, summary, checked_at
-      - Usage Notes: Send complete MCP handshake first, then call tool
+      - Usage Notes: Use createTestClient() for automatic handshake; call client.callTool()
       - Quality Contribution: Catches missing semantic fields that impair agent reasoning
-      - Worked Example: response.content[0].text JSON has {status, summary, components, checked_at}
+      - Worked Example: client.callTool({name:'check_health'}) -> content[0].text has {status, summary, components, checked_at}
       */
-      proc = spawn(process.execPath, [cliPath, 'mcp', '--stdio'], {
-        stdio: ['pipe', 'pipe', 'pipe'],
-        cwd: process.cwd(),
+      testClient = await createTestClient();
+
+      const result = await testClient.client.callTool({
+        name: 'check_health',
+        arguments: {},
       });
 
-      const stdout: string[] = [];
-      proc.stdout?.on('data', (data) => stdout.push(data.toString()));
+      expect(result.content).toBeDefined();
+      expect(result.content[0].type).toBe('text');
 
-      await new Promise((r) => setTimeout(r, 500));
-
-      // Initialize
-      proc.stdin?.write(
-        `${JSON.stringify({
-          jsonrpc: '2.0',
-          id: 1,
-          method: 'initialize',
-          params: {
-            protocolVersion: '2024-11-05',
-            capabilities: {},
-            clientInfo: { name: 'test', version: '1.0.0' },
-          },
-        })}\n`
-      );
-
-      await new Promise((r) => setTimeout(r, 300));
-      stdout.length = 0; // Clear
-
-      // Call check_health tool
-      proc.stdin?.write(
-        `${JSON.stringify({
-          jsonrpc: '2.0',
-          id: 2,
-          method: 'tools/call',
-          params: {
-            name: 'check_health',
-            arguments: {},
-          },
-        })}\n`
-      );
-
-      await new Promise<void>((resolve) => {
-        const timeout = setTimeout(resolve, 3000);
-        proc?.stdout?.once('data', () => {
-          clearTimeout(timeout);
-          setTimeout(resolve, 100);
-        });
-      });
-
-      const response = JSON.parse(stdout.join(''));
-      expect(response.result).toBeDefined();
-      expect(response.result.content).toBeDefined();
-      expect(response.result.content[0].type).toBe('text');
-
-      const toolResponse = JSON.parse(response.result.content[0].text);
+      const toolResponse = JSON.parse((result.content[0] as { type: 'text'; text: string }).text);
       expect(toolResponse.status).toBeDefined();
       expect(toolResponse.summary).toBeDefined();
       expect(toolResponse.components).toBeDefined();
@@ -170,66 +120,25 @@ describe('check_health tool - ADR-0001 Exemplar', () => {
       Test Doc:
       - Why: ADR-0001 requires complete annotations for agent decision-making
       - Contract: Tool has readOnlyHint, destructiveHint, idempotentHint, openWorldHint
-      - Usage Notes: Request tool list and inspect annotations
+      - Usage Notes: Use createTestClient() then client.listTools() to get tool metadata
       - Quality Contribution: Catches missing annotations that affect agent safety decisions
-      - Worked Example: tool.annotations includes all 4 hints
+      - Worked Example: client.listTools() -> tools[0].annotations includes all 4 hints
       */
-      proc = spawn(process.execPath, [cliPath, 'mcp', '--stdio'], {
-        stdio: ['pipe', 'pipe', 'pipe'],
-        cwd: process.cwd(),
-      });
+      testClient = await createTestClient();
 
-      const stdout: string[] = [];
-      proc.stdout?.on('data', (data) => stdout.push(data.toString()));
+      const toolsResult = await testClient.client.listTools();
+      const tool = toolsResult.tools.find((t) => t.name === 'check_health');
 
-      await new Promise((r) => setTimeout(r, 500));
-
-      // Initialize
-      proc.stdin?.write(
-        `${JSON.stringify({
-          jsonrpc: '2.0',
-          id: 1,
-          method: 'initialize',
-          params: {
-            protocolVersion: '2024-11-05',
-            capabilities: {},
-            clientInfo: { name: 'test', version: '1.0.0' },
-          },
-        })}\n`
-      );
-
-      await new Promise((r) => setTimeout(r, 300));
-      stdout.length = 0;
-
-      // Get tools list
-      proc.stdin?.write(
-        `${JSON.stringify({
-          jsonrpc: '2.0',
-          id: 2,
-          method: 'tools/list',
-        })}\n`
-      );
-
-      await new Promise<void>((resolve) => {
-        const timeout = setTimeout(resolve, 3000);
-        proc?.stdout?.once('data', () => {
-          clearTimeout(timeout);
-          setTimeout(resolve, 100);
-        });
-      });
-
-      const response = JSON.parse(stdout.join(''));
-      const tool = response.result.tools.find((t: { name: string }) => t.name === 'check_health');
-
-      expect(tool.annotations).toBeDefined();
+      expect(tool).toBeDefined();
+      expect(tool?.annotations).toBeDefined();
       // Per ADR-0001: readOnlyHint should be true (this is a read operation)
-      expect(tool.annotations.readOnlyHint).toBe(true);
+      expect(tool?.annotations?.readOnlyHint).toBe(true);
       // Per ADR-0001: destructiveHint should be false (non-destructive)
-      expect(tool.annotations.destructiveHint).toBe(false);
+      expect(tool?.annotations?.destructiveHint).toBe(false);
       // Per ADR-0001: idempotentHint should be true (same result each time)
-      expect(tool.annotations.idempotentHint).toBe(true);
+      expect(tool?.annotations?.idempotentHint).toBe(true);
       // Per ADR-0001: openWorldHint should be false (closed system check)
-      expect(tool.annotations.openWorldHint).toBe(false);
+      expect(tool?.annotations?.openWorldHint).toBe(false);
     });
 
     it('should have explicit JSON Schema input constraints (ADR-0001 Decision #4)', async () => {
@@ -237,67 +146,28 @@ describe('check_health tool - ADR-0001 Exemplar', () => {
       Test Doc:
       - Why: ADR-0001 research shows JSON Schema constraints outperform natural language
       - Contract: Tool has inputSchema with type, properties, enums for components
-      - Usage Notes: Schema should have explicit constraints, not just descriptions
+      - Usage Notes: Use createTestClient() then client.listTools() to inspect schema
       - Quality Contribution: Catches missing schema validation that causes agent errors
-      - Worked Example: inputSchema.properties.components.items.enum includes 'all','api'
+      - Worked Example: client.listTools() -> tool.inputSchema.properties.components has enum constraint
       */
-      proc = spawn(process.execPath, [cliPath, 'mcp', '--stdio'], {
-        stdio: ['pipe', 'pipe', 'pipe'],
-        cwd: process.cwd(),
-      });
+      testClient = await createTestClient();
 
-      const stdout: string[] = [];
-      proc.stdout?.on('data', (data) => stdout.push(data.toString()));
+      const toolsResult = await testClient.client.listTools();
+      const tool = toolsResult.tools.find((t) => t.name === 'check_health');
 
-      await new Promise((r) => setTimeout(r, 500));
-
-      // Initialize
-      proc.stdin?.write(
-        `${JSON.stringify({
-          jsonrpc: '2.0',
-          id: 1,
-          method: 'initialize',
-          params: {
-            protocolVersion: '2024-11-05',
-            capabilities: {},
-            clientInfo: { name: 'test', version: '1.0.0' },
-          },
-        })}\n`
-      );
-
-      await new Promise((r) => setTimeout(r, 300));
-      stdout.length = 0;
-
-      // Get tools list
-      proc.stdin?.write(
-        `${JSON.stringify({
-          jsonrpc: '2.0',
-          id: 2,
-          method: 'tools/list',
-        })}\n`
-      );
-
-      await new Promise<void>((resolve) => {
-        const timeout = setTimeout(resolve, 3000);
-        proc?.stdout?.once('data', () => {
-          clearTimeout(timeout);
-          setTimeout(resolve, 100);
-        });
-      });
-
-      const response = JSON.parse(stdout.join(''));
-      const tool = response.result.tools.find((t: { name: string }) => t.name === 'check_health');
-
-      expect(tool.inputSchema).toBeDefined();
-      expect(tool.inputSchema.type).toBe('object');
-      expect(tool.inputSchema.properties).toBeDefined();
+      expect(tool).toBeDefined();
+      expect(tool?.inputSchema).toBeDefined();
+      expect(tool?.inputSchema.type).toBe('object');
+      expect(tool?.inputSchema.properties).toBeDefined();
 
       // components should have enum constraint
-      const componentsSchema = tool.inputSchema.properties.components;
+      const componentsSchema = (tool?.inputSchema.properties as Record<string, unknown>)
+        ?.components;
       expect(componentsSchema).toBeDefined();
 
       // include_details should be boolean
-      const includeDetailsSchema = tool.inputSchema.properties.include_details;
+      const includeDetailsSchema = (tool?.inputSchema.properties as Record<string, unknown>)
+        ?.include_details;
       expect(includeDetailsSchema).toBeDefined();
     });
   });

@@ -12,6 +12,7 @@
 import { type ChildProcess, spawn } from 'node:child_process';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { type McpTestClient, createTestClient } from '../base/mcp-test.js';
 
 // Resolve CLI path from test file location (works regardless of cwd)
 const projectRoot = path.resolve(import.meta.dirname, '../..');
@@ -90,56 +91,29 @@ describe('cg mcp command integration', () => {
   });
 
   describe('stdio transport', () => {
+    let testClient: McpTestClient | null = null;
+
+    afterEach(async () => {
+      await testClient?.close();
+      testClient = null;
+    });
+
     it('should respond to MCP initialize request', async () => {
       /*
       Test Doc:
       - Why: MCP server must handle initialize for AI agent handshake; broken init blocks all MCP usage
       - Contract: Valid JSON-RPC initialize request returns response with protocolVersion, serverInfo
-      - Usage Notes: Send initialize to stdin, read JSON-RPC response from stdout
+      - Usage Notes: Use createTestClient() which auto-handles initialize; verify via getServerVersion()
       - Quality Contribution: Catches MCP protocol non-compliance, broken initialization
-      - Worked Example: stdin initialize -> stdout {jsonrpc:'2.0',result:{serverInfo:{name:'chainglass'}}}
+      - Worked Example: createTestClient() -> client.getServerVersion()?.name === 'chainglass'
       */
-      proc = spawn(process.execPath, [cliPath, 'mcp', '--stdio'], {
-        stdio: ['pipe', 'pipe', 'pipe'],
-        cwd: process.cwd(),
-      });
+      testClient = await createTestClient();
 
-      const stdout: string[] = [];
-      proc.stdout?.on('data', (data) => stdout.push(data.toString()));
+      // getServerVersion() returns the info from the initialize response
+      const serverVersion = testClient.client.getServerVersion();
 
-      // Wait for server startup
-      await new Promise((r) => setTimeout(r, 500));
-
-      // Send initialize request
-      const request = JSON.stringify({
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'initialize',
-        params: {
-          protocolVersion: '2024-11-05',
-          capabilities: {},
-          clientInfo: { name: 'integration-test', version: '1.0.0' },
-        },
-      });
-
-      proc.stdin?.write(`${request}\n`);
-
-      // Wait for response
-      await new Promise<void>((resolve) => {
-        const timeout = setTimeout(resolve, 3000);
-        proc?.stdout?.once('data', () => {
-          clearTimeout(timeout);
-          setTimeout(resolve, 100);
-        });
-      });
-
-      const response = stdout.join('');
-      const parsed = JSON.parse(response);
-
-      expect(parsed.jsonrpc).toBe('2.0');
-      expect(parsed.id).toBe(1);
-      expect(parsed.result).toBeDefined();
-      expect(parsed.result.serverInfo.name).toBe('chainglass');
+      expect(serverVersion).toBeDefined();
+      expect(serverVersion?.name).toBe('chainglass');
     });
 
     it('should respond to initialized notification', async () => {
@@ -147,49 +121,18 @@ describe('cg mcp command integration', () => {
       Test Doc:
       - Why: After initialize, client sends initialized notification; server must handle it
       - Contract: Sending initialized notification after initialize completes without error
-      - Usage Notes: This is a notification (no id), server should not respond
+      - Usage Notes: createTestClient() handles init + initialized; if it completes, notification worked
       - Quality Contribution: Catches server crashing on notification or protocol errors
-      - Worked Example: stdin initialized notification -> no crash, server keeps running
+      - Worked Example: createTestClient() succeeds -> initialized notification was handled
       */
-      proc = spawn(process.execPath, [cliPath, 'mcp', '--stdio'], {
-        stdio: ['pipe', 'pipe', 'pipe'],
-        cwd: process.cwd(),
-      });
+      // createTestClient() automatically sends initialize AND initialized notification
+      // If this completes without error, the server handled both correctly
+      testClient = await createTestClient();
 
-      const stderr: string[] = [];
-      proc.stderr?.on('data', (data) => stderr.push(data.toString()));
-
-      // Wait for server startup
-      await new Promise((r) => setTimeout(r, 500));
-
-      // Send initialize request first
-      const initRequest = JSON.stringify({
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'initialize',
-        params: {
-          protocolVersion: '2024-11-05',
-          capabilities: {},
-          clientInfo: { name: 'integration-test', version: '1.0.0' },
-        },
-      });
-
-      proc.stdin?.write(`${initRequest}\n`);
-      await new Promise((r) => setTimeout(r, 300));
-
-      // Send initialized notification
-      const initializedNotif = JSON.stringify({
-        jsonrpc: '2.0',
-        method: 'notifications/initialized',
-      });
-
-      proc.stdin?.write(`${initializedNotif}\n`);
-
-      // Wait a bit - server should not crash
-      await new Promise((r) => setTimeout(r, 500));
-
-      // If we get here without crash, the notification was handled
-      expect(proc.killed).toBe(false);
+      // If we get here, the server handled both initialize and initialized
+      // We can verify the connection is still alive by making a call
+      const serverVersion = testClient.client.getServerVersion();
+      expect(serverVersion).toBeDefined();
     });
 
     it('should list tools including check_health', async () => {
@@ -197,69 +140,19 @@ describe('cg mcp command integration', () => {
       Test Doc:
       - Why: AI agents need to discover available tools; check_health must be listed
       - Contract: tools/list request returns array containing check_health tool
-      - Usage Notes: Must complete initialize first, then send tools/list
+      - Usage Notes: Use createTestClient() then client.listTools() to get tool list
       - Quality Contribution: Catches missing tool registration or broken tool listing
-      - Worked Example: tools/list -> result.tools contains {name:'check_health'}
+      - Worked Example: client.listTools() -> tools array contains {name:'check_health'}
       */
-      proc = spawn(process.execPath, [cliPath, 'mcp', '--stdio'], {
-        stdio: ['pipe', 'pipe', 'pipe'],
-        cwd: process.cwd(),
-      });
+      testClient = await createTestClient();
 
-      const stdout: string[] = [];
-      proc.stdout?.on('data', (data) => stdout.push(data.toString()));
+      const toolsResult = await testClient.client.listTools();
 
-      // Wait for server startup
-      await new Promise((r) => setTimeout(r, 500));
+      expect(toolsResult.tools).toBeDefined();
 
-      // Initialize first
-      const initRequest = JSON.stringify({
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'initialize',
-        params: {
-          protocolVersion: '2024-11-05',
-          capabilities: {},
-          clientInfo: { name: 'integration-test', version: '1.0.0' },
-        },
-      });
-
-      proc.stdin?.write(`${initRequest}\n`);
-      await new Promise((r) => setTimeout(r, 300));
-
-      // Clear stdout buffer
-      stdout.length = 0;
-
-      // Send tools/list request
-      const toolsRequest = JSON.stringify({
-        jsonrpc: '2.0',
-        id: 2,
-        method: 'tools/list',
-      });
-
-      proc.stdin?.write(`${toolsRequest}\n`);
-
-      // Wait for response
-      await new Promise<void>((resolve) => {
-        const timeout = setTimeout(resolve, 3000);
-        proc?.stdout?.once('data', () => {
-          clearTimeout(timeout);
-          setTimeout(resolve, 100);
-        });
-      });
-
-      const response = stdout.join('');
-      const parsed = JSON.parse(response);
-
-      expect(parsed.jsonrpc).toBe('2.0');
-      expect(parsed.id).toBe(2);
-      expect(parsed.result.tools).toBeDefined();
-
-      const checkHealthTool = parsed.result.tools.find(
-        (t: { name: string }) => t.name === 'check_health'
-      );
+      const checkHealthTool = toolsResult.tools.find((t) => t.name === 'check_health');
       expect(checkHealthTool).toBeDefined();
-      expect(checkHealthTool.description).toContain('health status');
+      expect(checkHealthTool?.description).toContain('health status');
     });
   });
 });

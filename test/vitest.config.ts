@@ -13,6 +13,10 @@ export default defineConfig({
     environment: 'node',
     include: ['**/*.test.ts'],
     setupFiles: [resolve(testDir, 'setup.ts')],
+    // Sequential execution to prevent MCP tests from spawning 20+ parallel processes
+    // Each MCP test spawns a Node.js process via StdioClientTransport
+    // See: docs/plans/001-project-setup/tasks/phase-5-mcp-server-package/001-subtask-migrate-mcp-tests-to-sdk-client.md
+    fileParallelism: false,
     alias: {
       '@chainglass/shared': resolve(rootDir, 'packages/shared/src'),
       '@chainglass/cli': resolve(rootDir, 'apps/cli/src'),
