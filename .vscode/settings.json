@@ -1,4 +1,7 @@
 {
+  "vitest.configSearchPatternExclude": [],
+  "vitest.rootConfig": "test/vitest.config.ts",
+  "vitest.nodeExecutable": "/opt/homebrew/bin/node",
   "peacock.color": "#ff3d00",
   "workbench.colorCustomizations": {
     "activityBar.activeBackground": "#ff6433",

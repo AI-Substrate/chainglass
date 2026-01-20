@@ -13,9 +13,12 @@ import { type ChildProcess, spawn } from 'node:child_process';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
+// Resolve CLI path from test file location (works regardless of cwd)
+const projectRoot = path.resolve(import.meta.dirname, '../..');
+const cliPath = path.join(projectRoot, 'apps/cli/dist/cli.cjs');
+
 describe('cg mcp command integration', () => {
   let proc: ChildProcess | null = null;
-  const cliPath = path.resolve('apps/cli/dist/cli.cjs');
 
   afterEach(() => {
     if (proc) {
@@ -34,7 +37,7 @@ describe('cg mcp command integration', () => {
       - Quality Contribution: Catches missing command registration or broken help
       - Worked Example: `cg mcp --help` stdout contains '--stdio'
       */
-      proc = spawn('node', [cliPath, 'mcp', '--help'], {
+      proc = spawn(process.execPath, [cliPath, 'mcp', '--help'], {
         stdio: ['pipe', 'pipe', 'pipe'],
         cwd: process.cwd(),
       });
@@ -62,7 +65,7 @@ describe('cg mcp command integration', () => {
       - Quality Contribution: Catches confusing behavior when transport not specified
       - Worked Example: `cg mcp` exits with code 1, stderr mentions --stdio
       */
-      proc = spawn('node', [cliPath, 'mcp'], {
+      proc = spawn(process.execPath, [cliPath, 'mcp'], {
         stdio: ['pipe', 'pipe', 'pipe'],
         cwd: process.cwd(),
       });
@@ -96,7 +99,7 @@ describe('cg mcp command integration', () => {
       - Quality Contribution: Catches MCP protocol non-compliance, broken initialization
       - Worked Example: stdin initialize -> stdout {jsonrpc:'2.0',result:{serverInfo:{name:'chainglass'}}}
       */
-      proc = spawn('node', [cliPath, 'mcp', '--stdio'], {
+      proc = spawn(process.execPath, [cliPath, 'mcp', '--stdio'], {
         stdio: ['pipe', 'pipe', 'pipe'],
         cwd: process.cwd(),
       });
@@ -148,7 +151,7 @@ describe('cg mcp command integration', () => {
       - Quality Contribution: Catches server crashing on notification or protocol errors
       - Worked Example: stdin initialized notification -> no crash, server keeps running
       */
-      proc = spawn('node', [cliPath, 'mcp', '--stdio'], {
+      proc = spawn(process.execPath, [cliPath, 'mcp', '--stdio'], {
         stdio: ['pipe', 'pipe', 'pipe'],
         cwd: process.cwd(),
       });
@@ -198,7 +201,7 @@ describe('cg mcp command integration', () => {
       - Quality Contribution: Catches missing tool registration or broken tool listing
       - Worked Example: tools/list -> result.tools contains {name:'check_health'}
       */
-      proc = spawn('node', [cliPath, 'mcp', '--stdio'], {
+      proc = spawn(process.execPath, [cliPath, 'mcp', '--stdio'], {
         stdio: ['pipe', 'pipe', 'pipe'],
         cwd: process.cwd(),
       });

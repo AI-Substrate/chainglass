@@ -13,6 +13,10 @@ import { type ChildProcess, spawn } from 'node:child_process';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
+// Resolve CLI path from test file location (works regardless of cwd)
+const projectRoot = path.resolve(import.meta.dirname, '../../..');
+const cliPath = path.join(projectRoot, 'apps/cli/dist/cli.cjs');
+
 describe('MCP stdio transport cleanliness', () => {
   let proc: ChildProcess | null = null;
 
@@ -32,9 +36,7 @@ describe('MCP stdio transport cleanliness', () => {
     - Quality Contribution: Catches console.log, startup messages, or logger misconfiguration
     - Worked Example: spawn mcp --stdio, wait 1000ms, stdout.join('') === '' (empty string)
     */
-    const cliPath = path.resolve('apps/cli/dist/cli.cjs');
-
-    proc = spawn('node', [cliPath, 'mcp', '--stdio'], {
+    proc = spawn(process.execPath, [cliPath, 'mcp', '--stdio'], {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd: process.cwd(),
     });
@@ -62,9 +64,7 @@ describe('MCP stdio transport cleanliness', () => {
     - Quality Contribution: Catches malformed JSON, extra whitespace, or debug output mixed with response
     - Worked Example: stdin '{"jsonrpc":"2.0",...}' -> stdout parses as {jsonrpc:'2.0',id:1,result:{...}}
     */
-    const cliPath = path.resolve('apps/cli/dist/cli.cjs');
-
-    proc = spawn('node', [cliPath, 'mcp', '--stdio'], {
+    proc = spawn(process.execPath, [cliPath, 'mcp', '--stdio'], {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd: process.cwd(),
     });
@@ -117,9 +117,7 @@ describe('MCP stdio transport cleanliness', () => {
     - Quality Contribution: Catches misconfigured logger outputting to stdout instead of stderr
     - Worked Example: spawn, wait 500ms, stderr contains 'MCP server' or similar, stdout is ''
     */
-    const cliPath = path.resolve('apps/cli/dist/cli.cjs');
-
-    proc = spawn('node', [cliPath, 'mcp', '--stdio'], {
+    proc = spawn(process.execPath, [cliPath, 'mcp', '--stdio'], {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd: process.cwd(),
     });
@@ -150,9 +148,7 @@ describe('MCP stdio transport cleanliness', () => {
     - Quality Contribution: Catches cleanup/shutdown messages going to wrong stream
     - Worked Example: spawn, SIGTERM, wait, stdout still empty (no "shutting down" messages)
     */
-    const cliPath = path.resolve('apps/cli/dist/cli.cjs');
-
-    proc = spawn('node', [cliPath, 'mcp', '--stdio'], {
+    proc = spawn(process.execPath, [cliPath, 'mcp', '--stdio'], {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd: process.cwd(),
     });

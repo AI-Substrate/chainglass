@@ -1,0 +1,18 @@
+{
+  "version": "0.2",
+  "language": "en",
+  "words": [
+    "chainglass",
+    "Chainglass",
+    "monorepo",
+    "pnpm",
+    "turborepo",
+    "vitest",
+    "biome",
+    "tsyringe",
+    "composability",
+    "colocated",
+    "denormalization"
+  ],
+  "ignorePaths": ["node_modules", "dist", ".next", "pnpm-lock.yaml"]
+}

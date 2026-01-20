@@ -18,6 +18,10 @@ import { createMcpServer } from '@chainglass/mcp-server';
 import { FakeLogger } from '@chainglass/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+// Resolve CLI path from test file location (works regardless of cwd)
+const projectRoot = path.resolve(import.meta.dirname, '../../..');
+const cliPath = path.join(projectRoot, 'apps/cli/dist/cli.cjs');
+
 describe('check_health tool - ADR-0001 Exemplar', () => {
   let fakeLogger: FakeLogger;
 
@@ -84,7 +88,6 @@ describe('check_health tool - ADR-0001 Exemplar', () => {
 
   describe('E2E tool invocation via stdio', () => {
     let proc: ChildProcess | null = null;
-    const cliPath = path.resolve('apps/cli/dist/cli.cjs');
 
     afterEach(() => {
       if (proc) {
@@ -102,7 +105,7 @@ describe('check_health tool - ADR-0001 Exemplar', () => {
       - Quality Contribution: Catches missing semantic fields that impair agent reasoning
       - Worked Example: response.content[0].text JSON has {status, summary, components, checked_at}
       */
-      proc = spawn('node', [cliPath, 'mcp', '--stdio'], {
+      proc = spawn(process.execPath, [cliPath, 'mcp', '--stdio'], {
         stdio: ['pipe', 'pipe', 'pipe'],
         cwd: process.cwd(),
       });
@@ -171,7 +174,7 @@ describe('check_health tool - ADR-0001 Exemplar', () => {
       - Quality Contribution: Catches missing annotations that affect agent safety decisions
       - Worked Example: tool.annotations includes all 4 hints
       */
-      proc = spawn('node', [cliPath, 'mcp', '--stdio'], {
+      proc = spawn(process.execPath, [cliPath, 'mcp', '--stdio'], {
         stdio: ['pipe', 'pipe', 'pipe'],
         cwd: process.cwd(),
       });
@@ -238,7 +241,7 @@ describe('check_health tool - ADR-0001 Exemplar', () => {
       - Quality Contribution: Catches missing schema validation that causes agent errors
       - Worked Example: inputSchema.properties.components.items.enum includes 'all','api'
       */
-      proc = spawn('node', [cliPath, 'mcp', '--stdio'], {
+      proc = spawn(process.execPath, [cliPath, 'mcp', '--stdio'], {
         stdio: ['pipe', 'pipe', 'pipe'],
         cwd: process.cwd(),
       });
