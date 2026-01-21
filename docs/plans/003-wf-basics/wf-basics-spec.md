@@ -19,12 +19,15 @@ Extensive research was conducted mapping user requirements to technical design. 
 - **Critical dependencies**: Must follow clean architecture from 001-project-setup (interfaces in shared, fakes for testing, DI container pattern)
 - **Modification risks**: Low - this is new functionality, but must integrate with existing CLI and MCP patterns
 - **Decisions confirmed**:
-  - Three-tier output structure: `output-files/` + `output-data/` + `wf/`
+  - Phase run structure: `inputs/` (files/, data/, params.json) + `outputs/` + `wf-data/`
   - JSON-first output: `--json` flag primary, human output secondary
+  - Output adapter architecture: Services → Results → Adapters → Output
   - Template location: `.chainglass/templates/<slug>/`
   - Run folder location: `.chainglass/runs/`
   - Development exemplar: `dev/examples/wf/`
-  - Terminology: "phase" (not "stage")
+  - Terminology: "phase" (not "stage"), "commands/" (not "prompt/")
+  - Run metadata: `wf-run/wf-status.json` (not `wf-run.json` at root)
+  - Phase config: `wf-phase.yaml` per phase (extracted from wf.yaml)
   - Execution: Manual (CLI commands, no orchestration)
 - **Link**: See `research-dossier.md` for full analysis (45 findings, 11 concept mappings)
 
@@ -52,7 +55,7 @@ flowchart TD
         B --> C{Valid<br/>wf.yaml?}
         C -->|No| C_ERR[/"❌ E020: Invalid wf.yaml"/]
         C -->|Yes| D[("📂 Run Created<br/>.chainglass/runs/run-date-ord/")]
-        D --> E["wf-run.json created<br/>All phases: pending"]
+        D --> E["wf-run/wf-status.json created<br/>All phases: pending"]
     end
 
     E --> PHASE_LOOP
@@ -70,12 +73,29 @@ flowchart TD
             P5 -->|Yes| P6[/"✅ Phase ready<br/>status: active"/]
         end
 
-        P6 --> AGENT_LOOP
+        P6 --> HANDOVER
+
+        subgraph HANDOVER["1️⃣b HANDOVER (orchestrator → agent)"]
+            H1["cg phase handover &lt;phase&gt;<br/>--run-dir &lt;run&gt;"]
+            H1 --> H2["facilitator: agent"]
+        end
+
+        H2 --> AGENT_ACCEPT
+
+        subgraph AGENT_ACCEPT["1️⃣c ACCEPT + PREFLIGHT (agent)"]
+            A1["cg phase accept &lt;phase&gt;<br/>--run-dir &lt;run&gt;"]
+            A1 --> A2["cg phase preflight &lt;phase&gt;<br/>--run-dir &lt;run&gt;"]
+            A2 --> A3{Preflight<br/>passed?}
+            A3 -->|No| A3_ERR[/"❌ E050-E054: Preflight failed"/]
+            A3 -->|Yes| A4[/"✅ Agent ready to work"/]
+        end
+
+        A4 --> AGENT_LOOP
 
         subgraph AGENT_LOOP["2️⃣ AGENT WORK + VALIDATE LOOP"]
-            W1(["🤖 Agent reads prompt/<br/>wf.md + main.md"])
+            W1(["🤖 Agent reads commands/<br/>wf.md + main.md"])
             W1 --> W2["Agent executes task<br/>(may modify any files)"]
-            W2 --> W3["Agent writes outputs:<br/>• run/output-files/*<br/>• run/output-data/*.json<br/>• run/wf/*.json"]
+            W2 --> W3["Agent writes outputs:<br/>• run/outputs/*<br/>• run/wf-data/*.json"]
             W3 --> V1
 
             V1["🤖 Agent runs:<br/>cg phase validate &lt;phase&gt;<br/>--run-dir &lt;run&gt; --json"]
@@ -89,9 +109,9 @@ flowchart TD
 
         subgraph FINALIZE["3️⃣ FINALIZE (agent calls when validate passes)"]
             F1["cg phase finalize &lt;phase&gt;<br/>--run-dir &lt;run&gt;"]
-            F1 --> F2["Extract output_parameters<br/>from output-data/*.json"]
-            F2 --> F3["Write run/wf/output-params.json"]
-            F3 --> F4["Update wf-run.json<br/>phase status: complete"]
+            F1 --> F2["Extract output_parameters<br/>from outputs/*.json"]
+            F2 --> F3["Write run/wf-data/output-params.json"]
+            F3 --> F4["Update wf-status.json<br/>phase status: complete"]
             F4 --> F5[/"✅ Phase complete"/]
         end
 
@@ -113,10 +133,10 @@ flowchart TD
     classDef agent fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
     classDef storage fill:#e0e0e0,stroke:#424242,stroke-width:2px
 
-    class B,P1,V1,F1 command
-    class C,P2,P5,V2,NEXT decision
-    class C_ERR,P2_ERR,P5_ERR error
-    class P6,V_PASS,F5,DONE success
+    class B,P1,V1,F1,H1,A1,A2 command
+    class C,P2,P5,V2,NEXT,A3 decision
+    class C_ERR,P2_ERR,P5_ERR,A3_ERR error
+    class P6,V_PASS,F5,DONE,A4 success
     class W1,W2,W3,V_FIX agent
     class A,D storage
 ```
@@ -125,10 +145,13 @@ flowchart TD
 
 | Step | Command | Who Runs | Input | Output | Errors |
 |------|---------|----------|-------|--------|--------|
-| **Compose** | `cg wf compose <slug>` | Orchestrator | Template slug | Run folder + wf-run.json | E020 (invalid YAML) |
-| **Prepare** | `cg phase prepare <phase>` | Orchestrator/Agent | Run dir, phase | inputs/params.json, copied files | E001, E031 |
+| **Compose** | `cg wf compose <slug>` | Orchestrator | Template slug | Run folder + wf-run/wf-status.json | E020 (invalid YAML) |
+| **Prepare** | `cg phase prepare <phase>` | Orchestrator | Run dir, phase | inputs/params.json, copied files | E001, E031 |
+| **Handover** | `cg phase handover <phase>` | Orchestrator | Run dir, phase | facilitator: agent | - |
+| **Accept** | `cg phase accept <phase>` | Agent | Run dir, phase | Status log entry | - |
+| **Preflight** | `cg phase preflight <phase>` | Agent | Run dir, phase | Readiness check (JSON) | E050 (not accepted) |
 | **Work+Validate** | `cg phase validate <phase>` | **Agent (loop)** | Run dir, phase | Validation result (JSON) | E010, E011, E012 |
-| **Finalize** | `cg phase finalize <phase>` | Agent | Run dir, phase | wf/output-params.json | E030 (wrong state) |
+| **Finalize** | `cg phase finalize <phase>` | Agent | Run dir, phase | wf-data/output-params.json | E030 (wrong state) |
 
 ### Agent Validate Loop Detail
 
@@ -168,7 +191,7 @@ stateDiagram-v2
 1. **Filesystem-First**: All workflow state lives in files - no database required; git provides versioning and history
 2. **Explicit Contracts**: Phases declare their inputs, outputs, and published parameters in `wf.yaml`
 3. **Schema Validation**: JSON outputs are validated against schemas; phases cannot complete until validation passes
-4. **Phase Independence**: Each phase is self-contained with its own inputs/, prompt/, run/, and schemas/ directories
+4. **Phase Independence**: Each phase is self-contained with its own commands/, schemas/, wf-phase.yaml, and run/ directories (run/ contains inputs/, outputs/, wf-data/)
 5. **CLI Operations**: Provide `cg wf compose` and `cg phase prepare|validate|finalize` commands for workflow management
 6. **JSON-First Output**: All commands support `--json` for machine-readable output; JSON is the primary interface for system integration
 7. **MCP Integration**: Same operations available via MCP tools for agent-driven workflows
@@ -243,9 +266,9 @@ stateDiagram-v2
 
 **AC-03**: Given JSON Schema files in `dev/examples/wf/template/hello-workflow/schemas/`, when I validate them, then each is valid JSON Schema Draft 2020-12.
 
-**AC-04**: Given the exemplar run in `dev/examples/wf/runs/run-example-001/`, then each phase (gather, process, report) has complete folder structure: inputs/, prompt/, schemas/, phase-config.yaml, and run/ with output-files/, output-data/, and wf/ subdirectories.
+**AC-04**: Given the exemplar run in `dev/examples/wf/runs/run-example-001/`, then each phase (gather, process, report) has complete folder structure: wf-phase.yaml, commands/, schemas/, and run/ with inputs/ (files/, data/, params.json), outputs/ (files/, data/), and wf-data/ subdirectories.
 
-**AC-05**: Given JSON files in the exemplar run's `run/output-data/` and `run/wf/` directories, when I validate them against their declared schemas, then all pass validation.
+**AC-05**: Given JSON files in the exemplar run's `run/outputs/` and `run/wf-data/` directories with schema declarations in wf.yaml, when I validate them against their declared schemas, then all pass validation.
 
 ### Phase 1: Core Services + Compose
 
@@ -255,21 +278,47 @@ stateDiagram-v2
 
 **AC-07a**: Given the same command with `--json` flag, when I run `cg wf compose hello-workflow --json`, then it outputs a JSON response with `success: true`, `command: "wf.compose"`, and `data` containing `runDir`, `template`, and `phases` array.
 
-**AC-08**: Given a composed run folder, when I inspect `wf-run.json`, then it contains workflow metadata including source template path, creation timestamp, and phase list with "pending" status.
+**AC-08**: Given a composed run folder, when I inspect `wf-run/wf-status.json`, then it contains workflow metadata including source template path, creation timestamp, and phase list with "pending" status.
 
-**AC-09**: Given a composed run folder, when I inspect any phase folder, then it contains `phase-config.yaml` extracted from `wf.yaml` with that phase's inputs, outputs, and parameters.
+**AC-09**: Given a composed run folder, when I inspect any phase folder, then it contains `wf-phase.yaml` extracted from `wf.yaml` with that phase's inputs, outputs, and parameters.
 
-### Phase 1a: JSON Output Framework
+### Phase 1a: Output Adapter Architecture + JSON Framework
 
-**AC-23**: Given any workflow command, when I add `--json` flag, then stdout contains ONLY valid JSON (no progress indicators, no colors, no other text).
+**Domain Result Objects:**
 
-**AC-24**: Given `@chainglass/shared`, then it exports `CommandResponse<T>`, `ErrorDetail`, and `ErrorItem` interfaces for consistent JSON response typing.
+**AC-23**: Given `@chainglass/shared`, then it exports `BaseResult` interface with `errors: ResultError[]` array, where empty array indicates success.
 
-**AC-25**: Given a successful command with `--json`, then the response includes `success: true`, `command: string`, `timestamp: string`, and `data: T`.
+**AC-24**: Given `@chainglass/shared`, then it exports `PrepareResult`, `ValidateResult`, `FinalizeResult`, and `ComposeResult` interfaces extending `BaseResult` with command-specific fields.
 
-**AC-26**: Given a failed command with `--json`, then the response includes `success: false`, `command: string`, `timestamp: string`, and `error: ErrorDetail` with `code`, `message`, and optional `action` and `details[]`.
+**AC-25**: Given `@chainglass/shared`, then it exports `ResultError` interface with `code`, `path?`, `message`, `action?`, `expected?`, `actual?` fields.
 
-**AC-27**: Given multiple validation errors (e.g., several missing files), when I run with `--json`, then `error.details[]` contains one `ErrorItem` per individual error with specific `code`, `path`, and `message`.
+**Output Adapter Interface:**
+
+**AC-26**: Given `@chainglass/shared`, then it exports `IOutputAdapter` interface with `format<T extends BaseResult>(command: string, result: T): string` method.
+
+**AC-27**: Given `@chainglass/shared/adapters`, then it exports `JsonOutputAdapter` implementing `IOutputAdapter` that wraps results in `CommandResponse<T>` envelope.
+
+**AC-28**: Given `@chainglass/shared/adapters`, then it exports `ConsoleOutputAdapter` implementing `IOutputAdapter` that produces human-readable output with icons and formatting.
+
+**AC-29**: Given `@chainglass/shared/fakes`, then it exports `FakeOutputAdapter` implementing `IOutputAdapter` for testing, with methods to inspect formatted output.
+
+**JSON Output Behavior:**
+
+**AC-30**: Given any workflow command with `--json` flag, then stdout contains ONLY valid JSON (no progress indicators, no colors, no other text).
+
+**AC-31**: Given a successful command with `--json`, then the response includes `success: true`, `command: string`, `timestamp: string`, and `data: T` (result with errors omitted).
+
+**AC-32**: Given a failed command with `--json`, then the response includes `success: false`, `command: string`, `timestamp: string`, and `error: ErrorDetail` with `code`, `message`, and `details[]`.
+
+**AC-33**: Given multiple validation errors, when I run with `--json`, then `error.details[]` contains one entry per error with specific `code`, `path`, and `message`.
+
+**Service + Adapter Integration:**
+
+**AC-34**: Given `IPhaseService.prepare()`, when called, then it returns `PrepareResult` domain object regardless of output format.
+
+**AC-35**: Given CLI with `--json` flag, then DI container injects `JsonOutputAdapter`; without flag, injects `ConsoleOutputAdapter`.
+
+**AC-36**: Given the same `PrepareResult` object, when formatted by `JsonOutputAdapter` vs `ConsoleOutputAdapter`, then both produce valid output in their respective formats with equivalent semantic content.
 
 ### Phase 2: Phase Operations (prepare, validate)
 
@@ -299,7 +348,7 @@ stateDiagram-v2
 
 **AC-17**: Given a phase with parameter declarations, when I run `cg phase prepare <phase> --run-dir <run>`, then `inputs/params.json` is created with resolved parameter values from prior phases.
 
-**AC-18**: Given a validated phase, when I run `cg phase finalize <phase> --run-dir <run>`, then `run/wf/output-params.json` is created with extracted parameter values per output_parameters declarations.
+**AC-18**: Given a validated phase, when I run `cg phase finalize <phase> --run-dir <run>`, then `run/wf-data/output-params.json` is created with extracted parameter values per output_parameters declarations.
 
 **AC-18a**: Given finalize with `--json`, then `data` contains `extractedParams` object with the parameter names and values that were published.
 
@@ -317,6 +366,16 @@ stateDiagram-v2
 
 **AC-28**: Given MCP tool responses, then they use the same `CommandResponse<T>` structure as CLI `--json` output for consistency.
 
+### Idempotency and Re-Entrancy
+
+**AC-37**: Given `cg phase prepare <phase>` called twice on the same phase, then the second call returns success with the same result (no "already prepared" error).
+
+**AC-38**: Given `cg phase validate <phase>` called multiple times, then each call returns identical results without modifying any state (pure read operation).
+
+**AC-39**: Given `cg phase finalize <phase>` called twice on the same phase, then the second call returns success with the existing extracted parameters (no re-extraction, no state corruption).
+
+**AC-40**: Given any phase command fails mid-execution and is retried, then the retry completes successfully without requiring manual cleanup.
+
 ---
 
 ## Risks & Assumptions
@@ -329,7 +388,7 @@ stateDiagram-v2
 | **Phase 0 exemplar blocks development** | Medium | High | Prioritize exemplar creation; it's the foundation for all testing |
 | **Error messages not actionable enough** | Medium | Low | Follow reference implementation patterns; iterate based on testing |
 | **File path handling edge cases** | Low | Medium | Use Node.js `path` module consistently; test cross-platform if needed |
-| **Large files in output-data/ cause performance issues** | Low | Low | Not a concern for initial implementation; optimize if observed |
+| **Large files in outputs/ cause performance issues** | Low | Low | Not a concern for initial implementation; optimize if observed |
 
 ### Assumptions
 
@@ -344,7 +403,7 @@ stateDiagram-v2
 
 ## Open Questions
 
-1. ~~**[NEEDS CLARIFICATION: wf-run.json location]**~~ ✅ **RESOLVED**: Run root (`.chainglass/runs/run-001/wf-run.json`)
+1. ~~**[NEEDS CLARIFICATION: wf-run.json location]**~~ ✅ **RESOLVED**: Run subfolder (`.chainglass/runs/run-001/wf-run/wf-status.json`)
 
 2. ~~**[NEEDS CLARIFICATION: Error code standardization]**~~ ✅ **RESOLVED**: Yes, use standardized codes (E001, E002, etc.)
 
@@ -380,6 +439,12 @@ stateDiagram-v2
 **Rationale**: YAML 1.2 eliminates "Norway problem" and other 1.1 quirks. Zero dependencies, built-in TypeScript support. Note: js-yaml has CVE-2025-64718 security vulnerability.
 
 **Stakeholders**: Workflow package developers
+
+---
+
+## ADRs
+
+- ADR-0002: Exemplar-Driven Development (2026-01-21) – status: Accepted
 
 ---
 
@@ -431,11 +496,13 @@ test/
 ```
 
 **Focus Areas**:
-- YAML parsing and validation (wf.yaml, phase-config.yaml)
+- YAML parsing and validation (wf.yaml, wf-phase.yaml)
 - JSON Schema validation of outputs
 - Phase state transitions (pending → active → complete)
 - Input/output contract enforcement
 - Error message quality and standardized codes
+- **Output adapter formatting** (JSON and Console adapters produce correct output)
+- **Service/adapter separation** (services return domain objects, adapters format them)
 - CLI command execution and output
 
 **Excluded**:
@@ -482,12 +549,70 @@ Standardized error codes for programmatic handling:
 | E011 | Output | Output file is empty |
 | E012 | Output | Output fails schema validation |
 | E020 | Config | Invalid wf.yaml syntax |
-| E021 | Config | Invalid phase-config.yaml |
+| E021 | Config | Invalid wf-phase.yaml |
 | E022 | Config | Missing required schema file |
 | E030 | State | Phase not in expected state |
 | E031 | State | Prior phase not finalized |
 | E040 | Param | Missing required parameter |
 | E041 | Param | Parameter type mismatch |
+| E050 | Preflight | Accept not called before preflight |
+| E051 | Preflight | Config/commands files missing |
+| E052 | Preflight | Prior phase not finalized |
+| E053 | Preflight | From_phase file not found |
+| E054 | Preflight | Parameter resolution failed |
+
+---
+
+## Parameter Resolution
+
+**Design Principle**: Parameter queries are **simple dot-notation lookups only** - no expressions, no computed values, no cross-references between parameters.
+
+### What's Supported
+
+```yaml
+output_parameters:
+  - name: item_count
+    source: "outputs/gather-data.json"
+    query: "items.length"           # ✅ Simple path lookup
+  - name: request_type
+    source: "outputs/gather-data.json"
+    query: "classification.type"    # ✅ Nested path lookup
+  - name: total
+    source: "outputs/metrics.json"
+    query: "summary.totals.count"   # ✅ Deep nested lookup
+```
+
+### What's NOT Supported
+
+```yaml
+output_parameters:
+  # ❌ NO computed values
+  - name: doubled
+    query: "items.length * 2"       # NOT SUPPORTED
+
+  # ❌ NO expressions
+  - name: combined
+    query: "foo.bar + baz.qux"      # NOT SUPPORTED
+
+  # ❌ NO cross-parameter references
+  - name: derived
+    query: "$params.item_count + 1" # NOT SUPPORTED
+```
+
+### Why This Design
+
+1. **Simplicity**: Dot-notation is easy to understand, debug, and implement
+2. **No cycles possible**: Parameters are lookups, not computations - no dependency graph needed
+3. **Phase ordering is explicit**: `from_phase` declarations already define the DAG
+4. **Agents compute**: If you need derived values, the agent computes them and writes to output JSON
+
+### Resolution Timing
+
+Parameters resolve during `cg phase prepare`:
+1. Prior phase must be finalized (has `output-params.json`)
+2. CLI reads source JSON file
+3. CLI extracts value at query path using dot-notation
+4. Value written to `inputs/params.json` for current phase
 
 ---
 
@@ -599,12 +724,12 @@ cg phase prepare gather --run-dir .chainglass/runs/run-001 --json
     "details": [
       {
         "code": "E011",
-        "path": "phases/gather/run/output-data/items.json",
+        "path": "phases/gather/run/outputs/items.json",
         "message": "Output file is empty"
       },
       {
         "code": "E012",
-        "path": "phases/gather/run/wf/gather-result.json",
+        "path": "phases/gather/run/wf-data/wf-phase.json",
         "message": "Schema validation failed",
         "expected": "array",
         "actual": "object"
@@ -629,22 +754,261 @@ cg phase prepare gather --run-dir .chainglass/runs/run-001 --json
       { "id": "process", "status": "pending" },
       { "id": "report", "status": "pending" }
     ],
-    "wfRunFile": ".chainglass/runs/run-2026-01-21-001/wf-run.json"
+    "wfStatusFile": ".chainglass/runs/run-2026-01-21-001/wf-run/wf-status.json"
   }
 }
 ```
 
-### Implementation Notes
+### Output Adapter Architecture
 
-1. **Shared package location**: Response interfaces live in `@chainglass/shared/interfaces/cli-response.interface.ts`
-2. **Builder pattern**: Use `CommandResponseBuilder` for constructing responses consistently
-3. **Stdout only**: JSON output goes to stdout; any errors/warnings to stderr (when not in JSON mode)
-4. **No pretty-print by default**: Compact JSON for piping; consider `--json-pretty` for debugging (OOS)
-5. **Schema validation**: JSON response schemas should be defined and validated in tests
+Services return domain result objects. Adapters format those objects for different outputs. This follows clean architecture - services know nothing about presentation.
 
-### Human Output (Default)
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         CLI Command                              │
+│              cg phase prepare <phase> [--json]                   │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                   IPhaseService (interface)                      │
+│                                                                  │
+│   prepare(phase, runDir) → PrepareResult                         │
+│   validate(phase, runDir) → ValidateResult                       │
+│   finalize(phase, runDir) → FinalizeResult                       │
+│                                                                  │
+│   Returns domain objects - knows NOTHING about output format     │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              │ Same PrepareResult object
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                   IOutputAdapter (interface)                     │
+│                                                                  │
+│   format<T extends BaseResult>(command: string, result: T)       │
+│                                                                  │
+│   Transforms domain objects → output string                      │
+└─────────────────────────────────────────────────────────────────┘
+              ╱                                    ╲
+             ╱                                      ╲
+            ▼                                        ▼
+┌───────────────────────────┐          ┌───────────────────────────┐
+│   JsonOutputAdapter       │          │   ConsoleOutputAdapter    │
+│                           │          │                           │
+│ • Wraps in CommandResponse│          │ • Human-readable text     │
+│ • success/error structure │          │ • ✓/✗ icons, colors       │
+│ • Compact JSON string     │          │ • Actionable messages     │
+└───────────────────────────┘          └───────────────────────────┘
+            │                                        │
+            ▼                                        ▼
+   {"success":true,...}                    ✓ Phase 'gather' ready
+```
 
-When `--json` is NOT specified, commands output human-friendly text:
+### Domain Result Objects
+
+Services return rich domain objects with an `errors[]` array. Empty array = success.
+
+```typescript
+// @chainglass/shared/interfaces/results/
+
+// Base interface - all results have errors array
+interface BaseResult {
+  errors: ResultError[];
+}
+
+interface ResultError {
+  code: string;       // E001, E010, etc.
+  path?: string;      // File path where error occurred
+  message: string;    // Human-readable message
+  action?: string;    // Suggested fix
+  expected?: string;  // For validation errors
+  actual?: string;    // For validation errors
+}
+
+// Command-specific results extend BaseResult
+interface PrepareResult extends BaseResult {
+  phase: string;
+  runDir: string;
+  status: 'ready' | 'failed';
+  inputs: {
+    required: string[];
+    resolved: ResolvedInput[];
+  };
+  copiedFromPrior: CopiedFile[];
+}
+
+interface ValidateResult extends BaseResult {
+  phase: string;
+  runDir: string;
+  outputs: {
+    required: string[];
+    validated: ValidatedOutput[];
+  };
+}
+
+interface FinalizeResult extends BaseResult {
+  phase: string;
+  runDir: string;
+  extractedParams: Record<string, unknown>;
+  phaseStatus: 'complete';
+}
+```
+
+### Output Adapter Interface
+
+```typescript
+// @chainglass/shared/interfaces/output-adapter.interface.ts
+
+interface IOutputAdapter {
+  /**
+   * Format a command result for output.
+   * @param command - Command name (e.g., "phase.prepare")
+   * @param result - Domain result object from service
+   * @returns Formatted string (JSON or human-readable)
+   */
+  format<T extends BaseResult>(command: string, result: T): string;
+}
+```
+
+### Adapter Implementations
+
+```typescript
+// @chainglass/shared/adapters/json-output.adapter.ts
+
+class JsonOutputAdapter implements IOutputAdapter {
+  format<T extends BaseResult>(command: string, result: T): string {
+    const success = result.errors.length === 0;
+
+    const response: CommandResponse<T> = {
+      success,
+      command,
+      timestamp: new Date().toISOString(),
+      ...(success
+        ? { data: this.omitErrors(result) }
+        : { error: this.formatErrors(result.errors) }
+      ),
+    };
+
+    return JSON.stringify(response);
+  }
+
+  private formatErrors(errors: ResultError[]): ErrorDetail {
+    return {
+      code: errors[0].code,
+      message: errors.length === 1
+        ? errors[0].message
+        : `${errors.length} errors occurred`,
+      action: errors[0].action,
+      details: errors,
+    };
+  }
+}
+
+// @chainglass/shared/adapters/console-output.adapter.ts
+
+class ConsoleOutputAdapter implements IOutputAdapter {
+  format<T extends BaseResult>(command: string, result: T): string {
+    if (result.errors.length === 0) {
+      return this.formatSuccess(command, result);
+    }
+    return this.formatFailure(command, result);
+  }
+
+  private formatSuccess(command: string, result: PrepareResult): string {
+    return [
+      `✓ Phase '${result.phase}' is ready`,
+      `  Inputs resolved: ${result.inputs.resolved.map(i => i.name).join(', ')}`,
+    ].join('\n');
+  }
+
+  private formatFailure(command: string, result: PrepareResult): string {
+    return [
+      `✗ Phase '${result.phase}' preparation failed [${result.errors[0].code}]`,
+      `  Missing required inputs:`,
+      ...result.errors.map(e => `    - ${e.path}`),
+      ``,
+      `  Action: ${result.errors[0].action}`,
+    ].join('\n');
+  }
+}
+```
+
+### CLI Command Usage
+
+```typescript
+// apps/cli/src/commands/phase.command.ts
+
+class PhaseCommands {
+  constructor(
+    private phaseService: IPhaseService,
+    private outputAdapter: IOutputAdapter,
+  ) {}
+
+  async prepare(phase: string, runDir: string): Promise<number> {
+    // 1. Service returns domain object
+    const result = await this.phaseService.prepare(phase, runDir);
+
+    // 2. Adapter formats for output
+    const output = this.outputAdapter.format('phase.prepare', result);
+
+    // 3. Write to stdout
+    console.log(output);
+
+    // 4. Exit code from result
+    return result.errors.length === 0 ? 0 : 1;
+  }
+}
+```
+
+### DI Container Wiring
+
+```typescript
+// apps/cli/src/container.ts
+
+function createCliContainer(options: CliOptions): DependencyContainer {
+  const container = baseContainer.createChildContainer();
+
+  // Select adapter based on --json flag
+  container.register<IOutputAdapter>(DI_TOKENS.OUTPUT_ADAPTER, {
+    useFactory: () => options.json
+      ? new JsonOutputAdapter()
+      : new ConsoleOutputAdapter(),
+  });
+
+  // Wire up commands with injected adapter
+  container.register(DI_TOKENS.PHASE_COMMANDS, {
+    useFactory: (c) => new PhaseCommands(
+      c.resolve<IPhaseService>(DI_TOKENS.PHASE_SERVICE),
+      c.resolve<IOutputAdapter>(DI_TOKENS.OUTPUT_ADAPTER),
+    ),
+  });
+
+  return container;
+}
+```
+
+### Why This Architecture
+
+1. **Services are pure** - Return domain objects, no knowledge of presentation
+2. **Adapters are composable** - Easy to add `TableOutputAdapter`, `QuietOutputAdapter`, etc.
+3. **MCP reuses services** - MCP tools call same `IPhaseService`, format for MCP response
+4. **Testing is clean** - Test service logic separately from output formatting
+5. **Follows 001-project-setup** - Interfaces in shared, adapters implement interfaces, DI wires it up
+
+### File Locations
+
+| Component | Location |
+|-----------|----------|
+| `BaseResult`, `PrepareResult`, etc. | `@chainglass/shared/interfaces/results/` |
+| `IOutputAdapter` | `@chainglass/shared/interfaces/output-adapter.interface.ts` |
+| `JsonOutputAdapter` | `@chainglass/shared/adapters/json-output.adapter.ts` |
+| `ConsoleOutputAdapter` | `@chainglass/shared/adapters/console-output.adapter.ts` |
+| `FakeOutputAdapter` | `@chainglass/shared/fakes/fake-output.adapter.ts` |
+| CLI commands | `apps/cli/src/commands/` |
+
+### Human Output Examples
+
+When `--json` is NOT specified, `ConsoleOutputAdapter` produces:
 
 ```bash
 $ cg phase prepare gather --run-dir .chainglass/runs/run-001
@@ -671,9 +1035,9 @@ $ cg phase prepare gather --run-dir .chainglass/runs/run-001
 - **Impact**: Testing Strategy and Documentation Strategy sections added, inheriting patterns
 
 **Q2: wf-run.json Location**
-- **Answer**: Run root (`.chainglass/runs/run-001/wf-run.json`)
-- **Rationale**: Visible at top level, easy to find
-- **Impact**: Updated Open Questions; AC-08 already correct
+- **Answer**: Run subfolder (`.chainglass/runs/run-001/wf-run/wf-status.json`)
+- **Rationale**: Keeps workflow system data separate from wf.yaml definition at root
+- **Impact**: Updated Open Questions; AC-08 updated
 
 **Q3: Error Code Standardization**
 - **Answer**: Yes, use standardized codes (E001, E002, etc.)
@@ -698,12 +1062,20 @@ $ cg phase prepare gather --run-dir .chainglass/runs/run-001
 **Q7: JSON Output Framework**
 - **Answer**: All commands support `--json`; JSON is PRIMARY interface
 - **Rationale**: Systems (agents, MCP, tooling) are primary consumers; human output is secondary
-- **Impact**: Added JSON Output Framework section with:
-  - `CommandResponse<T>` envelope: `success`, `command`, `timestamp`, `data`/`error`
-  - `ErrorDetail` with `code`, `message`, `action`, `details[]`
-  - Added AC-23 through AC-28 for JSON output requirements
-  - Updated existing ACs with `--json` variants (AC-07a, AC-10a, AC-11a, etc.)
-  - Interfaces live in `@chainglass/shared/interfaces/cli-response.interface.ts`
+- **Impact**: Added JSON Output Framework section with response envelope structure
+
+**Q8: Output Adapter Architecture**
+- **Answer**: Services return domain objects; adapters format for output
+- **Rationale**: Clean separation - services know nothing about presentation; adapters are composable
+- **Impact**: Added comprehensive Output Adapter Architecture section with:
+  - `BaseResult` with `errors[]` array (empty = success)
+  - `IOutputAdapter` interface with `format<T>(command, result)` method
+  - `JsonOutputAdapter` wraps in `CommandResponse<T>` envelope
+  - `ConsoleOutputAdapter` produces human-readable output
+  - `FakeOutputAdapter` for testing
+  - DI container selects adapter based on `--json` flag
+  - Added AC-23 through AC-36 for adapter architecture
+  - File locations in `@chainglass/shared/interfaces/results/`, `adapters/`, `fakes/`
 
 ---
 
@@ -715,12 +1087,13 @@ $ cg phase prepare gather --run-dir .chainglass/runs/run-001
 | Testing Strategy | ✅ Resolved | Full TDD, fakes only (inherited from 001) |
 | Mock/Stub Policy | ✅ Resolved | Fakes only (inherited from 001) |
 | Documentation Strategy | ✅ Resolved | Hybrid (inherited from 001) |
-| wf-run.json Location | ✅ Resolved | Run root |
+| wf-run.json Location | ✅ Resolved | `wf-run/wf-status.json` |
 | Error Code Standardization | ✅ Resolved | Yes, E001-E041 format |
 | Workflow Package Location | ✅ Resolved | packages/workflow/ |
 | Phase 0 Approach | ✅ Resolved | Static committed files |
 | Run Folder Location | ✅ Resolved | `.chainglass/runs/` |
 | JSON Output Framework | ✅ Resolved | `--json` flag, `CommandResponse<T>` envelope |
+| Output Adapter Architecture | ✅ Resolved | Service → Result → Adapter → Output |
 | Partial Validation | ⏸️ Deferred | Not needed for initial implementation |
 
 ---

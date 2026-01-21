@@ -184,11 +184,17 @@ interface ErrorDetail {
 ```
 
 **Design Implications**:
-- Interfaces live in `@chainglass/shared/interfaces/cli-response.interface.ts`
-- Services return structured results; CLI/MCP format for output
-- Error codes (E001, E010) included in JSON responses
-- Builder pattern: `CommandResponseBuilder` for consistent construction
-- MCP tools use same response structure as CLI `--json`
+- **Services return domain objects** - `PrepareResult`, `ValidateResult`, etc. with `errors[]` array
+- **Adapters format output** - `IOutputAdapter.format(command, result)` transforms to string
+- **DI selects adapter** - `--json` flag → `JsonOutputAdapter`, else → `ConsoleOutputAdapter`
+- **Composable** - Easy to add `TableOutputAdapter`, `QuietOutputAdapter`, etc.
+- **MCP reuses services** - Same `IPhaseService`, different output handling
+
+**File Locations**:
+- Result interfaces: `@chainglass/shared/interfaces/results/`
+- `IOutputAdapter`: `@chainglass/shared/interfaces/output-adapter.interface.ts`
+- Adapters: `@chainglass/shared/adapters/`
+- Fakes: `@chainglass/shared/fakes/fake-output.adapter.ts`
 
 ### Concept 6: Compose/Hydrate Operation
 **User Said**: "You 'compose' a workflow which then 'hydrates' it to a target location, files copied across from template"
@@ -1237,6 +1243,7 @@ Focus on:
 2. **Decisions confirmed**:
    - **Output structure**: Three-tier (`output-files/`, `output-data/`, `wf/`) ✓
    - **JSON output**: Primary interface (`--json` flag), human output secondary ✓
+   - **Output adapter architecture**: Services → Results → Adapters → Output ✓
    - Dev exemplar location: `dev/examples/wf/` ✓
    - Template location (production): `.chainglass/templates/<slug>/` ✓
    - Run folder location: `.chainglass/runs/` ✓
