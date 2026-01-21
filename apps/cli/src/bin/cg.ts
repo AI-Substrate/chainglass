@@ -45,9 +45,13 @@ class ColoredHelp extends Help {
     // Usage section
     lines.push(section('USAGE'));
     if (isRootCommand) {
-      lines.push(`${indent}${chalk.dim('$')} ${chalk.white.bold('cg')} ${chalk.cyan('<command>')} ${chalk.green('[options]')}`);
+      lines.push(
+        `${indent}${chalk.dim('$')} ${chalk.white.bold('cg')} ${chalk.cyan('<command>')} ${chalk.green('[options]')}`
+      );
     } else {
-      lines.push(`${indent}${chalk.dim('$')} ${chalk.white.bold('cg')} ${chalk.cyan(cmd.name())} ${chalk.green('[options]')}`);
+      lines.push(
+        `${indent}${chalk.dim('$')} ${chalk.white.bold('cg')} ${chalk.cyan(cmd.name())} ${chalk.green('[options]')}`
+      );
     }
     lines.push('');
 
@@ -65,19 +69,22 @@ class ColoredHelp extends Help {
     if (isRootCommand) {
       const visibleCommands = helper.visibleCommands(cmd);
       if (visibleCommands.length > 0) {
-        const realCommands = visibleCommands.filter(c => c.name() !== 'help');
+        const realCommands = visibleCommands.filter((c) => c.name() !== 'help');
         if (realCommands.length > 0) {
           lines.push(section('COMMANDS'));
           lines.push('');
           for (const subCmd of realCommands) {
             const name = subCmd.name();
             const cmdDesc = subCmd.description() || '';
-            const hint = subCmd.name() === 'web' 
-              ? ' → localhost:3000'
-              : subCmd.name() === 'mcp' 
-              ? ' → stdio/sse'
-              : '';
-            lines.push(`${indent}${chalk.cyan.bold(name.padEnd(10))}  ${chalk.white(cmdDesc)}${chalk.dim(hint)}`);
+            const hint =
+              subCmd.name() === 'web'
+                ? ' → localhost:3000'
+                : subCmd.name() === 'mcp'
+                  ? ' → stdio/sse'
+                  : '';
+            lines.push(
+              `${indent}${chalk.cyan.bold(name.padEnd(10))}  ${chalk.white(cmdDesc)}${chalk.dim(hint)}`
+            );
           }
           lines.push('');
         }
@@ -96,8 +103,11 @@ class ColoredHelp extends Help {
         const flagStr = `${short}${separator}${long}`;
         const optDesc = opt.description || '';
         // Show default value if present
-        const defaultVal = opt.defaultValue !== undefined ? chalk.dim(` (default: ${opt.defaultValue})`) : '';
-        lines.push(`${indent}${chalk.green(flagStr.padEnd(18))}  ${chalk.white(optDesc)}${defaultVal}`);
+        const defaultVal =
+          opt.defaultValue !== undefined ? chalk.dim(` (default: ${opt.defaultValue})`) : '';
+        lines.push(
+          `${indent}${chalk.green(flagStr.padEnd(18))}  ${chalk.white(optDesc)}${defaultVal}`
+        );
       }
       lines.push('');
     }
@@ -106,16 +116,32 @@ class ColoredHelp extends Help {
     lines.push(section('EXAMPLES'));
     lines.push('');
     if (isRootCommand) {
-      lines.push(`${indent}${chalk.dim('$')} ${chalk.cyan('cg web')}                    ${chalk.dim('# Start web UI on default port')}`);
-      lines.push(`${indent}${chalk.dim('$')} ${chalk.cyan('cg web')} ${chalk.green('--port')} ${chalk.yellow('8080')}      ${chalk.dim('# Start on custom port')}`);
-      lines.push(`${indent}${chalk.dim('$')} ${chalk.cyan('cg mcp')} ${chalk.green('--stdio')}            ${chalk.dim('# Start MCP server for Claude')}`);
+      lines.push(
+        `${indent}${chalk.dim('$')} ${chalk.cyan('cg web')}                    ${chalk.dim('# Start web UI on default port')}`
+      );
+      lines.push(
+        `${indent}${chalk.dim('$')} ${chalk.cyan('cg web')} ${chalk.green('--port')} ${chalk.yellow('8080')}      ${chalk.dim('# Start on custom port')}`
+      );
+      lines.push(
+        `${indent}${chalk.dim('$')} ${chalk.cyan('cg mcp')} ${chalk.green('--stdio')}            ${chalk.dim('# Start MCP server for Claude')}`
+      );
     } else if (cmd.name() === 'web') {
-      lines.push(`${indent}${chalk.dim('$')} ${chalk.cyan('cg web')}                    ${chalk.dim('# Start on default port 3000')}`);
-      lines.push(`${indent}${chalk.dim('$')} ${chalk.cyan('cg web')} ${chalk.green('--port')} ${chalk.yellow('8080')}      ${chalk.dim('# Start on port 8080')}`);
-      lines.push(`${indent}${chalk.dim('$')} ${chalk.cyan('cg web')} ${chalk.green('-p')} ${chalk.yellow('4000')}          ${chalk.dim('# Start on port 4000')}`);
+      lines.push(
+        `${indent}${chalk.dim('$')} ${chalk.cyan('cg web')}                    ${chalk.dim('# Start on default port 3000')}`
+      );
+      lines.push(
+        `${indent}${chalk.dim('$')} ${chalk.cyan('cg web')} ${chalk.green('--port')} ${chalk.yellow('8080')}      ${chalk.dim('# Start on port 8080')}`
+      );
+      lines.push(
+        `${indent}${chalk.dim('$')} ${chalk.cyan('cg web')} ${chalk.green('-p')} ${chalk.yellow('4000')}          ${chalk.dim('# Start on port 4000')}`
+      );
     } else if (cmd.name() === 'mcp') {
-      lines.push(`${indent}${chalk.dim('$')} ${chalk.cyan('cg mcp')} ${chalk.green('--stdio')}            ${chalk.dim('# Use with Claude Desktop')}`);
-      lines.push(`${indent}${chalk.dim('$')} ${chalk.cyan('cg mcp')} ${chalk.green('--sse')}              ${chalk.dim('# Use SSE transport')}`);
+      lines.push(
+        `${indent}${chalk.dim('$')} ${chalk.cyan('cg mcp')} ${chalk.green('--stdio')}            ${chalk.dim('# Use with Claude Desktop')}`
+      );
+      lines.push(
+        `${indent}${chalk.dim('$')} ${chalk.cyan('cg mcp')} ${chalk.green('--sse')}              ${chalk.dim('# Use SSE transport')}`
+      );
     }
     lines.push('');
 
@@ -129,7 +155,11 @@ class ColoredHelp extends Help {
 
     // Footer
     if (isRootCommand) {
-      lines.push(chalk.dim(`${indent}Run ${chalk.cyan("'cg <command> --help'")} for detailed command information.`));
+      lines.push(
+        chalk.dim(
+          `${indent}Run ${chalk.cyan("'cg <command> --help'")} for detailed command information.`
+        )
+      );
     } else {
       lines.push(chalk.dim(`${indent}Run ${chalk.cyan("'cg --help'")} for all commands.`));
     }
