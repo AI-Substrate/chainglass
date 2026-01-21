@@ -24,3 +24,12 @@ export {
   SampleConfigType,
   type SampleConfig,
 } from './config/index.js';
+export {
+  ChainglassConfigService,
+  type ChainglassConfigServiceOptions,
+} from './config/index.js';
+export {
+  getUserConfigDir,
+  ensureUserConfig,
+  getProjectConfigDir,
+} from './config/index.js';

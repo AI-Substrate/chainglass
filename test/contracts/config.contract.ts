@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import type { IConfigService } from '@chainglass/shared/interfaces';
-import { MissingConfigurationError } from '../../packages/shared/src/config/exceptions.js';
 import {
+  MissingConfigurationError,
   type SampleConfig,
   SampleConfigType,
-} from '../../packages/shared/src/config/schemas/sample.schema.js';
+} from '@chainglass/shared';
 
 /**
  * Contract tests for IConfigService implementations.

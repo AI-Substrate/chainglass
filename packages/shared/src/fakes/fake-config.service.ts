@@ -22,6 +22,8 @@ import type { ConfigType, IConfigService } from '../interfaces/config.interface.
  */
 export class FakeConfigService implements IConfigService {
   private readonly registry: Map<string, unknown>;
+  /** FIX-011: Track whether we've logged the isLoaded() transition */
+  private _hasLoggedLoadedTransition = false;
 
   /**
    * Create a FakeConfigService with optional pre-populated configs.
@@ -33,6 +35,15 @@ export class FakeConfigService implements IConfigService {
     // Pre-populate registry from constructor argument
     for (const [configPath, config] of Object.entries(configs)) {
       this.registry.set(configPath, config);
+    }
+
+    // FIX-011: Log if initialized with configs (isLoaded() is now true)
+    if (this.registry.size > 0 && !this._hasLoggedLoadedTransition) {
+      this._hasLoggedLoadedTransition = true;
+      console.log('[FakeConfigService] Config loaded (initialized with configs)', {
+        configCount: this.registry.size,
+        configPaths: Array.from(this.registry.keys()),
+      });
     }
   }
 
@@ -67,8 +78,20 @@ export class FakeConfigService implements IConfigService {
         `Cannot set ${type.configPath} config to ${config}. Use a valid config object.`
       );
     }
+
+    // FIX-011: Track isLoaded() transition (false → true)
+    const wasEmpty = this.registry.size === 0;
+
     // Per DYK-01: Trust types, do NOT call type.parse() in the fake
     this.registry.set(type.configPath, config);
+
+    // FIX-011: Log state transition when first config is set
+    if (wasEmpty && !this._hasLoggedLoadedTransition) {
+      this._hasLoggedLoadedTransition = true;
+      console.log('[FakeConfigService] Config loaded (via set())', {
+        configPath: type.configPath,
+      });
+    }
   }
 
   // Test helper methods
@@ -100,5 +123,13 @@ export class FakeConfigService implements IConfigService {
         `Expected config '${type.configPath}' to be set${contextMessage}. Use FakeConfigService constructor or set() to provide it.`
       );
     }
+  }
+
+  /**
+   * Check if configuration has been loaded.
+   * For FakeConfigService: returns true if any configs are registered.
+   */
+  isLoaded(): boolean {
+    return this.registry.size > 0;
   }
 }

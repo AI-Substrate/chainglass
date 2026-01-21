@@ -1,0 +1,633 @@
+diff --git a/apps/web/src/lib/di-container.ts b/apps/web/src/lib/di-container.ts
+index 50744e3..3aa0b34 100644
+--- a/apps/web/src/lib/di-container.ts
++++ b/apps/web/src/lib/di-container.ts
+@@ -9,13 +9,20 @@
+  */
+ 
+ import 'reflect-metadata';
+-import { FakeLogger, type ILogger, PinoLoggerAdapter } from '@chainglass/shared';
++import {
++  FakeConfigService,
++  FakeLogger,
++  type IConfigService,
++  type ILogger,
++  PinoLoggerAdapter,
++} from '@chainglass/shared';
+ import { type DependencyContainer, container } from 'tsyringe';
+ import { SampleService } from '../services/sample.service.js';
+ 
+ // Token constants for type-safe resolution
+ export const DI_TOKENS = {
+   LOGGER: 'ILogger',
++  CONFIG: 'IConfigService',
+   SAMPLE_SERVICE: 'SampleService',
+ } as const;
+ 
+@@ -24,11 +31,34 @@ export const DI_TOKENS = {
+  *
+  * Use in application startup code (not in tests).
+  *
++ * Per Critical Discovery 02: Config must be loaded BEFORE calling this function.
++ * See bootstrap.ts for correct startup sequence.
++ *
++ * @param config Pre-loaded IConfigService instance (must have isLoaded() === true)
+  * @returns Child container with production registrations
++ * @throws Error if config is missing or not loaded
+  */
+-export function createProductionContainer(): DependencyContainer {
++export function createProductionContainer(config: IConfigService): DependencyContainer {
++  // T011 Guard: Validate config is provided and loaded
++  if (!config) {
++    throw new Error(
++      'IConfigService required - call config.load() before createProductionContainer(config)'
++    );
++  }
++  if (!config.isLoaded()) {
++    throw new Error(
++      'Config not loaded - call config.load() before createProductionContainer(config)'
++    );
++  }
++
+   const childContainer = container.createChildContainer();
+ 
++  // Register pre-loaded config as value (not factory)
++  // This is the key insight from Critical Discovery 02
++  childContainer.register<IConfigService>(DI_TOKENS.CONFIG, {
++    useValue: config,
++  });
++
+   // Register production adapters using factory pattern
+   // (useClass requires decorators which don't work in RSC)
+   childContainer.register<ILogger>(DI_TOKENS.LOGGER, {
+@@ -40,7 +70,8 @@ export function createProductionContainer(): DependencyContainer {
+   childContainer.register(DI_TOKENS.SAMPLE_SERVICE, {
+     useFactory: (c) => {
+       const logger = c.resolve<ILogger>(DI_TOKENS.LOGGER);
+-      return new SampleService(logger);
++      const cfg = c.resolve<IConfigService>(DI_TOKENS.CONFIG);
++      return new SampleService(logger, cfg);
+     },
+   });
+ 
+@@ -53,7 +84,7 @@ export function createProductionContainer(): DependencyContainer {
+  * Each call returns a new isolated child container to prevent
+  * state leakage between tests.
+  *
+- * @returns Child container with test registrations (FakeLogger, etc.)
++ * @returns Child container with test registrations (FakeLogger, FakeConfigService, etc.)
+  */
+ export function createTestContainer(): DependencyContainer {
+   const childContainer = container.createChildContainer();
+@@ -62,6 +93,17 @@ export function createTestContainer(): DependencyContainer {
+   // This allows isolation tests to verify separate log entries
+   const fakeLogger = new FakeLogger();
+ 
++  // Create FakeConfigService with default test config
++  // Matches DEFAULT_FIXTURE_SAMPLE_CONFIG from service-test.fixture.ts
++  const fakeConfig = new FakeConfigService({
++    sample: { enabled: true, timeout: 30, name: 'test-fixture' },
++  });
++
++  // Register test fakes
++  childContainer.register<IConfigService>(DI_TOKENS.CONFIG, {
++    useValue: fakeConfig,
++  });
++
+   // Register test fakes using factory pattern
+   // (useClass requires decorators which don't work in RSC)
+   childContainer.register<ILogger>(DI_TOKENS.LOGGER, {
+@@ -72,7 +114,8 @@ export function createTestContainer(): DependencyContainer {
+   childContainer.register(DI_TOKENS.SAMPLE_SERVICE, {
+     useFactory: (c) => {
+       const logger = c.resolve<ILogger>(DI_TOKENS.LOGGER);
+-      return new SampleService(logger);
++      const config = c.resolve<IConfigService>(DI_TOKENS.CONFIG);
++      return new SampleService(logger, config);
+     },
+   });
+ 
+diff --git a/apps/web/src/services/sample.service.ts b/apps/web/src/services/sample.service.ts
+index 4d6c7cb..3db67c4 100644
+--- a/apps/web/src/services/sample.service.ts
++++ b/apps/web/src/services/sample.service.ts
+@@ -15,7 +15,8 @@
+  * @see /test/unit/web/sample-service.test.ts for test pattern examples
+  */
+ 
+-import type { ILogger } from '@chainglass/shared';
++import type { IConfigService, ILogger, SampleConfig } from '@chainglass/shared';
++import { SampleConfigType } from '@chainglass/shared';
+ 
+ /**
+  * Reference implementation of a service with DI.
+@@ -24,9 +25,45 @@ import type { ILogger } from '@chainglass/shared';
+  * - Orchestrate operations using injected adapters
+  * - Are framework-agnostic (can work in CLI, web, or MCP)
+  * - Are testable by injecting fakes
++ *
++ * Phase 4 Update: Now receives IConfigService for configuration access.
+  */
+ export class SampleService {
+-  constructor(private readonly logger: ILogger) {}
++  private readonly sampleConfig: SampleConfig;
++
++  constructor(
++    private readonly logger: ILogger,
++    private readonly config: IConfigService
++  ) {
++    // Load config at construction time (fail-fast if missing)
++    this.sampleConfig = config.require(SampleConfigType);
++  }
++
++  /**
++   * Get the configured timeout value.
++   *
++   * Demonstrates config consumption pattern:
++   * - Config is loaded once at construction
++   * - Cached value avoids repeated lookups
++   *
++   * @returns Timeout in seconds from SampleConfig
++   */
++  getTimeout(): number {
++    return this.sampleConfig.timeout;
++  }
++
++  /**
++   * Check if the service is enabled via config.
++   *
++   * Demonstrates feature flag pattern:
++   * - Services can be disabled without code changes
++   * - Callers should check this before performing operations
++   *
++   * @returns true if enabled, false otherwise
++   */
++  isEnabled(): boolean {
++    return this.sampleConfig.enabled;
++  }
+ 
+   /**
+    * Example method demonstrating service patterns.
+diff --git a/packages/mcp-server/src/lib/di-container.ts b/packages/mcp-server/src/lib/di-container.ts
+index 4184ce9..ec4e130 100644
+--- a/packages/mcp-server/src/lib/di-container.ts
++++ b/packages/mcp-server/src/lib/di-container.ts
+@@ -10,12 +10,19 @@
+  */
+ 
+ import 'reflect-metadata';
+-import { FakeLogger, type ILogger, PinoLoggerAdapter } from '@chainglass/shared';
++import {
++  FakeConfigService,
++  FakeLogger,
++  type IConfigService,
++  type ILogger,
++  PinoLoggerAdapter,
++} from '@chainglass/shared';
+ import { type DependencyContainer, container } from 'tsyringe';
+ 
+ // Token constants for type-safe resolution
+ export const MCP_DI_TOKENS = {
+   LOGGER: 'ILogger',
++  CONFIG: 'IConfigService',
+ } as const;
+ 
+ /**
+@@ -24,12 +31,35 @@ export const MCP_DI_TOKENS = {
+  * Per Critical Discovery 10: stdout reserved for JSON-RPC in stdio mode.
+  * Uses PinoLoggerAdapter.createForStderr() to ensure all logs go to stderr.
+  *
++ * Per Critical Discovery 02: Config must be loaded BEFORE calling this function.
++ * Per DYK-18: Logger is config-independent (no ordering concern).
++ *
++ * @param config Pre-loaded IConfigService instance (must have isLoaded() === true)
+  * @returns Child container with production registrations
++ * @throws Error if config is missing or not loaded
+  */
+-export function createMcpProductionContainer(): DependencyContainer {
++export function createMcpProductionContainer(config: IConfigService): DependencyContainer {
++  // Guard: Validate config is provided and loaded
++  if (!config) {
++    throw new Error(
++      'IConfigService required - call config.load() before createMcpProductionContainer(config)'
++    );
++  }
++  if (!config.isLoaded()) {
++    throw new Error(
++      'Config not loaded - call config.load() before createMcpProductionContainer(config)'
++    );
++  }
++
+   const childContainer = container.createChildContainer();
+ 
++  // Register pre-loaded config as value
++  childContainer.register<IConfigService>(MCP_DI_TOKENS.CONFIG, {
++    useValue: config,
++  });
++
+   // Register stderr-configured logger for stdio mode compliance
++  // Per DYK-18: Logger is config-independent (PinoLoggerAdapter.createForStderr() takes no params)
+   childContainer.register<ILogger>(MCP_DI_TOKENS.LOGGER, {
+     useFactory: () => PinoLoggerAdapter.createForStderr(),
+   });
+@@ -43,7 +73,7 @@ export function createMcpProductionContainer(): DependencyContainer {
+  * Each call returns a new isolated child container to prevent
+  * state leakage between tests.
+  *
+- * @returns Child container with test registrations (FakeLogger, etc.)
++ * @returns Child container with test registrations (FakeLogger, FakeConfigService, etc.)
+  */
+ export function createMcpTestContainer(): DependencyContainer {
+   const childContainer = container.createChildContainer();
+@@ -51,7 +81,16 @@ export function createMcpTestContainer(): DependencyContainer {
+   // Create a shared FakeLogger instance for this container
+   const fakeLogger = new FakeLogger();
+ 
++  // Create FakeConfigService with default test config
++  const fakeConfig = new FakeConfigService({
++    sample: { enabled: true, timeout: 30, name: 'mcp-test-fixture' },
++  });
++
+   // Register test fakes
++  childContainer.register<IConfigService>(MCP_DI_TOKENS.CONFIG, {
++    useValue: fakeConfig,
++  });
++
+   childContainer.register<ILogger>(MCP_DI_TOKENS.LOGGER, {
+     useFactory: () => fakeLogger,
+   });
+diff --git a/packages/shared/src/config/index.ts b/packages/shared/src/config/index.ts
+index 5a512b0..26ec3f6 100644
+--- a/packages/shared/src/config/index.ts
++++ b/packages/shared/src/config/index.ts
+@@ -15,11 +15,22 @@ export {
+ // Path Resolution (Phase 2)
+ export { getUserConfigDir, ensureUserConfig, getProjectConfigDir } from './paths/index.js';
+ 
+-// Loaders (Phase 2)
++// Loaders (Phase 2 + Phase 3)
+ export {
+   loadYamlConfig,
+   parseEnvVars,
+   deepMerge,
+   expandPlaceholders,
+   validateNoUnexpandedPlaceholders,
++  loadSecretsToEnv,
++  type LoadSecretsOptions,
+ } from './loaders/index.js';
++
++// Security (Phase 3)
++export { detectLiteralSecret, validateNoLiteralSecrets } from './security/index.js';
++
++// Production Config Service (Phase 3)
++export {
++  ChainglassConfigService,
++  type ChainglassConfigServiceOptions,
++} from './chainglass-config.service.js';
+diff --git a/packages/shared/src/config/loaders/index.ts b/packages/shared/src/config/loaders/index.ts
+index 15269c5..11090e3 100644
+--- a/packages/shared/src/config/loaders/index.ts
++++ b/packages/shared/src/config/loaders/index.ts
+@@ -2,3 +2,4 @@ export { loadYamlConfig } from './yaml.loader.js';
+ export { parseEnvVars } from './env.parser.js';
+ export { deepMerge } from './deep-merge.js';
+ export { expandPlaceholders, validateNoUnexpandedPlaceholders } from './expand-placeholders.js';
++export { loadSecretsToEnv, type LoadSecretsOptions } from './secrets.loader.js';
+diff --git a/packages/shared/src/fakes/fake-config.service.ts b/packages/shared/src/fakes/fake-config.service.ts
+index 45436ba..3de68f1 100644
+--- a/packages/shared/src/fakes/fake-config.service.ts
++++ b/packages/shared/src/fakes/fake-config.service.ts
+@@ -101,4 +101,12 @@ export class FakeConfigService implements IConfigService {
+       );
+     }
+   }
++
++  /**
++   * Check if configuration has been loaded.
++   * For FakeConfigService: returns true if any configs are registered.
++   */
++  isLoaded(): boolean {
++    return this.registry.size > 0;
++  }
+ }
+diff --git a/packages/shared/src/index.ts b/packages/shared/src/index.ts
+index 4ad999d..9665118 100644
+--- a/packages/shared/src/index.ts
++++ b/packages/shared/src/index.ts
+@@ -24,3 +24,7 @@ export {
+   SampleConfigType,
+   type SampleConfig,
+ } from './config/index.js';
++export {
++  ChainglassConfigService,
++  type ChainglassConfigServiceOptions,
++} from './config/index.js';
+diff --git a/packages/shared/src/interfaces/config.interface.ts b/packages/shared/src/interfaces/config.interface.ts
+index 04b2333..cbc43c9 100644
+--- a/packages/shared/src/interfaces/config.interface.ts
++++ b/packages/shared/src/interfaces/config.interface.ts
+@@ -24,6 +24,15 @@ export interface IConfigService {
+    * Used by loaders and for testing.
+    */
+   set<T>(type: ConfigType<T>, config: T): void;
++
++  /**
++   * Check if configuration has been loaded.
++   * For production service: true after load() completes.
++   * For fake service: true if any configs are registered.
++   *
++   * Used by DI container factories to guard against unloaded config.
++   */
++  isLoaded(): boolean;
+ }
+ 
+ /**
+diff --git a/test/contracts/config.contract.test.ts b/test/contracts/config.contract.test.ts
+index 9c3fe62..6f5a602 100644
+--- a/test/contracts/config.contract.test.ts
++++ b/test/contracts/config.contract.test.ts
+@@ -1,7 +1,23 @@
+ import { FakeConfigService } from '@chainglass/shared/fakes';
++import { ChainglassConfigService } from '../../packages/shared/src/config/chainglass-config.service.js';
+ import { configServiceContractTests } from './config.contract.js';
+ 
+ // Run contract tests for FakeConfigService
+ configServiceContractTests('FakeConfigService', () => new FakeConfigService());
+ 
+-// ChainglassConfigService contract tests added in Phase 3
++// Run contract tests for ChainglassConfigService (Phase 3)
++// IMPORTANT: Contract tests expect a fresh service with no pre-loaded configs.
++// We do NOT call load() here because:
++// 1. load() auto-loads all registered ConfigTypes with defaults
++// 2. Contract tests verify behavior like "get() returns undefined before set()"
++// 3. Production code ALWAYS calls load() first, but contract tests verify the interface
++//
++// The key contract behaviors (get/set/require) work the same whether load() was called.
++// The auto-loading behavior is ChainglassConfigService-specific, not part of IConfigService.
++configServiceContractTests('ChainglassConfigService', () => {
++  return new ChainglassConfigService({
++    userConfigDir: null,
++    projectConfigDir: null,
++  });
++  // Intentionally NOT calling load() - contract tests verify interface behavior
++});
+diff --git a/test/unit/web/di-container.test.ts b/test/unit/web/di-container.test.ts
+index 565a344..eedf4fd 100644
+--- a/test/unit/web/di-container.test.ts
++++ b/test/unit/web/di-container.test.ts
+@@ -10,8 +10,20 @@
+ 
+ // Must import reflect-metadata before tsyringe
+ import 'reflect-metadata';
+-import { FakeLogger, type ILogger, LogLevel, PinoLoggerAdapter } from '@chainglass/shared';
+-import { createProductionContainer, createTestContainer } from '@chainglass/web/lib/di-container';
++import {
++  FakeConfigService,
++  FakeLogger,
++  type IConfigService,
++  type ILogger,
++  LogLevel,
++  PinoLoggerAdapter,
++  SampleConfigType,
++} from '@chainglass/shared';
++import {
++  DI_TOKENS,
++  createProductionContainer,
++  createTestContainer,
++} from '@chainglass/web/lib/di-container';
+ // SampleService will be created in T007 - import will fail until then
+ // eslint-disable-next-line @typescript-eslint/no-unused-vars
+ import type { SampleService } from '@chainglass/web/services/sample.service';
+@@ -23,16 +35,23 @@ describe('DI Container', () => {
+     container.clearInstances();
+   });
+ 
+-  it('should create production container with real adapters', () => {
++  it('should create production container with real adapters', async () => {
+     /*
+     Test Doc:
+     - Why: Production must use real adapters (PinoLoggerAdapter) not fakes; wrong wiring causes silent failures
+-    - Contract: createProductionContainer() resolves 'ILogger' to PinoLoggerAdapter instance
++    - Contract: createProductionContainer(config) resolves 'ILogger' to PinoLoggerAdapter instance
+     - Usage Notes: Use createProductionContainer() in app startup; never in tests
+     - Quality Contribution: Catches misconfigured production DI that would ship fakes to production
+-    - Worked Example: createProductionContainer().resolve('ILogger') returns PinoLoggerAdapter
++    - Worked Example: createProductionContainer(config).resolve('ILogger') returns PinoLoggerAdapter
+     */
+-    const prodContainer = createProductionContainer();
++    const { ChainglassConfigService } = await import('@chainglass/shared');
++    const config = new ChainglassConfigService({
++      userConfigDir: null,
++      projectConfigDir: null,
++    });
++    config.load();
++
++    const prodContainer = createProductionContainer(config);
+     const logger = prodContainer.resolve<ILogger>('ILogger');
+ 
+     expect(logger).toBeInstanceOf(PinoLoggerAdapter);
+@@ -97,4 +116,96 @@ describe('DI Container', () => {
+     expect(logger.getEntries().length).toBeGreaterThan(0);
+     logger.assertLoggedAtLevel(LogLevel.INFO, 'Processing');
+   });
++
++  describe('Config Registration (Phase 4)', () => {
++    it('should resolve IConfigService from production container', async () => {
++      /*
++      Test Doc:
++      - Why: Verifies AC-21 - IConfigService must be registered in production container
++      - Contract: createProductionContainer(config) resolves DI_TOKENS.CONFIG to IConfigService
++      - Usage Notes: Config must be pre-loaded before passing to container
++      - Quality Contribution: Catches missing config registration in production DI
++      - Worked Example: createProductionContainer(loadedConfig).resolve(CONFIG) returns IConfigService
++      */
++      // Use dynamic import to get ChainglassConfigService
++      const { ChainglassConfigService } = await import('@chainglass/shared');
++      const config = new ChainglassConfigService({
++        userConfigDir: null,
++        projectConfigDir: null,
++      });
++      config.load();
++
++      const prodContainer = createProductionContainer(config);
++      const resolvedConfig = prodContainer.resolve<IConfigService>(DI_TOKENS.CONFIG);
++
++      expect(resolvedConfig).toBe(config);
++      expect(resolvedConfig.isLoaded()).toBe(true);
++    });
++
++    it('should use FakeConfigService in test container', () => {
++      /*
++      Test Doc:
++      - Why: Verifies AC-22 - Test container must use FakeConfigService for deterministic tests
++      - Contract: createTestContainer() resolves DI_TOKENS.CONFIG to FakeConfigService instance
++      - Usage Notes: FakeConfigService pre-populated with defaults; use set() to override
++      - Quality Contribution: Catches test container misconfiguration that would use real config loading
++      - Worked Example: createTestContainer().resolve(CONFIG) returns FakeConfigService
++      */
++      const testContainer = createTestContainer();
++      const configService = testContainer.resolve<IConfigService>(DI_TOKENS.CONFIG);
++
++      expect(configService).toBeInstanceOf(FakeConfigService);
++    });
++
++    it('should pre-populate FakeConfigService with sample config in test container', () => {
++      /*
++      Test Doc:
++      - Why: Tests need sensible defaults without manual setup every time
++      - Contract: createTestContainer() provides FakeConfigService with SampleConfig pre-set
++      - Usage Notes: Default values match DEFAULT_FIXTURE_SAMPLE_CONFIG from service-test.fixture
++      - Quality Contribution: Reduces boilerplate; ensures consistent test config
++      - Worked Example: createTestContainer().resolve(CONFIG).require(SampleConfigType) returns default config
++      */
++      const testContainer = createTestContainer();
++      const configService = testContainer.resolve<IConfigService>(DI_TOKENS.CONFIG);
++
++      const sampleConfig = configService.require(SampleConfigType);
++
++      expect(sampleConfig).toBeDefined();
++      expect(sampleConfig.enabled).toBe(true);
++      expect(sampleConfig.timeout).toBe(30);
++      expect(sampleConfig.name).toBe('test-fixture');
++    });
++
++    it('should throw if production container created without config', () => {
++      /*
++      Test Doc:
++      - Why: Fail-fast if config not provided; prevents runtime errors from missing config
++      - Contract: createProductionContainer() without config throws descriptive error
++      - Usage Notes: Always call config.load() before createProductionContainer(config)
++      - Quality Contribution: Catches startup bugs where config loading was forgotten
++      - Worked Example: createProductionContainer() → throws "IConfigService required"
++      */
++      expect(() => createProductionContainer()).toThrow('IConfigService required');
++    });
++
++    it('should throw if config not loaded before passing to production container', async () => {
++      /*
++      Test Doc:
++      - Why: Guards against T011 - unloaded config passed to container would cause runtime errors
++      - Contract: createProductionContainer(unloadedConfig) throws descriptive error
++      - Usage Notes: Call config.load() before passing to container; isLoaded() must return true
++      - Quality Contribution: Catches startup bugs where load() was not called
++      - Worked Example: createProductionContainer(new ConfigService()) → throws "Config not loaded"
++      */
++      const { ChainglassConfigService } = await import('@chainglass/shared');
++      const config = new ChainglassConfigService({
++        userConfigDir: null,
++        projectConfigDir: null,
++      });
++      // Intentionally NOT calling config.load()
++
++      expect(() => createProductionContainer(config)).toThrow('Config not loaded');
++    });
++  });
+ });
+diff --git a/test/unit/web/sample-service.test.ts b/test/unit/web/sample-service.test.ts
+index f24e937..4050fc8 100644
+--- a/test/unit/web/sample-service.test.ts
++++ b/test/unit/web/sample-service.test.ts
+@@ -10,17 +10,28 @@
+ 
+ // Must import reflect-metadata before tsyringe
+ import 'reflect-metadata';
+-import { FakeLogger, type ILogger, LogLevel } from '@chainglass/shared';
++import {
++  FakeConfigService,
++  FakeLogger,
++  type IConfigService,
++  type ILogger,
++  LogLevel,
++  SampleConfigType,
++} from '@chainglass/shared';
+ import { SampleService } from '@chainglass/web/services/sample.service';
+ import { beforeEach, describe, expect, it } from 'vitest';
+ 
+ describe('SampleService', () => {
+   let service: SampleService;
+   let fakeLogger: FakeLogger;
++  let fakeConfig: FakeConfigService;
+ 
+   beforeEach(() => {
+     fakeLogger = new FakeLogger();
+-    service = new SampleService(fakeLogger);
++    fakeConfig = new FakeConfigService({
++      sample: { enabled: true, timeout: 30, name: 'test-fixture' },
++    });
++    service = new SampleService(fakeLogger, fakeConfig);
+   });
+ 
+   it('should process input and return result', async () => {
+@@ -68,4 +79,72 @@ describe('SampleService', () => {
+ 
+     expect(inputEntry?.data?.input).toBe('my-value');
+   });
++
++  describe('Config Injection (Phase 4)', () => {
++    let fakeConfig: FakeConfigService;
++
++    beforeEach(() => {
++      fakeConfig = new FakeConfigService({
++        sample: { enabled: true, timeout: 30, name: 'test-fixture' },
++      });
++    });
++
++    it('should receive IConfigService via constructor', () => {
++      /*
++      Test Doc:
++      - Why: Verifies AC-23 - SampleService must receive IConfigService via constructor injection
++      - Contract: new SampleService(logger, config) compiles without TypeScript errors
++      - Usage Notes: Config is required parameter; use FakeConfigService in tests
++      - Quality Contribution: Catches DI wiring issues where config dependency is missing
++      - Worked Example: new SampleService(fakeLogger, fakeConfig) creates valid instance
++      */
++      const service = new SampleService(fakeLogger, fakeConfig);
++
++      expect(service).toBeInstanceOf(SampleService);
++    });
++
++    it('should use timeout from config via getTimeout()', () => {
++      /*
++      Test Doc:
++      - Why: Verifies AC-24 - SampleService should read config values (demonstrating config consumption)
++      - Contract: getTimeout() returns value from SampleConfig.timeout
++      - Usage Notes: Inject FakeConfigService with pre-set timeout value
++      - Quality Contribution: Catches config integration bugs where config is ignored
++      - Worked Example: FakeConfig(timeout: 60) → getTimeout() === 60
++      */
++      fakeConfig.set(SampleConfigType, { enabled: true, timeout: 60, name: 'custom' });
++      const service = new SampleService(fakeLogger, fakeConfig);
++
++      expect(service.getTimeout()).toBe(60);
++    });
++
++    it('should use default timeout when config has default value', () => {
++      /*
++      Test Doc:
++      - Why: Edge case - verify config defaults work correctly
++      - Contract: getTimeout() returns 30 when using default config
++      - Usage Notes: Default comes from Zod schema default in SampleConfigSchema
++      - Quality Contribution: Catches default value handling issues
++      - Worked Example: FakeConfig(timeout: 30) → getTimeout() === 30
++      */
++      const service = new SampleService(fakeLogger, fakeConfig);
++
++      expect(service.getTimeout()).toBe(30);
++    });
++
++    it('should report enabled state from config via isEnabled()', () => {
++      /*
++      Test Doc:
++      - Why: Feature flag pattern - services should be disableable via config
++      - Contract: isEnabled() returns SampleConfig.enabled value
++      - Usage Notes: Use for feature toggles; check before performing operations
++      - Quality Contribution: Catches config-based feature flag implementation issues
++      - Worked Example: FakeConfig(enabled: false) → isEnabled() === false
++      */
++      fakeConfig.set(SampleConfigType, { enabled: false, timeout: 30, name: 'disabled' });
++      const service = new SampleService(fakeLogger, fakeConfig);
++
++      expect(service.isEnabled()).toBe(false);
++    });
++  });
+ });

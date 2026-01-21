@@ -24,6 +24,15 @@ export interface IConfigService {
    * Used by loaders and for testing.
    */
   set<T>(type: ConfigType<T>, config: T): void;
+
+  /**
+   * Check if configuration has been loaded.
+   * For production service: true after load() completes.
+   * For fake service: true if any configs are registered.
+   *
+   * Used by DI container factories to guard against unloaded config.
+   */
+  isLoaded(): boolean;
 }
 
 /**

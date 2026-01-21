@@ -15,7 +15,8 @@
  * @see /test/unit/web/sample-service.test.ts for test pattern examples
  */
 
-import type { ILogger } from '@chainglass/shared';
+import type { IConfigService, ILogger, SampleConfig } from '@chainglass/shared';
+import { SampleConfigType } from '@chainglass/shared';
 
 /**
  * Reference implementation of a service with DI.
@@ -24,9 +25,53 @@ import type { ILogger } from '@chainglass/shared';
  * - Orchestrate operations using injected adapters
  * - Are framework-agnostic (can work in CLI, web, or MCP)
  * - Are testable by injecting fakes
+ *
+ * Phase 4 Update: Now receives IConfigService for configuration access.
  */
 export class SampleService {
-  constructor(private readonly logger: ILogger) {}
+  private readonly sampleConfig: SampleConfig;
+
+  constructor(
+    private readonly logger: ILogger,
+    private readonly config: IConfigService
+  ) {
+    // Load config at construction time (fail-fast if missing)
+    this.sampleConfig = config.require(SampleConfigType);
+
+    // FIX-004: Audit log - record which config was loaded with values
+    this.logger.info('SampleConfig loaded', {
+      configType: 'SampleConfig',
+      enabled: this.sampleConfig.enabled,
+      timeout: this.sampleConfig.timeout,
+      name: this.sampleConfig.name,
+    });
+  }
+
+  /**
+   * Get the configured timeout value.
+   *
+   * Demonstrates config consumption pattern:
+   * - Config is loaded once at construction
+   * - Cached value avoids repeated lookups
+   *
+   * @returns Timeout in seconds from SampleConfig
+   */
+  getTimeout(): number {
+    return this.sampleConfig.timeout;
+  }
+
+  /**
+   * Check if the service is enabled via config.
+   *
+   * Demonstrates feature flag pattern:
+   * - Services can be disabled without code changes
+   * - Callers should check this before performing operations
+   *
+   * @returns true if enabled, false otherwise
+   */
+  isEnabled(): boolean {
+    return this.sampleConfig.enabled;
+  }
 
   /**
    * Example method demonstrating service patterns.
