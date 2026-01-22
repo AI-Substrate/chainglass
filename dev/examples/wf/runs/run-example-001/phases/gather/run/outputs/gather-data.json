@@ -1,0 +1,28 @@
+{
+  "items": [
+    {
+      "id": "item-001",
+      "content": "First sample item for workflow demonstration",
+      "tags": ["example", "demo", "first"]
+    },
+    {
+      "id": "item-002",
+      "content": "Second sample item showing data collection",
+      "tags": ["example", "demo", "second"]
+    },
+    {
+      "id": "item-003",
+      "content": "Third sample item completing the set",
+      "tags": ["example", "demo", "third"]
+    }
+  ],
+  "classification": {
+    "type": "processing",
+    "confidence": 0.95
+  },
+  "metadata": {
+    "gathered_at": "2026-01-21T10:02:00Z",
+    "source": "request.md",
+    "notes": "Sample data gathered for hello-workflow demonstration"
+  }
+}

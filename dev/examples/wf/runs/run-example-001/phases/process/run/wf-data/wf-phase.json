@@ -1,0 +1,37 @@
+{
+  "phase": "process",
+  "facilitator": "orchestrator",
+  "state": "complete",
+  "status": [
+    {
+      "timestamp": "2026-01-21T10:05:00Z",
+      "from": "orchestrator",
+      "action": "prepare",
+      "comment": "Phase prepared, inputs copied from gather"
+    },
+    {
+      "timestamp": "2026-01-21T10:05:01Z",
+      "from": "orchestrator",
+      "action": "handover",
+      "comment": "Control passed to agent"
+    },
+    {
+      "timestamp": "2026-01-21T10:05:02Z",
+      "from": "agent",
+      "action": "accept",
+      "comment": "Agent acknowledges control"
+    },
+    {
+      "timestamp": "2026-01-21T10:05:03Z",
+      "from": "agent",
+      "action": "preflight",
+      "comment": "Preflight passed: config OK, inputs OK, params resolved"
+    },
+    {
+      "timestamp": "2026-01-21T10:10:00Z",
+      "from": "agent",
+      "action": "finalize",
+      "comment": "Phase complete, all items processed"
+    }
+  ]
+}

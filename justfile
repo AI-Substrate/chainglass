@@ -6,8 +6,10 @@
 default:
     @just --list
 
-# Install dependencies and link CLI globally
+# Install dependencies, build, and link CLI globally
 install:
+    pnpm install --ignore-scripts
+    pnpm build
     pnpm install
     @cd apps/cli && pnpm link --global 2>/dev/null || echo "Note: Run 'pnpm setup' and restart your shell to enable global 'cg' command"
 

@@ -1,0 +1,33 @@
+# Gather Phase Configuration
+# Extracted from wf.yaml for hello-workflow
+
+phase: gather
+description: "Collect and acknowledge input data"
+order: 1
+
+inputs:
+  files:
+    - name: request.md
+      required: true
+      description: "Initial request describing what to gather"
+
+outputs:
+  - name: acknowledgment.md
+    type: file
+    required: true
+    description: "Acknowledgment of the gathering task"
+  - name: gather-data.json
+    type: file
+    required: true
+    schema: schemas/gather-data.schema.json
+    description: "Structured data collected during gather phase"
+
+output_parameters:
+  - name: item_count
+    source: gather-data.json
+    query: "items.length"
+    description: "Number of items gathered"
+  - name: request_type
+    source: gather-data.json
+    query: "classification.type"
+    description: "Type classification of the request"

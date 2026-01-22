@@ -66,7 +66,7 @@ flowchart TD
             P1["cg phase prepare &lt;phase&gt;<br/>--run-dir &lt;run&gt;"]
             P1 --> P2{Prior phase<br/>finalized?}
             P2 -->|No & not first| P2_ERR[/"❌ E031: Prior phase not finalized"/]
-            P2 -->|Yes or first| P3["Copy inputs from prior phase<br/>(from_phase declarations)"]
+            P2 -->|Yes or first| P3["Copy inputs from prior phase<br/>(from_phase: name must match source)"]
             P3 --> P4["Resolve parameters<br/>→ inputs/params.json"]
             P4 --> P5{All required<br/>inputs present?}
             P5 -->|No| P5_ERR[/"❌ E001: Missing required inputs"/]
@@ -93,7 +93,7 @@ flowchart TD
         A4 --> AGENT_LOOP
 
         subgraph AGENT_LOOP["2️⃣ AGENT WORK + VALIDATE LOOP"]
-            W1(["🤖 Agent reads commands/<br/>wf.md + main.md"])
+            W1(["🤖 Agent reads commands/<br/>wf.md + main.md<br/>(wf.md = standard workflow prompt)"])
             W1 --> W2["Agent executes task<br/>(may modify any files)"]
             W2 --> W3["Agent writes outputs:<br/>• run/outputs/*<br/>• run/wf-data/*.json"]
             W3 --> V1
@@ -192,6 +192,7 @@ stateDiagram-v2
 2. **Explicit Contracts**: Phases declare their inputs, outputs, and published parameters in `wf.yaml`
 3. **Schema Validation**: JSON outputs are validated against schemas; phases cannot complete until validation passes
 4. **Phase Independence**: Each phase is self-contained with its own commands/, schemas/, wf-phase.yaml, and run/ directories (run/ contains inputs/, outputs/, wf-data/)
+5. **Standard Workflow Prompt (wf.md)**: A standard workflow execution prompt (`wf.md`) ships with the package, lives in template root, AND is copied to each phase's `commands/` folder alongside `main.md`. Same content for every phase - explains the workflow contract, input/output locations, completion protocol. `main.md` = phase-specific instructions; `wf.md` = standard kick-off prompt.
 5. **CLI Operations**: Provide `cg wf compose` and `cg phase prepare|validate|finalize` commands for workflow management
 6. **JSON-First Output**: All commands support `--json` for machine-readable output; JSON is the primary interface for system integration
 7. **MCP Integration**: Same operations available via MCP tools for agent-driven workflows
@@ -326,7 +327,7 @@ stateDiagram-v2
 
 **AC-10a**: Given the same scenario with `--json`, then the response has `success: false`, `error.code: "E001"`, and `error.details[]` listing each missing input with its expected path.
 
-**AC-11**: Given a phase with all required inputs present, when I run `cg phase prepare <phase> --run-dir <run>`, then it returns PASS and copies any inputs declared with `from_phase` from prior phases.
+**AC-11**: Given a phase with all required inputs present, when I run `cg phase prepare <phase> --run-dir <run>`, then it returns PASS and copies any inputs declared with `from_phase` from prior phases (the `name` field must match the source file name - convention over configuration).
 
 **AC-11a**: Given the same scenario with `--json`, then the response has `success: true` and `data` containing `phase`, `status: "ready"`, `inputs.resolved[]`, and `copiedFromPrior[]`.
 
@@ -674,10 +675,10 @@ cg phase prepare gather --run-dir .chainglass/runs/run-001 --json
     "runDir": ".chainglass/runs/run-001",
     "status": "ready",
     "inputs": {
-      "required": ["request.md"],
-      "resolved": [
-        { "name": "request.md", "path": "phases/gather/inputs/request.md", "exists": true }
-      ]
+      "files": [
+        { "name": "user-request.md", "path": "phases/gather/run/inputs/files/user-request.md", "exists": true }
+      ],
+      "parameters": []
     },
     "copiedFromPrior": []
   }
@@ -702,7 +703,7 @@ cg phase prepare gather --run-dir .chainglass/runs/run-001 --json
     "details": [
       {
         "code": "E001",
-        "path": "phases/gather/inputs/request.md",
+        "path": "phases/gather/run/inputs/files/user-request.md",
         "message": "Required input file not found"
       }
     ]
@@ -1013,12 +1014,12 @@ When `--json` is NOT specified, `ConsoleOutputAdapter` produces:
 ```bash
 $ cg phase prepare gather --run-dir .chainglass/runs/run-001
 ✓ Phase 'gather' is ready
-  Inputs resolved: request.md
+  Inputs resolved: user-request.md
 
 $ cg phase prepare gather --run-dir .chainglass/runs/run-001
 ✗ Phase 'gather' preparation failed [E001]
   Missing required inputs:
-    - request.md (phases/gather/inputs/request.md)
+    - user-request.md (phases/gather/run/inputs/files/user-request.md)
 
   Action: Create the missing input files before running prepare
 ```

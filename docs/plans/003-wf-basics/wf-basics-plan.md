@@ -254,7 +254,7 @@ cg phase finalize <phase> --run-dir <run>  # Sets state: complete
 ```
 
 **Preflight Checks (Two-Phase Pattern from enhance project):**
-- **Phase 1 (Fast)**: Config exists, commands/ files exist, user-provided inputs exist
+- **Phase 1 (Fast)**: Config exists, commands/ files (wf.md + main.md) exist, user-provided inputs exist
 - **Phase 2 (Upstream)**: Prior phases finalized, from_phase files exist, parameters can resolve
 - **Prerequisite**: If accept not called, returns error: "Run `cg phase accept` first"
 - **Returns**: Structured JSON with actionable errors if preflight fails
@@ -651,7 +651,8 @@ dev/examples/wf/
 │   ├── wf.yaml              # 3-phase workflow definition
 │   ├── schemas/             # JSON Schemas
 │   ├── templates/           # Shared command template
-│   └── phases/              # Phase command files (commands/main.md)
+│   ├── templates/            # Shared template files (wf.md)
+│   └── phases/              # Phase command files (commands/main.md + wf.md)
 └── runs/run-example-001/
     ├── wf.yaml              # Workflow definition (copied from template)
     ├── wf-run/
@@ -797,7 +798,7 @@ it('should return PrepareResult with resolved inputs', async () => {
   - Contract: prepare() returns PrepareResult with inputs.resolved[] containing all found files
   - Usage Notes: Call after compose. Inputs must exist in phase inputs/ folder.
   - Quality Contribution: Prevents silent missing input errors that confuse agents
-  - Worked Example: prepare('gather', runDir) → { inputs: { resolved: [{ name: 'request.md', exists: true }] } }
+  - Worked Example: prepare('gather', runDir) → { inputs: { files: [{ name: 'user-request.md', exists: true }], parameters: [] } }
   */
   // test implementation
 });
@@ -905,7 +906,7 @@ pnpm -F @chainglass/mcp-server test
 | 0.2 | [ ] | Write `wf.yaml` for hello-workflow template | 2 | Valid YAML with 3 phases (gather, process, report) | - | Per research dossier |
 | 0.3 | [ ] | Write JSON Schema files for validation | 2 | `wf.schema.json`, `wf-phase.schema.json`, `gather-data.schema.json`, `process-data.schema.json` | - | Draft 2020-12 |
 | 0.4 | [ ] | Write phase command files | 1 | `phases/*/commands/main.md` with agent instructions | - | Simple placeholders |
-| 0.5 | [ ] | Write shared template `wf.md` | 1 | Bootstrap prompt in `templates/wf.md` | - | Shared across phases |
+| 0.5 | [ ] | Write shared template `wf.md` | 1 | Standard workflow prompt in `templates/wf.md`, copied to each phase's `commands/` folder | - | `wf.md` = standard kick-off prompt (same for all phases); `main.md` = phase-specific instructions |
 | 0.6 | [ ] | Create `run-example-001/wf-run/wf-status.json` | 1 | Valid run metadata | - | In wf-run/ subfolder |
 | 0.7 | [ ] | Create gather phase complete outputs | 2 | `outputs/acknowledgment.md`, `outputs/gather-data.json`, `wf-data/wf-phase.json`, `wf-data/output-params.json` | - | All files valid |
 | 0.8 | [ ] | Create process phase complete outputs | 2 | `outputs/result.md`, `outputs/process-data.json`, `wf-data/wf-phase.json`, `wf-data/output-params.json` | - | All files valid |
@@ -1127,11 +1128,11 @@ describe('JsonOutputAdapter', () => {
       phase: 'gather',
       runDir: '/path/to/run',
       status: 'failed',
-      inputs: { required: ['request.md'], resolved: [] },
+      inputs: { files: [], parameters: [] },
       copiedFromPrior: [],
       errors: [{
         code: 'E001',
-        path: 'inputs/request.md',
+        path: 'run/inputs/files/user-request.md',
         message: 'Missing required input file',
         action: 'Create the file before running prepare',
       }],
@@ -1701,7 +1702,7 @@ describe('MCP Workflow Tools', () => {
 ## Progress Tracking
 
 ### Phase Completion Checklist
-- [ ] Phase 0: Development Exemplar - NOT STARTED
+- [x] Phase 0: Development Exemplar - COMPLETE (2026-01-21)
 - [ ] Phase 1: Core Infrastructure - NOT STARTED
 - [ ] Phase 1a: Output Adapter Architecture - NOT STARTED
 - [ ] Phase 2: Compose Command - NOT STARTED
@@ -1714,6 +1715,16 @@ describe('MCP Workflow Tools', () => {
 **IMPORTANT**: This plan must be complete before creating tasks. After writing this plan:
 1. Run `/plan-4-complete-the-plan` to validate readiness
 2. Only proceed to `/plan-5-phase-tasks-and-brief` after validation passes
+
+---
+
+## Subtasks Registry
+
+Mid-implementation detours requiring structured tracking.
+
+| ID | Created | Phase | Parent Task | Reason | Status | Dossier |
+|----|---------|-------|-------------|--------|--------|---------|
+| 001-subtask-message-communication | 2026-01-22 | Phase 0: Development Exemplar | T007, T008 | Add message communication pattern to exemplar for agent↔orchestrator Q&A flow | [ ] Pending | [Link](tasks/phase-0-development-exemplar/001-subtask-message-communication.md) |
 
 ---
 

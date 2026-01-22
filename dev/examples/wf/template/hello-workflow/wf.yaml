@@ -1,0 +1,112 @@
+# Hello Workflow Template
+# A simple 3-phase workflow demonstrating the workflow system
+# Phases: gather -> process -> report
+
+name: hello-workflow
+version: "1.0.0"
+description: "A hello-world workflow with three phases demonstrating data gathering, processing, and reporting."
+
+# Phase definitions
+phases:
+  gather:
+    description: "Collect and acknowledge input data"
+    order: 1
+
+    # Inputs required for this phase
+    inputs:
+      files:
+        - name: request.md
+          required: true
+          description: "Initial request describing what to gather"
+
+    # Outputs produced by this phase
+    outputs:
+      - name: acknowledgment.md
+        type: file
+        required: true
+        description: "Acknowledgment of the gathering task"
+      - name: gather-data.json
+        type: file
+        required: true
+        schema: schemas/gather-data.schema.json
+        description: "Structured data collected during gather phase"
+
+    # Parameters extracted from outputs for downstream phases
+    output_parameters:
+      - name: item_count
+        source: gather-data.json
+        query: "items.length"
+        description: "Number of items gathered"
+      - name: request_type
+        source: gather-data.json
+        query: "classification.type"
+        description: "Type classification of the request"
+
+  process:
+    description: "Process and transform the gathered data"
+    order: 2
+
+    inputs:
+      files:
+        - name: acknowledgment.md
+          required: true
+          from_phase: gather
+          description: "Acknowledgment from gather phase"
+        - name: gather-data.json
+          required: true
+          from_phase: gather
+          description: "Data collected in gather phase"
+      parameters:
+        - name: item_count
+          required: true
+          from_phase: gather
+          description: "Number of items to process"
+
+    outputs:
+      - name: result.md
+        type: file
+        required: true
+        description: "Human-readable processing result"
+      - name: process-data.json
+        type: file
+        required: true
+        schema: schemas/process-data.schema.json
+        description: "Structured processing results"
+
+    output_parameters:
+      - name: processed_count
+        source: process-data.json
+        query: "summary.processed_count"
+        description: "Number of items successfully processed"
+      - name: status
+        source: process-data.json
+        query: "summary.status"
+        description: "Overall processing status"
+
+  report:
+    description: "Generate final report from processed data"
+    order: 3
+
+    inputs:
+      files:
+        - name: result.md
+          required: true
+          from_phase: process
+          description: "Processing result from process phase"
+        - name: process-data.json
+          required: true
+          from_phase: process
+          description: "Processed data from process phase"
+      parameters:
+        - name: processed_count
+          required: true
+          from_phase: process
+          description: "Count of processed items"
+
+    outputs:
+      - name: final-report.md
+        type: file
+        required: true
+        description: "Final human-readable report"
+
+    # Report phase has no output_parameters (terminal phase)

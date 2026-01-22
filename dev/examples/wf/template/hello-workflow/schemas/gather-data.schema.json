@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://chainglass.dev/schemas/gather-data.schema.json",
+  "title": "Gather Phase Data",
+  "description": "Schema for gather phase output data (gather-data.json)",
+  "type": "object",
+  "required": ["items", "classification", "metadata"],
+  "properties": {
+    "items": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/gatheredItem" },
+      "description": "List of gathered items"
+    },
+    "classification": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Classification type of the request"
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Confidence score for classification"
+        }
+      },
+      "description": "Classification of the gathered data"
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["gathered_at", "source"],
+      "properties": {
+        "gathered_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when data was gathered"
+        },
+        "source": {
+          "type": "string",
+          "description": "Source of the gathered data"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Additional notes about the gathering process"
+        }
+      },
+      "description": "Metadata about the gathering process"
+    }
+  },
+  "$defs": {
+    "gatheredItem": {
+      "type": "object",
+      "required": ["id", "content"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for this item"
+        },
+        "content": {
+          "type": "string",
+          "description": "Content of the gathered item"
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Tags associated with this item"
+        }
+      }
+    }
+  }
+}

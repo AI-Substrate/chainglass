@@ -1,0 +1,173 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://chainglass.dev/schemas/wf.schema.json",
+  "title": "Workflow Definition",
+  "description": "Schema for workflow definition files (wf.yaml)",
+  "type": "object",
+  "required": ["name", "version", "phases"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Workflow template name (slug format)",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "version": {
+      "type": "string",
+      "description": "Semantic version of the workflow template",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable description of the workflow"
+    },
+    "phases": {
+      "type": "object",
+      "description": "Phase definitions keyed by phase name",
+      "additionalProperties": {
+        "$ref": "#/$defs/phase"
+      },
+      "minProperties": 1
+    }
+  },
+  "$defs": {
+    "phase": {
+      "type": "object",
+      "required": ["description", "order", "outputs"],
+      "properties": {
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of this phase"
+        },
+        "order": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Execution order (1-based)"
+        },
+        "inputs": {
+          "$ref": "#/$defs/inputs",
+          "description": "Inputs required for this phase"
+        },
+        "outputs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/output" },
+          "minItems": 1,
+          "description": "Outputs produced by this phase"
+        },
+        "output_parameters": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/outputParameter" },
+          "description": "Parameters extracted from outputs for downstream phases"
+        }
+      }
+    },
+    "inputs": {
+      "type": "object",
+      "description": "Inputs required for this phase, split by type",
+      "properties": {
+        "files": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/fileInput" },
+          "description": "File inputs for this phase"
+        },
+        "parameters": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/parameterInput" },
+          "description": "Parameter inputs from prior phases"
+        }
+      }
+    },
+    "fileInput": {
+      "type": "object",
+      "required": ["name", "required"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Input file name (must match source output name if from_phase is specified)"
+        },
+        "required": {
+          "type": "boolean",
+          "description": "Whether this input is required"
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description"
+        },
+        "from_phase": {
+          "type": "string",
+          "description": "Source phase for cross-phase inputs"
+        }
+      }
+    },
+    "parameterInput": {
+      "type": "object",
+      "required": ["name", "required"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Parameter name (must match source output_parameter name)"
+        },
+        "required": {
+          "type": "boolean",
+          "description": "Whether this parameter is required"
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description"
+        },
+        "from_phase": {
+          "type": "string",
+          "description": "Source phase that publishes this parameter"
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "required": ["name", "type", "required"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Output name"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["file"],
+          "description": "Output type (currently only file supported)"
+        },
+        "required": {
+          "type": "boolean",
+          "description": "Whether this output is required"
+        },
+        "schema": {
+          "type": "string",
+          "description": "Path to JSON Schema for validation (relative to template)"
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description"
+        }
+      }
+    },
+    "outputParameter": {
+      "type": "object",
+      "required": ["name", "source", "query"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Parameter name for downstream reference"
+        },
+        "source": {
+          "type": "string",
+          "description": "Source output file name"
+        },
+        "query": {
+          "type": "string",
+          "description": "Dot-notation path to extract value (e.g., 'items.length')"
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description"
+        }
+      }
+    }
+  }
+}

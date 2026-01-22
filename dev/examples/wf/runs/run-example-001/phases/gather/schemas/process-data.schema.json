@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://chainglass.dev/schemas/process-data.schema.json",
+  "title": "Process Phase Data",
+  "description": "Schema for process phase output data (process-data.json)",
+  "type": "object",
+  "required": ["results", "summary"],
+  "properties": {
+    "results": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/processedResult" },
+      "description": "List of processed results"
+    },
+    "summary": {
+      "type": "object",
+      "required": ["processed_count", "status"],
+      "properties": {
+        "processed_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of items successfully processed"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["success", "partial", "failed"],
+          "description": "Overall processing status"
+        },
+        "errors": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "List of error messages if any"
+        },
+        "duration_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Processing duration in milliseconds"
+        }
+      },
+      "description": "Summary of processing results"
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "processed_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when processing completed"
+        },
+        "processor_version": {
+          "type": "string",
+          "description": "Version of the processor used"
+        }
+      },
+      "description": "Metadata about the processing"
+    }
+  },
+  "$defs": {
+    "processedResult": {
+      "type": "object",
+      "required": ["item_id", "status"],
+      "properties": {
+        "item_id": {
+          "type": "string",
+          "description": "Reference to original gathered item ID"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["processed", "skipped", "error"],
+          "description": "Processing status for this item"
+        },
+        "output": {
+          "type": "string",
+          "description": "Processed output content"
+        },
+        "error_message": {
+          "type": "string",
+          "description": "Error message if status is 'error'"
+        }
+      }
+    }
+  }
+}
