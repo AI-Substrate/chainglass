@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { IAgentAdapter, AgentResult, AgentRunOptions } from '@chainglass/shared';
+import type { AgentResult, AgentRunOptions, IAgentAdapter } from '@chainglass/shared';
 
 /**
  * Contract tests for IAgentAdapter implementations.
@@ -17,10 +17,7 @@ import type { IAgentAdapter, AgentResult, AgentRunOptions } from '@chainglass/sh
  * agentAdapterContractTests('ClaudeCodeAdapter', () => new ClaudeCodeAdapter(...));
  * ```
  */
-export function agentAdapterContractTests(
-  name: string,
-  createAdapter: () => IAgentAdapter
-) {
+export function agentAdapterContractTests(name: string, createAdapter: () => IAgentAdapter) {
   describe(`${name} implements IAgentAdapter contract`, () => {
     it('should return structured result with sessionId on run()', async () => {
       /*
@@ -114,7 +111,7 @@ export function agentAdapterContractTests(
       // Second call resumes session
       const result2 = await adapter.run({
         prompt: 'second',
-        sessionId
+        sessionId,
       });
 
       expect(result2.sessionId).toBe(sessionId);

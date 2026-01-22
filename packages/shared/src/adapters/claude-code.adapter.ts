@@ -1,11 +1,11 @@
 import * as path from 'node:path';
 import type {
-  IAgentAdapter,
   AgentResult,
   AgentRunOptions,
   AgentStatus,
-  IProcessManager,
+  IAgentAdapter,
   ILogger,
+  IProcessManager,
 } from '../interfaces/index.js';
 import { StreamJsonParser } from './stream-json-parser.js';
 

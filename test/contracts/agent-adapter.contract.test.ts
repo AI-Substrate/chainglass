@@ -1,12 +1,16 @@
-import { FakeAgentAdapter, FakeProcessManager, ClaudeCodeAdapter } from '@chainglass/shared';
+import { ClaudeCodeAdapter, FakeAgentAdapter, FakeProcessManager } from '@chainglass/shared';
 import { agentAdapterContractTests } from './agent-adapter.contract.js';
 
 // Run contract tests for FakeAgentAdapter
-agentAdapterContractTests('FakeAgentAdapter', () => new FakeAgentAdapter({
-  sessionId: 'contract-test-session',
-  output: 'Contract test output',
-  tokens: { used: 100, total: 500, limit: 200000 },
-}));
+agentAdapterContractTests(
+  'FakeAgentAdapter',
+  () =>
+    new FakeAgentAdapter({
+      sessionId: 'contract-test-session',
+      output: 'Contract test output',
+      tokens: { used: 100, total: 500, limit: 200000 },
+    })
+);
 
 // Run contract tests for ClaudeCodeAdapter (Phase 2)
 // Per DYK-10: Wire ClaudeCodeAdapter + FakeProcessManager to contract tests

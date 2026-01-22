@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import { FakeProcessManager } from '@chainglass/shared';
 
@@ -155,8 +155,8 @@ describe('ClaudeCodeAdapter', () => {
       const result = await adapter.run({ prompt: 'test' });
 
       expect(result.tokens).not.toBeNull();
-      expect(result.tokens!.used).toBe(150); // 100 + 50
-      expect(result.tokens!.limit).toBe(200000);
+      expect(result.tokens?.used).toBe(150); // 100 + 50
+      expect(result.tokens?.limit).toBe(200000);
     });
 
     it('should return status completed on exit code 0', async () => {

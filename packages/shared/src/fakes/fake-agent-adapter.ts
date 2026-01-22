@@ -1,10 +1,10 @@
+import type { IAgentAdapter } from '../interfaces/agent-adapter.interface.js';
 import type {
   AgentResult,
   AgentRunOptions,
   AgentStatus,
   TokenMetrics,
 } from '../interfaces/agent-types.js';
-import type { IAgentAdapter } from '../interfaces/agent-adapter.interface.js';
 
 /**
  * Configuration options for FakeAgentAdapter.
@@ -143,13 +143,14 @@ export class FakeAgentAdapter implements IAgentAdapter {
     });
 
     if (!match) {
-      const history = this._runHistory.length === 0
-        ? '(no calls)'
-        : this._runHistory.map((c) => JSON.stringify(c)).join('\n  ');
+      const history =
+        this._runHistory.length === 0
+          ? '(no calls)'
+          : this._runHistory.map((c) => JSON.stringify(c)).join('\n  ');
 
       throw new Error(
         `Expected run() to be called with ${JSON.stringify(expected)}\n` +
-        `Actual calls:\n  ${history}`
+          `Actual calls:\n  ${history}`
       );
     }
   }
@@ -161,13 +162,12 @@ export class FakeAgentAdapter implements IAgentAdapter {
    */
   assertTerminateCalled(sessionId: string): void {
     if (!this._terminateHistory.includes(sessionId)) {
-      const history = this._terminateHistory.length === 0
-        ? '(no calls)'
-        : this._terminateHistory.join(', ');
+      const history =
+        this._terminateHistory.length === 0 ? '(no calls)' : this._terminateHistory.join(', ');
 
       throw new Error(
         `Expected terminate() to be called with sessionId "${sessionId}"\n` +
-        `Actual terminate calls: ${history}`
+          `Actual terminate calls: ${history}`
       );
     }
   }
@@ -179,13 +179,12 @@ export class FakeAgentAdapter implements IAgentAdapter {
    */
   assertCompactCalled(sessionId: string): void {
     if (!this._compactHistory.includes(sessionId)) {
-      const history = this._compactHistory.length === 0
-        ? '(no calls)'
-        : this._compactHistory.join(', ');
+      const history =
+        this._compactHistory.length === 0 ? '(no calls)' : this._compactHistory.join(', ');
 
       throw new Error(
         `Expected compact() to be called with sessionId "${sessionId}"\n` +
-        `Actual compact calls: ${history}`
+          `Actual compact calls: ${history}`
       );
     }
   }

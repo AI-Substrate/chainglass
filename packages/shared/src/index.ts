@@ -36,6 +36,8 @@ export { PinoLoggerAdapter } from './adapters/index.js';
 export { StreamJsonParser } from './adapters/index.js';
 export { ClaudeCodeAdapter } from './adapters/index.js';
 export type { ClaudeCodeAdapterOptions } from './adapters/index.js';
+export { UnixProcessManager } from './adapters/index.js';
+export { WindowsProcessManager } from './adapters/index.js';
 
 // Config (re-export key items from ./config for convenience)
 export {
