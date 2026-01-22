@@ -279,7 +279,9 @@ flowchart TD
 | Export | For Phase(s) |
 |--------|--------------|
 | `dev/examples/wf/template/hello-workflow/schemas/*.schema.json` | Phase 1+ (test fixtures) |
+| `dev/examples/wf/template/hello-workflow/schemas/message.schema.json` | Phase 1+ (message validation tests) |
 | `dev/examples/wf/runs/run-example-001/` structure | Phase 1+ (test fixtures, integration tests) |
+| `dev/examples/wf/runs/run-example-001/phases/*/run/messages/` | Phase 3+ (message CLI tests) |
 | wf-phase.json structure with facilitator model | Phase 1 (ISchemaValidator test data) |
 | gather-data.json, process-data.json structure | Phase 1 (schema validation tests) |
 

@@ -203,8 +203,8 @@ flowchart TD
 | [x] | T004 | Write phase command files for gather, process, report phases | 1 | Core | T001 | `dev/examples/wf/template/hello-workflow/phases/gather/commands/main.md`, `dev/examples/wf/template/hello-workflow/phases/process/commands/main.md`, `dev/examples/wf/template/hello-workflow/phases/report/commands/main.md` | Each phase has commands/main.md with agent instructions | – | Simple placeholder instructions |
 | [x] | T005 | Write shared template `templates/wf.md` with standard workflow prompt | 1 | Core | T001 | `dev/examples/wf/template/hello-workflow/templates/wf.md` | File exists with standard workflow prompt content | – | `wf.md` is copied to each phase's `commands/` alongside `main.md`; same content for every phase |
 | [x] | T006 | Create `run-example-001/wf-run/wf-status.json` with workflow metadata | 1 | Core | T002 | `dev/examples/wf/runs/run-example-001/wf-run/wf-status.json` | Valid JSON with template ref, timestamp, phases array (AC-08 equivalent) | – | All phases marked 'complete' |
-| [x] | T007 | Create gather phase complete outputs: outputs/acknowledgment.md, outputs/gather-data.json, wf-data/wf-phase.json, wf-data/output-params.json | 2 | Core | T003, T006 | `dev/examples/wf/runs/run-example-001/phases/gather/run/outputs/acknowledgment.md`, `dev/examples/wf/runs/run-example-001/phases/gather/run/outputs/gather-data.json`, `dev/examples/wf/runs/run-example-001/phases/gather/run/wf-data/wf-phase.json`, `dev/examples/wf/runs/run-example-001/phases/gather/run/wf-data/output-params.json` | All files exist, JSON validates against schemas | 001-subtask-message-communication | Must validate against gather-data.schema.json |
-| [x] | T008 | Create process phase complete outputs: outputs/result.md, outputs/process-data.json, wf-data/wf-phase.json, wf-data/output-params.json | 2 | Core | T003, T007 | `dev/examples/wf/runs/run-example-001/phases/process/run/outputs/result.md`, `dev/examples/wf/runs/run-example-001/phases/process/run/outputs/process-data.json`, `dev/examples/wf/runs/run-example-001/phases/process/run/wf-data/wf-phase.json`, `dev/examples/wf/runs/run-example-001/phases/process/run/wf-data/output-params.json` | All files exist, JSON validates against schemas | 001-subtask-message-communication | Must validate against process-data.schema.json |
+| [x] | T007 | Create gather phase complete outputs: outputs/acknowledgment.md, outputs/gather-data.json, wf-data/wf-phase.json, wf-data/output-params.json | 2 | Core | T003, T006 | `dev/examples/wf/runs/run-example-001/phases/gather/run/outputs/acknowledgment.md`, `dev/examples/wf/runs/run-example-001/phases/gather/run/outputs/gather-data.json`, `dev/examples/wf/runs/run-example-001/phases/gather/run/wf-data/wf-phase.json`, `dev/examples/wf/runs/run-example-001/phases/gather/run/wf-data/output-params.json` | All files exist, JSON validates against schemas | 001-subtask-message-communication | Must validate against gather-data.schema.json. **Extended by ST001**: adds `messages/m-001.json` (user input) |
+| [x] | T008 | Create process phase complete outputs: outputs/result.md, outputs/process-data.json, wf-data/wf-phase.json, wf-data/output-params.json | 2 | Core | T003, T007 | `dev/examples/wf/runs/run-example-001/phases/process/run/outputs/result.md`, `dev/examples/wf/runs/run-example-001/phases/process/run/outputs/process-data.json`, `dev/examples/wf/runs/run-example-001/phases/process/run/wf-data/wf-phase.json`, `dev/examples/wf/runs/run-example-001/phases/process/run/wf-data/output-params.json` | All files exist, JSON validates against schemas | 001-subtask-message-communication | Must validate against process-data.schema.json. **Extended by ST001**: adds `messages/m-001.json` (Q&A) |
 | [x] | T009 | Create report phase complete outputs: outputs/final-report.md, wf-data/wf-phase.json | 2 | Core | T003, T008 | `dev/examples/wf/runs/run-example-001/phases/report/run/outputs/final-report.md`, `dev/examples/wf/runs/run-example-001/phases/report/run/wf-data/wf-phase.json` | All files exist, JSON validates against wf-phase.schema.json | – | Report has no JSON outputs |
 | [x] | T010 | Create `wf-phase.yaml` for each phase (gather, process, report) extracted from wf.yaml | 2 | Core | T002 | `dev/examples/wf/runs/run-example-001/phases/gather/wf-phase.yaml`, `dev/examples/wf/runs/run-example-001/phases/process/wf-phase.yaml`, `dev/examples/wf/runs/run-example-001/phases/report/wf-phase.yaml` | Each config has inputs, outputs, parameters from wf.yaml (AC-09) | – | Extract phase-specific config |
 | [x] | T011 | Write manual test guide `MANUAL-TEST-GUIDE.md` with step-by-step validation instructions | 1 | Doc | T010 | `dev/examples/wf/MANUAL-TEST-GUIDE.md` | Guide includes YAML parse test, schema validation commands, expected outputs | – | References Commands Reference in plan |
@@ -536,14 +536,14 @@ sequenceDiagram
     CLI->>WF: status: [{from: agent, action: finalize}]
 
     Note over O,A: Human Question Flow
-    A->>CLI: cg phase ask gather --question "Include archived?"
+    A->>CLI: cg phase message create --phase gather --type single_choice --content '{"subject":"Scope","body":"Include archived?","options":[...]}'
     CLI->>WF: state: blocked, facilitator: agent
-    CLI->>WF: status: [{from: agent, action: human_question, data: {...}}]
+    CLI->>WF: status: [{from: agent, action: question, message_id: "001"}]
 
-    Note over O: Orchestrator detects blocked state
-    O->>CLI: cg phase answer gather --answer "B"
+    Note over O: Orchestrator detects blocked state, reads messages/m-001.json
+    O->>CLI: cg phase message answer --phase gather --id 001 --select B --note "Active only"
     CLI->>WF: state: accepted, facilitator: orchestrator
-    CLI->>WF: status: [{from: orchestrator, action: answer, data: {answer: "B"}}]
+    CLI->>WF: status: [{from: orchestrator, action: answer, message_id: "001"}]
 
     O->>CLI: cg phase handover gather
     CLI->>WF: state: active, facilitator: agent
@@ -556,17 +556,17 @@ sequenceDiagram
 
 #### Action Types
 
-| Action | From | Description | State After |
-|--------|------|-------------|-------------|
-| `prepare` | orchestrator | Phase prepared, inputs resolved | active |
-| `handover` | orchestrator | Control given to agent | active |
-| `accept` | agent | Agent acknowledges control | (unchanged) |
-| `preflight` | agent | Agent verified ready to work | (unchanged) |
-| `human_question` | agent | Agent needs human input | blocked |
-| `error` | agent | Error occurred (code in data) | blocked |
-| `answer` | orchestrator | Human response to question | accepted |
-| `handover` | orchestrator | Control returned to agent | active |
-| `finalize` | agent | Phase finalized | complete |
+| Action | From | Description | State After | Has message_id |
+|--------|------|-------------|-------------|----------------|
+| `prepare` | orchestrator | Phase prepared, inputs resolved | active | No |
+| `input` | orchestrator | Provides initial user input message | active | **Yes** |
+| `handover` | orchestrator | Control given to agent | active | No |
+| `accept` | agent | Agent acknowledges control | (unchanged) | No |
+| `preflight` | agent | Agent verified ready to work | (unchanged) | No |
+| `question` | agent | Agent asks question (creates message) | blocked | **Yes** |
+| `error` | agent | Error occurred (code in data) | blocked | No |
+| `answer` | orchestrator | Orchestrator provides answer to question | accepted | **Yes** |
+| `finalize` | agent | Phase finalized | complete | No |
 
 #### Example: Complete wf-phase.json
 
@@ -660,10 +660,15 @@ cg phase finalize <phase> --run-dir <run>  # Sets state: complete
 - **Prerequisite**: If accept not called, returns error: "Run `cg phase accept` first"
 - **Returns**: Structured JSON with actionable errors if preflight fails
 
-**Future Scope (OOS):**
+**Future Scope (Phase 3+ Message Commands):**
 ```bash
-cg phase ask <phase> --run-dir <run> --question "..." --options "A:...,B:..."
-cg phase answer <phase> --run-dir <run> --answer "B" --note "..."
+# Message subcommand group
+cg phase message create --phase <phase> --run-dir <run> --type <type> --content '<json>'
+cg phase message answer --phase <phase> --run-dir <run> --id <id> --select <key> [--note "..."]
+cg phase message list --phase <phase> --run-dir <run>
+cg phase message read --phase <phase> --run-dir <run> --id <id>
+
+# Error reporting (OOS)
 cg phase error <phase> --run-dir <run> --code E001 --message "..."
 ```
 

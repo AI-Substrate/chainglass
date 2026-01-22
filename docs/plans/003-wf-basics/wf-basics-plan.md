@@ -191,14 +191,14 @@ sequenceDiagram
     CLI->>WF: status: [{from: agent, action: finalize}]
 
     Note over O,A: Human Question Flow (Future)
-    A->>CLI: cg phase ask gather --question "Include archived?"
+    A->>CLI: cg phase message create --phase gather --type single_choice --content '{"subject":"Scope","body":"Include archived?","options":[...]}'
     CLI->>WF: state: blocked, facilitator: agent
-    CLI->>WF: status: [{from: agent, action: human_question, data: {...}}]
+    CLI->>WF: status: [{from: agent, action: question, message_id: "001"}]
 
-    Note over O: Orchestrator detects blocked state
-    O->>CLI: cg phase answer gather --answer "B"
+    Note over O: Orchestrator detects blocked state, reads messages/m-001.json
+    O->>CLI: cg phase message answer --phase gather --id 001 --select B --note "Active only"
     CLI->>WF: state: accepted, facilitator: orchestrator
-    CLI->>WF: status: [{from: orchestrator, action: answer, data: {answer: "B"}}]
+    CLI->>WF: status: [{from: orchestrator, action: answer, message_id: "001"}]
 
     O->>CLI: cg phase handover gather
     CLI->>WF: state: active, facilitator: agent
@@ -221,6 +221,7 @@ sequenceDiagram
       "timestamp": "ISO-8601",
       "from": "agent | orchestrator",
       "action": "action_type",
+      "message_id": "001",
       "comment": "Human-readable description",
       "data": { "arbitrary": "payload" }
     }
@@ -228,18 +229,21 @@ sequenceDiagram
 }
 ```
 
+**Note**: `message_id` is optional and present only for message-related actions (`input`, `question`, `answer`). References files in `run/messages/m-{id}.json`.
+
 #### Action Types
 
-| Action | From | Description | State After |
-|--------|------|-------------|-------------|
-| `prepare` | orchestrator | Phase prepared, inputs resolved | active |
-| `handover` | orchestrator | Control given to agent | active |
-| `accept` | agent | Agent acknowledges control | (unchanged) |
-| `preflight` | agent | Agent verified ready to work | (unchanged) |
-| `human_question` | agent | Agent needs human input | blocked |
-| `error` | agent | Error occurred (code in data) | blocked |
-| `answer` | orchestrator | Human response to question | accepted |
-| `finalize` | agent | Phase finalized | complete |
+| Action | From | Description | State After | Has message_id |
+|--------|------|-------------|-------------|----------------|
+| `prepare` | orchestrator | Phase prepared, inputs resolved | active | No |
+| `input` | orchestrator | Provides initial user input message | active | **Yes** |
+| `handover` | orchestrator | Control given to agent | active | No |
+| `accept` | agent | Agent acknowledges control | (unchanged) | No |
+| `preflight` | agent | Agent verified ready to work | (unchanged) | No |
+| `question` | agent | Agent asks question (creates message) | blocked | **Yes** |
+| `error` | agent | Error occurred (code in data) | blocked | No |
+| `answer` | orchestrator | Orchestrator provides answer to question | accepted | **Yes** |
+| `finalize` | agent | Phase finalized | complete | No |
 
 #### CLI Commands
 
@@ -259,12 +263,28 @@ cg phase finalize <phase> --run-dir <run>  # Sets state: complete
 - **Prerequisite**: If accept not called, returns error: "Run `cg phase accept` first"
 - **Returns**: Structured JSON with actionable errors if preflight fails
 
-**Future Scope (OOS):**
+**Future Scope (Phase 3+ Message Commands):**
 ```bash
-cg phase ask <phase> --run-dir <run> --question "..." --options "A:...,B:..."
-cg phase answer <phase> --run-dir <run> --answer "B" --note "..."
+# Message subcommand group
+cg phase message create --phase <phase> --run-dir <run> --type <type> --content '<json>'
+cg phase message answer --phase <phase> --run-dir <run> --id <id> --select <key> [--note "..."]
+cg phase message list --phase <phase> --run-dir <run>
+cg phase message read --phase <phase> --run-dir <run> --id <id>
+
+# Error reporting (OOS)
 cg phase error <phase> --run-dir <run> --code E001 --message "..."
 ```
+
+**Message Types**: `single_choice`, `multi_choice`, `free_text`, `confirm`
+
+**Message Error Codes**:
+| Code | Name | When |
+|------|------|------|
+| E060 | MESSAGE_NOT_FOUND | Message ID doesn't exist |
+| E061 | MESSAGE_TYPE_MISMATCH | Answer doesn't match message type |
+| E062 | MESSAGE_AWAITING_ANSWER | Message exists but has no answer yet |
+| E063 | MESSAGE_ALREADY_ANSWERED | Attempting to answer already-answered message |
+| E064 | MESSAGE_VALIDATION_FAILED | Content JSON doesn't match schema for type |
 
 #### Key Design Decisions
 
@@ -273,6 +293,62 @@ cg phase error <phase> --run-dir <run> --code E001 --message "..."
 3. **output-params.json separate**: Kept separate from wf-phase.json for `jq` simplicity and single-purpose files
 4. **Validation not logged**: `cg phase validate` is a read-only operation, no status entry created
 5. **Simple parameter resolution**: Dot-notation lookups only (e.g., `items.length`) - no expressions or computed values. See spec § Parameter Resolution.
+
+#### Phase Message Input Declarations
+
+Phases declare required messages in `wf.yaml` alongside files and parameters in the `inputs` section:
+
+```yaml
+# In wf.yaml phase definition
+gather:
+  description: "Collect and acknowledge input data"
+  order: 1
+  inputs:
+    files:
+      - name: request.md
+        required: true
+    parameters: []
+    messages:                              # Message input declarations
+      - id: "001"                          # Expected message ID (becomes m-001.json)
+        type: "free_text"                  # single_choice | multi_choice | free_text | confirm
+        from: "orchestrator"               # Who creates it
+        required: true                     # Must exist before prepare passes
+        subject: "Workflow Request"
+        prompt: "What would you like to accomplish?"
+        description: "The user's initial request"
+
+process:
+  inputs:
+    messages:
+      - id: "001"
+        type: "multi_choice"
+        from: "agent"                      # Agent will CREATE this message
+        required: false                    # Optional - agent may or may not ask
+        subject: "Output Format"
+        options:
+          - key: "A"
+            label: "Summary only"
+          - key: "B"
+            label: "Detailed"
+          - key: "C"
+            label: "Both"
+```
+
+**Message Declaration Fields**:
+| Field | Required | Description |
+|-------|----------|-------------|
+| `id` | ✅ | Message ID without prefix (becomes m-{id}.json) |
+| `type` | ✅ | `single_choice`, `multi_choice`, `free_text`, `confirm` |
+| `from` | ✅ | Who creates it: `orchestrator` or `agent` |
+| `required` | ✅ | Whether message must exist for prepare to pass |
+| `subject` | ✅ | Subject line for the message |
+| `prompt` | Optional | Guidance for orchestrator UI or agent |
+| `options` | For choice types | Pre-defined options |
+| `description` | Optional | Documentation |
+
+**Validation during `cg phase prepare`**:
+- If `required: true` and `from: "orchestrator"`: Message m-{id}.json must exist
+- If `required: true` and `from: "agent"`: No check (agent creates during execution)
 
 ---
 
@@ -648,10 +724,9 @@ phaseServiceContractTests('FakePhaseService',
 ```
 dev/examples/wf/
 ├── template/hello-workflow/
-│   ├── wf.yaml              # 3-phase workflow definition
-│   ├── schemas/             # JSON Schemas
-│   ├── templates/           # Shared command template
-│   ├── templates/            # Shared template files (wf.md)
+│   ├── wf.yaml              # 3-phase workflow definition (includes inputs.messages)
+│   ├── schemas/             # JSON Schemas (includes message.schema.json)
+│   ├── templates/           # Shared template files (wf.md)
 │   └── phases/              # Phase command files (commands/main.md + wf.md)
 └── runs/run-example-001/
     ├── wf.yaml              # Workflow definition (copied from template)
@@ -665,8 +740,9 @@ dev/examples/wf/
         │   └── run/
         │       ├── inputs/        # files/, data/, params.json
         │       ├── outputs/       # all outputs (schema validation per wf.yaml)
+        │       ├── messages/      # m-001.json, m-002.json (agent↔orchestrator Q&A)
         │       └── wf-data/       # wf-phase.json, output-params.json
-        ├── process/run/     # Same structure
+        ├── process/run/     # Same structure (with messages/)
         └── report/run/      # Same structure
 ```
 
@@ -904,7 +980,7 @@ pnpm -F @chainglass/mcp-server test
 |-----|--------|------|----|------------------|-----|-------|
 | 0.1 | [ ] | Create `dev/examples/wf/` directory structure | 1 | Directories exist per spec | - | Foundation |
 | 0.2 | [ ] | Write `wf.yaml` for hello-workflow template | 2 | Valid YAML with 3 phases (gather, process, report) | - | Per research dossier |
-| 0.3 | [ ] | Write JSON Schema files for validation | 2 | `wf.schema.json`, `wf-phase.schema.json`, `gather-data.schema.json`, `process-data.schema.json` | - | Draft 2020-12 |
+| 0.3 | [ ] | Write JSON Schema files for validation | 2 | `wf.schema.json` (supports inputs.messages), `wf-phase.schema.json`, `gather-data.schema.json`, `process-data.schema.json`, `message.schema.json` | - | Draft 2020-12 |
 | 0.4 | [ ] | Write phase command files | 1 | `phases/*/commands/main.md` with agent instructions | - | Simple placeholders |
 | 0.5 | [ ] | Write shared template `wf.md` | 1 | Standard workflow prompt in `templates/wf.md`, copied to each phase's `commands/` folder | - | `wf.md` = standard kick-off prompt (same for all phases); `main.md` = phase-specific instructions |
 | 0.6 | [ ] | Create `run-example-001/wf-run/wf-status.json` | 1 | Valid run metadata | - | In wf-run/ subfolder |
