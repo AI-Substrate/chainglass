@@ -77,6 +77,11 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /* Status colors for engineering conventions (AC-8) */
+  --status-critical: oklch(0.55 0.22 25); /* Red - critical state */
+  --status-success: oklch(0.55 0.2 145); /* Green - success state */
+  --status-standby: oklch(0.55 0.18 250); /* Blue - standby state */
 }
 
 .dark {
@@ -111,6 +116,11 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+
+  /* Status colors for engineering conventions (AC-8) - dark mode */
+  --status-critical: oklch(0.7 0.2 25); /* Red - critical state (brighter) */
+  --status-success: oklch(0.7 0.18 145); /* Green - success state (brighter) */
+  --status-standby: oklch(0.7 0.16 250); /* Blue - standby state (brighter) */
 }
 
 @layer base {
