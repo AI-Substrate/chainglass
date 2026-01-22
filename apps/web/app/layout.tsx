@@ -5,6 +5,8 @@
 import '@xyflow/react/dist/style.css';
 import './globals.css';
 
+import { ThemeProvider } from 'next-themes';
+
 export const metadata = {
   title: 'Chainglass',
   description: 'Spec-driven development enrichment workflow tool',
@@ -12,8 +14,19 @@ export const metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body>{children}</body>
+    // suppressHydrationWarning: Required for next-themes FOUC prevention
+    // See: Critical Finding 07 in web-slick-plan.md
+    <html lang="en" suppressHydrationWarning>
+      <body>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          {children}
+        </ThemeProvider>
+      </body>
     </html>
   );
 }

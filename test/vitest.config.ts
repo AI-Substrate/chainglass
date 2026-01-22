@@ -11,7 +11,13 @@ export default defineConfig({
     root: testDir,
     globals: true,
     environment: 'node',
-    include: ['**/*.test.ts'],
+    // Include both .ts and .tsx test files
+    include: ['**/*.test.ts', '**/*.test.tsx'],
+    // Use jsdom for React component tests
+    environmentMatchGlobs: [
+      ['**/*.test.tsx', 'jsdom'],
+      ['**/web/**/*.test.ts', 'jsdom'],
+    ],
     setupFiles: [resolve(testDir, 'setup.ts')],
     // Sequential execution to prevent MCP tests from spawning 20+ parallel processes
     // Each MCP test spawns a Node.js process via StdioClientTransport
@@ -23,6 +29,8 @@ export default defineConfig({
       '@chainglass/mcp-server': resolve(rootDir, 'packages/mcp-server/src'),
       '@chainglass/web': resolve(rootDir, 'apps/web/src'),
       '@test/': `${testDir}/`,
+      // Next.js app alias - for importing from apps/web/src
+      '@/': `${resolve(rootDir, 'apps/web/src')}/`,
     },
   },
 });

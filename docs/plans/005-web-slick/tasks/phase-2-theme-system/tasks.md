@@ -78,15 +78,15 @@ flowchart TD
     style Tests fill:#F5F5F5,stroke:#E0E0E0
 
     subgraph Phase2["Phase 2: Theme System"]
-        T001["T001: Write useTheme tests"]:::pending
-        T002["T002: Install next-themes"]:::pending
-        T003["T003: Configure ThemeProvider"]:::pending
-        T004["T004: Define CSS variables"]:::pending
-        T005["T005: Write ThemeToggle tests"]:::pending
-        T006["T006: Implement ThemeToggle"]:::pending
-        T007["T007: Manual FOUC test"]:::pending
-        T008["T008: WCAG audit"]:::pending
-        T009["T009: Quality gates"]:::pending
+        T001["T001: Write useTheme tests ✓"]:::completed
+        T002["T002: Install next-themes ✓"]:::completed
+        T003["T003: Configure ThemeProvider ✓"]:::completed
+        T004["T004: Define CSS variables ✓"]:::completed
+        T005["T005: Write ThemeToggle tests ✓"]:::completed
+        T006["T006: Implement ThemeToggle ✓"]:::completed
+        T007["T007: Manual FOUC test ✓"]:::completed
+        T008["T008: WCAG audit ✓"]:::completed
+        T009["T009: Quality gates ✓"]:::completed
 
         T001 --> T002
         T002 --> T003
@@ -99,16 +99,16 @@ flowchart TD
     end
 
     subgraph Files["Application Files"]
-        F1["/apps/web/app/layout.tsx"]:::pending
-        F2["/apps/web/app/globals.css"]:::pending
-        F3["/apps/web/src/components/theme-toggle.tsx"]:::pending
-        F4["/apps/web/package.json"]:::pending
+        F1["/apps/web/app/layout.tsx ✓"]:::completed
+        F2["/apps/web/app/globals.css ✓"]:::completed
+        F3["/apps/web/src/components/theme-toggle.tsx ✓"]:::completed
+        F4["/apps/web/package.json ✓"]:::completed
     end
 
     subgraph Tests["Test Files"]
-        F5["/apps/web/test/unit/hooks/use-theme.test.ts"]:::pending
-        F6["/apps/web/test/integration/theme-toggle.test.tsx"]:::pending
-        F7["/apps/web/test/fakes/fake-local-storage.ts"]:::pending
+        F5["/apps/web/test/unit/hooks/use-theme.test.ts ✓"]:::completed
+        F6["/apps/web/test/integration/theme-toggle.test.tsx ✓"]:::completed
+        F7["/apps/web/test/fakes/fake-local-storage.ts ✓"]:::completed
     end
 
     T001 -.-> F5
@@ -129,15 +129,15 @@ flowchart TD
 
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
-| T001 | Test Infrastructure | use-theme.test.ts, fake-local-storage.ts | ⬜ Pending | TDD: Write failing tests first |
-| T002 | Package Dependencies | package.json | ⬜ Pending | Install next-themes library |
-| T003 | Theme Provider | layout.tsx | ⬜ Pending | Configure FOUC prevention |
-| T004 | Theme Variables | globals.css | ⬜ Pending | Define light/dark OKLCH tokens |
-| T005 | Test Infrastructure | theme-toggle.test.tsx | ⬜ Pending | Integration tests for toggle |
-| T006 | ThemeToggle Component | theme-toggle.tsx | ⬜ Pending | Implement UI control |
-| T007 | Manual Verification | N/A (browser testing) | ⬜ Pending | Visual FOUC check |
-| T008 | Manual Verification | N/A (Lighthouse) | ⬜ Pending | Accessibility audit |
-| T009 | Quality Gates | All implementation files | ⬜ Pending | Ensure no regressions |
+| T001 | Test Infrastructure | use-theme.test.ts, fake-local-storage.ts | ✅ Complete | TDD: Write failing tests first |
+| T002 | Package Dependencies | package.json | ✅ Complete | Install next-themes library |
+| T003 | Theme Provider | layout.tsx | ✅ Complete | Configure FOUC prevention |
+| T004 | Theme Variables | globals.css | ✅ Complete | Define light/dark OKLCH tokens |
+| T005 | Test Infrastructure | theme-toggle.test.tsx | ✅ Complete | Integration tests for toggle |
+| T006 | ThemeToggle Component | theme-toggle.tsx | ✅ Complete | Implement UI control |
+| T007 | Manual Verification | N/A (browser testing) | ✅ Complete | Visual FOUC check |
+| T008 | Manual Verification | N/A (Lighthouse) | ✅ Complete | Accessibility audit |
+| T009 | Quality Gates | All implementation files | ✅ Complete | Ensure no regressions |
 
 ---
 
@@ -145,15 +145,14 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|----|----|-----|------|--------------|------------------|------------|----------|-------|
-| [ ] | T001 | Write tests for useTheme hook behavior | 2 | Test | – | /home/jak/substrate/005-web-slick/apps/web/test/unit/hooks/use-theme.test.ts, /home/jak/substrate/005-web-slick/apps/web/test/fakes/fake-local-storage.ts | Tests cover: get theme, set theme, system preference, localStorage persistence; all tests fail initially | – | FakeLocalStorage for testability |
-| [ ] | T002 | Install next-themes package | 1 | Setup | T001 | /home/jak/substrate/005-web-slick/apps/web/package.json | `next-themes` in dependencies; `pnpm install` succeeds | – | – |
-| [ ] | T003 | Configure ThemeProvider in layout.tsx | 2 | Core | T002 | /home/jak/substrate/005-web-slick/apps/web/app/layout.tsx | ThemeProvider wraps children; `suppressHydrationWarning` on html tag; attribute="class", defaultTheme="system", enableSystem=true | – | Per Critical Finding 07 |
-| [ ] | T004 | Define CSS custom properties for light/dark themes | 2 | Core | T003 | /home/jak/substrate/005-web-slick/apps/web/app/globals.css | Light and dark theme variables using OKLCH; shadcn tokens mapped (--background, --foreground, --primary, --secondary, etc.) | – | Extend existing OKLCH vars from Phase 1 |
-| [ ] | T005 | Write tests for ThemeToggle component | 2 | Test | T004 | /home/jak/substrate/005-web-slick/apps/web/test/integration/theme-toggle.test.tsx | Tests cover: click toggles theme, displays current state, integrates with next-themes; tests fail initially | – | Integration test with ThemeProvider |
-| [ ] | T006 | Implement ThemeToggle component | 2 | Core | T005 | /home/jak/substrate/005-web-slick/apps/web/src/components/theme-toggle.tsx | Component renders; uses shadcn Button; calls setTheme; displays sun/moon icons; tests pass | – | Place in header/nav in future phase |
-| [ ] | T007 | Test FOUC prevention on slow connection | 1 | Integration | T006 | N/A (manual browser test) | No flash visible with Slow 3G throttling in Chrome DevTools; theme persists on hard refresh | – | Follow manual procedure in plan |
-| [ ] | T008 | Verify WCAG AA contrast ratios | 1 | Integration | T007 | N/A (Lighthouse audit) | Lighthouse accessibility score >90 in both light and dark modes; text contrast 4.5:1 minimum | – | Follow manual procedure in plan |
-| [ ] | T009 | Run quality gates | 1 | Integration | T008 | /home/jak/substrate/005-web-slick/apps/web/app/layout.tsx, /home/jak/substrate/005-web-slick/apps/web/app/globals.css, /home/jak/substrate/005-web-slick/apps/web/src/components/theme-toggle.tsx | `just typecheck && just lint && just test && just build` all pass; no new errors | – | Phase checkpoint |
+| [x] | T001 | Write tests for useTheme hook behavior | 2 | Test | – | /home/jak/substrate/005-web-slick/test/unit/hooks/use-theme.test.ts, /home/jak/substrate/005-web-slick/test/fakes/fake-local-storage.ts | Tests cover: get theme, set theme, system preference, localStorage persistence; all tests fail initially | – | FakeLocalStorage at root test/fakes/ per monorepo pattern |
+| [x] | T002 | Install next-themes package | 1 | Setup | T001 | /home/jak/substrate/005-web-slick/apps/web/package.json | `next-themes` in dependencies; `pnpm install` succeeds | – | – |
+| [x] | T003 | Configure ThemeProvider in layout.tsx | 2 | Core | T002 | /home/jak/substrate/005-web-slick/apps/web/app/layout.tsx | ThemeProvider wraps children; `suppressHydrationWarning` on html tag; attribute="class", defaultTheme="system", enableSystem=true | – | Per Critical Finding 07 |
+| [x] | T004 | Write tests for ThemeToggle component | 2 | Test | T003 | /home/jak/substrate/005-web-slick/test/integration/theme-toggle.test.tsx | Tests cover: click toggles theme, displays current state, integrates with next-themes; tests fail initially | – | Integration test with ThemeProvider |
+| [x] | T005 | Implement ThemeToggle component | 2 | Core | T004 | /home/jak/substrate/005-web-slick/apps/web/src/components/theme-toggle.tsx | Component renders; uses shadcn Button; calls setTheme; displays sun/moon icons; tests pass | – | Place in header/nav in future phase |
+| [x] | T006 | Test FOUC prevention on slow connection | 1 | Integration | T005 | N/A (manual browser test) | No flash visible with Slow 3G throttling in Chrome DevTools; theme persists on hard refresh | – | Follow manual procedure in plan |
+| [x] | T007 | Verify WCAG AA contrast ratios | 1 | Integration | T006 | N/A (Lighthouse audit) | Lighthouse accessibility score >90 in both light and dark modes; text contrast 4.5:1 minimum | – | Follow manual procedure in plan |
+| [x] | T008 | Run quality gates | 1 | Integration | T007 | /home/jak/substrate/005-web-slick/apps/web/app/layout.tsx, /home/jak/substrate/005-web-slick/apps/web/app/globals.css, /home/jak/substrate/005-web-slick/apps/web/src/components/theme-toggle.tsx | `just typecheck && just lint && just test && just build` all pass; no new errors | – | Phase checkpoint |
 
 ---
 
@@ -628,9 +627,42 @@ Before proceeding to implementation (plan-6-implement-phase):
 
 ## Phase Footnote Stubs
 
-**NOTE**: This section will be populated during implementation by plan-6-implement-phase when tasks reference plan-wide changes, deviations, or discoveries.
+Footnote tags (`[^N]`) reference FlowSpace graph nodes for bidirectional traceability.
+See main plan § 11 Change Footnotes Ledger for authoritative numbering.
 
-Footnote tags (`[^N]`) will be added to task Notes column and logged in the main plan's § 12 Change Footnotes Ledger by plan-6a-update-progress.
+[^1]: Task T001 - Created FakeLocalStorage test fake
+  - `file:test/fakes/fake-local-storage.ts`
+  - `type:test/fakes/fake-local-storage.ts:FakeLocalStorage`
+
+[^2]: Task T001 - Created useTheme hook tests
+  - `file:test/unit/web/hooks/use-theme.test.tsx`
+  - `callable:test/unit/web/hooks/use-theme.test.tsx:@17.52`
+
+[^3]: Task T001 - Updated test infrastructure
+  - `file:test/fakes/index.ts`
+  - `file:test/vitest.config.ts`
+
+[^4]: Task T002 - Added next-themes dependency
+  - `file:apps/web/package.json`
+
+[^5]: Task T003 - Configured ThemeProvider in layout
+  - `file:apps/web/app/layout.tsx`
+  - `callable:apps/web/app/layout.tsx:RootLayout`
+
+[^6]: Task T004 - Created ThemeToggle integration tests
+  - `file:test/integration/web/theme-toggle.test.tsx`
+
+[^7]: Task T005 - Implemented ThemeToggle component
+  - `file:apps/web/src/components/theme-toggle.tsx`
+  - `callable:apps/web/src/components/theme-toggle.tsx:ThemeToggle`
+
+[^8]: Task T005 - Updated test infrastructure for React testing
+  - `file:test/vitest.config.ts`
+  - `file:test/setup.ts`
+
+[^9]: Task T006 - Added ThemeToggle to homepage for testing
+  - `file:apps/web/app/page.tsx`
+  - `callable:apps/web/app/page.tsx:Home`
 
 ---
 
@@ -664,7 +696,12 @@ _Populated during implementation by plan-6. Log anything of interest to your fut
 
 | Date | Task | Type | Discovery | Resolution | References |
 |------|------|------|-----------|------------|------------|
-| | | | | | |
+| 2026-01-22 | T001 | gotcha | Test files need `.tsx` extension for JSX, not `.ts` | Renamed test files to `.tsx` | vitest.config.ts |
+| 2026-01-22 | T001 | insight | vitest `environmentMatchGlobs` is deprecated | Will need migration to `test.projects` in future | Vitest v3.x docs |
+| 2026-01-22 | T005 | gotcha | React must be in global scope for JSX in tests | Added `globalThis.React = React` in setup.ts | test/setup.ts |
+| 2026-01-22 | T005 | insight | `@/` alias needed in vitest config for web app imports | Added alias mapping to vitest.config.ts | test/vitest.config.ts |
+| 2026-01-22 | T005 | insight | Need @testing-library/jest-dom for DOM matchers | Installed and imported in setup.ts | test/setup.ts |
+| 2026-01-22 | T004 | decision | CSS variables already complete from Phase 1 | Skipped T004 (original plan T004) | globals.css lines 47-114 |
 
 **Types**: `gotcha` | `research-needed` | `unexpected-behavior` | `workaround` | `decision` | `debt` | `insight`
 
@@ -683,21 +720,151 @@ _See also: `execution.log.md` for detailed narrative._
 
 ## Complexity Scoring
 
-**Phase 2 Total Complexity**: 15 points (sum of all task CS values)
+**Phase 2 Total Complexity**: 13 points (sum of all task CS values)
 
 Individual task scores calculated using constitution rubric (Scope, Interconnections, Dependencies, Novelty, Fragility, Testing):
 
 - **T001** (CS-2): 2+1+0+0+1+0 = 4 points (small) — Tests are isolated but require FakeLocalStorage
 - **T002** (CS-1): 0+0+1+0+0+0 = 1 point (trivial) — Simple package install
 - **T003** (CS-2): 1+1+1+0+1+0 = 4 points (small) — Layout modification with FOUC prevention concern
-- **T004** (CS-2): 1+0+1+1+1+0 = 4 points (small) — CSS variables with OKLCH color space (new)
-- **T005** (CS-2): 2+1+0+0+1+0 = 4 points (small) — Integration test with ThemeProvider
-- **T006** (CS-2): 1+1+1+0+1+0 = 4 points (small) — Component with external library integration
-- **T007** (CS-1): 0+0+1+0+1+0 = 2 points (trivial) — Manual visual verification
-- **T008** (CS-1): 0+0+1+0+1+0 = 2 points (trivial) — Run Lighthouse audit
-- **T009** (CS-1): 0+0+1+0+1+0 = 2 points (trivial) — Quality gate commands
+- **T004** (CS-2): 2+1+0+0+1+0 = 4 points (small) — Integration test with ThemeProvider
+- **T005** (CS-2): 1+1+1+0+1+0 = 4 points (small) — Component with external library integration
+- **T006** (CS-1): 0+0+1+0+1+0 = 2 points (trivial) — Manual visual verification
+- **T007** (CS-1): 0+0+1+0+1+0 = 2 points (trivial) — Run Lighthouse audit
+- **T008** (CS-1): 0+0+1+0+1+0 = 2 points (trivial) — Quality gate commands
 
-**Phase 2 Classification**: Medium complexity (15 points total)
+**Phase 2 Classification**: Medium complexity (13 points total)
+
+> **Note**: Original T004 "Define CSS custom properties" was removed during clarity session (2026-01-22) - Phase 1 shadcn installation already created all required OKLCH theme variables in globals.css.
+
+---
+
+## Critical Insights Discussion
+
+**Session**: 2026-01-22 09:00 UTC
+**Context**: Phase 2: Theme System Tasks & Alignment Brief
+**Analyst**: AI Clarity Agent
+**Reviewer**: Development Team
+**Format**: Water Cooler Conversation (5 Critical Insights)
+
+### Insight 1: Dark Mode CSS Already Complete
+
+**Did you know**: The dark mode CSS variables planned for T004 are already 100% complete in globals.css from Phase 1's shadcn installation.
+
+**Implications**:
+- T004 "Define CSS custom properties" has nothing to define
+- All 19 OKLCH color tokens exist in both `:root` and `.dark`
+- Tailwind integration via `@theme inline` already configured
+
+**Options Considered**:
+- Option A: Collapse T004 into T003 - Merge validation into ThemeProvider setup
+- Option B: Convert to "Verify & Document" - Audit + add comments
+- Option C: Delete T004 entirely - Remove redundant task
+
+**AI Recommendation**: Option C - Delete T004
+- Reasoning: Work genuinely complete; T008 covers WCAG validation; no value in ceremony task.
+
+**Decision**: Delete T004 - reduces phase from 9 to 8 tasks
+
+**Affects**: Tasks table, complexity scoring (15→13 points)
+
+---
+
+### Insight 2: Providers Wrapper for Future Extensibility
+
+**Did you know**: Phase 4 will need a DIProvider React context, which means layout.tsx will need refactoring if ThemeProvider is placed directly there now.
+
+**Implications**:
+- ThemeProvider requires `"use client"` boundary
+- Phase 4 Critical Finding 04 requires DI context for components
+- Could create Providers.tsx wrapper now for future-proofing
+
+**Options Considered**:
+- Option A: Create Providers.tsx now - Future-proof, clean separation
+- Option B: ThemeProvider directly in layout.tsx - Simple now, refactor later
+
+**AI Recommendation**: Option A - Create Providers wrapper
+- Reasoning: Known Phase 4 requirement; minimal overhead; clean architecture.
+
+**Decision**: Keep Phase 2 minimal - add Providers wrapper when Phase 4 needs it (YAGNI)
+
+**Affects**: No changes - T003 stays as-is
+
+---
+
+### Insight 3: Test Fakes Path Inconsistency
+
+**Did you know**: tasks.md specified `apps/web/test/fakes/` but the monorepo pattern puts shared test fakes at root `test/fakes/`.
+
+**Implications**:
+- Existing fakes in `packages/shared/src/fakes/` (FakeLogger, etc.)
+- Root `test/` has established `@test/*` path alias
+- Inconsistent paths confuse future developers
+
+**Options Considered**:
+- Option A: Use root test/fakes/ - Follow established pattern
+- Option B: Create apps/web/test/fakes/ - App-specific isolation
+- Option C: Put in packages/shared/src/fakes/ - Single source (wrong for browser APIs)
+
+**AI Recommendation**: Option A - Root test/fakes/
+- Reasoning: Consistent with monorepo pattern; `@test/*` alias ready.
+
+**Decision**: Use `test/fakes/` and `test/unit/hooks/` at root level
+
+**Action Items**:
+- [x] Update T001 paths to root test/fakes/ and test/unit/hooks/
+- [x] Update T004 (was T005) path to test/integration/
+
+**Affects**: T001, T004 file paths in tasks table
+
+---
+
+### Insight 4: lucide-react Already Installed
+
+**Did you know**: The icon library for ThemeToggle is already installed and configured - no setup needed.
+
+**Implications**:
+- `lucide-react: ^0.562.0` in package.json
+- `components.json` has `"iconLibrary": "lucide"`
+- Button component ready for icons with gap-2, size-4 styling
+
+**Decision**: Acknowledged - T005 can directly import Moon/Sun icons
+
+**Affects**: None - informational only
+
+---
+
+### Insight 5: Phase Complexity Reduced
+
+**Did you know**: After removing T004, Phase 2 dropped to 8 tasks (13 complexity points) - genuinely small scope.
+
+**Implications**:
+- Actual coding work: ~3 tasks (T003 provider, T005 component, plus tests)
+- Rest is setup (T002) and verification (T006-T008)
+- Can likely complete in a focused session
+
+**Decision**: Acknowledged - proceed with confidence
+
+**Affects**: None - informational only
+
+---
+
+## Session Summary
+
+**Insights Surfaced**: 5 critical insights identified and discussed
+**Decisions Made**: 3 decisions reached
+**Action Items Created**: 2 path corrections applied
+**Areas Updated**:
+- Tasks table: Removed T004, renumbered T005-T009 → T004-T008
+- Tasks table: Updated T001, T004 paths to root test/ directory
+- Complexity scoring: Updated from 15 to 13 points
+
+**Shared Understanding Achieved**: ✓
+
+**Confidence Level**: High - Phase 2 is well-scoped and ready for implementation
+
+**Next Steps**:
+Run `/plan-6-implement-phase --phase "Phase 2: Theme System"` to begin implementation
 
 ---
 
