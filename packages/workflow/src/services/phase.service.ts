@@ -8,6 +8,7 @@
 import * as path from 'node:path';
 import type {
   CopiedFile,
+  FinalizeResult,
   IFileSystem,
   PrepareResult,
   ResolvedInput,
@@ -20,7 +21,8 @@ import type {
   IYamlParser,
   ValidateCheckMode,
 } from '../interfaces/index.js';
-import type { PhaseRunStatus, WfStatus } from '../types/index.js';
+import type { PhaseRunStatus, WfPhaseState, WfStatus } from '../types/index.js';
+import { extractValue } from '../utils/index.js';
 
 /**
  * Error codes for phase operations.
@@ -366,6 +368,132 @@ export class PhaseService implements IPhaseService {
     };
   }
 
+  /**
+   * Finalize a phase, extracting output parameters.
+   *
+   * Per Phase 4 spec - extracts parameters from output JSON files,
+   * writes output-params.json, and transitions to 'complete' status.
+   *
+   * Per DYK Insight #4: No status checks - just do the job every time.
+   * Always re-extracts and overwrites (idempotent via same inputs → same outputs).
+   */
+  async finalize(phase: string, runDir: string): Promise<FinalizeResult> {
+    // 1. Check if phase exists
+    const phaseDir = path.join(runDir, 'phases', phase);
+    const phaseYamlPath = path.join(phaseDir, 'wf-phase.yaml');
+
+    if (!(await this.fs.exists(phaseYamlPath))) {
+      return this.createFinalizeErrorResult(phase, runDir, PhaseErrorCodes.PHASE_NOT_FOUND, {
+        message: `Phase not found: ${phase}`,
+        path: phaseYamlPath,
+        action: 'Verify the phase name exists in the workflow',
+      });
+    }
+
+    // 2. Parse wf-phase.yaml
+    const phaseYamlContent = await this.fs.readFile(phaseYamlPath);
+    const phaseDef = this.yamlParser.parse<PhaseDefinition>(phaseYamlContent, phaseYamlPath);
+
+    // 3. Extract output_parameters
+    const extractedParams: Record<string, unknown> = {};
+    const errors: FinalizeResult['errors'] = [];
+
+    if (phaseDef.output_parameters && phaseDef.output_parameters.length > 0) {
+      for (const paramDef of phaseDef.output_parameters) {
+        const sourcePath = path.join(runDir, 'phases', phase, 'run', 'outputs', paramDef.source);
+
+        // Check source file exists
+        if (!(await this.fs.exists(sourcePath))) {
+          errors.push({
+            code: PhaseErrorCodes.MISSING_OUTPUT,
+            message: `Missing source file for output_parameter '${paramDef.name}': ${paramDef.source}`,
+            path: sourcePath,
+            action: `Create output file '${paramDef.source}' before finalizing`,
+          });
+          continue;
+        }
+
+        // Read and parse JSON
+        const sourceContent = await this.fs.readFile(sourcePath);
+        let sourceData: unknown;
+        try {
+          sourceData = JSON.parse(sourceContent);
+        } catch {
+          errors.push({
+            code: PhaseErrorCodes.SCHEMA_FAILURE,
+            message: `Invalid JSON in source file for output_parameter '${paramDef.name}': ${paramDef.source}`,
+            path: sourcePath,
+            action: `Ensure '${paramDef.source}' contains valid JSON`,
+          });
+          continue;
+        }
+
+        // Extract value using query path
+        const value = extractValue(sourceData, paramDef.query);
+        // Per DYK Insight #3: undefined → null (not an error)
+        extractedParams[paramDef.name] = value === undefined ? null : value;
+      }
+    }
+
+    // If there were errors, return failure
+    if (errors.length > 0) {
+      return {
+        phase,
+        runDir,
+        extractedParams,
+        phaseStatus: 'complete',
+        errors,
+      };
+    }
+
+    // 4. Write output-params.json
+    const outputParamsPath = path.join(
+      runDir,
+      'phases',
+      phase,
+      'run',
+      'wf-data',
+      'output-params.json'
+    );
+    await this.fs.writeFile(outputParamsPath, JSON.stringify(extractedParams, null, 2));
+
+    // 5. Update wf-phase.json (per DYK Insight #1: dual state file updates)
+    const wfPhasePath = path.join(runDir, 'phases', phase, 'run', 'wf-data', 'wf-phase.json');
+    let wfPhaseState: WfPhaseState;
+    if (await this.fs.exists(wfPhasePath)) {
+      const wfPhaseContent = await this.fs.readFile(wfPhasePath);
+      wfPhaseState = JSON.parse(wfPhaseContent);
+    } else {
+      // Initialize if doesn't exist
+      wfPhaseState = {
+        phase,
+        facilitator: 'agent',
+        state: 'active',
+        status: [],
+      };
+    }
+    wfPhaseState.state = 'complete';
+    wfPhaseState.status.push({
+      timestamp: new Date().toISOString(),
+      from: 'agent',
+      action: 'finalize',
+    });
+    await this.fs.writeFile(wfPhasePath, JSON.stringify(wfPhaseState, null, 2));
+
+    // 6. Update wf-status.json to 'complete'
+    const wfStatus = await this.loadWfStatus(runDir);
+    wfStatus.phases[phase].status = 'complete';
+    await this.saveWfStatus(runDir, wfStatus);
+
+    return {
+      phase,
+      runDir,
+      extractedParams,
+      phaseStatus: 'complete',
+      errors: [],
+    };
+  }
+
   // ==================== Private Helpers ====================
 
   private async loadWfStatus(runDir: string): Promise<WfStatus> {
@@ -528,6 +656,21 @@ export class PhaseService implements IPhaseService {
       runDir,
       check,
       files: { required: [], validated: [] },
+      errors: [{ code, ...error }],
+    };
+  }
+
+  private createFinalizeErrorResult(
+    phase: string,
+    runDir: string,
+    code: string,
+    error: { message: string; path?: string; action?: string }
+  ): FinalizeResult {
+    return {
+      phase,
+      runDir,
+      extractedParams: {},
+      phaseStatus: 'complete',
       errors: [{ code, ...error }],
     };
   }

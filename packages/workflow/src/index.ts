@@ -60,13 +60,16 @@ export { FakeSchemaValidator } from './fakes/index.js';
 export { FakeWorkflowService } from './fakes/index.js';
 export type { ComposeCall } from './fakes/index.js';
 export { FakePhaseService } from './fakes/index.js';
-export type { PrepareCall, ValidateCall } from './fakes/index.js';
+export type { PrepareCall, ValidateCall, FinalizeCall } from './fakes/index.js';
 
 // Services (Phase 2)
 export { WorkflowService, ComposeErrorCodes } from './services/index.js';
 
 // Services (Phase 3)
 export { PhaseService, PhaseErrorCodes } from './services/index.js';
+
+// Utilities (Phase 4)
+export { extractValue } from './utils/index.js';
 
 // Embedded schemas (Phase 2 - DYK-01)
 export {

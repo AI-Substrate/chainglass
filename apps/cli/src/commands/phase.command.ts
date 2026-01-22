@@ -2,6 +2,7 @@
  * Phase command group for the CLI.
  *
  * Per Phase 3: Phase Operations - Provides cg phase prepare and cg phase validate commands.
+ * Per Phase 4: Phase Lifecycle - Adds cg phase finalize command.
  */
 
 import {
@@ -40,6 +41,16 @@ interface ValidateOptions {
   runDir: string;
   /** What to validate: 'inputs' or 'outputs' (required) */
   check: ValidateCheckMode;
+}
+
+/**
+ * Options for phase finalize command.
+ */
+interface FinalizeOptions {
+  /** Output as JSON (default: false) */
+  json?: boolean;
+  /** Run directory path (required) */
+  runDir: string;
 }
 
 /**
@@ -106,11 +117,33 @@ async function handleValidate(phase: string, options: ValidateOptions): Promise<
 }
 
 /**
+ * Handle cg phase finalize <phase> command.
+ *
+ * @param phase - Phase name to finalize
+ * @param options - Command options
+ */
+async function handleFinalize(phase: string, options: FinalizeOptions): Promise<void> {
+  const service = createPhaseService();
+  const adapter = createOutputAdapter(options.json ?? false);
+
+  const result = await service.finalize(phase, options.runDir);
+  const output = adapter.format('phase.finalize', result);
+
+  console.log(output);
+
+  // Exit with error code if finalize failed
+  if (result.errors.length > 0) {
+    process.exit(1);
+  }
+}
+
+/**
  * Register the phase command group with the Commander program.
  *
  * Creates the cg phase command group with subcommands:
  * - cg phase prepare <phase> - Prepare a phase for execution
  * - cg phase validate <phase> - Validate phase inputs or outputs
+ * - cg phase finalize <phase> - Finalize a phase and extract output parameters
  *
  * @param program - Commander.js program instance
  */
@@ -141,5 +174,15 @@ export function registerPhaseCommands(program: Command): void {
         process.exit(1);
       }
       await handleValidate(phaseName, options);
+    });
+
+  // cg phase finalize <phase>
+  phase
+    .command('finalize <phase>')
+    .description('Finalize a phase and extract output parameters')
+    .requiredOption('--run-dir <path>', 'Run directory path')
+    .option('--json', 'Output as JSON', false)
+    .action(async (phaseName: string, options: FinalizeOptions) => {
+      await handleFinalize(phaseName, options);
     });
 }

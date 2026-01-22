@@ -9,7 +9,7 @@
  * - FakePhaseService: Configurable implementation for testing with call capture
  */
 
-import type { PrepareResult, ValidateResult } from '@chainglass/shared';
+import type { FinalizeResult, PrepareResult, ValidateResult } from '@chainglass/shared';
 
 /**
  * Check mode for validate() operation.
@@ -102,4 +102,45 @@ export interface IPhaseService {
    * - E020: Phase not found
    */
   validate(phase: string, runDir: string, check: ValidateCheckMode): Promise<ValidateResult>;
+
+  /**
+   * Finalize a phase, extracting output parameters.
+   *
+   * Extracts parameters from output JSON files using dot-notation queries,
+   * writes output-params.json, and transitions phase status to 'complete'.
+   *
+   * Algorithm:
+   * 1. Load wf-phase.yaml for the phase (E020 if not found)
+   * 2. For each output_parameter declaration:
+   *    a. Read source file (E010 if missing)
+   *    b. Parse as JSON (E012 if invalid)
+   *    c. Extract value using query path
+   *    d. Store null if path returns undefined (not an error)
+   * 3. Write output-params.json with extracted values
+   * 4. Update wf-phase.json with state='complete' and finalize action
+   * 5. Update wf-status.json phases.{phase}.status to 'complete'
+   * 6. Return FinalizeResult with extractedParams
+   *
+   * Idempotency (AC-39): Always re-extracts and overwrites. Same inputs → same outputs.
+   * Per DYK Insight #4: No status checks - just do the job if phase exists.
+   *
+   * @param phase - Phase name (e.g., 'gather', 'process')
+   * @param runDir - Path to run directory
+   * @returns FinalizeResult with extractedParams and phaseStatus='complete'
+   *
+   * @example
+   * ```typescript
+   * const result = await service.finalize('gather', runDir);
+   * if (result.errors.length === 0) {
+   *   console.log('Extracted:', result.extractedParams); // { item_count: 3, ... }
+   *   console.log('Status:', result.phaseStatus); // 'complete'
+   * }
+   * ```
+   *
+   * @throws Never throws - all errors returned in FinalizeResult.errors:
+   * - E020: Phase not found
+   * - E010: Missing source file for output_parameter
+   * - E012: Invalid JSON in source file
+   */
+  finalize(phase: string, runDir: string): Promise<FinalizeResult>;
 }

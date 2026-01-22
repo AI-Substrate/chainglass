@@ -10,6 +10,7 @@
 
 import type {
   CopiedFile,
+  FinalizeResult,
   PrepareResult,
   ResolvedInput,
   ValidateResult,
@@ -48,9 +49,23 @@ export interface ValidateCall {
 }
 
 /**
+ * Recorded finalize() call for test inspection.
+ */
+export interface FinalizeCall {
+  /** Phase name passed to finalize() */
+  phase: string;
+  /** Run directory passed to finalize() */
+  runDir: string;
+  /** Result returned from finalize() */
+  result: FinalizeResult;
+  /** Timestamp when finalize() was called */
+  timestamp: string;
+}
+
+/**
  * Fake phase service for testing.
  *
- * Captures all prepare() and validate() calls for inspection.
+ * Captures all prepare(), validate(), and finalize() calls for inspection.
  * Can be configured with preset results or use default success responses.
  */
 export class FakePhaseService implements IPhaseService {
@@ -60,17 +75,26 @@ export class FakePhaseService implements IPhaseService {
   /** Recorded validate calls */
   private validateCalls: ValidateCall[] = [];
 
+  /** Recorded finalize calls */
+  private finalizeCalls: FinalizeCall[] = [];
+
   /** Preset prepare results for specific phases */
   private prepareResults = new Map<string, PrepareResult>();
 
   /** Preset validate results for specific phases and modes */
   private validateResults = new Map<string, ValidateResult>();
 
+  /** Preset finalize results for specific phases */
+  private finalizeResults = new Map<string, FinalizeResult>();
+
   /** Default prepare result to return if no preset matches */
   private defaultPrepareResult: PrepareResult | null = null;
 
   /** Default validate result to return if no preset matches */
   private defaultValidateResult: ValidateResult | null = null;
+
+  /** Default finalize result to return if no preset matches */
+  private defaultFinalizeResult: FinalizeResult | null = null;
 
   // ==================== Prepare Test Helpers ====================
 
@@ -222,6 +246,76 @@ export class FakePhaseService implements IPhaseService {
     });
   }
 
+  // ==================== Finalize Test Helpers ====================
+
+  /**
+   * Get the last finalize call (test helper).
+   *
+   * @returns Last FinalizeCall, or null if no calls made
+   */
+  getLastFinalizeCall(): FinalizeCall | null {
+    return this.finalizeCalls.length > 0 ? this.finalizeCalls[this.finalizeCalls.length - 1] : null;
+  }
+
+  /**
+   * Get all finalize calls in order (test helper).
+   *
+   * @returns Array of all recorded finalize calls
+   */
+  getFinalizeCalls(): FinalizeCall[] {
+    return [...this.finalizeCalls];
+  }
+
+  /**
+   * Get number of finalize calls (test helper).
+   */
+  getFinalizeCallCount(): number {
+    return this.finalizeCalls.length;
+  }
+
+  /**
+   * Set a preset finalize result for a specific phase (test helper).
+   *
+   * When finalize() is called with this phase, it returns the preset result.
+   *
+   * @param phase - Phase name to match
+   * @param result - FinalizeResult to return
+   */
+  setFinalizeResult(phase: string, result: FinalizeResult): void {
+    this.finalizeResults.set(phase, result);
+  }
+
+  /**
+   * Set a default finalize result for all calls (test helper).
+   *
+   * Used when no preset result matches the phase.
+   *
+   * @param result - Default FinalizeResult to return
+   */
+  setDefaultFinalizeResult(result: FinalizeResult): void {
+    this.defaultFinalizeResult = result;
+  }
+
+  /**
+   * Set a preset error result for finalize (test helper).
+   *
+   * Convenience method to set up error responses.
+   *
+   * @param phase - Phase name to match
+   * @param code - Error code (e.g., 'E020')
+   * @param message - Error message
+   * @param action - Suggested fix action
+   */
+  setFinalizeError(phase: string, code: string, message: string, action?: string): void {
+    this.setFinalizeResult(phase, {
+      phase,
+      runDir: '',
+      extractedParams: {},
+      phaseStatus: 'complete',
+      errors: [{ code, message, action }],
+    });
+  }
+
   // ==================== General Test Helpers ====================
 
   /**
@@ -230,10 +324,13 @@ export class FakePhaseService implements IPhaseService {
   reset(): void {
     this.prepareCalls = [];
     this.validateCalls = [];
+    this.finalizeCalls = [];
     this.prepareResults.clear();
     this.validateResults.clear();
+    this.finalizeResults.clear();
     this.defaultPrepareResult = null;
     this.defaultValidateResult = null;
+    this.defaultFinalizeResult = null;
   }
 
   /**
@@ -342,6 +439,52 @@ export class FakePhaseService implements IPhaseService {
     };
   }
 
+  /**
+   * Create a success finalize result for testing (test helper).
+   *
+   * @param phase - Phase name
+   * @param runDir - Run directory path
+   * @param extractedParams - Extracted parameters
+   * @returns FinalizeResult with no errors
+   */
+  static createFinalizeSuccessResult(
+    phase: string,
+    runDir: string,
+    extractedParams: Record<string, unknown> = {}
+  ): FinalizeResult {
+    return {
+      phase,
+      runDir,
+      extractedParams,
+      phaseStatus: 'complete',
+      errors: [],
+    };
+  }
+
+  /**
+   * Create an error finalize result for testing (test helper).
+   *
+   * @param phase - Phase name
+   * @param code - Error code (e.g., 'E020')
+   * @param message - Error message
+   * @param action - Suggested fix action
+   * @returns FinalizeResult with error
+   */
+  static createFinalizeErrorResult(
+    phase: string,
+    code: string,
+    message: string,
+    action?: string
+  ): FinalizeResult {
+    return {
+      phase,
+      runDir: '',
+      extractedParams: {},
+      phaseStatus: 'complete',
+      errors: [{ code, message, action }],
+    };
+  }
+
   // ==================== IPhaseService Implementation ====================
 
   /**
@@ -445,6 +588,55 @@ export class FakePhaseService implements IPhaseService {
     };
 
     this.validateCalls.push({ phase, runDir, check, result, timestamp: new Date().toISOString() });
+    return result;
+  }
+
+  /**
+   * Finalize a phase, extracting output parameters.
+   *
+   * Captures the call and returns either:
+   * - Preset result (if configured for this phase)
+   * - Default result (if set)
+   * - Auto-generated success result (otherwise)
+   *
+   * @param phase - Phase name
+   * @param runDir - Run directory path
+   * @returns FinalizeResult (preset or generated)
+   */
+  async finalize(phase: string, runDir: string): Promise<FinalizeResult> {
+    // Check for preset result
+    const presetResult = this.finalizeResults.get(phase);
+    if (presetResult) {
+      this.finalizeCalls.push({
+        phase,
+        runDir,
+        result: presetResult,
+        timestamp: new Date().toISOString(),
+      });
+      return presetResult;
+    }
+
+    // Check for default result
+    if (this.defaultFinalizeResult) {
+      this.finalizeCalls.push({
+        phase,
+        runDir,
+        result: this.defaultFinalizeResult,
+        timestamp: new Date().toISOString(),
+      });
+      return this.defaultFinalizeResult;
+    }
+
+    // Generate auto success result
+    const result: FinalizeResult = {
+      phase,
+      runDir,
+      extractedParams: {},
+      phaseStatus: 'complete',
+      errors: [],
+    };
+
+    this.finalizeCalls.push({ phase, runDir, result, timestamp: new Date().toISOString() });
     return result;
   }
 }

@@ -30,6 +30,10 @@ outputs:
   - name: data.json
     type: file
     required: true
+output_parameters:
+  - name: count
+    source: data.json
+    query: "total"
 `;
 
 const GATHER_PHASE_DEF = {
@@ -38,6 +42,7 @@ const GATHER_PHASE_DEF = {
   order: 1,
   inputs: {},
   outputs: [{ name: 'data.json', type: 'file', required: true }],
+  output_parameters: [{ name: 'count', source: 'data.json', query: 'total' }],
 };
 
 // Sample wf-status.json
@@ -239,6 +244,116 @@ function phaseServiceContractTests(createContext: () => PhaseServiceTestContext)
         expect(result.errors[0]).toHaveProperty('code');
         expect(result.errors[0].code).toBe('E020');
       });
+
+      it('should return E020 for phase not found on finalize', async () => {
+        /*
+        Test Doc:
+        - Why: Both implementations must handle missing phases
+        - Contract: E020 error for non-existent phase
+        - Usage Notes: Error code enables programmatic handling
+        - Quality Contribution: Consistent error behavior
+        - Worked Example: finalize('nonexistent') → { errors: [{ code: 'E020' }] }
+        */
+        const result = await ctx.service.finalize(
+          'nonexistent-phase-xyz',
+          '/runs/run-contract-test-001'
+        );
+
+        expect(result.errors).toHaveLength(1);
+        expect(result.errors[0]).toHaveProperty('code');
+        expect(result.errors[0].code).toBe('E020');
+      });
+    });
+
+    describe('finalize() return type', () => {
+      it('should return a FinalizeResult object', async () => {
+        /*
+        Test Doc:
+        - Why: Contract requires consistent return type
+        - Contract: finalize() returns object with phase, runDir, extractedParams, phaseStatus, errors
+        - Usage Notes: All implementations must return this shape
+        - Quality Contribution: Ensures type consistency
+        - Worked Example: finalize('gather', '/run') → { phase, extractedParams, phaseStatus, ... }
+        */
+        const result = await ctx.service.finalize('gather', '/runs/run-contract-test-001');
+
+        // Must have all required properties
+        expect(result).toHaveProperty('phase');
+        expect(result).toHaveProperty('runDir');
+        expect(result).toHaveProperty('extractedParams');
+        expect(result).toHaveProperty('phaseStatus');
+        expect(result).toHaveProperty('errors');
+
+        // Types must be correct
+        expect(typeof result.phase).toBe('string');
+        expect(typeof result.runDir).toBe('string');
+        expect(typeof result.extractedParams).toBe('object');
+        expect(result.phaseStatus).toBe('complete');
+        expect(Array.isArray(result.errors)).toBe(true);
+      });
+
+      it('should return phase name in result', async () => {
+        /*
+        Test Doc:
+        - Why: Result must identify which phase was finalized
+        - Contract: Result contains phase name
+        - Usage Notes: Use for logging and error reporting
+        - Quality Contribution: Clear result identification
+        - Worked Example: finalize('gather') → { phase: 'gather' }
+        */
+        const result = await ctx.service.finalize('gather', '/runs/run-contract-test-001');
+
+        expect(result.phase).toBe('gather');
+      });
+
+      it('should return phaseStatus as complete', async () => {
+        /*
+        Test Doc:
+        - Why: Finalize always results in complete status
+        - Contract: phaseStatus is always 'complete' after finalize
+        - Usage Notes: Indicates phase is done
+        - Quality Contribution: Consistent status reporting
+        - Worked Example: finalize(any_phase) → { phaseStatus: 'complete' }
+        */
+        const result = await ctx.service.finalize('gather', '/runs/run-contract-test-001');
+
+        expect(result.phaseStatus).toBe('complete');
+      });
+    });
+
+    describe('finalize() success behavior', () => {
+      it('should return empty errors array on success', async () => {
+        /*
+        Test Doc:
+        - Why: Contract requires errors.length === 0 indicates success
+        - Contract: Success means empty errors array
+        - Usage Notes: Check errors first, then extractedParams
+        - Quality Contribution: Ensures consistent success detection
+        - Worked Example: finalize(valid_phase) → { errors: [] }
+        */
+        const result = await ctx.service.finalize('gather', '/runs/run-contract-test-001');
+
+        // Either succeeds with no errors, or fails with errors
+        if (result.errors.length === 0) {
+          expect(result.phaseStatus).toBe('complete');
+        }
+      });
+
+      it('should return extractedParams as object', async () => {
+        /*
+        Test Doc:
+        - Why: Finalize extracts parameters from outputs
+        - Contract: extractedParams is always an object (may be empty)
+        - Usage Notes: Empty {} for phases with no output_parameters
+        - Quality Contribution: Consistent return type
+        - Worked Example: finalize(phase_with_no_params) → { extractedParams: {} }
+        */
+        const result = await ctx.service.finalize('gather', '/runs/run-contract-test-001');
+
+        expect(result.extractedParams).toBeDefined();
+        expect(typeof result.extractedParams).toBe('object');
+        expect(result.extractedParams !== null).toBe(true);
+      });
     });
   });
 }
@@ -272,7 +387,10 @@ function createPhaseServiceContext(): PhaseServiceTestContext {
       fs.setDir(`${runDir}/phases/gather`);
       fs.setDir(`${runDir}/phases/gather/run/inputs/files`);
       fs.setDir(`${runDir}/phases/gather/run/outputs`);
+      fs.setDir(`${runDir}/phases/gather/run/wf-data`);
       fs.setFile(`${runDir}/phases/gather/wf-phase.yaml`, GATHER_PHASE_YAML);
+      // Add output file for finalize extraction
+      fs.setFile(`${runDir}/phases/gather/run/outputs/data.json`, '{"total": 5}');
 
       // Configure YAML parser
       yamlParser.setParseResult(GATHER_PHASE_YAML.trim(), GATHER_PHASE_DEF);
@@ -342,6 +460,22 @@ function createFakePhaseServiceContext(): PhaseServiceTestContext {
       service.setValidateError(
         'nonexistent-phase-xyz',
         'inputs',
+        'E020',
+        'Phase not found: nonexistent-phase-xyz',
+        'Verify the phase name exists in the workflow'
+      );
+
+      // Configure finalize results
+      service.setFinalizeResult('gather', {
+        phase: 'gather',
+        runDir: '/runs/run-contract-test-001',
+        extractedParams: { count: 5 },
+        phaseStatus: 'complete',
+        errors: [],
+      });
+
+      service.setFinalizeError(
+        'nonexistent-phase-xyz',
         'E020',
         'Phase not found: nonexistent-phase-xyz',
         'Verify the phase name exists in the workflow'

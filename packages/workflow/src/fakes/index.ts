@@ -5,4 +5,4 @@ export { FakeSchemaValidator } from './fake-schema-validator.js';
 export { FakeWorkflowService } from './fake-workflow-service.js';
 export type { ComposeCall } from './fake-workflow-service.js';
 export { FakePhaseService } from './fake-phase-service.js';
-export type { PrepareCall, ValidateCall } from './fake-phase-service.js';
+export type { PrepareCall, ValidateCall, FinalizeCall } from './fake-phase-service.js';
