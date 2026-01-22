@@ -10,16 +10,43 @@ export type { IFileSystem, FileStat } from './interfaces/index.js';
 export { PathSecurityError } from './interfaces/index.js';
 export type { IPathResolver } from './interfaces/index.js';
 
+// Result types (per Phase 1a: Output Adapter Architecture)
+export type {
+  BaseResult,
+  ResultError,
+  ComposeResult,
+  PrepareResult,
+  ValidateResult,
+  FinalizeResult,
+  ResolvedInput,
+  CopiedFile,
+  ValidatedOutput,
+  PhaseInfo,
+} from './interfaces/index.js';
+
+// Output adapter interface (per Phase 1a: Output Adapter Architecture)
+export type {
+  IOutputAdapter,
+  CommandResponse,
+  CommandResponseSuccess,
+  CommandResponseError,
+  ErrorDetail,
+} from './interfaces/index.js';
+
 // Fakes
 export { FakeConfigService } from './fakes/index.js';
 export { FakeLogger } from './fakes/index.js';
 export { FakeFileSystem } from './fakes/index.js';
 export { FakePathResolver } from './fakes/index.js';
+export { FakeOutputAdapter } from './fakes/index.js';
+export type { FormattedResult } from './fakes/index.js';
 
 // Adapters
 export { PinoLoggerAdapter } from './adapters/index.js';
 export { NodeFileSystemAdapter } from './adapters/index.js';
 export { PathResolverAdapter } from './adapters/index.js';
+export { JsonOutputAdapter } from './adapters/index.js';
+export { ConsoleOutputAdapter } from './adapters/index.js';
 
 // DI Tokens
 export { SHARED_DI_TOKENS, WORKFLOW_DI_TOKENS } from './di-tokens.js';

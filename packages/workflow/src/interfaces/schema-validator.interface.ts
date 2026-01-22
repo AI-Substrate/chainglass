@@ -5,31 +5,11 @@
  * ResultError format for agent-friendly error messages.
  */
 
-/**
- * Actionable validation error.
- *
- * Per Critical Discovery 07: Errors must include:
- * - code: Error type identifier (E010, E012, etc.)
- * - path: JSON pointer to invalid field
- * - message: Human-readable description
- * - expected: What was expected
- * - actual: What was provided
- * - action: Specific fix instruction
- */
-export interface ResultError {
-  /** Error code (E010, E011, E012, etc.) */
-  code: string;
-  /** JSON pointer to the invalid field (e.g., "/status", "/phases/gather/order") */
-  path: string;
-  /** Human-readable error message */
-  message: string;
-  /** What was expected (e.g., "pending | active | complete") */
-  expected: string;
-  /** What was actually provided */
-  actual: string;
-  /** Specific fix instruction for the agent */
-  action: string;
-}
+// Import ResultError from shared package (per DYK Insight #1)
+import type { ResultError } from '@chainglass/shared';
+
+// Re-export for backward compatibility
+export type { ResultError };
 
 /**
  * Result of validation operation.

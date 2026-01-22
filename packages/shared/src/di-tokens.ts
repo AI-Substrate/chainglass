@@ -18,6 +18,8 @@ export const SHARED_DI_TOKENS = {
   FILESYSTEM: 'IFileSystem',
   /** IPathResolver interface */
   PATH_RESOLVER: 'IPathResolver',
+  /** IOutputAdapter interface (per Phase 1a) */
+  OUTPUT_ADAPTER: 'IOutputAdapter',
 } as const;
 
 /**
