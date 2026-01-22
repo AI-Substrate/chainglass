@@ -1,6 +1,9 @@
+export { FakeAgentAdapter } from './fake-agent-adapter.js';
+export type { FakeAgentAdapterOptions } from './fake-agent-adapter.js';
 export { FakeConfigService } from './fake-config.service.js';
 export { FakeLogger } from './fake-logger.js';
 export { FakeFileSystem } from './fake-filesystem.js';
 export { FakePathResolver } from './fake-path-resolver.js';
 export { FakeOutputAdapter } from './fake-output.adapter.js';
 export type { FormattedResult } from './fake-output.adapter.js';
+export { FakeProcessManager } from './fake-process-manager.js';

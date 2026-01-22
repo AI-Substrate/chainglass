@@ -50,13 +50,34 @@ export type {
   ErrorDetail,
 } from './interfaces/index.js';
 
+// Agent interfaces and types
+export type { IAgentAdapter } from './interfaces/index.js';
+export type {
+  AgentResult,
+  AgentRunOptions,
+  AgentStatus,
+  TokenMetrics,
+} from './interfaces/index.js';
+
+// Process manager interfaces and types
+export type {
+  IProcessManager,
+  ProcessExitResult,
+  ProcessHandle,
+  ProcessSignal,
+  SpawnOptions,
+} from './interfaces/index.js';
+
 // Fakes
+export { FakeAgentAdapter } from './fakes/index.js';
+export type { FakeAgentAdapterOptions } from './fakes/index.js';
 export { FakeConfigService } from './fakes/index.js';
 export { FakeLogger } from './fakes/index.js';
 export { FakeFileSystem } from './fakes/index.js';
 export { FakePathResolver } from './fakes/index.js';
 export { FakeOutputAdapter } from './fakes/index.js';
 export type { FormattedResult } from './fakes/index.js';
+export { FakeProcessManager } from './fakes/index.js';
 
 // Adapters
 export { PinoLoggerAdapter } from './adapters/index.js';
@@ -73,6 +94,11 @@ export {
   ConfigurationError,
   LiteralSecretError,
   MissingConfigurationError,
+} from './config/index.js';
+export {
+  AgentConfigSchema,
+  AgentConfigType,
+  type AgentConfig,
 } from './config/index.js';
 export {
   SampleConfigSchema,
