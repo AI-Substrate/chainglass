@@ -34,8 +34,11 @@ export { FakeProcessManager } from './fakes/index.js';
 // Adapters
 export { PinoLoggerAdapter } from './adapters/index.js';
 export { StreamJsonParser } from './adapters/index.js';
+export { CopilotLogParser } from './adapters/index.js';
 export { ClaudeCodeAdapter } from './adapters/index.js';
 export type { ClaudeCodeAdapterOptions } from './adapters/index.js';
+export { CopilotAdapter } from './adapters/index.js';
+export type { CopilotAdapterOptions, ReadLogFileFunction } from './adapters/index.js';
 export { UnixProcessManager } from './adapters/index.js';
 export { WindowsProcessManager } from './adapters/index.js';
 

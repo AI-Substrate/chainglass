@@ -1,4 +1,9 @@
-import { ClaudeCodeAdapter, FakeAgentAdapter, FakeProcessManager } from '@chainglass/shared';
+import {
+  ClaudeCodeAdapter,
+  CopilotAdapter,
+  FakeAgentAdapter,
+  FakeProcessManager,
+} from '@chainglass/shared';
 import { agentAdapterContractTests } from './agent-adapter.contract.js';
 
 // Run contract tests for FakeAgentAdapter
@@ -30,7 +35,6 @@ agentAdapterContractTests('ClaudeCodeAdapter', () => {
   // Use a polling approach to set up processes as they're spawned
   const setupNextProcess = (): void => {
     const checkAndSetup = (): void => {
-      const history = fakeProcessManager.getSpawnHistory();
       const processes = (fakeProcessManager as any)._processes as Map<number, any>;
 
       // For each spawned process that hasn't been configured, configure it
@@ -54,6 +58,36 @@ agentAdapterContractTests('ClaudeCodeAdapter', () => {
   return new ClaudeCodeAdapter(fakeProcessManager);
 });
 
-// NOTE: CopilotAdapter tests will be added in Phase 4:
-//
-// agentAdapterContractTests('CopilotAdapter', () => new CopilotAdapter(...));
+// Run contract tests for CopilotAdapter (Phase 4)
+// Per ADR-0002: Contract tests ensure fake-real parity
+agentAdapterContractTests('CopilotAdapter', () => {
+  const fakeProcessManager = new FakeProcessManager();
+
+  // Session ID from log file content
+  const sessionLogContent = 'events to session contract-test-session';
+
+  // Setup process auto-exit with output
+  const setupNextProcess = (): void => {
+    const checkAndSetup = (): void => {
+      const processes = (fakeProcessManager as any)._processes as Map<number, any>;
+
+      for (const [pid, state] of processes) {
+        if (state.running) {
+          state.output = 'Contract test output';
+          fakeProcessManager.exitProcess(pid, 0);
+        }
+      }
+    };
+
+    const interval = setInterval(checkAndSetup, 1);
+    setTimeout(() => clearInterval(interval), 5000);
+  };
+
+  setupNextProcess();
+
+  // CopilotAdapter with injected log reader
+  return new CopilotAdapter(fakeProcessManager, {
+    readLogFile: async () => sessionLogContent,
+    pollMaxTimeoutMs: 100, // Short timeout for fast tests
+  });
+});

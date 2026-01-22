@@ -11,6 +11,7 @@
 import 'reflect-metadata';
 import {
   ClaudeCodeAdapter,
+  CopilotAdapter,
   FakeAgentAdapter,
   FakeConfigService,
   FakeLogger,
@@ -33,6 +34,8 @@ export const DI_TOKENS = {
   SAMPLE_SERVICE: 'SampleService',
   PROCESS_MANAGER: 'IProcessManager',
   AGENT_ADAPTER: 'IAgentAdapter',
+  CLAUDE_CODE_ADAPTER: 'ClaudeCodeAdapter',
+  COPILOT_ADAPTER: 'CopilotAdapter',
 } as const;
 
 /**
@@ -112,11 +115,29 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
     },
   });
 
+  // Register ClaudeCodeAdapter as default AGENT_ADAPTER
   childContainer.register<IAgentAdapter>(DI_TOKENS.AGENT_ADAPTER, {
     useFactory: (c) => {
       const processManager = c.resolve<IProcessManager>(DI_TOKENS.PROCESS_MANAGER);
       const logger = c.resolve<ILogger>(DI_TOKENS.LOGGER);
       return new ClaudeCodeAdapter(processManager, { logger });
+    },
+  });
+
+  // Per Phase 4: Also register named adapters for explicit selection
+  childContainer.register<IAgentAdapter>(DI_TOKENS.CLAUDE_CODE_ADAPTER, {
+    useFactory: (c) => {
+      const processManager = c.resolve<IProcessManager>(DI_TOKENS.PROCESS_MANAGER);
+      const logger = c.resolve<ILogger>(DI_TOKENS.LOGGER);
+      return new ClaudeCodeAdapter(processManager, { logger });
+    },
+  });
+
+  childContainer.register<IAgentAdapter>(DI_TOKENS.COPILOT_ADAPTER, {
+    useFactory: (c) => {
+      const processManager = c.resolve<IProcessManager>(DI_TOKENS.PROCESS_MANAGER);
+      const logger = c.resolve<ILogger>(DI_TOKENS.LOGGER);
+      return new CopilotAdapter(processManager, { logger });
     },
   });
 
