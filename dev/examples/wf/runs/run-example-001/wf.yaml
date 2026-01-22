@@ -14,10 +14,7 @@ phases:
 
     # Inputs required for this phase
     inputs:
-      files:
-        - name: request.md
-          required: true
-          description: "Initial request describing what to gather"
+      # Note: Gather phase has no file inputs - user input comes via messages/m-001.json
       messages:
         - id: "001"
           type: "free_text"

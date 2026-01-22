@@ -1801,6 +1801,7 @@ Mid-implementation detours requiring structured tracking.
 | ID | Created | Phase | Parent Task | Reason | Status | Dossier |
 |----|---------|-------|-------------|--------|--------|---------|
 | 001-subtask-message-communication | 2026-01-22 | Phase 0: Development Exemplar | T007, T008 | Add message communication pattern to exemplar for agent↔orchestrator Q&A flow | [x] Complete | [Link](tasks/phase-0-development-exemplar/001-subtask-message-communication.md) |
+| 002-subtask-commands-main-concept-drift-remediation | 2026-01-22 | Phase 0: Development Exemplar | T004 | Remediate concept drift in commands/main.md files - fix paths and add messages/wf-data documentation | [x] Complete | [Link](tasks/phase-0-development-exemplar/002-subtask-commands-main-concept-drift-remediation.md) |
 
 ---
 
