@@ -28,7 +28,7 @@ export class FileSystemError extends Error {
     message: string,
     public readonly code: string,
     public readonly path: string,
-    public readonly cause?: Error,
+    public readonly cause?: Error
   ) {
     super(message);
     this.name = 'FileSystemError';

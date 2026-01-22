@@ -30,9 +30,10 @@ export interface CopiedFile {
 }
 
 /**
- * Validated output file information.
+ * Validated file information.
+ * (Renamed from ValidatedOutput per DYK Insight #2 - used for both inputs and outputs)
  */
-export interface ValidatedOutput {
+export interface ValidatedFile {
   /** File name */
   name: string;
   /** Full path to the file */
@@ -40,6 +41,11 @@ export interface ValidatedOutput {
   /** Whether the file passed schema validation (if schema exists) */
   valid: boolean;
 }
+
+/**
+ * @deprecated Use ValidatedFile instead. Kept for backward compatibility.
+ */
+export type ValidatedOutput = ValidatedFile;
 
 /**
  * Phase info returned in ComposeResult.
@@ -94,18 +100,21 @@ export interface PrepareResult extends BaseResult {
  * Result of `cg phase validate` command.
  *
  * Per spec § Output Adapter Architecture.
+ * Per DYK Insight #2: Added `check` field, renamed `outputs` → `files`.
  */
 export interface ValidateResult extends BaseResult {
   /** Phase name being validated */
   phase: string;
   /** Run directory path */
   runDir: string;
-  /** Output file information */
-  outputs: {
-    /** List of required output names from wf.yaml */
+  /** What was validated: 'inputs' or 'outputs' */
+  check: 'inputs' | 'outputs';
+  /** File validation results */
+  files: {
+    /** List of required file names from wf-phase.yaml */
     required: string[];
-    /** Validated output files */
-    validated: ValidatedOutput[];
+    /** Validated files */
+    validated: ValidatedFile[];
   };
 }
 

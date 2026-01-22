@@ -6,26 +6,33 @@
  */
 
 import 'reflect-metadata';
-import { type DependencyContainer, container } from 'tsyringe';
 import {
-  SHARED_DI_TOKENS,
-  WORKFLOW_DI_TOKENS,
+  FakeFileSystem,
+  FakeLogger,
+  FakePathResolver,
   type IFileSystem,
-  type IPathResolver,
   type ILogger,
+  type IPathResolver,
   NodeFileSystemAdapter,
   PathResolverAdapter,
-  FakeFileSystem,
-  FakePathResolver,
-  FakeLogger,
+  SHARED_DI_TOKENS,
+  WORKFLOW_DI_TOKENS,
 } from '@chainglass/shared';
-import type { IYamlParser, ISchemaValidator, IWorkflowService } from './interfaces/index.js';
-import { YamlParserAdapter } from './adapters/yaml-parser.adapter.js';
+import { type DependencyContainer, container } from 'tsyringe';
 import { SchemaValidatorAdapter } from './adapters/schema-validator.adapter.js';
-import { WorkflowService } from './services/workflow.service.js';
-import { FakeYamlParser } from './fakes/fake-yaml-parser.js';
+import { YamlParserAdapter } from './adapters/yaml-parser.adapter.js';
+import { FakePhaseService } from './fakes/fake-phase-service.js';
 import { FakeSchemaValidator } from './fakes/fake-schema-validator.js';
 import { FakeWorkflowService } from './fakes/fake-workflow-service.js';
+import { FakeYamlParser } from './fakes/fake-yaml-parser.js';
+import type {
+  IPhaseService,
+  ISchemaValidator,
+  IWorkflowService,
+  IYamlParser,
+} from './interfaces/index.js';
+import { PhaseService } from './services/phase.service.js';
+import { WorkflowService } from './services/workflow.service.js';
 
 /**
  * Creates a production DI container for workflow services.
@@ -67,6 +74,16 @@ export function createWorkflowProductionContainer(): DependencyContainer {
         c.resolve<IYamlParser>(WORKFLOW_DI_TOKENS.YAML_PARSER),
         c.resolve<ISchemaValidator>(WORKFLOW_DI_TOKENS.SCHEMA_VALIDATOR),
         c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER)
+      ),
+  });
+
+  // Register phase service (per Phase 3)
+  childContainer.register<IPhaseService>(WORKFLOW_DI_TOKENS.PHASE_SERVICE, {
+    useFactory: (c) =>
+      new PhaseService(
+        c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM),
+        c.resolve<IYamlParser>(WORKFLOW_DI_TOKENS.YAML_PARSER),
+        c.resolve<ISchemaValidator>(WORKFLOW_DI_TOKENS.SCHEMA_VALIDATOR)
       ),
   });
 
@@ -117,6 +134,12 @@ export function createWorkflowTestContainer(): DependencyContainer {
   const fakeWorkflowService = new FakeWorkflowService();
   childContainer.register<IWorkflowService>(WORKFLOW_DI_TOKENS.WORKFLOW_SERVICE, {
     useValue: fakeWorkflowService,
+  });
+
+  // Register fake phase service (per Phase 3)
+  const fakePhaseService = new FakePhaseService();
+  childContainer.register<IPhaseService>(WORKFLOW_DI_TOKENS.PHASE_SERVICE, {
+    useValue: fakePhaseService,
   });
 
   return childContainer;

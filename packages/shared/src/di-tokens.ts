@@ -33,4 +33,6 @@ export const WORKFLOW_DI_TOKENS = {
   SCHEMA_VALIDATOR: 'ISchemaValidator',
   /** IWorkflowService interface (per Phase 2) */
   WORKFLOW_SERVICE: 'IWorkflowService',
+  /** IPhaseService interface (per Phase 3) */
+  PHASE_SERVICE: 'IPhaseService',
 } as const;

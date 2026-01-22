@@ -1,16 +1,12 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { type ComposeResult, FakeFileSystem, FakePathResolver } from '@chainglass/shared';
 import {
-  FakeFileSystem,
-  FakePathResolver,
-  type ComposeResult,
-} from '@chainglass/shared';
-import {
-  FakeYamlParser,
   FakeSchemaValidator,
-  WorkflowService,
+  FakeYamlParser,
   type IWorkflowService,
   type WfDefinition,
+  WorkflowService,
 } from '@chainglass/workflow';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 /**
  * Tests for WorkflowService.compose() method.
@@ -186,13 +182,15 @@ describe('WorkflowService', () => {
       // Configure FakeSchemaValidator to return error
       schemaValidator.setDefaultResult({
         valid: false,
-        errors: [{
-          code: 'E012',
-          path: '/phases/gather/order',
-          message: 'Must be integer, got string',
-          expected: 'integer',
-          actual: 'string',
-        }],
+        errors: [
+          {
+            code: 'E012',
+            path: '/phases/gather/order',
+            message: 'Must be integer, got string',
+            expected: 'integer',
+            actual: 'string',
+          },
+        ],
       });
 
       const result = await service.compose('invalid-schema', '.chainglass/runs');
@@ -237,7 +235,10 @@ describe('WorkflowService', () => {
       - Worked Example: Template with gather-data.schema.json → phase has it
       */
       setupTemplate('.chainglass/templates/hello-workflow');
-      fs.setFile('.chainglass/templates/hello-workflow/schemas/gather-data.schema.json', '{"type":"object"}');
+      fs.setFile(
+        '.chainglass/templates/hello-workflow/schemas/gather-data.schema.json',
+        '{"type":"object"}'
+      );
 
       const result = await service.compose('hello-workflow', '.chainglass/runs');
 
@@ -381,7 +382,7 @@ describe('WorkflowService', () => {
       */
       // This test validates the tilde expansion happens
       // Set up template at the actual expanded path (os.homedir())
-      const os = await import('os');
+      const os = await import('node:os');
       const expandedPath = `${os.homedir()}/templates/my-workflow`;
       setupTemplate(expandedPath);
 

@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
 import { PathResolverAdapter, PathSecurityError } from '@chainglass/shared';
+import { describe, expect, it } from 'vitest';
 
 /**
  * Tests for PathResolverAdapter.
@@ -17,13 +17,11 @@ describe('PathResolverAdapter', () => {
     });
 
     it('should throw PathSecurityError on ../ traversal attempt', () => {
-      expect(() => resolver.resolvePath('/base', '../etc/passwd'))
-        .toThrow(PathSecurityError);
+      expect(() => resolver.resolvePath('/base', '../etc/passwd')).toThrow(PathSecurityError);
     });
 
     it('should throw PathSecurityError on absolute path injection', () => {
-      expect(() => resolver.resolvePath('/base', '/etc/passwd'))
-        .toThrow(PathSecurityError);
+      expect(() => resolver.resolvePath('/base', '/etc/passwd')).toThrow(PathSecurityError);
     });
 
     it('should normalize . segments', () => {
@@ -42,8 +40,7 @@ describe('PathResolverAdapter', () => {
     });
 
     it('should throw on multiple ../ that escape base', () => {
-      expect(() => resolver.resolvePath('/base', '../../etc/passwd'))
-        .toThrow(PathSecurityError);
+      expect(() => resolver.resolvePath('/base', '../../etc/passwd')).toThrow(PathSecurityError);
     });
 
     it('should throw PathSecurityError with correct properties', () => {

@@ -14,11 +14,11 @@
 
 import type {
   BaseResult,
-  ResultError,
-  IOutputAdapter,
-  ErrorDetail,
-  CommandResponseSuccess,
   CommandResponseError,
+  CommandResponseSuccess,
+  ErrorDetail,
+  IOutputAdapter,
+  ResultError,
 } from '../interfaces/index.js';
 
 /**
@@ -46,15 +46,14 @@ export class JsonOutputAdapter implements IOutputAdapter {
         data: this.omitErrors(result),
       };
       return JSON.stringify(response);
-    } else {
-      const response: CommandResponseError = {
-        success: false,
-        command,
-        timestamp,
-        error: this.formatErrors(result.errors),
-      };
-      return JSON.stringify(response);
     }
+    const response: CommandResponseError = {
+      success: false,
+      command,
+      timestamp,
+      error: this.formatErrors(result.errors),
+    };
+    return JSON.stringify(response);
   }
 
   /**
@@ -80,9 +79,7 @@ export class JsonOutputAdapter implements IOutputAdapter {
 
     return {
       code: firstError.code,
-      message: errors.length === 1
-        ? firstError.message
-        : `${errors.length} errors occurred`,
+      message: errors.length === 1 ? firstError.message : `${errors.length} errors occurred`,
       action: firstError.action,
       details: errors,
     };

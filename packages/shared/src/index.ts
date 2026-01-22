@@ -20,7 +20,8 @@ export type {
   FinalizeResult,
   ResolvedInput,
   CopiedFile,
-  ValidatedOutput,
+  ValidatedFile,
+  ValidatedOutput, // @deprecated alias for ValidatedFile
   PhaseInfo,
 } from './interfaces/index.js';
 

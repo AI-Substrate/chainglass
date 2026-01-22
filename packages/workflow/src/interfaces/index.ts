@@ -12,3 +12,6 @@ export type {
 
 // Workflow service interface (Phase 2)
 export type { IWorkflowService } from './workflow-service.interface.js';
+
+// Phase service interface (Phase 3)
+export type { IPhaseService, ValidateCheckMode } from './phase-service.interface.js';

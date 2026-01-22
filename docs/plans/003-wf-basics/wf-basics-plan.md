@@ -1360,20 +1360,20 @@ describe('WorkflowService', () => {
 
 | #   | Status | Task | CS | Success Criteria | Log | Notes |
 |-----|--------|------|----|------------------|-----|-------|
-| 3.1 | [ ] | Define `IPhaseService` interface | 1 | prepare(), validate() signatures | - | In shared |
-| 3.2 | [ ] | Define `PrepareResult`, `ValidateResult` types | 2 | All fields per spec | - | In shared |
-| 3.3 | [ ] | Write tests for PhaseService.prepare() **including idempotency (AC-37)** | 3 | Tests cover input checking, from_phase copying, params, **and calling prepare twice returns same result** | - | TDD: tests first, includes re-entrancy |
-| 3.4 | [ ] | Implement `PhaseService.prepare()` | 3 | All tests pass, copies files, writes params.json, idempotent | - | Uses IFileSystem |
-| 3.5 | [ ] | Write tests for PhaseService.validate() **including idempotency (AC-38)** | 3 | Tests cover missing, empty, schema validation, **and calling validate N times returns identical result** | - | TDD: tests first, pure read operation |
-| 3.6 | [ ] | Implement `PhaseService.validate()` | 3 | All tests pass, validates all outputs, idempotent | - | Uses ISchemaValidator |
-| 3.7 | [ ] | Implement `FakePhaseService` | 2 | Contract tests pass | - | Configurable results |
-| 3.8 | [ ] | Write contract tests for IPhaseService | 2 | Both real and fake pass | - | `test/contracts/phase-service.contract.ts` |
-| 3.9 | [ ] | Create `phase.command.ts` in CLI | 2 | registerPhaseCommands() function | - | `apps/cli/src/commands/phase.command.ts` |
-| 3.10 | [ ] | Implement `cg phase prepare` action | 2 | Calls service, formats output | - | Uses output adapter |
-| 3.11 | [ ] | Implement `cg phase validate` action | 2 | Calls service, formats output | - | Uses output adapter |
-| 3.12 | [ ] | Write CLI integration tests | 2 | Both commands work with exemplar | - | End-to-end |
-| 3.13 | [ ] | Register phase commands in cg.ts | 1 | Help shows phase commands | - | Call registerPhaseCommands |
-| 3.14 | [ ] | Test JSON output for both commands | 2 | `--json` produces valid envelope | - | AC-10a, AC-15a |
+| 3.1 | [x] | Define `IPhaseService` interface | 1 | prepare(), validate() signatures | T001 | In workflow pkg |
+| 3.2 | [x] | Add `ready` status, update ValidateResult types | 2 | All fields per spec | T002 | Added check field |
+| 3.3 | [x] | Write tests for PhaseService.prepare() **including idempotency (AC-37)** | 3 | Tests cover input checking, from_phase copying, params, **and calling prepare twice returns same result** | T003 | 13 tests |
+| 3.4 | [x] | Implement `PhaseService.prepare()` | 3 | All tests pass, copies files, writes params.json, idempotent | T004 | Uses IFileSystem |
+| 3.5 | [x] | Write tests for PhaseService.validate() **including idempotency (AC-38)** | 3 | Tests cover missing, empty, schema validation, **and calling validate N times returns identical result** | T005 | 8 tests |
+| 3.6 | [x] | Implement `PhaseService.validate()` | 3 | All tests pass, validates all outputs, idempotent | T006 | Uses ISchemaValidator |
+| 3.7 | [x] | Implement `FakePhaseService` | 2 | Contract tests pass | T007 | Call capture pattern |
+| 3.8 | [x] | Write contract tests for IPhaseService | 2 | Both real and fake pass | T008 | 14 contract tests |
+| 3.9 | [x] | Create `phase.command.ts` in CLI | 2 | registerPhaseCommands() function | T009 | Per CD-02 |
+| 3.10 | [x] | Implement `cg phase prepare` action | 2 | Calls service, formats output | T010 | Uses output adapter |
+| 3.11 | [x] | Implement `cg phase validate` action | 2 | Calls service, formats output | T011 | --check required |
+| 3.12 | [x] | Register phase commands in cg.ts | 1 | Help shows phase commands | T012 | Called registerPhaseCommands |
+| 3.13 | [x] | Write CLI integration tests | 2 | Both commands work with exemplar | T013 | 10 integration tests |
+| 3.14 | [x] | Add DI container updates | 1 | `--json` produces valid envelope | T014 | PHASE_SERVICE token |
 
 ### Test Examples (Write First!)
 
@@ -1779,10 +1779,10 @@ describe('MCP Workflow Tools', () => {
 
 ### Phase Completion Checklist
 - [x] Phase 0: Development Exemplar - COMPLETE (2026-01-21)
-- [ ] Phase 1: Core Infrastructure - NOT STARTED
-- [ ] Phase 1a: Output Adapter Architecture - NOT STARTED
-- [ ] Phase 2: Compose Command - NOT STARTED
-- [ ] Phase 3: Phase Operations - NOT STARTED
+- [x] Phase 1: Core Infrastructure - COMPLETE (2026-01-21)
+- [x] Phase 1a: Output Adapter Architecture - COMPLETE (2026-01-21)
+- [x] Phase 2: Compose Command - COMPLETE (2026-01-22)
+- [x] Phase 3: Phase Operations - COMPLETE (2026-01-22)
 - [ ] Phase 4: Phase Lifecycle - NOT STARTED
 - [ ] Phase 5: MCP Integration - NOT STARTED
 - [ ] Phase 6: Documentation - NOT STARTED

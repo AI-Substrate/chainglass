@@ -5,14 +5,14 @@
  * a new workflow run from a template.
  */
 
-import * as path from 'path';
-import * as os from 'os';
-import type { ComposeResult, PhaseInfo, IFileSystem, IPathResolver } from '@chainglass/shared';
-import type { IYamlParser, ISchemaValidator } from '../interfaces/index.js';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import type { ComposeResult, IFileSystem, IPathResolver, PhaseInfo } from '@chainglass/shared';
+import type { ISchemaValidator, IYamlParser } from '../interfaces/index.js';
 import type { IWorkflowService } from '../interfaces/workflow-service.interface.js';
-import type { WfDefinition, WfStatus } from '../types/index.js';
 import { YamlParseError } from '../interfaces/yaml-parser.interface.js';
-import { WF_SCHEMA, WF_PHASE_SCHEMA, MESSAGE_SCHEMA, WF_STATUS_SCHEMA } from '../schemas/index.js';
+import { MESSAGE_SCHEMA, WF_PHASE_SCHEMA, WF_SCHEMA, WF_STATUS_SCHEMA } from '../schemas/index.js';
+import type { WfDefinition, WfStatus } from '../types/index.js';
 
 /**
  * Error codes for compose operation.
@@ -40,7 +40,7 @@ export class WorkflowService implements IWorkflowService {
     private readonly fs: IFileSystem,
     private readonly yamlParser: IYamlParser,
     private readonly schemaValidator: ISchemaValidator,
-    private readonly pathResolver: IPathResolver,
+    private readonly pathResolver: IPathResolver
   ) {}
 
   /**
@@ -146,12 +146,12 @@ export class WorkflowService implements IWorkflowService {
         sortedPhases.map((phase) => [
           phase.name,
           { order: phase.order, status: 'pending' as const },
-        ]),
+        ])
       ),
     };
     await this.fs.writeFile(
       path.join(wfRunDir, 'wf-status.json'),
-      JSON.stringify(wfStatus, null, 2),
+      JSON.stringify(wfStatus, null, 2)
     );
 
     // 12. Create phase folders
@@ -181,19 +181,19 @@ export class WorkflowService implements IWorkflowService {
       // Copy core schemas from embedded modules
       await this.fs.writeFile(
         path.join(schemasDir, 'wf.schema.json'),
-        JSON.stringify(WF_SCHEMA, null, 2),
+        JSON.stringify(WF_SCHEMA, null, 2)
       );
       await this.fs.writeFile(
         path.join(schemasDir, 'wf-phase.schema.json'),
-        JSON.stringify(WF_PHASE_SCHEMA, null, 2),
+        JSON.stringify(WF_PHASE_SCHEMA, null, 2)
       );
       await this.fs.writeFile(
         path.join(schemasDir, 'message.schema.json'),
-        JSON.stringify(MESSAGE_SCHEMA, null, 2),
+        JSON.stringify(MESSAGE_SCHEMA, null, 2)
       );
       await this.fs.writeFile(
         path.join(schemasDir, 'wf-status.schema.json'),
-        JSON.stringify(WF_STATUS_SCHEMA, null, 2),
+        JSON.stringify(WF_STATUS_SCHEMA, null, 2)
       );
 
       // 12c. Copy template schemas to phase
@@ -218,14 +218,20 @@ export class WorkflowService implements IWorkflowService {
       await this.fs.mkdir(commandsDir, { recursive: true });
 
       // Copy main.md from template phase
-      const templatePhaseMainMd = path.join(templatePath, 'phases', phase.name, 'commands', 'main.md');
+      const templatePhaseMainMd = path.join(
+        templatePath,
+        'phases',
+        phase.name,
+        'commands',
+        'main.md'
+      );
       if (await this.fs.exists(templatePhaseMainMd)) {
         await this.fs.copyFile(templatePhaseMainMd, path.join(commandsDir, 'main.md'));
       } else {
         // Create a default main.md if not present
         await this.fs.writeFile(
           path.join(commandsDir, 'main.md'),
-          `# ${phase.name} Phase\n\n${phase.description}\n`,
+          `# ${phase.name} Phase\n\n${phase.description}\n`
         );
       }
 
@@ -323,7 +329,7 @@ export class WorkflowService implements IWorkflowService {
    */
   private async getNextRunOrdinal(runsDir: string, date: string): Promise<number> {
     // Ensure runs directory exists
-    if (!await this.fs.exists(runsDir)) {
+    if (!(await this.fs.exists(runsDir))) {
       await this.fs.mkdir(runsDir, { recursive: true });
       return 1;
     }
@@ -358,7 +364,7 @@ export class WorkflowService implements IWorkflowService {
       action?: string;
       expected?: string;
       actual?: string;
-    },
+    }
   ): ComposeResult {
     return {
       runDir: '',

@@ -1,6 +1,6 @@
 import type { IFileSystem } from '@chainglass/shared';
 import { FileSystemError } from '@chainglass/shared';
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 /**
  * Contract tests for IFileSystem implementations.
@@ -33,10 +33,7 @@ export interface FileSystemTestContext {
   createDir: (path: string) => Promise<void>;
 }
 
-export function fileSystemContractTests(
-  name: string,
-  createContext: () => FileSystemTestContext,
-) {
+export function fileSystemContractTests(name: string, createContext: () => FileSystemTestContext) {
   describe(`${name} implements IFileSystem contract`, () => {
     let ctx: FileSystemTestContext;
     let baseDir: string;

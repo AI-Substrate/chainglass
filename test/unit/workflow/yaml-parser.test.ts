@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { YamlParserAdapter, FakeYamlParser, YamlParseError } from '@chainglass/workflow';
+import { FakeYamlParser, YamlParseError, YamlParserAdapter } from '@chainglass/workflow';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 /**
  * Tests for IYamlParser implementations.

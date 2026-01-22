@@ -16,6 +16,7 @@ export type {
   // Supporting types
   ResolvedInput,
   CopiedFile,
-  ValidatedOutput,
+  ValidatedFile,
+  ValidatedOutput, // @deprecated alias
   PhaseInfo,
 } from './command.types.js';

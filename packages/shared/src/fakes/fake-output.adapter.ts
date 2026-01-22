@@ -139,8 +139,12 @@ export class FakeOutputAdapter implements IOutputAdapter {
       timestamp: new Date().toISOString(),
       ...(success
         ? { data: this.omitErrors(result) }
-        : { error: { code: result.errors[0]?.code || 'ERROR', message: result.errors[0]?.message || 'Error' } }
-      ),
+        : {
+            error: {
+              code: result.errors[0]?.code || 'ERROR',
+              message: result.errors[0]?.message || 'Error',
+            },
+          }),
     });
   }
 

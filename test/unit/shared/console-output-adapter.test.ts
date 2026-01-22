@@ -5,9 +5,15 @@
  * ConsoleOutputAdapter formats service results as human-readable text with icons.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
-import type { PrepareResult, ValidateResult, FinalizeResult, ComposeResult, ResultError } from '@chainglass/shared';
+import type {
+  ComposeResult,
+  FinalizeResult,
+  PrepareResult,
+  ResultError,
+  ValidateResult,
+} from '@chainglass/shared';
 import { ConsoleOutputAdapter } from '@chainglass/shared';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 describe('ConsoleOutputAdapter', () => {
   let adapter: ConsoleOutputAdapter;
@@ -105,11 +111,10 @@ describe('ConsoleOutputAdapter', () => {
       const result: ValidateResult = {
         phase: 'gather',
         runDir: '/path/to/run',
-        outputs: {
+        check: 'outputs',
+        files: {
           required: ['gather-data.json'],
-          validated: [
-            { name: 'gather-data.json', path: '/path/to/gather-data.json', valid: true },
-          ],
+          validated: [{ name: 'gather-data.json', path: '/path/to/gather-data.json', valid: true }],
         },
         errors: [],
       };
@@ -261,11 +266,13 @@ describe('ConsoleOutputAdapter', () => {
         status: 'failed',
         inputs: { required: [], resolved: [] },
         copiedFromPrior: [],
-        errors: [{
-          code: 'E001',
-          message: 'Missing required input file',
-          action: 'Create the file before running prepare',
-        }],
+        errors: [
+          {
+            code: 'E001',
+            message: 'Missing required input file',
+            action: 'Create the file before running prepare',
+          },
+        ],
       };
 
       const output = adapter.format('phase.prepare', result);
@@ -285,15 +292,18 @@ describe('ConsoleOutputAdapter', () => {
       const result: ValidateResult = {
         phase: 'gather',
         runDir: '/path/to/run',
-        outputs: { required: [], validated: [] },
-        errors: [{
-          code: 'E012',
-          path: '/status',
-          message: 'Invalid enum value',
-          expected: 'pending | active | complete',
-          actual: 'invalid',
-          action: 'Update status to use one of the allowed values',
-        }],
+        check: 'outputs',
+        files: { required: [], validated: [] },
+        errors: [
+          {
+            code: 'E012',
+            path: '/status',
+            message: 'Invalid enum value',
+            expected: 'pending | active | complete',
+            actual: 'invalid',
+            action: 'Update status to use one of the allowed values',
+          },
+        ],
       };
 
       const output = adapter.format('phase.validate', result);

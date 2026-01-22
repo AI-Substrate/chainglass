@@ -1,7 +1,7 @@
-import { promises as fs } from 'fs';
-import * as path from 'path';
-import * as os from 'os';
-import { NodeFileSystemAdapter, FakeFileSystem } from '@chainglass/shared';
+import { promises as fs } from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import { FakeFileSystem, NodeFileSystemAdapter } from '@chainglass/shared';
 import { fileSystemContractTests } from './filesystem.contract.js';
 
 /**

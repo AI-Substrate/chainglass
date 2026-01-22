@@ -1,4 +1,4 @@
-import * as path from 'path';
+import * as path from 'node:path';
 import type { IPathResolver } from '../interfaces/path-resolver.interface.js';
 import { PathSecurityError } from '../interfaces/path-resolver.interface.js';
 
@@ -57,11 +57,7 @@ export class FakePathResolver implements IPathResolver {
   resolvePath(base: string, relative: string): string {
     // Check if path is explicitly blocked
     if (this.blockedPaths.has(relative)) {
-      throw new PathSecurityError(
-        `Blocked path: ${relative}`,
-        base,
-        relative,
-      );
+      throw new PathSecurityError(`Blocked path: ${relative}`, base, relative);
     }
 
     // Check for preset mapping
@@ -76,11 +72,7 @@ export class FakePathResolver implements IPathResolver {
     if (this.enforceSecurityChecks) {
       // Check if relative path is absolute
       if (path.isAbsolute(relative)) {
-        throw new PathSecurityError(
-          `Absolute path not allowed: ${relative}`,
-          base,
-          relative,
-        );
+        throw new PathSecurityError(`Absolute path not allowed: ${relative}`, base, relative);
       }
 
       const resolved = path.resolve(normalizedBase, relative);
@@ -94,7 +86,7 @@ export class FakePathResolver implements IPathResolver {
         throw new PathSecurityError(
           `Path traversal attempt detected: ${relative} escapes ${base}`,
           base,
-          relative,
+          relative
         );
       }
 

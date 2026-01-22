@@ -13,6 +13,7 @@ export type RunStatus = 'pending' | 'active' | 'complete' | 'failed';
  */
 export type PhaseRunStatus =
   | 'pending'
+  | 'ready'
   | 'active'
   | 'blocked'
   | 'accepted'

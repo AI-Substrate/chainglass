@@ -12,7 +12,7 @@ export class PathSecurityError extends Error {
   constructor(
     message: string,
     public readonly base: string,
-    public readonly requested: string,
+    public readonly requested: string
   ) {
     super(message);
     this.name = 'PathSecurityError';

@@ -5,23 +5,23 @@
  * Per DYK-05: ConsoleOutputAdapter already has wf.compose case from Phase 1a.
  */
 
-import type { Command } from 'commander';
 import {
-  type IWorkflowService,
-  WorkflowService,
-  FakeYamlParser,
-  FakeSchemaValidator,
-} from '@chainglass/workflow';
-import {
-  type IOutputAdapter,
-  JsonOutputAdapter,
   ConsoleOutputAdapter,
   FakeFileSystem,
   FakePathResolver,
+  type IOutputAdapter,
+  JsonOutputAdapter,
   NodeFileSystemAdapter,
   PathResolverAdapter,
 } from '@chainglass/shared';
-import { YamlParserAdapter, SchemaValidatorAdapter } from '@chainglass/workflow';
+import {
+  FakeSchemaValidator,
+  FakeYamlParser,
+  type IWorkflowService,
+  WorkflowService,
+} from '@chainglass/workflow';
+import { SchemaValidatorAdapter, YamlParserAdapter } from '@chainglass/workflow';
+import type { Command } from 'commander';
 
 /**
  * Options for wf compose command.
@@ -86,13 +86,10 @@ async function handleCompose(slug: string, options: ComposeOptions): Promise<voi
  * @param program - Commander.js program instance
  */
 export function registerWfCommands(program: Command): void {
-  const wf = program
-    .command('wf')
-    .description('Workflow management commands');
+  const wf = program.command('wf').description('Workflow management commands');
 
   // cg wf compose <slug>
-  wf
-    .command('compose <slug>')
+  wf.command('compose <slug>')
     .description('Create a new workflow run from a template')
     .option('--json', 'Output as JSON', false)
     .option('--runs-dir <path>', 'Directory for run folders', '.chainglass/runs')

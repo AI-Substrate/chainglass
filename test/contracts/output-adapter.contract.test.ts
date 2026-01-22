@@ -9,9 +9,9 @@
  * - Non-empty errors array = failure
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
-import type { PrepareResult, IOutputAdapter, ResultError } from '@chainglass/shared';
-import { JsonOutputAdapter, ConsoleOutputAdapter, FakeOutputAdapter } from '@chainglass/shared';
+import type { IOutputAdapter, PrepareResult, ResultError } from '@chainglass/shared';
+import { ConsoleOutputAdapter, FakeOutputAdapter, JsonOutputAdapter } from '@chainglass/shared';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 /**
  * Create test context for a single adapter.
@@ -50,8 +50,10 @@ function createJsonContext(): AdapterTestContext {
     },
     includesErrorInfo: (output, error) => {
       const parsed = JSON.parse(output);
-      return parsed.error?.code === error.code ||
-        parsed.error?.details?.some((d: ResultError) => d.code === error.code);
+      return (
+        parsed.error?.code === error.code ||
+        parsed.error?.details?.some((d: ResultError) => d.code === error.code)
+      );
     },
   };
 }
@@ -135,12 +137,14 @@ function outputAdapterContractTests(context: AdapterTestContext): void {
         status: 'failed',
         inputs: { required: ['user-request.md'], resolved: [] },
         copiedFromPrior: [],
-        errors: [{
-          code: 'E001',
-          path: '/path/to/user-request.md',
-          message: 'Missing required input file',
-          action: 'Create the file before running prepare',
-        }],
+        errors: [
+          {
+            code: 'E001',
+            path: '/path/to/user-request.md',
+            message: 'Missing required input file',
+            action: 'Create the file before running prepare',
+          },
+        ],
       };
 
       multiErrorResult = {

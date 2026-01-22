@@ -7,7 +7,11 @@
   "body": "The gathered data contains both summary and detailed records. How should I structure the processed output?",
   "note": "Agent needs clarification on output format preference",
   "options": [
-    { "key": "A", "label": "Summary only", "description": "Aggregate metrics, no individual records" },
+    {
+      "key": "A",
+      "label": "Summary only",
+      "description": "Aggregate metrics, no individual records"
+    },
     { "key": "B", "label": "Detailed only", "description": "All records with full details" },
     { "key": "C", "label": "Both", "description": "Summary section plus detailed appendix" }
   ],

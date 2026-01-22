@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest';
 import { FakeFileSystem, FileSystemError } from '@chainglass/shared';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 /**
  * Tests for FakeFileSystem.
@@ -120,7 +120,9 @@ describe('FakeFileSystem', () => {
     });
 
     it('should throw when parent directory does not exist', async () => {
-      await expect(fs.writeFile('/missing/dir/file.txt', 'content')).rejects.toThrow(FileSystemError);
+      await expect(fs.writeFile('/missing/dir/file.txt', 'content')).rejects.toThrow(
+        FileSystemError
+      );
     });
 
     it('should succeed when parent directory exists', async () => {

@@ -1,9 +1,9 @@
-import Ajv2020, { type ErrorObject } from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
+import Ajv2020, { type ErrorObject } from 'ajv/dist/2020.js';
 import type {
   ISchemaValidator,
-  ValidationResult,
   ResultError,
+  ValidationResult,
 } from '../interfaces/schema-validator.interface.js';
 import { ValidationErrorCodes } from '../interfaces/schema-validator.interface.js';
 
@@ -276,9 +276,7 @@ export class SchemaValidatorAdapter implements ISchemaValidator {
       if (current === null) return 'null';
       if (current === undefined) return 'undefined';
       if (typeof current === 'object') {
-        return Array.isArray(current)
-          ? `array(${current.length})`
-          : 'object';
+        return Array.isArray(current) ? `array(${current.length})` : 'object';
       }
       return String(current);
     } catch {

@@ -79,12 +79,7 @@ export class FakeYamlParser implements IYamlParser {
     }
 
     // No result configured and real parsing disabled
-    throw new YamlParseError(
-      'No preset result configured',
-      1,
-      1,
-      filePath,
-    );
+    throw new YamlParseError('No preset result configured', 1, 1, filePath);
   }
 
   stringify(data: unknown): string {

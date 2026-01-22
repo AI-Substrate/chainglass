@@ -1,17 +1,13 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { type ComposeResult, FakeFileSystem, FakePathResolver } from '@chainglass/shared';
 import {
-  FakeFileSystem,
-  FakePathResolver,
-  type ComposeResult,
-} from '@chainglass/shared';
-import {
-  WorkflowService,
+  FakeSchemaValidator,
   FakeWorkflowService,
   FakeYamlParser,
-  FakeSchemaValidator,
   type IWorkflowService,
   type WfDefinition,
+  WorkflowService,
 } from '@chainglass/workflow';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 /**
  * Contract tests for IWorkflowService implementations.
@@ -69,9 +65,7 @@ interface WorkflowServiceTestContext {
 /**
  * Contract tests that run against both WorkflowService and FakeWorkflowService.
  */
-function workflowServiceContractTests(
-  createContext: () => WorkflowServiceTestContext,
-) {
+function workflowServiceContractTests(createContext: () => WorkflowServiceTestContext) {
   let ctx: WorkflowServiceTestContext;
 
   beforeEach(async () => {
@@ -227,7 +221,10 @@ function createWorkflowServiceContext(): WorkflowServiceTestContext {
       // Set up template
       fs.setFile('.chainglass/templates/contract-test-workflow/wf.yaml', SAMPLE_WF_YAML);
       fs.setFile('.chainglass/templates/contract-test-workflow/templates/wf.md', '# WF');
-      fs.setFile('.chainglass/templates/contract-test-workflow/phases/init/commands/main.md', '# Init');
+      fs.setFile(
+        '.chainglass/templates/contract-test-workflow/phases/init/commands/main.md',
+        '# Init'
+      );
 
       // Configure yaml parser
       yamlParser.setParseResult(SAMPLE_WF_YAML.trim(), SAMPLE_WF_DEFINITION);
@@ -265,7 +262,7 @@ function createFakeWorkflowServiceContext(): WorkflowServiceTestContext {
         'nonexistent-template-xyz',
         'E020',
         'Template not found: nonexistent-template-xyz',
-        'Create template at .chainglass/templates/nonexistent-template-xyz/',
+        'Create template at .chainglass/templates/nonexistent-template-xyz/'
       );
     },
     cleanup: async () => {

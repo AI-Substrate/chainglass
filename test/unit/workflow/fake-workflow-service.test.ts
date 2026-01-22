@@ -1,9 +1,6 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import {
-  FakeWorkflowService,
-  type ComposeCall,
-} from '@chainglass/workflow';
 import type { ComposeResult } from '@chainglass/shared';
+import { type ComposeCall, FakeWorkflowService } from '@chainglass/workflow';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 /**
  * Tests for FakeWorkflowService.
@@ -132,9 +129,9 @@ describe('FakeWorkflowService', () => {
       const lastCall = service.getLastComposeCall();
 
       expect(lastCall).not.toBeNull();
-      expect(lastCall!.template).toBe('my-template');
-      expect(lastCall!.runsDir).toBe('.chainglass/runs');
-      expect(lastCall!.timestamp).toBeDefined();
+      expect(lastCall?.template).toBe('my-template');
+      expect(lastCall?.runsDir).toBe('.chainglass/runs');
+      expect(lastCall?.timestamp).toBeDefined();
     });
 
     it('should return all compose calls', async () => {
@@ -228,7 +225,7 @@ describe('FakeWorkflowService', () => {
       const result = FakeWorkflowService.createSuccessResult(
         'my-workflow',
         '.chainglass/runs/run-001',
-        [{ name: 'gather', order: 1, status: 'pending' }],
+        [{ name: 'gather', order: 1, status: 'pending' }]
       );
 
       expect(result.errors).toHaveLength(0);
@@ -249,7 +246,7 @@ describe('FakeWorkflowService', () => {
       const result = FakeWorkflowService.createErrorResult(
         'E020',
         'Template not found',
-        'Create the template',
+        'Create the template'
       );
 
       expect(result.errors).toHaveLength(1);

@@ -14,7 +14,7 @@ export class YamlParseError extends Error {
     message: string,
     public readonly line: number,
     public readonly column: number,
-    public readonly filePath: string,
+    public readonly filePath: string
   ) {
     super(`${filePath}:${line}:${column}: ${message}`);
     this.name = 'YamlParseError';

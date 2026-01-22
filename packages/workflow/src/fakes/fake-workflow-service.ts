@@ -104,12 +104,7 @@ export class FakeWorkflowService implements IWorkflowService {
    * @param message - Error message
    * @param action - Suggested fix action
    */
-  setComposeError(
-    template: string,
-    code: string,
-    message: string,
-    action?: string,
-  ): void {
+  setComposeError(template: string, code: string, message: string, action?: string): void {
     this.setComposeResult(template, {
       runDir: '',
       template: '',
@@ -136,11 +131,7 @@ export class FakeWorkflowService implements IWorkflowService {
    * @param phases - Array of phase info
    * @returns ComposeResult with no errors
    */
-  static createSuccessResult(
-    template: string,
-    runDir: string,
-    phases: PhaseInfo[],
-  ): ComposeResult {
+  static createSuccessResult(template: string, runDir: string, phases: PhaseInfo[]): ComposeResult {
     return {
       template,
       runDir,
@@ -157,11 +148,7 @@ export class FakeWorkflowService implements IWorkflowService {
    * @param action - Suggested fix action
    * @returns ComposeResult with error
    */
-  static createErrorResult(
-    code: string,
-    message: string,
-    action?: string,
-  ): ComposeResult {
+  static createErrorResult(code: string, message: string, action?: string): ComposeResult {
     return {
       runDir: '',
       template: '',
@@ -215,9 +202,7 @@ export class FakeWorkflowService implements IWorkflowService {
     const result: ComposeResult = {
       template: templateName,
       runDir,
-      phases: [
-        { name: 'default', order: 1, status: 'pending' },
-      ],
+      phases: [{ name: 'default', order: 1, status: 'pending' }],
       errors: [],
     };
 

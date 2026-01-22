@@ -5,9 +5,9 @@
  * JsonOutputAdapter formats service results as JSON with CommandResponse envelope.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
 import type { PrepareResult, ResultError } from '@chainglass/shared';
 import { JsonOutputAdapter } from '@chainglass/shared';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 describe('JsonOutputAdapter', () => {
   let adapter: JsonOutputAdapter;
@@ -30,7 +30,12 @@ describe('JsonOutputAdapter', () => {
         phase: 'gather',
         runDir: '/path/to/run',
         status: 'ready',
-        inputs: { required: ['user-request.md'], resolved: [{ name: 'user-request.md', path: '/path/to/run/inputs/user-request.md', exists: true }] },
+        inputs: {
+          required: ['user-request.md'],
+          resolved: [
+            { name: 'user-request.md', path: '/path/to/run/inputs/user-request.md', exists: true },
+          ],
+        },
         copiedFromPrior: [],
         errors: [],
       };

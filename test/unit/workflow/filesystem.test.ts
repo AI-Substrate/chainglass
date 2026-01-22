@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { promises as fs } from 'fs';
-import * as path from 'path';
-import * as os from 'os';
+import { promises as fs } from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import type { IFileSystem } from '@chainglass/shared';
 import { FileSystemError } from '@chainglass/shared';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 /**
  * Test suite for IFileSystem implementations.
@@ -45,7 +45,10 @@ describe('IFileSystem Interface Tests', () => {
       const filePath = path.join(tempDir, 'existing.txt');
       await fs.writeFile(filePath, 'content');
 
-      const result = await fs.stat(filePath).then(() => true).catch(() => false);
+      const result = await fs
+        .stat(filePath)
+        .then(() => true)
+        .catch(() => false);
       expect(result).toBe(true);
     });
 
@@ -60,7 +63,10 @@ describe('IFileSystem Interface Tests', () => {
       */
       const filePath = path.join(tempDir, 'missing.txt');
 
-      const result = await fs.stat(filePath).then(() => true).catch(() => false);
+      const result = await fs
+        .stat(filePath)
+        .then(() => true)
+        .catch(() => false);
       expect(result).toBe(false);
     });
 
@@ -76,7 +82,10 @@ describe('IFileSystem Interface Tests', () => {
       const dirPath = path.join(tempDir, 'subdir');
       await fs.mkdir(dirPath);
 
-      const result = await fs.stat(dirPath).then(() => true).catch(() => false);
+      const result = await fs
+        .stat(dirPath)
+        .then(() => true)
+        .catch(() => false);
       expect(result).toBe(true);
     });
   });

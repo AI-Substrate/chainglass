@@ -15,12 +15,12 @@
 
 import type {
   BaseResult,
-  ResultError,
+  ComposeResult,
+  FinalizeResult,
   IOutputAdapter,
   PrepareResult,
+  ResultError,
   ValidateResult,
-  FinalizeResult,
-  ComposeResult,
 } from '../interfaces/index.js';
 
 /**
@@ -82,9 +82,7 @@ export class ConsoleOutputAdapter implements IOutputAdapter {
   // ==================== Success Formatters ====================
 
   private formatPrepareSuccess(result: PrepareResult): string {
-    const lines: string[] = [
-      `✓ Phase '${result.phase}' is ready`,
-    ];
+    const lines: string[] = [`✓ Phase '${result.phase}' is ready`];
 
     if (result.inputs.resolved.length > 0) {
       const inputNames = result.inputs.resolved.map((i) => i.name).join(', ');
@@ -99,22 +97,19 @@ export class ConsoleOutputAdapter implements IOutputAdapter {
   }
 
   private formatValidateSuccess(result: ValidateResult): string {
-    const lines: string[] = [
-      `✓ Phase '${result.phase}' outputs are valid`,
-    ];
+    const checkLabel = result.check === 'inputs' ? 'inputs' : 'outputs';
+    const lines: string[] = [`✓ Phase '${result.phase}' ${checkLabel} are valid`];
 
-    if (result.outputs.validated.length > 0) {
-      const outputNames = result.outputs.validated.map((o) => o.name).join(', ');
-      lines.push(`  Validated: ${outputNames}`);
+    if (result.files.validated.length > 0) {
+      const fileNames = result.files.validated.map((f) => f.name).join(', ');
+      lines.push(`  Validated: ${fileNames}`);
     }
 
     return lines.join('\n');
   }
 
   private formatFinalizeSuccess(result: FinalizeResult): string {
-    const lines: string[] = [
-      `✓ Phase '${result.phase}' finalized`,
-    ];
+    const lines: string[] = [`✓ Phase '${result.phase}' finalized`];
 
     const params = Object.entries(result.extractedParams);
     if (params.length > 0) {
@@ -149,9 +144,7 @@ export class ConsoleOutputAdapter implements IOutputAdapter {
 
   private formatPrepareFailure(result: PrepareResult): string {
     const firstError = result.errors[0];
-    const lines: string[] = [
-      `✗ Phase '${result.phase}' preparation failed [${firstError.code}]`,
-    ];
+    const lines: string[] = [`✗ Phase '${result.phase}' preparation failed [${firstError.code}]`];
 
     this.appendErrorDetails(lines, result.errors);
 
@@ -160,9 +153,7 @@ export class ConsoleOutputAdapter implements IOutputAdapter {
 
   private formatValidateFailure(result: ValidateResult): string {
     const firstError = result.errors[0];
-    const lines: string[] = [
-      `✗ Phase '${result.phase}' validation failed [${firstError.code}]`,
-    ];
+    const lines: string[] = [`✗ Phase '${result.phase}' validation failed [${firstError.code}]`];
 
     this.appendErrorDetails(lines, result.errors);
 
@@ -171,9 +162,7 @@ export class ConsoleOutputAdapter implements IOutputAdapter {
 
   private formatFinalizeFailure(result: FinalizeResult): string {
     const firstError = result.errors[0];
-    const lines: string[] = [
-      `✗ Phase '${result.phase}' finalize failed [${firstError.code}]`,
-    ];
+    const lines: string[] = [`✗ Phase '${result.phase}' finalize failed [${firstError.code}]`];
 
     this.appendErrorDetails(lines, result.errors);
 
@@ -182,9 +171,7 @@ export class ConsoleOutputAdapter implements IOutputAdapter {
 
   private formatComposeFailure(result: ComposeResult): string {
     const firstError = result.errors[0];
-    const lines: string[] = [
-      `✗ Workflow compose failed [${firstError.code}]`,
-    ];
+    const lines: string[] = [`✗ Workflow compose failed [${firstError.code}]`];
 
     this.appendErrorDetails(lines, result.errors);
 
@@ -193,9 +180,7 @@ export class ConsoleOutputAdapter implements IOutputAdapter {
 
   private formatGenericFailure<T extends BaseResult>(result: T): string {
     const firstError = result.errors[0];
-    const lines: string[] = [
-      `✗ Operation failed [${firstError.code}]`,
-    ];
+    const lines: string[] = [`✗ Operation failed [${firstError.code}]`];
 
     this.appendErrorDetails(lines, result.errors);
 

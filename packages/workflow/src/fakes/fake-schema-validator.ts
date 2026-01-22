@@ -1,9 +1,9 @@
-import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
+import Ajv2020 from 'ajv/dist/2020.js';
 import type {
   ISchemaValidator,
-  ValidationResult,
   ResultError,
+  ValidationResult,
 } from '../interfaces/schema-validator.interface.js';
 import { ValidationErrorCodes } from '../interfaces/schema-validator.interface.js';
 
@@ -93,7 +93,7 @@ export class FakeSchemaValidator implements ISchemaValidator {
     message: string,
     expected: string,
     actual: string,
-    action: string,
+    action: string
   ): ResultError {
     return { code, path, message, expected, actual, action };
   }
@@ -182,14 +182,16 @@ export class FakeSchemaValidator implements ISchemaValidator {
       // Schema compilation error
       return {
         valid: false,
-        errors: [{
-          code: ValidationErrorCodes.VALIDATION_ERROR,
-          path: '/',
-          message: `Schema error: ${e instanceof Error ? e.message : String(e)}`,
-          expected: 'valid schema',
-          actual: 'invalid schema',
-          action: 'Fix the schema definition',
-        }],
+        errors: [
+          {
+            code: ValidationErrorCodes.VALIDATION_ERROR,
+            path: '/',
+            message: `Schema error: ${e instanceof Error ? e.message : String(e)}`,
+            expected: 'valid schema',
+            actual: 'invalid schema',
+            action: 'Fix the schema definition',
+          },
+        ],
       };
     }
   }

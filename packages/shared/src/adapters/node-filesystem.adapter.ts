@@ -1,5 +1,5 @@
-import { promises as fs } from 'fs';
-import type { IFileSystem, FileStat } from '../interfaces/filesystem.interface.js';
+import { promises as fs } from 'node:fs';
+import type { FileStat, IFileSystem } from '../interfaces/filesystem.interface.js';
 import { FileSystemError } from '../interfaces/filesystem.interface.js';
 
 /**
@@ -77,7 +77,7 @@ export class NodeFileSystemAdapter implements IFileSystem {
       await fs.copyFile(source, dest);
     } catch (err) {
       // Determine which path caused the error
-      const errorPath = await this.exists(source) ? dest : source;
+      const errorPath = (await this.exists(source)) ? dest : source;
       throw this.wrapError(err, errorPath);
     }
   }

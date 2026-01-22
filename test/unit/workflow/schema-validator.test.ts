@@ -1,10 +1,10 @@
-import { describe, it, expect, beforeEach } from 'vitest';
 import {
-  SchemaValidatorAdapter,
   FakeSchemaValidator,
+  SchemaValidatorAdapter,
   ValidationErrorCodes,
   type ValidationResult,
 } from '@chainglass/workflow';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 /**
  * Tests for ISchemaValidator implementations.

@@ -4,9 +4,9 @@
  * Verifies the fake captures calls correctly and provides useful test helpers.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
 import type { PrepareResult } from '@chainglass/shared';
 import { FakeOutputAdapter } from '@chainglass/shared';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 describe('FakeOutputAdapter', () => {
   let adapter: FakeOutputAdapter;

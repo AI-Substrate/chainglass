@@ -1,4 +1,4 @@
-import * as path from 'path';
+import * as path from 'node:path';
 import type { IPathResolver } from '../interfaces/path-resolver.interface.js';
 import { PathSecurityError } from '../interfaces/path-resolver.interface.js';
 
@@ -19,11 +19,7 @@ export class PathResolverAdapter implements IPathResolver {
 
     // Check if relative path is absolute (security violation)
     if (path.isAbsolute(relative)) {
-      throw new PathSecurityError(
-        `Absolute path not allowed: ${relative}`,
-        base,
-        relative,
-      );
+      throw new PathSecurityError(`Absolute path not allowed: ${relative}`, base, relative);
     }
 
     // Resolve the full path
@@ -40,7 +36,7 @@ export class PathResolverAdapter implements IPathResolver {
       throw new PathSecurityError(
         `Path traversal attempt detected: ${relative} escapes ${base}`,
         base,
-        relative,
+        relative
       );
     }
 

@@ -1,5 +1,5 @@
-import * as pathModule from 'path';
-import type { IFileSystem, FileStat } from '../interfaces/filesystem.interface.js';
+import * as pathModule from 'node:path';
+import type { FileStat, IFileSystem } from '../interfaces/filesystem.interface.js';
 import { FileSystemError } from '../interfaces/filesystem.interface.js';
 
 /**
@@ -98,7 +98,7 @@ export class FakeFileSystem implements IFileSystem {
       throw new FileSystemError(
         `ENOENT: no such file or directory, open '${path}'`,
         'ENOENT',
-        path,
+        path
       );
     }
     return content;
@@ -108,11 +108,11 @@ export class FakeFileSystem implements IFileSystem {
     this.checkSimulatedError(path);
 
     const parent = pathModule.dirname(path);
-    if (parent !== '/' && parent !== '.' && !await this.exists(parent)) {
+    if (parent !== '/' && parent !== '.' && !(await this.exists(parent))) {
       throw new FileSystemError(
         `ENOENT: no such file or directory, open '${path}'`,
         'ENOENT',
-        path,
+        path
       );
     }
 
@@ -127,16 +127,12 @@ export class FakeFileSystem implements IFileSystem {
     const isDir = this.dirs.has(path) || this.isImplicitDir(path);
     if (!isDir) {
       if (this.files.has(path)) {
-        throw new FileSystemError(
-          `ENOTDIR: not a directory, scandir '${path}'`,
-          'ENOTDIR',
-          path,
-        );
+        throw new FileSystemError(`ENOTDIR: not a directory, scandir '${path}'`, 'ENOTDIR', path);
       }
       throw new FileSystemError(
         `ENOENT: no such file or directory, scandir '${path}'`,
         'ENOENT',
-        path,
+        path
       );
     }
 
@@ -193,7 +189,7 @@ export class FakeFileSystem implements IFileSystem {
         const parts = path.split('/').filter(Boolean);
         let currentPath = '';
         for (const part of parts) {
-          currentPath = currentPath + '/' + part;
+          currentPath = `${currentPath}/${part}`;
           this.dirs.add(currentPath);
         }
       } else {
@@ -201,17 +197,17 @@ export class FakeFileSystem implements IFileSystem {
         const parts = path.split('/').filter(Boolean);
         let currentPath = '';
         for (let i = 0; i < parts.length; i++) {
-          currentPath = i === 0 ? parts[i] : currentPath + '/' + parts[i];
+          currentPath = i === 0 ? parts[i] : `${currentPath}/${parts[i]}`;
           this.dirs.add(currentPath);
         }
       }
     } else {
       const parent = pathModule.dirname(path);
-      if (parent !== '/' && parent !== '.' && !await this.exists(parent)) {
+      if (parent !== '/' && parent !== '.' && !(await this.exists(parent))) {
         throw new FileSystemError(
           `ENOENT: no such file or directory, mkdir '${path}'`,
           'ENOENT',
-          path,
+          path
         );
       }
       this.dirs.add(path);
@@ -227,16 +223,16 @@ export class FakeFileSystem implements IFileSystem {
       throw new FileSystemError(
         `ENOENT: no such file or directory, copyfile '${source}' -> '${dest}'`,
         'ENOENT',
-        source,
+        source
       );
     }
 
     const destParent = pathModule.dirname(dest);
-    if (destParent !== '/' && destParent !== '.' && !await this.exists(destParent)) {
+    if (destParent !== '/' && destParent !== '.' && !(await this.exists(destParent))) {
       throw new FileSystemError(
         `ENOENT: no such file or directory, copyfile '${source}' -> '${dest}'`,
         'ENOENT',
-        dest,
+        dest
       );
     }
 
@@ -254,7 +250,7 @@ export class FakeFileSystem implements IFileSystem {
       throw new FileSystemError(
         `ENOENT: no such file or directory, stat '${path}'`,
         'ENOENT',
-        path,
+        path
       );
     }
 
@@ -274,13 +270,13 @@ export class FakeFileSystem implements IFileSystem {
         throw new FileSystemError(
           `EISDIR: illegal operation on a directory, unlink '${path}'`,
           'EISDIR',
-          path,
+          path
         );
       }
       throw new FileSystemError(
         `ENOENT: no such file or directory, unlink '${path}'`,
         'ENOENT',
-        path,
+        path
       );
     }
 
@@ -296,7 +292,7 @@ export class FakeFileSystem implements IFileSystem {
       throw new FileSystemError(
         `ENOENT: no such file or directory, rmdir '${path}'`,
         'ENOENT',
-        path,
+        path
       );
     }
 
@@ -305,14 +301,14 @@ export class FakeFileSystem implements IFileSystem {
       const normalizedPath = path.endsWith('/') ? path.slice(0, -1) : path;
 
       for (const filePath of Array.from(this.files.keys())) {
-        if (filePath.startsWith(normalizedPath + '/')) {
+        if (filePath.startsWith(`${normalizedPath}/`)) {
           this.files.delete(filePath);
           this.mtimes.delete(filePath);
         }
       }
 
       for (const dirPath of Array.from(this.dirs)) {
-        if (dirPath === normalizedPath || dirPath.startsWith(normalizedPath + '/')) {
+        if (dirPath === normalizedPath || dirPath.startsWith(`${normalizedPath}/`)) {
           this.dirs.delete(dirPath);
         }
       }
@@ -323,7 +319,7 @@ export class FakeFileSystem implements IFileSystem {
         throw new FileSystemError(
           `ENOTEMPTY: directory not empty, rmdir '${path}'`,
           'ENOTEMPTY',
-          path,
+          path
         );
       }
       this.dirs.delete(path);
@@ -340,14 +336,14 @@ export class FakeFileSystem implements IFileSystem {
 
     // Check if any file is under this directory
     for (const filePath of this.files.keys()) {
-      if (filePath.startsWith(normalizedPath + '/')) {
+      if (filePath.startsWith(`${normalizedPath}/`)) {
         return true;
       }
     }
 
     // Check if any explicit directory is under this path
     for (const dirPath of this.dirs) {
-      if (dirPath.startsWith(normalizedPath + '/')) {
+      if (dirPath.startsWith(`${normalizedPath}/`)) {
         return true;
       }
     }
@@ -364,7 +360,7 @@ export class FakeFileSystem implements IFileSystem {
 
     // Don't include the file itself
     for (let i = 0; i < parts.length - 1; i++) {
-      currentPath = currentPath + '/' + parts[i];
+      currentPath = `${currentPath}/${parts[i]}`;
       this.dirs.add(currentPath);
     }
   }

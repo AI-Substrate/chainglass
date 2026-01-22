@@ -16,7 +16,8 @@ export type {
   FinalizeResult,
   ResolvedInput,
   CopiedFile,
-  ValidatedOutput,
+  ValidatedFile,
+  ValidatedOutput, // @deprecated alias
   PhaseInfo,
 } from './results/index.js';
 
