@@ -70,7 +70,7 @@ packages/mcp-server ───┘
 
 | Package | Responsibility | Exports |
 |---------|----------------|---------|
-| `@chainglass/shared` | Core interfaces, fakes, adapters | `ILogger`, `FakeLogger`, `PinoLoggerAdapter` |
+| `@chainglass/shared` | Core interfaces, fakes, adapters, config | `ILogger`, `FakeLogger`, `PinoLoggerAdapter`, `IConfigService`, `FakeConfigService`, `ChainglassConfigService` |
 | `@chainglass/mcp-server` | MCP protocol implementation | `createMcpServer()` |
 | `apps/web` | Next.js web application | N/A (not imported) |
 | `apps/cli` | CLI commands | `cg` binary |
@@ -95,9 +95,14 @@ chainglass/
 ├── packages/
 │   ├── shared/                 # @chainglass/shared
 │   │   └── src/
-│   │       ├── interfaces/     # All interfaces live here
-│   │       ├── fakes/          # Test doubles
-│   │       ├── adapters/       # Shared adapters
+│   │       ├── interfaces/     # All interfaces (ILogger, IConfigService)
+│   │       ├── fakes/          # Test doubles (FakeLogger, FakeConfigService)
+│   │       ├── adapters/       # Shared adapters (PinoLoggerAdapter)
+│   │       ├── config/         # Configuration system
+│   │       │   ├── schemas/    # Zod schemas (SampleConfigSchema, etc.)
+│   │       │   ├── loaders/    # YAML, env, secrets loaders
+│   │       │   ├── security/   # Secret detection
+│   │       │   └── chainglass-config.service.ts
 │   │       └── index.ts        # Barrel exports
 │   └── mcp-server/             # @chainglass/mcp-server
 │       └── src/
@@ -128,21 +133,25 @@ chainglass/
 │  Infrastructure concerns: logging, APIs, databases              │
 │  (PinoLoggerAdapter, ConsoleLoggerAdapter, etc.)               │
 │                                                                 │
+│  CONFIG SERVICES (Infrastructure)                               │
+│  (ChainglassConfigService - loads from files/env)              │
+│                                                                 │
 │  ┌──────────────────────────────────────────────────────────┐  │
 │  │                      SERVICES                             │  │
 │  │  Business logic: workflows, validation, orchestration     │  │
 │  │  (SampleService, WorkflowService, etc.)                   │  │
+│  │  → Consume config via IConfigService constructor injection │  │
 │  │                                                           │  │
 │  │  ┌────────────────────────────────────────────────────┐  │  │
 │  │  │                   INTERFACES                        │  │  │
 │  │  │  Contracts: what capabilities exist                 │  │  │
-│  │  │  (ILogger, IWorkflowRepository, etc.)              │  │  │
+│  │  │  (ILogger, IConfigService, IWorkflowRepository)    │  │  │
 │  │  └────────────────────────────────────────────────────┘  │  │
 │  │                                                           │  │
 │  └──────────────────────────────────────────────────────────┘  │
 │                                                                 │
 │  FAKES (Test Doubles)                                          │
-│  (FakeLogger, FakeWorkflowRepository, etc.)                    │
+│  (FakeLogger, FakeConfigService, FakeWorkflowRepository)       │
 │                                                                 │
 └────────────────────────────────────────────────────────────────┘
 ```
@@ -182,23 +191,35 @@ export class WorkflowService {
 
 Each app owns its own DI container with separate production and test factories.
 
+**Config loads BEFORE container creation** (pre-loaded pattern):
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    Production Runtime                        │
-│  ┌─────────────────────┐    ┌─────────────────────────────┐ │
-│  │ createProdContainer │───►│  PinoLoggerAdapter          │ │
-│  │                     │    │  RealWorkflowRepository     │ │
-│  │                     │    │  RealPhaseExecutor          │ │
-│  └─────────────────────┘    └─────────────────────────────┘ │
+│                                                              │
+│  1. const config = new ChainglassConfigService({...});      │
+│  2. config.load();  // Synchronous, throws on error          │
+│  3. createProductionContainer(config);  // Config injected   │
+│                                                              │
+│  ┌─────────────────────────────┐    ┌─────────────────────┐ │
+│  │ createProductionContainer   │───►│ ChainglassConfig... │ │
+│  │ (config: IConfigService)    │    │ PinoLoggerAdapter   │ │
+│  │                             │    │ RealWorkflowRepo... │ │
+│  └─────────────────────────────┘    └─────────────────────┘ │
 └─────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────┐
 │                      Test Runtime                            │
-│  ┌─────────────────────┐    ┌─────────────────────────────┐ │
-│  │ createTestContainer │───►│  FakeLogger                 │ │
-│  │                     │    │  FakeWorkflowRepository     │ │
-│  │                     │    │  FakePhaseExecutor          │ │
-│  └─────────────────────┘    └─────────────────────────────┘ │
+│                                                              │
+│  const fakeConfig = new FakeConfigService({                 │
+│    sample: { enabled: true, timeout: 30, name: 'test' }     │
+│  });                                                         │
+│                                                              │
+│  ┌─────────────────────────────┐    ┌─────────────────────┐ │
+│  │ createTestContainer         │───►│ FakeConfigService   │ │
+│  │                             │    │ FakeLogger          │ │
+│  │                             │    │ FakeWorkflowRepo... │ │
+│  └─────────────────────────────┘    └─────────────────────┘ │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -668,6 +689,62 @@ workflows/
 
 <!-- USER CONTENT START -->
 <!-- Add project-specific architecture notes below this line -->
+
+## 12. Configuration System Architecture
+
+### 12.1 Config Loading Flow
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     Config Loading Pipeline                       │
+│                                                                   │
+│   ~/.config/chainglass/     .chainglass/       Environment       │
+│   ├── config.yaml           ├── config.yaml    CG_* variables    │
+│   └── secrets.env           └── secrets.env                      │
+│          │                        │                  │            │
+│          └────────────┬───────────┴──────────────────┘            │
+│                       ▼                                           │
+│              ChainglassConfigService.load()                       │
+│              ┌─────────────────────────────┐                      │
+│              │ 1. Load secrets to pending   │                      │
+│              │ 2. Load YAML configs         │                      │
+│              │ 3. Parse CG_* env vars       │                      │
+│              │ 4. Deep merge (precedence)   │                      │
+│              │ 5. Expand ${VAR} placeholders│                      │
+│              │ 6. Validate no secrets       │                      │
+│              │ 7. Zod schema validation     │                      │
+│              │ 8. Commit secrets to env     │                      │
+│              └─────────────────────────────┘                      │
+│                       │                                           │
+│                       ▼                                           │
+│              Typed Config Objects (SampleConfig, etc.)            │
+│                       │                                           │
+│                       ▼                                           │
+│              DI Container (config injected)                       │
+│                       │                                           │
+│                       ▼                                           │
+│              Services (consume via IConfigService)                │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 12.2 Precedence (Highest Last)
+
+| Priority | Source | Example |
+|----------|--------|---------|
+| 1 | Zod schema defaults | `z.number().default(30)` |
+| 2 | User config | `~/.config/chainglass/config.yaml` |
+| 3 | Project config | `.chainglass/config.yaml` |
+| 4 | Environment | `CG_SAMPLE__TIMEOUT=60` |
+
+### 12.3 Key Decisions
+
+- **ChainglassConfigService in config/**: Not in adapters/ because it's an infrastructure service with orchestration logic, not a thin wrapper
+- **Pre-loaded pattern**: Config loads before DI container creation
+- **Transactional loading**: Secrets committed to process.env only after all validation passes
+- **Fakes for testing**: FakeConfigService accepts configs via constructor
+
+See [ADR-0003](../adr/adr-0003-configuration-system.md) for full architecture decision.
+
 <!-- USER CONTENT END -->
 
 ---

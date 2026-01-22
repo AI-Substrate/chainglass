@@ -20,6 +20,10 @@
     "./adapters": {
       "import": "./dist/adapters/index.js",
       "types": "./dist/adapters/index.d.ts"
+    },
+    "./config": {
+      "import": "./dist/config/index.js",
+      "types": "./dist/config/index.d.ts"
     }
   },
   "scripts": {
@@ -27,7 +31,11 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "pino": "^9.6.0"
+    "dotenv": "^17.2.3",
+    "dotenv-expand": "^12.0.3",
+    "pino": "^9.6.0",
+    "yaml": "^2.8.2",
+    "zod": "^4.3.5"
   },
   "devDependencies": {
     "typescript": "^5.7.3"
