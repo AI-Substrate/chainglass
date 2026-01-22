@@ -1,10 +1,13 @@
 /**
+ * @vitest-environment jsdom
+ */
+/**
  * Unit tests for DashboardSidebar component
  * Tests navigation state, active item highlighting, and collapse behavior
  */
 
-import { DashboardSidebar } from '@/components/dashboard-sidebar';
-import { SidebarProvider } from '@/components/ui/sidebar';
+import { DashboardSidebar } from '../../../../apps/web/src/components/dashboard-sidebar';
+import { SidebarProvider } from '../../../../apps/web/src/components/ui/sidebar';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 

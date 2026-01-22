@@ -10,6 +10,13 @@ import { dirname, resolve } from 'node:path';
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+// Import the module directly using relative path (vitest alias doesn't work for dynamic imports)
+import {
+  findStandaloneAssets,
+  runWebCommand,
+  validateStandaloneAssets,
+} from '../../../apps/cli/src/commands/web.command';
+
 // Helper to generate random high port
 function getRandomPort(): number {
   return 30000 + Math.floor(Math.random() * 10000);
@@ -36,8 +43,6 @@ describe('Web Command', () => {
       - Quality Contribution: Catches broken asset path resolution that would break npx portability
       - Worked Example: findStandaloneAssets() returns path containing 'standalone' or 'web'
       */
-      const { findStandaloneAssets } = await import('@chainglass/cli/commands/web.command');
-
       const assetsPath = findStandaloneAssets();
 
       // Should return a path that exists or is structured correctly
@@ -58,9 +63,6 @@ describe('Web Command', () => {
       - Quality Contribution: Catches broken port option handling
       - Worked Example: runWebCommand({ port: 8080 }) attempts to start on 8080
       */
-      // This test verifies the function accepts the port option without error
-      const { runWebCommand } = await import('@chainglass/cli/commands/web.command');
-
       // Mock console to capture output
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
@@ -84,8 +86,6 @@ describe('Web Command', () => {
       - Quality Contribution: Catches missing default port configuration
       - Worked Example: runWebCommand({ port: 3000 }) logs 'localhost:3000'
       */
-      const { runWebCommand } = await import('@chainglass/cli/commands/web.command');
-
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
       await runWebCommand({ port: 3000 });
@@ -107,8 +107,6 @@ describe('Web Command', () => {
       - Quality Contribution: Catches silent failures when bundle incomplete
       - Worked Example: validateStandaloneAssets('/invalid/path') throws 'assets not found'
       */
-      const { validateStandaloneAssets } = await import('@chainglass/cli/commands/web.command');
-
       expect(() => {
         validateStandaloneAssets('/nonexistent/path/to/assets');
       }).toThrow(/not found|does not exist|missing/i);
@@ -125,7 +123,6 @@ describe('Web Command', () => {
       - Quality Contribution: Catches missing input validation
       - Worked Example: runWebCommand({ port: NaN }) throws 'Port must be'
       */
-      const { runWebCommand } = await import('@chainglass/cli/commands/web.command');
       // biome-ignore lint/suspicious/noExplicitAny: Test intentionally passes invalid type
       await expect(runWebCommand({ port: Number.NaN } as any)).rejects.toThrow(
         /port must be|invalid port/i
@@ -141,7 +138,6 @@ describe('Web Command', () => {
       - Quality Contribution: Catches missing range validation
       - Worked Example: runWebCommand({ port: 99999 }) throws 'Port must be'
       */
-      const { runWebCommand } = await import('@chainglass/cli/commands/web.command');
       await expect(runWebCommand({ port: 99999 })).rejects.toThrow(/port must be|invalid port/i);
     });
 
@@ -154,7 +150,6 @@ describe('Web Command', () => {
       - Quality Contribution: Catches missing lower bound validation
       - Worked Example: runWebCommand({ port: -1 }) throws 'Port must be'
       */
-      const { runWebCommand } = await import('@chainglass/cli/commands/web.command');
       await expect(runWebCommand({ port: -1 })).rejects.toThrow(/port must be|invalid port/i);
     });
 
@@ -167,7 +162,6 @@ describe('Web Command', () => {
       - Quality Contribution: Catches edge case at lower boundary
       - Worked Example: runWebCommand({ port: 0 }) throws 'Port must be'
       */
-      const { runWebCommand } = await import('@chainglass/cli/commands/web.command');
       await expect(runWebCommand({ port: 0 })).rejects.toThrow(/port must be|invalid port/i);
     });
 
@@ -180,7 +174,6 @@ describe('Web Command', () => {
       - Quality Contribution: Ensures validation doesn't reject valid ports
       - Worked Example: runWebCommand({ port: 1 }) does not throw validation error
       */
-      const { runWebCommand } = await import('@chainglass/cli/commands/web.command');
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
       // Should not throw validation error (may fail for other reasons like missing assets)
@@ -198,7 +191,6 @@ describe('Web Command', () => {
       - Quality Contribution: Ensures validation doesn't reject valid ports
       - Worked Example: runWebCommand({ port: 65535 }) does not throw validation error
       */
-      const { runWebCommand } = await import('@chainglass/cli/commands/web.command');
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
       // Should not throw validation error (may fail for other reasons like missing assets)
@@ -220,8 +212,6 @@ describe('Web Command', () => {
       - Quality Contribution: Catches missing user feedback during startup
       - Worked Example: Console output includes 'Chainglass' and 'starting'
       */
-      const { runWebCommand } = await import('@chainglass/cli/commands/web.command');
-
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
       const port = getRandomPort();

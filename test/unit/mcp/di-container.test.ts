@@ -15,7 +15,7 @@ import {
   MCP_DI_TOKENS,
   createMcpProductionContainer,
   createMcpTestContainer,
-} from '@chainglass/mcp-server/lib/di-container';
+} from '../../../packages/mcp-server/src/lib/di-container';
 import {
   FakeConfigService,
   FakeLogger,
@@ -23,7 +23,7 @@ import {
   type ILogger,
   PinoLoggerAdapter,
   SampleConfigType,
-} from '@chainglass/shared';
+} from '../../../packages/shared/src';
 import { container } from 'tsyringe';
 import { beforeEach, describe, expect, it } from 'vitest';
 
@@ -41,7 +41,7 @@ describe('MCP DI Container', () => {
     - Quality Contribution: Catches missing config registration in MCP DI
     - Worked Example: createMcpProductionContainer(loadedConfig).resolve(CONFIG) returns IConfigService
     */
-    const { ChainglassConfigService } = await import('@chainglass/shared');
+    const { ChainglassConfigService } = await import('../../../packages/shared/src');
     const config = new ChainglassConfigService({
       userConfigDir: null,
       projectConfigDir: null,
@@ -67,7 +67,9 @@ describe('MCP DI Container', () => {
     const mcpContainer = createMcpTestContainer();
     const configService = mcpContainer.resolve<IConfigService>(MCP_DI_TOKENS.CONFIG);
 
-    expect(configService).toBeInstanceOf(FakeConfigService);
+    // Use duck typing (FakeConfigService has set method)
+    expect(configService).toHaveProperty('set');
+    expect(configService.constructor.name).toBe('FakeConfigService');
   });
 
   it('should resolve ILogger from MCP test container', () => {
@@ -82,7 +84,9 @@ describe('MCP DI Container', () => {
     const mcpContainer = createMcpTestContainer();
     const logger = mcpContainer.resolve<ILogger>(MCP_DI_TOKENS.LOGGER);
 
-    expect(logger).toBeInstanceOf(FakeLogger);
+    // Use duck typing (FakeLogger has getEntries method)
+    expect(logger).toHaveProperty('getEntries');
+    expect(logger.constructor.name).toBe('FakeLogger');
   });
 
   it('should throw if MCP production container created without config', () => {

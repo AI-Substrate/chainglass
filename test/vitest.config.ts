@@ -6,7 +6,30 @@ const testDir = resolve(import.meta.dirname);
 const rootDir = resolve(testDir, '..');
 
 export default defineConfig({
-  plugins: [tsconfigPaths()],
+  plugins: [
+    tsconfigPaths({
+      root: rootDir,
+    }),
+  ],
+  // Top-level resolve.alias - required for Vitest to pick up aliases
+  resolve: {
+    alias: [
+      // Regex patterns for wildcard subpath imports
+      { find: /^@chainglass\/shared\/(.*)$/, replacement: resolve(rootDir, 'packages/shared/src/$1') },
+      { find: /^@chainglass\/cli\/(.*)$/, replacement: resolve(rootDir, 'apps/cli/src/$1') },
+      { find: /^@chainglass\/mcp-server\/(.*)$/, replacement: resolve(rootDir, 'packages/mcp-server/src/$1') },
+      { find: /^@chainglass\/web\/(.*)$/, replacement: resolve(rootDir, 'apps/web/src/$1') },
+      { find: /^@test\/(.*)$/, replacement: resolve(testDir, '$1') },
+      { find: /^@\/(.*)$/, replacement: resolve(rootDir, 'apps/web/src/$1') },
+      // Exact matches (no subpath)
+      { find: '@chainglass/shared', replacement: resolve(rootDir, 'packages/shared/src') },
+      { find: '@chainglass/cli', replacement: resolve(rootDir, 'apps/cli/src') },
+      { find: '@chainglass/mcp-server', replacement: resolve(rootDir, 'packages/mcp-server/src') },
+      { find: '@chainglass/web', replacement: resolve(rootDir, 'apps/web/src') },
+      { find: '@test', replacement: testDir },
+      { find: '@', replacement: resolve(rootDir, 'apps/web/src') },
+    ],
+  },
   test: {
     root: testDir,
     globals: true,
@@ -20,17 +43,19 @@ export default defineConfig({
     ],
     setupFiles: [resolve(testDir, 'setup.ts')],
     // Sequential execution to prevent MCP tests from spawning 20+ parallel processes
-    // Each MCP test spawns a Node.js process via StdioClientTransport
-    // See: docs/plans/001-project-setup/tasks/phase-5-mcp-server-package/001-subtask-migrate-mcp-tests-to-sdk-client.md
     fileParallelism: false,
-    alias: {
-      '@chainglass/shared': resolve(rootDir, 'packages/shared/src'),
-      '@chainglass/cli': resolve(rootDir, 'apps/cli/src'),
-      '@chainglass/mcp-server': resolve(rootDir, 'packages/mcp-server/src'),
-      '@chainglass/web': resolve(rootDir, 'apps/web/src'),
-      '@test/': `${testDir}/`,
-      // Next.js app alias - for importing from apps/web/src
-      '@/': `${resolve(rootDir, 'apps/web/src')}/`,
+    // Coverage configuration (DYK-03: Enforced thresholds, not just reported)
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html', 'lcov'],
+      include: ['apps/web/src/hooks/**/*.ts', 'apps/web/src/hooks/**/*.tsx'],
+      exclude: ['**/*.test.ts', '**/*.test.tsx', '**/index.ts'],
+      thresholds: {
+        statements: 80,
+        branches: 80,
+        functions: 80,
+        lines: 80,
+      },
     },
   },
 });

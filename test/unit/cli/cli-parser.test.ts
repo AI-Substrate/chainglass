@@ -1,4 +1,4 @@
-import { createProgram } from '@chainglass/cli/bin';
+import { createProgram } from '../../../apps/cli/src/bin';
 import { CommanderError } from 'commander';
 /**
  * CLI Parser Tests

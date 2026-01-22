@@ -1,4 +1,7 @@
-import { FakeLocalStorage } from '@test/fakes/fake-local-storage';
+/**
+ * @vitest-environment jsdom
+ */
+import { FakeLocalStorage } from '../../fakes/fake-local-storage';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { ThemeProvider, useTheme } from 'next-themes';
 import type React from 'react';

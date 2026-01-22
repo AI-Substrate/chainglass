@@ -17,8 +17,8 @@ import {
   type ILogger,
   LogLevel,
   SampleConfigType,
-} from '@chainglass/shared';
-import { SampleService } from '@chainglass/web/services/sample.service';
+} from '../../../packages/shared/src';
+import { SampleService } from '../../../apps/web/src/services/sample.service';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 describe('SampleService', () => {

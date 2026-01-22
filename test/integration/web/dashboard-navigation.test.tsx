@@ -1,4 +1,7 @@
 /**
+ * @vitest-environment jsdom
+ */
+/**
  * Dashboard Navigation Integration Tests
  *
  * Tests full navigation flow across pages:
@@ -7,7 +10,7 @@
  * - Sidebar state persistence during navigation
  */
 
-import { DashboardShell } from '@/components/dashboard-shell';
+import { DashboardShell } from '../../../apps/web/src/components/dashboard-shell';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
