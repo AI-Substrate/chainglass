@@ -20,6 +20,24 @@ inputs:
       required: true
       from_phase: gather
       description: "Number of items to process"
+  messages:
+    - id: "001"
+      type: "multi_choice"
+      from: "agent"
+      required: false
+      subject: "Output Format Selection"
+      prompt: "How should the processed output be structured?"
+      options:
+        - key: "A"
+          label: "Summary only"
+          description: "Aggregate metrics, no individual records"
+        - key: "B"
+          label: "Detailed only"
+          description: "All records with full details"
+        - key: "C"
+          label: "Both"
+          description: "Summary section plus detailed appendix"
+      description: "Agent may ask user to clarify output format preference"
 
 outputs:
   - name: result.md

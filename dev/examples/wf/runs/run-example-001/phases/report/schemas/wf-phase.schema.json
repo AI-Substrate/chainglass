@@ -45,15 +45,21 @@
           "type": "string",
           "enum": [
             "prepare",
+            "input",
             "handover",
             "accept",
             "preflight",
-            "human_question",
+            "question",
             "error",
             "answer",
             "finalize"
           ],
           "description": "Type of action performed"
+        },
+        "message_id": {
+          "type": "string",
+          "pattern": "^[0-9]{3}$",
+          "description": "Message ID reference (for input, question, answer actions)"
         },
         "comment": {
           "type": "string",

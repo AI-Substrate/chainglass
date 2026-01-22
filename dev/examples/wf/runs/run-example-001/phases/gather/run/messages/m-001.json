@@ -1,0 +1,14 @@
+{
+  "id": "001",
+  "created_at": "2026-01-21T10:00:00Z",
+  "from": "orchestrator",
+  "type": "free_text",
+  "subject": "Workflow Request",
+  "body": "What would you like to accomplish in this workflow?",
+  "note": "Initial user input from web UI",
+  "answer": {
+    "answered_at": "2026-01-21T10:00:05Z",
+    "text": "Process these CSV files and generate a summary report with trends. Focus on the sales data from Q4 2025.",
+    "note": "User request captured via CLI"
+  }
+}

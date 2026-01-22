@@ -10,6 +10,13 @@
       "comment": "Phase prepared, inputs resolved"
     },
     {
+      "timestamp": "2026-01-21T10:00:00Z",
+      "from": "orchestrator",
+      "action": "input",
+      "message_id": "001",
+      "comment": "User input message created"
+    },
+    {
       "timestamp": "2026-01-21T10:00:01Z",
       "from": "orchestrator",
       "action": "handover",

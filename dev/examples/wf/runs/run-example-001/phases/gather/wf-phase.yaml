@@ -10,6 +10,14 @@ inputs:
     - name: request.md
       required: true
       description: "Initial request describing what to gather"
+  messages:
+    - id: "001"
+      type: "free_text"
+      from: "orchestrator"
+      required: true
+      subject: "Workflow Request"
+      prompt: "What would you like to accomplish in this workflow?"
+      description: "The user's initial request that kicks off this workflow"
 
 outputs:
   - name: acknowledgment.md

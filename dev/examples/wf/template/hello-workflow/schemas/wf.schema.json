@@ -73,6 +73,11 @@
           "type": "array",
           "items": { "$ref": "#/$defs/parameterInput" },
           "description": "Parameter inputs from prior phases"
+        },
+        "messages": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/messageInput" },
+          "description": "Message input declarations for agent-orchestrator communication"
         }
       }
     },
@@ -117,6 +122,67 @@
         "from_phase": {
           "type": "string",
           "description": "Source phase that publishes this parameter"
+        }
+      }
+    },
+    "messageInput": {
+      "type": "object",
+      "required": ["id", "type", "from", "required", "subject"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[0-9]{3}$",
+          "description": "Expected message ID (without m- prefix, becomes m-{id}.json)"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["single_choice", "multi_choice", "free_text", "confirm"],
+          "description": "Expected message type"
+        },
+        "from": {
+          "type": "string",
+          "enum": ["agent", "orchestrator"],
+          "description": "Who creates this message"
+        },
+        "required": {
+          "type": "boolean",
+          "description": "Whether this message must exist for prepare to pass (for orchestrator messages) or may be created (for agent messages)"
+        },
+        "subject": {
+          "type": "string",
+          "description": "Subject line for the message"
+        },
+        "prompt": {
+          "type": "string",
+          "description": "Guidance text for orchestrator UI or agent"
+        },
+        "options": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/messageOption" },
+          "description": "Pre-defined options for choice message types"
+        },
+        "description": {
+          "type": "string",
+          "description": "Documentation for humans"
+        }
+      }
+    },
+    "messageOption": {
+      "type": "object",
+      "required": ["key", "label"],
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^[A-Z]$",
+          "description": "Single letter key (A, B, C, etc.)"
+        },
+        "label": {
+          "type": "string",
+          "description": "Short label for the option"
+        },
+        "description": {
+          "type": "string",
+          "description": "Longer description of the option"
         }
       }
     },

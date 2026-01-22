@@ -28,6 +28,32 @@
       "comment": "Preflight passed: config OK, inputs OK, params resolved"
     },
     {
+      "timestamp": "2026-01-21T10:07:00Z",
+      "from": "agent",
+      "action": "question",
+      "message_id": "001",
+      "comment": "Need clarification on output format preference"
+    },
+    {
+      "timestamp": "2026-01-21T10:08:30Z",
+      "from": "orchestrator",
+      "action": "answer",
+      "message_id": "001",
+      "comment": "User selected option C: Both summary and detailed appendix"
+    },
+    {
+      "timestamp": "2026-01-21T10:08:31Z",
+      "from": "orchestrator",
+      "action": "handover",
+      "comment": "Resuming agent after Q&A"
+    },
+    {
+      "timestamp": "2026-01-21T10:08:32Z",
+      "from": "agent",
+      "action": "accept",
+      "comment": "Agent resuming with answer"
+    },
+    {
       "timestamp": "2026-01-21T10:10:00Z",
       "from": "agent",
       "action": "finalize",

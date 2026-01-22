@@ -18,6 +18,14 @@ phases:
         - name: request.md
           required: true
           description: "Initial request describing what to gather"
+      messages:
+        - id: "001"
+          type: "free_text"
+          from: "orchestrator"
+          required: true
+          subject: "Workflow Request"
+          prompt: "What would you like to accomplish in this workflow?"
+          description: "The user's initial request that kicks off this workflow"
 
     # Outputs produced by this phase
     outputs:
@@ -61,6 +69,24 @@ phases:
           required: true
           from_phase: gather
           description: "Number of items to process"
+      messages:
+        - id: "001"
+          type: "multi_choice"
+          from: "agent"
+          required: false
+          subject: "Output Format Selection"
+          prompt: "How should the processed output be structured?"
+          options:
+            - key: "A"
+              label: "Summary only"
+              description: "Aggregate metrics, no individual records"
+            - key: "B"
+              label: "Detailed only"
+              description: "All records with full details"
+            - key: "C"
+              label: "Both"
+              description: "Summary section plus detailed appendix"
+          description: "Agent may ask user to clarify output format preference"
 
     outputs:
       - name: result.md

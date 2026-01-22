@@ -118,14 +118,14 @@ flowchart TD
     end
 
     subgraph Subtask["Subtask 001: Message Communication"]
-        ST001["ST001: Design message schema"]:::pending
-        ST002["ST002: Create message.schema.json"]:::pending
-        ST003["ST003: Update wf-phase.schema.json"]:::pending
-        ST004["ST004: Add gather user-input message"]:::pending
-        ST005["ST005: Add process question message"]:::pending
-        ST006["ST006: Update process wf-phase.json"]:::pending
-        ST007["ST007: Update manual test guide"]:::pending
-        ST008["ST008: Validate all JSON"]:::pending
+        ST001["ST001: Design message schema ✓"]:::completed
+        ST002["ST002: Create message.schema.json ✓"]:::completed
+        ST003["ST003: Update wf-phase.schema.json ✓"]:::completed
+        ST004["ST004: Add gather user-input message ✓"]:::completed
+        ST005["ST005: Add process question message ✓"]:::completed
+        ST006["ST006: Update process wf-phase.json ✓"]:::completed
+        ST007["ST007: Update manual test guide ✓"]:::completed
+        ST008["ST008: Validate all JSON ✓"]:::completed
 
         ST001 --> ST002
         ST002 --> ST003
@@ -138,12 +138,12 @@ flowchart TD
     end
 
     subgraph Files["Files"]
-        F1["/template/.../schemas/message.schema.json"]:::pending
-        F2["/template/.../schemas/wf-phase.schema.json"]:::pending
-        F3["/runs/.../gather/run/messages/m-001.json"]:::pending
-        F4["/runs/.../process/run/messages/m-001.json"]:::pending
-        F5["/runs/.../process/run/wf-data/wf-phase.json"]:::pending
-        F6["/dev/examples/wf/MANUAL-TEST-GUIDE.md"]:::pending
+        F1["/template/.../schemas/message.schema.json ✓"]:::completed
+        F2["/template/.../schemas/wf-phase.schema.json ✓"]:::completed
+        F3["/runs/.../gather/run/messages/m-001.json ✓"]:::completed
+        F4["/runs/.../process/run/messages/m-001.json ✓"]:::completed
+        F5["/runs/.../process/run/wf-data/wf-phase.json ✓"]:::completed
+        F6["/dev/examples/wf/MANUAL-TEST-GUIDE.md ✓"]:::completed
     end
 
     ST002 -.-> F1
@@ -162,14 +162,14 @@ flowchart TD
 
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
-| ST001 | Message Schema Design | N/A (design doc) | ⬜ Pending | Design before implementation |
-| ST002 | JSON Schema | message.schema.json | ⬜ Pending | Draft 2020-12 compliance |
-| ST003 | wf-phase Schema Update | wf-phase.schema.json | ⬜ Pending | Add message_id to status |
-| ST004 | Gather User Input | messages/m-001.json | ⬜ Pending | Orchestrator→agent free_text |
-| ST005 | Process Question | messages/m-001.json | ⬜ Pending | Agent→orchestrator multi_choice |
-| ST006 | Process Status Update | wf-phase.json | ⬜ Pending | Add question/answer entries |
-| ST007 | Documentation | MANUAL-TEST-GUIDE.md | ⬜ Pending | Document message protocol |
-| ST008 | Validation | N/A (validation step) | ⬜ Pending | All JSON validates |
+| ST001 | Message Schema Design | N/A (design doc) | ✅ Complete | Design captured in Alignment Brief |
+| ST002 | JSON Schema | message.schema.json | ✅ Complete | Draft 2020-12 compliance |
+| ST003 | wf-phase Schema Update | wf-phase.schema.json | ✅ Complete | Add message_id to status |
+| ST004 | Gather User Input | messages/m-001.json | ✅ Complete | Orchestrator→agent free_text |
+| ST005 | Process Question | messages/m-001.json | ✅ Complete | Agent→orchestrator multi_choice |
+| ST006 | Process Status Update | wf-phase.json | ✅ Complete | Add question/answer entries |
+| ST007 | wf.schema.json | wf.schema.json | ✅ Complete | Add messageInput definition |
+| ST008 | Template wf.yaml | wf.yaml | ✅ Complete | Add message declarations |
 
 ---
 
@@ -177,19 +177,19 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|------|------|-----|------|--------------|------------------|------------|----------|-------|
-| [ ] | ST001 | Design message schema with types: single_choice, multi_choice, free_text, confirm | 2 | Design | – | N/A (design captured below) | Schema design documented | – | Workshop output captured in this dossier |
-| [ ] | ST002 | Create `message.schema.json` in template schemas directory | 2 | Core | ST001 | `/Users/jordanknight/substrate/chainglass-004-config/dev/examples/wf/template/hello-workflow/schemas/message.schema.json` | Schema valid Draft 2020-12 | – | Covers all message types |
-| [ ] | ST003 | Update `wf-phase.schema.json` to add optional `message_id` field to status entries | 1 | Core | ST001 | `/Users/jordanknight/substrate/chainglass-004-config/dev/examples/wf/template/hello-workflow/schemas/wf-phase.schema.json` | Schema valid, backward compatible | – | Optional field for question/answer actions |
-| [ ] | ST004 | Create gather phase user input message `m-001.json` | 2 | Core | ST002 | `/Users/jordanknight/substrate/chainglass-004-config/dev/examples/wf/runs/run-example-001/phases/gather/run/messages/m-001.json` | Validates against message.schema.json | – | Type: free_text, from: orchestrator |
-| [ ] | ST005 | Create process phase question message `m-001.json` with multi_choice and answer | 2 | Core | ST002 | `/Users/jordanknight/substrate/chainglass-004-config/dev/examples/wf/runs/run-example-001/phases/process/run/messages/m-001.json` | Validates against message.schema.json | – | Shows complete question/answer flow |
-| [ ] | ST006 | Update process phase `wf-phase.json` to include question and answer status entries with message_id references | 2 | Core | ST003, ST005 | `/Users/jordanknight/substrate/chainglass-004-config/dev/examples/wf/runs/run-example-001/phases/process/run/wf-data/wf-phase.json` | Validates against wf-phase.schema.json | – | Insert between preflight and finalize |
-| [ ] | ST007 | Update `wf.schema.json` to support `inputs.messages` declarations | 2 | Core | ST001 | `/Users/jordanknight/substrate/chainglass-004-config/dev/examples/wf/template/hello-workflow/schemas/wf.schema.json` | Schema valid, supports message declarations | – | New messages array in inputs |
-| [ ] | ST008 | Update template `wf.yaml` with message declarations for gather and process phases | 2 | Core | ST007 | `/Users/jordanknight/substrate/chainglass-004-config/dev/examples/wf/template/hello-workflow/wf.yaml` | YAML valid, has inputs.messages | – | Per design above |
-| [ ] | ST009 | Update run `wf.yaml` with message declarations (copy from template) | 1 | Core | ST008 | `/Users/jordanknight/substrate/chainglass-004-config/dev/examples/wf/runs/run-example-001/wf.yaml` | YAML matches template | – | Keep in sync |
-| [ ] | ST010 | Update gather `wf-phase.yaml` with extracted message declaration | 1 | Core | ST008 | `/Users/jordanknight/substrate/chainglass-004-config/dev/examples/wf/runs/run-example-001/phases/gather/wf-phase.yaml` | YAML valid | – | Extract from wf.yaml |
-| [ ] | ST011 | Update process `wf-phase.yaml` with extracted message declaration | 1 | Core | ST008 | `/Users/jordanknight/substrate/chainglass-004-config/dev/examples/wf/runs/run-example-001/phases/process/wf-phase.yaml` | YAML valid | – | Extract from wf.yaml |
-| [ ] | ST012 | Update MANUAL-TEST-GUIDE.md with message protocol documentation | 1 | Doc | ST006, ST011 | `/Users/jordanknight/substrate/chainglass-004-config/dev/examples/wf/MANUAL-TEST-GUIDE.md` | Documentation complete | – | Explain message flow |
-| [ ] | ST013 | Validate all new/updated JSON/YAML files against their schemas | 1 | Validation | ST004, ST005, ST006, ST010, ST011 | N/A (validation step) | All ajv validate commands pass | – | Final validation gate |
+| [x] | ST001 | Design message schema with types: single_choice, multi_choice, free_text, confirm | 2 | Design | – | N/A (design captured below) | Schema design documented | – | Workshop output captured in this dossier |
+| [x] | ST002 | Create `message.schema.json` in template schemas directory | 2 | Core | ST001 | `/home/jak/substrate/003-wf-basics/dev/examples/wf/template/hello-workflow/schemas/message.schema.json` | Schema valid Draft 2020-12 | – | Covers all message types |
+| [x] | ST003 | Update `wf-phase.schema.json` to add optional `message_id` field to status entries | 1 | Core | ST001 | `/home/jak/substrate/003-wf-basics/dev/examples/wf/template/hello-workflow/schemas/wf-phase.schema.json` | Schema valid, backward compatible | – | Optional field for question/answer actions |
+| [x] | ST004 | Create gather phase user input message `m-001.json` | 2 | Core | ST002 | `/home/jak/substrate/003-wf-basics/dev/examples/wf/runs/run-example-001/phases/gather/run/messages/m-001.json` | Validates against message.schema.json | – | Type: free_text, from: orchestrator |
+| [x] | ST005 | Create process phase question message `m-001.json` with multi_choice and answer | 2 | Core | ST002 | `/home/jak/substrate/003-wf-basics/dev/examples/wf/runs/run-example-001/phases/process/run/messages/m-001.json` | Validates against message.schema.json | – | Shows complete question/answer flow |
+| [x] | ST006 | Update process phase `wf-phase.json` to include question and answer status entries with message_id references | 2 | Core | ST003, ST005 | `/home/jak/substrate/003-wf-basics/dev/examples/wf/runs/run-example-001/phases/process/run/wf-data/wf-phase.json` | Validates against wf-phase.schema.json | – | Insert between preflight and finalize |
+| [x] | ST007 | Update `wf.schema.json` to support `inputs.messages` declarations | 2 | Core | ST001 | `/home/jak/substrate/003-wf-basics/dev/examples/wf/template/hello-workflow/schemas/wf.schema.json` | Schema valid, supports message declarations | – | New messages array in inputs |
+| [x] | ST008 | Update template `wf.yaml` with message declarations for gather and process phases | 2 | Core | ST007 | `/home/jak/substrate/003-wf-basics/dev/examples/wf/template/hello-workflow/wf.yaml` | YAML valid, has inputs.messages | – | Per design above |
+| [x] | ST009 | Update run `wf.yaml` with message declarations (copy from template) | 1 | Core | ST008 | `/home/jak/substrate/003-wf-basics/dev/examples/wf/runs/run-example-001/wf.yaml` | YAML matches template | – | Keep in sync |
+| [x] | ST010 | Update gather `wf-phase.yaml` with extracted message declaration | 1 | Core | ST008 | `/home/jak/substrate/003-wf-basics/dev/examples/wf/runs/run-example-001/phases/gather/wf-phase.yaml` | YAML valid | – | Extract from wf.yaml |
+| [x] | ST011 | Update process `wf-phase.yaml` with extracted message declaration | 1 | Core | ST008 | `/home/jak/substrate/003-wf-basics/dev/examples/wf/runs/run-example-001/phases/process/wf-phase.yaml` | YAML valid | – | Extract from wf.yaml |
+| [x] | ST012 | Update MANUAL-TEST-GUIDE.md with message protocol documentation | 1 | Doc | ST006, ST011 | `/home/jak/substrate/003-wf-basics/dev/examples/wf/MANUAL-TEST-GUIDE.md` | Documentation complete | – | Explain message flow |
+| [x] | ST013 | Validate all new/updated JSON/YAML files against their schemas | 1 | Validation | ST004, ST005, ST006, ST010, ST011 | N/A (validation step) | All ajv validate commands pass | – | Final validation gate |
 
 ---
 
@@ -245,6 +245,7 @@ Based on workshop session, the message schema design is:
 2. **Answer embedded in message file**:
    - The message file is mutable - starts with question, gets `answer` field added when orchestrator responds
    - Keeps question and answer together for audit trail
+   - For orchestrator→agent messages (user input): The answer is pre-filled because the Q&A already happened outside the workflow boundary (e.g., orchestrator UI asked user, got response, then created message with both)
 
 3. **Status log references message by ID**:
    - `"action": "question", "message_id": "m-001"` - agent asked
@@ -343,6 +344,12 @@ process:
 - If `required: true` and `from: "orchestrator"`: Message m-{id} must exist
 - If `required: true` and `from: "agent"`: No check (agent creates during execution)
 - New error codes: E060 (message not found), E061 (wrong type), E062 (awaiting answer)
+
+> **⚠️ "Required" Field Asymmetry**: The `required` field has different semantics based on `from`:
+> - **Orchestrator messages**: `required: true` = MUST exist before prepare passes (validated)
+> - **Agent messages**: `required: true` = agent MAY create this during execution (NOT validated)
+>
+> This asymmetry exists because orchestrator messages are **inputs** (provided before execution) while agent messages are **conditional outputs** (created if needed during execution). There is no post-finalize validation that required agent messages were created. See TD-ST001-02.
 
 ### CLI Commands Reference (OOS - Phase 3+)
 
@@ -727,6 +734,13 @@ npx ajv validate \
 | Schema design may need revision when CLI commands implemented | Medium | Design flexibly; schema can evolve |
 | Backward compatibility with existing wf-phase.json files | Low | message_id is optional field |
 
+### Technical Debt
+
+| ID | Description | Rationale | Future Phase | Reference |
+|----|-------------|-----------|--------------|-----------|
+| TD-ST001-01 | Agent bootstrap (wf.md) and phase commands (main.md) don't mention messages | Explicitly OOS per line 94; Phase 3+ CLI implementation will have better context for agent instructions | Phase 3+ | didyouknow session 2026-01-22 |
+| TD-ST001-02 | No post-finalize validation that required agent messages were created | Asymmetry is intentional (inputs vs outputs); add if enforcement needed later | Phase 3+ | didyouknow session 2026-01-22 |
+
 ### Ready Check
 
 - [x] Message schema design documented (ST001 captured above)
@@ -832,3 +846,175 @@ dev/examples/wf/
 **Subtask Status**: ⬜ NOT STARTED
 **Prerequisite**: Parent Phase 0 complete ✅
 **Next Step**: Await human **GO** to begin implementation with `/plan-6-implement-phase --subtask 001-subtask-message-communication`
+
+---
+
+## Critical Insights Discussion
+
+**Session**: 2026-01-22
+**Context**: Subtask 001 Message Communication System - pre-implementation review
+**Analyst**: AI Clarity Agent
+**Reviewer**: Jordan Knight
+**Format**: Water Cooler Conversation (5 Critical Insights)
+
+### Insight 1: Agent Instruction Gap
+
+**Did you know**: After ST001 implementation, the exemplar will have message files but wf.md and main.md provide zero guidance on how agents discover or read them.
+
+**Implications**:
+- User input exists as m-001.json but agents don't know to read it
+- Phase 3+ CLI implementation will hit this gap
+- Exemplar shows "what" but not "how to find it"
+
+**Options Considered**:
+- Option A: Accept the gap - defer to Phase 3+
+- Option B: Add minimal message awareness to wf.md now
+- Option C: Create agent-messages-guide.md alongside exemplar
+
+**AI Recommendation**: Option A (Accept the gap)
+- Reasoning: Respects documented scope (line 94 explicitly marks OOS); Phase 3+ will have better context
+
+**Discussion Summary**: User agreed to accept the gap and ensure it's logged as technical debt.
+
+**Decision**: Accept gap, log as TD-ST001-01
+
+**Action Items**:
+- [x] Add TD-ST001-01 to Technical Debt table
+
+**Affects**: Phase 3+ CLI implementation
+
+---
+
+### Insight 2: "Required" Field Asymmetry
+
+**Did you know**: The `required: true` field on message declarations has completely different validation behavior depending on the `from` field - orchestrator messages are validated at prepare, agent messages are never validated.
+
+**Implications**:
+- "Required" is misleading for agent messages
+- No post-finalize check ensures required agent messages were created
+- Developers might assume validation that doesn't exist
+
+**Options Considered**:
+- Option A: Accept asymmetry - document clearly
+- Option B: Remove "required" field for agent messages
+- Option C: Add post-finalize validation
+
+**AI Recommendation**: Option A (Accept asymmetry, document clearly)
+- Reasoning: Asymmetry reflects real semantics (inputs vs outputs); documentation prevents confusion
+
+**Discussion Summary**: User recognized this as a great finding. Agreed to document clearly.
+
+**Decision**: Accept asymmetry, add callout box explaining semantics
+
+**Action Items**:
+- [x] Add callout box to subtask explaining asymmetry
+- [x] Add TD-ST001-02 for potential future post-finalize validation
+
+**Affects**: ST001 documentation, Phase 3+ validation decisions
+
+---
+
+### Insight 3: Orchestrator "Pre-Answered Question" Pattern
+
+**Did you know**: Orchestrator input messages have the answer pre-filled at creation time, making them look like questions that answer themselves.
+
+**Implications**:
+- Schema treats fundamentally different concepts identically
+- `body` for orchestrator messages is really a "prompt template"
+- Reading code needs to understand this implicit pattern
+
+**Options Considered**:
+- Option A: Keep current design - document the pattern
+- Option B: Introduce message "role" field
+- Option C: Orchestrator messages use body only (no answer)
+
+**AI Recommendation**: Option A (Keep current design)
+- Reasoning: Unified validation is simpler; pattern is intentional for audit trail
+
+**Discussion Summary**: User pointed out the Q&A DID happen - just outside the workflow boundary. The orchestrator UI asked the user and got the answer before creating the message. The message captures that completed exchange.
+
+**Decision**: Keep design, add clarification that Q&A happened outside workflow boundary
+
+**Action Items**:
+- [x] Add clarification to design decisions section
+
+**Affects**: ST001 documentation
+
+---
+
+### Insight 4: Per-Phase Message IDs Are Correct
+
+**Did you know**: Message IDs like m-001 are scoped per-phase (both gather and process can have m-001), but this is actually correct because messages are phase-local Q&A, not cross-phase data flow.
+
+**Implications**:
+- No collision risk - cross-phase data uses outputs/parameters, not message IDs
+- Messages stay simple and scoped
+- Design is sound as-is
+
+**Options Considered**:
+- Option A: Keep per-phase IDs (current design)
+- Option B: Global workflow-level message IDs
+- Option C: UUID-based message IDs
+
+**AI Recommendation**: Option A (Keep per-phase IDs)
+- Reasoning: Messages are phase-local; cross-phase uses established file/parameter pattern
+
+**Discussion Summary**: User confirmed this matches their mental model.
+
+**Decision**: No change - design validated as correct
+
+**Action Items**: None
+
+**Affects**: Nothing - design confirmed
+
+---
+
+### Insight 5: Mutable Message Files Are Safe
+
+**Did you know**: The mutable message file pattern (answer written back to same file) looks like a race condition risk, but the single-writer constraint and facilitator model provide implicit safety.
+
+**Implications**:
+- Single writer per workflow run = no concurrent access
+- Facilitator field IS the lock mechanism (implicit)
+- Sequential handoffs prevent simultaneous access
+
+**Options Considered**:
+- Option A: Keep mutable message file (current design)
+- Option B: Separate question and answer files
+- Option C: Message file with versioning/locking
+
+**AI Recommendation**: Option A (Keep mutable)
+- Reasoning: Single-writer constraint makes it safe; no locks needed
+
+**Discussion Summary**: User confirmed the design is fine as-is.
+
+**Decision**: No change - design validated as safe under current constraints
+
+**Action Items**: None
+
+**Affects**: Nothing - architecture confirmed
+
+---
+
+## Session Summary
+
+**Insights Surfaced**: 5 critical insights identified and discussed
+**Decisions Made**: 5 decisions reached through collaborative discussion
+**Action Items Created**: 2 technical debt items logged
+**Areas Updated**:
+- Technical Debt table (TD-ST001-01, TD-ST001-02)
+- "Required" field asymmetry callout box
+- Pre-answered question clarification in design decisions
+
+**Shared Understanding Achieved**: ✓
+
+**Confidence Level**: High - Design validated, gaps documented, ready for implementation
+
+**Next Steps**:
+1. Await **GO** to begin ST001 implementation
+2. Run `/plan-6-implement-phase --subtask 001-subtask-message-communication`
+
+**Notes**:
+- Two design aspects validated as correct (per-phase IDs, mutable files)
+- Two gaps accepted and logged as debt (agent instructions, post-finalize validation)
+- One clarification added (pre-answered question rationale)
