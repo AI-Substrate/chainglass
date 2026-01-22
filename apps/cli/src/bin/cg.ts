@@ -16,6 +16,7 @@ import chalk from 'chalk';
 import { Command, Help } from 'commander';
 import { registerMcpCommand } from '../commands/mcp.command.js';
 import { registerWebCommand } from '../commands/web.command.js';
+import { registerWfCommands } from '../commands/wf.command.js';
 
 const BANNER = `${chalk.white.bold('chain')}${chalk.cyan.bold('glass')}`;
 const TAGLINE = chalk.dim('Orchestrate AI workflows with elegance');
@@ -214,6 +215,7 @@ export function createProgram(options: CreateProgramOptions = {}): Command {
   // Register commands
   registerWebCommand(program);
   registerMcpCommand(program);
+  registerWfCommands(program);
 
   // Default behavior: show help when no command provided
   if (!options.testMode) {

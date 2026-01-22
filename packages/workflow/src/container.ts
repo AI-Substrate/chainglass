@@ -19,11 +19,13 @@ import {
   FakePathResolver,
   FakeLogger,
 } from '@chainglass/shared';
-import type { IYamlParser, ISchemaValidator } from './interfaces/index.js';
+import type { IYamlParser, ISchemaValidator, IWorkflowService } from './interfaces/index.js';
 import { YamlParserAdapter } from './adapters/yaml-parser.adapter.js';
 import { SchemaValidatorAdapter } from './adapters/schema-validator.adapter.js';
+import { WorkflowService } from './services/workflow.service.js';
 import { FakeYamlParser } from './fakes/fake-yaml-parser.js';
 import { FakeSchemaValidator } from './fakes/fake-schema-validator.js';
+import { FakeWorkflowService } from './fakes/fake-workflow-service.js';
 
 /**
  * Creates a production DI container for workflow services.
@@ -55,6 +57,17 @@ export function createWorkflowProductionContainer(): DependencyContainer {
 
   childContainer.register<ISchemaValidator>(WORKFLOW_DI_TOKENS.SCHEMA_VALIDATOR, {
     useFactory: () => new SchemaValidatorAdapter(),
+  });
+
+  // Register workflow service (depends on other interfaces)
+  childContainer.register<IWorkflowService>(WORKFLOW_DI_TOKENS.WORKFLOW_SERVICE, {
+    useFactory: (c) =>
+      new WorkflowService(
+        c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM),
+        c.resolve<IYamlParser>(WORKFLOW_DI_TOKENS.YAML_PARSER),
+        c.resolve<ISchemaValidator>(WORKFLOW_DI_TOKENS.SCHEMA_VALIDATOR),
+        c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER)
+      ),
   });
 
   return childContainer;
@@ -98,6 +111,12 @@ export function createWorkflowTestContainer(): DependencyContainer {
 
   childContainer.register<ISchemaValidator>(WORKFLOW_DI_TOKENS.SCHEMA_VALIDATOR, {
     useValue: fakeSchemaValidator,
+  });
+
+  // Register fake workflow service
+  const fakeWorkflowService = new FakeWorkflowService();
+  childContainer.register<IWorkflowService>(WORKFLOW_DI_TOKENS.WORKFLOW_SERVICE, {
+    useValue: fakeWorkflowService,
   });
 
   return childContainer;

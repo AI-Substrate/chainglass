@@ -9,3 +9,6 @@ export type {
   ValidationResult,
   ResultError,
 } from './schema-validator.interface.js';
+
+// Workflow service interface (Phase 2)
+export type { IWorkflowService } from './workflow-service.interface.js';

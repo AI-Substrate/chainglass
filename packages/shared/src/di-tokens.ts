@@ -31,4 +31,6 @@ export const WORKFLOW_DI_TOKENS = {
   YAML_PARSER: 'IYamlParser',
   /** ISchemaValidator interface */
   SCHEMA_VALIDATOR: 'ISchemaValidator',
+  /** IWorkflowService interface (per Phase 2) */
+  WORKFLOW_SERVICE: 'IWorkflowService',
 } as const;

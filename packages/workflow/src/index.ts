@@ -44,6 +44,9 @@ export type {
   ResultError,
 } from './interfaces/index.js';
 
+// Workflow service interface (Phase 2)
+export type { IWorkflowService } from './interfaces/index.js';
+
 // Adapters
 export { YamlParserAdapter } from './adapters/index.js';
 export { SchemaValidatorAdapter } from './adapters/index.js';
@@ -51,6 +54,19 @@ export { SchemaValidatorAdapter } from './adapters/index.js';
 // Fakes
 export { FakeYamlParser } from './fakes/index.js';
 export { FakeSchemaValidator } from './fakes/index.js';
+export { FakeWorkflowService } from './fakes/index.js';
+export type { ComposeCall } from './fakes/index.js';
+
+// Services (Phase 2)
+export { WorkflowService, ComposeErrorCodes } from './services/index.js';
+
+// Embedded schemas (Phase 2 - DYK-01)
+export {
+  WF_SCHEMA,
+  WF_PHASE_SCHEMA,
+  MESSAGE_SCHEMA,
+  WF_STATUS_SCHEMA,
+} from './schemas/index.js';
 
 // DI Container
 export {

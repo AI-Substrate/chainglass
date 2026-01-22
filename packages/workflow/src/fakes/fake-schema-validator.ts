@@ -70,6 +70,18 @@ export class FakeSchemaValidator implements ISchemaValidator {
   reset(): void {
     this.validationResults.clear();
     this.useRealValidation = true;
+    this.defaultResult = undefined;
+  }
+
+  /** Default result returned when no preset matches */
+  private defaultResult?: ValidationResult;
+
+  /**
+   * Set a default result to be returned for all validations (test helper).
+   * Useful when you want all validations to pass/fail without specifying data.
+   */
+  setDefaultResult(result: ValidationResult): void {
+    this.defaultResult = result;
   }
 
   /**
@@ -123,6 +135,11 @@ export class FakeSchemaValidator implements ISchemaValidator {
     const key = JSON.stringify(data);
     if (this.validationResults.has(key)) {
       return this.validationResults.get(key)!;
+    }
+
+    // Check for default result
+    if (this.defaultResult) {
+      return this.defaultResult;
     }
 
     // Use real validation if enabled

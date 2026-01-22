@@ -188,11 +188,22 @@ export class FakeFileSystem implements IFileSystem {
 
     if (options?.recursive) {
       // Create all parent directories
-      const parts = path.split('/').filter(Boolean);
-      let currentPath = path.startsWith('/') ? '' : '';
-      for (const part of parts) {
-        currentPath = currentPath + '/' + part;
-        this.dirs.add(currentPath);
+      // Handle both absolute (/foo/bar) and relative (foo/bar) paths
+      if (path.startsWith('/')) {
+        const parts = path.split('/').filter(Boolean);
+        let currentPath = '';
+        for (const part of parts) {
+          currentPath = currentPath + '/' + part;
+          this.dirs.add(currentPath);
+        }
+      } else {
+        // Relative path: build up parts without leading slash
+        const parts = path.split('/').filter(Boolean);
+        let currentPath = '';
+        for (let i = 0; i < parts.length; i++) {
+          currentPath = i === 0 ? parts[i] : currentPath + '/' + parts[i];
+          this.dirs.add(currentPath);
+        }
       }
     } else {
       const parent = pathModule.dirname(path);
