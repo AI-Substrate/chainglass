@@ -25,6 +25,8 @@ export interface UseSSEOptions {
   reconnectDelay?: number;
   /** Max reconnect attempts (default: 5, 0 = unlimited) */
   maxReconnectAttempts?: number;
+  /** Maximum messages to retain (default: 1000, 0 = unlimited) - FIX-004 */
+  maxMessages?: number;
 }
 
 export interface UseSSEReturn<T = unknown> {
@@ -63,7 +65,7 @@ export function useSSE<T = unknown>(
   eventSourceFactory: EventSourceFactory = defaultEventSourceFactory,
   options: UseSSEOptions = {}
 ): UseSSEReturn<T> {
-  const { autoConnect = true, reconnectDelay = 5000, maxReconnectAttempts = 5 } = options;
+  const { autoConnect = true, reconnectDelay = 5000, maxReconnectAttempts = 5, maxMessages = 1000 } = options;
 
   const [isConnected, setIsConnected] = useState(false);
   const [messages, setMessages] = useState<T[]>([]);
@@ -77,6 +79,12 @@ export function useSSE<T = unknown>(
    * Create a new EventSource connection.
    */
   const connect = useCallback(() => {
+    // Clear any pending reconnect timeout (FIX-003)
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+
     // Clean up existing connection
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
@@ -94,7 +102,14 @@ export function useSSE<T = unknown>(
     eventSource.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data) as T;
-        setMessages((prev) => [...prev, data]);
+        setMessages((prev) => {
+          const updated = [...prev, data];
+          // Prune to maxMessages if set (FIX-004)
+          if (maxMessages > 0 && updated.length > maxMessages) {
+            return updated.slice(-maxMessages);
+          }
+          return updated;
+        });
       } catch {
         // Non-JSON message - store as raw or ignore based on use case
         // For now, we silently ignore parse errors
@@ -115,7 +130,7 @@ export function useSSE<T = unknown>(
         }, reconnectDelay);
       }
     };
-  }, [url, eventSourceFactory, reconnectDelay, maxReconnectAttempts]);
+  }, [url, eventSourceFactory, reconnectDelay, maxReconnectAttempts, maxMessages]);
 
   /**
    * Disconnect from SSE endpoint.

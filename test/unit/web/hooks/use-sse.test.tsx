@@ -120,6 +120,32 @@ describe('useSSE', () => {
       expect(result.current.messages[2]).toEqual({ id: 3 });
     });
 
+    it('should prune messages when exceeding maxMessages (FIX-004)', () => {
+      /*
+      Test Doc:
+      - Why: Unbounded message arrays cause memory leaks
+      - Contract: messages array limited to maxMessages, oldest pruned first
+      - Usage Notes: Default is 1000, 0 = unlimited
+      - Quality Contribution: Prevents memory exhaustion
+      - Worked Example: maxMessages=3, 4 messages → keeps last 3
+      */
+      const { result } = renderHook(() =>
+        useSSE('/api/events', factory.create, { maxMessages: 3 })
+      );
+
+      act(() => {
+        factory.lastInstance?.simulateOpen();
+        factory.lastInstance?.simulateMessage('{"id":1}');
+        factory.lastInstance?.simulateMessage('{"id":2}');
+        factory.lastInstance?.simulateMessage('{"id":3}');
+        factory.lastInstance?.simulateMessage('{"id":4}');
+      });
+
+      expect(result.current.messages).toHaveLength(3);
+      expect(result.current.messages[0]).toEqual({ id: 2 }); // First message pruned
+      expect(result.current.messages[2]).toEqual({ id: 4 }); // Latest preserved
+    });
+
     it('should handle malformed JSON gracefully', () => {
       /*
       Test Doc:
@@ -191,6 +217,37 @@ describe('useSSE', () => {
 
       // Should have created a new instance
       expect(factory.lastInstance).not.toBe(firstInstance);
+    });
+
+    it('should clear pending timeout when connect is called (FIX-003)', async () => {
+      /*
+      Test Doc:
+      - Why: Prevents accumulating reconnect timeouts (memory leak)
+      - Contract: Calling connect() clears any pending reconnect timeout
+      - Usage Notes: Important for manual reconnect scenarios
+      - Quality Contribution: Validates timeout cleanup
+      - Worked Example: error → connect() → only one reconnect scheduled
+      */
+      const { result } = renderHook(() => useSSE('/api/events', factory.create));
+
+      act(() => {
+        factory.lastInstance?.simulateOpen();
+        factory.lastInstance?.simulateError();
+      });
+
+      // Manually reconnect before timeout fires
+      act(() => {
+        result.current.connect();
+      });
+
+      // Advance past the original timeout
+      act(() => {
+        vi.advanceTimersByTime(10000);
+      });
+
+      // Should only have 2 instances (initial + manual reconnect)
+      // Not 3 (initial + manual + timeout)
+      expect(factory.instanceCount).toBe(2);
     });
   });
 

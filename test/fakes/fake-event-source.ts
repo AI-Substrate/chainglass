@@ -136,14 +136,20 @@ export class FakeEventSource implements Partial<EventSource> {
  */
 export function createFakeEventSourceFactory() {
   let lastInstance: FakeEventSource | null = null;
+  let instanceCount = 0;
 
   return {
     create: (url: string, options?: EventSourceInit): FakeEventSource => {
       lastInstance = new FakeEventSource(url, options);
+      instanceCount++;
       return lastInstance;
     },
     get lastInstance() {
       return lastInstance;
+    },
+    /** Number of EventSource instances created (useful for reconnect tests) */
+    get instanceCount() {
+      return instanceCount;
     },
   };
 }

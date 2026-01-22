@@ -265,6 +265,70 @@ describe('useFlowState', () => {
       );
       expect(newEdge).toBeDefined();
     });
+
+    it('should not add edge with non-existent source node (FIX-002)', () => {
+      /*
+      Test Doc:
+      - Why: Prevents orphaned edges pointing to non-existent nodes
+      - Contract: addEdge with invalid source is no-op
+      - Usage Notes: Logs warning, does not crash
+      - Quality Contribution: Validates edge validation logic
+      - Worked Example: addEdge('ghost', 'node-1') → no new edge
+      */
+      const { result } = renderHook(() => useFlowState(DEMO_FLOW), {
+        wrapper: ReactFlowWrapper,
+      });
+      const originalEdgeCount = result.current.edges.length;
+
+      act(() => {
+        result.current.addEdge('non-existent', 'node-1');
+      });
+
+      expect(result.current.edges).toHaveLength(originalEdgeCount);
+    });
+
+    it('should not add edge with non-existent target node (FIX-002)', () => {
+      /*
+      Test Doc:
+      - Why: Prevents orphaned edges pointing to non-existent nodes
+      - Contract: addEdge with invalid target is no-op
+      - Usage Notes: Logs warning, does not crash
+      - Quality Contribution: Validates edge validation logic
+      - Worked Example: addEdge('node-1', 'ghost') → no new edge
+      */
+      const { result } = renderHook(() => useFlowState(DEMO_FLOW), {
+        wrapper: ReactFlowWrapper,
+      });
+      const originalEdgeCount = result.current.edges.length;
+
+      act(() => {
+        result.current.addEdge('node-1', 'non-existent');
+      });
+
+      expect(result.current.edges).toHaveLength(originalEdgeCount);
+    });
+
+    it('should not add duplicate edges (FIX-005)', () => {
+      /*
+      Test Doc:
+      - Why: Duplicate edges create visual clutter and logic bugs
+      - Contract: addEdge with existing source→target is no-op
+      - Usage Notes: Checks by source+target, not edge id
+      - Quality Contribution: Prevents duplicate connections
+      - Worked Example: addEdge('node-1', 'node-2') twice → only 1 edge
+      */
+      const { result } = renderHook(() => useFlowState(DEMO_FLOW), {
+        wrapper: ReactFlowWrapper,
+      });
+      // edge-1-2 already exists in DEMO_FLOW
+      const originalEdgeCount = result.current.edges.length;
+
+      act(() => {
+        result.current.addEdge('node-1', 'node-2');
+      });
+
+      expect(result.current.edges).toHaveLength(originalEdgeCount);
+    });
   });
 
   describe('removeEdge', () => {
