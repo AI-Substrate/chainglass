@@ -8,10 +8,7 @@ import {
   expandPlaceholders,
   validateNoUnexpandedPlaceholders,
 } from './loaders/expand-placeholders.js';
-import {
-  commitPendingSecrets,
-  loadSecretsToPending,
-} from './loaders/secrets.loader.js';
+import { commitPendingSecrets, loadSecretsToPending } from './loaders/secrets.loader.js';
 import { loadYamlConfig } from './loaders/yaml.loader.js';
 import { validateNoLiteralSecrets } from './security/secret-detection.js';
 

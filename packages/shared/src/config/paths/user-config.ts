@@ -3,9 +3,33 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// ESM equivalent of __dirname
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+/**
+ * Get the directory of this module.
+ * Supports both ESM and CJS bundled environments.
+ *
+ * IMPORTANT: This must be lazy (not module-level) because import.meta.url
+ * is undefined in CJS bundles. We only call this when actually needed.
+ */
+function getModuleDir(): string {
+  // ESM: use import.meta.dirname (Node 20.11+) or fallback to fileURLToPath
+  if (typeof import.meta?.dirname === 'string') {
+    return import.meta.dirname;
+  }
+
+  // ESM fallback: use import.meta.url with fileURLToPath
+  if (typeof import.meta?.url === 'string') {
+    return path.dirname(fileURLToPath(import.meta.url));
+  }
+
+  // CJS fallback: __dirname is globally available in CommonJS
+  // Note: In bundled CJS, this works via the bundler's __dirname shim
+  if (typeof __dirname === 'string') {
+    return __dirname;
+  }
+
+  // Ultimate fallback: use cwd (should never happen in practice)
+  return process.cwd();
+}
 
 /**
  * Get the user-level configuration directory for Chainglass.
@@ -69,7 +93,7 @@ export function ensureUserConfig(configDir: string): void {
     // Copy starter template
     // Template is in packages/shared/src/config/templates/config.yaml
     // At runtime (compiled), it's at ../templates/config.yaml relative to this file
-    const templatePath = path.join(__dirname, '..', 'templates', 'config.yaml');
+    const templatePath = path.join(getModuleDir(), '..', 'templates', 'config.yaml');
 
     if (fs.existsSync(templatePath)) {
       fs.copyFileSync(templatePath, configPath);

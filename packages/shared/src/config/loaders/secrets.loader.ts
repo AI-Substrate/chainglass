@@ -159,16 +159,11 @@ const MAX_EXPANSION_DEPTH = 5;
  * @param depth - Current recursion depth (internal)
  * @throws Error if expansion exceeds MAX_EXPANSION_DEPTH
  */
-function expandValue(
-  value: string,
-  lookup: Record<string, string | undefined>,
-  depth = 0
-): string {
+function expandValue(value: string, lookup: Record<string, string | undefined>, depth = 0): string {
   // FIX-007: Guard against infinite recursion / ReDoS
   if (depth > MAX_EXPANSION_DEPTH) {
     throw new Error(
-      `Placeholder expansion exceeded max depth (${MAX_EXPANSION_DEPTH}). ` +
-        'Check for circular references or deeply nested placeholders.'
+      `Placeholder expansion exceeded max depth (${MAX_EXPANSION_DEPTH}). Check for circular references or deeply nested placeholders.`
     );
   }
 
