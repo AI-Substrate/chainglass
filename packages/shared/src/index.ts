@@ -88,6 +88,8 @@ export { ConsoleOutputAdapter } from './adapters/index.js';
 export { StreamJsonParser } from './adapters/index.js';
 export { ClaudeCodeAdapter } from './adapters/index.js';
 export type { ClaudeCodeAdapterOptions } from './adapters/index.js';
+export { UnixProcessManager } from './adapters/index.js';
+export { WindowsProcessManager } from './adapters/index.js';
 
 // DI Tokens
 export { SHARED_DI_TOKENS, WORKFLOW_DI_TOKENS } from './di-tokens.js';

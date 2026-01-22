@@ -61,10 +61,7 @@ export class StreamJsonParser {
         if (parsed.session_id) {
           return parsed.session_id;
         }
-      } catch {
-        // Skip malformed JSON lines - continue parsing
-        continue;
-      }
+      } catch {}
     }
 
     return undefined;
@@ -132,7 +129,6 @@ export class StreamJsonParser {
         if (error instanceof Error && error.message.includes('Token field')) {
           throw error;
         }
-        continue;
       }
     }
 
@@ -186,10 +182,7 @@ export class StreamJsonParser {
         if (parsed.type === 'result' && parsed.result) {
           texts.push(parsed.result);
         }
-      } catch {
-        // Skip malformed JSON lines
-        continue;
-      }
+      } catch {}
     }
 
     return texts.join('');

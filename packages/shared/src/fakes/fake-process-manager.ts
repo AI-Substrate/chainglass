@@ -291,13 +291,14 @@ export class FakeProcessManager implements IProcessManager {
     });
 
     if (!match) {
-      const history = this._spawnHistory.length === 0
-        ? '(no calls)'
-        : this._spawnHistory.map((c) => JSON.stringify(c)).join('\n  ');
+      const history =
+        this._spawnHistory.length === 0
+          ? '(no calls)'
+          : this._spawnHistory.map((c) => JSON.stringify(c)).join('\n  ');
 
       throw new Error(
         `Expected spawn() to be called with ${JSON.stringify(expected)}\n` +
-        `Actual calls:\n  ${history}`
+          `Actual calls:\n  ${history}`
       );
     }
   }
@@ -312,7 +313,7 @@ export class FakeProcessManager implements IProcessManager {
     if (!signals.includes(signal)) {
       throw new Error(
         `Expected signal ${signal} to be sent to PID ${pid}\n` +
-        `Actual signals: ${signals.length === 0 ? '(none)' : signals.join(', ')}`
+          `Actual signals: ${signals.length === 0 ? '(none)' : signals.join(', ')}`
       );
     }
   }

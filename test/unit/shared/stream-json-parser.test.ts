@@ -47,7 +47,8 @@ describe('StreamJsonParser', () => {
       */
       const parser = new StreamJsonParser();
       // First message without session_id, second has it
-      const output = '{"type":"init"}\n{"type":"message","session_id":"def-456","content":"Hi"}\n{"type":"text"}';
+      const output =
+        '{"type":"init"}\n{"type":"message","session_id":"def-456","content":"Hi"}\n{"type":"text"}';
 
       const sessionId = parser.extractSessionId(output);
 
@@ -131,9 +132,9 @@ describe('StreamJsonParser', () => {
       const tokens = parser.extractTokens(output);
 
       expect(tokens).not.toBeNull();
-      expect(tokens!.used).toBe(165); // 100+50+10+5
-      expect(tokens!.total).toBe(165); // same as used for single turn
-      expect(tokens!.limit).toBe(200000);
+      expect(tokens?.used).toBe(165); // 100+50+10+5
+      expect(tokens?.total).toBe(165); // same as used for single turn
+      expect(tokens?.limit).toBe(200000);
     });
 
     it('should handle missing cache tokens', () => {
@@ -159,7 +160,7 @@ describe('StreamJsonParser', () => {
       const tokens = parser.extractTokens(output);
 
       expect(tokens).not.toBeNull();
-      expect(tokens!.used).toBe(150); // 100+50+0+0
+      expect(tokens?.used).toBe(150); // 100+50+0+0
     });
 
     it('should return null when no Result message present', () => {
@@ -384,7 +385,7 @@ describe('StreamJsonParser', () => {
       - Worked Example: 1MB+ line → throws 'exceeds maximum length'
       */
       const parser = new StreamJsonParser();
-      const hugeLine = '{"data":"' + 'x'.repeat(1_000_001) + '"}';
+      const hugeLine = `{"data":"${'x'.repeat(1_000_001)}"}`;
 
       expect(() => parser.extractSessionId(hugeLine)).toThrow('exceeds maximum length');
     });

@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import type { ProcessSignal } from '@chainglass/shared';
 import { FakeProcessManager } from '@chainglass/shared';

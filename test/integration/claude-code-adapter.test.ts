@@ -1,5 +1,5 @@
 import { execSync } from 'node:child_process';
-import { describe, expect, it, beforeAll } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 /**
  * Check if Claude Code CLI is installed and available.

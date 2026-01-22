@@ -20,6 +20,8 @@ import {
   type ILogger,
   type IProcessManager,
   PinoLoggerAdapter,
+  UnixProcessManager,
+  WindowsProcessManager,
 } from '@chainglass/shared';
 import { type DependencyContainer, container } from 'tsyringe';
 import { SampleService } from '../services/sample.service.js';
@@ -98,11 +100,16 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
   });
 
   // Per DYK-08: Register ClaudeCodeAdapter in app container for Phase 2
-  // Phase 5 will add shared DI infrastructure
-  // Note: Real ProcessManager implementation will be added in Phase 3
-  // For now, we use FakeProcessManager to allow compilation
+  // Phase 3: Platform-appropriate ProcessManager implementation
+  // Uses UnixProcessManager on Linux/macOS, WindowsProcessManager on Windows
   childContainer.register<IProcessManager>(DI_TOKENS.PROCESS_MANAGER, {
-    useFactory: () => new FakeProcessManager(), // TODO Phase 3: Replace with real ProcessManager
+    useFactory: (c) => {
+      const logger = c.resolve<ILogger>(DI_TOKENS.LOGGER);
+      if (process.platform === 'win32') {
+        return new WindowsProcessManager(logger);
+      }
+      return new UnixProcessManager(logger);
+    },
   });
 
   childContainer.register<IAgentAdapter>(DI_TOKENS.AGENT_ADAPTER, {
