@@ -10,8 +10,20 @@
 
 // Must import reflect-metadata before tsyringe
 import 'reflect-metadata';
-import { FakeLogger, type ILogger, LogLevel, PinoLoggerAdapter } from '@chainglass/shared';
-import { createProductionContainer, createTestContainer } from '@chainglass/web/lib/di-container';
+import {
+  FakeConfigService,
+  FakeLogger,
+  type IConfigService,
+  type ILogger,
+  LogLevel,
+  PinoLoggerAdapter,
+  SampleConfigType,
+} from '@chainglass/shared';
+import {
+  DI_TOKENS,
+  createProductionContainer,
+  createTestContainer,
+} from '@chainglass/web/lib/di-container';
 // SampleService will be created in T007 - import will fail until then
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import type { SampleService } from '@chainglass/web/services/sample.service';
@@ -23,16 +35,23 @@ describe('DI Container', () => {
     container.clearInstances();
   });
 
-  it('should create production container with real adapters', () => {
+  it('should create production container with real adapters', async () => {
     /*
     Test Doc:
     - Why: Production must use real adapters (PinoLoggerAdapter) not fakes; wrong wiring causes silent failures
-    - Contract: createProductionContainer() resolves 'ILogger' to PinoLoggerAdapter instance
+    - Contract: createProductionContainer(config) resolves 'ILogger' to PinoLoggerAdapter instance
     - Usage Notes: Use createProductionContainer() in app startup; never in tests
     - Quality Contribution: Catches misconfigured production DI that would ship fakes to production
-    - Worked Example: createProductionContainer().resolve('ILogger') returns PinoLoggerAdapter
+    - Worked Example: createProductionContainer(config).resolve('ILogger') returns PinoLoggerAdapter
     */
-    const prodContainer = createProductionContainer();
+    const { ChainglassConfigService } = await import('@chainglass/shared');
+    const config = new ChainglassConfigService({
+      userConfigDir: null,
+      projectConfigDir: null,
+    });
+    config.load();
+
+    const prodContainer = createProductionContainer(config);
     const logger = prodContainer.resolve<ILogger>('ILogger');
 
     expect(logger).toBeInstanceOf(PinoLoggerAdapter);
@@ -96,5 +115,97 @@ describe('DI Container', () => {
     // Verify the injected logger was used
     expect(logger.getEntries().length).toBeGreaterThan(0);
     logger.assertLoggedAtLevel(LogLevel.INFO, 'Processing');
+  });
+
+  describe('Config Registration (Phase 4)', () => {
+    it('should resolve IConfigService from production container', async () => {
+      /*
+      Test Doc:
+      - Why: Verifies AC-21 - IConfigService must be registered in production container
+      - Contract: createProductionContainer(config) resolves DI_TOKENS.CONFIG to IConfigService
+      - Usage Notes: Config must be pre-loaded before passing to container
+      - Quality Contribution: Catches missing config registration in production DI
+      - Worked Example: createProductionContainer(loadedConfig).resolve(CONFIG) returns IConfigService
+      */
+      // Use dynamic import to get ChainglassConfigService
+      const { ChainglassConfigService } = await import('@chainglass/shared');
+      const config = new ChainglassConfigService({
+        userConfigDir: null,
+        projectConfigDir: null,
+      });
+      config.load();
+
+      const prodContainer = createProductionContainer(config);
+      const resolvedConfig = prodContainer.resolve<IConfigService>(DI_TOKENS.CONFIG);
+
+      expect(resolvedConfig).toBe(config);
+      expect(resolvedConfig.isLoaded()).toBe(true);
+    });
+
+    it('should use FakeConfigService in test container', () => {
+      /*
+      Test Doc:
+      - Why: Verifies AC-22 - Test container must use FakeConfigService for deterministic tests
+      - Contract: createTestContainer() resolves DI_TOKENS.CONFIG to FakeConfigService instance
+      - Usage Notes: FakeConfigService pre-populated with defaults; use set() to override
+      - Quality Contribution: Catches test container misconfiguration that would use real config loading
+      - Worked Example: createTestContainer().resolve(CONFIG) returns FakeConfigService
+      */
+      const testContainer = createTestContainer();
+      const configService = testContainer.resolve<IConfigService>(DI_TOKENS.CONFIG);
+
+      expect(configService).toBeInstanceOf(FakeConfigService);
+    });
+
+    it('should pre-populate FakeConfigService with sample config in test container', () => {
+      /*
+      Test Doc:
+      - Why: Tests need sensible defaults without manual setup every time
+      - Contract: createTestContainer() provides FakeConfigService with SampleConfig pre-set
+      - Usage Notes: Default values match DEFAULT_FIXTURE_SAMPLE_CONFIG from service-test.fixture
+      - Quality Contribution: Reduces boilerplate; ensures consistent test config
+      - Worked Example: createTestContainer().resolve(CONFIG).require(SampleConfigType) returns default config
+      */
+      const testContainer = createTestContainer();
+      const configService = testContainer.resolve<IConfigService>(DI_TOKENS.CONFIG);
+
+      const sampleConfig = configService.require(SampleConfigType);
+
+      expect(sampleConfig).toBeDefined();
+      expect(sampleConfig.enabled).toBe(true);
+      expect(sampleConfig.timeout).toBe(30);
+      expect(sampleConfig.name).toBe('test-fixture');
+    });
+
+    it('should throw if production container created without config', () => {
+      /*
+      Test Doc:
+      - Why: Fail-fast if config not provided; prevents runtime errors from missing config
+      - Contract: createProductionContainer() without config throws descriptive error
+      - Usage Notes: Always call config.load() before createProductionContainer(config)
+      - Quality Contribution: Catches startup bugs where config loading was forgotten
+      - Worked Example: createProductionContainer() → throws "CONFIG_REQUIRED: IConfigService required"
+      */
+      expect(() => createProductionContainer()).toThrow('CONFIG_REQUIRED');
+    });
+
+    it('should throw if config not loaded before passing to production container', async () => {
+      /*
+      Test Doc:
+      - Why: Guards against T011 - unloaded config passed to container would cause runtime errors
+      - Contract: createProductionContainer(unloadedConfig) throws descriptive error
+      - Usage Notes: Call config.load() before passing to container; isLoaded() must return true
+      - Quality Contribution: Catches startup bugs where load() was not called
+      - Worked Example: createProductionContainer(new ConfigService()) → throws "CONFIG_NOT_LOADED: Config not loaded"
+      */
+      const { ChainglassConfigService } = await import('@chainglass/shared');
+      const config = new ChainglassConfigService({
+        userConfigDir: null,
+        projectConfigDir: null,
+      });
+      // Intentionally NOT calling config.load()
+
+      expect(() => createProductionContainer(config)).toThrow('CONFIG_NOT_LOADED');
+    });
   });
 });

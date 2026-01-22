@@ -34,8 +34,12 @@
 | Contract Tests | `test/contracts/config.contract.ts` | Verify fake-real parity for IConfigService |
 | Unit Tests | `test/unit/config/*.test.ts` | Individual utility functions |
 | Integration Tests | `test/integration/config/*.test.ts` | Full pipeline with fixtures |
-| Fixtures | `test/fixtures/config/` | YAML, .env sample files for tests |
+| Data Fixtures | `test/fixtures/config/` | YAML, .env sample files for tests |
 | Test Utilities | `test/helpers/config-test-utils.ts` | createTempUserConfig(), createTempProjectConfig() |
+| Config Fixtures | `test/helpers/config-fixtures.ts` | createTestConfigService() factory function |
+| Service Test Fixture | `test/fixtures/service-test.fixture.ts` | Pre-baked `serviceTest` with FakeLogger + FakeConfigService |
+| MCP Test Fixture | `test/fixtures/mcp-test.fixture.ts` | Pre-baked `mcpTest` with MCP-specific defaults |
+| CLI Test Fixture | `test/fixtures/cli-test.fixture.ts` | Pre-baked `cliTest` with CLI-specific defaults |
 
 ---
 
@@ -44,7 +48,7 @@
 **Problem**: Chainglass needs a type-safe, multi-source configuration system that loads from user config (`~/.config/chainglass/`), project config (`.chainglass/`), environment variables (`CG_*`), and `.env` files with proper secret handling.
 
 **Solution Approach**:
-- Implement `IConfigService` interface following established `ILogger` pattern
+- Implement `IConfigService` interface following established interface-first pattern (like `ILogger`)
 - Use Zod for schema validation and type inference
 - Seven-phase loading pipeline adapted from fs2 (FlowSpace) research
 - Full TDD with contract tests verifying fake-real parity
@@ -79,7 +83,7 @@ chainglass/
 │           │   ├── fake-logger.ts         # FakeLogger exemplar
 │           │   └── index.ts
 │           └── adapters/
-│               ├── pino-logger.adapter.ts # Production adapter
+│               ├── pino-logger.adapter.ts # Production adapter (wraps Pino)
 │               └── index.ts
 ├── apps/web/src/lib/
 │   └── di-container.ts                    # TSyringe DI setup
@@ -87,6 +91,43 @@ chainglass/
     └── contracts/
         └── logger.contract.ts             # Contract test exemplar
 ```
+
+### Target Structure (Config System)
+
+```
+packages/shared/src/
+├── interfaces/
+│   ├── config.interface.ts     # IConfigService, ConfigType<T>
+│   └── index.ts
+├── fakes/
+│   ├── fake-config.service.ts  # FakeConfigService
+│   └── index.ts
+├── config/                      # NEW: Config subsystem (not adapters/)
+│   ├── chainglass-config.service.ts  # Production implementation
+│   ├── schemas/
+│   │   └── sample.schema.ts    # SampleConfig Zod schema
+│   ├── loaders/
+│   │   ├── yaml.loader.ts
+│   │   ├── env.parser.ts
+│   │   ├── secrets.loader.ts
+│   │   ├── deep-merge.ts
+│   │   └── expand-placeholders.ts
+│   ├── paths/
+│   │   ├── user-config.ts
+│   │   └── project-config.ts
+│   ├── security/
+│   │   └── secret-detection.ts
+│   ├── templates/               # Starter config templates (versioned)
+│   │   └── config.yaml         # Copied to ~/.config/chainglass/ on first run
+│   ├── exceptions.ts
+│   └── index.ts
+└── adapters/
+    └── pino-logger.adapter.ts   # Adapters wrap external libraries
+```
+
+**Architectural Note**: `ChainglassConfigService` lives in `config/` (not `adapters/`) because:
+- **Adapters** are thin wrappers around external libraries (e.g., `PinoLoggerAdapter` wraps Pino)
+- **ChainglassConfigService** is an **infrastructure service** with orchestration logic (seven-phase pipeline, validation, secret detection) that happens to use libraries as implementation details
 
 ### Integration Requirements
 
@@ -103,6 +144,145 @@ chainglass/
 2. **No Decorators**: RSC compatibility requires `useFactory` pattern, not `@injectable`
 3. **Fakes Over Mocks**: Use `FakeConfigService`, not `vi.mock()`
 4. **Targeted Mocks Only**: Filesystem mocking acceptable for platform-specific path tests
+
+### Default Config Strategy
+
+**Principle**: Zero-config startup with sensible defaults. No `--init` command required.
+
+| Scenario | Behavior |
+|----------|----------|
+| No `~/.config/chainglass/` exists | Auto-create directory on first access (mode 0755) |
+| No `config.yaml` exists | Use Zod schema defaults only |
+| Partial `config.yaml` | Merge file values with schema defaults |
+| No `.chainglass/` in project | Use user config + env vars only (not an error) |
+
+**Default Sources** (in order of application):
+1. **Zod schema defaults**: `z.boolean().default(true)` - always applied for missing fields
+2. **User config file**: `~/.config/chainglass/config.yaml` - overrides schema defaults
+3. **Project config file**: `.chainglass/config.yaml` - overrides user config
+4. **Environment variables**: `CG_*` - highest priority, overrides everything
+
+### Config Composition Hierarchy
+
+```mermaid
+flowchart TB
+    subgraph Sources["Config Sources (by precedence)"]
+        direction TB
+        ENV["🔺 CG_* Environment Variables<br/><i>Highest priority</i>"]
+        PROJ["📁 .chainglass/config.yaml<br/><i>Project-specific</i>"]
+        USER["🏠 ~/.config/chainglass/config.yaml<br/><i>User preferences</i>"]
+        ZOD["📋 Zod Schema Defaults<br/><i>Fallback values</i>"]
+    end
+
+    subgraph Secrets["Secret Sources (loaded to env first)"]
+        direction TB
+        DOTENV[".env<br/><i>CWD dotenv-expand</i>"]
+        PROJ_SEC[".chainglass/secrets.env"]
+        USER_SEC["~/.config/chainglass/secrets.env"]
+    end
+
+    subgraph Pipeline["Seven-Phase Pipeline"]
+        direction LR
+        P1["1️⃣ Load<br/>Secrets"]
+        P2["2️⃣ Load<br/>YAML"]
+        P3["3️⃣ Parse<br/>CG_* Env"]
+        P4["4️⃣ Deep<br/>Merge"]
+        P5["5️⃣ Expand<br/>Placeholders"]
+        P6["6️⃣ Validate<br/>Secrets"]
+        P7["7️⃣ Zod<br/>Validate"]
+    end
+
+    subgraph Output["Final Config"]
+        TYPED["✅ Typed Config Objects<br/>SampleConfig, etc."]
+    end
+
+    %% Secret loading flow
+    USER_SEC --> P1
+    PROJ_SEC --> P1
+    DOTENV --> P1
+    P1 -->|"sets process.env"| P3
+
+    %% YAML loading flow
+    USER --> P2
+    PROJ --> P2
+
+    %% Merge flow
+    ZOD --> P4
+    P2 -->|"merged YAML"| P4
+    P3 -->|"env overrides"| P4
+
+    %% Validation flow
+    P4 --> P5
+    P5 --> P6
+    P6 --> P7
+    P7 --> TYPED
+
+    %% Precedence indicators
+    ENV -.->|"overrides"| PROJ
+    PROJ -.->|"overrides"| USER
+    USER -.->|"overrides"| ZOD
+
+    classDef highest fill:#ff6b6b,stroke:#c92a2a,color:#fff
+    classDef high fill:#ffa94d,stroke:#e67700,color:#000
+    classDef medium fill:#69db7c,stroke:#2f9e44,color:#000
+    classDef low fill:#74c0fc,stroke:#1c7ed6,color:#000
+    classDef pipeline fill:#e9ecef,stroke:#495057,color:#000
+    classDef output fill:#9775fa,stroke:#6741d9,color:#fff
+
+    class ENV highest
+    class PROJ,DOTENV high
+    class USER,PROJ_SEC medium
+    class ZOD,USER_SEC low
+    class P1,P2,P3,P4,P5,P6,P7 pipeline
+    class TYPED output
+```
+
+**Reading the diagram**:
+- **Top to bottom**: Higher precedence sources override lower ones
+- **Left to right**: Pipeline execution order
+- **Secrets** load into `process.env` first, then CG_* parsing reads them
+- **Dotted lines**: Show override relationships
+
+**First Run Behavior**:
+```typescript
+// getUserConfigDir() auto-creates on first access
+export function getUserConfigDir(): string {
+  const configDir = resolveConfigPath(); // platform-specific
+
+  // Auto-create if missing (first run)
+  if (!fs.existsSync(configDir)) {
+    fs.mkdirSync(configDir, { recursive: true, mode: 0o755 });
+  }
+
+  return configDir;
+}
+```
+
+**First Run Creates Starter Config**:
+- On first run, copy template from `packages/shared/src/config/templates/config.yaml`
+- Template includes comments explaining each option and commented-out examples
+- Template is versioned in git - updated as project evolves
+- Users can customize or delete; won't be overwritten on subsequent runs
+
+```yaml
+# packages/shared/src/config/templates/config.yaml
+# Chainglass Configuration
+# Documentation: https://github.com/chainglass/chainglass/docs/configuration
+#
+# This file was created on first run. Customize as needed.
+# Environment variables (CG_*) override these values.
+
+# Sample configuration (reference implementation)
+sample:
+  enabled: true
+  timeout: 30  # seconds (1-300)
+  name: default
+
+# Uncomment to customize:
+# sample:
+#   timeout: 60
+#   name: my-project
+```
 
 ### Assumptions
 
@@ -409,7 +589,7 @@ export function getUserConfigDir(): string {
 **Impact**: High
 **Sources**: [AC-01, I1-02]
 
-**Problem**: Interface must follow `ILogger` pattern with typed object registry.
+**Problem**: Interface must follow interface-first pattern (interface + fake + implementation) with typed object registry.
 
 **Solution**: Typed registry pattern with get/require/set:
 
@@ -495,6 +675,172 @@ it('should load config from YAML file', () => {
 | process.env | Direct manipulation | Reset after each test |
 | process.platform | vi.stubGlobal | Cross-platform path tests |
 
+### Test Config Injection Patterns
+
+**For Service/Adapter Tests** (not config system tests):
+
+```typescript
+// test/unit/web/sample-service.test.ts
+import { FakeConfigService, FakeLogger } from '@chainglass/shared';
+import { SampleService } from '../services/sample.service.js';
+
+describe('SampleService', () => {
+  it('should use configured timeout', () => {
+    // Arrange: Create fake with specific test config
+    const fakeConfig = new FakeConfigService({
+      sample: { enabled: true, timeout: 120, name: 'test-run' },
+    });
+    const service = new SampleService(new FakeLogger(), fakeConfig);
+
+    // Act & Assert
+    expect(service.getTimeout()).toBe(120);
+  });
+
+  it('should handle disabled state', () => {
+    // Different config for different test scenario
+    const fakeConfig = new FakeConfigService({
+      sample: { enabled: false, timeout: 30, name: 'disabled-test' },
+    });
+    const service = new SampleService(new FakeLogger(), fakeConfig);
+
+    expect(service.isEnabled()).toBe(false);
+  });
+});
+```
+
+**Test Config Helpers** (optional, in `test/helpers/`):
+
+```typescript
+// test/helpers/config-fixtures.ts
+import { FakeConfigService } from '@chainglass/shared';
+
+export function createTestConfigService(
+  overrides: Partial<{ sample: Partial<SampleConfig> }> = {}
+): FakeConfigService {
+  return new FakeConfigService({
+    sample: {
+      enabled: true,
+      timeout: 30,
+      name: 'test-default',
+      ...overrides.sample,
+    },
+  });
+}
+
+// Usage in tests:
+const config = createTestConfigService({ sample: { timeout: 60 } });
+```
+
+**Key Principles**:
+1. Each test creates its own `FakeConfigService` - no shared state
+2. Constructor accepts full config objects - no loading from files
+3. Tests control exact config values - deterministic behavior
+4. No environment variable pollution between tests
+
+### Pre-baked Test Fixtures (Vitest `test.extend()`)
+
+**For consistent test setup across all service/adapter tests**:
+
+```typescript
+// test/fixtures/service-test.fixture.ts
+import { test as base } from 'vitest';
+import { FakeLogger, FakeConfigService, type SampleConfig } from '@chainglass/shared';
+
+// Type for fixture context
+interface ServiceTestFixtures {
+  fakeLogger: FakeLogger;
+  fakeConfig: FakeConfigService;
+  defaultSampleConfig: SampleConfig;
+}
+
+// Extended test with pre-baked fakes
+export const serviceTest = base.extend<ServiceTestFixtures>({
+  // Fresh FakeLogger for each test
+  fakeLogger: async ({}, use) => {
+    await use(new FakeLogger());
+  },
+
+  // Default config - tests can override via fakeConfig.set()
+  defaultSampleConfig: async ({}, use) => {
+    await use({
+      enabled: true,
+      timeout: 30,
+      name: 'test-fixture',
+    });
+  },
+
+  // FakeConfigService pre-populated with defaults
+  fakeConfig: async ({ defaultSampleConfig }, use) => {
+    const config = new FakeConfigService({
+      sample: defaultSampleConfig,
+    });
+    await use(config);
+  },
+});
+
+// Re-export describe, expect, etc. for convenience
+export { describe, expect, beforeEach, afterEach } from 'vitest';
+```
+
+**Usage in tests** - fixtures auto-injected:
+
+```typescript
+// test/unit/web/sample-service.test.ts
+import { serviceTest, describe, expect } from '../fixtures/service-test.fixture.js';
+
+describe('SampleService', () => {
+  // Fixtures automatically provided - no manual setup!
+  serviceTest('should use default timeout', ({ fakeLogger, fakeConfig }) => {
+    const service = new SampleService(fakeLogger, fakeConfig);
+    expect(service.getTimeout()).toBe(30); // from defaultSampleConfig
+  });
+
+  // Override specific values when needed
+  serviceTest('should handle custom timeout', ({ fakeLogger, fakeConfig }) => {
+    fakeConfig.set({ enabled: true, timeout: 120, name: 'custom' });
+    const service = new SampleService(fakeLogger, fakeConfig);
+    expect(service.getTimeout()).toBe(120);
+  });
+
+  // Access logger entries for assertions
+  serviceTest('should log on startup', ({ fakeLogger, fakeConfig }) => {
+    const service = new SampleService(fakeLogger, fakeConfig);
+    service.initialize();
+    fakeLogger.assertLoggedAtLevel('info', 'initialized');
+  });
+});
+```
+
+**Multiple fixture sets for different contexts**:
+
+```typescript
+// test/fixtures/mcp-test.fixture.ts - MCP-specific defaults
+export const mcpTest = base.extend<McpTestFixtures>({
+  fakeLogger: async ({}, use) => {
+    // MCP uses stderr logger pattern
+    await use(new FakeLogger());
+  },
+  fakeConfig: async ({}, use) => {
+    await use(new FakeConfigService({
+      sample: { enabled: true, timeout: 60, name: 'mcp-test' },
+      mcp: { stdio: true, debug: false }, // MCP-specific config
+    }));
+  },
+});
+
+// test/fixtures/cli-test.fixture.ts - CLI-specific defaults
+export const cliTest = base.extend<CliTestFixtures>({
+  // CLI-specific setup...
+});
+```
+
+**Benefits**:
+- Zero boilerplate in test files
+- Consistent defaults across all tests
+- Fresh instances per test (isolation)
+- Easy to override specific values
+- Type-safe fixture injection
+
 ---
 
 ## Implementation Phases
@@ -530,6 +876,8 @@ it('should load config from YAML file', () => {
 | 1.6 | [ ] | Implement FakeConfigService to pass tests | 2 | All tests from 1.2 pass; implements IConfigService | - | packages/shared/src/fakes/fake-config.service.ts |
 | 1.7 | [ ] | Create config exceptions | 1 | ConfigurationError, MissingConfigurationError, LiteralSecretError | - | packages/shared/src/config/exceptions.ts |
 | 1.8 | [ ] | Update barrel exports | 1 | Can import { IConfigService, FakeConfigService } from '@chainglass/shared' | - | Update all index.ts files |
+| 1.9 | [ ] | Create test config helper | 1 | createTestConfigService() with defaults + overrides | - | test/helpers/config-fixtures.ts |
+| 1.10 | [ ] | Create serviceTest fixture | 2 | Vitest test.extend() with FakeLogger + FakeConfigService | - | test/fixtures/service-test.fixture.ts |
 
 #### Test Examples (Write First!)
 
@@ -604,6 +952,13 @@ configServiceContractTests('FakeConfigService', () => new FakeConfigService());
 
 #### Acceptance Criteria
 - [ ] All contract tests pass (10+ behavioral scenarios covering get/require/set)
+- [ ] FakeConfigService supports constructor injection for test setup:
+  ```typescript
+  // Easy test setup - pass configs directly to constructor
+  const fakeConfig = new FakeConfigService({
+    sample: { enabled: true, timeout: 60, name: 'test' },
+  });
+  ```
 - [ ] FakeConfigService has assertion helpers following FakeLogger pattern:
   - `getSetConfigs()`: Returns Map of all set configs
   - `has(type: ConfigType)`: Boolean check if type is set
@@ -614,6 +969,8 @@ configServiceContractTests('FakeConfigService', () => new FakeConfigService());
   - `name`: string, required, default `'default'`
 - [ ] Exports work: `import { IConfigService, FakeConfigService } from '@chainglass/shared'`
 - [ ] TypeScript strict mode passes
+- [ ] `serviceTest` fixture provides type-safe `fakeLogger` and `fakeConfig` injection
+- [ ] Tests using `serviceTest` have zero manual setup boilerplate
 
 ---
 
@@ -641,13 +998,15 @@ configServiceContractTests('FakeConfigService', () => new FakeConfigService());
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 2.1 | [ ] | Write tests for getUserConfigDir() | 2 | Tests cover: Linux XDG, macOS ~/.config, Windows %APPDATA% | - | Mock process.platform and env vars |
+| 2.1 | [ ] | Write tests for getUserConfigDir() | 2 | Tests cover: Linux XDG, macOS ~/.config, Windows %APPDATA%, auto-create on first access | - | Mock process.platform and env vars |
 | 2.2 | [ ] | Write tests for getProjectConfigDir() | 2 | Tests cover: walk-up discovery, no .chainglass found, caching | - | Use temp directories |
 | 2.3 | [ ] | Write tests for loadYamlConfig() | 2 | Tests cover: valid YAML, invalid YAML, file not found | - | Use fixtures |
 | 2.4 | [ ] | Write tests for parseEnvVars() | 2 | Tests cover: CG_ prefix, __ nesting, depth limit, coercion | - | Edge cases critical |
 | 2.5 | [ ] | Write tests for deepMerge() | 2 | Tests cover: nested objects, array replacement, circular refs | - | |
 | 2.6 | [ ] | Write tests for expandPlaceholders() | 2 | Tests cover: ${VAR}, missing vars, nested values | - | |
-| 2.7 | [ ] | Implement getUserConfigDir() | 2 | All tests from 2.1 pass | - | packages/shared/src/config/paths/user-config.ts |
+| 2.7 | [ ] | Implement getUserConfigDir() | 2 | All tests from 2.1 pass; auto-creates dir | - | packages/shared/src/config/paths/user-config.ts |
+| 2.7.1 | [ ] | Create config.yaml template | 1 | Template with comments, all options documented | - | packages/shared/src/config/templates/config.yaml |
+| 2.7.2 | [ ] | Implement ensureUserConfig() | 2 | Copies template on first run if config.yaml missing | - | packages/shared/src/config/paths/user-config.ts |
 | 2.8 | [ ] | Implement getProjectConfigDir() | 2 | All tests from 2.2 pass | - | packages/shared/src/config/paths/project-config.ts |
 | 2.9 | [ ] | Implement loadYamlConfig() | 2 | All tests from 2.3 pass | - | packages/shared/src/config/loaders/yaml.loader.ts |
 | 2.10 | [ ] | Implement parseEnvVars() | 2 | All tests from 2.4 pass; MAX_DEPTH = 4 | - | packages/shared/src/config/loaders/env.parser.ts |
@@ -721,6 +1080,8 @@ describe('parseEnvVars', () => {
 
 #### Non-Happy-Path Coverage
 - [ ] getUserConfigDir() when HOME undefined (falls back to os.homedir())
+- [ ] getUserConfigDir() when directory doesn't exist (auto-creates with mode 0755)
+- [ ] ensureUserConfig() when config.yaml missing (copies template, doesn't overwrite existing)
 - [ ] getProjectConfigDir() at filesystem root (returns null)
 - [ ] loadYamlConfig() with empty file (returns empty object)
 - [ ] loadYamlConfig() with invalid YAML (throws with line number)
@@ -731,6 +1092,9 @@ describe('parseEnvVars', () => {
 #### Acceptance Criteria
 - [ ] All 24 tests pass (6 per utility function)
 - [ ] Path resolution works on macOS (verified locally)
+- [ ] getUserConfigDir() auto-creates `~/.config/chainglass/` on first access (mode 0755)
+- [ ] ensureUserConfig() copies template to `config.yaml` on first run (preserves existing)
+- [ ] getProjectConfigDir() returns null if no `.chainglass/` found (not an error)
 - [ ] Env var parser handles edge cases documented in R1-01
 - [ ] Placeholder expansion validates no unexpanded remain
 - [ ] Dependencies added: zod, yaml, dotenv, dotenv-expand
@@ -808,7 +1172,7 @@ load(): void {
 | 3.5 | [ ] | Implement detectLiteralSecret() | 2 | All tests from 3.1 pass | - | packages/shared/src/config/security/secret-detection.ts |
 | 3.6 | [ ] | Implement validateNoLiteralSecrets() | 2 | Recursively checks all string values | - | Same file as 3.5 |
 | 3.7 | [ ] | Implement loadSecretsToEnv() | 2 | Tests from 3.2 pass; user → project → .env order | - | packages/shared/src/config/loaders/secrets.loader.ts |
-| 3.8 | [ ] | Implement ChainglassConfigService.load() | 3 | All tests from 3.4 pass; seven-phase pipeline | - | packages/shared/src/adapters/chainglass-config.service.ts |
+| 3.8 | [ ] | Implement ChainglassConfigService.load() | 3 | All tests from 3.4 pass; seven-phase pipeline | - | packages/shared/src/config/chainglass-config.service.ts |
 | 3.9 | [ ] | Run contract tests against real service | 1 | Contract tests pass for ChainglassConfigService | - | Update config.contract.ts |
 | 3.10 | [ ] | Add integration tests with fixtures | 2 | Full pipeline tested with YAML + env + .env | - | test/integration/config-service.test.ts |
 
@@ -958,6 +1322,8 @@ const sampleService = container.resolve<SampleService>(DI_TOKENS.SAMPLE_SERVICE)
 | 4.9 | [ ] | Update existing SampleService tests | 2 | All existing tests pass with FakeConfigService | - | |
 | 4.10 | [ ] | Create startup sequence example | 1 | Code example in bootstrap.ts with comments | - | |
 | 4.11 | [ ] | Add container factory error handling | 1 | Throw helpful error if config not pre-loaded | - | Check config.isLoaded() in factory |
+| 4.12 | [ ] | Create mcpTest fixture | 1 | Extends serviceTest with MCP-specific defaults | - | test/fixtures/mcp-test.fixture.ts |
+| 4.13 | [ ] | Create cliTest fixture | 1 | Extends serviceTest with CLI-specific defaults | - | test/fixtures/cli-test.fixture.ts |
 
 #### Test Examples (Write First!)
 
@@ -1149,8 +1515,8 @@ docs/how/
 
 ### Phase Completion Checklist
 
-- [ ] Phase 1: Core Interfaces and Fakes - NOT STARTED
-- [ ] Phase 2: Loading Infrastructure - NOT STARTED
+- [x] Phase 1: Core Interfaces and Fakes - ✅ COMPLETE (2026-01-21)
+- [x] Phase 2: Loading Infrastructure - ✅ COMPLETE (2026-01-21)
 - [ ] Phase 3: Production Config Service - NOT STARTED
 - [ ] Phase 4: DI Integration - NOT STARTED
 - [ ] Phase 5: Documentation - NOT STARTED
