@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://chainglass.dev/schemas/message.schema.json",
+  "title": "Workflow Message",
+  "description": "Schema for agent-orchestrator communication messages",
+  "type": "object",
+  "required": ["id", "created_at", "from", "type", "subject", "body"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[0-9]{3}$",
+      "description": "Message ID (3-digit sequential, e.g., '001')"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 timestamp when message was created"
+    },
+    "from": {
+      "type": "string",
+      "enum": ["agent", "orchestrator"],
+      "description": "Who created the message"
+    },
+    "type": {
+      "type": "string",
+      "enum": ["single_choice", "multi_choice", "free_text", "confirm"],
+      "description": "Message type determining answer format"
+    },
+    "subject": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Brief subject line for the message"
+    },
+    "body": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Full message text with context"
+    },
+    "note": {
+      "type": ["string", "null"],
+      "description": "Optional creator note for audit/context"
+    },
+    "options": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/option" },
+      "minItems": 2,
+      "description": "Available options for choice types (required for single_choice and multi_choice)"
+    },
+    "answer": {
+      "$ref": "#/$defs/answer",
+      "description": "Answer to the message (added when answered)"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "type": { "const": "single_choice" } },
+        "required": ["type"]
+      },
+      "then": {
+        "properties": {
+          "options": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/option" },
+            "minItems": 2
+          }
+        },
+        "required": ["options"]
+      }
+    },
+    {
+      "if": {
+        "properties": { "type": { "const": "multi_choice" } },
+        "required": ["type"]
+      },
+      "then": {
+        "properties": {
+          "options": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/option" },
+            "minItems": 2
+          }
+        },
+        "required": ["options"]
+      }
+    }
+  ],
+  "$defs": {
+    "option": {
+      "type": "object",
+      "required": ["key", "label"],
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^[A-Z]$",
+          "description": "Single letter key (A, B, C, etc.)"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Short label for the option"
+        },
+        "description": {
+          "type": "string",
+          "description": "Longer description of the option"
+        }
+      }
+    },
+    "answer": {
+      "type": "object",
+      "required": ["answered_at"],
+      "properties": {
+        "answered_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO-8601 timestamp when answer was provided"
+        },
+        "selected": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[A-Z]$" },
+          "minItems": 1,
+          "description": "Selected option keys (for single_choice: exactly 1, for multi_choice: 1+)"
+        },
+        "text": {
+          "type": "string",
+          "description": "Free text response (for free_text type)"
+        },
+        "confirmed": {
+          "type": "boolean",
+          "description": "Confirmation result (for confirm type)"
+        },
+        "note": {
+          "type": ["string", "null"],
+          "description": "Optional note with answerer's rationale"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://chainglass.dev/schemas/wf-phase.schema.json",
+  "title": "Workflow Phase State",
+  "description": "Schema for phase state tracking (wf-data/wf-phase.json)",
+  "type": "object",
+  "required": ["phase", "facilitator", "state", "status"],
+  "properties": {
+    "phase": {
+      "type": "string",
+      "description": "Phase name (e.g., 'gather', 'process', 'report')"
+    },
+    "facilitator": {
+      "type": "string",
+      "enum": ["agent", "orchestrator"],
+      "description": "Current control holder"
+    },
+    "state": {
+      "type": "string",
+      "enum": ["pending", "active", "blocked", "accepted", "complete", "failed"],
+      "description": "Current phase state"
+    },
+    "status": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/statusEntry" },
+      "description": "Append-only history of all interactions"
+    }
+  },
+  "$defs": {
+    "statusEntry": {
+      "type": "object",
+      "required": ["timestamp", "from", "action"],
+      "properties": {
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO-8601 timestamp of the action"
+        },
+        "from": {
+          "type": "string",
+          "enum": ["agent", "orchestrator"],
+          "description": "Actor who performed the action"
+        },
+        "action": {
+          "type": "string",
+          "enum": [
+            "prepare",
+            "input",
+            "handover",
+            "accept",
+            "preflight",
+            "question",
+            "error",
+            "answer",
+            "finalize"
+          ],
+          "description": "Type of action performed"
+        },
+        "message_id": {
+          "type": "string",
+          "pattern": "^[0-9]{3}$",
+          "description": "Message ID reference (for input, question, answer actions)"
+        },
+        "comment": {
+          "type": "string",
+          "description": "Human-readable description of the action"
+        },
+        "data": {
+          "type": "object",
+          "description": "Optional payload data for the action",
+          "additionalProperties": true
+        }
+      }
+    }
+  }
+}

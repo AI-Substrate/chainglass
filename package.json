@@ -19,6 +19,7 @@
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
     "@types/node": "^25.0.9",
+    "ajv-cli": "^5.0.0",
     "reflect-metadata": "^0.2.2",
     "tsyringe": "^4.8.0",
     "turbo": "^2.3.3",

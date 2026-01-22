@@ -1,0 +1,59 @@
+// @chainglass/workflow entry point
+// Exports all workflow interfaces, types, fakes, and adapters
+
+// Types (matching core schemas)
+export type {
+  // wf.types.ts - Workflow definition types
+  WfDefinition,
+  PhaseDefinition,
+  InputDeclaration,
+  FileInput,
+  ParameterInput,
+  MessageInput,
+  MessageOption,
+  Output,
+  OutputParameter,
+  // wf-phase.types.ts - Phase state types
+  WfPhaseState,
+  StatusEntry,
+  Facilitator,
+  PhaseState,
+  ActionType,
+  // message.types.ts - Message types
+  Message,
+  MessageType,
+  MessageOptionType,
+  MessageAnswer,
+  // wf-status.types.ts - Run status types
+  WfStatus,
+  WfStatusWorkflow,
+  WfStatusRun,
+  WfStatusPhase,
+  RunStatus,
+  PhaseRunStatus,
+} from './types/index.js';
+
+// Interfaces
+export { YamlParseError } from './interfaces/index.js';
+export type { IYamlParser, ParseResult } from './interfaces/index.js';
+
+export { ValidationErrorCodes } from './interfaces/index.js';
+export type {
+  ISchemaValidator,
+  ValidationResult,
+  ResultError,
+} from './interfaces/index.js';
+
+// Adapters
+export { YamlParserAdapter } from './adapters/index.js';
+export { SchemaValidatorAdapter } from './adapters/index.js';
+
+// Fakes
+export { FakeYamlParser } from './fakes/index.js';
+export { FakeSchemaValidator } from './fakes/index.js';
+
+// DI Container
+export {
+  createWorkflowProductionContainer,
+  createWorkflowTestContainer,
+} from './container.js';

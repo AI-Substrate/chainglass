@@ -19,6 +19,7 @@ export default defineConfig({
     fileParallelism: false,
     alias: {
       '@chainglass/shared': resolve(rootDir, 'packages/shared/src'),
+      '@chainglass/workflow': resolve(rootDir, 'packages/workflow/src'),
       '@chainglass/cli': resolve(rootDir, 'apps/cli/src'),
       '@chainglass/mcp-server': resolve(rootDir, 'packages/mcp-server/src'),
       '@chainglass/web': resolve(rootDir, 'apps/web/src'),

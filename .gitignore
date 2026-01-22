@@ -145,3 +145,9 @@ vite.config.ts.timestamp-*
 .fs2/
 !.fs2/config.yaml
 scratch/*
+
+# TypeScript build artifacts in src directories (should only be in dist/)
+packages/*/src/**/*.js
+packages/*/src/**/*.js.map
+packages/*/src/**/*.d.ts
+packages/*/src/**/*.d.ts.map
