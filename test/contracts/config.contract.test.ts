@@ -1,4 +1,4 @@
-import { FakeConfigService, ChainglassConfigService } from '@chainglass/shared';
+import { ChainglassConfigService, FakeConfigService } from '@chainglass/shared';
 import { configServiceContractTests } from './config.contract.js';
 
 // Run contract tests for FakeConfigService
