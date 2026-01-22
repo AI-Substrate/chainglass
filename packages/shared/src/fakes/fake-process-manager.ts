@@ -16,6 +16,7 @@ interface FakeProcessState {
   exitSignal: ProcessSignal | null;
   exitOnSignal: ProcessSignal | null;
   stubborn: boolean;
+  output: string;
   waitResolvers: Array<(result: ProcessExitResult) => void>;
 }
 
@@ -57,8 +58,16 @@ export class FakeProcessManager implements IProcessManager {
   private _processes = new Map<number, FakeProcessState>();
   private _spawnHistory: SpawnOptions[] = [];
   private _signalHistory = new Map<number, SignalEntry[]>();
+  private _spawnError: Error | null = null;
 
   async spawn(options: SpawnOptions): Promise<ProcessHandle> {
+    // Check if spawn should throw an error (for testing error handling)
+    if (this._spawnError) {
+      const error = this._spawnError;
+      this._spawnError = null; // Only throw once
+      throw error;
+    }
+
     const pid = this._nextPid++;
     this._spawnHistory.push({ ...options });
 
@@ -69,6 +78,7 @@ export class FakeProcessManager implements IProcessManager {
       exitSignal: null,
       exitOnSignal: null,
       stubborn: false,
+      output: '',
       waitResolvers: [],
     };
     this._processes.set(pid, state);
@@ -152,6 +162,29 @@ export class FakeProcessManager implements IProcessManager {
   // ============================================
 
   /**
+   * Configure spawn() to throw an error on the next call.
+   *
+   * Use this to test error handling when CLI is not found or spawn fails.
+   * The error is thrown once, then spawn() resumes normal behavior.
+   *
+   * @param error - Error to throw on next spawn() call
+   *
+   * @example
+   * ```typescript
+   * const fake = new FakeProcessManager();
+   * const enoent = new Error('ENOENT: command not found') as NodeJS.ErrnoException;
+   * enoent.code = 'ENOENT';
+   * fake.setSpawnError(enoent);
+   *
+   * // This will throw
+   * await expect(fake.spawn({ command: 'missing' })).rejects.toThrow('ENOENT');
+   * ```
+   */
+  setSpawnError(error: Error): void {
+    this._spawnError = error;
+  }
+
+  /**
    * Make a process stubborn - it will ignore SIGINT and SIGTERM,
    * only exiting on SIGKILL.
    */
@@ -179,6 +212,28 @@ export class FakeProcessManager implements IProcessManager {
     this._exitProcess(pid, exitCode, null);
   }
 
+  /**
+   * Set the buffered output for a process.
+   *
+   * Per DYK-06: FakeProcessManager doesn't provide stdout streams.
+   * Instead, use this method to set output that will be returned
+   * when getProcessOutput() is called after process exits.
+   *
+   * Usage:
+   * ```typescript
+   * const handle = await fake.spawn({ command: 'claude', args: [...] });
+   * fake.setProcessOutput(handle.pid, '{"session_id":"abc","type":"message"}\n');
+   * fake.exitProcess(handle.pid, 0);
+   * const output = fake.getProcessOutput(handle.pid);
+   * ```
+   */
+  setProcessOutput(pid: number, output: string): void {
+    const state = this._processes.get(pid);
+    if (state) {
+      state.output = output;
+    }
+  }
+
   // ============================================
   // Test helper methods
   // ============================================
@@ -204,6 +259,18 @@ export class FakeProcessManager implements IProcessManager {
   getSignalTimings(pid: number): number[] {
     const history = this._signalHistory.get(pid) ?? [];
     return history.map((entry) => entry.timestamp);
+  }
+
+  /**
+   * Get the buffered output for a process.
+   *
+   * Per DYK-06: Returns output previously set via setProcessOutput().
+   *
+   * @returns Process output or empty string if not set
+   */
+  getProcessOutput(pid: number): string {
+    const state = this._processes.get(pid);
+    return state?.output ?? '';
   }
 
   /**
@@ -258,6 +325,7 @@ export class FakeProcessManager implements IProcessManager {
     this._spawnHistory = [];
     this._signalHistory.clear();
     this._nextPid = 1001;
+    this._spawnError = null;
   }
 
   // ============================================

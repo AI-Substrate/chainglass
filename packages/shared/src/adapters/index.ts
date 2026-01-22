@@ -3,3 +3,6 @@ export { NodeFileSystemAdapter } from './node-filesystem.adapter.js';
 export { PathResolverAdapter } from './path-resolver.adapter.js';
 export { JsonOutputAdapter } from './json-output.adapter.js';
 export { ConsoleOutputAdapter } from './console-output.adapter.js';
+export { StreamJsonParser } from './stream-json-parser.js';
+export { ClaudeCodeAdapter } from './claude-code.adapter.js';
+export type { ClaudeCodeAdapterOptions } from './claude-code.adapter.js';

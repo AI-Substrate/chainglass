@@ -112,4 +112,15 @@ export interface IProcessManager {
    * @returns The process ID
    */
   getPid(handle: ProcessHandle): number;
+
+  /**
+   * Get buffered stdout output from a completed process.
+   *
+   * Optional method for process managers that buffer output internally.
+   * Used by ClaudeCodeAdapter to retrieve CLI output after process exits.
+   *
+   * @param pid - Process ID to get output for
+   * @returns Buffered stdout content, or empty string if unavailable
+   */
+  getProcessOutput?(pid: number): string;
 }

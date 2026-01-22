@@ -10,10 +10,15 @@
 
 import 'reflect-metadata';
 import {
+  ClaudeCodeAdapter,
+  FakeAgentAdapter,
   FakeConfigService,
   FakeLogger,
+  FakeProcessManager,
+  type IAgentAdapter,
   type IConfigService,
   type ILogger,
+  type IProcessManager,
   PinoLoggerAdapter,
 } from '@chainglass/shared';
 import { type DependencyContainer, container } from 'tsyringe';
@@ -24,6 +29,8 @@ export const DI_TOKENS = {
   LOGGER: 'ILogger',
   CONFIG: 'IConfigService',
   SAMPLE_SERVICE: 'SampleService',
+  PROCESS_MANAGER: 'IProcessManager',
+  AGENT_ADAPTER: 'IAgentAdapter',
 } as const;
 
 /**
@@ -90,6 +97,22 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
     },
   });
 
+  // Per DYK-08: Register ClaudeCodeAdapter in app container for Phase 2
+  // Phase 5 will add shared DI infrastructure
+  // Note: Real ProcessManager implementation will be added in Phase 3
+  // For now, we use FakeProcessManager to allow compilation
+  childContainer.register<IProcessManager>(DI_TOKENS.PROCESS_MANAGER, {
+    useFactory: () => new FakeProcessManager(), // TODO Phase 3: Replace with real ProcessManager
+  });
+
+  childContainer.register<IAgentAdapter>(DI_TOKENS.AGENT_ADAPTER, {
+    useFactory: (c) => {
+      const processManager = c.resolve<IProcessManager>(DI_TOKENS.PROCESS_MANAGER);
+      const logger = c.resolve<ILogger>(DI_TOKENS.LOGGER);
+      return new ClaudeCodeAdapter(processManager, { logger });
+    },
+  });
+
   // FIX-010: Performance metrics for container creation
   const durationMs = performance.now() - startTime;
   console.log(`[createProductionContainer] Container created in ${durationMs.toFixed(2)}ms`);
@@ -136,6 +159,20 @@ export function createTestContainer(): DependencyContainer {
       const config = c.resolve<IConfigService>(DI_TOKENS.CONFIG);
       return new SampleService(logger, config);
     },
+  });
+
+  // Per DYK-08: Register FakeAgentAdapter in test container
+  childContainer.register<IProcessManager>(DI_TOKENS.PROCESS_MANAGER, {
+    useFactory: () => new FakeProcessManager(),
+  });
+
+  childContainer.register<IAgentAdapter>(DI_TOKENS.AGENT_ADAPTER, {
+    useFactory: () =>
+      new FakeAgentAdapter({
+        sessionId: 'test-session',
+        output: 'Test output',
+        tokens: { used: 100, total: 100, limit: 200000 },
+      }),
   });
 
   return childContainer;

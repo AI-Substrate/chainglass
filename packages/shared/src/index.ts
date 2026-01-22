@@ -85,6 +85,9 @@ export { NodeFileSystemAdapter } from './adapters/index.js';
 export { PathResolverAdapter } from './adapters/index.js';
 export { JsonOutputAdapter } from './adapters/index.js';
 export { ConsoleOutputAdapter } from './adapters/index.js';
+export { StreamJsonParser } from './adapters/index.js';
+export { ClaudeCodeAdapter } from './adapters/index.js';
+export type { ClaudeCodeAdapterOptions } from './adapters/index.js';
 
 // DI Tokens
 export { SHARED_DI_TOKENS, WORKFLOW_DI_TOKENS } from './di-tokens.js';
