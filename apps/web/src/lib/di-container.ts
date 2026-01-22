@@ -9,20 +9,13 @@
  */
 
 import 'reflect-metadata';
-import {
-  FakeConfigService,
-  FakeLogger,
-  type IConfigService,
-  type ILogger,
-  PinoLoggerAdapter,
-} from '@chainglass/shared';
+import { FakeLogger, type ILogger, PinoLoggerAdapter } from '@chainglass/shared';
 import { type DependencyContainer, container } from 'tsyringe';
 import { SampleService } from '../services/sample.service.js';
 
 // Token constants for type-safe resolution
 export const DI_TOKENS = {
   LOGGER: 'ILogger',
-  CONFIG: 'IConfigService',
   SAMPLE_SERVICE: 'SampleService',
 } as const;
 
@@ -31,48 +24,10 @@ export const DI_TOKENS = {
  *
  * Use in application startup code (not in tests).
  *
- * Per Critical Discovery 02: Config must be loaded BEFORE calling this function.
- * See bootstrap.ts for correct startup sequence.
- *
- * @param config Pre-loaded IConfigService instance (must have isLoaded() === true)
  * @returns Child container with production registrations
- * @throws Error if config is missing or not loaded
  */
-export function createProductionContainer(config?: IConfigService): DependencyContainer {
-  const startTime = performance.now();
-
-  // FIX-001: Make parameter optional for runtime safety (JavaScript consumers)
-  // FIX-002/FIX-009: Combined guard with error logging and structured context
-  if (!config || !config.isLoaded()) {
-    const errorCode = !config ? 'CONFIG_REQUIRED' : 'CONFIG_NOT_LOADED';
-    const errorMsg = !config
-      ? 'IConfigService required - call config.load() before createProductionContainer(config)'
-      : 'Config not loaded - call config.load() before createProductionContainer(config)';
-
-    // FIX-002: Log error before throwing for debugging visibility
-    const errorContext = {
-      errorCode,
-      service: 'production-container',
-      configProvided: !!config,
-      configLoaded: config?.isLoaded() ?? false,
-    };
-    console.error(`[createProductionContainer] ${errorMsg}`, errorContext);
-
-    throw new Error(`${errorCode}: ${errorMsg}`);
-  }
-
+export function createProductionContainer(): DependencyContainer {
   const childContainer = container.createChildContainer();
-
-  // Register pre-loaded config as value (not factory)
-  // This is the key insight from Critical Discovery 02
-  childContainer.register<IConfigService>(DI_TOKENS.CONFIG, {
-    useValue: config,
-  });
-
-  // FIX-005: Audit log for config registration
-  console.log('[createProductionContainer] Config registered in DI container', {
-    configLoaded: config.isLoaded(),
-  });
 
   // Register production adapters using factory pattern
   // (useClass requires decorators which don't work in RSC)
@@ -85,14 +40,9 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
   childContainer.register(DI_TOKENS.SAMPLE_SERVICE, {
     useFactory: (c) => {
       const logger = c.resolve<ILogger>(DI_TOKENS.LOGGER);
-      const cfg = c.resolve<IConfigService>(DI_TOKENS.CONFIG);
-      return new SampleService(logger, cfg);
+      return new SampleService(logger);
     },
   });
-
-  // FIX-010: Performance metrics for container creation
-  const durationMs = performance.now() - startTime;
-  console.log(`[createProductionContainer] Container created in ${durationMs.toFixed(2)}ms`);
 
   return childContainer;
 }
@@ -103,7 +53,7 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
  * Each call returns a new isolated child container to prevent
  * state leakage between tests.
  *
- * @returns Child container with test registrations (FakeLogger, FakeConfigService, etc.)
+ * @returns Child container with test registrations (FakeLogger, etc.)
  */
 export function createTestContainer(): DependencyContainer {
   const childContainer = container.createChildContainer();
@@ -111,17 +61,6 @@ export function createTestContainer(): DependencyContainer {
   // Create a shared FakeLogger instance for this container
   // This allows isolation tests to verify separate log entries
   const fakeLogger = new FakeLogger();
-
-  // Create FakeConfigService with default test config
-  // Matches DEFAULT_FIXTURE_SAMPLE_CONFIG from service-test.fixture.ts
-  const fakeConfig = new FakeConfigService({
-    sample: { enabled: true, timeout: 30, name: 'test-fixture' },
-  });
-
-  // Register test fakes
-  childContainer.register<IConfigService>(DI_TOKENS.CONFIG, {
-    useValue: fakeConfig,
-  });
 
   // Register test fakes using factory pattern
   // (useClass requires decorators which don't work in RSC)
@@ -133,8 +72,7 @@ export function createTestContainer(): DependencyContainer {
   childContainer.register(DI_TOKENS.SAMPLE_SERVICE, {
     useFactory: (c) => {
       const logger = c.resolve<ILogger>(DI_TOKENS.LOGGER);
-      const config = c.resolve<IConfigService>(DI_TOKENS.CONFIG);
-      return new SampleService(logger, config);
+      return new SampleService(logger);
     },
   });
 

@@ -20,6 +20,13 @@ export function registerMcpCommand(program: Command): void {
     .command('mcp')
     .description('Start MCP server for AI agent integration')
     .option('--stdio', 'Use stdio transport (for AI agents)')
+    .addHelpText(
+      'after',
+      `
+Examples:
+  $ cg mcp                  Start MCP server (default transport)
+  $ cg mcp --stdio          Start MCP server with stdio transport`
+    )
     .action(async (options: McpCommandOptions) => {
       await runMcpCommand(options);
     });

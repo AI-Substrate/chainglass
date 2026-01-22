@@ -80,6 +80,14 @@ export function registerWebCommand(program: Command): void {
     .command('web')
     .description('Start the Chainglass web interface')
     .option('-p, --port <number>', 'Port to listen on', '3000')
+    .addHelpText(
+      'after',
+      `
+Examples:
+  $ cg web                  Start on default port 3000
+  $ cg web --port 8080      Start on port 8080
+  $ cg web -p 4000          Start on port 4000`
+    )
     .action(async (options: WebCommandOptions) => {
       await runWebCommand(options);
     });

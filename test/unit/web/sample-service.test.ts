@@ -10,28 +10,17 @@
 
 // Must import reflect-metadata before tsyringe
 import 'reflect-metadata';
-import {
-  FakeConfigService,
-  FakeLogger,
-  type IConfigService,
-  type ILogger,
-  LogLevel,
-  SampleConfigType,
-} from '@chainglass/shared';
+import { FakeLogger, type ILogger, LogLevel } from '@chainglass/shared';
 import { SampleService } from '@chainglass/web/services/sample.service';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 describe('SampleService', () => {
   let service: SampleService;
   let fakeLogger: FakeLogger;
-  let fakeConfig: FakeConfigService;
 
   beforeEach(() => {
     fakeLogger = new FakeLogger();
-    fakeConfig = new FakeConfigService({
-      sample: { enabled: true, timeout: 30, name: 'test-fixture' },
-    });
-    service = new SampleService(fakeLogger, fakeConfig);
+    service = new SampleService(fakeLogger);
   });
 
   it('should process input and return result', async () => {
@@ -78,73 +67,5 @@ describe('SampleService', () => {
     const inputEntry = entries.find((e) => e.message.includes('Processing input'));
 
     expect(inputEntry?.data?.input).toBe('my-value');
-  });
-
-  describe('Config Injection (Phase 4)', () => {
-    let fakeConfig: FakeConfigService;
-
-    beforeEach(() => {
-      fakeConfig = new FakeConfigService({
-        sample: { enabled: true, timeout: 30, name: 'test-fixture' },
-      });
-    });
-
-    it('should receive IConfigService via constructor', () => {
-      /*
-      Test Doc:
-      - Why: Verifies AC-23 - SampleService must receive IConfigService via constructor injection
-      - Contract: new SampleService(logger, config) compiles without TypeScript errors
-      - Usage Notes: Config is required parameter; use FakeConfigService in tests
-      - Quality Contribution: Catches DI wiring issues where config dependency is missing
-      - Worked Example: new SampleService(fakeLogger, fakeConfig) creates valid instance
-      */
-      const service = new SampleService(fakeLogger, fakeConfig);
-
-      expect(service).toBeInstanceOf(SampleService);
-    });
-
-    it('should use timeout from config via getTimeout()', () => {
-      /*
-      Test Doc:
-      - Why: Verifies AC-24 - SampleService should read config values (demonstrating config consumption)
-      - Contract: getTimeout() returns value from SampleConfig.timeout
-      - Usage Notes: Inject FakeConfigService with pre-set timeout value
-      - Quality Contribution: Catches config integration bugs where config is ignored
-      - Worked Example: FakeConfig(timeout: 60) → getTimeout() === 60
-      */
-      fakeConfig.set(SampleConfigType, { enabled: true, timeout: 60, name: 'custom' });
-      const service = new SampleService(fakeLogger, fakeConfig);
-
-      expect(service.getTimeout()).toBe(60);
-    });
-
-    it('should use default timeout when config has default value', () => {
-      /*
-      Test Doc:
-      - Why: Edge case - verify config defaults work correctly
-      - Contract: getTimeout() returns 30 when using default config
-      - Usage Notes: Default comes from Zod schema default in SampleConfigSchema
-      - Quality Contribution: Catches default value handling issues
-      - Worked Example: FakeConfig(timeout: 30) → getTimeout() === 30
-      */
-      const service = new SampleService(fakeLogger, fakeConfig);
-
-      expect(service.getTimeout()).toBe(30);
-    });
-
-    it('should report enabled state from config via isEnabled()', () => {
-      /*
-      Test Doc:
-      - Why: Feature flag pattern - services should be disableable via config
-      - Contract: isEnabled() returns SampleConfig.enabled value
-      - Usage Notes: Use for feature toggles; check before performing operations
-      - Quality Contribution: Catches config-based feature flag implementation issues
-      - Worked Example: FakeConfig(enabled: false) → isEnabled() === false
-      */
-      fakeConfig.set(SampleConfigType, { enabled: false, timeout: 30, name: 'disabled' });
-      const service = new SampleService(fakeLogger, fakeConfig);
-
-      expect(service.isEnabled()).toBe(false);
-    });
   });
 });

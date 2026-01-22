@@ -7,8 +7,6 @@ Architecture Decision Records (ADRs) document significant architectural decision
 | ADR | Title | Date | Status | Supersedes | Superseded By |
 |-----|-------|------|--------|------------|---------------|
 | 0001 | [MCP Tool Design Patterns](./adr-0001-mcp-tool-design-patterns.md) | 2026-01-19 | Accepted | - | - |
-| 0002 | [Exemplar-Driven Development](./adr-0002-exemplar-driven-development.md) | 2026-01-21 | Accepted | - | - |
-| 0003 | [Configuration System Architecture](./adr-0003-configuration-system.md) | 2026-01-22 | Accepted | - | - | Includes Developer Reference Guide |
 
 ## ADR Format
 

@@ -2,34 +2,11 @@
 // Exports all shared interfaces, fakes, and adapters
 
 // Interfaces
-export type { ConfigType, IConfigService } from './interfaces/index.js';
 export { LogLevel } from './interfaces/index.js';
 export type { ILogger, LogEntry } from './interfaces/index.js';
 
 // Fakes
-export { FakeConfigService } from './fakes/index.js';
 export { FakeLogger } from './fakes/index.js';
 
 // Adapters
 export { PinoLoggerAdapter } from './adapters/index.js';
-
-// Config (re-export key items from ./config for convenience)
-export {
-  ConfigurationError,
-  LiteralSecretError,
-  MissingConfigurationError,
-} from './config/index.js';
-export {
-  SampleConfigSchema,
-  SampleConfigType,
-  type SampleConfig,
-} from './config/index.js';
-export {
-  ChainglassConfigService,
-  type ChainglassConfigServiceOptions,
-} from './config/index.js';
-export {
-  getUserConfigDir,
-  ensureUserConfig,
-  getProjectConfigDir,
-} from './config/index.js';
