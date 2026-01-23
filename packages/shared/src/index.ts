@@ -67,3 +67,7 @@ export {
   ensureUserConfig,
   getProjectConfigDir,
 } from './config/index.js';
+
+// Services
+export { AgentService } from './services/index.js';
+export type { AdapterFactory, AgentServiceRunOptions } from './services/index.js';

@@ -25,6 +25,13 @@ export interface FakeAgentAdapterOptions {
   stderr?: string;
   /** Token metrics to return (null = unavailable, per DYK-03) */
   tokens?: TokenMetrics | null;
+  /**
+   * Duration in milliseconds to simulate slow run() operations.
+   * Per Phase 5 DYK-03: Enables timeout testing.
+   * When set, run() awaits setTimeout before returning.
+   * Default: 0 (no delay).
+   */
+  runDuration?: number;
 }
 
 /**
@@ -49,6 +56,7 @@ export interface FakeAgentAdapterOptions {
  */
 export class FakeAgentAdapter implements IAgentAdapter {
   private readonly _options: FakeAgentAdapterOptions;
+  private readonly _runDuration: number;
   private _runHistory: AgentRunOptions[] = [];
   private _terminateHistory: string[] = [];
   private _compactHistory: string[] = [];
@@ -62,10 +70,16 @@ export class FakeAgentAdapter implements IAgentAdapter {
       stderr: options.stderr,
       tokens: options.tokens === undefined ? { used: 0, total: 0, limit: 200000 } : options.tokens,
     };
+    this._runDuration = options.runDuration ?? 0;
   }
 
   async run(options: AgentRunOptions): Promise<AgentResult> {
     this._runHistory.push({ ...options });
+
+    // Per Phase 5 DYK-03: Simulate slow run() for timeout testing
+    if (this._runDuration > 0) {
+      await new Promise((resolve) => setTimeout(resolve, this._runDuration));
+    }
 
     // If sessionId was provided in options, use it (session resumption)
     const sessionId = options.sessionId ?? this._options.sessionId!;

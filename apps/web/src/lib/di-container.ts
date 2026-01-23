@@ -10,12 +10,14 @@
 
 import 'reflect-metadata';
 import {
+  AgentService,
   ClaudeCodeAdapter,
   CopilotAdapter,
   FakeAgentAdapter,
   FakeConfigService,
   FakeLogger,
   FakeProcessManager,
+  type AdapterFactory,
   type IAgentAdapter,
   type IConfigService,
   type ILogger,
@@ -36,6 +38,7 @@ export const DI_TOKENS = {
   AGENT_ADAPTER: 'IAgentAdapter',
   CLAUDE_CODE_ADAPTER: 'ClaudeCodeAdapter',
   COPILOT_ADAPTER: 'CopilotAdapter',
+  AGENT_SERVICE: 'AgentService',
 } as const;
 
 /**
@@ -141,6 +144,28 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
     },
   });
 
+  // Per Phase 5: Register AgentService with factory function for adapter selection
+  childContainer.register(DI_TOKENS.AGENT_SERVICE, {
+    useFactory: (c) => {
+      const logger = c.resolve<ILogger>(DI_TOKENS.LOGGER);
+      const cfg = c.resolve<IConfigService>(DI_TOKENS.CONFIG);
+      const processManager = c.resolve<IProcessManager>(DI_TOKENS.PROCESS_MANAGER);
+
+      // Per DYK-02: Factory function for adapter selection
+      const adapterFactory: AdapterFactory = (agentType: string): IAgentAdapter => {
+        if (agentType === 'claude-code') {
+          return new ClaudeCodeAdapter(processManager, { logger });
+        }
+        if (agentType === 'copilot') {
+          return new CopilotAdapter(processManager, { logger });
+        }
+        throw new Error(`Unknown agent type: ${agentType}`);
+      };
+
+      return new AgentService(adapterFactory, cfg, logger);
+    },
+  });
+
   // FIX-010: Performance metrics for container creation
   const durationMs = performance.now() - startTime;
   console.log(`[createProductionContainer] Container created in ${durationMs.toFixed(2)}ms`);
@@ -165,8 +190,10 @@ export function createTestContainer(): DependencyContainer {
 
   // Create FakeConfigService with default test config
   // Matches DEFAULT_FIXTURE_SAMPLE_CONFIG from service-test.fixture.ts
+  // Per Phase 5 DYK-05: Include agent config for AgentService
   const fakeConfig = new FakeConfigService({
     sample: { enabled: true, timeout: 30, name: 'test-fixture' },
+    agent: { timeout: 600000 }, // 10 minutes default
   });
 
   // Register test fakes
@@ -201,6 +228,24 @@ export function createTestContainer(): DependencyContainer {
         output: 'Test output',
         tokens: { used: 100, total: 100, limit: 200000 },
       }),
+  });
+
+  // Per Phase 5: Register AgentService in test container with FakeAgentAdapter
+  childContainer.register(DI_TOKENS.AGENT_SERVICE, {
+    useFactory: (c) => {
+      const logger = c.resolve<ILogger>(DI_TOKENS.LOGGER);
+      const cfg = c.resolve<IConfigService>(DI_TOKENS.CONFIG);
+
+      // Test factory always returns FakeAgentAdapter
+      const adapterFactory: AdapterFactory = () =>
+        new FakeAgentAdapter({
+          sessionId: 'test-session',
+          output: 'Test output',
+          tokens: { used: 100, total: 100, limit: 200000 },
+        });
+
+      return new AgentService(adapterFactory, cfg, logger);
+    },
   });
 
   return childContainer;
