@@ -28,6 +28,10 @@ export type {
 export { FakeAgentAdapter } from './fakes/index.js';
 export type { FakeAgentAdapterOptions } from './fakes/index.js';
 export { FakeConfigService } from './fakes/index.js';
+export { FakeCopilotClient } from './fakes/index.js';
+export type { FakeCopilotClientOptions } from './fakes/index.js';
+export { FakeCopilotSession } from './fakes/index.js';
+export type { FakeCopilotSessionOptions } from './fakes/index.js';
 export { FakeLogger } from './fakes/index.js';
 export { FakeProcessManager } from './fakes/index.js';
 
@@ -39,6 +43,8 @@ export { ClaudeCodeAdapter } from './adapters/index.js';
 export type { ClaudeCodeAdapterOptions } from './adapters/index.js';
 export { CopilotAdapter } from './adapters/index.js';
 export type { CopilotAdapterOptions, ReadLogFileFunction } from './adapters/index.js';
+export { SdkCopilotAdapter } from './adapters/index.js';
+export type { SdkCopilotAdapterOptions } from './adapters/index.js';
 export { UnixProcessManager } from './adapters/index.js';
 export { WindowsProcessManager } from './adapters/index.js';
 

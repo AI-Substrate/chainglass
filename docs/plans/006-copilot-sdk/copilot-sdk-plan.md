@@ -719,4 +719,14 @@ After reviewing this plan:
 
 ---
 
+## Subtasks Registry
+
+Mid-implementation detours requiring structured tracking.
+
+| ID | Created | Phase | Parent Task | Reason | Status | Dossier |
+|----|---------|-------|-------------|--------|--------|---------|
+| 001-subtask-add-streaming-events | 2026-01-23 | Phase 2: Core Adapter Implementation | T010 | Add event streaming to IAgentAdapter for Copilot and Claude with fakes for tests and real integration tests | [ ] Pending | [Link](tasks/phase-2-core-adapter-implementation/001-subtask-add-streaming-events.md) |
+
+---
+
 **Plan Status**: READY for validation via `/plan-4-complete-the-plan`

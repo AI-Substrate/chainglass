@@ -2,7 +2,9 @@ import {
   ClaudeCodeAdapter,
   CopilotAdapter,
   FakeAgentAdapter,
+  FakeCopilotClient,
   FakeProcessManager,
+  SdkCopilotAdapter,
 } from '@chainglass/shared';
 import { agentAdapterContractTests } from './agent-adapter.contract.js';
 
@@ -90,4 +92,22 @@ agentAdapterContractTests('CopilotAdapter', () => {
     readLogFile: async () => sessionLogContent,
     pollMaxTimeoutMs: 100, // Short timeout for fast tests
   });
+});
+
+// Run contract tests for SdkCopilotAdapter (Phase 2)
+// Per DYK-03: Factory setup creates adapter with FakeCopilotClient
+// Expected: run() tests PASS, compact/terminate tests FAIL (Phase 3 stubs)
+agentAdapterContractTests('SdkCopilotAdapter', () => {
+  // Create FakeCopilotClient with appropriate events for contract tests
+  const fakeClient = new FakeCopilotClient({
+    events: [
+      {
+        type: 'assistant.message',
+        data: { content: 'Contract test output', messageId: 'contract-msg-001' },
+      },
+      { type: 'session.idle', data: {} },
+    ],
+  });
+
+  return new SdkCopilotAdapter(fakeClient);
 });

@@ -34,7 +34,7 @@ export interface CopilotAssistantMessageEvent extends CopilotSessionEventBase {
   type: 'assistant.message';
   data: {
     content: string;
-    messageId?: string;
+    messageId: string;
   };
 }
 
@@ -52,6 +52,7 @@ export interface CopilotSessionIdleEvent extends CopilotSessionEventBase {
 export interface CopilotSessionErrorEvent extends CopilotSessionEventBase {
   type: 'session.error';
   data: {
+    errorType: string;
     message: string;
     stack?: string;
   };
