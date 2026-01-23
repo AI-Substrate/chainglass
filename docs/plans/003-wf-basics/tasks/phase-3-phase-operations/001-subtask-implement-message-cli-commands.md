@@ -102,11 +102,28 @@ Implement the four message CLI commands (`cg phase message create/answer/list/re
 ### Non-Goals
 
 - ❌ MCP tools for messages (can be added later following Phase 5 pattern)
-- ❌ State machine transitions (blocked/accepted) - status log integration only
+- ❌ State machine transitions (blocked/accepted states)
 - ❌ Message threading or conversation history beyond status log
 - ❌ Auto-discovery or message routing
 - ❌ `cg phase handover`, `cg phase accept` commands (separate future work)
 - ❌ Performance optimization or caching
+
+### Clarification: Status Log Integration IS In Scope
+
+Per DYK session (2026-01-23): MessageService.create() and MessageService.answer() **must** write signpost entries to `wf-phase.json` status array. This is the established pattern from Phase 0 exemplar:
+
+```json
+// wf-phase.json status entry (signpost - does NOT repeat message content)
+{ "timestamp": "...", "from": "agent", "action": "question", "message_id": "001" }
+{ "timestamp": "...", "from": "orchestrator", "action": "answer", "message_id": "001" }
+```
+
+The `message_id` references the detailed message file at `messages/m-{id}.json`. This enables:
+- Audit trail (status log shows timeline)
+- Discoverability (orchestrator can find unanswered questions)
+- Separation of concerns (status = timeline, message = content)
+
+See: `docs/how/workflows/1-overview.md`, `dev/examples/wf/runs/run-example-001/phases/process/run/wf-data/wf-phase.json`
 
 ---
 
@@ -247,7 +264,7 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|------|------|-----|------|--------------|------------------|------------|----------|-------|
-| [ ] | ST001 | Define `IMessageService` interface with create(), answer(), list(), read() signatures | 1 | Setup | – | /home/jak/substrate/003-wf-basics/packages/workflow/src/interfaces/message-service.interface.ts | Interface exported from @chainglass/workflow | – | Per existing IPhaseService pattern |
+| [ ] | ST001 | Define `IMessageService` interface with create(), answer(), list(), read() signatures AND `MessageErrorCodes` constants (E060-E064) | 1 | Setup | – | /home/jak/substrate/003-wf-basics/packages/workflow/src/interfaces/message-service.interface.ts | Interface + error codes exported from @chainglass/workflow | – | Per existing IPhaseService + PhaseErrorCodes pattern |
 | [ ] | ST002 | Add message result types: MessageCreateResult, MessageAnswerResult, MessageListResult, MessageReadResult | 2 | Setup | ST001 | /home/jak/substrate/003-wf-basics/packages/shared/src/interfaces/results/message.types.ts | Types exported, extend BaseResult | – | Per PrepareResult/ValidateResult pattern |
 | [ ] | ST003 | Write tests for MessageService.create() including validation and idempotency | 3 | Test | ST002 | /home/jak/substrate/003-wf-basics/test/unit/workflow/message-service.test.ts | Tests fail (RED phase) | – | Cover all 4 message types, E064 |
 | [ ] | ST004 | Implement MessageService.create() | 3 | Core | ST003 | /home/jak/substrate/003-wf-basics/packages/workflow/src/services/message.service.ts | All create tests pass (GREEN) | – | Validates against message schema, writes m-{id}.json |
@@ -260,8 +277,8 @@ flowchart TD
 | [ ] | ST011 | Implement FakeMessageService with call capture pattern | 2 | Fake | ST010 | /home/jak/substrate/003-wf-basics/packages/workflow/src/fakes/fake-message-service.ts | Fake tests pass | – | Per FakePhaseService pattern |
 | [ ] | ST012 | Write contract tests for IMessageService | 2 | Test | ST011 | /home/jak/substrate/003-wf-basics/test/contracts/message-service.contract.test.ts | Both real and fake pass | – | Per CD-08 |
 | [ ] | ST013 | Create message.command.ts with registerMessageCommands() or extend phase.command.ts | 2 | CLI | ST002 | /home/jak/substrate/003-wf-basics/apps/cli/src/commands/message.command.ts | Type check passes | – | Subcommand under `cg phase message` |
-| [ ] | ST014 | Implement `cg phase message create` action handler | 2 | CLI | ST013 | /home/jak/substrate/003-wf-basics/apps/cli/src/commands/message.command.ts | Action handler wired | – | --type, --content, --note, --json, --run-dir |
-| [ ] | ST015 | Implement `cg phase message answer` action handler | 2 | CLI | ST014 | /home/jak/substrate/003-wf-basics/apps/cli/src/commands/message.command.ts | Action handler wired | – | --id, --select/--text/--confirm/--deny, --note, --json |
+| [ ] | ST014 | Implement `cg phase message create` action handler | 2 | CLI | ST013 | /home/jak/substrate/003-wf-basics/apps/cli/src/commands/message.command.ts | Action handler wired | – | --type, --content, --note, --json, --run-dir, --from (default: agent) |
+| [ ] | ST015 | Implement `cg phase message answer` action handler | 3 | CLI | ST014 | /home/jak/substrate/003-wf-basics/apps/cli/src/commands/message.command.ts | Action handler wired | – | --id, --select/--text/--confirm/--deny, --note, --json, --from (default: orchestrator for status entry). Strict validation: read message type first, reject mismatched flags with actionable E061 error |
 | [ ] | ST016 | Implement `cg phase message list` action handler | 2 | CLI | ST015 | /home/jak/substrate/003-wf-basics/apps/cli/src/commands/message.command.ts | Action handler wired | – | --json, --run-dir |
 | [ ] | ST017 | Implement `cg phase message read` action handler | 2 | CLI | ST016 | /home/jak/substrate/003-wf-basics/apps/cli/src/commands/message.command.ts | Action handler wired | – | --id, --json, --run-dir |
 | [ ] | ST018 | Register message commands in phase.command.ts or cg.ts | 1 | CLI | ST017 | /home/jak/substrate/003-wf-basics/apps/cli/src/commands/phase.command.ts, /home/jak/substrate/003-wf-basics/apps/cli/src/bin/cg.ts | Help shows message commands | – | `cg phase message --help` works |
@@ -662,3 +679,127 @@ docs/plans/003-wf-basics/
     └── phase-6-documentation/
         └── 001-subtask-create-manual-test-harness.md   # Depends on this subtask
 ```
+
+
+---
+
+## Critical Insights Discussion
+
+**Session**: 2026-01-23 05:18 UTC
+**Context**: Message CLI Commands Subtask Pre-Implementation Review
+**Analyst**: AI Clarity Agent
+**Reviewer**: Development Team
+**Format**: Water Cooler Conversation (5 Critical Insights)
+
+### Insight 1: CLI Content Input UX
+
+**Did you know**: The `--content` flag requires complex JSON that could be awkward for shell input.
+
+**Options Considered**:
+- Option A: Keep --content as single JSON blob
+- Option B: Split into separate flags (--subject, --body, --options)
+- Option C: Support both --content JSON and --content-file path
+
+**AI Recommendation**: Option C (dual support)
+- Reasoning: File-based input enables IDE support and better schema validation feedback.
+
+**Discussion Summary**: User pointed out CLI is agent-facing, not human-facing. Agents construct JSON programmatically and iterate on schema errors quickly.
+
+**Decision**: Option A - Keep `--content` as single JSON blob. Agent-facing CLI.
+
+**Affects**: ST014
+
+---
+
+### Insight 2: Status Log Integration is Required
+
+**Did you know**: Status log integration was listed as "non-goal" but is actually essential for the communication loop - the schema already has `question`/`answer` actions with `message_id` signposts.
+
+**Options Considered**:
+- Option A: Skip status log entirely (pure file-based)
+- Option B: Minimal status log (question/answer actions as signposts)
+- Option C: Full status log with state transitions
+
+**AI Recommendation**: Option B (minimal status log)
+- Reasoning: Matches exemplar pattern, enables discovery and audit trail.
+
+**Discussion Summary**: Clarified the signpost pattern - status entry references message file via `message_id`, doesn't duplicate content.
+
+**Decision**: Option B - Add status log signpost entries. Updated Non-Goals section to clarify.
+
+**Affects**: ST004 (create), ST006 (answer), Non-Goals section
+
+---
+
+### Insight 3: Error Codes Don't Exist Yet
+
+**Did you know**: Error codes E060-E064 are defined in plan docs but not implemented in code.
+
+**Options Considered**:
+- Option A: Add error codes in ST001 (interface phase)
+- Option B: Add error codes in ST003 (first test phase)
+- Option C: Assume they exist from Phase 0 (they don't)
+
+**AI Recommendation**: Option A
+- Reasoning: Error codes are part of interface contract, follows PhaseErrorCodes pattern.
+
+**Decision**: Option A - Add `MessageErrorCodes` in ST001 alongside `IMessageService`.
+
+**Affects**: ST001 scope expanded
+
+---
+
+### Insight 4: The `from` Field is Role-Based
+
+**Did you know**: The `from` field (agent/orchestrator) is implicit in the action, not explicit in CLI flags.
+
+**Options Considered**:
+- Option A: Implicit `from` based on command (create=agent, answer=orchestrator)
+- Option B: Add optional `--from` override with smart defaults
+
+**AI Recommendation**: Option A
+- Reasoning: Enforces facilitator model, simpler CLI.
+
+**Discussion Summary**: User wanted flexibility since we don't know who will send messages in the future.
+
+**Decision**: Option B - Add optional `--from` flag with defaults (create=agent, answer status=orchestrator).
+
+**Affects**: ST014, ST015
+
+---
+
+### Insight 5: Answer Validation Has 4 Code Paths
+
+**Did you know**: The `answer` command needs different validation for each message type (single_choice, multi_choice, free_text, confirm).
+
+**Options Considered**:
+- Option A: Strict validation per type with actionable errors
+- Option B: Loose validation, let schema catch mismatches
+
+**AI Recommendation**: Option A
+- Reasoning: Better agent UX with clear error messages.
+
+**Decision**: Option A - Strict validation. Bumped ST015 from CS-2 to CS-3.
+
+**Affects**: ST015 (complexity bumped), ST006 (service validation)
+
+---
+
+## Session Summary
+
+**Insights Surfaced**: 5 critical insights identified and discussed
+**Decisions Made**: 5 decisions reached
+**Action Items Created**: 0 (all captured in task updates)
+**Areas Updated**:
+- ST001: Added MessageErrorCodes (E060-E064)
+- ST014: Added --from flag (default: agent)
+- ST015: Added --from flag, bumped CS-2→CS-3, added strict validation note
+- Non-Goals section: Clarified status log signpost pattern IS in scope
+
+**Shared Understanding Achieved**: ✓
+
+**Confidence Level**: High - Key ambiguities resolved, complexity accurately scored.
+
+**Next Steps**: Ready for `/plan-6-implement-phase` to begin ST001-ST020
+
+**Notes**: Session surfaced that this subtask is agent-facing (not human-facing), which informed several design decisions.
