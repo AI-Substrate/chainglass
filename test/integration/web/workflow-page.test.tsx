@@ -140,13 +140,16 @@ describe('WorkflowPage', () => {
       - Usage Notes: Click handler passed to WorkflowContent
       - Quality Contribution: Validates node click detection
       - Worked Example: Click "Build" node → onNodeClick receives node-2 data
+
+      Note: Uses fireEvent instead of userEvent because userEvent triggers d3-drag
+      mouse handlers which throw in jsdom (known limitation).
       */
 
       const { WorkflowContent } = await import('@/components/workflow/workflow-content');
       const { DEMO_FLOW } = await import('@/data/fixtures/flow.fixture');
+      const { fireEvent } = await import('@testing-library/react');
 
       const onNodeClick = vi.fn();
-      const user = userEvent.setup();
 
       render(
         <ReactFlowWrapper>
@@ -158,8 +161,8 @@ describe('WorkflowPage', () => {
         expect(screen.getByText('Build')).toBeInTheDocument();
       });
 
-      // Click on the Build node
-      await user.click(screen.getByText('Build'));
+      // Use fireEvent.click instead of userEvent.click to avoid d3-drag issues in jsdom
+      fireEvent.click(screen.getByText('Build'));
 
       // Should trigger onNodeClick callback
       expect(onNodeClick).toHaveBeenCalledWith(
