@@ -19,6 +19,7 @@
     "emitDecoratorMetadata": true,
     "baseUrl": ".",
     "paths": {
+      "@/*": ["./apps/web/src/*"],
       "@chainglass/shared": ["./packages/shared/src"],
       "@chainglass/shared/*": ["./packages/shared/src/*"],
       "@chainglass/cli": ["./apps/cli/src"],

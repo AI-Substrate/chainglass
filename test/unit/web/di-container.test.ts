@@ -10,25 +10,25 @@
 
 // Must import reflect-metadata before tsyringe
 import 'reflect-metadata';
+import { container } from 'tsyringe';
+import { beforeEach, describe, expect, it } from 'vitest';
+import {
+  DI_TOKENS,
+  createProductionContainer,
+  createTestContainer,
+} from '../../../apps/web/src/lib/di-container';
+// SampleService will be created in T007 - import will fail until then
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import type { SampleService } from '../../../apps/web/src/services/sample.service';
 import {
   FakeConfigService,
-  FakeLogger,
+  type FakeLogger,
   type IConfigService,
   type ILogger,
   LogLevel,
   PinoLoggerAdapter,
   SampleConfigType,
-} from '@chainglass/shared';
-import {
-  DI_TOKENS,
-  createProductionContainer,
-  createTestContainer,
-} from '@chainglass/web/lib/di-container';
-// SampleService will be created in T007 - import will fail until then
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-import type { SampleService } from '@chainglass/web/services/sample.service';
-import { container } from 'tsyringe';
-import { beforeEach, describe, expect, it } from 'vitest';
+} from '../../../packages/shared/src';
 
 describe('DI Container', () => {
   beforeEach(() => {
@@ -54,7 +54,12 @@ describe('DI Container', () => {
     const prodContainer = createProductionContainer(config);
     const logger = prodContainer.resolve<ILogger>('ILogger');
 
-    expect(logger).toBeInstanceOf(PinoLoggerAdapter);
+    // Use duck typing to check instance (module copies cause instanceof to fail in monorepos)
+    expect(logger).toHaveProperty('debug');
+    expect(logger).toHaveProperty('info');
+    expect(logger).toHaveProperty('warn');
+    expect(logger).toHaveProperty('error');
+    expect(logger.constructor.name).toBe('PinoLoggerAdapter');
   });
 
   it('should create test container with fakes', () => {
@@ -69,7 +74,9 @@ describe('DI Container', () => {
     const testContainer = createTestContainer();
     const logger = testContainer.resolve<ILogger>('ILogger');
 
-    expect(logger).toBeInstanceOf(FakeLogger);
+    // Use duck typing (FakeLogger has getEntries method)
+    expect(logger).toHaveProperty('getEntries');
+    expect(logger.constructor.name).toBe('FakeLogger');
   });
 
   it('should isolate containers from each other', () => {
@@ -107,7 +114,7 @@ describe('DI Container', () => {
 
     // Resolve using the registered string token (not the class directly)
     // This is required because we use decorator-free DI
-    const { SampleService } = await import('@chainglass/web/services/sample.service');
+    const { SampleService } = await import('../../../apps/web/src/services/sample.service');
     const service = testContainer.resolve<InstanceType<typeof SampleService>>('SampleService');
 
     await service.doSomething('test-input');
@@ -154,7 +161,9 @@ describe('DI Container', () => {
       const testContainer = createTestContainer();
       const configService = testContainer.resolve<IConfigService>(DI_TOKENS.CONFIG);
 
-      expect(configService).toBeInstanceOf(FakeConfigService);
+      // Use duck typing (FakeConfigService has set method)
+      expect(configService).toHaveProperty('set');
+      expect(configService.constructor.name).toBe('FakeConfigService');
     });
 
     it('should pre-populate FakeConfigService with sample config in test container', () => {

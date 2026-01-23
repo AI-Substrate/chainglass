@@ -15,13 +15,15 @@
     ],
     "incremental": true,
     "allowJs": true,
+    "baseUrl": ".",
     "paths": {
+      "@/*": ["./src/*"],
       "@chainglass/shared": ["../../packages/shared/dist"],
       "@chainglass/shared/*": ["../../packages/shared/dist/*"],
       "@chainglass/web": ["./src"],
       "@chainglass/web/*": ["./src/*"]
     }
   },
-  "include": ["src/**/*", "app/**/*", "next-env.d.ts", ".next/types/**/*.ts"],
+  "include": ["src/**/*", "app/**/*", "test/**/*", "next-env.d.ts", ".next/types/**/*.ts"],
   "exclude": ["node_modules", "dist", ".next"]
 }

@@ -1,4 +1,3 @@
-import { createProgram } from '@chainglass/cli/bin';
 import { CommanderError } from 'commander';
 /**
  * CLI Parser Tests
@@ -7,6 +6,7 @@ import { CommanderError } from 'commander';
  * testMode enables exitOverride() + configureOutput() to prevent process.exit() in tests.
  */
 import { beforeEach, describe, expect, it } from 'vitest';
+import { createProgram } from '../../../apps/cli/src/bin';
 
 describe('CLI Parser', () => {
   describe('Default behavior', () => {
