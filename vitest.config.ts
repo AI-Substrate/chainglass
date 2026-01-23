@@ -29,7 +29,7 @@ export default defineConfig({
       ['**/*.test.tsx', 'jsdom'],
       ['**/web/**/*.test.ts', 'jsdom'],
     ],
-    setupFiles: [resolve(testDir, 'setup.ts')],
+    setupFiles: [resolve(testDir, 'setup.ts'), resolve(testDir, 'setup-browser-mocks.ts')],
     // Sequential execution to prevent MCP tests from spawning 20+ parallel processes
     fileParallelism: false,
     // Coverage configuration (DYK-03: Enforced thresholds, not just reported)

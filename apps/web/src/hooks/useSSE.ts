@@ -10,6 +10,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { z } from 'zod';
 
 /** Type for the EventSource factory function */
 export type EventSourceFactory = (url: string, options?: EventSourceInit) => EventSource;
@@ -27,6 +28,8 @@ export interface UseSSEOptions {
   maxReconnectAttempts?: number;
   /** Maximum messages to retain (default: 1000, 0 = unlimited) - FIX-004 */
   maxMessages?: number;
+  /** Optional Zod schema for message validation (FIX-002 security) */
+  messageSchema?: z.ZodType;
 }
 
 export interface UseSSEReturn<T = unknown> {
@@ -70,6 +73,7 @@ export function useSSE<T = unknown>(
     reconnectDelay = 5000,
     maxReconnectAttempts = 5,
     maxMessages = 1000,
+    messageSchema,
   } = options;
 
   const [isConnected, setIsConnected] = useState(false);
@@ -106,7 +110,18 @@ export function useSSE<T = unknown>(
 
     eventSource.onmessage = (event) => {
       try {
-        const data = JSON.parse(event.data) as T;
+        const parsed = JSON.parse(event.data);
+
+        // FIX-002: Validate against schema if provided
+        if (messageSchema) {
+          const result = messageSchema.safeParse(parsed);
+          if (!result.success) {
+            console.warn('useSSE: Invalid message format:', result.error.message);
+            return;
+          }
+        }
+
+        const data = parsed as T;
         setMessages((prev) => {
           const updated = [...prev, data];
           // Prune to maxMessages if set (FIX-004)
@@ -135,7 +150,7 @@ export function useSSE<T = unknown>(
         }, reconnectDelay);
       }
     };
-  }, [url, eventSourceFactory, reconnectDelay, maxReconnectAttempts, maxMessages]);
+  }, [url, eventSourceFactory, reconnectDelay, maxReconnectAttempts, maxMessages, messageSchema]);
 
   /**
    * Disconnect from SSE endpoint.

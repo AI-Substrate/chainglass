@@ -26,12 +26,17 @@ export type WorkflowEdge = Edge;
 /**
  * Demo flow with 5 nodes and 4 edges representing a simple CI/CD pipeline.
  * Used in tests and Phase 6 demo pages.
+ *
+ * DYK-06: Node types updated from 'default' to custom types:
+ * - 'workflow' for standard workflow steps
+ * - 'phase' for workflow phases
+ * - 'agent' for AI agent nodes
  */
 export const DEMO_FLOW: { nodes: WorkflowNode[]; edges: WorkflowEdge[] } = {
   nodes: [
     {
       id: 'node-1',
-      type: 'default',
+      type: 'workflow',
       position: { x: 0, y: 0 },
       data: {
         label: 'Source Code',
@@ -41,7 +46,7 @@ export const DEMO_FLOW: { nodes: WorkflowNode[]; edges: WorkflowEdge[] } = {
     },
     {
       id: 'node-2',
-      type: 'default',
+      type: 'phase',
       position: { x: 200, y: 0 },
       data: {
         label: 'Build',
@@ -51,7 +56,7 @@ export const DEMO_FLOW: { nodes: WorkflowNode[]; edges: WorkflowEdge[] } = {
     },
     {
       id: 'node-3',
-      type: 'default',
+      type: 'agent',
       position: { x: 400, y: -50 },
       data: {
         label: 'Unit Tests',
@@ -61,7 +66,7 @@ export const DEMO_FLOW: { nodes: WorkflowNode[]; edges: WorkflowEdge[] } = {
     },
     {
       id: 'node-4',
-      type: 'default',
+      type: 'agent',
       position: { x: 400, y: 50 },
       data: {
         label: 'Lint',
@@ -71,7 +76,7 @@ export const DEMO_FLOW: { nodes: WorkflowNode[]; edges: WorkflowEdge[] } = {
     },
     {
       id: 'node-5',
-      type: 'default',
+      type: 'workflow',
       position: { x: 600, y: 0 },
       data: {
         label: 'Deploy',

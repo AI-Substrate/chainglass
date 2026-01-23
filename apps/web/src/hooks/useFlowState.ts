@@ -13,14 +13,17 @@
 
 import { useCallback, useState } from 'react';
 
-import type { WorkflowEdge, WorkflowNode } from '../data/fixtures';
+import type { WorkflowEdge, WorkflowNode, WorkflowNodeData } from '../data/fixtures';
 
 export interface UseFlowStateReturn {
   nodes: WorkflowNode[];
   edges: WorkflowEdge[];
   addNode: (node: WorkflowNode) => void;
   removeNode: (nodeId: string) => void;
-  updateNode: (nodeId: string, updates: Partial<WorkflowNode>) => void;
+  updateNode: (
+    nodeId: string,
+    updates: { data?: Partial<WorkflowNodeData> } & Omit<Partial<WorkflowNode>, 'data'>
+  ) => void;
   addEdge: (source: string, target: string) => void;
   removeEdge: (edgeId: string) => void;
 }
@@ -71,23 +74,29 @@ export function useFlowState(initialFlow: FlowState): UseFlowStateReturn {
   /**
    * Update a node's properties (partial update supported).
    */
-  const updateNode = useCallback((nodeId: string, updates: Partial<WorkflowNode>) => {
-    setFlow((prev) => ({
-      ...prev,
-      nodes: prev.nodes.map((node) => {
-        if (node.id !== nodeId) return node;
+  const updateNode = useCallback(
+    (
+      nodeId: string,
+      updates: { data?: Partial<WorkflowNodeData> } & Omit<Partial<WorkflowNode>, 'data'>
+    ) => {
+      setFlow((prev) => ({
+        ...prev,
+        nodes: prev.nodes.map((node) => {
+          if (node.id !== nodeId) return node;
 
-        // Deep merge for data property
-        const updatedData = updates.data ? { ...node.data, ...updates.data } : node.data;
+          // Deep merge for data property
+          const updatedData = updates.data ? { ...node.data, ...updates.data } : node.data;
 
-        return {
-          ...node,
-          ...updates,
-          data: updatedData,
-        };
-      }),
-    }));
-  }, []);
+          return {
+            ...node,
+            ...updates,
+            data: updatedData,
+          };
+        }),
+      }));
+    },
+    []
+  );
 
   /**
    * Add a new edge connecting two nodes.

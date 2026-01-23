@@ -80,8 +80,12 @@ export function useBoardState(initialBoard: BoardState): UseBoardStateReturn {
       // Remove from source
       newColumns[sourceColumnIndex].cards.splice(sourceCardIndex, 1);
 
+      // FIX-004: Clamp position to valid bounds before insert
+      const maxPosition = newColumns[targetColumnIndex].cards.length;
+      const safePosition = Math.max(0, Math.min(position, maxPosition));
+
       // Insert at target position
-      newColumns[targetColumnIndex].cards.splice(position, 0, card);
+      newColumns[targetColumnIndex].cards.splice(safePosition, 0, card);
 
       return { columns: newColumns };
     });

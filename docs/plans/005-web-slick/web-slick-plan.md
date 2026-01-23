@@ -896,14 +896,15 @@ describe('SSEManager', () => {
 |-----|--------|------|----|------------------|-----|-------|
 | 6.1 | [ ] | Write integration tests for WorkflowPage | 2 | Tests cover: graph renders, pan/zoom works, node click | - | See test commands below |
 | 6.2 | [ ] | Create custom ReactFlow node components | 3 | WorkflowNode, PhaseNode, AgentNode with distinct styles | - | React.memo for performance |
-| 6.3 | [ ] | Implement WorkflowPage with ReactFlow | 3 | Uses useFlowState; renders from fixture; interactive | - | Consumes headless hook |
+| 6.3 | [ ] | Implement WorkflowPage with ReactFlow | 3 | Uses useFlowState; renders from fixture; interactive | - | DYK-02: WorkflowContent.tsx wrapper with ReactFlowProvider |
 | 6.4 | [ ] | Add node detail panel on click | 2 | Clicking node shows details in sidebar/panel | - | shadcn Sheet or Dialog |
-| 6.5 | [ ] | Write integration tests for KanbanPage | 2 | Tests cover: columns render, drag between columns, keyboard | - | See test commands below |
+| 6.5 | [ ] | Write integration tests for KanbanPage | 2 | Tests cover: columns render, drag between columns, keyboard | - | DYK-04: Perplexity research dnd-kit testing patterns first; create DndTestWrapper |
 | 6.6 | [ ] | Create Kanban column and card components | 3 | Uses shadcn Card; integrates with dnd-kit | - | "use client" required |
-| 6.7 | [ ] | Implement KanbanPage with dnd-kit | 3 | Uses useBoardState; DndContext with sensors | - | Consumes headless hook |
-| 6.8 | [ ] | Add keyboard accessibility to Kanban | 2 | KeyboardSensor with sortableKeyboardCoordinates | - | AC-16 requirement |
-| 6.9 | [ ] | Connect demo pages to SSE for real-time updates | 2 | useSSE integration; updates reflect in UI | - | Uses Phase 5 infrastructure |
-| 6.10 | [ ] | Run quality gates | 1 | All tests pass; build succeeds | - | Phase checkpoint |
+| 6.7 | [ ] | Implement KanbanPage with dnd-kit | 3 | Uses useBoardState; DndContext with sensors | - | DYK-02: KanbanContent.tsx wrapper with DndContext |
+| 6.8 | [ ] | Add keyboard accessibility to Kanban | 2 | KeyboardSensor with sortableKeyboardCoordinates | - | DYK-03: Copy test-dndkit.tsx pattern (attributes+listeners) |
+| 6.9 | [ ] | Fix SSE type contract (DYK-01) | 2 | SSEManager.broadcast accepts SSEEvent; useSSE can validate | - | Schema compliance fix |
+| 6.10 | [ ] | Connect demo pages to SSE for real-time updates | 2 | useSSE integration; updates reflect in UI | - | Uses Phase 5 infrastructure |
+| 6.11 | [ ] | Run quality gates | 1 | All tests pass; build succeeds | - | Phase checkpoint |
 
 ### Phase 6 Test Commands
 
@@ -1207,3 +1208,164 @@ No deviations from constitution or architecture rules required.
 ---
 
 *Plan Version 1.1.0 - Updated 2026-01-22 (Added command references for agent handover)*
+
+---
+
+## Critical Insights Discussion (Phase 6 Pre-Implementation)
+
+**Session**: 2026-01-23 03:00 UTC
+**Context**: Phase 6: Demo Pages - Pre-implementation clarity session
+**Analyst**: AI Clarity Agent
+**Reviewer**: Development Team
+**Format**: Water Cooler Conversation (5 Critical Insights)
+
+### Insight 1: SSE Type Contract Mismatch (DYK-01)
+
+**Did you know**: useSSE hook only parses `event.data` field while SSEManager puts the event type in the SSE `event:` field, losing type information.
+
+**Implications**:
+- Demo pages can't distinguish between workflow_status, task_update, or heartbeat events
+- sseEventSchema discriminated union can't be used for validation
+- No type safety between SSE backend and React frontend
+
+**Options Considered**:
+- Option A: Include Type in Data Payload - Simple change
+- Option B: Add Named Event Listeners to useSSE - Major refactor
+- Option C: Wrap SSEManager Data with Full Schema - Clean contract (Recommended)
+
+**AI Recommendation**: Option C - Full schema compliance enables Zod validation
+
+**Decision**: Option C - Update SSEManager.broadcast() to accept SSEEvent objects
+
+**Action Items**:
+- [x] Added Task 6.9: Fix SSE type contract
+
+**Affects**: Phase 5 (SSE route), Phase 6 (demo integration)
+
+---
+
+### Insight 2: ReactFlow Requires Client Boundary Planning (DYK-02)
+
+**Did you know**: WorkflowPage is a server component but ReactFlow requires ReactFlowProvider context wrapper with `'use client'` directive.
+
+**Implications**:
+- Can't just add ReactFlow to server component page
+- Need to decide where to place client boundary
+- Test suite already solved this with ReactFlowWrapper pattern
+
+**Options Considered**:
+- Option A: Make WorkflowPage a Client Component - Simple but loses SSR
+- Option B: Client Wrapper Component Pattern - Best practice (Recommended)
+- Option C: Layout-Level Provider - Loads provider even on non-ReactFlow pages
+
+**AI Recommendation**: Option B - Push client boundary low, keep page server-renderable
+
+**Decision**: Option B - Create WorkflowContent.tsx and KanbanContent.tsx wrappers
+
+**Action Items**:
+- [x] Updated Task 6.3 notes: DYK-02 wrapper guidance
+- [x] Updated Task 6.7 notes: DYK-02 wrapper guidance
+
+**Affects**: Tasks 6.3, 6.7
+
+---
+
+### Insight 3: dnd-kit Keyboard Accessibility Requires 5-Part Coordination (DYK-03)
+
+**Did you know**: Keyboard accessibility with dnd-kit requires coordinating KeyboardSensor, useSortable, attributes, listeners, and SortableContext - all 5 parts.
+
+**Implications**:
+- Task 6.8 is really "ensure keyboard accessibility is wired correctly"
+- Pattern already exists in test-dndkit.tsx verification component
+- If any piece is missing, keyboard nav silently fails
+
+**Options Considered**:
+- Option A: Follow test-dndkit.tsx Pattern Exactly - Proven pattern (Recommended)
+- Option B: Use @dnd-kit/accessibility Announcements - Extra package
+- Option C: Test Keyboard Manually First - Still need automated tests
+
+**AI Recommendation**: Option A - Copy working pattern from verification component
+
+**Decision**: Option A - CS-2 rating is correct, just apply pattern consistently
+
+**Action Items**:
+- [x] Updated Task 6.8 notes: DYK-03 pattern reference
+
+**Affects**: Task 6.6, Task 6.8
+
+---
+
+### Insight 4: Integration Tests Need DndTestWrapper (DYK-04)
+
+**Did you know**: KanbanPage integration tests need a DndContext test wrapper that doesn't exist yet, while ReactFlowWrapper pattern exists for WorkflowPage.
+
+**Implications**:
+- Task 6.5 (KanbanPage tests) needs NEW test infrastructure
+- Can't just render(<KanbanPage />) - dnd-kit sensors require setup
+- Should research idiomatic patterns before implementing
+
+**Options Considered**:
+- Option A: Create DndTestWrapper in Task 6.5 - Keep cohesive (Recommended)
+- Option B: Add New Task for Test Infrastructure - Separate concern
+- Option C: Use @testing-library/user-event Simulation - May not be enough
+
+**AI Recommendation**: Option A - Include wrapper creation in Task 6.5 with research
+
+**Decision**: Option A - Research dnd-kit testing patterns with Perplexity first
+
+**Action Items**:
+- [x] Updated Task 6.5 notes: DYK-04 Perplexity research + DndTestWrapper
+
+**Affects**: Task 6.5
+
+---
+
+### Insight 5: Phase 6 Total Complexity (DYK-05)
+
+**Did you know**: Phase 6 now has 11 tasks totaling CS-25, making it the largest phase in the plan.
+
+**Implications**:
+- Largest phase in entire plan
+- Most UI-facing work (most visible to users)
+- Depends on ALL previous phases being solid
+- Many moving parts: ReactFlow, dnd-kit, SSE, testing, accessibility
+
+**Options Considered**:
+- Option A: Proceed as Single Phase - Simple tracking
+- Option B: Split into Phase 6a + 6b - Smaller chunks
+- Option C: Keep as-is with Mental Chunking - Natural flow (Recommended)
+
+**AI Recommendation**: Option C - Tasks already ordered well as sub-milestones
+
+**Decision**: Option C - Keep single phase, treat Workflow→Kanban→SSE→Gates as natural checkpoints
+
+**Action Items**: None - task order already correct
+
+**Affects**: No changes needed
+
+---
+
+## Session Summary
+
+**Insights Surfaced**: 5 critical insights identified and discussed
+**Decisions Made**: 5 decisions reached through collaborative discussion
+**Action Items Created**: 4 task note updates applied
+**Areas Updated**:
+- Task 6.3: Added DYK-02 wrapper note
+- Task 6.5: Added DYK-04 research + wrapper note
+- Task 6.7: Added DYK-02 wrapper note
+- Task 6.8: Added DYK-03 pattern note
+- Task 6.9: NEW - SSE type contract fix (DYK-01)
+
+**Shared Understanding Achieved**: ✓
+
+**Confidence Level**: High - Key integration patterns identified, verification components exist
+
+**Next Steps**:
+1. Generate Phase 6 tasks.md with `/plan-5-phase-tasks-and-brief`
+2. Execute Phase 6 starting with Workflow subsection (6.1-6.4)
+
+**Notes**:
+- Phase 4 code review fixes were already applied (verified by explore agent)
+- Perplexity research recommended before Task 6.5 for dnd-kit testing patterns
+- All 308 tests passing after Phase 5 completion
