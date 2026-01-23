@@ -18,7 +18,7 @@ describe('SdkCopilotAdapter', () => {
   beforeEach(() => {
     fakeClient = new FakeCopilotClient({
       events: [
-        { type: 'assistant.message', data: { content: 'Test response' } },
+        { type: 'assistant.message', data: { content: 'Test response', messageId: 'msg-001' } },
         { type: 'session.idle', data: {} },
       ],
     });
@@ -129,19 +129,22 @@ describe('SdkCopilotAdapter', () => {
       expect(typeof adapter.terminate).toBe('function');
     });
 
-    it('should throw "Not implemented" for run() in Phase 1', async () => {
+    it('should return AgentResult for run() after Phase 2 implementation', async () => {
       /*
       Test Doc:
-      - Why: Phase 1 creates skeleton only; implementation is Phase 2
-      - Contract: run() throws Error with "Not implemented" message
-      - Usage Notes: This test will be updated in Phase 2
-      - Quality Contribution: Documents Phase 1 behavior explicitly
-      - Worked Example: adapter.run() → throw 'Not implemented'
+      - Why: Phase 2 implemented run() - no longer throws
+      - Contract: run() returns AgentResult with status/output
+      - Usage Notes: Replaces Phase 1 "Not implemented" test
+      - Quality Contribution: Documents Phase 2 behavior
+      - Worked Example: adapter.run() → AgentResult with sessionId
       */
       const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
       const adapter = new SdkCopilotAdapter(fakeClient);
 
-      await expect(adapter.run({ prompt: 'test' })).rejects.toThrow(/[Nn]ot implemented/);
+      const result = await adapter.run({ prompt: 'test' });
+
+      expect(result.sessionId).toBeDefined();
+      expect(result.status).toBe('completed');
     });
 
     it('should throw "Not implemented" for compact() in Phase 1', async () => {
@@ -191,6 +194,285 @@ describe('SdkCopilotAdapter', () => {
       const adapter: IAgentAdapter = new SdkCopilotAdapter(fakeClient);
 
       expect(adapter).toBeDefined();
+    });
+  });
+
+  // ============================================================
+  // Phase 2: TDD Tests for run() Implementation
+  // ============================================================
+
+  describe('run() with new session (T002)', () => {
+    /**
+     * Test Doc:
+     * - Why: CF-01 requires real session ID from SDK (no synthetic fallback)
+     * - Contract: run() creates session via createSession, returns SDK sessionId
+     * - Usage Notes: FakeCopilotClient provides predictable session IDs
+     * - Quality Contribution: Validates SDK integration pattern
+     */
+
+    it('should return AgentResult with valid sessionId', async () => {
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const adapter = new SdkCopilotAdapter(fakeClient);
+
+      const result = await adapter.run({ prompt: 'Hello' });
+
+      expect(result.sessionId).toBeDefined();
+      expect(result.sessionId).not.toBe('');
+      expect(result.sessionId).toMatch(/^fake-session-/); // FakeCopilotClient ID format
+    });
+
+    it('should collect output from assistant.message event', async () => {
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const client = new FakeCopilotClient({
+        events: [
+          { type: 'assistant.message', data: { content: 'Hello from Copilot!', messageId: 'msg-001' } },
+          { type: 'session.idle', data: {} },
+        ],
+      });
+      const adapter = new SdkCopilotAdapter(client);
+
+      const result = await adapter.run({ prompt: 'test' });
+
+      expect(result.output).toBe('Hello from Copilot!');
+    });
+
+    it('should return status=completed on success', async () => {
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const adapter = new SdkCopilotAdapter(fakeClient);
+
+      const result = await adapter.run({ prompt: 'test' });
+
+      expect(result.status).toBe('completed');
+    });
+
+    it('should return exitCode=0 on success', async () => {
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const adapter = new SdkCopilotAdapter(fakeClient);
+
+      const result = await adapter.run({ prompt: 'test' });
+
+      expect(result.exitCode).toBe(0);
+    });
+
+    it('should return tokens=null (SDK limitation)', async () => {
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const adapter = new SdkCopilotAdapter(fakeClient);
+
+      const result = await adapter.run({ prompt: 'test' });
+
+      expect(result.tokens).toBeNull();
+    });
+
+    it('should receive events via handler registered before sendAndWait (DYK-02)', async () => {
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const client = new FakeCopilotClient({
+        events: [
+          { type: 'assistant.message', data: { content: 'Response 1', messageId: 'msg-001' } },
+          { type: 'assistant.message', data: { content: 'Response 2', messageId: 'msg-002' } },
+          { type: 'session.idle', data: {} },
+        ],
+      });
+      const adapter = new SdkCopilotAdapter(client);
+
+      const result = await adapter.run({ prompt: 'test' });
+
+      // Should receive last assistant message (per SDK behavior)
+      expect(result.output).toBe('Response 2');
+    });
+  });
+
+  describe('run() with existing sessionId (T003)', () => {
+    /**
+     * Test Doc:
+     * - Why: CF-02 requires resumeSession for session continuity
+     * - Contract: When sessionId provided, calls resumeSession(id)
+     * - Usage Notes: FakeCopilotClient.getSessionHistory() verifies calls
+     * - Quality Contribution: Validates session resumption works
+     */
+
+    it('should call resumeSession when sessionId provided', async () => {
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const client = new FakeCopilotClient({
+        events: [
+          { type: 'assistant.message', data: { content: 'Resumed!', messageId: 'msg-001' } },
+          { type: 'session.idle', data: {} },
+        ],
+      });
+      const adapter = new SdkCopilotAdapter(client);
+
+      await adapter.run({ prompt: 'Continue', sessionId: 'existing-session-123' });
+
+      // FakeCopilotClient tracks session operations
+      const history = client.getSessionHistory();
+      expect(history).toContain('existing-session-123');
+    });
+
+    it('should preserve sessionId in result when resuming', async () => {
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const adapter = new SdkCopilotAdapter(fakeClient);
+
+      const result = await adapter.run({ prompt: 'Continue', sessionId: 'existing-session-123' });
+
+      expect(result.sessionId).toBe('existing-session-123');
+    });
+
+    it('should work with valid session from prior run (end-to-end)', async () => {
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const adapter = new SdkCopilotAdapter(fakeClient);
+
+      // First run creates a new session
+      const result1 = await adapter.run({ prompt: 'Hello' });
+      const sessionId = result1.sessionId;
+
+      // Second run resumes the session
+      const result2 = await adapter.run({ prompt: 'Continue', sessionId });
+
+      expect(result2.sessionId).toBe(sessionId);
+    });
+  });
+
+  describe('run() error handling (T004)', () => {
+    /**
+     * Test Doc:
+     * - Why: CF-03 requires session.error → failed status
+     * - Contract: sendAndWait throws on error; adapter catches and maps to failed
+     * - Usage Notes: DYK-01: FakeCopilotSession throws; adapter catches
+     * - Quality Contribution: Validates error path doesn't propagate to caller
+     */
+
+    it('should catch sendAndWait exception and return failed status (DYK-01)', async () => {
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const client = new FakeCopilotClient({
+        events: [
+          { type: 'session.error', data: { errorType: 'API_ERROR', message: 'Something went wrong' } },
+        ],
+      });
+      const adapter = new SdkCopilotAdapter(client);
+
+      const result = await adapter.run({ prompt: 'test' });
+
+      expect(result.status).toBe('failed');
+    });
+
+    it('should return exitCode=1 when sendAndWait throws', async () => {
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const client = new FakeCopilotClient({
+        events: [
+          { type: 'session.error', data: { errorType: 'API_ERROR', message: 'Error occurred' } },
+        ],
+      });
+      const adapter = new SdkCopilotAdapter(client);
+
+      const result = await adapter.run({ prompt: 'test' });
+
+      expect(result.exitCode).toBe(1);
+    });
+
+    it('should include error message in output from caught exception', async () => {
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const client = new FakeCopilotClient({
+        events: [
+          { type: 'session.error', data: { errorType: 'API_ERROR', message: 'Session crashed' } },
+        ],
+      });
+      const adapter = new SdkCopilotAdapter(client);
+
+      const result = await adapter.run({ prompt: 'test' });
+
+      expect(result.output).toContain('Session crashed');
+    });
+
+    it('should include errorType in output when available', async () => {
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const client = new FakeCopilotClient({
+        events: [
+          { type: 'session.error', data: { errorType: 'RATE_LIMIT', message: 'Too many requests' } },
+        ],
+      });
+      const adapter = new SdkCopilotAdapter(client);
+
+      const result = await adapter.run({ prompt: 'test' });
+
+      expect(result.output).toContain('RATE_LIMIT');
+    });
+  });
+
+  describe('run() input validation (T005)', () => {
+    /**
+     * Test Doc:
+     * - Why: SEC-001 and SEC-002 require input validation
+     * - Contract: Invalid inputs return failed AgentResult (don't throw)
+     * - Usage Notes: Ported from legacy CopilotAdapter
+     * - Quality Contribution: Prevents injection attacks
+     */
+
+    it('should reject empty prompt', async () => {
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const adapter = new SdkCopilotAdapter(fakeClient);
+
+      const result = await adapter.run({ prompt: '' });
+
+      expect(result.status).toBe('failed');
+      expect(result.output).toMatch(/empty|validation/i);
+    });
+
+    it('should reject whitespace-only prompt', async () => {
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const adapter = new SdkCopilotAdapter(fakeClient);
+
+      const result = await adapter.run({ prompt: '   \n\t  ' });
+
+      expect(result.status).toBe('failed');
+    });
+
+    it('should reject prompt exceeding 100k chars', async () => {
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const adapter = new SdkCopilotAdapter(fakeClient);
+      const giantPrompt = 'x'.repeat(100_001);
+
+      const result = await adapter.run({ prompt: giantPrompt });
+
+      expect(result.status).toBe('failed');
+      expect(result.output).toMatch(/length|maximum/i);
+    });
+
+    it('should reject prompt with control characters', async () => {
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const adapter = new SdkCopilotAdapter(fakeClient);
+
+      const result = await adapter.run({ prompt: '\x00hello' });
+
+      expect(result.status).toBe('failed');
+      expect(result.output).toMatch(/control|invalid/i);
+    });
+
+    it('should reject cwd outside workspace', async () => {
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const adapter = new SdkCopilotAdapter(fakeClient, {
+        workspaceRoot: '/safe/workspace',
+      });
+
+      const result = await adapter.run({ prompt: 'test', cwd: '/etc/passwd' });
+
+      expect(result.status).toBe('failed');
+      expect(result.output).toMatch(/workspace|cwd/i);
+    });
+
+    it('should accept cwd within workspace', async () => {
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const adapter = new SdkCopilotAdapter(fakeClient, {
+        workspaceRoot: '/safe/workspace',
+      });
+
+      const result = await adapter.run({ prompt: 'test', cwd: '/safe/workspace/subdir' });
+
+      // Should not fail validation (though may still fail "not implemented" for now)
+      // After implementation, this should succeed
+      expect(result.status === 'completed' || result.status === 'failed').toBe(true);
+      if (result.status === 'failed') {
+        // Should not be a cwd validation error
+        expect(result.output).not.toMatch(/workspace|cwd/i);
+      }
     });
   });
 });

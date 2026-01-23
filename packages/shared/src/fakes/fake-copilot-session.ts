@@ -122,11 +122,13 @@ export class FakeCopilotSession implements ICopilotSession {
     for (const event of this._events) {
       // Check for error events first
       if (event.type === 'session.error') {
-        const errorEvent = event as { data: { message: string; stack?: string } };
+        const errorEvent = event as { data: { errorType: string; message: string; stack?: string } };
         const error = new Error(errorEvent.data.message);
         if (errorEvent.data.stack) {
           error.stack = errorEvent.data.stack;
         }
+        // Store errorType on error for adapter to access
+        (error as Error & { errorType?: string }).errorType = errorEvent.data.errorType;
         throw error;
       }
 
