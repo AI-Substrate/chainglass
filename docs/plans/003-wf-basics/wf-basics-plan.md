@@ -1804,6 +1804,7 @@ Mid-implementation detours requiring structured tracking.
 | 002-subtask-commands-main-concept-drift-remediation | 2026-01-22 | Phase 0: Development Exemplar | T004 | Remediate concept drift in commands/main.md files - fix paths and add messages/wf-data documentation | [x] Complete | [Link](tasks/phase-0-development-exemplar/002-subtask-commands-main-concept-drift-remediation.md) |
 | 001-subtask-create-manual-test-harness | 2026-01-23 | Phase 6: Documentation | T007 | Two-mode manual test: (1) learning mode playing both roles, (2) validation mode with external agent using only phase prompts | [ ] Pending | [Link](tasks/phase-6-documentation/001-subtask-create-manual-test-harness.md) |
 | 001-subtask-implement-message-cli-commands | 2026-01-23 | Phase 3: Phase Operations | Non-Goals (deferred) | Implement `cg phase message create/answer/list/read` CLI commands for agent↔orchestrator communication | [x] Complete | [Link](tasks/phase-3-phase-operations/001-subtask-implement-message-cli-commands.md) |
+| 002-subtask-implement-handover-cli-commands | 2026-01-23 | Phase 3: Phase Operations | Non-Goals (deferred) | Implement `cg phase accept/preflight/handover` CLI commands for agent↔orchestrator control transfer | [ ] Pending | [Link](tasks/phase-3-phase-operations/002-subtask-implement-handover-cli-commands.md) |
 
 ---
 

@@ -110,7 +110,7 @@ Create a test harness that proves the workflow system works end-to-end, validate
 
 ### Non-Goals
 
-- ❌ Implementing missing CLI commands (handover/accept/preflight/message)
+- ❌ Implementing missing CLI commands (handover/accept/preflight) → **See [Subtask 002](../phase-3-phase-operations/002-subtask-implement-handover-cli-commands.md)**
 - ❌ Automated test suite integration
 - ❌ Multiple workflow templates (hello-workflow only)
 - ❌ Performance testing
@@ -124,6 +124,12 @@ The following items were deferred to this subtask for inclusion in the manual te
 | Phase 3 Subtask 001 (ST019) | Message CLI Integration Tests | Test `cg phase message create/answer/list/read` against exemplar run folder |
 
 These should be incorporated into the manual test harness scenarios where appropriate.
+
+### Related Subtasks
+
+| Subtask | Status | Impact on Manual Test |
+|---------|--------|----------------------|
+| [Phase 3 Subtask 002: Handover Commands](../phase-3-phase-operations/002-subtask-implement-handover-cli-commands.md) | ⬜ Pending | When complete, remove workarounds and test full handover flow |
 
 ---
 
@@ -731,13 +737,20 @@ cg phase prepare process --run-dir $RUN
 # etc.
 ```
 
-### Future Subtask Reference
+### Handover Commands Subtask (Created)
 
-A new subtask will implement the missing commands. See:
-- **Research**: [handover-workflow-research.md](../../research/handover-workflow-research.md)
-- **Location**: Phase 3: Phase Operations (alongside message CLI subtask)
-- **Scope**: `cg phase accept|preflight|handover` commands + IPhaseService methods
-- **Estimate**: ~20 tasks
+The missing commands are now tracked in a dedicated subtask:
 
-After implementation, re-run the manual test harness to verify the full workflow.
+| Item | Details |
+|------|---------|
+| **Subtask** | [002-subtask-implement-handover-cli-commands](../phase-3-phase-operations/002-subtask-implement-handover-cli-commands.md) |
+| **Status** | ⬜ Pending |
+| **Research** | [handover-workflow-research.md](../../research/handover-workflow-research.md) |
+| **Commands** | `cg phase accept`, `cg phase preflight`, `cg phase handover` |
+| **Tasks** | ST001-ST015 (~15 tasks) |
+
+**After Handover Subtask Completes:**
+1. Update this subtask to remove workaround notes
+2. Replace manual JSON edits with CLI commands in MODE-1-LEARNING.md
+3. Re-run manual test harness with full CLI support
 
