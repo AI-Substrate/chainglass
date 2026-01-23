@@ -305,7 +305,27 @@ Complete the phase lifecycle CLI commands so that agents and orchestrators can p
 - **Facilitator Tracking**: accept() MUST update facilitator field in wf-phase.json
 - **State Transitions**: handover --error MUST set state to "blocked"
 - **Preflight = Validate + Log**: preflight() wraps validate --check inputs AND logs action
-- **Idempotency**: Repeated calls should not corrupt state
+- **Idempotency by Design**: Operations are idempotent — repeated calls return success with `wasNoOp: true`:
+  - accept() when already agent → success, no duplicate status entry
+  - preflight() when already preflighted → success, no duplicate status entry
+  - handover() when already target facilitator → success, no state change
+  - preflight() before accept() → error E071 (agent must accept first)
+- **wasNoOp in BaseResult**: Add `wasNoOp?: boolean` to BaseResult (packages/shared/src/interfaces/results/command.types.ts):
+  - All commands can indicate no-op status consistently
+  - Output adapters should display "Already done" or similar when wasNoOp=true
+  - JSON consumers (agents) check this field for idempotent responses
+- **No-Op Output State**: Add distinct "no-op" formatting to output adapters:
+  - Text: `ℹ️ Already accepted (no action taken)` — info icon, not success checkmark
+  - JSON: `{ "success": true, "wasNoOp": true, "message": "..." }`
+  - Table: Include "Status" column showing "No-Op" vs "Applied"
+  - Rationale: Both humans and agents need clear indication nothing changed
+- **From Inference**: `from` field is INFERRED, not passed as parameter:
+  - accept(): hardcode `from: 'agent'` (only agents accept)
+  - preflight(): hardcode `from: 'agent'` (only agents preflight)
+  - handover(): read current `facilitator` field → that's the `from`
+- **Lazy wf-phase.json Init**: File is NOT created by compose/prepare. First access (accept or finalize) creates it:
+  - Initial state: `{ phase, facilitator: 'orchestrator', state: 'ready', status: [] }`
+  - accept() then updates facilitator to 'agent' and state to 'accepted'
 
 ### Inputs to Read
 
@@ -417,7 +437,9 @@ sequenceDiagram
 | `should return AcceptResult with facilitator=agent` | Happy path | FakeFileSystem with wf-phase.json | `{ facilitator: 'agent', state: 'accepted' }` |
 | `should append accept status entry to wf-phase.json` | Status logging | FakeFileSystem | StatusEntry in status array |
 | `should include comment in status entry when provided` | Comment option | FakeFileSystem | StatusEntry has comment |
-| `should return E070 if facilitator is already agent` | Wrong facilitator | wf-phase.json with facilitator: agent | `{ errors: [{ code: 'E070' }] }` |
+| `should create wf-phase.json if missing (lazy init)` | File doesn't exist | Empty FakeFileSystem | File created with initial state |
+| `should return success with wasNoOp=true if already agent` | Idempotency | facilitator: agent | `{ success: true, wasNoOp: true }` |
+| `should not duplicate status entry on re-accept` | Idempotency | Already accepted | Single accept entry in status |
 
 #### PhaseService.preflight() Tests
 
@@ -426,6 +448,8 @@ sequenceDiagram
 | `should return PreflightResult with checks` | Happy path | Valid inputs | `{ checks: { configValid: true, ... } }` |
 | `should append preflight status entry` | Status logging | FakeFileSystem | StatusEntry in status array |
 | `should return validation errors if inputs invalid` | Wraps validate | Missing inputs | `{ errors: [{ code: 'E001' }] }` |
+| `should return E071 if called before accept` | Wrong state | facilitator: orchestrator | `{ errors: [{ code: 'E071' }] }` |
+| `should return success with wasNoOp=true if already preflighted` | Idempotency | preflight already in status | `{ success: true, wasNoOp: true }` |
 
 #### PhaseService.handover() Tests
 
@@ -435,6 +459,8 @@ sequenceDiagram
 | `should append handover status entry` | Status logging | FakeFileSystem | StatusEntry in status array |
 | `should set state to blocked when --error` | Error flag | handover with dueToError: true | `{ state: 'blocked' }` |
 | `should include reason in status entry` | Reason option | FakeFileSystem | StatusEntry has comment with reason |
+| `should return success with wasNoOp=true if already target facilitator` | Idempotency | facilitator matches target | `{ success: true, wasNoOp: true }` |
+| `should allow handover after Q&A cycle` | Re-handover | After answer, orchestrator hands back | Success, facilitator switches |
 
 ### Implementation Outline
 
@@ -591,3 +617,188 @@ docs/plans/003-wf-basics/
         ├── 001-subtask-create-manual-test-harness.md           # Blocked until this completes
         └── ...
 ```
+
+---
+
+## Critical Insights Discussion
+
+**Session**: 2026-01-23 22:35 UTC
+**Context**: Accept/Handover/Preflight CLI Commands Subtask v1.0
+**Analyst**: AI Clarity Agent
+**Reviewer**: Development Team
+**Format**: Water Cooler Conversation (5 Critical Insights)
+
+### Insight 1: "From" Parameter Isn't a Method Argument
+
+**Did you know**: The `from` field in StatusEntry (who initiated the action) must be INFERRED from context, not passed as a parameter.
+
+**Implications**:
+- accept() is always called by an agent → hardcode `from: 'agent'`
+- preflight() is always called by an agent → hardcode `from: 'agent'`
+- handover() needs to read current `facilitator` field → that's the `from`
+- No --from flag on CLI commands
+
+**Options Considered**:
+- Option A: Infer from facilitator field - Simple, auto-computed
+- Option B: Require --from flag - Explicit but redundant
+- Option C: Agent identifier in env/config - Future extensibility but overkill
+
+**AI Recommendation**: Option A - Infer from facilitator field
+- Reasoning: Simplest approach, the facilitator field already tracks who has control
+
+**Discussion Summary**:
+User agreed that inference is cleaner than redundant parameters. The pattern matches existing finalize() behavior.
+
+**Decision**: Infer `from` from current state, not method parameters
+
+**Action Items**:
+- [x] Document From Inference invariant in subtask
+
+**Affects**: ST003 (types), ST008-ST010 (service methods), ST011 (CLI)
+
+---
+
+### Insight 2: wf-phase.json Doesn't Exist at Compose Time
+
+**Did you know**: The wf-phase.json file is NOT created by compose or prepare — it's created LAZILY by finalize() on first access.
+
+**Implications**:
+- accept() could be the first command to need wf-phase.json
+- We need lazy initialization like finalize() does
+- Cannot assume file exists when accept() is called
+- Initial state: `{ phase, facilitator: 'orchestrator', state: 'ready', status: [] }`
+
+**Options Considered**:
+- Option A: Lazy init in accept() - Same pattern as finalize()
+- Option B: Create in compose - Breaks existing flow
+- Option C: Error if missing - Bad UX for agents
+
+**AI Recommendation**: Option A - Lazy init in accept()
+- Reasoning: Follow existing finalize() pattern at phase.service.ts:462-474
+
+**Discussion Summary**:
+Verified via subagent that compose/prepare only creates wf-status.json, not wf-phase.json. Lazy init maintains consistency with existing patterns.
+
+**Decision**: Implement lazy wf-phase.json initialization in accept()
+
+**Action Items**:
+- [x] Document Lazy Init invariant in subtask
+
+**Affects**: ST008 (accept implementation)
+
+---
+
+### Insight 3: Test Plan Misses Idempotency Edge Cases
+
+**Did you know**: The test plan didn't include tests for repeated calls (accept twice) or wrong-order calls (preflight before accept).
+
+**Implications**:
+- Agents might call accept() twice by mistake
+- Preflight without accept should fail with E071
+- Need `wasNoOp: true` flag for idempotent success
+- Tests must verify no duplicate status entries
+
+**Options Considered**:
+- Option A: Add edge case tests - Catches real-world scenarios
+- Option B: Keep minimal tests - Ship faster
+- Option C: Make operations idempotent - Robust design
+
+**AI Recommendation**: Combined A+C - Add tests AND make operations idempotent
+- Reasoning: Agents are unreliable callers; idempotency prevents corruption
+
+**Discussion Summary**:
+User emphasized idempotency is very important for agent workflows. Added 8 new test cases covering idempotency and ordering.
+
+**Decision**: Operations are idempotent; tests verify no corruption on repeat calls
+
+**Action Items**:
+- [x] Expand test plan with idempotency tests
+- [x] Document idempotency behavior in Invariants
+
+**Affects**: ST004-ST007 (tests), ST008-ST010 (service methods)
+
+---
+
+### Insight 4: Result Types Need `wasNoOp` But It's Not in BaseResult
+
+**Did you know**: We decided accept/preflight/handover should return `{ success: true, wasNoOp: true }` but BaseResult doesn't have a `wasNoOp` field.
+
+**Implications**:
+- Need to add `wasNoOp?: boolean` to BaseResult or new types
+- Output adapters need to handle this flag
+- JSON consumers (agents) need to check for it
+- Affects all future idempotent operations
+
+**Options Considered**:
+- Option A: Add to BaseResult - Consistent across all commands
+- Option B: Add only to new types - Minimal change
+- Option C: Use different pattern - Inconsistent
+
+**AI Recommendation**: Option A - Add `wasNoOp?: boolean` to BaseResult
+- Reasoning: Cross-cutting concern, future-proof, one-line additive change
+
+**Discussion Summary**:
+User agreed adding to BaseResult is cleaner than scattering across multiple types.
+
+**Decision**: Add `wasNoOp?: boolean` to BaseResult in command.types.ts
+
+**Action Items**:
+- [x] Document wasNoOp in BaseResult invariant
+
+**Affects**: ST003 (shared types), ST012 (output adapters)
+
+---
+
+### Insight 5: CLI Output Needs "Already Done" State
+
+**Did you know**: When `wasNoOp: true`, output adapters have NO concept of "already done" messaging — users see misleading success messages.
+
+**Implications**:
+- First call: "✓ Phase accepted" (clear)
+- Second call: "✓ Phase accepted" (misleading — nothing happened!)
+- Agents might think they accepted again, not that it was already done
+- Need distinct visual feedback
+
+**Options Considered**:
+- Option A: New no-op output state - `ℹ️ Already accepted (no action taken)`
+- Option B: Success with modified message - `✓ Phase already accepted`
+- Option C: JSON only, text unchanged - Inconsistent experience
+
+**AI Recommendation**: Option A - New no-op output state
+- Reasoning: Both humans and agents need clear indication nothing changed
+
+**Discussion Summary**:
+User agreed with distinct formatting. Info icon (ℹ️) distinguishes from success checkmark (✓).
+
+**Decision**: Add distinct "No-Op" formatting to all output adapters
+
+**Action Items**:
+- [x] Document No-Op Output State invariant
+
+**Affects**: ST012 (output adapters), all CLI commands using wasNoOp
+
+---
+
+## Session Summary
+
+**Insights Surfaced**: 5 critical insights identified and discussed
+**Decisions Made**: 5 decisions reached through collaborative discussion
+**Action Items Created**: 6 follow-up items (all completed as invariant documentation)
+**Areas Updated**:
+- Invariants section expanded with 5 new rules
+- Test plan expanded with 8 new edge case tests
+
+**Shared Understanding Achieved**: ✓
+
+**Confidence Level**: High - All critical design decisions resolved, patterns verified against codebase
+
+**Next Steps**:
+Run `/plan-6-implement-phase --subtask "002-subtask-implement-handover-cli-commands"` to implement
+
+**Notes**:
+Key architectural decisions:
+1. From inference (not parameters)
+2. Lazy wf-phase.json initialization
+3. Idempotency by design with wasNoOp flag
+4. wasNoOp in BaseResult for cross-cutting use
+5. Distinct no-op output formatting
