@@ -239,6 +239,34 @@ All doc files exist with correct cross-links.
 
 ---
 
+## Bug Fix: wf.md Copying (Pre-Subtask)
+
+**Date**: 2026-01-23T21:52:00Z
+**Context**: Identified during "Did You Know" session for manual test harness subtask
+**Severity**: Medium (would cause Mode 2 external agent test to fail)
+
+### Problem
+`workflow.service.ts:238-241` was copying `templates/wf.md` (workflow overview document) instead of root `wf.md` (agent execution instructions) to each phase's commands/ directory.
+
+### Fix Applied
+1. Changed `workflow.service.ts:238-241` to copy from `templatePath/wf.md` (root) instead of `templatePath/templates/wf.md`
+2. Renamed `templates/wf.md` → `templates/README.md` to avoid confusion
+
+### Files Changed
+- `packages/workflow/src/services/workflow.service.ts` — Fix wf.md source path
+- `dev/examples/wf/template/hello-workflow/templates/wf.md` → `templates/README.md`
+
+### Verification
+- All 18 workflow service unit tests pass
+- Other test failures are pre-existing import issues unrelated to this fix
+
+### Why This Matters
+- Root `wf.md` = Agent instructions for phase execution (75 lines)
+- `templates/wf.md` = Workflow overview/intro document (101 lines)
+- Without this fix, external agents in Mode 2 would receive wrong instructions
+
+---
+
 ## Phase 6 Summary
 
 **Phase Status**: ✅ COMPLETE

@@ -268,12 +268,11 @@ Validate the workflow system by testing all interaction patterns in two modes: f
 - ✅ Message CLI commands: **IMPLEMENTED** (cg phase message create/answer/list/read) — Phase 3 Subtask 001
 - ❌ Handover commands: NOT implemented (cg phase handover/accept/preflight)
 
-> **REMAINING PREREQUISITE:**
+> **PREREQUISITES RESOLVED:**
 >
-> **Fix wf.md copying** - compose should copy root `wf.md`, not `templates/wf.md`
->    - Root `wf.md` = agent instructions ("Workflow Phase Execution")
->    - `templates/wf.md` = workflow overview (rename to `README.md`)
->    - Fix in: `packages/workflow/src/services/workflow.service.ts:238-241`
+> ✅ **wf.md copying fixed** (2026-01-23) - compose now copies root `wf.md` (agent instructions)
+>    - `templates/wf.md` renamed to `templates/README.md`
+>    - Fix applied in: `packages/workflow/src/services/workflow.service.ts:238-241`
 
 ### Implementation References (If Commands Don't Work)
 

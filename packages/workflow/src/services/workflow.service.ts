@@ -235,10 +235,11 @@ export class WorkflowService implements IWorkflowService {
         );
       }
 
-      // Copy wf.md from template's templates/ directory
-      const templateWfMd = path.join(templatePath, 'templates', 'wf.md');
-      if (await this.fs.exists(templateWfMd)) {
-        await this.fs.copyFile(templateWfMd, path.join(commandsDir, 'wf.md'));
+      // Copy wf.md from template root (agent execution instructions)
+      // Note: templates/wf.md is the workflow overview (renamed to README.md)
+      const rootWfMd = path.join(templatePath, 'wf.md');
+      if (await this.fs.exists(rootWfMd)) {
+        await this.fs.copyFile(rootWfMd, path.join(commandsDir, 'wf.md'));
       }
 
       // 12e. Create run subdirectories
