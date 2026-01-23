@@ -143,7 +143,7 @@ flowchart TD
 | [x] | T004 | Create docs/how/workflows/2-template-authoring.md | 3 | Doc | T003 | /home/jak/substrate/003-wf-basics/docs/how/workflows/2-template-authoring.md | Complete wf.yaml reference with examples | – | Cover phases, inputs, outputs, parameters |
 | [x] | T005 | Create docs/how/workflows/3-cli-reference.md | 2 | Doc | T003 | /home/jak/substrate/003-wf-basics/docs/how/workflows/3-cli-reference.md | All 5 commands documented with examples | – | cg wf compose + 4 cg phase commands |
 | [x] | T006 | Create docs/how/workflows/4-mcp-reference.md | 2 | Doc | T003 | /home/jak/substrate/003-wf-basics/docs/how/workflows/4-mcp-reference.md | All 4 MCP tools documented with examples | – | wf_compose + 3 phase tools |
-| [x] | T007 | Finalize manual test guide with real CLI commands | 2 | Doc | – | /home/jak/substrate/003-wf-basics/dev/examples/wf/MANUAL-TEST-GUIDE.md | Guide uses actual cg wf/phase commands | – | Replace ajv examples with CLI |
+| [x] | T007 | Finalize manual test guide with real CLI commands | 2 | Doc | – | /home/jak/substrate/003-wf-basics/dev/examples/wf/MANUAL-TEST-GUIDE.md | Guide uses actual cg wf/phase commands | 001-subtask-create-manual-test-harness | Replace ajv examples with CLI |
 | [x] | T008 | Review all documentation for quality and links | 1 | Review | T002, T003, T004, T005, T006, T007 | /home/jak/substrate/003-wf-basics/docs/, /home/jak/substrate/003-wf-basics/README.md | All links functional, no broken refs | – | Verify internal links |
 
 ---

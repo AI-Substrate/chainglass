@@ -108,7 +108,7 @@ Implement phase prepare and validate operations per plan acceptance criteria AC-
 
 - ❌ `cg phase finalize` command (Phase 4)
 - ❌ Parameter extraction from outputs (Phase 4)
-- ❌ Message communication commands (Phase 3+ per plan)
+- ❌ Message communication commands (Phase 3+ per plan) → **Now addressed by [Subtask 001](./001-subtask-implement-message-cli-commands.md)**
 - ❌ `cg phase handover`, `cg phase accept`, `cg phase preflight` (future phases)
 - ❌ State machine enforcement beyond prepare idempotency
 - ❌ MCP tools (Phase 5)
