@@ -10,7 +10,14 @@
  * T008: Integrates with SSE for real-time updates.
  */
 
-import { Background, Controls, MiniMap, ReactFlow, type ReactFlowProps } from '@xyflow/react';
+import {
+  Background,
+  Controls,
+  MiniMap,
+  type OnNodesChange,
+  ReactFlow,
+  type ReactFlowProps,
+} from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -60,7 +67,7 @@ export function WorkflowContent({
   reactFlowProps,
   sseChannel,
 }: WorkflowContentProps) {
-  const { nodes, edges, updateNode } = useFlowState(initialFlow);
+  const { nodes, edges, updateNode, onNodesChange } = useFlowState(initialFlow);
   const [selectedNode, setSelectedNode] = useState<WorkflowNodeType | null>(null);
 
   // FIX-003: Validate sseChannel matches server-side pattern
@@ -143,6 +150,8 @@ export function WorkflowContent({
           edges={edges}
           nodeTypes={NODE_TYPES}
           onNodeClick={handleNodeClick}
+          onNodesChange={onNodesChange as OnNodesChange}
+          nodesDraggable
           fitView
           minZoom={0.1}
           maxZoom={2}

@@ -11,6 +11,7 @@
  * enable node validation in addEdge.
  */
 
+import { type NodeChange, applyNodeChanges } from '@xyflow/react';
 import { useCallback, useState } from 'react';
 
 import type { WorkflowEdge, WorkflowNode, WorkflowNodeData } from '../data/fixtures';
@@ -26,6 +27,8 @@ export interface UseFlowStateReturn {
   ) => void;
   addEdge: (source: string, target: string) => void;
   removeEdge: (edgeId: string) => void;
+  /** Handle ReactFlow node changes (position, selection, etc.) */
+  onNodesChange: (changes: NodeChange<WorkflowNode>[]) => void;
 }
 
 export interface FlowState {
@@ -140,6 +143,17 @@ export function useFlowState(initialFlow: FlowState): UseFlowStateReturn {
     }));
   }, []);
 
+  /**
+   * Handle ReactFlow node changes (position, selection, removal, etc.)
+   * Uses ReactFlow's optimized applyNodeChanges helper to prevent flicker.
+   */
+  const onNodesChange = useCallback((changes: NodeChange<WorkflowNode>[]) => {
+    setFlow((prev) => ({
+      ...prev,
+      nodes: applyNodeChanges(changes, prev.nodes),
+    }));
+  }, []);
+
   return {
     nodes: flow.nodes,
     edges: flow.edges,
@@ -148,5 +162,6 @@ export function useFlowState(initialFlow: FlowState): UseFlowStateReturn {
     updateNode,
     addEdge,
     removeEdge,
+    onNodesChange,
   };
 }

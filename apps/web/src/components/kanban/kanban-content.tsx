@@ -221,9 +221,7 @@ export function KanbanContent({ initialBoard, onMoveCard, sseChannel }: KanbanCo
       </div>
 
       {/* Drag overlay shows a preview of the card being dragged */}
-      <DragOverlay>
-        {activeCard ? <KanbanCard card={activeCard} /> : null}
-      </DragOverlay>
+      <DragOverlay>{activeCard ? <KanbanCard card={activeCard} /> : null}</DragOverlay>
     </DndContext>
   );
 }
