@@ -18,6 +18,10 @@ import type {
   ComposeResult,
   FinalizeResult,
   IOutputAdapter,
+  MessageAnswerResult,
+  MessageCreateResult,
+  MessageListResult,
+  MessageReadResult,
   PrepareResult,
   ResultError,
   ValidateResult,
@@ -56,6 +60,14 @@ export class ConsoleOutputAdapter implements IOutputAdapter {
         return this.formatFinalizeSuccess(result as unknown as FinalizeResult);
       case 'wf.compose':
         return this.formatComposeSuccess(result as unknown as ComposeResult);
+      case 'message.create':
+        return this.formatMessageCreateSuccess(result as unknown as MessageCreateResult);
+      case 'message.answer':
+        return this.formatMessageAnswerSuccess(result as unknown as MessageAnswerResult);
+      case 'message.list':
+        return this.formatMessageListSuccess(result as unknown as MessageListResult);
+      case 'message.read':
+        return this.formatMessageReadSuccess(result as unknown as MessageReadResult);
       default:
         return this.formatGenericSuccess(result);
     }
@@ -74,6 +86,14 @@ export class ConsoleOutputAdapter implements IOutputAdapter {
         return this.formatFinalizeFailure(result as unknown as FinalizeResult);
       case 'wf.compose':
         return this.formatComposeFailure(result as unknown as ComposeResult);
+      case 'message.create':
+        return this.formatMessageCreateFailure(result as unknown as MessageCreateResult);
+      case 'message.answer':
+        return this.formatMessageAnswerFailure(result as unknown as MessageAnswerResult);
+      case 'message.list':
+        return this.formatMessageListFailure(result as unknown as MessageListResult);
+      case 'message.read':
+        return this.formatMessageReadFailure(result as unknown as MessageReadResult);
       default:
         return this.formatGenericFailure(result);
     }
@@ -140,6 +160,101 @@ export class ConsoleOutputAdapter implements IOutputAdapter {
     return '✓ Operation completed successfully';
   }
 
+  // ==================== Message Success Formatters ====================
+
+  private formatMessageCreateSuccess(result: MessageCreateResult): string {
+    const lines: string[] = [
+      `✓ Message created in phase '${result.phase}'`,
+      `  ID: ${result.messageId}`,
+      `  File: ${result.filePath}`,
+    ];
+    return lines.join('\n');
+  }
+
+  private formatMessageAnswerSuccess(result: MessageAnswerResult): string {
+    const lines: string[] = [`✓ Message '${result.messageId}' answered in phase '${result.phase}'`];
+
+    if (result.answer) {
+      if (result.answer.selected) {
+        lines.push(`  Selected: ${result.answer.selected.join(', ')}`);
+      }
+      if (result.answer.text !== undefined) {
+        lines.push(`  Text: ${result.answer.text.substring(0, 50)}${result.answer.text.length > 50 ? '...' : ''}`);
+      }
+      if (result.answer.confirmed !== undefined) {
+        lines.push(`  Confirmed: ${result.answer.confirmed ? 'Yes' : 'No'}`);
+      }
+    }
+
+    return lines.join('\n');
+  }
+
+  private formatMessageListSuccess(result: MessageListResult): string {
+    const lines: string[] = [`✓ Phase '${result.phase}' has ${result.count} message(s)`];
+
+    if (result.messages.length > 0) {
+      lines.push('');
+      for (const msg of result.messages) {
+        const status = msg.answered ? '✓' : '○';
+        lines.push(`  ${status} [${msg.id}] ${msg.type}: ${msg.subject}`);
+        if (msg.answered && msg.answered_at) {
+          lines.push(`      Answered: ${msg.answered_at}`);
+        }
+      }
+    }
+
+    return lines.join('\n');
+  }
+
+  private formatMessageReadSuccess(result: MessageReadResult): string {
+    if (!result.message) {
+      return `✓ Message read from phase '${result.phase}'`;
+    }
+
+    const msg = result.message;
+    const lines: string[] = [
+      `✓ Message '${msg.id}' in phase '${result.phase}'`,
+      '',
+      `  Type: ${msg.type}`,
+      `  From: ${msg.from}`,
+      `  Created: ${msg.created_at}`,
+      '',
+      `  Subject: ${msg.subject}`,
+      `  Body: ${msg.body}`,
+    ];
+
+    if (msg.note) {
+      lines.push(`  Note: ${msg.note}`);
+    }
+
+    if (msg.options && msg.options.length > 0) {
+      lines.push('');
+      lines.push('  Options:');
+      for (const opt of msg.options) {
+        lines.push(`    [${opt.key}] ${opt.label}${opt.description ? ` - ${opt.description}` : ''}`);
+      }
+    }
+
+    if (msg.answer) {
+      lines.push('');
+      lines.push(`  Answer (${msg.answer.answered_at}):`);
+      if (msg.answer.selected) {
+        lines.push(`    Selected: ${msg.answer.selected.join(', ')}`);
+      }
+      if (msg.answer.text !== undefined) {
+        lines.push(`    Text: ${msg.answer.text}`);
+      }
+      if (msg.answer.confirmed !== undefined) {
+        lines.push(`    Confirmed: ${msg.answer.confirmed ? 'Yes' : 'No'}`);
+      }
+      if (msg.answer.note) {
+        lines.push(`    Note: ${msg.answer.note}`);
+      }
+    }
+
+    return lines.join('\n');
+  }
+
   // ==================== Failure Formatters ====================
 
   private formatPrepareFailure(result: PrepareResult): string {
@@ -181,6 +296,44 @@ export class ConsoleOutputAdapter implements IOutputAdapter {
   private formatGenericFailure<T extends BaseResult>(result: T): string {
     const firstError = result.errors[0];
     const lines: string[] = [`✗ Operation failed [${firstError.code}]`];
+
+    this.appendErrorDetails(lines, result.errors);
+
+    return lines.join('\n');
+  }
+
+  // ==================== Message Failure Formatters ====================
+
+  private formatMessageCreateFailure(result: MessageCreateResult): string {
+    const firstError = result.errors[0];
+    const lines: string[] = [`✗ Message creation failed in phase '${result.phase}' [${firstError.code}]`];
+
+    this.appendErrorDetails(lines, result.errors);
+
+    return lines.join('\n');
+  }
+
+  private formatMessageAnswerFailure(result: MessageAnswerResult): string {
+    const firstError = result.errors[0];
+    const lines: string[] = [`✗ Message answer failed for '${result.messageId}' in phase '${result.phase}' [${firstError.code}]`];
+
+    this.appendErrorDetails(lines, result.errors);
+
+    return lines.join('\n');
+  }
+
+  private formatMessageListFailure(result: MessageListResult): string {
+    const firstError = result.errors[0];
+    const lines: string[] = [`✗ Message list failed for phase '${result.phase}' [${firstError.code}]`];
+
+    this.appendErrorDetails(lines, result.errors);
+
+    return lines.join('\n');
+  }
+
+  private formatMessageReadFailure(result: MessageReadResult): string {
+    const firstError = result.errors[0];
+    const lines: string[] = [`✗ Message read failed in phase '${result.phase}' [${firstError.code}]`];
 
     this.appendErrorDetails(lines, result.errors);
 

@@ -348,4 +348,603 @@ describe('MessageService', () => {
       });
     });
   });
+
+  describe('answer()', () => {
+    // Helper to create a single_choice message for testing answers
+    function setupSingleChoiceMessage(id: string = '001'): void {
+      fs.setFile(
+        `${messagesDir}/m-${id}.json`,
+        JSON.stringify({
+          id,
+          created_at: '2026-01-21T10:00:00Z',
+          from: 'agent',
+          type: 'single_choice',
+          subject: 'Pick one option',
+          body: 'Please select your preference',
+          options: [
+            { key: 'A', label: 'Option A' },
+            { key: 'B', label: 'Option B' },
+            { key: 'C', label: 'Option C' },
+          ],
+        })
+      );
+    }
+
+    // Helper to create a multi_choice message
+    function setupMultiChoiceMessage(id: string = '001'): void {
+      fs.setFile(
+        `${messagesDir}/m-${id}.json`,
+        JSON.stringify({
+          id,
+          created_at: '2026-01-21T10:00:00Z',
+          from: 'agent',
+          type: 'multi_choice',
+          subject: 'Pick multiple',
+          body: 'Select all that apply',
+          options: [
+            { key: 'A', label: 'Option A' },
+            { key: 'B', label: 'Option B' },
+            { key: 'C', label: 'Option C' },
+          ],
+        })
+      );
+    }
+
+    // Helper to create a free_text message
+    function setupFreeTextMessage(id: string = '001'): void {
+      fs.setFile(
+        `${messagesDir}/m-${id}.json`,
+        JSON.stringify({
+          id,
+          created_at: '2026-01-21T10:00:00Z',
+          from: 'agent',
+          type: 'free_text',
+          subject: 'Provide details',
+          body: 'Please describe your approach',
+        })
+      );
+    }
+
+    // Helper to create a confirm message
+    function setupConfirmMessage(id: string = '001'): void {
+      fs.setFile(
+        `${messagesDir}/m-${id}.json`,
+        JSON.stringify({
+          id,
+          created_at: '2026-01-21T10:00:00Z',
+          from: 'agent',
+          type: 'confirm',
+          subject: 'Confirm action',
+          body: 'Do you want to proceed?',
+        })
+      );
+    }
+
+    describe('happy path', () => {
+      it('should answer single_choice message with one selection', async () => {
+        /*
+        Test Doc:
+        - Why: single_choice is the most common question type
+        - Contract: answer() updates message file with selected array, returns result
+        - Usage Notes: Selection must contain exactly 1 key
+        - Quality Contribution: Validates basic answer workflow
+        - Worked Example: answer(phase, runDir, '001', { selected: ['B'] }) → success
+        */
+        setupPhase();
+        setupSingleChoiceMessage();
+
+        const result = await service.answer(phase, runDir, '001', { selected: ['B'] });
+
+        expect(result.errors).toEqual([]);
+        expect(result.messageId).toBe('001');
+        expect(result.answer).toBeDefined();
+        expect(result.answer?.answered_at).toBeDefined();
+
+        // Verify message file was updated
+        const msgContent = await fs.readFile(`${messagesDir}/m-001.json`);
+        const msg = JSON.parse(msgContent);
+        expect(msg.answer).toBeDefined();
+        expect(msg.answer.selected).toEqual(['B']);
+      });
+
+      it('should answer multi_choice message with multiple selections', async () => {
+        /*
+        Test Doc:
+        - Why: multi_choice allows selecting 1+ options
+        - Contract: answer() accepts array with 1 or more keys
+        */
+        setupPhase();
+        setupMultiChoiceMessage();
+
+        const result = await service.answer(phase, runDir, '001', { selected: ['A', 'C'] });
+
+        expect(result.errors).toEqual([]);
+        const msgContent = await fs.readFile(`${messagesDir}/m-001.json`);
+        const msg = JSON.parse(msgContent);
+        expect(msg.answer.selected).toEqual(['A', 'C']);
+      });
+
+      it('should answer free_text message with text response', async () => {
+        /*
+        Test Doc:
+        - Why: free_text allows open-ended responses
+        - Contract: answer() requires text field, no selections
+        */
+        setupPhase();
+        setupFreeTextMessage();
+
+        const result = await service.answer(phase, runDir, '001', { text: 'My detailed response here' });
+
+        expect(result.errors).toEqual([]);
+        const msgContent = await fs.readFile(`${messagesDir}/m-001.json`);
+        const msg = JSON.parse(msgContent);
+        expect(msg.answer.text).toBe('My detailed response here');
+      });
+
+      it('should answer confirm message with confirmed=true', async () => {
+        /*
+        Test Doc:
+        - Why: confirm is yes/no questions
+        - Contract: answer() requires confirmed boolean
+        */
+        setupPhase();
+        setupConfirmMessage();
+
+        const result = await service.answer(phase, runDir, '001', { confirmed: true });
+
+        expect(result.errors).toEqual([]);
+        const msgContent = await fs.readFile(`${messagesDir}/m-001.json`);
+        const msg = JSON.parse(msgContent);
+        expect(msg.answer.confirmed).toBe(true);
+      });
+
+      it('should answer confirm message with confirmed=false', async () => {
+        setupPhase();
+        setupConfirmMessage();
+
+        const result = await service.answer(phase, runDir, '001', { confirmed: false });
+
+        expect(result.errors).toEqual([]);
+        const msgContent = await fs.readFile(`${messagesDir}/m-001.json`);
+        const msg = JSON.parse(msgContent);
+        expect(msg.answer.confirmed).toBe(false);
+      });
+
+      it('should use from="orchestrator" by default', async () => {
+        /*
+        Test Doc:
+        - Why: Per DYK Insight #4, default from is 'orchestrator' for answers
+        - Contract: Status entry from field defaults to orchestrator
+        */
+        setupPhase();
+        setupSingleChoiceMessage();
+
+        await service.answer(phase, runDir, '001', { selected: ['A'] });
+
+        const wfPhaseContent = await fs.readFile(`${wfDataDir}/wf-phase.json`);
+        const wfPhase = JSON.parse(wfPhaseContent);
+        const answerEntry = wfPhase.status.find((s: { action: string }) => s.action === 'answer');
+        expect(answerEntry).toBeDefined();
+        expect(answerEntry.from).toBe('orchestrator');
+      });
+
+      it('should allow from="agent" when specified', async () => {
+        setupPhase();
+        setupSingleChoiceMessage();
+
+        await service.answer(phase, runDir, '001', { selected: ['A'] }, 'agent');
+
+        const wfPhaseContent = await fs.readFile(`${wfDataDir}/wf-phase.json`);
+        const wfPhase = JSON.parse(wfPhaseContent);
+        const answerEntry = wfPhase.status.find((s: { action: string }) => s.action === 'answer');
+        expect(answerEntry.from).toBe('agent');
+      });
+
+      it('should include optional note in answer', async () => {
+        /*
+        Test Doc:
+        - Why: Notes provide context for answers
+        - Contract: note field is preserved in answer object
+        */
+        setupPhase();
+        setupSingleChoiceMessage();
+
+        const result = await service.answer(phase, runDir, '001', {
+          selected: ['B'],
+          note: 'Chosen because it aligns with requirements',
+        });
+
+        expect(result.errors).toEqual([]);
+        const msgContent = await fs.readFile(`${messagesDir}/m-001.json`);
+        const msg = JSON.parse(msgContent);
+        expect(msg.answer.note).toBe('Chosen because it aligns with requirements');
+      });
+    });
+
+    describe('error cases', () => {
+      it('should return E060 for non-existent message ID', async () => {
+        /*
+        Test Doc:
+        - Why: Agents must get clear error for invalid message ID
+        - Contract: Returns E060 MESSAGE_NOT_FOUND with actionable message
+        - Quality Contribution: Prevents silent failures
+        */
+        setupPhase();
+
+        const result = await service.answer(phase, runDir, '999', { selected: ['A'] });
+
+        expect(result.errors).toHaveLength(1);
+        expect(result.errors[0].code).toBe(MessageErrorCodes.MESSAGE_NOT_FOUND);
+        expect(result.errors[0].action).toBeDefined();
+      });
+
+      it('should return E063 for already answered message', async () => {
+        /*
+        Test Doc:
+        - Why: Messages can only be answered once
+        - Contract: Returns E063 MESSAGE_ALREADY_ANSWERED
+        - Quality Contribution: Prevents duplicate answers
+        */
+        setupPhase();
+        fs.setFile(
+          `${messagesDir}/m-001.json`,
+          JSON.stringify({
+            id: '001',
+            created_at: '2026-01-21T10:00:00Z',
+            from: 'agent',
+            type: 'single_choice',
+            subject: 'Already answered',
+            body: 'This was answered',
+            options: [{ key: 'A', label: 'A' }],
+            answer: {
+              answered_at: '2026-01-21T10:01:00Z',
+              selected: ['A'],
+            },
+          })
+        );
+
+        const result = await service.answer(phase, runDir, '001', { selected: ['A'] });
+
+        expect(result.errors).toHaveLength(1);
+        expect(result.errors[0].code).toBe(MessageErrorCodes.MESSAGE_ALREADY_ANSWERED);
+      });
+
+      it('should return E061 for single_choice with no selection', async () => {
+        /*
+        Test Doc:
+        - Why: Type mismatch must be detected with actionable error
+        - Contract: Returns E061 MESSAGE_TYPE_MISMATCH
+        */
+        setupPhase();
+        setupSingleChoiceMessage();
+
+        const result = await service.answer(phase, runDir, '001', { selected: [] });
+
+        expect(result.errors).toHaveLength(1);
+        expect(result.errors[0].code).toBe(MessageErrorCodes.MESSAGE_TYPE_MISMATCH);
+        expect(result.errors[0].action).toContain('--select');
+      });
+
+      it('should return E061 for single_choice with multiple selections', async () => {
+        setupPhase();
+        setupSingleChoiceMessage();
+
+        const result = await service.answer(phase, runDir, '001', { selected: ['A', 'B'] });
+
+        expect(result.errors).toHaveLength(1);
+        expect(result.errors[0].code).toBe(MessageErrorCodes.MESSAGE_TYPE_MISMATCH);
+        expect(result.errors[0].message).toContain('exactly one');
+      });
+
+      it('should return E061 for multi_choice with no selection', async () => {
+        setupPhase();
+        setupMultiChoiceMessage();
+
+        const result = await service.answer(phase, runDir, '001', { selected: [] });
+
+        expect(result.errors).toHaveLength(1);
+        expect(result.errors[0].code).toBe(MessageErrorCodes.MESSAGE_TYPE_MISMATCH);
+      });
+
+      it('should return E061 for free_text with empty text', async () => {
+        setupPhase();
+        setupFreeTextMessage();
+
+        const result = await service.answer(phase, runDir, '001', { text: '' });
+
+        expect(result.errors).toHaveLength(1);
+        expect(result.errors[0].code).toBe(MessageErrorCodes.MESSAGE_TYPE_MISMATCH);
+        expect(result.errors[0].action).toContain('--text');
+      });
+
+      it('should return E061 for confirm with missing confirmed field', async () => {
+        setupPhase();
+        setupConfirmMessage();
+
+        const result = await service.answer(phase, runDir, '001', {});
+
+        expect(result.errors).toHaveLength(1);
+        expect(result.errors[0].code).toBe(MessageErrorCodes.MESSAGE_TYPE_MISMATCH);
+        expect(result.errors[0].action).toContain('--confirm');
+      });
+
+      it('should return E061 for invalid option key', async () => {
+        /*
+        Test Doc:
+        - Why: Selection must match available options
+        - Contract: Returns E061 with valid keys listed in action
+        */
+        setupPhase();
+        setupSingleChoiceMessage();
+
+        const result = await service.answer(phase, runDir, '001', { selected: ['Z'] });
+
+        expect(result.errors).toHaveLength(1);
+        expect(result.errors[0].code).toBe(MessageErrorCodes.MESSAGE_TYPE_MISMATCH);
+        expect(result.errors[0].message).toContain('Invalid option key');
+        expect(result.errors[0].action).toContain('A, B, C');
+      });
+    });
+
+    describe('status log integration', () => {
+      it('should append answer action to wf-phase.json status', async () => {
+        /*
+        Test Doc:
+        - Why: Per DYK Insight #2, creates signpost in status log
+        - Contract: Adds { action: 'answer', message_id: '001' } entry
+        */
+        setupPhase();
+        setupSingleChoiceMessage();
+
+        await service.answer(phase, runDir, '001', { selected: ['A'] });
+
+        const wfPhaseContent = await fs.readFile(`${wfDataDir}/wf-phase.json`);
+        const wfPhase = JSON.parse(wfPhaseContent);
+        const answerEntry = wfPhase.status.find((s: { action: string }) => s.action === 'answer');
+        expect(answerEntry).toBeDefined();
+        expect(answerEntry.message_id).toBe('001');
+        expect(answerEntry.timestamp).toBeDefined();
+      });
+    });
+  });
+
+  describe('list()', () => {
+    describe('happy path', () => {
+      it('should return empty list when no messages exist', async () => {
+        /*
+        Test Doc:
+        - Why: Empty phase should return empty list, not error
+        - Contract: Returns { messages: [], count: 0 }
+        - Quality Contribution: Handles empty state gracefully
+        */
+        setupPhase();
+
+        const result = await service.list(phase, runDir);
+
+        expect(result.errors).toEqual([]);
+        expect(result.messages).toEqual([]);
+        expect(result.count).toBe(0);
+      });
+
+      it('should return list of messages sorted by ID', async () => {
+        /*
+        Test Doc:
+        - Why: Messages should be returned in order of creation
+        - Contract: Returns messages sorted by ID ascending
+        - Worked Example: ['002', '001', '003'] → sorted to ['001', '002', '003']
+        */
+        setupPhase();
+        // Create messages out of order (simulating filesystem order randomness)
+        fs.setFile(
+          `${messagesDir}/m-002.json`,
+          JSON.stringify({
+            id: '002',
+            created_at: '2026-01-21T10:01:00Z',
+            from: 'agent',
+            type: 'free_text',
+            subject: 'Second message',
+            body: 'Body 2',
+          })
+        );
+        fs.setFile(
+          `${messagesDir}/m-001.json`,
+          JSON.stringify({
+            id: '001',
+            created_at: '2026-01-21T10:00:00Z',
+            from: 'agent',
+            type: 'single_choice',
+            subject: 'First message',
+            body: 'Body 1',
+            options: [{ key: 'A', label: 'A' }],
+          })
+        );
+        fs.setFile(
+          `${messagesDir}/m-003.json`,
+          JSON.stringify({
+            id: '003',
+            created_at: '2026-01-21T10:02:00Z',
+            from: 'orchestrator',
+            type: 'confirm',
+            subject: 'Third message',
+            body: 'Body 3',
+          })
+        );
+
+        const result = await service.list(phase, runDir);
+
+        expect(result.errors).toEqual([]);
+        expect(result.count).toBe(3);
+        expect(result.messages[0].id).toBe('001');
+        expect(result.messages[1].id).toBe('002');
+        expect(result.messages[2].id).toBe('003');
+      });
+
+      it('should return MessageSummary fields for each message', async () => {
+        /*
+        Test Doc:
+        - Why: List provides summary, not full content
+        - Contract: Each item has id, type, subject, from, created_at, answered, answered_at
+        */
+        setupPhase();
+        fs.setFile(
+          `${messagesDir}/m-001.json`,
+          JSON.stringify({
+            id: '001',
+            created_at: '2026-01-21T10:00:00Z',
+            from: 'agent',
+            type: 'multi_choice',
+            subject: 'Test subject',
+            body: 'Test body',
+            options: [{ key: 'A', label: 'A' }],
+          })
+        );
+
+        const result = await service.list(phase, runDir);
+
+        expect(result.messages[0]).toEqual({
+          id: '001',
+          type: 'multi_choice',
+          subject: 'Test subject',
+          from: 'agent',
+          created_at: '2026-01-21T10:00:00Z',
+          answered: false,
+          answered_at: null,
+        });
+      });
+
+      it('should indicate answered status for answered messages', async () => {
+        /*
+        Test Doc:
+        - Why: Orchestrator needs to see which messages need answers
+        - Contract: answered=true and answered_at populated for answered messages
+        */
+        setupPhase();
+        fs.setFile(
+          `${messagesDir}/m-001.json`,
+          JSON.stringify({
+            id: '001',
+            created_at: '2026-01-21T10:00:00Z',
+            from: 'agent',
+            type: 'confirm',
+            subject: 'Answered',
+            body: 'Body',
+            answer: {
+              answered_at: '2026-01-21T10:05:00Z',
+              confirmed: true,
+            },
+          })
+        );
+
+        const result = await service.list(phase, runDir);
+
+        expect(result.messages[0].answered).toBe(true);
+        expect(result.messages[0].answered_at).toBe('2026-01-21T10:05:00Z');
+      });
+
+      it('should handle non-existent messages directory gracefully', async () => {
+        /*
+        Test Doc:
+        - Why: Phase may not have messages directory yet
+        - Contract: Returns empty list, not error
+        */
+        // Don't set up phase - messages directory doesn't exist
+        fs.setDir(`${runDir}/phases/${phase}/run/wf-data`);
+
+        const result = await service.list(phase, runDir);
+
+        expect(result.errors).toEqual([]);
+        expect(result.messages).toEqual([]);
+        expect(result.count).toBe(0);
+      });
+    });
+  });
+
+  describe('read()', () => {
+    describe('happy path', () => {
+      it('should return full message content', async () => {
+        /*
+        Test Doc:
+        - Why: Read provides full message for detailed inspection
+        - Contract: Returns complete Message object including body, options, answer
+        - Worked Example: read(phase, runDir, '001') → full message with all fields
+        */
+        setupPhase();
+        const fullMessage = {
+          id: '001',
+          created_at: '2026-01-21T10:00:00Z',
+          from: 'agent',
+          type: 'multi_choice',
+          subject: 'Full content test',
+          body: 'This is the full body text that should be returned',
+          note: 'Additional context for the message',
+          options: [
+            { key: 'A', label: 'Option A', description: 'Description for A' },
+            { key: 'B', label: 'Option B', description: 'Description for B' },
+          ],
+        };
+        fs.setFile(`${messagesDir}/m-001.json`, JSON.stringify(fullMessage));
+
+        const result = await service.read(phase, runDir, '001');
+
+        expect(result.errors).toEqual([]);
+        expect(result.message).toBeDefined();
+        expect(result.message?.id).toBe('001');
+        expect(result.message?.body).toBe('This is the full body text that should be returned');
+        expect(result.message?.note).toBe('Additional context for the message');
+        expect(result.message?.options).toHaveLength(2);
+      });
+
+      it('should return message with answer if answered', async () => {
+        /*
+        Test Doc:
+        - Why: Read should include answer data if present
+        - Contract: Returns message.answer with all answer fields
+        */
+        setupPhase();
+        const answeredMessage = {
+          id: '001',
+          created_at: '2026-01-21T10:00:00Z',
+          from: 'agent',
+          type: 'single_choice',
+          subject: 'Answered message',
+          body: 'Body',
+          options: [
+            { key: 'A', label: 'A' },
+            { key: 'B', label: 'B' },
+          ],
+          answer: {
+            answered_at: '2026-01-21T10:05:00Z',
+            selected: ['B'],
+            note: 'Chose B because...',
+          },
+        };
+        fs.setFile(`${messagesDir}/m-001.json`, JSON.stringify(answeredMessage));
+
+        const result = await service.read(phase, runDir, '001');
+
+        expect(result.errors).toEqual([]);
+        expect(result.message?.answer).toBeDefined();
+        expect(result.message?.answer?.selected).toEqual(['B']);
+        expect(result.message?.answer?.note).toBe('Chose B because...');
+      });
+    });
+
+    describe('error cases', () => {
+      it('should return E060 for non-existent message ID', async () => {
+        /*
+        Test Doc:
+        - Why: Invalid ID should return clear error
+        - Contract: Returns E060 MESSAGE_NOT_FOUND with actionable message
+        */
+        setupPhase();
+
+        const result = await service.read(phase, runDir, '999');
+
+        expect(result.errors).toHaveLength(1);
+        expect(result.errors[0].code).toBe(MessageErrorCodes.MESSAGE_NOT_FOUND);
+        expect(result.errors[0].action).toContain("'999'");
+        expect(result.message).toBeNull();
+      });
+    });
+  });
 });

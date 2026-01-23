@@ -69,6 +69,8 @@ export { FakeWorkflowService } from './fakes/index.js';
 export type { ComposeCall } from './fakes/index.js';
 export { FakePhaseService } from './fakes/index.js';
 export type { PrepareCall, ValidateCall, FinalizeCall } from './fakes/index.js';
+export { FakeMessageService } from './fakes/index.js';
+export type { CreateCall, AnswerCall, ListCall, ReadCall } from './fakes/index.js';
 
 // Services (Phase 2)
 export { WorkflowService, ComposeErrorCodes } from './services/index.js';

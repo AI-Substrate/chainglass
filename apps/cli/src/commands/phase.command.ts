@@ -3,6 +3,7 @@
  *
  * Per Phase 3: Phase Operations - Provides cg phase prepare and cg phase validate commands.
  * Per Phase 4: Phase Lifecycle - Adds cg phase finalize command.
+ * Per Phase 3 Subtask 001: Adds cg phase message commands.
  */
 
 import {
@@ -20,6 +21,7 @@ import {
 } from '@chainglass/workflow';
 import { SchemaValidatorAdapter, YamlParserAdapter } from '@chainglass/workflow';
 import type { Command } from 'commander';
+import { registerMessageCommands } from './message.command.js';
 
 /**
  * Options for phase prepare command.
@@ -144,6 +146,7 @@ async function handleFinalize(phase: string, options: FinalizeOptions): Promise<
  * - cg phase prepare <phase> - Prepare a phase for execution
  * - cg phase validate <phase> - Validate phase inputs or outputs
  * - cg phase finalize <phase> - Finalize a phase and extract output parameters
+ * - cg phase message <subcommand> - Agent-orchestrator messaging commands
  *
  * @param program - Commander.js program instance
  */
@@ -185,4 +188,7 @@ export function registerPhaseCommands(program: Command): void {
     .action(async (phaseName: string, options: FinalizeOptions) => {
       await handleFinalize(phaseName, options);
     });
+
+  // Register message subcommands under phase
+  registerMessageCommands(phase);
 }

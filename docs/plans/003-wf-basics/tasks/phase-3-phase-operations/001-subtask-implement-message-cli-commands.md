@@ -206,15 +206,15 @@ flowchart TD
     end
 
     subgraph Fakes["Fakes"]
-        F1["/packages/workflow/src/fakes/fake-message-service.ts"]:::pending
+        F1["/packages/workflow/src/fakes/fake-message-service.ts ✓"]:::completed
     end
 
     subgraph CLI["CLI"]
-        C1["/apps/cli/src/commands/message.command.ts"]:::pending
+        C1["/apps/cli/src/commands/message.command.ts ✓"]:::completed
     end
 
     subgraph Tests["Tests"]
-        UT1["/test/unit/workflow/message-service.test.ts"]:::pending
+        UT1["/test/unit/workflow/message-service.test.ts ✓"]:::completed
         CT1["/test/contracts/message-service.contract.test.ts"]:::pending
         IT1["/test/integration/cli/message-commands.test.ts"]:::pending
     end
@@ -246,22 +246,22 @@ flowchart TD
 | ST002 | Types | message.types.ts in @chainglass/shared | ✅ Complete | Message result types |
 | ST003 | Unit Test | message-service.test.ts | ✅ Complete | TDD RED: create() tests |
 | ST004 | Service | message.service.ts | ✅ Complete | TDD GREEN: create() impl |
-| ST005 | Unit Test | message-service.test.ts | ⬜ Pending | TDD RED: answer() tests |
-| ST006 | Service | message.service.ts | ⬜ Pending | TDD GREEN: answer() impl |
-| ST007 | Unit Test | message-service.test.ts | ⬜ Pending | TDD RED: list() tests |
-| ST008 | Service | message.service.ts | ⬜ Pending | TDD GREEN: list() impl |
-| ST009 | Unit Test | message-service.test.ts | ⬜ Pending | TDD RED: read() tests |
-| ST010 | Service | message.service.ts | ⬜ Pending | TDD GREEN: read() impl |
-| ST011 | Fake | fake-message-service.ts | ⬜ Pending | Call capture pattern |
-| ST012 | Contract Test | message-service.contract.test.ts | ⬜ Pending | Verify fake/real parity |
-| ST013 | CLI | message.command.ts | ⬜ Pending | Command skeleton |
-| ST014 | CLI | message.command.ts | ⬜ Pending | create action handler |
-| ST015 | CLI | message.command.ts | ⬜ Pending | answer action handler |
-| ST016 | CLI | message.command.ts | ⬜ Pending | list action handler |
-| ST017 | CLI | message.command.ts | ⬜ Pending | read action handler |
-| ST018 | CLI | phase.command.ts, cg.ts | ⬜ Pending | Register message subcommand group |
+| ST005 | Unit Test | message-service.test.ts | ✅ Complete | TDD GREEN: 17 answer() tests pass |
+| ST006 | Service | message.service.ts | ✅ Complete | TDD GREEN: answer() impl verified |
+| ST007 | Unit Test | message-service.test.ts | ✅ Complete | TDD GREEN: 5 list() tests pass |
+| ST008 | Service | message.service.ts | ✅ Complete | TDD GREEN: list() impl verified |
+| ST009 | Unit Test | message-service.test.ts | ✅ Complete | TDD GREEN: 3 read() tests pass |
+| ST010 | Service | message.service.ts | ✅ Complete | TDD GREEN: read() impl verified |
+| ST011 | Fake | fake-message-service.ts | ✅ Complete | Call capture pattern |
+| ST012 | Contract Test | message-service.contract.test.ts | ✅ Complete | Verify fake/real parity |
+| ST013 | CLI | message.command.ts | ✅ Complete | Command skeleton |
+| ST014 | CLI | message.command.ts | ✅ Complete | create action handler |
+| ST015 | CLI | message.command.ts | ✅ Complete | answer action handler |
+| ST016 | CLI | message.command.ts | ✅ Complete | list action handler |
+| ST017 | CLI | message.command.ts | ✅ Complete | read action handler |
+| ST018 | CLI | phase.command.ts, cg.ts | ✅ Complete | Register message subcommand group |
 | ST019 | Integration Test | message-commands.test.ts | ⬜ Pending | CLI integration tests |
-| ST020 | Adapters | console-output.adapter.ts, json-output.adapter.ts | ⬜ Pending | Add message formatters |
+| ST020 | Adapters | console-output.adapter.ts, json-output.adapter.ts | ✅ Complete | Add message formatters |
 
 ---
 
@@ -273,22 +273,22 @@ flowchart TD
 | [x] | ST002 | Add message result types: MessageCreateResult, MessageAnswerResult, MessageListResult, MessageReadResult | 2 | Setup | ST001 | /home/jak/substrate/003-wf-basics/packages/shared/src/interfaces/results/message.types.ts | Types exported, extend BaseResult | – | Per PrepareResult/ValidateResult pattern |
 | [x] | ST003 | Write tests for MessageService.create() including validation and idempotency | 3 | Test | ST002 | /home/jak/substrate/003-wf-basics/test/unit/workflow/message-service.test.ts | Tests fail (RED phase) | – | Cover all 4 message types, E064 |
 | [x] | ST004 | Implement MessageService.create() | 3 | Core | ST003 | /home/jak/substrate/003-wf-basics/packages/workflow/src/services/message.service.ts | All create tests pass (GREEN) | – | Validates against message schema, writes m-{id}.json |
-| [ ] | ST005 | Write tests for MessageService.answer() including type matching and E060-E063 | 3 | Test | ST004 | /home/jak/substrate/003-wf-basics/test/unit/workflow/message-service.test.ts | Tests fail (RED phase) | – | Cover all answer types, existing answer error |
-| [ ] | ST006 | Implement MessageService.answer() | 3 | Core | ST005 | /home/jak/substrate/003-wf-basics/packages/workflow/src/services/message.service.ts | All answer tests pass (GREEN) | – | Updates m-{id}.json with answer field |
-| [ ] | ST007 | Write tests for MessageService.list() | 2 | Test | ST006 | /home/jak/substrate/003-wf-basics/test/unit/workflow/message-service.test.ts | Tests fail (RED phase) | – | Cover empty, multiple, with/without answers |
-| [ ] | ST008 | Implement MessageService.list() | 2 | Core | ST007 | /home/jak/substrate/003-wf-basics/packages/workflow/src/services/message.service.ts | All list tests pass (GREEN) | – | Returns summary of all messages |
-| [ ] | ST009 | Write tests for MessageService.read() including E060 for not found | 2 | Test | ST008 | /home/jak/substrate/003-wf-basics/test/unit/workflow/message-service.test.ts | Tests fail (RED phase) | – | Cover found, not found |
-| [ ] | ST010 | Implement MessageService.read() | 2 | Core | ST009 | /home/jak/substrate/003-wf-basics/packages/workflow/src/services/message.service.ts | All read tests pass (GREEN) | – | Returns full message content |
-| [ ] | ST011 | Implement FakeMessageService with call capture pattern | 2 | Fake | ST010 | /home/jak/substrate/003-wf-basics/packages/workflow/src/fakes/fake-message-service.ts | Fake tests pass | – | Per FakePhaseService pattern |
-| [ ] | ST012 | Write contract tests for IMessageService | 2 | Test | ST011 | /home/jak/substrate/003-wf-basics/test/contracts/message-service.contract.test.ts | Both real and fake pass | – | Per CD-08 |
-| [ ] | ST013 | Create message.command.ts with registerMessageCommands() or extend phase.command.ts | 2 | CLI | ST002 | /home/jak/substrate/003-wf-basics/apps/cli/src/commands/message.command.ts | Type check passes | – | Subcommand under `cg phase message` |
-| [ ] | ST014 | Implement `cg phase message create` action handler | 2 | CLI | ST013 | /home/jak/substrate/003-wf-basics/apps/cli/src/commands/message.command.ts | Action handler wired | – | --type, --content, --note, --json, --run-dir, --from (default: agent) |
-| [ ] | ST015 | Implement `cg phase message answer` action handler | 3 | CLI | ST014 | /home/jak/substrate/003-wf-basics/apps/cli/src/commands/message.command.ts | Action handler wired | – | --id, --select/--text/--confirm/--deny, --note, --json, --from (default: orchestrator for status entry). Strict validation: read message type first, reject mismatched flags with actionable E061 error |
-| [ ] | ST016 | Implement `cg phase message list` action handler | 2 | CLI | ST015 | /home/jak/substrate/003-wf-basics/apps/cli/src/commands/message.command.ts | Action handler wired | – | --json, --run-dir |
-| [ ] | ST017 | Implement `cg phase message read` action handler | 2 | CLI | ST016 | /home/jak/substrate/003-wf-basics/apps/cli/src/commands/message.command.ts | Action handler wired | – | --id, --json, --run-dir |
-| [ ] | ST018 | Register message commands in phase.command.ts or cg.ts | 1 | CLI | ST017 | /home/jak/substrate/003-wf-basics/apps/cli/src/commands/phase.command.ts, /home/jak/substrate/003-wf-basics/apps/cli/src/bin/cg.ts | Help shows message commands | – | `cg phase message --help` works |
+| [x] | ST005 | Write tests for MessageService.answer() including type matching and E060-E063 | 3 | Test | ST004 | /home/jak/substrate/003-wf-basics/test/unit/workflow/message-service.test.ts | 17 answer tests written and pass (GREEN) | – | Cover all answer types, existing answer error |
+| [x] | ST006 | Implement MessageService.answer() | 3 | Core | ST005 | /home/jak/substrate/003-wf-basics/packages/workflow/src/services/message.service.ts | All answer tests pass (GREEN) | – | Updates m-{id}.json with answer field |
+| [x] | ST007 | Write tests for MessageService.list() | 2 | Test | ST006 | /home/jak/substrate/003-wf-basics/test/unit/workflow/message-service.test.ts | 5 list tests written and pass (GREEN) | – | Cover empty, multiple, with/without answers |
+| [x] | ST008 | Implement MessageService.list() | 2 | Core | ST007 | /home/jak/substrate/003-wf-basics/packages/workflow/src/services/message.service.ts | All list tests pass (GREEN) | – | Returns summary of all messages |
+| [x] | ST009 | Write tests for MessageService.read() including E060 for not found | 2 | Test | ST008 | /home/jak/substrate/003-wf-basics/test/unit/workflow/message-service.test.ts | 3 read tests written and pass (GREEN) | – | Cover found, not found |
+| [x] | ST010 | Implement MessageService.read() | 2 | Core | ST009 | /home/jak/substrate/003-wf-basics/packages/workflow/src/services/message.service.ts | All read tests pass (GREEN) | – | Returns full message content |
+| [x] | ST011 | Implement FakeMessageService with call capture pattern | 2 | Fake | ST010 | /home/jak/substrate/003-wf-basics/packages/workflow/src/fakes/fake-message-service.ts | 19 Fake tests pass | – | Per FakePhaseService pattern |
+| [x] | ST012 | Write contract tests for IMessageService | 2 | Test | ST011 | /home/jak/substrate/003-wf-basics/test/contracts/message-service.contract.test.ts | 26 contract tests pass (13 each) | – | Per CD-08 |
+| [x] | ST013 | Create message.command.ts with registerMessageCommands() or extend phase.command.ts | 2 | CLI | ST002 | /home/jak/substrate/003-wf-basics/apps/cli/src/commands/message.command.ts | Type check passes | – | Subcommand under `cg phase message` |
+| [x] | ST014 | Implement `cg phase message create` action handler | 2 | CLI | ST013 | /home/jak/substrate/003-wf-basics/apps/cli/src/commands/message.command.ts | Action handler wired | – | --type, --content, --note, --json, --run-dir, --from (default: agent) |
+| [x] | ST015 | Implement `cg phase message answer` action handler | 3 | CLI | ST014 | /home/jak/substrate/003-wf-basics/apps/cli/src/commands/message.command.ts | Action handler wired | – | --id, --select/--text/--confirm/--deny, --note, --json, --from (default: orchestrator for status entry). Strict validation: read message type first, reject mismatched flags with actionable E061 error |
+| [x] | ST016 | Implement `cg phase message list` action handler | 2 | CLI | ST015 | /home/jak/substrate/003-wf-basics/apps/cli/src/commands/message.command.ts | Action handler wired | – | --json, --run-dir |
+| [x] | ST017 | Implement `cg phase message read` action handler | 2 | CLI | ST016 | /home/jak/substrate/003-wf-basics/apps/cli/src/commands/message.command.ts | Action handler wired | – | --id, --json, --run-dir |
+| [x] | ST018 | Register message commands in phase.command.ts or cg.ts | 1 | CLI | ST017 | /home/jak/substrate/003-wf-basics/apps/cli/src/commands/phase.command.ts, /home/jak/substrate/003-wf-basics/apps/cli/src/bin/cg.ts | Help shows message commands | – | `cg phase message --help` works |
 | [ ] | ST019 | Write CLI integration tests for all 4 message commands | 2 | Test | ST018 | /home/jak/substrate/003-wf-basics/test/integration/cli/message-commands.test.ts | All CLI tests pass | – | Uses exemplar run folder |
-| [ ] | ST020 | Add message command formatters to output adapters | 2 | Adapter | ST012, ST019 | /home/jak/substrate/003-wf-basics/packages/shared/src/adapters/console-output.adapter.ts, /home/jak/substrate/003-wf-basics/packages/shared/src/adapters/json-output.adapter.ts | Formatters dispatch correctly | – | Per Phase 1a pattern |
+| [x] | ST020 | Add message command formatters to output adapters | 2 | Adapter | ST012, ST019 | /home/jak/substrate/003-wf-basics/packages/shared/src/adapters/console-output.adapter.ts, /home/jak/substrate/003-wf-basics/packages/shared/src/adapters/json-output.adapter.ts | Formatters dispatch correctly | – | Per Phase 1a pattern |
 
 ---
 
