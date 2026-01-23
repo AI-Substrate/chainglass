@@ -1,4 +1,4 @@
-import { FakeMessageService, type AnswerInput } from '@chainglass/workflow';
+import { type AnswerInput, FakeMessageService } from '@chainglass/workflow';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 /**
@@ -49,7 +49,12 @@ describe('FakeMessageService', () => {
     });
 
     it('should return preset result when configured', async () => {
-      const preset = FakeMessageService.createSuccessResult(phase, runDir, '999', '/custom/path.json');
+      const preset = FakeMessageService.createSuccessResult(
+        phase,
+        runDir,
+        '999',
+        '/custom/path.json'
+      );
       fake.setCreateResult(phase, preset);
 
       const result = await fake.create(phase, runDir, 'free_text', { subject: 'X', body: 'Y' });
@@ -58,7 +63,12 @@ describe('FakeMessageService', () => {
     });
 
     it('should return default result when no preset matches', async () => {
-      const defaultResult = FakeMessageService.createSuccessResult('any', runDir, '500', '/default.json');
+      const defaultResult = FakeMessageService.createSuccessResult(
+        'any',
+        runDir,
+        '500',
+        '/default.json'
+      );
       fake.setDefaultCreateResult(defaultResult);
 
       const result = await fake.create(phase, runDir, 'free_text', { subject: 'X', body: 'Y' });
@@ -118,7 +128,15 @@ describe('FakeMessageService', () => {
 
     it('should return preset result when configured', async () => {
       const messages = [
-        { id: '001', type: 'free_text' as const, subject: 'Test', from: 'agent' as const, created_at: '2026-01-21T10:00:00Z', answered: false, answered_at: null },
+        {
+          id: '001',
+          type: 'free_text' as const,
+          subject: 'Test',
+          from: 'agent' as const,
+          created_at: '2026-01-21T10:00:00Z',
+          answered: false,
+          answered_at: null,
+        },
       ];
       const preset = FakeMessageService.listSuccessResult(phase, runDir, messages);
       fake.setListResult(phase, preset);
@@ -202,21 +220,40 @@ describe('FakeMessageService', () => {
 
   describe('static factory methods', () => {
     it('createErrorResult should create error result', () => {
-      const result = FakeMessageService.createErrorResult(phase, runDir, 'E064', 'Validation failed', 'Fix it');
+      const result = FakeMessageService.createErrorResult(
+        phase,
+        runDir,
+        'E064',
+        'Validation failed',
+        'Fix it'
+      );
       expect(result.errors).toHaveLength(1);
       expect(result.errors[0].code).toBe('E064');
       expect(result.messageId).toBe('');
     });
 
     it('answerErrorResult should create error result', () => {
-      const result = FakeMessageService.answerErrorResult(phase, runDir, '001', 'E060', 'Not found', 'Check ID');
+      const result = FakeMessageService.answerErrorResult(
+        phase,
+        runDir,
+        '001',
+        'E060',
+        'Not found',
+        'Check ID'
+      );
       expect(result.errors).toHaveLength(1);
       expect(result.errors[0].code).toBe('E060');
       expect(result.answer).toBeNull();
     });
 
     it('readErrorResult should create error result', () => {
-      const result = FakeMessageService.readErrorResult(phase, runDir, 'E060', 'Not found', 'Check ID');
+      const result = FakeMessageService.readErrorResult(
+        phase,
+        runDir,
+        'E060',
+        'Not found',
+        'Check ID'
+      );
       expect(result.errors).toHaveLength(1);
       expect(result.message).toBeNull();
     });

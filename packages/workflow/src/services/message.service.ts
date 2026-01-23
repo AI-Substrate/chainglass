@@ -3,26 +3,53 @@
  *
  * Per Subtask 001: Message CLI Commands - Provides create(), answer(), list(), read()
  * methods for managing messages during phase execution.
+ *
+ * @remarks
+ * **IMPORTANT: Single-Writer Constraint**
+ *
+ * This service follows the Facilitator Model where control passes between
+ * agent and orchestrator. The status log (wf-phase.json) is updated using
+ * a read-modify-write pattern that is NOT atomic.
+ *
+ * **Concurrent calls from the same actor may result in lost status entries.**
+ *
+ * This is acceptable under the Facilitator Model because:
+ * - Only one actor (agent OR orchestrator) has control at a time
+ * - The controlling actor should serialize their own operations
+ * - Status log is for audit/discoverability, not critical state
+ *
+ * If concurrent access is required in the future, implement file locking
+ * in the appendStatusEntry() method.
  */
 
 import * as path from 'node:path';
 import type {
   IFileSystem,
-  MessageCreateResult,
   MessageAnswerResult,
+  MessageCreateResult,
   MessageListResult,
   MessageReadResult,
   ResultError,
 } from '@chainglass/shared';
 import type {
+  AnswerInput,
   IMessageService,
   ISchemaValidator,
   MessageContent,
-  AnswerInput,
 } from '../interfaces/index.js';
 import { MessageErrorCodes } from '../interfaces/message-service.interface.js';
-import type { Message, MessageType, WfPhaseState, StatusEntry } from '../types/index.js';
 import { MESSAGE_SCHEMA } from '../schemas/index.js';
+import type { Message, MessageType, StatusEntry, WfPhaseState } from '../types/index.js';
+
+/**
+ * Regex for valid phase names: alphanumeric with hyphen/underscore only.
+ */
+const VALID_PHASE_NAME = /^[a-zA-Z0-9_-]+$/;
+
+/**
+ * Regex for valid message IDs: 3-digit strings only.
+ */
+const VALID_MESSAGE_ID = /^\d{3}$/;
 
 /**
  * MessageService implements message operations for agent-orchestrator communication.
@@ -47,6 +74,20 @@ export class MessageService implements IMessageService {
     content: MessageContent,
     from: 'agent' | 'orchestrator' = 'agent'
   ): Promise<MessageCreateResult> {
+    // Validate phase name to prevent path traversal
+    if (!VALID_PHASE_NAME.test(phase)) {
+      return this.createErrorResult<MessageCreateResult>(
+        phase,
+        runDir,
+        MessageErrorCodes.MESSAGE_VALIDATION_FAILED,
+        {
+          message: `Invalid phase name: ${phase}`,
+          action: 'Use alphanumeric phase name with hyphens/underscores only',
+        },
+        { messageId: '', filePath: '' }
+      );
+    }
+
     const messagesDir = path.join(runDir, 'phases', phase, 'run', 'messages');
     const wfDataDir = path.join(runDir, 'phases', phase, 'run', 'wf-data');
 
@@ -114,6 +155,32 @@ export class MessageService implements IMessageService {
     answer: AnswerInput,
     from: 'agent' | 'orchestrator' = 'orchestrator'
   ): Promise<MessageAnswerResult> {
+    // Validate phase name and message ID to prevent path traversal
+    if (!VALID_PHASE_NAME.test(phase)) {
+      return this.createErrorResult<MessageAnswerResult>(
+        phase,
+        runDir,
+        MessageErrorCodes.MESSAGE_NOT_FOUND,
+        {
+          message: `Invalid phase name: ${phase}`,
+          action: 'Use alphanumeric phase name with hyphens/underscores only',
+        },
+        { messageId: id, answer: null }
+      );
+    }
+    if (!VALID_MESSAGE_ID.test(id)) {
+      return this.createErrorResult<MessageAnswerResult>(
+        phase,
+        runDir,
+        MessageErrorCodes.MESSAGE_NOT_FOUND,
+        {
+          message: `Invalid message ID: ${id}`,
+          action: 'Provide valid 3-digit message ID',
+        },
+        { messageId: id, answer: null }
+      );
+    }
+
     const messagesDir = path.join(runDir, 'phases', phase, 'run', 'messages');
     const wfDataDir = path.join(runDir, 'phases', phase, 'run', 'wf-data');
     const filePath = path.join(messagesDir, `m-${id}.json`);
@@ -134,7 +201,22 @@ export class MessageService implements IMessageService {
     }
 
     const messageContent = await this.fs.readFile(filePath);
-    const message: Message = JSON.parse(messageContent);
+    let message: Message;
+    try {
+      message = JSON.parse(messageContent);
+    } catch (e) {
+      return this.createErrorResult<MessageAnswerResult>(
+        phase,
+        runDir,
+        MessageErrorCodes.MESSAGE_VALIDATION_FAILED,
+        {
+          message: `Invalid JSON in message file: ${(e as Error).message}`,
+          path: filePath,
+          action: 'Check file integrity or recreate message',
+        },
+        { messageId: id, answer: null }
+      );
+    }
 
     // 2. Check if already answered
     if (message.answer) {
@@ -198,6 +280,23 @@ export class MessageService implements IMessageService {
    * List all messages in a phase.
    */
   async list(phase: string, runDir: string): Promise<MessageListResult> {
+    // Validate phase name to prevent path traversal
+    if (!VALID_PHASE_NAME.test(phase)) {
+      return {
+        errors: [
+          {
+            code: MessageErrorCodes.MESSAGE_VALIDATION_FAILED,
+            message: `Invalid phase name: ${phase}`,
+            action: 'Use alphanumeric phase name with hyphens/underscores only',
+          },
+        ],
+        phase,
+        runDir,
+        messages: [],
+        count: 0,
+      };
+    }
+
     const messagesDir = path.join(runDir, 'phases', phase, 'run', 'messages');
 
     // Get all message files
@@ -208,7 +307,13 @@ export class MessageService implements IMessageService {
     for (const file of files) {
       const filePath = path.join(messagesDir, file);
       const content = await this.fs.readFile(filePath);
-      const message: Message = JSON.parse(content);
+      let message: Message;
+      try {
+        message = JSON.parse(content);
+      } catch {
+        // Skip malformed files in listing
+        continue;
+      }
 
       messages.push({
         id: message.id,
@@ -237,6 +342,32 @@ export class MessageService implements IMessageService {
    * Read full content of a specific message.
    */
   async read(phase: string, runDir: string, id: string): Promise<MessageReadResult> {
+    // Validate phase name and message ID to prevent path traversal
+    if (!VALID_PHASE_NAME.test(phase)) {
+      return this.createErrorResult<MessageReadResult>(
+        phase,
+        runDir,
+        MessageErrorCodes.MESSAGE_NOT_FOUND,
+        {
+          message: `Invalid phase name: ${phase}`,
+          action: 'Use alphanumeric phase name with hyphens/underscores only',
+        },
+        { message: null }
+      );
+    }
+    if (!VALID_MESSAGE_ID.test(id)) {
+      return this.createErrorResult<MessageReadResult>(
+        phase,
+        runDir,
+        MessageErrorCodes.MESSAGE_NOT_FOUND,
+        {
+          message: `Invalid message ID: ${id}`,
+          action: 'Provide valid 3-digit message ID',
+        },
+        { message: null }
+      );
+    }
+
     const messagesDir = path.join(runDir, 'phases', phase, 'run', 'messages');
     const filePath = path.join(messagesDir, `m-${id}.json`);
 
@@ -257,7 +388,22 @@ export class MessageService implements IMessageService {
 
     // Read and parse message
     const content = await this.fs.readFile(filePath);
-    const message: Message = JSON.parse(content);
+    let message: Message;
+    try {
+      message = JSON.parse(content);
+    } catch (e) {
+      return this.createErrorResult<MessageReadResult>(
+        phase,
+        runDir,
+        MessageErrorCodes.MESSAGE_VALIDATION_FAILED,
+        {
+          message: `Invalid JSON in message file: ${(e as Error).message}`,
+          path: filePath,
+          action: 'Check file integrity or recreate message',
+        },
+        { message: null }
+      );
+    }
 
     return {
       errors: [],
@@ -283,7 +429,7 @@ export class MessageService implements IMessageService {
     const ids = files
       .map((f) => {
         const match = f.match(/^m-(\d{3})\.json$/);
-        return match ? parseInt(match[1], 10) : 0;
+        return match ? Number.parseInt(match[1], 10) : 0;
       })
       .filter((id) => id > 0);
 
@@ -414,7 +560,17 @@ export class MessageService implements IMessageService {
     let wfPhase: WfPhaseState;
     if (await this.fs.exists(wfPhasePath)) {
       const content = await this.fs.readFile(wfPhasePath);
-      wfPhase = JSON.parse(content);
+      try {
+        wfPhase = JSON.parse(content);
+      } catch {
+        // If file is corrupted, reinitialize
+        wfPhase = {
+          phase,
+          state: 'active',
+          facilitator: 'agent',
+          status: [],
+        };
+      }
     } else {
       // Initialize if doesn't exist
       wfPhase = {

@@ -11,16 +11,16 @@
  */
 
 import type {
-  MessageCreateResult,
   MessageAnswerResult,
+  MessageCreateResult,
   MessageListResult,
   MessageReadResult,
   MessageSummary,
 } from '@chainglass/shared';
 import type {
+  AnswerInput,
   IMessageService,
   MessageContent,
-  AnswerInput,
 } from '../interfaces/message-service.interface.js';
 import type { Message, MessageType } from '../types/index.js';
 
@@ -357,7 +357,13 @@ export class FakeMessageService implements IMessageService {
     phase: string,
     runDir: string,
     messageId: string,
-    answer: { answered_at: string; selected?: string[]; text?: string; confirmed?: boolean; note?: string }
+    answer: {
+      answered_at: string;
+      selected?: string[];
+      text?: string;
+      confirmed?: boolean;
+      note?: string;
+    }
   ): MessageAnswerResult {
     return {
       errors: [],
@@ -408,11 +414,7 @@ export class FakeMessageService implements IMessageService {
   /**
    * Create a success read result for testing (static factory).
    */
-  static readSuccessResult(
-    phase: string,
-    runDir: string,
-    message: Message
-  ): MessageReadResult {
+  static readSuccessResult(phase: string, runDir: string, message: Message): MessageReadResult {
     return {
       errors: [],
       phase,
@@ -491,7 +493,15 @@ export class FakeMessageService implements IMessageService {
       filePath,
     };
 
-    this.createCalls.push({ phase, runDir, type, content, from, result, timestamp: new Date().toISOString() });
+    this.createCalls.push({
+      phase,
+      runDir,
+      type,
+      content,
+      from,
+      result,
+      timestamp: new Date().toISOString(),
+    });
     return result;
   }
 
@@ -548,7 +558,15 @@ export class FakeMessageService implements IMessageService {
       },
     };
 
-    this.answerCalls.push({ phase, runDir, id, answer, from, result, timestamp: new Date().toISOString() });
+    this.answerCalls.push({
+      phase,
+      runDir,
+      id,
+      answer,
+      from,
+      result,
+      timestamp: new Date().toISOString(),
+    });
     return result;
   }
 

@@ -2,11 +2,11 @@ import { FakeFileSystem } from '@chainglass/shared';
 import {
   FakeSchemaValidator,
   type IMessageService,
-  MessageErrorCodes,
-  type MessageContent,
-  type WfPhaseState,
   MESSAGE_SCHEMA,
+  type MessageContent,
+  MessageErrorCodes,
   MessageService,
+  type WfPhaseState,
 } from '@chainglass/workflow';
 import { beforeEach, describe, expect, it } from 'vitest';
 
@@ -340,7 +340,9 @@ describe('MessageService', () => {
 
         const wfPhaseContent = await fs.readFile(`${wfDataDir}/wf-phase.json`);
         const wfPhase = JSON.parse(wfPhaseContent);
-        const questionEntry = wfPhase.status.find((s: { action: string }) => s.action === 'question');
+        const questionEntry = wfPhase.status.find(
+          (s: { action: string }) => s.action === 'question'
+        );
         expect(questionEntry).toBeDefined();
         expect(questionEntry.message_id).toBe('001');
         expect(questionEntry.from).toBe('agent');
@@ -351,7 +353,7 @@ describe('MessageService', () => {
 
   describe('answer()', () => {
     // Helper to create a single_choice message for testing answers
-    function setupSingleChoiceMessage(id: string = '001'): void {
+    function setupSingleChoiceMessage(id = '001'): void {
       fs.setFile(
         `${messagesDir}/m-${id}.json`,
         JSON.stringify({
@@ -371,7 +373,7 @@ describe('MessageService', () => {
     }
 
     // Helper to create a multi_choice message
-    function setupMultiChoiceMessage(id: string = '001'): void {
+    function setupMultiChoiceMessage(id = '001'): void {
       fs.setFile(
         `${messagesDir}/m-${id}.json`,
         JSON.stringify({
@@ -391,7 +393,7 @@ describe('MessageService', () => {
     }
 
     // Helper to create a free_text message
-    function setupFreeTextMessage(id: string = '001'): void {
+    function setupFreeTextMessage(id = '001'): void {
       fs.setFile(
         `${messagesDir}/m-${id}.json`,
         JSON.stringify({
@@ -406,7 +408,7 @@ describe('MessageService', () => {
     }
 
     // Helper to create a confirm message
-    function setupConfirmMessage(id: string = '001'): void {
+    function setupConfirmMessage(id = '001'): void {
       fs.setFile(
         `${messagesDir}/m-${id}.json`,
         JSON.stringify({
@@ -473,7 +475,9 @@ describe('MessageService', () => {
         setupPhase();
         setupFreeTextMessage();
 
-        const result = await service.answer(phase, runDir, '001', { text: 'My detailed response here' });
+        const result = await service.answer(phase, runDir, '001', {
+          text: 'My detailed response here',
+        });
 
         expect(result.errors).toEqual([]);
         const msgContent = await fs.readFile(`${messagesDir}/m-001.json`);
@@ -945,6 +949,217 @@ describe('MessageService', () => {
         expect(result.errors[0].action).toContain("'999'");
         expect(result.message).toBeNull();
       });
+    });
+  });
+
+  describe('Security: Path Traversal Prevention', () => {
+    it('should reject phase names with path traversal sequences in create()', async () => {
+      /*
+      Test Doc:
+      - Why: Prevent directory traversal attacks via phase parameter
+      - Contract: create() returns E064 for invalid phase names
+      - Usage Notes: Phase names must be alphanumeric with hyphen/underscore only
+      - Quality Contribution: Security hardening
+      - Worked Example: create('../../malicious', ...) → E064
+      */
+      const validContent: MessageContent = {
+        subject: 'Test',
+        body: 'Test body',
+      };
+
+      const result = await service.create('../../malicious', runDir, 'free_text', validContent);
+
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].code).toBe(MessageErrorCodes.MESSAGE_VALIDATION_FAILED);
+      expect(result.errors[0].message).toContain('Invalid phase name');
+    });
+
+    it('should reject phase names with path traversal in read()', async () => {
+      /*
+      Test Doc:
+      - Why: Prevent directory traversal attacks via phase parameter in read
+      - Contract: read() returns E060 for invalid phase names
+      - Usage Notes: Phase names must be alphanumeric with hyphen/underscore only
+      - Quality Contribution: Security hardening
+      */
+      const result = await service.read('../etc', runDir, '001');
+
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].code).toBe(MessageErrorCodes.MESSAGE_NOT_FOUND);
+      expect(result.errors[0].message).toContain('Invalid phase name');
+    });
+
+    it('should reject message IDs with path traversal sequences', async () => {
+      /*
+      Test Doc:
+      - Why: Prevent directory traversal attacks via message ID parameter
+      - Contract: read() returns E060 for invalid message IDs
+      - Usage Notes: Message IDs must be 3-digit strings only
+      - Quality Contribution: Security hardening
+      - Worked Example: read('001/../../../etc/passwd', ...) → E060
+      */
+      setupPhase();
+
+      const result = await service.read(phase, runDir, '001/../../../etc/passwd');
+
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].code).toBe(MessageErrorCodes.MESSAGE_NOT_FOUND);
+      expect(result.errors[0].message).toContain('Invalid message ID');
+    });
+
+    it('should reject phase names with special characters in answer()', async () => {
+      /*
+      Test Doc:
+      - Why: Prevent directory traversal attacks via phase parameter in answer
+      - Contract: answer() returns E060 for invalid phase names
+      - Usage Notes: Phase names must be alphanumeric with hyphen/underscore only
+      - Quality Contribution: Security hardening
+      */
+      const result = await service.answer('../etc', runDir, '001', { confirmed: true });
+
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].code).toBe(MessageErrorCodes.MESSAGE_NOT_FOUND);
+      expect(result.errors[0].message).toContain('Invalid phase name');
+    });
+
+    it('should reject message IDs with invalid format in answer()', async () => {
+      /*
+      Test Doc:
+      - Why: Prevent directory traversal via message ID in answer
+      - Contract: answer() returns E060 for invalid message IDs
+      - Usage Notes: Message IDs must be 3-digit strings
+      - Quality Contribution: Security hardening
+      */
+      setupPhase();
+
+      const result = await service.answer(phase, runDir, '../../../malicious', { confirmed: true });
+
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].code).toBe(MessageErrorCodes.MESSAGE_NOT_FOUND);
+      expect(result.errors[0].message).toContain('Invalid message ID');
+    });
+
+    it('should reject phase names with dots in list()', async () => {
+      /*
+      Test Doc:
+      - Why: Prevent directory traversal via phase in list
+      - Contract: list() returns error for invalid phase names
+      - Usage Notes: Phase names must be alphanumeric with hyphen/underscore only
+      - Quality Contribution: Security hardening
+      */
+      const result = await service.list('..', runDir);
+
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].code).toBe(MessageErrorCodes.MESSAGE_VALIDATION_FAILED);
+      expect(result.errors[0].message).toContain('Invalid phase name');
+    });
+
+    it('should accept valid phase names with hyphens and underscores', async () => {
+      /*
+      Test Doc:
+      - Why: Valid phase names should work (regression test)
+      - Contract: create() succeeds with valid names like 'process', 'pre_process', 'post-process'
+      - Usage Notes: Alphanumeric + hyphen + underscore allowed
+      - Quality Contribution: Regression test for security changes
+      */
+      fs.setDir(`${runDir}/phases/pre_process-01/run/messages`);
+      fs.setDir(`${runDir}/phases/pre_process-01/run/wf-data`);
+      fs.setFile(
+        `${runDir}/phases/pre_process-01/run/wf-data/wf-phase.json`,
+        JSON.stringify(createWfPhaseState('pre_process-01', []))
+      );
+
+      const validContent: MessageContent = {
+        subject: 'Test',
+        body: 'Test body',
+      };
+
+      const result = await service.create('pre_process-01', runDir, 'free_text', validContent);
+
+      expect(result.errors).toHaveLength(0);
+      expect(result.messageId).toBe('001');
+    });
+  });
+
+  describe('Error Handling: Malformed Files', () => {
+    it('should return E064 when message file contains invalid JSON on read', async () => {
+      /*
+      Test Doc:
+      - Why: Gracefully handle corrupted message files
+      - Contract: read() returns E064 for malformed JSON instead of crashing
+      - Usage Notes: Malformed files may occur from manual editing or disk errors
+      - Quality Contribution: Robustness
+      - Worked Example: read() on file with "{ invalid json }" → E064
+      */
+      setupPhase();
+      fs.setFile(`${messagesDir}/m-001.json`, '{ invalid json }');
+
+      const result = await service.read(phase, runDir, '001');
+
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].code).toBe(MessageErrorCodes.MESSAGE_VALIDATION_FAILED);
+      expect(result.errors[0].message).toContain('Invalid JSON');
+    });
+
+    it('should return E064 when message file contains invalid JSON on answer', async () => {
+      /*
+      Test Doc:
+      - Why: Gracefully handle corrupted message files on answer
+      - Contract: answer() returns error for malformed JSON
+      - Usage Notes: Malformed files may occur from manual editing
+      - Quality Contribution: Robustness
+      */
+      setupPhase();
+      fs.setFile(`${messagesDir}/m-001.json`, 'not json at all');
+
+      const result = await service.answer(phase, runDir, '001', { confirmed: true });
+
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].code).toBe(MessageErrorCodes.MESSAGE_VALIDATION_FAILED);
+      expect(result.errors[0].message).toContain('Invalid JSON');
+    });
+
+    it('should skip malformed files in list() without crashing', async () => {
+      /*
+      Test Doc:
+      - Why: list() should be robust to individual bad files
+      - Contract: list() skips malformed files and returns valid ones
+      - Usage Notes: Some files may be corrupted; don't fail entire list
+      - Quality Contribution: Robustness
+      */
+      setupPhase();
+      // Valid message
+      fs.setFile(
+        `${messagesDir}/m-001.json`,
+        JSON.stringify({
+          id: '001',
+          created_at: '2025-01-01T00:00:00Z',
+          from: 'agent',
+          type: 'confirm',
+          subject: 'Valid message',
+          body: 'Valid body',
+        })
+      );
+      // Invalid message
+      fs.setFile(`${messagesDir}/m-002.json`, 'corrupt json');
+      // Another valid message
+      fs.setFile(
+        `${messagesDir}/m-003.json`,
+        JSON.stringify({
+          id: '003',
+          created_at: '2025-01-01T00:00:02Z',
+          from: 'agent',
+          type: 'confirm',
+          subject: 'Another valid',
+          body: 'Body',
+        })
+      );
+
+      const result = await service.list(phase, runDir);
+
+      expect(result.errors).toHaveLength(0);
+      expect(result.messages).toHaveLength(2); // Only valid ones
+      expect(result.messages.map((m) => m.id)).toEqual(['001', '003']);
     });
   });
 });

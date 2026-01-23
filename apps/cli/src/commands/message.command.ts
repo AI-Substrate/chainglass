@@ -15,12 +15,12 @@ import {
   NodeFileSystemAdapter,
 } from '@chainglass/shared';
 import {
-  type IMessageService,
-  MessageService,
-  SchemaValidatorAdapter,
-  type MessageContent,
   type AnswerInput,
+  type IMessageService,
+  type MessageContent,
+  MessageService,
   type MessageType,
+  SchemaValidatorAdapter,
 } from '@chainglass/workflow';
 import type { Command } from 'commander';
 
@@ -153,13 +153,16 @@ async function handleCreate(phase: string, options: CreateOptions): Promise<void
   // Validate message type
   if (!isValidMessageType(options.type)) {
     const errorResult = {
-      errors: [{
-        code: 'E064',
-        message: `Invalid message type: ${options.type}`,
-        expected: 'single_choice | multi_choice | free_text | confirm',
-        actual: options.type,
-        action: 'Provide a valid --type value: single_choice, multi_choice, free_text, or confirm',
-      }],
+      errors: [
+        {
+          code: 'E064',
+          message: `Invalid message type: ${options.type}`,
+          expected: 'single_choice | multi_choice | free_text | confirm',
+          actual: options.type,
+          action:
+            'Provide a valid --type value: single_choice, multi_choice, free_text, or confirm',
+        },
+      ],
       phase,
       runDir: options.runDir,
       messageId: '',
@@ -213,13 +216,21 @@ async function handleAnswer(phase: string, options: AnswerOptions): Promise<void
   const adapter = createOutputAdapter(options.json ?? false);
 
   // Validate that at least one answer type is provided
-  if (!options.select && options.text === undefined && options.confirm === undefined && options.deny === undefined) {
+  if (
+    !options.select &&
+    options.text === undefined &&
+    options.confirm === undefined &&
+    options.deny === undefined
+  ) {
     const errorResult = {
-      errors: [{
-        code: 'E061',
-        message: 'No answer provided',
-        action: 'Provide --select for choice types, --text for free_text, or --confirm/--deny for confirm type',
-      }],
+      errors: [
+        {
+          code: 'E061',
+          message: 'No answer provided',
+          action:
+            'Provide --select for choice types, --text for free_text, or --confirm/--deny for confirm type',
+        },
+      ],
       phase,
       runDir: options.runDir,
       messageId: options.id,
@@ -333,7 +344,10 @@ export function registerMessageCommands(phaseCommand: Command): void {
     .command('create <phase>')
     .description('Create a new message in a phase')
     .requiredOption('--run-dir <path>', 'Run directory path')
-    .requiredOption('--type <type>', 'Message type: single_choice, multi_choice, free_text, confirm')
+    .requiredOption(
+      '--type <type>',
+      'Message type: single_choice, multi_choice, free_text, confirm'
+    )
     .requiredOption('--subject <text>', 'Message subject')
     .requiredOption('--body <text>', 'Message body')
     .option('--note <text>', 'Optional note')

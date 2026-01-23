@@ -179,7 +179,9 @@ export class ConsoleOutputAdapter implements IOutputAdapter {
         lines.push(`  Selected: ${result.answer.selected.join(', ')}`);
       }
       if (result.answer.text !== undefined) {
-        lines.push(`  Text: ${result.answer.text.substring(0, 50)}${result.answer.text.length > 50 ? '...' : ''}`);
+        lines.push(
+          `  Text: ${result.answer.text.substring(0, 50)}${result.answer.text.length > 50 ? '...' : ''}`
+        );
       }
       if (result.answer.confirmed !== undefined) {
         lines.push(`  Confirmed: ${result.answer.confirmed ? 'Yes' : 'No'}`);
@@ -231,7 +233,9 @@ export class ConsoleOutputAdapter implements IOutputAdapter {
       lines.push('');
       lines.push('  Options:');
       for (const opt of msg.options) {
-        lines.push(`    [${opt.key}] ${opt.label}${opt.description ? ` - ${opt.description}` : ''}`);
+        lines.push(
+          `    [${opt.key}] ${opt.label}${opt.description ? ` - ${opt.description}` : ''}`
+        );
       }
     }
 
@@ -306,7 +310,9 @@ export class ConsoleOutputAdapter implements IOutputAdapter {
 
   private formatMessageCreateFailure(result: MessageCreateResult): string {
     const firstError = result.errors[0];
-    const lines: string[] = [`✗ Message creation failed in phase '${result.phase}' [${firstError.code}]`];
+    const lines: string[] = [
+      `✗ Message creation failed in phase '${result.phase}' [${firstError.code}]`,
+    ];
 
     this.appendErrorDetails(lines, result.errors);
 
@@ -315,7 +321,9 @@ export class ConsoleOutputAdapter implements IOutputAdapter {
 
   private formatMessageAnswerFailure(result: MessageAnswerResult): string {
     const firstError = result.errors[0];
-    const lines: string[] = [`✗ Message answer failed for '${result.messageId}' in phase '${result.phase}' [${firstError.code}]`];
+    const lines: string[] = [
+      `✗ Message answer failed for '${result.messageId}' in phase '${result.phase}' [${firstError.code}]`,
+    ];
 
     this.appendErrorDetails(lines, result.errors);
 
@@ -324,7 +332,9 @@ export class ConsoleOutputAdapter implements IOutputAdapter {
 
   private formatMessageListFailure(result: MessageListResult): string {
     const firstError = result.errors[0];
-    const lines: string[] = [`✗ Message list failed for phase '${result.phase}' [${firstError.code}]`];
+    const lines: string[] = [
+      `✗ Message list failed for phase '${result.phase}' [${firstError.code}]`,
+    ];
 
     this.appendErrorDetails(lines, result.errors);
 
@@ -333,7 +343,9 @@ export class ConsoleOutputAdapter implements IOutputAdapter {
 
   private formatMessageReadFailure(result: MessageReadResult): string {
     const firstError = result.errors[0];
-    const lines: string[] = [`✗ Message read failed in phase '${result.phase}' [${firstError.code}]`];
+    const lines: string[] = [
+      `✗ Message read failed in phase '${result.phase}' [${firstError.code}]`,
+    ];
 
     this.appendErrorDetails(lines, result.errors);
 

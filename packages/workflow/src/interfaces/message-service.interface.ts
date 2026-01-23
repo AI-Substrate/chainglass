@@ -10,12 +10,12 @@
  */
 
 import type {
-  MessageCreateResult,
   MessageAnswerResult,
+  MessageCreateResult,
   MessageListResult,
   MessageReadResult,
 } from '@chainglass/shared';
-import type { MessageType, MessageAnswer } from '../types/message.types.js';
+import type { MessageAnswer, MessageType } from '../types/message.types.js';
 
 /**
  * Error codes for message operations (E060-E064 range).

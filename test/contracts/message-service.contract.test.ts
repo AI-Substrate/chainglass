@@ -334,9 +334,7 @@ function createMessageServiceContext(): MessageServiceTestContext {
         phase,
         state: 'active',
         facilitator: 'agent',
-        status: [
-          { timestamp: '2026-01-21T10:00:00Z', from: 'orchestrator', action: 'handover' },
-        ],
+        status: [{ timestamp: '2026-01-21T10:00:00Z', from: 'orchestrator', action: 'handover' }],
       };
       fs.setFile(`${wfDataDir}/wf-phase.json`, JSON.stringify(wfPhaseState, null, 2));
 
