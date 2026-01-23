@@ -13,20 +13,24 @@
 import {
   DndContext,
   type DragEndEvent,
+  type DragOverEvent,
+  DragOverlay,
   KeyboardSensor,
   PointerSensor,
-  closestCenter,
+  type UniqueIdentifier,
+  closestCorners,
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
-import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
-import { useCallback, useEffect, useMemo } from 'react';
+import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import type { BoardState, CardId, ColumnId } from '@/data/fixtures/board.fixture';
+import type { BoardState, Card, CardId, ColumnId } from '@/data/fixtures/board.fixture';
 import { useBoardState } from '@/hooks/useBoardState';
 import { useSSE } from '@/hooks/useSSE';
 import { type SSEEvent, sseEventSchema } from '@/lib/schemas/sse-events.schema';
 
+import { KanbanCard } from './kanban-card';
 import { KanbanColumn } from './kanban-column';
 
 export interface KanbanContentProps {
@@ -50,6 +54,7 @@ export interface KanbanContentProps {
  */
 export function KanbanContent({ initialBoard, onMoveCard, sseChannel }: KanbanContentProps) {
   const { board, moveCard } = useBoardState(initialBoard);
+  const [activeCard, setActiveCard] = useState<Card | null>(null);
 
   // FIX-003: Validate sseChannel matches server-side pattern
   const validChannel = useMemo(() => {
@@ -90,58 +95,115 @@ export function KanbanContent({ initialBoard, onMoveCard, sseChannel }: KanbanCo
     })
   );
 
-  // FIX-006: Memoize handleDragEnd
+  // Find which column contains a card
+  const findColumn = useCallback(
+    (id: UniqueIdentifier): ColumnId | null => {
+      // Check if it's a column id
+      const col = board.columns.find((c) => c.id === id);
+      if (col) return col.id;
+
+      // Check if it's a card id
+      for (const column of board.columns) {
+        if (column.cards.some((card) => card.id === id)) {
+          return column.id;
+        }
+      }
+      return null;
+    },
+    [board.columns]
+  );
+
+  // Handle drag start - set active card for overlay
+  const handleDragStart = useCallback(
+    (event: { active: { id: UniqueIdentifier } }) => {
+      const { active } = event;
+      for (const column of board.columns) {
+        const card = column.cards.find((c) => c.id === active.id);
+        if (card) {
+          setActiveCard(card);
+          break;
+        }
+      }
+    },
+    [board.columns]
+  );
+
+  // Handle drag over - move card between columns in real-time
+  const handleDragOver = useCallback(
+    (event: DragOverEvent) => {
+      const { active, over } = event;
+      if (!over) return;
+
+      const activeId = active.id as CardId;
+      const overId = over.id as string;
+
+      const activeColumn = findColumn(activeId);
+      const overColumn = findColumn(overId);
+
+      if (!activeColumn || !overColumn || activeColumn === overColumn) {
+        return;
+      }
+
+      // Moving to a different column - place at the position of the over item
+      const overColumnData = board.columns.find((c) => c.id === overColumn);
+      if (!overColumnData) return;
+
+      const overCardIndex = overColumnData.cards.findIndex((c) => c.id === overId);
+      // If over a column (not a card), put at end; otherwise at card position
+      const position = overCardIndex >= 0 ? overCardIndex : overColumnData.cards.length;
+
+      moveCard(activeId, overColumn, position);
+    },
+    [board.columns, findColumn, moveCard]
+  );
+
+  // Handle drag end - finalize position
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
       const { active, over } = event;
+      setActiveCard(null);
 
       if (!over) return;
 
       const activeId = active.id as CardId;
       const overId = over.id as string;
 
-      // Determine target column and position
-      // Over could be a column id or a card id
-      let targetColumnId: ColumnId;
-      let position: number;
+      const activeColumn = findColumn(activeId);
+      const overColumn = findColumn(overId);
 
-      // Check if dropping onto a column
-      const targetColumn = board.columns.find((col) => col.id === overId);
-      if (targetColumn) {
-        // Dropping directly onto column - add to end
-        targetColumnId = targetColumn.id;
-        position = targetColumn.cards.length;
-      } else {
-        // Dropping onto a card - find the card's column and position
-        let foundColumn: ColumnId | null = null;
-        let foundPosition = 0;
+      if (!activeColumn || !overColumn) return;
 
-        for (const col of board.columns) {
-          const cardIndex = col.cards.findIndex((c) => c.id === overId);
-          if (cardIndex !== -1) {
-            foundColumn = col.id;
-            foundPosition = cardIndex;
-            break;
-          }
+      // Same column reordering
+      if (activeColumn === overColumn) {
+        const column = board.columns.find((c) => c.id === activeColumn);
+        if (!column) return;
+
+        const activeIndex = column.cards.findIndex((c) => c.id === activeId);
+        const overIndex = column.cards.findIndex((c) => c.id === overId);
+
+        if (activeIndex !== overIndex && overIndex >= 0) {
+          moveCard(activeId, activeColumn, overIndex);
         }
-
-        if (!foundColumn) return;
-
-        targetColumnId = foundColumn;
-        position = foundPosition;
       }
 
-      // Move the card
-      moveCard(activeId, targetColumnId, position);
-
-      // Notify parent (for testing/SSE integration)
-      onMoveCard?.(activeId, targetColumnId, position);
+      // Notify parent
+      const targetColumn = board.columns.find((c) => c.id === overColumn);
+      if (targetColumn) {
+        const position = targetColumn.cards.findIndex((c) => c.id === activeId);
+        onMoveCard?.(activeId, overColumn, position >= 0 ? position : targetColumn.cards.length);
+      }
     },
-    [board.columns, moveCard, onMoveCard]
+    [board.columns, findColumn, moveCard, onMoveCard]
   );
 
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCorners}
+      onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
+      onDragEnd={handleDragEnd}
+    >
       {/* SSE status indicator */}
       {sseChannel && (
         <div className="flex items-center gap-2 text-xs mb-2">
@@ -157,6 +219,11 @@ export function KanbanContent({ initialBoard, onMoveCard, sseChannel }: KanbanCo
           <KanbanColumn key={column.id} column={column} />
         ))}
       </div>
+
+      {/* Drag overlay shows a preview of the card being dragged */}
+      <DragOverlay>
+        {activeCard ? <KanbanCard card={activeCard} /> : null}
+      </DragOverlay>
     </DndContext>
   );
 }
