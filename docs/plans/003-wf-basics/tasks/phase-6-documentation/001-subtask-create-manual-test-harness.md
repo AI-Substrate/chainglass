@@ -235,9 +235,9 @@ manual-test/
 | [ ] | ST004 | Create AGENT-STARTER-PROMPT.md | 2 | Doc | ST001 | .../manual-test/AGENT-STARTER-PROMPT.md | Self-contained prompt for external agent | – | What Claude sees |
 | [ ] | ST005 | Create check-state.sh script | 2 | Core | ST001 | .../manual-test/check-state.sh | Reads all phases, reports state | – | Checkpoint tool |
 | [ ] | ST006 | Create orchestrator input files | 2 | Setup | ST001 | .../manual-test/orchestrator-inputs/ | User request JSON, answer JSON | – | What orch provides |
-| [ ] | ST007 | Create simulated agent work files | 2 | Setup | ST001 | .../manual-test/simulated-agent-work/ | All outputs match schemas | – | For Mode 1 |
-| [ ] | ST008 | Execute Mode 1 and document results | 2 | Test | ST002-ST007 | .../manual-test/results/mode-1-run-*/ | All 3 phases complete | – | Prove it works |
-| [ ] | ST009 | Execute Mode 2 with external agent | 3 | Test | ST003, ST004, ST008 | .../manual-test/results/mode-2-run-*/ | External agent succeeds, prompts validated | – | The real validation |
+| [ ] | ST007 | Create simulated agent work files | 2 | Setup | ST001 | .../manual-test/simulated-agent-work/ | All outputs match schemas. **Source**: Copy from exemplar `dev/examples/wf/runs/run-example-001/` | – | Use exemplar as baseline |
+| [ ] | ST008 | Execute Mode 1 and document results | 2 | Test | ST002-ST007 | .../manual-test/results/mode-1-run-*/ | All 3 phases complete. **Validation**: Compare structure against exemplar | – | CLI exercise |
+| [ ] | ST009 | Execute Mode 2 with external agent | 4 | Test | ST003, ST004, ST008 | .../manual-test/results/mode-2-run-*/ | **Success**: External agent completes all 3 phases using ONLY phase prompts (no guidance). **If fails**: Document where agent got confused, create follow-up tasks for prompt improvements | – | **Critical validation** - discovery work, may spawn iterations |
 
 ---
 
@@ -608,3 +608,52 @@ docs/plans/003-wf-basics/
         ├── execution.log.md
         └── 001-subtask-create-manual-test-harness.md  # This file
 ```
+
+
+---
+
+## Critical Insights Discussion
+
+**Session**: 2026-01-23T22:00:00Z
+**Context**: Manual Test Harness Subtask (Phase 6 Subtask 001) - Pre-implementation clarity
+**Analyst**: AI Clarity Agent
+**Reviewer**: Development Team
+**Format**: Water Cooler Conversation (5 Critical Insights)
+
+### Insight 1: wf.md Bug Will Make Mode 2 Fail
+
+**Did you know**: The wf.md copying bug would cause Mode 2 to fail — compose was copying workflow overview (`templates/wf.md`) instead of agent execution instructions (root `wf.md`).
+
+**Decision**: Fix applied — workflow.service.ts:238-241 now copies root wf.md (commit 5aea1fd)
+
+### Insight 2: Handover/Accept/Preflight Commands Missing
+
+**Did you know**: The subtask mentions handover/accept/preflight but those CLI commands dont exist — only prepare/validate/finalize are implemented.
+
+**Decision**: Use existing commands for testing (compose → prepare → validate → finalize)
+
+### Insight 3: Mode 1 Is CLI Exercise, Not Agent Validation
+
+**Did you know**: Mode 1 "simulates agent work" by copying pre-made files — tests CLI plumbing, not prompt clarity.
+
+**Decision**: Mode 1 = CLI exercise, Mode 2 = real prompt validation
+
+### Insight 4: ST009 Is Underscored
+
+**Did you know**: ST009 (Execute Mode 2) is the only task that validates prompts work — but was scored CS-3.
+
+**Decision**: ST009 upgraded to CS-4 with explicit success/failure criteria
+
+### Insight 5: Exemplar Run Folder Unused
+
+**Did you know**: Exemplar at `dev/examples/wf/runs/run-example-001/` shows finished workflow structure but wasnt being used.
+
+**Decision**: ST007 uses exemplar as source; ST008 adds structural comparison
+
+## Session Summary
+
+- **Decisions**: 5
+- **Updates Applied**: workflow.service.ts, execution.log.md, ST007, ST008, ST009
+- **Confidence**: High — All prerequisites resolved
+- **Next**: Run `/plan-6-implement-phase --subtask "001-subtask-create-manual-test-harness"`
+
