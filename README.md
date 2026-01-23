@@ -48,6 +48,10 @@ After building (`just build`), the CLI is available:
 |---------|-------------|
 | `cg web` | Start production web server |
 | `cg mcp --stdio` | Start MCP server (stdio transport) |
+| `cg wf compose <template>` | Create workflow run from template |
+| `cg phase prepare <phase>` | Prepare phase inputs |
+| `cg phase validate <phase>` | Validate phase outputs |
+| `cg phase finalize <phase>` | Extract parameters and complete phase |
 | `cg --help` | Show available commands |
 
 To use the CLI globally during development:
@@ -56,6 +60,22 @@ To use the CLI globally during development:
 npm link
 cg --help
 ```
+
+### Workflow Commands
+
+The workflow system enables multi-phase task execution with explicit input/output contracts.
+
+```bash
+# Create a workflow run from a template
+cg wf compose hello-workflow --json
+
+# Execute a phase lifecycle
+cg phase prepare gather --run-dir .chainglass/runs/run-2026-01-23-001 --json
+cg phase validate gather --run-dir .chainglass/runs/run-2026-01-23-001 --check outputs --json
+cg phase finalize gather --run-dir .chainglass/runs/run-2026-01-23-001 --json
+```
+
+For detailed documentation, see [Workflows Guide](docs/how/workflows/1-overview.md).
 
 ## Project Structure
 
@@ -66,6 +86,7 @@ chainglass/
 │   └── cli/              # @chainglass/cli - Command-line interface
 ├── packages/
 │   ├── shared/           # @chainglass/shared - Interfaces, fakes, utilities
+│   ├── workflow/         # @chainglass/workflow - Workflow execution engine
 │   └── mcp-server/       # @chainglass/mcp-server - MCP server
 ├── test/                 # Centralized test suite
 │   ├── unit/             # Unit tests (by package)
@@ -76,6 +97,8 @@ chainglass/
 
 ## Documentation
 
+- [Workflows Guide](docs/how/workflows/1-overview.md) - Multi-phase workflow execution
+- [Configuration Guide](docs/how/configuration/1-overview.md) - Configuration system
 - [Architecture Rules](docs/rules/architecture.md) - Clean architecture patterns and guidelines
 - [ADR Index](docs/adr/README.md) - Architecture Decision Records
 

@@ -235,6 +235,198 @@ cat runs/run-example-001/phases/process/run/wf-data/wf-phase.json | jq '.status[
 | `free_text` | Open text response | `text: "response"` |
 | `confirm` | Yes/No confirmation | `confirmed: true/false` |
 
+---
+
+## CLI-Based Testing
+
+These tests use the actual `cg` CLI commands to verify the workflow system works end-to-end.
+
+### Prerequisites
+
+```bash
+# Build the CLI first
+just build
+
+# Verify CLI is available
+pnpm -F @chainglass/cli exec cg --help
+```
+
+### Test 10: Compose Workflow from Template
+
+```bash
+# Navigate to project root
+cd /home/jak/substrate/003-wf-basics
+
+# Compose a new workflow run
+pnpm -F @chainglass/cli exec cg wf compose \
+  ./dev/examples/wf/template/hello-workflow \
+  --runs-dir ./dev/examples/wf/cli-test-runs \
+  --json
+
+# Expected output:
+# {
+#   "success": true,
+#   "command": "wf.compose",
+#   "data": {
+#     "template": "hello-workflow",
+#     "runDir": "./dev/examples/wf/cli-test-runs/run-YYYY-MM-DD-001",
+#     "phases": [
+#       { "name": "gather", "order": 1, "status": "pending" },
+#       { "name": "process", "order": 2, "status": "pending" },
+#       { "name": "report", "order": 3, "status": "pending" }
+#     ]
+#   }
+# }
+
+# Capture run directory for next tests
+RUN_DIR=$(pnpm -F @chainglass/cli exec cg wf compose \
+  ./dev/examples/wf/template/hello-workflow \
+  --runs-dir ./dev/examples/wf/cli-test-runs \
+  --json 2>/dev/null | jq -r '.data.runDir')
+echo "Run directory: $RUN_DIR"
+```
+
+**Expected Result**: JSON output shows success with 3 phases in pending status.
+
+### Test 11: Prepare Phase
+
+```bash
+# Prepare the gather phase
+pnpm -F @chainglass/cli exec cg phase prepare gather \
+  --run-dir "$RUN_DIR" \
+  --json
+
+# Expected output:
+# {
+#   "success": true,
+#   "command": "phase.prepare",
+#   "data": {
+#     "phase": "gather",
+#     "status": "ready",
+#     ...
+#   }
+# }
+```
+
+**Expected Result**: Phase prepare succeeds, status changes to "ready".
+
+### Test 12: Validate Phase Inputs
+
+```bash
+# Validate gather phase inputs
+pnpm -F @chainglass/cli exec cg phase validate gather \
+  --run-dir "$RUN_DIR" \
+  --check inputs \
+  --json
+
+# Expected: May succeed or fail depending on input requirements
+```
+
+**Expected Result**: Validation runs without crash. May report missing inputs if gather has file inputs.
+
+### Test 13: Validate Phase Outputs (Expect Failure)
+
+```bash
+# Before creating outputs, validation should fail
+pnpm -F @chainglass/cli exec cg phase validate gather \
+  --run-dir "$RUN_DIR" \
+  --check outputs \
+  --json
+
+# Expected output:
+# {
+#   "success": false,
+#   "command": "phase.validate",
+#   "error": {
+#     "code": "E010",
+#     "message": "Missing required output: acknowledgment.md",
+#     ...
+#   }
+# }
+```
+
+**Expected Result**: Validation fails with E010 - missing outputs.
+
+### Test 14: Create Outputs and Validate
+
+```bash
+# Create required output files
+mkdir -p "$RUN_DIR/phases/gather/run/outputs"
+echo "# Acknowledgment" > "$RUN_DIR/phases/gather/run/outputs/acknowledgment.md"
+echo '{"items": [{"id": 1}, {"id": 2}, {"id": 3}], "classification": {"type": "processing"}}' \
+  > "$RUN_DIR/phases/gather/run/outputs/gather-data.json"
+
+# Now validation should pass
+pnpm -F @chainglass/cli exec cg phase validate gather \
+  --run-dir "$RUN_DIR" \
+  --check outputs \
+  --json
+
+# Expected output:
+# {
+#   "success": true,
+#   "command": "phase.validate",
+#   ...
+# }
+```
+
+**Expected Result**: Validation passes after outputs are created.
+
+### Test 15: Finalize Phase
+
+```bash
+# Finalize the gather phase
+pnpm -F @chainglass/cli exec cg phase finalize gather \
+  --run-dir "$RUN_DIR" \
+  --json
+
+# Expected output:
+# {
+#   "success": true,
+#   "command": "phase.finalize",
+#   "data": {
+#     "phase": "gather",
+#     "extractedParams": {
+#       "item_count": 3,
+#       "request_type": "processing"
+#     },
+#     "phaseStatus": "complete"
+#   }
+# }
+
+# Verify output-params.json was created
+cat "$RUN_DIR/phases/gather/run/wf-data/output-params.json"
+```
+
+**Expected Result**: Finalize succeeds, parameters extracted, status is "complete".
+
+### Test 16: Prepare Next Phase
+
+```bash
+# Prepare process phase (should copy from gather)
+pnpm -F @chainglass/cli exec cg phase prepare process \
+  --run-dir "$RUN_DIR" \
+  --json
+
+# Verify files were copied
+ls "$RUN_DIR/phases/process/run/inputs/files/"
+# Expected: acknowledgment.md
+
+ls "$RUN_DIR/phases/process/run/inputs/data/"
+# Expected: gather-data.json
+```
+
+**Expected Result**: Process phase prepared, files copied from gather phase.
+
+### Cleanup
+
+```bash
+# Remove test runs when done
+rm -rf ./dev/examples/wf/cli-test-runs
+```
+
+---
+
 ## Test Summary
 
 | Test | Description | Pass Criteria |
@@ -248,6 +440,13 @@ cat runs/run-example-001/phases/process/run/wf-data/wf-phase.json | jq '.status[
 | 7 | Phase Content | All expected files exist with correct content |
 | 8 | Workflow Status | All phases marked complete |
 | 9 | Message Communication | All message files validate; status logs reference message_ids |
+| 10 | CLI: Compose | `cg wf compose` creates run folder |
+| 11 | CLI: Prepare | `cg phase prepare` sets status to ready |
+| 12 | CLI: Validate Inputs | `cg phase validate --check inputs` runs |
+| 13 | CLI: Validate Missing | `cg phase validate --check outputs` fails before outputs |
+| 14 | CLI: Validate Outputs | `cg phase validate --check outputs` passes after outputs |
+| 15 | CLI: Finalize | `cg phase finalize` extracts params |
+| 16 | CLI: Cross-Phase | `cg phase prepare` copies from prior phase |
 
 ## Troubleshooting
 
@@ -267,4 +466,4 @@ Ensure the YAML files don't contain tabs (use spaces for indentation).
 
 ---
 
-*Last updated: 2026-01-22*
+*Last updated: 2026-01-23*
