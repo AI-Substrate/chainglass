@@ -260,7 +260,7 @@ flowchart TD
 | ST016 | CLI | message.command.ts | ✅ Complete | list action handler |
 | ST017 | CLI | message.command.ts | ✅ Complete | read action handler |
 | ST018 | CLI | phase.command.ts, cg.ts | ✅ Complete | Register message subcommand group |
-| ST019 | Integration Test | message-commands.test.ts | ⬜ Pending | CLI integration tests |
+| ST019 | Integration Test | message-commands.test.ts | ➡️ Deferred | Moved to Phase 6 manual test harness subtask |
 | ST020 | Adapters | console-output.adapter.ts, json-output.adapter.ts | ✅ Complete | Add message formatters |
 
 ---
@@ -287,7 +287,7 @@ flowchart TD
 | [x] | ST016 | Implement `cg phase message list` action handler | 2 | CLI | ST015 | /home/jak/substrate/003-wf-basics/apps/cli/src/commands/message.command.ts | Action handler wired | – | --json, --run-dir |
 | [x] | ST017 | Implement `cg phase message read` action handler | 2 | CLI | ST016 | /home/jak/substrate/003-wf-basics/apps/cli/src/commands/message.command.ts | Action handler wired | – | --id, --json, --run-dir |
 | [x] | ST018 | Register message commands in phase.command.ts or cg.ts | 1 | CLI | ST017 | /home/jak/substrate/003-wf-basics/apps/cli/src/commands/phase.command.ts, /home/jak/substrate/003-wf-basics/apps/cli/src/bin/cg.ts | Help shows message commands | – | `cg phase message --help` works |
-| [ ] | ST019 | Write CLI integration tests for all 4 message commands | 2 | Test | ST018 | /home/jak/substrate/003-wf-basics/test/integration/cli/message-commands.test.ts | All CLI tests pass | – | Uses exemplar run folder |
+| [→] | ST019 | Write CLI integration tests for all 4 message commands | 2 | Test | ST018 | /home/jak/substrate/003-wf-basics/test/integration/cli/message-commands.test.ts | Deferred to Phase 6 manual test harness | – | Uses exemplar run folder |
 | [x] | ST020 | Add message command formatters to output adapters | 2 | Adapter | ST012, ST019 | /home/jak/substrate/003-wf-basics/packages/shared/src/adapters/console-output.adapter.ts, /home/jak/substrate/003-wf-basics/packages/shared/src/adapters/json-output.adapter.ts | Formatters dispatch correctly | – | Per Phase 1a pattern |
 
 ---

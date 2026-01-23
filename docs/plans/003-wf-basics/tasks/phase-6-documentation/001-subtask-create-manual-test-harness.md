@@ -115,6 +115,16 @@ Create a test harness that proves the workflow system works end-to-end, validate
 - ❌ Multiple workflow templates (hello-workflow only)
 - ❌ Performance testing
 
+### Deferred Items (From Other Subtasks)
+
+The following items were deferred to this subtask for inclusion in the manual test harness:
+
+| From | Item | Description |
+|------|------|-------------|
+| Phase 3 Subtask 001 (ST019) | Message CLI Integration Tests | Test `cg phase message create/answer/list/read` against exemplar run folder |
+
+These should be incorporated into the manual test harness scenarios where appropriate.
+
 ---
 
 ## Architecture Map
