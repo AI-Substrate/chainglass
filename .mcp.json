@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "chainglass": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "./apps/cli/dist/cli.cjs",
+        "mcp",
+        "--stdio"
+      ],
+      "env": {}
+    }
+  }
+}

@@ -146,9 +146,8 @@ vite.config.ts.timestamp-*
 !.fs2/config.yaml
 scratch/*
 
-# Chainglass workflow runtime
+# Chainglass workflow runtime (generated runs)
 .chainglass/
-.mcp.json
 
 # TypeScript build artifacts in src directories (should only be in dist/)
 packages/*/src/**/*.js
