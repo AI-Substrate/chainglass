@@ -4,6 +4,7 @@
  * Per Phase 3: Phase Operations - Provides cg phase prepare and cg phase validate commands.
  * Per Phase 4: Phase Lifecycle - Adds cg phase finalize command.
  * Per Phase 3 Subtask 001: Adds cg phase message commands.
+ * Per Phase 3 Subtask 002: Adds cg phase accept/preflight/handover commands.
  */
 
 import {
@@ -53,6 +54,44 @@ interface FinalizeOptions {
   json?: boolean;
   /** Run directory path (required) */
   runDir: string;
+}
+
+/**
+ * Options for phase accept command.
+ */
+interface AcceptOptions {
+  /** Output as JSON (default: false) */
+  json?: boolean;
+  /** Run directory path (required) */
+  runDir: string;
+  /** Optional comment explaining acceptance */
+  comment?: string;
+}
+
+/**
+ * Options for phase preflight command.
+ */
+interface PreflightOptions {
+  /** Output as JSON (default: false) */
+  json?: boolean;
+  /** Run directory path (required) */
+  runDir: string;
+  /** Optional comment for preflight */
+  comment?: string;
+}
+
+/**
+ * Options for phase handover command.
+ */
+interface HandoverOptions {
+  /** Output as JSON (default: false) */
+  json?: boolean;
+  /** Run directory path (required) */
+  runDir: string;
+  /** Reason for handover */
+  reason?: string;
+  /** Whether this handover is due to an error */
+  error?: boolean;
 }
 
 /**
@@ -139,6 +178,75 @@ async function handleFinalize(phase: string, options: FinalizeOptions): Promise<
   }
 }
 
+// ==================== Handover Commands (Phase 3 Subtask 002) ====================
+
+/**
+ * Handle cg phase accept <phase> command.
+ *
+ * @param phase - Phase name to accept
+ * @param options - Command options
+ */
+async function handleAccept(phase: string, options: AcceptOptions): Promise<void> {
+  const service = createPhaseService();
+  const adapter = createOutputAdapter(options.json ?? false);
+
+  const result = await service.accept(phase, options.runDir, {
+    comment: options.comment,
+  });
+  const output = adapter.format('phase.accept', result);
+
+  console.log(output);
+
+  if (result.errors.length > 0) {
+    process.exit(1);
+  }
+}
+
+/**
+ * Handle cg phase preflight <phase> command.
+ *
+ * @param phase - Phase name to preflight
+ * @param options - Command options
+ */
+async function handlePreflight(phase: string, options: PreflightOptions): Promise<void> {
+  const service = createPhaseService();
+  const adapter = createOutputAdapter(options.json ?? false);
+
+  const result = await service.preflight(phase, options.runDir, {
+    comment: options.comment,
+  });
+  const output = adapter.format('phase.preflight', result);
+
+  console.log(output);
+
+  if (result.errors.length > 0) {
+    process.exit(1);
+  }
+}
+
+/**
+ * Handle cg phase handover <phase> command.
+ *
+ * @param phase - Phase name to handover
+ * @param options - Command options
+ */
+async function handleHandover(phase: string, options: HandoverOptions): Promise<void> {
+  const service = createPhaseService();
+  const adapter = createOutputAdapter(options.json ?? false);
+
+  const result = await service.handover(phase, options.runDir, {
+    reason: options.reason,
+    dueToError: options.error,
+  });
+  const output = adapter.format('phase.handover', result);
+
+  console.log(output);
+
+  if (result.errors.length > 0) {
+    process.exit(1);
+  }
+}
+
 /**
  * Register the phase command group with the Commander program.
  *
@@ -187,6 +295,40 @@ export function registerPhaseCommands(program: Command): void {
     .option('--json', 'Output as JSON', false)
     .action(async (phaseName: string, options: FinalizeOptions) => {
       await handleFinalize(phaseName, options);
+    });
+
+  // cg phase accept <phase> - Agent accepts control of a phase
+  phase
+    .command('accept <phase>')
+    .description('Accept control of a phase (agent takes over from orchestrator)')
+    .requiredOption('--run-dir <path>', 'Run directory path')
+    .option('--comment <text>', 'Comment explaining the acceptance')
+    .option('--json', 'Output as JSON', false)
+    .action(async (phaseName: string, options: AcceptOptions) => {
+      await handleAccept(phaseName, options);
+    });
+
+  // cg phase preflight <phase> - Agent validates readiness
+  phase
+    .command('preflight <phase>')
+    .description('Run preflight checks before starting phase work')
+    .requiredOption('--run-dir <path>', 'Run directory path')
+    .option('--comment <text>', 'Comment for the preflight check')
+    .option('--json', 'Output as JSON', false)
+    .action(async (phaseName: string, options: PreflightOptions) => {
+      await handlePreflight(phaseName, options);
+    });
+
+  // cg phase handover <phase> - Transfer control
+  phase
+    .command('handover <phase>')
+    .description('Hand over control of a phase to the other party')
+    .requiredOption('--run-dir <path>', 'Run directory path')
+    .option('--reason <text>', 'Reason for the handover')
+    .option('--error', 'Indicate handover is due to an error (sets state to blocked)', false)
+    .option('--json', 'Output as JSON', false)
+    .action(async (phaseName: string, options: HandoverOptions) => {
+      await handleHandover(phaseName, options);
     });
 
   // Register message subcommands under phase

@@ -1,5 +1,6 @@
-import { FakeFileSystem } from '@chainglass/shared';
+import { type AcceptResult, FakeFileSystem } from '@chainglass/shared';
 import {
+  type AcceptOptions,
   FakeSchemaValidator,
   FakeYamlParser,
   type IPhaseService,
@@ -1061,6 +1062,514 @@ output_parameters:
         expect(result2.errors).toHaveLength(0);
         expect(result1.phaseStatus).toBe('complete');
         expect(result2.phaseStatus).toBe('complete');
+      });
+    });
+  });
+
+  // ==================== Accept Tests (Phase 3 Subtask 002) ====================
+
+  describe('accept()', () => {
+    /**
+     * Helper to set up wf-phase.json for accept tests.
+     */
+    function setupWfPhaseJson(facilitator: 'agent' | 'orchestrator', state: string): void {
+      const wfPhaseState: WfPhaseState = {
+        phase: 'gather',
+        facilitator,
+        state: state as WfPhaseState['state'],
+        status: [],
+      };
+      fs.setFile(
+        `${runDir}/phases/gather/run/wf-data/wf-phase.json`,
+        JSON.stringify(wfPhaseState, null, 2)
+      );
+    }
+
+    describe('happy path', () => {
+      it('should return AcceptResult with facilitator=agent', async () => {
+        /*
+        Test Doc:
+        - Why: Agent accepting phase is the primary use case
+        - Contract: accept() sets facilitator to 'agent' and state to 'accepted'
+        - Usage Notes: Called after orchestrator hands over phase
+        - Quality Contribution: Core handover functionality
+        - Worked Example: accept('gather') → { facilitator: 'agent', state: 'accepted' }
+        */
+        setupRunDir('active', 'pending');
+        setupWfPhaseJson('orchestrator', 'ready');
+
+        const result = await service.accept('gather', runDir, {});
+
+        expect(result.errors).toHaveLength(0);
+        expect(result.facilitator).toBe('agent');
+        expect(result.state).toBe('accepted');
+        expect(result.phase).toBe('gather');
+        expect(result.runDir).toBe(runDir);
+      });
+
+      it('should append accept status entry to wf-phase.json', async () => {
+        /*
+        Test Doc:
+        - Why: Status history must be maintained for audit trail
+        - Contract: accept() appends StatusEntry with action='accept'
+        - Usage Notes: Status entries are append-only
+        - Quality Contribution: Audit trail for debugging
+        - Worked Example: accept() → wf-phase.json.status includes accept entry
+        */
+        setupRunDir('active', 'pending');
+        setupWfPhaseJson('orchestrator', 'ready');
+
+        await service.accept('gather', runDir, {});
+
+        const wfPhaseContent = await fs.readFile(
+          `${runDir}/phases/gather/run/wf-data/wf-phase.json`
+        );
+        const wfPhase = JSON.parse(wfPhaseContent) as WfPhaseState;
+
+        expect(wfPhase.status).toHaveLength(1);
+        expect(wfPhase.status[0].action).toBe('accept');
+        expect(wfPhase.status[0].from).toBe('agent');
+        expect(wfPhase.status[0].timestamp).toBeDefined();
+      });
+
+      it('should include comment in status entry when provided', async () => {
+        /*
+        Test Doc:
+        - Why: Comments provide human context for status entries
+        - Contract: accept() with comment option includes it in StatusEntry
+        - Usage Notes: Optional but helpful for debugging
+        - Quality Contribution: Better audit trail
+        - Worked Example: accept({ comment: 'Taking control' }) → status.comment = 'Taking control'
+        */
+        setupRunDir('active', 'pending');
+        setupWfPhaseJson('orchestrator', 'ready');
+
+        const result = await service.accept('gather', runDir, { comment: 'Taking control' });
+
+        expect(result.statusEntry.comment).toBe('Taking control');
+
+        const wfPhaseContent = await fs.readFile(
+          `${runDir}/phases/gather/run/wf-data/wf-phase.json`
+        );
+        const wfPhase = JSON.parse(wfPhaseContent) as WfPhaseState;
+        expect(wfPhase.status[0].comment).toBe('Taking control');
+      });
+    });
+
+    describe('lazy initialization', () => {
+      it('should create wf-phase.json if missing (lazy init)', async () => {
+        /*
+        Test Doc:
+        - Why: wf-phase.json is not created by compose/prepare (per DYK Insight #2)
+        - Contract: accept() creates file with initial state if missing
+        - Usage Notes: Initial state: { facilitator: 'orchestrator', state: 'ready', status: [] }
+        - Quality Contribution: Seamless first-time accept
+        - Worked Example: accept() on new phase → creates wf-phase.json
+        */
+        setupRunDir('active', 'pending');
+        // Ensure wf-data directory exists but no wf-phase.json
+        fs.setFile(`${runDir}/phases/gather/run/wf-data/.keep`, '');
+
+        const result = await service.accept('gather', runDir, {});
+
+        expect(result.errors).toHaveLength(0);
+        expect(result.facilitator).toBe('agent');
+        expect(result.state).toBe('accepted');
+
+        // Verify file was created
+        const exists = await fs.exists(`${runDir}/phases/gather/run/wf-data/wf-phase.json`);
+        expect(exists).toBe(true);
+
+        const wfPhaseContent = await fs.readFile(
+          `${runDir}/phases/gather/run/wf-data/wf-phase.json`
+        );
+        const wfPhase = JSON.parse(wfPhaseContent) as WfPhaseState;
+        expect(wfPhase.facilitator).toBe('agent');
+        expect(wfPhase.status).toHaveLength(1);
+      });
+    });
+
+    describe('idempotency', () => {
+      it('should return success with wasNoOp=true if already agent', async () => {
+        /*
+        Test Doc:
+        - Why: Idempotency - repeated accept should not fail
+        - Contract: accept() when facilitator=agent returns wasNoOp=true
+        - Usage Notes: Safe to retry accept
+        - Quality Contribution: Robust retry behavior
+        - Worked Example: accept() twice → second call has wasNoOp=true
+        */
+        setupRunDir('active', 'pending');
+        setupWfPhaseJson('agent', 'accepted');
+
+        const result = await service.accept('gather', runDir, {});
+
+        expect(result.errors).toHaveLength(0);
+        expect(result.wasNoOp).toBe(true);
+        expect(result.facilitator).toBe('agent');
+      });
+
+      it('should not duplicate status entry on re-accept', async () => {
+        /*
+        Test Doc:
+        - Why: No duplicate audit entries on retry
+        - Contract: accept() when already agent does not append status
+        - Usage Notes: Status array unchanged on no-op
+        - Quality Contribution: Clean audit trail
+        - Worked Example: accept() twice → single accept entry
+        */
+        setupRunDir('active', 'pending');
+        setupWfPhaseJson('orchestrator', 'ready');
+
+        await service.accept('gather', runDir, {});
+
+        // Read status count after first accept
+        let wfPhaseContent = await fs.readFile(`${runDir}/phases/gather/run/wf-data/wf-phase.json`);
+        let wfPhase = JSON.parse(wfPhaseContent) as WfPhaseState;
+        const initialCount = wfPhase.status.length;
+
+        // Accept again (now facilitator is already agent)
+        await service.accept('gather', runDir, {});
+
+        wfPhaseContent = await fs.readFile(`${runDir}/phases/gather/run/wf-data/wf-phase.json`);
+        wfPhase = JSON.parse(wfPhaseContent) as WfPhaseState;
+
+        expect(wfPhase.status.length).toBe(initialCount);
+      });
+    });
+
+    describe('error cases', () => {
+      it('should return E020 when phase does not exist', async () => {
+        /*
+        Test Doc:
+        - Why: Invalid phase name should be caught
+        - Contract: Returns E020 when phase doesn't exist
+        - Usage Notes: Check phase name spelling
+        - Quality Contribution: Clear error for typos
+        - Worked Example: accept('nonexistent') → E020
+        */
+        setupRunDir();
+
+        const result = await service.accept('nonexistent', runDir, {});
+
+        expect(result.errors).toHaveLength(1);
+        expect(result.errors[0].code).toBe('E020');
+      });
+    });
+  });
+
+  // ==================== Preflight Tests (Phase 3 Subtask 002) ====================
+
+  describe('preflight()', () => {
+    /**
+     * Helper to set up wf-phase.json for preflight tests.
+     */
+    function setupWfPhaseJson(facilitator: 'agent' | 'orchestrator', state: string): void {
+      const wfPhaseState: WfPhaseState = {
+        phase: 'gather',
+        facilitator,
+        state: state as WfPhaseState['state'],
+        status: [],
+      };
+      fs.setFile(
+        `${runDir}/phases/gather/run/wf-data/wf-phase.json`,
+        JSON.stringify(wfPhaseState, null, 2)
+      );
+    }
+
+    describe('happy path', () => {
+      it('should return PreflightResult with checks passed', async () => {
+        /*
+        Test Doc:
+        - Why: Agent validates readiness before starting work
+        - Contract: preflight() returns checks object with validation results
+        - Usage Notes: Called after accept(), before doing work
+        - Quality Contribution: Pre-work validation
+        - Worked Example: preflight('gather') → { checks: { configValid: true, ... } }
+        */
+        setupRunDir('active', 'pending');
+        setupWfPhaseJson('agent', 'accepted');
+        // Ensure inputs exist for validation
+        fs.setFile(`${runDir}/phases/gather/run/inputs/files/.keep`, '');
+
+        const result = await service.preflight('gather', runDir, {});
+
+        expect(result.errors).toHaveLength(0);
+        expect(result.checks).toBeDefined();
+        expect(result.checks.configValid).toBe(true);
+        expect(result.phase).toBe('gather');
+        expect(result.runDir).toBe(runDir);
+      });
+
+      it('should append preflight status entry to wf-phase.json', async () => {
+        /*
+        Test Doc:
+        - Why: Status history must be maintained for audit trail
+        - Contract: preflight() appends StatusEntry with action='preflight'
+        - Usage Notes: Status entries are append-only
+        - Quality Contribution: Audit trail for debugging
+        - Worked Example: preflight() → wf-phase.json.status includes preflight entry
+        */
+        setupRunDir('active', 'pending');
+        setupWfPhaseJson('agent', 'accepted');
+
+        await service.preflight('gather', runDir, {});
+
+        const wfPhaseContent = await fs.readFile(
+          `${runDir}/phases/gather/run/wf-data/wf-phase.json`
+        );
+        const wfPhase = JSON.parse(wfPhaseContent) as WfPhaseState;
+
+        expect(wfPhase.status).toHaveLength(1);
+        expect(wfPhase.status[0].action).toBe('preflight');
+        expect(wfPhase.status[0].from).toBe('agent');
+      });
+    });
+
+    describe('error cases', () => {
+      it('should return E071 if called before accept (orchestrator is facilitator)', async () => {
+        /*
+        Test Doc:
+        - Why: preflight requires agent to have accepted the phase first
+        - Contract: Returns E071 when facilitator is not 'agent'
+        - Usage Notes: Call accept() before preflight()
+        - Quality Contribution: Enforces correct workflow sequence
+        - Worked Example: preflight() without accept → E071
+        */
+        setupRunDir('active', 'pending');
+        setupWfPhaseJson('orchestrator', 'ready');
+
+        const result = await service.preflight('gather', runDir, {});
+
+        expect(result.errors).toHaveLength(1);
+        expect(result.errors[0].code).toBe('E071');
+      });
+
+      it('should return E020 when phase does not exist', async () => {
+        /*
+        Test Doc:
+        - Why: Invalid phase name should be caught
+        - Contract: Returns E020 when phase doesn't exist
+        - Usage Notes: Check phase name spelling
+        - Quality Contribution: Clear error for typos
+        - Worked Example: preflight('nonexistent') → E020
+        */
+        setupRunDir();
+
+        const result = await service.preflight('nonexistent', runDir, {});
+
+        expect(result.errors).toHaveLength(1);
+        expect(result.errors[0].code).toBe('E020');
+      });
+    });
+
+    describe('idempotency', () => {
+      it('should return success with wasNoOp=true if already preflighted', async () => {
+        /*
+        Test Doc:
+        - Why: Idempotency - repeated preflight should not fail
+        - Contract: preflight() when already preflighted returns wasNoOp=true
+        - Usage Notes: Safe to retry preflight
+        - Quality Contribution: Robust retry behavior
+        - Worked Example: preflight() twice → second call has wasNoOp=true
+        */
+        setupRunDir('active', 'pending');
+        // Set up with existing preflight in status
+        const wfPhaseState: WfPhaseState = {
+          phase: 'gather',
+          facilitator: 'agent',
+          state: 'accepted',
+          status: [
+            { timestamp: new Date().toISOString(), from: 'agent', action: 'accept' },
+            { timestamp: new Date().toISOString(), from: 'agent', action: 'preflight' },
+          ],
+        };
+        fs.setFile(
+          `${runDir}/phases/gather/run/wf-data/wf-phase.json`,
+          JSON.stringify(wfPhaseState, null, 2)
+        );
+
+        const result = await service.preflight('gather', runDir, {});
+
+        expect(result.errors).toHaveLength(0);
+        expect(result.wasNoOp).toBe(true);
+      });
+    });
+  });
+
+  // ==================== Handover Tests (Phase 3 Subtask 002) ====================
+
+  describe('handover()', () => {
+    /**
+     * Helper to set up wf-phase.json for handover tests.
+     */
+    function setupWfPhaseJson(facilitator: 'agent' | 'orchestrator', state: string): void {
+      const wfPhaseState: WfPhaseState = {
+        phase: 'gather',
+        facilitator,
+        state: state as WfPhaseState['state'],
+        status: [],
+      };
+      fs.setFile(
+        `${runDir}/phases/gather/run/wf-data/wf-phase.json`,
+        JSON.stringify(wfPhaseState, null, 2)
+      );
+    }
+
+    describe('happy path', () => {
+      it('should return HandoverResult switching facilitator from agent to orchestrator', async () => {
+        /*
+        Test Doc:
+        - Why: Agent needs to hand control back to orchestrator
+        - Contract: handover() switches facilitator and returns old/new values
+        - Usage Notes: Called when agent completes work or needs help
+        - Quality Contribution: Core handover functionality
+        - Worked Example: handover('gather') → { fromFacilitator: 'agent', toFacilitator: 'orchestrator' }
+        */
+        setupRunDir('active', 'pending');
+        setupWfPhaseJson('agent', 'accepted');
+
+        const result = await service.handover('gather', runDir, { reason: 'Work complete' });
+
+        expect(result.errors).toHaveLength(0);
+        expect(result.fromFacilitator).toBe('agent');
+        expect(result.toFacilitator).toBe('orchestrator');
+        expect(result.phase).toBe('gather');
+        expect(result.runDir).toBe(runDir);
+      });
+
+      it('should append handover status entry to wf-phase.json', async () => {
+        /*
+        Test Doc:
+        - Why: Status history must be maintained for audit trail
+        - Contract: handover() appends StatusEntry with action='handover'
+        - Usage Notes: Status entries are append-only
+        - Quality Contribution: Audit trail for debugging
+        - Worked Example: handover() → wf-phase.json.status includes handover entry
+        */
+        setupRunDir('active', 'pending');
+        setupWfPhaseJson('agent', 'accepted');
+
+        await service.handover('gather', runDir, { reason: 'Work complete' });
+
+        const wfPhaseContent = await fs.readFile(
+          `${runDir}/phases/gather/run/wf-data/wf-phase.json`
+        );
+        const wfPhase = JSON.parse(wfPhaseContent) as WfPhaseState;
+
+        expect(wfPhase.status).toHaveLength(1);
+        expect(wfPhase.status[0].action).toBe('handover');
+        // From is inferred from current facilitator before change
+        expect(wfPhase.status[0].from).toBe('agent');
+      });
+
+      it('should set state to blocked when dueToError=true', async () => {
+        /*
+        Test Doc:
+        - Why: Error handovers need special state to signal problem
+        - Contract: handover() with dueToError sets state='blocked'
+        - Usage Notes: Use when preflight fails or errors occur
+        - Quality Contribution: Clear error signaling
+        - Worked Example: handover({ dueToError: true }) → { state: 'blocked' }
+        */
+        setupRunDir('active', 'pending');
+        setupWfPhaseJson('agent', 'accepted');
+
+        const result = await service.handover('gather', runDir, {
+          reason: 'Preflight failed',
+          dueToError: true,
+        });
+
+        expect(result.errors).toHaveLength(0);
+        expect(result.state).toBe('blocked');
+
+        const wfPhaseContent = await fs.readFile(
+          `${runDir}/phases/gather/run/wf-data/wf-phase.json`
+        );
+        const wfPhase = JSON.parse(wfPhaseContent) as WfPhaseState;
+        expect(wfPhase.state).toBe('blocked');
+      });
+
+      it('should include reason in status entry comment', async () => {
+        /*
+        Test Doc:
+        - Why: Reasons provide context for why handover happened
+        - Contract: handover() includes reason in StatusEntry.comment
+        - Usage Notes: Always provide a reason for audit trail
+        - Quality Contribution: Better debugging context
+        - Worked Example: handover({ reason: 'Done' }) → status.comment = 'Done'
+        */
+        setupRunDir('active', 'pending');
+        setupWfPhaseJson('agent', 'accepted');
+
+        const result = await service.handover('gather', runDir, { reason: 'Work complete' });
+
+        expect(result.statusEntry.comment).toBe('Work complete');
+
+        const wfPhaseContent = await fs.readFile(
+          `${runDir}/phases/gather/run/wf-data/wf-phase.json`
+        );
+        const wfPhase = JSON.parse(wfPhaseContent) as WfPhaseState;
+        expect(wfPhase.status[0].comment).toBe('Work complete');
+      });
+    });
+
+    describe('bidirectional handover', () => {
+      it('should switch facilitator from agent to orchestrator', async () => {
+        /*
+        Test Doc:
+        - Why: Agent needs to hand control back to orchestrator
+        - Contract: handover() from agent switches to orchestrator
+        - Usage Notes: Called when agent completes work
+        - Quality Contribution: Core handover functionality
+        - Worked Example: agent→orchestrator handover
+        */
+        setupRunDir('active', 'pending');
+        setupWfPhaseJson('agent', 'accepted');
+
+        const result = await service.handover('gather', runDir, { reason: 'Done' });
+
+        expect(result.errors).toHaveLength(0);
+        expect(result.fromFacilitator).toBe('agent');
+        expect(result.toFacilitator).toBe('orchestrator');
+      });
+
+      it('should switch facilitator from orchestrator to agent', async () => {
+        /*
+        Test Doc:
+        - Why: Orchestrator needs to hand control to agent
+        - Contract: handover() from orchestrator switches to agent
+        - Usage Notes: Called when orchestrator prepares phase for agent
+        - Quality Contribution: Core handover functionality
+        - Worked Example: orchestrator→agent handover
+        */
+        setupRunDir('active', 'pending');
+        setupWfPhaseJson('orchestrator', 'ready');
+
+        const result = await service.handover('gather', runDir, { reason: 'Ready for agent' });
+
+        expect(result.errors).toHaveLength(0);
+        expect(result.fromFacilitator).toBe('orchestrator');
+        expect(result.toFacilitator).toBe('agent');
+      });
+    });
+
+    describe('error cases', () => {
+      it('should return E020 when phase does not exist', async () => {
+        /*
+        Test Doc:
+        - Why: Invalid phase name should be caught
+        - Contract: Returns E020 when phase doesn't exist
+        - Usage Notes: Check phase name spelling
+        - Quality Contribution: Clear error for typos
+        - Worked Example: handover('nonexistent') → E020
+        */
+        setupRunDir();
+
+        const result = await service.handover('nonexistent', runDir, { reason: 'Test' });
+
+        expect(result.errors).toHaveLength(1);
+        expect(result.errors[0].code).toBe('E020');
       });
     });
   });

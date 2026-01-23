@@ -4,19 +4,29 @@
  * Per DYK-04: FakePhaseService needs call capture (like FakeWorkflowService),
  * not just state storage (like FakeFileSystem), to enable CLI testing.
  *
- * This fake captures all prepare() and validate() calls for test assertions
- * and can be configured with preset results.
+ * This fake captures all prepare(), validate(), finalize(), accept(), preflight(),
+ * and handover() calls for test assertions and can be configured with preset results.
  */
 
 import type {
+  AcceptResult,
   CopiedFile,
   FinalizeResult,
+  HandoverResult,
+  PreflightResult,
   PrepareResult,
   ResolvedInput,
+  StatusEntry as SharedStatusEntry,
   ValidateResult,
   ValidatedFile,
 } from '@chainglass/shared';
-import type { IPhaseService, ValidateCheckMode } from '../interfaces/phase-service.interface.js';
+import type {
+  AcceptOptions,
+  HandoverOptions,
+  IPhaseService,
+  PreflightOptions,
+  ValidateCheckMode,
+} from '../interfaces/phase-service.interface.js';
 
 /**
  * Recorded prepare() call for test inspection.
@@ -63,9 +73,58 @@ export interface FinalizeCall {
 }
 
 /**
+ * Recorded accept() call for test inspection.
+ */
+export interface AcceptCall {
+  /** Phase name passed to accept() */
+  phase: string;
+  /** Run directory passed to accept() */
+  runDir: string;
+  /** Options passed to accept() */
+  options: AcceptOptions;
+  /** Result returned from accept() */
+  result: AcceptResult;
+  /** Timestamp when accept() was called */
+  timestamp: string;
+}
+
+/**
+ * Recorded preflight() call for test inspection.
+ */
+export interface PreflightCall {
+  /** Phase name passed to preflight() */
+  phase: string;
+  /** Run directory passed to preflight() */
+  runDir: string;
+  /** Options passed to preflight() */
+  options: PreflightOptions;
+  /** Result returned from preflight() */
+  result: PreflightResult;
+  /** Timestamp when preflight() was called */
+  timestamp: string;
+}
+
+/**
+ * Recorded handover() call for test inspection.
+ */
+export interface HandoverCall {
+  /** Phase name passed to handover() */
+  phase: string;
+  /** Run directory passed to handover() */
+  runDir: string;
+  /** Options passed to handover() */
+  options: HandoverOptions;
+  /** Result returned from handover() */
+  result: HandoverResult;
+  /** Timestamp when handover() was called */
+  timestamp: string;
+}
+
+/**
  * Fake phase service for testing.
  *
- * Captures all prepare(), validate(), and finalize() calls for inspection.
+ * Captures all prepare(), validate(), finalize(), accept(), preflight(),
+ * and handover() calls for inspection.
  * Can be configured with preset results or use default success responses.
  */
 export class FakePhaseService implements IPhaseService {
@@ -78,6 +137,15 @@ export class FakePhaseService implements IPhaseService {
   /** Recorded finalize calls */
   private finalizeCalls: FinalizeCall[] = [];
 
+  /** Recorded accept calls */
+  private acceptCalls: AcceptCall[] = [];
+
+  /** Recorded preflight calls */
+  private preflightCalls: PreflightCall[] = [];
+
+  /** Recorded handover calls */
+  private handoverCalls: HandoverCall[] = [];
+
   /** Preset prepare results for specific phases */
   private prepareResults = new Map<string, PrepareResult>();
 
@@ -87,6 +155,15 @@ export class FakePhaseService implements IPhaseService {
   /** Preset finalize results for specific phases */
   private finalizeResults = new Map<string, FinalizeResult>();
 
+  /** Preset accept results for specific phases */
+  private acceptResults = new Map<string, AcceptResult>();
+
+  /** Preset preflight results for specific phases */
+  private preflightResults = new Map<string, PreflightResult>();
+
+  /** Preset handover results for specific phases */
+  private handoverResults = new Map<string, HandoverResult>();
+
   /** Default prepare result to return if no preset matches */
   private defaultPrepareResult: PrepareResult | null = null;
 
@@ -95,6 +172,15 @@ export class FakePhaseService implements IPhaseService {
 
   /** Default finalize result to return if no preset matches */
   private defaultFinalizeResult: FinalizeResult | null = null;
+
+  /** Default accept result to return if no preset matches */
+  private defaultAcceptResult: AcceptResult | null = null;
+
+  /** Default preflight result to return if no preset matches */
+  private defaultPreflightResult: PreflightResult | null = null;
+
+  /** Default handover result to return if no preset matches */
+  private defaultHandoverResult: HandoverResult | null = null;
 
   // ==================== Prepare Test Helpers ====================
 
@@ -325,12 +411,134 @@ export class FakePhaseService implements IPhaseService {
     this.prepareCalls = [];
     this.validateCalls = [];
     this.finalizeCalls = [];
+    this.acceptCalls = [];
+    this.preflightCalls = [];
+    this.handoverCalls = [];
     this.prepareResults.clear();
     this.validateResults.clear();
     this.finalizeResults.clear();
+    this.acceptResults.clear();
+    this.preflightResults.clear();
+    this.handoverResults.clear();
     this.defaultPrepareResult = null;
     this.defaultValidateResult = null;
     this.defaultFinalizeResult = null;
+    this.defaultAcceptResult = null;
+    this.defaultPreflightResult = null;
+    this.defaultHandoverResult = null;
+  }
+
+  // ==================== Accept Test Helpers ====================
+
+  /**
+   * Get the last accept call (test helper).
+   */
+  getLastAcceptCall(): AcceptCall | null {
+    return this.acceptCalls.length > 0 ? this.acceptCalls[this.acceptCalls.length - 1] : null;
+  }
+
+  /**
+   * Get all accept calls in order (test helper).
+   */
+  getAcceptCalls(): AcceptCall[] {
+    return [...this.acceptCalls];
+  }
+
+  /**
+   * Get number of accept calls (test helper).
+   */
+  getAcceptCallCount(): number {
+    return this.acceptCalls.length;
+  }
+
+  /**
+   * Set a preset accept result for a specific phase (test helper).
+   */
+  setAcceptResult(phase: string, result: AcceptResult): void {
+    this.acceptResults.set(phase, result);
+  }
+
+  /**
+   * Set a default accept result for all calls (test helper).
+   */
+  setDefaultAcceptResult(result: AcceptResult): void {
+    this.defaultAcceptResult = result;
+  }
+
+  // ==================== Preflight Test Helpers ====================
+
+  /**
+   * Get the last preflight call (test helper).
+   */
+  getLastPreflightCall(): PreflightCall | null {
+    return this.preflightCalls.length > 0
+      ? this.preflightCalls[this.preflightCalls.length - 1]
+      : null;
+  }
+
+  /**
+   * Get all preflight calls in order (test helper).
+   */
+  getPreflightCalls(): PreflightCall[] {
+    return [...this.preflightCalls];
+  }
+
+  /**
+   * Get number of preflight calls (test helper).
+   */
+  getPreflightCallCount(): number {
+    return this.preflightCalls.length;
+  }
+
+  /**
+   * Set a preset preflight result for a specific phase (test helper).
+   */
+  setPreflightResult(phase: string, result: PreflightResult): void {
+    this.preflightResults.set(phase, result);
+  }
+
+  /**
+   * Set a default preflight result for all calls (test helper).
+   */
+  setDefaultPreflightResult(result: PreflightResult): void {
+    this.defaultPreflightResult = result;
+  }
+
+  // ==================== Handover Test Helpers ====================
+
+  /**
+   * Get the last handover call (test helper).
+   */
+  getLastHandoverCall(): HandoverCall | null {
+    return this.handoverCalls.length > 0 ? this.handoverCalls[this.handoverCalls.length - 1] : null;
+  }
+
+  /**
+   * Get all handover calls in order (test helper).
+   */
+  getHandoverCalls(): HandoverCall[] {
+    return [...this.handoverCalls];
+  }
+
+  /**
+   * Get number of handover calls (test helper).
+   */
+  getHandoverCallCount(): number {
+    return this.handoverCalls.length;
+  }
+
+  /**
+   * Set a preset handover result for a specific phase (test helper).
+   */
+  setHandoverResult(phase: string, result: HandoverResult): void {
+    this.handoverResults.set(phase, result);
+  }
+
+  /**
+   * Set a default handover result for all calls (test helper).
+   */
+  setDefaultHandoverResult(result: HandoverResult): void {
+    this.defaultHandoverResult = result;
   }
 
   /**
@@ -637,6 +845,202 @@ export class FakePhaseService implements IPhaseService {
     };
 
     this.finalizeCalls.push({ phase, runDir, result, timestamp: new Date().toISOString() });
+    return result;
+  }
+
+  // ==================== Handover Methods (Phase 3 Subtask 002) ====================
+
+  /**
+   * Accept a phase.
+   *
+   * Captures the call and returns either:
+   * - Preset result (if configured for this phase)
+   * - Default result (if set)
+   * - Auto-generated success result (otherwise)
+   */
+  async accept(phase: string, runDir: string, options?: AcceptOptions): Promise<AcceptResult> {
+    const opts = options ?? {};
+
+    // Check for preset result
+    const presetResult = this.acceptResults.get(phase);
+    if (presetResult) {
+      this.acceptCalls.push({
+        phase,
+        runDir,
+        options: opts,
+        result: presetResult,
+        timestamp: new Date().toISOString(),
+      });
+      return presetResult;
+    }
+
+    // Check for default result
+    if (this.defaultAcceptResult) {
+      this.acceptCalls.push({
+        phase,
+        runDir,
+        options: opts,
+        result: this.defaultAcceptResult,
+        timestamp: new Date().toISOString(),
+      });
+      return this.defaultAcceptResult;
+    }
+
+    // Generate auto success result
+    const statusEntry: SharedStatusEntry = {
+      timestamp: new Date().toISOString(),
+      from: 'agent',
+      action: 'accept',
+      comment: opts.comment,
+    };
+    const result: AcceptResult = {
+      phase,
+      runDir,
+      facilitator: 'agent',
+      state: 'accepted',
+      statusEntry,
+      errors: [],
+    };
+
+    this.acceptCalls.push({
+      phase,
+      runDir,
+      options: opts,
+      result,
+      timestamp: new Date().toISOString(),
+    });
+    return result;
+  }
+
+  /**
+   * Preflight check.
+   *
+   * Captures the call and returns either:
+   * - Preset result (if configured for this phase)
+   * - Default result (if set)
+   * - Auto-generated success result (otherwise)
+   */
+  async preflight(
+    phase: string,
+    runDir: string,
+    options?: PreflightOptions
+  ): Promise<PreflightResult> {
+    const opts = options ?? {};
+
+    // Check for preset result
+    const presetResult = this.preflightResults.get(phase);
+    if (presetResult) {
+      this.preflightCalls.push({
+        phase,
+        runDir,
+        options: opts,
+        result: presetResult,
+        timestamp: new Date().toISOString(),
+      });
+      return presetResult;
+    }
+
+    // Check for default result
+    if (this.defaultPreflightResult) {
+      this.preflightCalls.push({
+        phase,
+        runDir,
+        options: opts,
+        result: this.defaultPreflightResult,
+        timestamp: new Date().toISOString(),
+      });
+      return this.defaultPreflightResult;
+    }
+
+    // Generate auto success result
+    const statusEntry: SharedStatusEntry = {
+      timestamp: new Date().toISOString(),
+      from: 'agent',
+      action: 'preflight',
+      comment: opts.comment,
+    };
+    const result: PreflightResult = {
+      phase,
+      runDir,
+      checks: { configValid: true, inputsExist: true, schemasValid: true },
+      statusEntry,
+      errors: [],
+    };
+
+    this.preflightCalls.push({
+      phase,
+      runDir,
+      options: opts,
+      result,
+      timestamp: new Date().toISOString(),
+    });
+    return result;
+  }
+
+  /**
+   * Handover.
+   *
+   * Captures the call and returns either:
+   * - Preset result (if configured for this phase)
+   * - Default result (if set)
+   * - Auto-generated success result (otherwise)
+   */
+  async handover(
+    phase: string,
+    runDir: string,
+    options?: HandoverOptions
+  ): Promise<HandoverResult> {
+    const opts = options ?? {};
+
+    // Check for preset result
+    const presetResult = this.handoverResults.get(phase);
+    if (presetResult) {
+      this.handoverCalls.push({
+        phase,
+        runDir,
+        options: opts,
+        result: presetResult,
+        timestamp: new Date().toISOString(),
+      });
+      return presetResult;
+    }
+
+    // Check for default result
+    if (this.defaultHandoverResult) {
+      this.handoverCalls.push({
+        phase,
+        runDir,
+        options: opts,
+        result: this.defaultHandoverResult,
+        timestamp: new Date().toISOString(),
+      });
+      return this.defaultHandoverResult;
+    }
+
+    // Generate auto success result
+    const statusEntry: SharedStatusEntry = {
+      timestamp: new Date().toISOString(),
+      from: 'agent',
+      action: 'handover',
+      comment: opts.reason,
+    };
+    const result: HandoverResult = {
+      phase,
+      runDir,
+      fromFacilitator: 'agent',
+      toFacilitator: 'orchestrator',
+      state: opts.dueToError ? 'blocked' : 'ready',
+      statusEntry,
+      errors: [],
+    };
+
+    this.handoverCalls.push({
+      phase,
+      runDir,
+      options: opts,
+      result,
+      timestamp: new Date().toISOString(),
+    });
     return result;
   }
 }

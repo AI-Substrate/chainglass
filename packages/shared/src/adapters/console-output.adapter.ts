@@ -7,6 +7,7 @@
  * Produces human-readable output with:
  * - ✓ icon for success
  * - ✗ icon for failure
+ * - ℹ️ icon for no-op (per DYK Insight #5)
  * - Structured text per command type
  *
  * Per DYK Insight #2: Uses command dispatch pattern with dedicated
@@ -14,14 +15,17 @@
  */
 
 import type {
+  AcceptResult,
   BaseResult,
   ComposeResult,
   FinalizeResult,
+  HandoverResult,
   IOutputAdapter,
   MessageAnswerResult,
   MessageCreateResult,
   MessageListResult,
   MessageReadResult,
+  PreflightResult,
   PrepareResult,
   ResultError,
   ValidateResult,
@@ -58,6 +62,12 @@ export class ConsoleOutputAdapter implements IOutputAdapter {
         return this.formatValidateSuccess(result as unknown as ValidateResult);
       case 'phase.finalize':
         return this.formatFinalizeSuccess(result as unknown as FinalizeResult);
+      case 'phase.accept':
+        return this.formatAcceptSuccess(result as unknown as AcceptResult);
+      case 'phase.preflight':
+        return this.formatPreflightSuccess(result as unknown as PreflightResult);
+      case 'phase.handover':
+        return this.formatHandoverSuccess(result as unknown as HandoverResult);
       case 'wf.compose':
         return this.formatComposeSuccess(result as unknown as ComposeResult);
       case 'message.create':
@@ -84,6 +94,12 @@ export class ConsoleOutputAdapter implements IOutputAdapter {
         return this.formatValidateFailure(result as unknown as ValidateResult);
       case 'phase.finalize':
         return this.formatFinalizeFailure(result as unknown as FinalizeResult);
+      case 'phase.accept':
+        return this.formatAcceptFailure(result as unknown as AcceptResult);
+      case 'phase.preflight':
+        return this.formatPreflightFailure(result as unknown as PreflightResult);
+      case 'phase.handover':
+        return this.formatHandoverFailure(result as unknown as HandoverResult);
       case 'wf.compose':
         return this.formatComposeFailure(result as unknown as ComposeResult);
       case 'message.create':
@@ -151,6 +167,54 @@ export class ConsoleOutputAdapter implements IOutputAdapter {
     if (result.phases.length > 0) {
       const phaseNames = result.phases.map((p) => p.name).join(', ');
       lines.push(`  Phases: ${phaseNames}`);
+    }
+
+    return lines.join('\n');
+  }
+
+  // ==================== Handover Success Formatters (Phase 3 Subtask 002) ====================
+
+  private formatAcceptSuccess(result: AcceptResult): string {
+    // Per DYK Insight #5: Use ℹ️ for no-op, ✓ for actual change
+    const icon = result.wasNoOp ? 'ℹ️' : '✓';
+    const suffix = result.wasNoOp ? ' (already accepted)' : '';
+    const lines: string[] = [
+      `${icon} Agent accepted phase '${result.phase}'${suffix}`,
+      `  Facilitator: ${result.facilitator}`,
+      `  State: ${result.state}`,
+    ];
+
+    if (result.statusEntry.comment) {
+      lines.push(`  Comment: ${result.statusEntry.comment}`);
+    }
+
+    return lines.join('\n');
+  }
+
+  private formatPreflightSuccess(result: PreflightResult): string {
+    const icon = result.wasNoOp ? 'ℹ️' : '✓';
+    const suffix = result.wasNoOp ? ' (already preflighted)' : '';
+    const lines: string[] = [`${icon} Preflight passed for phase '${result.phase}'${suffix}`];
+
+    lines.push('  Checks:');
+    lines.push(`    Config valid: ${result.checks.configValid ? '✓' : '✗'}`);
+    lines.push(`    Inputs exist: ${result.checks.inputsExist ? '✓' : '✗'}`);
+    lines.push(`    Schemas valid: ${result.checks.schemasValid ? '✓' : '✗'}`);
+
+    return lines.join('\n');
+  }
+
+  private formatHandoverSuccess(result: HandoverResult): string {
+    const icon = result.wasNoOp ? 'ℹ️' : '✓';
+    const suffix = result.wasNoOp ? ' (no change)' : '';
+    const lines: string[] = [
+      `${icon} Phase '${result.phase}' handed over${suffix}`,
+      `  From: ${result.fromFacilitator} → To: ${result.toFacilitator}`,
+      `  State: ${result.state}`,
+    ];
+
+    if (result.statusEntry.comment) {
+      lines.push(`  Reason: ${result.statusEntry.comment}`);
     }
 
     return lines.join('\n');
@@ -291,6 +355,40 @@ export class ConsoleOutputAdapter implements IOutputAdapter {
   private formatComposeFailure(result: ComposeResult): string {
     const firstError = result.errors[0];
     const lines: string[] = [`✗ Workflow compose failed [${firstError.code}]`];
+
+    this.appendErrorDetails(lines, result.errors);
+
+    return lines.join('\n');
+  }
+
+  // ==================== Handover Failure Formatters (Phase 3 Subtask 002) ====================
+
+  private formatAcceptFailure(result: AcceptResult): string {
+    const firstError = result.errors[0];
+    const lines: string[] = [`✗ Phase '${result.phase}' accept failed [${firstError.code}]`];
+
+    this.appendErrorDetails(lines, result.errors);
+
+    return lines.join('\n');
+  }
+
+  private formatPreflightFailure(result: PreflightResult): string {
+    const firstError = result.errors[0];
+    const lines: string[] = [`✗ Phase '${result.phase}' preflight failed [${firstError.code}]`];
+
+    lines.push('  Checks:');
+    lines.push(`    Config valid: ${result.checks.configValid ? '✓' : '✗'}`);
+    lines.push(`    Inputs exist: ${result.checks.inputsExist ? '✓' : '✗'}`);
+    lines.push(`    Schemas valid: ${result.checks.schemasValid ? '✓' : '✗'}`);
+
+    this.appendErrorDetails(lines, result.errors);
+
+    return lines.join('\n');
+  }
+
+  private formatHandoverFailure(result: HandoverResult): string {
+    const firstError = result.errors[0];
+    const lines: string[] = [`✗ Phase '${result.phase}' handover failed [${firstError.code}]`];
 
     this.appendErrorDetails(lines, result.errors);
 

@@ -14,7 +14,13 @@ export type {
 export type { IWorkflowService } from './workflow-service.interface.js';
 
 // Phase service interface (Phase 3)
-export type { IPhaseService, ValidateCheckMode } from './phase-service.interface.js';
+export type {
+  IPhaseService,
+  ValidateCheckMode,
+  AcceptOptions,
+  PreflightOptions,
+  HandoverOptions,
+} from './phase-service.interface.js';
 
 // Message service interface (Phase 3 Subtask 001)
 export { MessageErrorCodes } from './message-service.interface.js';

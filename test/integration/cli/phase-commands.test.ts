@@ -1064,4 +1064,472 @@ describe('cg phase', () => {
       expect(exitCode).toBe(1);
     });
   });
+
+  // ==================== Handover Command Tests (Phase 3 Subtask 002) ====================
+
+  describe('accept', () => {
+    it('cg phase accept --help shows accept command options', async () => {
+      /*
+      Test Doc:
+      - Why: Users must be able to discover the accept command via help
+      - Contract: `cg phase accept --help` shows accept-specific options
+      - Usage Notes: Shows --comment option for adding acceptance reason
+      - Quality Contribution: Critical path - discoverability of handover commands
+      - Worked Example: Run `cg phase accept --help` → output contains '--run-dir' and '--comment'
+      */
+      const program = createProgram({ testMode: true });
+      let helpOutput = '';
+
+      program.configureOutput({
+        writeOut: (str) => {
+          helpOutput += str;
+        },
+        writeErr: () => {},
+      });
+
+      try {
+        await program.parseAsync(['node', 'cg', 'phase', 'accept', '--help']);
+      } catch (e: unknown) {
+        if ((e as { code?: string }).code !== 'commander.helpDisplayed') {
+          throw e;
+        }
+      }
+
+      expect(helpOutput).toMatch(/--run-dir/i);
+      expect(helpOutput).toMatch(/--json/i);
+      expect(helpOutput).toMatch(/--comment/i);
+    });
+
+    it('cg phase accept returns JSON result with facilitator=agent', async () => {
+      /*
+      Test Doc:
+      - Why: Agent accepting a phase must set facilitator to agent
+      - Contract: accept returns { facilitator: 'agent', state: 'accepted' }
+      - Usage Notes: Creates wf-phase.json if not exists (lazy init)
+      - Quality Contribution: Critical path - agent control transfer
+      - Worked Example: `cg phase accept gather --run-dir <path> --json` → { facilitator: 'agent' }
+      */
+      // First prepare the phase
+      const prepProgram = createProgram({ testMode: true });
+      const originalLog = console.log;
+      console.log = () => {};
+
+      try {
+        await prepProgram.parseAsync([
+          'node',
+          'cg',
+          'phase',
+          'prepare',
+          'gather',
+          '--run-dir',
+          runDir,
+        ]);
+      } finally {
+        console.log = originalLog;
+      }
+
+      // Now accept the phase
+      const program = createProgram({ testMode: true });
+      let output = '';
+      console.log = (msg: string) => {
+        output += msg;
+      };
+
+      try {
+        await program.parseAsync([
+          'node',
+          'cg',
+          'phase',
+          'accept',
+          'gather',
+          '--run-dir',
+          runDir,
+          '--json',
+        ]);
+      } finally {
+        console.log = originalLog;
+      }
+
+      const response = JSON.parse(output);
+      expect(response.success).toBe(true);
+      expect(response.command).toBe('phase.accept');
+      expect(response.data.facilitator).toBe('agent');
+      expect(response.data.state).toBe('accepted');
+      expect(response.data.statusEntry).toBeDefined();
+      expect(response.data.statusEntry.action).toBe('accept');
+    });
+
+    it('cg phase accept is idempotent', async () => {
+      /*
+      Test Doc:
+      - Why: Calling accept twice should not fail
+      - Contract: Second accept returns wasNoOp=true in JSON output
+      - Usage Notes: Status entries are not duplicated
+      - Quality Contribution: Idempotency - safe to call multiple times
+      - Worked Example: Call accept twice → second call has wasNoOp: true
+      */
+      // First prepare the phase
+      const prepProgram = createProgram({ testMode: true });
+      const originalLog = console.log;
+      console.log = () => {};
+
+      try {
+        await prepProgram.parseAsync([
+          'node',
+          'cg',
+          'phase',
+          'prepare',
+          'gather',
+          '--run-dir',
+          runDir,
+        ]);
+      } finally {
+        console.log = originalLog;
+      }
+
+      // Accept first time
+      const program1 = createProgram({ testMode: true });
+      console.log = () => {};
+
+      try {
+        await program1.parseAsync([
+          'node',
+          'cg',
+          'phase',
+          'accept',
+          'gather',
+          '--run-dir',
+          runDir,
+          '--json',
+        ]);
+      } finally {
+        console.log = originalLog;
+      }
+
+      // Accept second time
+      const program2 = createProgram({ testMode: true });
+      let output = '';
+      console.log = (msg: string) => {
+        output += msg;
+      };
+
+      try {
+        await program2.parseAsync([
+          'node',
+          'cg',
+          'phase',
+          'accept',
+          'gather',
+          '--run-dir',
+          runDir,
+          '--json',
+        ]);
+      } finally {
+        console.log = originalLog;
+      }
+
+      const response = JSON.parse(output);
+      expect(response.success).toBe(true);
+      expect(response.data.wasNoOp).toBe(true);
+    });
+  });
+
+  describe('preflight', () => {
+    it('cg phase preflight --help shows preflight command options', async () => {
+      /*
+      Test Doc:
+      - Why: Users must be able to discover the preflight command via help
+      - Contract: `cg phase preflight --help` shows preflight-specific options
+      - Usage Notes: Shows --comment option
+      - Quality Contribution: Critical path - discoverability of handover commands
+      - Worked Example: Run `cg phase preflight --help` → output contains '--run-dir'
+      */
+      const program = createProgram({ testMode: true });
+      let helpOutput = '';
+
+      program.configureOutput({
+        writeOut: (str) => {
+          helpOutput += str;
+        },
+        writeErr: () => {},
+      });
+
+      try {
+        await program.parseAsync(['node', 'cg', 'phase', 'preflight', '--help']);
+      } catch (e: unknown) {
+        if ((e as { code?: string }).code !== 'commander.helpDisplayed') {
+          throw e;
+        }
+      }
+
+      expect(helpOutput).toMatch(/--run-dir/i);
+      expect(helpOutput).toMatch(/--json/i);
+    });
+
+    it('cg phase preflight returns checks object', async () => {
+      /*
+      Test Doc:
+      - Why: Preflight validates inputs and returns check results
+      - Contract: preflight returns { checks: { configValid, inputsExist, schemasValid } }
+      - Usage Notes: Must be called after accept (facilitator must be agent)
+      - Quality Contribution: Critical path - validation before work
+      - Worked Example: `cg phase preflight gather --json` → { checks: { configValid: true, ... } }
+      */
+      // First prepare the phase
+      const prepProgram = createProgram({ testMode: true });
+      const originalLog = console.log;
+      console.log = () => {};
+
+      try {
+        await prepProgram.parseAsync([
+          'node',
+          'cg',
+          'phase',
+          'prepare',
+          'gather',
+          '--run-dir',
+          runDir,
+        ]);
+      } finally {
+        console.log = originalLog;
+      }
+
+      // Accept the phase first
+      const acceptProgram = createProgram({ testMode: true });
+      console.log = () => {};
+
+      try {
+        await acceptProgram.parseAsync([
+          'node',
+          'cg',
+          'phase',
+          'accept',
+          'gather',
+          '--run-dir',
+          runDir,
+          '--json',
+        ]);
+      } finally {
+        console.log = originalLog;
+      }
+
+      // Now preflight
+      const program = createProgram({ testMode: true });
+      let output = '';
+      console.log = (msg: string) => {
+        output += msg;
+      };
+
+      try {
+        await program.parseAsync([
+          'node',
+          'cg',
+          'phase',
+          'preflight',
+          'gather',
+          '--run-dir',
+          runDir,
+          '--json',
+        ]);
+      } finally {
+        console.log = originalLog;
+      }
+
+      const response = JSON.parse(output);
+      expect(response.success).toBe(true);
+      expect(response.command).toBe('phase.preflight');
+      expect(response.data.checks).toBeDefined();
+      expect(typeof response.data.checks.configValid).toBe('boolean');
+      expect(typeof response.data.checks.inputsExist).toBe('boolean');
+      expect(typeof response.data.checks.schemasValid).toBe('boolean');
+    });
+  });
+
+  describe('handover', () => {
+    it('cg phase handover --help shows handover command options', async () => {
+      /*
+      Test Doc:
+      - Why: Users must be able to discover the handover command via help
+      - Contract: `cg phase handover --help` shows handover-specific options
+      - Usage Notes: Shows --reason and --error flags
+      - Quality Contribution: Critical path - discoverability of handover commands
+      - Worked Example: Run `cg phase handover --help` → output contains '--reason' and '--error'
+      */
+      const program = createProgram({ testMode: true });
+      let helpOutput = '';
+
+      program.configureOutput({
+        writeOut: (str) => {
+          helpOutput += str;
+        },
+        writeErr: () => {},
+      });
+
+      try {
+        await program.parseAsync(['node', 'cg', 'phase', 'handover', '--help']);
+      } catch (e: unknown) {
+        if ((e as { code?: string }).code !== 'commander.helpDisplayed') {
+          throw e;
+        }
+      }
+
+      expect(helpOutput).toMatch(/--run-dir/i);
+      expect(helpOutput).toMatch(/--json/i);
+      expect(helpOutput).toMatch(/--reason/i);
+      expect(helpOutput).toMatch(/--error/i);
+    });
+
+    it('cg phase handover switches facilitator from agent to orchestrator', async () => {
+      /*
+      Test Doc:
+      - Why: Agent handing over must switch facilitator to orchestrator
+      - Contract: handover returns { fromFacilitator: 'agent', toFacilitator: 'orchestrator' }
+      - Usage Notes: Always flips to opposite party
+      - Quality Contribution: Critical path - control transfer
+      - Worked Example: `cg phase handover gather --json` → { toFacilitator: 'orchestrator' }
+      */
+      // First prepare and accept the phase
+      const prepProgram = createProgram({ testMode: true });
+      const originalLog = console.log;
+      console.log = () => {};
+
+      try {
+        await prepProgram.parseAsync([
+          'node',
+          'cg',
+          'phase',
+          'prepare',
+          'gather',
+          '--run-dir',
+          runDir,
+        ]);
+      } finally {
+        console.log = originalLog;
+      }
+
+      const acceptProgram = createProgram({ testMode: true });
+      console.log = () => {};
+
+      try {
+        await acceptProgram.parseAsync([
+          'node',
+          'cg',
+          'phase',
+          'accept',
+          'gather',
+          '--run-dir',
+          runDir,
+          '--json',
+        ]);
+      } finally {
+        console.log = originalLog;
+      }
+
+      // Now handover
+      const program = createProgram({ testMode: true });
+      let output = '';
+      console.log = (msg: string) => {
+        output += msg;
+      };
+
+      try {
+        await program.parseAsync([
+          'node',
+          'cg',
+          'phase',
+          'handover',
+          'gather',
+          '--run-dir',
+          runDir,
+          '--reason',
+          'Work complete',
+          '--json',
+        ]);
+      } finally {
+        console.log = originalLog;
+      }
+
+      const response = JSON.parse(output);
+      expect(response.success).toBe(true);
+      expect(response.command).toBe('phase.handover');
+      expect(response.data.fromFacilitator).toBe('agent');
+      expect(response.data.toFacilitator).toBe('orchestrator');
+    });
+
+    it('cg phase handover --error sets state to blocked', async () => {
+      /*
+      Test Doc:
+      - Why: Handover with error flag must set state to blocked
+      - Contract: handover with --error returns { state: 'blocked' }
+      - Usage Notes: Use --error when handover is due to an error condition
+      - Quality Contribution: Error handling - blocked state
+      - Worked Example: `cg phase handover gather --error --json` → { state: 'blocked' }
+      */
+      // First prepare and accept the phase
+      const prepProgram = createProgram({ testMode: true });
+      const originalLog = console.log;
+      console.log = () => {};
+
+      try {
+        await prepProgram.parseAsync([
+          'node',
+          'cg',
+          'phase',
+          'prepare',
+          'gather',
+          '--run-dir',
+          runDir,
+        ]);
+      } finally {
+        console.log = originalLog;
+      }
+
+      const acceptProgram = createProgram({ testMode: true });
+      console.log = () => {};
+
+      try {
+        await acceptProgram.parseAsync([
+          'node',
+          'cg',
+          'phase',
+          'accept',
+          'gather',
+          '--run-dir',
+          runDir,
+          '--json',
+        ]);
+      } finally {
+        console.log = originalLog;
+      }
+
+      // Now handover with error
+      const program = createProgram({ testMode: true });
+      let output = '';
+      console.log = (msg: string) => {
+        output += msg;
+      };
+
+      try {
+        await program.parseAsync([
+          'node',
+          'cg',
+          'phase',
+          'handover',
+          'gather',
+          '--run-dir',
+          runDir,
+          '--error',
+          '--reason',
+          'Preflight failed',
+          '--json',
+        ]);
+      } finally {
+        console.log = originalLog;
+      }
+
+      const response = JSON.parse(output);
+      expect(response.success).toBe(true);
+      expect(response.data.state).toBe('blocked');
+    });
+  });
 });

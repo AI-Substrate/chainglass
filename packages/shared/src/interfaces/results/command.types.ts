@@ -134,5 +134,107 @@ export interface FinalizeResult extends BaseResult {
   phaseStatus: 'complete';
 }
 
+// ==================== Handover Command Results ====================
+// Per Phase 3 Subtask 002: Accept/Handover/Preflight CLI Commands
+
+/**
+ * Facilitator type - who currently controls the phase.
+ */
+export type Facilitator = 'agent' | 'orchestrator';
+
+/**
+ * Phase state values for accept/handover operations.
+ */
+export type PhaseState =
+  | 'pending'
+  | 'ready'
+  | 'active'
+  | 'accepted'
+  | 'blocked'
+  | 'complete'
+  | 'failed';
+
+/**
+ * Status entry recorded in wf-phase.json.
+ */
+export interface StatusEntry {
+  /** ISO-8601 timestamp */
+  timestamp: string;
+  /** Who performed the action */
+  from: Facilitator;
+  /** Action type */
+  action: string;
+  /** Optional comment/reason */
+  comment?: string;
+  /** Optional additional data */
+  data?: Record<string, unknown>;
+}
+
+/**
+ * Result of `cg phase accept` command.
+ *
+ * Per Phase 3 Subtask 002: Agent logs taking control of a phase.
+ */
+export interface AcceptResult extends BaseResult {
+  /** Phase name being accepted */
+  phase: string;
+  /** Run directory path */
+  runDir: string;
+  /** Current facilitator (should be 'agent' after accept) */
+  facilitator: Facilitator;
+  /** Phase state after accept */
+  state: PhaseState;
+  /** Status entry that was appended */
+  statusEntry: StatusEntry;
+}
+
+/**
+ * Preflight check results.
+ */
+export interface PreflightChecks {
+  /** Whether phase config is valid */
+  configValid: boolean;
+  /** Whether all required inputs exist */
+  inputsExist: boolean;
+  /** Whether all inputs with schemas are valid */
+  schemasValid: boolean;
+}
+
+/**
+ * Result of `cg phase preflight` command.
+ *
+ * Per Phase 3 Subtask 002: Agent validates readiness before work.
+ */
+export interface PreflightResult extends BaseResult {
+  /** Phase name being preflighted */
+  phase: string;
+  /** Run directory path */
+  runDir: string;
+  /** Preflight check results */
+  checks: PreflightChecks;
+  /** Status entry that was appended */
+  statusEntry: StatusEntry;
+}
+
+/**
+ * Result of `cg phase handover` command.
+ *
+ * Per Phase 3 Subtask 002: Transfer control between agent and orchestrator.
+ */
+export interface HandoverResult extends BaseResult {
+  /** Phase name being handed over */
+  phase: string;
+  /** Run directory path */
+  runDir: string;
+  /** Who had control before handover */
+  fromFacilitator: Facilitator;
+  /** Who has control after handover */
+  toFacilitator: Facilitator;
+  /** Phase state after handover */
+  state: PhaseState;
+  /** Status entry that was appended */
+  statusEntry: StatusEntry;
+}
+
 // Re-export base types for convenience
 export type { BaseResult, ResultError };

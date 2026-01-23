@@ -13,12 +13,20 @@ export type {
   PrepareResult,
   ValidateResult,
   FinalizeResult,
+  // Handover command result types (Phase 3 Subtask 002)
+  AcceptResult,
+  PreflightResult,
+  HandoverResult,
   // Supporting types
   ResolvedInput,
   CopiedFile,
   ValidatedFile,
   ValidatedOutput, // @deprecated alias
   PhaseInfo,
+  Facilitator,
+  PhaseState,
+  StatusEntry,
+  PreflightChecks,
 } from './command.types.js';
 
 // Message command result types (Phase 3 Subtask 001)

@@ -496,3 +496,360 @@ describe('PhaseService Contract Tests', () => {
 describe('FakePhaseService Contract Tests', () => {
   phaseServiceContractTests(createFakePhaseServiceContext);
 });
+
+// ==================== Handover Contract Tests (Subtask 002) ====================
+
+/**
+ * Contract tests for accept/preflight/handover methods.
+ *
+ * Per Critical Discovery 08: Both PhaseService and FakePhaseService must
+ * pass the same behavioral tests for these new methods.
+ */
+function handoverContractTests(createContext: () => PhaseServiceTestContext) {
+  let ctx: PhaseServiceTestContext;
+
+  beforeEach(async () => {
+    ctx = createContext();
+    await ctx.setup();
+  });
+
+  describe(`${createContext().name} implements handover contract`, () => {
+    describe('accept() return type', () => {
+      it('should return an AcceptResult object', async () => {
+        /*
+        Test Doc:
+        - Why: Contract requires consistent return type
+        - Contract: accept() returns object with phase, runDir, facilitator, state, statusEntry, wasNoOp, errors
+        - Usage Notes: All implementations must return this shape
+        - Quality Contribution: Ensures type consistency
+        - Worked Example: accept('gather', '/run') → { phase, facilitator: 'agent', ... }
+        */
+        const result = await ctx.service.accept('gather', '/runs/run-contract-test-001');
+
+        // Must have all required properties
+        expect(result).toHaveProperty('phase');
+        expect(result).toHaveProperty('runDir');
+        expect(result).toHaveProperty('facilitator');
+        expect(result).toHaveProperty('state');
+        expect(result).toHaveProperty('statusEntry');
+        expect(result).toHaveProperty('errors');
+
+        // Types must be correct
+        expect(typeof result.phase).toBe('string');
+        expect(typeof result.runDir).toBe('string');
+        expect(['agent', 'orchestrator']).toContain(result.facilitator);
+        expect(typeof result.state).toBe('string');
+        expect(typeof result.statusEntry).toBe('object');
+        expect(Array.isArray(result.errors)).toBe(true);
+      });
+
+      it('should set facilitator to agent on success', async () => {
+        /*
+        Test Doc:
+        - Why: accept() transfers control to agent
+        - Contract: facilitator is 'agent' after successful accept
+        - Usage Notes: Indicates agent has taken control
+        - Quality Contribution: Consistent state transition
+        - Worked Example: accept(phase) → { facilitator: 'agent' }
+        */
+        const result = await ctx.service.accept('gather', '/runs/run-contract-test-001');
+
+        if (result.errors.length === 0) {
+          expect(result.facilitator).toBe('agent');
+        }
+      });
+    });
+
+    describe('accept() error handling', () => {
+      it('should return E020 for phase not found on accept', async () => {
+        /*
+        Test Doc:
+        - Why: Both implementations must handle missing phases
+        - Contract: E020 error for non-existent phase
+        - Usage Notes: Error code enables programmatic handling
+        - Quality Contribution: Consistent error behavior
+        - Worked Example: accept('nonexistent') → { errors: [{ code: 'E020' }] }
+        */
+        const result = await ctx.service.accept(
+          'nonexistent-phase-xyz',
+          '/runs/run-contract-test-001'
+        );
+
+        expect(result.errors).toHaveLength(1);
+        expect(result.errors[0]).toHaveProperty('code');
+        expect(result.errors[0].code).toBe('E020');
+      });
+    });
+
+    describe('preflight() return type', () => {
+      it('should return a PreflightResult object', async () => {
+        /*
+        Test Doc:
+        - Why: Contract requires consistent return type
+        - Contract: preflight() returns object with phase, runDir, checks, statusEntry, wasNoOp, errors
+        - Usage Notes: All implementations must return this shape
+        - Quality Contribution: Ensures type consistency
+        - Worked Example: preflight('gather', '/run') → { phase, checks: {...}, ... }
+        */
+        // First accept to be facilitator
+        await ctx.service.accept('gather', '/runs/run-contract-test-001');
+        const result = await ctx.service.preflight('gather', '/runs/run-contract-test-001');
+
+        // Must have all required properties
+        expect(result).toHaveProperty('phase');
+        expect(result).toHaveProperty('runDir');
+        expect(result).toHaveProperty('checks');
+        expect(result).toHaveProperty('errors');
+
+        // Types must be correct
+        expect(typeof result.phase).toBe('string');
+        expect(typeof result.runDir).toBe('string');
+        expect(typeof result.checks).toBe('object');
+        expect(result.checks).toHaveProperty('configValid');
+        expect(result.checks).toHaveProperty('inputsExist');
+        expect(result.checks).toHaveProperty('schemasValid');
+        expect(Array.isArray(result.errors)).toBe(true);
+      });
+    });
+
+    describe('preflight() error handling', () => {
+      it('should return E020 for phase not found on preflight', async () => {
+        /*
+        Test Doc:
+        - Why: Both implementations must handle missing phases
+        - Contract: E020 error for non-existent phase
+        - Usage Notes: Error code enables programmatic handling
+        - Quality Contribution: Consistent error behavior
+        - Worked Example: preflight('nonexistent') → { errors: [{ code: 'E020' }] }
+        */
+        const result = await ctx.service.preflight(
+          'nonexistent-phase-xyz',
+          '/runs/run-contract-test-001'
+        );
+
+        expect(result.errors).toHaveLength(1);
+        expect(result.errors[0]).toHaveProperty('code');
+        expect(result.errors[0].code).toBe('E020');
+      });
+    });
+
+    describe('handover() return type', () => {
+      it('should return a HandoverResult object', async () => {
+        /*
+        Test Doc:
+        - Why: Contract requires consistent return type
+        - Contract: handover() returns object with phase, runDir, fromFacilitator, toFacilitator, state, statusEntry, wasNoOp, errors
+        - Usage Notes: All implementations must return this shape
+        - Quality Contribution: Ensures type consistency
+        - Worked Example: handover('gather', '/run') → { fromFacilitator, toFacilitator, ... }
+        */
+        // First accept to be facilitator
+        await ctx.service.accept('gather', '/runs/run-contract-test-001');
+        const result = await ctx.service.handover('gather', '/runs/run-contract-test-001');
+
+        // Must have all required properties
+        expect(result).toHaveProperty('phase');
+        expect(result).toHaveProperty('runDir');
+        expect(result).toHaveProperty('fromFacilitator');
+        expect(result).toHaveProperty('toFacilitator');
+        expect(result).toHaveProperty('state');
+        expect(result).toHaveProperty('statusEntry');
+        expect(result).toHaveProperty('errors');
+
+        // Types must be correct
+        expect(typeof result.phase).toBe('string');
+        expect(typeof result.runDir).toBe('string');
+        expect(['agent', 'orchestrator']).toContain(result.fromFacilitator);
+        expect(['agent', 'orchestrator']).toContain(result.toFacilitator);
+        expect(typeof result.state).toBe('string');
+        expect(typeof result.statusEntry).toBe('object');
+        expect(Array.isArray(result.errors)).toBe(true);
+      });
+
+      it('should switch facilitator direction', async () => {
+        /*
+        Test Doc:
+        - Why: handover() transfers control between parties
+        - Contract: fromFacilitator != toFacilitator
+        - Usage Notes: Always flips facilitator
+        - Quality Contribution: Consistent bidirectional transfer
+        - Worked Example: handover() when agent → { from: 'agent', to: 'orchestrator' }
+        */
+        await ctx.service.accept('gather', '/runs/run-contract-test-001');
+        const result = await ctx.service.handover('gather', '/runs/run-contract-test-001');
+
+        if (result.errors.length === 0) {
+          expect(result.fromFacilitator).not.toBe(result.toFacilitator);
+        }
+      });
+    });
+
+    describe('handover() error handling', () => {
+      it('should return E020 for phase not found on handover', async () => {
+        /*
+        Test Doc:
+        - Why: Both implementations must handle missing phases
+        - Contract: E020 error for non-existent phase
+        - Usage Notes: Error code enables programmatic handling
+        - Quality Contribution: Consistent error behavior
+        - Worked Example: handover('nonexistent') → { errors: [{ code: 'E020' }] }
+        */
+        const result = await ctx.service.handover(
+          'nonexistent-phase-xyz',
+          '/runs/run-contract-test-001'
+        );
+
+        expect(result.errors).toHaveLength(1);
+        expect(result.errors[0]).toHaveProperty('code');
+        expect(result.errors[0].code).toBe('E020');
+      });
+    });
+  });
+}
+
+// Create handover-specific contexts that extend the base contexts
+
+function createHandoverPhaseServiceContext(): PhaseServiceTestContext {
+  const baseCtx = createPhaseServiceContext();
+  return {
+    ...baseCtx,
+    name: 'PhaseService (handover)',
+  };
+}
+
+function createHandoverFakePhaseServiceContext(): PhaseServiceTestContext {
+  const fs = new FakeFileSystem();
+  const service = new FakePhaseService();
+
+  return {
+    name: 'FakePhaseService (handover)',
+    service,
+    setup: async () => {
+      service.reset();
+
+      // Configure accept results
+      service.setAcceptResult('gather', {
+        phase: 'gather',
+        runDir: '/runs/run-contract-test-001',
+        facilitator: 'agent',
+        state: 'accepted',
+        statusEntry: {
+          timestamp: new Date().toISOString(),
+          from: 'agent',
+          action: 'accept',
+        },
+        wasNoOp: false,
+        errors: [],
+      });
+
+      service.setAcceptResult('nonexistent-phase-xyz', {
+        phase: 'nonexistent-phase-xyz',
+        runDir: '/runs/run-contract-test-001',
+        facilitator: 'orchestrator',
+        state: 'ready',
+        statusEntry: {
+          timestamp: new Date().toISOString(),
+          from: 'agent',
+          action: 'accept',
+        },
+        wasNoOp: false,
+        errors: [
+          {
+            code: 'E020',
+            message: 'Phase not found: nonexistent-phase-xyz',
+            action: 'Verify the phase name exists in the workflow',
+          },
+        ],
+      });
+
+      // Configure preflight results
+      service.setPreflightResult('gather', {
+        phase: 'gather',
+        runDir: '/runs/run-contract-test-001',
+        checks: {
+          configValid: true,
+          inputsExist: true,
+          schemasValid: true,
+        },
+        statusEntry: {
+          timestamp: new Date().toISOString(),
+          from: 'agent',
+          action: 'preflight',
+        },
+        wasNoOp: false,
+        errors: [],
+      });
+
+      service.setPreflightResult('nonexistent-phase-xyz', {
+        phase: 'nonexistent-phase-xyz',
+        runDir: '/runs/run-contract-test-001',
+        checks: {
+          configValid: false,
+          inputsExist: false,
+          schemasValid: false,
+        },
+        statusEntry: {
+          timestamp: new Date().toISOString(),
+          from: 'agent',
+          action: 'preflight',
+        },
+        wasNoOp: false,
+        errors: [
+          {
+            code: 'E020',
+            message: 'Phase not found: nonexistent-phase-xyz',
+            action: 'Verify the phase name exists in the workflow',
+          },
+        ],
+      });
+
+      // Configure handover results
+      service.setHandoverResult('gather', {
+        phase: 'gather',
+        runDir: '/runs/run-contract-test-001',
+        fromFacilitator: 'agent',
+        toFacilitator: 'orchestrator',
+        state: 'accepted',
+        statusEntry: {
+          timestamp: new Date().toISOString(),
+          from: 'agent',
+          action: 'handover',
+        },
+        wasNoOp: false,
+        errors: [],
+      });
+
+      service.setHandoverResult('nonexistent-phase-xyz', {
+        phase: 'nonexistent-phase-xyz',
+        runDir: '/runs/run-contract-test-001',
+        fromFacilitator: 'orchestrator',
+        toFacilitator: 'agent',
+        state: 'ready',
+        statusEntry: {
+          timestamp: new Date().toISOString(),
+          from: 'orchestrator',
+          action: 'handover',
+        },
+        wasNoOp: false,
+        errors: [
+          {
+            code: 'E020',
+            message: 'Phase not found: nonexistent-phase-xyz',
+            action: 'Verify the phase name exists in the workflow',
+          },
+        ],
+      });
+    },
+    cleanup: async () => {
+      service.reset();
+    },
+  };
+}
+
+describe('PhaseService Handover Contract Tests', () => {
+  handoverContractTests(createHandoverPhaseServiceContext);
+});
+
+describe('FakePhaseService Handover Contract Tests', () => {
+  handoverContractTests(createHandoverFakePhaseServiceContext);
+});

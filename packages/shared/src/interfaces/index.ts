@@ -27,6 +27,14 @@ export type {
   MessageSummary,
   MessageAnswerData,
   MessageData,
+  // Handover result types (Phase 3 Subtask 002)
+  AcceptResult,
+  PreflightResult,
+  HandoverResult,
+  Facilitator,
+  PhaseState,
+  StatusEntry,
+  PreflightChecks,
 } from './results/index.js';
 
 // Output adapter interface (per Phase 1a: Output Adapter Architecture)

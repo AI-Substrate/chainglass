@@ -42,4 +42,13 @@ export interface ResultError {
 export interface BaseResult {
   /** Array of errors (empty = success) */
   errors: ResultError[];
+
+  /**
+   * Whether the operation was a no-op (already in desired state).
+   *
+   * Per DYK Insight #4: Cross-cutting concern for idempotent operations.
+   * When true, the operation succeeded but made no changes.
+   * Output adapters should display "Already done" or similar when this is true.
+   */
+  wasNoOp?: boolean;
 }

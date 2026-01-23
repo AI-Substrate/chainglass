@@ -3,11 +3,7 @@
     "chainglass": {
       "type": "stdio",
       "command": "node",
-      "args": [
-        "./apps/cli/dist/cli.cjs",
-        "mcp",
-        "--stdio"
-      ],
+      "args": ["./apps/cli/dist/cli.cjs", "mcp", "--stdio"],
       "env": {}
     }
   }

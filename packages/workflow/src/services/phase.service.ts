@@ -3,25 +3,35 @@
  *
  * Per Phase 3: Phase Operations - Provides the prepare() and validate() methods
  * that enable orchestrators and agents to manage phase execution.
+ *
+ * Per Phase 3 Subtask 002: Adds accept(), preflight(), handover() methods
+ * for agent↔orchestrator control transfer.
  */
 
 import * as path from 'node:path';
 import type {
+  AcceptResult,
   CopiedFile,
   FinalizeResult,
+  HandoverResult,
   IFileSystem,
+  PreflightResult,
   PrepareResult,
   ResolvedInput,
+  StatusEntry as SharedStatusEntry,
   ValidateResult,
   ValidatedFile,
 } from '@chainglass/shared';
 import type {
+  AcceptOptions,
+  HandoverOptions,
   IPhaseService,
   ISchemaValidator,
   IYamlParser,
+  PreflightOptions,
   ValidateCheckMode,
 } from '../interfaces/index.js';
-import type { PhaseRunStatus, WfPhaseState, WfStatus } from '../types/index.js';
+import type { PhaseRunStatus, StatusEntry, WfPhaseState, WfStatus } from '../types/index.js';
 import { extractValue } from '../utils/index.js';
 
 /**
@@ -40,6 +50,16 @@ export const PhaseErrorCodes = {
   PHASE_NOT_FOUND: 'E020',
   /** Prior phase not finalized */
   PRIOR_NOT_FINALIZED: 'E031',
+
+  // Handover error codes (Phase 3 Subtask 002)
+  /** Wrong facilitator attempting operation */
+  WRONG_FACILITATOR: 'E070',
+  /** Invalid state transition (e.g., preflight before accept) */
+  INVALID_STATE_TRANSITION: 'E071',
+  /** Preflight validation failed */
+  PREFLIGHT_FAILED: 'E072',
+  /** Handover rejected (e.g., cannot hand over incomplete phase) */
+  HANDOVER_REJECTED: 'E073',
 } as const;
 
 /**
@@ -671,6 +691,373 @@ export class PhaseService implements IPhaseService {
       runDir,
       extractedParams: {},
       phaseStatus: 'complete',
+      errors: [{ code, ...error }],
+    };
+  }
+
+  // ==================== Handover Methods (Phase 3 Subtask 002) ====================
+
+  /**
+   * Accept a phase (agent takes control from orchestrator).
+   *
+   * Per DYK Insight #1: `from` is inferred (always 'agent' for accept).
+   * Per DYK Insight #2: Lazy initialization of wf-phase.json if missing.
+   * Per DYK Insight #3: Idempotent - returns wasNoOp=true if already agent.
+   */
+  async accept(phase: string, runDir: string, options?: AcceptOptions): Promise<AcceptResult> {
+    const opts = options ?? {};
+
+    // 1. Check phase exists
+    const phaseDir = path.join(runDir, 'phases', phase);
+    const phaseYamlPath = path.join(phaseDir, 'wf-phase.yaml');
+
+    if (!(await this.fs.exists(phaseYamlPath))) {
+      return this.createAcceptErrorResult(phase, runDir, PhaseErrorCodes.PHASE_NOT_FOUND, {
+        message: `Phase '${phase}' not found`,
+        action: `Check phase name and ensure wf-phase.yaml exists in phases/${phase}/`,
+      });
+    }
+
+    // 2. Load or create wf-phase.json (lazy init)
+    const wfPhasePath = path.join(runDir, 'phases', phase, 'run', 'wf-data', 'wf-phase.json');
+    let wfPhaseState: WfPhaseState;
+
+    if (await this.fs.exists(wfPhasePath)) {
+      const content = await this.fs.readFile(wfPhasePath);
+      wfPhaseState = JSON.parse(content);
+    } else {
+      // Lazy initialization
+      wfPhaseState = {
+        phase,
+        facilitator: 'orchestrator',
+        state: 'ready',
+        status: [],
+      };
+    }
+
+    // 3. Check idempotency - already agent?
+    if (wfPhaseState.facilitator === 'agent') {
+      const statusEntry: StatusEntry = {
+        timestamp: new Date().toISOString(),
+        from: 'agent',
+        action: 'accept',
+        comment: opts.comment,
+      };
+      return {
+        phase,
+        runDir,
+        facilitator: 'agent',
+        state: wfPhaseState.state as AcceptResult['state'],
+        statusEntry: statusEntry as SharedStatusEntry,
+        wasNoOp: true,
+        errors: [],
+      };
+    }
+
+    // 4. Update state
+    wfPhaseState.facilitator = 'agent';
+    wfPhaseState.state = 'accepted';
+
+    const statusEntry: StatusEntry = {
+      timestamp: new Date().toISOString(),
+      from: 'agent',
+      action: 'accept',
+      comment: opts.comment,
+    };
+    wfPhaseState.status.push(statusEntry);
+
+    // 5. Write back
+    await this.fs.writeFile(wfPhasePath, JSON.stringify(wfPhaseState, null, 2));
+
+    return {
+      phase,
+      runDir,
+      facilitator: 'agent',
+      state: 'accepted',
+      statusEntry: statusEntry as SharedStatusEntry,
+      errors: [],
+    };
+  }
+
+  /**
+   * Preflight check before starting phase work.
+   *
+   * Per DYK Insight #1: `from` is inferred (always 'agent' for preflight).
+   * Per DYK Insight #3: Returns E071 if called before accept.
+   * Per DYK Insight #3: Idempotent - returns wasNoOp=true if already preflighted.
+   */
+  async preflight(
+    phase: string,
+    runDir: string,
+    options?: PreflightOptions
+  ): Promise<PreflightResult> {
+    const opts = options ?? {};
+
+    // 1. Check phase exists
+    const phaseDir = path.join(runDir, 'phases', phase);
+    const phaseYamlPath = path.join(phaseDir, 'wf-phase.yaml');
+
+    if (!(await this.fs.exists(phaseYamlPath))) {
+      return this.createPreflightErrorResult(phase, runDir, PhaseErrorCodes.PHASE_NOT_FOUND, {
+        message: `Phase '${phase}' not found`,
+        action: `Check phase name and ensure wf-phase.yaml exists in phases/${phase}/`,
+      });
+    }
+
+    // 2. Load wf-phase.json (must exist since accept creates it)
+    const wfPhasePath = path.join(runDir, 'phases', phase, 'run', 'wf-data', 'wf-phase.json');
+    let wfPhaseState: WfPhaseState;
+
+    if (await this.fs.exists(wfPhasePath)) {
+      const content = await this.fs.readFile(wfPhasePath);
+      wfPhaseState = JSON.parse(content);
+    } else {
+      // If no wf-phase.json, agent hasn't accepted yet
+      return this.createPreflightErrorResult(
+        phase,
+        runDir,
+        PhaseErrorCodes.INVALID_STATE_TRANSITION,
+        {
+          message: 'Cannot preflight: agent must accept phase first',
+          action: 'Run `cg phase accept` before preflight',
+        }
+      );
+    }
+
+    // 3. Check facilitator is agent (E071 if orchestrator)
+    if (wfPhaseState.facilitator !== 'agent') {
+      return this.createPreflightErrorResult(
+        phase,
+        runDir,
+        PhaseErrorCodes.INVALID_STATE_TRANSITION,
+        {
+          message: 'Cannot preflight: facilitator must be agent',
+          action: 'Run `cg phase accept` before preflight',
+        }
+      );
+    }
+
+    // 4. Check idempotency - already preflighted?
+    const alreadyPreflighted = wfPhaseState.status.some((s) => s.action === 'preflight');
+    if (alreadyPreflighted) {
+      const statusEntry: StatusEntry = {
+        timestamp: new Date().toISOString(),
+        from: 'agent',
+        action: 'preflight',
+        comment: opts.comment,
+      };
+      return {
+        phase,
+        runDir,
+        checks: { configValid: true, inputsExist: true, schemasValid: true },
+        statusEntry: statusEntry as SharedStatusEntry,
+        wasNoOp: true,
+        errors: [],
+      };
+    }
+
+    // 5. Run validation on inputs (wraps validate --check inputs)
+    const validateResult = await this.validate(phase, runDir, 'inputs');
+    const inputsValid = validateResult.errors.length === 0;
+
+    // 6. Append preflight status entry
+    const statusEntry: StatusEntry = {
+      timestamp: new Date().toISOString(),
+      from: 'agent',
+      action: 'preflight',
+      comment: opts.comment,
+      data: {
+        checks: {
+          configValid: true, // We passed if we got here
+          inputsExist: inputsValid,
+          schemasValid: inputsValid,
+        },
+      },
+    };
+    wfPhaseState.status.push(statusEntry);
+
+    // 7. Write back
+    await this.fs.writeFile(wfPhasePath, JSON.stringify(wfPhaseState, null, 2));
+
+    // 8. Return result (include validation errors if any)
+    return {
+      phase,
+      runDir,
+      checks: {
+        configValid: true,
+        inputsExist: inputsValid,
+        schemasValid: inputsValid,
+      },
+      statusEntry: statusEntry as SharedStatusEntry,
+      errors:
+        validateResult.errors.length > 0
+          ? [
+              {
+                code: PhaseErrorCodes.PREFLIGHT_FAILED,
+                message: 'Preflight validation failed',
+                action: 'Check input files and schemas',
+              },
+              ...validateResult.errors,
+            ]
+          : [],
+    };
+  }
+
+  /**
+   * Handover phase control to the other party.
+   *
+   * Per DYK Insight #1: `from` is inferred from current facilitator.
+   * Per DYK Insight #3: Idempotent - returns wasNoOp=true if already target.
+   */
+  async handover(
+    phase: string,
+    runDir: string,
+    options?: HandoverOptions
+  ): Promise<HandoverResult> {
+    const opts = options ?? {};
+
+    // 1. Check phase exists
+    const phaseDir = path.join(runDir, 'phases', phase);
+    const phaseYamlPath = path.join(phaseDir, 'wf-phase.yaml');
+
+    if (!(await this.fs.exists(phaseYamlPath))) {
+      return this.createHandoverErrorResult(phase, runDir, PhaseErrorCodes.PHASE_NOT_FOUND, {
+        message: `Phase '${phase}' not found`,
+        action: `Check phase name and ensure wf-phase.yaml exists in phases/${phase}/`,
+      });
+    }
+
+    // 2. Load or create wf-phase.json (lazy init similar to accept)
+    const wfPhasePath = path.join(runDir, 'phases', phase, 'run', 'wf-data', 'wf-phase.json');
+    let wfPhaseState: WfPhaseState;
+
+    if (await this.fs.exists(wfPhasePath)) {
+      const content = await this.fs.readFile(wfPhasePath);
+      wfPhaseState = JSON.parse(content);
+    } else {
+      // Initialize with orchestrator as facilitator
+      wfPhaseState = {
+        phase,
+        facilitator: 'orchestrator',
+        state: 'ready',
+        status: [],
+      };
+    }
+
+    // 3. Determine from/to facilitators
+    const fromFacilitator = wfPhaseState.facilitator;
+    const toFacilitator = fromFacilitator === 'agent' ? 'orchestrator' : 'agent';
+
+    // 4. Check idempotency - would this be a no-op?
+    // If we're orchestrator trying to hand to agent but facilitator is already agent (or vice versa)
+    // This happens when the handover has already been done
+    if (wfPhaseState.facilitator === toFacilitator) {
+      const statusEntry: StatusEntry = {
+        timestamp: new Date().toISOString(),
+        from: fromFacilitator,
+        action: 'handover',
+        comment: opts.reason,
+      };
+      return {
+        phase,
+        runDir,
+        fromFacilitator,
+        toFacilitator,
+        state: wfPhaseState.state as HandoverResult['state'],
+        statusEntry: statusEntry as SharedStatusEntry,
+        wasNoOp: true,
+        errors: [],
+      };
+    }
+
+    // 5. Update state
+    wfPhaseState.facilitator = toFacilitator;
+    if (opts.dueToError) {
+      wfPhaseState.state = 'blocked';
+    }
+
+    // 6. Append handover status entry
+    const statusEntry: StatusEntry = {
+      timestamp: new Date().toISOString(),
+      from: fromFacilitator,
+      action: 'handover',
+      comment: opts.reason,
+    };
+    wfPhaseState.status.push(statusEntry);
+
+    // 7. Write back
+    await this.fs.writeFile(wfPhasePath, JSON.stringify(wfPhaseState, null, 2));
+
+    return {
+      phase,
+      runDir,
+      fromFacilitator,
+      toFacilitator,
+      state: wfPhaseState.state as HandoverResult['state'],
+      statusEntry: statusEntry as SharedStatusEntry,
+      errors: [],
+    };
+  }
+
+  private createAcceptErrorResult(
+    phase: string,
+    runDir: string,
+    code: string,
+    error: { message: string; path?: string; action?: string }
+  ): AcceptResult {
+    const statusEntry: StatusEntry = {
+      timestamp: new Date().toISOString(),
+      from: 'agent',
+      action: 'accept',
+    };
+    return {
+      phase,
+      runDir,
+      facilitator: 'orchestrator',
+      state: 'ready',
+      statusEntry: statusEntry as SharedStatusEntry,
+      errors: [{ code, ...error }],
+    };
+  }
+
+  private createPreflightErrorResult(
+    phase: string,
+    runDir: string,
+    code: string,
+    error: { message: string; path?: string; action?: string }
+  ): PreflightResult {
+    const statusEntry: StatusEntry = {
+      timestamp: new Date().toISOString(),
+      from: 'agent',
+      action: 'preflight',
+    };
+    return {
+      phase,
+      runDir,
+      checks: { configValid: false, inputsExist: false, schemasValid: false },
+      statusEntry: statusEntry as SharedStatusEntry,
+      errors: [{ code, ...error }],
+    };
+  }
+
+  private createHandoverErrorResult(
+    phase: string,
+    runDir: string,
+    code: string,
+    error: { message: string; path?: string; action?: string }
+  ): HandoverResult {
+    const statusEntry: StatusEntry = {
+      timestamp: new Date().toISOString(),
+      from: 'orchestrator',
+      action: 'handover',
+    };
+    return {
+      phase,
+      runDir,
+      fromFacilitator: 'orchestrator',
+      toFacilitator: 'agent',
+      state: 'ready',
+      statusEntry: statusEntry as SharedStatusEntry,
       errors: [{ code, ...error }],
     };
   }

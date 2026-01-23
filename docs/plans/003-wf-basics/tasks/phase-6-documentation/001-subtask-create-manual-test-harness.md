@@ -110,7 +110,7 @@ Create a test harness that proves the workflow system works end-to-end, validate
 
 ### Non-Goals
 
-- ❌ Implementing missing CLI commands (handover/accept/preflight) → **See [Subtask 002](../phase-3-phase-operations/002-subtask-implement-handover-cli-commands.md)**
+- ~~❌ Implementing missing CLI commands (handover/accept/preflight)~~ → **DONE: See [Subtask 002](../phase-3-phase-operations/002-subtask-implement-handover-cli-commands.md)**
 - ❌ Automated test suite integration
 - ❌ Multiple workflow templates (hello-workflow only)
 - ❌ Performance testing
@@ -129,7 +129,7 @@ These should be incorporated into the manual test harness scenarios where approp
 
 | Subtask | Status | Impact on Manual Test |
 |---------|--------|----------------------|
-| [Phase 3 Subtask 002: Handover Commands](../phase-3-phase-operations/002-subtask-implement-handover-cli-commands.md) | ⬜ Pending | When complete, remove workarounds and test full handover flow |
+| [Phase 3 Subtask 002: Handover Commands](../phase-3-phase-operations/002-subtask-implement-handover-cli-commands.md) | ✅ Complete | **Full handover commands now available**: `cg phase accept`, `cg phase preflight`, `cg phase handover` |
 
 ---
 
@@ -272,13 +272,18 @@ Validate the workflow system by testing all interaction patterns in two modes: f
 - ✅ Files and parameters: Fully implemented (prepare/validate/finalize)
 - ✅ Message data model: Exists (JSON files in messages/)
 - ✅ Message CLI commands: **IMPLEMENTED** (cg phase message create/answer/list/read) — Phase 3 Subtask 001
-- ❌ Handover commands: NOT implemented (cg phase handover/accept/preflight)
+- ✅ Handover commands: **IMPLEMENTED** (cg phase accept/preflight/handover) — Phase 3 Subtask 002
 
 > **PREREQUISITES RESOLVED:**
 >
 > ✅ **wf.md copying fixed** (2026-01-23) - compose now copies root `wf.md` (agent instructions)
 >    - `templates/wf.md` renamed to `templates/README.md`
 >    - Fix applied in: `packages/workflow/src/services/workflow.service.ts:238-241`
+>
+> ✅ **Handover commands implemented** (2026-01-23) - Full agent↔orchestrator control transfer
+>    - `cg phase accept <phase>` — Agent takes control
+>    - `cg phase preflight <phase>` — Validate inputs before work
+>    - `cg phase handover <phase>` — Transfer control back
 
 ### Implementation References (If Commands Don't Work)
 
@@ -556,6 +561,7 @@ _Populated during implementation by plan-6. Log anything of interest to your fut
 | 2026-01-23 | /didyouknow | gotcha | wf.md copying is wrong - code copies templates/wf.md (overview) instead of root wf.md (agent instructions) | Fix code + rename templates/wf.md to README.md | workflow.service.ts:238-241 |
 | 2026-01-23 | Pre-impl | insight | **Message CLI commands fully implemented** - 748 tests passing, security hardened (path traversal prevention, JSON error handling) | Ready for manual test harness | Phase 3 Subtask 001, commit d5f8d89 |
 | 2026-01-23 | Research | insight | **Handover workflow fully documented** - Exemplar shows accept→preflight→work→finalize→handover flow; preflight wraps validate --check inputs but logs action | Future subtask will implement CLI commands | research/handover-workflow-research.md |
+| 2026-01-23 | Subtask-002 | insight | **Handover CLI commands fully implemented** - 790 tests passing: `cg phase accept`, `cg phase preflight`, `cg phase handover` all working with JSON/console output | Full handover flow now available for manual testing | Phase 3 Subtask 002 |
 
 **Types**: `gotcha` | `research-needed` | `unexpected-behavior` | `workaround` | `decision` | `debt` | `insight`
 
@@ -633,13 +639,16 @@ docs/plans/003-wf-basics/
 
 **Decision**: Fix applied — workflow.service.ts:238-241 now copies root wf.md (commit 5aea1fd)
 
-### Insight 2: Handover/Accept/Preflight Commands Missing
+### Insight 2: Handover/Accept/Preflight Commands — NOW IMPLEMENTED ✅
 
-**Did you know**: The subtask mentions handover/accept/preflight but those CLI commands dont exist — only prepare/validate/finalize are implemented.
+**Did you know**: The subtask originally mentioned handover/accept/preflight but those CLI commands didn't exist — only prepare/validate/finalize were implemented.
 
-**Decision**: Use existing commands for testing (compose → prepare → validate → finalize)
+**Update (2026-01-23)**: Phase 3 Subtask 002 has been completed! Full handover commands are now available:
+- `cg phase accept <phase>` — Agent takes control from orchestrator
+- `cg phase preflight <phase>` — Validate inputs before work (wraps validate --check inputs)
+- `cg phase handover <phase>` — Transfer control between parties
 
-**Follow-up**: A new subtask will implement these commands after manual test harness completes. See [Handover Workflow Research](../../research/handover-workflow-research.md) for full design.
+**Impact**: Manual test can now use the **full handover flow** without workarounds.
 
 ### Insight 3: Mode 1 Is CLI Exercise, Not Agent Validation
 
@@ -702,55 +711,44 @@ QUESTION/ANSWER FLOW (mid-phase):
 |-----------------|-------------|--------|
 | prepare | `cg phase prepare <phase> --run-dir $RUN` | ✅ Works |
 | input | `cg phase message create --from orchestrator ...` | ✅ Works (logs "question" not "input") |
-| **handover** | `cg phase handover <phase> --run-dir $RUN` | ❌ NOT IMPLEMENTED |
-| **accept** | `cg phase accept <phase> --run-dir $RUN` | ❌ NOT IMPLEMENTED |
-| **preflight** | `cg phase preflight <phase> --run-dir $RUN` | ❌ NOT IMPLEMENTED |
+| **handover** | `cg phase handover <phase> --run-dir $RUN` | ✅ Works (Phase 3 Subtask 002) |
+| **accept** | `cg phase accept <phase> --run-dir $RUN` | ✅ Works (Phase 3 Subtask 002) |
+| **preflight** | `cg phase preflight <phase> --run-dir $RUN` | ✅ Works (Phase 3 Subtask 002) |
 | validate inputs | `cg phase validate <phase> --run-dir $RUN --check inputs` | ✅ Works |
 | validate outputs | `cg phase validate <phase> --run-dir $RUN --check outputs` | ✅ Works |
 | finalize | `cg phase finalize <phase> --run-dir $RUN` | ✅ Works |
 | question | `cg phase message create --from agent ...` | ✅ Works |
 | answer | `cg phase message answer --id 001 ...` | ✅ Works |
 
-### Manual Test Workaround
+### Full Handover Flow (Now Available)
 
-Until handover commands are implemented, the manual test should:
+With handover commands implemented, the full workflow is:
 
-1. **Skip handover/accept/preflight** - Jump from prepare straight to work
-2. **Use validate --check inputs** - As a preflight check equivalent
-3. **Document the gap** - Note where handover commands WOULD be called
-
-**Example simplified flow for Mode 1:**
 ```bash
-# GATHER PHASE (simplified - no handover)
+# GATHER PHASE (full flow)
 cg phase prepare gather --run-dir $RUN
 cg phase message create --phase gather --run-dir $RUN --from orchestrator ...
-# (pretend handover happened)
-# (pretend accept happened)
-cg phase validate gather --run-dir $RUN --check inputs  # preflight equivalent
+cg phase handover gather --run-dir $RUN --reason "Handing to agent"
+# Agent takes over:
+cg phase accept gather --run-dir $RUN --comment "Agent taking control"
+cg phase preflight gather --run-dir $RUN
 # ... agent work ...
 cg phase validate gather --run-dir $RUN --check outputs
 cg phase finalize gather --run-dir $RUN
-# (pretend handover back happened)
+cg phase handover gather --run-dir $RUN --reason "Work complete"
 
 # PROCESS PHASE
 cg phase prepare process --run-dir $RUN
 # etc.
 ```
 
-### Handover Commands Subtask (Created)
-
-The missing commands are now tracked in a dedicated subtask:
+### Handover Commands Reference
 
 | Item | Details |
 |------|---------|
 | **Subtask** | [002-subtask-implement-handover-cli-commands](../phase-3-phase-operations/002-subtask-implement-handover-cli-commands.md) |
-| **Status** | ⬜ Pending |
+| **Status** | ✅ Complete (2026-01-23) |
 | **Research** | [handover-workflow-research.md](../../research/handover-workflow-research.md) |
 | **Commands** | `cg phase accept`, `cg phase preflight`, `cg phase handover` |
-| **Tasks** | ST001-ST015 (~15 tasks) |
-
-**After Handover Subtask Completes:**
-1. Update this subtask to remove workaround notes
-2. Replace manual JSON edits with CLI commands in MODE-1-LEARNING.md
-3. Re-run manual test harness with full CLI support
+| **Tests** | 790 tests passing (42 contract tests, 25 integration tests) |
 

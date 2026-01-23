@@ -11,7 +11,14 @@ export type Facilitator = 'agent' | 'orchestrator';
 /**
  * Current phase state
  */
-export type PhaseState = 'pending' | 'active' | 'blocked' | 'accepted' | 'complete' | 'failed';
+export type PhaseState =
+  | 'pending'
+  | 'ready'
+  | 'active'
+  | 'blocked'
+  | 'accepted'
+  | 'complete'
+  | 'failed';
 
 /**
  * Types of actions that can be logged in status history

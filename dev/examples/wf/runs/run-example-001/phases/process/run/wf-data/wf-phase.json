@@ -1,7 +1,7 @@
 {
   "phase": "process",
-  "facilitator": "orchestrator",
-  "state": "complete",
+  "facilitator": "agent",
+  "state": "accepted",
   "status": [
     {
       "timestamp": "2026-01-21T10:05:00Z",
@@ -58,6 +58,22 @@
       "from": "agent",
       "action": "finalize",
       "comment": "Phase complete, all items processed"
+    },
+    {
+      "timestamp": "2026-01-23T22:59:51.718Z",
+      "from": "agent",
+      "action": "accept"
+    },
+    {
+      "timestamp": "2026-01-23T23:00:08.061Z",
+      "from": "agent",
+      "action": "handover",
+      "comment": "Testing handover"
+    },
+    {
+      "timestamp": "2026-01-23T23:00:12.744Z",
+      "from": "agent",
+      "action": "accept"
     }
   ]
 }

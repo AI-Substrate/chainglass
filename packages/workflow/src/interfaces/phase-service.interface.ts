@@ -4,12 +4,22 @@
  * Per Phase 3: Phase Operations - Provides prepare() and validate() methods
  * for orchestrating phase execution.
  *
+ * Per Phase 3 Subtask 002: Adds accept(), preflight(), handover() methods
+ * for agent↔orchestrator control transfer.
+ *
  * Implementations:
  * - PhaseService: Real implementation using IFileSystem, IYamlParser, ISchemaValidator
  * - FakePhaseService: Configurable implementation for testing with call capture
  */
 
-import type { FinalizeResult, PrepareResult, ValidateResult } from '@chainglass/shared';
+import type {
+  AcceptResult,
+  FinalizeResult,
+  HandoverResult,
+  PreflightResult,
+  PrepareResult,
+  ValidateResult,
+} from '@chainglass/shared';
 
 /**
  * Check mode for validate() operation.
@@ -18,6 +28,32 @@ import type { FinalizeResult, PrepareResult, ValidateResult } from '@chainglass/
  * - 'outputs': Validates output files exist, are non-empty, and schema-valid
  */
 export type ValidateCheckMode = 'inputs' | 'outputs';
+
+/**
+ * Options for accept() operation.
+ */
+export interface AcceptOptions {
+  /** Optional comment explaining why accepting */
+  comment?: string;
+}
+
+/**
+ * Options for preflight() operation.
+ */
+export interface PreflightOptions {
+  /** Optional comment for the preflight check */
+  comment?: string;
+}
+
+/**
+ * Options for handover() operation.
+ */
+export interface HandoverOptions {
+  /** Reason for handover */
+  reason?: string;
+  /** Whether handover is due to an error */
+  dueToError?: boolean;
+}
 
 /**
  * Interface for phase lifecycle operations.
@@ -143,4 +179,68 @@ export interface IPhaseService {
    * - E012: Invalid JSON in source file
    */
   finalize(phase: string, runDir: string): Promise<FinalizeResult>;
+
+  // ==================== Handover Methods (Phase 3 Subtask 002) ====================
+
+  /**
+   * Accept a phase (agent takes control from orchestrator).
+   *
+   * Updates wf-phase.json to set facilitator='agent' and state='accepted'.
+   * Appends a StatusEntry with action='accept'.
+   *
+   * Idempotency: If already facilitator='agent', returns success with wasNoOp=true.
+   * Does not duplicate status entries on re-accept.
+   *
+   * Lazy Initialization: If wf-phase.json doesn't exist, creates it with:
+   * { phase, facilitator: 'orchestrator', state: 'ready', status: [] }
+   * Then immediately updates to agent/accepted.
+   *
+   * @param phase - Phase name (e.g., 'gather', 'process')
+   * @param runDir - Path to run directory
+   * @param options - Accept options (comment) - optional
+   * @returns AcceptResult with facilitator, state, and statusEntry
+   *
+   * @throws Never throws - all errors returned in AcceptResult.errors:
+   * - E020: Phase not found
+   */
+  accept(phase: string, runDir: string, options?: AcceptOptions): Promise<AcceptResult>;
+
+  /**
+   * Preflight check before starting phase work.
+   *
+   * Runs validate('inputs') and logs a 'preflight' status entry.
+   * Must be called after accept() - returns E071 if facilitator is not 'agent'.
+   *
+   * Idempotency: If preflight already in status (and inputs still valid),
+   * returns success with wasNoOp=true.
+   *
+   * @param phase - Phase name (e.g., 'gather', 'process')
+   * @param runDir - Path to run directory
+   * @param options - Preflight options (comment) - optional
+   * @returns PreflightResult with checks and statusEntry
+   *
+   * @throws Never throws - all errors returned in PreflightResult.errors:
+   * - E020: Phase not found
+   * - E071: INVALID_STATE_TRANSITION (called before accept)
+   * - E072: PREFLIGHT_FAILED (validation errors)
+   */
+  preflight(phase: string, runDir: string, options?: PreflightOptions): Promise<PreflightResult>;
+
+  /**
+   * Handover phase control to the other party.
+   *
+   * Switches facilitator between 'agent' and 'orchestrator'.
+   * If dueToError=true, also sets state='blocked'.
+   *
+   * Idempotency: If already the target facilitator, returns success with wasNoOp=true.
+   *
+   * @param phase - Phase name (e.g., 'gather', 'process')
+   * @param runDir - Path to run directory
+   * @param options - Handover options (reason, dueToError) - optional
+   * @returns HandoverResult with fromFacilitator, toFacilitator, state, statusEntry
+   *
+   * @throws Never throws - all errors returned in HandoverResult.errors:
+   * - E020: Phase not found
+   */
+  handover(phase: string, runDir: string, options?: HandoverOptions): Promise<HandoverResult>;
 }
