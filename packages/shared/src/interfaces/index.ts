@@ -63,3 +63,19 @@ export type {
   ProcessSignal,
   SpawnOptions,
 } from './process-manager.interface.js';
+
+// Copilot SDK interfaces and types (local layer isolation per R-ARCH-001)
+export type {
+  CopilotAssistantMessageEvent,
+  CopilotMessageOptions,
+  CopilotResumeSessionConfig,
+  CopilotSessionConfig,
+  CopilotSessionErrorEvent,
+  CopilotSessionEvent,
+  CopilotSessionEventHandler,
+  CopilotSessionEventType,
+  CopilotSessionIdleEvent,
+  CopilotStatusResponse,
+  ICopilotClient,
+  ICopilotSession,
+} from './copilot-sdk.interface.js';
