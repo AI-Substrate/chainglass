@@ -265,19 +265,41 @@ Validate the workflow system by testing all interaction patterns in two modes: f
 **Implementation Status:**
 - ✅ Files and parameters: Fully implemented (prepare/validate/finalize)
 - ✅ Message data model: Exists (JSON files in messages/)
-- ✅ Message CLI commands: Available (cg phase message create/answer/list/read)
+- ✅ Message CLI commands: **IMPLEMENTED** (cg phase message create/answer/list/read) — Phase 3 Subtask 001
 - ❌ Handover commands: NOT implemented (cg phase handover/accept/preflight)
 
-> **PREREQUISITES (2026-01-23):** Implement these BEFORE running this manual test harness:
+> **REMAINING PREREQUISITE:**
 >
-> 1. **Message CLI commands** - `cg phase message create/answer/list/read`
->    - Fully specified in `001-subtask-message-communication.md` (lines 358-528)
->    - See: `docs/plans/003-wf-basics/tasks/phase-0-development-exemplar/001-subtask-message-communication.md`
->
-> 2. **Fix wf.md copying** - compose should copy root `wf.md`, not `templates/wf.md`
+> **Fix wf.md copying** - compose should copy root `wf.md`, not `templates/wf.md`
 >    - Root `wf.md` = agent instructions ("Workflow Phase Execution")
 >    - `templates/wf.md` = workflow overview (rename to `README.md`)
 >    - Fix in: `packages/workflow/src/services/workflow.service.ts:238-241`
+
+### Implementation References (If Commands Don't Work)
+
+If message CLI commands behave unexpectedly, consult these files:
+
+| Component | File | Key Lines | Purpose |
+|-----------|------|-----------|---------|
+| **IMessageService interface** | `packages/workflow/src/interfaces/message-service.interface.ts` | 1-80 | Contract definition, error codes E060-E064 |
+| **MessageService implementation** | `packages/workflow/src/services/message.service.ts` | full | create/answer/list/read logic |
+| **CLI command handlers** | `apps/cli/src/commands/message.command.ts` | full | CLI argument parsing, service calls |
+| **Output formatters** | `packages/shared/src/adapters/console-output.adapter.ts` | 280-400 | Human-readable output formatting |
+| **Unit tests** | `test/unit/workflow/message-service.test.ts` | full | Expected behavior documentation |
+| **Contract tests** | `test/contracts/message-service.contract.test.ts` | full | Real/Fake parity verification |
+| **FakeMessageService** | `packages/workflow/src/fakes/fake-message-service.ts` | full | Test double with call capture |
+
+**Error Codes:**
+- `E060`: Message not found
+- `E061`: Message type mismatch (answer doesn't match question type)
+- `E062`: Missing required field
+- `E063`: Message already answered
+- `E064`: Message validation failed (schema or path traversal)
+
+**Security Validations (added 2026-01-23):**
+- Phase names must be alphanumeric with hyphen/underscore only (no `../`)
+- Message IDs must be 3-digit strings only (e.g., `001`, `002`)
+- JSON parse errors are caught gracefully (won't crash on malformed files)
 
 **Message CLI Commands (assumed available):**
 ```bash
@@ -474,10 +496,11 @@ node ../../../../apps/cli/dist/cli.cjs phase validate gather \
 
 | Risk | Severity | Mitigation |
 |------|----------|------------|
-| Missing message CLI commands | Medium | Manually create JSON files |
+| ~~Missing message CLI commands~~ | ~~Medium~~ | ✅ **RESOLVED** - Commands implemented (Phase 3 Subtask 001) |
 | Missing handover commands | Medium | Document where they'd go |
 | External agent may fail Mode 2 | Expected | This is the TEST - document failures |
 | Phase prompts may be insufficient | Expected | Improve prompts based on findings |
+| wf.md copying is wrong | Medium | Fix before Mode 2 (copies templates/wf.md not root wf.md) |
 
 ### Ready Check
 
@@ -526,6 +549,7 @@ _Populated during implementation by plan-6. Log anything of interest to your fut
 | 2026-01-23 | /didyouknow | insight | Message data model + exemplar already complete (subtask ran 2026-01-22) | CLI commands are fully specified, just need implementation | Execution log reviewed |
 | 2026-01-23 | /didyouknow | gotcha | Input directory uses split structure: inputs/files/ (.md), inputs/data/ (.json), inputs/params.json | Updated subtask docs to show correct structure | phase.service.ts:162-169 |
 | 2026-01-23 | /didyouknow | gotcha | wf.md copying is wrong - code copies templates/wf.md (overview) instead of root wf.md (agent instructions) | Fix code + rename templates/wf.md to README.md | workflow.service.ts:238-241 |
+| 2026-01-23 | Pre-impl | insight | **Message CLI commands fully implemented** - 748 tests passing, security hardened (path traversal prevention, JSON error handling) | Ready for manual test harness | Phase 3 Subtask 001, commit d5f8d89 |
 
 **Types**: `gotcha` | `research-needed` | `unexpected-behavior` | `workaround` | `decision` | `debt` | `insight`
 
