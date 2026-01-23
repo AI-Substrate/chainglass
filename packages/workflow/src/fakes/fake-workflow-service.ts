@@ -173,10 +173,15 @@ export class FakeWorkflowService implements IWorkflowService {
    */
   async compose(template: string, runsDir: string): Promise<ComposeResult> {
     // Check for preset result
-    if (this.presetResults.has(template)) {
-      const result = this.presetResults.get(template)!;
-      this.calls.push({ template, runsDir, result, timestamp: new Date().toISOString() });
-      return result;
+    const presetResult = this.presetResults.get(template);
+    if (presetResult !== undefined) {
+      this.calls.push({
+        template,
+        runsDir,
+        result: presetResult,
+        timestamp: new Date().toISOString(),
+      });
+      return presetResult;
     }
 
     // Check for default result
@@ -197,7 +202,9 @@ export class FakeWorkflowService implements IWorkflowService {
     const runDir = `${runsDir}/${runId}`;
 
     // Extract template name from path if needed
-    const templateName = template.includes('/') ? template.split('/').pop()! : template;
+    const templateName = template.includes('/')
+      ? (template.split('/').pop() ?? template)
+      : template;
 
     const result: ComposeResult = {
       template: templateName,

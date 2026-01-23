@@ -5,5 +5,6 @@
  * check_health is the exemplar tool that demonstrates all best practices.
  */
 
-// Tools will be exported here after implementation
-export {};
+// Tool registration functions
+export { registerWorkflowTools } from './workflow.tools.js';
+export { registerPhaseTools } from './phase.tools.js';

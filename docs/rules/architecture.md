@@ -131,6 +131,8 @@ export interface ILogger {
 
 ## 5. DI Container Usage
 
+> **ADR Reference**: See [ADR-0004: Dependency Injection Container Architecture](../adr/adr-0004-dependency-injection-container-architecture.md) for the complete decision record including alternatives considered, consequences, and remediation protocols.
+
 ### Why Child Containers?
 
 We use TSyringe's child container pattern for test isolation. Each test gets a fresh container, preventing state leakage between tests.

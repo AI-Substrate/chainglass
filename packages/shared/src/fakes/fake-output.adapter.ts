@@ -113,10 +113,10 @@ export class FakeOutputAdapter implements IOutputAdapter {
    */
   format<T extends BaseResult>(command: string, result: T): string {
     // Check for preset output
-    if (this.presetOutputs.has(command)) {
-      const output = this.presetOutputs.get(command)!;
-      this.calls.push({ command, result, output });
-      return output;
+    const presetOutput = this.presetOutputs.get(command);
+    if (presetOutput !== undefined) {
+      this.calls.push({ command, result, output: presetOutput });
+      return presetOutput;
     }
 
     // Generate default output

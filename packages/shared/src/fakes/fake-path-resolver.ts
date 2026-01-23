@@ -62,8 +62,9 @@ export class FakePathResolver implements IPathResolver {
 
     // Check for preset mapping
     const key = `${base}|${relative}`;
-    if (this.pathMappings.has(key)) {
-      return this.pathMappings.get(key)!;
+    const presetPath = this.pathMappings.get(key);
+    if (presetPath !== undefined) {
+      return presetPath;
     }
 
     // Use real path logic with optional security enforcement

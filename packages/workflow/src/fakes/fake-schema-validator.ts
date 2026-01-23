@@ -133,8 +133,9 @@ export class FakeSchemaValidator implements ISchemaValidator {
   validate(schema: unknown, data: unknown): ValidationResult {
     // Check for preset result
     const key = JSON.stringify(data);
-    if (this.validationResults.has(key)) {
-      return this.validationResults.get(key)!;
+    const presetResult = this.validationResults.get(key);
+    if (presetResult !== undefined) {
+      return presetResult;
     }
 
     // Check for default result

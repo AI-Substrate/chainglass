@@ -393,6 +393,7 @@ export const MESSAGE_SCHEMA = {
         properties: { type: { const: 'single_choice' } },
         required: ['type'],
       },
+      // biome-ignore lint/suspicious/noThenProperty: JSON Schema if/then/else conditional
       then: {
         properties: {
           options: {
@@ -409,6 +410,7 @@ export const MESSAGE_SCHEMA = {
         properties: { type: { const: 'multi_choice' } },
         required: ['type'],
       },
+      // biome-ignore lint/suspicious/noThenProperty: JSON Schema if/then/else conditional
       then: {
         properties: {
           options: {
