@@ -45,7 +45,10 @@ export class FakeEventSource implements Partial<EventSource> {
     if (!this.eventListeners.has(type)) {
       this.eventListeners.set(type, new Set());
     }
-    this.eventListeners.get(type)!.add(listener);
+    const listeners = this.eventListeners.get(type);
+    if (listeners) {
+      listeners.add(listener);
+    }
   }
 
   /**

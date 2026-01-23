@@ -11,6 +11,8 @@
 
 // Must import reflect-metadata before tsyringe
 import 'reflect-metadata';
+import { container } from 'tsyringe';
+import { beforeEach, describe, expect, it } from 'vitest';
 import {
   MCP_DI_TOKENS,
   createMcpProductionContainer,
@@ -24,8 +26,6 @@ import {
   PinoLoggerAdapter,
   SampleConfigType,
 } from '../../../packages/shared/src';
-import { container } from 'tsyringe';
-import { beforeEach, describe, expect, it } from 'vitest';
 
 describe('MCP DI Container', () => {
   beforeEach(() => {

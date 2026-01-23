@@ -10,15 +10,8 @@
 
 // Must import reflect-metadata before tsyringe
 import 'reflect-metadata';
-import {
-  FakeConfigService,
-  FakeLogger,
-  type IConfigService,
-  type ILogger,
-  LogLevel,
-  PinoLoggerAdapter,
-  SampleConfigType,
-} from '../../../packages/shared/src';
+import { container } from 'tsyringe';
+import { beforeEach, describe, expect, it } from 'vitest';
 import {
   DI_TOKENS,
   createProductionContainer,
@@ -27,8 +20,15 @@ import {
 // SampleService will be created in T007 - import will fail until then
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import type { SampleService } from '../../../apps/web/src/services/sample.service';
-import { container } from 'tsyringe';
-import { beforeEach, describe, expect, it } from 'vitest';
+import {
+  FakeConfigService,
+  type FakeLogger,
+  type IConfigService,
+  type ILogger,
+  LogLevel,
+  PinoLoggerAdapter,
+  SampleConfigType,
+} from '../../../packages/shared/src';
 
 describe('DI Container', () => {
   beforeEach(() => {

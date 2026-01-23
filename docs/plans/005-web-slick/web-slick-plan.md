@@ -1179,6 +1179,31 @@ No deviations from constitution or architecture rules required.
   - `file:apps/web/app/page.tsx`
   - `callable:apps/web/app/page.tsx:Home`
 
+### Phase 5: SSE Infrastructure
+
+[^10]: Task T001 - Created SSE event schemas with Zod discriminated union
+  - `file:apps/web/src/lib/schemas/sse-events.schema.ts`
+  - `type:apps/web/src/lib/schemas/sse-events.schema.ts:SSEEvent`
+
+[^11]: Task T002 - Created FakeController test fake
+  - `file:test/fakes/fake-controller.ts`
+  - `type:test/fakes/fake-controller.ts:FakeController`
+
+[^12]: Task T002 - Created SSEManager unit tests (10 tests after fixes)
+  - `file:test/unit/web/services/sse-manager.test.ts`
+
+[^13]: Task T003 - Implemented SSEManager singleton with globalThis pattern
+  - `file:apps/web/src/lib/sse-manager.ts`
+  - `type:apps/web/src/lib/sse-manager.ts:SSEManager`
+  - `callable:apps/web/src/lib/sse-manager.ts:sseManager`
+
+[^14]: Task T004 - Created SSE route integration tests (4 tests after fixes)
+  - `file:test/integration/web/api/sse-route.test.ts`
+
+[^15]: Task T005/T006 - Implemented SSE route handler with AbortSignal cleanup
+  - `file:apps/web/app/api/events/[channel]/route.ts`
+  - `callable:apps/web/app/api/events/[channel]/route.ts:GET`
+
 ---
 
 *Plan Version 1.1.0 - Updated 2026-01-22 (Added command references for agent handover)*

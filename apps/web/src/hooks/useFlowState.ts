@@ -100,7 +100,9 @@ export function useFlowState(initialFlow: FlowState): UseFlowStateReturn {
       const sourceExists = prev.nodes.some((n) => n.id === source);
       const targetExists = prev.nodes.some((n) => n.id === target);
       if (!sourceExists || !targetExists) {
-        console.warn(`addEdge: Invalid nodes - source=${source} (exists=${sourceExists}), target=${target} (exists=${targetExists})`);
+        console.warn(
+          `addEdge: Invalid nodes - source=${source} (exists=${sourceExists}), target=${target} (exists=${targetExists})`
+        );
         return prev;
       }
 

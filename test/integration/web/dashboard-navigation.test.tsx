@@ -10,9 +10,9 @@
  * - Sidebar state persistence during navigation
  */
 
-import { DashboardShell } from '../../../apps/web/src/components/dashboard-shell';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { DashboardShell } from '../../../apps/web/src/components/dashboard-shell';
 
 // Mock next/navigation per spec § 11 Mock Usage Policy (allowed exception)
 let mockPathname = '/';

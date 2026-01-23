@@ -10,6 +10,8 @@
 
 // Must import reflect-metadata before tsyringe
 import 'reflect-metadata';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { SampleService } from '../../../apps/web/src/services/sample.service';
 import {
   FakeConfigService,
   FakeLogger,
@@ -18,8 +20,6 @@ import {
   LogLevel,
   SampleConfigType,
 } from '../../../packages/shared/src';
-import { SampleService } from '../../../apps/web/src/services/sample.service';
-import { beforeEach, describe, expect, it } from 'vitest';
 
 describe('SampleService', () => {
   let service: SampleService;

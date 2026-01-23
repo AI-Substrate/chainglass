@@ -6,10 +6,10 @@
  * Tests navigation state, active item highlighting, and collapse behavior
  */
 
-import { DashboardSidebar } from '../../../../apps/web/src/components/dashboard-sidebar';
-import { SidebarProvider } from '../../../../apps/web/src/components/ui/sidebar';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { DashboardSidebar } from '../../../../apps/web/src/components/dashboard-sidebar';
+import { SidebarProvider } from '../../../../apps/web/src/components/ui/sidebar';
 
 // Mock next/navigation per spec § 11 Mock Usage Policy (allowed exception)
 vi.mock('next/navigation', () => ({

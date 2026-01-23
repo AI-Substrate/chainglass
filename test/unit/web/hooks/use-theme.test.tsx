@@ -1,10 +1,14 @@
+import { act, renderHook, waitFor } from '@testing-library/react';
+import { ThemeProvider, useTheme } from 'next-themes';
 /**
  * @vitest-environment jsdom
  */
+// biome-ignore lint/style/useImportType: React must be a value import for JSX runtime
+import * as React from 'react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
 import { FakeLocalStorage } from '../../../fakes/fake-local-storage';
-import { act, renderHook, waitFor } from '@testing-library/react';
-import { ThemeProvider, useTheme } from 'next-themes';
-import type React from 'react';
+
 /**
  * useTheme Hook Tests
  *
@@ -15,7 +19,6 @@ import type React from 'react';
  *
  * These tests verify our integration with next-themes, not the library itself.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('useTheme hook (next-themes integration)', () => {
   let fakeLocalStorage: FakeLocalStorage;

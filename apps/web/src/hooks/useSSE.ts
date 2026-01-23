@@ -65,7 +65,12 @@ export function useSSE<T = unknown>(
   eventSourceFactory: EventSourceFactory = defaultEventSourceFactory,
   options: UseSSEOptions = {}
 ): UseSSEReturn<T> {
-  const { autoConnect = true, reconnectDelay = 5000, maxReconnectAttempts = 5, maxMessages = 1000 } = options;
+  const {
+    autoConnect = true,
+    reconnectDelay = 5000,
+    maxReconnectAttempts = 5,
+    maxMessages = 1000,
+  } = options;
 
   const [isConnected, setIsConnected] = useState(false);
   const [messages, setMessages] = useState<T[]>([]);

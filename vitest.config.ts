@@ -2,8 +2,8 @@ import { resolve } from 'node:path';
 import tsconfigPaths from 'vite-tsconfig-paths';
 import { defineConfig } from 'vitest/config';
 
-const testDir = resolve(import.meta.dirname);
-const rootDir = resolve(testDir, '..');
+const rootDir = import.meta.dirname;
+const testDir = resolve(rootDir, 'test');
 
 export default defineConfig({
   plugins: [
@@ -11,23 +11,11 @@ export default defineConfig({
       root: rootDir,
     }),
   ],
-  // Top-level resolve.alias - required for Vitest to pick up aliases
+  // Explicit alias fallback for @/ (Next.js convention)
   resolve: {
     alias: [
-      // Regex patterns for wildcard subpath imports
-      { find: /^@chainglass\/shared\/(.*)$/, replacement: resolve(rootDir, 'packages/shared/src/$1') },
-      { find: /^@chainglass\/cli\/(.*)$/, replacement: resolve(rootDir, 'apps/cli/src/$1') },
-      { find: /^@chainglass\/mcp-server\/(.*)$/, replacement: resolve(rootDir, 'packages/mcp-server/src/$1') },
-      { find: /^@chainglass\/web\/(.*)$/, replacement: resolve(rootDir, 'apps/web/src/$1') },
-      { find: /^@test\/(.*)$/, replacement: resolve(testDir, '$1') },
-      { find: /^@\/(.*)$/, replacement: resolve(rootDir, 'apps/web/src/$1') },
-      // Exact matches (no subpath)
-      { find: '@chainglass/shared', replacement: resolve(rootDir, 'packages/shared/src') },
-      { find: '@chainglass/cli', replacement: resolve(rootDir, 'apps/cli/src') },
-      { find: '@chainglass/mcp-server', replacement: resolve(rootDir, 'packages/mcp-server/src') },
-      { find: '@chainglass/web', replacement: resolve(rootDir, 'apps/web/src') },
-      { find: '@test', replacement: testDir },
       { find: '@', replacement: resolve(rootDir, 'apps/web/src') },
+      { find: '@test', replacement: testDir },
     ],
   },
   test: {
