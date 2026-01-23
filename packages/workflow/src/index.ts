@@ -50,6 +50,14 @@ export type { IWorkflowService } from './interfaces/index.js';
 // Phase service interface (Phase 3)
 export type { IPhaseService, ValidateCheckMode } from './interfaces/index.js';
 
+// Message service interface (Phase 3 Subtask 001)
+export { MessageErrorCodes } from './interfaces/index.js';
+export type {
+  IMessageService,
+  MessageContent,
+  AnswerInput,
+} from './interfaces/index.js';
+
 // Adapters
 export { YamlParserAdapter } from './adapters/index.js';
 export { SchemaValidatorAdapter } from './adapters/index.js';
@@ -67,6 +75,9 @@ export { WorkflowService, ComposeErrorCodes } from './services/index.js';
 
 // Services (Phase 3)
 export { PhaseService, PhaseErrorCodes } from './services/index.js';
+
+// Services (Phase 3 Subtask 001: Message CLI Commands)
+export { MessageService } from './services/index.js';
 
 // Utilities (Phase 4)
 export { extractValue } from './utils/index.js';

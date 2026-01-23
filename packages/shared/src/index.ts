@@ -23,6 +23,14 @@ export type {
   ValidatedFile,
   ValidatedOutput, // @deprecated alias for ValidatedFile
   PhaseInfo,
+  // Message result types (Phase 3 Subtask 001)
+  MessageCreateResult,
+  MessageAnswerResult,
+  MessageListResult,
+  MessageReadResult,
+  MessageSummary,
+  MessageAnswerData,
+  MessageData,
 } from './interfaces/index.js';
 
 // Output adapter interface (per Phase 1a: Output Adapter Architecture)

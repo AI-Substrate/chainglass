@@ -20,3 +20,14 @@ export type {
   ValidatedOutput, // @deprecated alias
   PhaseInfo,
 } from './command.types.js';
+
+// Message command result types (Phase 3 Subtask 001)
+export type {
+  MessageCreateResult,
+  MessageAnswerResult,
+  MessageListResult,
+  MessageReadResult,
+  MessageSummary,
+  MessageAnswerData,
+  MessageData,
+} from './message.types.js';

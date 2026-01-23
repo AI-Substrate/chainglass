@@ -154,10 +154,10 @@ flowchart TD
     end
 
     subgraph Subtask["Subtask 001: Message CLI Commands"]
-        ST001["ST001: IMessageService interface"]:::pending
-        ST002["ST002: Message result types"]:::pending
-        ST003["ST003: MessageService.create() tests"]:::pending
-        ST004["ST004: MessageService.create() impl"]:::pending
+        ST001["ST001: IMessageService interface ✓"]:::completed
+        ST002["ST002: Message result types ✓"]:::completed
+        ST003["ST003: MessageService.create() tests ✓"]:::completed
+        ST004["ST004: MessageService.create() impl ✓"]:::completed
         ST005["ST005: MessageService.answer() tests"]:::pending
         ST006["ST006: MessageService.answer() impl"]:::pending
         ST007["ST007: MessageService.list() tests"]:::pending
@@ -198,11 +198,11 @@ flowchart TD
     end
 
     subgraph Interfaces["Interfaces"]
-        I1["/packages/workflow/src/interfaces/message-service.interface.ts"]:::pending
+        I1["/packages/workflow/src/interfaces/message-service.interface.ts ✓"]:::completed
     end
 
     subgraph Services["Services"]
-        S1["/packages/workflow/src/services/message.service.ts"]:::pending
+        S1["/packages/workflow/src/services/message.service.ts ✓"]:::completed
     end
 
     subgraph Fakes["Fakes"]
@@ -219,7 +219,12 @@ flowchart TD
         IT1["/test/integration/cli/message-commands.test.ts"]:::pending
     end
 
+    subgraph Shared["Shared (Result Types)"]
+        R1["/packages/shared/src/interfaces/results/message.types.ts ✓"]:::completed
+    end
+
     ST001 -.-> I1
+    ST002 -.-> R1
     ST004 -.-> S1
     ST011 -.-> F1
     ST013 -.-> C1
@@ -237,10 +242,10 @@ flowchart TD
 
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
-| ST001 | Interface | message-service.interface.ts | ⬜ Pending | Define IMessageService contract |
-| ST002 | Types | message.types.ts (verify), command.types.ts (add results) | ⬜ Pending | Message result types |
-| ST003 | Unit Test | message-service.test.ts | ⬜ Pending | TDD RED: create() tests |
-| ST004 | Service | message.service.ts | ⬜ Pending | TDD GREEN: create() impl |
+| ST001 | Interface | message-service.interface.ts | ✅ Complete | Define IMessageService contract |
+| ST002 | Types | message.types.ts in @chainglass/shared | ✅ Complete | Message result types |
+| ST003 | Unit Test | message-service.test.ts | ✅ Complete | TDD RED: create() tests |
+| ST004 | Service | message.service.ts | ✅ Complete | TDD GREEN: create() impl |
 | ST005 | Unit Test | message-service.test.ts | ⬜ Pending | TDD RED: answer() tests |
 | ST006 | Service | message.service.ts | ⬜ Pending | TDD GREEN: answer() impl |
 | ST007 | Unit Test | message-service.test.ts | ⬜ Pending | TDD RED: list() tests |
@@ -264,10 +269,10 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|------|------|-----|------|--------------|------------------|------------|----------|-------|
-| [ ] | ST001 | Define `IMessageService` interface with create(), answer(), list(), read() signatures AND `MessageErrorCodes` constants (E060-E064) | 1 | Setup | – | /home/jak/substrate/003-wf-basics/packages/workflow/src/interfaces/message-service.interface.ts | Interface + error codes exported from @chainglass/workflow | – | Per existing IPhaseService + PhaseErrorCodes pattern |
-| [ ] | ST002 | Add message result types: MessageCreateResult, MessageAnswerResult, MessageListResult, MessageReadResult | 2 | Setup | ST001 | /home/jak/substrate/003-wf-basics/packages/shared/src/interfaces/results/message.types.ts | Types exported, extend BaseResult | – | Per PrepareResult/ValidateResult pattern |
-| [ ] | ST003 | Write tests for MessageService.create() including validation and idempotency | 3 | Test | ST002 | /home/jak/substrate/003-wf-basics/test/unit/workflow/message-service.test.ts | Tests fail (RED phase) | – | Cover all 4 message types, E064 |
-| [ ] | ST004 | Implement MessageService.create() | 3 | Core | ST003 | /home/jak/substrate/003-wf-basics/packages/workflow/src/services/message.service.ts | All create tests pass (GREEN) | – | Validates against message schema, writes m-{id}.json |
+| [x] | ST001 | Define `IMessageService` interface with create(), answer(), list(), read() signatures AND `MessageErrorCodes` constants (E060-E064) | 1 | Setup | – | /home/jak/substrate/003-wf-basics/packages/workflow/src/interfaces/message-service.interface.ts | Interface + error codes exported from @chainglass/workflow | – | Per existing IPhaseService + PhaseErrorCodes pattern |
+| [x] | ST002 | Add message result types: MessageCreateResult, MessageAnswerResult, MessageListResult, MessageReadResult | 2 | Setup | ST001 | /home/jak/substrate/003-wf-basics/packages/shared/src/interfaces/results/message.types.ts | Types exported, extend BaseResult | – | Per PrepareResult/ValidateResult pattern |
+| [x] | ST003 | Write tests for MessageService.create() including validation and idempotency | 3 | Test | ST002 | /home/jak/substrate/003-wf-basics/test/unit/workflow/message-service.test.ts | Tests fail (RED phase) | – | Cover all 4 message types, E064 |
+| [x] | ST004 | Implement MessageService.create() | 3 | Core | ST003 | /home/jak/substrate/003-wf-basics/packages/workflow/src/services/message.service.ts | All create tests pass (GREEN) | – | Validates against message schema, writes m-{id}.json |
 | [ ] | ST005 | Write tests for MessageService.answer() including type matching and E060-E063 | 3 | Test | ST004 | /home/jak/substrate/003-wf-basics/test/unit/workflow/message-service.test.ts | Tests fail (RED phase) | – | Cover all answer types, existing answer error |
 | [ ] | ST006 | Implement MessageService.answer() | 3 | Core | ST005 | /home/jak/substrate/003-wf-basics/packages/workflow/src/services/message.service.ts | All answer tests pass (GREEN) | – | Updates m-{id}.json with answer field |
 | [ ] | ST007 | Write tests for MessageService.list() | 2 | Test | ST006 | /home/jak/substrate/003-wf-basics/test/unit/workflow/message-service.test.ts | Tests fail (RED phase) | – | Cover empty, multiple, with/without answers |
