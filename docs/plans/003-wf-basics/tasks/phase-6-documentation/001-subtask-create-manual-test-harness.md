@@ -549,6 +549,7 @@ _Populated during implementation by plan-6. Log anything of interest to your fut
 | 2026-01-23 | /didyouknow | gotcha | Input directory uses split structure: inputs/files/ (.md), inputs/data/ (.json), inputs/params.json | Updated subtask docs to show correct structure | phase.service.ts:162-169 |
 | 2026-01-23 | /didyouknow | gotcha | wf.md copying is wrong - code copies templates/wf.md (overview) instead of root wf.md (agent instructions) | Fix code + rename templates/wf.md to README.md | workflow.service.ts:238-241 |
 | 2026-01-23 | Pre-impl | insight | **Message CLI commands fully implemented** - 748 tests passing, security hardened (path traversal prevention, JSON error handling) | Ready for manual test harness | Phase 3 Subtask 001, commit d5f8d89 |
+| 2026-01-23 | Research | insight | **Handover workflow fully documented** - Exemplar shows accept→preflight→work→finalize→handover flow; preflight wraps validate --check inputs but logs action | Future subtask will implement CLI commands | research/handover-workflow-research.md |
 
 **Types**: `gotcha` | `research-needed` | `unexpected-behavior` | `workaround` | `decision` | `debt` | `insight`
 
@@ -632,6 +633,8 @@ docs/plans/003-wf-basics/
 
 **Decision**: Use existing commands for testing (compose → prepare → validate → finalize)
 
+**Follow-up**: A new subtask will implement these commands after manual test harness completes. See [Handover Workflow Research](../../research/handover-workflow-research.md) for full design.
+
 ### Insight 3: Mode 1 Is CLI Exercise, Not Agent Validation
 
 **Did you know**: Mode 1 "simulates agent work" by copying pre-made files — tests CLI plumbing, not prompt clarity.
@@ -656,4 +659,85 @@ docs/plans/003-wf-basics/
 - **Updates Applied**: workflow.service.ts, execution.log.md, ST007, ST008, ST009
 - **Confidence**: High — All prerequisites resolved
 - **Next**: Run `/plan-6-implement-phase --subtask "001-subtask-create-manual-test-harness"`
+
+---
+
+## Appendix: Intended Handover Workflow
+
+**NOTE**: This section documents the INTENDED agent workflow based on the exemplar. When `cg phase accept/preflight/handover` commands are implemented, the manual test harness should be updated to use them.
+
+### Full Phase Workflow (From Exemplar)
+
+The exemplar at `dev/examples/wf/runs/run-example-001/phases/*/run/wf-data/wf-phase.json` shows the complete intended flow:
+
+```
+ORCHESTRATOR ACTIONS:
+1. prepare     - Initialize phase, copy inputs from prior phases
+2. input       - Create message with user request (logged when message created)
+3. handover    - Pass control to agent
+
+AGENT ACTIONS:
+4. accept      - Acknowledge taking control
+5. preflight   - Verify inputs OK, configuration valid (wraps validate --check inputs)
+6. [work]      - Read prompts, produce outputs
+7. finalize    - Extract output parameters
+8. handover    - Pass control back to orchestrator
+
+QUESTION/ANSWER FLOW (mid-phase):
+- Agent: question    (creates message)
+- Orchestrator: answer    (adds answer to message)
+- Orchestrator: handover  (returns control)
+- Agent: accept      (resumes work)
+```
+
+### Currently Available CLI Commands
+
+| Intended Action | CLI Command | Status |
+|-----------------|-------------|--------|
+| prepare | `cg phase prepare <phase> --run-dir $RUN` | ✅ Works |
+| input | `cg phase message create --from orchestrator ...` | ✅ Works (logs "question" not "input") |
+| **handover** | `cg phase handover <phase> --run-dir $RUN` | ❌ NOT IMPLEMENTED |
+| **accept** | `cg phase accept <phase> --run-dir $RUN` | ❌ NOT IMPLEMENTED |
+| **preflight** | `cg phase preflight <phase> --run-dir $RUN` | ❌ NOT IMPLEMENTED |
+| validate inputs | `cg phase validate <phase> --run-dir $RUN --check inputs` | ✅ Works |
+| validate outputs | `cg phase validate <phase> --run-dir $RUN --check outputs` | ✅ Works |
+| finalize | `cg phase finalize <phase> --run-dir $RUN` | ✅ Works |
+| question | `cg phase message create --from agent ...` | ✅ Works |
+| answer | `cg phase message answer --id 001 ...` | ✅ Works |
+
+### Manual Test Workaround
+
+Until handover commands are implemented, the manual test should:
+
+1. **Skip handover/accept/preflight** - Jump from prepare straight to work
+2. **Use validate --check inputs** - As a preflight check equivalent
+3. **Document the gap** - Note where handover commands WOULD be called
+
+**Example simplified flow for Mode 1:**
+```bash
+# GATHER PHASE (simplified - no handover)
+cg phase prepare gather --run-dir $RUN
+cg phase message create --phase gather --run-dir $RUN --from orchestrator ...
+# (pretend handover happened)
+# (pretend accept happened)
+cg phase validate gather --run-dir $RUN --check inputs  # preflight equivalent
+# ... agent work ...
+cg phase validate gather --run-dir $RUN --check outputs
+cg phase finalize gather --run-dir $RUN
+# (pretend handover back happened)
+
+# PROCESS PHASE
+cg phase prepare process --run-dir $RUN
+# etc.
+```
+
+### Future Subtask Reference
+
+A new subtask will implement the missing commands. See:
+- **Research**: [handover-workflow-research.md](../../research/handover-workflow-research.md)
+- **Location**: Phase 3: Phase Operations (alongside message CLI subtask)
+- **Scope**: `cg phase accept|preflight|handover` commands + IPhaseService methods
+- **Estimate**: ~20 tasks
+
+After implementation, re-run the manual test harness to verify the full workflow.
 
