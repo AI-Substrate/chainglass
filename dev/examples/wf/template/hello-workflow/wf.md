@@ -2,6 +2,22 @@
 
 You are executing a **workflow phase**. This means you are operating within a structured workflow system that provides inputs and expects specific outputs.
 
+## ⚠️ FAIL FAST POLICY
+
+**DO NOT attempt to fix problems yourself.** If you encounter:
+- Missing files or directories
+- CLI commands that fail or behave unexpectedly
+- Instructions that are unclear or contradictory
+- Validation errors you cannot resolve
+- Any blocking issue
+
+**Instead:**
+1. Log the error with details (what you tried, what happened)
+2. Hand back to orchestrator immediately
+3. Do NOT try workarounds, do NOT create missing infrastructure
+
+This helps us identify documentation/tooling gaps. Your job is to execute the phase, not debug the system.
+
 ## Before You Begin
 
 1. **Read the phase configuration**: `wf-phase.yaml`
@@ -48,25 +64,64 @@ All outputs go under `run/outputs/` (flat directory):
 
 ## Phase Completion
 
-When your work is complete:
+When your work is complete, follow these steps **exactly**:
 
-1. Ensure all declared outputs in `wf-phase.yaml` are written to `run/outputs/`
-2. Run phase validation:
-   ```bash
-   cg phase validate <phase_id> --run-dir <path_to_run> --check outputs
-   ```
+### Step 1: Write Outputs
+Ensure all declared outputs in `wf-phase.yaml` are written to `run/outputs/`
 
-   **What it checks**:
-   - All required output files exist in `run/outputs/`
-   - No output files are empty (0 bytes)
-   - JSON outputs conform to their declared schemas
-   - Output parameters can be extracted
+### Step 2: Validate (REQUIRED)
+```bash
+../../cg.sh phase validate <phase_id> --check outputs
+```
 
-   **If validation fails**: Fix the reported errors before proceeding.
+> **Note**: `cg` is not in PATH. Use `../../cg.sh` from your phase directory.
 
-   **On success**: Phase outputs become available to downstream phases.
+**What it checks**:
+- All required output files exist in `run/outputs/`
+- No output files are empty (0 bytes)
+- JSON outputs conform to their declared schemas
+- Output parameters can be extracted
 
-3. Stop and wait - the workflow system handles what comes next
+**If validation fails**: 
+- Log the exact error message
+- Skip to Step 4 (report failure to orchestrator)
+
+### Step 3: Finalize (REQUIRED — only if validation passed)
+```bash
+../../cg.sh phase finalize <phase_id>
+```
+
+This extracts output parameters and marks the phase complete.
+
+### Step 4: Report and STOP (REQUIRED)
+Report your completion status to the orchestrator:
+
+```
+---
+PHASE COMPLETE: <phase_id>
+
+Validation: PASSED | FAILED
+Finalization: PASSED | FAILED | SKIPPED
+
+Outputs created:
+- <list files in run/outputs/>
+
+Issues encountered:
+- <any problems or none>
+
+STOPPING. Awaiting orchestrator instructions.
+---
+```
+
+**After reporting: STOP IMMEDIATELY. Do NOT proceed to any other phase.**
+
+## 🛑 CRITICAL: Single Phase Only
+
+**You are executing ONE phase only.** When this phase is complete:
+- Complete steps 1-4 above
+- **STOP** — do not read or execute any other phase
+
+The orchestrator controls phase transitions. Even if you can see other phase folders, you must not execute them.
 
 ## Output Schemas
 

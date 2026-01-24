@@ -252,6 +252,16 @@ export class WorkflowService implements IWorkflowService {
       await this.fs.mkdir(path.join(runSubDir, 'messages'), { recursive: true });
     }
 
+    // 12f. Copy root-level agent files (cg.sh, AGENT-START.md)
+    const rootFilesToCopy = ['cg.sh', 'AGENT-START.md'];
+    for (const filename of rootFilesToCopy) {
+      const src = path.join(templatePath, filename);
+      if (await this.fs.exists(src)) {
+        const dest = path.join(runDir, filename);
+        await this.fs.copyFile(src, dest);
+      }
+    }
+
     // 13. Build result
     const phases: PhaseInfo[] = sortedPhases.map((phase) => ({
       name: phase.name,
