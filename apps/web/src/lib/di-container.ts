@@ -10,19 +10,19 @@
 
 import 'reflect-metadata';
 import {
+  type AdapterFactory,
   AgentService,
   ClaudeCodeAdapter,
   FakeAgentAdapter,
   FakeConfigService,
   FakeLogger,
   FakeProcessManager,
-  SdkCopilotAdapter,
-  type AdapterFactory,
   type IAgentAdapter,
   type IConfigService,
   type ILogger,
   type IProcessManager,
   PinoLoggerAdapter,
+  SdkCopilotAdapter,
   UnixProcessManager,
   WindowsProcessManager,
 } from '@chainglass/shared';
