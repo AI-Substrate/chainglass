@@ -79,7 +79,10 @@ describe('WorkflowRegistryService.restore()', () => {
       });
       fs.setFile(`${WORKFLOWS_DIR}/test-wf/workflow.json`, workflowJson);
       fs.setFile(`${WORKFLOWS_DIR}/test-wf/checkpoints/v001-abc12345/wf.yaml`, 'name: Version 1');
-      fs.setFile(`${WORKFLOWS_DIR}/test-wf/checkpoints/v001-abc12345/phases/setup.yaml`, 'phase: setup');
+      fs.setFile(
+        `${WORKFLOWS_DIR}/test-wf/checkpoints/v001-abc12345/phases/setup.yaml`,
+        'phase: setup'
+      );
       fs.setFile(`${WORKFLOWS_DIR}/test-wf/checkpoints/v001-abc12345/commands/run.md`, '# Run');
       fs.setFile(
         `${WORKFLOWS_DIR}/test-wf/checkpoints/v001-abc12345/.checkpoint.json`,
@@ -227,6 +230,44 @@ describe('WorkflowRegistryService.restore()', () => {
 
       expect(result.errors).toHaveLength(1);
       expect(result.errors[0].code).toBe('E034');
+    });
+
+    it('should return E039 when copy operation fails (CORR-004)', async () => {
+      /*
+      Test Doc:
+      - Why: Copy operations can fail due to permissions or disk issues
+      - Contract: restore() returns E039 on copy failure
+      - Usage Notes: Includes error details and retry guidance
+      - Quality Contribution: Actionable error for I/O failures
+      - Worked Example: copy fails → E039 with "Check permissions" action
+      */
+      const workflowJson = JSON.stringify({
+        slug: 'test-wf',
+        name: 'Test Workflow',
+        created_at: '2026-01-24T10:00:00Z',
+      });
+      fs.setFile(`${WORKFLOWS_DIR}/test-wf/workflow.json`, workflowJson);
+      fs.setFile(`${WORKFLOWS_DIR}/test-wf/checkpoints/v001-abc12345/wf.yaml`, 'name: Version 1');
+      fs.setFile(
+        `${WORKFLOWS_DIR}/test-wf/checkpoints/v001-abc12345/.checkpoint.json`,
+        JSON.stringify({ ordinal: 1, hash: 'abc12345', createdAt: '2026-01-24T10:00:00Z' })
+      );
+      fs.setFile(`${WORKFLOWS_DIR}/test-wf/current/wf.yaml`, 'name: Current');
+
+      // Simulate copy failure by making copyFile fail
+      const originalCopyFile = fs.copyFile.bind(fs);
+      fs.copyFile = async (source: string, dest: string) => {
+        if (source.endsWith('wf.yaml') && source.includes('checkpoints')) {
+          throw new Error('Read-only filesystem');
+        }
+        return originalCopyFile(source, dest);
+      };
+
+      const result = await service.restore(WORKFLOWS_DIR, 'test-wf', 'v001');
+
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].code).toBe('E039');
+      expect(result.errors[0].message).toContain('Read-only filesystem');
     });
   });
 });

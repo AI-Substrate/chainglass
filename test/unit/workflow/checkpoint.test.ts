@@ -631,7 +631,10 @@ describe('WorkflowRegistryService checkpoint operations', () => {
       fs.setFile(`${WORKFLOWS_DIR}/test-wf/workflow.json`, workflowJson);
       fs.setFile(`${WORKFLOWS_DIR}/test-wf/current/wf.yaml`, 'name: Same Content');
       fs.setDir(`${WORKFLOWS_DIR}/test-wf/checkpoints/v001-abc12345`);
-      fs.setFile(`${WORKFLOWS_DIR}/test-wf/checkpoints/v001-abc12345/wf.yaml`, 'name: Same Content');
+      fs.setFile(
+        `${WORKFLOWS_DIR}/test-wf/checkpoints/v001-abc12345/wf.yaml`,
+        'name: Same Content'
+      );
 
       // @ts-expect-error - Method doesn't exist yet (TDD RED phase)
       const result = await service.checkpoint(WORKFLOWS_DIR, 'test-wf', { force: true });
@@ -664,7 +667,7 @@ describe('WorkflowRegistryService checkpoint operations', () => {
       // Check workflow.json was created
       const workflowJson = fs.getFile(`${WORKFLOWS_DIR}/test-wf/workflow.json`);
       expect(workflowJson).toBeDefined();
-      const parsed = JSON.parse(workflowJson!);
+      const parsed = JSON.parse(workflowJson as string);
       expect(parsed.slug).toBe('test-wf');
       expect(parsed.name).toBe('Test Workflow');
       expect(parsed.created_at).toBeDefined();
@@ -718,7 +721,7 @@ describe('WorkflowRegistryService checkpoint operations', () => {
 
       const workflowJson = fs.getFile(`${WORKFLOWS_DIR}/test-wf/workflow.json`);
       expect(workflowJson).toBeDefined();
-      const parsed = JSON.parse(workflowJson!);
+      const parsed = JSON.parse(workflowJson as string);
       expect(parsed.name).toBe('Extracted Workflow Name');
     });
   });
@@ -752,7 +755,7 @@ describe('WorkflowRegistryService checkpoint operations', () => {
       const manifestContent = fs.getFile(manifestPath);
       expect(manifestContent).toBeDefined();
 
-      const manifest = JSON.parse(manifestContent!);
+      const manifest = JSON.parse(manifestContent as string);
       expect(manifest.ordinal).toBe(1);
       expect(manifest.hash).toMatch(/^[a-f0-9]{8}$/);
       expect(manifest.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
@@ -783,7 +786,7 @@ describe('WorkflowRegistryService checkpoint operations', () => {
 
       expect(result.errors).toHaveLength(0);
       const manifestPath = `${result.checkpointPath}/.checkpoint.json`;
-      const manifest = JSON.parse(fs.getFile(manifestPath)!);
+      const manifest = JSON.parse(fs.getFile(manifestPath) as string);
       expect(manifest.comment).toBe('Initial release');
     });
 
@@ -809,8 +812,11 @@ describe('WorkflowRegistryService checkpoint operations', () => {
       const result = await service.checkpoint(WORKFLOWS_DIR, 'test-wf', {});
 
       const manifestPath = `${result.checkpointPath}/.checkpoint.json`;
-      const manifest = JSON.parse(fs.getFile(manifestPath)!);
+      const manifest = JSON.parse(fs.getFile(manifestPath) as string);
       expect(manifest.comment).toBeUndefined();
     });
   });
+
+  // NOTE: Security tests (SEC-001, SEC-002, SEC-003, CORR-001, CORR-003) are in
+  // checkpoint-security.test.ts to work around a vitest memory issue.
 });

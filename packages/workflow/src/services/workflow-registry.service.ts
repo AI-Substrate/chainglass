@@ -19,8 +19,8 @@ import type {
   WorkflowMetadata,
   WorkflowSummary,
 } from '@chainglass/shared';
-import type { CheckpointOptions } from '../interfaces/workflow-registry.interface.js';
 import { WorkflowMetadataSchema } from '@chainglass/shared';
+import type { CheckpointOptions } from '../interfaces/workflow-registry.interface.js';
 import type { IWorkflowRegistry } from '../interfaces/workflow-registry.interface.js';
 import type { IYamlParser } from '../interfaces/yaml-parser.interface.js';
 
@@ -43,6 +43,10 @@ export const WorkflowRegistryErrorCodes = {
   INVALID_TEMPLATE: 'E036',
   /** Failed to read directory */
   DIR_READ_FAILED: 'E037',
+  /** Checkpoint creation failed (I/O error during checkpoint) */
+  CHECKPOINT_FAILED: 'E038',
+  /** Restore operation failed (I/O error during restore) */
+  RESTORE_FAILED: 'E039',
 } as const;
 
 /** Maximum workflow.json file size (10MB) to prevent DoS */
@@ -69,6 +73,18 @@ interface CheckpointManifest {
 export class WorkflowRegistryService implements IWorkflowRegistry {
   /** Directories to exclude from hashing and copying */
   private static readonly EXCLUDED_DIRS = ['.git', 'node_modules', 'dist'];
+
+  /**
+   * Validate that a path does not escape the base directory (SEC-001, SEC-002).
+   * Checks for '..' components which could enable path traversal attacks.
+   *
+   * @param entryPath - Relative path to validate
+   * @returns true if path is safe, false if it contains traversal attempts
+   */
+  private static isPathSafe(entryPath: string): boolean {
+    // Reject any path containing '..' to prevent directory escape
+    return !entryPath.includes('..');
+  }
 
   constructor(
     private readonly fs: IFileSystem,
@@ -348,15 +364,15 @@ export class WorkflowRegistryService implements IWorkflowRegistry {
 
   /**
    * Recursively collect files for hashing, excluding .git, node_modules, dist.
+   * Per SEC-001: Validates paths to prevent directory traversal attacks.
+   * Per SEC-003: Handles file read errors gracefully (skip unreadable files).
    */
   private async collectFilesForHash(
     basePath: string,
     relativePath: string,
     results: { path: string; content: string }[]
   ): Promise<void> {
-    const currentPath = relativePath
-      ? this.pathResolver.join(basePath, relativePath)
-      : basePath;
+    const currentPath = relativePath ? this.pathResolver.join(basePath, relativePath) : basePath;
 
     if (!(await this.fs.exists(currentPath))) {
       return;
@@ -370,20 +386,28 @@ export class WorkflowRegistryService implements IWorkflowRegistry {
         continue;
       }
 
-      const entryPath = relativePath
-        ? this.pathResolver.join(relativePath, entry)
-        : entry;
+      const entryPath = relativePath ? this.pathResolver.join(relativePath, entry) : entry;
+
+      // SEC-001: Path traversal protection - skip entries with '..'
+      if (!WorkflowRegistryService.isPathSafe(entryPath)) {
+        continue;
+      }
+
       const fullPath = this.pathResolver.join(basePath, entryPath);
 
-      const stat = await this.fs.stat(fullPath);
+      // SEC-003: Handle file access errors gracefully (stat and read)
+      try {
+        const stat = await this.fs.stat(fullPath);
 
-      if (stat.isDirectory) {
-        // Recurse into subdirectory
-        await this.collectFilesForHash(basePath, entryPath, results);
-      } else if (stat.isFile) {
-        // Read file content
-        const content = await this.fs.readFile(fullPath);
-        results.push({ path: entryPath, content });
+        if (stat.isDirectory) {
+          // Recurse into subdirectory
+          await this.collectFilesForHash(basePath, entryPath, results);
+        } else if (stat.isFile) {
+          const content = await this.fs.readFile(fullPath);
+          results.push({ path: entryPath, content });
+        }
+      } catch {
+        // Skip files that can't be accessed (permissions, deleted during iteration)
       }
     }
   }
@@ -497,7 +521,7 @@ export class WorkflowRegistryService implements IWorkflowRegistry {
           {
             code: WorkflowRegistryErrorCodes.INVALID_TEMPLATE,
             message: `Template directory missing: ${slug}/current/`,
-            action: `Create the current/ directory with a wf.yaml file`,
+            action: 'Create the current/ directory with a wf.yaml file',
           },
         ],
         ordinal: 0,
@@ -515,7 +539,7 @@ export class WorkflowRegistryService implements IWorkflowRegistry {
           {
             code: WorkflowRegistryErrorCodes.INVALID_TEMPLATE,
             message: `Template missing wf.yaml: ${slug}/current/wf.yaml`,
-            action: `Create a wf.yaml file in the current/ directory`,
+            action: 'Create a wf.yaml file in the current/ directory',
           },
         ],
         ordinal: 0,
@@ -526,8 +550,26 @@ export class WorkflowRegistryService implements IWorkflowRegistry {
       };
     }
 
-    // Generate content hash
-    const hash = await this.generateCheckpointHash(workflowsDir, slug);
+    // CORR-003: Wrap hash generation in try/catch
+    let hash: string;
+    try {
+      hash = await this.generateCheckpointHash(workflowsDir, slug);
+    } catch (error) {
+      return {
+        errors: [
+          {
+            code: WorkflowRegistryErrorCodes.INVALID_TEMPLATE,
+            message: `Failed to hash template: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            action: 'Check file permissions in current/ directory',
+          },
+        ],
+        ordinal: 0,
+        hash: '',
+        version: '',
+        checkpointPath: '',
+        createdAt,
+      };
+    }
 
     // Check for duplicate content (unless force)
     if (!options.force) {
@@ -539,7 +581,7 @@ export class WorkflowRegistryService implements IWorkflowRegistry {
             {
               code: WorkflowRegistryErrorCodes.DUPLICATE_CONTENT,
               message: `Template unchanged since ${matchingVersion.version}`,
-              action: `Make changes to the template or use --force to create anyway`,
+              action: 'Make changes to the template or use --force to create anyway',
             },
           ],
           ordinal: 0,
@@ -560,26 +602,50 @@ export class WorkflowRegistryService implements IWorkflowRegistry {
     // Create checkpoint directory
     await this.fs.mkdir(checkpointPath, { recursive: true });
 
-    // Copy all files from current/ to checkpoint (using recursive helper)
-    await this.copyDirectoryRecursive(currentDir, checkpointPath);
+    // CORR-001: Wrap checkpoint creation in try/catch with cleanup on failure
+    try {
+      // Copy all files from current/ to checkpoint (using recursive helper)
+      await this.copyDirectoryRecursive(currentDir, checkpointPath);
 
-    // Create .checkpoint.json manifest
-    const manifest: CheckpointManifest = {
-      ordinal,
-      hash,
-      createdAt,
-    };
-    if (options.comment) {
-      manifest.comment = options.comment;
-    }
-    await this.fs.writeFile(
-      this.pathResolver.join(checkpointPath, '.checkpoint.json'),
-      JSON.stringify(manifest, null, 2)
-    );
+      // Create .checkpoint.json manifest
+      const manifest: CheckpointManifest = {
+        ordinal,
+        hash,
+        createdAt,
+      };
+      if (options.comment) {
+        manifest.comment = options.comment;
+      }
+      await this.fs.writeFile(
+        this.pathResolver.join(checkpointPath, '.checkpoint.json'),
+        JSON.stringify(manifest, null, 2)
+      );
 
-    // Auto-generate workflow.json if missing (per CD03)
-    if (!(await this.fs.exists(workflowJsonPath))) {
-      await this.generateWorkflowJson(workflowDir, slug, wfYamlPath, createdAt);
+      // Auto-generate workflow.json if missing (per CD03)
+      if (!(await this.fs.exists(workflowJsonPath))) {
+        await this.generateWorkflowJson(workflowDir, slug, wfYamlPath, createdAt);
+      }
+    } catch (error) {
+      // Cleanup on partial failure - remove orphaned checkpoint directory
+      try {
+        await this.fs.rmdir(checkpointPath, { recursive: true });
+      } catch {
+        // Best effort cleanup - ignore if already gone
+      }
+      return {
+        errors: [
+          {
+            code: WorkflowRegistryErrorCodes.CHECKPOINT_FAILED,
+            message: `Checkpoint creation failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            action: 'Check disk space and file permissions, then retry',
+          },
+        ],
+        ordinal: 0,
+        hash: '',
+        version: '',
+        checkpointPath: '',
+        createdAt,
+      };
     }
 
     return {
@@ -600,11 +666,7 @@ export class WorkflowRegistryService implements IWorkflowRegistry {
    * @param version - Version to restore (ordinal like 'v001' or full like 'v001-abc12345')
    * @returns RestoreResult
    */
-  async restore(
-    workflowsDir: string,
-    slug: string,
-    version: string
-  ): Promise<RestoreResult> {
+  async restore(workflowsDir: string, slug: string, version: string): Promise<RestoreResult> {
     const workflowDir = this.pathResolver.join(workflowsDir, slug);
     const currentDir = this.pathResolver.join(workflowDir, 'current');
     const checkpointsDir = this.getCheckpointDir(workflowsDir, slug);
@@ -677,8 +739,24 @@ export class WorkflowRegistryService implements IWorkflowRegistry {
     }
     await this.fs.mkdir(currentDir, { recursive: true });
 
-    // Copy checkpoint files to current/
-    await this.copyDirectoryRecursive(checkpointPath, currentDir);
+    // CORR-004: Wrap copy operation in try/catch
+    try {
+      // Copy checkpoint files to current/
+      await this.copyDirectoryRecursive(checkpointPath, currentDir);
+    } catch (error) {
+      return {
+        errors: [
+          {
+            code: WorkflowRegistryErrorCodes.RESTORE_FAILED,
+            message: `Restore failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            action: 'Check file permissions and retry',
+          },
+        ],
+        slug,
+        version: '',
+        currentPath: currentDir,
+      };
+    }
 
     return {
       errors: [],
@@ -726,6 +804,8 @@ export class WorkflowRegistryService implements IWorkflowRegistry {
   /**
    * Recursively copy a directory, excluding .git, node_modules, dist.
    * Per DYK-01: Uses IFileSystem adapter, never direct fs access.
+   * Per SEC-002: Validates paths to prevent directory traversal attacks.
+   * Per CORR-002: Removed TOCTOU race by relying on mkdir({ recursive: true }).
    */
   private async copyDirectoryRecursive(
     sourceDir: string,
@@ -735,9 +815,7 @@ export class WorkflowRegistryService implements IWorkflowRegistry {
     const currentSource = relativePath
       ? this.pathResolver.join(sourceDir, relativePath)
       : sourceDir;
-    const currentDest = relativePath
-      ? this.pathResolver.join(destDir, relativePath)
-      : destDir;
+    const currentDest = relativePath ? this.pathResolver.join(destDir, relativePath) : destDir;
 
     if (!(await this.fs.exists(currentSource))) {
       return;
@@ -756,9 +834,13 @@ export class WorkflowRegistryService implements IWorkflowRegistry {
         continue;
       }
 
-      const entryRelPath = relativePath
-        ? this.pathResolver.join(relativePath, entry)
-        : entry;
+      const entryRelPath = relativePath ? this.pathResolver.join(relativePath, entry) : entry;
+
+      // SEC-002: Path traversal protection - skip entries with '..'
+      if (!WorkflowRegistryService.isPathSafe(entryRelPath)) {
+        continue;
+      }
+
       const sourcePath = this.pathResolver.join(sourceDir, entryRelPath);
       const destPath = this.pathResolver.join(destDir, entryRelPath);
 
@@ -769,9 +851,9 @@ export class WorkflowRegistryService implements IWorkflowRegistry {
         await this.fs.mkdir(destPath, { recursive: true });
         await this.copyDirectoryRecursive(sourceDir, destDir, entryRelPath);
       } else if (stat.isFile) {
-        // Ensure parent directory exists
+        // CORR-002: Removed TOCTOU race - mkdir({ recursive: true }) handles existence
         const parentDir = this.pathResolver.join(destDir, relativePath);
-        if (parentDir !== destDir && !(await this.fs.exists(parentDir))) {
+        if (parentDir !== destDir) {
           await this.fs.mkdir(parentDir, { recursive: true });
         }
         // Copy file

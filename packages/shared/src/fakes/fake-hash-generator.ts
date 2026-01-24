@@ -23,6 +23,9 @@ export class FakeHashGenerator implements IHashGenerator {
   /** Seed for generating default hashes */
   private hashSeed = 0;
 
+  /** Error to throw on next sha256 call */
+  private errorToThrow: Error | null = null;
+
   // ==================== Test Helpers ====================
 
   /**
@@ -54,6 +57,16 @@ export class FakeHashGenerator implements IHashGenerator {
     this.presets.clear();
     this.callCount = 0;
     this.hashSeed = 0;
+    this.errorToThrow = null;
+  }
+
+  /**
+   * Set an error to be thrown on next sha256 call (test helper).
+   *
+   * @param error - Error to throw
+   */
+  setError(error: Error): void {
+    this.errorToThrow = error;
   }
 
   // ==================== IHashGenerator Implementation ====================
@@ -69,6 +82,13 @@ export class FakeHashGenerator implements IHashGenerator {
    */
   async sha256(input: string): Promise<string> {
     this.callCount++;
+
+    // Throw error if configured
+    if (this.errorToThrow) {
+      const error = this.errorToThrow;
+      this.errorToThrow = null; // Clear after throwing
+      throw error;
+    }
 
     // Return preset if configured
     const preset = this.presets.get(input);

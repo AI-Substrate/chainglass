@@ -17,7 +17,10 @@ import type {
   WorkflowInfo,
   WorkflowSummary,
 } from '@chainglass/shared';
-import type { CheckpointOptions, IWorkflowRegistry } from '../interfaces/workflow-registry.interface.js';
+import type {
+  CheckpointOptions,
+  IWorkflowRegistry,
+} from '../interfaces/workflow-registry.interface.js';
 
 /**
  * Recorded list() call for test inspection.
@@ -212,7 +215,12 @@ export class FakeWorkflowRegistry implements IWorkflowRegistry {
    * @param version - Version string
    * @param result - RestoreResult to return
    */
-  setRestoreResult(workflowsDir: string, slug: string, version: string, result: RestoreResult): void {
+  setRestoreResult(
+    workflowsDir: string,
+    slug: string,
+    version: string,
+    result: RestoreResult
+  ): void {
     this.restoreResults.set(`${workflowsDir}:${slug}:${version}`, result);
   }
 
@@ -347,9 +355,7 @@ export class FakeWorkflowRegistry implements IWorkflowRegistry {
    * @returns Last RestoreCall, or null if no calls made
    */
   getLastRestoreCall(): RestoreCall | null {
-    return this.restoreCalls.length > 0
-      ? this.restoreCalls[this.restoreCalls.length - 1]
-      : null;
+    return this.restoreCalls.length > 0 ? this.restoreCalls[this.restoreCalls.length - 1] : null;
   }
 
   /**
@@ -374,9 +380,7 @@ export class FakeWorkflowRegistry implements IWorkflowRegistry {
    * @returns Last VersionsCall, or null if no calls made
    */
   getLastVersionsCall(): VersionsCall | null {
-    return this.versionsCalls.length > 0
-      ? this.versionsCalls[this.versionsCalls.length - 1]
-      : null;
+    return this.versionsCalls.length > 0 ? this.versionsCalls[this.versionsCalls.length - 1] : null;
   }
 
   /**
@@ -638,11 +642,7 @@ export class FakeWorkflowRegistry implements IWorkflowRegistry {
    * @param version - Version to restore
    * @returns RestoreResult (preset or default success)
    */
-  async restore(
-    workflowsDir: string,
-    slug: string,
-    version: string
-  ): Promise<RestoreResult> {
+  async restore(workflowsDir: string, slug: string, version: string): Promise<RestoreResult> {
     const key = `${workflowsDir}:${slug}:${version}`;
     const timestamp = new Date().toISOString();
 
@@ -687,10 +687,7 @@ export class FakeWorkflowRegistry implements IWorkflowRegistry {
    * @param slug - Workflow slug
    * @returns VersionsResult (preset or default empty)
    */
-  async versions(
-    workflowsDir: string,
-    slug: string
-  ): Promise<VersionsResult> {
+  async versions(workflowsDir: string, slug: string): Promise<VersionsResult> {
     const key = `${workflowsDir}:${slug}`;
     const timestamp = new Date().toISOString();
 

@@ -7,11 +7,7 @@
  */
 
 import { FakeFileSystem, FakeHashGenerator, FakePathResolver } from '@chainglass/shared';
-import {
-  FakeSchemaValidator,
-  FakeYamlParser,
-  WorkflowRegistryService,
-} from '@chainglass/workflow';
+import { FakeSchemaValidator, FakeYamlParser, WorkflowRegistryService } from '@chainglass/workflow';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 describe('WorkflowRegistryService.list()', () => {
