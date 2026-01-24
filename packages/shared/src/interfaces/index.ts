@@ -6,6 +6,9 @@ export type { IFileSystem, FileStat } from './filesystem.interface.js';
 export { PathSecurityError } from './path-resolver.interface.js';
 export type { IPathResolver } from './path-resolver.interface.js';
 
+// Viewer interfaces (per Phase 1: Headless Viewer Hooks)
+export type { ViewerFile } from './viewer.interface.js';
+
 // Result types (per Phase 1a: Output Adapter Architecture)
 export type {
   BaseResult,

@@ -9,6 +9,10 @@ export { FileSystemError } from './interfaces/index.js';
 export type { IFileSystem, FileStat } from './interfaces/index.js';
 export { PathSecurityError } from './interfaces/index.js';
 export type { IPathResolver } from './interfaces/index.js';
+export type { ViewerFile } from './interfaces/index.js';
+
+// Library utilities
+export { detectLanguage } from './lib/language-detection.js';
 
 // Result types (per Phase 1a: Output Adapter Architecture)
 export type {
