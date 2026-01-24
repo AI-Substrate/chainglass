@@ -8,8 +8,7 @@
 
 import { useCallback, useState } from 'react';
 
-import type { ViewerFile } from '@chainglass/shared';
-import { detectLanguage } from '@chainglass/shared';
+import type { ViewerFile } from '../lib/language-detection';
 
 import { type ViewerStateBase, createViewerStateBase } from '../lib/viewer-state-utils';
 

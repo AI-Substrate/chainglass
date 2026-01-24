@@ -5,8 +5,7 @@
  * Per DYK Insight #1: Use shared utility pattern instead of hook composition.
  */
 
-import type { ViewerFile } from '@chainglass/shared';
-import { detectLanguage } from '@chainglass/shared';
+import { type ViewerFile, detectLanguage } from './language-detection';
 
 /**
  * Base state shape shared by all viewer hooks.

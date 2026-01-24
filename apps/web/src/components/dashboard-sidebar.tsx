@@ -15,7 +15,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
-import { GitBranch, Home, LayoutDashboard, PanelLeft } from 'lucide-react';
+import { Code, GitBranch, Home, LayoutDashboard, PanelLeft } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
@@ -26,6 +26,7 @@ const NAV_ITEMS = [
   { label: 'Home', href: '/', icon: Home },
   { label: 'Workflow Visualization', href: '/workflow', icon: GitBranch },
   { label: 'Kanban Board', href: '/kanban', icon: LayoutDashboard },
+  { label: 'FileViewer Demo', href: '/demo/file-viewer', icon: Code },
 ] as const;
 
 /**

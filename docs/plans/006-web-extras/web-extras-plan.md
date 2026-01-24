@@ -1399,7 +1399,7 @@ just check  # runs all of the above
 ### Phase Completion Checklist
 
 - [x] Phase 1: Headless Viewer Hooks - COMPLETE (78 tests passing)
-- [ ] Phase 2: FileViewer Component - PENDING
+- [x] Phase 2: FileViewer Component - COMPLETE (44 new tests, 162 total passing)
 - [ ] Phase 3: MarkdownViewer Component - PENDING
 - [ ] Phase 4: Mermaid Integration - PENDING
 - [ ] Phase 5: DiffViewer Component - PENDING
