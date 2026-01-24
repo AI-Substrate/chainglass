@@ -275,6 +275,85 @@ TypeScript compiles without errors.
 - DYK-04: Explicit sessionId assertions in tests
 - DYK-05: Context-proving prompts ("password is blueberry") in T009 demos
 
+---
+
+## Post-Phase Bug Fix: compact() Session Destruction Bug
+
+**Discovered**: 2026-01-24 01:35 UTC
+**Fixed**: 2026-01-24 01:41 UTC
+**Status**: ✅ Fixed
+
+### Issue
+
+Manual testing of `demo-copilot-multi-turn.ts` revealed that `/compact` destroyed conversation context instead of preserving it. After compact, the agent couldn't recall the "secret password" from Turn 1.
+
+### Root Cause Analysis
+
+The original `compact()` implementation delegated to `run()`:
+
+```typescript
+// BROKEN: compact() delegated to run()
+async compact(sessionId: string): Promise<AgentResult> {
+  return this.run({ prompt: '/compact', sessionId });
+}
+```
+
+**Problem**: `run()` has a `finally` block that **always destroys the session**:
+
+```typescript
+// In run(), line 160-163:
+} finally {
+  await session.destroy();  // <-- THIS KILLED THE SESSION
+}
+```
+
+So after compact:
+1. Session resumed ✓
+2. `/compact` sent ✓
+3. Session **destroyed** ← BUG!
+4. Next turn creates NEW session with no context
+
+### Fix
+
+Rewrote `compact()` to call SDK directly WITHOUT destroying the session:
+
+```typescript
+async compact(sessionId: string): Promise<AgentResult> {
+  const session = await this._client.resumeSession(sessionId);
+  try {
+    let output = '';
+    session.on((event) => {
+      if (event.type === 'assistant.message') {
+        output = event.data.content;
+      }
+    });
+    await session.sendAndWait({ prompt: '/compact' });
+    return { output, sessionId, status: 'completed', exitCode: 0, tokens: null };
+  } catch (error) {
+    return { output: `Compact failed: ${error}`, sessionId, status: 'failed', exitCode: 1, tokens: null };
+  }
+  // NOTE: No finally block with destroy() - session must stay alive
+}
+```
+
+### Verification
+
+1. All 51 unit tests pass
+2. All 36 contract tests pass
+3. Manual test of `demo-copilot-multi-turn.ts`:
+   - Turn 1: "password is blueberry" → Agent acknowledged
+   - Compact: `/compact` sent → Status: completed, session preserved
+   - Turn 2: "What was the password?" → Agent correctly recalled "blueberry" ✅
+
+### Lesson Learned
+
+**Session lifecycle differs between operations:**
+- `run()`: Ephemeral - create/resume → send → destroy (context not needed after response)
+- `compact()`: Persistent - resume → compact → **keep alive** (context needed for future turns)
+- `terminate()`: Final - resume → abort → destroy (explicit end-of-session)
+
+This is a critical distinction that wasn't captured in the original DYK-01 decision.
+
 
 
 

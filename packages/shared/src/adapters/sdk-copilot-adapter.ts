@@ -245,20 +245,46 @@ export class SdkCopilotAdapter implements IAgentAdapter {
   async compact(sessionId: string): Promise<AgentResult> {
     this._logger?.debug('SdkCopilotAdapter.compact() called', { sessionId });
 
-    // Delegate to run() with /compact as the prompt
-    // Per DYK-01: SDK has no native compact; we use the CLI command
-    const result = await this.run({
-      prompt: '/compact',
-      sessionId,
-    });
+    // CRITICAL: Do NOT delegate to run() - run() destroys the session in finally block!
+    // compact() must preserve the session so subsequent turns can access compacted context.
+    // Per DYK-01: SDK has no native compact; we send /compact as a prompt.
+    const session = await this._client.resumeSession(sessionId);
 
-    this._logger?.debug('SdkCopilotAdapter.compact() completed', {
-      sessionId,
-      status: result.status,
-      exitCode: result.exitCode,
-    });
+    try {
+      let output = '';
+      session.on((event: CopilotSessionEvent) => {
+        if (event.type === 'assistant.message') {
+          output = event.data.content;
+        }
+      });
 
-    return result;
+      await session.sendAndWait({ prompt: '/compact' });
+
+      this._logger?.debug('SdkCopilotAdapter.compact() completed', {
+        sessionId,
+        status: 'completed',
+      });
+
+      return {
+        output,
+        sessionId: session.sessionId,
+        status: 'completed',
+        exitCode: 0,
+        tokens: null,
+      };
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this._logger?.error('SdkCopilotAdapter.compact() failed', new Error(errorMessage), { sessionId });
+
+      return {
+        output: `Compact failed: ${errorMessage}`,
+        sessionId,
+        status: 'failed',
+        exitCode: 1,
+        tokens: null,
+      };
+    }
+    // NOTE: No finally block with destroy() - session must stay alive for subsequent turns
   }
 
   /**
