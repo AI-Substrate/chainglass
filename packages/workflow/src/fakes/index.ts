@@ -15,3 +15,8 @@ export type {
 } from './fake-phase-service.js';
 export { FakeMessageService } from './fake-message-service.js';
 export type { CreateCall, AnswerCall, ListCall, ReadCall } from './fake-message-service.js';
+export { FakeWorkflowRegistry } from './fake-workflow-registry.js';
+export type {
+  ListCall as RegistryListCall,
+  InfoCall as RegistryInfoCall,
+} from './fake-workflow-registry.js';

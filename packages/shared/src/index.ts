@@ -9,6 +9,7 @@ export { FileSystemError } from './interfaces/index.js';
 export type { IFileSystem, FileStat } from './interfaces/index.js';
 export { PathSecurityError } from './interfaces/index.js';
 export type { IPathResolver } from './interfaces/index.js';
+export type { IHashGenerator } from './interfaces/index.js';
 
 // Result types (per Phase 1a: Output Adapter Architecture)
 export type {
@@ -39,6 +40,15 @@ export type {
   PhaseState,
   StatusEntry,
   PreflightChecks,
+  // Workflow registry result types (Phase 1)
+  ListResult,
+  InfoResult,
+  CheckpointResult,
+  RestoreResult,
+  VersionsResult,
+  CheckpointInfo,
+  WorkflowSummary,
+  WorkflowInfo,
 } from './interfaces/index.js';
 
 // Output adapter interface (per Phase 1a: Output Adapter Architecture)
@@ -57,6 +67,7 @@ export { FakeFileSystem } from './fakes/index.js';
 export { FakePathResolver } from './fakes/index.js';
 export { FakeOutputAdapter } from './fakes/index.js';
 export type { FormattedResult } from './fakes/index.js';
+export { FakeHashGenerator } from './fakes/index.js';
 
 // Adapters
 export { PinoLoggerAdapter } from './adapters/index.js';
@@ -64,6 +75,7 @@ export { NodeFileSystemAdapter } from './adapters/index.js';
 export { PathResolverAdapter } from './adapters/index.js';
 export { JsonOutputAdapter } from './adapters/index.js';
 export { ConsoleOutputAdapter } from './adapters/index.js';
+export { HashGeneratorAdapter } from './adapters/index.js';
 
 // DI Tokens
 export { SHARED_DI_TOKENS, WORKFLOW_DI_TOKENS } from './di-tokens.js';
@@ -78,6 +90,10 @@ export {
   SampleConfigSchema,
   SampleConfigType,
   type SampleConfig,
+} from './config/index.js';
+export {
+  WorkflowMetadataSchema,
+  type WorkflowMetadata,
 } from './config/index.js';
 export {
   ChainglassConfigService,

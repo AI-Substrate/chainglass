@@ -4,3 +4,4 @@ export { FakeFileSystem } from './fake-filesystem.js';
 export { FakePathResolver } from './fake-path-resolver.js';
 export { FakeOutputAdapter } from './fake-output.adapter.js';
 export type { FormattedResult } from './fake-output.adapter.js';
+export { FakeHashGenerator } from './fake-hash-generator.js';

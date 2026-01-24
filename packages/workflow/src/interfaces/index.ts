@@ -29,3 +29,6 @@ export type {
   MessageContent,
   AnswerInput,
 } from './message-service.interface.js';
+
+// Workflow registry interface (Phase 1)
+export type { IWorkflowRegistry } from './workflow-registry.interface.js';

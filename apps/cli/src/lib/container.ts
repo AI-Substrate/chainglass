@@ -1,57 +1,87 @@
 /**
- * Dependency Injection Container for @chainglass/workflow
+ * CLI Dependency Injection Container
  *
- * Per Critical Discovery 05: Use useFactory for all registrations.
- * Per Critical Discovery 04: Child container pattern for test isolation.
+ * Per Critical Discovery 04 and ADR-0004: Child container factory pattern.
+ * Creates fresh child containers for production and test use.
+ * Does NOT use singleton pattern - each call returns new container.
  */
 
 import 'reflect-metadata';
 import {
+  ConsoleOutputAdapter,
   FakeFileSystem,
+  FakeHashGenerator,
   FakeLogger,
+  FakeOutputAdapter,
   FakePathResolver,
+  HashGeneratorAdapter,
   type IFileSystem,
+  type IHashGenerator,
   type ILogger,
+  type IOutputAdapter,
   type IPathResolver,
+  JsonOutputAdapter,
   NodeFileSystemAdapter,
   PathResolverAdapter,
+  PinoLoggerAdapter,
   SHARED_DI_TOKENS,
   WORKFLOW_DI_TOKENS,
 } from '@chainglass/shared';
+import {
+  FakePhaseService,
+  FakeSchemaValidator,
+  FakeWorkflowRegistry,
+  FakeWorkflowService,
+  FakeYamlParser,
+  type IPhaseService,
+  type ISchemaValidator,
+  type IWorkflowRegistry,
+  type IWorkflowService,
+  type IYamlParser,
+  PhaseService,
+  SchemaValidatorAdapter,
+  WorkflowRegistryService,
+  WorkflowService,
+  YamlParserAdapter,
+} from '@chainglass/workflow';
 import { type DependencyContainer, container } from 'tsyringe';
-import { SchemaValidatorAdapter } from './adapters/schema-validator.adapter.js';
-import { YamlParserAdapter } from './adapters/yaml-parser.adapter.js';
-import { FakePhaseService } from './fakes/fake-phase-service.js';
-import { FakeSchemaValidator } from './fakes/fake-schema-validator.js';
-import { FakeWorkflowRegistry } from './fakes/fake-workflow-registry.js';
-import { FakeWorkflowService } from './fakes/fake-workflow-service.js';
-import { FakeYamlParser } from './fakes/fake-yaml-parser.js';
-import type {
-  IPhaseService,
-  ISchemaValidator,
-  IWorkflowRegistry,
-  IWorkflowService,
-  IYamlParser,
-} from './interfaces/index.js';
-import { PhaseService } from './services/phase.service.js';
-import { WorkflowRegistryService } from './services/workflow-registry.service.js';
-import { WorkflowService } from './services/workflow.service.js';
 
 /**
- * Creates a production DI container for workflow services.
+ * CLI-specific DI tokens.
+ */
+export const CLI_DI_TOKENS = {
+  /** IOutputAdapter for JSON output */
+  OUTPUT_ADAPTER_JSON: 'IOutputAdapter:json',
+  /** IOutputAdapter for console output */
+  OUTPUT_ADAPTER_CONSOLE: 'IOutputAdapter:console',
+  /** IHashGenerator interface */
+  HASH_GENERATOR: 'IHashGenerator',
+} as const;
+
+/**
+ * Creates a production DI container for CLI commands.
  *
- * Registers all production adapters:
+ * Registers all production adapters for CLI use:
  * - NodeFileSystemAdapter for IFileSystem
  * - PathResolverAdapter for IPathResolver
  * - YamlParserAdapter for IYamlParser
  * - SchemaValidatorAdapter for ISchemaValidator
+ * - HashGeneratorAdapter for IHashGenerator
+ * - WorkflowService for IWorkflowService
+ * - PhaseService for IPhaseService
+ * - WorkflowRegistryService for IWorkflowRegistry
+ * - JsonOutputAdapter and ConsoleOutputAdapter for IOutputAdapter
  *
- * @returns Child container with production registrations
+ * @returns Fresh child container with production registrations
  */
-export function createWorkflowProductionContainer(): DependencyContainer {
+export function createCliProductionContainer(): DependencyContainer {
   const childContainer = container.createChildContainer();
 
-  // Register shared interfaces
+  // Register shared interface adapters
+  childContainer.register<ILogger>(SHARED_DI_TOKENS.LOGGER, {
+    useFactory: () => new PinoLoggerAdapter(),
+  });
+
   childContainer.register<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM, {
     useFactory: () => new NodeFileSystemAdapter(),
   });
@@ -60,7 +90,11 @@ export function createWorkflowProductionContainer(): DependencyContainer {
     useFactory: () => new PathResolverAdapter(),
   });
 
-  // Register workflow interfaces
+  childContainer.register<IHashGenerator>(CLI_DI_TOKENS.HASH_GENERATOR, {
+    useFactory: () => new HashGeneratorAdapter(),
+  });
+
+  // Register workflow interface adapters
   childContainer.register<IYamlParser>(WORKFLOW_DI_TOKENS.YAML_PARSER, {
     useFactory: () => new YamlParserAdapter(),
   });
@@ -69,7 +103,7 @@ export function createWorkflowProductionContainer(): DependencyContainer {
     useFactory: () => new SchemaValidatorAdapter(),
   });
 
-  // Register workflow service (depends on other interfaces)
+  // Register workflow services
   childContainer.register<IWorkflowService>(WORKFLOW_DI_TOKENS.WORKFLOW_SERVICE, {
     useFactory: (c) =>
       new WorkflowService(
@@ -80,7 +114,6 @@ export function createWorkflowProductionContainer(): DependencyContainer {
       ),
   });
 
-  // Register phase service (per Phase 3)
   childContainer.register<IPhaseService>(WORKFLOW_DI_TOKENS.PHASE_SERVICE, {
     useFactory: (c) =>
       new PhaseService(
@@ -90,7 +123,6 @@ export function createWorkflowProductionContainer(): DependencyContainer {
       ),
   });
 
-  // Register workflow registry service (per Phase 1: Manage Workflows)
   childContainer.register<IWorkflowRegistry>(WORKFLOW_DI_TOKENS.WORKFLOW_REGISTRY, {
     useFactory: (c) =>
       new WorkflowRegistryService(
@@ -100,24 +132,34 @@ export function createWorkflowProductionContainer(): DependencyContainer {
       ),
   });
 
+  // Register output adapters
+  childContainer.register<IOutputAdapter>(CLI_DI_TOKENS.OUTPUT_ADAPTER_JSON, {
+    useFactory: () => new JsonOutputAdapter(),
+  });
+
+  childContainer.register<IOutputAdapter>(CLI_DI_TOKENS.OUTPUT_ADAPTER_CONSOLE, {
+    useFactory: () => new ConsoleOutputAdapter(),
+  });
+
   return childContainer;
 }
 
 /**
- * Creates a test DI container for workflow services with fake implementations.
+ * Creates a test DI container for CLI commands with fake implementations.
  *
  * Each call returns a new isolated child container to prevent
  * state leakage between tests.
  *
- * @returns Child container with test registrations (fakes)
+ * @returns Fresh child container with test registrations (fakes)
  */
-export function createWorkflowTestContainer(): DependencyContainer {
+export function createCliTestContainer(): DependencyContainer {
   const childContainer = container.createChildContainer();
 
   // Create shared fake instances for this container
   const fakeLogger = new FakeLogger();
   const fakeFileSystem = new FakeFileSystem();
   const fakePathResolver = new FakePathResolver();
+  const fakeHashGenerator = new FakeHashGenerator();
   const fakeYamlParser = new FakeYamlParser();
   const fakeSchemaValidator = new FakeSchemaValidator();
 
@@ -134,6 +176,10 @@ export function createWorkflowTestContainer(): DependencyContainer {
     useValue: fakePathResolver,
   });
 
+  childContainer.register<IHashGenerator>(CLI_DI_TOKENS.HASH_GENERATOR, {
+    useValue: fakeHashGenerator,
+  });
+
   // Register workflow interface fakes
   childContainer.register<IYamlParser>(WORKFLOW_DI_TOKENS.YAML_PARSER, {
     useValue: fakeYamlParser,
@@ -143,22 +189,29 @@ export function createWorkflowTestContainer(): DependencyContainer {
     useValue: fakeSchemaValidator,
   });
 
-  // Register fake workflow service
+  // Register fake services
   const fakeWorkflowService = new FakeWorkflowService();
   childContainer.register<IWorkflowService>(WORKFLOW_DI_TOKENS.WORKFLOW_SERVICE, {
     useValue: fakeWorkflowService,
   });
 
-  // Register fake phase service (per Phase 3)
   const fakePhaseService = new FakePhaseService();
   childContainer.register<IPhaseService>(WORKFLOW_DI_TOKENS.PHASE_SERVICE, {
     useValue: fakePhaseService,
   });
 
-  // Register fake workflow registry (per Phase 1: Manage Workflows)
   const fakeWorkflowRegistry = new FakeWorkflowRegistry();
   childContainer.register<IWorkflowRegistry>(WORKFLOW_DI_TOKENS.WORKFLOW_REGISTRY, {
     useValue: fakeWorkflowRegistry,
+  });
+
+  // Register output adapter fakes
+  const fakeOutputAdapter = new FakeOutputAdapter();
+  childContainer.register<IOutputAdapter>(CLI_DI_TOKENS.OUTPUT_ADAPTER_JSON, {
+    useValue: fakeOutputAdapter,
+  });
+  childContainer.register<IOutputAdapter>(CLI_DI_TOKENS.OUTPUT_ADAPTER_CONSOLE, {
+    useValue: fakeOutputAdapter,
   });
 
   return childContainer;

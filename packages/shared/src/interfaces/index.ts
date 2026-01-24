@@ -5,6 +5,7 @@ export { FileSystemError } from './filesystem.interface.js';
 export type { IFileSystem, FileStat } from './filesystem.interface.js';
 export { PathSecurityError } from './path-resolver.interface.js';
 export type { IPathResolver } from './path-resolver.interface.js';
+export type { IHashGenerator } from './hash-generator.interface.js';
 
 // Result types (per Phase 1a: Output Adapter Architecture)
 export type {
@@ -35,6 +36,15 @@ export type {
   PhaseState,
   StatusEntry,
   PreflightChecks,
+  // Workflow registry result types (Phase 1)
+  ListResult,
+  InfoResult,
+  CheckpointResult,
+  RestoreResult,
+  VersionsResult,
+  CheckpointInfo,
+  WorkflowSummary,
+  WorkflowInfo,
 } from './results/index.js';
 
 // Output adapter interface (per Phase 1a: Output Adapter Architecture)

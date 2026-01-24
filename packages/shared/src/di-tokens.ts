@@ -35,4 +35,6 @@ export const WORKFLOW_DI_TOKENS = {
   WORKFLOW_SERVICE: 'IWorkflowService',
   /** IPhaseService interface (per Phase 3) */
   PHASE_SERVICE: 'IPhaseService',
+  /** IWorkflowRegistry interface (per Phase 1: Manage Workflows) */
+  WORKFLOW_REGISTRY: 'IWorkflowRegistry',
 } as const;

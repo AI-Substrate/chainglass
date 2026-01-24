@@ -12,6 +12,11 @@ export {
   type SampleConfig,
 } from './schemas/sample.schema.js';
 
+export {
+  WorkflowMetadataSchema,
+  type WorkflowMetadata,
+} from './schemas/workflow-metadata.schema.js';
+
 // Path Resolution (Phase 2)
 export { getUserConfigDir, ensureUserConfig, getProjectConfigDir } from './paths/index.js';
 
