@@ -78,8 +78,8 @@ describe('WorkflowService', () => {
     fs.setFile(`${templatePath}/wf.yaml`, wfYaml);
     // Set up schemas directory with core schemas
     fs.setFile(`${templatePath}/schemas/gather-data.schema.json`, '{}');
-    // Set up templates directory with wf.md
-    fs.setFile(`${templatePath}/templates/wf.md`, '# Workflow Instructions');
+    // Set up wf.md at template root (agent execution instructions)
+    fs.setFile(`${templatePath}/wf.md`, '# Workflow Instructions');
     // Set up phase commands
     fs.setFile(`${templatePath}/phases/gather/commands/main.md`, '# Gather Phase');
     fs.setFile(`${templatePath}/phases/process/commands/main.md`, '# Process Phase');
