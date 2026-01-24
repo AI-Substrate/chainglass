@@ -219,15 +219,15 @@ manual-test/
 
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
-| ST001 | Directory Setup | manual-test/ | ⬜ Pending | Full structure with subdirs |
-| ST002 | Mode 1 Guide | MODE-1-LEARNING.md | ⬜ Pending | Both roles, all patterns |
-| ST003 | Mode 2 Guide | MODE-2-VALIDATION.md | ⬜ Pending | External agent test |
-| ST004 | Agent Prompt | AGENT-STARTER-PROMPT.md | ⬜ Pending | What external agent sees |
-| ST005 | State Checker | check-state.sh | ⬜ Pending | Verify phase states |
-| ST006 | Orchestrator Inputs | orchestrator-inputs/ | ⬜ Pending | User request, answers |
-| ST007 | Simulated Work | simulated-agent-work/ | ⬜ Pending | Pre-made agent outputs |
-| ST008 | Execute Mode 1 | – | ⬜ Pending | Run full walkthrough |
-| ST009 | Execute Mode 2 | – | ⬜ Pending | Test with real external agent |
+| ST001 | Directory Setup | manual-test/ | ✅ Complete | Full structure with subdirs |
+| ST002 | Mode 1 Guide | MODE-1-LEARNING.md | ✅ Complete | Both roles, all patterns |
+| ST003 | Mode 2 Guide | MODE-2-VALIDATION.md | ✅ Complete | External agent test |
+| ST004 | Agent Prompt | AGENT-STARTER-PROMPT.md | ✅ Complete | What external agent sees |
+| ST005 | State Checker | check-state.sh | ✅ Complete | Verify phase states |
+| ST006 | Orchestrator Inputs | orchestrator-inputs/ | ✅ Complete | User request, answers |
+| ST007 | Simulated Work | simulated-agent-work/ | ✅ Complete | Pre-made agent outputs |
+| ST008 | Execute Mode 1 | – | ✅ Complete | Run full walkthrough |
+| ST009 | Execute Mode 2 | – | ✅ Complete | Test with real external agent |
 
 ---
 
@@ -235,15 +235,15 @@ manual-test/
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|------|-----------------------------------|-----|------|--------------|-------------------------------|-------------------------------|----------|-------------------|
-| [ ] | ST001 | Create manual-test directory structure | 1 | Setup | – | /home/jak/substrate/003-wf-basics/docs/plans/003-wf-basics/manual-test/ | All subdirs exist | – | Foundation |
-| [ ] | ST002 | Create MODE-1-LEARNING.md guide | 3 | Doc | ST001 | .../manual-test/MODE-1-LEARNING.md | Covers all 3 phases, all patterns, [ORCH]/[AGENT] markers | – | Core deliverable |
-| [ ] | ST003 | Create MODE-2-VALIDATION.md guide | 2 | Doc | ST001 | .../manual-test/MODE-2-VALIDATION.md | External agent instructions, prompt validation checklist | – | Real test |
-| [ ] | ST004 | Create AGENT-STARTER-PROMPT.md | 2 | Doc | ST001 | .../manual-test/AGENT-STARTER-PROMPT.md | Self-contained prompt for external agent | – | What Claude sees |
-| [ ] | ST005 | Create check-state.sh script | 2 | Core | ST001 | .../manual-test/check-state.sh | Reads all phases, reports state | – | Checkpoint tool |
-| [ ] | ST006 | Create orchestrator input files | 2 | Setup | ST001 | .../manual-test/orchestrator-inputs/ | User request JSON, answer JSON | – | What orch provides |
-| [ ] | ST007 | Create simulated agent work files | 2 | Setup | ST001 | .../manual-test/simulated-agent-work/ | All outputs match schemas. **Source**: Copy from exemplar `dev/examples/wf/runs/run-example-001/` | – | Use exemplar as baseline |
-| [ ] | ST008 | Execute Mode 1 and document results | 2 | Test | ST002-ST007 | .../manual-test/results/mode-1-run-*/ | All 3 phases complete. **Validation**: Compare structure against exemplar | – | CLI exercise |
-| [ ] | ST009 | Execute Mode 2 with external agent | 4 | Test | ST003, ST004, ST008 | .../manual-test/results/mode-2-run-*/ | **Success**: External agent completes all 3 phases using ONLY phase prompts (no guidance). **If fails**: Document where agent got confused, create follow-up tasks for prompt improvements | – | **Critical validation** - discovery work, may spawn iterations |
+| [x] | ST001 | Create manual-test directory structure | 1 | Setup | – | /home/jak/substrate/003-wf-basics/docs/plans/003-wf-basics/manual-test/ | All subdirs exist | – | Foundation |
+| [x] | ST002 | Create MODE-1-LEARNING.md guide | 3 | Doc | ST001 | .../manual-test/MODE-1-LEARNING.md | Covers all 3 phases, all patterns, [ORCH]/[AGENT] markers | – | Core deliverable |
+| [x] | ST003 | Create MODE-2-VALIDATION.md guide | 2 | Doc | ST001 | .../manual-test/MODE-2-VALIDATION.md | External agent instructions, prompt validation checklist | – | Real test |
+| [x] | ST004 | Create AGENT-STARTER-PROMPT.md | 2 | Doc | ST001 | .../manual-test/AGENT-STARTER-PROMPT.md | Self-contained prompt for external agent | – | What Claude sees |
+| [x] | ST005 | Create check-state.sh script | 2 | Core | ST001 | .../manual-test/check-state.sh | Reads all phases, reports state | – | Checkpoint tool |
+| [x] | ST006 | Create orchestrator input files | 2 | Setup | ST001 | .../manual-test/orchestrator-inputs/ | User request JSON, answer JSON | – | What orch provides |
+| [x] | ST007 | Create simulated agent work files | 2 | Setup | ST001 | .../manual-test/simulated-agent-work/ | All outputs match schemas. **Source**: Copy from exemplar `dev/examples/wf/runs/run-example-001/` | – | Use exemplar as baseline |
+| [x] | ST008 | Execute Mode 1 and document results | 2 | Test | ST002-ST007 | .../manual-test/results/mode-1-run-*/ | All 3 phases complete. **Validation**: Compare structure against exemplar | – | CLI exercise |
+| [x] | ST009 | Execute Mode 2 with external agent | 4 | Test | ST003, ST004, ST008 | .../manual-test/results/mode-2-run-*/ | **Success**: External agent completes all 3 phases using ONLY phase prompts (no guidance). **If fails**: Document where agent got confused, create follow-up tasks for prompt improvements | – | **Critical validation** - discovery work, may spawn iterations |
 
 ---
 
@@ -562,6 +562,11 @@ _Populated during implementation by plan-6. Log anything of interest to your fut
 | 2026-01-23 | Pre-impl | insight | **Message CLI commands fully implemented** - 748 tests passing, security hardened (path traversal prevention, JSON error handling) | Ready for manual test harness | Phase 3 Subtask 001, commit d5f8d89 |
 | 2026-01-23 | Research | insight | **Handover workflow fully documented** - Exemplar shows accept→preflight→work→finalize→handover flow; preflight wraps validate --check inputs but logs action | Future subtask will implement CLI commands | research/handover-workflow-research.md |
 | 2026-01-23 | Subtask-002 | insight | **Handover CLI commands fully implemented** - 790 tests passing: `cg phase accept`, `cg phase preflight`, `cg phase handover` all working with JSON/console output | Full handover flow now available for manual testing | Phase 3 Subtask 002 |
+| 2026-01-23 | /didyouknow | decision | **Fresh compose per test** - No reset command needed; compose auto-numbers runs; gitignore results/ | Added `docs/plans/*/manual-test/results/` to .gitignore | .gitignore updated |
+| 2026-01-23 | /didyouknow | insight | **Outputs are FLAT** - Agent writes directly to `outputs/` (no subdirs), unlike inputs which use `files/` and `data/` subdirs | Existing main.md files already document this correctly; AGENT-STARTER-PROMPT.md just points to wf.md | phase.service.ts:305, gather/commands/main.md:11-21 |
+| 2026-01-23 | /didyouknow | decision | **Mode 1 simplified, Mode 2 full handover** - Mode 1 uses prepare→validate→finalize (shakedown); Mode 2 uses accept→preflight→handover (real agent flow) | Keeps Mode 1 focused on learning basics first | phase.service.ts verification |
+| 2026-01-23 | /didyouknow | insight | **Message IDs safe due to Facilitator Model** - Only one actor has control at a time, no concurrent message creation | Just document single-actor assumption in MODE guides (KISS) | message.service.ts:8-22 |
+| 2026-01-23 | /didyouknow | insight | **ST009 is discovery checkpoint** - Mode 2 success OR documented learnings = subtask completion; may spawn prompt improvement iterations | Already captured in subtask validation criteria | Subtask ST009 notes |
 
 **Types**: `gotcha` | `research-needed` | `unexpected-behavior` | `workaround` | `decision` | `debt` | `insight`
 

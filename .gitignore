@@ -149,8 +149,11 @@ scratch/*
 # Chainglass workflow runtime (generated runs)
 .chainglass/
 
+# Manual test harness results (regenerated each test run)
+docs/plans/*/manual-test/results/
+
 # TypeScript build artifacts in src directories (should only be in dist/)
 packages/*/src/**/*.js
 packages/*/src/**/*.js.map
 packages/*/src/**/*.d.ts
-packages/*/src/**/*.d.ts.map
+packages/*/src/**/*.d.ts.map.current-run

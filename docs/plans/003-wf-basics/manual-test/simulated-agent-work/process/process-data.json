@@ -1,0 +1,28 @@
+{
+  "results": [
+    {
+      "item_id": "item-001",
+      "status": "processed",
+      "output": "Transformed: First sample item for workflow demonstration"
+    },
+    {
+      "item_id": "item-002",
+      "status": "processed",
+      "output": "Transformed: Second sample item showing data collection"
+    },
+    {
+      "item_id": "item-003",
+      "status": "processed",
+      "output": "Transformed: Third sample item completing the set"
+    }
+  ],
+  "summary": {
+    "processed_count": 3,
+    "status": "success",
+    "duration_ms": 150
+  },
+  "metadata": {
+    "processed_at": "2026-01-21T10:07:00Z",
+    "processor_version": "1.0.0"
+  }
+}
