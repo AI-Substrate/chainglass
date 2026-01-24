@@ -136,9 +136,7 @@ export interface CopilotSessionConfig {
 /**
  * Configuration for resuming a session.
  */
-export interface CopilotResumeSessionConfig {
-  /** Optional configuration (tools, etc.) - simplified for our use case */
-}
+export type CopilotResumeSessionConfig = Record<string, never>;
 
 /**
  * Status response from the client.

@@ -36,7 +36,11 @@ agentAdapterContractTests('ClaudeCodeAdapter', () => {
   // Use a polling approach to set up processes as they're spawned
   const setupNextProcess = (): void => {
     const checkAndSetup = (): void => {
-      const processes = (fakeProcessManager as any)._processes as Map<number, any>;
+      // biome-ignore lint/suspicious/noExplicitAny: Accessing internal state for test setup
+      const processes = (fakeProcessManager as any)._processes as Map<
+        number,
+        { running: boolean; output: string }
+      >;
 
       // For each spawned process that hasn't been configured, configure it
       for (const [pid, state] of processes) {

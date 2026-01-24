@@ -145,7 +145,10 @@ export class FakeCopilotClient implements ICopilotClient {
    * @returns Status response configured in options
    */
   async getStatus(): Promise<CopilotStatusResponse> {
-    return this._options.status!;
+    if (!this._options.status) {
+      throw new Error('FakeCopilotClient: status not configured');
+    }
+    return this._options.status;
   }
 
   // ============================================

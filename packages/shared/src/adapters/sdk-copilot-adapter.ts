@@ -274,7 +274,9 @@ export class SdkCopilotAdapter implements IAgentAdapter {
       };
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      this._logger?.error('SdkCopilotAdapter.compact() failed', new Error(errorMessage), { sessionId });
+      this._logger?.error('SdkCopilotAdapter.compact() failed', new Error(errorMessage), {
+        sessionId,
+      });
 
       return {
         output: `Compact failed: ${errorMessage}`,
@@ -380,6 +382,7 @@ export class SdkCopilotAdapter implements IAgentAdapter {
     }
 
     // Reject control characters except newline, carriage return, and tab
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: Intentional security validation
     const hasInvalidChars = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/.test(trimmed);
     if (hasInvalidChars) {
       return 'Prompt contains invalid control characters';

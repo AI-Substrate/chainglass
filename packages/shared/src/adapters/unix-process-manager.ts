@@ -79,7 +79,7 @@ export class UnixProcessManager implements IProcessManager {
       // Map StdioOption to Node.js stdio values
       const defaultStdio: [StdioOption, StdioOption, StdioOption] = ['ignore', 'pipe', 'pipe'];
       const stdioConfig = stdio ?? defaultStdio;
-      
+
       const child = spawn(command, args, {
         cwd,
         env: env ?? process.env,
@@ -126,7 +126,7 @@ export class UnixProcessManager implements IProcessManager {
           // Per DYK-02: Use readline for line-by-line callback
           const rl = readline.createInterface({ input: child.stdout });
           rl.on('line', (line) => {
-            managed.stdout += line + '\n';
+            managed.stdout += `${line}\n`;
             onStdoutLine(line);
           });
         } else {

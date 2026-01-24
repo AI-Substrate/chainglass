@@ -109,7 +109,10 @@ export class FakeCopilotSession implements ICopilotSession {
     // Check if we need to simulate timeout
     if (this._sendAndWaitDelay > 0 && this._sendAndWaitDelay >= effectiveTimeout) {
       await new Promise((_, reject) => {
-        setTimeout(() => reject(new Error(`Timeout after ${effectiveTimeout}ms`)), effectiveTimeout);
+        setTimeout(
+          () => reject(new Error(`Timeout after ${effectiveTimeout}ms`)),
+          effectiveTimeout
+        );
       });
     }
 
@@ -122,7 +125,9 @@ export class FakeCopilotSession implements ICopilotSession {
     for (const event of this._events) {
       // Check for error events first
       if (event.type === 'session.error') {
-        const errorEvent = event as { data: { errorType: string; message: string; stack?: string } };
+        const errorEvent = event as {
+          data: { errorType: string; message: string; stack?: string };
+        };
         const error = new Error(errorEvent.data.message);
         if (errorEvent.data.stack) {
           error.stack = errorEvent.data.stack;

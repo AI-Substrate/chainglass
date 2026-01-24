@@ -200,7 +200,7 @@ export class ClaudeCodeAdapter implements IAgentAdapter {
     let streamedOutput = '';
 
     // Spawn the CLI process with error handling
-    let handle;
+    let handle: Awaited<ReturnType<typeof this._processManager.spawn>> | undefined;
     try {
       handle = await this._processManager.spawn({
         command: 'claude',
@@ -404,6 +404,7 @@ export class ClaudeCodeAdapter implements IAgentAdapter {
     // Reject control characters except newline (\n), carriage return (\r), and tab (\t)
     // Allow: \x09 (tab), \x0A (newline), \x0D (carriage return)
     // Reject: \x00-\x08, \x0B, \x0C, \x0E-\x1F, \x7F
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: Intentional security validation
     const hasInvalidChars = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/.test(trimmed);
     if (hasInvalidChars) {
       throw new Error('Prompt contains invalid control characters');
