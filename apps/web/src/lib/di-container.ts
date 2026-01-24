@@ -39,6 +39,7 @@ export const DI_TOKENS = {
   PROCESS_MANAGER: 'IProcessManager',
   AGENT_ADAPTER: 'IAgentAdapter',
   CLAUDE_CODE_ADAPTER: 'ClaudeCodeAdapter',
+  COPILOT_CLIENT: 'CopilotClient', // Singleton SDK client
   COPILOT_ADAPTER: 'CopilotAdapter',
   AGENT_SERVICE: 'AgentService',
 } as const;
@@ -138,12 +139,14 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
     },
   });
 
+  // Register CopilotClient as singleton to avoid repeated SDK client construction
+  // Per PR review feedback: reuse single instance for both COPILOT_ADAPTER and adapterFactory
+  childContainer.registerSingleton<CopilotClient>(DI_TOKENS.COPILOT_CLIENT, CopilotClient);
+
   childContainer.register<IAgentAdapter>(DI_TOKENS.COPILOT_ADAPTER, {
     useFactory: (c) => {
       const logger = c.resolve<ILogger>(DI_TOKENS.LOGGER);
-      // Phase 4: Use SdkCopilotAdapter with real CopilotClient from SDK
-      // Per DYK-05: Constructor differs - inject CopilotClient not ProcessManager
-      const client = new CopilotClient();
+      const client = c.resolve<CopilotClient>(DI_TOKENS.COPILOT_CLIENT);
       return new SdkCopilotAdapter(client, { logger });
     },
   });
@@ -154,6 +157,7 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
       const logger = c.resolve<ILogger>(DI_TOKENS.LOGGER);
       const cfg = c.resolve<IConfigService>(DI_TOKENS.CONFIG);
       const processManager = c.resolve<IProcessManager>(DI_TOKENS.PROCESS_MANAGER);
+      const copilotClient = c.resolve<CopilotClient>(DI_TOKENS.COPILOT_CLIENT);
 
       // Per DYK-02: Factory function for adapter selection
       const adapterFactory: AdapterFactory = (agentType: string): IAgentAdapter => {
@@ -161,9 +165,8 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
           return new ClaudeCodeAdapter(processManager, { logger });
         }
         if (agentType === 'copilot') {
-          // Phase 4: Use SdkCopilotAdapter with real CopilotClient from SDK
-          const client = new CopilotClient();
-          return new SdkCopilotAdapter(client, { logger });
+          // Reuse singleton CopilotClient to avoid repeated SDK client construction
+          return new SdkCopilotAdapter(copilotClient, { logger });
         }
         throw new Error(`Unknown agent type: ${agentType}`);
       };
