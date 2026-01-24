@@ -978,25 +978,25 @@ pnpm -F @chainglass/mcp-server test
 
 | #   | Status | Task | CS | Success Criteria | Log | Notes |
 |-----|--------|------|----|------------------|-----|-------|
-| 0.1 | [ ] | Create `dev/examples/wf/` directory structure | 1 | Directories exist per spec | - | Foundation |
-| 0.2 | [ ] | Write `wf.yaml` for hello-workflow template | 2 | Valid YAML with 3 phases (gather, process, report) | - | Per research dossier |
-| 0.3 | [ ] | Write JSON Schema files for validation | 2 | `wf.schema.json` (supports inputs.messages), `wf-phase.schema.json`, `gather-data.schema.json`, `process-data.schema.json`, `message.schema.json` | - | Draft 2020-12 |
-| 0.4 | [ ] | Write phase command files | 1 | `phases/*/commands/main.md` with agent instructions | - | Simple placeholders |
-| 0.5 | [ ] | Write shared template `wf.md` | 1 | Standard workflow prompt in `templates/wf.md`, copied to each phase's `commands/` folder | - | `wf.md` = standard kick-off prompt (same for all phases); `main.md` = phase-specific instructions |
-| 0.6 | [ ] | Create `run-example-001/wf-run/wf-status.json` | 1 | Valid run metadata | - | In wf-run/ subfolder |
-| 0.7 | [ ] | Create gather phase complete outputs | 2 | `outputs/acknowledgment.md`, `outputs/gather-data.json`, `wf-data/wf-phase.json`, `wf-data/output-params.json` | - | All files valid |
-| 0.8 | [ ] | Create process phase complete outputs | 2 | `outputs/result.md`, `outputs/process-data.json`, `wf-data/wf-phase.json`, `wf-data/output-params.json` | - | All files valid |
-| 0.9 | [ ] | Create report phase complete outputs | 2 | `outputs/final-report.md`, `wf-data/wf-phase.json` | - | Report has no JSON outputs |
-| 0.10 | [ ] | Create `wf-phase.yaml` for each phase | 2 | Extracted phase config per spec | - | Matches wf.yaml structure |
-| 0.11 | [ ] | Create manual test guide | 1 | `dev/examples/wf/MANUAL-TEST-GUIDE.md` | - | Step-by-step instructions |
-| 0.12 | [ ] | Validate all JSON against schemas | 1 | `npx ajv validate -s <schema> -d <file>` passes for all JSON files | - | See Commands Reference for exact commands |
-| 0.13 | [ ] | Create spec-to-exemplar traceability matrix | 1 | `dev/examples/wf/TRACEABILITY.md` maps AC-01 through AC-05 to exemplar files | - | Exemplars are fungible; update as implementation evolves |
+| 0.1 | [x] | Create `dev/examples/wf/` directory structure | 1 | Directories exist per spec | - | Foundation |
+| 0.2 | [x] | Write `wf.yaml` for hello-workflow template | 2 | Valid YAML with 3 phases (gather, process, report) | - | Per research dossier |
+| 0.3 | [x] | Write JSON Schema files for validation | 2 | `wf.schema.json` (supports inputs.messages), `wf-phase.schema.json`, `gather-data.schema.json`, `process-data.schema.json`, `message.schema.json` | - | Draft 2020-12 |
+| 0.4 | [x] | Write phase command files | 1 | `phases/*/commands/main.md` with agent instructions | - | Simple placeholders |
+| 0.5 | [x] | Write shared template `wf.md` | 1 | Standard workflow prompt in `templates/wf.md`, copied to each phase's `commands/` folder | - | `wf.md` = standard kick-off prompt (same for all phases); `main.md` = phase-specific instructions |
+| 0.6 | [x] | Create `run-example-001/wf-run/wf-status.json` | 1 | Valid run metadata | - | In wf-run/ subfolder |
+| 0.7 | [x] | Create gather phase complete outputs | 2 | `outputs/acknowledgment.md`, `outputs/gather-data.json`, `wf-data/wf-phase.json`, `wf-data/output-params.json` | - | All files valid |
+| 0.8 | [x] | Create process phase complete outputs | 2 | `outputs/result.md`, `outputs/process-data.json`, `wf-data/wf-phase.json`, `wf-data/output-params.json` | - | All files valid |
+| 0.9 | [x] | Create report phase complete outputs | 2 | `outputs/final-report.md`, `wf-data/wf-phase.json` | - | Report has no JSON outputs |
+| 0.10 | [x] | Create `wf-phase.yaml` for each phase | 2 | Extracted phase config per spec | - | Matches wf.yaml structure |
+| 0.11 | [x] | Create manual test guide | 1 | `dev/examples/wf/MANUAL-TEST-GUIDE.md` | - | Step-by-step instructions |
+| 0.12 | [x] | Validate all JSON against schemas | 1 | `npx ajv validate -s <schema> -d <file>` passes for all JSON files | - | See Commands Reference for exact commands |
+| 0.13 | [x] | Create spec-to-exemplar traceability matrix | 1 | `dev/examples/wf/TRACEABILITY.md` maps AC-01 through AC-05 to exemplar files | - | Exemplars are fungible; update as implementation evolves |
 
 ### Acceptance Criteria
-- [ ] `dev/examples/wf/template/hello-workflow/wf.yaml` parses without errors
-- [ ] All JSON Schema files are valid Draft 2020-12
-- [ ] All JSON files in `runs/run-example-001/` pass schema validation
-- [ ] Directory structure matches spec AC-01 through AC-05
+- [x] `dev/examples/wf/template/hello-workflow/wf.yaml` parses without errors
+- [x] All JSON Schema files are valid Draft 2020-12
+- [x] All JSON files in `runs/run-example-001/` pass schema validation
+- [x] Directory structure matches spec AC-01 through AC-05
 
 ---
 
@@ -1023,24 +1023,24 @@ pnpm -F @chainglass/mcp-server test
 
 | #   | Status | Task | CS | Success Criteria | Log | Notes |
 |-----|--------|------|----|------------------|-----|-------|
-| 1.1 | [ ] | Create `packages/workflow/` package structure | 2 | package.json, tsconfig.json, src/index.ts | - | Follow shared pattern |
-| 1.2 | [ ] | Write tests for `IFileSystem` interface | 2 | Tests cover exists, readFile, writeFile, mkdir, copyFile | - | `test/unit/workflow/filesystem.test.ts` |
-| 1.3 | [ ] | Implement `NodeFileSystemAdapter` | 2 | All IFileSystem tests pass | - | `packages/shared/src/adapters/node-filesystem.adapter.ts` |
-| 1.4 | [ ] | Implement `FakeFileSystem` | 2 | Contract tests pass, in-memory storage | - | `packages/shared/src/fakes/fake-filesystem.ts` |
-| 1.5 | [ ] | Write contract tests for IFileSystem | 2 | Run against both real and fake | - | `test/contracts/filesystem.contract.ts` |
-| 1.6 | [ ] | Write tests for `IPathResolver` interface | 2 | Tests cover resolvePath, validatePath security | - | `test/unit/workflow/path-resolver.test.ts` |
-| 1.7 | [ ] | Implement `PathResolverAdapter` | 2 | All tests pass, prevents directory traversal | - | `packages/shared/src/adapters/path-resolver.adapter.ts` |
-| 1.8 | [ ] | Implement `FakePathResolver` | 1 | Contract tests pass | - | `packages/shared/src/fakes/fake-path-resolver.ts` |
-| 1.9 | [ ] | Write tests for `IYamlParser` interface | 2 | Tests cover parse success and error with location | - | `test/unit/workflow/yaml-parser.test.ts` |
-| 1.10 | [ ] | Implement `YamlParserAdapter` | 2 | All tests pass, errors include line/column | - | `packages/workflow/src/adapters/yaml-parser.adapter.ts` |
-| 1.11 | [ ] | Implement `FakeYamlParser` | 1 | Contract tests pass | - | `packages/workflow/src/fakes/fake-yaml-parser.ts` |
-| 1.12 | [ ] | Write tests for `ISchemaValidator` interface | 2 | Tests cover validate success and actionable errors | - | `test/unit/workflow/schema-validator.test.ts` |
-| 1.13 | [ ] | Implement `SchemaValidatorAdapter` | 3 | All tests pass, errors are actionable | - | `packages/workflow/src/adapters/schema-validator.adapter.ts` |
-| 1.14 | [ ] | Implement `FakeSchemaValidator` | 1 | Contract tests pass | - | `packages/workflow/src/fakes/fake-schema-validator.ts` |
-| 1.15 | [ ] | Create DI tokens in shared | 1 | `WORKFLOW_DI_TOKENS` exported | - | `packages/shared/src/di-tokens.ts` |
-| 1.16 | [ ] | Create workflow package DI container | 2 | `createWorkflowContainer()` registers all adapters | - | `packages/workflow/src/container.ts` |
-| 1.17 | [ ] | Verify `pnpm -F @chainglass/workflow build` | 1 | Build succeeds | - | Integration check |
-| 1.18 | [ ] | Verify `pnpm -F @chainglass/workflow test` | 1 | All tests pass | - | Integration check |
+| 1.1 | [x] | Create `packages/workflow/` package structure | 2 | package.json, tsconfig.json, src/index.ts | - | Follow shared pattern |
+| 1.2 | [x] | Write tests for `IFileSystem` interface | 2 | Tests cover exists, readFile, writeFile, mkdir, copyFile | - | `test/unit/workflow/filesystem.test.ts` |
+| 1.3 | [x] | Implement `NodeFileSystemAdapter` | 2 | All IFileSystem tests pass | - | `packages/shared/src/adapters/node-filesystem.adapter.ts` |
+| 1.4 | [x] | Implement `FakeFileSystem` | 2 | Contract tests pass, in-memory storage | - | `packages/shared/src/fakes/fake-filesystem.ts` |
+| 1.5 | [x] | Write contract tests for IFileSystem | 2 | Run against both real and fake | - | `test/contracts/filesystem.contract.ts` |
+| 1.6 | [x] | Write tests for `IPathResolver` interface | 2 | Tests cover resolvePath, validatePath security | - | `test/unit/workflow/path-resolver.test.ts` |
+| 1.7 | [x] | Implement `PathResolverAdapter` | 2 | All tests pass, prevents directory traversal | - | `packages/shared/src/adapters/path-resolver.adapter.ts` |
+| 1.8 | [x] | Implement `FakePathResolver` | 1 | Contract tests pass | - | `packages/shared/src/fakes/fake-path-resolver.ts` |
+| 1.9 | [x] | Write tests for `IYamlParser` interface | 2 | Tests cover parse success and error with location | - | `test/unit/workflow/yaml-parser.test.ts` |
+| 1.10 | [x] | Implement `YamlParserAdapter` | 2 | All tests pass, errors include line/column | - | `packages/workflow/src/adapters/yaml-parser.adapter.ts` |
+| 1.11 | [x] | Implement `FakeYamlParser` | 1 | Contract tests pass | - | `packages/workflow/src/fakes/fake-yaml-parser.ts` |
+| 1.12 | [x] | Write tests for `ISchemaValidator` interface | 2 | Tests cover validate success and actionable errors | - | `test/unit/workflow/schema-validator.test.ts` |
+| 1.13 | [x] | Implement `SchemaValidatorAdapter` | 3 | All tests pass, errors are actionable | - | `packages/workflow/src/adapters/schema-validator.adapter.ts` |
+| 1.14 | [x] | Implement `FakeSchemaValidator` | 1 | Contract tests pass | - | `packages/workflow/src/fakes/fake-schema-validator.ts` |
+| 1.15 | [x] | Create DI tokens in shared | 1 | `WORKFLOW_DI_TOKENS` exported | - | `packages/shared/src/di-tokens.ts` |
+| 1.16 | [x] | Create workflow package DI container | 2 | `createWorkflowContainer()` registers all adapters | - | `packages/workflow/src/container.ts` |
+| 1.17 | [x] | Verify `pnpm -F @chainglass/workflow build` | 1 | Build succeeds | - | Integration check |
+| 1.18 | [x] | Verify `pnpm -F @chainglass/workflow test` | 1 | All tests pass | - | Integration check |
 
 ### Test Examples (Write First!)
 
@@ -1260,17 +1260,17 @@ describe('JsonOutputAdapter', () => {
 
 | #   | Status | Task | CS | Success Criteria | Log | Notes |
 |-----|--------|------|----|------------------|-----|-------|
-| 2.1 | [ ] | Define `IWorkflowService` interface | 1 | compose() method signature | - | In shared |
-| 2.2 | [ ] | Define `ComposeResult` type | 1 | Extends BaseResult with runDir, phases | - | In shared |
-| 2.3 | [ ] | Write tests for WorkflowService.compose() | 3 | Tests cover success, invalid template, folder creation | - | TDD: tests first |
-| 2.4 | [ ] | Implement `WorkflowService.compose()` | 3 | All tests pass, creates run folder structure | - | Uses IFileSystem |
-| 2.5 | [ ] | Implement `FakeWorkflowService` | 2 | Contract tests pass | - | Returns preset results |
-| 2.6 | [ ] | Write contract tests for IWorkflowService | 2 | Both real and fake pass | - | test/contracts/ |
-| 2.7 | [ ] | Create `wf.command.ts` in CLI | 2 | registerWfCommands() function | - | Per Discovery 02 |
-| 2.8 | [ ] | Implement `cg wf compose` action | 2 | Calls service, formats output | - | Uses output adapter |
-| 2.9 | [ ] | Write CLI integration tests | 2 | `cg wf compose hello-workflow` succeeds | - | Uses exemplar template |
-| 2.10 | [ ] | Register wf commands in cg.ts | 1 | Help shows wf commands | - | Call registerWfCommands |
-| 2.11 | [ ] | Test JSON output format | 2 | `--json` produces valid envelope | - | AC-07a |
+| 2.1 | [x] | Define `IWorkflowService` interface | 1 | compose() method signature | - | In shared |
+| 2.2 | [x] | Define `ComposeResult` type | 1 | Extends BaseResult with runDir, phases | - | In shared |
+| 2.3 | [x] | Write tests for WorkflowService.compose() | 3 | Tests cover success, invalid template, folder creation | - | TDD: tests first |
+| 2.4 | [x] | Implement `WorkflowService.compose()` | 3 | All tests pass, creates run folder structure | - | Uses IFileSystem |
+| 2.5 | [x] | Implement `FakeWorkflowService` | 2 | Contract tests pass | - | Returns preset results |
+| 2.6 | [x] | Write contract tests for IWorkflowService | 2 | Both real and fake pass | - | test/contracts/ |
+| 2.7 | [x] | Create `wf.command.ts` in CLI | 2 | registerWfCommands() function | - | Per Discovery 02 |
+| 2.8 | [x] | Implement `cg wf compose` action | 2 | Calls service, formats output | - | Uses output adapter |
+| 2.9 | [x] | Write CLI integration tests | 2 | `cg wf compose hello-workflow` succeeds | - | Uses exemplar template |
+| 2.10 | [x] | Register wf commands in cg.ts | 1 | Help shows wf commands | - | Call registerWfCommands |
+| 2.11 | [x] | Test JSON output format | 2 | `--json` produces valid envelope | - | AC-07a |
 
 ### Test Examples (Write First!)
 
@@ -1554,17 +1554,17 @@ describe('PhaseService', () => {
 
 | #   | Status | Task | CS | Success Criteria | Log | Notes |
 |-----|--------|------|----|------------------|-----|-------|
-| 4.1 | [ ] | Define `FinalizeResult` type | 1 | Extends BaseResult with extractedParams | - | In shared |
-| 4.2 | [ ] | Write tests for parameter extraction | 2 | Tests cover query paths, nested objects | - | TDD: tests first |
-| 4.3 | [ ] | Implement parameter extraction utility | 2 | Extracts values using dot notation | - | e.g., "items.length" |
-| 4.4 | [ ] | Write tests for PhaseService.finalize() **including idempotency (AC-39) and retry-after-failure (AC-40)** | 3 | Tests cover extraction, state update, **calling finalize twice returns same result, retry after partial failure succeeds** | - | TDD: tests first, includes re-entrancy |
-| 4.5 | [ ] | Implement `PhaseService.finalize()` | 3 | All tests pass, writes output-params.json, idempotent | - | Updates wf-status.json |
-| 4.6 | [ ] | Add finalize to FakePhaseService | 1 | Contract tests pass | - | Extend fake |
-| 4.7 | [ ] | Implement `cg phase finalize` action | 2 | Calls service, formats output | - | `apps/cli/src/commands/phase.command.ts` |
-| 4.8 | [ ] | Write CLI integration tests | 2 | Finalize works with exemplar | - | End-to-end |
-| 4.9 | [ ] | Test full manual flow | 3 | compose → gather cycle → process cycle → report cycle | - | AC-19 |
-| 4.10 | [ ] | Test JSON output for finalize | 2 | `--json` produces valid envelope | - | AC-18a |
-| 4.11 | [ ] | Test full flow with --json | 2 | All commands work with JSON output | - | AC-19a |
+| 4.1 | [x] | Define `FinalizeResult` type | 1 | Extends BaseResult with extractedParams | - | In shared |
+| 4.2 | [x] | Write tests for parameter extraction | 2 | Tests cover query paths, nested objects | - | TDD: tests first |
+| 4.3 | [x] | Implement parameter extraction utility | 2 | Extracts values using dot notation | - | e.g., "items.length" |
+| 4.4 | [x] | Write tests for PhaseService.finalize() **including idempotency (AC-39) and retry-after-failure (AC-40)** | 3 | Tests cover extraction, state update, **calling finalize twice returns same result, retry after partial failure succeeds** | - | TDD: tests first, includes re-entrancy |
+| 4.5 | [x] | Implement `PhaseService.finalize()` | 3 | All tests pass, writes output-params.json, idempotent | - | Updates wf-status.json |
+| 4.6 | [x] | Add finalize to FakePhaseService | 1 | Contract tests pass | - | Extend fake |
+| 4.7 | [x] | Implement `cg phase finalize` action | 2 | Calls service, formats output | - | `apps/cli/src/commands/phase.command.ts` |
+| 4.8 | [x] | Write CLI integration tests | 2 | Finalize works with exemplar | - | End-to-end |
+| 4.9 | [x] | Test full manual flow | 3 | compose → gather cycle → process cycle → report cycle | - | AC-19 |
+| 4.10 | [x] | Test JSON output for finalize | 2 | `--json` produces valid envelope | - | AC-18a |
+| 4.11 | [x] | Test full flow with --json | 2 | All commands work with JSON output | - | AC-19a |
 
 ### Test Examples (Write First!)
 
@@ -1618,14 +1618,14 @@ describe('PhaseService.finalize', () => {
 - [ ] **Re-entrancy**: finalize after partial failure completes successfully
 
 ### Acceptance Criteria
-- [ ] AC-16: from_phase inputs copied from finalized phases
-- [ ] AC-17: params.json created with resolved parameters
-- [ ] AC-18: finalize creates output-params.json
-- [ ] AC-18a: JSON output includes extractedParams
-- [ ] AC-19: Full manual test flow succeeds
-- [ ] AC-19a: Full flow works with --json
-- [ ] AC-39: finalize called twice returns same success result
-- [ ] AC-40: Commands retry after failure without manual cleanup
+- [x] AC-16: from_phase inputs copied from finalized phases
+- [x] AC-17: params.json created with resolved parameters
+- [x] AC-18: finalize creates output-params.json
+- [x] AC-18a: JSON output includes extractedParams
+- [x] AC-19: Full manual test flow succeeds
+- [x] AC-19a: Full flow works with --json
+- [x] AC-39: finalize called twice returns same success result
+- [x] AC-40: Commands retry after failure without manual cleanup
 
 ---
 
@@ -1651,17 +1651,17 @@ describe('PhaseService.finalize', () => {
 
 | #   | Status | Task | CS | Success Criteria | Log | Notes |
 |-----|--------|------|----|------------------|-----|-------|
-| 5.1 | [ ] | Write tests for wf_compose tool | 2 | Tests cover success, error cases | - | TDD: tests first |
-| 5.2 | [ ] | Implement `wf_compose` tool | 2 | All tests pass, follows check_health exemplar | - | Per Discovery 03 |
-| 5.3 | [ ] | Write tests for phase_prepare tool | 2 | Tests cover success, error cases | - | TDD: tests first |
-| 5.4 | [ ] | Implement `phase_prepare` tool | 2 | All tests pass | - | Wraps PhaseService |
-| 5.5 | [ ] | Write tests for phase_validate tool | 2 | Tests cover success, error cases | - | TDD: tests first |
-| 5.6 | [ ] | Implement `phase_validate` tool | 2 | All tests pass | - | Wraps PhaseService |
-| 5.7 | [ ] | Write tests for phase_finalize tool | 2 | Tests cover success, error cases | - | TDD: tests first |
-| 5.8 | [ ] | Implement `phase_finalize` tool | 2 | All tests pass | - | Wraps PhaseService |
-| 5.9 | [ ] | Verify all tools have annotations | 1 | readOnlyHint, destructiveHint, idempotentHint, openWorldHint | - | ADR-0001 |
-| 5.10 | [ ] | Write MCP integration tests | 2 | Full flow via MCP | - | E2E with subprocess |
-| 5.11 | [ ] | Test STDIO compliance | 1 | No stdout pollution | - | Three-layer defense |
+| 5.1 | [x] | Write tests for wf_compose tool | 2 | Tests cover success, error cases | - | TDD: tests first |
+| 5.2 | [x] | Implement `wf_compose` tool | 2 | All tests pass, follows check_health exemplar | - | Per Discovery 03 |
+| 5.3 | [x] | Write tests for phase_prepare tool | 2 | Tests cover success, error cases | - | TDD: tests first |
+| 5.4 | [x] | Implement `phase_prepare` tool | 2 | All tests pass | - | Wraps PhaseService |
+| 5.5 | [x] | Write tests for phase_validate tool | 2 | Tests cover success, error cases | - | TDD: tests first |
+| 5.6 | [x] | Implement `phase_validate` tool | 2 | All tests pass | - | Wraps PhaseService |
+| 5.7 | [x] | Write tests for phase_finalize tool | 2 | Tests cover success, error cases | - | TDD: tests first |
+| 5.8 | [x] | Implement `phase_finalize` tool | 2 | All tests pass | - | Wraps PhaseService |
+| 5.9 | [x] | Verify all tools have annotations | 1 | readOnlyHint, destructiveHint, idempotentHint, openWorldHint | - | ADR-0001 |
+| 5.10 | [x] | Write MCP integration tests | 2 | Full flow via MCP | - | E2E with subprocess |
+| 5.11 | [x] | Test STDIO compliance | 1 | No stdout pollution | - | Three-layer defense |
 
 ### Test Examples (Write First!)
 
@@ -1721,21 +1721,21 @@ describe('MCP Workflow Tools', () => {
 
 | #   | Status | Task | CS | Success Criteria | Log | Notes |
 |-----|--------|------|----|------------------|-----|-------|
-| 6.1 | [ ] | Survey existing docs/how/ structure | 1 | Documented existing directories | - | Discovery step |
-| 6.2 | [ ] | Update README.md with workflow commands | 2 | `cg wf` and `cg phase` documented | - | Getting started |
-| 6.3 | [ ] | Create `docs/how/workflows/1-overview.md` | 2 | Introduction, concepts, when to use | - | New feature dir |
-| 6.4 | [ ] | Create `docs/how/workflows/2-template-authoring.md` | 2 | wf.yaml schema, phase structure | - | For template authors |
-| 6.5 | [ ] | Create `docs/how/workflows/3-cli-reference.md` | 2 | All commands with examples | - | CLI documentation |
-| 6.6 | [ ] | Create `docs/how/workflows/4-mcp-reference.md` | 2 | All MCP tools with examples | - | MCP documentation |
-| 6.7 | [ ] | Finalize manual test guide | 1 | `dev/examples/wf/MANUAL-TEST-GUIDE.md` complete | - | Updated with real commands |
-| 6.8 | [ ] | Review all documentation | 1 | Peer review, no broken links | - | Quality check |
+| 6.1 | [x] | Survey existing docs/how/ structure | 1 | Documented existing directories | - | Discovery step |
+| 6.2 | [x] | Update README.md with workflow commands | 2 | `cg wf` and `cg phase` documented | - | Getting started |
+| 6.3 | [x] | Create `docs/how/workflows/1-overview.md` | 2 | Introduction, concepts, when to use | - | New feature dir |
+| 6.4 | [x] | Create `docs/how/workflows/2-template-authoring.md` | 2 | wf.yaml schema, phase structure | - | For template authors |
+| 6.5 | [x] | Create `docs/how/workflows/3-cli-reference.md` | 2 | All commands with examples | - | CLI documentation |
+| 6.6 | [x] | Create `docs/how/workflows/4-mcp-reference.md` | 2 | All MCP tools with examples | - | MCP documentation |
+| 6.7 | [x] | Finalize manual test guide | 1 | `dev/examples/wf/MANUAL-TEST-GUIDE.md` complete | - | Updated with real commands |
+| 6.8 | [x] | Review all documentation | 1 | Peer review, no broken links | - | Quality check |
 
 ### Acceptance Criteria
-- [ ] README.md updated with workflow section
-- [ ] All docs/how/workflows/ files complete
-- [ ] Code examples tested and working
-- [ ] Manual test guide matches actual commands
-- [ ] Links all functional
+- [x] README.md updated with workflow section
+- [x] All docs/how/workflows/ files complete
+- [x] Code examples tested and working
+- [x] Manual test guide matches actual commands
+- [x] Links all functional
 
 ---
 
@@ -1785,7 +1785,7 @@ describe('MCP Workflow Tools', () => {
 - [x] Phase 3: Phase Operations - COMPLETE (2026-01-22)
 - [ ] Phase 4: Phase Lifecycle - NOT STARTED
 - [ ] Phase 5: MCP Integration - NOT STARTED
-- [ ] Phase 6: Documentation - NOT STARTED
+- [x] Phase 6: Documentation - COMPLETE
 
 ### STOP Rule
 **IMPORTANT**: This plan must be complete before creating tasks. After writing this plan:
