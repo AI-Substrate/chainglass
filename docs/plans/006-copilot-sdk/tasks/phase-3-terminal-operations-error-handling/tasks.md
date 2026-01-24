@@ -713,7 +713,9 @@ _Populated during implementation by plan-6. Log anything of interest to your fut
 
 | Date | Task | Type | Discovery | Resolution | References |
 |------|------|------|-----------|------------|------------|
-| | | | | | |
+| 2026-01-24 | T004 | unexpected-behavior | compact() destroyed session context - delegating to run() caused session.destroy() in finally block, losing all conversation history | Rewrote compact() to call SDK directly without destroy(); session stays alive for subsequent turns | execution.log.md#post-phase-bug-fix |
+| 2026-01-24 | T004 | insight | Session lifecycle differs by operation: run()=ephemeral (destroy after), compact()=persistent (keep alive), terminate()=final (explicit destroy) | Document in code comments; this distinction critical for multi-turn conversations | DYK-01 amendment |
+| 2026-01-24 | T009 | gotcha | /compact via SDK works correctly when sent as prompt to sendAndWait(); no special SDK method needed | Use sendAndWait({prompt: '/compact'}) - same as CLI stdin behavior | copilot-sdk search |
 
 **Types**: `gotcha` | `research-needed` | `unexpected-behavior` | `workaround` | `decision` | `debt` | `insight`
 
