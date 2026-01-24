@@ -18,6 +18,10 @@ interface FakeProcessState {
   stubborn: boolean;
   output: string;
   waitResolvers: Array<(result: ProcessExitResult) => void>;
+  /** Staged stdout lines for streaming simulation */
+  stagedStdoutLines: string[];
+  /** Callback for stdout lines (from SpawnOptions.onStdoutLine) */
+  onStdoutLine?: (line: string) => void;
 }
 
 /**
@@ -80,6 +84,8 @@ export class FakeProcessManager implements IProcessManager {
       stubborn: false,
       output: '',
       waitResolvers: [],
+      stagedStdoutLines: [],
+      onStdoutLine: options.onStdoutLine,
     };
     this._processes.set(pid, state);
     this._signalHistory.set(pid, []);
@@ -231,6 +237,38 @@ export class FakeProcessManager implements IProcessManager {
     const state = this._processes.get(pid);
     if (state) {
       state.output = output;
+    }
+  }
+
+  /**
+   * Emit stdout lines to the onStdoutLine callback (streaming simulation).
+   *
+   * Per DYK-02: Enables testing streaming event handlers in adapters.
+   * Each line is delivered to the callback that was passed in SpawnOptions.
+   * Lines are also accumulated in the buffered output.
+   *
+   * Usage:
+   * ```typescript
+   * const handle = await fake.spawn({
+   *   command: 'claude',
+   *   onStdoutLine: (line) => events.push(JSON.parse(line)),
+   * });
+   * fake.emitStdoutLines(handle.pid, [
+   *   '{"type":"system","subtype":"init","session_id":"abc"}',
+   *   '{"type":"assistant","message":{"content":[{"type":"text","text":"Hi"}]}}',
+   * ]);
+   * fake.exitProcess(handle.pid, 0);
+   * ```
+   */
+  emitStdoutLines(pid: number, lines: string[]): void {
+    const state = this._processes.get(pid);
+    if (!state) return;
+
+    for (const line of lines) {
+      // Call the onStdoutLine callback if registered
+      state.onStdoutLine?.(line);
+      // Accumulate in output buffer (with newline)
+      state.output += line + '\n';
     }
   }
 

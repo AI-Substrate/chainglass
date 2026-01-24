@@ -53,9 +53,16 @@ export type {
 // Agent interfaces and types
 export type { IAgentAdapter } from './interfaces/index.js';
 export type {
+  AgentEvent,
+  AgentEventHandler,
+  AgentMessageEvent,
+  AgentRawEvent,
   AgentResult,
   AgentRunOptions,
+  AgentSessionEvent,
   AgentStatus,
+  AgentTextDeltaEvent,
+  AgentUsageEvent,
   TokenMetrics,
 } from './interfaces/index.js';
 
@@ -66,6 +73,8 @@ export type {
   ProcessHandle,
   ProcessSignal,
   SpawnOptions,
+  StdioOption,
+  StdioOptions,
 } from './interfaces/index.js';
 
 // Fakes

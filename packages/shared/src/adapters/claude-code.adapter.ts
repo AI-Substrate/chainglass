@@ -1,5 +1,6 @@
 import * as path from 'node:path';
 import type {
+  AgentEvent,
   AgentResult,
   AgentRunOptions,
   AgentStatus,
@@ -37,12 +38,44 @@ export interface ClaudeCodeAdapterOptions {
  * Per Discovery 06: Handles completed/failed/killed states via exit code mapping.
  * Per DYK-09: compact() delegates to run() with "/compact" prompt.
  *
- * Usage:
+ * ## Real-Time Streaming Events
+ *
+ * When `onEvent` is provided in `AgentRunOptions`, events are emitted in real-time
+ * as the Claude CLI produces output. The adapter parses NDJSON lines from stdout
+ * and translates them to `AgentEvent` types.
+ *
+ * **Event Mapping:**
+ * - `system.init` → `session_start` (with sessionId)
+ * - `assistant` with content → `text_delta` (streaming text)
+ * - `result` → `message` (final output)
+ * - Other events → `raw` (passthrough)
+ *
+ * **Usage (without streaming):**
  * ```typescript
+ * const processManager = new UnixProcessManager(logger);
  * const adapter = new ClaudeCodeAdapter(processManager);
  * const result = await adapter.run({ prompt: 'Hello' });
- * console.log(result.sessionId, result.tokens);
+ * console.log(result.sessionId, result.output);
  * ```
+ *
+ * **Usage (with streaming):**
+ * ```typescript
+ * const processManager = new UnixProcessManager(logger);
+ * const adapter = new ClaudeCodeAdapter(processManager);
+ * const result = await adapter.run({
+ *   prompt: 'Hello',
+ *   onEvent: (event) => {
+ *     if (event.type === 'text_delta') {
+ *       process.stdout.write(event.data.content);
+ *     }
+ *   },
+ * });
+ * ```
+ *
+ * **Technical Notes:**
+ * - Per DYK-01: Uses `stdio: ['inherit', 'pipe', 'pipe']` when streaming to avoid CLI hang
+ * - Per DYK-02: Uses `onStdoutLine` callback for real-time line processing
+ * - See `scripts/agent/demo-claude-adapter-streaming.ts` for full working example
  */
 export class ClaudeCodeAdapter implements IAgentAdapter {
   private readonly _processManager: IProcessManager;
@@ -143,20 +176,28 @@ export class ClaudeCodeAdapter implements IAgentAdapter {
    * Mitigation: Callers MUST implement timeout at orchestration layer.
    * See plan § 5 Tasks 5.3-5.4 for timeout implementation.
    *
-   * @param options - Prompt and optional session/cwd settings
+   * When `onEvent` is provided in options, events are emitted in real-time
+   * as stdout lines arrive. This enables streaming UI updates.
+   *
+   * @param options - Prompt and optional session/cwd/onEvent settings
    * @returns AgentResult with output, sessionId, status, exitCode, tokens
    */
   async run(options: AgentRunOptions): Promise<AgentResult> {
     // Per Discovery 07: Log CLI version on first use for debugging
     await this._logVersionOnFirstUse();
 
-    const { prompt, sessionId, cwd } = options;
+    const { prompt, sessionId, cwd, onEvent } = options;
+    const isStreaming = !!onEvent;
 
     // Validate cwd (may throw for path traversal)
     const validatedCwd = this._validateCwd(cwd);
 
     // Build command arguments (validates prompt - may throw)
     const args = this._buildArgs(prompt, sessionId);
+
+    // Variables to accumulate streamed content
+    let streamedSessionId = sessionId ?? '';
+    let streamedOutput = '';
 
     // Spawn the CLI process with error handling
     let handle;
@@ -165,6 +206,34 @@ export class ClaudeCodeAdapter implements IAgentAdapter {
         command: 'claude',
         args,
         cwd: validatedCwd,
+        // Per DYK-01: Use 'inherit' for stdin when streaming to avoid CLI hanging
+        stdio: isStreaming ? ['inherit', 'pipe', 'pipe'] : undefined,
+        // Per DYK-02: Emit events as lines arrive
+        onStdoutLine: isStreaming
+          ? (line: string) => {
+              try {
+                const msg = JSON.parse(line);
+                const event = this._translateClaudeToAgentEvent(msg);
+                if (event) {
+                  onEvent(event);
+                  // Extract session ID from session_start event
+                  if (event.type === 'session_start' && event.data.sessionId) {
+                    streamedSessionId = event.data.sessionId;
+                  }
+                  // Accumulate text_delta content
+                  if (event.type === 'text_delta') {
+                    streamedOutput += event.data.content;
+                  }
+                  // Final result replaces accumulated output
+                  if (event.type === 'message') {
+                    streamedOutput = event.data.content;
+                  }
+                }
+              } catch {
+                // Not JSON, skip silently
+              }
+            }
+          : undefined,
       });
     } catch (error) {
       // Spawn failed - return failed status instead of crashing
@@ -203,9 +272,9 @@ export class ClaudeCodeAdapter implements IAgentAdapter {
     const status = this._mapExitCodeToStatus(exitCode);
 
     // Parse output for session ID and tokens
-    const extractedSessionId = this._parser.extractSessionId(output) ?? sessionId ?? '';
+    const extractedSessionId = this._parser.extractSessionId(output) ?? streamedSessionId ?? '';
     const tokens = this._parser.extractTokens(output);
-    const extractedOutput = this._parser.extractOutput(output);
+    const extractedOutput = isStreaming ? streamedOutput : this._parser.extractOutput(output);
 
     // Track active session (for terminate())
     if (extractedSessionId) {
@@ -341,6 +410,66 @@ export class ClaudeCodeAdapter implements IAgentAdapter {
     }
 
     return trimmed;
+  }
+
+  /**
+   * Translate a Claude stream-json message to an AgentEvent.
+   *
+   * Claude CLI stream-json event types:
+   * - {"type":"system","subtype":"init","session_id":"..."} → session_start
+   * - {"type":"assistant","message":{"content":[{"type":"text","text":"..."}]}} → text_delta
+   * - {"type":"result","result":"...","usage":{...}} → message
+   *
+   * @param msg - Parsed JSON message from Claude CLI stdout
+   * @returns AgentEvent or null if message should be skipped
+   */
+  private _translateClaudeToAgentEvent(msg: Record<string, unknown>): AgentEvent | null {
+    const timestamp = new Date().toISOString();
+
+    // System init → session_start
+    if (msg.type === 'system' && msg.subtype === 'init') {
+      return {
+        type: 'session_start',
+        timestamp,
+        data: { sessionId: (msg.session_id as string) ?? '' },
+      };
+    }
+
+    // Assistant message → text_delta (streaming text content)
+    if (msg.type === 'assistant' && msg.message) {
+      const message = msg.message as { content?: Array<{ type: string; text?: string }> };
+      const textBlocks = Array.isArray(message.content)
+        ? message.content.filter((c) => c.type === 'text')
+        : [];
+      const text = textBlocks.map((c) => c.text || '').join('');
+      if (text) {
+        return {
+          type: 'text_delta',
+          timestamp,
+          data: { content: text },
+        };
+      }
+    }
+
+    // Result → message (final output)
+    if (msg.type === 'result') {
+      return {
+        type: 'message',
+        timestamp,
+        data: { content: (msg.result as string) ?? '' },
+      };
+    }
+
+    // Fallback: raw passthrough for other events
+    return {
+      type: 'raw',
+      timestamp,
+      data: {
+        provider: 'claude',
+        originalType: (msg.type as string) || 'unknown',
+        originalData: msg,
+      },
+    };
   }
 
   /**

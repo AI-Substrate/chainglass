@@ -221,7 +221,7 @@ flowchart TD
 | [x] | T007 | Implement run() with resumeSession when sessionId provided | 2 | Core | T003, T006 | /home/jak/substrate/002-agents/packages/shared/src/adapters/sdk-copilot-adapter.ts | T003 tests pass | – | Per CF-08: No session cache |
 | [x] | T008 | Implement error event mapping: session.error → failed status | 2 | Core | T004, T007 | /home/jak/substrate/002-agents/packages/shared/src/adapters/sdk-copilot-adapter.ts | T004 tests pass | – | Per CF-03: exitCode=1; include errorType in output |
 | [x] | T009 | Port input validation from legacy adapter (_validateCwd, _validatePrompt) | 2 | Core | T005, T008 | /home/jak/substrate/002-agents/packages/shared/src/adapters/sdk-copilot-adapter.ts | T005 tests pass | DYK-04 | SEC-001, SEC-002; TECH-DEBT: Extract shared validation utilities later |
-| [x] | T010 | Add contract test factory for SdkCopilotAdapter + run tests | 2 | Integration | T009 | /home/jak/substrate/002-agents/test/contracts/agent-adapter.contract.test.ts | run() tests pass; compact/terminate fail (expected) | 001-subtask-add-streaming-events | Factory setup required first; DYK-03 |
+| [x] | T010 | Add contract test factory for SdkCopilotAdapter + run tests | 2 | Integration | T009 | /home/jak/substrate/002-agents/test/contracts/agent-adapter.contract.test.ts | run() tests pass; compact/terminate fail (expected) | 001-subtask-add-streaming-events, 002-subtask-claude-adapter-streaming | Factory setup required first; DYK-03 |
 
 ---
 

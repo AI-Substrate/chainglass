@@ -475,4 +475,213 @@ describe('SdkCopilotAdapter', () => {
       }
     });
   });
+
+  // ============================================================
+  // Subtask 001: Event Streaming Tests
+  // ============================================================
+
+  describe('run() with onEvent streaming (ST004)', () => {
+    /**
+     * Test Doc:
+     * - Why: Subtask 001 adds optional streaming to run()
+     * - Contract: onEvent callback receives translated AgentEvent types
+     * - Usage Notes: FakeCopilotSession emits configured events
+     * - Quality Contribution: Validates event translation and emission
+     */
+
+    it('should call onEvent with text_delta when receiving assistant.message_delta', async () => {
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const client = new FakeCopilotClient({
+        events: [
+          { type: 'assistant.message_delta', data: { deltaContent: 'Hello', messageId: 'msg-001' } },
+          { type: 'assistant.message_delta', data: { deltaContent: ' World', messageId: 'msg-001' } },
+          { type: 'assistant.message', data: { content: 'Hello World', messageId: 'msg-001' } },
+          { type: 'session.idle', data: {} },
+        ],
+      });
+      const adapter = new SdkCopilotAdapter(client);
+
+      const receivedEvents: Array<{ type: string; content?: string }> = [];
+      await adapter.run({
+        prompt: 'test',
+        onEvent: (event) => {
+          if (event.type === 'text_delta') {
+            receivedEvents.push({ type: event.type, content: event.data.content });
+          }
+        },
+      });
+
+      expect(receivedEvents).toHaveLength(2);
+      expect(receivedEvents[0]).toMatchObject({ type: 'text_delta', content: 'Hello' });
+      expect(receivedEvents[1]).toMatchObject({ type: 'text_delta', content: ' World' });
+    });
+
+    it('should call onEvent with message when receiving assistant.message', async () => {
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const client = new FakeCopilotClient({
+        events: [
+          { type: 'assistant.message', data: { content: 'Final response', messageId: 'msg-001' } },
+          { type: 'session.idle', data: {} },
+        ],
+      });
+      const adapter = new SdkCopilotAdapter(client);
+
+      const receivedEvents: Array<{ type: string; content?: string }> = [];
+      await adapter.run({
+        prompt: 'test',
+        onEvent: (event) => {
+          if (event.type === 'message') {
+            receivedEvents.push({ type: event.type, content: event.data.content });
+          }
+        },
+      });
+
+      expect(receivedEvents).toHaveLength(1);
+      expect(receivedEvents[0]).toMatchObject({ type: 'message', content: 'Final response' });
+    });
+
+    it('should call onEvent with usage when receiving assistant.usage', async () => {
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const client = new FakeCopilotClient({
+        events: [
+          { type: 'assistant.message', data: { content: 'Response', messageId: 'msg-001' } },
+          { type: 'assistant.usage', data: { inputTokens: 10, outputTokens: 20 } },
+          { type: 'session.idle', data: {} },
+        ],
+      });
+      const adapter = new SdkCopilotAdapter(client);
+
+      const receivedEvents: Array<{ type: string; inputTokens?: number; outputTokens?: number }> = [];
+      await adapter.run({
+        prompt: 'test',
+        onEvent: (event) => {
+          if (event.type === 'usage') {
+            receivedEvents.push({
+              type: event.type,
+              inputTokens: event.data.inputTokens,
+              outputTokens: event.data.outputTokens,
+            });
+          }
+        },
+      });
+
+      expect(receivedEvents).toHaveLength(1);
+      expect(receivedEvents[0]).toMatchObject({ type: 'usage', inputTokens: 10, outputTokens: 20 });
+    });
+
+    it('should call onEvent with session_idle when receiving session.idle', async () => {
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const client = new FakeCopilotClient({
+        events: [
+          { type: 'assistant.message', data: { content: 'Done', messageId: 'msg-001' } },
+          { type: 'session.idle', data: {} },
+        ],
+      });
+      const adapter = new SdkCopilotAdapter(client);
+
+      const receivedEvents: Array<{ type: string }> = [];
+      await adapter.run({
+        prompt: 'test',
+        onEvent: (event) => {
+          if (event.type === 'session_idle') {
+            receivedEvents.push({ type: event.type });
+          }
+        },
+      });
+
+      expect(receivedEvents).toHaveLength(1);
+      expect(receivedEvents[0]).toMatchObject({ type: 'session_idle' });
+    });
+
+    it('should call onEvent with session_error when error occurs', async () => {
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const client = new FakeCopilotClient({
+        events: [{ type: 'session.error', data: { errorType: 'API_ERROR', message: 'Test error' } }],
+      });
+      const adapter = new SdkCopilotAdapter(client);
+
+      const receivedEvents: Array<{ type: string; errorType?: string; message?: string }> = [];
+      await adapter.run({
+        prompt: 'test',
+        onEvent: (event) => {
+          if (event.type === 'session_error') {
+            receivedEvents.push({
+              type: event.type,
+              errorType: event.data.errorType,
+              message: event.data.message,
+            });
+          }
+        },
+      });
+
+      expect(receivedEvents).toHaveLength(1);
+      expect(receivedEvents[0]).toMatchObject({
+        type: 'session_error',
+        errorType: 'API_ERROR',
+        message: 'Test error',
+      });
+    });
+
+    it('should work without onEvent (backward compatibility)', async () => {
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const adapter = new SdkCopilotAdapter(fakeClient);
+
+      // Should not throw when onEvent is not provided
+      const result = await adapter.run({ prompt: 'test' });
+
+      expect(result.status).toBe('completed');
+      expect(result.output).toBe('Test response');
+    });
+
+    it('should include timestamp in all events', async () => {
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const client = new FakeCopilotClient({
+        events: [
+          { type: 'assistant.message_delta', data: { deltaContent: 'Hi', messageId: 'msg-001' } },
+          { type: 'assistant.message', data: { content: 'Hi', messageId: 'msg-001' } },
+          { type: 'session.idle', data: {} },
+        ],
+      });
+      const adapter = new SdkCopilotAdapter(client);
+
+      const timestamps: string[] = [];
+      await adapter.run({
+        prompt: 'test',
+        onEvent: (event) => {
+          timestamps.push(event.timestamp);
+        },
+      });
+
+      expect(timestamps.length).toBeGreaterThan(0);
+      for (const ts of timestamps) {
+        expect(ts).toMatch(/^\d{4}-\d{2}-\d{2}T/); // ISO 8601 format
+      }
+    });
+
+    it('should still return final AgentResult when streaming', async () => {
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const client = new FakeCopilotClient({
+        events: [
+          { type: 'assistant.message_delta', data: { deltaContent: 'Stream', messageId: 'msg-001' } },
+          { type: 'assistant.message', data: { content: 'Complete', messageId: 'msg-001' } },
+          { type: 'session.idle', data: {} },
+        ],
+      });
+      const adapter = new SdkCopilotAdapter(client);
+
+      let eventCount = 0;
+      const result = await adapter.run({
+        prompt: 'test',
+        onEvent: () => {
+          eventCount++;
+        },
+      });
+
+      // Events were emitted AND final result is correct
+      expect(eventCount).toBeGreaterThan(0);
+      expect(result.status).toBe('completed');
+      expect(result.output).toBe('Complete');
+      expect(result.sessionId).toBeDefined();
+    });
+  });
 });

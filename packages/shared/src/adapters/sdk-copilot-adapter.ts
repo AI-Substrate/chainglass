@@ -1,5 +1,7 @@
 import * as path from 'node:path';
 import type {
+  AgentEvent,
+  AgentEventHandler,
   AgentResult,
   AgentRunOptions,
   CopilotSessionEvent,
@@ -71,14 +73,15 @@ export class SdkCopilotAdapter implements IAgentAdapter {
    * Per DYK-01: Catches sendAndWait exceptions and maps to failed AgentResult.
    * Per DYK-02: Registers event handler BEFORE calling sendAndWait.
    * Per DYK-05: Always destroys session in finally block.
+   * Per DYK-06: Passes streaming flag when onEvent is provided.
    *
-   * @param options - Prompt and optional session/cwd settings
+   * @param options - Prompt and optional session/cwd/onEvent settings
    * @returns AgentResult with output, sessionId, status, exitCode, tokens
    */
   async run(options: AgentRunOptions): Promise<AgentResult> {
     this._logger?.debug('SdkCopilotAdapter.run() called', { prompt: options.prompt?.slice(0, 50) });
 
-    const { prompt, sessionId, cwd } = options;
+    const { prompt, sessionId, cwd, onEvent } = options;
 
     // T009: Validate inputs - return failed result instead of throwing
     const validationError = this._validateInputs(prompt, cwd);
@@ -93,14 +96,22 @@ export class SdkCopilotAdapter implements IAgentAdapter {
     }
 
     // T006/T007: Create or resume session
+    // DYK-06: Enable streaming when onEvent callback is provided
     const session = sessionId
       ? await this._client.resumeSession(sessionId)
-      : await this._client.createSession();
+      : await this._client.createSession({ streaming: !!onEvent });
 
     try {
       // DYK-02: Register handler BEFORE sendAndWait to avoid race condition
       let output = '';
       session.on((event: CopilotSessionEvent) => {
+        // Translate SDK events to AgentEvent and emit via onEvent
+        const agentEvent = this._translateToAgentEvent(event);
+        if (agentEvent && onEvent) {
+          onEvent(agentEvent);
+        }
+
+        // Track final message content for AgentResult
         if (event.type === 'assistant.message') {
           output = event.data.content;
         }
@@ -126,6 +137,19 @@ export class SdkCopilotAdapter implements IAgentAdapter {
         outputParts.unshift(`[${errorType}]`);
       }
 
+      // Emit session_error event if streaming
+      if (onEvent) {
+        onEvent({
+          type: 'session_error',
+          timestamp: new Date().toISOString(),
+          data: {
+            sessionId: session.sessionId,
+            errorType: errorType ?? 'UNKNOWN_ERROR',
+            message: errorMessage,
+          },
+        });
+      }
+
       return {
         output: outputParts.join(' '),
         sessionId: session.sessionId,
@@ -136,6 +160,75 @@ export class SdkCopilotAdapter implements IAgentAdapter {
     } finally {
       // DYK-05: Always cleanup session to prevent resource leaks
       await session.destroy();
+    }
+  }
+
+  /**
+   * Translate Copilot SDK session event to unified AgentEvent.
+   *
+   * Event mapping:
+   * - assistant.message_delta → text_delta
+   * - assistant.message → message
+   * - assistant.usage → usage
+   * - session.idle → session_idle
+   * - session.error → session_error (handled in catch block)
+   */
+  private _translateToAgentEvent(event: CopilotSessionEvent): AgentEvent | null {
+    const timestamp = new Date().toISOString();
+
+    switch (event.type) {
+      case 'assistant.message_delta':
+        return {
+          type: 'text_delta',
+          timestamp,
+          data: {
+            content: event.data.deltaContent,
+            messageId: event.data.messageId,
+          },
+        };
+
+      case 'assistant.message':
+        return {
+          type: 'message',
+          timestamp,
+          data: {
+            content: event.data.content,
+            messageId: event.data.messageId,
+          },
+        };
+
+      case 'assistant.usage':
+        return {
+          type: 'usage',
+          timestamp,
+          data: {
+            inputTokens: event.data.inputTokens,
+            outputTokens: event.data.outputTokens,
+          },
+        };
+
+      case 'session.idle':
+        return {
+          type: 'session_idle',
+          timestamp,
+          data: {},
+        };
+
+      case 'session.error':
+        // Handled in catch block for proper error context
+        return null;
+
+      default:
+        // Unknown event type - return as raw for advanced consumers
+        return {
+          type: 'raw',
+          timestamp,
+          data: {
+            provider: 'copilot',
+            originalType: (event as CopilotSessionEvent).type,
+            originalData: event,
+          },
+        };
     }
   }
 

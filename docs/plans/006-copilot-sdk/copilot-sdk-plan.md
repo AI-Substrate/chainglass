@@ -725,7 +725,8 @@ Mid-implementation detours requiring structured tracking.
 
 | ID | Created | Phase | Parent Task | Reason | Status | Dossier |
 |----|---------|-------|-------------|--------|--------|---------|
-| 001-subtask-add-streaming-events | 2026-01-23 | Phase 2: Core Adapter Implementation | T010 | Add event streaming to IAgentAdapter for Copilot and Claude with fakes for tests and real integration tests | [ ] Pending | [Link](tasks/phase-2-core-adapter-implementation/001-subtask-add-streaming-events.md) |
+| 001-subtask-add-streaming-events | 2026-01-23 | Phase 2: Core Adapter Implementation | T010 | Add event streaming to IAgentAdapter for Copilot and Claude with fakes for tests and real integration tests | [x] Complete | [Link](tasks/phase-2-core-adapter-implementation/001-subtask-add-streaming-events.md) |
+| 002-subtask-claude-adapter-streaming | 2026-01-23 | Phase 2: Core Adapter Implementation | T010 | ClaudeCodeAdapter ignores onEvent callback; user requires eyes-on verification with REAL adapters | [x] Complete | [Link](tasks/phase-2-core-adapter-implementation/002-subtask-claude-adapter-streaming.md) |
 
 ---
 
