@@ -1,10 +1,5 @@
-import type {
-  AgentResult,
-  IAgentAdapter,
-  IConfigService,
-  ILogger,
-} from '../interfaces/index.js';
 import { AgentConfigType } from '../config/index.js';
+import type { AgentResult, IAgentAdapter, IConfigService, ILogger } from '../interfaces/index.js';
 
 /**
  * Allowed agent types for validation.
@@ -76,11 +71,7 @@ export class AgentService {
     { adapter: IAgentAdapter; agentType: string }
   >();
 
-  constructor(
-    adapterFactory: AdapterFactory,
-    configService: IConfigService,
-    logger: ILogger
-  ) {
+  constructor(adapterFactory: AdapterFactory, configService: IConfigService, logger: ILogger) {
     this._adapterFactory = adapterFactory;
     this._logger = logger;
 

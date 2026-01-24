@@ -40,11 +40,14 @@ function isCI(): boolean {
  */
 function getSdkVersion(): string | null {
   try {
-    const output = execSync('node -e "console.log(require(\'@github/copilot-sdk/package.json\').version)"', {
-      encoding: 'utf-8',
-      timeout: 10000,
-      cwd: process.cwd(),
-    });
+    const output = execSync(
+      'node -e "console.log(require(\'@github/copilot-sdk/package.json\').version)"',
+      {
+        encoding: 'utf-8',
+        timeout: 10000,
+        cwd: process.cwd(),
+      }
+    );
     return output.trim();
   } catch {
     return null;

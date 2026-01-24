@@ -268,7 +268,7 @@ export class FakeProcessManager implements IProcessManager {
       // Call the onStdoutLine callback if registered
       state.onStdoutLine?.(line);
       // Accumulate in output buffer (with newline)
-      state.output += line + '\n';
+      state.output += `${line}\n`;
     }
   }
 

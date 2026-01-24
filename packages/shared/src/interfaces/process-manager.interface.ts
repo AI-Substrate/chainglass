@@ -6,7 +6,7 @@ export type ProcessSignal = 'SIGINT' | 'SIGTERM' | 'SIGKILL';
 /**
  * Standard I/O configuration for spawn.
  * Per DYK-01: Allows configuring stdin behavior for streaming.
- * 
+ *
  * - 'inherit': Inherit from parent process (needed for Claude CLI streaming)
  * - 'pipe': Create a pipe (default for stdout/stderr)
  * - 'ignore': Discard (default for stdin)
@@ -33,7 +33,7 @@ export interface SpawnOptions {
   /**
    * Standard I/O configuration [stdin, stdout, stderr].
    * Default: ['ignore', 'pipe', 'pipe']
-   * 
+   *
    * For streaming use: ['inherit', 'pipe', 'pipe']
    * Per DYK-01: Claude CLI requires stdin='inherit' to avoid hanging.
    */
@@ -41,10 +41,10 @@ export interface SpawnOptions {
   /**
    * Callback invoked for each line of stdout.
    * Per DYK-02: Enables real-time event streaming in adapters.
-   * 
+   *
    * When provided, the callback is called as each line arrives.
    * The process manager still buffers full output for getProcessOutput().
-   * 
+   *
    * @param line - A single line from stdout (without newline)
    */
   onStdoutLine?: (line: string) => void;

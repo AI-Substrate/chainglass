@@ -1,11 +1,11 @@
-import { describe, expect, it, beforeEach, vi, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  type AdapterFactory,
+  AgentService,
   FakeAgentAdapter,
   FakeConfigService,
   FakeLogger,
-  AgentService,
-  type AdapterFactory,
   type IAgentAdapter,
 } from '@chainglass/shared';
 
@@ -202,9 +202,9 @@ describe('AgentService', () => {
       - Quality Contribution: Input validation, prevents silent failures
       - Worked Example: run({agentType:"invalid"}) → throws "Invalid agent type"
       */
-      await expect(
-        service.run({ prompt: 'test', agentType: 'invalid' })
-      ).rejects.toThrow('Invalid agent type: invalid');
+      await expect(service.run({ prompt: 'test', agentType: 'invalid' })).rejects.toThrow(
+        'Invalid agent type: invalid'
+      );
     });
   });
 
@@ -661,9 +661,9 @@ describe('AgentService', () => {
       const factorySpy = vi.fn().mockReturnValue(fakeClaudeAdapter);
       const testService = new AgentService(factorySpy, fakeConfig, fakeLogger);
 
-      await expect(
-        testService.run({ prompt: 'test', agentType: 'hacker-type' })
-      ).rejects.toThrow(/Invalid agent type/);
+      await expect(testService.run({ prompt: 'test', agentType: 'hacker-type' })).rejects.toThrow(
+        /Invalid agent type/
+      );
 
       // Factory should NOT have been called
       expect(factorySpy).not.toHaveBeenCalled();

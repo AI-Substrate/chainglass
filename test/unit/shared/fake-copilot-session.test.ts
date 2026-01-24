@@ -116,7 +116,9 @@ describe('FakeCopilotSession', () => {
         ],
       });
 
-      await expect(session.sendAndWait({ prompt: 'Hello' })).rejects.toThrow('Something went wrong');
+      await expect(session.sendAndWait({ prompt: 'Hello' })).rejects.toThrow(
+        'Something went wrong'
+      );
     });
 
     it('should throw on timeout', async () => {

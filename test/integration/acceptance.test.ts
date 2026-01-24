@@ -1,11 +1,11 @@
-import { describe, expect, it, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
+  type AdapterFactory,
+  AgentService,
   FakeAgentAdapter,
   FakeConfigService,
   FakeLogger,
-  AgentService,
-  type AdapterFactory,
   type IAgentAdapter,
 } from '@chainglass/shared';
 
@@ -462,9 +462,9 @@ describe('Agent Control Service Acceptance Tests', () => {
       - Quality Contribution: Clear error messages with allowed types
       - Worked Example: run({agentType:"invalid"}) → Error: Invalid agent type
       */
-      await expect(
-        service.run({ prompt: 'test', agentType: 'invalid' })
-      ).rejects.toThrow('Invalid agent type: invalid');
+      await expect(service.run({ prompt: 'test', agentType: 'invalid' })).rejects.toThrow(
+        'Invalid agent type: invalid'
+      );
     });
   });
 });

@@ -1,6 +1,6 @@
 import { execSync } from 'node:child_process';
-import { beforeAll, describe, expect, it } from 'vitest';
 import type { AgentEvent } from '@chainglass/shared';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 /**
  * Check if GitHub Copilot CLI is installed and available.
@@ -63,7 +63,9 @@ describe.skipIf(shouldSkipCopilotIntegration())(
   { timeout: 60_000 },
   () => {
     // Dynamic imports to avoid loading SDK in unit test context
-    let SdkCopilotAdapter: Awaited<typeof import('@chainglass/shared/adapters')>['SdkCopilotAdapter'];
+    let SdkCopilotAdapter: Awaited<
+      typeof import('@chainglass/shared/adapters')
+    >['SdkCopilotAdapter'];
     let FakeCopilotClient: Awaited<typeof import('@chainglass/shared/fakes')>['FakeCopilotClient'];
 
     beforeAll(async () => {
@@ -85,8 +87,14 @@ describe.skipIf(shouldSkipCopilotIntegration())(
        */
       const client = new FakeCopilotClient({
         events: [
-          { type: 'assistant.message_delta', data: { deltaContent: 'Hello ', messageId: 'msg-001' } },
-          { type: 'assistant.message_delta', data: { deltaContent: 'World!', messageId: 'msg-001' } },
+          {
+            type: 'assistant.message_delta',
+            data: { deltaContent: 'Hello ', messageId: 'msg-001' },
+          },
+          {
+            type: 'assistant.message_delta',
+            data: { deltaContent: 'World!', messageId: 'msg-001' },
+          },
           { type: 'assistant.message', data: { content: 'Hello World!', messageId: 'msg-001' } },
           { type: 'session.idle', data: {} },
         ],
@@ -146,7 +154,12 @@ describe.skipIf(shouldSkipCopilotIntegration())(
        * - Quality Contribution: Confirms error path streams correctly
        */
       const client = new FakeCopilotClient({
-        events: [{ type: 'session.error', data: { errorType: 'AUTH_ERROR', message: 'Not authenticated' } }],
+        events: [
+          {
+            type: 'session.error',
+            data: { errorType: 'AUTH_ERROR', message: 'Not authenticated' },
+          },
+        ],
       });
       const adapter = new SdkCopilotAdapter(client);
 
