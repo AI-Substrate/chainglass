@@ -9,7 +9,23 @@
  * - FakeWorkflowRegistry: Configurable implementation for testing with call capture
  */
 
-import type { InfoResult, ListResult } from '@chainglass/shared';
+import type {
+  CheckpointResult,
+  InfoResult,
+  ListResult,
+  RestoreResult,
+  VersionsResult,
+} from '@chainglass/shared';
+
+/**
+ * Options for checkpoint creation.
+ */
+export interface CheckpointOptions {
+  /** Optional comment describing this checkpoint */
+  comment?: string;
+  /** Force creation even if content is unchanged from previous checkpoint */
+  force?: boolean;
+}
 
 /**
  * Interface for workflow template management operations.
@@ -86,4 +102,69 @@ export interface IWorkflowRegistry {
    * ```
    */
   getCheckpointDir(workflowsDir: string, slug: string): string;
+
+  /**
+   * Create a checkpoint of the current template.
+   *
+   * Copies all files from current/ to a new checkpoint directory with format
+   * checkpoints/v<NNN>-<hash>/ where NNN is zero-padded ordinal and hash is
+   * 8-char SHA-256 content prefix.
+   *
+   * @param workflowsDir - Path to workflows directory
+   * @param slug - Workflow slug
+   * @param options - Checkpoint options (comment, force)
+   * @returns CheckpointResult with ordinal, hash, version, and path
+   *
+   * @example
+   * ```typescript
+   * const result = await registry.checkpoint('.chainglass/workflows', 'hello-wf', {
+   *   comment: 'Initial release'
+   * });
+   * if (result.errors.length === 0) {
+   *   console.log(`Created checkpoint ${result.version}`);
+   * }
+   * ```
+   *
+   * @throws Never throws - errors returned in CheckpointResult.errors:
+   * - E030: WORKFLOW_NOT_FOUND - Workflow doesn't exist
+   * - E035: DUPLICATE_CONTENT - Template unchanged since last checkpoint
+   * - E036: INVALID_TEMPLATE - current/ missing or wf.yaml missing
+   */
+  checkpoint(
+    workflowsDir: string,
+    slug: string,
+    options: CheckpointOptions
+  ): Promise<CheckpointResult>;
+
+  /**
+   * Restore a checkpoint to current/.
+   *
+   * Clears current/ and copies all files from the specified checkpoint.
+   * Service layer executes unconditionally - CLI must prompt for confirmation.
+   *
+   * @param workflowsDir - Path to workflows directory
+   * @param slug - Workflow slug
+   * @param version - Version to restore (e.g., 'v001' or 'v001-abc12345')
+   * @returns RestoreResult with restored version info
+   *
+   * @throws Never throws - errors returned in RestoreResult.errors:
+   * - E030: WORKFLOW_NOT_FOUND - Workflow doesn't exist
+   * - E033: VERSION_NOT_FOUND - Specified version doesn't exist
+   * - E034: NO_CHECKPOINT - No checkpoints exist for workflow
+   */
+  restore(workflowsDir: string, slug: string, version: string): Promise<RestoreResult>;
+
+  /**
+   * List all checkpoint versions for a workflow.
+   *
+   * Returns version history sorted by ordinal descending (newest first).
+   *
+   * @param workflowsDir - Path to workflows directory
+   * @param slug - Workflow slug
+   * @returns VersionsResult with version history array
+   *
+   * @throws Never throws - errors returned in VersionsResult.errors:
+   * - E030: WORKFLOW_NOT_FOUND - Workflow doesn't exist
+   */
+  versions(workflowsDir: string, slug: string): Promise<VersionsResult>;
 }

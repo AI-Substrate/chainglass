@@ -7,14 +7,19 @@
 
 import type {
   CheckpointInfo,
+  CheckpointResult,
   IFileSystem,
+  IHashGenerator,
   IPathResolver,
   InfoResult,
   ListResult,
+  RestoreResult,
+  VersionsResult,
   WorkflowInfo,
   WorkflowMetadata,
   WorkflowSummary,
 } from '@chainglass/shared';
+import type { CheckpointOptions } from '../interfaces/workflow-registry.interface.js';
 import { WorkflowMetadataSchema } from '@chainglass/shared';
 import type { IWorkflowRegistry } from '../interfaces/workflow-registry.interface.js';
 import type { IYamlParser } from '../interfaces/yaml-parser.interface.js';
@@ -62,10 +67,14 @@ interface CheckpointManifest {
  * - IYamlParser: Parse YAML files (optional, for checkpoint parsing)
  */
 export class WorkflowRegistryService implements IWorkflowRegistry {
+  /** Directories to exclude from hashing and copying */
+  private static readonly EXCLUDED_DIRS = ['.git', 'node_modules', 'dist'];
+
   constructor(
     private readonly fs: IFileSystem,
     private readonly pathResolver: IPathResolver,
-    private readonly yamlParser: IYamlParser
+    private readonly yamlParser: IYamlParser,
+    private readonly hashGenerator: IHashGenerator
   ) {}
 
   /**
@@ -272,6 +281,114 @@ export class WorkflowRegistryService implements IWorkflowRegistry {
   }
 
   /**
+   * Get the next checkpoint ordinal for a workflow.
+   *
+   * Per HD05: Uses max+1 pattern to handle gaps in ordinal sequence.
+   *
+   * @param workflowsDir - Path to workflows directory
+   * @param slug - Workflow slug
+   * @returns Next ordinal number (1 if no checkpoints exist)
+   */
+  async getNextCheckpointOrdinal(workflowsDir: string, slug: string): Promise<number> {
+    const checkpointsDir = this.getCheckpointDir(workflowsDir, slug);
+
+    if (!(await this.fs.exists(checkpointsDir))) {
+      return 1;
+    }
+
+    try {
+      const entries = await this.fs.readDir(checkpointsDir);
+      const checkpointPattern = /^v(\d{3})-[a-f0-9]{8}$/;
+      const ordinals: number[] = [];
+
+      for (const entry of entries) {
+        const match = entry.match(checkpointPattern);
+        if (match) {
+          ordinals.push(Number.parseInt(match[1], 10));
+        }
+      }
+
+      if (ordinals.length === 0) {
+        return 1;
+      }
+
+      return Math.max(...ordinals) + 1;
+    } catch {
+      return 1;
+    }
+  }
+
+  /**
+   * Generate a content hash for the current/ template.
+   *
+   * Per DYK-02: Files are sorted alphabetically before hashing
+   * to ensure deterministic output regardless of readDir order.
+   *
+   * @param workflowsDir - Path to workflows directory
+   * @param slug - Workflow slug
+   * @returns 8-character hex hash prefix
+   */
+  async generateCheckpointHash(workflowsDir: string, slug: string): Promise<string> {
+    const currentDir = this.pathResolver.join(workflowsDir, slug, 'current');
+
+    // Collect all file paths and contents recursively
+    const fileContents: { path: string; content: string }[] = [];
+    await this.collectFilesForHash(currentDir, '', fileContents);
+
+    // Sort by path for deterministic ordering (per DYK-02)
+    fileContents.sort((a, b) => a.path.localeCompare(b.path));
+
+    // Concatenate path:content pairs
+    const combinedContent = fileContents.map((f) => `${f.path}:${f.content}`).join('\n');
+
+    // Generate SHA-256 and return first 8 characters
+    const fullHash = await this.hashGenerator.sha256(combinedContent);
+    return fullHash.substring(0, 8);
+  }
+
+  /**
+   * Recursively collect files for hashing, excluding .git, node_modules, dist.
+   */
+  private async collectFilesForHash(
+    basePath: string,
+    relativePath: string,
+    results: { path: string; content: string }[]
+  ): Promise<void> {
+    const currentPath = relativePath
+      ? this.pathResolver.join(basePath, relativePath)
+      : basePath;
+
+    if (!(await this.fs.exists(currentPath))) {
+      return;
+    }
+
+    const entries = await this.fs.readDir(currentPath);
+
+    for (const entry of entries) {
+      // Check exclusions
+      if (WorkflowRegistryService.EXCLUDED_DIRS.includes(entry)) {
+        continue;
+      }
+
+      const entryPath = relativePath
+        ? this.pathResolver.join(relativePath, entry)
+        : entry;
+      const fullPath = this.pathResolver.join(basePath, entryPath);
+
+      const stat = await this.fs.stat(fullPath);
+
+      if (stat.isDirectory) {
+        // Recurse into subdirectory
+        await this.collectFilesForHash(basePath, entryPath, results);
+      } else if (stat.isFile) {
+        // Read file content
+        const content = await this.fs.readFile(fullPath);
+        results.push({ path: entryPath, content });
+      }
+    }
+  }
+
+  /**
    * Count checkpoints in a checkpoints directory.
    *
    * @param checkpointsDir - Path to checkpoints directory
@@ -350,5 +467,351 @@ export class WorkflowRegistryService implements IWorkflowRegistry {
     versions.sort((a, b) => b.ordinal - a.ordinal);
 
     return versions;
+  }
+
+  /**
+   * Create a checkpoint of the current template.
+   *
+   * @param workflowsDir - Path to workflows directory
+   * @param slug - Workflow slug
+   * @param options - Checkpoint options
+   * @returns CheckpointResult with checkpoint details
+   */
+  async checkpoint(
+    workflowsDir: string,
+    slug: string,
+    options: CheckpointOptions
+  ): Promise<CheckpointResult> {
+    const workflowDir = this.pathResolver.join(workflowsDir, slug);
+    const currentDir = this.pathResolver.join(workflowDir, 'current');
+    const checkpointsDir = this.getCheckpointDir(workflowsDir, slug);
+    const wfYamlPath = this.pathResolver.join(currentDir, 'wf.yaml');
+    const workflowJsonPath = this.pathResolver.join(workflowDir, 'workflow.json');
+
+    const createdAt = new Date().toISOString();
+
+    // Validate current/ exists
+    if (!(await this.fs.exists(currentDir))) {
+      return {
+        errors: [
+          {
+            code: WorkflowRegistryErrorCodes.INVALID_TEMPLATE,
+            message: `Template directory missing: ${slug}/current/`,
+            action: `Create the current/ directory with a wf.yaml file`,
+          },
+        ],
+        ordinal: 0,
+        hash: '',
+        version: '',
+        checkpointPath: '',
+        createdAt,
+      };
+    }
+
+    // Validate wf.yaml exists
+    if (!(await this.fs.exists(wfYamlPath))) {
+      return {
+        errors: [
+          {
+            code: WorkflowRegistryErrorCodes.INVALID_TEMPLATE,
+            message: `Template missing wf.yaml: ${slug}/current/wf.yaml`,
+            action: `Create a wf.yaml file in the current/ directory`,
+          },
+        ],
+        ordinal: 0,
+        hash: '',
+        version: '',
+        checkpointPath: '',
+        createdAt,
+      };
+    }
+
+    // Generate content hash
+    const hash = await this.generateCheckpointHash(workflowsDir, slug);
+
+    // Check for duplicate content (unless force)
+    if (!options.force) {
+      const existingVersions = await this.getVersions(checkpointsDir);
+      const matchingVersion = existingVersions.find((v) => v.hash === hash);
+      if (matchingVersion) {
+        return {
+          errors: [
+            {
+              code: WorkflowRegistryErrorCodes.DUPLICATE_CONTENT,
+              message: `Template unchanged since ${matchingVersion.version}`,
+              action: `Make changes to the template or use --force to create anyway`,
+            },
+          ],
+          ordinal: 0,
+          hash: '',
+          version: '',
+          checkpointPath: '',
+          createdAt,
+        };
+      }
+    }
+
+    // Get next ordinal
+    const ordinal = await this.getNextCheckpointOrdinal(workflowsDir, slug);
+    const paddedOrdinal = ordinal.toString().padStart(3, '0');
+    const version = `v${paddedOrdinal}-${hash}`;
+    const checkpointPath = this.pathResolver.join(checkpointsDir, version);
+
+    // Create checkpoint directory
+    await this.fs.mkdir(checkpointPath, { recursive: true });
+
+    // Copy all files from current/ to checkpoint (using recursive helper)
+    await this.copyDirectoryRecursive(currentDir, checkpointPath);
+
+    // Create .checkpoint.json manifest
+    const manifest: CheckpointManifest = {
+      ordinal,
+      hash,
+      createdAt,
+    };
+    if (options.comment) {
+      manifest.comment = options.comment;
+    }
+    await this.fs.writeFile(
+      this.pathResolver.join(checkpointPath, '.checkpoint.json'),
+      JSON.stringify(manifest, null, 2)
+    );
+
+    // Auto-generate workflow.json if missing (per CD03)
+    if (!(await this.fs.exists(workflowJsonPath))) {
+      await this.generateWorkflowJson(workflowDir, slug, wfYamlPath, createdAt);
+    }
+
+    return {
+      errors: [],
+      ordinal,
+      hash,
+      version,
+      checkpointPath,
+      createdAt,
+    };
+  }
+
+  /**
+   * Restore a checkpoint to current/.
+   *
+   * @param workflowsDir - Path to workflows directory
+   * @param slug - Workflow slug
+   * @param version - Version to restore (ordinal like 'v001' or full like 'v001-abc12345')
+   * @returns RestoreResult
+   */
+  async restore(
+    workflowsDir: string,
+    slug: string,
+    version: string
+  ): Promise<RestoreResult> {
+    const workflowDir = this.pathResolver.join(workflowsDir, slug);
+    const currentDir = this.pathResolver.join(workflowDir, 'current');
+    const checkpointsDir = this.getCheckpointDir(workflowsDir, slug);
+
+    // Check if workflow exists
+    if (!(await this.fs.exists(workflowDir))) {
+      return {
+        errors: [
+          {
+            code: WorkflowRegistryErrorCodes.WORKFLOW_NOT_FOUND,
+            message: `Workflow not found: ${slug}`,
+            action: `Create workflow at ${workflowsDir}/${slug}/`,
+          },
+        ],
+        slug,
+        version: '',
+        currentPath: currentDir,
+      };
+    }
+
+    // Get all versions
+    const versions = await this.getVersions(checkpointsDir);
+
+    // Check if any checkpoints exist
+    if (versions.length === 0) {
+      return {
+        errors: [
+          {
+            code: WorkflowRegistryErrorCodes.NO_CHECKPOINT,
+            message: `No checkpoints exist for workflow: ${slug}`,
+            action: `Create a checkpoint first with 'cg workflow checkpoint ${slug}'`,
+          },
+        ],
+        slug,
+        version: '',
+        currentPath: currentDir,
+      };
+    }
+
+    // Find matching version (by ordinal prefix or full version)
+    let matchedVersion: CheckpointInfo | undefined;
+    if (version.match(/^v\d{3}$/)) {
+      // Ordinal only (e.g., 'v001')
+      matchedVersion = versions.find((v) => v.version.startsWith(version));
+    } else {
+      // Full version string
+      matchedVersion = versions.find((v) => v.version === version);
+    }
+
+    if (!matchedVersion) {
+      return {
+        errors: [
+          {
+            code: WorkflowRegistryErrorCodes.VERSION_NOT_FOUND,
+            message: `Version not found: ${version}`,
+            action: `Use 'cg workflow versions ${slug}' to see available versions`,
+          },
+        ],
+        slug,
+        version: '',
+        currentPath: currentDir,
+      };
+    }
+
+    const checkpointPath = this.pathResolver.join(checkpointsDir, matchedVersion.version);
+
+    // Clear current/ directory
+    if (await this.fs.exists(currentDir)) {
+      await this.fs.rmdir(currentDir, { recursive: true });
+    }
+    await this.fs.mkdir(currentDir, { recursive: true });
+
+    // Copy checkpoint files to current/
+    await this.copyDirectoryRecursive(checkpointPath, currentDir);
+
+    return {
+      errors: [],
+      slug,
+      version: matchedVersion.version,
+      currentPath: currentDir,
+    };
+  }
+
+  /**
+   * List all checkpoint versions for a workflow.
+   *
+   * @param workflowsDir - Path to workflows directory
+   * @param slug - Workflow slug
+   * @returns VersionsResult
+   */
+  async versions(workflowsDir: string, slug: string): Promise<VersionsResult> {
+    const workflowDir = this.pathResolver.join(workflowsDir, slug);
+    const checkpointsDir = this.getCheckpointDir(workflowsDir, slug);
+
+    // Check if workflow exists
+    if (!(await this.fs.exists(workflowDir))) {
+      return {
+        errors: [
+          {
+            code: WorkflowRegistryErrorCodes.WORKFLOW_NOT_FOUND,
+            message: `Workflow not found: ${slug}`,
+            action: `Create workflow at ${workflowsDir}/${slug}/`,
+          },
+        ],
+        slug,
+        versions: [],
+      };
+    }
+
+    const versionList = await this.getVersions(checkpointsDir);
+
+    return {
+      errors: [],
+      slug,
+      versions: versionList,
+    };
+  }
+
+  /**
+   * Recursively copy a directory, excluding .git, node_modules, dist.
+   * Per DYK-01: Uses IFileSystem adapter, never direct fs access.
+   */
+  private async copyDirectoryRecursive(
+    sourceDir: string,
+    destDir: string,
+    relativePath = ''
+  ): Promise<void> {
+    const currentSource = relativePath
+      ? this.pathResolver.join(sourceDir, relativePath)
+      : sourceDir;
+    const currentDest = relativePath
+      ? this.pathResolver.join(destDir, relativePath)
+      : destDir;
+
+    if (!(await this.fs.exists(currentSource))) {
+      return;
+    }
+
+    const entries = await this.fs.readDir(currentSource);
+
+    for (const entry of entries) {
+      // Skip excluded directories
+      if (WorkflowRegistryService.EXCLUDED_DIRS.includes(entry)) {
+        continue;
+      }
+
+      // Skip .checkpoint.json when copying (it's metadata, not template content)
+      if (entry === '.checkpoint.json') {
+        continue;
+      }
+
+      const entryRelPath = relativePath
+        ? this.pathResolver.join(relativePath, entry)
+        : entry;
+      const sourcePath = this.pathResolver.join(sourceDir, entryRelPath);
+      const destPath = this.pathResolver.join(destDir, entryRelPath);
+
+      const stat = await this.fs.stat(sourcePath);
+
+      if (stat.isDirectory) {
+        // Create destination directory and recurse
+        await this.fs.mkdir(destPath, { recursive: true });
+        await this.copyDirectoryRecursive(sourceDir, destDir, entryRelPath);
+      } else if (stat.isFile) {
+        // Ensure parent directory exists
+        const parentDir = this.pathResolver.join(destDir, relativePath);
+        if (parentDir !== destDir && !(await this.fs.exists(parentDir))) {
+          await this.fs.mkdir(parentDir, { recursive: true });
+        }
+        // Copy file
+        await this.fs.copyFile(sourcePath, destPath);
+      }
+    }
+  }
+
+  /**
+   * Auto-generate workflow.json from wf.yaml metadata.
+   * Per CD03: Created on first checkpoint if missing.
+   */
+  private async generateWorkflowJson(
+    workflowDir: string,
+    slug: string,
+    wfYamlPath: string,
+    createdAt: string
+  ): Promise<void> {
+    let name = slug; // Default to slug if can't parse wf.yaml
+
+    try {
+      const wfYamlContent = await this.fs.readFile(wfYamlPath);
+      const parsed = this.yamlParser.parse<{ name?: string }>(wfYamlContent, wfYamlPath);
+      if (parsed && typeof parsed.name === 'string') {
+        name = parsed.name;
+      }
+    } catch {
+      // Use slug as name if wf.yaml can't be parsed
+    }
+
+    const workflowJson: WorkflowMetadata = {
+      slug,
+      name,
+      created_at: createdAt,
+      tags: [],
+    };
+
+    await this.fs.writeFile(
+      this.pathResolver.join(workflowDir, 'workflow.json'),
+      JSON.stringify(workflowJson, null, 2)
+    );
   }
 }

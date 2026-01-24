@@ -6,17 +6,13 @@
  * missing workflow.json, malformed workflow.json.
  */
 
-import { FakeFileSystem, FakePathResolver } from '@chainglass/shared';
+import { FakeFileSystem, FakeHashGenerator, FakePathResolver } from '@chainglass/shared';
 import {
   FakeSchemaValidator,
   FakeYamlParser,
-  // WorkflowRegistryService will be imported when T009 implements it
+  WorkflowRegistryService,
 } from '@chainglass/workflow';
 import { beforeEach, describe, expect, it } from 'vitest';
-
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore - Service doesn't exist yet (TDD RED phase)
-import { WorkflowRegistryService } from '@chainglass/workflow';
 
 describe('WorkflowRegistryService.list()', () => {
   let service: WorkflowRegistryService;
@@ -24,6 +20,7 @@ describe('WorkflowRegistryService.list()', () => {
   let pathResolver: FakePathResolver;
   let yamlParser: FakeYamlParser;
   let schemaValidator: FakeSchemaValidator;
+  let hashGenerator: FakeHashGenerator;
 
   const WORKFLOWS_DIR = '.chainglass/workflows';
 
@@ -32,11 +29,12 @@ describe('WorkflowRegistryService.list()', () => {
     pathResolver = new FakePathResolver();
     yamlParser = new FakeYamlParser();
     schemaValidator = new FakeSchemaValidator();
+    hashGenerator = new FakeHashGenerator();
 
     // Configure schema validator to pass by default
     schemaValidator.setDefaultResult({ valid: true, errors: [] });
 
-    service = new WorkflowRegistryService(fs, pathResolver, yamlParser);
+    service = new WorkflowRegistryService(fs, pathResolver, yamlParser, hashGenerator);
   });
 
   describe('empty registry', () => {

@@ -37,4 +37,6 @@ export const WORKFLOW_DI_TOKENS = {
   PHASE_SERVICE: 'IPhaseService',
   /** IWorkflowRegistry interface (per Phase 1: Manage Workflows) */
   WORKFLOW_REGISTRY: 'IWorkflowRegistry',
+  /** IHashGenerator interface (per Phase 2: Checkpoint System) */
+  HASH_GENERATOR: 'IHashGenerator',
 } as const;

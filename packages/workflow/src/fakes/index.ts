@@ -19,4 +19,7 @@ export { FakeWorkflowRegistry } from './fake-workflow-registry.js';
 export type {
   ListCall as RegistryListCall,
   InfoCall as RegistryInfoCall,
+  CheckpointCall as RegistryCheckpointCall,
+  RestoreCall as RegistryRestoreCall,
+  VersionsCall as RegistryVersionsCall,
 } from './fake-workflow-registry.js';

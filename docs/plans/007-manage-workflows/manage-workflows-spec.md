@@ -449,5 +449,5 @@ Checkpoint metadata file: `checkpoints/v001-abc123/.checkpoint.json`
 **Specification Status**: Clarified
 **Created**: 2026-01-24
 **Clarified**: 2026-01-24
-**Plan Directory**: `docs/plans/006-manage-workflows/`
+**Plan Directory**: `docs/plans/007-manage-workflows/`
 **Next Step**: Run `/plan-3-architect` to generate the phase-based implementation plan

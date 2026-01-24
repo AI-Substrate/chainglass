@@ -1,4 +1,9 @@
-import { FakeFileSystem, FakePathResolver, type WorkflowSummary } from '@chainglass/shared';
+import {
+  FakeFileSystem,
+  FakeHashGenerator,
+  FakePathResolver,
+  type WorkflowSummary,
+} from '@chainglass/shared';
 import {
   FakeWorkflowRegistry,
   FakeYamlParser,
@@ -158,7 +163,8 @@ function createWorkflowRegistryServiceContext(): WorkflowRegistryTestContext {
   const fs = new FakeFileSystem();
   const yamlParser = new FakeYamlParser();
   const pathResolver = new FakePathResolver();
-  const registry = new WorkflowRegistryService(fs, pathResolver, yamlParser);
+  const hashGenerator = new FakeHashGenerator();
+  const registry = new WorkflowRegistryService(fs, pathResolver, yamlParser, hashGenerator);
 
   return {
     name: 'WorkflowRegistryService',

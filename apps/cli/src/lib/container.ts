@@ -128,7 +128,8 @@ export function createCliProductionContainer(): DependencyContainer {
       new WorkflowRegistryService(
         c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM),
         c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER),
-        c.resolve<IYamlParser>(WORKFLOW_DI_TOKENS.YAML_PARSER)
+        c.resolve<IYamlParser>(WORKFLOW_DI_TOKENS.YAML_PARSER),
+        c.resolve<IHashGenerator>(CLI_DI_TOKENS.HASH_GENERATOR)
       ),
   });
 

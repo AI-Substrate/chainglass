@@ -31,4 +31,4 @@ export type {
 } from './message-service.interface.js';
 
 // Workflow registry interface (Phase 1)
-export type { IWorkflowRegistry } from './workflow-registry.interface.js';
+export type { CheckpointOptions, IWorkflowRegistry } from './workflow-registry.interface.js';

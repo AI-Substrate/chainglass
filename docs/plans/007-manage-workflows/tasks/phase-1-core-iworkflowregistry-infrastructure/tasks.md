@@ -533,7 +533,7 @@ _See also: `execution.log.md` for detailed narrative._
 ## Directory Layout
 
 ```
-docs/plans/006-manage-workflows/
+docs/plans/007-manage-workflows/
 ├── manage-workflows-spec.md
 ├── manage-workflows-plan.md
 └── tasks/

@@ -8,9 +8,12 @@
 import 'reflect-metadata';
 import {
   FakeFileSystem,
+  FakeHashGenerator,
   FakeLogger,
   FakePathResolver,
+  HashGeneratorAdapter,
   type IFileSystem,
+  type IHashGenerator,
   type ILogger,
   type IPathResolver,
   NodeFileSystemAdapter,
@@ -69,6 +72,11 @@ export function createWorkflowProductionContainer(): DependencyContainer {
     useFactory: () => new SchemaValidatorAdapter(),
   });
 
+  // Register hash generator for checkpoint content hashing (Phase 2)
+  childContainer.register<IHashGenerator>(WORKFLOW_DI_TOKENS.HASH_GENERATOR, {
+    useFactory: () => new HashGeneratorAdapter(),
+  });
+
   // Register workflow service (depends on other interfaces)
   childContainer.register<IWorkflowService>(WORKFLOW_DI_TOKENS.WORKFLOW_SERVICE, {
     useFactory: (c) =>
@@ -96,7 +104,8 @@ export function createWorkflowProductionContainer(): DependencyContainer {
       new WorkflowRegistryService(
         c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM),
         c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER),
-        c.resolve<IYamlParser>(WORKFLOW_DI_TOKENS.YAML_PARSER)
+        c.resolve<IYamlParser>(WORKFLOW_DI_TOKENS.YAML_PARSER),
+        c.resolve<IHashGenerator>(WORKFLOW_DI_TOKENS.HASH_GENERATOR)
       ),
   });
 
