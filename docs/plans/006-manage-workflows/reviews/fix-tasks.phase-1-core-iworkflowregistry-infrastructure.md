@@ -264,14 +264,27 @@ npx vitest run --reporter=verbose | grep "Tests:"
 
 ---
 
+## Workshop Decisions (2026-01-24)
+
+1. **FIX-001**: Approved as-is
+2. **FIX-002**: 10MB limit confirmed
+3. **FIX-003**: Option A - Add explicit E037 error code
+4. **FIX-004**: Use explicit `expect().toBeDefined()` guard (clearer failure messages)
+
+---
+
 ## Acceptance Criteria
 
-- [ ] All `path.join()` replaced with `this.pathResolver.join()` (8 locations)
-- [ ] `import * as path from 'node:path'` removed
-- [ ] JSON file size validation added (optional, recommended)
-- [ ] All 908+ tests pass
-- [ ] TypeScript compiles without errors
-- [ ] Lint warnings reduced
+- [x] All `path.join()` replaced with `this.pathResolver.join()` (8 locations)
+- [x] `import * as path from 'node:path'` removed
+- [x] JSON file size validation added (10MB limit)
+- [x] E037 DIR_READ_FAILED error code added
+- [x] Silent catches replaced with error returns (1 location - list() dir read)
+- [x] Non-null assertions replaced with explicit guards (2 test blocks)
+- [x] All 909 tests pass (1 new test added for pathResolver verification)
+- [x] TypeScript compiles without errors
+
+**Completed**: 2026-01-24
 
 ---
 

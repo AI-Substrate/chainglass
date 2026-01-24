@@ -5,7 +5,6 @@
  * methods for querying workflow templates in .chainglass/workflows/.
  */
 
-import * as path from 'node:path';
 import type {
   CheckpointInfo,
   IFileSystem,
@@ -37,7 +36,12 @@ export const WorkflowRegistryErrorCodes = {
   DUPLICATE_CONTENT: 'E035',
   /** Template is invalid (missing wf.yaml, invalid schema, etc.) */
   INVALID_TEMPLATE: 'E036',
+  /** Failed to read directory */
+  DIR_READ_FAILED: 'E037',
 } as const;
+
+/** Maximum workflow.json file size (10MB) to prevent DoS */
+const MAX_WORKFLOW_JSON_SIZE = 10 * 1024 * 1024;
 
 /**
  * Checkpoint manifest structure.
@@ -82,14 +86,23 @@ export class WorkflowRegistryService implements IWorkflowRegistry {
     let entries: string[];
     try {
       entries = await this.fs.readDir(workflowsDir);
-    } catch {
-      return { errors: [], workflows: [] };
+    } catch (err) {
+      return {
+        errors: [
+          {
+            code: WorkflowRegistryErrorCodes.DIR_READ_FAILED,
+            message: `Failed to read workflows directory: ${err instanceof Error ? err.message : String(err)}`,
+            action: 'Check directory permissions and existence',
+          },
+        ],
+        workflows: [],
+      };
     }
 
     // Process each potential workflow directory
     for (const entry of entries) {
-      const workflowDir = path.join(workflowsDir, entry);
-      const workflowJsonPath = path.join(workflowDir, 'workflow.json');
+      const workflowDir = this.pathResolver.join(workflowsDir, entry);
+      const workflowJsonPath = this.pathResolver.join(workflowDir, 'workflow.json');
 
       // Skip if no workflow.json
       if (!(await this.fs.exists(workflowJsonPath))) {
@@ -99,6 +112,12 @@ export class WorkflowRegistryService implements IWorkflowRegistry {
       // Try to read and parse workflow.json
       try {
         const content = await this.fs.readFile(workflowJsonPath);
+
+        // Size validation to prevent DoS
+        if (content.length > MAX_WORKFLOW_JSON_SIZE) {
+          continue; // Skip oversized files silently in list
+        }
+
         const rawData = JSON.parse(content);
 
         // Validate with Zod schema
@@ -111,7 +130,7 @@ export class WorkflowRegistryService implements IWorkflowRegistry {
         const metadata: WorkflowMetadata = parsed.data;
 
         // Count checkpoints
-        const checkpointsDir = path.join(workflowDir, 'checkpoints');
+        const checkpointsDir = this.pathResolver.join(workflowDir, 'checkpoints');
         const checkpointCount = await this.countCheckpoints(checkpointsDir);
 
         workflows.push({
@@ -122,7 +141,6 @@ export class WorkflowRegistryService implements IWorkflowRegistry {
         });
       } catch {
         // Skip workflows with parse errors silently
-        continue;
       }
     }
 
@@ -140,8 +158,8 @@ export class WorkflowRegistryService implements IWorkflowRegistry {
    * @returns InfoResult with workflow details or error
    */
   async info(workflowsDir: string, slug: string): Promise<InfoResult> {
-    const workflowDir = path.join(workflowsDir, slug);
-    const workflowJsonPath = path.join(workflowDir, 'workflow.json');
+    const workflowDir = this.pathResolver.join(workflowsDir, slug);
+    const workflowJsonPath = this.pathResolver.join(workflowDir, 'workflow.json');
 
     // Check if workflow directory exists
     if (!(await this.fs.exists(workflowDir))) {
@@ -175,6 +193,21 @@ export class WorkflowRegistryService implements IWorkflowRegistry {
     let metadata: WorkflowMetadata;
     try {
       const content = await this.fs.readFile(workflowJsonPath);
+
+      // Size validation to prevent DoS
+      if (content.length > MAX_WORKFLOW_JSON_SIZE) {
+        return {
+          errors: [
+            {
+              code: WorkflowRegistryErrorCodes.INVALID_TEMPLATE,
+              message: `workflow.json for ${slug} exceeds maximum size (${MAX_WORKFLOW_JSON_SIZE} bytes)`,
+              action: 'Reduce workflow.json size or split configuration',
+            },
+          ],
+          workflow: undefined,
+        };
+      }
+
       const rawData = JSON.parse(content);
 
       // Validate with Zod schema
@@ -209,7 +242,7 @@ export class WorkflowRegistryService implements IWorkflowRegistry {
     }
 
     // Get checkpoint versions
-    const checkpointsDir = path.join(workflowDir, 'checkpoints');
+    const checkpointsDir = this.pathResolver.join(workflowDir, 'checkpoints');
     const versions = await this.getVersions(checkpointsDir);
 
     const workflow: WorkflowInfo = {
@@ -235,7 +268,7 @@ export class WorkflowRegistryService implements IWorkflowRegistry {
    * @returns Path to checkpoints directory
    */
   getCheckpointDir(workflowsDir: string, slug: string): string {
-    return path.join(workflowsDir, slug, 'checkpoints');
+    return this.pathResolver.join(workflowsDir, slug, 'checkpoints');
   }
 
   /**
@@ -284,7 +317,7 @@ export class WorkflowRegistryService implements IWorkflowRegistry {
 
         const ordinal = Number.parseInt(match[1], 10);
         const hash = match[2];
-        const manifestPath = path.join(checkpointsDir, entry, '.checkpoint.json');
+        const manifestPath = this.pathResolver.join(checkpointsDir, entry, '.checkpoint.json');
 
         let createdAt = new Date().toISOString();
         let comment: string | undefined;

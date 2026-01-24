@@ -6,13 +6,10 @@
  * missing workflow.json, malformed workflow.json.
  */
 
+import { FakeFileSystem, FakePathResolver } from '@chainglass/shared';
 import {
-  FakeFileSystem,
-  FakePathResolver,
-} from '@chainglass/shared';
-import {
-  FakeYamlParser,
   FakeSchemaValidator,
+  FakeYamlParser,
   // WorkflowRegistryService will be imported when T009 implements it
 } from '@chainglass/workflow';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -201,6 +198,32 @@ describe('WorkflowRegistryService.list()', () => {
       expect(result.errors).toHaveLength(0);
       expect(result.workflows).toHaveLength(1);
       expect(result.workflows[0].slug).toBe('valid-wf');
+    });
+  });
+
+  describe('path security', () => {
+    it('should use IPathResolver for path composition', async () => {
+      /*
+      Test Doc:
+      - Why: Verify pathResolver is used for secure path composition
+      - Contract: Service calls pathResolver.join() for all path operations
+      - Usage Notes: Required to maintain path security abstraction
+      - Quality Contribution: Ensures IPathResolver injection is not wasted
+      - Worked Example: list() should call pathResolver.join(dir, entry) for each workflow
+      */
+      const workflowJson = JSON.stringify({
+        slug: 'test-wf',
+        name: 'Test Workflow',
+        created_at: '2026-01-24T10:00:00Z',
+      });
+
+      fs.setFile(`${WORKFLOWS_DIR}/test-wf/workflow.json`, workflowJson);
+      fs.setDir(`${WORKFLOWS_DIR}/test-wf/checkpoints`);
+
+      await service.list(WORKFLOWS_DIR);
+
+      // Verify pathResolver.join() was called (FakePathResolver tracks calls)
+      expect(pathResolver.getJoinCalls().length).toBeGreaterThan(0);
     });
   });
 

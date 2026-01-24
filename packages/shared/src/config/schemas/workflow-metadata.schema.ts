@@ -30,7 +30,10 @@ const slugPattern = /^[a-z][a-z0-9-]*$/;
 export const WorkflowMetadataSchema = z.object({
   slug: z
     .string()
-    .regex(slugPattern, 'Slug must start with a letter and contain only lowercase letters, digits, and hyphens'),
+    .regex(
+      slugPattern,
+      'Slug must start with a letter and contain only lowercase letters, digits, and hyphens'
+    ),
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional(),
   created_at: z.string().datetime({ offset: true }),

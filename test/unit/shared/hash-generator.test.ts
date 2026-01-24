@@ -14,7 +14,7 @@ import type { IHashGenerator } from '@chainglass/shared';
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore - Implementation doesn't exist yet (TDD RED phase)
-import { HashGeneratorAdapter, FakeHashGenerator } from '@chainglass/shared';
+import { FakeHashGenerator, HashGeneratorAdapter } from '@chainglass/shared';
 
 describe('IHashGenerator', () => {
   describe('HashGeneratorAdapter (Production)', () => {

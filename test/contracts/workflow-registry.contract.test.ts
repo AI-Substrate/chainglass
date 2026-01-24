@@ -1,8 +1,4 @@
-import {
-  FakeFileSystem,
-  FakePathResolver,
-  type WorkflowSummary,
-} from '@chainglass/shared';
+import { FakeFileSystem, FakePathResolver, type WorkflowSummary } from '@chainglass/shared';
 import {
   FakeWorkflowRegistry,
   FakeYamlParser,

@@ -6,13 +6,10 @@
  * malformed workflow.json.
  */
 
+import { FakeFileSystem, FakePathResolver } from '@chainglass/shared';
 import {
-  FakeFileSystem,
-  FakePathResolver,
-} from '@chainglass/shared';
-import {
-  FakeYamlParser,
   FakeSchemaValidator,
+  FakeYamlParser,
   WorkflowRegistryErrorCodes,
   // WorkflowRegistryService will be imported when T009 implements it
 } from '@chainglass/workflow';
@@ -90,24 +87,26 @@ describe('WorkflowRegistryService.info()', () => {
 
       expect(result.errors).toHaveLength(0);
       expect(result.workflow).toBeDefined();
-      expect(result.workflow!.slug).toBe('hello-wf');
-      expect(result.workflow!.name).toBe('Hello Workflow');
-      expect(result.workflow!.description).toBe('A test workflow');
-      expect(result.workflow!.createdAt).toBe('2026-01-24T10:00:00Z');
-      expect(result.workflow!.updatedAt).toBe('2026-01-24T12:00:00Z');
-      expect(result.workflow!.tags).toEqual(['starter', 'test']);
-      expect(result.workflow!.author).toBe('Test Author');
-      expect(result.workflow!.checkpointCount).toBe(2);
+      if (!result.workflow) return; // TypeScript guard
+
+      expect(result.workflow.slug).toBe('hello-wf');
+      expect(result.workflow.name).toBe('Hello Workflow');
+      expect(result.workflow.description).toBe('A test workflow');
+      expect(result.workflow.createdAt).toBe('2026-01-24T10:00:00Z');
+      expect(result.workflow.updatedAt).toBe('2026-01-24T12:00:00Z');
+      expect(result.workflow.tags).toEqual(['starter', 'test']);
+      expect(result.workflow.author).toBe('Test Author');
+      expect(result.workflow.checkpointCount).toBe(2);
 
       // Versions sorted by ordinal descending (newest first)
-      expect(result.workflow!.versions).toHaveLength(2);
-      expect(result.workflow!.versions[0].ordinal).toBe(2);
-      expect(result.workflow!.versions[0].hash).toBe('def67890');
-      expect(result.workflow!.versions[0].version).toBe('v002-def67890');
-      expect(result.workflow!.versions[0].comment).toBe('Added validation');
-      expect(result.workflow!.versions[1].ordinal).toBe(1);
-      expect(result.workflow!.versions[1].hash).toBe('abc12345');
-      expect(result.workflow!.versions[1].version).toBe('v001-abc12345');
+      expect(result.workflow.versions).toHaveLength(2);
+      expect(result.workflow.versions[0].ordinal).toBe(2);
+      expect(result.workflow.versions[0].hash).toBe('def67890');
+      expect(result.workflow.versions[0].version).toBe('v002-def67890');
+      expect(result.workflow.versions[0].comment).toBe('Added validation');
+      expect(result.workflow.versions[1].ordinal).toBe(1);
+      expect(result.workflow.versions[1].hash).toBe('abc12345');
+      expect(result.workflow.versions[1].version).toBe('v001-abc12345');
     });
   });
 
@@ -134,10 +133,12 @@ describe('WorkflowRegistryService.info()', () => {
 
       expect(result.errors).toHaveLength(0);
       expect(result.workflow).toBeDefined();
-      expect(result.workflow!.slug).toBe('new-wf');
-      expect(result.workflow!.name).toBe('New Workflow');
-      expect(result.workflow!.checkpointCount).toBe(0);
-      expect(result.workflow!.versions).toEqual([]);
+      if (!result.workflow) return; // TypeScript guard
+
+      expect(result.workflow.slug).toBe('new-wf');
+      expect(result.workflow.name).toBe('New Workflow');
+      expect(result.workflow.checkpointCount).toBe(0);
+      expect(result.workflow.versions).toEqual([]);
     });
   });
 
