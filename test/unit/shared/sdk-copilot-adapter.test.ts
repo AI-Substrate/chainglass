@@ -147,34 +147,38 @@ describe('SdkCopilotAdapter', () => {
       expect(result.status).toBe('completed');
     });
 
-    it('should throw "Not implemented" for compact() in Phase 1', async () => {
+    it('should NOT throw "Not implemented" for compact() after Phase 3', async () => {
       /*
       Test Doc:
-      - Why: Phase 1 creates skeleton only; implementation is Phase 3
-      - Contract: compact() throws Error with "Not implemented" message
-      - Usage Notes: This test will be updated in Phase 3
-      - Quality Contribution: Documents Phase 1 behavior explicitly
-      - Worked Example: adapter.compact() → throw 'Not implemented'
+      - Why: Phase 3 implements compact() - should no longer throw
+      - Contract: compact() returns AgentResult instead of throwing
+      - Usage Notes: This test replaced Phase 1 stub test
+      - Quality Contribution: Documents Phase 3 behavior
+      - Worked Example: adapter.compact() → AgentResult
       */
       const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
       const adapter = new SdkCopilotAdapter(fakeClient);
 
-      await expect(adapter.compact('session-123')).rejects.toThrow(/[Nn]ot implemented/);
+      // Should not throw - returns result instead
+      const result = await adapter.compact('session-123');
+      expect(result.status).toBeDefined();
     });
 
-    it('should throw "Not implemented" for terminate() in Phase 1', async () => {
+    it('should NOT throw "Not implemented" for terminate() after Phase 3', async () => {
       /*
       Test Doc:
-      - Why: Phase 1 creates skeleton only; implementation is Phase 3
-      - Contract: terminate() throws Error with "Not implemented" message
-      - Usage Notes: This test will be updated in Phase 3
-      - Quality Contribution: Documents Phase 1 behavior explicitly
-      - Worked Example: adapter.terminate() → throw 'Not implemented'
+      - Why: Phase 3 implements terminate() - should no longer throw
+      - Contract: terminate() returns AgentResult instead of throwing
+      - Usage Notes: This test replaced Phase 1 stub test
+      - Quality Contribution: Documents Phase 3 behavior
+      - Worked Example: adapter.terminate() → AgentResult
       */
       const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
       const adapter = new SdkCopilotAdapter(fakeClient);
 
-      await expect(adapter.terminate('session-123')).rejects.toThrow(/[Nn]ot implemented/);
+      // Should not throw - returns result instead  
+      const result = await adapter.terminate('session-123');
+      expect(result.status).toBe('killed');
     });
   });
 
@@ -682,6 +686,352 @@ describe('SdkCopilotAdapter', () => {
       expect(result.status).toBe('completed');
       expect(result.output).toBe('Complete');
       expect(result.sessionId).toBeDefined();
+    });
+  });
+
+  // ============================================================
+  // Phase 3: TDD Tests for compact() and terminate()
+  // ============================================================
+
+  describe('compact() (T001)', () => {
+    /**
+     * Test Doc:
+     * - Why: AC-12 requires compact() to reduce context when approaching limits
+     * - Contract: compact(sessionId) sends /compact command via run() delegation
+     * - Usage Notes: FakeCopilotSession treats /compact as any other prompt
+     * - Quality Contribution: Validates compact implementation pattern
+     */
+
+    it('should send /compact as prompt via run() delegation', async () => {
+      /*
+      Test Doc:
+      - Why: DYK-01 established compact() delegates to run({prompt: '/compact'})
+      - Contract: compact() internally calls run() with '/compact' prompt
+      - Usage Notes: FakeCopilotSession.getSendHistory() shows prompts sent
+      - Quality Contribution: Validates delegation pattern
+      - Worked Example: compact(sessionId) → sendAndWait receives '/compact'
+      */
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const client = new FakeCopilotClient({
+        events: [
+          { type: 'assistant.message', data: { content: '/compact executed', messageId: 'msg-001' } },
+          { type: 'session.idle', data: {} },
+        ],
+      });
+      const adapter = new SdkCopilotAdapter(client);
+
+      // Create session first
+      await adapter.run({ prompt: 'initial prompt' });
+      const sessionId = client.getSessionHistory()[0];
+
+      // Compact the session
+      const result = await adapter.compact(sessionId);
+
+      // Verify /compact was sent (check session's send history)
+      const lastSession = client.getLastSession();
+      expect(lastSession).toBeDefined();
+      const sendHistory = lastSession!.getSendHistory();
+      expect(sendHistory.some((msg) => msg.prompt === '/compact')).toBe(true);
+    });
+
+    it('should preserve sessionId in result', async () => {
+      /*
+      Test Doc:
+      - Why: Session ID must be preserved for continued conversation
+      - Contract: compact() returns AgentResult with same sessionId
+      - Usage Notes: DYK-04: Explicit sessionId verification recommended
+      - Quality Contribution: Ensures session continuity after compact
+      - Worked Example: compact('abc-123') → {sessionId: 'abc-123', ...}
+      */
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const client = new FakeCopilotClient({
+        events: [
+          { type: 'assistant.message', data: { content: 'Compacted', messageId: 'msg-001' } },
+          { type: 'session.idle', data: {} },
+        ],
+      });
+      const adapter = new SdkCopilotAdapter(client);
+
+      // Create session first
+      const runResult = await adapter.run({ prompt: 'test' });
+      const sessionId = runResult.sessionId;
+
+      // Compact should preserve sessionId
+      const compactResult = await adapter.compact(sessionId);
+
+      expect(compactResult.sessionId).toBe(sessionId);
+      expect(client.getLastSession()?.sessionId).toBe(sessionId); // DYK-04: Explicit verification
+    });
+
+    it('should return status=completed on success', async () => {
+      /*
+      Test Doc:
+      - Why: AC-12 expects completed status after successful compact
+      - Contract: compact() returns status='completed', exitCode=0
+      - Usage Notes: Follows run() success pattern
+      - Quality Contribution: Validates success status mapping
+      - Worked Example: compact(sessionId) → {status: 'completed', exitCode: 0}
+      */
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const client = new FakeCopilotClient({
+        events: [
+          { type: 'assistant.message', data: { content: 'OK', messageId: 'msg-001' } },
+          { type: 'session.idle', data: {} },
+        ],
+      });
+      const adapter = new SdkCopilotAdapter(client);
+
+      await adapter.run({ prompt: 'test' });
+      const sessionId = client.getSessionHistory()[0];
+
+      const result = await adapter.compact(sessionId);
+
+      expect(result.status).toBe('completed');
+      expect(result.exitCode).toBe(0);
+    });
+
+    it('should return tokens=null (SDK limitation)', async () => {
+      /*
+      Test Doc:
+      - Why: SDK doesn't expose token metrics
+      - Contract: compact() returns tokens=null
+      - Usage Notes: Matches run() behavior
+      - Quality Contribution: Documents SDK limitation
+      - Worked Example: compact() → {tokens: null}
+      */
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const adapter = new SdkCopilotAdapter(fakeClient);
+
+      await adapter.run({ prompt: 'test' });
+      const sessionId = fakeClient.getSessionHistory()[0];
+
+      const result = await adapter.compact(sessionId);
+
+      expect(result.tokens).toBeNull();
+    });
+
+    it('should return failed status on session error', async () => {
+      /*
+      Test Doc:
+      - Why: Compact may fail if session is invalid or SDK errors
+      - Contract: Error during compact returns status='failed', exitCode=1
+      - Usage Notes: Follows run() error handling pattern
+      - Quality Contribution: Validates error path
+      - Worked Example: compact with error → {status: 'failed', exitCode: 1}
+      */
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const client = new FakeCopilotClient({
+        events: [{ type: 'session.error', data: { errorType: 'COMPACT_ERROR', message: 'Compact failed' } }],
+      });
+      const adapter = new SdkCopilotAdapter(client);
+
+      const result = await adapter.compact('some-session');
+
+      expect(result.status).toBe('failed');
+      expect(result.exitCode).toBe(1);
+    });
+  });
+
+  describe('terminate() (T002)', () => {
+    /**
+     * Test Doc:
+     * - Why: AC-14 requires terminate() to stop session cleanly
+     * - Contract: terminate() calls abort() + destroy(), returns status='killed'
+     * - Usage Notes: exitCode=137 (standard SIGKILL code)
+     * - Quality Contribution: Validates termination sequence
+     */
+
+    it('should call abort() and destroy() on session', async () => {
+      /*
+      Test Doc:
+      - Why: Proper termination requires abort then destroy
+      - Contract: terminate() calls session.abort() then session.destroy()
+      - Usage Notes: FakeCopilotSession tracks abort/destroy calls
+      - Quality Contribution: Validates termination sequence
+      - Worked Example: terminate(id) → abort called, destroy called
+      */
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const client = new FakeCopilotClient({
+        events: [
+          { type: 'assistant.message', data: { content: 'Done', messageId: 'msg-001' } },
+          { type: 'session.idle', data: {} },
+        ],
+      });
+      const adapter = new SdkCopilotAdapter(client);
+
+      // Create session first
+      const runResult = await adapter.run({ prompt: 'test' });
+      const sessionId = runResult.sessionId;
+
+      // Terminate should call abort + destroy
+      await adapter.terminate(sessionId);
+
+      // Get the session used for terminate (it's a new session from resumeSession)
+      const session = client.getLastSession();
+      expect(session).toBeDefined();
+      expect(session!.getAbortCount()).toBe(1);
+      expect(session!.wasDestroyed()).toBe(true);
+    });
+
+    it('should return status=killed', async () => {
+      /*
+      Test Doc:
+      - Why: AC-14 specifies status='killed' for terminated sessions
+      - Contract: terminate() returns status='killed'
+      - Usage Notes: Distinguishes from completed/failed
+      - Quality Contribution: Validates status semantic
+      - Worked Example: terminate(id) → {status: 'killed'}
+      */
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const adapter = new SdkCopilotAdapter(fakeClient);
+
+      const runResult = await adapter.run({ prompt: 'test' });
+      const result = await adapter.terminate(runResult.sessionId);
+
+      expect(result.status).toBe('killed');
+    });
+
+    it('should return exitCode=137 (SIGKILL)', async () => {
+      /*
+      Test Doc:
+      - Why: Standard Unix SIGKILL exit code is 137
+      - Contract: terminate() returns exitCode=137
+      - Usage Notes: Matches conventional killed process semantics
+      - Quality Contribution: Validates exit code convention
+      - Worked Example: terminate(id) → {exitCode: 137}
+      */
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const adapter = new SdkCopilotAdapter(fakeClient);
+
+      const runResult = await adapter.run({ prompt: 'test' });
+      const result = await adapter.terminate(runResult.sessionId);
+
+      expect(result.exitCode).toBe(137);
+    });
+
+    it('should preserve sessionId in result', async () => {
+      /*
+      Test Doc:
+      - Why: SessionId must be in result for tracking
+      - Contract: terminate() returns AgentResult with sessionId
+      - Usage Notes: Same sessionId as input
+      - Quality Contribution: Validates result structure
+      - Worked Example: terminate('abc') → {sessionId: 'abc'}
+      */
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const adapter = new SdkCopilotAdapter(fakeClient);
+
+      const runResult = await adapter.run({ prompt: 'test' });
+      const sessionId = runResult.sessionId;
+
+      const result = await adapter.terminate(sessionId);
+
+      expect(result.sessionId).toBe(sessionId);
+    });
+
+    it('should return tokens=null', async () => {
+      /*
+      Test Doc:
+      - Why: No tokens used during terminate
+      - Contract: terminate() returns tokens=null
+      - Usage Notes: SDK limitation + no actual prompt sent
+      - Quality Contribution: Validates result structure
+      - Worked Example: terminate(id) → {tokens: null}
+      */
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const adapter = new SdkCopilotAdapter(fakeClient);
+
+      const runResult = await adapter.run({ prompt: 'test' });
+      const result = await adapter.terminate(runResult.sessionId);
+
+      expect(result.tokens).toBeNull();
+    });
+
+    it('should return empty output', async () => {
+      /*
+      Test Doc:
+      - Why: No response expected from termination
+      - Contract: terminate() returns output=''
+      - Usage Notes: Termination is silent
+      - Quality Contribution: Validates result structure
+      - Worked Example: terminate(id) → {output: ''}
+      */
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const adapter = new SdkCopilotAdapter(fakeClient);
+
+      const runResult = await adapter.run({ prompt: 'test' });
+      const result = await adapter.terminate(runResult.sessionId);
+
+      expect(result.output).toBe('');
+    });
+  });
+
+  describe('terminate() unknown session (T003)', () => {
+    /**
+     * Test Doc:
+     * - Why: Graceful handling of invalid sessionIds prevents crashes
+     * - Contract: terminate() with unknown sessionId doesn't throw
+     * - Usage Notes: Returns killed status regardless
+     * - Quality Contribution: Validates error tolerance
+     */
+
+    it('should handle unknown session gracefully (no throw)', async () => {
+      /*
+      Test Doc:
+      - Why: Callers may terminate already-expired sessions
+      - Contract: terminate('nonexistent') doesn't throw, returns killed
+      - Usage Notes: FakeCopilotClient strictSessions=false (default)
+      - Quality Contribution: Prevents cascade failures
+      - Worked Example: terminate('invalid') → no exception
+      */
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const client = new FakeCopilotClient({ strictSessions: false });
+      const adapter = new SdkCopilotAdapter(client);
+
+      // Should not throw
+      const result = await adapter.terminate('nonexistent-session-id');
+
+      expect(result.status).toBe('killed');
+      expect(result.exitCode).toBe(137);
+    });
+
+    it('should return sessionId even for unknown session', async () => {
+      /*
+      Test Doc:
+      - Why: Result must have sessionId for tracking
+      - Contract: terminate() returns provided sessionId
+      - Usage Notes: Even if session doesn't exist
+      - Quality Contribution: Validates result structure
+      - Worked Example: terminate('unknown') → {sessionId: 'unknown'}
+      */
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const client = new FakeCopilotClient({ strictSessions: false });
+      const adapter = new SdkCopilotAdapter(client);
+
+      const result = await adapter.terminate('my-unknown-session');
+
+      expect(result.sessionId).toBe('my-unknown-session');
+    });
+
+    it('should still call abort and destroy on created session', async () => {
+      /*
+      Test Doc:
+      - Why: Even for "unknown" session, SDK may create one
+      - Contract: Created session gets properly cleaned up
+      - Usage Notes: resumeSession may succeed even with unknown ID
+      - Quality Contribution: Prevents resource leaks
+      - Worked Example: terminate('unknown') → abort+destroy called
+      */
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const client = new FakeCopilotClient({ strictSessions: false });
+      const adapter = new SdkCopilotAdapter(client);
+
+      await adapter.terminate('any-session');
+
+      const session = client.getLastSession();
+      expect(session).toBeDefined();
+      expect(session!.getAbortCount()).toBe(1);
+      expect(session!.wasDestroyed()).toBe(true);
     });
   });
 });

@@ -235,36 +235,71 @@ export class SdkCopilotAdapter implements IAgentAdapter {
   /**
    * Send compact command to reduce context.
    *
+   * Per DYK-01: Delegates to run({prompt: '/compact'}) since SDK
+   * has no native compact method. This treats /compact as a regular
+   * prompt that the Copilot CLI interprets as a command.
+   *
    * @param sessionId - Session to compact
-   * @returns AgentResult with updated token counts
-   *
-   * @throws Error - Phase 1 stub; throws "Not implemented"
-   *
-   * TODO Phase 3: Implement using:
-   * - resumeSession(sessionId)
-   * - session.sendAndWait({ prompt: '/compact' })
+   * @returns AgentResult with compaction result
    */
   async compact(sessionId: string): Promise<AgentResult> {
     this._logger?.debug('SdkCopilotAdapter.compact() called', { sessionId });
-    throw new Error('Not implemented: SdkCopilotAdapter.compact() - Phase 3');
+
+    // Delegate to run() with /compact as the prompt
+    // Per DYK-01: SDK has no native compact; we use the CLI command
+    const result = await this.run({
+      prompt: '/compact',
+      sessionId,
+    });
+
+    this._logger?.debug('SdkCopilotAdapter.compact() completed', {
+      sessionId,
+      status: result.status,
+      exitCode: result.exitCode,
+    });
+
+    return result;
   }
 
   /**
    * Terminate a running agent session.
    *
+   * Per plan: Uses resumeSession() → abort() → destroy() pattern.
+   * Per DYK-05: Always calls destroy() even on error paths.
+   *
    * @param sessionId - Session to terminate
-   * @returns AgentResult with status='killed'
-   *
-   * @throws Error - Phase 1 stub; throws "Not implemented"
-   *
-   * TODO Phase 3: Implement using:
-   * - resumeSession(sessionId)
-   * - session.abort()
-   * - session.destroy()
+   * @returns AgentResult with status='killed', exitCode=137
    */
   async terminate(sessionId: string): Promise<AgentResult> {
     this._logger?.debug('SdkCopilotAdapter.terminate() called', { sessionId });
-    throw new Error('Not implemented: SdkCopilotAdapter.terminate() - Phase 3');
+
+    // Resume the session to get a handle
+    this._logger?.debug('SdkCopilotAdapter.terminate() resuming session', { sessionId });
+    const session = await this._client.resumeSession(sessionId);
+
+    try {
+      // Abort any running operation
+      this._logger?.debug('SdkCopilotAdapter.terminate() calling abort()', { sessionId });
+      await session.abort();
+    } finally {
+      // DYK-05: Always destroy to prevent resource leaks
+      this._logger?.debug('SdkCopilotAdapter.terminate() calling destroy()', { sessionId });
+      await session.destroy();
+    }
+
+    this._logger?.debug('SdkCopilotAdapter.terminate() completed', {
+      sessionId,
+      status: 'killed',
+      exitCode: 137,
+    });
+
+    return {
+      output: '',
+      sessionId,
+      status: 'killed',
+      exitCode: 137, // Standard SIGKILL exit code
+      tokens: null,
+    };
   }
 
   // ============================================
