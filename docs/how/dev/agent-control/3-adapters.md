@@ -52,7 +52,7 @@ Different agents have different I/O patterns:
 | Pattern | Example | Session ID Source | Token Source |
 |---------|---------|-------------------|--------------|
 | Stdout NDJSON | Claude Code | JSON output field | JSON `usage` field |
-| Log File Polling | GitHub Copilot | Log file regex | Unavailable |
+| SDK Events | GitHub Copilot | SDK session object | Unavailable (SDK limitation) |
 | HTTP API | OpenCode | HTTP response | HTTP response |
 
 ## Reference Implementation: ClaudeCodeAdapter
@@ -195,97 +195,158 @@ export class ClaudeCodeAdapter implements IAgentAdapter {
    - Session ID appears in every message
    - Token usage in `result` message type
 
-## Reference Implementation: CopilotAdapter
+## Reference Implementation: SdkCopilotAdapter
 
 ### Key Differences from ClaudeCode
 
-1. **Log File Polling**: Session ID extracted from log files, not stdout
-2. **No Token Tracking**: Always returns `tokens: null`
-3. **Different Flags**: `--yolo`, `--log-dir`, `--log-level debug`
+1. **SDK-Based**: Uses official `@github/copilot-sdk` instead of spawning CLI directly
+2. **Event-Driven**: Receives typed events (assistant.message, session.idle, session.error)
+3. **No Token Tracking**: SDK doesn't expose token metrics; always returns `tokens: null`
+4. **Immediate Session ID**: Available from `session.sessionId` immediately (no polling)
+5. **Session Resumption**: Uses `client.resumeSession(sessionId)` for multi-turn conversations
 
 ### Implementation Structure
 
 ```typescript
-export class CopilotAdapter implements IAgentAdapter {
-  private readonly _processManager: IProcessManager;
-  private readonly _parser: CopilotLogParser;
-  private readonly _readLogFile: ReadLogFileFunction;
-  private readonly _pollBaseIntervalMs: number;
-  private readonly _pollMaxTimeoutMs: number;
+import { CopilotClient } from '@github/copilot-sdk';
+import type {
+  AgentResult,
+  AgentRunOptions,
+  IAgentAdapter,
+  ICopilotClient,
+  ILogger,
+} from '../interfaces/index.js';
+
+export interface SdkCopilotAdapterOptions {
+  logger?: ILogger;
+  workspaceRoot?: string;
+}
+
+export class SdkCopilotAdapter implements IAgentAdapter {
+  private readonly _client: ICopilotClient;
+  private readonly _logger?: ILogger;
+  private readonly _workspaceRoot: string;
+
+  constructor(client: ICopilotClient, options?: SdkCopilotAdapterOptions) {
+    this._client = client;
+    this._logger = options?.logger;
+    this._workspaceRoot = options?.workspaceRoot ?? process.cwd();
+  }
 
   async run(options: AgentRunOptions): Promise<AgentResult> {
-    const { prompt, sessionId, cwd } = options;
+    const { prompt, sessionId, cwd, onEvent } = options;
+    
+    // 1. Create or resume session
+    const session = sessionId
+      ? await this._client.resumeSession(sessionId)
+      : await this._client.createSession({ cwd: cwd ?? this._workspaceRoot });
 
-    // 1. Create unique temp directory for logs
-    const logDir = await this._createLogDir();
+    // 2. Register event handlers (if streaming)
+    if (onEvent) {
+      session.onEvent((event) => {
+        // Map SDK events to AgentEvent and emit
+        onEvent(this._mapToAgentEvent(event));
+      });
+    }
 
-    // 2. Build command arguments
-    const args = this._buildArgs(prompt, sessionId, logDir);
-
-    // 3. Spawn process
-    const handle = await this._processManager.spawn({
-      command: 'npx',
-      args: ['-y', '@github/copilot', ...args],
-      cwd: validatedCwd,
-    });
-
-    // 4. Wait for process completion
-    const exitResult = await handle.waitForExit();
-
-    // 5. Extract session ID from log files (with polling)
-    const extractedSessionId = await this._extractSessionId(
-      handle.pid,
-      logDir
-    ) ?? sessionId ?? `copilot-${handle.pid}-${Date.now()}`;
-
-    // 6. Cleanup log directory
-    await this._cleanupLogDir(logDir);
+    // 3. Send prompt and wait for response
+    let outputContent = '';
+    try {
+      const response = await session.sendAndWait(prompt);
+      outputContent = response.content ?? '';
+    } catch (error) {
+      // Map error to failed AgentResult
+      return {
+        output: error.message,
+        sessionId: session.sessionId,
+        status: 'failed',
+        exitCode: 1,
+        tokens: null,
+      };
+    } finally {
+      // 4. Cleanup (destroy session for run(), preserve for compact())
+      await session.destroy();
+    }
 
     return {
-      output: this._processManager.getProcessOutput?.(handle.pid) ?? '',
-      sessionId: extractedSessionId,
-      status: this._mapExitCodeToStatus(exitResult.exitCode, exitResult.signal),
-      exitCode: exitResult.exitCode ?? -1,
-      tokens: null,  // Copilot doesn't report tokens
+      output: outputContent,
+      sessionId: session.sessionId,
+      status: 'completed',
+      exitCode: 0,
+      tokens: null,  // SDK doesn't expose token metrics
     };
   }
 
-  private async _extractSessionId(pid: number, logDir: string): Promise<string | undefined> {
-    // Exponential backoff polling
-    const backoff = [0, 50, 100, 200, 400, 800, 1600, 3200];
-    const startTime = Date.now();
-
-    for (const delay of backoff) {
-      if (Date.now() - startTime > this._pollMaxTimeoutMs) break;
-
-      await this._sleep(delay);
-      const logContent = await this._readLogFile(logDir);
-      if (logContent) {
-        const sessionId = this._parser.extractSessionId(logContent);
-        if (sessionId) return sessionId;
-      }
-    }
-
-    return undefined;  // Use fallback
+  async compact(sessionId: string): Promise<AgentResult> {
+    // Resume session, send /compact, DON'T destroy session
+    const session = await this._client.resumeSession(sessionId);
+    await session.sendAndWait('/compact');
+    // Note: session preserved for continued conversation
+    return {
+      output: 'Context compacted',
+      sessionId: session.sessionId,
+      status: 'completed',
+      exitCode: 0,
+      tokens: null,
+    };
   }
 
-  // ... rest of implementation
+  async terminate(sessionId: string): Promise<AgentResult> {
+    // Resume session and force destroy
+    const session = await this._client.resumeSession(sessionId);
+    await session.destroy();
+    return {
+      output: '',
+      sessionId,
+      status: 'killed',
+      exitCode: -1,
+      tokens: null,
+    };
+  }
 }
 ```
 
 ### Key Implementation Details
 
-1. **Command Flags**:
-   - `-p <prompt>` or stdin: Prompt input
-   - `--yolo`: Non-interactive mode
-   - `--log-level debug`: Enable debug logging
-   - `--log-dir <path>`: Custom log directory
-   - `--resume <id>`: Session resumption
+1. **Constructor DI Pattern**:
+   - Accept `ICopilotClient` interface (real or fake) for testability
+   - Real production code: `new SdkCopilotAdapter(new CopilotClient(), { logger })`
+   - Tests: `new SdkCopilotAdapter(new FakeCopilotClient({ events: [...] }))`
 
-2. **Log Parsing**:
-   - Use `CopilotLogParser` with regex: `events to session ([0-9a-fA-F-]{36})`
-   - Poll log files with exponential backoff
-   - Fallback session ID: `copilot-{pid}-{timestamp}`
+2. **Session Lifecycle**:
+   - `run()`: Create session → sendAndWait → destroy (ephemeral)
+   - `compact()`: Resume session → send /compact → preserve (persistent)
+   - `terminate()`: Resume session → destroy immediately (terminal)
+
+3. **Event Streaming** (optional):
+   - Pass `onEvent` callback in `AgentRunOptions`
+   - Events: `message`, `text_delta`, `session`, `usage`, `raw`
+   - All events include `timestamp` and optional `messageId`
+
+4. **Error Handling**:
+   - Catch `sendAndWait()` exceptions → `status: 'failed'`, `exitCode: 1`
+   - Always cleanup session in `finally` block
+
+### Migration from Old CopilotAdapter
+
+The old polling-based `CopilotAdapter` has been removed. All code should now use `SdkCopilotAdapter` (exported as `CopilotAdapter` for backward compatibility):
+
+```typescript
+// Old (removed):
+import { CopilotAdapter } from '@chainglass/shared';
+const adapter = new CopilotAdapter(processManager, { logger });
+
+// New:
+import { CopilotAdapter, SdkCopilotAdapter } from '@chainglass/shared';
+import { CopilotClient } from '@github/copilot-sdk';
+
+// Option 1: Use CopilotAdapter alias (backward compat)
+const client = new CopilotClient();
+const adapter = new CopilotAdapter(client, { logger });
+
+// Option 2: Explicit SdkCopilotAdapter (preferred)
+const adapter = new SdkCopilotAdapter(client, { logger });
+```
 
 ## Adding a New Adapter
 

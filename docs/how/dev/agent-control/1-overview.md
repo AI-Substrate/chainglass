@@ -31,15 +31,21 @@ flowchart TB
     subgraph Adapters["Agent Adapters"]
         AD{Adapter Selection}
         AD -->|"claude-code"| CC[ClaudeCodeAdapter]
-        AD -->|"copilot"| CP[CopilotAdapter]
+        AD -->|"copilot"| CP[SdkCopilotAdapter]
         CC -->|"spawn CLI"| PM
-        CP -->|"spawn CLI"| PM
+        CP -->|"SDK events"| SDK[CopilotClient]
     end
 
     subgraph Process["Process Management"]
         PM[IProcessManager] -->|"spawn"| PR[ChildProcess]
-        PR -->|"stdout/logs"| OUT[Output Parsing]
+        PR -->|"stdout NDJSON"| OUT[Output Parsing]
         OUT -->|"AgentResult"| RES[Result]
+    end
+
+    subgraph CopilotSDK["Copilot SDK"]
+        SDK -->|"createSession/resumeSession"| SESS[CopilotSession]
+        SESS -->|"sendAndWait"| RESP[Response]
+        RESP -->|"AgentResult"| RES
     end
 
     RES --> S
@@ -129,32 +135,44 @@ interface AgentServiceRunOptions {
 - **Token Metrics**: Extracted from `usage` field
 - **Flags**: `--output-format=stream-json`, `--dangerously-skip-permissions`
 
-### CopilotAdapter
+### CopilotAdapter (SDK-Based)
 
-- **I/O Pattern**: Polls log files asynchronously
-- **Session ID**: Extracted from log files via regex
-- **Token Metrics**: Always `null` (not available)
-- **Flags**: `--yolo`, `--log-level debug`, `--log-dir`
+- **I/O Pattern**: Event-driven via `@github/copilot-sdk`
+- **Session ID**: Available immediately from SDK session object
+- **Token Metrics**: Always `null` (SDK limitation)
+- **Session Management**: `createSession()`, `resumeSession()`, `sendAndWait()`
 
 ### Process Management
 
-Both adapters use `IProcessManager` for process lifecycle:
+ClaudeCodeAdapter uses `IProcessManager` for process lifecycle:
 
 - **Signal Escalation**: SIGINT (2s) → SIGTERM (2s) → SIGKILL
 - **Platform Support**: Unix (`UnixProcessManager`) and Windows (`WindowsProcessManager`)
 - **Zombie Prevention**: Processes cleaned up on termination
+
+**Note**: CopilotAdapter (now `SdkCopilotAdapter`) does not use `IProcessManager` directly - it delegates to the Copilot SDK which manages its own CLI process internally.
 
 ## DI Integration
 
 The service integrates with TSyringe dependency injection:
 
 ```typescript
+import { CopilotClient } from '@github/copilot-sdk';
+
 // Production container setup
 container.register(DI_TOKENS.AGENT_SERVICE, {
   useFactory: (c) => {
+    const processManager = c.resolve<IProcessManager>(DI_TOKENS.PROCESS_MANAGER);
+    const logger = c.resolve<ILogger>(DI_TOKENS.LOGGER);
+    
     const adapterFactory: AdapterFactory = (agentType) => {
-      if (agentType === 'claude-code') return new ClaudeCodeAdapter(...);
-      if (agentType === 'copilot') return new CopilotAdapter(...);
+      if (agentType === 'claude-code') {
+        return new ClaudeCodeAdapter(processManager, { logger });
+      }
+      if (agentType === 'copilot') {
+        const client = new CopilotClient();
+        return new SdkCopilotAdapter(client, { logger });
+      }
       throw new Error(`Unknown agent type: ${agentType}`);
     };
     return new AgentService(adapterFactory, config, logger);

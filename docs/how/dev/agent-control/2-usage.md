@@ -44,8 +44,29 @@ const result = await agentService.run({
   agentType: 'copilot',  // 'claude-code' | 'copilot'
 });
 
-// Note: Copilot doesn't report token usage
+// Note: Copilot doesn't report token usage (SDK limitation)
 console.log(result.tokens);  // null
+```
+
+### Direct Adapter Usage
+
+For more control, you can use adapters directly:
+
+```typescript
+import { ClaudeCodeAdapter, SdkCopilotAdapter } from '@chainglass/shared';
+import { CopilotClient } from '@github/copilot-sdk';
+
+// Claude Code adapter with ProcessManager
+const claudeAdapter = new ClaudeCodeAdapter(processManager, { logger });
+
+// Copilot adapter with SDK client
+const copilotAdapter = new SdkCopilotAdapter(
+  new CopilotClient(),
+  { logger }
+);
+
+// Both implement the same interface
+const result = await copilotAdapter.run({ prompt: 'Hello' });
 ```
 
 ## Session Resumption
