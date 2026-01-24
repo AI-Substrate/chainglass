@@ -514,4 +514,249 @@ describe('ClaudeCodeAdapter', () => {
       ).rejects.toThrow('cwd must be within workspace');
     });
   });
+
+  describe('streaming with onEvent (Subtask 002)', () => {
+    // Sample stream-json lines for streaming tests
+    const systemInitLine = '{"type":"system","subtype":"init","session_id":"stream-session-123"}';
+    const assistantLine =
+      '{"type":"assistant","message":{"content":[{"type":"text","text":"Hello there!"}]}}';
+    const resultLine = '{"type":"result","result":"Final output"}';
+    const unknownLine = '{"type":"unknown_event","data":"foo"}';
+
+    it('should call onEvent with text_delta when receiving assistant message', async () => {
+      /*
+      Test Doc:
+      - Why: Streaming requires real-time text delivery
+      - Contract: Assistant messages emit text_delta events to onEvent
+      - Usage Notes: Content is extracted from message.content[].text
+      - Quality Contribution: Validates streaming text extraction
+      - Worked Example: assistant message → onEvent({ type: 'text_delta', data: { content: '...' } })
+      */
+      const events: any[] = [];
+
+      // Create spawn that waits for us to emit lines
+      let resolveSpawn: (() => void) | undefined;
+      const spawnPromise = adapter.run({
+        prompt: 'test',
+        onEvent: (e) => events.push(e),
+      });
+
+      // Give spawn time to register
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      const pid = 1001 + fakeProcessManager.getSpawnHistory().length - 1;
+
+      // Emit streaming lines
+      fakeProcessManager.emitStdoutLines(pid, [assistantLine]);
+      fakeProcessManager.exitProcess(pid, 0);
+
+      await spawnPromise;
+
+      expect(events.length).toBeGreaterThanOrEqual(1);
+      const textEvent = events.find((e) => e.type === 'text_delta');
+      expect(textEvent).toBeDefined();
+      expect(textEvent.data.content).toBe('Hello there!');
+    });
+
+    it('should call onEvent with session_start when receiving system.init', async () => {
+      /*
+      Test Doc:
+      - Why: Session ID must be available immediately
+      - Contract: system.init event emits session_start
+      - Usage Notes: Session ID extracted from init message
+      - Quality Contribution: Validates session ID streaming
+      - Worked Example: system.init → onEvent({ type: 'session_start', data: { sessionId: '...' } })
+      */
+      const events: any[] = [];
+
+      const spawnPromise = adapter.run({
+        prompt: 'test',
+        onEvent: (e) => events.push(e),
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      const pid = 1001 + fakeProcessManager.getSpawnHistory().length - 1;
+
+      fakeProcessManager.emitStdoutLines(pid, [systemInitLine]);
+      fakeProcessManager.exitProcess(pid, 0);
+
+      await spawnPromise;
+
+      const sessionEvent = events.find((e) => e.type === 'session_start');
+      expect(sessionEvent).toBeDefined();
+      expect(sessionEvent.data.sessionId).toBe('stream-session-123');
+    });
+
+    it('should call onEvent with message when receiving result', async () => {
+      /*
+      Test Doc:
+      - Why: Final message event signals completion
+      - Contract: result event emits message
+      - Usage Notes: Result content becomes message content
+      - Quality Contribution: Validates final message delivery
+      - Worked Example: result → onEvent({ type: 'message', data: { content: '...' } })
+      */
+      const events: any[] = [];
+
+      const spawnPromise = adapter.run({
+        prompt: 'test',
+        onEvent: (e) => events.push(e),
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      const pid = 1001 + fakeProcessManager.getSpawnHistory().length - 1;
+
+      fakeProcessManager.emitStdoutLines(pid, [resultLine]);
+      fakeProcessManager.exitProcess(pid, 0);
+
+      await spawnPromise;
+
+      const messageEvent = events.find((e) => e.type === 'message');
+      expect(messageEvent).toBeDefined();
+      expect(messageEvent.data.content).toBe('Final output');
+    });
+
+    it('should call onEvent with raw for unknown event types', async () => {
+      /*
+      Test Doc:
+      - Why: Unknown events should be passed through
+      - Contract: Unrecognized event types emit raw events
+      - Usage Notes: originalType and originalData preserved
+      - Quality Contribution: Validates passthrough for debugging
+      - Worked Example: unknown → onEvent({ type: 'raw', data: { provider: 'claude', ... } })
+      */
+      const events: any[] = [];
+
+      const spawnPromise = adapter.run({
+        prompt: 'test',
+        onEvent: (e) => events.push(e),
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      const pid = 1001 + fakeProcessManager.getSpawnHistory().length - 1;
+
+      fakeProcessManager.emitStdoutLines(pid, [unknownLine]);
+      fakeProcessManager.exitProcess(pid, 0);
+
+      await spawnPromise;
+
+      const rawEvent = events.find((e) => e.type === 'raw');
+      expect(rawEvent).toBeDefined();
+      expect(rawEvent.data.provider).toBe('claude');
+      expect(rawEvent.data.originalType).toBe('unknown_event');
+    });
+
+    it('should work without onEvent (backward compatibility)', async () => {
+      /*
+      Test Doc:
+      - Why: Existing code must continue to work
+      - Contract: run() without onEvent uses buffered output
+      - Usage Notes: No streaming, traditional mode
+      - Quality Contribution: Validates backward compatibility
+      - Worked Example: run({ prompt }) → result via buffered output
+      */
+      configureNextProcess(sampleOutput, 0);
+      const result = await adapter.run({ prompt: 'test' });
+
+      expect(result.sessionId).toBe('test-session-123');
+      expect(result.status).toBe('completed');
+    });
+
+    it('should include timestamp in all events', async () => {
+      /*
+      Test Doc:
+      - Why: Events must have timestamps for ordering
+      - Contract: All emitted events have timestamp field
+      - Usage Notes: ISO 8601 format
+      - Quality Contribution: Validates event metadata
+      - Worked Example: event.timestamp is ISO string
+      */
+      const events: any[] = [];
+
+      const spawnPromise = adapter.run({
+        prompt: 'test',
+        onEvent: (e) => events.push(e),
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      const pid = 1001 + fakeProcessManager.getSpawnHistory().length - 1;
+
+      fakeProcessManager.emitStdoutLines(pid, [systemInitLine, assistantLine]);
+      fakeProcessManager.exitProcess(pid, 0);
+
+      await spawnPromise;
+
+      expect(events.length).toBeGreaterThanOrEqual(2);
+      for (const event of events) {
+        expect(event.timestamp).toBeDefined();
+        expect(typeof event.timestamp).toBe('string');
+        expect(event.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+      }
+    });
+
+    it('should still return final AgentResult when streaming', async () => {
+      /*
+      Test Doc:
+      - Why: Streaming doesn't change final result contract
+      - Contract: run() returns AgentResult after streaming completes
+      - Usage Notes: Output accumulated from streamed events
+      - Quality Contribution: Validates result contract preservation
+      - Worked Example: streaming + onEvent → still returns AgentResult
+      */
+      const events: any[] = [];
+
+      const spawnPromise = adapter.run({
+        prompt: 'test',
+        onEvent: (e) => events.push(e),
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      const pid = 1001 + fakeProcessManager.getSpawnHistory().length - 1;
+
+      fakeProcessManager.emitStdoutLines(pid, [systemInitLine, assistantLine, resultLine]);
+      fakeProcessManager.exitProcess(pid, 0);
+
+      const result = await spawnPromise;
+
+      expect(result.status).toBe('completed');
+      expect(result.exitCode).toBe(0);
+      expect(result.sessionId).toBe('stream-session-123');
+      expect(result.output).toBe('Final output');
+    });
+
+    it('should handle malformed JSON lines gracefully', async () => {
+      /*
+      Test Doc:
+      - Why: CLI may emit non-JSON lines (debug info, etc.)
+      - Contract: Malformed JSON is silently ignored
+      - Usage Notes: No crashes, no error events
+      - Quality Contribution: Validates robustness
+      - Worked Example: 'not json' → silently skipped
+      */
+      const events: any[] = [];
+
+      const spawnPromise = adapter.run({
+        prompt: 'test',
+        onEvent: (e) => events.push(e),
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      const pid = 1001 + fakeProcessManager.getSpawnHistory().length - 1;
+
+      // Emit mix of valid and invalid lines
+      fakeProcessManager.emitStdoutLines(pid, [
+        'not json at all',
+        systemInitLine,
+        '{broken json',
+        assistantLine,
+      ]);
+      fakeProcessManager.exitProcess(pid, 0);
+
+      await spawnPromise;
+
+      // Should only have events for valid JSON lines
+      expect(events.length).toBe(2);
+      expect(events[0].type).toBe('session_start');
+      expect(events[1].type).toBe('text_delta');
+    });
+  });
 });

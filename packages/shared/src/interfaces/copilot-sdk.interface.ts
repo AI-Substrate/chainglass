@@ -15,10 +15,17 @@
  *
  * Per SDK: 30+ event types exist, but we only model the ones we need:
  * - assistant.message: Final response from assistant
+ * - assistant.message_delta: Streaming delta content
+ * - assistant.usage: Token usage metrics
  * - session.idle: Session finished processing
  * - session.error: Error occurred
  */
-export type CopilotSessionEventType = 'assistant.message' | 'session.idle' | 'session.error';
+export type CopilotSessionEventType =
+  | 'assistant.message'
+  | 'assistant.message_delta'
+  | 'assistant.usage'
+  | 'session.idle'
+  | 'session.error';
 
 /**
  * Base session event structure.
@@ -35,6 +42,36 @@ export interface CopilotAssistantMessageEvent extends CopilotSessionEventBase {
   data: {
     content: string;
     messageId: string;
+  };
+}
+
+/**
+ * Assistant message delta event - streaming content.
+ * Per SDK: Emitted during response generation when streaming=true.
+ */
+export interface CopilotAssistantMessageDeltaEvent extends CopilotSessionEventBase {
+  type: 'assistant.message_delta';
+  data: {
+    /** Incremental content to append */
+    deltaContent: string;
+    /** Message ID for correlation */
+    messageId: string;
+  };
+}
+
+/**
+ * Assistant usage event - token metrics.
+ * Per SDK: Emitted after response completion with token usage.
+ */
+export interface CopilotAssistantUsageEvent extends CopilotSessionEventBase {
+  type: 'assistant.usage';
+  data: {
+    /** Model used for this response */
+    model?: string;
+    /** Tokens used for input/prompt */
+    inputTokens?: number;
+    /** Tokens generated for output */
+    outputTokens?: number;
   };
 }
 
@@ -63,6 +100,8 @@ export interface CopilotSessionErrorEvent extends CopilotSessionEventBase {
  */
 export type CopilotSessionEvent =
   | CopilotAssistantMessageEvent
+  | CopilotAssistantMessageDeltaEvent
+  | CopilotAssistantUsageEvent
   | CopilotSessionIdleEvent
   | CopilotSessionErrorEvent;
 
@@ -87,6 +126,11 @@ export interface CopilotSessionConfig {
   sessionId?: string;
   /** Model to use for this session */
   model?: string;
+  /**
+   * Enable streaming events (assistant.message_delta, etc.)
+   * Per DYK-06: Defaults to false in SDK; must be true for delta events.
+   */
+  streaming?: boolean;
 }
 
 /**

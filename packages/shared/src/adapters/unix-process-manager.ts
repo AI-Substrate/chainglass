@@ -1,4 +1,5 @@
 import { type ChildProcess, spawn } from 'node:child_process';
+import * as readline from 'node:readline';
 
 import type { ILogger } from '../interfaces/logger.interface.js';
 import type {
@@ -7,6 +8,7 @@ import type {
   ProcessHandle,
   ProcessSignal,
   SpawnOptions,
+  StdioOption,
 } from '../interfaces/process-manager.interface.js';
 
 /**
@@ -69,15 +71,19 @@ export class UnixProcessManager implements IProcessManager {
   }
 
   async spawn(options: SpawnOptions): Promise<ProcessHandle> {
-    const { command, args = [], cwd, env } = options;
+    const { command, args = [], cwd, env, stdio, onStdoutLine } = options;
 
     this._logger.debug('Spawning process', { command, args, cwd });
 
     return new Promise((resolve, reject) => {
+      // Map StdioOption to Node.js stdio values
+      const defaultStdio: [StdioOption, StdioOption, StdioOption] = ['ignore', 'pipe', 'pipe'];
+      const stdioConfig = stdio ?? defaultStdio;
+      
       const child = spawn(command, args, {
         cwd,
         env: env ?? process.env,
-        stdio: ['ignore', 'pipe', 'pipe'],
+        stdio: stdioConfig,
       });
 
       // Handle spawn error (e.g., command not found)
@@ -114,10 +120,22 @@ export class UnixProcessManager implements IProcessManager {
 
       this._processes.set(pid, managed);
 
-      // Buffer stdout
-      child.stdout?.on('data', (chunk: Buffer) => {
-        managed.stdout += chunk.toString();
-      });
+      // Buffer stdout and optionally call onStdoutLine callback
+      if (child.stdout) {
+        if (onStdoutLine) {
+          // Per DYK-02: Use readline for line-by-line callback
+          const rl = readline.createInterface({ input: child.stdout });
+          rl.on('line', (line) => {
+            managed.stdout += line + '\n';
+            onStdoutLine(line);
+          });
+        } else {
+          // Original buffering behavior
+          child.stdout.on('data', (chunk: Buffer) => {
+            managed.stdout += chunk.toString();
+          });
+        }
+      }
 
       // Buffer stderr
       child.stderr?.on('data', (chunk: Buffer) => {
