@@ -68,7 +68,9 @@ export class FakeCopilotClient implements ICopilotClient {
   private readonly _options: FakeCopilotClientOptions;
   private readonly _sessionHistory: string[] = [];
   private readonly _createdSessions = new Set<string>();
+  private readonly _sessions = new Map<string, FakeCopilotSession>();
   private _sessionCounter = 0;
+  private _lastSession: FakeCopilotSession | null = null;
 
   constructor(options: FakeCopilotClientOptions = {}) {
     this._options = {
@@ -90,10 +92,14 @@ export class FakeCopilotClient implements ICopilotClient {
     this._sessionHistory.push(sessionId);
     this._createdSessions.add(sessionId);
 
-    return new FakeCopilotSession({
+    const session = new FakeCopilotSession({
       sessionId,
       events: this._options.events,
     });
+    this._sessions.set(sessionId, session);
+    this._lastSession = session;
+
+    return session;
   }
 
   /**
@@ -114,10 +120,14 @@ export class FakeCopilotClient implements ICopilotClient {
 
     this._sessionHistory.push(sessionId);
 
-    return new FakeCopilotSession({
+    const session = new FakeCopilotSession({
       sessionId,
       events: this._options.events,
     });
+    this._sessions.set(sessionId, session);
+    this._lastSession = session;
+
+    return session;
   }
 
   /**
@@ -157,7 +167,24 @@ export class FakeCopilotClient implements ICopilotClient {
   reset(): void {
     this._sessionHistory.length = 0;
     this._createdSessions.clear();
+    this._sessions.clear();
     this._sessionCounter = 0;
+    this._lastSession = null;
+  }
+
+  /**
+   * Get the most recently created/resumed session.
+   * Useful for verifying session methods were called (abort/destroy).
+   */
+  getLastSession(): FakeCopilotSession | null {
+    return this._lastSession;
+  }
+
+  /**
+   * Get a session by ID.
+   */
+  getSession(sessionId: string): FakeCopilotSession | undefined {
+    return this._sessions.get(sessionId);
   }
 
   /**

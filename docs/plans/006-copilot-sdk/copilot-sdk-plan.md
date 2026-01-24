@@ -469,13 +469,15 @@ describe('SdkCopilotAdapter.run()', () => {
 
 ## Phase 3: Terminal Operations & Error Handling
 
+**Status**: ✅ COMPLETE (2026-01-24)
+
 **Objective**: Implement `compact()` and `terminate()` methods with complete error handling.
 
 **Deliverables**:
-- SdkCopilotAdapter.compact() via run delegation
-- SdkCopilotAdapter.terminate() via abort/destroy
-- Complete error handling coverage
-- All 9 contract tests passing
+- ✅ SdkCopilotAdapter.compact() via run delegation
+- ✅ SdkCopilotAdapter.terminate() via abort/destroy
+- ✅ Complete error handling coverage
+- ✅ All 9 contract tests passing (36/36 total)
 
 **Dependencies**: Phase 2 complete
 
@@ -489,14 +491,15 @@ describe('SdkCopilotAdapter.run()', () => {
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 3.1 | [ ] | Write tests for compact() | 2 | Tests cover: /compact sent as prompt, result returned | - | |
-| 3.2 | [ ] | Write tests for terminate() | 2 | Tests cover: abort called, status=killed, exitCode=137 | - | |
-| 3.3 | [ ] | Write tests for terminate with unknown session | 1 | Tests cover: graceful handling, still returns killed | - | |
-| 3.4 | [ ] | Implement compact() | 1 | Tests from 3.1 pass | - | Delegate to run() |
-| 3.5 | [ ] | Implement terminate() | 2 | Tests from 3.2, 3.3 pass | - | abort → destroy |
-| 3.6 | [ ] | Add verbose event logging | 2 | Events logged at appropriate levels | - | Use ILogger |
-| 3.7 | [ ] | Run full contract test suite | 2 | All 9 contract tests pass | - | Critical gate |
-| 3.8 | [ ] | Create integration test file (skip in CI) | 2 | Real SDK tests exist, marked skipIf(isCI) | - | /test/integration/ |
+| 3.1 | [x] | Write tests for compact() | 2 | Tests cover: /compact sent as prompt, result returned | ✓ | 5 tests added |
+| 3.2 | [x] | Write tests for terminate() | 2 | Tests cover: abort called, status=killed, exitCode=137 | ✓ | 6 tests added |
+| 3.3 | [x] | Write tests for terminate with unknown session | 1 | Tests cover: graceful handling, still returns killed | ✓ | 3 tests added |
+| 3.4 | [x] | Implement compact() | 1 | Tests from 3.1 pass | ✓ | Delegate to run() |
+| 3.5 | [x] | Implement terminate() | 2 | Tests from 3.2, 3.3 pass | ✓ | abort → destroy |
+| 3.6 | [x] | Add verbose event logging | 2 | Events logged at appropriate levels | ✓ | Use ILogger |
+| 3.7 | [x] | Run full contract test suite | 2 | All 9 contract tests pass | ✓ | **36/36 PASS** |
+| 3.8 | [x] | Create integration test file (skip in CI) | 2 | Real SDK tests exist, marked skipIf(isCI) | ✓ | /test/integration/ |
+| 3.9 | [x] | Create multi-turn demo scripts | 2 | Context-proving password recall flow | ✓ | **MANUAL ACCEPTANCE** |
 
 ### Test Examples (Write First!)
 
