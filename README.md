@@ -40,6 +40,42 @@ This starts the Next.js development server at `http://localhost:3000`.
 | `just clean` | Clean build artifacts |
 | `just reset` | Full reset (clean + install) |
 
+## Dashboard Demo
+
+The web application includes interactive demo pages showcasing the dashboard components:
+
+### Features
+
+- **Theme Toggle**: Click the sun/moon icon to switch between light and dark themes
+- **Workflow Visualization**: Interactive graph showing CI/CD pipeline phases (`/workflow`)
+- **Kanban Board**: Drag-and-drop task management with keyboard accessibility (`/kanban`)
+
+### Running the Demo
+
+```bash
+# Start development server
+just dev
+
+# Open in browser
+open http://localhost:3000
+```
+
+### Demo Pages
+
+| Route | Description |
+|-------|-------------|
+| `/` | Home page with theme toggle |
+| `/workflow` | ReactFlow workflow visualization with pan/zoom |
+| `/kanban` | Kanban board with drag-drop between columns |
+
+### Architecture Highlights
+
+- **Headless Hooks**: Logic separated from UI for testability (`useBoardState`, `useFlowState`, `useSSE`)
+- **Theme System**: CSS variables with next-themes for FOUC-free switching
+- **Real-time Updates**: Server-Sent Events infrastructure for live data
+
+See [How-To Guides](docs/how/) for detailed documentation on extending these patterns.
+
 ## CLI Commands
 
 After building (`just build`), the CLI is available:
@@ -101,6 +137,9 @@ chainglass/
 - [Configuration Guide](docs/how/configuration/1-overview.md) - Configuration system
 - [Architecture Rules](docs/rules/architecture.md) - Clean architecture patterns and guidelines
 - [ADR Index](docs/adr/README.md) - Architecture Decision Records
+- [Theming Guide](docs/how/theming.md) - CSS variables and theme customization
+- [Headless Components](docs/how/headless-components.md) - Hook-first TDD pattern
+- [SSE Integration](docs/how/sse-integration.md) - Real-time event streaming
 
 ## Development Workflow
 

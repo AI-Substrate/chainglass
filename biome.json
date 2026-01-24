@@ -31,7 +31,9 @@
       "pnpm-lock.yaml",
       "*.md",
       "scripts",
-      ".vsc-bridge"
+      ".vsc-bridge",
+      "apps/web/src/components/ui",
+      "apps/web/src/hooks/use-mobile.ts"
     ]
   }
 }

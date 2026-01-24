@@ -1,10 +1,10 @@
-import { SampleConfigType } from '@chainglass/shared';
+import { SampleConfigType } from '../../../packages/shared/src';
 import {
   DEFAULT_FIXTURE_SAMPLE_CONFIG,
   describe,
   expect,
   serviceTest,
-} from '@test/fixtures/service-test.fixture';
+} from '../../fixtures/service-test.fixture';
 
 /**
  * Tests verifying the serviceTest fixture works correctly.

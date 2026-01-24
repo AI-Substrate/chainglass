@@ -23,7 +23,7 @@ build:
 
 # Run tests
 test:
-    pnpm vitest run --config test/vitest.config.ts
+    pnpm vitest run
 
 # Run linter
 lint:
