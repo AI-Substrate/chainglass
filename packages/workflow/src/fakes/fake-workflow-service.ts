@@ -9,7 +9,7 @@
  */
 
 import type { ComposeResult, PhaseInfo } from '@chainglass/shared';
-import type { IWorkflowService } from '../interfaces/workflow-service.interface.js';
+import type { ComposeOptions, IWorkflowService } from '../interfaces/workflow-service.interface.js';
 
 /**
  * Recorded compose() call for test inspection.
@@ -19,6 +19,8 @@ export interface ComposeCall {
   template: string;
   /** Runs directory passed to compose() */
   runsDir: string;
+  /** Options passed to compose() (Phase 3) */
+  options?: ComposeOptions;
   /** Result returned from compose() */
   result: ComposeResult;
   /** Timestamp when compose() was called */
@@ -167,17 +169,25 @@ export class FakeWorkflowService implements IWorkflowService {
    * - Default result (if set)
    * - Auto-generated success result (otherwise)
    *
+   * Per Phase 3: Accepts optional ComposeOptions with checkpoint selection.
+   *
    * @param template - Template name or path
    * @param runsDir - Directory for run folders
+   * @param options - Compose options (Phase 3)
    * @returns ComposeResult (preset or generated)
    */
-  async compose(template: string, runsDir: string): Promise<ComposeResult> {
+  async compose(
+    template: string,
+    runsDir: string,
+    options?: ComposeOptions
+  ): Promise<ComposeResult> {
     // Check for preset result
     const presetResult = this.presetResults.get(template);
     if (presetResult !== undefined) {
       this.calls.push({
         template,
         runsDir,
+        options,
         result: presetResult,
         timestamp: new Date().toISOString(),
       });
@@ -189,6 +199,7 @@ export class FakeWorkflowService implements IWorkflowService {
       this.calls.push({
         template,
         runsDir,
+        options,
         result: this.defaultResult,
         timestamp: new Date().toISOString(),
       });
@@ -213,7 +224,7 @@ export class FakeWorkflowService implements IWorkflowService {
       errors: [],
     };
 
-    this.calls.push({ template, runsDir, result, timestamp: new Date().toISOString() });
+    this.calls.push({ template, runsDir, options, result, timestamp: new Date().toISOString() });
     return result;
   }
 }

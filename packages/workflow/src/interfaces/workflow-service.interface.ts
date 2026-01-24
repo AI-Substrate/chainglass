@@ -12,6 +12,21 @@
 import type { ComposeResult } from '@chainglass/shared';
 
 /**
+ * Options for compose operation.
+ *
+ * Per Phase 3: Compose Extension for Versioned Runs.
+ */
+export interface ComposeOptions {
+  /**
+   * Checkpoint version to use.
+   * - Ordinal format: 'v001' (matches v001-*)
+   * - Full format: 'v001-abc12345' (exact match)
+   * - Omitted: uses latest checkpoint
+   */
+  checkpoint?: string;
+}
+
+/**
  * Interface for workflow management operations.
  */
 export interface IWorkflowService {
@@ -57,6 +72,8 @@ export interface IWorkflowService {
    * - E020: Template not found
    * - E021: YAML parse error (with line/column)
    * - E022: Schema validation failure (actionable details)
+   * - E033: VERSION_NOT_FOUND - Specified checkpoint version doesn't exist (Phase 3)
+   * - E034: NO_CHECKPOINT - No checkpoints exist for workflow (Phase 3)
    */
-  compose(template: string, runsDir: string): Promise<ComposeResult>;
+  compose(template: string, runsDir: string, options?: ComposeOptions): Promise<ComposeResult>;
 }

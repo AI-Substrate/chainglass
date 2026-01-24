@@ -77,14 +77,26 @@ export function createWorkflowProductionContainer(): DependencyContainer {
     useFactory: () => new HashGeneratorAdapter(),
   });
 
-  // Register workflow service (depends on other interfaces)
+  // Register workflow registry service first (Phase 1: Manage Workflows)
+  childContainer.register<IWorkflowRegistry>(WORKFLOW_DI_TOKENS.WORKFLOW_REGISTRY, {
+    useFactory: (c) =>
+      new WorkflowRegistryService(
+        c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM),
+        c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER),
+        c.resolve<IYamlParser>(WORKFLOW_DI_TOKENS.YAML_PARSER),
+        c.resolve<IHashGenerator>(WORKFLOW_DI_TOKENS.HASH_GENERATOR)
+      ),
+  });
+
+  // Register workflow service (depends on other interfaces including registry - Phase 3 DYK-01)
   childContainer.register<IWorkflowService>(WORKFLOW_DI_TOKENS.WORKFLOW_SERVICE, {
     useFactory: (c) =>
       new WorkflowService(
         c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM),
         c.resolve<IYamlParser>(WORKFLOW_DI_TOKENS.YAML_PARSER),
         c.resolve<ISchemaValidator>(WORKFLOW_DI_TOKENS.SCHEMA_VALIDATOR),
-        c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER)
+        c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER),
+        c.resolve<IWorkflowRegistry>(WORKFLOW_DI_TOKENS.WORKFLOW_REGISTRY)
       ),
   });
 
@@ -95,17 +107,6 @@ export function createWorkflowProductionContainer(): DependencyContainer {
         c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM),
         c.resolve<IYamlParser>(WORKFLOW_DI_TOKENS.YAML_PARSER),
         c.resolve<ISchemaValidator>(WORKFLOW_DI_TOKENS.SCHEMA_VALIDATOR)
-      ),
-  });
-
-  // Register workflow registry service (per Phase 1: Manage Workflows)
-  childContainer.register<IWorkflowRegistry>(WORKFLOW_DI_TOKENS.WORKFLOW_REGISTRY, {
-    useFactory: (c) =>
-      new WorkflowRegistryService(
-        c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM),
-        c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER),
-        c.resolve<IYamlParser>(WORKFLOW_DI_TOKENS.YAML_PARSER),
-        c.resolve<IHashGenerator>(WORKFLOW_DI_TOKENS.HASH_GENERATOR)
       ),
   });
 

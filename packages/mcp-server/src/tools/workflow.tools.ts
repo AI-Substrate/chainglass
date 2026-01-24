@@ -10,16 +10,20 @@ import type { ILogger } from '@chainglass/shared';
 import {
   type ComposeResult,
   type IFileSystem,
+  type IHashGenerator,
   type IPathResolver,
+  HashGeneratorAdapter,
   JsonOutputAdapter,
   NodeFileSystemAdapter,
   PathResolverAdapter,
 } from '@chainglass/shared';
 import {
   type ISchemaValidator,
+  type IWorkflowRegistry,
   type IWorkflowService,
   type IYamlParser,
   SchemaValidatorAdapter,
+  WorkflowRegistryService,
   WorkflowService,
   YamlParserAdapter,
 } from '@chainglass/workflow';
@@ -96,11 +100,19 @@ function registerWfComposeTool(
       const yamlParser: IYamlParser = new YamlParserAdapter();
       const schemaValidator: ISchemaValidator = new SchemaValidatorAdapter();
       const pathResolver: IPathResolver = new PathResolverAdapter();
+      const hashGenerator: IHashGenerator = new HashGeneratorAdapter();
+      const workflowRegistry: IWorkflowRegistry = new WorkflowRegistryService(
+        fs,
+        pathResolver,
+        yamlParser,
+        hashGenerator
+      );
       const workflowService: IWorkflowService = new WorkflowService(
         fs,
         yamlParser,
         schemaValidator,
-        pathResolver
+        pathResolver,
+        workflowRegistry
       );
 
       // Call the service

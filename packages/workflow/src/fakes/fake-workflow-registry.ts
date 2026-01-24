@@ -244,6 +244,24 @@ export class FakeWorkflowRegistry implements IWorkflowRegistry {
     this.defaultVersionsResult = result;
   }
 
+  /**
+   * Convenience method to set versions for a workflow slug.
+   * Uses default workflows dir '.chainglass/workflows'.
+   *
+   * Per Phase 3: Simplifies test setup for compose() with checkpoints.
+   *
+   * @param slug - Workflow slug
+   * @param versions - Array of CheckpointInfo objects
+   */
+  setVersions(slug: string, versions: import('@chainglass/shared').CheckpointInfo[]): void {
+    const workflowsDir = '.chainglass/workflows';
+    this.setVersionsResult(workflowsDir, slug, {
+      errors: [],
+      slug,
+      versions,
+    });
+  }
+
   // ==================== Test Helpers: Error Injection ====================
 
   /**

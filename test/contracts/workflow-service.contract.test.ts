@@ -1,6 +1,7 @@
 import { type ComposeResult, FakeFileSystem, FakePathResolver } from '@chainglass/shared';
 import {
   FakeSchemaValidator,
+  FakeWorkflowRegistry,
   FakeWorkflowService,
   FakeYamlParser,
   type IWorkflowService,
@@ -84,7 +85,10 @@ function workflowServiceContractTests(createContext: () => WorkflowServiceTestCo
         - Quality Contribution: Ensures type consistency
         - Worked Example: compose('t', 'r') → { runDir: string, template: string, ... }
         */
-        const result = await ctx.service.compose('contract-test-workflow', '.chainglass/runs');
+        const result = await ctx.service.compose(
+          './templates/contract-test-workflow',
+          '.chainglass/runs'
+        );
 
         // Must have all required properties
         expect(result).toHaveProperty('runDir');
@@ -108,7 +112,10 @@ function workflowServiceContractTests(createContext: () => WorkflowServiceTestCo
         - Quality Contribution: Ensures phase data consistency
         - Worked Example: compose() → { phases: [{ name: 'init', order: 1, status: 'pending' }] }
         */
-        const result = await ctx.service.compose('contract-test-workflow', '.chainglass/runs');
+        const result = await ctx.service.compose(
+          './templates/contract-test-workflow',
+          '.chainglass/runs'
+        );
 
         if (result.errors.length === 0) {
           expect(result.phases.length).toBeGreaterThan(0);
@@ -134,7 +141,10 @@ function workflowServiceContractTests(createContext: () => WorkflowServiceTestCo
         - Quality Contribution: Ensures consistent success detection
         - Worked Example: compose(valid_template) → { errors: [] }
         */
-        const result = await ctx.service.compose('contract-test-workflow', '.chainglass/runs');
+        const result = await ctx.service.compose(
+          './templates/contract-test-workflow',
+          '.chainglass/runs'
+        );
 
         // Either succeeds with no errors, or fails with errors
         // Both are valid behaviors
@@ -153,7 +163,10 @@ function workflowServiceContractTests(createContext: () => WorkflowServiceTestCo
         - Quality Contribution: Ensures run folder location is provided
         - Worked Example: compose(valid) → { runDir: '.chainglass/runs/run-...' }
         */
-        const result = await ctx.service.compose('contract-test-workflow', '.chainglass/runs');
+        const result = await ctx.service.compose(
+          './templates/contract-test-workflow',
+          '.chainglass/runs'
+        );
 
         if (result.errors.length === 0) {
           expect(result.runDir.length).toBeGreaterThan(0);
@@ -173,7 +186,10 @@ function workflowServiceContractTests(createContext: () => WorkflowServiceTestCo
         - Worked Example: compose(missing) → { errors: [{ code: 'E020', message: '...' }] }
         */
         // Both implementations should handle non-existent templates
-        const result = await ctx.service.compose('nonexistent-template-xyz', '.chainglass/runs');
+        const result = await ctx.service.compose(
+          './templates/nonexistent-template-xyz',
+          '.chainglass/runs'
+        );
 
         // Template not found should return E020
         expect(result.errors).toHaveLength(1);
@@ -191,7 +207,10 @@ function workflowServiceContractTests(createContext: () => WorkflowServiceTestCo
         - Quality Contribution: Ensures consistent failure state
         - Worked Example: compose(bad) → { runDir: '', errors: [...] }
         */
-        const result = await ctx.service.compose('nonexistent-template-xyz', '.chainglass/runs');
+        const result = await ctx.service.compose(
+          './templates/nonexistent-template-xyz',
+          '.chainglass/runs'
+        );
 
         expect(result.errors.length).toBeGreaterThan(0);
         expect(result.runDir).toBe('');
@@ -207,7 +226,9 @@ function createWorkflowServiceContext(): WorkflowServiceTestContext {
   const yamlParser = new FakeYamlParser();
   const schemaValidator = new FakeSchemaValidator();
   const pathResolver = new FakePathResolver();
-  const service = new WorkflowService(fs, yamlParser, schemaValidator, pathResolver);
+  const registry = new FakeWorkflowRegistry();
+  // Phase 3: WorkflowService now requires registry parameter
+  const service = new WorkflowService(fs, yamlParser, schemaValidator, pathResolver, registry);
 
   return {
     name: 'WorkflowService',
@@ -217,14 +238,12 @@ function createWorkflowServiceContext(): WorkflowServiceTestContext {
       fs.reset();
       yamlParser.reset();
       schemaValidator.reset();
+      registry.reset();
 
-      // Set up template
-      fs.setFile('.chainglass/templates/contract-test-workflow/wf.yaml', SAMPLE_WF_YAML);
-      fs.setFile('.chainglass/templates/contract-test-workflow/templates/wf.md', '# WF');
-      fs.setFile(
-        '.chainglass/templates/contract-test-workflow/phases/init/commands/main.md',
-        '# Init'
-      );
+      // Set up template using path format (Phase 3: name-only format goes to registry)
+      fs.setFile('templates/contract-test-workflow/wf.yaml', SAMPLE_WF_YAML);
+      fs.setFile('templates/contract-test-workflow/templates/wf.md', '# WF');
+      fs.setFile('templates/contract-test-workflow/phases/init/commands/main.md', '# Init');
 
       // Configure yaml parser
       yamlParser.setParseResult(SAMPLE_WF_YAML.trim(), SAMPLE_WF_DEFINITION);
@@ -249,20 +268,20 @@ function createFakeWorkflowServiceContext(): WorkflowServiceTestContext {
     setup: async () => {
       service.reset();
 
-      // Configure fake to return success for the test template
-      service.setComposeResult('contract-test-workflow', {
+      // Configure fake to return success for the test template (using path format per Phase 3)
+      service.setComposeResult('./templates/contract-test-workflow', {
         runDir: '.chainglass/runs/run-2026-01-22-001',
         template: 'contract-test-workflow',
         phases: [{ name: 'init', order: 1, status: 'pending' }],
         errors: [],
       });
 
-      // Configure fake to return E020 for non-existent templates
+      // Configure fake to return E020 for non-existent templates (using path format per Phase 3)
       service.setComposeError(
-        'nonexistent-template-xyz',
+        './templates/nonexistent-template-xyz',
         'E020',
         'Template not found: nonexistent-template-xyz',
-        'Create template at .chainglass/templates/nonexistent-template-xyz/'
+        'Create template at ./templates/nonexistent-template-xyz/'
       );
     },
     cleanup: async () => {

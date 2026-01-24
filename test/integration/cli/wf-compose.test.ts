@@ -507,12 +507,13 @@ describe('cg wf compose', () => {
       }) as typeof process.exit;
 
       try {
+        // Use path format (./...) to trigger E020 path not found (Phase 3: name-only goes to registry)
         await program.parseAsync([
           'node',
           'cg',
           'wf',
           'compose',
-          'non-existent-template',
+          './non-existent-template',
           '--runs-dir',
           '.chainglass/runs',
           '--json',

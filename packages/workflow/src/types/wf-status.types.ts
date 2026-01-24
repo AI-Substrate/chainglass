@@ -30,6 +30,12 @@ export interface WfStatusWorkflow {
   version: string;
   /** Relative or absolute path to the source template */
   template_path: string;
+  /** Workflow registry slug (Phase 3: optional for backward compat per DYK-04) */
+  slug?: string;
+  /** 8-character checkpoint content hash (Phase 3: optional for backward compat per DYK-04) */
+  version_hash?: string;
+  /** Comment from the checkpoint (Phase 3: optional) */
+  checkpoint_comment?: string;
 }
 
 /**
