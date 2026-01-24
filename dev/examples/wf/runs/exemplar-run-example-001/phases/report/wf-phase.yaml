@@ -1,0 +1,30 @@
+# Report Phase Configuration
+# Extracted from wf.yaml for hello-workflow
+
+phase: report
+description: "Generate final report from processed data"
+order: 3
+
+inputs:
+  files:
+    - name: result.md
+      required: true
+      from_phase: process
+      description: "Processing result from process phase"
+    - name: process-data.json
+      required: true
+      from_phase: process
+      description: "Processed data from process phase"
+  parameters:
+    - name: processed_count
+      required: true
+      from_phase: process
+      description: "Count of processed items"
+
+outputs:
+  - name: final-report.md
+    type: file
+    required: true
+    description: "Final human-readable report"
+
+# Report phase has no output_parameters (terminal phase)

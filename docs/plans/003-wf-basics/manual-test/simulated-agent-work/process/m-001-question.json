@@ -1,0 +1,23 @@
+{
+  "id": "001",
+  "created_at": "2026-01-21T10:07:00Z",
+  "from": "agent",
+  "type": "multi_choice",
+  "subject": "Output format selection",
+  "body": "The gathered data contains both summary and detailed records. How should I structure the processed output?",
+  "note": "Agent needs clarification on output format preference",
+  "options": [
+    {
+      "key": "A",
+      "label": "Summary only",
+      "description": "Aggregate metrics, no individual records"
+    },
+    { "key": "B", "label": "Detailed only", "description": "All records with full details" },
+    { "key": "C", "label": "Both", "description": "Summary section plus detailed appendix" }
+  ],
+  "answer": {
+    "answered_at": "2026-01-21T10:08:30Z",
+    "selected": ["C"],
+    "note": "Include both - stakeholders need summary, devs need details"
+  }
+}

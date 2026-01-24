@@ -23,7 +23,7 @@ Enable deterministic, multi-phase workflow execution by coding agents with:
 
 ### Key Insights
 1. **Filesystem is the database** - All workflow state lives in files; no database required; git provides versioning
-2. **Phases are self-contained** - Each phase has inputs/, prompt/, run/output-files/, run/wf/ directories with explicit contracts
+2. **Phases are self-contained** - Each phase has run/inputs/, commands/, run/outputs/, run/wf-data/ directories with explicit contracts
 3. **Data publishing is explicit** - Phases must declare output_parameters; validation fails until all declared outputs exist and pass schema validation
 4. **JSON-first output** - All CLI commands support `--json`; JSON is PRIMARY interface for systems, human output is secondary
 
@@ -99,8 +99,8 @@ stages:  # Note: user says "phases", prototype says "stages"
       data: [...]
     output_parameters: [...]
     prompt:
-      entry: "prompt/wf.md"
-      main: "prompt/main.md"
+      entry: "commands/wf.md"
+      main: "commands/main.md"
 ```
 
 **Design Implications**:
@@ -116,8 +116,8 @@ stages:  # Note: user says "phases", prototype says "stages"
 ```
 phase-folder/
 ├── inputs/           # Required/optional input files
-├── prompt/           # Agent instructions
-│   ├── wf.md         # Bootstrap prompt (shared)
+├── commands/         # Agent instructions
+│   ├── wf.md         # Standard workflow prompt (same for all phases)
 │   └── main.md       # Phase-specific instructions
 ├── run/
 │   ├── output-files/ # Agent work: human-readable (markdown, text)
@@ -588,18 +588,18 @@ dev/
                 ├── wf-run.json          # Run metadata
                 └── phases/
                     ├── gather/          # Phase 1 - COMPLETE
-                    │   ├── inputs/
-                    │   │   └── request.md
-                    │   ├── prompt/
+                    │   ├── wf-phase.yaml
+                    │   ├── commands/
                     │   ├── schemas/
-                    │   ├── phase-config.yaml
                     │   └── run/
-                    │       ├── output-files/        # Agent work: human-readable
-                    │       │   └── acknowledgment.md
-                    │       ├── output-data/         # Agent work: structured JSON
+                    │       ├── inputs/
+                    │       │   ├── files/           # User-provided input files
+                    │       │   └── data/            # Structured input data
+                    │       ├── outputs/             # Agent outputs
+                    │       │   ├── acknowledgment.md
                     │       │   └── gather-data.json
-                    │       └── wf/                  # System: status, params
-                    │           ├── wf-result.json
+                    │       └── wf-data/             # System: status, params
+                    │           ├── wf-phase.json
                     │           └── output-params.json
                     │
                     ├── process/         # Phase 2 - COMPLETE
@@ -607,7 +607,7 @@ dev/
                     │   │   ├── acknowledgment.md    # From gather/output-files
                     │   │   ├── gather-data.json     # From gather/output-data
                     │   │   └── params.json          # Resolved parameters
-                    │   ├── prompt/
+                    │   ├── commands/
                     │   ├── schemas/
                     │   ├── phase-config.yaml
                     │   └── run/
@@ -624,7 +624,7 @@ dev/
                         │   ├── result.md            # From process/output-files
                         │   ├── process-data.json    # From process/output-data
                         │   └── params.json
-                        ├── prompt/
+                        ├── commands/
                         ├── schemas/
                         ├── phase-config.yaml
                         └── run/
@@ -674,8 +674,8 @@ phases:
 
     inputs:
       required:
-        - name: "request.md"
-          path: "inputs/request.md"
+        - name: "user-request.md"
+          path: "run/inputs/files/user-request.md"
           description: "User's request or question"
       optional: []
 
@@ -706,8 +706,8 @@ phases:
         query: "classification.type"
 
     prompt:
-      entry: "prompt/wf.md"
-      main: "prompt/main.md"
+      entry: "commands/wf.md"
+      main: "commands/main.md"
 
   # ============================================================
   # PHASE 2: process
@@ -761,8 +761,8 @@ phases:
         query: "metrics.processed"
 
     prompt:
-      entry: "prompt/wf.md"
-      main: "prompt/main.md"
+      entry: "commands/wf.md"
+      main: "commands/main.md"
 
   # ============================================================
   # PHASE 3: report
@@ -806,12 +806,12 @@ phases:
           required: true
 
     prompt:
-      entry: "prompt/wf.md"
-      main: "prompt/main.md"
+      entry: "commands/wf.md"
+      main: "commands/main.md"
 
 shared_templates:
   - source: "templates/wf.md"
-    target: "prompt/wf.md"
+    target: "commands/wf.md"
   - source: "schemas/wf-result.schema.json"
     target: "schemas/wf-result.schema.json"
 ```
@@ -829,7 +829,7 @@ shared_templates:
           │                    │                    │
           ▼                    ▼                    ▼
     ┌───────────┐        ┌───────────┐        ┌───────────┐
-    │ request.md│        │acknowledgment│     │ result.md │
+    │user-request│       │acknowledgment│     │ result.md │
     │   (user)  │        │gather-data │        │process-data│
     └───────────┘        └───────────┘        └───────────┘
           │                    │                    │
@@ -844,7 +844,7 @@ shared_templates:
 
 | Phase | Input | Work | Output (files) | Output (data) |
 |-------|-------|------|----------------|---------------|
-| **gather** | User's request.md | Read request, acknowledge it, classify type, count items | `output-files/acknowledgment.md` | `output-data/gather-data.json` |
+| **gather** | User-provided inputs (e.g., user-request.md) | Read input, acknowledge it, classify type, count items | `outputs/acknowledgment.md` | `outputs/gather-data.json` |
 | **process** | acknowledgment + gather-data | "Process" the items (stub: just transform data) | `output-files/result.md` | `output-data/process-data.json` |
 | **report** | result + process-data | Compile final report summarizing the workflow | `output-files/final-report.md` | (none) |
 
@@ -914,14 +914,14 @@ cg wf compose hello-workflow
 # Save RUN_DIR=.chainglass/runs/run-2026-01-21-001
 
 # 2. Create initial user input
-echo "Please process items A, B, and C" > $RUN_DIR/phases/gather/inputs/request.md
+echo "Please process items A, B, and C" > $RUN_DIR/phases/gather/run/inputs/files/user-request.md
 
 # 3. Prepare phase 1 (check inputs ready)
 cg phase prepare gather --run-dir $RUN_DIR
 # Output: PASS - inputs ready
 
 # 4. Give agent the phase prompt
-# Agent reads: $RUN_DIR/phases/gather/prompt/wf.md
+# Agent reads: $RUN_DIR/phases/gather/commands/wf.md + main.md
 # Agent executes phase work
 # Agent writes outputs to run/output-files/ and run/wf/
 
@@ -958,7 +958,7 @@ RUN_DIR=$(cg wf compose hello-workflow)
 echo "Created: $RUN_DIR"
 
 # Create sample input
-cat > "$RUN_DIR/phases/gather/inputs/request.md" << 'EOF'
+cat > "$RUN_DIR/phases/gather/run/inputs/files/user-request.md" << 'EOF'
 # Sample Request
 
 Please process the following items:
@@ -969,11 +969,11 @@ Please process the following items:
 Expected outcome: All items processed successfully.
 EOF
 
-echo "Input created: $RUN_DIR/phases/gather/inputs/request.md"
+echo "Input created: $RUN_DIR/phases/gather/run/inputs/files/user-request.md"
 echo ""
 echo "Next: Prepare phase and start agent"
 echo "  cg phase prepare gather --run-dir $RUN_DIR"
-echo "  # Then give agent: $RUN_DIR/phases/gather/prompt/wf.md"
+echo "  # Then give agent: $RUN_DIR/phases/gather/commands/wf.md + main.md"
 ```
 
 **`manual-test/02-transition-to-process.sh`**:
@@ -998,7 +998,7 @@ cg phase prepare process --run-dir "$RUN_DIR"
 
 echo ""
 echo "Next: Give agent the process phase prompt"
-echo "  $RUN_DIR/phases/process/prompt/wf.md"
+echo "  $RUN_DIR/phases/process/commands/wf.md + main.md"
 ```
 
 ### Why Manual First?
@@ -1029,10 +1029,10 @@ echo "  $RUN_DIR/phases/process/prompt/wf.md"
   - `schemas/wf.schema.json` (validates wf.yaml)
   - `schemas/wf-result.schema.json` (shared result schema)
   - `schemas/gather-data.schema.json`, `process-data.schema.json`
-  - `phases/gather/prompt/main.md` (simple instructions)
-  - `phases/process/prompt/main.md`
-  - `phases/report/prompt/main.md`
-  - `templates/wf.md` (shared bootstrap prompt)
+  - `phases/gather/commands/main.md` (simple instructions)
+  - `phases/process/commands/main.md`
+  - `phases/report/commands/main.md`
+  - `templates/wf.md` (standard workflow prompt, copied to each phase's commands/)
 - Create `manual-test/` scripts
 - **Validation**: Template files exist, YAML parses, schemas are valid JSON Schema
 
@@ -1070,24 +1070,24 @@ dev/examples/wf/
 │   └── hello-workflow/
 │       ├── wf.yaml                           # Workflow definition
 │       ├── templates/
-│       │   └── wf.md                         # Shared bootstrap prompt
+│       │   └── wf.md                         # Standard workflow prompt (copied to each phase)
 │       ├── schemas/
 │       │   ├── wf.schema.json                # Validates wf.yaml
 │       │   ├── wf-result.schema.json         # Shared result schema
 │       │   ├── gather-data.schema.json       # gather phase output-data
 │       │   └── process-data.schema.json      # process phase output-data
 │       └── phases/
-│           ├── gather/prompt/main.md
-│           ├── process/prompt/main.md
-│           └── report/prompt/main.md
+│           ├── gather/commands/main.md
+│           ├── process/commands/main.md
+│           └── report/commands/main.md
 │
 └── runs/
     └── run-example-001/                      # ← FULLY POPULATED EXEMPLAR
         ├── wf-run.json                       # Run metadata (workflow source, timestamps)
         └── phases/
             ├── gather/
-            │   ├── inputs/request.md         # User input
-            │   ├── prompt/wf.md, main.md     # Copied from template
+            │   ├── run/inputs/files/         # User-provided input files
+            │   ├── commands/wf.md, main.md   # wf.md copied from templates/, main.md from phases/
             │   ├── schemas/*.json            # Copied from template
             │   ├── phase-config.yaml         # Extracted from wf.yaml
             │   └── run/
@@ -1103,7 +1103,7 @@ dev/examples/wf/
             │   │   ├── acknowledgment.md     # From gather/output-files
             │   │   ├── gather-data.json      # From gather/output-data
             │   │   └── params.json           # Resolved parameters
-            │   ├── prompt/, schemas/, phase-config.yaml
+            │   ├── commands/, schemas/, wf-phase.yaml
             │   └── run/
             │       ├── output-files/result.md
             │       ├── output-data/process-data.json
@@ -1115,7 +1115,7 @@ dev/examples/wf/
                 │   ├── result.md             # From process/output-files
                 │   ├── process-data.json     # From process/output-data
                 │   └── params.json
-                ├── prompt/, schemas/, phase-config.yaml
+                ├── commands/, schemas/, wf-phase.yaml
                 └── run/
                     ├── output-files/final-report.md
                     └── wf/wf-result.json     # No output-data (report has no JSON output)
@@ -1133,7 +1133,7 @@ manual-test/
 ├── 01-compose-and-start.sh
 ├── 02-transition-to-process.sh
 ├── 03-transition-to-report.sh
-└── sample-request.md
+└── sample-input.md
 ```
 
 ### Phase 0 Validation Criteria
@@ -1173,7 +1173,7 @@ manual-test/
 | `dev/examples/wf/template/hello-workflow/` | Complete workflow template to build against |
 | `dev/examples/wf/template/hello-workflow/wf.yaml` | 3-phase workflow definition |
 | `dev/examples/wf/template/hello-workflow/schemas/*.json` | JSON Schemas for validation |
-| `dev/examples/wf/template/hello-workflow/phases/*/prompt/main.md` | Phase instructions |
+| `dev/examples/wf/template/hello-workflow/phases/*/commands/main.md` | Phase instructions |
 | `dev/examples/wf/runs/run-example-001/` | Fully-executed run exemplar |
 | `dev/examples/wf/runs/run-example-001/phases/gather/run/wf/*.json` | Example gather outputs |
 | `dev/examples/wf/runs/run-example-001/phases/process/run/wf/*.json` | Example process outputs |

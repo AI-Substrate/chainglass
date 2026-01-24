@@ -26,7 +26,7 @@ dev/examples/wf/
 ├── template/hello-workflow/
 │   ├── wf.yaml                    # 3-phase workflow definition
 │   ├── schemas/                   # JSON Schemas for validation
-│   ├── templates/wf.md            # Shared bootstrap command template
+│   ├── templates/wf.md            # Standard workflow prompt (copied to each phase's commands/)
 │   └── phases/                    # Per-phase commands
 │       ├── gather/commands/main.md
 │       ├── process/commands/main.md
@@ -56,11 +56,11 @@ dev/examples/wf/
 Create a complete, valid filesystem exemplar that demonstrates the workflow structure and serves as the testing foundation for Phases 1-5.
 
 **Behavior Checklist (from Plan)**:
-- [ ] AC-01: Template at `dev/examples/wf/template/hello-workflow/` with wf.yaml, schemas/, templates/, phases/
-- [ ] AC-02: wf.yaml parses without errors, contains 3 phases: gather, process, report
-- [ ] AC-03: All schemas are valid JSON Schema Draft 2020-12
-- [ ] AC-04: Each phase in run-example-001 has complete structure: wf-phase.yaml, commands/, schemas/, run/ (with inputs/, outputs/, wf-data/)
-- [ ] AC-05: All JSON files pass schema validation
+- [x] AC-01: Template at `dev/examples/wf/template/hello-workflow/` with wf.yaml, schemas/, templates/, phases/
+- [x] AC-02: wf.yaml parses without errors, contains 3 phases: gather, process, report
+- [x] AC-03: All schemas are valid JSON Schema Draft 2020-12
+- [x] AC-04: Each phase in run-example-001 has complete structure: wf-phase.yaml, commands/, schemas/, run/ (with inputs/, outputs/, wf-data/)
+- [x] AC-05: All JSON files pass schema validation
 
 ### Goals
 
@@ -108,19 +108,19 @@ flowchart TD
     style Validation fill:#FFF3E0,stroke:#E65100
 
     subgraph Phase["Phase 0: Development Exemplar"]
-        T001["T001: Create directory structure"]:::pending
-        T002["T002: Write wf.yaml"]:::pending
-        T003["T003: Write JSON schemas"]:::pending
-        T004["T004: Write phase prompts"]:::pending
-        T005["T005: Write shared template"]:::pending
-        T006["T006: Create wf-status.json"]:::pending
-        T007["T007: Create gather outputs"]:::pending
-        T008["T008: Create process outputs"]:::pending
-        T009["T009: Create report outputs"]:::pending
-        T010["T010: Create wf-phase.yaml files"]:::pending
-        T011["T011: Write manual test guide"]:::pending
-        T012["T012: Validate all JSON"]:::pending
-        T013["T013: Create traceability matrix"]:::pending
+        T001["T001: Create directory structure ✓"]:::completed
+        T002["T002: Write wf.yaml ✓"]:::completed
+        T003["T003: Write JSON schemas ✓"]:::completed
+        T004["T004: Write phase prompts ✓"]:::completed
+        T005["T005: Write shared template ✓"]:::completed
+        T006["T006: Create wf-status.json ✓"]:::completed
+        T007["T007: Create gather outputs ✓"]:::completed
+        T008["T008: Create process outputs ✓"]:::completed
+        T009["T009: Create report outputs ✓"]:::completed
+        T010["T010: Create wf-phase.yaml files ✓"]:::completed
+        T011["T011: Write manual test guide ✓"]:::completed
+        T012["T012: Validate all JSON ✓"]:::completed
+        T013["T013: Create traceability matrix ✓"]:::completed
 
         T001 --> T002
         T002 --> T003
@@ -137,24 +137,24 @@ flowchart TD
     end
 
     subgraph Template["Template Files"]
-        F1["/dev/examples/wf/template/hello-workflow/"]:::pending
-        F2["/dev/examples/wf/template/hello-workflow/wf.yaml"]:::pending
-        F3["/dev/examples/wf/template/hello-workflow/schemas/"]:::pending
-        F4["/dev/examples/wf/template/hello-workflow/phases/"]:::pending
-        F5["/dev/examples/wf/template/hello-workflow/templates/wf.md"]:::pending
+        F1["/dev/examples/wf/template/hello-workflow/ ✓"]:::completed
+        F2["/dev/examples/wf/template/hello-workflow/wf.yaml ✓"]:::completed
+        F3["/dev/examples/wf/template/hello-workflow/schemas/ ✓"]:::completed
+        F4["/dev/examples/wf/template/hello-workflow/phases/ ✓"]:::completed
+        F5["/dev/examples/wf/template/hello-workflow/templates/wf.md ✓"]:::completed
     end
 
     subgraph Run["Run Example Files"]
-        F6["/dev/examples/wf/runs/run-example-001/"]:::pending
-        F7["/dev/examples/wf/runs/run-example-001/wf-run/wf-status.json"]:::pending
-        F8["/dev/examples/wf/runs/run-example-001/phases/gather/"]:::pending
-        F9["/dev/examples/wf/runs/run-example-001/phases/process/"]:::pending
-        F10["/dev/examples/wf/runs/run-example-001/phases/report/"]:::pending
+        F6["/dev/examples/wf/runs/run-example-001/ ✓"]:::completed
+        F7["/dev/examples/wf/runs/run-example-001/wf-run/wf-status.json ✓"]:::completed
+        F8["/dev/examples/wf/runs/run-example-001/phases/gather/ ✓"]:::completed
+        F9["/dev/examples/wf/runs/run-example-001/phases/process/ ✓"]:::completed
+        F10["/dev/examples/wf/runs/run-example-001/phases/report/ ✓"]:::completed
     end
 
     subgraph Validation["Validation Artifacts"]
-        F11["/dev/examples/wf/MANUAL-TEST-GUIDE.md"]:::pending
-        F12["/dev/examples/wf/TRACEABILITY.md"]:::pending
+        F11["/dev/examples/wf/MANUAL-TEST-GUIDE.md ✓"]:::completed
+        F12["/dev/examples/wf/TRACEABILITY.md ✓"]:::completed
     end
 
     T001 -.-> F1
@@ -177,39 +177,39 @@ flowchart TD
 
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
-| T001 | Directory Structure | /dev/examples/wf/** | ⬜ Pending | Foundation for all other tasks |
-| T002 | Workflow Definition | wf.yaml | ⬜ Pending | 3 phases with inputs/outputs/params |
-| T003 | JSON Schemas | schemas/*.schema.json | ⬜ Pending | Draft 2020-12 compliance required |
-| T004 | Phase Commands | phases/*/commands/main.md | ⬜ Pending | Agent instructions per phase |
-| T005 | Shared Template | templates/wf.md | ⬜ Pending | Bootstrap command shared across phases |
-| T006 | Run Metadata | wf-run/wf-status.json | ⬜ Pending | Workflow run tracking |
-| T007 | Gather Outputs | gather/run/** | ⬜ Pending | First phase complete outputs |
-| T008 | Process Outputs | process/run/** | ⬜ Pending | Second phase complete outputs |
-| T009 | Report Outputs | report/run/** | ⬜ Pending | Final phase complete outputs |
-| T010 | Phase Configs | wf-phase.yaml files | ⬜ Pending | Extracted from wf.yaml per phase |
-| T011 | Test Guide | MANUAL-TEST-GUIDE.md | ⬜ Pending | Step-by-step validation instructions |
-| T012 | Schema Validation | N/A (validation step) | ⬜ Pending | All JSON must pass schema validation |
-| T013 | Traceability Matrix | TRACEABILITY.md | ⬜ Pending | Maps spec ACs to exemplar files |
+| T001 | Directory Structure | /dev/examples/wf/** | ✅ Complete | Foundation for all other tasks |
+| T002 | Workflow Definition | wf.yaml | ✅ Complete | 3 phases with inputs/outputs/params |
+| T003 | JSON Schemas | schemas/*.schema.json | ✅ Complete | Draft 2020-12 compliance required |
+| T004 | Phase Commands | phases/*/commands/main.md | ✅ Complete | Agent instructions per phase |
+| T005 | Shared Template | templates/wf.md | ✅ Complete | Standard workflow prompt, copied to each phase's commands/ |
+| T006 | Run Metadata | wf-run/wf-status.json | ✅ Complete | Workflow run tracking |
+| T007 | Gather Outputs | gather/run/** | ✅ Complete | First phase complete outputs |
+| T008 | Process Outputs | process/run/** | ✅ Complete | Second phase complete outputs |
+| T009 | Report Outputs | report/run/** | ✅ Complete | Final phase complete outputs |
+| T010 | Phase Configs | wf-phase.yaml files | ✅ Complete | Extracted from wf.yaml per phase |
+| T011 | Test Guide | MANUAL-TEST-GUIDE.md | ✅ Complete | Step-by-step validation instructions |
+| T012 | Schema Validation | N/A (validation step) | ✅ Complete | All JSON must pass schema validation |
+| T013 | Traceability Matrix | TRACEABILITY.md | ✅ Complete | Maps spec ACs to exemplar files |
 
 ---
 
 ## Tasks
 
-| Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
+| Status | ID | Task | CS | Type | Dependencies | Path(s) | Validation | Subtasks | Notes |
 |--------|------|------|-----|------|--------------|------------------|------------|----------|-------|
-| [ ] | T001 | Create `dev/examples/wf/` directory structure with template/ and runs/ subdirectories | 1 | Setup | – | `/Users/jordanknight/substrate/chainglass/dev/examples/wf/`, `/Users/jordanknight/substrate/chainglass/dev/examples/wf/template/`, `/Users/jordanknight/substrate/chainglass/dev/examples/wf/runs/` | `ls -la dev/examples/wf/` shows template/ and runs/ | – | Foundation step |
-| [ ] | T002 | Write `wf.yaml` for hello-workflow template with 3 phases (gather, process, report) including inputs, outputs, output_parameters declarations | 2 | Core | T001 | `/Users/jordanknight/substrate/chainglass/dev/examples/wf/template/hello-workflow/wf.yaml` | YAML parses without errors; contains phases: gather, process, report | – | Per spec; follow research-dossier format |
-| [ ] | T003 | Write JSON Schema files: `wf.schema.json`, `wf-phase.schema.json`, `gather-data.schema.json`, `process-data.schema.json` | 2 | Core | T002 | `/Users/jordanknight/substrate/chainglass/dev/examples/wf/template/hello-workflow/schemas/wf.schema.json`, `/Users/jordanknight/substrate/chainglass/dev/examples/wf/template/hello-workflow/schemas/wf-phase.schema.json`, `/Users/jordanknight/substrate/chainglass/dev/examples/wf/template/hello-workflow/schemas/gather-data.schema.json`, `/Users/jordanknight/substrate/chainglass/dev/examples/wf/template/hello-workflow/schemas/process-data.schema.json` | All schemas valid Draft 2020-12 (AC-03) | – | Use $schema: "https://json-schema.org/draft/2020-12/schema" |
-| [ ] | T004 | Write phase command files for gather, process, report phases | 1 | Core | T001 | `/Users/jordanknight/substrate/chainglass/dev/examples/wf/template/hello-workflow/phases/gather/commands/main.md`, `/Users/jordanknight/substrate/chainglass/dev/examples/wf/template/hello-workflow/phases/process/commands/main.md`, `/Users/jordanknight/substrate/chainglass/dev/examples/wf/template/hello-workflow/phases/report/commands/main.md` | Each phase has commands/main.md with agent instructions | – | Simple placeholder instructions |
-| [ ] | T005 | Write shared template `templates/wf.md` with bootstrap command | 1 | Core | T001 | `/Users/jordanknight/substrate/chainglass/dev/examples/wf/template/hello-workflow/templates/wf.md` | File exists with workflow bootstrap content | – | Shared across all phases |
-| [ ] | T006 | Create `run-example-001/wf-run/wf-status.json` with workflow metadata | 1 | Core | T002 | `/Users/jordanknight/substrate/chainglass/dev/examples/wf/runs/run-example-001/wf-run/wf-status.json` | Valid JSON with template ref, timestamp, phases array (AC-08 equivalent) | – | All phases marked 'complete' |
-| [ ] | T007 | Create gather phase complete outputs: outputs/acknowledgment.md, outputs/gather-data.json, wf-data/wf-phase.json, wf-data/output-params.json | 2 | Core | T003, T006 | `/Users/jordanknight/substrate/chainglass/dev/examples/wf/runs/run-example-001/phases/gather/run/outputs/acknowledgment.md`, `/Users/jordanknight/substrate/chainglass/dev/examples/wf/runs/run-example-001/phases/gather/run/outputs/gather-data.json`, `/Users/jordanknight/substrate/chainglass/dev/examples/wf/runs/run-example-001/phases/gather/run/wf-data/wf-phase.json`, `/Users/jordanknight/substrate/chainglass/dev/examples/wf/runs/run-example-001/phases/gather/run/wf-data/output-params.json` | All files exist, JSON validates against schemas | – | Must validate against gather-data.schema.json |
-| [ ] | T008 | Create process phase complete outputs: outputs/result.md, outputs/process-data.json, wf-data/wf-phase.json, wf-data/output-params.json | 2 | Core | T003, T007 | `/Users/jordanknight/substrate/chainglass/dev/examples/wf/runs/run-example-001/phases/process/run/outputs/result.md`, `/Users/jordanknight/substrate/chainglass/dev/examples/wf/runs/run-example-001/phases/process/run/outputs/process-data.json`, `/Users/jordanknight/substrate/chainglass/dev/examples/wf/runs/run-example-001/phases/process/run/wf-data/wf-phase.json`, `/Users/jordanknight/substrate/chainglass/dev/examples/wf/runs/run-example-001/phases/process/run/wf-data/output-params.json` | All files exist, JSON validates against schemas | – | Must validate against process-data.schema.json |
-| [ ] | T009 | Create report phase complete outputs: outputs/final-report.md, wf-data/wf-phase.json | 2 | Core | T003, T008 | `/Users/jordanknight/substrate/chainglass/dev/examples/wf/runs/run-example-001/phases/report/run/outputs/final-report.md`, `/Users/jordanknight/substrate/chainglass/dev/examples/wf/runs/run-example-001/phases/report/run/wf-data/wf-phase.json` | All files exist, JSON validates against wf-phase.schema.json | – | Report has no JSON outputs |
-| [ ] | T010 | Create `wf-phase.yaml` for each phase (gather, process, report) extracted from wf.yaml | 2 | Core | T002 | `/Users/jordanknight/substrate/chainglass/dev/examples/wf/runs/run-example-001/phases/gather/wf-phase.yaml`, `/Users/jordanknight/substrate/chainglass/dev/examples/wf/runs/run-example-001/phases/process/wf-phase.yaml`, `/Users/jordanknight/substrate/chainglass/dev/examples/wf/runs/run-example-001/phases/report/wf-phase.yaml` | Each config has inputs, outputs, parameters from wf.yaml (AC-09) | – | Extract phase-specific config |
-| [ ] | T011 | Write manual test guide `MANUAL-TEST-GUIDE.md` with step-by-step validation instructions | 1 | Doc | T010 | `/Users/jordanknight/substrate/chainglass/dev/examples/wf/MANUAL-TEST-GUIDE.md` | Guide includes YAML parse test, schema validation commands, expected outputs | – | References Commands Reference in plan |
-| [ ] | T012 | Validate all JSON files against their schemas using ajv CLI | 1 | Validation | T007, T008, T009 | N/A (validation step, no files created) | `npx ajv validate -s <schema> -d <file>` passes for ALL JSON files | – | See Commands Reference in plan for exact commands |
-| [ ] | T013 | Create spec-to-exemplar traceability matrix | 1 | Doc | T012 | `/Users/jordanknight/substrate/chainglass/dev/examples/wf/TRACEABILITY.md` | Matrix maps each spec AC (AC-01 through AC-05) to exact exemplar file/line that satisfies it | – | Per didyouknow insight #1; exemplars are fungible - update matrix as implementation evolves |
+| [x] | T001 | Create `dev/examples/wf/` directory structure with template/ and runs/ subdirectories | 1 | Setup | – | `dev/examples/wf/`, `dev/examples/wf/template/`, `dev/examples/wf/runs/` | `ls -la dev/examples/wf/` shows template/ and runs/ | – | Foundation step |
+| [x] | T002 | Write `wf.yaml` for hello-workflow template with 3 phases (gather, process, report) including inputs, outputs, output_parameters declarations | 2 | Core | T001 | `dev/examples/wf/template/hello-workflow/wf.yaml` | YAML parses without errors; contains phases: gather, process, report | – | Per spec; follow research-dossier format |
+| [x] | T003 | Write JSON Schema files: `wf.schema.json`, `wf-phase.schema.json`, `gather-data.schema.json`, `process-data.schema.json` | 2 | Core | T002 | `dev/examples/wf/template/hello-workflow/schemas/wf.schema.json`, `dev/examples/wf/template/hello-workflow/schemas/wf-phase.schema.json`, `dev/examples/wf/template/hello-workflow/schemas/gather-data.schema.json`, `dev/examples/wf/template/hello-workflow/schemas/process-data.schema.json` | All schemas valid Draft 2020-12 (AC-03) | – | Use $schema: "https://json-schema.org/draft/2020-12/schema" |
+| [x] | T004 | Write phase command files for gather, process, report phases | 1 | Core | T001 | `dev/examples/wf/template/hello-workflow/phases/gather/commands/main.md`, `dev/examples/wf/template/hello-workflow/phases/process/commands/main.md`, `dev/examples/wf/template/hello-workflow/phases/report/commands/main.md` | Each phase has commands/main.md with agent instructions | 002-subtask-commands-main-concept-drift-remediation | Simple placeholder instructions; **Extended by ST002**: remediates concept drift |
+| [x] | T005 | Write shared template `templates/wf.md` with standard workflow prompt | 1 | Core | T001 | `dev/examples/wf/template/hello-workflow/templates/wf.md` | File exists with standard workflow prompt content | – | `wf.md` is copied to each phase's `commands/` alongside `main.md`; same content for every phase |
+| [x] | T006 | Create `run-example-001/wf-run/wf-status.json` with workflow metadata | 1 | Core | T002 | `dev/examples/wf/runs/run-example-001/wf-run/wf-status.json` | Valid JSON with template ref, timestamp, phases array (AC-08 equivalent) | – | All phases marked 'complete' |
+| [x] | T007 | Create gather phase complete outputs: outputs/acknowledgment.md, outputs/gather-data.json, wf-data/wf-phase.json, wf-data/output-params.json | 2 | Core | T003, T006 | `dev/examples/wf/runs/run-example-001/phases/gather/run/outputs/acknowledgment.md`, `dev/examples/wf/runs/run-example-001/phases/gather/run/outputs/gather-data.json`, `dev/examples/wf/runs/run-example-001/phases/gather/run/wf-data/wf-phase.json`, `dev/examples/wf/runs/run-example-001/phases/gather/run/wf-data/output-params.json` | All files exist, JSON validates against schemas | 001-subtask-message-communication | Must validate against gather-data.schema.json. **Extended by ST001**: adds `messages/m-001.json` (user input) |
+| [x] | T008 | Create process phase complete outputs: outputs/result.md, outputs/process-data.json, wf-data/wf-phase.json, wf-data/output-params.json | 2 | Core | T003, T007 | `dev/examples/wf/runs/run-example-001/phases/process/run/outputs/result.md`, `dev/examples/wf/runs/run-example-001/phases/process/run/outputs/process-data.json`, `dev/examples/wf/runs/run-example-001/phases/process/run/wf-data/wf-phase.json`, `dev/examples/wf/runs/run-example-001/phases/process/run/wf-data/output-params.json` | All files exist, JSON validates against schemas | 001-subtask-message-communication | Must validate against process-data.schema.json. **Extended by ST001**: adds `messages/m-001.json` (Q&A) |
+| [x] | T009 | Create report phase complete outputs: outputs/final-report.md, wf-data/wf-phase.json | 2 | Core | T003, T008 | `dev/examples/wf/runs/run-example-001/phases/report/run/outputs/final-report.md`, `dev/examples/wf/runs/run-example-001/phases/report/run/wf-data/wf-phase.json` | All files exist, JSON validates against wf-phase.schema.json | – | Report has no JSON outputs |
+| [x] | T010 | Create `wf-phase.yaml` for each phase (gather, process, report) extracted from wf.yaml | 2 | Core | T002 | `dev/examples/wf/runs/run-example-001/phases/gather/wf-phase.yaml`, `dev/examples/wf/runs/run-example-001/phases/process/wf-phase.yaml`, `dev/examples/wf/runs/run-example-001/phases/report/wf-phase.yaml` | Each config has inputs, outputs, parameters from wf.yaml (AC-09) | – | Extract phase-specific config |
+| [x] | T011 | Write manual test guide `MANUAL-TEST-GUIDE.md` with step-by-step validation instructions | 1 | Doc | T010 | `dev/examples/wf/MANUAL-TEST-GUIDE.md` | Guide includes YAML parse test, schema validation commands, expected outputs | – | References Commands Reference in plan |
+| [x] | T012 | Validate all JSON files against their schemas using ajv CLI | 1 | Validation | T007, T008, T009 | N/A (validation step, no files created) | `npx ajv validate -s <schema> -d <file>` passes for ALL JSON files | – | See Commands Reference in plan for exact commands |
+| [x] | T013 | Create spec-to-exemplar traceability matrix | 1 | Doc | T012 | `dev/examples/wf/TRACEABILITY.md` | Matrix maps each spec AC (AC-01 through AC-05) to exact exemplar file/line that satisfies it | – | Per didyouknow insight #1; exemplars are fungible - update matrix as implementation evolves |
 
 ---
 
@@ -536,14 +536,14 @@ sequenceDiagram
     CLI->>WF: status: [{from: agent, action: finalize}]
 
     Note over O,A: Human Question Flow
-    A->>CLI: cg phase ask gather --question "Include archived?"
+    A->>CLI: cg phase message create --phase gather --type single_choice --content '{"subject":"Scope","body":"Include archived?","options":[...]}'
     CLI->>WF: state: blocked, facilitator: agent
-    CLI->>WF: status: [{from: agent, action: human_question, data: {...}}]
+    CLI->>WF: status: [{from: agent, action: question, message_id: "001"}]
 
-    Note over O: Orchestrator detects blocked state
-    O->>CLI: cg phase answer gather --answer "B"
+    Note over O: Orchestrator detects blocked state, reads messages/m-001.json
+    O->>CLI: cg phase message answer --phase gather --id 001 --select B --note "Active only"
     CLI->>WF: state: accepted, facilitator: orchestrator
-    CLI->>WF: status: [{from: orchestrator, action: answer, data: {answer: "B"}}]
+    CLI->>WF: status: [{from: orchestrator, action: answer, message_id: "001"}]
 
     O->>CLI: cg phase handover gather
     CLI->>WF: state: active, facilitator: agent
@@ -556,17 +556,17 @@ sequenceDiagram
 
 #### Action Types
 
-| Action | From | Description | State After |
-|--------|------|-------------|-------------|
-| `prepare` | orchestrator | Phase prepared, inputs resolved | active |
-| `handover` | orchestrator | Control given to agent | active |
-| `accept` | agent | Agent acknowledges control | (unchanged) |
-| `preflight` | agent | Agent verified ready to work | (unchanged) |
-| `human_question` | agent | Agent needs human input | blocked |
-| `error` | agent | Error occurred (code in data) | blocked |
-| `answer` | orchestrator | Human response to question | accepted |
-| `handover` | orchestrator | Control returned to agent | active |
-| `finalize` | agent | Phase finalized | complete |
+| Action | From | Description | State After | Has message_id |
+|--------|------|-------------|-------------|----------------|
+| `prepare` | orchestrator | Phase prepared, inputs resolved | active | No |
+| `input` | orchestrator | Provides initial user input message | active | **Yes** |
+| `handover` | orchestrator | Control given to agent | active | No |
+| `accept` | agent | Agent acknowledges control | (unchanged) | No |
+| `preflight` | agent | Agent verified ready to work | (unchanged) | No |
+| `question` | agent | Agent asks question (creates message) | blocked | **Yes** |
+| `error` | agent | Error occurred (code in data) | blocked | No |
+| `answer` | orchestrator | Orchestrator provides answer to question | accepted | **Yes** |
+| `finalize` | agent | Phase finalized | complete | No |
 
 #### Example: Complete wf-phase.json
 
@@ -660,10 +660,15 @@ cg phase finalize <phase> --run-dir <run>  # Sets state: complete
 - **Prerequisite**: If accept not called, returns error: "Run `cg phase accept` first"
 - **Returns**: Structured JSON with actionable errors if preflight fails
 
-**Future Scope (OOS):**
+**Future Scope (Phase 3+ Message Commands):**
 ```bash
-cg phase ask <phase> --run-dir <run> --question "..." --options "A:...,B:..."
-cg phase answer <phase> --run-dir <run> --answer "B" --note "..."
+# Message subcommand group
+cg phase message create --phase <phase> --run-dir <run> --type <type> --content '<json>'
+cg phase message answer --phase <phase> --run-dir <run> --id <id> --select <key> [--note "..."]
+cg phase message list --phase <phase> --run-dir <run>
+cg phase message read --phase <phase> --run-dir <run> --id <id>
+
+# Error reporting (OOS)
 cg phase error <phase> --run-dir <run> --code E001 --message "..."
 ```
 
@@ -699,12 +704,12 @@ cg phase error <phase> --run-dir <run> --code E001 --message "..."
 ### Ready Check
 
 - [x] ADR-0002 constraints documented above
-- [ ] **ADR-0002 reviewed** (docs/adr/adr-0002-exemplar-driven-development.md)
+- [x] **ADR-0002 reviewed** (docs/adr/adr-0002-exemplar-driven-development.md)
 - [x] No prior phases to review (Phase 0)
 - [x] All acceptance criteria mapped to tasks
-- [x] Absolute paths specified for all files
+- [x] Relative paths specified for all files
 - [x] Validation commands documented
-- [ ] **AWAITING GO/NO-GO** from human sponsor
+- [x] **IMPLEMENTATION COMPLETE** (2026-01-21)
 
 ---
 
@@ -721,8 +726,8 @@ _This section will be populated during implementation by plan-6a-update-progress
 ## Evidence Artifacts
 
 Implementation will produce:
-- **Execution Log**: `/Users/jordanknight/substrate/chainglass/docs/plans/003-wf-basics/tasks/phase-0-development-exemplar/execution.log.md`
-- **All files listed in Absolute Path(s) column of Tasks table**
+- **Execution Log**: `docs/plans/003-wf-basics/tasks/phase-0-development-exemplar/execution.log.md`
+- **All files listed in Path(s) column of Tasks table**
 
 ---
 
@@ -764,5 +769,5 @@ docs/plans/003-wf-basics/
 
 ---
 
-**Phase Status**: READY FOR IMPLEMENTATION
-**Next Step**: Run `/plan-6-implement-phase --phase "Phase 0: Development Exemplar" --plan "/Users/jordanknight/substrate/chainglass/docs/plans/003-wf-basics/wf-basics-plan.md"` after GO approval.
+**Phase Status**: ✅ COMPLETE (2026-01-21)
+**Next Step**: Run `/plan-7-code-review --phase "Phase 0: Development Exemplar" --plan "docs/plans/003-wf-basics/wf-basics-plan.md"` for code review, or proceed to Phase 1.

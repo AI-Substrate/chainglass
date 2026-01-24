@@ -15,8 +15,3 @@ scan:
   # Follow symbolic links
   follow_symlinks: false
 
-other_graphs:
-  graphs:
-    - name: vibe-kanban
-      path: /Users/jordanknight/github/vibe-kanban/.fs2/graph.pickle
-      description: Vibe Kanban

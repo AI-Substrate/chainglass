@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://chainglass.dev/schemas/wf-status.schema.json",
+  "title": "Workflow Run Status",
+  "description": "Schema for workflow run status tracking (wf-run/wf-status.json)",
+  "type": "object",
+  "required": ["workflow", "run", "phases"],
+  "properties": {
+    "workflow": {
+      "type": "object",
+      "required": ["name", "version", "template_path"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Workflow template name (slug format)",
+          "pattern": "^[a-z][a-z0-9-]*$"
+        },
+        "version": {
+          "type": "string",
+          "description": "Semantic version of the workflow template",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$"
+        },
+        "template_path": {
+          "type": "string",
+          "description": "Relative or absolute path to the source template"
+        }
+      }
+    },
+    "run": {
+      "type": "object",
+      "required": ["id", "created_at", "status"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique run identifier (e.g., 'exemplar-run-example-001')"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO-8601 timestamp when run was created"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "active", "complete", "failed"],
+          "description": "Overall run status"
+        }
+      }
+    },
+    "phases": {
+      "type": "object",
+      "description": "Phase status entries keyed by phase name",
+      "additionalProperties": {
+        "$ref": "#/$defs/phaseStatus"
+      },
+      "minProperties": 1
+    }
+  },
+  "$defs": {
+    "phaseStatus": {
+      "type": "object",
+      "required": ["order", "status"],
+      "properties": {
+        "order": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Execution order (1-based)"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "active", "blocked", "accepted", "complete", "failed"],
+          "description": "Current phase status"
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO-8601 timestamp when phase started"
+        },
+        "completed_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO-8601 timestamp when phase completed"
+        }
+      }
+    }
+  }
+}

@@ -13,6 +13,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { z } from 'zod';
+import { registerPhaseTools, registerWorkflowTools } from './tools/index.js';
 
 // Default server info - can be overridden via options
 const DEFAULT_SERVER_NAME = 'chainglass';
@@ -90,6 +91,10 @@ export function createMcpServer(options: McpServerOptions): ChainglassMcpServer 
 
   // Register the check_health tool (exemplar per ADR-0001)
   registerCheckHealthTool(mcpServer, toolRegistry, logger);
+
+  // Register workflow and phase tools (Phase 5: MCP Integration)
+  registerWorkflowTools(mcpServer, toolRegistry, logger);
+  registerPhaseTools(mcpServer, toolRegistry, logger);
 
   // Log server creation
   logger.info('MCP server created', { serverName: name, version });

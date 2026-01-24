@@ -1,0 +1,61 @@
+# Process Phase Configuration
+# Extracted from wf.yaml for hello-workflow
+
+phase: process
+description: "Process and transform the gathered data"
+order: 2
+
+inputs:
+  files:
+    - name: acknowledgment.md
+      required: true
+      from_phase: gather
+      description: "Acknowledgment from gather phase"
+    - name: gather-data.json
+      required: true
+      from_phase: gather
+      description: "Data collected in gather phase"
+  parameters:
+    - name: item_count
+      required: true
+      from_phase: gather
+      description: "Number of items to process"
+  messages:
+    - id: "001"
+      type: "multi_choice"
+      from: "agent"
+      required: false
+      subject: "Output Format Selection"
+      prompt: "How should the processed output be structured?"
+      options:
+        - key: "A"
+          label: "Summary only"
+          description: "Aggregate metrics, no individual records"
+        - key: "B"
+          label: "Detailed only"
+          description: "All records with full details"
+        - key: "C"
+          label: "Both"
+          description: "Summary section plus detailed appendix"
+      description: "Agent may ask user to clarify output format preference"
+
+outputs:
+  - name: result.md
+    type: file
+    required: true
+    description: "Human-readable processing result"
+  - name: process-data.json
+    type: file
+    required: true
+    schema: schemas/process-data.schema.json
+    description: "Structured processing results"
+
+output_parameters:
+  - name: processed_count
+    source: process-data.json
+    query: "summary.processed_count"
+    description: "Number of items successfully processed"
+  - name: status
+    source: process-data.json
+    query: "summary.status"
+    description: "Overall processing status"
