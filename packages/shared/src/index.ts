@@ -50,13 +50,47 @@ export type {
   ErrorDetail,
 } from './interfaces/index.js';
 
+// Agent interfaces and types
+export type { IAgentAdapter } from './interfaces/index.js';
+export type {
+  AgentEvent,
+  AgentEventHandler,
+  AgentMessageEvent,
+  AgentRawEvent,
+  AgentResult,
+  AgentRunOptions,
+  AgentSessionEvent,
+  AgentStatus,
+  AgentTextDeltaEvent,
+  AgentUsageEvent,
+  TokenMetrics,
+} from './interfaces/index.js';
+
+// Process manager interfaces and types
+export type {
+  IProcessManager,
+  ProcessExitResult,
+  ProcessHandle,
+  ProcessSignal,
+  SpawnOptions,
+  StdioOption,
+  StdioOptions,
+} from './interfaces/index.js';
+
 // Fakes
+export { FakeAgentAdapter } from './fakes/index.js';
+export type { FakeAgentAdapterOptions } from './fakes/index.js';
 export { FakeConfigService } from './fakes/index.js';
+export { FakeCopilotClient } from './fakes/index.js';
+export type { FakeCopilotClientOptions } from './fakes/index.js';
+export { FakeCopilotSession } from './fakes/index.js';
+export type { FakeCopilotSessionOptions } from './fakes/index.js';
 export { FakeLogger } from './fakes/index.js';
 export { FakeFileSystem } from './fakes/index.js';
 export { FakePathResolver } from './fakes/index.js';
 export { FakeOutputAdapter } from './fakes/index.js';
 export type { FormattedResult } from './fakes/index.js';
+export { FakeProcessManager } from './fakes/index.js';
 
 // Adapters
 export { PinoLoggerAdapter } from './adapters/index.js';
@@ -64,6 +98,15 @@ export { NodeFileSystemAdapter } from './adapters/index.js';
 export { PathResolverAdapter } from './adapters/index.js';
 export { JsonOutputAdapter } from './adapters/index.js';
 export { ConsoleOutputAdapter } from './adapters/index.js';
+export { StreamJsonParser } from './adapters/index.js';
+// Phase 4: Deleted CopilotLogParser (56 LOC) and old CopilotAdapter (499 LOC)
+// CopilotAdapter is now an alias for SdkCopilotAdapter
+export { ClaudeCodeAdapter } from './adapters/index.js';
+export type { ClaudeCodeAdapterOptions } from './adapters/index.js';
+export { CopilotAdapter, SdkCopilotAdapter } from './adapters/index.js';
+export type { SdkCopilotAdapterOptions } from './adapters/index.js';
+export { UnixProcessManager } from './adapters/index.js';
+export { WindowsProcessManager } from './adapters/index.js';
 
 // DI Tokens
 export { SHARED_DI_TOKENS, WORKFLOW_DI_TOKENS } from './di-tokens.js';
@@ -73,6 +116,11 @@ export {
   ConfigurationError,
   LiteralSecretError,
   MissingConfigurationError,
+} from './config/index.js';
+export {
+  AgentConfigSchema,
+  AgentConfigType,
+  type AgentConfig,
 } from './config/index.js';
 export {
   SampleConfigSchema,
@@ -88,3 +136,7 @@ export {
   ensureUserConfig,
   getProjectConfigDir,
 } from './config/index.js';
+
+// Services
+export { AgentService } from './services/index.js';
+export type { AdapterFactory, AgentServiceRunOptions } from './services/index.js';
