@@ -17,7 +17,7 @@ cd docs/how/dev/manual-wf-run
 # 2. Start gather phase (creates message, hands to agent)
 ./02-start-gather.sh
 
-# 3. Give agent the prompt from AGENT-PROMPT.md
+# 3. Tell agent: "Open phases/gather/commands/wf.md and follow it"
 #    Wait for agent to complete gather phase...
 
 # 4. Complete gather, start process
@@ -67,7 +67,7 @@ sequenceDiagram
     Note over O,A: ═══════ GATHER PHASE ═══════
     O->>CLI: ./02-start-gather.sh
     CLI->>FS: prepare, create message, handover
-    O->>A: Give starter prompt (AGENT-PROMPT.md)
+    O->>A: "Open phases/gather/commands/wf.md"
     
     A->>FS: Read commands/wf.md
     A->>FS: Read commands/main.md
@@ -145,16 +145,19 @@ sequenceDiagram
 | `07-start-report.sh` | Prepare report, handover to agent |
 | `08-complete-report.sh` | Validate outputs, finalize report |
 | `check-state.sh` | Show current state of all phases |
-| `AGENT-PROMPT.md` | What to give the external agent |
 
 ---
 
 ## Giving Instructions to the Agent
 
-Copy the prompt from **AGENT-PROMPT.md** and give it to your external agent (Claude, GPT, etc.).
+Tell your external agent (Claude, GPT, etc.):
+
+> **"Open `phases/gather/commands/wf.md` and follow the instructions."**
+
+That's it. The `wf.md` file IS the agent prompt - it's self-contained.
 
 **Important**: 
-- Do NOT help the agent beyond the starter prompt
+- Do NOT help the agent beyond pointing them to wf.md
 - If they get confused, that's valuable feedback about the prompts!
 - Document any failures in the subtask's Discoveries table
 
