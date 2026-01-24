@@ -99,12 +99,11 @@ export { PathResolverAdapter } from './adapters/index.js';
 export { JsonOutputAdapter } from './adapters/index.js';
 export { ConsoleOutputAdapter } from './adapters/index.js';
 export { StreamJsonParser } from './adapters/index.js';
-export { CopilotLogParser } from './adapters/index.js';
+// Phase 4: Deleted CopilotLogParser (56 LOC) and old CopilotAdapter (499 LOC)
+// CopilotAdapter is now an alias for SdkCopilotAdapter
 export { ClaudeCodeAdapter } from './adapters/index.js';
 export type { ClaudeCodeAdapterOptions } from './adapters/index.js';
-export { CopilotAdapter } from './adapters/index.js';
-export type { CopilotAdapterOptions, ReadLogFileFunction } from './adapters/index.js';
-export { SdkCopilotAdapter } from './adapters/index.js';
+export { CopilotAdapter, SdkCopilotAdapter } from './adapters/index.js';
 export type { SdkCopilotAdapterOptions } from './adapters/index.js';
 export { UnixProcessManager } from './adapters/index.js';
 export { WindowsProcessManager } from './adapters/index.js';

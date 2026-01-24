@@ -12,11 +12,11 @@ import 'reflect-metadata';
 import {
   AgentService,
   ClaudeCodeAdapter,
-  CopilotAdapter,
   FakeAgentAdapter,
   FakeConfigService,
   FakeLogger,
   FakeProcessManager,
+  SdkCopilotAdapter,
   type AdapterFactory,
   type IAgentAdapter,
   type IConfigService,
@@ -26,6 +26,8 @@ import {
   UnixProcessManager,
   WindowsProcessManager,
 } from '@chainglass/shared';
+// Phase 4: Import CopilotClient from SDK for production adapter
+import { CopilotClient } from '@github/copilot-sdk';
 import { type DependencyContainer, container } from 'tsyringe';
 import { SampleService } from '../services/sample.service.js';
 
@@ -138,9 +140,11 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
 
   childContainer.register<IAgentAdapter>(DI_TOKENS.COPILOT_ADAPTER, {
     useFactory: (c) => {
-      const processManager = c.resolve<IProcessManager>(DI_TOKENS.PROCESS_MANAGER);
       const logger = c.resolve<ILogger>(DI_TOKENS.LOGGER);
-      return new CopilotAdapter(processManager, { logger });
+      // Phase 4: Use SdkCopilotAdapter with real CopilotClient from SDK
+      // Per DYK-05: Constructor differs - inject CopilotClient not ProcessManager
+      const client = new CopilotClient();
+      return new SdkCopilotAdapter(client, { logger });
     },
   });
 
@@ -157,7 +161,9 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
           return new ClaudeCodeAdapter(processManager, { logger });
         }
         if (agentType === 'copilot') {
-          return new CopilotAdapter(processManager, { logger });
+          // Phase 4: Use SdkCopilotAdapter with real CopilotClient from SDK
+          const client = new CopilotClient();
+          return new SdkCopilotAdapter(client, { logger });
         }
         throw new Error(`Unknown agent type: ${agentType}`);
       };

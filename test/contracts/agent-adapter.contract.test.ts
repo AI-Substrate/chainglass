@@ -1,6 +1,5 @@
 import {
   ClaudeCodeAdapter,
-  CopilotAdapter,
   FakeAgentAdapter,
   FakeCopilotClient,
   FakeProcessManager,
@@ -60,39 +59,8 @@ agentAdapterContractTests('ClaudeCodeAdapter', () => {
   return new ClaudeCodeAdapter(fakeProcessManager);
 });
 
-// Run contract tests for CopilotAdapter (Phase 4)
-// Per ADR-0002: Contract tests ensure fake-real parity
-agentAdapterContractTests('CopilotAdapter', () => {
-  const fakeProcessManager = new FakeProcessManager();
-
-  // Session ID from log file content
-  const sessionLogContent = 'events to session contract-test-session';
-
-  // Setup process auto-exit with output
-  const setupNextProcess = (): void => {
-    const checkAndSetup = (): void => {
-      const processes = (fakeProcessManager as any)._processes as Map<number, any>;
-
-      for (const [pid, state] of processes) {
-        if (state.running) {
-          state.output = 'Contract test output';
-          fakeProcessManager.exitProcess(pid, 0);
-        }
-      }
-    };
-
-    const interval = setInterval(checkAndSetup, 1);
-    setTimeout(() => clearInterval(interval), 5000);
-  };
-
-  setupNextProcess();
-
-  // CopilotAdapter with injected log reader
-  return new CopilotAdapter(fakeProcessManager, {
-    readLogFile: async () => sessionLogContent,
-    pollMaxTimeoutMs: 100, // Short timeout for fast tests
-  });
-});
+// Phase 4: Removed old CopilotAdapter contract tests (polling-based adapter deleted)
+// SdkCopilotAdapter is now the only Copilot implementation
 
 // Run contract tests for SdkCopilotAdapter (Phase 2)
 // Per DYK-03: Factory setup creates adapter with FakeCopilotClient
