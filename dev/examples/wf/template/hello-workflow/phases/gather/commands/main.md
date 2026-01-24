@@ -50,8 +50,8 @@ run/
 2. Write acknowledgment to `outputs/acknowledgment.md`
 3. Gather the requested data
 4. Write structured data to `outputs/gather-data.json`
-5. Run `cg phase validate gather` to verify outputs
-6. Run `cg phase finalize gather` when complete
+5. Run `cg phase validate gather --run-dir <path_to_run> --check outputs` to verify outputs
+6. Run `cg phase finalize gather --run-dir <path_to_run>` when complete
 
 ## Example gather-data.json
 

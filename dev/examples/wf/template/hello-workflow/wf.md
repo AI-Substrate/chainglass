@@ -10,8 +10,8 @@ You are executing a **workflow phase**. This means you are operating within a st
    - Note any phase-specific metadata
 
 2. **Read your inputs**: Check the `run/inputs/` directory
-   - `files/` - Input files declared in wf-phase.yaml
-   - `data/` - Parameter data from upstream phases
+   - `files/` - All input files from prior phases (both .md and .json)
+   - `params.json` - Extracted parameters from prior phases
    - These are your working materials for this phase
 
 3. **Load your main instructions**: `commands/main.md`
@@ -30,32 +30,34 @@ You are executing a **workflow phase**. This means you are operating within a st
 
 ## Output Locations
 
-All outputs go under `run/`:
+All outputs go under `run/outputs/` (flat directory):
 
-- **Files**: `run/outputs/files/`
+- **Files**: `run/outputs/`
   - Your primary deliverables (reports, analyses, documentation)
+  - Example: `run/outputs/acknowledgment.md`, `run/outputs/result.md`
 
-- **Structured Data**: `run/outputs/data/`
+- **Structured Data**: `run/outputs/`
   - JSON outputs that conform to declared schemas
-  - Parameters extracted for downstream phases
+  - Example: `run/outputs/gather-data.json`, `run/outputs/process-data.json`
 
 - **Workflow Data**: `run/wf-data/`
-  - `wf-result.json` - Phase completion status (REQUIRED)
-  - Runtime metadata and tracking
+  - `wf-phase.json` - Phase state tracking (managed by CLI)
+  - `output-params.json` - Extracted parameters (on finalize)
+
+> **Note**: Unlike inputs (which use `files/` and `data/` subdirectories), outputs are flat — all files go directly in `run/outputs/`.
 
 ## Phase Completion
 
 When your work is complete:
 
-1. Ensure all declared outputs in `wf-phase.yaml` are written
-2. Write `wf-result.json` with completion status
-3. Run phase validation:
+1. Ensure all declared outputs in `wf-phase.yaml` are written to `run/outputs/`
+2. Run phase validation:
    ```bash
-   cg phase validate <phase_id> --run-dir <path_to_run>
+   cg phase validate <phase_id> --run-dir <path_to_run> --check outputs
    ```
 
    **What it checks**:
-   - All required output files exist
+   - All required output files exist in `run/outputs/`
    - No output files are empty (0 bytes)
    - JSON outputs conform to their declared schemas
    - Output parameters can be extracted
@@ -64,7 +66,7 @@ When your work is complete:
 
    **On success**: Phase outputs become available to downstream phases.
 
-4. Stop and wait - the workflow system handles what comes next
+3. Stop and wait - the workflow system handles what comes next
 
 ## Output Schemas
 

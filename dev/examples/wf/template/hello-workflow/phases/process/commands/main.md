@@ -11,14 +11,13 @@ Process and transform the data gathered in the previous phase.
 ```
 run/
 ├── inputs/             # Data from prior phase (gather)
-│   ├── files/          # Human-readable content (.md)
-│   │   └── acknowledgment.md
-│   ├── data/           # Structured JSON data
+│   ├── files/          # All input files from prior phase
+│   │   ├── acknowledgment.md
 │   │   └── gather-data.json
 │   └── params.json     # Output parameters from gather phase
 ├── messages/           # Agent ↔ Orchestrator communication (optional Q&A)
 │   └── m-001.json      # Agent may ask clarification questions
-├── outputs/            # Your output files
+├── outputs/            # Your output files (flat directory)
 │   ├── result.md
 │   └── process-data.json
 └── wf-data/            # Workflow metadata (managed by CLI)
@@ -26,13 +25,13 @@ run/
     └── output-params.json  # Extracted parameters (on finalize)
 ```
 
-> **inputs/ Directory Split**: Human-readable files (`.md`) go in `files/`, structured data (`.json`) goes in `data/`. This separation helps agents quickly identify content type.
+> **Note**: All input files from prior phases are copied to `inputs/files/` regardless of type. The `inputs/data/` directory is reserved for future use.
 
 ## Inputs Available
 
 - `inputs/files/acknowledgment.md` - Acknowledgment from gather phase
-- `inputs/data/gather-data.json` - Structured data from gather phase
-- `inputs/params.json` - Parameters: `{item_count, request_type}` from gather phase
+- `inputs/files/gather-data.json` - Structured data from gather phase
+- `inputs/params.json` - Parameters: `{item_count}` from gather phase
 
 ## Messages (Optional)
 
@@ -62,14 +61,14 @@ If you need clarification on output format, create a message and wait for the or
 
 ## Instructions
 
-1. Read inputs from `inputs/files/` and `inputs/data/` directories
+1. Read inputs from `inputs/files/` directory
 2. Read parameters from `inputs/params.json`
 3. (Optional) If format clarification needed, create message in `messages/`
-4. Process each item from `inputs/data/gather-data.json`
+4. Process each item from `inputs/files/gather-data.json`
 5. Write human-readable summary to `outputs/result.md`
 6. Write structured results to `outputs/process-data.json`
-7. Run `cg phase validate process` to verify outputs
-8. Run `cg phase finalize process` when complete
+7. Run `cg phase validate process --run-dir <path_to_run> --check outputs` to verify outputs
+8. Run `cg phase finalize process --run-dir <path_to_run>` when complete
 
 ## Example process-data.json
 
