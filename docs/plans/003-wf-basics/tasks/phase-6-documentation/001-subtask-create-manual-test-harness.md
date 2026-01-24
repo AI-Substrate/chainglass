@@ -567,6 +567,16 @@ _Populated during implementation by plan-6. Log anything of interest to your fut
 | 2026-01-23 | /didyouknow | decision | **Mode 1 simplified, Mode 2 full handover** - Mode 1 uses prepare→validate→finalize (shakedown); Mode 2 uses accept→preflight→handover (real agent flow) | Keeps Mode 1 focused on learning basics first | phase.service.ts verification |
 | 2026-01-23 | /didyouknow | insight | **Message IDs safe due to Facilitator Model** - Only one actor has control at a time, no concurrent message creation | Just document single-actor assumption in MODE guides (KISS) | message.service.ts:8-22 |
 | 2026-01-23 | /didyouknow | insight | **ST009 is discovery checkpoint** - Mode 2 success OR documented learnings = subtask completion; may spawn prompt improvement iterations | Already captured in subtask validation criteria | Subtask ST009 notes |
+| 2026-01-24 | ST009 | gotcha | **main.md missing --run-dir flag** - commands/main.md shows `cg phase validate gather` but CLI requires `--run-dir <path>` flag | Patch main.md template: add --run-dir to all CLI examples | Template: dev/examples/wf/template/hello-workflow/phases/*/commands/main.md |
+| 2026-01-24 | ST009 | gotcha | **validate --check outputs undocumented** - validate requires `--check outputs` flag to verify phase outputs | Add to main.md template examples | Same as above |
+| 2026-01-24 | ST009 | insight | **Mode 2 gather phase SUCCESS** - External agent completed gather using only wf.md + main.md prompts | Validation passed, params extracted | run-2026-01-24-002 |
+| 2026-01-24 | ST009 | gotcha | **Path guidance unclear** - User told "open phases/process/commands/wf.md" but actual path is runs/run-XXX/phases/process/... | Clarify paths are relative to run directory | README update needed |
+| 2026-01-24 | ST009 | unexpected-behavior | **inputs/data/ doesn't exist** - main.md documents JSON files go in inputs/data/ but only inputs/files/ exists; gather-data.json is in inputs/files/ | Fix compose to create inputs/data/ OR update docs to match flat inputs/files/ | workflow.service.ts, main.md templates |
+| 2026-01-24 | ST009 | unexpected-behavior | **params.json missing request_type** - main.md says params.json contains {item_count, request_type} but only item_count extracted | Either fix param extraction or update main.md | phase.service.ts param extraction logic |
+| 2026-01-24 | ST009 | insight | **Mode 2 process phase SUCCESS** - Agent completed despite doc issues | Docs need cleanup but core flow works | run-2026-01-24-002 |
+| 2026-01-24 | ST009 | debt | **inputs/data/ vs inputs/files/ mismatch** - All main.md templates say JSON→data/, MD→files/ but actual behavior puts ALL files in files/ | Need decision: fix code or fix docs | Root cause for issues 2,5,6 |
+| 2026-01-24 | ST009 | debt | **params.json incomplete extraction** - Report phase docs expect {processed_count, status} but only processed_count present | Param extraction logic needs review | Root cause for issues 3,7 |
+| 2026-01-24 | ST009 | insight | **Mode 2 report phase SUCCESS** - External agent completed all 3 phases using only wf.md + main.md | Core workflow validated despite doc issues | run-2026-01-24-002 ✅ |
 
 **Types**: `gotcha` | `research-needed` | `unexpected-behavior` | `workaround` | `decision` | `debt` | `insight`
 
