@@ -513,7 +513,7 @@ export const WF_STATUS_SCHEMA = {
       properties: {
         id: {
           type: 'string',
-          description: "Unique run identifier (e.g., 'run-example-001')",
+          description: "Unique run identifier (e.g., 'exemplar-run-example-001')",
         },
         created_at: {
           type: 'string',

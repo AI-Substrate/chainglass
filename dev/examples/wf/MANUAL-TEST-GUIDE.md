@@ -24,7 +24,7 @@ ls -la template/hello-workflow/
 # - phases/
 
 # Verify run example structure exists
-ls -la runs/run-example-001/
+ls -la runs/exemplar-run-example-001/
 
 # Expected output:
 # - wf.yaml
@@ -41,9 +41,9 @@ ls -la runs/run-example-001/
 cat template/hello-workflow/wf.yaml | npx yaml
 
 # Validate each wf-phase.yaml
-cat runs/run-example-001/phases/gather/wf-phase.yaml | npx yaml
-cat runs/run-example-001/phases/process/wf-phase.yaml | npx yaml
-cat runs/run-example-001/phases/report/wf-phase.yaml | npx yaml
+cat runs/exemplar-run-example-001/phases/gather/wf-phase.yaml | npx yaml
+cat runs/exemplar-run-example-001/phases/process/wf-phase.yaml | npx yaml
+cat runs/exemplar-run-example-001/phases/report/wf-phase.yaml | npx yaml
 ```
 
 **Expected Result**: All YAML files parse without errors, output shows formatted YAML.
@@ -67,7 +67,7 @@ ajv compile --spec=draft2020 --strict=false -s template/hello-workflow/schemas/m
 # Validate gather-data.json against schema
 ajv validate --spec=draft2020 --strict=false \
   -s template/hello-workflow/schemas/gather-data.schema.json \
-  -d runs/run-example-001/phases/gather/run/outputs/gather-data.json
+  -d runs/exemplar-run-example-001/phases/gather/run/outputs/gather-data.json
 ```
 
 **Expected Result**: Output shows validation passed.
@@ -78,7 +78,7 @@ ajv validate --spec=draft2020 --strict=false \
 # Validate process-data.json against schema
 ajv validate --spec=draft2020 --strict=false \
   -s template/hello-workflow/schemas/process-data.schema.json \
-  -d runs/run-example-001/phases/process/run/outputs/process-data.json
+  -d runs/exemplar-run-example-001/phases/process/run/outputs/process-data.json
 ```
 
 **Expected Result**: Output shows validation passed.
@@ -89,15 +89,15 @@ ajv validate --spec=draft2020 --strict=false \
 # Validate all wf-phase.json files against schema
 ajv validate --spec=draft2020 --strict=false \
   -s template/hello-workflow/schemas/wf-phase.schema.json \
-  -d runs/run-example-001/phases/gather/run/wf-data/wf-phase.json
+  -d runs/exemplar-run-example-001/phases/gather/run/wf-data/wf-phase.json
 
 ajv validate --spec=draft2020 --strict=false \
   -s template/hello-workflow/schemas/wf-phase.schema.json \
-  -d runs/run-example-001/phases/process/run/wf-data/wf-phase.json
+  -d runs/exemplar-run-example-001/phases/process/run/wf-data/wf-phase.json
 
 ajv validate --spec=draft2020 --strict=false \
   -s template/hello-workflow/schemas/wf-phase.schema.json \
-  -d runs/run-example-001/phases/report/run/wf-data/wf-phase.json
+  -d runs/exemplar-run-example-001/phases/report/run/wf-data/wf-phase.json
 ```
 
 **Expected Result**: All three validations pass.
@@ -108,15 +108,15 @@ ajv validate --spec=draft2020 --strict=false \
 
 ```bash
 # Check gather outputs exist
-ls runs/run-example-001/phases/gather/run/outputs/
+ls runs/exemplar-run-example-001/phases/gather/run/outputs/
 # Expected: acknowledgment.md, gather-data.json
 
 # Check gather wf-data exists
-ls runs/run-example-001/phases/gather/run/wf-data/
+ls runs/exemplar-run-example-001/phases/gather/run/wf-data/
 # Expected: wf-phase.json, output-params.json
 
 # Verify output-params.json content
-cat runs/run-example-001/phases/gather/run/wf-data/output-params.json
+cat runs/exemplar-run-example-001/phases/gather/run/wf-data/output-params.json
 # Expected: {"item_count": 3, "request_type": "processing"}
 ```
 
@@ -124,18 +124,18 @@ cat runs/run-example-001/phases/gather/run/wf-data/output-params.json
 
 ```bash
 # Check process inputs include from_phase files
-ls runs/run-example-001/phases/process/run/inputs/files/
+ls runs/exemplar-run-example-001/phases/process/run/inputs/files/
 # Expected: acknowledgment.md
 
-ls runs/run-example-001/phases/process/run/inputs/data/
+ls runs/exemplar-run-example-001/phases/process/run/inputs/data/
 # Expected: gather-data.json
 
 # Check process outputs
-ls runs/run-example-001/phases/process/run/outputs/
+ls runs/exemplar-run-example-001/phases/process/run/outputs/
 # Expected: result.md, process-data.json
 
 # Verify output-params.json content
-cat runs/run-example-001/phases/process/run/wf-data/output-params.json
+cat runs/exemplar-run-example-001/phases/process/run/wf-data/output-params.json
 # Expected: {"processed_count": 3, "status": "success"}
 ```
 
@@ -143,14 +143,14 @@ cat runs/run-example-001/phases/process/run/wf-data/output-params.json
 
 ```bash
 # Check report inputs include from_phase files
-ls runs/run-example-001/phases/report/run/inputs/files/
+ls runs/exemplar-run-example-001/phases/report/run/inputs/files/
 # Expected: result.md
 
-ls runs/run-example-001/phases/report/run/inputs/data/
+ls runs/exemplar-run-example-001/phases/report/run/inputs/data/
 # Expected: process-data.json
 
 # Check report outputs
-ls runs/run-example-001/phases/report/run/outputs/
+ls runs/exemplar-run-example-001/phases/report/run/outputs/
 # Expected: final-report.md
 
 # Note: Report phase has no output-params.json (terminal phase)
@@ -160,10 +160,10 @@ ls runs/run-example-001/phases/report/run/outputs/
 
 ```bash
 # Check workflow status
-cat runs/run-example-001/wf-run/wf-status.json | jq '.'
+cat runs/exemplar-run-example-001/wf-run/wf-status.json | jq '.'
 
 # Verify all phases are complete
-cat runs/run-example-001/wf-run/wf-status.json | jq '.phases | to_entries[] | .value.status'
+cat runs/exemplar-run-example-001/wf-run/wf-status.json | jq '.phases | to_entries[] | .value.status'
 # Expected: "complete" for all 3 phases
 ```
 
@@ -182,16 +182,16 @@ ajv compile --spec=draft2020 --strict=false -s template/hello-workflow/schemas/m
 
 ```bash
 # Verify gather messages directory exists
-ls runs/run-example-001/phases/gather/run/messages/
+ls runs/exemplar-run-example-001/phases/gather/run/messages/
 # Expected: m-001.json
 
 # Validate gather message against schema
 ajv validate --spec=draft2020 --strict=false \
   -s template/hello-workflow/schemas/message.schema.json \
-  -d runs/run-example-001/phases/gather/run/messages/m-001.json
+  -d runs/exemplar-run-example-001/phases/gather/run/messages/m-001.json
 
 # Verify message content
-cat runs/run-example-001/phases/gather/run/messages/m-001.json | jq '.type, .from'
+cat runs/exemplar-run-example-001/phases/gather/run/messages/m-001.json | jq '.type, .from'
 # Expected: "free_text", "orchestrator"
 ```
 
@@ -199,16 +199,16 @@ cat runs/run-example-001/phases/gather/run/messages/m-001.json | jq '.type, .fro
 
 ```bash
 # Verify process messages directory exists
-ls runs/run-example-001/phases/process/run/messages/
+ls runs/exemplar-run-example-001/phases/process/run/messages/
 # Expected: m-001.json
 
 # Validate process message against schema
 ajv validate --spec=draft2020 --strict=false \
   -s template/hello-workflow/schemas/message.schema.json \
-  -d runs/run-example-001/phases/process/run/messages/m-001.json
+  -d runs/exemplar-run-example-001/phases/process/run/messages/m-001.json
 
 # Verify message content
-cat runs/run-example-001/phases/process/run/messages/m-001.json | jq '.type, .from, .answer.selected'
+cat runs/exemplar-run-example-001/phases/process/run/messages/m-001.json | jq '.type, .from, .answer.selected'
 # Expected: "multi_choice", "agent", ["C"]
 ```
 
@@ -216,11 +216,11 @@ cat runs/run-example-001/phases/process/run/messages/m-001.json | jq '.type, .fr
 
 ```bash
 # Verify gather wf-phase.json has input action with message_id
-cat runs/run-example-001/phases/gather/run/wf-data/wf-phase.json | jq '.status[] | select(.action == "input")'
+cat runs/exemplar-run-example-001/phases/gather/run/wf-data/wf-phase.json | jq '.status[] | select(.action == "input")'
 # Expected: entry with message_id: "001"
 
 # Verify process wf-phase.json has question/answer actions with message_id
-cat runs/run-example-001/phases/process/run/wf-data/wf-phase.json | jq '.status[] | select(.action == "question" or .action == "answer")'
+cat runs/exemplar-run-example-001/phases/process/run/wf-data/wf-phase.json | jq '.status[] | select(.action == "question" or .action == "answer")'
 # Expected: two entries, both with message_id: "001"
 ```
 

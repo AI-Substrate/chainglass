@@ -15,8 +15,8 @@ This document maps acceptance criteria from the spec to the exemplar files that 
 | AC-01 | Template at `dev/examples/wf/template/hello-workflow/` with wf.yaml, schemas/, templates/, phases/ | `template/hello-workflow/wf.yaml`, `template/hello-workflow/schemas/`, `template/hello-workflow/templates/wf.md`, `template/hello-workflow/phases/` | Directories and files exist |
 | AC-02 | wf.yaml parses without errors, contains 3 phases: gather, process, report | `template/hello-workflow/wf.yaml` (lines 13-104) | `npx yaml` parses successfully; phases defined at lines 13, 47, 79 |
 | AC-03 | All schemas are valid JSON Schema Draft 2020-12 | `template/hello-workflow/schemas/*.schema.json` | `ajv compile --spec=draft2020` passes for all 4 schemas |
-| AC-04 | Each phase in run-example-001 has complete structure: wf-phase.yaml, commands/, schemas/, run/ (with inputs/, outputs/, wf-data/) | `runs/run-example-001/phases/{gather,process,report}/` | All directories exist with required files |
-| AC-05 | All JSON files pass schema validation | `runs/run-example-001/phases/*/run/outputs/*.json`, `runs/run-example-001/phases/*/run/wf-data/*.json` | All `ajv validate` commands pass |
+| AC-04 | Each phase in exemplar-run-example-001 has complete structure: wf-phase.yaml, commands/, schemas/, run/ (with inputs/, outputs/, wf-data/) | `runs/exemplar-run-example-001/phases/{gather,process,report}/` | All directories exist with required files |
+| AC-05 | All JSON files pass schema validation | `runs/exemplar-run-example-001/phases/*/run/outputs/*.json`, `runs/exemplar-run-example-001/phases/*/run/wf-data/*.json` | All `ajv validate` commands pass |
 
 ---
 
@@ -59,32 +59,32 @@ This document maps acceptance criteria from the spec to the exemplar files that 
 #### Gather Phase
 | Component | Path |
 |-----------|------|
-| Phase Config | `runs/run-example-001/phases/gather/wf-phase.yaml` |
-| Commands | `runs/run-example-001/phases/gather/commands/main.md` |
-| Schemas | `runs/run-example-001/phases/gather/schemas/` |
-| Inputs | `runs/run-example-001/phases/gather/run/inputs/files/request.md` |
-| Outputs | `runs/run-example-001/phases/gather/run/outputs/acknowledgment.md`, `gather-data.json` |
-| WF Data | `runs/run-example-001/phases/gather/run/wf-data/wf-phase.json`, `output-params.json` |
+| Phase Config | `runs/exemplar-run-example-001/phases/gather/wf-phase.yaml` |
+| Commands | `runs/exemplar-run-example-001/phases/gather/commands/main.md` |
+| Schemas | `runs/exemplar-run-example-001/phases/gather/schemas/` |
+| Inputs | `runs/exemplar-run-example-001/phases/gather/run/inputs/files/request.md` |
+| Outputs | `runs/exemplar-run-example-001/phases/gather/run/outputs/acknowledgment.md`, `gather-data.json` |
+| WF Data | `runs/exemplar-run-example-001/phases/gather/run/wf-data/wf-phase.json`, `output-params.json` |
 
 #### Process Phase
 | Component | Path |
 |-----------|------|
-| Phase Config | `runs/run-example-001/phases/process/wf-phase.yaml` |
-| Commands | `runs/run-example-001/phases/process/commands/main.md` |
-| Schemas | `runs/run-example-001/phases/process/schemas/` |
-| Inputs (from_phase) | `runs/run-example-001/phases/process/run/inputs/files/acknowledgment.md`, `data/gather-data.json`, `params.json` |
-| Outputs | `runs/run-example-001/phases/process/run/outputs/result.md`, `process-data.json` |
-| WF Data | `runs/run-example-001/phases/process/run/wf-data/wf-phase.json`, `output-params.json` |
+| Phase Config | `runs/exemplar-run-example-001/phases/process/wf-phase.yaml` |
+| Commands | `runs/exemplar-run-example-001/phases/process/commands/main.md` |
+| Schemas | `runs/exemplar-run-example-001/phases/process/schemas/` |
+| Inputs (from_phase) | `runs/exemplar-run-example-001/phases/process/run/inputs/files/acknowledgment.md`, `data/gather-data.json`, `params.json` |
+| Outputs | `runs/exemplar-run-example-001/phases/process/run/outputs/result.md`, `process-data.json` |
+| WF Data | `runs/exemplar-run-example-001/phases/process/run/wf-data/wf-phase.json`, `output-params.json` |
 
 #### Report Phase
 | Component | Path |
 |-----------|------|
-| Phase Config | `runs/run-example-001/phases/report/wf-phase.yaml` |
-| Commands | `runs/run-example-001/phases/report/commands/main.md` |
-| Schemas | `runs/run-example-001/phases/report/schemas/` |
-| Inputs (from_phase) | `runs/run-example-001/phases/report/run/inputs/files/result.md`, `data/process-data.json`, `params.json` |
-| Outputs | `runs/run-example-001/phases/report/run/outputs/final-report.md` |
-| WF Data | `runs/run-example-001/phases/report/run/wf-data/wf-phase.json` |
+| Phase Config | `runs/exemplar-run-example-001/phases/report/wf-phase.yaml` |
+| Commands | `runs/exemplar-run-example-001/phases/report/commands/main.md` |
+| Schemas | `runs/exemplar-run-example-001/phases/report/schemas/` |
+| Inputs (from_phase) | `runs/exemplar-run-example-001/phases/report/run/inputs/files/result.md`, `data/process-data.json`, `params.json` |
+| Outputs | `runs/exemplar-run-example-001/phases/report/run/outputs/final-report.md` |
+| WF Data | `runs/exemplar-run-example-001/phases/report/run/wf-data/wf-phase.json` |
 
 ### AC-05: JSON Validation Results
 
@@ -117,23 +117,23 @@ ajv compile --spec=draft2020 --strict=false -s template/hello-workflow/schemas/p
 # AC-05: Data Validation
 ajv validate --spec=draft2020 --strict=false \
   -s template/hello-workflow/schemas/gather-data.schema.json \
-  -d runs/run-example-001/phases/gather/run/outputs/gather-data.json
+  -d runs/exemplar-run-example-001/phases/gather/run/outputs/gather-data.json
 
 ajv validate --spec=draft2020 --strict=false \
   -s template/hello-workflow/schemas/process-data.schema.json \
-  -d runs/run-example-001/phases/process/run/outputs/process-data.json
+  -d runs/exemplar-run-example-001/phases/process/run/outputs/process-data.json
 
 ajv validate --spec=draft2020 --strict=false \
   -s template/hello-workflow/schemas/wf-phase.schema.json \
-  -d runs/run-example-001/phases/gather/run/wf-data/wf-phase.json
+  -d runs/exemplar-run-example-001/phases/gather/run/wf-data/wf-phase.json
 
 ajv validate --spec=draft2020 --strict=false \
   -s template/hello-workflow/schemas/wf-phase.schema.json \
-  -d runs/run-example-001/phases/process/run/wf-data/wf-phase.json
+  -d runs/exemplar-run-example-001/phases/process/run/wf-data/wf-phase.json
 
 ajv validate --spec=draft2020 --strict=false \
   -s template/hello-workflow/schemas/wf-phase.schema.json \
-  -d runs/run-example-001/phases/report/run/wf-data/wf-phase.json
+  -d runs/exemplar-run-example-001/phases/report/run/wf-data/wf-phase.json
 ```
 
 ---

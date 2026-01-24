@@ -36,7 +36,7 @@ export interface WfStatusWorkflow {
  * Run metadata
  */
 export interface WfStatusRun {
-  /** Unique run identifier (e.g., 'run-example-001') */
+  /** Unique run identifier (e.g., 'exemplar-run-example-001') */
   id: string;
   /** ISO-8601 timestamp when run was created */
   created_at: string;
