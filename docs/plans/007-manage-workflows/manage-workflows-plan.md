@@ -769,7 +769,7 @@ describe('WorkflowService.compose() with checkpoints', () => {
 - [ ] Run path format: `.chainglass/runs/<slug>/v<NNN>-<hash>/run-YYYY-MM-DD-NNN/`
 - [ ] wf-status.json includes: workflow.slug (string), workflow.version_hash (8-char hex), workflow.checkpoint_comment (optional string)
 - [ ] wf-status.schema.json updated with new fields; schema validation passes
-- [ ] --version flag accepts ordinal (v001) or full name (v001-abc123); defaults to latest
+- [ ] --checkpoint flag accepts ordinal (v001) or full name (v001-abc123); defaults to latest
 - [ ] Legacy flat run paths no longer created; all runs use versioned structure
 - [ ] `just check` passes
 
@@ -923,7 +923,7 @@ describe('cg init', () => {
 | 5.12 | [ ] | Implement handleWorkflowRestore() | 3 | Tests from 5.4 pass; prompts "Restore will overwrite current/ - continue? (y/N)"; --force skips prompt; declined returns canceled | - | |
 | 5.13 | [ ] | Implement handleWorkflowVersions() | 2 | Tests from 5.5 pass | - | |
 | 5.14 | [ ] | Register in cg.ts createProgram | 1 | Commands appear in help | - | |
-| 5.15 | [ ] | Update existing wf compose for new paths | 2 | cg wf compose resolves via IWorkflowRegistry; --version optional (defaults latest); no checkpoint→E034; uses getCliContainer() | - | |
+| 5.15 | [ ] | Update existing wf compose for new paths | 2 | cg wf compose resolves via IWorkflowRegistry; --checkpoint optional (defaults latest); no checkpoint→E034; uses getCliContainer() | - | |
 | 5.16 | [ ] | Integration test: full CLI workflow | 2 | Sequence: cg init→cg workflow checkpoint hello-wf→cg wf compose hello-wf→cg workflow list; all succeed | - | |
 | 5.17 | [ ] | Verify MCP tool exclusion (negative test) | 1 | MCP server does NOT expose workflow.list, workflow.checkpoint, etc. (per ADR-0001 NEG-005) | - | |
 

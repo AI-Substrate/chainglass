@@ -123,7 +123,7 @@ Checkpoint metadata file: `checkpoints/v001-abc123/.checkpoint.json`
 
 3. **Compose requires a checkpoint** - `cg wf compose <slug>` must resolve to a checkpoint. Composing from `current/` is not allowed.
    - If no checkpoint exists: Error with guidance to run `cg workflow checkpoint <slug>` first
-   - If checkpoint exists: Use latest checkpoint (or explicit `--version <hash>`)
+   - If checkpoint exists: Use latest checkpoint (or explicit `--checkpoint <version>`)
 
 4. ~~**UI auto-checkpoints on save** - When web UI saves a workflow, it automatically creates a checkpoint, ensuring the workflow is immediately composable.~~ *[DEFERRED - separate web plan]*
 
@@ -220,7 +220,7 @@ Checkpoint metadata file: `checkpoints/v001-abc123/.checkpoint.json`
 
 **AC-06**: Given workflow `hello-wf` has checkpoint `v001-abc123`, when I run `cg wf compose hello-wf`, then the run is created at `.chainglass/runs/hello-wf/v001-abc123/run-YYYY-MM-DD-NNN/` using the latest checkpoint.
 
-**AC-06a**: Given workflow `hello-wf` has checkpoints `v001-abc123` and `v002-def456`, when I run `cg wf compose hello-wf --version v001`, then the run uses the specified checkpoint (can reference by ordinal or full name).
+**AC-06a**: Given workflow `hello-wf` has checkpoints `v001-abc123` and `v002-def456`, when I run `cg wf compose hello-wf --checkpoint v001`, then the run uses the specified checkpoint (can reference by ordinal or full name).
 
 **AC-06b**: Given workflow `hello-wf` exists with only `current/` (no checkpoints), when I run `cg wf compose hello-wf`, then I receive error E032 (NO_CHECKPOINT) with message: "Workflow 'hello-wf' has no checkpoints. Run 'cg workflow checkpoint hello-wf' first."
 
