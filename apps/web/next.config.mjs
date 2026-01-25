@@ -22,6 +22,8 @@ const nextConfig = {
   output: 'standalone',
   // Enable Turbopack (default in Next.js 16) - empty config acknowledges migration
   turbopack: {},
+  // Allow cross-origin requests from local network during development
+  allowedDevOrigins: ['192.168.1.*'],
   // Point to monorepo root for proper dependency tracing with pnpm
   outputFileTracingRoot: resolve(__dirname, '..', '..'),
   // Shiki uses Node.js-specific APIs and fs module - exclude from standard bundling
