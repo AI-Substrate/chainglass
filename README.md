@@ -18,6 +18,10 @@ git clone <repository-url>
 cd chainglass
 just install
 
+# Initialize a project (creates workflow templates and structure)
+just build
+cg init
+
 # Start development
 just dev
 ```
@@ -84,7 +88,13 @@ After building (`just build`), the CLI is available:
 |---------|-------------|
 | `cg web` | Start production web server |
 | `cg mcp --stdio` | Start MCP server (stdio transport) |
-| `cg wf compose <template>` | Create workflow run from template |
+| `cg init` | Initialize a Chainglass project with starter templates |
+| `cg workflow list` | List all workflow templates |
+| `cg workflow info <slug>` | Show workflow details and checkpoint history |
+| `cg workflow checkpoint <slug>` | Create a versioned checkpoint from current/ |
+| `cg workflow restore <slug> <version>` | Restore a checkpoint to current/ |
+| `cg workflow versions <slug>` | List checkpoint versions for a workflow |
+| `cg workflow compose <slug>` | Create a run from a checkpoint |
 | `cg phase prepare <phase>` | Prepare phase inputs |
 | `cg phase validate <phase>` | Validate phase outputs |
 | `cg phase finalize <phase>` | Extract parameters and complete phase |
@@ -99,19 +109,30 @@ cg --help
 
 ### Workflow Commands
 
-The workflow system enables multi-phase task execution with explicit input/output contracts.
+The workflow system enables multi-phase task execution with explicit input/output contracts and versioned template checkpoints.
 
 ```bash
-# Create a workflow run from a template
-cg wf compose hello-workflow --json
+# Initialize project with starter templates
+cg init
+
+# Manage workflow templates
+cg workflow list                          # List available templates
+cg workflow info hello-workflow           # Show details
+cg workflow checkpoint hello-workflow     # Create a checkpoint from current/
+cg workflow versions hello-workflow       # List checkpoint versions
+cg workflow restore hello-workflow v001   # Restore a checkpoint to current/
+
+# Create and execute workflow runs
+cg workflow compose hello-workflow --json
 
 # Execute a phase lifecycle
-cg phase prepare gather --run-dir .chainglass/runs/run-2026-01-23-001 --json
-cg phase validate gather --run-dir .chainglass/runs/run-2026-01-23-001 --check outputs --json
-cg phase finalize gather --run-dir .chainglass/runs/run-2026-01-23-001 --json
+RUN_DIR=".chainglass/runs/hello-workflow/v001-abc123/run-2026-01-25-001"
+cg phase prepare gather --run-dir $RUN_DIR --json
+cg phase validate gather --run-dir $RUN_DIR --check outputs --json
+cg phase finalize gather --run-dir $RUN_DIR --json
 ```
 
-For detailed documentation, see [Workflows Guide](docs/how/workflows/1-overview.md).
+For detailed documentation, see [Workflows Guide](docs/how/workflows/1-overview.md) and [Workflow Management](docs/how/workflows/5-workflow-management.md).
 
 ## Project Structure
 
@@ -134,6 +155,7 @@ chainglass/
 ## Documentation
 
 - [Workflows Guide](docs/how/workflows/1-overview.md) - Multi-phase workflow execution
+- [Workflow Management](docs/how/workflows/5-workflow-management.md) - Template versioning and checkpoint workflow
 - [Configuration Guide](docs/how/configuration/1-overview.md) - Configuration system
 - [Architecture Rules](docs/rules/architecture.md) - Clean architecture patterns and guidelines
 - [ADR Index](docs/adr/README.md) - Architecture Decision Records

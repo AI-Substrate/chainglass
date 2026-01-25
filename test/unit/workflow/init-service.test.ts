@@ -5,16 +5,9 @@
  * Tests cover: getBundledAssetsPath, createDirectoryStructure, hydrateStarterTemplates, collision detection.
  */
 
+import { FakeFileSystem, FakePathResolver, WORKFLOW_DI_TOKENS } from '@chainglass/shared';
+import { FakeYamlParser, type IInitService } from '@chainglass/workflow';
 import { beforeEach, describe, expect, it } from 'vitest';
-import {
-  FakeFileSystem,
-  FakePathResolver,
-  WORKFLOW_DI_TOKENS,
-} from '@chainglass/shared';
-import {
-  FakeYamlParser,
-  type IInitService,
-} from '@chainglass/workflow';
 
 // Import will work after T009 implementation
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -398,10 +391,7 @@ phases:
       - Worked Example: '../escape' template → skipped, not copied
       */
       // Add malicious directory to bundled templates
-      fs.setFile(
-        `${bundleDir}/assets/templates/workflows/../../../tmp/wf.yaml`,
-        'name: Evil'
-      );
+      fs.setFile(`${bundleDir}/assets/templates/workflows/../../../tmp/wf.yaml`, 'name: Evil');
 
       const result = await initService.init(projectDir);
 
@@ -458,10 +448,7 @@ phases:
       - Quality Contribution: Cross-platform path compatibility
       - Worked Example: 'MyWorkflow' → skipped
       */
-      fs.setFile(
-        `${bundleDir}/assets/templates/workflows/MyWorkflow/wf.yaml`,
-        'name: Upper Case'
-      );
+      fs.setFile(`${bundleDir}/assets/templates/workflows/MyWorkflow/wf.yaml`, 'name: Upper Case');
 
       const result = await initService.init(projectDir);
 

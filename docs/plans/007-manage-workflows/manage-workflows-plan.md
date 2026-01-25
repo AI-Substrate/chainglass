@@ -1049,13 +1049,13 @@ describe('cg workflow list', () => {
 ## Progress Tracking
 
 ### Phase Completion Checklist
-- [ ] Phase 0: Exemplar Creation (ADR-0002 Precondition) - PENDING
-- [ ] Phase 1: Core IWorkflowRegistry Infrastructure - PENDING
-- [ ] Phase 2: Checkpoint & Versioning System - PENDING
-- [ ] Phase 3: Compose Extension for Versioned Runs - PENDING
-- [ ] Phase 4: Init Command with Starter Templates - PENDING
-- [ ] Phase 5: CLI Commands - PENDING
-- [ ] Phase 6: Documentation & Rollout - PENDING
+- [x] Phase 0: Exemplar Creation (ADR-0002 Precondition) - COMPLETE
+- [x] Phase 1: Core IWorkflowRegistry Infrastructure - COMPLETE
+- [x] Phase 2: Checkpoint & Versioning System - COMPLETE
+- [x] Phase 3: Compose Extension for Versioned Runs - COMPLETE
+- [x] Phase 4: Init Command with Starter Templates - COMPLETE
+- [x] Phase 5: CLI Commands - COMPLETE
+- [x] Phase 6: Documentation & Rollout - COMPLETE
 
 ### STOP Rule
 **IMPORTANT**: This plan must be complete before creating tasks. After writing this plan:

@@ -14,9 +14,9 @@
 import type { IFileSystem, IPathResolver } from '@chainglass/shared';
 import type {
   IInitService,
-  InitializationStatus,
   InitOptions,
   InitResult,
+  InitializationStatus,
 } from '../interfaces/init-service.interface.js';
 import type { IYamlParser } from '../interfaces/yaml-parser.interface.js';
 import { generateWorkflowJson } from '../utils/generate-workflow-json.js';
@@ -258,17 +258,11 @@ export class InitService implements IInitService {
 
       // Generate workflow.json
       const wfYamlPath = this.pathResolver.join(currentDir, 'wf.yaml');
-      await generateWorkflowJson(
-        workflowDir,
-        slug,
-        wfYamlPath,
-        new Date().toISOString(),
-        {
-          fs: this.fs,
-          pathResolver: this.pathResolver,
-          yamlParser: this.yamlParser,
-        }
-      );
+      await generateWorkflowJson(workflowDir, slug, wfYamlPath, new Date().toISOString(), {
+        fs: this.fs,
+        pathResolver: this.pathResolver,
+        yamlParser: this.yamlParser,
+      });
     }
 
     return { hydrated, skipped, overwritten };

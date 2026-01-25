@@ -8,7 +8,6 @@
  * Tests verify ConsoleOutputAdapter formatting for different result types.
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   CheckpointInfo,
   CheckpointResult,
@@ -21,6 +20,7 @@ import type {
 } from '@chainglass/shared';
 import { ConsoleOutputAdapter, JsonOutputAdapter } from '@chainglass/shared';
 import { FakeWorkflowRegistry } from '@chainglass/workflow';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('cg workflow list', () => {
   let fakeRegistry: FakeWorkflowRegistry;
@@ -46,8 +46,18 @@ describe('cg workflow list', () => {
     const result: ListResult = {
       errors: [],
       workflows: [
-        { slug: 'hello-wf', name: 'Hello Workflow', description: 'A starter workflow', checkpointCount: 2 },
-        { slug: 'analysis-wf', name: 'Analysis Workflow', description: 'For data analysis', checkpointCount: 1 },
+        {
+          slug: 'hello-wf',
+          name: 'Hello Workflow',
+          description: 'A starter workflow',
+          checkpointCount: 2,
+        },
+        {
+          slug: 'analysis-wf',
+          name: 'Analysis Workflow',
+          description: 'For data analysis',
+          checkpointCount: 1,
+        },
       ],
     };
 
@@ -71,9 +81,7 @@ describe('cg workflow list', () => {
     */
     const result: ListResult = {
       errors: [],
-      workflows: [
-        { slug: 'hello-wf', name: 'Hello Workflow', checkpointCount: 1 },
-      ],
+      workflows: [{ slug: 'hello-wf', name: 'Hello Workflow', checkpointCount: 1 }],
     };
 
     const output = jsonAdapter.format('workflow.list', result);
@@ -131,8 +139,20 @@ describe('cg workflow info', () => {
         tags: ['starter', 'example'],
         checkpointCount: 2,
         versions: [
-          { ordinal: 2, hash: 'def45678', version: 'v002-def45678', createdAt: '2026-01-25T10:00:00Z', comment: 'Second release' },
-          { ordinal: 1, hash: 'abc12345', version: 'v001-abc12345', createdAt: '2026-01-24T10:00:00Z', comment: 'Initial release' },
+          {
+            ordinal: 2,
+            hash: 'def45678',
+            version: 'v002-def45678',
+            createdAt: '2026-01-25T10:00:00Z',
+            comment: 'Second release',
+          },
+          {
+            ordinal: 1,
+            hash: 'abc12345',
+            version: 'v001-abc12345',
+            createdAt: '2026-01-24T10:00:00Z',
+            comment: 'Initial release',
+          },
         ],
       },
     };
@@ -155,11 +175,13 @@ describe('cg workflow info', () => {
     - Worked Example: cg workflow info nonexistent → E030: Workflow not found
     */
     const result: InfoResult = {
-      errors: [{
-        code: 'E030',
-        message: 'Workflow not found: nonexistent',
-        action: 'Create workflow at .chainglass/workflows/nonexistent/',
-      }],
+      errors: [
+        {
+          code: 'E030',
+          message: 'Workflow not found: nonexistent',
+          action: 'Create workflow at .chainglass/workflows/nonexistent/',
+        },
+      ],
       workflow: undefined,
     };
 
@@ -187,9 +209,27 @@ describe('cg workflow info', () => {
         tags: [],
         checkpointCount: 3,
         versions: [
-          { ordinal: 3, hash: 'ghi78901', version: 'v003-ghi78901', createdAt: '2026-01-26T10:00:00Z', comment: 'Bug fixes' },
-          { ordinal: 2, hash: 'def45678', version: 'v002-def45678', createdAt: '2026-01-25T10:00:00Z', comment: 'New feature' },
-          { ordinal: 1, hash: 'abc12345', version: 'v001-abc12345', createdAt: '2026-01-24T10:00:00Z', comment: 'Initial' },
+          {
+            ordinal: 3,
+            hash: 'ghi78901',
+            version: 'v003-ghi78901',
+            createdAt: '2026-01-26T10:00:00Z',
+            comment: 'Bug fixes',
+          },
+          {
+            ordinal: 2,
+            hash: 'def45678',
+            version: 'v002-def45678',
+            createdAt: '2026-01-25T10:00:00Z',
+            comment: 'New feature',
+          },
+          {
+            ordinal: 1,
+            hash: 'abc12345',
+            version: 'v001-abc12345',
+            createdAt: '2026-01-24T10:00:00Z',
+            comment: 'Initial',
+          },
         ],
       },
     };
@@ -254,7 +294,9 @@ describe('cg workflow checkpoint', () => {
       createdAt: '2026-01-25T10:00:00Z',
     });
 
-    await fakeRegistry.checkpoint('.chainglass/workflows', 'hello-wf', { comment: 'Initial release' });
+    await fakeRegistry.checkpoint('.chainglass/workflows', 'hello-wf', {
+      comment: 'Initial release',
+    });
 
     const call = fakeRegistry.getLastCheckpointCall();
     expect(call?.options.comment).toBe('Initial release');
@@ -343,11 +385,14 @@ describe('cg workflow restore', () => {
     - Worked Example: cg workflow restore hello-wf v999 → E033: Version not found
     */
     const result: RestoreResult = {
-      errors: [{
-        code: 'E033',
-        message: 'Checkpoint version not found: v999',
-        action: 'Available versions: v001, v002. Run "cg workflow versions hello-wf" to list all.',
-      }],
+      errors: [
+        {
+          code: 'E033',
+          message: 'Checkpoint version not found: v999',
+          action:
+            'Available versions: v001, v002. Run "cg workflow versions hello-wf" to list all.',
+        },
+      ],
       slug: 'hello-wf',
       version: 'v999',
       currentPath: '',
@@ -380,9 +425,27 @@ describe('cg workflow versions', () => {
       errors: [],
       slug: 'hello-wf',
       versions: [
-        { ordinal: 3, hash: 'ghi78901', version: 'v003-ghi78901', createdAt: '2026-01-26T10:00:00Z', comment: 'Latest' },
-        { ordinal: 2, hash: 'def45678', version: 'v002-def45678', createdAt: '2026-01-25T10:00:00Z', comment: 'Middle' },
-        { ordinal: 1, hash: 'abc12345', version: 'v001-abc12345', createdAt: '2026-01-24T10:00:00Z', comment: 'First' },
+        {
+          ordinal: 3,
+          hash: 'ghi78901',
+          version: 'v003-ghi78901',
+          createdAt: '2026-01-26T10:00:00Z',
+          comment: 'Latest',
+        },
+        {
+          ordinal: 2,
+          hash: 'def45678',
+          version: 'v002-def45678',
+          createdAt: '2026-01-25T10:00:00Z',
+          comment: 'Middle',
+        },
+        {
+          ordinal: 1,
+          hash: 'abc12345',
+          version: 'v001-abc12345',
+          createdAt: '2026-01-24T10:00:00Z',
+          comment: 'First',
+        },
       ],
     };
 
@@ -406,11 +469,13 @@ describe('cg workflow versions', () => {
     - Worked Example: cg workflow versions nonexistent → E030
     */
     const result: VersionsResult = {
-      errors: [{
-        code: 'E030',
-        message: 'Workflow not found: nonexistent',
-        action: 'Run "cg workflow list" to see available workflows.',
-      }],
+      errors: [
+        {
+          code: 'E030',
+          message: 'Workflow not found: nonexistent',
+          action: 'Run "cg workflow list" to see available workflows.',
+        },
+      ],
       slug: 'nonexistent',
       versions: [],
     };

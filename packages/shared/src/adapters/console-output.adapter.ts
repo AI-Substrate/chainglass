@@ -21,8 +21,8 @@ import type {
   ComposeResult,
   FinalizeResult,
   HandoverResult,
-  InfoResult,
   IOutputAdapter,
+  InfoResult,
   ListResult,
   MessageAnswerResult,
   MessageCreateResult,
@@ -213,7 +213,9 @@ export class ConsoleOutputAdapter implements IOutputAdapter {
 
     // Table header
     lines.push('  Slug              Name                  Checkpoints  Description');
-    lines.push('  ────────────────  ────────────────────  ───────────  ────────────────────────────');
+    lines.push(
+      '  ────────────────  ────────────────────  ───────────  ────────────────────────────'
+    );
 
     for (const wf of result.workflows) {
       const slug = wf.slug.padEnd(16);

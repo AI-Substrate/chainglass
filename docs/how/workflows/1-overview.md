@@ -187,6 +187,8 @@ cg phase prepare process --run-dir $RUN_DIR --json
 
 ## Error Codes
 
+### Phase Operation Errors
+
 | Code | Description | Resolution |
 |------|-------------|------------|
 | E001 | Missing required input | Ensure input file exists |
@@ -195,6 +197,21 @@ cg phase prepare process --run-dir $RUN_DIR --json
 | E012 | Schema validation failed | Fix JSON to match schema |
 | E020 | Phase/template not found | Check path and name |
 | E031 | Prior phase not finalized | Finalize prior phase first |
+
+### Workflow Management Errors
+
+| Code | Description | Resolution |
+|------|-------------|------------|
+| E030 | Workflow not found | Check slug in `.chainglass/workflows/` |
+| E033 | Version not found | Use `cg workflow versions` to list versions |
+| E034 | No checkpoint exists | Create checkpoint with `cg workflow checkpoint` |
+| E035 | Duplicate content | Change `current/` or use `--force` |
+| E036 | Invalid template | Fix or create `current/wf.yaml` |
+| E037 | Directory read failed | Check permissions |
+| E038 | Checkpoint failed | Check permissions and disk space |
+| E039 | Restore failed | Check permissions |
+
+For detailed error documentation, see [Workflow Management](./5-workflow-management.md#error-codes).
 
 ## Next Steps
 

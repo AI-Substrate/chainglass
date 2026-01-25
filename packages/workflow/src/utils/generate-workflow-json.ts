@@ -5,11 +5,7 @@
  * by both checkpoint creation and init command template hydration.
  */
 
-import type {
-  IFileSystem,
-  IPathResolver,
-  WorkflowMetadata,
-} from '@chainglass/shared';
+import type { IFileSystem, IPathResolver, WorkflowMetadata } from '@chainglass/shared';
 import type { IYamlParser } from '../interfaces/yaml-parser.interface.js';
 
 /**

@@ -9,10 +9,10 @@
 import type { ILogger } from '@chainglass/shared';
 import {
   type ComposeResult,
+  HashGeneratorAdapter,
   type IFileSystem,
   type IHashGenerator,
   type IPathResolver,
-  HashGeneratorAdapter,
   JsonOutputAdapter,
   NodeFileSystemAdapter,
   PathResolverAdapter,

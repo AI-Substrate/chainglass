@@ -867,5 +867,4 @@ export class WorkflowRegistryService implements IWorkflowRegistry {
       }
     }
   }
-
 }

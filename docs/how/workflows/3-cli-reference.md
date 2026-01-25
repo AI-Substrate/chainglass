@@ -6,7 +6,13 @@ Complete documentation for workflow CLI commands.
 
 | Command | Description |
 |---------|-------------|
-| `cg wf compose <template>` | Create a workflow run from a template |
+| `cg init` | Initialize a Chainglass project with starter templates |
+| `cg workflow list` | List all workflow templates |
+| `cg workflow info <slug>` | Show workflow details and checkpoint history |
+| `cg workflow checkpoint <slug>` | Create a versioned checkpoint from current/ |
+| `cg workflow restore <slug> <version>` | Restore a checkpoint to current/ |
+| `cg workflow versions <slug>` | List checkpoint versions for a workflow |
+| `cg workflow compose <slug>` | Create a run from a checkpoint |
 | `cg phase prepare <phase>` | Prepare a phase for execution |
 | `cg phase validate <phase>` | Validate phase inputs or outputs |
 | `cg phase finalize <phase>` | Finalize a phase and extract parameters |
@@ -15,7 +21,547 @@ All commands support `--json` for machine-readable output.
 
 ---
 
-## cg wf compose
+## cg init
+
+Initialize a Chainglass project in the current directory.
+
+### Syntax
+
+```bash
+cg init [options]
+```
+
+### Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--json` | Output as JSON | `false` |
+| `-f, --force` | Overwrite existing templates | `false` |
+
+### What It Does
+
+1. Creates `.chainglass/workflows/` directory
+2. Creates `.chainglass/runs/` directory
+3. Copies bundled starter templates to `workflows/<slug>/current/`
+4. Generates `workflow.json` metadata for each template
+5. Skips existing workflows (unless `--force`)
+
+### Examples
+
+```bash
+# Initialize a new project
+cg init
+
+# Force overwrite existing templates
+cg init --force
+
+# With JSON output
+cg init --json
+```
+
+### Output
+
+**Console Output** (default):
+```
+✓ Project initialized
+
+Created:
+  .chainglass/workflows/
+  .chainglass/runs/
+
+Templates installed:
+  ✓ hello-workflow
+
+Next steps:
+  cg workflow list              List available templates
+  cg workflow checkpoint <slug> Create first checkpoint
+  cg workflow compose <slug>    Create a workflow run
+```
+
+**JSON Output** (`--json`):
+```json
+{
+  "success": true,
+  "command": "init",
+  "timestamp": "2026-01-25T10:00:00.000Z",
+  "data": {
+    "created": [
+      ".chainglass/workflows",
+      ".chainglass/runs"
+    ],
+    "installed": ["hello-workflow"],
+    "skipped": []
+  }
+}
+```
+
+---
+
+## cg workflow list
+
+List all workflow templates in the project.
+
+### Syntax
+
+```bash
+cg workflow list [options]
+```
+
+### Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--json` | Output as JSON | `false` |
+
+### Examples
+
+```bash
+# List workflows
+cg workflow list
+
+# With JSON output
+cg workflow list --json
+```
+
+### Output
+
+**Console Output** (default):
+```
+┌─────────────────┬──────────────────┬─────────────┐
+│ Slug            │ Name             │ Checkpoints │
+├─────────────────┼──────────────────┼─────────────┤
+│ hello-workflow  │ Hello Workflow   │ 3           │
+│ data-pipeline   │ Data Pipeline    │ 1           │
+└─────────────────┴──────────────────┴─────────────┘
+```
+
+**JSON Output** (`--json`):
+```json
+{
+  "success": true,
+  "command": "workflow.list",
+  "timestamp": "2026-01-25T10:00:00.000Z",
+  "data": {
+    "workflows": [
+      {
+        "slug": "hello-workflow",
+        "name": "Hello Workflow",
+        "checkpointCount": 3
+      }
+    ]
+  }
+}
+```
+
+### Error Codes
+
+| Code | Description | Resolution |
+|------|-------------|------------|
+| E037 | Directory read failed | Check .chainglass/workflows/ permissions |
+
+---
+
+## cg workflow info
+
+Show detailed information about a workflow template.
+
+### Syntax
+
+```bash
+cg workflow info <slug> [options]
+```
+
+### Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `slug` | Workflow template slug |
+
+### Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--json` | Output as JSON | `false` |
+
+### Examples
+
+```bash
+# View workflow details
+cg workflow info hello-workflow
+
+# With JSON output
+cg workflow info hello-workflow --json
+```
+
+### Output
+
+**Console Output** (default):
+```
+hello-workflow - Hello Workflow
+
+A starter workflow demonstrating the multi-phase pattern.
+
+Checkpoint History:
+  v003-def67890  2026-01-25  "Added validation schema"
+  v002-789xyz12  2026-01-24  "Enhanced gather phase"
+  v001-abc12345  2026-01-23  "Initial release"
+```
+
+**JSON Output** (`--json`):
+```json
+{
+  "success": true,
+  "command": "workflow.info",
+  "timestamp": "2026-01-25T10:00:00.000Z",
+  "data": {
+    "slug": "hello-workflow",
+    "name": "Hello Workflow",
+    "description": "A starter workflow...",
+    "versions": [
+      {
+        "version": "v003-def67890",
+        "ordinal": 3,
+        "hash": "def67890",
+        "created_at": "2026-01-25T10:00:00.000Z",
+        "comment": "Added validation schema"
+      }
+    ]
+  }
+}
+```
+
+### Error Codes
+
+| Code | Description | Resolution |
+|------|-------------|------------|
+| E030 | Workflow not found | Check slug matches a workflow in .chainglass/workflows/ |
+
+---
+
+## cg workflow checkpoint
+
+Create a checkpoint from the current/ directory.
+
+### Syntax
+
+```bash
+cg workflow checkpoint <slug> [options]
+```
+
+### Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `slug` | Workflow template slug |
+
+### Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--json` | Output as JSON | `false` |
+| `-c, --comment <text>` | Comment describing this checkpoint | (none) |
+| `-f, --force` | Create checkpoint even if content unchanged | `false` |
+
+### What It Does
+
+1. Validates `current/wf.yaml` exists and is valid
+2. Computes content hash from template files
+3. Checks for duplicate content (E035 if unchanged)
+4. Creates `checkpoints/v<NNN>-<hash>/` directory
+5. Copies all files from `current/` to checkpoint
+6. Writes `.checkpoint.json` metadata
+
+### Examples
+
+```bash
+# Create a checkpoint
+cg workflow checkpoint hello-workflow
+
+# With a comment
+cg workflow checkpoint hello-workflow --comment "Initial release"
+
+# Force creation even if unchanged
+cg workflow checkpoint hello-workflow --force --comment "Tagged for release"
+```
+
+### Output
+
+**Console Output** (default):
+```
+✓ Checkpoint created
+
+Workflow: hello-workflow
+Version: v002-def67890
+Comment: Added error handling
+```
+
+**JSON Output** (`--json`):
+```json
+{
+  "success": true,
+  "command": "workflow.checkpoint",
+  "timestamp": "2026-01-25T10:00:00.000Z",
+  "data": {
+    "slug": "hello-workflow",
+    "version": "v002-def67890",
+    "ordinal": 2,
+    "hash": "def67890",
+    "comment": "Added error handling",
+    "checkpointPath": ".chainglass/workflows/hello-workflow/checkpoints/v002-def67890"
+  }
+}
+```
+
+### Error Codes
+
+| Code | Description | Resolution |
+|------|-------------|------------|
+| E030 | Workflow not found | Check slug matches a workflow |
+| E035 | Duplicate content | Make changes to current/ or use --force |
+| E036 | Invalid template | Ensure current/wf.yaml exists and is valid |
+| E038 | Checkpoint failed | Check file permissions and disk space |
+
+---
+
+## cg workflow restore
+
+Restore a checkpoint to current/.
+
+### Syntax
+
+```bash
+cg workflow restore <slug> <version> [options]
+```
+
+### Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `slug` | Workflow template slug |
+| `version` | Checkpoint version (e.g., `v001` or `v001-abc12345`) |
+
+### Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--json` | Output as JSON | `false` |
+| `-f, --force` | Skip confirmation prompt | `false` |
+
+### What It Does
+
+1. Resolves version to full checkpoint path
+2. Prompts for confirmation (unless `--force`)
+3. Removes existing `current/` contents
+4. Copies checkpoint contents to `current/`
+
+### Examples
+
+```bash
+# Restore (with confirmation prompt)
+cg workflow restore hello-workflow v001
+
+# Restore by full version name
+cg workflow restore hello-workflow v001-abc12345
+
+# Skip confirmation
+cg workflow restore hello-workflow v001 --force
+```
+
+### Output
+
+**Console Output** (default):
+```
+Restore will overwrite current/ for 'hello-workflow'. Continue? (y/N) y
+
+✓ Restored v001-abc12345 to current/
+```
+
+**JSON Output** (`--json`):
+```json
+{
+  "success": true,
+  "command": "workflow.restore",
+  "timestamp": "2026-01-25T10:00:00.000Z",
+  "data": {
+    "slug": "hello-workflow",
+    "version": "v001-abc12345",
+    "restoredTo": ".chainglass/workflows/hello-workflow/current"
+  }
+}
+```
+
+### Error Codes
+
+| Code | Description | Resolution |
+|------|-------------|------------|
+| E030 | Workflow not found | Check slug matches a workflow |
+| E033 | Version not found | Check version exists with `cg workflow versions` |
+| E039 | Restore failed | Check file permissions |
+
+---
+
+## cg workflow versions
+
+List all checkpoint versions for a workflow.
+
+### Syntax
+
+```bash
+cg workflow versions <slug> [options]
+```
+
+### Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `slug` | Workflow template slug |
+
+### Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--json` | Output as JSON | `false` |
+
+### Examples
+
+```bash
+# List versions (newest first)
+cg workflow versions hello-workflow
+
+# With JSON output
+cg workflow versions hello-workflow --json
+```
+
+### Output
+
+**Console Output** (default):
+```
+hello-workflow - Checkpoint Versions
+
+  v003-def67890  2026-01-25  "Added validation schema"
+  v002-789xyz12  2026-01-24  "Enhanced gather phase"
+  v001-abc12345  2026-01-23  "Initial release"
+```
+
+**JSON Output** (`--json`):
+```json
+{
+  "success": true,
+  "command": "workflow.versions",
+  "timestamp": "2026-01-25T10:00:00.000Z",
+  "data": {
+    "slug": "hello-workflow",
+    "versions": [
+      {
+        "version": "v003-def67890",
+        "ordinal": 3,
+        "hash": "def67890",
+        "created_at": "2026-01-25T10:00:00.000Z",
+        "comment": "Added validation schema"
+      }
+    ]
+  }
+}
+```
+
+### Error Codes
+
+| Code | Description | Resolution |
+|------|-------------|------------|
+| E030 | Workflow not found | Check slug matches a workflow |
+
+---
+
+## cg workflow compose
+
+Create a new workflow run from a checkpoint.
+
+### Syntax
+
+```bash
+cg workflow compose <slug> [options]
+```
+
+### Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `slug` | Workflow template slug |
+
+### Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--json` | Output as JSON | `false` |
+| `--runs-dir <path>` | Directory for run folders | `.chainglass/runs` |
+| `--checkpoint <version>` | Checkpoint version to use | latest |
+
+### What It Does
+
+1. Resolves checkpoint (latest or specified version)
+2. Creates versioned run path: `runs/<slug>/<version>/run-YYYY-MM-DD-NNN/`
+3. Copies template from checkpoint
+4. Writes `wf-status.json` with version metadata
+
+### Examples
+
+```bash
+# Compose from latest checkpoint
+cg workflow compose hello-workflow
+
+# Compose from specific version
+cg workflow compose hello-workflow --checkpoint v001
+
+# With custom runs directory
+cg workflow compose hello-workflow --runs-dir ./my-runs
+```
+
+### Output
+
+**Console Output** (default):
+```
+✓ Workflow composed successfully
+
+Template: hello-workflow
+Checkpoint: v002-def67890
+Run directory: .chainglass/runs/hello-workflow/v002-def67890/run-2026-01-25-001
+
+Phases:
+  1. gather (pending)
+  2. process (pending)
+  3. report (pending)
+```
+
+**JSON Output** (`--json`):
+```json
+{
+  "success": true,
+  "command": "workflow.compose",
+  "timestamp": "2026-01-25T10:00:00.000Z",
+  "data": {
+    "slug": "hello-workflow",
+    "version": "v002-def67890",
+    "runDir": ".chainglass/runs/hello-workflow/v002-def67890/run-2026-01-25-001",
+    "phases": [
+      { "name": "gather", "order": 1, "status": "pending" }
+    ]
+  }
+}
+```
+
+### Error Codes
+
+| Code | Description | Resolution |
+|------|-------------|------------|
+| E030 | Workflow not found | Check slug matches a workflow |
+| E033 | Version not found | Check version exists with `cg workflow versions` |
+| E034 | No checkpoint exists | Create a checkpoint first with `cg workflow checkpoint` |
+
+---
+
+## cg wf compose (Deprecated)
+
+> **Note**: This command is deprecated. Use `cg workflow compose` instead.
 
 Create a new workflow run from a template.
 

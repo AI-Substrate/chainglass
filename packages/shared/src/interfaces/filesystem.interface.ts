@@ -128,9 +128,5 @@ export interface IFileSystem {
    * @param options.exclude Directory names to skip (e.g., ['.git', 'node_modules'])
    * @throws FileSystemError with code 'ENOENT' if source doesn't exist
    */
-  copyDirectory(
-    source: string,
-    dest: string,
-    options?: { exclude?: string[] }
-  ): Promise<void>;
+  copyDirectory(source: string, dest: string, options?: { exclude?: string[] }): Promise<void>;
 }

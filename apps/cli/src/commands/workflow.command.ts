@@ -15,19 +15,16 @@
  * Per ADR-0004: Uses DI container, not direct instantiation.
  */
 
-import type { Command } from 'commander';
 import { createInterface } from 'node:readline';
 import {
   ConsoleOutputAdapter,
-  JsonOutputAdapter,
   type IOutputAdapter,
+  JsonOutputAdapter,
   SHARED_DI_TOKENS,
   WORKFLOW_DI_TOKENS,
 } from '@chainglass/shared';
-import type {
-  IWorkflowRegistry,
-  IWorkflowService,
-} from '@chainglass/workflow';
+import type { IWorkflowRegistry, IWorkflowService } from '@chainglass/workflow';
+import type { Command } from 'commander';
 import { createCliProductionContainer } from '../lib/container.js';
 
 // Default workflows directory

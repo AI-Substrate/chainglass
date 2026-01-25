@@ -9,8 +9,8 @@
  * complexity without value.
  */
 
-import { beforeEach, describe, expect, it } from 'vitest';
 import { FakeLogger } from '@chainglass/shared';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { createMcpServer } from '../../../packages/mcp-server/src/server';
 
 describe('MCP Workflow Tool Exclusion (ADR-0001 NEG-005)', () => {

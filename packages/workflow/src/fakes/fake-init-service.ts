@@ -10,9 +10,9 @@
 
 import type {
   IInitService,
-  InitializationStatus,
   InitOptions,
   InitResult,
+  InitializationStatus,
 } from '../interfaces/init-service.interface.js';
 
 /**
@@ -424,9 +424,7 @@ export class FakeInitService implements IInitService {
     // Return default (not initialized)
     const result: InitializationStatus = {
       initialized: this.defaultIsInitialized,
-      missingDirs: this.defaultIsInitialized
-        ? []
-        : ['.chainglass/workflows', '.chainglass/runs'],
+      missingDirs: this.defaultIsInitialized ? [] : ['.chainglass/workflows', '.chainglass/runs'],
       suggestedAction: this.defaultIsInitialized ? '' : "Run 'cg init' to initialize.",
     };
 

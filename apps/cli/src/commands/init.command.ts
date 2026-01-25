@@ -8,16 +8,16 @@
  */
 
 import { resolve } from 'node:path';
-import chalk from 'chalk';
-import type { Command } from 'commander';
 import {
   ConsoleOutputAdapter,
+  type IOutputAdapter,
   JsonOutputAdapter,
   NodeFileSystemAdapter,
   PathResolverAdapter,
-  type IOutputAdapter,
 } from '@chainglass/shared';
-import { InitService, YamlParserAdapter, type InitResult } from '@chainglass/workflow';
+import { type InitResult, InitService, YamlParserAdapter } from '@chainglass/workflow';
+import chalk from 'chalk';
+import type { Command } from 'commander';
 
 interface InitCommandOptions {
   /** Output as JSON (default: false) */
