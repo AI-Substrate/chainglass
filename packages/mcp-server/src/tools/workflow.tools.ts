@@ -59,7 +59,7 @@ function registerWfComposeTool(
 ): void {
   const toolName = 'wf_compose';
   const toolDescription =
-    'Create a new workflow run from a template. Use this tool to initialize a workflow execution that agents can then operate phase-by-phase. Returns the created run directory path, template name, and ordered list of phases. If the template is not found, returns an E020 error with suggestions for template locations.';
+    'Create a new workflow run from a template. Use this tool to initialize a workflow execution that agents can then operate phase-by-phase. Returns the created run directory path, template name, and ordered list of phases. If the template is not found, returns an E030 error with suggestions for template locations.';
 
   // Per WF-01: Use Zod schema - SDK handles conversion to JSON Schema
   const inputSchema = {
