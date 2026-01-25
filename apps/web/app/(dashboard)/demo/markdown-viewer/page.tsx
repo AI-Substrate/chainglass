@@ -3,6 +3,7 @@
  *
  * Demonstrates the MarkdownViewer component with various markdown samples.
  * Shows source/preview toggle with GFM features (tables, task lists, code blocks).
+ * Includes Mermaid diagram rendering (Phase 4).
  *
  * This is a Server Component that renders MarkdownServer and passes
  * the preview to the MarkdownViewer client component.
@@ -162,11 +163,81 @@ echo "Done!"
 `,
 };
 
+// Sample with Mermaid diagrams (Phase 4)
+const MERMAID_SAMPLE: ViewerFile = {
+  path: 'docs/architecture.md',
+  filename: 'architecture.md',
+  content: `# System Architecture
+
+This document demonstrates Mermaid diagram rendering in MarkdownViewer.
+
+## Request Flow (Flowchart)
+
+\`\`\`mermaid
+flowchart TD
+    A[User Request] --> B{Authenticated?}
+    B -->|Yes| C[Process Request]
+    B -->|No| D[Return 401]
+    C --> E{Valid Data?}
+    E -->|Yes| F[Save to Database]
+    E -->|No| G[Return 400]
+    F --> H[Return Success]
+\`\`\`
+
+## User Registration (Sequence Diagram)
+
+\`\`\`mermaid
+sequenceDiagram
+    participant U as User
+    participant F as Frontend
+    participant A as API
+    participant D as Database
+
+    U->>F: Fill registration form
+    F->>A: POST /api/register
+    A->>D: Check if email exists
+    D-->>A: Email available
+    A->>D: Create user record
+    D-->>A: User created
+    A-->>F: 201 Created
+    F-->>U: Show success message
+\`\`\`
+
+## Order Lifecycle (State Diagram)
+
+\`\`\`mermaid
+stateDiagram-v2
+    [*] --> Draft
+    Draft --> Pending: Submit Order
+    Pending --> Processing: Payment Confirmed
+    Pending --> Cancelled: Cancel Order
+    Processing --> Shipped: Ship Order
+    Processing --> Cancelled: Cancel Order
+    Shipped --> Delivered: Confirm Delivery
+    Delivered --> [*]
+    Cancelled --> [*]
+\`\`\`
+
+## Theme Support
+
+Diagrams automatically adjust to light/dark mode. Try toggling the theme!
+
+## Error Handling
+
+Invalid Mermaid syntax shows a friendly error message:
+
+\`\`\`mermaid
+this is invalid {{{ syntax
+\`\`\`
+`,
+};
+
 export default async function MarkdownViewerDemoPage() {
   // Highlight markdown source for source mode
-  const [mainHighlighted, codeHighlighted] = await Promise.all([
+  const [mainHighlighted, codeHighlighted, mermaidHighlighted] = await Promise.all([
     highlightCodeAction(SAMPLE_MARKDOWN.content, 'markdown'),
     highlightCodeAction(CODE_FOCUSED_SAMPLE.content, 'markdown'),
+    highlightCodeAction(MERMAID_SAMPLE.content, 'markdown'),
   ]);
 
   return (
@@ -177,7 +248,7 @@ export default async function MarkdownViewerDemoPage() {
         </h1>
         <p className="text-gray-600 dark:text-gray-400 mb-8">
           Toggle between Source and Preview modes. Preview uses react-markdown with Shiki syntax
-          highlighting.
+          highlighting and Mermaid diagram rendering.
         </p>
 
         <div className="space-y-12">
@@ -208,6 +279,20 @@ export default async function MarkdownViewerDemoPage() {
               />
             </div>
           </section>
+
+          {/* Mermaid demo (Phase 4) */}
+          <section>
+            <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-4">
+              architecture.md - Mermaid Diagrams
+            </h2>
+            <div className="rounded-lg overflow-hidden shadow-lg">
+              <MarkdownViewer
+                file={MERMAID_SAMPLE}
+                highlightedHtml={mermaidHighlighted}
+                preview={<MarkdownServer content={MERMAID_SAMPLE.content} />}
+              />
+            </div>
+          </section>
         </div>
 
         {/* Features box */}
@@ -217,6 +302,7 @@ export default async function MarkdownViewerDemoPage() {
             <li>• Source/Preview toggle with state persistence</li>
             <li>• GitHub Flavored Markdown (tables, task lists, strikethrough)</li>
             <li>• Syntax highlighting via @shikijs/rehype (20+ languages)</li>
+            <li>• Mermaid diagrams (flowcharts, sequence, state diagrams)</li>
             <li>• Dual-theme support (instant light/dark switching)</li>
             <li>• Typography styling via @tailwindcss/typography</li>
             <li>• Server-side markdown processing (0KB client Shiki bundle)</li>
