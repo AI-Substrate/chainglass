@@ -7,3 +7,4 @@ export {
   WorkflowRegistryService,
   WorkflowRegistryErrorCodes,
 } from './workflow-registry.service.js';
+export { InitService } from './init.service.js';

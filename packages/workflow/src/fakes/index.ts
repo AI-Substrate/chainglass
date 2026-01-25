@@ -23,3 +23,9 @@ export type {
   RestoreCall as RegistryRestoreCall,
   VersionsCall as RegistryVersionsCall,
 } from './fake-workflow-registry.js';
+export { FakeInitService } from './fake-init-service.js';
+export type {
+  InitCall,
+  IsInitializedCall,
+  GetInitializationStatusCall,
+} from './fake-init-service.js';

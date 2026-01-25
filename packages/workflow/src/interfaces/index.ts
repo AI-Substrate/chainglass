@@ -32,3 +32,11 @@ export type {
 
 // Workflow registry interface (Phase 1)
 export type { CheckpointOptions, IWorkflowRegistry } from './workflow-registry.interface.js';
+
+// Init service interface (Phase 4)
+export type {
+  IInitService,
+  InitOptions,
+  InitResult,
+  InitializationStatus,
+} from './init-service.interface.js';

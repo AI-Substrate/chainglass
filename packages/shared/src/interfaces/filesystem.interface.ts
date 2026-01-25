@@ -117,4 +117,20 @@ export interface IFileSystem {
    * @throws FileSystemError with code 'ENOTEMPTY' if directory is not empty and recursive is false
    */
   rmdir(path: string, options?: { recursive?: boolean }): Promise<void>;
+
+  /**
+   * Copy a directory and all its contents recursively.
+   *
+   * Per Phase 4 DYK-03: Clean abstraction for template copying.
+   *
+   * @param source Absolute path to source directory
+   * @param dest Absolute path to destination directory (created if doesn't exist)
+   * @param options.exclude Directory names to skip (e.g., ['.git', 'node_modules'])
+   * @throws FileSystemError with code 'ENOENT' if source doesn't exist
+   */
+  copyDirectory(
+    source: string,
+    dest: string,
+    options?: { exclude?: string[] }
+  ): Promise<void>;
 }

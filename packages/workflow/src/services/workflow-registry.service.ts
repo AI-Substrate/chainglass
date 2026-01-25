@@ -23,6 +23,7 @@ import { WorkflowMetadataSchema } from '@chainglass/shared';
 import type { CheckpointOptions } from '../interfaces/workflow-registry.interface.js';
 import type { IWorkflowRegistry } from '../interfaces/workflow-registry.interface.js';
 import type { IYamlParser } from '../interfaces/yaml-parser.interface.js';
+import { generateWorkflowJson } from '../utils/generate-workflow-json.js';
 
 /**
  * Error codes for workflow registry operations.
@@ -622,8 +623,13 @@ export class WorkflowRegistryService implements IWorkflowRegistry {
       );
 
       // Auto-generate workflow.json if missing (per CD03)
+      // Per DYK-02: Uses shared utility from utils/generate-workflow-json.ts
       if (!(await this.fs.exists(workflowJsonPath))) {
-        await this.generateWorkflowJson(workflowDir, slug, wfYamlPath, createdAt);
+        await generateWorkflowJson(workflowDir, slug, wfYamlPath, createdAt, {
+          fs: this.fs,
+          pathResolver: this.pathResolver,
+          yamlParser: this.yamlParser,
+        });
       }
     } catch (error) {
       // Cleanup on partial failure - remove orphaned checkpoint directory
@@ -862,38 +868,4 @@ export class WorkflowRegistryService implements IWorkflowRegistry {
     }
   }
 
-  /**
-   * Auto-generate workflow.json from wf.yaml metadata.
-   * Per CD03: Created on first checkpoint if missing.
-   */
-  private async generateWorkflowJson(
-    workflowDir: string,
-    slug: string,
-    wfYamlPath: string,
-    createdAt: string
-  ): Promise<void> {
-    let name = slug; // Default to slug if can't parse wf.yaml
-
-    try {
-      const wfYamlContent = await this.fs.readFile(wfYamlPath);
-      const parsed = this.yamlParser.parse<{ name?: string }>(wfYamlContent, wfYamlPath);
-      if (parsed && typeof parsed.name === 'string') {
-        name = parsed.name;
-      }
-    } catch {
-      // Use slug as name if wf.yaml can't be parsed
-    }
-
-    const workflowJson: WorkflowMetadata = {
-      slug,
-      name,
-      created_at: createdAt,
-      tags: [],
-    };
-
-    await this.fs.writeFile(
-      this.pathResolver.join(workflowDir, 'workflow.json'),
-      JSON.stringify(workflowJson, null, 2)
-    );
-  }
 }

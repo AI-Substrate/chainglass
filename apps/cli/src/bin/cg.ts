@@ -14,6 +14,7 @@
  */
 import chalk from 'chalk';
 import { Command, Help } from 'commander';
+import { registerInitCommand } from '../commands/init.command.js';
 import { registerMcpCommand } from '../commands/mcp.command.js';
 import { registerPhaseCommands } from '../commands/phase.command.js';
 import { registerWebCommand } from '../commands/web.command.js';
@@ -214,6 +215,7 @@ export function createProgram(options: CreateProgramOptions = {}): Command {
   });
 
   // Register commands
+  registerInitCommand(program);
   registerWebCommand(program);
   registerMcpCommand(program);
   registerWfCommands(program);

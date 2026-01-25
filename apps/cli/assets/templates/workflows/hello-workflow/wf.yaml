@@ -1,0 +1,36 @@
+# Hello Workflow Starter Template
+# A simple single-phase workflow to get you started with Chainglass
+#
+# This template demonstrates:
+# - Basic workflow structure
+# - A single gather phase with command file
+# - Input/output definitions
+#
+# Next steps after init:
+# 1. cg workflow checkpoint hello-workflow - Create a versioned checkpoint
+# 2. cg wf compose hello-workflow - Start a new workflow run
+
+name: Hello Workflow
+version: "1.0.0"
+description: "A starter workflow template demonstrating basic structure"
+
+phases:
+  gather:
+    description: "Collect initial data based on user request"
+    order: 1
+
+    inputs:
+      messages:
+        - id: "001"
+          type: "free_text"
+          from: "orchestrator"
+          required: true
+          subject: "Your Request"
+          prompt: "What would you like help with?"
+          description: "The initial request to process"
+
+    outputs:
+      - name: response.md
+        type: file
+        required: true
+        description: "Response to the user's request"

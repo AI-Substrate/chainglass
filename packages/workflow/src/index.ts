@@ -53,6 +53,14 @@ export type { IPhaseService, ValidateCheckMode } from './interfaces/index.js';
 // Workflow registry interface (Phase 1)
 export type { IWorkflowRegistry } from './interfaces/index.js';
 
+// Init service interface (Phase 4)
+export type {
+  IInitService,
+  InitOptions,
+  InitResult,
+  InitializationStatus,
+} from './interfaces/index.js';
+
 // Message service interface (Phase 3 Subtask 001)
 export { MessageErrorCodes } from './interfaces/index.js';
 export type {
@@ -79,6 +87,12 @@ export type {
   RegistryListCall,
   RegistryInfoCall,
 } from './fakes/index.js';
+export { FakeInitService } from './fakes/index.js';
+export type {
+  InitCall,
+  IsInitializedCall,
+  GetInitializationStatusCall,
+} from './fakes/index.js';
 
 // Services (Phase 2)
 export { WorkflowService, ComposeErrorCodes } from './services/index.js';
@@ -91,6 +105,9 @@ export { MessageService } from './services/index.js';
 
 // Workflow Registry Service (Phase 1)
 export { WorkflowRegistryService, WorkflowRegistryErrorCodes } from './services/index.js';
+
+// Init Service (Phase 4)
+export { InitService } from './services/index.js';
 
 // Utilities (Phase 4)
 export { extractValue } from './utils/index.js';

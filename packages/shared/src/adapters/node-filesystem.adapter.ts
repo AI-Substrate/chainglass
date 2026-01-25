@@ -126,6 +126,69 @@ export class NodeFileSystemAdapter implements IFileSystem {
   }
 
   /**
+   * Copy a directory and all its contents recursively.
+   *
+   * Per Phase 4 DYK-03: Ported from WorkflowRegistryService.copyDirectoryRecursive().
+   */
+  async copyDirectory(
+    source: string,
+    dest: string,
+    options?: { exclude?: string[] }
+  ): Promise<void> {
+    // Verify source exists
+    if (!(await this.exists(source))) {
+      throw new FileSystemError(
+        `ENOENT: no such file or directory, copyDirectory '${source}'`,
+        'ENOENT',
+        source
+      );
+    }
+
+    // Create destination directory
+    await this.mkdir(dest, { recursive: true });
+
+    // Copy recursively
+    await this.copyDirectoryRecursive(source, dest, '', options?.exclude ?? []);
+  }
+
+  /**
+   * Recursive helper for copyDirectory.
+   */
+  private async copyDirectoryRecursive(
+    sourceBase: string,
+    destBase: string,
+    relativePath: string,
+    exclude: string[]
+  ): Promise<void> {
+    const currentSource = relativePath ? `${sourceBase}/${relativePath}` : sourceBase;
+    const currentDest = relativePath ? `${destBase}/${relativePath}` : destBase;
+
+    const entries = await this.readDir(currentSource);
+
+    for (const entry of entries) {
+      // Skip excluded directories
+      if (exclude.includes(entry)) {
+        continue;
+      }
+
+      const entryRelPath = relativePath ? `${relativePath}/${entry}` : entry;
+      const sourcePath = `${sourceBase}/${entryRelPath}`;
+      const destPath = `${destBase}/${entryRelPath}`;
+
+      const stat = await this.stat(sourcePath);
+
+      if (stat.isDirectory) {
+        // Create destination directory and recurse
+        await this.mkdir(destPath, { recursive: true });
+        await this.copyDirectoryRecursive(sourceBase, destBase, entryRelPath, exclude);
+      } else if (stat.isFile) {
+        // Copy file
+        await this.copyFile(sourcePath, destPath);
+      }
+    }
+  }
+
+  /**
    * Wrap Node.js errors in FileSystemError.
    */
   private wrapError(err: unknown, path: string): FileSystemError {
