@@ -93,7 +93,7 @@ describe('cg wf compose', () => {
       });
 
       try {
-        await program.parseAsync(['node', 'cg', 'wf', 'compose', '--help']);
+        await program.parseAsync(['node', 'cg', 'workflow', 'compose', '--help']);
       } catch (e: unknown) {
         // Commander throws on --help in testMode
         if ((e as { code?: string }).code !== 'commander.helpDisplayed') {
@@ -130,7 +130,7 @@ describe('cg wf compose', () => {
         await program.parseAsync([
           'node',
           'cg',
-          'wf',
+          'workflow',
           'compose',
           '.chainglass/templates/hello-workflow',
           '--runs-dir',
@@ -162,7 +162,7 @@ describe('cg wf compose', () => {
       - Contract: --json flag produces valid JSON with CommandResponse envelope
       - Usage Notes: Envelope has success, command, timestamp, data fields
       - Quality Contribution: Critical path - machine-readable output
-      - Worked Example: `cg wf compose --json` → { success: true, command: 'wf.compose', data: { runDir: '...' } }
+      - Worked Example: `cg wf compose --json` → { success: true, command: 'workflow.compose', data: { runDir: '...' } }
       */
       const program = createProgram({ testMode: true });
 
@@ -177,7 +177,7 @@ describe('cg wf compose', () => {
         await program.parseAsync([
           'node',
           'cg',
-          'wf',
+          'workflow',
           'compose',
           '.chainglass/templates/hello-workflow',
           '--runs-dir',
@@ -192,7 +192,7 @@ describe('cg wf compose', () => {
       const response = JSON.parse(output);
 
       expect(response.success).toBe(true);
-      expect(response.command).toBe('wf.compose');
+      expect(response.command).toBe('workflow.compose');
       expect(response.timestamp).toBeDefined();
       expect(response.data).toBeDefined();
       expect(response.data.runDir).toMatch(/run-\d{4}-\d{2}-\d{2}-\d{3}/);
@@ -219,7 +219,7 @@ describe('cg wf compose', () => {
         await program.parseAsync([
           'node',
           'cg',
-          'wf',
+          'workflow',
           'compose',
           '.chainglass/templates/hello-workflow',
           '--runs-dir',
@@ -277,7 +277,7 @@ describe('cg wf compose', () => {
         await program.parseAsync([
           'node',
           'cg',
-          'wf',
+          'workflow',
           'compose',
           '.chainglass/templates/hello-workflow',
           '--runs-dir',
@@ -322,7 +322,7 @@ describe('cg wf compose', () => {
         await program.parseAsync([
           'node',
           'cg',
-          'wf',
+          'workflow',
           'compose',
           '.chainglass/templates/hello-workflow',
           '--runs-dir',
@@ -363,7 +363,7 @@ describe('cg wf compose', () => {
         await program.parseAsync([
           'node',
           'cg',
-          'wf',
+          'workflow',
           'compose',
           '.chainglass/templates/hello-workflow',
           '--runs-dir',
@@ -403,7 +403,7 @@ describe('cg wf compose', () => {
         await program.parseAsync([
           'node',
           'cg',
-          'wf',
+          'workflow',
           'compose',
           '.chainglass/templates/hello-workflow',
           '--runs-dir',
@@ -446,7 +446,7 @@ describe('cg wf compose', () => {
         await program1.parseAsync([
           'node',
           'cg',
-          'wf',
+          'workflow',
           'compose',
           '.chainglass/templates/hello-workflow',
           '--runs-dir',
@@ -457,7 +457,7 @@ describe('cg wf compose', () => {
         await program2.parseAsync([
           'node',
           'cg',
-          'wf',
+          'workflow',
           'compose',
           '.chainglass/templates/hello-workflow',
           '--runs-dir',
@@ -511,7 +511,7 @@ describe('cg wf compose', () => {
         await program.parseAsync([
           'node',
           'cg',
-          'wf',
+          'workflow',
           'compose',
           './non-existent-template',
           '--runs-dir',

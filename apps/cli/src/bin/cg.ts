@@ -18,7 +18,7 @@ import { registerInitCommand } from '../commands/init.command.js';
 import { registerMcpCommand } from '../commands/mcp.command.js';
 import { registerPhaseCommands } from '../commands/phase.command.js';
 import { registerWebCommand } from '../commands/web.command.js';
-import { registerWfCommands } from '../commands/wf.command.js';
+import { registerWorkflowCommands } from '../commands/workflow.command.js';
 
 const BANNER = `${chalk.white.bold('chain')}${chalk.cyan.bold('glass')}`;
 const TAGLINE = chalk.dim('Orchestrate AI workflows with elegance');
@@ -218,8 +218,8 @@ export function createProgram(options: CreateProgramOptions = {}): Command {
   registerInitCommand(program);
   registerWebCommand(program);
   registerMcpCommand(program);
-  registerWfCommands(program);
   registerPhaseCommands(program);
+  registerWorkflowCommands(program);
 
   // Default behavior: show help when no command provided
   if (!options.testMode) {

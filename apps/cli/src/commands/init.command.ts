@@ -111,7 +111,7 @@ function formatInitOutput(result: InitResult): string {
     `  ${chalk.gray('1.')} ${chalk.white('cg workflow checkpoint hello-workflow')} ${chalk.gray('- Create your first checkpoint')}`
   );
   lines.push(
-    `  ${chalk.gray('2.')} ${chalk.white('cg wf compose hello-workflow')} ${chalk.gray('- Start a new workflow run')}`
+    `  ${chalk.gray('2.')} ${chalk.white('cg workflow compose hello-workflow')} ${chalk.gray('- Start a new workflow run')}`
   );
 
   return lines.join('\n');
