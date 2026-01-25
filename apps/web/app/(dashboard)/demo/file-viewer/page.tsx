@@ -105,12 +105,10 @@ export default async function FileViewerDemoPage() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-8">
       <div className="max-w-4xl mx-auto">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-          FileViewer Demo
-        </h1>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">FileViewer Demo</h1>
         <p className="text-gray-600 dark:text-gray-400 mb-8">
-          Syntax highlighting powered by Shiki with CSS counter line numbers.
-          Toggle between light and dark mode to see instant theme switching.
+          Syntax highlighting powered by Shiki with CSS counter line numbers. Toggle between light
+          and dark mode to see instant theme switching.
         </p>
 
         <div className="space-y-8">
@@ -127,9 +125,7 @@ export default async function FileViewerDemoPage() {
         </div>
 
         <div className="mt-12 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-          <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">
-            Features
-          </h3>
+          <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">Features</h3>
           <ul className="text-blue-800 dark:text-blue-200 space-y-1 text-sm">
             <li>• CSS counter-based line numbers (don&apos;t copy with code selection)</li>
             <li>• Dual-theme support (instant light/dark switching via CSS variables)</li>

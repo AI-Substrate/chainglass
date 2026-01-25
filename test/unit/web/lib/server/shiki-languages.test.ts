@@ -133,10 +133,8 @@ describe('shiki-processor: Multi-Language Support (AC-3)', () => {
     },
   ];
 
-  it.each(languageTests)(
-    'should highlight $name code',
-    async ({ lang, code, expected }) => {
-      /*
+  it.each(languageTests)('should highlight $name code', async ({ lang, code, expected }) => {
+    /*
       Test Doc:
       - Why: AC-3 requires 15+ languages to be supported
       - Contract: Each language produces syntax-highlighted HTML
@@ -144,18 +142,17 @@ describe('shiki-processor: Multi-Language Support (AC-3)', () => {
       - Quality Contribution: Catches language support regressions
       - Worked Example: TypeScript code → highlighted HTML with tokens
       */
-      const html = await highlightCode(code, lang);
+    const html = await highlightCode(code, lang);
 
-      // Should produce valid Shiki output
-      expect(html).toContain('<pre');
-      expect(html).toContain('class="shiki');
+    // Should produce valid Shiki output
+    expect(html).toContain('<pre');
+    expect(html).toContain('class="shiki');
 
-      // Should contain expected tokens in the output
-      for (const token of expected) {
-        expect(html).toContain(token);
-      }
+    // Should contain expected tokens in the output
+    for (const token of expected) {
+      expect(html).toContain(token);
     }
-  );
+  });
 
   it('should handle all 20 languages in a single test run', async () => {
     /*
@@ -172,9 +169,9 @@ describe('shiki-processor: Multi-Language Support (AC-3)', () => {
 
     // All should succeed
     expect(results.length).toBe(languageTests.length);
-    results.forEach((html) => {
+    for (const html of results) {
       expect(html).toContain('<pre');
       expect(html).toContain('class="shiki');
-    });
+    }
   });
 });

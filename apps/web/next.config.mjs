@@ -1,6 +1,5 @@
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { NextConfig } from 'next';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -16,13 +15,22 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
  *
  * outputFileTracingRoot: Points to the monorepo root to ensure all dependencies
  * are properly traced and included in the standalone output.
+ *
+ * @type {import('next').NextConfig}
  */
-const nextConfig: NextConfig = {
+const nextConfig = {
   output: 'standalone',
+  // Enable Turbopack (default in Next.js 16) - empty config acknowledges migration
+  turbopack: {},
   // Point to monorepo root for proper dependency tracing with pnpm
   outputFileTracingRoot: resolve(__dirname, '..', '..'),
   // Shiki uses Node.js-specific APIs and fs module - exclude from standard bundling
-  serverExternalPackages: ['shiki', 'vscode-oniguruma', '@shikijs/core', '@shikijs/engine-oniguruma'],
+  serverExternalPackages: [
+    'shiki',
+    'vscode-oniguruma',
+    '@shikijs/core',
+    '@shikijs/engine-oniguruma',
+  ],
   // Webpack config to handle Shiki's node: protocol imports on client side
   webpack: (config, { isServer }) => {
     if (!isServer) {
@@ -32,8 +40,8 @@ const nextConfig: NextConfig = {
         'shiki',
         '@shikijs/core',
         // Handle node: protocol imports - treat as external CommonJS
-        ({ request }: { request?: string }, callback: (err?: null, result?: string) => void) => {
-          if (request && request.startsWith('node:')) {
+        ({ request }, callback) => {
+          if (request?.startsWith('node:')) {
             return callback(null, `commonjs ${request}`);
           }
           callback();

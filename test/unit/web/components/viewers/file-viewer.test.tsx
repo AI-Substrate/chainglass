@@ -40,9 +40,7 @@ describe('FileViewer', () => {
       - Quality Contribution: Catches basic rendering failures
       - Worked Example: HTML fixture → visible in DOM
       */
-      render(
-        <FileViewer file={sampleFile} highlightedHtml={TYPESCRIPT_HIGHLIGHTED_HTML} />
-      );
+      render(<FileViewer file={sampleFile} highlightedHtml={TYPESCRIPT_HIGHLIGHTED_HTML} />);
 
       // Content should be visible (use getAllByText since there are multiple const tokens)
       const constElements = screen.getAllByText(/const/);
@@ -58,9 +56,7 @@ describe('FileViewer', () => {
       - Quality Contribution: Catches HTML structure corruption
       - Worked Example: <pre class="shiki..."><code>...</code></pre>
       */
-      render(
-        <FileViewer file={sampleFile} highlightedHtml={TYPESCRIPT_HIGHLIGHTED_HTML} />
-      );
+      render(<FileViewer file={sampleFile} highlightedHtml={TYPESCRIPT_HIGHLIGHTED_HTML} />);
 
       const preElement = document.querySelector('pre.shiki');
       expect(preElement).toBeInTheDocument();
@@ -76,9 +72,7 @@ describe('FileViewer', () => {
       - Quality Contribution: Catches missing theme support
       - Worked Example: style="...--shiki-dark:#..."
       */
-      render(
-        <FileViewer file={sampleFile} highlightedHtml={TYPESCRIPT_HIGHLIGHTED_HTML} />
-      );
+      render(<FileViewer file={sampleFile} highlightedHtml={TYPESCRIPT_HIGHLIGHTED_HTML} />);
 
       const preElement = document.querySelector('pre.shiki');
       const style = preElement?.getAttribute('style') ?? '';
@@ -96,9 +90,7 @@ describe('FileViewer', () => {
       - Quality Contribution: Catches line number rendering issues
       - Worked Example: data-line="1", data-line="2" present
       */
-      render(
-        <FileViewer file={sampleFile} highlightedHtml={TYPESCRIPT_HIGHLIGHTED_HTML} />
-      );
+      render(<FileViewer file={sampleFile} highlightedHtml={TYPESCRIPT_HIGHLIGHTED_HTML} />);
 
       // Line elements with data-line should be present
       const lineElements = document.querySelectorAll('[data-line]');
@@ -119,9 +111,7 @@ describe('FileViewer', () => {
       - Worked Example: Click toggle → hide-line-numbers class added
       */
       const user = userEvent.setup();
-      render(
-        <FileViewer file={sampleFile} highlightedHtml={TYPESCRIPT_HIGHLIGHTED_HTML} />
-      );
+      render(<FileViewer file={sampleFile} highlightedHtml={TYPESCRIPT_HIGHLIGHTED_HTML} />);
 
       const toggleButton = screen.getByRole('button', { name: /line numbers/i });
       await user.click(toggleButton);
@@ -139,9 +129,7 @@ describe('FileViewer', () => {
       - Quality Contribution: Catches copy/paste UX issues
       - Worked Example: Line numbers not included when selecting code
       */
-      render(
-        <FileViewer file={sampleFile} highlightedHtml={TYPESCRIPT_HIGHLIGHTED_HTML} />
-      );
+      render(<FileViewer file={sampleFile} highlightedHtml={TYPESCRIPT_HIGHLIGHTED_HTML} />);
 
       // The CSS file should be imported (verified by class existence)
       // Actual CSS testing requires integration test with styles
@@ -160,9 +148,7 @@ describe('FileViewer', () => {
       - Quality Contribution: Catches accessibility violations
       - Worked Example: aria-label="Code viewer for utils.ts"
       */
-      render(
-        <FileViewer file={sampleFile} highlightedHtml={TYPESCRIPT_HIGHLIGHTED_HTML} />
-      );
+      render(<FileViewer file={sampleFile} highlightedHtml={TYPESCRIPT_HIGHLIGHTED_HTML} />);
 
       const container = screen.getByRole('region');
       expect(container).toHaveAttribute('aria-label', 'Code viewer for utils.ts');
@@ -177,9 +163,7 @@ describe('FileViewer', () => {
       - Quality Contribution: Catches keyboard accessibility issues
       - Worked Example: tabIndex="0" on container
       */
-      render(
-        <FileViewer file={sampleFile} highlightedHtml={TYPESCRIPT_HIGHLIGHTED_HTML} />
-      );
+      render(<FileViewer file={sampleFile} highlightedHtml={TYPESCRIPT_HIGHLIGHTED_HTML} />);
 
       const container = screen.getByRole('region');
       expect(container).toHaveAttribute('tabIndex', '0');
@@ -196,9 +180,7 @@ describe('FileViewer', () => {
       - Quality Contribution: Catches keyboard navigation issues
       - Worked Example: Press ArrowDown → scrollTop increases
       */
-      render(
-        <FileViewer file={sampleFile} highlightedHtml={MULTILINE_CODE_HTML} />
-      );
+      render(<FileViewer file={sampleFile} highlightedHtml={MULTILINE_CODE_HTML} />);
 
       const container = screen.getByRole('region');
 
@@ -222,9 +204,7 @@ describe('FileViewer', () => {
       - Quality Contribution: Catches Home key handler issues
       - Worked Example: Press Home → scrollTop = 0
       */
-      render(
-        <FileViewer file={sampleFile} highlightedHtml={MULTILINE_CODE_HTML} />
-      );
+      render(<FileViewer file={sampleFile} highlightedHtml={MULTILINE_CODE_HTML} />);
 
       const container = screen.getByRole('region');
       container.focus();
@@ -244,9 +224,7 @@ describe('FileViewer', () => {
       - Quality Contribution: Catches End key handler issues
       - Worked Example: Press End → scrollTop = scrollHeight - clientHeight
       */
-      render(
-        <FileViewer file={sampleFile} highlightedHtml={MULTILINE_CODE_HTML} />
-      );
+      render(<FileViewer file={sampleFile} highlightedHtml={MULTILINE_CODE_HTML} />);
 
       const container = screen.getByRole('region');
       container.focus();
@@ -267,9 +245,7 @@ describe('FileViewer', () => {
       - Quality Contribution: Prevents null pointer exceptions
       - Worked Example: undefined file → empty viewer
       */
-      render(
-        <FileViewer file={undefined} highlightedHtml="" />
-      );
+      render(<FileViewer file={undefined} highlightedHtml="" />);
 
       // Should render without crashing
       const container = screen.getByRole('region');
@@ -285,9 +261,7 @@ describe('FileViewer', () => {
       - Quality Contribution: Catches empty content crashes
       - Worked Example: '' → empty viewer displayed
       */
-      render(
-        <FileViewer file={sampleFile} highlightedHtml="" />
-      );
+      render(<FileViewer file={sampleFile} highlightedHtml="" />);
 
       const container = screen.getByRole('region');
       expect(container).toBeInTheDocument();

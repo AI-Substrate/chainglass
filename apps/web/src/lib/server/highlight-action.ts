@@ -9,9 +9,32 @@
 import type { BundledLanguage, Highlighter, SpecialLanguage } from 'shiki';
 
 const PRELOADED_LANGUAGES: BundledLanguage[] = [
-  'typescript', 'javascript', 'tsx', 'jsx', 'python', 'go', 'rust', 'c', 'cpp',
-  'java', 'kotlin', 'csharp', 'html', 'css', 'scss', 'json', 'yaml', 'xml',
-  'toml', 'bash', 'shell', 'sql', 'markdown', 'ruby', 'php', 'dockerfile',
+  'typescript',
+  'javascript',
+  'tsx',
+  'jsx',
+  'python',
+  'go',
+  'rust',
+  'c',
+  'cpp',
+  'java',
+  'kotlin',
+  'csharp',
+  'html',
+  'css',
+  'scss',
+  'json',
+  'yaml',
+  'xml',
+  'toml',
+  'bash',
+  'shell',
+  'sql',
+  'markdown',
+  'ruby',
+  'php',
+  'dockerfile',
 ];
 
 let highlighterPromise: Promise<Highlighter> | null = null;
@@ -40,11 +63,13 @@ export async function highlightCodeAction(code: string, lang: string): Promise<s
   return highlighter.codeToHtml(trimmedCode, {
     lang: effectiveLang,
     themes: { light: 'github-light', dark: 'github-dark' },
-    transformers: [{
-      name: 'line-numbers',
-      line(node, line) {
-        node.properties['data-line'] = line;
+    transformers: [
+      {
+        name: 'line-numbers',
+        line(node, line) {
+          node.properties['data-line'] = line;
+        },
       },
-    }],
+    ],
   });
 }
