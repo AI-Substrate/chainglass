@@ -10,7 +10,7 @@
 # 1. cg workflow checkpoint hello-workflow - Create a versioned checkpoint
 # 2. cg wf compose hello-workflow - Start a new workflow run
 
-name: Hello Workflow
+name: hello-workflow
 version: "1.0.0"
 description: "A starter workflow template demonstrating basic structure"
 

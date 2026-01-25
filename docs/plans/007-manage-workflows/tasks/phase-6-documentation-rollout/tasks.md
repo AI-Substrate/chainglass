@@ -139,7 +139,7 @@ flowchart TD
 | [x] | T004 | Update 3-cli-reference.md with cg workflow commands | 2 | Doc | T001 | /home/jak/substrate/007-manage-workflows/docs/how/workflows/3-cli-reference.md | All 6 subcommands documented with syntax, options, examples | – | |
 | [x] | T005 | Document error codes E030, E033-E039 | 2 | Doc | T001 | /home/jak/substrate/007-manage-workflows/docs/how/workflows/5-workflow-management.md | Each code has cause + remediation | – | |
 | [x] | T006 | Create migration notes section | 1 | Doc | T001 | /home/jak/substrate/007-manage-workflows/docs/how/workflows/5-workflow-management.md | Legacy flat runs explained; versioned path documented | – | |
-| [x] | T007 | Verify documentation accuracy and run full test suite | 1 | QA | T002, T003, T004, T005, T006 | /home/jak/substrate/007-manage-workflows/ | All links work; examples match implementation; 1038+ tests pass | – | |
+| [x] | T007 | Verify documentation accuracy and run full test suite | 1 | QA | T002, T003, T004, T005, T006 | /home/jak/substrate/007-manage-workflows/ | All links work; examples match implementation; 1038+ tests pass | 001-subtask-e2e-manual-test-harness | E2E manual test harness for complete lifecycle validation |
 
 ---
 

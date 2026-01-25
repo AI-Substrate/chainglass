@@ -1094,6 +1094,16 @@ describe('cg workflow list', () => {
 
 ---
 
+## Subtasks Registry
+
+Mid-implementation detours requiring structured tracking.
+
+| ID | Created | Phase | Parent Task | Reason | Status | Dossier |
+|----|---------|-------|-------------|--------|--------|---------|
+| 001-subtask-e2e-manual-test-harness | 2026-01-25 | Phase 6: Documentation & Rollout | T007 | Comprehensive E2E manual test from clean slate through complete workflow lifecycle | [x] Complete | [Link](tasks/phase-6-documentation-rollout/001-subtask-e2e-manual-test-harness.md) |
+
+---
+
 ## Change Footnotes Ledger
 
 **NOTE**: This section will be populated during implementation by plan-6a-update-progress.
