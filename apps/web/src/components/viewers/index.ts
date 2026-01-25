@@ -5,9 +5,11 @@
  * markdown, and diff display.
  *
  * Phase 2: FileViewer - Syntax highlighted source code display
- * Phase 3: MarkdownViewer - Markdown preview with source/preview toggle (future)
+ * Phase 3: MarkdownViewer - Markdown preview with source/preview toggle
  * Phase 5: DiffViewer - Git diff visualization (future)
  */
 
 export { FileViewer } from './file-viewer';
+export { MarkdownViewer } from './markdown-viewer';
+export { MarkdownServer } from './markdown-server';
 export type { ViewerFile } from '../../lib/language-detection';
