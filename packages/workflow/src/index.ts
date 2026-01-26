@@ -1,6 +1,20 @@
 // @chainglass/workflow entry point
 // Exports all workflow interfaces, types, fakes, and adapters
 
+// Errors
+export { EntityNotFoundError } from './errors/index.js';
+export type { EntityType } from './errors/index.js';
+
+// Run errors (E050-E059 per DYK-05)
+export { RunErrorCodes, CheckpointErrorCodes } from './errors/index.js';
+export {
+  RunNotFoundError,
+  RunsDirNotFoundError,
+  InvalidRunStatusError,
+  RunCorruptError,
+  CheckpointCorruptError,
+} from './errors/index.js';
+
 // Types (matching core schemas)
 export type {
   // wf.types.ts - Workflow definition types
@@ -53,6 +67,26 @@ export type { IPhaseService, ValidateCheckMode } from './interfaces/index.js';
 // Workflow registry interface (Phase 1)
 export type { IWorkflowRegistry } from './interfaces/index.js';
 
+// Entity adapter interfaces (Phase 1: Entity Upgrade, Plan 010)
+export type { IWorkflowAdapter, RunListFilter } from './interfaces/index.js';
+export type { IPhaseAdapter } from './interfaces/index.js';
+
+// Entities (Phase 1: Entity Upgrade, Plan 010)
+export { Workflow } from './entities/index.js';
+export type { CheckpointMetadata, RunMetadata, WorkflowJSON } from './entities/index.js';
+export { Phase } from './entities/index.js';
+export type {
+  PhaseInput,
+  PhaseInputFile,
+  PhaseInputParameter,
+  PhaseInputMessage,
+  PhaseMessageOption,
+  PhaseOutput,
+  PhaseOutputParameter,
+  PhaseStatusEntry,
+  PhaseJSON,
+} from './entities/index.js';
+
 // Init service interface (Phase 4)
 export type {
   IInitService,
@@ -72,6 +106,8 @@ export type {
 // Adapters
 export { YamlParserAdapter } from './adapters/index.js';
 export { SchemaValidatorAdapter } from './adapters/index.js';
+export { WorkflowAdapter } from './adapters/index.js';
+export { PhaseAdapter } from './adapters/index.js';
 
 // Fakes
 export { FakeYamlParser } from './fakes/index.js';
@@ -93,6 +129,17 @@ export type {
   IsInitializedCall,
   GetInitializationStatusCall,
 } from './fakes/index.js';
+export { FakeWorkflowAdapter } from './fakes/index.js';
+export type {
+  LoadCurrentCall,
+  LoadCheckpointCall,
+  LoadRunCall,
+  ListCheckpointsCall,
+  ListRunsCall,
+  ExistsCall,
+} from './fakes/index.js';
+export { FakePhaseAdapter } from './fakes/index.js';
+export type { LoadFromPathCall, ListForWorkflowCall } from './fakes/index.js';
 
 // Services (Phase 2)
 export { WorkflowService, ComposeErrorCodes } from './services/index.js';

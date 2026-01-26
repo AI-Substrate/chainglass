@@ -475,46 +475,56 @@ describe('ClaudeCodeAdapter', () => {
       expect(history[0].cwd).toBe('/some/project/path');
     });
 
-    it('should reject cwd outside workspace root', async () => {
+    it('should allow cwd outside workspace root with warning (DYK-07)', async () => {
       /*
       Test Doc:
-      - Why: Prevent path traversal attacks (FIX-004)
-      - Contract: cwd outside workspaceRoot throws error
-      - Usage Notes: Security measure to prevent arbitrary directory access
-      - Quality Contribution: Validates path traversal prevention
-      - Worked Example: workspaceRoot=/home/user, cwd=/etc → throws
+      - Why: Allow .chainglass/ runs directory outside workspace (DYK-07)
+      - Contract: cwd outside workspaceRoot logs warning but proceeds
+      - Usage Notes: Relaxed security to support workflow run directories
+      - Quality Contribution: Validates warning-only behavior
+      - Worked Example: workspaceRoot=/home/user, cwd=/etc → logs warning, proceeds
       */
       const adapterWithWorkspace = new ClaudeCodeAdapter(fakeProcessManager, {
         workspaceRoot: '/home/user/workspace',
       });
 
-      await expect(
-        adapterWithWorkspace.run({
-          prompt: 'test',
-          cwd: '/etc/passwd',
-        })
-      ).rejects.toThrow('cwd must be within workspace');
+      // Configure process to complete successfully
+      configureNextProcess(sampleOutput, 0);
+
+      // Should not throw - just log warning and proceed
+      const result = await adapterWithWorkspace.run({
+        prompt: 'test',
+        cwd: '/etc/passwd',
+      });
+
+      // Should complete (fake process manager returns success)
+      expect(result.status).toBe('completed');
     });
 
-    it('should reject path traversal attempts', async () => {
+    it('should allow path traversal with warning (DYK-07)', async () => {
       /*
       Test Doc:
-      - Why: Prevent ../ path traversal (FIX-004)
-      - Contract: cwd with ../ resolving outside workspace throws
-      - Usage Notes: path.resolve() normalizes before checking
-      - Quality Contribution: Validates traversal detection
-      - Worked Example: cwd=../../etc → throws
+      - Why: Allow paths that resolve outside workspace (DYK-07)
+      - Contract: cwd with ../ resolving outside workspace logs warning but proceeds
+      - Usage Notes: Relaxed security to support workflow run directories
+      - Quality Contribution: Validates warning-only behavior
+      - Worked Example: cwd=../../etc → logs warning, proceeds
       */
       const adapterWithWorkspace = new ClaudeCodeAdapter(fakeProcessManager, {
         workspaceRoot: '/home/user/workspace',
       });
 
-      await expect(
-        adapterWithWorkspace.run({
-          prompt: 'test',
-          cwd: '/home/user/workspace/../../etc',
-        })
-      ).rejects.toThrow('cwd must be within workspace');
+      // Configure process to complete successfully
+      configureNextProcess(sampleOutput, 0);
+
+      // Should not throw - just log warning and proceed
+      const result = await adapterWithWorkspace.run({
+        prompt: 'test',
+        cwd: '/home/user/workspace/../../etc',
+      });
+
+      // Should complete (fake process manager returns success)
+      expect(result.status).toBe('completed');
     });
   });
 

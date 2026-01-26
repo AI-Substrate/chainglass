@@ -100,10 +100,13 @@ export type {
   CopilotSessionConfig,
   CopilotSessionErrorEvent,
   CopilotSessionEvent,
+  CopilotSessionEventBase,
   CopilotSessionEventHandler,
+  CopilotSessionEventLike,
   CopilotSessionEventType,
   CopilotSessionIdleEvent,
   CopilotStatusResponse,
+  CopilotToolRequest,
   ICopilotClient,
   ICopilotSession,
 } from './copilot-sdk.interface.js';

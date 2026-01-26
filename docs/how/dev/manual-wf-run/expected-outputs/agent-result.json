@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "agent-result",
+  "title": "Agent Result JSON",
+  "description": "Expected JSON structure for cg agent run/compact output. Used by entity validation scripts.",
+  "type": "object",
+  "required": ["output", "sessionId", "status", "exitCode", "tokens"],
+  "properties": {
+    "output": {
+      "type": "string",
+      "description": "Agent response text"
+    },
+    "sessionId": {
+      "type": "string",
+      "description": "UUID session identifier for resumption"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["completed", "failed", "timeout", "cancelled"],
+      "description": "Agent execution status"
+    },
+    "exitCode": {
+      "type": "integer",
+      "description": "Process exit code (0 = success)"
+    },
+    "tokens": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["used", "total", "limit"],
+          "properties": {
+            "used": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Tokens used in this call"
+            },
+            "total": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Total tokens across session"
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Context window limit"
+            }
+          }
+        },
+        {
+          "type": "null",
+          "description": "Null on failure"
+        }
+      ]
+    },
+    "stderr": {
+      "type": "string",
+      "description": "Error message (present on failure)"
+    }
+  },
+  "if": {
+    "properties": {
+      "status": { "const": "failed" }
+    }
+  },
+  "then": {
+    "required": ["stderr"]
+  }
+}

@@ -1,0 +1,17 @@
+// Entity classes barrel export
+
+export { Workflow } from './workflow.js';
+export type { CheckpointMetadata, RunMetadata, WorkflowJSON } from './workflow.js';
+
+export { Phase } from './phase.js';
+export type {
+  PhaseInput,
+  PhaseInputFile,
+  PhaseInputParameter,
+  PhaseInputMessage,
+  PhaseMessageOption,
+  PhaseOutput,
+  PhaseOutputParameter,
+  PhaseStatusEntry,
+  PhaseJSON,
+} from './phase.js';

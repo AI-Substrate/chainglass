@@ -8,3 +8,16 @@ export {
   WorkflowRegistryErrorCodes,
 } from './workflow-registry.service.js';
 export { InitService } from './init.service.js';
+
+// Extended result types for PhaseService with Phase entity (Phase 6)
+export type {
+  AcceptResultWithEntity,
+  FinalizeResultWithEntity,
+  HandoverResultWithEntity,
+  PreflightResultWithEntity,
+  PrepareResultWithEntity,
+  ValidateResultWithEntity,
+} from './phase-service.types.js';
+
+// Extended result types for WorkflowService with Workflow entity (Phase 6)
+export type { ComposeResultWithEntity } from './workflow-service.types.js';

@@ -8,6 +8,10 @@
 
 import 'reflect-metadata';
 import {
+  type AdapterFactory,
+  AgentService,
+  ChainglassConfigService,
+  ClaudeCodeAdapter,
   ConsoleOutputAdapter,
   FakeFileSystem,
   FakeHashGenerator,
@@ -15,35 +19,50 @@ import {
   FakeOutputAdapter,
   FakePathResolver,
   HashGeneratorAdapter,
+  type IAgentAdapter,
+  type IConfigService,
   type IFileSystem,
   type IHashGenerator,
   type ILogger,
   type IOutputAdapter,
   type IPathResolver,
+  type IProcessManager,
   JsonOutputAdapter,
   NodeFileSystemAdapter,
   PathResolverAdapter,
   PinoLoggerAdapter,
   SHARED_DI_TOKENS,
+  SdkCopilotAdapter,
+  UnixProcessManager,
   WORKFLOW_DI_TOKENS,
+  WindowsProcessManager,
+  getProjectConfigDir,
+  getUserConfigDir,
 } from '@chainglass/shared';
 import {
+  FakePhaseAdapter,
   FakePhaseService,
   FakeSchemaValidator,
+  FakeWorkflowAdapter,
   FakeWorkflowRegistry,
   FakeWorkflowService,
   FakeYamlParser,
+  type IPhaseAdapter,
   type IPhaseService,
   type ISchemaValidator,
+  type IWorkflowAdapter,
   type IWorkflowRegistry,
   type IWorkflowService,
   type IYamlParser,
+  PhaseAdapter,
   PhaseService,
   SchemaValidatorAdapter,
+  WorkflowAdapter,
   WorkflowRegistryService,
   WorkflowService,
   YamlParserAdapter,
 } from '@chainglass/workflow';
+import { CopilotClient } from '@github/copilot-sdk';
 import { type DependencyContainer, container } from 'tsyringe';
 
 /**
@@ -56,6 +75,14 @@ export const CLI_DI_TOKENS = {
   OUTPUT_ADAPTER_CONSOLE: 'IOutputAdapter:console',
   /** IHashGenerator interface */
   HASH_GENERATOR: 'IHashGenerator',
+  /** IConfigService for agent configuration */
+  CONFIG_SERVICE: 'IConfigService',
+  /** IProcessManager for process spawning */
+  PROCESS_MANAGER: 'IProcessManager',
+  /** CopilotClient singleton */
+  COPILOT_CLIENT: 'CopilotClient',
+  /** AgentService for agent invocation */
+  AGENT_SERVICE: 'AgentService',
 } as const;
 
 /**
@@ -135,6 +162,25 @@ export function createCliProductionContainer(): DependencyContainer {
       ),
   });
 
+  // Register entity adapters (per Plan 010: Entity Upgrade Phase 3)
+  childContainer.register<IWorkflowAdapter>(WORKFLOW_DI_TOKENS.WORKFLOW_ADAPTER, {
+    useFactory: (c) =>
+      new WorkflowAdapter(
+        c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM),
+        c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER),
+        c.resolve<IYamlParser>(WORKFLOW_DI_TOKENS.YAML_PARSER)
+      ),
+  });
+
+  childContainer.register<IPhaseAdapter>(WORKFLOW_DI_TOKENS.PHASE_ADAPTER, {
+    useFactory: (c) =>
+      new PhaseAdapter(
+        c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM),
+        c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER),
+        c.resolve<IYamlParser>(WORKFLOW_DI_TOKENS.YAML_PARSER)
+      ),
+  });
+
   // Register output adapters
   childContainer.register<IOutputAdapter>(CLI_DI_TOKENS.OUTPUT_ADAPTER_JSON, {
     useFactory: () => new JsonOutputAdapter(),
@@ -142,6 +188,63 @@ export function createCliProductionContainer(): DependencyContainer {
 
   childContainer.register<IOutputAdapter>(CLI_DI_TOKENS.OUTPUT_ADAPTER_CONSOLE, {
     useFactory: () => new ConsoleOutputAdapter(),
+  });
+
+  // Per Subtask 001 ST000: Register AgentService infrastructure
+  // Pattern ported from apps/web/src/lib/di-container.ts lines 155-176
+
+  // Register config service (lazy-loaded on first access)
+  // Note: AgentService.constructor calls configService.require(AgentConfigType)
+  // so config must be loaded before AgentService is created
+  childContainer.register<IConfigService>(CLI_DI_TOKENS.CONFIG_SERVICE, {
+    useFactory: () => {
+      const configService = new ChainglassConfigService({
+        userConfigDir: getUserConfigDir(),
+        projectConfigDir: getProjectConfigDir(),
+      });
+      // Load config synchronously - AgentService needs it at construction
+      // ChainglassConfigService.load() is synchronous in current implementation
+      configService.load();
+      return configService;
+    },
+  });
+
+  // Register ProcessManager (platform-specific)
+  childContainer.register<IProcessManager>(CLI_DI_TOKENS.PROCESS_MANAGER, {
+    useFactory: (c) => {
+      const logger = c.resolve<ILogger>(SHARED_DI_TOKENS.LOGGER);
+      if (process.platform === 'win32') {
+        return new WindowsProcessManager(logger);
+      }
+      return new UnixProcessManager(logger);
+    },
+  });
+
+  // Register CopilotClient as singleton
+  childContainer.registerSingleton<CopilotClient>(CLI_DI_TOKENS.COPILOT_CLIENT, CopilotClient);
+
+  // Register AgentService with adapter factory
+  childContainer.register(CLI_DI_TOKENS.AGENT_SERVICE, {
+    useFactory: (c) => {
+      const logger = c.resolve<ILogger>(SHARED_DI_TOKENS.LOGGER);
+      const cfg = c.resolve<IConfigService>(CLI_DI_TOKENS.CONFIG_SERVICE);
+      const processManager = c.resolve<IProcessManager>(CLI_DI_TOKENS.PROCESS_MANAGER);
+      const copilotClient = c.resolve<CopilotClient>(CLI_DI_TOKENS.COPILOT_CLIENT);
+
+      // Factory function for runtime adapter selection based on agent type.
+      // AgentService calls this factory with the user's --type flag value.
+      const adapterFactory: AdapterFactory = (agentType: string): IAgentAdapter => {
+        if (agentType === 'claude-code') {
+          return new ClaudeCodeAdapter(processManager, { logger });
+        }
+        if (agentType === 'copilot') {
+          return new SdkCopilotAdapter(copilotClient, { logger });
+        }
+        throw new Error(`Unknown agent type: ${agentType}`);
+      };
+
+      return new AgentService(adapterFactory, cfg, logger);
+    },
   });
 
   return childContainer;
@@ -215,6 +318,18 @@ export function createCliTestContainer(): DependencyContainer {
   });
   childContainer.register<IOutputAdapter>(CLI_DI_TOKENS.OUTPUT_ADAPTER_CONSOLE, {
     useValue: fakeOutputAdapter,
+  });
+
+  // Register fake workflow adapter (per Plan 010: Entity Upgrade Phase 2)
+  const fakeWorkflowAdapter = new FakeWorkflowAdapter();
+  childContainer.register<IWorkflowAdapter>(WORKFLOW_DI_TOKENS.WORKFLOW_ADAPTER, {
+    useValue: fakeWorkflowAdapter,
+  });
+
+  // Register fake phase adapter (per Plan 010: Entity Upgrade Phase 2)
+  const fakePhaseAdapter = new FakePhaseAdapter();
+  childContainer.register<IPhaseAdapter>(WORKFLOW_DI_TOKENS.PHASE_ADAPTER, {
+    useValue: fakePhaseAdapter,
   });
 
   return childContainer;

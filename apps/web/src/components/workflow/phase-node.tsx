@@ -22,8 +22,13 @@ type PhaseNodeType = Node<WorkflowNodeData, 'phase'>;
 
 const statusColors: Record<string, string> = {
   pending: 'bg-muted',
-  running: 'bg-blue-500/10',
-  completed: 'bg-green-500/10',
+  ready: 'bg-amber-500/10',
+  running: 'bg-blue-500/10', // Legacy alias for 'active'
+  active: 'bg-blue-500/10',
+  blocked: 'bg-orange-500/10',
+  accepted: 'bg-lime-500/10',
+  completed: 'bg-green-500/10', // Legacy alias for 'complete'
+  complete: 'bg-green-500/10',
   failed: 'bg-red-500/10',
 };
 

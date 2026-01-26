@@ -14,32 +14,11 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from '@/components/ui/sidebar';
+import { NAV_ITEMS } from '@/lib/navigation-utils';
 import { cn } from '@/lib/utils';
-import {
-  Code,
-  FileText,
-  GitBranch,
-  GitCompare,
-  Home,
-  LayoutDashboard,
-  PanelLeft,
-  Smartphone,
-} from 'lucide-react';
+import { PanelLeft } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-
-/**
- * Navigation items for the dashboard
- */
-const NAV_ITEMS = [
-  { label: 'Home', href: '/', icon: Home },
-  { label: 'Workflow Visualization', href: '/workflow', icon: GitBranch },
-  { label: 'Kanban Board', href: '/kanban', icon: LayoutDashboard },
-  { label: 'FileViewer Demo', href: '/demo/file-viewer', icon: Code },
-  { label: 'MarkdownViewer Demo', href: '/demo/markdown-viewer', icon: FileText },
-  { label: 'DiffViewer Demo', href: '/demo/diff-viewer', icon: GitCompare },
-  { label: 'Responsive Demo', href: '/demo/responsive', icon: Smartphone },
-] as const;
 
 /**
  * DashboardSidebar
@@ -52,6 +31,7 @@ const NAV_ITEMS = [
  * - Collapse/expand toggle
  * - Icons-only mode when collapsed
  * - ThemeToggle in header
+ * - Uses shared NAV_ITEMS from navigation-utils.ts
  */
 export function DashboardSidebar() {
   const pathname = usePathname();

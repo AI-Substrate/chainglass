@@ -24,8 +24,8 @@ import {
   getUserConfigDir,
 } from '@chainglass/shared';
 import type { DependencyContainer } from 'tsyringe';
-import type { SampleService } from '../services/sample.service.js';
-import { DI_TOKENS, createProductionContainer } from './di-container.js';
+import type { SampleService } from '../services/sample.service';
+import { DI_TOKENS, createProductionContainer } from './di-container';
 
 /**
  * Bootstrap options for customizing startup behavior.

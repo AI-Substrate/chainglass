@@ -13,6 +13,8 @@ Complete documentation for workflow CLI commands.
 | `cg workflow restore <slug> <version>` | Restore a checkpoint to current/ |
 | `cg workflow versions <slug>` | List checkpoint versions for a workflow |
 | `cg workflow compose <slug>` | Create a run from a checkpoint |
+| `cg runs list` | List all workflow runs |
+| `cg runs get <run-id>` | Show detailed information about a run |
 | `cg phase prepare <phase>` | Prepare a phase for execution |
 | `cg phase validate <phase>` | Validate phase inputs or outputs |
 | `cg phase finalize <phase>` | Finalize a phase and extract parameters |
@@ -556,6 +558,222 @@ Phases:
 | E030 | Workflow not found | Check slug matches a workflow |
 | E033 | Version not found | Check version exists with `cg workflow versions` |
 | E034 | No checkpoint exists | Create a checkpoint first with `cg workflow checkpoint` |
+
+---
+
+## cg runs list
+
+List all workflow runs, optionally filtered by workflow or status.
+
+### Syntax
+
+```bash
+cg runs list [options]
+```
+
+### Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `-w, --workflow <slug>` | Filter by workflow slug | all workflows |
+| `-s, --status <status>` | Filter by status (pending, active, complete, failed) | all statuses |
+| `-o, --output <format>` | Output format: table (default), json | `table` |
+
+### What It Does
+
+1. If `--workflow` is specified, lists runs for that workflow only
+2. Otherwise, enumerates all workflow directories in `.chainglass/runs/`
+3. Aggregates runs from all workflows
+4. Sorts by creation date (newest first)
+5. Applies status filter if specified
+
+### Examples
+
+```bash
+# List all runs across all workflows
+cg runs list
+
+# List runs for a specific workflow
+cg runs list --workflow hello-workflow
+
+# List only active runs
+cg runs list --status active
+
+# List completed runs for a workflow
+cg runs list --workflow hello-workflow --status complete
+
+# Get JSON output for automation
+cg runs list --output json
+```
+
+### Output
+
+**Console Output** (default):
+```
+NAME                   WORKFLOW         VERSION           STATUS    AGE
+run-2026-01-25-003    hello-workflow   v002-def67890     active    5m
+run-2026-01-25-002    hello-workflow   v002-def67890     complete  2h
+run-2026-01-25-001    data-pipeline    v001-abc12345     complete  1d
+```
+
+**JSON Output** (`--output json`):
+```json
+[
+  {
+    "slug": "hello-workflow",
+    "workflowDir": ".chainglass/runs/hello-workflow/v002-def67890/run-2026-01-25-003",
+    "version": "1.0.0",
+    "description": null,
+    "isCurrent": false,
+    "isCheckpoint": false,
+    "isRun": true,
+    "isTemplate": false,
+    "source": "run",
+    "checkpoint": {
+      "ordinal": 2,
+      "hash": "def67890",
+      "createdAt": "2026-01-24T10:00:00.000Z",
+      "comment": null
+    },
+    "run": {
+      "runId": "run-2026-01-25-003",
+      "runDir": ".chainglass/runs/hello-workflow/v002-def67890/run-2026-01-25-003",
+      "status": "active",
+      "createdAt": "2026-01-25T14:30:00.000Z"
+    },
+    "phases": []
+  }
+]
+```
+
+### Error Cases
+
+- If no runs exist: Shows "No runs found" with create hint
+- If workflow doesn't exist: Silently skipped in aggregation
+- Invalid status value: Error with list of valid values
+
+---
+
+## cg runs get
+
+Show detailed information about a specific run including phase status.
+
+### Syntax
+
+```bash
+cg runs get <run-id> --workflow <slug> [options]
+```
+
+### Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `run-id` | Run identifier (e.g., `run-2026-01-25-001`) |
+
+### Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `-w, --workflow <slug>` | Workflow slug (**required**) | — |
+| `-o, --output <format>` | Output format: table (default), json | `table` |
+
+### What It Does
+
+1. Lists runs for the specified workflow
+2. Finds the run matching the provided run-id
+3. Loads full run details via WorkflowAdapter
+4. Loads phase data via PhaseAdapter (two-adapter pattern)
+5. Formats and displays combined output
+
+### Examples
+
+```bash
+# Get run details (workflow is required)
+cg runs get run-2026-01-25-001 --workflow hello-workflow
+
+# Get JSON output for automation
+cg runs get run-2026-01-25-001 --workflow hello-workflow --output json
+```
+
+### Output
+
+**Console Output** (default):
+```
+Run: run-2026-01-25-001
+Workflow: hello-workflow
+Version: v002-def67890
+Status: active
+Created: 2026-01-25T10:00:00.000Z
+
+Phases:
+  NAME      STATUS    STARTED   DURATION
+  gather    complete  10:05:00  5m 30s
+  process   active    10:10:30  -
+  report    pending   -         -
+```
+
+**JSON Output** (`--output json`):
+```json
+{
+  "slug": "hello-workflow",
+  "workflowDir": ".chainglass/runs/hello-workflow/v002-def67890/run-2026-01-25-001",
+  "version": "1.0.0",
+  "description": null,
+  "isCurrent": false,
+  "isCheckpoint": false,
+  "isRun": true,
+  "isTemplate": false,
+  "source": "run",
+  "checkpoint": {
+    "ordinal": 2,
+    "hash": "def67890",
+    "createdAt": "2026-01-24T10:00:00.000Z",
+    "comment": null
+  },
+  "run": {
+    "runId": "run-2026-01-25-001",
+    "runDir": ".chainglass/runs/hello-workflow/v002-def67890/run-2026-01-25-001",
+    "status": "active",
+    "createdAt": "2026-01-25T10:00:00.000Z"
+  },
+  "phases": [
+    {
+      "name": "gather",
+      "phaseDir": ".../phases/gather",
+      "runDir": ".../run-2026-01-25-001",
+      "description": "Collect input data",
+      "order": 1,
+      "status": "complete",
+      "facilitator": "agent",
+      "state": "active",
+      "startedAt": "2026-01-25T10:05:00.000Z",
+      "completedAt": "2026-01-25T10:10:30.000Z",
+      "duration": 330000,
+      "isPending": false,
+      "isReady": false,
+      "isActive": false,
+      "isBlocked": false,
+      "isComplete": true,
+      "isFailed": false,
+      "isDone": true,
+      "inputFiles": [],
+      "inputParameters": [],
+      "inputMessages": [],
+      "outputs": [],
+      "outputParameters": [],
+      "statusHistory": [],
+      "messages": []
+    }
+  ]
+}
+```
+
+### Error Codes
+
+| Code | Description | Resolution |
+|------|-------------|------------|
+| — | Run not found | Check run-id with `cg runs list --workflow <slug>` |
+| — | Missing --workflow | Provide workflow slug with `-w` or `--workflow` |
 
 ---
 

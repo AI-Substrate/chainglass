@@ -5,6 +5,7 @@ import type {
   AgentResult,
   AgentRunOptions,
   CopilotSessionEvent,
+  CopilotSessionEventLike,
   IAgentAdapter,
   ICopilotClient,
   ILogger,
@@ -104,7 +105,7 @@ export class SdkCopilotAdapter implements IAgentAdapter {
     try {
       // DYK-02: Register handler BEFORE sendAndWait to avoid race condition
       let output = '';
-      session.on((event: CopilotSessionEvent) => {
+      session.on((event: CopilotSessionEventLike) => {
         // Translate SDK events to AgentEvent and emit via onEvent
         const agentEvent = this._translateToAgentEvent(event);
         if (agentEvent && onEvent) {
@@ -113,7 +114,8 @@ export class SdkCopilotAdapter implements IAgentAdapter {
 
         // Track final message content for AgentResult
         if (event.type === 'assistant.message') {
-          output = event.data.content;
+          const data = event.data as { content: string };
+          output = data.content;
         }
       });
 
@@ -173,39 +175,45 @@ export class SdkCopilotAdapter implements IAgentAdapter {
    * - session.idle → session_idle
    * - session.error → session_error (handled in catch block)
    */
-  private _translateToAgentEvent(event: CopilotSessionEvent): AgentEvent | null {
+  private _translateToAgentEvent(event: CopilotSessionEventLike): AgentEvent | null {
     const timestamp = new Date().toISOString();
 
     switch (event.type) {
-      case 'assistant.message_delta':
+      case 'assistant.message_delta': {
+        const data = event.data as { deltaContent: string; messageId: string };
         return {
           type: 'text_delta',
           timestamp,
           data: {
-            content: event.data.deltaContent,
-            messageId: event.data.messageId,
+            content: data.deltaContent,
+            messageId: data.messageId,
           },
         };
+      }
 
-      case 'assistant.message':
+      case 'assistant.message': {
+        const data = event.data as { content: string; messageId: string };
         return {
           type: 'message',
           timestamp,
           data: {
-            content: event.data.content,
-            messageId: event.data.messageId,
+            content: data.content,
+            messageId: data.messageId,
           },
         };
+      }
 
-      case 'assistant.usage':
+      case 'assistant.usage': {
+        const data = event.data as { inputTokens?: number; outputTokens?: number };
         return {
           type: 'usage',
           timestamp,
           data: {
-            inputTokens: event.data.inputTokens,
-            outputTokens: event.data.outputTokens,
+            inputTokens: data.inputTokens,
+            outputTokens: data.outputTokens,
           },
         };
+      }
 
       case 'session.idle':
         return {
@@ -225,7 +233,7 @@ export class SdkCopilotAdapter implements IAgentAdapter {
           timestamp,
           data: {
             provider: 'copilot',
-            originalType: (event as CopilotSessionEvent).type,
+            originalType: event.type,
             originalData: event,
           },
         };
@@ -252,9 +260,10 @@ export class SdkCopilotAdapter implements IAgentAdapter {
 
     try {
       let output = '';
-      session.on((event: CopilotSessionEvent) => {
+      session.on((event: CopilotSessionEventLike) => {
         if (event.type === 'assistant.message') {
-          output = event.data.content;
+          const data = event.data as { content: string };
+          output = data.content;
         }
       });
 
@@ -349,8 +358,9 @@ export class SdkCopilotAdapter implements IAgentAdapter {
   }
 
   /**
-   * Validate cwd option to prevent path traversal attacks.
-   * SEC-001: Returns error if cwd is outside workspace.
+   * Validate cwd option.
+   * SEC-001: Logs warning if cwd is outside workspace (but doesn't block).
+   * Per DYK-07: Relaxed validation to enable .chainglass/ and scratch/ directories.
    */
   private _validateCwd(cwd: string | undefined): string | null {
     if (!cwd) {
@@ -360,8 +370,12 @@ export class SdkCopilotAdapter implements IAgentAdapter {
     const resolved = path.resolve(cwd);
     const normalizedRoot = path.resolve(this._workspaceRoot);
 
+    // Log warning if outside workspace (but don't block - enables .chainglass/ and other dirs)
     if (!resolved.startsWith(normalizedRoot + path.sep) && resolved !== normalizedRoot) {
-      return `cwd must be within workspace. Got: ${cwd}, Expected within: ${normalizedRoot}`;
+      this._logger?.debug('cwd is outside workspace root', {
+        cwd: resolved,
+        workspaceRoot: normalizedRoot,
+      });
     }
 
     return null;

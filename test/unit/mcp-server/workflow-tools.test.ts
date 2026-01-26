@@ -214,7 +214,7 @@ describe('wf_compose tool - ADR-0001 Compliance', () => {
       const response = JSON.parse((result.content[0] as { type: 'text'; text: string }).text);
 
       expect(response.success).toBe(false);
-      expect(response.error.code).toBe('E020'); // E020 = template not found
+      expect(response.error.code).toBe('E030'); // E030 = workflow not found in registry
       expect(response.error).toHaveProperty('action');
     });
   });

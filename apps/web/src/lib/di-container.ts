@@ -4,6 +4,9 @@
  * Implements Critical Discovery 02: Decorator-free TSyringe pattern for RSC compatibility
  * Implements Critical Discovery 04: Child container pattern for test isolation
  *
+ * Extended for Plan 012: Multi-Agent Web UI
+ * - SESSION_STORE token for agent session persistence (Phase 1)
+ *
  * IMPORTANT: Uses explicit container.register() instead of @injectable() decorators
  * because decorators may not survive React Server Component compilation.
  */
@@ -29,7 +32,37 @@ import {
 // Phase 4: Import CopilotClient from SDK for production adapter
 import { CopilotClient } from '@github/copilot-sdk';
 import { type DependencyContainer, container } from 'tsyringe';
-import { SampleService } from '../services/sample.service.js';
+import { SampleService } from '../services/sample.service';
+// Plan 012: Session persistence
+import { AgentSessionStore } from './stores/agent-session.store';
+
+/**
+ * Creates an in-memory storage implementation for SSR/test environments.
+ * This is a lightweight implementation that doesn't persist across page loads.
+ */
+function createInMemoryStorage(): Storage {
+  const data = new Map<string, string>();
+  return {
+    get length() {
+      return data.size;
+    },
+    getItem(key: string): string | null {
+      return data.get(key) ?? null;
+    },
+    setItem(key: string, value: string): void {
+      data.set(key, value);
+    },
+    removeItem(key: string): void {
+      data.delete(key);
+    },
+    clear(): void {
+      data.clear();
+    },
+    key(index: number): string | null {
+      return Array.from(data.keys())[index] ?? null;
+    },
+  };
+}
 
 // Token constants for type-safe resolution
 export const DI_TOKENS = {
@@ -42,6 +75,8 @@ export const DI_TOKENS = {
   COPILOT_CLIENT: 'CopilotClient', // Singleton SDK client
   COPILOT_ADAPTER: 'CopilotAdapter',
   AGENT_SERVICE: 'AgentService',
+  // Plan 012: Agent session persistence
+  SESSION_STORE: 'SessionStore',
 } as const;
 
 /**
@@ -175,6 +210,23 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
     },
   });
 
+  // Plan 012: Register AgentSessionStore with real localStorage
+  // Note: localStorage is a browser API, may be undefined in SSR
+  childContainer.register(DI_TOKENS.SESSION_STORE, {
+    useFactory: () => {
+      // Use globalThis.localStorage for browser compatibility
+      // Falls back to in-memory storage if not available (e.g., SSR, test env)
+      // Must check for getItem method because Node defines localStorage as empty object
+      const storage =
+        typeof globalThis !== 'undefined' &&
+        globalThis.localStorage &&
+        typeof globalThis.localStorage.getItem === 'function'
+          ? globalThis.localStorage
+          : createInMemoryStorage();
+      return new AgentSessionStore(storage);
+    },
+  });
+
   // FIX-010: Performance metrics for container creation
   const durationMs = performance.now() - startTime;
   console.log(`[createProductionContainer] Container created in ${durationMs.toFixed(2)}ms`);
@@ -254,6 +306,14 @@ export function createTestContainer(): DependencyContainer {
         });
 
       return new AgentService(adapterFactory, cfg, logger);
+    },
+  });
+
+  // Plan 012: Register AgentSessionStore with in-memory storage for test isolation
+  childContainer.register(DI_TOKENS.SESSION_STORE, {
+    useFactory: () => {
+      // Each test container gets its own in-memory storage for isolation
+      return new AgentSessionStore(createInMemoryStorage());
     },
   });
 

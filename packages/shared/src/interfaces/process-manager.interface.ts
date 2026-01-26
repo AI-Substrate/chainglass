@@ -34,8 +34,9 @@ export interface SpawnOptions {
    * Standard I/O configuration [stdin, stdout, stderr].
    * Default: ['ignore', 'pipe', 'pipe']
    *
-   * For streaming use: ['inherit', 'pipe', 'pipe']
-   * Per DYK-01: Claude CLI requires stdin='inherit' to avoid hanging.
+   * For streaming: use default ['ignore', 'pipe', 'pipe'].
+   * Note: stdin='ignore' works correctly since prompt is passed via -p flag.
+   * Avoid stdin='pipe' as it can cause subprocess hanging.
    */
   stdio?: StdioOptions;
   /**

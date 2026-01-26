@@ -41,4 +41,8 @@ export const WORKFLOW_DI_TOKENS = {
   HASH_GENERATOR: 'IHashGenerator',
   /** IInitService interface (per Phase 4: Init Command) */
   INIT_SERVICE: 'IInitService',
+  /** IWorkflowAdapter interface (per Plan 010: Entity Upgrade) */
+  WORKFLOW_ADAPTER: 'IWorkflowAdapter',
+  /** IPhaseAdapter interface (per Plan 010: Entity Upgrade) */
+  PHASE_ADAPTER: 'IPhaseAdapter',
 } as const;

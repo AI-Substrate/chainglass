@@ -22,16 +22,22 @@ import {
   WORKFLOW_DI_TOKENS,
 } from '@chainglass/shared';
 import { type DependencyContainer, container } from 'tsyringe';
+import { PhaseAdapter } from './adapters/phase.adapter.js';
 import { SchemaValidatorAdapter } from './adapters/schema-validator.adapter.js';
+import { WorkflowAdapter } from './adapters/workflow.adapter.js';
 import { YamlParserAdapter } from './adapters/yaml-parser.adapter.js';
+import { FakePhaseAdapter } from './fakes/fake-phase-adapter.js';
 import { FakePhaseService } from './fakes/fake-phase-service.js';
 import { FakeSchemaValidator } from './fakes/fake-schema-validator.js';
+import { FakeWorkflowAdapter } from './fakes/fake-workflow-adapter.js';
 import { FakeWorkflowRegistry } from './fakes/fake-workflow-registry.js';
 import { FakeWorkflowService } from './fakes/fake-workflow-service.js';
 import { FakeYamlParser } from './fakes/fake-yaml-parser.js';
 import type {
+  IPhaseAdapter,
   IPhaseService,
   ISchemaValidator,
+  IWorkflowAdapter,
   IWorkflowRegistry,
   IWorkflowService,
   IYamlParser,
@@ -110,6 +116,25 @@ export function createWorkflowProductionContainer(): DependencyContainer {
       ),
   });
 
+  // Register entity adapters (per Plan 010: Entity Upgrade Phase 3)
+  childContainer.register<IWorkflowAdapter>(WORKFLOW_DI_TOKENS.WORKFLOW_ADAPTER, {
+    useFactory: (c) =>
+      new WorkflowAdapter(
+        c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM),
+        c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER),
+        c.resolve<IYamlParser>(WORKFLOW_DI_TOKENS.YAML_PARSER)
+      ),
+  });
+
+  childContainer.register<IPhaseAdapter>(WORKFLOW_DI_TOKENS.PHASE_ADAPTER, {
+    useFactory: (c) =>
+      new PhaseAdapter(
+        c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM),
+        c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER),
+        c.resolve<IYamlParser>(WORKFLOW_DI_TOKENS.YAML_PARSER)
+      ),
+  });
+
   return childContainer;
 }
 
@@ -169,6 +194,20 @@ export function createWorkflowTestContainer(): DependencyContainer {
   const fakeWorkflowRegistry = new FakeWorkflowRegistry();
   childContainer.register<IWorkflowRegistry>(WORKFLOW_DI_TOKENS.WORKFLOW_REGISTRY, {
     useValue: fakeWorkflowRegistry,
+  });
+
+  // Register fake workflow adapter (per Plan 010: Entity Upgrade Phase 2)
+  // Note: Unit tests typically instantiate FakeWorkflowAdapter directly for fine-grained control.
+  // Container registration is for integration tests and CLI testing where DI is used.
+  const fakeWorkflowAdapter = new FakeWorkflowAdapter();
+  childContainer.register<IWorkflowAdapter>(WORKFLOW_DI_TOKENS.WORKFLOW_ADAPTER, {
+    useValue: fakeWorkflowAdapter,
+  });
+
+  // Register fake phase adapter (per Plan 010: Entity Upgrade Phase 2)
+  const fakePhaseAdapter = new FakePhaseAdapter();
+  childContainer.register<IPhaseAdapter>(WORKFLOW_DI_TOKENS.PHASE_ADAPTER, {
+    useValue: fakePhaseAdapter,
   });
 
   return childContainer;

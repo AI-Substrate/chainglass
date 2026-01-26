@@ -93,8 +93,32 @@ See `/docs/how/nextjs-mcp-llm-agent-guide.md` for detailed workflows.
 
 ## Quick Reference
 
+### Justfile Commands (Preferred)
+
+Use `just` for common development tasks. Run `just --list` to see all commands.
+
 ```bash
+# Quality checks (USE THESE BEFORE COMMITTING)
+just fft                    # Fix, Format, Test - runs lint, format, then test
+just check                  # Full quality check: lint, typecheck, test
+just lint                   # Run biome linter only
+just format                 # Format code only
+just typecheck              # TypeScript type checking only
+
 # Development
+just dev                    # Start development server
+just build                  # Build all packages
+just test                   # Run test suite
+
+# Setup & Maintenance
+just install                # Install deps, build, link CLI globally
+just clean                  # Clean build artifacts
+just reset                  # Full reset (clean + reinstall)
+```
+
+### pnpm Commands (Alternative)
+
+```bash
 pnpm dev                    # Start dev server (apps/web)
 pnpm build                  # Build all packages
 pnpm test                   # Run test suite

@@ -73,7 +73,7 @@ export interface ClaudeCodeAdapterOptions {
  * ```
  *
  * **Technical Notes:**
- * - Per DYK-01: Uses `stdio: ['inherit', 'pipe', 'pipe']` when streaming to avoid CLI hang
+ * - Per DYK-01: Uses `stdio: ['ignore', 'pipe', 'pipe']` when streaming (stdin not needed with -p flag)
  * - Per DYK-02: Uses `onStdoutLine` callback for real-time line processing
  * - See `scripts/agent/demo-claude-adapter-streaming.ts` for full working example
  */
@@ -206,8 +206,11 @@ export class ClaudeCodeAdapter implements IAgentAdapter {
         command: 'claude',
         args,
         cwd: validatedCwd,
-        // Per DYK-01: Use 'inherit' for stdin when streaming to avoid CLI hanging
-        stdio: isStreaming ? ['inherit', 'pipe', 'pipe'] : undefined,
+        // Per DYK-01: Use 'ignore' for stdin when streaming.
+        // Note: Original research suggested 'inherit' to avoid hanging with 'pipe',
+        // but 'ignore' works correctly in server contexts (no TTY) and still avoids
+        // the pipe-based hanging issue. The prompt is passed via -p flag, not stdin.
+        stdio: isStreaming ? ['ignore', 'pipe', 'pipe'] : undefined,
         // Per DYK-02: Emit events as lines arrive
         onStdoutLine: isStreaming
           ? (line: string) => {
@@ -342,13 +345,14 @@ export class ClaudeCodeAdapter implements IAgentAdapter {
 
     // Resolve to absolute path
     const resolved = path.resolve(cwd);
-    const normalizedRoot = path.resolve(this._workspaceRoot);
 
-    // Ensure cwd is within workspace (or is the workspace itself)
+    // Log warning if outside workspace (but don't block - enables scratch/ and other dirs)
+    const normalizedRoot = path.resolve(this._workspaceRoot);
     if (!resolved.startsWith(normalizedRoot + path.sep) && resolved !== normalizedRoot) {
-      throw new Error(
-        `cwd must be within workspace. Got: ${cwd}, Expected within: ${normalizedRoot}`
-      );
+      this._logger?.debug('cwd is outside workspace root', {
+        cwd: resolved,
+        workspaceRoot: normalizedRoot,
+      });
     }
 
     return resolved;
@@ -370,7 +374,8 @@ export class ClaudeCodeAdapter implements IAgentAdapter {
     ];
 
     if (sessionId) {
-      args.push('--resume', sessionId);
+      // Per scripts/agents/claude-code-session-demo.ts: Claude Code requires both flags
+      args.push('--fork-session', '--resume', sessionId);
     }
 
     // Validate and sanitize prompt

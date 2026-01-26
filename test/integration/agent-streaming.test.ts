@@ -58,6 +58,9 @@ function shouldSkipClaudeIntegration(): boolean {
  * NOTE: These tests are slow (spawn real CLI) and require authentication.
  * They are marked with 60s timeout.
  */
+// Always skip: These tests spawn real CLI processes and timeout even when CLI is installed.
+// They require authentication and each test takes 60s to timeout.
+// To run manually: Remove .skip and ensure CLI is authenticated.
 describe.skip('SdkCopilotAdapter Streaming Integration', { timeout: 60_000 }, () => {
   // Dynamic imports to avoid loading SDK in unit test context
   let SdkCopilotAdapter: Awaited<typeof import('@chainglass/shared/adapters')>['SdkCopilotAdapter'];
@@ -180,6 +183,9 @@ describe.skip('SdkCopilotAdapter Streaming Integration', { timeout: 60_000 }, ()
   });
 });
 
+// Always skip: These tests spawn real CLI processes and timeout even when CLI is installed.
+// They require authentication and each test takes 60s to timeout.
+// To run manually: Remove .skip and ensure CLI is authenticated.
 describe.skip('ClaudeCodeAdapter Streaming Integration', { timeout: 60_000 }, () => {
   // Dynamic imports to avoid loading adapters in unit test context
   let ClaudeCodeAdapter: Awaited<typeof import('@chainglass/shared')>['ClaudeCodeAdapter'];
