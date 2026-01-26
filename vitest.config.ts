@@ -36,7 +36,14 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'lcov', 'json-summary', 'json'],
-      include: ['apps/web/src/hooks/**/*.ts', 'apps/web/src/hooks/**/*.tsx'],
+      include: [
+        'packages/shared/src/**/*.ts',
+        'packages/workflow/src/**/*.ts',
+        'packages/mcp-server/src/**/*.ts',
+        'apps/web/src/**/*.ts',
+        'apps/web/src/**/*.tsx',
+        'apps/cli/src/**/*.ts',
+      ],
       exclude: ['**/*.test.ts', '**/*.test.tsx', '**/index.ts'],
       thresholds: {
         statements: 80,

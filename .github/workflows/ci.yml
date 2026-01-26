@@ -103,7 +103,7 @@ jobs:
         with:
           json-summary-path: ./test/coverage/coverage-summary.json
           json-final-path: ./test/coverage/coverage-final.json
-          file-coverage-mode: changes
+          file-coverage-mode: all
 
   gate:
     name: CI Result
