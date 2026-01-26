@@ -20,6 +20,9 @@ import type { DiffResult } from '@chainglass/shared';
 const execFileAsync = promisify(execFile);
 const pathResolver = new PathResolverAdapter();
 
+// FIX-004: Cache git availability check to avoid spawning git --version on every request
+let gitAvailableCache: boolean | null = null;
+
 /**
  * Get the project root directory.
  * Uses process.cwd() which in Next.js dev/build is the project root.
@@ -30,12 +33,18 @@ function getProjectRoot(): string {
 
 /**
  * Check if git is available on the system.
+ * Result is cached after first check.
  */
 async function isGitAvailable(): Promise<boolean> {
+  if (gitAvailableCache !== null) {
+    return gitAvailableCache;
+  }
   try {
     await execFileAsync('git', ['--version']);
+    gitAvailableCache = true;
     return true;
   } catch {
+    gitAvailableCache = false;
     return false;
   }
 }

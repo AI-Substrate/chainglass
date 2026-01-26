@@ -26,7 +26,25 @@
 import { DiffFile, DiffModeEnum, DiffView } from '@git-diff-view/react';
 import '@git-diff-view/react/styles/diff-view.css';
 import { useTheme } from 'next-themes';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
+
+// Module-level singleton for Shiki highlighter (FIX-002: avoid re-init on every render)
+// biome-ignore lint/suspicious/noExplicitAny: Shiki highlighter type is complex and internal
+let shikiHighlighterPromise: Promise<any> | null = null;
+
+async function getShikiHighlighter() {
+  if (!shikiHighlighterPromise) {
+    shikiHighlighterPromise = (async () => {
+      const { getDiffViewHighlighter, highlighterReady } = await import('@git-diff-view/shiki');
+      await highlighterReady;
+      return getDiffViewHighlighter({
+        themes: ['github-light', 'github-dark'],
+        langs: ['typescript', 'javascript', 'tsx', 'jsx', 'python', 'go', 'rust'],
+      });
+    })();
+  }
+  return shikiHighlighterPromise;
+}
 
 import type { DiffError } from '@chainglass/shared';
 
@@ -117,6 +135,7 @@ export function DiffViewer({
   const diffViewTheme = resolvedTheme === 'dark' ? 'dark' : 'light';
 
   // Parse diff data and create DiffFile instance
+  // FIX-001: Added proper cleanup to prevent memory leaks
   useEffect(() => {
     if (!diffData) {
       setDiffFile(null);
@@ -150,13 +169,9 @@ export function DiffViewer({
         file.init();
 
         // Try to load Shiki highlighter for syntax highlighting
+        // FIX-002: Use singleton to avoid re-init on every render
         try {
-          const { getDiffViewHighlighter, highlighterReady } = await import('@git-diff-view/shiki');
-          await highlighterReady;
-          const highlighter = await getDiffViewHighlighter({
-            themes: ['github-light', 'github-dark'],
-            langs: ['typescript', 'javascript', 'tsx', 'jsx', 'python', 'go', 'rust'],
-          });
+          const highlighter = await getShikiHighlighter();
           file.initSyntax({ registerHighlighter: highlighter });
         } catch {
           // Fall back to plain text if Shiki fails
@@ -180,8 +195,10 @@ export function DiffViewer({
 
     initDiff();
 
+    // FIX-001: Cleanup function to prevent memory leaks
     return () => {
       mounted = false;
+      setDiffFile(null); // Clear state reference to allow GC
     };
   }, [diffData, diffViewTheme]);
 
