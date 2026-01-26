@@ -1,13 +1,23 @@
 'use client';
 
 /**
- * TemplateFlowContent - Data flow graph for workflow templates
+ * WorkflowFlowContent - Unified data flow graph for workflows
  *
- * Shows phases with their inputs/outputs as actual nodes, visualizing
- * how data flows through the workflow. Artifact nodes (files) sit between
- * phases and are connected to show the data pipeline. Command nodes (prompts)
- * show what configures each phase.
+ * Renders the same visualization for both workflow templates and runs.
+ * A run is just a workflow with execution state - same structure, different data.
  *
+ * Layout:
+ * - Commands (prompts) - amber, on the LEFT of each phase
+ * - External inputs - colored by author, on the RIGHT of each phase
+ * - Phase node - centered, shows status badge if running
+ * - Outputs - below the phase, linked to next phase if consumed
+ *
+ * Color scheme:
+ * - Amber: Workflow template files (main.md prompts)
+ * - Purple: User-provided inputs (request.md)
+ * - Cyan: Agent-generated outputs (response.md)
+ *
+ * @see Plan 010: Entity Upgrade - Unified Workflow/Run model
  * @see Plan 011: UI Mockups
  */
 
@@ -21,17 +31,19 @@ import {
   useReactFlow,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Handle, Position } from '@xyflow/react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { StatusBadge } from '@/components/ui/status-badge';
 import { ArtifactNode, type ArtifactNodeData } from '@/components/workflow/artifact-node';
 import { CommandNode, type CommandNodeData } from '@/components/workflow/command-node';
-import type { PhaseJSON } from '@/data/fixtures/workflows.fixture';
+import type { PhaseJSON, PhaseRunStatus } from '@/data/fixtures/workflows.fixture';
 import { cn } from '@/lib/utils';
 
 // ============ Types ============
 
-export interface TemplateFlowContentProps {
+export interface WorkflowFlowContentProps {
   /** Phases to display */
   phases: PhaseJSON[];
   /** Callback when a node is clicked (for showing details panel) */
@@ -40,57 +52,107 @@ export interface TemplateFlowContentProps {
   className?: string;
 }
 
-// ============ Phase Node for Template View ============
+// ============ Phase Node ============
 
-interface TemplatePhaseNodeData {
+interface PhaseNodeData {
   label: string;
   description?: string;
   facilitator: string;
   order: number;
+  status: PhaseRunStatus | 'defined';
+  hasQuestion?: boolean;
   inputCount: number;
   outputCount: number;
   [key: string]: unknown;
 }
 
-type TemplatePhaseNode = Node<TemplatePhaseNodeData, 'template-phase'>;
-type ArtifactNodeType = Node<ArtifactNodeData, 'artifact'>;
+type PhaseNode = Node<PhaseNodeData, 'workflow-phase'>;
 
 const facilitatorIcons: Record<string, string> = {
   agent: '🤖',
   orchestrator: '👤',
 };
 
-function TemplatePhaseNodeComponent({
+function PhaseNodeComponent({
   data,
   selected,
 }: {
-  data: TemplatePhaseNodeData;
+  data: PhaseNodeData;
   selected?: boolean;
 }) {
+  const isRunning = data.status === 'active';
+  const isBlocked = data.status === 'blocked';
+  const isComplete = data.status === 'complete' || data.status === 'accepted';
+  const isFailed = data.status === 'failed';
+  const isTemplate = data.status === 'defined';
+
   return (
     <Card
       className={cn(
         'min-w-[200px] max-w-[280px] border-2',
-        'bg-slate-50 dark:bg-slate-900/50 border-slate-300 dark:border-slate-600',
+        'bg-slate-50 dark:bg-slate-900/50',
+        // Status-based border colors
+        isTemplate && 'border-slate-300 dark:border-slate-600',
+        isRunning && 'border-blue-400 dark:border-blue-500',
+        isBlocked && 'border-orange-400 dark:border-orange-500',
+        isComplete && 'border-green-400 dark:border-green-500',
+        isFailed && 'border-red-400 dark:border-red-500',
+        !isTemplate &&
+          !isRunning &&
+          !isBlocked &&
+          !isComplete &&
+          !isFailed &&
+          'border-slate-300 dark:border-slate-600',
         selected && 'ring-2 ring-primary ring-offset-2'
       )}
     >
       <CardHeader className="p-3 pb-2">
-        <CardTitle className="text-sm font-semibold flex items-center gap-2">
-          <span className="text-muted-foreground">
-            {facilitatorIcons[data.facilitator] ?? '🤖'}
-          </span>
-          {data.label}
+        <CardTitle className="text-sm font-semibold flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-muted-foreground">
+              {facilitatorIcons[data.facilitator] ?? '🤖'}
+            </span>
+            {data.label}
+          </div>
+          {!isTemplate && <StatusBadge status={data.status as PhaseRunStatus} size="sm" />}
         </CardTitle>
       </CardHeader>
-      {data.description && (
+      {(data.description || data.hasQuestion) && (
         <CardContent className="p-3 pt-0">
-          <p className="text-xs text-muted-foreground line-clamp-2">{data.description}</p>
+          {data.description && (
+            <p className="text-xs text-muted-foreground line-clamp-2">{data.description}</p>
+          )}
+          {data.hasQuestion && (
+            <div className="mt-1 text-xs text-orange-600 dark:text-orange-400 font-medium">
+              ⚠️ Awaiting input
+            </div>
+          )}
         </CardContent>
       )}
     </Card>
   );
 }
+
+const PhaseNodeMemo = memo(function PhaseNodeWrapper(props: {
+  data: PhaseNodeData;
+  selected?: boolean;
+}) {
+  return (
+    <>
+      <Handle
+        type="target"
+        position={Position.Top}
+        className="!bg-blue-500 !w-3 !h-3 !border-2 !border-background"
+      />
+      <PhaseNodeComponent {...props} />
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        className="!bg-emerald-500 !w-3 !h-3 !border-2 !border-background"
+      />
+    </>
+  );
+});
 
 // ============ Layout Configuration ============
 
@@ -104,19 +166,8 @@ const VERTICAL_GAP = 80;
 const HORIZONTAL_GAP = 60;
 
 /**
- * Build nodes and edges for the template data flow graph
- *
- * Layout (top to bottom for each phase):
- * 1. Commands (prompts) - amber colored, on the LEFT side
- * 2. External inputs - blue colored, on the RIGHT side
- * 3. Phase node - centered
- * 4. Outputs - green colored
- *
- * Artifacts are shared ONLY when:
- * - Phase A outputs file X
- * - Phase B (immediately after A) inputs file X with same name
- *
- * Same filename in different contexts = different artifacts
+ * Build nodes and edges for the workflow data flow graph.
+ * Works for both templates (status='defined') and runs (actual status).
  */
 function buildFlowGraph(phases: PhaseJSON[]): {
   nodes: Node[];
@@ -126,7 +177,6 @@ function buildFlowGraph(phases: PhaseJSON[]): {
   const edges: Edge[] = [];
   const sortedPhases = [...phases].sort((a, b) => a.order - b.order);
 
-  // Layout constants
   let currentY = 0;
 
   for (const [phaseIndex, phase] of sortedPhases.entries()) {
@@ -147,9 +197,6 @@ function buildFlowGraph(phases: PhaseJSON[]): {
 
     if (hasCommands || hasExternalInputs) {
       // Commands go on the LEFT, inputs go on the RIGHT
-      // Commands positioned at negative X, inputs at positive X
-
-      // Place commands
       if (hasCommands) {
         const commandStartX = -(
           PHASE_WIDTH / 2 +
@@ -171,7 +218,6 @@ function buildFlowGraph(phases: PhaseJSON[]): {
             } as CommandNodeData,
           });
 
-          // Edge from command to phase
           edges.push({
             id: `${commandId}-to-${phaseId}`,
             source: commandId,
@@ -182,7 +228,6 @@ function buildFlowGraph(phases: PhaseJSON[]): {
         }
       }
 
-      // Place external inputs
       if (hasExternalInputs) {
         const inputStartX = PHASE_WIDTH / 2 + HORIZONTAL_GAP;
         for (const [idx, input] of externalInputs.entries()) {
@@ -201,7 +246,6 @@ function buildFlowGraph(phases: PhaseJSON[]): {
             } as ArtifactNodeData,
           });
 
-          // Edge from external input to phase
           edges.push({
             id: `${artifactId}-to-${phaseId}`,
             source: artifactId,
@@ -217,18 +261,22 @@ function buildFlowGraph(phases: PhaseJSON[]): {
 
     // Place the phase
     const phaseY = currentY;
+    const isActive = phase.status === 'active';
+
     nodes.push({
       id: phaseId,
-      type: 'template-phase',
+      type: 'workflow-phase',
       position: { x: -PHASE_WIDTH / 2, y: phaseY },
       data: {
         label: phase.name,
         description: phase.description,
         facilitator: phase.facilitator,
         order: phase.order,
+        status: phase.status,
+        hasQuestion: !!phase.question,
         inputCount: inputs.length,
         outputCount: outputs.length,
-      } as TemplatePhaseNodeData,
+      } as PhaseNodeData,
     });
     currentY += PHASE_HEIGHT + VERTICAL_GAP;
 
@@ -257,6 +305,7 @@ function buildFlowGraph(phases: PhaseJSON[]): {
           source: phaseId,
           target: artifactId,
           type: 'smoothstep',
+          animated: isActive,
           style: { stroke: '#10b981', strokeWidth: 2 },
         });
 
@@ -267,7 +316,6 @@ function buildFlowGraph(phases: PhaseJSON[]): {
           const nextInputs = nextPhase.inputs ?? [];
           const matchingInput = nextInputs.find((i) => i.name === output.name);
           if (matchingInput) {
-            // Edge from output to next phase (the output serves as input)
             edges.push({
               id: `${artifactId}-to-phase-${nextPhase.name}`,
               source: artifactId,
@@ -285,41 +333,17 @@ function buildFlowGraph(phases: PhaseJSON[]): {
   return { nodes, edges };
 }
 
-// ============ Custom Node Types ============
-
-import { Handle, Position } from '@xyflow/react';
-import { memo } from 'react';
-
-const TemplatePhaseNode = memo(function TemplatePhaseNodeMemo(props: {
-  data: TemplatePhaseNodeData;
-  selected?: boolean;
-}) {
-  return (
-    <>
-      <Handle
-        type="target"
-        position={Position.Top}
-        className="!bg-blue-500 !w-3 !h-3 !border-2 !border-background"
-      />
-      <TemplatePhaseNodeComponent {...props} />
-      <Handle
-        type="source"
-        position={Position.Bottom}
-        className="!bg-emerald-500 !w-3 !h-3 !border-2 !border-background"
-      />
-    </>
-  );
-});
+// ============ Node Types ============
 
 const nodeTypes = {
-  'template-phase': TemplatePhaseNode,
+  'workflow-phase': PhaseNodeMemo,
   artifact: ArtifactNode,
   command: CommandNode,
 };
 
 // ============ Inner Component with ReactFlow hooks ============
 
-function TemplateFlowContentInner({ phases, onNodeClick, className }: TemplateFlowContentProps) {
+function WorkflowFlowContentInner({ phases, onNodeClick, className }: WorkflowFlowContentProps) {
   const { fitView } = useReactFlow();
   const [isLayoutReady, setIsLayoutReady] = useState(false);
   const prevPhasesLength = useRef(phases.length);
@@ -387,15 +411,20 @@ function TemplateFlowContentInner({ phases, onNodeClick, className }: TemplateFl
 // ============ Exported Component with Provider ============
 
 /**
- * TemplateFlowContent displays workflow template as a data flow graph.
+ * WorkflowFlowContent displays a workflow as a data flow graph.
+ * Works for both templates (phases with status='defined') and runs (actual execution status).
  *
  * @example
- * <TemplateFlowContent phases={workflow.phases} />
+ * // Template view - phases show as 'defined'
+ * <WorkflowFlowContent phases={workflow.phases} onNodeClick={handleClick} />
+ *
+ * // Run view - phases show actual status (active/blocked/complete)
+ * <WorkflowFlowContent phases={run.phases} onNodeClick={handleClick} />
  */
-export function TemplateFlowContent(props: TemplateFlowContentProps) {
+export function WorkflowFlowContent(props: WorkflowFlowContentProps) {
   return (
     <ReactFlowProvider>
-      <TemplateFlowContentInner {...props} />
+      <WorkflowFlowContentInner {...props} />
     </ReactFlowProvider>
   );
 }

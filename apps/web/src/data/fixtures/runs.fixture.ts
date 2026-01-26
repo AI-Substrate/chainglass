@@ -1,8 +1,8 @@
 /**
  * Run Fixtures - Demo data for workflow run UI mockups
  *
- * Factory functions for creating run fixtures with phases
- * aligned with Plan 010 entity types.
+ * All runs are for the manual-test-workflow (gather → process → report).
+ * Demonstrates different question types and run states.
  *
  * @see Plan 010: Entity Upgrade
  * @see Plan 011: UI Mockups
@@ -10,7 +10,6 @@
 
 import {
   type CheckpointMetadataJSON,
-  DEMO_QUESTIONS,
   GATHER_CLARIFICATION_QUESTION,
   PROCESS_FORMAT_QUESTION,
   type PhaseJSON,
@@ -99,346 +98,16 @@ export function createRunDetail(workflow: WorkflowJSON, runMeta: RunMetadataJSON
   };
 }
 
-// ============ Demo Run Fixtures ============
+// ============ Time Constants ============
 
 const NOW = new Date();
+const THIRTY_MIN_AGO = new Date(NOW.getTime() - 30 * 60 * 1000);
 const HOUR_AGO = new Date(NOW.getTime() - 60 * 60 * 1000);
 const TWO_HOURS_AGO = new Date(NOW.getTime() - 2 * 60 * 60 * 1000);
 const YESTERDAY = new Date(NOW.getTime() - 24 * 60 * 60 * 1000);
+const TWO_DAYS_AGO = new Date(NOW.getTime() - 48 * 60 * 60 * 1000);
 
-/**
- * Active run with test phase running
- */
-export const DEMO_ACTIVE_RUN = createRunDetail(
-  createWorkflow({
-    slug: 'ci-cd-pipeline',
-    description: 'Continuous integration and deployment pipeline',
-    phases: [
-      createPhase({
-        name: 'checkout',
-        order: 0,
-        status: 'complete',
-        description: 'Clone repository and checkout branch',
-        startedAt: TWO_HOURS_AGO.toISOString(),
-        completedAt: new Date(TWO_HOURS_AGO.getTime() + 30000).toISOString(),
-        duration: 30,
-      }),
-      createPhase({
-        name: 'build',
-        order: 1,
-        status: 'complete',
-        description: 'Compile and bundle application',
-        startedAt: new Date(TWO_HOURS_AGO.getTime() + 30000).toISOString(),
-        completedAt: new Date(TWO_HOURS_AGO.getTime() + 120000).toISOString(),
-        duration: 90,
-      }),
-      createPhase({
-        name: 'test',
-        order: 2,
-        status: 'active',
-        description: 'Run unit and integration tests',
-        startedAt: new Date(TWO_HOURS_AGO.getTime() + 120000).toISOString(),
-      }),
-      createPhase({
-        name: 'approval',
-        order: 3,
-        status: 'pending',
-        description: 'Manual approval for production deployment',
-        facilitator: 'orchestrator',
-        question: DEMO_QUESTIONS.confirm,
-      }),
-      createPhase({
-        name: 'deploy',
-        order: 4,
-        status: 'pending',
-        description: 'Deploy to production environment',
-      }),
-    ],
-  }),
-  createRunMetadata({
-    runId: 'run-001',
-    status: 'active',
-    startedAt: TWO_HOURS_AGO.toISOString(),
-    currentPhase: 'test',
-    triggeredBy: 'github-actions',
-  })
-);
-
-/**
- * Blocked run awaiting approval
- */
-export const DEMO_BLOCKED_RUN = createRunDetail(
-  createWorkflow({
-    slug: 'deploy-to-prod',
-    description: 'Production deployment workflow with approval gate',
-    phases: [
-      createPhase({
-        name: 'prepare',
-        order: 0,
-        status: 'complete',
-        description: 'Prepare deployment artifacts',
-        startedAt: HOUR_AGO.toISOString(),
-        completedAt: new Date(HOUR_AGO.getTime() + 60000).toISOString(),
-        duration: 60,
-      }),
-      createPhase({
-        name: 'review',
-        order: 1,
-        status: 'blocked',
-        description: 'Awaiting deployment approval',
-        facilitator: 'orchestrator',
-        startedAt: new Date(HOUR_AGO.getTime() + 60000).toISOString(),
-        question: DEMO_QUESTIONS.confirm,
-      }),
-      createPhase({
-        name: 'deploy',
-        order: 2,
-        status: 'pending',
-        description: 'Execute deployment',
-      }),
-    ],
-  }),
-  createRunMetadata({
-    runId: 'run-002',
-    status: 'active',
-    startedAt: HOUR_AGO.toISOString(),
-    currentPhase: 'review',
-    triggeredBy: 'user@example.com',
-  })
-);
-
-/**
- * Run with single choice question (environment selection)
- */
-export const DEMO_SINGLE_CHOICE_RUN = createRunDetail(
-  createWorkflow({
-    slug: 'deploy-to-prod',
-    description: 'Production deployment workflow with environment selection',
-    phases: [
-      createPhase({
-        name: 'build',
-        order: 0,
-        status: 'complete',
-        description: 'Build application artifacts',
-        startedAt: HOUR_AGO.toISOString(),
-        completedAt: new Date(HOUR_AGO.getTime() + 120000).toISOString(),
-        duration: 120,
-      }),
-      createPhase({
-        name: 'select-env',
-        order: 1,
-        status: 'blocked',
-        description: 'Select target deployment environment',
-        facilitator: 'orchestrator',
-        startedAt: new Date(HOUR_AGO.getTime() + 120000).toISOString(),
-        question: DEMO_QUESTIONS.single_choice,
-      }),
-      createPhase({
-        name: 'deploy',
-        order: 2,
-        status: 'pending',
-        description: 'Execute deployment to selected environment',
-      }),
-    ],
-  }),
-  createRunMetadata({
-    runId: 'run-005',
-    status: 'active',
-    startedAt: HOUR_AGO.toISOString(),
-    currentPhase: 'select-env',
-    triggeredBy: 'user@example.com',
-  })
-);
-
-/**
- * Run with multi choice question (notification channels)
- */
-export const DEMO_MULTI_CHOICE_RUN = createRunDetail(
-  createWorkflow({
-    slug: 'deploy-to-prod',
-    description: 'Production deployment with notification setup',
-    phases: [
-      createPhase({
-        name: 'deploy',
-        order: 0,
-        status: 'complete',
-        description: 'Deploy application',
-        startedAt: HOUR_AGO.toISOString(),
-        completedAt: new Date(HOUR_AGO.getTime() + 180000).toISOString(),
-        duration: 180,
-      }),
-      createPhase({
-        name: 'notify-setup',
-        order: 1,
-        status: 'blocked',
-        description: 'Configure notification channels for deployment status',
-        facilitator: 'orchestrator',
-        startedAt: new Date(HOUR_AGO.getTime() + 180000).toISOString(),
-        question: DEMO_QUESTIONS.multi_choice,
-      }),
-      createPhase({
-        name: 'notify',
-        order: 2,
-        status: 'pending',
-        description: 'Send deployment notifications',
-      }),
-    ],
-  }),
-  createRunMetadata({
-    runId: 'run-006',
-    status: 'active',
-    startedAt: HOUR_AGO.toISOString(),
-    currentPhase: 'notify-setup',
-    triggeredBy: 'scheduled',
-  })
-);
-
-/**
- * Run with free text question (release notes)
- */
-export const DEMO_FREE_TEXT_RUN = createRunDetail(
-  createWorkflow({
-    slug: 'deploy-to-prod',
-    description: 'Production deployment with release notes',
-    phases: [
-      createPhase({
-        name: 'test',
-        order: 0,
-        status: 'complete',
-        description: 'Run all tests',
-        startedAt: HOUR_AGO.toISOString(),
-        completedAt: new Date(HOUR_AGO.getTime() + 300000).toISOString(),
-        duration: 300,
-      }),
-      createPhase({
-        name: 'release-notes',
-        order: 1,
-        status: 'blocked',
-        description: 'Enter release notes for this deployment',
-        facilitator: 'orchestrator',
-        startedAt: new Date(HOUR_AGO.getTime() + 300000).toISOString(),
-        question: DEMO_QUESTIONS.free_text,
-      }),
-      createPhase({
-        name: 'publish',
-        order: 2,
-        status: 'pending',
-        description: 'Publish release with notes',
-      }),
-    ],
-  }),
-  createRunMetadata({
-    runId: 'run-007',
-    status: 'active',
-    startedAt: HOUR_AGO.toISOString(),
-    currentPhase: 'release-notes',
-    triggeredBy: 'github-actions',
-  })
-);
-
-/**
- * Completed successful run
- */
-export const DEMO_COMPLETE_RUN = createRunDetail(
-  createWorkflow({
-    slug: 'data-processing',
-    description: 'ETL pipeline for data transformation',
-    phases: [
-      createPhase({
-        name: 'extract',
-        order: 0,
-        status: 'complete',
-        description: 'Extract data from source systems',
-        startedAt: YESTERDAY.toISOString(),
-        completedAt: new Date(YESTERDAY.getTime() + 300000).toISOString(),
-        duration: 300,
-      }),
-      createPhase({
-        name: 'transform',
-        order: 1,
-        status: 'complete',
-        description: 'Transform and clean data',
-        startedAt: new Date(YESTERDAY.getTime() + 300000).toISOString(),
-        completedAt: new Date(YESTERDAY.getTime() + 600000).toISOString(),
-        duration: 300,
-      }),
-      createPhase({
-        name: 'validate',
-        order: 2,
-        status: 'complete',
-        description: 'Validate data quality',
-        startedAt: new Date(YESTERDAY.getTime() + 600000).toISOString(),
-        completedAt: new Date(YESTERDAY.getTime() + 660000).toISOString(),
-        duration: 60,
-      }),
-      createPhase({
-        name: 'load',
-        order: 3,
-        status: 'complete',
-        description: 'Load data to destination',
-        startedAt: new Date(YESTERDAY.getTime() + 660000).toISOString(),
-        completedAt: new Date(YESTERDAY.getTime() + 720000).toISOString(),
-        duration: 60,
-      }),
-    ],
-  }),
-  createRunMetadata({
-    runId: 'run-003',
-    status: 'complete',
-    startedAt: YESTERDAY.toISOString(),
-    completedAt: new Date(YESTERDAY.getTime() + 720000).toISOString(),
-    duration: 720,
-    currentPhase: null,
-    triggeredBy: 'scheduled',
-  })
-);
-
-/**
- * Failed run
- */
-export const DEMO_FAILED_RUN = createRunDetail(
-  createWorkflow({
-    slug: 'backup-restore',
-    description: 'Database backup and restore workflow',
-    phases: [
-      createPhase({
-        name: 'backup',
-        order: 0,
-        status: 'complete',
-        description: 'Create database backup',
-        startedAt: YESTERDAY.toISOString(),
-        completedAt: new Date(YESTERDAY.getTime() + 180000).toISOString(),
-        duration: 180,
-      }),
-      createPhase({
-        name: 'verify',
-        order: 1,
-        status: 'failed',
-        description: 'Verify backup integrity - checksum mismatch detected',
-        startedAt: new Date(YESTERDAY.getTime() + 180000).toISOString(),
-        completedAt: new Date(YESTERDAY.getTime() + 200000).toISOString(),
-        duration: 20,
-      }),
-      createPhase({
-        name: 'restore',
-        order: 2,
-        status: 'pending',
-        description: 'Restore to target database',
-      }),
-    ],
-  }),
-  createRunMetadata({
-    runId: 'run-004',
-    status: 'failed',
-    startedAt: YESTERDAY.toISOString(),
-    completedAt: new Date(YESTERDAY.getTime() + 200000).toISOString(),
-    duration: 200,
-    currentPhase: 'verify',
-    triggeredBy: 'manual',
-  })
-);
-
-// ============ Manual Test Workflow Runs ============
+// ============ Content Templates ============
 
 /**
  * Sample content for agent-generated artifacts in runs.
@@ -612,7 +281,7 @@ I need:
 Focus on the CLI and workflow packages.`;
 
 /**
- * Command prompts from workflow template (same as workflows.fixture.ts)
+ * Command prompts from workflow template
  */
 const GATHER_MAIN_MD = `# Gather Phase - Manual Test Workflow
 
@@ -667,11 +336,153 @@ Generate a comprehensive final report from the processed data.
 
 **\`outputs/final-report.md\`** - Complete analysis report`;
 
+// ============ Manual Test Workflow Runs ============
+
 /**
- * Manual test run: Process phase blocked with multi-choice question
- * Based on the actual manual test from phase-6-documentation-rollout
+ * Run 1: Gather phase blocked with FREE_TEXT question (clarification)
+ * Agent needs more info about scope
  */
-export const DEMO_MANUAL_TEST_PROCESS_RUN = createRunDetail(
+export const DEMO_RUN_GATHER_BLOCKED = createRunDetail(
+  createWorkflow({
+    slug: 'manual-test-workflow',
+    description: 'Workflow validation test: gather → process → report',
+    phases: [
+      createPhase({
+        name: 'gather',
+        order: 0,
+        status: 'blocked',
+        description: 'Gather initial request - agent needs clarification on scope',
+        facilitator: 'agent',
+        startedAt: THIRTY_MIN_AGO.toISOString(),
+        question: GATHER_CLARIFICATION_QUESTION,
+        commands: [
+          {
+            name: 'main.md',
+            description: 'Primary agent prompt for gathering',
+            path: 'commands/main.md',
+            from: 'workflow',
+            content: GATHER_MAIN_MD,
+          },
+        ],
+        inputs: [
+          {
+            name: 'request.md',
+            description: 'Initial user request',
+            required: true,
+            type: 'markdown',
+            from: 'user',
+            content: USER_REQUEST_CONTENT,
+          },
+        ],
+        outputs: [
+          {
+            name: 'response.md',
+            description: 'Agent response demonstrating understanding',
+            required: true,
+            type: 'markdown',
+            from: 'agent',
+            // No content yet - phase is blocked
+          },
+        ],
+      }),
+      createPhase({
+        name: 'process',
+        order: 1,
+        status: 'pending',
+        description: 'Process gathered data with format selection',
+        facilitator: 'agent',
+        commands: [
+          {
+            name: 'main.md',
+            description: 'Processing instructions',
+            path: 'commands/main.md',
+            from: 'workflow',
+            content: PROCESS_MAIN_MD,
+          },
+        ],
+        inputs: [
+          {
+            name: 'response.md',
+            description: 'Response from gather phase',
+            required: true,
+            type: 'markdown',
+            from: 'agent',
+          },
+        ],
+        outputs: [
+          {
+            name: 'result.md',
+            description: 'Processing result summary',
+            required: true,
+            type: 'markdown',
+            from: 'agent',
+          },
+          {
+            name: 'process-data.json',
+            description: 'Structured processing output',
+            required: true,
+            type: 'json',
+            from: 'agent',
+          },
+        ],
+      }),
+      createPhase({
+        name: 'report',
+        order: 2,
+        status: 'pending',
+        description: 'Generate final report from processed data',
+        facilitator: 'agent',
+        commands: [
+          {
+            name: 'main.md',
+            description: 'Report generation template',
+            path: 'commands/main.md',
+            from: 'workflow',
+            content: REPORT_MAIN_MD,
+          },
+        ],
+        inputs: [
+          {
+            name: 'result.md',
+            description: 'Processing result',
+            required: true,
+            type: 'markdown',
+            from: 'agent',
+          },
+          {
+            name: 'process-data.json',
+            description: 'Structured data',
+            required: true,
+            type: 'json',
+            from: 'agent',
+          },
+        ],
+        outputs: [
+          {
+            name: 'final-report.md',
+            description: 'Final workflow report',
+            required: true,
+            type: 'markdown',
+            from: 'agent',
+          },
+        ],
+      }),
+    ],
+  }),
+  createRunMetadata({
+    runId: 'run-mt-001',
+    status: 'active',
+    startedAt: THIRTY_MIN_AGO.toISOString(),
+    currentPhase: 'gather',
+    triggeredBy: 'manual',
+  })
+);
+
+/**
+ * Run 2: Process phase blocked with MULTI_CHOICE question (format selection)
+ * Gather complete, agent asking about output format
+ */
+export const DEMO_RUN_PROCESS_BLOCKED = createRunDetail(
   createWorkflow({
     slug: 'manual-test-workflow',
     description: 'Workflow validation test: gather → process → report',
@@ -682,8 +493,8 @@ export const DEMO_MANUAL_TEST_PROCESS_RUN = createRunDetail(
         status: 'complete',
         description: 'Gather initial user request and produce response demonstrating understanding',
         facilitator: 'agent',
-        startedAt: new Date(NOW.getTime() - 3600000).toISOString(),
-        completedAt: new Date(NOW.getTime() - 3300000).toISOString(),
+        startedAt: HOUR_AGO.toISOString(),
+        completedAt: new Date(HOUR_AGO.getTime() + 300000).toISOString(),
         duration: 300,
         commands: [
           {
@@ -721,7 +532,7 @@ export const DEMO_MANUAL_TEST_PROCESS_RUN = createRunDetail(
         status: 'blocked',
         description: 'Process gathered data - awaiting orchestrator input on output format',
         facilitator: 'agent',
-        startedAt: new Date(NOW.getTime() - 3300000).toISOString(),
+        startedAt: new Date(HOUR_AGO.getTime() + 300000).toISOString(),
         question: PROCESS_FORMAT_QUESTION,
         commands: [
           {
@@ -803,60 +614,19 @@ export const DEMO_MANUAL_TEST_PROCESS_RUN = createRunDetail(
     ],
   }),
   createRunMetadata({
-    runId: 'run-mt-001',
+    runId: 'run-mt-002',
     status: 'active',
-    startedAt: new Date(NOW.getTime() - 3600000).toISOString(),
+    startedAt: HOUR_AGO.toISOString(),
     currentPhase: 'process',
     triggeredBy: 'orchestrator',
   })
 );
 
 /**
- * Manual test run: Gather phase blocked with free text clarification question
+ * Run 3: Report phase blocked with CONFIRM question
+ * Gather and process complete, awaiting confirmation to generate final report
  */
-export const DEMO_MANUAL_TEST_GATHER_RUN = createRunDetail(
-  createWorkflow({
-    slug: 'manual-test-workflow',
-    description: 'Workflow validation test: gather → process → report',
-    phases: [
-      createPhase({
-        name: 'gather',
-        order: 0,
-        status: 'blocked',
-        description: 'Gather initial request - agent needs clarification on scope',
-        facilitator: 'agent',
-        startedAt: new Date(NOW.getTime() - 600000).toISOString(),
-        question: GATHER_CLARIFICATION_QUESTION,
-      }),
-      createPhase({
-        name: 'process',
-        order: 1,
-        status: 'pending',
-        description: 'Process gathered data with format selection',
-        facilitator: 'agent',
-      }),
-      createPhase({
-        name: 'report',
-        order: 2,
-        status: 'pending',
-        description: 'Generate final report from processed data',
-        facilitator: 'agent',
-      }),
-    ],
-  }),
-  createRunMetadata({
-    runId: 'run-mt-002',
-    status: 'active',
-    startedAt: new Date(NOW.getTime() - 600000).toISOString(),
-    currentPhase: 'gather',
-    triggeredBy: 'manual',
-  })
-);
-
-/**
- * Manual test run: Report phase blocked with confirmation question
- */
-export const DEMO_MANUAL_TEST_REPORT_RUN = createRunDetail(
+export const DEMO_RUN_REPORT_BLOCKED = createRunDetail(
   createWorkflow({
     slug: 'manual-test-workflow',
     description: 'Workflow validation test: gather → process → report',
@@ -867,9 +637,38 @@ export const DEMO_MANUAL_TEST_REPORT_RUN = createRunDetail(
         status: 'complete',
         description: 'Gather initial user request and produce response',
         facilitator: 'agent',
-        startedAt: new Date(NOW.getTime() - 7200000).toISOString(),
-        completedAt: new Date(NOW.getTime() - 6900000).toISOString(),
+        startedAt: TWO_HOURS_AGO.toISOString(),
+        completedAt: new Date(TWO_HOURS_AGO.getTime() + 300000).toISOString(),
         duration: 300,
+        commands: [
+          {
+            name: 'main.md',
+            description: 'Primary agent prompt for gathering',
+            path: 'commands/main.md',
+            from: 'workflow',
+            content: GATHER_MAIN_MD,
+          },
+        ],
+        inputs: [
+          {
+            name: 'request.md',
+            description: 'Initial user request',
+            required: true,
+            type: 'markdown',
+            from: 'user',
+            content: USER_REQUEST_CONTENT,
+          },
+        ],
+        outputs: [
+          {
+            name: 'response.md',
+            description: 'Agent response demonstrating understanding',
+            required: true,
+            type: 'markdown',
+            from: 'agent',
+            content: AGENT_GATHER_RESPONSE,
+          },
+        ],
       }),
       createPhase({
         name: 'process',
@@ -877,9 +676,46 @@ export const DEMO_MANUAL_TEST_REPORT_RUN = createRunDetail(
         status: 'complete',
         description: 'Process gathered data - selected "Both" format per orchestrator',
         facilitator: 'agent',
-        startedAt: new Date(NOW.getTime() - 6900000).toISOString(),
-        completedAt: new Date(NOW.getTime() - 6000000).toISOString(),
+        startedAt: new Date(TWO_HOURS_AGO.getTime() + 300000).toISOString(),
+        completedAt: new Date(TWO_HOURS_AGO.getTime() + 1200000).toISOString(),
         duration: 900,
+        commands: [
+          {
+            name: 'main.md',
+            description: 'Processing instructions',
+            path: 'commands/main.md',
+            from: 'workflow',
+            content: PROCESS_MAIN_MD,
+          },
+        ],
+        inputs: [
+          {
+            name: 'response.md',
+            description: 'Response from gather phase',
+            required: true,
+            type: 'markdown',
+            from: 'agent',
+            content: AGENT_GATHER_RESPONSE,
+          },
+        ],
+        outputs: [
+          {
+            name: 'result.md',
+            description: 'Processing result summary',
+            required: true,
+            type: 'markdown',
+            from: 'agent',
+            content: AGENT_PROCESS_RESULT,
+          },
+          {
+            name: 'process-data.json',
+            description: 'Structured processing output',
+            required: true,
+            type: 'json',
+            from: 'agent',
+            content: AGENT_PROCESS_DATA,
+          },
+        ],
       }),
       createPhase({
         name: 'report',
@@ -887,24 +723,198 @@ export const DEMO_MANUAL_TEST_REPORT_RUN = createRunDetail(
         status: 'blocked',
         description: 'Ready to generate final report - awaiting confirmation',
         facilitator: 'agent',
-        startedAt: new Date(NOW.getTime() - 6000000).toISOString(),
+        startedAt: new Date(TWO_HOURS_AGO.getTime() + 1200000).toISOString(),
         question: REPORT_CONFIRM_QUESTION,
+        commands: [
+          {
+            name: 'main.md',
+            description: 'Report generation template',
+            path: 'commands/main.md',
+            from: 'workflow',
+            content: REPORT_MAIN_MD,
+          },
+        ],
+        inputs: [
+          {
+            name: 'result.md',
+            description: 'Processing result',
+            required: true,
+            type: 'markdown',
+            from: 'agent',
+            content: AGENT_PROCESS_RESULT,
+          },
+          {
+            name: 'process-data.json',
+            description: 'Structured data',
+            required: true,
+            type: 'json',
+            from: 'agent',
+            content: AGENT_PROCESS_DATA,
+          },
+        ],
+        outputs: [
+          {
+            name: 'final-report.md',
+            description: 'Final workflow report',
+            required: true,
+            type: 'markdown',
+            from: 'agent',
+          },
+        ],
       }),
     ],
   }),
   createRunMetadata({
     runId: 'run-mt-003',
     status: 'active',
-    startedAt: new Date(NOW.getTime() - 7200000).toISOString(),
+    startedAt: TWO_HOURS_AGO.toISOString(),
     currentPhase: 'report',
     triggeredBy: 'scheduled',
   })
 );
 
 /**
- * Manual test run: Completed successfully - all phases done with content
+ * Run 4: Gather phase ACTIVE (agent working, no question yet)
+ * Just started, agent is processing the initial request
  */
-export const DEMO_MANUAL_TEST_COMPLETE_RUN = createRunDetail(
+export const DEMO_RUN_GATHER_ACTIVE = createRunDetail(
+  createWorkflow({
+    slug: 'manual-test-workflow',
+    description: 'Workflow validation test: gather → process → report',
+    phases: [
+      createPhase({
+        name: 'gather',
+        order: 0,
+        status: 'active',
+        description: 'Gather initial request - agent is processing',
+        facilitator: 'agent',
+        startedAt: new Date(NOW.getTime() - 60000).toISOString(), // 1 minute ago
+        commands: [
+          {
+            name: 'main.md',
+            description: 'Primary agent prompt for gathering',
+            path: 'commands/main.md',
+            from: 'workflow',
+            content: GATHER_MAIN_MD,
+          },
+        ],
+        inputs: [
+          {
+            name: 'request.md',
+            description: 'Initial user request',
+            required: true,
+            type: 'markdown',
+            from: 'user',
+            content: USER_REQUEST_CONTENT,
+          },
+        ],
+        outputs: [
+          {
+            name: 'response.md',
+            description: 'Agent response demonstrating understanding',
+            required: true,
+            type: 'markdown',
+            from: 'agent',
+          },
+        ],
+      }),
+      createPhase({
+        name: 'process',
+        order: 1,
+        status: 'pending',
+        description: 'Process gathered data with format selection',
+        facilitator: 'agent',
+        commands: [
+          {
+            name: 'main.md',
+            description: 'Processing instructions',
+            path: 'commands/main.md',
+            from: 'workflow',
+            content: PROCESS_MAIN_MD,
+          },
+        ],
+        inputs: [
+          {
+            name: 'response.md',
+            description: 'Response from gather phase',
+            required: true,
+            type: 'markdown',
+            from: 'agent',
+          },
+        ],
+        outputs: [
+          {
+            name: 'result.md',
+            description: 'Processing result summary',
+            required: true,
+            type: 'markdown',
+            from: 'agent',
+          },
+          {
+            name: 'process-data.json',
+            description: 'Structured processing output',
+            required: true,
+            type: 'json',
+            from: 'agent',
+          },
+        ],
+      }),
+      createPhase({
+        name: 'report',
+        order: 2,
+        status: 'pending',
+        description: 'Generate final report from processed data',
+        facilitator: 'agent',
+        commands: [
+          {
+            name: 'main.md',
+            description: 'Report generation template',
+            path: 'commands/main.md',
+            from: 'workflow',
+            content: REPORT_MAIN_MD,
+          },
+        ],
+        inputs: [
+          {
+            name: 'result.md',
+            description: 'Processing result',
+            required: true,
+            type: 'markdown',
+            from: 'agent',
+          },
+          {
+            name: 'process-data.json',
+            description: 'Structured data',
+            required: true,
+            type: 'json',
+            from: 'agent',
+          },
+        ],
+        outputs: [
+          {
+            name: 'final-report.md',
+            description: 'Final workflow report',
+            required: true,
+            type: 'markdown',
+            from: 'agent',
+          },
+        ],
+      }),
+    ],
+  }),
+  createRunMetadata({
+    runId: 'run-mt-004',
+    status: 'active',
+    startedAt: new Date(NOW.getTime() - 60000).toISOString(),
+    currentPhase: 'gather',
+    triggeredBy: 'github-actions',
+  })
+);
+
+/**
+ * Run 5: Completed successfully - all phases done with content
+ */
+export const DEMO_RUN_COMPLETE = createRunDetail(
   createWorkflow({
     slug: 'manual-test-workflow',
     description: 'Workflow validation test: gather → process → report',
@@ -915,7 +925,7 @@ export const DEMO_MANUAL_TEST_COMPLETE_RUN = createRunDetail(
         status: 'complete',
         description: 'Gather initial user request and produce response',
         facilitator: 'agent',
-        startedAt: new Date(YESTERDAY.getTime()).toISOString(),
+        startedAt: YESTERDAY.toISOString(),
         completedAt: new Date(YESTERDAY.getTime() + 300000).toISOString(),
         duration: 300,
         commands: [
@@ -1045,9 +1055,9 @@ export const DEMO_MANUAL_TEST_COMPLETE_RUN = createRunDetail(
     ],
   }),
   createRunMetadata({
-    runId: 'run-mt-004',
+    runId: 'run-mt-005',
     status: 'complete',
-    startedAt: new Date(YESTERDAY.getTime()).toISOString(),
+    startedAt: YESTERDAY.toISOString(),
     completedAt: new Date(YESTERDAY.getTime() + 1500000).toISOString(),
     duration: 1500,
     currentPhase: null,
@@ -1056,21 +1066,173 @@ export const DEMO_MANUAL_TEST_COMPLETE_RUN = createRunDetail(
 );
 
 /**
- * All demo runs for the runs list
+ * Run 6: Failed - process phase failed during execution
+ */
+export const DEMO_RUN_FAILED = createRunDetail(
+  createWorkflow({
+    slug: 'manual-test-workflow',
+    description: 'Workflow validation test: gather → process → report',
+    phases: [
+      createPhase({
+        name: 'gather',
+        order: 0,
+        status: 'complete',
+        description: 'Gather initial user request and produce response',
+        facilitator: 'agent',
+        startedAt: TWO_DAYS_AGO.toISOString(),
+        completedAt: new Date(TWO_DAYS_AGO.getTime() + 300000).toISOString(),
+        duration: 300,
+        commands: [
+          {
+            name: 'main.md',
+            description: 'Primary agent prompt for gathering',
+            path: 'commands/main.md',
+            from: 'workflow',
+            content: GATHER_MAIN_MD,
+          },
+        ],
+        inputs: [
+          {
+            name: 'request.md',
+            description: 'Initial user request',
+            required: true,
+            type: 'markdown',
+            from: 'user',
+            content: USER_REQUEST_CONTENT,
+          },
+        ],
+        outputs: [
+          {
+            name: 'response.md',
+            description: 'Agent response demonstrating understanding',
+            required: true,
+            type: 'markdown',
+            from: 'agent',
+            content: AGENT_GATHER_RESPONSE,
+          },
+        ],
+      }),
+      createPhase({
+        name: 'process',
+        order: 1,
+        status: 'failed',
+        description: 'Process phase failed - agent encountered validation error',
+        facilitator: 'agent',
+        startedAt: new Date(TWO_DAYS_AGO.getTime() + 300000).toISOString(),
+        completedAt: new Date(TWO_DAYS_AGO.getTime() + 420000).toISOString(),
+        duration: 120,
+        commands: [
+          {
+            name: 'main.md',
+            description: 'Processing instructions',
+            path: 'commands/main.md',
+            from: 'workflow',
+            content: PROCESS_MAIN_MD,
+          },
+        ],
+        inputs: [
+          {
+            name: 'response.md',
+            description: 'Response from gather phase',
+            required: true,
+            type: 'markdown',
+            from: 'agent',
+            content: AGENT_GATHER_RESPONSE,
+          },
+        ],
+        outputs: [
+          {
+            name: 'result.md',
+            description: 'Processing result summary',
+            required: true,
+            type: 'markdown',
+            from: 'agent',
+            // Partial/incomplete output
+            content:
+              '# Processing Error\n\nAgent encountered a validation error during processing.',
+          },
+          {
+            name: 'process-data.json',
+            description: 'Structured processing output',
+            required: true,
+            type: 'json',
+            from: 'agent',
+            // Missing - validation failed
+          },
+        ],
+      }),
+      createPhase({
+        name: 'report',
+        order: 2,
+        status: 'pending',
+        description: 'Generate final report - blocked by failed process phase',
+        facilitator: 'agent',
+        commands: [
+          {
+            name: 'main.md',
+            description: 'Report generation template',
+            path: 'commands/main.md',
+            from: 'workflow',
+            content: REPORT_MAIN_MD,
+          },
+        ],
+        inputs: [
+          {
+            name: 'result.md',
+            description: 'Processing result',
+            required: true,
+            type: 'markdown',
+            from: 'agent',
+          },
+          {
+            name: 'process-data.json',
+            description: 'Structured data',
+            required: true,
+            type: 'json',
+            from: 'agent',
+          },
+        ],
+        outputs: [
+          {
+            name: 'final-report.md',
+            description: 'Final workflow report',
+            required: true,
+            type: 'markdown',
+            from: 'agent',
+          },
+        ],
+      }),
+    ],
+  }),
+  createRunMetadata({
+    runId: 'run-mt-006',
+    status: 'failed',
+    startedAt: TWO_DAYS_AGO.toISOString(),
+    completedAt: new Date(TWO_DAYS_AGO.getTime() + 420000).toISOString(),
+    duration: 420,
+    currentPhase: 'process',
+    triggeredBy: 'manual',
+  })
+);
+
+/**
+ * All demo runs for manual-test-workflow
+ *
+ * Run coverage:
+ * - run-mt-001: gather blocked (free_text question)
+ * - run-mt-002: process blocked (multi_choice question)
+ * - run-mt-003: report blocked (confirm question)
+ * - run-mt-004: gather active (no question, agent working)
+ * - run-mt-005: complete (all phases done)
+ * - run-mt-006: failed (process phase failed)
  */
 export const DEMO_RUNS: RunDetail[] = [
-  DEMO_BLOCKED_RUN, // run-002: confirm question
-  DEMO_SINGLE_CHOICE_RUN, // run-005: single choice question
-  DEMO_MULTI_CHOICE_RUN, // run-006: multi choice question
-  DEMO_FREE_TEXT_RUN, // run-007: free text question
-  DEMO_ACTIVE_RUN, // run-001: active, no question yet
-  DEMO_COMPLETE_RUN, // run-003: complete
-  DEMO_FAILED_RUN, // run-004: failed
-  // Manual test workflow runs
-  DEMO_MANUAL_TEST_PROCESS_RUN, // run-mt-001: process blocked with multi-choice
-  DEMO_MANUAL_TEST_GATHER_RUN, // run-mt-002: gather blocked with free text
-  DEMO_MANUAL_TEST_REPORT_RUN, // run-mt-003: report blocked with confirm
-  DEMO_MANUAL_TEST_COMPLETE_RUN, // run-mt-004: all phases complete
+  DEMO_RUN_GATHER_BLOCKED, // run-mt-001: free_text question in gather
+  DEMO_RUN_PROCESS_BLOCKED, // run-mt-002: multi_choice question in process
+  DEMO_RUN_REPORT_BLOCKED, // run-mt-003: confirm question in report
+  DEMO_RUN_GATHER_ACTIVE, // run-mt-004: active, no question
+  DEMO_RUN_COMPLETE, // run-mt-005: complete
+  DEMO_RUN_FAILED, // run-mt-006: failed
 ];
 
 /**
@@ -1081,18 +1243,18 @@ export const DEMO_RUN_SUMMARIES: RunSummary[] = DEMO_RUNS.map((r) => r.runSummar
 // ============ Checkpoint Fixtures ============
 
 /**
- * Demo checkpoints for a workflow
+ * Demo checkpoints for manual-test-workflow
  */
 export const DEMO_CHECKPOINTS: CheckpointMetadataJSON[] = [
   createCheckpointMetadata({
     version: 'v003-def5678',
     createdAt: new Date(NOW.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-    comment: 'Added notification phase',
+    comment: 'Added process phase clarification question',
   }),
   createCheckpointMetadata({
     version: 'v002-abc1234',
     createdAt: new Date(NOW.getTime() - 14 * 24 * 60 * 60 * 1000).toISOString(),
-    comment: 'Fixed approval timeout',
+    comment: 'Added report confirmation step',
   }),
   createCheckpointMetadata({
     version: 'v001-9876543',

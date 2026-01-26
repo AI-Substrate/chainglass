@@ -10,12 +10,12 @@
  * @see Plan 011: UI Mockups (T014, AC-08, AC-10, AC-13, AC-14-18)
  */
 
+import type { Node } from '@xyflow/react';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 
 import { QuestionInput } from '@/components/phases/question-input';
-import { RunFlowContent } from '@/components/runs/run-flow-content';
 import { RunHeader } from '@/components/runs/run-header';
 import { Button } from '@/components/ui/button';
 import {
@@ -27,10 +27,15 @@ import {
 } from '@/components/ui/sheet';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { WorkflowBreadcrumb } from '@/components/ui/workflow-breadcrumb';
+import {
+  ArtifactDetailPanel,
+  type SelectedArtifact,
+} from '@/components/workflow/artifact-detail-panel';
+import { WorkflowFlowContent } from '@/components/workflow/workflow-flow-content';
 import { useResponsive } from '@/hooks/useResponsive';
 import { cn } from '@/lib/utils';
 
-import { DEMO_RUNS, type RunDetail, getRunById } from '@/data/fixtures/runs.fixture';
+import { type RunDetail, getRunById } from '@/data/fixtures/runs.fixture';
 import type { PhaseJSON } from '@/data/fixtures/workflows.fixture';
 
 interface PageProps {
@@ -39,18 +44,14 @@ interface PageProps {
 
 export default function SingleRunPage({ params }: PageProps) {
   const [paramsState, setParamsState] = useState<{ slug: string; runId: string } | null>(null);
+  const [selectedArtifact, setSelectedArtifact] = useState<SelectedArtifact | null>(null);
   const [selectedPhase, setSelectedPhase] = useState<PhaseJSON | null>(null);
   const { useMobilePatterns } = useResponsive();
-
-  const handlePhaseSelect = useCallback((phase: PhaseJSON | null) => {
-    setSelectedPhase(phase);
-  }, []);
 
   const handleAnswerSubmit = useCallback(
     (questionId: string, answer: string | string[] | boolean) => {
       console.log('Answer submitted:', { questionId, answer });
-      // In real app, this would update the run state
-      // For mockup, just close the panel
+      setSelectedArtifact(null);
       setSelectedPhase(null);
     },
     []
@@ -80,8 +81,40 @@ export default function SingleRunPage({ params }: PageProps) {
     );
   }
 
-  // Only show sheet on mobile, desktop uses the side panel
-  const showMobileSheet = useMobilePatterns && selectedPhase !== null;
+  /**
+   * Handle node click in the flow diagram - same pattern as template page
+   */
+  const handleNodeClick = (node: Node) => {
+    const nodeType = node.type;
+
+    if (nodeType === 'command') {
+      const phaseName = node.data.phaseId as string;
+      const phase = run.phases.find((p) => p.name === phaseName);
+      const command = phase?.commands?.find((c) => c.name === node.data.name);
+      if (command) {
+        setSelectedArtifact({ id: node.id, type: 'command', data: command });
+        setSelectedPhase(phase ?? null);
+      }
+    } else if (nodeType === 'artifact') {
+      const phaseName = node.data.phaseId as string;
+      const direction = node.data.direction as 'input' | 'output';
+      const phase = run.phases.find((p) => p.name === phaseName);
+      const artifacts = direction === 'input' ? phase?.inputs : phase?.outputs;
+      const artifact = artifacts?.find((a) => a.name === node.data.name);
+      if (artifact) {
+        setSelectedArtifact({ id: node.id, type: 'artifact', data: { ...artifact, direction } });
+        setSelectedPhase(phase ?? null);
+      }
+    } else if (nodeType === 'workflow-phase') {
+      const phase = run.phases.find((p) => p.name === node.data.label);
+      setSelectedPhase(phase ?? null);
+      setSelectedArtifact(null);
+    }
+  };
+
+  // Only show sheet on mobile
+  const showMobileSheet =
+    useMobilePatterns && (selectedArtifact !== null || selectedPhase !== null);
 
   return (
     <div className="container mx-auto py-6 space-y-6">
@@ -98,38 +131,28 @@ export default function SingleRunPage({ params }: PageProps) {
 
       <RunHeader run={run.runSummary} />
 
-      <div className="grid lg:grid-cols-[1fr_350px] gap-6">
-        {/* Phase Flow */}
-        <div className="border rounded-lg bg-background min-h-[500px]">
-          <RunFlowContent
-            phases={run.phases}
-            onPhaseSelect={handlePhaseSelect}
-            selectedPhase={selectedPhase?.name}
-          />
+      <div className="flex gap-0 border rounded-lg bg-background overflow-hidden h-[700px]">
+        {/* Flow diagram */}
+        <div className={selectedArtifact || selectedPhase ? 'flex-1' : 'w-full'}>
+          <WorkflowFlowContent phases={run.phases} onNodeClick={handleNodeClick} />
         </div>
 
-        {/* Phase Detail Panel (desktop) */}
-        <div className="hidden lg:block">
-          <PhaseDetailCard phase={selectedPhase} onAnswerSubmit={handleAnswerSubmit} />
-        </div>
+        {/* Detail panel */}
+        {(selectedArtifact || selectedPhase) && (
+          <div className="w-[400px] border-l overflow-auto">
+            {selectedArtifact ? (
+              <ArtifactDetailPanel
+                artifact={selectedArtifact}
+                onClose={() => setSelectedArtifact(null)}
+              />
+            ) : selectedPhase ? (
+              <div className="p-4">
+                <PhaseDetailCard phase={selectedPhase} onAnswerSubmit={handleAnswerSubmit} />
+              </div>
+            ) : null}
+          </div>
+        )}
       </div>
-
-      {/* Phase Detail Sheet (mobile only) */}
-      {useMobilePatterns && (
-        <Sheet open={showMobileSheet} onOpenChange={(open) => !open && setSelectedPhase(null)}>
-          <SheetContent side="bottom" className="h-[80vh]">
-            <SheetHeader>
-              <SheetTitle>{selectedPhase?.name}</SheetTitle>
-              {selectedPhase?.description && (
-                <SheetDescription>{selectedPhase.description}</SheetDescription>
-              )}
-            </SheetHeader>
-            <div className="mt-4">
-              <PhaseDetailContent phase={selectedPhase} onAnswerSubmit={handleAnswerSubmit} />
-            </div>
-          </SheetContent>
-        </Sheet>
-      )}
     </div>
   );
 }
@@ -151,7 +174,7 @@ function PhaseDetailCard({ phase, onAnswerSubmit }: PhaseDetailCardProps) {
   }
 
   return (
-    <div className="border rounded-lg p-4 space-y-4">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="font-semibold">{phase.name}</h3>
         <StatusBadge status={phase.status} showIcon />

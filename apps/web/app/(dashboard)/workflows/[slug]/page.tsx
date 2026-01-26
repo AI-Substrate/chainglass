@@ -23,7 +23,7 @@ import {
   ArtifactDetailPanel,
   type SelectedArtifact,
 } from '@/components/workflow/artifact-detail-panel';
-import { TemplateFlowContent } from '@/components/workflow/template-flow-content';
+import { WorkflowFlowContent } from '@/components/workflow/workflow-flow-content';
 import { DEMO_CHECKPOINTS, getRunSummariesForWorkflow } from '@/data/fixtures/runs.fixture';
 import { DEMO_WORKFLOWS, type PhaseJSON } from '@/data/fixtures/workflows.fixture';
 
@@ -142,7 +142,7 @@ function SingleWorkflowContent({ params }: { params: Promise<{ slug: string }> }
           <div className="flex gap-0 border rounded-lg bg-background overflow-hidden h-[700px]">
             {/* Flow diagram */}
             <div className={selectedArtifact ? 'flex-1' : 'w-full'}>
-              <TemplateFlowContent phases={workflow.phases} onNodeClick={handleNodeClick} />
+              <WorkflowFlowContent phases={workflow.phases} onNodeClick={handleNodeClick} />
             </div>
 
             {/* Detail panel */}
