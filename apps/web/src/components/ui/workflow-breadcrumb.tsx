@@ -6,6 +6,7 @@
  * @see Plan 011: UI Mockups (AC-24, AC-25)
  */
 
+import * as React from 'react';
 import Link from 'next/link';
 import { ChevronRight, Home } from 'lucide-react';
 
@@ -113,17 +114,22 @@ export function WorkflowBreadcrumb(props: WorkflowBreadcrumbProps) {
           const isLast = index === segments.length - 1;
 
           return (
-            <BreadcrumbItem key={`${segment.label}-${index}`}>
-              {index > 0 && <BreadcrumbSeparator><ChevronRight className="h-4 w-4" /></BreadcrumbSeparator>}
-
-              {isLast || !segment.href ? (
-                <BreadcrumbPage>{segment.label}</BreadcrumbPage>
-              ) : (
-                <BreadcrumbLink asChild>
-                  <Link href={segment.href}>{segment.label}</Link>
-                </BreadcrumbLink>
+            <React.Fragment key={`${segment.label}-${index}`}>
+              {index > 0 && (
+                <BreadcrumbSeparator>
+                  <ChevronRight className="h-4 w-4" />
+                </BreadcrumbSeparator>
               )}
-            </BreadcrumbItem>
+              <BreadcrumbItem>
+                {isLast || !segment.href ? (
+                  <BreadcrumbPage>{segment.label}</BreadcrumbPage>
+                ) : (
+                  <BreadcrumbLink asChild>
+                    <Link href={segment.href}>{segment.label}</Link>
+                  </BreadcrumbLink>
+                )}
+              </BreadcrumbItem>
+            </React.Fragment>
           );
         })}
       </BreadcrumbList>

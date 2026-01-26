@@ -3,14 +3,8 @@
 /**
  * RunFlowContent - Vertical ReactFlow layout for run execution views
  *
- * Displays workflow phases in a top-to-bottom layout using Dagre auto-layout.
- * Designed for both run execution views and template inspection.
- *
- * Key features:
- * - Vertical (TB) layout with Dagre auto-positioning
- * - Smoothstep edges for clear flow direction
- * - Phase selection for detail panel
- * - Responsive container sizing
+ * Displays workflow phases in a top-to-bottom layout.
+ * Uses simple manual positioning since Dagre has CJS compatibility issues with Turbopack.
  *
  * @see Plan 011: UI Mockups
  */
@@ -25,7 +19,6 @@ import {
   useReactFlow,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import Dagre from '@dagrejs/dagre';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import {
@@ -102,46 +95,28 @@ function phasesToEdges(phases: PhaseJSON[]): Edge[] {
 }
 
 /**
- * Apply Dagre layout to nodes (top-to-bottom)
+ * Apply simple vertical layout (no external dependency)
+ * Positions nodes in a vertical stack, centered horizontally.
  */
-function applyDagreLayout(
+function applyVerticalLayout(
   nodes: Node<VerticalPhaseNodeData>[],
-  edges: Edge[]
+  _edges: Edge[]
 ): Node<VerticalPhaseNodeData>[] {
-  const g = new Dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}));
-
-  g.setGraph({
-    rankdir: 'TB', // Top to bottom
-    nodesep: 50,
-    ranksep: NODE_SPACING_Y,
-    marginx: 20,
-    marginy: 20,
+  // Sort by order if available
+  const sortedNodes = [...nodes].sort((a, b) => {
+    const orderA = a.data.order ?? 0;
+    const orderB = b.data.order ?? 0;
+    return orderA - orderB;
   });
 
-  // Add nodes to graph
-  for (const node of nodes) {
-    g.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
-  }
-
-  // Add edges to graph
-  for (const edge of edges) {
-    g.setEdge(edge.source, edge.target);
-  }
-
-  // Run layout algorithm
-  Dagre.layout(g);
-
-  // Apply positions to nodes (center the node on Dagre's position)
-  return nodes.map((node) => {
-    const dagreNode = g.node(node.id);
-    return {
-      ...node,
-      position: {
-        x: dagreNode.x - NODE_WIDTH / 2,
-        y: dagreNode.y - NODE_HEIGHT / 2,
-      },
-    };
-  });
+  // Position nodes vertically
+  return sortedNodes.map((node, index) => ({
+    ...node,
+    position: {
+      x: 0, // Centered (ReactFlow will handle viewport centering)
+      y: index * (NODE_HEIGHT + NODE_SPACING_Y),
+    },
+  }));
 }
 
 // ============ Inner Component with ReactFlow hooks ============
@@ -162,7 +137,7 @@ function RunFlowContentInner({
 
   // Apply layout
   const nodes = useMemo(() => {
-    const layoutedNodes = applyDagreLayout(initialNodes, edges);
+    const layoutedNodes = applyVerticalLayout(initialNodes, edges);
     return layoutedNodes;
   }, [initialNodes, edges]);
 
