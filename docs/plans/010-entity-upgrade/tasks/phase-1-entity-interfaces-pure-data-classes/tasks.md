@@ -117,25 +117,25 @@ flowchart TD
 
     subgraph Phase1["Phase 1: Entity Interfaces & Pure Data Classes"]
         subgraph Errors["Error Classes"]
-            T001["T001: Test EntityNotFoundError"]:::pending
-            T002["T002: Impl EntityNotFoundError"]:::pending
-            T003["T003: Impl CLI errors E040-E049"]:::pending
+            T001["T001: Test EntityNotFoundError ✓"]:::completed
+            T002["T002: Impl EntityNotFoundError ✓"]:::completed
+            T003["T003: Impl CLI errors E050-E059 ✓"]:::completed
             T001 --> T002
             T002 --> T003
         end
 
         subgraph Interfaces["Adapter Interfaces"]
-            T004["T004: Define IWorkflowAdapter"]:::pending
-            T005["T005: Define IPhaseAdapter"]:::pending
+            T004["T004: Define IWorkflowAdapter ✓"]:::completed
+            T005["T005: Define IPhaseAdapter ✓"]:::completed
         end
 
         subgraph Entities["Entity Classes"]
-            T006["T006: Test Workflow (current)"]:::pending
-            T007["T007: Test Workflow (checkpoint)"]:::pending
-            T008["T008: Test Workflow (run)"]:::pending
-            T009["T009: Impl Workflow"]:::pending
-            T010["T010: Test Phase"]:::pending
-            T011["T011: Impl Phase"]:::pending
+            T006["T006: Test Workflow (current) ✓"]:::completed
+            T007["T007: Test Workflow (checkpoint) ✓"]:::completed
+            T008["T008: Test Workflow (run) ✓"]:::completed
+            T009["T009: Impl Workflow ✓"]:::completed
+            T010["T010: Test Phase ✓"]:::completed
+            T011["T011: Impl Phase ✓"]:::completed
             T006 --> T009
             T007 --> T009
             T008 --> T009
@@ -143,25 +143,25 @@ flowchart TD
         end
 
         subgraph DI["DI & Exports"]
-            T012["T012: Add DI tokens"]:::pending
-            T013["T013: Barrel entities"]:::pending
-            T014["T014: Barrel interfaces"]:::pending
+            T012["T012: Add DI tokens ✓"]:::completed
+            T013["T013: Barrel entities ✓"]:::completed
+            T014["T014: Barrel interfaces ✓"]:::completed
         end
     end
 
     subgraph Files["Files"]
-        F1["/packages/workflow/src/errors/entity-not-found.error.ts"]:::pending
-        F2["/packages/workflow/src/errors/run-errors.ts"]:::pending
-        F3["/packages/workflow/src/interfaces/workflow-adapter.interface.ts"]:::pending
-        F4["/packages/workflow/src/interfaces/phase-adapter.interface.ts"]:::pending
-        F5["/packages/workflow/src/entities/workflow.ts"]:::pending
-        F6["/packages/workflow/src/entities/phase.ts"]:::pending
-        F7["/packages/shared/src/di-tokens.ts"]:::pending
-        F8["/packages/workflow/src/entities/index.ts"]:::pending
-        F9["/packages/workflow/src/interfaces/index.ts"]:::pending
-        FT1["/test/unit/workflow/entity-not-found-error.test.ts"]:::pending
-        FT2["/test/unit/workflow/workflow-entity.test.ts"]:::pending
-        FT3["/test/unit/workflow/phase-entity.test.ts"]:::pending
+        F1["/packages/workflow/src/errors/entity-not-found.error.ts ✓"]:::completed
+        F2["/packages/workflow/src/errors/run-errors.ts ✓"]:::completed
+        F3["/packages/workflow/src/interfaces/workflow-adapter.interface.ts ✓"]:::completed
+        F4["/packages/workflow/src/interfaces/phase-adapter.interface.ts ✓"]:::completed
+        F5["/packages/workflow/src/entities/workflow.ts ✓"]:::completed
+        F6["/packages/workflow/src/entities/phase.ts ✓"]:::completed
+        F7["/packages/shared/src/di-tokens.ts ✓"]:::completed
+        F8["/packages/workflow/src/entities/index.ts ✓"]:::completed
+        F9["/packages/workflow/src/interfaces/index.ts ✓"]:::completed
+        FT1["/test/unit/workflow/entity-not-found-error.test.ts ✓"]:::completed
+        FT2["/test/unit/workflow/workflow-entity.test.ts ✓"]:::completed
+        FT3["/test/unit/workflow/phase-entity.test.ts ✓"]:::completed
     end
 
     T001 -.-> FT1
@@ -186,20 +186,20 @@ flowchart TD
 
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
-| T001 | EntityNotFoundError Test | test/unit/workflow/entity-not-found-error.test.ts | ⬜ Pending | TDD: Write failing test first |
-| T002 | EntityNotFoundError | packages/workflow/src/errors/entity-not-found.error.ts | ⬜ Pending | Core error class for adapters |
-| T003 | Run CLI Errors | packages/workflow/src/errors/run-errors.ts | ⬜ Pending | E040-E049 for `cg runs` commands |
-| T004 | IWorkflowAdapter | packages/workflow/src/interfaces/workflow-adapter.interface.ts | ⬜ Pending | Unified adapter interface |
-| T005 | IPhaseAdapter | packages/workflow/src/interfaces/phase-adapter.interface.ts | ⬜ Pending | Phase loading interface |
-| T006 | Workflow Test (current) | test/unit/workflow/workflow-entity.test.ts | ⬜ Pending | TDD: current/ source |
-| T007 | Workflow Test (checkpoint) | test/unit/workflow/workflow-entity.test.ts | ⬜ Pending | TDD: checkpoint/ source |
-| T008 | Workflow Test (run) | test/unit/workflow/workflow-entity.test.ts | ⬜ Pending | TDD: run/ source with runtime state |
-| T009 | Workflow Entity | packages/workflow/src/entities/workflow.ts | ⬜ Pending | Unified entity class |
-| T010 | Phase Test | test/unit/workflow/phase-entity.test.ts | ⬜ Pending | TDD: Full data model |
-| T011 | Phase Entity | packages/workflow/src/entities/phase.ts | ⬜ Pending | Complex entity with all fields |
-| T012 | DI Tokens | packages/shared/src/di-tokens.ts | ⬜ Pending | WORKFLOW_ADAPTER, PHASE_ADAPTER |
-| T013 | Entity Barrel | packages/workflow/src/entities/index.ts | ⬜ Pending | Export Workflow, Phase |
-| T014 | Interface Barrel | packages/workflow/src/interfaces/index.ts | ⬜ Pending | Export adapters |
+| T001 | EntityNotFoundError Test | test/unit/workflow/entity-not-found-error.test.ts | ✅ Complete | TDD: Write failing test first |
+| T002 | EntityNotFoundError | packages/workflow/src/errors/entity-not-found.error.ts | ✅ Complete | Core error class for adapters |
+| T003 | Run CLI Errors | packages/workflow/src/errors/run-errors.ts | ✅ Complete | E050-E059 for `cg runs` commands |
+| T004 | IWorkflowAdapter | packages/workflow/src/interfaces/workflow-adapter.interface.ts | ✅ Complete | Unified adapter interface |
+| T005 | IPhaseAdapter | packages/workflow/src/interfaces/phase-adapter.interface.ts | ✅ Complete | Phase loading interface |
+| T006 | Workflow Test (current) | test/unit/workflow/workflow-entity.test.ts | ✅ Complete | TDD: current/ source |
+| T007 | Workflow Test (checkpoint) | test/unit/workflow/workflow-entity.test.ts | ✅ Complete | TDD: checkpoint/ source |
+| T008 | Workflow Test (run) | test/unit/workflow/workflow-entity.test.ts | ✅ Complete | TDD: run/ source with runtime state |
+| T009 | Workflow Entity | packages/workflow/src/entities/workflow.ts | ✅ Complete | Unified entity class |
+| T010 | Phase Test | test/unit/workflow/phase-entity.test.ts | ✅ Complete | TDD: Full data model |
+| T011 | Phase Entity | packages/workflow/src/entities/phase.ts | ✅ Complete | Complex entity with all fields |
+| T012 | DI Tokens | packages/shared/src/di-tokens.ts | ✅ Complete | WORKFLOW_ADAPTER, PHASE_ADAPTER |
+| T013 | Entity Barrel | packages/workflow/src/entities/index.ts | ✅ Complete | Export Workflow, Phase |
+| T014 | Interface Barrel | packages/workflow/src/interfaces/index.ts | ✅ Complete | Export adapters |
 
 ---
 
@@ -207,20 +207,20 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|-----|------|----|------|--------------|------------------|------------|----------|-------|
-| [ ] | T001 | Write tests for EntityNotFoundError | 1 | Test | – | /home/jak/substrate/007-manage-workflows/test/unit/workflow/entity-not-found-error.test.ts | Tests verify: message format, properties (entityType, identifier, path, parentContext), extends Error, name property | – | TDD: RED first |
-| [ ] | T002 | Implement EntityNotFoundError class | 1 | Core | T001 | /home/jak/substrate/007-manage-workflows/packages/workflow/src/errors/entity-not-found.error.ts | All tests from T001 pass | – | Per Critical Discovery 07 |
-| [ ] | T003 | Create CLI error classes E050-E059 | 1 | Core | T002 | /home/jak/substrate/007-manage-workflows/packages/workflow/src/errors/run-errors.ts | Error classes: RunNotFoundError (E050), RunsDirNotFoundError (E051), InvalidRunStatusError (E052), RunCorruptError (E053). All extend base error with code property. Tests included. **Uses E050-E059 range per DYK-05 (E040-E049 already used by InitService).** | – | Phase 4 will use these. Error range (DYK-05). |
-| [ ] | T004 | Define IWorkflowAdapter interface | 2 | Interface | – | /home/jak/substrate/007-manage-workflows/packages/workflow/src/interfaces/workflow-adapter.interface.ts | Methods: loadCurrent(slug), loadCheckpoint(slug, version), loadRun(runDir), listCheckpoints(slug), listRuns(slug, filter?), exists(slug). JSDoc on each. Includes RunListFilter type. Types exported. **Uses `load*()` naming per DYK-04.** | – | Unified: handles current/checkpoint/run. Naming convention (DYK-04). |
-| [ ] | T005 | Define IPhaseAdapter interface | 1 | Interface | – | /home/jak/substrate/007-manage-workflows/packages/workflow/src/interfaces/phase-adapter.interface.ts | Methods: loadFromPath(phaseDir), listForWorkflow(workflow). JSDoc on each. Types exported. **Uses `load*()` naming per DYK-04.** | – | Unified: template and run phases. Naming convention (DYK-04). |
-| [ ] | T006 | Write tests for Workflow entity (current mode) | 2 | Test | T004 | /home/jak/substrate/007-manage-workflows/test/unit/workflow/workflow-entity.test.ts | Tests: Workflow.createCurrent() factory, isCurrent=true, isCheckpoint=false, isRun=false, checkpoint=null (not undefined), run=null, phases array, toJSON() with camelCase keys. Use factory methods not constructor. | – | TDD: RED first. Factory (DYK-02), serialization (DYK-03). |
-| [ ] | T007 | Write tests for Workflow entity (checkpoint mode) | 2 | Test | T004 | /home/jak/substrate/007-manage-workflows/test/unit/workflow/workflow-entity.test.ts | Tests: Workflow.createCheckpoint() factory, isCheckpoint=true, checkpoint metadata (ordinal, hash, createdAt→ISO string, comment), run=null, source getter, toJSON() camelCase. Use factory methods not constructor. | – | TDD: RED first. Factory (DYK-02), serialization (DYK-03). |
-| [ ] | T008 | Write tests for Workflow entity (run mode) | 2 | Test | T004 | /home/jak/substrate/007-manage-workflows/test/unit/workflow/workflow-entity.test.ts | Tests: Workflow.createRun() factory, isRun=true, run metadata (runId, runDir, status, createdAt→ISO string), phases have runtime state, toJSON() camelCase with recursive phases. Use factory methods not constructor. | – | TDD: RED first. Factory (DYK-02), serialization (DYK-03). |
-| [ ] | T009 | Implement Workflow entity class | 2 | Core | T006, T007, T008 | /home/jak/substrate/007-manage-workflows/packages/workflow/src/entities/workflow.ts | All tests from T006-T008 pass. Unified model for all sources. Pure readonly properties + computed getters. No adapter refs. **Constructor is private; creation only via static factory methods (Workflow.createCurrent(), Workflow.createCheckpoint(), Workflow.createRun()) or adapter methods. Tests use factory methods.** toJSON() rules (DYK-03): camelCase keys, undefined→null, Date→ISO string, recursive for phases[]. | – | Per Key Invariant 1: isCurrent XOR isCheckpoint XOR isRun. Factory pattern (DYK-02). Serialization rules (DYK-03). |
-| [ ] | T010 | Write tests for Phase entity | 3 | Test | T005 | /home/jak/substrate/007-manage-workflows/test/unit/workflow/phase-entity.test.ts | Tests: full data model (inputFiles, inputParameters, inputMessages, outputs, outputParameters), exists/answered/valid flags, status helpers, duration, toJSON(). Both template (unpopulated) and run (populated) modes. **toJSON() tests per DYK-03: camelCase keys, undefined→null, Date→ISO, recursive arrays.** | – | Complex entity per plan § Entity Data Models. Serialization rules (DYK-03). |
-| [ ] | T011 | Implement Phase entity class | 2 | Core | T010 | /home/jak/substrate/007-manage-workflows/packages/workflow/src/entities/phase.ts | All tests from T010 pass. Includes all fields from plan § Entity Data Models. Pure readonly + computed getters. toJSON() rules (DYK-03): camelCase keys, undefined→null, Date→ISO string, recursive for nested arrays (inputFiles, outputs, etc.). | – | Per Key Invariant 2: same structure template/run. Serialization rules (DYK-03). |
-| [ ] | T012 | Add DI tokens to WORKFLOW_DI_TOKENS | 1 | Setup | – | /home/jak/substrate/007-manage-workflows/packages/shared/src/di-tokens.ts | 2 new tokens: WORKFLOW_ADAPTER: 'IWorkflowAdapter', PHASE_ADAPTER: 'IPhaseAdapter' | – | Follow existing token pattern |
-| [ ] | T013 | Create barrel exports for entities | 1 | Setup | T009, T011 | /home/jak/substrate/007-manage-workflows/packages/workflow/src/entities/index.ts | `import { Workflow, Phase } from '@chainglass/workflow'` works via packages/workflow/src/index.ts | – | Export classes and types |
-| [ ] | T014 | Create/update barrel exports for interfaces | 1 | Setup | T004, T005 | /home/jak/substrate/007-manage-workflows/packages/workflow/src/interfaces/index.ts | IWorkflowAdapter, IPhaseAdapter, RunListFilter exported. Also export from packages/workflow/src/index.ts | – | Update existing barrel |
+| [x] | T001 | Write tests for EntityNotFoundError | 1 | Test | – | /home/jak/substrate/007-manage-workflows/test/unit/workflow/entity-not-found-error.test.ts | Tests verify: message format, properties (entityType, identifier, path, parentContext), extends Error, name property | – | TDD: RED first |
+| [x] | T002 | Implement EntityNotFoundError class | 1 | Core | T001 | /home/jak/substrate/007-manage-workflows/packages/workflow/src/errors/entity-not-found.error.ts | All tests from T001 pass | – | Per Critical Discovery 07 |
+| [x] | T003 | Create CLI error classes E050-E059 | 1 | Core | T002 | /home/jak/substrate/007-manage-workflows/packages/workflow/src/errors/run-errors.ts | Error classes: RunNotFoundError (E050), RunsDirNotFoundError (E051), InvalidRunStatusError (E052), RunCorruptError (E053). All extend base error with code property. Tests included. **Uses E050-E059 range per DYK-05 (E040-E049 already used by InitService).** | – | Phase 4 will use these. Error range (DYK-05). |
+| [x] | T004 | Define IWorkflowAdapter interface | 2 | Interface | – | /home/jak/substrate/007-manage-workflows/packages/workflow/src/interfaces/workflow-adapter.interface.ts | Methods: loadCurrent(slug), loadCheckpoint(slug, version), loadRun(runDir), listCheckpoints(slug), listRuns(slug, filter?), exists(slug). JSDoc on each. Includes RunListFilter type. Types exported. **Uses `load*()` naming per DYK-04.** | – | Unified: handles current/checkpoint/run. Naming convention (DYK-04). |
+| [x] | T005 | Define IPhaseAdapter interface | 1 | Interface | – | /home/jak/substrate/007-manage-workflows/packages/workflow/src/interfaces/phase-adapter.interface.ts | Methods: loadFromPath(phaseDir), listForWorkflow(workflow). JSDoc on each. Types exported. **Uses `load*()` naming per DYK-04.** | – | Unified: template and run phases. Naming convention (DYK-04). |
+| [x] | T006 | Write tests for Workflow entity (current mode) | 2 | Test | T004 | /home/jak/substrate/007-manage-workflows/test/unit/workflow/workflow-entity.test.ts | Tests: Workflow.createCurrent() factory, isCurrent=true, isCheckpoint=false, isRun=false, checkpoint=null (not undefined), run=null, phases array, toJSON() with camelCase keys. Use factory methods not constructor. | – | TDD: RED first. Factory (DYK-02), serialization (DYK-03). |
+| [x] | T007 | Write tests for Workflow entity (checkpoint mode) | 2 | Test | T004 | /home/jak/substrate/007-manage-workflows/test/unit/workflow/workflow-entity.test.ts | Tests: Workflow.createCheckpoint() factory, isCheckpoint=true, checkpoint metadata (ordinal, hash, createdAt→ISO string, comment), run=null, source getter, toJSON() camelCase. Use factory methods not constructor. | – | TDD: RED first. Factory (DYK-02), serialization (DYK-03). |
+| [x] | T008 | Write tests for Workflow entity (run mode) | 2 | Test | T004 | /home/jak/substrate/007-manage-workflows/test/unit/workflow/workflow-entity.test.ts | Tests: Workflow.createRun() factory, isRun=true, run metadata (runId, runDir, status, createdAt→ISO string), phases have runtime state, toJSON() camelCase with recursive phases. Use factory methods not constructor. | – | TDD: RED first. Factory (DYK-02), serialization (DYK-03). |
+| [x] | T009 | Implement Workflow entity class | 2 | Core | T006, T007, T008 | /home/jak/substrate/007-manage-workflows/packages/workflow/src/entities/workflow.ts | All tests from T006-T008 pass. Unified model for all sources. Pure readonly properties + computed getters. No adapter refs. **Constructor is private; creation only via static factory methods (Workflow.createCurrent(), Workflow.createCheckpoint(), Workflow.createRun()) or adapter methods. Tests use factory methods.** toJSON() rules (DYK-03): camelCase keys, undefined→null, Date→ISO string, recursive for phases[]. | – | Per Key Invariant 1: isCurrent XOR isCheckpoint XOR isRun. Factory pattern (DYK-02). Serialization rules (DYK-03). |
+| [x] | T010 | Write tests for Phase entity | 3 | Test | T005 | /home/jak/substrate/007-manage-workflows/test/unit/workflow/phase-entity.test.ts | Tests: full data model (inputFiles, inputParameters, inputMessages, outputs, outputParameters), exists/answered/valid flags, status helpers, duration, toJSON(). Both template (unpopulated) and run (populated) modes. **toJSON() tests per DYK-03: camelCase keys, undefined→null, Date→ISO, recursive arrays.** | – | Complex entity per plan § Entity Data Models. Serialization rules (DYK-03). |
+| [x] | T011 | Implement Phase entity class | 2 | Core | T010 | /home/jak/substrate/007-manage-workflows/packages/workflow/src/entities/phase.ts | All tests from T010 pass. Includes all fields from plan § Entity Data Models. Pure readonly + computed getters. toJSON() rules (DYK-03): camelCase keys, undefined→null, Date→ISO string, recursive for nested arrays (inputFiles, outputs, etc.). | – | Per Key Invariant 2: same structure template/run. Serialization rules (DYK-03). |
+| [x] | T012 | Add DI tokens to WORKFLOW_DI_TOKENS | 1 | Setup | – | /home/jak/substrate/007-manage-workflows/packages/shared/src/di-tokens.ts | 2 new tokens: WORKFLOW_ADAPTER: 'IWorkflowAdapter', PHASE_ADAPTER: 'IPhaseAdapter' | – | Follow existing token pattern |
+| [x] | T013 | Create barrel exports for entities | 1 | Setup | T009, T011 | /home/jak/substrate/007-manage-workflows/packages/workflow/src/entities/index.ts | `import { Workflow, Phase } from '@chainglass/workflow'` works via packages/workflow/src/index.ts | – | Export classes and types |
+| [x] | T014 | Create/update barrel exports for interfaces | 1 | Setup | T004, T005 | /home/jak/substrate/007-manage-workflows/packages/workflow/src/interfaces/index.ts | IWorkflowAdapter, IPhaseAdapter, RunListFilter exported. Also export from packages/workflow/src/index.ts | – | Update existing barrel |
 
 ---
 

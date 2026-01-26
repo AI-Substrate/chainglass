@@ -1,6 +1,19 @@
 // @chainglass/workflow entry point
 // Exports all workflow interfaces, types, fakes, and adapters
 
+// Errors
+export { EntityNotFoundError } from './errors/index.js';
+export type { EntityType } from './errors/index.js';
+
+// Run errors (E050-E059 per DYK-05)
+export { RunErrorCodes } from './errors/index.js';
+export {
+  RunNotFoundError,
+  RunsDirNotFoundError,
+  InvalidRunStatusError,
+  RunCorruptError,
+} from './errors/index.js';
+
 // Types (matching core schemas)
 export type {
   // wf.types.ts - Workflow definition types
@@ -52,6 +65,26 @@ export type { IPhaseService, ValidateCheckMode } from './interfaces/index.js';
 
 // Workflow registry interface (Phase 1)
 export type { IWorkflowRegistry } from './interfaces/index.js';
+
+// Entity adapter interfaces (Phase 1: Entity Upgrade, Plan 010)
+export type { IWorkflowAdapter, RunListFilter } from './interfaces/index.js';
+export type { IPhaseAdapter } from './interfaces/index.js';
+
+// Entities (Phase 1: Entity Upgrade, Plan 010)
+export { Workflow } from './entities/index.js';
+export type { CheckpointMetadata, RunMetadata, WorkflowJSON } from './entities/index.js';
+export { Phase } from './entities/index.js';
+export type {
+  PhaseInput,
+  PhaseInputFile,
+  PhaseInputParameter,
+  PhaseInputMessage,
+  PhaseMessageOption,
+  PhaseOutput,
+  PhaseOutputParameter,
+  PhaseStatusEntry,
+  PhaseJSON,
+} from './entities/index.js';
 
 // Init service interface (Phase 4)
 export type {

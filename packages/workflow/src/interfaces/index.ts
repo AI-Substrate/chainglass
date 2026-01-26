@@ -1,5 +1,9 @@
 // Workflow interfaces barrel export
 
+// Entity adapters (Phase 1: Entity Upgrade)
+export type { IWorkflowAdapter, RunListFilter } from './workflow-adapter.interface.js';
+export type { IPhaseAdapter } from './phase-adapter.interface.js';
+
 export { YamlParseError } from './yaml-parser.interface.js';
 export type { IYamlParser, ParseResult } from './yaml-parser.interface.js';
 

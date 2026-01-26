@@ -754,7 +754,7 @@ describe('SdkCopilotAdapter', () => {
       // Verify /compact was sent (check session's send history)
       const lastSession = client.getLastSession();
       expect(lastSession).toBeDefined();
-      const sendHistory = lastSession!.getSendHistory();
+      const sendHistory = lastSession?.getSendHistory();
       expect(sendHistory.some((msg) => msg.prompt === '/compact')).toBe(true);
     });
 
@@ -898,8 +898,8 @@ describe('SdkCopilotAdapter', () => {
       // Get the session used for terminate (it's a new session from resumeSession)
       const session = client.getLastSession();
       expect(session).toBeDefined();
-      expect(session!.getAbortCount()).toBe(1);
-      expect(session!.wasDestroyed()).toBe(true);
+      expect(session?.getAbortCount()).toBe(1);
+      expect(session?.wasDestroyed()).toBe(true);
     });
 
     it('should return status=killed', async () => {
@@ -1059,8 +1059,8 @@ describe('SdkCopilotAdapter', () => {
 
       const session = client.getLastSession();
       expect(session).toBeDefined();
-      expect(session!.getAbortCount()).toBe(1);
-      expect(session!.wasDestroyed()).toBe(true);
+      expect(session?.getAbortCount()).toBe(1);
+      expect(session?.wasDestroyed()).toBe(true);
     });
   });
 });
