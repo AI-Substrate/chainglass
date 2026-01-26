@@ -9,6 +9,7 @@
  * Extended for Plan 011: Supports QuestionInput for blocked phases.
  */
 
+import { QuestionInput } from '@/components/phases/question-input';
 import {
   Sheet,
   SheetContent,
@@ -17,7 +18,6 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { StatusBadge } from '@/components/ui/status-badge';
-import { QuestionInput } from '@/components/phases/question-input';
 import { cn } from '@/lib/utils';
 
 import type { WorkflowNode } from '@/data/fixtures/flow.fixture';
@@ -143,12 +143,9 @@ export function NodeDetailPanel({ node, onClose, phase, onAnswerSubmit }: NodeDe
                 )}
 
                 {/* Question Input for blocked phases */}
-                {hasQuestion && onAnswerSubmit && (
+                {hasQuestion && onAnswerSubmit && phase.question && (
                   <div className="pt-4 border-t">
-                    <QuestionInput
-                      question={phase.question!}
-                      onSubmit={onAnswerSubmit}
-                    />
+                    <QuestionInput question={phase.question} onSubmit={onAnswerSubmit} />
                   </div>
                 )}
               </>
@@ -182,7 +179,8 @@ export function NodeDetailPanel({ node, onClose, phase, onAnswerSubmit }: NodeDe
                         className={cn(
                           'w-2 h-2 rounded-full',
                           status === 'pending' && 'bg-muted-foreground',
-                          (status === 'running' || status === 'active') && 'bg-blue-500 animate-pulse',
+                          (status === 'running' || status === 'active') &&
+                            'bg-blue-500 animate-pulse',
                           status === 'blocked' && 'bg-orange-500 animate-pulse',
                           (status === 'completed' || status === 'complete') && 'bg-green-500',
                           status === 'failed' && 'bg-red-500'

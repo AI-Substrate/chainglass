@@ -10,7 +10,7 @@
  * @see Plan 011: UI Mockups (T022)
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { PhaseJSON, PhaseRunStatus } from '@/data/fixtures/workflows.fixture';
 
@@ -68,9 +68,7 @@ export function usePhaseSimulation(
   } = options;
 
   // Deep copy phases to make them mutable
-  const [phases, setPhases] = useState<PhaseJSON[]>(() =>
-    initialPhases.map((p) => ({ ...p }))
-  );
+  const [phases, setPhases] = useState<PhaseJSON[]>(() => initialPhases.map((p) => ({ ...p })));
   const [isRunning, setIsRunning] = useState(autoStart);
 
   // Track phase start times for duration calculation
@@ -143,7 +141,13 @@ export function usePhaseSimulation(
                 newPhases[i] = { ...phase, status: 'blocked', isBlocked: true, isActive: false };
                 onPhaseChange?.(phase.name, 'blocked');
               } else {
-                newPhases[i] = { ...phase, status: 'complete', isComplete: true, isActive: false, isDone: true };
+                newPhases[i] = {
+                  ...phase,
+                  status: 'complete',
+                  isComplete: true,
+                  isActive: false,
+                  isDone: true,
+                };
                 onPhaseChange?.(phase.name, 'complete');
               }
               changed = true;

@@ -12,6 +12,7 @@ import {
   CheckCircle,
   Circle,
   Clock,
+  FileText,
   Loader2,
   Pause,
   ThumbsUp,
@@ -21,14 +22,14 @@ import type { LucideIcon } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 
-import type { PhaseRunStatus, RunStatus } from '@/data/fixtures/workflows.fixture';
+import type { PhaseRunStatus, PhaseStatus, RunStatus } from '@/data/fixtures/workflows.fixture';
 
 /**
  * Status configuration with colors and icons
- * Based on Plan 010 PhaseRunStatus enum (7 values)
+ * Based on Plan 010 PhaseRunStatus enum (7 values) + 'defined' for templates
  */
 export const STATUS_CONFIG: Record<
-  PhaseRunStatus,
+  PhaseStatus,
   {
     label: string;
     bgColor: string;
@@ -38,6 +39,14 @@ export const STATUS_CONFIG: Record<
     Icon: LucideIcon;
   }
 > = {
+  defined: {
+    label: 'Defined',
+    bgColor: 'bg-slate-100 dark:bg-slate-800',
+    textColor: 'text-slate-600 dark:text-slate-400',
+    borderColor: 'border-slate-300 dark:border-slate-600',
+    dotColor: 'bg-slate-400',
+    Icon: FileText,
+  },
   pending: {
     label: 'Pending',
     bgColor: 'bg-gray-100 dark:bg-gray-800',
@@ -130,8 +139,8 @@ const iconSizes: Record<BadgeSize, string> = {
 };
 
 export interface StatusBadgeProps {
-  /** Status value (PhaseRunStatus or RunStatus) */
-  status: PhaseRunStatus | RunStatus;
+  /** Status value (PhaseStatus or RunStatus) */
+  status: PhaseStatus | RunStatus;
   /** Badge size variant */
   size?: BadgeSize;
   /** Show icon with label */
@@ -165,11 +174,11 @@ export function StatusBadge({
   className,
   animate = true,
 }: StatusBadgeProps) {
-  // Map RunStatus to PhaseRunStatus if needed
-  const phaseStatus: PhaseRunStatus =
+  // Map RunStatus to PhaseStatus if needed
+  const phaseStatus: PhaseStatus =
     status === 'pending' || status === 'active' || status === 'complete' || status === 'failed'
       ? mapRunStatus(status as RunStatus)
-      : (status as PhaseRunStatus);
+      : (status as PhaseStatus);
 
   const config = STATUS_CONFIG[phaseStatus];
   const { Icon, label, bgColor, textColor, borderColor, dotColor } = config;

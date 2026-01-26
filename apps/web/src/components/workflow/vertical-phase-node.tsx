@@ -19,7 +19,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { cn } from '@/lib/utils';
 
-import type { Facilitator, PhaseRunStatus } from '@/data/fixtures/workflows.fixture';
+import type {
+  Facilitator,
+  PhaseIODefinition,
+  PhaseStatus,
+} from '@/data/fixtures/workflows.fixture';
 
 /**
  * Data shape for vertical phase nodes
@@ -27,10 +31,12 @@ import type { Facilitator, PhaseRunStatus } from '@/data/fixtures/workflows.fixt
 export interface VerticalPhaseNodeData {
   label: string;
   description?: string;
-  status: PhaseRunStatus;
+  status: PhaseStatus;
   facilitator?: Facilitator;
   hasQuestion?: boolean;
   order?: number;
+  inputs?: PhaseIODefinition[];
+  outputs?: PhaseIODefinition[];
   [key: string]: unknown;
 }
 
@@ -39,7 +45,8 @@ type VerticalPhaseNodeType = Node<VerticalPhaseNodeData, 'vertical-phase'>;
 /**
  * Status-based background colors for the node card
  */
-const statusBgColors: Record<PhaseRunStatus, string> = {
+const statusBgColors: Record<PhaseStatus, string> = {
+  defined: 'bg-slate-50 dark:bg-slate-900/50',
   pending: 'bg-gray-50 dark:bg-gray-900/50',
   ready: 'bg-amber-50 dark:bg-amber-900/20',
   active: 'bg-blue-50 dark:bg-blue-900/20',
@@ -52,7 +59,8 @@ const statusBgColors: Record<PhaseRunStatus, string> = {
 /**
  * Status-based border colors
  */
-const statusBorderColors: Record<PhaseRunStatus, string> = {
+const statusBorderColors: Record<PhaseStatus, string> = {
+  defined: 'border-slate-300 dark:border-slate-600',
   pending: 'border-gray-200 dark:border-gray-700',
   ready: 'border-amber-300 dark:border-amber-700',
   active: 'border-blue-400 dark:border-blue-600',
@@ -73,6 +81,7 @@ const facilitatorIcons: Record<Facilitator, string> = {
 function VerticalPhaseNodeComponent({ data, selected }: NodeProps<VerticalPhaseNodeType>) {
   const status = data.status ?? 'pending';
   const facilitator = data.facilitator ?? 'agent';
+  const isTemplate = status === 'defined';
   const isActive = status === 'active';
   const isBlocked = status === 'blocked';
 
@@ -88,7 +97,7 @@ function VerticalPhaseNodeComponent({ data, selected }: NodeProps<VerticalPhaseN
       <Card
         data-node-type="vertical-phase"
         className={cn(
-          'min-w-[220px] max-w-[280px] overflow-hidden transition-all duration-200',
+          'min-w-[250px] max-w-[320px] overflow-hidden transition-all duration-200',
           'border-2',
           statusBgColors[status],
           statusBorderColors[status],
@@ -105,23 +114,63 @@ function VerticalPhaseNodeComponent({ data, selected }: NodeProps<VerticalPhaseN
               </span>
               {data.label}
             </CardTitle>
-            <StatusBadge status={status} size="sm" showIcon />
+            {!isTemplate && <StatusBadge status={status} size="sm" showIcon />}
           </div>
         </CardHeader>
 
-        {(data.description || data.hasQuestion) && (
-          <CardContent className="p-3 pt-0 space-y-2">
-            {data.description && (
-              <p className="text-xs text-muted-foreground line-clamp-2">{data.description}</p>
-            )}
-            {data.hasQuestion && isBlocked && (
-              <div className="flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400 font-medium">
-                <span>⚠️</span>
-                <span>Waiting for input</span>
-              </div>
-            )}
-          </CardContent>
-        )}
+        <CardContent className="p-3 pt-0 space-y-2">
+          {data.description && (
+            <p className="text-xs text-muted-foreground line-clamp-2">{data.description}</p>
+          )}
+
+          {/* Template view: show inputs/outputs */}
+          {isTemplate && (data.inputs?.length || data.outputs?.length) && (
+            <div className="space-y-2 pt-1 border-t border-slate-200 dark:border-slate-700">
+              {data.inputs && data.inputs.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
+                    Inputs:
+                  </p>
+                  <ul className="text-xs text-muted-foreground space-y-0.5">
+                    {data.inputs.map((input) => (
+                      <li key={input.name} className="flex items-center gap-1">
+                        <span className="text-blue-500">→</span>
+                        <code className="bg-slate-100 dark:bg-slate-800 px-1 rounded text-[10px]">
+                          {input.name}
+                        </code>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {data.outputs && data.outputs.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
+                    Outputs:
+                  </p>
+                  <ul className="text-xs text-muted-foreground space-y-0.5">
+                    {data.outputs.map((output) => (
+                      <li key={output.name} className="flex items-center gap-1">
+                        <span className="text-emerald-500">←</span>
+                        <code className="bg-slate-100 dark:bg-slate-800 px-1 rounded text-[10px]">
+                          {output.name}
+                        </code>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Run view: show waiting for input */}
+          {data.hasQuestion && isBlocked && (
+            <div className="flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400 font-medium">
+              <span>⚠️</span>
+              <span>Waiting for input</span>
+            </div>
+          )}
+        </CardContent>
       </Card>
 
       {/* Source handle at bottom for outgoing edges */}

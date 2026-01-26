@@ -10,15 +10,14 @@
  * @see Plan 011: UI Mockups (T014, AC-08, AC-10, AC-13, AC-14-18)
  */
 
-import { useState, useCallback } from 'react';
-import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
+import Link from 'next/link';
+import { useCallback, useEffect, useState } from 'react';
 
-import { Button } from '@/components/ui/button';
-import { WorkflowBreadcrumb } from '@/components/ui/workflow-breadcrumb';
-import { RunHeader } from '@/components/runs/run-header';
-import { RunFlowContent } from '@/components/runs/run-flow-content';
 import { QuestionInput } from '@/components/phases/question-input';
+import { RunFlowContent } from '@/components/runs/run-flow-content';
+import { RunHeader } from '@/components/runs/run-header';
+import { Button } from '@/components/ui/button';
 import {
   Sheet,
   SheetContent,
@@ -27,9 +26,11 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { StatusBadge } from '@/components/ui/status-badge';
+import { WorkflowBreadcrumb } from '@/components/ui/workflow-breadcrumb';
+import { useResponsive } from '@/hooks/useResponsive';
 import { cn } from '@/lib/utils';
 
-import { DEMO_RUNS, getRunById, type RunDetail } from '@/data/fixtures/runs.fixture';
+import { DEMO_RUNS, type RunDetail, getRunById } from '@/data/fixtures/runs.fixture';
 import type { PhaseJSON } from '@/data/fixtures/workflows.fixture';
 
 interface PageProps {
@@ -39,6 +40,21 @@ interface PageProps {
 export default function SingleRunPage({ params }: PageProps) {
   const [paramsState, setParamsState] = useState<{ slug: string; runId: string } | null>(null);
   const [selectedPhase, setSelectedPhase] = useState<PhaseJSON | null>(null);
+  const { useMobilePatterns } = useResponsive();
+
+  const handlePhaseSelect = useCallback((phase: PhaseJSON | null) => {
+    setSelectedPhase(phase);
+  }, []);
+
+  const handleAnswerSubmit = useCallback(
+    (questionId: string, answer: string | string[] | boolean) => {
+      console.log('Answer submitted:', { questionId, answer });
+      // In real app, this would update the run state
+      // For mockup, just close the panel
+      setSelectedPhase(null);
+    },
+    []
+  );
 
   // Handle async params
   if (!paramsState) {
@@ -53,26 +69,19 @@ export default function SingleRunPage({ params }: PageProps) {
     return (
       <div className="container mx-auto py-6 text-center">
         <h1 className="text-2xl font-bold">Run not found</h1>
-        <p className="text-muted-foreground mt-2">
-          The run &ldquo;{runId}&rdquo; does not exist.
-        </p>
-        <Link href={`/workflows/${slug}/runs`} className="text-primary hover:underline mt-4 inline-block">
+        <p className="text-muted-foreground mt-2">The run &ldquo;{runId}&rdquo; does not exist.</p>
+        <Link
+          href={`/workflows/${slug}/runs`}
+          className="text-primary hover:underline mt-4 inline-block"
+        >
           Back to Runs
         </Link>
       </div>
     );
   }
 
-  const handlePhaseSelect = useCallback((phase: PhaseJSON | null) => {
-    setSelectedPhase(phase);
-  }, []);
-
-  const handleAnswerSubmit = useCallback((questionId: string, answer: string | string[] | boolean) => {
-    console.log('Answer submitted:', { questionId, answer });
-    // In real app, this would update the run state
-    // For mockup, just close the panel
-    setSelectedPhase(null);
-  }, []);
+  // Only show sheet on mobile, desktop uses the side panel
+  const showMobileSheet = useMobilePatterns && selectedPhase !== null;
 
   return (
     <div className="container mx-auto py-6 space-y-6">
@@ -101,30 +110,26 @@ export default function SingleRunPage({ params }: PageProps) {
 
         {/* Phase Detail Panel (desktop) */}
         <div className="hidden lg:block">
-          <PhaseDetailCard
-            phase={selectedPhase}
-            onAnswerSubmit={handleAnswerSubmit}
-          />
+          <PhaseDetailCard phase={selectedPhase} onAnswerSubmit={handleAnswerSubmit} />
         </div>
       </div>
 
-      {/* Phase Detail Sheet (mobile) */}
-      <Sheet open={selectedPhase !== null} onOpenChange={(open) => !open && setSelectedPhase(null)}>
-        <SheetContent side="bottom" className="h-[80vh] lg:hidden">
-          <SheetHeader>
-            <SheetTitle>{selectedPhase?.name}</SheetTitle>
-            {selectedPhase?.description && (
-              <SheetDescription>{selectedPhase.description}</SheetDescription>
-            )}
-          </SheetHeader>
-          <div className="mt-4">
-            <PhaseDetailContent
-              phase={selectedPhase}
-              onAnswerSubmit={handleAnswerSubmit}
-            />
-          </div>
-        </SheetContent>
-      </Sheet>
+      {/* Phase Detail Sheet (mobile only) */}
+      {useMobilePatterns && (
+        <Sheet open={showMobileSheet} onOpenChange={(open) => !open && setSelectedPhase(null)}>
+          <SheetContent side="bottom" className="h-[80vh]">
+            <SheetHeader>
+              <SheetTitle>{selectedPhase?.name}</SheetTitle>
+              {selectedPhase?.description && (
+                <SheetDescription>{selectedPhase.description}</SheetDescription>
+              )}
+            </SheetHeader>
+            <div className="mt-4">
+              <PhaseDetailContent phase={selectedPhase} onAnswerSubmit={handleAnswerSubmit} />
+            </div>
+          </SheetContent>
+        </Sheet>
+      )}
     </div>
   );
 }
@@ -178,9 +183,7 @@ function PhaseDetailContent({ phase, onAnswerSubmit }: PhaseDetailContentProps) 
 
   return (
     <div className="space-y-4">
-      {phase.description && (
-        <p className="text-sm text-muted-foreground">{phase.description}</p>
-      )}
+      {phase.description && <p className="text-sm text-muted-foreground">{phase.description}</p>}
 
       <div className="grid grid-cols-2 gap-4 text-sm">
         <div>
@@ -204,10 +207,7 @@ function PhaseDetailContent({ phase, onAnswerSubmit }: PhaseDetailContentProps) 
       {/* Question Input for blocked phases */}
       {phase.status === 'blocked' && phase.question && (
         <div className="pt-4 border-t">
-          <QuestionInput
-            question={phase.question}
-            onSubmit={onAnswerSubmit}
-          />
+          <QuestionInput question={phase.question} onSubmit={onAnswerSubmit} />
         </div>
       )}
     </div>

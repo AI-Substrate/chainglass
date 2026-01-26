@@ -19,7 +19,7 @@ import {
   useReactFlow,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   VERTICAL_NODE_TYPES,
@@ -45,8 +45,8 @@ export interface RunFlowContentProps {
 // ============ Layout Configuration ============
 
 const NODE_WIDTH = 250;
-const NODE_HEIGHT = 100;
-const NODE_SPACING_Y = 40;
+const NODE_HEIGHT = 140;
+const NODE_SPACING_Y = 80;
 
 /**
  * Convert phases to ReactFlow nodes
@@ -55,7 +55,7 @@ function phasesToNodes(phases: PhaseJSON[]): Node<VerticalPhaseNodeData>[] {
   return phases.map((phase) => ({
     id: phase.name,
     type: 'vertical-phase',
-    position: { x: 0, y: 0 }, // Will be set by Dagre
+    position: { x: 0, y: 0 }, // Will be set by layout
     data: {
       label: phase.name,
       description: phase.description,
@@ -63,6 +63,8 @@ function phasesToNodes(phases: PhaseJSON[]): Node<VerticalPhaseNodeData>[] {
       facilitator: phase.facilitator,
       hasQuestion: !!phase.question,
       order: phase.order,
+      inputs: phase.inputs,
+      outputs: phase.outputs,
     },
   }));
 }
@@ -130,6 +132,7 @@ function RunFlowContentInner({
 }: RunFlowContentProps) {
   const { fitView } = useReactFlow();
   const [isLayoutReady, setIsLayoutReady] = useState(false);
+  const prevPhasesLength = useRef(phases.length);
 
   // Convert phases to nodes and edges with memoization
   const initialNodes = useMemo(() => phasesToNodes(phases), [phases]);
@@ -155,8 +158,11 @@ function RunFlowContentInner({
 
   // Re-fit when phases change
   useEffect(() => {
-    setIsLayoutReady(false);
-  }, [phases]);
+    if (prevPhasesLength.current !== phases.length) {
+      setIsLayoutReady(false);
+      prevPhasesLength.current = phases.length;
+    }
+  });
 
   // Handle node click
   const handleNodeClick = useCallback(

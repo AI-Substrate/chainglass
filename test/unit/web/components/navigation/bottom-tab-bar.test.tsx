@@ -283,7 +283,7 @@ describe('BottomTabBar', () => {
 
       await user.click(screen.getByRole('tab', { name: /workflow/i }));
 
-      expect(mockPush).toHaveBeenCalledWith('/workflow');
+      expect(mockPush).toHaveBeenCalledWith('/workflows');
     });
 
     it('should not navigate when pressing already active tab', async () => {

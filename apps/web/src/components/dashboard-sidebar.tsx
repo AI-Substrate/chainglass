@@ -14,8 +14,8 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from '@/components/ui/sidebar';
-import { cn } from '@/lib/utils';
 import { NAV_ITEMS } from '@/lib/navigation-utils';
+import { cn } from '@/lib/utils';
 import { PanelLeft } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';

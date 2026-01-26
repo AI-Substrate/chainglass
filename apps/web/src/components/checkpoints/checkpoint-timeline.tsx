@@ -9,8 +9,8 @@
 
 import { History } from 'lucide-react';
 
-import { CheckpointCard } from './checkpoint-card';
 import { cn } from '@/lib/utils';
+import { CheckpointCard } from './checkpoint-card';
 
 import type { CheckpointMetadataJSON } from '@/data/fixtures/workflows.fixture';
 
@@ -54,7 +54,9 @@ export function CheckpointTimeline({
     <div className={cn('space-y-4', className)}>
       <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
         <History className="h-4 w-4" />
-        <span>{checkpoints.length} checkpoint{checkpoints.length !== 1 ? 's' : ''}</span>
+        <span>
+          {checkpoints.length} checkpoint{checkpoints.length !== 1 ? 's' : ''}
+        </span>
       </div>
 
       <div className="relative">
@@ -68,9 +70,7 @@ export function CheckpointTimeline({
               <div
                 className={cn(
                   'absolute left-[10px] top-4 w-[11px] h-[11px] rounded-full border-2 bg-background',
-                  index === 0
-                    ? 'border-primary bg-primary'
-                    : 'border-muted-foreground/50'
+                  index === 0 ? 'border-primary bg-primary' : 'border-muted-foreground/50'
                 )}
               />
 

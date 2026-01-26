@@ -7,11 +7,11 @@
  * @see Plan 011: UI Mockups (AC-04)
  */
 
-import Link from 'next/link';
 import { Clock, User } from 'lucide-react';
+import Link from 'next/link';
 
-import { TableCell, TableRow } from '@/components/ui/table';
 import { StatusBadge } from '@/components/ui/status-badge';
+import { TableCell, TableRow } from '@/components/ui/table';
 
 import type { RunSummary } from '@/data/fixtures/runs.fixture';
 

@@ -7,13 +7,7 @@
  * @see Plan 011: UI Mockups (AC-04)
  */
 
-import {
-  Table,
-  TableBody,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { Table, TableBody, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { RunRow } from './run-row';
 
 import type { RunSummary } from '@/data/fixtures/runs.fixture';

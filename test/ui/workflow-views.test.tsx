@@ -7,28 +7,28 @@
  * @see Plan 011: UI Mockups (T024)
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import React from 'react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FakeMatchMedia } from '@test/fakes/fake-match-media';
 
+import { CheckpointCard } from '@/components/checkpoints/checkpoint-card';
+import { QuestionInput } from '@/components/phases/question-input';
+import { RunList } from '@/components/runs/run-list';
+import { RunRow } from '@/components/runs/run-row';
 // Components under test
 import { StatusBadge } from '@/components/ui/status-badge';
-import { WorkflowCard } from '@/components/workflows/workflow-card';
-import { RunRow } from '@/components/runs/run-row';
-import { RunList } from '@/components/runs/run-list';
-import { QuestionInput } from '@/components/phases/question-input';
-import { CheckpointCard } from '@/components/checkpoints/checkpoint-card';
 import { WorkflowBreadcrumb } from '@/components/ui/workflow-breadcrumb';
+import { WorkflowCard } from '@/components/workflows/workflow-card';
 
+import { DEMO_RUN_SUMMARIES } from '@/data/fixtures/runs.fixture';
 // Fixtures
 import {
-  DEMO_WORKFLOWS,
   DEMO_QUESTIONS,
+  DEMO_WORKFLOWS,
   createCheckpointMetadata,
 } from '@/data/fixtures/workflows.fixture';
-import { DEMO_RUN_SUMMARIES } from '@/data/fixtures/runs.fixture';
 
 // ============ Test Setup ============
 
@@ -49,7 +49,15 @@ afterEach(() => {
 
 describe('StatusBadge', () => {
   it('renders all 7 PhaseRunStatus values', () => {
-    const statuses = ['pending', 'ready', 'active', 'blocked', 'accepted', 'complete', 'failed'] as const;
+    const statuses = [
+      'pending',
+      'ready',
+      'active',
+      'blocked',
+      'accepted',
+      'complete',
+      'failed',
+    ] as const;
 
     for (const status of statuses) {
       const { unmount } = render(<StatusBadge status={status} showIcon />);
@@ -130,7 +138,7 @@ describe('RunRow', () => {
       </table>
     );
 
-    expect(screen.getByText(runWithPhase.currentPhase!)).toBeInTheDocument();
+    expect(screen.getByText(runWithPhase.currentPhase ?? '')).toBeInTheDocument();
   });
 });
 
@@ -167,9 +175,7 @@ describe('QuestionInput', () => {
   });
 
   it('renders single_choice question with radio buttons', () => {
-    render(
-      <QuestionInput question={DEMO_QUESTIONS.single_choice} onSubmit={mockOnSubmit} />
-    );
+    render(<QuestionInput question={DEMO_QUESTIONS.single_choice} onSubmit={mockOnSubmit} />);
 
     expect(screen.getByText(DEMO_QUESTIONS.single_choice.prompt)).toBeInTheDocument();
 
@@ -180,26 +186,20 @@ describe('QuestionInput', () => {
   });
 
   it('renders multi_choice question with checkboxes', () => {
-    render(
-      <QuestionInput question={DEMO_QUESTIONS.multi_choice} onSubmit={mockOnSubmit} />
-    );
+    render(<QuestionInput question={DEMO_QUESTIONS.multi_choice} onSubmit={mockOnSubmit} />);
 
     expect(screen.getByText(DEMO_QUESTIONS.multi_choice.prompt)).toBeInTheDocument();
   });
 
   it('renders free_text question with textarea', () => {
-    render(
-      <QuestionInput question={DEMO_QUESTIONS.free_text} onSubmit={mockOnSubmit} />
-    );
+    render(<QuestionInput question={DEMO_QUESTIONS.free_text} onSubmit={mockOnSubmit} />);
 
     expect(screen.getByText(DEMO_QUESTIONS.free_text.prompt)).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Enter your response...')).toBeInTheDocument();
   });
 
   it('renders confirm question with Yes/No buttons', () => {
-    render(
-      <QuestionInput question={DEMO_QUESTIONS.confirm} onSubmit={mockOnSubmit} />
-    );
+    render(<QuestionInput question={DEMO_QUESTIONS.confirm} onSubmit={mockOnSubmit} />);
 
     expect(screen.getByText(DEMO_QUESTIONS.confirm.prompt)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Yes' })).toBeInTheDocument();
@@ -207,9 +207,7 @@ describe('QuestionInput', () => {
   });
 
   it('has accessible submit button (never disabled)', () => {
-    render(
-      <QuestionInput question={DEMO_QUESTIONS.confirm} onSubmit={mockOnSubmit} />
-    );
+    render(<QuestionInput question={DEMO_QUESTIONS.confirm} onSubmit={mockOnSubmit} />);
 
     const submitButton = screen.getByRole('button', { name: 'Submit Answer' });
     expect(submitButton).not.toBeDisabled();

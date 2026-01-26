@@ -7,15 +7,15 @@
  * @see Plan 011: UI Mockups (AC-01)
  */
 
+import { AlertTriangle, Clock, GitBranch, Play } from 'lucide-react';
 import Link from 'next/link';
-import { Clock, GitBranch, Play, AlertTriangle } from 'lucide-react';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { cn } from '@/lib/utils';
 
-import type { WorkflowJSON } from '@/data/fixtures/workflows.fixture';
 import type { RunSummary } from '@/data/fixtures/runs.fixture';
+import type { WorkflowJSON } from '@/data/fixtures/workflows.fixture';
 
 export interface WorkflowCardProps {
   /** Workflow data */

@@ -7,10 +7,10 @@
  * @see Plan 011: UI Mockups (AC-01)
  */
 
-import { WorkflowCard } from '@/components/workflows/workflow-card';
 import { WorkflowBreadcrumb } from '@/components/ui/workflow-breadcrumb';
+import { WorkflowCard } from '@/components/workflows/workflow-card';
+import { DEMO_CHECKPOINTS, DEMO_RUN_SUMMARIES } from '@/data/fixtures/runs.fixture';
 import { DEMO_WORKFLOWS } from '@/data/fixtures/workflows.fixture';
-import { DEMO_RUN_SUMMARIES, DEMO_CHECKPOINTS } from '@/data/fixtures/runs.fixture';
 
 export default function WorkflowsPage() {
   // Get run summaries grouped by workflow
@@ -46,9 +46,7 @@ export default function WorkflowsPage() {
 
       <div className="space-y-2">
         <h1 className="text-2xl font-bold tracking-tight">Workflows</h1>
-        <p className="text-muted-foreground">
-          Browse and manage your workflow templates and runs
-        </p>
+        <p className="text-muted-foreground">Browse and manage your workflow templates and runs</p>
       </div>
 
       {/* Workflow grid - responsive columns */}

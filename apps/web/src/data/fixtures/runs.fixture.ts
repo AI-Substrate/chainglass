@@ -11,8 +11,11 @@
 import {
   type CheckpointMetadataJSON,
   DEMO_QUESTIONS,
+  GATHER_CLARIFICATION_QUESTION,
+  PROCESS_FORMAT_QUESTION,
   type PhaseJSON,
   type PhaseRunStatus,
+  REPORT_CONFIRM_QUESTION,
   type RunMetadataJSON,
   type RunStatus,
   type WorkflowJSON,
@@ -205,6 +208,135 @@ export const DEMO_BLOCKED_RUN = createRunDetail(
 );
 
 /**
+ * Run with single choice question (environment selection)
+ */
+export const DEMO_SINGLE_CHOICE_RUN = createRunDetail(
+  createWorkflow({
+    slug: 'deploy-to-prod',
+    description: 'Production deployment workflow with environment selection',
+    phases: [
+      createPhase({
+        name: 'build',
+        order: 0,
+        status: 'complete',
+        description: 'Build application artifacts',
+        startedAt: HOUR_AGO.toISOString(),
+        completedAt: new Date(HOUR_AGO.getTime() + 120000).toISOString(),
+        duration: 120,
+      }),
+      createPhase({
+        name: 'select-env',
+        order: 1,
+        status: 'blocked',
+        description: 'Select target deployment environment',
+        facilitator: 'orchestrator',
+        startedAt: new Date(HOUR_AGO.getTime() + 120000).toISOString(),
+        question: DEMO_QUESTIONS.single_choice,
+      }),
+      createPhase({
+        name: 'deploy',
+        order: 2,
+        status: 'pending',
+        description: 'Execute deployment to selected environment',
+      }),
+    ],
+  }),
+  createRunMetadata({
+    runId: 'run-005',
+    status: 'active',
+    startedAt: HOUR_AGO.toISOString(),
+    currentPhase: 'select-env',
+    triggeredBy: 'user@example.com',
+  })
+);
+
+/**
+ * Run with multi choice question (notification channels)
+ */
+export const DEMO_MULTI_CHOICE_RUN = createRunDetail(
+  createWorkflow({
+    slug: 'deploy-to-prod',
+    description: 'Production deployment with notification setup',
+    phases: [
+      createPhase({
+        name: 'deploy',
+        order: 0,
+        status: 'complete',
+        description: 'Deploy application',
+        startedAt: HOUR_AGO.toISOString(),
+        completedAt: new Date(HOUR_AGO.getTime() + 180000).toISOString(),
+        duration: 180,
+      }),
+      createPhase({
+        name: 'notify-setup',
+        order: 1,
+        status: 'blocked',
+        description: 'Configure notification channels for deployment status',
+        facilitator: 'orchestrator',
+        startedAt: new Date(HOUR_AGO.getTime() + 180000).toISOString(),
+        question: DEMO_QUESTIONS.multi_choice,
+      }),
+      createPhase({
+        name: 'notify',
+        order: 2,
+        status: 'pending',
+        description: 'Send deployment notifications',
+      }),
+    ],
+  }),
+  createRunMetadata({
+    runId: 'run-006',
+    status: 'active',
+    startedAt: HOUR_AGO.toISOString(),
+    currentPhase: 'notify-setup',
+    triggeredBy: 'scheduled',
+  })
+);
+
+/**
+ * Run with free text question (release notes)
+ */
+export const DEMO_FREE_TEXT_RUN = createRunDetail(
+  createWorkflow({
+    slug: 'deploy-to-prod',
+    description: 'Production deployment with release notes',
+    phases: [
+      createPhase({
+        name: 'test',
+        order: 0,
+        status: 'complete',
+        description: 'Run all tests',
+        startedAt: HOUR_AGO.toISOString(),
+        completedAt: new Date(HOUR_AGO.getTime() + 300000).toISOString(),
+        duration: 300,
+      }),
+      createPhase({
+        name: 'release-notes',
+        order: 1,
+        status: 'blocked',
+        description: 'Enter release notes for this deployment',
+        facilitator: 'orchestrator',
+        startedAt: new Date(HOUR_AGO.getTime() + 300000).toISOString(),
+        question: DEMO_QUESTIONS.free_text,
+      }),
+      createPhase({
+        name: 'publish',
+        order: 2,
+        status: 'pending',
+        description: 'Publish release with notes',
+      }),
+    ],
+  }),
+  createRunMetadata({
+    runId: 'run-007',
+    status: 'active',
+    startedAt: HOUR_AGO.toISOString(),
+    currentPhase: 'release-notes',
+    triggeredBy: 'github-actions',
+  })
+);
+
+/**
  * Completed successful run
  */
 export const DEMO_COMPLETE_RUN = createRunDetail(
@@ -306,14 +438,211 @@ export const DEMO_FAILED_RUN = createRunDetail(
   })
 );
 
+// ============ Manual Test Workflow Runs ============
+
+/**
+ * Manual test run: Process phase blocked with multi-choice question
+ * Based on the actual manual test from phase-6-documentation-rollout
+ */
+export const DEMO_MANUAL_TEST_PROCESS_RUN = createRunDetail(
+  createWorkflow({
+    slug: 'manual-test-workflow',
+    description: 'Workflow validation test: gather → process → report',
+    phases: [
+      createPhase({
+        name: 'gather',
+        order: 0,
+        status: 'complete',
+        description: 'Gather initial user request and produce response demonstrating understanding',
+        facilitator: 'agent',
+        startedAt: new Date(NOW.getTime() - 3600000).toISOString(),
+        completedAt: new Date(NOW.getTime() - 3300000).toISOString(),
+        duration: 300,
+      }),
+      createPhase({
+        name: 'process',
+        order: 1,
+        status: 'blocked',
+        description: 'Process gathered data - awaiting orchestrator input on output format',
+        facilitator: 'agent',
+        startedAt: new Date(NOW.getTime() - 3300000).toISOString(),
+        question: PROCESS_FORMAT_QUESTION,
+      }),
+      createPhase({
+        name: 'report',
+        order: 2,
+        status: 'pending',
+        description: 'Generate final report from processed data with test coverage summary',
+        facilitator: 'agent',
+      }),
+    ],
+  }),
+  createRunMetadata({
+    runId: 'run-mt-001',
+    status: 'active',
+    startedAt: new Date(NOW.getTime() - 3600000).toISOString(),
+    currentPhase: 'process',
+    triggeredBy: 'orchestrator',
+  })
+);
+
+/**
+ * Manual test run: Gather phase blocked with free text clarification question
+ */
+export const DEMO_MANUAL_TEST_GATHER_RUN = createRunDetail(
+  createWorkflow({
+    slug: 'manual-test-workflow',
+    description: 'Workflow validation test: gather → process → report',
+    phases: [
+      createPhase({
+        name: 'gather',
+        order: 0,
+        status: 'blocked',
+        description: 'Gather initial request - agent needs clarification on scope',
+        facilitator: 'agent',
+        startedAt: new Date(NOW.getTime() - 600000).toISOString(),
+        question: GATHER_CLARIFICATION_QUESTION,
+      }),
+      createPhase({
+        name: 'process',
+        order: 1,
+        status: 'pending',
+        description: 'Process gathered data with format selection',
+        facilitator: 'agent',
+      }),
+      createPhase({
+        name: 'report',
+        order: 2,
+        status: 'pending',
+        description: 'Generate final report from processed data',
+        facilitator: 'agent',
+      }),
+    ],
+  }),
+  createRunMetadata({
+    runId: 'run-mt-002',
+    status: 'active',
+    startedAt: new Date(NOW.getTime() - 600000).toISOString(),
+    currentPhase: 'gather',
+    triggeredBy: 'manual',
+  })
+);
+
+/**
+ * Manual test run: Report phase blocked with confirmation question
+ */
+export const DEMO_MANUAL_TEST_REPORT_RUN = createRunDetail(
+  createWorkflow({
+    slug: 'manual-test-workflow',
+    description: 'Workflow validation test: gather → process → report',
+    phases: [
+      createPhase({
+        name: 'gather',
+        order: 0,
+        status: 'complete',
+        description: 'Gather initial user request and produce response',
+        facilitator: 'agent',
+        startedAt: new Date(NOW.getTime() - 7200000).toISOString(),
+        completedAt: new Date(NOW.getTime() - 6900000).toISOString(),
+        duration: 300,
+      }),
+      createPhase({
+        name: 'process',
+        order: 1,
+        status: 'complete',
+        description: 'Process gathered data - selected "Both" format per orchestrator',
+        facilitator: 'agent',
+        startedAt: new Date(NOW.getTime() - 6900000).toISOString(),
+        completedAt: new Date(NOW.getTime() - 6000000).toISOString(),
+        duration: 900,
+      }),
+      createPhase({
+        name: 'report',
+        order: 2,
+        status: 'blocked',
+        description: 'Ready to generate final report - awaiting confirmation',
+        facilitator: 'agent',
+        startedAt: new Date(NOW.getTime() - 6000000).toISOString(),
+        question: REPORT_CONFIRM_QUESTION,
+      }),
+    ],
+  }),
+  createRunMetadata({
+    runId: 'run-mt-003',
+    status: 'active',
+    startedAt: new Date(NOW.getTime() - 7200000).toISOString(),
+    currentPhase: 'report',
+    triggeredBy: 'scheduled',
+  })
+);
+
+/**
+ * Manual test run: Completed successfully
+ */
+export const DEMO_MANUAL_TEST_COMPLETE_RUN = createRunDetail(
+  createWorkflow({
+    slug: 'manual-test-workflow',
+    description: 'Workflow validation test: gather → process → report',
+    phases: [
+      createPhase({
+        name: 'gather',
+        order: 0,
+        status: 'complete',
+        description: 'Gather initial user request and produce response',
+        facilitator: 'agent',
+        startedAt: new Date(YESTERDAY.getTime()).toISOString(),
+        completedAt: new Date(YESTERDAY.getTime() + 300000).toISOString(),
+        duration: 300,
+      }),
+      createPhase({
+        name: 'process',
+        order: 1,
+        status: 'complete',
+        description: 'Processed data with "Both" format (summary + detailed)',
+        facilitator: 'agent',
+        startedAt: new Date(YESTERDAY.getTime() + 300000).toISOString(),
+        completedAt: new Date(YESTERDAY.getTime() + 1200000).toISOString(),
+        duration: 900,
+      }),
+      createPhase({
+        name: 'report',
+        order: 2,
+        status: 'complete',
+        description: 'Final report generated with test coverage and recommendations',
+        facilitator: 'agent',
+        startedAt: new Date(YESTERDAY.getTime() + 1200000).toISOString(),
+        completedAt: new Date(YESTERDAY.getTime() + 1500000).toISOString(),
+        duration: 300,
+      }),
+    ],
+  }),
+  createRunMetadata({
+    runId: 'run-mt-004',
+    status: 'complete',
+    startedAt: new Date(YESTERDAY.getTime()).toISOString(),
+    completedAt: new Date(YESTERDAY.getTime() + 1500000).toISOString(),
+    duration: 1500,
+    currentPhase: null,
+    triggeredBy: 'github-actions',
+  })
+);
+
 /**
  * All demo runs for the runs list
  */
 export const DEMO_RUNS: RunDetail[] = [
-  DEMO_BLOCKED_RUN,
-  DEMO_ACTIVE_RUN,
-  DEMO_COMPLETE_RUN,
-  DEMO_FAILED_RUN,
+  DEMO_BLOCKED_RUN, // run-002: confirm question
+  DEMO_SINGLE_CHOICE_RUN, // run-005: single choice question
+  DEMO_MULTI_CHOICE_RUN, // run-006: multi choice question
+  DEMO_FREE_TEXT_RUN, // run-007: free text question
+  DEMO_ACTIVE_RUN, // run-001: active, no question yet
+  DEMO_COMPLETE_RUN, // run-003: complete
+  DEMO_FAILED_RUN, // run-004: failed
+  // Manual test workflow runs
+  DEMO_MANUAL_TEST_PROCESS_RUN, // run-mt-001: process blocked with multi-choice
+  DEMO_MANUAL_TEST_GATHER_RUN, // run-mt-002: gather blocked with free text
+  DEMO_MANUAL_TEST_REPORT_RUN, // run-mt-003: report blocked with confirm
+  DEMO_MANUAL_TEST_COMPLETE_RUN, // run-mt-004: all phases complete
 ];
 
 /**

@@ -18,11 +18,11 @@
 import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertTriangle } from 'lucide-react';
 
 import type { PhaseQuestion, QuestionType } from '@/data/fixtures/workflows.fixture';
@@ -129,15 +129,15 @@ export function QuestionInput({
           />
         )}
 
-        {error && <p className="text-sm text-red-500" role="alert">{error}</p>}
+        {error && (
+          <p className="text-sm text-red-500" role="alert">
+            {error}
+          </p>
+        )}
       </CardContent>
 
       <CardFooter>
-        <Button
-          onClick={handleSubmit}
-          disabled={isSubmitting}
-          className="w-full min-h-[44px]"
-        >
+        <Button onClick={handleSubmit} disabled={isSubmitting} className="w-full min-h-[44px]">
           {isSubmitting ? 'Submitting...' : 'Submit Answer'}
         </Button>
       </CardFooter>

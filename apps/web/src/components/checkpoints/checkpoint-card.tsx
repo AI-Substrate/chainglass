@@ -7,10 +7,10 @@
  * @see Plan 011: UI Mockups
  */
 
-import { GitCommit, Calendar, MessageSquare } from 'lucide-react';
+import { Calendar, GitCommit, MessageSquare } from 'lucide-react';
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 
 import type { CheckpointMetadataJSON } from '@/data/fixtures/workflows.fixture';
@@ -70,9 +70,7 @@ export function CheckpointCard({
       )}
     >
       {/* Active indicator */}
-      {isActive && (
-        <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary" />
-      )}
+      {isActive && <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary" />}
 
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-mono flex items-center gap-2">

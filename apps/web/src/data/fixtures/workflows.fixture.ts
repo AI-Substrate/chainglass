@@ -16,7 +16,7 @@
 export type RunStatus = 'pending' | 'active' | 'complete' | 'failed';
 
 /**
- * Phase-level status (7 values)
+ * Phase-level status (7 values) - for RUN views only
  * Used for status color mapping in StatusBadge and PhaseNode components.
  */
 export type PhaseRunStatus =
@@ -27,6 +27,16 @@ export type PhaseRunStatus =
   | 'accepted'
   | 'complete'
   | 'failed';
+
+/**
+ * Phase template status - for TEMPLATE views (no run state)
+ */
+export type PhaseTemplateStatus = 'defined';
+
+/**
+ * Combined status type
+ */
+export type PhaseStatus = PhaseRunStatus | PhaseTemplateStatus;
 
 /**
  * Phase facilitator type
@@ -62,6 +72,39 @@ export interface PhaseStatusEntry {
 }
 
 /**
+ * Input/Output definition for phase templates
+ */
+export interface PhaseIODefinition {
+  name: string;
+  description: string;
+  required?: boolean;
+  /** File type */
+  type?: 'file' | 'directory' | 'json' | 'markdown' | 'message';
+  /** Who creates/provides this artifact */
+  from?: 'user' | 'agent' | 'workflow';
+  /** For messages: what kind of input */
+  messageType?: 'request' | 'question' | 'answer';
+  /** Sample content for mockup display */
+  content?: string;
+}
+
+/**
+ * Phase command/prompt definition
+ */
+export interface PhaseCommandDefinition {
+  /** Prompt filename, e.g. "main.md" */
+  name: string;
+  /** Short description of what this prompt does */
+  description?: string;
+  /** Path within phase directory, e.g. "commands/main.md" */
+  path: string;
+  /** Commands are part of the workflow template definition */
+  from: 'workflow';
+  /** Markdown content of the prompt */
+  content?: string;
+}
+
+/**
  * Phase JSON structure - aligned with Plan 010
  */
 export interface PhaseJSON {
@@ -70,12 +113,12 @@ export interface PhaseJSON {
   runDir: string;
   description: string;
   order: number;
-  status: PhaseRunStatus;
+  status: PhaseStatus;
   facilitator: Facilitator;
   startedAt: string | null;
   completedAt: string | null;
   duration: number | null;
-  // Computed booleans
+  // Computed booleans (only meaningful for run status)
   isPending: boolean;
   isReady: boolean;
   isActive: boolean;
@@ -88,6 +131,11 @@ export interface PhaseJSON {
   question?: PhaseQuestion;
   // Status history
   statusHistory: PhaseStatusEntry[];
+  // Template definitions (for workflow view, not run view)
+  inputs?: PhaseIODefinition[];
+  outputs?: PhaseIODefinition[];
+  /** Phase prompts/commands (for workflow template view) */
+  commands?: PhaseCommandDefinition[];
 }
 
 // ============ Run Metadata Types ============
@@ -401,6 +449,293 @@ export const DEMO_FAILED_WORKFLOW = createWorkflow({
   ],
 });
 
+// ============ Realistic Manual Test Workflow ============
+
+/**
+ * Question from agent asking about output format (from 003-wf-basics manual test)
+ * This is a multi_choice question the agent asks during the process phase.
+ */
+export const PROCESS_FORMAT_QUESTION: PhaseQuestion = {
+  id: 'm-001',
+  type: 'multi_choice',
+  prompt:
+    'The gathered data contains both summary and detailed records. How should I structure the processed output?',
+  choices: [
+    'A: Summary only - Aggregate metrics, no individual records',
+    'B: Detailed only - All records with full details',
+    'C: Both - Summary section plus detailed appendix',
+  ],
+  required: true,
+};
+
+/**
+ * Question from agent asking for user request clarification
+ */
+export const GATHER_CLARIFICATION_QUESTION: PhaseQuestion = {
+  id: 'm-002',
+  type: 'free_text',
+  prompt:
+    'I noticed your request mentions "workflow system" but could mean several things. Could you clarify which aspect you want me to focus on?\n\n• Phase execution lifecycle\n• Checkpoint versioning\n• Message/question flow\n• All of the above',
+  required: true,
+};
+
+/**
+ * Confirmation question before generating final report
+ */
+export const REPORT_CONFIRM_QUESTION: PhaseQuestion = {
+  id: 'm-001',
+  type: 'confirm',
+  prompt:
+    'I have processed all inputs and am ready to generate the final report. The report will include:\n\n• Executive summary\n• Test coverage results\n• Key observations\n• Recommendations\n\nProceed with report generation?',
+  required: true,
+  defaultValue: true,
+};
+
+/**
+ * Demo workflow: Manual Test Workflow (gather → process → report)
+ * Based on the actual manual test from phase-6-documentation-rollout
+ *
+ * This is the TEMPLATE view - shows phase definitions with inputs/outputs.
+ * The runs (run-mt-001, etc.) have the actual execution status with questions.
+ */
+export const DEMO_MANUAL_TEST_WORKFLOW = createWorkflow({
+  slug: 'manual-test-workflow',
+  description: 'Workflow validation test: gather → process → report with agent questions',
+  phases: [
+    createPhase({
+      name: 'gather',
+      order: 0,
+      status: 'defined',
+      description: 'Gather initial user request and produce response demonstrating understanding',
+      facilitator: 'agent',
+      commands: [
+        {
+          name: 'main.md',
+          description: 'Primary agent prompt for gathering user requirements',
+          path: 'commands/main.md',
+          from: 'workflow',
+          content: `# Gather Phase - Manual Test Workflow
+
+## Objective
+
+Process the user's initial request and provide a helpful response demonstrating understanding.
+
+## Directory Structure
+
+\`\`\`
+run/
+├── messages/           # User ↔ Agent communication
+│   └── m-001.json      # User's request
+├── outputs/            # Your output files
+│   └── response.md     # Your response
+└── wf-data/            # Workflow metadata
+    └── wf-phase.json   # Phase state tracking
+\`\`\`
+
+## Input
+
+Read the user's request from \`inputs/request.md\`.
+
+## Required Output
+
+**\`outputs/response.md\`** - Your response demonstrating understanding
+
+Write a clear summary showing you understand:
+1. What the user is asking for
+2. Key requirements or constraints
+3. Any assumptions you're making
+
+## Workflow
+
+1. Read \`inputs/request.md\` to understand the request
+2. Write your response to \`outputs/response.md\`
+3. Run \`cg phase validate gather --run-dir .\` to verify outputs
+4. Run \`cg phase finalize gather --run-dir .\` when complete`,
+        },
+      ],
+      inputs: [
+        {
+          name: 'request.md',
+          description: 'Initial user request describing what they need',
+          required: true,
+          type: 'markdown',
+          from: 'user',
+          content: `# User Request
+
+Please analyze the test coverage for the Chainglass workflow system.
+
+I need:
+- Summary of which components have tests
+- Coverage percentage estimates
+- Recommendations for improving coverage
+
+Focus on the CLI and workflow packages.`,
+        },
+      ],
+      outputs: [
+        {
+          name: 'response.md',
+          description: 'Agent response demonstrating understanding of the request',
+          required: true,
+          type: 'markdown',
+          from: 'agent',
+        },
+      ],
+    }),
+    createPhase({
+      name: 'process',
+      order: 1,
+      status: 'defined',
+      description: 'Process gathered data - may ask clarifying questions about output format',
+      facilitator: 'agent',
+      commands: [
+        {
+          name: 'main.md',
+          description: 'Processing instructions with format selection prompts',
+          path: 'commands/main.md',
+          from: 'workflow',
+          content: `# Process Phase - Manual Test Workflow
+
+## Objective
+
+Process the gathered response and produce structured analysis data.
+
+## Input
+
+Read the agent's understanding from \`inputs/response.md\`.
+
+## Clarification
+
+If the output format is unclear, you MAY ask the user a clarifying question:
+
+\`\`\`json
+{
+  "type": "multi_choice",
+  "subject": "Output Format Preference",
+  "body": "What format would you prefer for the analysis results?",
+  "options": ["Detailed Report", "Executive Summary", "Both"]
+}
+\`\`\`
+
+Write this to \`messages/m-001.json\` and wait for response.
+
+## Required Outputs
+
+1. **\`outputs/result.md\`** - Processing result summary
+2. **\`outputs/process-data.json\`** - Structured metrics
+
+## Workflow
+
+1. Read \`inputs/response.md\`
+2. (Optional) Ask clarifying question via messages
+3. Produce outputs
+4. Validate and finalize`,
+        },
+      ],
+      inputs: [
+        {
+          name: 'response.md',
+          description: 'Response from gather phase',
+          required: true,
+          type: 'markdown',
+          from: 'agent',
+        },
+      ],
+      outputs: [
+        {
+          name: 'result.md',
+          description: 'Processing result summary',
+          required: true,
+          type: 'markdown',
+          from: 'agent',
+        },
+        {
+          name: 'process-data.json',
+          description: 'Structured processing output with metrics',
+          required: true,
+          type: 'json',
+          from: 'agent',
+        },
+      ],
+    }),
+    createPhase({
+      name: 'report',
+      order: 2,
+      status: 'defined',
+      description: 'Generate final report from processed data with test coverage summary',
+      facilitator: 'agent',
+      commands: [
+        {
+          name: 'main.md',
+          description: 'Report generation template with coverage requirements',
+          path: 'commands/main.md',
+          from: 'workflow',
+          content: `# Report Phase - Manual Test Workflow
+
+## Objective
+
+Generate a comprehensive final report from the processed data.
+
+## Inputs
+
+1. **\`inputs/result.md\`** - Processing summary
+2. **\`inputs/process-data.json\`** - Structured metrics
+
+## Required Output
+
+**\`outputs/final-report.md\`** - Complete analysis report
+
+The report MUST include:
+- Executive summary
+- Detailed findings from process-data.json
+- Recommendations section
+- Next steps
+
+## Format Requirements
+
+Use proper markdown formatting:
+- Headers for sections
+- Tables for metrics
+- Code blocks for examples
+- Bullet points for lists
+
+## Workflow
+
+1. Read both input files
+2. Synthesize into comprehensive report
+3. Write to \`outputs/final-report.md\`
+4. Validate and finalize`,
+        },
+      ],
+      inputs: [
+        {
+          name: 'result.md',
+          description: 'Processing result from process phase',
+          required: true,
+          type: 'markdown',
+          from: 'agent',
+        },
+        {
+          name: 'process-data.json',
+          description: 'Structured data from process phase',
+          required: true,
+          type: 'json',
+          from: 'agent',
+        },
+      ],
+      outputs: [
+        {
+          name: 'final-report.md',
+          description: 'Final workflow report with coverage and recommendations',
+          required: true,
+          type: 'markdown',
+          from: 'agent',
+        },
+      ],
+    }),
+  ],
+});
+
 /**
  * All demo workflows for the workflows list page
  */
@@ -409,4 +744,5 @@ export const DEMO_WORKFLOWS: WorkflowJSON[] = [
   DEMO_BLOCKED_WORKFLOW,
   DEMO_DATA_WORKFLOW,
   DEMO_FAILED_WORKFLOW,
+  DEMO_MANUAL_TEST_WORKFLOW,
 ];

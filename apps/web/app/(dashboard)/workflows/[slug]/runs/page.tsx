@@ -8,15 +8,15 @@
  * @see Plan 011: UI Mockups (T011)
  */
 
-import { useState } from 'react';
-import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
+import Link from 'next/link';
+import { useState } from 'react';
 
+import { RunList } from '@/components/runs/run-list';
 import { Button } from '@/components/ui/button';
 import { WorkflowBreadcrumb } from '@/components/ui/workflow-breadcrumb';
-import { RunList } from '@/components/runs/run-list';
-import { DEMO_WORKFLOWS } from '@/data/fixtures/workflows.fixture';
 import { getRunSummariesForWorkflow } from '@/data/fixtures/runs.fixture';
+import { DEMO_WORKFLOWS } from '@/data/fixtures/workflows.fixture';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -59,9 +59,7 @@ export default function WorkflowRunsPage({ params }: PageProps) {
           </Link>
         </Button>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            Runs: {workflow.slug}
-          </h1>
+          <h1 className="text-2xl font-bold tracking-tight">Runs: {workflow.slug}</h1>
           <p className="text-muted-foreground">
             {runs.length} run{runs.length !== 1 ? 's' : ''} total
           </p>
