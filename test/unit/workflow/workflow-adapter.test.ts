@@ -10,6 +10,7 @@
 
 import { FakeFileSystem, FakePathResolver, WORKFLOW_DI_TOKENS } from '@chainglass/shared';
 import {
+  CheckpointCorruptError,
   EntityNotFoundError,
   FakeYamlParser,
   Phase,
@@ -298,6 +299,21 @@ describe('WorkflowAdapter', () => {
       await expect(adapter.loadCheckpoint('nonexistent-wf', VERSION)).rejects.toThrow(
         EntityNotFoundError
       );
+    });
+
+    it('should throw CheckpointCorruptError when checkpoint-metadata.json is malformed JSON', async () => {
+      /*
+      Test Doc:
+      - Why: Per Critical Insight 1, must wrap JSON.parse in try-catch
+      - Contract: Throws CheckpointCorruptError with reason describing parse failure
+      - Usage Notes: Per DYK session decision
+      - Quality Contribution: Verifies structured error on corrupt checkpoint data
+      - Worked Example: Invalid JSON → CheckpointCorruptError(reason: 'Invalid JSON')
+      */
+      fs.setFile(`${CHECKPOINT_DIR}/wf.yaml`, 'name: hello-wf\nversion: "1.0.0"');
+      fs.setFile(`${CHECKPOINT_DIR}/checkpoint-metadata.json`, 'not valid json {');
+
+      await expect(adapter.loadCheckpoint(SLUG, VERSION)).rejects.toThrow(CheckpointCorruptError);
     });
 
     it('should set workflowDir to the checkpoint directory path', async () => {

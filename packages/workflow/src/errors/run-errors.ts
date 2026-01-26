@@ -114,3 +114,38 @@ export class RunCorruptError extends Error {
     Object.setPrototypeOf(this, RunCorruptError.prototype);
   }
 }
+
+/**
+ * Error codes for checkpoint operations (E035-E039 within E030-E039 registry range).
+ */
+export const CheckpointErrorCodes = {
+  /** Checkpoint data is corrupt (missing/invalid checkpoint-metadata.json, malformed data) */
+  CHECKPOINT_CORRUPT: 'E035',
+} as const;
+
+/**
+ * Error thrown when checkpoint data is corrupt or malformed.
+ *
+ * Per Critical Insight 1: JSON.parse must be wrapped in try-catch.
+ *
+ * @example
+ * ```typescript
+ * throw new CheckpointCorruptError('hello-wf', 'v001-abc12345', '/path/to/checkpoint', 'Invalid JSON');
+ * ```
+ */
+export class CheckpointCorruptError extends Error {
+  readonly code = CheckpointErrorCodes.CHECKPOINT_CORRUPT;
+
+  constructor(
+    readonly workflowSlug: string,
+    readonly version: string,
+    readonly path: string,
+    readonly reason: string
+  ) {
+    super(
+      `Checkpoint '${version}' for workflow '${workflowSlug}' at ${path} is corrupt: ${reason}`
+    );
+    this.name = 'CheckpointCorruptError';
+    Object.setPrototypeOf(this, CheckpointCorruptError.prototype);
+  }
+}

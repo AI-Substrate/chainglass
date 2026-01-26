@@ -6,12 +6,13 @@ export { EntityNotFoundError } from './errors/index.js';
 export type { EntityType } from './errors/index.js';
 
 // Run errors (E050-E059 per DYK-05)
-export { RunErrorCodes } from './errors/index.js';
+export { RunErrorCodes, CheckpointErrorCodes } from './errors/index.js';
 export {
   RunNotFoundError,
   RunsDirNotFoundError,
   InvalidRunStatusError,
   RunCorruptError,
+  CheckpointCorruptError,
 } from './errors/index.js';
 
 // Types (matching core schemas)

@@ -14,7 +14,7 @@
 import type { IFileSystem, IPathResolver } from '@chainglass/shared';
 import { Workflow } from '../entities/workflow.js';
 import { EntityNotFoundError } from '../errors/entity-not-found.error.js';
-import { RunCorruptError } from '../errors/run-errors.js';
+import { CheckpointCorruptError, RunCorruptError } from '../errors/run-errors.js';
 import type { IWorkflowAdapter, RunListFilter } from '../interfaces/workflow-adapter.interface.js';
 import type { IYamlParser } from '../interfaces/yaml-parser.interface.js';
 import type { WfStatus } from '../types/wf-status.types.js';
@@ -93,8 +93,19 @@ export class WorkflowAdapter implements IWorkflowAdapter {
     const definition = this.yamlParser.parse<WfDefinition>(content, wfYamlPath);
 
     // Read checkpoint metadata
+    // Per Critical Insight 1: JSON.parse wrapped in try-catch
     const metadataContent = await this.fs.readFile(metadataPath);
-    const metadata: CheckpointMetadataFile = JSON.parse(metadataContent);
+    let metadata: CheckpointMetadataFile;
+    try {
+      metadata = JSON.parse(metadataContent);
+    } catch {
+      throw new CheckpointCorruptError(
+        slug,
+        version,
+        workflowDir,
+        'Invalid JSON in checkpoint-metadata.json'
+      );
+    }
 
     return Workflow.createCheckpoint({
       slug,
