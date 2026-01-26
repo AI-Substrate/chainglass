@@ -53,7 +53,8 @@ describe('BottomTabBar', () => {
     fakeMatchMedia = new FakeMatchMedia(375);
 
     // Inject fake into window
-    (window as any).matchMedia = (query: string) => fakeMatchMedia.matchMedia(query);
+    (window as unknown as { matchMedia: typeof window.matchMedia }).matchMedia = (query: string) =>
+      fakeMatchMedia.matchMedia(query);
 
     // Mock innerWidth for snapshot functions
     Object.defineProperty(window, 'innerWidth', {
@@ -138,9 +139,9 @@ describe('BottomTabBar', () => {
       render(<BottomTabBar />);
 
       const tabs = screen.getAllByRole('tab');
-      tabs.forEach((tab) => {
+      for (const tab of tabs) {
         expect(tab).toHaveAttribute('role', 'tab');
-      });
+      }
     });
   });
 
@@ -193,9 +194,9 @@ describe('BottomTabBar', () => {
       render(<BottomTabBar />);
 
       const tabs = screen.getAllByRole('tab');
-      tabs.forEach((tab) => {
+      for (const tab of tabs) {
         expect(tab).toHaveClass('min-h-12');
-      });
+      }
     });
 
     it('should have touch targets with min-w-12 class (48px minimum)', () => {
@@ -210,9 +211,9 @@ describe('BottomTabBar', () => {
       render(<BottomTabBar />);
 
       const tabs = screen.getAllByRole('tab');
-      tabs.forEach((tab) => {
+      for (const tab of tabs) {
         expect(tab).toHaveClass('min-w-12');
-      });
+      }
     });
   });
 

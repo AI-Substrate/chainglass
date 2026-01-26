@@ -5,6 +5,7 @@ export { FileSystemError } from './filesystem.interface.js';
 export type { IFileSystem, FileStat } from './filesystem.interface.js';
 export { PathSecurityError } from './path-resolver.interface.js';
 export type { IPathResolver } from './path-resolver.interface.js';
+export type { IHashGenerator } from './hash-generator.interface.js';
 
 // Viewer interfaces (per Phase 1: Headless Viewer Hooks)
 export type { ViewerFile } from './viewer.interface.js';
@@ -41,6 +42,15 @@ export type {
   PhaseState,
   StatusEntry,
   PreflightChecks,
+  // Workflow registry result types (Phase 1)
+  ListResult,
+  InfoResult,
+  CheckpointResult,
+  RestoreResult,
+  VersionsResult,
+  CheckpointInfo,
+  WorkflowSummary,
+  WorkflowInfo,
 } from './results/index.js';
 
 // Output adapter interface (per Phase 1a: Output Adapter Architecture)
@@ -51,3 +61,49 @@ export type {
   CommandResponseError,
   ErrorDetail,
 } from './output-adapter.interface.js';
+
+// Agent interfaces and types
+export type { IAgentAdapter } from './agent-adapter.interface.js';
+export type {
+  AgentEvent,
+  AgentEventBase,
+  AgentEventHandler,
+  AgentMessageEvent,
+  AgentRawEvent,
+  AgentResult,
+  AgentRunOptions,
+  AgentSessionEvent,
+  AgentStatus,
+  AgentTextDeltaEvent,
+  AgentUsageEvent,
+  TokenMetrics,
+} from './agent-types.js';
+
+// Process manager interfaces and types
+export type {
+  IProcessManager,
+  ProcessExitResult,
+  ProcessHandle,
+  ProcessSignal,
+  SpawnOptions,
+  StdioOption,
+  StdioOptions,
+} from './process-manager.interface.js';
+
+// Copilot SDK interfaces and types (local layer isolation per R-ARCH-001)
+export type {
+  CopilotAssistantMessageDeltaEvent,
+  CopilotAssistantMessageEvent,
+  CopilotAssistantUsageEvent,
+  CopilotMessageOptions,
+  CopilotResumeSessionConfig,
+  CopilotSessionConfig,
+  CopilotSessionErrorEvent,
+  CopilotSessionEvent,
+  CopilotSessionEventHandler,
+  CopilotSessionEventType,
+  CopilotSessionIdleEvent,
+  CopilotStatusResponse,
+  ICopilotClient,
+  ICopilotSession,
+} from './copilot-sdk.interface.js';

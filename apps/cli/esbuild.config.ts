@@ -75,8 +75,33 @@ async function build() {
 
   console.log('CLI bundled successfully to dist/cli.cjs');
 
+  // Copy bundled assets (templates, configs, etc.)
+  await copyBundledAssets(outdir);
+
   // Copy standalone web assets if available
   await copyStandaloneAssets(outdir);
+}
+
+/**
+ * Copy bundled assets (templates, configs, etc.) to CLI dist directory.
+ *
+ * Per Phase 4 DYK-06: Category-based asset structure.
+ * Copies entire assets/ directory tree to dist/assets/ to support:
+ * - assets/templates/workflows/ - Starter workflow templates
+ * - assets/templates/configs/ - Configuration templates (future)
+ * - Other asset categories as needed
+ */
+async function copyBundledAssets(outdir: string) {
+  const assetsDir = resolve(__dirname, 'assets');
+
+  if (!existsSync(assetsDir)) {
+    console.log('No assets/ directory found - skipping bundled asset copy');
+    return;
+  }
+
+  const destAssetsDir = resolve(outdir, 'assets');
+  cpSync(assetsDir, destAssetsDir, { recursive: true });
+  console.log('Bundled assets copied to dist/assets/');
 }
 
 /**

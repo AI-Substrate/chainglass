@@ -15,11 +15,11 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { FakeMatchMedia } from '../../../../test/fakes/fake-match-media';
 
 import {
-  useResponsive,
-  PHONE_BREAKPOINT,
-  TABLET_BREAKPOINT,
-  type ResponsiveState,
   type DeviceType,
+  PHONE_BREAKPOINT,
+  type ResponsiveState,
+  TABLET_BREAKPOINT,
+  useResponsive,
 } from '../../../../apps/web/src/hooks/useResponsive';
 
 describe('useResponsive', () => {
@@ -36,7 +36,8 @@ describe('useResponsive', () => {
     fakeMatchMedia = new FakeMatchMedia(1920);
 
     // Inject fake into window
-    (window as any).matchMedia = (query: string) => fakeMatchMedia.matchMedia(query);
+    (window as unknown as { matchMedia: typeof window.matchMedia }).matchMedia = (query: string) =>
+      fakeMatchMedia.matchMedia(query);
 
     // Mock innerWidth for snapshot functions
     Object.defineProperty(window, 'innerWidth', {

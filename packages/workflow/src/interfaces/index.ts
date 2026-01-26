@@ -10,8 +10,8 @@ export type {
   ResultError,
 } from './schema-validator.interface.js';
 
-// Workflow service interface (Phase 2)
-export type { IWorkflowService } from './workflow-service.interface.js';
+// Workflow service interface (Phase 2, extended in Phase 3)
+export type { ComposeOptions, IWorkflowService } from './workflow-service.interface.js';
 
 // Phase service interface (Phase 3)
 export type {
@@ -29,3 +29,14 @@ export type {
   MessageContent,
   AnswerInput,
 } from './message-service.interface.js';
+
+// Workflow registry interface (Phase 1)
+export type { CheckpointOptions, IWorkflowRegistry } from './workflow-registry.interface.js';
+
+// Init service interface (Phase 4)
+export type {
+  IInitService,
+  InitOptions,
+  InitResult,
+  InitializationStatus,
+} from './init-service.interface.js';

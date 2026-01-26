@@ -37,10 +37,15 @@ async function getShikiHighlighter() {
     shikiHighlighterPromise = (async () => {
       const { getDiffViewHighlighter, highlighterReady } = await import('@git-diff-view/shiki');
       await highlighterReady;
-      return getDiffViewHighlighter({
-        themes: ['github-light', 'github-dark'],
-        langs: ['typescript', 'javascript', 'tsx', 'jsx', 'python', 'go', 'rust'],
-      });
+      return getDiffViewHighlighter([
+        'typescript',
+        'javascript',
+        'tsx',
+        'jsx',
+        'python',
+        'go',
+        'rust',
+      ]);
     })();
   }
   return shikiHighlighterPromise;

@@ -69,7 +69,7 @@ describe('cg phase', () => {
       await program.parseAsync([
         'node',
         'cg',
-        'wf',
+        'workflow',
         'compose',
         '.chainglass/templates/hello-workflow',
         '--runs-dir',

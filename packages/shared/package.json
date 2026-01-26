@@ -31,6 +31,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@github/copilot-sdk": "^0.1.16",
     "dotenv": "^17.2.3",
     "dotenv-expand": "^12.0.3",
     "pino": "^9.6.0",

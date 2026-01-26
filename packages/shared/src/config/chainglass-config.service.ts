@@ -13,6 +13,7 @@ import { loadYamlConfig } from './loaders/yaml.loader.js';
 import { validateNoLiteralSecrets } from './security/secret-detection.js';
 
 // Config type registrations for auto-loading
+import { AgentConfigSchema, AgentConfigType } from './schemas/agent.schema.js';
 import { SampleConfigSchema, SampleConfigType } from './schemas/sample.schema.js';
 
 /**
@@ -20,6 +21,7 @@ import { SampleConfigSchema, SampleConfigType } from './schemas/sample.schema.js
  * Each entry maps a configPath to its schema and ConfigType.
  */
 const CONFIG_REGISTRY = [
+  { configPath: 'agent', schema: AgentConfigSchema, type: AgentConfigType },
   { configPath: 'sample', schema: SampleConfigSchema, type: SampleConfigType },
 ] as const;
 
