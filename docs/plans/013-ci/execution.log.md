@@ -70,5 +70,16 @@ Created `docs/how/ci.md` with:
 
 **Status**: In Progress
 
-Pushing changes to 013-ci branch to trigger CI...
+**First push**: Triggered workflow run 21377001899
+
+**Issue discovered**: Build job failed with:
+```
+error TS2307: Cannot find module '@chainglass/workflow' or its corresponding type declarations.
+```
+
+**Root cause**: `@chainglass/mcp-server` imports from `@chainglass/workflow` but doesn't declare it as a dependency in package.json. Turbo built them in parallel, causing the import to fail.
+
+**Fix**: Added `"@chainglass/workflow": "workspace:*"` to mcp-server's package.json dependencies.
+
+**Second push**: Pushing fix to trigger new workflow run...
 
