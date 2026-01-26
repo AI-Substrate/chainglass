@@ -9,13 +9,19 @@
 
 'use client';
 
+import { useEffect, useState } from 'react';
+
 import { useResponsive } from '@/hooks/useResponsive';
 import { containerBreakpoints, hasContainerQuerySupport } from '@/lib/container-query-utils';
 
 export default function ResponsiveDemoPage() {
   const { isPhone, isTablet, isDesktop, useMobilePatterns, deviceType } = useResponsive();
 
-  const cqSupported = typeof window !== 'undefined' && hasContainerQuerySupport();
+  // Defer CQ support check until after hydration to avoid mismatch
+  const [cqSupported, setCqSupported] = useState<boolean | null>(null);
+  useEffect(() => {
+    setCqSupported(hasContainerQuerySupport());
+  }, []);
 
   return (
     <div className="p-6 space-y-8">
@@ -74,8 +80,20 @@ export default function ResponsiveDemoPage() {
         <h2 className="text-xl font-semibold">Container Queries</h2>
         <p className="text-sm text-muted-foreground">
           Container Query support:{' '}
-          <span className={cqSupported ? 'text-green-600' : 'text-yellow-600'}>
-            {cqSupported ? 'Supported' : 'Not Supported (using fallbacks)'}
+          <span
+            className={
+              cqSupported === null
+                ? 'text-muted-foreground'
+                : cqSupported
+                  ? 'text-green-600'
+                  : 'text-yellow-600'
+            }
+          >
+            {cqSupported === null
+              ? 'Checking...'
+              : cqSupported
+                ? 'Supported'
+                : 'Not Supported (using fallbacks)'}
           </span>
         </p>
 
