@@ -188,9 +188,10 @@ export interface WorkflowJSON {
 // ============ Factory Functions ============
 
 /**
- * Compute status booleans from PhaseRunStatus
+ * Compute status booleans from PhaseStatus
+ * For 'defined' (template status), all booleans are false
  */
-function computeStatusBooleans(status: PhaseRunStatus) {
+function computeStatusBooleans(status: PhaseStatus) {
   return {
     isPending: status === 'pending',
     isReady: status === 'ready',
@@ -212,6 +213,10 @@ export function createPhase(
   const status = overrides.status ?? 'pending';
   const now = new Date().toISOString();
 
+  // statusHistory only applies to run statuses, not 'defined' (templates)
+  const statusHistory: PhaseStatusEntry[] =
+    status === 'defined' ? [] : [{ status: status as PhaseRunStatus, timestamp: now }];
+
   return {
     phaseDir: `/workflows/${overrides.name}`,
     runDir: `/runs/current/${overrides.name}`,
@@ -220,7 +225,7 @@ export function createPhase(
     startedAt: null,
     completedAt: null,
     duration: null,
-    statusHistory: [{ status, timestamp: now }],
+    statusHistory,
     ...overrides,
     status,
     ...computeStatusBooleans(status),
