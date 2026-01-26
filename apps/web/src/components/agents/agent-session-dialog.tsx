@@ -267,6 +267,7 @@ function QuestionPanel({ question, onAnswer, isSubmitting }: QuestionPanelProps)
   const [selectedValue, setSelectedValue] = useState<string | string[] | boolean>(
     question.defaultValue ?? (question.type === 'multi_choice' ? [] : '')
   );
+  const [isExpanded, setIsExpanded] = useState(true);
 
   const handleSubmit = () => {
     if (question.type === 'confirm') return; // Confirm handles its own submit
@@ -283,9 +284,17 @@ function QuestionPanel({ question, onAnswer, isSubmitting }: QuestionPanelProps)
           : false;
 
   return (
-    <div className="mx-6 mb-4 p-4 rounded-2xl bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 dark:from-amber-950/40 dark:via-orange-950/30 dark:to-yellow-950/40 border-2 border-amber-200 dark:border-amber-800 shadow-lg shadow-amber-500/10">
-      {/* Question header */}
-      <div className="flex items-start gap-3 mb-4">
+    <div className="mx-6 mb-4 rounded-2xl bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 dark:from-amber-950/40 dark:via-orange-950/30 dark:to-yellow-950/40 border-2 border-amber-200 dark:border-amber-800 shadow-lg shadow-amber-500/10 overflow-hidden">
+      {/* Collapsible header */}
+      <button
+        type="button"
+        onClick={() => setIsExpanded(!isExpanded)}
+        className={cn(
+          'w-full flex items-center gap-3 p-4 text-left transition-colors',
+          'hover:bg-amber-100/50 dark:hover:bg-amber-900/20',
+          !isExpanded && 'pb-4'
+        )}
+      >
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-lg shadow-amber-500/30 shrink-0">
           <HelpCircle className="h-5 w-5" />
         </div>
@@ -299,9 +308,30 @@ function QuestionPanel({ question, onAnswer, isSubmitting }: QuestionPanelProps)
               <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
             </span>
           </div>
-          <p className="text-sm font-medium text-amber-900 dark:text-amber-100">{question.prompt}</p>
+          <p className={cn(
+            'text-sm font-medium text-amber-900 dark:text-amber-100',
+            !isExpanded && 'line-clamp-1'
+          )}>
+            {question.prompt}
+          </p>
         </div>
-      </div>
+        <ChevronRight
+          className={cn(
+            'h-5 w-5 text-amber-600 dark:text-amber-400 transition-transform duration-200 shrink-0',
+            isExpanded && 'rotate-90'
+          )}
+        />
+      </button>
+
+      {/* Collapsible content */}
+      <div
+        className={cn(
+          'grid transition-all duration-200 ease-in-out',
+          isExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+        )}
+      >
+        <div className="overflow-hidden">
+          <div className="px-4 pb-4">
 
       {/* Single choice */}
       {question.type === 'single_choice' && question.choices && (
@@ -435,6 +465,9 @@ function QuestionPanel({ question, onAnswer, isSubmitting }: QuestionPanelProps)
       <p className="text-[11px] text-center text-amber-600/70 dark:text-amber-400/70 mt-3">
         Or type a custom response in the text box below
       </p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

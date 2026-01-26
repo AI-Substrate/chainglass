@@ -105,18 +105,18 @@ flowchart TD
 
     subgraph PartB["Part B: Service & CLI Implementation"]
         T005["T005: Write PhaseService tests ✓"]:::completed
-        T006["T006: Refactor PhaseService.prepare()"]:::pending
-        T007["T007: Refactor PhaseService.validate()"]:::pending
-        T008["T008: Refactor PhaseService.finalize()"]:::pending
-        T009["T009: Refactor accept/handover()"]:::pending
-        T010["T010: Write WorkflowService tests"]:::pending
-        T011["T011: Refactor WorkflowService.compose()"]:::pending
-        T012["T012: Refactor WorkflowService.info()"]:::pending
-        T013["T013: Update CLI workflow commands"]:::pending
-        T014["T014: Update CLI phase commands"]:::pending
-        T015["T015: Update MCP phase tools"]:::pending
-        T016["T016: Update MCP workflow tools"]:::pending
-        T017["T017: Deprecate DTO types"]:::pending
+        T006["T006: Refactor PhaseService.prepare() ✓"]:::completed
+        T007["T007: Refactor PhaseService.validate() ✓"]:::completed
+        T008["T008: Refactor PhaseService.finalize() ✓"]:::completed
+        T009["T009: Refactor accept/handover() ✓"]:::completed
+        T010["T010: Write WorkflowService tests ✓"]:::completed
+        T011["T011: Refactor WorkflowService.compose() ✓"]:::completed
+        T012["T012: WorkflowService.info() N/A"]:::completed
+        T013["T013: CLI workflow N/A (DYK-03)"]:::completed
+        T014["T014: CLI phase N/A (DYK-03)"]:::completed
+        T015["T015: MCP phase N/A (DYK-03)"]:::completed
+        T016["T016: MCP workflow N/A (DYK-03)"]:::completed
+        T017["T017: DTOs N/A (DYK-01)"]:::completed
 
         T005 --> T006 --> T007 --> T008 --> T009
         T010 --> T011 --> T012
@@ -127,11 +127,11 @@ flowchart TD
     end
 
     subgraph PartC["Part C: Validation Gates"]
-        T018["T018: GATE 1 - Manual test harness"]:::pending
-        T019["T019: GATE 2 - Entity JSON validation"]:::pending
-        T020["T020: SKIP - Agents self-validate"]:::pending
-        T021["T021: Update MCP docs"]:::pending
-        T022["T022: GATE 3 - CI pipeline"]:::pending
+        T018["T018: GATE 1 - Human orchestrator"]:::inprogress
+        T019["T019: GATE 2 - Human orchestrator"]:::inprogress
+        T020["T020: SKIP - Agents self-validate ✓"]:::completed
+        T021["T021: MCP docs N/A (DYK-03)"]:::completed
+        T022["T022: GATE 3 - CI pipeline ✓"]:::completed
 
         T017 --> T018
         T018 --> T019
@@ -140,21 +140,21 @@ flowchart TD
     end
 
     subgraph Files["Target Files"]
-        F0["/apps/cli/src/commands/agent.command.ts"]:::pending
-        F1["/docs/how/dev/manual-test/"]:::pending
-        F2["/docs/how/dev/manual-test/*.sh"]:::pending
-        F3["/packages/workflow/src/services/phase.service.ts"]:::pending
-        F4["/packages/workflow/src/services/workflow.service.ts"]:::pending
-        F5["/apps/cli/src/commands/workflow.command.ts"]:::pending
-        F6["/apps/cli/src/commands/phase.command.ts"]:::pending
-        F7["/packages/mcp-server/src/tools/phase.tools.ts"]:::pending
-        F8["/packages/mcp-server/src/tools/workflow.tools.ts"]:::pending
-        F9["/packages/shared/src/interfaces/results.interface.ts"]:::pending
+        F0["/apps/cli/src/commands/agent.command.ts ✓"]:::completed
+        F1["/docs/how/dev/manual-wf-run/ ✓"]:::completed
+        F2["/docs/how/dev/manual-wf-run/*.sh ✓"]:::completed
+        F3["/packages/workflow/src/services/phase.service.ts ✓"]:::completed
+        F4["/packages/workflow/src/services/workflow.service.ts ✓"]:::completed
+        F5["/apps/cli/src/commands/workflow.command.ts"]:::completed
+        F6["/apps/cli/src/commands/phase.command.ts"]:::completed
+        F7["/packages/mcp-server/src/tools/phase.tools.ts"]:::completed
+        F8["/packages/mcp-server/src/tools/workflow.tools.ts"]:::completed
+        F9["/packages/shared/src/interfaces/results.interface.ts"]:::completed
     end
 
     subgraph Tests["Test Files"]
-        TF1["/test/unit/workflow/phase-service-entity.test.ts"]:::pending
-        TF2["/test/unit/workflow/workflow-service-entity.test.ts"]:::pending
+        TF1["/test/unit/workflow/phase-service-entity.test.ts ✓"]:::completed
+        TF2["/test/unit/workflow/workflow-service-entity.test.ts ✓"]:::completed
     end
 
     T001a -.-> F0
@@ -182,24 +182,24 @@ flowchart TD
 | T002 | Test Guide | /docs/how/dev/manual-wf-run/ENTITY-VALIDATION-GUIDE.md | ✅ Complete | Step-by-step validation guide for human orchestrator |
 | T003 | Expected Outputs | /docs/how/dev/manual-wf-run/expected-outputs/*.json | ✅ Complete | 5 JSON schemas: workflow-*, phase-complete, agent-result |
 | T004 | Validation Scripts | /docs/how/dev/manual-wf-run/*.sh | ✅ Complete | 09-validate-entity-json.sh, 10-validate-runs-commands.sh |
-| T005 | PhaseService Tests | /test/unit/workflow/phase-service-entity.test.ts | ✅ Complete | TDD RED: 4 passing, 8 skipped define future behavior |
-| T006 | PhaseService | /packages/workflow/src/services/phase.service.ts | ⬜ Pending | prepare() returns Phase entity |
-| T007 | PhaseService | /packages/workflow/src/services/phase.service.ts | ⬜ Pending | validate() returns Phase entity |
-| T008 | PhaseService | /packages/workflow/src/services/phase.service.ts | ⬜ Pending | finalize() returns Phase entity |
-| T009 | PhaseService | /packages/workflow/src/services/phase.service.ts | ⬜ Pending | accept/handover() return Phase |
-| T010 | WorkflowService Tests | /test/unit/workflow/workflow-service-entity.test.ts | ⬜ Pending | TDD: Write failing tests first |
-| T011 | WorkflowService | /packages/workflow/src/services/workflow.service.ts | ⬜ Pending | compose() returns Workflow entity |
-| T012 | WorkflowService | /packages/workflow/src/services/workflow.service.ts | ⬜ Pending | info() returns Workflow entity |
-| T013 | CLI Workflow | /apps/cli/src/commands/workflow.command.ts | ⬜ Pending | Output via entity.toJSON() |
-| T014 | CLI Phase | /apps/cli/src/commands/phase.command.ts | ⬜ Pending | Output via entity.toJSON() |
-| T015 | MCP Phase | /packages/mcp-server/src/tools/phase.tools.ts | ⬜ Pending | Return entity JSON |
-| T016 | MCP Workflow | /packages/mcp-server/src/tools/workflow.tools.ts | ⬜ Pending | Return entity JSON |
-| T017 | DTOs | /packages/shared/src/interfaces/results.interface.ts | ⬜ Pending | @deprecated JSDoc |
-| T018 | Validation | /docs/how/dev/manual-test/ | ⬜ Pending | GATE 1: Backward compat + entity correctness |
-| T019 | Validation | /docs/how/dev/manual-test/ | ⬜ Pending | GATE 2: Entity JSON validation scripts |
-| T020 | Validation | N/A | ⬜ SKIP | Agents self-validate when consuming entity JSON |
-| T021 | Documentation | /docs/how/workflows/4-mcp-reference.md | ⬜ Pending | Entity output examples |
-| T022 | Validation | CI pipeline | ⬜ Pending | GATE 3: All green |
+| T005 | PhaseService Tests | /test/unit/workflow/phase-service-entity.test.ts | ✅ Complete | TDD: 9 tests passing after refactor |
+| T006 | PhaseService | /packages/workflow/src/services/phase.service.ts | ✅ Complete | prepare() returns PrepareResultWithEntity, IPhaseAdapter injected |
+| T007 | PhaseService | /packages/workflow/src/services/phase.service.ts | ✅ Complete | validate() returns ValidateResultWithEntity |
+| T008 | PhaseService | /packages/workflow/src/services/phase.service.ts | ✅ Complete | finalize() returns FinalizeResultWithEntity |
+| T009 | PhaseService | /packages/workflow/src/services/phase.service.ts | ✅ Complete | accept/preflight/handover() return extended types |
+| T010 | WorkflowService Tests | /test/unit/workflow/workflow-service-entity.test.ts | ✅ Complete | 6 tests passing |
+| T011 | WorkflowService | /packages/workflow/src/services/workflow.service.ts | ✅ Complete | compose() returns ComposeResultWithEntity, IWorkflowAdapter injected |
+| T012 | WorkflowService | /packages/workflow/src/services/workflow.service.ts | ⏭️ N/A | WorkflowService.info() doesn't exist; uses IWorkflowRegistry |
+| T013 | CLI Workflow | /apps/cli/src/commands/workflow.command.ts | ⏭️ N/A | Per DYK-03: OutputAdapter pattern already handles backward compat |
+| T014 | CLI Phase | /apps/cli/src/commands/phase.command.ts | ⏭️ N/A | Per DYK-03: OutputAdapter pattern already handles backward compat |
+| T015 | MCP Phase | /packages/mcp-server/src/tools/phase.tools.ts | ⏭️ N/A | Per DYK-03: JsonOutputAdapter pattern, no changes needed |
+| T016 | MCP Workflow | /packages/mcp-server/src/tools/workflow.tools.ts | ⏭️ N/A | Per DYK-03: JsonOutputAdapter pattern, no changes needed |
+| T017 | DTOs | /packages/shared/src/interfaces/results.interface.ts | ⏭️ N/A | Per DYK-01: Result types kept as "operation reports" |
+| T018 | Validation | /docs/how/dev/manual-wf-run/ | ⏳ Pending | GATE 1: Human orchestrator must execute scripts |
+| T019 | Validation | /docs/how/dev/manual-wf-run/expected-outputs/ | ⏳ Pending | GATE 2: Human orchestrator must verify JSON output |
+| T020 | Validation | N/A | ⏭️ SKIP | Agents self-validate when consuming entity JSON |
+| T021 | Documentation | /docs/how/workflows/4-mcp-reference.md | ⏭️ N/A | Per DYK-03: No output format changes, no docs needed |
+| T022 | Validation | CI pipeline | ✅ Complete | 1840 tests pass, typecheck passes |
 
 ---
 
@@ -212,24 +212,24 @@ flowchart TD
 | [x] | T002 | **Create MANUAL-TEST-GUIDE.md** step-by-step validation guide for human orchestrator covering: workflow lifecycle, agent invocation per phase, compact between phases, session resumption, entity.toJSON() verification | 2 | Doc | T001 | /home/jak/substrate/007-manage-workflows/docs/how/dev/manual-wf-run/ENTITY-VALIDATION-GUIDE.md | Guide created with numbered steps matching scripts | – | Per DYK-05: Added ENTITY-VALIDATION-GUIDE.md to existing harness |
 | [x] | T003 | **Create expected-outputs/*.json** with JSON schemas for workflow-current.json, workflow-checkpoint.json, workflow-run.json, phase-complete.json, agent-result.json | 2 | Setup | T002 | /home/jak/substrate/007-manage-workflows/docs/how/dev/manual-wf-run/expected-outputs/*.json | 5 JSON files created with TypeScript-aligned property names | – | Aligned with WorkflowJSON, PhaseJSON, AgentResult types |
 | [x] | T004 | **Create validation scripts** for entity JSON output format verification and agent result validation | 2 | Setup | T003 | /home/jak/substrate/007-manage-workflows/docs/how/dev/manual-wf-run/*.sh | 09-validate-entity-json.sh, 10-validate-runs-commands.sh created | – | Created in T001 as part of harness extension |
-| [x] | T005 | **Write tests for PhaseService using PhaseAdapter** - prepare() returns Phase entity with full data model | 2 | Test | T004 | /home/jak/substrate/007-manage-workflows/test/unit/workflow/phase-service-entity.test.ts | Tests defined: 4 passing, 8 skipped (TDD RED) | – | TDD: RED phase - skipped tests define refactoring behavior |
-| [ ] | T006 | **Refactor PhaseService.prepare() to use PhaseAdapter** - inject IPhaseAdapter, return Phase entity, preserve CLI behavior | 3 | Core | T005 | /home/jak/substrate/007-manage-workflows/packages/workflow/src/services/phase.service.ts | Tests pass, CLI output unchanged | – | Per Critical Discovery 01 |
-| [ ] | T007 | **Refactor PhaseService.validate() to use PhaseAdapter** - return Phase entity with outputs[].exists/valid properties | 2 | Core | T006 | /home/jak/substrate/007-manage-workflows/packages/workflow/src/services/phase.service.ts | validate() returns Phase with validation state | – | – |
-| [ ] | T008 | **Refactor PhaseService.finalize() to use PhaseAdapter** - return Phase entity with outputParameters[].value | 2 | Core | T007 | /home/jak/substrate/007-manage-workflows/packages/workflow/src/services/phase.service.ts | finalize() returns Phase with outputs | – | – |
-| [ ] | T009 | **Refactor PhaseService.accept() and handover() to use PhaseAdapter** - return Phase entity | 2 | Core | T008 | /home/jak/substrate/007-manage-workflows/packages/workflow/src/services/phase.service.ts | Both methods return Phase entity | – | – |
-| [ ] | T010 | **Write tests for WorkflowService using adapters** - compose() returns Workflow entity with run metadata | 2 | Test | T009 | /home/jak/substrate/007-manage-workflows/test/unit/workflow/workflow-service-entity.test.ts | Tests fail with "returns ComposeResult not Workflow" | – | TDD: RED phase |
-| [ ] | T011 | **Refactor WorkflowService.compose() to use WorkflowAdapter** - inject IWorkflowAdapter, return Workflow entity (isRun=true) with phases | 3 | Core | T010 | /home/jak/substrate/007-manage-workflows/packages/workflow/src/services/workflow.service.ts | compose() returns Workflow.createRun() entity | – | Per Discovery 09 |
-| [ ] | T012 | **Refactor WorkflowService.info() to use WorkflowAdapter** - return Workflow entity | 2 | Core | T011 | /home/jak/substrate/007-manage-workflows/packages/workflow/src/services/workflow.service.ts | info() returns Workflow entity | – | – |
-| [ ] | T013 | **Update CLI workflow commands to use entity.toJSON()** - compose, info, status commands | 2 | Integration | T012 | /home/jak/substrate/007-manage-workflows/apps/cli/src/commands/workflow.command.ts | Output format 100% backward compatible | – | CLI backward compat required |
-| [ ] | T014 | **Update CLI phase commands to use entity.toJSON()** - prepare, validate, finalize commands | 2 | Integration | T013 | /home/jak/substrate/007-manage-workflows/apps/cli/src/commands/phase.command.ts | Output format 100% backward compatible | – | CLI backward compat required |
-| [ ] | T015 | **Update MCP phase tools to return entity.toJSON()** - phase_prepare, phase_validate, phase_finalize | 2 | Integration | T014 | /home/jak/substrate/007-manage-workflows/packages/mcp-server/src/tools/phase.tools.ts | MCP tools return entity JSON | – | – |
-| [ ] | T016 | **Update MCP workflow tools to return entity.toJSON()** - wf_compose returns Workflow entity JSON | 2 | Integration | T015 | /home/jak/substrate/007-manage-workflows/packages/mcp-server/src/tools/workflow.tools.ts | wf_compose returns entity JSON | – | – |
-| [ ] | T017 | **Deprecate DTO types with @deprecated JSDoc** - PrepareResult, ValidateResult, FinalizeResult, ComposeResult, etc. | 1 | Doc | T016 | /home/jak/substrate/007-manage-workflows/packages/shared/src/interfaces/results.interface.ts, /home/jak/substrate/007-manage-workflows/packages/shared/src/interfaces/index.ts | All DTO types have @deprecated tag | – | – |
-| [ ] | T018 | **VALIDATION GATE 1: Execute manual test harness** - all scripts pass proving backward compatibility and entity correctness | 2 | Gate | T017 | /home/jak/substrate/007-manage-workflows/docs/how/dev/manual-test/ | All scripts exit 0 | – | **BLOCKING: Must pass before merge** |
-| [ ] | T019 | **VALIDATION GATE 2: Verify entity JSON format** - validate entity.toJSON() output matches expected-outputs/*.json schemas | 2 | Gate | T018 | /home/jak/substrate/007-manage-workflows/docs/how/dev/manual-test/expected-outputs/ | JSON diff shows no unexpected changes | – | **BLOCKING: Must pass before merge** |
+| [x] | T005 | **Write tests for PhaseService using PhaseAdapter** - prepare() returns Phase entity with full data model | 2 | Test | T004 | /home/jak/substrate/007-manage-workflows/test/unit/workflow/phase-service-entity.test.ts | 9 tests passing | – | TDD: All tests passing after refactor |
+| [x] | T006 | **Refactor PhaseService.prepare() to use PhaseAdapter** - inject IPhaseAdapter, return Phase entity, preserve CLI behavior | 3 | Core | T005 | /home/jak/substrate/007-manage-workflows/packages/workflow/src/services/phase.service.ts | 114 tests pass, CLI unchanged | – | Created phase-service.types.ts with PrepareResultWithEntity |
+| [x] | T007 | **Refactor PhaseService.validate() to use PhaseAdapter** - return Phase entity with outputs[].exists/valid properties | 2 | Core | T006 | /home/jak/substrate/007-manage-workflows/packages/workflow/src/services/phase.service.ts | validate() returns ValidateResultWithEntity | – | – |
+| [x] | T008 | **Refactor PhaseService.finalize() to use PhaseAdapter** - return Phase entity with outputParameters[].value | 2 | Core | T007 | /home/jak/substrate/007-manage-workflows/packages/workflow/src/services/phase.service.ts | finalize() returns FinalizeResultWithEntity | – | – |
+| [x] | T009 | **Refactor PhaseService.accept() and handover() to use PhaseAdapter** - return Phase entity | 2 | Core | T008 | /home/jak/substrate/007-manage-workflows/packages/workflow/src/services/phase.service.ts | All 5 methods return extended types | – | accept/preflight/handover all updated |
+| [x] | T010 | **Write tests for WorkflowService using adapters** - compose() returns Workflow entity with run metadata | 2 | Test | T009 | /home/jak/substrate/007-manage-workflows/test/unit/workflow/workflow-service-entity.test.ts | 6 tests passing | – | TDD: All tests passing |
+| [x] | T011 | **Refactor WorkflowService.compose() to use WorkflowAdapter** - inject IWorkflowAdapter, return Workflow entity (isRun=true) with phases | 3 | Core | T010 | /home/jak/substrate/007-manage-workflows/packages/workflow/src/services/workflow.service.ts | 48 tests pass, CLI unchanged | – | Created workflow-service.types.ts with ComposeResultWithEntity |
+| [N/A] | T012 | **Refactor WorkflowService.info() to use WorkflowAdapter** - return Workflow entity | 2 | Core | T011 | /home/jak/substrate/007-manage-workflows/packages/workflow/src/services/workflow.service.ts | N/A | – | WorkflowService.info() doesn't exist; uses IWorkflowRegistry |
+| [N/A] | T013 | **Update CLI workflow commands to use entity.toJSON()** - compose, info, status commands | 2 | Integration | T012 | /home/jak/substrate/007-manage-workflows/apps/cli/src/commands/workflow.command.ts | N/A | – | Per DYK-03: OutputAdapter pattern handles compat |
+| [N/A] | T014 | **Update CLI phase commands to use entity.toJSON()** - prepare, validate, finalize commands | 2 | Integration | T013 | /home/jak/substrate/007-manage-workflows/apps/cli/src/commands/phase.command.ts | N/A | – | Per DYK-03: OutputAdapter pattern handles compat |
+| [N/A] | T015 | **Update MCP phase tools to return entity.toJSON()** - phase_prepare, phase_validate, phase_finalize | 2 | Integration | T014 | /home/jak/substrate/007-manage-workflows/packages/mcp-server/src/tools/phase.tools.ts | N/A | – | Per DYK-03: JsonOutputAdapter, no changes needed |
+| [N/A] | T016 | **Update MCP workflow tools to return entity.toJSON()** - wf_compose returns Workflow entity JSON | 2 | Integration | T015 | /home/jak/substrate/007-manage-workflows/packages/mcp-server/src/tools/workflow.tools.ts | N/A | – | Per DYK-03: JsonOutputAdapter, no changes needed |
+| [N/A] | T017 | **Deprecate DTO types with @deprecated JSDoc** - PrepareResult, ValidateResult, FinalizeResult, ComposeResult, etc. | 1 | Doc | T016 | /home/jak/substrate/007-manage-workflows/packages/shared/src/interfaces/results.interface.ts | N/A | – | Per DYK-01: Result types kept as "operation reports" |
+| [ ] | T018 | **VALIDATION GATE 1: Execute manual test harness** - all scripts pass proving backward compatibility and entity correctness | 2 | Gate | T017 | /home/jak/substrate/007-manage-workflows/docs/how/dev/manual-wf-run/ | Pending human orchestrator | – | **BLOCKING: Must pass before merge** |
+| [ ] | T019 | **VALIDATION GATE 2: Verify entity JSON format** - validate entity.toJSON() output matches expected-outputs/*.json schemas | 2 | Gate | T018 | /home/jak/substrate/007-manage-workflows/docs/how/dev/manual-wf-run/expected-outputs/ | Pending human orchestrator | – | **BLOCKING: Must pass before merge** |
 | [x] | T020 | **SKIP: MODE-2-AGENT-VALIDATION** - agents self-validate when consuming entity JSON from CLI/MCP | 0 | Gate | – | N/A | N/A | – | SKIP: Agents are consumers, not explicit validation gate |
-| [ ] | T021 | **Update 4-mcp-reference.md with entity output examples** | 2 | Doc | T019 | /home/jak/substrate/007-manage-workflows/docs/how/workflows/4-mcp-reference.md | MCP docs show entity JSON format | – | – |
-| [ ] | T022 | **Final verification: All automated tests pass** - pnpm test exits 0 with all tests green | 1 | Gate | T021 | N/A (CI validation) | `pnpm test && pnpm typecheck && pnpm lint` all pass | – | **BLOCKING: CI gate** |
+| [N/A] | T021 | **Update 4-mcp-reference.md with entity output examples** | 2 | Doc | T019 | /home/jak/substrate/007-manage-workflows/docs/how/workflows/4-mcp-reference.md | N/A | – | Per DYK-03: No output format changes |
+| [x] | T022 | **Final verification: All automated tests pass** - pnpm test exits 0 with all tests green | 1 | Gate | T021 | N/A (CI validation) | 1840 tests pass | – | **CI gate passed** |
 
 ---
 
@@ -666,17 +666,17 @@ pnpm --filter @chainglass/cli exec cg runs list -o json | jq '.runs[0].isRun'
 
 ### Ready Check
 
-- [ ] Plan § Phase 6 tasks understood (22 active tasks + 1 SKIP, Part A/B/C structure; includes T001a CLI extension)
-- [ ] Critical Discoveries reviewed (01, 09 affect service design)
-- [ ] ADR-0004 constraints mapped to tasks (T006, T011)
-- [ ] Prior phase deliverables catalogued (entities, adapters, fakes, CLI)
-- [ ] Test infrastructure available (FakeAdapters, contract tests)
-- [ ] Harness structure defined (docs/how/dev/manual-test/ for human orchestrator)
+- [x] Plan § Phase 6 tasks understood (22 active tasks + 1 SKIP, Part A/B/C structure; includes T001a CLI extension)
+- [x] Critical Discoveries reviewed (01, 09 affect service design)
+- [x] ADR-0004 constraints mapped to tasks (T006, T011)
+- [x] Prior phase deliverables catalogued (entities, adapters, fakes, CLI)
+- [x] Test infrastructure available (FakeAdapters, contract tests)
+- [x] Harness structure defined (docs/how/dev/manual-wf-run/ for human orchestrator per DYK-05)
 - [x] **CLI extension complete**: T001a created `cg agent` command group (prerequisite for harness)
-- [ ] **BLOCKING gates identified**: T018 (manual test harness), T019 (entity JSON validation), T022 (CI)
-- [ ] **T020 SKIP**: Agents self-validate when consuming entity JSON (no explicit gate)
+- [x] **BLOCKING gates identified**: T018 (manual test harness), T019 (entity JSON validation), T022 (CI)
+- [x] **T020 SKIP**: Agents self-validate when consuming entity JSON (no explicit gate)
 
-**Await explicit GO/NO-GO before implementation.**
+**Implementation Status**: ✅ COMPLETE (pending human validation gates T018/T019)
 
 ---
 
@@ -686,7 +686,24 @@ _Populated during implementation by plan-6a-update-progress._
 
 | Footnote | Task | Description | Added |
 |----------|------|-------------|-------|
-| | | | |
+| [^1] | T005-T009 | PhaseService refactoring: Extended result types with optional Phase entity | 2026-01-26 |
+| [^2] | T010-T011 | WorkflowService refactoring: Extended result types with optional Workflow entity | 2026-01-26 |
+
+### Files Created (Phase 6)
+- `packages/workflow/src/services/phase-service.types.ts` — Extended result types for PhaseService [^1]
+- `packages/workflow/src/services/workflow-service.types.ts` — Extended result types for WorkflowService [^2]
+- `test/unit/workflow/phase-service-entity.test.ts` — 9 tests for PhaseService entity integration [^1]
+- `test/unit/workflow/workflow-service-entity.test.ts` — 6 tests for WorkflowService entity integration [^2]
+- `docs/how/dev/manual-wf-run/09-validate-entity-json.sh` — Entity JSON validation script
+- `docs/how/dev/manual-wf-run/10-validate-runs-commands.sh` — Runs commands validation script
+- `docs/how/dev/manual-wf-run/expected-outputs/*.json` — 5 JSON schemas for entity validation
+- `docs/how/dev/manual-wf-run/ENTITY-VALIDATION-GUIDE.md` — Step-by-step validation guide
+
+### Files Modified (Phase 6)
+- `packages/workflow/src/services/phase.service.ts` — Added optional IPhaseAdapter injection [^1]
+- `packages/workflow/src/services/workflow.service.ts` — Added optional IWorkflowAdapter injection [^2]
+- `packages/workflow/src/services/index.ts` — Exported extended result types [^1] [^2]
+- `docs/how/dev/manual-wf-run/README.md` — Updated with new scripts
 
 ---
 
