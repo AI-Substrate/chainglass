@@ -35,7 +35,7 @@ export default defineConfig({
     // Coverage configuration (DYK-03: Enforced thresholds, not just reported)
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'html', 'lcov'],
+      reporter: ['text', 'html', 'lcov', 'json-summary', 'json'],
       include: ['apps/web/src/hooks/**/*.ts', 'apps/web/src/hooks/**/*.tsx'],
       exclude: ['**/*.test.ts', '**/*.test.tsx', '**/index.ts'],
       thresholds: {
