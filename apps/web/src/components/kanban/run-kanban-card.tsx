@@ -745,8 +745,8 @@ export function RunKanbanCard({ card, draggable = true, onSubmit }: RunKanbanCar
     </Dialog>
   );
 
-  // Wrap in link only if not draggable and no question
-  if (!draggable && !hasQuestion) {
+  // Wrap in link only if not draggable, no question, and no agent button
+  if (!draggable && !hasQuestion && !showAgentButton) {
     return <Link href={`/workflows/${card.workflowSlug}/runs/${card.runId}`}>{cardContent}</Link>;
   }
 

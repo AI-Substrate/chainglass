@@ -22,6 +22,7 @@ import {
   MessageSquare,
   Send,
   Sparkles,
+  Square,
   Terminal,
   ThumbsDown,
   ThumbsUp,
@@ -586,15 +587,31 @@ export function AgentSessionDialog({
                     <kbd className="px-1 py-0.5 rounded bg-muted border font-mono">↵</kbd>
                     <span className="ml-1">to send</span>
                   </span>
-                  {workflowSlug && (
-                    <Link
-                      href={`/workflows/${workflowSlug}/runs/${session.runId}`}
-                      className="flex items-center gap-1 hover:text-foreground transition-colors"
-                    >
-                      View details
-                      <ExternalLink className="h-3 w-3" />
-                    </Link>
-                  )}
+                  <div className="flex items-center gap-3">
+                    {/* Stop button - shown for active agents */}
+                    {(session.status === 'running' || session.status === 'waiting_input') && (
+                      <button
+                        type="button"
+                        className="flex items-center gap-1 text-destructive/70 hover:text-destructive transition-colors"
+                        onClick={() => {
+                          // Mock stop - in real impl would call agent API
+                          console.log('Stop agent:', session.runId);
+                        }}
+                      >
+                        <Square className="h-3 w-3 fill-current" />
+                        <span>Stop</span>
+                      </button>
+                    )}
+                    {workflowSlug && (
+                      <Link
+                        href={`/workflows/${workflowSlug}/runs/${session.runId}`}
+                        className="flex items-center gap-1 hover:text-foreground transition-colors"
+                      >
+                        View details
+                        <ExternalLink className="h-3 w-3" />
+                      </Link>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
