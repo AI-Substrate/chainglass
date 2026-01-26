@@ -386,6 +386,14 @@ graph TB
 
 ---
 
+## ADRs
+
+Architecture Decision Records created from this specification:
+
+- **ADR-0006**: [CLI-Based Workflow Agent Orchestration Pattern](../../adr/adr-0006-cli-based-workflow-agent-orchestration.md) (2026-01-26) – status: Accepted – **Canonical exemplar for web system implementation**
+
+---
+
 ## Visual Summary
 
 ### Current State (Diffuse)

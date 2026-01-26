@@ -192,6 +192,7 @@ pnpm typecheck
 | ADR | Status | Affects Phases | Notes |
 |-----|--------|----------------|-------|
 | [ADR-0004: DI Container Architecture](../../adr/adr-0004-dependency-injection-container-architecture.md) | Accepted | Phase 1, 2, 3 | Use `useFactory` pattern for adapter registration; test containers with fakes |
+| [ADR-0006: CLI-Based Workflow Agent Orchestration](../../adr/adr-0006-cli-based-workflow-agent-orchestration.md) | Accepted | Phase 6 | **Canonical exemplar** for web system; documents session management (CWD binding, dual flags), NDJSON parsing, validation gates (DYK-07 through DYK-12) |
 
 **ADR-0004 Compliance**:
 - Both entity adapters (WorkflowAdapter, PhaseAdapter) registered via `useFactory` pattern (not `useClass`)
