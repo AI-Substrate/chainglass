@@ -459,7 +459,9 @@ describe('SdkCopilotAdapter', () => {
       expect(result.output).toMatch(/control|invalid/i);
     });
 
-    it('should reject cwd outside workspace', async () => {
+    it('should allow cwd outside workspace with warning (DYK-07, DYK-14)', async () => {
+      // Per DYK-07/DYK-14: CWD validation relaxed to warn-only to support
+      // .chainglass/ runs directory which may be outside workspace root
       const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
       const adapter = new SdkCopilotAdapter(fakeClient, {
         workspaceRoot: '/safe/workspace',
@@ -467,8 +469,8 @@ describe('SdkCopilotAdapter', () => {
 
       const result = await adapter.run({ prompt: 'test', cwd: '/etc/passwd' });
 
-      expect(result.status).toBe('failed');
-      expect(result.output).toMatch(/workspace|cwd/i);
+      // Should complete (warning logged but not blocking)
+      expect(result.status).toBe('completed');
     });
 
     it('should accept cwd within workspace', async () => {
