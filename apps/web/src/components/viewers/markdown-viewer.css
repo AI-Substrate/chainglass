@@ -1,0 +1,170 @@
+/**
+ * MarkdownViewer Component Styles
+ *
+ * Implements:
+ * - Container styling for source/preview modes
+ * - Toggle button styling
+ * - Typography integration via @tailwindcss/typography prose classes
+ * - Shiki override CSS to prevent prose-invert conflicts (DYK Insight #5)
+ *
+ * @see docs/plans/006-web-extras/tasks/phase-3-markdownviewer-component/tasks.md
+ */
+
+/* Container styling */
+.markdown-viewer {
+  position: relative;
+  border-radius: 0.5rem;
+  background-color: var(--bg-viewer, #f9fafb);
+  overflow: hidden;
+}
+
+html.dark .markdown-viewer {
+  background-color: var(--bg-viewer-dark, #1f2937);
+}
+
+/* Toolbar styling */
+.markdown-viewer-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid #e5e7eb;
+  background-color: var(--bg-toolbar, #f3f4f6);
+}
+
+html.dark .markdown-viewer-toolbar {
+  border-bottom-color: #374151;
+  background-color: var(--bg-toolbar-dark, #1f2937);
+}
+
+/* Filename display */
+.markdown-viewer-filename {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+}
+
+html.dark .markdown-viewer-filename {
+  color: #d1d5db;
+}
+
+/* Toggle button group */
+.markdown-viewer-toggle-group {
+  display: flex;
+  gap: 0.25rem;
+  border-radius: 0.375rem;
+  background-color: #e5e7eb;
+  padding: 0.125rem;
+}
+
+html.dark .markdown-viewer-toggle-group {
+  background-color: #374151;
+}
+
+/* Toggle buttons */
+.markdown-viewer-toggle {
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border-radius: 0.25rem;
+  border: none;
+  background-color: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.markdown-viewer-toggle:hover {
+  color: #374151;
+}
+
+.markdown-viewer-toggle:focus {
+  outline: 2px solid var(--ring, #0969da);
+  outline-offset: 1px;
+}
+
+html.dark .markdown-viewer-toggle {
+  color: #9ca3af;
+}
+
+html.dark .markdown-viewer-toggle:hover {
+  color: #e5e7eb;
+}
+
+html.dark .markdown-viewer-toggle:focus {
+  outline-color: var(--ring-dark, #58a6ff);
+}
+
+/* Active toggle state */
+.markdown-viewer-toggle[aria-pressed="true"] {
+  background-color: #ffffff;
+  color: #1f2937;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+html.dark .markdown-viewer-toggle[aria-pressed="true"] {
+  background-color: #4b5563;
+  color: #f3f4f6;
+}
+
+/* Preview container */
+.markdown-viewer-preview {
+  padding: 1.5rem;
+  overflow: auto;
+  max-height: 600px;
+}
+
+/*
+ * Shiki override CSS to prevent prose-invert conflicts (DYK Insight #5)
+ * Typography plugin's prose-invert can override Shiki's inline syntax colors.
+ * These rules ensure Shiki controls syntax highlighting in code blocks.
+ */
+
+/* Pre block background from Shiki */
+.markdown-viewer-preview .prose pre.shiki {
+  background-color: var(--shiki-light-bg, #fff);
+  border-radius: 0.375rem;
+  margin: 1rem 0;
+}
+
+/* Code element inherits color from Shiki spans */
+.markdown-viewer-preview .prose pre.shiki code {
+  color: inherit;
+  background: transparent;
+  padding: 1rem;
+  display: block;
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono",
+    monospace;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+/* Dark mode background */
+html.dark .markdown-viewer-preview .prose pre.shiki {
+  background-color: var(--shiki-dark-bg, #24292e);
+}
+
+/* Ensure Shiki dark theme colors apply to spans */
+html.dark .markdown-viewer-preview .prose .shiki,
+html.dark .markdown-viewer-preview .prose .shiki span {
+  color: var(--shiki-dark) !important;
+}
+
+/* Inline code styling (not syntax highlighted) */
+.markdown-viewer-preview .prose code:not(pre code) {
+  background-color: #f3f4f6;
+  border-radius: 0.25rem;
+  padding: 0.125rem 0.375rem;
+  font-size: 0.875em;
+}
+
+html.dark .markdown-viewer-preview .prose code:not(pre code) {
+  background-color: #374151;
+}
+
+/* Line element styling for Shiki output */
+.markdown-viewer-preview .prose pre.shiki code .line {
+  display: block;
+  line-height: 1.5;
+}

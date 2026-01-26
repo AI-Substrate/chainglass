@@ -54,8 +54,12 @@ export interface FakeAgentAdapterOptions {
  * fake.assertRunCalled({ prompt: 'test' });
  * ```
  */
+type ResolvedOptions = Required<Omit<FakeAgentAdapterOptions, 'runDuration' | 'stderr'>> & {
+  stderr?: string;
+};
+
 export class FakeAgentAdapter implements IAgentAdapter {
-  private readonly _options: FakeAgentAdapterOptions;
+  private readonly _options: ResolvedOptions;
   private readonly _runDuration: number;
   private _runHistory: AgentRunOptions[] = [];
   private _terminateHistory: string[] = [];
@@ -82,15 +86,15 @@ export class FakeAgentAdapter implements IAgentAdapter {
     }
 
     // If sessionId was provided in options, use it (session resumption)
-    const sessionId = options.sessionId ?? this._options.sessionId!;
+    const sessionId = options.sessionId ?? this._options.sessionId;
 
     return {
-      output: this._options.output!,
+      output: this._options.output,
       sessionId,
-      status: this._options.status!,
-      exitCode: this._options.exitCode!,
+      status: this._options.status,
+      exitCode: this._options.exitCode,
       stderr: this._options.stderr,
-      tokens: this._options.tokens ?? null,
+      tokens: this._options.tokens,
     };
   }
 

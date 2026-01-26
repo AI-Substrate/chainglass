@@ -4,3 +4,11 @@ export {
   EventSourceReadyState,
   createFakeEventSourceFactory,
 } from './fake-event-source';
+export {
+  FakeMatchMedia,
+  createFakeMatchMediaFactory,
+} from './fake-match-media';
+export {
+  FakeResizeObserver,
+  createMockElement,
+} from './fake-resize-observer';

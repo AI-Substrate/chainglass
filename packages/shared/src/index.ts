@@ -9,7 +9,12 @@ export { FileSystemError } from './interfaces/index.js';
 export type { IFileSystem, FileStat } from './interfaces/index.js';
 export { PathSecurityError } from './interfaces/index.js';
 export type { IPathResolver } from './interfaces/index.js';
+export type { ViewerFile } from './interfaces/index.js';
+export type { DiffError, DiffResult, IGitDiffService } from './interfaces/index.js';
 export type { IHashGenerator } from './interfaces/index.js';
+
+// Library utilities
+export { detectLanguage } from './lib/language-detection.js';
 
 // Result types (per Phase 1a: Output Adapter Architecture)
 export type {
@@ -100,6 +105,7 @@ export { FakeFileSystem } from './fakes/index.js';
 export { FakePathResolver } from './fakes/index.js';
 export { FakeOutputAdapter } from './fakes/index.js';
 export type { FormattedResult } from './fakes/index.js';
+export { FakeDiffAction } from './fakes/index.js';
 export { FakeHashGenerator } from './fakes/index.js';
 export { FakeProcessManager } from './fakes/index.js';
 

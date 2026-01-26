@@ -1,0 +1,109 @@
+/**
+ * MermaidRenderer Component Styles
+ *
+ * Implements:
+ * - Container styling for diagrams
+ * - Loading state styling
+ * - Error state styling
+ * - Light/dark theme support
+ * - SVG containment for proper rendering
+ *
+ * @see mermaid-renderer.tsx
+ */
+
+/* Container styling */
+.mermaid-renderer {
+  position: relative;
+  width: 100%;
+  padding: 1rem;
+  border-radius: 0.375rem;
+  background-color: var(--bg-mermaid, #f9fafb);
+  overflow: auto;
+}
+
+html.dark .mermaid-renderer {
+  background-color: var(--bg-mermaid-dark, #1f2937);
+}
+
+/* Loading state */
+.mermaid-renderer-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 8rem;
+  color: #6b7280;
+}
+
+html.dark .mermaid-renderer-loading {
+  color: #9ca3af;
+}
+
+.mermaid-renderer-loading-text {
+  font-size: 0.875rem;
+  animation: mermaid-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes mermaid-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Error state */
+.mermaid-renderer-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 1rem;
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 0.375rem;
+  color: #b91c1c;
+}
+
+html.dark .mermaid-renderer-error {
+  background-color: rgba(127, 29, 29, 0.2);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #f87171;
+}
+
+.mermaid-renderer-error-icon {
+  flex-shrink: 0;
+  font-size: 1rem;
+}
+
+.mermaid-renderer-error-text {
+  font-size: 0.875rem;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+/* SVG container */
+.mermaid-renderer-svg {
+  display: flex;
+  justify-content: center;
+  overflow-x: auto;
+}
+
+.mermaid-renderer-svg svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Mermaid diagram overrides for dark mode */
+html.dark .mermaid-renderer-svg text {
+  fill: #e5e7eb !important;
+}
+
+html.dark .mermaid-renderer-svg .nodeLabel {
+  color: #1f2937 !important;
+}
+
+/* Ensure proper margins in prose context */
+.prose .mermaid-renderer {
+  margin: 1.5rem 0;
+}
