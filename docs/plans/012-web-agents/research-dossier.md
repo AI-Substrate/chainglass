@@ -19,15 +19,16 @@ Enable users to run multiple AI coding agents (Claude, Copilot) concurrently in 
 
 ### Key Insights
 1. **Agent adapters exist and are production-ready** - `ClaudeCodeAdapter` (CLI/NDJSON) and `SdkCopilotAdapter` (SDK events) with unified `AgentEvent` streaming
-2. **SSE infrastructure is complete** - `SSEManager` singleton, `useSSE` hook with reconnection, Zod-validated event schemas
+2. **SSE infrastructure is production-ready** - `SSEManager` singleton with security validation, `useSSE` hook with auto-reconnect, Zod-validated event schemas, 26 tests
 3. **No chat UI exists** - Must build from scratch: session list, chat view, input handling, markdown rendering
-4. **Session persistence is agent-side** - Adapters pass `sessionId` for resume; no database persistence layer yet
+4. **Session persistence is agent-side** - Adapters pass `sessionId` for resume; need localStorage persistence for web UI
 
 ### Quick Stats
 | Metric | Value |
 |--------|-------|
 | **Agent Adapters** | 2 (Claude Code, Copilot SDK) |
 | **SSE Event Types** | 7 (workflow_status, phase_status, question, answer, etc.) |
+| **SSE Tests** | 26 tests (manager, route, hook) - production-ready |
 | **Agent Event Types** | 5 (text_delta, message, usage, session_*, raw) |
 | **Test Coverage** | 80%+ (116 test files, contract tests) |
 | **Prior Learnings** | 15 relevant discoveries |
@@ -88,26 +89,39 @@ interface IAgentAdapter {
 - `usage` - Token metrics (Claude only, Copilot returns `null`)
 - `session_start/idle/error` - Lifecycle events
 
-### SSE Infrastructure
+### SSE Infrastructure (Production-Ready)
 
 **Server** (`apps/web/src/lib/sse-manager.ts`):
 ```typescript
-// Singleton with HMR survival
+// Singleton with HMR survival (globalThis pattern)
 const globalForSSE = globalThis as typeof globalThis & { sseManager?: SSEManager };
 export const sseManager = globalForSSE.sseManager ??= new SSEManager();
 
-// Channel-based broadcasting
+// Channel-based broadcasting with security validation
 sseManager.broadcast(channelId, 'agent_event', { type: 'text_delta', content: '...' });
+// Event type validated: /^[a-zA-Z0-9_]+$/ - throws on invalid
 ```
+
+**Route Handler** (`apps/web/app/api/events/[channel]/route.ts`):
+- Channel name validated: `/^[a-zA-Z0-9_-]+$/` (prevents path traversal)
+- 30-second heartbeat interval
+- Dead controller cleanup on error
+- Abort signal handling with interval cleanup
 
 **Client** (`apps/web/src/hooks/useSSE.ts`):
 ```typescript
 const { messages, isConnected, error } = useSSE<AgentEvent>(
   `/api/events/agent-${sessionId}`,
   undefined,
-  { messageSchema: agentEventSchema }  // Zod validation
+  {
+    messageSchema: agentEventSchema,  // Zod validation (FIX-002)
+    maxMessages: 1000,                // Memory protection (FIX-004)
+    maxReconnectAttempts: 5           // Auto-reconnect with backoff
+  }
 );
 ```
+
+**Test Coverage**: 26 tests across SSEManager, route handler, and useSSE hook
 
 ---
 
@@ -207,18 +221,31 @@ apps/web/src/
 | Area | Coverage | Status |
 |------|----------|--------|
 | Agent Adapters | 80%+ | Contract tests |
-| SSE Infrastructure | 11 tests | Known bugs |
+| SSE Infrastructure | 26 tests | Production-ready |
 | Session Management | 10+ tests | Good |
 | Chat UI Components | 0 | Must build |
 
-### Known Issues
+### SSE Implementation Status
+
+The SSE infrastructure has been verified as **production-ready** with comprehensive security and memory management:
+
+| Concern | Status | Implementation |
+|---------|--------|----------------|
+| Event type injection | **FIXED** | Regex validation `/^[a-zA-Z0-9_]+$/` in `broadcast()` |
+| Channel name validation | **FIXED** | Regex validation `/^[a-zA-Z0-9_-]+$/` in route handler |
+| Memory leak (heartbeat) | **MITIGATED** | Interval cleared in abort handler, dead controllers removed on error |
+| Empty channel cleanup | **FIXED** | Map entries removed when Set becomes empty |
+| Message pruning | **FIXED** | `useSSE` hook limits to maxMessages (default 1000) - FIX-004 |
+| Reconnect timeout cleanup | **FIXED** | Pending timeout cleared on new connect() - FIX-003 |
+| Zod validation | **IMPLEMENTED** | Optional schema validation in useSSE - FIX-002 |
+
+### Known Limitations
 
 | Issue | Severity | Location |
 |-------|----------|----------|
-| SSE memory leak (heartbeat cleanup) | Critical | `sse-manager.ts` |
-| Event type injection (unsanitized) | High | `sse-manager.ts` |
-| Copilot SDK: no token metrics | Medium | SDK limitation |
+| Copilot SDK: no token metrics | Medium | SDK limitation (returns `null`) |
 | Integration tests skipped (auth) | Low | CI limitation |
+| No Last-Event-ID resume | Medium | Must implement for reconnection resume |
 
 ---
 
@@ -325,13 +352,14 @@ pending=gray, ready=amber, active=blue, blocked=orange, accepted=lime, complete=
 ### Safe to Modify
 1. **Create new components** in `apps/web/src/components/agents/` - no existing code
 2. **Add new routes** at `apps/web/app/(dashboard)/agents/` - no conflicts
-3. **Extend SSE schemas** with new agent event types - additive change
+3. **Extend SSE schemas** with new agent event types - additive change to discriminated union
 4. **Add localStorage persistence** - client-side, isolated
+5. **Use SSE infrastructure as-is** - Production-ready with security validation and 26 tests
 
 ### Modify with Caution
-1. **SSEManager** - Has known bugs; fix memory leak before adding agent channels
-2. **DI Container** - Add agent session factory carefully; test both production and test containers
-3. **Agent adapters** - Well-tested; changes need contract test updates
+1. **DI Container** - Add agent session factory carefully; test both production and test containers
+2. **Agent adapters** - Well-tested; changes need contract test updates
+3. **SSE event schemas** - Extend with new types (additive), don't modify existing types
 
 ### Danger Zones
 1. **AgentService internals** - Timeout/session tracking is subtle; easy to break
@@ -351,10 +379,10 @@ pending=gray, ready=amber, active=blue, blocked=orange, accepted=lime, complete=
 **What**: Agent sessions are tracked in memory only (`Map<sessionId, {adapter, agentType}>`). No database/localStorage persistence for web.
 **Required Action**: Implement `agent-session-store.ts` with localStorage + optional server sync
 
-### Critical Finding 03: SSE Memory Leak
-**Impact**: High
-**What**: Heartbeat error handler doesn't remove dead connections from SSEManager
-**Required Action**: Fix `sse-manager.ts` before using for agent streaming (prevents connection accumulation)
+### Critical Finding 03: SSE Infrastructure is Production-Ready
+**Impact**: Positive
+**What**: SSE implementation already has security validation, memory management, and 26 tests. Event type injection is protected, empty channels are cleaned up, and dead controllers are removed on error.
+**Required Action**: Extend SSE schemas with agent event types and add message buffer for Last-Event-ID reconnection resume
 
 ### Critical Finding 04: No Multi-Session Orchestration
 **Impact**: High
@@ -367,7 +395,7 @@ pending=gray, ready=amber, active=blue, blocked=orange, accepted=lime, complete=
 
 ### For Building Multi-Agent Chat UI
 
-1. **Fix SSE bugs first** - Memory leak and event type sanitization before adding agent channels
+1. **Extend SSE schemas** - Add agent event types (`agent_text_delta`, `agent_session`, `agent_usage`) to existing Zod discriminated union
 2. **Build session store** - localStorage with Zod schema validation for type safety
 3. **Use existing patterns**:
    - Headless hooks (`useAgentSession`, `useAgentSessions`)
