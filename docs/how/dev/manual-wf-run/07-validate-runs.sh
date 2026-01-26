@@ -28,9 +28,9 @@ if [ ! -f "$SCRIPT_DIR/.current-run" ]; then
 fi
 RUN_DIR=$(cat "$SCRIPT_DIR/.current-run")
 
-# Extract run-id and workflow slug from run directory
+# Extract run-id from directory, workflow slug from wf.yaml
 RUN_ID=$(basename "$RUN_DIR")
-WORKFLOW_SLUG=$(basename "$(dirname "$RUN_DIR")")
+WORKFLOW_SLUG=$(grep "^name:" "$RUN_DIR/wf.yaml" | sed 's/name: *//')
 
 echo "Run directory: $RUN_DIR"
 echo "Run ID: $RUN_ID"
@@ -38,6 +38,9 @@ echo "Workflow: $WORKFLOW_SLUG"
 echo ""
 
 FAILURES=0
+
+# Change to project root for cg commands (they use relative .chainglass paths)
+cd "$PROJECT_ROOT"
 
 echo "----------------------------------------------"
 echo "Test 1: cg runs list (all workflows)"

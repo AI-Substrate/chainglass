@@ -92,7 +92,8 @@ function validateAgentType(type: string): AgentType {
  * Per DYK #2: Always output AgentResult JSON structure.
  */
 function outputResult(result: AgentResult): void {
-  console.log(JSON.stringify(result, null, 2));
+  // Single-line JSON for NDJSON compatibility with log output
+  console.log(JSON.stringify(result));
 }
 
 /**
@@ -108,7 +109,8 @@ function outputError(message: string): void {
     tokens: null,
     stderr: message,
   };
-  console.log(JSON.stringify(errorResult, null, 2));
+  // Single-line JSON for NDJSON compatibility with log output
+  console.log(JSON.stringify(errorResult));
 }
 
 /**

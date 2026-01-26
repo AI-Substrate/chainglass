@@ -146,8 +146,12 @@ vite.config.ts.timestamp-*
 !.fs2/config.yaml
 scratch/*
 
-# Chainglass workflow runtime (generated runs)
-.chainglass/
+# Chainglass workflow runtime
+# Track workflow templates, ignore generated runs/checkpoints
+.chainglass/runs/
+.chainglass/workflows/*/checkpoints/
+!.chainglass/workflows/*/current/
+!.chainglass/workflows/*/workflow.json
 
 # Manual test harness results (regenerated each test run)
 docs/plans/*/manual-test/results/

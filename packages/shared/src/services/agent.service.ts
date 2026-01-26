@@ -129,30 +129,55 @@ export class AgentService {
       // FIX-001: Clear timer on success
       timeout.cancel();
     } catch (error) {
-      // Timeout fired - cancel not needed but harmless
+      // Cancel timeout timer (harmless if already fired)
       timeout.cancel();
-      timedOut = true;
 
-      this._logger.warn('Agent execution timed out', {
-        agentType,
-        timeout: this._timeout,
-        sessionId,
-      });
+      // Distinguish timeout errors from adapter errors
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const isTimeout = errorMessage.startsWith('Timeout after ');
 
-      // FIX-002/COR-002: Always terminate on timeout, even without sessionId
-      // Use provided sessionId or empty string - adapter handles the termination
-      await adapter.terminate(sessionId ?? '').catch(() => {
-        // Per DYK-01: Suppress late errors
-      });
+      if (isTimeout) {
+        timedOut = true;
 
-      // Return failed result with timeout message
-      result = {
-        output: `Timeout after ${this._timeout}ms`,
-        sessionId: sessionId ?? '',
-        status: 'failed',
-        exitCode: -1,
-        tokens: null,
-      };
+        this._logger.warn('Agent execution timed out', {
+          agentType,
+          timeout: this._timeout,
+          sessionId,
+        });
+
+        // FIX-002/COR-002: Always terminate on timeout, even without sessionId
+        // Use provided sessionId or empty string - adapter handles the termination
+        await adapter.terminate(sessionId ?? '').catch(() => {
+          // Per DYK-01: Suppress late errors
+        });
+
+        // Return failed result with timeout message
+        result = {
+          output: `Timeout after ${this._timeout}ms`,
+          sessionId: sessionId ?? '',
+          status: 'failed',
+          exitCode: -1,
+          tokens: null,
+        };
+      } else {
+        // Adapter threw an error (validation, spawn failure, etc.)
+        this._logger.error(
+          'Agent execution failed',
+          error instanceof Error ? error : new Error(errorMessage),
+          {
+            agentType,
+            sessionId,
+          }
+        );
+
+        result = {
+          output: errorMessage,
+          sessionId: sessionId ?? '',
+          status: 'failed',
+          exitCode: -1,
+          tokens: null,
+        };
+      }
     }
 
     // Suppress late errors from raced promise per DYK-01

@@ -26,10 +26,9 @@ if [ ! -f "$SCRIPT_DIR/.current-run" ]; then
 fi
 RUN_DIR=$(cat "$SCRIPT_DIR/.current-run")
 
-# Extract run-id and workflow slug from run directory
-# Run dir format: /path/to/runs/hello-workflow/run-YYYYMMDD-HHMMSS-XXX
+# Extract run-id from directory, workflow slug from wf.yaml
 RUN_ID=$(basename "$RUN_DIR")
-WORKFLOW_SLUG=$(basename "$(dirname "$RUN_DIR")")
+WORKFLOW_SLUG=$(grep "^name:" "$RUN_DIR/wf.yaml" | sed 's/name: *//')
 
 echo "Run directory: $RUN_DIR"
 echo "Run ID: $RUN_ID"
@@ -38,18 +37,27 @@ echo ""
 
 FAILURES=0
 
-# Helper function to check JSON key exists
+# Helper function to check JSON key exists (supports nested keys like "run.runId")
 check_json_key() {
     local json="$1"
     local key="$2"
     local expected="$3"
     local actual
-    actual=$(echo "$json" | jq -r ".$key // \"__MISSING__\"")
+    local key_type
 
-    if [ "$actual" = "__MISSING__" ]; then
+    # Get the type of the value (handles nested keys via jq path)
+    # "null" means the key path doesn't exist
+    key_type=$(echo "$json" | jq ".$key | type" 2>/dev/null)
+
+    if [ "$key_type" = "\"null\"" ]; then
         echo "  [FAIL] Missing key: $key"
         return 1
-    elif [ -n "$expected" ] && [ "$actual" != "$expected" ]; then
+    fi
+
+    # Get the actual value
+    actual=$(echo "$json" | jq -r ".$key")
+
+    if [ -n "$expected" ] && [ "$actual" != "$expected" ]; then
         echo "  [FAIL] $key: expected '$expected', got '$actual'"
         return 1
     else
@@ -79,6 +87,9 @@ echo "----------------------------------------------"
 echo "Test 1: Workflow Entity JSON (from cg runs get)"
 echo "----------------------------------------------"
 echo ""
+
+# Change to project root for cg commands (they use relative .chainglass paths)
+cd "$PROJECT_ROOT"
 
 # Get workflow entity JSON from run
 # Correct syntax: cg runs get <run-id> --workflow <slug> -o json
@@ -129,10 +140,10 @@ if [ -f "$GATHER_STATE" ]; then
         # Read phase entity directly from state file
         PHASE_JSON=$(cat "$GATHER_STATE")
 
-        # Validate Phase entity structure
-        check_json_key "$PHASE_JSON" "name" "gather" || ((FAILURES++))
+        # Validate Phase entity structure (wf-phase.json uses "phase" and "status" fields)
+        check_json_key "$PHASE_JSON" "phase" "gather" || ((FAILURES++))
         check_json_key "$PHASE_JSON" "state" "complete" || ((FAILURES++))
-        check_json_type "$PHASE_JSON" "statusHistory" "array" || ((FAILURES++))
+        check_json_type "$PHASE_JSON" "status" "array" || ((FAILURES++))
     else
         echo "  [SKIP] Gather phase not complete (state: $GATHER_STATUS)"
         echo "  Run ./03-run-gather.sh to complete"

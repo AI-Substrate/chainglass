@@ -342,13 +342,14 @@ export class ClaudeCodeAdapter implements IAgentAdapter {
 
     // Resolve to absolute path
     const resolved = path.resolve(cwd);
-    const normalizedRoot = path.resolve(this._workspaceRoot);
 
-    // Ensure cwd is within workspace (or is the workspace itself)
+    // Log warning if outside workspace (but don't block - enables scratch/ and other dirs)
+    const normalizedRoot = path.resolve(this._workspaceRoot);
     if (!resolved.startsWith(normalizedRoot + path.sep) && resolved !== normalizedRoot) {
-      throw new Error(
-        `cwd must be within workspace. Got: ${cwd}, Expected within: ${normalizedRoot}`
-      );
+      this._logger?.debug('cwd is outside workspace root', {
+        cwd: resolved,
+        workspaceRoot: normalizedRoot,
+      });
     }
 
     return resolved;
@@ -370,7 +371,8 @@ export class ClaudeCodeAdapter implements IAgentAdapter {
     ];
 
     if (sessionId) {
-      args.push('--resume', sessionId);
+      // Per scripts/agents/claude-code-session-demo.ts: Claude Code requires both flags
+      args.push('--fork-session', '--resume', sessionId);
     }
 
     // Validate and sanitize prompt

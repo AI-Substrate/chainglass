@@ -9,8 +9,8 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
 CLI="$PROJECT_ROOT/apps/cli/dist/cli.cjs"
-TEMPLATE="$PROJECT_ROOT/dev/examples/wf/template/hello-workflow"
-RUNS_DIR="$PROJECT_ROOT/dev/examples/wf/runs"
+WORKFLOW_SLUG="hello-workflow"
+REGISTRY_DIR="$PROJECT_ROOT/.chainglass/workflows/$WORKFLOW_SLUG"
 
 echo "=============================================="
 echo "Manual Test Harness: Compose Run"
@@ -24,21 +24,25 @@ if [ ! -f "$CLI" ]; then
     exit 1
 fi
 
-# Check template exists
-if [ ! -d "$TEMPLATE" ]; then
-    echo "ERROR: Template not found at $TEMPLATE"
+# Check workflow is registered
+if [ ! -d "$REGISTRY_DIR" ]; then
+    echo "ERROR: Workflow not registered at $REGISTRY_DIR"
+    echo "Run 'cg workflow checkpoint hello-workflow' first"
     exit 1
 fi
 
 echo "Creating fresh workflow run..."
-echo "  Template: hello-workflow"
-echo "  Runs dir: $RUNS_DIR"
+echo "  Workflow: $WORKFLOW_SLUG (from registry)"
 echo ""
 
-node "$CLI" wf compose "$TEMPLATE" --runs-dir "$RUNS_DIR"
+# Change to project root for cg commands (they use relative .chainglass paths)
+cd "$PROJECT_ROOT"
+node "$CLI" workflow compose "$WORKFLOW_SLUG"
 
-# Find the latest run
-LATEST_RUN=$(ls -td "$RUNS_DIR"/run-* 2>/dev/null | head -1)
+# Find the latest run in the registry runs directory
+# Format: .chainglass/runs/hello-workflow/v001-xxx/run-YYYY-MM-DD-NNN
+RUNS_BASE="$PROJECT_ROOT/.chainglass/runs/$WORKFLOW_SLUG"
+LATEST_RUN=$(find "$RUNS_BASE" -maxdepth 2 -type d -name "run-*" 2>/dev/null | sort -r | head -1)
 
 if [ -z "$LATEST_RUN" ]; then
     echo ""

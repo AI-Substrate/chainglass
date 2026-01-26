@@ -61,13 +61,15 @@ echo "--- Step 4: Invoke agent via cg agent run ---"
 
 # Build the agent prompt
 AGENT_PROMPT="You are executing a workflow phase.
-Your working directory is: $PHASE_DIR
-Start by reading: AGENT-START.md (in the run root at $RUN_DIR)
+Your working directory is the run root: $RUN_DIR
+You are working on the GATHER phase at: phases/gather/
+
+Start by reading: AGENT-START.md (in your current directory)
 
 This is the GATHER phase. Your task is to:
-1. Read commands/main.md for detailed instructions
-2. Check run/messages/m-001.json for the user's request
-3. Write outputs to run/outputs/
+1. Read phases/gather/commands/main.md for detailed instructions
+2. Check phases/gather/run/messages/m-001.json for the user's request
+3. Write outputs to phases/gather/run/outputs/
 4. Validate with: cg phase validate gather --run-dir $RUN_DIR --check outputs
 5. Finalize with: cg phase finalize gather --run-dir $RUN_DIR
 
@@ -80,12 +82,13 @@ echo ""
 AGENT_RESULT=$(node "$CLI" agent run \
     --type claude-code \
     --prompt "$AGENT_PROMPT" \
-    --cwd "$PHASE_DIR" 2>&1)
+    --cwd "$RUN_DIR" 2>&1)  # Use RUN_DIR for session continuity across phases
 
-# Parse result
-AGENT_STATUS=$(echo "$AGENT_RESULT" | jq -r '.status // "unknown"')
-SESSION_ID=$(echo "$AGENT_RESULT" | jq -r '.sessionId // ""')
-AGENT_OUTPUT=$(echo "$AGENT_RESULT" | jq -r '.output // ""')
+# Parse result - extract the final JSON line (result has "output", logs have "level")
+RESULT_JSON=$(echo "$AGENT_RESULT" | grep '"output"' | tail -1)
+AGENT_STATUS=$(echo "$RESULT_JSON" | jq -r '.status // "unknown"')
+SESSION_ID=$(echo "$RESULT_JSON" | jq -r '.sessionId // ""')
+AGENT_OUTPUT=$(echo "$RESULT_JSON" | jq -r '.output // ""')
 
 echo "Agent status: $AGENT_STATUS"
 echo "Session ID: $SESSION_ID"
