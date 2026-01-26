@@ -8,12 +8,16 @@
 # 1. Prepare gather phase
 # 2. Create user message
 # 3. Handover to agent
-# 4. Invoke cg agent run --type claude-code --prompt <prompt> --cwd <phase-dir>
+# 4. Invoke cg agent run --type $AGENT_TYPE --prompt <prompt> --cwd <run-dir>
 # 5. Validate outputs
 # 6. Finalize phase
 # 7. Save session ID for subsequent phases
 #
 set -e
+
+# Agent type: claude-code (default) or copilot
+# Usage: AGENT_TYPE=copilot ./03-run-gather.sh
+AGENT_TYPE="${AGENT_TYPE:-claude-code}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
@@ -21,6 +25,7 @@ CLI="$PROJECT_ROOT/apps/cli/dist/cli.cjs"
 
 echo "=============================================="
 echo "Manual Test Harness: Run Gather Phase"
+echo "Agent type: $AGENT_TYPE"
 echo "=============================================="
 echo ""
 
@@ -80,7 +85,7 @@ echo ""
 
 # Run agent and capture result
 AGENT_RESULT=$(node "$CLI" agent run \
-    --type claude-code \
+    --type "$AGENT_TYPE" \
     --prompt "$AGENT_PROMPT" \
     --cwd "$RUN_DIR" 2>&1)  # Use RUN_DIR for session continuity across phases
 

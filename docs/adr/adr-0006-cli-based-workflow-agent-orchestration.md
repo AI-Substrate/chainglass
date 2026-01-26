@@ -136,6 +136,19 @@ RESULT=$(cg agent run --type claude-code --session "$SESSION_ID" --prompt "..." 
 | `06-validate-entity.sh` | Validate entity JSON structure |
 | `07-validate-runs.sh` | Validate `cg runs` command output |
 
+**Multi-Agent Testing**: Scripts 03-05 support `AGENT_TYPE` environment variable:
+```bash
+# Default (Claude Code)
+./03-run-gather.sh
+
+# Test with Copilot
+AGENT_TYPE=copilot ./03-run-gather.sh
+
+# Full workflow with Copilot
+export AGENT_TYPE=copilot
+./01-clean-slate.sh && ./02-compose-run.sh && ./03-run-gather.sh && ./04-run-process.sh && ./05-run-report.sh
+```
+
 ## Consequences
 
 ### Positive

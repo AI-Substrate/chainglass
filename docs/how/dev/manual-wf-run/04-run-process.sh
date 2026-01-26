@@ -14,12 +14,17 @@
 #
 set -e
 
+# Agent type: claude-code (default) or copilot
+# Usage: AGENT_TYPE=copilot ./04-run-process.sh
+AGENT_TYPE="${AGENT_TYPE:-claude-code}"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
 CLI="$PROJECT_ROOT/apps/cli/dist/cli.cjs"
 
 echo "=============================================="
 echo "Manual Test Harness: Run Process Phase"
+echo "Agent type: $AGENT_TYPE"
 echo "=============================================="
 echo ""
 
@@ -47,7 +52,7 @@ echo ""
 # Step 1: Compact session
 echo "--- Step 1: Compact session (reduce context) ---"
 COMPACT_RESULT=$(node "$CLI" agent compact \
-    --type claude-code \
+    --type "$AGENT_TYPE" \
     --session "$SESSION_ID" 2>&1)
 
 # Parse result - extract the final JSON object (skip NDJSON log lines)
@@ -96,7 +101,7 @@ echo ""
 
 # Run agent with session resumption
 AGENT_RESULT=$(node "$CLI" agent run \
-    --type claude-code \
+    --type "$AGENT_TYPE" \
     --session "$SESSION_ID" \
     --prompt "$AGENT_PROMPT" \
     --cwd "$RUN_DIR" 2>&1)  # Use RUN_DIR for session continuity across phases

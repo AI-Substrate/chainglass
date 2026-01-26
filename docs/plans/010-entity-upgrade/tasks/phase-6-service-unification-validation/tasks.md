@@ -650,9 +650,14 @@ pnpm --filter @chainglass/cli exec cg agent compact --type claude-code --session
 # Manual test execution (human orchestrator validation)
 cd docs/how/dev/manual-wf-run
 ./01-clean-slate.sh && ./02-compose-run.sh
-./03-run-gather.sh   # Uses cg agent run
+./03-run-gather.sh   # Uses cg agent run (default: claude-code)
 ./04-run-process.sh  # Uses cg agent compact + run
 ./05-run-report.sh   # Uses cg agent compact + run
+
+# Run with Copilot instead of Claude Code (DYK-13)
+export AGENT_TYPE=copilot
+./01-clean-slate.sh && ./02-compose-run.sh
+./03-run-gather.sh && ./04-run-process.sh && ./05-run-report.sh
 
 # Verify entity JSON format and runs commands
 ./06-validate-entity.sh
@@ -732,9 +737,9 @@ _Populated during implementation by plan-6a-update-progress._
 **Harness Fixes:**
 - `docs/how/dev/manual-wf-run/01-clean-slate.sh` — Registry-aware cleanup
 - `docs/how/dev/manual-wf-run/02-compose-run.sh` — Registry-based compose (DYK-11)
-- `docs/how/dev/manual-wf-run/03-run-gather.sh` — CWD=RUN_DIR, JSON parsing, prompt update (DYK-07)
-- `docs/how/dev/manual-wf-run/04-run-process.sh` — CWD=RUN_DIR, JSON parsing, prompt update (DYK-07)
-- `docs/how/dev/manual-wf-run/05-run-report.sh` — CWD=RUN_DIR, JSON parsing, prompt update (DYK-07)
+- `docs/how/dev/manual-wf-run/03-run-gather.sh` — CWD=RUN_DIR, JSON parsing, prompt update, AGENT_TYPE env var (DYK-07, DYK-13)
+- `docs/how/dev/manual-wf-run/04-run-process.sh` — CWD=RUN_DIR, JSON parsing, prompt update, AGENT_TYPE env var (DYK-07, DYK-13)
+- `docs/how/dev/manual-wf-run/05-run-report.sh` — CWD=RUN_DIR, JSON parsing, prompt update, AGENT_TYPE env var (DYK-07, DYK-13)
 - `docs/how/dev/manual-wf-run/06-validate-entity.sh` — cd to project root, jq type checking (DYK-12)
 - `docs/how/dev/manual-wf-run/07-validate-runs.sh` — cd to project root, slug extraction from wf.yaml
 - `.gitignore` — Track workflow templates, ignore runs/checkpoints
@@ -787,6 +792,7 @@ _Populated during implementation by plan-6. Log anything of interest to your fut
 | 2026-01-26 | T018-T019 | gotcha | **DYK-10: CLI NDJSON output requires single-line JSON** - Agent CLI outputs NDJSON (logs + result). Pretty-printed JSON with `JSON.stringify(result, null, 2)` broke shell parsing since `grep '"output"'` expects single line. | Changed to `JSON.stringify(result)` (no formatting). Scripts parse with `grep '"output"' | tail -1` to extract result from NDJSON stream. | agent.command.ts:outputResult(), harness scripts |
 | 2026-01-26 | T018-T019 | gotcha | **DYK-11: Workflow registration required for `cg runs` commands** - Workflows must be registered in `.chainglass/workflows/<slug>/` for `cg runs list/get` to find them. Creating runs via `--runs-dir` without registration made runs invisible to the runs API. | Registered hello-workflow: copied template to `current/`, ran `cg workflow checkpoint`, added to git. Updated scripts to use registry-based compose instead of custom `--runs-dir`. | .chainglass/workflows/hello-workflow/, .gitignore |
 | 2026-01-26 | T018-T019 | gotcha | **DYK-12: jq `//` operator treats `false` as falsy** - When checking if JSON key exists, `jq ".$key // \"missing\""` returns "missing" for `false` values (e.g., `isCurrent: false`). Led to false validation failures for boolean properties. | Changed to `jq ".$key | type"` to check key existence. Type "null" means key doesn't exist; any other type means key exists (including boolean false). | 06-validate-entity.sh:check_json_key() |
+| 2026-01-26 | T018 | enhancement | **DYK-13: Agent-agnostic test harness** - Scripts hardcoded `--type claude-code`, making Copilot testing require manual edits. Multi-agent support is architectural requirement per ADR-0006. | Added `AGENT_TYPE` env var to scripts 03-05. Default: `claude-code`. Usage: `AGENT_TYPE=copilot ./03-run-gather.sh` or `export AGENT_TYPE=copilot` for full workflow. | 03-run-gather.sh, 04-run-process.sh, 05-run-report.sh |
 
 **Types**: `gotcha` | `research-needed` | `unexpected-behavior` | `workaround` | `decision` | `debt` | `insight`
 
