@@ -1,7 +1,14 @@
+export { FakeAgentAdapter } from './fake-agent-adapter.js';
+export type { FakeAgentAdapterOptions } from './fake-agent-adapter.js';
 export { FakeConfigService } from './fake-config.service.js';
+export { FakeCopilotClient } from './fake-copilot-client.js';
+export type { FakeCopilotClientOptions } from './fake-copilot-client.js';
+export { FakeCopilotSession } from './fake-copilot-session.js';
+export type { FakeCopilotSessionOptions } from './fake-copilot-session.js';
 export { FakeLogger } from './fake-logger.js';
 export { FakeFileSystem } from './fake-filesystem.js';
 export { FakePathResolver } from './fake-path-resolver.js';
 export { FakeOutputAdapter } from './fake-output.adapter.js';
 export type { FormattedResult } from './fake-output.adapter.js';
 export { FakeHashGenerator } from './fake-hash-generator.js';
+export { FakeProcessManager } from './fake-process-manager.js';

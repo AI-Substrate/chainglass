@@ -7,6 +7,11 @@ export {
 
 // Schemas
 export {
+  AgentConfigSchema,
+  AgentConfigType,
+  type AgentConfig,
+} from './schemas/agent.schema.js';
+export {
   SampleConfigSchema,
   SampleConfigType,
   type SampleConfig,

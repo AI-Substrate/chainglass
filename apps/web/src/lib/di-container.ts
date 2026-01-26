@@ -10,12 +10,24 @@
 
 import 'reflect-metadata';
 import {
+  type AdapterFactory,
+  AgentService,
+  ClaudeCodeAdapter,
+  FakeAgentAdapter,
   FakeConfigService,
   FakeLogger,
+  FakeProcessManager,
+  type IAgentAdapter,
   type IConfigService,
   type ILogger,
+  type IProcessManager,
   PinoLoggerAdapter,
+  SdkCopilotAdapter,
+  UnixProcessManager,
+  WindowsProcessManager,
 } from '@chainglass/shared';
+// Phase 4: Import CopilotClient from SDK for production adapter
+import { CopilotClient } from '@github/copilot-sdk';
 import { type DependencyContainer, container } from 'tsyringe';
 import { SampleService } from '../services/sample.service.js';
 
@@ -24,6 +36,12 @@ export const DI_TOKENS = {
   LOGGER: 'ILogger',
   CONFIG: 'IConfigService',
   SAMPLE_SERVICE: 'SampleService',
+  PROCESS_MANAGER: 'IProcessManager',
+  AGENT_ADAPTER: 'IAgentAdapter',
+  CLAUDE_CODE_ADAPTER: 'ClaudeCodeAdapter',
+  COPILOT_CLIENT: 'CopilotClient', // Singleton SDK client
+  COPILOT_ADAPTER: 'CopilotAdapter',
+  AGENT_SERVICE: 'AgentService',
 } as const;
 
 /**
@@ -90,6 +108,73 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
     },
   });
 
+  // Per DYK-08: Register ClaudeCodeAdapter in app container for Phase 2
+  // Phase 3: Platform-appropriate ProcessManager implementation
+  // Uses UnixProcessManager on Linux/macOS, WindowsProcessManager on Windows
+  childContainer.register<IProcessManager>(DI_TOKENS.PROCESS_MANAGER, {
+    useFactory: (c) => {
+      const logger = c.resolve<ILogger>(DI_TOKENS.LOGGER);
+      if (process.platform === 'win32') {
+        return new WindowsProcessManager(logger);
+      }
+      return new UnixProcessManager(logger);
+    },
+  });
+
+  // Register ClaudeCodeAdapter as default AGENT_ADAPTER
+  childContainer.register<IAgentAdapter>(DI_TOKENS.AGENT_ADAPTER, {
+    useFactory: (c) => {
+      const processManager = c.resolve<IProcessManager>(DI_TOKENS.PROCESS_MANAGER);
+      const logger = c.resolve<ILogger>(DI_TOKENS.LOGGER);
+      return new ClaudeCodeAdapter(processManager, { logger });
+    },
+  });
+
+  // Per Phase 4: Also register named adapters for explicit selection
+  childContainer.register<IAgentAdapter>(DI_TOKENS.CLAUDE_CODE_ADAPTER, {
+    useFactory: (c) => {
+      const processManager = c.resolve<IProcessManager>(DI_TOKENS.PROCESS_MANAGER);
+      const logger = c.resolve<ILogger>(DI_TOKENS.LOGGER);
+      return new ClaudeCodeAdapter(processManager, { logger });
+    },
+  });
+
+  // Register CopilotClient as singleton to avoid repeated SDK client construction
+  // Per PR review feedback: reuse single instance for both COPILOT_ADAPTER and adapterFactory
+  childContainer.registerSingleton<CopilotClient>(DI_TOKENS.COPILOT_CLIENT, CopilotClient);
+
+  childContainer.register<IAgentAdapter>(DI_TOKENS.COPILOT_ADAPTER, {
+    useFactory: (c) => {
+      const logger = c.resolve<ILogger>(DI_TOKENS.LOGGER);
+      const client = c.resolve<CopilotClient>(DI_TOKENS.COPILOT_CLIENT);
+      return new SdkCopilotAdapter(client, { logger });
+    },
+  });
+
+  // Per Phase 5: Register AgentService with factory function for adapter selection
+  childContainer.register(DI_TOKENS.AGENT_SERVICE, {
+    useFactory: (c) => {
+      const logger = c.resolve<ILogger>(DI_TOKENS.LOGGER);
+      const cfg = c.resolve<IConfigService>(DI_TOKENS.CONFIG);
+      const processManager = c.resolve<IProcessManager>(DI_TOKENS.PROCESS_MANAGER);
+      const copilotClient = c.resolve<CopilotClient>(DI_TOKENS.COPILOT_CLIENT);
+
+      // Per DYK-02: Factory function for adapter selection
+      const adapterFactory: AdapterFactory = (agentType: string): IAgentAdapter => {
+        if (agentType === 'claude-code') {
+          return new ClaudeCodeAdapter(processManager, { logger });
+        }
+        if (agentType === 'copilot') {
+          // Reuse singleton CopilotClient to avoid repeated SDK client construction
+          return new SdkCopilotAdapter(copilotClient, { logger });
+        }
+        throw new Error(`Unknown agent type: ${agentType}`);
+      };
+
+      return new AgentService(adapterFactory, cfg, logger);
+    },
+  });
+
   // FIX-010: Performance metrics for container creation
   const durationMs = performance.now() - startTime;
   console.log(`[createProductionContainer] Container created in ${durationMs.toFixed(2)}ms`);
@@ -114,8 +199,10 @@ export function createTestContainer(): DependencyContainer {
 
   // Create FakeConfigService with default test config
   // Matches DEFAULT_FIXTURE_SAMPLE_CONFIG from service-test.fixture.ts
+  // Per Phase 5 DYK-05: Include agent config for AgentService
   const fakeConfig = new FakeConfigService({
     sample: { enabled: true, timeout: 30, name: 'test-fixture' },
+    agent: { timeout: 600000 }, // 10 minutes default
   });
 
   // Register test fakes
@@ -135,6 +222,38 @@ export function createTestContainer(): DependencyContainer {
       const logger = c.resolve<ILogger>(DI_TOKENS.LOGGER);
       const config = c.resolve<IConfigService>(DI_TOKENS.CONFIG);
       return new SampleService(logger, config);
+    },
+  });
+
+  // Per DYK-08: Register FakeAgentAdapter in test container
+  childContainer.register<IProcessManager>(DI_TOKENS.PROCESS_MANAGER, {
+    useFactory: () => new FakeProcessManager(),
+  });
+
+  childContainer.register<IAgentAdapter>(DI_TOKENS.AGENT_ADAPTER, {
+    useFactory: () =>
+      new FakeAgentAdapter({
+        sessionId: 'test-session',
+        output: 'Test output',
+        tokens: { used: 100, total: 100, limit: 200000 },
+      }),
+  });
+
+  // Per Phase 5: Register AgentService in test container with FakeAgentAdapter
+  childContainer.register(DI_TOKENS.AGENT_SERVICE, {
+    useFactory: (c) => {
+      const logger = c.resolve<ILogger>(DI_TOKENS.LOGGER);
+      const cfg = c.resolve<IConfigService>(DI_TOKENS.CONFIG);
+
+      // Test factory always returns FakeAgentAdapter
+      const adapterFactory: AdapterFactory = () =>
+        new FakeAgentAdapter({
+          sessionId: 'test-session',
+          output: 'Test output',
+          tokens: { used: 100, total: 100, limit: 200000 },
+        });
+
+      return new AgentService(adapterFactory, cfg, logger);
     },
   });
 
