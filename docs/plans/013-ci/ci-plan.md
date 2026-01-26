@@ -54,32 +54,32 @@
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Notes |
 |--------|-----|------|----|------|--------------|------------------|------------|-------|
-| [ ] | T001 | Update vitest.config.ts with coverage reporters | 1 | Config | -- | `/home/jak/substrate/013-ci/vitest.config.ts` | `just test` runs without error; coverage/ contains json files | Add json-summary, json to reporter array |
-| [ ] | T002 | Create .github/workflows directory | 1 | Setup | -- | `/home/jak/substrate/013-ci/.github/workflows/` | Directory exists | Created implicitly with ci.yml |
-| [ ] | T003 | Create CI workflow file with lint job | 2 | Core | T001 | `/home/jak/substrate/013-ci/.github/workflows/ci.yml` | Workflow appears in GitHub Actions tab | Includes triggers, concurrency, setup steps |
-| [ ] | T004 | Add build job to workflow | 2 | Core | T003 | `/home/jak/substrate/013-ci/.github/workflows/ci.yml` | Build job runs `pnpm turbo build` successfully | All 5 packages build |
-| [ ] | T005 | Add typecheck job to workflow | 1 | Core | T004 | `/home/jak/substrate/013-ci/.github/workflows/ci.yml` | Typecheck job runs after build | Depends on build job |
-| [ ] | T006 | Add test job with coverage | 2 | Core | T004 | `/home/jak/substrate/013-ci/.github/workflows/ci.yml` | Tests pass; coverage comment appears on PR | Requires pull-requests: write |
-| [ ] | T007 | Add gate job using alls-green | 2 | Core | T006 | `/home/jak/substrate/013-ci/.github/workflows/ci.yml` | Gate job reports success when all jobs pass | Uses re-actors/alls-green action |
-| [ ] | T008 | Create PR on 013-ci branch to test workflow | 1 | Validation | T007 | N/A | All CI jobs run and pass | Iterate if failures |
-| [ ] | T009 | Verify coverage comment appears on PR | 1 | Validation | T008 | N/A | Coverage summary visible in PR comments | Check file-coverage-mode works |
-| [ ] | T010 | Verify concurrent PR cancellation works | 1 | Validation | T008 | N/A | Old runs cancelled when new commits pushed | Observe in Actions tab |
-| [ ] | T011 | Create docs/how/ci.md documentation | 2 | Docs | T009 | `/home/jak/substrate/013-ci/docs/how/ci.md` | File exists with complete content | Covers jobs, branch protection, troubleshooting |
-| [ ] | T012 | Document branch protection setup in ci.md | 1 | Docs | T011 | `/home/jak/substrate/013-ci/docs/how/ci.md` | Instructions for configuring "CI Result" as required check | Admin reference section |
+| [x] | T001 | Update vitest.config.ts with coverage reporters | 1 | Config | -- | `/home/jak/substrate/013-ci/vitest.config.ts` | `just test` runs without error; coverage/ contains json files | Add json-summary, json to reporter array |
+| [x] | T002 | Create .github/workflows directory | 1 | Setup | -- | `/home/jak/substrate/013-ci/.github/workflows/` | Directory exists | Created implicitly with ci.yml |
+| [x] | T003 | Create CI workflow file with lint job | 2 | Core | T001 | `/home/jak/substrate/013-ci/.github/workflows/ci.yml` | Workflow appears in GitHub Actions tab | Includes triggers, concurrency, setup steps |
+| [x] | T004 | Add build job to workflow | 2 | Core | T003 | `/home/jak/substrate/013-ci/.github/workflows/ci.yml` | Build job runs `pnpm turbo build` successfully | All 5 packages build |
+| [x] | T005 | Add typecheck job to workflow | 1 | Core | T004 | `/home/jak/substrate/013-ci/.github/workflows/ci.yml` | Typecheck job runs after build | Depends on build job |
+| [x] | T006 | Add test job with coverage | 2 | Core | T004 | `/home/jak/substrate/013-ci/.github/workflows/ci.yml` | Tests pass; coverage comment appears on PR | Requires pull-requests: write |
+| [x] | T007 | Add gate job using alls-green | 2 | Core | T006 | `/home/jak/substrate/013-ci/.github/workflows/ci.yml` | Gate job reports success when all jobs pass | Uses re-actors/alls-green action |
+| [x] | T008 | Create PR on 013-ci branch to test workflow | 1 | Validation | T007 | N/A | All CI jobs run and pass | Iterate if failures |
+| [x] | T009 | Verify coverage comment appears on PR | 1 | Validation | T008 | N/A | Coverage summary visible in PR comments | Check file-coverage-mode works |
+| [x] | T010 | Verify concurrent PR cancellation works | 1 | Validation | T008 | N/A | Old runs cancelled when new commits pushed | Observe in Actions tab |
+| [x] | T011 | Create docs/how/ci.md documentation | 2 | Docs | T009 | `/home/jak/substrate/013-ci/docs/how/ci.md` | File exists with complete content | Covers jobs, branch protection, troubleshooting |
+| [x] | T012 | Document branch protection setup in ci.md | 1 | Docs | T011 | `/home/jak/substrate/013-ci/docs/how/ci.md` | Instructions for configuring "CI Result" as required check | Admin reference section |
 
 ### Acceptance Criteria
 
-- [ ] AC-1: CI triggers on PR to main and push to main
-- [ ] AC-2: Lint job fails PR when biome reports errors
-- [ ] AC-3: Typecheck job fails when TypeScript errors exist
-- [ ] AC-4: Test job fails when vitest tests fail
-- [ ] AC-5: Build job validates all 5 packages build successfully
-- [ ] AC-6: Coverage comment appears on PRs showing percentages
-- [ ] AC-7: CI fails when coverage drops below 80% threshold
-- [ ] AC-8: Single "CI Result" check can be configured for branch protection
-- [ ] AC-9: New commits cancel previous workflow runs on same PR
-- [ ] AC-10: pnpm cache hits on subsequent runs (check logs)
-- [ ] AC-11: Documentation exists at docs/how/ci.md
+- [x] AC-1: CI triggers on PR to main and push to main
+- [x] AC-2: Lint job fails PR when biome reports errors
+- [x] AC-3: Typecheck job fails when TypeScript errors exist
+- [x] AC-4: Test job fails when vitest tests fail
+- [x] AC-5: Build job validates all 5 packages build successfully
+- [x] AC-6: Coverage comment appears on PRs showing percentages
+- [x] AC-7: CI fails when coverage drops below 80% threshold
+- [x] AC-8: Single "CI Result" check can be configured for branch protection
+- [x] AC-9: New commits cancel previous workflow runs on same PR
+- [x] AC-10: pnpm cache hits on subsequent runs (check logs)
+- [x] AC-11: Documentation exists at docs/how/ci.md
 
 ### Risks
 

@@ -172,18 +172,18 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|-----|------|----|------|--------------|------------------|------------|----------|-------|
-| [ ] | T001 | Add json-summary and json reporters to vitest coverage config | 1 | Config | – | `/home/jak/substrate/013-ci/vitest.config.ts` | `just test` runs without error; coverage/ contains .json files | – | Line 38: add to reporter array |
-| [ ] | T002 | Create .github/workflows directory | 1 | Setup | – | `/home/jak/substrate/013-ci/.github/workflows/` | Directory exists | – | Created implicitly with ci.yml |
-| [ ] | T003 | Create CI workflow file with triggers, concurrency, and lint job | 2 | Core | T001, T002 | `/home/jak/substrate/013-ci/.github/workflows/ci.yml` | Workflow appears in GitHub Actions tab; lint job defined | – | Per Critical Finding 04: validate YAML in GitHub UI |
-| [ ] | T004 | Add build job to workflow | 2 | Core | T003 | `/home/jak/substrate/013-ci/.github/workflows/ci.yml` | Build job runs `pnpm turbo build` successfully | – | All 5 packages must build |
-| [ ] | T005 | Add typecheck job to workflow (depends on build) | 1 | Core | T004 | `/home/jak/substrate/013-ci/.github/workflows/ci.yml` | Typecheck job runs after build completes | – | Per turbo.json: typecheck dependsOn ^build |
-| [ ] | T006 | Add test job with coverage reporting | 2 | Core | T004 | `/home/jak/substrate/013-ci/.github/workflows/ci.yml` | Tests pass; coverage comment appears on PR | – | Per Critical Finding 07: requires pull-requests: write |
-| [ ] | T007 | Add gate job using re-actors/alls-green | 2 | Core | T005, T006 | `/home/jak/substrate/013-ci/.github/workflows/ci.yml` | Gate job reports success when all jobs pass | – | Per Critical Finding 08: single required check pattern |
-| [ ] | T008 | Push changes on 013-ci branch to trigger workflow | 1 | Validation | T007 | N/A | All CI jobs run and complete (pass or meaningful fail) | – | Iterate if syntax errors |
-| [ ] | T009 | Verify coverage comment appears on PR | 1 | Validation | T008 | N/A | Coverage summary visible in PR comments | – | Per Critical Finding 05: won't work on fork PRs |
-| [ ] | T010 | Verify concurrent PR cancellation works | 1 | Validation | T008 | N/A | Old runs cancelled when new commits pushed | – | Per Critical Finding 10: concurrency groups |
-| [ ] | T011 | Create docs/how/ci.md documentation | 2 | Docs | T009 | `/home/jak/substrate/013-ci/docs/how/ci.md` | File exists with complete content | – | Cover jobs, troubleshooting, interpreting coverage |
-| [ ] | T012 | Add branch protection setup instructions to ci.md | 1 | Docs | T011 | `/home/jak/substrate/013-ci/docs/how/ci.md` | Instructions for configuring "CI Result" as required check | – | Admin reference section |
+| [x] | T001 | Add json-summary and json reporters to vitest coverage config | 1 | Config | – | `/home/jak/substrate/013-ci/vitest.config.ts` | `just test` runs without error; coverage/ contains .json files | – | Line 38: add to reporter array |
+| [x] | T002 | Create .github/workflows directory | 1 | Setup | – | `/home/jak/substrate/013-ci/.github/workflows/` | Directory exists | – | Created implicitly with ci.yml |
+| [x] | T003 | Create CI workflow file with triggers, concurrency, and lint job | 2 | Core | T001, T002 | `/home/jak/substrate/013-ci/.github/workflows/ci.yml` | Workflow appears in GitHub Actions tab; lint job defined | – | Per Critical Finding 04: validate YAML in GitHub UI |
+| [x] | T004 | Add build job to workflow | 2 | Core | T003 | `/home/jak/substrate/013-ci/.github/workflows/ci.yml` | Build job runs `pnpm turbo build` successfully | – | All 5 packages must build |
+| [x] | T005 | Add typecheck job to workflow (depends on build) | 1 | Core | T004 | `/home/jak/substrate/013-ci/.github/workflows/ci.yml` | Typecheck job runs after build completes | – | Per turbo.json: typecheck dependsOn ^build |
+| [x] | T006 | Add test job with coverage reporting | 2 | Core | T004 | `/home/jak/substrate/013-ci/.github/workflows/ci.yml` | Tests pass; coverage comment appears on PR | – | Per Critical Finding 07: requires pull-requests: write |
+| [x] | T007 | Add gate job using re-actors/alls-green | 2 | Core | T005, T006 | `/home/jak/substrate/013-ci/.github/workflows/ci.yml` | Gate job reports success when all jobs pass | – | Per Critical Finding 08: single required check pattern |
+| [x] | T008 | Push changes on 013-ci branch to trigger workflow | 1 | Validation | T007 | N/A | All CI jobs run and complete (pass or meaningful fail) | – | Iterate if syntax errors |
+| [x] | T009 | Verify coverage comment appears on PR | 1 | Validation | T008 | N/A | Coverage summary visible in PR comments | – | Per Critical Finding 05: won't work on fork PRs |
+| [x] | T010 | Verify concurrent PR cancellation works | 1 | Validation | T008 | N/A | Old runs cancelled when new commits pushed | – | Per Critical Finding 10: concurrency groups |
+| [x] | T011 | Create docs/how/ci.md documentation | 2 | Docs | T009 | `/home/jak/substrate/013-ci/docs/how/ci.md` | File exists with complete content | – | Cover jobs, troubleshooting, interpreting coverage |
+| [x] | T012 | Add branch protection setup instructions to ci.md | 1 | Docs | T011 | `/home/jak/substrate/013-ci/docs/how/ci.md` | Instructions for configuring "CI Result" as required check | – | Admin reference section |
 
 ---
 
@@ -402,7 +402,11 @@ _Populated during implementation by plan-6. Log anything of interest to your fut
 
 | Date | Task | Type | Discovery | Resolution | References |
 |------|------|------|-----------|------------|------------|
-| | | | | | |
+| 2026-01-27 | T008 | gotcha | mcp-server imports @chainglass/workflow but doesn't declare it as dependency | Added workspace dependency to package.json | Run 21377001899 |
+| 2026-01-27 | T008 | gotcha | Test file had hardcoded absolute path from local dev machine | Changed to relative import path | Run 21377074816 |
+| 2026-01-27 | T008 | gotcha | Coverage JSON files in test/coverage/.tmp/ triggered biome lint errors | Added coverage dirs to biome.json ignore list | Run 21377326954 |
+| 2026-01-27 | T006 | gotcha | Vitest coverage outputs to test/coverage/ not coverage/ due to test.root config | Added explicit paths to coverage action | Run 21377326954 |
+| 2026-01-27 | T009 | insight | Coverage shows 0/0 when no files in coverage scope are modified | Expected behavior - coverage is scoped to apps/web/src/hooks/** | PR #12 comment |
 
 **Types**: `gotcha` | `research-needed` | `unexpected-behavior` | `workaround` | `decision` | `debt` | `insight`
 
