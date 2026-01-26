@@ -136,6 +136,11 @@ export async function POST(request: NextRequest): Promise<Response> {
     const rawBody = await request.json();
     body = AgentRunRequestSchema.parse(rawBody);
   } catch (error) {
+    // Handle JSON syntax errors (malformed JSON) - COR-001
+    if (error instanceof SyntaxError) {
+      return Response.json({ error: 'Invalid JSON in request body' }, { status: 400 });
+    }
+
     // Check for Zod validation errors (use name check for cross-module compatibility)
     const isZodError = error instanceof Error && error.name === 'ZodError' && 'errors' in error;
     const message = isZodError
@@ -203,13 +208,15 @@ export async function POST(request: NextRequest): Promise<Response> {
 
     return Response.json(response);
   } catch (error) {
-    // Broadcast error
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    // Log detailed error server-side only - SEC-001
+    console.error('[/api/agents/run] Agent execution failed:', error);
+
+    // Broadcast generic error to client (no sensitive details)
     sseManager.broadcast(channel, 'agent_error', {
       timestamp: new Date().toISOString(),
       data: {
         sessionId,
-        message: errorMessage,
+        message: 'Agent execution failed. Please try again.',
       },
     });
 
@@ -222,6 +229,6 @@ export async function POST(request: NextRequest): Promise<Response> {
       },
     });
 
-    return Response.json({ error: errorMessage }, { status: 500 });
+    return Response.json({ error: 'Agent execution failed' }, { status: 500 });
   }
 }

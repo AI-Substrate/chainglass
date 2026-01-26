@@ -193,6 +193,31 @@ describe('/api/agents/run', () => {
 
       expect(response.status).toBe(400);
     });
+
+    it('should reject malformed JSON - COR-001', async () => {
+      /*
+      Test Doc:
+      - Why: Prevent crashes from invalid JSON before Zod validation
+      - Contract: SyntaxError returns 400 with descriptive message
+      - Usage Notes: Handles edge case of malformed request body
+      - Quality Contribution: Proper error handling for all input types
+      - Worked Example: "{ invalid json }" → 400 "Invalid JSON in request body"
+      */
+      const { POST } = await import('../../../../../apps/web/app/api/agents/run/route');
+
+      // Create request with raw malformed JSON (not using createRequest helper)
+      const request = new NextRequest('http://localhost:3000/api/agents/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{ invalid json without quotes }',
+      });
+
+      const response = await POST(request);
+      const body = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(body.error).toContain('Invalid JSON');
+    });
   });
 
   describe('SSE event broadcasting', () => {

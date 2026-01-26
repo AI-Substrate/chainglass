@@ -138,6 +138,14 @@ export function useAgentSSE(
   const callbacksRef = useRef(callbacks);
   callbacksRef.current = callbacks;
 
+  // Store event handler references for cleanup - MEM-001
+  const handlersRef = useRef<{
+    textDelta?: (event: MessageEvent) => void;
+    status?: (event: MessageEvent) => void;
+    usage?: (event: MessageEvent) => void;
+    error?: (event: MessageEvent) => void;
+  }>({});
+
   /**
    * Connect to the SSE endpoint.
    */
@@ -154,9 +162,16 @@ export function useAgentSSE(
       reconnectTimeoutRef.current = null;
     }
 
-    // Close existing connection
+    // Close existing connection and remove old listeners - MEM-001
     if (eventSourceRef.current) {
-      eventSourceRef.current.close();
+      const es = eventSourceRef.current;
+      const handlers = handlersRef.current;
+      if (handlers.textDelta) es.removeEventListener('agent_text_delta', handlers.textDelta);
+      if (handlers.status) es.removeEventListener('agent_session_status', handlers.status);
+      if (handlers.usage) es.removeEventListener('agent_usage_update', handlers.usage);
+      if (handlers.error) es.removeEventListener('agent_error', handlers.error);
+      handlersRef.current = {};
+      es.close();
     }
 
     const url = `/api/events/${channel}`;
@@ -172,8 +187,8 @@ export function useAgentSSE(
       reconnectAttemptsRef.current = 0;
     };
 
-    // Listen for agent-specific event types
-    eventSource.addEventListener('agent_text_delta', (event) => {
+    // Listen for agent-specific event types - MEM-001: store handlers for cleanup
+    const handleTextDelta = (event: MessageEvent) => {
       console.log('[useAgentSSE] Received text_delta event');
       try {
         const parsed = JSON.parse(event.data) as AgentTextDeltaEvent;
@@ -181,9 +196,11 @@ export function useAgentSSE(
       } catch (e) {
         console.warn('useAgentSSE: Failed to parse text_delta event:', e);
       }
-    });
+    };
+    eventSource.addEventListener('agent_text_delta', handleTextDelta);
+    handlersRef.current.textDelta = handleTextDelta;
 
-    eventSource.addEventListener('agent_session_status', (event) => {
+    const handleStatus = (event: MessageEvent) => {
       console.log('[useAgentSSE] Received session_status event:', event.data);
       try {
         const parsed = JSON.parse(event.data) as AgentSessionStatusEvent;
@@ -191,9 +208,11 @@ export function useAgentSSE(
       } catch (e) {
         console.warn('useAgentSSE: Failed to parse session_status event:', e);
       }
-    });
+    };
+    eventSource.addEventListener('agent_session_status', handleStatus);
+    handlersRef.current.status = handleStatus;
 
-    eventSource.addEventListener('agent_usage_update', (event) => {
+    const handleUsage = (event: MessageEvent) => {
       try {
         const parsed = JSON.parse(event.data) as AgentUsageUpdateEvent;
         callbacksRef.current.onUsageUpdate?.(
@@ -207,9 +226,11 @@ export function useAgentSSE(
       } catch (e) {
         console.warn('useAgentSSE: Failed to parse usage_update event:', e);
       }
-    });
+    };
+    eventSource.addEventListener('agent_usage_update', handleUsage);
+    handlersRef.current.usage = handleUsage;
 
-    eventSource.addEventListener('agent_error', (event) => {
+    const handleError = (event: MessageEvent) => {
       try {
         const parsed = JSON.parse(event.data) as AgentErrorEvent;
         callbacksRef.current.onError?.(
@@ -220,7 +241,9 @@ export function useAgentSSE(
       } catch (e) {
         console.warn('useAgentSSE: Failed to parse error event:', e);
       }
-    });
+    };
+    eventSource.addEventListener('agent_error', handleError);
+    handlersRef.current.error = handleError;
 
     eventSource.onerror = (err) => {
       console.log('[useAgentSSE] Connection error:', err);
@@ -247,7 +270,15 @@ export function useAgentSSE(
       reconnectTimeoutRef.current = null;
     }
     if (eventSourceRef.current) {
-      eventSourceRef.current.close();
+      // Remove event listeners before closing - MEM-001
+      const es = eventSourceRef.current;
+      const handlers = handlersRef.current;
+      if (handlers.textDelta) es.removeEventListener('agent_text_delta', handlers.textDelta);
+      if (handlers.status) es.removeEventListener('agent_session_status', handlers.status);
+      if (handlers.usage) es.removeEventListener('agent_usage_update', handlers.usage);
+      if (handlers.error) es.removeEventListener('agent_error', handlers.error);
+      handlersRef.current = {};
+      es.close();
       eventSourceRef.current = null;
     }
     setIsConnected(false);
