@@ -275,10 +275,15 @@ export class WorkflowAdapter implements IWorkflowAdapter {
     }
 
     // Sort by creation date descending (newest first)
+    // Per Critical Insight 5: runId tiebreaker for stable sorting
     runs.sort((a, b) => {
       const dateA = a.run?.createdAt.getTime() ?? 0;
       const dateB = b.run?.createdAt.getTime() ?? 0;
-      return dateB - dateA;
+      const dateDiff = dateB - dateA;
+      if (dateDiff !== 0) return dateDiff;
+      const runIdA = a.run?.runId ?? '';
+      const runIdB = b.run?.runId ?? '';
+      return runIdA.localeCompare(runIdB);
     });
 
     // Apply limit if specified

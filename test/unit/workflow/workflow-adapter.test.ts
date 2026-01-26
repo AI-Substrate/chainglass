@@ -724,6 +724,29 @@ describe('WorkflowAdapter', () => {
       expect(runs).toHaveLength(2);
     });
 
+    it('should use runId tiebreaker for stable sorting when dates are equal', async () => {
+      /*
+      Test Doc:
+      - Why: Per Critical Insight 5, sorting must be stable with name-based tiebreaker
+      - Contract: Runs with same createdAt are sorted by runId ascending
+      - Usage Notes: Ensures deterministic ordering for UI and testing
+      - Quality Contribution: Verifies stable sort per DYK session decision
+      - Worked Example: Same timestamp → sorted by runId alphabetically
+      */
+      const sameTimestamp = '2026-01-25T12:00:00Z';
+      createRun('run-c', 'active', sameTimestamp);
+      createRun('run-a', 'active', sameTimestamp);
+      createRun('run-b', 'active', sameTimestamp);
+
+      const runs = await adapter.listRuns(SLUG);
+
+      expect(runs).toHaveLength(3);
+      // Same date → sorted by runId alphabetically
+      expect(runs[0].run?.runId).toBe('run-a');
+      expect(runs[1].run?.runId).toBe('run-b');
+      expect(runs[2].run?.runId).toBe('run-c');
+    });
+
     it('should combine multiple filters (AND)', async () => {
       /*
       Test Doc:
