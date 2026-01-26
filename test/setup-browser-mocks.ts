@@ -9,6 +9,33 @@ import { vi } from 'vitest';
 
 // Only apply browser mocks in jsdom environment
 if (typeof window !== 'undefined') {
+  // localStorage mock (FakeLocalStorage for consistency)
+  const localStorageData: Map<string, string> = new Map();
+  const localStorageMock: Storage = {
+    get length() {
+      return localStorageData.size;
+    },
+    getItem(key: string) {
+      return localStorageData.get(key) ?? null;
+    },
+    setItem(key: string, value: string) {
+      localStorageData.set(key, value);
+    },
+    removeItem(key: string) {
+      localStorageData.delete(key);
+    },
+    clear() {
+      localStorageData.clear();
+    },
+    key(index: number) {
+      const keys = Array.from(localStorageData.keys());
+      return keys[index] ?? null;
+    },
+  };
+  Object.defineProperty(window, 'localStorage', {
+    value: localStorageMock,
+    writable: true,
+  });
   // ResizeObserver mock (required by ReactFlow, dnd-kit, etc.)
   global.ResizeObserver = vi.fn().mockImplementation(() => ({
     observe: vi.fn(),

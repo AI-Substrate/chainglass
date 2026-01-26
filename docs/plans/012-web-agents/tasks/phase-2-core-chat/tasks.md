@@ -121,21 +121,21 @@ flowchart TD
 
         subgraph Hooks["State Management (T001-T004)"]
             T001["T001: sessionReducer tests ✓"]:::completed
-            T002["T002: sessionReducer"]:::inprogress
-            T003["T003: useAgentSession tests"]:::pending
-            T004["T004: useAgentSession"]:::pending
+            T002["T002: sessionReducer ✓"]:::completed
+            T003["T003: useAgentSession tests ✓"]:::completed
+            T004["T004: useAgentSession ✓"]:::completed
             T001 --> T002 --> T003 --> T004
         end
 
         subgraph Core["Core Components (T005-T012)"]
-            T005["T005: AgentChatInput tests"]:::pending
-            T006["T006: AgentChatInput"]:::pending
-            T007["T007: LogEntry tests"]:::pending
-            T008["T008: LogEntry"]:::pending
-            T009["T009: StatusIndicator tests"]:::pending
-            T010["T010: StatusIndicator"]:::pending
-            T011["T011: ContextWindow tests"]:::pending
-            T012["T012: ContextWindow"]:::pending
+            T005["T005: AgentChatInput tests ✓"]:::completed
+            T006["T006: AgentChatInput ✓"]:::completed
+            T007["T007: LogEntry tests ✓"]:::completed
+            T008["T008: LogEntry ✓"]:::completed
+            T009["T009: StatusIndicator tests ✓"]:::completed
+            T010["T010: StatusIndicator ✓"]:::completed
+            T011["T011: ContextWindow tests ✓"]:::completed
+            T012["T012: ContextWindow ✓"]:::completed
 
             T005 --> T006
             T007 --> T008
@@ -144,13 +144,13 @@ flowchart TD
         end
 
         subgraph Page["Standalone Page (T013-T019)"]
-            T013["T013: CreationForm tests"]:::pending
-            T014["T014: CreationForm"]:::pending
-            T015["T015: AgentListView tests"]:::pending
-            T016["T016: AgentListView"]:::pending
-            T017["T017: /agents page tests"]:::pending
-            T018["T018: /agents page"]:::pending
-            T019["T019: Navigation"]:::pending
+            T013["T013: CreationForm tests ✓"]:::completed
+            T014["T014: CreationForm ✓"]:::completed
+            T015["T015: AgentListView tests ✓"]:::completed
+            T016["T016: AgentListView ✓"]:::completed
+            T017["T017: /agents page tests ✓"]:::completed
+            T018["T018: /agents page ✓"]:::completed
+            T019["T019: Navigation ✓"]:::completed
 
             T013 --> T014
             T015 --> T016
@@ -175,24 +175,24 @@ flowchart TD
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
 | T001 | sessionReducer Tests | `/test/unit/web/hooks/useAgentSession.test.ts` | ✅ Complete | TDD RED: 23 tests written |
-| T002 | sessionReducer | `/apps/web/src/hooks/useAgentSession.ts` | 🟧 In Progress | TDD GREEN: pure reducer |
-| T003 | useAgentSession Tests | `/test/unit/web/hooks/useAgentSession.test.ts` | ⬜ Pending | TDD RED: hook integration |
-| T004 | useAgentSession | `/apps/web/src/hooks/useAgentSession.ts` | ⬜ Pending | TDD GREEN: hook + SSE |
-| T005 | AgentChatInput Tests | `/test/unit/web/components/agents/agent-chat-input.test.tsx` | ⬜ Pending | TDD RED: input behavior |
-| T006 | AgentChatInput | `/apps/web/src/components/agents/agent-chat-input.tsx` | ⬜ Pending | TDD GREEN: Cmd+Enter submit |
-| T007 | LogEntry Tests | `/test/unit/web/components/agents/log-entry.test.tsx` | ⬜ Pending | TDD RED: terminal-style |
-| T008 | LogEntry | `/apps/web/src/components/agents/log-entry.tsx` | ⬜ Pending | TDD GREEN: message rendering |
-| T009 | AgentStatusIndicator Tests | `/test/unit/web/components/agents/agent-status-indicator.test.tsx` | ⬜ Pending | TDD RED: colors |
-| T010 | AgentStatusIndicator | `/apps/web/src/components/agents/agent-status-indicator.tsx` | ⬜ Pending | TDD GREEN: status badge |
-| T011 | ContextWindowDisplay Tests | `/test/unit/web/components/agents/context-window-display.test.tsx` | ⬜ Pending | TDD RED: progress bar |
-| T012 | ContextWindowDisplay | `/apps/web/src/components/agents/context-window-display.tsx` | ⬜ Pending | TDD GREEN: usage display |
-| T013 | AgentCreationForm Tests | `/test/unit/web/components/agents/agent-creation-form.test.tsx` | ⬜ Pending | TDD RED: form |
-| T014 | AgentCreationForm | `/apps/web/src/components/agents/agent-creation-form.tsx` | ⬜ Pending | TDD GREEN: name + type |
-| T015 | AgentListView Tests | `/test/unit/web/components/agents/agent-list-view.test.tsx` | ⬜ Pending | TDD RED: list |
-| T016 | AgentListView | `/apps/web/src/components/agents/agent-list-view.tsx` | ⬜ Pending | TDD GREEN: session list |
-| T017 | /agents Page Tests | `/test/unit/web/app/agents/page.test.tsx` | ⬜ Pending | TDD RED: integration |
-| T018 | /agents Page | `/apps/web/app/(dashboard)/agents/page.tsx` | ⬜ Pending | TDD GREEN: standalone page |
-| T019 | Navigation Update | `/apps/web/src/components/layout/` | ⬜ Pending | Add Agents link |
+| T002 | sessionReducer | `/apps/web/src/hooks/useAgentSession.ts` | ✅ Complete | TDD GREEN: 23 tests pass |
+| T003 | useAgentSession Tests | `/test/unit/web/hooks/useAgentSession.test.ts` | ✅ Complete | TDD RED: 9 hook tests |
+| T004 | useAgentSession | `/apps/web/src/hooks/useAgentSession.ts` | ✅ Complete | TDD GREEN: 32 tests pass |
+| T005 | AgentChatInput Tests | `/test/unit/web/components/agents/agent-chat-input.test.tsx` | ✅ Complete | TDD RED: 14 tests written |
+| T006 | AgentChatInput | `/apps/web/src/components/agents/agent-chat-input.tsx` | ✅ Complete | TDD GREEN: 14 tests pass |
+| T007 | LogEntry Tests | `/test/unit/web/components/agents/log-entry.test.tsx` | ✅ Complete | TDD RED: 10 tests written |
+| T008 | LogEntry | `/apps/web/src/components/agents/log-entry.tsx` | ✅ Complete | TDD GREEN: 10 tests pass |
+| T009 | AgentStatusIndicator Tests | `/test/unit/web/components/agents/agent-status-indicator.test.tsx` | ✅ Complete | TDD RED+GREEN: 7 tests |
+| T010 | AgentStatusIndicator | `/apps/web/src/components/agents/agent-status-indicator.tsx` | ✅ Complete | TDD GREEN: 7 tests pass |
+| T011 | ContextWindowDisplay Tests | `/test/unit/web/components/agents/context-window-display.test.tsx` | ✅ Complete | TDD RED+GREEN: 8 tests |
+| T012 | ContextWindowDisplay | `/apps/web/src/components/agents/context-window-display.tsx` | ✅ Complete | TDD GREEN: 8 tests pass |
+| T013 | AgentCreationForm Tests | `/test/unit/web/components/agents/agent-creation-form.test.tsx` | ✅ Complete | TDD RED+GREEN: 9 tests |
+| T014 | AgentCreationForm | `/apps/web/src/components/agents/agent-creation-form.tsx` | ✅ Complete | TDD GREEN: 9 tests pass |
+| T015 | AgentListView Tests | `/test/unit/web/components/agents/agent-list-view.test.tsx` | ✅ Complete | TDD RED+GREEN: 7 tests |
+| T016 | AgentListView | `/apps/web/src/components/agents/agent-list-view.tsx` | ✅ Complete | TDD GREEN: 7 tests pass |
+| T017 | /agents Page Tests | `/test/unit/web/app/agents/page.test.tsx` | ✅ Complete | TDD RED+GREEN: 5 tests |
+| T018 | /agents Page | `/apps/web/app/(dashboard)/agents/page.tsx` | ✅ Complete | TDD GREEN: 5 tests pass |
+| T019 | Navigation Update | `/apps/web/src/lib/navigation-utils.ts` | ✅ Complete | Agents in NAV_ITEMS |
 
 ---
 
@@ -201,24 +201,24 @@ flowchart TD
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|------|------|----|------|--------------|------------------|------------|----------|-------|
 | [x] | T001 | Write tests for `sessionReducer` state transitions | 3 | Test | – | `/home/jak/substrate/007-manage-workflows/test/unit/web/hooks/useAgentSession.test.ts` | Tests cover: all action types (START_RUN, APPEND_DELTA, UPDATE_STATUS, COMPLETE_RUN, SET_ERROR, CLEAR_ERROR), invalid transitions rejected (same ref returned), merge-not-replace for deltas | – | Per HF-08: merge-not-replace pattern |
-| [~] | T002 | Implement `sessionReducer` | 2 | Core | T001 | `/home/jak/substrate/007-manage-workflows/apps/web/src/hooks/useAgentSession.ts` | All T001 tests pass; pure function with state machine transitions; handles concurrent SSE events safely | – | States: idle, running, completed, error (no waiting_input) |
-| [ ] | T003 | Write tests for `useAgentSession` hook | 2 | Test | T002 | `/home/jak/substrate/007-manage-workflows/test/unit/web/hooks/useAgentSession.test.ts` | Tests cover: action dispatch, state updates via reducer, memoization (dispatch stable across renders), integration with session store | – | Uses renderHook |
-| [ ] | T004 | Implement `useAgentSession` hook | 2 | Core | T003 | `/home/jak/substrate/007-manage-workflows/apps/web/src/hooks/useAgentSession.ts` | All T003 tests pass; wraps sessionReducer; dispatch is memoized; loads from AgentSessionStore (Phase 1) | – | |
-| [ ] | T005 | Write tests for `AgentChatInput` component | 2 | Test | T004 | `/home/jak/substrate/007-manage-workflows/test/unit/web/components/agents/agent-chat-input.test.tsx` | Tests cover: Cmd/Ctrl+Enter submits, button click submits, empty input disabled, Tab navigation, ARIA labels | – | Follows prototype pattern |
-| [ ] | T006 | Implement `AgentChatInput` component | 2 | Core | T005 | `/home/jak/substrate/007-manage-workflows/apps/web/src/components/agents/agent-chat-input.tsx` | All T005 tests pass; textarea with Cmd/Ctrl+Enter shortcut; keyboard hint in footer | – | Based on prototype |
-| [ ] | T007 | Write tests for `LogEntry` (StreamingMessage) component | 2 | Test | T004 | `/home/jak/substrate/007-manage-workflows/test/unit/web/components/agents/log-entry.test.tsx` | Tests cover: user/assistant/tool/system rendering, streaming indicator, tool expansion, markdown rendering | – | Terminal-style design |
-| [ ] | T008 | Implement `LogEntry` component | 2 | Core | T007 | `/home/jak/substrate/007-manage-workflows/apps/web/src/components/agents/log-entry.tsx` | All T007 tests pass; terminal-style rendering; reuses MarkdownServer for content | – | Based on prototype LogEntry |
-| [ ] | T009 | Write tests for `AgentStatusIndicator` component | 1 | Test | – | `/home/jak/substrate/007-manage-workflows/test/unit/web/components/agents/agent-status-indicator.test.tsx` | Tests cover: status states (idle, running, completed, error), color mapping (running=blue, idle=gray, error=red), ARIA live region | – | No waiting_input status |
-| [ ] | T010 | Implement `AgentStatusIndicator` component | 1 | Core | T009 | `/home/jak/substrate/007-manage-workflows/apps/web/src/components/agents/agent-status-indicator.tsx` | All T009 tests pass; color-coded status with pulsing animation for running | – | |
-| [ ] | T011 | Write tests for `ContextWindowDisplay` | 1 | Test | – | `/home/jak/substrate/007-manage-workflows/test/unit/web/components/agents/context-window-display.test.tsx` | Tests cover: percentage, warning at >75%, critical at >90%, unavailable graceful | – | |
-| [ ] | T012 | Implement `ContextWindowDisplay` component | 1 | Core | T011 | `/home/jak/substrate/007-manage-workflows/apps/web/src/components/agents/context-window-display.tsx` | All T011 tests pass; compact progress bar with colors | – | Based on prototype |
-| [ ] | T013 | Write tests for `AgentCreationForm` | 2 | Test | – | `/home/jak/substrate/007-manage-workflows/test/unit/web/components/agents/agent-creation-form.test.tsx` | Tests cover: name input, agent type selector, form submission, validation | – | Standalone page feature |
-| [ ] | T014 | Implement `AgentCreationForm` component | 2 | Core | T013 | `/home/jak/substrate/007-manage-workflows/apps/web/src/components/agents/agent-creation-form.tsx` | All T013 tests pass; name input + agent type dropdown; calls onCreate callback | – | |
-| [ ] | T015 | Write tests for `AgentListView` | 2 | Test | T010 | `/home/jak/substrate/007-manage-workflows/test/unit/web/components/agents/agent-list-view.test.tsx` | Tests cover: list rendering, click to select, active indicator, empty state | – | Standalone page feature |
-| [ ] | T016 | Implement `AgentListView` component | 2 | Core | T015 | `/home/jak/substrate/007-manage-workflows/apps/web/src/components/agents/agent-list-view.tsx` | All T015 tests pass; shows all sessions with status, click to switch | – | |
-| [ ] | T017 | Write tests for `/agents` page | 3 | Test | T006, T008, T012, T014, T016 | `/home/jak/substrate/007-manage-workflows/test/unit/web/app/agents/page.test.tsx` | Tests cover: page renders, list + chat view integration, creation flow | – | Integration test |
-| [ ] | T018 | Implement `/agents` route and page | 3 | Core | T017 | `/home/jak/substrate/007-manage-workflows/apps/web/app/(dashboard)/agents/page.tsx` | All T017 tests pass; standalone agents page with list, creation, chat view | – | Main deliverable |
-| [ ] | T019 | Add Agents to main navigation | 1 | Core | T018 | `/home/jak/substrate/007-manage-workflows/apps/web/src/components/layout/` | Agents link visible in sidebar/nav; navigates to /agents | – | |
+| [x] | T002 | Implement `sessionReducer` | 2 | Core | T001 | `/home/jak/substrate/007-manage-workflows/apps/web/src/hooks/useAgentSession.ts` | All T001 tests pass; pure function with state machine transitions; handles concurrent SSE events safely | – | States: idle, running, completed, error (no waiting_input) |
+| [x] | T003 | Write tests for `useAgentSession` hook | 2 | Test | T002 | `/home/jak/substrate/007-manage-workflows/test/unit/web/hooks/useAgentSession.test.ts` | Tests cover: action dispatch, state updates via reducer, memoization (dispatch stable across renders), integration with session store | – | Uses renderHook |
+| [x] | T004 | Implement `useAgentSession` hook | 2 | Core | T003 | `/home/jak/substrate/007-manage-workflows/apps/web/src/hooks/useAgentSession.ts` | All T003 tests pass; wraps sessionReducer; dispatch is memoized; loads from AgentSessionStore (Phase 1) | – | |
+| [x] | T005 | Write tests for `AgentChatInput` component | 2 | Test | T004 | `/home/jak/substrate/007-manage-workflows/test/unit/web/components/agents/agent-chat-input.test.tsx` | Tests cover: Cmd/Ctrl+Enter submits, button click submits, empty input disabled, Tab navigation, ARIA labels | – | Follows prototype pattern |
+| [x] | T006 | Implement `AgentChatInput` component | 2 | Core | T005 | `/home/jak/substrate/007-manage-workflows/apps/web/src/components/agents/agent-chat-input.tsx` | All T005 tests pass; textarea with Cmd/Ctrl+Enter shortcut; keyboard hint in footer | – | Based on prototype |
+| [x] | T007 | Write tests for `LogEntry` (StreamingMessage) component | 2 | Test | T004 | `/home/jak/substrate/007-manage-workflows/test/unit/web/components/agents/log-entry.test.tsx` | Tests cover: user/assistant/tool/system rendering, streaming indicator, tool expansion, markdown rendering | – | Terminal-style design |
+| [x] | T008 | Implement `LogEntry` component | 2 | Core | T007 | `/home/jak/substrate/007-manage-workflows/apps/web/src/components/agents/log-entry.tsx` | All T007 tests pass; terminal-style rendering; reuses MarkdownServer for content | – | Based on prototype LogEntry |
+| [x] | T009 | Write tests for `AgentStatusIndicator` component | 1 | Test | – | `/home/jak/substrate/007-manage-workflows/test/unit/web/components/agents/agent-status-indicator.test.tsx` | Tests cover: status states (idle, running, completed, error), color mapping (running=blue, idle=gray, error=red), ARIA live region | – | No waiting_input status |
+| [x] | T010 | Implement `AgentStatusIndicator` component | 1 | Core | T009 | `/home/jak/substrate/007-manage-workflows/apps/web/src/components/agents/agent-status-indicator.tsx` | All T009 tests pass; color-coded status with pulsing animation for running | – | |
+| [x] | T011 | Write tests for `ContextWindowDisplay` | 1 | Test | – | `/home/jak/substrate/007-manage-workflows/test/unit/web/components/agents/context-window-display.test.tsx` | Tests cover: percentage, warning at >75%, critical at >90%, unavailable graceful | – | |
+| [x] | T012 | Implement `ContextWindowDisplay` component | 1 | Core | T011 | `/home/jak/substrate/007-manage-workflows/apps/web/src/components/agents/context-window-display.tsx` | All T011 tests pass; compact progress bar with colors | – | Based on prototype |
+| [x] | T013 | Write tests for `AgentCreationForm` | 2 | Test | – | `/home/jak/substrate/007-manage-workflows/test/unit/web/components/agents/agent-creation-form.test.tsx` | Tests cover: name input, agent type selector, form submission, validation | – | Standalone page feature |
+| [x] | T014 | Implement `AgentCreationForm` component | 2 | Core | T013 | `/home/jak/substrate/007-manage-workflows/apps/web/src/components/agents/agent-creation-form.tsx` | All T013 tests pass; name input + agent type dropdown; calls onCreate callback | – | |
+| [x] | T015 | Write tests for `AgentListView` | 2 | Test | T010 | `/home/jak/substrate/007-manage-workflows/test/unit/web/components/agents/agent-list-view.test.tsx` | Tests cover: list rendering, click to select, active indicator, empty state | – | Standalone page feature |
+| [x] | T016 | Implement `AgentListView` component | 2 | Core | T015 | `/home/jak/substrate/007-manage-workflows/apps/web/src/components/agents/agent-list-view.tsx` | All T015 tests pass; shows all sessions with status, click to switch | – | |
+| [x] | T017 | Write tests for `/agents` page | 3 | Test | T006, T008, T012, T014, T016 | `/home/jak/substrate/007-manage-workflows/test/unit/web/app/agents/page.test.tsx` | Tests cover: page renders, list + chat view integration, creation flow | – | Integration test |
+| [x] | T018 | Implement `/agents` route and page | 3 | Core | T017 | `/home/jak/substrate/007-manage-workflows/apps/web/app/(dashboard)/agents/page.tsx` | All T017 tests pass; standalone agents page with list, creation, chat view | 001-subtask-real-agent-integration | Main deliverable (stub responses → real via subtask) |
+| [x] | T019 | Add Agents to main navigation | 1 | Core | T018 | `/home/jak/substrate/007-manage-workflows/apps/web/src/components/layout/` | Agents link visible in sidebar/nav; navigates to /agents | – | |
 
 ---
 
@@ -821,11 +821,22 @@ pnpm test test/unit/web/schemas/agent-*.test.ts test/unit/web/stores/agent-*.tes
 
 ## Phase Footnote Stubs
 
-<!-- Footnote entries will be added by plan-6 during implementation -->
-
 | Footnote | Task | Description | Date |
 |----------|------|-------------|------|
-| | | | |
+| [^1] | T001 | sessionReducer test suite (23 tests) | 2026-01-26 |
+| [^2] | T002 | sessionReducer implementation | 2026-01-26 |
+| [^3] | T003 | useAgentSession hook tests (9 tests) | 2026-01-26 |
+| [^4] | T004 | useAgentSession hook implementation | 2026-01-26 |
+| [^5] | T005 | AgentChatInput tests (14 tests) | 2026-01-26 |
+| [^6] | T006 | AgentChatInput component | 2026-01-26 |
+| [^7] | T007 | LogEntry tests (10 tests) | 2026-01-26 |
+| [^8] | T008 | LogEntry component | 2026-01-26 |
+| [^9] | T009 | AgentStatusIndicator tests (7 tests) | 2026-01-26 |
+| [^10] | T010 | AgentStatusIndicator component | 2026-01-26 |
+| [^11] | T011-T017 | ContextWindowDisplay, AgentCreationForm, AgentListView, Page tests | 2026-01-26 |
+| [^12] | T018 | /agents page implementation | 2026-01-26 |
+| [^13] | T013 | ContextWindowDisplay tests (8 tests) | 2026-01-26 |
+| [^14] | T014+T019 | ContextWindowDisplay + Navigation update | 2026-01-26 |
 
 ---
 
@@ -845,7 +856,10 @@ _Populated during implementation by plan-6. Log anything of interest to your fut
 
 | Date | Task | Type | Discovery | Resolution | References |
 |------|------|------|-----------|------------|------------|
-| | | | | | |
+| 2026-01-26 | T018 | decision | Page uses simulated/stub agent responses, not real SSE connection | Defer real agent integration to subtask; allows UI testing without backend | execution.log.md |
+| 2026-01-26 | T017 | workaround | jsdom lacks localStorage; page tests failed | Added localStorage mock to `test/setup-browser-mocks.ts` | execution.log.md |
+| 2026-01-26 | T017 | gotcha | Import paths: `@/` alias doesn't cover `app/` directory | Used relative import path in tests | page.test.tsx |
+| 2026-01-26 | T015 | gotcha | Multiple elements matched `/running/i` (status badge + session name) | Changed to `getByRole('status')` for specificity | agent-list-view.test.tsx |
 
 **Types**: `gotcha` | `research-needed` | `unexpected-behavior` | `workaround` | `decision` | `debt` | `insight`
 
@@ -886,5 +900,6 @@ docs/plans/012-web-agents/
 
 **Dossier Created**: 2026-01-26
 **Phase**: 2 of 5 (Core Chat)
-**Phase Status**: ⏳ PENDING
-**Next Step**: Await human **GO**, then run `/plan-6-implement-phase --phase "Phase 2: Core Chat" --plan "/home/jak/substrate/007-manage-workflows/docs/plans/012-web-agents/web-agents-plan.md"`
+**Phase Status**: ✅ COMPLETE (2026-01-26)
+**Results**: 19 tasks completed, 92 tests passing, all components implemented
+**Next Step**: Create subtask for real agent integration (current page uses simulated responses)

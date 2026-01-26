@@ -7,8 +7,15 @@
  * Part of Plan 012: Multi-Agent Web UI (Phase 2: Core Chat)
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
-import type { AgentSession, SessionStatus, AgentMessage } from '@/lib/schemas/agent-session.schema';
+import {
+  type SessionAction,
+  type SessionState,
+  createSessionState,
+  sessionReducer,
+  useAgentSession,
+} from '@/hooks/useAgentSession';
+import type { AgentMessage, AgentSession, SessionStatus } from '@/lib/schemas/agent-session.schema';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 // ============ Test Helpers ============
 
@@ -41,50 +48,7 @@ function createTestMessage(overrides: Partial<AgentMessage> = {}): AgentMessage 
   };
 }
 
-// ============ Types (to be implemented in T002) ============
-
-/**
- * Session reducer action types.
- * These will be exported from useAgentSession.ts in T002.
- */
-type SessionAction =
-  | { type: 'START_RUN' }
-  | { type: 'STOP_RUN' }
-  | { type: 'COMPLETE_RUN' }
-  | { type: 'APPEND_DELTA'; delta: string }
-  | { type: 'ADD_MESSAGE'; message: AgentMessage }
-  | { type: 'UPDATE_STATUS'; status: SessionStatus }
-  | { type: 'SET_ERROR'; error: { message: string; code?: string } }
-  | { type: 'CLEAR_ERROR' }
-  | { type: 'UPDATE_CONTEXT_USAGE'; usage: number };
-
-/**
- * Session state for the reducer.
- * Extends AgentSession with error field.
- */
-interface SessionState extends AgentSession {
-  error: { message: string; code?: string } | null;
-  streamingContent: string; // Accumulated streaming text before being added as message
-}
-
-// Placeholder for the reducer - will be imported from implementation in T002
-// For now, we define a stub that allows tests to compile
-function sessionReducer(state: SessionState, action: SessionAction): SessionState {
-  // This is a stub - actual implementation will be in T002
-  // Tests will fail (RED) until T002 is complete
-  throw new Error('sessionReducer not implemented - T002 pending');
-}
-
-/**
- * Creates initial session state from an AgentSession.
- */
-function createSessionState(session: AgentSession): SessionState {
-  return {
-    ...session,
-    error: null,
-    streamingContent: '',
-  };
-}
+// Types imported from implementation above
 
 // ============ T001: sessionReducer Tests ============
 
@@ -340,9 +304,7 @@ describe('sessionReducer', () => {
       - Worked Example: [msg1] + ADD_MESSAGE(msg2) → [msg1, msg2]
       */
       const existingMsg = createTestMessage({ role: 'user', content: 'First' });
-      const initialState = createSessionState(
-        createTestSession({ messages: [existingMsg] })
-      );
+      const initialState = createSessionState(createTestSession({ messages: [existingMsg] }));
       const newMsg = createTestMessage({ role: 'assistant', content: 'Response' });
 
       const result = sessionReducer(initialState, { type: 'ADD_MESSAGE', message: newMsg });
@@ -379,7 +341,13 @@ describe('sessionReducer', () => {
       - Quality Contribution: Full status coverage
       - Worked Example: transitions to all statuses work
       */
-      const statuses: SessionStatus[] = ['idle', 'running', 'waiting_input', 'completed', 'archived'];
+      const statuses: SessionStatus[] = [
+        'idle',
+        'running',
+        'waiting_input',
+        'completed',
+        'archived',
+      ];
 
       for (const status of statuses) {
         const initialState = createSessionState(createTestSession({ status: 'idle' }));
@@ -518,6 +486,223 @@ describe('sessionReducer', () => {
       sessionReducer(original, { type: 'START_RUN' });
 
       expect(JSON.stringify(original)).toBe(originalJSON);
+    });
+  });
+});
+
+// ============ T003: useAgentSession Hook Tests ============
+
+import { AgentSessionStore } from '@/lib/stores/agent-session.store';
+import { FakeLocalStorage } from '@test/fakes/fake-local-storage';
+import { act, renderHook } from '@testing-library/react';
+
+// useAgentSession is imported from implementation above
+
+describe('useAgentSession hook', () => {
+  let fakeStorage: FakeLocalStorage;
+  let store: AgentSessionStore;
+
+  beforeEach(() => {
+    fakeStorage = new FakeLocalStorage();
+    store = new AgentSessionStore(fakeStorage);
+  });
+
+  describe('initialization', () => {
+    it('should initialize with idle state for new session', () => {
+      /*
+      Test Doc:
+      - Why: New sessions start in idle state ready for user input
+      - Contract: useAgentSession returns SessionState with status='idle'
+      - Usage Notes: Pass session ID, hook creates initial state
+      - Quality Contribution: Consistent initial state
+      - Worked Example: useAgentSession('new-id') → { status: 'idle' }
+      */
+      const { result } = renderHook(() => useAgentSession('test-session-1', store));
+
+      expect(result.current.state.status).toBe('idle');
+      expect(result.current.state.error).toBeNull();
+      expect(result.current.state.streamingContent).toBe('');
+    });
+
+    it('should load existing session from store', () => {
+      /*
+      Test Doc:
+      - Why: Returning users should see their previous session state
+      - Contract: If session exists in store, hook loads it
+      - Usage Notes: Uses AgentSessionStore from Phase 1
+      - Quality Contribution: Session persistence works
+      - Worked Example: stored session with messages → hook has those messages
+      */
+      // Pre-populate store with existing session
+      const existingSession = createTestSession({
+        id: 'existing-session',
+        name: 'My Existing Session',
+        status: 'completed',
+        messages: [createTestMessage({ content: 'Previous message' })],
+      });
+      store.saveSession(existingSession);
+
+      const { result } = renderHook(() => useAgentSession('existing-session', store));
+
+      // Should have loaded the existing session
+      expect(result.current.state.id).toBe('existing-session');
+      expect(result.current.state.name).toBe('My Existing Session');
+      expect(result.current.state.status).toBe('completed');
+      expect(result.current.state.messages).toHaveLength(1);
+    });
+  });
+
+  describe('dispatch', () => {
+    it('should provide memoized dispatch function', () => {
+      /*
+      Test Doc:
+      - Why: Stable dispatch reference prevents unnecessary re-renders
+      - Contract: dispatch is same reference across renders
+      - Usage Notes: dispatch is memoized with useCallback
+      - Quality Contribution: Performance optimization
+      - Worked Example: dispatch ref stable through re-renders
+      */
+      const { result, rerender } = renderHook(() => useAgentSession('test-session', store));
+
+      const dispatch1 = result.current.dispatch;
+      rerender();
+      const dispatch2 = result.current.dispatch;
+
+      expect(dispatch1).toBe(dispatch2); // Same reference
+    });
+
+    it('should update state when dispatch is called', () => {
+      /*
+      Test Doc:
+      - Why: Actions should flow through reducer to update state
+      - Contract: dispatch(action) → state updates accordingly
+      - Usage Notes: Uses sessionReducer internally
+      - Quality Contribution: Core hook functionality
+      - Worked Example: dispatch({ type: 'START_RUN' }) → status: 'running'
+      */
+      const { result } = renderHook(() => useAgentSession('test-session', store));
+
+      act(() => {
+        result.current.dispatch({ type: 'START_RUN' });
+      });
+
+      expect(result.current.state.status).toBe('running');
+    });
+
+    it('should handle APPEND_DELTA correctly', () => {
+      /*
+      Test Doc:
+      - Why: Streaming content must accumulate through hook
+      - Contract: APPEND_DELTA actions accumulate in streamingContent
+      - Usage Notes: Per HF-08, merge-not-replace pattern
+      - Quality Contribution: Streaming works through hook
+      - Worked Example: multiple deltas → concatenated content
+      */
+      const { result } = renderHook(() => useAgentSession('test-session', store));
+
+      act(() => {
+        result.current.dispatch({ type: 'START_RUN' });
+        result.current.dispatch({ type: 'APPEND_DELTA', delta: 'Hello' });
+        result.current.dispatch({ type: 'APPEND_DELTA', delta: ' World' });
+      });
+
+      expect(result.current.state.streamingContent).toBe('Hello World');
+    });
+
+    it('should handle ADD_MESSAGE correctly', () => {
+      /*
+      Test Doc:
+      - Why: User messages need to be added to history
+      - Contract: ADD_MESSAGE appends to messages array
+      - Usage Notes: Used when user submits a message
+      - Quality Contribution: Message history works
+      - Worked Example: add message → appears in messages array
+      */
+      const { result } = renderHook(() => useAgentSession('test-session', store));
+      const message = createTestMessage({ role: 'user', content: 'Test message' });
+
+      act(() => {
+        result.current.dispatch({ type: 'ADD_MESSAGE', message });
+      });
+
+      expect(result.current.state.messages).toHaveLength(1);
+      expect(result.current.state.messages[0].content).toBe('Test message');
+    });
+  });
+
+  describe('persistence', () => {
+    it('should save state changes to store', () => {
+      /*
+      Test Doc:
+      - Why: State changes should persist to localStorage via store
+      - Contract: State changes trigger store.saveSession()
+      - Usage Notes: Persistence is automatic on state change
+      - Quality Contribution: Session survives refresh
+      - Worked Example: dispatch action → store.saveSession called
+      */
+      const { result } = renderHook(() => useAgentSession('test-session', store));
+
+      act(() => {
+        result.current.dispatch({ type: 'START_RUN' });
+      });
+
+      // Verify persistence by checking the store
+      const savedSession = store.getSession('test-session');
+      expect(savedSession).not.toBeNull();
+      expect(savedSession?.status).toBe('running');
+    });
+  });
+
+  describe('error handling', () => {
+    it('should set error on SET_ERROR action', () => {
+      /*
+      Test Doc:
+      - Why: Errors need to propagate to UI
+      - Contract: SET_ERROR updates error field
+      - Usage Notes: Error displayed in AgentStatusIndicator
+      - Quality Contribution: Error visibility
+      - Worked Example: SET_ERROR → state.error populated
+      */
+      const { result } = renderHook(() => useAgentSession('test-session', store));
+
+      act(() => {
+        result.current.dispatch({
+          type: 'SET_ERROR',
+          error: { message: 'Network error', code: 'NETWORK' },
+        });
+      });
+
+      expect(result.current.state.error).toEqual({
+        message: 'Network error',
+        code: 'NETWORK',
+      });
+    });
+
+    it('should clear error on CLEAR_ERROR action', () => {
+      /*
+      Test Doc:
+      - Why: Users should be able to dismiss errors
+      - Contract: CLEAR_ERROR sets error to null
+      - Usage Notes: Called when user dismisses error
+      - Quality Contribution: Error recovery workflow
+      - Worked Example: CLEAR_ERROR → state.error = null
+      */
+      const { result } = renderHook(() => useAgentSession('test-session', store));
+
+      // First set an error
+      act(() => {
+        result.current.dispatch({
+          type: 'SET_ERROR',
+          error: { message: 'Error' },
+        });
+      });
+
+      // Then clear it
+      act(() => {
+        result.current.dispatch({ type: 'CLEAR_ERROR' });
+      });
+
+      expect(result.current.state.error).toBeNull();
     });
   });
 });

@@ -456,20 +456,20 @@ describe('AgentSessionSchema', () => {
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |-----|--------|------|----|------------------|-----|-------|
-| 2.1 | [ ] | Write tests for `sessionReducer` state transitions | 3 | Tests cover: all action types, invalid transitions rejected | - | Pure reducer tests |
-| 2.2 | [ ] | Implement `sessionReducer` | 2 | All tests from 2.1 pass | - | `apps/web/src/hooks/useAgentSession.ts` |
-| 2.3 | [ ] | Write tests for `useAgentSession` hook | 2 | Tests cover: action dispatch, state updates, memoization | - | Uses `renderHook` |
-| 2.4 | [ ] | Implement `useAgentSession` hook | 2 | All tests from 2.3 pass | - | |
-| 2.5 | [ ] | Write tests for `AgentChatInput` | 2 | Tests cover: message submit (Enter key, button click), keyboard nav (Tab, Shift+Enter for newline), accessibility (submit never disabled, error messages) | - | Slash commands tested in Phase 4 |
-| 2.6 | [ ] | Implement `AgentChatInput` component | 2 | All tests from 2.5 pass | - | `apps/web/src/components/agents/` |
-| 2.7 | [ ] | Write tests for `StreamingMessage` | 2 | Tests cover: partial content, completed content, markdown rendering | - | Uses existing MarkdownServer |
-| 2.8 | [ ] | Implement `StreamingMessage` component | 2 | All tests from 2.7 pass | - | |
-| 2.9 | [ ] | Write tests for `AgentStatusIndicator` | 1 | Tests cover: all status states, color mapping | - | |
-| 2.10 | [ ] | Implement `AgentStatusIndicator` component | 1 | All tests from 2.9 pass | - | |
-| 2.11 | [ ] | Write tests for `AgentChatView` assembly | 3 | Tests cover: message display, input integration, status bar | - | Integration test |
-| 2.12 | [ ] | Implement `AgentChatView` component | 3 | All tests from 2.11 pass | - | |
-| 2.13 | [ ] | Write tests for context window usage display | 1 | Tests cover: percentage calculation, warning thresholds | - | |
-| 2.14 | [ ] | Implement context window UI in status bar | 1 | All tests from 2.13 pass | - | |
+| 2.1 | [x] | Write tests for `sessionReducer` state transitions | 3 | Tests cover: all action types, invalid transitions rejected | [📋](tasks/phase-2-core-chat/execution.log.md#task-t001-write-tests-for-sessionreducer-state-transitions) | T001 - 23 tests [^1] |
+| 2.2 | [x] | Implement `sessionReducer` | 2 | All tests from 2.1 pass | [📋](tasks/phase-2-core-chat/execution.log.md#task-t002-implement-sessionreducer) | T002 [^2] |
+| 2.3 | [x] | Write tests for `useAgentSession` hook | 2 | Tests cover: action dispatch, state updates, memoization | [📋](tasks/phase-2-core-chat/execution.log.md#task-t003-write-tests-for-useagentsession-hook) | T003 - 9 tests [^3] |
+| 2.4 | [x] | Implement `useAgentSession` hook | 2 | All tests from 2.3 pass | [📋](tasks/phase-2-core-chat/execution.log.md#task-t004-implement-useagentsession-hook) | T004 [^4] |
+| 2.5 | [x] | Write tests for `AgentChatInput` | 2 | Tests cover: message submit (Enter key, button click), keyboard nav (Tab, Shift+Enter for newline), accessibility (submit never disabled, error messages) | [📋](tasks/phase-2-core-chat/execution.log.md#task-t005-write-tests-for-agentchatinput-component) | T005 - 14 tests [^5] |
+| 2.6 | [x] | Implement `AgentChatInput` component | 2 | All tests from 2.5 pass | [📋](tasks/phase-2-core-chat/execution.log.md#task-t006-implement-agentchatinput-component) | T006 [^6] |
+| 2.7 | [x] | Write tests for `StreamingMessage` | 2 | Tests cover: partial content, completed content, markdown rendering | [📋](tasks/phase-2-core-chat/execution.log.md#tasks-t007-t019-remaining-components-page-batch-summary) | T007 - LogEntry (10 tests) [^7] |
+| 2.8 | [x] | Implement `StreamingMessage` component | 2 | All tests from 2.7 pass | [📋](tasks/phase-2-core-chat/execution.log.md#tasks-t007-t019-remaining-components-page-batch-summary) | T008 - LogEntry component [^8] |
+| 2.9 | [x] | Write tests for `AgentStatusIndicator` | 1 | Tests cover: all status states, color mapping | [📋](tasks/phase-2-core-chat/execution.log.md#tasks-t007-t019-remaining-components-page-batch-summary) | T009 - 7 tests [^9] |
+| 2.10 | [x] | Implement `AgentStatusIndicator` component | 1 | All tests from 2.9 pass | [📋](tasks/phase-2-core-chat/execution.log.md#tasks-t007-t019-remaining-components-page-batch-summary) | T010 [^10] |
+| 2.11 | [x] | Write tests for `AgentChatView` assembly | 3 | Tests cover: message display, input integration, status bar | [📋](tasks/phase-2-core-chat/execution.log.md#tasks-t007-t019-remaining-components-page-batch-summary) | T017 - Page tests (5 tests) [^11] |
+| 2.12 | [x] | Implement `AgentChatView` component | 3 | All tests from 2.11 pass | [📋](tasks/phase-2-core-chat/execution.log.md#tasks-t007-t019-remaining-components-page-batch-summary) | T018 - /agents page [^12] |
+| 2.13 | [x] | Write tests for context window usage display | 1 | Tests cover: percentage calculation, warning thresholds | [📋](tasks/phase-2-core-chat/execution.log.md#tasks-t007-t019-remaining-components-page-batch-summary) | T011 - 8 tests [^13] |
+| 2.14 | [x] | Implement context window UI in status bar | 1 | All tests from 2.13 pass | [📋](tasks/phase-2-core-chat/execution.log.md#tasks-t007-t019-remaining-components-page-batch-summary) | T012 + T019 (nav) [^14] |
 
 ### Test Examples (Write First!)
 
@@ -918,7 +918,7 @@ describe('Agent Session E2E', () => {
 ### Phase Completion Checklist
 
 - [x] Phase 1: Foundation - COMPLETE (2026-01-26)
-- [ ] Phase 2: Core Chat - PENDING
+- [x] Phase 2: Core Chat - COMPLETE (2026-01-26) - 92 tests, 19 dossier tasks
 - [ ] Phase 3: Multi-Session - PENDING
 - [ ] Phase 4: Polish - PENDING
 - [ ] Phase 5: Integration Testing - PENDING
@@ -939,19 +939,73 @@ describe('Agent Session E2E', () => {
 
 ## Change Footnotes Ledger
 
-**NOTE**: This section will be populated during implementation by plan-6a-update-progress.
-
 **Footnote Numbering Authority**: plan-6a-update-progress is the **single source of truth** for footnote numbering across the entire plan.
 
-**Initial State** (before implementation begins):
-```markdown
-[^1]: [To be added during implementation via plan-6a]
-[^2]: [To be added during implementation via plan-6a]
-...
-```
+### Phase 2: Core Chat (Tasks 2.1-2.14)
+
+[^1]: Task 2.1 - sessionReducer test suite (23 tests)
+  - `file:test/unit/web/hooks/useAgentSession.test.ts`
+
+[^2]: Task 2.2 - sessionReducer implementation
+  - `function:apps/web/src/hooks/useAgentSession.ts:sessionReducer`
+  - `function:apps/web/src/hooks/useAgentSession.ts:createSessionState`
+
+[^3]: Task 2.3 - useAgentSession hook tests (9 tests)
+  - `file:test/unit/web/hooks/useAgentSession.test.ts`
+
+[^4]: Task 2.4 - useAgentSession hook implementation
+  - `function:apps/web/src/hooks/useAgentSession.ts:useAgentSession`
+
+[^5]: Task 2.5 - AgentChatInput tests (14 tests)
+  - `file:test/unit/web/components/agents/agent-chat-input.test.tsx`
+
+[^6]: Task 2.6 - AgentChatInput component
+  - `function:apps/web/src/components/agents/agent-chat-input.tsx:AgentChatInput`
+
+[^7]: Task 2.7 - LogEntry (StreamingMessage) tests (10 tests)
+  - `file:test/unit/web/components/agents/log-entry.test.tsx`
+
+[^8]: Task 2.8 - LogEntry component
+  - `function:apps/web/src/components/agents/log-entry.tsx:LogEntry`
+
+[^9]: Task 2.9 - AgentStatusIndicator tests (7 tests)
+  - `file:test/unit/web/components/agents/agent-status-indicator.test.tsx`
+
+[^10]: Task 2.10 - AgentStatusIndicator component
+  - `function:apps/web/src/components/agents/agent-status-indicator.tsx:AgentStatusIndicator`
+
+[^11]: Task 2.11 - AgentChatView/Page tests (5 tests) + supporting tests
+  - `file:test/unit/web/app/agents/page.test.tsx`
+  - `file:test/unit/web/components/agents/agent-creation-form.test.tsx` (9 tests)
+  - `file:test/unit/web/components/agents/agent-list-view.test.tsx` (7 tests)
+  - `file:test/unit/web/components/agents/context-window-display.test.tsx` (8 tests)
+
+[^12]: Task 2.12 - /agents page implementation
+  - `file:apps/web/app/(dashboard)/agents/page.tsx`
+  - `function:apps/web/src/components/agents/agent-creation-form.tsx:AgentCreationForm`
+  - `function:apps/web/src/components/agents/agent-list-view.tsx:AgentListView`
+
+[^13]: Task 2.13 - ContextWindowDisplay tests (8 tests)
+  - `file:test/unit/web/components/agents/context-window-display.test.tsx`
+
+[^14]: Task 2.14 - ContextWindowDisplay + Navigation
+  - `function:apps/web/src/components/agents/context-window-display.tsx:ContextWindowDisplay`
+  - `file:apps/web/src/lib/navigation-utils.ts` (added Agents to NAV_ITEMS)
+
+---
+
+## Subtasks Registry
+
+Mid-implementation detours requiring structured tracking.
+
+| ID | Created | Phase | Parent Task | Reason | Status | Dossier |
+|----|---------|-------|-------------|--------|--------|---------|
+| 001-subtask-real-agent-integration | 2026-01-26 | Phase 2: Core Chat | T018 | Phase 2 completed with simulated agent responses; need to wire to real adapters | [ ] Pending | [Link](tasks/phase-2-core-chat/001-subtask-real-agent-integration.md) |
 
 ---
 
 **Plan Created**: 2026-01-26
 **Plan Validated**: 2026-01-26 (v1.1.0 - fixes applied for HIGH violations)
-**Next Step**: Run `/plan-5-phase-tasks-and-brief --phase "Phase 2: Core Chat"` to generate Phase 2 task dossier
+**Phase 1 Complete**: 2026-01-26 (10 tasks, 33 tests)
+**Phase 2 Complete**: 2026-01-26 (19 tasks, 92 tests)
+**Next Step**: Run `/plan-6-implement-phase --subtask "001-subtask-real-agent-integration"` to implement real agent integration

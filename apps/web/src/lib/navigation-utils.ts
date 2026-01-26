@@ -8,6 +8,7 @@
  */
 
 import {
+  Bot,
   Code,
   FileText,
   GitBranch,
@@ -49,6 +50,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { id: 'workflows', label: 'Workflows', href: '/workflows', icon: ListChecks },
   { id: 'workflow', label: 'Workflow Visualization', href: '/workflow', icon: GitBranch },
   { id: 'kanban', label: 'Kanban Board', href: '/kanban', icon: LayoutDashboard },
+  { id: 'agents', label: 'Agents', href: '/agents', icon: Bot },
   { id: 'file-viewer-demo', label: 'FileViewer Demo', href: '/demo/file-viewer', icon: Code },
   {
     id: 'markdown-viewer-demo',
