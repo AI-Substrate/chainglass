@@ -21,11 +21,11 @@ import type {
   IYamlParser,
 } from '../interfaces/index.js';
 import type { IWorkflowAdapter } from '../interfaces/workflow-adapter.interface.js';
-import type { ComposeResultWithEntity } from './workflow-service.types.js';
 import type { IWorkflowService } from '../interfaces/workflow-service.interface.js';
 import { YamlParseError } from '../interfaces/yaml-parser.interface.js';
 import { MESSAGE_SCHEMA, WF_PHASE_SCHEMA, WF_SCHEMA, WF_STATUS_SCHEMA } from '../schemas/index.js';
 import type { WfDefinition, WfStatus } from '../types/index.js';
+import type { ComposeResultWithEntity } from './workflow-service.types.js';
 
 /**
  * Error codes for compose operation.

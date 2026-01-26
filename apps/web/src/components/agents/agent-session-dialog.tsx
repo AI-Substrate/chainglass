@@ -15,8 +15,8 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
-  Eye,
   ExternalLink,
+  Eye,
   HelpCircle,
   Loader2,
   MessageSquare,
@@ -115,7 +115,7 @@ function LogEntry({ message }: { message: AgentMessage }) {
   // Tool call entry - compact inline display
   if (isTool && message.tool) {
     const hasOutput = message.tool.output && message.tool.output.length > 0;
-    const isMultiline = hasOutput && message.tool.output!.includes('\n');
+    const isMultiline = hasOutput && message.tool.output?.includes('\n');
 
     return (
       <div className="px-4 py-1.5 hover:bg-muted/30 transition-colors">
@@ -177,9 +177,7 @@ function LogEntry({ message }: { message: AgentMessage }) {
   // System message - muted inline
   if (isSystem) {
     return (
-      <div className="px-4 py-1.5 text-xs text-muted-foreground italic">
-        {message.content}
-      </div>
+      <div className="px-4 py-1.5 text-xs text-muted-foreground italic">{message.content}</div>
     );
   }
 
@@ -348,12 +346,7 @@ function QuestionInput({ question, onAnswer, onCancel, isSubmitting }: QuestionI
       {/* Submit for choice questions */}
       {(question.type === 'single_choice' || question.type === 'multi_choice') && (
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            className="flex-1"
-            onClick={onCancel}
-            disabled={isSubmitting}
-          >
+          <Button variant="outline" className="flex-1" onClick={onCancel} disabled={isSubmitting}>
             Type instead
           </Button>
           <Button
@@ -394,14 +387,14 @@ export function AgentSessionDialog({
     if (open && messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [open, session?.messages.length]);
+  }, [open]);
 
   // Reset question UI visibility when dialog opens or question changes
   useEffect(() => {
     if (session?.pendingQuestion) {
       setShowQuestionUI(true);
     }
-  }, [session?.pendingQuestion?.id]);
+  }, [session?.pendingQuestion]);
 
   const handleSend = () => {
     if (!session || !inputValue.trim() || !onSendMessage) return;
@@ -473,7 +466,9 @@ export function AgentSessionDialog({
         {/* Context usage bar (compact) */}
         {(session.contextUsage ?? 0) > 0 && (
           <div className="px-4 py-1.5 border-b bg-muted/20 flex items-center gap-3">
-            <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Context</span>
+            <span className="text-[10px] text-muted-foreground uppercase tracking-wide">
+              Context
+            </span>
             <div className="flex-1 h-1 bg-muted rounded-full overflow-hidden">
               <div
                 className={cn(
@@ -487,7 +482,9 @@ export function AgentSessionDialog({
                 style={{ width: `${session.contextUsage ?? 0}%` }}
               />
             </div>
-            <span className="text-[10px] text-muted-foreground font-mono">{session.contextUsage ?? 0}%</span>
+            <span className="text-[10px] text-muted-foreground font-mono">
+              {session.contextUsage ?? 0}%
+            </span>
           </div>
         )}
 
@@ -524,22 +521,19 @@ export function AgentSessionDialog({
             >
               <HelpCircle className={cn('h-4 w-4', showQuestionUI && 'text-amber-500')} />
               <span className="flex-1 truncate font-medium">
-                {showQuestionUI ? 'Agent Question' : session.pendingQuestion!.prompt}
+                {showQuestionUI ? 'Agent Question' : session.pendingQuestion?.prompt}
               </span>
               <ChevronDown
-                className={cn(
-                  'h-4 w-4 transition-transform',
-                  showQuestionUI && 'rotate-180'
-                )}
+                className={cn('h-4 w-4 transition-transform', showQuestionUI && 'rotate-180')}
               />
             </button>
           )}
 
           {/* Question UI or Text Input */}
           <div className="p-4">
-            {hasQuestion && showQuestionUI ? (
+            {hasQuestion && showQuestionUI && session.pendingQuestion ? (
               <QuestionInput
-                question={session.pendingQuestion!}
+                question={session.pendingQuestion}
                 onAnswer={handleQuestionAnswer}
                 onCancel={() => setShowQuestionUI(false)}
                 isSubmitting={isSending}

@@ -32,6 +32,8 @@ import type {
   PreflightOptions,
   ValidateCheckMode,
 } from '../interfaces/index.js';
+import type { PhaseRunStatus, StatusEntry, WfPhaseState, WfStatus } from '../types/index.js';
+import { extractValue } from '../utils/index.js';
 import type {
   AcceptResultWithEntity,
   FinalizeResultWithEntity,
@@ -40,8 +42,6 @@ import type {
   PrepareResultWithEntity,
   ValidateResultWithEntity,
 } from './phase-service.types.js';
-import type { PhaseRunStatus, StatusEntry, WfPhaseState, WfStatus } from '../types/index.js';
-import { extractValue } from '../utils/index.js';
 
 /**
  * Error codes for phase operations.
@@ -299,7 +299,11 @@ export class PhaseService implements IPhaseService {
    * Per Phase 6 / DYK-02: When IPhaseAdapter is injected, includes Phase entity
    * in result reflecting the post-validate state.
    */
-  async validate(phase: string, runDir: string, check: ValidateCheckMode): Promise<ValidateResultWithEntity> {
+  async validate(
+    phase: string,
+    runDir: string,
+    check: ValidateCheckMode
+  ): Promise<ValidateResultWithEntity> {
     // 1. Check if phase exists
     const phaseDir = path.join(runDir, 'phases', phase);
     const phaseYamlPath = path.join(phaseDir, 'wf-phase.yaml');
@@ -757,7 +761,11 @@ export class PhaseService implements IPhaseService {
    * Per Phase 6 / DYK-02: When IPhaseAdapter is injected, includes Phase entity
    * in result reflecting the post-accept state.
    */
-  async accept(phase: string, runDir: string, options?: AcceptOptions): Promise<AcceptResultWithEntity> {
+  async accept(
+    phase: string,
+    runDir: string,
+    options?: AcceptOptions
+  ): Promise<AcceptResultWithEntity> {
     const opts = options ?? {};
 
     // 1. Check phase exists

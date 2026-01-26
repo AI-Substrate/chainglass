@@ -147,7 +147,10 @@
         "required": ["id", "type", "from", "required", "subject", "exists", "answered"],
         "properties": {
           "id": { "type": "string" },
-          "type": { "type": "string", "enum": ["single_choice", "multi_choice", "free_text", "confirm"] },
+          "type": {
+            "type": "string",
+            "enum": ["single_choice", "multi_choice", "free_text", "confirm"]
+          },
           "from": { "type": "string", "enum": ["agent", "orchestrator"] },
           "required": { "type": "boolean" },
           "subject": { "type": "string" },

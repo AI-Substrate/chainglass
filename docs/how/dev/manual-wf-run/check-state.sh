@@ -6,7 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Load current run
 if [ ! -f "$SCRIPT_DIR/.current-run" ]; then
-    echo "ERROR: No current run. Run ./01-compose.sh first"
+    echo "ERROR: No current run. Run ./02-compose-run.sh first"
     exit 1
 fi
 RUN_DIR=$(cat "$SCRIPT_DIR/.current-run")

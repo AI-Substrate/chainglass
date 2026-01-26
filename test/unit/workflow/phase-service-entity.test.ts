@@ -59,7 +59,7 @@ const GATHER_PHASE_DEF = {
 /**
  * Sample wf-status.json for testing.
  */
-const createWfStatus = (gatherStatus: string = 'pending') => ({
+const createWfStatus = (gatherStatus = 'pending') => ({
   workflow: {
     name: 'test-workflow',
     version: '0.1.0',
@@ -80,7 +80,10 @@ const createWfStatus = (gatherStatus: string = 'pending') => ({
 /**
  * Create a test Phase entity.
  */
-const createTestPhase = (name: string = 'gather', status: 'pending' | 'ready' | 'active' | 'complete' = 'pending') =>
+const createTestPhase = (
+  name = 'gather',
+  status: 'pending' | 'ready' | 'active' | 'complete' = 'pending'
+) =>
   new Phase({
     name,
     phaseDir: `/test/run/phases/${name}`,
@@ -211,7 +214,10 @@ describe('PhaseService with IPhaseAdapter injection', () => {
   describe('validate() with Phase entity', () => {
     beforeEach(() => {
       fakeFileSystem.setFile('/test/run/phases/gather/wf-phase.yaml', GATHER_PHASE_YAML);
-      fakeFileSystem.setFile('/test/run/wf-run/wf-status.json', JSON.stringify(createWfStatus('ready')));
+      fakeFileSystem.setFile(
+        '/test/run/wf-run/wf-status.json',
+        JSON.stringify(createWfStatus('ready'))
+      );
 
       // Create output files for validation
       fakeFileSystem.setFile('/test/run/phases/gather/run/outputs/acknowledgment.md', '# Ack');
@@ -253,11 +259,17 @@ describe('PhaseService with IPhaseAdapter injection', () => {
   describe('finalize() with Phase entity', () => {
     beforeEach(() => {
       fakeFileSystem.setFile('/test/run/phases/gather/wf-phase.yaml', GATHER_PHASE_YAML);
-      fakeFileSystem.setFile('/test/run/wf-run/wf-status.json', JSON.stringify(createWfStatus('active')));
+      fakeFileSystem.setFile(
+        '/test/run/wf-run/wf-status.json',
+        JSON.stringify(createWfStatus('active'))
+      );
 
       // Create validated outputs
       fakeFileSystem.setFile('/test/run/phases/gather/run/outputs/acknowledgment.md', '# Ack');
-      fakeFileSystem.setFile('/test/run/phases/gather/run/outputs/gather-data.json', '{"items":[]}');
+      fakeFileSystem.setFile(
+        '/test/run/phases/gather/run/outputs/gather-data.json',
+        '{"items":[]}'
+      );
       // Create wf-data directory for output-params.json
       fakeFileSystem.setFile('/test/run/phases/gather/run/wf-data/.placeholder', '');
     });

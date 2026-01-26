@@ -178,10 +178,10 @@ flowchart TD
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
 | T001a | CLI Agent Command | /apps/cli/src/commands/agent.command.ts | ✅ Complete | **COMPLETE**: CLI for agent invocation (run/compact) |
-| T001 | Test Harness | /docs/how/dev/manual-wf-run/*.sh | ✅ Complete | DYK-05: Extended existing harness |
+| T001 | Test Harness | /docs/how/dev/manual-wf-run/*.sh | ✅ Complete | DYK-05: Full overhaul with cg agent CLI invocation |
 | T002 | Test Guide | /docs/how/dev/manual-wf-run/ENTITY-VALIDATION-GUIDE.md | ✅ Complete | Step-by-step validation guide for human orchestrator |
 | T003 | Expected Outputs | /docs/how/dev/manual-wf-run/expected-outputs/*.json | ✅ Complete | 5 JSON schemas: workflow-*, phase-complete, agent-result |
-| T004 | Validation Scripts | /docs/how/dev/manual-wf-run/*.sh | ✅ Complete | 09-validate-entity-json.sh, 10-validate-runs-commands.sh |
+| T004 | Validation Scripts | /docs/how/dev/manual-wf-run/*.sh | ✅ Complete | Full overhaul: 01-clean-slate → 07-validate-runs (uses cg agent run/compact) |
 | T005 | PhaseService Tests | /test/unit/workflow/phase-service-entity.test.ts | ✅ Complete | TDD: 9 tests passing after refactor |
 | T006 | PhaseService | /packages/workflow/src/services/phase.service.ts | ✅ Complete | prepare() returns PrepareResultWithEntity, IPhaseAdapter injected |
 | T007 | PhaseService | /packages/workflow/src/services/phase.service.ts | ✅ Complete | validate() returns ValidateResultWithEntity |
@@ -207,11 +207,11 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|-----|------|----|------|--------------|------------------|------------|----------|-------|
-| [x] | T001 | **Create docs/how/dev/manual-test/ harness structure** with shell scripts for orchestrator-driven agent testing: 01-clean-slate.sh, 02-init-workflow.sh, 03-compose-run.sh, 04-run-phase-with-agent.sh, 05-compact-between-phases.sh, 06-entity-json-format.sh, 07-runs-commands.sh | 2 | Setup | T001a | /home/jak/substrate/007-manage-workflows/docs/how/dev/manual-wf-run/*.sh | Per DYK-05: Extended existing manual-wf-run/ harness | T001a (CLI prereq) | DYK-05: Extended existing harness, added 09-validate-entity-json.sh, 10-validate-runs-commands.sh, expected-outputs/ |
+| [x] | T001 | **Create docs/how/dev/manual-test/ harness structure** with shell scripts for orchestrator-driven agent testing: 01-clean-slate.sh, 02-compose-run.sh, 03-run-gather.sh, 04-run-process.sh, 05-run-report.sh, 06-validate-entity.sh, 07-validate-runs.sh | 2 | Setup | T001a | /home/jak/substrate/007-manage-workflows/docs/how/dev/manual-wf-run/*.sh | Per DYK-05: Full overhaul of manual-wf-run/ harness | T001a (CLI prereq) | Full overhaul: Uses `cg agent run/compact` for programmatic agent invocation |
 | [x] | T001a | **Create `cg agent` CLI command group** for invoking agents from command line. Commands: `cg agent run --type {claude-code,copilot} --prompt <text> [--prompt-file <path>] [--session <id>] [--cwd <path>]`, `cg agent compact --type <type> --session <id>`. Uses existing AgentService infrastructure. | 3 | CLI | – | /home/jak/substrate/007-manage-workflows/apps/cli/src/commands/agent.command.ts | `cg agent run --help` shows all options; `cg agent run --type claude-code --prompt "hello"` returns JSON with sessionId | [001-subtask](./001-subtask-cg-agent-cli-command.md) | **COMPLETE**: Subtask 001 done. |
 | [x] | T002 | **Create MANUAL-TEST-GUIDE.md** step-by-step validation guide for human orchestrator covering: workflow lifecycle, agent invocation per phase, compact between phases, session resumption, entity.toJSON() verification | 2 | Doc | T001 | /home/jak/substrate/007-manage-workflows/docs/how/dev/manual-wf-run/ENTITY-VALIDATION-GUIDE.md | Guide created with numbered steps matching scripts | – | Per DYK-05: Added ENTITY-VALIDATION-GUIDE.md to existing harness |
 | [x] | T003 | **Create expected-outputs/*.json** with JSON schemas for workflow-current.json, workflow-checkpoint.json, workflow-run.json, phase-complete.json, agent-result.json | 2 | Setup | T002 | /home/jak/substrate/007-manage-workflows/docs/how/dev/manual-wf-run/expected-outputs/*.json | 5 JSON files created with TypeScript-aligned property names | – | Aligned with WorkflowJSON, PhaseJSON, AgentResult types |
-| [x] | T004 | **Create validation scripts** for entity JSON output format verification and agent result validation | 2 | Setup | T003 | /home/jak/substrate/007-manage-workflows/docs/how/dev/manual-wf-run/*.sh | 09-validate-entity-json.sh, 10-validate-runs-commands.sh created | – | Created in T001 as part of harness extension |
+| [x] | T004 | **Create validation scripts** for entity JSON output format verification and agent result validation | 2 | Setup | T003 | /home/jak/substrate/007-manage-workflows/docs/how/dev/manual-wf-run/*.sh | 06-validate-entity.sh, 07-validate-runs.sh created | – | Full overhaul with correct `cg runs get` syntax |
 | [x] | T005 | **Write tests for PhaseService using PhaseAdapter** - prepare() returns Phase entity with full data model | 2 | Test | T004 | /home/jak/substrate/007-manage-workflows/test/unit/workflow/phase-service-entity.test.ts | 9 tests passing | – | TDD: All tests passing after refactor |
 | [x] | T006 | **Refactor PhaseService.prepare() to use PhaseAdapter** - inject IPhaseAdapter, return Phase entity, preserve CLI behavior | 3 | Core | T005 | /home/jak/substrate/007-manage-workflows/packages/workflow/src/services/phase.service.ts | 114 tests pass, CLI unchanged | – | Created phase-service.types.ts with PrepareResultWithEntity |
 | [x] | T007 | **Refactor PhaseService.validate() to use PhaseAdapter** - return Phase entity with outputs[].exists/valid properties | 2 | Core | T006 | /home/jak/substrate/007-manage-workflows/packages/workflow/src/services/phase.service.ts | validate() returns ValidateResultWithEntity | – | – |
@@ -485,17 +485,26 @@ RESULT3=$(cg agent run --type claude-code --session "$SESSION_ID" --prompt "Exec
 
 ---
 
-### Manual Test Harness Flow (Updated)
+### Manual Test Harness Flow (Updated) ✅ IMPLEMENTED
 
-1. `01-clean-slate.sh`: Reset test environment
-2. `02-init-workflow.sh`: Initialize workflow template
-3. `03-compose-run.sh`: Create run from checkpoint
-4. `04-run-phase-with-agent.sh`: Invoke `cg agent run --type claude-code --prompt <phase1-prompt> --cwd $RUN_DIR`
-5. `05-compact-between-phases.sh`: Invoke `cg agent compact --session <id>` then `cg agent run --session <id> --prompt <phase2-prompt>`
-6. `06-entity-json-format.sh`: Validate entity.toJSON() output
-7. `07-runs-commands.sh`: Test `cg runs list` and `cg runs get`
+**Location**: `docs/how/dev/manual-wf-run/`
 
-**T001a unblocks T001-T004** — the manual test harness can now invoke real agents via CLI.
+| Script | Purpose |
+|--------|---------|
+| `01-clean-slate.sh` | Reset test environment (remove runs, clear state) |
+| `02-compose-run.sh` | Create a fresh run from hello-workflow template |
+| `03-run-gather.sh` | Prepare gather + `cg agent run` + validate + finalize |
+| `04-run-process.sh` | `cg agent compact` + prepare process + `cg agent run` + validate + finalize |
+| `05-run-report.sh` | `cg agent compact` + prepare report + `cg agent run` + validate + finalize |
+| `06-validate-entity.sh` | Validate entity JSON format (correct `cg runs get` syntax) |
+| `07-validate-runs.sh` | Test `cg runs list` and `cg runs get <run-id> --workflow <slug>` |
+| `check-state.sh` | Show current state of all phases |
+
+**Session Pattern**: Scripts 03-05 use `cg agent run/compact` with session continuity:
+- 03 captures sessionId, saves to `.current-session`
+- 04/05 compact session, then resume with `--session $ID`
+
+**T001a unblocks T001-T004** — the manual test harness now invokes real agents via CLI.
 
 ### ADR Decision Constraints
 
@@ -639,13 +648,15 @@ pnpm --filter @chainglass/cli exec cg agent run --type claude-code --prompt "hel
 pnpm --filter @chainglass/cli exec cg agent compact --type claude-code --session <id>
 
 # Manual test execution (human orchestrator validation)
-cd docs/how/dev/manual-test && ./01-clean-slate.sh && ./02-init-workflow.sh && ...
+cd docs/how/dev/manual-wf-run
+./01-clean-slate.sh && ./02-compose-run.sh
+./03-run-gather.sh   # Uses cg agent run
+./04-run-process.sh  # Uses cg agent compact + run
+./05-run-report.sh   # Uses cg agent compact + run
 
-# Run phase with real agent (uses cg agent run)
-cd docs/how/dev/manual-test && ./04-run-phase-with-agent.sh
-
-# Verify entity JSON format against expected outputs
-cd docs/how/dev/manual-test && ./06-entity-json-format.sh
+# Verify entity JSON format and runs commands
+./06-validate-entity.sh
+./07-validate-runs.sh
 
 # Verify CLI output unchanged
 pnpm --filter @chainglass/cli exec cg workflow compose hello-wf | jq .
@@ -694,8 +705,13 @@ _Populated during implementation by plan-6a-update-progress._
 - `packages/workflow/src/services/workflow-service.types.ts` — Extended result types for WorkflowService [^2]
 - `test/unit/workflow/phase-service-entity.test.ts` — 9 tests for PhaseService entity integration [^1]
 - `test/unit/workflow/workflow-service-entity.test.ts` — 6 tests for WorkflowService entity integration [^2]
-- `docs/how/dev/manual-wf-run/09-validate-entity-json.sh` — Entity JSON validation script
-- `docs/how/dev/manual-wf-run/10-validate-runs-commands.sh` — Runs commands validation script
+- `docs/how/dev/manual-wf-run/01-clean-slate.sh` — Reset test environment
+- `docs/how/dev/manual-wf-run/02-compose-run.sh` — Create fresh workflow run
+- `docs/how/dev/manual-wf-run/03-run-gather.sh` — Run gather phase with `cg agent run`
+- `docs/how/dev/manual-wf-run/04-run-process.sh` — Compact + run process phase with `cg agent run`
+- `docs/how/dev/manual-wf-run/05-run-report.sh` — Compact + run report phase with `cg agent run`
+- `docs/how/dev/manual-wf-run/06-validate-entity.sh` — Entity JSON validation script
+- `docs/how/dev/manual-wf-run/07-validate-runs.sh` — Runs commands validation script
 - `docs/how/dev/manual-wf-run/expected-outputs/*.json` — 5 JSON schemas for entity validation
 - `docs/how/dev/manual-wf-run/ENTITY-VALIDATION-GUIDE.md` — Step-by-step validation guide
 
@@ -703,7 +719,20 @@ _Populated during implementation by plan-6a-update-progress._
 - `packages/workflow/src/services/phase.service.ts` — Added optional IPhaseAdapter injection [^1]
 - `packages/workflow/src/services/workflow.service.ts` — Added optional IWorkflowAdapter injection [^2]
 - `packages/workflow/src/services/index.ts` — Exported extended result types [^1] [^2]
-- `docs/how/dev/manual-wf-run/README.md` — Updated with new scripts
+- `docs/how/dev/manual-wf-run/README.md` — Full overhaul for programmatic agent invocation
+- `docs/how/dev/manual-wf-run/check-state.sh` — Updated error message for new script names
+
+### Files Removed (Phase 6)
+- `docs/how/dev/manual-wf-run/01-compose.sh` — Replaced by 02-compose-run.sh
+- `docs/how/dev/manual-wf-run/02-start-gather.sh` — Replaced by 03-run-gather.sh
+- `docs/how/dev/manual-wf-run/03-complete-gather.sh` — Merged into 03-run-gather.sh
+- `docs/how/dev/manual-wf-run/04-start-process.sh` — Replaced by 04-run-process.sh
+- `docs/how/dev/manual-wf-run/05-answer-question.sh` — Merged into 04-run-process.sh
+- `docs/how/dev/manual-wf-run/06-complete-process.sh` — Merged into 04-run-process.sh
+- `docs/how/dev/manual-wf-run/07-start-report.sh` — Replaced by 05-run-report.sh
+- `docs/how/dev/manual-wf-run/08-complete-report.sh` — Merged into 05-run-report.sh
+- `docs/how/dev/manual-wf-run/09-validate-entity-json.sh` — Replaced by 06-validate-entity.sh
+- `docs/how/dev/manual-wf-run/10-validate-runs-commands.sh` — Replaced by 07-validate-runs.sh
 
 ---
 
@@ -729,6 +758,7 @@ _Populated during implementation by plan-6. Log anything of interest to your fut
 | 2026-01-26 | T013-T014 | insight | **DYK-03: CLI backward compat is already handled** - CLI uses OutputAdapter.format(Result), not entity.toJSON(). Entity serialization is for web/API. CLI output format controlled by adapters, not entities. | No change needed. Architecture already decouples entity serialization from CLI output formatting. | phase.command.ts:124-179, OutputAdapter pattern |
 | 2026-01-26 | T006-T012 | insight | **DYK-04: PhaseAdapter path logic works correctly** - Concern about different paths for current vs run workflows is unfounded. WorkflowAdapter sets workflowDir correctly per source type; PhaseAdapter's generic `workflowDir/phases/*` logic handles all cases. | No change needed. Path logic sound by design. | workflow.adapter.ts:loadRun(), phase.adapter.ts:listForWorkflow() |
 | 2026-01-26 | T001-T004 | decision | **DYK-05: Extend existing harness, don't create new** - Manual test infrastructure already exists at `docs/how/dev/manual-wf-run/` with 9 scripts, hello-workflow template, and exemplar run. | Extend existing manual-wf-run/ harness rather than creating new manual-test/ from scratch. Add entity JSON validation scripts to proven infrastructure. | docs/how/dev/manual-wf-run/*.sh, hello-workflow template, exemplar-run-example-001 |
+| 2026-01-26 | T001-T004 | decision | **DYK-06: Full harness overhaul for programmatic agent invocation** - Original harness was human-in-the-loop (script prints "Give agent this prompt:", human copies to agent). Plan expected scripts to use `cg agent run/compact` programmatically. Also, scripts 09-10 used wrong `cg runs get` syntax (path instead of run-id). | Full overhaul: 01-clean-slate, 02-compose-run, 03-run-gather (cg agent run), 04-run-process (compact+run), 05-run-report (compact+run), 06-validate-entity (correct syntax), 07-validate-runs. Session pattern: capture sessionId, save to .current-session, resume with --session. | docs/how/dev/manual-wf-run/README.md, tasks.md:457-477 session pattern |
 
 **Types**: `gotcha` | `research-needed` | `unexpected-behavior` | `workaround` | `decision` | `debt` | `insight`
 

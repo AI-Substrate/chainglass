@@ -147,7 +147,7 @@ export const DEMO_AGENT_SESSIONS: AgentSessionMap = {
       {
         role: 'assistant',
         content:
-          "I found multiple deployment environments available. Which environment would you like me to deploy to?\n\nPlease select the target environment for this deployment.",
+          'I found multiple deployment environments available. Which environment would you like me to deploy to?\n\nPlease select the target environment for this deployment.',
       },
     ],
     {
@@ -182,13 +182,14 @@ export const DEMO_AGENT_SESSIONS: AgentSessionMap = {
           name: 'bash',
           status: 'complete',
           input: 'cat config/feature-flags.json',
-          output: '{"new_checkout": false, "dark_mode": true, "ai_recommendations": false, "beta_api": false}',
+          output:
+            '{"new_checkout": false, "dark_mode": true, "ai_recommendations": false, "beta_api": false}',
         },
       },
       {
         role: 'assistant',
         content:
-          "The production deployment is ready. I can enable any of these feature flags during deployment. Select which features you want to enable:",
+          'The production deployment is ready. I can enable any of these feature flags during deployment. Select which features you want to enable:',
       },
     ],
     {
@@ -219,8 +220,7 @@ export const DEMO_AGENT_SESSIONS: AgentSessionMap = {
       },
       {
         role: 'assistant',
-        content:
-          "I'll prepare the database migration. Let me analyze the migration script first.",
+        content: "I'll prepare the database migration. Let me analyze the migration script first.",
       },
       {
         role: 'tool',
@@ -332,7 +332,8 @@ redis-master-0              1/1     Running   0          5d`,
           name: 'bash',
           status: 'failed',
           input: 'git checkout hotfix/critical-auth-fix',
-          output: "error: pathspec 'hotfix/critical-auth-fix' did not match any file(s) known to git",
+          output:
+            "error: pathspec 'hotfix/critical-auth-fix' did not match any file(s) known to git",
         },
       },
       {

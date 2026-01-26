@@ -10,27 +10,35 @@
 
 ### Purpose
 
-This phase implements the core chat interface for the Multi-Agent Web UI: session state management, message streaming components, markdown rendering, and input handling. Without these components, users cannot interact with agents through the web interface.
+This phase implements a **standalone Agents page** with full-featured agent interaction: real SSE streaming, session state management, message rendering, and agent creation. This is a **SPIKE/MVP** - a working vertical slice, not integrated with kanban boards yet.
 
 ### What We're Building
 
-A complete chat interaction layer consisting of:
-- **sessionReducer**: Pure reducer for session state machine (idle → running → waiting_input → completed)
+A standalone `/agents` page with complete agent interaction:
+- **`/agents` route**: Standalone page accessible from main navigation menu
+- **Agent creation form**: Create new agent sessions (name + agent type selector)
+- **Agent list view**: See all agent sessions, click to switch between them
+- **sessionReducer**: Pure reducer for session state machine (idle → running → completed → error)
 - **useAgentSession hook**: React hook wrapping reducer with dispatch, integrating with SSE via `useSSE`
-- **AgentChatInput**: Text input component with Enter-to-submit, accessibility-first design (submit never disabled)
-- **StreamingMessage**: Renders agent responses with live markdown during streaming (reuses `MarkdownServer`)
-- **AgentStatusIndicator**: Visual status display (running=blue pulse, waiting=amber, idle=gray, error=red)
-- **AgentChatView**: Container component assembling all chat UI elements
+- **AgentChatInput**: Text input component with Cmd/Ctrl+Enter to submit
+- **LogEntry/StreamingMessage**: Terminal-style message rendering with live markdown
+- **AgentStatusIndicator**: Visual status display (running=blue pulse, idle=gray, error=red)
 - **Context window display**: Token usage percentage with warning thresholds
+
+**NOT building** (from kanban prototype):
+- Question UI (QuestionInput, QuestionPanel) - not needed for standalone agent interaction
+- Kanban board integration - deferred to later phase
 
 ### User Value
 
 Users will be able to:
-- Send messages to agents and see real-time streaming responses (AC-06, AC-07)
-- See properly formatted markdown with syntax highlighting (AC-09)
-- Understand agent status at a glance via color indicators (AC-11)
-- Monitor context window usage to avoid hitting limits (AC-12)
-- Navigate entirely by keyboard with accessible submit buttons (AC-15)
+- Create new agent sessions with a name and agent type (claude-code, copilot, generic)
+- See all their agent sessions in a list view
+- Click to switch between active agent sessions
+- Send messages to agents and see real-time streaming responses
+- See properly formatted markdown with syntax highlighting
+- Understand agent status at a glance via color indicators
+- Monitor context window usage to avoid hitting limits
 
 ### Example
 
@@ -72,24 +80,27 @@ Build the primary chat interface with message streaming, markdown rendering, and
 
 ### Goals
 
-- ✅ Implement `sessionReducer` with all state transitions (idle, running, waiting_input, completed)
+- ✅ Create standalone `/agents` route with page layout
+- ✅ Implement agent creation form (name + agent type selector)
+- ✅ Implement agent list view with click-to-switch
+- ✅ Add Agents link to main navigation menu
+- ✅ Implement `sessionReducer` with state transitions (idle, running, completed, error)
 - ✅ Implement `useAgentSession` hook with action dispatch and SSE integration
-- ✅ Create `AgentChatInput` with Enter-to-submit, Shift+Enter for newline, never-disabled submit
-- ✅ Create `StreamingMessage` that renders markdown continuously during streaming
+- ✅ Create `AgentChatInput` with Cmd/Ctrl+Enter to submit
+- ✅ Create `LogEntry`/`StreamingMessage` for terminal-style message rendering
 - ✅ Create `AgentStatusIndicator` with color mapping for all states
-- ✅ Create `AgentChatView` container assembling message list, input, and status bar
 - ✅ Implement context window usage display with warning thresholds
 
 ### Non-Goals
 
-- ❌ Multi-session orchestration (Phase 3)
-- ❌ Session list and switching UI (Phase 3)
-- ❌ Agent routes (`/agents`, `/agents/[sessionId]`) (Phase 3)
+- ❌ Kanban board integration (future phase)
+- ❌ Question UI (QuestionInput, QuestionPanel) - not needed for standalone
 - ❌ Slash command processing (`/compact`, `/help`) (Phase 4)
 - ❌ Archive/restore functionality (Phase 4)
 - ❌ Mobile-specific layouts or h-dvh optimization (Phase 4)
 - ❌ Message virtualization (react-window) – defer unless performance issues observed
 - ❌ Two-phase markdown rendering – live markdown confirmed acceptable (MF-11)
+- ❌ `waiting_input` status - that was for question UI which we're not building
 
 ---
 
@@ -104,82 +115,57 @@ flowchart TD
     classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
     classDef inprogress fill:#FF9800,stroke:#F57C00,color:#fff
     classDef completed fill:#4CAF50,stroke:#388E3C,color:#fff
-    classDef blocked fill:#F44336,stroke:#D32F2F,color:#fff
 
-    style Phase fill:#F5F5F5,stroke:#E0E0E0
-    style Hooks fill:#E3F2FD,stroke:#1976D2
-    style Components fill:#E8F5E9,stroke:#388E3C
-    style Tests fill:#FCE4EC,stroke:#C2185B
-
-    subgraph Phase["Phase 2: Core Chat"]
+    subgraph Phase["Phase 2: Standalone Agents Page"]
         direction TB
 
-        subgraph Hooks["State Management"]
-            T001["T001: sessionReducer tests"]:::pending
-            T002["T002: sessionReducer impl"]:::pending
+        subgraph Hooks["State Management (T001-T004)"]
+            T001["T001: sessionReducer tests ✓"]:::completed
+            T002["T002: sessionReducer"]:::inprogress
             T003["T003: useAgentSession tests"]:::pending
-            T004["T004: useAgentSession impl"]:::pending
-
-            T001 --> T002
-            T002 --> T003
-            T003 --> T004
+            T004["T004: useAgentSession"]:::pending
+            T001 --> T002 --> T003 --> T004
         end
 
-        subgraph Components["UI Components"]
+        subgraph Core["Core Components (T005-T012)"]
             T005["T005: AgentChatInput tests"]:::pending
-            T006["T006: AgentChatInput impl"]:::pending
-            T007["T007: StreamingMessage tests"]:::pending
-            T008["T008: StreamingMessage impl"]:::pending
-            T009["T009: AgentStatusIndicator tests"]:::pending
-            T010["T010: AgentStatusIndicator impl"]:::pending
-            T011["T011: AgentChatView tests"]:::pending
-            T012["T012: AgentChatView impl"]:::pending
-            T013["T013: ContextWindow tests"]:::pending
-            T014["T014: ContextWindow impl"]:::pending
+            T006["T006: AgentChatInput"]:::pending
+            T007["T007: LogEntry tests"]:::pending
+            T008["T008: LogEntry"]:::pending
+            T009["T009: StatusIndicator tests"]:::pending
+            T010["T010: StatusIndicator"]:::pending
+            T011["T011: ContextWindow tests"]:::pending
+            T012["T012: ContextWindow"]:::pending
 
-            T004 --> T005
             T005 --> T006
-            T004 --> T007
             T007 --> T008
             T009 --> T010
-            T006 --> T011
-            T008 --> T011
-            T010 --> T011
             T011 --> T012
-            T013 --> T014
-            T014 --> T012
         end
-    end
 
-    subgraph Files["Files"]
-        F1["/apps/web/src/hooks/useAgentSession.ts"]:::pending
-        F2["/apps/web/src/components/agents/agent-chat-input.tsx"]:::pending
-        F3["/apps/web/src/components/agents/streaming-message.tsx"]:::pending
-        F4["/apps/web/src/components/agents/agent-status-indicator.tsx"]:::pending
-        F5["/apps/web/src/components/agents/agent-chat-view.tsx"]:::pending
-        F6["/apps/web/src/components/agents/context-window-display.tsx"]:::pending
-        F7["/test/unit/web/hooks/useAgentSession.test.ts"]:::pending
-        F8["/test/unit/web/components/agents/agent-chat-input.test.tsx"]:::pending
-        F9["/test/unit/web/components/agents/streaming-message.test.tsx"]:::pending
-        F10["/test/unit/web/components/agents/agent-status-indicator.test.tsx"]:::pending
-        F11["/test/unit/web/components/agents/agent-chat-view.test.tsx"]:::pending
-        F12["/test/unit/web/components/agents/context-window-display.test.tsx"]:::pending
-    end
+        subgraph Page["Standalone Page (T013-T019)"]
+            T013["T013: CreationForm tests"]:::pending
+            T014["T014: CreationForm"]:::pending
+            T015["T015: AgentListView tests"]:::pending
+            T016["T016: AgentListView"]:::pending
+            T017["T017: /agents page tests"]:::pending
+            T018["T018: /agents page"]:::pending
+            T019["T019: Navigation"]:::pending
 
-    T002 -.-> F1
-    T004 -.-> F1
-    T006 -.-> F2
-    T008 -.-> F3
-    T010 -.-> F4
-    T012 -.-> F5
-    T014 -.-> F6
-    T001 -.-> F7
-    T003 -.-> F7
-    T005 -.-> F8
-    T007 -.-> F9
-    T009 -.-> F10
-    T011 -.-> F11
-    T013 -.-> F12
+            T013 --> T014
+            T015 --> T016
+            T017 --> T018 --> T019
+        end
+
+        T004 --> T005
+        T004 --> T007
+        T006 --> T017
+        T008 --> T017
+        T010 --> T015
+        T012 --> T017
+        T014 --> T017
+        T016 --> T017
+    end
 ```
 
 ### Task-to-Component Mapping
@@ -188,20 +174,25 @@ flowchart TD
 
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
-| T001 | sessionReducer Tests | `/test/unit/web/hooks/useAgentSession.test.ts` | ⬜ Pending | TDD RED: all state transitions |
-| T002 | sessionReducer | `/apps/web/src/hooks/useAgentSession.ts` | ⬜ Pending | TDD GREEN: pure reducer impl |
+| T001 | sessionReducer Tests | `/test/unit/web/hooks/useAgentSession.test.ts` | ✅ Complete | TDD RED: 23 tests written |
+| T002 | sessionReducer | `/apps/web/src/hooks/useAgentSession.ts` | 🟧 In Progress | TDD GREEN: pure reducer |
 | T003 | useAgentSession Tests | `/test/unit/web/hooks/useAgentSession.test.ts` | ⬜ Pending | TDD RED: hook integration |
-| T004 | useAgentSession | `/apps/web/src/hooks/useAgentSession.ts` | ⬜ Pending | TDD GREEN: hook wrapping reducer |
-| T005 | AgentChatInput Tests | `/test/unit/web/components/agents/agent-chat-input.test.tsx` | ⬜ Pending | TDD RED: input behavior, a11y |
-| T006 | AgentChatInput | `/apps/web/src/components/agents/agent-chat-input.tsx` | ⬜ Pending | TDD GREEN: Enter submit, never disabled |
-| T007 | StreamingMessage Tests | `/test/unit/web/components/agents/streaming-message.test.tsx` | ⬜ Pending | TDD RED: streaming, markdown |
-| T008 | StreamingMessage | `/apps/web/src/components/agents/streaming-message.tsx` | ⬜ Pending | TDD GREEN: uses MarkdownServer |
-| T009 | AgentStatusIndicator Tests | `/test/unit/web/components/agents/agent-status-indicator.test.tsx` | ⬜ Pending | TDD RED: color mapping |
-| T010 | AgentStatusIndicator | `/apps/web/src/components/agents/agent-status-indicator.tsx` | ⬜ Pending | TDD GREEN: status colors |
-| T011 | AgentChatView Tests | `/test/unit/web/components/agents/agent-chat-view.test.tsx` | ⬜ Pending | TDD RED: integration |
-| T012 | AgentChatView | `/apps/web/src/components/agents/agent-chat-view.tsx` | ⬜ Pending | TDD GREEN: container assembly |
-| T013 | ContextWindow Tests | `/test/unit/web/components/agents/context-window-display.test.tsx` | ⬜ Pending | TDD RED: percentage, thresholds |
-| T014 | ContextWindow | `/apps/web/src/components/agents/context-window-display.tsx` | ⬜ Pending | TDD GREEN: usage display |
+| T004 | useAgentSession | `/apps/web/src/hooks/useAgentSession.ts` | ⬜ Pending | TDD GREEN: hook + SSE |
+| T005 | AgentChatInput Tests | `/test/unit/web/components/agents/agent-chat-input.test.tsx` | ⬜ Pending | TDD RED: input behavior |
+| T006 | AgentChatInput | `/apps/web/src/components/agents/agent-chat-input.tsx` | ⬜ Pending | TDD GREEN: Cmd+Enter submit |
+| T007 | LogEntry Tests | `/test/unit/web/components/agents/log-entry.test.tsx` | ⬜ Pending | TDD RED: terminal-style |
+| T008 | LogEntry | `/apps/web/src/components/agents/log-entry.tsx` | ⬜ Pending | TDD GREEN: message rendering |
+| T009 | AgentStatusIndicator Tests | `/test/unit/web/components/agents/agent-status-indicator.test.tsx` | ⬜ Pending | TDD RED: colors |
+| T010 | AgentStatusIndicator | `/apps/web/src/components/agents/agent-status-indicator.tsx` | ⬜ Pending | TDD GREEN: status badge |
+| T011 | ContextWindowDisplay Tests | `/test/unit/web/components/agents/context-window-display.test.tsx` | ⬜ Pending | TDD RED: progress bar |
+| T012 | ContextWindowDisplay | `/apps/web/src/components/agents/context-window-display.tsx` | ⬜ Pending | TDD GREEN: usage display |
+| T013 | AgentCreationForm Tests | `/test/unit/web/components/agents/agent-creation-form.test.tsx` | ⬜ Pending | TDD RED: form |
+| T014 | AgentCreationForm | `/apps/web/src/components/agents/agent-creation-form.tsx` | ⬜ Pending | TDD GREEN: name + type |
+| T015 | AgentListView Tests | `/test/unit/web/components/agents/agent-list-view.test.tsx` | ⬜ Pending | TDD RED: list |
+| T016 | AgentListView | `/apps/web/src/components/agents/agent-list-view.tsx` | ⬜ Pending | TDD GREEN: session list |
+| T017 | /agents Page Tests | `/test/unit/web/app/agents/page.test.tsx` | ⬜ Pending | TDD RED: integration |
+| T018 | /agents Page | `/apps/web/app/(dashboard)/agents/page.tsx` | ⬜ Pending | TDD GREEN: standalone page |
+| T019 | Navigation Update | `/apps/web/src/components/layout/` | ⬜ Pending | Add Agents link |
 
 ---
 
@@ -209,20 +200,25 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|------|------|----|------|--------------|------------------|------------|----------|-------|
-| [ ] | T001 | Write tests for `sessionReducer` state transitions | 3 | Test | – | `/home/jak/substrate/007-manage-workflows/test/unit/web/hooks/useAgentSession.test.ts` | Tests cover: all action types (START_RUN, APPEND_DELTA, UPDATE_STATUS, COMPLETE_RUN, SET_ERROR, CLEAR_ERROR), invalid transitions rejected (same ref returned), merge-not-replace for deltas | – | Plan task 2.1; Per HF-08: merge-not-replace pattern |
-| [ ] | T002 | Implement `sessionReducer` | 2 | Core | T001 | `/home/jak/substrate/007-manage-workflows/apps/web/src/hooks/useAgentSession.ts` | All T001 tests pass; pure function with state machine transitions; handles concurrent SSE events safely | – | Plan task 2.2 |
-| [ ] | T003 | Write tests for `useAgentSession` hook | 2 | Test | T002 | `/home/jak/substrate/007-manage-workflows/test/unit/web/hooks/useAgentSession.test.ts` | Tests cover: action dispatch, state updates via reducer, memoization (dispatch stable across renders), integration with session store | – | Plan task 2.3; Uses renderHook |
-| [ ] | T004 | Implement `useAgentSession` hook | 2 | Core | T003 | `/home/jak/substrate/007-manage-workflows/apps/web/src/hooks/useAgentSession.ts` | All T003 tests pass; wraps sessionReducer; dispatch is memoized; loads from AgentSessionStore (Phase 1) | – | Plan task 2.4 |
-| [ ] | T005 | Write tests for `AgentChatInput` component | 2 | Test | T004 | `/home/jak/substrate/007-manage-workflows/test/unit/web/components/agents/agent-chat-input.test.tsx` | Tests cover: Enter key submits, button click submits, Shift+Enter inserts newline, submit never disabled (per MF-09), empty submit shows error, Tab navigation, ARIA labels | – | Plan task 2.5; Slash commands in Phase 4 |
-| [ ] | T006 | Implement `AgentChatInput` component | 2 | Core | T005 | `/home/jak/substrate/007-manage-workflows/apps/web/src/components/agents/agent-chat-input.tsx` | All T005 tests pass; textarea with auto-expand; submit button always enabled; validates on submit | – | Plan task 2.6; Per MF-09: never disable submit |
-| [ ] | T007 | Write tests for `StreamingMessage` component | 2 | Test | T004 | `/home/jak/substrate/007-manage-workflows/test/unit/web/components/agents/streaming-message.test.tsx` | Tests cover: partial content renders, completed content renders, markdown renders (code blocks, links, lists), user vs assistant styling | – | Plan task 2.7; Uses MarkdownServer |
-| [ ] | T008 | Implement `StreamingMessage` component | 2 | Core | T007 | `/home/jak/substrate/007-manage-workflows/apps/web/src/components/agents/streaming-message.tsx` | All T007 tests pass; renders markdown continuously during streaming (per MF-11); reuses MarkdownServer, CodeBlock (per MF-12) | – | Plan task 2.8; Per MF-11, MF-12: live markdown with existing components |
-| [ ] | T009 | Write tests for `AgentStatusIndicator` component | 1 | Test | – | `/home/jak/substrate/007-manage-workflows/test/unit/web/components/agents/agent-status-indicator.test.tsx` | Tests cover: all status states (idle, running, waiting_input, completed, error), correct color mapping (running=blue, waiting=amber, idle=gray, error=red), ARIA live region | – | Plan task 2.9 |
-| [ ] | T010 | Implement `AgentStatusIndicator` component | 1 | Core | T009 | `/home/jak/substrate/007-manage-workflows/apps/web/src/components/agents/agent-status-indicator.tsx` | All T009 tests pass; color-coded status display with pulsing animation for running | – | Plan task 2.10 |
-| [ ] | T011 | Write tests for `AgentChatView` assembly | 3 | Test | T006, T008, T010, T014 | `/home/jak/substrate/007-manage-workflows/test/unit/web/components/agents/agent-chat-view.test.tsx` | Tests cover: message list displays, input integration works, status bar shows indicator and context usage, scroll behavior on new messages | – | Plan task 2.11; Integration test |
-| [ ] | T012 | Implement `AgentChatView` component | 3 | Core | T011 | `/home/jak/substrate/007-manage-workflows/apps/web/src/components/agents/agent-chat-view.tsx` | All T011 tests pass; assembles StreamingMessage list, AgentChatInput, status bar with AgentStatusIndicator and ContextWindowDisplay | – | Plan task 2.12 |
-| [ ] | T013 | Write tests for context window usage display | 1 | Test | – | `/home/jak/substrate/007-manage-workflows/test/unit/web/components/agents/context-window-display.test.tsx` | Tests cover: percentage calculation, warning at >75%, critical at >90%, unavailable display for Copilot (token count may not be available) | – | Plan task 2.13 |
-| [ ] | T014 | Implement context window UI in status bar | 1 | Core | T013 | `/home/jak/substrate/007-manage-workflows/apps/web/src/components/agents/context-window-display.tsx` | All T013 tests pass; displays percentage, color-coded warnings, graceful handling when usage unavailable | – | Plan task 2.14 |
+| [x] | T001 | Write tests for `sessionReducer` state transitions | 3 | Test | – | `/home/jak/substrate/007-manage-workflows/test/unit/web/hooks/useAgentSession.test.ts` | Tests cover: all action types (START_RUN, APPEND_DELTA, UPDATE_STATUS, COMPLETE_RUN, SET_ERROR, CLEAR_ERROR), invalid transitions rejected (same ref returned), merge-not-replace for deltas | – | Per HF-08: merge-not-replace pattern |
+| [~] | T002 | Implement `sessionReducer` | 2 | Core | T001 | `/home/jak/substrate/007-manage-workflows/apps/web/src/hooks/useAgentSession.ts` | All T001 tests pass; pure function with state machine transitions; handles concurrent SSE events safely | – | States: idle, running, completed, error (no waiting_input) |
+| [ ] | T003 | Write tests for `useAgentSession` hook | 2 | Test | T002 | `/home/jak/substrate/007-manage-workflows/test/unit/web/hooks/useAgentSession.test.ts` | Tests cover: action dispatch, state updates via reducer, memoization (dispatch stable across renders), integration with session store | – | Uses renderHook |
+| [ ] | T004 | Implement `useAgentSession` hook | 2 | Core | T003 | `/home/jak/substrate/007-manage-workflows/apps/web/src/hooks/useAgentSession.ts` | All T003 tests pass; wraps sessionReducer; dispatch is memoized; loads from AgentSessionStore (Phase 1) | – | |
+| [ ] | T005 | Write tests for `AgentChatInput` component | 2 | Test | T004 | `/home/jak/substrate/007-manage-workflows/test/unit/web/components/agents/agent-chat-input.test.tsx` | Tests cover: Cmd/Ctrl+Enter submits, button click submits, empty input disabled, Tab navigation, ARIA labels | – | Follows prototype pattern |
+| [ ] | T006 | Implement `AgentChatInput` component | 2 | Core | T005 | `/home/jak/substrate/007-manage-workflows/apps/web/src/components/agents/agent-chat-input.tsx` | All T005 tests pass; textarea with Cmd/Ctrl+Enter shortcut; keyboard hint in footer | – | Based on prototype |
+| [ ] | T007 | Write tests for `LogEntry` (StreamingMessage) component | 2 | Test | T004 | `/home/jak/substrate/007-manage-workflows/test/unit/web/components/agents/log-entry.test.tsx` | Tests cover: user/assistant/tool/system rendering, streaming indicator, tool expansion, markdown rendering | – | Terminal-style design |
+| [ ] | T008 | Implement `LogEntry` component | 2 | Core | T007 | `/home/jak/substrate/007-manage-workflows/apps/web/src/components/agents/log-entry.tsx` | All T007 tests pass; terminal-style rendering; reuses MarkdownServer for content | – | Based on prototype LogEntry |
+| [ ] | T009 | Write tests for `AgentStatusIndicator` component | 1 | Test | – | `/home/jak/substrate/007-manage-workflows/test/unit/web/components/agents/agent-status-indicator.test.tsx` | Tests cover: status states (idle, running, completed, error), color mapping (running=blue, idle=gray, error=red), ARIA live region | – | No waiting_input status |
+| [ ] | T010 | Implement `AgentStatusIndicator` component | 1 | Core | T009 | `/home/jak/substrate/007-manage-workflows/apps/web/src/components/agents/agent-status-indicator.tsx` | All T009 tests pass; color-coded status with pulsing animation for running | – | |
+| [ ] | T011 | Write tests for `ContextWindowDisplay` | 1 | Test | – | `/home/jak/substrate/007-manage-workflows/test/unit/web/components/agents/context-window-display.test.tsx` | Tests cover: percentage, warning at >75%, critical at >90%, unavailable graceful | – | |
+| [ ] | T012 | Implement `ContextWindowDisplay` component | 1 | Core | T011 | `/home/jak/substrate/007-manage-workflows/apps/web/src/components/agents/context-window-display.tsx` | All T011 tests pass; compact progress bar with colors | – | Based on prototype |
+| [ ] | T013 | Write tests for `AgentCreationForm` | 2 | Test | – | `/home/jak/substrate/007-manage-workflows/test/unit/web/components/agents/agent-creation-form.test.tsx` | Tests cover: name input, agent type selector, form submission, validation | – | Standalone page feature |
+| [ ] | T014 | Implement `AgentCreationForm` component | 2 | Core | T013 | `/home/jak/substrate/007-manage-workflows/apps/web/src/components/agents/agent-creation-form.tsx` | All T013 tests pass; name input + agent type dropdown; calls onCreate callback | – | |
+| [ ] | T015 | Write tests for `AgentListView` | 2 | Test | T010 | `/home/jak/substrate/007-manage-workflows/test/unit/web/components/agents/agent-list-view.test.tsx` | Tests cover: list rendering, click to select, active indicator, empty state | – | Standalone page feature |
+| [ ] | T016 | Implement `AgentListView` component | 2 | Core | T015 | `/home/jak/substrate/007-manage-workflows/apps/web/src/components/agents/agent-list-view.tsx` | All T015 tests pass; shows all sessions with status, click to switch | – | |
+| [ ] | T017 | Write tests for `/agents` page | 3 | Test | T006, T008, T012, T014, T016 | `/home/jak/substrate/007-manage-workflows/test/unit/web/app/agents/page.test.tsx` | Tests cover: page renders, list + chat view integration, creation flow | – | Integration test |
+| [ ] | T018 | Implement `/agents` route and page | 3 | Core | T017 | `/home/jak/substrate/007-manage-workflows/apps/web/app/(dashboard)/agents/page.tsx` | All T017 tests pass; standalone agents page with list, creation, chat view | – | Main deliverable |
+| [ ] | T019 | Add Agents to main navigation | 1 | Core | T018 | `/home/jak/substrate/007-manage-workflows/apps/web/src/components/layout/` | Agents link visible in sidebar/nav; navigates to /agents | – | |
 
 ---
 
@@ -342,10 +338,12 @@ None.
 | `/test/fakes/fake-event-source.ts` | Fake for SSE testing |
 | `/test/fakes/fake-resize-observer.ts` | Fake for textarea tests |
 
-**External Reference** (via FlowSpace):
-| Graph | File | Purpose |
-|-------|------|---------|
-| `vibe-kanban` | `apps/web/src/components/agents/agent-session-dialog.tsx` | UI patterns: context bar, message bubbles, streaming indicator |
+**Local Prototype Reference** (built in parallel):
+| File | Purpose |
+|------|---------|
+| `/apps/web/src/components/agents/agent-session-dialog.tsx` | Terminal-style dialog with LogEntry, QuestionInput |
+| `/apps/web/src/data/fixtures/agent-sessions.fixture.ts` | Types: AgentSession, AgentMessage, AgentQuestion, etc. |
+| `/apps/web/src/components/kanban/run-kanban-card.tsx` | Integration example with "Open Agent Session" button |
 
 ### Visual Alignment Aids
 
@@ -402,58 +400,91 @@ sequenceDiagram
     end
 ```
 
-### UI Reference Patterns (from vibe-kanban)
+### UI Reference Patterns (from local prototype)
 
-**Source**: Explored via FlowSpace from `~/github/vibe-kanban` - their `AgentSessionDialog` component.
+**Source**: `apps/web/src/components/agents/agent-session-dialog.tsx` - Terminal/log-style prototype built in parallel.
 
-#### Context Window Progress Bar
+#### Design Philosophy: Terminal-Style, Not Chat Bubbles
+The prototype uses **log entry rendering** instead of chat bubbles for a more developer-focused experience:
+- Tool calls display inline with expandable output
+- User messages have a violet left border highlight
+- Assistant messages are plain text with icon prefix
+- Compact, information-dense layout
+
+#### LogEntry Component Pattern
 ```tsx
-// Color thresholds: >90% red, >75% amber, else gradient
-<div className="h-1.5 bg-muted rounded-full overflow-hidden">
-  <div
-    className={cn(
-      'h-full rounded-full transition-all duration-500',
-      usage > 90 ? 'bg-red-500' :
-      usage > 75 ? 'bg-amber-500' : 'bg-gradient-to-r from-violet-500 to-purple-500'
-    )}
-    style={{ width: `${usage}%` }}
-  />
+// Tool calls - compact inline with expandable output
+<div className="px-4 py-1.5 hover:bg-muted/30">
+  <button className="w-full text-left flex items-center gap-2 text-sm">
+    {/* Status dot with ping animation when running */}
+    <div className={cn('h-1.5 w-1.5 rounded-full',
+      status === 'complete' && 'bg-emerald-500',
+      status === 'running' && 'bg-blue-500',
+      status === 'failed' && 'bg-red-500'
+    )} />
+    <Terminal className="h-3 w-3 text-muted-foreground" />
+    <span className="font-mono text-xs">{input || name}</span>
+    {hasOutput && <ChevronRight className={cn('h-3 w-3', expanded && 'rotate-90')} />}
+  </button>
+  {expanded && <pre className="font-mono text-[11px] text-zinc-400">{output}</pre>}
+</div>
+
+// User messages - highlighted with left border
+<div className="px-4 py-2 bg-muted/40 border-l-2 border-violet-500">
+  <User className="h-3.5 w-3.5 text-violet-500" />
+  <p className="text-sm">{content}</p>
+</div>
+
+// Assistant messages - plain with icon
+<div className="px-4 py-2 hover:bg-muted/20">
+  <Bot className="h-3.5 w-3.5 text-muted-foreground" />
+  <p className="text-sm">{content}</p>
+  {isStreaming && <span className="text-blue-500">typing...</span>}
 </div>
 ```
 
-#### Message Bubble Styling
+#### Context Window Progress Bar (compact)
 ```tsx
-// User: right-aligned, primary color, rounded-br-sm
-// Assistant: left-aligned, muted bg, rounded-bl-sm
-<div className={cn(
-  'max-w-[85%] rounded-2xl px-4 py-2.5',
-  isUser && 'bg-primary text-primary-foreground rounded-br-sm',
-  isAssistant && 'bg-muted rounded-bl-sm'
-)}>
+<div className="px-4 py-1.5 flex items-center gap-3">
+  <span className="text-[10px] text-muted-foreground">Context</span>
+  <div className="flex-1 h-1 bg-muted rounded-full">
+    <div className={cn('h-full rounded-full',
+      usage > 90 ? 'bg-red-500' :
+      usage > 75 ? 'bg-amber-500' : 'bg-violet-500'
+    )} style={{ width: `${usage}%` }} />
+  </div>
+  <span className="text-[10px] font-mono">{usage}%</span>
+</div>
 ```
 
-#### Streaming Indicator (bouncing dots)
+#### QuestionInput Component Pattern
 ```tsx
-{message.isStreaming && (
-  <span className="flex items-center gap-1 text-[10px] text-blue-500">
-    <div className="flex gap-0.5">
-      <div className="w-1 h-1 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '0ms' }} />
-      <div className="w-1 h-1 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '150ms' }} />
-      <div className="w-1 h-1 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '300ms' }} />
-    </div>
-    streaming
-  </span>
-)}
+// Replaces text input when question is active
+// Types: single_choice, multi_choice, confirm, free_text
+<QuestionInput
+  question={pendingQuestion}
+  onAnswer={(answer) => sendMessage(formatAnswer(answer))}
+  onCancel={() => setShowQuestionUI(false)}  // Switch to text input
+/>
 ```
 
-#### Key Differences from vibe-kanban (per MF-09)
-| Aspect | vibe-kanban | Our Implementation |
-|--------|-------------|-------------------|
-| Submit trigger | `Cmd/Ctrl + Enter` | `Enter` (Shift+Enter for newline) |
-| Submit button | Disabled when empty | **Never disabled** (validate on submit) |
-| Empty validation | Prevents send | Shows error message after submit |
+#### Existing Types (from fixtures)
+Already defined in `apps/web/src/data/fixtures/agent-sessions.fixture.ts`:
+- `AgentSession`, `AgentMessage`, `AgentQuestion`
+- `AgentSessionStatus`: idle, running, waiting_input, error
+- `AgentType`: claude-code, copilot, generic
+- `MessageRole`: user, assistant, system, tool
+- `ToolStatus`: pending, running, complete, failed
+- `QuestionType`: free_text, single_choice, multi_choice, confirm
 
-**Rationale**: MF-09 mandates accessible submit buttons that are never disabled. We validate on submit and display inline errors instead.
+#### Key Design Decisions
+| Aspect | Implementation | Rationale |
+|--------|---------------|-----------|
+| Layout | Terminal/log style | Developer-focused, information-dense |
+| Tool calls | Expandable inline | Shows command + output without clutter |
+| Submit | `Cmd/Ctrl + Enter` | Allows Shift+Enter for newlines |
+| Questions | Toggle panel | Can switch to free text input |
+| Status | Compact badge in header | Doesn't take space in message area |
 
 ---
 
@@ -554,19 +585,21 @@ class FakeMessageHandler {
 }
 ```
 
-#### T007/T008: StreamingMessage Tests
+#### T007/T008: StreamingMessage (LogEntry) Tests
 
 | Test Name | Rationale | Expected Output |
 |-----------|-----------|-----------------|
 | `should render partial content during streaming` | Live streaming feedback | Partial text visible |
-| `should show streaming indicator when isStreaming` | Visual feedback | Bouncing dots visible |
+| `should show streaming indicator when isStreaming` | Visual feedback | "typing..." indicator visible |
 | `should hide streaming indicator when complete` | Clean final state | No indicator |
 | `should render completed content` | Final message display | Full text visible |
 | `should render markdown code blocks` | Code formatting | Code block rendered |
 | `should render markdown links` | Link formatting | Clickable links |
 | `should render markdown lists` | List formatting | List items visible |
-| `should style user messages right-aligned` | Visual differentiation | `bg-primary`, right side |
-| `should style assistant messages left-aligned` | Visual differentiation | `bg-muted`, left side |
+| `should style user messages with left border` | Visual differentiation | `border-l-2 border-violet-500` |
+| `should style assistant messages plain` | Visual differentiation | No border, muted icon |
+| `should render tool calls with status dot` | Tool visualization | Colored dot + command text |
+| `should expand tool output on click` | Interactive output | Output visible when expanded |
 
 #### T009/T010: AgentStatusIndicator Tests
 
@@ -574,12 +607,11 @@ class FakeMessageHandler {
 |-----------|-----------|-----------------|
 | `should show gray for idle` | Visual status | Gray indicator |
 | `should show blue pulse for running` | Active feedback | Blue with animation |
-| `should show amber for waiting_input` | Attention needed | Amber indicator |
-| `should show gray for completed` | Session done | Gray indicator |
+| `should show green for completed` | Session done | Green indicator |
 | `should show red for error` | Error visibility | Red indicator |
 | `should have ARIA live region` | Accessibility | Status announced |
 
-#### T013/T014: ContextWindowDisplay Tests
+#### T011/T012: ContextWindowDisplay Tests
 
 | Test Name | Rationale | Expected Output |
 |-----------|-----------|-----------------|
@@ -592,81 +624,105 @@ class FakeMessageHandler {
 
 ### Step-by-Step Implementation Outline
 
+#### State Management (T001-T004)
+
 1. **T001**: Create `test/unit/web/hooks/useAgentSession.test.ts`
-   - Import from non-existent hook (will fail)
    - Write reducer tests with Test Doc format
-   - Run: `pnpm test test/unit/web/hooks/useAgentSession.test.ts` → RED
+   - **Note**: Types already exist in `apps/web/src/data/fixtures/agent-sessions.fixture.ts`
+   - Run: → RED
 
 2. **T002**: Create `apps/web/src/hooks/useAgentSession.ts`
    - Define `SessionAction` union type
-   - Implement `sessionReducer` with state machine logic
-   - Handle merge-not-replace for APPEND_DELTA
-   - Run: `pnpm test test/unit/web/hooks/useAgentSession.test.ts` → GREEN (reducer tests)
+   - Implement `sessionReducer` with state machine (idle → running → completed/error)
+   - Handle merge-not-replace for APPEND_DELTA (per HF-08)
+   - Run: → GREEN
 
 3. **T003**: Extend test file with hook tests
    - Use `renderHook` from `@testing-library/react`
    - Test dispatch behavior and state updates
-   - Run: tests still fail → RED
+   - Run: → RED
 
 4. **T004**: Implement `useAgentSession` hook
    - Wrap reducer with `useReducer`
    - Memoize dispatch with `useCallback`
-   - Integrate with `AgentSessionStore` for persistence
-   - Run: `pnpm test test/unit/web/hooks/useAgentSession.test.ts` → GREEN
+   - Integrate with `AgentSessionStore` (Phase 1) for persistence
+   - Run: → GREEN
+
+#### Core Components (T005-T012)
 
 5. **T005**: Create `test/unit/web/components/agents/agent-chat-input.test.tsx`
-   - Define FakeMessageHandler class
-   - Write tests for submit, keyboard, accessibility
-   - Run: `pnpm test test/unit/web/components/agents/agent-chat-input.test.tsx` → RED
-
-6. **T006**: Create `apps/web/src/components/agents/agent-chat-input.tsx`
-   - Textarea with auto-expand (FakeResizeObserver in tests)
-   - Button always enabled (no `disabled` prop)
-   - Validate on submit, show error for empty
-   - Run: tests → GREEN
-
-7. **T007**: Create `test/unit/web/components/agents/streaming-message.test.tsx`
-   - Tests for streaming, completion, markdown rendering
+   - Tests: Cmd/Ctrl+Enter submits, button click, empty validation
    - Run: → RED
 
-8. **T008**: Create `apps/web/src/components/agents/streaming-message.tsx`
-   - Use `MarkdownServer` for rendering
-   - Handle isStreaming prop for partial display
-   - Add bouncing dots streaming indicator (per vibe-kanban pattern)
-   - User vs assistant bubble styling (right/left aligned, different colors)
-   - Run: tests → GREEN
+6. **T006**: Create `apps/web/src/components/agents/agent-chat-input.tsx`
+   - Textarea with Cmd/Ctrl+Enter shortcut (per prototype)
+   - Keyboard hint in footer
+   - Run: → GREEN
+
+7. **T007**: Create `test/unit/web/components/agents/log-entry.test.tsx`
+   - Tests: user/assistant/tool rendering, streaming indicator, tool expansion
+   - Run: → RED
+
+8. **T008**: Create `apps/web/src/components/agents/log-entry.tsx`
+   - **Terminal-style design** (per local prototype):
+     - User: left border highlight (`border-l-2 border-violet-500`)
+     - Assistant: plain with Bot icon, "typing..." when streaming
+     - Tool: expandable with status dot (colored by status)
+   - Use `MarkdownServer` for content rendering
+   - Run: → GREEN
 
 9. **T009**: Create `test/unit/web/components/agents/agent-status-indicator.test.tsx`
-   - Tests for all status states and colors
+   - Tests: idle/running/completed/error colors, ARIA
    - Run: → RED
 
 10. **T010**: Create `apps/web/src/components/agents/agent-status-indicator.tsx`
-    - Color mapping: idle=gray, running=blue, waiting=amber, error=red
-    - CSS animation for running pulse
-    - ARIA live region
-    - Run: tests → GREEN
+    - Color mapping: idle=gray, running=blue+pulse, completed=green, error=red
+    - Run: → GREEN
 
-11. **T011**: Create `test/unit/web/components/agents/agent-chat-view.test.tsx`
-    - Integration tests for full chat assembly
+11. **T011**: Create `test/unit/web/components/agents/context-window-display.test.tsx`
+    - Tests: percentage, thresholds (75%, 90%), unavailable
     - Run: → RED
 
-12. **T012**: Create `apps/web/src/components/agents/agent-chat-view.tsx`
-    - Compose: message list, input, status bar
-    - Wire up useAgentSession hook
-    - Run: tests → GREEN
+12. **T012**: Create `apps/web/src/components/agents/context-window-display.tsx`
+    - Compact progress bar: >90% red, >75% amber, else violet
+    - Run: → GREEN
+
+#### Standalone Page (T013-T019)
+
+13. **T013**: Create `test/unit/web/components/agents/agent-creation-form.test.tsx`
+    - Tests: name input, agent type selector, validation, submit
+    - Run: → RED
+
+14. **T014**: Create `apps/web/src/components/agents/agent-creation-form.tsx`
+    - Name input field
+    - Agent type dropdown (claude-code, copilot, generic)
+    - onCreate callback
+    - Run: → GREEN
+
+15. **T015**: Create `test/unit/web/components/agents/agent-list-view.test.tsx`
+    - Tests: list rendering, click to select, active state, empty state
+    - Run: → RED
+
+16. **T016**: Create `apps/web/src/components/agents/agent-list-view.tsx`
+    - List of agent sessions with status indicators
+    - Click to switch active session
+    - Run: → GREEN
+
+17. **T017**: Create `test/unit/web/app/agents/page.test.tsx`
+    - Integration tests: page renders, list + chat integration, creation flow
+    - Run: → RED
+
+18. **T018**: Create `apps/web/app/(dashboard)/agents/page.tsx`
+    - **Main deliverable**: Standalone agents page
+    - Layout: sidebar (list + creation) | main (chat view)
+    - Wire up all components with state management
+    - Run: → GREEN
     - **🎯 CHECKPOINT**: Run Playwright MCP visual verification (per ADR-0005)
 
-13. **T013**: Create `test/unit/web/components/agents/context-window-display.test.tsx`
-    - Tests for percentage, thresholds
-    - Run: → RED
-
-14. **T014**: Create `apps/web/src/components/agents/context-window-display.tsx`
-    - Progress bar with color thresholds (per vibe-kanban pattern)
-    - >90% red, >75% amber, else gradient purple
-    - Percentage text with matching colors
-    - Handle unavailable gracefully (hidden or "N/A")
-    - Run: tests → GREEN
-    - **🎯 FINAL CHECKPOINT**: Run full Playwright MCP visual verification before phase completion
+19. **T019**: Add Agents link to main navigation
+    - Update sidebar/nav component
+    - Link to `/agents`
+    - **🎯 FINAL CHECKPOINT**: Full visual verification before phase complete
 
 ### Commands to Run
 
@@ -675,28 +731,31 @@ class FakeMessageHandler {
 cd /home/jak/substrate/007-manage-workflows
 pnpm install  # if needed
 
-# Ensure agents component directory exists
+# Ensure directories exist
 mkdir -p apps/web/src/components/agents
+mkdir -p apps/web/app/\(dashboard\)/agents
 
 # Run specific test files during TDD
 pnpm test test/unit/web/hooks/useAgentSession.test.ts
 pnpm test test/unit/web/components/agents/agent-chat-input.test.tsx
-pnpm test test/unit/web/components/agents/streaming-message.test.tsx
+pnpm test test/unit/web/components/agents/log-entry.test.tsx
 pnpm test test/unit/web/components/agents/agent-status-indicator.test.tsx
-pnpm test test/unit/web/components/agents/agent-chat-view.test.tsx
 pnpm test test/unit/web/components/agents/context-window-display.test.tsx
+pnpm test test/unit/web/components/agents/agent-creation-form.test.tsx
+pnpm test test/unit/web/components/agents/agent-list-view.test.tsx
+pnpm test test/unit/web/app/agents/page.test.tsx
 
 # Run all Phase 2 tests
-pnpm test test/unit/web/hooks/useAgentSession.test.ts test/unit/web/components/agents/*.test.tsx
+pnpm test test/unit/web/hooks/useAgentSession.test.ts test/unit/web/components/agents/*.test.tsx test/unit/web/app/agents/*.test.tsx
 
 # Coverage check
 pnpm test --coverage apps/web/src/hooks/useAgentSession.ts apps/web/src/components/agents/
 
 # Verify no mocks used
-grep -r "vi.mock\|jest.mock" test/unit/web/hooks test/unit/web/components/agents
+grep -r "vi.mock\|jest.mock" test/unit/web/hooks test/unit/web/components/agents test/unit/web/app/agents
 
 # Lint and typecheck
-pnpm lint apps/web/src/hooks/useAgentSession.ts apps/web/src/components/agents
+pnpm lint apps/web/src/hooks/useAgentSession.ts apps/web/src/components/agents apps/web/app/\(dashboard\)/agents
 pnpm typecheck
 
 # ─────────────────────────────────────────────────────────────
@@ -711,16 +770,20 @@ pnpm dev
 # 1. nextjs_index()                           # Discover dev server
 # 2. nextjs_call(port, "get_errors")          # Check for build errors
 # 3. browser_eval(action: "start", headless: true)
-# 4. browser_eval(action: "navigate", url: "http://localhost:3001/demo/agents")
+# 4. browser_eval(action: "navigate", url: "http://localhost:3001/agents")
 # 5. browser_eval(action: "screenshot")        # View rendered components
 # 6. browser_eval(action: "console_messages")  # Check for JS errors
 
 # Visual verification checklist:
-# [ ] AgentChatView renders without errors
-# [ ] Message bubbles display correctly (user right, assistant left)
-# [ ] Streaming indicator animates
+# [ ] /agents page renders without errors
+# [ ] Agent list displays sessions
+# [ ] Agent creation form works (name + type)
+# [ ] Chat view shows messages in terminal style (LogEntry)
+# [ ] User messages have violet left border
+# [ ] Tool calls show expandable output
 # [ ] Context window progress bar shows correct colors
-# [ ] Status indicator colors match spec
+# [ ] Status indicators show correct colors
+# [ ] Navigation menu has Agents link
 
 # Verify Phase 1 tests still pass (no regressions)
 pnpm test test/unit/web/schemas/agent-*.test.ts test/unit/web/stores/agent-*.test.ts
@@ -738,9 +801,9 @@ pnpm test test/unit/web/schemas/agent-*.test.ts test/unit/web/stores/agent-*.tes
 ### Ready Check
 
 - [ ] Phase 1 complete: All 10 tasks ✅, tests passing
-- [ ] Spec reviewed: AC-06, AC-07, AC-09, AC-11, AC-12, AC-15 understood
-- [ ] Plan Phase 2 tasks mapped to T001-T014
-- [ ] Critical Findings HF-08, MF-09, MF-10, MF-11, MF-12 incorporated
+- [ ] Spec reviewed: Standalone agents page with full SSE interaction
+- [ ] Plan Phase 2 tasks mapped: **T001-T019** (19 tasks)
+- [ ] Critical Findings HF-08 (merge-not-replace), MF-11 (live markdown), MF-12 (reuse components) incorporated
 - [ ] Phase 1 outputs available: schemas, store, DI tokens
 - [ ] Existing markdown components located: `apps/web/src/components/viewers/`
 - [ ] Fakes available: FakeEventSource, FakeLocalStorage, FakeResizeObserver
@@ -748,7 +811,9 @@ pnpm test test/unit/web/schemas/agent-*.test.ts test/unit/web/stores/agent-*.tes
 - [ ] Test Doc format will be used in all tests
 - [ ] **ADR-0004 reviewed**: DI patterns from Phase 1 followed (useFactory, no decorators)
 - [ ] **ADR-0005 reviewed**: Headless TDD → Playwright MCP visual verification workflow understood
-- [ ] vibe-kanban UI patterns incorporated: context bar, message bubbles, streaming indicator
+- [ ] **Local prototype reviewed**: `agent-session-dialog.tsx` patterns (LogEntry, terminal style)
+- [ ] **Existing types available**: `agent-sessions.fixture.ts` has AgentSession, AgentMessage, etc.
+- [ ] **Scope confirmed**: Standalone `/agents` page, not integrated with kanban
 
 **Awaiting**: Human **GO** to proceed with implementation.
 

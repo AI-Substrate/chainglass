@@ -1,8 +1,8 @@
-# Manual Workflow Test (Mode 2 - Real Agent)
+# Manual Workflow Test Harness
 
-Run the hello-workflow with a **real external agent** to validate that phase prompts are self-sufficient.
+Test harness for validating the workflow orchestration system with **programmatic agent invocation** via `cg agent` CLI.
 
-> **Reference**: This is the operational version of [Subtask 001: Manual Test Harness](../../../plans/003-wf-basics/tasks/phase-6-documentation/001-subtask-create-manual-test-harness.md)
+> **Phase 6 Update**: This harness now uses `cg agent run` and `cg agent compact` to invoke agents programmatically, replacing the previous human-in-the-loop orchestration.
 
 ---
 
@@ -11,172 +11,221 @@ Run the hello-workflow with a **real external agent** to validate that phase pro
 ```bash
 cd docs/how/dev/manual-wf-run
 
-# 1. Create fresh run
-./01-compose.sh
+# Reset and start fresh
+./01-clean-slate.sh
+./02-compose-run.sh
 
-# 2. Start gather phase (creates message, hands to agent)
-./02-start-gather.sh
+# Run all phases (each phase is compacted before the next)
+./03-run-gather.sh
+./04-run-process.sh
+./05-run-report.sh
 
-# 3. Tell agent: "Open phases/gather/commands/wf.md and follow it"
-#    Wait for agent to complete gather phase...
+# Validate results
+./06-validate-entity.sh
+./07-validate-runs.sh
 
-# 4. Complete gather, start process
-./03-complete-gather.sh
-./04-start-process.sh
-
-# 5. If agent asks question, answer it
-./05-answer-question.sh
-
-# 6. Complete process, start report
-./06-complete-process.sh
-./07-start-report.sh
-
-# 7. Complete workflow
-./08-complete-report.sh
-
-# Check state anytime
+# Check state at any time
 ./check-state.sh
 ```
+
+---
+
+## Prerequisites
+
+```bash
+# Build CLI
+pnpm build
+
+# Ensure jq is installed (for JSON parsing)
+which jq || echo "Install jq: sudo apt install jq"
+```
+
+---
+
+## Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `01-clean-slate.sh` | Reset test environment (remove runs, clear state) |
+| `02-compose-run.sh` | Create a fresh run from hello-workflow template |
+| `03-run-gather.sh` | Run gather phase with agent |
+| `04-run-process.sh` | Compact + run process phase with agent |
+| `05-run-report.sh` | Compact + run report phase with agent |
+| `06-validate-entity.sh` | Validate entity JSON format |
+| `07-validate-runs.sh` | Validate `cg runs list/get` commands |
+| `check-state.sh` | Show current state of all phases |
 
 ---
 
 ## How It Works
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│ YOU: Orchestrator (run scripts, answer questions)              │
-│ AGENT: Does the work using ONLY phase prompts (wf.md, main.md) │
-└─────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────┐
+│ Scripts: Orchestrate phases, invoke agents via CLI                 │
+│ Agent: Executes phase work using ONLY phase prompts (wf.md, etc.) │
+└────────────────────────────────────────────────────────────────────┘
 ```
 
-**The test**: Can an external agent complete the workflow using ONLY the files in the phase folders?
-
-### Command/Action Flow
+### Command Flow
 
 ```mermaid
 sequenceDiagram
-    participant O as 🧑 Orchestrator (You)
-    participant CLI as 💻 CLI Scripts
-    participant FS as 📁 Filesystem
-    participant A as 🤖 Agent (External)
+    participant S as 📜 Scripts
+    participant CLI as 💻 CLI
+    participant A as 🤖 Agent (claude-code)
 
-    Note over O,A: ═══════ SETUP ═══════
-    O->>CLI: ./01-compose.sh
-    CLI->>FS: Create run folder
+    Note over S,A: ═══════ SETUP ═══════
+    S->>CLI: cg wf compose
+    CLI-->>S: Run created
 
-    Note over O,A: ═══════ GATHER PHASE ═══════
-    O->>CLI: ./02-start-gather.sh
-    CLI->>FS: prepare, create message, handover
-    O->>A: "Open phases/gather/commands/wf.md"
-    
-    A->>FS: Read commands/wf.md
-    A->>FS: Read commands/main.md
-    A->>FS: Read messages/m-001.json
-    A->>FS: Write outputs/acknowledgment.md
-    A->>FS: Write outputs/gather-data.json
-    A->>O: "Done with gather"
-    
-    O->>CLI: ./03-complete-gather.sh
-    CLI->>FS: validate, finalize
+    Note over S,A: ═══════ GATHER PHASE ═══════
+    S->>CLI: cg phase prepare gather
+    S->>CLI: cg phase message create
+    S->>CLI: cg phase handover
+    S->>CLI: cg agent run --prompt "Execute gather..."
+    CLI->>A: Invoke agent
+    A-->>CLI: Phase complete (sessionId)
+    CLI-->>S: Result JSON
+    S->>CLI: cg phase validate
+    S->>CLI: cg phase finalize
 
-    Note over O,A: ═══════ PROCESS PHASE ═══════
-    O->>CLI: ./04-start-process.sh
-    CLI->>FS: prepare, handover
-    O->>A: "Continue to process phase"
-    
-    A->>FS: Read inputs/ (from gather)
-    A->>FS: Create messages/m-001.json (question)
-    A->>O: "I have a question"
-    
-    O->>CLI: ./05-answer-question.sh
-    CLI->>FS: answer message, handover
-    O->>A: "Answer provided"
-    
-    A->>FS: Write outputs/result.md
-    A->>FS: Write outputs/process-data.json
-    A->>O: "Done with process"
-    
-    O->>CLI: ./06-complete-process.sh
-    CLI->>FS: validate, finalize
+    Note over S,A: ═══════ PROCESS PHASE ═══════
+    S->>CLI: cg agent compact --session $ID
+    S->>CLI: cg phase prepare process
+    S->>CLI: cg phase handover
+    S->>CLI: cg agent run --session $ID --prompt "Execute process..."
+    CLI->>A: Invoke agent (resume session)
+    A-->>CLI: Phase complete
+    S->>CLI: cg phase validate
+    S->>CLI: cg phase finalize
 
-    Note over O,A: ═══════ REPORT PHASE ═══════
-    O->>CLI: ./07-start-report.sh
-    CLI->>FS: prepare, handover
-    O->>A: "Final phase"
-    
-    A->>FS: Read inputs/ (from process)
-    A->>FS: Write outputs/final-report.md
-    A->>O: "Done"
-    
-    O->>CLI: ./08-complete-report.sh
-    CLI->>FS: validate, finalize
-    
-    Note over O,A: ✅ WORKFLOW COMPLETE
+    Note over S,A: ═══════ REPORT PHASE ═══════
+    S->>CLI: cg agent compact --session $ID
+    S->>CLI: cg phase prepare report
+    S->>CLI: cg phase handover
+    S->>CLI: cg agent run --session $ID --prompt "Execute report..."
+    CLI->>A: Invoke agent (resume session)
+    A-->>CLI: Phase complete
+    S->>CLI: cg phase validate
+    S->>CLI: cg phase finalize
+
+    Note over S,A: ✅ WORKFLOW COMPLETE
 ```
 
-### Who Does What
+---
 
-| Action | Who | How |
-|--------|-----|-----|
-| Create run folder | Orchestrator | `./01-compose.sh` |
-| Prepare phase | Orchestrator | `./0X-start-*.sh` |
-| Create user request message | Orchestrator | `./02-start-gather.sh` |
-| Handover to agent | Orchestrator | Scripts do this |
-| **Read prompts (wf.md, main.md)** | **Agent** | File access |
-| **Read messages** | **Agent** | File access |
-| **Write outputs** | **Agent** | File access |
-| **Ask questions (create message)** | **Agent** | File access |
-| Answer questions | Orchestrator | `./05-answer-question.sh` |
-| Validate outputs | Orchestrator | `./0X-complete-*.sh` |
-| Finalize phase | Orchestrator | `./0X-complete-*.sh` |
+## Agent CLI Commands
+
+### `cg agent run`
+
+Invokes an agent with a prompt:
+
+```bash
+# New session
+cg agent run \
+  --type claude-code \
+  --prompt "Execute the gather phase..." \
+  --cwd /path/to/phases/gather
+
+# Resume existing session
+cg agent run \
+  --type claude-code \
+  --session <session-id> \
+  --prompt "Execute the process phase..." \
+  --cwd /path/to/phases/process
+```
+
+**Output (JSON):**
+```json
+{
+  "output": "Agent response...",
+  "sessionId": "15523ff5-a900-4dd9-ab49-73cb1e04342c",
+  "status": "completed",
+  "exitCode": 0,
+  "tokens": { "used": 30455, "total": 30455, "limit": 200000 }
+}
+```
+
+### `cg agent compact`
+
+Reduces session context between phases:
+
+```bash
+cg agent compact \
+  --type claude-code \
+  --session <session-id>
+```
 
 ---
 
-## Files
+## Session Flow Pattern
 
-| File | Purpose |
-|------|---------|
-| `01-compose.sh` | Create fresh run folder |
-| `02-start-gather.sh` | Prepare gather, create user message, handover |
-| `03-complete-gather.sh` | Validate outputs, finalize gather |
-| `04-start-process.sh` | Prepare process, handover to agent |
-| `05-answer-question.sh` | Answer agent's multi-choice question |
-| `06-complete-process.sh` | Validate outputs, finalize process |
-| `07-start-report.sh` | Prepare report, handover to agent |
-| `08-complete-report.sh` | Validate outputs, finalize report |
-| `09-validate-entity-json.sh` | Validate entity JSON format (Phase 6) |
-| `10-validate-runs-commands.sh` | Validate cg runs list/get (Phase 6) |
-| `check-state.sh` | Show current state of all phases |
-| `expected-outputs/*.json` | JSON schemas for entity validation |
-
----
-
-## Giving Instructions to the Agent
-
-Tell your external agent (Claude, GPT, etc.):
-
-> **"Open `phases/gather/commands/wf.md` and follow the instructions."**
-
-That's it. The `wf.md` file IS the agent prompt - it's self-contained.
-
-**Important**: 
-- Do NOT help the agent beyond pointing them to wf.md
-- If they get confused, that's valuable feedback about the prompts!
-- Document any failures in the subtask's Discoveries table
+```
+Phase 1 (gather)
+  └── cg agent run → captures sessionId
+        ↓
+Compact
+  └── cg agent compact --session $SESSION_ID
+        ↓
+Phase 2 (process)
+  └── cg agent run --session $SESSION_ID
+        ↓
+Compact
+  └── cg agent compact --session $SESSION_ID
+        ↓
+Phase 3 (report)
+  └── cg agent run --session $SESSION_ID
+```
 
 ---
 
-## Recording Results
+## State Files
 
-After the test, document results in:
-- [Subtask Discoveries Table](../../../plans/003-wf-basics/tasks/phase-6-documentation/001-subtask-create-manual-test-harness.md#discoveries--learnings)
+- `.current-run` - Path to current run directory
+- `.current-session` - Session ID for agent continuity
 
-**If agent succeeded**: Note any minor friction points.
+---
 
-**If agent failed**: Document:
-1. Which phase?
-2. What confused them?
-3. What prompt needs improvement?
+## Validation Tests
+
+### Entity JSON Validation (`06-validate-entity.sh`)
+
+Validates:
+- Workflow entity JSON from `cg runs get`
+- Phase entity JSON from completed phases
+
+### Runs Commands Validation (`07-validate-runs.sh`)
+
+Validates:
+- `cg runs list` (table and JSON format)
+- `cg runs get <run-id> --workflow <slug>` (table and JSON format)
+
+---
+
+## Troubleshooting
+
+### Agent fails to complete phase
+
+Check the agent output and phase state:
+```bash
+./check-state.sh
+cat /path/to/run/phases/<phase>/run/wf-data/wf-phase.json
+```
+
+### Validation fails
+
+Check outputs directory:
+```bash
+ls -la /path/to/run/phases/<phase>/run/outputs/
+```
+
+### Session issues
+
+Clear session and restart:
+```bash
+rm .current-session
+./01-clean-slate.sh
+```
 
 ---
 

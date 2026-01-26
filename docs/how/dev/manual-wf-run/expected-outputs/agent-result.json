@@ -4,13 +4,7 @@
   "title": "Agent Result JSON",
   "description": "Expected JSON structure for cg agent run/compact output. Used by entity validation scripts.",
   "type": "object",
-  "required": [
-    "output",
-    "sessionId",
-    "status",
-    "exitCode",
-    "tokens"
-  ],
+  "required": ["output", "sessionId", "status", "exitCode", "tokens"],
   "properties": {
     "output": {
       "type": "string",

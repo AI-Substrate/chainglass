@@ -58,7 +58,7 @@ phases:
 /**
  * Create a test Workflow entity (run).
  */
-const createTestWorkflowRun = (slug: string = 'hello-workflow', runId: string = 'run-2026-01-26-001') =>
+const createTestWorkflowRun = (slug = 'hello-workflow', runId = 'run-2026-01-26-001') =>
   Workflow.createRun({
     slug,
     workflowDir: `/test/runs/${slug}/v001-abc12345/${runId}`,
