@@ -96,5 +96,20 @@ Cannot find module '/home/jak/substrate/003-wf-basics/packages/workflow/schemas/
 
 **Fix**: Added `coverage` and `test/coverage` to biome.json ignore list.
 
-**Third push**: Pushing all fixes to trigger new workflow run...
+**Third push**: Triggered workflow run 21377326954
+
+**Fourth issue discovered**: Coverage report action failed:
+```
+ENOENT: no such file or directory, open '/home/runner/work/chainglass/chainglass/coverage/coverage-summary.json'
+```
+
+**Root cause**: Vitest's test root is set to `test/`, so coverage files are generated in `test/coverage/` not `coverage/`. The coverage action was looking in the wrong location.
+
+**Fix**: Added explicit paths to coverage action:
+```yaml
+json-summary-path: ./test/coverage/coverage-summary.json
+json-final-path: ./test/coverage/coverage-final.json
+```
+
+**Fourth push**: Pushing coverage path fix...
 
