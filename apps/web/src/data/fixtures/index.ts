@@ -47,10 +47,7 @@ export {
   createWorkflow,
   // Demo data
   DEMO_QUESTIONS,
-  DEMO_CICD_WORKFLOW,
-  DEMO_BLOCKED_WORKFLOW,
-  DEMO_DATA_WORKFLOW,
-  DEMO_FAILED_WORKFLOW,
+  DEMO_MANUAL_TEST_WORKFLOW,
   DEMO_WORKFLOWS,
 } from './workflows.fixture';
 
@@ -60,10 +57,12 @@ export {
   type RunDetail,
   createRunSummary,
   createRunDetail,
-  DEMO_ACTIVE_RUN,
-  DEMO_BLOCKED_RUN,
-  DEMO_COMPLETE_RUN,
-  DEMO_FAILED_RUN,
+  DEMO_RUN_GATHER_BLOCKED,
+  DEMO_RUN_PROCESS_BLOCKED,
+  DEMO_RUN_REPORT_BLOCKED,
+  DEMO_RUN_GATHER_ACTIVE,
+  DEMO_RUN_COMPLETE,
+  DEMO_RUN_FAILED,
   DEMO_RUNS,
   DEMO_RUN_SUMMARIES,
   DEMO_CHECKPOINTS,
@@ -71,3 +70,11 @@ export {
   getRunById,
   getRunSummariesForWorkflow,
 } from './runs.fixture';
+
+// Run board fixtures (Plan 011 - Kanban view)
+export {
+  type RunCard,
+  createRunsBoard,
+  DEMO_RUNS_BOARD,
+  getRunsBoardForWorkflow,
+} from './runs-board.fixture';
