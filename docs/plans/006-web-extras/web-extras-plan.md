@@ -1400,10 +1400,10 @@ just check  # runs all of the above
 
 - [x] Phase 1: Headless Viewer Hooks - COMPLETE (78 tests passing)
 - [x] Phase 2: FileViewer Component - COMPLETE (44 new tests, 162 total passing)
-- [ ] Phase 3: MarkdownViewer Component - PENDING
-- [ ] Phase 4: Mermaid Integration - PENDING
-- [ ] Phase 5: DiffViewer Component - PENDING
-- [ ] Phase 6: Responsive Infrastructure - PENDING
+- [x] Phase 3: MarkdownViewer Component - COMPLETE
+- [x] Phase 4: Mermaid Integration - COMPLETE
+- [x] Phase 5: DiffViewer Component - COMPLETE
+- [x] Phase 6: Responsive Infrastructure - COMPLETE (21 new tests, 1072 total passing)
 - [ ] Phase 7: Mobile Templates & Documentation - PENDING
 
 ### STOP Rule
