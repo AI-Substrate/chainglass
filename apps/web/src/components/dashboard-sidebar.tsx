@@ -23,6 +23,7 @@ import {
   Home,
   LayoutDashboard,
   PanelLeft,
+  Smartphone,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -37,6 +38,7 @@ const NAV_ITEMS = [
   { label: 'FileViewer Demo', href: '/demo/file-viewer', icon: Code },
   { label: 'MarkdownViewer Demo', href: '/demo/markdown-viewer', icon: FileText },
   { label: 'DiffViewer Demo', href: '/demo/diff-viewer', icon: GitCompare },
+  { label: 'Responsive Demo', href: '/demo/responsive', icon: Smartphone },
 ] as const;
 
 /**
