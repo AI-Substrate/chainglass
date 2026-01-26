@@ -1,0 +1,189 @@
+/**
+ * FileViewer Component Styles
+ *
+ * Implements:
+ * - CSS counter-based line numbers with user-select: none
+ * - Dual-theme support via Shiki CSS variables
+ * - Focus management for keyboard navigation
+ *
+ * @see docs/plans/006-web-extras/tasks/phase-2-fileviewer-component/research-dossier.md
+ */
+
+/* Container styling */
+.file-viewer {
+  position: relative;
+  overflow: auto;
+  border-radius: 0.5rem;
+  background-color: var(--bg-code, #f6f8fa);
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono",
+    monospace;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+/* Reset Shiki output spacing - nuclear reset */
+.file-viewer .shiki,
+.file-viewer .shiki *,
+.file-viewer pre,
+.file-viewer pre * {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  line-height: inherit;
+}
+
+.file-viewer .shiki code,
+.file-viewer pre code {
+  padding: 1rem;
+}
+
+/* Dark mode background */
+html.dark .file-viewer {
+  background-color: var(--bg-code-dark, #24292e);
+}
+
+/* Focus ring for keyboard navigation */
+.file-viewer:focus {
+  outline: 2px solid var(--ring, #0969da);
+  outline-offset: 2px;
+}
+
+html.dark .file-viewer:focus {
+  outline-color: var(--ring-dark, #58a6ff);
+}
+
+/* Pre element reset - let Shiki handle most styling */
+.file-viewer pre {
+  margin: 0;
+  padding: 0;
+  overflow: visible; /* Let container handle overflow */
+}
+
+/* Code element with CSS counter for line numbers */
+.file-viewer code {
+  counter-reset: line;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* Line styling */
+.file-viewer code .line {
+  display: block;
+  line-height: 1.5;
+  white-space: pre;
+}
+
+/* Line number pseudo-element */
+.file-viewer code .line::before {
+  counter-increment: line;
+  content: counter(line);
+
+  /* Prevent copying line numbers */
+  user-select: none;
+  -webkit-user-select: none;
+
+  /* Layout */
+  display: inline-block;
+  width: 3ch;
+  text-align: right;
+  margin-right: 1.5ch;
+  padding-right: 1ch;
+
+  /* Light mode styling */
+  color: #6b7280;
+  border-right: 1px solid #e5e7eb;
+}
+
+/* Dark mode line numbers */
+html.dark .file-viewer code .line::before {
+  color: #9ca3af;
+  border-right-color: #374151;
+}
+
+/* Hide line numbers when toggled off */
+.file-viewer.hide-line-numbers code .line::before {
+  display: none;
+}
+
+/* Theme switching for Shiki dual-theme output */
+html.dark .file-viewer .shiki,
+html.dark .file-viewer .shiki span {
+  color: var(--shiki-dark) !important;
+  background-color: var(--shiki-dark-bg) !important;
+  font-style: var(--shiki-dark-font-style) !important;
+  font-weight: var(--shiki-dark-font-weight) !important;
+}
+
+/* Toolbar styling */
+.file-viewer-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid #e5e7eb;
+  background-color: var(--bg-toolbar, #f3f4f6);
+}
+
+html.dark .file-viewer-toolbar {
+  border-bottom-color: #374151;
+  background-color: var(--bg-toolbar-dark, #1f2937);
+}
+
+/* Filename display */
+.file-viewer-filename {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+}
+
+html.dark .file-viewer-filename {
+  color: #d1d5db;
+}
+
+/* Toggle button */
+.file-viewer-toggle {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  border-radius: 0.25rem;
+  border: 1px solid #d1d5db;
+  background-color: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+
+.file-viewer-toggle:hover {
+  background-color: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+.file-viewer-toggle:focus {
+  outline: 2px solid var(--ring, #0969da);
+  outline-offset: 2px;
+}
+
+html.dark .file-viewer-toggle {
+  border-color: #4b5563;
+  color: #9ca3af;
+}
+
+html.dark .file-viewer-toggle:hover {
+  background-color: #374151;
+  border-color: #6b7280;
+}
+
+html.dark .file-viewer-toggle:focus {
+  outline-color: var(--ring-dark, #58a6ff);
+}
+
+/* Active toggle state */
+.file-viewer-toggle[aria-pressed="true"] {
+  background-color: #e5e7eb;
+  border-color: #9ca3af;
+}
+
+html.dark .file-viewer-toggle[aria-pressed="true"] {
+  background-color: #374151;
+  border-color: #6b7280;
+}

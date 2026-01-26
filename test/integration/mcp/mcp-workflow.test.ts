@@ -148,7 +148,7 @@ describe('MCP Workflow Integration - E2E', () => {
       expect(response.success).toBe(false);
       expect(response.command).toBe('wf.compose');
       expect(response.error).toBeDefined();
-      expect(response.error.code).toBe('E030'); // E030 = workflow not found in registry (Phase 3)
+      expect(response.error.code).toBe('E020'); // E020 = template not found
       expect(response.error.action).toBeDefined();
     });
   });

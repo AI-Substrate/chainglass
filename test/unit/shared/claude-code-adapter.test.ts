@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import type { AgentEvent } from '@chainglass/shared';
 import { FakeProcessManager } from '@chainglass/shared';
 
 // Import will fail until T005 implements the adapter
@@ -40,7 +41,9 @@ describe('ClaudeCodeAdapter', () => {
     // We need to wait for spawn, then set output, then exit
     // Use a poll approach to wait for the process to exist
     const setupProcess = (): void => {
-      const state = (fakeProcessManager as any)._processes.get(nextPid);
+      const state = (
+        fakeProcessManager as unknown as { _processes: Map<number, { output: string }> }
+      )._processes.get(nextPid);
       if (state) {
         state.output = output;
         fakeProcessManager.exitProcess(nextPid, exitCode);
@@ -532,7 +535,7 @@ describe('ClaudeCodeAdapter', () => {
       - Quality Contribution: Validates streaming text extraction
       - Worked Example: assistant message → onEvent({ type: 'text_delta', data: { content: '...' } })
       */
-      const events: any[] = [];
+      const events: AgentEvent[] = [];
 
       // Create spawn that waits for us to emit lines
       let resolveSpawn: (() => void) | undefined;
@@ -566,7 +569,7 @@ describe('ClaudeCodeAdapter', () => {
       - Quality Contribution: Validates session ID streaming
       - Worked Example: system.init → onEvent({ type: 'session_start', data: { sessionId: '...' } })
       */
-      const events: any[] = [];
+      const events: AgentEvent[] = [];
 
       const spawnPromise = adapter.run({
         prompt: 'test',
@@ -595,7 +598,7 @@ describe('ClaudeCodeAdapter', () => {
       - Quality Contribution: Validates final message delivery
       - Worked Example: result → onEvent({ type: 'message', data: { content: '...' } })
       */
-      const events: any[] = [];
+      const events: AgentEvent[] = [];
 
       const spawnPromise = adapter.run({
         prompt: 'test',
@@ -624,7 +627,7 @@ describe('ClaudeCodeAdapter', () => {
       - Quality Contribution: Validates passthrough for debugging
       - Worked Example: unknown → onEvent({ type: 'raw', data: { provider: 'claude', ... } })
       */
-      const events: any[] = [];
+      const events: AgentEvent[] = [];
 
       const spawnPromise = adapter.run({
         prompt: 'test',
@@ -670,7 +673,7 @@ describe('ClaudeCodeAdapter', () => {
       - Quality Contribution: Validates event metadata
       - Worked Example: event.timestamp is ISO string
       */
-      const events: any[] = [];
+      const events: AgentEvent[] = [];
 
       const spawnPromise = adapter.run({
         prompt: 'test',
@@ -702,7 +705,7 @@ describe('ClaudeCodeAdapter', () => {
       - Quality Contribution: Validates result contract preservation
       - Worked Example: streaming + onEvent → still returns AgentResult
       */
-      const events: any[] = [];
+      const events: AgentEvent[] = [];
 
       const spawnPromise = adapter.run({
         prompt: 'test',
@@ -732,7 +735,7 @@ describe('ClaudeCodeAdapter', () => {
       - Quality Contribution: Validates robustness
       - Worked Example: 'not json' → silently skipped
       */
-      const events: any[] = [];
+      const events: AgentEvent[] = [];
 
       const spawnPromise = adapter.run({
         prompt: 'test',

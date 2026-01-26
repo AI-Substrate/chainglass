@@ -1,0 +1,110 @@
+/**
+ * DiffViewer Component Styles
+ *
+ * Provides styling for the DiffViewer component.
+ * Uses CSS variables for theme support (light/dark).
+ *
+ * Per Phase 2 pattern: Uses --shiki-* CSS variable prefix.
+ */
+
+.diff-viewer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 200px;
+  border: 1px solid var(--border-color, #e1e4e8);
+  border-radius: 6px;
+  overflow: hidden;
+  background-color: var(--bg-color, #ffffff);
+}
+
+/* Dark mode overrides */
+:root[data-theme="dark"] .diff-viewer,
+.dark .diff-viewer {
+  --bg-color: #0d1117;
+  --border-color: #30363d;
+  --toolbar-bg: #161b22;
+  --text-color: #e6edf3;
+  --message-color: #8b949e;
+}
+
+/* Toolbar */
+.diff-viewer-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background-color: var(--toolbar-bg, #f6f8fa);
+  border-bottom: 1px solid var(--border-color, #e1e4e8);
+}
+
+.diff-viewer-filename {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-color, #24292f);
+}
+
+.diff-viewer-toggle {
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-color, #24292f);
+  background-color: transparent;
+  border: 1px solid var(--border-color, #e1e4e8);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.diff-viewer-toggle:hover {
+  background-color: var(--hover-bg, rgba(0, 0, 0, 0.05));
+}
+
+.diff-viewer-toggle[aria-pressed="true"] {
+  background-color: var(--active-bg, rgba(0, 0, 0, 0.1));
+}
+
+/* Content area */
+.diff-viewer-content {
+  flex: 1;
+  overflow: auto;
+}
+
+/* Message states (loading, error, empty) */
+.diff-viewer-message {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100px;
+  padding: 24px;
+  color: var(--message-color, #656d76);
+}
+
+.diff-viewer-loading-text,
+.diff-viewer-error-text,
+.diff-viewer-empty-text {
+  font-size: 14px;
+}
+
+.diff-viewer-error-text {
+  color: var(--error-color, #cf222e);
+}
+
+:root[data-theme="dark"] .diff-viewer-error-text,
+.dark .diff-viewer-error-text {
+  --error-color: #f85149;
+}
+
+/* Override @git-diff-view styles for theme integration */
+.diff-viewer .diff-unified-view,
+.diff-viewer .diff-split-view {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  line-height: 20px;
+}
+
+/* Ensure proper sizing within container */
+.diff-viewer [data-component="diff-root"] {
+  height: 100%;
+}
