@@ -8,10 +8,7 @@
  * Follows the established pattern from workflow-registry.contract.test.ts.
  */
 
-import {
-  FakeFileSystem,
-  FakePathResolver,
-} from '@chainglass/shared';
+import { FakeFileSystem, FakePathResolver } from '@chainglass/shared';
 import {
   EntityNotFoundError,
   FakeWorkflowAdapter,
@@ -152,7 +149,7 @@ function workflowAdapterContractTests(createContext: () => WorkflowAdapterTestCo
         const workflow = await ctx.adapter.loadCheckpoint(SLUG, VERSION);
 
         expect(workflow.checkpoint).not.toBeNull();
-        expect(workflow.checkpoint!.ordinal).toBe(1);
+        expect(workflow.checkpoint?.ordinal).toBe(1);
       });
 
       // Note: Error handling for missing version is implementation-specific.

@@ -11,14 +11,21 @@
  */
 
 import type { IFileSystem, IPathResolver } from '@chainglass/shared';
-import { Phase, type PhaseInput, type PhaseOutput, type PhaseInputFile, type PhaseInputParameter, type PhaseInputMessage } from '../entities/phase.js';
+import {
+  Phase,
+  type PhaseInput,
+  type PhaseInputFile,
+  type PhaseInputMessage,
+  type PhaseInputParameter,
+  type PhaseOutput,
+} from '../entities/phase.js';
+import type { Workflow } from '../entities/workflow.js';
 import { EntityNotFoundError } from '../errors/entity-not-found.error.js';
 import type { IPhaseAdapter } from '../interfaces/phase-adapter.interface.js';
 import type { IYamlParser } from '../interfaces/yaml-parser.interface.js';
-import type { Workflow } from '../entities/workflow.js';
-import type { PhaseDefinition } from '../types/wf.types.js';
 import type { Facilitator, PhaseState } from '../types/wf-phase.types.js';
 import type { PhaseRunStatus } from '../types/wf-status.types.js';
+import type { PhaseDefinition } from '../types/wf.types.js';
 
 /**
  * Runtime phase state from wf-data/wf-phase.json.
@@ -62,11 +69,7 @@ export class PhaseAdapter implements IPhaseAdapter {
     // Check if wf-phase.yaml exists
     const exists = await this.fs.exists(wfPhasePath);
     if (!exists) {
-      throw new EntityNotFoundError(
-        'Phase',
-        this.pathResolver.basename(phaseDir),
-        phaseDir
-      );
+      throw new EntityNotFoundError('Phase', this.pathResolver.basename(phaseDir), phaseDir);
     }
 
     // Read and parse wf-phase.yaml
@@ -98,13 +101,14 @@ export class PhaseAdapter implements IPhaseAdapter {
       inputParameters: this.buildInputParameters(definition, runtimeState),
       inputMessages: this.buildInputMessages(definition, runtimeState),
       outputs: this.buildOutputs(definition, runtimeState),
-      outputParameters: definition.output_parameters?.map(op => ({
-        name: op.name,
-        source: op.source,
-        query: op.query,
-        description: op.description,
-        value: undefined, // Runtime value not in wf-phase.json
-      })) ?? [],
+      outputParameters:
+        definition.output_parameters?.map((op) => ({
+          name: op.name,
+          source: op.source,
+          query: op.query,
+          description: op.description,
+          value: undefined, // Runtime value not in wf-phase.json
+        })) ?? [],
       statusHistory: [],
       messages: [],
     };
@@ -189,8 +193,8 @@ export class PhaseAdapter implements IPhaseAdapter {
     const files = definition.inputs?.files ?? [];
     const runtimeFiles = runtimeState?.input_files ?? [];
 
-    return files.map(file => {
-      const runtime = runtimeFiles.find(rf => rf.name === file.name);
+    return files.map((file) => {
+      const runtime = runtimeFiles.find((rf) => rf.name === file.name);
       return {
         name: file.name,
         required: file.required,
@@ -212,8 +216,8 @@ export class PhaseAdapter implements IPhaseAdapter {
     const params = definition.inputs?.parameters ?? [];
     const runtimeParams = runtimeState?.input_parameters ?? [];
 
-    return params.map(param => {
-      const runtime = runtimeParams.find(rp => rp.name === param.name);
+    return params.map((param) => {
+      const runtime = runtimeParams.find((rp) => rp.name === param.name);
       return {
         name: param.name,
         required: param.required,
@@ -234,8 +238,8 @@ export class PhaseAdapter implements IPhaseAdapter {
     const messages = definition.inputs?.messages ?? [];
     const runtimeMessages = runtimeState?.input_messages ?? [];
 
-    return messages.map(msg => {
-      const runtime = runtimeMessages.find(rm => rm.id === msg.id);
+    return messages.map((msg) => {
+      const runtime = runtimeMessages.find((rm) => rm.id === msg.id);
       return {
         id: msg.id,
         type: msg.type,
@@ -243,7 +247,7 @@ export class PhaseAdapter implements IPhaseAdapter {
         required: msg.required,
         subject: msg.subject,
         prompt: msg.prompt,
-        options: msg.options?.map(opt => ({
+        options: msg.options?.map((opt) => ({
           key: opt.key,
           label: opt.label,
           description: opt.description,
@@ -265,8 +269,8 @@ export class PhaseAdapter implements IPhaseAdapter {
     const outputs = definition.outputs ?? [];
     const runtimeOutputs = runtimeState?.outputs ?? [];
 
-    return outputs.map(output => {
-      const runtime = runtimeOutputs.find(ro => ro.name === output.name);
+    return outputs.map((output) => {
+      const runtime = runtimeOutputs.find((ro) => ro.name === output.name);
       return {
         name: output.name,
         type: output.type,

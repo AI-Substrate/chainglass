@@ -8,19 +8,15 @@
  * WorkflowAdapter without real filesystem I/O.
  */
 
-import {
-  FakeFileSystem,
-  FakePathResolver,
-  WORKFLOW_DI_TOKENS,
-} from '@chainglass/shared';
+import { FakeFileSystem, FakePathResolver, WORKFLOW_DI_TOKENS } from '@chainglass/shared';
 import {
   EntityNotFoundError,
   FakeYamlParser,
   Phase,
   RunCorruptError,
+  type WfDefinition,
   Workflow,
   WorkflowAdapter,
-  type WfDefinition,
 } from '@chainglass/workflow';
 import { beforeEach, describe, expect, it } from 'vitest';
 
@@ -136,10 +132,7 @@ describe('WorkflowAdapter', () => {
       - Worked Example: wf.yaml with description → Workflow.description populated
       */
       const wfYamlPath = `${CURRENT_DIR}/wf.yaml`;
-      fs.setFile(
-        wfYamlPath,
-        'name: hello-wf\nversion: "1.2.3"\ndescription: "Test workflow"'
-      );
+      fs.setFile(wfYamlPath, 'name: hello-wf\nversion: "1.2.3"\ndescription: "Test workflow"');
 
       const workflow = await adapter.loadCurrent(SLUG);
 
@@ -173,9 +166,7 @@ describe('WorkflowAdapter', () => {
       - Quality Contribution: Verifies proper error type thrown
       - Worked Example: loadCurrent('missing') → throws EntityNotFoundError
       */
-      await expect(adapter.loadCurrent('nonexistent-wf')).rejects.toThrow(
-        EntityNotFoundError
-      );
+      await expect(adapter.loadCurrent('nonexistent-wf')).rejects.toThrow(EntityNotFoundError);
     });
 
     it('should throw EntityNotFoundError when current/ directory missing', async () => {
@@ -275,10 +266,10 @@ describe('WorkflowAdapter', () => {
       const workflow = await adapter.loadCheckpoint(SLUG, VERSION);
 
       expect(workflow.checkpoint).not.toBeNull();
-      expect(workflow.checkpoint!.ordinal).toBe(1);
-      expect(workflow.checkpoint!.hash).toBe('abc12345');
-      expect(workflow.checkpoint!.createdAt).toBeInstanceOf(Date);
-      expect(workflow.checkpoint!.comment).toBe('Initial checkpoint');
+      expect(workflow.checkpoint?.ordinal).toBe(1);
+      expect(workflow.checkpoint?.hash).toBe('abc12345');
+      expect(workflow.checkpoint?.createdAt).toBeInstanceOf(Date);
+      expect(workflow.checkpoint?.comment).toBe('Initial checkpoint');
     });
 
     it('should throw EntityNotFoundError when checkpoint version does not exist', async () => {
@@ -304,9 +295,9 @@ describe('WorkflowAdapter', () => {
       - Quality Contribution: Verifies workflow existence check
       - Worked Example: loadCheckpoint('missing-wf', 'v001') → throws
       */
-      await expect(
-        adapter.loadCheckpoint('nonexistent-wf', VERSION)
-      ).rejects.toThrow(EntityNotFoundError);
+      await expect(adapter.loadCheckpoint('nonexistent-wf', VERSION)).rejects.toThrow(
+        EntityNotFoundError
+      );
     });
 
     it('should set workflowDir to the checkpoint directory path', async () => {
@@ -363,10 +354,7 @@ describe('WorkflowAdapter', () => {
       - Quality Contribution: Verifies run loading works
       - Worked Example: loadRun('/path/to/run') → Workflow with run metadata
       */
-      fs.setFile(
-        `${RUN_DIR}/wf-run/wf-status.json`,
-        JSON.stringify(SAMPLE_WF_STATUS)
-      );
+      fs.setFile(`${RUN_DIR}/wf-run/wf-status.json`, JSON.stringify(SAMPLE_WF_STATUS));
 
       const workflow = await adapter.loadRun(RUN_DIR);
 
@@ -384,18 +372,15 @@ describe('WorkflowAdapter', () => {
       - Quality Contribution: Verifies metadata extraction
       - Worked Example: run.status = 'active', run.runId = 'run-2026-01-25-001'
       */
-      fs.setFile(
-        `${RUN_DIR}/wf-run/wf-status.json`,
-        JSON.stringify(SAMPLE_WF_STATUS)
-      );
+      fs.setFile(`${RUN_DIR}/wf-run/wf-status.json`, JSON.stringify(SAMPLE_WF_STATUS));
 
       const workflow = await adapter.loadRun(RUN_DIR);
 
       expect(workflow.run).not.toBeNull();
-      expect(workflow.run!.runId).toBe('run-2026-01-25-001');
-      expect(workflow.run!.status).toBe('active');
-      expect(workflow.run!.createdAt).toBeInstanceOf(Date);
-      expect(workflow.run!.runDir).toBe(RUN_DIR);
+      expect(workflow.run?.runId).toBe('run-2026-01-25-001');
+      expect(workflow.run?.status).toBe('active');
+      expect(workflow.run?.createdAt).toBeInstanceOf(Date);
+      expect(workflow.run?.runDir).toBe(RUN_DIR);
     });
 
     it('should also populate checkpoint metadata from wf-status.json', async () => {
@@ -406,16 +391,13 @@ describe('WorkflowAdapter', () => {
       - Quality Contribution: Verifies checkpoint reference preserved
       - Worked Example: run.checkpoint.ordinal = 1
       */
-      fs.setFile(
-        `${RUN_DIR}/wf-run/wf-status.json`,
-        JSON.stringify(SAMPLE_WF_STATUS)
-      );
+      fs.setFile(`${RUN_DIR}/wf-run/wf-status.json`, JSON.stringify(SAMPLE_WF_STATUS));
 
       const workflow = await adapter.loadRun(RUN_DIR);
 
       expect(workflow.checkpoint).not.toBeNull();
-      expect(workflow.checkpoint!.ordinal).toBe(1);
-      expect(workflow.checkpoint!.hash).toBe('abc12345');
+      expect(workflow.checkpoint?.ordinal).toBe(1);
+      expect(workflow.checkpoint?.hash).toBe('abc12345');
     });
 
     it('should throw EntityNotFoundError when run directory does not exist', async () => {
@@ -426,9 +408,7 @@ describe('WorkflowAdapter', () => {
       - Quality Contribution: Verifies proper error type
       - Worked Example: loadRun('/nonexistent') → throws
       */
-      await expect(adapter.loadRun('/nonexistent/run/path')).rejects.toThrow(
-        EntityNotFoundError
-      );
+      await expect(adapter.loadRun('/nonexistent/run/path')).rejects.toThrow(EntityNotFoundError);
     });
 
     it('should throw EntityNotFoundError when wf-status.json is missing', async () => {
@@ -466,10 +446,7 @@ describe('WorkflowAdapter', () => {
       - Quality Contribution: Ensures correct path stored
       - Worked Example: workflowDir = '/path/to/run-2026-01-25-001'
       */
-      fs.setFile(
-        `${RUN_DIR}/wf-run/wf-status.json`,
-        JSON.stringify(SAMPLE_WF_STATUS)
-      );
+      fs.setFile(`${RUN_DIR}/wf-run/wf-status.json`, JSON.stringify(SAMPLE_WF_STATUS));
 
       const workflow = await adapter.loadRun(RUN_DIR);
 
@@ -484,10 +461,7 @@ describe('WorkflowAdapter', () => {
       - Quality Contribution: Verifies data locality principle
       - Worked Example: wf-status.workflow.slug = 'hello-wf' → Workflow.slug
       */
-      fs.setFile(
-        `${RUN_DIR}/wf-run/wf-status.json`,
-        JSON.stringify(SAMPLE_WF_STATUS)
-      );
+      fs.setFile(`${RUN_DIR}/wf-run/wf-status.json`, JSON.stringify(SAMPLE_WF_STATUS));
 
       const workflow = await adapter.loadRun(RUN_DIR);
 
@@ -517,16 +491,20 @@ describe('WorkflowAdapter', () => {
         fs.setFile(`${cpDir}/wf.yaml`, 'name: hello-wf\nversion: "1.0.0"');
         fs.setFile(
           `${cpDir}/checkpoint-metadata.json`,
-          JSON.stringify({ ordinal, hash: version.split('-')[1], created_at: '2026-01-25T10:00:00Z' })
+          JSON.stringify({
+            ordinal,
+            hash: version.split('-')[1],
+            created_at: '2026-01-25T10:00:00Z',
+          })
         );
       }
 
       const checkpoints = await adapter.listCheckpoints(SLUG);
 
       expect(checkpoints).toHaveLength(3);
-      expect(checkpoints[0].checkpoint!.ordinal).toBe(3);
-      expect(checkpoints[1].checkpoint!.ordinal).toBe(2);
-      expect(checkpoints[2].checkpoint!.ordinal).toBe(1);
+      expect(checkpoints[0].checkpoint?.ordinal).toBe(3);
+      expect(checkpoints[1].checkpoint?.ordinal).toBe(2);
+      expect(checkpoints[2].checkpoint?.ordinal).toBe(1);
     });
 
     it('should return empty array when no checkpoints exist', async () => {
@@ -569,10 +547,7 @@ describe('WorkflowAdapter', () => {
       */
       const cpDir = `${CHECKPOINTS_DIR}/v001-abc12345`;
       fs.setFile(`${cpDir}/wf.yaml`, 'name: hello-wf\nversion: "1.0.0"');
-      fs.setFile(
-        `${cpDir}/checkpoint-metadata.json`,
-        JSON.stringify(SAMPLE_CHECKPOINT_METADATA)
-      );
+      fs.setFile(`${cpDir}/checkpoint-metadata.json`, JSON.stringify(SAMPLE_CHECKPOINT_METADATA));
 
       const checkpoints = await adapter.listCheckpoints(SLUG);
 
@@ -590,9 +565,7 @@ describe('WorkflowAdapter', () => {
       - Quality Contribution: Verifies workflow existence check
       - Worked Example: listCheckpoints('missing') → throws
       */
-      await expect(adapter.listCheckpoints('nonexistent-wf')).rejects.toThrow(
-        EntityNotFoundError
-      );
+      await expect(adapter.listCheckpoints('nonexistent-wf')).rejects.toThrow(EntityNotFoundError);
     });
   });
 
@@ -653,7 +626,7 @@ describe('WorkflowAdapter', () => {
       const runs = await adapter.listRuns(SLUG, { status: 'active' });
 
       expect(runs).toHaveLength(2);
-      expect(runs.every((r) => r.run!.status === 'active')).toBe(true);
+      expect(runs.every((r) => r.run?.status === 'active')).toBe(true);
     });
 
     it('should filter runs by multiple statuses (ORed)', async () => {
@@ -671,7 +644,7 @@ describe('WorkflowAdapter', () => {
       const runs = await adapter.listRuns(SLUG, { status: ['active', 'failed'] });
 
       expect(runs).toHaveLength(2);
-      const statuses = runs.map((r) => r.run!.status);
+      const statuses = runs.map((r) => r.run?.status);
       expect(statuses).toContain('active');
       expect(statuses).toContain('failed');
       expect(statuses).not.toContain('complete');
@@ -694,7 +667,7 @@ describe('WorkflowAdapter', () => {
       });
 
       expect(runs).toHaveLength(2);
-      expect(runs.some((r) => r.run!.runId === 'run-2026-01-25-001')).toBe(false);
+      expect(runs.some((r) => r.run?.runId === 'run-2026-01-25-001')).toBe(false);
     });
 
     it('should filter runs by createdBefore date', async () => {
@@ -714,7 +687,7 @@ describe('WorkflowAdapter', () => {
       });
 
       expect(runs).toHaveLength(2);
-      expect(runs.some((r) => r.run!.runId === 'run-2026-01-25-003')).toBe(false);
+      expect(runs.some((r) => r.run?.runId === 'run-2026-01-25-003')).toBe(false);
     });
 
     it('should limit results when limit is specified', async () => {
@@ -753,7 +726,7 @@ describe('WorkflowAdapter', () => {
       });
 
       expect(runs).toHaveLength(1);
-      expect(runs[0].run!.runId).toBe('run-2026-01-25-003');
+      expect(runs[0].run?.runId).toBe('run-2026-01-25-003');
     });
 
     it('should return empty array when no runs exist', async () => {
@@ -806,7 +779,7 @@ describe('WorkflowAdapter', () => {
       const runs = await adapter.listRuns(SLUG, { status: 'active' });
 
       expect(runs).toHaveLength(1);
-      expect(runs[0].run!.status).toBe('active');
+      expect(runs[0].run?.status).toBe('active');
     });
   });
 

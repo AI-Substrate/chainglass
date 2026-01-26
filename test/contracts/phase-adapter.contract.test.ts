@@ -8,10 +8,7 @@
  * Follows the established pattern from workflow-registry.contract.test.ts.
  */
 
-import {
-  FakeFileSystem,
-  FakePathResolver,
-} from '@chainglass/shared';
+import { FakeFileSystem, FakePathResolver } from '@chainglass/shared';
 import {
   EntityNotFoundError,
   FakePhaseAdapter,

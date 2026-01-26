@@ -17,8 +17,8 @@ import { EntityNotFoundError } from '../errors/entity-not-found.error.js';
 import { RunCorruptError } from '../errors/run-errors.js';
 import type { IWorkflowAdapter, RunListFilter } from '../interfaces/workflow-adapter.interface.js';
 import type { IYamlParser } from '../interfaces/yaml-parser.interface.js';
-import type { WfDefinition } from '../types/wf.types.js';
 import type { WfStatus } from '../types/wf-status.types.js';
+import type { WfDefinition } from '../types/wf.types.js';
 
 /**
  * Checkpoint metadata structure from checkpoint-metadata.json.
@@ -78,12 +78,7 @@ export class WorkflowAdapter implements IWorkflowAdapter {
    * Load a workflow from a checkpoint directory (immutable snapshot).
    */
   async loadCheckpoint(slug: string, version: string): Promise<Workflow> {
-    const workflowDir = this.pathResolver.join(
-      this.WORKFLOWS_DIR,
-      slug,
-      'checkpoints',
-      version
-    );
+    const workflowDir = this.pathResolver.join(this.WORKFLOWS_DIR, slug, 'checkpoints', version);
     const wfYamlPath = this.pathResolver.join(workflowDir, 'wf.yaml');
     const metadataPath = this.pathResolver.join(workflowDir, 'checkpoint-metadata.json');
 
@@ -177,11 +172,7 @@ export class WorkflowAdapter implements IWorkflowAdapter {
    * Returns Workflow entities sorted by ordinal descending (newest first).
    */
   async listCheckpoints(slug: string): Promise<Workflow[]> {
-    const checkpointsDir = this.pathResolver.join(
-      this.WORKFLOWS_DIR,
-      slug,
-      'checkpoints'
-    );
+    const checkpointsDir = this.pathResolver.join(this.WORKFLOWS_DIR, slug, 'checkpoints');
 
     // Check if checkpoints directory exists
     const exists = await this.fs.exists(checkpointsDir);
@@ -291,11 +282,7 @@ export class WorkflowAdapter implements IWorkflowAdapter {
    * Check if a workflow exists in the registry.
    */
   async exists(slug: string): Promise<boolean> {
-    const workflowJsonPath = this.pathResolver.join(
-      this.WORKFLOWS_DIR,
-      slug,
-      'workflow.json'
-    );
+    const workflowJsonPath = this.pathResolver.join(this.WORKFLOWS_DIR, slug, 'workflow.json');
     return this.fs.exists(workflowJsonPath);
   }
 
@@ -309,7 +296,7 @@ export class WorkflowAdapter implements IWorkflowAdapter {
     // Try to extract ordinal from version hash pattern
     const match = versionHash.match(/^v?(\d+)/);
     if (match) {
-      return parseInt(match[1], 10);
+      return Number.parseInt(match[1], 10);
     }
     return 1;
   }

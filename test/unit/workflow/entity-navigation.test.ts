@@ -7,10 +7,7 @@
  * Verifies that adapters can be used together to navigate the entity graph.
  */
 
-import {
-  FakeFileSystem,
-  FakePathResolver,
-} from '@chainglass/shared';
+import { FakeFileSystem, FakePathResolver } from '@chainglass/shared';
 import {
   FakeYamlParser,
   Phase,
@@ -200,8 +197,8 @@ describe('Entity Graph Navigation', () => {
 
       const processPhase = phases.find((p) => p.name === 'process');
       expect(processPhase).toBeDefined();
-      expect(processPhase!.order).toBe(2);
-      expect(processPhase!.description).toBe('Process data');
+      expect(processPhase?.order).toBe(2);
+      expect(processPhase?.description).toBe('Process data');
     });
   });
 });

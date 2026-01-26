@@ -8,17 +8,14 @@
  * PhaseAdapter without real filesystem I/O.
  */
 
-import {
-  FakeFileSystem,
-  FakePathResolver,
-} from '@chainglass/shared';
+import { FakeFileSystem, FakePathResolver } from '@chainglass/shared';
 import {
   EntityNotFoundError,
   FakeYamlParser,
   Phase,
   PhaseAdapter,
-  Workflow,
   type PhaseDefinition,
+  Workflow,
 } from '@chainglass/workflow';
 import { beforeEach, describe, expect, it } from 'vitest';
 
@@ -51,9 +48,7 @@ const SAMPLE_WF_PHASE_JSON = {
   state: 'executing',
   started_at: '2026-01-25T12:00:00Z',
   completed_at: '2026-01-25T12:30:00Z',
-  outputs: [
-    { name: 'gathered.json', exists: true, valid: true },
-  ],
+  outputs: [{ name: 'gathered.json', exists: true, valid: true }],
 };
 
 /**
@@ -156,10 +151,7 @@ describe('PhaseAdapter', () => {
       - Worked Example: status from wf-phase.json overwrites default
       */
       fs.setFile(`${RUN_PHASE_DIR}/wf-phase.yaml`, SAMPLE_WF_PHASE);
-      fs.setFile(
-        `${RUN_PHASE_DIR}/wf-data/wf-phase.json`,
-        JSON.stringify(SAMPLE_WF_PHASE_JSON)
-      );
+      fs.setFile(`${RUN_PHASE_DIR}/wf-data/wf-phase.json`, JSON.stringify(SAMPLE_WF_PHASE_JSON));
 
       const phase = await adapter.loadFromPath(RUN_PHASE_DIR);
 
@@ -197,9 +189,7 @@ describe('PhaseAdapter', () => {
       - Quality Contribution: Verifies proper error type
       - Worked Example: loadFromPath('/nonexistent') → throws
       */
-      await expect(adapter.loadFromPath('/nonexistent/phase')).rejects.toThrow(
-        EntityNotFoundError
-      );
+      await expect(adapter.loadFromPath('/nonexistent/phase')).rejects.toThrow(EntityNotFoundError);
     });
 
     it('should throw EntityNotFoundError when wf-phase.yaml missing', async () => {
@@ -212,9 +202,7 @@ describe('PhaseAdapter', () => {
       */
       fs.setDir(PHASE_DIR);
 
-      await expect(adapter.loadFromPath(PHASE_DIR)).rejects.toThrow(
-        EntityNotFoundError
-      );
+      await expect(adapter.loadFromPath(PHASE_DIR)).rejects.toThrow(EntityNotFoundError);
     });
 
     it('should populate output files with exists/valid flags', async () => {
@@ -226,10 +214,7 @@ describe('PhaseAdapter', () => {
       - Worked Example: outputs[0].exists = true if file exists
       */
       fs.setFile(`${RUN_PHASE_DIR}/wf-phase.yaml`, SAMPLE_WF_PHASE);
-      fs.setFile(
-        `${RUN_PHASE_DIR}/wf-data/wf-phase.json`,
-        JSON.stringify(SAMPLE_WF_PHASE_JSON)
-      );
+      fs.setFile(`${RUN_PHASE_DIR}/wf-data/wf-phase.json`, JSON.stringify(SAMPLE_WF_PHASE_JSON));
 
       const phase = await adapter.loadFromPath(RUN_PHASE_DIR);
 
@@ -335,10 +320,7 @@ describe('PhaseAdapter', () => {
       - Worked Example: Run workflow → phases with runtime status
       */
       fs.setFile(`${RUN_PHASE_DIR}/wf-phase.yaml`, SAMPLE_WF_PHASE);
-      fs.setFile(
-        `${RUN_PHASE_DIR}/wf-data/wf-phase.json`,
-        JSON.stringify(SAMPLE_WF_PHASE_JSON)
-      );
+      fs.setFile(`${RUN_PHASE_DIR}/wf-data/wf-phase.json`, JSON.stringify(SAMPLE_WF_PHASE_JSON));
 
       const workflow = createRunWorkflow();
       const phases = await adapter.listForWorkflow(workflow);
@@ -378,9 +360,7 @@ describe('PhaseAdapter', () => {
         phases: [],
       });
 
-      await expect(adapter.listForWorkflow(missingWorkflow)).rejects.toThrow(
-        EntityNotFoundError
-      );
+      await expect(adapter.listForWorkflow(missingWorkflow)).rejects.toThrow(EntityNotFoundError);
     });
 
     it('should use defensive sorting with name-based tiebreaker', async () => {
