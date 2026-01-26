@@ -36,8 +36,7 @@ describe('useResponsive', () => {
     fakeMatchMedia = new FakeMatchMedia(1920);
 
     // Inject fake into window
-    (window as any).matchMedia = (query: string) =>
-      fakeMatchMedia.matchMedia(query);
+    (window as any).matchMedia = (query: string) => fakeMatchMedia.matchMedia(query);
 
     // Mock innerWidth for snapshot functions
     Object.defineProperty(window, 'innerWidth', {

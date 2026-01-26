@@ -10,17 +10,12 @@
 'use client';
 
 import { useResponsive } from '@/hooks/useResponsive';
-import {
-  containerBreakpoints,
-  hasContainerQuerySupport,
-} from '@/lib/container-query-utils';
+import { containerBreakpoints, hasContainerQuerySupport } from '@/lib/container-query-utils';
 
 export default function ResponsiveDemoPage() {
-  const { isPhone, isTablet, isDesktop, useMobilePatterns, deviceType } =
-    useResponsive();
+  const { isPhone, isTablet, isDesktop, useMobilePatterns, deviceType } = useResponsive();
 
-  const cqSupported =
-    typeof window !== 'undefined' && hasContainerQuerySupport();
+  const cqSupported = typeof window !== 'undefined' && hasContainerQuerySupport();
 
   return (
     <div className="p-6 space-y-8">
@@ -44,16 +39,8 @@ export default function ResponsiveDemoPage() {
             value={deviceType ?? 'undefined (SSR)'}
             highlight={true}
           />
-          <DeviceCard
-            label="isPhone"
-            value={isPhone ? 'true' : 'false'}
-            highlight={isPhone}
-          />
-          <DeviceCard
-            label="isTablet"
-            value={isTablet ? 'true' : 'false'}
-            highlight={isTablet}
-          />
+          <DeviceCard label="isPhone" value={isPhone ? 'true' : 'false'} highlight={isPhone} />
+          <DeviceCard label="isTablet" value={isTablet ? 'true' : 'false'} highlight={isTablet} />
           <DeviceCard
             label="isDesktop"
             value={isDesktop ? 'true' : 'false'}
@@ -70,16 +57,13 @@ export default function ResponsiveDemoPage() {
           <h3 className="font-medium mb-2">Breakpoints</h3>
           <ul className="text-sm space-y-1 text-muted-foreground">
             <li>
-              <code className="text-xs bg-background px-1 rounded">phone</code>:{' '}
-              {'< 768px'}
+              <code className="text-xs bg-background px-1 rounded">phone</code>: {'< 768px'}
             </li>
             <li>
-              <code className="text-xs bg-background px-1 rounded">tablet</code>:{' '}
-              768px - 1023px
+              <code className="text-xs bg-background px-1 rounded">tablet</code>: 768px - 1023px
             </li>
             <li>
-              <code className="text-xs bg-background px-1 rounded">desktop</code>:{' '}
-              {'>= 1024px'}
+              <code className="text-xs bg-background px-1 rounded">desktop</code>: {'>= 1024px'}
             </li>
           </ul>
         </div>
@@ -90,9 +74,7 @@ export default function ResponsiveDemoPage() {
         <h2 className="text-xl font-semibold">Container Queries</h2>
         <p className="text-sm text-muted-foreground">
           Container Query support:{' '}
-          <span
-            className={cqSupported ? 'text-green-600' : 'text-yellow-600'}
-          >
+          <span className={cqSupported ? 'text-green-600' : 'text-yellow-600'}>
             {cqSupported ? 'Supported' : 'Not Supported (using fallbacks)'}
           </span>
         </p>
@@ -102,8 +84,7 @@ export default function ResponsiveDemoPage() {
           <ul className="text-sm space-y-1 text-muted-foreground">
             {Object.entries(containerBreakpoints).map(([key, value]) => (
               <li key={key}>
-                <code className="text-xs bg-background px-1 rounded">{key}</code>:{' '}
-                {value}px
+                <code className="text-xs bg-background px-1 rounded">{key}</code>: {value}px
               </li>
             ))}
           </ul>
@@ -134,9 +115,7 @@ export default function ResponsiveDemoPage() {
                 <span className="cq-hide-lg text-muted-foreground">
                   [Visible on small containers]
                 </span>
-                <span className="hidden cq-show-lg font-medium">
-                  [Visible on large containers]
-                </span>
+                <span className="hidden cq-show-lg font-medium">[Visible on large containers]</span>
               </div>
 
               {/* Flex direction changes */}
@@ -215,9 +194,7 @@ function DeviceCard({
   return (
     <div
       className={`p-4 rounded-lg border ${
-        highlight
-          ? 'bg-primary/10 border-primary/30'
-          : 'bg-card border-border'
+        highlight ? 'bg-primary/10 border-primary/30' : 'bg-card border-border'
       }`}
     >
       <div className="text-sm text-muted-foreground">{label}</div>

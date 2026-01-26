@@ -70,6 +70,103 @@ The existing `useIsMobile()` hook remains unchanged. The new `useResponsive()` h
 | `useIsMobile()` | Legacy binary check | 768px |
 | `useResponsive()` | Three-tier detection | 768px / 1024px |
 
+## BottomTabBar Component
+
+The `BottomTabBar` is a phone-only navigation component that provides bottom tab navigation for viewports < 768px. It automatically hides on tablet and desktop viewports where the sidebar is used instead.
+
+### Basic Usage
+
+```tsx
+import { BottomTabBar } from '@/components/navigation';
+
+function AppLayout() {
+  return (
+    <>
+      {/* Main content */}
+      <main>...</main>
+
+      {/* Phone-only bottom navigation */}
+      <BottomTabBar />
+    </>
+  );
+}
+```
+
+The component internally uses `useResponsive().useMobilePatterns` to determine whether to render. No conditional wrapping is needed.
+
+### Features
+
+- **Phone-only rendering**: Automatically hidden on tablet (≥768px) and desktop (≥1024px)
+- **48px touch targets**: All tabs meet mobile accessibility requirements (AC-46)
+- **Active state indication**: Current route highlighted via aria-selected and visual styling
+- **3 core navigation items**: Home, Workflow, Kanban (demo pages excluded)
+- **Fixed positioning**: Stays at bottom of screen during scroll
+- **ARIA support**: tablist/tab roles for screen readers
+
+### Navigation Items
+
+The BottomTabBar uses `MOBILE_NAV_ITEMS` from `/lib/navigation-utils.ts`:
+
+```typescript
+import { MOBILE_NAV_ITEMS, NAV_ITEMS } from '@/lib/navigation-utils';
+
+// MOBILE_NAV_ITEMS: 3 core items for phone bottom bar
+// NAV_ITEMS: 7 full items for sidebar
+```
+
+### NavigationWrapper Pattern
+
+For applications that need to switch between sidebar and bottom navigation based on viewport:
+
+```tsx
+import { useResponsive } from '@/hooks/useResponsive';
+import { BottomTabBar } from '@/components/navigation';
+import { Sidebar } from '@/components/sidebar';
+
+function NavigationWrapper({ children }) {
+  const { useMobilePatterns } = useResponsive();
+
+  if (useMobilePatterns) {
+    return (
+      <>
+        <main>{children}</main>
+        <BottomTabBar />
+      </>
+    );
+  }
+
+  return (
+    <div className="flex">
+      <Sidebar />
+      <main className="flex-1">{children}</main>
+    </div>
+  );
+}
+```
+
+### Styling
+
+The BottomTabBar uses Tailwind classes for styling:
+
+- `fixed bottom-0 left-0 right-0 w-full` - Fixed positioning
+- `min-h-12 min-w-12` - 48px touch targets
+- `text-primary` - Active tab color
+- `text-muted-foreground` - Inactive tab color
+
+### Testing
+
+Use `FakeMatchMedia` to test viewport-dependent behavior:
+
+```typescript
+import { FakeMatchMedia } from '@/test/fakes/fake-match-media';
+
+const fake = new FakeMatchMedia(375); // Phone width
+// Component renders tab bar
+
+fake.setViewportWidth(900); // Tablet width
+// Component returns null
+```
+
 ## Container Queries
 
 Container queries allow styling based on a container's size rather than viewport size. This is useful for reusable components that may appear in different contexts.
@@ -182,8 +279,23 @@ fake.setViewportWidth(1024); // Simulate resize to desktop
 
 ## Related Files
 
-- `/apps/web/src/hooks/useResponsive.ts` - Main hook
-- `/apps/web/src/lib/container-query-utils.ts` - CQ utilities
-- `/apps/web/app/globals.css` - CSS classes
-- `/test/fakes/fake-match-media.ts` - Test fake
-- `/apps/web/app/(dashboard)/demo/responsive/page.tsx` - Demo page
+### Hooks
+- `/apps/web/src/hooks/useResponsive.ts` - Three-tier responsive detection hook
+
+### Components
+- `/apps/web/src/components/navigation/bottom-tab-bar.tsx` - Phone-only bottom navigation
+- `/apps/web/src/components/navigation/index.ts` - Navigation component exports
+
+### Utilities
+- `/apps/web/src/lib/container-query-utils.ts` - Container query utilities
+- `/apps/web/src/lib/navigation-utils.ts` - Navigation data (NAV_ITEMS, MOBILE_NAV_ITEMS)
+
+### CSS
+- `/apps/web/app/globals.css` - Container query CSS classes
+
+### Testing
+- `/test/fakes/fake-match-media.ts` - FakeMatchMedia test fake
+- `/test/fakes/fake-resize-observer.ts` - FakeResizeObserver test fake
+
+### Demo Pages
+- `/apps/web/app/(dashboard)/demo/responsive/page.tsx` - Responsive patterns demo
