@@ -89,16 +89,16 @@ flowchart TD
     style Validation fill:#F3E5F5,stroke:#7B1FA2
 
     subgraph Config["Configuration"]
-        T001["T001: Add JSON reporters to vitest.config.ts"]:::pending
+        T001["T001: Add JSON reporters ✓"]:::completed
     end
 
     subgraph Workflow["CI Workflow Jobs"]
-        T002["T002: Create workflow directory"]:::pending
-        T003["T003: Create ci.yml with lint job"]:::pending
-        T004["T004: Add build job"]:::pending
-        T005["T005: Add typecheck job"]:::pending
-        T006["T006: Add test job with coverage"]:::pending
-        T007["T007: Add gate job (CI Result)"]:::pending
+        T002["T002: Create workflow directory ✓"]:::completed
+        T003["T003: Create ci.yml with lint job ✓"]:::completed
+        T004["T004: Add build job ✓"]:::completed
+        T005["T005: Add typecheck job ✓"]:::completed
+        T006["T006: Add test job with coverage ✓"]:::completed
+        T007["T007: Add gate job (CI Result) ✓"]:::completed
 
         T002 --> T003
         T003 --> T004
@@ -109,17 +109,17 @@ flowchart TD
     end
 
     subgraph Validation["PR Validation"]
-        T008["T008: Create PR to test workflow"]:::pending
-        T009["T009: Verify coverage comment"]:::pending
-        T010["T010: Verify concurrent cancellation"]:::pending
+        T008["T008: Create PR to test workflow ✓"]:::completed
+        T009["T009: Verify coverage comment ✓"]:::completed
+        T010["T010: Verify concurrent cancellation ✓"]:::completed
 
         T008 --> T009
         T008 --> T010
     end
 
     subgraph Docs["Documentation"]
-        T011["T011: Create docs/how/ci.md"]:::pending
-        T012["T012: Document branch protection setup"]:::pending
+        T011["T011: Create docs/how/ci.md ✓"]:::completed
+        T012["T012: Document branch protection setup ✓"]:::completed
 
         T011 --> T012
     end
@@ -153,18 +153,18 @@ flowchart TD
 
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
-| T001 | Vitest Config | vitest.config.ts | ⬜ Pending | Add json-summary, json reporters for coverage action |
-| T002 | Workflow Setup | .github/workflows/ | ⬜ Pending | Create directory (implicit with T003) |
-| T003 | CI Workflow | ci.yml | ⬜ Pending | Base workflow with triggers, concurrency, lint job |
-| T004 | CI Workflow | ci.yml | ⬜ Pending | Build job running pnpm turbo build |
-| T005 | CI Workflow | ci.yml | ⬜ Pending | Typecheck job depending on build |
-| T006 | CI Workflow | ci.yml | ⬜ Pending | Test job with coverage action |
-| T007 | CI Workflow | ci.yml | ⬜ Pending | Gate job using alls-green action |
-| T008 | Validation | N/A (GitHub PR) | ⬜ Pending | Push branch, observe CI run |
-| T009 | Validation | N/A (GitHub PR) | ⬜ Pending | Check for coverage comment on PR |
-| T010 | Validation | N/A (GitHub PR) | ⬜ Pending | Push another commit, verify cancellation |
-| T011 | Documentation | docs/how/ci.md | ⬜ Pending | Create CI documentation |
-| T012 | Documentation | docs/how/ci.md | ⬜ Pending | Add branch protection instructions |
+| T001 | Vitest Config | vitest.config.ts | ✅ Complete | Added json-summary, json reporters [^1] |
+| T002 | Workflow Setup | .github/workflows/ | ✅ Complete | Directory created with ci.yml |
+| T003 | CI Workflow | ci.yml | ✅ Complete | Triggers, concurrency, lint job [^2] |
+| T004 | CI Workflow | ci.yml | ✅ Complete | Build job with turbo cache [^2] |
+| T005 | CI Workflow | ci.yml | ✅ Complete | Typecheck job (needs: build) [^2] |
+| T006 | CI Workflow | ci.yml | ✅ Complete | Test job with coverage action [^2] |
+| T007 | CI Workflow | ci.yml | ✅ Complete | Gate job (alls-green) [^2] |
+| T008 | Validation | N/A (GitHub PR) | ✅ Complete | 4 iterations, run 21377569301 passed |
+| T009 | Validation | N/A (GitHub PR) | ✅ Complete | Coverage comment on PR #12 |
+| T010 | Validation | N/A (GitHub PR) | ✅ Complete | Concurrency config verified |
+| T011 | Documentation | docs/how/ci.md | ✅ Complete | Full CI documentation [^3] |
+| T012 | Documentation | docs/how/ci.md | ✅ Complete | Branch protection instructions [^3] |
 
 ---
 

@@ -183,11 +183,25 @@ gate:
 
 ## Change Footnotes Ledger
 
-[^1]: [To be added during implementation via plan-6a]
-[^2]: [To be added during implementation via plan-6a]
+[^1]: T001 - Added coverage reporters to vitest config
+  - `file:vitest.config.ts` - Added json-summary, json to reporter array (line 38)
+
+[^2]: T003-T007 - Created CI workflow with all jobs
+  - `file:.github/workflows/ci.yml` - Complete workflow file
+  - Jobs: lint, build, typecheck, test, gate (CI Result)
+  - Coverage action: davelosert/vitest-coverage-report-action@v2
+  - Gate action: re-actors/alls-green@release/v1
+
+[^3]: T011-T012 - Created CI documentation
+  - `file:docs/how/ci.md` - Job descriptions, troubleshooting, branch protection setup
+
+[^4]: Bug fixes discovered during CI validation
+  - `file:packages/mcp-server/package.json` - Added missing @chainglass/workflow dependency
+  - `file:test/unit/workflow/schema-validator.test.ts` - Fixed hardcoded paths to relative imports
+  - `file:biome.json` - Added coverage directories to ignore list
 
 ---
 
-**Next steps:**
-- **Ready to implement**: `/plan-6-implement-phase --plan "docs/plans/013-ci/ci-plan.md"`
-- **Optional validation**: `/plan-4-complete-the-plan` (recommended for CS-3+ tasks)
+**Implementation Complete**: 2026-01-27
+**PR**: https://github.com/AI-Substrate/chainglass/pull/12
+**CI Run**: https://github.com/AI-Substrate/chainglass/actions/runs/21377569301 (all jobs passing)
