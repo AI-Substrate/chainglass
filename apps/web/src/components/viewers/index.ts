@@ -15,4 +15,5 @@ export { MarkdownViewer } from './markdown-viewer';
 export { MarkdownServer } from './markdown-server';
 export { MermaidRenderer } from './mermaid-renderer';
 export { CodeBlock } from './code-block';
+export { DiffViewer } from './diff-viewer';
 export type { ViewerFile } from '../../lib/language-detection';

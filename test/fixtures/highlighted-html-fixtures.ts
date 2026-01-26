@@ -71,3 +71,42 @@ export const SAMPLE_CSHARP_CODE = `namespace Example
         }
     }
 }`;
+
+/**
+ * Sample git diff fixtures for DiffViewer component testing.
+ * These are raw git diff outputs, not pre-highlighted HTML.
+ * DiffViewer uses @git-diff-view which handles highlighting internally.
+ */
+export const SAMPLE_DIFF_SIMPLE = `diff --git a/src/utils.ts b/src/utils.ts
+index 1234567..abcdefg 100644
+--- a/src/utils.ts
++++ b/src/utils.ts
+@@ -1,3 +1,3 @@
+-export const x = 1;
++export const x = 2;
+ export const y = 'hello';`;
+
+export const SAMPLE_DIFF_MULTILINE = `diff --git a/src/components/Button.tsx b/src/components/Button.tsx
+index 1234567..abcdefg 100644
+--- a/src/components/Button.tsx
++++ b/src/components/Button.tsx
+@@ -1,10 +1,15 @@
+ import React from 'react';
+
+ interface ButtonProps {
+   label: string;
++  disabled?: boolean;
++  onClick?: () => void;
+ }
+
+-export function Button({ label }: ButtonProps) {
++export function Button({ label, disabled, onClick }: ButtonProps) {
+   return (
+-    <button>{label}</button>
++    <button disabled={disabled} onClick={onClick}>
++      {label}
++    </button>
+   );
+ }`;
+
+export const SAMPLE_DIFF_NO_CHANGES = '';

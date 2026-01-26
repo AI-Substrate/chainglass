@@ -37,16 +37,16 @@ Developers can view uncommitted file changes directly in the dashboard without s
 Implement the DiffViewer component as specified in the plan with full TDD, leveraging the Shiki infrastructure from Phase 2 and following established viewer patterns from Phases 1-4.
 
 ### Behavior Checklist
-- [ ] AC-19: DiffViewer accepts ViewerFile input
-- [ ] AC-20: Runs git diff on file path
-- [ ] AC-21: Split view with side-by-side display
-- [ ] AC-22: Unified view with +/- markers
-- [ ] AC-23: Toggle between modes
-- [ ] AC-24: Shiki syntax highlighting
-- [ ] AC-25: Theme matches app mode
-- [ ] AC-26: "Not in git" message
-- [ ] AC-27: "No changes" message
-- [ ] AC-28: Virtual scrolling for large diffs
+- [x] AC-19: DiffViewer accepts ViewerFile input
+- [x] AC-20: Runs git diff on file path (via getGitDiff server action)
+- [x] AC-21: Split view with side-by-side display
+- [x] AC-22: Unified view with +/- markers
+- [x] AC-23: Toggle between modes
+- [x] AC-24: Shiki syntax highlighting (@git-diff-view/shiki)
+- [x] AC-25: Theme matches app mode
+- [x] AC-26: "Not in git" message
+- [x] AC-27: "No changes" message
+- [x] AC-28: Virtual scrolling for large diffs (@git-diff-view handles this)
 
 ### Goals
 
@@ -84,17 +84,17 @@ flowchart TD
     classDef blocked fill:#F44336,stroke:#D32F2F,color:#fff
 
     subgraph Phase["Phase 5: DiffViewer Component"]
-        T001["T001: Interface + FakeDiffAction"]:::pending
-        T002["T002: getGitDiff server action"]:::pending
-        T003["T003: DiffViewer tests (RED)"]:::pending
-        T004["T004: Install @git-diff-view packages"]:::pending
-        T005["T005: DiffViewer split mode"]:::pending
-        T006["T006: DiffViewer unified mode"]:::pending
-        T007["T007: Mode toggle button"]:::pending
-        T008["T008: Shiki highlighting"]:::pending
-        T009["T009: Error state handling"]:::pending
-        T010["T010: Theme support"]:::pending
-        T011["T011: Demo page + MCP validation"]:::pending
+        T001["T001: Interface + FakeDiffAction ✓"]:::completed
+        T002["T002: getGitDiff server action ✓"]:::completed
+        T003["T003: DiffViewer tests (RED) ✓"]:::completed
+        T004["T004: Install @git-diff-view packages ✓"]:::completed
+        T005["T005: DiffViewer split mode ✓"]:::completed
+        T006["T006: DiffViewer unified mode ✓"]:::completed
+        T007["T007: Mode toggle button ✓"]:::completed
+        T008["T008: Shiki highlighting ✓"]:::completed
+        T009["T009: Error state handling ✓"]:::completed
+        T010["T010: Theme support ✓"]:::completed
+        T011["T011: Demo page + MCP validation ✓"]:::completed
 
         T001 --> T002
         T002 --> T003
@@ -109,29 +109,29 @@ flowchart TD
     end
 
     subgraph Shared["Shared Package"]
-        F1["/packages/shared/src/interfaces/diff.interface.ts"]:::pending
+        F1["/packages/shared/src/interfaces/diff.interface.ts ✓"]:::completed
     end
 
     subgraph Fakes["Test Fakes"]
-        F2["/test/fakes/fake-diff-action.ts"]:::pending
+        F2["/packages/shared/src/fakes/fake-diff-action.ts ✓"]:::completed
     end
 
     subgraph ServerAction["Server Action"]
-        F3["/apps/web/src/actions/get-git-diff.ts"]:::pending
+        F3["/apps/web/src/lib/server/git-diff-action.ts ✓"]:::completed
     end
 
     subgraph Component["DiffViewer Component"]
-        F4["/apps/web/src/components/viewers/diff-viewer.tsx"]:::pending
-        F5["/apps/web/src/components/viewers/diff-viewer.css"]:::pending
+        F4["/apps/web/src/components/viewers/diff-viewer.tsx ✓"]:::completed
+        F5["/apps/web/src/components/viewers/diff-viewer.css ✓"]:::completed
     end
 
     subgraph Tests["Test Files"]
-        F6["/test/unit/web/components/viewers/diff-viewer.test.tsx"]:::pending
-        F7["/test/unit/web/actions/get-git-diff.test.ts"]:::pending
+        F6["/test/unit/web/components/viewers/diff-viewer.test.tsx ✓"]:::completed
+        F7["/test/unit/web/lib/server/git-diff-action.test.ts ✓"]:::completed
     end
 
     subgraph Demo["Demo Page"]
-        F8["/apps/web/app/(dashboard)/demo/diff-viewer/page.tsx"]:::pending
+        F8["/apps/web/app/(dashboard)/demo/diff-viewer/page.tsx ✓"]:::completed
     end
 
     T001 -.-> F1
@@ -151,17 +151,17 @@ flowchart TD
 
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
-| T001 | Interface, Fake | `/packages/shared/src/interfaces/diff.interface.ts`, `/test/fakes/fake-diff-action.ts` | ⬜ Pending | Interface-first per constitution; fake for testing |
-| T002 | Server Action | `/apps/web/src/actions/get-git-diff.ts` | ⬜ Pending | Implements interface; handles git errors |
-| T003 | Test Suite | `/test/unit/web/components/viewers/diff-viewer.test.tsx` | ⬜ Pending | RED phase - tests fail until component exists |
-| T004 | Dependencies | `package.json` | ⬜ Pending | @git-diff-view/react + @git-diff-view/shiki |
-| T005 | DiffViewer | `/apps/web/src/components/viewers/diff-viewer.tsx` | ⬜ Pending | Split view mode (default) |
-| T006 | DiffViewer | `/apps/web/src/components/viewers/diff-viewer.tsx` | ⬜ Pending | Unified view mode |
-| T007 | DiffViewer | `/apps/web/src/components/viewers/diff-viewer.tsx` | ⬜ Pending | Toggle button UI |
-| T008 | Shiki Integration | `/apps/web/src/components/viewers/diff-viewer.tsx` | ⬜ Pending | @git-diff-view/shiki config |
-| T009 | Error States | `/apps/web/src/components/viewers/diff-viewer.tsx` | ⬜ Pending | not-git, no-changes, git-not-available |
-| T010 | Styling | `/apps/web/src/components/viewers/diff-viewer.css` | ⬜ Pending | Theme switching CSS |
-| T011 | Demo Page | `/apps/web/app/(dashboard)/demo/diff-viewer/page.tsx` | ⬜ Pending | Manual validation + MCP |
+| T001 | Interface, Fake | `/packages/shared/src/interfaces/diff.interface.ts`, `/packages/shared/src/fakes/fake-diff-action.ts` | ✅ Complete | Interface-first per constitution; fake for testing |
+| T002 | Server Action | `/apps/web/src/lib/server/git-diff-action.ts` | ✅ Complete | Implements interface; handles git errors |
+| T003 | Test Suite | `/test/unit/web/components/viewers/diff-viewer.test.tsx` | ✅ Complete | RED phase - tests written, fail as expected |
+| T004 | Dependencies | `package.json` | ✅ Complete | @git-diff-view/react@0.0.36 + @git-diff-view/shiki@0.0.36 |
+| T005 | DiffViewer | `/apps/web/src/components/viewers/diff-viewer.tsx` | ✅ Complete | Split view mode (default) |
+| T006 | DiffViewer | `/apps/web/src/components/viewers/diff-viewer.tsx` | ✅ Complete | Unified view mode |
+| T007 | DiffViewer | `/apps/web/src/components/viewers/diff-viewer.tsx` | ✅ Complete | Toggle button UI |
+| T008 | Shiki Integration | `/apps/web/src/components/viewers/diff-viewer.tsx` | ✅ Complete | @git-diff-view/shiki config |
+| T009 | Error States | `/apps/web/src/components/viewers/diff-viewer.tsx` | ✅ Complete | not-git, no-changes, git-not-available |
+| T010 | Styling | `/apps/web/src/components/viewers/diff-viewer.css` | ✅ Complete | Theme switching CSS |
+| T011 | Demo Page | `/apps/web/app/(dashboard)/demo/diff-viewer/page.tsx` | ✅ Complete | Manual validation + MCP |
 
 ---
 
@@ -169,17 +169,17 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|------|------|-----|------|--------------|------------------|------------|----------|-------|
-| [ ] | T001 | Create `DiffResult` interface and `FakeDiffAction` class | 2 | Setup | – | `/home/jak/substrate/008-web-extras/packages/shared/src/interfaces/diff.interface.ts`, `/home/jak/substrate/008-web-extras/test/fakes/fake-diff-action.ts`, `/home/jak/substrate/008-web-extras/packages/shared/src/interfaces/index.ts` | Interface exported; fake has setNotInGitRepo(), setNoChanges(), setDiff(), setGitNotAvailable() helpers | – | Interface-first per constitution |
-| [ ] | T002 | Implement `getGitDiff` server action + tests | 2 | Core | T001 | `/home/jak/substrate/008-web-extras/apps/web/src/actions/get-git-diff.ts`, `/home/jak/substrate/008-web-extras/test/unit/web/actions/get-git-diff.test.ts` | Tests pass for: git available, not in repo, no changes, git not available | – | Per Critical Discovery 06 |
-| [ ] | T003 | Write DiffViewer component tests (RED phase) | 2 | Test | T002 | `/home/jak/substrate/008-web-extras/test/unit/web/components/viewers/diff-viewer.test.tsx` | Tests fail as expected (component doesn't exist) | – | Tests cover AC-19 to AC-28 |
-| [ ] | T004 | Install @git-diff-view packages | 1 | Setup | T003 | `/home/jak/substrate/008-web-extras/apps/web/package.json`, `/home/jak/substrate/008-web-extras/pnpm-lock.yaml` | `pnpm install` succeeds; packages available for import | – | @git-diff-view/react, @git-diff-view/shiki |
-| [ ] | T005 | Implement DiffViewer with split mode (GREEN phase) | 2 | Core | T004 | `/home/jak/substrate/008-web-extras/apps/web/src/components/viewers/diff-viewer.tsx`, `/home/jak/substrate/008-web-extras/apps/web/src/components/viewers/diff-viewer.css`, `/home/jak/substrate/008-web-extras/apps/web/src/components/viewers/index.ts` | Split mode tests pass; side-by-side display renders | – | AC-21 |
-| [ ] | T006 | Add unified view mode | 2 | Core | T005 | `/home/jak/substrate/008-web-extras/apps/web/src/components/viewers/diff-viewer.tsx` | Unified mode tests pass; +/- markers display | – | AC-22 |
-| [ ] | T007 | Add mode toggle button with useDiffViewerState hook | 1 | Core | T006 | `/home/jak/substrate/008-web-extras/apps/web/src/components/viewers/diff-viewer.tsx` | Toggle button switches between split/unified; uses Phase 1 hook | – | AC-23 |
-| [ ] | T008 | Integrate Shiki highlighting via @git-diff-view/shiki | 2 | Core | T007 | `/home/jak/substrate/008-web-extras/apps/web/src/components/viewers/diff-viewer.tsx` | Diff code has syntax colors; consistent with FileViewer | – | AC-24 |
-| [ ] | T009 | Handle no-git and no-changes error states | 2 | Core | T008 | `/home/jak/substrate/008-web-extras/apps/web/src/components/viewers/diff-viewer.tsx` | Error messages display for each state; no crashes | – | AC-26, AC-27 |
-| [ ] | T010 | Add theme support CSS | 1 | Core | T009 | `/home/jak/substrate/008-web-extras/apps/web/src/components/viewers/diff-viewer.css` | Light/dark theme matches app via CSS variables | – | AC-25; follow Phase 2 pattern |
-| [ ] | T011 | Create demo page + MCP validation | 2 | Integration | T010 | `/home/jak/substrate/008-web-extras/apps/web/app/(dashboard)/demo/diff-viewer/page.tsx` | Demo at /demo/diff-viewer; MCP get_routes shows route; build passes | – | Per ADR-0005 |
+| [x] | T001 | Create `DiffResult` interface and `FakeDiffAction` class | 2 | Setup | – | `/home/jak/substrate/008-web-extras/packages/shared/src/interfaces/diff.interface.ts`, `/home/jak/substrate/008-web-extras/test/fakes/fake-diff-action.ts`, `/home/jak/substrate/008-web-extras/packages/shared/src/interfaces/index.ts` | Interface exported; fake has setNotInGitRepo(), setNoChanges(), setDiff(), setGitNotAvailable() helpers | – | Interface-first per constitution |
+| [x] | T002 | Implement `getGitDiff` server action + tests | 2 | Core | T001 | `/home/jak/substrate/008-web-extras/apps/web/src/actions/get-git-diff.ts`, `/home/jak/substrate/008-web-extras/test/unit/web/actions/get-git-diff.test.ts` | Tests pass for: git available, not in repo, no changes, git not available | – | Per Critical Discovery 06 |
+| [x] | T003 | Write DiffViewer component tests (RED phase) | 2 | Test | T002 | `/home/jak/substrate/008-web-extras/test/unit/web/components/viewers/diff-viewer.test.tsx` | Tests fail as expected (component doesn't exist) | – | Tests cover AC-19 to AC-28 |
+| [x] | T004 | Install @git-diff-view packages | 1 | Setup | T003 | `/home/jak/substrate/008-web-extras/apps/web/package.json`, `/home/jak/substrate/008-web-extras/pnpm-lock.yaml` | `pnpm install` succeeds; packages available for import | – | @git-diff-view/react, @git-diff-view/shiki |
+| [x] | T005 | Implement DiffViewer with split mode (GREEN phase) | 2 | Core | T004 | `/home/jak/substrate/008-web-extras/apps/web/src/components/viewers/diff-viewer.tsx`, `/home/jak/substrate/008-web-extras/apps/web/src/components/viewers/diff-viewer.css`, `/home/jak/substrate/008-web-extras/apps/web/src/components/viewers/index.ts` | Split mode tests pass; side-by-side display renders | – | AC-21 |
+| [x] | T006 | Add unified view mode | 2 | Core | T005 | `/home/jak/substrate/008-web-extras/apps/web/src/components/viewers/diff-viewer.tsx` | Unified mode tests pass; +/- markers display | – | AC-22 |
+| [x] | T007 | Add mode toggle button with useDiffViewerState hook | 1 | Core | T006 | `/home/jak/substrate/008-web-extras/apps/web/src/components/viewers/diff-viewer.tsx` | Toggle button switches between split/unified; uses Phase 1 hook | – | AC-23 |
+| [x] | T008 | Integrate Shiki highlighting via @git-diff-view/shiki | 2 | Core | T007 | `/home/jak/substrate/008-web-extras/apps/web/src/components/viewers/diff-viewer.tsx` | Diff code has syntax colors; consistent with FileViewer | – | AC-24 |
+| [x] | T009 | Handle no-git and no-changes error states | 2 | Core | T008 | `/home/jak/substrate/008-web-extras/apps/web/src/components/viewers/diff-viewer.tsx` | Error messages display for each state; no crashes | – | AC-26, AC-27 |
+| [x] | T010 | Add theme support CSS | 1 | Core | T009 | `/home/jak/substrate/008-web-extras/apps/web/src/components/viewers/diff-viewer.css` | Light/dark theme matches app via CSS variables | – | AC-25; follow Phase 2 pattern |
+| [x] | T011 | Create demo page + MCP validation | 2 | Integration | T010 | `/home/jak/substrate/008-web-extras/apps/web/app/(dashboard)/demo/diff-viewer/page.tsx` | Demo at /demo/diff-viewer; MCP get_routes shows route; build passes | – | Per ADR-0005 |
 
 ---
 
@@ -523,12 +523,12 @@ ANALYZE=true pnpm --filter web build --webpack  # Check bundle sizes
 
 ### Ready Check
 
-- [ ] All prior phase deliverables available (Phase 1-4 complete)
-- [ ] useDiffViewerState hook implemented and tested (Phase 1)
-- [ ] Shiki infrastructure established (Phase 2)
-- [ ] CSS variable pattern documented (Phase 2)
-- [ ] Testing patterns clear (fakes-only, Test Doc format)
-- [ ] ADR constraints mapped: ADR-0005 → T011 (MCP validation)
+- [x] All prior phase deliverables available (Phase 1-4 complete)
+- [x] useDiffViewerState hook implemented and tested (Phase 1)
+- [x] Shiki infrastructure established (Phase 2)
+- [x] CSS variable pattern documented (Phase 2)
+- [x] Testing patterns clear (fakes-only, Test Doc format)
+- [x] ADR constraints mapped: ADR-0005 → T011 (MCP validation)
 
 ---
 
@@ -558,7 +558,10 @@ _Populated during implementation by plan-6. Log anything of interest to your fut
 
 | Date | Task | Type | Discovery | Resolution | References |
 |------|------|------|-----------|------------|------------|
-| | | | | | |
+| 2026-01-26 | T005 | gotcha | @git-diff-view uses Canvas API for text measurement | Mock `HTMLCanvasElement.prototype.getContext` in jsdom tests | execution.log#t005 |
+| 2026-01-26 | T005 | gotcha | `data` prop with empty file contents doesn't parse git diff | Use `DiffFile.createInstance()` with full diff string | execution.log#post-fix |
+| 2026-01-26 | T005 | insight | Correct @git-diff-view pattern: `DiffFile.createInstance()` → `initTheme()` → `init()` → `initSyntax()` → `buildSplitDiffLines()` | Use `diffFile` prop on `DiffView` | execution.log#post-fix |
+| 2026-01-26 | T005 | gotcha | Async initialization requires `waitFor` in tests | Updated tests to await toggle button appearance | diff-viewer.test.tsx |
 
 **Types**: `gotcha` | `research-needed` | `unexpected-behavior` | `workaround` | `decision` | `debt` | `insight`
 

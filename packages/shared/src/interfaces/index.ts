@@ -9,6 +9,9 @@ export type { IPathResolver } from './path-resolver.interface.js';
 // Viewer interfaces (per Phase 1: Headless Viewer Hooks)
 export type { ViewerFile } from './viewer.interface.js';
 
+// Diff interfaces (per Phase 5: DiffViewer Component)
+export type { DiffError, DiffResult, IGitDiffService } from './diff.interface.js';
+
 // Result types (per Phase 1a: Output Adapter Architecture)
 export type {
   BaseResult,
