@@ -246,24 +246,50 @@ type Facilitator = 'agent' | 'orchestrator';
 │   │   └── runs.fixture.ts                       # T001
 │   ├── hooks/
 │   │   └── usePhaseSimulation.ts                 # T022
-│   └── lib/schemas/
-│       └── sse-events.schema.ts                  # T021 (modify existing)
+│   └── lib/
+│       ├── navigation-utils.ts                   # T000 (modify existing)
+│       └── schemas/
+│           └── sse-events.schema.ts              # T021 (modify existing)
 └── test/ui/
     └── workflow-views.test.tsx                   # T024
+
+# Files Modified (not created):
+# - src/lib/navigation-utils.ts                   # T000: Add Workflows NavItem
+# - src/components/workflow/phase-node.tsx        # T002: Extend status colors
+# - src/components/workflow/node-detail-panel.tsx # T013: Add QuestionInput
+# - src/lib/schemas/sse-events.schema.ts          # T021: Add event types
+```
+
+### Existing 006-Web-Extras Assets to Leverage
+
+```
+/home/jak/substrate/007-manage-workflows/
+├── apps/web/src/
+│   ├── hooks/
+│   │   └── useResponsive.ts                     # USE: device detection
+│   ├── lib/
+│   │   └── navigation-utils.ts                  # MODIFY: add Workflows
+│   └── components/
+│       └── navigation-wrapper.tsx               # USE: auto-wraps layouts
+└── test/fakes/
+    ├── fake-match-media.ts                      # USE: responsive tests
+    ├── fake-resize-observer.ts                  # USE: container tests
+    └── fake-event-source.ts                     # USE: SSE tests
 ```
 
 ### Acceptance Criteria
 
 Per spec AC-01 through AC-25:
 
-- [ ] **AC-01**: All Workflows page shows grid with slug, description, checkpoint count, run count, active run count, status indicators
+- [ ] **AC-01**: All Workflows page shows grid with slug, description, checkpoint count, run count, active run count, waiting/blocked indicators
 - [ ] **AC-04**: Runs table shows rows sorted by createdAt descending (newest first)
 - [ ] **AC-08**: Single Run View shows phases vertically (top-to-bottom) using React Flow
 - [ ] **AC-10**: Active phase has visual highlight (pulsing border)
-- [ ] **AC-13**: Blocked phase shows prominent "Needs Input" indicator
+- [ ] **AC-13**: Blocked phase shows prominent "Needs Input" indicator (orange per blocking UX research)
 - [ ] **AC-14-18**: QuestionInput renders all 4 types correctly (radio, checkbox, textarea, yes/no)
 - [ ] **AC-19**: Submitting answer updates fixture state and phase transitions
 - [ ] **AC-24-25**: Breadcrumb navigation works on all detail views
+- [ ] **Navigation**: Workflows link appears in desktop sidebar and phone bottom bar
 
 ### Risks
 
@@ -273,6 +299,8 @@ Per spec AC-01 through AC-25:
 | Vertical layout complexity underestimated | Medium | High | Use Dagre auto-layout fallback if manual positioning fails |
 | Question component scope creep (additional types) | Low | Low | Defer new types to future plan; implement 4 core types only |
 | CSS import order regression | Low | Medium | Add comment guards in layout files; verify in PR checklist |
+| MOBILE_NAV_ITEMS limited to 3 items | Medium | Low | Either replace a demo or accept desktop-only for Workflows; ask user |
+| DashboardSidebar hardcodes nav items | Medium | Medium | May need refactor to import from navigation-utils.ts |
 
 ### Component Reuse Matrix
 
@@ -287,18 +315,19 @@ Per spec AC-01 through AC-25:
 | QuestionInput | | | | ✅ | Modal when blocked |
 | CheckpointTimeline | | ✅ | | | Version history |
 | WorkflowBreadcrumb | | ✅ | ✅ | ✅ | Navigation |
+| **useResponsive()** | ✅ | ✅ | ✅ | ✅ | From 006-web-extras |
 
-### Status Color System (Extended)
+### Status Color System (Plan 010 PhaseRunStatus Aligned)
 
-| Status | Color | Hex | Icon | CSS Class |
-|--------|-------|-----|------|-----------|
-| pending | Gray | #6B7280 | ⏸️ | `bg-gray-500` |
-| ready | Yellow | #F59E0B | ⏳ | `bg-amber-500` |
-| active | Blue | #3B82F6 | ▶️ | `bg-blue-500` |
-| blocked | Orange | #F97316 | 🚫 | `bg-orange-500` |
-| accepted | Lime | #84CC16 | ✓ | `bg-lime-500` |
-| complete | Green | #10B981 | ✅ | `bg-emerald-500` |
-| failed | Red | #EF4444 | ❌ | `bg-red-500` |
+| Status | Color | Hex | Icon | CSS Class | PhaseRunStatus |
+|--------|-------|-----|------|-----------|----------------|
+| pending | Gray | #6B7280 | ⏸️ | `bg-gray-500` | `'pending'` |
+| ready | Amber | #F59E0B | ⏳ | `bg-amber-500` | `'ready'` |
+| active | Blue | #3B82F6 | ▶️ | `bg-blue-500` | `'active'` |
+| blocked | Orange | #F97316 | 🚫 | `bg-orange-500` | `'blocked'` |
+| accepted | Lime | #84CC16 | ✓ | `bg-lime-500` | `'accepted'` |
+| complete | Emerald | #10B981 | ✅ | `bg-emerald-500` | `'complete'` |
+| failed | Red | #EF4444 | ❌ | `bg-red-500` | `'failed'` |
 
 ---
 

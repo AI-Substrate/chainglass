@@ -14,6 +14,7 @@ import {
   GitCompare,
   Home,
   LayoutDashboard,
+  ListChecks,
   type LucideIcon,
   Smartphone,
 } from 'lucide-react';
@@ -45,6 +46,7 @@ export type NavigationMode = 'phone' | 'desktop';
  */
 export const NAV_ITEMS: readonly NavItem[] = [
   { id: 'home', label: 'Home', href: '/', icon: Home },
+  { id: 'workflows', label: 'Workflows', href: '/workflows', icon: ListChecks },
   { id: 'workflow', label: 'Workflow Visualization', href: '/workflow', icon: GitBranch },
   { id: 'kanban', label: 'Kanban Board', href: '/kanban', icon: LayoutDashboard },
   { id: 'file-viewer-demo', label: 'FileViewer Demo', href: '/demo/file-viewer', icon: Code },
@@ -67,6 +69,6 @@ export const NAV_ITEMS: readonly NavItem[] = [
  */
 export const MOBILE_NAV_ITEMS: readonly NavItem[] = [
   { id: 'home', label: 'Home', href: '/', icon: Home },
-  { id: 'workflow', label: 'Workflow', href: '/workflow', icon: GitBranch },
+  { id: 'workflows', label: 'Workflows', href: '/workflows', icon: ListChecks },
   { id: 'kanban', label: 'Kanban', href: '/kanban', icon: LayoutDashboard },
 ] as const;
