@@ -171,4 +171,117 @@ describe('CLI Parser', () => {
       expect(stdioOption).toBeDefined();
     });
   });
+
+  describe('workflow command', () => {
+    it('should register workflow command group', () => {
+      /*
+      Test Doc:
+      - Why: 'cg workflow' is the primary workflow management command group; must be registered
+      - Contract: Program contains 'workflow' command accessible via commands array
+      - Usage Notes: Access program.commands array to find command by name()
+      - Quality Contribution: Catches missing workflow command; ensures workflow management is accessible
+      - Worked Example: program.commands.find(c => c.name() === 'workflow') is defined
+      */
+      const program = createProgram({ testMode: true });
+      const workflowCmd = program.commands.find((c) => c.name() === 'workflow');
+
+      expect(workflowCmd).toBeDefined();
+    });
+
+    it('should have all 6 subcommands', () => {
+      /*
+      Test Doc:
+      - Why: Workflow command group should have list, info, checkpoint, restore, versions, compose
+      - Contract: workflow command has 6 subcommands registered
+      - Usage Notes: Access subcommand via workflowCmd.commands
+      - Quality Contribution: Catches missing subcommands; ensures complete CLI functionality
+      - Worked Example: workflowCmd.commands includes list, info, checkpoint, restore, versions, compose
+      */
+      const program = createProgram({ testMode: true });
+      const workflowCmd = program.commands.find((c) => c.name() === 'workflow');
+      expect(workflowCmd).toBeDefined();
+
+      const subcommandNames = workflowCmd?.commands.map((c) => c.name());
+      expect(subcommandNames).toContain('list');
+      expect(subcommandNames).toContain('info');
+      expect(subcommandNames).toContain('checkpoint');
+      expect(subcommandNames).toContain('restore');
+      expect(subcommandNames).toContain('versions');
+      expect(subcommandNames).toContain('compose');
+    });
+
+    it('should have --json option on list subcommand', () => {
+      /*
+      Test Doc:
+      - Why: Scripts need JSON output for automation
+      - Contract: workflow list has --json option
+      - Usage Notes: Check options array for --json flag
+      - Quality Contribution: Ensures scripting support for all workflow commands
+      - Worked Example: listCmd.options includes --json
+      */
+      const program = createProgram({ testMode: true });
+      const workflowCmd = program.commands.find((c) => c.name() === 'workflow');
+      const listCmd = workflowCmd?.commands.find((c) => c.name() === 'list');
+
+      expect(listCmd).toBeDefined();
+      const jsonOption = listCmd?.options.find((o) => o.flags.includes('--json'));
+      expect(jsonOption).toBeDefined();
+    });
+
+    it('should have --comment option on checkpoint subcommand', () => {
+      /*
+      Test Doc:
+      - Why: Users need to add comments when creating checkpoints
+      - Contract: workflow checkpoint has -c/--comment option
+      - Usage Notes: Check options array for --comment flag
+      - Quality Contribution: Ensures checkpoint documentation capability
+      - Worked Example: checkpointCmd.options includes --comment
+      */
+      const program = createProgram({ testMode: true });
+      const workflowCmd = program.commands.find((c) => c.name() === 'workflow');
+      const checkpointCmd = workflowCmd?.commands.find((c) => c.name() === 'checkpoint');
+
+      expect(checkpointCmd).toBeDefined();
+      const commentOption = checkpointCmd?.options.find((o) => o.flags.includes('--comment'));
+      expect(commentOption).toBeDefined();
+      expect(commentOption?.flags).toContain('-c');
+    });
+
+    it('should have --force option on restore subcommand', () => {
+      /*
+      Test Doc:
+      - Why: Scripts need to skip confirmation prompt
+      - Contract: workflow restore has -f/--force option
+      - Usage Notes: Check options array for --force flag
+      - Quality Contribution: Ensures scripting support for restore
+      - Worked Example: restoreCmd.options includes --force
+      */
+      const program = createProgram({ testMode: true });
+      const workflowCmd = program.commands.find((c) => c.name() === 'workflow');
+      const restoreCmd = workflowCmd?.commands.find((c) => c.name() === 'restore');
+
+      expect(restoreCmd).toBeDefined();
+      const forceOption = restoreCmd?.options.find((o) => o.flags.includes('--force'));
+      expect(forceOption).toBeDefined();
+      expect(forceOption?.flags).toContain('-f');
+    });
+
+    it('should have --checkpoint option on compose subcommand', () => {
+      /*
+      Test Doc:
+      - Why: Users need to compose from specific checkpoint versions
+      - Contract: workflow compose has --checkpoint option
+      - Usage Notes: Check options array for --checkpoint flag
+      - Quality Contribution: Ensures versioned compose capability
+      - Worked Example: composeCmd.options includes --checkpoint
+      */
+      const program = createProgram({ testMode: true });
+      const workflowCmd = program.commands.find((c) => c.name() === 'workflow');
+      const composeCmd = workflowCmd?.commands.find((c) => c.name() === 'compose');
+
+      expect(composeCmd).toBeDefined();
+      const checkpointOption = composeCmd?.options.find((o) => o.flags.includes('--checkpoint'));
+      expect(checkpointOption).toBeDefined();
+    });
+  });
 });

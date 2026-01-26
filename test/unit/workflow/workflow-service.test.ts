@@ -1,6 +1,7 @@
 import { type ComposeResult, FakeFileSystem, FakePathResolver } from '@chainglass/shared';
 import {
   FakeSchemaValidator,
+  FakeWorkflowRegistry,
   FakeYamlParser,
   type IWorkflowService,
   type WfDefinition,
@@ -71,6 +72,7 @@ describe('WorkflowService', () => {
   let yamlParser: FakeYamlParser;
   let schemaValidator: FakeSchemaValidator;
   let pathResolver: FakePathResolver;
+  let registry: FakeWorkflowRegistry;
   let service: IWorkflowService;
 
   // Helper to set up a template in the fake filesystem
@@ -90,6 +92,7 @@ describe('WorkflowService', () => {
     yamlParser = new FakeYamlParser();
     schemaValidator = new FakeSchemaValidator();
     pathResolver = new FakePathResolver();
+    registry = new FakeWorkflowRegistry();
 
     // Configure FakeYamlParser to return the sample definition
     yamlParser.setParseResult(SAMPLE_WF_YAML.trim(), SAMPLE_WF_DEFINITION);
@@ -97,8 +100,8 @@ describe('WorkflowService', () => {
     // Configure FakeSchemaValidator to return valid by default
     schemaValidator.setDefaultResult({ valid: true, errors: [] });
 
-    // Create WorkflowService with dependencies
-    service = new WorkflowService(fs, yamlParser, schemaValidator, pathResolver);
+    // Create WorkflowService with dependencies (Phase 3: includes registry)
+    service = new WorkflowService(fs, yamlParser, schemaValidator, pathResolver, registry);
   });
 
   describe('compose()', () => {
@@ -109,11 +112,12 @@ describe('WorkflowService', () => {
       - Contract: Returns ComposeResult with runDir, template name, phases array
       - Usage Notes: Template must have valid wf.yaml
       - Quality Contribution: Ensures workflow initialization works correctly
-      - Worked Example: compose('hello-workflow', '.chainglass/runs') → run-2026-01-22-001/
+      - Worked Example: compose('./templates/hello-workflow', '.chainglass/runs') → run-2026-01-22-001/
       */
-      setupTemplate('.chainglass/templates/hello-workflow');
+      setupTemplate('templates/hello-workflow');
 
-      const result = await service.compose('hello-workflow', '.chainglass/runs');
+      // Use path-based template (Phase 3: name-based goes to registry)
+      const result = await service.compose('./templates/hello-workflow', '.chainglass/runs');
 
       expect(result.errors).toHaveLength(0);
       expect(result.template).toBe('hello-workflow');
@@ -133,11 +137,12 @@ describe('WorkflowService', () => {
       - Contract: Returns ComposeResult with E020 error code
       - Usage Notes: Check error.action for fix guidance
       - Quality Contribution: Enables autonomous agent error recovery
-      - Worked Example: compose('nonexistent') → { errors: [{ code: 'E020' }] }
+      - Worked Example: compose('./nonexistent') → { errors: [{ code: 'E020' }] }
       */
       // No template set up
 
-      const result = await service.compose('nonexistent', '.chainglass/runs');
+      // Use path-based template (Phase 3: name-based goes to registry)
+      const result = await service.compose('./nonexistent', '.chainglass/runs');
 
       expect(result.errors).toHaveLength(1);
       expect(result.errors[0].code).toBe('E020');
@@ -154,7 +159,7 @@ describe('WorkflowService', () => {
       - Quality Contribution: Enables precise error reporting for agents
       - Worked Example: compose with bad YAML → { errors: [{ code: 'E021' }] }
       */
-      fs.setFile('.chainglass/templates/bad-yaml/wf.yaml', 'invalid: [unclosed');
+      fs.setFile('templates/bad-yaml/wf.yaml', 'invalid: [unclosed');
       // Configure FakeYamlParser to throw for this content
       const { YamlParseError } = await import('@chainglass/workflow');
       yamlParser.setParseError(
@@ -162,7 +167,8 @@ describe('WorkflowService', () => {
         new YamlParseError('Unexpected end of flow sequence', 1, 19, 'wf.yaml')
       );
 
-      const result = await service.compose('bad-yaml', '.chainglass/runs');
+      // Use path-based template (Phase 3: name-based goes to registry)
+      const result = await service.compose('./templates/bad-yaml', '.chainglass/runs');
 
       expect(result.errors).toHaveLength(1);
       expect(result.errors[0].code).toBe('E021');
@@ -178,7 +184,7 @@ describe('WorkflowService', () => {
       - Quality Contribution: Enables autonomous schema error fixes
       - Worked Example: compose with invalid schema → { errors: [{ code: 'E022' }] }
       */
-      setupTemplate('.chainglass/templates/invalid-schema');
+      setupTemplate('templates/invalid-schema');
       // Configure FakeSchemaValidator to return error
       schemaValidator.setDefaultResult({
         valid: false,
@@ -193,7 +199,8 @@ describe('WorkflowService', () => {
         ],
       });
 
-      const result = await service.compose('invalid-schema', '.chainglass/runs');
+      // Use path-based template (Phase 3: name-based goes to registry)
+      const result = await service.compose('./templates/invalid-schema', '.chainglass/runs');
 
       expect(result.errors).toHaveLength(1);
       expect(result.errors[0].code).toBe('E022');
@@ -208,9 +215,9 @@ describe('WorkflowService', () => {
       - Quality Contribution: Ensures self-contained run folder
       - Worked Example: compose → each phase has schemas/wf.schema.json
       */
-      setupTemplate('.chainglass/templates/hello-workflow');
+      setupTemplate('templates/hello-workflow');
 
-      const result = await service.compose('hello-workflow', '.chainglass/runs');
+      const result = await service.compose('./templates/hello-workflow', '.chainglass/runs');
 
       expect(result.errors).toHaveLength(0);
       // Check core schemas in gather phase
@@ -234,13 +241,10 @@ describe('WorkflowService', () => {
       - Quality Contribution: Ensures run folder has all validation schemas
       - Worked Example: Template with gather-data.schema.json → phase has it
       */
-      setupTemplate('.chainglass/templates/hello-workflow');
-      fs.setFile(
-        '.chainglass/templates/hello-workflow/schemas/gather-data.schema.json',
-        '{"type":"object"}'
-      );
+      setupTemplate('templates/hello-workflow');
+      fs.setFile('./templates/hello-workflow/schemas/gather-data.schema.json', '{"type":"object"}');
 
-      const result = await service.compose('hello-workflow', '.chainglass/runs');
+      const result = await service.compose('./templates/hello-workflow', '.chainglass/runs');
 
       expect(result.errors).toHaveLength(0);
       const templateSchemaPath = `${result.runDir}/phases/gather/schemas/gather-data.schema.json`;
@@ -256,9 +260,9 @@ describe('WorkflowService', () => {
       - Quality Contribution: Enables phase-isolated validation
       - Worked Example: compose → phases/gather/wf-phase.yaml exists
       */
-      setupTemplate('.chainglass/templates/hello-workflow');
+      setupTemplate('templates/hello-workflow');
 
-      const result = await service.compose('hello-workflow', '.chainglass/runs');
+      const result = await service.compose('./templates/hello-workflow', '.chainglass/runs');
 
       expect(result.errors).toHaveLength(0);
       const gatherPhasePath = `${result.runDir}/phases/gather/wf-phase.yaml`;
@@ -276,9 +280,9 @@ describe('WorkflowService', () => {
       - Quality Contribution: Ensures agent has instructions
       - Worked Example: compose → phases/gather/commands/main.md exists
       */
-      setupTemplate('.chainglass/templates/hello-workflow');
+      setupTemplate('templates/hello-workflow');
 
-      const result = await service.compose('hello-workflow', '.chainglass/runs');
+      const result = await service.compose('./templates/hello-workflow', '.chainglass/runs');
 
       expect(result.errors).toHaveLength(0);
       const mainMdPath = `${result.runDir}/phases/gather/commands/main.md`;
@@ -296,9 +300,9 @@ describe('WorkflowService', () => {
       - Quality Contribution: Enables workflow state tracking
       - Worked Example: compose → wf-run/wf-status.json with phases
       */
-      setupTemplate('.chainglass/templates/hello-workflow');
+      setupTemplate('templates/hello-workflow');
 
-      const result = await service.compose('hello-workflow', '.chainglass/runs');
+      const result = await service.compose('./templates/hello-workflow', '.chainglass/runs');
 
       expect(result.errors).toHaveLength(0);
       const statusPath = `${result.runDir}/wf-run/wf-status.json`;
@@ -318,10 +322,10 @@ describe('WorkflowService', () => {
       - Quality Contribution: Prevents naming collisions
       - Worked Example: Two composes same day → run-2026-01-22-001, run-2026-01-22-002
       */
-      setupTemplate('.chainglass/templates/hello-workflow');
+      setupTemplate('templates/hello-workflow');
 
-      const result1 = await service.compose('hello-workflow', '.chainglass/runs');
-      const result2 = await service.compose('hello-workflow', '.chainglass/runs');
+      const result1 = await service.compose('./templates/hello-workflow', '.chainglass/runs');
+      const result2 = await service.compose('./templates/hello-workflow', '.chainglass/runs');
 
       expect(result1.errors).toHaveLength(0);
       expect(result2.errors).toHaveLength(0);
@@ -338,9 +342,9 @@ describe('WorkflowService', () => {
       - Quality Contribution: Enables simple template references
       - Worked Example: compose('hello-workflow') finds .chainglass/templates/hello-workflow/
       */
-      setupTemplate('.chainglass/templates/hello-workflow');
+      setupTemplate('templates/hello-workflow');
 
-      const result = await service.compose('hello-workflow', '.chainglass/runs');
+      const result = await service.compose('./templates/hello-workflow', '.chainglass/runs');
 
       expect(result.errors).toHaveLength(0);
       expect(result.template).toBe('hello-workflow');
@@ -403,9 +407,9 @@ describe('WorkflowService', () => {
       - Quality Contribution: Ensures required directory structure
       - Worked Example: compose → phases/gather/run/inputs/files/ exists
       */
-      setupTemplate('.chainglass/templates/hello-workflow');
+      setupTemplate('templates/hello-workflow');
 
-      const result = await service.compose('hello-workflow', '.chainglass/runs');
+      const result = await service.compose('./templates/hello-workflow', '.chainglass/runs');
 
       expect(result.errors).toHaveLength(0);
       const gatherRunPath = `${result.runDir}/phases/gather/run`;
@@ -424,9 +428,9 @@ describe('WorkflowService', () => {
       - Quality Contribution: Enables run folder portability
       - Worked Example: compose → runDir/wf.yaml exists
       */
-      setupTemplate('.chainglass/templates/hello-workflow');
+      setupTemplate('templates/hello-workflow');
 
-      const result = await service.compose('hello-workflow', '.chainglass/runs');
+      const result = await service.compose('./templates/hello-workflow', '.chainglass/runs');
 
       expect(result.errors).toHaveLength(0);
       const wfYamlPath = `${result.runDir}/wf.yaml`;
@@ -442,13 +446,13 @@ describe('WorkflowService', () => {
       - Quality Contribution: Prevents ordinal collisions
       - Worked Example: Existing 001, 003 → next is 004
       */
-      setupTemplate('.chainglass/templates/hello-workflow');
+      setupTemplate('templates/hello-workflow');
       // Simulate existing run folders with gap
       const today = new Date().toISOString().split('T')[0];
       fs.setDir(`.chainglass/runs/run-${today}-001`);
       fs.setDir(`.chainglass/runs/run-${today}-003`); // Gap - 002 doesn't exist
 
-      const result = await service.compose('hello-workflow', '.chainglass/runs');
+      const result = await service.compose('./templates/hello-workflow', '.chainglass/runs');
 
       expect(result.errors).toHaveLength(0);
       expect(result.runDir).toMatch(/run-\d{4}-\d{2}-\d{2}-004$/);
@@ -463,9 +467,9 @@ describe('WorkflowService', () => {
       - Quality Contribution: Ensures message storage location exists
       - Worked Example: compose → phases/gather/run/messages/ exists
       */
-      setupTemplate('.chainglass/templates/hello-workflow');
+      setupTemplate('templates/hello-workflow');
 
-      const result = await service.compose('hello-workflow', '.chainglass/runs');
+      const result = await service.compose('./templates/hello-workflow', '.chainglass/runs');
 
       expect(result.errors).toHaveLength(0);
       const messagesPath = `${result.runDir}/phases/gather/run/messages`;
@@ -481,9 +485,9 @@ describe('WorkflowService', () => {
       - Quality Contribution: Ensures predictable phase ordering
       - Worked Example: Phases with order 2, 1 → result has order 1, 2
       */
-      setupTemplate('.chainglass/templates/hello-workflow');
+      setupTemplate('templates/hello-workflow');
 
-      const result = await service.compose('hello-workflow', '.chainglass/runs');
+      const result = await service.compose('./templates/hello-workflow', '.chainglass/runs');
 
       expect(result.errors).toHaveLength(0);
       expect(result.phases[0].order).toBe(1);

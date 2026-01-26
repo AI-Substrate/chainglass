@@ -326,6 +326,75 @@ export class FakeFileSystem implements IFileSystem {
     }
   }
 
+  /**
+   * Copy a directory and all its contents recursively.
+   *
+   * Per Phase 4 DYK-03: In-memory recursive copy for testing.
+   */
+  async copyDirectory(
+    source: string,
+    dest: string,
+    options?: { exclude?: string[] }
+  ): Promise<void> {
+    this.checkSimulatedError(source);
+    this.checkSimulatedError(dest);
+
+    // Verify source exists
+    const isSourceDir = this.dirs.has(source) || this.isImplicitDir(source);
+    if (!isSourceDir) {
+      throw new FileSystemError(
+        `ENOENT: no such file or directory, copyDirectory '${source}'`,
+        'ENOENT',
+        source
+      );
+    }
+
+    // Create destination directory
+    await this.mkdir(dest, { recursive: true });
+
+    const exclude = options?.exclude ?? [];
+    const normalizedSource = source.endsWith('/') ? source.slice(0, -1) : source;
+    const normalizedDest = dest.endsWith('/') ? dest.slice(0, -1) : dest;
+
+    // Copy all files under source to destination
+    for (const [filePath, content] of this.files.entries()) {
+      if (filePath.startsWith(`${normalizedSource}/`)) {
+        const relativePath = filePath.slice(normalizedSource.length + 1);
+
+        // Check if any path segment should be excluded
+        const pathParts = relativePath.split('/');
+        const shouldExclude = pathParts.some((part) => exclude.includes(part));
+
+        if (!shouldExclude) {
+          const destPath = `${normalizedDest}/${relativePath}`;
+          // Ensure parent directories exist
+          const destParent = pathModule.dirname(destPath);
+          if (destParent !== normalizedDest) {
+            await this.mkdir(destParent, { recursive: true });
+          }
+          this.files.set(destPath, content);
+          this.mtimes.set(destPath, new Date().toISOString());
+        }
+      }
+    }
+
+    // Copy explicit subdirectories (empty directories)
+    for (const dirPath of this.dirs) {
+      if (dirPath.startsWith(`${normalizedSource}/`)) {
+        const relativePath = dirPath.slice(normalizedSource.length + 1);
+
+        // Check if any path segment should be excluded
+        const pathParts = relativePath.split('/');
+        const shouldExclude = pathParts.some((part) => exclude.includes(part));
+
+        if (!shouldExclude) {
+          const destDirPath = `${normalizedDest}/${relativePath}`;
+          this.dirs.add(destDirPath);
+        }
+      }
+    }
+  }
+
   // ========== Private Helpers ==========
 
   /**

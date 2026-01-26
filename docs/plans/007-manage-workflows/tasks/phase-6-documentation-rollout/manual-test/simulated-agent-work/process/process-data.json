@@ -1,0 +1,18 @@
+{
+  "results": [
+    {
+      "item_id": "gather-response",
+      "status": "processed",
+      "output": "Chainglass workflow system explanation synthesized"
+    }
+  ],
+  "summary": {
+    "processed_count": 1,
+    "status": "success",
+    "format": "both"
+  },
+  "metadata": {
+    "processed_at": "2026-01-26T10:00:00Z",
+    "processor_version": "1.0.0"
+  }
+}

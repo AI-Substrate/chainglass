@@ -8,9 +8,12 @@
 import 'reflect-metadata';
 import {
   FakeFileSystem,
+  FakeHashGenerator,
   FakeLogger,
   FakePathResolver,
+  HashGeneratorAdapter,
   type IFileSystem,
+  type IHashGenerator,
   type ILogger,
   type IPathResolver,
   NodeFileSystemAdapter,
@@ -23,15 +26,18 @@ import { SchemaValidatorAdapter } from './adapters/schema-validator.adapter.js';
 import { YamlParserAdapter } from './adapters/yaml-parser.adapter.js';
 import { FakePhaseService } from './fakes/fake-phase-service.js';
 import { FakeSchemaValidator } from './fakes/fake-schema-validator.js';
+import { FakeWorkflowRegistry } from './fakes/fake-workflow-registry.js';
 import { FakeWorkflowService } from './fakes/fake-workflow-service.js';
 import { FakeYamlParser } from './fakes/fake-yaml-parser.js';
 import type {
   IPhaseService,
   ISchemaValidator,
+  IWorkflowRegistry,
   IWorkflowService,
   IYamlParser,
 } from './interfaces/index.js';
 import { PhaseService } from './services/phase.service.js';
+import { WorkflowRegistryService } from './services/workflow-registry.service.js';
 import { WorkflowService } from './services/workflow.service.js';
 
 /**
@@ -66,14 +72,31 @@ export function createWorkflowProductionContainer(): DependencyContainer {
     useFactory: () => new SchemaValidatorAdapter(),
   });
 
-  // Register workflow service (depends on other interfaces)
+  // Register hash generator for checkpoint content hashing (Phase 2)
+  childContainer.register<IHashGenerator>(WORKFLOW_DI_TOKENS.HASH_GENERATOR, {
+    useFactory: () => new HashGeneratorAdapter(),
+  });
+
+  // Register workflow registry service first (Phase 1: Manage Workflows)
+  childContainer.register<IWorkflowRegistry>(WORKFLOW_DI_TOKENS.WORKFLOW_REGISTRY, {
+    useFactory: (c) =>
+      new WorkflowRegistryService(
+        c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM),
+        c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER),
+        c.resolve<IYamlParser>(WORKFLOW_DI_TOKENS.YAML_PARSER),
+        c.resolve<IHashGenerator>(WORKFLOW_DI_TOKENS.HASH_GENERATOR)
+      ),
+  });
+
+  // Register workflow service (depends on other interfaces including registry - Phase 3 DYK-01)
   childContainer.register<IWorkflowService>(WORKFLOW_DI_TOKENS.WORKFLOW_SERVICE, {
     useFactory: (c) =>
       new WorkflowService(
         c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM),
         c.resolve<IYamlParser>(WORKFLOW_DI_TOKENS.YAML_PARSER),
         c.resolve<ISchemaValidator>(WORKFLOW_DI_TOKENS.SCHEMA_VALIDATOR),
-        c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER)
+        c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER),
+        c.resolve<IWorkflowRegistry>(WORKFLOW_DI_TOKENS.WORKFLOW_REGISTRY)
       ),
   });
 
@@ -140,6 +163,12 @@ export function createWorkflowTestContainer(): DependencyContainer {
   const fakePhaseService = new FakePhaseService();
   childContainer.register<IPhaseService>(WORKFLOW_DI_TOKENS.PHASE_SERVICE, {
     useValue: fakePhaseService,
+  });
+
+  // Register fake workflow registry (per Phase 1: Manage Workflows)
+  const fakeWorkflowRegistry = new FakeWorkflowRegistry();
+  childContainer.register<IWorkflowRegistry>(WORKFLOW_DI_TOKENS.WORKFLOW_REGISTRY, {
+    useValue: fakeWorkflowRegistry,
   });
 
   return childContainer;

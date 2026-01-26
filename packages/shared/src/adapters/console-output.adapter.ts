@@ -17,18 +17,23 @@
 import type {
   AcceptResult,
   BaseResult,
+  CheckpointResult,
   ComposeResult,
   FinalizeResult,
   HandoverResult,
   IOutputAdapter,
+  InfoResult,
+  ListResult,
   MessageAnswerResult,
   MessageCreateResult,
   MessageListResult,
   MessageReadResult,
   PreflightResult,
   PrepareResult,
+  RestoreResult,
   ResultError,
   ValidateResult,
+  VersionsResult,
 } from '../interfaces/index.js';
 
 /**
@@ -70,6 +75,18 @@ export class ConsoleOutputAdapter implements IOutputAdapter {
         return this.formatHandoverSuccess(result as unknown as HandoverResult);
       case 'wf.compose':
         return this.formatComposeSuccess(result as unknown as ComposeResult);
+      case 'workflow.list':
+        return this.formatWorkflowListSuccess(result as unknown as ListResult);
+      case 'workflow.info':
+        return this.formatWorkflowInfoSuccess(result as unknown as InfoResult);
+      case 'workflow.checkpoint':
+        return this.formatWorkflowCheckpointSuccess(result as unknown as CheckpointResult);
+      case 'workflow.restore':
+        return this.formatWorkflowRestoreSuccess(result as unknown as RestoreResult);
+      case 'workflow.versions':
+        return this.formatWorkflowVersionsSuccess(result as unknown as VersionsResult);
+      case 'workflow.compose':
+        return this.formatComposeSuccess(result as unknown as ComposeResult);
       case 'message.create':
         return this.formatMessageCreateSuccess(result as unknown as MessageCreateResult);
       case 'message.answer':
@@ -101,6 +118,18 @@ export class ConsoleOutputAdapter implements IOutputAdapter {
       case 'phase.handover':
         return this.formatHandoverFailure(result as unknown as HandoverResult);
       case 'wf.compose':
+        return this.formatComposeFailure(result as unknown as ComposeResult);
+      case 'workflow.list':
+        return this.formatWorkflowListFailure(result as unknown as ListResult);
+      case 'workflow.info':
+        return this.formatWorkflowInfoFailure(result as unknown as InfoResult);
+      case 'workflow.checkpoint':
+        return this.formatWorkflowCheckpointFailure(result as unknown as CheckpointResult);
+      case 'workflow.restore':
+        return this.formatWorkflowRestoreFailure(result as unknown as RestoreResult);
+      case 'workflow.versions':
+        return this.formatWorkflowVersionsFailure(result as unknown as VersionsResult);
+      case 'workflow.compose':
         return this.formatComposeFailure(result as unknown as ComposeResult);
       case 'message.create':
         return this.formatMessageCreateFailure(result as unknown as MessageCreateResult);
@@ -167,6 +196,100 @@ export class ConsoleOutputAdapter implements IOutputAdapter {
     if (result.phases.length > 0) {
       const phaseNames = result.phases.map((p) => p.name).join(', ');
       lines.push(`  Phases: ${phaseNames}`);
+    }
+
+    return lines.join('\n');
+  }
+
+  // ==================== Workflow Management Success Formatters (Phase 5) ====================
+
+  private formatWorkflowListSuccess(result: ListResult): string {
+    if (result.workflows.length === 0) {
+      return "ℹ️ No workflows found\n  Run 'cg init' to create starter workflows.";
+    }
+
+    const lines: string[] = [`✓ Found ${result.workflows.length} workflow(s)`];
+    lines.push('');
+
+    // Table header
+    lines.push('  Slug              Name                  Checkpoints  Description');
+    lines.push(
+      '  ────────────────  ────────────────────  ───────────  ────────────────────────────'
+    );
+
+    for (const wf of result.workflows) {
+      const slug = wf.slug.padEnd(16);
+      const name = (wf.name || '').padEnd(20);
+      const count = wf.checkpointCount.toString().padEnd(11);
+      const desc = wf.description ? wf.description.substring(0, 28) : '';
+      lines.push(`  ${slug}  ${name}  ${count}  ${desc}`);
+    }
+
+    return lines.join('\n');
+  }
+
+  private formatWorkflowInfoSuccess(result: InfoResult): string {
+    if (!result.workflow) {
+      return '✓ Workflow info retrieved';
+    }
+
+    const wf = result.workflow;
+    const lines: string[] = [`✓ Workflow '${wf.slug}'`];
+    lines.push('');
+    lines.push(`  Name:        ${wf.name}`);
+    if (wf.description) {
+      lines.push(`  Description: ${wf.description}`);
+    }
+    if (wf.author) {
+      lines.push(`  Author:      ${wf.author}`);
+    }
+    if (wf.tags && wf.tags.length > 0) {
+      lines.push(`  Tags:        ${wf.tags.join(', ')}`);
+    }
+    lines.push(`  Created:     ${wf.createdAt}`);
+    if (wf.updatedAt) {
+      lines.push(`  Updated:     ${wf.updatedAt}`);
+    }
+    lines.push(`  Checkpoints: ${wf.checkpointCount}`);
+
+    if (wf.versions && wf.versions.length > 0) {
+      lines.push('');
+      lines.push('  Version History:');
+      for (const v of wf.versions) {
+        const comment = v.comment ? ` - ${v.comment}` : '';
+        lines.push(`    ${v.version}  ${v.createdAt}${comment}`);
+      }
+    }
+
+    return lines.join('\n');
+  }
+
+  private formatWorkflowCheckpointSuccess(result: CheckpointResult): string {
+    const lines: string[] = [`✓ Checkpoint created: ${result.version}`];
+    lines.push(`  Ordinal:  ${result.ordinal}`);
+    lines.push(`  Hash:     ${result.hash}`);
+    lines.push(`  Path:     ${result.checkpointPath}`);
+    lines.push(`  Created:  ${result.createdAt}`);
+    return lines.join('\n');
+  }
+
+  private formatWorkflowRestoreSuccess(result: RestoreResult): string {
+    const lines: string[] = [`✓ Restored '${result.slug}' to ${result.version}`];
+    lines.push(`  Current directory: ${result.currentPath}`);
+    return lines.join('\n');
+  }
+
+  private formatWorkflowVersionsSuccess(result: VersionsResult): string {
+    if (result.versions.length === 0) {
+      return `ℹ️ No checkpoints for '${result.slug}'\n  Run 'cg workflow checkpoint ${result.slug}' to create one.`;
+    }
+
+    const lines: string[] = [`✓ ${result.versions.length} checkpoint(s) for '${result.slug}'`];
+    lines.push('');
+
+    for (const v of result.versions) {
+      const comment = v.comment ? ` - ${v.comment}` : '';
+      lines.push(`  ${v.version}  ${v.createdAt}${comment}`);
     }
 
     return lines.join('\n');
@@ -355,6 +478,53 @@ export class ConsoleOutputAdapter implements IOutputAdapter {
   private formatComposeFailure(result: ComposeResult): string {
     const firstError = result.errors[0];
     const lines: string[] = [`✗ Workflow compose failed [${firstError.code}]`];
+
+    this.appendErrorDetails(lines, result.errors);
+
+    return lines.join('\n');
+  }
+
+  // ==================== Workflow Management Failure Formatters (Phase 5) ====================
+
+  private formatWorkflowListFailure(result: ListResult): string {
+    const firstError = result.errors[0];
+    const lines: string[] = [`✗ Workflow list failed [${firstError.code}]`];
+
+    this.appendErrorDetails(lines, result.errors);
+
+    return lines.join('\n');
+  }
+
+  private formatWorkflowInfoFailure(result: InfoResult): string {
+    const firstError = result.errors[0];
+    const lines: string[] = [`✗ Workflow info failed [${firstError.code}]`];
+
+    this.appendErrorDetails(lines, result.errors);
+
+    return lines.join('\n');
+  }
+
+  private formatWorkflowCheckpointFailure(result: CheckpointResult): string {
+    const firstError = result.errors[0];
+    const lines: string[] = [`✗ Checkpoint failed [${firstError.code}]`];
+
+    this.appendErrorDetails(lines, result.errors);
+
+    return lines.join('\n');
+  }
+
+  private formatWorkflowRestoreFailure(result: RestoreResult): string {
+    const firstError = result.errors[0];
+    const lines: string[] = [`✗ Restore failed [${firstError.code}]`];
+
+    this.appendErrorDetails(lines, result.errors);
+
+    return lines.join('\n');
+  }
+
+  private formatWorkflowVersionsFailure(result: VersionsResult): string {
+    const firstError = result.errors[0];
+    const lines: string[] = [`✗ Versions failed [${firstError.code}]`];
 
     this.appendErrorDetails(lines, result.errors);
 

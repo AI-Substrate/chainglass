@@ -7,8 +7,19 @@
 
 import * as os from 'node:os';
 import * as path from 'node:path';
-import type { ComposeResult, IFileSystem, IPathResolver, PhaseInfo } from '@chainglass/shared';
-import type { ISchemaValidator, IYamlParser } from '../interfaces/index.js';
+import type {
+  CheckpointInfo,
+  ComposeResult,
+  IFileSystem,
+  IPathResolver,
+  PhaseInfo,
+} from '@chainglass/shared';
+import type {
+  ComposeOptions,
+  ISchemaValidator,
+  IWorkflowRegistry,
+  IYamlParser,
+} from '../interfaces/index.js';
 import type { IWorkflowService } from '../interfaces/workflow-service.interface.js';
 import { YamlParseError } from '../interfaces/yaml-parser.interface.js';
 import { MESSAGE_SCHEMA, WF_PHASE_SCHEMA, WF_SCHEMA, WF_STATUS_SCHEMA } from '../schemas/index.js';
@@ -24,6 +35,10 @@ export const ComposeErrorCodes = {
   YAML_PARSE_ERROR: 'E021',
   /** Schema validation failure for wf.yaml */
   SCHEMA_VALIDATION_ERROR: 'E022',
+  /** Requested checkpoint version not found (Phase 3) */
+  VERSION_NOT_FOUND: 'E033',
+  /** No checkpoints exist for workflow (Phase 3) */
+  NO_CHECKPOINT: 'E034',
 } as const;
 
 /**
@@ -34,28 +49,49 @@ export const ComposeErrorCodes = {
  * - IYamlParser: Parse wf.yaml
  * - ISchemaValidator: Validate wf.yaml against schema
  * - IPathResolver: Secure path resolution
+ * - IWorkflowRegistry: Workflow registry for checkpoint resolution (Phase 3, DYK-01)
  */
 export class WorkflowService implements IWorkflowService {
+  /** Default workflows directory */
+  private static readonly WORKFLOWS_DIR = '.chainglass/workflows';
+
   constructor(
     private readonly fs: IFileSystem,
     private readonly yamlParser: IYamlParser,
     private readonly schemaValidator: ISchemaValidator,
-    private readonly pathResolver: IPathResolver
+    private readonly pathResolver: IPathResolver,
+    private readonly registry: IWorkflowRegistry
   ) {}
 
   /**
    * Create a new workflow run from a template.
    *
+   * Per Phase 3: Requires checkpoint for slug-based templates.
+   * Resolves checkpoint by ordinal (v001) or full version (v001-abc12345).
+   * Creates runs under versioned paths: <runsDir>/<slug>/<version>/run-YYYY-MM-DD-NNN/
+   *
    * @param template - Template slug (name) or path to template directory
    * @param runsDir - Directory where run folders are created
+   * @param options - Compose options (Phase 3: checkpoint selection)
    * @returns ComposeResult with runDir, template name, phases array, and errors
    */
-  async compose(template: string, runsDir: string): Promise<ComposeResult> {
+  async compose(
+    template: string,
+    runsDir: string,
+    options?: ComposeOptions
+  ): Promise<ComposeResult> {
     const errors: ComposeResult['errors'] = [];
 
     // 1. Expand tilde in template path (DYK-02)
     const expandedTemplate = this.expandTilde(template);
 
+    // Phase 3: Check if template is a slug (workflow registry) or path
+    if (!this.isPath(expandedTemplate)) {
+      // Workflow registry path - requires checkpoint (Phase 3)
+      return this.composeFromRegistry(expandedTemplate, runsDir, options);
+    }
+
+    // Legacy path-based template (no checkpoint required)
     // 2. Resolve template path
     const templatePath = await this.resolveTemplatePath(expandedTemplate);
     if (!templatePath) {
@@ -109,7 +145,7 @@ export class WorkflowService implements IWorkflowService {
       });
     }
 
-    // 6. Generate run folder name
+    // 6. Generate run folder name (legacy flat path)
     const today = new Date().toISOString().split('T')[0];
     const ordinal = await this.getNextRunOrdinal(runsDir, today);
     const runId = `run-${today}-${ordinal.toString().padStart(3, '0')}`;
@@ -275,6 +311,337 @@ export class WorkflowService implements IWorkflowService {
       phases,
       errors: [],
     };
+  }
+
+  /**
+   * Compose from workflow registry (Phase 3).
+   *
+   * Resolves checkpoint and creates run under versioned path.
+   * Per DYK-01: Uses IWorkflowRegistry for checkpoint resolution.
+   * Per DYK-02: Prefix matching with ambiguity guard.
+   * Per DYK-03: Ordinal scoped to version folder.
+   */
+  private async composeFromRegistry(
+    slug: string,
+    runsDir: string,
+    options?: ComposeOptions
+  ): Promise<ComposeResult> {
+    const workflowsDir = WorkflowService.WORKFLOWS_DIR;
+
+    // 1. Get versions from registry
+    const versionsResult = await this.registry.versions(workflowsDir, slug);
+    if (versionsResult.errors.length > 0) {
+      return this.createErrorResult(versionsResult.errors[0].code, {
+        message: versionsResult.errors[0].message,
+        action: versionsResult.errors[0].action,
+      });
+    }
+
+    // 2. Check if any checkpoints exist (T011: E034 handling)
+    if (versionsResult.versions.length === 0) {
+      return this.createErrorResult(ComposeErrorCodes.NO_CHECKPOINT, {
+        message: `Workflow '${slug}' has no checkpoints. Cannot compose without a checkpoint.`,
+        action: `Create a checkpoint first with 'cg workflow checkpoint ${slug}'`,
+      });
+    }
+
+    // 3. Resolve checkpoint version (T008)
+    const resolvedCheckpoint = this.resolveCheckpoint(
+      versionsResult.versions,
+      options?.checkpoint,
+      slug
+    );
+    if ('error' in resolvedCheckpoint) {
+      return resolvedCheckpoint.error;
+    }
+
+    const checkpoint = resolvedCheckpoint.checkpoint;
+    const checkpointDir = this.pathResolver.join(
+      workflowsDir,
+      slug,
+      'checkpoints',
+      checkpoint.version
+    );
+
+    // 4. Read wf.yaml from checkpoint
+    const wfYamlPath = this.pathResolver.join(checkpointDir, 'wf.yaml');
+    let wfYamlContent: string;
+    try {
+      wfYamlContent = await this.fs.readFile(wfYamlPath);
+    } catch {
+      return this.createErrorResult(ComposeErrorCodes.TEMPLATE_NOT_FOUND, {
+        message: `Template wf.yaml not found: ${wfYamlPath}`,
+        path: wfYamlPath,
+        action: 'Ensure the checkpoint contains a wf.yaml file',
+      });
+    }
+
+    // 5. Parse YAML
+    let wfDefinition: WfDefinition;
+    try {
+      wfDefinition = this.yamlParser.parse<WfDefinition>(wfYamlContent, wfYamlPath);
+    } catch (err) {
+      if (err instanceof YamlParseError) {
+        return this.createErrorResult(ComposeErrorCodes.YAML_PARSE_ERROR, {
+          message: `YAML parse error at ${err.filePath}:${err.line}:${err.column}: ${err.message}`,
+          path: err.filePath,
+          action: `Fix the YAML syntax error at line ${err.line}, column ${err.column}`,
+        });
+      }
+      throw err;
+    }
+
+    // 6. Validate against schema
+    const validationResult = this.schemaValidator.validate(WF_SCHEMA, wfDefinition);
+    if (!validationResult.valid) {
+      const firstError = validationResult.errors[0];
+      return this.createErrorResult(ComposeErrorCodes.SCHEMA_VALIDATION_ERROR, {
+        message: `Schema validation failed: ${firstError?.message || 'Unknown error'}`,
+        path: firstError?.path || wfYamlPath,
+        expected: firstError?.expected,
+        actual: firstError?.actual,
+        action: firstError?.action || 'Fix the schema validation errors in wf.yaml',
+      });
+    }
+
+    // 7. Generate versioned run path (T009 - DYK-03: ordinal scoped to version folder)
+    const today = new Date().toISOString().split('T')[0];
+    const versionRunDir = this.pathResolver.join(runsDir, slug, checkpoint.version);
+    const ordinal = await this.getNextRunOrdinal(versionRunDir, today);
+    const runId = `run-${today}-${ordinal.toString().padStart(3, '0')}`;
+    const runDir = this.pathResolver.join(versionRunDir, runId);
+
+    // 8. Create run folder structure
+    await this.fs.mkdir(runDir, { recursive: true });
+
+    // 9. Copy wf.yaml to run folder
+    await this.fs.writeFile(this.pathResolver.join(runDir, 'wf.yaml'), wfYamlContent);
+
+    // 10. Create wf-run directory and wf-status.json (T010: extended fields)
+    const wfRunDir = this.pathResolver.join(runDir, 'wf-run');
+    await this.fs.mkdir(wfRunDir, { recursive: true });
+
+    // Sort phases by order
+    const sortedPhases = Object.entries(wfDefinition.phases)
+      .map(([name, def]) => ({ name, ...def }))
+      .sort((a, b) => a.order - b.order);
+
+    // Create wf-status.json with Phase 3 extended fields (DYK-04, DYK-05)
+    const wfStatus: WfStatus = {
+      workflow: {
+        name: wfDefinition.name,
+        version: wfDefinition.version,
+        template_path: checkpointDir, // Points to checkpoint, not current/
+        slug,
+        version_hash: checkpoint.hash,
+        ...(checkpoint.comment ? { checkpoint_comment: checkpoint.comment } : {}),
+      },
+      run: {
+        id: runId,
+        created_at: new Date().toISOString(),
+        status: 'pending',
+      },
+      phases: Object.fromEntries(
+        sortedPhases.map((phase) => [
+          phase.name,
+          { order: phase.order, status: 'pending' as const },
+        ])
+      ),
+    };
+    await this.fs.writeFile(
+      this.pathResolver.join(wfRunDir, 'wf-status.json'),
+      JSON.stringify(wfStatus, null, 2)
+    );
+
+    // 11. Create phase folders
+    const phasesDir = this.pathResolver.join(runDir, 'phases');
+    await this.fs.mkdir(phasesDir, { recursive: true });
+
+    for (const phase of sortedPhases) {
+      const phaseDir = this.pathResolver.join(phasesDir, phase.name);
+      await this.fs.mkdir(phaseDir, { recursive: true });
+
+      // Create wf-phase.yaml for this phase
+      const phaseDefinition = {
+        phase: phase.name,
+        description: phase.description,
+        order: phase.order,
+        inputs: phase.inputs || {},
+        outputs: phase.outputs,
+        output_parameters: phase.output_parameters || [],
+      };
+      const phaseYaml = this.yamlParser.stringify(phaseDefinition);
+      await this.fs.writeFile(this.pathResolver.join(phaseDir, 'wf-phase.yaml'), phaseYaml);
+
+      // Create schemas directory and copy core schemas
+      const schemasDir = this.pathResolver.join(phaseDir, 'schemas');
+      await this.fs.mkdir(schemasDir, { recursive: true });
+
+      await this.fs.writeFile(
+        this.pathResolver.join(schemasDir, 'wf.schema.json'),
+        JSON.stringify(WF_SCHEMA, null, 2)
+      );
+      await this.fs.writeFile(
+        this.pathResolver.join(schemasDir, 'wf-phase.schema.json'),
+        JSON.stringify(WF_PHASE_SCHEMA, null, 2)
+      );
+      await this.fs.writeFile(
+        this.pathResolver.join(schemasDir, 'message.schema.json'),
+        JSON.stringify(MESSAGE_SCHEMA, null, 2)
+      );
+      await this.fs.writeFile(
+        this.pathResolver.join(schemasDir, 'wf-status.schema.json'),
+        JSON.stringify(WF_STATUS_SCHEMA, null, 2)
+      );
+
+      // Copy template schemas from checkpoint if they exist
+      const templateSchemasDir = this.pathResolver.join(checkpointDir, 'schemas');
+      if (await this.fs.exists(templateSchemasDir)) {
+        try {
+          const schemaFiles = await this.fs.readDir(templateSchemasDir);
+          for (const schemaFile of schemaFiles) {
+            if (schemaFile.endsWith('.json')) {
+              const src = this.pathResolver.join(templateSchemasDir, schemaFile);
+              const dest = this.pathResolver.join(schemasDir, schemaFile);
+              await this.fs.copyFile(src, dest);
+            }
+          }
+        } catch {
+          // Schemas directory may not exist, that's OK
+        }
+      }
+
+      // Create commands directory and copy commands
+      const commandsDir = this.pathResolver.join(phaseDir, 'commands');
+      await this.fs.mkdir(commandsDir, { recursive: true });
+
+      // Copy main.md from template phase
+      const templatePhaseMainMd = this.pathResolver.join(
+        checkpointDir,
+        'phases',
+        phase.name,
+        'commands',
+        'main.md'
+      );
+      if (await this.fs.exists(templatePhaseMainMd)) {
+        await this.fs.copyFile(templatePhaseMainMd, this.pathResolver.join(commandsDir, 'main.md'));
+      } else {
+        // Create a default main.md if not present
+        await this.fs.writeFile(
+          this.pathResolver.join(commandsDir, 'main.md'),
+          `# ${phase.name} Phase\n\n${phase.description}\n`
+        );
+      }
+
+      // Copy wf.md from template root (agent execution instructions)
+      const rootWfMd = this.pathResolver.join(checkpointDir, 'wf.md');
+      if (await this.fs.exists(rootWfMd)) {
+        await this.fs.copyFile(rootWfMd, this.pathResolver.join(commandsDir, 'wf.md'));
+      }
+
+      // Create run subdirectories
+      const runSubDir = this.pathResolver.join(phaseDir, 'run');
+      await this.fs.mkdir(runSubDir, { recursive: true });
+      await this.fs.mkdir(this.pathResolver.join(runSubDir, 'inputs', 'files'), {
+        recursive: true,
+      });
+      await this.fs.mkdir(this.pathResolver.join(runSubDir, 'inputs', 'data'), { recursive: true });
+      await this.fs.mkdir(this.pathResolver.join(runSubDir, 'outputs'), { recursive: true });
+      await this.fs.mkdir(this.pathResolver.join(runSubDir, 'wf-data'), { recursive: true });
+      await this.fs.mkdir(this.pathResolver.join(runSubDir, 'messages'), { recursive: true });
+    }
+
+    // 12. Copy root-level agent files (cg.sh, AGENT-START.md)
+    const rootFilesToCopy = ['cg.sh', 'AGENT-START.md'];
+    for (const filename of rootFilesToCopy) {
+      const src = this.pathResolver.join(checkpointDir, filename);
+      if (await this.fs.exists(src)) {
+        const dest = this.pathResolver.join(runDir, filename);
+        await this.fs.copyFile(src, dest);
+      }
+    }
+
+    // 13. Build result
+    const phases: PhaseInfo[] = sortedPhases.map((phase) => ({
+      name: phase.name,
+      order: phase.order,
+      status: 'pending' as const,
+    }));
+
+    return {
+      runDir,
+      template: wfDefinition.name,
+      phases,
+      errors: [],
+    };
+  }
+
+  /**
+   * Resolve checkpoint from version string.
+   *
+   * Per DYK-02: Prefix matching with ambiguity guard.
+   * - 'v001' matches 'v001-*' (prefix match)
+   * - 'v001-abc12345' matches exactly
+   * - undefined uses latest checkpoint
+   *
+   * @param versions - Available checkpoint versions (sorted descending)
+   * @param checkpointSpec - Version spec (ordinal or full) or undefined for latest
+   * @param slug - Workflow slug (for error messages)
+   * @returns Resolved checkpoint or error result
+   */
+  private resolveCheckpoint(
+    versions: CheckpointInfo[],
+    checkpointSpec: string | undefined,
+    slug: string
+  ): { checkpoint: CheckpointInfo } | { error: ComposeResult } {
+    // No version specified - use latest
+    if (!checkpointSpec) {
+      return { checkpoint: versions[0] };
+    }
+
+    // Check for ordinal-only format (v###)
+    const ordinalMatch = checkpointSpec.match(/^v(\d{3})$/);
+    if (ordinalMatch) {
+      // Prefix match - find all that start with this ordinal
+      const matches = versions.filter((v) => v.version.startsWith(checkpointSpec));
+
+      if (matches.length === 0) {
+        const available = versions.map((v) => v.version).join(', ');
+        return {
+          error: this.createErrorResult(ComposeErrorCodes.VERSION_NOT_FOUND, {
+            message: `Checkpoint version not found: ${checkpointSpec}. Available: ${available}`,
+            action: `Use 'cg workflow versions ${slug}' to see available versions`,
+          }),
+        };
+      }
+
+      // DYK-02: Ambiguity guard - if multiple match, error
+      if (matches.length > 1) {
+        const matchList = matches.map((v) => v.version).join(', ');
+        return {
+          error: this.createErrorResult(ComposeErrorCodes.VERSION_NOT_FOUND, {
+            message: `Checkpoint version '${checkpointSpec}' is ambiguous. Matches: ${matchList}`,
+            action: `Specify the full version, e.g., --checkpoint ${matches[0].version}`,
+          }),
+        };
+      }
+
+      return { checkpoint: matches[0] };
+    }
+
+    // Full version match (v###-hash)
+    const exactMatch = versions.find((v) => v.version === checkpointSpec);
+    if (!exactMatch) {
+      const available = versions.map((v) => v.version).join(', ');
+      return {
+        error: this.createErrorResult(ComposeErrorCodes.VERSION_NOT_FOUND, {
+          message: `Checkpoint version not found: ${checkpointSpec}. Available: ${available}`,
+          action: `Use 'cg workflow versions ${slug}' to see available versions`,
+        }),
+      };
+    }
+
+    return { checkpoint: exactMatch };
   }
 
   /**

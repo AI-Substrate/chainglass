@@ -32,6 +32,7 @@
       "*.md",
       "scripts",
       ".vsc-bridge",
+      ".chainglass",
       "apps/web/src/components/ui",
       "apps/web/src/hooks/use-mobile.ts"
     ]

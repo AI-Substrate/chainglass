@@ -23,6 +23,20 @@
         "template_path": {
           "type": "string",
           "description": "Relative or absolute path to the source template"
+        },
+        "slug": {
+          "type": "string",
+          "description": "Workflow registry slug (Phase 3: optional for backward compat)",
+          "pattern": "^[a-z][a-z0-9-]*$"
+        },
+        "version_hash": {
+          "type": "string",
+          "description": "8-character checkpoint content hash (Phase 3: optional for backward compat)",
+          "pattern": "^[a-f0-9]{8}$"
+        },
+        "checkpoint_comment": {
+          "type": "string",
+          "description": "Comment from the checkpoint (Phase 3: optional)"
         }
       }
     },

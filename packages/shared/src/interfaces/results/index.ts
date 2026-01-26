@@ -39,3 +39,15 @@ export type {
   MessageAnswerData,
   MessageData,
 } from './message.types.js';
+
+// Workflow registry result types (Phase 1)
+export type {
+  ListResult,
+  InfoResult,
+  CheckpointResult,
+  RestoreResult,
+  VersionsResult,
+  CheckpointInfo,
+  WorkflowSummary,
+  WorkflowInfo,
+} from './registry.types.js';

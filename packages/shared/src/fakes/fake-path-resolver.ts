@@ -18,6 +18,9 @@ export class FakePathResolver implements IPathResolver {
   /** Paths that should trigger security errors */
   private blockedPaths = new Set<string>();
 
+  /** Track join() calls for test verification */
+  private joinCalls: string[][] = [];
+
   // ========== Test Helpers ==========
 
   /**
@@ -44,12 +47,20 @@ export class FakePathResolver implements IPathResolver {
   }
 
   /**
+   * Get all join() calls for verification (test helper).
+   */
+  getJoinCalls(): string[][] {
+    return [...this.joinCalls];
+  }
+
+  /**
    * Reset all state (test helper).
    */
   reset(): void {
     this.enforceSecurityChecks = true;
     this.pathMappings.clear();
     this.blockedPaths.clear();
+    this.joinCalls = [];
   }
 
   // ========== IPathResolver Implementation ==========
@@ -99,6 +110,7 @@ export class FakePathResolver implements IPathResolver {
   }
 
   join(...segments: string[]): string {
+    this.joinCalls.push([...segments]);
     return path.join(...segments);
   }
 

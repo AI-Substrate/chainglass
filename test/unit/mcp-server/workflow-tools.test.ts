@@ -194,14 +194,14 @@ describe('wf_compose tool - ADR-0001 Compliance', () => {
       }
     });
 
-    it('should return E020 error for missing template', async () => {
+    it('should return E030 error for missing template', async () => {
       /*
       Test Doc:
       - Why: Agents need actionable errors when template is missing
-      - Contract: Returns CommandResponseError with code 'E020' and action
+      - Contract: Returns CommandResponseError with code 'E030' and action (workflow not found in registry)
       - Usage Notes: Check error.details for full error information
       - Quality Contribution: Enables autonomous agent error recovery
-      - Worked Example: wf_compose({ template_slug: 'nonexistent' }) -> { success: false, error: { code: 'E020' } }
+      - Worked Example: wf_compose({ template_slug: 'nonexistent' }) -> { success: false, error: { code: 'E030' } }
       */
       testClient = await createTestClient();
 
@@ -214,7 +214,7 @@ describe('wf_compose tool - ADR-0001 Compliance', () => {
       const response = JSON.parse((result.content[0] as { type: 'text'; text: string }).text);
 
       expect(response.success).toBe(false);
-      expect(response.error.code).toBe('E020');
+      expect(response.error.code).toBe('E030'); // E030 = workflow not found in registry (Phase 3)
       expect(response.error).toHaveProperty('action');
     });
   });
