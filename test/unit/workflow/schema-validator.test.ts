@@ -171,7 +171,7 @@ describe('SchemaValidatorAdapter', () => {
     it('should validate wf-phase status correctly', async () => {
       // Use the actual wf-phase schema
       const wfPhaseSchema = await import(
-        '/home/jak/substrate/003-wf-basics/packages/workflow/schemas/wf-phase.schema.json',
+        '../../../packages/workflow/schemas/wf-phase.schema.json',
         { with: { type: 'json' } }
       );
 
@@ -194,7 +194,7 @@ describe('SchemaValidatorAdapter', () => {
 
     it('should return actionable error for invalid facilitator', async () => {
       const wfPhaseSchema = await import(
-        '/home/jak/substrate/003-wf-basics/packages/workflow/schemas/wf-phase.schema.json',
+        '../../../packages/workflow/schemas/wf-phase.schema.json',
         { with: { type: 'json' } }
       );
 

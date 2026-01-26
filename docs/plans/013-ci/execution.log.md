@@ -81,5 +81,20 @@ error TS2307: Cannot find module '@chainglass/workflow' or its corresponding typ
 
 **Fix**: Added `"@chainglass/workflow": "workspace:*"` to mcp-server's package.json dependencies.
 
-**Second push**: Pushing fix to trigger new workflow run...
+**Second push**: Triggered workflow run 21377074816
+
+**Second issue discovered**: Test job failed with:
+```
+Cannot find module '/home/jak/substrate/003-wf-basics/packages/workflow/schemas/wf-phase.schema.json'
+```
+
+**Root cause**: Test file `schema-validator.test.ts` had hardcoded absolute paths from developer's local machine that don't exist in CI environment.
+
+**Fix**: Changed absolute paths to relative imports (`../../../packages/workflow/schemas/wf-phase.schema.json`).
+
+**Third issue discovered**: Biome lint errors on coverage JSON files in `test/coverage/.tmp/`.
+
+**Fix**: Added `coverage` and `test/coverage` to biome.json ignore list.
+
+**Third push**: Pushing all fixes to trigger new workflow run...
 
