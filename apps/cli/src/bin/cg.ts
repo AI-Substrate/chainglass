@@ -17,6 +17,7 @@ import { Command, Help } from 'commander';
 import { registerInitCommand } from '../commands/init.command.js';
 import { registerMcpCommand } from '../commands/mcp.command.js';
 import { registerPhaseCommands } from '../commands/phase.command.js';
+import { registerRunsCommands } from '../commands/runs.command.js';
 import { registerWebCommand } from '../commands/web.command.js';
 import { registerWorkflowCommands } from '../commands/workflow.command.js';
 
@@ -220,6 +221,7 @@ export function createProgram(options: CreateProgramOptions = {}): Command {
   registerMcpCommand(program);
   registerPhaseCommands(program);
   registerWorkflowCommands(program);
+  registerRunsCommands(program);
 
   // Default behavior: show help when no command provided
   if (!options.testMode) {

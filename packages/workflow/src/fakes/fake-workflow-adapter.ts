@@ -107,6 +107,21 @@ export class FakeWorkflowAdapter implements IWorkflowAdapter {
   /** Result to return from listRuns(). If not set, returns []. */
   listRunsResult: Workflow[] | undefined;
 
+  /**
+   * Per-workflow results for listRuns().
+   * Per DYK-05: Enables multi-workflow enumeration tests.
+   * Takes precedence over listRunsResult when the slug has an entry.
+   *
+   * @example
+   * ```typescript
+   * adapter.listRunsResultBySlug.set('hello-wf', [run1]);
+   * adapter.listRunsResultBySlug.set('data-wf', [run2]);
+   * await adapter.listRuns('hello-wf'); // returns [run1]
+   * await adapter.listRuns('data-wf');  // returns [run2]
+   * ```
+   */
+  listRunsResultBySlug: Map<string, Workflow[]> = new Map();
+
   /** Result to return from exists(). If not set, returns false. */
   existsResult: boolean | undefined;
 
@@ -176,6 +191,7 @@ export class FakeWorkflowAdapter implements IWorkflowAdapter {
     this.loadRunResult = undefined;
     this.listCheckpointsResult = undefined;
     this.listRunsResult = undefined;
+    this.listRunsResultBySlug.clear();
     this.existsResult = undefined;
 
     // Clear call tracking
@@ -280,19 +296,28 @@ export class FakeWorkflowAdapter implements IWorkflowAdapter {
   async listRuns(slug: string, filter?: RunListFilter): Promise<Workflow[]> {
     this._listRunsCalls.push({ slug, filter });
 
-    if (this.listRunsResult === undefined) {
+    // Per DYK-05: Check per-slug results first
+    let results = this.listRunsResultBySlug.get(slug);
+
+    // Fall back to listRunsResult if no per-slug entry
+    if (results === undefined) {
+      results = this.listRunsResult;
+    }
+
+    // If still undefined, return empty array
+    if (results === undefined) {
       return [];
     }
 
     // If no status filter, return all
     if (!filter?.status) {
-      return this.listRunsResult;
+      return results;
     }
 
     // Apply status filter
     const statuses = Array.isArray(filter.status) ? filter.status : [filter.status];
 
-    return this.listRunsResult.filter((workflow) => {
+    return results.filter((workflow) => {
       const runStatus = workflow.run?.status;
       return runStatus !== undefined && statuses.includes(runStatus);
     });
