@@ -127,8 +127,8 @@ flowchart TD
     end
 
     subgraph PartC["Part C: Validation Gates"]
-        T018["T018: GATE 1 - Human orchestrator"]:::inprogress
-        T019["T019: GATE 2 - Human orchestrator"]:::inprogress
+        T018["T018: GATE 1 - Manual harness ✓"]:::completed
+        T019["T019: GATE 2 - Entity JSON ✓"]:::completed
         T020["T020: SKIP - Agents self-validate ✓"]:::completed
         T021["T021: MCP docs N/A (DYK-03)"]:::completed
         T022["T022: GATE 3 - CI pipeline ✓"]:::completed
@@ -195,8 +195,8 @@ flowchart TD
 | T015 | MCP Phase | /packages/mcp-server/src/tools/phase.tools.ts | ⏭️ N/A | Per DYK-03: JsonOutputAdapter pattern, no changes needed |
 | T016 | MCP Workflow | /packages/mcp-server/src/tools/workflow.tools.ts | ⏭️ N/A | Per DYK-03: JsonOutputAdapter pattern, no changes needed |
 | T017 | DTOs | /packages/shared/src/interfaces/results.interface.ts | ⏭️ N/A | Per DYK-01: Result types kept as "operation reports" |
-| T018 | Validation | /docs/how/dev/manual-wf-run/ | ⏳ Pending | GATE 1: Human orchestrator must execute scripts |
-| T019 | Validation | /docs/how/dev/manual-wf-run/expected-outputs/ | ⏳ Pending | GATE 2: Human orchestrator must verify JSON output |
+| T018 | Validation | /docs/how/dev/manual-wf-run/ | ✅ Complete | GATE 1: Manual harness PASSED - 7 scripts executed [^3] |
+| T019 | Validation | /docs/how/dev/manual-wf-run/expected-outputs/ | ✅ Complete | GATE 2: Entity JSON PASSED - structure validated [^3] |
 | T020 | Validation | N/A | ⏭️ SKIP | Agents self-validate when consuming entity JSON |
 | T021 | Documentation | /docs/how/workflows/4-mcp-reference.md | ⏭️ N/A | Per DYK-03: No output format changes, no docs needed |
 | T022 | Validation | CI pipeline | ✅ Complete | 1840 tests pass, typecheck passes |
@@ -225,8 +225,8 @@ flowchart TD
 | [N/A] | T015 | **Update MCP phase tools to return entity.toJSON()** - phase_prepare, phase_validate, phase_finalize | 2 | Integration | T014 | /home/jak/substrate/007-manage-workflows/packages/mcp-server/src/tools/phase.tools.ts | N/A | – | Per DYK-03: JsonOutputAdapter, no changes needed |
 | [N/A] | T016 | **Update MCP workflow tools to return entity.toJSON()** - wf_compose returns Workflow entity JSON | 2 | Integration | T015 | /home/jak/substrate/007-manage-workflows/packages/mcp-server/src/tools/workflow.tools.ts | N/A | – | Per DYK-03: JsonOutputAdapter, no changes needed |
 | [N/A] | T017 | **Deprecate DTO types with @deprecated JSDoc** - PrepareResult, ValidateResult, FinalizeResult, ComposeResult, etc. | 1 | Doc | T016 | /home/jak/substrate/007-manage-workflows/packages/shared/src/interfaces/results.interface.ts | N/A | – | Per DYK-01: Result types kept as "operation reports" |
-| [ ] | T018 | **VALIDATION GATE 1: Execute manual test harness** - all scripts pass proving backward compatibility and entity correctness | 2 | Gate | T017 | /home/jak/substrate/007-manage-workflows/docs/how/dev/manual-wf-run/ | Pending human orchestrator | – | **BLOCKING: Must pass before merge** |
-| [ ] | T019 | **VALIDATION GATE 2: Verify entity JSON format** - validate entity.toJSON() output matches expected-outputs/*.json schemas | 2 | Gate | T018 | /home/jak/substrate/007-manage-workflows/docs/how/dev/manual-wf-run/expected-outputs/ | Pending human orchestrator | – | **BLOCKING: Must pass before merge** |
+| [x] | T018 | **VALIDATION GATE 1: Execute manual test harness** - all scripts pass proving backward compatibility and entity correctness | 2 | Gate | T017 | /home/jak/substrate/007-manage-workflows/docs/how/dev/manual-wf-run/ | ALL 7 SCRIPTS PASSED | – | **COMPLETE**: Harness executed 2026-01-26, discovered & fixed 6 critical issues [^3] |
+| [x] | T019 | **VALIDATION GATE 2: Verify entity JSON format** - validate entity.toJSON() output matches expected-outputs/*.json schemas | 2 | Gate | T018 | /home/jak/substrate/007-manage-workflows/docs/how/dev/manual-wf-run/expected-outputs/ | Entity JSON VALIDATED | – | **COMPLETE**: Workflow entity (12 keys) and Phase entity (3 keys) validated [^3] |
 | [x] | T020 | **SKIP: MODE-2-AGENT-VALIDATION** - agents self-validate when consuming entity JSON from CLI/MCP | 0 | Gate | – | N/A | N/A | – | SKIP: Agents are consumers, not explicit validation gate |
 | [N/A] | T021 | **Update 4-mcp-reference.md with entity output examples** | 2 | Doc | T019 | /home/jak/substrate/007-manage-workflows/docs/how/workflows/4-mcp-reference.md | N/A | – | Per DYK-03: No output format changes |
 | [x] | T022 | **Final verification: All automated tests pass** - pnpm test exits 0 with all tests green | 1 | Gate | T021 | N/A (CI validation) | 1840 tests pass | – | **CI gate passed** |
@@ -687,7 +687,7 @@ pnpm --filter @chainglass/cli exec cg runs list -o json | jq '.runs[0].isRun'
 - [x] **BLOCKING gates identified**: T018 (manual test harness), T019 (entity JSON validation), T022 (CI)
 - [x] **T020 SKIP**: Agents self-validate when consuming entity JSON (no explicit gate)
 
-**Implementation Status**: ✅ COMPLETE (pending human validation gates T018/T019)
+**Implementation Status**: ✅ **PHASE 6 COMPLETE** — All validation gates PASSED (T018 + T019 + T022)
 
 ---
 
@@ -699,6 +699,7 @@ _Populated during implementation by plan-6a-update-progress._
 |----------|------|-------------|-------|
 | [^1] | T005-T009 | PhaseService refactoring: Extended result types with optional Phase entity | 2026-01-26 |
 | [^2] | T010-T011 | WorkflowService refactoring: Extended result types with optional Workflow entity | 2026-01-26 |
+| [^3] | T018-T019 | Validation Gates: Manual test harness + Entity JSON validation PASSED. Discovered 6 critical issues during execution and fixed them. Key learnings: Claude Code sessions tied to CWD, require `--fork-session --resume` together, AgentService error handling, NDJSON CLI output, workflow registration required for `cg runs` commands. | 2026-01-26 |
 
 ### Files Created (Phase 6)
 - `packages/workflow/src/services/phase-service.types.ts` — Extended result types for PhaseService [^1]
@@ -721,6 +722,27 @@ _Populated during implementation by plan-6a-update-progress._
 - `packages/workflow/src/services/index.ts` — Exported extended result types [^1] [^2]
 - `docs/how/dev/manual-wf-run/README.md` — Full overhaul for programmatic agent invocation
 - `docs/how/dev/manual-wf-run/check-state.sh` — Updated error message for new script names
+
+### Files Modified (T018/T019 Validation Fixes) [^3]
+**Core Fixes:**
+- `packages/shared/src/services/agent.service.ts` — Error handling: distinguish timeout vs adapter errors (DYK-09)
+- `packages/shared/src/adapters/claude-code.adapter.ts` — CWD validation relaxed (warn not throw), session flags fixed (DYK-07, DYK-08)
+- `apps/cli/src/commands/agent.command.ts` — Single-line JSON NDJSON output (DYK-10)
+
+**Harness Fixes:**
+- `docs/how/dev/manual-wf-run/01-clean-slate.sh` — Registry-aware cleanup
+- `docs/how/dev/manual-wf-run/02-compose-run.sh` — Registry-based compose (DYK-11)
+- `docs/how/dev/manual-wf-run/03-run-gather.sh` — CWD=RUN_DIR, JSON parsing, prompt update (DYK-07)
+- `docs/how/dev/manual-wf-run/04-run-process.sh` — CWD=RUN_DIR, JSON parsing, prompt update (DYK-07)
+- `docs/how/dev/manual-wf-run/05-run-report.sh` — CWD=RUN_DIR, JSON parsing, prompt update (DYK-07)
+- `docs/how/dev/manual-wf-run/06-validate-entity.sh` — cd to project root, jq type checking (DYK-12)
+- `docs/how/dev/manual-wf-run/07-validate-runs.sh` — cd to project root, slug extraction from wf.yaml
+- `.gitignore` — Track workflow templates, ignore runs/checkpoints
+
+### Files Created (T018/T019 Validation) [^3]
+- `.chainglass/workflows/hello-workflow/current/*` — Workflow template registration (DYK-11)
+- `.chainglass/workflows/hello-workflow/workflow.json` — Workflow metadata
+- `dev/examples/wf/template/hello-workflow/AGENT-START.md` — Updated with evaluation mode instructions
 
 ### Files Removed (Phase 6)
 - `docs/how/dev/manual-wf-run/01-compose.sh` — Replaced by 02-compose-run.sh
@@ -759,6 +781,12 @@ _Populated during implementation by plan-6. Log anything of interest to your fut
 | 2026-01-26 | T006-T012 | insight | **DYK-04: PhaseAdapter path logic works correctly** - Concern about different paths for current vs run workflows is unfounded. WorkflowAdapter sets workflowDir correctly per source type; PhaseAdapter's generic `workflowDir/phases/*` logic handles all cases. | No change needed. Path logic sound by design. | workflow.adapter.ts:loadRun(), phase.adapter.ts:listForWorkflow() |
 | 2026-01-26 | T001-T004 | decision | **DYK-05: Extend existing harness, don't create new** - Manual test infrastructure already exists at `docs/how/dev/manual-wf-run/` with 9 scripts, hello-workflow template, and exemplar run. | Extend existing manual-wf-run/ harness rather than creating new manual-test/ from scratch. Add entity JSON validation scripts to proven infrastructure. | docs/how/dev/manual-wf-run/*.sh, hello-workflow template, exemplar-run-example-001 |
 | 2026-01-26 | T001-T004 | decision | **DYK-06: Full harness overhaul for programmatic agent invocation** - Original harness was human-in-the-loop (script prints "Give agent this prompt:", human copies to agent). Plan expected scripts to use `cg agent run/compact` programmatically. Also, scripts 09-10 used wrong `cg runs get` syntax (path instead of run-id). | Full overhaul: 01-clean-slate, 02-compose-run, 03-run-gather (cg agent run), 04-run-process (compact+run), 05-run-report (compact+run), 06-validate-entity (correct syntax), 07-validate-runs. Session pattern: capture sessionId, save to .current-session, resume with --session. | docs/how/dev/manual-wf-run/README.md, tasks.md:457-477 session pattern |
+| 2026-01-26 | T018-T019 | gotcha | **DYK-07: Claude Code sessions are CWD-bound** - Sessions are tied to the CWD where they were created. Attempting to resume a session from a different CWD fails with "No conversation found". For multi-phase workflows, all phases must use the SAME cwd (RUN_DIR) not per-phase directories. | Changed all phase scripts to use `--cwd "$RUN_DIR"` instead of `--cwd "$PHASE_DIR"`. Sessions now persist across all phases. Updated prompts to tell agent it's working from run root, not phase directory. | scripts/agents/claude-code-session-demo.ts, execution.log.md |
+| 2026-01-26 | T018-T019 | gotcha | **DYK-08: Claude Code requires --fork-session --resume together** - Session resumption fails if you only pass `--resume <id>`. Must pass BOTH `--fork-session` AND `--resume <id>` together for session resumption to work. | Fixed ClaudeCodeAdapter to always pass both flags: `args.push('--fork-session', '--resume', sessionId)`. | scripts/agents/claude-code-session-demo.ts:142, claude-code.adapter.ts:120-123 |
+| 2026-01-26 | T018-T019 | gotcha | **DYK-09: AgentService error handling treated all errors as timeouts** - The catch block couldn't distinguish timeout errors from adapter errors (e.g., CWD validation failures). Both showed "Timeout after 600000ms" even though the real error was different. | Added error message prefix check: `const isTimeout = errorMessage.startsWith('Timeout after ')`. Timeout errors get timeout handling; adapter errors get error propagation. | agent.service.ts:131-180 |
+| 2026-01-26 | T018-T019 | gotcha | **DYK-10: CLI NDJSON output requires single-line JSON** - Agent CLI outputs NDJSON (logs + result). Pretty-printed JSON with `JSON.stringify(result, null, 2)` broke shell parsing since `grep '"output"'` expects single line. | Changed to `JSON.stringify(result)` (no formatting). Scripts parse with `grep '"output"' | tail -1` to extract result from NDJSON stream. | agent.command.ts:outputResult(), harness scripts |
+| 2026-01-26 | T018-T019 | gotcha | **DYK-11: Workflow registration required for `cg runs` commands** - Workflows must be registered in `.chainglass/workflows/<slug>/` for `cg runs list/get` to find them. Creating runs via `--runs-dir` without registration made runs invisible to the runs API. | Registered hello-workflow: copied template to `current/`, ran `cg workflow checkpoint`, added to git. Updated scripts to use registry-based compose instead of custom `--runs-dir`. | .chainglass/workflows/hello-workflow/, .gitignore |
+| 2026-01-26 | T018-T019 | gotcha | **DYK-12: jq `//` operator treats `false` as falsy** - When checking if JSON key exists, `jq ".$key // \"missing\""` returns "missing" for `false` values (e.g., `isCurrent: false`). Led to false validation failures for boolean properties. | Changed to `jq ".$key | type"` to check key existence. Type "null" means key doesn't exist; any other type means key exists (including boolean false). | 06-validate-entity.sh:check_json_key() |
 
 **Types**: `gotcha` | `research-needed` | `unexpected-behavior` | `workaround` | `decision` | `debt` | `insight`
 

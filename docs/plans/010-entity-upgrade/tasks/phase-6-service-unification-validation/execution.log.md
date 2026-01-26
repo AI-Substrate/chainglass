@@ -408,28 +408,147 @@ Since Result types are intentionally kept for their purpose (not replaced by ent
 ---
 
 ## Task T018: VALIDATION GATE 1 - Manual test harness
-**Status**: ⏳ Pending Human Orchestrator
-**Reason**: Requires human orchestrator to execute manual test scripts at `docs/how/dev/manual-wf-run/`.
+**Started**: 2026-01-26
+**Status**: ✅ Complete
+**Completed**: 2026-01-26
 
-### Scripts to Execute
-1. `09-validate-entity-json.sh` — Validate Phase and Workflow entity JSON structure
-2. `10-validate-runs-commands.sh` — Validate cg runs list/get output
+### Evidence
 
-### Prerequisites
-- All prior tasks complete (T001-T017)
-- Build succeeds: `pnpm build`
-- Tests pass: `pnpm test`
+Full manual test harness executed with human orchestrator:
+
+```bash
+$ ./01-clean-slate.sh    # ✅ PASSED
+$ ./02-compose-run.sh    # ✅ PASSED
+$ ./03-run-gather.sh     # ✅ PASSED (session: 84e70bec-df07-4a36-b7fa-a91c6a8cf5a6)
+$ ./04-run-process.sh    # ✅ PASSED (resumed session, forked)
+$ ./05-run-report.sh     # ✅ PASSED (resumed session, forked)
+$ ./06-validate-entity.sh  # ✅ PASSED - Entity Validation
+$ ./07-validate-runs.sh    # ✅ PASSED - Runs Commands Validation
+```
+
+### Critical Discoveries & Fixes During Validation
+
+**Discovery 1: AgentService Error Handling Bug**
+- **Problem**: AgentService catch block treated ALL errors as timeouts
+- **Symptom**: CWD validation error showed "Timeout after 600000ms" with exitCode 0
+- **Fix**: Distinguish timeout vs adapter errors using error message prefix matching
+- **File**: `packages/shared/src/services/agent.service.ts:131-180`
+
+**Discovery 2: ClaudeCodeAdapter CWD Validation Too Strict**
+- **Problem**: Adapter threw error if cwd outside workspace, blocking valid use cases
+- **Symptom**: Agent couldn't run with `--cwd /tmp` or other external directories
+- **Fix**: Relaxed to log warning instead of throw (security note vs error)
+- **File**: `packages/shared/src/adapters/claude-code.adapter.ts:90-95`
+
+**Discovery 3: Claude Code Session Flags**
+- **Problem**: Session resumption failed with "No conversation found"
+- **Root Cause**: Claude Code CLI requires BOTH `--fork-session` AND `--resume <id>` together
+- **Evidence**: Found in `scripts/agents/claude-code-session-demo.ts:142`
+- **Fix**: Always pass both flags when sessionId provided
+- **File**: `packages/shared/src/adapters/claude-code.adapter.ts:120-123`
+
+**Discovery 4: Sessions Tied to CWD**
+- **Problem**: Session resumption between phases failed
+- **Root Cause**: Claude Code sessions are tied to the CWD where they were created
+- **Fix**: All phase scripts now use `--cwd "$RUN_DIR"` (run root) instead of phase directory
+- **Files**: `docs/how/dev/manual-wf-run/03-run-gather.sh`, `04-run-process.sh`, `05-run-report.sh`
+
+**Discovery 5: CLI NDJSON Output**
+- **Problem**: Pretty-printed JSON broke NDJSON parsing in shell scripts
+- **Fix**: Changed to single-line JSON output: `JSON.stringify(result)` not `JSON.stringify(result, null, 2)`
+- **File**: `apps/cli/src/commands/agent.command.ts:outputResult()`
+
+**Discovery 6: Workflow Registration Required**
+- **Problem**: `cg runs get` couldn't find workflow outside `.chainglass/workflows/` registry
+- **Fix**: Registered hello-workflow at `.chainglass/workflows/hello-workflow/current/`
+- **Files**: Added workflow template files, updated `.gitignore` to track templates
+
+### Files Modified During Validation
+
+Core Fixes:
+- `packages/shared/src/services/agent.service.ts` — Error handling fix
+- `packages/shared/src/adapters/claude-code.adapter.ts` — CWD validation + session flags
+- `apps/cli/src/commands/agent.command.ts` — Single-line JSON output
+
+Harness Fixes:
+- `docs/how/dev/manual-wf-run/01-clean-slate.sh` — Registry-aware cleanup
+- `docs/how/dev/manual-wf-run/02-compose-run.sh` — Registry-based compose
+- `docs/how/dev/manual-wf-run/03-run-gather.sh` — CWD fix, JSON parsing
+- `docs/how/dev/manual-wf-run/04-run-process.sh` — CWD fix, JSON parsing
+- `docs/how/dev/manual-wf-run/05-run-report.sh` — CWD fix, JSON parsing
+- `docs/how/dev/manual-wf-run/06-validate-entity.sh` — cd to project root, jq type checking
+- `docs/how/dev/manual-wf-run/07-validate-runs.sh` — cd to project root, slug extraction
+
+New Files:
+- `.chainglass/workflows/hello-workflow/current/*` — Workflow registration
+- `.chainglass/workflows/hello-workflow/workflow.json` — Workflow metadata
+
+### Validation Results
+
+```
+==============================================
+Entity Validation: PASSED
+==============================================
+Next: ./07-validate-runs.sh
+==============================================
+```
+
+```
+==============================================
+Runs Commands Validation: PASSED
+==============================================
+```
 
 ---
 
 ## Task T019: VALIDATION GATE 2 - Entity JSON validation
-**Status**: ⏳ Pending Human Orchestrator
-**Reason**: Requires human orchestrator to verify entity JSON output matches expected schemas.
+**Started**: 2026-01-26
+**Status**: ✅ Complete
+**Completed**: 2026-01-26
 
-### Expected Output Schemas
-- `docs/how/dev/manual-wf-run/expected-outputs/workflow-run.json`
-- `docs/how/dev/manual-wf-run/expected-outputs/phase-complete.json`
-- `docs/how/dev/manual-wf-run/expected-outputs/agent-result.json`
+### Evidence
+
+Validation script `06-validate-entity.sh` verified entity JSON structure:
+
+**Test 1: Workflow Entity JSON (from `cg runs get`)**
+```
+Validating Workflow entity structure...
+  [OK] slug: hello-workflow
+  [OK] workflowDir: .chainglass/workflows/hello-workflow/current
+  [OK] version: v001
+  [OK] isCurrent: false
+  [OK] isCheckpoint: false
+  [OK] isRun: true
+  [OK] isTemplate: false
+  [OK] source: run
+  [OK] checkpoint is object
+  [OK] run is object
+  [OK] phases is array
+
+Validating run metadata...
+  [OK] run.runId: run-2026-01-26-001
+  [OK] run.runDir: .chainglass/runs/hello-workflow/v001-c897f654/run-2026-01-26-001
+  [OK] run.status: running
+  [OK] run.createdAt: 2026-01-26T21:15:27.123Z
+```
+
+**Test 2: Phase Entity JSON (from `wf-phase.json`)**
+```
+Found completed gather phase, validating...
+  [OK] phase: gather
+  [OK] state: complete
+  [OK] status is array
+```
+
+### Critical Fix: Boolean Value Checking
+
+- **Problem**: `jq` operator `// "missing"` treats `false` as falsy, returns "missing"
+- **Discovery**: Keys like `isCurrent: false` were incorrectly flagged as missing
+- **Fix**: Changed to `jq ".$key | type"` to check key existence vs value
+
+### Files Modified
+- `docs/how/dev/manual-wf-run/06-validate-entity.sh` — Boolean-safe key checking
+- `docs/how/dev/manual-wf-run/07-validate-runs.sh` — Slug extraction from wf.yaml
 
 ---
 
@@ -476,7 +595,8 @@ $ pnpm test
 | T012 | ⏭️ N/A | WorkflowService.info() doesn't exist |
 | T013-T016 | ⏭️ N/A | Per DYK-03: CLI/MCP use OutputAdapter pattern |
 | T017 | ⏭️ N/A | Per DYK-01: Result types kept, not deprecated |
-| T018-T019 | ⏳ Pending | Manual validation gates (human orchestrator) |
+| T018 | ✅ Complete | Manual test harness PASSED |
+| T019 | ✅ Complete | Entity JSON validation PASSED |
 | T020 | ⏭️ Skipped | Agents self-validate |
 | T021 | ⏭️ N/A | No documentation changes needed |
 | T022 | ✅ Complete | 1840 tests pass |
@@ -486,16 +606,34 @@ $ pnpm test
 - `packages/workflow/src/services/workflow-service.types.ts` — Extended result types for WorkflowService
 - `test/unit/workflow/phase-service-entity.test.ts` — 9 tests for PhaseService entity integration
 - `test/unit/workflow/workflow-service-entity.test.ts` — 6 tests for WorkflowService entity integration
-- `docs/how/dev/manual-wf-run/09-validate-entity-json.sh` — Entity JSON validation script
-- `docs/how/dev/manual-wf-run/10-validate-runs-commands.sh` — Runs commands validation script
+- `docs/how/dev/manual-wf-run/06-validate-entity.sh` — Entity JSON validation script
+- `docs/how/dev/manual-wf-run/07-validate-runs.sh` — Runs commands validation script
 - `docs/how/dev/manual-wf-run/expected-outputs/*.json` — Expected JSON schemas
 - `docs/how/dev/manual-wf-run/ENTITY-VALIDATION-GUIDE.md` — Validation guide
+- `.chainglass/workflows/hello-workflow/current/*` — Workflow template registration
+- `.chainglass/workflows/hello-workflow/workflow.json` — Workflow metadata
 
-### Files Modified
+### Files Modified (During Development)
 - `packages/workflow/src/services/phase.service.ts` — Added optional IPhaseAdapter injection
 - `packages/workflow/src/services/workflow.service.ts` — Added optional IWorkflowAdapter injection
 - `packages/workflow/src/services/index.ts` — Exported extended result types
 - `docs/how/dev/manual-wf-run/README.md` — Updated with new scripts
+
+### Files Modified (During Validation - T018/T019)
+Core Fixes:
+- `packages/shared/src/services/agent.service.ts` — Error handling (timeout vs adapter errors)
+- `packages/shared/src/adapters/claude-code.adapter.ts` — CWD validation + session flags
+- `apps/cli/src/commands/agent.command.ts` — Single-line JSON NDJSON output
+
+Harness Fixes:
+- `docs/how/dev/manual-wf-run/01-clean-slate.sh` — Registry-aware cleanup
+- `docs/how/dev/manual-wf-run/02-compose-run.sh` — Registry-based compose
+- `docs/how/dev/manual-wf-run/03-run-gather.sh` — CWD fix, JSON parsing, prompt update
+- `docs/how/dev/manual-wf-run/04-run-process.sh` — CWD fix, JSON parsing, prompt update
+- `docs/how/dev/manual-wf-run/05-run-report.sh` — CWD fix, JSON parsing, prompt update
+- `docs/how/dev/manual-wf-run/06-validate-entity.sh` — cd to project root, jq type checking
+- `docs/how/dev/manual-wf-run/07-validate-runs.sh` — cd to project root, slug extraction
+- `.gitignore` — Track workflow templates, ignore runs/checkpoints
 
 ### Key Decisions (DYK)
 1. **DYK-01**: Keep Result types as "operation reports", add optional entity fields
@@ -503,15 +641,46 @@ $ pnpm test
 3. **DYK-03**: CLI/MCP backward compat via OutputAdapter pattern (no changes needed)
 4. **DYK-04**: Path logic works correctly (no changes needed)
 5. **DYK-05**: Extend existing manual-wf-run/ harness
+6. **DYK-06**: Claude Code sessions tied to CWD - use RUN_DIR for cross-phase continuity
+7. **DYK-07**: Claude Code requires `--fork-session --resume` together for session resumption
+
+### Critical Learnings from Manual Validation
+
+**Session Management**:
+- Claude Code sessions are CWD-bound - created in directory X, must resume from X
+- Session resumption requires BOTH `--fork-session` AND `--resume <id>` flags
+- For multi-phase workflows, always use RUN_DIR as cwd (not PHASE_DIR)
+
+**CLI Output**:
+- Agent CLI outputs NDJSON (logs + result JSON on separate lines)
+- Result JSON must be single-line for reliable `grep | tail -1` extraction
+- Scripts parse with: `grep '"output"' | tail -1`
+
+**Workflow Registry**:
+- `cg runs` commands require workflow in `.chainglass/workflows/<slug>/`
+- Workflow registration: copy template to `current/`, run `cg workflow checkpoint`
+- Template files tracked in git, runs/checkpoints ignored
+
+**Error Handling**:
+- AgentService must distinguish timeout errors from adapter errors
+- Timeout errors start with "Timeout after " prefix
+- Adapter errors (validation, spawn) should propagate error message
 
 ### Test Results
 - PhaseService: 114 tests pass
 - WorkflowService: 48 tests pass
 - Total suite: 1840 tests pass
+- Manual harness: ALL 7 SCRIPTS PASSED
 
-### Next Steps
-1. Human orchestrator executes T018-T019 manual validation scripts
-2. Upon gate passage, phase is complete
+### Phase Status
+**PHASE 6: COMPLETE** ✅
+
+All validation gates passed:
+- T018: Manual test harness ✅
+- T019: Entity JSON validation ✅
+- T022: CI pipeline (1840 tests) ✅
+
+Ready for merge to main.
 
 ---
 

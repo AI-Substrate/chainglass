@@ -1934,18 +1934,18 @@ Phase 4        Phase 5        (parallel)
 ## Progress Tracking
 
 ### Phase Completion Checklist
-- [ ] Phase 1: Entity Interfaces & Pure Data Classes (14 tasks) - Not Started
-- [ ] Phase 2: Fake Adapters (8 tasks) - Not Started
-- [ ] Phase 3: Production Adapters (17 tasks) - Not Started
-- [ ] Phase 4: CLI `cg runs` Commands (18 tasks) - Not Started
-- [ ] Phase 5: Documentation (4 tasks) - Not Started
-- [ ] Phase 6: Service Unification & Validation (22 tasks) - Not Started
-  - [ ] Part A: Harness Creation (4 tasks) - TDD: Define expected behavior
-  - [ ] Part B: Implementation (13 tasks) - Develop against harnesses
-  - [ ] Part C: Validation Gates (5 tasks) - Execute pass/fail gates
-  - [ ] GATE 1 PASS: manual-test/ MODE-1 (backward compat)
-  - [ ] GATE 2 PASS: entity-test/ (entity correctness)
-  - [ ] GATE 3 PASS: CI pipeline green
+- [x] Phase 1: Entity Interfaces & Pure Data Classes (14 tasks) - ✅ Complete
+- [x] Phase 2: Fake Adapters (8 tasks) - ✅ Complete
+- [x] Phase 3: Production Adapters (17 tasks) - ✅ Complete
+- [x] Phase 4: CLI `cg runs` Commands (18 tasks) - ✅ Complete
+- [x] Phase 5: Documentation (4 tasks) - ✅ Complete
+- [x] Phase 6: Service Unification & Validation (22 tasks) - ✅ **COMPLETE** (2026-01-26)
+  - [x] Part A: Harness Creation (T001a-T004) - TDD: Define expected behavior
+  - [x] Part B: Implementation (T005-T017) - Develop against harnesses
+  - [x] Part C: Validation Gates (T018-T022) - Execute pass/fail gates
+  - [x] **GATE 1 PASS**: Manual test harness (T018) - ALL 7 SCRIPTS PASSED
+  - [x] **GATE 2 PASS**: Entity JSON validation (T019) - Workflow + Phase entities validated
+  - [x] **GATE 3 PASS**: CI pipeline green (T022) - 1840 tests pass
 
 ### Validation Strategy
 
@@ -2012,16 +2012,13 @@ Mid-implementation detours requiring structured tracking.
 
 ## Change Footnotes Ledger
 
-**NOTE**: This section will be populated during implementation by plan-6a-update-progress.
-
 **Footnote Numbering Authority**: plan-6a-update-progress is the **single source of truth** for footnote numbering across the entire plan.
 
-**Initial State** (before implementation begins):
-```markdown
-[^1]: [To be added during implementation via plan-6a]
-[^2]: [To be added during implementation via plan-6a]
-...
-```
+| Footnote | Phase | Task | Description | Added |
+|----------|-------|------|-------------|-------|
+| [^1] | Phase 6 | T005-T009 | PhaseService refactoring: Extended result types with optional Phase entity | 2026-01-26 |
+| [^2] | Phase 6 | T010-T011 | WorkflowService refactoring: Extended result types with optional Workflow entity | 2026-01-26 |
+| [^3] | Phase 6 | T018-T019 | **Validation Gates PASSED**: Manual test harness (7 scripts) + Entity JSON validation. Discovered 6 critical issues (DYK-07 through DYK-12) and fixed them. Key learnings: Claude Code sessions CWD-bound, `--fork-session --resume` required together, AgentService error handling, NDJSON CLI output, workflow registration for `cg runs`. | 2026-01-26 |
 
 ---
 
