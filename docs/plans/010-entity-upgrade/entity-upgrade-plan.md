@@ -2000,6 +2000,16 @@ Part C: Execute Validation Gates (BLOCKING)
 
 ---
 
+## Subtasks Registry
+
+Mid-implementation detours requiring structured tracking.
+
+| ID | Created | Phase | Parent Task | Reason | Status | Dossier |
+|----|---------|-------|-------------|--------|--------|---------|
+| 001-subtask-cg-agent-cli-command | 2026-01-26 | Phase 6: Service Unification & Validation | T001a | AgentService infrastructure exists but no CLI to invoke agents; required for manual test harness | [x] Complete | [Link](tasks/phase-6-service-unification-validation/001-subtask-cg-agent-cli-command.md) |
+
+---
+
 ## Change Footnotes Ledger
 
 **NOTE**: This section will be populated during implementation by plan-6a-update-progress.

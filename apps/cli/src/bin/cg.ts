@@ -14,6 +14,7 @@
  */
 import chalk from 'chalk';
 import { Command, Help } from 'commander';
+import { registerAgentCommands } from '../commands/agent.command.js';
 import { registerInitCommand } from '../commands/init.command.js';
 import { registerMcpCommand } from '../commands/mcp.command.js';
 import { registerPhaseCommands } from '../commands/phase.command.js';
@@ -222,6 +223,7 @@ export function createProgram(options: CreateProgramOptions = {}): Command {
   registerPhaseCommands(program);
   registerWorkflowCommands(program);
   registerRunsCommands(program);
+  registerAgentCommands(program);
 
   // Default behavior: show help when no command provided
   if (!options.testMode) {
