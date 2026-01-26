@@ -85,6 +85,13 @@ Documented core workflows in `docs/how/nextjs-mcp-llm-agent-guide.md`:
 - Error Diagnosis Workflow: Agent queries `get_errors`, understands context, suggests fix
 - Route Validation Workflow: Agent queries `get_routes` to verify changes
 - Page Composition Analysis: Agent queries `get_page_metadata` to understand component hierarchy
+- **Headless Visual Debugging Workflow** (for SSH/tmux environments):
+  1. Agent calls `browser_eval(action: "start", headless: true)` to launch headless browser
+  2. Agent calls `browser_eval(action: "navigate", url: "http://localhost:3001")` to load page
+  3. Agent calls `browser_eval(action: "screenshot")` to capture visual state
+  4. Agent reads screenshot file to visually verify page renders correctly
+  5. Agent calls `browser_eval(action: "console_messages")` to check for JS errors
+  6. Agent can iterate: make code changes → Fast Refresh → screenshot → verify
 
 ## Consequences
 
@@ -114,9 +121,13 @@ Documented core workflows in `docs/how/nextjs-mcp-llm-agent-guide.md`:
 
 - **NEG-004**: Node.js 20.19+ hard requirement. Next.js 16 MCP support mandates modern Node.js, potentially blocking developers on older systems.
 
-- **NEG-005**: Browser session dependency for page metadata. `get_page_metadata` only returns data when browser is connected and viewing a page. Headless workflows miss this context.
+- **NEG-005**: Browser session dependency for page metadata. `get_page_metadata` only returns data when browser is connected and viewing a page. Headless workflows miss this context. **Mitigated by MIT-001.**
 
 - **NEG-006**: MCP protocol versioning. Future MCP specification changes could require configuration updates across all AI tools.
+
+### Mitigations
+
+- **MIT-001**: **Headless Playwright MCP for Remote/SSH Environments**. The `browser_eval` tool from `next-devtools-mcp` uses Playwright browser automation that works fully headless without any display server (X11/Wayland). This enables AI agents to visually verify pages, capture screenshots, inspect DOM, and monitor console errors even when connected via SSH/tmux to remote servers. See IMP-006 for setup instructions.
 
 ## Alternatives Considered
 
@@ -157,6 +168,56 @@ Documented core workflows in `docs/how/nextjs-mcp-llm-agent-guide.md`:
 
 - **IMP-005**: Success criteria: Agents can diagnose errors, validate routes, and generate pattern-compliant code without human explanation of project structure.
 
+- **IMP-006**: **Headless Playwright Setup for Remote Environments**. When working via SSH/tmux without a display server, the `browser_eval` MCP tool requires setup:
+
+  **Step 0: Verify MCP Server Configuration**
+
+  The `browser_eval` tool comes from the `next-devtools` MCP server. Check that `.mcp.json` in project root includes:
+
+  ```json
+  {
+    "mcpServers": {
+      "next-devtools": {
+        "type": "stdio",
+        "command": "npx",
+        "args": ["-y", "next-devtools-mcp@latest"],
+        "env": {}
+      }
+    }
+  }
+  ```
+
+  If missing, create `.mcp.json` with this configuration. Claude Code and other MCP-aware tools will auto-discover it.
+
+  **Step 1: Install Playwright Chromium Browser**
+
+  ```bash
+  npx playwright install chromium
+  ```
+
+  **Step 2: Symlink Chrome Binary (Arch/CachyOS/non-Debian systems)**
+
+  The `next-devtools-mcp` expects Chrome at `/opt/google/chrome/chrome`. On systems where the Chrome installer doesn't work (Arch, CachyOS, etc.), symlink the Playwright-installed Chromium:
+
+  ```bash
+  sudo mkdir -p /opt/google/chrome
+  sudo ln -sf ~/.cache/ms-playwright/chromium-*/chrome-linux64/chrome /opt/google/chrome/chrome
+  ```
+
+  On Debian/Ubuntu, you can alternatively run `npx playwright install chrome` which installs system Chrome directly.
+
+  After setup, agents can use `browser_eval` with these capabilities:
+
+  | Action | Purpose |
+  |--------|---------|
+  | `start` (headless: true) | Launch browser without display |
+  | `navigate` | Load pages from localhost dev server |
+  | `screenshot` | Capture visual state to file (agent can view) |
+  | `console_messages` | Capture JavaScript errors and logs |
+  | `evaluate` | Run JS in page context for DOM inspection |
+
+  This enables full visual debugging on headless servers - agents can see screenshots, verify page renders correctly, and diagnose client-side errors without human intervention.
+
 ## References
 
 - **REF-001**: [Spec](../plans/009-nextjs-upgrade/nextjs-upgrade-spec.md)
@@ -165,3 +226,5 @@ Documented core workflows in `docs/how/nextjs-mcp-llm-agent-guide.md`:
 - **REF-004**: [Next.js MCP LLM Agent Guide](../how/nextjs-mcp-llm-agent-guide.md)
 - **REF-005**: [Model Context Protocol Specification](https://modelcontextprotocol.io/)
 - **REF-006**: [Next.js 16 Release Notes](https://nextjs.org/blog/next-16)
+- **REF-007**: [Playwright MCP Server](https://github.com/microsoft/playwright-mcp) - Browser automation via MCP protocol
+- **REF-008**: [Playwright Headless Mode](https://playwright.dev/docs/browsers#headless-mode) - Running browsers without display
