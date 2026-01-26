@@ -105,6 +105,8 @@ export type {
 // Adapters
 export { YamlParserAdapter } from './adapters/index.js';
 export { SchemaValidatorAdapter } from './adapters/index.js';
+export { WorkflowAdapter } from './adapters/index.js';
+export { PhaseAdapter } from './adapters/index.js';
 
 // Fakes
 export { FakeYamlParser } from './fakes/index.js';

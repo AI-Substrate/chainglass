@@ -42,8 +42,10 @@ import {
   type IWorkflowRegistry,
   type IWorkflowService,
   type IYamlParser,
+  PhaseAdapter,
   PhaseService,
   SchemaValidatorAdapter,
+  WorkflowAdapter,
   WorkflowRegistryService,
   WorkflowService,
   YamlParserAdapter,
@@ -136,6 +138,25 @@ export function createCliProductionContainer(): DependencyContainer {
         c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM),
         c.resolve<IYamlParser>(WORKFLOW_DI_TOKENS.YAML_PARSER),
         c.resolve<ISchemaValidator>(WORKFLOW_DI_TOKENS.SCHEMA_VALIDATOR)
+      ),
+  });
+
+  // Register entity adapters (per Plan 010: Entity Upgrade Phase 3)
+  childContainer.register<IWorkflowAdapter>(WORKFLOW_DI_TOKENS.WORKFLOW_ADAPTER, {
+    useFactory: (c) =>
+      new WorkflowAdapter(
+        c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM),
+        c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER),
+        c.resolve<IYamlParser>(WORKFLOW_DI_TOKENS.YAML_PARSER)
+      ),
+  });
+
+  childContainer.register<IPhaseAdapter>(WORKFLOW_DI_TOKENS.PHASE_ADAPTER, {
+    useFactory: (c) =>
+      new PhaseAdapter(
+        c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM),
+        c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER),
+        c.resolve<IYamlParser>(WORKFLOW_DI_TOKENS.YAML_PARSER)
       ),
   });
 

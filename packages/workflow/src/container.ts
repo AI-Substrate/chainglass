@@ -22,7 +22,9 @@ import {
   WORKFLOW_DI_TOKENS,
 } from '@chainglass/shared';
 import { type DependencyContainer, container } from 'tsyringe';
+import { PhaseAdapter } from './adapters/phase.adapter.js';
 import { SchemaValidatorAdapter } from './adapters/schema-validator.adapter.js';
+import { WorkflowAdapter } from './adapters/workflow.adapter.js';
 import { YamlParserAdapter } from './adapters/yaml-parser.adapter.js';
 import { FakePhaseAdapter } from './fakes/fake-phase-adapter.js';
 import { FakePhaseService } from './fakes/fake-phase-service.js';
@@ -111,6 +113,25 @@ export function createWorkflowProductionContainer(): DependencyContainer {
         c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM),
         c.resolve<IYamlParser>(WORKFLOW_DI_TOKENS.YAML_PARSER),
         c.resolve<ISchemaValidator>(WORKFLOW_DI_TOKENS.SCHEMA_VALIDATOR)
+      ),
+  });
+
+  // Register entity adapters (per Plan 010: Entity Upgrade Phase 3)
+  childContainer.register<IWorkflowAdapter>(WORKFLOW_DI_TOKENS.WORKFLOW_ADAPTER, {
+    useFactory: (c) =>
+      new WorkflowAdapter(
+        c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM),
+        c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER),
+        c.resolve<IYamlParser>(WORKFLOW_DI_TOKENS.YAML_PARSER)
+      ),
+  });
+
+  childContainer.register<IPhaseAdapter>(WORKFLOW_DI_TOKENS.PHASE_ADAPTER, {
+    useFactory: (c) =>
+      new PhaseAdapter(
+        c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM),
+        c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER),
+        c.resolve<IYamlParser>(WORKFLOW_DI_TOKENS.YAML_PARSER)
       ),
   });
 
