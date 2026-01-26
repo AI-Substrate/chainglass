@@ -7,7 +7,7 @@
  * - Current phase and progress
  * - Blocked indicator with icon
  * - Inline question input for blocked runs
- * - Link to drill into run details
+ * - Dialog for full question view
  */
 
 import { useSortable } from '@dnd-kit/sortable';
@@ -18,6 +18,7 @@ import {
   ChevronDown,
   ChevronUp,
   Clock,
+  Expand,
   MessageSquareWarning,
   Play,
   Send,
@@ -29,9 +30,18 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 
 import type { RunCard } from '@/data/fixtures/runs-board.fixture';
@@ -65,6 +75,7 @@ const phaseStatusColors: Record<string, string> = {
  */
 export function RunKanbanCard({ card, draggable = true, onSubmit }: RunKanbanCardProps) {
   const [expanded, setExpanded] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
   const [answer, setAnswer] = useState<string | string[] | boolean>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -103,7 +114,10 @@ export function RunKanbanCard({ card, draggable = true, onSubmit }: RunKanbanCar
     setIsSubmitting(true);
     onSubmit(card.runId, card.question.id, answer);
     // In a real app, we'd wait for the response
-    setTimeout(() => setIsSubmitting(false), 1000);
+    setTimeout(() => {
+      setIsSubmitting(false);
+      setDialogOpen(false);
+    }, 1000);
   };
 
   const cardContent = (
@@ -179,13 +193,13 @@ export function RunKanbanCard({ card, draggable = true, onSubmit }: RunKanbanCar
           <span className="text-xs px-1.5 py-0.5 bg-muted rounded-full">{card.triggeredBy}</span>
         </div>
 
-        {/* Inline Question Input (when expanded) */}
+        {/* Inline Question Preview (when expanded) */}
         {hasQuestion && expanded && card.question && (
           <section
             className="mt-3 pt-3 border-t border-amber-200 dark:border-amber-800 space-y-2"
             onClick={(e) => e.stopPropagation()}
             onKeyDown={(e) => e.stopPropagation()}
-            aria-label="Question input"
+            aria-label="Question preview"
           >
             <p className="text-xs font-medium text-amber-700 dark:text-amber-300">
               {card.question.prompt.length > 100
@@ -193,98 +207,7 @@ export function RunKanbanCard({ card, draggable = true, onSubmit }: RunKanbanCar
                 : card.question.prompt}
             </p>
 
-            {/* Compact input based on question type */}
-            {card.question.type === 'free_text' && (
-              <div className="flex gap-1">
-                <Input
-                  placeholder="Type your answer..."
-                  className="h-8 text-xs"
-                  value={answer as string}
-                  onChange={(e) => setAnswer(e.target.value)}
-                />
-                <Button
-                  size="sm"
-                  className="h-8 px-2"
-                  onClick={handleSubmit}
-                  disabled={isSubmitting}
-                >
-                  <Send className="h-3 w-3" />
-                </Button>
-              </div>
-            )}
-
-            {card.question.type === 'single_choice' && card.question.choices && (
-              <div className="space-y-1">
-                <RadioGroup
-                  value={answer as string}
-                  onValueChange={setAnswer}
-                  className="space-y-1"
-                >
-                  {card.question.choices.slice(0, 3).map((choice) => (
-                    <div key={choice} className="flex items-center space-x-2">
-                      <RadioGroupItem value={choice} id={`${card.runId}-${choice}`} />
-                      <Label htmlFor={`${card.runId}-${choice}`} className="text-xs cursor-pointer">
-                        {choice.length > 30 ? `${choice.slice(0, 30)}...` : choice}
-                      </Label>
-                    </div>
-                  ))}
-                </RadioGroup>
-                {card.question.choices.length > 3 && (
-                  <p className="text-xs text-muted-foreground">
-                    +{card.question.choices.length - 3} more options
-                  </p>
-                )}
-                <Button
-                  size="sm"
-                  className="h-7 w-full text-xs"
-                  onClick={handleSubmit}
-                  disabled={isSubmitting || !answer}
-                >
-                  Submit
-                </Button>
-              </div>
-            )}
-
-            {card.question.type === 'multi_choice' && card.question.choices && (
-              <div className="space-y-1">
-                {card.question.choices.slice(0, 3).map((choice) => (
-                  <div key={choice} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`${card.runId}-mc-${choice}`}
-                      checked={(answer as string[]).includes?.(choice)}
-                      onCheckedChange={(checked) => {
-                        const current = Array.isArray(answer) ? answer : [];
-                        if (checked) {
-                          setAnswer([...current, choice]);
-                        } else {
-                          setAnswer(current.filter((c) => c !== choice));
-                        }
-                      }}
-                    />
-                    <Label
-                      htmlFor={`${card.runId}-mc-${choice}`}
-                      className="text-xs cursor-pointer"
-                    >
-                      {choice.length > 30 ? `${choice.slice(0, 30)}...` : choice}
-                    </Label>
-                  </div>
-                ))}
-                {card.question.choices.length > 3 && (
-                  <p className="text-xs text-muted-foreground">
-                    +{card.question.choices.length - 3} more options
-                  </p>
-                )}
-                <Button
-                  size="sm"
-                  className="h-7 w-full text-xs"
-                  onClick={handleSubmit}
-                  disabled={isSubmitting || (answer as string[]).length === 0}
-                >
-                  Submit
-                </Button>
-              </div>
-            )}
-
+            {/* Quick actions for simple questions */}
             {card.question.type === 'confirm' && (
               <div className="flex gap-1">
                 <Button
@@ -322,13 +245,30 @@ export function RunKanbanCard({ card, draggable = true, onSubmit }: RunKanbanCar
               </div>
             )}
 
-            {/* Link to full view */}
+            {/* Show "View full details" button for complex questions */}
+            {card.question.type !== 'confirm' && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 w-full text-xs"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setDialogOpen(true);
+                }}
+              >
+                <Expand className="h-3 w-3 mr-1" />
+                View full question & respond
+              </Button>
+            )}
+
+            {/* Link to run detail page */}
             <Link
               href={`/workflows/${card.workflowSlug}/runs/${card.runId}`}
-              className="text-xs text-primary hover:underline block text-center"
+              className="text-xs text-muted-foreground hover:text-primary hover:underline block text-center"
               onClick={(e) => e.stopPropagation()}
             >
-              View full details →
+              Go to run details →
             </Link>
           </section>
         )}
@@ -336,10 +276,123 @@ export function RunKanbanCard({ card, draggable = true, onSubmit }: RunKanbanCar
     </Card>
   );
 
+  // Question Dialog
+  const questionDialog = hasQuestion && card.question && (
+    <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <MessageSquareWarning className="h-5 w-5 text-amber-500" />
+            Input Required
+          </DialogTitle>
+          <DialogDescription>
+            Run: {card.runId} • Phase: {card.currentPhase}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-2">
+          {/* Full question prompt */}
+          <div className="bg-amber-50 dark:bg-amber-950/30 p-3 rounded-md border border-amber-200 dark:border-amber-800">
+            <p className="text-sm whitespace-pre-wrap">{card.question.prompt}</p>
+          </div>
+
+          {/* Full input controls */}
+          {card.question.type === 'free_text' && (
+            <Textarea
+              placeholder="Enter your response..."
+              className="min-h-[100px]"
+              value={answer as string}
+              onChange={(e) => setAnswer(e.target.value)}
+            />
+          )}
+
+          {card.question.type === 'single_choice' && card.question.choices && (
+            <RadioGroup value={answer as string} onValueChange={setAnswer} className="space-y-2">
+              {card.question.choices.map((choice) => (
+                <div key={choice} className="flex items-center space-x-3">
+                  <RadioGroupItem value={choice} id={`dialog-${card.runId}-${choice}`} />
+                  <Label
+                    htmlFor={`dialog-${card.runId}-${choice}`}
+                    className="text-sm cursor-pointer"
+                  >
+                    {choice}
+                  </Label>
+                </div>
+              ))}
+            </RadioGroup>
+          )}
+
+          {card.question.type === 'multi_choice' && card.question.choices && (
+            <div className="space-y-2">
+              {card.question.choices.map((choice) => (
+                <div key={choice} className="flex items-center space-x-3">
+                  <Checkbox
+                    id={`dialog-${card.runId}-mc-${choice}`}
+                    checked={(answer as string[]).includes?.(choice)}
+                    onCheckedChange={(checked) => {
+                      const current = Array.isArray(answer) ? answer : [];
+                      if (checked) {
+                        setAnswer([...current, choice]);
+                      } else {
+                        setAnswer(current.filter((c) => c !== choice));
+                      }
+                    }}
+                  />
+                  <Label
+                    htmlFor={`dialog-${card.runId}-mc-${choice}`}
+                    className="text-sm cursor-pointer"
+                  >
+                    {choice}
+                  </Label>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {card.question.type === 'confirm' && (
+            <div className="flex gap-2">
+              <Button
+                variant={answer === true ? 'default' : 'outline'}
+                className="flex-1"
+                onClick={() => setAnswer(true)}
+              >
+                Yes
+              </Button>
+              <Button
+                variant={answer === false ? 'default' : 'outline'}
+                className="flex-1"
+                onClick={() => setAnswer(false)}
+              >
+                No
+              </Button>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter className="flex-col sm:flex-row gap-2">
+          <Link
+            href={`/workflows/${card.workflowSlug}/runs/${card.runId}`}
+            className="text-sm text-muted-foreground hover:text-primary hover:underline"
+          >
+            Go to run details
+          </Link>
+          <Button onClick={handleSubmit} disabled={isSubmitting} className="min-w-[100px]">
+            {isSubmitting ? 'Submitting...' : 'Submit'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+
   // Wrap in link only if not draggable and no question
   if (!draggable && !hasQuestion) {
     return <Link href={`/workflows/${card.workflowSlug}/runs/${card.runId}`}>{cardContent}</Link>;
   }
 
-  return cardContent;
+  return (
+    <>
+      {cardContent}
+      {questionDialog}
+    </>
+  );
 }
