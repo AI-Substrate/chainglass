@@ -320,6 +320,12 @@
 
 ---
 
+## ADRs
+
+- ADR-0007: SSE Single-Channel Event Routing Pattern (2026-01-26) – status: Accepted
+
+---
+
 ## External Research
 
 **Incorporated**:

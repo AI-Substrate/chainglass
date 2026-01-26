@@ -57,6 +57,14 @@ Users currently interact with AI coding agents (Claude Code, Copilot) only throu
 
 ---
 
+## ADR Ledger
+
+| ADR | Title | Status | Date | Affects Phases |
+|-----|-------|--------|------|----------------|
+| 0007 | SSE Single-Channel Event Routing Pattern | Accepted | 2026-01-26 | Phase 2 (Core Chat) |
+
+---
+
 ## Technical Context
 
 ### Current System State
@@ -933,7 +941,7 @@ describe('Agent Session E2E', () => {
 - Source notation legend added
 - Test examples use fakes (not vi.fn())
 
-**Next Step**: Run `/plan-5-phase-tasks-and-brief --phase "Phase 2: Core Chat"` to generate Phase 2 task dossier
+**Next Step**: Run `/plan-5-phase-tasks-and-brief --phase "Phase 3: Multi-Session"` to generate Phase 3 task dossier
 
 ---
 
@@ -1000,7 +1008,7 @@ Mid-implementation detours requiring structured tracking.
 
 | ID | Created | Phase | Parent Task | Reason | Status | Dossier |
 |----|---------|-------|-------------|--------|--------|---------|
-| 001-subtask-real-agent-integration | 2026-01-26 | Phase 2: Core Chat | T018 | Phase 2 completed with simulated agent responses; need to wire to real adapters | [ ] Pending | [Link](tasks/phase-2-core-chat/001-subtask-real-agent-integration.md) |
+| 001-subtask-real-agent-integration | 2026-01-26 | Phase 2: Core Chat | T018 | Phase 2 completed with simulated agent responses; need to wire to real adapters | [x] Complete | [Link](tasks/phase-2-core-chat/001-subtask-real-agent-integration.md) |
 
 ---
 
@@ -1008,4 +1016,5 @@ Mid-implementation detours requiring structured tracking.
 **Plan Validated**: 2026-01-26 (v1.1.0 - fixes applied for HIGH violations)
 **Phase 1 Complete**: 2026-01-26 (10 tasks, 33 tests)
 **Phase 2 Complete**: 2026-01-26 (19 tasks, 92 tests)
-**Next Step**: Run `/plan-6-implement-phase --subtask "001-subtask-real-agent-integration"` to implement real agent integration
+**Subtask 001 Complete**: 2026-01-26 (5 tasks, real agent integration with SSE streaming)
+**Next Step**: Run `/plan-6-implement-phase --phase "Phase 3: Multi-Session"` to continue with multi-session management
