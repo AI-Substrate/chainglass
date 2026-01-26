@@ -80,8 +80,7 @@ function ArtifactNodeComponent({ data, selected }: NodeProps<ArtifactNodeType>) 
           isFromUser &&
             'border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/20',
           // Agent output styling (cyan)
-          isFromAgent &&
-            'border-cyan-300 dark:border-cyan-700 bg-cyan-50 dark:bg-cyan-900/20',
+          isFromAgent && 'border-cyan-300 dark:border-cyan-700 bg-cyan-50 dark:bg-cyan-900/20',
           // Default file styling (blue for input, green for output)
           !isFromUser && !isFromAgent && isInput && 'border-blue-300 dark:border-blue-700',
           !isFromUser && !isFromAgent && !isInput && 'border-emerald-300 dark:border-emerald-700',

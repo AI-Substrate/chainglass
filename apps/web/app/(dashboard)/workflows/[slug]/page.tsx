@@ -10,10 +10,10 @@
  * @see Plan 011: UI Mockups (T010, T018)
  */
 
+import type { Node } from '@xyflow/react';
 import { Eye, History, Play } from 'lucide-react';
 import Link from 'next/link';
 import { useCallback, useState } from 'react';
-import type { Node } from '@xyflow/react';
 
 import { CheckpointTimeline } from '@/components/checkpoints/checkpoint-timeline';
 import { Button } from '@/components/ui/button';

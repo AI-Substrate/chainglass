@@ -105,17 +105,17 @@ const HORIZONTAL_GAP = 60;
 
 /**
  * Build nodes and edges for the template data flow graph
- * 
+ *
  * Layout (top to bottom for each phase):
  * 1. Commands (prompts) - amber colored, on the LEFT side
  * 2. External inputs - blue colored, on the RIGHT side
  * 3. Phase node - centered
  * 4. Outputs - green colored
- * 
+ *
  * Artifacts are shared ONLY when:
  * - Phase A outputs file X
  * - Phase B (immediately after A) inputs file X with same name
- * 
+ *
  * Same filename in different contexts = different artifacts
  */
 function buildFlowGraph(phases: PhaseJSON[]): {
@@ -151,7 +151,11 @@ function buildFlowGraph(phases: PhaseJSON[]): {
 
       // Place commands
       if (hasCommands) {
-        const commandStartX = -(PHASE_WIDTH / 2 + HORIZONTAL_GAP + (commands.length - 1) * (COMMAND_WIDTH + 20));
+        const commandStartX = -(
+          PHASE_WIDTH / 2 +
+          HORIZONTAL_GAP +
+          (commands.length - 1) * (COMMAND_WIDTH + 20)
+        );
         for (const [idx, cmd] of commands.entries()) {
           const commandId = `command-${phase.name}-${cmd.name}`;
           nodes.push({
@@ -230,8 +234,7 @@ function buildFlowGraph(phases: PhaseJSON[]): {
 
     // Place outputs below this phase
     if (outputs.length > 0) {
-      const outputStartX =
-        (-(outputs.length - 1) * (ARTIFACT_WIDTH + HORIZONTAL_GAP)) / 2;
+      const outputStartX = (-(outputs.length - 1) * (ARTIFACT_WIDTH + HORIZONTAL_GAP)) / 2;
       for (const [idx, output] of outputs.entries()) {
         const artifactId = `artifact-${phase.name}-output-${output.name}`;
         nodes.push({
@@ -258,7 +261,8 @@ function buildFlowGraph(phases: PhaseJSON[]): {
         });
 
         // Check if next phase consumes this output
-        const nextPhase = phaseIndex < sortedPhases.length - 1 ? sortedPhases[phaseIndex + 1] : null;
+        const nextPhase =
+          phaseIndex < sortedPhases.length - 1 ? sortedPhases[phaseIndex + 1] : null;
         if (nextPhase) {
           const nextInputs = nextPhase.inputs ?? [];
           const matchingInput = nextInputs.find((i) => i.name === output.name);

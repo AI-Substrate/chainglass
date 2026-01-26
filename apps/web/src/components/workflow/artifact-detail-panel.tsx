@@ -18,10 +18,7 @@ import { Bot, FileJson, FileText, Settings, Terminal, User, X } from 'lucide-rea
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import type {
-  PhaseCommandDefinition,
-  PhaseIODefinition,
-} from '@/data/fixtures/workflows.fixture';
+import type { PhaseCommandDefinition, PhaseIODefinition } from '@/data/fixtures/workflows.fixture';
 import { cn } from '@/lib/utils';
 
 export type SelectedArtifactType = 'command' | 'artifact';
@@ -99,11 +96,23 @@ function getHeaderColor(artifact: SelectedArtifact): string {
 function getFromLabel(from?: string): { icon: string; label: string; color: string } | null {
   switch (from) {
     case 'workflow':
-      return { icon: '⚙️', label: 'Workflow Template', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' };
+      return {
+        icon: '⚙️',
+        label: 'Workflow Template',
+        color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+      };
     case 'user':
-      return { icon: '👤', label: 'User Input', color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' };
+      return {
+        icon: '👤',
+        label: 'User Input',
+        color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
+      };
     case 'agent':
-      return { icon: '🤖', label: 'Agent Generated', color: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300' };
+      return {
+        icon: '🤖',
+        label: 'Agent Generated',
+        color: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300',
+      };
     default:
       return null;
   }
@@ -114,7 +123,9 @@ export function ArtifactDetailPanel({ artifact, onClose, className }: ArtifactDe
 
   const isCommand = artifact.type === 'command';
   const commandData = isCommand ? (artifact.data as PhaseCommandDefinition) : null;
-  const artifactData = !isCommand ? (artifact.data as PhaseIODefinition & { direction?: 'input' | 'output' }) : null;
+  const artifactData = !isCommand
+    ? (artifact.data as PhaseIODefinition & { direction?: 'input' | 'output' })
+    : null;
 
   const name = commandData?.name ?? artifactData?.name ?? 'Unknown';
   const description = commandData?.description ?? artifactData?.description;
@@ -144,9 +155,7 @@ export function ArtifactDetailPanel({ artifact, onClose, className }: ArtifactDe
         <div className="p-4 space-y-4">
           {/* Metadata */}
           <div className="space-y-2">
-            {description && (
-              <p className="text-sm text-muted-foreground">{description}</p>
-            )}
+            {description && <p className="text-sm text-muted-foreground">{description}</p>}
 
             <div className="flex flex-wrap gap-2 text-xs">
               {fromInfo && (
@@ -205,9 +214,7 @@ export function ArtifactDetailPanel({ artifact, onClose, className }: ArtifactDe
           ) : (
             <div className="border rounded-lg p-4 bg-slate-50 dark:bg-slate-900/50 text-center">
               <FileText className="h-8 w-8 mx-auto mb-2 text-slate-400 opacity-50" />
-              <p className="text-sm text-muted-foreground">
-                No content preview available.
-              </p>
+              <p className="text-sm text-muted-foreground">No content preview available.</p>
             </div>
           )}
         </div>
