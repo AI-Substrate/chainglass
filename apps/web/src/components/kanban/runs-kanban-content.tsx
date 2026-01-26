@@ -97,17 +97,17 @@ export function RunsKanbanContent({
   // Non-draggable version (just display)
   if (!allowDrag) {
     return (
-      <div className="flex gap-4 overflow-x-auto pb-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
         {board.columns.map((column) => (
-          <div key={column.id} className="flex-shrink-0 w-80">
-            <div className="bg-muted/50 rounded-lg p-3">
-              <h3 className="font-semibold mb-3 flex items-center gap-2">
+          <div key={column.id} className="min-w-0">
+            <div className="bg-muted/30 rounded-xl p-4 border border-border/50 h-full">
+              <h3 className="font-semibold mb-4 flex items-center gap-2 text-base">
                 {column.title}
-                <span className="text-xs bg-muted px-1.5 py-0.5 rounded-full">
+                <span className="text-xs font-medium bg-background border px-2 py-0.5 rounded-full">
                   {column.cards.length}
                 </span>
               </h3>
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {column.cards.map((card) => (
                   <RunKanbanCard
                     key={card.id}
@@ -117,7 +117,9 @@ export function RunsKanbanContent({
                   />
                 ))}
                 {column.cards.length === 0 && (
-                  <p className="text-sm text-muted-foreground text-center py-4">No runs</p>
+                  <div className="text-sm text-muted-foreground text-center py-12 border-2 border-dashed border-muted rounded-lg">
+                    No runs
+                  </div>
                 )}
               </div>
             </div>

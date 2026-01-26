@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "workflow-checkpoint",
+  "title": "Workflow Entity JSON (Checkpoint)",
+  "description": "Expected JSON structure for Workflow entity loaded from checkpoints/ (isCheckpoint=true). Used by entity validation scripts.",
+  "type": "object",
+  "required": [
+    "slug",
+    "workflowDir",
+    "version",
+    "description",
+    "isCurrent",
+    "isCheckpoint",
+    "isRun",
+    "isTemplate",
+    "source",
+    "checkpoint",
+    "run",
+    "phases"
+  ],
+  "properties": {
+    "slug": {
+      "type": "string",
+      "description": "Workflow slug (directory name)"
+    },
+    "workflowDir": {
+      "type": "string",
+      "description": "Absolute path to the checkpoint directory"
+    },
+    "version": {
+      "type": "string",
+      "description": "Semantic version from wf.yaml"
+    },
+    "description": {
+      "type": ["string", "null"],
+      "description": "Optional workflow description"
+    },
+    "isCurrent": {
+      "type": "boolean",
+      "const": false,
+      "description": "Must be false for checkpoints"
+    },
+    "isCheckpoint": {
+      "type": "boolean",
+      "const": true,
+      "description": "Must be true for checkpoints"
+    },
+    "isRun": {
+      "type": "boolean",
+      "const": false,
+      "description": "Must be false for checkpoints"
+    },
+    "isTemplate": {
+      "type": "boolean",
+      "const": true,
+      "description": "Must be true for checkpoints (they are frozen templates)"
+    },
+    "source": {
+      "type": "string",
+      "const": "checkpoint",
+      "description": "Source type indicator"
+    },
+    "checkpoint": {
+      "type": "object",
+      "required": ["ordinal", "hash", "createdAt", "comment"],
+      "properties": {
+        "ordinal": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "1-based version ordinal"
+        },
+        "hash": {
+          "type": "string",
+          "description": "8-character content hash prefix"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO-8601 timestamp"
+        },
+        "comment": {
+          "type": ["string", "null"],
+          "description": "Optional checkpoint comment"
+        }
+      }
+    },
+    "run": {
+      "type": "null",
+      "description": "Must be null for checkpoints"
+    },
+    "phases": {
+      "type": "array",
+      "description": "Array of Phase entities (may be empty if not hydrated)"
+    }
+  }
+}

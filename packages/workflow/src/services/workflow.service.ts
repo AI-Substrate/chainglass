@@ -20,6 +20,8 @@ import type {
   IWorkflowRegistry,
   IYamlParser,
 } from '../interfaces/index.js';
+import type { IWorkflowAdapter } from '../interfaces/workflow-adapter.interface.js';
+import type { ComposeResultWithEntity } from './workflow-service.types.js';
 import type { IWorkflowService } from '../interfaces/workflow-service.interface.js';
 import { YamlParseError } from '../interfaces/yaml-parser.interface.js';
 import { MESSAGE_SCHEMA, WF_PHASE_SCHEMA, WF_SCHEMA, WF_STATUS_SCHEMA } from '../schemas/index.js';
@@ -50,6 +52,7 @@ export const ComposeErrorCodes = {
  * - ISchemaValidator: Validate wf.yaml against schema
  * - IPathResolver: Secure path resolution
  * - IWorkflowRegistry: Workflow registry for checkpoint resolution (Phase 3, DYK-01)
+ * - IWorkflowAdapter: (Optional) Entity adapter for loading Workflow entities (Phase 6, DYK-02)
  */
 export class WorkflowService implements IWorkflowService {
   /** Default workflows directory */
@@ -60,7 +63,8 @@ export class WorkflowService implements IWorkflowService {
     private readonly yamlParser: IYamlParser,
     private readonly schemaValidator: ISchemaValidator,
     private readonly pathResolver: IPathResolver,
-    private readonly registry: IWorkflowRegistry
+    private readonly registry: IWorkflowRegistry,
+    private readonly workflowAdapter?: IWorkflowAdapter
   ) {}
 
   /**
@@ -79,7 +83,7 @@ export class WorkflowService implements IWorkflowService {
     template: string,
     runsDir: string,
     options?: ComposeOptions
-  ): Promise<ComposeResult> {
+  ): Promise<ComposeResultWithEntity> {
     const errors: ComposeResult['errors'] = [];
 
     // 1. Expand tilde in template path (DYK-02)
@@ -305,12 +309,23 @@ export class WorkflowService implements IWorkflowService {
       status: 'pending' as const,
     }));
 
-    return {
+    const result: ComposeResultWithEntity = {
       runDir,
       template: wfDefinition.name,
       phases,
       errors: [],
     };
+
+    // 14. Load Workflow entity if adapter is injected (Phase 6 / DYK-02)
+    if (this.workflowAdapter) {
+      try {
+        result.workflowEntity = await this.workflowAdapter.loadRun(runDir);
+      } catch {
+        // Entity loading failure is non-fatal - result is still valid
+      }
+    }
+
+    return result;
   }
 
   /**
@@ -325,7 +340,7 @@ export class WorkflowService implements IWorkflowService {
     slug: string,
     runsDir: string,
     options?: ComposeOptions
-  ): Promise<ComposeResult> {
+  ): Promise<ComposeResultWithEntity> {
     const workflowsDir = WorkflowService.WORKFLOWS_DIR;
 
     // 1. Get versions from registry
@@ -568,12 +583,23 @@ export class WorkflowService implements IWorkflowService {
       status: 'pending' as const,
     }));
 
-    return {
+    const result: ComposeResultWithEntity = {
       runDir,
       template: wfDefinition.name,
       phases,
       errors: [],
     };
+
+    // 14. Load Workflow entity if adapter is injected (Phase 6 / DYK-02)
+    if (this.workflowAdapter) {
+      try {
+        result.workflowEntity = await this.workflowAdapter.loadRun(runDir);
+      } catch {
+        // Entity loading failure is non-fatal - result is still valid
+      }
+    }
+
+    return result;
   }
 
   /**

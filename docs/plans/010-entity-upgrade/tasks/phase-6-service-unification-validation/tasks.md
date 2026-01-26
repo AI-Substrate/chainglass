@@ -95,16 +95,16 @@ flowchart TD
 
     subgraph PartA["Part A: Harness Creation (TDD First)"]
         T001a["T001a: Create cg agent CLI command ✓"]:::completed
-        T001["T001: Create docs/how/dev/manual-test/ structure"]:::pending
-        T002["T002: Create MANUAL-TEST-GUIDE.md"]:::pending
-        T003["T003: Create expected-outputs/*.json"]:::pending
-        T004["T004: Create validation scripts"]:::pending
+        T001["T001: Create docs/how/dev/manual-test/ structure ✓"]:::completed
+        T002["T002: Create MANUAL-TEST-GUIDE.md ✓"]:::completed
+        T003["T003: Create expected-outputs/*.json ✓"]:::completed
+        T004["T004: Create validation scripts ✓"]:::completed
 
         T001a --> T001 --> T002 --> T003 --> T004
     end
 
     subgraph PartB["Part B: Service & CLI Implementation"]
-        T005["T005: Write PhaseService tests"]:::pending
+        T005["T005: Write PhaseService tests ✓"]:::completed
         T006["T006: Refactor PhaseService.prepare()"]:::pending
         T007["T007: Refactor PhaseService.validate()"]:::pending
         T008["T008: Refactor PhaseService.finalize()"]:::pending
@@ -178,11 +178,11 @@ flowchart TD
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
 | T001a | CLI Agent Command | /apps/cli/src/commands/agent.command.ts | ✅ Complete | **COMPLETE**: CLI for agent invocation (run/compact) |
-| T001 | Test Harness | /docs/how/dev/manual-test/*.sh | ⬜ Pending | TDD: Create harness structure; depends on T001a |
-| T002 | Test Guide | /docs/how/dev/manual-test/MANUAL-TEST-GUIDE.md | ⬜ Pending | Step-by-step validation guide for human orchestrator |
-| T003 | Expected Outputs | /docs/how/dev/manual-test/expected-outputs/*.json | ⬜ Pending | JSON schemas define pass criteria |
-| T004 | Validation Scripts | /docs/how/dev/manual-test/*.sh | ⬜ Pending | Create validation scripts for entity JSON format |
-| T005 | PhaseService Tests | /test/unit/workflow/phase-service-entity.test.ts | ⬜ Pending | TDD: Write failing tests first |
+| T001 | Test Harness | /docs/how/dev/manual-wf-run/*.sh | ✅ Complete | DYK-05: Extended existing harness |
+| T002 | Test Guide | /docs/how/dev/manual-wf-run/ENTITY-VALIDATION-GUIDE.md | ✅ Complete | Step-by-step validation guide for human orchestrator |
+| T003 | Expected Outputs | /docs/how/dev/manual-wf-run/expected-outputs/*.json | ✅ Complete | 5 JSON schemas: workflow-*, phase-complete, agent-result |
+| T004 | Validation Scripts | /docs/how/dev/manual-wf-run/*.sh | ✅ Complete | 09-validate-entity-json.sh, 10-validate-runs-commands.sh |
+| T005 | PhaseService Tests | /test/unit/workflow/phase-service-entity.test.ts | ✅ Complete | TDD RED: 4 passing, 8 skipped define future behavior |
 | T006 | PhaseService | /packages/workflow/src/services/phase.service.ts | ⬜ Pending | prepare() returns Phase entity |
 | T007 | PhaseService | /packages/workflow/src/services/phase.service.ts | ⬜ Pending | validate() returns Phase entity |
 | T008 | PhaseService | /packages/workflow/src/services/phase.service.ts | ⬜ Pending | finalize() returns Phase entity |
@@ -207,12 +207,12 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|-----|------|----|------|--------------|------------------|------------|----------|-------|
-| [ ] | T001 | **Create docs/how/dev/manual-test/ harness structure** with shell scripts for orchestrator-driven agent testing: 01-clean-slate.sh, 02-init-workflow.sh, 03-compose-run.sh, 04-run-phase-with-agent.sh, 05-compact-between-phases.sh, 06-entity-json-format.sh, 07-runs-commands.sh | 2 | Setup | T001a | /home/jak/substrate/007-manage-workflows/docs/how/dev/manual-test/*.sh | Directory exists with shell scripts, each executable | T001a (CLI prereq) | TDD: Define expected behavior first; requires T001a for agent invocation |
+| [x] | T001 | **Create docs/how/dev/manual-test/ harness structure** with shell scripts for orchestrator-driven agent testing: 01-clean-slate.sh, 02-init-workflow.sh, 03-compose-run.sh, 04-run-phase-with-agent.sh, 05-compact-between-phases.sh, 06-entity-json-format.sh, 07-runs-commands.sh | 2 | Setup | T001a | /home/jak/substrate/007-manage-workflows/docs/how/dev/manual-wf-run/*.sh | Per DYK-05: Extended existing manual-wf-run/ harness | T001a (CLI prereq) | DYK-05: Extended existing harness, added 09-validate-entity-json.sh, 10-validate-runs-commands.sh, expected-outputs/ |
 | [x] | T001a | **Create `cg agent` CLI command group** for invoking agents from command line. Commands: `cg agent run --type {claude-code,copilot} --prompt <text> [--prompt-file <path>] [--session <id>] [--cwd <path>]`, `cg agent compact --type <type> --session <id>`. Uses existing AgentService infrastructure. | 3 | CLI | – | /home/jak/substrate/007-manage-workflows/apps/cli/src/commands/agent.command.ts | `cg agent run --help` shows all options; `cg agent run --type claude-code --prompt "hello"` returns JSON with sessionId | [001-subtask](./001-subtask-cg-agent-cli-command.md) | **COMPLETE**: Subtask 001 done. |
-| [ ] | T002 | **Create MANUAL-TEST-GUIDE.md** step-by-step validation guide for human orchestrator covering: workflow lifecycle, agent invocation per phase, compact between phases, session resumption, entity.toJSON() verification | 2 | Doc | T001 | /home/jak/substrate/007-manage-workflows/docs/how/dev/manual-test/MANUAL-TEST-GUIDE.md | Guide has numbered steps matching script names | – | TDD: Test guide before implementation |
-| [ ] | T003 | **Create expected-outputs/*.json** with JSON schemas for workflow-current.json, workflow-checkpoint.json, workflow-run.json, phase-complete.json, agent-result.json | 2 | Setup | T002 | /home/jak/substrate/007-manage-workflows/docs/how/dev/manual-test/expected-outputs/*.json | 5 JSON files with TypeScript-aligned property names | – | TDD: Expected outputs define pass criteria |
-| [ ] | T004 | **Create validation scripts** for entity JSON output format verification and agent result validation | 2 | Setup | T003 | /home/jak/substrate/007-manage-workflows/docs/how/dev/manual-test/*.sh | Scripts validate entity JSON structure against expected-outputs | – | Human orchestrator validation |
-| [ ] | T005 | **Write tests for PhaseService using PhaseAdapter** - prepare() returns Phase entity with full data model | 2 | Test | T004 | /home/jak/substrate/007-manage-workflows/test/unit/workflow/phase-service-entity.test.ts | Tests fail with "returns PrepareResult not Phase" | – | TDD: RED phase |
+| [x] | T002 | **Create MANUAL-TEST-GUIDE.md** step-by-step validation guide for human orchestrator covering: workflow lifecycle, agent invocation per phase, compact between phases, session resumption, entity.toJSON() verification | 2 | Doc | T001 | /home/jak/substrate/007-manage-workflows/docs/how/dev/manual-wf-run/ENTITY-VALIDATION-GUIDE.md | Guide created with numbered steps matching scripts | – | Per DYK-05: Added ENTITY-VALIDATION-GUIDE.md to existing harness |
+| [x] | T003 | **Create expected-outputs/*.json** with JSON schemas for workflow-current.json, workflow-checkpoint.json, workflow-run.json, phase-complete.json, agent-result.json | 2 | Setup | T002 | /home/jak/substrate/007-manage-workflows/docs/how/dev/manual-wf-run/expected-outputs/*.json | 5 JSON files created with TypeScript-aligned property names | – | Aligned with WorkflowJSON, PhaseJSON, AgentResult types |
+| [x] | T004 | **Create validation scripts** for entity JSON output format verification and agent result validation | 2 | Setup | T003 | /home/jak/substrate/007-manage-workflows/docs/how/dev/manual-wf-run/*.sh | 09-validate-entity-json.sh, 10-validate-runs-commands.sh created | – | Created in T001 as part of harness extension |
+| [x] | T005 | **Write tests for PhaseService using PhaseAdapter** - prepare() returns Phase entity with full data model | 2 | Test | T004 | /home/jak/substrate/007-manage-workflows/test/unit/workflow/phase-service-entity.test.ts | Tests defined: 4 passing, 8 skipped (TDD RED) | – | TDD: RED phase - skipped tests define refactoring behavior |
 | [ ] | T006 | **Refactor PhaseService.prepare() to use PhaseAdapter** - inject IPhaseAdapter, return Phase entity, preserve CLI behavior | 3 | Core | T005 | /home/jak/substrate/007-manage-workflows/packages/workflow/src/services/phase.service.ts | Tests pass, CLI output unchanged | – | Per Critical Discovery 01 |
 | [ ] | T007 | **Refactor PhaseService.validate() to use PhaseAdapter** - return Phase entity with outputs[].exists/valid properties | 2 | Core | T006 | /home/jak/substrate/007-manage-workflows/packages/workflow/src/services/phase.service.ts | validate() returns Phase with validation state | – | – |
 | [ ] | T008 | **Refactor PhaseService.finalize() to use PhaseAdapter** - return Phase entity with outputParameters[].value | 2 | Core | T007 | /home/jak/substrate/007-manage-workflows/packages/workflow/src/services/phase.service.ts | finalize() returns Phase with outputs | – | – |
@@ -707,7 +707,11 @@ _Populated during implementation by plan-6. Log anything of interest to your fut
 
 | Date | Task | Type | Discovery | Resolution | References |
 |------|------|------|-----------|------------|------------|
-| | | | | | |
+| 2026-01-26 | T006-T012 | decision | **DYK-01: Result types vs Entity return** - Services returning Phase entities directly would lose operation-specific metadata (copiedFromPrior, extractedParams, wasNoOp flags). Result types are "operation reports", entities are "state snapshots" - architecturally distinct. | Keep current Result types, add optional `phase?: Phase` field where entity access is needed. No breaking changes, preserves operation context. | PrepareResult in command.types.ts:81-237, Phase.toJSON() in phase.ts |
+| 2026-01-26 | T006, T011 | decision | **DYK-02: Adapter injection into services** - Should IPhaseAdapter/IWorkflowAdapter be injected into services? Keeping them separate is "pure" but pragmatically limiting. | Inject adapters into services. Consistent with DI architecture, enables optional `phase?: Phase` population, avoids future refactoring. Services designed to have adapters injected. | ADR-0004, container.ts registrations |
+| 2026-01-26 | T013-T014 | insight | **DYK-03: CLI backward compat is already handled** - CLI uses OutputAdapter.format(Result), not entity.toJSON(). Entity serialization is for web/API. CLI output format controlled by adapters, not entities. | No change needed. Architecture already decouples entity serialization from CLI output formatting. | phase.command.ts:124-179, OutputAdapter pattern |
+| 2026-01-26 | T006-T012 | insight | **DYK-04: PhaseAdapter path logic works correctly** - Concern about different paths for current vs run workflows is unfounded. WorkflowAdapter sets workflowDir correctly per source type; PhaseAdapter's generic `workflowDir/phases/*` logic handles all cases. | No change needed. Path logic sound by design. | workflow.adapter.ts:loadRun(), phase.adapter.ts:listForWorkflow() |
+| 2026-01-26 | T001-T004 | decision | **DYK-05: Extend existing harness, don't create new** - Manual test infrastructure already exists at `docs/how/dev/manual-wf-run/` with 9 scripts, hello-workflow template, and exemplar run. | Extend existing manual-wf-run/ harness rather than creating new manual-test/ from scratch. Add entity JSON validation scripts to proven infrastructure. | docs/how/dev/manual-wf-run/*.sh, hello-workflow template, exemplar-run-example-001 |
 
 **Types**: `gotcha` | `research-needed` | `unexpected-behavior` | `workaround` | `decision` | `debt` | `insight`
 
@@ -750,3 +754,182 @@ docs/plans/010-entity-upgrade/
         ├── tasks.md                              # This file
         └── execution.log.md                      # Created by plan-6
 ```
+
+---
+
+## Critical Insights Discussion
+
+**Session**: 2026-01-26
+**Context**: Phase 6: Service Unification & Validation - Tasks & Alignment Brief
+**Analyst**: AI Clarity Agent
+**Reviewer**: Development Team
+**Format**: Water Cooler Conversation (5 Critical Insights)
+
+### Insight 1: Service Method Return Types - The Unified Model Question
+
+**Did you know**: Services returning Phase entities directly would lose operation-specific metadata (copiedFromPrior, extractedParams, wasNoOp flags). Result types are "operation reports", entities are "state snapshots" - architecturally distinct.
+
+**Implications**:
+- PrepareResult.copiedFromPrior tracks which files were copied THIS call - Phase has no equivalent
+- ValidateResult.check distinguishes inputs vs outputs validation - Phase only has status
+- FinalizeResult.extractedParams shows values extracted - not persisted back to Phase
+- wasNoOp flags for idempotency have no representation in Phase entity
+
+**Options Considered**:
+- Option A: Full Entity Return - Methods return Phase directly (NOT FEASIBLE - data loss)
+- Option B: Hybrid Approach - Result contains Phase entity plus operation data
+- Option C: Tactical Enhancement - Keep Result types, add optional `phase?: Phase` field
+
+**AI Recommendation**: Option C - Tactical Enhancement
+- Reasoning: Preserves valuable operation metadata, no breaking changes, clear upgrade path
+
+**Discussion Summary**: User agreed that preserving operation-specific metadata matters. Option C provides flexibility without forcing full migration.
+
+**Decision**: Keep current Result types, add optional `phase?: Phase` field where entity access is needed
+
+**Action Items**:
+- [ ] Add `phase?: Phase` optional field to PrepareResult, FinalizeResult where needed
+- [ ] Document Result types as "operation reports" vs entities as "state snapshots"
+
+**Affects**: T006-T012 (service refactors)
+
+---
+
+### Insight 2: PhaseAdapter Injection - Pragmatic DI
+
+**Did you know**: PhaseService and PhaseAdapter are intentionally decoupled in current architecture, but injecting adapters is the designed pattern for services.
+
+**Implications**:
+- Current PhaseService only takes IFileSystem, IYamlParser, ISchemaValidator
+- PhaseAdapter registered separately, never injected into service
+- Being "purist" about separation creates extra work if we ever need entity access
+- Services are designed to have adapters injected - that's the whole DI pattern
+
+**Options Considered**:
+- Option A: Inject IPhaseAdapter in constructor
+- Option B: Internal adapter creation (NOT FEASIBLE - violates DI/ADR-0004)
+- Option C: Keep services and adapters completely separate
+
+**AI Recommendation**: Option C - Keep Separation
+- Reasoning: Matches existing patterns, Single Responsibility preserved
+
+**Discussion Summary**: User correctly pointed out that services are designed to have adapters injected. Being overly purist creates unnecessary future work.
+
+**Decision**: Inject IPhaseAdapter into PhaseService (and IWorkflowAdapter into WorkflowService)
+
+**Action Items**:
+- [ ] Add IPhaseAdapter to PhaseService constructor
+- [ ] Add IWorkflowAdapter to WorkflowService constructor
+- [ ] Update DI container registrations
+- [ ] Update test container registrations with fakes
+
+**Affects**: T006, T011 (service refactors), container.ts
+
+---
+
+### Insight 3: CLI Backward Compatibility - Already Handled
+
+**Did you know**: The concern about CLI backward compatibility with entity.toJSON() is already solved by the Output Adapter pattern. CLI never calls entity.toJSON() directly.
+
+**Implications**:
+- CLI flow: Service → Result DTO → OutputAdapter.format() → console output
+- Phase.toJSON() is for web/API consumption, not CLI
+- ConsoleOutputAdapter produces human text, JsonOutputAdapter produces CommandResponse envelope
+- Changes to entity.toJSON() don't affect CLI output at all
+
+**Options Considered**:
+- Option A: CLI extracts fields from entity (NOT NEEDED)
+- Option B: Add compatibility mode to toJSON() (NOT NEEDED)
+- Option C: No change needed - architecture handles this
+
+**AI Recommendation**: Option C - No Change Needed
+- Reasoning: Architecture already decouples entity serialization from CLI output formatting
+
+**Discussion Summary**: Quick confirmation - the separation of concerns is already in place.
+
+**Decision**: No change needed. CLI backward compatibility is automatic.
+
+**Action Items**: None
+
+**Affects**: T013-T014 (confirms minimal changes needed)
+
+---
+
+### Insight 4: PhaseAdapter Path Logic - Works Correctly
+
+**Did you know**: The concern about PhaseAdapter.listForWorkflow() expecting different paths for current vs run workflows is unfounded - the path logic already works correctly.
+
+**Implications**:
+- WorkflowAdapter sets workflowDir correctly per source type
+- For runs: workflowDir = runDir itself
+- Phases always at `workflowDir/phases/{phase-name}/` regardless of source
+- PhaseAdapter's generic logic handles all cases without special handling
+
+**Options Considered**:
+- Option A: Add isRun flag checking (NOT NEEDED)
+- Option B: Service provides correct base directory (ALREADY DONE)
+- Option C: No change needed - path logic works
+
+**AI Recommendation**: Option C - No Change Needed
+- Reasoning: Path logic is sound by design
+
+**Discussion Summary**: Quick confirmation - the architecture handles this correctly.
+
+**Decision**: No change needed. Path logic is correct.
+
+**Action Items**: None
+
+**Affects**: T006-T012 (confirms no path surprises)
+
+---
+
+### Insight 5: Manual Test Harness - Infrastructure Exists
+
+**Did you know**: The manual test harness infrastructure is already largely built at `docs/how/dev/manual-wf-run/` with 9 scripts, hello-workflow template, and exemplar run?
+
+**Implications**:
+- Existing harness uses real CLI binary and real workflows
+- hello-workflow template is proven and battle-tested
+- Exemplar run at dev/examples/wf/runs/ shows complete success pattern
+- T001a (cg agent CLI) is complete - harness can invoke real agents
+
+**Options Considered**:
+- Option A: Create new harness from scratch (UNNECESSARY)
+- Option B: Extend existing manual-wf-run/ harness
+- Option C: Generate fixtures on-the-fly
+
+**AI Recommendation**: Option B - Extend Existing Harness
+- Reasoning: Don't reinvent the wheel; proven infrastructure exists
+
+**Discussion Summary**: User agreed extending existing infrastructure is more pragmatic than creating new.
+
+**Decision**: Extend existing `docs/how/dev/manual-wf-run/` harness rather than creating new `manual-test/`
+
+**Action Items**:
+- [ ] Add entity JSON validation scripts to existing manual-wf-run/ harness
+- [ ] Create expected-outputs/*.json schemas for entity validation
+- [ ] Update guide with entity validation steps
+
+**Affects**: T001-T004 (scope reduced by leveraging existing infrastructure)
+
+---
+
+## Session Summary
+
+**Insights Surfaced**: 5 critical insights identified and discussed
+**Decisions Made**: 5 decisions reached through collaborative discussion
+**Action Items Created**: 8 follow-up tasks identified
+**Areas Requiring Updates**: Tasks table may need adjustment for T001-T004 (use existing harness)
+
+**Shared Understanding Achieved**: ✓
+
+**Confidence Level**: High - Key architectural questions resolved, no blockers identified
+
+**Next Steps**:
+- Proceed with implementation starting at T001 (extend existing harness)
+- Inject adapters into services per DYK-02
+- Keep Result types with optional Phase field per DYK-01
+
+**Notes**:
+- DYK-03 and DYK-04 confirmed existing architecture is sound - no changes needed
+- DYK-05 reduces scope of T001-T004 by leveraging existing manual-wf-run/ infrastructure

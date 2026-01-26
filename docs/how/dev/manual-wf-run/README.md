@@ -144,7 +144,10 @@ sequenceDiagram
 | `06-complete-process.sh` | Validate outputs, finalize process |
 | `07-start-report.sh` | Prepare report, handover to agent |
 | `08-complete-report.sh` | Validate outputs, finalize report |
+| `09-validate-entity-json.sh` | Validate entity JSON format (Phase 6) |
+| `10-validate-runs-commands.sh` | Validate cg runs list/get (Phase 6) |
 | `check-state.sh` | Show current state of all phases |
+| `expected-outputs/*.json` | JSON schemas for entity validation |
 
 ---
 

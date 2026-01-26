@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "workflow-run",
+  "title": "Workflow Entity JSON (Run)",
+  "description": "Expected JSON structure for Workflow entity loaded from a run (isRun=true). Used by entity validation scripts.",
+  "type": "object",
+  "required": [
+    "slug",
+    "workflowDir",
+    "version",
+    "description",
+    "isCurrent",
+    "isCheckpoint",
+    "isRun",
+    "isTemplate",
+    "source",
+    "checkpoint",
+    "run",
+    "phases"
+  ],
+  "properties": {
+    "slug": {
+      "type": "string",
+      "description": "Workflow slug (directory name)"
+    },
+    "workflowDir": {
+      "type": "string",
+      "description": "Absolute path to the run directory"
+    },
+    "version": {
+      "type": "string",
+      "description": "Semantic version from wf.yaml"
+    },
+    "description": {
+      "type": ["string", "null"],
+      "description": "Optional workflow description"
+    },
+    "isCurrent": {
+      "type": "boolean",
+      "const": false,
+      "description": "Must be false for runs"
+    },
+    "isCheckpoint": {
+      "type": "boolean",
+      "const": false,
+      "description": "Must be false for runs (checkpoint metadata present but isRun takes precedence)"
+    },
+    "isRun": {
+      "type": "boolean",
+      "const": true,
+      "description": "Must be true for runs"
+    },
+    "isTemplate": {
+      "type": "boolean",
+      "const": false,
+      "description": "Must be false for runs"
+    },
+    "source": {
+      "type": "string",
+      "const": "run",
+      "description": "Source type indicator"
+    },
+    "checkpoint": {
+      "type": "object",
+      "required": ["ordinal", "hash", "createdAt", "comment"],
+      "properties": {
+        "ordinal": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "1-based version ordinal"
+        },
+        "hash": {
+          "type": "string",
+          "description": "8-character content hash prefix"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO-8601 timestamp"
+        },
+        "comment": {
+          "type": ["string", "null"],
+          "description": "Optional checkpoint comment"
+        }
+      }
+    },
+    "run": {
+      "type": "object",
+      "required": ["runId", "runDir", "status", "createdAt"],
+      "properties": {
+        "runId": {
+          "type": "string",
+          "pattern": "^run-\\d{4}-\\d{2}-\\d{2}-\\d{3}$",
+          "description": "Run identifier (e.g., run-2026-01-25-001)"
+        },
+        "runDir": {
+          "type": "string",
+          "description": "Absolute path to run directory"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "in_progress", "paused", "completed", "failed", "cancelled"],
+          "description": "Current run status"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO-8601 timestamp"
+        }
+      }
+    },
+    "phases": {
+      "type": "array",
+      "description": "Array of Phase entities (may be empty if not hydrated)"
+    }
+  }
+}

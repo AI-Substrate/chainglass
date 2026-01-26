@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "workflow-current",
+  "title": "Workflow Entity JSON (Current)",
+  "description": "Expected JSON structure for Workflow entity loaded from current/ (isCurrent=true). Used by entity validation scripts.",
+  "type": "object",
+  "required": [
+    "slug",
+    "workflowDir",
+    "version",
+    "description",
+    "isCurrent",
+    "isCheckpoint",
+    "isRun",
+    "isTemplate",
+    "source",
+    "checkpoint",
+    "run",
+    "phases"
+  ],
+  "properties": {
+    "slug": {
+      "type": "string",
+      "description": "Workflow slug (directory name)"
+    },
+    "workflowDir": {
+      "type": "string",
+      "description": "Absolute path to the current/ directory"
+    },
+    "version": {
+      "type": "string",
+      "description": "Semantic version from wf.yaml"
+    },
+    "description": {
+      "type": ["string", "null"],
+      "description": "Optional workflow description"
+    },
+    "isCurrent": {
+      "type": "boolean",
+      "const": true,
+      "description": "Must be true for current templates"
+    },
+    "isCheckpoint": {
+      "type": "boolean",
+      "const": false,
+      "description": "Must be false for current templates"
+    },
+    "isRun": {
+      "type": "boolean",
+      "const": false,
+      "description": "Must be false for current templates"
+    },
+    "isTemplate": {
+      "type": "boolean",
+      "const": true,
+      "description": "Must be true for current templates"
+    },
+    "source": {
+      "type": "string",
+      "const": "current",
+      "description": "Source type indicator"
+    },
+    "checkpoint": {
+      "type": "null",
+      "description": "Must be null for current templates"
+    },
+    "run": {
+      "type": "null",
+      "description": "Must be null for current templates"
+    },
+    "phases": {
+      "type": "array",
+      "description": "Array of Phase entities (may be empty if not hydrated)"
+    }
+  }
+}

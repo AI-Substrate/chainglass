@@ -25,12 +25,21 @@ import type {
 import type {
   AcceptOptions,
   HandoverOptions,
+  IPhaseAdapter,
   IPhaseService,
   ISchemaValidator,
   IYamlParser,
   PreflightOptions,
   ValidateCheckMode,
 } from '../interfaces/index.js';
+import type {
+  AcceptResultWithEntity,
+  FinalizeResultWithEntity,
+  HandoverResultWithEntity,
+  PreflightResultWithEntity,
+  PrepareResultWithEntity,
+  ValidateResultWithEntity,
+} from './phase-service.types.js';
 import type { PhaseRunStatus, StatusEntry, WfPhaseState, WfStatus } from '../types/index.js';
 import { extractValue } from '../utils/index.js';
 
@@ -111,12 +120,17 @@ interface PhaseDefinition {
  * - IFileSystem: File operations (read, write, copy, mkdir, exists)
  * - IYamlParser: Parse wf-phase.yaml
  * - ISchemaValidator: Validate outputs against schemas
+ * - IPhaseAdapter (optional): Load Phase entities after operations (Phase 6)
+ *
+ * Per Phase 6 / DYK-02: When IPhaseAdapter is injected, service methods will
+ * include the Phase entity in their results via the optional `phaseEntity` field.
  */
 export class PhaseService implements IPhaseService {
   constructor(
     private readonly fs: IFileSystem,
     private readonly yamlParser: IYamlParser,
-    private readonly schemaValidator: ISchemaValidator
+    private readonly schemaValidator: ISchemaValidator,
+    private readonly phaseAdapter?: IPhaseAdapter
   ) {}
 
   /**
@@ -124,8 +138,11 @@ export class PhaseService implements IPhaseService {
    *
    * Per Phase 3 spec - validates inputs, copies from_phase files,
    * resolves parameters, and transitions to 'ready' status.
+   *
+   * Per Phase 6 / DYK-02: When IPhaseAdapter is injected, includes Phase entity
+   * in result reflecting the post-prepare state.
    */
-  async prepare(phase: string, runDir: string): Promise<PrepareResult> {
+  async prepare(phase: string, runDir: string): Promise<PrepareResultWithEntity> {
     // 1. Check if phase exists
     const phaseDir = path.join(runDir, 'phases', phase);
     const phaseYamlPath = path.join(phaseDir, 'wf-phase.yaml');
@@ -261,7 +278,16 @@ export class PhaseService implements IPhaseService {
     wfStatus.phases[phase].status = 'ready';
     await this.saveWfStatus(runDir, wfStatus);
 
-    return this.createPrepareSuccessResult(phase, runDir, resolvedInputs, copiedFromPrior);
+    // 9. Load Phase entity if adapter is injected (Phase 6 / DYK-02)
+    const result = this.createPrepareSuccessResult(phase, runDir, resolvedInputs, copiedFromPrior);
+    if (this.phaseAdapter) {
+      try {
+        result.phaseEntity = await this.phaseAdapter.loadFromPath(phaseDir);
+      } catch {
+        // Entity loading failure is non-fatal - result is still valid
+      }
+    }
+    return result;
   }
 
   /**
@@ -269,8 +295,11 @@ export class PhaseService implements IPhaseService {
    *
    * Per Phase 3 spec - checks files exist, are non-empty (outputs),
    * and conform to declared schemas.
+   *
+   * Per Phase 6 / DYK-02: When IPhaseAdapter is injected, includes Phase entity
+   * in result reflecting the post-validate state.
    */
-  async validate(phase: string, runDir: string, check: ValidateCheckMode): Promise<ValidateResult> {
+  async validate(phase: string, runDir: string, check: ValidateCheckMode): Promise<ValidateResultWithEntity> {
     // 1. Check if phase exists
     const phaseDir = path.join(runDir, 'phases', phase);
     const phaseYamlPath = path.join(phaseDir, 'wf-phase.yaml');
@@ -379,13 +408,22 @@ export class PhaseService implements IPhaseService {
       }
     }
 
-    return {
+    // Load Phase entity if adapter is injected (Phase 6 / DYK-02)
+    const result: ValidateResultWithEntity = {
       phase,
       runDir,
       check,
       files: { required, validated },
       errors,
     };
+    if (this.phaseAdapter) {
+      try {
+        result.phaseEntity = await this.phaseAdapter.loadFromPath(phaseDir);
+      } catch {
+        // Entity loading failure is non-fatal - result is still valid
+      }
+    }
+    return result;
   }
 
   /**
@@ -396,8 +434,11 @@ export class PhaseService implements IPhaseService {
    *
    * Per DYK Insight #4: No status checks - just do the job every time.
    * Always re-extracts and overwrites (idempotent via same inputs → same outputs).
+   *
+   * Per Phase 6 / DYK-02: When IPhaseAdapter is injected, includes Phase entity
+   * in result reflecting the post-finalize state (complete).
    */
-  async finalize(phase: string, runDir: string): Promise<FinalizeResult> {
+  async finalize(phase: string, runDir: string): Promise<FinalizeResultWithEntity> {
     // 1. Check if phase exists
     const phaseDir = path.join(runDir, 'phases', phase);
     const phaseYamlPath = path.join(phaseDir, 'wf-phase.yaml');
@@ -505,13 +546,22 @@ export class PhaseService implements IPhaseService {
     wfStatus.phases[phase].status = 'complete';
     await this.saveWfStatus(runDir, wfStatus);
 
-    return {
+    // 7. Load Phase entity if adapter is injected (Phase 6 / DYK-02)
+    const result: FinalizeResultWithEntity = {
       phase,
       runDir,
       extractedParams,
       phaseStatus: 'complete',
       errors: [],
     };
+    if (this.phaseAdapter) {
+      try {
+        result.phaseEntity = await this.phaseAdapter.loadFromPath(phaseDir);
+      } catch {
+        // Entity loading failure is non-fatal - result is still valid
+      }
+    }
+    return result;
   }
 
   // ==================== Private Helpers ====================
@@ -634,7 +684,7 @@ export class PhaseService implements IPhaseService {
     runDir: string,
     resolved: ResolvedInput[],
     copiedFromPrior: CopiedFile[]
-  ): PrepareResult {
+  ): PrepareResultWithEntity {
     return {
       phase,
       runDir,
@@ -653,7 +703,7 @@ export class PhaseService implements IPhaseService {
     runDir: string,
     code: string,
     error: { message: string; path?: string; action?: string }
-  ): PrepareResult {
+  ): PrepareResultWithEntity {
     return {
       phase,
       runDir,
@@ -670,7 +720,7 @@ export class PhaseService implements IPhaseService {
     check: ValidateCheckMode,
     code: string,
     error: { message: string; path?: string; action?: string }
-  ): ValidateResult {
+  ): ValidateResultWithEntity {
     return {
       phase,
       runDir,
@@ -685,7 +735,7 @@ export class PhaseService implements IPhaseService {
     runDir: string,
     code: string,
     error: { message: string; path?: string; action?: string }
-  ): FinalizeResult {
+  ): FinalizeResultWithEntity {
     return {
       phase,
       runDir,
@@ -703,8 +753,11 @@ export class PhaseService implements IPhaseService {
    * Per DYK Insight #1: `from` is inferred (always 'agent' for accept).
    * Per DYK Insight #2: Lazy initialization of wf-phase.json if missing.
    * Per DYK Insight #3: Idempotent - returns wasNoOp=true if already agent.
+   *
+   * Per Phase 6 / DYK-02: When IPhaseAdapter is injected, includes Phase entity
+   * in result reflecting the post-accept state.
    */
-  async accept(phase: string, runDir: string, options?: AcceptOptions): Promise<AcceptResult> {
+  async accept(phase: string, runDir: string, options?: AcceptOptions): Promise<AcceptResultWithEntity> {
     const opts = options ?? {};
 
     // 1. Check phase exists
@@ -769,7 +822,8 @@ export class PhaseService implements IPhaseService {
     // 5. Write back
     await this.fs.writeFile(wfPhasePath, JSON.stringify(wfPhaseState, null, 2));
 
-    return {
+    // 6. Load Phase entity if adapter is injected (Phase 6 / DYK-02)
+    const result: AcceptResultWithEntity = {
       phase,
       runDir,
       facilitator: 'agent',
@@ -777,6 +831,14 @@ export class PhaseService implements IPhaseService {
       statusEntry: statusEntry as SharedStatusEntry,
       errors: [],
     };
+    if (this.phaseAdapter) {
+      try {
+        result.phaseEntity = await this.phaseAdapter.loadFromPath(phaseDir);
+      } catch {
+        // Entity loading failure is non-fatal - result is still valid
+      }
+    }
+    return result;
   }
 
   /**
@@ -785,12 +847,15 @@ export class PhaseService implements IPhaseService {
    * Per DYK Insight #1: `from` is inferred (always 'agent' for preflight).
    * Per DYK Insight #3: Returns E071 if called before accept.
    * Per DYK Insight #3: Idempotent - returns wasNoOp=true if already preflighted.
+   *
+   * Per Phase 6 / DYK-02: When IPhaseAdapter is injected, includes Phase entity
+   * in result reflecting the post-preflight state.
    */
   async preflight(
     phase: string,
     runDir: string,
     options?: PreflightOptions
-  ): Promise<PreflightResult> {
+  ): Promise<PreflightResultWithEntity> {
     const opts = options ?? {};
 
     // 1. Check phase exists
@@ -880,7 +945,8 @@ export class PhaseService implements IPhaseService {
     await this.fs.writeFile(wfPhasePath, JSON.stringify(wfPhaseState, null, 2));
 
     // 8. Return result (include validation errors if any)
-    return {
+    // 9. Load Phase entity if adapter is injected (Phase 6 / DYK-02)
+    const result: PreflightResultWithEntity = {
       phase,
       runDir,
       checks: {
@@ -901,6 +967,14 @@ export class PhaseService implements IPhaseService {
             ]
           : [],
     };
+    if (this.phaseAdapter) {
+      try {
+        result.phaseEntity = await this.phaseAdapter.loadFromPath(phaseDir);
+      } catch {
+        // Entity loading failure is non-fatal - result is still valid
+      }
+    }
+    return result;
   }
 
   /**
@@ -908,12 +982,15 @@ export class PhaseService implements IPhaseService {
    *
    * Per DYK Insight #1: `from` is inferred from current facilitator.
    * Per DYK Insight #3: Idempotent - returns wasNoOp=true if already target.
+   *
+   * Per Phase 6 / DYK-02: When IPhaseAdapter is injected, includes Phase entity
+   * in result reflecting the post-handover state.
    */
   async handover(
     phase: string,
     runDir: string,
     options?: HandoverOptions
-  ): Promise<HandoverResult> {
+  ): Promise<HandoverResultWithEntity> {
     const opts = options ?? {};
 
     // 1. Check phase exists
@@ -988,7 +1065,8 @@ export class PhaseService implements IPhaseService {
     // 7. Write back
     await this.fs.writeFile(wfPhasePath, JSON.stringify(wfPhaseState, null, 2));
 
-    return {
+    // 8. Load Phase entity if adapter is injected (Phase 6 / DYK-02)
+    const result: HandoverResultWithEntity = {
       phase,
       runDir,
       fromFacilitator,
@@ -997,6 +1075,14 @@ export class PhaseService implements IPhaseService {
       statusEntry: statusEntry as SharedStatusEntry,
       errors: [],
     };
+    if (this.phaseAdapter) {
+      try {
+        result.phaseEntity = await this.phaseAdapter.loadFromPath(phaseDir);
+      } catch {
+        // Entity loading failure is non-fatal - result is still valid
+      }
+    }
+    return result;
   }
 
   private createAcceptErrorResult(
@@ -1004,7 +1090,7 @@ export class PhaseService implements IPhaseService {
     runDir: string,
     code: string,
     error: { message: string; path?: string; action?: string }
-  ): AcceptResult {
+  ): AcceptResultWithEntity {
     const statusEntry: StatusEntry = {
       timestamp: new Date().toISOString(),
       from: 'agent',
@@ -1025,7 +1111,7 @@ export class PhaseService implements IPhaseService {
     runDir: string,
     code: string,
     error: { message: string; path?: string; action?: string }
-  ): PreflightResult {
+  ): PreflightResultWithEntity {
     const statusEntry: StatusEntry = {
       timestamp: new Date().toISOString(),
       from: 'agent',
@@ -1045,7 +1131,7 @@ export class PhaseService implements IPhaseService {
     runDir: string,
     code: string,
     error: { message: string; path?: string; action?: string }
-  ): HandoverResult {
+  ): HandoverResultWithEntity {
     const statusEntry: StatusEntry = {
       timestamp: new Date().toISOString(),
       from: 'orchestrator',

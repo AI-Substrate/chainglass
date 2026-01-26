@@ -1,0 +1,213 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "phase-complete",
+  "title": "Phase Entity JSON (Complete)",
+  "description": "Expected JSON structure for Phase entity after completion. Used by entity validation scripts.",
+  "type": "object",
+  "required": [
+    "name",
+    "phaseDir",
+    "runDir",
+    "description",
+    "order",
+    "status",
+    "facilitator",
+    "state",
+    "startedAt",
+    "completedAt",
+    "duration",
+    "isPending",
+    "isReady",
+    "isActive",
+    "isBlocked",
+    "isComplete",
+    "isFailed",
+    "isDone",
+    "inputFiles",
+    "inputParameters",
+    "inputMessages",
+    "outputs",
+    "outputParameters",
+    "statusHistory",
+    "messages"
+  ],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Phase name (directory name)"
+    },
+    "phaseDir": {
+      "type": "string",
+      "description": "Absolute path to phase directory"
+    },
+    "runDir": {
+      "type": "string",
+      "description": "Absolute path to parent run directory"
+    },
+    "description": {
+      "type": "string",
+      "description": "Phase description from wf-phase.yaml"
+    },
+    "order": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Execution order"
+    },
+    "status": {
+      "type": "string",
+      "const": "complete",
+      "description": "Must be 'complete' for completed phases"
+    },
+    "facilitator": {
+      "type": "string",
+      "enum": ["orchestrator", "agent"],
+      "description": "Who last controlled this phase"
+    },
+    "state": {
+      "type": "string",
+      "const": "complete",
+      "description": "Phase state machine position"
+    },
+    "startedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 timestamp when phase started"
+    },
+    "completedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 timestamp when phase completed"
+    },
+    "duration": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Duration in milliseconds"
+    },
+    "isPending": {
+      "type": "boolean",
+      "const": false
+    },
+    "isReady": {
+      "type": "boolean",
+      "const": false
+    },
+    "isActive": {
+      "type": "boolean",
+      "const": false
+    },
+    "isBlocked": {
+      "type": "boolean",
+      "const": false
+    },
+    "isComplete": {
+      "type": "boolean",
+      "const": true
+    },
+    "isFailed": {
+      "type": "boolean",
+      "const": false
+    },
+    "isDone": {
+      "type": "boolean",
+      "const": true
+    },
+    "inputFiles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "required", "exists", "path"],
+        "properties": {
+          "name": { "type": "string" },
+          "required": { "type": "boolean" },
+          "description": { "type": ["string", "null"] },
+          "fromPhase": { "type": ["string", "null"] },
+          "exists": { "type": "boolean" },
+          "path": { "type": "string" }
+        }
+      }
+    },
+    "inputParameters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "required"],
+        "properties": {
+          "name": { "type": "string" },
+          "required": { "type": "boolean" },
+          "description": { "type": ["string", "null"] },
+          "fromPhase": { "type": ["string", "null"] },
+          "value": {}
+        }
+      }
+    },
+    "inputMessages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "type", "from", "required", "subject", "exists", "answered"],
+        "properties": {
+          "id": { "type": "string" },
+          "type": { "type": "string", "enum": ["single_choice", "multi_choice", "free_text", "confirm"] },
+          "from": { "type": "string", "enum": ["agent", "orchestrator"] },
+          "required": { "type": "boolean" },
+          "subject": { "type": "string" },
+          "prompt": { "type": ["string", "null"] },
+          "options": { "type": ["array", "null"] },
+          "description": { "type": ["string", "null"] },
+          "exists": { "type": "boolean" },
+          "answered": { "type": "boolean" }
+        }
+      }
+    },
+    "outputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "type", "required", "exists", "valid", "path"],
+        "properties": {
+          "name": { "type": "string" },
+          "type": { "type": "string", "const": "file" },
+          "required": { "type": "boolean" },
+          "schema": { "type": ["string", "null"] },
+          "description": { "type": ["string", "null"] },
+          "exists": { "type": "boolean" },
+          "valid": { "type": "boolean" },
+          "path": { "type": "string" }
+        }
+      }
+    },
+    "outputParameters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "source", "query"],
+        "properties": {
+          "name": { "type": "string" },
+          "source": { "type": "string" },
+          "query": { "type": "string" },
+          "description": { "type": ["string", "null"] },
+          "value": {}
+        }
+      }
+    },
+    "statusHistory": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["timestamp", "from", "action"],
+        "properties": {
+          "timestamp": { "type": "string", "format": "date-time" },
+          "from": { "type": "string", "enum": ["orchestrator", "agent"] },
+          "action": { "type": "string" },
+          "messageId": { "type": ["string", "null"] },
+          "comment": { "type": ["string", "null"] },
+          "data": { "type": ["object", "null"] }
+        }
+      }
+    },
+    "messages": {
+      "type": "array",
+      "description": "Messages loaded from messages/ folder"
+    }
+  }
+}
