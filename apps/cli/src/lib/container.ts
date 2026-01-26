@@ -231,7 +231,8 @@ export function createCliProductionContainer(): DependencyContainer {
       const processManager = c.resolve<IProcessManager>(CLI_DI_TOKENS.PROCESS_MANAGER);
       const copilotClient = c.resolve<CopilotClient>(CLI_DI_TOKENS.COPILOT_CLIENT);
 
-      // Per DYK-02: Factory function for adapter selection
+      // Factory function for runtime adapter selection based on agent type.
+      // AgentService calls this factory with the user's --type flag value.
       const adapterFactory: AdapterFactory = (agentType: string): IAgentAdapter => {
         if (agentType === 'claude-code') {
           return new ClaudeCodeAdapter(processManager, { logger });

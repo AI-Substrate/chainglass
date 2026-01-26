@@ -99,7 +99,7 @@
         },
         "status": {
           "type": "string",
-          "enum": ["pending", "in_progress", "paused", "completed", "failed", "cancelled"],
+          "enum": ["pending", "active", "complete", "failed"],
           "description": "Current run status"
         },
         "createdAt": {
