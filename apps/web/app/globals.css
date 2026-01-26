@@ -133,3 +133,145 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* ============================================================
+   Container Query Utilities (Phase 6: Responsive Infrastructure)
+   ============================================================
+   CSS Container Queries allow styling based on container size
+   rather than viewport size. Progressive enhancement approach.
+   ============================================================ */
+
+/* Container query breakpoint custom properties */
+:root {
+  --cq-breakpoint-sm: 300px;
+  --cq-breakpoint-md: 500px;
+  --cq-breakpoint-lg: 768px;
+  --cq-breakpoint-xl: 1024px;
+}
+
+/* Container utility class - makes element a container query target */
+.cq-container {
+  container-type: inline-size;
+}
+
+/* Named container for specific targeting */
+.cq-container-sidebar {
+  container-type: inline-size;
+  container-name: sidebar;
+}
+
+.cq-container-main {
+  container-type: inline-size;
+  container-name: main;
+}
+
+.cq-container-card {
+  container-type: inline-size;
+  container-name: card;
+}
+
+/* Container query responsive utilities
+   Usage: Apply to children of .cq-container elements
+   Example: <div class="cq-container"><div class="cq-hide-sm">Hidden when container < 300px</div></div>
+*/
+
+/* Hide when container is smaller than breakpoint */
+@container (max-width: 299px) {
+  .cq-hide-sm {
+    display: none !important;
+  }
+}
+
+@container (max-width: 499px) {
+  .cq-hide-md {
+    display: none !important;
+  }
+}
+
+@container (max-width: 767px) {
+  .cq-hide-lg {
+    display: none !important;
+  }
+}
+
+@container (max-width: 1023px) {
+  .cq-hide-xl {
+    display: none !important;
+  }
+}
+
+/* Show only when container is at least breakpoint size */
+@container (min-width: 300px) {
+  .cq-show-sm {
+    display: block;
+  }
+}
+
+@container (min-width: 500px) {
+  .cq-show-md {
+    display: block;
+  }
+}
+
+@container (min-width: 768px) {
+  .cq-show-lg {
+    display: block;
+  }
+}
+
+@container (min-width: 1024px) {
+  .cq-show-xl {
+    display: block;
+  }
+}
+
+/* Container-based grid columns */
+@container (min-width: 500px) {
+  .cq-grid-cols-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 768px) {
+  .cq-grid-cols-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 1024px) {
+  .cq-grid-cols-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* Container-based flex direction */
+.cq-flex-col {
+  flex-direction: column;
+}
+
+@container (min-width: 500px) {
+  .cq-flex-row-md {
+    flex-direction: row;
+  }
+}
+
+@container (min-width: 768px) {
+  .cq-flex-row-lg {
+    flex-direction: row;
+  }
+}
+
+/* Container-based text size */
+@container (min-width: 500px) {
+  .cq-text-lg-md {
+    font-size: 1.125rem;
+    line-height: 1.75rem;
+  }
+}
+
+@container (min-width: 768px) {
+  .cq-text-xl-lg {
+    font-size: 1.25rem;
+    line-height: 1.75rem;
+  }
+}
