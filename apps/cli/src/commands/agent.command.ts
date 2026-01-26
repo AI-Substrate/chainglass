@@ -169,6 +169,8 @@ async function handleAgentRun(options: RunOptions): Promise<void> {
     });
 
     outputResult(result);
+    // Force exit: CopilotClient keeps event loop open via SDK connection
+    process.exit(result.status === 'completed' ? 0 : 1);
   } catch (error) {
     outputError(error instanceof Error ? error.message : String(error));
     process.exit(1);
@@ -190,6 +192,8 @@ async function handleAgentCompact(options: CompactOptions): Promise<void> {
     const result = await service.compact(options.session, agentType);
 
     outputResult(result);
+    // Force exit: CopilotClient keeps event loop open via SDK connection
+    process.exit(result.status === 'completed' ? 0 : 1);
   } catch (error) {
     outputError(error instanceof Error ? error.message : String(error));
     process.exit(1);
