@@ -142,9 +142,9 @@ export async function POST(request: NextRequest): Promise<Response> {
     }
 
     // Check for Zod validation errors (use name check for cross-module compatibility)
-    const isZodError = error instanceof Error && error.name === 'ZodError' && 'errors' in error;
+    const isZodError = error instanceof Error && error.name === 'ZodError' && 'issues' in error;
     const message = isZodError
-      ? (error as z.ZodError).errors.map((e) => e.message).join(', ')
+      ? (error as unknown as z.ZodError).issues.map((e) => e.message).join(', ')
       : 'Invalid request body';
 
     return Response.json({ error: message }, { status: 400 });

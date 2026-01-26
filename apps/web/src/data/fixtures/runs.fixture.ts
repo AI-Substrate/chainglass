@@ -63,7 +63,8 @@ export function createRunSummary(workflow: WorkflowJSON, runMeta: RunMetadataJSO
     completedAt: runMeta.completedAt,
     duration: runMeta.duration,
     currentPhase: currentPhase?.name ?? null,
-    currentPhaseStatus: currentPhase?.status ?? null,
+    // Safe cast: blockedPhase/activePhase lookups filter by run statuses, never 'defined'
+    currentPhaseStatus: (currentPhase?.status as PhaseRunStatus) ?? null,
     totalPhases: workflow.phases.length,
     completedPhases,
     hasBlockedPhase: !!blockedPhase,
