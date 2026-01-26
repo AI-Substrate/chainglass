@@ -28,13 +28,17 @@ import {
   WORKFLOW_DI_TOKENS,
 } from '@chainglass/shared';
 import {
+  FakePhaseAdapter,
   FakePhaseService,
   FakeSchemaValidator,
+  FakeWorkflowAdapter,
   FakeWorkflowRegistry,
   FakeWorkflowService,
   FakeYamlParser,
+  type IPhaseAdapter,
   type IPhaseService,
   type ISchemaValidator,
+  type IWorkflowAdapter,
   type IWorkflowRegistry,
   type IWorkflowService,
   type IYamlParser,
@@ -215,6 +219,18 @@ export function createCliTestContainer(): DependencyContainer {
   });
   childContainer.register<IOutputAdapter>(CLI_DI_TOKENS.OUTPUT_ADAPTER_CONSOLE, {
     useValue: fakeOutputAdapter,
+  });
+
+  // Register fake workflow adapter (per Plan 010: Entity Upgrade Phase 2)
+  const fakeWorkflowAdapter = new FakeWorkflowAdapter();
+  childContainer.register<IWorkflowAdapter>(WORKFLOW_DI_TOKENS.WORKFLOW_ADAPTER, {
+    useValue: fakeWorkflowAdapter,
+  });
+
+  // Register fake phase adapter (per Plan 010: Entity Upgrade Phase 2)
+  const fakePhaseAdapter = new FakePhaseAdapter();
+  childContainer.register<IPhaseAdapter>(WORKFLOW_DI_TOKENS.PHASE_ADAPTER, {
+    useValue: fakePhaseAdapter,
   });
 
   return childContainer;

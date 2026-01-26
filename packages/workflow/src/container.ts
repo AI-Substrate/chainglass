@@ -24,14 +24,18 @@ import {
 import { type DependencyContainer, container } from 'tsyringe';
 import { SchemaValidatorAdapter } from './adapters/schema-validator.adapter.js';
 import { YamlParserAdapter } from './adapters/yaml-parser.adapter.js';
+import { FakePhaseAdapter } from './fakes/fake-phase-adapter.js';
 import { FakePhaseService } from './fakes/fake-phase-service.js';
 import { FakeSchemaValidator } from './fakes/fake-schema-validator.js';
+import { FakeWorkflowAdapter } from './fakes/fake-workflow-adapter.js';
 import { FakeWorkflowRegistry } from './fakes/fake-workflow-registry.js';
 import { FakeWorkflowService } from './fakes/fake-workflow-service.js';
 import { FakeYamlParser } from './fakes/fake-yaml-parser.js';
 import type {
+  IPhaseAdapter,
   IPhaseService,
   ISchemaValidator,
+  IWorkflowAdapter,
   IWorkflowRegistry,
   IWorkflowService,
   IYamlParser,
@@ -169,6 +173,20 @@ export function createWorkflowTestContainer(): DependencyContainer {
   const fakeWorkflowRegistry = new FakeWorkflowRegistry();
   childContainer.register<IWorkflowRegistry>(WORKFLOW_DI_TOKENS.WORKFLOW_REGISTRY, {
     useValue: fakeWorkflowRegistry,
+  });
+
+  // Register fake workflow adapter (per Plan 010: Entity Upgrade Phase 2)
+  // Note: Unit tests typically instantiate FakeWorkflowAdapter directly for fine-grained control.
+  // Container registration is for integration tests and CLI testing where DI is used.
+  const fakeWorkflowAdapter = new FakeWorkflowAdapter();
+  childContainer.register<IWorkflowAdapter>(WORKFLOW_DI_TOKENS.WORKFLOW_ADAPTER, {
+    useValue: fakeWorkflowAdapter,
+  });
+
+  // Register fake phase adapter (per Plan 010: Entity Upgrade Phase 2)
+  const fakePhaseAdapter = new FakePhaseAdapter();
+  childContainer.register<IPhaseAdapter>(WORKFLOW_DI_TOKENS.PHASE_ADAPTER, {
+    useValue: fakePhaseAdapter,
   });
 
   return childContainer;

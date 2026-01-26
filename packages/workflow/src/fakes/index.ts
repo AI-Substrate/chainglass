@@ -29,3 +29,14 @@ export type {
   IsInitializedCall,
   GetInitializationStatusCall,
 } from './fake-init-service.js';
+export { FakeWorkflowAdapter } from './fake-workflow-adapter.js';
+export type {
+  LoadCurrentCall,
+  LoadCheckpointCall,
+  LoadRunCall,
+  ListCheckpointsCall,
+  ListRunsCall,
+  ExistsCall,
+} from './fake-workflow-adapter.js';
+export { FakePhaseAdapter } from './fake-phase-adapter.js';
+export type { LoadFromPathCall, ListForWorkflowCall } from './fake-phase-adapter.js';

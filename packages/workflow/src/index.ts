@@ -126,6 +126,17 @@ export type {
   IsInitializedCall,
   GetInitializationStatusCall,
 } from './fakes/index.js';
+export { FakeWorkflowAdapter } from './fakes/index.js';
+export type {
+  LoadCurrentCall,
+  LoadCheckpointCall,
+  LoadRunCall,
+  ListCheckpointsCall,
+  ListRunsCall,
+  ExistsCall,
+} from './fakes/index.js';
+export { FakePhaseAdapter } from './fakes/index.js';
+export type { LoadFromPathCall, ListForWorkflowCall } from './fakes/index.js';
 
 // Services (Phase 2)
 export { WorkflowService, ComposeErrorCodes } from './services/index.js';
