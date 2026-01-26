@@ -19,7 +19,12 @@ import { cn } from '@/lib/utils';
 import { Bot, User } from 'lucide-react';
 
 export interface LogEntryProps {
-  /** Message role (renamed from 'role' to avoid collision with HTML role attribute) */
+  /**
+   * Message role in the conversation.
+   *
+   * Note: Intentionally named `messageRole` instead of `role` to avoid collision
+   * with the HTML `role` attribute when props are spread onto DOM elements.
+   */
   messageRole: 'user' | 'assistant' | 'system';
   /** Message content */
   content: string;

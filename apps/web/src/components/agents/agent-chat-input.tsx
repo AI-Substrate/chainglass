@@ -135,7 +135,7 @@ export function AgentChatInput({
         </p>
       )}
 
-      {/* Keyboard hint */}
+      {/* Keyboard hint - navigator.platform is deprecated but userAgentData isn't widely supported */}
       <div className="flex items-center text-[10px] text-muted-foreground">
         <span className="flex items-center gap-1">
           <kbd className="px-1 py-0.5 rounded bg-muted border font-mono">
