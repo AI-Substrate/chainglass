@@ -114,11 +114,11 @@ flowchart TD
         direction TB
 
         subgraph Schemas["Schemas"]
-            T001["T001: Session schema tests"]:::pending
-            T002["T002: Session schema impl"]:::pending
-            T003["T003: Agent event tests"]:::pending
-            T004["T004: Agent event impl"]:::pending
-            T005["T005: SSE contract test"]:::pending
+            T001["T001: Session schema tests ✓"]:::completed
+            T002["T002: Session schema impl ✓"]:::completed
+            T003["T003: Agent event tests ✓"]:::completed
+            T004["T004: Agent event impl ✓"]:::completed
+            T005["T005: SSE contract test ✓"]:::completed
 
             T001 --> T002
             T003 --> T004
@@ -126,38 +126,38 @@ flowchart TD
         end
 
         subgraph Store["Session Store"]
-            T006["T006: Store tests"]:::pending
-            T007["T007: Store impl"]:::pending
+            T006["T006: Store tests ✓"]:::completed
+            T007["T007: Store impl ✓"]:::completed
 
             T002 --> T006
             T006 --> T007
         end
 
         subgraph DI["DI Container"]
-            T008["T008: DI tests"]:::pending
-            T009["T009: DI impl"]:::pending
+            T008["T008: DI tests ✓"]:::completed
+            T009["T009: DI impl ✓"]:::completed
 
             T007 --> T008
             T008 --> T009
         end
 
         subgraph Tests["Verification"]
-            T010["T010: Verify fakes"]:::pending
+            T010["T010: Verify fakes ✓"]:::completed
         end
     end
 
     subgraph Files["Files"]
-        F1["/apps/web/src/lib/schemas/agent-session.schema.ts"]:::pending
-        F2["/apps/web/src/lib/schemas/agent-events.schema.ts"]:::pending
-        F3["/apps/web/src/lib/schemas/sse-events.schema.ts"]:::pending
-        F4["/apps/web/src/lib/stores/agent-session.store.ts"]:::pending
-        F5["/apps/web/src/lib/di-container.ts"]:::pending
-        F6["/test/unit/web/schemas/agent-session.schema.test.ts"]:::pending
-        F7["/test/unit/web/schemas/agent-events.schema.test.ts"]:::pending
-        F8["/test/contracts/sse-events.contract.test.ts"]:::pending
-        F9["/test/unit/web/stores/agent-session.store.test.ts"]:::pending
-        F10["/test/unit/web/di-container.test.ts"]:::pending
-        F11["/test/fakes/fake-resize-observer.ts"]:::pending
+        F1["/apps/web/src/lib/schemas/agent-session.schema.ts ✓"]:::completed
+        F2["/apps/web/src/lib/schemas/agent-events.schema.ts ✓"]:::completed
+        F3["/apps/web/src/lib/schemas/sse-events.schema.ts ✓"]:::completed
+        F4["/apps/web/src/lib/stores/agent-session.store.ts ✓"]:::completed
+        F5["/apps/web/src/lib/di-container.ts ✓"]:::completed
+        F6["/test/unit/web/schemas/agent-session.schema.test.ts ✓"]:::completed
+        F7["/test/unit/web/schemas/agent-events.schema.test.ts ✓"]:::completed
+        F8["/test/contracts/sse-events.contract.test.ts ✓"]:::completed
+        F9["/test/unit/web/stores/agent-session.store.test.ts ✓"]:::completed
+        F10["/test/unit/web/di-container.test.ts ✓"]:::completed
+        F11["/test/fakes/fake-resize-observer.ts ✓"]:::completed
     end
 
     T002 -.-> F1
@@ -179,16 +179,16 @@ flowchart TD
 
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
-| T001 | Session Schema Tests | `/test/unit/web/schemas/agent-session.schema.test.ts` | ⬜ Pending | TDD: Write failing tests first |
-| T002 | AgentSessionSchema | `/apps/web/src/lib/schemas/agent-session.schema.ts` | ⬜ Pending | Implement to pass T001 tests |
-| T003 | Agent Event Tests | `/test/unit/web/schemas/agent-events.schema.test.ts` | ⬜ Pending | TDD: Write failing tests first |
-| T004 | AgentEventSchema | `/apps/web/src/lib/schemas/agent-events.schema.ts`, extend `/apps/web/src/lib/schemas/sse-events.schema.ts` | ⬜ Pending | Additive extension per CF-03 |
-| T005 | SSE Contract Test | `/test/contracts/sse-events.contract.test.ts` | ⬜ Pending | Verify backward compatibility |
-| T006 | Store Tests | `/test/unit/web/stores/agent-session.store.test.ts` | ⬜ Pending | TDD: Uses FakeLocalStorage |
-| T007 | AgentSessionStore | `/apps/web/src/lib/stores/agent-session.store.ts` | ⬜ Pending | Two-pass hydration, pruning |
-| T008 | DI Tests | `/test/unit/web/di-container.test.ts` | ⬜ Pending | Token registration tests |
-| T009 | DI Container | `/apps/web/src/lib/di-container.ts` | ⬜ Pending | Add session tokens |
-| T010 | Fakes Verification | `/test/fakes/fake-resize-observer.ts` | ⬜ Pending | Verify exists and works |
+| T001 | Session Schema Tests | `/test/unit/web/schemas/agent-session.schema.test.ts` | ✅ Complete | TDD RED phase complete |
+| T002 | AgentSessionSchema | `/apps/web/src/lib/schemas/agent-session.schema.ts` | ✅ Complete | TDD GREEN phase complete |
+| T003 | Agent Event Tests | `/test/unit/web/schemas/agent-events.schema.test.ts` | ✅ Complete | TDD RED phase complete |
+| T004 | AgentEventSchema | `/apps/web/src/lib/schemas/agent-events.schema.ts`, extend `/apps/web/src/lib/schemas/sse-events.schema.ts` | ✅ Complete | Additive extension per CF-03 |
+| T005 | SSE Contract Test | `/test/contracts/sse-events.contract.test.ts` | ✅ Complete | Backward compatibility verified |
+| T006 | Store Tests | `/test/unit/web/stores/agent-session.store.test.ts` | ✅ Complete | TDD RED phase complete |
+| T007 | AgentSessionStore | `/apps/web/src/lib/stores/agent-session.store.ts` | ✅ Complete | Two-pass hydration, pruning |
+| T008 | DI Tests | `/test/unit/web/di-container.test.ts` | ✅ Complete | TDD RED phase complete |
+| T009 | DI Container | `/apps/web/src/lib/di-container.ts` | ✅ Complete | SESSION_STORE token added |
+| T010 | Fakes Verification | `/test/fakes/fake-resize-observer.ts` | ✅ Complete | Verified exists and works |
 
 ---
 
@@ -196,16 +196,16 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|------|------|----|------|--------------|------------------|------------|----------|-------|
-| [ ] | T001 | Write tests for `AgentSessionSchema` Zod validation | 2 | Test | – | `/home/jak/substrate/007-manage-workflows/test/unit/web/schemas/agent-session.schema.test.ts` | Tests cover: valid session, missing fields, invalid status enum, invalid agentType, message array validation, timestamp fields | – | Plan task 1.1; TDD RED phase |
-| [ ] | T002 | Implement `AgentSessionSchema` and related schemas | 2 | Core | T001 | `/home/jak/substrate/007-manage-workflows/apps/web/src/lib/schemas/agent-session.schema.ts` | All T001 tests pass; exports AgentSessionSchema, AgentMessageSchema, SessionStatusSchema, AgentTypeSchema | – | Plan task 1.2; TDD GREEN phase |
-| [ ] | T003 | Write tests for `AgentEventSchema` SSE extension | 2 | Test | – | `/home/jak/substrate/007-manage-workflows/test/unit/web/schemas/agent-events.schema.test.ts` | Tests cover: agent_text_delta, agent_session_status, agent_usage_update, agent_error events; validates all required fields | – | Plan task 1.3; TDD RED phase |
-| [ ] | T004 | Implement `AgentEventSchema` (additive to existing SSE schema) | 2 | Core | T003 | `/home/jak/substrate/007-manage-workflows/apps/web/src/lib/schemas/agent-events.schema.ts`, `/home/jak/substrate/007-manage-workflows/apps/web/src/lib/schemas/sse-events.schema.ts` | All T003 tests pass; new types appended to sseEventSchema discriminated union; existing event exports unchanged | – | Plan task 1.4; Per CF-03: additive only; Pattern: define schemas in agent-events.schema.ts, import into sse-events.schema.ts and add to union |
-| [ ] | T005 | Write contract test: existing SSE events still parse | 1 | Test | T004 | `/home/jak/substrate/007-manage-workflows/test/contracts/sse-events.contract.test.ts` | Contract test verifies all 7 existing event types (workflow_status, task_update, heartbeat, run_status, phase_status, question, answer) parse correctly with extended schema | – | Plan task 1.5; Backward compatibility gate |
-| [ ] | T006 | Write tests for session store (localStorage) | 3 | Test | T002 | `/home/jak/substrate/007-manage-workflows/test/unit/web/stores/agent-session.store.test.ts` | Tests cover: save/load roundtrip, two-pass hydration, message pruning at 1000, corrupted JSON recovery, getSession/getAllSessions/deleteSession | – | Plan task 1.6; Uses FakeLocalStorage via direct instantiation (per DYK #4); Quota errors: simple try/catch in impl, no simulation testing (YAGNI) |
-| [ ] | T007 | Implement `AgentSessionStore` class | 3 | Core | T006 | `/home/jak/substrate/007-manage-workflows/apps/web/src/lib/stores/agent-session.store.ts` | All T006 tests pass; implements two-pass hydration per CF-02; prunes messages >1000 per CF-06 | – | Plan task 1.7; Per CF-02, CF-06; Per DYK #5: use constant for 1000 limit, not config |
-| [ ] | T008 | Write tests for DI container extensions | 2 | Test | T007 | `/home/jak/substrate/007-manage-workflows/test/unit/web/di-container.test.ts` | Tests cover: SESSION_STORE token registration, factory resolution in prod and test containers, test container returns FakeLocalStorage-backed store | – | Plan task 1.8; Per DYK #1: verify resolve() succeeds, don't assume |
-| [ ] | T009 | Extend DI container with agent session tokens | 2 | Core | T008 | `/home/jak/substrate/007-manage-workflows/apps/web/src/lib/di-container.ts` | All T008 tests pass; DI_TOKENS includes SESSION_STORE; createProductionContainer and createTestContainer register appropriate implementations | – | Plan task 1.9 |
-| [ ] | T010 | Verify `FakeResizeObserver` exists and works | 1 | Setup | – | `/home/jak/substrate/007-manage-workflows/test/fakes/fake-resize-observer.ts` | File exists; exports FakeResizeObserver class; implements ResizeObserver interface with observe/unobserve/disconnect methods | – | Plan task 1.10; Already exists per Glob |
+| [x] | T001 | Write tests for `AgentSessionSchema` Zod validation | 2 | Test | – | `/home/jak/substrate/007-manage-workflows/test/unit/web/schemas/agent-session.schema.test.ts` | Tests cover: valid session, missing fields, invalid status enum, invalid agentType, message array validation, timestamp fields | – | Plan task 1.1; TDD RED phase |
+| [x] | T002 | Implement `AgentSessionSchema` and related schemas | 2 | Core | T001 | `/home/jak/substrate/007-manage-workflows/apps/web/src/lib/schemas/agent-session.schema.ts` | All T001 tests pass; exports AgentSessionSchema, AgentMessageSchema, SessionStatusSchema, AgentTypeSchema | – | Plan task 1.2; TDD GREEN phase |
+| [x] | T003 | Write tests for `AgentEventSchema` SSE extension | 2 | Test | – | `/home/jak/substrate/007-manage-workflows/test/unit/web/schemas/agent-events.schema.test.ts` | Tests cover: agent_text_delta, agent_session_status, agent_usage_update, agent_error events; validates all required fields | – | Plan task 1.3; TDD RED phase |
+| [x] | T004 | Implement `AgentEventSchema` (additive to existing SSE schema) | 2 | Core | T003 | `/home/jak/substrate/007-manage-workflows/apps/web/src/lib/schemas/agent-events.schema.ts`, `/home/jak/substrate/007-manage-workflows/apps/web/src/lib/schemas/sse-events.schema.ts` | All T003 tests pass; new types appended to sseEventSchema discriminated union; existing event exports unchanged | – | Plan task 1.4; Per CF-03: additive only; Pattern: define schemas in agent-events.schema.ts, import into sse-events.schema.ts and add to union |
+| [x] | T005 | Write contract test: existing SSE events still parse | 1 | Test | T004 | `/home/jak/substrate/007-manage-workflows/test/contracts/sse-events.contract.test.ts` | Contract test verifies all 7 existing event types (workflow_status, task_update, heartbeat, run_status, phase_status, question, answer) parse correctly with extended schema | – | Plan task 1.5; Backward compatibility gate |
+| [x] | T006 | Write tests for session store (localStorage) | 3 | Test | T002 | `/home/jak/substrate/007-manage-workflows/test/unit/web/stores/agent-session.store.test.ts` | Tests cover: save/load roundtrip, two-pass hydration, message pruning at 1000, corrupted JSON recovery, getSession/getAllSessions/deleteSession | – | Plan task 1.6; Uses FakeLocalStorage via direct instantiation (per DYK #4); Quota errors: simple try/catch in impl, no simulation testing (YAGNI) |
+| [x] | T007 | Implement `AgentSessionStore` class | 3 | Core | T006 | `/home/jak/substrate/007-manage-workflows/apps/web/src/lib/stores/agent-session.store.ts` | All T006 tests pass; implements two-pass hydration per CF-02; prunes messages >1000 per CF-06 | – | Plan task 1.7; Per CF-02, CF-06; Per DYK #5: use constant for 1000 limit, not config |
+| [x] | T008 | Write tests for DI container extensions | 2 | Test | T007 | `/home/jak/substrate/007-manage-workflows/test/unit/web/di-container.test.ts` | Tests cover: SESSION_STORE token registration, factory resolution in prod and test containers, test container returns FakeLocalStorage-backed store | – | Plan task 1.8; Per DYK #1: verify resolve() succeeds, don't assume |
+| [x] | T009 | Extend DI container with agent session tokens | 2 | Core | T008 | `/home/jak/substrate/007-manage-workflows/apps/web/src/lib/di-container.ts` | All T008 tests pass; DI_TOKENS includes SESSION_STORE; createProductionContainer and createTestContainer register appropriate implementations | – | Plan task 1.9 |
+| [x] | T010 | Verify `FakeResizeObserver` exists and works | 1 | Setup | – | `/home/jak/substrate/007-manage-workflows/test/fakes/fake-resize-observer.ts` | File exists; exports FakeResizeObserver class; implements ResizeObserver interface with observe/unobserve/disconnect methods | – | Plan task 1.10; Already exists per Glob |
 
 ---
 
@@ -505,17 +505,17 @@ pnpm typecheck
 
 ### Ready Check
 
-- [ ] Spec reviewed: Goals, Non-Goals, Testing Strategy understood
-- [ ] Plan Phase 1 tasks mapped to T001-T010
-- [ ] Critical Findings CF-02, CF-03, HF-05, HF-06 incorporated
-- [ ] ADR-0004 DI patterns will be followed (useFactory)
-- [ ] FakeLocalStorage and FakeEventSource available in `test/fakes/`
-- [ ] Existing SSE schema structure understood (7 event types)
-- [ ] Commands documented for all quality gates
-- [ ] Test Doc format will be used in all tests
-- [ ] Prior Learnings from Plan 010 subtask reviewed (DYK #1, #4, #5)
+- [x] Spec reviewed: Goals, Non-Goals, Testing Strategy understood
+- [x] Plan Phase 1 tasks mapped to T001-T010
+- [x] Critical Findings CF-02, CF-03, HF-05, HF-06 incorporated
+- [x] ADR-0004 DI patterns will be followed (useFactory)
+- [x] FakeLocalStorage and FakeEventSource available in `test/fakes/`
+- [x] Existing SSE schema structure understood (7 event types)
+- [x] Commands documented for all quality gates
+- [x] Test Doc format will be used in all tests
+- [x] Prior Learnings from Plan 010 subtask reviewed (DYK #1, #4, #5)
 
-**Awaiting explicit GO/NO-GO before implementation.**
+**Phase 1 Implementation: ✅ COMPLETE**
 
 ---
 
@@ -545,7 +545,7 @@ _Populated during implementation by plan-6. Log anything of interest to your fut
 
 | Date | Task | Type | Discovery | Resolution | References |
 |------|------|------|-----------|------------|------------|
-| | | | | | |
+| 2026-01-26 | T009 | gotcha | Node.js defines `globalThis.localStorage` as empty object without methods | Check for `typeof localStorage.getItem === 'function'` not just truthy | log#task-t009 |
 
 **Types**: `gotcha` | `research-needed` | `unexpected-behavior` | `workaround` | `decision` | `debt` | `insight`
 
@@ -583,7 +583,9 @@ docs/plans/012-web-agents/
 
 **Dossier Created**: 2026-01-26
 **Phase**: 1 of 5 (Foundation)
-**Next Step**: Await GO approval, then run `/plan-6-implement-phase --phase "Phase 1: Foundation" --plan "/home/jak/substrate/007-manage-workflows/docs/plans/012-web-agents/web-agents-plan.md"`
+**Phase Status**: ✅ COMPLETE
+**Implementation Date**: 2026-01-26
+**Next Step**: Run `/plan-7-code-review --phase "Phase 1: Foundation" --plan "/home/jak/substrate/007-manage-workflows/docs/plans/012-web-agents/web-agents-plan.md"`
 
 ---
 

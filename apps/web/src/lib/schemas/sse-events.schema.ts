@@ -5,8 +5,12 @@
  * Used by SSEManager for validation and type inference.
  *
  * Extended for Plan 011 with run/phase/question event types.
+ * Extended for Plan 012 with agent streaming event types.
  */
 import { z } from 'zod';
+
+// Import agent event schemas for union extension (Plan 012)
+import { agentEventSchemas } from './agent-events.schema';
 
 // Base event structure (all events share these fields)
 const baseEventSchema = z.object({
@@ -115,14 +119,19 @@ const answerEventSchema = baseEventSchema.extend({
 // ============ Discriminated Union ============
 
 // Discriminated union of all event types
+// Per CF-03: Agent events APPENDED at end (additive only, never remove/rename existing)
 export const sseEventSchema = z.discriminatedUnion('type', [
+  // Original event types (do not modify)
   workflowStatusEventSchema,
   taskUpdateEventSchema,
   heartbeatEventSchema,
+  // Plan 011 event types (do not modify)
   runStatusEventSchema,
   phaseStatusEventSchema,
   questionEventSchema,
   answerEventSchema,
+  // Plan 012: Agent streaming events (appended)
+  ...agentEventSchemas,
 ]);
 
 // ============ Export Types ============
@@ -138,3 +147,13 @@ export type AnswerEvent = z.infer<typeof answerEventSchema>;
 export type PhaseRunStatus = z.infer<typeof phaseRunStatusSchema>;
 export type RunStatus = z.infer<typeof runStatusSchema>;
 export type QuestionType = z.infer<typeof questionTypeSchema>;
+
+// Re-export agent event types for convenience
+export type {
+  AgentErrorEvent,
+  AgentEvent,
+  AgentSessionStatusEvent,
+  AgentSessionStatusType,
+  AgentTextDeltaEvent,
+  AgentUsageUpdateEvent,
+} from './agent-events.schema';

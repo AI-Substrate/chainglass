@@ -917,7 +917,7 @@ describe('Agent Session E2E', () => {
 
 ### Phase Completion Checklist
 
-- [ ] Phase 1: Foundation - PENDING
+- [x] Phase 1: Foundation - COMPLETE (2026-01-26)
 - [ ] Phase 2: Core Chat - PENDING
 - [ ] Phase 3: Multi-Session - PENDING
 - [ ] Phase 4: Polish - PENDING
@@ -933,7 +933,7 @@ describe('Agent Session E2E', () => {
 - Source notation legend added
 - Test examples use fakes (not vi.fn())
 
-**Next Step**: Run `/plan-5-phase-tasks-and-brief` to generate Phase 1 task dossier
+**Next Step**: Run `/plan-5-phase-tasks-and-brief --phase "Phase 2: Core Chat"` to generate Phase 2 task dossier
 
 ---
 
@@ -954,4 +954,4 @@ describe('Agent Session E2E', () => {
 
 **Plan Created**: 2026-01-26
 **Plan Validated**: 2026-01-26 (v1.1.0 - fixes applied for HIGH violations)
-**Next Step**: Run `/plan-5-phase-tasks-and-brief` to generate Phase 1 task dossier
+**Next Step**: Run `/plan-5-phase-tasks-and-brief --phase "Phase 2: Core Chat"` to generate Phase 2 task dossier
