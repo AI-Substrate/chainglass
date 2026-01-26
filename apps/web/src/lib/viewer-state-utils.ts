@@ -44,7 +44,7 @@ export function createViewerStateBase(file: ViewerFile | undefined): ViewerState
     };
   }
 
-  // Deep clone to prevent mutating original (per useBoardState pattern)
+  // Shallow clone to prevent mutating original (safe since ViewerFile has primitive properties)
   const clonedFile: ViewerFile = {
     path: file.path,
     filename: file.filename,

@@ -19,7 +19,7 @@ import { useResponsive } from '@/hooks/useResponsive';
  * @see Phase 7: Mobile Templates & Documentation
  */
 export function NavigationWrapper({ children }: { children: ReactNode }) {
-  const { useMobilePatterns, deviceType } = useResponsive();
+  const { useMobilePatterns } = useResponsive();
 
   // During SSR or hydration (deviceType undefined), default to desktop layout
   // This matches the server snapshot which defaults to isDesktop: true
