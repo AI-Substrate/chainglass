@@ -83,6 +83,9 @@ export function AgentListView({
                   >
                     {session.name}
                   </p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {session.agentType === 'claude-code' ? 'Claude Code' : 'GitHub Copilot'}
+                  </p>
                 </div>
                 <AgentStatusIndicator status={session.status} className="shrink-0" />
               </div>

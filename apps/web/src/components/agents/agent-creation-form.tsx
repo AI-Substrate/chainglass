@@ -19,6 +19,8 @@ import { type ChangeEvent, type FormEvent, useCallback, useState } from 'react';
 export interface AgentCreationFormProps {
   /** Callback when form is submitted */
   onCreate: (name: string, agentType: AgentType) => void;
+  /** Current number of sessions (for auto-generating ordinal names) */
+  sessionCount?: number;
   /** Additional CSS classes */
   className?: string;
 }
@@ -39,20 +41,13 @@ const AGENT_TYPE_OPTIONS: Array<{ value: AgentType; label: string }> = [
  *   }}
  * />
  */
-export function AgentCreationForm({ onCreate, className }: AgentCreationFormProps) {
+export function AgentCreationForm({ onCreate, sessionCount = 0, className }: AgentCreationFormProps) {
   const [name, setName] = useState('');
   const [agentType, setAgentType] = useState<AgentType>('claude-code');
-  const [error, setError] = useState<string | null>(null);
 
-  const handleNameChange = useCallback(
-    (e: ChangeEvent<HTMLInputElement>) => {
-      setName(e.target.value);
-      if (error) {
-        setError(null);
-      }
-    },
-    [error]
-  );
+  const handleNameChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
+    setName(e.target.value);
+  }, []);
 
   const handleTypeChange = useCallback((e: ChangeEvent<HTMLSelectElement>) => {
     setAgentType(e.target.value as AgentType);
@@ -63,16 +58,13 @@ export function AgentCreationForm({ onCreate, className }: AgentCreationFormProp
       e.preventDefault();
 
       const trimmed = name.trim();
-      if (!trimmed) {
-        setError('Please enter a session name');
-        return;
-      }
+      // Auto-generate ordinal name if empty
+      const finalName = trimmed || `Session ${sessionCount + 1}`;
 
-      onCreate(trimmed, agentType);
+      onCreate(finalName, agentType);
       setName('');
-      setError(null);
     },
-    [name, agentType, onCreate]
+    [name, agentType, onCreate, sessionCount]
   );
 
   return (
@@ -86,12 +78,11 @@ export function AgentCreationForm({ onCreate, className }: AgentCreationFormProp
           type="text"
           value={name}
           onChange={handleNameChange}
-          placeholder="My Agent Session"
+          placeholder="Session name (optional)"
           className={cn(
             'w-full px-3 py-2 text-sm rounded-md border',
             'bg-background',
-            'focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500',
-            error && 'border-red-500'
+            'focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500'
           )}
         />
       </div>
@@ -117,12 +108,6 @@ export function AgentCreationForm({ onCreate, className }: AgentCreationFormProp
           ))}
         </select>
       </div>
-
-      {error && (
-        <p role="alert" className="text-sm text-red-500">
-          {error}
-        </p>
-      )}
 
       <button
         type="submit"

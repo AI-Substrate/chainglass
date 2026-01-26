@@ -32,9 +32,9 @@ import {
 // Phase 4: Import CopilotClient from SDK for production adapter
 import { CopilotClient } from '@github/copilot-sdk';
 import { type DependencyContainer, container } from 'tsyringe';
-import { SampleService } from '../services/sample.service.js';
+import { SampleService } from '../services/sample.service';
 // Plan 012: Session persistence
-import { AgentSessionStore } from './stores/agent-session.store.js';
+import { AgentSessionStore } from './stores/agent-session.store';
 
 /**
  * Creates an in-memory storage implementation for SSR/test environments.

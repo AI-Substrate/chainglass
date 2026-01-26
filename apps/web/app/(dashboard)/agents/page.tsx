@@ -3,10 +3,10 @@
 /**
  * Standalone Agents Page
  *
- * Main page for agent interaction - displays:
- * - Agent creation form
- * - List of sessions
- * - Chat view for selected session
+ * Architecture:
+ * - Single SSE channel ('agents') for all agent events
+ * - Centralized sessions state with per-session messages
+ * - Events routed to correct session by sessionId
  *
  * Part of Plan 012: Multi-Agent Web UI (Phase 2: Core Chat)
  */
@@ -17,11 +17,19 @@ import { AgentListView } from '@/components/agents/agent-list-view';
 import { AgentStatusIndicator } from '@/components/agents/agent-status-indicator';
 import { ContextWindowDisplay } from '@/components/agents/context-window-display';
 import { LogEntry } from '@/components/agents/log-entry';
-import { useAgentSession } from '@/hooks/useAgentSession';
-import type { AgentSession, AgentType } from '@/lib/schemas/agent-session.schema';
-import { cn } from '@/lib/utils';
-import { Bot } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { useAgentSSE } from '@/hooks/useAgentSSE';
+import type { AgentMessage, AgentSession, AgentType, SessionStatus } from '@/lib/schemas/agent-session.schema';
+import { Bot, RefreshCw } from 'lucide-react';
+import { useCallback, useMemo, useRef, useState } from 'react';
+
+/**
+ * Extended session state with runtime fields.
+ */
+interface SessionState extends AgentSession {
+  streamingContent: string;
+  error: { message: string; code?: string } | null;
+  contextUsage?: number;
+}
 
 /**
  * Generate a unique session ID.
@@ -31,36 +39,144 @@ function generateSessionId(): string {
 }
 
 /**
+ * Create initial session state.
+ */
+function createSession(id: string, name: string, agentType: AgentType): SessionState {
+  const now = Date.now();
+  return {
+    id,
+    name,
+    agentType,
+    status: 'idle',
+    messages: [],
+    createdAt: now,
+    lastActiveAt: now,
+    streamingContent: '',
+    error: null,
+  };
+}
+
+/**
+ * API response type from /api/agents/run
+ */
+interface AgentRunResponse {
+  agentSessionId: string;
+  output: string;
+  status: 'completed' | 'failed' | 'killed';
+  tokens: {
+    used: number;
+    total: number;
+    limit: number;
+  } | null;
+}
+
+/**
  * Standalone agents page with session management and chat interface.
  */
 export default function AgentsPage() {
-  const [sessions, setSessions] = useState<AgentSession[]>([]);
+  // Centralized sessions store - ALL sessions live here
+  const [sessions, setSessions] = useState<Map<string, SessionState>>(new Map());
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+
+  // Track agent session IDs for resume (per session)
+  const agentSessionIdsRef = useRef<Map<string, string>>(new Map());
 
   // Get active session
   const activeSession = useMemo(
-    () => sessions.find((s) => s.id === activeSessionId) ?? null,
+    () => (activeSessionId ? sessions.get(activeSessionId) ?? null : null),
     [sessions, activeSessionId]
   );
 
-  // Use the hook for the active session (creates a new one if needed)
-  const { state: sessionState, dispatch } = useAgentSession(activeSessionId ?? 'placeholder');
+  // Get sessions as array for list view
+  const sessionsList = useMemo(
+    () => Array.from(sessions.values()).sort((a, b) => b.createdAt - a.createdAt),
+    [sessions]
+  );
+
+  // Helper to update a specific session
+  const updateSession = useCallback((sessionId: string, updater: (s: SessionState) => SessionState) => {
+    setSessions((prev) => {
+      const session = prev.get(sessionId);
+      if (!session) return prev;
+      const next = new Map(prev);
+      next.set(sessionId, updater(session));
+      return next;
+    });
+  }, []);
+
+  // Single global SSE channel for all agent events
+  const { isConnected: sseConnected } = useAgentSSE('agents', {
+    onTextDelta: useCallback(
+      (delta: string, sessionId: string) => {
+        updateSession(sessionId, (s) => ({
+          ...s,
+          streamingContent: s.streamingContent + delta,
+          lastActiveAt: Date.now(),
+        }));
+      },
+      [updateSession]
+    ),
+
+    onStatusChange: useCallback(
+      (status: string, sessionId: string) => {
+        updateSession(sessionId, (s) => {
+          if (status === 'running') {
+            return { ...s, status: 'running' as SessionStatus, lastActiveAt: Date.now() };
+          }
+          if (status === 'completed') {
+            // Finalize streaming content as assistant message
+            const messages: AgentMessage[] = s.streamingContent
+              ? [...s.messages, { role: 'assistant', content: s.streamingContent, timestamp: Date.now() }]
+              : s.messages;
+            return {
+              ...s,
+              status: 'completed' as SessionStatus,
+              messages,
+              streamingContent: '',
+              lastActiveAt: Date.now(),
+            };
+          }
+          if (status === 'idle') {
+            return { ...s, status: 'idle' as SessionStatus, lastActiveAt: Date.now() };
+          }
+          return s;
+        });
+      },
+      [updateSession]
+    ),
+
+    onUsageUpdate: useCallback(
+      (usage: { tokensUsed: number; tokensTotal: number; tokensLimit?: number }, sessionId: string) => {
+        if (usage.tokensLimit && usage.tokensLimit > 0) {
+          const percentage = Math.round((usage.tokensTotal / usage.tokensLimit) * 100);
+          updateSession(sessionId, (s) => ({ ...s, contextUsage: percentage }));
+        }
+      },
+      [updateSession]
+    ),
+
+    onError: useCallback(
+      (message: string, sessionId: string, code?: string) => {
+        updateSession(sessionId, (s) => ({
+          ...s,
+          error: { message, code },
+          status: 'idle' as SessionStatus,
+          lastActiveAt: Date.now(),
+        }));
+      },
+      [updateSession]
+    ),
+  });
 
   // Handle new session creation
   const handleCreate = useCallback((name: string, agentType: AgentType) => {
     const id = generateSessionId();
-    const now = Date.now();
-    const newSession: AgentSession = {
-      id,
-      name,
-      agentType,
-      status: 'idle',
-      messages: [],
-      createdAt: now,
-      lastActiveAt: now,
-    };
-
-    setSessions((prev) => [newSession, ...prev]);
+    const session = createSession(id, name, agentType);
+    setSessions((prev) => {
+      const next = new Map(prev);
+      next.set(id, session);
+      return next;
+    });
     setActiveSessionId(id);
   }, []);
 
@@ -69,31 +185,98 @@ export default function AgentsPage() {
     setActiveSessionId(sessionId);
   }, []);
 
-  // Handle sending a message
+  // Handle sending a message to the agent
   const handleSendMessage = useCallback(
-    (content: string) => {
-      if (!activeSessionId) return;
+    async (content: string) => {
+      if (!activeSessionId || !activeSession) return;
 
-      // Add user message
-      dispatch({
-        type: 'ADD_MESSAGE',
-        message: { role: 'user', content, timestamp: Date.now() },
-      });
+      const sessionId = activeSessionId;
+      const agentType = activeSession.agentType;
 
-      // Start run and simulate response (in real implementation, this would hit API)
-      dispatch({ type: 'START_RUN' });
+      // Clear error and add user message
+      updateSession(sessionId, (s) => ({
+        ...s,
+        error: null,
+        messages: [...s.messages, { role: 'user', content, timestamp: Date.now() }],
+        status: 'running' as SessionStatus,
+        streamingContent: '',
+        lastActiveAt: Date.now(),
+      }));
 
-      // For now, just simulate a response after a short delay
-      setTimeout(() => {
-        dispatch({ type: 'APPEND_DELTA', delta: 'Hello! I am your AI assistant. ' });
-        setTimeout(() => {
-          dispatch({ type: 'APPEND_DELTA', delta: 'How can I help you today?' });
-          dispatch({ type: 'COMPLETE_RUN' });
-        }, 500);
-      }, 500);
+      try {
+        // Call the API
+        const response = await fetch('/api/agents/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt: content,
+            agentType,
+            sessionId,
+            channel: 'agents', // Single global channel
+            agentSessionId: agentSessionIdsRef.current.get(sessionId),
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || `API error: ${response.status}`);
+        }
+
+        const data: AgentRunResponse = await response.json();
+
+        // Store agent session ID for future calls
+        if (data.agentSessionId) {
+          agentSessionIdsRef.current.set(sessionId, data.agentSessionId);
+        }
+
+        // Fallback: If SSE didn't deliver the response (tab backgrounded), use API response
+        setSessions((prev) => {
+          const session = prev.get(sessionId);
+          if (!session) return prev;
+
+          // Only apply fallback if still running (SSE didn't complete it)
+          if (session.status !== 'running') return prev;
+
+          const next = new Map(prev);
+          if (data.status === 'completed' && data.output) {
+            next.set(sessionId, {
+              ...session,
+              status: 'completed',
+              messages: [...session.messages, { role: 'assistant', content: data.output, timestamp: Date.now() }],
+              streamingContent: '',
+              lastActiveAt: Date.now(),
+            });
+          } else if (data.status === 'failed' || data.status === 'killed') {
+            next.set(sessionId, {
+              ...session,
+              status: 'idle',
+              error: { message: data.output || 'Agent failed' },
+              lastActiveAt: Date.now(),
+            });
+          }
+          return next;
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        updateSession(sessionId, (s) => ({
+          ...s,
+          error: { message },
+          status: 'idle' as SessionStatus,
+          lastActiveAt: Date.now(),
+        }));
+      }
     },
-    [activeSessionId, dispatch]
+    [activeSessionId, activeSession, updateSession]
   );
+
+  // Handle retry after error
+  const handleRetry = useCallback(() => {
+    if (!activeSession?.messages.length) return;
+    const lastUserMsg = [...activeSession.messages].reverse().find((m) => m.role === 'user');
+    if (lastUserMsg) {
+      handleSendMessage(lastUserMsg.content);
+    }
+  }, [activeSession, handleSendMessage]);
 
   return (
     <main className="flex h-full">
@@ -109,13 +292,13 @@ export default function AgentsPage() {
 
         {/* Creation Form */}
         <div className="p-4 border-b">
-          <AgentCreationForm onCreate={handleCreate} />
+          <AgentCreationForm onCreate={handleCreate} sessionCount={sessions.size} />
         </div>
 
         {/* Sessions List */}
         <div className="flex-1 overflow-auto">
           <AgentListView
-            sessions={sessions}
+            sessions={sessionsList}
             activeSessionId={activeSessionId}
             onSelect={handleSelect}
           />
@@ -130,18 +313,21 @@ export default function AgentsPage() {
             <header className="px-4 py-3 border-b flex items-center justify-between">
               <div>
                 <h2 className="font-medium">{activeSession.name}</h2>
+                <p className="text-xs text-muted-foreground">
+                  {activeSession.agentType === 'claude-code' ? 'Claude Code' : 'GitHub Copilot'}
+                </p>
               </div>
-              <AgentStatusIndicator status={sessionState.status} />
+              <AgentStatusIndicator status={activeSession.status} />
             </header>
 
             {/* Context Window */}
-            {sessionState.contextUsage !== undefined && (
-              <ContextWindowDisplay usage={sessionState.contextUsage} className="border-b" />
+            {activeSession.contextUsage !== undefined && (
+              <ContextWindowDisplay usage={activeSession.contextUsage} className="border-b" />
             )}
 
             {/* Messages */}
             <div className="flex-1 overflow-auto divide-y divide-border/50">
-              {sessionState.messages.map((msg, idx) => (
+              {activeSession.messages.map((msg, idx) => (
                 <LogEntry
                   key={`${msg.timestamp}-${idx}`}
                   messageRole={msg.role}
@@ -149,25 +335,46 @@ export default function AgentsPage() {
                 />
               ))}
               {/* Streaming content */}
-              {sessionState.streamingContent && (
+              {activeSession.streamingContent && (
                 <LogEntry
                   messageRole="assistant"
-                  content={sessionState.streamingContent}
+                  content={activeSession.streamingContent}
                   isStreaming
                 />
               )}
-              {sessionState.messages.length === 0 && !sessionState.streamingContent && (
-                <div className="flex-1 flex items-center justify-center p-8 text-muted-foreground">
-                  <p className="text-sm">Start a conversation by sending a message below.</p>
+              {/* Error display */}
+              {activeSession.error && (
+                <div className="px-4 py-3 bg-red-50 dark:bg-red-950/20 border-l-2 border-red-500">
+                  <div className="flex items-start gap-2 text-sm text-red-700 dark:text-red-400">
+                    <span className="shrink-0">Error:</span>
+                    <div className="flex-1">
+                      <p>{activeSession.error.message}</p>
+                      <button
+                        type="button"
+                        onClick={handleRetry}
+                        className="mt-1 inline-flex items-center gap-1 text-xs text-red-600 dark:text-red-400 hover:underline"
+                      >
+                        <RefreshCw className="h-3 w-3" />
+                        Retry
+                      </button>
+                    </div>
+                  </div>
                 </div>
               )}
+              {activeSession.messages.length === 0 &&
+                !activeSession.streamingContent &&
+                !activeSession.error && (
+                  <div className="flex-1 flex items-center justify-center p-8 text-muted-foreground">
+                    <p className="text-sm">Start a conversation by sending a message below.</p>
+                  </div>
+                )}
             </div>
 
             {/* Input */}
             <div className="p-4 border-t">
               <AgentChatInput
                 onMessage={handleSendMessage}
-                disabled={sessionState.status === 'running'}
+                disabled={activeSession.status === 'running'}
               />
             </div>
           </>
