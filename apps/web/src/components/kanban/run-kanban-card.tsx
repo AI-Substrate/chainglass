@@ -15,6 +15,7 @@ import { CSS } from '@dnd-kit/utilities';
 import {
   AlertCircle,
   ArrowRight,
+  Bot,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
@@ -29,6 +30,9 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
+
+import { AgentSessionDialog } from '@/components/agents';
+import { getAgentSessionByRunId } from '@/data/fixtures/agent-sessions.fixture';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -79,8 +83,14 @@ const phaseStatusColors: Record<string, string> = {
 export function RunKanbanCard({ card, draggable = true, onSubmit }: RunKanbanCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [agentDialogOpen, setAgentDialogOpen] = useState(false);
   const [answer, setAnswer] = useState<string | string[] | boolean>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Get agent session for this run (if available)
+  const agentSession = getAgentSessionByRunId(card.runId);
+  const showAgentButton =
+    agentSession && (card.hasBlockedPhase || card.currentPhaseStatus === 'active');
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: card.id,
@@ -227,6 +237,32 @@ export function RunKanbanCard({ card, draggable = true, onSubmit }: RunKanbanCar
             {card.triggeredBy}
           </span>
         </div>
+
+        {/* Agent Session Button */}
+        {showAgentButton && (
+          <Button
+            variant="outline"
+            size="sm"
+            className={cn(
+              'w-full mt-3 h-9 text-xs font-medium gap-2 rounded-lg transition-all duration-200',
+              'border-2 border-violet-300 dark:border-violet-700',
+              'bg-violet-50 dark:bg-violet-950/30',
+              'text-violet-700 dark:text-violet-300',
+              'hover:bg-violet-100 dark:hover:bg-violet-900/50',
+              'hover:border-violet-400 dark:hover:border-violet-600',
+              'hover:shadow-md hover:shadow-violet-500/10',
+              agentSession.status === 'running' && 'animate-pulse'
+            )}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setAgentDialogOpen(true);
+            }}
+          >
+            <Bot className="h-4 w-4" />
+            {agentSession.status === 'running' ? 'View Running Agent' : 'Open Agent Session'}
+          </Button>
+        )}
 
         {/* Inline Question Input (when expanded) */}
         {hasQuestion && expanded && card.question && (
@@ -718,6 +754,18 @@ export function RunKanbanCard({ card, draggable = true, onSubmit }: RunKanbanCar
     <>
       {cardContent}
       {questionDialog}
+      {agentSession && (
+        <AgentSessionDialog
+          session={agentSession}
+          open={agentDialogOpen}
+          onOpenChange={setAgentDialogOpen}
+          workflowSlug={card.workflowSlug}
+          onSendMessage={(sessionId, message) => {
+            // In a real implementation, this would send to the agent service
+            console.log('Send message to agent:', sessionId, message);
+          }}
+        />
+      )}
     </>
   );
 }
