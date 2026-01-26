@@ -136,46 +136,41 @@ describe('AgentCreationForm', () => {
     });
   });
 
-  describe('validation', () => {
-    it('should show error for empty name', async () => {
+  describe('auto-generated names', () => {
+    it('should auto-generate ordinal name when empty', async () => {
       /*
       Test Doc:
-      - Why: Session name is required
-      - Contract: Empty name submission shows error
-      - Usage Notes: Error clears when user starts typing
-      - Quality Contribution: Input validation
-      - Worked Example: submit empty → error visible
+      - Why: Session name is optional, auto-generates if empty
+      - Contract: Empty name submission generates "Session N"
+      - Usage Notes: sessionCount prop determines the number
+      - Quality Contribution: Better UX - no required fields
+      - Worked Example: submit empty with sessionCount=0 → "Session 1"
       */
       const user = userEvent.setup();
-      render(<AgentCreationForm onCreate={handler.onCreate} />);
+      render(<AgentCreationForm onCreate={handler.onCreate} sessionCount={0} />);
 
       // Submit without filling name
       await user.click(screen.getByRole('button', { name: /create/i }));
 
-      expect(screen.getByRole('alert')).toBeInTheDocument();
-      handler.assertNotCalled();
+      handler.assertCalledWith('Session 1', 'claude-code');
     });
 
-    it('should clear error when user types', async () => {
+    it('should auto-generate with correct ordinal based on sessionCount', async () => {
       /*
       Test Doc:
-      - Why: Error should dismiss when user corrects
-      - Contract: Typing clears validation error
-      - Usage Notes: UX feedback
-      - Quality Contribution: Error handling UX
-      - Worked Example: error shown → type → error hidden
+      - Why: Auto-generated name should reflect current session count
+      - Contract: sessionCount + 1 is used in generated name
+      - Usage Notes: Prevents duplicate names
+      - Quality Contribution: Clear session identification
+      - Worked Example: sessionCount=5 → "Session 6"
       */
       const user = userEvent.setup();
-      render(<AgentCreationForm onCreate={handler.onCreate} />);
+      render(<AgentCreationForm onCreate={handler.onCreate} sessionCount={5} />);
 
-      // Trigger error
+      // Submit without filling name
       await user.click(screen.getByRole('button', { name: /create/i }));
-      expect(screen.getByRole('alert')).toBeInTheDocument();
 
-      // Start typing
-      await user.type(screen.getByLabelText(/name/i), 'a');
-
-      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      handler.assertCalledWith('Session 6', 'claude-code');
     });
   });
 

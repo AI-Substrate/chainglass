@@ -1,5 +1,11 @@
 import { AgentConfigType } from '../config/index.js';
-import type { AgentResult, IAgentAdapter, IConfigService, ILogger } from '../interfaces/index.js';
+import type {
+  AgentEventHandler,
+  AgentResult,
+  IAgentAdapter,
+  IConfigService,
+  ILogger,
+} from '../interfaces/index.js';
 
 /**
  * Allowed agent types for validation.
@@ -22,6 +28,8 @@ export type AdapterFactory = (agentType: string) => IAgentAdapter;
 
 /**
  * Options for running a prompt through the agent service.
+ *
+ * Per DYK-02 (Plan 012 subtask): Extended to include onEvent callback for streaming.
  */
 export interface AgentServiceRunOptions {
   /** The prompt to execute */
@@ -32,6 +40,14 @@ export interface AgentServiceRunOptions {
   sessionId?: string;
   /** Working directory for the agent (optional) */
   cwd?: string;
+  /**
+   * Optional callback for real-time events during execution.
+   * When provided, adapter will emit events as they arrive via SSE.
+   * When omitted, run() returns only the final AgentResult.
+   *
+   * Per DYK-02: Pass through to adapter.run() for streaming support.
+   */
+  onEvent?: AgentEventHandler;
 }
 
 /**
@@ -95,7 +111,7 @@ export class AgentService {
    * Per AC-20: Enforces timeout from config
    */
   async run(options: AgentServiceRunOptions): Promise<AgentResult> {
-    const { prompt, agentType, sessionId, cwd } = options;
+    const { prompt, agentType, sessionId, cwd, onEvent } = options;
 
     // FIX-004/SEC-001: Validate agentType before calling factory
     if (!ALLOWED_AGENT_TYPES.has(agentType)) {
@@ -118,7 +134,8 @@ export class AgentService {
     const timeout = this._createTimeoutPromise(this._timeout);
 
     // Run with timeout race
-    const runPromise = adapter.run({ prompt, sessionId, cwd });
+    // Per DYK-02: Pass onEvent through to adapter for streaming support
+    const runPromise = adapter.run({ prompt, sessionId, cwd, onEvent });
 
     // Per DYK-01: Promise.race() + terminate on timeout + catch suppression
     let result: AgentResult;

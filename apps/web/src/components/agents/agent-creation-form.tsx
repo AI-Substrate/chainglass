@@ -41,7 +41,11 @@ const AGENT_TYPE_OPTIONS: Array<{ value: AgentType; label: string }> = [
  *   }}
  * />
  */
-export function AgentCreationForm({ onCreate, sessionCount = 0, className }: AgentCreationFormProps) {
+export function AgentCreationForm({
+  onCreate,
+  sessionCount = 0,
+  className,
+}: AgentCreationFormProps) {
   const [name, setName] = useState('');
   const [agentType, setAgentType] = useState<AgentType>('claude-code');
 

@@ -494,7 +494,7 @@ describe('sessionReducer', () => {
 
 import { AgentSessionStore } from '@/lib/stores/agent-session.store';
 import { FakeLocalStorage } from '@test/fakes/fake-local-storage';
-import { act, renderHook } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 
 // useAgentSession is imported from implementation above
 
@@ -524,7 +524,7 @@ describe('useAgentSession hook', () => {
       expect(result.current.state.streamingContent).toBe('');
     });
 
-    it('should load existing session from store', () => {
+    it('should load existing session from store', async () => {
       /*
       Test Doc:
       - Why: Returning users should see their previous session state
@@ -544,10 +544,14 @@ describe('useAgentSession hook', () => {
 
       const { result } = renderHook(() => useAgentSession('existing-session', store));
 
+      // Wait for useEffect to load from storage (SSR-safe pattern)
+      await waitFor(() => {
+        expect(result.current.state.status).toBe('completed');
+      });
+
       // Should have loaded the existing session
       expect(result.current.state.id).toBe('existing-session');
       expect(result.current.state.name).toBe('My Existing Session');
-      expect(result.current.state.status).toBe('completed');
       expect(result.current.state.messages).toHaveLength(1);
     });
   });
@@ -631,7 +635,7 @@ describe('useAgentSession hook', () => {
   });
 
   describe('persistence', () => {
-    it('should save state changes to store', () => {
+    it('should save state changes to store', async () => {
       /*
       Test Doc:
       - Why: State changes should persist to localStorage via store
@@ -642,14 +646,20 @@ describe('useAgentSession hook', () => {
       */
       const { result } = renderHook(() => useAgentSession('test-session', store));
 
+      // Wait for initial load effect to complete
+      await waitFor(() => {
+        expect(result.current.state.id).toBe('test-session');
+      });
+
       act(() => {
         result.current.dispatch({ type: 'START_RUN' });
       });
 
-      // Verify persistence by checking the store
-      const savedSession = store.getSession('test-session');
-      expect(savedSession).not.toBeNull();
-      expect(savedSession?.status).toBe('running');
+      // Wait for persistence effect to run
+      await waitFor(() => {
+        const savedSession = store.getSession('test-session');
+        expect(savedSession?.status).toBe('running');
+      });
     });
   });
 

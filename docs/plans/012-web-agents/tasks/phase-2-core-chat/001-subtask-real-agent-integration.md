@@ -118,11 +118,11 @@ flowchart TD
     end
 
     subgraph Subtask["Subtask 001: Real Agent Integration"]
-        ST001["ST001: API route"]:::pending
-        ST002["ST002: Event translation"]:::pending
-        ST003["ST003: Page integration"]:::pending
-        ST004["ST004: Session resume"]:::pending
-        ST005["ST005: Error handling"]:::pending
+        ST001["ST001: API route ✓"]:::completed
+        ST002["ST002: Event translation ✓"]:::completed
+        ST003["ST003: Page integration ✓"]:::completed
+        ST004["ST004: Session resume ✓"]:::completed
+        ST005["ST005: Error handling ✓"]:::completed
 
         ST001 --> ST002 --> ST003
         ST003 --> ST004
@@ -130,9 +130,10 @@ flowchart TD
     end
 
     subgraph Files["Files"]
-        F1["/api/agents/run/route.ts"]:::pending
-        F2["/agents/page.tsx (update)"]:::pending
-        F3["useAgentSession.ts (update)"]:::pending
+        F1["/api/agents/run/route.ts ✓"]:::completed
+        F2["/agents/page.tsx (update) ✓"]:::completed
+        F3["useAgentSSE.ts (NEW) ✓"]:::completed
+        F4["bootstrap-singleton.ts (NEW) ✓"]:::completed
     end
 
     Service --> ST001
@@ -152,11 +153,11 @@ flowchart TD
 
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
-| ST001 | API Route | `/apps/web/app/api/agents/run/route.ts` | ⬜ Pending | POST handler invoking AgentService |
-| ST002 | Event Translation | (inline in route) | ⬜ Pending | Map AgentEvent → SSE broadcast |
-| ST003 | Page Integration | `/apps/web/app/(dashboard)/agents/page.tsx` | ⬜ Pending | Replace stub with API call + useSSE |
-| ST004 | Session Resume | `/apps/web/src/hooks/useAgentSession.ts` | ⬜ Pending | Store/pass agentSessionId |
-| ST005 | Error Handling | `/apps/web/app/(dashboard)/agents/page.tsx` | ⬜ Pending | Map agent_error to UI state |
+| ST001 | API Route | `/apps/web/app/api/agents/run/route.ts` | ✅ Complete | POST handler invoking AgentService |
+| ST002 | Event Translation | (inline in route) | ✅ Complete | Map AgentEvent → SSE broadcast |
+| ST003 | Page Integration | `/apps/web/app/(dashboard)/agents/page.tsx` | ✅ Complete | Replace stub with API call + useSSE |
+| ST004 | Session Resume | `/apps/web/app/(dashboard)/agents/page.tsx` | ✅ Complete | Store/pass agentSessionId via ref |
+| ST005 | Error Handling | `/apps/web/app/(dashboard)/agents/page.tsx` | ✅ Complete | Inline error + Retry button |
 
 ### Data Flow Sequence
 
@@ -202,11 +203,11 @@ sequenceDiagram
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|------|------|----|----- |--------------|------------------|------------|----------|-------|
-| [ ] | ST001 | Create `/api/agents/run` POST route | 3 | Core | – | `/home/jak/substrate/007-manage-workflows/apps/web/app/api/agents/run/route.ts` | Route returns 200, invokes AgentService | – | Uses DI container, async params |
-| [ ] | ST002 | Implement event translation (AgentEvent → SSE) | 2 | Core | ST001 | (inline in route.ts) | Events broadcast correctly to channel | – | Map text_delta, session_status, usage, error |
-| [ ] | ST003 | Update /agents page to use API + useSSE | 3 | Core | ST001, ST002 | `/home/jak/substrate/007-manage-workflows/apps/web/app/(dashboard)/agents/page.tsx` | Stub removed, real events flow | – | Remove setTimeout, add useSSE |
-| [ ] | ST004 | Implement session resume (agentSessionId) | 2 | Core | ST003 | `/home/jak/substrate/007-manage-workflows/apps/web/src/hooks/useAgentSession.ts`, page.tsx | Can resume existing agent session | – | Store in AgentSession schema |
-| [ ] | ST005 | Implement error handling + UI feedback | 2 | Core | ST003 | `/home/jak/substrate/007-manage-workflows/apps/web/app/(dashboard)/agents/page.tsx` | Errors display in UI, recoverable | – | SET_ERROR action, error UI |
+| [x] | ST001 | Create `/api/agents/run` POST route | 3 | Core | – | `/home/jak/substrate/007-manage-workflows/apps/web/app/api/agents/run/route.ts` | Route returns 200, invokes AgentService | – | Use `getContainer()` singleton (DYK-05); extend AgentServiceRunOptions (DYK-02) |
+| [x] | ST002 | Implement event translation (AgentEvent → SSE) | 2 | Core | ST001 | (inline in route.ts) | Events broadcast correctly to channel | – | Map text_delta, session_status, usage, error |
+| [x] | ST003 | Update /agents page to use API + useSSE | 3 | Core | ST001, ST002 | `/home/jak/substrate/007-manage-workflows/apps/web/app/(dashboard)/agents/page.tsx` | Stub removed, real events flow | – | **Connect-First**: SSE before POST (DYK-01) |
+| [x] | ST004 | Implement session resume (agentSessionId) | 2 | Core | ST003 | `/home/jak/substrate/007-manage-workflows/apps/web/app/(dashboard)/agents/page.tsx` (ref) | Can resume existing agent session | – | **Stored in ref** instead of reducer (simpler) |
+| [x] | ST005 | Implement error handling + UI feedback | 2 | Core | ST003 | `/home/jak/substrate/007-manage-workflows/apps/web/app/(dashboard)/agents/page.tsx` | Errors display in UI, recoverable | – | **Inline error** as system message + Retry (DYK-04) |
 
 ---
 
@@ -235,6 +236,11 @@ From parent Phase 2 acceptance criteria, this subtask specifically addresses:
 | HF-05 | SSE Singleton Must Survive HMR | Use globalThis pattern | SSEManager already uses this ✓ |
 | HF-08 | Race Condition SSE vs State | Merge-not-replace pattern | sessionReducer already implements this ✓ |
 | MF-10 | Keep Agent Events Abstracted | UI receives only AgentEvent types | Route handler translates, UI consumes |
+| DYK-01 | SSE Connection Timing Race | Events emitted before SSE connects are lost (no buffering) | **Connect-First Pattern**: establish SSE connection before POST, wait for `isConnected === true` |
+| DYK-02 | AgentService Missing onEvent | `AgentServiceRunOptions` lacks `onEvent` callback; adapters support it but service drops it | **Extend AgentServiceRunOptions**: add `onEvent?: AgentEventHandler`, pass through to adapter. Iterate at dev time. |
+| DYK-03 | Dual Session IDs | `id` (client UUID) vs `agentSessionId` (adapter-provided for resume); agentSessionId never stored | **Extend COMPLETE_RUN**: `{ type: 'COMPLETE_RUN'; agentSessionId?: string }`, store in state, pass to subsequent calls |
+| DYK-04 | Error Recovery Dead End | Error state traps session; CLEAR_ERROR exists but never called; no retry UI | **Inline Error in Chat**: show error as system message with Retry link; input stays enabled; extend later if needed |
+| DYK-05 | Bootstrap Pattern Unclear | No existing route uses DI; bootstrap() is sync; per-request reloads config | **Lazy Singleton with globalThis**: create `getContainer()` helper matching SSEManager pattern; config loaded once, HMR-safe |
 
 ### Invariants/Guardrails
 
@@ -253,6 +259,7 @@ From parent Phase 2 acceptance criteria, this subtask specifically addresses:
 | `/packages/shared/src/services/agent.service.ts` | AgentService API |
 | `/packages/shared/src/interfaces/agent-types.ts` | AgentEvent types |
 | `/apps/web/src/lib/schemas/agent-events.schema.ts` | SSE event schemas |
+| `/docs/adr/adr-0006-cli-based-workflow-agent-orchestration.md` | **CLI orchestration patterns** - DYK-07/08 (CWD binding, resume flags), IMP-007 (WebSocket for long ops) |
 
 ### Test Plan (Full TDD - Fakes Only)
 
@@ -409,7 +416,10 @@ _Populated during implementation by plan-6. Log anything of interest to your fut
 
 | Date | Task | Type | Discovery | Resolution | References |
 |------|------|------|-----------|------------|------------|
-| | | | | | |
+| 2026-01-26 | ST001 | decision | ZodError instanceof check fails cross-module | Use error.name === 'ZodError' && 'errors' in error | route.ts:143 |
+| 2026-01-26 | ST003 | insight | useSSE only handles onmessage, not named events | Created specialized useAgentSSE hook with addEventListener | useAgentSSE.ts |
+| 2026-01-26 | ST003 | gotcha | EventSource not available in test env | Added defaultEventSourceFactory guard for SSR/test | useAgentSSE.ts:23-37 |
+| 2026-01-26 | ST004 | decision | Storing agentSessionId in ref simpler than reducer | useRef instead of extending COMPLETE_RUN | page.tsx:60 |
 
 **Types**: `gotcha` | `research-needed` | `unexpected-behavior` | `workaround` | `decision` | `debt` | `insight`
 
@@ -477,6 +487,164 @@ docs/plans/012-web-agents/
 
 ---
 
+## Critical Insights Discussion
+
+**Session**: 2026-01-26
+**Context**: Subtask 001 - Real Agent Integration pre-implementation review
+**Analyst**: AI Clarity Agent
+**Reviewer**: Development Team
+**Format**: Water Cooler Conversation (5 Critical Insights)
+
+### Insight 1: SSE Connection Timing Race Condition
+
+**Did you know**: Events emitted before SSE connection establishes are permanently lost - SSEManager doesn't buffer.
+
+**Implications**:
+- 50-200ms window between API broadcast and SSE connection ready
+- Events during this window silently dropped
+- Existing patterns (workflow, kanban) have same vulnerability
+
+**Options Considered**:
+- Option A: Connect-First Pattern - SSE before POST
+- Option B: Event Buffering in SSEManager - NOT FEASIBLE (breaks shared infra)
+- Option C: Initial State Fetch on Connect
+
+**AI Recommendation**: Option A (Connect-First Pattern)
+
+**Decision**: **Option A** - Establish SSE connection before sending API request; wait for `isConnected === true`
+
+**Action Items**:
+- [ ] ST003: Connect to SSE first, then POST
+- [ ] Add "Connecting..." UI state
+
+**Affects**: ST003 (Page Integration)
+
+---
+
+### Insight 2: AgentService Missing onEvent Callback
+
+**Did you know**: `AgentServiceRunOptions` lacks `onEvent` callback - adapters support streaming but service layer drops it.
+
+**Implications**:
+- Streaming events can't flow from adapters through service layer
+- Current subtask implementation outline won't work as written
+- Need to extend shared package
+
+**Options Considered**:
+- Option A: Extend AgentServiceRunOptions - add onEvent field
+- Option B: Bypass AgentService - NOT RECOMMENDED (loses timeout handling)
+- Option C: SSE Polling - NOT FEASIBLE (wrong direction)
+
+**AI Recommendation**: Option A (Extend AgentServiceRunOptions)
+
+**Decision**: **Option A** - Add `onEvent?: AgentEventHandler` to AgentServiceRunOptions; iterate at dev time if needed
+
+**Action Items**:
+- [ ] Extend AgentServiceRunOptions in packages/shared
+- [ ] Pass onEvent through to adapter.run()
+
+**Affects**: ST001, ST002, shared package
+
+---
+
+### Insight 3: Dual Session IDs Create Confusion
+
+**Did you know**: There are two session IDs (`id` for client state, `agentSessionId` for adapter resume) and the adapter-provided one is never stored.
+
+**Implications**:
+- Every message starts fresh agent context instead of resuming
+- Resume functionality completely broken
+- Schema has field but reducer never populates it
+
+**Options Considered**:
+- Option A: Add SET_AGENT_SESSION_ID action
+- Option B: Extend COMPLETE_RUN with agentSessionId
+- Option C: Store via SSE event - PARTIAL (Copilot doesn't emit session_start)
+
+**AI Recommendation**: Option B (Extend COMPLETE_RUN)
+
+**Decision**: **Option B** - Extend COMPLETE_RUN to `{ type: 'COMPLETE_RUN'; agentSessionId?: string }`
+
+**Action Items**:
+- [ ] Extend COMPLETE_RUN action type
+- [ ] Store agentSessionId in reducer
+- [ ] Pass to subsequent API calls
+
+**Affects**: ST004 (Session Resume)
+
+---
+
+### Insight 4: Error Recovery UX is a Dead End
+
+**Did you know**: When an error occurs, the session is permanently stuck - no error message shown, no retry button, CLEAR_ERROR never called.
+
+**Implications**:
+- User trapped in error state forever
+- No visibility into what went wrong
+- Input disabled with no recovery path
+
+**Options Considered**:
+- Option A: Minimal Error Display + Retry Button
+- Option B: Error Banner with Dismiss
+- Option C: Toast Notification - PARTIAL (no toast infra)
+- Option D: Inline Error in Chat
+
+**AI Recommendation**: Option D (Inline Error in Chat)
+
+**Decision**: **Option D** - Show error as system message in chat with Retry link; input stays enabled; extend later if needed
+
+**Action Items**:
+- [ ] Add error as system message: "⚠️ Agent error: {message}. [Retry]"
+- [ ] Retry dispatches CLEAR_ERROR + re-sends last message
+
+**Affects**: ST005 (Error Handling)
+
+---
+
+### Insight 5: Bootstrap Pattern for Route Handlers Unclear
+
+**Did you know**: No existing route uses DI, bootstrap() is synchronous, and there's no established pattern for API route handlers.
+
+**Implications**:
+- Need to establish pattern for future routes
+- Per-request bootstrap reloads config (slow)
+- Module-level might not survive HMR
+
+**Options Considered**:
+- Option A: Module-Level Bootstrap (Singleton)
+- Option B: Per-Request Bootstrap
+- Option C: Lazy Singleton with globalThis
+
+**AI Recommendation**: Option C (Lazy Singleton with globalThis)
+
+**Decision**: **Option C** - Create `getContainer()` helper using globalThis pattern (matches SSEManager)
+
+**Action Items**:
+- [ ] Create bootstrap-singleton.ts with getContainer()
+- [ ] Route handler uses getContainer() to resolve services
+
+**Affects**: ST001 (API Route)
+
+---
+
+## Session Summary
+
+**Insights Surfaced**: 5 critical insights identified and discussed
+**Decisions Made**: 5 decisions reached through collaborative discussion
+**Action Items Created**: 10 follow-up tasks identified
+**Areas Updated**: Critical Findings table (DYK-01 through DYK-05), Task notes (ST001-ST005)
+
+**Shared Understanding Achieved**: ✓
+
+**Confidence Level**: High - All architectural decisions made, clear implementation path
+
+**Next Steps**:
+1. Await human **GO** to proceed with implementation
+2. Run `/plan-6-implement-phase --phase "Phase 2: Core Chat" --subtask "001-subtask-real-agent-integration"`
+
+---
+
 **Subtask Created:** 2026-01-26
-**Subtask Status:** ⏳ PENDING
-**Next Step:** Await human **GO**, then run `/plan-6-implement-phase --phase "Phase 2: Core Chat" --subtask "001-subtask-real-agent-integration" --plan "/home/jak/substrate/007-manage-workflows/docs/plans/012-web-agents/web-agents-plan.md"`
+**Subtask Status:** ✅ COMPLETE
+**Completed:** 2026-01-26
+**Next Step:** Resume parent phase work or proceed to Phase 3

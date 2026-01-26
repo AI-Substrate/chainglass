@@ -18,7 +18,12 @@ import { AgentStatusIndicator } from '@/components/agents/agent-status-indicator
 import { ContextWindowDisplay } from '@/components/agents/context-window-display';
 import { LogEntry } from '@/components/agents/log-entry';
 import { useAgentSSE } from '@/hooks/useAgentSSE';
-import type { AgentMessage, AgentSession, AgentType, SessionStatus } from '@/lib/schemas/agent-session.schema';
+import type {
+  AgentMessage,
+  AgentSession,
+  AgentType,
+  SessionStatus,
+} from '@/lib/schemas/agent-session.schema';
 import { Bot, RefreshCw } from 'lucide-react';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
@@ -83,7 +88,7 @@ export default function AgentsPage() {
 
   // Get active session
   const activeSession = useMemo(
-    () => (activeSessionId ? sessions.get(activeSessionId) ?? null : null),
+    () => (activeSessionId ? (sessions.get(activeSessionId) ?? null) : null),
     [sessions, activeSessionId]
   );
 
@@ -94,15 +99,18 @@ export default function AgentsPage() {
   );
 
   // Helper to update a specific session
-  const updateSession = useCallback((sessionId: string, updater: (s: SessionState) => SessionState) => {
-    setSessions((prev) => {
-      const session = prev.get(sessionId);
-      if (!session) return prev;
-      const next = new Map(prev);
-      next.set(sessionId, updater(session));
-      return next;
-    });
-  }, []);
+  const updateSession = useCallback(
+    (sessionId: string, updater: (s: SessionState) => SessionState) => {
+      setSessions((prev) => {
+        const session = prev.get(sessionId);
+        if (!session) return prev;
+        const next = new Map(prev);
+        next.set(sessionId, updater(session));
+        return next;
+      });
+    },
+    []
+  );
 
   // Single global SSE channel for all agent events
   const { isConnected: sseConnected } = useAgentSSE('agents', {
@@ -126,7 +134,10 @@ export default function AgentsPage() {
           if (status === 'completed') {
             // Finalize streaming content as assistant message
             const messages: AgentMessage[] = s.streamingContent
-              ? [...s.messages, { role: 'assistant', content: s.streamingContent, timestamp: Date.now() }]
+              ? [
+                  ...s.messages,
+                  { role: 'assistant', content: s.streamingContent, timestamp: Date.now() },
+                ]
               : s.messages;
             return {
               ...s,
@@ -146,7 +157,10 @@ export default function AgentsPage() {
     ),
 
     onUsageUpdate: useCallback(
-      (usage: { tokensUsed: number; tokensTotal: number; tokensLimit?: number }, sessionId: string) => {
+      (
+        usage: { tokensUsed: number; tokensTotal: number; tokensLimit?: number },
+        sessionId: string
+      ) => {
         if (usage.tokensLimit && usage.tokensLimit > 0) {
           const percentage = Math.round((usage.tokensTotal / usage.tokensLimit) * 100);
           updateSession(sessionId, (s) => ({ ...s, contextUsage: percentage }));
@@ -242,7 +256,10 @@ export default function AgentsPage() {
             next.set(sessionId, {
               ...session,
               status: 'completed',
-              messages: [...session.messages, { role: 'assistant', content: data.output, timestamp: Date.now() }],
+              messages: [
+                ...session.messages,
+                { role: 'assistant', content: data.output, timestamp: Date.now() },
+              ],
               streamingContent: '',
               lastActiveAt: Date.now(),
             });

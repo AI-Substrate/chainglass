@@ -164,7 +164,9 @@ export async function POST(request: NextRequest): Promise<Response> {
     // Run agent with streaming events
     // Per ADR-0006 DYK-07: Claude Code sessions are CWD-bound
     const cwd = process.cwd();
-    console.log(`[/api/agents/run] Starting agent: type=${agentType}, channel=${channel}, cwd=${cwd}`);
+    console.log(
+      `[/api/agents/run] Starting agent: type=${agentType}, channel=${channel}, cwd=${cwd}`
+    );
 
     const result = await agentService.run({
       prompt,
@@ -177,7 +179,9 @@ export async function POST(request: NextRequest): Promise<Response> {
       },
     });
 
-    console.log(`[/api/agents/run] Completed: status=${result.status}, sessionId=${result.sessionId}`);
+    console.log(
+      `[/api/agents/run] Completed: status=${result.status}, sessionId=${result.sessionId}`
+    );
 
     // Broadcast completion status
     const completionStatus = result.status === 'completed' ? 'completed' : 'error';
