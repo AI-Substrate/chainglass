@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type {
   CopilotResumeSessionConfig,
   CopilotSessionConfig,
@@ -7,6 +8,20 @@ import type {
   ICopilotSession,
 } from '../interfaces/copilot-sdk.interface.js';
 import { FakeCopilotSession } from './fake-copilot-session.js';
+
+/**
+ * Creates a default session.idle event with base fields.
+ */
+function createDefaultIdleEvent(): CopilotSessionEvent {
+  return {
+    id: randomUUID(),
+    timestamp: new Date().toISOString(),
+    parentId: null,
+    ephemeral: true,
+    type: 'session.idle',
+    data: {},
+  };
+}
 
 /**
  * Configuration options for FakeCopilotClient.
@@ -74,7 +89,7 @@ export class FakeCopilotClient implements ICopilotClient {
 
   constructor(options: FakeCopilotClientOptions = {}) {
     this._options = {
-      events: options.events ?? [{ type: 'session.idle', data: {} }],
+      events: options.events ?? [createDefaultIdleEvent()],
       strictSessions: options.strictSessions ?? false,
       stopErrors: options.stopErrors ?? [],
       status: options.status ?? { version: '0.1.16', protocolVersion: 1 },

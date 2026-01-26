@@ -1,10 +1,26 @@
+import { randomUUID } from 'node:crypto';
 import type {
   CopilotAssistantMessageEvent,
   CopilotMessageOptions,
   CopilotSessionEvent,
   CopilotSessionEventHandler,
+  CopilotSessionEventLike,
   ICopilotSession,
 } from '../interfaces/copilot-sdk.interface.js';
+
+/**
+ * Creates a default session.idle event with base fields.
+ */
+function createDefaultIdleEvent(): CopilotSessionEvent {
+  return {
+    id: randomUUID(),
+    timestamp: new Date().toISOString(),
+    parentId: null,
+    ephemeral: true,
+    type: 'session.idle',
+    data: {},
+  };
+}
 
 /**
  * Configuration options for FakeCopilotSession.
@@ -74,7 +90,7 @@ export class FakeCopilotSession implements ICopilotSession {
 
   constructor(options: FakeCopilotSessionOptions = {}) {
     this._sessionId = options.sessionId ?? `fake-session-${Date.now()}`;
-    this._events = options.events ?? [{ type: 'session.idle', data: {} }];
+    this._events = options.events ?? [createDefaultIdleEvent()];
     this._sendAndWaitDelay = options.sendAndWaitDelay ?? 0;
   }
 

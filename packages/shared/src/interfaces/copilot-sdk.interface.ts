@@ -29,19 +29,44 @@ export type CopilotSessionEventType =
 
 /**
  * Base session event structure.
+ *
+ * Per SDK: Every event has these base fields for tracking and correlation.
  */
 export interface CopilotSessionEventBase {
+  /** Unique event identifier */
+  id: string;
+  /** ISO 8601 timestamp when event was emitted */
+  timestamp: string;
+  /** ID of parent event for correlation, null for root events */
+  parentId: string | null;
+  /** If true, event is transient (deltas, usage) vs persistent (messages) */
+  ephemeral?: boolean;
+  /** Event type discriminator */
   type: CopilotSessionEventType;
 }
 
 /**
+ * Tool request included in assistant message.
+ * Per SDK: When assistant wants to invoke a tool, it includes these in the message.
+ */
+export interface CopilotToolRequest {
+  toolCallId: string;
+  name: string;
+  arguments?: unknown;
+  type?: 'function' | 'custom';
+}
+
+/**
  * Assistant message event - the final response from the assistant.
+ * Per SDK: Contains the complete message content and optional tool requests.
  */
 export interface CopilotAssistantMessageEvent extends CopilotSessionEventBase {
   type: 'assistant.message';
   data: {
     content: string;
     messageId: string;
+    toolRequests?: CopilotToolRequest[];
+    parentToolCallId?: string;
   };
 }
 
@@ -106,9 +131,25 @@ export type CopilotSessionEvent =
   | CopilotSessionErrorEvent;
 
 /**
- * Event handler callback type.
+ * Base event shape that all SDK events share.
+ * Used for permissive typing to allow real SDK's SessionEvent (30+ types) to pass through.
  */
-export type CopilotSessionEventHandler = (event: CopilotSessionEvent) => void;
+export interface CopilotSessionEventLike {
+  id: string;
+  timestamp: string;
+  parentId: string | null;
+  ephemeral?: boolean;
+  type: string;
+  data?: unknown;
+}
+
+/**
+ * Event handler callback type.
+ *
+ * Accepts CopilotSessionEventLike to be compatible with real SDK's SessionEvent
+ * which has 30+ event types. The adapter filters to known types internally.
+ */
+export type CopilotSessionEventHandler = (event: CopilotSessionEventLike) => void;
 
 /**
  * Options for sending a message to a session.
