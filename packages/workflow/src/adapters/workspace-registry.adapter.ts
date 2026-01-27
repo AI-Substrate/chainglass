@@ -12,7 +12,7 @@
 import type { IFileSystem, IPathResolver } from '@chainglass/shared';
 import { Workspace, type WorkspaceJSON } from '../entities/workspace.js';
 import { EntityNotFoundError } from '../errors/entity-not-found.error.js';
-import { WorkspaceErrorCodes } from '../errors/workspace-errors.js';
+import { RegistryCorruptError, WorkspaceErrorCodes } from '../errors/workspace-errors.js';
 import type {
   IWorkspaceRegistryAdapter,
   WorkspaceRemoveResult,
@@ -60,6 +60,7 @@ export class WorkspaceRegistryAdapter implements IWorkspaceRegistryAdapter {
    * @param slug - Workspace slug
    * @returns Workspace if found
    * @throws EntityNotFoundError if workspace not found
+   * @throws RegistryCorruptError if workspace path in registry is invalid
    */
   async load(slug: string): Promise<Workspace> {
     const registry = await this.readRegistry();
@@ -67,6 +68,14 @@ export class WorkspaceRegistryAdapter implements IWorkspaceRegistryAdapter {
 
     if (!workspaceJson) {
       throw new EntityNotFoundError('Workspace', slug, this.registryPath);
+    }
+
+    // Validate path even when loading (defense against tampered registry)
+    const pathValidation = this.validatePath(workspaceJson.path);
+    if (!pathValidation.ok) {
+      throw new RegistryCorruptError(
+        `Invalid path in registry for workspace '${slug}': ${pathValidation.errorMessage}`
+      );
     }
 
     // Reconstruct Workspace entity from JSON
@@ -180,13 +189,27 @@ export class WorkspaceRegistryAdapter implements IWorkspaceRegistryAdapter {
    * Per High Discovery 05: All paths must be validated:
    * - Must be absolute (or start with ~)
    * - Cannot contain .. (directory traversal)
+   * - URL encoding must be decoded to prevent bypass attacks
    *
    * @param workspacePath - Path to validate
    * @returns WorkspaceSaveResult with ok=true if valid, error if invalid
    */
   private validatePath(workspacePath: string): WorkspaceSaveResult {
-    // Check for directory traversal
-    if (workspacePath.includes('..')) {
+    // Decode URL encoding to prevent bypass (decode repeatedly for double-encoding)
+    let decoded = workspacePath;
+    try {
+      let prev = '';
+      while (decoded !== prev) {
+        prev = decoded;
+        decoded = decodeURIComponent(decoded);
+      }
+    } catch {
+      // If decoding fails, use original (malformed URL encoding)
+      decoded = workspacePath;
+    }
+
+    // Check for directory traversal in decoded path
+    if (decoded.includes('..')) {
       return {
         ok: false,
         errorCode: WorkspaceErrorCodes.INVALID_PATH,
@@ -196,7 +219,7 @@ export class WorkspaceRegistryAdapter implements IWorkspaceRegistryAdapter {
     }
 
     // Check if path is absolute (starts with / or ~)
-    const isAbsolute = workspacePath.startsWith('/') || workspacePath.startsWith('~');
+    const isAbsolute = decoded.startsWith('/') || decoded.startsWith('~');
     if (!isAbsolute) {
       return {
         ok: false,
@@ -213,7 +236,7 @@ export class WorkspaceRegistryAdapter implements IWorkspaceRegistryAdapter {
    * Read the workspace registry from file.
    *
    * Returns empty registry if file doesn't exist.
-   * Throws RegistryCorruptError if JSON is invalid.
+   * Throws RegistryCorruptError if JSON is invalid or structure is wrong.
    */
   private async readRegistry(): Promise<WorkspaceRegistryFile> {
     // Check if registry file exists
@@ -231,15 +254,18 @@ export class WorkspaceRegistryAdapter implements IWorkspaceRegistryAdapter {
 
       // Validate structure
       if (!registry.workspaces || !Array.isArray(registry.workspaces)) {
-        // Invalid structure, return empty
-        return { version: 1, workspaces: [] };
+        throw new RegistryCorruptError('Invalid registry structure: missing workspaces array');
       }
 
       return registry;
-    } catch {
-      // JSON parse failed, return empty registry
-      // In a production system, we might want to throw RegistryCorruptError
-      return { version: 1, workspaces: [] };
+    } catch (error) {
+      // Re-throw RegistryCorruptError as-is
+      if (error instanceof RegistryCorruptError) {
+        throw error;
+      }
+      // JSON parse failed
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      throw new RegistryCorruptError(`Failed to parse registry JSON: ${message}`);
     }
   }
 

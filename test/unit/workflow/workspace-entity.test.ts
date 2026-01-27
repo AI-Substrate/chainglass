@@ -366,6 +366,54 @@ describe('WorkspaceRegistryAdapter path validation', () => {
     expect(result.ok).toBe(true);
   });
 
+  it('should reject URL-encoded directory traversal', async () => {
+    /*
+    Test Doc:
+    - Why: Security - URL encoding can bypass literal string checks
+    - Contract: save() returns E076 for URL-encoded traversal paths
+    - Quality Contribution: Prevents security bypass
+    - Worked Example: "/home/user/%2e%2e/etc/passwd" → E076
+    */
+    const fs = new FakeFileSystem();
+    const pathResolver = new FakePathResolver();
+    const adapter = new WorkspaceRegistryAdapter(fs, pathResolver);
+
+    // %2e = '.' in URL encoding
+    const workspace = Workspace.create({
+      name: 'Evil',
+      path: '/home/user/%2e%2e/etc/passwd',
+    });
+
+    const result = await adapter.save(workspace);
+
+    expect(result.ok).toBe(false);
+    expect(result.errorCode).toBe('E076');
+  });
+
+  it('should reject double-encoded directory traversal', async () => {
+    /*
+    Test Doc:
+    - Why: Security - double encoding can bypass single decode
+    - Contract: save() returns E076 for double-encoded paths
+    - Quality Contribution: Prevents double-encoding attacks
+    - Worked Example: "/home/user/%252e%252e/etc" → E076
+    */
+    const fs = new FakeFileSystem();
+    const pathResolver = new FakePathResolver();
+    const adapter = new WorkspaceRegistryAdapter(fs, pathResolver);
+
+    // %252e = URL-encoded '%2e'
+    const workspace = Workspace.create({
+      name: 'Evil2',
+      path: '/home/user/%252e%252e/etc/passwd',
+    });
+
+    const result = await adapter.save(workspace);
+
+    expect(result.ok).toBe(false);
+    expect(result.errorCode).toBe('E076');
+  });
+
   it('should create config directory if it does not exist', async () => {
     /*
     Test Doc:
