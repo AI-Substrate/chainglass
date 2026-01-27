@@ -21,3 +21,7 @@ export type {
 
 // Extended result types for WorkflowService with Workflow entity (Phase 6)
 export type { ComposeResultWithEntity } from './workflow-service.types.js';
+
+// Workspace services (Plan 014 Phase 4)
+export { WorkspaceService } from './workspace.service.js';
+export { SampleService } from './sample.service.js';

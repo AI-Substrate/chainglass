@@ -272,3 +272,35 @@ export type {
 
 export { WorkspaceContextResolver } from './resolvers/index.js';
 export { GitWorktreeResolver } from './resolvers/index.js';
+
+// Git worktree resolver interface (Plan 014 Phase 4)
+export type { IGitWorktreeResolver } from './interfaces/index.js';
+
+// Workspace service interface (Plan 014 Phase 4)
+export type {
+  IWorkspaceService,
+  WorkspaceOperationResult,
+  AddWorkspaceResult,
+  RemoveWorkspaceResult,
+  AddWorkspaceOptions,
+} from './interfaces/index.js';
+
+// Sample service interface (Plan 014 Phase 4)
+export type {
+  ISampleService,
+  SampleOperationResult,
+  AddSampleResult,
+  DeleteSampleResult,
+} from './interfaces/index.js';
+
+// Workspace service (Plan 014 Phase 4)
+export { WorkspaceService } from './services/index.js';
+export { SampleService } from './services/index.js';
+
+// Git worktree resolver fake (Plan 014 Phase 4)
+export { FakeGitWorktreeResolver } from './fakes/index.js';
+export type {
+  DetectWorktreesCall,
+  GetMainRepoPathCall,
+  IsMainWorktreeCall,
+} from './fakes/index.js';

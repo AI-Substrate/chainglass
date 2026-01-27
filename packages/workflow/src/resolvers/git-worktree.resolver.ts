@@ -11,10 +11,12 @@
  * Per High Discovery 04: Graceful degradation when git unavailable or too old.
  * Per DYK-01: Uses IProcessManager for testable git command execution.
  * Per DYK-05: Handles all porcelain output variants.
+ * Per DYK-P4-03: Implements IGitWorktreeResolver interface for DI.
  */
 
 import type { IProcessManager, SpawnOptions } from '@chainglass/shared';
 import { GitOperationError, WorkspaceErrors } from '../errors/workspace-errors.js';
+import type { IGitWorktreeResolver } from '../interfaces/git-worktree-resolver.interface.js';
 import type { Worktree } from '../interfaces/workspace-context.interface.js';
 
 /**
@@ -33,8 +35,9 @@ interface GitResult {
  * GitWorktreeResolver handles git worktree detection.
  *
  * Per ADR-0004: Use DI container for injection.
+ * Per DYK-P4-03: Implements IGitWorktreeResolver interface.
  */
-export class GitWorktreeResolver {
+export class GitWorktreeResolver implements IGitWorktreeResolver {
   /** Minimum git version for worktree --porcelain support */
   private static readonly MIN_GIT_VERSION = '2.13.0';
 

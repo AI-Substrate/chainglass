@@ -70,3 +70,23 @@ export type {
   SampleSaveResult,
   SampleRemoveResult,
 } from './sample-adapter.interface.js';
+
+// Git worktree resolver interface (Plan 014 Phase 4)
+export type { IGitWorktreeResolver } from './git-worktree-resolver.interface.js';
+
+// Workspace service interface (Plan 014 Phase 4)
+export type {
+  IWorkspaceService,
+  WorkspaceOperationResult,
+  AddWorkspaceResult,
+  RemoveWorkspaceResult,
+  AddWorkspaceOptions,
+} from './workspace-service.interface.js';
+
+// Sample service interface (Plan 014 Phase 4)
+export type {
+  ISampleService,
+  SampleOperationResult,
+  AddSampleResult,
+  DeleteSampleResult,
+} from './sample-service.interface.js';

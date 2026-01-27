@@ -183,17 +183,18 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|------|------|-----|------|--------------|------------------|------------|----------|-------|
-| [ ] | T035 | Define IWorkspaceService interface with add, list, remove, getInfo, resolveContext methods | 1 | Setup | – | /home/jak/substrate/014-workspaces/packages/workflow/src/interfaces/workspace-service.interface.ts | Interface compiles, documented | – | Methods return Result types |
-| [ ] | T036 | Write tests for WorkspaceService.add() covering success, duplicate slug (E075), invalid path (E076/E077) | 2 | Test | T035 | /home/jak/substrate/014-workspaces/test/unit/workflow/workspace-service.test.ts | Tests fail initially (RED) | – | Use FakeWorkspaceRegistryAdapter |
-| [ ] | T037 | Write tests for WorkspaceService.list() covering empty registry, multiple workspaces | 1 | Test | T035 | /home/jak/substrate/014-workspaces/test/unit/workflow/workspace-service.test.ts | Tests fail initially (RED) | – | |
-| [ ] | T038 | Write tests for WorkspaceService.getInfo() covering no git, with worktrees, not found | 2 | Test | T035 | /home/jak/substrate/014-workspaces/test/unit/workflow/workspace-service.test.ts | Tests fail initially (RED) | – | Use FakeWorkspaceContextResolver |
-| [ ] | T039 | Implement WorkspaceService with constructor injection of adapters and resolvers | 3 | Core | T036, T037, T038 | /home/jak/substrate/014-workspaces/packages/workflow/src/services/workspace.service.ts | All T036-T038 tests pass (GREEN) | – | Per ADR-0004 useFactory pattern |
-| [ ] | T040 | Define ISampleService interface with add, list, get, delete methods | 1 | Setup | – | /home/jak/substrate/014-workspaces/packages/workflow/src/interfaces/sample-service.interface.ts | Interface compiles, documented | – | All methods take WorkspaceContext |
-| [ ] | T041 | Write tests for SampleService CRUD covering add, list, get, delete, not found (E082) | 2 | Test | T040 | /home/jak/substrate/014-workspaces/test/unit/workflow/sample-service.test.ts | Tests fail initially (RED) | – | Use FakeSampleAdapter (DYK-P3-04) |
-| [ ] | T042 | Implement SampleService with constructor injection of ISampleAdapter | 2 | Core | T041 | /home/jak/substrate/014-workspaces/packages/workflow/src/services/sample.service.ts | All T041 tests pass (GREEN) | – | |
-| [ ] | T043 | Add WORKSPACE_DI_TOKENS to @chainglass/shared/di-tokens.ts | 1 | Setup | T039, T042 | /home/jak/substrate/014-workspaces/packages/shared/src/di-tokens.ts | Tokens defined, compile | – | Per ADR-0004 IMP-006 |
-| [ ] | T044 | Update container.ts with workspace/sample service registrations for prod and test | 2 | Integration | T043 | /home/jak/substrate/014-workspaces/packages/workflow/src/container.ts | Container resolves services | – | Per ADR-0004 |
-| [ ] | T045 | Export new interfaces, services, tokens from package index | 1 | Doc | T044 | /home/jak/substrate/014-workspaces/packages/workflow/src/index.ts, /home/jak/substrate/014-workspaces/packages/workflow/src/interfaces/index.ts | Types importable from @chainglass/workflow | – | |
+| [x] | T035 | Define IWorkspaceService interface with add, list, remove, getInfo, resolveContext methods | 1 | Setup | – | /home/jak/substrate/014-workspaces/packages/workflow/src/interfaces/workspace-service.interface.ts | Interface compiles, documented | – | Methods return Result types |
+| [x] | T035a | Extract IGitWorktreeResolver interface from GitWorktreeResolver + create FakeGitWorktreeResolver | 2 | Setup | – | /home/jak/substrate/014-workspaces/packages/workflow/src/interfaces/git-worktree-resolver.interface.ts, /home/jak/substrate/014-workspaces/packages/workflow/src/fakes/fake-git-worktree-resolver.ts | Interface compiles, fake follows three-part API | – | DYK-P4-03: Git ops need proper DI |
+| [x] | T036 | Write tests for WorkspaceService.add() covering success, duplicate slug (E075), invalid path (E076/E077) | 2 | Test | T035 | /home/jak/substrate/014-workspaces/test/unit/workflow/workspace-service.test.ts | Tests pass (GREEN) | – | Use FakeWorkspaceRegistryAdapter |
+| [x] | T037 | Write tests for WorkspaceService.list() covering empty registry, multiple workspaces | 1 | Test | T035 | /home/jak/substrate/014-workspaces/test/unit/workflow/workspace-service.test.ts | Tests pass (GREEN) | – | |
+| [x] | T038 | Write tests for WorkspaceService.getInfo() covering no git, with worktrees, not found | 2 | Test | T035, T035a | /home/jak/substrate/014-workspaces/test/unit/workflow/workspace-service.test.ts | Tests pass (GREEN) | – | Use FakeGitWorktreeResolver |
+| [x] | T039 | Implement WorkspaceService with constructor injection of adapters and resolvers | 3 | Core | T036, T037, T038 | /home/jak/substrate/014-workspaces/packages/workflow/src/services/workspace.service.ts | All T036-T038 tests pass (GREEN) | – | Per ADR-0004 useFactory pattern |
+| [x] | T040 | Define ISampleService interface with add, list, get, delete methods | 1 | Setup | – | /home/jak/substrate/014-workspaces/packages/workflow/src/interfaces/sample-service.interface.ts | Interface compiles, documented | – | All methods take WorkspaceContext |
+| [x] | T041 | Write tests for SampleService CRUD covering add, list, get, delete, not found (E082) | 2 | Test | T040 | /home/jak/substrate/014-workspaces/test/unit/workflow/sample-service.test.ts | Tests pass (GREEN) | – | Use FakeSampleAdapter (DYK-P3-04) |
+| [x] | T042 | Implement SampleService with constructor injection of ISampleAdapter | 2 | Core | T041 | /home/jak/substrate/014-workspaces/packages/workflow/src/services/sample.service.ts | All T041 tests pass (GREEN) | – | |
+| [x] | T043 | Add WORKSPACE_DI_TOKENS to @chainglass/shared/di-tokens.ts | 1 | Setup | T039, T042 | /home/jak/substrate/014-workspaces/packages/shared/src/di-tokens.ts | Tokens defined, compile | – | Per ADR-0004 IMP-006; DYK-P4-02: separate object |
+| [x] | T044 | Update container.ts with workspace/sample service registrations for prod and test | 2 | Integration | T043 | /home/jak/substrate/014-workspaces/packages/workflow/src/container.ts | Container resolves services | – | Per ADR-0004 |
+| [x] | T045 | Export new interfaces, services, tokens from package index | 1 | Doc | T044 | /home/jak/substrate/014-workspaces/packages/workflow/src/index.ts, /home/jak/substrate/014-workspaces/packages/workflow/src/interfaces/index.ts | Types importable from @chainglass/workflow | – | |
 
 ---
 
@@ -557,7 +558,11 @@ _Populated during implementation by plan-6. Log anything of interest to your fut
 
 | Date | Task | Type | Discovery | Resolution | References |
 |------|------|------|-----------|------------|------------|
-| | | | | | |
+| 2026-01-27 | T035,T040 | decision | DYK-P4-01: Service result types should extend BaseResult with errors[] array, NOT reuse adapter result types (ok boolean) | Create AddWorkspaceResult, RemoveWorkspaceResult, AddSampleResult, RemoveSampleResult extending BaseResult per workflow-service.types.ts pattern | workflow-service.types.ts:24-27 |
+| 2026-01-27 | T043 | decision | DYK-P4-02: Create separate WORKSPACE_DI_TOKENS object (not extend WORKFLOW_DI_TOKENS) because workflow will be deprecated in upcoming release | Add new WORKSPACE_DI_TOKENS constant to di-tokens.ts with: WORKSPACE_REGISTRY_ADAPTER, WORKSPACE_CONTEXT_RESOLVER, SAMPLE_ADAPTER, WORKSPACE_SERVICE, SAMPLE_SERVICE | di-tokens.ts pattern (SHARED vs WORKFLOW) |
+| 2026-01-27 | T039 | decision | DYK-P4-03: GitWorktreeResolver needs IGitWorktreeResolver interface + FakeGitWorktreeResolver for proper DI and testing | Extract interface from concrete class, create fake with three-part API, add to DI container | Pattern: IWorkspaceContextResolver + FakeWorkspaceContextResolver |
+| 2026-01-27 | T036,T039 | decision | DYK-P4-04: Defense in depth for path validation - Service validates for early-fail UX, Adapter validates as safety net for corrupted registry data | Both layers validate; this is intentional, not duplicate code | HD-05 mandate + workspace-registry.adapter.ts:197-233 |
+| 2026-01-27 | T036,T038,T041 | decision | DYK-P4-05: Extract createDefaultContext() from sample-adapter.contract.ts to shared test fixture (test/fixtures/workspace-context.fixture.ts) | Move helper during T041 implementation; import in all service tests | sample-adapter.contract.ts:22-33 |
 
 **Types**: `gotcha` | `research-needed` | `unexpected-behavior` | `workaround` | `decision` | `debt` | `insight`
 
@@ -594,3 +599,55 @@ docs/plans/014-workspaces/
         ├── tasks.md          # ← This file
         └── execution.log.md  # ← Created by plan-6
 ```
+
+
+---
+
+## Critical Insights Discussion
+
+**Session**: 2026-01-27 06:22 UTC
+**Context**: Phase 4: Service Layer + DI Integration – Tasks & Alignment Brief
+**Analyst**: AI Clarity Agent
+**Reviewer**: Development Team
+**Format**: Water Cooler Conversation (5 Critical Insights)
+
+### Insight 1: Service Result Types vs Adapter Result Types
+
+**Did you know**: The codebase has two distinct result patterns — adapter results use `ok: boolean` while service results extend `BaseResult` with `errors: ResultError[]`. Mixing them creates inconsistent API surfaces.
+
+**Decision**: Create service-level result types extending BaseResult (Option B)
+**Affects**: T035 (IWorkspaceService), T040 (ISampleService)
+
+### Insight 2: DI Token Placement — One File vs Domain-Specific
+
+**Did you know**: WORKFLOW_DI_TOKENS will be deprecated. Workspace tokens need separation.
+
+**Decision**: Create separate WORKSPACE_DI_TOKENS object (Option B)
+**Affects**: T043 (DI tokens)
+
+### Insight 3: GitWorktreeResolver Has No Interface — DI Asymmetry
+
+**Did you know**: GitWorktreeResolver is concrete, breaking DI pattern. Can't test worktree scenarios.
+
+**Decision**: Create IGitWorktreeResolver + FakeGitWorktreeResolver (Option B)
+**Action**: Added T035a task
+**Affects**: T035a (new), T038, T039
+
+### Insight 4: Duplicate Path Validation — Defense in Depth
+
+**Did you know**: Both service and adapter validate paths. This is intentional — service for UX, adapter for registry integrity.
+
+**Decision**: Defense in depth — validate in both layers (Option B)
+**Affects**: T036, T039
+
+### Insight 5: Test Context Factory Needs Extraction
+
+**Did you know**: createDefaultContext() is trapped in contract test file, not reusable.
+
+**Decision**: Extract to test/fixtures/workspace-context.fixture.ts (Option B)
+**Affects**: T036, T038, T041
+
+---
+
+**Session Summary**: 5 decisions made, T035a added, high confidence to proceed.
+**Next**: `/plan-6-implement-phase --phase "Phase 4: Service Layer + DI Integration"`

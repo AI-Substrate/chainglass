@@ -67,3 +67,11 @@ export type {
   SampleRemoveCall,
   SampleExistsCall,
 } from './fake-sample-adapter.js';
+
+// Git worktree resolver fake (Plan 014 Phase 4)
+export { FakeGitWorktreeResolver } from './fake-git-worktree-resolver.js';
+export type {
+  DetectWorktreesCall,
+  GetMainRepoPathCall,
+  IsMainWorktreeCall,
+} from './fake-git-worktree-resolver.js';

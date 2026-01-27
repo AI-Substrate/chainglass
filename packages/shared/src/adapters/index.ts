@@ -14,3 +14,4 @@ export { SdkCopilotAdapter, SdkCopilotAdapter as CopilotAdapter } from './sdk-co
 export type { SdkCopilotAdapterOptions } from './sdk-copilot-adapter.js';
 export { UnixProcessManager } from './unix-process-manager.js';
 export { WindowsProcessManager } from './windows-process-manager.js';
+export { createProcessManager, ProcessManagerAdapter } from './process-manager.adapter.js';
