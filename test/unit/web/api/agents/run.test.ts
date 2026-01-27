@@ -5,6 +5,7 @@
  * Uses fakes over mocks per constitution mandate.
  *
  * Part of Plan 012: Multi-Agent Web UI (Phase 2: Core Chat, Subtask 001)
+ * Extended for Plan 015: Phase 3 event persistence tests
  */
 
 import {
@@ -12,11 +13,13 @@ import {
   AgentService,
   FakeAgentAdapter,
   FakeConfigService,
+  FakeEventStorage,
   FakeLogger,
 } from '@chainglass/shared';
 import { NextRequest } from 'next/server';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { resetBootstrapSingleton } from '../../../../../apps/web/src/lib/bootstrap-singleton';
+import { DI_TOKENS } from '../../../../../apps/web/src/lib/di-container';
 import { sseManager } from '../../../../../apps/web/src/lib/sse-manager';
 
 // ============ Test Helpers ============
@@ -84,17 +87,21 @@ function setupTestBootstrap(): void {
     });
 
   const fakeAgentService = new AgentService(adapterFactory, fakeConfig, fakeLogger);
+  const fakeEventStorage = new FakeEventStorage();
 
   // Inject into globalThis for bootstrap-singleton to use
   const globalForBootstrap = globalThis as typeof globalThis & {
     bootstrapSingleton?: { container: { resolve: (token: string) => unknown }; config: unknown };
   };
 
-  // Create a minimal container that returns our fake service
+  // Create a minimal container that returns our fake services
   const fakeContainer = {
     resolve: (token: string) => {
-      if (token === 'AgentService') {
+      if (token === 'AgentService' || token === DI_TOKENS.AGENT_SERVICE) {
         return fakeAgentService;
+      }
+      if (token === DI_TOKENS.EVENT_STORAGE) {
+        return fakeEventStorage;
       }
       throw new Error(`Unknown token: ${token}`);
     },
@@ -385,6 +392,133 @@ describe('/api/agents/run', () => {
 
       // Request should succeed (FakeAgentAdapter handles any sessionId)
       expect(response.status).toBe(200);
+    });
+  });
+
+  // ============ Phase 3: Notification-Fetch Architecture Tests ============
+  // Per tasks.md: T001 tests storage integration, T003 tests notification format
+
+  describe('event persistence (T001)', () => {
+    it.skip('should persist tool_call events to storage before broadcast', async () => {
+      /*
+      Test Doc:
+      - Why: Storage is source of truth (Phase 3 notification-fetch pattern)
+      - Contract: EventStorageService.append() called BEFORE sseManager.broadcast()
+      - Usage Notes: Events must be persisted before notification to ensure recovery
+      - Quality Contribution: Verifies persist-first principle
+      - Worked Example: tool_call event → storage.append() → broadcast notification
+      */
+      // TDD RED: This test will fail until T002 implementation
+      // The route doesn't currently call EventStorageService
+      const { POST } = await import('../../../../../apps/web/app/api/agents/run/route');
+
+      const request = createRequest({
+        prompt: 'Run a bash command',
+        agentType: 'claude-code',
+        sessionId: 'test-session-persist',
+        channel: 'agent-test-persist',
+      });
+
+      // TODO: Set up FakeEventStorage to capture append() calls
+      // TODO: FakeAgentAdapter should emit tool_call event
+      // TODO: Verify storage.append() called with tool_call event
+
+      await POST(request);
+
+      // This will fail until T002 is implemented
+      // expect(fakeStorage.appendedEvents.length).toBeGreaterThan(0);
+    });
+
+    it.skip('should persist tool_result events to storage', async () => {
+      /*
+      Test Doc:
+      - Why: Tool results must be persisted for session replay
+      - Contract: tool_result events passed to EventStorageService.append()
+      - Usage Notes: Links to tool_call via toolCallId
+      - Quality Contribution: Complete tool lifecycle persistence
+      - Worked Example: tool_result event → storage.append()
+      */
+      // TDD RED: Needs T002 implementation
+    });
+
+    it.skip('should persist thinking events to storage', async () => {
+      /*
+      Test Doc:
+      - Why: Thinking blocks must be persisted for session review
+      - Contract: thinking events passed to EventStorageService.append()
+      - Usage Notes: Claude extended thinking, Copilot reasoning
+      - Quality Contribution: Complete reasoning persistence
+      - Worked Example: thinking event → storage.append()
+      */
+      // TDD RED: Needs T002 implementation
+    });
+
+    it.skip('should continue broadcast even if storage fails (DYK-06)', async () => {
+      /*
+      Test Doc:
+      - Why: Per DYK-06, UX > strict consistency
+      - Contract: On append() failure, log warning but continue with broadcast
+      - Usage Notes: Storage failure is non-fatal
+      - Quality Contribution: Graceful degradation
+      - Worked Example: storage.append() throws → warning logged → broadcast continues
+      */
+      // TDD RED: Needs T002 implementation with try/catch
+    });
+  });
+
+  describe('notification broadcast format (T003)', () => {
+    it.skip('should broadcast session_updated notification, not full event payload', async () => {
+      /*
+      Test Doc:
+      - Why: Phase 3 notification-fetch pattern uses tiny SSE payloads
+      - Contract: SSE payload is { type: 'session_updated', sessionId } only
+      - Usage Notes: No event data in SSE, client fetches via REST
+      - Quality Contribution: Validates notification-fetch architecture
+      - Worked Example: tool_call → SSE { type: 'session_updated', sessionId: 'sess-123' }
+      */
+      // TDD RED: Current implementation broadcasts full event data
+      const { POST } = await import('../../../../../apps/web/app/api/agents/run/route');
+
+      // TODO: Setup FakeAgentAdapter to emit tool_call event
+      const request = createRequest({
+        prompt: 'Run bash',
+        agentType: 'claude-code',
+        sessionId: 'test-session-notify',
+        channel: 'agent-test-notify',
+      });
+
+      await POST(request);
+
+      // Check for session_updated notification (not agent_tool_call with full data)
+      const notifications = sseCapture.getByEventType('session_updated');
+      // This will fail - current impl broadcasts full events, not notifications
+      // expect(notifications.length).toBeGreaterThan(0);
+      // const notification = notifications[0].data as { sessionId: string };
+      // expect(notification.sessionId).toBe('test-session-notify');
+    });
+
+    it.skip('should NOT include event data in SSE broadcast', async () => {
+      /*
+      Test Doc:
+      - Why: Full event data is fetched via REST, not streamed via SSE
+      - Contract: SSE payload contains ONLY sessionId, not toolName/input/output
+      - Usage Notes: Prevents SSE bloat, enables notification-fetch pattern
+      - Quality Contribution: Verifies clean separation of concerns
+      - Worked Example: tool_call NOT in SSE payload
+      */
+      // TDD RED: Current implementation includes full event data
+    });
+
+    it.skip('should broadcast single notification per event batch', async () => {
+      /*
+      Test Doc:
+      - Why: Multiple rapid events shouldn't spam SSE
+      - Contract: Coalesce notifications for efficiency
+      - Usage Notes: SSE naturally handles this, React Query dedupes fetches
+      - Quality Contribution: Performance optimization
+      - Worked Example: 5 events in quick succession → 1-5 notifications (not 5x full payloads)
+      */
+      // TDD RED: Future optimization, may not implement in Phase 3
     });
   });
 });

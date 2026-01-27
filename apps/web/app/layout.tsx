@@ -6,6 +6,7 @@ import '@xyflow/react/dist/style.css';
 import './globals.css';
 
 import { ThemeProvider } from 'next-themes';
+import { Providers } from '@/components/providers';
 
 export const metadata = {
   title: 'Chainglass',
@@ -24,7 +25,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           enableSystem
           disableTransitionOnChange
         >
-          {children}
+          <Providers>{children}</Providers>
         </ThemeProvider>
       </body>
     </html>

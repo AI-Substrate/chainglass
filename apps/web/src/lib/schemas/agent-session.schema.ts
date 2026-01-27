@@ -38,16 +38,34 @@ export const SessionStatusSchema = z.enum([
  */
 export const MessageRoleSchema = z.enum(['user', 'assistant']);
 
+/**
+ * Message content type for distinguishing different message formats.
+ * - text: Normal text message (default)
+ * - tool_call: Tool invocation display
+ * - tool_result: Tool result display
+ * - thinking: AI reasoning/thinking block
+ *
+ * Per DYK-08: Use .optional().default('text') for backward compatibility.
+ */
+export const MessageContentTypeSchema = z
+  .enum(['text', 'tool_call', 'tool_result', 'thinking'])
+  .optional()
+  .default('text');
+
 // ============ Object Schemas ============
 
 /**
  * A single message in an agent conversation.
  * Timestamps are epoch milliseconds (Date.now()).
+ *
+ * Per Phase 3: Extended with contentType for tool/thinking display.
  */
 export const AgentMessageSchema = z.object({
   role: MessageRoleSchema,
   content: z.string(),
   timestamp: z.number(),
+  /** Content type for rendering (text, tool_call, tool_result, thinking) */
+  contentType: MessageContentTypeSchema,
 });
 
 /**
@@ -94,6 +112,7 @@ export const SessionsDataSchema = z.record(z.string(), AgentSessionSchema);
 export type AgentType = z.infer<typeof AgentTypeSchema>;
 export type SessionStatus = z.infer<typeof SessionStatusSchema>;
 export type MessageRole = z.infer<typeof MessageRoleSchema>;
+export type MessageContentType = z.infer<typeof MessageContentTypeSchema>;
 export type AgentMessage = z.infer<typeof AgentMessageSchema>;
 export type AgentSession = z.infer<typeof AgentSessionSchema>;
 export type SessionsData = z.infer<typeof SessionsDataSchema>;

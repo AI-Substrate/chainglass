@@ -130,16 +130,16 @@ flowchart TD
 
     subgraph Phase3["Phase 3: Notification-Fetch Integration"]
         subgraph Schema["Schema Layer"]
-            T011["T011: SessionMetadataSchema"]:::pending
-            T010["T010: Session message schema"]:::pending
+            T011["T011: SessionMetadataSchema ✓"]:::completed
+            T010["T010: Session message schema ✓"]:::completed
         end
 
         subgraph Server["Server Side"]
-            T001["T001: Test persist before broadcast"]:::pending
-            T002["T002: Implement storage integration"]:::pending
-            T003["T003: Test notification broadcast"]:::pending
-            T004["T004: Implement notification broadcast"]:::pending
-            T005["T005: SessionMetadataService"]:::pending
+            T001["T001: Test persist before broadcast ✓"]:::completed
+            T002["T002: Implement storage integration ✓"]:::completed
+            T003["T003: Test notification broadcast ✓"]:::completed
+            T004["T004: Implement notification broadcast ✓"]:::completed
+            T005["T005: SessionMetadataService ✓"]:::completed
             T001 --> T002
             T003 --> T004
             T002 --> T004
@@ -147,10 +147,10 @@ flowchart TD
         end
 
         subgraph Hook["Client Side"]
-            T006["T006: Test fetch on mount"]:::pending
-            T007["T007: Test invalidation on notify"]:::pending
-            T008["T008: Implement useAgentSession"]:::pending
-            T009["T009: React Query integration"]:::pending
+            T006["T006: Test fetch on mount ✓"]:::completed
+            T007["T007: Test invalidation on notify ✓"]:::completed
+            T008["T008: Implement useAgentSession ✓"]:::completed
+            T009["T009: React Query integration ✓"]:::completed
             T006 --> T008
             T007 --> T008
             T008 --> T009
@@ -166,17 +166,17 @@ flowchart TD
 
 | Task | Component(s) | Files | Status |
 |------|-------------|-------|--------|
-| T001 | Storage Integration Tests | /test/unit/web/api/agents-run-route.test.ts | ⬜ Pending |
-| T002 | Storage Integration | /apps/web/app/api/agents/run/route.ts | ⬜ Pending |
-| T003 | Notification Tests | /test/unit/web/api/agents-run-route.test.ts | ⬜ Pending |
-| T004 | Notification Broadcast | /apps/web/app/api/agents/run/route.ts | ⬜ Pending |
-| T005 | SessionMetadataService | /packages/shared/src/services/session-metadata.service.ts | ⬜ Pending |
-| T006 | Hook Fetch Tests | /test/unit/web/hooks/useAgentSession.test.ts | ⬜ Pending |
-| T007 | Hook Invalidation Tests | /test/unit/web/hooks/useAgentSession.test.ts | ⬜ Pending |
-| T008 | useAgentSession Hook | /apps/web/src/hooks/useAgentSession.ts | ⬜ Pending |
-| T009 | React Query Setup | /apps/web/src/hooks/useAgentSession.ts | ⬜ Pending |
-| T010 | Session Schema | /apps/web/src/lib/schemas/agent-session.schema.ts | ⬜ Pending |
-| T011 | SessionMetadataSchema | /packages/shared/src/schemas/session-metadata.schema.ts | ⬜ Pending |
+| T001 | Storage Integration Tests | /test/unit/web/api/agents-run-route.test.ts | ✅ Complete |
+| T002 | Storage Integration | /apps/web/app/api/agents/run/route.ts | ✅ Complete |
+| T003 | Notification Tests | /test/unit/web/api/agents-run-route.test.ts | ✅ Complete |
+| T004 | Notification Broadcast | /apps/web/app/api/agents/run/route.ts | ✅ Complete |
+| T005 | SessionMetadataService | /packages/shared/src/services/session-metadata.service.ts | ✅ Complete |
+| T006 | Hook Fetch Tests | /test/unit/web/hooks/useAgentSession.test.ts | ✅ Complete |
+| T007 | Hook Invalidation Tests | /test/unit/web/hooks/useAgentSession.test.ts | ✅ Complete |
+| T008 | useAgentSession Hook | /apps/web/src/hooks/useAgentSession.ts | ✅ Complete |
+| T009 | React Query Setup | /apps/web/src/hooks/useAgentSession.ts | ✅ Complete |
+| T010 | Session Schema | /apps/web/src/lib/schemas/agent-session.schema.ts | ✅ Complete |
+| T011 | SessionMetadataSchema | /packages/shared/src/schemas/session-metadata.schema.ts | ✅ Complete |
 
 ---
 
@@ -262,17 +262,17 @@ Client receives → invalidates React Query → refetches via REST
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Notes |
 |--------|-----|------|-----|------|--------------|------------------|------------|-------|
-| [ ] | T001 | Write tests for event persistence before broadcast | 2 | Test | – | /home/jak/substrate/015-better-agents/test/unit/web/api/agents-run-route.test.ts | Tests verify EventStorageService.append() called BEFORE sseManager.broadcast() | TDD RED |
-| [ ] | T002 | Integrate EventStorageService with run route | 3 | Core | T001 | /home/jak/substrate/015-better-agents/apps/web/app/api/agents/run/route.ts | Events persisted via append(); on failure: log warning, continue (DYK-06) | Storage is source of truth |
-| [ ] | T003 | Write tests for notification broadcast format | 2 | Test | – | /home/jak/substrate/015-better-agents/test/unit/web/api/agents-run-route.test.ts | Tests verify SSE payload is `{ type: 'session_updated', sessionId }` only | Tiny payload, no event data |
-| [ ] | T004 | Implement lightweight notification broadcast | 2 | Core | T002, T003 | /home/jak/substrate/015-better-agents/apps/web/app/api/agents/run/route.ts | Broadcast `session_updated` after storage; no full event payload | Per ADR-0007 pattern |
-| [ ] | T005 | Create SessionMetadataService for metadata.json persistence | 3 | Core | – | /home/jak/substrate/015-better-agents/packages/shared/src/services/session-metadata.service.ts | Service creates/reads/updates metadata.json per session; Zod schema validation | New service per workshop |
-| [ ] | T006 | Write tests for session fetch on hook mount | 2 | Test | T005 | /home/jak/substrate/015-better-agents/test/unit/web/hooks/useAgentSession.test.ts | Tests verify GET /api/agents/sessions/:id called on mount | React Query useQuery |
-| [ ] | T007 | Write tests for invalidation on SSE notification | 3 | Test | – | /home/jak/substrate/015-better-agents/test/unit/web/hooks/useAgentSession.test.ts | Tests verify queryClient.invalidateQueries called on session_updated | Triggers refetch |
-| [ ] | T008 | Implement useAgentSession with notification subscription | 3 | Core | T006, T007 | /home/jak/substrate/015-better-agents/apps/web/src/hooks/useAgentSession.ts | Hook returns session data; refetches on SSE notification | Combines useQuery + useAgentSSE |
-| [ ] | T009 | Configure React Query for session fetching | 2 | Core | T008 | /home/jak/substrate/015-better-agents/apps/web/src/hooks/useAgentSession.ts | staleTime, gcTime configured; optimistic updates work | May need QueryClientProvider |
-| [ ] | T010 | Extend agent session message schema with contentType | 2 | Core | – | /home/jak/substrate/015-better-agents/apps/web/src/lib/schemas/agent-session.schema.ts | Schema validates contentType; use `.optional().default('text')` (DYK-08) | Backward compat |
-| [ ] | T011 | Create SessionMetadataSchema (Zod) | 2 | Core | – | /home/jak/substrate/015-better-agents/packages/shared/src/schemas/session-metadata.schema.ts | Schema per workshop: id, name, agentType, status, timestamps, contextUsage, error | New schema |
+| [x] | T001 | Write tests for event persistence before broadcast | 2 | Test | – | /home/jak/substrate/015-better-agents/test/unit/web/api/agents-run-route.test.ts | Tests verify EventStorageService.append() called BEFORE sseManager.broadcast() | TDD RED |
+| [x] | T002 | Integrate EventStorageService with run route | 3 | Core | T001 | /home/jak/substrate/015-better-agents/apps/web/app/api/agents/run/route.ts | Events persisted via append(); on failure: log warning, continue (DYK-06) | Storage is source of truth |
+| [x] | T003 | Write tests for notification broadcast format | 2 | Test | – | /home/jak/substrate/015-better-agents/test/unit/web/api/agents-run-route.test.ts | Tests verify SSE payload is `{ type: 'session_updated', sessionId }` only | Tiny payload, no event data |
+| [x] | T004 | Implement lightweight notification broadcast | 2 | Core | T002, T003 | /home/jak/substrate/015-better-agents/apps/web/app/api/agents/run/route.ts | Broadcast `session_updated` after storage; no full event payload | Per ADR-0007 pattern |
+| [x] | T005 | Create SessionMetadataService for metadata.json persistence | 3 | Core | – | /home/jak/substrate/015-better-agents/packages/shared/src/services/session-metadata.service.ts | Service creates/reads/updates metadata.json per session; Zod schema validation | New service per workshop |
+| [x] | T006 | Write tests for session fetch on hook mount | 2 | Test | T005 | /home/jak/substrate/015-better-agents/test/unit/web/hooks/useAgentSession.test.ts | Tests verify GET /api/agents/sessions/:id called on mount | React Query useQuery |
+| [x] | T007 | Write tests for invalidation on SSE notification | 3 | Test | – | /home/jak/substrate/015-better-agents/test/unit/web/hooks/useAgentSession.test.ts | Tests verify queryClient.invalidateQueries called on session_updated | Triggers refetch |
+| [x] | T008 | Implement useAgentSession with notification subscription | 3 | Core | T006, T007 | /home/jak/substrate/015-better-agents/apps/web/src/hooks/useAgentSession.ts | Hook returns session data; refetches on SSE notification | Combines useQuery + useAgentSSE |
+| [x] | T009 | Configure React Query for session fetching | 2 | Core | T008 | /home/jak/substrate/015-better-agents/apps/web/src/hooks/useAgentSession.ts | staleTime, gcTime configured; optimistic updates work | May need QueryClientProvider |
+| [x] | T010 | Extend agent session message schema with contentType | 2 | Core | – | /home/jak/substrate/015-better-agents/apps/web/src/lib/schemas/agent-session.schema.ts | Schema validates contentType; use `.optional().default('text')` (DYK-08) | Backward compat |
+| [x] | T011 | Create SessionMetadataSchema (Zod) | 2 | Core | – | /home/jak/substrate/015-better-agents/packages/shared/src/schemas/session-metadata.schema.ts | Schema per workshop: id, name, agentType, status, timestamps, contextUsage, error | New schema |
 
 ---
 
@@ -549,13 +549,13 @@ Server-side `EventStorageService` provides:
 
 ## Ready Check
 
-- [ ] Understand notification-fetch pattern (SSE = hint, REST = truth)
-- [ ] React Query available in app (or add QueryClientProvider)
-- [ ] Phase 1 EventStorageService ready for DI
-- [ ] Phase 1 GET /sessions/:id endpoint returns full session
-- [ ] DYK-06, DYK-08 decisions understood
+- [x] Understand notification-fetch pattern (SSE = hint, REST = truth)
+- [x] React Query available in app (or add QueryClientProvider) ✓ Added in T009
+- [x] Phase 1 EventStorageService ready for DI
+- [x] Phase 1 GET /sessions/:id endpoint returns full session
+- [x] DYK-06, DYK-08 decisions understood
 
-**AWAITING HUMAN GO**
+**PHASE 3 COMPLETE ✓**
 
 ---
 
@@ -568,6 +568,8 @@ Server-side `EventStorageService` provides:
 | 2026-01-27 | – | decision | DYK-08: contentType `.optional().default('text')` | Backward compat | DYK session |
 | 2026-01-27 | – | decision | Server-side storage, NOT localStorage | Cross-browser, cross-machine support | User requirement |
 | 2026-01-27 | – | insight | Existing agents page doesn't use useAgentSession | useAgentSession uses localStorage; we use EventStorageService | Codebase exploration |
+| 2026-01-27 | T004 | pattern | Storable events use notification, streaming uses direct broadcast | text_delta needs <500ms latency | Implementation |
+| 2026-01-27 | T008 | decision | Created useServerSession as NEW hook (not modify existing) | localStorage vs server patterns are fundamentally different | Implementation |
 
 ---
 

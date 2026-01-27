@@ -20,3 +20,21 @@ export {
   type AgentToolCallEvent,
   type AgentToolResultEvent,
 } from './agent-event.schema.js';
+
+// Session Metadata Schemas (Plan 015: Phase 3)
+export {
+  // Schemas
+  AgentTypeSchema,
+  SessionErrorSchema,
+  SessionMetadataCreateSchema,
+  SessionMetadataSchema,
+  SessionMetadataUpdateSchema,
+  SessionStatusSchema,
+  // Types (derived via z.infer)
+  type AgentType,
+  type SessionError,
+  type SessionMetadata,
+  type SessionMetadataCreate,
+  type SessionMetadataUpdate,
+  type SessionStatus,
+} from './session-metadata.schema.js';

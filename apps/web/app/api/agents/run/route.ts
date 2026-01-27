@@ -5,14 +5,20 @@
  * Broadcasts events to per-session SSE channel for real-time updates.
  *
  * Part of Plan 012: Multi-Agent Web UI (Phase 2: Core Chat, Subtask 001)
+ * Extended for Plan 015: Event persistence (Phase 3: Notification-Fetch)
  *
  * Per DYK-01: SSE connection must be established BEFORE this endpoint is called
  * to avoid missing events (no buffering in SSEManager).
  *
  * Per DYK-05: Uses lazy singleton DI container via getContainer().
+ *
+ * Phase 3 Pattern (Notification-Fetch):
+ * 1. Persist event to storage FIRST (source of truth)
+ * 2. Broadcast notification (not full payload)
+ * 3. Client fetches state via REST on notification
  */
 
-import type { AgentEvent, AgentService } from '@chainglass/shared';
+import type { AgentEvent, AgentService, IEventStorage } from '@chainglass/shared';
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { getContainer } from '../../../../src/lib/bootstrap-singleton';
@@ -152,9 +158,10 @@ export async function POST(request: NextRequest): Promise<Response> {
 
   const { prompt, agentType, sessionId, channel, agentSessionId } = body;
 
-  // Get container and resolve AgentService
+  // Get container and resolve services
   const container = getContainer();
   const agentService = container.resolve<AgentService>(DI_TOKENS.AGENT_SERVICE);
+  const eventStorage = container.resolve<IEventStorage>(DI_TOKENS.EVENT_STORAGE);
 
   // Broadcast session start status
   sseManager.broadcast(channel, 'agent_session_status', {
@@ -180,7 +187,36 @@ export async function POST(request: NextRequest): Promise<Response> {
       cwd,
       onEvent: (event) => {
         console.log(`[/api/agents/run] Event: ${event.type}`);
-        broadcastAgentEvent(channel, sessionId, event);
+
+        // Phase 3: Persist storable events before broadcast
+        // Per DYK-06: On storage failure, log warning and continue
+        const storableTypes = ['tool_call', 'tool_result', 'thinking'];
+        if (storableTypes.includes(event.type)) {
+          // Fire-and-forget with error handling (onEvent is sync)
+          eventStorage
+            .append(sessionId, event as Parameters<IEventStorage['append']>[1])
+            .then((stored) => {
+              console.log(`[/api/agents/run] Stored event: ${stored.id}`);
+              // Phase 3: Broadcast lightweight notification AFTER storage
+              // Per notification-fetch pattern: SSE hints, REST fetches full state
+              sseManager.broadcast(channel, 'session_updated', {
+                timestamp: new Date().toISOString(),
+                data: { sessionId },
+              });
+            })
+            .catch((err) => {
+              // Per DYK-06: Log warning, still broadcast notification
+              console.warn(`[/api/agents/run] Failed to store event: ${err.message}`);
+              // Still notify - client can fetch from storage which may have the event
+              sseManager.broadcast(channel, 'session_updated', {
+                timestamp: new Date().toISOString(),
+                data: { sessionId },
+              });
+            });
+        } else {
+          // Non-storable events (text_delta, usage, session_status): broadcast as-is
+          broadcastAgentEvent(channel, sessionId, event);
+        }
       },
     });
 
