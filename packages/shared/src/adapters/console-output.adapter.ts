@@ -32,8 +32,16 @@ import type {
   PrepareResult,
   RestoreResult,
   ResultError,
+  SampleAddCmdResult,
+  SampleDeleteCmdResult,
+  SampleInfoCmdResult,
+  SampleListCmdResult,
   ValidateResult,
   VersionsResult,
+  WorkspaceAddCmdResult,
+  WorkspaceInfoCmdResult,
+  WorkspaceListCmdResult,
+  WorkspaceRemoveCmdResult,
 } from '../interfaces/index.js';
 
 /**
@@ -95,6 +103,22 @@ export class ConsoleOutputAdapter implements IOutputAdapter {
         return this.formatMessageListSuccess(result as unknown as MessageListResult);
       case 'message.read':
         return this.formatMessageReadSuccess(result as unknown as MessageReadResult);
+      case 'workspace.add':
+        return this.formatWorkspaceAddSuccess(result as unknown as WorkspaceAddCmdResult);
+      case 'workspace.list':
+        return this.formatWorkspaceListSuccess(result as unknown as WorkspaceListCmdResult);
+      case 'workspace.info':
+        return this.formatWorkspaceInfoSuccess(result as unknown as WorkspaceInfoCmdResult);
+      case 'workspace.remove':
+        return this.formatWorkspaceRemoveSuccess(result as unknown as WorkspaceRemoveCmdResult);
+      case 'sample.add':
+        return this.formatSampleAddSuccess(result as unknown as SampleAddCmdResult);
+      case 'sample.list':
+        return this.formatSampleListSuccess(result as unknown as SampleListCmdResult);
+      case 'sample.info':
+        return this.formatSampleInfoSuccess(result as unknown as SampleInfoCmdResult);
+      case 'sample.delete':
+        return this.formatSampleDeleteSuccess(result as unknown as SampleDeleteCmdResult);
       default:
         return this.formatGenericSuccess(result);
     }
@@ -139,6 +163,22 @@ export class ConsoleOutputAdapter implements IOutputAdapter {
         return this.formatMessageListFailure(result as unknown as MessageListResult);
       case 'message.read':
         return this.formatMessageReadFailure(result as unknown as MessageReadResult);
+      case 'workspace.add':
+        return this.formatWorkspaceAddFailure(result as unknown as WorkspaceAddCmdResult);
+      case 'workspace.list':
+        return this.formatWorkspaceListFailure(result as unknown as WorkspaceListCmdResult);
+      case 'workspace.info':
+        return this.formatWorkspaceInfoFailure(result as unknown as WorkspaceInfoCmdResult);
+      case 'workspace.remove':
+        return this.formatWorkspaceRemoveFailure(result as unknown as WorkspaceRemoveCmdResult);
+      case 'sample.add':
+        return this.formatSampleAddFailure(result as unknown as SampleAddCmdResult);
+      case 'sample.list':
+        return this.formatSampleListFailure(result as unknown as SampleListCmdResult);
+      case 'sample.info':
+        return this.formatSampleInfoFailure(result as unknown as SampleInfoCmdResult);
+      case 'sample.delete':
+        return this.formatSampleDeleteFailure(result as unknown as SampleDeleteCmdResult);
       default:
         return this.formatGenericFailure(result);
     }
@@ -614,6 +654,245 @@ export class ConsoleOutputAdapter implements IOutputAdapter {
     const lines: string[] = [
       `✗ Message read failed in phase '${result.phase}' [${firstError.code}]`,
     ];
+
+    this.appendErrorDetails(lines, result.errors);
+
+    return lines.join('\n');
+  }
+
+  // ==================== Workspace Success Formatters (Plan 014: Phase 5) ====================
+
+  private formatWorkspaceAddSuccess(result: WorkspaceAddCmdResult): string {
+    if (!result.workspace) {
+      return '✓ Workspace added';
+    }
+
+    const ws = result.workspace;
+    const lines: string[] = [`✓ Workspace '${ws.slug}' added`];
+    lines.push(`  Name: ${ws.name}`);
+    lines.push(`  Path: ${ws.path}`);
+
+    if (result.warnings && result.warnings.length > 0) {
+      lines.push('');
+      for (const warning of result.warnings) {
+        lines.push(`  ⚠ ${warning}`);
+      }
+    }
+
+    return lines.join('\n');
+  }
+
+  private formatWorkspaceListSuccess(result: WorkspaceListCmdResult): string {
+    if (result.workspaces.length === 0) {
+      return 'No workspaces registered.\n  Run: cg workspace add "Name" /path/to/folder';
+    }
+
+    const lines: string[] = ['WORKSPACES'];
+
+    for (const ws of result.workspaces) {
+      const slug = ws.slug.padEnd(14);
+      const name = ws.name.substring(0, 20).padEnd(22);
+      lines.push(`  ${slug} ${name} ${ws.path}`);
+    }
+
+    lines.push('');
+    lines.push(`${result.count} workspace${result.count === 1 ? '' : 's'} registered`);
+
+    return lines.join('\n');
+  }
+
+  private formatWorkspaceInfoSuccess(result: WorkspaceInfoCmdResult): string {
+    if (!result.workspace) {
+      return '✓ Workspace info retrieved';
+    }
+
+    const ws = result.workspace;
+    const lines: string[] = [`WORKSPACE: ${ws.name} (${ws.slug})`];
+    lines.push(`  Path:    ${ws.path}`);
+    lines.push(`  Created: ${ws.createdAt}`);
+
+    if (result.isGitRepo && result.worktrees && result.worktrees.length > 0) {
+      lines.push('');
+      lines.push(`WORKTREES (${result.worktreeCount ?? result.worktrees.length})`);
+      for (const wt of result.worktrees) {
+        const name = wt.name.padEnd(18);
+        const path = wt.path.padEnd(40);
+        lines.push(`  ${name} ${path} (${wt.branch})`);
+      }
+    } else if (!result.isGitRepo) {
+      lines.push('');
+      lines.push('  ⚠ Not a git repository - no worktrees to display');
+    }
+
+    return lines.join('\n');
+  }
+
+  private formatWorkspaceRemoveSuccess(result: WorkspaceRemoveCmdResult): string {
+    const lines: string[] = [`✓ Workspace '${result.slug}' removed from registry`];
+
+    if (result.path) {
+      lines.push(`  The folder at ${result.path} was not modified.`);
+    }
+
+    return lines.join('\n');
+  }
+
+  // ==================== Sample Success Formatters (Plan 014: Phase 5) ====================
+
+  private formatSampleAddSuccess(result: SampleAddCmdResult): string {
+    if (!result.sample) {
+      return '✓ Sample created';
+    }
+
+    const s = result.sample;
+    const lines: string[] = [`✓ Sample '${s.slug}' created`];
+
+    if (result.path) {
+      lines.push(`  File: ${result.path}`);
+    }
+
+    if (result.workspace) {
+      lines.push(`  Workspace: ${result.workspace.slug} (${result.workspace.worktree})`);
+    }
+
+    return lines.join('\n');
+  }
+
+  private formatSampleListSuccess(result: SampleListCmdResult): string {
+    const wsInfo = result.workspace
+      ? `${result.workspace.worktree} (${result.workspace.slug})`
+      : 'current context';
+
+    if (result.samples.length === 0) {
+      return `No samples in ${wsInfo}.\n  Run: cg sample add "Sample Name"`;
+    }
+
+    const lines: string[] = [`SAMPLES in ${wsInfo}`];
+
+    for (const s of result.samples) {
+      const slug = s.slug.padEnd(16);
+      const name = s.name.substring(0, 18).padEnd(20);
+      const created = s.createdAt.substring(0, 16);
+      lines.push(`  ${slug} ${name} ${created}`);
+    }
+
+    lines.push('');
+    lines.push(`${result.count} sample${result.count === 1 ? '' : 's'}`);
+
+    return lines.join('\n');
+  }
+
+  private formatSampleInfoSuccess(result: SampleInfoCmdResult): string {
+    if (!result.sample) {
+      return '✓ Sample info retrieved';
+    }
+
+    const s = result.sample;
+    const lines: string[] = [`SAMPLE: ${s.name} (${s.slug})`];
+    lines.push(`  Created:  ${s.createdAt}`);
+    lines.push(`  Updated:  ${s.updatedAt}`);
+
+    if (result.path) {
+      lines.push(`  File:     ${result.path}`);
+    }
+
+    lines.push('');
+    lines.push('CONTENT:');
+
+    // Truncate long content
+    const maxContentLen = 500;
+    if (s.content.length > maxContentLen) {
+      lines.push(`  ${s.content.substring(0, maxContentLen)}...`);
+      lines.push(`  [... truncated at ${maxContentLen} chars ...]`);
+      lines.push('');
+      lines.push('  Use --json for full content');
+    } else {
+      lines.push(`  ${s.content}`);
+    }
+
+    return lines.join('\n');
+  }
+
+  private formatSampleDeleteSuccess(result: SampleDeleteCmdResult): string {
+    return `✓ Sample '${result.slug}' deleted`;
+  }
+
+  // ==================== Workspace Failure Formatters (Plan 014: Phase 5) ====================
+
+  private formatWorkspaceAddFailure(result: WorkspaceAddCmdResult): string {
+    const firstError = result.errors[0];
+    const lines: string[] = [`✗ Workspace add failed [${firstError.code}]`];
+    lines.push(`  ${firstError.message}`);
+
+    this.appendErrorDetails(lines, result.errors);
+
+    return lines.join('\n');
+  }
+
+  private formatWorkspaceListFailure(result: WorkspaceListCmdResult): string {
+    const firstError = result.errors[0];
+    const lines: string[] = [`✗ Workspace list failed [${firstError.code}]`];
+
+    this.appendErrorDetails(lines, result.errors);
+
+    return lines.join('\n');
+  }
+
+  private formatWorkspaceInfoFailure(result: WorkspaceInfoCmdResult): string {
+    const firstError = result.errors[0];
+    const lines: string[] = [`✗ Workspace info failed [${firstError.code}]`];
+    lines.push(`  ${firstError.message}`);
+
+    this.appendErrorDetails(lines, result.errors);
+
+    return lines.join('\n');
+  }
+
+  private formatWorkspaceRemoveFailure(result: WorkspaceRemoveCmdResult): string {
+    const firstError = result.errors[0];
+    const lines: string[] = [`✗ Workspace remove failed [${firstError.code}]`];
+    lines.push(`  ${firstError.message}`);
+
+    this.appendErrorDetails(lines, result.errors);
+
+    return lines.join('\n');
+  }
+
+  // ==================== Sample Failure Formatters (Plan 014: Phase 5) ====================
+
+  private formatSampleAddFailure(result: SampleAddCmdResult): string {
+    const firstError = result.errors[0];
+    const lines: string[] = [`✗ Sample add failed [${firstError.code}]`];
+    lines.push(`  ${firstError.message}`);
+
+    this.appendErrorDetails(lines, result.errors);
+
+    return lines.join('\n');
+  }
+
+  private formatSampleListFailure(result: SampleListCmdResult): string {
+    const firstError = result.errors[0];
+    const lines: string[] = [`✗ Sample list failed [${firstError.code}]`];
+
+    this.appendErrorDetails(lines, result.errors);
+
+    return lines.join('\n');
+  }
+
+  private formatSampleInfoFailure(result: SampleInfoCmdResult): string {
+    const firstError = result.errors[0];
+    const lines: string[] = [`✗ Sample info failed [${firstError.code}]`];
+    lines.push(`  ${firstError.message}`);
+
+    this.appendErrorDetails(lines, result.errors);
+
+    return lines.join('\n');
+  }
+
+  private formatSampleDeleteFailure(result: SampleDeleteCmdResult): string {
+    const firstError = result.errors[0];
+    const lines: string[] = [`✗ Sample delete failed [${firstError.code}]`];
+    lines.push(`  ${firstError.message}`);
 
     this.appendErrorDetails(lines, result.errors);
 

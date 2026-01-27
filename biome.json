@@ -35,6 +35,7 @@
       ".chainglass",
       "apps/web/src/components/ui",
       "apps/web/src/hooks/use-mobile.ts",
+      "apps/web/next-env.d.ts",
       "coverage",
       "test/coverage"
     ]

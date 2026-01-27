@@ -40,3 +40,38 @@ export type {
 } from './fake-workflow-adapter.js';
 export { FakePhaseAdapter } from './fake-phase-adapter.js';
 export type { LoadFromPathCall, ListForWorkflowCall } from './fake-phase-adapter.js';
+
+// Workspace registry adapter fake (Plan 014)
+export { FakeWorkspaceRegistryAdapter } from './fake-workspace-registry-adapter.js';
+export type {
+  WorkspaceLoadCall,
+  WorkspaceSaveCall,
+  WorkspaceListCall,
+  WorkspaceRemoveCall,
+  WorkspaceExistsCall,
+} from './fake-workspace-registry-adapter.js';
+
+// Workspace context resolver fake (Plan 014 Phase 2)
+export { FakeWorkspaceContextResolver } from './fake-workspace-context-resolver.js';
+export type {
+  ResolveFromPathCall,
+  GetWorkspaceInfoCall,
+} from './fake-workspace-context-resolver.js';
+
+// Sample adapter fake (Plan 014 Phase 3)
+export { FakeSampleAdapter } from './fake-sample-adapter.js';
+export type {
+  SampleLoadCall,
+  SampleSaveCall,
+  SampleListCall,
+  SampleRemoveCall,
+  SampleExistsCall,
+} from './fake-sample-adapter.js';
+
+// Git worktree resolver fake (Plan 014 Phase 4)
+export { FakeGitWorktreeResolver } from './fake-git-worktree-resolver.js';
+export type {
+  DetectWorktreesCall,
+  GetMainRepoPathCall,
+  IsMainWorktreeCall,
+} from './fake-git-worktree-resolver.js';

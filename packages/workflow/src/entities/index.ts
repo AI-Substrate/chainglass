@@ -15,3 +15,9 @@ export type {
   PhaseStatusEntry,
   PhaseJSON,
 } from './phase.js';
+
+export { Workspace } from './workspace.js';
+export type { WorkspaceInput, WorkspaceJSON } from './workspace.js';
+
+export { Sample } from './sample.js';
+export type { SampleInput, SampleJSON } from './sample.js';

@@ -4,3 +4,17 @@ export { YamlParserAdapter } from './yaml-parser.adapter.js';
 export { SchemaValidatorAdapter } from './schema-validator.adapter.js';
 export { WorkflowAdapter } from './workflow.adapter.js';
 export { PhaseAdapter } from './phase.adapter.js';
+
+// Workspace registry adapter (Plan 014)
+export { WorkspaceRegistryAdapter } from './workspace-registry.adapter.js';
+
+// Workspace data adapter base (Plan 014 Phase 3)
+export { WorkspaceDataAdapterBase } from './workspace-data-adapter-base.js';
+export type {
+  EnsureStructureResult,
+  ReadJsonResult,
+  WriteJsonResult,
+} from './workspace-data-adapter-base.js';
+
+// Sample adapter (Plan 014 Phase 3)
+export { SampleAdapter } from './sample.adapter.js';

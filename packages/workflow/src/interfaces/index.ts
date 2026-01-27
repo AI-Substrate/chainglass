@@ -44,3 +44,49 @@ export type {
   InitResult,
   InitializationStatus,
 } from './init-service.interface.js';
+
+// Workspace registry adapter interface (Plan 014)
+export type {
+  IWorkspaceRegistryAdapter,
+  WorkspaceErrorCode,
+  WorkspaceSaveResult,
+  WorkspaceRemoveResult,
+} from './workspace-registry-adapter.interface.js';
+
+// Workspace context resolver interface (Plan 014 Phase 2)
+export type {
+  Worktree,
+  WorkspaceContext,
+  WorkspaceInfo,
+  WorkspaceContextResult,
+  WorkspaceInfoResult,
+  IWorkspaceContextResolver,
+} from './workspace-context.interface.js';
+
+// Sample adapter interface (Plan 014 Phase 3)
+export type {
+  ISampleAdapter,
+  SampleErrorCode,
+  SampleSaveResult,
+  SampleRemoveResult,
+} from './sample-adapter.interface.js';
+
+// Git worktree resolver interface (Plan 014 Phase 4)
+export type { IGitWorktreeResolver } from './git-worktree-resolver.interface.js';
+
+// Workspace service interface (Plan 014 Phase 4)
+export type {
+  IWorkspaceService,
+  WorkspaceOperationResult,
+  AddWorkspaceResult,
+  RemoveWorkspaceResult,
+  AddWorkspaceOptions,
+} from './workspace-service.interface.js';
+
+// Sample service interface (Plan 014 Phase 4)
+export type {
+  ISampleService,
+  SampleOperationResult,
+  AddSampleResult,
+  DeleteSampleResult,
+} from './sample-service.interface.js';

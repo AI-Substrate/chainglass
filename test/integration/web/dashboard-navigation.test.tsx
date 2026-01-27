@@ -28,6 +28,17 @@ vi.mock('next/navigation', () => ({
     forward: vi.fn(),
     prefetch: vi.fn(),
   })),
+  useSearchParams: vi.fn(() => ({
+    get: vi.fn(() => null),
+    getAll: vi.fn(() => []),
+    has: vi.fn(() => false),
+    keys: vi.fn(() => [][Symbol.iterator]()),
+    values: vi.fn(() => [][Symbol.iterator]()),
+    entries: vi.fn(() => [][Symbol.iterator]()),
+    forEach: vi.fn(),
+    toString: vi.fn(() => ''),
+    [Symbol.iterator]: vi.fn(() => [][Symbol.iterator]()),
+  })),
 }));
 
 describe('Dashboard Navigation Integration', () => {
