@@ -66,23 +66,26 @@ export const sessionQueryKey = (sessionId: string) => ['session', sessionId] as 
  * Fetch session data from server.
  */
 async function fetchSession(sessionId: string): Promise<ServerSession> {
-  // Fetch metadata and events in parallel
-  const [metadataRes, eventsRes] = await Promise.all([
-    fetch(`/api/agents/sessions/${sessionId}`),
-    fetch(`/api/agents/sessions/${sessionId}/events`),
-  ]);
+  // Fetch events from server storage
+  const eventsRes = await fetch(`/api/agents/sessions/${sessionId}/events`);
 
-  if (!metadataRes.ok) {
-    throw new Error(`Failed to fetch session metadata: ${metadataRes.status}`);
-  }
   if (!eventsRes.ok) {
     throw new Error(`Failed to fetch session events: ${eventsRes.status}`);
   }
 
-  const metadata = (await metadataRes.json()) as SessionMetadata;
-  const events = (await eventsRes.json()) as StoredEvent[];
+  const eventsData = (await eventsRes.json()) as { events: StoredEvent[]; count: number; sessionId: string };
 
-  return { metadata, events };
+  // Construct minimal metadata from sessionId (server-side metadata not required for event display)
+  const metadata: SessionMetadata = {
+    id: sessionId,
+    name: `Session ${sessionId.slice(-6)}`,
+    agentType: 'claude-code',
+    status: 'idle',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  return { metadata, events: eventsData.events };
 }
 
 // ============ Hook ============
@@ -136,7 +139,7 @@ export function useServerSession(
   });
 
   // Callback to handle SSE notification
-  const handleSessionUpdated = useCallback(
+  const handleSessionUpdatedCallback = useCallback(
     (notifiedSessionId: string) => {
       if (notifiedSessionId === sessionId) {
         // Invalidate cache → triggers refetch
@@ -150,12 +153,14 @@ export function useServerSession(
   // Custom SSE listener for session_updated notifications
   // COR-001: Single EventSource (removed unused useAgentSSE)
   // COR-002: Added error handler to prevent memory leaks
+  // COR-003: Use global 'agents' channel since run route broadcasts there
+  // COR-004: SSE named events don't include type in data; check sessionId directly
   useEffect(() => {
     if (!subscribeToUpdates || !sessionId) return;
 
-    // Create EventSource directly for session_updated notifications
-    const channel = `agent-${sessionId}`;
-    const eventSource = new EventSource(`/api/sse?channel=${channel}`);
+    // Connect to global 'agents' channel (same channel run route broadcasts to)
+    // Filter session_updated events by sessionId
+    const eventSource = new EventSource(`/api/events/agents`);
 
     // Track connection open
     eventSource.addEventListener('open', () => {
@@ -169,25 +174,28 @@ export function useServerSession(
       eventSource.close();
     });
 
-    const handleMessage = (event: MessageEvent) => {
+    // Handler for session_updated named events (SSE event type is 'session_updated')
+    // COR-004: For named events, the type is in the event name, not in data.type
+    const handleSessionUpdated = (event: MessageEvent) => {
       try {
         const data = JSON.parse(event.data);
-        if (data.type === 'session_updated' && data.data?.sessionId === sessionId) {
-          handleSessionUpdated(sessionId);
+        // Filter by sessionId - only handle updates for this specific session
+        if (data.data?.sessionId === sessionId) {
+          handleSessionUpdatedCallback(sessionId);
         }
       } catch {
         // Ignore parse errors
       }
     };
 
-    eventSource.addEventListener('session_updated', handleMessage);
-    eventSource.addEventListener('message', handleMessage);
+    // Listen for the named 'session_updated' event
+    eventSource.addEventListener('session_updated', handleSessionUpdated);
 
     return () => {
       eventSource.close();
       setIsConnected(false);
     };
-  }, [subscribeToUpdates, sessionId, handleSessionUpdated]);
+  }, [subscribeToUpdates, sessionId, handleSessionUpdatedCallback]);
 
   return {
     session: session ?? null,

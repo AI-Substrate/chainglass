@@ -11,8 +11,10 @@
  * Part of Plan 015: Agent Activity Fidelity Enhancement (Phase 1)
  */
 
-import { type IEventStorage, SessionIdValidationError, isValidSessionId } from '@chainglass/shared';
+import { type IEventStorage, isValidSessionId } from '@chainglass/shared';
 import { type NextRequest, NextResponse } from 'next/server';
+import { getContainer } from '../../../../../../src/lib/bootstrap-singleton';
+import { DI_TOKENS } from '../../../../../../src/lib/di-container';
 
 /**
  * Response format for events endpoint.
@@ -108,8 +110,8 @@ export function createEventsRouteHandler(storage: IEventStorage) {
 // Next.js Route Handler
 // ============================================
 
-// Note: In production, this would use the DI container to get EventStorageService
-// For now, we export the factory for testing and the actual route handler below
+/** Force dynamic rendering - required for DI container access */
+export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/agents/sessions/:sessionId/events
@@ -126,21 +128,11 @@ export async function GET(
   const { searchParams } = new URL(request.url);
   const since = searchParams.get('since') ?? undefined;
 
-  // TODO (T018): Get storage from DI container
-  // For now, return a placeholder response
-  // This will be wired up in T018 when we register EventStorageService in DI
+  // Get storage from DI container
+  const container = getContainer();
+  const eventStorage = container.resolve<IEventStorage>(DI_TOKENS.EVENT_STORAGE);
 
-  // Validate sessionId
-  if (!isValidSessionId(sessionId)) {
-    return NextResponse.json(
-      { error: 'Invalid session ID', code: 'INVALID_SESSION_ID' },
-      { status: 400 }
-    );
-  }
-
-  // Return placeholder until DI is wired
-  return NextResponse.json(
-    { events: [], count: 0, sessionId, _note: 'DI not yet wired (T018)' },
-    { status: 200 }
-  );
+  // Use the factory handler
+  const handler = createEventsRouteHandler(eventStorage);
+  return handler.GET(sessionId, { since }) as Promise<NextResponse>;
 }

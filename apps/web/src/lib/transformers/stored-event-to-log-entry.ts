@@ -111,6 +111,7 @@ function formatToolInput(input: unknown): string {
 
 /**
  * Merge tool_call and tool_result events by toolCallId.
+ * Also merge consecutive thinking events into a single thinking block.
  * Returns complete tool data with both input and output.
  *
  * @param events - Array of StoredEvents
@@ -120,6 +121,7 @@ function formatToolInput(input: unknown): string {
  * const events = session.events;
  * const mergedProps = mergeToolEvents(events);
  * // tool_call events now include output from their corresponding tool_result
+ * // consecutive thinking events are merged into a single entry
  */
 export function mergeToolEvents(events: StoredEvent[]): (LogEntryProps & { key: string })[] {
   // Build a map of toolCallId -> tool_result data
@@ -135,13 +137,49 @@ export function mergeToolEvents(events: StoredEvent[]): (LogEntryProps & { key: 
     }
   }
 
-  // Transform events, merging tool_result into tool_call
+  // Transform events, merging tool_result into tool_call and consolidating thinking
   const result: (LogEntryProps & { key: string })[] = [];
+  let currentThinking: { key: string; content: string; signature?: string } | null = null;
 
   for (const event of events) {
     // Skip tool_result - they're merged into tool_call
     if (event.type === 'tool_result') {
       continue;
+    }
+
+    // Consolidate consecutive thinking events into a single block
+    if (event.type === 'thinking') {
+      if (currentThinking) {
+        // Append to existing thinking block
+        currentThinking.content += event.data.content;
+        // Keep the latest signature if present
+        if (event.data.signature) {
+          currentThinking.signature = event.data.signature;
+        }
+      } else {
+        // Start a new thinking block
+        currentThinking = {
+          key: event.id,
+          content: event.data.content,
+          signature: event.data.signature,
+        };
+      }
+      continue;
+    }
+
+    // Non-thinking event encountered - flush any pending thinking block
+    if (currentThinking) {
+      result.push({
+        key: currentThinking.key,
+        messageRole: 'assistant',
+        content: '',
+        contentType: 'thinking',
+        thinkingData: {
+          content: currentThinking.content,
+          signature: currentThinking.signature,
+        },
+      });
+      currentThinking = null;
     }
 
     const props = storedEventToLogEntryProps(event);
@@ -160,6 +198,20 @@ export function mergeToolEvents(events: StoredEvent[]): (LogEntryProps & { key: 
     }
 
     result.push(props);
+  }
+
+  // Flush any remaining thinking block at the end
+  if (currentThinking) {
+    result.push({
+      key: currentThinking.key,
+      messageRole: 'assistant',
+      content: '',
+      contentType: 'thinking',
+      thinkingData: {
+        content: currentThinking.content,
+        signature: currentThinking.signature,
+      },
+    });
   }
 
   return result;

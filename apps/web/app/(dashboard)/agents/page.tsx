@@ -112,6 +112,36 @@ export default function AgentsPage() {
     return transformEventsToLogEntries(serverSession.events);
   }, [serverSession?.events]);
 
+  // Merge local messages and server events into a unified timeline by timestamp
+  // Local messages have timestamp as number (Date.now()), server events have ISO string
+  const unifiedTimeline = useMemo(() => {
+    if (!activeSession) return [];
+
+    // Convert local messages to timeline items
+    const localItems = activeSession.messages.map((msg, idx) => ({
+      type: 'local' as const,
+      timestamp: msg.timestamp,
+      key: `msg-${msg.timestamp}-${idx}`,
+      props: {
+        messageRole: msg.role,
+        content: msg.content,
+        contentType: msg.contentType,
+      },
+    }));
+
+    // Convert server events to timeline items
+    const serverItems = serverEventProps.map((props) => ({
+      type: 'server' as const,
+      // Parse ISO timestamp to number for sorting
+      timestamp: new Date(props.key.split('_')[0]).getTime() || Date.now(),
+      key: props.key,
+      props,
+    }));
+
+    // Merge and sort by timestamp
+    return [...localItems, ...serverItems].sort((a, b) => a.timestamp - b.timestamp);
+  }, [activeSession?.messages, serverEventProps, activeSession]);
+
   // Get sessions as array for list view
   const sessionsList = useMemo(
     () => Array.from(sessions.values()).sort((a, b) => b.createdAt - a.createdAt),
@@ -377,26 +407,26 @@ export default function AgentsPage() {
 
             {/* Messages */}
             <div className="flex-1 overflow-auto divide-y divide-border/50">
-              {/* User/Assistant messages from local state */}
-              {activeSession.messages.map((msg, idx) => (
-                <LogEntry
-                  key={`msg-${msg.timestamp}-${idx}`}
-                  messageRole={msg.role}
-                  content={msg.content}
-                  contentType={msg.contentType}
-                />
-              ))}
-              {/* Server events (tool calls, tool results, thinking) from useServerSession */}
-              {serverEventProps.map((props) => (
-                <LogEntry
-                  key={props.key}
-                  messageRole={props.messageRole}
-                  content={props.content}
-                  contentType={props.contentType}
-                  toolData={props.toolData}
-                  thinkingData={props.thinkingData}
-                />
-              ))}
+              {/* Unified timeline: local messages + server events sorted by timestamp */}
+              {unifiedTimeline.map((item) =>
+                item.type === 'local' ? (
+                  <LogEntry
+                    key={item.key}
+                    messageRole={item.props.messageRole}
+                    content={item.props.content}
+                    contentType={item.props.contentType}
+                  />
+                ) : (
+                  <LogEntry
+                    key={item.key}
+                    messageRole={item.props.messageRole}
+                    content={item.props.content}
+                    contentType={item.props.contentType}
+                    toolData={item.props.toolData}
+                    thinkingData={item.props.thinkingData}
+                  />
+                )
+              )}
               {/* Streaming content */}
               {activeSession.streamingContent && (
                 <LogEntry
@@ -425,8 +455,7 @@ export default function AgentsPage() {
                 </div>
               )}
               {/* Empty state */}
-              {activeSession.messages.length === 0 &&
-                serverEventProps.length === 0 &&
+              {unifiedTimeline.length === 0 &&
                 !activeSession.streamingContent &&
                 !activeSession.error && (
                   <div className="flex-1 flex items-center justify-center p-8 text-muted-foreground">
