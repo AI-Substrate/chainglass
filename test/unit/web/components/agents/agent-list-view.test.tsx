@@ -151,10 +151,10 @@ describe('AgentListView', () => {
 
       render(<AgentListView sessions={sessions} activeSessionId="1" onSelect={handler.onSelect} />);
 
-      // First session should have active styling (aria-selected="true" on button)
-      const activeButton = screen.getByText('Session One').closest('button');
-      expect(activeButton).toBeInTheDocument();
-      expect(activeButton?.getAttribute('aria-selected')).toBe('true');
+      // First session should have active styling (aria-selected="true" on li with role=option)
+      const activeItem = screen.getByText('Session One').closest('li');
+      expect(activeItem).toBeInTheDocument();
+      expect(activeItem?.getAttribute('aria-selected')).toBe('true');
     });
   });
 
@@ -166,13 +166,13 @@ describe('AgentListView', () => {
       - Contract: List has list/listbox role
       - Usage Notes: Items have listitem/option role
       - Quality Contribution: Screen reader navigation
-      - Worked Example: list role present
+      - Worked Example: listbox role present
       */
       const sessions = [createTestSession({ id: '1', name: 'Session One' })];
 
       render(<AgentListView sessions={sessions} activeSessionId="1" onSelect={handler.onSelect} />);
 
-      expect(screen.getByRole('list') || screen.getByRole('listbox')).toBeInTheDocument();
+      expect(screen.getByRole('listbox')).toBeInTheDocument();
     });
 
     it('should support keyboard selection', async () => {

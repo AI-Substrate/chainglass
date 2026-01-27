@@ -8,6 +8,7 @@
  * - Centralized sessions state with per-session messages
  * - Events routed to correct session by sessionId
  * - Active session uses useServerSession for server-backed state (DYK-P5-01)
+ * - Sessions persisted to localStorage via AgentSessionStore
  *
  * Part of Plan 012: Multi-Agent Web UI (Phase 2: Core Chat)
  * Extended in Plan 015: Better Agents (Phase 5: Integration)
@@ -27,9 +28,10 @@ import type {
   AgentType,
   SessionStatus,
 } from '@/lib/schemas/agent-session.schema';
+import { AgentSessionStore } from '@/lib/stores/agent-session.store';
 import { transformEventsToLogEntries } from '@/lib/transformers/stored-event-to-log-entry';
 import { Bot, RefreshCw } from 'lucide-react';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 /**
  * Extended session state with runtime fields.
@@ -86,6 +88,46 @@ export default function AgentsPage() {
   // Centralized sessions store - ALL sessions live here
   const [sessions, setSessions] = useState<Map<string, SessionState>>(new Map());
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  // Persistent store reference (SSR-safe)
+  const storeRef = useRef<AgentSessionStore | null>(null);
+
+  // Load sessions from localStorage on mount (SSR-safe)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    // Initialize store
+    const store = new AgentSessionStore(localStorage);
+    storeRef.current = store;
+
+    // Load persisted sessions
+    const persisted = store.getAllSessions();
+    if (persisted.length > 0) {
+      const sessionMap = new Map<string, SessionState>();
+      for (const session of persisted) {
+        sessionMap.set(session.id, {
+          ...session,
+          streamingContent: '',
+          error: null,
+        });
+      }
+      setSessions(sessionMap);
+    }
+    setIsHydrated(true);
+  }, []);
+
+  // Persist sessions to localStorage whenever they change (after hydration)
+  useEffect(() => {
+    if (!isHydrated || !storeRef.current) return;
+
+    // Save all sessions to store
+    for (const session of sessions.values()) {
+      // Extract AgentSession fields (exclude runtime fields)
+      const { streamingContent, error, ...persistable } = session;
+      storeRef.current.saveSession(persistable);
+    }
+  }, [sessions, isHydrated]);
 
   // Track agent session IDs for resume (per session)
   const agentSessionIdsRef = useRef<Map<string, string>>(new Map());
@@ -254,6 +296,30 @@ export default function AgentsPage() {
     setActiveSessionId(sessionId);
   }, []);
 
+  // Handle session deletion
+  const handleDelete = useCallback(
+    (sessionId: string) => {
+      // Remove from localStorage
+      storeRef.current?.deleteSession(sessionId);
+
+      // Remove from state
+      setSessions((prev) => {
+        const next = new Map(prev);
+        next.delete(sessionId);
+        return next;
+      });
+
+      // Clear active session if it was deleted
+      if (activeSessionId === sessionId) {
+        setActiveSessionId(null);
+      }
+
+      // Clean up agent session ID ref
+      agentSessionIdsRef.current.delete(sessionId);
+    },
+    [activeSessionId]
+  );
+
   // Handle sending a message to the agent
   const handleSendMessage = useCallback(
     async (content: string) => {
@@ -381,6 +447,7 @@ export default function AgentsPage() {
             sessions={sessionsList}
             activeSessionId={activeSessionId}
             onSelect={handleSelect}
+            onDelete={handleDelete}
           />
         </div>
       </aside>
