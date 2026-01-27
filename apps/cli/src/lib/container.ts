@@ -35,31 +35,48 @@ import {
   SdkCopilotAdapter,
   UnixProcessManager,
   WORKFLOW_DI_TOKENS,
+  WORKSPACE_DI_TOKENS,
   WindowsProcessManager,
   getProjectConfigDir,
   getUserConfigDir,
 } from '@chainglass/shared';
 import {
+  FakeGitWorktreeResolver,
   FakePhaseAdapter,
   FakePhaseService,
+  FakeSampleAdapter,
   FakeSchemaValidator,
   FakeWorkflowAdapter,
   FakeWorkflowRegistry,
   FakeWorkflowService,
+  FakeWorkspaceContextResolver,
+  FakeWorkspaceRegistryAdapter,
   FakeYamlParser,
+  GitWorktreeResolver,
+  type IGitWorktreeResolver,
   type IPhaseAdapter,
   type IPhaseService,
+  type ISampleAdapter,
+  type ISampleService,
   type ISchemaValidator,
   type IWorkflowAdapter,
   type IWorkflowRegistry,
   type IWorkflowService,
+  type IWorkspaceContextResolver,
+  type IWorkspaceRegistryAdapter,
+  type IWorkspaceService,
   type IYamlParser,
   PhaseAdapter,
   PhaseService,
+  SampleAdapter,
+  SampleService,
   SchemaValidatorAdapter,
   WorkflowAdapter,
   WorkflowRegistryService,
   WorkflowService,
+  WorkspaceContextResolver,
+  WorkspaceRegistryAdapter,
+  WorkspaceService,
   YamlParserAdapter,
 } from '@chainglass/workflow';
 import { CopilotClient } from '@github/copilot-sdk';
@@ -247,6 +264,62 @@ export function createCliProductionContainer(): DependencyContainer {
     },
   });
 
+  // Per Plan 014: Workspaces - Phase 5: Register workspace services for CLI commands
+  // Workspace registry adapter
+  childContainer.register<IWorkspaceRegistryAdapter>(
+    WORKSPACE_DI_TOKENS.WORKSPACE_REGISTRY_ADAPTER,
+    {
+      useFactory: (c) =>
+        new WorkspaceRegistryAdapter(
+          c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM),
+          c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER)
+        ),
+    }
+  );
+
+  // Git worktree resolver (requires IProcessManager)
+  childContainer.register<IGitWorktreeResolver>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_RESOLVER, {
+    useFactory: (c) =>
+      new GitWorktreeResolver(c.resolve<IProcessManager>(CLI_DI_TOKENS.PROCESS_MANAGER)),
+  });
+
+  // Workspace context resolver (requires registry adapter and filesystem, not git resolver)
+  childContainer.register<IWorkspaceContextResolver>(
+    WORKSPACE_DI_TOKENS.WORKSPACE_CONTEXT_RESOLVER,
+    {
+      useFactory: (c) =>
+        new WorkspaceContextResolver(
+          c.resolve<IWorkspaceRegistryAdapter>(WORKSPACE_DI_TOKENS.WORKSPACE_REGISTRY_ADAPTER),
+          c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM)
+        ),
+    }
+  );
+
+  // Sample adapter
+  childContainer.register<ISampleAdapter>(WORKSPACE_DI_TOKENS.SAMPLE_ADAPTER, {
+    useFactory: (c) =>
+      new SampleAdapter(
+        c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM),
+        c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER)
+      ),
+  });
+
+  // Workspace service
+  childContainer.register<IWorkspaceService>(WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE, {
+    useFactory: (c) =>
+      new WorkspaceService(
+        c.resolve<IWorkspaceRegistryAdapter>(WORKSPACE_DI_TOKENS.WORKSPACE_REGISTRY_ADAPTER),
+        c.resolve<IWorkspaceContextResolver>(WORKSPACE_DI_TOKENS.WORKSPACE_CONTEXT_RESOLVER),
+        c.resolve<IGitWorktreeResolver>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_RESOLVER)
+      ),
+  });
+
+  // Sample service
+  childContainer.register<ISampleService>(WORKSPACE_DI_TOKENS.SAMPLE_SERVICE, {
+    useFactory: (c) =>
+      new SampleService(c.resolve<ISampleAdapter>(WORKSPACE_DI_TOKENS.SAMPLE_ADAPTER)),
+  });
+
   return childContainer;
 }
 
@@ -330,6 +403,48 @@ export function createCliTestContainer(): DependencyContainer {
   const fakePhaseAdapter = new FakePhaseAdapter();
   childContainer.register<IPhaseAdapter>(WORKFLOW_DI_TOKENS.PHASE_ADAPTER, {
     useValue: fakePhaseAdapter,
+  });
+
+  // Per Plan 014: Workspaces - Phase 5: Register workspace fakes for testing
+  const fakeWorkspaceRegistryAdapter = new FakeWorkspaceRegistryAdapter();
+  childContainer.register<IWorkspaceRegistryAdapter>(
+    WORKSPACE_DI_TOKENS.WORKSPACE_REGISTRY_ADAPTER,
+    {
+      useValue: fakeWorkspaceRegistryAdapter,
+    }
+  );
+
+  const fakeGitWorktreeResolver = new FakeGitWorktreeResolver();
+  childContainer.register<IGitWorktreeResolver>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_RESOLVER, {
+    useValue: fakeGitWorktreeResolver,
+  });
+
+  const fakeWorkspaceContextResolver = new FakeWorkspaceContextResolver();
+  childContainer.register<IWorkspaceContextResolver>(
+    WORKSPACE_DI_TOKENS.WORKSPACE_CONTEXT_RESOLVER,
+    {
+      useValue: fakeWorkspaceContextResolver,
+    }
+  );
+
+  const fakeSampleAdapter = new FakeSampleAdapter();
+  childContainer.register<ISampleAdapter>(WORKSPACE_DI_TOKENS.SAMPLE_ADAPTER, {
+    useValue: fakeSampleAdapter,
+  });
+
+  // Note: For CLI tests, we use real services with fake adapters per DYK-P5-03
+  childContainer.register<IWorkspaceService>(WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE, {
+    useFactory: (c) =>
+      new WorkspaceService(
+        c.resolve<IWorkspaceRegistryAdapter>(WORKSPACE_DI_TOKENS.WORKSPACE_REGISTRY_ADAPTER),
+        c.resolve<IWorkspaceContextResolver>(WORKSPACE_DI_TOKENS.WORKSPACE_CONTEXT_RESOLVER),
+        c.resolve<IGitWorktreeResolver>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_RESOLVER)
+      ),
+  });
+
+  childContainer.register<ISampleService>(WORKSPACE_DI_TOKENS.SAMPLE_SERVICE, {
+    useFactory: (c) =>
+      new SampleService(c.resolve<ISampleAdapter>(WORKSPACE_DI_TOKENS.SAMPLE_ADAPTER)),
   });
 
   return childContainer;

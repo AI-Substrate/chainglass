@@ -212,20 +212,21 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|------|------|----|----|--------------|------------------|------------|----------|-------|
-| [ ] | T001 | Create workspace command group structure with DI helpers | 2 | Setup | – | /home/jak/substrate/014-workspaces/apps/cli/src/commands/workspace.command.ts | `cg workspace` shows subcommand help | – | Follow workflow.command.ts pattern |
-| [ ] | T002 | Implement `cg workspace add <name> <path>` command | 3 | Core | T001 | /home/jak/substrate/014-workspaces/apps/cli/src/commands/workspace.command.ts | Adds workspace, console + JSON output | – | Calls IWorkspaceService.add() |
-| [ ] | T003 | Implement `cg workspace list [--json]` command | 2 | Core | T001 | /home/jak/substrate/014-workspaces/apps/cli/src/commands/workspace.command.ts | Lists all workspaces, empty state message | – | |
-| [ ] | T004 | Implement `cg workspace info <slug>` command | 2 | Core | T001 | /home/jak/substrate/014-workspaces/apps/cli/src/commands/workspace.command.ts | Shows workspace details + worktrees list | – | Uses getInfo() |
-| [ ] | T005 | Implement `cg workspace remove <slug>` with confirmation | 2 | Core | T001 | /home/jak/substrate/014-workspaces/apps/cli/src/commands/workspace.command.ts | Removes workspace, prompts unless --force | – | |
-| [ ] | T006 | Add `--allow-worktree` flag to workspace add | 1 | Core | T002 | /home/jak/substrate/014-workspaces/apps/cli/src/commands/workspace.command.ts | Flag passed to service options | – | AC-05 |
-| [ ] | T007 | Create sample command group structure with context helpers | 2 | Setup | T001 | /home/jak/substrate/014-workspaces/apps/cli/src/commands/sample.command.ts | `cg sample` shows subcommand help | – | Context resolution from CWD |
-| [ ] | T008 | Implement `cg sample add <name> [--content]` command | 3 | Core | T007 | /home/jak/substrate/014-workspaces/apps/cli/src/commands/sample.command.ts | Creates sample, shows path + workspace info | – | Calls ISampleService.add() |
-| [ ] | T009 | Implement `cg sample list [--json]` command | 2 | Core | T007 | /home/jak/substrate/014-workspaces/apps/cli/src/commands/sample.command.ts | Lists samples in context, empty state message | – | |
-| [ ] | T010 | Implement `cg sample info <slug>` command | 2 | Core | T007 | /home/jak/substrate/014-workspaces/apps/cli/src/commands/sample.command.ts | Shows sample details, truncates long content | – | |
-| [ ] | T011 | Implement `cg sample delete <slug>` with confirmation | 2 | Core | T007 | /home/jak/substrate/014-workspaces/apps/cli/src/commands/sample.command.ts | Deletes sample, prompts unless --force | – | |
-| [ ] | T012 | Add `--workspace-path <path>` flag to all sample commands | 2 | Core | T008, T009, T010, T011 | /home/jak/substrate/014-workspaces/apps/cli/src/commands/sample.command.ts | Override CWD-based context | – | AC-23 |
-| [ ] | T013 | Register workspace and sample commands in main CLI + wire DI | 2 | Integration | T006, T012 | /home/jak/substrate/014-workspaces/apps/cli/src/commands/index.ts, /home/jak/substrate/014-workspaces/apps/cli/src/lib/container.ts | Commands accessible via `cg workspace`, `cg sample` | – | Add exports, DI registrations |
-| [ ] | T014 | Write CLI integration tests for key flows | 3 | Test | T013 | /home/jak/substrate/014-workspaces/test/cli/workspace.command.test.ts, /home/jak/substrate/014-workspaces/test/cli/sample.command.test.ts | E2E tests pass: add, list, info, remove, delete | – | Use FakeWorkspaceService, FakeSampleService |
+| [x] | T000 | Add workspace.* and sample.* format templates to output adapters | 3 | Prereq | – | /home/jak/substrate/014-workspaces/packages/shared/src/adapters/console-output.adapter.ts, /home/jak/substrate/014-workspaces/packages/shared/src/adapters/json-output.adapter.ts | Output adapters format workspace/sample results correctly | – | Per DYK-P5-01: Consistency with workflow pattern |
+| [x] | T001 | Create workspace command group structure with DI helpers | 2 | Setup | T000 | /home/jak/substrate/014-workspaces/apps/cli/src/commands/workspace.command.ts | `cg workspace` shows subcommand help | – | Follow workflow.command.ts pattern |
+| [x] | T002 | Implement `cg workspace add <name> <path>` command | 3 | Core | T001 | /home/jak/substrate/014-workspaces/apps/cli/src/commands/workspace.command.ts | Adds workspace, console + JSON output | – | Calls IWorkspaceService.add() |
+| [x] | T003 | Implement `cg workspace list [--json]` command | 2 | Core | T001 | /home/jak/substrate/014-workspaces/apps/cli/src/commands/workspace.command.ts | Lists all workspaces, empty state message | – | |
+| [x] | T004 | Implement `cg workspace info <slug>` command | 2 | Core | T001 | /home/jak/substrate/014-workspaces/apps/cli/src/commands/workspace.command.ts | Shows workspace details + worktrees list | – | Uses getInfo() |
+| [x] | T005 | Implement `cg workspace remove <slug> --force` command | 2 | Core | T001 | /home/jak/substrate/014-workspaces/apps/cli/src/commands/workspace.command.ts | Removes workspace, requires --force (no prompt) | – | Per DYK-P5-02: No prompts, --force required |
+| [x] | T006 | Add `--allow-worktree` flag to workspace add | 1 | Core | T002 | /home/jak/substrate/014-workspaces/apps/cli/src/commands/workspace.command.ts | Flag passed to service options | – | AC-05 |
+| [x] | T007 | Create sample command group structure with context helpers | 2 | Setup | T001 | /home/jak/substrate/014-workspaces/apps/cli/src/commands/sample.command.ts | `cg sample` shows subcommand help | – | Context resolution from CWD |
+| [x] | T008 | Implement `cg sample add <name> [--content]` command | 3 | Core | T007 | /home/jak/substrate/014-workspaces/apps/cli/src/commands/sample.command.ts | Creates sample, shows path + workspace info | – | Calls ISampleService.add() |
+| [x] | T009 | Implement `cg sample list [--json]` command | 2 | Core | T007 | /home/jak/substrate/014-workspaces/apps/cli/src/commands/sample.command.ts | Lists samples in context, empty state message | – | |
+| [x] | T010 | Implement `cg sample info <slug>` command | 2 | Core | T007 | /home/jak/substrate/014-workspaces/apps/cli/src/commands/sample.command.ts | Shows sample details, truncates long content | – | |
+| [x] | T011 | Implement `cg sample delete <slug> --force` command | 2 | Core | T007 | /home/jak/substrate/014-workspaces/apps/cli/src/commands/sample.command.ts | Deletes sample, requires --force (no prompt) | – | Per DYK-P5-02: No prompts, --force required |
+| [x] | T012 | Add `--workspace-path <path>` flag to all sample commands | 2 | Core | T008, T009, T010, T011 | /home/jak/substrate/014-workspaces/apps/cli/src/commands/sample.command.ts | Override CWD-based context | – | AC-23 |
+| [x] | T013 | Register workspace and sample commands in main CLI + wire DI | 2 | Integration | T006, T012 | /home/jak/substrate/014-workspaces/apps/cli/src/commands/index.ts, /home/jak/substrate/014-workspaces/apps/cli/src/lib/container.ts | Commands accessible via `cg workspace`, `cg sample` | – | Add exports, DI registrations |
+| [ ] | T014 | Write CLI integration tests for key flows | 3 | Test | T013 | /home/jak/substrate/014-workspaces/test/cli/workspace.command.test.ts, /home/jak/substrate/014-workspaces/test/cli/sample.command.test.ts | E2E tests pass: add, list, info, remove, delete | – | Per DYK-P5-03: Use real services with fake adapters (no service-level fakes) |
 
 ---
 
@@ -628,3 +629,131 @@ docs/plans/014-workspaces/
         ├── tasks.md                # ◀ THIS FILE
         └── execution.log.md        # ◀ Created by plan-6
 ```
+
+---
+
+## Critical Insights Discussion (DYK Session)
+
+**Session**: 2026-01-27 07:44 UTC
+**Context**: Phase 5 CLI Commands Tasks Dossier - Pre-implementation Review
+**Analyst**: AI Clarity Agent
+**Reviewer**: Development Team
+**Format**: Water Cooler Conversation (5 Critical Insights)
+
+### DYK-P5-01: Output Adapter Template Gap
+
+**Did you know**: ConsoleOutputAdapter and JsonOutputAdapter have no format templates for workspace.* or sample.* operations - all output would fall through to generic "Operation completed successfully".
+
+**Implications**:
+- Designed output formats from cli-command-flows.md wouldn't render
+- JSON envelope pattern wouldn't be followed
+- UX would be broken despite tests passing
+
+**Options Considered**:
+- Option A: Add format templates to existing output adapters - Consistency with workflow pattern
+- Option B: Format inline in command handlers - Faster but inconsistent
+- Option C: Create workspace-specific adapters - More to maintain
+
+**AI Recommendation**: Option A - Add format templates to existing adapters
+- Reasoning: Maintains consistency with workflow commands, leverages existing infrastructure
+
+**Decision**: Option A - Add workspace.* and sample.* format templates to output adapters
+
+**Action Items**:
+- [x] Added T000 as prerequisite task for output adapter templates
+- [x] Updated T001 to depend on T000
+
+**Affects**: T000 (new), T001, T007, packages/shared
+
+---
+
+### DYK-P5-02: No Confirmation Prompts for Programmatic Access
+
+**Did you know**: Original design had interactive confirmation prompts, but primary usage is web-based agents and programmatic access where prompts cause hangs.
+
+**Implications**:
+- CI/CD and scripts would hang waiting for input that never comes
+- Web-based agent mode can't handle interactive prompts
+- TTY detection adds unnecessary complexity
+
+**Options Considered**:
+- Option A: Auto-force when not TTY - Scripts "just work"
+- Option B: Fail when prompt needed but no TTY - Safe, explicit
+- Option C: Remove prompts, require --force - Simplest
+
+**AI Recommendation**: Option B - Fail explicitly
+- Reasoning: Safety first for destructive operations
+
+**Decision**: Require --force for destructive operations, no prompts at all
+
+**Action Items**:
+- [x] Updated T005 to require --force (no prompt)
+- [x] Updated T011 to require --force (no prompt)
+
+**Affects**: T005, T011
+
+---
+
+### DYK-P5-03: CLI Test Strategy - Real Services with Fake Adapters
+
+**Did you know**: T014 referenced FakeWorkspaceService/FakeSampleService which don't exist - Phase 4 created real services and adapter fakes but no service-level fakes.
+
+**Implications**:
+- Could create service fakes (more maintenance)
+- Could use real services with fake adapters (full stack test)
+
+**Options Considered**:
+- Option A: Create FakeWorkspaceService/FakeSampleService - Clean isolation
+- Option B: Use real services with fake adapters - More realistic tests
+
+**AI Recommendation**: Option B - Real services with fake adapters
+- Reasoning: Tests full stack, fake adapters already exist, no new fakes to maintain
+
+**Decision**: Option B - Use real services with fake adapters in test container
+
+**Action Items**:
+- [x] Updated T014 notes to clarify testing approach
+
+**Affects**: T014
+
+---
+
+### DYK-P5-04: --workspace-path Requires Context Building (Informational)
+
+**Did you know**: --workspace-path feeds into WorkspaceService.resolveContext(), not used as a raw path. CLI needs resolveOrOverrideContext() helper.
+
+**Implications**: Already covered by T007 "Context resolution from CWD" - just confirming approach
+
+**Decision**: Acknowledged - T007 already covers this correctly
+
+---
+
+### DYK-P5-05: DI Container Wiring Required (Informational)
+
+**Did you know**: CLI container has no WORKSPACE_DI_TOKENS registrations - must be added as part of T013.
+
+**Implications**: Already covered by T013 "wire DI" - just confirming scope
+
+**Decision**: Acknowledged - T013 already covers this correctly
+
+---
+
+## Session Summary
+
+**Insights Surfaced**: 5 critical insights identified and discussed
+**Decisions Made**: 3 decisions reached (2 were confirmations of existing task scope)
+**Action Items Created**: 4 task updates applied
+**Areas Updated**:
+- T000 added (output adapter templates)
+- T001 updated (depends on T000)
+- T005 updated (--force required, no prompt)
+- T011 updated (--force required, no prompt)
+- T014 updated (testing approach clarified)
+
+**Shared Understanding Achieved**: ✓
+
+**Confidence Level**: High
+We have high confidence in proceeding. Key patterns clarified, edge cases addressed.
+
+**Next Steps**:
+Proceed with `/plan-6-implement-phase --phase "Phase 5: CLI Commands"` using this updated dossier.

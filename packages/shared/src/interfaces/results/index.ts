@@ -51,3 +51,19 @@ export type {
   WorkflowSummary,
   WorkflowInfo,
 } from './registry.types.js';
+
+// Workspace result types (Plan 014: Phase 5)
+export type {
+  WorkspaceOutputData,
+  WorktreeOutputData,
+  WorkspaceAddCmdResult,
+  WorkspaceListCmdResult,
+  WorkspaceInfoCmdResult,
+  WorkspaceRemoveCmdResult,
+  SampleOutputData,
+  SampleWorkspaceContextData,
+  SampleAddCmdResult,
+  SampleListCmdResult,
+  SampleInfoCmdResult,
+  SampleDeleteCmdResult,
+} from './workspace.types.js';
