@@ -98,6 +98,14 @@ After building (`just build`), the CLI is available:
 | `cg phase prepare <phase>` | Prepare phase inputs |
 | `cg phase validate <phase>` | Validate phase outputs |
 | `cg phase finalize <phase>` | Extract parameters and complete phase |
+| `cg workspace add <name> <path>` | Register a folder as workspace |
+| `cg workspace list` | List all registered workspaces |
+| `cg workspace info <slug>` | Show workspace details + worktrees |
+| `cg workspace remove <slug>` | Unregister workspace (--force required) |
+| `cg sample add <name>` | Create sample in current workspace |
+| `cg sample list` | List samples in current worktree |
+| `cg sample info <slug>` | Show sample details |
+| `cg sample delete <slug>` | Delete sample (--force required) |
 | `cg --help` | Show available commands |
 
 To use the CLI globally during development:
@@ -156,6 +164,7 @@ chainglass/
 
 - [Workflows Guide](docs/how/workflows/1-overview.md) - Multi-phase workflow execution
 - [Workflow Management](docs/how/workflows/5-workflow-management.md) - Template versioning and checkpoint workflow
+- [Workspaces Guide](docs/how/workspaces/1-overview.md) - Multi-workspace management (local dev tool)
 - [Configuration Guide](docs/how/configuration/1-overview.md) - Configuration system
 - [Architecture Rules](docs/rules/architecture.md) - Clean architecture patterns and guidelines
 - [ADR Index](docs/adr/README.md) - Architecture Decision Records
