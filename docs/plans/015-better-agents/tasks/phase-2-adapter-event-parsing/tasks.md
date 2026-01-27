@@ -612,3 +612,178 @@ _Populated during implementation by plan-6. Log anything of interest to your fut
 - Insights that future phases should know about
 
 _See also: `execution.log.md` for detailed narrative._
+
+---
+
+## Critical Insights Discussion
+
+**Session**: 2026-01-27
+**Context**: Phase 2 Tasks File Pre-Implementation Review
+**Analyst**: AI Clarity Agent
+**Reviewer**: Development Team
+**Format**: Water Cooler Conversation (5 Critical Insights)
+
+### Insight 1: Claude Content Block Parsing Strategy
+
+**Did you know**: The Claude adapter uses inline if-chain filtering while Copilot uses switch-case dispatch, creating an inconsistency - but output event shapes matter more than internal patterns.
+
+**Implications**:
+- Adding tool_use/tool_result/thinking handlers could follow either pattern
+- The switch pattern is more maintainable but requires larger refactoring
+- Output event shapes are already unified via Phase 1 schemas
+
+**Options Considered**:
+- Option A: Inline filtering - Add new if-blocks alongside existing text filtering
+- Option B: Refactor to switch pattern - Align with SdkCopilotAdapter structure
+- Option C: Visitor pattern - Maximum extensibility (over-engineered for scope)
+
+**AI Recommendation**: Option A - Inline filtering
+- Reasoning: Minimal risk, output shapes matter not internal implementation
+
+**Discussion Summary**:
+User confirmed that since both adapters output identical event shapes with internal translation, the parsing pattern is less important than delivery risk.
+
+**Decision**: Option A - Inline filtering for Claude content block parsing
+
+**Action Items**: None - guides T001-T004 implementation approach
+
+**Affects**: T001, T002, T003, T004
+
+---
+
+### Insight 2: Copilot SDK Has Four Tool/Reasoning Events
+
+**Did you know**: The Copilot SDK emits 4 distinct events (`tool.execution_start`, `tool.execution_complete`, `assistant.reasoning`, `assistant.reasoning_delta`) but tasks only explicitly mention 3.
+
+**Implications**:
+- T007a should cover both reasoning variants (complete + streaming delta)
+- `reasoning_delta` follows same pattern as existing `message_delta` → `text_delta`
+- `toolCallId` correlation is critical for UI to match start/complete pairs
+
+**Options Considered**:
+- Option A: Handle all 4 events in existing switch statement
+- Option B: Group by category with helper methods (_handleToolEvent, _handleReasoningEvent)
+
+**AI Recommendation**: Option A - Add 4 cases to switch
+- Reasoning: Switch remains readable at 9 cases; consistent with established pattern
+
+**Discussion Summary**:
+User confirmed Option A. Clarified that `reasoning_delta` should emit separate events (like `text_delta`), not accumulate.
+
+**Decision**: Option A - Add all 4 event cases to existing switch statement
+
+**Action Items**:
+- [ ] T007a tests must cover both `assistant.reasoning` AND `assistant.reasoning_delta`
+- [ ] Follow `message_delta` → `text_delta` pattern (emit separate events)
+
+**Affects**: T006, T007, T007a, T009
+
+---
+
+### Insight 3: Contract Tests Verify Schema Compliance
+
+**Did you know**: T011 has a timing consideration - it verifies adapter parity but depends on T004/T009 completing first. The solution is the factory pattern from event-storage.contract.test.ts.
+
+**Implications**:
+- Contract tests should use factory pattern to run identical scenarios through both adapters
+- Shared fixtures enable consistent test data across adapter tests
+- True parity verification catches drift between adapters
+
+**Options Considered**:
+- Option A: Shared fixture factory - Both tests import same fixtures
+- Option B: Dedicated contract test file - Factory pattern like event-storage.contract.test.ts
+- Option C: Property-based testing - No infrastructure exists
+
+**AI Recommendation**: Option B - Dedicated contract test file
+- Reasoning: Proven pattern exists; provides true parity verification
+
+**Discussion Summary**:
+User confirmed Option B for real parity verification.
+
+**Decision**: Option B - Dedicated contract test file following event-storage pattern
+
+**Action Items**:
+- [ ] T011 creates `test/contracts/agent-tool-events.contract.test.ts`
+- [ ] Uses `agentAdapterToolEventsContractTests(name, createAdapter)` factory
+
+**Affects**: T011
+
+---
+
+### Insight 4: Session Destruction Guard Scope
+
+**Did you know**: Discovery 07 (session destruction race) is about caller misuse, not internal bugs. The architecture already mitigates the main risk via fresh sessions per method call.
+
+**Implications**:
+- Real SDK doesn't expose `destroyed` property (FakeCopilotSession does internally)
+- Each adapter method gets fresh session via `resumeSession()`
+- Simple assertion matches T008's CS-1 (trivial) scope
+
+**Options Considered**:
+- Option A: Simple assertion at compact() start
+- Option B: State tracking with lifecycle enum
+- Option C: SessionGuard wrapper class (over-engineered)
+
+**AI Recommendation**: Option A - Simple assertion
+- Reasoning: Matches CS-1 scope; architecture already mitigates main risk
+
+**Discussion Summary**:
+User confirmed Option A. State tracking enum noted as potential future hardening (out of Phase 2 scope).
+
+**Decision**: Option A - Simple assertion at compact() start
+
+**Action Items**:
+- [ ] T008 adds session null check assertion
+
+**Affects**: T008
+
+---
+
+### Insight 5: AC22 Backward Compatibility Built-In
+
+**Did you know**: The adapter architecture already guarantees AC22 compliance (no crashes on unknown events) through JSON try-catch, 'raw' fallback, and content block filtering.
+
+**Implications**:
+- Adding new block handlers is purely additive
+- Existing text extraction is isolated by filter pattern
+- Unknown blocks are already ignored (don't crash)
+- Regression tests (T005, T010) verify no breakage
+
+**Options Considered**:
+- Option A: Additive code paths only - Never modify existing text extraction
+- Option B: Wrap new parsing in try-catch - Redundant given existing safety
+- Option C: Feature flags - No infrastructure exists
+
+**AI Recommendation**: Option A - Additive code paths only
+- Reasoning: Architecture already provides AC22; just add parallel paths
+
+**Discussion Summary**:
+User confirmed Option A. Trust existing fallback mechanisms.
+
+**Decision**: Option A - Additive code paths only, never modify existing text extraction
+
+**Action Items**: None - constraint on implementation approach
+
+**Affects**: T004, T009
+
+---
+
+## Session Summary
+
+**Insights Surfaced**: 5 critical insights identified and discussed
+**Decisions Made**: 5 decisions reached through collaborative discussion
+**Action Items Created**: 5 follow-up items identified
+**Areas Requiring Updates**: None - decisions guide implementation, no plan changes needed
+
+**Shared Understanding Achieved**: ✓
+
+**Confidence Level**: High - Key patterns verified against codebase; architecture supports all decisions
+
+**Next Steps**:
+- Ready to proceed with `/plan-6-implement-phase --phase "Phase 2: Adapter Event Parsing"`
+- T007a scope expanded to cover both reasoning event variants
+
+**Notes**:
+- Both adapters translate provider-specific formats to unified AgentEvent shapes
+- Contract test pattern from Phase 1 directly applicable
+- AC22 backward compatibility is architectural, not code-level
