@@ -62,3 +62,11 @@ export type {
   WorkspaceInfoResult,
   IWorkspaceContextResolver,
 } from './workspace-context.interface.js';
+
+// Sample adapter interface (Plan 014 Phase 3)
+export type {
+  ISampleAdapter,
+  SampleErrorCode,
+  SampleSaveResult,
+  SampleRemoveResult,
+} from './sample-adapter.interface.js';

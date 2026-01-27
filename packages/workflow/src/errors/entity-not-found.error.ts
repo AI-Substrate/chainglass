@@ -29,7 +29,7 @@
 /**
  * Entity types that can be not found.
  */
-export type EntityType = 'Workflow' | 'Checkpoint' | 'Run' | 'Phase' | 'Workspace';
+export type EntityType = 'Workflow' | 'Checkpoint' | 'Run' | 'Phase' | 'Workspace' | 'Sample';
 
 /**
  * Error thrown when an entity is not found at the expected path.

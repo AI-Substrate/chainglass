@@ -57,3 +57,13 @@ export type {
   ResolveFromPathCall,
   GetWorkspaceInfoCall,
 } from './fake-workspace-context-resolver.js';
+
+// Sample adapter fake (Plan 014 Phase 3)
+export { FakeSampleAdapter } from './fake-sample-adapter.js';
+export type {
+  SampleLoadCall,
+  SampleSaveCall,
+  SampleListCall,
+  SampleRemoveCall,
+  SampleExistsCall,
+} from './fake-sample-adapter.js';

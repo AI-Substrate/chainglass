@@ -28,6 +28,15 @@ export {
   ConfigNotWritableError,
 } from './errors/index.js';
 
+// Sample errors (E082-E089 per Plan 014 Phase 3)
+export { SampleErrorCodes, SampleErrors } from './errors/index.js';
+export type { SampleError } from './errors/index.js';
+export {
+  SampleNotFoundError,
+  SampleExistsError,
+  InvalidSampleDataError,
+} from './errors/index.js';
+
 // Types (matching core schemas)
 export type {
   // wf.types.ts - Workflow definition types
@@ -104,12 +113,24 @@ export type {
 export { Workspace } from './entities/index.js';
 export type { WorkspaceInput, WorkspaceJSON } from './entities/index.js';
 
+// Sample entity (Plan 014: Phase 3 Exemplar)
+export { Sample } from './entities/index.js';
+export type { SampleInput, SampleJSON } from './entities/index.js';
+
 // Workspace registry adapter interface (Plan 014: Workspaces)
 export type {
   IWorkspaceRegistryAdapter,
   WorkspaceErrorCode,
   WorkspaceSaveResult,
   WorkspaceRemoveResult,
+} from './interfaces/index.js';
+
+// Sample adapter interface (Plan 014: Phase 3)
+export type {
+  ISampleAdapter,
+  SampleErrorCode,
+  SampleSaveResult,
+  SampleRemoveResult,
 } from './interfaces/index.js';
 
 // Init service interface (Phase 4)
@@ -136,6 +157,17 @@ export { PhaseAdapter } from './adapters/index.js';
 
 // Workspace registry adapter (Plan 014)
 export { WorkspaceRegistryAdapter } from './adapters/index.js';
+
+// Workspace data adapter base (Plan 014 Phase 3)
+export { WorkspaceDataAdapterBase } from './adapters/index.js';
+export type {
+  EnsureStructureResult,
+  ReadJsonResult,
+  WriteJsonResult,
+} from './adapters/index.js';
+
+// Sample adapter (Plan 014 Phase 3)
+export { SampleAdapter } from './adapters/index.js';
 
 // Fakes
 export { FakeYamlParser } from './fakes/index.js';
@@ -226,6 +258,16 @@ export { FakeWorkspaceContextResolver } from './fakes/index.js';
 export type {
   ResolveFromPathCall,
   GetWorkspaceInfoCall,
+} from './fakes/index.js';
+
+// Sample adapter fake (Plan 014 Phase 3)
+export { FakeSampleAdapter } from './fakes/index.js';
+export type {
+  SampleLoadCall,
+  SampleSaveCall,
+  SampleListCall,
+  SampleRemoveCall,
+  SampleExistsCall,
 } from './fakes/index.js';
 
 export { WorkspaceContextResolver } from './resolvers/index.js';
