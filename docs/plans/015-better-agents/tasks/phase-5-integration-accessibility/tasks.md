@@ -1,4 +1,4 @@
-# Phase 5: Integration & Accessibility – Tasks & Alignment Brief
+# Phase 5: Integration & Verification – Tasks & Alignment Brief
 
 **Spec**: [../better-agents-spec.md](../better-agents-spec.md)
 **Plan**: [../better-agents-plan.md](../better-agents-plan.md)
@@ -6,18 +6,32 @@
 
 ---
 
+## DYK Session Decisions (2026-01-27)
+
+The following decisions were made during a Did You Know clarity session before implementation:
+
+| ID | Decision | Rationale |
+|----|----------|-----------|
+| **DYK-P5-01** | Use `useServerSession` for active session only | Page manages multiple sessions via Map, but only active session needs server-backed state. Inactive sessions don't need real-time updates. |
+| **DYK-P5-02** | Create dedicated `storedEventToLogEntryProps()` transformer | StoredEvent has `{type, data, timestamp}`, AgentMessage has `{role, content, contentType}`. Need explicit transformation. Testable, single responsibility. |
+| **DYK-P5-03** | Real agent multi-turn integration tests | Use real Claude + Copilot adapters (not mocks) with session reuse. Trigger tool use, assert tool_call/tool_result events captured. Tests marked `describe.skip`, run manually. |
+| **DYK-P5-04** | Skip accessibility testing | Not a requirement at this time. Removed axe-core and screen reader tasks. Can be added in future phase if needed. |
+| **DYK-P5-05** | Performance baseline with timing, speed not critical | Use `performance.now()` for load timing. Document manual scroll testing. Catching regressions matters more than absolute speed. |
+
+---
+
 ## Executive Briefing
 
 ### Purpose
-This phase wires together all the infrastructure built in Phases 1-4 into a fully functioning end-to-end system, then validates it against accessibility standards and performance baselines. It's the final phase that transforms isolated components into a production-ready feature.
+This phase wires together all the infrastructure built in Phases 1-4 into a fully functioning end-to-end system, then validates it with real agent integration tests. It's the final phase that transforms isolated components into a production-ready feature.
 
 ### What We're Building
 Complete integration of:
-- **Agents page wiring**: Connect `useServerSession` hook to the agents page, replacing localStorage-based state with server-backed events
+- **Agents page wiring**: Connect `useServerSession` hook to the agents page for active session, keeping existing multi-session Map for list
+- **Event transformer**: `storedEventToLogEntryProps()` utility to convert StoredEvent → LogEntry props
 - **contentType routing**: Wire `LogEntry` component to render tool calls, tool results, and thinking blocks using Phase 4 components
-- **Session resumption**: Page refresh reloads events from NDJSON storage via the Phase 3 notification-fetch pattern
-- **Accessibility compliance**: Screen reader support, keyboard navigation, axe-core zero-violation baseline
-- **Performance validation**: 100 tool calls and 1000 events respond within <500ms
+- **Real agent integration tests**: Multi-turn tests with real Claude + Copilot that trigger tool use and verify event capture
+- **Performance baseline**: Basic timing verification (not strict speed requirements)
 - **Developer documentation**: Guide for extending event types across all 3 layers
 
 ### User Value
@@ -26,7 +40,6 @@ Users gain full visibility into agent activity:
 - See tool outputs (command results, file contents)
 - Observe AI reasoning (thinking blocks)
 - Resume sessions after page refresh without data loss
-- Navigate entirely by keyboard or screen reader
 
 ### Example
 **Before**: User sends "list files" → sees only final text response after ~5s
@@ -42,24 +55,21 @@ Users gain full visibility into agent activity:
 ## Objectives & Scope
 
 ### Objective
-Complete end-to-end integration of agent activity visibility and verify all 22 acceptance criteria from the spec.
+Complete end-to-end integration of agent activity visibility with real agent validation.
 
 ### Goals
 
-- ✅ Wire agents page to use `useServerSession` for server-backed state
+- ✅ Wire agents page to use `useServerSession` for active session (DYK-P5-01)
+- ✅ Create `storedEventToLogEntryProps()` transformer utility (DYK-P5-02)
 - ✅ Connect `LogEntry` contentType routing to display tool calls, tool results, thinking
-- ✅ Verify Claude tool call → storage → SSE notification → UI display pipeline
-- ✅ Verify Copilot tool call → storage → SSE notification → UI display pipeline
+- ✅ Real multi-turn Claude integration test with tool events (DYK-P5-03)
+- ✅ Real multi-turn Copilot integration test with tool events (DYK-P5-03)
 - ✅ Verify session resumption after page refresh (events fetched from storage)
 - ✅ Verify concurrent tool calls render in correct order
-- ✅ Pass screen reader testing (VoiceOver/NVDA)
-- ✅ Pass keyboard navigation audit
-- ✅ Pass axe-core scan with zero critical/serious violations
-- ✅ Performance baseline: UI responsive with 100 tool calls
-- ✅ Performance baseline: Load time <500ms with 1000 events
+- ✅ Performance baseline: timing verification (DYK-P5-05)
 - ✅ Write developer guide for adding new event types
 - ✅ Verify backward compatibility with existing sessions (no contentType field)
-- ✅ All 22 spec acceptance criteria verified
+- ✅ Final acceptance criteria checklist
 
 ### Non-Goals
 
@@ -69,6 +79,7 @@ Complete end-to-end integration of agent activity visibility and verify all 22 a
 - ❌ New event types beyond tool_call, tool_result, thinking (spec scope)
 - ❌ Multi-workspace support (hardcoded "default" per spec AD1)
 - ❌ Event compression or rotation (simplicity over optimization per spec NG5)
+- ❌ Accessibility testing (DYK-P5-04: not required at this time)
 
 ---
 
@@ -86,80 +97,65 @@ flowchart TD
     classDef blocked fill:#F44336,stroke:#D32F2F,color:#fff
 
     style Integration fill:#F5F5F5,stroke:#E0E0E0
-    style A11y fill:#F5F5F5,stroke:#E0E0E0
     style Perf fill:#F5F5F5,stroke:#E0E0E0
     style Docs fill:#F5F5F5,stroke:#E0E0E0
     style Verify fill:#F5F5F5,stroke:#E0E0E0
     style Files fill:#F5F5F5,stroke:#E0E0E0
 
-    subgraph Integration["Integration Tests"]
-        T001["T001: Page wiring"]:::pending
-        T002["T002: Claude E2E test"]:::pending
-        T003["T003: Copilot E2E test"]:::pending
-        T004["T004: Session resumption test"]:::pending
-        T005["T005: Concurrent tools test"]:::pending
+    subgraph Integration["Integration & Wiring"]
+        T001["T001: Event transformer utility"]:::pending
+        T002["T002: Page wiring + useServerSession"]:::pending
+        T003["T003: Claude real multi-turn test"]:::pending
+        T004["T004: Copilot real multi-turn test"]:::pending
+        T005["T005: Session resumption test"]:::pending
+        T006["T006: Concurrent tools test"]:::pending
         
         T001 --> T002
-        T001 --> T003
+        T002 --> T003
         T002 --> T004
-        T003 --> T004
+        T003 --> T005
         T004 --> T005
-    end
-
-    subgraph A11y["Accessibility"]
-        T006["T006: Screen reader testing"]:::pending
-        T007["T007: Keyboard audit"]:::pending
-        T008["T008: axe-core scan"]:::pending
-        
         T005 --> T006
-        T006 --> T007
-        T007 --> T008
     end
 
     subgraph Perf["Performance"]
-        T009["T009: 100 tool calls"]:::pending
-        T010["T010: 1000 events load"]:::pending
+        T007["T007: Performance baseline"]:::pending
+        
+        T006 --> T007
+    end
+
+    subgraph Docs["Documentation"]
+        T008["T008: Developer guide"]:::pending
+        
+        T007 --> T008
+    end
+
+    subgraph Verify["Verification"]
+        T009["T009: Backward compat"]:::pending
+        T010["T010: AC checklist"]:::pending
         
         T008 --> T009
         T009 --> T010
     end
 
-    subgraph Docs["Documentation"]
-        T011["T011: Developer guide"]:::pending
-        
-        T010 --> T011
-    end
-
-    subgraph Verify["Verification"]
-        T012["T012: Backward compat"]:::pending
-        T013["T013: AC checklist"]:::pending
-        
-        T011 --> T012
-        T012 --> T013
-    end
-
     subgraph Files["Files"]
-        F1["/apps/web/app/(dashboard)/agents/page.tsx"]:::pending
-        F2["/test/integration/agent-tool-visibility.test.ts"]:::pending
-        F3["/test/integration/copilot-tool-visibility.test.ts"]:::pending
+        F1["/apps/web/src/lib/transformers/stored-event-to-log-entry.ts"]:::pending
+        F2["/apps/web/app/(dashboard)/agents/page.tsx"]:::pending
+        F3["/test/integration/real-agent-multi-turn.test.ts"]:::pending
         F4["/test/integration/session-resumption.test.ts"]:::pending
         F5["/test/integration/concurrent-tools.test.ts"]:::pending
-        F6["/test/accessibility/agent-a11y.test.ts"]:::pending
-        F7["/test/performance/agent-perf.test.ts"]:::pending
-        F8["/docs/how/agent-event-types/1-extending-events.md"]:::pending
+        F6["/test/performance/agent-perf.test.ts"]:::pending
+        F7["/docs/how/agent-event-types/1-extending-events.md"]:::pending
     end
 
     T001 -.-> F1
     T002 -.-> F2
     T003 -.-> F3
-    T004 -.-> F4
-    T005 -.-> F5
-    T006 -.-> F6
+    T004 -.-> F3
+    T005 -.-> F4
+    T006 -.-> F5
     T007 -.-> F6
-    T008 -.-> F6
-    T009 -.-> F7
-    T010 -.-> F7
-    T011 -.-> F8
+    T008 -.-> F7
 ```
 
 ### Task-to-Component Mapping
@@ -168,19 +164,16 @@ flowchart TD
 
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
-| T001 | Page Integration | agents/page.tsx | ⬜ Pending | Wire useServerSession + contentType routing |
-| T002 | Integration Test | agent-tool-visibility.test.ts | ⬜ Pending | Claude CLI → storage → SSE → UI |
-| T003 | Integration Test | copilot-tool-visibility.test.ts | ⬜ Pending | Copilot SDK → storage → SSE → UI |
-| T004 | Integration Test | session-resumption.test.ts | ⬜ Pending | Page refresh recovery (AC18) |
-| T005 | Integration Test | concurrent-tools.test.ts | ⬜ Pending | Multiple tools in correct order |
-| T006 | Accessibility | agent-a11y.test.ts | ⬜ Pending | VoiceOver/NVDA manual testing |
-| T007 | Accessibility | agent-a11y.test.ts | ⬜ Pending | Full keyboard navigation |
-| T008 | Accessibility | agent-a11y.test.ts | ⬜ Pending | axe-core automated scan |
-| T009 | Performance | agent-perf.test.ts | ⬜ Pending | 100 tool calls baseline |
-| T010 | Performance | agent-perf.test.ts | ⬜ Pending | 1000 events load time |
-| T011 | Documentation | 1-extending-events.md | ⬜ Pending | Developer guide for event types |
-| T012 | Verification | backward-compat.test.ts | ⬜ Pending | Old sessions without contentType |
-| T013 | Verification | N/A | ⬜ Pending | Final 22 AC checklist |
+| T001 | Transformer Utility | stored-event-to-log-entry.ts | ⬜ Pending | StoredEvent → LogEntryProps (DYK-P5-02) |
+| T002 | Page Integration | agents/page.tsx | ⬜ Pending | Wire useServerSession for active session (DYK-P5-01) |
+| T003 | Integration Test | real-agent-multi-turn.test.ts | ⬜ Pending | Claude real multi-turn with tool events (DYK-P5-03) |
+| T004 | Integration Test | real-agent-multi-turn.test.ts | ⬜ Pending | Copilot real multi-turn with tool events (DYK-P5-03) |
+| T005 | Integration Test | session-resumption.test.ts | ⬜ Pending | Page refresh recovery (AC18) |
+| T006 | Integration Test | concurrent-tools.test.ts | ⬜ Pending | Multiple tools in correct order |
+| T007 | Performance | agent-perf.test.ts | ⬜ Pending | Baseline timing (DYK-P5-05) |
+| T008 | Documentation | 1-extending-events.md | ⬜ Pending | Developer guide for event types |
+| T009 | Verification | backward-compat.test.ts | ⬜ Pending | Old sessions without contentType |
+| T010 | Verification | N/A | ⬜ Pending | Final AC checklist |
 
 ---
 
@@ -188,19 +181,16 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|-----|------|----|------|--------------|------------------|------------|----------|-------|
-| [ ] | T001 | Wire agents page to useServerSession and contentType routing | 3 | Core | – | /home/jak/substrate/015-better-agents/apps/web/app/(dashboard)/agents/page.tsx | Page renders tool calls, results, thinking via LogEntry contentType | – | Per Phase 4 DYK-P4-03 |
-| [ ] | T002 | Write integration test: Claude tool call → UI display | 3 | Test | T001 | /home/jak/substrate/015-better-agents/test/integration/agent-tool-visibility.test.ts | Full pipeline from adapter to rendered ToolCallCard | – | AC1, AC2, AC3 |
-| [ ] | T003 | Write integration test: Copilot tool call → UI display | 3 | Test | T001 | /home/jak/substrate/015-better-agents/test/integration/copilot-tool-visibility.test.ts | Full pipeline with Copilot event model | – | AC4, AC7 |
-| [ ] | T004 | Write integration test: Session resumption after refresh | 3 | Test | T002, T003 | /home/jak/substrate/015-better-agents/test/integration/session-resumption.test.ts | Events fetched from storage, UI restored | – | AC18 |
-| [ ] | T005 | Write integration test: Concurrent tool calls | 2 | Test | T004 | /home/jak/substrate/015-better-agents/test/integration/concurrent-tools.test.ts | Multiple tools render in correct order | – | |
-| [ ] | T006 | Perform screen reader testing (VoiceOver/NVDA) | 2 | A11y | T005 | /home/jak/substrate/015-better-agents/test/accessibility/agent-a11y.test.ts | All interactive elements announced correctly | – | AC14, AC15, Manual |
-| [ ] | T007 | Perform keyboard navigation audit | 2 | A11y | T006 | /home/jak/substrate/015-better-agents/test/accessibility/agent-a11y.test.ts | Full page navigable without mouse | – | AC16, Manual |
-| [ ] | T008 | Run axe-core accessibility scan | 1 | A11y | T007 | /home/jak/substrate/015-better-agents/test/accessibility/agent-a11y.test.ts | Zero critical/serious violations | – | Automated |
-| [ ] | T009 | Performance test: 100 tool calls in session | 2 | Perf | T008 | /home/jak/substrate/015-better-agents/test/performance/agent-perf.test.ts | UI responsive, no visible lag | – | |
-| [ ] | T010 | Performance test: 1000 events in NDJSON file | 2 | Perf | T009 | /home/jak/substrate/015-better-agents/test/performance/agent-perf.test.ts | Load time < 500ms | – | |
-| [ ] | T011 | Write developer guide for adding event types | 2 | Doc | T010 | /home/jak/substrate/015-better-agents/docs/how/agent-event-types/1-extending-events.md | Guide covers all 3 layers + tests | – | |
-| [ ] | T012 | Verify backward compatibility with existing sessions | 2 | Test | T011 | /home/jak/substrate/015-better-agents/test/integration/backward-compat.test.ts | Old sessions load without contentType field | – | AC21, AC22 |
-| [ ] | T013 | Final acceptance criteria checklist | 1 | Verify | T012 | N/A - Manual verification | All 22 ACs verified with evidence | – | |
+| [ ] | T001 | Create storedEventToLogEntryProps transformer utility | 2 | Core | – | /home/jak/substrate/015-better-agents/apps/web/src/lib/transformers/stored-event-to-log-entry.ts | Unit tests verify StoredEvent → LogEntryProps conversion | – | DYK-P5-02 |
+| [ ] | T002 | Wire agents page to useServerSession for active session | 3 | Core | T001 | /home/jak/substrate/015-better-agents/apps/web/app/(dashboard)/agents/page.tsx | Page renders tool calls, results, thinking via LogEntry contentType | – | DYK-P5-01, Per Phase 4 DYK-P4-03 |
+| [ ] | T003 | Write real Claude multi-turn integration test with tool events | 3 | Test | T002 | /home/jak/substrate/015-better-agents/test/integration/real-agent-multi-turn.test.ts | Real adapter emits tool_call, tool_result across turns | 001-subtask-real-agent-multi-turn-tests | DYK-P5-03, follow scripts/agent/demo-claude-multi-turn.ts pattern |
+| [ ] | T004 | Write real Copilot multi-turn integration test with tool events | 3 | Test | T002 | /home/jak/substrate/015-better-agents/test/integration/real-agent-multi-turn.test.ts | Real adapter emits tool_call, tool_result across turns | 001-subtask-real-agent-multi-turn-tests | DYK-P5-03, follow scripts/agent/demo-copilot-multi-turn.ts pattern |
+| [ ] | T005 | Write integration test: Session resumption after refresh | 2 | Test | T003, T004 | /home/jak/substrate/015-better-agents/test/integration/session-resumption.test.ts | Events fetched from storage, UI restored | – | AC18 |
+| [ ] | T006 | Write integration test: Concurrent tool calls | 2 | Test | T005 | /home/jak/substrate/015-better-agents/test/integration/concurrent-tools.test.ts | Multiple tools render in correct order | – | |
+| [ ] | T007 | Write performance baseline test | 2 | Perf | T006 | /home/jak/substrate/015-better-agents/test/performance/agent-perf.test.ts | Basic timing verification, document results | – | DYK-P5-05 |
+| [ ] | T008 | Write developer guide for adding event types | 2 | Doc | T007 | /home/jak/substrate/015-better-agents/docs/how/agent-event-types/1-extending-events.md | Guide covers all 3 layers + tests | – | |
+| [ ] | T009 | Verify backward compatibility with existing sessions | 2 | Test | T008 | /home/jak/substrate/015-better-agents/test/integration/backward-compat.test.ts | Old sessions load without contentType field | – | AC21, AC22 |
+| [ ] | T010 | Final acceptance criteria checklist | 1 | Verify | T009 | N/A - Manual verification | All ACs verified with evidence | – | |
 
 ---
 
@@ -400,36 +390,30 @@ sequenceDiagram
 
 | Test | Type | Rationale | Fixtures | Expected Output |
 |------|------|-----------|----------|-----------------|
-| Claude tool call E2E | Integration | Verify full pipeline (AC1, AC2, AC3) | CLAUDE_TOOL_USE_FIXTURE from plan | ToolCallCard visible with "Bash: ls -la" |
-| Copilot tool call E2E | Integration | Verify different event model (AC4, AC7) | COPILOT_TOOL_EXECUTION_FIXTURE | ToolCallCard visible |
+| StoredEvent transformer | Unit | Verify DYK-P5-02 transformer | Mock StoredEvents | Correct LogEntryProps |
+| Claude real multi-turn | Integration | Real adapter with tool events (DYK-P5-03) | Real Claude CLI | tool_call + tool_result captured |
+| Copilot real multi-turn | Integration | Real adapter with tool events (DYK-P5-03) | Real Copilot SDK | tool_call + tool_result captured |
 | Session resumption | Integration | Verify storage recovery (AC18) | Pre-seeded events.ndjson | All events restored after refresh |
 | Concurrent tools | Integration | Verify ordering | 3 rapid tool_call events | Rendered in timestamp order |
-| Screen reader | A11y | Verify announcements (AC14, AC15) | Running session | All elements announced correctly |
-| Keyboard nav | A11y | Verify no mouse needed (AC16) | Full page | Tab through all controls |
-| axe-core scan | A11y | Automated violations | Page with tool cards | Zero critical/serious |
-| 100 tool calls | Perf | Verify responsiveness | Seeded 100 events | No visible lag on scroll |
-| 1000 events load | Perf | Verify load time | Seeded 1000 events | Load < 500ms |
+| Performance baseline | Perf | Basic timing verification | Seeded events | Document timing results |
 | Backward compat | Integration | Old sessions work (AC21, AC22) | Events without contentType | Default to text rendering |
 
-**Mock Usage**: Per spec, use real fixtures from Phase 2 contract tests. FakeEventStorage for seeding test data, but EventStorageService for actual storage operations.
+**Real Agent Tests**: T003/T004 use real Claude CLI and Copilot SDK with multi-turn sessions and session reuse. Tests are marked `describe.skip` and run manually when needed. Follow pattern from `scripts/agent/demo-*-multi-turn.ts`.
 
 ### Step-by-Step Implementation Outline
 
 | Step | Task | Action |
 |------|------|--------|
-| 1 | T001 | Refactor agents/page.tsx to import useServerSession, map events to LogEntry with contentType |
-| 2 | T002 | Create agent-tool-visibility.test.ts with Claude fixture, verify ToolCallCard renders |
-| 3 | T003 | Create copilot-tool-visibility.test.ts with Copilot fixture, verify ToolCallCard renders |
-| 4 | T004 | Create session-resumption.test.ts, seed events, simulate refresh, verify restoration |
-| 5 | T005 | Create concurrent-tools.test.ts, emit 3 rapid events, verify order preserved |
-| 6 | T006 | Manual VoiceOver/NVDA testing, document results in execution.log.md |
-| 7 | T007 | Manual keyboard testing, document Tab order and Enter/Space toggles |
-| 8 | T008 | Add axe-core to agent-a11y.test.ts, verify zero critical/serious |
-| 9 | T009 | Create agent-perf.test.ts, seed 100 events, measure render time |
-| 10 | T010 | Add 1000-event load test, verify < 500ms |
-| 11 | T011 | Create docs/how/agent-event-types/1-extending-events.md |
-| 12 | T012 | Create backward-compat.test.ts, verify events without contentType render |
-| 13 | T013 | Walk through all 22 ACs with evidence, document in execution.log.md |
+| 1 | T001 | Create `storedEventToLogEntryProps()` in `apps/web/src/lib/transformers/` with unit tests |
+| 2 | T002 | Wire agents/page.tsx to use useServerSession for active session, import transformer |
+| 3 | T003 | Create real-agent-multi-turn.test.ts Claude section following demo-claude-multi-turn.ts pattern |
+| 4 | T004 | Add Copilot section to real-agent-multi-turn.test.ts following demo-copilot-multi-turn.ts pattern |
+| 5 | T005 | Create session-resumption.test.ts, seed events, simulate refresh, verify restoration |
+| 6 | T006 | Create concurrent-tools.test.ts, emit 3 rapid events, verify order preserved |
+| 7 | T007 | Create agent-perf.test.ts with basic timing verification |
+| 8 | T008 | Create docs/how/agent-event-types/1-extending-events.md |
+| 9 | T009 | Create backward-compat.test.ts, verify events without contentType render |
+| 10 | T010 | Walk through ACs with evidence, document in execution.log.md |
 
 ### Commands to Run
 
@@ -444,11 +428,13 @@ just typecheck               # TypeScript strict mode
 just test                    # Run all tests
 
 # Specific Test Commands
-pnpm test test/integration/agent-tool-visibility.test.ts  # Claude E2E
-pnpm test test/integration/copilot-tool-visibility.test.ts  # Copilot E2E
-pnpm test test/integration/session-resumption.test.ts  # Resumption
-pnpm test test/accessibility/agent-a11y.test.ts  # A11y scan
-pnpm test test/performance/agent-perf.test.ts  # Performance
+pnpm test test/integration/real-agent-multi-turn.test.ts  # Real agent tests (skipped by default)
+pnpm test test/integration/session-resumption.test.ts     # Resumption
+pnpm test test/integration/concurrent-tools.test.ts       # Concurrent
+pnpm test test/performance/agent-perf.test.ts             # Performance
+
+# Run skipped real agent tests manually
+npx vitest run test/integration/real-agent-multi-turn.test.ts --no-file-parallelism
 
 # Build Verification
 just build                   # Production build
@@ -458,21 +444,21 @@ just build                   # Production build
 
 | Risk | Severity | Likelihood | Mitigation |
 |------|----------|------------|------------|
-| E2E test flakiness | Low | Medium | Use deterministic fixtures, retry logic |
-| Screen reader testing requires manual effort | Medium | High | Budget time, document findings |
-| Performance regression with many events | Medium | Low | Baseline first, alert on regression |
-| Copilot SDK changes (technical preview) | Low | Low | Use fixtures from Phase 2, mock SDK |
+| Real agent test flakiness | Medium | Medium | Tests marked `describe.skip`, run manually when needed |
+| Real agent tests require auth | Low | High | Skip if CLI/SDK not available (existing pattern) |
+| StoredEvent → AgentMessage mismatch | Low | Low | Explicit transformer with unit tests |
+| Copilot SDK changes (technical preview) | Low | Low | Tests skipped in CI, run manually |
 
 ### Ready Check
 
-- [ ] Prior phases reviewed (Phases 1-4 complete, 53+ tests from Phase 4)
-- [ ] ADR constraints mapped (ADR-0007 IMP-003 in T004)
-- [ ] Critical findings from plan addressed in task design
-- [ ] Test fixtures identified (contract tests from Phase 2)
-- [ ] Inputs to read listed with absolute paths
-- [ ] Commands verified (just fft, pnpm test patterns)
+- [x] Prior phases reviewed (Phases 1-4 complete, 53+ tests from Phase 4)
+- [x] ADR constraints mapped (ADR-0007 IMP-003 in T005)
+- [x] Critical findings from plan addressed in task design
+- [x] DYK session decisions documented (DYK-P5-01 through DYK-P5-05)
+- [x] Test patterns identified (scripts/agent/demo-*-multi-turn.ts)
+- [x] Commands verified (just fft, pnpm test patterns)
 
-**Await explicit GO/NO-GO before proceeding to plan-6-implement-phase.**
+**GO/NO-GO: READY for implementation.**
 
 ---
 
@@ -491,8 +477,8 @@ _Populated by plan-6 during implementation._
 | Artifact | Path | Purpose |
 |----------|------|---------|
 | Execution Log | `./execution.log.md` | Implementation narrative, decisions, issues |
-| Integration Tests | `/test/integration/agent-*.test.ts` | E2E verification |
-| A11y Tests | `/test/accessibility/agent-a11y.test.ts` | Accessibility verification |
+| Transformer | `/apps/web/src/lib/transformers/stored-event-to-log-entry.ts` | StoredEvent → LogEntryProps |
+| Integration Tests | `/test/integration/real-agent-multi-turn.test.ts` | Real agent multi-turn tests |
 | Performance Tests | `/test/performance/agent-perf.test.ts` | Performance baselines |
 | Developer Guide | `/docs/how/agent-event-types/1-extending-events.md` | Documentation deliverable |
 

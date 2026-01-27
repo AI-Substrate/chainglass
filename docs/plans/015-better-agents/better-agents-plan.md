@@ -1124,6 +1124,16 @@ Per spec Documentation Strategy (docs/how/ only):
 
 ---
 
+## Subtasks Registry
+
+Mid-implementation detours requiring structured tracking.
+
+| ID | Created | Phase | Parent Task | Reason | Status | Dossier |
+|----|---------|-------|-------------|--------|--------|---------|
+| 001-subtask-real-agent-multi-turn-tests | 2026-01-27 | Phase 5: Integration & Verification | T003, T004 | Deep-dive into real agent integration tests with multi-turn sessions | [ ] Pending | [Link](tasks/phase-5-integration-accessibility/001-subtask-real-agent-multi-turn-tests.md) |
+
+---
+
 ## References
 
 - **Spec**: [better-agents-spec.md](./better-agents-spec.md)
