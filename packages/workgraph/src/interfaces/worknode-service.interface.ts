@@ -78,6 +78,18 @@ export interface EndResult extends BaseResult {
 }
 
 /**
+ * Result of checking if a node can end.
+ */
+export interface CanEndResult extends BaseResult {
+  /** Node ID that was checked */
+  nodeId: string;
+  /** Whether the node can end */
+  canEnd: boolean;
+  /** Missing required outputs (if any) */
+  missingOutputs?: string[];
+}
+
+/**
  * Input data value.
  */
 export interface InputDataValue {
@@ -280,6 +292,18 @@ export interface IWorkNodeService {
    * @returns EndResult with new status and any missing outputs
    */
   end(graphSlug: string, nodeId: string): Promise<EndResult>;
+
+  /**
+   * Check if a node can end (query only, no state change).
+   *
+   * Validates that all required outputs are present without
+   * actually transitioning the node state.
+   *
+   * @param graphSlug - Graph containing the node
+   * @param nodeId - Node to check
+   * @returns CanEndResult with canEnd flag and any missing outputs
+   */
+  canEnd(graphSlug: string, nodeId: string): Promise<CanEndResult>;
 
   /**
    * Get input data for a node.

@@ -47,6 +47,7 @@ export type {
   MarkReadyResult,
   StartResult,
   EndResult,
+  CanEndResult,
   GetInputDataResult,
   GetInputFileResult,
   SaveOutputDataResult,

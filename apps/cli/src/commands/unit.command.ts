@@ -74,6 +74,23 @@ function createOutputAdapter(json: boolean): IOutputAdapter {
 }
 
 /**
+ * Wrap async action handlers with try-catch for graceful error handling.
+ * Per FIX-003: Prevents unhandled promise rejections from crashing CLI.
+ */
+function wrapAction<T extends unknown[]>(
+  handler: (...args: T) => Promise<void>
+): (...args: T) => Promise<void> {
+  return async (...args: T) => {
+    try {
+      await handler(...args);
+    } catch (error) {
+      console.error('Error:', error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  };
+}
+
+/**
  * Get the WorkUnitService from DI container.
  * Per ADR-0004: Services resolved from containers, not instantiated directly.
  */
@@ -178,18 +195,22 @@ export function registerUnitCommands(program: Command): void {
     .command('list')
     .description('List all available units')
     .option('--json', 'Output as JSON', false)
-    .action(async (options: ListOptions) => {
-      await handleUnitList(options);
-    });
+    .action(
+      wrapAction(async (options: ListOptions) => {
+        await handleUnitList(options);
+      })
+    );
 
   // cg unit info <slug>
   unit
     .command('info <slug>')
     .description('Show detailed information about a unit')
     .option('--json', 'Output as JSON', false)
-    .action(async (slug: string, options: InfoOptions) => {
-      await handleUnitInfo(slug, options);
-    });
+    .action(
+      wrapAction(async (slug: string, options: InfoOptions) => {
+        await handleUnitInfo(slug, options);
+      })
+    );
 
   // cg unit create <slug>
   unit
@@ -197,16 +218,20 @@ export function registerUnitCommands(program: Command): void {
     .description('Create a new unit scaffold')
     .option('--json', 'Output as JSON', false)
     .requiredOption('-t, --type <type>', 'Unit type: agent, code, or user-input')
-    .action(async (slug: string, options: CreateOptions) => {
-      await handleUnitCreate(slug, options);
-    });
+    .action(
+      wrapAction(async (slug: string, options: CreateOptions) => {
+        await handleUnitCreate(slug, options);
+      })
+    );
 
   // cg unit validate <slug>
   unit
     .command('validate <slug>')
     .description('Validate a unit definition')
     .option('--json', 'Output as JSON', false)
-    .action(async (slug: string, options: ValidateOptions) => {
-      await handleUnitValidate(slug, options);
-    });
+    .action(
+      wrapAction(async (slug: string, options: ValidateOptions) => {
+        await handleUnitValidate(slug, options);
+      })
+    );
 }

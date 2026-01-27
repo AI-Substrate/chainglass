@@ -32,8 +32,11 @@
 
 import {
   ConsoleOutputAdapter,
+  type IFileSystem,
   type IOutputAdapter,
+  type IPathResolver,
   JsonOutputAdapter,
+  SHARED_DI_TOKENS,
   WORKGRAPH_DI_TOKENS,
 } from '@chainglass/shared';
 import type { IWorkGraphService, IWorkNodeService, Question } from '@chainglass/workgraph';
@@ -74,6 +77,23 @@ interface AskOptions extends BaseOptions {
  */
 function createOutputAdapter(json: boolean): IOutputAdapter {
   return json ? new JsonOutputAdapter() : new ConsoleOutputAdapter();
+}
+
+/**
+ * Wrap async action handlers with try-catch for graceful error handling.
+ * Per FIX-003: Prevents unhandled promise rejections from crashing CLI.
+ */
+function wrapAction<T extends unknown[]>(
+  handler: (...args: T) => Promise<void>
+): (...args: T) => Promise<void> {
+  return async (...args: T) => {
+    try {
+      await handler(...args);
+    } catch (error) {
+      console.error('Error:', error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  };
 }
 
 /**
@@ -233,9 +253,8 @@ async function handleNodeExec(
   const container = createCliProductionContainer();
 
   // Get services needed for bootstrap prompt
-  const fs = container.resolve<import('@chainglass/shared').IFileSystem>('IFileSystem');
-  const pathResolver =
-    container.resolve<import('@chainglass/shared').IPathResolver>('IPathResolver');
+  const fs = container.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
+  const pathResolver = container.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
   const workGraphService = container.resolve<IWorkGraphService>(
     WORKGRAPH_DI_TOKENS.WORKGRAPH_SERVICE
   );
@@ -328,16 +347,9 @@ async function handleNodeCanEnd(
   const service = getWorkNodeService();
   const adapter = createOutputAdapter(options.json ?? false);
 
-  const result = await service.end(graphSlug, nodeId);
-  // For can-end, we check if it would succeed without actually ending
-  // Since there's no dedicated canEnd method, we use end and format accordingly
-  const canEndResult = {
-    nodeId,
-    canEnd: result.errors.length === 0,
-    missingOutputs: result.missingOutputs,
-    errors: result.errors,
-  };
-  const output = adapter.format('wg.node.can-end', canEndResult);
+  // Use canEnd() which is a query (no state mutation)
+  const result = await service.canEnd(graphSlug, nodeId);
+  const output = adapter.format('wg.node.can-end', result);
 
   console.log(output);
 
@@ -471,9 +483,26 @@ async function handleNodeSaveOutputFile(
   sourcePath: string,
   options: BaseOptions
 ): Promise<void> {
-  const service = getWorkNodeService();
   const adapter = createOutputAdapter(options.json ?? false);
 
+  // FIX-004: Path traversal validation
+  // Reject absolute paths and paths with traversal sequences
+  if (sourcePath.startsWith('/') || sourcePath.includes('..')) {
+    const result = {
+      nodeId,
+      outputName,
+      saved: false,
+      errors: [
+        { code: 'PATH_TRAVERSAL', message: 'Path must be relative and cannot contain ".."' },
+      ],
+    };
+    const output = adapter.format('wg.node.save-output-file', result);
+    console.log(output);
+    process.exit(1);
+    return;
+  }
+
+  const service = getWorkNodeService();
   const result = await service.saveOutputFile(graphSlug, nodeId, outputName, sourcePath);
   const output = adapter.format('wg.node.save-output-file', result);
 
@@ -558,25 +587,31 @@ export function registerWorkGraphCommands(program: Command): void {
   wg.command('create <slug>')
     .description('Create a new graph with start node')
     .option('--json', 'Output as JSON', false)
-    .action(async (slug: string, options: BaseOptions) => {
-      await handleWgCreate(slug, options);
-    });
+    .action(
+      wrapAction(async (slug: string, options: BaseOptions) => {
+        await handleWgCreate(slug, options);
+      })
+    );
 
   // cg wg show <slug>
   wg.command('show <slug>')
     .description('Show graph structure as tree')
     .option('--json', 'Output as JSON', false)
-    .action(async (slug: string, options: BaseOptions) => {
-      await handleWgShow(slug, options);
-    });
+    .action(
+      wrapAction(async (slug: string, options: BaseOptions) => {
+        await handleWgShow(slug, options);
+      })
+    );
 
   // cg wg status <slug>
   wg.command('status <slug>')
     .description('Show node status table')
     .option('--json', 'Output as JSON', false)
-    .action(async (slug: string, options: BaseOptions) => {
-      await handleWgStatus(slug, options);
-    });
+    .action(
+      wrapAction(async (slug: string, options: BaseOptions) => {
+        await handleWgStatus(slug, options);
+      })
+    );
 
   // ==================== Node Commands (triple-nested) ====================
 
@@ -592,16 +627,18 @@ export function registerWorkGraphCommands(program: Command): void {
     .option('-i, --input <mapping...>', 'Input mappings (name:source.output)')
     .option('-c, --config <value...>', 'Config values (key=value)')
     .action(
-      async (
-        graph: string,
-        after: string,
-        unit: string,
-        options: AddAfterOptions,
-        cmd: Command
-      ) => {
-        const json = cmd.parent?.opts()?.json ?? false;
-        await handleNodeAddAfter(graph, after, unit, { ...options, json });
-      }
+      wrapAction(
+        async (
+          graph: string,
+          after: string,
+          unit: string,
+          options: AddAfterOptions,
+          cmd: Command
+        ) => {
+          const json = cmd.parent?.opts()?.json ?? false;
+          await handleNodeAddAfter(graph, after, unit, { ...options, json });
+        }
+      )
     );
 
   // cg wg node remove <graph> <node>
@@ -609,83 +646,101 @@ export function registerWorkGraphCommands(program: Command): void {
     .command('remove <graph> <node>')
     .description('Remove a node from the graph')
     .option('--cascade', 'Remove dependent nodes as well', false)
-    .action(async (graph: string, nodeId: string, options: RemoveOptions, cmd: Command) => {
-      const json = cmd.parent?.opts()?.json ?? false;
-      await handleNodeRemove(graph, nodeId, { ...options, json });
-    });
+    .action(
+      wrapAction(async (graph: string, nodeId: string, options: RemoveOptions, cmd: Command) => {
+        const json = cmd.parent?.opts()?.json ?? false;
+        await handleNodeRemove(graph, nodeId, { ...options, json });
+      })
+    );
 
   // cg wg node exec <graph> <node>
   node
     .command('exec <graph> <node>')
     .description('Show bootstrap prompt for node execution')
-    .action(async (graph: string, nodeId: string, options: BaseOptions, cmd: Command) => {
-      const json = cmd.parent?.opts()?.json ?? false;
-      await handleNodeExec(graph, nodeId, { json });
-    });
+    .action(
+      wrapAction(async (graph: string, nodeId: string, options: BaseOptions, cmd: Command) => {
+        const json = cmd.parent?.opts()?.json ?? false;
+        await handleNodeExec(graph, nodeId, { json });
+      })
+    );
 
   // cg wg node start <graph> <node>
   node
     .command('start <graph> <node>')
     .description('Start node execution (transition to running)')
-    .action(async (graph: string, nodeId: string, options: BaseOptions, cmd: Command) => {
-      const json = cmd.parent?.opts()?.json ?? false;
-      await handleNodeStart(graph, nodeId, { json });
-    });
+    .action(
+      wrapAction(async (graph: string, nodeId: string, options: BaseOptions, cmd: Command) => {
+        const json = cmd.parent?.opts()?.json ?? false;
+        await handleNodeStart(graph, nodeId, { json });
+      })
+    );
 
   // cg wg node end <graph> <node>
   node
     .command('end <graph> <node>')
     .description('End node execution (transition to complete)')
-    .action(async (graph: string, nodeId: string, options: BaseOptions, cmd: Command) => {
-      const json = cmd.parent?.opts()?.json ?? false;
-      await handleNodeEnd(graph, nodeId, { json });
-    });
+    .action(
+      wrapAction(async (graph: string, nodeId: string, options: BaseOptions, cmd: Command) => {
+        const json = cmd.parent?.opts()?.json ?? false;
+        await handleNodeEnd(graph, nodeId, { json });
+      })
+    );
 
   // cg wg node can-run <graph> <node>
   node
     .command('can-run <graph> <node>')
     .description('Check if a node can run')
-    .action(async (graph: string, nodeId: string, options: BaseOptions, cmd: Command) => {
-      const json = cmd.parent?.opts()?.json ?? false;
-      await handleNodeCanRun(graph, nodeId, { json });
-    });
+    .action(
+      wrapAction(async (graph: string, nodeId: string, options: BaseOptions, cmd: Command) => {
+        const json = cmd.parent?.opts()?.json ?? false;
+        await handleNodeCanRun(graph, nodeId, { json });
+      })
+    );
 
   // cg wg node can-end <graph> <node>
   node
     .command('can-end <graph> <node>')
     .description('Check if a node can end (all required outputs present)')
-    .action(async (graph: string, nodeId: string, options: BaseOptions, cmd: Command) => {
-      const json = cmd.parent?.opts()?.json ?? false;
-      await handleNodeCanEnd(graph, nodeId, { json });
-    });
+    .action(
+      wrapAction(async (graph: string, nodeId: string, options: BaseOptions, cmd: Command) => {
+        const json = cmd.parent?.opts()?.json ?? false;
+        await handleNodeCanEnd(graph, nodeId, { json });
+      })
+    );
 
   // cg wg node list-inputs <graph> <node>
   node
     .command('list-inputs <graph> <node>')
     .description('List node inputs and their resolution status')
-    .action(async (graph: string, nodeId: string, options: BaseOptions, cmd: Command) => {
-      const json = cmd.parent?.opts()?.json ?? false;
-      await handleNodeListInputs(graph, nodeId, { json });
-    });
+    .action(
+      wrapAction(async (graph: string, nodeId: string, options: BaseOptions, cmd: Command) => {
+        const json = cmd.parent?.opts()?.json ?? false;
+        await handleNodeListInputs(graph, nodeId, { json });
+      })
+    );
 
   // cg wg node list-outputs <graph> <node>
   node
     .command('list-outputs <graph> <node>')
     .description('List node outputs and their save status')
-    .action(async (graph: string, nodeId: string, options: BaseOptions, cmd: Command) => {
-      const json = cmd.parent?.opts()?.json ?? false;
-      await handleNodeListOutputs(graph, nodeId, { json });
-    });
+    .action(
+      wrapAction(async (graph: string, nodeId: string, options: BaseOptions, cmd: Command) => {
+        const json = cmd.parent?.opts()?.json ?? false;
+        await handleNodeListOutputs(graph, nodeId, { json });
+      })
+    );
 
   // cg wg node get-input-data <graph> <node> <name>
   node
     .command('get-input-data <graph> <node> <name>')
     .description('Get input data value from upstream node')
     .action(
-      async (graph: string, nodeId: string, name: string, options: BaseOptions, cmd: Command) => {
-        const json = cmd.parent?.opts()?.json ?? false;
-        await handleNodeGetInputData(graph, nodeId, name, { json });
-      }
+      wrapAction(
+        async (graph: string, nodeId: string, name: string, options: BaseOptions, cmd: Command) => {
+          const json = cmd.parent?.opts()?.json ?? false;
+          await handleNodeGetInputData(graph, nodeId, name, { json });
+        }
+      )
     );
 
   // cg wg node get-input-file <graph> <node> <name>
@@ -693,10 +748,12 @@ export function registerWorkGraphCommands(program: Command): void {
     .command('get-input-file <graph> <node> <name>')
     .description('Get input file path from upstream node')
     .action(
-      async (graph: string, nodeId: string, name: string, options: BaseOptions, cmd: Command) => {
-        const json = cmd.parent?.opts()?.json ?? false;
-        await handleNodeGetInputFile(graph, nodeId, name, { json });
-      }
+      wrapAction(
+        async (graph: string, nodeId: string, name: string, options: BaseOptions, cmd: Command) => {
+          const json = cmd.parent?.opts()?.json ?? false;
+          await handleNodeGetInputFile(graph, nodeId, name, { json });
+        }
+      )
     );
 
   // cg wg node save-output-data <graph> <node> <name> <value>
@@ -704,17 +761,19 @@ export function registerWorkGraphCommands(program: Command): void {
     .command('save-output-data <graph> <node> <name> <value>')
     .description('Save output data value')
     .action(
-      async (
-        graph: string,
-        nodeId: string,
-        name: string,
-        value: string,
-        options: BaseOptions,
-        cmd: Command
-      ) => {
-        const json = cmd.parent?.opts()?.json ?? false;
-        await handleNodeSaveOutputData(graph, nodeId, name, value, { json });
-      }
+      wrapAction(
+        async (
+          graph: string,
+          nodeId: string,
+          name: string,
+          value: string,
+          options: BaseOptions,
+          cmd: Command
+        ) => {
+          const json = cmd.parent?.opts()?.json ?? false;
+          await handleNodeSaveOutputData(graph, nodeId, name, value, { json });
+        }
+      )
     );
 
   // cg wg node save-output-file <graph> <node> <name> <path>
@@ -722,17 +781,19 @@ export function registerWorkGraphCommands(program: Command): void {
     .command('save-output-file <graph> <node> <name> <path>')
     .description('Save output file (copy source file to node storage)')
     .action(
-      async (
-        graph: string,
-        nodeId: string,
-        name: string,
-        path: string,
-        options: BaseOptions,
-        cmd: Command
-      ) => {
-        const json = cmd.parent?.opts()?.json ?? false;
-        await handleNodeSaveOutputFile(graph, nodeId, name, path, { json });
-      }
+      wrapAction(
+        async (
+          graph: string,
+          nodeId: string,
+          name: string,
+          path: string,
+          options: BaseOptions,
+          cmd: Command
+        ) => {
+          const json = cmd.parent?.opts()?.json ?? false;
+          await handleNodeSaveOutputFile(graph, nodeId, name, path, { json });
+        }
+      )
     );
 
   // cg wg node ask <graph> <node>
@@ -743,26 +804,30 @@ export function registerWorkGraphCommands(program: Command): void {
     .requiredOption('--text <text>', 'Question text')
     .option('-o, --options <options...>', 'Options for single/multi choice')
     .option('-d, --default <default>', 'Default value')
-    .action(async (graph: string, nodeId: string, options: AskOptions, cmd: Command) => {
-      const json = cmd.parent?.opts()?.json ?? false;
-      await handleNodeAsk(graph, nodeId, { ...options, json });
-    });
+    .action(
+      wrapAction(async (graph: string, nodeId: string, options: AskOptions, cmd: Command) => {
+        const json = cmd.parent?.opts()?.json ?? false;
+        await handleNodeAsk(graph, nodeId, { ...options, json });
+      })
+    );
 
   // cg wg node answer <graph> <node> <questionId> <answer>
   node
     .command('answer <graph> <node> <questionId> <answer>')
     .description('Answer a question (resume node execution)')
     .action(
-      async (
-        graph: string,
-        nodeId: string,
-        questionId: string,
-        answer: string,
-        options: BaseOptions,
-        cmd: Command
-      ) => {
-        const json = cmd.parent?.opts()?.json ?? false;
-        await handleNodeAnswer(graph, nodeId, questionId, answer, { json });
-      }
+      wrapAction(
+        async (
+          graph: string,
+          nodeId: string,
+          questionId: string,
+          answer: string,
+          options: BaseOptions,
+          cmd: Command
+        ) => {
+          const json = cmd.parent?.opts()?.json ?? false;
+          await handleNodeAnswer(graph, nodeId, questionId, answer, { json });
+        }
+      )
     );
 }

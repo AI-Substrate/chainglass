@@ -9,6 +9,7 @@
 import type {
   AnswerResult,
   AskResult,
+  CanEndResult,
   CanRunResult,
   ClearOptions,
   ClearResult,
@@ -53,6 +54,13 @@ export interface EndCall {
   nodeId: string;
   timestamp: string;
   result: EndResult;
+}
+
+export interface CanEndCall {
+  graphSlug: string;
+  nodeId: string;
+  timestamp: string;
+  result: CanEndResult;
 }
 
 export interface GetInputDataCall {
@@ -126,6 +134,7 @@ export class FakeWorkNodeService implements IWorkNodeService {
   private markReadyCalls: MarkReadyCall[] = [];
   private startCalls: StartCall[] = [];
   private endCalls: EndCall[] = [];
+  private canEndCalls: CanEndCall[] = [];
   private getInputDataCalls: GetInputDataCall[] = [];
   private getInputFileCalls: GetInputFileCall[] = [];
   private saveOutputDataCalls: SaveOutputDataCall[] = [];
@@ -138,6 +147,7 @@ export class FakeWorkNodeService implements IWorkNodeService {
   private presetMarkReadyResults = new Map<string, MarkReadyResult>();
   private presetStartResults = new Map<string, StartResult>();
   private presetEndResults = new Map<string, EndResult>();
+  private presetCanEndResults = new Map<string, CanEndResult>();
   private presetGetInputDataResults = new Map<string, GetInputDataResult>();
   private presetGetInputFileResults = new Map<string, GetInputFileResult>();
   private presetSaveOutputDataResults = new Map<string, SaveOutputDataResult>();
@@ -269,6 +279,38 @@ export class FakeWorkNodeService implements IWorkNodeService {
     };
 
     this.endCalls.push({
+      graphSlug,
+      nodeId,
+      timestamp: new Date().toISOString(),
+      result,
+    });
+
+    return result;
+  }
+
+  // ==================== CanEnd ====================
+
+  getCanEndCalls(): CanEndCall[] {
+    return [...this.canEndCalls];
+  }
+
+  getLastCanEndCall(): CanEndCall | null {
+    return this.canEndCalls.length > 0 ? this.canEndCalls[this.canEndCalls.length - 1] : null;
+  }
+
+  setCanEndResult(graphSlug: string, nodeId: string, result: CanEndResult): void {
+    this.presetCanEndResults.set(`${graphSlug}:${nodeId}`, result);
+  }
+
+  async canEnd(graphSlug: string, nodeId: string): Promise<CanEndResult> {
+    const key = `${graphSlug}:${nodeId}`;
+    const result = this.presetCanEndResults.get(key) ?? {
+      nodeId,
+      canEnd: true,
+      errors: [],
+    };
+
+    this.canEndCalls.push({
       graphSlug,
       nodeId,
       timestamp: new Date().toISOString(),

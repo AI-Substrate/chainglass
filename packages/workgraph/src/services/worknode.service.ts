@@ -23,6 +23,7 @@ import type {
   AnswerResult,
   AskResult,
   BlockingNode,
+  CanEndResult,
   CanRunResult,
   ClearOptions,
   ClearResult,
@@ -583,6 +584,128 @@ export class WorkNodeService implements IWorkNodeService {
       nodeId,
       status: 'complete',
       completedAt,
+      errors: [],
+    };
+  }
+
+  // ============================================
+  // canEnd (query only)
+  // ============================================
+
+  /**
+   * Check if a node can end (query only, no state change).
+   *
+   * Validates that all required outputs are present without
+   * actually transitioning the node state.
+   *
+   * @param graphSlug - Graph containing the node
+   * @param nodeId - Node to check
+   * @returns CanEndResult with canEnd flag and any missing outputs
+   */
+  async canEnd(graphSlug: string, nodeId: string): Promise<CanEndResult> {
+    // 1. Check current status
+    const statusResult = await this.workGraphService.status(graphSlug);
+    if (statusResult.errors.length > 0) {
+      return {
+        nodeId,
+        canEnd: false,
+        missingOutputs: [],
+        errors: statusResult.errors,
+      };
+    }
+
+    const nodeStatus = statusResult.nodes.find((n) => n.id === nodeId);
+    if (!nodeStatus) {
+      return {
+        nodeId,
+        canEnd: false,
+        missingOutputs: [],
+        errors: [nodeNotFoundError(graphSlug, nodeId)],
+      };
+    }
+
+    // 2. If not running, cannot end
+    if (nodeStatus.status !== 'running') {
+      return {
+        nodeId,
+        canEnd: false,
+        missingOutputs: [],
+        errors: [
+          {
+            code: 'E112',
+            message: `Node '${nodeId}' is not in running state (current: ${nodeStatus.status})`,
+            action: 'Node must be running to end it',
+          },
+        ],
+      };
+    }
+
+    // 3. Load node config to get unit slug
+    const nodePath = this.pathResolver.join(this.graphsDir, graphSlug, 'nodes', nodeId);
+    const nodeYamlPath = this.pathResolver.join(nodePath, 'node.yaml');
+
+    let unitSlug = '';
+    if (await this.fs.exists(nodeYamlPath)) {
+      try {
+        const nodeYamlContent = await this.fs.readFile(nodeYamlPath);
+        const match = nodeYamlContent.match(/unit_slug:\s*([^\s\n]+)/);
+        if (match) {
+          unitSlug = match[1];
+        }
+      } catch {
+        // Continue without unit validation
+      }
+    }
+
+    // 4. Load unit to check required outputs
+    const missingOutputs: string[] = [];
+    if (this.workUnitService && unitSlug) {
+      const unitResult = await this.workUnitService.load(unitSlug);
+      if (unitResult.unit) {
+        const requiredOutputs = unitResult.unit.outputs.filter((o) => o.required);
+
+        // Load saved outputs from data.json
+        const dataPath = this.pathResolver.join(nodePath, 'data', 'data.json');
+        let savedOutputs: Record<string, unknown> = {};
+
+        if (await this.fs.exists(dataPath)) {
+          try {
+            const dataContent = await this.fs.readFile(dataPath);
+            const parsed = JSON.parse(dataContent);
+            savedOutputs = parsed.outputs ?? {};
+          } catch {
+            // No outputs saved
+          }
+        }
+
+        // Check each required output
+        for (const output of requiredOutputs) {
+          if (output.type === 'file') {
+            const filePath = this.pathResolver.join(
+              nodePath,
+              'data',
+              'outputs',
+              `${output.name}.md`
+            );
+            if (!(await this.fs.exists(filePath))) {
+              if (!(output.name in savedOutputs)) {
+                missingOutputs.push(output.name);
+              }
+            }
+          } else {
+            if (!(output.name in savedOutputs)) {
+              missingOutputs.push(output.name);
+            }
+          }
+        }
+      }
+    }
+
+    // 5. Return result (no state mutation)
+    return {
+      nodeId,
+      canEnd: missingOutputs.length === 0,
+      missingOutputs: missingOutputs.length > 0 ? missingOutputs : undefined,
       errors: [],
     };
   }

@@ -24,6 +24,7 @@ export type {
   MarkReadyCall,
   StartCall,
   EndCall,
+  CanEndCall,
   GetInputDataCall,
   GetInputFileCall,
   SaveOutputDataCall,
