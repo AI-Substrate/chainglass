@@ -23,6 +23,7 @@ import type { IWorkGraphService } from './interfaces/workgraph-service.interface
 import type { IWorkNodeService } from './interfaces/worknode-service.interface.js';
 import type { IWorkUnitService } from './interfaces/workunit-service.interface.js';
 import { WorkGraphService } from './services/workgraph.service.js';
+import { WorkNodeService } from './services/worknode.service.js';
 import { WorkUnitService } from './services/workunit.service.js';
 
 // ============================================
@@ -66,9 +67,17 @@ export function createWorkgraphProductionContainer(): DependencyContainer {
     },
   });
 
-  // TODO: Register real WorkNodeService in Phase 4
+  // Real WorkNodeService (Phase 5)
+  // Per DYK#6: markReady() for orchestrator control
+  // Per DYK#7: WorkNodeService owns state.json after creation
   child.register<IWorkNodeService>(WORKGRAPH_DI_TOKENS.WORKNODE_SERVICE, {
-    useFactory: () => new FakeWorkNodeService(),
+    useFactory: (c: DependencyContainer) => {
+      const fs = c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
+      const pathResolver = c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
+      const workGraphService = c.resolve<IWorkGraphService>(WORKGRAPH_DI_TOKENS.WORKGRAPH_SERVICE);
+      const workUnitService = c.resolve<IWorkUnitService>(WORKGRAPH_DI_TOKENS.WORKUNIT_SERVICE);
+      return new WorkNodeService(fs, pathResolver, workGraphService, workUnitService);
+    },
   });
 
   return child;

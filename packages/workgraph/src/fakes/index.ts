@@ -21,8 +21,14 @@ export type {
 export { FakeWorkNodeService } from './fake-worknode-service.js';
 export type {
   CanRunCall,
+  MarkReadyCall,
   StartCall,
   EndCall,
   GetInputDataCall,
+  GetInputFileCall,
   SaveOutputDataCall,
+  SaveOutputFileCall,
+  ClearCall,
+  AskCall,
+  AnswerCall,
 } from './fake-worknode-service.js';

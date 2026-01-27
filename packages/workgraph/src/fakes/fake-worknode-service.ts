@@ -7,11 +7,19 @@
  */
 
 import type {
+  AnswerResult,
+  AskResult,
   CanRunResult,
+  ClearOptions,
+  ClearResult,
   EndResult,
   GetInputDataResult,
+  GetInputFileResult,
   IWorkNodeService,
+  MarkReadyResult,
+  Question,
   SaveOutputDataResult,
+  SaveOutputFileResult,
   StartResult,
 } from '../interfaces/index.js';
 
@@ -24,6 +32,13 @@ export interface CanRunCall {
   nodeId: string;
   timestamp: string;
   result: CanRunResult;
+}
+
+export interface MarkReadyCall {
+  graphSlug: string;
+  nodeId: string;
+  timestamp: string;
+  result: MarkReadyResult;
 }
 
 export interface StartCall {
@@ -48,6 +63,14 @@ export interface GetInputDataCall {
   result: GetInputDataResult;
 }
 
+export interface GetInputFileCall {
+  graphSlug: string;
+  nodeId: string;
+  inputName: string;
+  timestamp: string;
+  result: GetInputFileResult;
+}
+
 export interface SaveOutputDataCall {
   graphSlug: string;
   nodeId: string;
@@ -55,6 +78,40 @@ export interface SaveOutputDataCall {
   value: unknown;
   timestamp: string;
   result: SaveOutputDataResult;
+}
+
+export interface SaveOutputFileCall {
+  graphSlug: string;
+  nodeId: string;
+  outputName: string;
+  sourcePath: string;
+  timestamp: string;
+  result: SaveOutputFileResult;
+}
+
+export interface ClearCall {
+  graphSlug: string;
+  nodeId: string;
+  options: ClearOptions;
+  timestamp: string;
+  result: ClearResult;
+}
+
+export interface AskCall {
+  graphSlug: string;
+  nodeId: string;
+  question: Question;
+  timestamp: string;
+  result: AskResult;
+}
+
+export interface AnswerCall {
+  graphSlug: string;
+  nodeId: string;
+  questionId: string;
+  answer: unknown;
+  timestamp: string;
+  result: AnswerResult;
 }
 
 // ============================================
@@ -66,16 +123,28 @@ export interface SaveOutputDataCall {
  */
 export class FakeWorkNodeService implements IWorkNodeService {
   private canRunCalls: CanRunCall[] = [];
+  private markReadyCalls: MarkReadyCall[] = [];
   private startCalls: StartCall[] = [];
   private endCalls: EndCall[] = [];
   private getInputDataCalls: GetInputDataCall[] = [];
+  private getInputFileCalls: GetInputFileCall[] = [];
   private saveOutputDataCalls: SaveOutputDataCall[] = [];
+  private saveOutputFileCalls: SaveOutputFileCall[] = [];
+  private clearCalls: ClearCall[] = [];
+  private askCalls: AskCall[] = [];
+  private answerCalls: AnswerCall[] = [];
 
   private presetCanRunResults = new Map<string, CanRunResult>();
+  private presetMarkReadyResults = new Map<string, MarkReadyResult>();
   private presetStartResults = new Map<string, StartResult>();
   private presetEndResults = new Map<string, EndResult>();
   private presetGetInputDataResults = new Map<string, GetInputDataResult>();
+  private presetGetInputFileResults = new Map<string, GetInputFileResult>();
   private presetSaveOutputDataResults = new Map<string, SaveOutputDataResult>();
+  private presetSaveOutputFileResults = new Map<string, SaveOutputFileResult>();
+  private presetClearResults = new Map<string, ClearResult>();
+  private presetAskResults = new Map<string, AskResult>();
+  private presetAnswerResults = new Map<string, AnswerResult>();
 
   // ==================== CanRun ====================
 
@@ -99,6 +168,41 @@ export class FakeWorkNodeService implements IWorkNodeService {
     };
 
     this.canRunCalls.push({
+      graphSlug,
+      nodeId,
+      timestamp: new Date().toISOString(),
+      result,
+    });
+
+    return result;
+  }
+
+  // ==================== MarkReady ====================
+
+  getMarkReadyCalls(): MarkReadyCall[] {
+    return [...this.markReadyCalls];
+  }
+
+  getLastMarkReadyCall(): MarkReadyCall | null {
+    return this.markReadyCalls.length > 0
+      ? this.markReadyCalls[this.markReadyCalls.length - 1]
+      : null;
+  }
+
+  setPresetMarkReadyResult(graphSlug: string, nodeId: string, result: MarkReadyResult): void {
+    this.presetMarkReadyResults.set(`${graphSlug}:${nodeId}`, result);
+  }
+
+  async markReady(graphSlug: string, nodeId: string): Promise<MarkReadyResult> {
+    const key = `${graphSlug}:${nodeId}`;
+    const result = this.presetMarkReadyResults.get(key) ?? {
+      nodeId,
+      status: 'ready',
+      readyAt: new Date().toISOString(),
+      errors: [],
+    };
+
+    this.markReadyCalls.push({
       graphSlug,
       nodeId,
       timestamp: new Date().toISOString(),
@@ -225,6 +329,57 @@ export class FakeWorkNodeService implements IWorkNodeService {
     return result;
   }
 
+  // ==================== GetInputFile ====================
+
+  getGetInputFileCalls(): GetInputFileCall[] {
+    return [...this.getInputFileCalls];
+  }
+
+  getLastGetInputFileCall(): GetInputFileCall | null {
+    return this.getInputFileCalls.length > 0
+      ? this.getInputFileCalls[this.getInputFileCalls.length - 1]
+      : null;
+  }
+
+  setPresetGetInputFileResult(
+    graphSlug: string,
+    nodeId: string,
+    inputName: string,
+    result: GetInputFileResult
+  ): void {
+    this.presetGetInputFileResults.set(`${graphSlug}:${nodeId}:${inputName}`, result);
+  }
+
+  async getInputFile(
+    graphSlug: string,
+    nodeId: string,
+    inputName: string
+  ): Promise<GetInputFileResult> {
+    const key = `${graphSlug}:${nodeId}:${inputName}`;
+    const result = this.presetGetInputFileResults.get(key) ?? {
+      nodeId,
+      inputName,
+      filePath: undefined,
+      errors: [
+        {
+          code: 'E117',
+          message: `Input file '${inputName}' not available for node '${nodeId}'`,
+          action: 'Ensure upstream node has completed and produced this file output',
+        },
+      ],
+    };
+
+    this.getInputFileCalls.push({
+      graphSlug,
+      nodeId,
+      inputName,
+      timestamp: new Date().toISOString(),
+      result,
+    });
+
+    return result;
+  }
+
   // ==================== SaveOutputData ====================
 
   getSaveOutputDataCalls(): SaveOutputDataCall[] {
@@ -272,18 +427,211 @@ export class FakeWorkNodeService implements IWorkNodeService {
     return result;
   }
 
+  // ==================== SaveOutputFile ====================
+
+  getSaveOutputFileCalls(): SaveOutputFileCall[] {
+    return [...this.saveOutputFileCalls];
+  }
+
+  getLastSaveOutputFileCall(): SaveOutputFileCall | null {
+    return this.saveOutputFileCalls.length > 0
+      ? this.saveOutputFileCalls[this.saveOutputFileCalls.length - 1]
+      : null;
+  }
+
+  setPresetSaveOutputFileResult(
+    graphSlug: string,
+    nodeId: string,
+    outputName: string,
+    result: SaveOutputFileResult
+  ): void {
+    this.presetSaveOutputFileResults.set(`${graphSlug}:${nodeId}:${outputName}`, result);
+  }
+
+  async saveOutputFile(
+    graphSlug: string,
+    nodeId: string,
+    outputName: string,
+    sourcePath: string
+  ): Promise<SaveOutputFileResult> {
+    const key = `${graphSlug}:${nodeId}:${outputName}`;
+    const result = this.presetSaveOutputFileResults.get(key) ?? {
+      nodeId,
+      outputName,
+      saved: true,
+      savedPath: `.chainglass/work-graphs/${graphSlug}/nodes/${nodeId}/data/outputs/${outputName}.md`,
+      errors: [],
+    };
+
+    this.saveOutputFileCalls.push({
+      graphSlug,
+      nodeId,
+      outputName,
+      sourcePath,
+      timestamp: new Date().toISOString(),
+      result,
+    });
+
+    return result;
+  }
+
+  // ==================== Clear ====================
+
+  getClearCalls(): ClearCall[] {
+    return [...this.clearCalls];
+  }
+
+  getLastClearCall(): ClearCall | null {
+    return this.clearCalls.length > 0 ? this.clearCalls[this.clearCalls.length - 1] : null;
+  }
+
+  setPresetClearResult(graphSlug: string, nodeId: string, result: ClearResult): void {
+    this.presetClearResults.set(`${graphSlug}:${nodeId}`, result);
+  }
+
+  async clear(graphSlug: string, nodeId: string, options: ClearOptions): Promise<ClearResult> {
+    const key = `${graphSlug}:${nodeId}`;
+
+    // Default: require force, return error without it
+    const result =
+      this.presetClearResults.get(key) ??
+      (options.force
+        ? {
+            nodeId,
+            status: 'pending',
+            clearedOutputs: [],
+            errors: [],
+          }
+        : {
+            nodeId,
+            status: '',
+            clearedOutputs: [],
+            errors: [
+              {
+                code: 'E124',
+                message: `Clear requires --force flag. Node '${nodeId}' has outputs that will be permanently deleted.`,
+                action: 'Run with --force to confirm clearing this node',
+              },
+            ],
+          });
+
+    this.clearCalls.push({
+      graphSlug,
+      nodeId,
+      options,
+      timestamp: new Date().toISOString(),
+      result,
+    });
+
+    return result;
+  }
+
+  // ==================== Ask ====================
+
+  getAskCalls(): AskCall[] {
+    return [...this.askCalls];
+  }
+
+  getLastAskCall(): AskCall | null {
+    return this.askCalls.length > 0 ? this.askCalls[this.askCalls.length - 1] : null;
+  }
+
+  setPresetAskResult(graphSlug: string, nodeId: string, result: AskResult): void {
+    this.presetAskResults.set(`${graphSlug}:${nodeId}`, result);
+  }
+
+  async ask(graphSlug: string, nodeId: string, question: Question): Promise<AskResult> {
+    const key = `${graphSlug}:${nodeId}`;
+    const questionId = `q-${Date.now()}`;
+    const result = this.presetAskResults.get(key) ?? {
+      nodeId,
+      status: 'waiting-question',
+      questionId,
+      question,
+      errors: [],
+    };
+
+    this.askCalls.push({
+      graphSlug,
+      nodeId,
+      question,
+      timestamp: new Date().toISOString(),
+      result,
+    });
+
+    return result;
+  }
+
+  // ==================== Answer ====================
+
+  getAnswerCalls(): AnswerCall[] {
+    return [...this.answerCalls];
+  }
+
+  getLastAnswerCall(): AnswerCall | null {
+    return this.answerCalls.length > 0 ? this.answerCalls[this.answerCalls.length - 1] : null;
+  }
+
+  setPresetAnswerResult(
+    graphSlug: string,
+    nodeId: string,
+    questionId: string,
+    result: AnswerResult
+  ): void {
+    this.presetAnswerResults.set(`${graphSlug}:${nodeId}:${questionId}`, result);
+  }
+
+  async answer(
+    graphSlug: string,
+    nodeId: string,
+    questionId: string,
+    answerValue: unknown
+  ): Promise<AnswerResult> {
+    const key = `${graphSlug}:${nodeId}:${questionId}`;
+    const result = this.presetAnswerResults.get(key) ?? {
+      nodeId,
+      status: 'running',
+      questionId,
+      answer: answerValue,
+      errors: [],
+    };
+
+    this.answerCalls.push({
+      graphSlug,
+      nodeId,
+      questionId,
+      answer: answerValue,
+      timestamp: new Date().toISOString(),
+      result,
+    });
+
+    return result;
+  }
+
   // ==================== Reset ====================
 
   reset(): void {
     this.canRunCalls = [];
+    this.markReadyCalls = [];
     this.startCalls = [];
     this.endCalls = [];
     this.getInputDataCalls = [];
+    this.getInputFileCalls = [];
     this.saveOutputDataCalls = [];
+    this.saveOutputFileCalls = [];
+    this.clearCalls = [];
+    this.askCalls = [];
+    this.answerCalls = [];
     this.presetCanRunResults.clear();
+    this.presetMarkReadyResults.clear();
     this.presetStartResults.clear();
     this.presetEndResults.clear();
     this.presetGetInputDataResults.clear();
+    this.presetGetInputFileResults.clear();
     this.presetSaveOutputDataResults.clear();
+    this.presetSaveOutputFileResults.clear();
+    this.presetClearResults.clear();
+    this.presetAskResults.clear();
+    this.presetAnswerResults.clear();
   }
 }

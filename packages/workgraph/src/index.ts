@@ -41,10 +41,13 @@ export type {
   // WorkNode types
   IWorkNodeService,
   CanRunResult,
+  MarkReadyResult,
   StartResult,
   EndResult,
   GetInputDataResult,
   SaveOutputDataResult,
+  ClearOptions,
+  ClearResult,
   BlockingNode,
   InputDataValue,
 } from './interfaces/index.js';
@@ -175,10 +178,12 @@ export type {
   AddNodeAfterCall,
   RemoveNodeCall,
   CanRunCall,
+  MarkReadyCall,
   StartCall,
   EndCall,
   GetInputDataCall,
   SaveOutputDataCall,
+  ClearCall,
 } from './fakes/index.js';
 
 // ============================================
@@ -189,6 +194,7 @@ export {
   generateNodeId,
   WorkGraphService,
   WorkUnitService,
+  WorkNodeService,
 } from './services/index.js';
 
 export type { CycleDetectionResult } from './services/index.js';

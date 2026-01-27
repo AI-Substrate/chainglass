@@ -267,6 +267,19 @@ export function fileNotFoundError(path: string): ResultError {
 }
 
 /**
+ * Create a path traversal error.
+ * Per Discovery 10: Reject paths containing '..' for security.
+ */
+export function pathTraversalError(path: string): ResultError {
+  return {
+    code: WORKGRAPH_ERROR_CODES.E145,
+    path,
+    message: `Path security violation: '${path}' contains path traversal`,
+    action: 'File paths must not contain ".." components',
+  };
+}
+
+/**
  * Create error for unimplemented features.
  * Per CD02: Methods should return errors, not throw.
  *
@@ -303,6 +316,7 @@ export const errors = {
     yamlParseError,
     schemaValidationError,
     fileNotFoundError,
+    pathTraversalError,
     unimplementedFeatureError,
   },
 };

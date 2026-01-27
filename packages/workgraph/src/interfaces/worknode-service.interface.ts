@@ -40,6 +40,18 @@ export interface CanRunResult extends BaseResult {
 }
 
 /**
+ * Result of marking a node as ready.
+ */
+export interface MarkReadyResult extends BaseResult {
+  /** Node ID that was marked ready */
+  nodeId: string;
+  /** New status (should be 'ready') */
+  status: string;
+  /** ISO timestamp when marked ready */
+  readyAt: string;
+}
+
+/**
  * Result of starting node execution.
  */
 export interface StartResult extends BaseResult {
@@ -96,6 +108,22 @@ export interface GetInputDataResult extends BaseResult {
 }
 
 /**
+ * Result of getting input file.
+ */
+export interface GetInputFileResult extends BaseResult {
+  /** Node ID */
+  nodeId: string;
+  /** Input name */
+  inputName: string;
+  /** Absolute path to the input file (undefined if not available) */
+  filePath?: string;
+  /** Source node ID */
+  fromNode?: string;
+  /** Source output name */
+  fromOutput?: string;
+}
+
+/**
  * Result of saving output data.
  */
 export interface SaveOutputDataResult extends BaseResult {
@@ -105,6 +133,87 @@ export interface SaveOutputDataResult extends BaseResult {
   outputName: string;
   /** Whether the save was successful */
   saved: boolean;
+}
+
+/**
+ * Result of saving output file.
+ */
+export interface SaveOutputFileResult extends BaseResult {
+  /** Node ID */
+  nodeId: string;
+  /** Output name */
+  outputName: string;
+  /** Whether the save was successful */
+  saved: boolean;
+  /** Path where the file was saved */
+  savedPath?: string;
+}
+
+/**
+ * Question types for the ask() handover flow.
+ */
+export type QuestionType = 'text' | 'single' | 'multi' | 'confirm';
+
+/**
+ * Question for the ask() handover flow.
+ */
+export interface Question {
+  /** Question type */
+  type: QuestionType;
+  /** Question text */
+  text: string;
+  /** Options for single/multi choice questions */
+  options?: string[];
+  /** Default value */
+  default?: string | boolean;
+}
+
+/**
+ * Result of asking a question (handover to orchestrator).
+ */
+export interface AskResult extends BaseResult {
+  /** Node ID */
+  nodeId: string;
+  /** New status (should be 'waiting-question') */
+  status: string;
+  /** Question ID for answer correlation */
+  questionId: string;
+  /** Question that was asked */
+  question: Question;
+}
+
+/**
+ * Result of answering a question.
+ */
+export interface AnswerResult extends BaseResult {
+  /** Node ID */
+  nodeId: string;
+  /** New status (should be 'running') */
+  status: string;
+  /** Question ID that was answered */
+  questionId: string;
+  /** Answer value */
+  answer: unknown;
+}
+
+/**
+ * Options for clearing a node.
+ */
+export interface ClearOptions {
+  /** Must be true to confirm clearing. Returns error if false/missing. */
+  force: boolean;
+}
+
+/**
+ * Result of clearing a node.
+ */
+export interface ClearResult extends BaseResult {
+  /** Node ID that was cleared */
+  nodeId: string;
+  /** New status (should be 'pending') */
+  status: string;
+  /** Outputs that were removed */
+  clearedOutputs: string[];
 }
 
 // ============================================
@@ -132,6 +241,21 @@ export interface IWorkNodeService {
    * @returns CanRunResult with canRun flag and blocking info
    */
   canRun(graphSlug: string, nodeId: string): Promise<CanRunResult>;
+
+  /**
+   * Mark a node as ready for execution.
+   *
+   * Called by orchestrator when it determines a node can be executed.
+   * Validates canRun() internally before setting status to 'ready'.
+   * Returns E110 if node cannot be run (blocked by upstream).
+   *
+   * Per DYK#6: Orchestrator controls pending→ready transition for UI visibility.
+   *
+   * @param graphSlug - Graph containing the node
+   * @param nodeId - Node to mark ready
+   * @returns MarkReadyResult with new status
+   */
+  markReady(graphSlug: string, nodeId: string): Promise<MarkReadyResult>;
 
   /**
    * Start node execution.
@@ -170,6 +294,19 @@ export interface IWorkNodeService {
   getInputData(graphSlug: string, nodeId: string, inputName: string): Promise<GetInputDataResult>;
 
   /**
+   * Get input file path for a node.
+   *
+   * Resolves the file path from the upstream node's file outputs.
+   * Per Discovery 10: Rejects paths containing '..' for security.
+   *
+   * @param graphSlug - Graph containing the node
+   * @param nodeId - Node to get input for
+   * @param inputName - Name of the input to get
+   * @returns GetInputFileResult with resolved file path
+   */
+  getInputFile(graphSlug: string, nodeId: string, inputName: string): Promise<GetInputFileResult>;
+
+  /**
    * Save output data for a node.
    *
    * Validates the value type against the output declaration.
@@ -187,4 +324,69 @@ export interface IWorkNodeService {
     outputName: string,
     value: unknown
   ): Promise<SaveOutputDataResult>;
+
+  /**
+   * Save output file for a node.
+   *
+   * Copies the source file to node storage.
+   * Per Discovery 10: Rejects paths containing '..' for security.
+   *
+   * @param graphSlug - Graph containing the node
+   * @param nodeId - Node to save output for
+   * @param outputName - Name of the output
+   * @param sourcePath - Path to the source file to copy
+   * @returns SaveOutputFileResult with save status and saved path
+   */
+  saveOutputFile(
+    graphSlug: string,
+    nodeId: string,
+    outputName: string,
+    sourcePath: string
+  ): Promise<SaveOutputFileResult>;
+
+  /**
+   * Clear a node's outputs and reset to pending.
+   *
+   * Per DYK#7: No cascade - clears only the specified node.
+   * Requires force=true to confirm, returns error otherwise.
+   * Downstream nodes are NOT automatically cleared.
+   *
+   * @param graphSlug - Graph containing the node
+   * @param nodeId - Node to clear
+   * @param options - Must include force: true to confirm
+   * @returns ClearResult with cleared outputs list
+   */
+  clear(graphSlug: string, nodeId: string, options: ClearOptions): Promise<ClearResult>;
+
+  /**
+   * Ask a question (handover to orchestrator).
+   *
+   * Transitions node to 'waiting-question' status.
+   * The orchestrator will present the question to the user.
+   *
+   * @param graphSlug - Graph containing the node
+   * @param nodeId - Node asking the question
+   * @param question - Question to ask
+   * @returns AskResult with question ID and status
+   */
+  ask(graphSlug: string, nodeId: string, question: Question): Promise<AskResult>;
+
+  /**
+   * Answer a question (resume node execution).
+   *
+   * Transitions node from 'waiting-question' back to 'running'.
+   * The answer is stored in data.json for the agent to retrieve.
+   *
+   * @param graphSlug - Graph containing the node
+   * @param nodeId - Node to resume
+   * @param questionId - ID of the question being answered
+   * @param answer - Answer value
+   * @returns AnswerResult with answer and new status
+   */
+  answer(
+    graphSlug: string,
+    nodeId: string,
+    questionId: string,
+    answer: unknown
+  ): Promise<AnswerResult>;
 }

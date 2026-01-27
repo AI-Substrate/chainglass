@@ -17,6 +17,7 @@ export {
   yamlParseError,
   schemaValidationError,
   fileNotFoundError,
+  pathTraversalError,
   unimplementedFeatureError,
   errors,
 } from './workgraph-errors.js';
