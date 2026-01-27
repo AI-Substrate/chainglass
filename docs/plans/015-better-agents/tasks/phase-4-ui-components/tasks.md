@@ -144,22 +144,22 @@ flowchart TD
 
     subgraph Phase4["Phase 4: UI Components"]
         subgraph Tests["Test Layer (TDD)"]
-            T001["T001: ToolCallCard render tests"]:::pending
-            T002["T002: ToolCallCard expand tests"]:::pending
-            T003["T003: ToolCallCard error tests"]:::pending
-            T004["T004: ToolCallCard truncation tests"]:::pending
-            T006["T006: ThinkingBlock render tests"]:::pending
-            T007["T007: ThinkingBlock expand tests"]:::pending
-            T009["T009: LogEntry routing tests"]:::pending
-            T011["T011: Keyboard nav tests"]:::pending
+            T001["T001: ToolCallCard render tests ✓"]:::completed
+            T002["T002: ToolCallCard expand tests ✓"]:::completed
+            T003["T003: ToolCallCard error tests ✓"]:::completed
+            T004["T004: ToolCallCard truncation tests ✓"]:::completed
+            T006["T006: ThinkingBlock render tests ✓"]:::completed
+            T007["T007: ThinkingBlock expand tests ✓"]:::completed
+            T009["T009: LogEntry routing tests ✓"]:::completed
+            T011["T011: Keyboard nav tests ✓"]:::completed
         end
 
         subgraph Components["Component Layer"]
-            T005["T005: Implement ToolCallCard"]:::pending
-            T008["T008: Implement ThinkingBlock"]:::pending
-            T010["T010: Extend LogEntry"]:::pending
-            T012["T012: Keyboard handlers"]:::pending
-            T013["T013: ARIA live regions"]:::pending
+            T005["T005: Implement ToolCallCard ✓"]:::completed
+            T008["T008: Implement ThinkingBlock ✓"]:::completed
+            T010["T010: Extend LogEntry ✓"]:::completed
+            T012["T012: Keyboard handlers ✓"]:::completed
+            T013["T013: ARIA live regions ✓"]:::completed
         end
 
         T001 --> T005
@@ -176,12 +176,12 @@ flowchart TD
     end
 
     subgraph Files["Files"]
-        F1["/apps/web/src/components/agents/tool-call-card.tsx"]:::pending
-        F2["/apps/web/src/components/agents/thinking-block.tsx"]:::pending
-        F3["/apps/web/src/components/agents/log-entry.tsx"]:::pending
-        F4["/test/unit/web/components/tool-call-card.test.tsx"]:::pending
-        F5["/test/unit/web/components/thinking-block.test.tsx"]:::pending
-        F6["/test/unit/web/components/log-entry.test.tsx"]:::pending
+        F1["/apps/web/src/components/agents/tool-call-card.tsx ✓"]:::completed
+        F2["/apps/web/src/components/agents/thinking-block.tsx ✓"]:::completed
+        F3["/apps/web/src/components/agents/log-entry.tsx ✓"]:::completed
+        F4["/test/unit/web/components/agents/tool-call-card.test.tsx ✓"]:::completed
+        F5["/test/unit/web/components/agents/thinking-block.test.tsx ✓"]:::completed
+        F6["/test/unit/web/components/agents/log-entry.test.tsx ✓"]:::completed
     end
 
     T005 -.-> F1
@@ -198,19 +198,19 @@ flowchart TD
 
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
-| T001 | ToolCallCard Tests | /test/unit/web/components/tool-call-card.test.tsx | ⬜ Pending | TDD RED: header, status, icons |
-| T002 | ToolCallCard Tests | /test/unit/web/components/tool-call-card.test.tsx | ⬜ Pending | TDD RED: aria-expanded, content visibility |
-| T003 | ToolCallCard Tests | /test/unit/web/components/tool-call-card.test.tsx | ⬜ Pending | TDD RED: error auto-expand (AC12a) |
-| T004 | ToolCallCard Tests | /test/unit/web/components/tool-call-card.test.tsx | ⬜ Pending | TDD RED: 20 lines/2000 chars (AC13a) |
-| T005 | ToolCallCard | /apps/web/src/components/agents/tool-call-card.tsx | ⬜ Pending | TDD GREEN: implement component |
-| T006 | ThinkingBlock Tests | /test/unit/web/components/thinking-block.test.tsx | ⬜ Pending | TDD RED: collapsed default, distinct styling |
-| T007 | ThinkingBlock Tests | /test/unit/web/components/thinking-block.test.tsx | ⬜ Pending | TDD RED: aria-expanded, keyboard toggle |
-| T008 | ThinkingBlock | /apps/web/src/components/agents/thinking-block.tsx | ⬜ Pending | TDD GREEN: implement component |
-| T009 | LogEntry Tests | /test/unit/web/components/log-entry.test.tsx | ⬜ Pending | TDD RED: contentType routing |
-| T010 | LogEntry | /apps/web/src/components/agents/log-entry.tsx | ⬜ Pending | TDD GREEN: extend with routing |
-| T011 | Keyboard Tests | /test/unit/web/components/tool-call-card.test.tsx | ⬜ Pending | Tab, Enter/Space, Escape (AC16) |
-| T012 | Keyboard Handlers | /apps/web/src/components/agents/tool-call-card.tsx, thinking-block.tsx | ⬜ Pending | Implement keyboard event handlers |
-| T013 | ARIA Live | /apps/web/src/components/agents/tool-call-card.tsx | ⬜ Pending | aria-live for status updates (AC15) |
+| T001 | ToolCallCard Tests | /test/unit/web/components/agents/tool-call-card.test.tsx | ✅ Complete | TDD RED: header, status, icons (6 tests) |
+| T002 | ToolCallCard Tests | /test/unit/web/components/agents/tool-call-card.test.tsx | ✅ Complete | TDD RED: aria-expanded, content visibility (5 tests) |
+| T003 | ToolCallCard Tests | /test/unit/web/components/agents/tool-call-card.test.tsx | ✅ Complete | TDD RED: error auto-expand (AC12a) (4 tests) |
+| T004 | ToolCallCard Tests | /test/unit/web/components/agents/tool-call-card.test.tsx | ✅ Complete | TDD RED: 20 lines/2000 chars (AC13a) (5 tests) |
+| T005 | ToolCallCard | /apps/web/src/components/agents/tool-call-card.tsx | ✅ Complete | TDD GREEN: 30 tests pass, 258 lines |
+| T006 | ThinkingBlock Tests | /test/unit/web/components/agents/thinking-block.test.tsx | ✅ Complete | TDD RED: collapsed default, distinct styling (5 tests) |
+| T007 | ThinkingBlock Tests | /test/unit/web/components/agents/thinking-block.test.tsx | ✅ Complete | TDD RED: aria-expanded, keyboard toggle (6 tests) |
+| T008 | ThinkingBlock | /apps/web/src/components/agents/thinking-block.tsx | ✅ Complete | TDD GREEN: 16 tests pass, 121 lines |
+| T009 | LogEntry Tests | /test/unit/web/components/agents/log-entry.test.tsx | ✅ Complete | TDD RED: contentType routing (7 tests) |
+| T010 | LogEntry | /apps/web/src/components/agents/log-entry.tsx | ✅ Complete | TDD GREEN: 17 tests pass, +103 lines |
+| T011 | Keyboard Tests | /test/unit/web/components/agents/tool-call-card.test.tsx | ✅ Complete | Tab, Enter/Space (4 tests in T001-T007) |
+| T012 | Keyboard Handlers | /apps/web/src/components/agents/tool-call-card.tsx, thinking-block.tsx | ✅ Complete | onKeyDown handlers implemented |
+| T013 | ARIA Live | /apps/web/src/components/agents/tool-call-card.tsx | ✅ Complete | aria-live="polite" on status (2 tests) |
 
 ---
 
@@ -218,19 +218,19 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|-----|------|-----|------|--------------|------------------|------------|----------|-------|
-| [ ] | T001 | Write tests for ToolCallCard rendering (header, status, icons) | 2 | Test | – | /home/jak/substrate/015-better-agents/test/unit/web/components/tool-call-card.test.tsx | Tests verify toolName renders in header, status icon shows Running/Complete/Error | – | TDD RED phase |
-| [ ] | T002 | Write tests for ToolCallCard expand/collapse behavior | 2 | Test | – | /home/jak/substrate/015-better-agents/test/unit/web/components/tool-call-card.test.tsx | Tests verify aria-expanded attribute toggles, content visibility changes on click | – | AC3, AC14 |
-| [ ] | T003 | Write tests for ToolCallCard auto-expand on error | 2 | Test | – | /home/jak/substrate/015-better-agents/test/unit/web/components/tool-call-card.test.tsx | Tests verify isError=true triggers expansion automatically | – | AC12a |
-| [ ] | T004 | Write tests for ToolCallCard output truncation | 2 | Test | – | /home/jak/substrate/015-better-agents/test/unit/web/components/tool-call-card.test.tsx | Tests verify output >20 lines or >2000 chars shows "Show more" | – | AC13a |
-| [ ] | T005 | Implement ToolCallCard component | 3 | Core | T001, T002, T003, T004 | /home/jak/substrate/015-better-agents/apps/web/src/components/agents/tool-call-card.tsx | All tests from T001-T004 pass; component renders correctly | – | AC1, AC2, AC3, AC11, AC12, AC13 |
-| [ ] | T006 | Write tests for ThinkingBlock rendering | 2 | Test | – | /home/jak/substrate/015-better-agents/test/unit/web/components/thinking-block.test.tsx | Tests verify collapsed by default, distinct styling (AC6, AC6a) | – | TDD RED phase |
-| [ ] | T007 | Write tests for ThinkingBlock expand/collapse behavior | 2 | Test | – | /home/jak/substrate/015-better-agents/test/unit/web/components/thinking-block.test.tsx | Tests verify aria-expanded, keyboard toggle (Enter/Space) | – | AC14 |
-| [ ] | T008 | Implement ThinkingBlock component | 2 | Core | T006, T007 | /home/jak/substrate/015-better-agents/apps/web/src/components/agents/thinking-block.tsx | All tests from T006-T007 pass; component renders correctly | – | AC5, AC6, AC6a, AC7 |
-| [ ] | T009 | Write tests for LogEntry contentType routing | 2 | Test | – | /home/jak/substrate/015-better-agents/test/unit/web/components/log-entry.test.tsx | Tests verify text→existing, tool_call→ToolCallCard, tool_result→ToolCallCard, thinking→ThinkingBlock | – | Phase 3 contentType |
-| [ ] | T010 | Extend LogEntry with contentType prop and routing | 2 | Core | T005, T008, T009 | /home/jak/substrate/015-better-agents/apps/web/src/components/agents/log-entry.tsx | All routing tests pass, backward compat preserved (text default) | – | Uses DYK-08 pattern |
-| [ ] | T011 | Write keyboard navigation tests | 2 | Test | – | /home/jak/substrate/015-better-agents/test/unit/web/components/tool-call-card.test.tsx, /home/jak/substrate/015-better-agents/test/unit/web/components/thinking-block.test.tsx | Tests verify Tab focus, Enter/Space toggle, focus visible | – | AC16 |
-| [ ] | T012 | Implement keyboard event handlers | 2 | Core | T011 | /home/jak/substrate/015-better-agents/apps/web/src/components/agents/tool-call-card.tsx, /home/jak/substrate/015-better-agents/apps/web/src/components/agents/thinking-block.tsx | All keyboard tests pass | – | AC16 |
-| [ ] | T013 | Add ARIA live region for streaming status | 2 | Core | T005 | /home/jak/substrate/015-better-agents/apps/web/src/components/agents/tool-call-card.tsx | aria-live="polite" on status, screen reader announces changes | – | AC15 |
+| [x] | T001 | Write tests for ToolCallCard rendering (header, status, icons) | 2 | Test | – | /home/jak/substrate/015-better-agents/test/unit/web/components/agents/tool-call-card.test.tsx | Tests verify toolName renders in header, status icon shows Running/Complete/Error | – | TDD RED phase |
+| [x] | T002 | Write tests for ToolCallCard expand/collapse behavior | 2 | Test | – | /home/jak/substrate/015-better-agents/test/unit/web/components/agents/tool-call-card.test.tsx | Tests verify aria-expanded attribute toggles, content visibility changes on click | – | AC3, AC14 |
+| [x] | T003 | Write tests for ToolCallCard auto-expand on error | 2 | Test | – | /home/jak/substrate/015-better-agents/test/unit/web/components/agents/tool-call-card.test.tsx | Tests verify isError=true triggers expansion automatically | – | AC12a |
+| [x] | T004 | Write tests for ToolCallCard output truncation | 2 | Test | – | /home/jak/substrate/015-better-agents/test/unit/web/components/agents/tool-call-card.test.tsx | Tests verify output >20 lines or >2000 chars shows "Show more" | – | AC13a |
+| [x] | T005 | Implement ToolCallCard component | 3 | Core | T001, T002, T003, T004 | /home/jak/substrate/015-better-agents/apps/web/src/components/agents/tool-call-card.tsx | All tests from T001-T004 pass; component renders correctly | – | AC1, AC2, AC3, AC11, AC12, AC13 |
+| [x] | T006 | Write tests for ThinkingBlock rendering | 2 | Test | – | /home/jak/substrate/015-better-agents/test/unit/web/components/agents/thinking-block.test.tsx | Tests verify collapsed by default, distinct styling (AC6, AC6a) | – | TDD RED phase |
+| [x] | T007 | Write tests for ThinkingBlock expand/collapse behavior | 2 | Test | – | /home/jak/substrate/015-better-agents/test/unit/web/components/agents/thinking-block.test.tsx | Tests verify aria-expanded, keyboard toggle (Enter/Space) | – | AC14 |
+| [x] | T008 | Implement ThinkingBlock component | 2 | Core | T006, T007 | /home/jak/substrate/015-better-agents/apps/web/src/components/agents/thinking-block.tsx | All tests from T006-T007 pass; component renders correctly | – | AC5, AC6, AC6a, AC7 |
+| [x] | T009 | Write tests for LogEntry contentType routing | 2 | Test | – | /home/jak/substrate/015-better-agents/test/unit/web/components/agents/log-entry.test.tsx | Tests verify text→existing, tool_call→ToolCallCard, tool_result→ToolCallCard, thinking→ThinkingBlock | – | Phase 3 contentType |
+| [x] | T010 | Extend LogEntry with contentType prop and routing | 2 | Core | T005, T008, T009 | /home/jak/substrate/015-better-agents/apps/web/src/components/agents/log-entry.tsx | All routing tests pass, backward compat preserved (text default) | – | Uses DYK-08 pattern |
+| [x] | T011 | Write keyboard navigation tests | 2 | Test | – | /home/jak/substrate/015-better-agents/test/unit/web/components/agents/tool-call-card.test.tsx, /home/jak/substrate/015-better-agents/test/unit/web/components/agents/thinking-block.test.tsx | Tests verify Tab focus, Enter/Space toggle, focus visible | – | AC16 |
+| [x] | T012 | Implement keyboard event handlers | 2 | Core | T011 | /home/jak/substrate/015-better-agents/apps/web/src/components/agents/tool-call-card.tsx, /home/jak/substrate/015-better-agents/apps/web/src/components/agents/thinking-block.tsx | All keyboard tests pass | – | AC16 |
+| [x] | T013 | Add ARIA live region for streaming status | 2 | Core | T005 | /home/jak/substrate/015-better-agents/apps/web/src/components/agents/tool-call-card.tsx | aria-live="polite" on status, screen reader announces changes | – | AC15 |
 
 ---
 
