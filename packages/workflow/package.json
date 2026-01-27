@@ -28,7 +28,7 @@
     "./schemas/*": "./schemas/*"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc --build",
     "test": "vitest run"
   },
   "dependencies": {

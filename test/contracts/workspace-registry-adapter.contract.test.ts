@@ -81,6 +81,12 @@ describe('WorkspaceRegistryAdapter security', () => {
     const pathResolver = new FakePathResolver();
     const adapter = new WorkspaceRegistryAdapter(fs, pathResolver);
 
+    // The adapter expands ~ to HOME env var
+    const homeDir = process.env.HOME ?? process.env.USERPROFILE ?? '';
+    const registryPath = homeDir
+      ? `${homeDir}/.config/chainglass/workspaces.json`
+      : '~/.config/chainglass/workspaces.json';
+
     // Manually create corrupt registry with malicious path
     const corruptRegistry = {
       version: 1,
@@ -93,7 +99,7 @@ describe('WorkspaceRegistryAdapter security', () => {
         },
       ],
     };
-    fs.setFile('~/.config/chainglass/workspaces.json', JSON.stringify(corruptRegistry));
+    fs.setFile(registryPath, JSON.stringify(corruptRegistry));
 
     // Attempting to load should fail
     await expect(adapter.load('evil-workspace')).rejects.toThrow();
@@ -110,6 +116,12 @@ describe('WorkspaceRegistryAdapter security', () => {
     const pathResolver = new FakePathResolver();
     const adapter = new WorkspaceRegistryAdapter(fs, pathResolver);
 
+    // The adapter expands ~ to HOME env var
+    const homeDir = process.env.HOME ?? process.env.USERPROFILE ?? '';
+    const registryPath = homeDir
+      ? `${homeDir}/.config/chainglass/workspaces.json`
+      : '~/.config/chainglass/workspaces.json';
+
     // Manually create corrupt registry with URL-encoded malicious path
     const corruptRegistry = {
       version: 1,
@@ -122,7 +134,7 @@ describe('WorkspaceRegistryAdapter security', () => {
         },
       ],
     };
-    fs.setFile('~/.config/chainglass/workspaces.json', JSON.stringify(corruptRegistry));
+    fs.setFile(registryPath, JSON.stringify(corruptRegistry));
 
     // Attempting to load should fail
     await expect(adapter.load('evil-workspace-2')).rejects.toThrow();
@@ -140,8 +152,14 @@ describe('WorkspaceRegistryAdapter security', () => {
     const pathResolver = new FakePathResolver();
     const adapter = new WorkspaceRegistryAdapter(fs, pathResolver);
 
+    // The adapter expands ~ to HOME env var
+    const homeDir = process.env.HOME ?? process.env.USERPROFILE ?? '';
+    const registryPath = homeDir
+      ? `${homeDir}/.config/chainglass/workspaces.json`
+      : '~/.config/chainglass/workspaces.json';
+
     // Create corrupt JSON in registry
-    fs.setFile('~/.config/chainglass/workspaces.json', 'this is not valid json {{{');
+    fs.setFile(registryPath, 'this is not valid json {{{');
 
     // list() should throw RegistryCorruptError
     await expect(adapter.list()).rejects.toThrow(RegistryCorruptError);
@@ -158,8 +176,14 @@ describe('WorkspaceRegistryAdapter security', () => {
     const pathResolver = new FakePathResolver();
     const adapter = new WorkspaceRegistryAdapter(fs, pathResolver);
 
+    // The adapter expands ~ to HOME env var
+    const homeDir = process.env.HOME ?? process.env.USERPROFILE ?? '';
+    const registryPath = homeDir
+      ? `${homeDir}/.config/chainglass/workspaces.json`
+      : '~/.config/chainglass/workspaces.json';
+
     // Create registry with wrong structure
-    fs.setFile('~/.config/chainglass/workspaces.json', JSON.stringify({ version: 1 }));
+    fs.setFile(registryPath, JSON.stringify({ version: 1 }));
 
     // list() should throw RegistryCorruptError
     await expect(adapter.list()).rejects.toThrow(RegistryCorruptError);

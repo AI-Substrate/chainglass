@@ -10,15 +10,18 @@
  * - Longest matching path wins (DYK-03: sort by path.length descending)
  * - No caching - always fresh resolution (spec Q5)
  * - Graceful degradation when git unavailable
+ * - Worktree detection for linked worktrees
  */
 
 import type { IFileSystem } from '@chainglass/shared';
+import type { IGitWorktreeResolver } from '../interfaces/git-worktree-resolver.interface.js';
 import type {
   IWorkspaceContextResolver,
   WorkspaceContext,
   WorkspaceContextResult,
   WorkspaceInfo,
   WorkspaceInfoResult,
+  Worktree,
 } from '../interfaces/workspace-context.interface.js';
 import type { IWorkspaceRegistryAdapter } from '../interfaces/workspace-registry-adapter.interface.js';
 
@@ -27,15 +30,17 @@ import type { IWorkspaceRegistryAdapter } from '../interfaces/workspace-registry
  *
  * Resolves workspace context from filesystem paths by:
  * 1. Loading all registered workspaces from registry
- * 2. Sorting by path length descending (longest first - DYK-03)
- * 3. Finding first workspace whose path is a prefix of the input path
+ * 2. For each workspace, getting its worktrees (if git repo)
+ * 3. Checking if the input path is inside any workspace or its worktrees
+ * 4. Sorting by path length descending (longest first - DYK-03)
  *
  * Per ADR-0004: Use DI container for injection.
  */
 export class WorkspaceContextResolver implements IWorkspaceContextResolver {
   constructor(
     private readonly registryAdapter: IWorkspaceRegistryAdapter,
-    private readonly fileSystem: IFileSystem
+    private readonly fileSystem: IFileSystem,
+    private readonly gitResolver?: IGitWorktreeResolver
   ) {}
 
   /**
@@ -43,6 +48,8 @@ export class WorkspaceContextResolver implements IWorkspaceContextResolver {
    *
    * Per DYK-03: Sort workspaces by path.length descending before matching
    * to ensure the most specific (longest) path wins.
+   *
+   * Also checks if the path is inside any git worktree of a registered workspace.
    *
    * @param inputPath - Absolute filesystem path (typically CWD)
    * @returns WorkspaceContext if path is in a registered workspace, null otherwise
@@ -61,28 +68,62 @@ export class WorkspaceContextResolver implements IWorkspaceContextResolver {
     // Sort by path length descending (DYK-03: longest match wins)
     const sorted = [...workspaces].sort((a, b) => b.path.length - a.path.length);
 
-    // Find first workspace whose path is a prefix of the input path
+    // First, check if path is directly inside a workspace
     const matchedWorkspace = sorted.find((ws) => this.isPathInWorkspace(path, ws.path));
 
-    if (!matchedWorkspace) {
-      return null;
+    if (matchedWorkspace) {
+      // Path is in the main workspace - check for worktree info
+      const hasGit = await this.checkHasGit(matchedWorkspace.path);
+      let worktreePath = matchedWorkspace.path;
+      let worktreeBranch: string | null = null;
+      let isMainWorktree = true;
+
+      // If git available, try to detect current worktree
+      if (hasGit && this.gitResolver) {
+        const worktrees = await this.gitResolver.detectWorktrees(matchedWorkspace.path);
+        const currentWorktree = worktrees.find((wt) => this.isPathInWorkspace(path, wt.path));
+        if (currentWorktree) {
+          worktreePath = currentWorktree.path;
+          worktreeBranch = currentWorktree.branch;
+          isMainWorktree = worktreePath === matchedWorkspace.path;
+        }
+      }
+
+      return {
+        workspaceSlug: matchedWorkspace.slug,
+        workspaceName: matchedWorkspace.name,
+        workspacePath: matchedWorkspace.path,
+        worktreePath,
+        worktreeBranch,
+        isMainWorktree,
+        hasGit,
+      };
     }
 
-    // Check if workspace has git
-    const hasGit = await this.checkHasGit(matchedWorkspace.path);
+    // Path not directly in workspace - check if it's in a linked worktree
+    if (this.gitResolver) {
+      for (const ws of sorted) {
+        const hasGit = await this.checkHasGit(ws.path);
+        if (!hasGit) continue;
 
-    // Build context (git worktree detection will be added in T019-T022)
-    const context: WorkspaceContext = {
-      workspaceSlug: matchedWorkspace.slug,
-      workspaceName: matchedWorkspace.name,
-      workspacePath: matchedWorkspace.path,
-      worktreePath: matchedWorkspace.path, // Default: same as workspace (updated in T019)
-      worktreeBranch: null, // Will be populated in T019
-      isMainWorktree: true, // Will be determined in T019
-      hasGit,
-    };
+        const worktrees = await this.gitResolver.detectWorktrees(ws.path);
+        const matchedWorktree = worktrees.find((wt) => this.isPathInWorkspace(path, wt.path));
 
-    return context;
+        if (matchedWorktree) {
+          return {
+            workspaceSlug: ws.slug,
+            workspaceName: ws.name,
+            workspacePath: ws.path,
+            worktreePath: matchedWorktree.path,
+            worktreeBranch: matchedWorktree.branch,
+            isMainWorktree: matchedWorktree.path === ws.path,
+            hasGit: true,
+          };
+        }
+      }
+    }
+
+    return null;
   }
 
   /**
@@ -98,14 +139,20 @@ export class WorkspaceContextResolver implements IWorkspaceContextResolver {
       // Check if workspace has git
       const hasGit = await this.checkHasGit(workspace.path);
 
-      // Build info (worktree detection will be added in T019-T022)
+      // Get worktrees if git available
+      let worktrees: Worktree[] = [];
+      if (hasGit && this.gitResolver) {
+        worktrees = await this.gitResolver.detectWorktrees(workspace.path);
+      }
+
+      // Build info
       const info: WorkspaceInfo = {
         slug: workspace.slug,
         name: workspace.name,
         path: workspace.path,
         createdAt: workspace.createdAt,
         hasGit,
-        worktrees: [], // Will be populated in T019
+        worktrees,
       };
 
       return info;

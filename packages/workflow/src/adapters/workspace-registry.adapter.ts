@@ -49,8 +49,13 @@ export class WorkspaceRegistryAdapter implements IWorkspaceRegistryAdapter {
     private readonly pathResolver: IPathResolver
   ) {
     // Resolve paths at construction time
-    // Note: In production, pathResolver should expand ~ to home directory
-    this.configDir = this.pathResolver.join('~/.config/chainglass');
+    // Expand ~ to home directory using os.homedir() for production
+    // The FakeFileSystem handles paths with ~ literally, so in tests with fakes
+    // the ~ path is used as-is. In production, we expand ~ to real home.
+    const tildeBase = '~/.config/chainglass';
+    // Check if we have a real home directory and expand
+    const homeDir = process.env.HOME ?? process.env.USERPROFILE;
+    this.configDir = homeDir ? tildeBase.replace(/^~/, homeDir) : tildeBase;
     this.registryPath = this.pathResolver.join(this.configDir, 'workspaces.json');
   }
 

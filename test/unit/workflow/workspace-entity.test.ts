@@ -425,8 +425,12 @@ describe('WorkspaceRegistryAdapter path validation', () => {
     const pathResolver = new FakePathResolver();
     const adapter = new WorkspaceRegistryAdapter(fs, pathResolver);
 
+    // The adapter expands ~ to HOME env var
+    const homeDir = process.env.HOME ?? process.env.USERPROFILE ?? '';
+    const configDir = homeDir ? `${homeDir}/.config/chainglass` : '~/.config/chainglass';
+
     // Verify directory doesn't exist initially
-    expect(await fs.exists('~/.config/chainglass')).toBe(false);
+    expect(await fs.exists(configDir)).toBe(false);
 
     const workspace = Workspace.create({
       name: 'Test',
@@ -437,8 +441,8 @@ describe('WorkspaceRegistryAdapter path validation', () => {
 
     expect(result.ok).toBe(true);
     // Verify directory was created
-    expect(await fs.exists('~/.config/chainglass')).toBe(true);
+    expect(await fs.exists(configDir)).toBe(true);
     // Verify registry file was created
-    expect(await fs.exists('~/.config/chainglass/workspaces.json')).toBe(true);
+    expect(await fs.exists(`${configDir}/workspaces.json`)).toBe(true);
   });
 });
