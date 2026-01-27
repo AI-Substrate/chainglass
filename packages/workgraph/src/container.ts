@@ -54,13 +54,15 @@ export function createWorkgraphProductionContainer(): DependencyContainer {
     },
   });
 
-  // Real WorkGraphService (Phase 3)
+  // Real WorkGraphService (Phase 3 + Phase 4)
+  // Per DYK#2: Pass IWorkUnitService to WorkGraphService for addNodeAfter validation
   child.register<IWorkGraphService>(WORKGRAPH_DI_TOKENS.WORKGRAPH_SERVICE, {
     useFactory: (c: DependencyContainer) => {
       const fs = c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
       const pathResolver = c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
       const yamlParser = c.resolve<IYamlParser>(SHARED_DI_TOKENS.YAML_PARSER);
-      return new WorkGraphService(fs, pathResolver, yamlParser);
+      const workUnitService = c.resolve<IWorkUnitService>(WORKGRAPH_DI_TOKENS.WORKUNIT_SERVICE);
+      return new WorkGraphService(fs, pathResolver, yamlParser, workUnitService);
     },
   });
 

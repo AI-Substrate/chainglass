@@ -184,4 +184,11 @@ export type {
 // ============================================
 // Services (real implementations)
 // ============================================
-export { WorkGraphService, WorkUnitService } from './services/index.js';
+export {
+  detectCycle,
+  generateNodeId,
+  WorkGraphService,
+  WorkUnitService,
+} from './services/index.js';
+
+export type { CycleDetectionResult } from './services/index.js';
