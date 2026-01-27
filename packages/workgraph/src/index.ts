@@ -153,6 +153,9 @@ export {
   getFakeWorkUnitService,
   getFakeWorkGraphService,
   getFakeWorkNodeService,
+  // ADR-0008: Module Registration Function Pattern
+  registerWorkgraphServices,
+  registerWorkgraphTestServices,
 } from './container.js';
 
 export type { TestContainerOptions } from './container.js';
@@ -195,6 +198,11 @@ export {
   WorkGraphService,
   WorkUnitService,
   WorkNodeService,
+  BootstrapPromptService,
 } from './services/index.js';
 
-export type { CycleDetectionResult } from './services/index.js';
+export type {
+  CycleDetectionResult,
+  BootstrapPromptOptions,
+  BootstrapPromptResult,
+} from './services/index.js';

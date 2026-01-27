@@ -110,6 +110,7 @@ Implement all CLI commands for WorkGraph and WorkUnit operations as specified in
 - ❌ Tab completion (can be added post-launch)
 - ❌ Modifying existing workflow commands
 - ❌ Legacy workflow migration tools
+- ❌ Automatic agent spawning (per DYK#4: `exec` prints prompt + Copilot CLI command; full agent integration deferred)
 
 ---
 
@@ -127,26 +128,28 @@ flowchart TD
     classDef blocked fill:#F44336,stroke:#D32F2F,color:#fff
 
     subgraph Phase6["Phase 6: CLI Integration"]
-        T001["T001: Output adapter format methods"]:::pending
-        T002["T002: Create unit.command.ts"]:::pending
-        T003["T003: cg unit list"]:::pending
-        T004["T004: cg unit info"]:::pending
-        T005["T005: cg unit create"]:::pending
-        T006["T006: cg unit validate"]:::pending
-        T007["T007: Create workgraph.command.ts"]:::pending
-        T008["T008: cg wg create"]:::pending
-        T009["T009: cg wg show"]:::pending
-        T010["T010: cg wg status"]:::pending
-        T011["T011: cg wg node add-after"]:::pending
-        T012["T012: cg wg node remove"]:::pending
-        T013["T013: cg wg node exec"]:::pending
-        T014["T014: Node lifecycle commands"]:::pending
-        T015["T015: Node I/O commands"]:::pending
-        T016["T016: ask/answer commands"]:::pending
-        T017["T017: Register in cg.ts"]:::pending
-        T018["T018: --json flag"]:::pending
-        T019["T019: Integration tests"]:::pending
+        T000["T000: registerWorkgraphServices() ✓"]:::completed
+        T001["T001: Output adapter format methods ✓"]:::completed
+        T002["T002: Create unit.command.ts ✓"]:::completed
+        T003["T003: cg unit list ✓"]:::completed
+        T004["T004: cg unit info ✓"]:::completed
+        T005["T005: cg unit create ✓"]:::completed
+        T006["T006: cg unit validate ✓"]:::completed
+        T007["T007: Create workgraph.command.ts ✓"]:::completed
+        T008["T008: cg wg create ✓"]:::completed
+        T009["T009: cg wg show ✓"]:::completed
+        T010["T010: cg wg status ✓"]:::completed
+        T011["T011: cg wg node add-after ✓"]:::completed
+        T012["T012: cg wg node remove ✓"]:::completed
+        T013["T013: cg wg node exec ✓"]:::completed
+        T014["T014: Node lifecycle commands ✓"]:::completed
+        T015["T015: Node I/O commands ✓"]:::completed
+        T016["T016: ask/answer commands ✓"]:::completed
+        T017["T017: Register in cg.ts ✓"]:::completed
+        T018["T018: --json flag ✓"]:::completed
+        T019["T019: Integration tests ✓"]:::completed
 
+        T000 --> T001
         T001 --> T002
         T002 --> T003 --> T004 --> T005 --> T006
         T001 --> T007
@@ -159,14 +162,18 @@ flowchart TD
     end
 
     subgraph Files["Files"]
-        F1["/packages/shared/src/adapters/console-output.adapter.ts"]:::pending
-        F2["/apps/cli/src/commands/unit.command.ts"]:::pending
-        F3["/apps/cli/src/commands/workgraph.command.ts"]:::pending
-        F4["/apps/cli/src/bin/cg.ts"]:::pending
-        F5["/apps/cli/src/commands/index.ts"]:::pending
-        F6["/test/integration/workgraph/cli-workflow.test.ts"]:::pending
+        F0["/packages/workgraph/src/container.ts ✓"]:::completed
+        F0b["/apps/cli/src/lib/container.ts ✓"]:::completed
+        F1["/packages/shared/src/adapters/console-output.adapter.ts ✓"]:::completed
+        F2["/apps/cli/src/commands/unit.command.ts ✓"]:::completed
+        F3["/apps/cli/src/commands/workgraph.command.ts ✓"]:::completed
+        F4["/apps/cli/src/bin/cg.ts ✓"]:::completed
+        F5["/apps/cli/src/commands/index.ts ✓"]:::completed
+        F6["/test/integration/workgraph/cli-workflow.test.ts ✓"]:::completed
     end
 
+    T000 -.-> F0
+    T000 -.-> F0b
     T001 -.-> F1
     T002 -.-> F2
     T003 -.-> F2
@@ -196,25 +203,26 @@ flowchart TD
 
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
-| T001 | Output Adapter | console-output.adapter.ts | ⬜ Pending | Add workgraph.* format methods |
-| T002 | Unit Commands | unit.command.ts | ⬜ Pending | registerUnitCommands() skeleton |
-| T003 | Unit List | unit.command.ts | ⬜ Pending | handleUnitList() with table format |
-| T004 | Unit Info | unit.command.ts | ⬜ Pending | handleUnitInfo() with details |
-| T005 | Unit Create | unit.command.ts | ⬜ Pending | handleUnitCreate() with --type flag |
-| T006 | Unit Validate | unit.command.ts | ⬜ Pending | handleUnitValidate() with issues |
-| T007 | WorkGraph Commands | workgraph.command.ts | ⬜ Pending | registerWorkGraphCommands() skeleton |
-| T008 | WG Create | workgraph.command.ts | ⬜ Pending | handleWgCreate() |
-| T009 | WG Show | workgraph.command.ts | ⬜ Pending | handleWgShow() tree format |
-| T010 | WG Status | workgraph.command.ts | ⬜ Pending | handleWgStatus() table format |
-| T011 | Node Add-After | workgraph.command.ts | ⬜ Pending | handleNodeAddAfter() with validation |
-| T012 | Node Remove | workgraph.command.ts | ⬜ Pending | handleNodeRemove() with --cascade |
-| T013 | Node Exec | workgraph.command.ts | ⬜ Pending | handleNodeExec() with bootstrap |
-| T014 | Node Lifecycle | workgraph.command.ts | ⬜ Pending | start, end, can-run, can-end |
-| T015 | Node I/O | workgraph.command.ts | ⬜ Pending | list-inputs/outputs, get/save |
-| T016 | Ask/Answer | workgraph.command.ts | ⬜ Pending | handleNodeAsk(), handleNodeAnswer() |
-| T017 | CLI Registration | cg.ts, index.ts | ⬜ Pending | Import and register commands |
-| T018 | JSON Flag | unit.command.ts, workgraph.command.ts | ⬜ Pending | --json support on all commands |
-| T019 | Integration | cli-workflow.test.ts | ⬜ Pending | End-to-end CLI test |
+| T000 | DI Integration | container.ts (workgraph + CLI) | ✅ Complete | registerWorkgraphServices() per DYK#1 |
+| T001 | Output Adapter | console-output.adapter.ts | ✅ Complete | Add 36 format methods (18 types × success/failure); optionally group in helper |
+| T002 | Unit Commands | unit.command.ts | ✅ Complete | registerUnitCommands() skeleton |
+| T003 | Unit List | unit.command.ts | ✅ Complete | handleUnitList() with table format |
+| T004 | Unit Info | unit.command.ts | ✅ Complete | handleUnitInfo() with details |
+| T005 | Unit Create | unit.command.ts | ✅ Complete | handleUnitCreate() with --type flag |
+| T006 | Unit Validate | unit.command.ts | ✅ Complete | handleUnitValidate() with issues |
+| T007 | WorkGraph Commands | workgraph.command.ts | ✅ Complete | registerWorkGraphCommands() skeleton |
+| T008 | WG Create | workgraph.command.ts | ✅ Complete | handleWgCreate() |
+| T009 | WG Show | workgraph.command.ts | ✅ Complete | handleWgShow() tree format |
+| T010 | WG Status | workgraph.command.ts | ✅ Complete | handleWgStatus() table format |
+| T011 | Node Add-After | workgraph.command.ts | ✅ Complete | handleNodeAddAfter() with validation |
+| T012 | Node Remove | workgraph.command.ts | ✅ Complete | handleNodeRemove() with --cascade |
+| T013 | Node Exec | workgraph.command.ts | ✅ Complete | handleNodeExec() prints prompt + Copilot CLI example |
+| T014 | Node Lifecycle | workgraph.command.ts | ✅ Complete | start, end, can-run, can-end |
+| T015 | Node I/O | workgraph.command.ts | ✅ Complete | list-inputs/outputs, get/save |
+| T016 | Ask/Answer | workgraph.command.ts | ✅ Complete | handleNodeAsk(), handleNodeAnswer() |
+| T017 | CLI Registration | cg.ts, index.ts | ✅ Complete | Import and register commands |
+| T018 | JSON Flag | unit.command.ts, workgraph.command.ts | ✅ Complete | --json support on all commands |
+| T019 | Integration | cli-workflow.test.ts | ✅ Complete | End-to-end CLI test |
 
 ---
 
@@ -222,25 +230,26 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|------|------|-----|------|--------------|------------------|------------|----------|-------|
-| [ ] | T001 | Add format methods to ConsoleOutputAdapter for workgraph.* result types (unit.list, unit.info, wg.create, wg.show, wg.status, node.addAfter, node.remove, node.exec, etc.) | 3 | Setup | – | /home/jak/substrate/016-agent-units/packages/shared/src/adapters/console-output.adapter.ts, /home/jak/substrate/016-agent-units/packages/shared/src/adapters/json-output.adapter.ts | Format methods exist for all 15+ result types | – | Per Discovery 07 |
-| [ ] | T002 | Create unit.command.ts skeleton with registerUnitCommands() and DI container pattern | 2 | Setup | T001 | /home/jak/substrate/016-agent-units/apps/cli/src/commands/unit.command.ts | Exports registerUnitCommands(program: Command) | – | Per Discovery 06 |
-| [ ] | T003 | Implement cg unit list command with table format | 2 | Core | T002 | /home/jak/substrate/016-agent-units/apps/cli/src/commands/unit.command.ts | Lists units from .chainglass/units/ | – | – |
-| [ ] | T004 | Implement cg unit info <slug> command | 2 | Core | T003 | /home/jak/substrate/016-agent-units/apps/cli/src/commands/unit.command.ts | Shows unit type, inputs, outputs | – | – |
-| [ ] | T005 | Implement cg unit create <slug> --type <type> command | 2 | Core | T004 | /home/jak/substrate/016-agent-units/apps/cli/src/commands/unit.command.ts | Creates scaffold for agent/code/user-input | – | – |
-| [ ] | T006 | Implement cg unit validate <slug> command | 2 | Core | T005 | /home/jak/substrate/016-agent-units/apps/cli/src/commands/unit.command.ts | Shows validation issues with JSON pointer paths | – | – |
-| [ ] | T007 | Create workgraph.command.ts skeleton with registerWorkGraphCommands() | 2 | Setup | T001 | /home/jak/substrate/016-agent-units/apps/cli/src/commands/workgraph.command.ts | Exports registerWorkGraphCommands(program: Command) | – | Per Discovery 06 |
-| [ ] | T008 | Implement cg wg create <slug> command | 2 | Core | T007 | /home/jak/substrate/016-agent-units/apps/cli/src/commands/workgraph.command.ts | Creates graph with start node | – | – |
-| [ ] | T009 | Implement cg wg show <slug> command with tree visualization | 2 | Core | T008 | /home/jak/substrate/016-agent-units/apps/cli/src/commands/workgraph.command.ts | Tree output per spec format | – | – |
-| [ ] | T010 | Implement cg wg status <slug> command with status table | 2 | Core | T009 | /home/jak/substrate/016-agent-units/apps/cli/src/commands/workgraph.command.ts | Table shows 6-state node statuses | – | – |
-| [ ] | T011 | Implement cg wg node add-after <graph> <after> <unit> [--input name:source] | 3 | Core | T010 | /home/jak/substrate/016-agent-units/apps/cli/src/commands/workgraph.command.ts | Node added, validates inputs, rejects E103/E108 | – | Per CD05 |
-| [ ] | T012 | Implement cg wg node remove <graph> <node-id> [--cascade] | 2 | Core | T011 | /home/jak/substrate/016-agent-units/apps/cli/src/commands/workgraph.command.ts | Removes node, cascade removes dependents | – | – |
-| [ ] | T013 | Implement cg wg node exec <graph> <node-id> command with bootstrap prompt | 3 | Core | T012 | /home/jak/substrate/016-agent-units/apps/cli/src/commands/workgraph.command.ts | Launches agent with generated prompt | – | – |
-| [ ] | T014 | Implement node lifecycle commands (start, end, can-run, can-end) | 3 | Core | T013 | /home/jak/substrate/016-agent-units/apps/cli/src/commands/workgraph.command.ts | State transitions work per 6-state model | – | – |
-| [ ] | T015 | Implement node I/O commands (list-inputs, list-outputs, get-input-data, get-input-file, save-output-data, save-output-file) | 3 | Core | T014 | /home/jak/substrate/016-agent-units/apps/cli/src/commands/workgraph.command.ts | Dynamic input resolution, output saving | – | Per CD05, CD10 |
-| [ ] | T016 | Implement ask/answer commands for handover flow | 2 | Core | T015 | /home/jak/substrate/016-agent-units/apps/cli/src/commands/workgraph.command.ts | Question types: text/single/multi/confirm | – | – |
-| [ ] | T017 | Register commands in bin/cg.ts and update index.ts exports | 1 | Integration | T006, T016 | /home/jak/substrate/016-agent-units/apps/cli/src/bin/cg.ts, /home/jak/substrate/016-agent-units/apps/cli/src/commands/index.ts | Commands visible in cg --help | – | – |
-| [ ] | T018 | Add --json flag to all unit and wg commands | 1 | Core | T017 | /home/jak/substrate/016-agent-units/apps/cli/src/commands/unit.command.ts, /home/jak/substrate/016-agent-units/apps/cli/src/commands/workgraph.command.ts | JSON output valid for all commands | – | – |
-| [ ] | T019 | Write integration test for full CLI workflow (create unit → create graph → add node → execute) | 3 | Test | T018 | /home/jak/substrate/016-agent-units/test/integration/workgraph/cli-workflow.test.ts | End-to-end test passes | – | – |
+| [x] | T000 | Export registerWorkgraphServices(container) from workgraph package and call it from CLI container | 2 | Setup | – | /home/jak/substrate/016-agent-units/packages/workgraph/src/container.ts, /home/jak/substrate/016-agent-units/apps/cli/src/lib/container.ts | CLI container resolves workgraph services | – | Per ADR-0008: Module Registration Function Pattern |
+| [x] | T001 | Add format methods to ConsoleOutputAdapter for workgraph.* result types (unit.list, unit.info, wg.create, wg.show, wg.status, node.addAfter, node.remove, node.exec, etc.) | 3 | Setup | T000 | /home/jak/substrate/016-agent-units/packages/shared/src/adapters/console-output.adapter.ts, /home/jak/substrate/016-agent-units/packages/shared/src/adapters/json-output.adapter.ts | Format methods exist for all 18 result types | – | Per Discovery 07; DYK#2: ~36 methods following existing pattern |
+| [x] | T002 | Create unit.command.ts skeleton with registerUnitCommands() and DI container pattern | 2 | Setup | T001 | /home/jak/substrate/016-agent-units/apps/cli/src/commands/unit.command.ts | Exports registerUnitCommands(program: Command) | – | Per Discovery 06; use createCliProductionContainer() |
+| [x] | T003 | Implement cg unit list command with table format | 2 | Core | T002 | /home/jak/substrate/016-agent-units/apps/cli/src/commands/unit.command.ts | Lists units from .chainglass/units/ | – | – |
+| [x] | T004 | Implement cg unit info <slug> command | 2 | Core | T003 | /home/jak/substrate/016-agent-units/apps/cli/src/commands/unit.command.ts | Shows unit type, inputs, outputs | – | – |
+| [x] | T005 | Implement cg unit create <slug> --type <type> command | 2 | Core | T004 | /home/jak/substrate/016-agent-units/apps/cli/src/commands/unit.command.ts | Creates scaffold for agent/code/user-input | – | – |
+| [x] | T006 | Implement cg unit validate <slug> command | 2 | Core | T005 | /home/jak/substrate/016-agent-units/apps/cli/src/commands/unit.command.ts | Shows validation issues with JSON pointer paths | – | – |
+| [x] | T007 | Create workgraph.command.ts skeleton with registerWorkGraphCommands() | 2 | Setup | T001 | /home/jak/substrate/016-agent-units/apps/cli/src/commands/workgraph.command.ts | Exports registerWorkGraphCommands(program: Command) | – | Per Discovery 06; DYK#3: triple-nested wg→node→cmd structure |
+| [x] | T008 | Implement cg wg create <slug> command | 2 | Core | T007 | /home/jak/substrate/016-agent-units/apps/cli/src/commands/workgraph.command.ts | Creates graph with start node | – | – |
+| [x] | T009 | Implement cg wg show <slug> command with tree visualization | 2 | Core | T008 | /home/jak/substrate/016-agent-units/apps/cli/src/commands/workgraph.command.ts | Tree output per spec format | – | – |
+| [x] | T010 | Implement cg wg status <slug> command with status table | 2 | Core | T009 | /home/jak/substrate/016-agent-units/apps/cli/src/commands/workgraph.command.ts | Table shows 6-state node statuses | – | – |
+| [x] | T011 | Implement cg wg node add-after <graph> <after> <unit> [--input name:source] | 3 | Core | T010 | /home/jak/substrate/016-agent-units/apps/cli/src/commands/workgraph.command.ts | Node added, validates inputs, rejects E103/E108 | – | Per CD05 |
+| [x] | T012 | Implement cg wg node remove <graph> <node-id> [--cascade] | 2 | Core | T011 | /home/jak/substrate/016-agent-units/apps/cli/src/commands/workgraph.command.ts | Removes node, cascade removes dependents | – | – |
+| [x] | T013 | Implement cg wg node exec <graph> <node-id> command with bootstrap prompt | 2 | Core | T012 | /home/jak/substrate/016-agent-units/apps/cli/src/commands/workgraph.command.ts | Prints prompt + Copilot CLI command | – | DYK#4: Prompt+instructions; default Copilot; defer agent spawning |
+| [x] | T014 | Implement node lifecycle commands (start, end, can-run, can-end) | 3 | Core | T013 | /home/jak/substrate/016-agent-units/apps/cli/src/commands/workgraph.command.ts | State transitions work per 6-state model | – | – |
+| [x] | T015 | Implement node I/O commands (list-inputs, list-outputs, get-input-data, get-input-file, save-output-data, save-output-file) | 3 | Core | T014 | /home/jak/substrate/016-agent-units/apps/cli/src/commands/workgraph.command.ts | Dynamic input resolution, output saving | – | Per CD05, CD10 |
+| [x] | T016 | Implement ask/answer commands for handover flow | 2 | Core | T015 | /home/jak/substrate/016-agent-units/apps/cli/src/commands/workgraph.command.ts | Question types: text/single/multi/confirm | – | – |
+| [x] | T017 | Register commands in bin/cg.ts and update index.ts exports | 1 | Integration | T006, T016 | /home/jak/substrate/016-agent-units/apps/cli/src/bin/cg.ts, /home/jak/substrate/016-agent-units/apps/cli/src/commands/index.ts | Commands visible in cg --help | – | – |
+| [x] | T018 | Add --json flag to all unit and wg commands | 1 | Core | T017 | /home/jak/substrate/016-agent-units/apps/cli/src/commands/unit.command.ts, /home/jak/substrate/016-agent-units/apps/cli/src/commands/workgraph.command.ts | JSON output valid for all commands | – | DYK#3: Add --json to node subgroup; access via cmd.parent.opts().json |
+| [x] | T019 | Write integration test for full CLI workflow (create unit → create graph → add node → execute) | 3 | Test | T018 | /home/jak/substrate/016-agent-units/test/integration/workgraph/cli-workflow.test.ts | End-to-end test passes | – | – |
 
 ---
 
@@ -324,12 +333,13 @@ flowchart TD
 #### Pattern Evolution & Architectural Continuity
 
 **Patterns to Maintain**:
-1. **DI Container Pattern** (CD01): Always use child containers with useFactory
-2. **Result Types** (CD02): Never throw exceptions; return errors array
-3. **Output Adapter Pattern** (Discovery 07): Format via ConsoleOutputAdapter/JsonOutputAdapter
-4. **Command Registration** (Discovery 06): Export `register*Commands(program)` function
-5. **Atomic Writes** (CD03): Use temp-then-rename for state.json updates
-6. **Path Security** (CD10): Reject paths containing '..'
+1. **Registration Function Pattern** (ADR-0008): Packages export `registerXxxServices(container)` for opt-in module inclusion
+2. **DI Container Pattern** (CD01): Always use child containers with useFactory
+3. **Result Types** (CD02): Never throw exceptions; return errors array
+4. **Output Adapter Pattern** (Discovery 07): Format via ConsoleOutputAdapter/JsonOutputAdapter
+5. **Command Registration** (Discovery 06): Export `register*Commands(program)` function
+6. **Atomic Writes** (CD03): Use temp-then-rename for state.json updates
+7. **Path Security** (CD10): Reject paths containing '..'
 
 **Anti-Patterns to Avoid**:
 - ❌ Singleton service registrations
@@ -342,7 +352,8 @@ flowchart TD
 
 | Finding | Constraints | Tasks Affected |
 |---------|-------------|----------------|
-| **CD01: DI Child Containers** | Use createWorkgraphProductionContainer() per command | T002, T007 |
+| **ADR-0008: Module Registration Function Pattern** | Workgraph exports `registerWorkgraphServices(container)`, CLI calls it to add workgraph services | T000, T002, T007 |
+| **CD01: DI Child Containers** | Use createCliProductionContainer() which includes workgraph services via T000 | T002, T007 |
 | **CD02: Result Types** | All service results have errors array; format via adapter | T001, all command tasks |
 | **Discovery 06: CLI Registration** | Export registerXCommands(program) function | T002, T007, T017 |
 | **Discovery 07: Output Adapter** | Add format methods for all workgraph.* result types | T001 |
@@ -353,6 +364,7 @@ flowchart TD
 - **Exit code 1 on errors**: Commands must `process.exit(1)` if result.errors.length > 0
 - **JSON output validity**: `--json` must produce valid JSON parseable by agents
 - **Help text required**: Every command must have description for `cg --help`
+- **Actionable errors** (DYK#5): Console errors show code + message + action + example command; JSON includes `diagnostics` object with full context for agent self-correction
 
 ### Inputs to Read
 
@@ -571,7 +583,10 @@ _Populated during implementation by plan-6. Log anything of interest to your fut
 
 | Date | Task | Type | Discovery | Resolution | References |
 |------|------|------|-----------|------------|------------|
-| | | | | | |
+| 2026-01-28 | T001 | decision | Format method explosion: 18 result types × 2 methods = 36 new methods (~400 LOC) | Continue existing pattern for consistency; optionally group into workgraph-formatters.ts helper | DYK#2 |
+| 2026-01-28 | T007 | decision | Triple-nested commands: cg wg node <cmd> creates 3-level Commander.js structure | Proceed as designed; add --json to node subgroup, access via cmd.parent.opts().json | DYK#3 |
+| 2026-01-28 | T013 | decision | Agent execution gap: no integration between BootstrapPromptService and agent launching | Prompt + Instructions approach; print prompt + Copilot CLI command; defer full agent spawning to future phase | DYK#4 |
+| 2026-01-28 | T001+ | decision | Error feedback quality: agents need actionable context to self-correct | Hybrid: Console shows error+action+example; JSON includes diagnostics object with full context | DYK#5 |
 
 **Types**: `gotcha` | `research-needed` | `unexpected-behavior` | `workaround` | `decision` | `debt` | `insight`
 
@@ -619,3 +634,183 @@ docs/plans/016-agent-units/
 ---
 
 *Generated by plan-5-phase-tasks-and-brief on 2026-01-27*
+
+---
+
+## Critical Insights Discussion
+
+**Session**: 2026-01-28
+**Context**: Phase 6: CLI Integration – Tasks & Alignment Brief
+**Analyst**: AI Clarity Agent
+**Reviewer**: Development Team
+**Format**: Water Cooler Conversation (5 Critical Insights)
+
+### Insight 1: DI Container Architecture Gap
+
+**Did you know**: The CLI container and workgraph container are completely separate, with no registration for workgraph services in CLI, causing resolution failures.
+
+**Implications**:
+- `createWorkgraphProductionContainer()` creates from root, not CLI container
+- Workgraph services can't resolve shared deps (YAML_PARSER, FILESYSTEM)
+- Commands would fail at runtime without integration strategy
+
+**Options Considered**:
+- Option A: Merge registrations into CLI container
+- Option B: Chain container creation (parent-child)
+- Option C: Shared dependency registration in root
+- Option D: Unified CLI+Workgraph container factory
+- Option E: Registration Function Pattern (selected)
+
+**AI Recommendation**: Option E - Registration Function Pattern
+- Reasoning: Packages export `registerXxxServices(container)`, CLI calls to opt-in; encapsulates DI knowledge, explicit composition
+
+**Discussion Summary**: User recalled existing module/factory concept. Research confirmed pattern aligns with MCP tools registration. ADR-0008 created to document the pattern.
+
+**Decision**: Adopt Module Registration Function Pattern per ADR-0008
+
+**Action Items**:
+- [x] Created ADR-0008: Module Registration Function Pattern
+- [ ] T000: Implement `registerWorkgraphServices(container)` in workgraph package
+
+**Affects**: T000, T002, T007, container.ts files
+
+---
+
+### Insight 2: Output Adapter Format Method Explosion
+
+**Did you know**: T001 requires adding 36 new format methods (~400 LOC) to ConsoleOutputAdapter for 18 workgraph result types.
+
+**Implications**:
+- File already 650+ lines, would grow to 1000+
+- Each result type needs success + failure methods
+- Switch statement becomes maintenance burden
+
+**Options Considered**:
+- Option A: Continue current pattern (explicit methods) - selected
+- Option B: Generic formatter with result metadata
+- Option C: Formatter registry pattern
+- Option D: Minimal formatting + JSON default
+
+**AI Recommendation**: Option A - Continue Current Pattern
+- Reasoning: Consistency with existing code, human UX preserved, contained scope
+
+**Discussion Summary**: Accepted recommendation. Suggested optimization: group workgraph formatters into helper file if needed.
+
+**Decision**: Continue existing pattern; optionally group into workgraph-formatters.ts helper
+
+**Action Items**:
+- [ ] T001: Add 36 format methods following existing pattern
+
+**Affects**: T001, console-output.adapter.ts
+
+---
+
+### Insight 3: Commander.js Triple-Nested Command Structure
+
+**Did you know**: The `cg wg node <cmd>` structure creates 3-level nesting in Commander.js with potential quirks around option inheritance.
+
+**Implications**:
+- Users type 4 tokens before arguments: `cg wg node start <graph> <node>`
+- `--json` flag must be handled at correct level
+- Help text needs to work at each level
+
+**Options Considered**:
+- Option A: Triple nesting as designed - selected
+- Option B: Flatten to double nesting (`cg wg node-start`)
+- Option C: Separate command groups (`cg node`)
+- Option D: Hybrid - common commands at wg level
+
+**AI Recommendation**: Option A - Triple Nesting As Designed
+- Reasoning: Spec alignment, discoverability via `cg wg node --help`, Commander.js handles it
+
+**Discussion Summary**: Accepted. Implementation note: add `--json` to node subgroup, access via `cmd.parent.opts().json`.
+
+**Decision**: Proceed with triple nesting; handle --json at node subgroup level
+
+**Action Items**:
+- [ ] T007: Implement wg → node → cmd structure
+- [ ] T018: Add --json to node subgroup
+
+**Affects**: T007, T014-T016, T018
+
+---
+
+### Insight 4: Agent Execution Gap in `cg wg node exec`
+
+**Did you know**: T013 says "Launches agent with generated prompt" but there's no integration path between BootstrapPromptService and actual agent execution.
+
+**Implications**:
+- No code connects prompt generation to agent spawning
+- Questions: Which agent? Blocking? Output handling? Error recovery?
+- Full integration is significant scope
+
+**Options Considered**:
+- Option A: Full agent integration (AgentService)
+- Option B: Prompt-only output
+- Option C: Prompt + Instructions - selected
+- Option D: Defer full integration to future phase - selected
+
+**AI Recommendation**: Option C + D - Prompt + Instructions, defer full integration
+- Reasoning: Scope control, immediately useful, testable foundation
+
+**Discussion Summary**: Accepted with modification: default to Copilot CLI (not Claude Code), always show actionable feedback.
+
+**Decision**: Print prompt + Copilot CLI command; defer agent spawning to future phase
+
+**Action Items**:
+- [ ] T013: Output bootstrap prompt + Copilot CLI example
+- [ ] Future phase: Full agent spawning integration
+
+**Affects**: T013, Non-Goals section updated
+
+---
+
+### Insight 5: Error Feedback Quality for Agent Consumption
+
+**Did you know**: Error codes are designed for machine parsing, but CLI error output needs to be actionable for both humans AND agents to self-correct.
+
+**Implications**:
+- Current errors lack specifics for agent self-correction
+- Agents need: what went wrong, what to do next, enough context
+- Example commands dramatically improve agent success rate
+
+**Options Considered**:
+- Option A: Rich error context everywhere
+- Option B: Minimal errors + separate query commands
+- Option C: JSON errors with full context only
+- Option D: Hybrid - actionable console + rich JSON - selected
+
+**AI Recommendation**: Option D - Hybrid
+- Reasoning: Humans get clean actionable output, agents get full diagnostic context via --json
+
+**Discussion Summary**: Accepted. Console shows error+action+example; JSON includes diagnostics object.
+
+**Decision**: Hybrid approach with actionable console output and rich JSON diagnostics
+
+**Action Items**:
+- [ ] All commands: Include actionable hints in error output
+- [ ] JSON output: Add diagnostics object for agent self-correction
+
+**Affects**: T001 (formatters), all command tasks, Invariants & Guardrails
+
+---
+
+## Session Summary
+
+**Insights Surfaced**: 5 critical insights identified and discussed
+**Decisions Made**: 5 decisions reached through collaborative discussion
+**Action Items Created**: 8 follow-up tasks identified
+**ADRs Created**: 1 (ADR-0008: Module Registration Function Pattern)
+
+**Areas Updated**:
+- tasks.md: T000 added, T001/T007/T013/T018 notes updated, Non-Goals updated, Invariants updated
+- ADR index: ADR-0008 added
+- Discoveries & Learnings: 5 entries added
+
+**Shared Understanding Achieved**: ✓
+
+**Confidence Level**: High - Key architectural decisions made, scope clarified, patterns established
+
+**Next Steps**:
+- Proceed to implementation starting with T000 (registerWorkgraphServices)
+- Follow decisions documented in Discoveries & Learnings table

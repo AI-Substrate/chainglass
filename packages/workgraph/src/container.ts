@@ -27,6 +27,91 @@ import { WorkNodeService } from './services/worknode.service.js';
 import { WorkUnitService } from './services/workunit.service.js';
 
 // ============================================
+// Module Registration Function (ADR-0008)
+// ============================================
+
+/**
+ * Register workgraph services into an existing container.
+ *
+ * Per ADR-0008: Module Registration Function Pattern.
+ * This allows consumers (CLI, Web, MCP) to opt-in to workgraph services
+ * without duplicating registration logic.
+ *
+ * @requires SHARED_DI_TOKENS.FILESYSTEM - IFileSystem must be registered
+ * @requires SHARED_DI_TOKENS.PATH_RESOLVER - IPathResolver must be registered
+ * @requires SHARED_DI_TOKENS.YAML_PARSER (or WORKFLOW_DI_TOKENS.YAML_PARSER) - IYamlParser must be registered
+ *
+ * @param container - The container to register services into
+ * @param yamlParserToken - Token to use for resolving IYamlParser (defaults to SHARED_DI_TOKENS.YAML_PARSER)
+ */
+export function registerWorkgraphServices(
+  targetContainer: DependencyContainer,
+  yamlParserToken: string = SHARED_DI_TOKENS.YAML_PARSER
+): void {
+  // Register WorkUnitService
+  targetContainer.register<IWorkUnitService>(WORKGRAPH_DI_TOKENS.WORKUNIT_SERVICE, {
+    useFactory: (c: DependencyContainer) => {
+      const fs = c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
+      const pathResolver = c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
+      const yamlParser = c.resolve<IYamlParser>(yamlParserToken);
+      return new WorkUnitService(fs, pathResolver, yamlParser);
+    },
+  });
+
+  // Register WorkGraphService (depends on WorkUnitService)
+  targetContainer.register<IWorkGraphService>(WORKGRAPH_DI_TOKENS.WORKGRAPH_SERVICE, {
+    useFactory: (c: DependencyContainer) => {
+      const fs = c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
+      const pathResolver = c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
+      const yamlParser = c.resolve<IYamlParser>(yamlParserToken);
+      const workUnitService = c.resolve<IWorkUnitService>(WORKGRAPH_DI_TOKENS.WORKUNIT_SERVICE);
+      return new WorkGraphService(fs, pathResolver, yamlParser, workUnitService);
+    },
+  });
+
+  // Register WorkNodeService (depends on WorkGraphService and WorkUnitService)
+  targetContainer.register<IWorkNodeService>(WORKGRAPH_DI_TOKENS.WORKNODE_SERVICE, {
+    useFactory: (c: DependencyContainer) => {
+      const fs = c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
+      const pathResolver = c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
+      const workGraphService = c.resolve<IWorkGraphService>(WORKGRAPH_DI_TOKENS.WORKGRAPH_SERVICE);
+      const workUnitService = c.resolve<IWorkUnitService>(WORKGRAPH_DI_TOKENS.WORKUNIT_SERVICE);
+      return new WorkNodeService(fs, pathResolver, workGraphService, workUnitService);
+    },
+  });
+}
+
+/**
+ * Register workgraph test fakes into an existing container.
+ *
+ * Per ADR-0008: Module Registration Function Pattern.
+ * For test containers that need workgraph fakes.
+ *
+ * @param container - The container to register fakes into
+ * @param options - Optional pre-configured fakes
+ */
+export function registerWorkgraphTestServices(
+  targetContainer: DependencyContainer,
+  options: TestContainerOptions = {}
+): void {
+  const workUnitService = options.workUnitService ?? new FakeWorkUnitService();
+  const workGraphService = options.workGraphService ?? new FakeWorkGraphService();
+  const workNodeService = options.workNodeService ?? new FakeWorkNodeService();
+
+  targetContainer.register<IWorkUnitService>(WORKGRAPH_DI_TOKENS.WORKUNIT_SERVICE, {
+    useValue: workUnitService,
+  });
+
+  targetContainer.register<IWorkGraphService>(WORKGRAPH_DI_TOKENS.WORKGRAPH_SERVICE, {
+    useValue: workGraphService,
+  });
+
+  targetContainer.register<IWorkNodeService>(WORKGRAPH_DI_TOKENS.WORKNODE_SERVICE, {
+    useValue: workNodeService,
+  });
+}
+
+// ============================================
 // Production Container
 // ============================================
 
