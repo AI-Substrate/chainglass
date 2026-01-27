@@ -26,4 +26,4 @@ The web UI uses Server Actions for mutations:
 - `addWorkspace` / `removeWorkspace`
 - `addSample` / `deleteSample`
 
-All data reads from `~/.config/chainglass/` (same-user deployment).
+All data reads from `~/.config/chainglass/` (workspace registry) and `<worktree>/.chainglass/data/` (domain data) for same-user deployment.

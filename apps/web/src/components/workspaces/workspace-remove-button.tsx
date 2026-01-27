@@ -20,7 +20,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Trash2 } from 'lucide-react';
-import { useActionState, useState } from 'react';
+import { useActionState, useEffect, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { type ActionState, removeWorkspace } from '../../../app/actions/workspace-actions';
 
@@ -47,10 +47,12 @@ export function WorkspaceRemoveButton({ slug, name }: WorkspaceRemoveButtonProps
   const [open, setOpen] = useState(false);
   const [state, formAction] = useActionState(removeWorkspace, initialState);
 
-  // Close dialog on success
-  if (state.success && open) {
-    setOpen(false);
-  }
+  // Close dialog on success (moved to useEffect to avoid side-effect during render)
+  useEffect(() => {
+    if (state.success && open) {
+      setOpen(false);
+    }
+  }, [state.success, open]);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>

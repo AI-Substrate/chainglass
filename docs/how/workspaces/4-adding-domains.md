@@ -168,22 +168,24 @@ export class YourDomainAdapter
   extends WorkspaceDataAdapterBase
   implements IYourDomainAdapter
 {
-  protected readonly domainName = 'yourdomains'; // storage subdirectory
+  readonly domain = 'yourdomains'; // storage subdirectory
 
   async load(ctx: WorkspaceContext, slug: string): Promise<YourDomain> {
-    const path = this.getItemPath(ctx, slug);
-    const data = await this.readJson<YourDomainJSON>(path);
-    if (!data) throw new YourDomainNotFoundError(slug, path);
+    const path = this.getEntityPath(ctx, slug);
+    const result = await this.readJson<YourDomainJSON>(path);
+    if (!result.ok || !result.data) {
+      throw new YourDomainNotFoundError(slug, path);
+    }
     return YourDomain.create({
-      ...data,
-      createdAt: new Date(data.createdAt),
-      updatedAt: new Date(data.updatedAt),
+      ...result.data,
+      createdAt: new Date(result.data.createdAt),
+      updatedAt: new Date(result.data.updatedAt),
     });
   }
 
   async save(ctx: WorkspaceContext, item: YourDomain): Promise<YourDomainSaveResult> {
     await this.ensureStructure(ctx);
-    const path = this.getItemPath(ctx, item.slug);
+    const path = this.getEntityPath(ctx, item.slug);
     const exists = await this.fs.exists(path);
     const json = { ...item.toJSON(), updatedAt: new Date().toISOString() };
     await this.writeJson(path, json);
@@ -196,8 +198,14 @@ export class YourDomainAdapter
     const files = await this.fs.readdir(dir);
     const items: YourDomain[] = [];
     for (const file of files.filter(f => f.endsWith('.json'))) {
-      const data = await this.readJson<YourDomainJSON>(`${dir}/${file}`);
-      if (data) items.push(YourDomain.create({...data, createdAt: new Date(data.createdAt), updatedAt: new Date(data.updatedAt)}));
+      const result = await this.readJson<YourDomainJSON>(`${dir}/${file}`);
+      if (result.ok && result.data) {
+        items.push(YourDomain.create({
+          ...result.data,
+          createdAt: new Date(result.data.createdAt),
+          updatedAt: new Date(result.data.updatedAt),
+        }));
+      }
     }
     return items;
   }
@@ -206,7 +214,7 @@ export class YourDomainAdapter
 }
 ```
 
-**Storage location:** `<worktree>/.chainglass/data/<domainName>/<slug>.json`
+**Storage location:** `<worktree>/.chainglass/data/<domain>/<slug>.json`
 
 ## Step 5: Create Fake Adapter
 

@@ -11,7 +11,7 @@
  */
 
 import { WORKSPACE_DI_TOKENS } from '@chainglass/shared';
-import type { IWorkspaceService, WorkspaceInfo } from '@chainglass/workflow';
+import type { IWorkspaceService } from '@chainglass/workflow';
 import type { NextRequest } from 'next/server';
 import { getContainer } from '../../../src/lib/bootstrap-singleton';
 
