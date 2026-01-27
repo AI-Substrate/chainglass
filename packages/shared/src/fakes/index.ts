@@ -13,3 +13,7 @@ export type { FormattedResult } from './fake-output.adapter.js';
 export { FakeDiffAction } from './fake-diff-action.js';
 export { FakeHashGenerator } from './fake-hash-generator.js';
 export { FakeProcessManager } from './fake-process-manager.js';
+
+// Plan 015: Phase 1 - Event storage fake
+export { FakeEventStorage } from './fake-event-storage.js';
+export type { FakeEventStorageOptions } from './fake-event-storage.js';

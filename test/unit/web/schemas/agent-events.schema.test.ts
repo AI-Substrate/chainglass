@@ -7,6 +7,9 @@
  *
  * Per Critical Insights: These schemas will be defined in agent-events.schema.ts
  * and imported into sse-events.schema.ts union.
+ *
+ * Plan 015 Phase 1 (T006): Extended with tests for new SSE event types
+ * (agent_tool_call, agent_tool_result, agent_thinking) that wrap shared schemas.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -20,6 +23,10 @@ import {
   AgentSessionStatusEventSchema,
   type AgentTextDeltaEvent,
   AgentTextDeltaEventSchema,
+  // Plan 015 Phase 1: New SSE event types for tool visibility
+  AgentThinkingBroadcastEventSchema,
+  AgentToolCallBroadcastEventSchema,
+  AgentToolResultBroadcastEventSchema,
   type AgentUsageUpdateEvent,
   AgentUsageUpdateEventSchema,
 } from '../../../../apps/web/src/lib/schemas/agent-events.schema';
@@ -289,6 +296,193 @@ describe('AgentEventSchema (Union)', () => {
       data: { sessionId: 's1' },
     };
     const result = AgentEventSchema.safeParse(event);
+
+    expect(result.success).toBe(false);
+  });
+});
+
+// ============ Plan 015 Phase 1: New SSE Event Types for Tool Visibility ============
+
+describe('AgentToolCallBroadcastEventSchema', () => {
+  it('should validate agent_tool_call SSE event', () => {
+    /*
+    Test Doc:
+    - Why: SSE broadcast needs sessionId for client-side routing (ADR-0007)
+    - Contract: Has type 'agent_tool_call', sessionId in data, plus tool details
+    - Usage Notes: UI uses sessionId to route to correct session panel
+    - Quality Contribution: Ensures tool call broadcasts work with SSE manager
+    - Worked Example: { type: 'agent_tool_call', data: { sessionId: 's1', toolName: 'Bash' } } → success
+    */
+    const event = {
+      type: 'agent_tool_call',
+      timestamp: timestamp(),
+      data: {
+        sessionId: 'session-123',
+        toolName: 'Bash',
+        input: { command: 'ls -la' },
+        toolCallId: 'toolu_abc123',
+      },
+    };
+    const result = AgentToolCallBroadcastEventSchema.safeParse(event);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.type).toBe('agent_tool_call');
+      expect(result.data.data.sessionId).toBe('session-123');
+      expect(result.data.data.toolName).toBe('Bash');
+    }
+  });
+
+  it('should require sessionId for SSE routing', () => {
+    /*
+    Test Doc:
+    - Why: SSE events require sessionId per ADR-0007 single-channel routing
+    - Contract: data.sessionId is required
+    - Usage Notes: Without sessionId, event cannot be routed to correct UI
+    - Quality Contribution: Ensures ADR-0007 compliance
+    - Worked Example: { data: { toolName: 'Bash' } } without sessionId → failure
+    */
+    const event = {
+      type: 'agent_tool_call',
+      timestamp: timestamp(),
+      data: {
+        // Missing sessionId
+        toolName: 'Bash',
+        input: { command: 'ls' },
+        toolCallId: 'toolu_abc123',
+      },
+    };
+    const result = AgentToolCallBroadcastEventSchema.safeParse(event);
+
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('AgentToolResultBroadcastEventSchema', () => {
+  it('should validate agent_tool_result SSE event', () => {
+    /*
+    Test Doc:
+    - Why: Tool result broadcasts update ToolCallCard with output
+    - Contract: Has type 'agent_tool_result', sessionId, output, isError
+    - Usage Notes: Links to tool_call via toolCallId
+    - Quality Contribution: Ensures result routing works
+    - Worked Example: { type: 'agent_tool_result', data: { sessionId: 's1', output: '...' } } → success
+    */
+    const event = {
+      type: 'agent_tool_result',
+      timestamp: timestamp(),
+      data: {
+        sessionId: 'session-123',
+        toolCallId: 'toolu_abc123',
+        output: 'total 48\ndrwxr-xr-x...',
+        isError: false,
+      },
+    };
+    const result = AgentToolResultBroadcastEventSchema.safeParse(event);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.type).toBe('agent_tool_result');
+      expect(result.data.data.isError).toBe(false);
+    }
+  });
+
+  it('should require sessionId for SSE routing', () => {
+    /*
+    Test Doc:
+    - Why: SSE events require sessionId per ADR-0007
+    - Contract: data.sessionId is required
+    - Usage Notes: Used to route result to correct session
+    - Quality Contribution: Ensures proper SSE event routing
+    - Worked Example: Missing sessionId → failure
+    */
+    const event = {
+      type: 'agent_tool_result',
+      timestamp: timestamp(),
+      data: {
+        // Missing sessionId
+        toolCallId: 'toolu_abc123',
+        output: 'result',
+        isError: false,
+      },
+    };
+    const result = AgentToolResultBroadcastEventSchema.safeParse(event);
+
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('AgentThinkingBroadcastEventSchema', () => {
+  it('should validate agent_thinking SSE event', () => {
+    /*
+    Test Doc:
+    - Why: Thinking broadcasts display Claude reasoning in UI
+    - Contract: Has type 'agent_thinking', sessionId, content
+    - Usage Notes: Displayed as collapsible section per AC5
+    - Quality Contribution: Ensures thinking visibility pipeline works
+    - Worked Example: { type: 'agent_thinking', data: { sessionId: 's1', content: '...' } } → success
+    */
+    const event = {
+      type: 'agent_thinking',
+      timestamp: timestamp(),
+      data: {
+        sessionId: 'session-123',
+        content: 'Let me analyze this step by step...',
+      },
+    };
+    const result = AgentThinkingBroadcastEventSchema.safeParse(event);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.type).toBe('agent_thinking');
+      expect(result.data.data.content).toContain('step by step');
+    }
+  });
+
+  it('should accept optional signature field', () => {
+    /*
+    Test Doc:
+    - Why: Claude extended thinking includes signature
+    - Contract: data.signature is optional
+    - Usage Notes: Copilot reasoning doesn't have signatures
+    - Quality Contribution: Handles both Claude and Copilot
+    - Worked Example: { data: { content: '...', signature: 'sig_xyz' } } → success
+    */
+    const event = {
+      type: 'agent_thinking',
+      timestamp: timestamp(),
+      data: {
+        sessionId: 'session-123',
+        content: 'Thinking...',
+        signature: 'sig_xyz789',
+      },
+    };
+    const result = AgentThinkingBroadcastEventSchema.safeParse(event);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.data.signature).toBe('sig_xyz789');
+    }
+  });
+
+  it('should require sessionId for SSE routing', () => {
+    /*
+    Test Doc:
+    - Why: SSE events require sessionId per ADR-0007
+    - Contract: data.sessionId is required
+    - Usage Notes: Routes thinking to correct session panel
+    - Quality Contribution: Ensures proper SSE event routing
+    - Worked Example: Missing sessionId → failure
+    */
+    const event = {
+      type: 'agent_thinking',
+      timestamp: timestamp(),
+      data: {
+        // Missing sessionId
+        content: 'Thinking without session...',
+      },
+    };
+    const result = AgentThinkingBroadcastEventSchema.safeParse(event);
 
     expect(result.success).toBe(false);
   });

@@ -15,6 +15,13 @@ export type { IHashGenerator } from './interfaces/index.js';
 
 // Library utilities
 export { detectLanguage } from './lib/language-detection.js';
+// Plan 015: Phase 1 - Session ID validation
+export {
+  isValidSessionId,
+  MAX_SESSION_ID_LENGTH,
+  SessionIdValidationError,
+  validateSessionId,
+} from './lib/validators/session-id-validator.js';
 
 // Result types (per Phase 1a: Output Adapter Architecture)
 export type {
@@ -81,6 +88,13 @@ export type {
   TokenMetrics,
 } from './interfaces/index.js';
 
+// Event storage interfaces (Plan 015: Phase 1)
+export type {
+  ArchiveOptions,
+  IEventStorage,
+  StoredEvent,
+} from './interfaces/index.js';
+
 // Process manager interfaces and types
 export type {
   IProcessManager,
@@ -108,6 +122,9 @@ export type { FormattedResult } from './fakes/index.js';
 export { FakeDiffAction } from './fakes/index.js';
 export { FakeHashGenerator } from './fakes/index.js';
 export { FakeProcessManager } from './fakes/index.js';
+// Plan 015: Phase 1 - Event storage fake
+export { FakeEventStorage } from './fakes/index.js';
+export type { FakeEventStorageOptions } from './fakes/index.js';
 
 // Adapters
 export { PinoLoggerAdapter } from './adapters/index.js';
@@ -162,3 +179,21 @@ export {
 // Services
 export { AgentService } from './services/index.js';
 export type { AdapterFactory, AgentServiceRunOptions } from './services/index.js';
+// Plan 015: Phase 1 - Event storage
+export { EventStorageService } from './services/index.js';
+
+// Schemas (Plan 015: Phase 1 - Zod-first approach, derive types via z.infer)
+export {
+  // Schemas
+  AgentEventBaseSchema,
+  AgentStoredEventSchema,
+  AgentThinkingEventSchema,
+  AgentToolCallEventSchema,
+  AgentToolResultEventSchema,
+  agentStoredEventSchemas,
+  // Types
+  type AgentStoredEvent,
+  type AgentThinkingEvent,
+  type AgentToolCallEvent,
+  type AgentToolResultEvent,
+} from './schemas/index.js';

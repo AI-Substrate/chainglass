@@ -1,3 +1,10 @@
+// Plan 015 Phase 1: Re-export new event types from Zod schemas (DYK-03)
+export type {
+  AgentThinkingEvent,
+  AgentToolCallEvent,
+  AgentToolResultEvent,
+} from '../schemas/agent-event.schema.js';
+
 /**
  * Agent execution status values.
  *
@@ -158,6 +165,13 @@ export interface AgentRawEvent extends AgentEventBase {
   };
 }
 
+// Plan 015 Phase 1: Import new event types for union extension
+import type {
+  AgentThinkingEvent,
+  AgentToolCallEvent,
+  AgentToolResultEvent,
+} from '../schemas/agent-event.schema.js';
+
 /**
  * Union of all agent event types.
  *
@@ -169,13 +183,19 @@ export interface AgentRawEvent extends AgentEventBase {
  *   }
  * }
  * ```
+ *
+ * Plan 015 Phase 1: Extended with tool_call, tool_result, thinking types.
  */
 export type AgentEvent =
   | AgentTextDeltaEvent
   | AgentMessageEvent
   | AgentUsageEvent
   | AgentSessionEvent
-  | AgentRawEvent;
+  | AgentRawEvent
+  // Plan 015: New event types for tool visibility
+  | AgentToolCallEvent
+  | AgentToolResultEvent
+  | AgentThinkingEvent;
 
 /**
  * Event handler callback type for streaming.

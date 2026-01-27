@@ -12,19 +12,25 @@
  */
 
 import 'reflect-metadata';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import {
   type AdapterFactory,
   AgentService,
   ClaudeCodeAdapter,
+  EventStorageService,
   FakeAgentAdapter,
   FakeConfigService,
+  FakeEventStorage,
   FakeLogger,
   FakeProcessManager,
   type IAgentAdapter,
   type IConfigService,
+  type IEventStorage,
   type ILogger,
   type IProcessManager,
   PinoLoggerAdapter,
+  SHARED_DI_TOKENS,
   SdkCopilotAdapter,
   UnixProcessManager,
   WindowsProcessManager,
@@ -77,6 +83,8 @@ export const DI_TOKENS = {
   AGENT_SERVICE: 'AgentService',
   // Plan 012: Agent session persistence
   SESSION_STORE: 'SessionStore',
+  // Plan 015: Event storage
+  EVENT_STORAGE: SHARED_DI_TOKENS.EVENT_STORAGE,
 } as const;
 
 /**
@@ -227,6 +235,15 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
     },
   });
 
+  // Plan 015 Phase 1: Register EventStorageService
+  // Production path: .chainglass/workspaces/default/data/
+  childContainer.register<IEventStorage>(DI_TOKENS.EVENT_STORAGE, {
+    useFactory: () => {
+      const baseDir = path.join(process.cwd(), '.chainglass', 'workspaces', 'default', 'data');
+      return new EventStorageService(baseDir);
+    },
+  });
+
   // FIX-010: Performance metrics for container creation
   const durationMs = performance.now() - startTime;
   console.log(`[createProductionContainer] Container created in ${durationMs.toFixed(2)}ms`);
@@ -315,6 +332,11 @@ export function createTestContainer(): DependencyContainer {
       // Each test container gets its own in-memory storage for isolation
       return new AgentSessionStore(createInMemoryStorage());
     },
+  });
+
+  // Plan 015 Phase 1: Register FakeEventStorage for test isolation
+  childContainer.register<IEventStorage>(DI_TOKENS.EVENT_STORAGE, {
+    useFactory: () => new FakeEventStorage(),
   });
 
   return childContainer;

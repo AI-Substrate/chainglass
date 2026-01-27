@@ -110,3 +110,10 @@ export type {
   ICopilotClient,
   ICopilotSession,
 } from './copilot-sdk.interface.js';
+
+// Event storage interfaces (Plan 015: Phase 1)
+export type {
+  ArchiveOptions,
+  IEventStorage,
+  StoredEvent,
+} from './event-storage.interface.js';

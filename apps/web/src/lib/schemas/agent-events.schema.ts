@@ -8,6 +8,10 @@
  * They will be imported into sse-events.schema.ts and appended to the union.
  *
  * Part of Plan 012: Multi-Agent Web UI (Phase 1: Foundation)
+ *
+ * Plan 015 Phase 1 (T007): Extended with SSE broadcast schemas for tool visibility.
+ * Per ADR-0007: SSE events include sessionId for single-channel routing.
+ * Per DYK-03: Storage schemas are in @chainglass/shared; these are SSE-specific wrappers.
  */
 import { z } from 'zod';
 
@@ -123,4 +127,65 @@ export const agentEventSchemas = [
   AgentSessionStatusEventSchema,
   AgentUsageUpdateEventSchema,
   AgentErrorEventSchema,
+] as const;
+
+// ============ Plan 015 Phase 1: Tool Visibility SSE Events ============
+
+/**
+ * SSE broadcast event for tool calls.
+ * Per ADR-0007: Includes sessionId for single-channel routing.
+ *
+ * This wraps tool_call data with SSE-specific fields (sessionId for routing).
+ */
+export const AgentToolCallBroadcastEventSchema = agentBaseEventSchema.extend({
+  type: z.literal('agent_tool_call'),
+  data: z.object({
+    sessionId: z.string(),
+    toolName: z.string(),
+    input: z.unknown(),
+    toolCallId: z.string(),
+  }),
+});
+
+/**
+ * SSE broadcast event for tool results.
+ * Per ADR-0007: Includes sessionId for single-channel routing.
+ */
+export const AgentToolResultBroadcastEventSchema = agentBaseEventSchema.extend({
+  type: z.literal('agent_tool_result'),
+  data: z.object({
+    sessionId: z.string(),
+    toolCallId: z.string(),
+    output: z.string(),
+    isError: z.boolean(),
+  }),
+});
+
+/**
+ * SSE broadcast event for thinking/reasoning blocks.
+ * Per ADR-0007: Includes sessionId for single-channel routing.
+ */
+export const AgentThinkingBroadcastEventSchema = agentBaseEventSchema.extend({
+  type: z.literal('agent_thinking'),
+  data: z.object({
+    sessionId: z.string(),
+    content: z.string(),
+    signature: z.string().optional(),
+  }),
+});
+
+// Type exports for new SSE events
+export type AgentToolCallBroadcastEvent = z.infer<typeof AgentToolCallBroadcastEventSchema>;
+export type AgentToolResultBroadcastEvent = z.infer<typeof AgentToolResultBroadcastEventSchema>;
+export type AgentThinkingBroadcastEvent = z.infer<typeof AgentThinkingBroadcastEventSchema>;
+
+/**
+ * Extended array including new tool visibility events.
+ * Use this for the complete SSE event union.
+ */
+export const agentEventSchemasExtended = [
+  ...agentEventSchemas,
+  AgentToolCallBroadcastEventSchema,
+  AgentToolResultBroadcastEventSchema,
+  AgentThinkingBroadcastEventSchema,
 ] as const;

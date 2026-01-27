@@ -20,6 +20,8 @@ export const SHARED_DI_TOKENS = {
   PATH_RESOLVER: 'IPathResolver',
   /** IOutputAdapter interface (per Phase 1a) */
   OUTPUT_ADAPTER: 'IOutputAdapter',
+  /** IEventStorage interface (Plan 015: Phase 1) */
+  EVENT_STORAGE: 'IEventStorage',
 } as const;
 
 /**
