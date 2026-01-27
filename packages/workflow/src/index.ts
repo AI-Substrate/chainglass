@@ -15,6 +15,19 @@ export {
   CheckpointCorruptError,
 } from './errors/index.js';
 
+// Workspace errors (E074-E081 per Plan 014)
+export { WorkspaceErrorCodes, WorkspaceErrors } from './errors/index.js';
+export type { WorkspaceError } from './errors/index.js';
+export {
+  WorkspaceNotFoundError,
+  WorkspaceExistsError,
+  InvalidPathError,
+  PathNotFoundError,
+  RegistryCorruptError,
+  GitOperationError,
+  ConfigNotWritableError,
+} from './errors/index.js';
+
 // Types (matching core schemas)
 export type {
   // wf.types.ts - Workflow definition types
@@ -87,6 +100,18 @@ export type {
   PhaseJSON,
 } from './entities/index.js';
 
+// Workspace entity (Plan 014: Workspaces)
+export { Workspace } from './entities/index.js';
+export type { WorkspaceInput, WorkspaceJSON } from './entities/index.js';
+
+// Workspace registry adapter interface (Plan 014: Workspaces)
+export type {
+  IWorkspaceRegistryAdapter,
+  WorkspaceErrorCode,
+  WorkspaceSaveResult,
+  WorkspaceRemoveResult,
+} from './interfaces/index.js';
+
 // Init service interface (Phase 4)
 export type {
   IInitService,
@@ -108,6 +133,9 @@ export { YamlParserAdapter } from './adapters/index.js';
 export { SchemaValidatorAdapter } from './adapters/index.js';
 export { WorkflowAdapter } from './adapters/index.js';
 export { PhaseAdapter } from './adapters/index.js';
+
+// Workspace registry adapter (Plan 014)
+export { WorkspaceRegistryAdapter } from './adapters/index.js';
 
 // Fakes
 export { FakeYamlParser } from './fakes/index.js';
@@ -140,6 +168,16 @@ export type {
 } from './fakes/index.js';
 export { FakePhaseAdapter } from './fakes/index.js';
 export type { LoadFromPathCall, ListForWorkflowCall } from './fakes/index.js';
+
+// Workspace registry adapter fake (Plan 014)
+export { FakeWorkspaceRegistryAdapter } from './fakes/index.js';
+export type {
+  WorkspaceLoadCall,
+  WorkspaceSaveCall,
+  WorkspaceListCall,
+  WorkspaceRemoveCall,
+  WorkspaceExistsCall,
+} from './fakes/index.js';
 
 // Services (Phase 2)
 export { WorkflowService, ComposeErrorCodes } from './services/index.js';

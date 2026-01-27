@@ -86,18 +86,18 @@ flowchart TD
     classDef blocked fill:#F44336,stroke:#D32F2F,color:#fff
 
     subgraph Phase1["Phase 1: Workspace Entity + Registry Adapter"]
-        T001["T001: Define Workspace entity types"]:::pending
-        T002["T002: Write Workspace.create() tests"]:::pending
-        T003["T003: Implement Workspace entity"]:::pending
-        T004["T004: Write toJSON tests"]:::pending
-        T005["T005: Implement toJSON"]:::pending
-        T006["T006: Define IWorkspaceAdapter"]:::pending
-        T007["T007: Create error codes E074-E081"]:::pending
-        T008["T008: Write contract tests"]:::pending
-        T009["T009: Implement FakeWorkspaceAdapter"]:::pending
-        T010["T010: Implement WorkspaceAdapter"]:::pending
-        T011["T011: Add path validation"]:::pending
-        T012["T012: Add config dir creation"]:::pending
+        T001["T001: Define Workspace entity types ✓"]:::completed
+        T002["T002: Write Workspace.create() tests ✓"]:::completed
+        T003["T003: Implement Workspace entity ✓"]:::completed
+        T004["T004: Write toJSON tests ✓"]:::completed
+        T005["T005: Implement toJSON ✓"]:::completed
+        T006["T006: Define IWorkspaceAdapter ✓"]:::completed
+        T007["T007: Create error codes E074-E081 ✓"]:::completed
+        T008["T008: Write contract tests ✓"]:::completed
+        T009["T009: Implement FakeWorkspaceRegistryAdapter ✓"]:::completed
+        T010["T010: Implement WorkspaceRegistryAdapter ✓"]:::completed
+        T011["T011: Add path validation ✓"]:::completed
+        T012["T012: Add config dir creation ✓"]:::completed
 
         T001 --> T002
         T002 --> T003
@@ -113,28 +113,28 @@ flowchart TD
     end
 
     subgraph Entities["Entity Files"]
-        E1["/packages/workflow/src/entities/workspace.ts"]:::pending
+        E1["/packages/workflow/src/entities/workspace.ts ✓"]:::completed
     end
 
     subgraph Interfaces["Interface Files"]
-        I1["/packages/workflow/src/interfaces/workspace-adapter.interface.ts"]:::pending
+        I1["/packages/workflow/src/interfaces/workspace-registry-adapter.interface.ts ✓"]:::completed
     end
 
     subgraph Errors["Error Files"]
-        ER1["/packages/workflow/src/errors/workspace-errors.ts"]:::pending
+        ER1["/packages/workflow/src/errors/workspace-errors.ts ✓"]:::completed
     end
 
     subgraph Fakes["Fake Files"]
-        F1["/packages/workflow/src/fakes/fake-workspace-adapter.ts"]:::pending
+        F1["/packages/workflow/src/fakes/fake-workspace-registry-adapter.ts ✓"]:::completed
     end
 
     subgraph Adapters["Adapter Files"]
-        A1["/packages/workflow/src/adapters/workspace.adapter.ts"]:::pending
+        A1["/packages/workflow/src/adapters/workspace-registry.adapter.ts ✓"]:::completed
     end
 
     subgraph Tests["Test Files"]
-        TE1["/test/unit/workflow/workspace-entity.test.ts"]:::pending
-        TE2["/test/contracts/workspace-adapter.contract.test.ts"]:::pending
+        TE1["/test/unit/workflow/workspace-entity.test.ts ✓"]:::completed
+        TE2["/test/contracts/workspace-registry-adapter.contract.test.ts ✓"]:::completed
     end
 
     T001 -.-> E1
@@ -157,18 +157,18 @@ flowchart TD
 
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
-| T001 | Workspace Entity Types | workspace.ts | ⬜ Pending | Define WorkspaceJSON, WorkspaceInput interfaces |
-| T002 | Workspace Unit Tests | workspace-entity.test.ts | ⬜ Pending | TDD: write failing tests first |
-| T003 | Workspace Entity | workspace.ts | ⬜ Pending | Private constructor + create() factory |
-| T004 | Serialization Tests | workspace-entity.test.ts | ⬜ Pending | TDD: toJSON tests |
-| T005 | Serialization Methods | workspace.ts | ⬜ Pending | Implement toJSON (no fromJSON - adapter handles) |
-| T006 | IWorkspaceAdapter | workspace-adapter.interface.ts | ⬜ Pending | Registry CRUD operations |
-| T007 | Error Factories | workspace-errors.ts | ⬜ Pending | E074-E081 with actionable messages |
-| T008 | Contract Tests | workspace-adapter.contract.test.ts | ⬜ Pending | Parameterized test factory |
-| T009 | FakeWorkspaceAdapter | fake-workspace-adapter.ts | ⬜ Pending | Three-part API pattern |
-| T010 | WorkspaceAdapter | workspace.adapter.ts | ⬜ Pending | JSON file I/O implementation |
-| T011 | Path Validation | workspace.adapter.ts | ⬜ Pending | Security checks |
-| T012 | Config Directory | workspace.adapter.ts | ⬜ Pending | Creation with permission check |
+| T001 | Workspace Entity Types | workspace.ts | ✅ Complete | Define WorkspaceJSON, WorkspaceInput interfaces |
+| T002 | Workspace Unit Tests | workspace-entity.test.ts | ✅ Complete | TDD: write failing tests first |
+| T003 | Workspace Entity | workspace.ts | ✅ Complete | Private constructor + create() factory |
+| T004 | Serialization Tests | workspace-entity.test.ts | ✅ Complete | TDD: toJSON tests |
+| T005 | Serialization Methods | workspace.ts | ✅ Complete | Implement toJSON (no fromJSON - adapter handles) |
+| T006 | IWorkspaceRegistryAdapter | workspace-registry-adapter.interface.ts | ✅ Complete | Registry CRUD operations |
+| T007 | Error Factories | workspace-errors.ts | ✅ Complete | E074-E081 with actionable messages |
+| T008 | Contract Tests | workspace-registry-adapter.contract.test.ts | ✅ Complete | Parameterized test factory |
+| T009 | FakeWorkspaceRegistryAdapter | fake-workspace-registry-adapter.ts | ✅ Complete | Three-part API pattern |
+| T010 | WorkspaceRegistryAdapter | workspace-registry.adapter.ts | ✅ Complete | JSON file I/O implementation |
+| T011 | Path Validation | workspace-registry.adapter.ts | ✅ Complete | Security checks |
+| T012 | Config Directory | workspace-registry.adapter.ts | ✅ Complete | Creation with permission check |
 
 ---
 
@@ -176,18 +176,18 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|------|------|-----|------|--------------|------------------|------------|----------|-------|
-| [ ] | T001 | Define Workspace entity interface, WorkspaceJSON type, and WorkspaceInput type | 1 | Setup | – | /home/jak/substrate/014-workspaces/packages/workflow/src/entities/workspace.ts | Types compile, match spec § Data Model | – | Follow Workflow entity pattern (private constructor) |
-| [ ] | T002 | Write unit tests for Workspace.create() factory | 2 | Test | T001 | /home/jak/substrate/014-workspaces/test/unit/workflow/workspace-entity.test.ts | Tests cover: slug generation from name, required fields, default createdAt, edge cases (Unicode, special chars, numbers-first) | – | TDD: tests must fail initially |
-| [ ] | T003 | Implement Workspace entity with create() factory | 2 | Core | T002 | /home/jak/substrate/014-workspaces/packages/workflow/src/entities/workspace.ts | All T002 tests pass | – | Use `slugify` npm package; configure: lowercase, strict mode, must match /^[a-z][a-z0-9-]*$/ |
-| [ ] | T004 | Write unit tests for Workspace.toJSON() | 2 | Test | T003 | /home/jak/substrate/014-workspaces/test/unit/workflow/workspace-entity.test.ts | Tests cover: camelCase keys, Date→ISO string, undefined→null | – | Per DYK-03 serialization rules |
-| [ ] | T005 | Implement toJSON() method | 1 | Core | T004 | /home/jak/substrate/014-workspaces/packages/workflow/src/entities/workspace.ts | All T004 tests pass | – | No fromJSON() - follows Workflow pattern; adapter handles deserialization via create() |
-| [ ] | T006 | Define IWorkspaceAdapter interface for registry operations | 1 | Setup | T005 | /home/jak/substrate/014-workspaces/packages/workflow/src/interfaces/workspace-adapter.interface.ts | Interface compiles, documents all methods with JSDoc | – | Methods: load, save, list, remove, exists |
-| [ ] | T007 | Create workspace error codes (E074-E081) with factory functions | 2 | Core | T006 | /home/jak/substrate/014-workspaces/packages/workflow/src/errors/workspace-errors.ts | Each error has code, message, action, path fields | – | Per Critical Discovery 06 |
-| [ ] | T008 | Write contract tests for IWorkspaceAdapter (parameterized factory) | 3 | Test | T007 | /home/jak/substrate/014-workspaces/test/contracts/workspace-adapter.contract.test.ts | Tests cover: load, save, list, remove, exists behaviors | – | Per Critical Discovery 03 |
-| [ ] | T009 | Implement FakeWorkspaceAdapter with three-part API | 2 | Core | T008 | /home/jak/substrate/014-workspaces/packages/workflow/src/fakes/fake-workspace-adapter.ts | Contract tests pass, state setup/inspection/error injection works, reset() helper | – | Follow FakeWorkflowAdapter pattern |
-| [ ] | T010 | Implement WorkspaceAdapter (real) with JSON file I/O | 3 | Core | T009 | /home/jak/substrate/014-workspaces/packages/workflow/src/adapters/workspace.adapter.ts | Contract tests pass against real adapter | – | Per Critical Discovery 01: ~/.config/chainglass/workspaces.json |
-| [ ] | T011 | Add path validation (absolute, no traversal, tilde expansion) | 2 | Core | T010 | /home/jak/substrate/014-workspaces/packages/workflow/src/adapters/workspace.adapter.ts | Security tests pass, E076/E077 returned for invalid paths | – | Per Critical Discovery 05; Extract expandTilde from WorkflowService:677 to IPathResolver |
-| [ ] | T012 | Add config directory creation with permission check | 2 | Core | T011 | /home/jak/substrate/014-workspaces/packages/workflow/src/adapters/workspace.adapter.ts | E080 returned if can't write, creates dir if missing | – | Per Medium Discovery 09 |
+| [x] | T001 | Define Workspace entity interface, WorkspaceJSON type, and WorkspaceInput type | 1 | Setup | – | /home/jak/substrate/014-workspaces/packages/workflow/src/entities/workspace.ts | Types compile, match spec § Data Model | – | Follow Workflow entity pattern (private constructor) |
+| [x] | T002 | Write unit tests for Workspace.create() factory | 2 | Test | T001 | /home/jak/substrate/014-workspaces/test/unit/workflow/workspace-entity.test.ts | Tests cover: slug generation from name, required fields, default createdAt, edge cases (Unicode, special chars, numbers-first) | – | TDD: tests must fail initially |
+| [x] | T003 | Implement Workspace entity with create() factory | 2 | Core | T002 | /home/jak/substrate/014-workspaces/packages/workflow/src/entities/workspace.ts | All T002 tests pass | – | Use `slugify` npm package; configure: lowercase, strict mode, must match /^[a-z][a-z0-9-]*$/ |
+| [x] | T004 | Write unit tests for Workspace.toJSON() | 2 | Test | T003 | /home/jak/substrate/014-workspaces/test/unit/workflow/workspace-entity.test.ts | Tests cover: camelCase keys, Date→ISO string, undefined→null | – | Per DYK-03 serialization rules |
+| [x] | T005 | Implement toJSON() method | 1 | Core | T004 | /home/jak/substrate/014-workspaces/packages/workflow/src/entities/workspace.ts | All T004 tests pass | – | No fromJSON() - follows Workflow pattern; adapter handles deserialization via create() |
+| [x] | T006 | Define IWorkspaceAdapter interface for registry operations | 1 | Setup | T005 | /home/jak/substrate/014-workspaces/packages/workflow/src/interfaces/workspace-registry-adapter.interface.ts | Interface compiles, documents all methods with JSDoc | – | Methods: load, save, list, remove, exists |
+| [x] | T007 | Create workspace error codes (E074-E081) with factory functions | 2 | Core | T006 | /home/jak/substrate/014-workspaces/packages/workflow/src/errors/workspace-errors.ts | Each error has code, message, action, path fields | – | Per Critical Discovery 06 |
+| [x] | T008 | Write contract tests for IWorkspaceAdapter (parameterized factory) | 3 | Test | T007 | /home/jak/substrate/014-workspaces/test/contracts/workspace-registry-adapter.contract.test.ts | Tests cover: load, save, list, remove, exists behaviors | – | Per Critical Discovery 03 |
+| [x] | T009 | Implement FakeWorkspaceRegistryAdapter with three-part API | 2 | Core | T008 | /home/jak/substrate/014-workspaces/packages/workflow/src/fakes/fake-workspace-registry-adapter.ts | Contract tests pass, state setup/inspection/error injection works, reset() helper | – | Follow FakeWorkflowAdapter pattern |
+| [x] | T010 | Implement WorkspaceRegistryAdapter (real) with JSON file I/O | 3 | Core | T009 | /home/jak/substrate/014-workspaces/packages/workflow/src/adapters/workspace-registry.adapter.ts | Contract tests pass against real adapter | – | Per Critical Discovery 01: ~/.config/chainglass/workspaces.json |
+| [x] | T011 | Add path validation (absolute, no traversal, tilde expansion) | 2 | Core | T010 | /home/jak/substrate/014-workspaces/packages/workflow/src/adapters/workspace-registry.adapter.ts | Security tests pass, E076/E077 returned for invalid paths | – | Per Critical Discovery 05; Extract expandTilde from WorkflowService:677 to IPathResolver |
+| [x] | T012 | Add config directory creation with permission check | 2 | Core | T011 | /home/jak/substrate/014-workspaces/packages/workflow/src/adapters/workspace-registry.adapter.ts | E080 returned if can't write, creates dir if missing | – | Per Medium Discovery 09 |
 
 ---
 

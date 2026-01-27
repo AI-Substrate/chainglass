@@ -12,3 +12,16 @@ export {
   RunCorruptError,
   CheckpointCorruptError,
 } from './run-errors.js';
+
+// Workspace error codes and classes (E074-E081 per Plan 014)
+export { WorkspaceErrorCodes, WorkspaceErrors } from './workspace-errors.js';
+export type { WorkspaceError } from './workspace-errors.js';
+export {
+  WorkspaceNotFoundError,
+  WorkspaceExistsError,
+  InvalidPathError,
+  PathNotFoundError,
+  RegistryCorruptError,
+  GitOperationError,
+  ConfigNotWritableError,
+} from './workspace-errors.js';

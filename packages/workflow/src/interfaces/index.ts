@@ -44,3 +44,11 @@ export type {
   InitResult,
   InitializationStatus,
 } from './init-service.interface.js';
+
+// Workspace registry adapter interface (Plan 014)
+export type {
+  IWorkspaceRegistryAdapter,
+  WorkspaceErrorCode,
+  WorkspaceSaveResult,
+  WorkspaceRemoveResult,
+} from './workspace-registry-adapter.interface.js';

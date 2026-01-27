@@ -40,3 +40,13 @@ export type {
 } from './fake-workflow-adapter.js';
 export { FakePhaseAdapter } from './fake-phase-adapter.js';
 export type { LoadFromPathCall, ListForWorkflowCall } from './fake-phase-adapter.js';
+
+// Workspace registry adapter fake (Plan 014)
+export { FakeWorkspaceRegistryAdapter } from './fake-workspace-registry-adapter.js';
+export type {
+  WorkspaceLoadCall,
+  WorkspaceSaveCall,
+  WorkspaceListCall,
+  WorkspaceRemoveCall,
+  WorkspaceExistsCall,
+} from './fake-workspace-registry-adapter.js';
