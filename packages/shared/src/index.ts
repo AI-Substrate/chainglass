@@ -127,7 +127,7 @@ export { UnixProcessManager } from './adapters/index.js';
 export { WindowsProcessManager } from './adapters/index.js';
 
 // DI Tokens
-export { SHARED_DI_TOKENS, WORKFLOW_DI_TOKENS } from './di-tokens.js';
+export { SHARED_DI_TOKENS, WORKFLOW_DI_TOKENS, WORKGRAPH_DI_TOKENS } from './di-tokens.js';
 
 // Config (re-export key items from ./config for convenience)
 export {

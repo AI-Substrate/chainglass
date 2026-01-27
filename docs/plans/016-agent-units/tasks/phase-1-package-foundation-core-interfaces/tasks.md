@@ -96,49 +96,49 @@ flowchart TD
     style Contracts fill:#F5F5F5,stroke:#E0E0E0
 
     subgraph PackageSetup["Package Setup"]
-        T001["T001: Directory structure"]:::pending
-        T002["T002: package.json"]:::pending
-        T003["T003: tsconfig.json"]:::pending
+        T001["T001: Directory structure ✓"]:::completed
+        T002["T002: package.json ✓"]:::completed
+        T003["T003: tsconfig.json ✓"]:::completed
     end
 
     subgraph Interfaces["Interfaces"]
-        T004["T004: IWorkUnitService"]:::pending
-        T005["T005: IWorkGraphService"]:::pending
-        T006["T006: IWorkNodeService"]:::pending
-        T007["T007: Interface barrel exports"]:::pending
+        T004["T004: IWorkUnitService ✓"]:::completed
+        T005["T005: IWorkGraphService ✓"]:::completed
+        T006["T006: IWorkNodeService ✓"]:::completed
+        T007["T007: Interface barrel exports ✓"]:::completed
     end
 
     subgraph Schemas["Zod Schemas"]
-        T008["T008: WorkUnit schema"]:::pending
-        T009["T009: WorkGraph schema"]:::pending
-        T010["T010: WorkNode schema"]:::pending
+        T008["T008: WorkUnit schema ✓"]:::completed
+        T009["T009: WorkGraph schema ✓"]:::completed
+        T010["T010: WorkNode schema ✓"]:::completed
     end
 
     subgraph Types["Types & Errors"]
-        T011["T011: Result types"]:::pending
-        T012["T012: Error codes E101-E149"]:::pending
+        T011["T011: Result types ✓"]:::completed
+        T012["T012: Error codes E101-E149 ✓"]:::completed
     end
 
     subgraph Fakes["Fake Implementations"]
-        T013["T013: FakeWorkUnitService"]:::pending
-        T014["T014: FakeWorkGraphService"]:::pending
-        T015["T015: FakeWorkNodeService"]:::pending
-        T016["T016: Fakes barrel exports"]:::pending
+        T013["T013: FakeWorkUnitService ✓"]:::completed
+        T014["T014: FakeWorkGraphService ✓"]:::completed
+        T015["T015: FakeWorkNodeService ✓"]:::completed
+        T016["T016: Fakes barrel exports ✓"]:::completed
     end
 
     subgraph DI["DI Container"]
-        T017["T017: WORKGRAPH_DI_TOKENS"]:::pending
-        T018["T018: Production container"]:::pending
-        T019["T019: Test container"]:::pending
+        T017["T017: WORKGRAPH_DI_TOKENS ✓"]:::completed
+        T018["T018: Production container ✓"]:::completed
+        T019["T019: Test container ✓"]:::completed
     end
 
     subgraph Contracts["Contract Tests"]
-        T020["T020: IWorkUnitService contract"]:::pending
-        T021["T021: IWorkGraphService contract"]:::pending
-        T022["T022: IWorkNodeService contract"]:::pending
+        T020["T020: IWorkUnitService contract ✓"]:::completed
+        T021["T021: IWorkGraphService contract ✓"]:::completed
+        T022["T022: IWorkNodeService contract ✓"]:::completed
     end
 
-    T023["T023: Main barrel export"]:::pending
+    T023["T023: Main barrel export ✓"]:::completed
 
     %% Dependencies
     T001 --> T002
@@ -186,29 +186,29 @@ flowchart TD
 
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
-| T001 | Package Setup | packages/workgraph/ | ⬜ Pending | Create directory structure per plan § 2.3 |
-| T002 | Package Config | packages/workgraph/package.json | ⬜ Pending | Configure pnpm workspace package |
-| T003 | TypeScript Config | packages/workgraph/tsconfig.json | ⬜ Pending | TypeScript project references |
-| T004 | WorkUnit Interface | packages/workgraph/src/interfaces/workunit-service.interface.ts | ⬜ Pending | Define service contract |
-| T005 | WorkGraph Interface | packages/workgraph/src/interfaces/workgraph-service.interface.ts | ⬜ Pending | Define service contract |
-| T006 | WorkNode Interface | packages/workgraph/src/interfaces/worknode-service.interface.ts | ⬜ Pending | Define service contract |
-| T007 | Interface Exports | packages/workgraph/src/interfaces/index.ts | ⬜ Pending | Barrel export all interfaces |
-| T008 | WorkUnit Schema | packages/workgraph/src/schemas/workunit.schema.ts | ⬜ Pending | Zod validation schema |
-| T009 | WorkGraph Schema | packages/workgraph/src/schemas/workgraph.schema.ts | ⬜ Pending | Zod validation schema |
-| T010 | WorkNode Schema | packages/workgraph/src/schemas/worknode.schema.ts | ⬜ Pending | Zod validation schema |
-| T011 | Result Types | packages/workgraph/src/types/result.types.ts | ⬜ Pending | Extend BaseResult with errors array |
-| T012 | Error Codes | packages/workgraph/src/errors/workgraph-errors.ts | ⬜ Pending | E101-E149 error definitions |
-| T013 | FakeWorkUnitService | packages/workgraph/src/fakes/fake-workunit-service.ts | ⬜ Pending | Fake with call tracking |
-| T014 | FakeWorkGraphService | packages/workgraph/src/fakes/fake-workgraph-service.ts | ⬜ Pending | Fake with call tracking |
-| T015 | FakeWorkNodeService | packages/workgraph/src/fakes/fake-worknode-service.ts | ⬜ Pending | Fake with call tracking |
-| T016 | Fakes Exports | packages/workgraph/src/fakes/index.ts | ⬜ Pending | Barrel export all fakes |
-| T017 | DI Tokens | packages/shared/src/di-tokens.ts | ⬜ Pending | Add WORKGRAPH_DI_TOKENS |
-| T018 | Production Container | packages/workgraph/src/container.ts | ⬜ Pending | createWorkgraphProductionContainer() |
-| T019 | Test Container | packages/workgraph/src/container.ts | ⬜ Pending | createWorkgraphTestContainer() |
-| T020 | WorkUnit Contract | test/contracts/workunit-service.contract.ts | ⬜ Pending | Contract test suite |
-| T021 | WorkGraph Contract | test/contracts/workgraph-service.contract.ts | ⬜ Pending | Contract test suite |
-| T022 | WorkNode Contract | test/contracts/worknode-service.contract.ts | ⬜ Pending | Contract test suite |
-| T023 | Main Barrel | packages/workgraph/src/index.ts | ⬜ Pending | Package entry point |
+| T001 | Package Setup | packages/workgraph/ | ✅ Complete | Create directory structure per plan § 2.3 |
+| T002 | Package Config | packages/workgraph/package.json | ✅ Complete | Configure pnpm workspace package |
+| T003 | TypeScript Config | packages/workgraph/tsconfig.json | ✅ Complete | TypeScript project references |
+| T004 | WorkUnit Interface | packages/workgraph/src/interfaces/workunit-service.interface.ts | ✅ Complete | Define service contract |
+| T005 | WorkGraph Interface | packages/workgraph/src/interfaces/workgraph-service.interface.ts | ✅ Complete | Define service contract |
+| T006 | WorkNode Interface | packages/workgraph/src/interfaces/worknode-service.interface.ts | ✅ Complete | Define service contract |
+| T007 | Interface Exports | packages/workgraph/src/interfaces/index.ts | ✅ Complete | Barrel export all interfaces |
+| T008 | WorkUnit Schema | packages/workgraph/src/schemas/workunit.schema.ts | ✅ Complete | Zod validation schema |
+| T009 | WorkGraph Schema | packages/workgraph/src/schemas/workgraph.schema.ts | ✅ Complete | Zod validation schema |
+| T010 | WorkNode Schema | packages/workgraph/src/schemas/worknode.schema.ts | ✅ Complete | Zod validation schema |
+| T011 | Result Types | packages/workgraph/src/types/index.ts | ✅ Complete | Extend BaseResult with errors array |
+| T012 | Error Codes | packages/workgraph/src/errors/workgraph-errors.ts | ✅ Complete | E101-E149 error definitions |
+| T013 | FakeWorkUnitService | packages/workgraph/src/fakes/fake-workunit-service.ts | ✅ Complete | Fake with call tracking |
+| T014 | FakeWorkGraphService | packages/workgraph/src/fakes/fake-workgraph-service.ts | ✅ Complete | Fake with call tracking |
+| T015 | FakeWorkNodeService | packages/workgraph/src/fakes/fake-worknode-service.ts | ✅ Complete | Fake with call tracking |
+| T016 | Fakes Exports | packages/workgraph/src/fakes/index.ts | ✅ Complete | Barrel export all fakes |
+| T017 | DI Tokens | packages/shared/src/di-tokens.ts | ✅ Complete | Add WORKGRAPH_DI_TOKENS |
+| T018 | Production Container | packages/workgraph/src/container.ts | ✅ Complete | createWorkgraphProductionContainer() |
+| T019 | Test Container | packages/workgraph/src/container.ts | ✅ Complete | createWorkgraphTestContainer() |
+| T020 | WorkUnit Contract | test/contracts/workunit-service.contract.ts | ✅ Complete | Contract test suite |
+| T021 | WorkGraph Contract | test/contracts/workgraph-service.contract.ts | ✅ Complete | Contract test suite |
+| T022 | WorkNode Contract | test/contracts/worknode-service.contract.ts | ✅ Complete | Contract test suite |
+| T023 | Main Barrel | packages/workgraph/src/index.ts | ✅ Complete | Package entry point |
 
 ---
 
@@ -216,29 +216,29 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|------|------|----|------|--------------|------------------|------------|----------|-------|
-| [ ] | T001 | Create packages/workgraph/ directory structure per plan § 2.3 | 1 | Setup | – | /home/jak/substrate/016-agent-units/packages/workgraph/ | Directories exist: src/{interfaces,services,adapters,schemas,fakes,errors,types} | – | |
-| [ ] | T002 | Create package.json with workspace dependencies | 1 | Setup | T001 | /home/jak/substrate/016-agent-units/packages/workgraph/package.json | `pnpm install` succeeds | – | Use @chainglass/workflow as template; add zod + zod-to-json-schema deps |
-| [ ] | T003 | Create tsconfig.json with project references | 1 | Setup | T002 | /home/jak/substrate/016-agent-units/packages/workgraph/tsconfig.json | `pnpm -F @chainglass/workgraph build` succeeds (with empty src/index.ts) | – | Reference ../shared |
-| [ ] | T004 | Define IWorkUnitService interface | 2 | Core | T003 | /home/jak/substrate/016-agent-units/packages/workgraph/src/interfaces/workunit-service.interface.ts | Interface exports list(), load(), create(), validate() methods | – | Per spec AC-14, AC-15 |
-| [ ] | T005 | Define IWorkGraphService interface | 2 | Core | T003 | /home/jak/substrate/016-agent-units/packages/workgraph/src/interfaces/workgraph-service.interface.ts | Interface exports create(), load(), show(), status(), addNodeAfter(), removeNode() methods | – | Per spec AC-01 through AC-08; graph structure ops moved here |
-| [ ] | T006 | Define IWorkNodeService interface | 2 | Core | T003 | /home/jak/substrate/016-agent-units/packages/workgraph/src/interfaces/worknode-service.interface.ts | Interface exports canRun(), start(), end(), getInputData(), saveOutputData() methods | – | Per spec AC-09 through AC-13; execution-focused only |
-| [ ] | T007 | Create interfaces barrel export | 1 | Setup | T004, T005, T006 | /home/jak/substrate/016-agent-units/packages/workgraph/src/interfaces/index.ts | All interfaces exported with `export type` | – | |
-| [ ] | T008 | Define WorkUnit Zod schema | 2 | Core | T003 | /home/jak/substrate/016-agent-units/packages/workgraph/src/schemas/workunit.schema.ts | Schema validates AgentUnit, CodeUnit, UserInputUnit YAML per workunit-data-model.md | – | Use Zod + zod-to-json-schema; export both ZodSchema and JSON Schema |
-| [ ] | T009 | Define WorkGraph Zod schema | 2 | Core | T003 | /home/jak/substrate/016-agent-units/packages/workgraph/src/schemas/workgraph.schema.ts | Schema validates work-graph.yaml per workgraph-data-model.md | – | Use Zod + zod-to-json-schema; export both ZodSchema and JSON Schema |
-| [ ] | T010 | Define WorkNode Zod schema | 2 | Core | T003 | /home/jak/substrate/016-agent-units/packages/workgraph/src/schemas/worknode.schema.ts | Schema validates node.yaml and state.json per workgraph-data-model.md | – | Use Zod + zod-to-json-schema; export both ZodSchema and JSON Schema |
-| [ ] | T011 | Define result types extending BaseResult | 2 | Core | T007, T008, T009, T010 | /home/jak/substrate/016-agent-units/packages/workgraph/src/types/result.types.ts | All result types have errors: ResultError[] property | – | Per Critical Discovery 02 |
-| [ ] | T012 | Define error codes E101-E149 with documentation | 1 | Core | T011 | /home/jak/substrate/016-agent-units/packages/workgraph/src/errors/workgraph-errors.ts | Error codes documented per plan § 3 Discovery 09 allocation | – | Per Discovery 09 |
-| [ ] | T013 | Create FakeWorkUnitService with call tracking | 2 | Test | T007 | /home/jak/substrate/016-agent-units/packages/workgraph/src/fakes/fake-workunit-service.ts | Fake has getCalls(), getLastCall(), setPresetResult(), reset() methods | – | Per Discovery 08 |
-| [ ] | T014 | Create FakeWorkGraphService with call tracking | 2 | Test | T007 | /home/jak/substrate/016-agent-units/packages/workgraph/src/fakes/fake-workgraph-service.ts | Fake has getCalls(), getLastCall(), setPresetResult(), reset() for 6 methods | – | Per Discovery 08; includes addNodeAfter/removeNode |
-| [ ] | T015 | Create FakeWorkNodeService with call tracking | 2 | Test | T007 | /home/jak/substrate/016-agent-units/packages/workgraph/src/fakes/fake-worknode-service.ts | Fake has getCalls(), getLastCall(), setPresetResult(), reset() for 5 methods | – | Per Discovery 08; execution-focused only |
-| [ ] | T016 | Create fakes barrel export | 1 | Setup | T013, T014, T015 | /home/jak/substrate/016-agent-units/packages/workgraph/src/fakes/index.ts | All fakes and call types exported | – | |
-| [ ] | T017 | Add WORKGRAPH_DI_TOKENS to shared package | 1 | Core | T012, T016 | /home/jak/substrate/016-agent-units/packages/shared/src/di-tokens.ts | Tokens for WORKUNIT_SERVICE, WORKGRAPH_SERVICE, WORKNODE_SERVICE, WORKUNIT_PARSER, WORKGRAPH_PARSER, WORKGRAPH_VALIDATOR | – | Per Critical Discovery 01 |
-| [ ] | T018 | Create createWorkgraphProductionContainer() | 2 | Core | T017 | /home/jak/substrate/016-agent-units/packages/workgraph/src/container.ts | Returns child container, registers with useFactory | – | Per Critical Discovery 01 |
-| [ ] | T019 | Create createWorkgraphTestContainer() | 2 | Core | T017 | /home/jak/substrate/016-agent-units/packages/workgraph/src/container.ts | Returns child container, registers fakes with useValue | – | Per Critical Discovery 01 |
-| [ ] | T020 | Write IWorkUnitService contract tests | 2 | Test | T007, T016 | /home/jak/substrate/016-agent-units/test/contracts/workunit-service.contract.ts | Contract tests define list(), load(), create(), validate() behavior | – | Parity tests: validates fake matches interface contract |
-| [ ] | T021 | Write IWorkGraphService contract tests | 2 | Test | T007, T016 | /home/jak/substrate/016-agent-units/test/contracts/workgraph-service.contract.ts | Contract tests define create(), load(), show(), status(), addNodeAfter(), removeNode() behavior | – | Parity tests: validates fake matches interface contract |
-| [ ] | T022 | Write IWorkNodeService contract tests | 2 | Test | T007, T016 | /home/jak/substrate/016-agent-units/test/contracts/worknode-service.contract.ts | Contract tests define canRun(), start(), end(), getInputData(), saveOutputData() behavior | – | Parity tests: validates fake matches interface contract |
-| [ ] | T023 | Create main barrel export (index.ts) | 1 | Setup | T018, T019, T020, T021, T022 | /home/jak/substrate/016-agent-units/packages/workgraph/src/index.ts | All public APIs exported, import @chainglass/workgraph works | – | |
+| [x] | T001 | Create packages/workgraph/ directory structure per plan § 2.3 | 1 | Setup | – | /home/jak/substrate/016-agent-units/packages/workgraph/ | Directories exist: src/{interfaces,services,adapters,schemas,fakes,errors,types} | – | |
+| [x] | T002 | Create package.json with workspace dependencies | 1 | Setup | T001 | /home/jak/substrate/016-agent-units/packages/workgraph/package.json | `pnpm install` succeeds | – | Use @chainglass/workflow as template; add zod + zod-to-json-schema deps |
+| [x] | T003 | Create tsconfig.json with project references | 1 | Setup | T002 | /home/jak/substrate/016-agent-units/packages/workgraph/tsconfig.json | `pnpm -F @chainglass/workgraph build` succeeds (with empty src/index.ts) | – | Reference ../shared |
+| [x] | T004 | Define IWorkUnitService interface | 2 | Core | T003 | /home/jak/substrate/016-agent-units/packages/workgraph/src/interfaces/workunit-service.interface.ts | Interface exports list(), load(), create(), validate() methods | – | Per spec AC-14, AC-15 |
+| [x] | T005 | Define IWorkGraphService interface | 2 | Core | T003 | /home/jak/substrate/016-agent-units/packages/workgraph/src/interfaces/workgraph-service.interface.ts | Interface exports create(), load(), show(), status(), addNodeAfter(), removeNode() methods | – | Per spec AC-01 through AC-08; graph structure ops moved here |
+| [x] | T006 | Define IWorkNodeService interface | 2 | Core | T003 | /home/jak/substrate/016-agent-units/packages/workgraph/src/interfaces/worknode-service.interface.ts | Interface exports canRun(), start(), end(), getInputData(), saveOutputData() methods | – | Per spec AC-09 through AC-13; execution-focused only |
+| [x] | T007 | Create interfaces barrel export | 1 | Setup | T004, T005, T006 | /home/jak/substrate/016-agent-units/packages/workgraph/src/interfaces/index.ts | All interfaces exported with `export type` | – | |
+| [x] | T008 | Define WorkUnit Zod schema | 2 | Core | T003 | /home/jak/substrate/016-agent-units/packages/workgraph/src/schemas/workunit.schema.ts | Schema validates AgentUnit, CodeUnit, UserInputUnit YAML per workunit-data-model.md | – | Use Zod + zod-to-json-schema; export both ZodSchema and JSON Schema |
+| [x] | T009 | Define WorkGraph Zod schema | 2 | Core | T003 | /home/jak/substrate/016-agent-units/packages/workgraph/src/schemas/workgraph.schema.ts | Schema validates work-graph.yaml per workgraph-data-model.md | – | Use Zod + zod-to-json-schema; export both ZodSchema and JSON Schema |
+| [x] | T010 | Define WorkNode Zod schema | 2 | Core | T003 | /home/jak/substrate/016-agent-units/packages/workgraph/src/schemas/worknode.schema.ts | Schema validates node.yaml and state.json per workgraph-data-model.md | – | Use Zod + zod-to-json-schema; export both ZodSchema and JSON Schema |
+| [x] | T011 | Define result types extending BaseResult | 2 | Core | T007, T008, T009, T010 | /home/jak/substrate/016-agent-units/packages/workgraph/src/types/result.types.ts | All result types have errors: ResultError[] property | – | Per Critical Discovery 02 |
+| [x] | T012 | Define error codes E101-E149 with documentation | 1 | Core | T011 | /home/jak/substrate/016-agent-units/packages/workgraph/src/errors/workgraph-errors.ts | Error codes documented per plan § 3 Discovery 09 allocation | – | Per Discovery 09 |
+| [x] | T013 | Create FakeWorkUnitService with call tracking | 2 | Test | T007 | /home/jak/substrate/016-agent-units/packages/workgraph/src/fakes/fake-workunit-service.ts | Fake has getCalls(), getLastCall(), setPresetResult(), reset() methods | – | Per Discovery 08 |
+| [x] | T014 | Create FakeWorkGraphService with call tracking | 2 | Test | T007 | /home/jak/substrate/016-agent-units/packages/workgraph/src/fakes/fake-workgraph-service.ts | Fake has getCalls(), getLastCall(), setPresetResult(), reset() for 6 methods | – | Per Discovery 08; includes addNodeAfter/removeNode |
+| [x] | T015 | Create FakeWorkNodeService with call tracking | 2 | Test | T007 | /home/jak/substrate/016-agent-units/packages/workgraph/src/fakes/fake-worknode-service.ts | Fake has getCalls(), getLastCall(), setPresetResult(), reset() for 5 methods | – | Per Discovery 08; execution-focused only |
+| [x] | T016 | Create fakes barrel export | 1 | Setup | T013, T014, T015 | /home/jak/substrate/016-agent-units/packages/workgraph/src/fakes/index.ts | All fakes and call types exported | – | |
+| [x] | T017 | Add WORKGRAPH_DI_TOKENS to shared package | 1 | Core | T012, T016 | /home/jak/substrate/016-agent-units/packages/shared/src/di-tokens.ts | Tokens for WORKUNIT_SERVICE, WORKGRAPH_SERVICE, WORKNODE_SERVICE, WORKUNIT_PARSER, WORKGRAPH_PARSER, WORKGRAPH_VALIDATOR | – | Per Critical Discovery 01 |
+| [x] | T018 | Create createWorkgraphProductionContainer() | 2 | Core | T017 | /home/jak/substrate/016-agent-units/packages/workgraph/src/container.ts | Returns child container, registers with useFactory | – | Per Critical Discovery 01 |
+| [x] | T019 | Create createWorkgraphTestContainer() | 2 | Core | T017 | /home/jak/substrate/016-agent-units/packages/workgraph/src/container.ts | Returns child container, registers fakes with useValue | – | Per Critical Discovery 01 |
+| [x] | T020 | Write IWorkUnitService contract tests | 2 | Test | T007, T016 | /home/jak/substrate/016-agent-units/test/contracts/workunit-service.contract.ts | Contract tests define list(), load(), create(), validate() behavior | – | Parity tests: validates fake matches interface contract |
+| [x] | T021 | Write IWorkGraphService contract tests | 2 | Test | T007, T016 | /home/jak/substrate/016-agent-units/test/contracts/workgraph-service.contract.ts | Contract tests define create(), load(), show(), status(), addNodeAfter(), removeNode() behavior | – | Parity tests: validates fake matches interface contract |
+| [x] | T022 | Write IWorkNodeService contract tests | 2 | Test | T007, T016 | /home/jak/substrate/016-agent-units/test/contracts/worknode-service.contract.ts | Contract tests define canRun(), start(), end(), getInputData(), saveOutputData() behavior | – | Parity tests: validates fake matches interface contract |
+| [x] | T023 | Create main barrel export (index.ts) | 1 | Setup | T018, T019, T020, T021, T022 | /home/jak/substrate/016-agent-units/packages/workgraph/src/index.ts | All public APIs exported, import @chainglass/workgraph works | – | |
 
 ---
 
