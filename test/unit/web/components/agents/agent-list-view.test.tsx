@@ -98,16 +98,16 @@ describe('AgentListView', () => {
       Test Doc:
       - Why: Users need to see session state
       - Contract: Status indicator shown for each session
-      - Usage Notes: Uses AgentStatusIndicator component
+      - Usage Notes: Uses AgentStatusIndicator component in compact mode (icon only)
       - Quality Contribution: Status visibility
-      - Worked Example: running session → shows "Running"
+      - Worked Example: running session → shows spinning loader icon
       */
       const sessions = [createTestSession({ id: '1', name: 'Test Session', status: 'running' })];
 
       render(<AgentListView sessions={sessions} activeSessionId="1" onSelect={handler.onSelect} />);
 
-      // Should show status text (status indicator has role="status")
-      expect(screen.getByRole('status')).toBeInTheDocument();
+      // Should show status icon (compact mode uses span with title)
+      expect(screen.getByTitle('Running')).toBeInTheDocument();
     });
   });
 
