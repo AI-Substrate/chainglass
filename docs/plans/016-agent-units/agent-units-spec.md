@@ -14,8 +14,8 @@
 
 ### Components Affected
 - **New package**: `packages/workgraph/` (entirely new)
-- **CLI extension**: `apps/cli/` (new `cg graph` and `cg unit` commands)
-- **Storage**: `.chainglass/graphs/` and `.chainglass/units/` directories
+- **CLI extension**: `apps/cli/` (new `cg wg` and `cg unit` commands)
+- **Storage**: `.chainglass/work-graphs/` and `.chainglass/units/` directories
 
 ### Modification Risks
 - **Low risk**: This is a clean restart, not modifying legacy workflow code
@@ -25,7 +25,7 @@
 
 ## Summary
 
-**WorkGraph** is a new graph-based workflow system that replaces the legacy phase-based workflow architecture. It introduces **WorkUnits** (AgentUnit, CodeUnit, AskUnit) as reusable building blocks that can be composed into directed acyclic graphs (DAGs).
+**WorkGraph** is a new graph-based workflow system that replaces the legacy phase-based workflow architecture. It introduces **WorkUnits** (AgentUnit, CodeUnit, UserInputUnit) as reusable building blocks that can be composed into directed acyclic graphs (DAGs).
 
 **WHY**: The legacy workflow system uses a rigid template→checkpoint→run model with linear phase sequences. Users need the ability to create flexible, reusable workflows with branching paths, explicit data dependencies, and iterative refinement through re-execution.
 
@@ -40,13 +40,13 @@
 
 ## Goals
 
-1. **Reusable Units**: Users can define AgentUnits, CodeUnits, and AskUnits once and reuse them across multiple graphs
+1. **Reusable Units**: Users can define AgentUnits, CodeUnits, and UserInputUnits once and reuse them across multiple graphs
 2. **Graph Composition**: Users can build DAGs by adding nodes after existing nodes with automatic input/output wiring
 3. **Fail-Fast Validation**: Invalid connections (missing required inputs) are rejected at insertion time, not execution time
 4. **Explicit Execution**: Users execute specific nodes by full slug; no automatic "run all" or "next" behavior
 5. **Re-entrant Execution**: Running a node clears its outputs and re-runs; users can iterate until satisfied
 6. **Filesystem-Based**: All state stored in YAML/JSON files; inspectable, git-friendly, no database required
-7. **CLI-First**: All operations available via `cg graph` and `cg unit` commands
+7. **CLI-First**: All operations available via `cg wg` and `cg unit` commands
 
 ---
 
@@ -72,7 +72,7 @@
 |-----------|-------|-----------|
 | Surface Area (S) | 2 | New package, CLI commands, storage format, multiple node types |
 | Integration (I) | 1 | Integrates with existing agent adapters (IAgentAdapter) |
-| Data/State (D) | 2 | New graph.yaml, graph-state.json, unit.yaml schemas |
+| Data/State (D) | 2 | New work-graph.yaml, state.json, unit.yaml schemas |
 | Novelty (N) | 1 | DAG concepts well-understood; specific design decisions need validation |
 | Non-Functional (F) | 1 | File atomicity, re-entrancy guarantees |
 | Testing/Rollout (T) | 2 | Contract tests, integration tests, new CLI commands |
@@ -99,7 +99,7 @@
 **Phases** (suggested):
 1. **Core Infrastructure**: Graph data model, storage, basic CLI (create, show, status)
 2. **Node Operations**: add-after, remove, input/output validation
-3. **Unit Library**: AskUnit, AgentUnit definitions and loading
+3. **Unit Library**: UserInputUnit, AgentUnit definitions and loading
 4. **Execution**: exec, answer commands with re-entrancy
 5. **Polish**: Error messages, validation, edge cases
 6. **Documentation**: User guide, migration notes
@@ -112,71 +112,71 @@
 
 **AC-01**: User can create a new empty graph
 - Given: No graph exists with slug "my-workflow"
-- When: User runs `cg graph create my-workflow`
-- Then: Directory `.chainglass/graphs/my-workflow/` is created with `graph.yaml` containing a single start node
+- When: User runs `cg wg create my-workflow`
+- Then: Directory `.chainglass/work-graphs/my-workflow/` is created with `work-work-graph.yaml` containing a single start node
 
 **AC-02**: User can view graph structure
 - Given: Graph "my-workflow" exists with nodes
-- When: User runs `cg graph show my-workflow`
+- When: User runs `cg wg show my-workflow`
 - Then: Tree-style output shows all nodes with their types, inputs, and outputs
 
 **AC-03**: User can check graph execution status
 - Given: Graph "my-workflow" exists with some nodes executed
-- When: User runs `cg graph status my-workflow`
+- When: User runs `cg wg status my-workflow`
 - Then: Table shows each node's status (pending, ready, waiting, running, complete, blocked)
 
 ### Node Operations
 
 **AC-04**: User can add a node after another node (success case)
-- Given: Graph has node "graph-001-start" and unit "ask-text" exists
-- When: User runs `cg graph node add-after graph-001-start ask-text --config prompt="Question?" --config output_name="answer"`
-- Then: New node "graph-002-ask-text" is added with edge from start node
+- Given: Graph has node "start" and unit "user-input-text" exists
+- When: User runs `cg wg node add-after start user-input-text --config prompt="Question?" --config output_name="answer"`
+- Then: New node "user-input-text-a7f" is added with edge from start node
 
 **AC-05**: User cannot add a node with unsatisfied required inputs
 - Given: Graph has only start node (no outputs) and unit "write-poem" requires input "topic:text"
-- When: User runs `cg graph node add-after graph-001-start write-poem`
-- Then: Error E103 returned with message explaining missing input and suggesting AskUnit
+- When: User runs `cg wg node add-after start write-poem`
+- Then: Error E103 returned with message explaining missing input and suggesting UserInputUnit
 
 **AC-06**: User can add a node when predecessor provides required outputs
-- Given: Graph has node "graph-002-ask-text" that outputs "topic:text", unit "write-poem" requires "topic:text"
-- When: User runs `cg graph node add-after graph-002-ask-text write-poem`
-- Then: New node added with automatic input mapping (topic ← ask-text.topic)
+- Given: Graph has node "user-input-text-a7f" that outputs "topic:text", unit "write-poem" requires "topic:text"
+- When: User runs `cg wg node add-after user-input-text-a7f write-poem`
+- Then: New node added with automatic input mapping (topic ← user-input-text.topic)
 
 **AC-07**: User cannot remove a node that has dependents
 - Given: Graph has nodes A → B → C
-- When: User runs `cg graph node remove B`
+- When: User runs `cg wg node remove B`
 - Then: Error E102 returned listing dependents, suggesting --cascade option
 
 **AC-08**: User can remove a leaf node
 - Given: Graph has nodes A → B → C (C is leaf)
-- When: User runs `cg graph node remove C`
+- When: User runs `cg wg node remove C`
 - Then: Node C removed, edge B→C removed, node folder deleted
 
 ### Execution
 
 **AC-09**: User can execute a ready node by full slug
-- Given: Graph has node "graph-003-write-poem" with all inputs available
-- When: User runs `cg graph exec graph-003-write-poem`
+- Given: Graph has node "write-poem-b2c" with all inputs available
+- When: User runs `cg wg exec write-poem-b2c`
 - Then: Agent executes, outputs are produced, node status becomes "complete"
 
 **AC-10**: User cannot execute a blocked node
-- Given: Graph has node "graph-003-write-poem" but predecessor not complete
-- When: User runs `cg graph exec graph-003-write-poem`
+- Given: Graph has node "write-poem-b2c" but predecessor not complete
+- When: User runs `cg wg exec write-poem-b2c`
 - Then: Error E110 returned explaining missing inputs and blocking nodes
 
-**AC-11**: User can answer an AskUnit
-- Given: Graph has AskUnit "graph-002-ask-text" in "waiting" status
-- When: User runs `cg graph answer graph-002-ask-text "The ocean at sunset"`
+**AC-11**: User can answer an UserInputUnit
+- Given: Graph has UserInputUnit "user-input-text-a7f" in "waiting" status
+- When: User runs `cg wg answer user-input-text-a7f "The ocean at sunset"`
 - Then: Answer saved to node data, node status becomes "complete", outputs available
 
 **AC-12**: User can re-execute a completed node
-- Given: Graph has node "graph-003-write-poem" already complete with outputs
-- When: User runs `cg graph exec graph-003-write-poem`
+- Given: Graph has node "write-poem-b2c" already complete with outputs
+- When: User runs `cg wg exec write-poem-b2c`
 - Then: Previous outputs cleared, agent re-executes, new outputs saved
 
 **AC-13**: Re-executing a node with dependents shows warning
 - Given: Graph has A → B → C, B is complete, C used B's outputs
-- When: User runs `cg graph exec B`
+- When: User runs `cg wg exec B`
 - Then: Warning shown listing affected dependents, requiring --cascade or --force flag
 
 ### Unit Library
@@ -199,7 +199,7 @@
 - Then: Error returned before any state is persisted
 
 **AC-17**: Graph validates on load
-- Given: User manually edited graph.yaml and introduced invalid reference
+- Given: User manually edited work-graph.yaml and introduced invalid reference
 - When: System loads the graph
 - Then: Validation error with specific location and suggested fix
 
@@ -213,8 +213,8 @@
 |------|------------|--------|------------|
 | File corruption from concurrent access | Medium | High | Atomic write pattern (temp file + rename) |
 | Complex type matching edge cases | Medium | Medium | Start with 4 simple types; expand carefully |
-| User confusion with legacy system | Medium | Low | Clear documentation; different command prefix (`cg graph` vs `cg wf`) |
-| Graph state and node data out of sync | Low | High | Single source of truth in graph-state.json; validate on load |
+| User confusion with legacy system | Medium | Low | Clear documentation; different command prefix (`cg wg` vs `cg wf`) |
+| Graph state and node data out of sync | Low | High | Single source of truth in state.json; validate on load |
 | Performance with large graphs | Low | Medium | Lazy loading; only load nodes when needed |
 
 ### Assumptions
@@ -230,7 +230,7 @@
 ## Open Questions
 
 1. **Q1**: Should node IDs include the unit slug or just a sequence number?
-   - Current: `<graph>-<seq>-<unit>` (e.g., `poem-workflow-002-ask-text`)
+   - Current: `<graph>-<seq>-<unit>` (e.g., `poem-workflow-002-user-input-text`)
    - Alternative: `<graph>-<seq>` only (e.g., `poem-workflow-002`)
    - [NEEDS CLARIFICATION: User preference on ID readability vs brevity]
 
@@ -294,7 +294,7 @@
 - Output review between steps
 
 **Candidate Alternatives**:
-- A: Automatic "run all" with pause at AskUnits
+- A: Automatic "run all" with pause at UserInputUnits
 - B: Automatic "next" selection
 - C: Explicit execution by slug only (proposed)
 
@@ -305,6 +305,10 @@
 ## References
 
 - **Research Dossier**: `docs/plans/016-agent-units/research-dossier.md`
+- **WorkGraph Command Flows**: `docs/plans/016-agent-units/workgraph-command-flows.md`
+- **WorkUnit Command Flows**: `docs/plans/016-agent-units/work-unit-command-flows.md`
+- **WorkGraph Data Model**: `docs/plans/016-agent-units/workgraph-data-model.md`
+- **WorkUnit Data Model**: `docs/plans/016-agent-units/workunit-data-model.md`
 - **Legacy Workflow**: `packages/workflow/` (for comparison)
 - **Prior Learnings**: PL-01 through PL-15 in research dossier
 

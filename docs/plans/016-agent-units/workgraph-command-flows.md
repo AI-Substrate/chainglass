@@ -2,6 +2,13 @@
 
 Reference document showing all CLI commands and their execution flows.
 
+**Related Documents**:
+- [Work-Unit Command Flows](work-unit-command-flows.md) - Unit management commands (`cg unit`)
+- [WorkGraph Data Model](workgraph-data-model.md) - Data structures and schemas
+- [WorkUnit Data Model](workunit-data-model.md) - Unit definition schemas
+
+---
+
 ## Terminology
 
 | Term | Meaning |
@@ -59,10 +66,17 @@ Reference document showing all CLI commands and their execution flows.
 | `cg wg node <slug> save-output-data <name> <value>` | Save data value (overwrites) |
 
 ### Work-Unit Commands
+
+Work-unit commands are **top-level** (not under `wg`) since units are independent of work-graphs.
+
+See **[work-unit-command-flows.md](work-unit-command-flows.md)** for full documentation.
+
 | Command | Purpose |
 |---------|---------|
-| `cg wg unit list` | List available work-units |
-| `cg wg unit info <slug>` | Show work-unit details |
+| `cg unit list` | List available work-units |
+| `cg unit info <slug>` | Show work-unit details |
+| `cg unit create <slug> --type <type>` | Create new unit |
+| `cg unit validate <slug>` | Validate unit definition |
 
 ---
 
@@ -86,27 +100,32 @@ Work-units and work-graphs are stored **separately**. Work-units are reusable te
 │
 └── work-graphs/                    # Per-work-graph instances
     ├── poem-workflow/
-    │   ├── work-graph.yaml         # References units by slug
+    │   ├── work-graph.yaml         # Node IDs and edges (structure only)
     │   ├── state.json              # Runtime state (work-node statuses)
     │   └── nodes/
-    │       ├── 001-start/
-    │       │   └── node.yaml       # Work-node config
-    │       ├── 002-user-input/
-    │       │   ├── node.yaml       # Work-node config (which unit, input mappings)
+    │       ├── start/
+    │       │   └── node.yaml       # Start node (reserved name)
+    │       ├── user-input-text-a7f/
+    │       │   ├── node.yaml       # Work-node config (unit, config, inputs)
     │       │   └── data/
-    │       │       └── data.json   # Output data values for this work-node
-    │       └── 003-write-poem/
+    │       │       └── data.json   # Output data values
+    │       └── write-poem-b2c/
     │           ├── node.yaml
     │           └── data/
     │               ├── data.json   # Output data values
     │               └── outputs/
-    │                   └── poem.md # File outputs stored as files
+    │                   └── poem.md # File outputs
     │
     └── content-workflow/
         ├── work-graph.yaml
         └── nodes/
             ├── ...
 ```
+
+**Node ID format**: `<unit-slug>-<guid>` (3 hex chars) or `start` (reserved)
+- Examples: `start`, `user-input-text-a7f`, `write-poem-b2c`, `write-poem-d4e`
+- No sequence numbers (nodes can be reordered)
+- Guid prevents collisions when same unit used multiple times
 
 **Key distinction**:
 - **Work-Units** (`units/`) = reusable templates (AgentUnit, CodeUnit, UserInputUnit)
@@ -192,18 +211,18 @@ $ cg wg create <slug>
 │ CREATE STRUCTURE                                            │
 │                                                             │
 │   .chainglass/work-graphs/poem-workflow/                    │
-│   ├── work-graph.yaml     # Work-graph definition           │
+│   ├── work-graph.yaml     # Node IDs and edges              │
 │   ├── state.json          # Runtime state                   │
 │   └── nodes/                                                │
-│       └── 001-start/                                        │
-│           └── node.yaml   # Start work-node (no outputs)    │
+│       └── start/                                            │
+│           └── node.yaml   # Start node (reserved name)      │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │ OUTPUT                                                      │
 │   ✓ Created work-graph 'poem-workflow' with start node      │
-│   Start node: poem-workflow-001-start                       │
+│   Start node: start                                         │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -230,15 +249,15 @@ $ cg wg show <slug>
 │                                                             │
 │   poem-workflow                                             │
 │   │                                                         │
-│   └─► start (poem-workflow-001-start)                       │
+│   └─► start                                                 │
 │       │   outputs: (none)                                   │
 │       │                                                     │
-│       └─► user-input-text (poem-workflow-002-user-input-text)             │
+│       └─► user-input-text-a7f                               │
 │           │   config: prompt="What topic?"                  │
-│           │   outputs: topic:text                           │
+│           │   outputs: text:data                            │
 │           │                                                 │
-│           └─► write-poem (poem-workflow-003-write-poem)     │
-│               │   inputs: topic:text ← 002-user-input-text         │
+│           └─► write-poem-b2c                                │
+│               │   inputs: topic ← user-input-text-a7f.text  │
 │               │   outputs: poem:file                        │
 │               │                                             │
 │               (end)                                         │
@@ -255,24 +274,24 @@ $ cg wg show <slug>
 │                                                             │
 │   content-workflow                                          │
 │   │                                                         │
-│   └─► start (content-workflow-001-start)                    │
+│   └─► start                                                 │
 │       │                                                     │
-│       └─► user-input-text (content-workflow-002-user-input-text)          │
-│           │   outputs: topic:text                           │
+│       └─► user-input-text-a7f                               │
+│           │   outputs: text:data                            │
 │           │                                                 │
-│           ├─► write-poem (content-workflow-003-write-poem)  │
-│           │   │   inputs: topic:text ← 002-user-input-text         │
+│           ├─► write-poem-b2c                                │
+│           │   │   inputs: topic ← user-input-text-a7f.text  │
 │           │   │   outputs: poem:file                        │
 │           │   (end)                                         │
 │           │                                                 │
-│           └─► write-essay (content-workflow-004-write-essay)│
-│               │   inputs: topic:text ← 002-user-input-text         │
+│           └─► write-essay-d4e                               │
+│               │   inputs: topic ← user-input-text-a7f.text  │
 │               │   outputs: essay:file                       │
 │               (end)                                         │
 └─────────────────────────────────────────────────────────────┘
 
-   Note: Both write-poem and write-essay receive the same
-   'topic' output from user-input-text. They can be executed in
+   Note: Both write-poem-b2c and write-essay-d4e receive the same
+   'text' output from user-input-text-a7f. They can be executed in
    any order (or in parallel in future versions).
 ```
 
@@ -301,19 +320,19 @@ $ cg wg status <slug>
 │   Graph: poem-workflow                                      │
 │   Status: in_progress                                       │
 │                                                             │
-│   ┌────────────────────────────┬────────┬──────────┐        │
-│   │ Node                       │ Type   │ Status   │        │
-│   ├────────────────────────────┼────────┼──────────┤        │
-│   │ poem-workflow-001-start    │ start  │ complete │        │
-│   │ poem-workflow-002-user-input-text │ ask    │ ready    │        │
-│   │ poem-workflow-003-write    │ agent  │ blocked  │        │
-│   └────────────────────────────┴────────┴──────────┘        │
+│   ┌─────────────────────┬────────────┬──────────┐           │
+│   │ Node                │ Unit       │ Status   │           │
+│   ├─────────────────────┼────────────┼──────────┤           │
+│   │ start               │ (start)    │ complete │           │
+│   │ user-input-text-a7f │ user-input │ ready    │           │
+│   │ write-poem-b2c      │ agent      │ pending  │           │
+│   └─────────────────────┴────────────┴──────────┘           │
 │                                                             │
 │   Ready to execute:                                         │
-│     • poem-workflow-002-user-input-text                            │
+│     • user-input-text-a7f                                   │
 │                                                             │
-│   Blocked:                                                  │
-│     • poem-workflow-003-write (needs: 002-user-input-text)         │
+│   Pending:                                                  │
+│     • write-poem-b2c (needs: user-input-text-a7f)           │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -328,20 +347,20 @@ $ cg wg status content-workflow
 │   Graph: content-workflow                                   │
 │   Status: in_progress                                       │
 │                                                             │
-│   ┌─────────────────────────────────┬────────┬──────────┐   │
-│   │ Node                            │ Type   │ Status   │   │
-│   ├─────────────────────────────────┼────────┼──────────┤   │
-│   │ content-workflow-001-start      │ start  │ complete │   │
-│   │ content-workflow-002-user-input-text   │ ask    │ complete │   │
-│   │ content-workflow-003-write-poem │ agent  │ ready    │   │
-│   │ content-workflow-004-write-essay│ agent  │ ready    │   │
-│   └─────────────────────────────────┴────────┴──────────┘   │
+│   ┌─────────────────────┬────────────┬──────────┐           │
+│   │ Node                │ Unit       │ Status   │           │
+│   ├─────────────────────┼────────────┼──────────┤           │
+│   │ start               │ (start)    │ complete │           │
+│   │ user-input-text-a7f │ user-input │ complete │           │
+│   │ write-poem-b2c      │ agent      │ ready    │           │
+│   │ write-essay-d4e     │ agent      │ ready    │           │
+│   └─────────────────────┴────────────┴──────────┘           │
 │                                                             │
 │   Ready to execute (2):                                     │
-│     • content-workflow-003-write-poem                       │
-│     • content-workflow-004-write-essay                      │
+│     • write-poem-b2c                                        │
+│     • write-essay-d4e                                       │
 │                                                             │
-│   Note: Multiple nodes ready - execute by full slug.        │
+│   Note: Multiple nodes ready - execute by node ID.        │
 │   They share inputs and can be run in any order.            │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -357,7 +376,7 @@ $ cg wg node add-after <predecessor-node> <unit-slug> [--config key=value]
 
 ┌─────────────────────────────────────────────────────────────┐
 │ INPUT                                                       │
-│   predecessor: "poem-workflow-002-user-input-text"                 │
+│   predecessor: "user-input-text-a7f"                        │
 │   unit: "write-poem"                                        │
 │   config: (none)                                            │
 └─────────────────────────────────────────────────────────────┘
@@ -365,8 +384,8 @@ $ cg wg node add-after <predecessor-node> <unit-slug> [--config key=value]
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │ LOAD                                                        │
-│   • Load work-graph.yaml                                         │
-│   • Find predecessor node                                   │
+│   • Load work-graph.yaml                                    │
+│   • Find predecessor node + its node.yaml                   │
 │   • Load unit definition from .chainglass/units/write-poem/ │
 └─────────────────────────────────────────────────────────────┘
                               │
@@ -375,30 +394,31 @@ $ cg wg node add-after <predecessor-node> <unit-slug> [--config key=value]
 │ VALIDATE INPUTS                                             │
 │                                                             │
 │   Predecessor outputs:                                      │
-│     • topic (text)                                          │
+│     • text (data)                                           │
 │                                                             │
 │   Unit required inputs:                                     │
-│     • topic (text) ← FOUND ✓                                │
+│     • topic (data) ← matches 'text' by name? NO             │
 │                                                             │
-│   All required inputs satisfied ✓                           │
+│   Name mismatch - cannot auto-wire ✗                        │
+│   (In this example, assume unit expects 'text' input)       │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │ CREATE NODE                                                 │
 │                                                             │
-│   • Generate ID: poem-workflow-003-write-poem               │
-│   • Create input mapping: topic ← 002-user-input-text.topic        │
-│   • Create edge: 002-user-input-text → 003-write-poem              │
-│   • Create node folder: nodes/003-write-poem/               │
-│   • Update work-graph.yaml                                       │
+│   • Generate ID: write-poem-b2c (unit + 3 hex)              │
+│   • Create node.yaml with input mapping                     │
+│   • Create edge: user-input-text-a7f → write-poem-b2c       │
+│   • Create node folder: nodes/write-poem-b2c/               │
+│   • Update work-graph.yaml (add node ID + edge)             │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │ OUTPUT                                                      │
-│   ✓ Added 'write-poem' as poem-workflow-003-write-poem      │
-│   Input mapping: topic ← poem-workflow-002-user-input-text.topic   │
+│   ✓ Added 'write-poem' as write-poem-b2c                    │
+│   Input mapping: topic ← user-input-text-a7f.text           │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -411,34 +431,32 @@ $ cg wg node add-after <same-predecessor-node> <different-unit-slug>
 ┌─────────────────────────────────────────────────────────────┐
 │ SCENARIO                                                    │
 │                                                             │
-│   Parent node: content-workflow-002-user-input-text                │
-│     outputs: topic:text                                     │
+│   Parent node: user-input-text-a7f                          │
+│     outputs: text (data)                                    │
 │                                                             │
-│   Adding two different units that both need 'topic':        │
-│     1. write-poem (requires topic:text)                     │
-│     2. write-essay (requires topic:text)                    │
+│   Adding two different units that both need 'text' input:   │
+│     1. write-poem (requires text)                           │
+│     2. write-essay (requires text)                          │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │ COMMAND 1                                                   │
 │                                                             │
-│   $ cg wg node add-after content-workflow-002-user-input-text \ │
-│       write-poem                                            │
+│   $ cg wg node add-after user-input-text-a7f write-poem     │
 │                                                             │
-│   ✓ Added 'write-poem' as content-workflow-003-write-poem   │
-│   Input mapping: topic ← content-workflow-002-user-input-text.topic│
+│   ✓ Added 'write-poem' as write-poem-b2c                    │
+│   Input mapping: text ← user-input-text-a7f.text            │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │ COMMAND 2 (same parent)                                     │
 │                                                             │
-│   $ cg wg node add-after content-workflow-002-user-input-text \ │
-│       write-essay                                           │
+│   $ cg wg node add-after user-input-text-a7f write-essay    │
 │                                                             │
-│   ✓ Added 'write-essay' as content-workflow-004-write-essay │
-│   Input mapping: topic ← content-workflow-002-user-input-text.topic│
+│   ✓ Added 'write-essay' as write-essay-d4e                  │
+│   Input mapping: text ← user-input-text-a7f.text            │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -447,19 +465,19 @@ $ cg wg node add-after <same-predecessor-node> <different-unit-slug>
 │                                                             │
 │   Graph now has diverging paths:                            │
 │                                                             │
-│           ┌─────────────┐                                   │
-│           │ 002-user-input-text│                                   │
-│           │ (topic:text)│                                   │
-│           └──────┬──────┘                                   │
-│                  │                                          │
-│         ┌───────┴───────┐                                   │
-│         ▼               ▼                                   │
-│   ┌───────────┐   ┌───────────┐                             │
-│   │003-write- │   │004-write- │                             │
-│   │   poem    │   │   essay   │                             │
-│   └───────────┘   └───────────┘                             │
+│       ┌───────────────────┐                                 │
+│       │ user-input-text-a7f│                                │
+│       │   (text:data)     │                                 │
+│       └─────────┬─────────┘                                 │
+│                 │                                           │
+│        ┌────────┴────────┐                                  │
+│        ▼                 ▼                                  │
+│   ┌──────────┐    ┌──────────┐                              │
+│   │write-poem│    │write-    │                              │
+│   │   -b2c   │    │essay-d4e │                              │
+│   └──────────┘    └──────────┘                              │
 │                                                             │
-│   Both nodes receive the same 'topic' input from user-input-text.  │
+│   Both nodes receive 'text' from user-input-text-a7f.       │
 │   They can be executed independently in any order.          │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -467,11 +485,11 @@ $ cg wg node add-after <same-predecessor-node> <different-unit-slug>
 ### Add Work-Node After (Failure - Missing Input)
 
 ```
-$ cg wg node add-after poem-workflow-001-start write-poem
+$ cg wg node add-after start write-poem
 
 ┌─────────────────────────────────────────────────────────────┐
 │ INPUT                                                       │
-│   predecessor: "poem-workflow-001-start"                    │
+│   predecessor: "start"                                      │
 │   unit: "write-poem"                                        │
 └─────────────────────────────────────────────────────────────┘
                               │
@@ -483,7 +501,7 @@ $ cg wg node add-after poem-workflow-001-start write-poem
 │     (none - start node has no outputs)                      │
 │                                                             │
 │   Unit required inputs:                                     │
-│     • topic (text) ← NOT FOUND ✗                            │
+│     • text (data) ← NOT FOUND ✗                             │
 │                                                             │
 │   Missing required inputs ✗                                 │
 └─────────────────────────────────────────────────────────────┘
@@ -492,29 +510,27 @@ $ cg wg node add-after poem-workflow-001-start write-poem
 ┌─────────────────────────────────────────────────────────────┐
 │ ERROR OUTPUT                                                │
 │                                                             │
-│   E103: Missing required input 'topic' (text)               │
+│   E103: Missing required input 'text' (data)                │
 │                                                             │
-│   The unit 'write-poem' requires input 'topic' of type      │
-│   'text', but 'poem-workflow-001-start' does not provide    │
-│   this output.                                              │
+│   The unit 'write-poem' requires input 'text' of type       │
+│   'data', but 'start' does not provide this output.         │
 │                                                             │
 │   Available outputs from predecessor: (none)                │
 │                                                             │
-│   Suggestion: Add an UserInputUnit that outputs 'topic' first:    │
-│     cg graph node add-after poem-workflow-001-start \       │
-│       user-input-text --config prompt="Topic?" \                   │
-│       --config output_name="topic"                          │
+│   Suggestion: Add a UserInputUnit first:                    │
+│     cg wg node add-after start user-input-text \            │
+│       --config prompt="What topic?"                         │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ### Remove Work-Node (Blocked by Dependents)
 
 ```
-$ cg wg node remove <node>
+$ cg wg node remove user-input-text-a7f
 
 ┌─────────────────────────────────────────────────────────────┐
 │ INPUT                                                       │
-│   node: "poem-workflow-002-user-input-text"                        │
+│   node: "user-input-text-a7f"                               │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -522,7 +538,7 @@ $ cg wg node remove <node>
 │ CHECK DEPENDENTS                                            │
 │                                                             │
 │   Nodes that depend on this node:                           │
-│     • poem-workflow-003-write-poem (needs: topic)           │
+│     • write-poem-b2c (needs: text)                          │
 │                                                             │
 │   Has dependents ✗                                          │
 └─────────────────────────────────────────────────────────────┘
@@ -531,10 +547,10 @@ $ cg wg node remove <node>
 ┌─────────────────────────────────────────────────────────────┐
 │ ERROR OUTPUT                                                │
 │                                                             │
-│   E102: Cannot delete node - 1 unit depends on this         │
+│   E102: Cannot delete node - 1 node depends on this         │
 │                                                             │
 │   Dependents:                                               │
-│     • poem-workflow-003-write-poem (needs: topic)           │
+│     • write-poem-b2c (needs: text)                          │
 │                                                             │
 │   Options:                                                  │
 │     • Remove dependents first                               │
@@ -545,11 +561,11 @@ $ cg wg node remove <node>
 ### Remove Work-Node (Success - Leaf Node)
 
 ```
-$ cg wg node remove <node>
+$ cg wg node remove write-poem-b2c
 
 ┌─────────────────────────────────────────────────────────────┐
 │ INPUT                                                       │
-│   node: "poem-workflow-003-write-poem"                      │
+│   node: "write-poem-b2c"                                    │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -565,15 +581,15 @@ $ cg wg node remove <node>
 │ REMOVE                                                      │
 │                                                             │
 │   • Remove edges pointing to this node                      │
-│   • Remove node from work-graph.yaml                             │
-│   • Delete node folder: nodes/003-write-poem/               │
-│   • Update state.json                                 │
+│   • Remove node ID from work-graph.yaml                     │
+│   • Delete node folder: nodes/write-poem-b2c/               │
+│   • Update state.json                                       │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │ OUTPUT                                                      │
-│   ✓ Removed node poem-workflow-003-write-poem               │
+│   ✓ Removed node write-poem-b2c                             │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -584,11 +600,11 @@ $ cg wg node remove <node>
 ### Execute Work-Node (Orchestrator launches agent)
 
 ```
-$ cg wg node <slug> exec --type claude-code
+$ cg wg node write-poem-b2c exec --type claude-code
 
 ┌─────────────────────────────────────────────────────────────┐
 │ INPUT                                                       │
-│   node: "poem-workflow-003-write-poem"                      │
+│   node: "write-poem-b2c"                                    │
 │   type: "claude-code"                                       │
 └─────────────────────────────────────────────────────────────┘
                               │
@@ -623,7 +639,7 @@ $ cg wg node <slug> exec --type claude-code
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │ OUTPUT                                                      │
-│   Agent launched for poem-workflow-003-write-poem           │
+│   Agent launched for write-poem-b2c                         │
 │   Session: 15523ff5-a900-4dd9-ab49-73cb1e04342c            │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -640,7 +656,7 @@ You are executing a **work-node** in a WorkGraph system.
 
 ## Your Assignment
 
-- **Work-Node**: poem-workflow-003-write-poem
+- **Work-Node**: write-poem-b2c
 - **Work-Unit**: write-poem (AgentUnit)
 
 ## ⚠️ FAIL FAST POLICY
@@ -653,18 +669,18 @@ If you encounter missing files, CLI errors, or unclear instructions:
 ## Step 1: Signal Start
 
 First, tell the system you've taken over:
-  cg wg node poem-workflow-003-write-poem start
+  cg wg node write-poem-b2c start
 
 ## Step 2: Get Your Inputs
 
   # List available inputs
-  cg wg node poem-workflow-003-write-poem list-inputs
+  cg wg node write-poem-b2c list-inputs
 
   # Get data values
-  cg wg node poem-workflow-003-write-poem get-input-data topic
+  cg wg node write-poem-b2c get-input-data text
 
   # Get file paths (then read them)
-  cg wg node poem-workflow-003-write-poem get-input-file reference
+  cg wg node write-poem-b2c get-input-file reference
 
 ## Step 3: Read Your Task Instructions
 
@@ -676,18 +692,18 @@ Follow those instructions to complete your task.
 ## Step 4: Save Your Outputs
 
   # Save file outputs
-  cg wg node poem-workflow-003-write-poem save-output-file poem ./poem.md
+  cg wg node write-poem-b2c save-output-file poem ./poem.md
 
   # Save data outputs
-  cg wg node poem-workflow-003-write-poem save-output-data title "Sunset Dreams"
+  cg wg node write-poem-b2c save-output-data title "Sunset Dreams"
 
 ## Step 5: Complete
 
   # Verify all required outputs are present
-  cg wg node poem-workflow-003-write-poem can-end
+  cg wg node write-poem-b2c can-end
 
   # Finalize (fails if outputs missing)
-  cg wg node poem-workflow-003-write-poem end
+  cg wg node write-poem-b2c end
 
 ## 🛑 CRITICAL
 
@@ -730,16 +746,16 @@ $ cg wg node <slug> can-run
 ┌─────────────────────────────────────────────────────────────┐
 │ SUCCESS                                                     │
 │                                                             │
-│   $ cg wg node poem-workflow-003-write-poem can-run      │
+│   $ cg wg node write-poem-b2c can-run                       │
 │   ✓ Node ready. All upstream inputs available.              │
 └─────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────┐
 │ BLOCKED                                                     │
 │                                                             │
-│   $ cg wg node poem-workflow-003-write-poem can-run      │
+│   $ cg wg node write-poem-b2c can-run                       │
 │   ✗ Node blocked. Missing inputs:                           │
-│     • topic (data) ← 002-user-input-text [not complete]            │
+│     • text (data) ← user-input-text-a7f [not complete]      │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -750,7 +766,7 @@ $ cg wg node <slug> start
 
 ┌─────────────────────────────────────────────────────────────┐
 │ INPUT                                                       │
-│   node: "poem-workflow-003-write-poem"                      │
+│   node: "write-poem-b2c"                      │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -774,7 +790,7 @@ $ cg wg node <slug> start
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │ OUTPUT                                                      │
-│   ✓ Node 'poem-workflow-003-write-poem' started.            │
+│   ✓ Node 'write-poem-b2c' started.            │
 │   Status: running                                           │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -790,10 +806,10 @@ $ cg wg node <slug> start
 │   E110: Cannot start node - inputs not available            │
 │                                                             │
 │   Missing inputs:                                           │
-│     • topic (data) ← poem-workflow-002-user-input-text             │
+│     • topic (data) ← user-input-text-a7f             │
 │                                                             │
 │   Blocked by:                                               │
-│     • poem-workflow-002-user-input-text (status: ready)            │
+│     • user-input-text-a7f (status: ready)            │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -805,7 +821,7 @@ $ cg wg node <slug> can-end
 ┌─────────────────────────────────────────────────────────────┐
 │ SUCCESS                                                     │
 │                                                             │
-│   $ cg wg node poem-workflow-003-write-poem can-end      │
+│   $ cg wg node write-poem-b2c can-end      │
 │   ✓ Ready to end. All required outputs present.             │
 │                                                             │
 │   Outputs:                                                  │
@@ -817,7 +833,7 @@ $ cg wg node <slug> can-end
 ┌─────────────────────────────────────────────────────────────┐
 │ NOT READY                                                   │
 │                                                             │
-│   $ cg wg node poem-workflow-003-write-poem can-end      │
+│   $ cg wg node write-poem-b2c can-end      │
 │   ✗ Cannot end. Missing required outputs:                   │
 │     • poem (file) [required] - not set                      │
 │     • title (data) [required] - not set                     │
@@ -835,7 +851,7 @@ $ cg wg node <slug> end
 
 ┌─────────────────────────────────────────────────────────────┐
 │ INPUT                                                       │
-│   node: "poem-workflow-003-write-poem"                      │
+│   node: "write-poem-b2c"                      │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -861,7 +877,7 @@ $ cg wg node <slug> end
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │ OUTPUT                                                      │
-│   ✓ Node 'poem-workflow-003-write-poem' complete.           │
+│   ✓ Node 'write-poem-b2c' complete.           │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -892,7 +908,7 @@ $ cg wg node <slug> clear
 
 ┌─────────────────────────────────────────────────────────────┐
 │ INPUT                                                       │
-│   node: "poem-workflow-003-write-poem"                      │
+│   node: "write-poem-b2c"                      │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -908,7 +924,7 @@ $ cg wg node <slug> clear
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │ OUTPUT                                                      │
-│   ✓ All outputs cleared for 'poem-workflow-003-write-poem'  │
+│   ✓ All outputs cleared for 'write-poem-b2c'  │
 │   Status: ready                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -1064,13 +1080,13 @@ $ cg wg node <slug> exec --type claude-code --resume
 ┌─────────────────────────────────────────────────────────────┐
 │ BOOTSTRAP PROMPT (for resume)                               │
 │                                                             │
-│   You are RESUMING work-node: poem-workflow-003-write-poem  │
+│   You are RESUMING work-node: write-poem-b2c  │
 │                                                             │
 │   FIRST: Check why you were paused:                         │
-│     cg wg node poem-workflow-003-write-poem handover-reason │
+│     cg wg node write-poem-b2c handover-reason │
 │                                                             │
 │   If 'question': Get your answer:                           │
-│     cg wg node poem-workflow-003-write-poem get-answer      │
+│     cg wg node write-poem-b2c get-answer      │
 │                                                             │
 │   Then continue your work from where you left off.          │
 └─────────────────────────────────────────────────────────────┘
@@ -1159,10 +1175,10 @@ $ cg wg node <slug> list-inputs
 ┌─────────────────────────────────────────────────────────────┐
 │ OUTPUT                                                      │
 │                                                             │
-│   Inputs for poem-workflow-003-write-poem:                  │
-│     • topic (data)  ← 002-user-input-text.topic  [available]       │
-│     • style (data)  ← 002-user-input-text.style  [available]       │
-│     • reference (file) ← 002-user-input-text.doc [available]       │
+│   Inputs for write-poem-b2c:                  │
+│     • topic (data)  ← user-input-text-a7f.topic  [available]       │
+│     • style (data)  ← user-input-text-a7f.style  [available]       │
+│     • reference (file) ← user-input-text-a7f.doc [available]       │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -1174,12 +1190,12 @@ $ cg wg node <slug> get-input-data <name>
 ┌─────────────────────────────────────────────────────────────┐
 │ FLOW                                                        │
 │                                                             │
-│   $ cg wg node poem-workflow-003-write-poem \            │
+│   $ cg wg node write-poem-b2c \            │
 │       get-input-data topic                                  │
 │                                                             │
 │   1. Load work-graph.yaml, find node's input mapping             │
-│   2. Traverse edge: topic ← 002-user-input-text.topic              │
-│   3. Read from upstream: .../002-user-input-text/data/data.json    │
+│   2. Traverse edge: topic ← user-input-text-a7f.topic              │
+│   3. Read from upstream: .../user-input-text-a7f/data/data.json    │
 │   4. Return value from upstream node's outputs              │
 └─────────────────────────────────────────────────────────────┘
                               │
@@ -1200,11 +1216,11 @@ $ cg wg node <slug> get-input-file <name>
 ┌─────────────────────────────────────────────────────────────┐
 │ FLOW                                                        │
 │                                                             │
-│   $ cg wg node poem-workflow-003-write-poem \            │
+│   $ cg wg node write-poem-b2c \            │
 │       get-input-file reference                              │
 │                                                             │
-│   1. Look up input mapping: reference ← 002-user-input-text.doc    │
-│   2. Resolve path to: .../002-user-input-text/data/outputs/doc.md  │
+│   1. Look up input mapping: reference ← user-input-text-a7f.doc    │
+│   2. Resolve path to: .../user-input-text-a7f/data/outputs/doc.md  │
 │   3. Return absolute path                                   │
 └─────────────────────────────────────────────────────────────┘
                               │
@@ -1212,7 +1228,7 @@ $ cg wg node <slug> get-input-file <name>
 ┌─────────────────────────────────────────────────────────────┐
 │ OUTPUT                                                      │
 │   /home/user/.chainglass/work-graphs/poem-workflow/nodes/        │
-│   002-user-input-text/data/outputs/doc.md                          │
+│   user-input-text-a7f/data/outputs/doc.md                          │
 └─────────────────────────────────────────────────────────────┘
 
 Note: Returns path - agent reads the file itself.
@@ -1226,7 +1242,7 @@ $ cg wg node <slug> list-outputs
 ┌─────────────────────────────────────────────────────────────┐
 │ OUTPUT (before saving)                                      │
 │                                                             │
-│   Outputs for poem-workflow-003-write-poem:                 │
+│   Outputs for write-poem-b2c:                 │
 │     • poem (file) [required] [not set]                      │
 │     • title (data) [required] [not set]                     │
 │     • word_count (data) [required] [not set]                │
@@ -1236,7 +1252,7 @@ $ cg wg node <slug> list-outputs
 ┌─────────────────────────────────────────────────────────────┐
 │ OUTPUT (after saving)                                       │
 │                                                             │
-│   Outputs for poem-workflow-003-write-poem:                 │
+│   Outputs for write-poem-b2c:                 │
 │     • poem (file) [required] [set] → poem.md                │
 │     • title (data) [required] [set] → "Sunset Dreams"       │
 │     • word_count (data) [required] [set] → 247              │
@@ -1253,7 +1269,7 @@ $ cg wg node <slug> save-output-data <name> <value>
 
 ┌─────────────────────────────────────────────────────────────┐
 │ INPUT                                                       │
-│   node: "poem-workflow-003-write-poem"                      │
+│   node: "write-poem-b2c"                      │
 │   name: "title"                                             │
 │   value: "Sunset Dreams"                                    │
 └─────────────────────────────────────────────────────────────┘
@@ -1271,7 +1287,7 @@ $ cg wg node <slug> save-output-data <name> <value>
 ┌─────────────────────────────────────────────────────────────┐
 │ SAVE                                                        │
 │                                                             │
-│   Update: nodes/003-write-poem/data/data.json               │
+│   Update: nodes/write-poem-b2c/data/data.json               │
 │   {                                                         │
 │     "outputs": {                                            │
 │       "title": "Sunset Dreams"  ← added/updated             │
@@ -1295,7 +1311,7 @@ $ cg wg node <slug> save-output-file <name> <path>
 
 ┌─────────────────────────────────────────────────────────────┐
 │ INPUT                                                       │
-│   node: "poem-workflow-003-write-poem"                      │
+│   node: "write-poem-b2c"                      │
 │   name: "poem"                                              │
 │   path: "./draft-poem.md"                                   │
 └─────────────────────────────────────────────────────────────┘
@@ -1315,7 +1331,7 @@ $ cg wg node <slug> save-output-file <name> <path>
 │ COPY                                                        │
 │                                                             │
 │   Copy: ./draft-poem.md                                     │
-│   To: nodes/003-write-poem/data/outputs/poem.md             │
+│   To: nodes/write-poem-b2c/data/outputs/poem.md             │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -1454,31 +1470,31 @@ This shows the full workflow from graph creation to agent execution.
 # 1. Create a new work-graph
 $ cg wg create poem-workflow
 ✓ Created work-graph 'poem-workflow' with start node
-  Start node: poem-workflow-001-start
+  Start node: start
 
 # 2. Try to add write-poem directly (FAILS - no topic input)
-$ cg wg node add-after poem-workflow-001-start write-poem
+$ cg wg node add-after start write-poem
 ✗ E103: Missing required input 'topic' (data)
   Suggestion: Add an UserInputUnit that outputs 'topic' first
 
 # 3. Add user-input-text to get the topic from user
-$ cg wg node add-after poem-workflow-001-start user-input-text \
+$ cg wg node add-after start user-input-text \
     --config prompt="What would you like a poem about?" \
     --config output_name="topic"
-✓ Added 'user-input-text' as poem-workflow-002-user-input-text
+✓ Added 'user-input-text' as user-input-text-a7f
 
 # 4. Now add write-poem (SUCCEEDS - user-input-text provides topic)
-$ cg wg node add-after poem-workflow-002-user-input-text write-poem
-✓ Added 'write-poem' as poem-workflow-003-write-poem
-  Input mapping: topic ← poem-workflow-002-user-input-text.topic
+$ cg wg node add-after user-input-text-a7f write-poem
+✓ Added 'write-poem' as write-poem-b2c
+  Input mapping: topic ← user-input-text-a7f.topic
 
 # 5. Check the work-graph structure
 $ cg wg show poem-workflow
 poem-workflow
-└─► start (poem-workflow-001-start)
-    └─► user-input-text (poem-workflow-002-user-input-text)
+└─► start (start)
+    └─► user-input-text (user-input-text-a7f)
         │   outputs: topic (data)
-        └─► write-poem (poem-workflow-003-write-poem)
+        └─► write-poem (write-poem-b2c)
             │   inputs: topic (data)
             │   outputs: poem (file), title (data)
             (end)
@@ -1489,20 +1505,20 @@ poem-workflow
 
 # 6. Check execution status
 $ cg wg status poem-workflow
-Ready: poem-workflow-002-user-input-text (user-input)
-Pending: poem-workflow-003-write-poem (needs: 002-user-input-text)
+Ready: user-input-text-a7f (user-input)
+Pending: write-poem-b2c (needs: user-input-text-a7f)
 
 # 7. Start the ask node
-$ cg wg node poem-workflow-002-user-input-text start
+$ cg wg node user-input-text-a7f start
 ✓ Node started. Status: running
 
 # 8. (For UserInputUnit, the "work" is collecting user input)
 #    Save the user's answer as output data
-$ cg wg node poem-workflow-002-user-input-text save-output-data topic "The ocean at sunset"
+$ cg wg node user-input-text-a7f save-output-data topic "The ocean at sunset"
 ✓ Output 'topic' saved.
 
 # 9. End the ask node
-$ cg wg node poem-workflow-002-user-input-text end
+$ cg wg node user-input-text-a7f end
 ✓ Node complete.
 
 # ═══════════════════════════════════════════════════════════════
@@ -1511,29 +1527,29 @@ $ cg wg node poem-workflow-002-user-input-text end
 
 # 10. Check status - write-poem is now ready
 $ cg wg status poem-workflow
-Complete: poem-workflow-002-user-input-text
-Ready: poem-workflow-003-write-poem (agent)
+Complete: user-input-text-a7f
+Ready: write-poem-b2c (agent)
 
 # 11. [ORCHESTRATOR] Check if node can run
-$ cg wg node poem-workflow-003-write-poem can-run
+$ cg wg node write-poem-b2c can-run
 ✓ Node ready. All upstream inputs available.
 
 # 12. [ORCHESTRATOR] Launch agent with bootstrap prompt
-$ cg wg node poem-workflow-003-write-poem exec --type claude-code
+$ cg wg node write-poem-b2c exec --type claude-code
 Agent launched. Session: 15523ff5-a900-4dd9-ab49-73cb1e04342c
 
 # ─── Agent receives bootstrap prompt, takes over ───
 
 # 13. [AGENT] Signal start (taken over from orchestrator)
-$ cg wg node poem-workflow-003-write-poem start
+$ cg wg node write-poem-b2c start
 ✓ Node started. Status: running
 
 # 14. [AGENT] List and get inputs
-$ cg wg node poem-workflow-003-write-poem list-inputs
+$ cg wg node write-poem-b2c list-inputs
 Inputs:
-  • topic (data) ← 002-user-input-text.topic [available]
+  • topic (data) ← user-input-text-a7f.topic [available]
 
-$ cg wg node poem-workflow-003-write-poem get-input-data topic
+$ cg wg node write-poem-b2c get-input-data topic
 The ocean at sunset
 
 # 15. [AGENT] Read task instructions
@@ -1543,17 +1559,17 @@ $ cat .chainglass/units/write-poem/commands/main.md
 # 16. [AGENT] Does work - writes poem to ./poem.md
 
 # 17. [AGENT] Save outputs
-$ cg wg node poem-workflow-003-write-poem save-output-file poem ./poem.md
+$ cg wg node write-poem-b2c save-output-file poem ./poem.md
 ✓ Output 'poem' saved (copied 847 bytes).
 
-$ cg wg node poem-workflow-003-write-poem save-output-data title "Sunset Dreams"
+$ cg wg node write-poem-b2c save-output-data title "Sunset Dreams"
 ✓ Output 'title' saved.
 
 # 18. [AGENT] Verify and end
-$ cg wg node poem-workflow-003-write-poem can-end
+$ cg wg node write-poem-b2c can-end
 ✓ Ready to end. All required outputs present.
 
-$ cg wg node poem-workflow-003-write-poem end
+$ cg wg node write-poem-b2c end
 ✓ Node complete.
 
 # ═══════════════════════════════════════════════════════════════
@@ -1565,7 +1581,7 @@ $ cg wg status poem-workflow
 All nodes complete.
 
 # 20. View the output
-$ cat .chainglass/work-graphs/poem-workflow/nodes/003-write-poem/data/outputs/poem.md
+$ cat .chainglass/work-graphs/poem-workflow/nodes/write-poem-b2c/data/outputs/poem.md
 ```
 
 ---
@@ -1584,44 +1600,44 @@ $ cg wg create content-workflow
 ✓ Created work-graph 'content-workflow' with start node
 
 # 2. Add user-input-text to get the topic
-$ cg wg node add-after content-workflow-001-start user-input-text \
+$ cg wg node add-after start user-input-text \
     --config prompt="What topic?" --config output_name="topic"
-✓ Added 'user-input-text' as content-workflow-002-user-input-text
+✓ Added 'user-input-text' as user-input-text-a7f
 
 # 3. Add write-poem AFTER user-input-text
-$ cg wg node add-after content-workflow-002-user-input-text write-poem
-✓ Added 'write-poem' as content-workflow-003-write-poem
+$ cg wg node add-after user-input-text-a7f write-poem
+✓ Added 'write-poem' as write-poem-b2c
 
 # 4. Add write-essay ALSO after user-input-text (creates diverging path)
-$ cg wg node add-after content-workflow-002-user-input-text write-essay
-✓ Added 'write-essay' as content-workflow-004-write-essay
+$ cg wg node add-after user-input-text-a7f write-essay
+✓ Added 'write-essay' as write-essay-d4e
 
 # 5. View the diverging work-graph
 $ cg wg show content-workflow
 content-workflow
-└─► start (001-start)
-    └─► user-input-text (002-user-input-text)
-        │   outputs: topic (data)
+└─► start
+    └─► user-input-text-a7f
+        │   outputs: text (data)
         │
-        ├─► write-poem (003-write-poem)
-        │   │   inputs: topic (data)
+        ├─► write-poem-b2c
+        │   │   inputs: text (data)
         │   (end)
         │
-        └─► write-essay (004-write-essay)
-            │   inputs: topic (data)
+        └─► write-essay-d4e
+            │   inputs: text (data)
             (end)
 
 # ═══════════════════════════════════════════════════════════════
 # PHASE 2: Execute user-input-text (provides input to both branches)
 # ═══════════════════════════════════════════════════════════════
 
-$ cg wg node content-workflow-002-user-input-text start
+$ cg wg node user-input-text-a7f start
 ✓ Node started.
 
-$ cg wg node content-workflow-002-user-input-text save-output-data topic "The importance of forests"
+$ cg wg node user-input-text-a7f save-output-data topic "The importance of forests"
 ✓ Output 'topic' saved.
 
-$ cg wg node content-workflow-002-user-input-text end
+$ cg wg node user-input-text-a7f end
 ✓ Node complete.
 
 # ═══════════════════════════════════════════════════════════════
@@ -1629,29 +1645,29 @@ $ cg wg node content-workflow-002-user-input-text end
 # ═══════════════════════════════════════════════════════════════
 
 $ cg wg status content-workflow
-Complete: content-workflow-002-user-input-text
+Complete: user-input-text-a7f
 Ready (2):
-  • content-workflow-003-write-poem
-  • content-workflow-004-write-essay
+  • write-poem-b2c
+  • write-essay-d4e
 
 Note: Multiple nodes ready - they share the same input.
 
 # Agent 1 works on poem
-$ cg wg node content-workflow-003-write-poem start
-$ cg wg node content-workflow-003-write-poem get-input-data topic
+$ cg wg node write-poem-b2c start
+$ cg wg node write-poem-b2c get-input-data topic
 The importance of forests
 # [Agent writes poem...]
-$ cg wg node content-workflow-003-write-poem save-output-file poem ./poem.md
-$ cg wg node content-workflow-003-write-poem end
+$ cg wg node write-poem-b2c save-output-file poem ./poem.md
+$ cg wg node write-poem-b2c end
 ✓ Node complete.
 
 # Agent 2 works on essay (can run in parallel)
-$ cg wg node content-workflow-004-write-essay start
-$ cg wg node content-workflow-004-write-essay get-input-data topic
+$ cg wg node write-essay-d4e start
+$ cg wg node write-essay-d4e get-input-data topic
 The importance of forests
 # [Agent writes essay...]
-$ cg wg node content-workflow-004-write-essay save-output-file essay ./essay.md
-$ cg wg node content-workflow-004-write-essay end
+$ cg wg node write-essay-d4e save-output-file essay ./essay.md
+$ cg wg node write-essay-d4e end
 ✓ Node complete.
 
 # ═══════════════════════════════════════════════════════════════
@@ -1667,7 +1683,7 @@ All nodes complete.
 ## Quick Reference: Orchestrator Pattern
 
 ```bash
-NODE="poem-workflow-003-write-poem"
+NODE="write-poem-b2c"
 
 # 1. Check if node can run
 cg wg node $NODE can-run || echo "Blocked"
