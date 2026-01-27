@@ -135,4 +135,19 @@ export interface IWorkspaceService {
    * @returns WorkspaceContext if path is in a registered workspace, null otherwise
    */
   resolveContext(path: string): Promise<WorkspaceContext | null>;
+
+  /**
+   * Resolve workspace context from URL parameters.
+   *
+   * Per Plan 014 Phase 6: Web API routes need to construct WorkspaceContext
+   * from URL params (slug, optional worktreePath). This method handles:
+   * - Looking up workspace by slug
+   * - Finding matching worktree by path
+   * - Populating isMainWorktree, worktreeBranch correctly
+   *
+   * @param slug - Workspace slug from URL
+   * @param worktreePath - Optional worktree path from query param (defaults to main worktree)
+   * @returns WorkspaceContext if found, null if workspace not found
+   */
+  resolveContextFromParams(slug: string, worktreePath?: string): Promise<WorkspaceContext | null>;
 }

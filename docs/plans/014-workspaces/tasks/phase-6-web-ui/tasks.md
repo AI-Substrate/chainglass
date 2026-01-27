@@ -231,21 +231,22 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|------|------|-----|------|--------------|------------------|------------|----------|-------|
-| [ ] | T001 | Create `/api/workspaces` route with GET (list) and POST (add) handlers, Zod validation, DI container integration | 2 | Core | – | /home/jak/substrate/014-workspaces/apps/web/app/api/workspaces/route.ts | GET returns workspace list; POST adds workspace, returns 201 | – | Per Medium Discovery 10; use `dynamic = 'force-dynamic'` |
-| [ ] | T002 | Create `/api/workspaces/[slug]` route with GET (info + worktrees) and DELETE (remove) handlers | 2 | Core | T001 | /home/jak/substrate/014-workspaces/apps/web/app/api/workspaces/[slug]/route.ts | GET returns workspace info with worktrees; DELETE returns 204 | – | Use WorkspaceService.getInfo() from Phase 4 |
-| [ ] | T003 | Create `/api/workspaces/[slug]/samples` route with GET (list) and POST (add), worktree from `?worktree=` query param | 2 | Core | T002 | /home/jak/substrate/014-workspaces/apps/web/app/api/workspaces/[slug]/samples/route.ts | GET returns samples for worktree; POST creates sample | – | Build WorkspaceContext from slug + worktree path |
-| [ ] | T004 | Create `/api/workspaces/[slug]/samples/[sampleSlug]` route with DELETE handler | 1 | Core | T003 | /home/jak/substrate/014-workspaces/apps/web/app/api/workspaces/[slug]/samples/[sampleSlug]/route.ts | DELETE returns 204 on success | – | |
-| [ ] | T005 | Add "Workspaces" NavItem to NAV_ITEMS in navigation-utils.ts | 1 | Setup | – | /home/jak/substrate/014-workspaces/apps/web/src/lib/navigation-utils.ts | Workspaces appears in sidebar nav | – | Use FolderOpen or similar icon from lucide-react |
-| [ ] | T006 | Create WorkspaceNav component with workspace list and worktree expansion | 3 | Core | T001, T002 | /home/jak/substrate/014-workspaces/apps/web/src/components/workspaces/workspace-nav.tsx | Shows workspaces, expands to show worktrees, highlights selected | – | Server component fetching from API; use Collapsible from shadcn |
-| [ ] | T007 | Integrate WorkspaceNav in dashboard-sidebar.tsx below main nav items | 2 | Integration | T006 | /home/jak/substrate/014-workspaces/apps/web/src/components/dashboard-sidebar.tsx | WorkspaceNav visible in sidebar on all dashboard pages | – | AC-14, AC-15 |
-| [ ] | T008 | Create /workspaces list page with workspace table and add form integration | 2 | Core | T001, T014 | /home/jak/substrate/014-workspaces/apps/web/app/(dashboard)/workspaces/page.tsx | Lists all workspaces; add form creates new workspace | – | Server component; revalidates on mutation |
-| [ ] | T009 | Create /workspaces/[slug] detail page with workspace info and worktree list | 2 | Core | T002 | /home/jak/substrate/014-workspaces/apps/web/app/(dashboard)/workspaces/[slug]/page.tsx | Shows workspace name, path, worktrees with branches | – | AC-15; links to /samples for each worktree |
-| [ ] | T010 | Implement worktree context selection via URL `?worktree=` query parameter | 2 | Core | T009 | /home/jak/substrate/014-workspaces/apps/web/app/(dashboard)/workspaces/[slug]/page.tsx, /home/jak/substrate/014-workspaces/apps/web/app/(dashboard)/workspaces/[slug]/samples/page.tsx | Selected worktree persists across navigation; default to main worktree | – | AC-16; use searchParams in server components |
-| [ ] | T011 | Create /workspaces/[slug]/samples page with sample list for selected worktree | 2 | Core | T003, T010 | /home/jak/substrate/014-workspaces/apps/web/app/(dashboard)/workspaces/[slug]/samples/page.tsx | Lists samples for worktree; shows empty state if none | – | AC-19; uses ?worktree= param |
-| [ ] | T012 | Create sample create form component with name and description fields | 2 | Core | T003 | /home/jak/substrate/014-workspaces/apps/web/src/components/workspaces/sample-create-form.tsx | Form POSTs to /api/workspaces/[slug]/samples; shows success/error | – | AC-20; client component with 'use client' |
-| [ ] | T013 | Add sample delete action with confirmation dialog | 1 | Core | T004 | /home/jak/substrate/014-workspaces/apps/web/src/components/workspaces/sample-delete-button.tsx | Delete button calls API; confirms before delete; removes from list | – | AC-21; use AlertDialog from shadcn |
-| [ ] | T014 | Create workspace add form component with name and path fields | 2 | Core | T001 | /home/jak/substrate/014-workspaces/apps/web/src/components/workspaces/workspace-add-form.tsx | Form POSTs to /api/workspaces; shows success/error; clears on success | – | AC-17; client component |
-| [ ] | T015 | Add workspace remove action with confirmation dialog | 1 | Core | T002 | /home/jak/substrate/014-workspaces/apps/web/src/components/workspaces/workspace-remove-button.tsx | Delete button calls API; confirms before delete; redirects to /workspaces | – | AC-18; use AlertDialog from shadcn |
+| [x] | T000 | Register workspace services in web DI container (WorkspaceRegistryAdapter, WorkspaceContextResolver, GitWorktreeResolver, SampleAdapter, WorkspaceService, SampleService). Also add `resolveContextFromParams(slug, worktreePath?)` helper method to WorkspaceService for web context construction. | 2 | Setup | – | /home/jak/substrate/014-workspaces/apps/web/src/lib/di-container.ts, /home/jak/substrate/014-workspaces/packages/workflow/src/services/workspace.service.ts | Container resolves WORKSPACE_DI_TOKENS without error; resolveContextFromParams returns valid context | – | DYK-P6-01: Web container missing workspace services; DYK-P6-02: Add helper for context construction |
+| [x] | T001 | Create `/api/workspaces` route with GET only (list, supports `?include=worktrees` for enriched response); mutations via Server Actions | 2 | Core | T000 | /home/jak/substrate/014-workspaces/apps/web/app/api/workspaces/route.ts | GET returns workspace list; GET with ?include=worktrees returns list with worktrees populated | – | DYK-P6-04: Single enriched endpoint for sidebar; DYK-P6-05: Mutations moved to Server Actions |
+| [x] | T002 | Create `/api/workspaces/[slug]` route with GET only (info + worktrees); DELETE via Server Action | 2 | Core | T001 | /home/jak/substrate/014-workspaces/apps/web/app/api/workspaces/[slug]/route.ts | GET returns workspace info with worktrees | – | DYK-P6-05: DELETE mutation moved to Server Action |
+| [x] | T003 | Create `/api/workspaces/[slug]/samples` route with GET only (list), worktree from `?worktree=` query param; POST via Server Action | 2 | Core | T002 | /home/jak/substrate/014-workspaces/apps/web/app/api/workspaces/[slug]/samples/route.ts | GET returns samples for worktree | – | DYK-P6-02: Use WorkspaceService.resolveContextFromParams(); DYK-P6-05: POST moved to Server Action |
+| [x] | T004 | Create workspace Server Actions: addWorkspace, removeWorkspace, addSample, deleteSample with revalidatePath integration | 2 | Core | T000 | /home/jak/substrate/014-workspaces/apps/web/app/actions/workspace-actions.ts | Server Actions work with useActionState; revalidatePath triggers on success | – | DYK-P6-05: Server Actions for all mutations; simpler than API routes |
+| [x] | T005 | Add "Workspaces" NavItem to NAV_ITEMS in navigation-utils.ts | 1 | Setup | – | /home/jak/substrate/014-workspaces/apps/web/src/lib/navigation-utils.ts | Workspaces appears in sidebar nav | – | Use FolderOpen or similar icon from lucide-react |
+| [x] | T006 | Create WorkspaceNav component with workspace list and worktree expansion | 2 | Core | T001 | /home/jak/substrate/014-workspaces/apps/web/src/components/workspaces/workspace-nav.tsx | Shows workspaces, expands to show worktrees, highlights selected | – | DYK-P6-04: Use ?include=worktrees for single fetch; server component; use Collapsible from shadcn |
+| [x] | T007 | Integrate WorkspaceNav in dashboard-sidebar.tsx below main nav items | 2 | Integration | T006 | /home/jak/substrate/014-workspaces/apps/web/src/components/dashboard-sidebar.tsx | WorkspaceNav visible in sidebar on all dashboard pages | – | AC-14, AC-15 |
+| [x] | T008 | Create /workspaces list page with workspace table and add form integration | 2 | Core | T001, T014 | /home/jak/substrate/014-workspaces/apps/web/app/(dashboard)/workspaces/page.tsx | Lists all workspaces; add form creates new workspace | – | Server component; revalidates on mutation |
+| [x] | T009 | Create /workspaces/[slug] detail page with workspace info and worktree list | 2 | Core | T002 | /home/jak/substrate/014-workspaces/apps/web/app/(dashboard)/workspaces/[slug]/page.tsx | Shows workspace name, path, worktrees with branches | – | AC-15; links to /samples for each worktree |
+| [x] | T010 | Implement worktree context selection via URL `?worktree=` query parameter | 2 | Core | T009 | /home/jak/substrate/014-workspaces/apps/web/app/(dashboard)/workspaces/[slug]/page.tsx, /home/jak/substrate/014-workspaces/apps/web/app/(dashboard)/workspaces/[slug]/samples/page.tsx | Selected worktree persists across navigation; default to main worktree | – | AC-16; use searchParams in server components |
+| [x] | T011 | Create /workspaces/[slug]/samples page with sample list for selected worktree | 2 | Core | T003, T010 | /home/jak/substrate/014-workspaces/apps/web/app/(dashboard)/workspaces/[slug]/samples/page.tsx | Lists samples for worktree; shows empty state if none | – | AC-19; uses ?worktree= param |
+| [x] | T012 | Create sample create form component using Server Action with useActionState | 2 | Core | T004 | /home/jak/substrate/014-workspaces/apps/web/src/components/workspaces/sample-create-form.tsx | Form uses addSample Server Action; shows success/error via useActionState | – | AC-20; DYK-P6-05: Server Action pattern with useFormStatus for pending state |
+| [x] | T013 | Add sample delete action using Server Action with confirmation dialog | 1 | Core | T004 | /home/jak/substrate/014-workspaces/apps/web/src/components/workspaces/sample-delete-button.tsx | Delete button calls deleteSample Server Action; confirms before delete | – | AC-21; use AlertDialog from shadcn |
+| [x] | T014 | Create workspace add form component using Server Action with useActionState | 2 | Core | T004 | /home/jak/substrate/014-workspaces/apps/web/src/components/workspaces/workspace-add-form.tsx | Form uses addWorkspace Server Action; shows success/error; clears on success | – | AC-17; DYK-P6-05: Server Action pattern |
+| [x] | T015 | Add workspace remove action using Server Action with confirmation dialog | 1 | Core | T004 | /home/jak/substrate/014-workspaces/apps/web/src/components/workspaces/workspace-remove-button.tsx | Delete button calls removeWorkspace Server Action; confirms before delete; redirects to /workspaces | – | AC-18; use AlertDialog from shadcn |
 
 ---
 
@@ -581,7 +582,7 @@ just build                  # Build all packages
 - [x] Prior phases reviewed (Phases 1-5 complete)
 - [x] Critical discoveries mapped to tasks
 - [x] ADR constraints mapped to tasks (ADR-0004: DI container pattern)
-- [ ] DI container tokens available for workspace services
+- [x] DI container tokens available for workspace services (T000 added to address this)
 - [ ] Worktree context construction approach validated
 - [ ] API route pattern understood (dynamic, Zod, DI)
 
@@ -606,6 +607,185 @@ Implementation will write:
 - API route files in `/apps/web/app/api/workspaces/`
 - Component files in `/apps/web/src/components/workspaces/`
 - Page files in `/apps/web/app/(dashboard)/workspaces/`
+
+---
+
+## Critical Insights Discussion
+
+**Session**: 2026-01-27T09:33
+**Context**: Phase 6: Web UI Tasks & Alignment Brief
+**Analyst**: AI Clarity Agent
+**Reviewer**: Development Team
+**Format**: Water Cooler Conversation (5 Critical Insights)
+
+### Insight 1: Web DI Container Has No Workspace Services
+
+**Did you know**: The web app's DI container has zero workspace service registrations - it only has AgentService and session stores from Plan 012.
+
+**Implications**:
+- T001 cannot work without first updating the web container
+- Container throws "No registration found for IWorkspaceService"
+- 6 new registrations needed: WorkspaceRegistryAdapter, WorkspaceContextResolver, GitWorktreeResolver, SampleAdapter, WorkspaceService, SampleService
+
+**Options Considered**:
+- Option A: Add T000 - Web Container Setup (Prerequisite Task) - Explicit, tested, follows task pattern
+- Option B: Fold Container Setup into T001 - Fewer tasks but larger scope
+- Option C: Update Container Now, Outside Tasks - Fast but untracked
+
+**AI Recommendation**: Option A - Add T000
+- Reasoning: Makes foundational work explicit, testable, and documented for future maintainers.
+
+**Discussion Summary**: User agreed with Option A to keep work visible and testable.
+
+**Decision**: Add T000 as prerequisite task for web container setup
+
+**Action Items**:
+- [x] Insert T000 before T001 in tasks.md
+- [x] Update Ready Check to show blocker addressed
+
+**Affects**: Phase 6 tasks.md - task list and dependencies
+
+---
+
+### Insight 2: WorkspaceContext Construction is Non-Trivial
+
+**Did you know**: API routes T003 and T004 need to construct a WorkspaceContext from URL parameters, requiring workspace lookup, worktree matching, and populating isMainWorktree/worktreeBranch correctly.
+
+**Implications**:
+- Two service calls per sample operation (getInfo + actual operation)
+- Path normalization issues (trailing slashes, symlinks)
+- Error handling needed for workspace not found, worktree not found
+
+**Options Considered**:
+- Option A: Helper Function in Route - Simple but duplicated
+- Option B: Add resolveContextFromParams() to WorkspaceService - Reusable, testable
+- Option C: Use Existing resolveContext() - Doesn't fit web use case
+
+**AI Recommendation**: Option B - Add Service Method
+- Reasoning: Centralizes path normalization, testable, handles edge cases in one place.
+
+**Discussion Summary**: User chose Option B for better reusability and testing.
+
+**Decision**: Add `resolveContextFromParams(slug, worktreePath?)` method to WorkspaceService
+
+**Action Items**:
+- [x] Update T000 to include helper method
+- [x] Update T003 notes to reference the helper
+
+**Affects**: WorkspaceService, T000, T003
+
+---
+
+### Insight 3: Same-User Deployment Constraint
+
+**Did you know**: The web server reads ~/.config/chainglass/workspaces.json where ~ expands to the server process owner's home directory, not the browsing user.
+
+**Implications**:
+- Dev works, production could break if users differ
+- CLI and Web could have different workspace lists
+- Current assumption: "Web server runs as same user as CLI"
+
+**Options Considered**:
+- Option A: Document as Deployment Constraint - No code changes
+- Option B: Configurable Registry Path via env var - More flexible
+- Option C: Shared Registry Location - Multi-user support
+
+**AI Recommendation**: Option A - Document Constraint
+- Reasoning: Local dev tool runs as same user; production multi-user isn't current use case.
+
+**Discussion Summary**: User confirmed the user runs the webserver locally, so this is a documentation-only concern for Phase 7.
+
+**Decision**: Document same-user requirement as deployment constraint in Phase 7
+
+**Action Items**:
+- [ ] Add note to Phase 7 documentation tasks
+
+**Affects**: Phase 7 (Documentation)
+
+---
+
+### Insight 4: WorkspaceNav Has Hidden API Call Complexity
+
+**Did you know**: T006 (WorkspaceNav component) marked CS-3 needs multiple API calls: one for workspace list, N for worktrees (N = workspaces), causing 11 round trips for 10 workspaces.
+
+**Implications**:
+- Multiple API calls for sidebar render
+- Performance concern with network latency
+- Mixed state: server data + client UI state + URL state
+
+**Options Considered**:
+- Option A: Single Enriched Endpoint - Add ?include=worktrees param
+- Option B: Lazy-Load Worktrees on Expand - Fast initial but loading spinners
+- Option C: Server Component with Parallel Fetch - Can't preserve expansion state
+
+**AI Recommendation**: Option A - Single Enriched Endpoint
+- Reasoning: Simplest component, single fetch, reasonable payload size.
+
+**Discussion Summary**: User chose Option A for simplicity.
+
+**Decision**: Add `?include=worktrees` query param to `/api/workspaces` endpoint
+
+**Action Items**:
+- [x] Update T001 to support include=worktrees param
+- [x] Simplify T006 to CS-2, remove T002 dependency
+
+**Affects**: T001, T006
+
+---
+
+### Insight 5: Server Actions vs API Routes for Mutations
+
+**Did you know**: Next.js 16 with React 19 Server Actions could replace POST/DELETE API routes with ~40% less code, built-in revalidation, and simpler testing.
+
+**Implications**:
+- Server Actions: less code, automatic revalidation, `useActionState` for form state
+- API Routes: explicit HTTP, curl-able, external access
+- For internal tool with no external consumers, Server Actions win
+
+**Options Considered**:
+- Option A: Keep API Routes Only - Explicit, REST pattern
+- Option B: Server Actions Only - Less code but no external API
+- Option C: Both - Duplication overhead
+- Option D (Hybrid): GET routes via API, mutations via Server Actions
+
+**AI Recommendation**: Option D - Hybrid Approach
+- Reasoning: Best of both worlds - clean data fetching + simpler form handling.
+
+**Discussion Summary**: Deep research via Perplexity confirmed Server Actions are better for mutations in internal tools. User chose Option D (hybrid).
+
+**Decision**: GET routes remain API routes; all mutations use Server Actions
+
+**Action Items**:
+- [x] Update T001-T003 to GET-only API routes
+- [x] Create T004 for Server Actions file
+- [x] Update T012-T015 to use Server Actions with useActionState
+- [x] Create workshop document for Server Actions reference
+
+**Affects**: T001-T004, T012-T015, new workshop created
+
+---
+
+## Session Summary
+
+**Insights Surfaced**: 5 critical insights identified and discussed
+**Decisions Made**: 5 decisions reached through collaborative discussion
+**Action Items Created**: 8 follow-up tasks completed during session
+**Areas Requiring Updates**:
+- tasks.md updated throughout session
+- New workshop created: nextjs-server-actions-for-form-mutations.md
+
+**Shared Understanding Achieved**: ✓
+
+**Confidence Level**: High - Key architectural decisions made, Server Actions research validates approach
+
+**Next Steps**:
+- Review Server Actions workshop document
+- Proceed with Phase 6 implementation
+
+**Notes**:
+- Server Actions research via Perplexity showed ~40% code reduction for mutations
+- Hybrid approach (GET via API, mutations via Server Actions) provides best of both worlds
+- T006 simplified from CS-3 to CS-2 with single enriched endpoint
 
 ---
 

@@ -22,13 +22,39 @@ import {
   FakeProcessManager,
   type IAgentAdapter,
   type IConfigService,
+  type IFileSystem,
   type ILogger,
+  type IPathResolver,
   type IProcessManager,
+  NodeFileSystemAdapter,
+  PathResolverAdapter,
   PinoLoggerAdapter,
+  ProcessManagerAdapter,
+  SHARED_DI_TOKENS,
   SdkCopilotAdapter,
   UnixProcessManager,
+  WORKSPACE_DI_TOKENS,
   WindowsProcessManager,
 } from '@chainglass/shared';
+// Plan 014 Phase 6: Import workspace services from @chainglass/workflow
+import {
+  FakeGitWorktreeResolver,
+  FakeSampleAdapter,
+  FakeWorkspaceContextResolver,
+  FakeWorkspaceRegistryAdapter,
+  GitWorktreeResolver,
+  type IGitWorktreeResolver,
+  type ISampleAdapter,
+  type ISampleService,
+  type IWorkspaceContextResolver,
+  type IWorkspaceRegistryAdapter,
+  type IWorkspaceService,
+  SampleAdapter,
+  SampleService as WorkflowSampleService,
+  WorkspaceContextResolver,
+  WorkspaceRegistryAdapter,
+  WorkspaceService,
+} from '@chainglass/workflow';
 // Phase 4: Import CopilotClient from SDK for production adapter
 import { CopilotClient } from '@github/copilot-sdk';
 import { type DependencyContainer, container } from 'tsyringe';
@@ -227,6 +253,72 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
     },
   });
 
+  // ==================== Plan 014 Phase 6: Workspace Service Registrations ====================
+
+  // Register shared filesystem and path resolver (needed by workspace adapters)
+  childContainer.register<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM, {
+    useFactory: () => new NodeFileSystemAdapter(),
+  });
+
+  childContainer.register<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER, {
+    useFactory: () => new PathResolverAdapter(),
+  });
+
+  // Register workspace registry adapter
+  childContainer.register<IWorkspaceRegistryAdapter>(
+    WORKSPACE_DI_TOKENS.WORKSPACE_REGISTRY_ADAPTER,
+    {
+      useFactory: (c) =>
+        new WorkspaceRegistryAdapter(
+          c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM),
+          c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER)
+        ),
+    }
+  );
+
+  // Register git worktree resolver (uses ProcessManager)
+  childContainer.register<IGitWorktreeResolver>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_RESOLVER, {
+    useFactory: (c) =>
+      new GitWorktreeResolver(c.resolve<IProcessManager>(DI_TOKENS.PROCESS_MANAGER)),
+  });
+
+  // Register workspace context resolver
+  childContainer.register<IWorkspaceContextResolver>(
+    WORKSPACE_DI_TOKENS.WORKSPACE_CONTEXT_RESOLVER,
+    {
+      useFactory: (c) =>
+        new WorkspaceContextResolver(
+          c.resolve<IWorkspaceRegistryAdapter>(WORKSPACE_DI_TOKENS.WORKSPACE_REGISTRY_ADAPTER),
+          c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM)
+        ),
+    }
+  );
+
+  // Register sample adapter
+  childContainer.register<ISampleAdapter>(WORKSPACE_DI_TOKENS.SAMPLE_ADAPTER, {
+    useFactory: (c) =>
+      new SampleAdapter(
+        c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM),
+        c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER)
+      ),
+  });
+
+  // Register workspace service
+  childContainer.register<IWorkspaceService>(WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE, {
+    useFactory: (c) =>
+      new WorkspaceService(
+        c.resolve<IWorkspaceRegistryAdapter>(WORKSPACE_DI_TOKENS.WORKSPACE_REGISTRY_ADAPTER),
+        c.resolve<IWorkspaceContextResolver>(WORKSPACE_DI_TOKENS.WORKSPACE_CONTEXT_RESOLVER),
+        c.resolve<IGitWorktreeResolver>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_RESOLVER)
+      ),
+  });
+
+  // Register sample service (using the workflow's SampleService, not the web's SampleService)
+  childContainer.register<ISampleService>(WORKSPACE_DI_TOKENS.SAMPLE_SERVICE, {
+    useFactory: (c) =>
+      new WorkflowSampleService(c.resolve<ISampleAdapter>(WORKSPACE_DI_TOKENS.SAMPLE_ADAPTER)),
+  });
+
   // FIX-010: Performance metrics for container creation
   const durationMs = performance.now() - startTime;
   console.log(`[createProductionContainer] Container created in ${durationMs.toFixed(2)}ms`);
@@ -315,6 +407,54 @@ export function createTestContainer(): DependencyContainer {
       // Each test container gets its own in-memory storage for isolation
       return new AgentSessionStore(createInMemoryStorage());
     },
+  });
+
+  // ==================== Plan 014 Phase 6: Workspace Service Fakes ====================
+
+  // Register fake workspace registry adapter
+  const fakeWorkspaceRegistryAdapter = new FakeWorkspaceRegistryAdapter();
+  childContainer.register<IWorkspaceRegistryAdapter>(
+    WORKSPACE_DI_TOKENS.WORKSPACE_REGISTRY_ADAPTER,
+    {
+      useValue: fakeWorkspaceRegistryAdapter,
+    }
+  );
+
+  // Register fake git worktree resolver
+  const fakeGitResolver = new FakeGitWorktreeResolver();
+  childContainer.register<IGitWorktreeResolver>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_RESOLVER, {
+    useValue: fakeGitResolver,
+  });
+
+  // Register fake workspace context resolver
+  const fakeContextResolver = new FakeWorkspaceContextResolver();
+  childContainer.register<IWorkspaceContextResolver>(
+    WORKSPACE_DI_TOKENS.WORKSPACE_CONTEXT_RESOLVER,
+    {
+      useValue: fakeContextResolver,
+    }
+  );
+
+  // Register fake sample adapter
+  const fakeSampleAdapter = new FakeSampleAdapter();
+  childContainer.register<ISampleAdapter>(WORKSPACE_DI_TOKENS.SAMPLE_ADAPTER, {
+    useValue: fakeSampleAdapter,
+  });
+
+  // Register workspace service with fakes
+  childContainer.register<IWorkspaceService>(WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE, {
+    useFactory: (c) =>
+      new WorkspaceService(
+        c.resolve<IWorkspaceRegistryAdapter>(WORKSPACE_DI_TOKENS.WORKSPACE_REGISTRY_ADAPTER),
+        c.resolve<IWorkspaceContextResolver>(WORKSPACE_DI_TOKENS.WORKSPACE_CONTEXT_RESOLVER),
+        c.resolve<IGitWorktreeResolver>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_RESOLVER)
+      ),
+  });
+
+  // Register sample service with fake adapter
+  childContainer.register<ISampleService>(WORKSPACE_DI_TOKENS.SAMPLE_SERVICE, {
+    useFactory: (c) =>
+      new WorkflowSampleService(c.resolve<ISampleAdapter>(WORKSPACE_DI_TOKENS.SAMPLE_ADAPTER)),
   });
 
   return childContainer;

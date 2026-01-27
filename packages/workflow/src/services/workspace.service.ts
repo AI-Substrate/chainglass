@@ -132,6 +132,69 @@ export class WorkspaceService implements IWorkspaceService {
   }
 
   /**
+   * Resolve workspace context from URL parameters.
+   *
+   * Per Plan 014 Phase 6: Web API routes need to construct WorkspaceContext
+   * from URL params. This handles workspace lookup, worktree matching, and
+   * populating context fields correctly.
+   *
+   * @param slug - Workspace slug from URL
+   * @param worktreePath - Optional worktree path (defaults to workspace root/main worktree)
+   * @returns WorkspaceContext if found, null if workspace not found
+   */
+  async resolveContextFromParams(
+    slug: string,
+    worktreePath?: string
+  ): Promise<WorkspaceContext | null> {
+    // 1. Get workspace info
+    const info = await this.getInfo(slug);
+    if (!info) {
+      return null;
+    }
+
+    // 2. Determine which worktree to use
+    // If no worktreePath specified, use the main worktree or workspace root
+    let targetWorktree = info.worktrees.find((w) => !worktreePath || w.path === worktreePath);
+
+    // If worktreePath specified but not found in worktrees, check if it matches workspace path
+    if (worktreePath && !targetWorktree) {
+      // Normalize paths for comparison (remove trailing slashes)
+      const normalizedWorktreePath = worktreePath.replace(/\/+$/, '');
+      const normalizedWorkspacePath = info.path.replace(/\/+$/, '');
+
+      if (normalizedWorktreePath === normalizedWorkspacePath) {
+        // The worktreePath is the workspace root
+        targetWorktree = info.worktrees.find((w) => w.path === info.path) || undefined;
+      } else {
+        // Try to find by normalized path
+        targetWorktree = info.worktrees.find(
+          (w) => w.path.replace(/\/+$/, '') === normalizedWorktreePath
+        );
+      }
+    }
+
+    // 3. Determine if we're in the main worktree
+    // Main worktree is either: the workspace path itself, or the worktree without a linked path
+    const mainWorktree = info.worktrees.find(
+      (w) => w.path === info.path || (!w.isDetached && !w.isBare && w.branch !== null)
+    );
+    const isMainWorktree = targetWorktree
+      ? targetWorktree.path === info.path || targetWorktree === mainWorktree
+      : true;
+
+    // 4. Build context
+    return {
+      workspaceSlug: info.slug,
+      workspaceName: info.name,
+      workspacePath: info.path,
+      worktreePath: targetWorktree?.path ?? worktreePath ?? info.path,
+      worktreeBranch: targetWorktree?.branch ?? null,
+      isMainWorktree,
+      hasGit: info.hasGit,
+    };
+  }
+
+  /**
    * Validate path format.
    *
    * Per DYK-P4-04: Defense in depth - service validates for early-fail UX.
