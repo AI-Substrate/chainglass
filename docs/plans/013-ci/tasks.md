@@ -373,11 +373,13 @@ cat docs/how/ci.md
 
 ## Phase Footnote Stubs
 
-_To be populated by plan-6 during implementation._
-
 | Footnote | Task | Description |
 |----------|------|-------------|
-| | | |
+| [^1] | T001 | Added json-summary, json reporters to vitest.config.ts |
+| [^2] | T003-T007 | Created .github/workflows/ci.yml with all jobs |
+| [^3] | T011-T012 | Created docs/how/ci.md documentation |
+| [^4] | T008 | Bug fixes: mcp-server deps, test paths, biome ignores |
+| [^5] | T001 | Coverage fix: removed test.root, added package aliases, realistic thresholds |
 
 ---
 

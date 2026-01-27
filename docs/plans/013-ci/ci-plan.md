@@ -200,8 +200,14 @@ gate:
   - `file:test/unit/workflow/schema-validator.test.ts` - Fixed hardcoded paths to relative imports
   - `file:biome.json` - Added coverage directories to ignore list
 
+[^5]: Coverage path resolution fix
+  - `file:vitest.config.ts` - Removed test.root, added package aliases, set realistic thresholds
+  - `file:docs/how/ci.md` - Updated thresholds (65%/60%) and coverage scope documentation
+  - Root cause: test.root broke coverage include pattern resolution; packages resolved to dist/ not src/
+
 ---
 
 **Implementation Complete**: 2026-01-27
-**PR**: https://github.com/AI-Substrate/chainglass/pull/12
-**CI Run**: https://github.com/AI-Substrate/chainglass/actions/runs/21377569301 (all jobs passing)
+**PR #12**: https://github.com/AI-Substrate/chainglass/pull/12 (merged to main)
+**PR #13**: https://github.com/AI-Substrate/chainglass/pull/13 (closeout documentation)
+**CI Run**: https://github.com/AI-Substrate/chainglass/actions/runs/21379712128 (main branch, all jobs passing)
