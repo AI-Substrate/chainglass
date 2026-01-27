@@ -85,18 +85,18 @@ flowchart TD
     classDef blocked fill:#F44336,stroke:#D32F2F,color:#fff
 
     subgraph Phase2["Phase 2: WorkspaceContext Resolution"]
-        T013["T013: Define WorkspaceContext + Worktree types"]:::pending
-        T014["T014: Write resolveFromPath tests (registered)"]:::pending
-        T015["T015: Write resolveFromPath tests (unregistered)"]:::pending
-        T016["T016: Implement resolveFromPath"]:::pending
-        T017["T017: Write git worktree detection tests"]:::pending
-        T018["T018: Write git worktree list parsing tests"]:::pending
-        T019["T019: Implement detectWorktrees with version check"]:::pending
-        T020["T020: Write worktree-to-main-repo tests"]:::pending
-        T021["T021: Implement getMainRepoPath"]:::pending
-        T022["T022: Add hasGit detection"]:::pending
-        T023["T023: Implement FakeWorkspaceContextResolver"]:::pending
-        T024["T024: Write contract tests for context resolver"]:::pending
+        T013["T013: Define WorkspaceContext + Worktree types ✓"]:::completed
+        T014["T014: Write resolveFromPath tests (registered) ✓"]:::completed
+        T015["T015: Write resolveFromPath tests (unregistered) ✓"]:::completed
+        T016["T016: Implement resolveFromPath ✓"]:::completed
+        T017["T017: Write git worktree detection tests ✓"]:::completed
+        T018["T018: Write git worktree list parsing tests ✓"]:::completed
+        T019["T019: Implement detectWorktrees with version check ✓"]:::completed
+        T020["T020: Write worktree-to-main-repo tests ✓"]:::completed
+        T021["T021: Implement getMainRepoPath ✓"]:::completed
+        T022["T022: Add hasGit detection ✓"]:::completed
+        T023["T023: Implement FakeWorkspaceContextResolver ✓"]:::completed
+        T024["T024: Write contract tests for context resolver ✓"]:::completed
 
         T013 --> T014
         T014 --> T015
@@ -112,22 +112,22 @@ flowchart TD
     end
 
     subgraph Interfaces["Interface Files"]
-        IF1["/packages/workflow/src/interfaces/workspace-context.interface.ts"]:::pending
+        IF1["/packages/workflow/src/interfaces/workspace-context.interface.ts ✓"]:::completed
     end
 
     subgraph Services["Service/Resolver Files"]
-        SV1["/packages/workflow/src/resolvers/workspace-context.resolver.ts"]:::pending
-        SV2["/packages/workflow/src/resolvers/git-worktree.resolver.ts"]:::pending
+        SV1["/packages/workflow/src/resolvers/workspace-context.resolver.ts ✓"]:::completed
+        SV2["/packages/workflow/src/resolvers/git-worktree.resolver.ts ✓"]:::completed
     end
 
     subgraph Fakes["Fake Files"]
-        FK1["/packages/workflow/src/fakes/fake-workspace-context-resolver.ts"]:::pending
+        FK1["/packages/workflow/src/fakes/fake-workspace-context-resolver.ts ✓"]:::completed
     end
 
     subgraph Tests["Test Files"]
-        TS1["/test/unit/workflow/workspace-context-resolution.test.ts"]:::pending
-        TS2["/test/unit/workflow/git-worktree-resolver.test.ts"]:::pending
-        TS3["/test/contracts/workspace-context-resolver.contract.test.ts"]:::pending
+        TS1["/test/unit/workflow/workspace-context-resolution.test.ts ✓"]:::completed
+        TS2["/test/unit/workflow/git-worktree-resolver.test.ts ✓"]:::completed
+        TS3["/test/contracts/workspace-context-resolver.contract.test.ts ✓"]:::completed
     end
 
     T013 -.-> IF1
@@ -150,18 +150,18 @@ flowchart TD
 
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
-| T013 | Context Types | workspace-context.interface.ts | ⬜ Pending | Define WorkspaceContext, Worktree, WorkspaceInfo types |
-| T014 | Resolution Tests | workspace-context-resolution.test.ts | ⬜ Pending | TDD: tests for CWD in registered workspace |
-| T015 | Resolution Tests | workspace-context-resolution.test.ts | ⬜ Pending | TDD: tests for unregistered path returns null |
-| T016 | Context Resolver | workspace-context.resolver.ts | ⬜ Pending | Walk up directory tree, match against registry |
-| T017 | Git Detection Tests | git-worktree-resolver.test.ts | ⬜ Pending | TDD: git available/missing/old version scenarios |
-| T018 | Parsing Tests | git-worktree-resolver.test.ts | ⬜ Pending | TDD: parse --porcelain output format |
-| T019 | Git Worktree Resolver | git-worktree.resolver.ts | ⬜ Pending | Version check ≥ 2.13, exec worktree list |
-| T020 | Main Repo Tests | git-worktree-resolver.test.ts | ⬜ Pending | TDD: in worktree vs in main repo scenarios |
-| T021 | Main Repo Resolution | git-worktree.resolver.ts | ⬜ Pending | git rev-parse --show-toplevel |
-| T022 | Git Detection | workspace-context.resolver.ts | ⬜ Pending | Check .git presence for hasGit flag |
-| T023 | Fake Resolver | fake-workspace-context-resolver.ts | ⬜ Pending | Three-part API for testing |
-| T024 | Contract Tests | workspace-context-resolver.contract.test.ts | ⬜ Pending | Verify fake-real parity |
+| T013 | Context Types | workspace-context.interface.ts | ✅ Complete | Define WorkspaceContext, Worktree, WorkspaceInfo types |
+| T014 | Resolution Tests | workspace-context-resolution.test.ts | ✅ Complete | TDD: tests for CWD in registered workspace |
+| T015 | Resolution Tests | workspace-context-resolution.test.ts | ✅ Complete | TDD: tests for unregistered path returns null |
+| T016 | Context Resolver | workspace-context.resolver.ts | ✅ Complete | Walk up directory tree, match against registry |
+| T017 | Git Detection Tests | git-worktree-resolver.test.ts | ✅ Complete | TDD: git available/missing/old version scenarios |
+| T018 | Parsing Tests | git-worktree-resolver.test.ts | ✅ Complete | TDD: parse --porcelain output format |
+| T019 | Git Worktree Resolver | git-worktree.resolver.ts | ✅ Complete | Version check ≥ 2.13, exec worktree list |
+| T020 | Main Repo Tests | git-worktree-resolver.test.ts | ✅ Complete | TDD: in worktree vs in main repo scenarios |
+| T021 | Main Repo Resolution | git-worktree.resolver.ts | ✅ Complete | git rev-parse --show-toplevel |
+| T022 | Git Detection | workspace-context.resolver.ts | ✅ Complete | Check .git presence for hasGit flag |
+| T023 | Fake Resolver | fake-workspace-context-resolver.ts | ✅ Complete | Three-part API for testing |
+| T024 | Contract Tests | workspace-context-resolver.contract.test.ts | ✅ Complete | Verify fake-real parity |
 
 ---
 
@@ -169,18 +169,18 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|------|------|-----|------|--------------|------------------|------------|----------|-------|
-| [ ] | T013 | Define WorkspaceContext interface, Worktree type, WorkspaceInfo type, AND IWorkspaceContextResolver interface | 2 | Setup | – | /home/jak/substrate/014-workspaces/packages/workflow/src/interfaces/workspace-context.interface.ts | Types compile, match plan § Phase 2 deliverables; export from index.ts | – | Include workspaceSlug, workspacePath, worktreePath, worktreeBranch, isMainWorktree; **DYK-02: Add IWorkspaceContextResolver interface for DI per ADR-0004** |
-| [ ] | T014 | Write unit tests for resolveFromPath() with CWD in registered workspace | 2 | Test | T013 | /home/jak/substrate/014-workspaces/test/unit/workflow/workspace-context-resolution.test.ts | Tests cover: exact workspace path, nested subdirectory, deeply nested path | – | TDD: tests must fail initially; use FakeWorkspaceRegistryAdapter |
-| [ ] | T015 | Write unit tests for resolveFromPath() with unregistered path | 1 | Test | T014 | /home/jak/substrate/014-workspaces/test/unit/workflow/workspace-context-resolution.test.ts | Tests cover: path not in any workspace returns null, root path returns null | – | |
-| [ ] | T016 | Implement resolveFromPath() in WorkspaceContextResolver | 2 | Core | T015 | /home/jak/substrate/014-workspaces/packages/workflow/src/resolvers/workspace-context.resolver.ts | All T014+T015 tests pass; walks up directory tree, matches against registry | – | Uses IWorkspaceRegistryAdapter.list() from Phase 1; **DYK-03: Sort by path.length descending before matching to handle overlapping workspaces** |
-| [ ] | T017 | Write unit tests for git worktree detection (available/missing/old) | 2 | Test | T016 | /home/jak/substrate/014-workspaces/test/unit/workflow/git-worktree-resolver.test.ts | Tests cover: git available returns version, git missing returns null, version < 2.13 detected | – | Per High Discovery 04; **DYK-01: Use FakeProcessManager for test mocking** |
-| [ ] | T018 | Write unit tests for git worktree list --porcelain parsing | 2 | Test | T017 | /home/jak/substrate/014-workspaces/test/unit/workflow/git-worktree-resolver.test.ts | Tests cover: single worktree, multiple worktrees, bare worktree, detached HEAD | – | Sample output in test fixtures; **DYK-05: Test ALL porcelain variants - normal (has `branch`), detached HEAD (has `detached`), bare (has `bare`), prunable (has `prunable`); each block separated by blank line** |
-| [ ] | T019 | Implement detectWorktrees() with git version check and graceful fallback | 3 | Core | T018 | /home/jak/substrate/014-workspaces/packages/workflow/src/resolvers/git-worktree.resolver.ts | All T017+T018 tests pass; returns [] if git unavailable or < 2.13; E079 for explicit failures | – | Per High Discovery 04: version ≥ 2.13 required; **DYK-01: Inject IProcessManager for git execution** |
-| [ ] | T020 | Write unit tests for worktree path to main repo resolution | 2 | Test | T019 | /home/jak/substrate/014-workspaces/test/unit/workflow/git-worktree-resolver.test.ts | Tests cover: CWD in worktree returns main repo, CWD in main repo returns same | – | |
-| [ ] | T021 | Implement getMainRepoPath() using git rev-parse --show-toplevel | 2 | Core | T020 | /home/jak/substrate/014-workspaces/packages/workflow/src/resolvers/git-worktree.resolver.ts | All T020 tests pass; handles non-git directories gracefully | – | |
-| [ ] | T022 | Add hasGit detection to WorkspaceContextResolver | 1 | Core | T021 | /home/jak/substrate/014-workspaces/packages/workflow/src/resolvers/workspace-context.resolver.ts | WorkspaceInfo.hasGit reflects .git presence (file or directory) | – | Check .git exists at workspace root |
-| [ ] | T023 | Implement FakeWorkspaceContextResolver implementing IWorkspaceContextResolver with three-part API | 2 | Core | T022 | /home/jak/substrate/014-workspaces/packages/workflow/src/fakes/fake-workspace-context-resolver.ts | State setup, inspection, error injection; reset() helper; call tracking | – | Follow FakeWorkspaceRegistryAdapter pattern from Phase 1; **DYK-02: Implements IWorkspaceContextResolver** |
-| [ ] | T024 | Write contract tests for IWorkspaceContextResolver | 3 | Test | T023 | /home/jak/substrate/014-workspaces/test/contracts/workspace-context-resolver.contract.test.ts | Tests run against both Fake and Real implementations; verify behavior parity | – | Per Critical Discovery 03; follow Phase 1 contract test pattern |
+| [x] | T013 | Define WorkspaceContext interface, Worktree type, WorkspaceInfo type, AND IWorkspaceContextResolver interface | 2 | Setup | – | /home/jak/substrate/014-workspaces/packages/workflow/src/interfaces/workspace-context.interface.ts | Types compile, match plan § Phase 2 deliverables; export from index.ts | – | Include workspaceSlug, workspacePath, worktreePath, worktreeBranch, isMainWorktree; **DYK-02: Add IWorkspaceContextResolver interface for DI per ADR-0004** |
+| [x] | T014 | Write unit tests for resolveFromPath() with CWD in registered workspace | 2 | Test | T013 | /home/jak/substrate/014-workspaces/test/unit/workflow/workspace-context-resolution.test.ts | Tests cover: exact workspace path, nested subdirectory, deeply nested path | – | TDD: tests must fail initially; use FakeWorkspaceRegistryAdapter |
+| [x] | T015 | Write unit tests for resolveFromPath() with unregistered path | 1 | Test | T014 | /home/jak/substrate/014-workspaces/test/unit/workflow/workspace-context-resolution.test.ts | Tests cover: path not in any workspace returns null, root path returns null | – | |
+| [x] | T016 | Implement resolveFromPath() in WorkspaceContextResolver | 2 | Core | T015 | /home/jak/substrate/014-workspaces/packages/workflow/src/resolvers/workspace-context.resolver.ts | All T014+T015 tests pass; walks up directory tree, matches against registry | – | Uses IWorkspaceRegistryAdapter.list() from Phase 1; **DYK-03: Sort by path.length descending before matching to handle overlapping workspaces** |
+| [x] | T017 | Write unit tests for git worktree detection (available/missing/old) | 2 | Test | T016 | /home/jak/substrate/014-workspaces/test/unit/workflow/git-worktree-resolver.test.ts | Tests cover: git available returns version, git missing returns null, version < 2.13 detected | – | Per High Discovery 04; **DYK-01: Use FakeProcessManager for test mocking** |
+| [x] | T018 | Write unit tests for git worktree list --porcelain parsing | 2 | Test | T017 | /home/jak/substrate/014-workspaces/test/unit/workflow/git-worktree-resolver.test.ts | Tests cover: single worktree, multiple worktrees, bare worktree, detached HEAD | – | Sample output in test fixtures; **DYK-05: Test ALL porcelain variants - normal (has `branch`), detached HEAD (has `detached`), bare (has `bare`), prunable (has `prunable`); each block separated by blank line** |
+| [x] | T019 | Implement detectWorktrees() with git version check and graceful fallback | 3 | Core | T018 | /home/jak/substrate/014-workspaces/packages/workflow/src/resolvers/git-worktree.resolver.ts | All T017+T018 tests pass; returns [] if git unavailable or < 2.13; E079 for explicit failures | – | Per High Discovery 04: version ≥ 2.13 required; **DYK-01: Inject IProcessManager for git execution** |
+| [x] | T020 | Write unit tests for worktree path to main repo resolution | 2 | Test | T019 | /home/jak/substrate/014-workspaces/test/unit/workflow/git-worktree-resolver.test.ts | Tests cover: CWD in worktree returns main repo, CWD in main repo returns same | – | |
+| [x] | T021 | Implement getMainRepoPath() using git rev-parse --show-toplevel | 2 | Core | T020 | /home/jak/substrate/014-workspaces/packages/workflow/src/resolvers/git-worktree.resolver.ts | All T020 tests pass; handles non-git directories gracefully | – | |
+| [x] | T022 | Add hasGit detection to WorkspaceContextResolver | 1 | Core | T021 | /home/jak/substrate/014-workspaces/packages/workflow/src/resolvers/workspace-context.resolver.ts | WorkspaceInfo.hasGit reflects .git presence (file or directory) | – | Check .git exists at workspace root |
+| [x] | T023 | Implement FakeWorkspaceContextResolver implementing IWorkspaceContextResolver with three-part API | 2 | Core | T022 | /home/jak/substrate/014-workspaces/packages/workflow/src/fakes/fake-workspace-context-resolver.ts | State setup, inspection, error injection; reset() helper; call tracking | – | Follow FakeWorkspaceRegistryAdapter pattern from Phase 1; **DYK-02: Implements IWorkspaceContextResolver** |
+| [x] | T024 | Write contract tests for IWorkspaceContextResolver | 3 | Test | T023 | /home/jak/substrate/014-workspaces/test/contracts/workspace-context-resolver.contract.test.ts | Tests run against both Fake and Real implementations; verify behavior parity | – | Per Critical Discovery 03; follow Phase 1 contract test pattern |
 
 ---
 

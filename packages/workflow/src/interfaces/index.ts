@@ -52,3 +52,13 @@ export type {
   WorkspaceSaveResult,
   WorkspaceRemoveResult,
 } from './workspace-registry-adapter.interface.js';
+
+// Workspace context resolver interface (Plan 014 Phase 2)
+export type {
+  Worktree,
+  WorkspaceContext,
+  WorkspaceInfo,
+  WorkspaceContextResult,
+  WorkspaceInfoResult,
+  IWorkspaceContextResolver,
+} from './workspace-context.interface.js';

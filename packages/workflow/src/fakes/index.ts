@@ -50,3 +50,10 @@ export type {
   WorkspaceRemoveCall,
   WorkspaceExistsCall,
 } from './fake-workspace-registry-adapter.js';
+
+// Workspace context resolver fake (Plan 014 Phase 2)
+export { FakeWorkspaceContextResolver } from './fake-workspace-context-resolver.js';
+export type {
+  ResolveFromPathCall,
+  GetWorkspaceInfoCall,
+} from './fake-workspace-context-resolver.js';

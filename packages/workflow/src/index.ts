@@ -210,3 +210,23 @@ export {
   createWorkflowProductionContainer,
   createWorkflowTestContainer,
 } from './container.js';
+
+// Workspace context resolver (Plan 014 Phase 2)
+export type {
+  Worktree,
+  WorkspaceContext,
+  WorkspaceInfo,
+  WorkspaceContextResult,
+  WorkspaceInfoResult,
+  IWorkspaceContextResolver,
+} from './interfaces/index.js';
+
+// Workspace context resolver fake (Plan 014 Phase 2)
+export { FakeWorkspaceContextResolver } from './fakes/index.js';
+export type {
+  ResolveFromPathCall,
+  GetWorkspaceInfoCall,
+} from './fakes/index.js';
+
+export { WorkspaceContextResolver } from './resolvers/index.js';
+export { GitWorktreeResolver } from './resolvers/index.js';
