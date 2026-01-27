@@ -5,8 +5,8 @@
 import '@xyflow/react/dist/style.css';
 import './globals.css';
 
-import { ThemeProvider } from 'next-themes';
 import { Providers } from '@/components/providers';
+import { ThemeProvider } from 'next-themes';
 
 export const metadata = {
   title: 'Chainglass',

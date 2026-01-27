@@ -19,6 +19,7 @@
  */
 
 import type { AgentEvent, AgentService, IEventStorage } from '@chainglass/shared';
+import { validateSessionId } from '@chainglass/shared';
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { getContainer } from '../../../../src/lib/bootstrap-singleton';
@@ -157,6 +158,13 @@ export async function POST(request: NextRequest): Promise<Response> {
   }
 
   const { prompt, agentType, sessionId, channel, agentSessionId } = body;
+
+  // SEC-001: Validate sessionId to prevent path traversal attacks
+  try {
+    validateSessionId(sessionId);
+  } catch (error) {
+    return Response.json({ error: 'Invalid session ID' }, { status: 400 });
+  }
 
   // Get container and resolve services
   const container = getContainer();

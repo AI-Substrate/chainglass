@@ -40,7 +40,7 @@ export function Providers({ children }: ProvidersProps) {
             refetchOnWindowFocus: false,
           },
         },
-      }),
+      })
   );
 
   return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;

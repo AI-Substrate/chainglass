@@ -13,11 +13,10 @@
  * Part of Plan 015: Agent Activity Fidelity Enhancement (Phase 3)
  */
 
-import { useQueryClient, useQuery } from '@tanstack/react-query';
-import { useCallback, useEffect, useRef } from 'react';
 import type { SessionMetadata } from '@chainglass/shared';
 import type { StoredEvent } from '@chainglass/shared/src/interfaces/event-storage.interface';
-import { useAgentSSE } from './useAgentSSE';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 // ============ Types ============
 
@@ -115,12 +114,15 @@ async function fetchSession(sessionId: string): Promise<ServerSession> {
  */
 export function useServerSession(
   sessionId: string,
-  options: UseServerSessionOptions = {},
+  options: UseServerSessionOptions = {}
 ): UseServerSessionReturn {
   const { subscribeToUpdates = true, onSessionUpdated } = options;
   const queryClient = useQueryClient();
   const onSessionUpdatedRef = useRef(onSessionUpdated);
   onSessionUpdatedRef.current = onSessionUpdated;
+
+  // COR-001: Track SSE connection status with single EventSource (no dual connections)
+  const [isConnected, setIsConnected] = useState(false);
 
   // React Query for session data
   const {
@@ -143,35 +145,30 @@ export function useServerSession(
         onSessionUpdatedRef.current?.(sessionId);
       }
     },
-    [sessionId, queryClient],
+    [sessionId, queryClient]
   );
 
-  // SSE subscription for `session_updated` notifications
-  // The channel is 'agents' (global), we filter by sessionId in the callback
-  const sseChannel = subscribeToUpdates ? 'agents' : null;
-
-  const { isConnected, error: sseError } = useAgentSSE(
-    sseChannel,
-    {
-      // We need to listen for session_updated events
-      // But useAgentSSE doesn't have this callback yet...
-      // We'll need to extend it or use a different approach
-    },
-    {
-      autoConnect: subscribeToUpdates,
-    },
-  );
-
-  // TODO: Extend useAgentSSE to support onSessionUpdated callback
-  // For now, we'll use a custom SSE listener
-
-  // Custom SSE listener for session_updated
+  // Custom SSE listener for session_updated notifications
+  // COR-001: Single EventSource (removed unused useAgentSSE)
+  // COR-002: Added error handler to prevent memory leaks
   useEffect(() => {
     if (!subscribeToUpdates || !sessionId) return;
 
     // Create EventSource directly for session_updated notifications
     const channel = `agent-${sessionId}`;
     const eventSource = new EventSource(`/api/sse?channel=${channel}`);
+
+    // Track connection open
+    eventSource.addEventListener('open', () => {
+      setIsConnected(true);
+    });
+
+    // COR-002: Error handler to prevent memory leaks and track connection state
+    eventSource.addEventListener('error', () => {
+      console.warn(`[useServerSession] SSE connection error for session ${sessionId}`);
+      setIsConnected(false);
+      eventSource.close();
+    });
 
     const handleMessage = (event: MessageEvent) => {
       try {
@@ -189,6 +186,7 @@ export function useServerSession(
 
     return () => {
       eventSource.close();
+      setIsConnected(false);
     };
   }, [subscribeToUpdates, sessionId, handleSessionUpdated]);
 

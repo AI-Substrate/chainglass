@@ -21,9 +21,9 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { validateSessionId } from '../lib/validators/session-id-validator.js';
 import {
-  SessionMetadataSchema,
   type SessionMetadata,
   type SessionMetadataCreate,
+  SessionMetadataSchema,
   type SessionMetadataUpdate,
 } from '../schemas/session-metadata.schema.js';
 
@@ -220,7 +220,7 @@ export class SessionMetadataService implements ISessionMetadataStorage {
 
     // Sort by createdAt descending (newest first)
     return sessions.sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
   }
 }
