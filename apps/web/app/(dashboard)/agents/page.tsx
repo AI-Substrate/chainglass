@@ -136,7 +136,7 @@ export default function AgentsPage() {
             const messages: AgentMessage[] = s.streamingContent
               ? [
                   ...s.messages,
-                  { role: 'assistant', content: s.streamingContent, timestamp: Date.now() },
+                  { role: 'assistant', content: s.streamingContent, timestamp: Date.now(), contentType: 'text' as const },
                 ]
               : s.messages;
             return {
@@ -211,7 +211,7 @@ export default function AgentsPage() {
       updateSession(sessionId, (s) => ({
         ...s,
         error: null,
-        messages: [...s.messages, { role: 'user', content, timestamp: Date.now() }],
+        messages: [...s.messages, { role: 'user', content, timestamp: Date.now(), contentType: 'text' as const }],
         status: 'running' as SessionStatus,
         streamingContent: '',
         lastActiveAt: Date.now(),
@@ -258,7 +258,7 @@ export default function AgentsPage() {
               status: 'completed',
               messages: [
                 ...session.messages,
-                { role: 'assistant', content: data.output, timestamp: Date.now() },
+                { role: 'assistant', content: data.output, timestamp: Date.now(), contentType: 'text' as const },
               ],
               streamingContent: '',
               lastActiveAt: Date.now(),

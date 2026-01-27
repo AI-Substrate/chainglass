@@ -108,6 +108,7 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
               role: 'assistant' as const,
               content: state.streamingContent,
               timestamp: Date.now(),
+              contentType: 'text' as const,
             },
           ]
         : state.messages;

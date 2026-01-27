@@ -13,8 +13,7 @@
  * Part of Plan 015: Agent Activity Fidelity Enhancement (Phase 3)
  */
 
-import type { SessionMetadata } from '@chainglass/shared';
-import type { StoredEvent } from '@chainglass/shared/src/interfaces/event-storage.interface';
+import type { SessionMetadata, StoredEvent } from '@chainglass/shared';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 

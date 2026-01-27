@@ -191,9 +191,16 @@ export {
   AgentToolCallEventSchema,
   AgentToolResultEventSchema,
   agentStoredEventSchemas,
+  // Session metadata schemas (Plan 015: Phase 3)
+  SessionMetadataSchema,
+  SessionMetadataCreateSchema,
+  SessionMetadataUpdateSchema,
   // Types
   type AgentStoredEvent,
   type AgentThinkingEvent,
   type AgentToolCallEvent,
   type AgentToolResultEvent,
+  type SessionMetadata,
+  type SessionMetadataCreate,
+  type SessionMetadataUpdate,
 } from './schemas/index.js';
