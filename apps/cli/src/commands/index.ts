@@ -7,3 +7,5 @@ export { registerWebCommand } from './web.command.js';
 export { registerMcpCommand } from './mcp.command.js';
 export { registerPhaseCommands } from './phase.command.js';
 export { registerWorkflowCommands } from './workflow.command.js';
+export { registerWorkspaceCommands } from './workspace.command.js';
+export { registerSampleCommands } from './sample.command.js';

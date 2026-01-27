@@ -14,11 +14,13 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from '@/components/ui/sidebar';
+import { WorkspaceNav } from '@/components/workspaces/workspace-nav';
 import { NAV_ITEMS } from '@/lib/navigation-utils';
 import { cn } from '@/lib/utils';
 import { PanelLeft } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { Suspense } from 'react';
 
 /**
  * DashboardSidebar
@@ -32,6 +34,7 @@ import { usePathname } from 'next/navigation';
  * - Icons-only mode when collapsed
  * - ThemeToggle in header
  * - Uses shared NAV_ITEMS from navigation-utils.ts
+ * - Workspace navigation with worktree expansion (Plan 014 Phase 6)
  */
 export function DashboardSidebar() {
   const pathname = usePathname();
@@ -85,6 +88,18 @@ export function DashboardSidebar() {
                 );
               })}
             </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* Plan 014 Phase 6: Workspace navigation with worktree expansion */}
+        <SidebarGroup>
+          {!isCollapsed && <SidebarGroupLabel>Workspaces</SidebarGroupLabel>}
+          <SidebarGroupContent>
+            <Suspense
+              fallback={<div className="px-3 py-2 text-xs text-muted-foreground">Loading...</div>}
+            >
+              <WorkspaceNav />
+            </Suspense>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>

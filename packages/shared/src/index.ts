@@ -61,6 +61,19 @@ export type {
   CheckpointInfo,
   WorkflowSummary,
   WorkflowInfo,
+  // Workspace result types (Plan 014: Phase 5)
+  WorkspaceOutputData,
+  WorktreeOutputData,
+  WorkspaceAddCmdResult,
+  WorkspaceListCmdResult,
+  WorkspaceInfoCmdResult,
+  WorkspaceRemoveCmdResult,
+  SampleOutputData,
+  SampleWorkspaceContextData,
+  SampleAddCmdResult,
+  SampleListCmdResult,
+  SampleInfoCmdResult,
+  SampleDeleteCmdResult,
 } from './interfaces/index.js';
 
 // Output adapter interface (per Phase 1a: Output Adapter Architecture)
@@ -142,9 +155,10 @@ export { CopilotAdapter, SdkCopilotAdapter } from './adapters/index.js';
 export type { SdkCopilotAdapterOptions } from './adapters/index.js';
 export { UnixProcessManager } from './adapters/index.js';
 export { WindowsProcessManager } from './adapters/index.js';
+export { createProcessManager, ProcessManagerAdapter } from './adapters/index.js';
 
 // DI Tokens
-export { SHARED_DI_TOKENS, WORKFLOW_DI_TOKENS } from './di-tokens.js';
+export { SHARED_DI_TOKENS, WORKFLOW_DI_TOKENS, WORKSPACE_DI_TOKENS } from './di-tokens.js';
 
 // Config (re-export key items from ./config for convenience)
 export {

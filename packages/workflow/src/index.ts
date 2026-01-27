@@ -15,6 +15,28 @@ export {
   CheckpointCorruptError,
 } from './errors/index.js';
 
+// Workspace errors (E074-E081 per Plan 014)
+export { WorkspaceErrorCodes, WorkspaceErrors } from './errors/index.js';
+export type { WorkspaceError } from './errors/index.js';
+export {
+  WorkspaceNotFoundError,
+  WorkspaceExistsError,
+  InvalidPathError,
+  PathNotFoundError,
+  RegistryCorruptError,
+  GitOperationError,
+  ConfigNotWritableError,
+} from './errors/index.js';
+
+// Sample errors (E082-E089 per Plan 014 Phase 3)
+export { SampleErrorCodes, SampleErrors } from './errors/index.js';
+export type { SampleError } from './errors/index.js';
+export {
+  SampleNotFoundError,
+  SampleExistsError,
+  InvalidSampleDataError,
+} from './errors/index.js';
+
 // Types (matching core schemas)
 export type {
   // wf.types.ts - Workflow definition types
@@ -87,6 +109,30 @@ export type {
   PhaseJSON,
 } from './entities/index.js';
 
+// Workspace entity (Plan 014: Workspaces)
+export { Workspace } from './entities/index.js';
+export type { WorkspaceInput, WorkspaceJSON } from './entities/index.js';
+
+// Sample entity (Plan 014: Phase 3 Exemplar)
+export { Sample } from './entities/index.js';
+export type { SampleInput, SampleJSON } from './entities/index.js';
+
+// Workspace registry adapter interface (Plan 014: Workspaces)
+export type {
+  IWorkspaceRegistryAdapter,
+  WorkspaceErrorCode,
+  WorkspaceSaveResult,
+  WorkspaceRemoveResult,
+} from './interfaces/index.js';
+
+// Sample adapter interface (Plan 014: Phase 3)
+export type {
+  ISampleAdapter,
+  SampleErrorCode,
+  SampleSaveResult,
+  SampleRemoveResult,
+} from './interfaces/index.js';
+
 // Init service interface (Phase 4)
 export type {
   IInitService,
@@ -108,6 +154,20 @@ export { YamlParserAdapter } from './adapters/index.js';
 export { SchemaValidatorAdapter } from './adapters/index.js';
 export { WorkflowAdapter } from './adapters/index.js';
 export { PhaseAdapter } from './adapters/index.js';
+
+// Workspace registry adapter (Plan 014)
+export { WorkspaceRegistryAdapter } from './adapters/index.js';
+
+// Workspace data adapter base (Plan 014 Phase 3)
+export { WorkspaceDataAdapterBase } from './adapters/index.js';
+export type {
+  EnsureStructureResult,
+  ReadJsonResult,
+  WriteJsonResult,
+} from './adapters/index.js';
+
+// Sample adapter (Plan 014 Phase 3)
+export { SampleAdapter } from './adapters/index.js';
 
 // Fakes
 export { FakeYamlParser } from './fakes/index.js';
@@ -141,6 +201,16 @@ export type {
 export { FakePhaseAdapter } from './fakes/index.js';
 export type { LoadFromPathCall, ListForWorkflowCall } from './fakes/index.js';
 
+// Workspace registry adapter fake (Plan 014)
+export { FakeWorkspaceRegistryAdapter } from './fakes/index.js';
+export type {
+  WorkspaceLoadCall,
+  WorkspaceSaveCall,
+  WorkspaceListCall,
+  WorkspaceRemoveCall,
+  WorkspaceExistsCall,
+} from './fakes/index.js';
+
 // Services (Phase 2)
 export { WorkflowService, ComposeErrorCodes } from './services/index.js';
 
@@ -172,3 +242,65 @@ export {
   createWorkflowProductionContainer,
   createWorkflowTestContainer,
 } from './container.js';
+
+// Workspace context resolver (Plan 014 Phase 2)
+export type {
+  Worktree,
+  WorkspaceContext,
+  WorkspaceInfo,
+  WorkspaceContextResult,
+  WorkspaceInfoResult,
+  IWorkspaceContextResolver,
+} from './interfaces/index.js';
+
+// Workspace context resolver fake (Plan 014 Phase 2)
+export { FakeWorkspaceContextResolver } from './fakes/index.js';
+export type {
+  ResolveFromPathCall,
+  GetWorkspaceInfoCall,
+} from './fakes/index.js';
+
+// Sample adapter fake (Plan 014 Phase 3)
+export { FakeSampleAdapter } from './fakes/index.js';
+export type {
+  SampleLoadCall,
+  SampleSaveCall,
+  SampleListCall,
+  SampleRemoveCall,
+  SampleExistsCall,
+} from './fakes/index.js';
+
+export { WorkspaceContextResolver } from './resolvers/index.js';
+export { GitWorktreeResolver } from './resolvers/index.js';
+
+// Git worktree resolver interface (Plan 014 Phase 4)
+export type { IGitWorktreeResolver } from './interfaces/index.js';
+
+// Workspace service interface (Plan 014 Phase 4)
+export type {
+  IWorkspaceService,
+  WorkspaceOperationResult,
+  AddWorkspaceResult,
+  RemoveWorkspaceResult,
+  AddWorkspaceOptions,
+} from './interfaces/index.js';
+
+// Sample service interface (Plan 014 Phase 4)
+export type {
+  ISampleService,
+  SampleOperationResult,
+  AddSampleResult,
+  DeleteSampleResult,
+} from './interfaces/index.js';
+
+// Workspace service (Plan 014 Phase 4)
+export { WorkspaceService } from './services/index.js';
+export { SampleService } from './services/index.js';
+
+// Git worktree resolver fake (Plan 014 Phase 4)
+export { FakeGitWorktreeResolver } from './fakes/index.js';
+export type {
+  DetectWorktreesCall,
+  GetMainRepoPathCall,
+  IsMainWorktreeCall,
+} from './fakes/index.js';

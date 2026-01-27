@@ -11,40 +11,60 @@ import {
   FakeHashGenerator,
   FakeLogger,
   FakePathResolver,
+  FakeProcessManager,
   HashGeneratorAdapter,
   type IFileSystem,
   type IHashGenerator,
   type ILogger,
   type IPathResolver,
+  type IProcessManager,
   NodeFileSystemAdapter,
   PathResolverAdapter,
+  ProcessManagerAdapter,
   SHARED_DI_TOKENS,
   WORKFLOW_DI_TOKENS,
+  WORKSPACE_DI_TOKENS,
 } from '@chainglass/shared';
 import { type DependencyContainer, container } from 'tsyringe';
 import { PhaseAdapter } from './adapters/phase.adapter.js';
+import { SampleAdapter } from './adapters/sample.adapter.js';
 import { SchemaValidatorAdapter } from './adapters/schema-validator.adapter.js';
 import { WorkflowAdapter } from './adapters/workflow.adapter.js';
+import { WorkspaceRegistryAdapter } from './adapters/workspace-registry.adapter.js';
 import { YamlParserAdapter } from './adapters/yaml-parser.adapter.js';
+import { FakeGitWorktreeResolver } from './fakes/fake-git-worktree-resolver.js';
 import { FakePhaseAdapter } from './fakes/fake-phase-adapter.js';
 import { FakePhaseService } from './fakes/fake-phase-service.js';
+import { FakeSampleAdapter } from './fakes/fake-sample-adapter.js';
 import { FakeSchemaValidator } from './fakes/fake-schema-validator.js';
 import { FakeWorkflowAdapter } from './fakes/fake-workflow-adapter.js';
 import { FakeWorkflowRegistry } from './fakes/fake-workflow-registry.js';
 import { FakeWorkflowService } from './fakes/fake-workflow-service.js';
+import { FakeWorkspaceContextResolver } from './fakes/fake-workspace-context-resolver.js';
+import { FakeWorkspaceRegistryAdapter } from './fakes/fake-workspace-registry-adapter.js';
 import { FakeYamlParser } from './fakes/fake-yaml-parser.js';
+import type { IGitWorktreeResolver } from './interfaces/git-worktree-resolver.interface.js';
 import type {
   IPhaseAdapter,
   IPhaseService,
+  ISampleAdapter,
   ISchemaValidator,
   IWorkflowAdapter,
   IWorkflowRegistry,
   IWorkflowService,
+  IWorkspaceContextResolver,
+  IWorkspaceRegistryAdapter,
   IYamlParser,
 } from './interfaces/index.js';
+import type { ISampleService } from './interfaces/sample-service.interface.js';
+import type { IWorkspaceService } from './interfaces/workspace-service.interface.js';
+import { GitWorktreeResolver } from './resolvers/git-worktree.resolver.js';
+import { WorkspaceContextResolver } from './resolvers/workspace-context.resolver.js';
 import { PhaseService } from './services/phase.service.js';
+import { SampleService } from './services/sample.service.js';
 import { WorkflowRegistryService } from './services/workflow-registry.service.js';
 import { WorkflowService } from './services/workflow.service.js';
+import { WorkspaceService } from './services/workspace.service.js';
 
 /**
  * Creates a production DI container for workflow services.
@@ -135,6 +155,68 @@ export function createWorkflowProductionContainer(): DependencyContainer {
       ),
   });
 
+  // ==================== Workspace Service Registrations (Plan 014 Phase 4) ====================
+
+  // Register process manager for git operations
+  childContainer.register<IProcessManager>(SHARED_DI_TOKENS.PROCESS_MANAGER, {
+    useFactory: () => new ProcessManagerAdapter(),
+  });
+
+  // Register workspace registry adapter
+  childContainer.register<IWorkspaceRegistryAdapter>(
+    WORKSPACE_DI_TOKENS.WORKSPACE_REGISTRY_ADAPTER,
+    {
+      useFactory: (c) =>
+        new WorkspaceRegistryAdapter(
+          c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM),
+          c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER)
+        ),
+    }
+  );
+
+  // Register git worktree resolver
+  childContainer.register<IGitWorktreeResolver>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_RESOLVER, {
+    useFactory: (c) =>
+      new GitWorktreeResolver(c.resolve<IProcessManager>(SHARED_DI_TOKENS.PROCESS_MANAGER)),
+  });
+
+  // Register workspace context resolver
+  childContainer.register<IWorkspaceContextResolver>(
+    WORKSPACE_DI_TOKENS.WORKSPACE_CONTEXT_RESOLVER,
+    {
+      useFactory: (c) =>
+        new WorkspaceContextResolver(
+          c.resolve<IWorkspaceRegistryAdapter>(WORKSPACE_DI_TOKENS.WORKSPACE_REGISTRY_ADAPTER),
+          c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM)
+        ),
+    }
+  );
+
+  // Register sample adapter
+  childContainer.register<ISampleAdapter>(WORKSPACE_DI_TOKENS.SAMPLE_ADAPTER, {
+    useFactory: (c) =>
+      new SampleAdapter(
+        c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM),
+        c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER)
+      ),
+  });
+
+  // Register workspace service
+  childContainer.register<IWorkspaceService>(WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE, {
+    useFactory: (c) =>
+      new WorkspaceService(
+        c.resolve<IWorkspaceRegistryAdapter>(WORKSPACE_DI_TOKENS.WORKSPACE_REGISTRY_ADAPTER),
+        c.resolve<IWorkspaceContextResolver>(WORKSPACE_DI_TOKENS.WORKSPACE_CONTEXT_RESOLVER),
+        c.resolve<IGitWorktreeResolver>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_RESOLVER)
+      ),
+  });
+
+  // Register sample service
+  childContainer.register<ISampleService>(WORKSPACE_DI_TOKENS.SAMPLE_SERVICE, {
+    useFactory: (c) =>
+      new SampleService(c.resolve<ISampleAdapter>(WORKSPACE_DI_TOKENS.SAMPLE_ADAPTER)),
+  });
+
   return childContainer;
 }
 
@@ -208,6 +290,54 @@ export function createWorkflowTestContainer(): DependencyContainer {
   const fakePhaseAdapter = new FakePhaseAdapter();
   childContainer.register<IPhaseAdapter>(WORKFLOW_DI_TOKENS.PHASE_ADAPTER, {
     useValue: fakePhaseAdapter,
+  });
+
+  // ==================== Workspace Service Fakes (Plan 014 Phase 4) ====================
+
+  // Register fake workspace registry adapter
+  const fakeWorkspaceRegistryAdapter = new FakeWorkspaceRegistryAdapter();
+  childContainer.register<IWorkspaceRegistryAdapter>(
+    WORKSPACE_DI_TOKENS.WORKSPACE_REGISTRY_ADAPTER,
+    {
+      useValue: fakeWorkspaceRegistryAdapter,
+    }
+  );
+
+  // Register fake git worktree resolver
+  const fakeGitResolver = new FakeGitWorktreeResolver();
+  childContainer.register<IGitWorktreeResolver>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_RESOLVER, {
+    useValue: fakeGitResolver,
+  });
+
+  // Register fake workspace context resolver
+  const fakeContextResolver = new FakeWorkspaceContextResolver();
+  childContainer.register<IWorkspaceContextResolver>(
+    WORKSPACE_DI_TOKENS.WORKSPACE_CONTEXT_RESOLVER,
+    {
+      useValue: fakeContextResolver,
+    }
+  );
+
+  // Register fake sample adapter
+  const fakeSampleAdapter = new FakeSampleAdapter();
+  childContainer.register<ISampleAdapter>(WORKSPACE_DI_TOKENS.SAMPLE_ADAPTER, {
+    useValue: fakeSampleAdapter,
+  });
+
+  // Register workspace service with fakes
+  childContainer.register<IWorkspaceService>(WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE, {
+    useFactory: (c) =>
+      new WorkspaceService(
+        c.resolve<IWorkspaceRegistryAdapter>(WORKSPACE_DI_TOKENS.WORKSPACE_REGISTRY_ADAPTER),
+        c.resolve<IWorkspaceContextResolver>(WORKSPACE_DI_TOKENS.WORKSPACE_CONTEXT_RESOLVER),
+        c.resolve<IGitWorktreeResolver>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_RESOLVER)
+      ),
+  });
+
+  // Register sample service with fake adapter
+  childContainer.register<ISampleService>(WORKSPACE_DI_TOKENS.SAMPLE_SERVICE, {
+    useFactory: (c) =>
+      new SampleService(c.resolve<ISampleAdapter>(WORKSPACE_DI_TOKENS.SAMPLE_ADAPTER)),
   });
 
   return childContainer;

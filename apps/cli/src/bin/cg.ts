@@ -19,8 +19,10 @@ import { registerInitCommand } from '../commands/init.command.js';
 import { registerMcpCommand } from '../commands/mcp.command.js';
 import { registerPhaseCommands } from '../commands/phase.command.js';
 import { registerRunsCommands } from '../commands/runs.command.js';
+import { registerSampleCommands } from '../commands/sample.command.js';
 import { registerWebCommand } from '../commands/web.command.js';
 import { registerWorkflowCommands } from '../commands/workflow.command.js';
+import { registerWorkspaceCommands } from '../commands/workspace.command.js';
 
 const BANNER = `${chalk.white.bold('chain')}${chalk.cyan.bold('glass')}`;
 const TAGLINE = chalk.dim('Orchestrate AI workflows with elegance');
@@ -222,6 +224,8 @@ export function createProgram(options: CreateProgramOptions = {}): Command {
   registerMcpCommand(program);
   registerPhaseCommands(program);
   registerWorkflowCommands(program);
+  registerWorkspaceCommands(program);
+  registerSampleCommands(program);
   registerRunsCommands(program);
   registerAgentCommands(program);
 
