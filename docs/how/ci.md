@@ -61,10 +61,10 @@ pnpm vitest run --coverage
 
 **Features**:
 - Sequential test execution (MCP tests spawn many processes)
-- Coverage thresholds enforced at 80%
+- Coverage thresholds enforced (65% lines/statements/functions, 60% branches)
 - Coverage comment posted on PRs
 
-**Failure causes**: Test failures, coverage below 80% threshold.
+**Failure causes**: Test failures, coverage below threshold.
 
 ### CI Result (Gate)
 
@@ -101,20 +101,24 @@ The comment updates on each push (no duplicate comments).
 
 ### Coverage Thresholds
 
-The project enforces 80% minimum coverage on:
-- Statements
-- Branches
-- Functions
-- Lines
+The project enforces minimum coverage thresholds:
+- **Statements**: 65%
+- **Branches**: 60%
+- **Functions**: 65%
+- **Lines**: 65%
 
 If coverage drops below these thresholds, the test job fails.
 
 ### Coverage Scope
 
-Currently, coverage is scoped to:
+Coverage includes all source files in the monorepo:
 ```
-apps/web/src/hooks/**/*.ts
-apps/web/src/hooks/**/*.tsx
+packages/shared/src/**/*.ts
+packages/workflow/src/**/*.ts
+packages/mcp-server/src/**/*.ts
+apps/web/src/**/*.ts
+apps/web/src/**/*.tsx
+apps/cli/src/**/*.ts
 ```
 
 ## Troubleshooting
