@@ -7,6 +7,53 @@
 
 ---
 
+## ⚠️ EXISTING CODE CONTEXT – READ FIRST
+
+**This phase EXTENDS existing working functionality, not greenfield.**
+
+### What Already Exists
+
+| Component | Location | Status | Phase 4 Relationship |
+|-----------|----------|--------|---------------------|
+| **Agents Page** | `app/(dashboard)/agents/page.tsx` | ✅ Working | Renders sessions, uses LogEntry for messages |
+| **LogEntry (exported)** | `src/components/agents/log-entry.tsx` | ✅ Working | Handles user/assistant/system – **WE EXTEND THIS** |
+| **LogEntry (local)** | `agent-session-dialog.tsx:109-221` | ✅ Working | **HAS TOOL RENDERING** – extract patterns from here |
+| **AgentSessionDialog** | `src/components/agents/agent-session-dialog.tsx` | ✅ Working | Full dialog with tool calls, expand/collapse, status |
+| **useAgentSSE hook** | `src/hooks/useAgentSSE.ts` | ✅ Working | SSE streaming for real-time updates |
+| **useServerSession hook** | `src/hooks/useServerSession.ts` | ✅ Working (Phase 3) | Server-backed session fetch – components should support this |
+
+### Key Insight: Reference Implementation Exists
+
+**The `agent-session-dialog.tsx` file (lines 109-221) already has working tool call rendering:**
+- Expandable tool output with chevron toggle
+- Status indicators (running/complete/failed) with colored dots
+- Terminal-style output display (`<pre>` with zinc-950 bg)
+- Streaming animation for running state
+
+**Phase 4 extracts and promotes this into reusable components**, not builds from scratch.
+
+### Integration Approach
+
+```
+EXISTING                          PHASE 4 ADDS
+────────                          ────────────
+agents/page.tsx                   (uses LogEntry)
+    │                                  │
+    ▼                                  ▼
+LogEntry (exported)         →    LogEntry + contentType routing
+    │                                  │
+    └── user/assistant/system          ├── tool_call → ToolCallCard (NEW)
+                                       ├── tool_result → ToolCallCard (NEW)
+                                       ├── thinking → ThinkingBlock (NEW)
+                                       └── text → existing render
+
+agent-session-dialog.tsx         →    Imports ToolCallCard, ThinkingBlock
+    │                                  (removes local LogEntry function)
+    └── local LogEntry with tools
+```
+
+---
+
 ## Executive Briefing
 
 ### Purpose
@@ -311,6 +358,55 @@ Phase 4: UI components render events by type (this phase)
 - **Impact on Phase 4**: Must use `useServerSession` (server-backed) not `useAgentSession` (localStorage)
 - **Addressed by**: All components consume from `useServerSession`
 
+---
+
+### ⚠️ DYK Session Clarifications (2026-01-27)
+
+The following clarifications were identified during pre-implementation verification:
+
+**DYK-P4-01: TWO LogEntry Implementations Exist**
+- **Discovery**: There are two separate `LogEntry` components:
+  1. **Exported** (`log-entry.tsx`): Handles `user`/`assistant`/`system` only - NO tool support
+  2. **Local** (`agent-session-dialog.tsx` lines 109-221): Has full tool call rendering with expand/collapse, status indicators, terminal styling
+- **Impact**: Phase 4 should **extract and promote** the rich local version, not build from scratch
+- **Action**: T005/T008 should extract existing patterns from `agent-session-dialog.tsx` into standalone components, then update the dialog to import them
+
+**DYK-P4-02: Schema Shape Mismatch (Fixture vs Phase 1-3)**
+- **Discovery**: The existing dialog uses **old fixture shapes** that differ from Phase 1-3 schemas:
+  | Field | Phase 1-3 Schema | Fixture/Dialog Uses |
+  |-------|-----------------|---------------------|
+  | Event indicator | `contentType: 'tool_call'` | `role: 'tool'` |
+  | Tool name | `data.toolName` | `tool.name` |
+  | Error state | `data.isError: boolean` | `status: 'failed'` |
+  | Tool tracking | `toolCallId` | None |
+- **Impact**: Components must handle BOTH shapes during migration, or dialog must be updated first
+- **Action**: T010 (LogEntry routing) should detect both `role === 'tool'` AND `contentType === 'tool_call'` patterns
+
+**DYK-P4-03: agents/page.tsx NOT Using useServerSession Yet**
+- **Discovery**: The agents page (`app/(dashboard)/agents/page.tsx`) uses:
+  - `useAgentSSE('agents')` for streaming
+  - Local `useState<Map<string, SessionState>>` for session management
+  - **NOT** `useServerSession` as Phase 4 tasks assume
+- **Impact**: Phase 4 components will work standalone but won't integrate with the page until the page is refactored
+- **Action**: Either:
+  - A) Add page refactor task to Phase 4 (T014: Refactor agents/page to use useServerSession)
+  - B) Accept that Phase 4 delivers components, Phase 5+ integrates them into the page
+- **Recommendation**: Option B - keep Phase 4 focused on components; integration is a separate concern
+
+**DYK-P4-04: Test Helpers Must Set contentType Explicitly**
+- **Discovery**: Existing test helpers create messages without `contentType`, relying on Zod's `.default('text')`
+- **Impact**: Phase 4 tests must explicitly set `contentType: 'tool_call'` etc. to test routing
+- **Action**: T001-T009 tests should include `contentType` in all test fixtures:
+  ```typescript
+  // ✅ Good - explicit contentType
+  const toolCallMsg = { role: 'assistant', content: '', contentType: 'tool_call', ... };
+  
+  // ❌ Bad - relies on Zod default, won't route correctly
+  const toolCallMsg = { role: 'assistant', content: '', ... };
+  ```
+
+---
+
 ### ADR Decision Constraints
 
 **ADR-0007: SSE Single-Channel Event Routing**
@@ -331,10 +427,12 @@ Phase 4: UI components render events by type (this phase)
 | File | Purpose |
 |------|---------|
 | `/apps/web/src/components/agents/log-entry.tsx` | Existing component to extend |
+| `/apps/web/src/components/agents/agent-session-dialog.tsx` | **CRITICAL**: Lines 109-221 contain working tool rendering - EXTRACT FROM HERE |
 | `/apps/web/src/components/ui/card.tsx` | Card component patterns |
 | `/packages/shared/src/schemas/agent-event.schema.ts` | Event type definitions |
 | `/apps/web/src/hooks/useServerSession.ts` | Hook providing session data |
 | `/apps/web/src/lib/schemas/agent-session.schema.ts` | contentType enum |
+| `/apps/web/app/(dashboard)/agents/page.tsx` | Current page implementation (uses local state, not useServerSession) |
 
 ### Visual Alignment Aids
 
