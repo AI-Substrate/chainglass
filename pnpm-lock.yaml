@@ -232,6 +232,9 @@ importers:
       '@chainglass/shared':
         specifier: workspace:*
         version: link:../shared
+      '@chainglass/workflow':
+        specifier: workspace:*
+        version: link:../workflow
       '@modelcontextprotocol/sdk':
         specifier: ^1.4.1
         version: 1.25.2(hono@4.11.4)(zod@4.3.5)
