@@ -103,12 +103,12 @@ flowchart TD
     style Files fill:#F5F5F5,stroke:#E0E0E0
 
     subgraph Integration["Integration & Wiring"]
-        T001["T001: Event transformer utility"]:::pending
-        T002["T002: Page wiring + useServerSession"]:::pending
-        T003["T003: Claude real multi-turn test"]:::pending
-        T004["T004: Copilot real multi-turn test"]:::pending
-        T005["T005: Session resumption test"]:::pending
-        T006["T006: Concurrent tools test"]:::pending
+        T001["T001: Event transformer utility ✓"]:::completed
+        T002["T002: Page wiring + useServerSession ✓"]:::completed
+        T003["T003: Claude real multi-turn test ✓"]:::completed
+        T004["T004: Copilot real multi-turn test ✓"]:::completed
+        T005["T005: Session resumption test ✓"]:::completed
+        T006["T006: Concurrent tools test ✓"]:::completed
         
         T001 --> T002
         T002 --> T003
@@ -119,33 +119,33 @@ flowchart TD
     end
 
     subgraph Perf["Performance"]
-        T007["T007: Performance baseline"]:::pending
+        T007["T007: Performance baseline ✓"]:::completed
         
         T006 --> T007
     end
 
     subgraph Docs["Documentation"]
-        T008["T008: Developer guide"]:::pending
+        T008["T008: Developer guide ✓"]:::completed
         
         T007 --> T008
     end
 
     subgraph Verify["Verification"]
-        T009["T009: Backward compat"]:::pending
-        T010["T010: AC checklist"]:::pending
+        T009["T009: Backward compat ✓"]:::completed
+        T010["T010: AC checklist ✓"]:::completed
         
         T008 --> T009
         T009 --> T010
     end
 
     subgraph Files["Files"]
-        F1["/apps/web/src/lib/transformers/stored-event-to-log-entry.ts"]:::pending
-        F2["/apps/web/app/(dashboard)/agents/page.tsx"]:::pending
-        F3["/test/integration/real-agent-multi-turn.test.ts"]:::pending
-        F4["/test/integration/session-resumption.test.ts"]:::pending
-        F5["/test/integration/concurrent-tools.test.ts"]:::pending
-        F6["/test/performance/agent-perf.test.ts"]:::pending
-        F7["/docs/how/agent-event-types/1-extending-events.md"]:::pending
+        F1["/apps/web/src/lib/transformers/stored-event-to-log-entry.ts ✓"]:::completed
+        F2["/apps/web/app/(dashboard)/agents/page.tsx ✓"]:::completed
+        F3["/test/integration/real-agent-multi-turn.test.ts ✓"]:::completed
+        F4["/test/integration/session-resumption.test.ts ✓"]:::completed
+        F5["/test/integration/concurrent-tools.test.ts ✓"]:::completed
+        F6["/test/performance/agent-perf.test.ts ✓"]:::completed
+        F7["/docs/how/agent-event-types/1-extending-events.md ✓"]:::completed
     end
 
     T001 -.-> F1
@@ -164,16 +164,16 @@ flowchart TD
 
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
-| T001 | Transformer Utility | stored-event-to-log-entry.ts | ⬜ Pending | StoredEvent → LogEntryProps (DYK-P5-02) |
-| T002 | Page Integration | agents/page.tsx | ⬜ Pending | Wire useServerSession for active session (DYK-P5-01) |
-| T003 | Integration Test | real-agent-multi-turn.test.ts | ⬜ Pending | Claude real multi-turn with tool events (DYK-P5-03) |
-| T004 | Integration Test | real-agent-multi-turn.test.ts | ⬜ Pending | Copilot real multi-turn with tool events (DYK-P5-03) |
-| T005 | Integration Test | session-resumption.test.ts | ⬜ Pending | Page refresh recovery (AC18) |
-| T006 | Integration Test | concurrent-tools.test.ts | ⬜ Pending | Multiple tools in correct order |
-| T007 | Performance | agent-perf.test.ts | ⬜ Pending | Baseline timing (DYK-P5-05) |
-| T008 | Documentation | 1-extending-events.md | ⬜ Pending | Developer guide for event types |
-| T009 | Verification | backward-compat.test.ts | ⬜ Pending | Old sessions without contentType |
-| T010 | Verification | N/A | ⬜ Pending | Final AC checklist |
+| T001 | Transformer Utility | stored-event-to-log-entry.ts | ✅ Complete | StoredEvent → LogEntryProps (DYK-P5-02) |
+| T002 | Page Integration | agents/page.tsx | ✅ Complete | Wire useServerSession for active session (DYK-P5-01) |
+| T003 | Integration Test | real-agent-multi-turn.test.ts | ✅ Complete | Claude real multi-turn with tool events (DYK-P5-03) |
+| T004 | Integration Test | real-agent-multi-turn.test.ts | ✅ Complete | Copilot real multi-turn with tool events (DYK-P5-03) |
+| T005 | Integration Test | session-resumption.test.ts | ✅ Complete | Page refresh recovery (AC18) |
+| T006 | Integration Test | concurrent-tools.test.ts | ✅ Complete | Multiple tools in correct order |
+| T007 | Performance | agent-perf.test.ts | ✅ Complete | Baseline timing (DYK-P5-05) |
+| T008 | Documentation | 1-extending-events.md | ✅ Complete | Developer guide for event types |
+| T009 | Verification | backward-compat.test.ts | ✅ Complete | Old sessions without contentType |
+| T010 | Verification | N/A | ✅ Complete | Final AC checklist |
 
 ---
 
@@ -181,16 +181,16 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|-----|------|----|------|--------------|------------------|------------|----------|-------|
-| [ ] | T001 | Create storedEventToLogEntryProps transformer utility | 2 | Core | – | /home/jak/substrate/015-better-agents/apps/web/src/lib/transformers/stored-event-to-log-entry.ts | Unit tests verify StoredEvent → LogEntryProps conversion | – | DYK-P5-02 |
-| [ ] | T002 | Wire agents page to useServerSession for active session | 3 | Core | T001 | /home/jak/substrate/015-better-agents/apps/web/app/(dashboard)/agents/page.tsx | Page renders tool calls, results, thinking via LogEntry contentType | – | DYK-P5-01, Per Phase 4 DYK-P4-03 |
-| [ ] | T003 | Write real Claude multi-turn integration test with tool events | 3 | Test | T002 | /home/jak/substrate/015-better-agents/test/integration/real-agent-multi-turn.test.ts | Real adapter emits tool_call, tool_result across turns | 001-subtask-real-agent-multi-turn-tests | DYK-P5-03, follow scripts/agent/demo-claude-multi-turn.ts pattern |
-| [ ] | T004 | Write real Copilot multi-turn integration test with tool events | 3 | Test | T002 | /home/jak/substrate/015-better-agents/test/integration/real-agent-multi-turn.test.ts | Real adapter emits tool_call, tool_result across turns | 001-subtask-real-agent-multi-turn-tests | DYK-P5-03, follow scripts/agent/demo-copilot-multi-turn.ts pattern |
-| [ ] | T005 | Write integration test: Session resumption after refresh | 2 | Test | T003, T004 | /home/jak/substrate/015-better-agents/test/integration/session-resumption.test.ts | Events fetched from storage, UI restored | – | AC18 |
-| [ ] | T006 | Write integration test: Concurrent tool calls | 2 | Test | T005 | /home/jak/substrate/015-better-agents/test/integration/concurrent-tools.test.ts | Multiple tools render in correct order | – | |
-| [ ] | T007 | Write performance baseline test | 2 | Perf | T006 | /home/jak/substrate/015-better-agents/test/performance/agent-perf.test.ts | Basic timing verification, document results | – | DYK-P5-05 |
-| [ ] | T008 | Write developer guide for adding event types | 2 | Doc | T007 | /home/jak/substrate/015-better-agents/docs/how/agent-event-types/1-extending-events.md | Guide covers all 3 layers + tests | – | |
-| [ ] | T009 | Verify backward compatibility with existing sessions | 2 | Test | T008 | /home/jak/substrate/015-better-agents/test/integration/backward-compat.test.ts | Old sessions load without contentType field | – | AC21, AC22 |
-| [ ] | T010 | Final acceptance criteria checklist | 1 | Verify | T009 | N/A - Manual verification | All ACs verified with evidence | – | |
+| [x] | T001 | Create storedEventToLogEntryProps transformer utility | 2 | Core | – | /home/jak/substrate/015-better-agents/apps/web/src/lib/transformers/stored-event-to-log-entry.ts | Unit tests verify StoredEvent → LogEntryProps conversion | – | DYK-P5-02 |
+| [x] | T002 | Wire agents page to useServerSession for active session | 3 | Core | T001 | /home/jak/substrate/015-better-agents/apps/web/app/(dashboard)/agents/page.tsx | Page renders tool calls, results, thinking via LogEntry contentType | – | DYK-P5-01, Per Phase 4 DYK-P4-03 |
+| [x] | T003 | Write real Claude multi-turn integration test with tool events | 3 | Test | T002 | /home/jak/substrate/015-better-agents/test/integration/real-agent-multi-turn.test.ts | Real adapter emits tool_call, tool_result across turns | 001-subtask-real-agent-multi-turn-tests | DYK-P5-03, follow scripts/agent/demo-claude-multi-turn.ts pattern |
+| [x] | T004 | Write real Copilot multi-turn integration test with tool events | 3 | Test | T002 | /home/jak/substrate/015-better-agents/test/integration/real-agent-multi-turn.test.ts | Real adapter emits tool_call, tool_result across turns | 001-subtask-real-agent-multi-turn-tests | DYK-P5-03, follow scripts/agent/demo-copilot-multi-turn.ts pattern |
+| [x] | T005 | Write integration test: Session resumption after refresh | 2 | Test | T003, T004 | /home/jak/substrate/015-better-agents/test/integration/session-resumption.test.ts | Events fetched from storage, UI restored | – | AC18 |
+| [x] | T006 | Write integration test: Concurrent tool calls | 2 | Test | T005 | /home/jak/substrate/015-better-agents/test/integration/concurrent-tools.test.ts | Multiple tools render in correct order | – | |
+| [x] | T007 | Write performance baseline test | 2 | Perf | T006 | /home/jak/substrate/015-better-agents/test/performance/agent-perf.test.ts | Basic timing verification, document results | – | DYK-P5-05 |
+| [x] | T008 | Write developer guide for adding event types | 2 | Doc | T007 | /home/jak/substrate/015-better-agents/docs/how/agent-event-types/1-extending-events.md | Guide covers all 3 layers + tests | – | |
+| [x] | T009 | Verify backward compatibility with existing sessions | 2 | Test | T008 | /home/jak/substrate/015-better-agents/test/integration/backward-compat.test.ts | Old sessions load without contentType field | – | AC21, AC22 |
+| [x] | T010 | Final acceptance criteria checklist | 1 | Verify | T009 | N/A - Manual verification | All ACs verified with evidence | – | |
 
 ---
 

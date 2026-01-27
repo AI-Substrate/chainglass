@@ -5,15 +5,34 @@
  * Implements Full TDD for Phase 2: Core Chat.
  *
  * Part of Plan 012: Multi-Agent Web UI (Phase 2: Core Chat)
+ * Updated in Plan 015: Better Agents (Phase 5: Integration) - Added QueryClient wrapper
  */
 
 import { AgentSessionStore } from '@/lib/stores/agent-session.store';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { FakeLocalStorage } from '@test/fakes/fake-local-storage';
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it } from 'vitest';
 // Use relative import since @/ maps to src/, not app/
 import AgentsPage from '../../../../../apps/web/app/(dashboard)/agents/page';
+
+// ============ Test Wrapper with QueryClient ============
+
+const createTestQueryClient = () =>
+  new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+      },
+    },
+  });
+
+function TestWrapper({ children }: { children: ReactNode }) {
+  const queryClient = createTestQueryClient();
+  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+}
 
 // ============ T017: /agents Page Tests ============
 
@@ -36,7 +55,7 @@ describe('AgentsPage', () => {
       - Quality Contribution: Basic page structure
       - Worked Example: page renders → "Agents" heading visible
       */
-      render(<AgentsPage />);
+      render(<AgentsPage />, { wrapper: TestWrapper });
 
       expect(screen.getByRole('heading', { name: /agents/i })).toBeInTheDocument();
     });
@@ -50,7 +69,7 @@ describe('AgentsPage', () => {
       - Quality Contribution: Creation workflow
       - Worked Example: page renders → form visible
       */
-      render(<AgentsPage />);
+      render(<AgentsPage />, { wrapper: TestWrapper });
 
       expect(screen.getByLabelText(/name/i)).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /create/i })).toBeInTheDocument();
@@ -65,7 +84,7 @@ describe('AgentsPage', () => {
       - Quality Contribution: New user experience
       - Worked Example: no sessions → empty state visible
       */
-      render(<AgentsPage />);
+      render(<AgentsPage />, { wrapper: TestWrapper });
 
       expect(screen.getByText(/no sessions/i)).toBeInTheDocument();
     });
@@ -82,7 +101,7 @@ describe('AgentsPage', () => {
       - Worked Example: fill form + submit → session in list
       */
       const user = userEvent.setup();
-      render(<AgentsPage />);
+      render(<AgentsPage />, { wrapper: TestWrapper });
 
       // Fill form
       await user.type(screen.getByLabelText(/name/i), 'My New Session');
@@ -105,7 +124,7 @@ describe('AgentsPage', () => {
       - Quality Contribution: Page accessibility
       - Worked Example: main landmark present
       */
-      render(<AgentsPage />);
+      render(<AgentsPage />, { wrapper: TestWrapper });
 
       expect(screen.getByRole('main')).toBeInTheDocument();
     });

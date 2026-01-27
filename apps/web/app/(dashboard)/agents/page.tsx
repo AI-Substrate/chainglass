@@ -7,8 +7,10 @@
  * - Single SSE channel ('agents') for all agent events
  * - Centralized sessions state with per-session messages
  * - Events routed to correct session by sessionId
+ * - Active session uses useServerSession for server-backed state (DYK-P5-01)
  *
  * Part of Plan 012: Multi-Agent Web UI (Phase 2: Core Chat)
+ * Extended in Plan 015: Better Agents (Phase 5: Integration)
  */
 
 import { AgentChatInput } from '@/components/agents/agent-chat-input';
@@ -18,12 +20,14 @@ import { AgentStatusIndicator } from '@/components/agents/agent-status-indicator
 import { ContextWindowDisplay } from '@/components/agents/context-window-display';
 import { LogEntry } from '@/components/agents/log-entry';
 import { useAgentSSE } from '@/hooks/useAgentSSE';
+import { useServerSession } from '@/hooks/useServerSession';
 import type {
   AgentMessage,
   AgentSession,
   AgentType,
   SessionStatus,
 } from '@/lib/schemas/agent-session.schema';
+import { transformEventsToLogEntries } from '@/lib/transformers/stored-event-to-log-entry';
 import { Bot, RefreshCw } from 'lucide-react';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
@@ -86,11 +90,27 @@ export default function AgentsPage() {
   // Track agent session IDs for resume (per session)
   const agentSessionIdsRef = useRef<Map<string, string>>(new Map());
 
-  // Get active session
+  // Get active session from local state
   const activeSession = useMemo(
     () => (activeSessionId ? (sessions.get(activeSessionId) ?? null) : null),
     [sessions, activeSessionId]
   );
+
+  // Server-backed session state for active session (DYK-P5-01)
+  // Uses useServerSession for real-time events from storage
+  const {
+    session: serverSession,
+    isLoading: serverSessionLoading,
+    isConnected: serverSseConnected,
+  } = useServerSession(activeSessionId ?? '', {
+    subscribeToUpdates: !!activeSessionId,
+  });
+
+  // Transform stored events to LogEntry props for rendering
+  const serverEventProps = useMemo(() => {
+    if (!serverSession?.events) return [];
+    return transformEventsToLogEntries(serverSession.events);
+  }, [serverSession?.events]);
 
   // Get sessions as array for list view
   const sessionsList = useMemo(
@@ -357,11 +377,24 @@ export default function AgentsPage() {
 
             {/* Messages */}
             <div className="flex-1 overflow-auto divide-y divide-border/50">
+              {/* User/Assistant messages from local state */}
               {activeSession.messages.map((msg, idx) => (
                 <LogEntry
-                  key={`${msg.timestamp}-${idx}`}
+                  key={`msg-${msg.timestamp}-${idx}`}
                   messageRole={msg.role}
                   content={msg.content}
+                  contentType={msg.contentType}
+                />
+              ))}
+              {/* Server events (tool calls, tool results, thinking) from useServerSession */}
+              {serverEventProps.map((props) => (
+                <LogEntry
+                  key={props.key}
+                  messageRole={props.messageRole}
+                  content={props.content}
+                  contentType={props.contentType}
+                  toolData={props.toolData}
+                  thinkingData={props.thinkingData}
                 />
               ))}
               {/* Streaming content */}
@@ -391,7 +424,9 @@ export default function AgentsPage() {
                   </div>
                 </div>
               )}
+              {/* Empty state */}
               {activeSession.messages.length === 0 &&
+                serverEventProps.length === 0 &&
                 !activeSession.streamingContent &&
                 !activeSession.error && (
                   <div className="flex-1 flex items-center justify-center p-8 text-muted-foreground">
