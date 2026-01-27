@@ -289,7 +289,8 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
       useFactory: (c) =>
         new WorkspaceContextResolver(
           c.resolve<IWorkspaceRegistryAdapter>(WORKSPACE_DI_TOKENS.WORKSPACE_REGISTRY_ADAPTER),
-          c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM)
+          c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM),
+          c.resolve<IGitWorktreeResolver>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_RESOLVER)
         ),
     }
   );
