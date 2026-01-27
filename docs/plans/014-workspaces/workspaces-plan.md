@@ -84,6 +84,14 @@
 
 ---
 
+## ADR Ledger
+
+| ADR | Title | Status | Date | Affects Phases |
+|-----|-------|--------|------|----------------|
+| 0008 | Workspace Split Storage Data Model | Accepted | 2026-01-27 | All phases (foundational) |
+
+---
+
 ## Critical Research Findings
 
 ### Critical Discovery 01: Split Storage Architecture

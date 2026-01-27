@@ -401,6 +401,12 @@ All questions resolved during data model workshop. See `data-model-dossier.md` a
 
 ---
 
+## ADRs
+
+- ADR-0008: Workspace Split Storage Data Model (2026-01-27) – status: Accepted
+
+---
+
 ## Testing Strategy
 
 **Approach**: Full TDD
