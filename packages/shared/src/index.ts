@@ -12,6 +12,9 @@ export type { IPathResolver } from './interfaces/index.js';
 export type { ViewerFile } from './interfaces/index.js';
 export type { DiffError, DiffResult, IGitDiffService } from './interfaces/index.js';
 export type { IHashGenerator } from './interfaces/index.js';
+// YAML parser interface (Phase 2: extracted from workflow for shared use)
+export { YamlParseError } from './interfaces/index.js';
+export type { IYamlParser, ParseResult } from './interfaces/index.js';
 
 // Library utilities
 export { detectLanguage } from './lib/language-detection.js';
@@ -108,6 +111,8 @@ export type { FormattedResult } from './fakes/index.js';
 export { FakeDiffAction } from './fakes/index.js';
 export { FakeHashGenerator } from './fakes/index.js';
 export { FakeProcessManager } from './fakes/index.js';
+// YAML parser fake (Phase 2)
+export { FakeYamlParser } from './fakes/index.js';
 
 // Adapters
 export { PinoLoggerAdapter } from './adapters/index.js';
@@ -117,6 +122,8 @@ export { JsonOutputAdapter } from './adapters/index.js';
 export { ConsoleOutputAdapter } from './adapters/index.js';
 export { HashGeneratorAdapter } from './adapters/index.js';
 export { StreamJsonParser } from './adapters/index.js';
+// YAML parser adapter (Phase 2)
+export { YamlParserAdapter } from './adapters/index.js';
 // Phase 4: Deleted CopilotLogParser (56 LOC) and old CopilotAdapter (499 LOC)
 // CopilotAdapter is now an alias for SdkCopilotAdapter
 export { ClaudeCodeAdapter } from './adapters/index.js';

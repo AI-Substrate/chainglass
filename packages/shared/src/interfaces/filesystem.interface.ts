@@ -129,4 +129,16 @@ export interface IFileSystem {
    * @throws FileSystemError with code 'ENOENT' if source doesn't exist
    */
   copyDirectory(source: string, dest: string, options?: { exclude?: string[] }): Promise<void>;
+
+  /**
+   * Find files matching a glob pattern.
+   *
+   * Per Phase 2 DYK: Proper glob abstraction for unit discovery.
+   *
+   * @param pattern Glob pattern (e.g., '** /unit.yaml' without space)
+   * @param options.cwd Base directory for relative patterns (default: process.cwd())
+   * @param options.absolute If true, return absolute paths (default: false)
+   * @returns Array of matching file paths (relative or absolute based on options)
+   */
+  glob(pattern: string, options?: { cwd?: string; absolute?: boolean }): Promise<string[]>;
 }

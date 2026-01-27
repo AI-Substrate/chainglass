@@ -1,4 +1,5 @@
 import { promises as fs } from 'node:fs';
+import fg from 'fast-glob';
 import type { FileStat, IFileSystem } from '../interfaces/filesystem.interface.js';
 import { FileSystemError } from '../interfaces/filesystem.interface.js';
 
@@ -186,6 +187,20 @@ export class NodeFileSystemAdapter implements IFileSystem {
         await this.copyFile(sourcePath, destPath);
       }
     }
+  }
+
+  /**
+   * Find files matching a glob pattern.
+   *
+   * Per Phase 2 DYK: Uses fast-glob for proper glob abstraction.
+   */
+  async glob(pattern: string, options?: { cwd?: string; absolute?: boolean }): Promise<string[]> {
+    return fg(pattern, {
+      cwd: options?.cwd,
+      absolute: options?.absolute ?? false,
+      onlyFiles: true,
+      dot: true, // Include dotfiles
+    });
   }
 
   /**

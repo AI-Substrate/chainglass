@@ -5,6 +5,8 @@ export { JsonOutputAdapter } from './json-output.adapter.js';
 export { ConsoleOutputAdapter } from './console-output.adapter.js';
 export { HashGeneratorAdapter } from './hash-generator.adapter.js';
 export { StreamJsonParser } from './stream-json-parser.js';
+// YAML parser adapter (Phase 2: extracted from workflow for shared use)
+export { YamlParserAdapter } from './yaml-parser.adapter.js';
 // Phase 4: Deleted CopilotLogParser (56 LOC) - no longer needed with SDK
 export { ClaudeCodeAdapter } from './claude-code.adapter.js';
 export type { ClaudeCodeAdapterOptions } from './claude-code.adapter.js';

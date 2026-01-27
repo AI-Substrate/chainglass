@@ -180,3 +180,8 @@ export type {
   GetInputDataCall,
   SaveOutputDataCall,
 } from './fakes/index.js';
+
+// ============================================
+// Services (real implementations)
+// ============================================
+export { WorkUnitService } from './services/index.js';

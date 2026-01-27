@@ -6,7 +6,13 @@
  */
 
 import 'reflect-metadata';
-import { WORKGRAPH_DI_TOKENS } from '@chainglass/shared';
+import {
+  type IFileSystem,
+  type IPathResolver,
+  type IYamlParser,
+  SHARED_DI_TOKENS,
+  WORKGRAPH_DI_TOKENS,
+} from '@chainglass/shared';
 import { type DependencyContainer, container } from 'tsyringe';
 
 import { FakeWorkGraphService } from './fakes/fake-workgraph-service.js';
@@ -16,6 +22,7 @@ import { FakeWorkUnitService } from './fakes/fake-workunit-service.js';
 import type { IWorkGraphService } from './interfaces/workgraph-service.interface.js';
 import type { IWorkNodeService } from './interfaces/worknode-service.interface.js';
 import type { IWorkUnitService } from './interfaces/workunit-service.interface.js';
+import { WorkUnitService } from './services/workunit.service.js';
 
 // ============================================
 // Production Container
@@ -35,17 +42,23 @@ import type { IWorkUnitService } from './interfaces/workunit-service.interface.j
 export function createWorkgraphProductionContainer(): DependencyContainer {
   const child = container.createChildContainer();
 
-  // TODO: Register real implementations in Phase 2+
-  // For now, use fakes as placeholders to verify container wiring
-
+  // Register real WorkUnitService (Phase 2)
+  // Dependencies must be registered in parent/shared container
   child.register<IWorkUnitService>(WORKGRAPH_DI_TOKENS.WORKUNIT_SERVICE, {
-    useFactory: () => new FakeWorkUnitService(),
+    useFactory: (c: DependencyContainer) => {
+      const fs = c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
+      const pathResolver = c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
+      const yamlParser = c.resolve<IYamlParser>(SHARED_DI_TOKENS.YAML_PARSER);
+      return new WorkUnitService(fs, pathResolver, yamlParser);
+    },
   });
 
+  // TODO: Register real WorkGraphService in Phase 3
   child.register<IWorkGraphService>(WORKGRAPH_DI_TOKENS.WORKGRAPH_SERVICE, {
     useFactory: () => new FakeWorkGraphService(),
   });
 
+  // TODO: Register real WorkNodeService in Phase 4
   child.register<IWorkNodeService>(WORKGRAPH_DI_TOKENS.WORKNODE_SERVICE, {
     useFactory: () => new FakeWorkNodeService(),
   });

@@ -20,6 +20,8 @@ export const SHARED_DI_TOKENS = {
   PATH_RESOLVER: 'IPathResolver',
   /** IOutputAdapter interface (per Phase 1a) */
   OUTPUT_ADAPTER: 'IOutputAdapter',
+  /** IYamlParser interface (per Phase 2: moved from workflow) */
+  YAML_PARSER: 'IYamlParser',
 } as const;
 
 /**

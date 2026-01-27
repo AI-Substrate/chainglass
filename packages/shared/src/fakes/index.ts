@@ -13,3 +13,5 @@ export type { FormattedResult } from './fake-output.adapter.js';
 export { FakeDiffAction } from './fake-diff-action.js';
 export { FakeHashGenerator } from './fake-hash-generator.js';
 export { FakeProcessManager } from './fake-process-manager.js';
+// YAML parser fake (Phase 2: extracted from workflow for shared use)
+export { FakeYamlParser } from './fake-yaml-parser.js';
