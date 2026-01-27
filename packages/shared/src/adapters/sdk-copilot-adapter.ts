@@ -174,6 +174,14 @@ export class SdkCopilotAdapter implements IAgentAdapter {
    * - assistant.usage → usage
    * - session.idle → session_idle
    * - session.error → session_error (handled in catch block)
+   * - tool.execution_start → tool_call (Phase 2)
+   * - tool.execution_complete → tool_result (Phase 2)
+   * - assistant.reasoning → thinking (Phase 2)
+   * - assistant.reasoning_delta → thinking (Phase 2)
+   *
+   * Per Phase 2 Critical Discovery 04: Copilot uses dedicated events for tools/reasoning.
+   * Per Insight 2: All 4 new event types added to existing switch.
+   * Per Insight 5: Additive code paths only.
    */
   private _translateToAgentEvent(event: CopilotSessionEventLike): AgentEvent | null {
     const timestamp = new Date().toISOString();
@@ -225,6 +233,64 @@ export class SdkCopilotAdapter implements IAgentAdapter {
       case 'session.error':
         // Handled in catch block for proper error context
         return null;
+
+      // Phase 2: Tool execution events
+      case 'tool.execution_start': {
+        const data = event.data as {
+          toolName: string;
+          arguments: unknown;
+          toolCallId: string;
+        };
+        return {
+          type: 'tool_call',
+          timestamp,
+          data: {
+            toolName: data.toolName,
+            input: data.arguments,
+            toolCallId: data.toolCallId,
+          },
+        };
+      }
+
+      case 'tool.execution_complete': {
+        const data = event.data as {
+          toolCallId: string;
+          result?: { content?: string };
+          success: boolean;
+        };
+        return {
+          type: 'tool_result',
+          timestamp,
+          data: {
+            toolCallId: data.toolCallId,
+            output: data.result?.content ?? '',
+            isError: !data.success,
+          },
+        };
+      }
+
+      // Phase 2: Reasoning events
+      case 'assistant.reasoning': {
+        const data = event.data as { content: string; reasoningId?: string };
+        return {
+          type: 'thinking',
+          timestamp,
+          data: {
+            content: data.content,
+          },
+        };
+      }
+
+      case 'assistant.reasoning_delta': {
+        const data = event.data as { deltaContent: string; reasoningId?: string };
+        return {
+          type: 'thinking',
+          timestamp,
+          data: {
+            content: data.deltaContent,
+          },
+        };
+      }
 
       default:
         // Unknown event type - return as raw for advanced consumers

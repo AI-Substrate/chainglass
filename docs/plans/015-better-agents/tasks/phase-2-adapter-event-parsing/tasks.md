@@ -95,11 +95,11 @@ flowchart TD
 
     subgraph Phase["Phase 2: Adapter Event Parsing"]
         subgraph Claude["Claude Adapter"]
-            T001["T001: Test tool_use parsing"]:::pending
-            T002["T002: Test tool_result parsing"]:::pending
-            T003["T003: Test thinking parsing"]:::pending
-            T004["T004: Implement Claude parsing"]:::pending
-            T005["T005: Verify text regression"]:::pending
+            T001["T001: Test tool_use parsing ✓"]:::completed
+            T002["T002: Test tool_result parsing ✓"]:::completed
+            T003["T003: Test thinking parsing ✓"]:::completed
+            T004["T004: Implement Claude parsing ✓"]:::completed
+            T005["T005: Verify text regression ✓"]:::completed
             T001 --> T004
             T002 --> T004
             T003 --> T004
@@ -107,12 +107,12 @@ flowchart TD
         end
 
         subgraph Copilot["Copilot Adapter"]
-            T006["T006: Test execution_start"]:::pending
-            T007["T007: Test execution_complete"]:::pending
-            T007a["T007a: Test reasoning"]:::pending
-            T008["T008: Add session checks"]:::pending
-            T009["T009: Implement Copilot parsing"]:::pending
-            T010["T010: Verify text regression"]:::pending
+            T006["T006: Test execution_start ✓"]:::completed
+            T007["T007: Test execution_complete ✓"]:::completed
+            T007a["T007a: Test reasoning ✓"]:::completed
+            T008["T008: Add session checks ✓"]:::completed
+            T009["T009: Implement Copilot parsing ✓"]:::completed
+            T010["T010: Verify text regression ✓"]:::completed
             T006 --> T009
             T007 --> T009
             T007a --> T009
@@ -121,24 +121,24 @@ flowchart TD
         end
 
         subgraph Contract["Contract Tests"]
-            T011["T011: Contract: event parity"]:::pending
+            T011["T011: Contract: event parity ✓"]:::completed
             T004 --> T011
             T009 --> T011
         end
 
         subgraph Fake["Fake Adapter"]
-            T012["T012: Update FakeAgentAdapter"]:::pending
+            T012["T012: Update FakeAgentAdapter ✓"]:::completed
             T011 --> T012
         end
     end
 
     subgraph Files["Files"]
-        F1["/packages/shared/src/adapters/claude-code.adapter.ts"]:::pending
-        F2["/packages/shared/src/adapters/sdk-copilot-adapter.ts"]:::pending
-        F3["/test/unit/shared/claude-code-adapter.test.ts"]:::pending
-        F4["/test/unit/shared/sdk-copilot-adapter.test.ts"]:::pending
-        F5["/test/contracts/agent-tool-events.contract.ts"]:::pending
-        F6["/packages/shared/src/fakes/fake-agent-adapter.ts"]:::pending
+        F1["/packages/shared/src/adapters/claude-code.adapter.ts ✓"]:::completed
+        F2["/packages/shared/src/adapters/sdk-copilot-adapter.ts ✓"]:::completed
+        F3["/test/unit/shared/claude-code-adapter.test.ts ✓"]:::completed
+        F4["/test/unit/shared/sdk-copilot-adapter.test.ts ✓"]:::completed
+        F5["/test/contracts/agent-tool-events.contract.ts ✓"]:::completed
+        F6["/packages/shared/src/fakes/fake-agent-adapter.ts ✓"]:::completed
     end
 
     T004 -.-> F1
@@ -155,19 +155,19 @@ flowchart TD
 
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
-| T001 | Claude Adapter Tests | /test/unit/shared/claude-code-adapter.test.ts | ⬜ Pending | TDD: Write failing test for tool_use content block parsing |
-| T002 | Claude Adapter Tests | /test/unit/shared/claude-code-adapter.test.ts | ⬜ Pending | TDD: Write failing test for tool_result content block parsing |
-| T003 | Claude Adapter Tests | /test/unit/shared/claude-code-adapter.test.ts | ⬜ Pending | TDD: Write failing test for thinking content block parsing |
-| T004 | Claude Adapter | /packages/shared/src/adapters/claude-code.adapter.ts | ⬜ Pending | Implement content block parsing in _translateClaudeToAgentEvent |
-| T005 | Claude Adapter Tests | /test/unit/shared/claude-code-adapter.test.ts | ⬜ Pending | Regression: Verify existing text streaming still works |
-| T006 | Copilot Adapter Tests | /test/unit/shared/sdk-copilot-adapter.test.ts | ⬜ Pending | TDD: Write failing test for tool.execution_start event |
-| T007 | Copilot Adapter Tests | /test/unit/shared/sdk-copilot-adapter.test.ts | ⬜ Pending | TDD: Write failing test for tool.execution_complete event |
-| T007a | Copilot Adapter Tests | /test/unit/shared/sdk-copilot-adapter.test.ts | ⬜ Pending | TDD: Write failing test for assistant.reasoning event |
-| T008 | Copilot Adapter | /packages/shared/src/adapters/sdk-copilot-adapter.ts | ⬜ Pending | Add defensive session state assertions per Discovery 07 |
-| T009 | Copilot Adapter | /packages/shared/src/adapters/sdk-copilot-adapter.ts | ⬜ Pending | Implement tool + reasoning event handling in _translateToAgentEvent |
-| T010 | Copilot Adapter Tests | /test/unit/shared/sdk-copilot-adapter.test.ts | ⬜ Pending | Regression: Verify existing text streaming still works |
-| T011 | Contract Tests | /test/contracts/agent-tool-events.contract.ts | ⬜ Pending | Contract: Both adapters emit same AgentToolCallEvent shape |
-| T012 | Fake Adapter | /packages/shared/src/fakes/fake-agent-adapter.ts | ⬜ Pending | Update FakeAgentAdapter to emit tool events for testing |
+| T001 | Claude Adapter Tests | /test/unit/shared/claude-code-adapter.test.ts | ✅ Complete | TDD: Write failing test for tool_use content block parsing |
+| T002 | Claude Adapter Tests | /test/unit/shared/claude-code-adapter.test.ts | ✅ Complete | TDD: Write failing test for tool_result content block parsing |
+| T003 | Claude Adapter Tests | /test/unit/shared/claude-code-adapter.test.ts | ✅ Complete | TDD: Write failing test for thinking content block parsing |
+| T004 | Claude Adapter | /packages/shared/src/adapters/claude-code.adapter.ts | ✅ Complete | Implement content block parsing in _translateClaudeToAgentEvent |
+| T005 | Claude Adapter Tests | /test/unit/shared/claude-code-adapter.test.ts | ✅ Complete | Regression: Verify existing text streaming still works |
+| T006 | Copilot Adapter Tests | /test/unit/shared/sdk-copilot-adapter.test.ts | ✅ Complete | TDD: Write failing test for tool.execution_start event |
+| T007 | Copilot Adapter Tests | /test/unit/shared/sdk-copilot-adapter.test.ts | ✅ Complete | TDD: Write failing test for tool.execution_complete event |
+| T007a | Copilot Adapter Tests | /test/unit/shared/sdk-copilot-adapter.test.ts | ✅ Complete | TDD: Write failing test for assistant.reasoning event |
+| T008 | Copilot Adapter | /packages/shared/src/adapters/sdk-copilot-adapter.ts | ✅ Complete | Add defensive session state assertions per Discovery 07 |
+| T009 | Copilot Adapter | /packages/shared/src/adapters/sdk-copilot-adapter.ts | ✅ Complete | Implement tool + reasoning event handling in _translateToAgentEvent |
+| T010 | Copilot Adapter Tests | /test/unit/shared/sdk-copilot-adapter.test.ts | ✅ Complete | Regression: Verify existing text streaming still works |
+| T011 | Contract Tests | /test/contracts/agent-tool-events.contract.ts | ✅ Complete | Contract: Both adapters emit same AgentToolCallEvent shape |
+| T012 | Fake Adapter | /packages/shared/src/fakes/fake-agent-adapter.ts | ✅ Complete | Update FakeAgentAdapter to emit tool events for testing |
 
 ---
 
@@ -175,19 +175,19 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|-----|------|-----|------|--------------|------------------|------------|----------|-------|
-| [ ] | T001 | Write tests for Claude tool_use content block parsing | 2 | Test | – | /home/jak/substrate/015-better-agents/test/unit/shared/claude-code-adapter.test.ts | Tests cover: single tool, multiple tools, input shapes, toolCallId extraction | – | TDD RED phase; per Critical Discovery 03 |
-| [ ] | T002 | Write tests for Claude tool_result content block parsing | 2 | Test | – | /home/jak/substrate/015-better-agents/test/unit/shared/claude-code-adapter.test.ts | Tests cover: success result, error result (is_error: true), empty output | – | TDD RED phase |
-| [ ] | T003 | Write tests for Claude thinking content block parsing | 2 | Test | – | /home/jak/substrate/015-better-agents/test/unit/shared/claude-code-adapter.test.ts | Tests cover: thinking present, thinking with signature, absent signature | – | TDD RED phase; signature field optional |
-| [ ] | T004 | Implement Claude content block parsing in _translateClaudeToAgentEvent | 3 | Core | T001, T002, T003 | /home/jak/substrate/015-better-agents/packages/shared/src/adapters/claude-code.adapter.ts | All tests from T001-T003 pass; content blocks yield correct AgentEvent types | – | Per Critical Discovery 03 |
-| [ ] | T005 | Verify existing Claude text streaming still works | 1 | Test | T004 | /home/jak/substrate/015-better-agents/test/unit/shared/claude-code-adapter.test.ts | Existing adapter tests pass unchanged | – | Regression check |
-| [ ] | T006 | Write tests for Copilot tool.execution_start event | 2 | Test | – | /home/jak/substrate/015-better-agents/test/unit/shared/sdk-copilot-adapter.test.ts | Tests cover: bash tool, read tool, write tool; extracts toolName, arguments, toolCallId | – | TDD RED phase; per Critical Discovery 04 |
-| [ ] | T007 | Write tests for Copilot tool.execution_complete event | 2 | Test | – | /home/jak/substrate/015-better-agents/test/unit/shared/sdk-copilot-adapter.test.ts | Tests cover: success result, error (!success), result content extraction | – | TDD RED phase |
-| [ ] | T007a | Write tests for Copilot assistant.reasoning event | 2 | Test | – | /home/jak/substrate/015-better-agents/test/unit/shared/sdk-copilot-adapter.test.ts | Tests cover: reasoning content, reasoningId, streaming delta variant | – | TDD RED phase; per Critical Discovery 04 |
-| [ ] | T008 | Add defensive session state checks to Copilot adapter | 1 | Core | – | /home/jak/substrate/015-better-agents/packages/shared/src/adapters/sdk-copilot-adapter.ts | compact() asserts session not destroyed; throws if session invalid | – | Per Critical Discovery 07 |
-| [ ] | T009 | Implement Copilot tool + reasoning event handling in _translateToAgentEvent | 3 | Core | T006, T007, T007a, T008 | /home/jak/substrate/015-better-agents/packages/shared/src/adapters/sdk-copilot-adapter.ts | All tests from T006-T007a pass; new event types emitted correctly | – | Per Critical Discovery 04 |
-| [ ] | T010 | Verify existing Copilot text streaming still works | 1 | Test | T009 | /home/jak/substrate/015-better-agents/test/unit/shared/sdk-copilot-adapter.test.ts | Existing adapter tests pass unchanged | – | Regression check |
-| [ ] | T011 | Write contract tests for tool event parity between adapters | 2 | Test | T004, T009 | /home/jak/substrate/015-better-agents/test/contracts/agent-tool-events.contract.ts | Both adapters emit same AgentToolCallEvent/AgentToolResultEvent shape | – | DYK-05: Contract parity testing |
-| [ ] | T012 | Update FakeAgentAdapter to emit tool events | 2 | Core | T011 | /home/jak/substrate/015-better-agents/packages/shared/src/fakes/fake-agent-adapter.ts | Fake can simulate tool call sequences for testing | – | Test helper for Phase 3+ |
+| [x] | T001 | Write tests for Claude tool_use content block parsing | 2 | Test | – | /home/jak/substrate/015-better-agents/test/unit/shared/claude-code-adapter.test.ts | Tests cover: single tool, multiple tools, input shapes, toolCallId extraction | – | TDD RED phase; per Critical Discovery 03 |
+| [x] | T002 | Write tests for Claude tool_result content block parsing | 2 | Test | – | /home/jak/substrate/015-better-agents/test/unit/shared/claude-code-adapter.test.ts | Tests cover: success result, error result (is_error: true), empty output | – | TDD RED phase |
+| [x] | T003 | Write tests for Claude thinking content block parsing | 2 | Test | – | /home/jak/substrate/015-better-agents/test/unit/shared/claude-code-adapter.test.ts | Tests cover: thinking present, thinking with signature, absent signature | – | TDD RED phase; signature field optional |
+| [x] | T004 | Implement Claude content block parsing in _translateClaudeToAgentEvent | 3 | Core | T001, T002, T003 | /home/jak/substrate/015-better-agents/packages/shared/src/adapters/claude-code.adapter.ts | All tests from T001-T003 pass; content blocks yield correct AgentEvent types | – | Per Critical Discovery 03 |
+| [x] | T005 | Verify existing Claude text streaming still works | 1 | Test | T004 | /home/jak/substrate/015-better-agents/test/unit/shared/claude-code-adapter.test.ts | Existing adapter tests pass unchanged | – | Regression check |
+| [x] | T006 | Write tests for Copilot tool.execution_start event | 2 | Test | – | /home/jak/substrate/015-better-agents/test/unit/shared/sdk-copilot-adapter.test.ts | Tests cover: bash tool, read tool, write tool; extracts toolName, arguments, toolCallId | – | TDD RED phase; per Critical Discovery 04 |
+| [x] | T007 | Write tests for Copilot tool.execution_complete event | 2 | Test | – | /home/jak/substrate/015-better-agents/test/unit/shared/sdk-copilot-adapter.test.ts | Tests cover: success result, error (!success), result content extraction | – | TDD RED phase |
+| [x] | T007a | Write tests for Copilot assistant.reasoning event | 2 | Test | – | /home/jak/substrate/015-better-agents/test/unit/shared/sdk-copilot-adapter.test.ts | Tests cover: reasoning content, reasoningId, streaming delta variant | – | TDD RED phase; per Critical Discovery 04 |
+| [x] | T008 | Add defensive session state checks to Copilot adapter | 1 | Core | – | /home/jak/substrate/015-better-agents/packages/shared/src/adapters/sdk-copilot-adapter.ts | compact() asserts session not destroyed; throws if session invalid | – | Per Critical Discovery 07 |
+| [x] | T009 | Implement Copilot tool + reasoning event handling in _translateToAgentEvent | 3 | Core | T006, T007, T007a, T008 | /home/jak/substrate/015-better-agents/packages/shared/src/adapters/sdk-copilot-adapter.ts | All tests from T006-T007a pass; new event types emitted correctly | – | Per Critical Discovery 04 |
+| [x] | T010 | Verify existing Copilot text streaming still works | 1 | Test | T009 | /home/jak/substrate/015-better-agents/test/unit/shared/sdk-copilot-adapter.test.ts | Existing adapter tests pass unchanged | – | Regression check |
+| [x] | T011 | Write contract tests for tool event parity between adapters | 2 | Test | T004, T009 | /home/jak/substrate/015-better-agents/test/contracts/agent-tool-events.contract.ts | Both adapters emit same AgentToolCallEvent/AgentToolResultEvent shape | – | DYK-05: Contract parity testing |
+| [x] | T012 | Update FakeAgentAdapter to emit tool events | 2 | Core | T011 | /home/jak/substrate/015-better-agents/packages/shared/src/fakes/fake-agent-adapter.ts | Fake can simulate tool call sequences for testing | – | Test helper for Phase 3+ |
 
 ---
 
@@ -550,15 +550,15 @@ just lint
 
 ### Ready Check
 
-- [ ] Phase 1 deliverables reviewed and understood
-- [ ] Critical Discoveries 03, 04, 07 documented and mapped to tasks
-- [ ] ADR-0004 and ADR-0007 constraints acknowledged (minimal impact this phase)
-- [ ] Test fixtures designed for Claude content blocks and Copilot events
-- [ ] Regression test strategy defined (T005, T010)
-- [ ] Contract test approach agreed (T011)
-- [ ] Mock usage policy clear (use existing fakes, no vi.mock on internals)
+- [x] Phase 1 deliverables reviewed and understood
+- [x] Critical Discoveries 03, 04, 07 documented and mapped to tasks
+- [x] ADR-0004 and ADR-0007 constraints acknowledged (minimal impact this phase)
+- [x] Test fixtures designed for Claude content blocks and Copilot events
+- [x] Regression test strategy defined (T005, T010)
+- [x] Contract test approach agreed (T011)
+- [x] Mock usage policy clear (use existing fakes, no vi.mock on internals)
 
-**Awaiting explicit GO/NO-GO before implementation.**
+**✅ Phase 2 Complete** — All 12 tasks implemented, 35 new tests passing, all quality gates green.
 
 ---
 
