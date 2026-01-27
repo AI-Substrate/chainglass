@@ -183,8 +183,12 @@ describe('Concurrent Tool Calls', () => {
       const events = createInterleavedEvents();
       const logEntries = transformEventsToLogEntries(events);
 
-      // Should have: 3 thinking + 1 merged tool = 4 entries
-      expect(logEntries).toHaveLength(4);
+      // After thinking consolidation: thinking events that become consecutive
+      // after tool result merging get consolidated.
+      // Events: thinking1, tool_call, thinking2, tool_result, thinking3
+      // After merge: thinking1, tool_call+result, thinking2+thinking3
+      // Result: 3 entries (1 thinking + 1 tool + 1 consolidated thinking)
+      expect(logEntries).toHaveLength(3);
 
       // Verify interleaved order is preserved
       expect(logEntries[0].contentType).toBe('thinking');
@@ -193,11 +197,10 @@ describe('Concurrent Tool Calls', () => {
       expect(logEntries[1].contentType).toBe('tool_call');
       expect(logEntries[1].toolData?.toolName).toBe('Bash');
 
+      // Second and third thoughts are consolidated
       expect(logEntries[2].contentType).toBe('thinking');
-      expect(logEntries[2].thinkingData?.content).toBe('Second thought');
-
-      expect(logEntries[3].contentType).toBe('thinking');
-      expect(logEntries[3].thinkingData?.content).toBe('Third thought');
+      expect(logEntries[2].thinkingData?.content).toContain('Second thought');
+      expect(logEntries[2].thinkingData?.content).toContain('Third thought');
     });
 
     it('should merge tool result even when thinking events are interleaved', () => {

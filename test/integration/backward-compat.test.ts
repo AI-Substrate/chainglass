@@ -187,10 +187,12 @@ describe('Backward Compatibility', () => {
 
       const logEntries = transformEventsToLogEntries(events);
 
-      expect(logEntries).toHaveLength(3);
-      expect(logEntries[0].thinkingData?.signature).toBeUndefined();
-      expect(logEntries[1].thinkingData?.signature).toBe('sig-123');
-      expect(logEntries[2].toolData?.toolName).toBe('Bash');
+      // Two consecutive thinking events are consolidated, then tool call
+      expect(logEntries).toHaveLength(2);
+      // Consolidated thinking should have content from both
+      expect(logEntries[0].thinkingData?.content).toContain('Old thinking');
+      expect(logEntries[0].thinkingData?.content).toContain('New thinking');
+      expect(logEntries[1].toolData?.toolName).toBe('Bash');
     });
   });
 

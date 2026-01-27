@@ -100,18 +100,18 @@ flowchart TD
     end
 
     subgraph Subtask["Subtask 002: Client Markdown"]
-        ST001["ST001: Create MarkdownInline component"]:::pending
-        ST002["ST002: Integrate into LogEntry"]:::pending
-        ST003["ST003: Add unit tests"]:::pending
-        ST004["ST004: Verify with real agents"]:::pending
+        ST001["ST001: Create MarkdownInline component ✓"]:::completed
+        ST002["ST002: Integrate into LogEntry ✓"]:::completed
+        ST003["ST003: Add unit tests ✓"]:::completed
+        ST004["ST004: Verify with real agents ✓"]:::completed
 
         ST001 --> ST002 --> ST003 --> ST004
     end
 
     subgraph Files["Files"]
-        F1["/apps/web/src/components/markdown-inline.tsx"]:::pending
-        F2["/apps/web/src/components/agents/log-entry.tsx"]:::pending
-        F3["/test/unit/web/components/markdown-inline.test.tsx"]:::pending
+        F1["/apps/web/src/components/markdown-inline.tsx ✓"]:::completed
+        F2["/apps/web/src/components/agents/log-entry.tsx ✓"]:::completed
+        F3["/test/unit/web/components/markdown-inline.test.tsx ✓"]:::completed
     end
 
     ST001 -.-> F1
@@ -126,10 +126,10 @@ flowchart TD
 
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
-| ST001 | MarkdownInline | markdown-inline.tsx | ⬜ Pending | Lightweight sync ReactMarkdown wrapper |
-| ST002 | LogEntry | log-entry.tsx | ⬜ Pending | Replace `<p>` with MarkdownInline for assistant text |
-| ST003 | Tests | markdown-inline.test.tsx | ⬜ Pending | Unit tests for markdown rendering |
-| ST004 | Verification | N/A | ⬜ Pending | Manual verification with real Claude/Copilot |
+| ST001 | MarkdownInline | markdown-inline.tsx | ✅ Complete | Lightweight sync ReactMarkdown wrapper |
+| ST002 | LogEntry | log-entry.tsx | ✅ Complete | Replace `<p>` with MarkdownInline for assistant text |
+| ST003 | Tests | markdown-inline.test.tsx | ✅ Complete | Unit tests for markdown rendering |
+| ST004 | Verification | N/A | ✅ Complete | Manual verification with real Claude/Copilot |
 
 ---
 
@@ -137,10 +137,10 @@ flowchart TD
 
 | Status | ID    | Task                              | CS | Type  | Dependencies | Absolute Path(s)                                                                     | Validation                          | Subtasks | Notes           |
 |--------|-------|-----------------------------------|----|----- -|--------------|--------------------------------------------------------------------------------------|-------------------------------------|----------|-----------------|
-| [ ]    | ST001 | Create MarkdownInline component   | 2  | Core  | –            | /home/jak/substrate/015-better-agents/apps/web/src/components/markdown-inline.tsx    | Component renders markdown          | –        | Sync client component |
-| [ ]    | ST002 | Integrate into LogEntry           | 1  | Core  | ST001        | /home/jak/substrate/015-better-agents/apps/web/src/components/agents/log-entry.tsx   | Assistant text renders as markdown  | –        | Enhances T002   |
-| [ ]    | ST003 | Write unit tests                  | 2  | Test  | ST002        | /home/jak/substrate/015-better-agents/test/unit/web/components/markdown-inline.test.tsx | Tests pass, coverage adequate    | –        | Follow existing test patterns |
-| [ ]    | ST004 | Verify with real agents           | 1  | Verify| ST003        | N/A - Manual verification                                                            | Claude/Copilot output renders correctly | –   | Browser verification |
+| [x]    | ST001 | Create MarkdownInline component   | 2  | Core  | –            | /home/jak/substrate/015-better-agents/apps/web/src/components/markdown-inline.tsx    | Component renders markdown          | –        | Sync client component |
+| [x]    | ST002 | Integrate into LogEntry           | 1  | Core  | ST001        | /home/jak/substrate/015-better-agents/apps/web/src/components/agents/log-entry.tsx   | Assistant text renders as markdown  | –        | Enhances T002   |
+| [x]    | ST003 | Write unit tests                  | 2  | Test  | ST002        | /home/jak/substrate/015-better-agents/test/unit/web/components/markdown-inline.test.tsx | Tests pass, coverage adequate    | –        | Follow existing test patterns |
+| [x]    | ST004 | Verify with real agents           | 1  | Verify| ST003        | N/A - Manual verification                                                            | Claude/Copilot output renders correctly | –   | Browser verification |
 
 ---
 

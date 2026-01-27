@@ -20,6 +20,7 @@
 import type { MessageContentType } from '@/lib/schemas/agent-session.schema';
 import { cn } from '@/lib/utils';
 import { Bot, User } from 'lucide-react';
+import { MarkdownInline } from '../markdown-inline';
 import { ThinkingBlock } from './thinking-block';
 import { ToolCallCard, type ToolCallStatus } from './tool-call-card';
 
@@ -197,14 +198,13 @@ export function LogEntry({
   }
 
   // Assistant message - plain with icon (default for text contentType)
+  // Renders markdown for formatted output from agents
   return (
     <div className={cn('px-4 py-2 hover:bg-muted/20 transition-colors', className)}>
       <div className="flex items-start gap-2">
         <Bot className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" aria-hidden="true" />
         <div className="flex-1 min-w-0">
-          <p className="text-sm whitespace-pre-wrap leading-relaxed text-foreground/90">
-            {content}
-          </p>
+          <MarkdownInline content={content} className="text-sm leading-relaxed text-foreground/90" />
           {isStreaming && (
             <span className="inline-flex items-center gap-1 mt-1 text-[10px] text-blue-500">
               <span className="relative flex h-1.5 w-1.5">

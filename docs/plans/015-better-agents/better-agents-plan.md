@@ -1133,7 +1133,7 @@ Mid-implementation detours requiring structured tracking.
 | ID | Created | Phase | Parent Task | Reason | Status | Dossier |
 |----|---------|-------|-------------|--------|--------|---------|
 | 001-subtask-real-agent-multi-turn-tests | 2026-01-27 | Phase 5: Integration & Verification | T003, T004 | Deep-dive into real agent integration tests with multi-turn sessions | [x] Complete | [Link](tasks/phase-5-integration-accessibility/001-subtask-real-agent-multi-turn-tests.md) |
-| 002-subtask-client-markdown-rendering | 2026-01-27 | Phase 5: Integration & Accessibility | T002 | Agent text output renders as plain text, need markdown rendering | [ ] Pending | [Link](tasks/phase-5-integration-accessibility/002-subtask-client-markdown-rendering.md) |
+| 002-subtask-client-markdown-rendering | 2026-01-27 | Phase 5: Integration & Accessibility | T002 | Agent text output renders as plain text, need markdown rendering | [x] Complete | [Link](tasks/phase-5-integration-accessibility/002-subtask-client-markdown-rendering.md) |
 
 ---
 
