@@ -204,7 +204,10 @@ export function LogEntry({
       <div className="flex items-start gap-2">
         <Bot className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" aria-hidden="true" />
         <div className="flex-1 min-w-0">
-          <MarkdownInline content={content} className="text-sm leading-relaxed text-foreground/90" />
+          <MarkdownInline
+            content={content}
+            className="text-sm leading-relaxed text-foreground/90"
+          />
           {isStreaming && (
             <span className="inline-flex items-center gap-1 mt-1 text-[10px] text-blue-500">
               <span className="relative flex h-1.5 w-1.5">

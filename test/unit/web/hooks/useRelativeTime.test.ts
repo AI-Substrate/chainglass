@@ -5,9 +5,9 @@
  * Part of Plan 015: Better Agents - Session Management
  */
 
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
-import { useRelativeTime, formatRelativeTime } from '@/hooks/useRelativeTime';
+import { formatRelativeTime, useRelativeTime } from '@/hooks/useRelativeTime';
+import { act, renderHook } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('formatRelativeTime', () => {
   beforeEach(() => {
@@ -113,10 +113,9 @@ describe('useRelativeTime', () => {
     const fiveMinutesAgo = Date.now() - 5 * 60_000;
     const tenMinutesAgo = Date.now() - 10 * 60_000;
 
-    const { result, rerender } = renderHook(
-      ({ timestamp }) => useRelativeTime(timestamp),
-      { initialProps: { timestamp: fiveMinutesAgo } }
-    );
+    const { result, rerender } = renderHook(({ timestamp }) => useRelativeTime(timestamp), {
+      initialProps: { timestamp: fiveMinutesAgo },
+    });
 
     expect(result.current).toBe('5m ago');
 

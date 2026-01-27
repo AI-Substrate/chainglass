@@ -151,8 +151,8 @@ describe('AgentListView', () => {
 
       render(<AgentListView sessions={sessions} activeSessionId="1" onSelect={handler.onSelect} />);
 
-      // First session should have active styling (aria-selected="true" on li with role=option)
-      const activeItem = screen.getByText('Session One').closest('li');
+      // First session should have active styling (aria-selected="true" on div with role=option)
+      const activeItem = screen.getByText('Session One').closest('[role="option"]');
       expect(activeItem).toBeInTheDocument();
       expect(activeItem?.getAttribute('aria-selected')).toBe('true');
     });
@@ -194,8 +194,9 @@ describe('AgentListView', () => {
         <AgentListView sessions={sessions} activeSessionId={null} onSelect={handler.onSelect} />
       );
 
-      // Tab to first item and press Enter
-      await user.tab();
+      // Tab to container (listbox), then to first item, then press Enter
+      await user.tab(); // Focus listbox container
+      await user.tab(); // Focus first option
       await user.keyboard('{Enter}');
 
       handler.assertCalledOnce();

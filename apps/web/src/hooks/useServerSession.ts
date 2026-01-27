@@ -73,7 +73,11 @@ async function fetchSession(sessionId: string): Promise<ServerSession> {
     throw new Error(`Failed to fetch session events: ${eventsRes.status}`);
   }
 
-  const eventsData = (await eventsRes.json()) as { events: StoredEvent[]; count: number; sessionId: string };
+  const eventsData = (await eventsRes.json()) as {
+    events: StoredEvent[];
+    count: number;
+    sessionId: string;
+  };
 
   // Construct minimal metadata from sessionId (server-side metadata not required for event display)
   const metadata: SessionMetadata = {
@@ -160,7 +164,7 @@ export function useServerSession(
 
     // Connect to global 'agents' channel (same channel run route broadcasts to)
     // Filter session_updated events by sessionId
-    const eventSource = new EventSource(`/api/events/agents`);
+    const eventSource = new EventSource('/api/events/agents');
 
     // Track connection open
     eventSource.addEventListener('open', () => {

@@ -15,7 +15,7 @@
  * Enhanced in Plan 015: Better Agents - Session Management
  */
 
-import { useRelativeTime, formatAbsoluteTime } from '@/hooks/useRelativeTime';
+import { formatAbsoluteTime, useRelativeTime } from '@/hooks/useRelativeTime';
 import type { AgentSession } from '@/lib/schemas/agent-session.schema';
 import { cn } from '@/lib/utils';
 import { MessageSquare, Trash2 } from 'lucide-react';
@@ -60,9 +60,10 @@ function SessionItem({
   };
 
   return (
-    <li
+    <div
       onClick={onSelect}
       onKeyDown={(e) => e.key === 'Enter' && onSelect()}
+      // biome-ignore lint/a11y/useSemanticElements: Custom styled listbox item requires div with role="option" (native <option> cannot be styled)
       role="option"
       aria-selected={isActive}
       tabIndex={0}
@@ -105,7 +106,7 @@ function SessionItem({
       <div className="text-xs text-muted-foreground mt-0.5">
         {absoluteTime} ({relativeTime})
       </div>
-    </li>
+    </div>
   );
 }
 
@@ -138,7 +139,8 @@ export function AgentListView({
   }
 
   return (
-    <ul className={cn('divide-y divide-border', className)} role="listbox">
+    // biome-ignore lint/a11y/useSemanticElements: Custom styled listbox requires div with role="listbox" (native <select> cannot be styled)
+    <div className={cn('divide-y divide-border', className)} role="listbox" tabIndex={0}>
       {sessions.map((session) => (
         <SessionItem
           key={session.id}
@@ -148,7 +150,7 @@ export function AgentListView({
           onDelete={onDelete ? () => onDelete(session.id) : undefined}
         />
       ))}
-    </ul>
+    </div>
   );
 }
 
