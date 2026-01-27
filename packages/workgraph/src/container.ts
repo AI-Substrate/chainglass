@@ -22,6 +22,7 @@ import { FakeWorkUnitService } from './fakes/fake-workunit-service.js';
 import type { IWorkGraphService } from './interfaces/workgraph-service.interface.js';
 import type { IWorkNodeService } from './interfaces/worknode-service.interface.js';
 import type { IWorkUnitService } from './interfaces/workunit-service.interface.js';
+import { WorkGraphService } from './services/workgraph.service.js';
 import { WorkUnitService } from './services/workunit.service.js';
 
 // ============================================
@@ -53,9 +54,14 @@ export function createWorkgraphProductionContainer(): DependencyContainer {
     },
   });
 
-  // TODO: Register real WorkGraphService in Phase 3
+  // Real WorkGraphService (Phase 3)
   child.register<IWorkGraphService>(WORKGRAPH_DI_TOKENS.WORKGRAPH_SERVICE, {
-    useFactory: () => new FakeWorkGraphService(),
+    useFactory: (c: DependencyContainer) => {
+      const fs = c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
+      const pathResolver = c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
+      const yamlParser = c.resolve<IYamlParser>(SHARED_DI_TOKENS.YAML_PARSER);
+      return new WorkGraphService(fs, pathResolver, yamlParser);
+    },
   });
 
   // TODO: Register real WorkNodeService in Phase 4

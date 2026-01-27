@@ -434,6 +434,84 @@ export class FakeFileSystem implements IFileSystem {
   }
 
   /**
+   * Rename/move a file or directory.
+   *
+   * Per Phase 3 DYK#4: In-memory rename for testing atomic writes.
+   */
+  async rename(oldPath: string, newPath: string): Promise<void> {
+    this.checkSimulatedError(oldPath);
+    this.checkSimulatedError(newPath);
+
+    // Check if source exists
+    const isFile = this.files.has(oldPath);
+    const isDir = this.dirs.has(oldPath) || this.isImplicitDir(oldPath);
+
+    if (!isFile && !isDir) {
+      throw new FileSystemError(
+        `ENOENT: no such file or directory, rename '${oldPath}'`,
+        'ENOENT',
+        oldPath
+      );
+    }
+
+    // Check if destination parent exists
+    const destParent = pathModule.dirname(newPath);
+    if (destParent !== '/' && destParent !== '.' && !(await this.exists(destParent))) {
+      throw new FileSystemError(
+        `ENOENT: no such file or directory, rename '${oldPath}' -> '${newPath}'`,
+        'ENOENT',
+        newPath
+      );
+    }
+
+    if (isFile) {
+      // Move file
+      const content = this.files.get(oldPath);
+      if (content === undefined) {
+        throw new FileSystemError(
+          `ENOENT: no such file or directory, rename '${oldPath}'`,
+          'ENOENT',
+          oldPath
+        );
+      }
+      const mtime = this.mtimes.get(oldPath) ?? new Date().toISOString();
+
+      this.files.delete(oldPath);
+      this.mtimes.delete(oldPath);
+
+      this.files.set(newPath, content);
+      this.mtimes.set(newPath, mtime);
+    } else {
+      // Move directory - move all files under oldPath to newPath
+      const normalizedOld = oldPath.endsWith('/') ? oldPath.slice(0, -1) : oldPath;
+      const normalizedNew = newPath.endsWith('/') ? newPath.slice(0, -1) : newPath;
+
+      // Move files
+      for (const [filePath, content] of Array.from(this.files.entries())) {
+        if (filePath.startsWith(`${normalizedOld}/`) || filePath === normalizedOld) {
+          const newFilePath = filePath.replace(normalizedOld, normalizedNew);
+          const mtime = this.mtimes.get(filePath);
+
+          this.files.delete(filePath);
+          this.mtimes.delete(filePath);
+
+          this.files.set(newFilePath, content);
+          if (mtime) this.mtimes.set(newFilePath, mtime);
+        }
+      }
+
+      // Move explicit directories
+      for (const dirPath of Array.from(this.dirs)) {
+        if (dirPath.startsWith(`${normalizedOld}/`) || dirPath === normalizedOld) {
+          const newDirPath = dirPath.replace(normalizedOld, normalizedNew);
+          this.dirs.delete(dirPath);
+          this.dirs.add(newDirPath);
+        }
+      }
+    }
+  }
+
+  /**
    * Convert a glob pattern to a regex.
    * Supports * (any characters except /) and ** (any characters including /).
    */

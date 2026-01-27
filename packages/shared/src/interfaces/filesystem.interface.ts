@@ -141,4 +141,16 @@ export interface IFileSystem {
    * @returns Array of matching file paths (relative or absolute based on options)
    */
   glob(pattern: string, options?: { cwd?: string; absolute?: boolean }): Promise<string[]>;
+
+  /**
+   * Rename/move a file or directory.
+   *
+   * Per Phase 3 DYK#4: Required for atomic write pattern (write to .tmp then rename).
+   *
+   * @param oldPath Current absolute path
+   * @param newPath New absolute path
+   * @throws FileSystemError with code 'ENOENT' if oldPath doesn't exist
+   * @throws FileSystemError with code 'ENOENT' if newPath parent directory doesn't exist
+   */
+  rename(oldPath: string, newPath: string): Promise<void>;
 }

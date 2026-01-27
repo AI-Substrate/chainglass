@@ -184,4 +184,4 @@ export type {
 // ============================================
 // Services (real implementations)
 // ============================================
-export { WorkUnitService } from './services/index.js';
+export { WorkGraphService, WorkUnitService } from './services/index.js';

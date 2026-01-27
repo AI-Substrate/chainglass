@@ -266,6 +266,22 @@ export function fileNotFoundError(path: string): ResultError {
   };
 }
 
+/**
+ * Create error for unimplemented features.
+ * Per CD02: Methods should return errors, not throw.
+ *
+ * @param feature - Feature name (e.g., 'addNodeAfter')
+ * @param targetPhase - Phase where feature will be implemented
+ * @returns ResultError with code E199
+ */
+export function unimplementedFeatureError(feature: string, targetPhase: string): ResultError {
+  return {
+    code: 'E199',
+    message: `Feature '${feature}' is not yet implemented. Planned for ${targetPhase}.`,
+    action: `Wait for ${targetPhase} implementation or check plan for timeline.`,
+  };
+}
+
 // ============================================
 // Error Index Export
 // ============================================
@@ -287,5 +303,6 @@ export const errors = {
     yamlParseError,
     schemaValidationError,
     fileNotFoundError,
+    unimplementedFeatureError,
   },
 };

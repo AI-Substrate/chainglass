@@ -204,6 +204,21 @@ export class NodeFileSystemAdapter implements IFileSystem {
   }
 
   /**
+   * Rename/move a file or directory.
+   *
+   * Per Phase 3 DYK#4: Required for atomic write pattern.
+   */
+  async rename(oldPath: string, newPath: string): Promise<void> {
+    try {
+      await fs.rename(oldPath, newPath);
+    } catch (err) {
+      // Determine which path caused the error
+      const errorPath = (await this.exists(oldPath)) ? newPath : oldPath;
+      throw this.wrapError(err, errorPath);
+    }
+  }
+
+  /**
    * Wrap Node.js errors in FileSystemError.
    */
   private wrapError(err: unknown, path: string): FileSystemError {
