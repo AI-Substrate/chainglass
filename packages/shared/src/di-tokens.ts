@@ -71,4 +71,10 @@ export const WORKSPACE_DI_TOKENS = {
   WORKSPACE_SERVICE: 'IWorkspaceService',
   /** ISampleService interface */
   SAMPLE_SERVICE: 'ISampleService',
+  /** IAgentSessionAdapter interface (Plan 018) */
+  AGENT_SESSION_ADAPTER: 'IAgentSessionAdapter',
+  /** IAgentSessionService interface (Plan 018) */
+  AGENT_SESSION_SERVICE: 'IAgentSessionService',
+  /** IAgentEventAdapter interface (Plan 018 Phase 2) */
+  AGENT_EVENT_ADAPTER: 'IAgentEventAdapter',
 } as const;

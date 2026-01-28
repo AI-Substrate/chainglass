@@ -25,3 +25,6 @@ export type { ComposeResultWithEntity } from './workflow-service.types.js';
 // Workspace services (Plan 014 Phase 4)
 export { WorkspaceService } from './workspace.service.js';
 export { SampleService } from './sample.service.js';
+
+// Agent session service (Plan 018)
+export { AgentSessionService } from './agent-session.service.js';

@@ -18,3 +18,6 @@ export type {
 
 // Sample adapter (Plan 014 Phase 3)
 export { SampleAdapter } from './sample.adapter.js';
+
+// Agent session adapter (Plan 018)
+export { AgentSessionAdapter } from './agent-session.adapter.js';

@@ -37,6 +37,16 @@ export {
   InvalidSampleDataError,
 } from './errors/index.js';
 
+// Agent session errors (E090-E093 per Plan 018)
+export { AgentSessionErrorCodes, AgentSessionErrors } from './errors/index.js';
+export type { AgentSessionError } from './errors/index.js';
+export {
+  AgentSessionNotFoundError,
+  AgentSessionExistsError,
+  InvalidAgentSessionDataError,
+  AgentEventNotFoundError,
+} from './errors/index.js';
+
 // Types (matching core schemas)
 export type {
   // wf.types.ts - Workflow definition types
@@ -117,6 +127,10 @@ export type { WorkspaceInput, WorkspaceJSON } from './entities/index.js';
 export { Sample } from './entities/index.js';
 export type { SampleInput, SampleJSON } from './entities/index.js';
 
+// AgentSession entity (Plan 018)
+export { AgentSession } from './entities/index.js';
+export type { AgentSessionInput, AgentSessionJSON } from './entities/index.js';
+
 // Workspace registry adapter interface (Plan 014: Workspaces)
 export type {
   IWorkspaceRegistryAdapter,
@@ -131,6 +145,14 @@ export type {
   SampleErrorCode,
   SampleSaveResult,
   SampleRemoveResult,
+} from './interfaces/index.js';
+
+// Agent session adapter interface (Plan 018)
+export type {
+  IAgentSessionAdapter,
+  AgentSessionErrorCode,
+  AgentSessionSaveResult,
+  AgentSessionRemoveResult,
 } from './interfaces/index.js';
 
 // Init service interface (Phase 4)
@@ -168,6 +190,9 @@ export type {
 
 // Sample adapter (Plan 014 Phase 3)
 export { SampleAdapter } from './adapters/index.js';
+
+// Agent session adapter (Plan 018)
+export { AgentSessionAdapter } from './adapters/index.js';
 
 // Fakes
 export { FakeYamlParser } from './fakes/index.js';
@@ -293,9 +318,20 @@ export type {
   DeleteSampleResult,
 } from './interfaces/index.js';
 
+// Agent session service interface (Plan 018)
+export type {
+  IAgentSessionService,
+  CreateSessionResult,
+  DeleteSessionResult,
+  UpdateSessionStatusResult,
+} from './interfaces/index.js';
+
 // Workspace service (Plan 014 Phase 4)
 export { WorkspaceService } from './services/index.js';
 export { SampleService } from './services/index.js';
+
+// Agent session service (Plan 018)
+export { AgentSessionService } from './services/index.js';
 
 // Git worktree resolver fake (Plan 014 Phase 4)
 export { FakeGitWorktreeResolver } from './fakes/index.js';
@@ -303,4 +339,14 @@ export type {
   DetectWorktreesCall,
   GetMainRepoPathCall,
   IsMainWorktreeCall,
+} from './fakes/index.js';
+
+// Agent session adapter fake (Plan 018)
+export { FakeAgentSessionAdapter } from './fakes/index.js';
+export type {
+  AgentSessionLoadCall,
+  AgentSessionSaveCall,
+  AgentSessionListCall,
+  AgentSessionRemoveCall,
+  AgentSessionExistsCall,
 } from './fakes/index.js';

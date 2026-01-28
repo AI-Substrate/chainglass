@@ -209,6 +209,15 @@ export {
   SessionMetadataSchema,
   SessionMetadataCreateSchema,
   SessionMetadataUpdateSchema,
+  AgentTypeSchema,
+  SessionStatusSchema,
+  // Agent session schemas (Plan 018)
+  AgentSessionJSONSchema,
+  AgentSessionInputSchema,
+  AgentSessionStatusSchema,
+  SESSION_ID_PATTERN,
+  isValidSessionId as isValidAgentSessionId,
+  validateSessionId as validateAgentSessionId,
   // Types
   type AgentStoredEvent,
   type AgentThinkingEvent,
@@ -217,4 +226,9 @@ export {
   type SessionMetadata,
   type SessionMetadataCreate,
   type SessionMetadataUpdate,
+  type AgentType,
+  type SessionStatus,
+  type AgentSessionJSON,
+  type AgentSessionInput,
+  type AgentSessionStatus,
 } from './schemas/index.js';

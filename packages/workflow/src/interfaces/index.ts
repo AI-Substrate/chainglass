@@ -90,3 +90,19 @@ export type {
   AddSampleResult,
   DeleteSampleResult,
 } from './sample-service.interface.js';
+
+// Agent session adapter interface (Plan 018)
+export type {
+  IAgentSessionAdapter,
+  AgentSessionErrorCode,
+  AgentSessionSaveResult,
+  AgentSessionRemoveResult,
+} from './agent-session-adapter.interface.js';
+
+// Agent session service interface (Plan 018)
+export type {
+  IAgentSessionService,
+  CreateSessionResult,
+  DeleteSessionResult,
+  UpdateSessionStatusResult,
+} from './agent-session-service.interface.js';

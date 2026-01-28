@@ -38,3 +38,20 @@ export {
   type SessionMetadataUpdate,
   type SessionStatus,
 } from './session-metadata.schema.js';
+
+// Agent Session Schemas (Plan 018: Phase 1)
+export {
+  // Schemas
+  AgentSessionJSONSchema,
+  AgentSessionInputSchema,
+  AgentSessionStatusSchema,
+  SESSION_ID_PATTERN,
+  // Note: AgentTypeSchema already exported from session-metadata.schema.js
+  // Functions
+  isValidSessionId,
+  validateSessionId,
+  // Types (derived via z.infer)
+  type AgentSessionJSON,
+  type AgentSessionInput,
+  type AgentSessionStatus,
+} from './agent-session.schema.js';
