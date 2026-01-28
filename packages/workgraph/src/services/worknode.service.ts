@@ -30,6 +30,7 @@ import type {
   EndResult,
   GetInputDataResult,
   GetInputFileResult,
+  GetOutputDataResult,
   IWorkGraphService,
   IWorkNodeService,
   IWorkUnitService,
@@ -443,8 +444,9 @@ export class WorkNodeService implements IWorkNodeService {
       };
     }
 
-    // 2. If not running, return E112
-    if (nodeStatus.status !== 'running') {
+    // 2. If not running or pending, return E112
+    // Note: pending is allowed for "direct output pattern" where orchestrator saves outputs without start()
+    if (nodeStatus.status !== 'running' && nodeStatus.status !== 'pending') {
       return {
         nodeId,
         status: nodeStatus.status,
@@ -452,8 +454,8 @@ export class WorkNodeService implements IWorkNodeService {
         errors: [
           {
             code: 'E112',
-            message: `Node '${nodeId}' is not in running state (current: ${nodeStatus.status})`,
-            action: 'Use start() to begin execution before calling end()',
+            message: `Node '${nodeId}' is not in running or pending state (current: ${nodeStatus.status})`,
+            action: 'Node must be pending (with outputs) or running to call end()',
           },
         ],
       };
@@ -624,8 +626,9 @@ export class WorkNodeService implements IWorkNodeService {
       };
     }
 
-    // 2. If not running, cannot end
-    if (nodeStatus.status !== 'running') {
+    // 2. If not running or pending, cannot end
+    // Note: pending is allowed for "direct output pattern" where orchestrator saves outputs without start()
+    if (nodeStatus.status !== 'running' && nodeStatus.status !== 'pending') {
       return {
         nodeId,
         canEnd: false,
@@ -633,8 +636,8 @@ export class WorkNodeService implements IWorkNodeService {
         errors: [
           {
             code: 'E112',
-            message: `Node '${nodeId}' is not in running state (current: ${nodeStatus.status})`,
-            action: 'Node must be running to end it',
+            message: `Node '${nodeId}' is not in running or pending state (current: ${nodeStatus.status})`,
+            action: 'Node must be pending (with outputs) or running to call end()',
           },
         ],
       };
@@ -1048,6 +1051,105 @@ export class WorkNodeService implements IWorkNodeService {
             code: 'E117',
             message: `Input file '${inputName}' not available - failed to read source data`,
             action: `Check data.json for node '${sourceNodeId}'`,
+          },
+        ],
+      };
+    }
+  }
+
+  // ============================================
+  // getOutputData
+  // ============================================
+
+  /**
+   * Get output data from a node.
+   *
+   * Reads the output value from the node's own saved outputs (data/data.json).
+   * Used by orchestrators to read completed node results.
+   * Note: Unlike getInputData which reads from upstream nodes,
+   * this reads from the node's own outputs (semantic asymmetry by design).
+   *
+   * @param graphSlug - Graph containing the node
+   * @param nodeId - Node to get output from
+   * @param outputName - Name of the output to get
+   * @returns GetOutputDataResult with the output value
+   */
+  async getOutputData(
+    graphSlug: string,
+    nodeId: string,
+    outputName: string
+  ): Promise<GetOutputDataResult> {
+    // 1. Validate node exists
+    const statusResult = await this.workGraphService.status(graphSlug);
+    if (statusResult.errors.length > 0) {
+      return {
+        nodeId,
+        outputName,
+        errors: statusResult.errors,
+      };
+    }
+
+    const nodeStatus = statusResult.nodes.find((n) => n.id === nodeId);
+    if (!nodeStatus) {
+      return {
+        nodeId,
+        outputName,
+        errors: [nodeNotFoundError(graphSlug, nodeId)],
+      };
+    }
+
+    // 2. Load the node's own data.json to get outputs
+    const nodePath = this.pathResolver.join(this.graphsDir, graphSlug, 'nodes', nodeId);
+    const dataPath = this.pathResolver.join(nodePath, 'data', 'data.json');
+
+    if (!(await this.fs.exists(dataPath))) {
+      return {
+        nodeId,
+        outputName,
+        errors: [
+          {
+            code: 'E118',
+            message: `Output '${outputName}' not available for node '${nodeId}' - no outputs saved`,
+            action: 'Ensure the node has saved outputs before reading',
+          },
+        ],
+      };
+    }
+
+    try {
+      const dataContent = await this.fs.readFile(dataPath);
+      const parsed = JSON.parse(dataContent);
+      const outputs = parsed.outputs ?? {};
+
+      if (!(outputName in outputs)) {
+        return {
+          nodeId,
+          outputName,
+          errors: [
+            {
+              code: 'E118',
+              message: `Output '${outputName}' not found in node '${nodeId}'`,
+              action: `Ensure the node has saved output '${outputName}'`,
+            },
+          ],
+        };
+      }
+
+      return {
+        nodeId,
+        outputName,
+        value: outputs[outputName],
+        errors: [],
+      };
+    } catch {
+      return {
+        nodeId,
+        outputName,
+        errors: [
+          {
+            code: 'E118',
+            message: `Failed to read output '${outputName}' from node '${nodeId}'`,
+            action: `Check data.json for node '${nodeId}'`,
           },
         ],
       };

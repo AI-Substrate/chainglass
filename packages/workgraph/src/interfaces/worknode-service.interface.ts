@@ -136,6 +136,19 @@ export interface GetInputFileResult extends BaseResult {
 }
 
 /**
+ * Result of getting output data from a node.
+ * Used by orchestrators to read a completed node's outputs.
+ */
+export interface GetOutputDataResult extends BaseResult {
+  /** Node ID */
+  nodeId: string;
+  /** Output name */
+  outputName: string;
+  /** Output value (undefined if not available) */
+  value?: unknown;
+}
+
+/**
  * Result of saving output data.
  */
 export interface SaveOutputDataResult extends BaseResult {
@@ -329,6 +342,25 @@ export interface IWorkNodeService {
    * @returns GetInputFileResult with resolved file path
    */
   getInputFile(graphSlug: string, nodeId: string, inputName: string): Promise<GetInputFileResult>;
+
+  /**
+   * Get output data from a node.
+   *
+   * Reads the output value from the node's own saved outputs.
+   * Used by orchestrators to read completed node results.
+   * Note: Unlike getInputData which reads from upstream nodes,
+   * this reads from the node's own outputs (semantic asymmetry by design).
+   *
+   * @param graphSlug - Graph containing the node
+   * @param nodeId - Node to get output from
+   * @param outputName - Name of the output to get
+   * @returns GetOutputDataResult with the output value
+   */
+  getOutputData(
+    graphSlug: string,
+    nodeId: string,
+    outputName: string
+  ): Promise<GetOutputDataResult>;
 
   /**
    * Save output data for a node.

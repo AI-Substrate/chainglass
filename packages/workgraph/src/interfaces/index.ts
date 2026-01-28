@@ -50,6 +50,7 @@ export type {
   CanEndResult,
   GetInputDataResult,
   GetInputFileResult,
+  GetOutputDataResult,
   SaveOutputDataResult,
   SaveOutputFileResult,
   ClearOptions,

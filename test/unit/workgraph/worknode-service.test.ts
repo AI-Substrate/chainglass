@@ -746,14 +746,14 @@ describe('WorkNodeService', () => {
       expect(result.completedAt).toBeDefined();
     });
 
-    it('should return E112 when node is not in running state', async () => {
+    it('should return E112 when node is not in running or pending state', async () => {
       /*
       Test Doc:
-      - Why: Cannot end a node that hasn't started
-      - Contract: end() on non-running node returns E112
-      - Usage Notes: E112 = nodeNotInRunningState
+      - Why: Cannot end a node in disallowed states (ready, complete, etc.)
+      - Contract: end() on non-running/non-pending node returns E112
+      - Usage Notes: E112 = nodeNotInValidState. Per Plan 017: pending is now allowed.
       - Quality Contribution: Enforces proper lifecycle
-      - Worked Example: pending node, end() → E112
+      - Worked Example: ready node, end() → E112
       */
       setupGraph(ctx, 'test-graph', GRAPH_WITH_COMPLETE_UPSTREAM, STATUS_UPSTREAM_COMPLETE, {
         graph_status: 'in_progress',
@@ -761,7 +761,7 @@ describe('WorkNodeService', () => {
         nodes: {
           start: { status: 'complete' },
           'user-input-a7f': { status: 'complete' },
-          'write-poem-b2c': { status: 'ready' }, // Not running!
+          'write-poem-b2c': { status: 'ready' }, // Not running or pending!
         },
       });
 
@@ -769,6 +769,121 @@ describe('WorkNodeService', () => {
 
       expect(result.errors).toHaveLength(1);
       expect(result.errors[0].code).toBe('E112');
+    });
+
+    // ============================================
+    // Plan 017: Direct Output Pattern (PENDING → COMPLETE)
+    // ============================================
+
+    it('should transition PENDING node to complete when outputs present', async () => {
+      /*
+      Test Doc:
+      - Why: Plan 017 "direct output pattern" - orchestrator saves outputs without start()
+      - Contract: end() on pending node with all required outputs → complete
+      - Usage Notes: Enables user-input nodes to skip start() when orchestrator has data
+      - Quality Contribution: Validates Plan 017 state machine extension
+      - Worked Example: pending + outputs saved, end() → { status: 'complete' }
+      */
+      ctx.workUnitService.setPresetLoadResult('user-input-text', {
+        unit: USER_INPUT_UNIT,
+        errors: [],
+      });
+
+      // Status must show node as 'pending' (not running, not complete)
+      const statusWithPendingNode = {
+        graphSlug: 'test-graph',
+        graphStatus: 'pending' as const,
+        nodes: [
+          { id: 'start', status: 'complete' as const },
+          { id: 'user-input-a7f', status: 'pending' as const }, // PENDING!
+          { id: 'write-poem-b2c', status: 'pending' as const },
+        ],
+        errors: [],
+      };
+
+      setupGraph(ctx, 'test-graph', GRAPH_WITH_COMPLETE_UPSTREAM, statusWithPendingNode, {
+        graph_status: 'pending',
+        updated_at: '2026-01-27T11:00:00.000Z',
+        nodes: {
+          start: { status: 'complete' },
+          'user-input-a7f': { status: 'pending' },
+          'write-poem-b2c': { status: 'pending' },
+        },
+      });
+
+      // Set up node config
+      const nodePath = '.chainglass/work-graphs/test-graph/nodes/user-input-a7f';
+      ctx.fs.setDir(nodePath);
+      ctx.fs.setFile(`${nodePath}/node.yaml`, 'id: user-input-a7f\nunit_slug: user-input-text');
+      ctx.yamlParser.setPresetParseResult('id: user-input-a7f\nunit_slug: user-input-text', {
+        id: 'user-input-a7f',
+        unit_slug: 'user-input-text',
+      });
+
+      // Set up data.json with the required 'text' output
+      setupNodeData(ctx, 'test-graph', 'user-input-a7f', {
+        text: 'Orchestrator provided this text directly',
+      });
+
+      const result = await ctx.service.end('test-graph', 'user-input-a7f');
+
+      expect(result.errors).toEqual([]);
+      expect(result.status).toBe('complete');
+      expect(result.completedAt).toBeDefined();
+    });
+
+    it('should return E113 when PENDING node has missing outputs', async () => {
+      /*
+      Test Doc:
+      - Why: Plan 017 - PENDING allows end() but still requires outputs
+      - Contract: end() on pending node without required outputs → E113
+      - Usage Notes: Same output validation as running node
+      - Quality Contribution: Ensures output validation applies regardless of prior state
+      - Worked Example: pending + no outputs, end() → { errors: [{ code: 'E113' }] }
+      */
+      ctx.workUnitService.setPresetLoadResult('user-input-text', {
+        unit: USER_INPUT_UNIT,
+        errors: [],
+      });
+
+      // Status must show node as 'pending'
+      const statusWithPendingNode = {
+        graphSlug: 'test-graph',
+        graphStatus: 'pending' as const,
+        nodes: [
+          { id: 'start', status: 'complete' as const },
+          { id: 'user-input-a7f', status: 'pending' as const }, // PENDING!
+          { id: 'write-poem-b2c', status: 'pending' as const },
+        ],
+        errors: [],
+      };
+
+      setupGraph(ctx, 'test-graph', GRAPH_WITH_COMPLETE_UPSTREAM, statusWithPendingNode, {
+        graph_status: 'pending',
+        updated_at: '2026-01-27T11:00:00.000Z',
+        nodes: {
+          start: { status: 'complete' },
+          'user-input-a7f': { status: 'pending' },
+          'write-poem-b2c': { status: 'pending' },
+        },
+      });
+
+      // Set up node config but NO data.json (no outputs saved)
+      const nodePath = '.chainglass/work-graphs/test-graph/nodes/user-input-a7f';
+      ctx.fs.setDir(nodePath);
+      ctx.fs.setFile(`${nodePath}/node.yaml`, 'id: user-input-a7f\nunit_slug: user-input-text');
+      ctx.yamlParser.setPresetParseResult('id: user-input-a7f\nunit_slug: user-input-text', {
+        id: 'user-input-a7f',
+        unit_slug: 'user-input-text',
+      });
+
+      // NO data.json = no outputs saved
+
+      const result = await ctx.service.end('test-graph', 'user-input-a7f');
+
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].code).toBe('E113');
+      expect(result.missingOutputs).toContain('text');
     });
 
     it('should return E113 when required outputs are missing', async () => {
@@ -1117,6 +1232,96 @@ inputs:
       });
 
       const result = await ctx.service.getInputData('test-graph', 'nonexistent-node', 'text');
+
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].code).toBe('E107');
+    });
+  });
+
+  // ============================================
+  // getOutputData() tests - Plan 017 T005b
+  // ============================================
+
+  describe('getOutputData()', () => {
+    it('should return saved output value successfully', async () => {
+      /*
+      Test Doc:
+      - Why: Orchestrators need to read completed node outputs
+      - Contract: getOutputData() reads from node's own data.json outputs
+      - Usage Notes: Semantic asymmetry - getInputData reads upstream, getOutputData reads self
+      - Quality Contribution: Verifies orchestrator can retrieve results
+      - Worked Example: Node has saved output 'text' → getOutputData returns value
+      */
+      setupGraph(ctx, 'test-graph', GRAPH_WITH_COMPLETE_UPSTREAM, STATUS_UPSTREAM_COMPLETE, {
+        graph_status: 'in_progress',
+        updated_at: '2026-01-27T11:00:00.000Z',
+        nodes: {
+          start: { status: 'complete' },
+          'user-input-a7f': { status: 'complete' },
+          'write-poem-b2c': { status: 'pending' },
+        },
+      });
+
+      // Set up the node's own output data
+      setupNodeData(ctx, 'test-graph', 'user-input-a7f', {
+        text: 'The ocean at sunset',
+      });
+
+      const result = await ctx.service.getOutputData('test-graph', 'user-input-a7f', 'text');
+
+      expect(result.errors).toEqual([]);
+      expect(result.nodeId).toBe('user-input-a7f');
+      expect(result.outputName).toBe('text');
+      expect(result.value).toBe('The ocean at sunset');
+    });
+
+    it('should return E118 when output is not available', async () => {
+      /*
+      Test Doc:
+      - Why: Error handling - output not yet produced
+      - Contract: getOutputData() returns E118 for missing output
+      - Usage Notes: E118 = outputNotAvailable
+      - Quality Contribution: Clear error when output hasn't been saved
+      - Worked Example: getOutputData('missing') → E118
+      */
+      setupGraph(ctx, 'test-graph', GRAPH_WITH_COMPLETE_UPSTREAM, STATUS_UPSTREAM_COMPLETE, {
+        graph_status: 'in_progress',
+        updated_at: '2026-01-27T11:00:00.000Z',
+        nodes: {
+          start: { status: 'complete' },
+          'user-input-a7f': { status: 'pending' },
+          'write-poem-b2c': { status: 'pending' },
+        },
+      });
+
+      // No data.json exists for this node
+
+      const result = await ctx.service.getOutputData('test-graph', 'user-input-a7f', 'text');
+
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].code).toBe('E118');
+    });
+
+    it('should return E107 when node does not exist', async () => {
+      /*
+      Test Doc:
+      - Why: Cannot get output for node that doesn't exist
+      - Contract: getOutputData('graph', 'nonexistent', 'output') returns E107
+      - Usage Notes: E107 = nodeNotFoundError
+      - Quality Contribution: Validates node existence
+      - Worked Example: getOutputData('g', 'missing', 'x') → E107
+      */
+      setupGraph(ctx, 'test-graph', GRAPH_WITH_COMPLETE_UPSTREAM, STATUS_UPSTREAM_COMPLETE, {
+        graph_status: 'in_progress',
+        updated_at: '2026-01-27T11:00:00.000Z',
+        nodes: {
+          start: { status: 'complete' },
+          'user-input-a7f': { status: 'complete' },
+          'write-poem-b2c': { status: 'pending' },
+        },
+      });
+
+      const result = await ctx.service.getOutputData('test-graph', 'nonexistent-node', 'text');
 
       expect(result.errors).toHaveLength(1);
       expect(result.errors[0].code).toBe('E107');

@@ -180,6 +180,13 @@ interface WgGetInputFileResult extends BaseResult {
   fromOutput?: string;
 }
 
+/** @internal Get output data result type */
+interface WgGetOutputDataResult extends BaseResult {
+  nodeId: string;
+  outputName: string;
+  value?: unknown;
+}
+
 /** @internal Save output data result type */
 interface WgSaveOutputDataResult extends BaseResult {
   nodeId: string;
@@ -358,6 +365,8 @@ export class ConsoleOutputAdapter implements IOutputAdapter {
         return this.formatWgNodeGetInputDataSuccess(result as unknown as WgGetInputDataResult);
       case 'wg.node.get-input-file':
         return this.formatWgNodeGetInputFileSuccess(result as unknown as WgGetInputFileResult);
+      case 'wg.node.get-output-data':
+        return this.formatWgNodeGetOutputDataSuccess(result as unknown as WgGetOutputDataResult);
       case 'wg.node.save-output-data':
         return this.formatWgNodeSaveOutputDataSuccess(result as unknown as WgSaveOutputDataResult);
       case 'wg.node.save-output-file':
@@ -451,6 +460,8 @@ export class ConsoleOutputAdapter implements IOutputAdapter {
         return this.formatWgNodeGetInputDataFailure(result as unknown as WgGetInputDataResult);
       case 'wg.node.get-input-file':
         return this.formatWgNodeGetInputFileFailure(result as unknown as WgGetInputFileResult);
+      case 'wg.node.get-output-data':
+        return this.formatWgNodeGetOutputDataFailure(result as unknown as WgGetOutputDataResult);
       case 'wg.node.save-output-data':
         return this.formatWgNodeSaveOutputDataFailure(result as unknown as WgSaveOutputDataResult);
       case 'wg.node.save-output-file':
@@ -1076,6 +1087,12 @@ export class ConsoleOutputAdapter implements IOutputAdapter {
     return lines.join('\n');
   }
 
+  private formatWgNodeGetOutputDataSuccess(result: WgGetOutputDataResult): string {
+    const lines: string[] = [`✓ Output '${result.outputName}' for node '${result.nodeId}'`];
+    lines.push(`  Value: ${JSON.stringify(result.value)}`);
+    return lines.join('\n');
+  }
+
   private formatWgNodeSaveOutputDataSuccess(result: WgSaveOutputDataResult): string {
     return `✓ Saved output '${result.outputName}' for node '${result.nodeId}'`;
   }
@@ -1459,6 +1476,15 @@ export class ConsoleOutputAdapter implements IOutputAdapter {
     const firstError = result.errors[0];
     const lines: string[] = [
       `✗ Get input file failed for '${result.inputName}' [${firstError.code}]`,
+    ];
+    this.appendErrorDetails(lines, result.errors);
+    return lines.join('\n');
+  }
+
+  private formatWgNodeGetOutputDataFailure(result: WgGetOutputDataResult): string {
+    const firstError = result.errors[0];
+    const lines: string[] = [
+      `✗ Get output data failed for '${result.outputName}' [${firstError.code}]`,
     ];
     this.appendErrorDetails(lines, result.errors);
     return lines.join('\n');

@@ -1,0 +1,17 @@
+slug: sample-input
+type: user-input
+version: 1.0.0
+description: Provides initial specification for code generation
+
+inputs: []
+
+outputs:
+  - name: spec
+    type: data
+    data_type: text
+    required: true
+    description: The specification for what code to generate
+
+user_input:
+  question_type: text
+  prompt: "What code would you like to generate?"

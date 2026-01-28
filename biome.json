@@ -34,7 +34,8 @@
       ".vsc-bridge",
       ".chainglass",
       "apps/web/src/components/ui",
-      "apps/web/src/hooks/use-mobile.ts"
+      "apps/web/src/hooks/use-mobile.ts",
+      "**/next-env.d.ts"
     ]
   }
 }

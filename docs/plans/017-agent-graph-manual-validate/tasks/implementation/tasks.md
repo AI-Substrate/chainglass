@@ -113,13 +113,13 @@ flowchart TD
     classDef blocked fill:#F44336,stroke:#D32F2F,color:#fff
 
     subgraph ServiceChanges["Service Changes (T001-T005b)"]
-        T001["T001: Modify end() for PENDING"]:::pending
-        T002["T002: Modify canEnd() for PENDING"]:::pending
-        T003["T003: Add GetOutputDataResult interface"]:::pending
-        T004["T004: Add getOutputData() signature"]:::pending
-        T005["T005: Implement getOutputData()"]:::pending
-        T005a["T005a: Unit tests for end() PENDING"]:::pending
-        T005b["T005b: Unit tests for getOutputData()"]:::pending
+        T001["T001: Modify end() for PENDING ✓"]:::completed
+        T002["T002: Modify canEnd() for PENDING ✓"]:::completed
+        T003["T003: Add GetOutputDataResult interface ✓"]:::completed
+        T004["T004: Add getOutputData() signature ✓"]:::completed
+        T005["T005: Implement getOutputData() ✓"]:::completed
+        T005a["T005a: Unit tests for end() PENDING ✓"]:::completed
+        T005b["✓ T005b: Unit tests for getOutputData()"]:::completed
 
         T001 --> T005a
         T002 --> T005a
@@ -127,9 +127,9 @@ flowchart TD
     end
 
     subgraph CLIChanges["CLI Changes (T006-T008)"]
-        T006["T006: Add handler function"]:::pending
-        T007["T007: Register CLI command"]:::pending
-        T008["T008: Add output format"]:::pending
+        T006["✓ T006: Add handler function"]:::completed
+        T007["✓ T007: Register CLI command"]:::completed
+        T008["✓ T008: Add output format"]:::completed
 
         T005b --> T006 --> T007
         T006 --> T008
@@ -200,17 +200,17 @@ flowchart TD
 
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
-| T001 | WorkNodeService | worknode.service.ts | ⬜ Pending | Allow `end()` from PENDING when outputs present |
-| T002 | WorkNodeService | worknode.service.ts | ⬜ Pending | Allow `canEnd()` from PENDING |
-| T003 | IWorkNodeService | worknode-service.interface.ts | ⬜ Pending | New result type interface |
-| T004 | IWorkNodeService | worknode-service.interface.ts | ⬜ Pending | Add method signature |
-| T005 | WorkNodeService | worknode.service.ts | ⬜ Pending | Implement getOutputData() |
-| T005a | Unit Tests | worknode.service.test.ts | ⬜ Pending | Tests for PENDING → COMPLETE |
-| T005b | Unit Tests | worknode.service.test.ts | ⬜ Pending | Tests for getOutputData() |
-| T006 | CLI Handlers | workgraph.command.ts | ⬜ Pending | New handler function |
-| T007 | CLI Commands | workgraph.command.ts | ⬜ Pending | Register command |
-| T008 | Output Adapters | console-output.adapter.ts | ⬜ Pending | Format handler |
-| T009 | Directory Structure | docs/how/dev/workgraph-run/ | ⬜ Pending | Create folders |
+| T001 | WorkNodeService | worknode.service.ts | ✅ Complete | Allow `end()` from PENDING when outputs present |
+| T002 | WorkNodeService | worknode.service.ts | ✅ Complete | Allow `canEnd()` from PENDING |
+| T003 | IWorkNodeService | worknode-service.interface.ts | ✅ Complete | New result type interface |
+| T004 | IWorkNodeService | worknode-service.interface.ts | ✅ Complete | Add method signature |
+| T005 | WorkNodeService | worknode.service.ts | ✅ Complete | Implement getOutputData() |
+| T005a | Unit Tests | worknode.service.test.ts | ✅ Complete | Tests for PENDING → COMPLETE |
+| T005b | Unit Tests | worknode.service.test.ts | ✅ Complete | Tests for getOutputData() |
+| T006 | CLI Handlers | workgraph.command.ts | ✅ Complete | New handler function |
+| T007 | CLI Commands | workgraph.command.ts | ✅ Complete | Register command |
+| T008 | Output Adapters | console-output.adapter.ts | ✅ Complete | Format handler |
+| T009 | Directory Structure | docs/how/dev/workgraph-run/ | 🔄 In Progress | Create folders |
 | T010 | CLI Runner | lib/cli-runner.ts | ⬜ Pending | Subprocess execution |
 | T011 | Type Definitions | lib/types.ts | ⬜ Pending | CLI response types |
 | T012 | Fixture | fixtures/units/sample-input/ | ⬜ Pending | user-input unit |
@@ -231,17 +231,17 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|-----|------|----|------|--------------|------------------|------------|----------|-------|
-| [ ] | T001 | Modify `end()` to accept PENDING state when outputs present | 2 | Core | -- | /home/jak/substrate/016-agent-units/packages/workgraph/src/services/worknode.service.ts | `end()` succeeds on PENDING node with outputs; E112 still returned if no outputs | -- | Per Workshop § Critical Discovery; Line 446-460 |
-| [ ] | T002 | Modify `canEnd()` to accept PENDING state | 1 | Core | -- | /home/jak/substrate/016-agent-units/packages/workgraph/src/services/worknode.service.ts | `canEnd()` returns true for PENDING node with outputs | -- | Line 627-641; Same pattern as T001 |
-| [ ] | T003 | Add `GetOutputDataResult` interface | 1 | Core | -- | /home/jak/substrate/016-agent-units/packages/workgraph/src/interfaces/worknode-service.interface.ts | Interface compiles, exports properly | -- | Model after GetInputDataResult (line 109-120) |
-| [ ] | T004 | Add `getOutputData()` method signature to `IWorkNodeService` | 1 | Core | T003 | /home/jak/substrate/016-agent-units/packages/workgraph/src/interfaces/worknode-service.interface.ts | Method signature in interface | -- | Add after getInputFile() (around line 340) |
-| [ ] | T005 | Implement `getOutputData()` in WorkNodeService | 2 | Core | T003, T004 | /home/jak/substrate/016-agent-units/packages/workgraph/src/services/worknode.service.ts | Reads value from `data/data.json` outputs; returns structured result | -- | Follow pattern of getInputData() (line 728-880) |
-| [ ] | T005a | Write unit tests for `end()` PENDING state transition | 2 | Test | T001, T002 | /home/jak/substrate/016-agent-units/packages/workgraph/src/services/__tests__/worknode.service.test.ts | Tests: (1) PENDING + outputs → complete, (2) PENDING + no outputs → E112, (3) running → complete unchanged | -- | Per Constitution Principle 3; add Test Doc |
-| [ ] | T005b | Write unit tests for `getOutputData()` method | 2 | Test | T005 | /home/jak/substrate/016-agent-units/packages/workgraph/src/services/__tests__/worknode.service.test.ts | Tests: (1) returns saved output, (2) error for missing output, (3) error for missing node | -- | Per Constitution Principle 3; add Test Doc |
-| [ ] | T006 | Add `handleNodeGetOutputData` handler function | 2 | CLI | T005, T005b | /home/jak/substrate/016-agent-units/apps/cli/src/commands/workgraph.command.ts | Handler follows existing pattern, calls service, formats output | -- | Model after handleNodeGetInputData (line 413-430) |
-| [ ] | T007 | Register `get-output-data` CLI command | 1 | CLI | T006 | /home/jak/substrate/016-agent-units/apps/cli/src/commands/workgraph.command.ts | `cg wg node get-output-data <graph> <node> <name> [--json]` works; help text clarifies "reads this node's own outputs" (vs get-input-data which reads upstream) | -- | Add near line 731-757; per didyouknow insight #4 |
-| [ ] | T008 | Add `wg.node.get-output-data` output format | 1 | CLI | T006 | /home/jak/substrate/016-agent-units/packages/shared/src/adapters/console-output.adapter.ts | Console and JSON output works for new command | -- | Add format handler |
-| [ ] | T009 | Create `docs/how/dev/workgraph-run/` directory structure | 1 | Setup | -- | /home/jak/substrate/016-agent-units/docs/how/dev/workgraph-run/, /home/jak/substrate/016-agent-units/docs/how/dev/workgraph-run/lib/, /home/jak/substrate/016-agent-units/docs/how/dev/workgraph-run/fixtures/units/ | Directories exist with proper structure | -- | Per Workshop § File Structure |
+| [x] | T001 | Modify `end()` to accept PENDING state when outputs present | 2 | Core | -- | /home/jak/substrate/016-agent-units/packages/workgraph/src/services/worknode.service.ts | `end()` succeeds on PENDING node with outputs; E112 still returned if no outputs | -- | Per Workshop § Critical Discovery; Line 446-460 |
+| [x] | T002 | Modify `canEnd()` to accept PENDING state | 1 | Core | -- | /home/jak/substrate/016-agent-units/packages/workgraph/src/services/worknode.service.ts | `canEnd()` returns true for PENDING node with outputs | -- | Line 627-641; Same pattern as T001 |
+| [x] | T003 | Add `GetOutputDataResult` interface | 1 | Core | -- | /home/jak/substrate/016-agent-units/packages/workgraph/src/interfaces/worknode-service.interface.ts | Interface compiles, exports properly | -- | Model after GetInputDataResult (line 109-120) |
+| [x] | T004 | Add `getOutputData()` method signature to `IWorkNodeService` | 1 | Core | T003 | /home/jak/substrate/016-agent-units/packages/workgraph/src/interfaces/worknode-service.interface.ts | Method signature in interface | -- | Add after getInputFile() (around line 340) |
+| [x] | T005 | Implement `getOutputData()` in WorkNodeService | 2 | Core | T003, T004 | /home/jak/substrate/016-agent-units/packages/workgraph/src/services/worknode.service.ts | Reads value from `data/data.json` outputs; returns structured result | -- | Follow pattern of getInputData() (line 728-880) |
+| [x] | T005a | Write unit tests for `end()` PENDING state transition | 2 | Test | T001, T002 | /home/jak/substrate/016-agent-units/packages/workgraph/src/services/__tests__/worknode.service.test.ts | Tests: (1) PENDING + outputs → complete, (2) PENDING + no outputs → E113, (3) running → complete unchanged | -- | Per Constitution Principle 3; add Test Doc |
+| [x] | T005b | Write unit tests for `getOutputData()` method | 2 | Test | T005 | /home/jak/substrate/016-agent-units/packages/workgraph/src/services/__tests__/worknode.service.test.ts | Tests: (1) returns saved output, (2) error for missing output, (3) error for missing node | -- | Per Constitution Principle 3; add Test Doc |
+| [x] | T006 | Add `handleNodeGetOutputData` handler function | 2 | CLI | T005, T005b | /home/jak/substrate/016-agent-units/apps/cli/src/commands/workgraph.command.ts | Handler follows existing pattern, calls service, formats output | -- | Model after handleNodeGetInputData (line 413-430) |
+| [x] | T007 | Register `get-output-data` CLI command | 1 | CLI | T006 | /home/jak/substrate/016-agent-units/apps/cli/src/commands/workgraph.command.ts | `cg wg node get-output-data <graph> <node> <name> [--json]` works; help text clarifies "reads this node's own outputs" (vs get-input-data which reads upstream) | -- | Add near line 731-757; per didyouknow insight #4 |
+| [x] | T008 | Add `wg.node.get-output-data` output format | 1 | CLI | T006 | /home/jak/substrate/016-agent-units/packages/shared/src/adapters/console-output.adapter.ts | Console and JSON output works for new command | -- | Add format handler |
+| [~] | T009 | Create `docs/how/dev/workgraph-run/` directory structure | 1 | Setup | -- | /home/jak/substrate/016-agent-units/docs/how/dev/workgraph-run/, /home/jak/substrate/016-agent-units/docs/how/dev/workgraph-run/lib/, /home/jak/substrate/016-agent-units/docs/how/dev/workgraph-run/fixtures/units/ | Directories exist with proper structure | -- | Per Workshop § File Structure |
 | [ ] | T010 | Create `lib/cli-runner.ts` utility | 2 | Harness | T009 | /home/jak/substrate/016-agent-units/docs/how/dev/workgraph-run/lib/cli-runner.ts | Utility executes `cg` commands, returns typed JSON results | -- | Use child_process.spawn; per Workshop § Key Script Logic |
 | [ ] | T011 | Create `lib/types.ts` with result interfaces | 1 | Harness | T009 | /home/jak/substrate/016-agent-units/docs/how/dev/workgraph-run/lib/types.ts | All CLI result types defined (CanRunData, CanEndData, GetOutputDataData, GraphStatusData, etc.) | -- | Per Workshop § Type Definitions |
 | [ ] | T012 | Create `fixtures/units/sample-input/unit.yaml` | 1 | Fixture | T009 | /home/jak/substrate/016-agent-units/docs/how/dev/workgraph-run/fixtures/units/sample-input/unit.yaml | Unit validates with `cg unit validate sample-input` | -- | Per Workshop § Unit 1: sample-input |

@@ -16,6 +16,7 @@ import type {
   EndResult,
   GetInputDataResult,
   GetInputFileResult,
+  GetOutputDataResult,
   IWorkNodeService,
   MarkReadyResult,
   Question,
@@ -79,6 +80,14 @@ export interface GetInputFileCall {
   result: GetInputFileResult;
 }
 
+export interface GetOutputDataCall {
+  graphSlug: string;
+  nodeId: string;
+  outputName: string;
+  timestamp: string;
+  result: GetOutputDataResult;
+}
+
 export interface SaveOutputDataCall {
   graphSlug: string;
   nodeId: string;
@@ -137,6 +146,7 @@ export class FakeWorkNodeService implements IWorkNodeService {
   private canEndCalls: CanEndCall[] = [];
   private getInputDataCalls: GetInputDataCall[] = [];
   private getInputFileCalls: GetInputFileCall[] = [];
+  private getOutputDataCalls: GetOutputDataCall[] = [];
   private saveOutputDataCalls: SaveOutputDataCall[] = [];
   private saveOutputFileCalls: SaveOutputFileCall[] = [];
   private clearCalls: ClearCall[] = [];
@@ -422,6 +432,59 @@ export class FakeWorkNodeService implements IWorkNodeService {
     return result;
   }
 
+  // ==================== GetOutputData ====================
+
+  getGetOutputDataCalls(): GetOutputDataCall[] {
+    return [...this.getOutputDataCalls];
+  }
+
+  getLastGetOutputDataCall(): GetOutputDataCall | null {
+    return this.getOutputDataCalls.length > 0
+      ? this.getOutputDataCalls[this.getOutputDataCalls.length - 1]
+      : null;
+  }
+
+  private presetGetOutputDataResults: Map<string, GetOutputDataResult> = new Map();
+
+  setPresetGetOutputDataResult(
+    graphSlug: string,
+    nodeId: string,
+    outputName: string,
+    result: GetOutputDataResult
+  ): void {
+    this.presetGetOutputDataResults.set(`${graphSlug}:${nodeId}:${outputName}`, result);
+  }
+
+  async getOutputData(
+    graphSlug: string,
+    nodeId: string,
+    outputName: string
+  ): Promise<GetOutputDataResult> {
+    const key = `${graphSlug}:${nodeId}:${outputName}`;
+    const result = this.presetGetOutputDataResults.get(key) ?? {
+      nodeId,
+      outputName,
+      value: undefined,
+      errors: [
+        {
+          code: 'E118',
+          message: `Output '${outputName}' not found in node '${nodeId}'`,
+          action: `Ensure the node has saved output '${outputName}'`,
+        },
+      ],
+    };
+
+    this.getOutputDataCalls.push({
+      graphSlug,
+      nodeId,
+      outputName,
+      timestamp: new Date().toISOString(),
+      result,
+    });
+
+    return result;
+  }
+
   // ==================== SaveOutputData ====================
 
   getSaveOutputDataCalls(): SaveOutputDataCall[] {
@@ -659,6 +722,7 @@ export class FakeWorkNodeService implements IWorkNodeService {
     this.endCalls = [];
     this.getInputDataCalls = [];
     this.getInputFileCalls = [];
+    this.getOutputDataCalls = [];
     this.saveOutputDataCalls = [];
     this.saveOutputFileCalls = [];
     this.clearCalls = [];

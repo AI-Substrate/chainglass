@@ -448,6 +448,25 @@ async function handleNodeGetInputFile(
   }
 }
 
+async function handleNodeGetOutputData(
+  graphSlug: string,
+  nodeId: string,
+  outputName: string,
+  options: BaseOptions
+): Promise<void> {
+  const service = getWorkNodeService();
+  const adapter = createOutputAdapter(options.json ?? false);
+
+  const result = await service.getOutputData(graphSlug, nodeId, outputName);
+  const output = adapter.format('wg.node.get-output-data', result);
+
+  console.log(output);
+
+  if (result.errors.length > 0) {
+    process.exit(1);
+  }
+}
+
 async function handleNodeSaveOutputData(
   graphSlug: string,
   nodeId: string,
@@ -752,6 +771,20 @@ export function registerWorkGraphCommands(program: Command): void {
         async (graph: string, nodeId: string, name: string, options: BaseOptions, cmd: Command) => {
           const json = cmd.parent?.opts()?.json ?? false;
           await handleNodeGetInputFile(graph, nodeId, name, { json });
+        }
+      )
+    );
+
+  // cg wg node get-output-data <graph> <node> <name>
+  // Note: Reads this node's own saved outputs (vs get-input-data which reads from upstream nodes)
+  node
+    .command('get-output-data <graph> <node> <name>')
+    .description("Get output data value from this node's own saved outputs")
+    .action(
+      wrapAction(
+        async (graph: string, nodeId: string, name: string, options: BaseOptions, cmd: Command) => {
+          const json = cmd.parent?.opts()?.json ?? false;
+          await handleNodeGetOutputData(graph, nodeId, name, { json });
         }
       )
     );
