@@ -146,7 +146,7 @@ export default async function WorkspaceAgentsPage({ params, searchParams }: Page
                     <tr key={session.id} className="hover:bg-muted/50">
                       <td className="px-4 py-3">
                         <Link
-                          href={`/workspaces/${slug}/agents/${session.id}`}
+                          href={`/workspaces/${slug}/agents/${session.id}?worktree=${encodeURIComponent(worktreePath)}`}
                           className="font-medium text-primary hover:underline"
                         >
                           {session.id.slice(-12)}

@@ -3,7 +3,7 @@
  *
  * Converts server-side StoredEvent objects to LogEntryProps for UI rendering.
  * This bridges the gap between:
- * - StoredEvent: { type: 'tool_call' | 'tool_result' | 'thinking', data: {...}, timestamp, id }
+ * - StoredEvent: { type: 'tool_call' | 'tool_result' | 'thinking' | 'message', data: {...}, timestamp, id }
  * - LogEntryProps: { messageRole, content, contentType, toolData?, thinkingData? }
  *
  * Part of Plan 015: Better Agents (Phase 5: Integration)
@@ -82,6 +82,15 @@ export function storedEventToLogEntryProps(event: StoredEvent): LogEntryProps & 
         ...baseProps,
         contentType: 'thinking',
         thinkingData,
+      };
+    }
+
+    case 'message': {
+      // Message event contains the complete assistant response text
+      return {
+        ...baseProps,
+        contentType: 'text',
+        content: event.data.content,
       };
     }
 

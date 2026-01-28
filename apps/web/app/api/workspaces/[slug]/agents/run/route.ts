@@ -233,7 +233,7 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
 
         // Phase 3: Persist storable events before broadcast
         // Per DYK-06: On storage failure, log warning and continue
-        const storableTypes = ['tool_call', 'tool_result', 'thinking'];
+        const storableTypes = ['tool_call', 'tool_result', 'thinking', 'message'];
         if (storableTypes.includes(event.type)) {
           // Type guard ensures event is storable type
           const storableEvent = event as AgentStoredEvent;

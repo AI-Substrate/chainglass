@@ -86,6 +86,25 @@ export const AgentThinkingEventSchema = AgentEventBaseSchema.extend({
   }),
 });
 
+// ============ Message Event ============
+
+/**
+ * Schema for message events.
+ * Final assistant message content (complete, not delta).
+ *
+ * For Claude: result message with accumulated content
+ * For Copilot: assistant.message
+ */
+export const AgentMessageEventSchema = AgentEventBaseSchema.extend({
+  type: z.literal('message'),
+  data: z.object({
+    /** Complete message content */
+    content: z.string(),
+    /** Message ID if available */
+    messageId: z.string().optional(),
+  }),
+});
+
 // ============ Type Exports (via z.infer) ============
 
 /** TypeScript type derived from AgentToolCallEventSchema */
@@ -97,16 +116,20 @@ export type AgentToolResultEvent = z.infer<typeof AgentToolResultEventSchema>;
 /** TypeScript type derived from AgentThinkingEventSchema */
 export type AgentThinkingEvent = z.infer<typeof AgentThinkingEventSchema>;
 
+/** TypeScript type derived from AgentMessageEventSchema */
+export type AgentMessageEvent = z.infer<typeof AgentMessageEventSchema>;
+
 // ============ Union Schema for All New Event Types ============
 
 /**
- * Union of all new agent event schemas for Phase 1.
- * These will be integrated into the existing AgentEvent union in agent-types.ts.
+ * Union of all storable agent event schemas.
+ * These are persisted to disk and can be retrieved via the events API.
  */
 export const AgentStoredEventSchema = z.discriminatedUnion('type', [
   AgentToolCallEventSchema,
   AgentToolResultEventSchema,
   AgentThinkingEventSchema,
+  AgentMessageEventSchema,
 ]);
 
 /** Union type for all new agent events */
@@ -115,11 +138,12 @@ export type AgentStoredEvent = z.infer<typeof AgentStoredEventSchema>;
 // ============ Schema Array for Extension ============
 
 /**
- * Array of new event schemas for extending existing unions.
+ * Array of storable event schemas for extending existing unions.
  * Usage: Add to discriminated union in agent-types.ts or SSE schemas.
  */
 export const agentStoredEventSchemas = [
   AgentToolCallEventSchema,
   AgentToolResultEventSchema,
   AgentThinkingEventSchema,
+  AgentMessageEventSchema,
 ] as const;

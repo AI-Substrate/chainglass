@@ -43,6 +43,8 @@ export interface UseServerSessionOptions {
   onSessionUpdated?: (sessionId: string) => void;
   /** Workspace slug for workspace-scoped sessions (optional for backwards compat) */
   workspaceSlug?: string;
+  /** Worktree path for workspace context (required when workspaceSlug is provided) */
+  worktreePath?: string;
 }
 
 /**
@@ -78,11 +80,22 @@ export const sessionQueryKey = (sessionId: string, workspaceSlug?: string) =>
  * Fetch session data from server.
  * Per DYK-04: Uses workspace-scoped URL when workspaceSlug is provided.
  */
-async function fetchSession(sessionId: string, workspaceSlug?: string): Promise<ServerSession> {
+async function fetchSession(
+  sessionId: string,
+  workspaceSlug?: string,
+  worktreePath?: string
+): Promise<ServerSession> {
   // Construct URL based on workspace context
-  const eventsUrl = workspaceSlug
-    ? `/api/workspaces/${encodeURIComponent(workspaceSlug)}/agents/${encodeURIComponent(sessionId)}/events`
-    : `/api/agents/sessions/${sessionId}/events`;
+  let eventsUrl: string;
+  if (workspaceSlug) {
+    const params = new URLSearchParams();
+    if (worktreePath) {
+      params.set('worktree', worktreePath);
+    }
+    eventsUrl = `/api/workspaces/${encodeURIComponent(workspaceSlug)}/agents/${encodeURIComponent(sessionId)}/events${params.toString() ? `?${params.toString()}` : ''}`;
+  } else {
+    eventsUrl = `/api/agents/sessions/${sessionId}/events`;
+  }
 
   // Fetch events from server storage
   const eventsRes = await fetch(eventsUrl);
@@ -145,7 +158,7 @@ export function useServerSession(
   sessionId: string,
   options: UseServerSessionOptions = {}
 ): UseServerSessionReturn {
-  const { subscribeToUpdates = true, onSessionUpdated, workspaceSlug } = options;
+  const { subscribeToUpdates = true, onSessionUpdated, workspaceSlug, worktreePath } = options;
   const queryClient = useQueryClient();
   const onSessionUpdatedRef = useRef(onSessionUpdated);
   onSessionUpdatedRef.current = onSessionUpdated;
@@ -161,7 +174,7 @@ export function useServerSession(
     refetch,
   } = useQuery({
     queryKey: sessionQueryKey(sessionId, workspaceSlug),
-    queryFn: () => fetchSession(sessionId, workspaceSlug),
+    queryFn: () => fetchSession(sessionId, workspaceSlug, worktreePath),
     enabled: !!sessionId,
   });
 

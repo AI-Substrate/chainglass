@@ -63,6 +63,19 @@ function createThinkingEvent(overrides: Partial<StoredEvent> = {}): StoredEvent 
   } as StoredEvent;
 }
 
+function createMessageEvent(overrides: Partial<StoredEvent> = {}): StoredEvent {
+  return {
+    id: 'evt-004',
+    type: 'message',
+    timestamp: '2026-01-27T12:00:03.000Z',
+    data: {
+      content: 'Here is my response to your question.',
+      messageId: 'msg-001',
+    },
+    ...overrides,
+  } as StoredEvent;
+}
+
 // ============================================================================
 // storedEventToLogEntryProps Tests
 // ============================================================================
@@ -153,6 +166,31 @@ describe('storedEventToLogEntryProps', () => {
 
       expect(props.thinkingData?.content).toBe('Reasoning without signature');
       expect(props.thinkingData?.signature).toBeUndefined();
+    });
+  });
+
+  describe('message events', () => {
+    it('should convert message to LogEntryProps with text content', () => {
+      const event = createMessageEvent();
+      const props = storedEventToLogEntryProps(event);
+
+      expect(props.key).toBe('evt-004');
+      expect(props.messageRole).toBe('assistant');
+      expect(props.contentType).toBe('text');
+      expect(props.content).toBe('Here is my response to your question.');
+    });
+
+    it('should handle message without messageId', () => {
+      const event = createMessageEvent({
+        data: {
+          content: 'Response without message ID',
+        },
+      } as Partial<StoredEvent>);
+
+      const props = storedEventToLogEntryProps(event);
+
+      expect(props.content).toBe('Response without message ID');
+      expect(props.contentType).toBe('text');
     });
   });
 
@@ -259,6 +297,21 @@ describe('mergeToolEvents', () => {
     expect(result[0].toolData?.status).toBe('error');
     expect(result[0].toolData?.isError).toBe(true);
   });
+
+  it('should preserve message events in order', () => {
+    const events: StoredEvent[] = [
+      createToolCallEvent({ id: 'evt-001' }),
+      createToolResultEvent({ id: 'evt-002' }),
+      createMessageEvent({ id: 'evt-003' }),
+    ];
+
+    const result = mergeToolEvents(events);
+
+    expect(result).toHaveLength(2); // merged tool + message
+    expect(result[0].contentType).toBe('tool_call');
+    expect(result[1].contentType).toBe('text');
+    expect(result[1].content).toBe('Here is my response to your question.');
+  });
 });
 
 // ============================================================================
@@ -286,5 +339,22 @@ describe('transformEventsToLogEntries', () => {
   it('should handle empty event array', () => {
     const result = transformEventsToLogEntries([]);
     expect(result).toEqual([]);
+  });
+
+  it('should transform a stream with message events', () => {
+    const events: StoredEvent[] = [
+      createThinkingEvent({ id: 'evt-001' }),
+      createToolCallEvent({ id: 'evt-002' }),
+      createToolResultEvent({ id: 'evt-003' }),
+      createMessageEvent({ id: 'evt-004' }),
+    ];
+
+    const result = transformEventsToLogEntries(events);
+
+    expect(result).toHaveLength(3); // thinking + merged tool + message
+    expect(result[0].contentType).toBe('thinking');
+    expect(result[1].contentType).toBe('tool_call');
+    expect(result[2].contentType).toBe('text');
+    expect(result[2].content).toBe('Here is my response to your question.');
   });
 });

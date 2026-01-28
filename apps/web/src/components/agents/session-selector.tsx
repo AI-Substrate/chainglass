@@ -7,7 +7,7 @@
  * - Lists all sessions in current workspace
  * - Highlights active session
  * - Click to navigate to session (URL-based per DYK-04)
- * - Inline create form (per DYK-03, server-first)
+ * - Modal for creating sessions with name and type selection
  *
  * Part of Plan 018: Agent Workspace Data Model Migration (Phase 3)
  * Subtask 002: Agent Chat Page - ST003
@@ -16,10 +16,19 @@
 import { formatAbsoluteTime, useRelativeTime } from '@/hooks/useRelativeTime';
 import type { AgentSession } from '@/lib/schemas/agent-session.schema';
 import { cn } from '@/lib/utils';
-import { MessageSquare, Plus } from 'lucide-react';
+import { Bot, MessageSquare, Plus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useState, useTransition } from 'react';
 import { Button } from '../ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '../ui/dialog';
 import { AgentStatusIndicator } from './agent-status-indicator';
 
 export interface SessionSelectorProps {
@@ -84,7 +93,8 @@ function SessionItem({
         {session.agentType === 'claude-code' ? 'Claude Code' : 'GitHub Copilot'}
       </div>
       {/* Row 3: Time - absolute + relative */}
-      <div className="text-xs text-muted-foreground mt-0.5">
+      {/* suppressHydrationWarning due to locale differences between server/client */}
+      <div className="text-xs text-muted-foreground mt-0.5" suppressHydrationWarning>
         {absoluteTime} ({relativeTime})
       </div>
     </div>
@@ -92,9 +102,27 @@ function SessionItem({
 }
 
 /**
- * Inline create session form.
+ * Agent type options for the create modal.
  */
-function CreateSessionInline({
+const AGENT_TYPES = [
+  {
+    value: 'claude-code' as const,
+    label: 'Claude Code',
+    description: 'Anthropic Claude for coding tasks',
+  },
+  {
+    value: 'copilot' as const,
+    label: 'GitHub Copilot',
+    description: 'GitHub Copilot assistant',
+  },
+] as const;
+
+type AgentType = (typeof AGENT_TYPES)[number]['value'];
+
+/**
+ * Modal dialog for creating a new session with name and type selection.
+ */
+function CreateSessionModal({
   workspaceSlug,
   worktreePath,
   sessionCount,
@@ -106,11 +134,30 @@ function CreateSessionInline({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const [name, setName] = useState('');
+  const [agentType, setAgentType] = useState<AgentType>('claude-code');
+
+  // Reset form when modal opens
+  const handleOpenChange = useCallback(
+    (open: boolean) => {
+      setIsOpen(open);
+      if (open) {
+        setName(`Session ${sessionCount + 1}`);
+        setAgentType('claude-code');
+        setError(null);
+      }
+    },
+    [sessionCount]
+  );
 
   const handleCreate = useCallback(() => {
-    setError(null);
-    const finalName = `Session ${sessionCount + 1}`;
+    if (!name.trim()) {
+      setError('Please enter a session name');
+      return;
+    }
 
+    setError(null);
     startTransition(async () => {
       try {
         const params = new URLSearchParams();
@@ -123,39 +170,120 @@ function CreateSessionInline({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            type: 'claude-code',
-            name: finalName,
+            type: agentType,
+            name: name.trim(),
           }),
         });
 
+        const data = await response.json();
+
         if (!response.ok) {
-          const data = await response.json().catch(() => ({}));
           throw new Error(data.error || `Failed to create session: ${response.status}`);
         }
 
-        // Refresh page to show new session
-        router.refresh();
+        // Get the created session ID from response (API returns { ok: true, session: { id, ... } })
+        const sessionId = data.session?.id;
+        if (!sessionId) {
+          throw new Error('No session ID returned from server');
+        }
+
+        // Close modal and navigate to the new session
+        setIsOpen(false);
+        const sessionUrl = `/workspaces/${workspaceSlug}/agents/${sessionId}${params.toString() ? `?${params.toString()}` : ''}`;
+        router.push(sessionUrl);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unknown error');
       }
     });
-  }, [workspaceSlug, worktreePath, sessionCount, router]);
+  }, [workspaceSlug, worktreePath, name, agentType, router]);
 
   return (
-    <div className="p-3 border-b">
-      <Button
-        type="button"
-        onClick={handleCreate}
-        disabled={isPending}
-        variant="outline"
-        size="sm"
-        className="w-full"
-      >
-        <Plus className="mr-2 h-4 w-4" />
-        {isPending ? 'Creating...' : 'New Session'}
-      </Button>
-      {error && <p className="mt-2 text-xs text-red-600 dark:text-red-400">{error}</p>}
-    </div>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+      <DialogTrigger asChild>
+        <div className="p-3 border-b">
+          <Button type="button" variant="outline" size="sm" className="w-full">
+            <Plus className="mr-2 h-4 w-4" />
+            New Session
+          </Button>
+        </div>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Create New Agent Session</DialogTitle>
+          <DialogDescription>
+            Start a new agent session for this worktree. Choose a name and agent type.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-4">
+          {/* Session name input */}
+          <div className="space-y-2">
+            <label htmlFor="session-name" className="text-sm font-medium">
+              Session Name
+            </label>
+            <input
+              id="session-name"
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Enter session name..."
+              className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+
+          {/* Agent type selection */}
+          <div className="space-y-2">
+            <span className="text-sm font-medium">Agent Type</span>
+            <div className="space-y-2" role="radiogroup" aria-label="Agent Type">
+              {AGENT_TYPES.map((type) => (
+                <label
+                  key={type.value}
+                  className={cn(
+                    'flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors',
+                    agentType === type.value
+                      ? 'border-violet-500 bg-violet-50 dark:bg-violet-950/30'
+                      : 'border-border hover:bg-muted/50'
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="agent-type"
+                    value={type.value}
+                    checked={agentType === type.value}
+                    onChange={(e) => setAgentType(e.target.value as AgentType)}
+                    className="mt-1"
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <Bot className="h-4 w-4" />
+                      <span className="font-medium text-sm">{type.label}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">{type.description}</p>
+                  </div>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Error message */}
+          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+        </div>
+
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setIsOpen(false)}
+            disabled={isPending}
+          >
+            Cancel
+          </Button>
+          <Button type="button" onClick={handleCreate} disabled={isPending}>
+            {isPending ? 'Creating...' : 'Create Session'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -197,8 +325,8 @@ export function SessionSelector({
 
   return (
     <aside className={cn('flex flex-col bg-muted/30 border-l', className)}>
-      {/* Create session button */}
-      <CreateSessionInline
+      {/* Create session button with modal */}
+      <CreateSessionModal
         workspaceSlug={workspaceSlug}
         worktreePath={worktreePath}
         sessionCount={sessions.length}

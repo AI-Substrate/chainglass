@@ -100,8 +100,9 @@ export function AgentChatView({
     refetch,
     isConnected: serverSseConnected,
   } = useServerSession(sessionId, {
-    subscribeToUpdates: true,
+    subscribeToUpdates: false, // Using useAgentSSE for SSE instead
     workspaceSlug,
+    worktreePath,
   });
 
   // SSE hook for real-time streaming - Per DYK-01: Connect BEFORE API calls
@@ -220,17 +221,24 @@ export function AgentChatView({
         }
         const url = `/api/workspaces/${workspaceSlug}/agents/run${params.toString() ? `?${params.toString()}` : ''}`;
 
+        // Build request body - only include agentSessionId if we have one
+        const requestBody: Record<string, unknown> = {
+          prompt: content,
+          agentType,
+          sessionId,
+          channel: 'agents', // Global channel per DYK Insight #1
+        };
+        if (agentSessionIdRef.current) {
+          requestBody.agentSessionId = agentSessionIdRef.current;
+        }
+        if (worktreePath) {
+          requestBody.worktreePath = worktreePath;
+        }
+
         const response = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            prompt: content,
-            agentType,
-            sessionId,
-            channel: 'agents', // Global channel per DYK Insight #1
-            agentSessionId: agentSessionIdRef.current,
-            worktreePath,
-          }),
+          body: JSON.stringify(requestBody),
         });
 
         if (!response.ok) {

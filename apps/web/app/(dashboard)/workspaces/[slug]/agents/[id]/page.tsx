@@ -74,11 +74,12 @@ export default async function AgentSessionChatPage({ params, searchParams }: Pag
   // Convert AgentSession entities to serializable props for client component
   // Backend status: 'active' | 'completed' | 'terminated'
   // UI status: 'idle' | 'running' | 'completed' | 'error'
+  // Note: 'active' means session is open (can receive messages), NOT that agent is running
   const sessionsForSelector = allSessions.map((s) => ({
     id: s.id,
     name: `Session ${s.id.slice(-8)}`,
     agentType: s.type,
-    status: s.status === 'active' ? ('running' as const) : ('idle' as const),
+    status: s.status === 'completed' ? ('completed' as const) : ('idle' as const),
     messages: [],
     createdAt: s.createdAt.getTime(),
     lastActiveAt: s.updatedAt.getTime(),
@@ -166,7 +167,7 @@ export default async function AgentSessionChatPage({ params, searchParams }: Pag
           workspaceSlug={slug}
           worktreePath={worktreePath}
           agentType={session.type}
-          isRunning={session.status === 'active'}
+          isRunning={false}
           className="flex-1 min-h-0"
         />
       </div>
