@@ -23,34 +23,39 @@ import type {
 } from '../interfaces/index.js';
 
 // ============================================
-// Call Types
+// Call Types (with ctx for workspace tracking)
 // ============================================
 
 export interface GraphCreateCall {
+  ctx: WorkspaceContext;
   slug: string;
   timestamp: string;
   result: GraphCreateResult;
 }
 
 export interface GraphLoadCall {
+  ctx: WorkspaceContext;
   slug: string;
   timestamp: string;
   result: GraphLoadResult;
 }
 
 export interface GraphShowCall {
+  ctx: WorkspaceContext;
   slug: string;
   timestamp: string;
   result: GraphShowResult;
 }
 
 export interface GraphStatusCall {
+  ctx: WorkspaceContext;
   slug: string;
   timestamp: string;
   result: GraphStatusResult;
 }
 
 export interface AddNodeAfterCall {
+  ctx: WorkspaceContext;
   graphSlug: string;
   afterNodeId: string;
   unitSlug: string;
@@ -60,6 +65,7 @@ export interface AddNodeAfterCall {
 }
 
 export interface RemoveNodeCall {
+  ctx: WorkspaceContext;
   graphSlug: string;
   nodeId: string;
   options?: RemoveNodeOptions;
@@ -73,6 +79,7 @@ export interface RemoveNodeCall {
 
 /**
  * Fake WorkGraph service for testing.
+ * Uses composite keys (worktreePath|slug) for workspace isolation.
  */
 export class FakeWorkGraphService implements IWorkGraphService {
   private createCalls: GraphCreateCall[] = [];
@@ -89,6 +96,12 @@ export class FakeWorkGraphService implements IWorkGraphService {
   private presetAddNodeResults = new Map<string, AddNodeResult>();
   private presetRemoveNodeResults = new Map<string, RemoveNodeResult>();
 
+  // ==================== Key Helper ====================
+
+  private getKey(ctx: WorkspaceContext, ...parts: string[]): string {
+    return `${ctx.worktreePath}|${parts.join(':')}`;
+  }
+
   // ==================== Create ====================
 
   getCreateCalls(): GraphCreateCall[] {
@@ -99,18 +112,20 @@ export class FakeWorkGraphService implements IWorkGraphService {
     return this.createCalls.length > 0 ? this.createCalls[this.createCalls.length - 1] : null;
   }
 
-  setPresetCreateResult(slug: string, result: GraphCreateResult): void {
-    this.presetCreateResults.set(slug, result);
+  setPresetCreateResult(ctx: WorkspaceContext, slug: string, result: GraphCreateResult): void {
+    this.presetCreateResults.set(this.getKey(ctx, slug), result);
   }
 
-  async create(_ctx: WorkspaceContext, slug: string): Promise<GraphCreateResult> {
-    const result = this.presetCreateResults.get(slug) ?? {
+  async create(ctx: WorkspaceContext, slug: string): Promise<GraphCreateResult> {
+    const key = this.getKey(ctx, slug);
+    const result = this.presetCreateResults.get(key) ?? {
       graphSlug: slug,
       path: `.chainglass/data/work-graphs/${slug}`,
       errors: [],
     };
 
     this.createCalls.push({
+      ctx,
       slug,
       timestamp: new Date().toISOString(),
       result,
@@ -129,12 +144,13 @@ export class FakeWorkGraphService implements IWorkGraphService {
     return this.loadCalls.length > 0 ? this.loadCalls[this.loadCalls.length - 1] : null;
   }
 
-  setPresetLoadResult(slug: string, result: GraphLoadResult): void {
-    this.presetLoadResults.set(slug, result);
+  setPresetLoadResult(ctx: WorkspaceContext, slug: string, result: GraphLoadResult): void {
+    this.presetLoadResults.set(this.getKey(ctx, slug), result);
   }
 
-  async load(_ctx: WorkspaceContext, slug: string): Promise<GraphLoadResult> {
-    const result = this.presetLoadResults.get(slug) ?? {
+  async load(ctx: WorkspaceContext, slug: string): Promise<GraphLoadResult> {
+    const key = this.getKey(ctx, slug);
+    const result = this.presetLoadResults.get(key) ?? {
       graph: undefined,
       status: undefined,
       errors: [
@@ -147,6 +163,7 @@ export class FakeWorkGraphService implements IWorkGraphService {
     };
 
     this.loadCalls.push({
+      ctx,
       slug,
       timestamp: new Date().toISOString(),
       result,
@@ -165,18 +182,20 @@ export class FakeWorkGraphService implements IWorkGraphService {
     return this.showCalls.length > 0 ? this.showCalls[this.showCalls.length - 1] : null;
   }
 
-  setPresetShowResult(slug: string, result: GraphShowResult): void {
-    this.presetShowResults.set(slug, result);
+  setPresetShowResult(ctx: WorkspaceContext, slug: string, result: GraphShowResult): void {
+    this.presetShowResults.set(this.getKey(ctx, slug), result);
   }
 
-  async show(_ctx: WorkspaceContext, slug: string): Promise<GraphShowResult> {
-    const result = this.presetShowResults.get(slug) ?? {
+  async show(ctx: WorkspaceContext, slug: string): Promise<GraphShowResult> {
+    const key = this.getKey(ctx, slug);
+    const result = this.presetShowResults.get(key) ?? {
       graphSlug: slug,
       tree: { id: 'start', children: [] },
       errors: [],
     };
 
     this.showCalls.push({
+      ctx,
       slug,
       timestamp: new Date().toISOString(),
       result,
@@ -195,12 +214,13 @@ export class FakeWorkGraphService implements IWorkGraphService {
     return this.statusCalls.length > 0 ? this.statusCalls[this.statusCalls.length - 1] : null;
   }
 
-  setPresetStatusResult(slug: string, result: GraphStatusResult): void {
-    this.presetStatusResults.set(slug, result);
+  setPresetStatusResult(ctx: WorkspaceContext, slug: string, result: GraphStatusResult): void {
+    this.presetStatusResults.set(this.getKey(ctx, slug), result);
   }
 
-  async status(_ctx: WorkspaceContext, slug: string): Promise<GraphStatusResult> {
-    const result = this.presetStatusResults.get(slug) ?? {
+  async status(ctx: WorkspaceContext, slug: string): Promise<GraphStatusResult> {
+    const key = this.getKey(ctx, slug);
+    const result = this.presetStatusResults.get(key) ?? {
       graphSlug: slug,
       graphStatus: 'pending',
       nodes: [],
@@ -208,6 +228,7 @@ export class FakeWorkGraphService implements IWorkGraphService {
     };
 
     this.statusCalls.push({
+      ctx,
       slug,
       timestamp: new Date().toISOString(),
       result,
@@ -228,18 +249,24 @@ export class FakeWorkGraphService implements IWorkGraphService {
       : null;
   }
 
-  setPresetAddNodeResult(key: string, result: AddNodeResult): void {
-    this.presetAddNodeResults.set(key, result);
+  setPresetAddNodeResult(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    afterNodeId: string,
+    unitSlug: string,
+    result: AddNodeResult
+  ): void {
+    this.presetAddNodeResults.set(this.getKey(ctx, graphSlug, afterNodeId, unitSlug), result);
   }
 
   async addNodeAfter(
-    _ctx: WorkspaceContext,
+    ctx: WorkspaceContext,
     graphSlug: string,
     afterNodeId: string,
     unitSlug: string,
     options?: AddNodeOptions
   ): Promise<AddNodeResult> {
-    const key = `${graphSlug}:${afterNodeId}:${unitSlug}`;
+    const key = this.getKey(ctx, graphSlug, afterNodeId, unitSlug);
     const nodeId = `${unitSlug}-${Math.random().toString(16).slice(2, 5)}`;
     const inputs: Record<string, InputMapping> = {};
 
@@ -250,6 +277,7 @@ export class FakeWorkGraphService implements IWorkGraphService {
     };
 
     this.addNodeAfterCalls.push({
+      ctx,
       graphSlug,
       afterNodeId,
       unitSlug,
@@ -273,17 +301,22 @@ export class FakeWorkGraphService implements IWorkGraphService {
       : null;
   }
 
-  setPresetRemoveNodeResult(key: string, result: RemoveNodeResult): void {
-    this.presetRemoveNodeResults.set(key, result);
+  setPresetRemoveNodeResult(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    result: RemoveNodeResult
+  ): void {
+    this.presetRemoveNodeResults.set(this.getKey(ctx, graphSlug, nodeId), result);
   }
 
   async removeNode(
-    _ctx: WorkspaceContext,
+    ctx: WorkspaceContext,
     graphSlug: string,
     nodeId: string,
     options?: RemoveNodeOptions
   ): Promise<RemoveNodeResult> {
-    const key = `${graphSlug}:${nodeId}`;
+    const key = this.getKey(ctx, graphSlug, nodeId);
 
     const result = this.presetRemoveNodeResults.get(key) ?? {
       removedNodes: [nodeId],
@@ -291,6 +324,7 @@ export class FakeWorkGraphService implements IWorkGraphService {
     };
 
     this.removeNodeCalls.push({
+      ctx,
       graphSlug,
       nodeId,
       options,

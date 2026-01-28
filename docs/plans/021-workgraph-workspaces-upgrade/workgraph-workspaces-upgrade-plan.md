@@ -942,14 +942,21 @@ grep ".chainglass/data/work-graphs" .chainglass/data/work-graphs/sample-e2e/node
 
 - [x] Phase 1: Interface Updates - COMPLETE
 - [x] Phase 2: Service Layer Migration - COMPLETE
-- [ ] Phase 3: Fake Service Updates - SKIPPED (done in Phase 2)
+- [ ] Phase 3: Fake Service Updates - NOT STARTED (partially done: ctx param added, but composite keys still needed)
 - [ ] Phase 4: CLI Integration - NOT STARTED
 - [ ] Phase 5: Test Migration - NOT STARTED
 - [ ] Phase 6: E2E Validation & Cleanup - NOT STARTED
 
-### Note on Phase 3
+### Note on Phase 2 → Phase 3 Overlap
 
-Phase 3 (Fake Service Updates) was completed as part of Phase 2. The fake services needed to be updated simultaneously with the real services to maintain the build passing. 27 methods across FakeWorkGraphService, FakeWorkNodeService, and FakeWorkUnitService were updated to accept WorkspaceContext as first parameter (ignored in fake implementations).
+During Phase 2, we added `_ctx: WorkspaceContext` parameter to all 27 fake service methods to make the build pass. However, **Phase 3 is still required** because:
+
+1. **Composite keys not implemented** - Fakes still use `slug` as key, not `${ctx.worktreePath}|${slug}`
+2. **ctx is ignored** - The `_ctx` parameter is unused; fakes don't provide workspace isolation
+3. **Call recording missing ctx** - `getCalls()` doesn't record which context was passed
+4. **No isolation tests** - Same slug in different workspaces would collide
+
+Phase 3 will implement true workspace isolation in fakes.
 
 ### STOP Rule
 
