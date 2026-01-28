@@ -292,9 +292,197 @@ Tests       2149 passed | 19 skipped (2168)
 
 ## Task T020: Run Harness and Fix Bugs
 **Started**: 2026-01-28
-**Status**: 🔄 In Progress
+**Status**: ✅ Complete
 
-Ready to run harness with user.
+### Pre-Run Issues Discovered
+
+Before the harness could run, several issues needed fixing:
+
+#### Issue 1: Units in wrong location
+**Problem**: Units were created in `fixtures/units/` but `WorkUnitService` looks in `.chainglass/units/`
+**Fix**: Moved units to `.chainglass/units/sample-input/`, `.chainglass/units/sample-coder/`, `.chainglass/units/sample-tester/`
+**Verified**: `cg unit list` and `cg unit validate` confirmed all 3 units valid
+
+#### Issue 2: CLI not in PATH
+**Problem**: `cg` command not found - harness spawned `cg` but it wasn't globally linked
+**Fix**: Updated `cli-runner.ts` to use full path: `node apps/cli/dist/cli.cjs`
+
+#### Issue 3: CLI JSON output wrapper
+**Problem**: CLI returns `{success, command, timestamp, data: {...}}` but types expected flat structure
+**Fix**: Updated `runCli()` to unwrap: `parsed.data ? { ...parsed.data, errors: [] } : parsed`
+
+### Initial Run Results
+
+First successful run hit a real issue:
+
+```
+STEP 4: Execute generate-code (Agent with Question)
+  ✓ can-run: true (get-spec is complete)
+  ✓ Started: generate-code -> running
+  ✓ Asked question: "Which programming language should I use?"
+  ✓ Auto-answered: "bash"
+  ✓ Generated mock script: add.sh
+  ✓ Saved output: language = "bash"
+  ✓ Saved output: script = add.sh
+
+=================================================================
+                    TEST ERROR
+=================================================================
+Assertion failed: Failed to end generate-code
+```
+
+#### Issue 4: Absolute path rejected by PATH_TRAVERSAL security check
+**Problem**: Harness wrote script to `/tmp/add.sh` but `save-output-file` has FIX-004 security check that rejects absolute paths
+**Root cause**: This is correct security behavior, not a Plan 016 bug
+**Fix**: Changed harness to write to relative path `docs/how/dev/workgraph-run/.mock-outputs/add.sh`
+
+### Final Successful Run
+
+```
+=================================================================
+           E2E Test: Sample Code Generation Flow
+=================================================================
+Mode: Mock (no real agents)
+
+STEP 1: Create Graph
+  ✓ Created graph: sample-e2e
+
+STEP 2: Add Nodes
+  ✓ Added node: sample-input-226 (sample-input)
+  ✓ Added node: sample-coder-851 (sample-coder) -> after sample-input-226
+  ✓ Added node: sample-tester-e53 (sample-tester) -> after sample-coder-851
+
+STEP 3: Execute get-spec (Direct Output)
+  ✓ can-run: true (no upstream dependencies)
+  ✓ Saved output: spec = "Write a function add(a, b) that returns the sum of two numbers"
+  ✓ can-end: true (spec output present)
+  ✓ Completed: get-spec -> complete (no start needed!)
+
+STEP 4: Execute generate-code (Agent with Question)
+  ✓ can-run: true (get-spec is complete)
+  ✓ Started: generate-code -> running
+  ✓ Asked question: "Which programming language should I use?"
+  ✓ Auto-answered: "bash"
+  ✓ Generated mock script: add.sh
+  ✓ Saved output: language = "bash"
+  ✓ Saved output: script = add.sh
+  ✓ Completed: generate-code -> complete
+
+STEP 5: Execute run-verify (Agent Runs Script)
+  ✓ can-run: true (generate-code is complete)
+  ✓ Started: run-verify -> running
+  ✓ Got input: language = "bash"
+  ✓ Got input: script = ".chainglass/work-graphs/sample-e2e/nodes/sample-coder-851/data/outputs/script.sh"
+  ✓ Executed script, output: "5"
+  ✓ Saved output: success = true
+  ✓ Saved output: output = "5"
+  ✓ Completed: run-verify -> complete
+
+STEP 6: Read Pipeline Result
+  ✓ success = true
+  ✓ output = "5"
+
+STEP 7: Validate Final State
+  ✓ All nodes complete
+  ✓   start: complete
+  ✓   sample-input-226: complete
+  ✓   sample-coder-851: complete
+  ✓   sample-tester-e53: complete
+
+=================================================================
+                    TEST PASSED
+=================================================================
+```
+
+### What Was Validated
+
+| Operation | Tested | Notes |
+|-----------|--------|-------|
+| `wg create` | ✅ | Graph creation |
+| `wg node add-after` with input mappings | ✅ | `-i spec:node1.spec` etc. |
+| `wg node can-run` | ✅ | Upstream dependency checking |
+| `wg node start` | ✅ | PENDING → RUNNING |
+| `wg node ask` | ✅ | Question creation |
+| `wg node answer` | ✅ | Question answering |
+| `wg node save-output-data` | ✅ | Data output storage |
+| `wg node save-output-file` | ✅ | File output storage (copied to node) |
+| `wg node get-input-data` | ✅ | Read upstream data via mapping |
+| `wg node get-input-file` | ✅ | Read upstream file via mapping |
+| `wg node get-output-data` | ✅ | Read node's own output (new in Plan 017) |
+| `wg node can-end` | ✅ | Output completeness check |
+| `wg node end` | ✅ | RUNNING → COMPLETE |
+| Direct output pattern | ✅ | PENDING → COMPLETE (node 1) |
+| `wg status` | ✅ | Graph status |
+| `wg delete` | ✅ | Cleanup |
+
+### Data Flow Verified
+
+```
+Node 1 (sample-input)
+  └─ output: spec = "Write a function add(a, b)..."
+        ↓ (input mapping: spec:node1.spec)
+Node 2 (sample-coder)
+  ├─ input: spec ← reads from Node 1 ✅
+  ├─ output: language = "bash"
+  └─ output: script = add.sh (file)
+        ↓ (input mappings)
+Node 3 (sample-tester)
+  ├─ input: language ← reads "bash" ✅
+  ├─ input: script ← reads file path ✅
+  ├─ output: success = true
+  └─ output: output = "5"
+        ↓ (read by orchestrator)
+Orchestrator reads: success=true, output="5" ✅
+```
+
+### Plan 016 Bugs Found
+
+**None.** All issues discovered were harness bugs, not Plan 016 implementation bugs:
+- Unit location (harness setup issue)
+- CLI path (harness environment issue)
+- JSON unwrapping (harness parsing issue)
+- Absolute path (harness should use relative paths)
+
+The PATH_TRAVERSAL security check (FIX-004) correctly rejected absolute paths - this is expected behavior.
+
+**Completed**: 2026-01-28
+
+---
+
+## Commit History
+
+| Commit | Description |
+|--------|-------------|
+| `319cb32` | feat(workgraph): Plan 017 implementation - E2E harness and service changes |
+| `7b757c8` | feat(workgraph): E2E harness fixes and flow diagram |
+
+---
+
+## Session Summary
+
+**Plan 017 Status**: ✅ Complete
+
+All tasks T001-T020 completed successfully. The E2E harness validates:
+- Direct output pattern (PENDING → COMPLETE without start)
+- Agent question/answer flow
+- Cross-node data and file flow
+- Orchestrator output reading
+
+No Plan 016 bugs were discovered - the implementation is solid.
+
+### Artifacts Created
+
+1. **Service changes**: `getOutputData()` method, PENDING state support for `end()`/`canEnd()`
+2. **CLI command**: `cg wg node get-output-data`
+3. **E2E harness**: `docs/how/dev/workgraph-run/e2e-sample-flow.ts`
+4. **Sample units**: `.chainglass/units/sample-{input,coder,tester}/`
+5. **Flow diagram**: `docs/plans/017-agent-graph-manual-validate/e2e-flow-diagram.md`
+
+### Test Coverage
+
+- 2149 unit/integration tests pass
+- E2E harness passes in mock mode (7 steps, all operations validated)
+- Real agent mode (`--with-agent`) stubbed for future implementation
 
 ---
 
