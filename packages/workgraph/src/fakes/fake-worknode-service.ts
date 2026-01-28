@@ -4,7 +4,10 @@
  * Per Discovery 08: Fakes need call capture for CLI testing.
  * This fake captures all canRun(), start(), end(), getInputData(),
  * saveOutputData() calls for test assertions and can be configured with preset results.
+ * Per Plan 021: All methods accept WorkspaceContext as first parameter (ignored by fake).
  */
+
+import type { WorkspaceContext } from '@chainglass/workflow';
 
 import type {
   AnswerResult,
@@ -181,7 +184,7 @@ export class FakeWorkNodeService implements IWorkNodeService {
     this.presetCanRunResults.set(`${graphSlug}:${nodeId}`, result);
   }
 
-  async canRun(graphSlug: string, nodeId: string): Promise<CanRunResult> {
+  async canRun(_ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<CanRunResult> {
     const key = `${graphSlug}:${nodeId}`;
     const result = this.presetCanRunResults.get(key) ?? {
       canRun: true,
@@ -214,7 +217,11 @@ export class FakeWorkNodeService implements IWorkNodeService {
     this.presetMarkReadyResults.set(`${graphSlug}:${nodeId}`, result);
   }
 
-  async markReady(graphSlug: string, nodeId: string): Promise<MarkReadyResult> {
+  async markReady(
+    _ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string
+  ): Promise<MarkReadyResult> {
     const key = `${graphSlug}:${nodeId}`;
     const result = this.presetMarkReadyResults.get(key) ?? {
       nodeId,
@@ -247,7 +254,7 @@ export class FakeWorkNodeService implements IWorkNodeService {
     this.presetStartResults.set(`${graphSlug}:${nodeId}`, result);
   }
 
-  async start(graphSlug: string, nodeId: string): Promise<StartResult> {
+  async start(_ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<StartResult> {
     const key = `${graphSlug}:${nodeId}`;
     const result = this.presetStartResults.get(key) ?? {
       nodeId,
@@ -280,7 +287,7 @@ export class FakeWorkNodeService implements IWorkNodeService {
     this.presetEndResults.set(`${graphSlug}:${nodeId}`, result);
   }
 
-  async end(graphSlug: string, nodeId: string): Promise<EndResult> {
+  async end(_ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<EndResult> {
     const key = `${graphSlug}:${nodeId}`;
     const result = this.presetEndResults.get(key) ?? {
       nodeId,
@@ -313,7 +320,7 @@ export class FakeWorkNodeService implements IWorkNodeService {
     this.presetCanEndResults.set(`${graphSlug}:${nodeId}`, result);
   }
 
-  async canEnd(graphSlug: string, nodeId: string): Promise<CanEndResult> {
+  async canEnd(_ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<CanEndResult> {
     const key = `${graphSlug}:${nodeId}`;
     const result = this.presetCanEndResults.get(key) ?? {
       nodeId,
@@ -353,6 +360,7 @@ export class FakeWorkNodeService implements IWorkNodeService {
   }
 
   async getInputData(
+    _ctx: WorkspaceContext,
     graphSlug: string,
     nodeId: string,
     inputName: string
@@ -404,6 +412,7 @@ export class FakeWorkNodeService implements IWorkNodeService {
   }
 
   async getInputFile(
+    _ctx: WorkspaceContext,
     graphSlug: string,
     nodeId: string,
     inputName: string
@@ -457,6 +466,7 @@ export class FakeWorkNodeService implements IWorkNodeService {
   }
 
   async getOutputData(
+    _ctx: WorkspaceContext,
     graphSlug: string,
     nodeId: string,
     outputName: string
@@ -508,6 +518,7 @@ export class FakeWorkNodeService implements IWorkNodeService {
   }
 
   async saveOutputData(
+    _ctx: WorkspaceContext,
     graphSlug: string,
     nodeId: string,
     outputName: string,
@@ -555,6 +566,7 @@ export class FakeWorkNodeService implements IWorkNodeService {
   }
 
   async saveOutputFile(
+    _ctx: WorkspaceContext,
     graphSlug: string,
     nodeId: string,
     outputName: string,
@@ -565,7 +577,7 @@ export class FakeWorkNodeService implements IWorkNodeService {
       nodeId,
       outputName,
       saved: true,
-      savedPath: `.chainglass/work-graphs/${graphSlug}/nodes/${nodeId}/data/outputs/${outputName}.md`,
+      savedPath: `.chainglass/data/work-graphs/${graphSlug}/nodes/${nodeId}/data/outputs/${outputName}.md`,
       errors: [],
     };
 
@@ -595,7 +607,12 @@ export class FakeWorkNodeService implements IWorkNodeService {
     this.presetClearResults.set(`${graphSlug}:${nodeId}`, result);
   }
 
-  async clear(graphSlug: string, nodeId: string, options: ClearOptions): Promise<ClearResult> {
+  async clear(
+    _ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    options: ClearOptions
+  ): Promise<ClearResult> {
     const key = `${graphSlug}:${nodeId}`;
 
     // Default: require force, return error without it
@@ -646,7 +663,12 @@ export class FakeWorkNodeService implements IWorkNodeService {
     this.presetAskResults.set(`${graphSlug}:${nodeId}`, result);
   }
 
-  async ask(graphSlug: string, nodeId: string, question: Question): Promise<AskResult> {
+  async ask(
+    _ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    question: Question
+  ): Promise<AskResult> {
     const key = `${graphSlug}:${nodeId}`;
     const questionId = `q-${Date.now()}`;
     const result = this.presetAskResults.get(key) ?? {
@@ -688,6 +710,7 @@ export class FakeWorkNodeService implements IWorkNodeService {
   }
 
   async answer(
+    _ctx: WorkspaceContext,
     graphSlug: string,
     nodeId: string,
     questionId: string,
@@ -715,6 +738,7 @@ export class FakeWorkNodeService implements IWorkNodeService {
   }
 
   async getAnswer(
+    _ctx: WorkspaceContext,
     _graphSlug: string,
     nodeId: string,
     questionId: string

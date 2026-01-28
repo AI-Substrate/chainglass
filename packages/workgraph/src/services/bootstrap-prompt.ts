@@ -4,9 +4,12 @@
  * Per DYK#8: Minimal bootstrap prompt, expand based on real needs.
  * This generates the prompt that tells agents how to operate within
  * the WorkGraph system.
+ *
+ * Per Plan 021: All methods accept WorkspaceContext as first parameter.
  */
 
 import type { IFileSystem, IPathResolver } from '@chainglass/shared';
+import type { WorkspaceContext } from '@chainglass/workflow';
 import type { IWorkGraphService, IWorkUnitService } from '../interfaces/index.js';
 
 // ============================================
@@ -47,11 +50,6 @@ export interface BootstrapPromptResult {
  * Service for generating bootstrap prompts for agent execution.
  */
 export class BootstrapPromptService {
-  /** Base directory for work-graphs */
-  private readonly graphsDir = '.chainglass/work-graphs';
-  /** Base directory for units */
-  private readonly unitsDir = '.chainglass/units';
-
   constructor(
     private readonly fs: IFileSystem,
     private readonly pathResolver: IPathResolver,
@@ -63,12 +61,22 @@ export class BootstrapPromptService {
    * Generate a bootstrap prompt for a node.
    *
    * Per DYK#8: Minimal prompt - just the essentials for agent operation.
+   *
+   * @param ctx - Workspace context for path resolution
+   * @param options - Prompt generation options
    */
-  async generate(options: BootstrapPromptOptions): Promise<BootstrapPromptResult> {
+  async generate(
+    ctx: WorkspaceContext,
+    options: BootstrapPromptOptions
+  ): Promise<BootstrapPromptResult> {
     const { graphSlug, nodeId, resume = false } = options;
 
+    // Derive paths from workspace context
+    const graphsDir = this.pathResolver.join(ctx.worktreePath, '.chainglass/data/work-graphs');
+    const unitsDir = this.pathResolver.join(ctx.worktreePath, '.chainglass/data/units');
+
     // 1. Load node config to get unit slug
-    const nodePath = this.pathResolver.join(this.graphsDir, graphSlug, 'nodes', nodeId);
+    const nodePath = this.pathResolver.join(graphsDir, graphSlug, 'nodes', nodeId);
     const nodeYamlPath = this.pathResolver.join(nodePath, 'node.yaml');
 
     if (!(await this.fs.exists(nodeYamlPath))) {
@@ -124,7 +132,7 @@ export class BootstrapPromptService {
     }
 
     // 2. Determine commands path
-    const commandsPath = this.pathResolver.join(this.unitsDir, unitSlug, 'commands', 'main.md');
+    const commandsPath = this.pathResolver.join(unitsDir, unitSlug, 'commands', 'main.md');
 
     // 3. Generate prompt based on resume flag
     const prompt = resume

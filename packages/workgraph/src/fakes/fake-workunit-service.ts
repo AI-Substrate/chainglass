@@ -4,7 +4,10 @@
  * Per Discovery 08: Fakes need call capture for CLI testing.
  * This fake captures all list(), load(), create(), validate() calls
  * for test assertions and can be configured with preset results.
+ * Per Plan 021: All methods accept WorkspaceContext as first parameter (ignored by fake).
  */
+
+import type { WorkspaceContext } from '@chainglass/workflow';
 
 import type {
   IWorkUnitService,
@@ -81,7 +84,7 @@ export class FakeWorkUnitService implements IWorkUnitService {
     this.defaultUnits = units;
   }
 
-  async list(): Promise<UnitListResult> {
+  async list(_ctx: WorkspaceContext): Promise<UnitListResult> {
     const result = this.presetListResult ?? {
       units: this.defaultUnits,
       errors: [],
@@ -109,7 +112,7 @@ export class FakeWorkUnitService implements IWorkUnitService {
     this.presetLoadResults.set(slug, result);
   }
 
-  async load(slug: string): Promise<UnitLoadResult> {
+  async load(_ctx: WorkspaceContext, slug: string): Promise<UnitLoadResult> {
     const result = this.presetLoadResults.get(slug) ?? {
       unit: undefined,
       errors: [
@@ -144,10 +147,14 @@ export class FakeWorkUnitService implements IWorkUnitService {
     this.presetCreateResults.set(slug, result);
   }
 
-  async create(slug: string, type: 'agent' | 'code' | 'user-input'): Promise<UnitCreateResult> {
+  async create(
+    _ctx: WorkspaceContext,
+    slug: string,
+    type: 'agent' | 'code' | 'user-input'
+  ): Promise<UnitCreateResult> {
     const result = this.presetCreateResults.get(slug) ?? {
       slug,
-      path: `.chainglass/units/${slug}`,
+      path: `.chainglass/data/units/${slug}`,
       errors: [],
     };
 
@@ -175,7 +182,7 @@ export class FakeWorkUnitService implements IWorkUnitService {
     this.presetValidateResults.set(slug, result);
   }
 
-  async validate(slug: string): Promise<UnitValidateResult> {
+  async validate(_ctx: WorkspaceContext, slug: string): Promise<UnitValidateResult> {
     const result = this.presetValidateResults.get(slug) ?? {
       slug,
       valid: true,

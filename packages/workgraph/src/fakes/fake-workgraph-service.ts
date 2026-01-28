@@ -4,7 +4,10 @@
  * Per Discovery 08: Fakes need call capture for CLI testing.
  * This fake captures all create(), load(), show(), status(), addNodeAfter(),
  * removeNode() calls for test assertions and can be configured with preset results.
+ * Per Plan 021: All methods accept WorkspaceContext as first parameter (ignored by fake).
  */
+
+import type { WorkspaceContext } from '@chainglass/workflow';
 
 import type {
   AddNodeOptions,
@@ -100,10 +103,10 @@ export class FakeWorkGraphService implements IWorkGraphService {
     this.presetCreateResults.set(slug, result);
   }
 
-  async create(slug: string): Promise<GraphCreateResult> {
+  async create(_ctx: WorkspaceContext, slug: string): Promise<GraphCreateResult> {
     const result = this.presetCreateResults.get(slug) ?? {
       graphSlug: slug,
-      path: `.chainglass/work-graphs/${slug}`,
+      path: `.chainglass/data/work-graphs/${slug}`,
       errors: [],
     };
 
@@ -130,7 +133,7 @@ export class FakeWorkGraphService implements IWorkGraphService {
     this.presetLoadResults.set(slug, result);
   }
 
-  async load(slug: string): Promise<GraphLoadResult> {
+  async load(_ctx: WorkspaceContext, slug: string): Promise<GraphLoadResult> {
     const result = this.presetLoadResults.get(slug) ?? {
       graph: undefined,
       status: undefined,
@@ -166,7 +169,7 @@ export class FakeWorkGraphService implements IWorkGraphService {
     this.presetShowResults.set(slug, result);
   }
 
-  async show(slug: string): Promise<GraphShowResult> {
+  async show(_ctx: WorkspaceContext, slug: string): Promise<GraphShowResult> {
     const result = this.presetShowResults.get(slug) ?? {
       graphSlug: slug,
       tree: { id: 'start', children: [] },
@@ -196,7 +199,7 @@ export class FakeWorkGraphService implements IWorkGraphService {
     this.presetStatusResults.set(slug, result);
   }
 
-  async status(slug: string): Promise<GraphStatusResult> {
+  async status(_ctx: WorkspaceContext, slug: string): Promise<GraphStatusResult> {
     const result = this.presetStatusResults.get(slug) ?? {
       graphSlug: slug,
       graphStatus: 'pending',
@@ -230,6 +233,7 @@ export class FakeWorkGraphService implements IWorkGraphService {
   }
 
   async addNodeAfter(
+    _ctx: WorkspaceContext,
     graphSlug: string,
     afterNodeId: string,
     unitSlug: string,
@@ -274,6 +278,7 @@ export class FakeWorkGraphService implements IWorkGraphService {
   }
 
   async removeNode(
+    _ctx: WorkspaceContext,
     graphSlug: string,
     nodeId: string,
     options?: RemoveNodeOptions

@@ -4,6 +4,9 @@
  * Per Critical Discovery 08: Contract tests prevent fake drift by ensuring
  * both FakeWorkUnitService and real implementation pass the same behavioral tests.
  *
+ * Per Plan 021 (DYK#1): Contract tests stubbed with ctx parameter during Phase 1.
+ * Full ctx behavioral testing will be added in Phase 5.
+ *
  * Usage:
  * ```typescript
  * import { workUnitServiceContractTests } from '@test/contracts/workunit-service.contract';
@@ -13,8 +16,25 @@
  * ```
  */
 
+import type { WorkspaceContext } from '@chainglass/workflow';
 import type { IWorkUnitService, WorkUnit } from '@chainglass/workgraph/interfaces';
 import { beforeEach, describe, expect, it } from 'vitest';
+
+/**
+ * Creates a stub WorkspaceContext for contract tests.
+ * Per DYK#1: Stub only - full ctx testing in Phase 5.
+ */
+function createStubContext(): WorkspaceContext {
+  return {
+    workspaceSlug: 'test-workspace',
+    workspaceName: 'Test Workspace',
+    workspacePath: '/test/workspace',
+    worktreePath: '/test/workspace',
+    worktreeBranch: null,
+    isMainWorktree: true,
+    hasGit: true,
+  };
+}
 
 /**
  * Contract tests for IWorkUnitService implementations.
@@ -22,9 +42,11 @@ import { beforeEach, describe, expect, it } from 'vitest';
 export function workUnitServiceContractTests(name: string, createService: () => IWorkUnitService) {
   describe(`${name} implements IWorkUnitService contract`, () => {
     let service: IWorkUnitService;
+    let ctx: WorkspaceContext;
 
     beforeEach(() => {
       service = createService();
+      ctx = createStubContext();
     });
 
     describe('list()', () => {
@@ -32,12 +54,12 @@ export function workUnitServiceContractTests(name: string, createService: () => 
         /*
         Test Doc:
         - Why: Contract requires list() returns array of unit summaries
-        - Contract: list() returns { units: WorkUnitSummary[], errors: [] }
+        - Contract: list(ctx) returns { units: WorkUnitSummary[], errors: [] }
         - Usage Notes: Run against both fake and real implementations
         - Quality Contribution: Ensures fake matches real for unit listing
-        - Worked Example: list() → { units: [...], errors: [] }
+        - Worked Example: list(ctx) → { units: [...], errors: [] }
         */
-        const result = await service.list();
+        const result = await service.list(ctx);
 
         expect(result).toHaveProperty('units');
         expect(result).toHaveProperty('errors');
@@ -46,7 +68,7 @@ export function workUnitServiceContractTests(name: string, createService: () => 
       });
 
       it('should return units with required fields', async () => {
-        const result = await service.list();
+        const result = await service.list(ctx);
 
         for (const unit of result.units) {
           expect(unit).toHaveProperty('slug');
@@ -62,12 +84,12 @@ export function workUnitServiceContractTests(name: string, createService: () => 
         /*
         Test Doc:
         - Why: Contract requires load() returns unit details or E120 error
-        - Contract: load(slug) returns { unit?: WorkUnit, errors: [] }
+        - Contract: load(ctx, slug) returns { unit?: WorkUnit, errors: [] }
         - Usage Notes: Run against both implementations
         - Quality Contribution: Ensures fake matches real for unit loading
-        - Worked Example: load('my-unit') → { unit: {...}, errors: [] }
+        - Worked Example: load(ctx, 'my-unit') → { unit: {...}, errors: [] }
         */
-        const result = await service.load('nonexistent-unit');
+        const result = await service.load(ctx, 'nonexistent-unit');
 
         expect(result).toHaveProperty('errors');
         expect(Array.isArray(result.errors)).toBe(true);
@@ -82,7 +104,7 @@ export function workUnitServiceContractTests(name: string, createService: () => 
       });
 
       it('should return error E120 for non-existent unit', async () => {
-        const result = await service.load('definitely-not-a-real-unit');
+        const result = await service.load(ctx, 'definitely-not-a-real-unit');
 
         // Per spec: E120 is unit not found
         if (result.errors.length > 0) {
@@ -96,12 +118,12 @@ export function workUnitServiceContractTests(name: string, createService: () => 
         /*
         Test Doc:
         - Why: Contract requires create() returns created unit info
-        - Contract: create(slug, type) returns { slug, path, errors: [] }
+        - Contract: create(ctx, slug, type) returns { slug, path, errors: [] }
         - Usage Notes: Run against both implementations
         - Quality Contribution: Ensures fake matches real for unit creation
-        - Worked Example: create('new-unit', 'agent') → { slug: 'new-unit', path: '...', errors: [] }
+        - Worked Example: create(ctx, 'new-unit', 'agent') → { slug: 'new-unit', path: '...', errors: [] }
         */
-        const result = await service.create('test-unit', 'agent');
+        const result = await service.create(ctx, 'test-unit', 'agent');
 
         expect(result).toHaveProperty('slug');
         expect(result).toHaveProperty('path');
@@ -113,7 +135,7 @@ export function workUnitServiceContractTests(name: string, createService: () => 
         const types: ('agent' | 'code' | 'user-input')[] = ['agent', 'code', 'user-input'];
 
         for (const type of types) {
-          const result = await service.create(`test-${type}`, type);
+          const result = await service.create(ctx, `test-${type}`, type);
           expect(result.errors.length).toBe(0);
         }
       });
@@ -124,12 +146,12 @@ export function workUnitServiceContractTests(name: string, createService: () => 
         /*
         Test Doc:
         - Why: Contract requires validate() returns validation result
-        - Contract: validate(slug) returns { slug, valid, issues: [], errors: [] }
+        - Contract: validate(ctx, slug) returns { slug, valid, issues: [], errors: [] }
         - Usage Notes: Run against both implementations
         - Quality Contribution: Ensures fake matches real for unit validation
-        - Worked Example: validate('my-unit') → { slug: 'my-unit', valid: true, issues: [], errors: [] }
+        - Worked Example: validate(ctx, 'my-unit') → { slug: 'my-unit', valid: true, issues: [], errors: [] }
         */
-        const result = await service.validate('test-unit');
+        const result = await service.validate(ctx, 'test-unit');
 
         expect(result).toHaveProperty('slug');
         expect(result).toHaveProperty('valid');
@@ -140,7 +162,7 @@ export function workUnitServiceContractTests(name: string, createService: () => 
       });
 
       it('should include issue details when invalid', async () => {
-        const result = await service.validate('test-unit');
+        const result = await service.validate(ctx, 'test-unit');
 
         for (const issue of result.issues) {
           expect(issue).toHaveProperty('severity');
