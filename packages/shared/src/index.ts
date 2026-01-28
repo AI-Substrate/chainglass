@@ -101,12 +101,8 @@ export type {
   TokenMetrics,
 } from './interfaces/index.js';
 
-// Event storage interfaces (Plan 015: Phase 1)
-export type {
-  ArchiveOptions,
-  IEventStorage,
-  StoredEvent,
-} from './interfaces/index.js';
+// Note: IEventStorage, EventStorageService, FakeEventStorage removed in Plan 018 Phase 2.
+// Use AgentEventAdapter from @chainglass/workflow for workspace-scoped event storage.
 
 // Process manager interfaces and types
 export type {
@@ -135,9 +131,8 @@ export type { FormattedResult } from './fakes/index.js';
 export { FakeDiffAction } from './fakes/index.js';
 export { FakeHashGenerator } from './fakes/index.js';
 export { FakeProcessManager } from './fakes/index.js';
-// Plan 015: Phase 1 - Event storage fake
-export { FakeEventStorage } from './fakes/index.js';
-export type { FakeEventStorageOptions } from './fakes/index.js';
+// Note: FakeEventStorage removed in Plan 018 Phase 2.
+// Use FakeAgentEventAdapter from @chainglass/workflow for workspace-scoped event storage.
 
 // Adapters
 export { PinoLoggerAdapter } from './adapters/index.js';
@@ -193,8 +188,8 @@ export {
 // Services
 export { AgentService } from './services/index.js';
 export type { AdapterFactory, AgentServiceRunOptions } from './services/index.js';
-// Plan 015: Phase 1 - Event storage
-export { EventStorageService } from './services/index.js';
+// Note: EventStorageService removed in Plan 018 Phase 2.
+// Use AgentEventAdapter from @chainglass/workflow for workspace-scoped event storage.
 
 // Schemas (Plan 015: Phase 1 - Zod-first approach, derive types via z.infer)
 export {

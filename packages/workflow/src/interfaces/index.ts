@@ -106,3 +106,12 @@ export type {
   DeleteSessionResult,
   UpdateSessionStatusResult,
 } from './agent-session-service.interface.js';
+
+// Agent event adapter interface (Plan 018 Phase 2)
+export type {
+  IAgentEventAdapter,
+  StoredAgentEvent,
+  AppendEventResult,
+  ArchiveResult,
+  ArchiveOptions,
+} from './agent-event-adapter.interface.js';

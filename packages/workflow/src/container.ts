@@ -26,6 +26,7 @@ import {
   WORKSPACE_DI_TOKENS,
 } from '@chainglass/shared';
 import { type DependencyContainer, container } from 'tsyringe';
+import { AgentEventAdapter } from './adapters/agent-event.adapter.js';
 import { AgentSessionAdapter } from './adapters/agent-session.adapter.js';
 import { PhaseAdapter } from './adapters/phase.adapter.js';
 import { SampleAdapter } from './adapters/sample.adapter.js';
@@ -33,6 +34,7 @@ import { SchemaValidatorAdapter } from './adapters/schema-validator.adapter.js';
 import { WorkflowAdapter } from './adapters/workflow.adapter.js';
 import { WorkspaceRegistryAdapter } from './adapters/workspace-registry.adapter.js';
 import { YamlParserAdapter } from './adapters/yaml-parser.adapter.js';
+import { FakeAgentEventAdapter } from './fakes/fake-agent-event-adapter.js';
 import { FakeAgentSessionAdapter } from './fakes/fake-agent-session-adapter.js';
 import { FakeGitWorktreeResolver } from './fakes/fake-git-worktree-resolver.js';
 import { FakePhaseAdapter } from './fakes/fake-phase-adapter.js';
@@ -45,6 +47,7 @@ import { FakeWorkflowService } from './fakes/fake-workflow-service.js';
 import { FakeWorkspaceContextResolver } from './fakes/fake-workspace-context-resolver.js';
 import { FakeWorkspaceRegistryAdapter } from './fakes/fake-workspace-registry-adapter.js';
 import { FakeYamlParser } from './fakes/fake-yaml-parser.js';
+import type { IAgentEventAdapter } from './interfaces/agent-event-adapter.interface.js';
 import type { IAgentSessionAdapter } from './interfaces/agent-session-adapter.interface.js';
 import type { IAgentSessionService } from './interfaces/agent-session-service.interface.js';
 import type { IGitWorktreeResolver } from './interfaces/git-worktree-resolver.interface.js';
@@ -241,6 +244,18 @@ export function createWorkflowProductionContainer(): DependencyContainer {
       ),
   });
 
+  // ==================== Agent Event Adapter Registration (Plan 018 Phase 2) ====================
+
+  // Register agent event adapter
+  childContainer.register<IAgentEventAdapter>(WORKSPACE_DI_TOKENS.AGENT_EVENT_ADAPTER, {
+    useFactory: (c) =>
+      new AgentEventAdapter(
+        c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM),
+        c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER)
+        // Note: Logger is optional, not injected in production
+      ),
+  });
+
   return childContainer;
 }
 
@@ -378,6 +393,14 @@ export function createWorkflowTestContainer(): DependencyContainer {
       new AgentSessionService(
         c.resolve<IAgentSessionAdapter>(WORKSPACE_DI_TOKENS.AGENT_SESSION_ADAPTER)
       ),
+  });
+
+  // ==================== Agent Event Adapter Fakes (Plan 018 Phase 2) ====================
+
+  // Register fake agent event adapter
+  const fakeAgentEventAdapter = new FakeAgentEventAdapter();
+  childContainer.register<IAgentEventAdapter>(WORKSPACE_DI_TOKENS.AGENT_EVENT_ADAPTER, {
+    useValue: fakeAgentEventAdapter,
   });
 
   return childContainer;

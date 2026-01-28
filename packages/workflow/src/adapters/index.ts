@@ -21,3 +21,6 @@ export { SampleAdapter } from './sample.adapter.js';
 
 // Agent session adapter (Plan 018)
 export { AgentSessionAdapter } from './agent-session.adapter.js';
+
+// Agent event adapter (Plan 018 Phase 2)
+export { AgentEventAdapter } from './agent-event.adapter.js';

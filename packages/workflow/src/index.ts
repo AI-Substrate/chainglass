@@ -194,6 +194,18 @@ export { SampleAdapter } from './adapters/index.js';
 // Agent session adapter (Plan 018)
 export { AgentSessionAdapter } from './adapters/index.js';
 
+// Agent event adapter (Plan 018 Phase 2)
+export { AgentEventAdapter } from './adapters/index.js';
+
+// Agent event adapter interface (Plan 018 Phase 2)
+export type {
+  IAgentEventAdapter,
+  StoredAgentEvent,
+  AppendEventResult,
+  ArchiveResult,
+  ArchiveOptions,
+} from './interfaces/index.js';
+
 // Fakes
 export { FakeYamlParser } from './fakes/index.js';
 export { FakeSchemaValidator } from './fakes/index.js';
@@ -349,4 +361,14 @@ export type {
   AgentSessionListCall,
   AgentSessionRemoveCall,
   AgentSessionExistsCall,
+} from './fakes/index.js';
+
+// Agent event adapter fake (Plan 018 Phase 2)
+export { FakeAgentEventAdapter } from './fakes/index.js';
+export type {
+  AgentEventAppendCall,
+  AgentEventGetAllCall,
+  AgentEventGetSinceCall,
+  AgentEventArchiveCall,
+  AgentEventExistsCall,
 } from './fakes/index.js';

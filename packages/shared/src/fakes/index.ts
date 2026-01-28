@@ -14,6 +14,5 @@ export { FakeDiffAction } from './fake-diff-action.js';
 export { FakeHashGenerator } from './fake-hash-generator.js';
 export { FakeProcessManager } from './fake-process-manager.js';
 
-// Plan 015: Phase 1 - Event storage fake
-export { FakeEventStorage } from './fake-event-storage.js';
-export type { FakeEventStorageOptions } from './fake-event-storage.js';
+// Note: FakeEventStorage removed in Plan 018 Phase 2.
+// Use FakeAgentEventAdapter from @chainglass/workflow for workspace-scoped event storage.
