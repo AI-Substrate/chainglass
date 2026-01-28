@@ -13,11 +13,17 @@
  * Part of Plan 015: Agent Activity Fidelity Enhancement (Phase 3)
  */
 
-import type { SessionMetadata, StoredEvent } from '@chainglass/shared';
+import type { AgentStoredEvent, SessionMetadata } from '@chainglass/shared';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 // ============ Types ============
+
+/**
+ * Stored event type - matches IAgentEventAdapter return type.
+ * AgentStoredEvent from shared, extended with id field.
+ */
+export type StoredEvent = AgentStoredEvent & { id: string };
 
 /**
  * Full session data from server.

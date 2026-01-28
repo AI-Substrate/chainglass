@@ -18,15 +18,12 @@ import {
   type AdapterFactory,
   AgentService,
   ClaudeCodeAdapter,
-  EventStorageService,
   FakeAgentAdapter,
   FakeConfigService,
-  FakeEventStorage,
   FakeLogger,
   FakeProcessManager,
   type IAgentAdapter,
   type IConfigService,
-  type IEventStorage,
   type IFileSystem,
   type ILogger,
   type IPathResolver,
@@ -107,8 +104,8 @@ export const DI_TOKENS = {
   AGENT_SERVICE: 'AgentService',
   // Plan 012: Agent session persistence
   SESSION_STORE: 'SessionStore',
-  // Plan 015: Event storage
-  EVENT_STORAGE: SHARED_DI_TOKENS.EVENT_STORAGE,
+  // Plan 018: Event storage moved to workspace-scoped AgentEventAdapter in @chainglass/workflow
+  // Consumers should use WORKSPACE_DI_TOKENS.AGENT_EVENT_ADAPTER instead
 } as const;
 
 /**
@@ -259,14 +256,8 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
     },
   });
 
-  // Plan 015 Phase 1: Register EventStorageService
-  // Production path: .chainglass/workspaces/default/data/
-  childContainer.register<IEventStorage>(DI_TOKENS.EVENT_STORAGE, {
-    useFactory: () => {
-      const baseDir = path.join(process.cwd(), '.chainglass', 'workspaces', 'default', 'data');
-      return new EventStorageService(baseDir);
-    },
-  });
+  // Plan 018: Event storage migrated to workspace-scoped AgentEventAdapter
+  // See WORKSPACE_DI_TOKENS.AGENT_EVENT_ADAPTER in @chainglass/workflow container
 
   // ==================== Plan 014 Phase 6: Workspace Service Registrations ====================
 
@@ -425,10 +416,8 @@ export function createTestContainer(): DependencyContainer {
     },
   });
 
-  // Plan 015 Phase 1: Register FakeEventStorage for test isolation
-  childContainer.register<IEventStorage>(DI_TOKENS.EVENT_STORAGE, {
-    useFactory: () => new FakeEventStorage(),
-  });
+  // Plan 018: Event storage migrated to workspace-scoped FakeAgentEventAdapter
+  // See WORKSPACE_DI_TOKENS.AGENT_EVENT_ADAPTER in @chainglass/workflow container
 
   // ==================== Plan 014 Phase 6: Workspace Service Fakes ====================
 

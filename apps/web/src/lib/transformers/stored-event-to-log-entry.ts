@@ -12,7 +12,14 @@
 
 import type { LogEntryProps, ThinkingData, ToolData } from '@/components/agents/log-entry';
 import type { ToolCallStatus } from '@/components/agents/tool-call-card';
-import type { StoredEvent } from '@chainglass/shared';
+import type { AgentStoredEvent } from '@chainglass/shared';
+
+/**
+ * Stored event with ID - returned from IAgentEventAdapter.
+ * The AgentStoredEvent union is extended with an id field by the adapter.
+ * Re-exported for consumers that need to work with stored events.
+ */
+export type StoredEvent = AgentStoredEvent & { id: string };
 
 /**
  * Convert a StoredEvent to LogEntryProps for rendering.
