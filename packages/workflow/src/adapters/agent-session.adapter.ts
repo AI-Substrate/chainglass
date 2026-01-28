@@ -4,8 +4,9 @@
  * Per Plan 018: Agent Workspace Data Model Migration (Phase 1)
  * Per DYK-P3-01: Calls `super(fs, pathResolver)` in constructor; uses `this.fs` for I/O.
  * Per DYK-P3-02: Adapter owns updatedAt - overwrites on every save.
+ * Per DYK-03 (Phase 3): Uses subfolder storage for atomic delete and future extensibility.
  *
- * Storage location: `<ctx.worktreePath>/.chainglass/data/agents/<id>.json`
+ * Storage location: `<ctx.worktreePath>/.chainglass/data/agents/<id>/session.json`
  *
  * This is the real implementation that reads/writes to filesystem via IFileSystem.
  * For testing, use FakeAgentSessionAdapter instead.
@@ -47,6 +48,30 @@ export class AgentSessionAdapter extends WorkspaceDataAdapterBase implements IAg
   readonly domain = 'agents';
 
   /**
+   * Override getEntityPath to use subfolder storage.
+   * Per DYK-03 (Phase 3): Sessions stored at `<domain>/<id>/session.json` for atomic delete.
+   *
+   * @param ctx - Workspace context
+   * @param id - Session ID
+   * @returns Path to session.json inside the session's directory
+   */
+  protected override getEntityPath(ctx: WorkspaceContext, id: string): string {
+    return this.pathResolver.join(this.getDomainPath(ctx), id, 'session.json');
+  }
+
+  /**
+   * Get the session directory path.
+   * Used for atomic delete (removing entire folder).
+   *
+   * @param ctx - Workspace context
+   * @param sessionId - Session ID
+   * @returns Path to the session directory (without session.json)
+   */
+  protected getSessionDir(ctx: WorkspaceContext, sessionId: string): string {
+    return this.pathResolver.join(this.getDomainPath(ctx), sessionId);
+  }
+
+  /**
    * Load a session from per-worktree storage.
    *
    * @param ctx - Workspace context (determines storage location)
@@ -81,6 +106,7 @@ export class AgentSessionAdapter extends WorkspaceDataAdapterBase implements IAg
    * Creates storage directory if needed. Updates updatedAt timestamp.
    *
    * Per DYK-P3-02: Adapter owns updatedAt - overwrites on every save.
+   * Per DYK-03 (Phase 3): Creates session directory at `<domain>/<id>/`
    *
    * @param ctx - Workspace context (determines storage location)
    * @param session - AgentSession to save
@@ -102,13 +128,29 @@ export class AgentSessionAdapter extends WorkspaceDataAdapterBase implements IAg
       };
     }
 
-    // Ensure storage directory exists
+    // Ensure domain directory exists (e.g., .chainglass/data/agents/)
     const structureResult = await this.ensureStructure(ctx);
     if (!structureResult.ok) {
       return {
         ok: false,
         errorCode: AgentSessionErrorCodes.INVALID_DATA,
         errorMessage: structureResult.errorMessage || 'Failed to create storage directory',
+      };
+    }
+
+    // Ensure session directory exists (e.g., .chainglass/data/agents/<id>/)
+    const sessionDir = this.getSessionDir(ctx, session.id);
+    try {
+      const dirExists = await this.fs.exists(sessionDir);
+      if (!dirExists) {
+        await this.fs.mkdir(sessionDir, { recursive: true });
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return {
+        ok: false,
+        errorCode: AgentSessionErrorCodes.INVALID_DATA,
+        errorMessage: `Failed to create session directory: ${message}`,
       };
     }
 
@@ -143,12 +185,13 @@ export class AgentSessionAdapter extends WorkspaceDataAdapterBase implements IAg
   /**
    * List all sessions in per-worktree storage.
    * Per AC-05: Returns sessions ordered by createdAt descending (newest first).
+   * Per DYK-03 (Phase 3): Looks for subdirectories with session.json inside.
    *
    * @param ctx - Workspace context (determines storage location)
    * @returns Array of all sessions (empty if none or directory doesn't exist)
    */
   async list(ctx: WorkspaceContext): Promise<AgentSession[]> {
-    const files = await this.listEntityFiles(ctx);
+    const files = await this.listSessionFiles(ctx);
     const sessions: AgentSession[] = [];
 
     for (const file of files) {
@@ -175,7 +218,46 @@ export class AgentSessionAdapter extends WorkspaceDataAdapterBase implements IAg
   }
 
   /**
+   * List all session.json files in the domain directory.
+   * Per DYK-03 (Phase 3): Sessions are stored in subdirectories.
+   *
+   * @param ctx - Workspace context
+   * @returns Array of paths to session.json files
+   */
+  private async listSessionFiles(ctx: WorkspaceContext): Promise<string[]> {
+    const domainPath = this.getDomainPath(ctx);
+    const sessionFiles: string[] = [];
+
+    try {
+      const exists = await this.fs.exists(domainPath);
+      if (!exists) {
+        return [];
+      }
+
+      // List all entries in domain directory (session subdirectories)
+      const entries = await this.fs.readDir(domainPath);
+
+      for (const entry of entries) {
+        // Each entry should be a session directory
+        const sessionDir = this.pathResolver.join(domainPath, entry);
+        const sessionFile = this.pathResolver.join(sessionDir, 'session.json');
+
+        // Check if session.json exists in the subdirectory
+        const fileExists = await this.fs.exists(sessionFile);
+        if (fileExists) {
+          sessionFiles.push(sessionFile);
+        }
+      }
+    } catch {
+      // Return empty array on any error
+    }
+
+    return sessionFiles;
+  }
+
+  /**
    * Remove a session from per-worktree storage.
+   * Per DYK-03 (Phase 3): Deletes entire session directory for atomic delete.
    *
    * @param ctx - Workspace context (determines storage location)
    * @param sessionId - Session ID to remove
@@ -193,18 +275,28 @@ export class AgentSessionAdapter extends WorkspaceDataAdapterBase implements IAg
       };
     }
 
-    const path = this.getEntityPath(ctx, sessionId);
-    const deleted = await this.deleteFile(path);
+    // Delete entire session directory (atomic delete)
+    const sessionDir = this.getSessionDir(ctx, sessionId);
+    try {
+      const exists = await this.fs.exists(sessionDir);
+      if (!exists) {
+        return {
+          ok: false,
+          errorCode: AgentSessionErrorCodes.SESSION_NOT_FOUND,
+          errorMessage: `Agent session '${sessionId}' not found`,
+        };
+      }
 
-    if (!deleted) {
+      // Remove directory and all contents
+      await this.fs.rmdir(sessionDir, { recursive: true });
+      return { ok: true };
+    } catch {
       return {
         ok: false,
         errorCode: AgentSessionErrorCodes.SESSION_NOT_FOUND,
         errorMessage: `Agent session '${sessionId}' not found`,
       };
     }
-
-    return { ok: true };
   }
 
   /**

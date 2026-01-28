@@ -39,15 +39,21 @@ import {
 } from '@chainglass/shared';
 // Plan 014 Phase 6: Import workspace services from @chainglass/workflow
 // Plan 018 Phase 2: Import AgentEventAdapter for workspace-scoped event storage
+// Plan 018 Phase 3: Import AgentSessionAdapter and AgentSessionService
 import {
   AgentEventAdapter,
+  AgentSessionAdapter,
+  AgentSessionService,
   FakeAgentEventAdapter,
+  FakeAgentSessionAdapter,
   FakeGitWorktreeResolver,
   FakeSampleAdapter,
   FakeWorkspaceContextResolver,
   FakeWorkspaceRegistryAdapter,
   GitWorktreeResolver,
   type IAgentEventAdapter,
+  type IAgentSessionAdapter,
+  type IAgentSessionService,
   type IGitWorktreeResolver,
   type ISampleAdapter,
   type ISampleService,
@@ -270,6 +276,23 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
     },
   });
 
+  // Plan 018 Phase 3: Register AgentSessionAdapter for workspace-scoped session storage
+  childContainer.register<IAgentSessionAdapter>(WORKSPACE_DI_TOKENS.AGENT_SESSION_ADAPTER, {
+    useFactory: (c) => {
+      const fileSystem = c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
+      const pathResolver = c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
+      return new AgentSessionAdapter(fileSystem, pathResolver);
+    },
+  });
+
+  // Plan 018 Phase 3: Register AgentSessionService for agent session operations
+  childContainer.register<IAgentSessionService>(WORKSPACE_DI_TOKENS.AGENT_SESSION_SERVICE, {
+    useFactory: (c) => {
+      const adapter = c.resolve<IAgentSessionAdapter>(WORKSPACE_DI_TOKENS.AGENT_SESSION_ADAPTER);
+      return new AgentSessionService(adapter);
+    },
+  });
+
   // ==================== Plan 014 Phase 6: Workspace Service Registrations ====================
 
   // Register shared filesystem and path resolver (needed by workspace adapters)
@@ -431,6 +454,20 @@ export function createTestContainer(): DependencyContainer {
   const fakeAgentEventAdapter = new FakeAgentEventAdapter();
   childContainer.register<IAgentEventAdapter>(WORKSPACE_DI_TOKENS.AGENT_EVENT_ADAPTER, {
     useValue: fakeAgentEventAdapter,
+  });
+
+  // Plan 018 Phase 3: Register FakeAgentSessionAdapter for test isolation
+  const fakeAgentSessionAdapter = new FakeAgentSessionAdapter();
+  childContainer.register<IAgentSessionAdapter>(WORKSPACE_DI_TOKENS.AGENT_SESSION_ADAPTER, {
+    useValue: fakeAgentSessionAdapter,
+  });
+
+  // Plan 018 Phase 3: Register AgentSessionService with fake adapter
+  childContainer.register<IAgentSessionService>(WORKSPACE_DI_TOKENS.AGENT_SESSION_SERVICE, {
+    useFactory: (c) => {
+      const adapter = c.resolve<IAgentSessionAdapter>(WORKSPACE_DI_TOKENS.AGENT_SESSION_ADAPTER);
+      return new AgentSessionService(adapter);
+    },
   });
 
   // ==================== Plan 014 Phase 6: Workspace Service Fakes ====================

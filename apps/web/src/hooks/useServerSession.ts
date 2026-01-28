@@ -41,6 +41,8 @@ export interface UseServerSessionOptions {
   subscribeToUpdates?: boolean;
   /** Callback when session is updated via SSE */
   onSessionUpdated?: (sessionId: string) => void;
+  /** Workspace slug for workspace-scoped sessions (optional for backwards compat) */
+  workspaceSlug?: string;
 }
 
 /**
@@ -63,17 +65,27 @@ export interface UseServerSessionReturn {
 
 /**
  * Query key for session data.
+ * Per DYK-04: Include workspaceSlug in key for proper caching.
  */
-export const sessionQueryKey = (sessionId: string) => ['session', sessionId] as const;
+export const sessionQueryKey = (sessionId: string, workspaceSlug?: string) =>
+  workspaceSlug
+    ? (['session', workspaceSlug, sessionId] as const)
+    : (['session', sessionId] as const);
 
 // ============ Fetch Function ============
 
 /**
  * Fetch session data from server.
+ * Per DYK-04: Uses workspace-scoped URL when workspaceSlug is provided.
  */
-async function fetchSession(sessionId: string): Promise<ServerSession> {
+async function fetchSession(sessionId: string, workspaceSlug?: string): Promise<ServerSession> {
+  // Construct URL based on workspace context
+  const eventsUrl = workspaceSlug
+    ? `/api/workspaces/${encodeURIComponent(workspaceSlug)}/agents/${encodeURIComponent(sessionId)}/events`
+    : `/api/agents/sessions/${sessionId}/events`;
+
   // Fetch events from server storage
-  const eventsRes = await fetch(`/api/agents/sessions/${sessionId}/events`);
+  const eventsRes = await fetch(eventsUrl);
 
   if (!eventsRes.ok) {
     throw new Error(`Failed to fetch session events: ${eventsRes.status}`);
@@ -81,8 +93,8 @@ async function fetchSession(sessionId: string): Promise<ServerSession> {
 
   const eventsData = (await eventsRes.json()) as {
     events: StoredEvent[];
-    count: number;
-    sessionId: string;
+    count?: number;
+    sessionId?: string;
   };
 
   // Construct minimal metadata from sessionId (server-side metadata not required for event display)
@@ -104,13 +116,18 @@ async function fetchSession(sessionId: string): Promise<ServerSession> {
  * Hook for managing server-backed session state.
  *
  * Uses React Query for caching and SSE for real-time updates.
+ * Per DYK-04: Supports optional workspaceSlug for workspace-scoped sessions.
  *
  * @param sessionId - Unique session identifier
- * @param options - Hook options
+ * @param options - Hook options (including optional workspaceSlug)
  * @returns Session state and utilities
  *
  * @example
+ * // Legacy (non-workspace-scoped)
  * const { session, isLoading, error, isConnected } = useServerSession('sess-123');
+ *
+ * // Workspace-scoped
+ * const { session, isLoading } = useServerSession('sess-123', { workspaceSlug: 'my-project' });
  *
  * if (isLoading) return <Spinner />;
  * if (error) return <Error message={error.message} />;
@@ -128,7 +145,7 @@ export function useServerSession(
   sessionId: string,
   options: UseServerSessionOptions = {}
 ): UseServerSessionReturn {
-  const { subscribeToUpdates = true, onSessionUpdated } = options;
+  const { subscribeToUpdates = true, onSessionUpdated, workspaceSlug } = options;
   const queryClient = useQueryClient();
   const onSessionUpdatedRef = useRef(onSessionUpdated);
   onSessionUpdatedRef.current = onSessionUpdated;
@@ -136,15 +153,15 @@ export function useServerSession(
   // COR-001: Track SSE connection status with single EventSource (no dual connections)
   const [isConnected, setIsConnected] = useState(false);
 
-  // React Query for session data
+  // React Query for session data - per DYK-04: include workspaceSlug in query key
   const {
     data: session,
     isLoading,
     error,
     refetch,
   } = useQuery({
-    queryKey: sessionQueryKey(sessionId),
-    queryFn: () => fetchSession(sessionId),
+    queryKey: sessionQueryKey(sessionId, workspaceSlug),
+    queryFn: () => fetchSession(sessionId, workspaceSlug),
     enabled: !!sessionId,
   });
 
@@ -152,12 +169,12 @@ export function useServerSession(
   const handleSessionUpdatedCallback = useCallback(
     (notifiedSessionId: string) => {
       if (notifiedSessionId === sessionId) {
-        // Invalidate cache → triggers refetch
-        queryClient.invalidateQueries({ queryKey: sessionQueryKey(sessionId) });
+        // Invalidate cache → triggers refetch - per DYK-04: include workspaceSlug in key
+        queryClient.invalidateQueries({ queryKey: sessionQueryKey(sessionId, workspaceSlug) });
         onSessionUpdatedRef.current?.(sessionId);
       }
     },
-    [sessionId, queryClient]
+    [sessionId, workspaceSlug, queryClient]
   );
 
   // Custom SSE listener for session_updated notifications
@@ -165,12 +182,17 @@ export function useServerSession(
   // COR-002: Added error handler to prevent memory leaks
   // COR-003: Use global 'agents' channel since run route broadcasts there
   // COR-004: SSE named events don't include type in data; check sessionId directly
+  // DYK-04: Use workspace-scoped SSE endpoint when workspaceSlug is provided
   useEffect(() => {
     if (!subscribeToUpdates || !sessionId) return;
 
-    // Connect to global 'agents' channel (same channel run route broadcasts to)
-    // Filter session_updated events by sessionId
-    const eventSource = new EventSource('/api/events/agents');
+    // Construct SSE URL - workspace-scoped or legacy
+    const sseUrl = workspaceSlug
+      ? `/api/workspaces/${encodeURIComponent(workspaceSlug)}/agents/events`
+      : '/api/events/agents';
+
+    // Connect to appropriate channel
+    const eventSource = new EventSource(sseUrl);
 
     // Track connection open
     eventSource.addEventListener('open', () => {
@@ -205,7 +227,7 @@ export function useServerSession(
       eventSource.close();
       setIsConnected(false);
     };
-  }, [subscribeToUpdates, sessionId, handleSessionUpdatedCallback]);
+  }, [subscribeToUpdates, sessionId, workspaceSlug, handleSessionUpdatedCallback]);
 
   return {
     session: session ?? null,

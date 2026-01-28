@@ -174,8 +174,15 @@ flowchart TD
 
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
-| T001 | DI Container | /apps/web/src/lib/di-container.ts | ⬜ Pending | Register AGENT_SESSION_ADAPTER, AGENT_SESSION_SERVICE, AGENT_EVENT_ADAPTER |
-| T002 | API Route | /apps/web/app/api/workspaces/[slug]/agents/route.ts | ⬜ Pending | GET sessions list for workspace |
+| T000 | Adapter | /packages/workflow/src/adapters/agent-session.adapter.ts | ✅ Complete | Refactored to subfolder storage |
+| T001 | DI Container | /apps/web/src/lib/di-container.ts | ✅ Complete | Registered AGENT_SESSION_ADAPTER, AGENT_SESSION_SERVICE, AGENT_EVENT_ADAPTER |
+| T002 | API Route | /apps/web/app/api/workspaces/[slug]/agents/route.ts | ✅ Complete | GET sessions list for workspace |
+| T003 | API Route | /apps/web/app/api/workspaces/[slug]/agents/route.ts | ✅ Complete | POST create session (same file as T002) |
+| T004 | API Route | /apps/web/app/api/workspaces/[slug]/agents/[id]/route.ts | ✅ Complete | DELETE session + events folder |
+| T005 | API Route | /apps/web/app/api/workspaces/[slug]/agents/[id]/events/route.ts | ✅ Complete | GET events with ?since= support |
+| T005a | Hook | /apps/web/src/hooks/useWorkspaceSSE.ts | ✅ Complete | Generic workspace SSE primitive |
+| T005b | Hook | /apps/web/src/hooks/useServerSession.ts | ✅ Complete | Added workspaceSlug support |
+| T006 | Store | /apps/web/src/lib/stores/agent-session.store.ts | 🟧 In Progress | Replace localStorage with server API |
 | T003 | API Route | /apps/web/app/api/workspaces/[slug]/agents/route.ts | ⬜ Pending | POST create session (same file as T002) |
 | T004 | API Route | /apps/web/app/api/workspaces/[slug]/agents/[id]/route.ts | ⬜ Pending | DELETE session + events folder |
 | T005 | API Route | /apps/web/app/api/workspaces/[slug]/agents/[id]/events/route.ts | ⬜ Pending | GET events with ?since= support |
@@ -195,18 +202,21 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|------|------|-----|------|--------------|------------------|------------|----------|-------|
-| [ ] | T001 | Register agent adapters/services in web DI container using `useFactory` pattern | 2 | Setup | – | /home/jak/substrate/015-better-agents/apps/web/src/lib/di-container.ts | Container resolves AGENT_SESSION_ADAPTER, AGENT_SESSION_SERVICE, AGENT_EVENT_ADAPTER | – | Per Discovery 14 |
-| [ ] | T002 | Write tests for + implement GET /api/workspaces/[slug]/agents route | 3 | Core | T001 | /home/jak/substrate/015-better-agents/apps/web/app/api/workspaces/[slug]/agents/route.ts, /home/jak/substrate/015-better-agents/test/integration/web/agents-api.test.ts | Returns all sessions for workspace; 404 on invalid workspace; has `dynamic = 'force-dynamic'` | – | Per Discovery 04 |
-| [ ] | T003 | Write tests for + implement POST /api/workspaces/[slug]/agents (create session) | 2 | Core | T001 | /home/jak/substrate/015-better-agents/apps/web/app/api/workspaces/[slug]/agents/route.ts | Validates schema with Zod; saves session via service; returns { ok: true, session } | – | Same file as T002 |
-| [ ] | T004 | Write tests for + implement DELETE /api/workspaces/[slug]/agents/[id] route | 2 | Core | T001 | /home/jak/substrate/015-better-agents/apps/web/app/api/workspaces/[slug]/agents/[id]/route.ts | Hard delete (no archive); removes session.json + events folder; returns 204 | – | Per AC-14, Discovery 13 |
-| [ ] | T005 | Write tests for + implement GET /api/workspaces/[slug]/agents/[id]/events route | 3 | Core | T001 | /home/jak/substrate/015-better-agents/apps/web/app/api/workspaces/[slug]/agents/[id]/events/route.ts | Returns workspace-scoped events; supports ?since= parameter; NDJSON format | – | SSE integration point |
-| [ ] | T006 | Refactor AgentSessionStore to use server API instead of localStorage | 3 | Core | T002, T003 | /home/jak/substrate/015-better-agents/apps/web/src/lib/stores/agent-session.store.ts | No localStorage reads/writes; fetches from /api/workspaces/[slug]/agents; requires workspaceSlug param | – | Breaking change to store API |
-| [ ] | T007 | Create /workspaces/[slug]/agents page component (Server Component) | 3 | Core | T006 | /home/jak/substrate/015-better-agents/apps/web/app/(dashboard)/workspaces/[slug]/agents/page.tsx | Fetches sessions from server; displays list; handles loading/error/empty states; has `dynamic = 'force-dynamic'` | – | Per Discovery 04, 11 |
-| [ ] | T008 | Create /workspaces/[slug]/agents/[id] detail page with event stream | 3 | Core | T005, T007 | /home/jak/substrate/015-better-agents/apps/web/app/(dashboard)/workspaces/[slug]/agents/[id]/page.tsx | Shows session metadata + event stream via SSE; has `dynamic = 'force-dynamic'` | – | Reuse existing SSE components |
-| [ ] | T009 | Implement /agents redirect to first workspace with 307 + deprecation warning | 2 | Core | T007 | /home/jak/substrate/015-better-agents/apps/web/app/(dashboard)/agents/page.tsx | Redirects to /workspaces/[first-slug]/agents; logs console.warn deprecation; shows "No workspace" if none registered | – | Per AC-15/AC-16, Discovery 15 |
-| [ ] | T010 | Add "Agents" link to workspace detail page navigation | 1 | UI | T007 | /home/jak/substrate/015-better-agents/apps/web/app/(dashboard)/workspaces/[slug]/page.tsx | Workspace page shows "Agents" link; navigates to /workspaces/[slug]/agents | – | Follow existing Samples link pattern |
-| [ ] | T011 | Create delete confirmation dialog component with session size display | 2 | UI | – | /home/jak/substrate/015-better-agents/apps/web/src/components/agents/delete-session-dialog.tsx | Dialog shows session size; "cannot be undone" warning; confirm/cancel buttons | – | Per Discovery 13 |
-| [ ] | T012 | Wire delete confirmation dialog to delete button in session list/detail | 1 | UI | T004, T011 | /home/jak/substrate/015-better-agents/apps/web/src/components/agents/agent-list-view.tsx | Delete button opens dialog; confirmation triggers DELETE API call; refreshes list on success | – | – |
+| [x] | T000 | Backport: Refactor AgentSessionAdapter to subfolder storage (`<id>/session.json`) | 2 | Refactor | – | /home/jak/substrate/015-better-agents/packages/workflow/src/adapters/agent-session.adapter.ts, /home/jak/substrate/015-better-agents/test/unit/workflow/agent-session-adapter.test.ts | Sessions stored at `agents/<id>/session.json`; existing tests updated; atomic delete possible | – | DYK-03: Enables atomic delete, future-proofs for additional per-session files |
+| [x] | T001 | Register agent adapters/services in web DI container using `useFactory` pattern | 2 | Setup | T000 | /home/jak/substrate/015-better-agents/apps/web/src/lib/di-container.ts | Container resolves AGENT_SESSION_ADAPTER, AGENT_SESSION_SERVICE, AGENT_EVENT_ADAPTER | – | Per Discovery 14 |
+| [x] | T002 | Write tests for + implement GET /api/workspaces/[slug]/agents route | 3 | Core | T001 | /home/jak/substrate/015-better-agents/apps/web/app/api/workspaces/[slug]/agents/route.ts, /home/jak/substrate/015-better-agents/test/integration/web/agents-api.test.ts | Returns all sessions for workspace; 404 on invalid workspace; has `dynamic = 'force-dynamic'` | – | Per Discovery 04 |
+| [x] | T003 | Write tests for + implement POST /api/workspaces/[slug]/agents (create session) | 2 | Core | T001 | /home/jak/substrate/015-better-agents/apps/web/app/api/workspaces/[slug]/agents/route.ts | Validates schema with Zod; saves session via service; returns { ok: true, session } | – | Same file as T002 |
+| [x] | T004 | Write tests for + implement DELETE /api/workspaces/[slug]/agents/[id] route | 2 | Core | T001, T000 | /home/jak/substrate/015-better-agents/apps/web/app/api/workspaces/[slug]/agents/[id]/route.ts | Hard delete via `fs.rm(agents/<id>/, { recursive: true })`; atomic folder delete; returns 204 | – | Per AC-14, Discovery 13; DYK-03: atomic delete |
+| [x] | T005 | Write tests for + implement GET /api/workspaces/[slug]/agents/[id]/events route | 3 | Core | T001 | /home/jak/substrate/015-better-agents/apps/web/app/api/workspaces/[slug]/agents/[id]/events/route.ts | Returns workspace-scoped events; supports ?since= parameter; NDJSON format | – | SSE integration point |
+| [x] | T005a | Create `useWorkspaceSSE` shared hook (EXEMPLAR) | 3 | Core | T005 | /home/jak/substrate/015-better-agents/apps/web/src/hooks/useWorkspaceSSE.ts | Generic workspace SSE primitive; accepts workspaceSlug + path; constructs /api/workspaces/${slug}/${path}; used by useServerSession | – | DYK-04: Exemplar for all workspace-scoped SSE; ADR seed created |
+| [x] | T005b | Update `useServerSession` to use `useWorkspaceSSE` with workspaceSlug param | 2 | Core | T005a | /home/jak/substrate/015-better-agents/apps/web/src/hooks/useServerSession.ts | Hook accepts optional workspaceSlug; delegates to useWorkspaceSSE; backwards compat for legacy callers | – | DYK-04 |
+| [⏭️] | T006 | Refactor AgentSessionStore to async server API (Big Bang - all callsites updated) | 4 | Core | T002, T003 | /home/jak/substrate/015-better-agents/apps/web/src/lib/stores/agent-session.store.ts, /home/jak/substrate/015-better-agents/apps/web/app/(dashboard)/agents/page.tsx | No localStorage; async API with workspaceSlug param; all 15+ callsites in /agents page updated; TDD headless tests first | – | SKIPPED: New pages use server-side fetching; old page redirects |
+| [x] | T007 | Create /workspaces/[slug]/agents page component (Server Component) | 3 | Core | T006 | /home/jak/substrate/015-better-agents/apps/web/app/(dashboard)/workspaces/[slug]/agents/page.tsx | Fetches sessions from server; displays list; handles loading/error/empty states; uses `notFound()` for invalid slug; has `dynamic = 'force-dynamic'` | – | Per Discovery 04, 11; DYK-02: use notFound() pattern |
+| [x] | T008 | Create /workspaces/[slug]/agents/[id] detail page with event stream | 3 | Core | T005b, T007 | /home/jak/substrate/015-better-agents/apps/web/app/(dashboard)/workspaces/[slug]/agents/[id]/page.tsx | Shows session metadata + event stream via useServerSession(sessionId, { workspaceSlug }); uses `notFound()` for invalid session; has `dynamic = 'force-dynamic'` | – | Reuse existing SSE components; DYK-02, DYK-04 |
+| [x] | T009 | Implement /agents redirect to first workspace with 307 + deprecation warning | 2 | Core | T007 | /home/jak/substrate/015-better-agents/apps/web/app/(dashboard)/agents/page.tsx | Redirects to /workspaces/[first-slug]/agents; logs console.warn deprecation; shows simple error if no workspaces (onboarding UX is future scope) | – | Per AC-15/AC-16, Discovery 15; DYK-02: simple error, not CTA |
+| [x] | T010 | Add "Agents" link to workspace detail page navigation | 1 | UI | T007 | /home/jak/substrate/015-better-agents/apps/web/app/(dashboard)/workspaces/[slug]/page.tsx | Workspace page shows "Agents" link; navigates to /workspaces/[slug]/agents | – | Follow existing Samples link pattern |
+| [x] | T011 | Simple delete confirmation dialog (no size display) | 1 | UI | – | /home/jak/substrate/015-better-agents/apps/web/src/components/agents/delete-session-dialog.tsx | Simple "cannot be undone" warning; confirm/cancel buttons; no size calculation | – | DYK-05: Simplified - data migration only, no UI enhancements |
+| [x] | T012 | Wire delete confirmation dialog to delete button in session list/detail | 1 | UI | T004, T011 | /home/jak/substrate/015-better-agents/apps/web/src/components/agents/agent-list-view.tsx | Delete button opens dialog; confirmation triggers DELETE API call; refreshes list on success | – | – |
 | [ ] | T013 | Write E2E test for full agent create → view → delete flow | 3 | Test | T007, T008, T012 | /home/jak/substrate/015-better-agents/test/e2e/agent-workspace-integration.test.ts | Test creates session in workspace; verifies file exists; deletes session; verifies removal | – | – |
 | [ ] | T014 | Manual smoke test: verify all routes work in dev mode | 1 | Verification | T013 | – | Start dev server; manually verify: /workspaces/[slug]/agents, /agents redirect, delete flow, SSE events | – | Integration checkpoint |
 
@@ -485,20 +495,28 @@ sequenceDiagram
 
 **Testing Approach**: Full TDD - write failing tests first, then implement
 
-| Test | Rationale | Fixture | Expected Output |
-|------|-----------|---------|-----------------|
-| `GET /api/.../agents returns sessions for workspace` | Verify workspace isolation | FakeAgentSessionAdapter with sessions for 2 workspaces | Only sessions from requested workspace |
-| `GET /api/.../agents returns 404 for invalid workspace` | Error handling | No workspace registered | 404 with `{ error: 'Workspace not found' }` |
-| `POST /api/.../agents creates session` | Verify session creation | Valid session input | 201 with `{ ok: true, session }` |
-| `POST /api/.../agents validates schema` | Reject invalid input | Invalid type field | 400 with validation errors |
-| `DELETE /api/.../agents/[id] removes session + events` | Hard delete verification | Existing session with events | 204, files deleted |
-| `GET /api/.../agents/[id]/events returns events` | Event retrieval | Session with 3 events | Array of 3 StoredAgentEvent |
-| `GET /api/.../agents/[id]/events?since= filters events` | Pagination support | Session with 5 events | Events after specified ID |
-| `AgentSessionStore.getAllSessions fetches from server` | localStorage replacement | Mock fetch | Sessions from API response |
-| `/workspaces/[slug]/agents displays sessions` | UI rendering | 2 sessions | List with 2 session cards |
-| `/agents redirects to first workspace` | Legacy redirect | 1 workspace registered | 307 redirect + console.warn |
-| `DeleteSessionDialog shows size and warning` | UX safeguard | Session with 2MB events | "2.0 MB", "cannot be undone" |
-| `E2E: create → view → delete` | Full integration | Clean workspace | Session lifecycle verified |
+**DYK-01 Decision**: Big Bang refactor with TDD-first headless validation
+- All AgentSessionStore changes + callsite updates done atomically
+- Headless unit/integration tests validate API changes before browser testing
+- Browser validation via Next.js MCP tools after headless tests pass
+- CS bumped from 3→4 due to ~15 callsite updates in /agents page
+
+| Test | Rationale | Fixture | Expected Output | Headless? |
+|------|-----------|---------|-----------------|-----------|
+| `GET /api/.../agents returns sessions for workspace` | Verify workspace isolation | FakeAgentSessionAdapter with sessions for 2 workspaces | Only sessions from requested workspace | ✅ |
+| `GET /api/.../agents returns 404 for invalid workspace` | Error handling | No workspace registered | 404 with `{ error: 'Workspace not found' }` | ✅ |
+| `POST /api/.../agents creates session` | Verify session creation | Valid session input | 201 with `{ ok: true, session }` | ✅ |
+| `POST /api/.../agents validates schema` | Reject invalid input | Invalid type field | 400 with validation errors | ✅ |
+| `DELETE /api/.../agents/[id] removes session + events` | Hard delete verification | Existing session with events | 204, files deleted | ✅ |
+| `GET /api/.../agents/[id]/events returns events` | Event retrieval | Session with 3 events | Array of 3 StoredAgentEvent | ✅ |
+| `GET /api/.../agents/[id]/events?since= filters events` | Pagination support | Session with 5 events | Events after specified ID | ✅ |
+| `AgentSessionStore.getAllSessions fetches from server` | Async API validation | Mock fetch (msw or vi.mock) | Sessions from API response | ✅ |
+| `AgentSessionStore.saveSession posts to server` | Async API validation | Mock fetch | 201 response handled | ✅ |
+| `AgentSessionStore.deleteSession calls DELETE` | Async API validation | Mock fetch | 204 response handled | ✅ |
+| `/workspaces/[slug]/agents displays sessions` | UI rendering | 2 sessions | List with 2 session cards | 🌐 Browser |
+| `/agents redirects to first workspace` | Legacy redirect | 1 workspace registered | 307 redirect + console.warn | 🌐 Browser |
+| `DeleteSessionDialog shows size and warning` | UX safeguard | Session with 2MB events | "2.0 MB", "cannot be undone" | ✅ (RTL) |
+| `E2E: create → view → delete` | Full integration | Clean workspace | Session lifecycle verified | 🌐 Browser |
 
 ### Step-by-Step Implementation Outline
 
@@ -658,3 +676,152 @@ docs/plans/018-agents-workspace-data-model/
           ├── tasks.md
           └── execution.log.md  # created by plan-6
 ```
+
+---
+
+## Critical Insights Discussion
+
+**Session**: 2026-01-28 08:07 UTC
+**Context**: Phase 3: Web UI Integration - Tasks & Alignment Brief
+**Analyst**: AI Clarity Agent
+**Reviewer**: Development Team
+**Format**: Water Cooler Conversation (5 Critical Insights)
+
+### Insight 1: AgentSessionStore API Breaking Change Cascade
+
+**Did you know**: Refactoring AgentSessionStore from localStorage to server API changes the contract from synchronous to asynchronous, breaking all ~15 callsites in the existing agents page.
+
+**Implications**:
+- Every method gains a `workspaceSlug` parameter
+- Every method becomes async (returns Promise)
+- Constructor signature changes
+- All callsites in `/agents` page need updating
+
+**Options Considered**:
+- Option A: Big Bang Refactor - update all at once
+- Option B: Create new store, deprecate old
+- Option C: Adapter pattern with interface
+
+**AI Recommendation**: Option B - Create New Store, Deprecate Old
+
+**Discussion Summary**: Team chose Option A (Big Bang) with TDD-first validation. Headless tests catch API changes before browser testing, then browser validation via Next.js MCP tools.
+
+**Decision**: Big Bang Refactor with TDD-first headless validation
+
+**Affects**: T006, Test Plan section
+
+---
+
+### Insight 2: No Workspace Registered Edge Case
+
+**Did you know**: If a user has no workspaces registered, the `/agents` redirect will fail, and workspace-scoped pages assume workspace always exists.
+
+**Implications**:
+- `/agents` redirect to undefined workspace → 404
+- Direct navigation to invalid slug → another 404
+- Need consistent error handling pattern
+
+**Options Considered**:
+- Option A: Guard in /agents redirect only
+- Option B: Centralized RequireWorkspace wrapper component
+- Option C: Error Boundary + notFound()
+
+**AI Recommendation**: Option C - Error Boundary + notFound()
+
+**Discussion Summary**: Team agreed to use notFound() pattern. Simple error for no workspaces - onboarding UX is future scope.
+
+**Decision**: Use notFound() for invalid workspace; simple error if no workspaces
+
+**Affects**: T007, T008, T009
+
+---
+
+### Insight 3: Delete Flow Race Condition Between Session and Events
+
+**Did you know**: Phase 1 stores sessions as flat files (`agents/<id>.json`) but Phase 2 stores events in subfolders (`agents/<id>/events.ndjson`) - inconsistent layout creates delete complexity.
+
+**Implications**:
+- Two-path delete (file + folder) has race condition risk
+- Orphaned files possible if one delete fails
+- Future per-session files need consistent location
+
+**Options Considered**:
+- Option A: Accept current layout, do two deletes
+- Option B: Refactor Phase 1 to subfolder storage
+
+**AI Recommendation**: Option B - Refactor to subfolder storage
+
+**Discussion Summary**: Team agreed - sessions should be contained under subfolders for future extensibility.
+
+**Decision**: Backport Phase 1 adapter to `agents/<id>/session.json` subfolder structure
+
+**Affects**: Phase 1 adapter (backport), T000, T004
+
+---
+
+### Insight 4: SSE Event Streaming Has Workspace Context Gap
+
+**Did you know**: The existing `useServerSession` hook doesn't support workspace context, and this pattern will be needed by all workspace-scoped domains (samples, prompts, workflows).
+
+**Implications**:
+- Current hook hardcodes legacy `/api/agents/events` endpoint
+- No workspace-scoped URL construction
+- Future domains will need same pattern
+
+**Options Considered**:
+- Option A: Update useServerSession with workspaceSlug parameter
+- Option B: Create new useWorkspaceSession hook
+- Option C: Pass URL directly to hook
+
+**AI Recommendation**: Option A+ - Layered hooks with shared `useWorkspaceSSE` primitive
+
+**Discussion Summary**: Team agreed to build shared primitive. Created ADR-0009 seed for workspace-scoped SSE hooks architecture.
+
+**Decision**: Create `useWorkspaceSSE` as shared primitive (exemplar), update `useServerSession` to use it
+
+**Affects**: T005a, T005b, T008, ADR-0009
+
+---
+
+### Insight 5: Scope Clarification - Data Migration Only
+
+**Did you know**: The session size display in delete dialog was in the original tasks, but this phase is about data backend migration, not UI enhancements.
+
+**Implications**:
+- Size display requires new adapter method + API endpoint
+- Adds complexity not aligned with phase goals
+- Simple confirmation is sufficient
+
+**Options Considered**:
+- Option A: Add getSize() to adapter
+- Option B: Keep it simple - no size display
+
+**AI Recommendation**: Option B - Keep it simple
+
+**Discussion Summary**: Team confirmed scope is data migration only. Simple "cannot be undone" confirmation is sufficient.
+
+**Decision**: Simplify T011 - remove size display, simple confirmation only
+
+**Affects**: T011
+
+---
+
+## Session Summary
+
+**Insights Surfaced**: 5 critical insights identified and discussed
+**Decisions Made**: 5 decisions reached through collaborative discussion
+**Files Updated**: 2 (tasks.md, ADR-0009 created)
+
+**Shared Understanding Achieved**: ✓
+
+**Confidence Level**: High
+
+**Next Steps**:
+1. Begin implementation with T000 (backport subfolder storage)
+2. Proceed through T001-T014 in dependency order
+3. Use TDD-first headless validation, browser validation via Next.js MCP
+
+**Notes**:
+- Total tasks now: 17 (T000-T014 + T005a + T005b)
+- ADR-0009 is a seed - promote to full ADR after implementation validates pattern
+- Scope is data backend migration only - no UI enhancements

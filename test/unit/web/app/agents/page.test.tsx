@@ -1,132 +1,45 @@
 /**
  * Agents Page Tests
  *
- * Integration tests for the standalone /agents page.
- * Implements Full TDD for Phase 2: Core Chat.
+ * Tests for the /agents redirect page.
+ * The page redirects to /workspaces/[slug]/agents.
  *
- * Part of Plan 012: Multi-Agent Web UI (Phase 2: Core Chat)
- * Updated in Plan 015: Better Agents (Phase 5: Integration) - Added QueryClient wrapper
+ * Part of Plan 018: Agent Workspace Data Model Migration (Phase 3)
+ * NOTE: This page is now a Server Component that redirects to workspace-scoped agents.
+ * The original page tests (for Plan 012/015) have been removed as the page was replaced.
  */
 
-import { AgentSessionStore } from '@/lib/stores/agent-session.store';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { FakeLocalStorage } from '@test/fakes/fake-local-storage';
-import { act, render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import type { ReactNode } from 'react';
-import { beforeEach, describe, expect, it } from 'vitest';
-// Use relative import since @/ maps to src/, not app/
-import AgentsPage from '../../../../../apps/web/app/(dashboard)/agents/page';
+import { describe, expect, it } from 'vitest';
 
-// ============ Test Wrapper with QueryClient ============
+// ============ /agents Redirect Page Tests ============
+// These tests document the expected behavior but the actual redirect happens server-side.
+// Testing server-side redirects requires e2e/integration testing with Next.js.
 
-const createTestQueryClient = () =>
-  new QueryClient({
-    defaultOptions: {
-      queries: {
-        retry: false,
-      },
-    },
-  });
-
-function TestWrapper({ children }: { children: ReactNode }) {
-  const queryClient = createTestQueryClient();
-  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
-}
-
-// ============ T017: /agents Page Tests ============
-
-describe('AgentsPage', () => {
-  let fakeStorage: FakeLocalStorage;
-  let store: AgentSessionStore;
-
-  beforeEach(() => {
-    fakeStorage = new FakeLocalStorage();
-    store = new AgentSessionStore(fakeStorage);
-  });
-
-  describe('page rendering', () => {
-    it('should render the page title', () => {
-      /*
-      Test Doc:
-      - Why: Users need to know they're on the agents page
-      - Contract: Page has "Agents" title/heading
-      - Usage Notes: Main page heading
-      - Quality Contribution: Basic page structure
-      - Worked Example: page renders → "Agents" heading visible
-      */
-      render(<AgentsPage />, { wrapper: TestWrapper });
-
-      expect(screen.getByRole('heading', { name: /agents/i })).toBeInTheDocument();
+describe('AgentsPage (redirect)', () => {
+  describe('expected behavior (documented, not unit tested)', () => {
+    it.skip('should redirect to first workspace agents page', () => {
+      // This is a server component that:
+      // 1. Lists workspaces via IWorkspaceService.list()
+      // 2. If workspaces exist, redirects to /workspaces/[first-slug]/agents
+      // 3. If no workspaces, shows a simple error message
+      //
+      // Unit testing this requires mocking the DI container and Next.js redirect().
+      // See e2e tests for actual integration testing.
+      expect(true).toBe(true);
     });
 
-    it('should render agent creation form', () => {
-      /*
-      Test Doc:
-      - Why: Users need to create new sessions
-      - Contract: AgentCreationForm is present
-      - Usage Notes: In sidebar or prominent location
-      - Quality Contribution: Creation workflow
-      - Worked Example: page renders → form visible
-      */
-      render(<AgentsPage />, { wrapper: TestWrapper });
-
-      expect(screen.getByLabelText(/name/i)).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /create/i })).toBeInTheDocument();
+    it.skip('should show error if no workspaces exist', () => {
+      // When no workspaces are registered, the page shows a simple error:
+      // "No workspaces configured. Please add a workspace first."
+      //
+      // Per DYK-02: Simple error, not a CTA to create workspace.
+      expect(true).toBe(true);
     });
 
-    it('should show empty state when no sessions', () => {
-      /*
-      Test Doc:
-      - Why: New users see helpful empty state
-      - Contract: Shows "no sessions" message when store is empty
-      - Usage Notes: Encourages first session creation
-      - Quality Contribution: New user experience
-      - Worked Example: no sessions → empty state visible
-      */
-      render(<AgentsPage />, { wrapper: TestWrapper });
-
-      expect(screen.getByText(/no sessions/i)).toBeInTheDocument();
-    });
-  });
-
-  describe('session creation', () => {
-    it('should create new session when form is submitted', async () => {
-      /*
-      Test Doc:
-      - Why: Core feature - create new agent sessions
-      - Contract: Form submit creates session and adds to list
-      - Usage Notes: Session appears in list after creation
-      - Quality Contribution: Creation flow works
-      - Worked Example: fill form + submit → session in list
-      */
-      const user = userEvent.setup();
-      render(<AgentsPage />, { wrapper: TestWrapper });
-
-      // Fill form
-      await user.type(screen.getByLabelText(/name/i), 'My New Session');
-
-      // Submit
-      await user.click(screen.getByRole('button', { name: /create/i }));
-
-      // Session should appear (in list and header) - use getAllByText since it appears twice
-      expect(screen.getAllByText('My New Session').length).toBeGreaterThanOrEqual(1);
-    });
-  });
-
-  describe('layout', () => {
-    it('should have accessible page structure', () => {
-      /*
-      Test Doc:
-      - Why: Screen readers need proper page structure
-      - Contract: Main landmark region present
-      - Usage Notes: Uses main element
-      - Quality Contribution: Page accessibility
-      - Worked Example: main landmark present
-      */
-      render(<AgentsPage />, { wrapper: TestWrapper });
-
-      expect(screen.getByRole('main')).toBeInTheDocument();
+    it.skip('should log deprecation warning', () => {
+      // Console.warn is called with:
+      // "[/agents] DEPRECATED: /agents is deprecated. Redirecting to /workspaces/..."
+      expect(true).toBe(true);
     });
   });
 });

@@ -8,7 +8,7 @@
 
 import { WORKSPACE_DI_TOKENS } from '@chainglass/shared';
 import type { IWorkspaceService } from '@chainglass/workflow';
-import { ArrowRight, FolderOpen, GitBranch } from 'lucide-react';
+import { ArrowRight, Bot, FolderOpen, GitBranch } from 'lucide-react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { WorkspaceRemoveButton } from '../../../../src/components/workspaces/workspace-remove-button';
@@ -93,6 +93,7 @@ export default async function WorkspaceDetailPage({ params }: PageProps) {
             {info.worktrees.map((worktree) => {
               const label = worktree.branch || (worktree.isDetached ? 'detached HEAD' : 'unknown');
               const samplesUrl = `/workspaces/${slug}/samples?worktree=${encodeURIComponent(worktree.path)}`;
+              const agentsUrl = `/workspaces/${slug}/agents?worktree=${encodeURIComponent(worktree.path)}`;
 
               return (
                 <div
@@ -106,13 +107,22 @@ export default async function WorkspaceDetailPage({ params }: PageProps) {
                       <code className="text-xs text-muted-foreground">{worktree.path}</code>
                     </div>
                   </div>
-                  <Link
-                    href={samplesUrl}
-                    className="flex items-center gap-1 text-sm text-primary hover:underline"
-                  >
-                    View Samples
-                    <ArrowRight className="h-4 w-4" />
-                  </Link>
+                  <div className="flex items-center gap-4">
+                    <Link
+                      href={agentsUrl}
+                      className="flex items-center gap-1 text-sm text-primary hover:underline"
+                    >
+                      <Bot className="h-4 w-4" />
+                      Agents
+                    </Link>
+                    <Link
+                      href={samplesUrl}
+                      className="flex items-center gap-1 text-sm text-primary hover:underline"
+                    >
+                      Samples
+                      <ArrowRight className="h-4 w-4" />
+                    </Link>
+                  </div>
                 </div>
               );
             })}
