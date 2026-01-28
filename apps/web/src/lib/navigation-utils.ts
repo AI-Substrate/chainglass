@@ -11,6 +11,7 @@ import {
   Bot,
   Code,
   FileText,
+  FolderOpen,
   GitBranch,
   GitCompare,
   Home,
@@ -48,6 +49,7 @@ export type NavigationMode = 'phone' | 'desktop';
 export const NAV_ITEMS: readonly NavItem[] = [
   { id: 'home', label: 'Home', href: '/', icon: Home },
   { id: 'workflows', label: 'Workflows', href: '/workflows', icon: ListChecks },
+  { id: 'workspaces', label: 'Workspaces', href: '/workspaces', icon: FolderOpen },
   { id: 'workflow', label: 'Workflow Visualization', href: '/workflow', icon: GitBranch },
   { id: 'kanban', label: 'Kanban Board', href: '/kanban', icon: LayoutDashboard },
   { id: 'agents', label: 'Agents', href: '/agents', icon: Bot },

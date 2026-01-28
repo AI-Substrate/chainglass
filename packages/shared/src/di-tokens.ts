@@ -22,6 +22,8 @@ export const SHARED_DI_TOKENS = {
   OUTPUT_ADAPTER: 'IOutputAdapter',
   /** IYamlParser interface (per Phase 2: moved from workflow) */
   YAML_PARSER: 'IYamlParser',
+  /** IProcessManager interface (for git operations) */
+  PROCESS_MANAGER: 'IProcessManager',
 } as const;
 
 /**
@@ -47,6 +49,28 @@ export const WORKFLOW_DI_TOKENS = {
   WORKFLOW_ADAPTER: 'IWorkflowAdapter',
   /** IPhaseAdapter interface (per Plan 010: Entity Upgrade) */
   PHASE_ADAPTER: 'IPhaseAdapter',
+} as const;
+
+/**
+ * DI tokens for workspace-related interfaces.
+ *
+ * Per Plan 014: Workspaces - Phase 4: Service Layer + DI Integration
+ * Per DYK-P4-02: Separate from WORKFLOW_DI_TOKENS as workflow will be deprecated.
+ * Per ADR-0004 IMP-006: Token naming convention uses interface name as value.
+ */
+export const WORKSPACE_DI_TOKENS = {
+  /** IWorkspaceRegistryAdapter interface */
+  WORKSPACE_REGISTRY_ADAPTER: 'IWorkspaceRegistryAdapter',
+  /** IWorkspaceContextResolver interface */
+  WORKSPACE_CONTEXT_RESOLVER: 'IWorkspaceContextResolver',
+  /** IGitWorktreeResolver interface */
+  GIT_WORKTREE_RESOLVER: 'IGitWorktreeResolver',
+  /** ISampleAdapter interface */
+  SAMPLE_ADAPTER: 'ISampleAdapter',
+  /** IWorkspaceService interface */
+  WORKSPACE_SERVICE: 'IWorkspaceService',
+  /** ISampleService interface */
+  SAMPLE_SERVICE: 'ISampleService',
 } as const;
 
 /**

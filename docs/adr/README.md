@@ -13,7 +13,8 @@ Architecture Decision Records (ADRs) document significant architectural decision
 | 0005 | [Next.js MCP Developer Experience Loop](./adr-0005-nextjs-mcp-developer-experience-loop.md) | 2026-01-25 | Accepted | - | - |
 | 0006 | [CLI-Based Workflow Agent Orchestration Pattern](./adr-0006-cli-based-workflow-agent-orchestration.md) | 2026-01-26 | Accepted | - | - | **Exemplar for web system** |
 | 0007 | [SSE Single-Channel Event Routing Pattern](./adr-0007-sse-single-channel-routing.md) | 2026-01-26 | Accepted | - | - | **Exemplar for multi-session SSE** |
-| 0008 | [Module Registration Function Pattern](./adr-0008-module-registration-function-pattern.md) | 2026-01-28 | Accepted | - | - | Extends ADR-0004 for module composition |
+| 0008 | [Workspace Split Storage Data Model](./adr-0008-workspace-split-storage-data-model.md) | 2026-01-27 | Accepted | - | - | Git-native per-worktree data architecture |
+| 0009 | [Module Registration Function Pattern](./adr-0009-module-registration-function-pattern.md) | 2026-01-28 | Accepted | - | - | Extends ADR-0004 for module composition |
 
 ## ADR Format
 
