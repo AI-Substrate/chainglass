@@ -12,19 +12,19 @@
 This phase adds workspace context resolution to all workgraph CLI commands (`cg wg` and `cg unit`), enabling users to operate on workspace-scoped data. Without this, CLI commands cannot locate the correct `.chainglass/data/` directory for the user's current worktree.
 
 ### What We're Building
-A `--worktree <path>` flag on all workgraph and unit CLI commands that:
+A `--workspace-path <path>` flag on all workgraph and unit CLI commands that:
 - Resolves workspace context from CWD when flag is omitted
 - Overrides with explicit path when flag is provided
 - Passes resolved `WorkspaceContext` to all service calls
 - Shows clear error (E074) with remediation advice when context is missing
 
 ### User Value
-Users can run `cg wg create my-graph` from any registered workspace and have their data stored in the correct worktree-specific location. Power users can operate on different workspaces by providing `--worktree /path/to/other/workspace`.
+Users can run `cg wg create my-graph` from any registered workspace and have their data stored in the correct worktree-specific location. Power users can operate on different workspaces by providing `--workspace-path /path/to/other/workspace`.
 
 ### Example
 **Before**: `cg wg create test` → Creates in hardcoded `.chainglass/work-graphs/test/`
 **After**: `cg wg create test` → Creates in `<worktreePath>/.chainglass/data/work-graphs/test/`
-**Override**: `cg wg create test --worktree /other/project` → Creates in `/other/project/.chainglass/data/work-graphs/test/`
+**Override**: `cg wg create test --workspace-path /other/project` → Creates in `/other/project/.chainglass/data/work-graphs/test/`
 
 ---
 
@@ -34,8 +34,8 @@ Users can run `cg wg create my-graph` from any registered workspace and have the
 Add workspace context resolution to all workgraph CLI commands as specified in the plan acceptance criteria.
 
 **Behavior Checklist** (from plan Phase 4):
-- [ ] All `cg wg` commands accept `--worktree <path>` flag
-- [ ] All `cg unit` commands accept `--worktree <path>` flag
+- [ ] All `cg wg` commands accept `--workspace-path <path>` flag
+- [ ] All `cg unit` commands accept `--workspace-path <path>` flag
 - [ ] Context resolution follows `sample.command.ts` pattern
 - [ ] E074 error shown with helpful message when context missing
 - [ ] Commands work when CWD is in registered workspace
@@ -43,9 +43,9 @@ Add workspace context resolution to all workgraph CLI commands as specified in t
 ### Goals
 
 - ✅ Add `resolveOrOverrideContext()` helper to workgraph command file
-- ✅ Add `--worktree` option to all `cg wg` commands (create, show, status, node subcommands)
+- ✅ Add `--workspace-path` option to all `cg wg` commands (create, show, status, node subcommands)
 - ✅ Update all `cg wg` handlers to resolve and pass ctx to services
-- ✅ Add `--worktree` option to all `cg unit` commands (list, info, create, validate)
+- ✅ Add `--workspace-path` option to all `cg unit` commands (list, info, create, validate)
 - ✅ Update all `cg unit` handlers to resolve and pass ctx to services
 - ✅ Add E074 error handling for missing context with helpful remediation message
 - ✅ Verify CLI works from workspace CWD
@@ -80,15 +80,15 @@ flowchart TD
     style Shared fill:#F3E5F5,stroke:#9C27B0
 
     subgraph Phase["Phase 4: CLI Integration"]
-        T001["T001: Add ctx helper to workgraph.command.ts"]:::pending
-        T002["T002: Add --worktree to wg commands"]:::pending
-        T003["T003: Update wgCreate handler"]:::pending
-        T004["T004: Update wgShow/wgStatus handlers"]:::pending
-        T005["T005: Update node command handlers"]:::pending
-        T006["T006: Add --worktree to unit commands"]:::pending
-        T007["T007: Update unit handlers"]:::pending
-        T008["T008: Add E074 error handling"]:::pending
-        T009["T009: Manual CLI verification"]:::pending
+        T001["T001: Add ctx helper to workgraph.command.ts ✓"]:::completed
+        T002["T002: Add --workspace-path to wg commands ✓"]:::completed
+        T003["T003: Update wgCreate handler ✓"]:::completed
+        T004["T004: Update wgShow/wgStatus handlers ✓"]:::completed
+        T005["T005: Update node command handlers ✓"]:::completed
+        T006["T006: Add --workspace-path to unit commands ✓"]:::completed
+        T007["T007: Update unit handlers ✓"]:::completed
+        T008["T008: Add E074 error handling ✓"]:::completed
+        T009["T009: Manual CLI verification ✓"]:::completed
 
         T001 --> T002 --> T003
         T003 --> T004 --> T005
@@ -100,11 +100,11 @@ flowchart TD
     end
 
     subgraph WgCommands["WorkGraph Commands"]
-        WG1["/apps/cli/src/commands/workgraph.command.ts"]:::pending
+        WG1["/apps/cli/src/commands/workgraph.command.ts ✓"]:::completed
     end
 
     subgraph UnitCommands["Unit Commands"]
-        UN1["/apps/cli/src/commands/unit.command.ts"]:::pending
+        UN1["/apps/cli/src/commands/unit.command.ts ✓"]:::completed
     end
 
     subgraph Shared["Shared Dependencies"]
@@ -134,15 +134,16 @@ flowchart TD
 
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
-| T001 | Context Helper | /apps/cli/src/commands/workgraph.command.ts | ⬜ Pending | Add resolveOrOverrideContext() following sample.command.ts pattern |
-| T002 | WG Option Registration | /apps/cli/src/commands/workgraph.command.ts | ⬜ Pending | Add --worktree option to all wg commands |
-| T003 | WG Create Handler | /apps/cli/src/commands/workgraph.command.ts | ⬜ Pending | Update handleWgCreate to resolve ctx and pass to service |
-| T004 | WG Show/Status Handlers | /apps/cli/src/commands/workgraph.command.ts | ⬜ Pending | Update handleWgShow, handleWgStatus handlers |
-| T005 | Node Command Handlers | /apps/cli/src/commands/workgraph.command.ts | ⬜ Pending | Update all 18 node command handlers |
-| T006 | Unit Option Registration | /apps/cli/src/commands/unit.command.ts | ⬜ Pending | Add --worktree option to all unit commands |
-| T007 | Unit Handlers | /apps/cli/src/commands/unit.command.ts | ⬜ Pending | Update all 4 unit handlers to resolve ctx |
-| T008 | E074 Error Handling | Both command files | ⬜ Pending | Add consistent error handling with helpful message |
-| T009 | Manual Verification | N/A | ⬜ Pending | Test CLI from workspace CWD |
+| T001 | Context Helper | /apps/cli/src/commands/workgraph.command.ts | ✅ Complete | Added resolveOrOverrideContext() following sample.command.ts pattern |
+| T002 | WG Option Registration | /apps/cli/src/commands/workgraph.command.ts | ✅ Complete | Added --workspace-path option to all wg commands |
+| T003 | WG Create Handler | /apps/cli/src/commands/workgraph.command.ts | ✅ Complete | Updated handleWgCreate to resolve ctx and pass to service |
+| T004 | WG Show/Status Handlers | /apps/cli/src/commands/workgraph.command.ts | ✅ Complete | Updated handleWgShow, handleWgStatus handlers |
+| T005 | Node Command Handlers | /apps/cli/src/commands/workgraph.command.ts | ✅ Complete | Updated all 18 node command handlers |
+| T005a | BootstrapPromptService DI | /packages/shared/src/di-tokens.ts, /packages/workgraph/src/container.ts | ✅ Complete | Registered BootstrapPromptService in DI per ADR-0004 |
+| T006 | Unit Option Registration | /apps/cli/src/commands/unit.command.ts | ✅ Complete | Added --workspace-path option to all unit commands |
+| T007 | Unit Handlers | /apps/cli/src/commands/unit.command.ts | ✅ Complete | Updated all 4 unit handlers to resolve ctx |
+| T008 | E074 Error Handling | Both command files | ✅ Complete | Added consistent error handling with helpful message |
+| T009 | Manual Verification | N/A | ✅ Complete | Tested CLI from /tmp (E074), with --workspace-path, and from workspace CWD |
 
 ---
 
@@ -150,15 +151,16 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|------|------|-----|------|--------------|------------------|------------|----------|-------|
-| [ ] | T001 | Add imports and resolveOrOverrideContext() helper to workgraph.command.ts following sample.command.ts pattern (lines 113-117) | 2 | Setup | – | /home/jak/substrate/021-workgraph-workspaces-upgrade/apps/cli/src/commands/workgraph.command.ts | Helper compiles, returns WorkspaceContext or null | – | Per Critical Discovery 03 |
-| [ ] | T002 | Add `--worktree <path>` option to all BaseOptions interface and wg command registrations (create, show, status) | 2 | Core | T001 | /home/jak/substrate/021-workgraph-workspaces-upgrade/apps/cli/src/commands/workgraph.command.ts | Option parsed, available in options object | – | |
-| [ ] | T003 | Update handleWgCreate handler to resolve context and pass ctx to service.create() | 2 | Core | T002 | /home/jak/substrate/021-workgraph-workspaces-upgrade/apps/cli/src/commands/workgraph.command.ts | Service called with ctx as first param | – | |
-| [ ] | T004 | Update handleWgShow and handleWgStatus handlers to resolve context and pass ctx | 2 | Core | T003 | /home/jak/substrate/021-workgraph-workspaces-upgrade/apps/cli/src/commands/workgraph.command.ts | Both handlers use ctx | – | |
-| [ ] | T005 | Update all node command handlers (18 handlers) to resolve context and pass ctx to services | 3 | Core | T004 | /home/jak/substrate/021-workgraph-workspaces-upgrade/apps/cli/src/commands/workgraph.command.ts | All node handlers pass ctx; exec handler passes ctx to BootstrapPromptService.generate() | – | Large scope: add-after, remove, exec, start, end, can-run, can-end, list-inputs, list-outputs, get-input-data, get-input-file, get-output-data, save-output-data, save-output-file, ask, answer, get-answer |
-| [ ] | T006 | Add imports and resolveOrOverrideContext() helper to unit.command.ts, add --worktree option to all unit commands | 2 | Core | T001 | /home/jak/substrate/021-workgraph-workspaces-upgrade/apps/cli/src/commands/unit.command.ts | Helper exists, option parsed on list, info, create, validate | – | |
-| [ ] | T007 | Update all unit handlers (list, info, create, validate) to resolve context and pass ctx | 2 | Core | T006 | /home/jak/substrate/021-workgraph-workspaces-upgrade/apps/cli/src/commands/unit.command.ts | All 4 handlers pass ctx to service calls | – | |
-| [ ] | T008 | Add E074 error handling with remediation message pattern to both command files | 2 | Core | T003, T007 | /home/jak/substrate/021-workgraph-workspaces-upgrade/apps/cli/src/commands/workgraph.command.ts, /home/jak/substrate/021-workgraph-workspaces-upgrade/apps/cli/src/commands/unit.command.ts | Missing context shows E074 with "Run: cg workspace list" advice | – | Per Critical Discovery 08 |
-| [ ] | T009 | Manual verification: test CLI from workspace CWD and with --worktree flag | 1 | Validation | T005, T008 | N/A | Commands work from workspace CWD; --worktree overrides context | – | |
+| [x] | T001 | Add imports and resolveOrOverrideContext() helper to workgraph.command.ts following sample.command.ts pattern (lines 113-117) | 2 | Setup | – | /home/jak/substrate/021-workgraph-workspaces-upgrade/apps/cli/src/commands/workgraph.command.ts | Helper compiles, returns WorkspaceContext or null | – | Per Critical Discovery 03 |
+| [x] | T002 | Add `--workspace-path <path>` option to BaseOptions interface, wg commands (create, show, status), AND `node` subcommand group | 2 | Core | T001 | /home/jak/substrate/021-workgraph-workspaces-upgrade/apps/cli/src/commands/workgraph.command.ts | Option parsed, available in options object for all commands including node subcommands | – | Add to `node` parent for inheritance. **FALLBACK**: If Commander.js doesn't propagate option to node subcommands, add `.option()` to each of the 18 node subcommands explicitly |
+| [x] | T003 | Update handleWgCreate handler to resolve context and pass ctx to service.create() | 2 | Core | T002 | /home/jak/substrate/021-workgraph-workspaces-upgrade/apps/cli/src/commands/workgraph.command.ts | Service called with ctx as first param | – | |
+| [x] | T004 | Update handleWgShow and handleWgStatus handlers to resolve context and pass ctx | 2 | Core | T003 | /home/jak/substrate/021-workgraph-workspaces-upgrade/apps/cli/src/commands/workgraph.command.ts | Both handlers use ctx | – | |
+| [x] | T005 | Update all node command handlers (18 handlers) to resolve context and pass ctx to services | 2 | Core | T004, T005a | /home/jak/substrate/021-workgraph-workspaces-upgrade/apps/cli/src/commands/workgraph.command.ts | All node handlers pass ctx; exec handler resolves BootstrapPromptService from DI | – | 18 handlers but same pattern - mechanical repetition; exec handler uses DI-resolved service |
+| [x] | T005a | Register BootstrapPromptService in DI container with token WORKGRAPH_DI_TOKENS.BOOTSTRAP_PROMPT_SERVICE | 2 | Setup | T001 | /home/jak/substrate/021-workgraph-workspaces-upgrade/packages/shared/src/di-tokens.ts, /home/jak/substrate/021-workgraph-workspaces-upgrade/packages/workgraph/src/container.ts | Token exists, service registered, resolvable from container | – | Per ADR-0004: Services resolved from containers, not instantiated directly |
+| [x] | T006 | Add imports and resolveOrOverrideContext() helper to unit.command.ts, add --workspace-path option to all unit commands | 2 | Core | T001 | /home/jak/substrate/021-workgraph-workspaces-upgrade/apps/cli/src/commands/unit.command.ts | Helper exists, option parsed on list, info, create, validate | – | |
+| [x] | T007 | Update all unit handlers (list, info, create, validate) to resolve context and pass ctx | 2 | Core | T006 | /home/jak/substrate/021-workgraph-workspaces-upgrade/apps/cli/src/commands/unit.command.ts | All 4 handlers pass ctx to service calls | – | |
+| [x] | T008 | Add E074 error handling with remediation message pattern to both command files | 2 | Core | T003, T007 | /home/jak/substrate/021-workgraph-workspaces-upgrade/apps/cli/src/commands/workgraph.command.ts, /home/jak/substrate/021-workgraph-workspaces-upgrade/apps/cli/src/commands/unit.command.ts | Missing context shows E074 with "Run: cg workspace list" advice | – | Per Critical Discovery 08 |
+| [x] | T009 | Manual verification: test CLI from workspace CWD and with --workspace-path flag | 1 | Validation | T005, T008 | N/A | Commands work from workspace CWD; --workspace-path overrides context | – | |
 
 ---
 
@@ -264,7 +266,7 @@ flowchart TD
 
 - **Context Required**: All service calls MUST include ctx as first parameter
 - **Error Code**: Missing context MUST return E074, not new error codes
-- **Flag Name**: Use `--worktree` (not `--workspace-path`) per plan specification
+- **Flag Name**: Use `--workspace-path` (matching sample.command.ts for consistency)
 - **Helper Pattern**: Use `resolveOrOverrideContext(options.worktree)` pattern
 - **Exit Behavior**: Missing context → print E074 error → `process.exit(1)`
 
@@ -283,7 +285,7 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    A[User runs CLI command] --> B{--worktree flag?}
+    A[User runs CLI command] --> B{--workspace-path flag?}
     B -->|Yes| C[Use provided path]
     B -->|No| D[Use process.cwd]
     C --> E[resolveOrOverrideContext]
@@ -331,14 +333,14 @@ Phase 4 focuses on CLI integration; formal test suite updates deferred to Phase 
 
 **Validation Strategy for Phase 4:**
 1. TypeScript compilation passes
-2. Commands parse --worktree flag correctly (manual test)
+2. Commands parse --workspace-path flag correctly (manual test)
 3. E074 error appears when outside workspace (manual test)
 4. Service calls receive ctx parameter (verified by type system)
 
 **Tests to Add in Phase 5:**
 | Test | Rationale | Fixture |
 |------|-----------|---------|
-| wg create with --worktree | Verifies flag override works | FakeWorkGraphService |
+| wg create with --workspace-path | Verifies flag override works | FakeWorkGraphService |
 | wg create without context | Verifies E074 error | Mock resolver returning null |
 | unit list with context | Verifies ctx passed to list() | FakeWorkUnitService |
 
@@ -350,9 +352,9 @@ Phase 4 focuses on CLI integration; formal test suite updates deferred to Phase 
    - Add `getWorkspaceService()` helper (copy from sample.command.ts)
    - Add `resolveOrOverrideContext()` helper (copy from sample.command.ts)
 
-2. **T002**: Add --worktree option to interfaces and registrations
+2. **T002**: Add --workspace-path option to interfaces and registrations
    - Update `BaseOptions` interface to include `worktree?: string`
-   - Add `.option('--worktree <path>', 'Override workspace context')` to wg commands
+   - Add `.option('--workspace-path <path>', 'Override workspace context')` to wg commands
 
 3. **T003-T004**: Update graph command handlers
    - Add ctx resolution at start of each handler
@@ -373,20 +375,21 @@ Phase 4 focuses on CLI integration; formal test suite updates deferred to Phase 
 
 7. **T009**: Manual verification
    - Test from workspace CWD
-   - Test with --worktree flag
+   - Test with --workspace-path flag
    - Test outside workspace (expect E074)
 
 ### Commands to Run
 
 ```bash
-# Verify TypeScript compiles
-just typecheck
+# ⚠️ PHASE 4 WORKFLOW: Skip full test suite (129 pre-existing failures from Phase 2-3)
+# Use this instead of `just fft`:
+just lint && just format && just typecheck
 
 # Build to verify no circular deps
 pnpm build
 
-# Run existing tests (expect some failures from Phase 2-3 scope)
-just test
+# Run ONLY the passing tests (contract + isolation)
+pnpm vitest run test/unit/workgraph/interface-contracts.test.ts test/unit/workgraph/fake-workspace-isolation.test.ts
 
 # Manual CLI verification (after implementation)
 cd /path/to/registered/workspace
@@ -394,8 +397,8 @@ cg wg create test-cli-integration
 cg wg show test-cli-integration
 cg unit list
 
-# Test --worktree flag
-cg wg create test-override --worktree /other/workspace
+# Test --workspace-path flag
+cg wg create test-override --workspace-path /other/workspace
 
 # Test E074 error (run from non-workspace directory)
 cd /tmp
@@ -403,12 +406,14 @@ cg wg create should-fail
 # Expected: E074 error with "Run: cg workspace list" advice
 ```
 
+**Note**: Full test suite (`just test`) will fail with 129 errors until Phase 5 migrates tests to use `createTestWorkspaceContext()`. TypeScript compilation provides sufficient safety net for CLI changes.
+
 ### Risks/Unknowns
 
 | Risk | Severity | Likelihood | Mitigation |
 |------|----------|------------|------------|
 | WorkspaceService not available in production container | High | Low | Verify container includes workspace registration; check sample.command.ts works |
-| Node command handlers have complex option inheritance | Medium | Medium | Carefully propagate --worktree through parent command chain |
+| Node command handlers have complex option inheritance | Medium | Medium | Carefully propagate --workspace-path through parent command chain |
 | BootstrapPromptService.generate() signature mismatch | Medium | Low | Verify generate() accepts ctx in options object per Phase 2 updates |
 
 ### Ready Check
@@ -482,3 +487,177 @@ _Populated during implementation by plan-6. Log anything of interest to your fut
 - Insights that future phases should know about
 
 _See also: `execution.log.md` for detailed narrative._
+
+---
+
+## Critical Insights Discussion
+
+**Session**: 2026-01-28 11:38 UTC
+**Context**: Phase 4: CLI Integration Tasks & Alignment Brief
+**Analyst**: AI Clarity Agent
+**Reviewer**: Development Team
+**Format**: Water Cooler Conversation (5 Critical Insights)
+
+### Insight 1: Flag Name Inconsistency (`--worktree` vs `--workspace-path`)
+
+**Did you know**: The plan specified `--worktree` but sample.command.ts uses `--workspace-path`, creating UX inconsistency across CLI commands.
+
+**Implications**:
+- Users would need to remember different flags for different commands
+- Documentation complexity increases
+- Tab-completion becomes inconsistent
+
+**Options Considered**:
+- Option A: Stick with `--worktree` per Plan - Accept inconsistency
+- Option B: Use `--workspace-path` to Match Sample - Consistent UX
+- Option C: Alias Both - Maximum compatibility
+
+**AI Recommendation**: Option B - Use `--workspace-path`
+- Reasoning: Consistency across CLI commands is more important than subtle naming distinctions.
+
+**Discussion Summary**: User agreed that consistency with existing sample.command.ts is more important than precise terminology.
+
+**Decision**: Use `--workspace-path` (matching sample.command.ts)
+
+**Action Items**:
+- [x] Updated all `--worktree` references to `--workspace-path` in tasks.md
+
+**Affects**: T002, T006, T008, T009
+
+---
+
+### Insight 2: T005 Complexity Mismatch (CS-3 for Repetitive Work)
+
+**Did you know**: T005 is marked CS-3 but involves 18 nearly-identical handler updates following the same pattern.
+
+**Implications**:
+- High line count but low cognitive load
+- Risk is typos, not design complexity
+- Only exec handler is truly different (BootstrapPromptService)
+
+**Options Considered**:
+- Option A: Keep CS-3, Document Repetitive Nature
+- Option B: Re-score to CS-2 with Note - Accurate signal
+- Option C: Split into T005a (standard) + T005b (exec)
+
+**AI Recommendation**: Option B - Re-score to CS-2 with note
+- Reasoning: CS-2 "small task" better reflects actual cognitive load.
+
+**Discussion Summary**: User agreed the complexity was overstated for mechanical repetition.
+
+**Decision**: Re-score T005 to CS-2 with note about repetitive nature
+
+**Action Items**:
+- [x] Updated T005 CS from 3 to 2
+- [x] Added note explaining "18 handlers but same pattern"
+
+**Affects**: T005 in tasks table
+
+---
+
+### Insight 3: BootstrapPromptService Bypasses DI (ADR-0004 Violation)
+
+**Did you know**: `handleNodeExec` creates BootstrapPromptService with `new` instead of resolving from DI container, violating ADR-0004.
+
+**Implications**:
+- Only service in workgraph.command.ts that bypasses DI
+- Testing requires mocking 3 dependencies
+- Inconsistent with "services resolved from containers" principle
+
+**Options Considered**:
+- Option A: Accept Inline Instantiation - Minimal change
+- Option B: Register in DI Container - ADR-0004 compliance
+- Option C: Document as Technical Debt - Fix later
+
+**AI Recommendation**: Option A - Accept inline (Phase 2 designed for this)
+- Reasoning: ctx goes in options object, works with current code.
+
+**Discussion Summary**: User strongly disagreed - "it should never skip DI". ADR compliance is non-negotiable.
+
+**Decision**: Register BootstrapPromptService in DI container
+
+**Action Items**:
+- [x] Added new task T005a for DI registration
+- [x] Updated T005 dependencies to include T005a
+
+**Affects**: T005, tasks table (new T005a task)
+
+---
+
+### Insight 4: Commander.js Option Inheritance for Nested Commands
+
+**Did you know**: The triple-nested command structure (`cg wg node <cmd>`) requires careful option registration - Commander.js may not propagate `--workspace-path` to node subcommands automatically.
+
+**Implications**:
+- If added only to `wg`, node subcommands won't see the option
+- Need to add to `node` parent OR each of 18 handlers
+- Commander.js inheritance behavior needs verification
+
+**Options Considered**:
+- Option A: Add to `node` Subcommand Group - DRY, single place
+- Option B: Add to Each Node Subcommand - Guaranteed to work
+- Option C: Belt and Suspenders - Add to both
+
+**AI Recommendation**: Option A - Add to `node` subcommand group
+- Reasoning: DRY approach, Commander.js supports option inheritance.
+
+**Discussion Summary**: User chose Option A with explicit fallback instructions if inheritance doesn't work.
+
+**Decision**: Add to `node` parent with documented fallback
+
+**Action Items**:
+- [x] Updated T002 to include `node` subcommand group
+- [x] Added FALLBACK note for explicit registration if needed
+
+**Affects**: T002 in tasks table
+
+---
+
+### Insight 5: 129 Pre-existing Test Failures Block `just fft`
+
+**Did you know**: 129 unit tests fail because they pass `undefined` for `ctx.worktreePath`, blocking our standard `just fft` workflow during Phase 4.
+
+**Implications**:
+- Can't use normal development loop
+- Risk of not noticing new breakage amid noise
+- Phase 5 becomes hard blocker
+
+**Options Considered**:
+- Option A: Skip Tests During Phase 4 - Use lint/format/typecheck only
+- Option B: Run Only Contract + Isolation Tests - Partial validation
+- Option C: Fix 129 Tests Now - Pull Phase 5 forward
+
+**AI Recommendation**: Option A - Skip tests, fix in Phase 5
+- Reasoning: Matches plan structure, TypeScript catches most CLI errors.
+
+**Discussion Summary**: User agreed to defer test fixes to Phase 5 as planned.
+
+**Decision**: Use `just lint && just format && just typecheck` during Phase 4
+
+**Action Items**:
+- [x] Updated Commands section with Phase 4 workflow
+- [x] Added note explaining 129 pre-existing failures
+
+**Affects**: Commands to Run section
+
+---
+
+## Session Summary
+
+**Insights Surfaced**: 5 critical insights identified and discussed
+**Decisions Made**: 5 decisions reached through collaborative discussion
+**Action Items Created**: 6 updates applied to tasks.md
+**Areas Requiring Updates**:
+- All updates applied during session
+
+**Shared Understanding Achieved**: ✓
+
+**Confidence Level**: High - Key risks identified and mitigated, ADR compliance enforced
+
+**Next Steps**:
+Proceed to implementation with GO command
+
+**Notes**:
+- New task T005a added (DI registration for BootstrapPromptService)
+- Phase 4 workflow differs from standard `just fft` due to pre-existing test failures
+- Flag name standardized to `--workspace-path` for consistency

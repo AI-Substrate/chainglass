@@ -38,9 +38,16 @@ import {
   JsonOutputAdapter,
   SHARED_DI_TOKENS,
   WORKGRAPH_DI_TOKENS,
+  WORKSPACE_DI_TOKENS,
 } from '@chainglass/shared';
-import type { IWorkGraphService, IWorkNodeService, Question } from '@chainglass/workgraph';
-import { BootstrapPromptService } from '@chainglass/workgraph';
+import type { IWorkspaceService, WorkspaceContext } from '@chainglass/workflow';
+import type {
+  BootstrapPromptService,
+  IWorkGraphService,
+  IWorkNodeService,
+  IWorkUnitService,
+  Question,
+} from '@chainglass/workgraph';
 import type { Command } from 'commander';
 import { createCliProductionContainer } from '../lib/container.js';
 
@@ -50,6 +57,7 @@ import { createCliProductionContainer } from '../lib/container.js';
 
 interface BaseOptions {
   json?: boolean;
+  workspacePath?: string;
 }
 
 interface AddAfterOptions extends BaseOptions {
@@ -97,6 +105,30 @@ function wrapAction<T extends unknown[]>(
 }
 
 /**
+ * Get the WorkspaceService from DI container.
+ * Per ADR-0004: Services resolved from containers, not instantiated directly.
+ */
+function getWorkspaceService(): IWorkspaceService {
+  const container = createCliProductionContainer();
+  return container.resolve<IWorkspaceService>(WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE);
+}
+
+/**
+ * Resolve workspace context from CWD or explicit path.
+ *
+ * Per AC-23: --workspace-path flag overrides CWD-based context.
+ * Per Plan 021: All service calls require WorkspaceContext.
+ *
+ * @param overridePath - Explicit path if --workspace-path was provided
+ * @returns WorkspaceContext if found, null otherwise
+ */
+async function resolveOrOverrideContext(overridePath?: string): Promise<WorkspaceContext | null> {
+  const workspaceService = getWorkspaceService();
+  const path = overridePath ?? process.cwd();
+  return workspaceService.resolveContext(path);
+}
+
+/**
  * Get the WorkGraphService from DI container.
  */
 function getWorkGraphService(): IWorkGraphService {
@@ -110,6 +142,15 @@ function getWorkGraphService(): IWorkGraphService {
 function getWorkNodeService(): IWorkNodeService {
   const container = createCliProductionContainer();
   return container.resolve<IWorkNodeService>(WORKGRAPH_DI_TOKENS.WORKNODE_SERVICE);
+}
+
+/**
+ * Get the BootstrapPromptService from DI container.
+ * Per ADR-0004 and Plan 021 T005a: Services resolved from containers, not instantiated directly.
+ */
+function getBootstrapPromptService(): BootstrapPromptService {
+  const container = createCliProductionContainer();
+  return container.resolve<BootstrapPromptService>(WORKGRAPH_DI_TOKENS.BOOTSTRAP_PROMPT_SERVICE);
 }
 
 /**
@@ -161,10 +202,30 @@ function parseConfig(configs: string[] | undefined): Record<string, unknown> {
 // ============================================
 
 async function handleWgCreate(slug: string, options: BaseOptions): Promise<void> {
-  const service = getWorkGraphService();
   const adapter = createOutputAdapter(options.json ?? false);
 
-  const result = await service.create(slug);
+  // Resolve workspace context
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = {
+      graphSlug: '',
+      path: '',
+      errors: [
+        {
+          code: 'E074',
+          message: 'No workspace context found',
+          action: options.workspacePath
+            ? `Path '${options.workspacePath}' is not inside a registered workspace`
+            : 'Current directory is not inside a registered workspace. Run: cg workspace list',
+        },
+      ],
+    };
+    console.log(adapter.format('wg.create', result));
+    process.exit(1);
+  }
+
+  const service = getWorkGraphService();
+  const result = await service.create(ctx, slug);
   const output = adapter.format('wg.create', result);
 
   console.log(output);
@@ -175,10 +236,30 @@ async function handleWgCreate(slug: string, options: BaseOptions): Promise<void>
 }
 
 async function handleWgShow(slug: string, options: BaseOptions): Promise<void> {
-  const service = getWorkGraphService();
   const adapter = createOutputAdapter(options.json ?? false);
 
-  const result = await service.show(slug);
+  // Resolve workspace context
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = {
+      graphSlug: '',
+      tree: { id: '', children: [] },
+      errors: [
+        {
+          code: 'E074',
+          message: 'No workspace context found',
+          action: options.workspacePath
+            ? `Path '${options.workspacePath}' is not inside a registered workspace`
+            : 'Current directory is not inside a registered workspace. Run: cg workspace list',
+        },
+      ],
+    };
+    console.log(adapter.format('wg.show', result));
+    process.exit(1);
+  }
+
+  const service = getWorkGraphService();
+  const result = await service.show(ctx, slug);
   const output = adapter.format('wg.show', result);
 
   console.log(output);
@@ -189,10 +270,31 @@ async function handleWgShow(slug: string, options: BaseOptions): Promise<void> {
 }
 
 async function handleWgStatus(slug: string, options: BaseOptions): Promise<void> {
-  const service = getWorkGraphService();
   const adapter = createOutputAdapter(options.json ?? false);
 
-  const result = await service.status(slug);
+  // Resolve workspace context
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = {
+      graphSlug: '',
+      graphStatus: 'pending' as const,
+      nodes: [],
+      errors: [
+        {
+          code: 'E074',
+          message: 'No workspace context found',
+          action: options.workspacePath
+            ? `Path '${options.workspacePath}' is not inside a registered workspace`
+            : 'Current directory is not inside a registered workspace. Run: cg workspace list',
+        },
+      ],
+    };
+    console.log(adapter.format('wg.status', result));
+    process.exit(1);
+  }
+
+  const service = getWorkGraphService();
+  const result = await service.status(ctx, slug);
   const output = adapter.format('wg.status', result);
 
   console.log(output);
@@ -212,11 +314,31 @@ async function handleNodeAddAfter(
   unitSlug: string,
   options: AddAfterOptions
 ): Promise<void> {
-  const service = getWorkGraphService();
   const adapter = createOutputAdapter(options.json ?? false);
 
+  // Resolve workspace context
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = {
+      nodeId: '',
+      inputs: {},
+      errors: [
+        {
+          code: 'E074',
+          message: 'No workspace context found',
+          action: options.workspacePath
+            ? `Path '${options.workspacePath}' is not inside a registered workspace`
+            : 'Current directory is not inside a registered workspace. Run: cg workspace list',
+        },
+      ],
+    };
+    console.log(adapter.format('wg.node.add-after', result));
+    process.exit(1);
+  }
+
+  const service = getWorkGraphService();
   const config = parseConfig(options.config);
-  const result = await service.addNodeAfter(graphSlug, afterNode, unitSlug, { config });
+  const result = await service.addNodeAfter(ctx, graphSlug, afterNode, unitSlug, { config });
   const output = adapter.format('wg.node.add-after', result);
 
   console.log(output);
@@ -231,10 +353,29 @@ async function handleNodeRemove(
   nodeId: string,
   options: RemoveOptions
 ): Promise<void> {
-  const service = getWorkGraphService();
   const adapter = createOutputAdapter(options.json ?? false);
 
-  const result = await service.removeNode(graphSlug, nodeId, { cascade: options.cascade });
+  // Resolve workspace context
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = {
+      removedNodes: [],
+      errors: [
+        {
+          code: 'E074',
+          message: 'No workspace context found',
+          action: options.workspacePath
+            ? `Path '${options.workspacePath}' is not inside a registered workspace`
+            : 'Current directory is not inside a registered workspace. Run: cg workspace list',
+        },
+      ],
+    };
+    console.log(adapter.format('wg.node.remove', result));
+    process.exit(1);
+  }
+
+  const service = getWorkGraphService();
+  const result = await service.removeNode(ctx, graphSlug, nodeId, { cascade: options.cascade });
   const output = adapter.format('wg.node.remove', result);
 
   console.log(output);
@@ -250,17 +391,33 @@ async function handleNodeExec(
   options: BaseOptions
 ): Promise<void> {
   const adapter = createOutputAdapter(options.json ?? false);
-  const container = createCliProductionContainer();
 
-  // Get services needed for bootstrap prompt
-  const fs = container.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
-  const pathResolver = container.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
-  const workGraphService = container.resolve<IWorkGraphService>(
-    WORKGRAPH_DI_TOKENS.WORKGRAPH_SERVICE
-  );
+  // Resolve workspace context
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = {
+      nodeId,
+      graphSlug,
+      unitSlug: '',
+      prompt: '',
+      commandsPath: '',
+      errors: [
+        {
+          code: 'E074',
+          message: 'No workspace context found',
+          action: options.workspacePath
+            ? `Path '${options.workspacePath}' is not inside a registered workspace`
+            : 'Current directory is not inside a registered workspace. Run: cg workspace list',
+        },
+      ],
+    };
+    console.log(adapter.format('wg.node.exec', result));
+    process.exit(1);
+  }
 
-  const bootstrapService = new BootstrapPromptService(fs, pathResolver, workGraphService);
-  const promptResult = await bootstrapService.generate({
+  // Get BootstrapPromptService from DI (per ADR-0004 and T005a)
+  const bootstrapService = getBootstrapPromptService();
+  const promptResult = await bootstrapService.generate(ctx, {
     graphSlug,
     nodeId,
     resume: false,
@@ -289,10 +446,31 @@ async function handleNodeStart(
   nodeId: string,
   options: BaseOptions
 ): Promise<void> {
-  const service = getWorkNodeService();
   const adapter = createOutputAdapter(options.json ?? false);
 
-  const result = await service.start(graphSlug, nodeId);
+  // Resolve workspace context
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = {
+      nodeId,
+      status: '',
+      startedAt: '',
+      errors: [
+        {
+          code: 'E074',
+          message: 'No workspace context found',
+          action: options.workspacePath
+            ? `Path '${options.workspacePath}' is not inside a registered workspace`
+            : 'Current directory is not inside a registered workspace. Run: cg workspace list',
+        },
+      ],
+    };
+    console.log(adapter.format('wg.node.start', result));
+    process.exit(1);
+  }
+
+  const service = getWorkNodeService();
+  const result = await service.start(ctx, graphSlug, nodeId);
   const output = adapter.format('wg.node.start', result);
 
   console.log(output);
@@ -307,10 +485,31 @@ async function handleNodeEnd(
   nodeId: string,
   options: BaseOptions
 ): Promise<void> {
-  const service = getWorkNodeService();
   const adapter = createOutputAdapter(options.json ?? false);
 
-  const result = await service.end(graphSlug, nodeId);
+  // Resolve workspace context
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = {
+      nodeId,
+      status: '',
+      completedAt: '',
+      errors: [
+        {
+          code: 'E074',
+          message: 'No workspace context found',
+          action: options.workspacePath
+            ? `Path '${options.workspacePath}' is not inside a registered workspace`
+            : 'Current directory is not inside a registered workspace. Run: cg workspace list',
+        },
+      ],
+    };
+    console.log(adapter.format('wg.node.end', result));
+    process.exit(1);
+  }
+
+  const service = getWorkNodeService();
+  const result = await service.end(ctx, graphSlug, nodeId);
   const output = adapter.format('wg.node.end', result);
 
   console.log(output);
@@ -325,10 +524,29 @@ async function handleNodeCanRun(
   nodeId: string,
   options: BaseOptions
 ): Promise<void> {
-  const service = getWorkNodeService();
   const adapter = createOutputAdapter(options.json ?? false);
 
-  const result = await service.canRun(graphSlug, nodeId);
+  // Resolve workspace context
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = {
+      canRun: false,
+      errors: [
+        {
+          code: 'E074',
+          message: 'No workspace context found',
+          action: options.workspacePath
+            ? `Path '${options.workspacePath}' is not inside a registered workspace`
+            : 'Current directory is not inside a registered workspace. Run: cg workspace list',
+        },
+      ],
+    };
+    console.log(adapter.format('wg.node.can-run', result));
+    process.exit(1);
+  }
+
+  const service = getWorkNodeService();
+  const result = await service.canRun(ctx, graphSlug, nodeId);
   const output = adapter.format('wg.node.can-run', result);
 
   console.log(output);
@@ -344,11 +562,31 @@ async function handleNodeCanEnd(
   nodeId: string,
   options: BaseOptions
 ): Promise<void> {
-  const service = getWorkNodeService();
   const adapter = createOutputAdapter(options.json ?? false);
 
+  // Resolve workspace context
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = {
+      nodeId,
+      canEnd: false,
+      errors: [
+        {
+          code: 'E074',
+          message: 'No workspace context found',
+          action: options.workspacePath
+            ? `Path '${options.workspacePath}' is not inside a registered workspace`
+            : 'Current directory is not inside a registered workspace. Run: cg workspace list',
+        },
+      ],
+    };
+    console.log(adapter.format('wg.node.can-end', result));
+    process.exit(1);
+  }
+
+  const service = getWorkNodeService();
   // Use canEnd() which is a query (no state mutation)
-  const result = await service.canEnd(graphSlug, nodeId);
+  const result = await service.canEnd(ctx, graphSlug, nodeId);
   const output = adapter.format('wg.node.can-end', result);
 
   console.log(output);
@@ -364,7 +602,26 @@ async function handleNodeListInputs(
   options: BaseOptions
 ): Promise<void> {
   const adapter = createOutputAdapter(options.json ?? false);
-  const nodeService = getWorkNodeService();
+
+  // Resolve workspace context (even for placeholder, maintain consistency)
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = {
+      nodeId,
+      inputs: [],
+      errors: [
+        {
+          code: 'E074',
+          message: 'No workspace context found',
+          action: options.workspacePath
+            ? `Path '${options.workspacePath}' is not inside a registered workspace`
+            : 'Current directory is not inside a registered workspace. Run: cg workspace list',
+        },
+      ],
+    };
+    console.log(adapter.format('wg.node.list-inputs', result));
+    process.exit(1);
+  }
 
   // Get all available inputs by trying to resolve each one
   // This is a placeholder - actual implementation would need a listInputs method
@@ -393,6 +650,26 @@ async function handleNodeListOutputs(
 ): Promise<void> {
   const adapter = createOutputAdapter(options.json ?? false);
 
+  // Resolve workspace context (even for placeholder, maintain consistency)
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = {
+      nodeId,
+      outputs: [],
+      errors: [
+        {
+          code: 'E074',
+          message: 'No workspace context found',
+          action: options.workspacePath
+            ? `Path '${options.workspacePath}' is not inside a registered workspace`
+            : 'Current directory is not inside a registered workspace. Run: cg workspace list',
+        },
+      ],
+    };
+    console.log(adapter.format('wg.node.list-outputs', result));
+    process.exit(1);
+  }
+
   // Placeholder - actual implementation would need a listOutputs method
   const result = {
     nodeId,
@@ -416,10 +693,30 @@ async function handleNodeGetInputData(
   inputName: string,
   options: BaseOptions
 ): Promise<void> {
-  const service = getWorkNodeService();
   const adapter = createOutputAdapter(options.json ?? false);
 
-  const result = await service.getInputData(graphSlug, nodeId, inputName);
+  // Resolve workspace context
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = {
+      nodeId,
+      inputName,
+      errors: [
+        {
+          code: 'E074',
+          message: 'No workspace context found',
+          action: options.workspacePath
+            ? `Path '${options.workspacePath}' is not inside a registered workspace`
+            : 'Current directory is not inside a registered workspace. Run: cg workspace list',
+        },
+      ],
+    };
+    console.log(adapter.format('wg.node.get-input-data', result));
+    process.exit(1);
+  }
+
+  const service = getWorkNodeService();
+  const result = await service.getInputData(ctx, graphSlug, nodeId, inputName);
   const output = adapter.format('wg.node.get-input-data', result);
 
   console.log(output);
@@ -435,10 +732,30 @@ async function handleNodeGetInputFile(
   inputName: string,
   options: BaseOptions
 ): Promise<void> {
-  const service = getWorkNodeService();
   const adapter = createOutputAdapter(options.json ?? false);
 
-  const result = await service.getInputFile(graphSlug, nodeId, inputName);
+  // Resolve workspace context
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = {
+      nodeId,
+      inputName,
+      errors: [
+        {
+          code: 'E074',
+          message: 'No workspace context found',
+          action: options.workspacePath
+            ? `Path '${options.workspacePath}' is not inside a registered workspace`
+            : 'Current directory is not inside a registered workspace. Run: cg workspace list',
+        },
+      ],
+    };
+    console.log(adapter.format('wg.node.get-input-file', result));
+    process.exit(1);
+  }
+
+  const service = getWorkNodeService();
+  const result = await service.getInputFile(ctx, graphSlug, nodeId, inputName);
   const output = adapter.format('wg.node.get-input-file', result);
 
   console.log(output);
@@ -454,10 +771,30 @@ async function handleNodeGetOutputData(
   outputName: string,
   options: BaseOptions
 ): Promise<void> {
-  const service = getWorkNodeService();
   const adapter = createOutputAdapter(options.json ?? false);
 
-  const result = await service.getOutputData(graphSlug, nodeId, outputName);
+  // Resolve workspace context
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = {
+      nodeId,
+      outputName,
+      errors: [
+        {
+          code: 'E074',
+          message: 'No workspace context found',
+          action: options.workspacePath
+            ? `Path '${options.workspacePath}' is not inside a registered workspace`
+            : 'Current directory is not inside a registered workspace. Run: cg workspace list',
+        },
+      ],
+    };
+    console.log(adapter.format('wg.node.get-output-data', result));
+    process.exit(1);
+  }
+
+  const service = getWorkNodeService();
+  const result = await service.getOutputData(ctx, graphSlug, nodeId, outputName);
   const output = adapter.format('wg.node.get-output-data', result);
 
   console.log(output);
@@ -474,8 +811,30 @@ async function handleNodeSaveOutputData(
   value: string,
   options: BaseOptions
 ): Promise<void> {
-  const service = getWorkNodeService();
   const adapter = createOutputAdapter(options.json ?? false);
+
+  // Resolve workspace context
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = {
+      nodeId,
+      outputName,
+      saved: false,
+      errors: [
+        {
+          code: 'E074',
+          message: 'No workspace context found',
+          action: options.workspacePath
+            ? `Path '${options.workspacePath}' is not inside a registered workspace`
+            : 'Current directory is not inside a registered workspace. Run: cg workspace list',
+        },
+      ],
+    };
+    console.log(adapter.format('wg.node.save-output-data', result));
+    process.exit(1);
+  }
+
+  const service = getWorkNodeService();
 
   // Try to parse value as JSON
   let parsedValue: unknown = value;
@@ -485,7 +844,7 @@ async function handleNodeSaveOutputData(
     // Keep as string
   }
 
-  const result = await service.saveOutputData(graphSlug, nodeId, outputName, parsedValue);
+  const result = await service.saveOutputData(ctx, graphSlug, nodeId, outputName, parsedValue);
   const output = adapter.format('wg.node.save-output-data', result);
 
   console.log(output);
@@ -521,8 +880,29 @@ async function handleNodeSaveOutputFile(
     return;
   }
 
+  // Resolve workspace context
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = {
+      nodeId,
+      outputName,
+      saved: false,
+      errors: [
+        {
+          code: 'E074',
+          message: 'No workspace context found',
+          action: options.workspacePath
+            ? `Path '${options.workspacePath}' is not inside a registered workspace`
+            : 'Current directory is not inside a registered workspace. Run: cg workspace list',
+        },
+      ],
+    };
+    console.log(adapter.format('wg.node.save-output-file', result));
+    process.exit(1);
+  }
+
   const service = getWorkNodeService();
-  const result = await service.saveOutputFile(graphSlug, nodeId, outputName, sourcePath);
+  const result = await service.saveOutputFile(ctx, graphSlug, nodeId, outputName, sourcePath);
   const output = adapter.format('wg.node.save-output-file', result);
 
   console.log(output);
@@ -537,9 +917,31 @@ async function handleNodeAsk(
   nodeId: string,
   options: AskOptions
 ): Promise<void> {
-  const service = getWorkNodeService();
   const adapter = createOutputAdapter(options.json ?? false);
 
+  // Resolve workspace context
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = {
+      nodeId,
+      status: '',
+      questionId: '',
+      question: { type: options.type, text: options.text },
+      errors: [
+        {
+          code: 'E074',
+          message: 'No workspace context found',
+          action: options.workspacePath
+            ? `Path '${options.workspacePath}' is not inside a registered workspace`
+            : 'Current directory is not inside a registered workspace. Run: cg workspace list',
+        },
+      ],
+    };
+    console.log(adapter.format('wg.node.ask', result));
+    process.exit(1);
+  }
+
+  const service = getWorkNodeService();
   const question: Question = {
     type: options.type,
     text: options.text,
@@ -547,7 +949,7 @@ async function handleNodeAsk(
     default: options.default,
   };
 
-  const result = await service.ask(graphSlug, nodeId, question);
+  const result = await service.ask(ctx, graphSlug, nodeId, question);
   const output = adapter.format('wg.node.ask', result);
 
   console.log(output);
@@ -572,8 +974,31 @@ async function handleNodeAnswer(
   answer: string,
   options: BaseOptions
 ): Promise<void> {
-  const service = getWorkNodeService();
   const adapter = createOutputAdapter(options.json ?? false);
+
+  // Resolve workspace context
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = {
+      nodeId,
+      status: '',
+      questionId,
+      answer: null,
+      errors: [
+        {
+          code: 'E074',
+          message: 'No workspace context found',
+          action: options.workspacePath
+            ? `Path '${options.workspacePath}' is not inside a registered workspace`
+            : 'Current directory is not inside a registered workspace. Run: cg workspace list',
+        },
+      ],
+    };
+    console.log(adapter.format('wg.node.answer', result));
+    process.exit(1);
+  }
+
+  const service = getWorkNodeService();
 
   // Try to parse answer as JSON
   let parsedAnswer: unknown = answer;
@@ -583,7 +1008,7 @@ async function handleNodeAnswer(
     // Keep as string
   }
 
-  const result = await service.answer(graphSlug, nodeId, questionId, parsedAnswer);
+  const result = await service.answer(ctx, graphSlug, nodeId, questionId, parsedAnswer);
   const output = adapter.format('wg.node.answer', result);
 
   console.log(output);
@@ -599,9 +1024,30 @@ async function handleNodeGetAnswer(
   questionId: string,
   options: BaseOptions
 ): Promise<void> {
-  const service = getWorkNodeService();
+  // Resolve workspace context
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const adapter = createOutputAdapter(options.json ?? false);
+    const result = {
+      nodeId,
+      questionId,
+      answered: false,
+      errors: [
+        {
+          code: 'E074',
+          message: 'No workspace context found',
+          action: options.workspacePath
+            ? `Path '${options.workspacePath}' is not inside a registered workspace`
+            : 'Current directory is not inside a registered workspace. Run: cg workspace list',
+        },
+      ],
+    };
+    console.log(adapter.format('wg.node.get-answer', result));
+    process.exit(1);
+  }
 
-  const result = await service.getAnswer(graphSlug, nodeId, questionId);
+  const service = getWorkNodeService();
+  const result = await service.getAnswer(ctx, graphSlug, nodeId, questionId);
 
   if (result.errors.length > 0) {
     const adapter = createOutputAdapter(options.json ?? false);
@@ -643,6 +1089,7 @@ export function registerWorkGraphCommands(program: Command): void {
   wg.command('create <slug>')
     .description('Create a new graph with start node')
     .option('--json', 'Output as JSON', false)
+    .option('--workspace-path <path>', 'Override workspace context')
     .action(
       wrapAction(async (slug: string, options: BaseOptions) => {
         await handleWgCreate(slug, options);
@@ -653,6 +1100,7 @@ export function registerWorkGraphCommands(program: Command): void {
   wg.command('show <slug>')
     .description('Show graph structure as tree')
     .option('--json', 'Output as JSON', false)
+    .option('--workspace-path <path>', 'Override workspace context')
     .action(
       wrapAction(async (slug: string, options: BaseOptions) => {
         await handleWgShow(slug, options);
@@ -663,6 +1111,7 @@ export function registerWorkGraphCommands(program: Command): void {
   wg.command('status <slug>')
     .description('Show node status table')
     .option('--json', 'Output as JSON', false)
+    .option('--workspace-path <path>', 'Override workspace context')
     .action(
       wrapAction(async (slug: string, options: BaseOptions) => {
         await handleWgStatus(slug, options);
@@ -671,10 +1120,13 @@ export function registerWorkGraphCommands(program: Command): void {
 
   // ==================== Node Commands (triple-nested) ====================
 
+  // Per Critical Insight #4: Add --workspace-path to node parent for inheritance.
+  // FALLBACK: If Commander.js doesn't propagate, add to each subcommand explicitly.
   const node = wg
     .command('node')
     .description('Node operations')
-    .option('--json', 'Output as JSON', false);
+    .option('--json', 'Output as JSON', false)
+    .option('--workspace-path <path>', 'Override workspace context');
 
   // cg wg node add-after <graph> <after> <unit>
   node
@@ -691,8 +1143,10 @@ export function registerWorkGraphCommands(program: Command): void {
           options: AddAfterOptions,
           cmd: Command
         ) => {
-          const json = cmd.parent?.opts()?.json ?? false;
-          await handleNodeAddAfter(graph, after, unit, { ...options, json });
+          const parentOpts = cmd.parent?.opts() ?? {};
+          const json = parentOpts.json ?? false;
+          const workspacePath = parentOpts.workspacePath;
+          await handleNodeAddAfter(graph, after, unit, { ...options, json, workspacePath });
         }
       )
     );
@@ -704,8 +1158,10 @@ export function registerWorkGraphCommands(program: Command): void {
     .option('--cascade', 'Remove dependent nodes as well', false)
     .action(
       wrapAction(async (graph: string, nodeId: string, options: RemoveOptions, cmd: Command) => {
-        const json = cmd.parent?.opts()?.json ?? false;
-        await handleNodeRemove(graph, nodeId, { ...options, json });
+        const parentOpts = cmd.parent?.opts() ?? {};
+        const json = parentOpts.json ?? false;
+        const workspacePath = parentOpts.workspacePath;
+        await handleNodeRemove(graph, nodeId, { ...options, json, workspacePath });
       })
     );
 
@@ -715,8 +1171,10 @@ export function registerWorkGraphCommands(program: Command): void {
     .description('Show bootstrap prompt for node execution')
     .action(
       wrapAction(async (graph: string, nodeId: string, options: BaseOptions, cmd: Command) => {
-        const json = cmd.parent?.opts()?.json ?? false;
-        await handleNodeExec(graph, nodeId, { json });
+        const parentOpts = cmd.parent?.opts() ?? {};
+        const json = parentOpts.json ?? false;
+        const workspacePath = parentOpts.workspacePath;
+        await handleNodeExec(graph, nodeId, { json, workspacePath });
       })
     );
 
@@ -726,8 +1184,10 @@ export function registerWorkGraphCommands(program: Command): void {
     .description('Start node execution (transition to running)')
     .action(
       wrapAction(async (graph: string, nodeId: string, options: BaseOptions, cmd: Command) => {
-        const json = cmd.parent?.opts()?.json ?? false;
-        await handleNodeStart(graph, nodeId, { json });
+        const parentOpts = cmd.parent?.opts() ?? {};
+        const json = parentOpts.json ?? false;
+        const workspacePath = parentOpts.workspacePath;
+        await handleNodeStart(graph, nodeId, { json, workspacePath });
       })
     );
 
@@ -737,8 +1197,10 @@ export function registerWorkGraphCommands(program: Command): void {
     .description('End node execution (transition to complete)')
     .action(
       wrapAction(async (graph: string, nodeId: string, options: BaseOptions, cmd: Command) => {
-        const json = cmd.parent?.opts()?.json ?? false;
-        await handleNodeEnd(graph, nodeId, { json });
+        const parentOpts = cmd.parent?.opts() ?? {};
+        const json = parentOpts.json ?? false;
+        const workspacePath = parentOpts.workspacePath;
+        await handleNodeEnd(graph, nodeId, { json, workspacePath });
       })
     );
 
@@ -748,8 +1210,10 @@ export function registerWorkGraphCommands(program: Command): void {
     .description('Check if a node can run')
     .action(
       wrapAction(async (graph: string, nodeId: string, options: BaseOptions, cmd: Command) => {
-        const json = cmd.parent?.opts()?.json ?? false;
-        await handleNodeCanRun(graph, nodeId, { json });
+        const parentOpts = cmd.parent?.opts() ?? {};
+        const json = parentOpts.json ?? false;
+        const workspacePath = parentOpts.workspacePath;
+        await handleNodeCanRun(graph, nodeId, { json, workspacePath });
       })
     );
 
@@ -759,8 +1223,10 @@ export function registerWorkGraphCommands(program: Command): void {
     .description('Check if a node can end (all required outputs present)')
     .action(
       wrapAction(async (graph: string, nodeId: string, options: BaseOptions, cmd: Command) => {
-        const json = cmd.parent?.opts()?.json ?? false;
-        await handleNodeCanEnd(graph, nodeId, { json });
+        const parentOpts = cmd.parent?.opts() ?? {};
+        const json = parentOpts.json ?? false;
+        const workspacePath = parentOpts.workspacePath;
+        await handleNodeCanEnd(graph, nodeId, { json, workspacePath });
       })
     );
 
@@ -770,8 +1236,10 @@ export function registerWorkGraphCommands(program: Command): void {
     .description('List node inputs and their resolution status')
     .action(
       wrapAction(async (graph: string, nodeId: string, options: BaseOptions, cmd: Command) => {
-        const json = cmd.parent?.opts()?.json ?? false;
-        await handleNodeListInputs(graph, nodeId, { json });
+        const parentOpts = cmd.parent?.opts() ?? {};
+        const json = parentOpts.json ?? false;
+        const workspacePath = parentOpts.workspacePath;
+        await handleNodeListInputs(graph, nodeId, { json, workspacePath });
       })
     );
 
@@ -781,8 +1249,10 @@ export function registerWorkGraphCommands(program: Command): void {
     .description('List node outputs and their save status')
     .action(
       wrapAction(async (graph: string, nodeId: string, options: BaseOptions, cmd: Command) => {
-        const json = cmd.parent?.opts()?.json ?? false;
-        await handleNodeListOutputs(graph, nodeId, { json });
+        const parentOpts = cmd.parent?.opts() ?? {};
+        const json = parentOpts.json ?? false;
+        const workspacePath = parentOpts.workspacePath;
+        await handleNodeListOutputs(graph, nodeId, { json, workspacePath });
       })
     );
 
@@ -793,8 +1263,10 @@ export function registerWorkGraphCommands(program: Command): void {
     .action(
       wrapAction(
         async (graph: string, nodeId: string, name: string, options: BaseOptions, cmd: Command) => {
-          const json = cmd.parent?.opts()?.json ?? false;
-          await handleNodeGetInputData(graph, nodeId, name, { json });
+          const parentOpts = cmd.parent?.opts() ?? {};
+          const json = parentOpts.json ?? false;
+          const workspacePath = parentOpts.workspacePath;
+          await handleNodeGetInputData(graph, nodeId, name, { json, workspacePath });
         }
       )
     );
@@ -806,8 +1278,10 @@ export function registerWorkGraphCommands(program: Command): void {
     .action(
       wrapAction(
         async (graph: string, nodeId: string, name: string, options: BaseOptions, cmd: Command) => {
-          const json = cmd.parent?.opts()?.json ?? false;
-          await handleNodeGetInputFile(graph, nodeId, name, { json });
+          const parentOpts = cmd.parent?.opts() ?? {};
+          const json = parentOpts.json ?? false;
+          const workspacePath = parentOpts.workspacePath;
+          await handleNodeGetInputFile(graph, nodeId, name, { json, workspacePath });
         }
       )
     );
@@ -820,8 +1294,10 @@ export function registerWorkGraphCommands(program: Command): void {
     .action(
       wrapAction(
         async (graph: string, nodeId: string, name: string, options: BaseOptions, cmd: Command) => {
-          const json = cmd.parent?.opts()?.json ?? false;
-          await handleNodeGetOutputData(graph, nodeId, name, { json });
+          const parentOpts = cmd.parent?.opts() ?? {};
+          const json = parentOpts.json ?? false;
+          const workspacePath = parentOpts.workspacePath;
+          await handleNodeGetOutputData(graph, nodeId, name, { json, workspacePath });
         }
       )
     );
@@ -840,8 +1316,10 @@ export function registerWorkGraphCommands(program: Command): void {
           options: BaseOptions,
           cmd: Command
         ) => {
-          const json = cmd.parent?.opts()?.json ?? false;
-          await handleNodeSaveOutputData(graph, nodeId, name, value, { json });
+          const parentOpts = cmd.parent?.opts() ?? {};
+          const json = parentOpts.json ?? false;
+          const workspacePath = parentOpts.workspacePath;
+          await handleNodeSaveOutputData(graph, nodeId, name, value, { json, workspacePath });
         }
       )
     );
@@ -860,8 +1338,10 @@ export function registerWorkGraphCommands(program: Command): void {
           options: BaseOptions,
           cmd: Command
         ) => {
-          const json = cmd.parent?.opts()?.json ?? false;
-          await handleNodeSaveOutputFile(graph, nodeId, name, path, { json });
+          const parentOpts = cmd.parent?.opts() ?? {};
+          const json = parentOpts.json ?? false;
+          const workspacePath = parentOpts.workspacePath;
+          await handleNodeSaveOutputFile(graph, nodeId, name, path, { json, workspacePath });
         }
       )
     );
@@ -876,8 +1356,10 @@ export function registerWorkGraphCommands(program: Command): void {
     .option('-d, --default <default>', 'Default value')
     .action(
       wrapAction(async (graph: string, nodeId: string, options: AskOptions, cmd: Command) => {
-        const json = cmd.parent?.opts()?.json ?? false;
-        await handleNodeAsk(graph, nodeId, { ...options, json });
+        const parentOpts = cmd.parent?.opts() ?? {};
+        const json = parentOpts.json ?? false;
+        const workspacePath = parentOpts.workspacePath;
+        await handleNodeAsk(graph, nodeId, { ...options, json, workspacePath });
       })
     );
 
@@ -895,8 +1377,10 @@ export function registerWorkGraphCommands(program: Command): void {
           options: BaseOptions,
           cmd: Command
         ) => {
-          const json = cmd.parent?.opts()?.json ?? false;
-          await handleNodeAnswer(graph, nodeId, questionId, answer, { json });
+          const parentOpts = cmd.parent?.opts() ?? {};
+          const json = parentOpts.json ?? false;
+          const workspacePath = parentOpts.workspacePath;
+          await handleNodeAnswer(graph, nodeId, questionId, answer, { json, workspacePath });
         }
       )
     );
@@ -914,8 +1398,10 @@ export function registerWorkGraphCommands(program: Command): void {
           options: BaseOptions,
           cmd: Command
         ) => {
-          const json = cmd.parent?.opts()?.json ?? false;
-          await handleNodeGetAnswer(graph, nodeId, questionId, { json });
+          const parentOpts = cmd.parent?.opts() ?? {};
+          const json = parentOpts.json ?? false;
+          const workspacePath = parentOpts.workspacePath;
+          await handleNodeGetAnswer(graph, nodeId, questionId, { json, workspacePath });
         }
       )
     );

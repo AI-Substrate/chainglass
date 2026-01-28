@@ -22,6 +22,7 @@ import { FakeWorkUnitService } from './fakes/fake-workunit-service.js';
 import type { IWorkGraphService } from './interfaces/workgraph-service.interface.js';
 import type { IWorkNodeService } from './interfaces/worknode-service.interface.js';
 import type { IWorkUnitService } from './interfaces/workunit-service.interface.js';
+import { BootstrapPromptService } from './services/bootstrap-prompt.js';
 import { WorkGraphService } from './services/workgraph.service.js';
 import { WorkNodeService } from './services/worknode.service.js';
 import { WorkUnitService } from './services/workunit.service.js';
@@ -77,6 +78,18 @@ export function registerWorkgraphServices(
       const workGraphService = c.resolve<IWorkGraphService>(WORKGRAPH_DI_TOKENS.WORKGRAPH_SERVICE);
       const workUnitService = c.resolve<IWorkUnitService>(WORKGRAPH_DI_TOKENS.WORKUNIT_SERVICE);
       return new WorkNodeService(fs, pathResolver, workGraphService, workUnitService);
+    },
+  });
+
+  // Register BootstrapPromptService (depends on WorkGraphService and WorkUnitService)
+  // Per Plan 021 Phase 4 T005a: ADR-0004 compliance - services resolved from containers
+  targetContainer.register<BootstrapPromptService>(WORKGRAPH_DI_TOKENS.BOOTSTRAP_PROMPT_SERVICE, {
+    useFactory: (c: DependencyContainer) => {
+      const fs = c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
+      const pathResolver = c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
+      const workGraphService = c.resolve<IWorkGraphService>(WORKGRAPH_DI_TOKENS.WORKGRAPH_SERVICE);
+      const workUnitService = c.resolve<IWorkUnitService>(WORKGRAPH_DI_TOKENS.WORKUNIT_SERVICE);
+      return new BootstrapPromptService(fs, pathResolver, workGraphService, workUnitService);
     },
   });
 }
@@ -162,6 +175,18 @@ export function createWorkgraphProductionContainer(): DependencyContainer {
       const workGraphService = c.resolve<IWorkGraphService>(WORKGRAPH_DI_TOKENS.WORKGRAPH_SERVICE);
       const workUnitService = c.resolve<IWorkUnitService>(WORKGRAPH_DI_TOKENS.WORKUNIT_SERVICE);
       return new WorkNodeService(fs, pathResolver, workGraphService, workUnitService);
+    },
+  });
+
+  // Real BootstrapPromptService (Plan 021 Phase 4 T005a)
+  // Per ADR-0004: Services resolved from containers, not instantiated directly
+  child.register<BootstrapPromptService>(WORKGRAPH_DI_TOKENS.BOOTSTRAP_PROMPT_SERVICE, {
+    useFactory: (c: DependencyContainer) => {
+      const fs = c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
+      const pathResolver = c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
+      const workGraphService = c.resolve<IWorkGraphService>(WORKGRAPH_DI_TOKENS.WORKGRAPH_SERVICE);
+      const workUnitService = c.resolve<IWorkUnitService>(WORKGRAPH_DI_TOKENS.WORKUNIT_SERVICE);
+      return new BootstrapPromptService(fs, pathResolver, workGraphService, workUnitService);
     },
   });
 
