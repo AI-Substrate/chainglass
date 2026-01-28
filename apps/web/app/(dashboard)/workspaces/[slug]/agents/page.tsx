@@ -16,6 +16,7 @@ import { Bot, Clock, GitBranch } from 'lucide-react';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { CreateSessionForm } from '../../../../../src/components/agents/create-session-form';
+import { SessionDeleteButton } from '../../../../../src/components/agents/session-delete-button';
 import { getContainer } from '../../../../../src/lib/bootstrap-singleton';
 
 export const dynamic = 'force-dynamic';
@@ -137,6 +138,7 @@ export default async function WorkspaceAgentsPage({ params, searchParams }: Page
                     <th className="px-4 py-3 text-left text-sm font-medium">Type</th>
                     <th className="px-4 py-3 text-left text-sm font-medium">Status</th>
                     <th className="px-4 py-3 text-left text-sm font-medium">Created</th>
+                    <th className="px-4 py-3 text-right text-sm font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -175,6 +177,13 @@ export default async function WorkspaceAgentsPage({ params, searchParams }: Page
                           <Clock className="h-4 w-4" />
                           {session.createdAt.toLocaleString()}
                         </div>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <SessionDeleteButton
+                          sessionId={session.id}
+                          workspaceSlug={slug}
+                          worktreePath={worktreePath}
+                        />
                       </td>
                     </tr>
                   ))}
