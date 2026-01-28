@@ -91,10 +91,14 @@ export class AgentSessionAdapter extends WorkspaceDataAdapterBase implements IAg
     try {
       validateSessionId(session.id);
     } catch (error) {
+      // Log actual error for debugging in non-production
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn('Session ID validation failed:', error);
+      }
       return {
         ok: false,
         errorCode: AgentSessionErrorCodes.INVALID_DATA,
-        errorMessage: error instanceof Error ? error.message : 'Invalid session ID',
+        errorMessage: 'Invalid session ID format',
       };
     }
 
@@ -159,8 +163,9 @@ export class AgentSessionAdapter extends WorkspaceDataAdapterBase implements IAg
             updatedAt: new Date(result.data.updatedAt),
           });
           sessions.push(session);
-        } catch {
-          // Skip corrupt files
+        } catch (error) {
+          // Log warning for debugging, then skip corrupt files
+          console.warn(`Skipping corrupt session file: ${file}`, error);
         }
       }
     }
@@ -183,8 +188,8 @@ export class AgentSessionAdapter extends WorkspaceDataAdapterBase implements IAg
     } catch {
       return {
         ok: false,
-        errorCode: AgentSessionErrorCodes.SESSION_NOT_FOUND,
-        errorMessage: `Session '${sessionId}' not found`,
+        errorCode: AgentSessionErrorCodes.INVALID_DATA,
+        errorMessage: `Invalid session ID: '${sessionId}'`,
       };
     }
 

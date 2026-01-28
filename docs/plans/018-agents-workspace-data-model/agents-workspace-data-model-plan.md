@@ -613,22 +613,22 @@ agentSessionAdapterContractTests('AgentSessionAdapter', () => new AgentSessionAd
 
 | #   | Status | Task | CS | Success Criteria | Log | Notes |
 |-----|--------|------|----|------------------|-----|-------|
-| 1.1 | [ ] | Write interface for IAgentSessionAdapter | 1 | Interface defines: save, load, list, remove, exists methods with WorkspaceContext | - | packages/workflow/src/interfaces/agent-session-adapter.interface.ts |
-| 1.2 | [ ] | Write Zod schema for AgentSession | 1 | Schema validates: id, type ('claude'\|'copilot'), status, createdAt, updatedAt | - | packages/shared/src/schemas/agent-session.schema.ts |
-| 1.3 | [ ] | Write tests for AgentSession entity | 2 | Tests cover: create(), toJSON(), fromJSON(), validation, invariants | - | test/unit/workflow/agent-session.entity.test.ts |
-| 1.4 | [ ] | Implement AgentSession entity | 2 | Entity has: private constructor, static create(), toJSON() with ISO dates | - | packages/workflow/src/entities/agent-session.ts |
-| 1.5 | [ ] | Write error classes (E090-E093) | 1 | Errors defined: AgentSessionNotFound, AgentSessionExists, InvalidData, EventNotFound | - | packages/workflow/src/errors/agent-errors.ts |
-| 1.6 | [ ] | Write contract tests for IAgentSessionAdapter | 3 | Contract test factory function with 12+ test cases covering all methods | - | test/contracts/agent-session-adapter.contract.ts |
-| 1.7 | [ ] | Write FakeAgentSessionAdapter with three-part API | 3 | Fake has: State Setup (addSession), Call Inspection (saveCalls), Error Injection (injectSaveError), reset() | - | packages/workflow/src/fakes/fake-agent-session-adapter.ts |
-| 1.8 | [ ] | Run contract tests against FakeAgentSessionAdapter | 1 | All contract tests pass for fake implementation | - | test/contracts/agent-session-adapter.contract.test.ts |
-| 1.9 | [ ] | Write unit tests for AgentSessionAdapter | 2 | Tests cover: save, load, list, remove, exists with WorkspaceContext | - | test/unit/workflow/agent-session-adapter.test.ts |
-| 1.10 | [ ] | Implement AgentSessionAdapter extending WorkspaceDataAdapterBase | 3 | Adapter has: domain='agents', uses getEntityPath(), writeJson(), readJson() | - | packages/workflow/src/adapters/agent-session.adapter.ts |
-| 1.11 | [ ] | Run contract tests against AgentSessionAdapter | 1 | All contract tests pass for real implementation (same tests as fake) | - | Verify fake-real parity |
-| 1.12 | [ ] | Add agent DI tokens to WORKSPACE_DI_TOKENS | 1 | Tokens defined: AGENT_SESSION_ADAPTER, AGENT_SESSION_SERVICE, AGENT_EVENT_ADAPTER | - | packages/shared/src/di-tokens.ts |
-| 1.13 | [ ] | Write AgentSessionService tests using fake | 2 | Service tests use FakeAgentSessionAdapter; verify business logic | - | test/unit/workflow/agent-session-service.test.ts |
-| 1.14 | [ ] | Implement AgentSessionService | 2 | Service depends on IAgentSessionAdapter interface; implements CRUD operations | - | packages/workflow/src/services/agent-session.service.ts |
-| 1.15 | [ ] | Register adapters in workflow DI container | 1 | Production container uses AgentSessionAdapter; test container uses FakeAgentSessionAdapter | - | packages/workflow/src/container.ts |
-| 1.16 | [ ] | Verify all tests pass (unit + contract) | 1 | Run `pnpm test packages/workflow`; 100% pass rate | - | Integration checkpoint |
+| 1.1 | [x] | Write interface for IAgentSessionAdapter | 1 | Interface defines: save, load, list, remove, exists methods with WorkspaceContext | - | packages/workflow/src/interfaces/agent-session-adapter.interface.ts |
+| 1.2 | [x] | Write Zod schema for AgentSession | 1 | Schema validates: id, type ('claude'\|'copilot'), status, createdAt, updatedAt | - | packages/shared/src/schemas/agent-session.schema.ts |
+| 1.3 | [x] | Write tests for AgentSession entity | 2 | Tests cover: create(), toJSON(), fromJSON(), validation, invariants | - | test/unit/workflow/agent-session.entity.test.ts |
+| 1.4 | [x] | Implement AgentSession entity | 2 | Entity has: private constructor, static create(), toJSON() with ISO dates | - | packages/workflow/src/entities/agent-session.ts |
+| 1.5 | [x] | Write error classes (E090-E093) | 1 | Errors defined: AgentSessionNotFound, AgentSessionExists, InvalidData, EventNotFound | - | packages/workflow/src/errors/agent-errors.ts |
+| 1.6 | [x] | Write contract tests for IAgentSessionAdapter | 3 | Contract test factory function with 12+ test cases covering all methods | - | test/contracts/agent-session-adapter.contract.ts |
+| 1.7 | [x] | Write FakeAgentSessionAdapter with three-part API | 3 | Fake has: State Setup (addSession), Call Inspection (saveCalls), Error Injection (injectSaveError), reset() | - | packages/workflow/src/fakes/fake-agent-session-adapter.ts |
+| 1.8 | [x] | Run contract tests against FakeAgentSessionAdapter | 1 | All contract tests pass for fake implementation | - | test/contracts/agent-session-adapter.contract.test.ts |
+| 1.9 | [x] | Write unit tests for AgentSessionAdapter | 2 | Tests cover: save, load, list, remove, exists with WorkspaceContext | - | Covered by contract tests (same tests for fake+real) |
+| 1.10 | [x] | Implement AgentSessionAdapter extending WorkspaceDataAdapterBase | 3 | Adapter has: domain='agents', uses getEntityPath(), writeJson(), readJson() | - | packages/workflow/src/adapters/agent-session.adapter.ts |
+| 1.11 | [x] | Run contract tests against AgentSessionAdapter | 1 | All contract tests pass for real implementation (same tests as fake) | - | Verify fake-real parity |
+| 1.12 | [x] | Add agent DI tokens to WORKSPACE_DI_TOKENS | 1 | Tokens defined: AGENT_SESSION_ADAPTER, AGENT_SESSION_SERVICE, AGENT_EVENT_ADAPTER | - | packages/shared/src/di-tokens.ts |
+| 1.13 | [x] | Write AgentSessionService tests using fake | 2 | Service tests use FakeAgentSessionAdapter; verify business logic | - | test/unit/workflow/agent-session-service.test.ts |
+| 1.14 | [x] | Implement AgentSessionService | 2 | Service depends on IAgentSessionAdapter interface; implements CRUD operations | - | packages/workflow/src/services/agent-session.service.ts |
+| 1.15 | [x] | Register adapters in workflow DI container | 1 | Production container uses AgentSessionAdapter; test container uses FakeAgentSessionAdapter | - | packages/workflow/src/container.ts |
+| 1.16 | [x] | Verify all tests pass (unit + contract) | 1 | Run `pnpm test packages/workflow`; 100% pass rate | - | Integration checkpoint |
 
 ### Test Examples (Write First!)
 
