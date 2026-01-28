@@ -15,6 +15,8 @@ import type { IAgentSessionService, IWorkspaceService } from '@chainglass/workfl
 import { Bot, Clock, GitBranch } from 'lucide-react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { CreateSessionForm } from '../../../../../src/components/agents/create-session-form';
+import { WorkspaceSelector } from '../../../../../src/components/workspaces/workspace-selector';
 import { getContainer } from '../../../../../src/lib/bootstrap-singleton';
 
 export const dynamic = 'force-dynamic';
@@ -53,20 +55,31 @@ export default async function WorkspaceAgentsPage({ params, searchParams }: Page
   // Get workspace info for breadcrumb
   const info = await workspaceService.getInfo(slug);
 
+  // Get all workspaces for selector dropdown
+  const allWorkspaces = await workspaceService.list();
+  const workspaceOptions = allWorkspaces.map((w) => ({ slug: w.slug, name: w.name }));
+
   return (
     <div className="container mx-auto py-6">
-      {/* Breadcrumb */}
-      <nav className="mb-4 text-sm text-muted-foreground">
-        <Link href="/workspaces" className="hover:underline">
-          Workspaces
-        </Link>
-        {' / '}
-        <Link href={`/workspaces/${slug}`} className="hover:underline">
-          {info?.name || slug}
-        </Link>
-        {' / '}
-        <span>Agents</span>
-      </nav>
+      {/* Breadcrumb + Workspace Selector */}
+      <div className="mb-4 flex items-center justify-between">
+        <nav className="text-sm text-muted-foreground">
+          <Link href="/workspaces" className="hover:underline">
+            Workspaces
+          </Link>
+          {' / '}
+          <Link href={`/workspaces/${slug}`} className="hover:underline">
+            {info?.name || slug}
+          </Link>
+          {' / '}
+          <span>Agents</span>
+        </nav>
+        <WorkspaceSelector
+          currentSlug={slug}
+          workspaces={workspaceOptions}
+          basePath="/workspaces/{slug}/agents"
+        />
+      </div>
 
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
@@ -93,69 +106,84 @@ export default async function WorkspaceAgentsPage({ params, searchParams }: Page
         </div>
       </div>
 
-      {/* Session List */}
-      {sessions.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-12 text-center">
-          <Bot className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-          <h2 className="mb-2 text-xl font-semibold">No agent sessions yet</h2>
-          <p className="text-muted-foreground">
-            Agent sessions will appear here when created via the CLI or API.
-          </p>
+      {/* Main Content - Sidebar + List */}
+      <div className="flex gap-6">
+        {/* Sidebar with Create Form */}
+        <aside className="w-72 shrink-0">
+          <div className="rounded-lg border bg-card p-4">
+            <h2 className="mb-3 font-semibold text-sm">New Session</h2>
+            <CreateSessionForm
+              workspaceSlug={slug}
+              worktreePath={worktreePath}
+              sessionCount={sessions.length}
+            />
+          </div>
+        </aside>
+
+        {/* Session List */}
+        <div className="flex-1">
+          {sessions.length === 0 ? (
+            <div className="rounded-lg border border-dashed p-12 text-center">
+              <Bot className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+              <h2 className="mb-2 text-xl font-semibold">No agent sessions yet</h2>
+              <p className="text-muted-foreground">Create a session using the form on the left.</p>
+            </div>
+          ) : (
+            <div className="rounded-lg border">
+              <table className="w-full">
+                <thead className="border-b bg-muted/50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-sm font-medium">Session ID</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium">Type</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium">Status</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium">Created</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {sessions.map((session) => (
+                    <tr key={session.id} className="hover:bg-muted/50">
+                      <td className="px-4 py-3">
+                        <Link
+                          href={`/workspaces/${slug}/agents/${session.id}`}
+                          className="font-medium text-primary hover:underline"
+                        >
+                          {session.id.slice(-12)}
+                        </Link>
+                        <div className="text-xs text-muted-foreground font-mono">{session.id}</div>
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        <span className="inline-flex items-center gap-1.5">
+                          <Bot className="h-4 w-4" />
+                          {session.type === 'claude-code' ? 'Claude Code' : 'Copilot'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        <span
+                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                            session.status === 'active'
+                              ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                              : session.status === 'completed'
+                                ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                                : 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400'
+                          }`}
+                        >
+                          {session.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-muted-foreground">
+                        <div className="flex items-center gap-1.5">
+                          <Clock className="h-4 w-4" />
+                          {session.createdAt.toLocaleString()}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
-      ) : (
-        <div className="rounded-lg border">
-          <table className="w-full">
-            <thead className="border-b bg-muted/50">
-              <tr>
-                <th className="px-4 py-3 text-left text-sm font-medium">Session ID</th>
-                <th className="px-4 py-3 text-left text-sm font-medium">Type</th>
-                <th className="px-4 py-3 text-left text-sm font-medium">Status</th>
-                <th className="px-4 py-3 text-left text-sm font-medium">Created</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {sessions.map((session) => (
-                <tr key={session.id} className="hover:bg-muted/50">
-                  <td className="px-4 py-3">
-                    <Link
-                      href={`/workspaces/${slug}/agents/${session.id}`}
-                      className="font-medium text-primary hover:underline"
-                    >
-                      {session.id.slice(-12)}
-                    </Link>
-                    <div className="text-xs text-muted-foreground font-mono">{session.id}</div>
-                  </td>
-                  <td className="px-4 py-3 text-sm">
-                    <span className="inline-flex items-center gap-1.5">
-                      <Bot className="h-4 w-4" />
-                      {session.type === 'claude-code' ? 'Claude Code' : 'Copilot'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-sm">
-                    <span
-                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                        session.status === 'active'
-                          ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                          : session.status === 'completed'
-                            ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
-                            : 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400'
-                      }`}
-                    >
-                      {session.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-1.5">
-                      <Clock className="h-4 w-4" />
-                      {session.createdAt.toLocaleString()}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      </div>
     </div>
   );
 }

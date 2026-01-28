@@ -218,7 +218,7 @@ flowchart TD
 | [x] | T011 | Simple delete confirmation dialog (no size display) | 1 | UI | – | /home/jak/substrate/015-better-agents/apps/web/src/components/agents/delete-session-dialog.tsx | Simple "cannot be undone" warning; confirm/cancel buttons; no size calculation | – | DYK-05: Simplified - data migration only, no UI enhancements |
 | [x] | T012 | Wire delete confirmation dialog to delete button in session list/detail | 1 | UI | T004, T011 | /home/jak/substrate/015-better-agents/apps/web/src/components/agents/agent-list-view.tsx | Delete button opens dialog; confirmation triggers DELETE API call; refreshes list on success | – | – |
 | [ ] | T013 | Write E2E test for full agent create → view → delete flow | 3 | Test | T007, T008, T012 | /home/jak/substrate/015-better-agents/test/e2e/agent-workspace-integration.test.ts | Test creates session in workspace; verifies file exists; deletes session; verifies removal | – | – |
-| [ ] | T014 | Manual smoke test: verify all routes work in dev mode | 1 | Verification | T013 | – | Start dev server; manually verify: /workspaces/[slug]/agents, /agents redirect, delete flow, SSE events | – | Integration checkpoint |
+| [ ] | T014 | Manual smoke test: verify all routes work in dev mode | 1 | Verification | T013 | – | Start dev server; manually verify: /workspaces/[slug]/agents, /agents redirect, delete flow, SSE events | 001-subtask-worktree-landing-page | Integration checkpoint; blocked on subtask for nav fix |
 
 ---
 

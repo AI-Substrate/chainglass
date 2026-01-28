@@ -82,7 +82,7 @@ export async function GET(request: NextRequest, { params }: RouteParams): Promis
  * POST handler for creating a new agent session.
  *
  * Body:
- * - type: 'claude' | 'copilot' (required)
+ * - type: 'claude-code' | 'copilot' (required)
  *
  * Query params:
  * - worktree: Path to worktree (defaults to main worktree)
@@ -114,10 +114,10 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
     const body = await request.json();
     const { type } = body;
 
-    // Validate type
-    if (!type || (type !== 'claude' && type !== 'copilot')) {
+    // Validate type (must be 'claude-code' or 'copilot')
+    if (!type || (type !== 'claude-code' && type !== 'copilot')) {
       return Response.json(
-        { error: 'Invalid session type. Must be "claude" or "copilot".' },
+        { error: 'Invalid session type. Must be "claude-code" or "copilot".' },
         { status: 400 }
       );
     }
