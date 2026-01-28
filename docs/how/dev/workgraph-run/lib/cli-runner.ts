@@ -5,7 +5,13 @@
  */
 
 import { spawn } from 'node:child_process';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { CliResult, GraphStatusData } from './types.js';
+
+// Resolve CLI path relative to project root
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const CLI_PATH = resolve(__dirname, '../../../../../apps/cli/dist/cli.cjs');
 
 /**
  * Execute a cg CLI command and return typed result.
@@ -24,9 +30,8 @@ export async function runCli<T>(
   const fullArgs = [...args, '--json'];
 
   return new Promise((resolve, reject) => {
-    const proc = spawn('cg', fullArgs, {
+    const proc = spawn('node', [CLI_PATH, ...fullArgs], {
       cwd,
-      shell: true,
       timeout,
     });
 
@@ -46,8 +51,10 @@ export async function runCli<T>(
       let data: T;
 
       try {
-        // Parse JSON output
-        data = JSON.parse(stdout.trim()) as T;
+        // Parse JSON output - CLI returns {success, command, timestamp, data: {...}}
+        const parsed = JSON.parse(stdout.trim());
+        // Unwrap the data field if present (CLI wrapper structure)
+        data = parsed.data ? { ...parsed.data, errors: [] } : parsed;
       } catch {
         // If JSON parsing fails, create minimal result
         data = {

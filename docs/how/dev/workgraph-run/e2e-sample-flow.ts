@@ -275,7 +275,10 @@ add() {
 }
 add 2 3
 `;
-  const scriptPath = '/tmp/add.sh';
+  // Write to a relative path (save-output-file requires relative paths for security)
+  const mockOutputDir = 'docs/how/dev/workgraph-run/.mock-outputs';
+  await fs.mkdir(mockOutputDir, { recursive: true });
+  const scriptPath = `${mockOutputDir}/add.sh`;
   await fs.writeFile(scriptPath, scriptContent);
   logSuccess('Generated mock script: add.sh');
 
