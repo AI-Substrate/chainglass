@@ -157,17 +157,22 @@ flowchart TD
 |------|-------------|-------|--------|---------|
 | T001 | Interface | `/packages/workflow/src/interfaces/agent-event-adapter.interface.ts` | ⬜ Pending | Define 5-method interface (append, getAll, getSince, archive, exists) with WorkspaceContext |
 | T002 | Test | `/test/unit/workflow/agent-event-adapter.test.ts` | ⬜ Pending | TDD: Write adapter unit tests first |
-| T003 | Adapter | `/packages/workflow/src/adapters/agent-event.adapter.ts` | ⬜ Pending | Wrap EventStorageService with WorkspaceContext path resolution |
+| T003 | Adapter | `/packages/workflow/src/adapters/agent-event.adapter.ts` | ⬜ Pending | Implement NDJSON logic directly (replaces EventStorageService) |
 | T004 | Test | `/test/integration/workspace-agent-isolation.test.ts` | ⬜ Pending | Verify events don't leak across workspaces |
 | T005 | Test | `/test/unit/workflow/agent-event-adapter.test.ts` | ⬜ Pending | Verify timestamp-based ID format per DYK-01 |
 | T006 | Test | `/test/unit/workflow/agent-event-adapter.test.ts` | ⬜ Pending | Verify validateSessionId() called per Discovery 05 |
-| T007 | Export | `/packages/shared/src/index.server.ts` | ⬜ Pending | Server-only export for EventStorageService per Discovery 03 |
+| T007 | Export | `/packages/shared/src/index.server.ts` | ⬜ Pending | SKIP - EventStorageService being deleted |
 | T008 | Test | `/test/unit/workflow/agent-event-adapter.test.ts` | ⬜ Pending | Verify malformed line skipping per DYK-04 |
 | T009 | Adapter | `/packages/workflow/src/adapters/agent-event.adapter.ts` | ⬜ Pending | Add optional logger for malformed lines per Discovery 20 |
 | T010 | Fake | `/packages/workflow/src/fakes/fake-agent-event-adapter.ts` | ⬜ Pending | Three-part API (state, inspection, injection) |
-| T011 | DI | `/packages/workflow/src/container.ts` | ⬜ Pending | Register AgentEventAdapter with useFactory pattern |
-| T012 | Test | `/test/integration/sse-workspace-integration.test.ts` | ⬜ Pending | Verify SSE still works with new paths |
-| T013 | Checkpoint | N/A | ⬜ Pending | Run `pnpm test packages/workflow packages/shared` |
+| T011 | Test | `/test/contracts/agent-event-adapter.contract.ts` | ⬜ Pending | Contract tests: fake↔real parity (transfers quality from old tests) |
+| T012 | DI | `/packages/workflow/src/container.ts` | ⬜ Pending | Register AgentEventAdapter with useFactory pattern |
+| T013 | Test | `/test/integration/sse-workspace-integration.test.ts` | ⬜ Pending | Verify SSE still works with new paths |
+| T014 | Cleanup | `/packages/shared/src/services/event-storage.service.ts` + tests | ⬜ Pending | Delete EventStorageService, FakeEventStorage, IEventStorage, and their tests |
+| T015 | Cleanup | `/apps/web/src/lib/di-container.ts` | ⬜ Pending | Remove DI_TOKENS.EVENT_STORAGE registration |
+| T016 | Migration | `/apps/web/app/api/workspaces/[slug]/agents/run/route.ts` + test | ⬜ Pending | Move route + tests together, update to use AgentEventAdapter |
+| T017 | Migration | `/apps/web/app/api/workspaces/[slug]/agents/sessions/[sessionId]/events/route.ts` + test | ⬜ Pending | Move route + tests together, update to use AgentEventAdapter |
+| T018 | Checkpoint | N/A | ⬜ Pending | Run `pnpm test` - full test suite with contract tests |
 
 ---
 
@@ -177,17 +182,22 @@ flowchart TD
 |--------|-----|------|----|------|--------------|------------------|------------|----------|-------|
 | [ ] | T001 | Write IAgentEventAdapter interface | 1 | Interface | – | `/home/jak/substrate/015-better-agents/packages/workflow/src/interfaces/agent-event-adapter.interface.ts` | Interface exports: append, getAll, getSince, archive, exists with WorkspaceContext as first param; result types defined | – | Follow IEventStorage pattern, add WorkspaceContext |
 | [ ] | T002 | Write tests for AgentEventAdapter (TDD RED) | 2 | Test | T001 | `/home/jak/substrate/015-better-agents/test/unit/workflow/agent-event-adapter.test.ts` | Tests fail; cover: workspace-scoped paths, NDJSON format, DYK-04 behavior, session ID validation | – | Per Discovery 02: All methods take WorkspaceContext |
-| [ ] | T003 | Implement AgentEventAdapter wrapping EventStorageService | 3 | Core | T002 | `/home/jak/substrate/015-better-agents/packages/workflow/src/adapters/agent-event.adapter.ts` | Adapter passes unit tests; constructs baseDir per workspace, delegates to EventStorageService; path: `<worktreePath>/.chainglass/data/agents/<sessionId>/events.ndjson` | – | Per Discovery 01: Use getDomainPath pattern from base class |
+| [ ] | T003 | Implement AgentEventAdapter with NDJSON logic | 3 | Core | T002 | `/home/jak/substrate/015-better-agents/packages/workflow/src/adapters/agent-event.adapter.ts` | Adapter passes unit tests; implements NDJSON append/read directly (not wrapping EventStorageService); path: `<worktreePath>/.chainglass/data/agents/<sessionId>/events.ndjson` | – | Per DYK session: Replaces EventStorageService, owns all NDJSON logic |
 | [ ] | T004 | Write workspace isolation integration tests | 2 | Test | T003 | `/home/jak/substrate/015-better-agents/test/integration/workspace-agent-isolation.test.ts` | Tests verify: events in workspace A don't appear in workspace B getAll(); same sessionId different workspaces stay isolated | – | Per AC-10 |
 | [ ] | T005 | Verify event ID generation tests (timestamp-based) | 1 | Test | T003 | `/home/jak/substrate/015-better-agents/test/unit/workflow/agent-event-adapter.test.ts` | Tests verify: generateEventId() format matches DYK-01 pattern (YYYY-MM-DDTHH:mm:ss.sssZ_xxxxx) | – | Reuse existing EventStorageService tests logic |
 | [ ] | T006 | Write session ID validation tests in append() | 1 | Test | T003 | `/home/jak/substrate/015-better-agents/test/unit/workflow/agent-event-adapter.test.ts` | Tests verify: validateSessionId() called before filesystem operations; path traversal rejected | – | Per Discovery 05: Security critical |
-| [ ] | T007 | Update EventStorageService to export from server-only entry point | 1 | Core | – | `/home/jak/substrate/015-better-agents/packages/shared/src/index.server.ts` | Service exported from `packages/shared/src/index.server.ts` not main `index.ts`; browser import fails gracefully | – | Per Discovery 03: Prevent browser bundle bloat |
+| [ ] | T007 | SKIP - Server-only export no longer needed | 0 | Skip | – | – | EventStorageService being deleted; AgentEventAdapter lives in packages/workflow which is already server-only | – | Per DYK session: No legacy code to export |
 | [ ] | T008 | Write tests for NDJSON malformed line handling | 2 | Test | T003 | `/home/jak/substrate/015-better-agents/test/unit/workflow/agent-event-adapter.test.ts` | Tests verify: corrupted lines skipped per DYK-04; valid lines parsed; partial corruption doesn't fail entire load | – | Per Discovery 10: Maintain existing resilience |
 | [ ] | T009 | Add optional logging to malformed line skipping | 1 | Core | T003, T008 | `/home/jak/substrate/015-better-agents/packages/workflow/src/adapters/agent-event.adapter.ts` | Logger.warn() called when skipping malformed line (if logger injected); silent if no logger | – | Per Discovery 20: Optional observability |
 | [ ] | T010 | Write FakeAgentEventAdapter with three-part API | 2 | Fake | T001 | `/home/jak/substrate/015-better-agents/packages/workflow/src/fakes/fake-agent-event-adapter.ts` | Fake has: addEvent/getEvents (state), appendCalls/getAllCalls (inspection), injectAppendError (injection), reset() | – | Per Discovery 08: Same pattern as FakeAgentSessionAdapter |
-| [ ] | T011 | Register AgentEventAdapter in workflow DI container | 1 | DI | T003, T010 | `/home/jak/substrate/015-better-agents/packages/workflow/src/container.ts` | Production container uses AgentEventAdapter; test container uses FakeAgentEventAdapter; uses WORKSPACE_DI_TOKENS.AGENT_EVENT_ADAPTER | – | Per Discovery 14: useFactory pattern |
-| [ ] | T012 | Verify SSE integration still works with new paths | 2 | Test | T011 | `/home/jak/substrate/015-better-agents/test/integration/sse-workspace-integration.test.ts` | Integration test: append event via adapter, trigger SSE broadcast, client receives notification; no regression to Plan 015 | – | Regression test for Plan 015 SSE functionality |
-| [ ] | T013 | Verify all tests pass (unit + integration) | 1 | Checkpoint | T002, T004, T005, T006, T008, T012 | N/A | `pnpm test packages/workflow packages/shared` passes; 30+ new tests; no vi.mock usage | – | Phase complete checkpoint |
+| [ ] | T011 | Create AgentEventAdapter contract tests (fake↔real parity) | 2 | Test | T003, T010 | `/home/jak/substrate/015-better-agents/test/contracts/agent-event-adapter.contract.ts`, `/home/jak/substrate/015-better-agents/test/contracts/agent-event-adapter.contract.test.ts` | Contract factory with 10+ test cases; both FakeAgentEventAdapter and AgentEventAdapter pass identical tests | – | Per DYK session: Transfer test quality from EventStorageService contract tests |
+| [ ] | T012 | Register AgentEventAdapter in workflow DI container | 1 | DI | T003, T010 | `/home/jak/substrate/015-better-agents/packages/workflow/src/container.ts` | Production container uses AgentEventAdapter; test container uses FakeAgentEventAdapter; uses WORKSPACE_DI_TOKENS.AGENT_EVENT_ADAPTER | – | Per Discovery 14: useFactory pattern |
+| [ ] | T013 | Verify SSE integration still works with new paths | 2 | Test | T012 | `/home/jak/substrate/015-better-agents/test/integration/sse-workspace-integration.test.ts` | Integration test: append event via adapter, trigger SSE broadcast, client receives notification; no regression to Plan 015 | – | Regression test for Plan 015 SSE functionality |
+| [ ] | T014 | Delete legacy EventStorageService, tests, and related code | 2 | Cleanup | T011 | `/home/jak/substrate/015-better-agents/packages/shared/src/services/event-storage.service.ts`, `/home/jak/substrate/015-better-agents/packages/shared/src/fakes/fake-event-storage.ts`, `/home/jak/substrate/015-better-agents/packages/shared/src/interfaces/event-storage.interface.ts`, `/home/jak/substrate/015-better-agents/test/unit/shared/event-storage-service.test.ts`, `/home/jak/substrate/015-better-agents/test/contracts/event-storage.contract.test.ts` | Files deleted; exports removed from barrel files; old tests removed; no remaining imports | – | Per DYK session: Clean break, contract tests replaced by T011 |
+| [ ] | T015 | Remove DI_TOKENS.EVENT_STORAGE from web DI container | 1 | Cleanup | T014 | `/home/jak/substrate/015-better-agents/apps/web/src/lib/di-container.ts` | EVENT_STORAGE token removed from DI_TOKENS; production and test registrations removed | – | Per DYK session: No dual-path confusion |
+| [ ] | T016 | Move and migrate run/route.ts to workspace-scoped URL | 3 | Migration | T012, T015 | `/home/jak/substrate/015-better-agents/apps/web/app/api/workspaces/[slug]/agents/run/route.ts`, `/home/jak/substrate/015-better-agents/test/unit/web/api/workspaces/[slug]/agents/run.test.ts` | Route moved to new path; uses AgentEventAdapter with WorkspaceContext; tests moved and updated to match; old route + test files deleted | – | Per DYK session: Route + tests move together |
+| [ ] | T017 | Move and migrate events/route.ts to workspace-scoped URL | 3 | Migration | T012, T015 | `/home/jak/substrate/015-better-agents/apps/web/app/api/workspaces/[slug]/agents/sessions/[sessionId]/events/route.ts`, `/home/jak/substrate/015-better-agents/test/unit/web/api/workspaces/[slug]/agents/sessions/[sessionId]/events.test.ts` | Route moved to new path; uses AgentEventAdapter with WorkspaceContext; tests moved and updated to match; old route + test files deleted | – | Per DYK session: Route + tests move together |
+| [ ] | T018 | Verify all tests pass (unit + integration + contract) | 1 | Checkpoint | T002, T004, T005, T006, T008, T011, T013, T016, T017 | N/A | `pnpm test` passes; contract tests verify fake↔real parity; all legacy EventStorage tests removed; no vi.mock usage | – | Phase complete checkpoint |
 
 ---
 
@@ -539,3 +549,182 @@ docs/plans/018-agents-workspace-data-model/
 ---
 
 **STOP**: Do **not** edit code. Await explicit **GO** from human sponsor.
+
+---
+
+## Critical Insights Discussion
+
+**Session**: 2026-01-28 05:04 - 06:37 UTC
+**Context**: Phase 2: AgentEventAdapter Tasks Dossier - Pre-implementation Review
+**Analyst**: AI Clarity Agent
+**Reviewer**: Development Team
+**Format**: Water Cooler Conversation (5 Critical Insights)
+
+### Insight 1: Hardcoded DI Path Creates Split-Brain Risk
+
+**Did you know**: The current `EventStorageService` DI registration uses `process.cwd()/.chainglass/workspaces/default/data/` - completely disconnected from WorkspaceContext.
+
+**Implications**:
+- SSE broadcasts might read from wrong location
+- Session metadata and events could be at different paths
+- Phase 3 UI would see incomplete event history
+
+**Options Considered**:
+- Option A: Replace DI_TOKENS.EVENT_STORAGE entirely (clean break)
+- Option B: Two DI tokens coexist (gradual migration)
+- Option C: Make EventStorageService itself workspace-aware
+- Option D: Wrapper + deprecation marker
+
+**AI Recommendation**: Option D (Wrapper + Deprecation)
+- Reasoning: Follows dossier design, explicit deprecation helps track migration
+
+**Discussion Summary**: User preferred clean break approach - no legacy code, delete old system entirely.
+
+**Decision**: Option A - Remove `DI_TOKENS.EVENT_STORAGE` entirely. AgentEventAdapter becomes THE event access point.
+
+**Action Items**:
+- [x] Add T013: Delete legacy EventStorageService
+- [x] Add T014/T015: Remove DI registrations and migrate routes
+
+**Affects**: T011-T017 (cleanup and migration tasks added)
+
+---
+
+### Insight 2: Route Handlers Lack WorkspaceContext Resolution
+
+**Did you know**: The route handlers `run/route.ts` and `events/route.ts` have no concept of WorkspaceContext and no obvious way to get one.
+
+**Implications**:
+- AgentEventAdapter requires WorkspaceContext as first parameter
+- Routes currently receive only sessionId from HTTP request
+- Need mechanism to resolve workspace from request
+
+**Options Considered**:
+- Option A: Workspace slug in URL path (`/api/workspaces/[slug]/agents/...`)
+- Option B: Workspace slug in request header
+- Option C: Workspace slug in query parameter
+- Option D: Derive workspace from session metadata
+
+**AI Recommendation**: Option A (URL Path)
+- Reasoning: Explicit, RESTful, aligns with Phase 3 web UI routes
+
+**Discussion Summary**: User confirmed URL restructuring approach.
+
+**Decision**: Option A - Move routes to `/api/workspaces/[slug]/agents/...`
+
+**Action Items**:
+- [x] Update T015/T016 to reflect new URL paths
+
+**Affects**: T015, T016 (route file locations changed)
+
+---
+
+### Insight 3: Deleting EventStorageService Kills Contract Tests
+
+**Did you know**: Existing contract tests for EventStorageService will break when we delete it, and new contract tests are needed for AgentEventAdapter.
+
+**Implications**:
+- Old test files become orphaned/broken
+- Test quality must transfer to new adapter
+- Contract tests ensure fake↔real parity
+
+**Options Considered**:
+- Option A: Delete old tests, create explicit new contract test task
+- Option B: Fold contract tests into T002 (scope creep)
+- Option C: Adapt existing tests (more work than rewrite)
+
+**AI Recommendation**: Option A (Explicit Contract Test Task)
+- Reasoning: Follows Phase 1 pattern, clear accountability
+
+**Discussion Summary**: User confirmed test quality transfer is essential.
+
+**Decision**: Option A - Add T011 for AgentEventAdapter contract tests; T014 includes deleting old tests.
+
+**Action Items**:
+- [x] Add T011: Contract tests for AgentEventAdapter
+- [x] Update T014: Include deletion of old test files
+
+**Affects**: T011, T014 (new task, expanded cleanup scope)
+
+---
+
+### Insight 4: Route Tests Need Migration Too
+
+**Did you know**: `run/route.ts` and `events/route.ts` have dedicated test files that will break when routes move.
+
+**Implications**:
+- Tests import from wrong paths after move
+- Tests use wrong DI tokens
+- Tests miss workspace slug parameter handling
+
+**Options Considered**:
+- Option A: Update existing tests in-place
+- Option B: Delete old tests, write new
+- Option C: Move tests to match route structure, then update
+
+**AI Recommendation**: Option C (Move + Update)
+- Reasoning: Structural consistency, tests mirror code location
+
+**Discussion Summary**: User confirmed elegant approach - move tests with routes.
+
+**Decision**: Option C - Move tests to match new route structure, then update.
+
+**Action Items**:
+- [x] Update T016/T017 to include test file migration
+
+**Affects**: T016, T017 (now include test moves)
+
+---
+
+### Insight 5: Phase 2 Scope Grew to ~28 CS
+
+**Did you know**: Through our discussion, Phase 2 grew from 13 tasks (~18 CS) to 18 tasks (~28 CS).
+
+**Implications**:
+- Implementation takes longer than originally estimated
+- More files touched = higher merge conflict risk
+- Now medium-large phase rather than medium
+
+**Options Considered**:
+- Option A: Accept expanded scope as single phase
+- Option B: Split into Phase 2a (Adapter) + Phase 2b (Migration)
+- Option C: Add explicit midpoint checkpoint
+
+**AI Recommendation**: Option A (Accept Expanded Scope)
+- Reasoning: Coherent unit, clean break at end, ~28 CS manageable
+
+**Discussion Summary**: User confirmed single phase approach.
+
+**Decision**: Option A - Accept expanded scope as single cohesive phase (~28 CS).
+
+**Action Items**: None - scope documented in task list
+
+**Affects**: Phase 2 expectations
+
+---
+
+## Session Summary
+
+**Insights Surfaced**: 5 critical insights identified and discussed
+**Decisions Made**: 5 decisions reached through collaborative discussion
+**Action Items Created**: 8 task updates applied
+**Areas Updated**:
+- T003: Changed from "wrapping" to "implements NDJSON directly"
+- T007: Marked as SKIP (no longer needed)
+- T011: NEW - Contract tests for AgentEventAdapter
+- T013-T018: Renumbered and expanded (cleanup, migration, tests)
+- T016/T017: Now include test file migration
+
+**Shared Understanding Achieved**: ✓
+
+**Confidence Level**: High - Clean architecture, no legacy, proper test coverage
+
+**Next Steps**:
+1. Run `/plan-6-implement-phase` to begin Phase 2 implementation
+2. Follow TDD approach: T001 (interface) → T002 (tests RED) → T003 (adapter GREEN)
+3. Contract tests (T011) before cleanup (T014)
+
+**Notes**:
+- Phase 2 now delivers: workspace-scoped event storage + complete legacy removal + route restructuring
+- Total: 18 tasks, ~28 CS
+- Key pattern change: AgentEventAdapter implements NDJSON directly (doesn't wrap EventStorageService)
