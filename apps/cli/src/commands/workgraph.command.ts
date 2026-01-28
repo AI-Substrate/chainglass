@@ -555,7 +555,9 @@ async function handleNodeAsk(
   // Add agent instruction for non-JSON output
   if (!options.json && result.errors.length === 0) {
     console.log('\n[AGENT INSTRUCTION] STOP HERE. Exit now and wait for orchestrator to answer.');
-    console.log('The orchestrator will re-invoke you with a continuation prompt containing the answer.');
+    console.log(
+      'The orchestrator will re-invoke you with a continuation prompt containing the answer.'
+    );
   }
 
   if (result.errors.length > 0) {

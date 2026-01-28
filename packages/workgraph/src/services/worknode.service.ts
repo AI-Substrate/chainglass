@@ -23,12 +23,12 @@ import type {
   AnswerResult,
   AskResult,
   BlockingNode,
-  GetAnswerResult,
   CanEndResult,
   CanRunResult,
   ClearOptions,
   ClearResult,
   EndResult,
+  GetAnswerResult,
   GetInputDataResult,
   GetInputFileResult,
   GetOutputDataResult,
@@ -1768,11 +1768,7 @@ export class WorkNodeService implements IWorkNodeService {
    *
    * Reads the answer from data.json if it has been provided.
    */
-  async getAnswer(
-    graphSlug: string,
-    nodeId: string,
-    questionId: string
-  ): Promise<GetAnswerResult> {
+  async getAnswer(graphSlug: string, nodeId: string, questionId: string): Promise<GetAnswerResult> {
     // 1. Validate node exists
     const statusResult = await this.workGraphService.status(graphSlug);
     if (statusResult.errors.length > 0) {
