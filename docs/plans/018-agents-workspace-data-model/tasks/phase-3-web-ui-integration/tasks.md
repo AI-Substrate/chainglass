@@ -119,8 +119,8 @@ flowchart TD
     end
 
     subgraph Testing["Testing & Verification"]
-        T013["T013: E2E agent workspace flow"]:::pending
-        T014["T014: Manual smoke test"]:::pending
+        T013["T013: E2E agent workspace flow ⏭️"]:::pending
+        T014["T014: Manual smoke test ✓"]:::completed
     end
 
     T001 --> T002
@@ -170,7 +170,7 @@ flowchart TD
 
 ### Task-to-Component Mapping
 
-<!-- Status: ⬜ Pending | 🟧 In Progress | ✅ Complete | 🔴 Blocked -->
+<!-- Status: ⬜ Pending | 🟧 In Progress | ✅ Complete | 🔴 Blocked | ⏭️ Skipped -->
 
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
@@ -182,19 +182,15 @@ flowchart TD
 | T005 | API Route | /apps/web/app/api/workspaces/[slug]/agents/[id]/events/route.ts | ✅ Complete | GET events with ?since= support |
 | T005a | Hook | /apps/web/src/hooks/useWorkspaceSSE.ts | ✅ Complete | Generic workspace SSE primitive |
 | T005b | Hook | /apps/web/src/hooks/useServerSession.ts | ✅ Complete | Added workspaceSlug support |
-| T006 | Store | /apps/web/src/lib/stores/agent-session.store.ts | 🟧 In Progress | Replace localStorage with server API |
-| T003 | API Route | /apps/web/app/api/workspaces/[slug]/agents/route.ts | ⬜ Pending | POST create session (same file as T002) |
-| T004 | API Route | /apps/web/app/api/workspaces/[slug]/agents/[id]/route.ts | ⬜ Pending | DELETE session + events folder |
-| T005 | API Route | /apps/web/app/api/workspaces/[slug]/agents/[id]/events/route.ts | ⬜ Pending | GET events with ?since= support |
-| T006 | Store | /apps/web/src/lib/stores/agent-session.store.ts | ⬜ Pending | Replace localStorage with server API calls |
-| T007 | Web Page | /apps/web/app/(dashboard)/workspaces/[slug]/agents/page.tsx | ⬜ Pending | Session list with loading/error states |
-| T008 | Web Page | /apps/web/app/(dashboard)/workspaces/[slug]/agents/[id]/page.tsx | ⬜ Pending | Session detail with event stream |
-| T009 | Web Page | /apps/web/app/(dashboard)/agents/page.tsx | ⬜ Pending | 307 redirect to first workspace |
-| T010 | Navigation | /apps/web/app/(dashboard)/workspaces/[slug]/page.tsx | ⬜ Pending | Add "Agents" link to workspace nav |
-| T011 | UI Component | /apps/web/src/components/agents/delete-session-dialog.tsx | ⬜ Pending | Confirmation dialog with size display |
-| T012 | UI Wiring | AgentListView or detail page | ⬜ Pending | Connect delete button to dialog |
-| T013 | E2E Test | /test/e2e/agent-workspace-integration.test.ts | ⬜ Pending | Full create → view → delete flow |
-| T014 | Verification | Manual | ⬜ Pending | Smoke test all routes in dev mode |
+| T006 | Store | /apps/web/src/lib/stores/agent-session.store.ts | ⏭️ Skipped | New pages use server-side fetching |
+| T007 | Web Page | /apps/web/app/(dashboard)/workspaces/[slug]/agents/page.tsx | ✅ Complete | Session list with loading/error states |
+| T008 | Web Page | /apps/web/app/(dashboard)/workspaces/[slug]/agents/[id]/page.tsx | ✅ Complete | Session detail with event stream |
+| T009 | Web Page | /apps/web/app/(dashboard)/agents/page.tsx | ✅ Complete | 307 redirect to first workspace |
+| T010 | Navigation | /apps/web/app/(dashboard)/workspaces/[slug]/page.tsx | ✅ Complete | Add "Agents" link to workspace nav |
+| T011 | UI Component | /apps/web/src/components/agents/delete-session-dialog.tsx | ✅ Complete | Confirmation dialog |
+| T012 | UI Wiring | AgentListView + session-delete-button | ✅ Complete | Connect delete button to dialog |
+| T013 | E2E Test | /test/e2e/agent-workspace-integration.test.ts | ⏭️ Skipped | Manual verification sufficient |
+| T014 | Verification | Manual | ✅ Complete | Verified via browser automation in subtask ST006 |
 
 ---
 
@@ -217,8 +213,8 @@ flowchart TD
 | [x] | T010 | Add "Agents" link to workspace detail page navigation | 1 | UI | T007 | /home/jak/substrate/015-better-agents/apps/web/app/(dashboard)/workspaces/[slug]/page.tsx | Workspace page shows "Agents" link; navigates to /workspaces/[slug]/agents | – | Follow existing Samples link pattern |
 | [x] | T011 | Simple delete confirmation dialog (no size display) | 1 | UI | – | /home/jak/substrate/015-better-agents/apps/web/src/components/agents/delete-session-dialog.tsx | Simple "cannot be undone" warning; confirm/cancel buttons; no size calculation | – | DYK-05: Simplified - data migration only, no UI enhancements |
 | [x] | T012 | Wire delete confirmation dialog to delete button in session list/detail | 1 | UI | T004, T011 | /home/jak/substrate/015-better-agents/apps/web/src/components/agents/agent-list-view.tsx | Delete button opens dialog; confirmation triggers DELETE API call; refreshes list on success | – | – |
-| [ ] | T013 | Write E2E test for full agent create → view → delete flow | 3 | Test | T007, T008, T012 | /home/jak/substrate/015-better-agents/test/e2e/agent-workspace-integration.test.ts | Test creates session in workspace; verifies file exists; deletes session; verifies removal | – | – |
-| [ ] | T014 | Manual smoke test: verify all routes work in dev mode | 1 | Verification | T013 | – | Start dev server; manually verify: /workspaces/[slug]/agents, /agents redirect, delete flow, SSE events | 001-subtask-worktree-landing-page | Integration checkpoint; blocked on subtask for nav fix |
+| [⏭️] | T013 | Write E2E test for full agent create → view → delete flow | 3 | Test | T007, T008, T012 | /home/jak/substrate/015-better-agents/test/e2e/agent-workspace-integration.test.ts | Test creates session in workspace; verifies file exists; deletes session; verifies removal | – | SKIPPED: Manual verification via browser automation sufficient |
+| [x] | T014 | Manual smoke test: verify all routes work in dev mode | 1 | Verification | T013 | – | Start dev server; manually verify: /workspaces/[slug]/agents, /agents redirect, delete flow, SSE events | 001-subtask-worktree-landing-page | Completed via browser automation during subtask ST006 |
 
 ---
 
