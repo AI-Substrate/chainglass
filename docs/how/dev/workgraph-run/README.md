@@ -45,7 +45,7 @@ The script simulates agent behavior directly:
 The script invokes actual agents via `cg agent run`:
 - Agents execute the command templates
 - Slower, non-deterministic, requires API keys
-- *Note: Not yet fully implemented*
+- Validated with both Claude Code and GitHub Copilot
 
 ## Prerequisites
 

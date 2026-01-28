@@ -113,7 +113,7 @@
 **AC-01**: User can create a new empty graph
 - Given: No graph exists with slug "my-workflow"
 - When: User runs `cg wg create my-workflow`
-- Then: Directory `.chainglass/work-graphs/my-workflow/` is created with `work-work-graph.yaml` containing a single start node
+- Then: Directory `.chainglass/work-graphs/my-workflow/` is created with `work-graph.yaml` containing a single start node
 
 **AC-02**: User can view graph structure
 - Given: Graph "my-workflow" exists with nodes
