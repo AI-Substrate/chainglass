@@ -968,11 +968,11 @@ Phase 3 will implement true workspace isolation in fakes.
 
 ## Change Footnotes Ledger
 
-[^1]: [To be added during implementation via plan-6a]
-[^2]: [To be added during implementation via plan-6a]
-[^3]: [To be added during implementation via plan-6a]
-[^4]: [To be added during implementation via plan-6a]
-[^5]: [To be added during implementation via plan-6a]
+[^1]: `file:packages/workgraph/src/fakes/fake-workgraph-service.ts` - Added getKey() helper, composite keys for 6 Maps, ctx in call types
+[^2]: `file:packages/workgraph/src/fakes/fake-worknode-service.ts` - Added getKey() helper, composite keys for 13 Maps, ctx in 14 call types, getAnswer support
+[^3]: `file:packages/workgraph/src/fakes/fake-workunit-service.ts` - Added getKey() helper, composite keys for 4 Maps, ctx in call types
+[^4]: `file:test/helpers/workspace-context.ts` - NEW: Shared createTestWorkspaceContext() helper
+[^5]: `file:test/unit/workgraph/fake-workspace-isolation.test.ts` - NEW: 11 workspace isolation tests
 
 ---
 

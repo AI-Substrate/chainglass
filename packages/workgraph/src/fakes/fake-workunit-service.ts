@@ -74,6 +74,9 @@ export class FakeWorkUnitService implements IWorkUnitService {
   // ==================== Key Helper ====================
 
   private getKey(ctx: WorkspaceContext, slug?: string): string {
+    if (!ctx?.worktreePath) {
+      throw new Error('FakeWorkUnitService: ctx.worktreePath is required for key generation');
+    }
     return slug ? `${ctx.worktreePath}|${slug}` : ctx.worktreePath;
   }
 

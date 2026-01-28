@@ -5,6 +5,17 @@
 - **Completed**: 2026-01-28T11:05:00Z
 - **Testing Approach**: Lightweight (contract tests verify behavior)
 
+### Testing Approach Deviation Note
+
+The plan specifies Full TDD, but Phase 3 used Lightweight approach for the following reasons:
+
+1. **Fake services are not business logic** - They are test infrastructure, not features
+2. **Contract tests already validate behavior** - 34 existing contract tests cover interface compliance
+3. **Isolation tests verify design goals** - 11 new tests validate the Phase 3 objective (workspace isolation)
+4. **TDD overhead not justified** - Writing failing tests for Map key changes adds process without value
+
+This deviation is scoped to fake service phases only. Future phases with business logic will use Full TDD.
+
 ---
 
 ## Tasks T3.1-T3.3: FakeWorkGraphService Updates

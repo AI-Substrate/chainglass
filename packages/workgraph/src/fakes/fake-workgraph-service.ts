@@ -99,7 +99,10 @@ export class FakeWorkGraphService implements IWorkGraphService {
   // ==================== Key Helper ====================
 
   private getKey(ctx: WorkspaceContext, ...parts: string[]): string {
-    return `${ctx.worktreePath}|${parts.join(':')}`;
+    if (!ctx?.worktreePath) {
+      throw new Error('FakeWorkGraphService: ctx.worktreePath is required for key generation');
+    }
+    return `${ctx.worktreePath}|${parts.filter(Boolean).join(':')}`;
   }
 
   // ==================== Create ====================
