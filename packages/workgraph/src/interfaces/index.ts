@@ -61,4 +61,5 @@ export type {
   Question,
   AskResult,
   AnswerResult,
+  GetAnswerResult,
 } from './worknode-service.interface.js';

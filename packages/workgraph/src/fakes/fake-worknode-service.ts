@@ -14,6 +14,7 @@ import type {
   ClearOptions,
   ClearResult,
   EndResult,
+  GetAnswerResult,
   GetInputDataResult,
   GetInputFileResult,
   GetOutputDataResult,
@@ -711,6 +712,20 @@ export class FakeWorkNodeService implements IWorkNodeService {
     });
 
     return result;
+  }
+
+  async getAnswer(
+    _graphSlug: string,
+    nodeId: string,
+    questionId: string
+  ): Promise<GetAnswerResult> {
+    // Return a default "not answered" result for fake
+    return {
+      nodeId,
+      questionId,
+      answered: false,
+      errors: [],
+    };
   }
 
   // ==================== Reset ====================

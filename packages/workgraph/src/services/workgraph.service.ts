@@ -456,6 +456,14 @@ export class WorkGraphService implements IWorkGraphService {
         entry.unit = this.extractUnitSlug(nodeId);
       }
 
+      // Add pending questionId when status is 'waiting-question'
+      if (nodeStatus === 'waiting-question' && nodeId !== 'start') {
+        const pendingQuestionId = this.findPendingQuestionId(graphPath, nodeId);
+        if (pendingQuestionId) {
+          entry.questionId = pendingQuestionId;
+        }
+      }
+
       return entry;
     });
 
@@ -848,5 +856,41 @@ export class WorkGraphService implements IWorkGraphService {
     }
 
     return result;
+  }
+
+  /**
+   * Find the pending question ID for a node in waiting-question state.
+   *
+   * A pending question is one that exists in data.questions but not in data.answers.
+   * Returns the first (most recent) pending question ID, or undefined if none found.
+   */
+  private findPendingQuestionId(graphPath: string, nodeId: string): string | undefined {
+    try {
+      const dataPath = this.pathResolver.join(graphPath, 'nodes', nodeId, 'data', 'data.json');
+
+      // Use sync read since getStatus is sync (returns Promise but builds data synchronously)
+      // This is a limitation - ideally we'd refactor getStatus to be fully async
+      const fs = require('node:fs');
+      if (!fs.existsSync(dataPath)) {
+        return undefined;
+      }
+
+      const content = fs.readFileSync(dataPath, 'utf-8');
+      const data = JSON.parse(content) as {
+        questions?: Record<string, unknown>;
+        answers?: Record<string, unknown>;
+      };
+
+      const questions = data.questions ?? {};
+      const answers = data.answers ?? {};
+
+      // Find question IDs that don't have answers
+      const pendingIds = Object.keys(questions).filter((qId) => !(qId in answers));
+
+      // Return the most recent (last in list since questions are added chronologically)
+      return pendingIds.length > 0 ? pendingIds[pendingIds.length - 1] : undefined;
+    } catch {
+      return undefined;
+    }
   }
 }

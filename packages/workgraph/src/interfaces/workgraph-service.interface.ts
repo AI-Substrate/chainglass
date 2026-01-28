@@ -150,6 +150,8 @@ export interface NodeStatusEntry {
   startedAt?: string;
   /** ISO timestamp when completed */
   completedAt?: string;
+  /** Pending question ID (when status is 'waiting-question') */
+  questionId?: string;
 }
 
 /**

@@ -2,12 +2,14 @@
 
 You are testing a generated script by running it and reporting the output.
 
+**IMPORTANT**: Use `node apps/cli/dist/cli.cjs` to run CLI commands (the `cg` alias is not globally installed).
+
 ## Step 1: Get Inputs
 
 Get the language and script path:
 ```
-cg wg node get-input-data $GRAPH $NODE language
-cg wg node get-input-file $GRAPH $NODE script
+node apps/cli/dist/cli.cjs wg node get-input-data $GRAPH $NODE language
+node apps/cli/dist/cli.cjs wg node get-input-file $GRAPH $NODE script
 ```
 
 ## Step 2: Run the Script
@@ -24,12 +26,12 @@ Capture the output (stdout and stderr) and exit code.
 
 Save both the success status and the output:
 ```
-cg wg node save-output-data $GRAPH $NODE success true   # or false if failed
-cg wg node save-output-data $GRAPH $NODE output "<captured output>"
+node apps/cli/dist/cli.cjs wg node save-output-data $GRAPH $NODE success true   # or false if failed
+node apps/cli/dist/cli.cjs wg node save-output-data $GRAPH $NODE output "<captured output>"
 ```
 
 ## Step 4: Complete
 
 ```
-cg wg node end $GRAPH $NODE
+node apps/cli/dist/cli.cjs wg node end $GRAPH $NODE
 ```

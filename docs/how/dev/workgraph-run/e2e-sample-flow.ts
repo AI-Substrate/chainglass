@@ -19,12 +19,16 @@
 import {
   assert,
   getLatestQuestionId,
+  invokeAgent,
+  loadPromptTemplate,
   logError,
   logStep,
   logSuccess,
+  pollForNodeCompleteWithQuestions,
   pollForStatus,
   runCli,
   sleep,
+  substitutePromptVars,
 } from './lib/cli-runner.js';
 import type {
   AddNodeData,
@@ -107,8 +111,15 @@ async function main(): Promise<void> {
 }
 
 async function cleanup(): Promise<void> {
-  // Try to delete existing graph (ignore errors if it doesn't exist)
-  await runCli(['wg', 'delete', GRAPH_SLUG, '--force']);
+  // Manually remove graph directory (no wg delete command exists yet)
+  const fs = await import('node:fs/promises');
+  const graphPath = `.chainglass/work-graphs/${GRAPH_SLUG}`;
+  try {
+    await fs.rm(graphPath, { recursive: true, force: true });
+    console.log(`Cleaned up existing graph: ${graphPath}`);
+  } catch {
+    // Ignore if doesn't exist
+  }
 }
 
 async function createGraph(): Promise<void> {
@@ -300,10 +311,215 @@ async function executeNode2WithRealAgent(): Promise<void> {
   await runCli(['wg', 'node', 'start', GRAPH_SLUG, nodeIds.node2]);
   logSuccess('Started: generate-code -> running');
 
-  // TODO: Invoke real agent with cg agent run
-  // For now, use mock implementation
-  console.log('  (Real agent mode not yet implemented - using mock)');
-  await executeNode2Mock();
+  // Load and prepare the prompt template
+  const template = await loadPromptTemplate('sample-coder');
+  const initialPrompt = substitutePromptVars(template, GRAPH_SLUG, nodeIds.node2);
+  logSuccess('Loaded prompt template: sample-coder/commands/main.md');
+
+  // Run agent with question/answer loop
+  await runAgentWithQuestionLoop({
+    graph: GRAPH_SLUG,
+    nodeId: nodeIds.node2,
+    initialPrompt,
+    autoAnswers: {
+      // Auto-answer language question with "bash"
+      'Which programming language should I use?': 'bash',
+    },
+    verbose,
+  });
+
+  logSuccess('Completed: generate-code -> complete');
+}
+
+/**
+ * Run an agent with automatic question handling and session resumption.
+ *
+ * This handles the full lifecycle:
+ * 1. Invoke agent with initial prompt
+ * 2. Wait for agent to exit and capture session ID
+ * 3. Poll node status
+ * 4. If waiting-question: answer and re-invoke with session resumption
+ * 5. Repeat until node is complete
+ */
+async function runAgentWithQuestionLoop(options: {
+  graph: string;
+  nodeId: string;
+  initialPrompt: string;
+  autoAnswers?: Record<string, string>;
+  verbose?: boolean;
+}): Promise<void> {
+  const { graph, nodeId, initialPrompt, autoAnswers = {}, verbose: isVerbose = true } = options;
+  const timeoutMs = 300000; // 5 minutes
+  const start = Date.now();
+
+  let currentPrompt = initialPrompt;
+  let sessionId: string | undefined;
+  const handledQuestions = new Set<string>();
+
+  while (Date.now() - start < timeoutMs) {
+    // Invoke agent and wait for it to complete
+    const result = await invokeAgentAndWait(currentPrompt, sessionId, isVerbose);
+    sessionId = result.sessionId;
+
+    // Check for fatal errors from agent (e.g., cg CLI not available)
+    if (result.fatalError) {
+      logError(`Agent encountered fatal error: ${result.fatalError}`);
+      throw new Error(`Agent fatal error: ${result.fatalError}`);
+    }
+
+    // Check node status
+    const statusResult = await runCli<GraphStatusData>(['wg', 'status', graph]);
+    if (!statusResult.success) {
+      throw new Error(`Failed to get status: ${JSON.stringify(statusResult.data.errors)}`);
+    }
+
+    const node = statusResult.data.nodes.find((n) => n.id === nodeId);
+    if (!node) {
+      throw new Error(`Node ${nodeId} not found`);
+    }
+
+    // If complete, we're done
+    if (node.status === 'complete') {
+      return;
+    }
+
+    // If failed, throw
+    if (node.status === 'failed') {
+      throw new Error(`Node ${nodeId} failed`);
+    }
+
+    // If waiting-question, answer it and prepare continuation prompt
+    if (node.status === 'waiting-question' && node.questionId) {
+      if (!handledQuestions.has(node.questionId)) {
+        handledQuestions.add(node.questionId);
+
+        // Find auto-answer by matching question text (simplified - just use "bash")
+        const answer = Object.values(autoAnswers)[0] ?? 'bash';
+        logSuccess(`Auto-answering question ${node.questionId}: "${answer}"`);
+
+        await runCli([
+          'wg',
+          'node',
+          'answer',
+          graph,
+          nodeId,
+          node.questionId,
+          JSON.stringify(answer),
+        ]);
+
+        // Prepare continuation prompt for session resumption
+        currentPrompt = `The question has been answered. Use 'node apps/cli/dist/cli.cjs wg node get-answer $GRAPH $NODE <questionId>' to retrieve the answer, then continue with your work.`;
+      }
+    } else if (node.status === 'running') {
+      // Agent exited but node is still running - re-invoke to continue
+      currentPrompt = 'Please continue with your work and complete the remaining steps.';
+    } else {
+      // Unknown state - wait and retry
+      await sleep(500);
+    }
+  }
+
+  throw new Error(`Timeout waiting for node ${nodeId} to complete`);
+}
+
+/**
+ * Result from invoking an agent.
+ */
+interface AgentInvokeResult {
+  sessionId: string;
+  errors: string[];
+  fatalError?: string;
+}
+
+/**
+ * Invoke agent and wait for it to exit, capturing the session ID and any errors.
+ */
+async function invokeAgentAndWait(
+  prompt: string,
+  sessionId: string | undefined,
+  isVerbose: boolean
+): Promise<AgentInvokeResult> {
+  return new Promise((resolve) => {
+    let stdout = '';
+    const errors: string[] = [];
+    let fatalError: string | undefined;
+
+    invokeAgent(prompt, {
+      agentType: 'claude-code',
+      sessionId,
+      onStdout: (data) => {
+        stdout += data;
+        if (isVerbose) {
+          process.stdout.write(`  [agent] ${data}`);
+        }
+
+        // Parse each line for errors (NDJSON format)
+        for (const line of data.split('\n')) {
+          if (!line.trim()) continue;
+          try {
+            const event = JSON.parse(line);
+
+            // Check for fatal error in text_delta
+            if (event.type === 'text_delta' && event.data?.content) {
+              const content = event.data.content as string;
+              if (content.includes('FATAL:') || content.includes('command not found')) {
+                fatalError = content;
+              }
+            }
+
+            // Check for tool errors in raw events
+            if (event.type === 'raw' && event.data?.originalData?.tool_use_result) {
+              const result = event.data.originalData.tool_use_result;
+              if (typeof result === 'string' && result.includes('command not found')) {
+                errors.push(result);
+                fatalError = fatalError ?? result;
+              }
+            }
+
+            // Check for is_error in tool results
+            if (event.type === 'raw' && event.data?.originalData?.message?.content) {
+              const content = event.data.originalData.message.content;
+              if (Array.isArray(content)) {
+                for (const item of content) {
+                  if (item.is_error && item.content?.includes('command not found')) {
+                    errors.push(item.content);
+                    fatalError = fatalError ?? item.content;
+                  }
+                }
+              }
+            }
+          } catch {
+            // Not JSON, ignore
+          }
+        }
+      },
+      onStderr: (data) => {
+        if (isVerbose) {
+          process.stderr.write(`  [agent:err] ${data}`);
+        }
+      },
+      onExit: (code) => {
+        if (isVerbose) {
+          console.log(`  [agent] Exited with code ${code}`);
+        }
+
+        // Parse session ID from output
+        let parsedSessionId = sessionId ?? '';
+        try {
+          // Find JSON in output (may have log lines before it)
+          const jsonMatch = stdout.match(/\{[^{}]*"sessionId"[^{}]*\}/);
+          if (jsonMatch) {
+            const parsed = JSON.parse(jsonMatch[0]);
+            parsedSessionId = parsed.sessionId ?? parsedSessionId;
+          }
+        } catch {
+          // Ignore parse errors
+        }
+
+        resolve({ sessionId: parsedSessionId, errors, fatalError });
+      },
+    });
+  });
 }
 
 async function executeNode3AgentRunsScript(): Promise<void> {
@@ -407,9 +623,21 @@ async function executeNode3WithRealAgent(): Promise<void> {
   await runCli(['wg', 'node', 'start', GRAPH_SLUG, nodeIds.node3]);
   logSuccess('Started: run-verify -> running');
 
-  // TODO: Invoke real agent
-  console.log('  (Real agent mode not yet implemented - using mock)');
-  await executeNode3Mock();
+  // Load and prepare the prompt template
+  const template = await loadPromptTemplate('sample-tester');
+  const initialPrompt = substitutePromptVars(template, GRAPH_SLUG, nodeIds.node3);
+  logSuccess('Loaded prompt template: sample-tester/commands/main.md');
+
+  // Run agent (no questions expected for tester)
+  await runAgentWithQuestionLoop({
+    graph: GRAPH_SLUG,
+    nodeId: nodeIds.node3,
+    initialPrompt,
+    autoAnswers: {}, // No questions expected
+    verbose,
+  });
+
+  logSuccess('Completed: run-verify -> complete');
 }
 
 async function readPipelineResult(): Promise<boolean> {

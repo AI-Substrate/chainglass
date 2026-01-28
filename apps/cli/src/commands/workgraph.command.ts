@@ -552,6 +552,12 @@ async function handleNodeAsk(
 
   console.log(output);
 
+  // Add agent instruction for non-JSON output
+  if (!options.json && result.errors.length === 0) {
+    console.log('\n[AGENT INSTRUCTION] STOP HERE. Exit now and wait for orchestrator to answer.');
+    console.log('The orchestrator will re-invoke you with a continuation prompt containing the answer.');
+  }
+
   if (result.errors.length > 0) {
     process.exit(1);
   }
@@ -582,6 +588,35 @@ async function handleNodeAnswer(
 
   if (result.errors.length > 0) {
     process.exit(1);
+  }
+}
+
+async function handleNodeGetAnswer(
+  graphSlug: string,
+  nodeId: string,
+  questionId: string,
+  options: BaseOptions
+): Promise<void> {
+  const service = getWorkNodeService();
+
+  const result = await service.getAnswer(graphSlug, nodeId, questionId);
+
+  if (result.errors.length > 0) {
+    const adapter = createOutputAdapter(options.json ?? false);
+    console.log(adapter.format('wg.node.get-answer', result));
+    process.exit(1);
+  }
+
+  // Output the answer value directly for agent consumption
+  // JSON mode: full result object, otherwise just the raw value
+  if (options.json) {
+    console.log(JSON.stringify(result, null, 2));
+  } else if (!result.answered) {
+    console.log('NOT_ANSWERED');
+  } else {
+    // Output raw value - agents can parse this directly
+    const value = result.answer;
+    console.log(typeof value === 'string' ? value : JSON.stringify(value));
   }
 }
 
@@ -860,6 +895,25 @@ export function registerWorkGraphCommands(program: Command): void {
         ) => {
           const json = cmd.parent?.opts()?.json ?? false;
           await handleNodeAnswer(graph, nodeId, questionId, answer, { json });
+        }
+      )
+    );
+
+  // cg wg node get-answer <graph> <node> <questionId>
+  node
+    .command('get-answer <graph> <node> <questionId>')
+    .description('Get answer to a question (for agent resume)')
+    .action(
+      wrapAction(
+        async (
+          graph: string,
+          nodeId: string,
+          questionId: string,
+          options: BaseOptions,
+          cmd: Command
+        ) => {
+          const json = cmd.parent?.opts()?.json ?? false;
+          await handleNodeGetAnswer(graph, nodeId, questionId, { json });
         }
       )
     );

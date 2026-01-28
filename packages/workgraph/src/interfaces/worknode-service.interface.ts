@@ -222,6 +222,22 @@ export interface AnswerResult extends BaseResult {
 }
 
 /**
+ * Result of getting an answer to a question.
+ */
+export interface GetAnswerResult extends BaseResult {
+  /** Node ID */
+  nodeId: string;
+  /** Question ID */
+  questionId: string;
+  /** Answer value (undefined if not yet answered) */
+  answer?: unknown;
+  /** Whether the question has been answered */
+  answered: boolean;
+  /** ISO timestamp when answered */
+  answeredAt?: string;
+}
+
+/**
  * Options for clearing a node.
  */
 export interface ClearOptions {
@@ -445,4 +461,17 @@ export interface IWorkNodeService {
     questionId: string,
     answer: unknown
   ): Promise<AnswerResult>;
+
+  /**
+   * Get the answer to a question.
+   *
+   * Reads the answer from data.json if it has been provided.
+   * Used by agents to retrieve answers after orchestrator has answered.
+   *
+   * @param graphSlug - Graph containing the node
+   * @param nodeId - Node to get answer for
+   * @param questionId - ID of the question
+   * @returns GetAnswerResult with answer if available
+   */
+  getAnswer(graphSlug: string, nodeId: string, questionId: string): Promise<GetAnswerResult>;
 }

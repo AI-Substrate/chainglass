@@ -23,6 +23,7 @@ import type {
   AnswerResult,
   AskResult,
   BlockingNode,
+  GetAnswerResult,
   CanEndResult,
   CanRunResult,
   ClearOptions,
@@ -1760,5 +1761,101 @@ export class WorkNodeService implements IWorkNodeService {
       answer: answerValue,
       errors: [],
     };
+  }
+
+  /**
+   * Get the answer to a question.
+   *
+   * Reads the answer from data.json if it has been provided.
+   */
+  async getAnswer(
+    graphSlug: string,
+    nodeId: string,
+    questionId: string
+  ): Promise<GetAnswerResult> {
+    // 1. Validate node exists
+    const statusResult = await this.workGraphService.status(graphSlug);
+    if (statusResult.errors.length > 0) {
+      return {
+        nodeId,
+        questionId,
+        answered: false,
+        errors: statusResult.errors,
+      };
+    }
+
+    const node = statusResult.nodes.find((n) => n.id === nodeId);
+    if (!node) {
+      return {
+        nodeId,
+        questionId,
+        answered: false,
+        errors: [
+          {
+            code: 'E107',
+            message: `Node '${nodeId}' not found in graph '${graphSlug}'`,
+            action: 'Verify the node ID is correct',
+          },
+        ],
+      };
+    }
+
+    // 2. Read data.json
+    const nodePath = this.pathResolver.join(this.graphsDir, graphSlug, 'nodes', nodeId);
+    const dataPath = this.pathResolver.join(nodePath, 'data', 'data.json');
+
+    if (!(await this.fs.exists(dataPath))) {
+      return {
+        nodeId,
+        questionId,
+        answered: false,
+        errors: [
+          {
+            code: 'E119',
+            message: `No answer data found for node '${nodeId}'`,
+            action: 'Question may not have been answered yet',
+          },
+        ],
+      };
+    }
+
+    try {
+      const content = await this.fs.readFile(dataPath);
+      const data = JSON.parse(content) as {
+        answers?: Record<string, { value: unknown; answeredAt: string }>;
+      };
+
+      const answerData = data.answers?.[questionId];
+      if (!answerData) {
+        return {
+          nodeId,
+          questionId,
+          answered: false,
+          errors: [],
+        };
+      }
+
+      return {
+        nodeId,
+        questionId,
+        answered: true,
+        answer: answerData.value,
+        answeredAt: answerData.answeredAt,
+        errors: [],
+      };
+    } catch {
+      return {
+        nodeId,
+        questionId,
+        answered: false,
+        errors: [
+          {
+            code: 'E119',
+            message: `Failed to read answer data for node '${nodeId}'`,
+            action: 'Check data.json file',
+          },
+        ],
+      };
+    }
   }
 }

@@ -215,3 +215,222 @@ All 50 workgraph tests pass.
 
 4. **DI Container** - Production container now uses real WorkGraphService
 
+---
+
+## Post-Phase 3: Plan 017 Manual Validation (Agent E2E Testing)
+
+**Started**: 2026-01-28
+**Status**: ✅ Complete
+**Objective**: Validate WorkGraph agent execution with real Claude Code agents
+
+This section documents the manual validation work done after Phase 3 completion, following Plan 017 "Manual Validation of Agent Graph Execution".
+
+---
+
+### Issue 1: `--with-agent` Mode Not Implemented
+
+**Problem**: The E2E harness (`e2e-sample-flow.ts`) had `--with-agent` mode stubbed but not implemented. Functions `executeNode2WithRealAgent()` and `executeNode3WithRealAgent()` just printed "not implemented" and called mock versions.
+
+**Fix**: Implemented real agent execution:
+- Added helper functions to `cli-runner.ts`: `loadPromptTemplate()`, `substitutePromptVars()`, `invokeAgent()`, `pollForNodeCompleteWithQuestions()`
+- Implemented streaming event parsing via `--stream` flag on `cg agent run`
+
+**Files Changed**:
+- `docs/how/dev/workgraph-run/lib/cli-runner.ts`
+- `docs/how/dev/workgraph-run/e2e-sample-flow.ts`
+
+---
+
+### Issue 2: `wg delete` Command Missing
+
+**Problem**: Couldn't clean up existing graphs - `wg delete` command doesn't exist in CLI.
+
+**Workaround**: Added manual directory removal in cleanup function:
+```typescript
+await fs.rm(graphPath, { recursive: true, force: true });
+```
+
+**Note**: This is a known gap in the CLI - may want to add `wg delete` command in future.
+
+---
+
+### Issue 3: `questionId` Missing from `NodeStatusEntry`
+
+**Problem**: Agent asked question successfully, harness detected `waiting-question` status, but couldn't find the `questionId` to answer. The `NodeStatusEntry` interface didn't include `questionId`.
+
+**Root Cause**: Plan 016 spec defined `questionId` but it was never added to the interface.
+
+**Fix**:
+1. Added `questionId?: string` to `NodeStatusEntry` interface
+2. Added `findPendingQuestionId()` helper method to `WorkGraphService.getStatus()`
+3. Reads `data.json` to find questions without corresponding answers
+
+**Files Changed**:
+- `packages/workgraph/src/interfaces/workgraph-service.interface.ts`
+- `packages/workgraph/src/services/workgraph.service.ts`
+
+---
+
+### Issue 4: Agent Didn't Re-invoke After Answer
+
+**Problem**: After orchestrator answered the question, the agent had already exited. Needed session resumption to continue.
+
+**Fix**: Implemented `runAgentWithQuestionLoop()` with session tracking:
+```typescript
+async function runAgentWithQuestionLoop(options: {
+  prompt: string;
+  sessionId?: string;
+  timeoutMs: number;
+}): Promise<void> {
+  while (Date.now() - start < timeoutMs) {
+    const result = await invokeAgentAndWait(currentPrompt, sessionId, isVerbose);
+    // Check status, answer questions, re-invoke with continuation prompt
+  }
+}
+```
+
+**Files Changed**:
+- `docs/how/dev/workgraph-run/e2e-sample-flow.ts`
+
+---
+
+### Issue 5: `cg` Command Not Found
+
+**Problem**: Agent tried to run `cg wg node ...` but `cg` is not globally installed (only works via pnpm/npm scripts).
+
+**Fix**: Updated all prompt templates to use full path:
+```bash
+node apps/cli/dist/cli.cjs wg node get-input-data $GRAPH $NODE spec
+```
+
+**Files Changed**:
+- `.chainglass/units/sample-coder/commands/main.md`
+- `.chainglass/units/sample-tester/commands/main.md`
+
+---
+
+### Issue 6: Agent Didn't Know When to Stop
+
+**Problem**: After asking a question, agent tried to poll for the answer itself instead of exiting and waiting for orchestrator.
+
+**Fix**: Added instruction message to CLI output after `wg node ask`:
+```
+[AGENT INSTRUCTION] STOP HERE. Exit now and wait for orchestrator to answer.
+The orchestrator will re-invoke you with a continuation prompt containing the answer.
+```
+
+**Files Changed**:
+- `apps/cli/src/commands/workgraph.command.ts` (after ask command output)
+
+---
+
+### Issue 7: `get-answer` Command Missing (CRITICAL)
+
+**Problem**: Agent was re-invoked after answer but had no way to retrieve the answer value. The `get-answer` command was documented in Plan 016 spec (`workgraph-command-flows.md`) but never implemented.
+
+**Investigation**: Used subagent to scan Plan 016 documents. Found 5 missing commands:
+1. `get-answer` (CRITICAL - blocked agent resume flow)
+2. `clear`
+3. `handover-reason`
+4. `question`
+5. `error`
+
+**Fix**: Implemented `get-answer`:
+1. Added `GetAnswerResult` interface to `worknode-service.interface.ts`
+2. Added `getAnswer()` method signature to `IWorkNodeService`
+3. Implemented in `WorkNodeService` - reads from `data.json` answers
+4. Added to `FakeWorkNodeService`
+5. Added CLI command `wg node get-answer <graph> <node> <questionId>`
+
+**Files Changed**:
+- `packages/workgraph/src/interfaces/worknode-service.interface.ts`
+- `packages/workgraph/src/services/worknode.service.ts`
+- `packages/workgraph/src/fakes/fake-worknode-service.ts`
+- `apps/cli/src/commands/workgraph.command.ts`
+
+---
+
+### Issue 8: `get-answer` Output Format Wrong
+
+**Problem**: CLI output showed "✓ Operation completed successfully" but not the actual answer value. Agent couldn't parse the answer.
+
+**Root Cause**: Used generic output adapter which didn't have a formatter for `wg.node.get-answer`.
+
+**Fix**: Modified `handleNodeGetAnswer()` to output raw value directly:
+```typescript
+if (options.json) {
+  console.log(JSON.stringify(result, null, 2));
+} else if (!result.answered) {
+  console.log('NOT_ANSWERED');
+} else {
+  const value = result.answer;
+  console.log(typeof value === 'string' ? value : JSON.stringify(value));
+}
+```
+
+Now `get-answer` outputs just `bash` - the raw value the agent needs.
+
+**Files Changed**:
+- `apps/cli/src/commands/workgraph.command.ts`
+
+---
+
+### Final Successful Run
+
+After all fixes, the agent E2E test passed:
+
+**Graph**: `sample-e2e`
+**Nodes**: sample-input → sample-coder → sample-tester
+
+**sample-coder-721 (Code Generator)**:
+1. First invocation: Read spec, asked language question, exited on instruction
+2. Orchestrator answered: `bash`
+3. Second invocation: Called `get-answer` → got `bash`, wrote script.sh, saved outputs, completed
+
+**sample-tester-97d (Script Tester)**:
+1. Single invocation: Got inputs, ran script, verified output, saved results, completed
+
+**Pipeline Result**:
+- `success = true`
+- `output = "add(3, 5) = 8"`
+- All nodes complete
+- TEST PASSED
+
+**Token Usage**:
+| Node | Session | Tokens |
+|------|---------|--------|
+| sample-coder (1st) | ffb158c9... | 93,647 |
+| sample-coder (2nd) | a87f5150... | 160,389 |
+| sample-tester | afe9191b... | 157,643 |
+
+---
+
+### Key Learnings
+
+1. **Plan Gaps**: 5 CLI commands from Plan 016 spec were never implemented. Need better tracking of spec-to-implementation coverage.
+
+2. **Agent UX**: Agents need explicit instructions (`[AGENT INSTRUCTION]`) in CLI output to know when to stop and wait.
+
+3. **Output Format**: For agent consumption, simpler output is better. Raw values parse easier than formatted messages.
+
+4. **Session Resumption**: The question/answer handover requires careful session tracking and continuation prompts.
+
+5. **Testing Pyramid**: Mock mode tests passed but real agent mode exposed integration gaps. Both are needed.
+
+---
+
+### Test Evidence
+
+See detailed test run log: `docs/how/dev/workgraph-run/logs/agent-e2e-test-run-2026-01-28.md`
+
+**Test Command**:
+```bash
+cd docs/how/dev/workgraph-run && npx tsx e2e-sample-flow.ts --verbose --with-agent
+```
+
+**All Tests Pass**:
+```
+pnpm test
+# 2149 tests passing (including all workgraph tests)
+```
+

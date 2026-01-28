@@ -2,40 +2,49 @@
 
 You are generating code based on a specification.
 
+**IMPORTANT**: Use `node apps/cli/dist/cli.cjs` to run CLI commands (the `cg` alias is not globally installed).
+
 ## Step 1: Get the Specification
 
 Read the input specification:
 ```
-cg wg node get-input-data $GRAPH $NODE spec
+node apps/cli/dist/cli.cjs wg node get-input-data $GRAPH $NODE spec
 ```
 
 ## Step 2: Ask Which Language
 
 Before generating code, ask the user which programming language to use:
 ```
-cg wg node ask $GRAPH $NODE \
+node apps/cli/dist/cli.cjs wg node ask $GRAPH $NODE \
   --type single \
   --text "Which programming language should I use?" \
   --options "typescript" "javascript" "python" "bash"
 ```
 
-Wait for the answer, then retrieve it from the node's data.
+**IMPORTANT**: After asking the question, STOP AND EXIT immediately. The orchestrator will answer the question and re-invoke you.
+
+When re-invoked, retrieve the answer using:
+```
+node apps/cli/dist/cli.cjs wg node get-answer $GRAPH $NODE <questionId>
+```
+
+The questionId was returned when you asked the question. Then proceed to Step 3.
 
 ## Step 3: Generate the Code
 
-Based on the specification and chosen language, generate a simple script.
-Save it to a file (e.g., `./script.sh` for bash, `./script.py` for python).
+Based on the specification and the language from the continuation prompt, generate a simple script.
+Save it to a file in the current directory (e.g., `./script.sh` for bash, `./script.py` for python).
 
 ## Step 4: Save Outputs
 
-Save both outputs:
+Save both outputs (use the language from the continuation prompt):
 ```
-cg wg node save-output-data $GRAPH $NODE language "<chosen-language>"
-cg wg node save-output-file $GRAPH $NODE script ./script.<ext>
+node apps/cli/dist/cli.cjs wg node save-output-data $GRAPH $NODE language "<language-from-continuation>"
+node apps/cli/dist/cli.cjs wg node save-output-file $GRAPH $NODE script ./script.<ext>
 ```
 
 ## Step 5: Complete
 
 ```
-cg wg node end $GRAPH $NODE
+node apps/cli/dist/cli.cjs wg node end $GRAPH $NODE
 ```
