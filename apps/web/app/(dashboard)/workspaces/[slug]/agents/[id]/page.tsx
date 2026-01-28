@@ -1,25 +1,28 @@
 /**
- * Agent Session Detail Page - /workspaces/[slug]/agents/[id]
+ * Agent Session Chat Page - /workspaces/[slug]/agents/[id]
  *
  * Part of Plan 018: Agent Workspace Data Model Migration (Phase 3)
+ * Subtask 002: Agent Chat Page - Replaces raw JSON detail with interactive chat
  *
- * Server component that shows details and events for a specific agent session.
+ * Server component wrapper that:
+ * - Fetches current session and all sessions (for sidebar selector)
+ * - Renders AgentChatView client component for interactive chat
+ * - Renders SessionSelector for switching between sessions
  *
  * Per DYK-02: Uses notFound() for invalid workspace or session.
  * Per Discovery 04: Uses `export const dynamic = 'force-dynamic'` for DI container access.
- * Per DYK-04: Client components can use useServerSession with workspaceSlug for real-time events.
+ * Per Discovery 11: Must await params before use (Next.js 16+).
+ * Per DYK Insight #2: Replaces detail page with chat UI (no separate /chat route).
  */
 
 import { WORKSPACE_DI_TOKENS } from '@chainglass/shared';
-import type {
-  IAgentEventAdapter,
-  IAgentSessionService,
-  IWorkspaceService,
-} from '@chainglass/workflow';
-import { ArrowLeft, Bot, Calendar, Clock, GitBranch, Zap } from 'lucide-react';
+import type { IAgentSessionService, IWorkspaceService } from '@chainglass/workflow';
+import { ArrowLeft, Bot, GitBranch } from 'lucide-react';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
+import { AgentChatView } from '../../../../../../src/components/agents/agent-chat-view';
 import { DeleteSessionButton } from '../../../../../../src/components/agents/delete-session-button';
+import { SessionSelector } from '../../../../../../src/components/agents/session-selector';
 import { getContainer } from '../../../../../../src/lib/bootstrap-singleton';
 
 export const dynamic = 'force-dynamic';
@@ -34,9 +37,14 @@ interface PageProps {
   }>;
 }
 
-export default async function AgentSessionDetailPage({ params, searchParams }: PageProps) {
+export default async function AgentSessionChatPage({ params, searchParams }: PageProps) {
   const { slug, id } = await params;
   const { worktree: worktreePath } = await searchParams;
+
+  // Redirect to workspace detail if no worktree specified (per DYK-02)
+  if (!worktreePath) {
+    redirect(`/workspaces/${slug}`);
+  }
 
   const container = getContainer();
   const workspaceService = container.resolve<IWorkspaceService>(
@@ -44,9 +52,6 @@ export default async function AgentSessionDetailPage({ params, searchParams }: P
   );
   const sessionService = container.resolve<IAgentSessionService>(
     WORKSPACE_DI_TOKENS.AGENT_SESSION_SERVICE
-  );
-  const eventAdapter = container.resolve<IAgentEventAdapter>(
-    WORKSPACE_DI_TOKENS.AGENT_EVENT_ADAPTER
   );
 
   // Resolve context - per DYK-02: use notFound() for invalid slug
@@ -56,168 +61,124 @@ export default async function AgentSessionDetailPage({ params, searchParams }: P
     notFound();
   }
 
-  // Load session
+  // Load current session
   const session = await sessionService.getSession(context, id);
 
   if (!session) {
     notFound();
   }
 
-  // Load events (if any exist)
-  let events: Array<{ id: string; type: string; timestamp: string; data: unknown }> = [];
-  try {
-    const hasEvents = await eventAdapter.exists(context, id);
-    if (hasEvents) {
-      const rawEvents = await eventAdapter.getAll(context, id);
-      events = rawEvents.map((e) => ({
-        id: e.id,
-        type: e.type,
-        timestamp: e.timestamp,
-        data: e.data,
-      }));
-    }
-  } catch {
-    // Events may not exist yet - that's ok
-  }
+  // Load all sessions for the sidebar selector
+  const allSessions = await sessionService.listSessions(context);
+
+  // Convert AgentSession entities to serializable props for client component
+  // Backend status: 'active' | 'completed' | 'terminated'
+  // UI status: 'idle' | 'running' | 'completed' | 'error'
+  const sessionsForSelector = allSessions.map((s) => ({
+    id: s.id,
+    name: `Session ${s.id.slice(-8)}`,
+    agentType: s.type,
+    status: s.status === 'active' ? ('running' as const) : ('idle' as const),
+    messages: [],
+    createdAt: s.createdAt.getTime(),
+    lastActiveAt: s.updatedAt.getTime(),
+  }));
 
   // Get workspace info for breadcrumb
   const info = await workspaceService.getInfo(slug);
 
+  // Build back link to worktree landing or agents list
+  const agentsListUrl = `/workspaces/${slug}/agents?worktree=${encodeURIComponent(worktreePath)}`;
+  const worktreeUrl = `/workspaces/${slug}/worktree?worktree=${encodeURIComponent(worktreePath)}`;
+
   return (
-    <div className="container mx-auto py-6">
-      {/* Breadcrumb */}
-      <nav className="mb-4 text-sm text-muted-foreground">
-        <Link href="/workspaces" className="hover:underline">
-          Workspaces
-        </Link>
-        {' / '}
-        <Link href={`/workspaces/${slug}`} className="hover:underline">
-          {info?.name || slug}
-        </Link>
-        {' / '}
-        <Link href={`/workspaces/${slug}/agents`} className="hover:underline">
-          Agents
-        </Link>
-        {' / '}
-        <span>{session.id.slice(-12)}</span>
-      </nav>
+    <div className="flex h-[calc(100vh-4rem)]">
+      {/* Main chat area */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Header with breadcrumb and session info */}
+        <header className="shrink-0 border-b bg-background">
+          {/* Breadcrumb */}
+          <nav className="px-4 py-2 text-sm text-muted-foreground border-b">
+            <Link href="/workspaces" className="hover:underline">
+              Workspaces
+            </Link>
+            {' / '}
+            <Link href={`/workspaces/${slug}`} className="hover:underline">
+              {info?.name || slug}
+            </Link>
+            {' / '}
+            <Link href={worktreeUrl} className="hover:underline">
+              {context.worktreeBranch || 'worktree'}
+            </Link>
+            {' / '}
+            <Link href={agentsListUrl} className="hover:underline">
+              Agents
+            </Link>
+            {' / '}
+            <span className="font-mono">{session.id.slice(-12)}</span>
+          </nav>
 
-      {/* Back Link */}
-      <Link
-        href={`/workspaces/${slug}/agents`}
-        className="mb-6 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back to sessions
-      </Link>
-
-      {/* Header */}
-      <div className="mb-6 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Bot className="h-8 w-8" />
-          <div>
-            <h1 className="text-3xl font-bold font-mono">{session.id}</h1>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <GitBranch className="h-4 w-4" />
-              {context.worktreeBranch || 'main'}
-            </div>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <span
-            className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-medium ${
-              session.status === 'active'
-                ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                : session.status === 'completed'
-                  ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
-                  : 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400'
-            }`}
-          >
-            {session.status}
-          </span>
-          <DeleteSessionButton
-            sessionId={session.id}
-            workspaceSlug={slug}
-            worktreePath={worktreePath}
-          />
-        </div>
-      </div>
-
-      {/* Session Info */}
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-lg border p-4">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Bot className="h-4 w-4" />
-            Type
-          </div>
-          <div className="mt-1 text-lg font-medium">
-            {session.type === 'claude-code' ? 'Claude Code' : 'Copilot'}
-          </div>
-        </div>
-        <div className="rounded-lg border p-4">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Calendar className="h-4 w-4" />
-            Created
-          </div>
-          <div className="mt-1 text-lg font-medium">{session.createdAt.toLocaleDateString()}</div>
-          <div className="text-sm text-muted-foreground">
-            {session.createdAt.toLocaleTimeString()}
-          </div>
-        </div>
-        <div className="rounded-lg border p-4">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Clock className="h-4 w-4" />
-            Updated
-          </div>
-          <div className="mt-1 text-lg font-medium">{session.updatedAt.toLocaleDateString()}</div>
-          <div className="text-sm text-muted-foreground">
-            {session.updatedAt.toLocaleTimeString()}
-          </div>
-        </div>
-        <div className="rounded-lg border p-4">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Zap className="h-4 w-4" />
-            Events
-          </div>
-          <div className="mt-1 text-lg font-medium">{events.length}</div>
-        </div>
-      </div>
-
-      {/* Events List */}
-      <div className="rounded-lg border">
-        <div className="border-b bg-muted/50 px-4 py-3">
-          <h2 className="font-semibold">Event Log</h2>
-        </div>
-        {events.length === 0 ? (
-          <div className="p-8 text-center text-muted-foreground">
-            <Zap className="mx-auto mb-2 h-8 w-8 opacity-50" />
-            <p>No events recorded yet.</p>
-          </div>
-        ) : (
-          <div className="divide-y max-h-[500px] overflow-auto">
-            {events.map((event) => (
-              <div key={event.id} className="px-4 py-3 hover:bg-muted/50">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                        {event.type}
-                      </span>
-                      <span className="text-xs text-muted-foreground font-mono">{event.id}</span>
-                    </div>
-                    <pre className="mt-2 text-xs bg-muted/50 rounded p-2 overflow-auto max-w-full">
-                      {JSON.stringify(event.data, null, 2)}
-                    </pre>
-                  </div>
-                  <div className="text-xs text-muted-foreground whitespace-nowrap">
-                    {new Date(event.timestamp).toLocaleString()}
-                  </div>
+          {/* Session header */}
+          <div className="px-4 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Link
+                href={agentsListUrl}
+                className="p-1 -ml-1 rounded hover:bg-muted transition-colors"
+                title="Back to sessions"
+              >
+                <ArrowLeft className="h-5 w-5 text-muted-foreground" />
+              </Link>
+              <Bot className="h-6 w-6 text-muted-foreground" />
+              <div>
+                <h1 className="font-semibold">Session {session.id.slice(-8)}</h1>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <GitBranch className="h-3 w-3" />
+                  {context.worktreeBranch || 'main'}
+                  <span>•</span>
+                  <span>{session.type === 'claude-code' ? 'Claude Code' : 'Copilot'}</span>
                 </div>
               </div>
-            ))}
+            </div>
+            <div className="flex items-center gap-2">
+              <span
+                className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                  session.status === 'active'
+                    ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                    : session.status === 'completed'
+                      ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                      : 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400'
+                }`}
+              >
+                {session.status}
+              </span>
+              <DeleteSessionButton
+                sessionId={session.id}
+                workspaceSlug={slug}
+                worktreePath={worktreePath}
+              />
+            </div>
           </div>
-        )}
+        </header>
+
+        {/* Chat view - client component */}
+        <AgentChatView
+          sessionId={session.id}
+          workspaceSlug={slug}
+          worktreePath={worktreePath}
+          agentType={session.type}
+          isRunning={session.status === 'active'}
+          className="flex-1 min-h-0"
+        />
       </div>
+
+      {/* Session selector sidebar */}
+      <SessionSelector
+        sessions={sessionsForSelector}
+        activeSessionId={session.id}
+        workspaceSlug={slug}
+        worktreePath={worktreePath}
+        className="w-64 shrink-0 hidden lg:flex"
+      />
     </div>
   );
 }
