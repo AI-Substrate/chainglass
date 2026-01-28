@@ -3,7 +3,7 @@
 **Plan Version**: 1.0.0
 **Created**: 2026-01-28
 **Spec**: [agents-workspace-data-model-spec.md](./agents-workspace-data-model-spec.md)
-**Status**: READY
+**Status**: COMPLETE
 
 ---
 
@@ -1423,10 +1423,10 @@ describe('cg agent migrate command', () => {
 ## Progress Tracking
 
 ### Phase Completion Checklist
-- [ ] Phase 1: AgentSession Entity + AgentSessionAdapter + Contract Tests - Status: PENDING
-- [ ] Phase 2: AgentEventAdapter (Workspace-Scoped Event Storage) - Status: PENDING
-- [ ] Phase 3: Web UI Integration (Workspace-Scoped Agents Page) - Status: PENDING
-- [ ] Phase 4: Migration Tool + Documentation - Status: PENDING
+- [x] Phase 1: AgentSession Entity + AgentSessionAdapter + Contract Tests - Status: COMPLETE
+- [x] Phase 2: AgentEventAdapter (Workspace-Scoped Event Storage) - Status: COMPLETE
+- [x] Phase 3: Web UI Integration (Workspace-Scoped Agents Page) - Status: COMPLETE
+- [⏭️] Phase 4: Migration Tool + Documentation - Status: SKIPPED (no legacy data to migrate)
 
 ### STOP Rule
 **IMPORTANT**: This plan must be complete before creating tasks. After writing this plan:
