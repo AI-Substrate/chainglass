@@ -2,7 +2,7 @@
  * Unit command group for the CLI.
  *
  * Per Phase 6: CLI Integration - Provides cg unit <subcommand> commands.
- * Manages WorkUnit library in .chainglass/units/.
+ * Manages WorkUnit library in `<worktree>/.chainglass/data/units/`.
  *
  * Commands:
  * - cg unit list              - List all units
@@ -12,6 +12,7 @@
  *
  * Per ADR-0004: Uses DI container, not direct instantiation.
  * Per ADR-0008: Workgraph services registered via registerWorkgraphServices().
+ * Per Plan 021: Uses --workspace-path flag for workspace context override.
  */
 
 import {

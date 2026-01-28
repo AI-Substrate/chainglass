@@ -144,17 +144,18 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|-----|------|-----|------|--------------|------------------|------------|----------|-------|
-| [ ] | T001 | Update E2E harness cleanup() to use new path `.chainglass/data/work-graphs/` | 1 | Fix | – | /home/jak/substrate/021-workgraph-workspaces-upgrade/docs/how/dev/workgraph-run/e2e-sample-flow.ts | Line 122 shows `.chainglass/data/work-graphs/` | – | Per Critical Discovery 06 |
-| [ ] | T002 | Run E2E test in mock (non-agent) mode | 2 | Validation | T001 | /home/jak/substrate/021-workgraph-workspaces-upgrade/docs/how/dev/workgraph-run/e2e-sample-flow.ts | Exit code 0, output shows "TEST PASSED" | – | First validation checkpoint |
+| [ ] | T001 | Update E2E harness cleanup() to remove all test artifacts: legacy path, new path, and mock-outputs | 1 | Fix | – | /home/jak/substrate/021-workgraph-workspaces-upgrade/docs/how/dev/workgraph-run/e2e-sample-flow.ts | cleanup() removes `.chainglass/work-graphs/`, `.chainglass/data/work-graphs/`, and `.mock-outputs/` | – | Per DYK#2: comprehensive cleanup |
+| [ ] | T001a | Fix integration tests: add WorkspaceContext to 3 test files (same pattern as Phase 5) | 2 | Fix | T001 | /home/jak/substrate/021-workgraph-workspaces-upgrade/test/integration/workgraph/*.test.ts | 12 integration tests pass (workgraph-lifecycle, worknode-lifecycle, workunit-lifecycle) | – | Per DYK#1: Integration Test Gap |
+| [ ] | T001b | Move sample units: `git mv .chainglass/units/ .chainglass/data/units/` | 1 | Migration | T001a | /home/jak/substrate/021-workgraph-workspaces-upgrade/.chainglass/units/, /home/jak/substrate/021-workgraph-workspaces-upgrade/.chainglass/data/units/ | Units in new location; git history preserved | – | Per DYK#3: must run before E2E |
+| [ ] | T002 | Run E2E test in mock (non-agent) mode | 2 | Validation | T001b | /home/jak/substrate/021-workgraph-workspaces-upgrade/docs/how/dev/workgraph-run/e2e-sample-flow.ts | Exit code 0, output shows "TEST PASSED" | – | First validation checkpoint |
 | [ ] | T003 | Verify files created in new `.chainglass/data/work-graphs/sample-e2e/` location | 1 | Validation | T002 | /home/jak/substrate/021-workgraph-workspaces-upgrade/.chainglass/data/work-graphs/sample-e2e/ | work-graph.yaml and state.json exist | – | |
 | [ ] | T004 | Verify NO files in legacy `.chainglass/work-graphs/sample-e2e/` location | 1 | Validation | T002 | /home/jak/substrate/021-workgraph-workspaces-upgrade/.chainglass/work-graphs/ | Directory does not contain sample-e2e | – | |
 | [ ] | T005 | Verify data.json paths are worktree-relative with new prefix | 1 | Validation | T003 | /home/jak/substrate/021-workgraph-workspaces-upgrade/.chainglass/data/work-graphs/sample-e2e/nodes/*/data/data.json | Paths contain `.chainglass/data/work-graphs/`, NOT absolute paths | – | Per Critical Discovery 05 |
 | [ ] | T006 | Run E2E test with `--with-agent --copilot` flag | 2 | Validation | T005 | /home/jak/substrate/021-workgraph-workspaces-upgrade/docs/how/dev/workgraph-run/e2e-sample-flow.ts | Exit code 0 with Copilot agent | – | User requested Copilot first |
 | [ ] | T007 | Run E2E test with `--with-agent --claude` flag | 2 | Validation | T005 | /home/jak/substrate/021-workgraph-workspaces-upgrade/docs/how/dev/workgraph-run/e2e-sample-flow.ts | Exit code 0 with Claude agent | – | Secondary agent validation |
-| [ ] | T008 | Move sample units: `git mv .chainglass/units/ .chainglass/data/units/` | 1 | Migration | T007 | /home/jak/substrate/021-workgraph-workspaces-upgrade/.chainglass/units/, /home/jak/substrate/021-workgraph-workspaces-upgrade/.chainglass/data/units/ | Units in new location; git history preserved | – | |
-| [ ] | T009 | Delete legacy directories: `rm -rf .chainglass/work-graphs` (if present after tests) | 1 | Cleanup | T008 | /home/jak/substrate/021-workgraph-workspaces-upgrade/.chainglass/work-graphs/ | Legacy paths removed | – | Per DYK#4: no backwards compat |
-| [ ] | T010 | Update documentation: workgraph-workspaces.md and workgraph-run/README.md | 2 | Doc | T009 | /home/jak/substrate/021-workgraph-workspaces-upgrade/docs/how/dev/workgraph-workspaces.md, /home/jak/substrate/021-workgraph-workspaces-upgrade/docs/how/dev/workgraph-run/README.md | Docs reflect new path structure and --workspace-path usage | – | |
-| [ ] | T011 | Final grep for legacy paths in packages/ and apps/ | 1 | Validation | T010 | /home/jak/substrate/021-workgraph-workspaces-upgrade/packages/, /home/jak/substrate/021-workgraph-workspaces-upgrade/apps/ | Zero matches for `.chainglass/work-graphs` and `.chainglass/units` (excluding docs) | – | |
+| [ ] | T008 | Delete legacy directories: `rm -rf .chainglass/work-graphs` (if present after tests) | 1 | Cleanup | T007 | /home/jak/substrate/021-workgraph-workspaces-upgrade/.chainglass/work-graphs/ | Legacy paths removed | – | Per DYK#4: no backwards compat |
+| [ ] | T009 | Update documentation: workgraph-workspaces.md and workgraph-run/README.md | 2 | Doc | T008 | /home/jak/substrate/021-workgraph-workspaces-upgrade/docs/how/dev/workgraph-workspaces.md, /home/jak/substrate/021-workgraph-workspaces-upgrade/docs/how/dev/workgraph-run/README.md | Docs reflect new path structure and --workspace-path usage | – | |
+| [ ] | T010 | Final grep for legacy paths in packages/ and apps/; fix any found (including doc comments) | 1 | Validation | T009 | /home/jak/substrate/021-workgraph-workspaces-upgrade/packages/, /home/jak/substrate/021-workgraph-workspaces-upgrade/apps/ | Zero matches for `.chainglass/work-graphs` and `.chainglass/units` (excluding docs folder) | – | Per DYK#4: includes doc comments |
 
 ---
 
@@ -432,3 +433,176 @@ docs/plans/021-workgraph-workspaces-upgrade/
         ├── tasks.md           # This file
         └── execution.log.md   # Created by plan-6
 ```
+
+---
+
+## Critical Insights Discussion
+
+**Session**: 2026-01-28 22:05 UTC
+**Context**: Phase 6: E2E Validation & Cleanup - Tasks Dossier
+**Analyst**: AI Clarity Agent
+**Reviewer**: Development Team
+**Format**: Water Cooler Conversation (5 Critical Insights)
+
+### Insight 1: Integration Test Gap
+
+**Did you know**: Phase 6 didn't mention the 12 failing integration tests, yet they use the same broken pattern (services called without WorkspaceContext) that Phase 5 fixed for unit tests.
+
+**Implications**:
+- 12 integration tests in `test/integration/workgraph/` fail with `ctx.worktreePath undefined`
+- E2E could pass while integration tests remain red, giving false confidence
+- T011's grep scope misses test file failures
+
+**Options Considered**:
+- Option A: Add T001a - Fix integration tests first (recommended)
+- Option B: Run E2E despite red integration tests
+- Option C: Move integration test fixes to separate Phase 6b
+
+**AI Recommendation**: Option A - Fix integration tests first
+- Reasoning: Same pattern as Phase 5, validates contracts at integration level before E2E.
+
+**Discussion Summary**: User agreed to add integration test fix task before E2E.
+
+**Decision**: Added T001a to fix 12 integration tests before running E2E
+
+**Action Items**:
+- [x] Add T001a task to tasks.md
+
+**Affects**: Task ordering - T001a inserted between T001 and T002
+
+---
+
+### Insight 2: E2E Cleanup Path Already Wrong
+
+**Did you know**: The E2E harness cleanup path at line 122 is `.chainglass/work-graphs/` (legacy), but services now create graphs at `.chainglass/data/work-graphs/`. Cleanup won't delete what the test creates!
+
+**Implications**:
+- First E2E run might pass, but stale data accumulates
+- Mock output directory at line 296-297 is also never cleaned
+- Second+ runs could have state pollution
+
+**Options Considered**:
+- Option A: Update T001 to clean both locations + mock-outputs (recommended)
+- Option B: Only update the primary path
+- Option C: Add comprehensive test cleanup utility
+
+**AI Recommendation**: Option A - Clean all three locations
+- Reasoning: Belt-and-suspenders approach ensures clean slate regardless of code version.
+
+**Discussion Summary**: User agreed to comprehensive cleanup.
+
+**Decision**: T001 updated to clean legacy path, new path, and .mock-outputs/
+
+**Action Items**:
+- [x] Update T001 task description
+
+**Affects**: T001 validation criteria expanded
+
+---
+
+### Insight 3: Units Migration Must Run Before E2E
+
+**Did you know**: T008 (move units to new location) was ordered AFTER E2E tests, but E2E needs units at `.chainglass/data/units/` to work. The services look there now, but units currently live at `.chainglass/units/`.
+
+**Implications**:
+- E2E runs at T002 but units don't exist at new path yet
+- CLI calls `wg node add-after ... sample-input` → service looks at new path → unit not found → E2E fails
+- Chicken-and-egg: tests need units, but migration happens after tests
+
+**Options Considered**:
+- Option A: Move T008 before T002 (recommended)
+- Option B: Pre-populate units in T001
+- Option C: Add fallback path to WorkUnitService (violates spec)
+
+**AI Recommendation**: Option A - Reorder tasks
+- Reasoning: Hard dependency - units must exist before E2E can use them.
+
+**Discussion Summary**: User agreed to reorder.
+
+**Decision**: Moved units migration to T001b (before T002)
+
+**Action Items**:
+- [x] Reorder task table - units migration is now T001b
+- [x] Update dependency chain
+
+**Affects**: Task order: T001 → T001a → T001b → T002 → ...
+
+---
+
+### Insight 4: Documentation Comments Have Stale Paths
+
+**Did you know**: A docstring at `workgraph.service.ts:4` still references the legacy `.chainglass/work-graphs/` path. T010's grep will catch it, requiring a decision: fix or exclude?
+
+**Implications**:
+- It's "just a comment" but misleading documentation
+- Grep will match it - need to decide what to do
+- May be other stale doc comments elsewhere
+
+**Options Considered**:
+- Option A: Fix all documentation comments (recommended)
+- Option B: Exclude comments from grep
+- Option C: Add separate doc audit task
+
+**AI Recommendation**: Option A - Fix all doc comments
+- Reasoning: Accurate docs prevent confusion, minimal effort to fix.
+
+**Discussion Summary**: User agreed to fix doc comments.
+
+**Decision**: T010 updated to "fix any found (including doc comments)"
+
+**Action Items**:
+- [x] Update T010 task description
+
+**Affects**: T010 scope expanded to include doc comments
+
+---
+
+### Insight 5: Agent Mode Tests Are Environment-Dependent
+
+**Did you know**: T006 (`--with-agent --copilot`) and T007 (`--with-agent --claude`) require actual agent binaries and authentication configured. Should these be optional or gating?
+
+**Implications**:
+- Tests spawn real agent subprocesses
+- Require: agent binary on PATH, authentication, network access
+- CI environments may not have agents configured
+
+**Options Considered**:
+- Option A: Make agent tests optional (was recommended)
+- Option B: Gate phase on agent tests
+- Option C: Add agent environment check task
+
+**AI Recommendation**: Option A - Make tests optional
+- Reasoning: Mock mode is real validation; agent tests validate integration but availability is external.
+
+**Discussion Summary**: User confirmed agents are fully ready - no need to make optional.
+
+**Decision**: Keep T006/T007 as required - agent environment is available
+
+**Action Items**:
+- None - tasks remain as-is
+
+**Affects**: None - current task descriptions correct
+
+---
+
+## Session Summary
+
+**Insights Surfaced**: 5 critical insights identified and discussed
+**Decisions Made**: 5 decisions reached through collaborative discussion
+**Action Items Created**: 4 task updates applied
+**Areas Updated**:
+- T001: Comprehensive cleanup (3 paths)
+- T001a: New task - fix integration tests
+- T001b: Moved units migration before E2E
+- T010: Fix doc comments (not just detect)
+
+**Shared Understanding Achieved**: ✓
+
+**Confidence Level**: High - Key dependency issues resolved, task order corrected
+
+**Next Steps**:
+Proceed to implementation with `/plan-6-implement-phase`
+
+**Notes**:
+- Total tasks now: T001, T001a, T001b, T002-T010 (12 tasks)
+- Critical path: cleanup → integration tests → units migration → mock E2E → verifications → agent E2E → cleanup → docs → final grep

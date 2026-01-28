@@ -1,9 +1,10 @@
 /**
  * WorkGraphService - Real implementation of IWorkGraphService.
  *
- * Manages WorkGraphs stored in `.chainglass/work-graphs/`.
+ * Manages WorkGraphs stored in `<worktree>/.chainglass/data/work-graphs/`.
  * Per Phase 3: Implements create(), load(), show(), status() operations.
  * Per Phase 4: Implements addNodeAfter(), removeNode() operations.
+ * Per Plan 021: All methods accept WorkspaceContext as first parameter.
  *
  * Per ADR-0004: Uses constructor injection with useFactory pattern.
  * Per Critical Discovery 02: All methods return results with errors array.

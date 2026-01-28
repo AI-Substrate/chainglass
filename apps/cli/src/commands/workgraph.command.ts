@@ -2,7 +2,7 @@
  * WorkGraph command group for the CLI.
  *
  * Per Phase 6: CLI Integration - Provides cg wg <subcommand> commands.
- * Manages WorkGraphs in .chainglass/work-graphs/.
+ * Manages WorkGraphs in `<worktree>/.chainglass/data/work-graphs/`.
  *
  * Commands:
  * - cg wg create <slug>                    - Create new graph with start node
