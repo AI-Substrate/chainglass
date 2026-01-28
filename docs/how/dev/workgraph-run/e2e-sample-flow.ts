@@ -5,8 +5,10 @@
  * Tests the complete WorkGraph lifecycle with a 3-node code generation pipeline.
  *
  * Usage:
- *   npx tsx e2e-sample-flow.ts           # Mock mode (fast, no real agents)
- *   npx tsx e2e-sample-flow.ts --with-agent  # Real agent mode (requires API keys)
+ *   npx tsx e2e-sample-flow.ts                        # Mock mode (fast, no real agents)
+ *   npx tsx e2e-sample-flow.ts --with-agent           # Claude Code agent (default)
+ *   npx tsx e2e-sample-flow.ts --with-agent --copilot # GitHub Copilot agent
+ *   npx tsx e2e-sample-flow.ts --with-agent --claude  # Claude Code agent (explicit)
  *
  * This script validates:
  * - Graph creation and node addition
@@ -57,11 +59,15 @@ const args = process.argv.slice(2);
 const withAgent = args.includes('--with-agent');
 const verbose = !args.includes('--quiet');
 
+// Agent type selection: --copilot or --claude (default: claude-code)
+type AgentType = 'claude-code' | 'copilot';
+const agentType: AgentType = args.includes('--copilot') ? 'copilot' : 'claude-code';
+
 async function main(): Promise<void> {
   console.log('='.repeat(65));
   console.log('           E2E Test: Sample Code Generation Flow');
   console.log('='.repeat(65));
-  console.log(`Mode: ${withAgent ? 'Real Agent' : 'Mock (no real agents)'}`);
+  console.log(`Mode: ${withAgent ? `Real Agent (${agentType})` : 'Mock (no real agents)'}`);
   console.log('');
 
   try {
@@ -326,6 +332,7 @@ async function executeNode2WithRealAgent(): Promise<void> {
       'Which programming language should I use?': 'bash',
     },
     verbose,
+    agentType,
   });
 
   logSuccess('Completed: generate-code -> complete');
@@ -347,8 +354,16 @@ async function runAgentWithQuestionLoop(options: {
   initialPrompt: string;
   autoAnswers?: Record<string, string>;
   verbose?: boolean;
+  agentType?: AgentType;
 }): Promise<void> {
-  const { graph, nodeId, initialPrompt, autoAnswers = {}, verbose: isVerbose = true } = options;
+  const {
+    graph,
+    nodeId,
+    initialPrompt,
+    autoAnswers = {},
+    verbose: isVerbose = true,
+    agentType: selectedAgentType = 'claude-code',
+  } = options;
   const timeoutMs = 300000; // 5 minutes
   const start = Date.now();
 
@@ -358,7 +373,7 @@ async function runAgentWithQuestionLoop(options: {
 
   while (Date.now() - start < timeoutMs) {
     // Invoke agent and wait for it to complete
-    const result = await invokeAgentAndWait(currentPrompt, sessionId, isVerbose);
+    const result = await invokeAgentAndWait(currentPrompt, sessionId, isVerbose, selectedAgentType);
     sessionId = result.sessionId;
 
     // Check for fatal errors from agent (e.g., cg CLI not available)
@@ -437,7 +452,8 @@ interface AgentInvokeResult {
 async function invokeAgentAndWait(
   prompt: string,
   sessionId: string | undefined,
-  isVerbose: boolean
+  isVerbose: boolean,
+  selectedAgentType: AgentType = 'claude-code'
 ): Promise<AgentInvokeResult> {
   return new Promise((resolve) => {
     let stdout = '';
@@ -445,7 +461,7 @@ async function invokeAgentAndWait(
     let fatalError: string | undefined;
 
     invokeAgent(prompt, {
-      agentType: 'claude-code',
+      agentType: selectedAgentType,
       sessionId,
       onStdout: (data) => {
         stdout += data;
@@ -635,6 +651,7 @@ async function executeNode3WithRealAgent(): Promise<void> {
     initialPrompt,
     autoAnswers: {}, // No questions expected
     verbose,
+    agentType,
   });
 
   logSuccess('Completed: run-verify -> complete');
