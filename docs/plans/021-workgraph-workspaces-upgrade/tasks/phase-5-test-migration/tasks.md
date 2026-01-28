@@ -92,17 +92,17 @@ flowchart TD
     style Helpers fill:#E3F2FD,stroke:#1976D2
 
     subgraph Phase["Phase 5: Test Migration (PlanPak)"]
-        T000["T000: Scaffold - git mv files to pack, create symlinks"]:::pending
-        T001["T001: Verify helper exists + validate failures"]:::pending
-        T001a["T001a: Update ALL test helpers (setupGraph, etc.)"]:::pending
-        T002["T002: Update workgraph-service.test.ts"]:::pending
-        T003["T003: Update worknode-service.test.ts"]:::pending
-        T004["T004: Update workunit-service.test.ts"]:::pending
-        T005["T005: Update bootstrap-prompt.test.ts"]:::pending
-        T006["T006: Update interface-contracts.test.ts"]:::pending
-        T007["T007: Update path assertions"]:::pending
-        T008["T008: Run full test suite"]:::pending
-        T009["T009: Verify no legacy paths"]:::pending
+        T000["T000: Scaffold - git mv files to pack, create symlinks ✓"]:::completed
+        T001["T001: Verify helper exists + validate failures ✓"]:::completed
+        T001a["T001a: Update ALL test helpers (setupGraph, etc.) ✓"]:::completed
+        T002["T002: Update workgraph-service.test.ts ✓"]:::completed
+        T003["T003: Update worknode-service.test.ts ✓"]:::completed
+        T004["T004: Update workunit-service.test.ts ✓"]:::completed
+        T005["T005: Update bootstrap-prompt.test.ts ✓"]:::completed
+        T006["T006: Update interface-contracts.test.ts ✓"]:::completed
+        T007["T007: Update path assertions ✓"]:::completed
+        T008["T008: Run full test suite ✓"]:::completed
+        T009["T009: Verify no legacy paths ✓"]:::completed
 
         T000 --> T001
         T001 --> T001a
@@ -120,19 +120,19 @@ flowchart TD
     end
 
     subgraph PackFiles["Pack Files (Real Location)"]
-        P1["code/tests/workgraph-service.test.ts"]:::pending
-        P2["code/tests/worknode-service.test.ts"]:::pending
-        P3["code/tests/workunit-service.test.ts"]:::pending
-        P4["code/tests/bootstrap-prompt.test.ts"]:::pending
-        P5["code/tests/interface-contracts.test.ts"]:::pending
+        P1["code/tests/workgraph-service.test.ts ✓"]:::completed
+        P2["code/tests/worknode-service.test.ts ✓"]:::completed
+        P3["code/tests/workunit-service.test.ts ✓"]:::completed
+        P4["code/tests/bootstrap-prompt.test.ts ✓"]:::completed
+        P5["code/tests/interface-contracts.test.ts ✓"]:::completed
     end
 
     subgraph Symlinks["Project Paths (Symlinks)"]
-        S1["test/unit/workgraph/workgraph-service.test.ts →"]:::pending
-        S2["test/unit/workgraph/worknode-service.test.ts →"]:::pending
-        S3["test/unit/workgraph/workunit-service.test.ts →"]:::pending
-        S4["test/unit/workgraph/bootstrap-prompt.test.ts →"]:::pending
-        S5["test/unit/workgraph/interface-contracts.test.ts →"]:::pending
+        S1["test/unit/workgraph/workgraph-service.test.ts → ✓"]:::completed
+        S2["test/unit/workgraph/worknode-service.test.ts → ✓"]:::completed
+        S3["test/unit/workgraph/workunit-service.test.ts → ✓"]:::completed
+        S4["test/unit/workgraph/bootstrap-prompt.test.ts → ✓"]:::completed
+        S5["test/unit/workgraph/interface-contracts.test.ts → ✓"]:::completed
     end
 
     subgraph Helpers["Test Helpers"]
@@ -164,17 +164,17 @@ flowchart TD
 
 | Task | Component(s) | Pack File(s) | Symlink Target(s) | Status | Comment |
 |------|-------------|--------------|-------------------|--------|---------|
-| T000 | Scaffolding | code/tests/*.test.ts | test/unit/workgraph/*.test.ts | ⬜ Pending | PlanPak: git mv to pack, create symlinks, add provenance headers |
-| T001 | Test Helper + Validation | — | /test/helpers/workspace-context.ts | ⬜ Pending | DYK#3: Run parallel subagents to get actual failure counts per file |
-| T001a | Test Setup Helpers | code/tests/*.test.ts | test/unit/workgraph/*.test.ts | ⬜ Pending | DYK#1: Update setupGraph(), setupUnit(), etc. to use absolute + new paths FIRST |
-| T002 | WorkGraphService Tests | code/tests/workgraph-service.test.ts | test/unit/workgraph/workgraph-service.test.ts | ⬜ Pending | 71 service calls + path assertions |
-| T003 | WorkNodeService Tests | code/tests/worknode-service.test.ts | test/unit/workgraph/worknode-service.test.ts | ⬜ Pending | 66 service calls + path assertions |
-| T004 | WorkUnitService Tests | code/tests/workunit-service.test.ts | test/unit/workgraph/workunit-service.test.ts | ⬜ Pending | 15 service calls + path assertions |
-| T005 | BootstrapPrompt Tests | code/tests/bootstrap-prompt.test.ts | test/unit/workgraph/bootstrap-prompt.test.ts | ⬜ Pending | 4 service calls |
-| T006 | Contract Tests | code/tests/interface-contracts.test.ts | test/unit/workgraph/interface-contracts.test.ts | ⬜ Pending | Verify ctx stubs are valid |
-| T007 | Path Assertions | All pack test files | — | ⬜ Pending | DYK#5: Old path NOT substring of new - ALL assertions must update |
-| T008 | Full Test Suite | N/A | N/A | ⬜ Pending | Run `just test` or `pnpm vitest run` |
-| T009 | Legacy Path Verification | N/A | N/A | ⬜ Pending | Grep for old paths, ensure none remain |
+| T000 | Scaffolding | code/tests/*.test.ts | test/unit/workgraph/*.test.ts | ✅ Complete | PlanPak: git mv to pack, create symlinks, add provenance headers |
+| T001 | Test Helper + Validation | — | /test/helpers/workspace-context.ts | ✅ Complete | DYK#3: Run parallel subagents to get actual failure counts per file |
+| T001a | Test Setup Helpers | code/tests/*.test.ts | test/unit/workgraph/*.test.ts | ✅ Complete | DYK#1: Update setupGraph(), setupUnit(), etc. to use absolute + new paths FIRST |
+| T002 | WorkGraphService Tests | code/tests/workgraph-service.test.ts | test/unit/workgraph/workgraph-service.test.ts | ✅ Complete | 71 service calls + path assertions |
+| T003 | WorkNodeService Tests | code/tests/worknode-service.test.ts | test/unit/workgraph/worknode-service.test.ts | ✅ Complete | 66 service calls + path assertions |
+| T004 | WorkUnitService Tests | code/tests/workunit-service.test.ts | test/unit/workgraph/workunit-service.test.ts | ✅ Complete | 15 service calls + path assertions |
+| T005 | BootstrapPrompt Tests | code/tests/bootstrap-prompt.test.ts | test/unit/workgraph/bootstrap-prompt.test.ts | ✅ Complete | 4 service calls |
+| T006 | Contract Tests | code/tests/interface-contracts.test.ts | test/unit/workgraph/interface-contracts.test.ts | ✅ Complete | Verify ctx stubs are valid |
+| T007 | Path Assertions | All pack test files | — | ✅ Complete | DYK#5: Old path NOT substring of new - ALL assertions must update |
+| T008 | Full Test Suite | N/A | N/A | ✅ Complete | Run `just test` or `pnpm vitest run` |
+| T009 | Legacy Path Verification | N/A | N/A | ✅ Complete | Grep for old paths, ensure none remain |
 
 ---
 
@@ -186,17 +186,17 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Pack Path(s) / Symlink Target(s) | Validation | Subtasks | Notes |
 |--------|------|------|-----|------|--------------|-----------------------------------|------------|----------|-------|
-| [ ] | T000 | **PlanPak Scaffold**: git mv 5 test files to pack, create symlinks, add provenance headers, validate symlinks resolve | 1 | Setup | – | **Pack**: code/tests/{workgraph-service,worknode-service,workunit-service,bootstrap-prompt,interface-contracts}.test.ts **Symlinks**: test/unit/workgraph/*.test.ts → pack | All 5 symlinks resolve (`test -L && test -e`); vitest can find tests; `readlink` shows pack path | – | PlanPak mandatory first task |
-| [ ] | T001 | Verify createTestWorkspaceContext() helper exists; run each test file individually (via parallel subagents) to document actual failure counts per file | 1 | Setup | T000 | /home/jak/substrate/021-workgraph-workspaces-upgrade/test/helpers/workspace-context.ts | Import succeeds; failure counts documented for each file; identify which files need migration vs already pass | – | DYK#3: Use parallel subagents to validate all 9 test files simultaneously |
-| [ ] | T001a | Update ALL test helper functions (setupGraph, setupUnit, etc.) to use absolute paths with new .chainglass/data/ prefix | 2 | Core | T001 | **Pack**: code/tests/workgraph-service.test.ts, code/tests/worknode-service.test.ts, code/tests/workunit-service.test.ts | All setupGraph(), setupUnit(), setupNode() helpers use `${ctx.wsCtx.worktreePath}/.chainglass/data/` paths | – | DYK#1: Must fix helpers BEFORE service calls or tests still fail |
-| [ ] | T002 | Update workgraph-service.test.ts: Add wsCtx to TestContext, update all 71 service calls | 3 | Core | T001a | **Pack**: code/tests/workgraph-service.test.ts | All create/load/show/status calls pass wsCtx as first arg | – | Largest file (1406 LOC) |
-| [ ] | T003 | Update worknode-service.test.ts: Add wsCtx to TestContext, update all 66 service calls, ensure fake setPreset* calls use SAME wsCtx | 3 | Core | T001a | **Pack**: code/tests/worknode-service.test.ts | All node operation calls pass wsCtx as first arg; fake setup uses matching ctx | – | DYK#4: Fakes use composite keys - wsCtx in setPreset* MUST match wsCtx in service calls |
-| [ ] | T004 | Update workunit-service.test.ts: Add `let wsCtx` at module level (not TestContext pattern), initialize in beforeEach, update all 15 service calls | 2 | Core | T001a | **Pack**: code/tests/workunit-service.test.ts | All list/load/create/validate calls pass wsCtx as first arg | – | DYK#2: Uses different pattern - module-level variables, NOT ctx.service |
-| [ ] | T005 | Update bootstrap-prompt.test.ts: Add wsCtx, update 4 service.generate() calls | 2 | Core | T001a | **Pack**: code/tests/bootstrap-prompt.test.ts | All generate() calls pass wsCtx as first arg | – | |
+| [x] | T000 | **PlanPak Scaffold**: git mv 5 test files to pack, create symlinks, add provenance headers, validate symlinks resolve | 1 | Setup | – | **Pack**: code/tests/{workgraph-service,worknode-service,workunit-service,bootstrap-prompt,interface-contracts}.test.ts **Symlinks**: test/unit/workgraph/*.test.ts → pack | All 5 symlinks resolve (`test -L && test -e`); vitest can find tests; `readlink` shows pack path | – | PlanPak mandatory first task |
+| [x] | T001 | Verify createTestWorkspaceContext() helper exists; run each test file individually (via parallel subagents) to document actual failure counts per file | 1 | Setup | T000 | /home/jak/substrate/021-workgraph-workspaces-upgrade/test/helpers/workspace-context.ts | Import succeeds; failure counts documented for each file; identify which files need migration vs already pass | – | DYK#3: Use parallel subagents to validate all 9 test files simultaneously |
+| [x] | T001a | Update ALL test helper functions (setupGraph, setupUnit, etc.) to use absolute paths with new .chainglass/data/ prefix | 2 | Core | T001 | **Pack**: code/tests/workgraph-service.test.ts, code/tests/worknode-service.test.ts, code/tests/workunit-service.test.ts | All setupGraph(), setupUnit(), setupNode() helpers use `${ctx.wsCtx.worktreePath}/.chainglass/data/` paths | – | DYK#1: Must fix helpers BEFORE service calls or tests still fail |
+| [x] | T002 | Update workgraph-service.test.ts: Add wsCtx to TestContext, update all 71 service calls | 3 | Core | T001a | **Pack**: code/tests/workgraph-service.test.ts | All create/load/show/status calls pass wsCtx as first arg | – | Largest file (1406 LOC) |
+| [x] | T003 | Update worknode-service.test.ts: Add wsCtx to TestContext, update all 66 service calls, ensure fake setPreset* calls use SAME wsCtx | 3 | Core | T001a | **Pack**: code/tests/worknode-service.test.ts | All node operation calls pass wsCtx as first arg; fake setup uses matching ctx | – | DYK#4: Fakes use composite keys - wsCtx in setPreset* MUST match wsCtx in service calls |
+| [x] | T004 | Update workunit-service.test.ts: Add `let wsCtx` at module level (not TestContext pattern), initialize in beforeEach, update all 15 service calls | 2 | Core | T001a | **Pack**: code/tests/workunit-service.test.ts | All list/load/create/validate calls pass wsCtx as first arg | – | DYK#2: Uses different pattern - module-level variables, NOT ctx.service |
+| [x] | T005 | Update bootstrap-prompt.test.ts: Add wsCtx, update 4 service.generate() calls | 2 | Core | T001a | **Pack**: code/tests/bootstrap-prompt.test.ts | All generate() calls pass wsCtx as first arg | – | |
 | [ ] | T006 | Review interface-contracts.test.ts: Verify ctx stubs satisfy WorkspaceContext | 1 | Validation | T000 | **Pack**: code/tests/interface-contracts.test.ts | Tests pass, stubs are valid | – | May already be correct |
-| [ ] | T007 | Update ALL path assertions in test files from `.chainglass/work-graphs/` → `.chainglass/data/work-graphs/` and `.chainglass/units/` → `.chainglass/data/units/` | 2 | Core | T002, T003, T004, T005 | **Pack**: All test files in code/tests/ | All assertions use new paths; grep confirms no old path references | – | DYK#5: Old path is NOT substring of new - ALL assertions must change (toContain AND toBe) |
-| [ ] | T008 | Run full test suite: `pnpm vitest run` | 1 | Validation | T007 | N/A | 0 failures, 2200+ tests pass | – | |
-| [ ] | T009 | Verify no legacy paths remain: grep for .chainglass/work-graphs and .chainglass/units | 1 | Validation | T008 | N/A | grep returns 0 matches in test/ (except comments/docs) | – | |
+| [x] | T007 | Update ALL path assertions in test files from `.chainglass/work-graphs/` → `.chainglass/data/work-graphs/` and `.chainglass/units/` → `.chainglass/data/units/` | 2 | Core | T002, T003, T004, T005 | **Pack**: All test files in code/tests/ | All assertions use new paths; grep confirms no old path references | – | DYK#5: Old path is NOT substring of new - ALL assertions must change (toContain AND toBe) |
+| [x] | T008 | Run full test suite: `pnpm vitest run` | 1 | Validation | T007 | N/A | 0 failures, 2200+ tests pass | – | |
+| [x] | T009 | Verify no legacy paths remain: grep for .chainglass/work-graphs and .chainglass/units | 1 | Validation | T008 | N/A | grep returns 0 matches in test/ (except comments/docs) | – | |
 
 ---
 
