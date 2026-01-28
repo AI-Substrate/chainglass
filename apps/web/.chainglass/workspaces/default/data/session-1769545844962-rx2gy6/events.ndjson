@@ -1,2 +1,0 @@
-{"type":"tool_call","timestamp":"2026-01-27T20:31:53.993Z","data":{"toolName":"Bash","input":{"command":"date","description":"Show current date and time"},"toolCallId":"toolu_01C22diEubtnZuHQK7fVbuMs"},"id":"2026-01-27T20:31:53.993Z_xbkus"}
-{"type":"tool_result","timestamp":"2026-01-27T20:31:54.108Z","data":{"toolCallId":"toolu_01C22diEubtnZuHQK7fVbuMs","output":"Wed 28 Jan 2026 06:31:54 AEST","isError":false},"id":"2026-01-27T20:31:54.108Z_gmzzw"}

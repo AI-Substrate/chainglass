@@ -38,12 +38,16 @@ import {
   WindowsProcessManager,
 } from '@chainglass/shared';
 // Plan 014 Phase 6: Import workspace services from @chainglass/workflow
+// Plan 018 Phase 2: Import AgentEventAdapter for workspace-scoped event storage
 import {
+  AgentEventAdapter,
+  FakeAgentEventAdapter,
   FakeGitWorktreeResolver,
   FakeSampleAdapter,
   FakeWorkspaceContextResolver,
   FakeWorkspaceRegistryAdapter,
   GitWorktreeResolver,
+  type IAgentEventAdapter,
   type IGitWorktreeResolver,
   type ISampleAdapter,
   type ISampleService,
@@ -256,8 +260,15 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
     },
   });
 
-  // Plan 018: Event storage migrated to workspace-scoped AgentEventAdapter
-  // See WORKSPACE_DI_TOKENS.AGENT_EVENT_ADAPTER in @chainglass/workflow container
+  // Plan 018 Phase 2: Register AgentEventAdapter for workspace-scoped event storage
+  childContainer.register<IAgentEventAdapter>(WORKSPACE_DI_TOKENS.AGENT_EVENT_ADAPTER, {
+    useFactory: (c) => {
+      const fileSystem = c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
+      const pathResolver = c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
+      const logger = c.resolve<ILogger>(DI_TOKENS.LOGGER);
+      return new AgentEventAdapter(fileSystem, pathResolver, logger);
+    },
+  });
 
   // ==================== Plan 014 Phase 6: Workspace Service Registrations ====================
 
@@ -416,8 +427,11 @@ export function createTestContainer(): DependencyContainer {
     },
   });
 
-  // Plan 018: Event storage migrated to workspace-scoped FakeAgentEventAdapter
-  // See WORKSPACE_DI_TOKENS.AGENT_EVENT_ADAPTER in @chainglass/workflow container
+  // Plan 018 Phase 2: Register FakeAgentEventAdapter for test isolation
+  const fakeAgentEventAdapter = new FakeAgentEventAdapter();
+  childContainer.register<IAgentEventAdapter>(WORKSPACE_DI_TOKENS.AGENT_EVENT_ADAPTER, {
+    useValue: fakeAgentEventAdapter,
+  });
 
   // ==================== Plan 014 Phase 6: Workspace Service Fakes ====================
 

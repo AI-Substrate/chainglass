@@ -1,2 +1,0 @@
-{"type":"tool_call","timestamp":"2026-01-27T20:30:33.622Z","data":{"toolName":"Bash","input":{"command":"ls","description":"List files in current directory"},"toolCallId":"toolu_01DBmQ26xv63FQHXC4RDefgu"},"id":"2026-01-27T20:30:33.622Z_o5z6u"}
-{"type":"tool_result","timestamp":"2026-01-27T20:30:33.703Z","data":{"toolCallId":"toolu_01DBmQ26xv63FQHXC4RDefgu","output":"app\ncomponents.json\nnext.config.mjs\nnext-env.d.ts\nnode_modules\npackage.json\npostcss.config.mjs\nsrc\ntest\ntsconfig.json","isError":false},"id":"2026-01-27T20:30:33.704Z_idboc"}
