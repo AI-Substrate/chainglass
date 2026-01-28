@@ -494,4 +494,58 @@ describe('AgentEventAdapter', () => {
       expect(eventsB[0].type).toBe('tool_result');
     });
   });
+
+  describe('Session ID Validation - All Methods (SEC-001)', () => {
+    /*
+     * Per AC-11 and Discovery 05: Session ID validation MUST occur
+     * before ALL filesystem operations, not just append().
+     * These tests verify path traversal prevention across all methods.
+     */
+
+    it('getAll() should return empty array for invalid session ID', async () => {
+      /*
+      Test Doc:
+      - Why: Per SEC-001 - prevent path traversal in getAll()
+      - Contract: getAll() returns [] for invalid sessionId (no filesystem access)
+      - Quality Contribution: Security - all methods validate sessionId
+      */
+      const events = await adapter.getAll(ctx, '../../../etc/passwd');
+      expect(events).toEqual([]);
+    });
+
+    it('getSince() should throw for invalid session ID', async () => {
+      /*
+      Test Doc:
+      - Why: Per SEC-001 - prevent path traversal in getSince()
+      - Contract: getSince() throws Error for invalid sessionId
+      - Quality Contribution: Security - all methods validate sessionId
+      */
+      await expect(adapter.getSince(ctx, '../../../etc', 'some-id')).rejects.toThrow(
+        /Invalid session ID/i
+      );
+    });
+
+    it('archive() should return error for invalid session ID', async () => {
+      /*
+      Test Doc:
+      - Why: Per SEC-001 - prevent path traversal in archive()
+      - Contract: archive() returns { ok: false } for invalid sessionId
+      - Quality Contribution: Security - all methods validate sessionId
+      */
+      const result = await adapter.archive(ctx, '../../../etc/passwd');
+      expect(result.ok).toBe(false);
+      expect(result.errorMessage).toContain('Invalid session ID');
+    });
+
+    it('exists() should return false for invalid session ID', async () => {
+      /*
+      Test Doc:
+      - Why: Per SEC-001 - prevent path traversal in exists()
+      - Contract: exists() returns false for invalid sessionId (no filesystem access)
+      - Quality Contribution: Security - all methods validate sessionId
+      */
+      const result = await adapter.exists(ctx, '../../../etc/passwd');
+      expect(result).toBe(false);
+    });
+  });
 });

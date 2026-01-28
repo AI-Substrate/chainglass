@@ -170,8 +170,14 @@ export class AgentEventAdapter implements IAgentEventAdapter {
    * Returns events in chronological order (oldest first).
    * Returns empty array if session doesn't exist or has no events.
    * Per DYK-04: Malformed NDJSON lines are silently skipped.
+   * Per Discovery 05: Validates sessionId before filesystem operations.
    */
   async getAll(ctx: WorkspaceContext, sessionId: string): Promise<StoredAgentEvent[]> {
+    // Validate sessionId to prevent path traversal (per AC-11)
+    if (!isValidSessionId(sessionId)) {
+      return [];
+    }
+
     const eventsPath = this.getEventsPath(ctx, sessionId);
 
     try {
@@ -193,14 +199,21 @@ export class AgentEventAdapter implements IAgentEventAdapter {
    *
    * Returns events that occurred AFTER the specified event ID.
    * Per AC19: Returns only events after the specified ID (exclusive).
+   * Per Discovery 05: Validates sessionId before filesystem operations.
    *
    * @throws Error if sinceId is not found in the session
+   * @throws Error if sessionId is invalid (path traversal attempt)
    */
   async getSince(
     ctx: WorkspaceContext,
     sessionId: string,
     sinceId: string
   ): Promise<StoredAgentEvent[]> {
+    // Validate sessionId to prevent path traversal (per AC-11)
+    if (!isValidSessionId(sessionId)) {
+      throw new Error(`Invalid session ID: '${sessionId}'`);
+    }
+
     const events = await this.getAll(ctx, sessionId);
 
     const sinceIndex = events.findIndex((e) => e.id === sinceId);
@@ -217,12 +230,18 @@ export class AgentEventAdapter implements IAgentEventAdapter {
    *
    * Moves the session's events to the archived/ subdirectory.
    * Per AC20: Old/deleted sessions can be archived.
+   * Per Discovery 05: Validates sessionId before filesystem operations.
    */
   async archive(
     ctx: WorkspaceContext,
     sessionId: string,
     options?: ArchiveOptions
   ): Promise<ArchiveResult> {
+    // Validate sessionId to prevent path traversal (per AC-11)
+    if (!isValidSessionId(sessionId)) {
+      return { ok: false, errorMessage: `Invalid session ID: '${sessionId}'` };
+    }
+
     try {
       const eventsPath = this.getEventsPath(ctx, sessionId);
       const archivedPath = this.getArchivedPath(ctx, sessionId);
@@ -250,8 +269,14 @@ export class AgentEventAdapter implements IAgentEventAdapter {
 
   /**
    * Check if a session has any events.
+   * Per Discovery 05: Validates sessionId before filesystem operations.
    */
   async exists(ctx: WorkspaceContext, sessionId: string): Promise<boolean> {
+    // Validate sessionId to prevent path traversal (per AC-11)
+    if (!isValidSessionId(sessionId)) {
+      return false;
+    }
+
     const eventsPath = this.getEventsPath(ctx, sessionId);
 
     try {
