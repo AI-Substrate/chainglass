@@ -223,6 +223,10 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
       `[/api/workspaces/${slug}/agents/run] Starting agent: type=${agentType}, channel=${channel}, cwd=${cwd}`
     );
 
+    // Accumulate text_delta content to synthesize message event if SDK doesn't emit one
+    let accumulatedContent = '';
+    let receivedMessageEvent = false;
+
     const result = await agentService.run({
       prompt,
       agentType,
@@ -230,6 +234,19 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
       cwd,
       onEvent: (event) => {
         console.log(`[/api/workspaces/${slug}/agents/run] Event: ${event.type}`);
+
+        // Track text_delta content for fallback message synthesis
+        if (event.type === 'text_delta') {
+          const deltaData = event.data as { content?: string };
+          if (deltaData.content) {
+            accumulatedContent += deltaData.content;
+          }
+        }
+
+        // Track if we receive a proper message event
+        if (event.type === 'message') {
+          receivedMessageEvent = true;
+        }
 
         // Phase 3: Persist storable events before broadcast
         // Per DYK-06: On storage failure, log warning and continue
@@ -274,6 +291,42 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
     console.log(
       `[/api/workspaces/${slug}/agents/run] Completed: status=${result.status}, sessionId=${result.sessionId}`
     );
+
+    // Synthesize message event if SDK didn't emit one (Copilot emits text_delta but not message)
+    if (!receivedMessageEvent && accumulatedContent.trim()) {
+      console.log(
+        `[/api/workspaces/${slug}/agents/run] Synthesizing message event from ${accumulatedContent.length} chars of text_delta`
+      );
+      const syntheticMessage: AgentStoredEvent = {
+        type: 'message',
+        timestamp: new Date().toISOString(),
+        data: {
+          content: accumulatedContent,
+        },
+      };
+      try {
+        const storeResult = await eventAdapter.append(
+          context as WorkspaceContext,
+          sessionId,
+          syntheticMessage
+        );
+        if (storeResult.ok && storeResult.event) {
+          console.log(
+            `[/api/workspaces/${slug}/agents/run] Stored synthetic message: ${storeResult.event.id}`
+          );
+        }
+        // Notify client of new event
+        sseManager.broadcast(channel, 'session_updated', {
+          timestamp: new Date().toISOString(),
+          data: { sessionId },
+        });
+      } catch (err) {
+        console.warn(
+          `[/api/workspaces/${slug}/agents/run] Failed to store synthetic message:`,
+          err
+        );
+      }
+    }
 
     // Broadcast completion status
     const completionStatus = result.status === 'completed' ? 'completed' : 'error';

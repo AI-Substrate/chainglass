@@ -121,6 +121,7 @@ export function AgentChatView({
 
       onStatusChange: useCallback(
         (status: string, eventSessionId: string) => {
+          console.log('[AgentChatView] onStatusChange:', { status, eventSessionId, sessionId });
           if (eventSessionId !== sessionId) return;
 
           if (status === 'running') {
@@ -129,6 +130,7 @@ export function AgentChatView({
             setIsRunning(false);
             setStreamingContent('');
             // Refetch to get final events
+            console.log('[AgentChatView] Calling refetch() after completion');
             refetch();
           }
         },
@@ -163,8 +165,15 @@ export function AgentChatView({
 
   // Transform server events to LogEntry props
   const serverEventProps = useMemo(() => {
+    console.log(
+      '[AgentChatView] serverSession?.events:',
+      serverSession?.events?.length,
+      serverSession?.events
+    );
     if (!serverSession?.events) return [];
-    return transformEventsToLogEntries(serverSession.events as StoredEvent[]);
+    const props = transformEventsToLogEntries(serverSession.events as StoredEvent[]);
+    console.log('[AgentChatView] transformed props:', props.length, props);
+    return props;
   }, [serverSession?.events]);
 
   // Merge user messages and server events into unified timeline
@@ -357,9 +366,13 @@ export function AgentChatView({
           </div>
         ) : (
           <div className="divide-y divide-border">
-            {unifiedTimeline.map((item) => (
-              <LogEntry key={item.key} {...item.props} />
-            ))}
+            {unifiedTimeline.map((item) => {
+              // Extract key from props to avoid React warning about key in spread
+              const { key: _key, ...restProps } = item.props as typeof item.props & {
+                key?: string;
+              };
+              return <LogEntry key={item.key} {...restProps} />;
+            })}
             {/* Streaming content */}
             {streamingContent && (
               <LogEntry messageRole="assistant" content={streamingContent} isStreaming />
