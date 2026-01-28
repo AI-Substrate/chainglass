@@ -395,6 +395,177 @@ export class FakeFileSystem implements IFileSystem {
     }
   }
 
+  /**
+   * Find files matching a glob pattern.
+   *
+   * Per Phase 2 DYK: In-memory glob matching for testing.
+   * Uses simple pattern matching (supports * and **).
+   */
+  async glob(pattern: string, options?: { cwd?: string; absolute?: boolean }): Promise<string[]> {
+    const cwd = options?.cwd ?? '';
+    const absolute = options?.absolute ?? false;
+
+    // Convert glob pattern to regex
+    const regexPattern = this.globToRegex(pattern);
+
+    const matches: string[] = [];
+
+    for (const filePath of this.files.keys()) {
+      // Get path relative to cwd
+      let testPath = filePath;
+      if (cwd) {
+        const cwdNormalized = cwd.endsWith('/') ? cwd.slice(0, -1) : cwd;
+        if (filePath.startsWith(`${cwdNormalized}/`)) {
+          testPath = filePath.slice(cwdNormalized.length + 1);
+        } else if (filePath.startsWith(cwdNormalized)) {
+          testPath = filePath.slice(cwdNormalized.length);
+          if (testPath.startsWith('/')) testPath = testPath.slice(1);
+        } else {
+          continue; // File is not under cwd
+        }
+      }
+
+      if (regexPattern.test(testPath)) {
+        matches.push(absolute ? filePath : testPath);
+      }
+    }
+
+    return matches.sort();
+  }
+
+  /**
+   * Rename/move a file or directory.
+   *
+   * Per Phase 3 DYK#4: In-memory rename for testing atomic writes.
+   */
+  async rename(oldPath: string, newPath: string): Promise<void> {
+    this.checkSimulatedError(oldPath);
+    this.checkSimulatedError(newPath);
+
+    // Check if source exists
+    const isFile = this.files.has(oldPath);
+    const isDir = this.dirs.has(oldPath) || this.isImplicitDir(oldPath);
+
+    if (!isFile && !isDir) {
+      throw new FileSystemError(
+        `ENOENT: no such file or directory, rename '${oldPath}'`,
+        'ENOENT',
+        oldPath
+      );
+    }
+
+    // Check if destination parent exists
+    const destParent = pathModule.dirname(newPath);
+    if (destParent !== '/' && destParent !== '.' && !(await this.exists(destParent))) {
+      throw new FileSystemError(
+        `ENOENT: no such file or directory, rename '${oldPath}' -> '${newPath}'`,
+        'ENOENT',
+        newPath
+      );
+    }
+
+    if (isFile) {
+      // Move file
+      const content = this.files.get(oldPath);
+      if (content === undefined) {
+        throw new FileSystemError(
+          `ENOENT: no such file or directory, rename '${oldPath}'`,
+          'ENOENT',
+          oldPath
+        );
+      }
+      const mtime = this.mtimes.get(oldPath) ?? new Date().toISOString();
+
+      this.files.delete(oldPath);
+      this.mtimes.delete(oldPath);
+
+      this.files.set(newPath, content);
+      this.mtimes.set(newPath, mtime);
+    } else {
+      // Move directory - move all files under oldPath to newPath
+      const normalizedOld = oldPath.endsWith('/') ? oldPath.slice(0, -1) : oldPath;
+      const normalizedNew = newPath.endsWith('/') ? newPath.slice(0, -1) : newPath;
+
+      // Move files
+      for (const [filePath, content] of Array.from(this.files.entries())) {
+        if (filePath.startsWith(`${normalizedOld}/`) || filePath === normalizedOld) {
+          const newFilePath = filePath.replace(normalizedOld, normalizedNew);
+          const mtime = this.mtimes.get(filePath);
+
+          this.files.delete(filePath);
+          this.mtimes.delete(filePath);
+
+          this.files.set(newFilePath, content);
+          if (mtime) this.mtimes.set(newFilePath, mtime);
+        }
+      }
+
+      // Move explicit directories
+      for (const dirPath of Array.from(this.dirs)) {
+        if (dirPath.startsWith(`${normalizedOld}/`) || dirPath === normalizedOld) {
+          const newDirPath = dirPath.replace(normalizedOld, normalizedNew);
+          this.dirs.delete(dirPath);
+          this.dirs.add(newDirPath);
+        }
+      }
+    }
+  }
+
+  /**
+   * Convert a glob pattern to a regex.
+   * Supports * (any characters except /) and ** (any characters including /).
+   */
+  private globToRegex(pattern: string): RegExp {
+    let regex = '^';
+    let i = 0;
+
+    while (i < pattern.length) {
+      const char = pattern[i];
+
+      if (char === '*') {
+        if (pattern[i + 1] === '*') {
+          // ** matches any characters including /
+          if (pattern[i + 2] === '/') {
+            regex += '(?:.*/)?'; // **/ matches zero or more path segments
+            i += 3;
+          } else {
+            regex += '.*'; // ** at end matches anything
+            i += 2;
+          }
+        } else {
+          // * matches any characters except /
+          regex += '[^/]*';
+          i += 1;
+        }
+      } else if (char === '?') {
+        regex += '[^/]';
+        i += 1;
+      } else if (
+        char === '[' ||
+        char === ']' ||
+        char === '(' ||
+        char === ')' ||
+        char === '{' ||
+        char === '}' ||
+        char === '.' ||
+        char === '+' ||
+        char === '^' ||
+        char === '$' ||
+        char === '|' ||
+        char === '\\'
+      ) {
+        regex += `\\${char}`;
+        i += 1;
+      } else {
+        regex += char;
+        i += 1;
+      }
+    }
+
+    regex += '$';
+    return new RegExp(regex);
+  }
+
   // ========== Private Helpers ==========
 
   /**

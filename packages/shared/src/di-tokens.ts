@@ -20,6 +20,8 @@ export const SHARED_DI_TOKENS = {
   PATH_RESOLVER: 'IPathResolver',
   /** IOutputAdapter interface (per Phase 1a) */
   OUTPUT_ADAPTER: 'IOutputAdapter',
+  /** IYamlParser interface (per Phase 2: moved from workflow) */
+  YAML_PARSER: 'IYamlParser',
   /** IProcessManager interface (for git operations) */
   PROCESS_MANAGER: 'IProcessManager',
 } as const;
@@ -69,4 +71,25 @@ export const WORKSPACE_DI_TOKENS = {
   WORKSPACE_SERVICE: 'IWorkspaceService',
   /** ISampleService interface */
   SAMPLE_SERVICE: 'ISampleService',
+} as const;
+
+/**
+ * DI tokens for @chainglass/workgraph interfaces.
+ * Used by createWorkgraphContainer() to register adapters and fakes.
+ *
+ * Per Critical Discovery 01: DI tokens live in shared package for cross-package access.
+ */
+export const WORKGRAPH_DI_TOKENS = {
+  /** IWorkUnitService interface */
+  WORKUNIT_SERVICE: 'IWorkUnitService',
+  /** IWorkGraphService interface */
+  WORKGRAPH_SERVICE: 'IWorkGraphService',
+  /** IWorkNodeService interface */
+  WORKNODE_SERVICE: 'IWorkNodeService',
+  /** YAML parser for unit.yaml, work-graph.yaml, node.yaml */
+  YAML_PARSER: 'IWorkgraphYamlParser',
+  /** JSON parser for state.json, data.json */
+  JSON_PARSER: 'IWorkgraphJsonParser',
+  /** Schema validator for Zod schemas */
+  SCHEMA_VALIDATOR: 'IWorkgraphSchemaValidator',
 } as const;

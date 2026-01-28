@@ -13,7 +13,13 @@
  * Per DYK #5: No --timeout option (uses config-based timeout).
  */
 
-import type { AgentResult, AgentService, IFileSystem, IPathResolver } from '@chainglass/shared';
+import type {
+  AgentEvent,
+  AgentResult,
+  AgentService,
+  IFileSystem,
+  IPathResolver,
+} from '@chainglass/shared';
 import { SHARED_DI_TOKENS } from '@chainglass/shared';
 import type { Command } from 'commander';
 import { CLI_DI_TOKENS, createCliProductionContainer } from '../lib/container.js';
@@ -39,6 +45,8 @@ interface RunOptions {
   session?: string;
   /** Working directory for the agent */
   cwd?: string;
+  /** Stream events as NDJSON to stdout */
+  stream?: boolean;
 }
 
 /**
@@ -161,11 +169,21 @@ async function handleAgentRun(options: RunOptions): Promise<void> {
 
     // Get service and run
     const service = getAgentService();
+
+    // Build onEvent callback for streaming mode
+    const onEvent = options.stream
+      ? (event: AgentEvent) => {
+          // Output raw event as NDJSON line
+          console.log(JSON.stringify(event));
+        }
+      : undefined;
+
     const result = await service.run({
       prompt,
       agentType,
       sessionId: options.session,
       cwd: options.cwd,
+      onEvent,
     });
 
     outputResult(result);
@@ -221,6 +239,7 @@ export function registerAgentCommands(program: Command): void {
     .option('-f, --prompt-file <path>', 'Path to file containing prompt')
     .option('-s, --session <id>', 'Session ID for resumption')
     .option('-c, --cwd <path>', 'Working directory for the agent')
+    .option('--stream', 'Stream events as NDJSON to stdout')
     .action(async (options: RunOptions) => {
       await handleAgentRun(options);
     });

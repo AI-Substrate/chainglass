@@ -1,6 +1,6 @@
+import type { IYamlParser } from '@chainglass/shared';
+import { YamlParseError } from '@chainglass/shared';
 import YAML from 'yaml';
-import type { IYamlParser } from '../interfaces/yaml-parser.interface.js';
-import { YamlParseError } from '../interfaces/yaml-parser.interface.js';
 
 /**
  * Fake YAML parser for testing.

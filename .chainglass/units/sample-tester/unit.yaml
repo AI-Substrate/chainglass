@@ -1,0 +1,33 @@
+slug: sample-tester
+type: agent
+version: 1.0.0
+description: Runs generated code and reports output
+
+inputs:
+  - name: language
+    type: data
+    data_type: text
+    required: true
+    description: The programming language of the script
+  - name: script
+    type: file
+    required: true
+    description: The script file to run
+
+outputs:
+  - name: success
+    type: data
+    data_type: boolean
+    required: true
+    description: Whether the script executed successfully
+  - name: output
+    type: data
+    data_type: text
+    required: true
+    description: The script's stdout/stderr output
+
+agent:
+  prompt_template: commands/main.md
+  supported_agents:
+    - claude-code
+  estimated_tokens: 1000

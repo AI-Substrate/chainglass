@@ -9,3 +9,6 @@ export { registerPhaseCommands } from './phase.command.js';
 export { registerWorkflowCommands } from './workflow.command.js';
 export { registerWorkspaceCommands } from './workspace.command.js';
 export { registerSampleCommands } from './sample.command.js';
+// WorkGraph commands (Phase 6: CLI Integration)
+export { registerUnitCommands } from './unit.command.js';
+export { registerWorkGraphCommands } from './workgraph.command.js';
