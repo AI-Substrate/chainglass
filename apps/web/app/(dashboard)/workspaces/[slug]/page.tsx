@@ -8,7 +8,7 @@
 
 import { WORKSPACE_DI_TOKENS } from '@chainglass/shared';
 import type { IWorkspaceService } from '@chainglass/workflow';
-import { ArrowRight, Bot, FolderOpen, GitBranch } from 'lucide-react';
+import { ArrowRight, Bot, FileText, FolderOpen, GitBranch, LayoutDashboard } from 'lucide-react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { WorkspaceRemoveButton } from '../../../../src/components/workspaces/workspace-remove-button';
@@ -92,6 +92,7 @@ export default async function WorkspaceDetailPage({ params }: PageProps) {
           <div className="divide-y">
             {info.worktrees.map((worktree) => {
               const label = worktree.branch || (worktree.isDetached ? 'detached HEAD' : 'unknown');
+              const landingUrl = `/workspaces/${slug}/worktree?worktree=${encodeURIComponent(worktree.path)}`;
               const samplesUrl = `/workspaces/${slug}/samples?worktree=${encodeURIComponent(worktree.path)}`;
               const agentsUrl = `/workspaces/${slug}/agents?worktree=${encodeURIComponent(worktree.path)}`;
 
@@ -100,27 +101,37 @@ export default async function WorkspaceDetailPage({ params }: PageProps) {
                   key={worktree.path}
                   className="flex items-center justify-between px-4 py-3 hover:bg-muted/50"
                 >
-                  <div className="flex items-center gap-3">
+                  <Link href={landingUrl} className="flex items-center gap-3 hover:underline">
                     <GitBranch className="h-4 w-4 text-muted-foreground" />
                     <div>
                       <div className="font-medium">{label}</div>
                       <code className="text-xs text-muted-foreground">{worktree.path}</code>
                     </div>
-                  </div>
+                  </Link>
                   <div className="flex items-center gap-4">
                     <Link
-                      href={agentsUrl}
+                      href={landingUrl}
                       className="flex items-center gap-1 text-sm text-primary hover:underline"
+                      title="Worktree Overview"
+                    >
+                      <LayoutDashboard className="h-4 w-4" />
+                      Overview
+                    </Link>
+                    <Link
+                      href={agentsUrl}
+                      className="flex items-center gap-1 text-sm text-muted-foreground hover:text-primary hover:underline"
+                      title="Agent Sessions"
                     >
                       <Bot className="h-4 w-4" />
                       Agents
                     </Link>
                     <Link
                       href={samplesUrl}
-                      className="flex items-center gap-1 text-sm text-primary hover:underline"
+                      className="flex items-center gap-1 text-sm text-muted-foreground hover:text-primary hover:underline"
+                      title="Code Samples"
                     >
+                      <FileText className="h-4 w-4" />
                       Samples
-                      <ArrowRight className="h-4 w-4" />
                     </Link>
                   </div>
                 </div>

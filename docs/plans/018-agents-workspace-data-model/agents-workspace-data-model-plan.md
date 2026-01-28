@@ -1560,5 +1560,5 @@ Mid-implementation detours requiring structured tracking.
 
 | ID | Created | Phase | Parent Task | Reason | Status | Dossier |
 |----|---------|-------|-------------|--------|--------|---------|
-| 001-subtask-worktree-landing-page | 2026-01-28 | Phase 3: Web UI Integration | T014 | Navigation broken - worktrees link to samples, not a landing page for agents access | [ ] Pending | [Link](tasks/phase-3-web-ui-integration/001-subtask-worktree-landing-page.md) |
+| 001-subtask-worktree-landing-page | 2026-01-28 | Phase 3: Web UI Integration | T014 | Navigation broken - worktrees link to samples, not a landing page for agents access | [x] Complete | [Link](tasks/phase-3-web-ui-integration/001-subtask-worktree-landing-page.md) |
 

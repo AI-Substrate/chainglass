@@ -4,9 +4,9 @@
  * Part of Plan 018: Agent Workspace Data Model Migration (Phase 3)
  *
  * Server component that shows agent sessions for a workspace's worktree.
- * Uses ?worktree= query param for context selection.
+ * REQUIRES ?worktree= query param - redirects to workspace detail if missing.
  *
- * Per DYK-02: Uses notFound() for invalid workspace slug.
+ * Per DYK-02: Uses redirect() to workspace detail when worktree param missing.
  * Per Discovery 04: Uses `export const dynamic = 'force-dynamic'` for DI container access.
  */
 
@@ -14,9 +14,8 @@ import { WORKSPACE_DI_TOKENS } from '@chainglass/shared';
 import type { IAgentSessionService, IWorkspaceService } from '@chainglass/workflow';
 import { Bot, Clock, GitBranch } from 'lucide-react';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { CreateSessionForm } from '../../../../../src/components/agents/create-session-form';
-import { WorkspaceSelector } from '../../../../../src/components/workspaces/workspace-selector';
 import { getContainer } from '../../../../../src/lib/bootstrap-singleton';
 
 export const dynamic = 'force-dynamic';
@@ -34,6 +33,11 @@ export default async function WorkspaceAgentsPage({ params, searchParams }: Page
   const { slug } = await params;
   const { worktree: worktreePath } = await searchParams;
 
+  // Redirect to workspace detail if no worktree specified (per DYK-02)
+  if (!worktreePath) {
+    redirect(`/workspaces/${slug}`);
+  }
+
   const container = getContainer();
   const workspaceService = container.resolve<IWorkspaceService>(
     WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE
@@ -42,7 +46,7 @@ export default async function WorkspaceAgentsPage({ params, searchParams }: Page
     WORKSPACE_DI_TOKENS.AGENT_SESSION_SERVICE
   );
 
-  // Resolve context - per DYK-02: use notFound() for invalid slug
+  // Resolve context - use notFound() for invalid slug
   const context = await workspaceService.resolveContextFromParams(slug, worktreePath);
 
   if (!context) {
@@ -55,31 +59,27 @@ export default async function WorkspaceAgentsPage({ params, searchParams }: Page
   // Get workspace info for breadcrumb
   const info = await workspaceService.getInfo(slug);
 
-  // Get all workspaces for selector dropdown
-  const allWorkspaces = await workspaceService.list();
-  const workspaceOptions = allWorkspaces.map((w) => ({ slug: w.slug, name: w.name }));
+  // Build back link to landing page
+  const landingUrl = `/workspaces/${slug}/worktree?worktree=${encodeURIComponent(worktreePath)}`;
 
   return (
     <div className="container mx-auto py-6">
-      {/* Breadcrumb + Workspace Selector */}
-      <div className="mb-4 flex items-center justify-between">
-        <nav className="text-sm text-muted-foreground">
-          <Link href="/workspaces" className="hover:underline">
-            Workspaces
-          </Link>
-          {' / '}
-          <Link href={`/workspaces/${slug}`} className="hover:underline">
-            {info?.name || slug}
-          </Link>
-          {' / '}
-          <span>Agents</span>
-        </nav>
-        <WorkspaceSelector
-          currentSlug={slug}
-          workspaces={workspaceOptions}
-          basePath="/workspaces/{slug}/agents"
-        />
-      </div>
+      {/* Breadcrumb */}
+      <nav className="mb-4 text-sm text-muted-foreground">
+        <Link href="/workspaces" className="hover:underline">
+          Workspaces
+        </Link>
+        {' / '}
+        <Link href={`/workspaces/${slug}`} className="hover:underline">
+          {info?.name || slug}
+        </Link>
+        {' / '}
+        <Link href={landingUrl} className="hover:underline">
+          {context.worktreeBranch || 'worktree'}
+        </Link>
+        {' / '}
+        <span>Agents</span>
+      </nav>
 
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">

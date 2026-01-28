@@ -96,16 +96,16 @@ flowchart TD
     subgraph Parent["Parent Context"]
         T007["T007: /workspaces/[slug]/agents page ✓"]:::completed
         T010["T010: Add Agents link to nav ✓"]:::completed
-        T014["T014: Manual smoke test (BLOCKED)"]:::blocked
+        T014["T014: Manual smoke test ✓"]:::completed
     end
 
     subgraph Subtask["Subtask 001: Worktree Landing Page"]
-        ST001["ST001: Create worktree landing page"]:::pending
-        ST002["ST002: Update agents page for worktree"]:::pending
-        ST003["ST003: Update WorkspaceNav links"]:::pending
-        ST004["ST004: Remove WorkspaceSelector"]:::pending
-        ST005["ST005: Update workspace detail page"]:::pending
-        ST006["ST006: Verify navigation flow"]:::pending
+        ST001["ST001: Create worktree landing page ✓"]:::completed
+        ST002["ST002: Update agents page for worktree ✓"]:::completed
+        ST003["ST003: Update WorkspaceNav links ✓"]:::completed
+        ST004["ST004: Remove WorkspaceSelector ✓"]:::completed
+        ST005["ST005: Update workspace detail page ✓"]:::completed
+        ST006["ST006: Verify navigation flow ✓"]:::completed
 
         ST001 --> ST002
         ST002 --> ST003
@@ -115,11 +115,11 @@ flowchart TD
     end
 
     subgraph Files["Files"]
-        F1["/apps/web/app/(dashboard)/workspaces/[slug]/worktree/page.tsx"]:::pending
-        F2["/apps/web/app/(dashboard)/workspaces/[slug]/agents/page.tsx"]:::pending
-        F3["/apps/web/src/components/workspaces/workspace-nav.tsx"]:::pending
-        F4["/apps/web/src/components/workspaces/workspace-selector.tsx"]:::pending
-        F5["/apps/web/app/(dashboard)/workspaces/[slug]/page.tsx"]:::pending
+        F1["/apps/web/app/(dashboard)/workspaces/[slug]/worktree/page.tsx ✓"]:::completed
+        F2["/apps/web/app/(dashboard)/workspaces/[slug]/agents/page.tsx ✓"]:::completed
+        F3["/apps/web/src/components/workspaces/workspace-nav.tsx ✓"]:::completed
+        F4["/apps/web/src/components/workspaces/workspace-selector.tsx ✓ DELETED"]:::completed
+        F5["/apps/web/app/(dashboard)/workspaces/[slug]/page.tsx ✓"]:::completed
     end
 
     ST001 -.-> F1
@@ -136,12 +136,12 @@ flowchart TD
 
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
-| ST001 | Worktree Landing | /apps/web/app/(dashboard)/workspaces/[slug]/worktree/page.tsx | ⬜ Pending | New page showing worktree info + feature cards |
-| ST002 | Agents Page | /apps/web/app/(dashboard)/workspaces/[slug]/agents/page.tsx | ⬜ Pending | Update to require ?worktree= param |
-| ST003 | WorkspaceNav | /apps/web/src/components/workspaces/workspace-nav.tsx | ⬜ Pending | Change worktree links to landing page |
-| ST004 | Cleanup | /apps/web/src/components/workspaces/workspace-selector.tsx | ⬜ Pending | Delete incorrect component |
-| ST005 | Workspace Detail | /apps/web/app/(dashboard)/workspaces/[slug]/page.tsx | ⬜ Pending | Update worktree links to landing page |
-| ST006 | Verification | Manual + Browser Automation | ⬜ Pending | End-to-end navigation test |
+| ST001 | Worktree Landing | /apps/web/app/(dashboard)/workspaces/[slug]/worktree/page.tsx | ✅ Complete | New page showing worktree info + feature cards |
+| ST002 | Agents Page | /apps/web/app/(dashboard)/workspaces/[slug]/agents/page.tsx | ✅ Complete | Update to require ?worktree= param |
+| ST003 | WorkspaceNav | /apps/web/src/components/workspaces/workspace-nav.tsx | ✅ Complete | Change worktree links to landing page |
+| ST004 | Cleanup | /apps/web/src/components/workspaces/workspace-selector.tsx | ✅ Complete | Delete incorrect component |
+| ST005 | Workspace Detail | /apps/web/app/(dashboard)/workspaces/[slug]/page.tsx | ✅ Complete | Update worktree links to landing page |
+| ST006 | Verification | Manual + Browser Automation | ✅ Complete | End-to-end navigation test |
 
 ---
 
@@ -149,12 +149,12 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|------|------|-----|------|--------------|------------------|------------|----------|-------|
-| [ ] | ST001 | Create worktree landing page with feature cards | 2 | Core | – | /home/jak/substrate/015-better-agents/apps/web/app/(dashboard)/workspaces/[slug]/worktree/page.tsx | Page renders with worktree info; shows Agents + Samples cards; `dynamic = 'force-dynamic'` | – | Follow samples page pattern for context resolution |
-| [ ] | ST002 | Update agents page to require ?worktree= param with redirect | 2 | Core | ST001 | /home/jak/substrate/015-better-agents/apps/web/app/(dashboard)/workspaces/[slug]/agents/page.tsx | Missing ?worktree= redirects to workspace detail (`/workspaces/[slug]`); creation form works; sessions filtered by worktree | – | Redirect to workspace detail shows all worktrees for easy selection |
-| [ ] | ST003 | Update WorkspaceNav to link worktrees to landing page | 1 | UI | ST001 | /home/jak/substrate/015-better-agents/apps/web/src/components/workspaces/workspace-nav.tsx | Clicking worktree goes to /workspaces/[slug]/worktree?worktree=...; active state works | – | Change buildWorktreeUrl + isWorktreeSelected to use generic query param check (pathname.startsWith + worktree param match) |
-| [ ] | ST004 | Remove WorkspaceSelector component (incorrect fix attempt) | 1 | Cleanup | ST003 | /home/jak/substrate/015-better-agents/apps/web/src/components/workspaces/workspace-selector.tsx, /home/jak/substrate/015-better-agents/apps/web/app/(dashboard)/workspaces/[slug]/agents/page.tsx | File deleted; no import errors; agents page header updated | – | Created during earlier debugging |
-| [ ] | ST005 | Update workspace detail page worktree links | 1 | UI | ST001 | /home/jak/substrate/015-better-agents/apps/web/app/(dashboard)/workspaces/[slug]/page.tsx | Worktree rows link to landing page (not direct to agents/samples) | – | Keep Agents/Samples quick links as secondary |
-| [ ] | ST006 | Verify navigation flow with browser automation | 1 | Verification | ST005 | – | Nav → Landing → Agents → Create session works; all links functional | – | Use Next.js MCP + browser automation |
+| [x] | ST001 | Create worktree landing page with feature cards | 2 | Core | – | /home/jak/substrate/015-better-agents/apps/web/app/(dashboard)/workspaces/[slug]/worktree/page.tsx | Page renders with worktree info; shows Agents + Samples cards; `dynamic = 'force-dynamic'` | – | Follow samples page pattern for context resolution |
+| [x] | ST002 | Update agents page to require ?worktree= param with redirect | 2 | Core | ST001 | /home/jak/substrate/015-better-agents/apps/web/app/(dashboard)/workspaces/[slug]/agents/page.tsx | Missing ?worktree= redirects to workspace detail (`/workspaces/[slug]`); creation form works; sessions filtered by worktree | – | Redirect to workspace detail shows all worktrees for easy selection |
+| [x] | ST003 | Update WorkspaceNav to link worktrees to landing page | 1 | UI | ST001 | /home/jak/substrate/015-better-agents/apps/web/src/components/workspaces/workspace-nav.tsx | Clicking worktree goes to /workspaces/[slug]/worktree?worktree=...; active state works | – | Change buildWorktreeUrl + isWorktreeSelected to use generic query param check (pathname.startsWith + worktree param match) |
+| [x] | ST004 | Remove WorkspaceSelector component (incorrect fix attempt) | 1 | Cleanup | ST003 | /home/jak/substrate/015-better-agents/apps/web/src/components/workspaces/workspace-selector.tsx, /home/jak/substrate/015-better-agents/apps/web/app/(dashboard)/workspaces/[slug]/agents/page.tsx | File deleted; no import errors; agents page header updated | – | Created during earlier debugging |
+| [x] | ST005 | Update workspace detail page worktree links | 1 | UI | ST001 | /home/jak/substrate/015-better-agents/apps/web/app/(dashboard)/workspaces/[slug]/page.tsx | Worktree rows link to landing page (not direct to agents/samples) | – | Keep Agents/Samples quick links as secondary |
+| [x] | ST006 | Verify navigation flow with browser automation | 1 | Verification | ST005 | – | Nav → Landing → Agents → Create session works; all links functional | – | Use Next.js MCP + browser automation |
 
 ---
 
@@ -169,9 +169,9 @@ This subtask restructures worktree navigation to provide a proper landing page f
 
 ### Checklist (From Parent Acceptance Criteria)
 
-- [ ] ✅ Agents link visible in workspace navigation (AC from T010 - landing page provides this)
-- [ ] ✅ No regressions to existing agent features (verify creation form works)
-- [ ] ✅ Worktree context properly resolved for all pages
+- [x] ✅ Agents link visible in workspace navigation (AC from T010 - landing page provides this)
+- [x] ✅ No regressions to existing agent features (verify creation form works)
+- [x] ✅ Worktree context properly resolved for all pages
 
 ### Critical Findings Affecting This Subtask
 
@@ -304,7 +304,7 @@ Before implementing, verify:
 - [x] Parent phase tasks T007, T010 complete (agents page exists)
 - [x] Understand `?worktree=` query param pattern from samples page
 - [x] Understand `resolveContextFromParams` for context resolution
-- [ ] **GO**: Start implementation with ST001
+- [x] **GO**: Implementation complete!
 
 ---
 
