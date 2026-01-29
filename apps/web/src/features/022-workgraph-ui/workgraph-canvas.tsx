@@ -21,19 +21,21 @@ import {
   BackgroundVariant,
   Controls,
   MiniMap,
+  type NodeChange,
   type NodeTypes,
   type OnConnect,
   type OnEdgesChange,
   type OnNodesChange,
   ReactFlow,
+  applyNodeChanges,
 } from '@xyflow/react';
 import type React from 'react';
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import '@xyflow/react/dist/style.css';
 
 import { cn } from '@/lib/utils';
 import { createDragOverHandler, createDropHandler } from './drop-handler';
-import { type WorkGraphFlowData, useWorkGraphFlow } from './use-workgraph-flow';
+import { type WorkGraphFlowData, type WorkGraphRFNode, useWorkGraphFlow } from './use-workgraph-flow';
 import { WorkGraphNode } from './workgraph-node';
 import type { IWorkGraphUIInstance, Position } from './workgraph-ui.types';
 
@@ -97,12 +99,48 @@ export function WorkGraphCanvas({
   editable = false,
   instance,
   onError,
-  onNodesChange,
+  onNodesChange: onNodesChangeProp,
   onEdgesChange,
   onConnect,
 }: WorkGraphCanvasProps): React.ReactElement {
-  // Transform data to React Flow format
-  const { nodes, edges } = useWorkGraphFlow(data);
+  // Transform data to React Flow format (source of truth from server)
+  const { nodes: serverNodes, edges } = useWorkGraphFlow(data);
+
+  // Local state for node positions (allows dragging without server round-trip)
+  const [nodes, setNodes] = useState<WorkGraphRFNode[]>(serverNodes);
+  
+  // Track if initial layout has been done
+  const [hasInitialLayout, setHasInitialLayout] = useState(false);
+
+  // Merge server changes while preserving local positions
+  // Only reset positions for NEW nodes, keep existing positions
+  useEffect(() => {
+    setNodes((currentNodes) => {
+      // Build map of current positions
+      const currentPositions = new Map(
+        currentNodes.map((n) => [n.id, n.position])
+      );
+      
+      // Merge: use current position if node exists, otherwise use server position
+      return serverNodes.map((serverNode) => {
+        const existingPosition = currentPositions.get(serverNode.id);
+        if (existingPosition) {
+          return { ...serverNode, position: existingPosition };
+        }
+        return serverNode;
+      });
+    });
+  }, [serverNodes]);
+
+  // Handle node changes (position, selection, etc.)
+  const handleNodesChange = useCallback(
+    (changes: NodeChange<WorkGraphRFNode>[]) => {
+      setNodes((nds) => applyNodeChanges(changes, nds));
+      // Also call prop handler if provided
+      onNodesChangeProp?.(changes);
+    },
+    [onNodesChangeProp]
+  );
 
   // Ref for drop position calculation
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
@@ -173,8 +211,8 @@ export function WorkGraphCanvas({
         nodesDraggable={editable}
         nodesConnectable={editable}
         elementsSelectable={true}
-        // Event handlers (only active when editable)
-        onNodesChange={editable ? onNodesChange : undefined}
+        // Event handlers - always use our internal handler for node changes
+        onNodesChange={handleNodesChange}
         onEdgesChange={editable ? onEdgesChange : undefined}
         onConnect={editable ? onConnect : undefined}
         // View options
