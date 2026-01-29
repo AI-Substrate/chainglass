@@ -41,10 +41,13 @@ import {
 import {
   type AdapterFactory as AgentAdapterFactory,
   AgentManagerService,
+  AgentStorageAdapter,
   FakeAgentManagerService,
   FakeAgentNotifierService,
+  FakeAgentStorageAdapter,
   type IAgentManagerService,
   type IAgentNotifierService,
+  type IAgentStorageAdapter,
 } from '@chainglass/shared/features/019-agent-manager-refactor';
 // Plan 014 Phase 6: Import workspace services from @chainglass/workflow
 // Plan 018 Phase 2: Import AgentEventAdapter for workspace-scoped event storage
@@ -385,14 +388,28 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
     },
   });
 
-  // Register AgentManagerService with adapter factory and notifier
+  // Phase 3: Register AgentStorageAdapter for persistent agent storage
+  // Per AC-19: Storage at ~/.config/chainglass/agents/
+  // Per DYK-11: Real adapter in packages/shared for contract test parity
+  childContainer.register<IAgentStorageAdapter>(SHARED_DI_TOKENS.AGENT_STORAGE_ADAPTER, {
+    useFactory: (c) => {
+      const fileSystem = c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
+      const pathResolver = c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
+      const basePath = path.join(os.homedir(), '.config', 'chainglass', 'agents');
+      return new AgentStorageAdapter(fileSystem, pathResolver, basePath);
+    },
+  });
+
+  // Register AgentManagerService with adapter factory, notifier, and storage
   // Per DYK-06: AgentManagerService receives notifier via DI
+  // Per DYK-12: Storage is optional but provided for persistence
   childContainer.register<IAgentManagerService>(SHARED_DI_TOKENS.AGENT_MANAGER_SERVICE, {
     useFactory: (c) => {
       const logger = c.resolve<ILogger>(DI_TOKENS.LOGGER);
       const processManager = c.resolve<IProcessManager>(DI_TOKENS.PROCESS_MANAGER);
       const copilotClient = c.resolve<CopilotClient>(DI_TOKENS.COPILOT_CLIENT);
       const notifier = c.resolve<IAgentNotifierService>(SHARED_DI_TOKENS.AGENT_NOTIFIER_SERVICE);
+      const storage = c.resolve<IAgentStorageAdapter>(SHARED_DI_TOKENS.AGENT_STORAGE_ADAPTER);
 
       // Per DYK-01: Factory function for adapter selection
       const agentAdapterFactory: AgentAdapterFactory = (agentType) => {
@@ -405,7 +422,7 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
         throw new Error(`Unknown agent type: ${agentType}`);
       };
 
-      return new AgentManagerService(agentAdapterFactory, notifier);
+      return new AgentManagerService(agentAdapterFactory, notifier, storage);
     },
   });
 
@@ -575,10 +592,15 @@ export function createTestContainer(): DependencyContainer {
     useValue: fakeNotifier,
   });
 
+  // Phase 3: Register FakeAgentStorageAdapter for test isolation
+  const fakeStorage = new FakeAgentStorageAdapter();
+  childContainer.register<IAgentStorageAdapter>(SHARED_DI_TOKENS.AGENT_STORAGE_ADAPTER, {
+    useValue: fakeStorage,
+  });
+
   // Register FakeAgentManagerService for test isolation
   childContainer.register<IAgentManagerService>(SHARED_DI_TOKENS.AGENT_MANAGER_SERVICE, {
-    useFactory: (c) => {
-      const notifier = c.resolve<IAgentNotifierService>(SHARED_DI_TOKENS.AGENT_NOTIFIER_SERVICE);
+    useFactory: () => {
       return new FakeAgentManagerService();
     },
   });

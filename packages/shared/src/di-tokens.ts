@@ -28,6 +28,8 @@ export const SHARED_DI_TOKENS = {
   AGENT_MANAGER_SERVICE: 'IAgentManagerService',
   /** IAgentNotifierService interface (Plan 019: Phase 2) */
   AGENT_NOTIFIER_SERVICE: 'IAgentNotifierService',
+  /** IAgentStorageAdapter interface (Plan 019: Phase 3) */
+  AGENT_STORAGE_ADAPTER: 'IAgentStorageAdapter',
 } as const;
 
 /**

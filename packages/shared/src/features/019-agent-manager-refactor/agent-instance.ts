@@ -8,6 +8,10 @@
  * Per DYK-01: Receives adapterFactory at construction, not concrete adapter.
  * Per DYK-10: Receives notifier as required parameter (Phase 2).
  * Per DYK-09: Uses _setStatus() and _captureEvent() for storage-first pattern.
+ * Per DYK-12: Storage is optional; no storage = in-memory only.
+ * Per DYK-13: Static hydrate() factory for restoration from storage.
+ * Per DYK-14: Eager load events at hydrate time.
+ * Per DYK-15: Working→stopped on restart.
  * Per Critical Finding 02: Session state fragmented - AgentInstance becomes single source of truth.
  * Per Critical Finding 04: Race condition - status guard prevents double-run.
  */
@@ -23,6 +27,7 @@ import type {
   IAgentInstance,
 } from './agent-instance.interface.js';
 import type { IAgentNotifierService } from './agent-notifier.interface.js';
+import type { IAgentStorageAdapter } from './agent-storage.interface.js';
 
 /**
  * Configuration options for creating an AgentInstance.
@@ -44,17 +49,28 @@ export interface AgentInstanceConfig {
  * Per DYK-01: Adapters are stateless; sessionId is stored by AgentInstance
  * and passed to adapter on each run().
  * Per DYK-10: Requires notifier for SSE broadcasting.
+ * Per DYK-12: Storage is optional; no storage = in-memory only.
+ * Per DYK-13: Use hydrate() factory for restoration.
  *
  * Usage:
  * ```typescript
  * const adapterFactory = (type) => new FakeAgentAdapter();
  * const notifier = new FakeAgentNotifierService();
+ *
+ * // Without storage (in-memory only)
  * const instance = new AgentInstance({
  *   id: 'agent-1',
  *   name: 'chat',
  *   type: 'claude-code',
  *   workspace: '/projects/myapp',
  * }, adapterFactory, notifier);
+ *
+ * // With storage (persistent)
+ * const storage = new AgentStorageAdapter(fs, path, basePath);
+ * const instance = new AgentInstance({...}, adapterFactory, notifier, storage);
+ *
+ * // Restore from storage
+ * const restored = await AgentInstance.hydrate('agent-1', storage, adapterFactory, notifier);
  *
  * const result = await instance.run({ prompt: 'Hello' });
  * console.log(instance.sessionId); // Session persisted
@@ -75,9 +91,10 @@ export class AgentInstance implements IAgentInstance {
   private _createdAt: Date;
   private _updatedAt: Date;
 
-  // ===== Adapter & Notifier =====
+  // ===== Adapter, Notifier & Storage =====
   private readonly _adapter: IAgentAdapter;
   private readonly _notifier: IAgentNotifierService;
+  private readonly _storage: IAgentStorageAdapter | null;
   private _eventIdCounter = 0;
 
   /**
@@ -86,14 +103,17 @@ export class AgentInstance implements IAgentInstance {
    * @param config - Instance configuration (id, name, type, workspace)
    * @param adapterFactory - Factory function to create adapter based on type
    * @param notifier - Agent notifier for SSE broadcasting
+   * @param storage - Optional storage adapter for persistence (per DYK-12)
    *
    * Per DYK-01: Factory is called immediately to get the adapter.
    * Per DYK-10: Notifier is required for SSE broadcasting.
+   * Per DYK-12: Storage is optional.
    */
   constructor(
     config: AgentInstanceConfig,
     adapterFactory: AdapterFactory,
-    notifier: IAgentNotifierService
+    notifier: IAgentNotifierService,
+    storage?: IAgentStorageAdapter
   ) {
     this.id = config.id;
     this.name = config.name;
@@ -102,9 +122,73 @@ export class AgentInstance implements IAgentInstance {
     this._createdAt = new Date();
     this._updatedAt = new Date();
     this._notifier = notifier;
+    this._storage = storage ?? null;
 
     // Create adapter via factory
     this._adapter = adapterFactory(config.type);
+  }
+
+  /**
+   * Restore an AgentInstance from storage.
+   *
+   * Per DYK-13: Manager orchestrates, Instance owns restoration logic.
+   * Per DYK-14: Eager load all events at hydrate time.
+   * Per DYK-15: Working→stopped on restart.
+   *
+   * @param id - Agent ID to hydrate
+   * @param storage - Storage adapter to read from
+   * @param adapterFactory - Factory function to create adapter
+   * @param notifier - Agent notifier for SSE broadcasting
+   * @returns Hydrated AgentInstance or null if not found
+   */
+  static async hydrate(
+    id: string,
+    storage: IAgentStorageAdapter,
+    adapterFactory: AdapterFactory,
+    notifier: IAgentNotifierService
+  ): Promise<AgentInstance | null> {
+    // Load instance data from storage
+    const data = await storage.loadInstance(id);
+    if (!data) {
+      return null;
+    }
+
+    // Create instance with storage
+    const instance = new AgentInstance(
+      {
+        id: data.id,
+        name: data.name,
+        type: data.type as AgentType,
+        workspace: data.workspace,
+      },
+      adapterFactory,
+      notifier,
+      storage
+    );
+
+    // Restore mutable state
+    // Per DYK-15: Working→stopped on restart (can't resume adapter work)
+    instance._status = data.status === 'working' ? 'stopped' : (data.status as AgentInstanceStatus);
+    instance._intent = data.intent;
+    instance._sessionId = data.sessionId;
+    instance._createdAt = new Date(data.createdAt);
+    instance._updatedAt = new Date(data.updatedAt);
+
+    // Per DYK-14: Eager load all events
+    const events = await storage.getEvents(id);
+    instance._events = events;
+
+    // Set event ID counter to avoid collisions
+    if (events.length > 0) {
+      // Extract numeric suffix from last event ID (format: agent-id-evt-N)
+      const lastEventId = events[events.length - 1].eventId;
+      const match = lastEventId.match(/-evt-(\d+)$/);
+      if (match) {
+        instance._eventIdCounter = Number.parseInt(match[1], 10);
+      }
+    }
+
+    return instance;
   }
 
   // ===== Property Getters =====
@@ -138,6 +222,13 @@ export class AgentInstance implements IAgentInstance {
   private _setStatus(status: AgentInstanceStatus): void {
     this._status = status;
     this._updatedAt = new Date();
+
+    // Per PL-01: Persist BEFORE broadcast
+    if (this._storage) {
+      // Fire-and-forget - don't await (maintain sync behavior)
+      this._persistInstance();
+    }
+
     this._notifier.broadcastStatus(this.id, status);
   }
 
@@ -152,11 +243,43 @@ export class AgentInstance implements IAgentInstance {
       eventId: `${this.id}-evt-${++this._eventIdCounter}`,
     };
 
-    // Storage first
+    // Storage first (in-memory)
     this._events.push(storedEvent);
+
+    // Per PL-01: Persist BEFORE broadcast
+    if (this._storage) {
+      // Fire-and-forget - don't await
+      this._storage.appendEvent(this.id, storedEvent).catch((err) => {
+        console.error(`[AgentInstance] Failed to persist event ${storedEvent.eventId}:`, err);
+      });
+    }
 
     // Then broadcast
     this._notifier.broadcastEvent(this.id, storedEvent);
+  }
+
+  /**
+   * Persist current instance state to storage.
+   * Called from _setStatus and setIntent.
+   */
+  private async _persistInstance(): Promise<void> {
+    if (!this._storage) return;
+
+    try {
+      await this._storage.saveInstance({
+        id: this.id,
+        name: this.name,
+        type: this.type,
+        workspace: this.workspace,
+        status: this._status,
+        intent: this._intent,
+        sessionId: this._sessionId,
+        createdAt: this._createdAt.toISOString(),
+        updatedAt: this._updatedAt.toISOString(),
+      });
+    } catch (err) {
+      console.error(`[AgentInstance] Failed to persist instance ${this.id}:`, err);
+    }
   }
 
   // ===== IAgentInstance Methods =====
@@ -270,6 +393,12 @@ export class AgentInstance implements IAgentInstance {
   setIntent(intent: string): void {
     this._intent = intent;
     this._updatedAt = new Date();
+
+    // Per PL-01: Persist BEFORE broadcast
+    if (this._storage) {
+      this._persistInstance();
+    }
+
     this._notifier.broadcastIntent(this.id, intent);
   }
 }

@@ -44,6 +44,15 @@ export class FakeAgentManagerService implements IAgentManagerService {
 
   // ===== IAgentManagerService Implementation =====
 
+  /**
+   * Initialize the manager.
+   * Per DYK-12: No-op for fake - storage is optional.
+   */
+  async initialize(): Promise<void> {
+    // No-op for fake implementation
+    // Tests can pre-populate agents via addAgent() instead
+  }
+
   createAgent(params: CreateAgentParams): IAgentInstance {
     // Check for injected error
     const error = this._errors.get('createAgent');

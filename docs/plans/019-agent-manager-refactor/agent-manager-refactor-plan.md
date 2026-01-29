@@ -829,7 +829,9 @@ Per spec, documentation created after implementation validates:
   - Contract Tests: 40 passed (20 Fake + 20 Real)
   - Integration Tests: 8 passed
   - DYK Decisions Applied: DYK-06 through DYK-10
-- [ ] Phase 3: Storage Layer - NOT STARTED
+- [ ] Phase 3: Storage Layer - **DOSSIER READY**
+  - Tasks: [tasks/phase-3-storage-layer/tasks.md](./tasks/phase-3-storage-layer/tasks.md)
+  - DYK Decisions: DYK-11 through DYK-15 (pending resolution)
 - [ ] Phase 4: Web Integration - NOT STARTED
 - [ ] Phase 5: Consolidation + Cleanup - NOT STARTED
 

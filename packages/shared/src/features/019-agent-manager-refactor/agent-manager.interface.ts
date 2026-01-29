@@ -5,6 +5,7 @@
  * It creates, tracks, and provides access to agents across all workspaces.
  *
  * Per spec AC-01, AC-02, AC-03, AC-04.
+ * Per Phase 3: AC-05 (persistence), DYK-12 (optional storage), DYK-13 (hydrate).
  */
 
 import type { AgentType, IAgentInstance } from './agent-instance.interface.js';
@@ -44,6 +45,17 @@ export interface AgentFilter {
  * - FakeAgentManagerService: Test double with state setup helpers
  */
 export interface IAgentManagerService {
+  /**
+   * Initialize the manager by loading persisted agents from storage.
+   *
+   * Per DYK-12: Only required when storage is provided.
+   * Per DYK-13: Uses AgentInstance.hydrate() for each stored agent.
+   * Per AC-05: Enables agents to survive process restart.
+   *
+   * @returns Promise resolving when initialization is complete
+   */
+  initialize(): Promise<void>;
+
   /**
    * Create a new agent instance.
    *
