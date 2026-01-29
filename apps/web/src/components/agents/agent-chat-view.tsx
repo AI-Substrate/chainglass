@@ -74,6 +74,10 @@ export function AgentChatView({ agentId, className }: AgentChatViewProps) {
         if (statusData.status !== 'working') {
           setStreamingContent('');
           refetchRef.current?.();
+          // Surface error status to the user
+          if (statusData.status === 'error') {
+            setLocalError((prev) => prev ?? { message: 'Agent encountered an error' });
+          }
         }
       }
     },

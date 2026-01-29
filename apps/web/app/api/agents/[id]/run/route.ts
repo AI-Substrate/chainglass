@@ -54,6 +54,7 @@ export async function POST(
     await ensureInitialized();
 
     const { id } = await params;
+    console.log(`[agent-run] POST /api/agents/${id}/run — request received`);
 
     const container = getContainer();
     const agentManager = container.resolve<IAgentManagerService>(
@@ -65,11 +66,15 @@ export async function POST(
 
     // Return 404 if agent not found (per AC-04, AC-24)
     if (!agent) {
+      console.log(`[agent-run] Agent ${id} NOT FOUND`);
       return NextResponse.json({ error: 'Agent not found', agentId: id }, { status: 404 });
     }
 
+    console.log(`[agent-run] Agent found: name="${agent.name}" type="${agent.type}" status="${agent.status}"`);
+
     // Parse request body
     const body = (await request.json()) as AgentRunOptions;
+    console.log(`[agent-run] Prompt: "${body.prompt?.substring(0, 80)}..." cwd: ${body.cwd ?? '(none)'}`);
 
     // Validate required fields
     if (!body.prompt) {
@@ -79,11 +84,25 @@ export async function POST(
     // Run prompt on agent
     // Per AC-07a: Double-run guard in AgentInstance will throw if already working
     try {
-      await agent.run({
+      console.log(`[agent-run] Calling agent.run() ...`);
+      const result = await agent.run({
         prompt: body.prompt,
         cwd: body.cwd,
       });
 
+      if (result.status === 'failed') {
+        console.log(`[agent-run] agent.run() returned failed: ${result.output}`);
+        return NextResponse.json(
+          {
+            error: result.output || 'Agent execution failed',
+            agentId: id,
+            status: 'failed',
+          },
+          { status: 502 }
+        );
+      }
+
+      console.log(`[agent-run] agent.run() completed successfully`);
       return NextResponse.json({ success: true, agentId: id });
     } catch (error) {
       // Check for double-run error

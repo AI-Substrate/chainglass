@@ -52,6 +52,7 @@ export class AgentNotifierService implements IAgentNotifierService {
    * Per AC-15: Status changes are broadcast.
    */
   broadcastStatus(agentId: string, status: AgentInstanceStatus): void {
+    console.log(`[AgentNotifier] Broadcasting status: ${agentId} → ${status}`);
     const event: AgentStatusSSEEvent = {
       type: 'agent_status',
       agentId,
@@ -81,6 +82,7 @@ export class AgentNotifierService implements IAgentNotifierService {
    * Per PL-01: Caller must ensure event is already stored before calling.
    */
   broadcastEvent(agentId: string, event: AgentStoredEvent): void {
+    console.log(`[AgentNotifier] Broadcasting event: ${agentId} type="${event.type}" eventId=${event.eventId}`);
     const sseEvent: AgentEventSSEEvent = {
       type: 'agent_event',
       agentId,

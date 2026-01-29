@@ -220,6 +220,7 @@ export class AgentInstance implements IAgentInstance {
    * Per PL-01: Status is stored THEN broadcast (storage-first).
    */
   private _setStatus(status: AgentInstanceStatus): void {
+    console.log(`[AgentInstance] Status change: ${this.id} ${this._status} → ${status}`);
     this._status = status;
     this._updatedAt = new Date();
 
@@ -242,6 +243,8 @@ export class AgentInstance implements IAgentInstance {
       ...event,
       eventId: `${this.id}-evt-${++this._eventIdCounter}`,
     };
+
+    console.log(`[AgentInstance] Event captured: id=${storedEvent.eventId} type="${event.type}" data=${JSON.stringify(event.data).substring(0, 120)}`);
 
     // Storage first (in-memory)
     this._events.push(storedEvent);
@@ -306,6 +309,8 @@ export class AgentInstance implements IAgentInstance {
     this._intent = options.prompt.substring(0, 100); // Use prompt as initial intent
     this._notifier.broadcastIntent(this.id, this._intent);
 
+    console.log(`[AgentInstance] run() starting: id=${this.id} adapter=${this.type} sessionId=${this._sessionId ?? '(new)'} cwd=${options.cwd ?? '(none)'}`);
+
     try {
       // Delegate to adapter with event capture
       const result = await this._adapter.run({
@@ -318,6 +323,8 @@ export class AgentInstance implements IAgentInstance {
         },
       });
 
+      console.log(`[AgentInstance] run() finished: id=${this.id} result.status=${result.status} sessionId=${result.sessionId} events=${this._events.length}`);
+
       // Per AC-12: Store adapter sessionId for resumption
       this._sessionId = result.sessionId;
 
@@ -327,6 +334,7 @@ export class AgentInstance implements IAgentInstance {
 
       return result;
     } catch (error) {
+      console.error(`[AgentInstance] run() ERROR: id=${this.id}`, error);
       // On error, transition to error state (storage-first via _setStatus)
       this._setStatus('error');
       throw error;
