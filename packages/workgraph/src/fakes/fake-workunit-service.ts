@@ -4,7 +4,10 @@
  * Per Discovery 08: Fakes need call capture for CLI testing.
  * This fake captures all list(), load(), create(), validate() calls
  * for test assertions and can be configured with preset results.
+ * Per Plan 021: All methods accept WorkspaceContext as first parameter (ignored by fake).
  */
+
+import type { WorkspaceContext } from '@chainglass/workflow';
 
 import type {
   IWorkUnitService,
@@ -16,21 +19,24 @@ import type {
 } from '../interfaces/index.js';
 
 // ============================================
-// Call Types
+// Call Types (with ctx for workspace tracking)
 // ============================================
 
 export interface ListCall {
+  ctx: WorkspaceContext;
   timestamp: string;
   result: UnitListResult;
 }
 
 export interface LoadCall {
+  ctx: WorkspaceContext;
   slug: string;
   timestamp: string;
   result: UnitLoadResult;
 }
 
 export interface CreateCall {
+  ctx: WorkspaceContext;
   slug: string;
   type: 'agent' | 'code' | 'user-input';
   timestamp: string;
@@ -38,6 +44,7 @@ export interface CreateCall {
 }
 
 export interface ValidateCall {
+  ctx: WorkspaceContext;
   slug: string;
   timestamp: string;
   result: UnitValidateResult;
@@ -49,6 +56,7 @@ export interface ValidateCall {
 
 /**
  * Fake WorkUnit service for testing.
+ * Uses composite keys (worktreePath|slug) for workspace isolation.
  */
 export class FakeWorkUnitService implements IWorkUnitService {
   private listCalls: ListCall[] = [];
@@ -56,12 +64,21 @@ export class FakeWorkUnitService implements IWorkUnitService {
   private createCalls: CreateCall[] = [];
   private validateCalls: ValidateCall[] = [];
 
-  private presetListResult: UnitListResult | null = null;
+  private presetListResults = new Map<string, UnitListResult>();
   private presetLoadResults = new Map<string, UnitLoadResult>();
   private presetCreateResults = new Map<string, UnitCreateResult>();
   private presetValidateResults = new Map<string, UnitValidateResult>();
 
   private defaultUnits: WorkUnitSummary[] = [];
+
+  // ==================== Key Helper ====================
+
+  private getKey(ctx: WorkspaceContext, slug?: string): string {
+    if (!ctx?.worktreePath) {
+      throw new Error('FakeWorkUnitService: ctx.worktreePath is required for key generation');
+    }
+    return slug ? `${ctx.worktreePath}|${slug}` : ctx.worktreePath;
+  }
 
   // ==================== List ====================
 
@@ -73,21 +90,23 @@ export class FakeWorkUnitService implements IWorkUnitService {
     return this.listCalls.length > 0 ? this.listCalls[this.listCalls.length - 1] : null;
   }
 
-  setPresetListResult(result: UnitListResult): void {
-    this.presetListResult = result;
+  setPresetListResult(ctx: WorkspaceContext, result: UnitListResult): void {
+    this.presetListResults.set(this.getKey(ctx), result);
   }
 
   setDefaultUnits(units: WorkUnitSummary[]): void {
     this.defaultUnits = units;
   }
 
-  async list(): Promise<UnitListResult> {
-    const result = this.presetListResult ?? {
+  async list(ctx: WorkspaceContext): Promise<UnitListResult> {
+    const key = this.getKey(ctx);
+    const result = this.presetListResults.get(key) ?? {
       units: this.defaultUnits,
       errors: [],
     };
 
     this.listCalls.push({
+      ctx,
       timestamp: new Date().toISOString(),
       result,
     });
@@ -105,12 +124,13 @@ export class FakeWorkUnitService implements IWorkUnitService {
     return this.loadCalls.length > 0 ? this.loadCalls[this.loadCalls.length - 1] : null;
   }
 
-  setPresetLoadResult(slug: string, result: UnitLoadResult): void {
-    this.presetLoadResults.set(slug, result);
+  setPresetLoadResult(ctx: WorkspaceContext, slug: string, result: UnitLoadResult): void {
+    this.presetLoadResults.set(this.getKey(ctx, slug), result);
   }
 
-  async load(slug: string): Promise<UnitLoadResult> {
-    const result = this.presetLoadResults.get(slug) ?? {
+  async load(ctx: WorkspaceContext, slug: string): Promise<UnitLoadResult> {
+    const key = this.getKey(ctx, slug);
+    const result = this.presetLoadResults.get(key) ?? {
       unit: undefined,
       errors: [
         {
@@ -122,6 +142,7 @@ export class FakeWorkUnitService implements IWorkUnitService {
     };
 
     this.loadCalls.push({
+      ctx,
       slug,
       timestamp: new Date().toISOString(),
       result,
@@ -140,18 +161,24 @@ export class FakeWorkUnitService implements IWorkUnitService {
     return this.createCalls.length > 0 ? this.createCalls[this.createCalls.length - 1] : null;
   }
 
-  setPresetCreateResult(slug: string, result: UnitCreateResult): void {
-    this.presetCreateResults.set(slug, result);
+  setPresetCreateResult(ctx: WorkspaceContext, slug: string, result: UnitCreateResult): void {
+    this.presetCreateResults.set(this.getKey(ctx, slug), result);
   }
 
-  async create(slug: string, type: 'agent' | 'code' | 'user-input'): Promise<UnitCreateResult> {
-    const result = this.presetCreateResults.get(slug) ?? {
+  async create(
+    ctx: WorkspaceContext,
+    slug: string,
+    type: 'agent' | 'code' | 'user-input'
+  ): Promise<UnitCreateResult> {
+    const key = this.getKey(ctx, slug);
+    const result = this.presetCreateResults.get(key) ?? {
       slug,
-      path: `.chainglass/units/${slug}`,
+      path: `.chainglass/data/units/${slug}`,
       errors: [],
     };
 
     this.createCalls.push({
+      ctx,
       slug,
       type,
       timestamp: new Date().toISOString(),
@@ -171,12 +198,13 @@ export class FakeWorkUnitService implements IWorkUnitService {
     return this.validateCalls.length > 0 ? this.validateCalls[this.validateCalls.length - 1] : null;
   }
 
-  setPresetValidateResult(slug: string, result: UnitValidateResult): void {
-    this.presetValidateResults.set(slug, result);
+  setPresetValidateResult(ctx: WorkspaceContext, slug: string, result: UnitValidateResult): void {
+    this.presetValidateResults.set(this.getKey(ctx, slug), result);
   }
 
-  async validate(slug: string): Promise<UnitValidateResult> {
-    const result = this.presetValidateResults.get(slug) ?? {
+  async validate(ctx: WorkspaceContext, slug: string): Promise<UnitValidateResult> {
+    const key = this.getKey(ctx, slug);
+    const result = this.presetValidateResults.get(key) ?? {
       slug,
       valid: true,
       issues: [],
@@ -184,6 +212,7 @@ export class FakeWorkUnitService implements IWorkUnitService {
     };
 
     this.validateCalls.push({
+      ctx,
       slug,
       timestamp: new Date().toISOString(),
       result,
@@ -199,7 +228,7 @@ export class FakeWorkUnitService implements IWorkUnitService {
     this.loadCalls = [];
     this.createCalls = [];
     this.validateCalls = [];
-    this.presetListResult = null;
+    this.presetListResults.clear();
     this.presetLoadResults.clear();
     this.presetCreateResults.clear();
     this.presetValidateResults.clear();

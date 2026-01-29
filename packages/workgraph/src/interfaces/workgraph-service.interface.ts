@@ -1,15 +1,17 @@
 /**
  * IWorkGraphService interface for managing WorkGraphs.
  *
- * WorkGraphs are DAGs of WorkNodes stored in `.chainglass/work-graphs/`.
+ * WorkGraphs are DAGs of WorkNodes stored in `<worktree>/.chainglass/data/work-graphs/`.
  * This service provides graph creation, loading, viewing, and node operations.
  *
  * Per spec AC-01 through AC-08: Graph and node management operations.
  * Per Critical Discovery 02: All methods return results with errors array.
  * Per Insight 5: addNodeAfter/removeNode moved here from IWorkNodeService.
+ * Per Plan 021: All methods accept WorkspaceContext as first parameter.
  */
 
 import type { BaseResult } from '@chainglass/shared';
+import type { WorkspaceContext } from '@chainglass/workflow';
 
 // ============================================
 // Result Types
@@ -217,34 +219,38 @@ export interface IWorkGraphService {
   /**
    * Create a new empty WorkGraph.
    *
+   * @param ctx - Workspace context for path resolution
    * @param slug - Unique identifier for the graph
    * @returns GraphCreateResult with path to created graph
    */
-  create(slug: string): Promise<GraphCreateResult>;
+  create(ctx: WorkspaceContext, slug: string): Promise<GraphCreateResult>;
 
   /**
    * Load a WorkGraph by slug.
    *
+   * @param ctx - Workspace context for path resolution
    * @param slug - Graph identifier to load
    * @returns GraphLoadResult with graph definition or E101 error
    */
-  load(slug: string): Promise<GraphLoadResult>;
+  load(ctx: WorkspaceContext, slug: string): Promise<GraphLoadResult>;
 
   /**
    * Show graph structure as a tree.
    *
+   * @param ctx - Workspace context for path resolution
    * @param slug - Graph identifier
    * @returns GraphShowResult with tree representation
    */
-  show(slug: string): Promise<GraphShowResult>;
+  show(ctx: WorkspaceContext, slug: string): Promise<GraphShowResult>;
 
   /**
    * Get execution status of all nodes.
    *
+   * @param ctx - Workspace context for path resolution
    * @param slug - Graph identifier
    * @returns GraphStatusResult with node statuses
    */
-  status(slug: string): Promise<GraphStatusResult>;
+  status(ctx: WorkspaceContext, slug: string): Promise<GraphStatusResult>;
 
   /**
    * Add a node after an existing node.
@@ -253,6 +259,7 @@ export interface IWorkGraphService {
    * by the predecessor's outputs. Returns E103 if inputs missing.
    * Returns E108 if adding would create a cycle.
    *
+   * @param ctx - Workspace context for path resolution
    * @param graphSlug - Graph to add node to
    * @param afterNodeId - Node to add after
    * @param unitSlug - Unit to instantiate
@@ -260,6 +267,7 @@ export interface IWorkGraphService {
    * @returns AddNodeResult with new node ID and input mappings
    */
   addNodeAfter(
+    ctx: WorkspaceContext,
     graphSlug: string,
     afterNodeId: string,
     unitSlug: string,
@@ -271,12 +279,14 @@ export interface IWorkGraphService {
    *
    * Returns E102 if node has dependents (unless cascade=true).
    *
+   * @param ctx - Workspace context for path resolution
    * @param graphSlug - Graph to remove node from
    * @param nodeId - Node to remove
    * @param options - Optional remove options (cascade)
    * @returns RemoveNodeResult with list of removed nodes
    */
   removeNode(
+    ctx: WorkspaceContext,
     graphSlug: string,
     nodeId: string,
     options?: RemoveNodeOptions

@@ -4,7 +4,10 @@
  * Per Discovery 08: Fakes need call capture for CLI testing.
  * This fake captures all canRun(), start(), end(), getInputData(),
  * saveOutputData() calls for test assertions and can be configured with preset results.
+ * Per Plan 021: All methods accept WorkspaceContext as first parameter (ignored by fake).
  */
+
+import type { WorkspaceContext } from '@chainglass/workflow';
 
 import type {
   AnswerResult,
@@ -27,10 +30,11 @@ import type {
 } from '../interfaces/index.js';
 
 // ============================================
-// Call Types
+// Call Types (with ctx for workspace tracking)
 // ============================================
 
 export interface CanRunCall {
+  ctx: WorkspaceContext;
   graphSlug: string;
   nodeId: string;
   timestamp: string;
@@ -38,6 +42,7 @@ export interface CanRunCall {
 }
 
 export interface MarkReadyCall {
+  ctx: WorkspaceContext;
   graphSlug: string;
   nodeId: string;
   timestamp: string;
@@ -45,6 +50,7 @@ export interface MarkReadyCall {
 }
 
 export interface StartCall {
+  ctx: WorkspaceContext;
   graphSlug: string;
   nodeId: string;
   timestamp: string;
@@ -52,6 +58,7 @@ export interface StartCall {
 }
 
 export interface EndCall {
+  ctx: WorkspaceContext;
   graphSlug: string;
   nodeId: string;
   timestamp: string;
@@ -59,6 +66,7 @@ export interface EndCall {
 }
 
 export interface CanEndCall {
+  ctx: WorkspaceContext;
   graphSlug: string;
   nodeId: string;
   timestamp: string;
@@ -66,6 +74,7 @@ export interface CanEndCall {
 }
 
 export interface GetInputDataCall {
+  ctx: WorkspaceContext;
   graphSlug: string;
   nodeId: string;
   inputName: string;
@@ -74,6 +83,7 @@ export interface GetInputDataCall {
 }
 
 export interface GetInputFileCall {
+  ctx: WorkspaceContext;
   graphSlug: string;
   nodeId: string;
   inputName: string;
@@ -82,6 +92,7 @@ export interface GetInputFileCall {
 }
 
 export interface GetOutputDataCall {
+  ctx: WorkspaceContext;
   graphSlug: string;
   nodeId: string;
   outputName: string;
@@ -90,6 +101,7 @@ export interface GetOutputDataCall {
 }
 
 export interface SaveOutputDataCall {
+  ctx: WorkspaceContext;
   graphSlug: string;
   nodeId: string;
   outputName: string;
@@ -99,6 +111,7 @@ export interface SaveOutputDataCall {
 }
 
 export interface SaveOutputFileCall {
+  ctx: WorkspaceContext;
   graphSlug: string;
   nodeId: string;
   outputName: string;
@@ -108,6 +121,7 @@ export interface SaveOutputFileCall {
 }
 
 export interface ClearCall {
+  ctx: WorkspaceContext;
   graphSlug: string;
   nodeId: string;
   options: ClearOptions;
@@ -116,6 +130,7 @@ export interface ClearCall {
 }
 
 export interface AskCall {
+  ctx: WorkspaceContext;
   graphSlug: string;
   nodeId: string;
   question: Question;
@@ -124,6 +139,7 @@ export interface AskCall {
 }
 
 export interface AnswerCall {
+  ctx: WorkspaceContext;
   graphSlug: string;
   nodeId: string;
   questionId: string;
@@ -132,12 +148,22 @@ export interface AnswerCall {
   result: AnswerResult;
 }
 
+export interface GetAnswerCall {
+  ctx: WorkspaceContext;
+  graphSlug: string;
+  nodeId: string;
+  questionId: string;
+  timestamp: string;
+  result: GetAnswerResult;
+}
+
 // ============================================
 // Fake Implementation
 // ============================================
 
 /**
  * Fake WorkNode service for testing.
+ * Uses composite keys (worktreePath|graphSlug:nodeId[:extra]) for workspace isolation.
  */
 export class FakeWorkNodeService implements IWorkNodeService {
   private canRunCalls: CanRunCall[] = [];
@@ -153,6 +179,7 @@ export class FakeWorkNodeService implements IWorkNodeService {
   private clearCalls: ClearCall[] = [];
   private askCalls: AskCall[] = [];
   private answerCalls: AnswerCall[] = [];
+  private getAnswerCallsArr: GetAnswerCall[] = [];
 
   private presetCanRunResults = new Map<string, CanRunResult>();
   private presetMarkReadyResults = new Map<string, MarkReadyResult>();
@@ -161,11 +188,22 @@ export class FakeWorkNodeService implements IWorkNodeService {
   private presetCanEndResults = new Map<string, CanEndResult>();
   private presetGetInputDataResults = new Map<string, GetInputDataResult>();
   private presetGetInputFileResults = new Map<string, GetInputFileResult>();
+  private presetGetOutputDataResults = new Map<string, GetOutputDataResult>();
   private presetSaveOutputDataResults = new Map<string, SaveOutputDataResult>();
   private presetSaveOutputFileResults = new Map<string, SaveOutputFileResult>();
   private presetClearResults = new Map<string, ClearResult>();
   private presetAskResults = new Map<string, AskResult>();
   private presetAnswerResults = new Map<string, AnswerResult>();
+  private presetGetAnswerResults = new Map<string, GetAnswerResult>();
+
+  // ==================== Key Helper ====================
+
+  private getKey(ctx: WorkspaceContext, ...parts: string[]): string {
+    if (!ctx?.worktreePath) {
+      throw new Error('FakeWorkNodeService: ctx.worktreePath is required for key generation');
+    }
+    return `${ctx.worktreePath}|${parts.filter(Boolean).join(':')}`;
+  }
 
   // ==================== CanRun ====================
 
@@ -177,18 +215,24 @@ export class FakeWorkNodeService implements IWorkNodeService {
     return this.canRunCalls.length > 0 ? this.canRunCalls[this.canRunCalls.length - 1] : null;
   }
 
-  setPresetCanRunResult(graphSlug: string, nodeId: string, result: CanRunResult): void {
-    this.presetCanRunResults.set(`${graphSlug}:${nodeId}`, result);
+  setPresetCanRunResult(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    result: CanRunResult
+  ): void {
+    this.presetCanRunResults.set(this.getKey(ctx, graphSlug, nodeId), result);
   }
 
-  async canRun(graphSlug: string, nodeId: string): Promise<CanRunResult> {
-    const key = `${graphSlug}:${nodeId}`;
+  async canRun(ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<CanRunResult> {
+    const key = this.getKey(ctx, graphSlug, nodeId);
     const result = this.presetCanRunResults.get(key) ?? {
       canRun: true,
       errors: [],
     };
 
     this.canRunCalls.push({
+      ctx,
       graphSlug,
       nodeId,
       timestamp: new Date().toISOString(),
@@ -210,12 +254,21 @@ export class FakeWorkNodeService implements IWorkNodeService {
       : null;
   }
 
-  setPresetMarkReadyResult(graphSlug: string, nodeId: string, result: MarkReadyResult): void {
-    this.presetMarkReadyResults.set(`${graphSlug}:${nodeId}`, result);
+  setPresetMarkReadyResult(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    result: MarkReadyResult
+  ): void {
+    this.presetMarkReadyResults.set(this.getKey(ctx, graphSlug, nodeId), result);
   }
 
-  async markReady(graphSlug: string, nodeId: string): Promise<MarkReadyResult> {
-    const key = `${graphSlug}:${nodeId}`;
+  async markReady(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string
+  ): Promise<MarkReadyResult> {
+    const key = this.getKey(ctx, graphSlug, nodeId);
     const result = this.presetMarkReadyResults.get(key) ?? {
       nodeId,
       status: 'ready',
@@ -224,6 +277,7 @@ export class FakeWorkNodeService implements IWorkNodeService {
     };
 
     this.markReadyCalls.push({
+      ctx,
       graphSlug,
       nodeId,
       timestamp: new Date().toISOString(),
@@ -243,12 +297,17 @@ export class FakeWorkNodeService implements IWorkNodeService {
     return this.startCalls.length > 0 ? this.startCalls[this.startCalls.length - 1] : null;
   }
 
-  setPresetStartResult(graphSlug: string, nodeId: string, result: StartResult): void {
-    this.presetStartResults.set(`${graphSlug}:${nodeId}`, result);
+  setPresetStartResult(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    result: StartResult
+  ): void {
+    this.presetStartResults.set(this.getKey(ctx, graphSlug, nodeId), result);
   }
 
-  async start(graphSlug: string, nodeId: string): Promise<StartResult> {
-    const key = `${graphSlug}:${nodeId}`;
+  async start(ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<StartResult> {
+    const key = this.getKey(ctx, graphSlug, nodeId);
     const result = this.presetStartResults.get(key) ?? {
       nodeId,
       status: 'running',
@@ -257,6 +316,7 @@ export class FakeWorkNodeService implements IWorkNodeService {
     };
 
     this.startCalls.push({
+      ctx,
       graphSlug,
       nodeId,
       timestamp: new Date().toISOString(),
@@ -276,12 +336,17 @@ export class FakeWorkNodeService implements IWorkNodeService {
     return this.endCalls.length > 0 ? this.endCalls[this.endCalls.length - 1] : null;
   }
 
-  setPresetEndResult(graphSlug: string, nodeId: string, result: EndResult): void {
-    this.presetEndResults.set(`${graphSlug}:${nodeId}`, result);
+  setPresetEndResult(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    result: EndResult
+  ): void {
+    this.presetEndResults.set(this.getKey(ctx, graphSlug, nodeId), result);
   }
 
-  async end(graphSlug: string, nodeId: string): Promise<EndResult> {
-    const key = `${graphSlug}:${nodeId}`;
+  async end(ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<EndResult> {
+    const key = this.getKey(ctx, graphSlug, nodeId);
     const result = this.presetEndResults.get(key) ?? {
       nodeId,
       status: 'complete',
@@ -290,6 +355,7 @@ export class FakeWorkNodeService implements IWorkNodeService {
     };
 
     this.endCalls.push({
+      ctx,
       graphSlug,
       nodeId,
       timestamp: new Date().toISOString(),
@@ -309,12 +375,17 @@ export class FakeWorkNodeService implements IWorkNodeService {
     return this.canEndCalls.length > 0 ? this.canEndCalls[this.canEndCalls.length - 1] : null;
   }
 
-  setCanEndResult(graphSlug: string, nodeId: string, result: CanEndResult): void {
-    this.presetCanEndResults.set(`${graphSlug}:${nodeId}`, result);
+  setPresetCanEndResult(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    result: CanEndResult
+  ): void {
+    this.presetCanEndResults.set(this.getKey(ctx, graphSlug, nodeId), result);
   }
 
-  async canEnd(graphSlug: string, nodeId: string): Promise<CanEndResult> {
-    const key = `${graphSlug}:${nodeId}`;
+  async canEnd(ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<CanEndResult> {
+    const key = this.getKey(ctx, graphSlug, nodeId);
     const result = this.presetCanEndResults.get(key) ?? {
       nodeId,
       canEnd: true,
@@ -322,6 +393,7 @@ export class FakeWorkNodeService implements IWorkNodeService {
     };
 
     this.canEndCalls.push({
+      ctx,
       graphSlug,
       nodeId,
       timestamp: new Date().toISOString(),
@@ -344,20 +416,22 @@ export class FakeWorkNodeService implements IWorkNodeService {
   }
 
   setPresetGetInputDataResult(
+    ctx: WorkspaceContext,
     graphSlug: string,
     nodeId: string,
     inputName: string,
     result: GetInputDataResult
   ): void {
-    this.presetGetInputDataResults.set(`${graphSlug}:${nodeId}:${inputName}`, result);
+    this.presetGetInputDataResults.set(this.getKey(ctx, graphSlug, nodeId, inputName), result);
   }
 
   async getInputData(
+    ctx: WorkspaceContext,
     graphSlug: string,
     nodeId: string,
     inputName: string
   ): Promise<GetInputDataResult> {
-    const key = `${graphSlug}:${nodeId}:${inputName}`;
+    const key = this.getKey(ctx, graphSlug, nodeId, inputName);
     const result = this.presetGetInputDataResults.get(key) ?? {
       nodeId,
       inputName,
@@ -372,6 +446,7 @@ export class FakeWorkNodeService implements IWorkNodeService {
     };
 
     this.getInputDataCalls.push({
+      ctx,
       graphSlug,
       nodeId,
       inputName,
@@ -395,20 +470,22 @@ export class FakeWorkNodeService implements IWorkNodeService {
   }
 
   setPresetGetInputFileResult(
+    ctx: WorkspaceContext,
     graphSlug: string,
     nodeId: string,
     inputName: string,
     result: GetInputFileResult
   ): void {
-    this.presetGetInputFileResults.set(`${graphSlug}:${nodeId}:${inputName}`, result);
+    this.presetGetInputFileResults.set(this.getKey(ctx, graphSlug, nodeId, inputName), result);
   }
 
   async getInputFile(
+    ctx: WorkspaceContext,
     graphSlug: string,
     nodeId: string,
     inputName: string
   ): Promise<GetInputFileResult> {
-    const key = `${graphSlug}:${nodeId}:${inputName}`;
+    const key = this.getKey(ctx, graphSlug, nodeId, inputName);
     const result = this.presetGetInputFileResults.get(key) ?? {
       nodeId,
       inputName,
@@ -423,6 +500,7 @@ export class FakeWorkNodeService implements IWorkNodeService {
     };
 
     this.getInputFileCalls.push({
+      ctx,
       graphSlug,
       nodeId,
       inputName,
@@ -445,23 +523,23 @@ export class FakeWorkNodeService implements IWorkNodeService {
       : null;
   }
 
-  private presetGetOutputDataResults: Map<string, GetOutputDataResult> = new Map();
-
   setPresetGetOutputDataResult(
+    ctx: WorkspaceContext,
     graphSlug: string,
     nodeId: string,
     outputName: string,
     result: GetOutputDataResult
   ): void {
-    this.presetGetOutputDataResults.set(`${graphSlug}:${nodeId}:${outputName}`, result);
+    this.presetGetOutputDataResults.set(this.getKey(ctx, graphSlug, nodeId, outputName), result);
   }
 
   async getOutputData(
+    ctx: WorkspaceContext,
     graphSlug: string,
     nodeId: string,
     outputName: string
   ): Promise<GetOutputDataResult> {
-    const key = `${graphSlug}:${nodeId}:${outputName}`;
+    const key = this.getKey(ctx, graphSlug, nodeId, outputName);
     const result = this.presetGetOutputDataResults.get(key) ?? {
       nodeId,
       outputName,
@@ -476,6 +554,7 @@ export class FakeWorkNodeService implements IWorkNodeService {
     };
 
     this.getOutputDataCalls.push({
+      ctx,
       graphSlug,
       nodeId,
       outputName,
@@ -499,21 +578,23 @@ export class FakeWorkNodeService implements IWorkNodeService {
   }
 
   setPresetSaveOutputDataResult(
+    ctx: WorkspaceContext,
     graphSlug: string,
     nodeId: string,
     outputName: string,
     result: SaveOutputDataResult
   ): void {
-    this.presetSaveOutputDataResults.set(`${graphSlug}:${nodeId}:${outputName}`, result);
+    this.presetSaveOutputDataResults.set(this.getKey(ctx, graphSlug, nodeId, outputName), result);
   }
 
   async saveOutputData(
+    ctx: WorkspaceContext,
     graphSlug: string,
     nodeId: string,
     outputName: string,
     value: unknown
   ): Promise<SaveOutputDataResult> {
-    const key = `${graphSlug}:${nodeId}:${outputName}`;
+    const key = this.getKey(ctx, graphSlug, nodeId, outputName);
     const result = this.presetSaveOutputDataResults.get(key) ?? {
       nodeId,
       outputName,
@@ -522,6 +603,7 @@ export class FakeWorkNodeService implements IWorkNodeService {
     };
 
     this.saveOutputDataCalls.push({
+      ctx,
       graphSlug,
       nodeId,
       outputName,
@@ -546,30 +628,33 @@ export class FakeWorkNodeService implements IWorkNodeService {
   }
 
   setPresetSaveOutputFileResult(
+    ctx: WorkspaceContext,
     graphSlug: string,
     nodeId: string,
     outputName: string,
     result: SaveOutputFileResult
   ): void {
-    this.presetSaveOutputFileResults.set(`${graphSlug}:${nodeId}:${outputName}`, result);
+    this.presetSaveOutputFileResults.set(this.getKey(ctx, graphSlug, nodeId, outputName), result);
   }
 
   async saveOutputFile(
+    ctx: WorkspaceContext,
     graphSlug: string,
     nodeId: string,
     outputName: string,
     sourcePath: string
   ): Promise<SaveOutputFileResult> {
-    const key = `${graphSlug}:${nodeId}:${outputName}`;
+    const key = this.getKey(ctx, graphSlug, nodeId, outputName);
     const result = this.presetSaveOutputFileResults.get(key) ?? {
       nodeId,
       outputName,
       saved: true,
-      savedPath: `.chainglass/work-graphs/${graphSlug}/nodes/${nodeId}/data/outputs/${outputName}.md`,
+      savedPath: `.chainglass/data/work-graphs/${graphSlug}/nodes/${nodeId}/data/outputs/${outputName}.md`,
       errors: [],
     };
 
     this.saveOutputFileCalls.push({
+      ctx,
       graphSlug,
       nodeId,
       outputName,
@@ -591,12 +676,22 @@ export class FakeWorkNodeService implements IWorkNodeService {
     return this.clearCalls.length > 0 ? this.clearCalls[this.clearCalls.length - 1] : null;
   }
 
-  setPresetClearResult(graphSlug: string, nodeId: string, result: ClearResult): void {
-    this.presetClearResults.set(`${graphSlug}:${nodeId}`, result);
+  setPresetClearResult(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    result: ClearResult
+  ): void {
+    this.presetClearResults.set(this.getKey(ctx, graphSlug, nodeId), result);
   }
 
-  async clear(graphSlug: string, nodeId: string, options: ClearOptions): Promise<ClearResult> {
-    const key = `${graphSlug}:${nodeId}`;
+  async clear(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    options: ClearOptions
+  ): Promise<ClearResult> {
+    const key = this.getKey(ctx, graphSlug, nodeId);
 
     // Default: require force, return error without it
     const result =
@@ -622,6 +717,7 @@ export class FakeWorkNodeService implements IWorkNodeService {
           });
 
     this.clearCalls.push({
+      ctx,
       graphSlug,
       nodeId,
       options,
@@ -642,12 +738,22 @@ export class FakeWorkNodeService implements IWorkNodeService {
     return this.askCalls.length > 0 ? this.askCalls[this.askCalls.length - 1] : null;
   }
 
-  setPresetAskResult(graphSlug: string, nodeId: string, result: AskResult): void {
-    this.presetAskResults.set(`${graphSlug}:${nodeId}`, result);
+  setPresetAskResult(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    result: AskResult
+  ): void {
+    this.presetAskResults.set(this.getKey(ctx, graphSlug, nodeId), result);
   }
 
-  async ask(graphSlug: string, nodeId: string, question: Question): Promise<AskResult> {
-    const key = `${graphSlug}:${nodeId}`;
+  async ask(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    question: Question
+  ): Promise<AskResult> {
+    const key = this.getKey(ctx, graphSlug, nodeId);
     const questionId = `q-${Date.now()}`;
     const result = this.presetAskResults.get(key) ?? {
       nodeId,
@@ -658,6 +764,7 @@ export class FakeWorkNodeService implements IWorkNodeService {
     };
 
     this.askCalls.push({
+      ctx,
       graphSlug,
       nodeId,
       question,
@@ -679,21 +786,23 @@ export class FakeWorkNodeService implements IWorkNodeService {
   }
 
   setPresetAnswerResult(
+    ctx: WorkspaceContext,
     graphSlug: string,
     nodeId: string,
     questionId: string,
     result: AnswerResult
   ): void {
-    this.presetAnswerResults.set(`${graphSlug}:${nodeId}:${questionId}`, result);
+    this.presetAnswerResults.set(this.getKey(ctx, graphSlug, nodeId, questionId), result);
   }
 
   async answer(
+    ctx: WorkspaceContext,
     graphSlug: string,
     nodeId: string,
     questionId: string,
     answerValue: unknown
   ): Promise<AnswerResult> {
-    const key = `${graphSlug}:${nodeId}:${questionId}`;
+    const key = this.getKey(ctx, graphSlug, nodeId, questionId);
     const result = this.presetAnswerResults.get(key) ?? {
       nodeId,
       status: 'running',
@@ -703,6 +812,7 @@ export class FakeWorkNodeService implements IWorkNodeService {
     };
 
     this.answerCalls.push({
+      ctx,
       graphSlug,
       nodeId,
       questionId,
@@ -714,18 +824,53 @@ export class FakeWorkNodeService implements IWorkNodeService {
     return result;
   }
 
+  // ==================== GetAnswer ====================
+
+  getGetAnswerCalls(): GetAnswerCall[] {
+    return [...this.getAnswerCallsArr];
+  }
+
+  getLastGetAnswerCall(): GetAnswerCall | null {
+    return this.getAnswerCallsArr.length > 0
+      ? this.getAnswerCallsArr[this.getAnswerCallsArr.length - 1]
+      : null;
+  }
+
+  setPresetGetAnswerResult(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    questionId: string,
+    result: GetAnswerResult
+  ): void {
+    this.presetGetAnswerResults.set(this.getKey(ctx, graphSlug, nodeId, questionId), result);
+  }
+
   async getAnswer(
-    _graphSlug: string,
+    ctx: WorkspaceContext,
+    graphSlug: string,
     nodeId: string,
     questionId: string
   ): Promise<GetAnswerResult> {
-    // Return a default "not answered" result for fake
-    return {
+    const key = this.getKey(ctx, graphSlug, nodeId, questionId);
+    // Return preset or default "not answered" result
+    const result = this.presetGetAnswerResults.get(key) ?? {
       nodeId,
       questionId,
       answered: false,
       errors: [],
     };
+
+    this.getAnswerCallsArr.push({
+      ctx,
+      graphSlug,
+      nodeId,
+      questionId,
+      timestamp: new Date().toISOString(),
+      result,
+    });
+
+    return result;
   }
 
   // ==================== Reset ====================
@@ -735,6 +880,7 @@ export class FakeWorkNodeService implements IWorkNodeService {
     this.markReadyCalls = [];
     this.startCalls = [];
     this.endCalls = [];
+    this.canEndCalls = [];
     this.getInputDataCalls = [];
     this.getInputFileCalls = [];
     this.getOutputDataCalls = [];
@@ -743,16 +889,20 @@ export class FakeWorkNodeService implements IWorkNodeService {
     this.clearCalls = [];
     this.askCalls = [];
     this.answerCalls = [];
+    this.getAnswerCallsArr = [];
     this.presetCanRunResults.clear();
     this.presetMarkReadyResults.clear();
     this.presetStartResults.clear();
     this.presetEndResults.clear();
+    this.presetCanEndResults.clear();
     this.presetGetInputDataResults.clear();
     this.presetGetInputFileResults.clear();
+    this.presetGetOutputDataResults.clear();
     this.presetSaveOutputDataResults.clear();
     this.presetSaveOutputFileResults.clear();
     this.presetClearResults.clear();
     this.presetAskResults.clear();
     this.presetAnswerResults.clear();
+    this.presetGetAnswerResults.clear();
   }
 }

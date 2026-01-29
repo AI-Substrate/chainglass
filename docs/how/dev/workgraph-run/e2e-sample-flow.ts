@@ -117,14 +117,27 @@ async function main(): Promise<void> {
 }
 
 async function cleanup(): Promise<void> {
-  // Manually remove graph directory (no wg delete command exists yet)
+  // Manually remove graph directories (no wg delete command exists yet)
+  // Per Phase 6 T001: Clean legacy path, new path, and mock-outputs
   const fs = await import('node:fs/promises');
-  const graphPath = `.chainglass/work-graphs/${GRAPH_SLUG}`;
-  try {
-    await fs.rm(graphPath, { recursive: true, force: true });
-    console.log(`Cleaned up existing graph: ${graphPath}`);
-  } catch {
-    // Ignore if doesn't exist
+
+  // Paths to clean:
+  // 1. Legacy path (pre-workspaces)
+  // 2. New workspace-scoped path
+  // 3. Mock output directory
+  const pathsToClean = [
+    `.chainglass/work-graphs/${GRAPH_SLUG}`, // Legacy
+    `.chainglass/data/work-graphs/${GRAPH_SLUG}`, // New workspace-scoped
+    'docs/how/dev/workgraph-run/.mock-outputs', // Mock outputs
+  ];
+
+  for (const graphPath of pathsToClean) {
+    try {
+      await fs.rm(graphPath, { recursive: true, force: true });
+      console.log(`Cleaned up: ${graphPath}`);
+    } catch {
+      // Ignore if doesn't exist
+    }
   }
 }
 

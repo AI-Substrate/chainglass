@@ -86,6 +86,8 @@ export const WORKGRAPH_DI_TOKENS = {
   WORKGRAPH_SERVICE: 'IWorkGraphService',
   /** IWorkNodeService interface */
   WORKNODE_SERVICE: 'IWorkNodeService',
+  /** BootstrapPromptService for node exec command */
+  BOOTSTRAP_PROMPT_SERVICE: 'BootstrapPromptService',
   /** YAML parser for unit.yaml, work-graph.yaml, node.yaml */
   YAML_PARSER: 'IWorkgraphYamlParser',
   /** JSON parser for state.json, data.json */

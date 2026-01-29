@@ -8,6 +8,7 @@
  * 4. Execute the node
  *
  * Per Phase 6: CLI Integration - validates end-to-end functionality.
+ * Per Plan 021 Phase 6: Updated to pass WorkspaceContext to all service methods.
  */
 
 import 'reflect-metadata';
@@ -19,6 +20,7 @@ import {
   WORKGRAPH_DI_TOKENS,
 } from '@chainglass/shared';
 import { FakeYamlParser, YamlParserAdapter } from '@chainglass/workflow';
+import type { WorkspaceContext } from '@chainglass/workflow';
 import {
   type IWorkGraphService,
   type IWorkNodeService,
@@ -28,16 +30,26 @@ import {
 import { type DependencyContainer, container } from 'tsyringe';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { createTestWorkspaceContext } from '../../helpers/workspace-context.js';
+
 describe('CLI WorkGraph Integration', () => {
   let testContainer: DependencyContainer;
   let fakeFileSystem: FakeFileSystem;
   let workUnitService: IWorkUnitService;
   let workGraphService: IWorkGraphService;
   let workNodeService: IWorkNodeService;
+  let ctx: WorkspaceContext;
 
   beforeEach(() => {
     testContainer = container.createChildContainer();
     fakeFileSystem = new FakeFileSystem();
+
+    // Create workspace context with absolute path
+    ctx = createTestWorkspaceContext('/test-workspace');
+
+    // Set up workspace directory structure (new workspace-scoped paths)
+    fakeFileSystem.setDir('/test-workspace/.chainglass/data/work-graphs');
+    fakeFileSystem.setDir('/test-workspace/.chainglass/data/units');
 
     // Register shared dependencies
     testContainer.register(SHARED_DI_TOKENS.FILESYSTEM, {
@@ -78,17 +90,17 @@ describe('CLI WorkGraph Integration', () => {
       */
 
       // Step 1: Create a unit
-      const createUnitResult = await workUnitService.create('write-poem', 'agent');
+      const createUnitResult = await workUnitService.create(ctx, 'write-poem', 'agent');
       expect(createUnitResult.errors).toHaveLength(0);
       expect(createUnitResult.slug).toBe('write-poem');
 
       // Step 2: Create a graph
-      const createGraphResult = await workGraphService.create('my-workflow');
+      const createGraphResult = await workGraphService.create(ctx, 'my-workflow');
       expect(createGraphResult.errors).toHaveLength(0);
       expect(createGraphResult.graphSlug).toBe('my-workflow');
 
       // Step 3: Show the graph (should have just start node)
-      const showResult = await workGraphService.show('my-workflow');
+      const showResult = await workGraphService.show(ctx, 'my-workflow');
       expect(showResult.errors).toHaveLength(0);
       expect(showResult.tree.id).toBe('start');
 
@@ -96,6 +108,7 @@ describe('CLI WorkGraph Integration', () => {
       // Note: addNodeAfter validates inputs - since the scaffolded unit has no required inputs,
       // this should succeed. If it fails with E103, the unit template has required inputs.
       const addNodeResult = await workGraphService.addNodeAfter(
+        ctx,
         'my-workflow',
         'start',
         'write-poem'
@@ -114,23 +127,24 @@ describe('CLI WorkGraph Integration', () => {
       const nodeId = addNodeResult.nodeId;
 
       // Step 5: Check graph status
-      const statusResult = await workGraphService.status('my-workflow');
+      const statusResult = await workGraphService.status(ctx, 'my-workflow');
       expect(statusResult.errors).toHaveLength(0);
       expect(statusResult.nodes).toHaveLength(2); // start + write-poem
       expect(statusResult.nodes.find((n) => n.id === nodeId)).toBeDefined();
 
       // Step 6: Check if node can run
-      const canRunResult = await workNodeService.canRun('my-workflow', nodeId);
+      const canRunResult = await workNodeService.canRun(ctx, 'my-workflow', nodeId);
       expect(canRunResult.errors).toHaveLength(0);
       expect(canRunResult.canRun).toBe(true);
 
       // Step 7: Start the node
-      const startResult = await workNodeService.start('my-workflow', nodeId);
+      const startResult = await workNodeService.start(ctx, 'my-workflow', nodeId);
       expect(startResult.errors).toHaveLength(0);
       expect(startResult.status).toBe('running');
 
       // Step 8: Save output data
       const saveResult = await workNodeService.saveOutputData(
+        ctx,
         'my-workflow',
         nodeId,
         'poem',
@@ -140,12 +154,12 @@ describe('CLI WorkGraph Integration', () => {
       expect(saveResult.saved).toBe(true);
 
       // Step 9: End the node
-      const endResult = await workNodeService.end('my-workflow', nodeId);
+      const endResult = await workNodeService.end(ctx, 'my-workflow', nodeId);
       expect(endResult.errors).toHaveLength(0);
       expect(endResult.status).toBe('complete');
 
       // Step 10: Verify final status
-      const finalStatus = await workGraphService.status('my-workflow');
+      const finalStatus = await workGraphService.status(ctx, 'my-workflow');
       expect(finalStatus.errors).toHaveLength(0);
       const completedNode = finalStatus.nodes.find((n) => n.id === nodeId);
       expect(completedNode?.status).toBe('complete');
@@ -162,10 +176,10 @@ describe('CLI WorkGraph Integration', () => {
       */
 
       // Create unit
-      await workUnitService.create('test-unit', 'agent');
+      await workUnitService.create(ctx, 'test-unit', 'agent');
 
       // Validate the unit
-      const validateResult = await workUnitService.validate('test-unit');
+      const validateResult = await workUnitService.validate(ctx, 'test-unit');
       expect(validateResult.errors).toHaveLength(0);
       expect(validateResult.valid).toBe(true);
     });
@@ -181,11 +195,11 @@ describe('CLI WorkGraph Integration', () => {
       */
 
       // Create units
-      await workUnitService.create('unit-1', 'agent');
-      await workUnitService.create('unit-2', 'code');
+      await workUnitService.create(ctx, 'unit-1', 'agent');
+      await workUnitService.create(ctx, 'unit-2', 'code');
 
       // List units
-      const listResult = await workUnitService.list();
+      const listResult = await workUnitService.list(ctx);
       expect(listResult.errors).toHaveLength(0);
       expect(listResult.units).toHaveLength(2);
       expect(listResult.units.map((u) => u.slug)).toContain('unit-1');
@@ -203,9 +217,10 @@ describe('CLI WorkGraph Integration', () => {
       */
 
       // Setup
-      await workUnitService.create('interactive-unit', 'agent');
-      await workGraphService.create('interactive-workflow');
+      await workUnitService.create(ctx, 'interactive-unit', 'agent');
+      await workGraphService.create(ctx, 'interactive-workflow');
       const addResult = await workGraphService.addNodeAfter(
+        ctx,
         'interactive-workflow',
         'start',
         'interactive-unit'
@@ -219,14 +234,14 @@ describe('CLI WorkGraph Integration', () => {
       }
 
       // Start node
-      const startResult = await workNodeService.start('interactive-workflow', nodeId);
+      const startResult = await workNodeService.start(ctx, 'interactive-workflow', nodeId);
       if (startResult.errors.length > 0) {
         console.log('start errors:', JSON.stringify(startResult.errors, null, 2));
         return;
       }
 
       // Ask a question
-      const askResult = await workNodeService.ask('interactive-workflow', nodeId, {
+      const askResult = await workNodeService.ask(ctx, 'interactive-workflow', nodeId, {
         type: 'text',
         text: 'What is the topic?',
       });
@@ -242,6 +257,7 @@ describe('CLI WorkGraph Integration', () => {
 
       // Answer the question
       const answerResult = await workNodeService.answer(
+        ctx,
         'interactive-workflow',
         nodeId,
         askResult.questionId,

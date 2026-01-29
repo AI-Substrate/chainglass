@@ -7,9 +7,11 @@
  * Per spec AC-09 through AC-13: Node execution and I/O operations.
  * Per Critical Discovery 02: All methods return results with errors array.
  * Per Insight 5: This interface is execution-focused (5 methods).
+ * Per Plan 021: All methods accept WorkspaceContext as first parameter.
  */
 
 import type { BaseResult } from '@chainglass/shared';
+import type { WorkspaceContext } from '@chainglass/workflow';
 
 // ============================================
 // Result Types
@@ -277,11 +279,12 @@ export interface IWorkNodeService {
    * A node can run when all upstream nodes are complete
    * and all required inputs are available.
    *
+   * @param ctx - Workspace context for path resolution
    * @param graphSlug - Graph containing the node
    * @param nodeId - Node to check
    * @returns CanRunResult with canRun flag and blocking info
    */
-  canRun(graphSlug: string, nodeId: string): Promise<CanRunResult>;
+  canRun(ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<CanRunResult>;
 
   /**
    * Mark a node as ready for execution.
@@ -292,11 +295,12 @@ export interface IWorkNodeService {
    *
    * Per DYK#6: Orchestrator controls pending→ready transition for UI visibility.
    *
+   * @param ctx - Workspace context for path resolution
    * @param graphSlug - Graph containing the node
    * @param nodeId - Node to mark ready
    * @returns MarkReadyResult with new status
    */
-  markReady(graphSlug: string, nodeId: string): Promise<MarkReadyResult>;
+  markReady(ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<MarkReadyResult>;
 
   /**
    * Start node execution.
@@ -304,11 +308,12 @@ export interface IWorkNodeService {
    * Transitions node status to 'running'.
    * Returns E110 if node cannot be run (use canRun() first).
    *
+   * @param ctx - Workspace context for path resolution
    * @param graphSlug - Graph containing the node
    * @param nodeId - Node to start
    * @returns StartResult with new status
    */
-  start(graphSlug: string, nodeId: string): Promise<StartResult>;
+  start(ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<StartResult>;
 
   /**
    * End node execution.
@@ -316,11 +321,12 @@ export interface IWorkNodeService {
    * Validates that all required outputs are present.
    * Transitions node status to 'complete' if valid.
    *
+   * @param ctx - Workspace context for path resolution
    * @param graphSlug - Graph containing the node
    * @param nodeId - Node to end
    * @returns EndResult with new status and any missing outputs
    */
-  end(graphSlug: string, nodeId: string): Promise<EndResult>;
+  end(ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<EndResult>;
 
   /**
    * Check if a node can end (query only, no state change).
@@ -328,23 +334,30 @@ export interface IWorkNodeService {
    * Validates that all required outputs are present without
    * actually transitioning the node state.
    *
+   * @param ctx - Workspace context for path resolution
    * @param graphSlug - Graph containing the node
    * @param nodeId - Node to check
    * @returns CanEndResult with canEnd flag and any missing outputs
    */
-  canEnd(graphSlug: string, nodeId: string): Promise<CanEndResult>;
+  canEnd(ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<CanEndResult>;
 
   /**
    * Get input data for a node.
    *
    * Resolves the input value from the upstream node's outputs.
    *
+   * @param ctx - Workspace context for path resolution
    * @param graphSlug - Graph containing the node
    * @param nodeId - Node to get input for
    * @param inputName - Name of the input to get
    * @returns GetInputDataResult with resolved value
    */
-  getInputData(graphSlug: string, nodeId: string, inputName: string): Promise<GetInputDataResult>;
+  getInputData(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    inputName: string
+  ): Promise<GetInputDataResult>;
 
   /**
    * Get input file path for a node.
@@ -352,12 +365,18 @@ export interface IWorkNodeService {
    * Resolves the file path from the upstream node's file outputs.
    * Per Discovery 10: Rejects paths containing '..' for security.
    *
+   * @param ctx - Workspace context for path resolution
    * @param graphSlug - Graph containing the node
    * @param nodeId - Node to get input for
    * @param inputName - Name of the input to get
    * @returns GetInputFileResult with resolved file path
    */
-  getInputFile(graphSlug: string, nodeId: string, inputName: string): Promise<GetInputFileResult>;
+  getInputFile(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    inputName: string
+  ): Promise<GetInputFileResult>;
 
   /**
    * Get output data from a node.
@@ -367,12 +386,14 @@ export interface IWorkNodeService {
    * Note: Unlike getInputData which reads from upstream nodes,
    * this reads from the node's own outputs (semantic asymmetry by design).
    *
+   * @param ctx - Workspace context for path resolution
    * @param graphSlug - Graph containing the node
    * @param nodeId - Node to get output from
    * @param outputName - Name of the output to get
    * @returns GetOutputDataResult with the output value
    */
   getOutputData(
+    ctx: WorkspaceContext,
     graphSlug: string,
     nodeId: string,
     outputName: string
@@ -384,6 +405,7 @@ export interface IWorkNodeService {
    * Validates the value type against the output declaration.
    * Returns E123 if type mismatch.
    *
+   * @param ctx - Workspace context for path resolution
    * @param graphSlug - Graph containing the node
    * @param nodeId - Node to save output for
    * @param outputName - Name of the output
@@ -391,6 +413,7 @@ export interface IWorkNodeService {
    * @returns SaveOutputDataResult with save status
    */
   saveOutputData(
+    ctx: WorkspaceContext,
     graphSlug: string,
     nodeId: string,
     outputName: string,
@@ -403,6 +426,7 @@ export interface IWorkNodeService {
    * Copies the source file to node storage.
    * Per Discovery 10: Rejects paths containing '..' for security.
    *
+   * @param ctx - Workspace context for path resolution
    * @param graphSlug - Graph containing the node
    * @param nodeId - Node to save output for
    * @param outputName - Name of the output
@@ -410,6 +434,7 @@ export interface IWorkNodeService {
    * @returns SaveOutputFileResult with save status and saved path
    */
   saveOutputFile(
+    ctx: WorkspaceContext,
     graphSlug: string,
     nodeId: string,
     outputName: string,
@@ -423,12 +448,18 @@ export interface IWorkNodeService {
    * Requires force=true to confirm, returns error otherwise.
    * Downstream nodes are NOT automatically cleared.
    *
+   * @param ctx - Workspace context for path resolution
    * @param graphSlug - Graph containing the node
    * @param nodeId - Node to clear
    * @param options - Must include force: true to confirm
    * @returns ClearResult with cleared outputs list
    */
-  clear(graphSlug: string, nodeId: string, options: ClearOptions): Promise<ClearResult>;
+  clear(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    options: ClearOptions
+  ): Promise<ClearResult>;
 
   /**
    * Ask a question (handover to orchestrator).
@@ -436,12 +467,18 @@ export interface IWorkNodeService {
    * Transitions node to 'waiting-question' status.
    * The orchestrator will present the question to the user.
    *
+   * @param ctx - Workspace context for path resolution
    * @param graphSlug - Graph containing the node
    * @param nodeId - Node asking the question
    * @param question - Question to ask
    * @returns AskResult with question ID and status
    */
-  ask(graphSlug: string, nodeId: string, question: Question): Promise<AskResult>;
+  ask(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    question: Question
+  ): Promise<AskResult>;
 
   /**
    * Answer a question (resume node execution).
@@ -449,6 +486,7 @@ export interface IWorkNodeService {
    * Transitions node from 'waiting-question' back to 'running'.
    * The answer is stored in data.json for the agent to retrieve.
    *
+   * @param ctx - Workspace context for path resolution
    * @param graphSlug - Graph containing the node
    * @param nodeId - Node to resume
    * @param questionId - ID of the question being answered
@@ -456,6 +494,7 @@ export interface IWorkNodeService {
    * @returns AnswerResult with answer and new status
    */
   answer(
+    ctx: WorkspaceContext,
     graphSlug: string,
     nodeId: string,
     questionId: string,
@@ -468,10 +507,16 @@ export interface IWorkNodeService {
    * Reads the answer from data.json if it has been provided.
    * Used by agents to retrieve answers after orchestrator has answered.
    *
+   * @param ctx - Workspace context for path resolution
    * @param graphSlug - Graph containing the node
    * @param nodeId - Node to get answer for
    * @param questionId - ID of the question
    * @returns GetAnswerResult with answer if available
    */
-  getAnswer(graphSlug: string, nodeId: string, questionId: string): Promise<GetAnswerResult>;
+  getAnswer(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    questionId: string
+  ): Promise<GetAnswerResult>;
 }

@@ -1,9 +1,10 @@
 /**
  * WorkGraphService - Real implementation of IWorkGraphService.
  *
- * Manages WorkGraphs stored in `.chainglass/work-graphs/`.
+ * Manages WorkGraphs stored in `<worktree>/.chainglass/data/work-graphs/`.
  * Per Phase 3: Implements create(), load(), show(), status() operations.
  * Per Phase 4: Implements addNodeAfter(), removeNode() operations.
+ * Per Plan 021: All methods accept WorkspaceContext as first parameter.
  *
  * Per ADR-0004: Uses constructor injection with useFactory pattern.
  * Per Critical Discovery 02: All methods return results with errors array.
@@ -11,6 +12,7 @@
  */
 
 import type { IFileSystem, IPathResolver, IYamlParser } from '@chainglass/shared';
+import type { WorkspaceContext } from '@chainglass/workflow';
 
 import { YamlParseError } from '@chainglass/shared';
 
@@ -61,8 +63,8 @@ import { WorkGraphDefinitionSchema, WorkGraphStateSchema } from '../schemas/inde
  * Per spec AC-03: status() shows node execution states.
  */
 export class WorkGraphService implements IWorkGraphService {
-  /** Base directory for work-graphs */
-  private readonly graphsDir = '.chainglass/work-graphs';
+  // Note: graphsDir removed per Plan 021 Phase 2 T001
+  // Path helpers added in T002-T003 derive from WorkspaceContext
 
   /**
    * @param fs - File system interface
@@ -77,17 +79,46 @@ export class WorkGraphService implements IWorkGraphService {
     private readonly workUnitService?: IWorkUnitService
   ) {}
 
+  // ============================================
+  // Path Helpers (Plan 021 T002-T003)
+  // ============================================
+
+  /**
+   * Get the work-graphs directory for a workspace.
+   *
+   * Per ADR-0008: Split storage model uses `<worktree>/.chainglass/data/work-graphs/`
+   *
+   * @param ctx - Workspace context
+   * @returns Absolute path to work-graphs directory
+   */
+  protected getGraphsDir(ctx: WorkspaceContext): string {
+    return this.pathResolver.join(ctx.worktreePath, '.chainglass/data/work-graphs');
+  }
+
+  /**
+   * Get the path to a specific graph.
+   *
+   * @param ctx - Workspace context
+   * @param slug - Graph identifier
+   * @returns Absolute path to graph directory
+   */
+  protected getGraphPath(ctx: WorkspaceContext, slug: string): string {
+    return this.pathResolver.join(this.getGraphsDir(ctx), slug);
+  }
+
   /**
    * Create a new empty WorkGraph.
    *
    * Per spec AC-01: Creates directory structure, work-graph.yaml, and state.json.
    * Per DYK#1: Start node is stored with status 'complete'.
    * Per Discovery 10: Rejects paths with '..' for security.
+   * Per Plan 021: Accepts WorkspaceContext as first parameter.
    *
+   * @param ctx - Workspace context for path resolution
    * @param slug - Unique identifier for the graph
    * @returns GraphCreateResult with path to created graph
    */
-  async create(slug: string): Promise<GraphCreateResult> {
+  async create(ctx: WorkspaceContext, slug: string): Promise<GraphCreateResult> {
     // Validate slug format and security (per Discovery 10)
     if (!this.isValidSlug(slug)) {
       return {
@@ -98,7 +129,7 @@ export class WorkGraphService implements IWorkGraphService {
     }
 
     // Check if graph already exists
-    const graphPath = this.pathResolver.join(this.graphsDir, slug);
+    const graphPath = this.getGraphPath(ctx, slug);
     if (await this.fs.exists(graphPath)) {
       return {
         graphSlug: slug,
@@ -158,11 +189,13 @@ export class WorkGraphService implements IWorkGraphService {
    *
    * Reads work-graph.yaml (structure) and state.json (runtime state).
    * Validates both files against Zod schemas.
+   * Per Plan 021: Accepts WorkspaceContext as first parameter.
    *
+   * @param ctx - Workspace context for path resolution
    * @param slug - Graph identifier to load
    * @returns GraphLoadResult with graph definition or E101/E130/E132 error
    */
-  async load(slug: string): Promise<GraphLoadResult> {
+  async load(ctx: WorkspaceContext, slug: string): Promise<GraphLoadResult> {
     // Validate slug format and security (per Discovery 10)
     if (!this.isValidSlug(slug)) {
       return {
@@ -172,7 +205,7 @@ export class WorkGraphService implements IWorkGraphService {
       };
     }
 
-    const graphPath = this.pathResolver.join(this.graphsDir, slug);
+    const graphPath = this.getGraphPath(ctx, slug);
     const yamlPath = this.pathResolver.join(graphPath, 'work-graph.yaml');
 
     // Check if graph exists
@@ -258,11 +291,13 @@ export class WorkGraphService implements IWorkGraphService {
    *
    * Per DYK#3: Returns structured TreeNode, not pre-rendered string.
    * Builds tree by traversing edges from start node using DFS.
+   * Per Plan 021: Accepts WorkspaceContext as first parameter.
    *
+   * @param ctx - Workspace context for path resolution
    * @param slug - Graph identifier
    * @returns GraphShowResult with tree representation
    */
-  async show(slug: string): Promise<GraphShowResult> {
+  async show(ctx: WorkspaceContext, slug: string): Promise<GraphShowResult> {
     // Validate slug format and security (per Discovery 10)
     if (!this.isValidSlug(slug)) {
       return {
@@ -273,7 +308,7 @@ export class WorkGraphService implements IWorkGraphService {
     }
 
     // Load graph first
-    const loadResult = await this.load(slug);
+    const loadResult = await this.load(ctx, slug);
     if (loadResult.errors.length > 0 || !loadResult.graph) {
       return {
         graphSlug: slug,
@@ -338,11 +373,13 @@ export class WorkGraphService implements IWorkGraphService {
    *
    * Per DYK#1: Read stored status first, only compute if absent.
    * Computes 'pending' or 'ready' based on upstream node completion.
+   * Per Plan 021: Accepts WorkspaceContext as first parameter.
    *
+   * @param ctx - Workspace context for path resolution
    * @param slug - Graph identifier
    * @returns GraphStatusResult with node statuses
    */
-  async status(slug: string): Promise<GraphStatusResult> {
+  async status(ctx: WorkspaceContext, slug: string): Promise<GraphStatusResult> {
     // Validate slug format and security (per Discovery 10)
     if (!this.isValidSlug(slug)) {
       return {
@@ -353,7 +390,7 @@ export class WorkGraphService implements IWorkGraphService {
       };
     }
 
-    const graphPath = this.pathResolver.join(this.graphsDir, slug);
+    const graphPath = this.getGraphPath(ctx, slug);
     const yamlPath = this.pathResolver.join(graphPath, 'work-graph.yaml');
 
     // Check if graph exists
@@ -367,7 +404,7 @@ export class WorkGraphService implements IWorkGraphService {
     }
 
     // Load graph and state
-    const loadResult = await this.load(slug);
+    const loadResult = await this.load(ctx, slug);
     if (loadResult.errors.length > 0 || !loadResult.graph) {
       return {
         graphSlug: slug,
@@ -482,7 +519,9 @@ export class WorkGraphService implements IWorkGraphService {
    * Per DYK#1: Store unit_slug in node.yaml for parsing clarity.
    * Per DYK#3: Strict name matching for input wiring.
    * Per DYK#4: First node after start must have no required inputs.
+   * Per Plan 021: Accepts WorkspaceContext as first parameter.
    *
+   * @param ctx - Workspace context for path resolution
    * @param graphSlug - Graph to add node to
    * @param afterNodeId - Node to add after
    * @param unitSlug - Unit to instantiate
@@ -490,6 +529,7 @@ export class WorkGraphService implements IWorkGraphService {
    * @returns AddNodeResult with new node ID and input mappings
    */
   async addNodeAfter(
+    ctx: WorkspaceContext,
     graphSlug: string,
     afterNodeId: string,
     unitSlug: string,
@@ -505,7 +545,7 @@ export class WorkGraphService implements IWorkGraphService {
     }
 
     // 2. Load graph (returns E101 if not found)
-    const loadResult = await this.load(graphSlug);
+    const loadResult = await this.load(ctx, graphSlug);
     if (loadResult.errors.length > 0 || !loadResult.graph) {
       return {
         nodeId: '',
@@ -527,7 +567,7 @@ export class WorkGraphService implements IWorkGraphService {
 
     // 4. Load unit to validate it exists and get input/output declarations (E120)
     if (this.workUnitService) {
-      const unitResult = await this.workUnitService.load(unitSlug);
+      const unitResult = await this.workUnitService.load(ctx, unitSlug);
       if (unitResult.errors.length > 0 || !unitResult.unit) {
         return {
           nodeId: '',
@@ -539,7 +579,7 @@ export class WorkGraphService implements IWorkGraphService {
       const unit = unitResult.unit;
 
       // 5. Get available outputs from afterNode
-      const availableOutputs = await this.getNodeOutputs(graphSlug, afterNodeId);
+      const availableOutputs = await this.getNodeOutputs(ctx, graphSlug, afterNodeId);
 
       // 6. Wire inputs (per DYK#3 - strict name matching)
       const inputs: Record<string, InputMapping> = {};
@@ -585,7 +625,7 @@ export class WorkGraphService implements IWorkGraphService {
       }
 
       // 10. Persist node.yaml with unit_slug (per DYK#1)
-      const graphPath = this.pathResolver.join(this.graphsDir, graphSlug);
+      const graphPath = this.getGraphPath(ctx, graphSlug);
       const nodePath = this.pathResolver.join(graphPath, 'nodes', nodeId);
 
       await this.fs.mkdir(nodePath, { recursive: true });
@@ -664,8 +704,13 @@ export class WorkGraphService implements IWorkGraphService {
    *
    * For start node: returns empty set (start has no outputs per DYK#4)
    * For unit nodes: returns outputs declared in the unit
+   * Per Plan 021: Accepts WorkspaceContext as first parameter.
    */
-  private async getNodeOutputs(graphSlug: string, nodeId: string): Promise<Set<string>> {
+  private async getNodeOutputs(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string
+  ): Promise<Set<string>> {
     if (nodeId === 'start') {
       // Per DYK#4: Start node has no outputs
       return new Set<string>();
@@ -674,7 +719,7 @@ export class WorkGraphService implements IWorkGraphService {
     // For unit nodes, we need to load the unit to get outputs
     if (this.workUnitService) {
       const unitSlug = this.extractUnitSlug(nodeId);
-      const unitResult = await this.workUnitService.load(unitSlug);
+      const unitResult = await this.workUnitService.load(ctx, unitSlug);
 
       if (unitResult.unit) {
         return new Set(unitResult.unit.outputs.map((o) => o.name));
@@ -690,13 +735,16 @@ export class WorkGraphService implements IWorkGraphService {
    * Per spec AC-07-08: Remove leaf nodes or cascade removal.
    * Returns E102 if node has dependents and cascade is not set.
    * Start node cannot be removed.
+   * Per Plan 021: Accepts WorkspaceContext as first parameter.
    *
+   * @param ctx - Workspace context for path resolution
    * @param graphSlug - Graph to remove node from
    * @param nodeId - Node to remove
    * @param options - Optional remove options (cascade)
    * @returns RemoveNodeResult with list of removed nodes
    */
   async removeNode(
+    ctx: WorkspaceContext,
     graphSlug: string,
     nodeId: string,
     options?: RemoveNodeOptions
@@ -710,7 +758,7 @@ export class WorkGraphService implements IWorkGraphService {
     }
 
     // 2. Load graph (returns E101 if not found)
-    const loadResult = await this.load(graphSlug);
+    const loadResult = await this.load(ctx, graphSlug);
     if (loadResult.errors.length > 0 || !loadResult.graph) {
       return {
         removedNodes: [],
@@ -762,7 +810,7 @@ export class WorkGraphService implements IWorkGraphService {
       (e) => !nodesToRemove.includes(e.from) && !nodesToRemove.includes(e.to)
     );
 
-    const graphPath = this.pathResolver.join(this.graphsDir, graphSlug);
+    const graphPath = this.getGraphPath(ctx, graphSlug);
 
     // 9. Update work-graph.yaml
     const updatedGraphDef = {

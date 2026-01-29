@@ -1,14 +1,16 @@
 /**
  * IWorkUnitService interface for managing WorkUnits.
  *
- * WorkUnits are reusable templates stored in `.chainglass/units/`.
+ * WorkUnits are reusable templates stored in `<worktree>/.chainglass/data/units/`.
  * This service provides list, load, create, and validate operations.
  *
  * Per spec AC-14, AC-15: Users can list and view unit details.
  * Per Critical Discovery 02: All methods return results with errors array.
+ * Per Plan 021: All methods accept WorkspaceContext as first parameter.
  */
 
 import type { BaseResult, ResultError } from '@chainglass/shared';
+import type { WorkspaceContext } from '@chainglass/workflow';
 
 // ============================================
 // Result Types
@@ -198,32 +200,40 @@ export interface IWorkUnitService {
   /**
    * List all available WorkUnits.
    *
+   * @param ctx - Workspace context for path resolution
    * @returns UnitListResult with array of unit summaries
    */
-  list(): Promise<UnitListResult>;
+  list(ctx: WorkspaceContext): Promise<UnitListResult>;
 
   /**
    * Load a WorkUnit by slug.
    *
+   * @param ctx - Workspace context for path resolution
    * @param slug - Unit identifier to load
    * @returns UnitLoadResult with full unit details or E120 error
    */
-  load(slug: string): Promise<UnitLoadResult>;
+  load(ctx: WorkspaceContext, slug: string): Promise<UnitLoadResult>;
 
   /**
    * Create a new WorkUnit with scaffolding.
    *
+   * @param ctx - Workspace context for path resolution
    * @param slug - Unique identifier for the new unit
    * @param type - Unit type: agent, code, or user-input
    * @returns UnitCreateResult with path to created unit
    */
-  create(slug: string, type: 'agent' | 'code' | 'user-input'): Promise<UnitCreateResult>;
+  create(
+    ctx: WorkspaceContext,
+    slug: string,
+    type: 'agent' | 'code' | 'user-input'
+  ): Promise<UnitCreateResult>;
 
   /**
    * Validate a WorkUnit definition.
    *
+   * @param ctx - Workspace context for path resolution
    * @param slug - Unit identifier to validate
    * @returns UnitValidateResult with validation issues
    */
-  validate(slug: string): Promise<UnitValidateResult>;
+  validate(ctx: WorkspaceContext, slug: string): Promise<UnitValidateResult>;
 }

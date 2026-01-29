@@ -1,8 +1,9 @@
 /**
  * WorkUnitService - Real implementation of IWorkUnitService.
  *
- * Manages WorkUnits stored in `.chainglass/units/`.
+ * Manages WorkUnits stored in `.chainglass/data/units/`.
  * Per Phase 2: Implements list(), load(), create(), validate() operations.
+ * Per Plan 021: Uses WorkspaceContext for path resolution.
  *
  * Per ADR-0004: Uses constructor injection with useFactory pattern.
  * Per Critical Discovery 02: All methods return results with errors array.
@@ -10,6 +11,7 @@
 
 import type { IFileSystem, IPathResolver, IYamlParser } from '@chainglass/shared';
 import { YamlParseError } from '@chainglass/shared';
+import type { WorkspaceContext } from '@chainglass/workflow';
 
 import {
   invalidUnitSlugError,
@@ -35,31 +37,55 @@ import { WorkUnitSchema } from '../schemas/workunit.schema.js';
  *
  * Per spec AC-14: list() shows all available units.
  * Per spec AC-15: load() returns full unit details.
+ * Per Plan 021: All methods accept WorkspaceContext as first parameter.
  */
 export class WorkUnitService implements IWorkUnitService {
-  /** Base directory for units */
-  private readonly unitsDir = '.chainglass/units';
-
   constructor(
     private readonly fs: IFileSystem,
     private readonly pathResolver: IPathResolver,
     private readonly yamlParser: IYamlParser
   ) {}
 
+  // ============================================
+  // Path Helpers (Plan 021)
+  // ============================================
+
+  /**
+   * Get the units directory for the given workspace context.
+   * Per Plan 021: Path is `<worktreePath>/.chainglass/data/units`.
+   */
+  protected getUnitsDir(ctx: WorkspaceContext): string {
+    return this.pathResolver.join(ctx.worktreePath, '.chainglass', 'data', 'units');
+  }
+
+  /**
+   * Get the path to a specific unit.
+   */
+  protected getUnitPath(ctx: WorkspaceContext, slug: string): string {
+    return this.pathResolver.join(this.getUnitsDir(ctx), slug);
+  }
+
+  // ============================================
+  // list
+  // ============================================
+
   /**
    * List all available WorkUnits.
    *
-   * Scans `.chainglass/units/<slug>/unit.yaml` files and extracts summaries.
+   * Scans `.chainglass/data/units/<slug>/unit.yaml` files and extracts summaries.
    * Invalid units are skipped silently to allow partial results.
+   * Per Plan 021: Accepts WorkspaceContext as first parameter.
    *
+   * @param ctx - Workspace context for path resolution
    * @returns UnitListResult with array of unit summaries
    */
-  async list(): Promise<UnitListResult> {
+  async list(ctx: WorkspaceContext): Promise<UnitListResult> {
     const units: WorkUnitSummary[] = [];
+    const unitsDir = this.getUnitsDir(ctx);
 
     // Use glob to find all unit.yaml files
     const unitFiles = await this.fs.glob('**/unit.yaml', {
-      cwd: this.unitsDir,
+      cwd: unitsDir,
     });
 
     for (const relPath of unitFiles) {
@@ -68,7 +94,7 @@ export class WorkUnitService implements IWorkUnitService {
         const slug = this.pathResolver.dirname(relPath);
         if (!slug || slug === '.') continue;
 
-        const unitPath = this.pathResolver.join(this.unitsDir, relPath);
+        const unitPath = this.pathResolver.join(unitsDir, relPath);
         const content = await this.fs.readFile(unitPath);
         const data = this.yamlParser.parse<Record<string, unknown>>(content, unitPath);
 
@@ -93,14 +119,20 @@ export class WorkUnitService implements IWorkUnitService {
     };
   }
 
+  // ============================================
+  // load
+  // ============================================
+
   /**
    * Load a WorkUnit by slug.
+   * Per Plan 021: Accepts WorkspaceContext as first parameter.
    *
+   * @param ctx - Workspace context for path resolution
    * @param slug - Unit identifier to load
    * @returns UnitLoadResult with full unit details or E120 error
    */
-  async load(slug: string): Promise<UnitLoadResult> {
-    const unitPath = this.pathResolver.join(this.unitsDir, slug, 'unit.yaml');
+  async load(ctx: WorkspaceContext, slug: string): Promise<UnitLoadResult> {
+    const unitPath = this.pathResolver.join(this.getUnitPath(ctx, slug), 'unit.yaml');
 
     // Check if unit exists
     if (!(await this.fs.exists(unitPath))) {
@@ -193,6 +225,10 @@ export class WorkUnitService implements IWorkUnitService {
     };
   }
 
+  // ============================================
+  // create
+  // ============================================
+
   /**
    * Create a new WorkUnit with scaffolding.
    *
@@ -200,12 +236,18 @@ export class WorkUnitService implements IWorkUnitService {
    * - agent: unit.yaml + commands/main.md
    * - code: unit.yaml
    * - user-input: unit.yaml
+   * Per Plan 021: Accepts WorkspaceContext as first parameter.
    *
+   * @param ctx - Workspace context for path resolution
    * @param slug - Unique identifier for the new unit
    * @param type - Unit type: agent, code, or user-input
    * @returns UnitCreateResult with path to created unit
    */
-  async create(slug: string, type: 'agent' | 'code' | 'user-input'): Promise<UnitCreateResult> {
+  async create(
+    ctx: WorkspaceContext,
+    slug: string,
+    type: 'agent' | 'code' | 'user-input'
+  ): Promise<UnitCreateResult> {
     // Validate slug format
     if (!this.isValidSlug(slug)) {
       return {
@@ -216,7 +258,7 @@ export class WorkUnitService implements IWorkUnitService {
     }
 
     // Check if unit already exists
-    const unitPath = this.pathResolver.join(this.unitsDir, slug);
+    const unitPath = this.getUnitPath(ctx, slug);
     if (await this.fs.exists(unitPath)) {
       return {
         slug,
@@ -343,14 +385,20 @@ Provide a helpful response based on the topic above.
 `;
   }
 
+  // ============================================
+  // validate
+  // ============================================
+
   /**
    * Validate a WorkUnit definition.
+   * Per Plan 021: Accepts WorkspaceContext as first parameter.
    *
+   * @param ctx - Workspace context for path resolution
    * @param slug - Unit identifier to validate
    * @returns UnitValidateResult with validation issues
    */
-  async validate(slug: string): Promise<UnitValidateResult> {
-    const unitPath = this.pathResolver.join(this.unitsDir, slug, 'unit.yaml');
+  async validate(ctx: WorkspaceContext, slug: string): Promise<UnitValidateResult> {
+    const unitPath = this.pathResolver.join(this.getUnitPath(ctx, slug), 'unit.yaml');
 
     // Check if unit exists
     if (!(await this.fs.exists(unitPath))) {

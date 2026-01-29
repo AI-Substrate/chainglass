@@ -11,6 +11,7 @@
  */
 
 import type { IFileSystem, IPathResolver } from '@chainglass/shared';
+import type { WorkspaceContext } from '@chainglass/workflow';
 
 import {
   cannotExecuteBlockedError,
@@ -75,8 +76,8 @@ interface StateData {
  * Per DYK#6: markReady() transitions pending→ready for orchestrator.
  */
 export class WorkNodeService implements IWorkNodeService {
-  /** Base directory for work-graphs */
-  private readonly graphsDir = '.chainglass/work-graphs';
+  // Note: graphsDir removed per Plan 021 Phase 2 T007
+  // Path helpers added in T008 derive from WorkspaceContext
 
   /**
    * @param fs - File system interface
@@ -92,6 +93,69 @@ export class WorkNodeService implements IWorkNodeService {
   ) {}
 
   // ============================================
+  // Path Helpers (Plan 021 T008)
+  // ============================================
+
+  /**
+   * Get the work-graphs directory for a workspace.
+   *
+   * Per ADR-0008: Split storage model uses `<worktree>/.chainglass/data/work-graphs/`
+   *
+   * @param ctx - Workspace context
+   * @returns Absolute path to work-graphs directory
+   */
+  protected getGraphsDir(ctx: WorkspaceContext): string {
+    return this.pathResolver.join(ctx.worktreePath, '.chainglass/data/work-graphs');
+  }
+
+  /**
+   * Get the path to a specific node within a graph.
+   *
+   * @param ctx - Workspace context
+   * @param graphSlug - Graph identifier
+   * @param nodeId - Node identifier
+   * @returns Absolute path to node directory
+   */
+  protected getNodePath(ctx: WorkspaceContext, graphSlug: string, nodeId: string): string {
+    return this.pathResolver.join(this.getGraphsDir(ctx), graphSlug, 'nodes', nodeId);
+  }
+
+  /**
+   * Get the path to a node's data directory.
+   *
+   * @param ctx - Workspace context
+   * @param graphSlug - Graph identifier
+   * @param nodeId - Node identifier
+   * @returns Absolute path to node data directory
+   */
+  protected getNodeDataDir(ctx: WorkspaceContext, graphSlug: string, nodeId: string): string {
+    return this.pathResolver.join(this.getNodePath(ctx, graphSlug, nodeId), 'data');
+  }
+
+  /**
+   * Get both absolute and relative paths for an output file.
+   *
+   * Per DYK Session: saveOutputData/saveOutputFile need dual paths -
+   * absolute for FS write, relative for data.json storage.
+   *
+   * @param ctx - Workspace context
+   * @param graphSlug - Graph identifier
+   * @param nodeId - Node identifier
+   * @param fileName - Output file name
+   * @returns Object with absolute and relative paths
+   */
+  protected getOutputPaths(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    fileName: string
+  ): { absolute: string; relative: string } {
+    const relative = `.chainglass/data/work-graphs/${graphSlug}/nodes/${nodeId}/outputs/${fileName}`;
+    const absolute = this.pathResolver.join(ctx.worktreePath, relative);
+    return { absolute, relative };
+  }
+
+  // ============================================
   // canRun
   // ============================================
 
@@ -102,14 +166,16 @@ export class WorkNodeService implements IWorkNodeService {
    * and all required inputs are available.
    *
    * Per DYK#6: Start node is structural only (no outputs).
+   * Per Plan 021: Accepts WorkspaceContext as first parameter.
    *
+   * @param ctx - Workspace context for path resolution
    * @param graphSlug - Graph containing the node
    * @param nodeId - Node to check
    * @returns CanRunResult with canRun flag and blocking info
    */
-  async canRun(graphSlug: string, nodeId: string): Promise<CanRunResult> {
+  async canRun(ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<CanRunResult> {
     // 1. Load graph status
-    const statusResult = await this.workGraphService.status(graphSlug);
+    const statusResult = await this.workGraphService.status(ctx, graphSlug);
     if (statusResult.errors.length > 0) {
       // Convert E101 or pass through errors
       return {
@@ -128,7 +194,7 @@ export class WorkNodeService implements IWorkNodeService {
     }
 
     // 3. Load graph structure to find upstream nodes
-    const loadResult = await this.workGraphService.load(graphSlug);
+    const loadResult = await this.workGraphService.load(ctx, graphSlug);
     if (loadResult.errors.length > 0 || !loadResult.graph) {
       return {
         canRun: false,
@@ -180,14 +246,20 @@ export class WorkNodeService implements IWorkNodeService {
    * Per DYK#6: Orchestrator controls pending→ready transition for UI visibility.
    * Validates canRun() internally before setting status to 'ready'.
    * Returns E110 if node cannot be run (blocked by upstream).
+   * Per Plan 021: Accepts WorkspaceContext as first parameter.
    *
+   * @param ctx - Workspace context for path resolution
    * @param graphSlug - Graph containing the node
    * @param nodeId - Node to mark ready
    * @returns MarkReadyResult with new status
    */
-  async markReady(graphSlug: string, nodeId: string): Promise<MarkReadyResult> {
+  async markReady(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string
+  ): Promise<MarkReadyResult> {
     // 1. Check current status
-    const statusResult = await this.workGraphService.status(graphSlug);
+    const statusResult = await this.workGraphService.status(ctx, graphSlug);
     if (statusResult.errors.length > 0) {
       return {
         nodeId,
@@ -234,7 +306,7 @@ export class WorkNodeService implements IWorkNodeService {
     }
 
     // 4. Check canRun
-    const canRunResult = await this.canRun(graphSlug, nodeId);
+    const canRunResult = await this.canRun(ctx, graphSlug, nodeId);
     if (!canRunResult.canRun) {
       const blockingNodeIds = canRunResult.blockingNodes?.map((b) => b.nodeId) ?? [];
       return {
@@ -247,7 +319,8 @@ export class WorkNodeService implements IWorkNodeService {
 
     // 5. Update state.json atomically
     const readyAt = new Date().toISOString();
-    const statePath = this.pathResolver.join(this.graphsDir, graphSlug, 'state.json');
+    const graphsDir = this.getGraphsDir(ctx);
+    const statePath = this.pathResolver.join(graphsDir, graphSlug, 'state.json');
 
     let stateData: StateData = {
       graph_status: 'pending',
@@ -302,14 +375,16 @@ export class WorkNodeService implements IWorkNodeService {
    * Transitions node status to 'running'.
    * Returns E110 if node cannot be run (use canRun() first).
    * Returns E111 if node is already running.
+   * Per Plan 021: Accepts WorkspaceContext as first parameter.
    *
+   * @param ctx - Workspace context for path resolution
    * @param graphSlug - Graph containing the node
    * @param nodeId - Node to start
    * @returns StartResult with new status
    */
-  async start(graphSlug: string, nodeId: string): Promise<StartResult> {
+  async start(ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<StartResult> {
     // 1. Check current status
-    const statusResult = await this.workGraphService.status(graphSlug);
+    const statusResult = await this.workGraphService.status(ctx, graphSlug);
     if (statusResult.errors.length > 0) {
       return {
         nodeId,
@@ -347,7 +422,7 @@ export class WorkNodeService implements IWorkNodeService {
 
     // 3. Check canRun (only if not already ready - ready nodes can start)
     if (nodeStatus.status !== 'ready') {
-      const canRunResult = await this.canRun(graphSlug, nodeId);
+      const canRunResult = await this.canRun(ctx, graphSlug, nodeId);
       if (!canRunResult.canRun) {
         const blockingNodeIds = canRunResult.blockingNodes?.map((b) => b.nodeId) ?? [];
         return {
@@ -361,7 +436,8 @@ export class WorkNodeService implements IWorkNodeService {
 
     // 4. Update state.json atomically
     const startedAt = new Date().toISOString();
-    const statePath = this.pathResolver.join(this.graphsDir, graphSlug, 'state.json');
+    const graphsDir = this.getGraphsDir(ctx);
+    const statePath = this.pathResolver.join(graphsDir, graphSlug, 'state.json');
 
     let stateData: StateData = {
       graph_status: 'in_progress',
@@ -418,14 +494,16 @@ export class WorkNodeService implements IWorkNodeService {
    * Transitions node status to 'complete' if valid.
    * Returns E112 if node is not in running state.
    * Returns E113 if required outputs are missing.
+   * Per Plan 021: Accepts WorkspaceContext as first parameter.
    *
+   * @param ctx - Workspace context for path resolution
    * @param graphSlug - Graph containing the node
    * @param nodeId - Node to end
    * @returns EndResult with new status and any missing outputs
    */
-  async end(graphSlug: string, nodeId: string): Promise<EndResult> {
+  async end(ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<EndResult> {
     // 1. Check current status
-    const statusResult = await this.workGraphService.status(graphSlug);
+    const statusResult = await this.workGraphService.status(ctx, graphSlug);
     if (statusResult.errors.length > 0) {
       return {
         nodeId,
@@ -463,7 +541,7 @@ export class WorkNodeService implements IWorkNodeService {
     }
 
     // 3. Load node config to get unit slug
-    const nodePath = this.pathResolver.join(this.graphsDir, graphSlug, 'nodes', nodeId);
+    const nodePath = this.getNodePath(ctx, graphSlug, nodeId);
     const nodeYamlPath = this.pathResolver.join(nodePath, 'node.yaml');
 
     let unitSlug = '';
@@ -483,7 +561,7 @@ export class WorkNodeService implements IWorkNodeService {
     // 4. Load unit to check required outputs
     const missingOutputs: string[] = [];
     if (this.workUnitService && unitSlug) {
-      const unitResult = await this.workUnitService.load(unitSlug);
+      const unitResult = await this.workUnitService.load(ctx, unitSlug);
       if (unitResult.unit) {
         const requiredOutputs = unitResult.unit.outputs.filter((o) => o.required);
 
@@ -546,7 +624,8 @@ export class WorkNodeService implements IWorkNodeService {
 
     // 6. Update state.json atomically
     const completedAt = new Date().toISOString();
-    const statePath = this.pathResolver.join(this.graphsDir, graphSlug, 'state.json');
+    const graphsDir = this.getGraphsDir(ctx);
+    const statePath = this.pathResolver.join(graphsDir, graphSlug, 'state.json');
 
     let stateData: StateData = {
       graph_status: 'in_progress',
@@ -600,14 +679,16 @@ export class WorkNodeService implements IWorkNodeService {
    *
    * Validates that all required outputs are present without
    * actually transitioning the node state.
+   * Per Plan 021: Accepts WorkspaceContext as first parameter.
    *
+   * @param ctx - Workspace context for path resolution
    * @param graphSlug - Graph containing the node
    * @param nodeId - Node to check
    * @returns CanEndResult with canEnd flag and any missing outputs
    */
-  async canEnd(graphSlug: string, nodeId: string): Promise<CanEndResult> {
+  async canEnd(ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<CanEndResult> {
     // 1. Check current status
-    const statusResult = await this.workGraphService.status(graphSlug);
+    const statusResult = await this.workGraphService.status(ctx, graphSlug);
     if (statusResult.errors.length > 0) {
       return {
         nodeId,
@@ -645,7 +726,7 @@ export class WorkNodeService implements IWorkNodeService {
     }
 
     // 3. Load node config to get unit slug
-    const nodePath = this.pathResolver.join(this.graphsDir, graphSlug, 'nodes', nodeId);
+    const nodePath = this.getNodePath(ctx, graphSlug, nodeId);
     const nodeYamlPath = this.pathResolver.join(nodePath, 'node.yaml');
 
     let unitSlug = '';
@@ -664,7 +745,7 @@ export class WorkNodeService implements IWorkNodeService {
     // 4. Load unit to check required outputs
     const missingOutputs: string[] = [];
     if (this.workUnitService && unitSlug) {
-      const unitResult = await this.workUnitService.load(unitSlug);
+      const unitResult = await this.workUnitService.load(ctx, unitSlug);
       if (unitResult.unit) {
         const requiredOutputs = unitResult.unit.outputs.filter((o) => o.required);
 
@@ -723,19 +804,22 @@ export class WorkNodeService implements IWorkNodeService {
    *
    * Resolves the input value from the upstream node's outputs.
    * Traverses edges via input mapping stored in node.yaml.
+   * Per Plan 021: Accepts WorkspaceContext as first parameter.
    *
+   * @param ctx - Workspace context for path resolution
    * @param graphSlug - Graph containing the node
    * @param nodeId - Node to get input for
    * @param inputName - Name of the input to get
    * @returns GetInputDataResult with resolved value
    */
   async getInputData(
+    ctx: WorkspaceContext,
     graphSlug: string,
     nodeId: string,
     inputName: string
   ): Promise<GetInputDataResult> {
     // 1. Validate node exists
-    const statusResult = await this.workGraphService.status(graphSlug);
+    const statusResult = await this.workGraphService.status(ctx, graphSlug);
     if (statusResult.errors.length > 0) {
       return {
         nodeId,
@@ -754,7 +838,7 @@ export class WorkNodeService implements IWorkNodeService {
     }
 
     // 2. Load node config to get input mapping
-    const nodePath = this.pathResolver.join(this.graphsDir, graphSlug, 'nodes', nodeId);
+    const nodePath = this.getNodePath(ctx, graphSlug, nodeId);
     const nodeYamlPath = this.pathResolver.join(nodePath, 'node.yaml');
 
     if (!(await this.fs.exists(nodeYamlPath))) {
@@ -819,10 +903,7 @@ export class WorkNodeService implements IWorkNodeService {
     const sourceOutputName = inputMapping.output;
 
     const sourceDataPath = this.pathResolver.join(
-      this.graphsDir,
-      graphSlug,
-      'nodes',
-      sourceNodeId,
+      this.getNodePath(ctx, graphSlug, sourceNodeId),
       'data',
       'data.json'
     );
@@ -892,19 +973,22 @@ export class WorkNodeService implements IWorkNodeService {
    *
    * Resolves the file path from the upstream node's file outputs.
    * Per Discovery 10: Rejects paths containing '..' for security.
+   * Per Plan 021: Accepts WorkspaceContext as first parameter.
    *
+   * @param ctx - Workspace context for path resolution
    * @param graphSlug - Graph containing the node
    * @param nodeId - Node to get input for
    * @param inputName - Name of the input to get
    * @returns GetInputFileResult with resolved file path
    */
   async getInputFile(
+    ctx: WorkspaceContext,
     graphSlug: string,
     nodeId: string,
     inputName: string
   ): Promise<GetInputFileResult> {
     // 1. Validate node exists
-    const statusResult = await this.workGraphService.status(graphSlug);
+    const statusResult = await this.workGraphService.status(ctx, graphSlug);
     if (statusResult.errors.length > 0) {
       return {
         nodeId,
@@ -923,7 +1007,7 @@ export class WorkNodeService implements IWorkNodeService {
     }
 
     // 2. Load node config to get input mapping
-    const nodePath = this.pathResolver.join(this.graphsDir, graphSlug, 'nodes', nodeId);
+    const nodePath = this.getNodePath(ctx, graphSlug, nodeId);
     const nodeYamlPath = this.pathResolver.join(nodePath, 'node.yaml');
 
     if (!(await this.fs.exists(nodeYamlPath))) {
@@ -983,10 +1067,7 @@ export class WorkNodeService implements IWorkNodeService {
     const sourceOutputName = inputMapping.output;
 
     const sourceDataPath = this.pathResolver.join(
-      this.graphsDir,
-      graphSlug,
-      'nodes',
-      sourceNodeId,
+      this.getNodePath(ctx, graphSlug, sourceNodeId),
       'data',
       'data.json'
     );
@@ -1069,19 +1150,22 @@ export class WorkNodeService implements IWorkNodeService {
    * Used by orchestrators to read completed node results.
    * Note: Unlike getInputData which reads from upstream nodes,
    * this reads from the node's own outputs (semantic asymmetry by design).
+   * Per Plan 021: Accepts WorkspaceContext as first parameter.
    *
+   * @param ctx - Workspace context for path resolution
    * @param graphSlug - Graph containing the node
    * @param nodeId - Node to get output from
    * @param outputName - Name of the output to get
    * @returns GetOutputDataResult with the output value
    */
   async getOutputData(
+    ctx: WorkspaceContext,
     graphSlug: string,
     nodeId: string,
     outputName: string
   ): Promise<GetOutputDataResult> {
     // 1. Validate node exists
-    const statusResult = await this.workGraphService.status(graphSlug);
+    const statusResult = await this.workGraphService.status(ctx, graphSlug);
     if (statusResult.errors.length > 0) {
       return {
         nodeId,
@@ -1100,7 +1184,7 @@ export class WorkNodeService implements IWorkNodeService {
     }
 
     // 2. Load the node's own data.json to get outputs
-    const nodePath = this.pathResolver.join(this.graphsDir, graphSlug, 'nodes', nodeId);
+    const nodePath = this.getNodePath(ctx, graphSlug, nodeId);
     const dataPath = this.pathResolver.join(nodePath, 'data', 'data.json');
 
     if (!(await this.fs.exists(dataPath))) {
@@ -1166,7 +1250,9 @@ export class WorkNodeService implements IWorkNodeService {
    *
    * Writes value to data/data.json outputs object.
    * Per Discovery 12: Overwrites existing outputs without confirmation.
+   * Per Plan 021: Accepts WorkspaceContext as first parameter.
    *
+   * @param ctx - Workspace context for path resolution
    * @param graphSlug - Graph containing the node
    * @param nodeId - Node to save output for
    * @param outputName - Name of the output
@@ -1174,13 +1260,14 @@ export class WorkNodeService implements IWorkNodeService {
    * @returns SaveOutputDataResult with save status
    */
   async saveOutputData(
+    ctx: WorkspaceContext,
     graphSlug: string,
     nodeId: string,
     outputName: string,
     value: unknown
   ): Promise<SaveOutputDataResult> {
     // 1. Validate node exists
-    const statusResult = await this.workGraphService.status(graphSlug);
+    const statusResult = await this.workGraphService.status(ctx, graphSlug);
     if (statusResult.errors.length > 0) {
       return {
         nodeId,
@@ -1201,7 +1288,7 @@ export class WorkNodeService implements IWorkNodeService {
     }
 
     // 2. Ensure data directory exists
-    const nodePath = this.pathResolver.join(this.graphsDir, graphSlug, 'nodes', nodeId);
+    const nodePath = this.getNodePath(ctx, graphSlug, nodeId);
     const dataDir = this.pathResolver.join(nodePath, 'data');
     const dataPath = this.pathResolver.join(dataDir, 'data.json');
 
@@ -1250,6 +1337,9 @@ export class WorkNodeService implements IWorkNodeService {
    * Per Discovery 10: Rejects paths containing '..' for security.
    * Per Discovery 12: Overwrites existing outputs without confirmation.
    *
+   * Per Plan 021: Accepts WorkspaceContext as first parameter.
+   *
+   * @param ctx - Workspace context for path resolution
    * @param graphSlug - Graph containing the node
    * @param nodeId - Node to save output for
    * @param outputName - Name of the output
@@ -1257,6 +1347,7 @@ export class WorkNodeService implements IWorkNodeService {
    * @returns SaveOutputFileResult with save status and saved path
    */
   async saveOutputFile(
+    ctx: WorkspaceContext,
     graphSlug: string,
     nodeId: string,
     outputName: string,
@@ -1273,7 +1364,7 @@ export class WorkNodeService implements IWorkNodeService {
     }
 
     // 2. Validate node exists
-    const statusResult = await this.workGraphService.status(graphSlug);
+    const statusResult = await this.workGraphService.status(ctx, graphSlug);
     if (statusResult.errors.length > 0) {
       return {
         nodeId,
@@ -1303,22 +1394,20 @@ export class WorkNodeService implements IWorkNodeService {
       };
     }
 
-    // 4. Ensure outputs directory exists
-    const nodePath = this.pathResolver.join(this.graphsDir, graphSlug, 'nodes', nodeId);
-    const outputsDir = this.pathResolver.join(nodePath, 'data', 'outputs');
+    // 4. Determine file extension and compute paths using dual path helper
+    const ext = sourcePath.includes('.') ? sourcePath.slice(sourcePath.lastIndexOf('.')) : '.md';
+    const outputPaths = this.getOutputPaths(ctx, graphSlug, nodeId, `${outputName}${ext}`);
+    const outputsDir = this.pathResolver.dirname(outputPaths.absolute);
 
+    // 5. Ensure outputs directory exists
     if (!(await this.fs.exists(outputsDir))) {
       await this.fs.mkdir(outputsDir, { recursive: true });
     }
 
-    // 5. Determine file extension from source
-    const ext = sourcePath.includes('.') ? sourcePath.slice(sourcePath.lastIndexOf('.')) : '.md';
-    const destPath = this.pathResolver.join(outputsDir, `${outputName}${ext}`);
-
     // 6. Copy file (read and write)
     try {
       const content = await this.fs.readFile(sourcePath);
-      await this.fs.writeFile(destPath, content);
+      await this.fs.writeFile(outputPaths.absolute, content);
     } catch (error) {
       return {
         nodeId,
@@ -1334,7 +1423,8 @@ export class WorkNodeService implements IWorkNodeService {
       };
     }
 
-    // 7. Also record in data.json so end() can validate
+    // 7. Also record in data.json so end() can validate (using relative path per Plan 021)
+    const nodePath = this.getNodePath(ctx, graphSlug, nodeId);
     const dataDir = this.pathResolver.join(nodePath, 'data');
     const dataPath = this.pathResolver.join(dataDir, 'data.json');
 
@@ -1352,14 +1442,15 @@ export class WorkNodeService implements IWorkNodeService {
       }
     }
 
-    data.outputs[outputName] = destPath;
+    // Store RELATIVE path per DYK#2 decision for git portability
+    data.outputs[outputName] = outputPaths.relative;
     await atomicWriteJson(this.fs, dataPath, data);
 
     return {
       nodeId,
       outputName,
       saved: true,
-      savedPath: destPath,
+      savedPath: outputPaths.absolute, // Return absolute for callers to use
       errors: [],
     };
   }
@@ -1374,13 +1465,20 @@ export class WorkNodeService implements IWorkNodeService {
    * Per DYK#7: No cascade - clears only the specified node.
    * Requires force=true to confirm, returns error otherwise.
    * Downstream nodes are NOT automatically cleared.
+   * Per Plan 021: Accepts WorkspaceContext as first parameter.
    *
+   * @param ctx - Workspace context for path resolution
    * @param graphSlug - Graph containing the node
    * @param nodeId - Node to clear
    * @param options - Must include force: true to confirm
    * @returns ClearResult with cleared outputs list
    */
-  async clear(graphSlug: string, nodeId: string, options: ClearOptions): Promise<ClearResult> {
+  async clear(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    options: ClearOptions
+  ): Promise<ClearResult> {
     // 1. Check force flag
     if (!options.force) {
       return {
@@ -1398,7 +1496,7 @@ export class WorkNodeService implements IWorkNodeService {
     }
 
     // 2. Validate node exists
-    const statusResult = await this.workGraphService.status(graphSlug);
+    const statusResult = await this.workGraphService.status(ctx, graphSlug);
     if (statusResult.errors.length > 0) {
       return {
         nodeId,
@@ -1419,7 +1517,7 @@ export class WorkNodeService implements IWorkNodeService {
     }
 
     // 3. Load and clear outputs from data.json
-    const nodePath = this.pathResolver.join(this.graphsDir, graphSlug, 'nodes', nodeId);
+    const nodePath = this.getNodePath(ctx, graphSlug, nodeId);
     const dataPath = this.pathResolver.join(nodePath, 'data', 'data.json');
     const clearedOutputs: string[] = [];
 
@@ -1439,7 +1537,8 @@ export class WorkNodeService implements IWorkNodeService {
 
     // 4. Update state.json to pending
     const clearedAt = new Date().toISOString();
-    const statePath = this.pathResolver.join(this.graphsDir, graphSlug, 'state.json');
+    const graphsDir = this.getGraphsDir(ctx);
+    const statePath = this.pathResolver.join(graphsDir, graphSlug, 'state.json');
 
     let stateData: StateData = {
       graph_status: 'pending',
@@ -1489,15 +1588,22 @@ export class WorkNodeService implements IWorkNodeService {
    *
    * Transitions node to 'waiting-question' status.
    * The orchestrator will present the question to the user.
+   * Per Plan 021: Accepts WorkspaceContext as first parameter.
    *
+   * @param ctx - Workspace context for path resolution
    * @param graphSlug - Graph containing the node
    * @param nodeId - Node asking the question
    * @param question - Question to ask
    * @returns AskResult with question ID and status
    */
-  async ask(graphSlug: string, nodeId: string, question: Question): Promise<AskResult> {
+  async ask(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    question: Question
+  ): Promise<AskResult> {
     // 1. Validate node exists
-    const statusResult = await this.workGraphService.status(graphSlug);
+    const statusResult = await this.workGraphService.status(ctx, graphSlug);
     if (statusResult.errors.length > 0) {
       return {
         nodeId,
@@ -1541,7 +1647,7 @@ export class WorkNodeService implements IWorkNodeService {
     const askedAt = new Date().toISOString();
 
     // Store question in data.json
-    const nodePath = this.pathResolver.join(this.graphsDir, graphSlug, 'nodes', nodeId);
+    const nodePath = this.getNodePath(ctx, graphSlug, nodeId);
     const dataDir = this.pathResolver.join(nodePath, 'data');
     const dataPath = this.pathResolver.join(dataDir, 'data.json');
 
@@ -1575,7 +1681,8 @@ export class WorkNodeService implements IWorkNodeService {
     await atomicWriteJson(this.fs, dataPath, data);
 
     // 4. Update state.json to waiting-question
-    const statePath = this.pathResolver.join(this.graphsDir, graphSlug, 'state.json');
+    const graphsDir = this.getGraphsDir(ctx);
+    const statePath = this.pathResolver.join(graphsDir, graphSlug, 'state.json');
 
     let stateData: StateData = {
       graph_status: 'in_progress',
@@ -1626,7 +1733,9 @@ export class WorkNodeService implements IWorkNodeService {
    *
    * Transitions node from 'waiting-question' back to 'running'.
    * The answer is stored in data.json for the agent to retrieve.
+   * Per Plan 021: Accepts WorkspaceContext as first parameter.
    *
+   * @param ctx - Workspace context for path resolution
    * @param graphSlug - Graph containing the node
    * @param nodeId - Node to resume
    * @param questionId - ID of the question being answered
@@ -1634,13 +1743,14 @@ export class WorkNodeService implements IWorkNodeService {
    * @returns AnswerResult with answer and new status
    */
   async answer(
+    ctx: WorkspaceContext,
     graphSlug: string,
     nodeId: string,
     questionId: string,
     answerValue: unknown
   ): Promise<AnswerResult> {
     // 1. Validate node exists
-    const statusResult = await this.workGraphService.status(graphSlug);
+    const statusResult = await this.workGraphService.status(ctx, graphSlug);
     if (statusResult.errors.length > 0) {
       return {
         nodeId,
@@ -1681,7 +1791,7 @@ export class WorkNodeService implements IWorkNodeService {
 
     // 3. Store answer in data.json
     const answeredAt = new Date().toISOString();
-    const nodePath = this.pathResolver.join(this.graphsDir, graphSlug, 'nodes', nodeId);
+    const nodePath = this.getNodePath(ctx, graphSlug, nodeId);
     const dataDir = this.pathResolver.join(nodePath, 'data');
     const dataPath = this.pathResolver.join(dataDir, 'data.json');
 
@@ -1721,7 +1831,8 @@ export class WorkNodeService implements IWorkNodeService {
     await atomicWriteJson(this.fs, dataPath, data);
 
     // 4. Update state.json to running
-    const statePath = this.pathResolver.join(this.graphsDir, graphSlug, 'state.json');
+    const graphsDir = this.getGraphsDir(ctx);
+    const statePath = this.pathResolver.join(graphsDir, graphSlug, 'state.json');
 
     let stateData: StateData = {
       graph_status: 'in_progress',
@@ -1767,10 +1878,21 @@ export class WorkNodeService implements IWorkNodeService {
    * Get the answer to a question.
    *
    * Reads the answer from data.json if it has been provided.
+   * Per Plan 021: Accepts WorkspaceContext as first parameter.
+   *
+   * @param ctx - Workspace context for path resolution
+   * @param graphSlug - Graph containing the node
+   * @param nodeId - Node to check
+   * @param questionId - ID of the question
    */
-  async getAnswer(graphSlug: string, nodeId: string, questionId: string): Promise<GetAnswerResult> {
+  async getAnswer(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    questionId: string
+  ): Promise<GetAnswerResult> {
     // 1. Validate node exists
-    const statusResult = await this.workGraphService.status(graphSlug);
+    const statusResult = await this.workGraphService.status(ctx, graphSlug);
     if (statusResult.errors.length > 0) {
       return {
         nodeId,
@@ -1797,7 +1919,7 @@ export class WorkNodeService implements IWorkNodeService {
     }
 
     // 2. Read data.json
-    const nodePath = this.pathResolver.join(this.graphsDir, graphSlug, 'nodes', nodeId);
+    const nodePath = this.getNodePath(ctx, graphSlug, nodeId);
     const dataPath = this.pathResolver.join(nodePath, 'data', 'data.json');
 
     if (!(await this.fs.exists(dataPath))) {

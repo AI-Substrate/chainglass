@@ -15,7 +15,7 @@ import type { CliResult, GraphStatusData } from './types.js';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const CLI_PATH = resolve(__dirname, '../../../../../apps/cli/dist/cli.cjs');
 const PROJECT_ROOT = resolve(__dirname, '../../../../..');
-const UNITS_DIR = resolve(PROJECT_ROOT, '.chainglass/units');
+const UNITS_DIR = resolve(PROJECT_ROOT, '.chainglass/data/units');
 
 /**
  * Execute a cg CLI command and return typed result.
@@ -55,10 +55,33 @@ export async function runCli<T>(
       let data: T;
 
       try {
-        // Parse JSON output - CLI returns {success, command, timestamp, data: {...}}
-        const parsed = JSON.parse(stdout.trim());
+        // Parse JSON output - CLI may output multiple NDJSON lines (logs + result)
+        // The actual result is the last valid JSON line with 'success' or 'error' field
+        const lines = stdout.trim().split('\n');
+        let resultLine = '';
+
+        // Find the result line (has 'success' or 'error' field)
+        for (let i = lines.length - 1; i >= 0; i--) {
+          const line = lines[i].trim();
+          if (line && (line.includes('"success"') || line.includes('"error"'))) {
+            resultLine = line;
+            break;
+          }
+        }
+
+        if (!resultLine) {
+          // Fallback: try last line
+          resultLine = lines[lines.length - 1];
+        }
+
+        const parsed = JSON.parse(resultLine);
         // Unwrap the data field if present (CLI wrapper structure)
         data = parsed.data ? { ...parsed.data, errors: [] } : parsed;
+
+        // If error response, extract errors
+        if (parsed.error) {
+          data = { ...data, errors: parsed.error.details || [parsed.error] } as T;
+        }
       } catch {
         // If JSON parsing fails, create minimal result
         data = {

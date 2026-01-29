@@ -51,6 +51,7 @@ export type {
   ClearResult,
   BlockingNode,
   InputDataValue,
+  Question,
 } from './interfaces/index.js';
 
 // ============================================
