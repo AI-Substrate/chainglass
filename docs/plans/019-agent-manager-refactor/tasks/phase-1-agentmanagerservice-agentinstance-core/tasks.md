@@ -198,14 +198,15 @@ flowchart TD
 
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
-| T001 | IAgentManagerService | /packages/shared/src/interfaces/agent-manager.interface.ts | ⬜ Pending | Define central manager interface |
-| T002 | IAgentInstance | /packages/shared/src/interfaces/agent-instance.interface.ts | ⬜ Pending | Define agent instance interface |
-| T003 | FakeAgentManagerService | /packages/shared/src/fakes/fake-agent-manager.service.ts | ⬜ Pending | Test double with helpers |
-| T004 | FakeAgentInstance | /packages/shared/src/fakes/fake-agent-instance.ts | ⬜ Pending | Test double with helpers |
+| T000 | Feature Folder | /packages/shared/src/features/019-agent-manager-refactor/ | ⬜ Pending | PlanPak folder structure |
+| T001 | IAgentManagerService | /packages/shared/src/features/019-agent-manager-refactor/agent-manager.interface.ts | ⬜ Pending | Define central manager interface |
+| T002 | IAgentInstance | /packages/shared/src/features/019-agent-manager-refactor/agent-instance.interface.ts | ⬜ Pending | Define agent instance interface |
+| T003 | FakeAgentManagerService | /packages/shared/src/features/019-agent-manager-refactor/fake-agent-manager.service.ts | ⬜ Pending | Test double with helpers |
+| T004 | FakeAgentInstance | /packages/shared/src/features/019-agent-manager-refactor/fake-agent-instance.ts | ⬜ Pending | Test double with helpers |
 | T005 | Contract Tests | /test/contracts/agent-manager.contract.ts | ⬜ Pending | Contract tests for manager |
 | T006 | Contract Tests | /test/contracts/agent-instance.contract.ts | ⬜ Pending | Contract tests for instance |
-| T007 | AgentManagerService | /packages/shared/src/services/agent-manager.service.ts | ⬜ Pending | Real implementation |
-| T008 | AgentInstance | /packages/shared/src/services/agent-instance.ts | ⬜ Pending | Real implementation wrapping adapter |
+| T007 | AgentManagerService | /packages/shared/src/features/019-agent-manager-refactor/agent-manager.service.ts | ⬜ Pending | Real implementation |
+| T008 | AgentInstance | /packages/shared/src/features/019-agent-manager-refactor/agent-instance.ts | ⬜ Pending | Real implementation wrapping adapter |
 | T009 | validateAgentId | /packages/shared/src/utils/validate-agent-id.ts | ⬜ Pending | Security: path traversal prevention |
 | T010 | DI Registration | /packages/shared/src/di-tokens.ts, /apps/web/src/lib/di-container.ts | ⬜ Pending | Register in container |
 | T011 | Integration Test | /test/integration/agent-instance.integration.test.ts | ⬜ Pending | End-to-end with FakeAgentAdapter |
@@ -216,16 +217,17 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|------|------|----|------|--------------|------------------|------------|----------|-------|
-| [ ] | T001 | Define IAgentManagerService interface | 2 | Interface | – | /home/jak/substrate/015-better-agents/packages/shared/src/interfaces/agent-manager.interface.ts | Exports: IAgentManagerService, CreateAgentParams, AgentFilter; compiles without error | – | plan-scoped |
-| [ ] | T002 | Define IAgentInstance interface | 2 | Interface | – | /home/jak/substrate/015-better-agents/packages/shared/src/interfaces/agent-instance.interface.ts | Exports: IAgentInstance, AgentInstanceStatus ('working'\|'stopped'\|'error'); properties: id, name, type, workspace, status, intent, sessionId, createdAt, updatedAt; constructor receives adapterFactory | – | plan-scoped, DYK-01, DYK-02 |
-| [ ] | T003 | Write FakeAgentManagerService with test helpers | 2 | Fake | T001 | /home/jak/substrate/015-better-agents/packages/shared/src/fakes/fake-agent-manager.service.ts | Has: addAgent(), getCreatedAgents(), setError(), implements IAgentManagerService | – | plan-scoped |
-| [ ] | T004 | Write FakeAgentInstance with test helpers | 2 | Fake | T002 | /home/jak/substrate/015-better-agents/packages/shared/src/fakes/fake-agent-instance.ts | Has: setStatus(), setEvents(), assertRunCalled(), setIntent(); implements IAgentInstance; composes FakeAgentAdapter internally for consistent test behavior | – | plan-scoped, DYK-03 |
+| [ ] | T000 | Create feature folder structure | 1 | Setup | – | /home/jak/substrate/015-better-agents/packages/shared/src/features/019-agent-manager-refactor/ | Directory exists | – | plan-scoped |
+| [ ] | T001 | Define IAgentManagerService interface | 2 | Interface | T000 | /home/jak/substrate/015-better-agents/packages/shared/src/features/019-agent-manager-refactor/agent-manager.interface.ts | Exports: IAgentManagerService, CreateAgentParams, AgentFilter; compiles without error | – | plan-scoped |
+| [ ] | T002 | Define IAgentInstance interface | 2 | Interface | T000 | /home/jak/substrate/015-better-agents/packages/shared/src/features/019-agent-manager-refactor/agent-instance.interface.ts | Exports: IAgentInstance, AgentInstanceStatus ('working'\|'stopped'\|'error'); properties: id, name, type, workspace, status, intent, sessionId, createdAt, updatedAt; constructor receives adapterFactory | – | plan-scoped, DYK-01, DYK-02 |
+| [ ] | T003 | Write FakeAgentManagerService with test helpers | 2 | Fake | T001 | /home/jak/substrate/015-better-agents/packages/shared/src/features/019-agent-manager-refactor/fake-agent-manager.service.ts | Has: addAgent(), getCreatedAgents(), setError(), implements IAgentManagerService | – | plan-scoped |
+| [ ] | T004 | Write FakeAgentInstance with test helpers | 2 | Fake | T002 | /home/jak/substrate/015-better-agents/packages/shared/src/features/019-agent-manager-refactor/fake-agent-instance.ts | Has: setStatus(), setEvents(), assertRunCalled(), setIntent(); implements IAgentInstance; composes FakeAgentAdapter internally for consistent test behavior | – | plan-scoped, DYK-03 |
 | [ ] | T005 | Write contract tests for IAgentManagerService | 2 | Test | T003 | /home/jak/substrate/015-better-agents/test/contracts/agent-manager.contract.ts, /home/jak/substrate/015-better-agents/test/contracts/agent-manager.contract.test.ts | Tests cover AC-01, AC-02, AC-03, AC-04, AC-23, AC-24; run against Fake AND Real (with FakeAdapterFactory injected); tests FAIL initially | – | plan-scoped, DYK-05 |
 | [ ] | T006 | Write contract tests for IAgentInstance | 2 | Test | T004 | /home/jak/substrate/015-better-agents/test/contracts/agent-instance.contract.ts, /home/jak/substrate/015-better-agents/test/contracts/agent-instance.contract.test.ts | Tests cover AC-06, AC-07, AC-07a, AC-09, AC-10, AC-11, AC-12; run against Fake AND Real (with FakeAdapterFactory); tests FAIL initially | – | plan-scoped, DYK-05 |
-| [ ] | T007 | Implement AgentManagerService to pass contracts | 3 | Core | T005, T009 | /home/jak/substrate/015-better-agents/packages/shared/src/services/agent-manager.service.ts | All contract tests pass; uses in-memory Map<agentId, IAgentInstance>; validates agent IDs | – | plan-scoped, Per Critical Finding 01 |
-| [ ] | T008 | Implement AgentInstance to pass contracts | 3 | Core | T006, T009 | /home/jak/substrate/015-better-agents/packages/shared/src/services/agent-instance.ts | All contract tests pass; wraps IAgentAdapter via factory pattern; stores sessionId; status guard prevents double-run; events captured | – | plan-scoped, Per Critical Finding 04, DYK-01 |
+| [ ] | T007 | Implement AgentManagerService to pass contracts | 3 | Core | T005, T009 | /home/jak/substrate/015-better-agents/packages/shared/src/features/019-agent-manager-refactor/agent-manager.service.ts | All contract tests pass; uses in-memory Map<agentId, IAgentInstance>; validates agent IDs | – | plan-scoped, Per Critical Finding 01 |
+| [ ] | T008 | Implement AgentInstance to pass contracts | 3 | Core | T006, T009 | /home/jak/substrate/015-better-agents/packages/shared/src/features/019-agent-manager-refactor/agent-instance.ts | All contract tests pass; wraps IAgentAdapter via factory pattern; stores sessionId; status guard prevents double-run; events captured | – | plan-scoped, Per Critical Finding 04, DYK-01 |
 | [ ] | T009 | Add path validation for agent IDs (security) | 2 | Security | – | /home/jak/substrate/015-better-agents/packages/shared/src/utils/validate-agent-id.ts | validateAgentId rejects: `..`, `/`, `\`, null bytes, whitespace; exports ValidationError | – | cross-cutting, Per Critical Finding 03, PL-09 |
-| [ ] | T010 | Register services in DI container | 2 | DI | T007, T008 | /home/jak/substrate/015-better-agents/packages/shared/src/di-tokens.ts, /home/jak/substrate/015-better-agents/apps/web/src/lib/di-container.ts | Add AGENT_MANAGER_SERVICE token; factory registration works; resolves in tests | – | plan-scoped, Per ADR-0004 |
+| [ ] | T010 | Register services in DI container | 2 | DI | T007, T008 | /home/jak/substrate/015-better-agents/packages/shared/src/di-tokens.ts, /home/jak/substrate/015-better-agents/apps/web/src/lib/di-container.ts | Add AGENT_MANAGER_SERVICE token; factory registration works; resolves in tests | – | cross-cutting, Per ADR-0004 |
 | [ ] | T011 | Integration test: AgentInstance uses FakeAgentAdapter | 3 | Integration | T008, T010 | /home/jak/substrate/015-better-agents/test/integration/agent-instance.integration.test.ts | run() delegates to adapter; events captured; status transitions verified; double-run rejected | – | plan-scoped |
 
 ---
