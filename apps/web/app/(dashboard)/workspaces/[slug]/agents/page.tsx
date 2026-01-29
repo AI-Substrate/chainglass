@@ -1,20 +1,19 @@
 /**
  * Agents Page - /workspaces/[slug]/agents
  *
- * Part of Plan 018: Agent Workspace Data Model Migration (Phase 3)
+ * Part of Plan 019: Agent Manager Refactor (Phase 5: Consolidation & Cleanup)
+ * Per Subtask 001: Migrated from Plan 018's IAgentSessionService to AgentManagerService via DI.
  *
- * Server component that shows agent sessions for a workspace's worktree.
- * REQUIRES ?worktree= query param - redirects to workspace detail if missing.
- *
- * Per DYK-02: Uses redirect() to workspace detail when worktree param missing.
- * Per Discovery 04: Uses `export const dynamic = 'force-dynamic'` for DI container access.
+ * Server component that lists agents for a workspace.
+ * Per DYK-06: Uses AgentManagerService via DI directly (matching chat page pattern).
+ * Per DYK-07: No worktree requirement — agents are global entities.
+ * Per Discovery 11: Must await params before use (Next.js 16+).
  */
 
-import { WORKSPACE_DI_TOKENS } from '@chainglass/shared';
-import type { IAgentSessionService, IWorkspaceService } from '@chainglass/workflow';
-import { Bot, Clock, GitBranch } from 'lucide-react';
+import { SHARED_DI_TOKENS } from '@chainglass/shared';
+import type { IAgentManagerService } from '@chainglass/shared/features/019-agent-manager-refactor/agent-manager.interface';
+import { Bot, Clock, Trash2 } from 'lucide-react';
 import Link from 'next/link';
-import { notFound, redirect } from 'next/navigation';
 import { CreateSessionForm } from '../../../../../src/components/agents/create-session-form';
 import { SessionDeleteButton } from '../../../../../src/components/agents/session-delete-button';
 import { getContainer } from '../../../../../src/lib/bootstrap-singleton';
@@ -25,43 +24,21 @@ interface PageProps {
   params: Promise<{
     slug: string;
   }>;
-  searchParams: Promise<{
-    worktree?: string;
-  }>;
 }
 
-export default async function WorkspaceAgentsPage({ params, searchParams }: PageProps) {
+export default async function WorkspaceAgentsPage({ params }: PageProps) {
   const { slug } = await params;
-  const { worktree: worktreePath } = await searchParams;
-
-  // Redirect to workspace detail if no worktree specified (per DYK-02)
-  if (!worktreePath) {
-    redirect(`/workspaces/${slug}`);
-  }
 
   const container = getContainer();
-  const workspaceService = container.resolve<IWorkspaceService>(
-    WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE
-  );
-  const sessionService = container.resolve<IAgentSessionService>(
-    WORKSPACE_DI_TOKENS.AGENT_SESSION_SERVICE
+  const agentManager = container.resolve<IAgentManagerService>(
+    SHARED_DI_TOKENS.AGENT_MANAGER_SERVICE
   );
 
-  // Resolve context - use notFound() for invalid slug
-  const context = await workspaceService.resolveContextFromParams(slug, worktreePath);
+  // Ensure initialized (loads from storage)
+  await agentManager.initialize();
 
-  if (!context) {
-    notFound();
-  }
-
-  // Load sessions
-  const sessions = await sessionService.listSessions(context);
-
-  // Get workspace info for breadcrumb
-  const info = await workspaceService.getInfo(slug);
-
-  // Build back link to landing page
-  const landingUrl = `/workspaces/${slug}/worktree?worktree=${encodeURIComponent(worktreePath)}`;
+  // Get agents filtered by workspace slug
+  const agents = agentManager.getAgents({ workspace: slug });
 
   return (
     <div className="container mx-auto py-6">
@@ -72,11 +49,7 @@ export default async function WorkspaceAgentsPage({ params, searchParams }: Page
         </Link>
         {' / '}
         <Link href={`/workspaces/${slug}`} className="hover:underline">
-          {info?.name || slug}
-        </Link>
-        {' / '}
-        <Link href={landingUrl} className="hover:underline">
-          {context.worktreeBranch || 'worktree'}
+          {slug}
         </Link>
         {' / '}
         <span>Agents</span>
@@ -87,23 +60,8 @@ export default async function WorkspaceAgentsPage({ params, searchParams }: Page
         <div className="flex items-center gap-3">
           <Bot className="h-8 w-8" />
           <div>
-            <h1 className="text-3xl font-bold">Agent Sessions</h1>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <GitBranch className="h-4 w-4" />
-              {context.worktreeBranch || 'main'}
-              <span className="text-xs">
-                ({context.isMainWorktree ? 'main worktree' : 'linked worktree'})
-              </span>
-            </div>
+            <h1 className="text-3xl font-bold">Agents</h1>
           </div>
-        </div>
-      </div>
-
-      {/* Context Info */}
-      <div className="mb-6 rounded-lg border bg-muted/50 p-4">
-        <div className="text-sm">
-          <span className="font-medium">Worktree:</span>{' '}
-          <code className="rounded bg-background px-2 py-0.5">{context.worktreePath}</code>
         </div>
       </div>
 
@@ -112,29 +70,25 @@ export default async function WorkspaceAgentsPage({ params, searchParams }: Page
         {/* Sidebar with Create Form */}
         <aside className="w-72 shrink-0">
           <div className="rounded-lg border bg-card p-4">
-            <h2 className="mb-3 font-semibold text-sm">New Session</h2>
-            <CreateSessionForm
-              workspaceSlug={slug}
-              worktreePath={worktreePath}
-              sessionCount={sessions.length}
-            />
+            <h2 className="mb-3 font-semibold text-sm">New Agent</h2>
+            <CreateSessionForm workspaceSlug={slug} sessionCount={agents.length} />
           </div>
         </aside>
 
-        {/* Session List */}
+        {/* Agent List */}
         <div className="flex-1">
-          {sessions.length === 0 ? (
+          {agents.length === 0 ? (
             <div className="rounded-lg border border-dashed p-12 text-center">
               <Bot className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-              <h2 className="mb-2 text-xl font-semibold">No agent sessions yet</h2>
-              <p className="text-muted-foreground">Create a session using the form on the left.</p>
+              <h2 className="mb-2 text-xl font-semibold">No agents yet</h2>
+              <p className="text-muted-foreground">Create an agent using the form on the left.</p>
             </div>
           ) : (
             <div className="rounded-lg border">
               <table className="w-full">
                 <thead className="border-b bg-muted/50">
                   <tr>
-                    <th className="px-4 py-3 text-left text-sm font-medium">Session ID</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium">Name</th>
                     <th className="px-4 py-3 text-left text-sm font-medium">Type</th>
                     <th className="px-4 py-3 text-left text-sm font-medium">Status</th>
                     <th className="px-4 py-3 text-left text-sm font-medium">Created</th>
@@ -142,48 +96,48 @@ export default async function WorkspaceAgentsPage({ params, searchParams }: Page
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {sessions.map((session) => (
-                    <tr key={session.id} className="hover:bg-muted/50">
+                  {agents.map((agent) => (
+                    <tr key={agent.id} className="hover:bg-muted/50">
                       <td className="px-4 py-3">
                         <Link
-                          href={`/workspaces/${slug}/agents/${session.id}?worktree=${encodeURIComponent(worktreePath)}`}
+                          href={`/workspaces/${slug}/agents/${agent.id}`}
                           className="font-medium text-primary hover:underline"
                         >
-                          {session.id.slice(-12)}
+                          {agent.name}
                         </Link>
-                        <div className="text-xs text-muted-foreground font-mono">{session.id}</div>
+                        {agent.intent && (
+                          <div className="text-xs text-muted-foreground truncate max-w-48">
+                            {agent.intent}
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-sm">
                         <span className="inline-flex items-center gap-1.5">
                           <Bot className="h-4 w-4" />
-                          {session.type === 'claude-code' ? 'Claude Code' : 'Copilot'}
+                          {agent.type === 'claude-code' ? 'Claude Code' : 'Copilot'}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-sm">
                         <span
                           className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                            session.status === 'active'
-                              ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                              : session.status === 'completed'
-                                ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
-                                : 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400'
+                            agent.status === 'working'
+                              ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                              : agent.status === 'stopped'
+                                ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                                : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
                           }`}
                         >
-                          {session.status}
+                          {agent.status}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-sm text-muted-foreground">
                         <div className="flex items-center gap-1.5">
                           <Clock className="h-4 w-4" />
-                          {session.createdAt.toLocaleString()}
+                          {agent.createdAt.toLocaleString()}
                         </div>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <SessionDeleteButton
-                          sessionId={session.id}
-                          workspaceSlug={slug}
-                          worktreePath={worktreePath}
-                        />
+                        <SessionDeleteButton agentId={agent.id} workspaceSlug={slug} />
                       </td>
                     </tr>
                   ))}

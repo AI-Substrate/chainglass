@@ -1,12 +1,13 @@
 'use client';
 
 /**
- * SessionDeleteButton - Client component for deleting agent sessions.
+ * SessionDeleteButton - Client component for deleting agents.
  *
- * Part of Plan 018: Agent Workspace Data Model Migration (Phase 3)
- * Task T012: Wire delete confirmation dialog to delete button
+ * Part of Plan 019: Agent Manager Refactor (Phase 5: Consolidation & Cleanup)
+ * Per DYK-06: Client components use fetch for mutations.
+ * Per Insight 4: Props renamed (sessionId → agentId), filename kept.
  *
- * Uses DeleteSessionDialog for confirmation before calling DELETE API.
+ * Uses DeleteSessionDialog for confirmation before calling DELETE /api/agents/[id].
  */
 
 import { Trash2 } from 'lucide-react';
@@ -16,16 +17,11 @@ import { Button } from '../ui/button';
 import { DeleteSessionDialog } from './delete-session-dialog';
 
 interface SessionDeleteButtonProps {
-  sessionId: string;
+  agentId: string;
   workspaceSlug: string;
-  worktreePath?: string;
 }
 
-export function SessionDeleteButton({
-  sessionId,
-  workspaceSlug,
-  worktreePath,
-}: SessionDeleteButtonProps) {
+export function SessionDeleteButton({ agentId, workspaceSlug }: SessionDeleteButtonProps) {
   const [open, setOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const router = useRouter();
@@ -33,13 +29,7 @@ export function SessionDeleteButton({
   const handleDelete = async () => {
     setIsDeleting(true);
     try {
-      const params = new URLSearchParams();
-      if (worktreePath) {
-        params.set('worktree', worktreePath);
-      }
-      const url = `/api/workspaces/${workspaceSlug}/agents/${sessionId}?${params.toString()}`;
-
-      const response = await fetch(url, {
+      const response = await fetch(`/api/agents/${agentId}`, {
         method: 'DELETE',
       });
 
@@ -47,10 +37,10 @@ export function SessionDeleteButton({
         setOpen(false);
         router.refresh();
       } else {
-        console.error('Failed to delete session:', response.status);
+        console.error('Failed to delete agent:', response.status);
       }
     } catch (error) {
-      console.error('Error deleting session:', error);
+      console.error('Error deleting agent:', error);
     } finally {
       setIsDeleting(false);
     }
@@ -71,7 +61,7 @@ export function SessionDeleteButton({
         open={open}
         onOpenChange={setOpen}
         onConfirm={handleDelete}
-        sessionId={sessionId}
+        agentId={agentId}
       />
     </>
   );

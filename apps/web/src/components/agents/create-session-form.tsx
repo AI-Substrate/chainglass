@@ -1,11 +1,13 @@
 'use client';
 
 /**
- * CreateSessionForm - Form for creating workspace-scoped agent sessions
+ * CreateSessionForm - Form for creating agents via Plan 019 API
  *
- * Client component that POSTs to /api/workspaces/[slug]/agents
+ * Client component that POSTs to /api/agents
  *
- * Part of Plan 018: Agent Workspace Data Model Migration (Phase 3)
+ * Part of Plan 019: Agent Manager Refactor (Phase 5: Consolidation & Cleanup)
+ * Per DYK-06: Client components use fetch for mutations.
+ * Per Insight 3: Workspace value comes from URL [slug] param.
  */
 
 import { cn } from '@/lib/utils';
@@ -17,9 +19,7 @@ import { Button } from '../ui/button';
 export interface CreateSessionFormProps {
   /** Workspace slug for API calls */
   workspaceSlug: string;
-  /** Optional worktree path for context */
-  worktreePath?: string;
-  /** Current number of sessions (for auto-generating ordinal names) */
+  /** Current number of agents (for auto-generating ordinal names) */
   sessionCount?: number;
   /** Additional CSS classes */
   className?: string;
@@ -34,7 +34,6 @@ const AGENT_TYPE_OPTIONS: Array<{ value: AgentType; label: string }> = [
 
 export function CreateSessionForm({
   workspaceSlug,
-  worktreePath,
   sessionCount = 0,
   className,
 }: CreateSessionFormProps) {
@@ -50,53 +49,49 @@ export function CreateSessionForm({
       setError(null);
 
       const trimmed = name.trim();
-      const finalName = trimmed || `Session ${sessionCount + 1}`;
+      const finalName = trimmed || `Agent ${sessionCount + 1}`;
 
       startTransition(async () => {
         try {
-          const params = new URLSearchParams();
-          if (worktreePath) {
-            params.set('worktree', worktreePath);
-          }
-          const url = `/api/workspaces/${workspaceSlug}/agents${params.toString() ? `?${params.toString()}` : ''}`;
-
-          const response = await fetch(url, {
+          const response = await fetch('/api/agents', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              type: agentType,
               name: finalName,
+              type: agentType,
+              workspace: workspaceSlug,
             }),
           });
 
           if (!response.ok) {
             const data = await response.json().catch(() => ({}));
-            throw new Error(data.error || `Failed to create session: ${response.status}`);
+            throw new Error(data.error || `Failed to create agent: ${response.status}`);
           }
 
-          // Clear form and refresh page
-          setName('');
-          router.refresh();
+          const agent = await response.json();
+
+          // Navigate to the new agent's chat view
+          router.push(`/workspaces/${workspaceSlug}/agents/${agent.id}`);
         } catch (err) {
           setError(err instanceof Error ? err.message : 'Unknown error');
         }
       });
     },
-    [name, agentType, workspaceSlug, worktreePath, sessionCount, router]
+    [name, agentType, workspaceSlug, sessionCount, router]
   );
 
   return (
     <form onSubmit={handleSubmit} className={cn('space-y-3', className)}>
       <div className="space-y-1">
         <label htmlFor="session-name" className="text-sm font-medium text-foreground">
-          Session Name
+          Agent Name
         </label>
         <input
           id="session-name"
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="Session name (optional)"
+          placeholder="Agent name (optional)"
           disabled={isPending}
           className={cn(
             'w-full px-3 py-2 text-sm rounded-md border',
@@ -139,7 +134,7 @@ export function CreateSessionForm({
 
       <Button type="submit" disabled={isPending} className="w-full">
         <Plus className="mr-2 h-4 w-4" />
-        {isPending ? 'Creating...' : 'Create Session'}
+        {isPending ? 'Creating...' : 'Create Agent'}
       </Button>
     </form>
   );

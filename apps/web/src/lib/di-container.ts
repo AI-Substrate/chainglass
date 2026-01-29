@@ -350,11 +350,18 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
     },
   });
 
-  // Register AgentManagerService with adapter factory, notifier, and storage
+  // Register AgentManagerService as manual singleton with adapter factory, notifier, and storage
   // Per DYK-06: AgentManagerService receives notifier via DI
   // Per DYK-12: Storage is optional but provided for persistence
+  // Per Phase 5 ST001: Must be singleton — multiple resolve() calls must return the same instance
+  // so in-memory agent state is shared across server components and API routes.
+  let agentManagerInstance: IAgentManagerService | null = null;
   childContainer.register<IAgentManagerService>(SHARED_DI_TOKENS.AGENT_MANAGER_SERVICE, {
     useFactory: (c) => {
+      if (agentManagerInstance) {
+        return agentManagerInstance;
+      }
+
       const logger = c.resolve<ILogger>(DI_TOKENS.LOGGER);
       const processManager = c.resolve<IProcessManager>(DI_TOKENS.PROCESS_MANAGER);
       const copilotClient = c.resolve<CopilotClient>(DI_TOKENS.COPILOT_CLIENT);
@@ -372,7 +379,8 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
         throw new Error(`Unknown agent type: ${agentType}`);
       };
 
-      return new AgentManagerService(agentAdapterFactory, notifier, storage);
+      agentManagerInstance = new AgentManagerService(agentAdapterFactory, notifier, storage);
+      return agentManagerInstance;
     },
   });
 
