@@ -1,40 +1,35 @@
 /**
- * StoredEvent to LogEntryProps Transformer
+ * AgentStoredEvent to LogEntryProps Transformer
  *
- * Converts server-side StoredEvent objects to LogEntryProps for UI rendering.
+ * Converts Plan 019 AgentStoredEvent objects to LogEntryProps for UI rendering.
  * This bridges the gap between:
- * - StoredEvent: { type: 'tool_call' | 'tool_result' | 'thinking' | 'message', data: {...}, timestamp, id }
+ * - AgentStoredEvent: { eventId: string, type: 'text_delta' | 'tool_call' | ..., timestamp, data: {...} }
  * - LogEntryProps: { messageRole, content, contentType, toolData?, thinkingData? }
  *
- * Part of Plan 015: Better Agents (Phase 5: Integration)
- * Per DYK-P5-02: Dedicated transformer for testability and single responsibility.
+ * Part of Plan 019: Agent Manager Refactor (Phase 5: Consolidation & Cleanup)
+ * Per DYK-05: New transformer for new event schema, replacing old stored-event-to-log-entry.ts.
  */
 
 import type { LogEntryProps, ThinkingData, ToolData } from '@/components/agents/log-entry';
 import type { ToolCallStatus } from '@/components/agents/tool-call-card';
-import type { AgentStoredEvent } from '@chainglass/shared';
+import type { AgentStoredEvent } from '@chainglass/shared/features/019-agent-manager-refactor/agent-instance.interface';
 
 /**
- * Stored event with ID - returned from IAgentEventAdapter.
- * The AgentStoredEvent union is extended with an id field by the adapter.
- * Re-exported for consumers that need to work with stored events.
+ * Re-export AgentStoredEvent for consumers.
  */
-export type StoredEvent = AgentStoredEvent & { id: string };
+export type { AgentStoredEvent };
 
 /**
- * Convert a StoredEvent to LogEntryProps for rendering.
+ * Convert a single AgentStoredEvent to LogEntryProps for rendering.
  *
- * @param event - The stored event from server
+ * @param event - The stored event from Plan 019 agent system
  * @returns LogEntryProps suitable for the LogEntry component
- *
- * @example
- * const events = session.events;
- * const logProps = events.map(storedEventToLogEntryProps);
- * return logProps.map(props => <LogEntry key={props.key} {...props} />);
  */
-export function storedEventToLogEntryProps(event: StoredEvent): LogEntryProps & { key: string } {
+export function agentEventToLogEntryProps(
+  event: AgentStoredEvent
+): LogEntryProps & { key: string } {
   const baseProps = {
-    key: event.id,
+    key: event.eventId,
     messageRole: 'assistant' as const,
     content: '',
   };
@@ -55,12 +50,9 @@ export function storedEventToLogEntryProps(event: StoredEvent): LogEntryProps & 
     }
 
     case 'tool_result': {
-      // For tool_result, we need the corresponding tool_call to get the toolName
-      // Since we don't have context of all events here, use a placeholder
-      // The caller should merge tool_call and tool_result for complete data
       const toolData: ToolData = {
-        toolName: 'Tool', // Will be overridden by merged data
-        input: '', // Will be overridden by merged data
+        toolName: 'Tool',
+        input: '',
         output: event.data.output,
         status: event.data.isError ? ('error' as ToolCallStatus) : ('complete' as ToolCallStatus),
         isError: event.data.isError,
@@ -86,7 +78,6 @@ export function storedEventToLogEntryProps(event: StoredEvent): LogEntryProps & 
     }
 
     case 'message': {
-      // Message event contains the complete assistant response text
       return {
         ...baseProps,
         contentType: 'text',
@@ -94,14 +85,45 @@ export function storedEventToLogEntryProps(event: StoredEvent): LogEntryProps & 
       };
     }
 
+    case 'text_delta': {
+      // text_delta events represent incremental text - accumulate for display
+      return {
+        ...baseProps,
+        contentType: 'text',
+        content: event.data.content,
+        isStreaming: true,
+      };
+    }
+
+    // Plan 019 status events - render as system messages
+    case 'session_start':
+    case 'session_idle':
+    case 'session_error': {
+      return {
+        key: event.eventId,
+        messageRole: 'system',
+        contentType: 'text',
+        content: `[${event.type}] ${event.data.message ?? ''}`.trim(),
+      };
+    }
+
+    case 'usage': {
+      // Usage events typically don't render - skip with empty content
+      return {
+        key: event.eventId,
+        messageRole: 'system',
+        contentType: 'text',
+        content: '',
+      };
+    }
+
     default: {
-      // Fallback for unknown types - render as text
-      // This handles forward compatibility if new event types are added
+      // Fallback for unknown types - render as text for forward compatibility
       const unknownEvent = event as { type: string; data?: { content?: string } };
       return {
         ...baseProps,
         contentType: 'text',
-        content: unknownEvent.data?.content ?? `Unknown event: ${unknownEvent.type}`,
+        content: unknownEvent.data?.content ?? `[${unknownEvent.type}]`,
       };
     }
   }
@@ -109,7 +131,6 @@ export function storedEventToLogEntryProps(event: StoredEvent): LogEntryProps & 
 
 /**
  * Format tool input for display.
- * Handles various input types (string, object, etc.)
  */
 function formatToolInput(input: unknown): string {
   if (typeof input === 'string') {
@@ -128,19 +149,13 @@ function formatToolInput(input: unknown): string {
 /**
  * Merge tool_call and tool_result events by toolCallId.
  * Also merge consecutive thinking events into a single thinking block.
- * Returns complete tool data with both input and output.
+ * Accumulates text_delta events into complete messages.
  *
- * @param events - Array of StoredEvents
- * @returns Array of LogEntryProps with merged tool data
- *
- * @example
- * const events = session.events;
- * const mergedProps = mergeToolEvents(events);
- * // tool_call events now include output from their corresponding tool_result
- * // consecutive thinking events are merged into a single entry
+ * @param events - Array of AgentStoredEvents from Plan 019
+ * @returns Array of LogEntryProps with merged and accumulated data
  */
-export function mergeToolEvents(events: StoredEvent[]): (LogEntryProps & { key: string })[] {
-  // Build a map of toolCallId -> tool_result data
+export function mergeAgentEvents(events: AgentStoredEvent[]): (LogEntryProps & { key: string })[] {
+  // Build map of toolCallId -> tool_result data
   const resultMap = new Map<string, { output: string; isError: boolean; timestamp: string }>();
 
   for (const event of events) {
@@ -153,9 +168,9 @@ export function mergeToolEvents(events: StoredEvent[]): (LogEntryProps & { key: 
     }
   }
 
-  // Transform events, merging tool_result into tool_call and consolidating thinking
   const result: (LogEntryProps & { key: string })[] = [];
   let currentThinking: { key: string; content: string; signature?: string } | null = null;
+  let currentText: { key: string; content: string } | null = null;
 
   for (const event of events) {
     // Skip tool_result - they're merged into tool_call
@@ -163,19 +178,45 @@ export function mergeToolEvents(events: StoredEvent[]): (LogEntryProps & { key: 
       continue;
     }
 
-    // Consolidate consecutive thinking events into a single block
+    // Skip usage events - don't render
+    if (event.type === 'usage') {
+      continue;
+    }
+
+    // Accumulate text_delta into single message
+    if (event.type === 'text_delta') {
+      if (currentText) {
+        currentText.content += event.data.content;
+      } else {
+        currentText = {
+          key: event.eventId,
+          content: event.data.content,
+        };
+      }
+      continue;
+    }
+
+    // Consolidate consecutive thinking events
     if (event.type === 'thinking') {
+      // Flush any pending text first
+      if (currentText) {
+        result.push({
+          key: currentText.key,
+          messageRole: 'assistant',
+          contentType: 'text',
+          content: currentText.content,
+        });
+        currentText = null;
+      }
+
       if (currentThinking) {
-        // Append to existing thinking block
         currentThinking.content += event.data.content;
-        // Keep the latest signature if present
         if (event.data.signature) {
           currentThinking.signature = event.data.signature;
         }
       } else {
-        // Start a new thinking block
         currentThinking = {
-          key: event.id,
+          key: event.eventId,
           content: event.data.content,
           signature: event.data.signature,
         };
@@ -183,7 +224,17 @@ export function mergeToolEvents(events: StoredEvent[]): (LogEntryProps & { key: 
       continue;
     }
 
-    // Non-thinking event encountered - flush any pending thinking block
+    // Non-text/non-thinking event - flush pending blocks
+    if (currentText) {
+      result.push({
+        key: currentText.key,
+        messageRole: 'assistant',
+        contentType: 'text',
+        content: currentText.content,
+      });
+      currentText = null;
+    }
+
     if (currentThinking) {
       result.push({
         key: currentThinking.key,
@@ -198,9 +249,9 @@ export function mergeToolEvents(events: StoredEvent[]): (LogEntryProps & { key: 
       currentThinking = null;
     }
 
-    const props = storedEventToLogEntryProps(event);
+    const props = agentEventToLogEntryProps(event);
 
-    // If this is a tool_call, merge the result if available
+    // If tool_call, merge the result if available
     if (event.type === 'tool_call' && props.toolData) {
       const toolResult = resultMap.get(event.data.toolCallId);
       if (toolResult) {
@@ -216,7 +267,16 @@ export function mergeToolEvents(events: StoredEvent[]): (LogEntryProps & { key: 
     result.push(props);
   }
 
-  // Flush any remaining thinking block at the end
+  // Flush remaining blocks
+  if (currentText) {
+    result.push({
+      key: currentText.key,
+      messageRole: 'assistant',
+      contentType: 'text',
+      content: currentText.content,
+    });
+  }
+
   if (currentThinking) {
     result.push({
       key: currentThinking.key,
@@ -234,14 +294,14 @@ export function mergeToolEvents(events: StoredEvent[]): (LogEntryProps & { key: 
 }
 
 /**
- * Convert StoredEvents to LogEntryProps, suitable for the agents page.
- * This is the main entry point for transforming server events to UI props.
+ * Convert AgentStoredEvents to LogEntryProps, suitable for the agents page.
+ * This is the main entry point for transforming Plan 019 events to UI props.
  *
- * @param events - Array of StoredEvents from useServerSession
+ * @param events - Array of AgentStoredEvents from useAgentInstance
  * @returns Array of LogEntryProps ready for rendering
  */
-export function transformEventsToLogEntries(
-  events: StoredEvent[]
+export function transformAgentEventsToLogEntries(
+  events: AgentStoredEvent[]
 ): (LogEntryProps & { key: string })[] {
-  return mergeToolEvents(events);
+  return mergeAgentEvents(events);
 }

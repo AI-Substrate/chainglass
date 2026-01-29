@@ -1,24 +1,25 @@
 'use client';
 
 /**
- * AgentChatView - Main chat view component for agent sessions
+ * AgentChatView - Main chat view component for agent interactions
  *
  * Features:
- * - Renders events from server session using LogEntry components
+ * - Renders events from server using LogEntry components
  * - Handles streaming content via SSE
  * - Message input with Cmd/Ctrl+Enter submission
  * - Error and loading states
  *
- * Part of Plan 018: Agent Workspace Data Model Migration (Phase 3)
- * Subtask 002: Agent Chat Page - ST002
- *
- * Per DYK-01: Connect-First SSE Pattern - SSE hook mounted before API calls
- * Per DYK-05: Uses transformEventsToLogEntries for event→UI mapping
+ * Part of Plan 019: Agent Manager Refactor (Phase 5: Consolidation & Cleanup)
+ * Per DYK-01: Props changed from sessionId/workspaceSlug/agentType to just agentId
+ * Per DYK-02: Uses useAgentInstance for both API fetch and SSE subscription
+ * Per DYK-05: Uses transformAgentEventsToLogEntries from 019 feature folder
  */
 
-import { useAgentSSE } from '@/hooks/useAgentSSE';
-import { type StoredEvent, useServerSession } from '@/hooks/useServerSession';
-import { transformEventsToLogEntries } from '@/lib/transformers/stored-event-to-log-entry';
+import {
+  type AgentStoredEvent,
+  transformAgentEventsToLogEntries,
+  useAgentInstance,
+} from '@/features/019-agent-manager-refactor';
 import { cn } from '@/lib/utils';
 import { AlertCircle, Bot, Loader2, Wifi, WifiOff } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -26,33 +27,15 @@ import { AgentChatInput } from './agent-chat-input';
 import { ContextWindowDisplay } from './context-window-display';
 import { LogEntry, type LogEntryProps } from './log-entry';
 
+/**
+ * Props for AgentChatView - Plan 019 simplified interface.
+ * Per DYK-01: Only agentId needed; agent metadata comes from API.
+ */
 export interface AgentChatViewProps {
-  /** Session ID to display */
-  sessionId: string;
-  /** Workspace slug for API calls */
-  workspaceSlug: string;
-  /** Worktree path for workspace context */
-  worktreePath?: string;
-  /** Agent type for the session */
-  agentType: 'claude-code' | 'copilot';
-  /** Whether the agent is currently running */
-  isRunning?: boolean;
+  /** Agent ID to display */
+  agentId: string;
   /** Additional CSS classes */
   className?: string;
-}
-
-/**
- * API response type from /api/workspaces/{slug}/agents/run
- */
-interface AgentRunResponse {
-  agentSessionId: string;
-  output: string;
-  status: 'completed' | 'failed' | 'killed';
-  tokens: {
-    used: number;
-    total: number;
-    limit: number;
-  } | null;
 }
 
 /**
@@ -68,113 +51,60 @@ interface UserMessage {
  * Main chat view component.
  *
  * @example
- * <AgentChatView
- *   sessionId="session-123"
- *   workspaceSlug="my-workspace"
- *   worktreePath="/path/to/worktree"
- *   agentType="claude-code"
- * />
+ * <AgentChatView agentId="agent-abc-123" />
  */
-export function AgentChatView({
-  sessionId,
-  workspaceSlug,
-  worktreePath,
-  agentType,
-  isRunning: isRunningProp = false,
-  className,
-}: AgentChatViewProps) {
-  // Local state
+export function AgentChatView({ agentId, className }: AgentChatViewProps) {
+  // Local state for user messages (before they're persisted server-side)
   const [userMessages, setUserMessages] = useState<UserMessage[]>([]);
   const [streamingContent, setStreamingContent] = useState('');
-  const [isRunning, setIsRunning] = useState(isRunningProp);
-  const [error, setError] = useState<{ message: string; code?: string } | null>(null);
-  const [contextUsage, setContextUsage] = useState<number | null>(null);
+  const [localError, setLocalError] = useState<{ message: string; code?: string } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const agentSessionIdRef = useRef<string | null>(null);
+  const refetchRef = useRef<(() => void) | null>(null);
 
-  // Server session hook - fetches events from storage
-  const {
-    session: serverSession,
-    isLoading,
-    error: sessionError,
-    refetch,
-    isConnected: serverSseConnected,
-  } = useServerSession(sessionId, {
-    subscribeToUpdates: false, // Using useAgentSSE for SSE instead
-    workspaceSlug,
-    worktreePath,
-  });
-
-  // SSE hook for real-time streaming - Per DYK-01: Connect BEFORE API calls
-  // Using global 'agents' channel per DYK Insight #1
-  const { isConnected: sseConnected } = useAgentSSE(
-    'agents',
-    {
-      onTextDelta: useCallback(
-        (delta: string, eventSessionId: string) => {
-          // Filter by sessionId per DYK Insight #1
-          if (eventSessionId !== sessionId) return;
-          setStreamingContent((prev) => prev + delta);
-        },
-        [sessionId]
-      ),
-
-      onStatusChange: useCallback(
-        (status: string, eventSessionId: string) => {
-          console.log('[AgentChatView] onStatusChange:', { status, eventSessionId, sessionId });
-          if (eventSessionId !== sessionId) return;
-
-          if (status === 'running') {
-            setIsRunning(true);
-          } else if (status === 'completed' || status === 'idle') {
-            setIsRunning(false);
-            setStreamingContent('');
-            // Refetch to get final events
-            console.log('[AgentChatView] Calling refetch() after completion');
-            refetch();
-          }
-        },
-        [sessionId, refetch]
-      ),
-
-      onUsageUpdate: useCallback(
-        (
-          usage: { tokensUsed: number; tokensTotal: number; tokensLimit?: number },
-          eventSessionId: string
-        ) => {
-          if (eventSessionId !== sessionId) return;
-          if (usage.tokensLimit && usage.tokensLimit > 0) {
-            const percentage = Math.round((usage.tokensTotal / usage.tokensLimit) * 100);
-            setContextUsage(percentage);
-          }
-        },
-        [sessionId]
-      ),
-
-      onError: useCallback(
-        (message: string, eventSessionId: string, code?: string) => {
-          if (eventSessionId !== sessionId) return;
-          setError({ message, code });
-          setIsRunning(false);
-        },
-        [sessionId]
-      ),
+  // Event callback - uses ref to avoid circular dependency
+  const onAgentEvent = useCallback(
+    (eventType: string, data: { agentId: string; delta?: string }) => {
+      // Handle streaming text deltas
+      if (eventType === 'agent_text_delta' && data.delta) {
+        setStreamingContent((prev) => prev + data.delta);
+      }
+      // When agent stops, clear streaming and refetch for final state
+      if (eventType === 'agent_status') {
+        const statusData = data as { agentId: string; status?: string };
+        if (statusData.status !== 'working') {
+          setStreamingContent('');
+          refetchRef.current?.();
+        }
+      }
     },
-    { autoConnect: true }
+    []
   );
 
-  // Transform server events to LogEntry props
+  // Use the Plan 019 hook - handles API fetch + SSE subscription
+  const {
+    agent,
+    events,
+    isWorking,
+    isLoading,
+    error: hookError,
+    isConnected,
+    run,
+    refetch,
+  } = useAgentInstance(agentId, {
+    subscribeToSSE: true,
+    onAgentEvent,
+  });
+
+  // Update refetch ref when it changes
+  useEffect(() => {
+    refetchRef.current = refetch;
+  }, [refetch]);
+
+  // Transform events to LogEntry props
   const serverEventProps = useMemo(() => {
-    console.log(
-      '[AgentChatView] serverSession?.events:',
-      serverSession?.events?.length,
-      serverSession?.events
-    );
-    if (!serverSession?.events) return [];
-    const props = transformEventsToLogEntries(serverSession.events as StoredEvent[]);
-    console.log('[AgentChatView] transformed props:', props.length, props);
-    return props;
-  }, [serverSession?.events]);
+    if (!events || events.length === 0) return [];
+    return transformAgentEventsToLogEntries(events);
+  }, [events]);
 
   // Merge user messages and server events into unified timeline
   const unifiedTimeline = useMemo(() => {
@@ -208,77 +138,26 @@ export function AgentChatView({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [unifiedTimeline, streamingContent]);
 
-  // Sync isRunning prop
-  useEffect(() => {
-    setIsRunning(isRunningProp);
-  }, [isRunningProp]);
-
   // Handle sending a message
   const handleSendMessage = useCallback(
     async (content: string) => {
-      // Clear error and add user message
-      setError(null);
+      // Clear error and add user message to local state
+      setLocalError(null);
       setUserMessages((prev) => [...prev, { role: 'user', content, timestamp: Date.now() }]);
-      setIsRunning(true);
       setStreamingContent('');
 
       try {
-        // Build API URL
-        const params = new URLSearchParams();
-        if (worktreePath) {
-          params.set('worktree', worktreePath);
-        }
-        const url = `/api/workspaces/${workspaceSlug}/agents/run${params.toString() ? `?${params.toString()}` : ''}`;
-
-        // Build request body - only include agentSessionId if we have one
-        const requestBody: Record<string, unknown> = {
+        // Use the hook's run method - calls POST /api/agents/{agentId}/run
+        await run({
           prompt: content,
-          agentType,
-          sessionId,
-          channel: 'agents', // Global channel per DYK Insight #1
-        };
-        if (agentSessionIdRef.current) {
-          requestBody.agentSessionId = agentSessionIdRef.current;
-        }
-        if (worktreePath) {
-          requestBody.worktreePath = worktreePath;
-        }
-
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(requestBody),
+          cwd: agent?.workspace,
         });
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.error || `API error: ${response.status}`);
-        }
-
-        const data: AgentRunResponse = await response.json();
-
-        // Store agent session ID for future calls
-        if (data.agentSessionId) {
-          agentSessionIdRef.current = data.agentSessionId;
-        }
-
-        // Fallback: If SSE didn't complete, use API response
-        // (This handles cases where tab was backgrounded)
-        if (data.status === 'completed') {
-          setIsRunning(false);
-          setStreamingContent('');
-          refetch();
-        } else if (data.status === 'failed' || data.status === 'killed') {
-          setError({ message: data.output || 'Agent failed' });
-          setIsRunning(false);
-        }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
-        setError({ message });
-        setIsRunning(false);
+        setLocalError({ message });
       }
     },
-    [sessionId, workspaceSlug, worktreePath, agentType, refetch]
+    [run, agent?.workspace]
   );
 
   // Handle retry after error
@@ -289,27 +168,28 @@ export function AgentChatView({
     }
   }, [userMessages, handleSendMessage]);
 
+  // Combined error state
+  const error = localError || (hookError ? { message: hookError.message } : null);
+
   // Loading state
   if (isLoading) {
     return (
       <div className={cn('flex-1 flex items-center justify-center', className)}>
         <div className="text-center">
           <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
-          <p className="mt-2 text-sm text-muted-foreground">Loading session...</p>
+          <p className="mt-2 text-sm text-muted-foreground">Loading agent...</p>
         </div>
       </div>
     );
   }
 
-  // Session error state
-  if (sessionError) {
+  // Agent not found
+  if (agent === null) {
     return (
       <div className={cn('flex-1 flex items-center justify-center', className)}>
         <div className="text-center">
-          <AlertCircle className="h-8 w-8 mx-auto text-red-500" />
-          <p className="mt-2 text-sm text-red-600 dark:text-red-400">
-            Failed to load session: {sessionError.message}
-          </p>
+          <AlertCircle className="h-8 w-8 mx-auto text-amber-500" />
+          <p className="mt-2 text-sm text-muted-foreground">Agent not found: {agentId}</p>
         </div>
       </div>
     );
@@ -322,13 +202,12 @@ export function AgentChatView({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Bot className="h-5 w-5 text-muted-foreground" />
-            <span className="font-medium font-mono text-sm truncate max-w-xs">
-              {sessionId.slice(-12)}
-            </span>
+            <span className="font-medium text-sm truncate max-w-xs">{agent?.name ?? agentId}</span>
+            <span className="text-xs text-muted-foreground">({agent?.type})</span>
           </div>
           <div className="flex items-center gap-2">
             {/* SSE connection indicator */}
-            {sseConnected ? (
+            {isConnected ? (
               <span title="Connected">
                 <Wifi className="h-4 w-4 text-green-500" />
               </span>
@@ -337,21 +216,20 @@ export function AgentChatView({
                 <WifiOff className="h-4 w-4 text-red-500" />
               </span>
             )}
-            {/* Running indicator */}
-            {isRunning && (
+            {/* Status indicator */}
+            {isWorking && (
               <span className="inline-flex items-center gap-1 text-xs text-blue-600">
                 <Loader2 className="h-3 w-3 animate-spin" />
-                Running
+                Working
+              </span>
+            )}
+            {agent?.intent && (
+              <span className="text-xs text-muted-foreground truncate max-w-32">
+                {agent.intent}
               </span>
             )}
           </div>
         </div>
-        {/* Context usage bar */}
-        {contextUsage !== null && (
-          <div className="mt-2">
-            <ContextWindowDisplay usage={contextUsage} />
-          </div>
-        )}
       </div>
 
       {/* Messages area */}
@@ -405,8 +283,8 @@ export function AgentChatView({
       <div className="shrink-0 border-t p-4">
         <AgentChatInput
           onMessage={handleSendMessage}
-          disabled={isRunning}
-          placeholder={isRunning ? 'Agent is running...' : 'Send a message...'}
+          disabled={isWorking}
+          placeholder={isWorking ? 'Agent is working...' : 'Send a message...'}
         />
       </div>
     </div>

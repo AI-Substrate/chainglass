@@ -17,7 +17,9 @@
  * Extended in Plan 015: Better Agents (Phase 4: UI Components)
  */
 
-import type { MessageContentType } from '@/lib/schemas/agent-session.schema';
+/** Message content type for routing to appropriate component */
+type MessageContentType = 'text' | 'tool_call' | 'tool_result' | 'thinking';
+
 import { cn } from '@/lib/utils';
 import { Bot, User } from 'lucide-react';
 import { MarkdownInline } from '../markdown-inline';

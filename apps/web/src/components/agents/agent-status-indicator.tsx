@@ -16,7 +16,9 @@
  * Part of Plan 012: Multi-Agent Web UI (Phase 2: Core Chat)
  */
 
-import type { SessionStatus } from '@/lib/schemas/agent-session.schema';
+/** Session status values */
+type SessionStatus = 'idle' | 'running' | 'waiting_input' | 'completed' | 'archived';
+
 import { cn } from '@/lib/utils';
 import { Archive, Bot, CheckCircle2, Clock, Loader2 } from 'lucide-react';
 

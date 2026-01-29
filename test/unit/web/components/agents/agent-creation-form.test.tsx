@@ -4,14 +4,16 @@
  * Tests for the form to create new agent sessions.
  * Implements Full TDD for Phase 2: Core Chat.
  *
- * Part of Plan 012: Multi-Agent Web UI (Phase 2: Core Chat)
+ * Part of Plan 019: Agent Manager Refactor
  */
 
 import { AgentCreationForm } from '@/components/agents/agent-creation-form';
-import type { AgentType } from '@/lib/schemas/agent-session.schema';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
+
+// AgentType is inlined in the component
+type AgentType = 'claude-code' | 'copilot';
 
 // ============ Callback Tracker ============
 

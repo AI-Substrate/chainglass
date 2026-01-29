@@ -1,28 +1,24 @@
 /**
- * Agent Session Chat Page - /workspaces/[slug]/agents/[id]
+ * Agent Chat Page - /workspaces/[slug]/agents/[id]
  *
- * Part of Plan 018: Agent Workspace Data Model Migration (Phase 3)
- * Subtask 002: Agent Chat Page - Replaces raw JSON detail with interactive chat
+ * Part of Plan 019: Agent Manager Refactor (Phase 5: Consolidation & Cleanup)
+ * Per DYK-03: URL param [id] now represents agentId (UUID), not sessionId.
  *
  * Server component wrapper that:
- * - Fetches current session and all sessions (for sidebar selector)
+ * - Loads agent metadata via AgentManagerService
  * - Renders AgentChatView client component for interactive chat
- * - Renders SessionSelector for switching between sessions
+ * - Renders agent list sidebar for switching between agents
  *
- * Per DYK-02: Uses notFound() for invalid workspace or session.
- * Per Discovery 04: Uses `export const dynamic = 'force-dynamic'` for DI container access.
+ * Per DYK-01: Props changed from sessionId/workspaceSlug/agentType to just agentId.
  * Per Discovery 11: Must await params before use (Next.js 16+).
- * Per DYK Insight #2: Replaces detail page with chat UI (no separate /chat route).
  */
 
-import { WORKSPACE_DI_TOKENS } from '@chainglass/shared';
-import type { IAgentSessionService, IWorkspaceService } from '@chainglass/workflow';
-import { ArrowLeft, Bot, GitBranch } from 'lucide-react';
+import { SHARED_DI_TOKENS } from '@chainglass/shared';
+import type { IAgentManagerService } from '@chainglass/shared/features/019-agent-manager-refactor/agent-manager.interface';
+import { ArrowLeft, Bot, Trash2 } from 'lucide-react';
 import Link from 'next/link';
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import { AgentChatView } from '../../../../../../src/components/agents/agent-chat-view';
-import { DeleteSessionButton } from '../../../../../../src/components/agents/delete-session-button';
-import { SessionSelector } from '../../../../../../src/components/agents/session-selector';
 import { getContainer } from '../../../../../../src/lib/bootstrap-singleton';
 
 export const dynamic = 'force-dynamic';
@@ -32,71 +28,37 @@ interface PageProps {
     slug: string;
     id: string;
   }>;
-  searchParams: Promise<{
-    worktree?: string;
-  }>;
 }
 
-export default async function AgentSessionChatPage({ params, searchParams }: PageProps) {
-  const { slug, id } = await params;
-  const { worktree: worktreePath } = await searchParams;
-
-  // Redirect to workspace detail if no worktree specified (per DYK-02)
-  if (!worktreePath) {
-    redirect(`/workspaces/${slug}`);
-  }
+export default async function AgentChatPage({ params }: PageProps) {
+  const { slug: workspaceSlug, id: agentId } = await params;
 
   const container = getContainer();
-  const workspaceService = container.resolve<IWorkspaceService>(
-    WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE
-  );
-  const sessionService = container.resolve<IAgentSessionService>(
-    WORKSPACE_DI_TOKENS.AGENT_SESSION_SERVICE
+  const agentManager = container.resolve<IAgentManagerService>(
+    SHARED_DI_TOKENS.AGENT_MANAGER_SERVICE
   );
 
-  // Resolve context - per DYK-02: use notFound() for invalid slug
-  const context = await workspaceService.resolveContextFromParams(slug, worktreePath);
+  // Ensure initialized (loads from storage)
+  await agentManager.initialize();
 
-  if (!context) {
+  // Get the agent by ID
+  const agent = agentManager.getAgent(agentId);
+
+  if (!agent) {
     notFound();
   }
 
-  // Load current session
-  const session = await sessionService.getSession(context, id);
+  // Get all agents for sidebar (filter by workspace if needed)
+  const allAgents = agentManager.getAgents();
 
-  if (!session) {
-    notFound();
-  }
-
-  // Load all sessions for the sidebar selector
-  const allSessions = await sessionService.listSessions(context);
-
-  // Convert AgentSession entities to serializable props for client component
-  // Backend status: 'active' | 'completed' | 'terminated'
-  // UI status: 'idle' | 'running' | 'completed' | 'error'
-  // Note: 'active' means session is open (can receive messages), NOT that agent is running
-  const sessionsForSelector = allSessions.map((s) => ({
-    id: s.id,
-    name: `Session ${s.id.slice(-8)}`,
-    agentType: s.type,
-    status: s.status === 'completed' ? ('completed' as const) : ('idle' as const),
-    messages: [],
-    createdAt: s.createdAt.getTime(),
-    lastActiveAt: s.updatedAt.getTime(),
-  }));
-
-  // Get workspace info for breadcrumb
-  const info = await workspaceService.getInfo(slug);
-
-  // Build back link to worktree landing or agents list
-  const agentsListUrl = `/workspaces/${slug}/agents?worktree=${encodeURIComponent(worktreePath)}`;
-  const worktreeUrl = `/workspaces/${slug}/worktree?worktree=${encodeURIComponent(worktreePath)}`;
+  // Build navigation URLs
+  const agentsListUrl = `/workspaces/${workspaceSlug}/agents`;
 
   return (
     <div className="flex h-[calc(100vh-4rem)]">
       {/* Main chat area */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Header with breadcrumb and session info */}
+        {/* Header with breadcrumb and agent info */}
         <header className="shrink-0 border-b bg-background">
           {/* Breadcrumb */}
           <nav className="px-4 py-2 text-sm text-muted-foreground border-b">
@@ -104,82 +66,103 @@ export default async function AgentSessionChatPage({ params, searchParams }: Pag
               Workspaces
             </Link>
             {' / '}
-            <Link href={`/workspaces/${slug}`} className="hover:underline">
-              {info?.name || slug}
-            </Link>
-            {' / '}
-            <Link href={worktreeUrl} className="hover:underline">
-              {context.worktreeBranch || 'worktree'}
+            <Link href={`/workspaces/${workspaceSlug}`} className="hover:underline">
+              {workspaceSlug}
             </Link>
             {' / '}
             <Link href={agentsListUrl} className="hover:underline">
               Agents
             </Link>
             {' / '}
-            <span className="font-mono">{session.id.slice(-12)}</span>
+            <span className="font-medium">{agent.name}</span>
           </nav>
 
-          {/* Session header */}
+          {/* Agent header */}
           <div className="px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Link
                 href={agentsListUrl}
                 className="p-1 -ml-1 rounded hover:bg-muted transition-colors"
-                title="Back to sessions"
+                title="Back to agents"
               >
                 <ArrowLeft className="h-5 w-5 text-muted-foreground" />
               </Link>
               <Bot className="h-6 w-6 text-muted-foreground" />
               <div>
-                <h1 className="font-semibold">Session {session.id.slice(-8)}</h1>
+                <h1 className="font-semibold">{agent.name}</h1>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <GitBranch className="h-3 w-3" />
-                  {context.worktreeBranch || 'main'}
-                  <span>•</span>
-                  <span>{session.type === 'claude-code' ? 'Claude Code' : 'Copilot'}</span>
+                  <span>{agent.type === 'claude-code' ? 'Claude Code' : 'Copilot'}</span>
+                  {agent.intent && (
+                    <>
+                      <span>•</span>
+                      <span className="truncate max-w-48">{agent.intent}</span>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
             <div className="flex items-center gap-2">
               <span
                 className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                  session.status === 'active'
+                  agent.status === 'working'
                     ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
-                    : session.status === 'completed'
+                    : agent.status === 'stopped'
                       ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                      : 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400'
+                      : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
                 }`}
               >
-                {session.status}
+                {agent.status}
               </span>
-              <DeleteSessionButton
-                sessionId={session.id}
-                workspaceSlug={slug}
-                worktreePath={worktreePath}
-              />
             </div>
           </div>
         </header>
 
         {/* Chat view - client component */}
-        <AgentChatView
-          sessionId={session.id}
-          workspaceSlug={slug}
-          worktreePath={worktreePath}
-          agentType={session.type}
-          isRunning={false}
-          className="flex-1 min-h-0"
-        />
+        <AgentChatView agentId={agentId} className="flex-1 min-h-0" />
       </div>
 
-      {/* Session selector sidebar */}
-      <SessionSelector
-        sessions={sessionsForSelector}
-        activeSessionId={session.id}
-        workspaceSlug={slug}
-        worktreePath={worktreePath}
-        className="w-64 shrink-0 hidden lg:flex"
-      />
+      {/* Agent list sidebar */}
+      <aside className="w-64 shrink-0 hidden lg:flex flex-col border-l bg-muted/30">
+        <div className="px-4 py-3 border-b">
+          <h2 className="text-sm font-medium text-muted-foreground">Agents</h2>
+        </div>
+        <div className="flex-1 overflow-auto">
+          {allAgents.length === 0 ? (
+            <p className="p-4 text-sm text-muted-foreground">No agents</p>
+          ) : (
+            <ul className="divide-y">
+              {allAgents.map((a) => (
+                <li key={a.id}>
+                  <Link
+                    href={`/workspaces/${workspaceSlug}/agents/${a.id}`}
+                    className={`block px-4 py-3 hover:bg-muted/50 transition-colors ${
+                      a.id === agentId ? 'bg-muted' : ''
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium truncate">{a.name}</span>
+                      <span
+                        className={`text-xs ${
+                          a.status === 'working'
+                            ? 'text-blue-600'
+                            : a.status === 'error'
+                              ? 'text-red-600'
+                              : 'text-muted-foreground'
+                        }`}
+                      >
+                        {a.status}
+                      </span>
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      {a.type === 'claude-code' ? 'Claude' : 'Copilot'}
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </aside>
     </div>
   );
 }

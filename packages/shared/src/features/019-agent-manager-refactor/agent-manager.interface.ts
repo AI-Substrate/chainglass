@@ -6,6 +6,7 @@
  *
  * Per spec AC-01, AC-02, AC-03, AC-04.
  * Per Phase 3: AC-05 (persistence), DYK-12 (optional storage), DYK-13 (hydrate).
+ * Per Phase 5: terminateAgent() added for DELETE /api/agents/[id] support.
  */
 
 import type { AgentType, IAgentInstance } from './agent-instance.interface.js';
@@ -88,4 +89,20 @@ export interface IAgentManagerService {
    * Per AC-24: Agent not found is not an error condition
    */
   getAgent(agentId: string): IAgentInstance | null;
+
+  /**
+   * Terminate and delete an agent.
+   *
+   * Performs cleanup in order:
+   * 1. Terminates running session (if any) via agent.terminate()
+   * 2. Removes from in-memory registry
+   * 3. Unregisters from storage (if available)
+   *
+   * @param agentId - Agent ID to terminate
+   * @returns true if agent was deleted, false if not found
+   *
+   * Per Phase 5 T003a: DELETE /api/agents/[id] support
+   * Per R1-07 (Critical Finding): Cascade delete coordination
+   */
+  terminateAgent(agentId: string): Promise<boolean>;
 }

@@ -4,13 +4,15 @@
  * Tests for the status indicator badge with color mapping.
  * Implements Full TDD for Phase 2: Core Chat.
  *
- * Part of Plan 012: Multi-Agent Web UI (Phase 2: Core Chat)
+ * Part of Plan 019: Agent Manager Refactor
  */
 
 import { AgentStatusIndicator } from '@/components/agents/agent-status-indicator';
-import type { SessionStatus } from '@/lib/schemas/agent-session.schema';
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
+
+// SessionStatus is inlined in the component
+type SessionStatus = 'idle' | 'working' | 'error' | 'complete';
 
 // ============ T009: AgentStatusIndicator Tests ============
 

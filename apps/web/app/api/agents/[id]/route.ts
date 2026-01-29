@@ -4,7 +4,10 @@ import type { IAgentManagerService } from '@chainglass/shared/features/019-agent
  * Agent API Route - /api/agents/[id]
  *
  * GET endpoint for fetching a single agent with its event history.
+ * DELETE endpoint for terminating and removing an agent.
+ *
  * Per Plan 019 AC-09: Web can access agent events for conversation history rehydration.
+ * Per Phase 5 T003a: DELETE support for agent termination.
  *
  * DYK-16: All routes call ensureInitialized() before operations (lazy init with flag guard).
  * DYK-05: Uses lazy singleton DI container via getContainer().
@@ -90,6 +93,48 @@ export async function GET(
     return NextResponse.json(
       {
         error: 'Failed to fetch agent',
+        message: error instanceof Error ? error.message : String(error),
+      },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * DELETE /api/agents/[id] - Terminate and delete an agent
+ *
+ * Terminates any running session and removes the agent from storage.
+ * Per Phase 5 T003a: DELETE route for agent cleanup.
+ */
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+): Promise<Response> {
+  try {
+    // Ensure initialization (DYK-16)
+    await ensureInitialized();
+
+    const { id } = await params;
+
+    const container = getContainer();
+    const agentManager = container.resolve<IAgentManagerService>(
+      SHARED_DI_TOKENS.AGENT_MANAGER_SERVICE
+    );
+
+    // Terminate and delete agent
+    const deleted = await agentManager.terminateAgent(id);
+
+    // Return 404 if agent not found
+    if (!deleted) {
+      return NextResponse.json({ error: 'Agent not found', agentId: id }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true, agentId: id });
+  } catch (error) {
+    console.error('[DELETE /api/agents/[id]] Error deleting agent:', error);
+    return NextResponse.json(
+      {
+        error: 'Failed to delete agent',
         message: error instanceof Error ? error.message : String(error),
       },
       { status: 500 }

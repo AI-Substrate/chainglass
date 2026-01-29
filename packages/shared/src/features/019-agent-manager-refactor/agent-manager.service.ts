@@ -225,4 +225,52 @@ export class AgentManagerService implements IAgentManagerService {
   getAgent(agentId: string): IAgentInstance | null {
     return this._agents.get(agentId) ?? null;
   }
+
+  /**
+   * Terminate and delete an agent.
+   *
+   * Performs cleanup in order:
+   * 1. Terminates running session (if any) via agent.terminate()
+   * 2. Removes from in-memory registry
+   * 3. Unregisters from storage (if available)
+   *
+   * @param agentId - Agent ID to terminate
+   * @returns true if agent was deleted, false if not found
+   *
+   * Per Phase 5 T003a: DELETE /api/agents/[id] support
+   * Per R1-07 (Critical Finding): Cascade delete coordination
+   */
+  async terminateAgent(agentId: string): Promise<boolean> {
+    const agent = this._agents.get(agentId);
+    if (!agent) {
+      return false;
+    }
+
+    // Step 1: Terminate running session (if any)
+    // Ignore result - we want to delete even if termination fails
+    try {
+      await agent.terminate();
+    } catch (error) {
+      console.warn(`[AgentManagerService] Failed to terminate agent session ${agentId}:`, error);
+      // Continue with deletion
+    }
+
+    // Step 2: Remove from in-memory registry
+    this._agents.delete(agentId);
+
+    // Step 3: Unregister from storage (if available)
+    if (this._storage) {
+      try {
+        await this._storage.unregisterAgent(agentId);
+      } catch (error) {
+        // Log error but don't fail - agent is already removed from memory
+        console.error(
+          `[AgentManagerService] Failed to unregister agent from storage ${agentId}:`,
+          error
+        );
+      }
+    }
+
+    return true;
+  }
 }

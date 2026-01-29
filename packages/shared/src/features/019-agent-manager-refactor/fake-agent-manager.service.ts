@@ -103,6 +103,33 @@ export class FakeAgentManagerService implements IAgentManagerService {
     return this._agents.get(agentId) ?? null;
   }
 
+  /**
+   * Terminate and delete an agent.
+   *
+   * @param agentId - Agent ID to terminate
+   * @returns true if agent was deleted, false if not found
+   */
+  async terminateAgent(agentId: string): Promise<boolean> {
+    // Check for injected error
+    const error = this._errors.get('terminateAgent');
+    if (error) {
+      throw error;
+    }
+
+    const agent = this._agents.get(agentId);
+    if (!agent) {
+      return false;
+    }
+
+    // Terminate the agent session
+    await agent.terminate();
+
+    // Remove from registry
+    this._agents.delete(agentId);
+
+    return true;
+  }
+
   // ===== Test Helpers =====
 
   /**
@@ -132,7 +159,10 @@ export class FakeAgentManagerService implements IAgentManagerService {
    * @param methodName - Method name to inject error for
    * @param error - Error to throw
    */
-  setError(methodName: 'createAgent' | 'getAgents' | 'getAgent', error: Error): void {
+  setError(
+    methodName: 'createAgent' | 'getAgents' | 'getAgent' | 'terminateAgent',
+    error: Error
+  ): void {
     this._errors.set(methodName, error);
   }
 
@@ -141,7 +171,7 @@ export class FakeAgentManagerService implements IAgentManagerService {
    *
    * @param methodName - Method name to clear error for
    */
-  clearError(methodName: 'createAgent' | 'getAgents' | 'getAgent'): void {
+  clearError(methodName: 'createAgent' | 'getAgents' | 'getAgent' | 'terminateAgent'): void {
     this._errors.delete(methodName);
   }
 
