@@ -1,6 +1,20 @@
 /**
  * useAgentSSE - SSE hook for agent streaming events
  *
+ * @deprecated This hook is deprecated as of Plan 019: Agent Manager Refactor.
+ * Use `useAgentManager` or `useAgentInstance` from `@/features/019-agent-manager-refactor` instead.
+ *
+ * New hooks provide:
+ * - Single SSE channel at /api/agents/events (per ADR-0007)
+ * - React Query integration for agent state
+ * - Unified agent management across workspaces
+ *
+ * Migration guide:
+ * - For agent list + SSE: Use `useAgentManager()`
+ * - For single agent operations: Use `useAgentInstance(agentId)`
+ *
+ * See: apps/web/src/features/019-agent-manager-refactor/
+ *
  * Specialized hook for handling agent-specific SSE events (text_delta, status, usage, error).
  * Unlike useSSE which handles generic onmessage events, this hook listens to named event types
  * as broadcast by the /api/agents/run endpoint.
