@@ -33,6 +33,7 @@ import {
   SHARED_DI_TOKENS,
   SdkCopilotAdapter,
   UnixProcessManager,
+  WORKGRAPH_DI_TOKENS,
   WORKSPACE_DI_TOKENS,
   WindowsProcessManager,
 } from '@chainglass/shared';
@@ -55,9 +56,20 @@ import {
   WorkspaceRegistryAdapter,
   WorkspaceService,
 } from '@chainglass/workflow';
+// Plan 022: Import workgraph services
+import {
+  FakeWorkGraphService,
+  type IWorkGraphService,
+  registerWorkgraphServices,
+  registerWorkgraphTestServices,
+} from '@chainglass/workgraph';
 // Phase 4: Import CopilotClient from SDK for production adapter
 import { CopilotClient } from '@github/copilot-sdk';
 import { type DependencyContainer, container } from 'tsyringe';
+import { FakeWorkGraphUIService } from '../features/022-workgraph-ui/fake-workgraph-ui-service';
+// Plan 022: WorkGraph UI services
+import { WorkGraphUIService } from '../features/022-workgraph-ui/workgraph-ui.service';
+import type { IWorkGraphUIService } from '../features/022-workgraph-ui/workgraph-ui.types';
 import { SampleService } from '../services/sample.service';
 // Plan 012: Session persistence
 import { AgentSessionStore } from './stores/agent-session.store';
@@ -103,6 +115,8 @@ export const DI_TOKENS = {
   AGENT_SERVICE: 'AgentService',
   // Plan 012: Agent session persistence
   SESSION_STORE: 'SessionStore',
+  // Plan 022: WorkGraph UI
+  WORKGRAPH_UI_SERVICE: 'WorkGraphUIService',
 } as const;
 
 /**
@@ -320,6 +334,19 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
       new WorkflowSampleService(c.resolve<ISampleAdapter>(WORKSPACE_DI_TOKENS.SAMPLE_ADAPTER)),
   });
 
+  // ==================== Plan 022 Phase 1: WorkGraph UI Services ====================
+
+  // Register workgraph backend services first
+  registerWorkgraphServices(childContainer);
+
+  // Register WorkGraphUIService (depends on IWorkGraphService)
+  childContainer.register<IWorkGraphUIService>(DI_TOKENS.WORKGRAPH_UI_SERVICE, {
+    useFactory: (c) => {
+      const workGraphService = c.resolve<IWorkGraphService>(WORKGRAPH_DI_TOKENS.WORKGRAPH_SERVICE);
+      return new WorkGraphUIService(workGraphService);
+    },
+  });
+
   // FIX-010: Performance metrics for container creation
   const durationMs = performance.now() - startTime;
   console.log(`[createProductionContainer] Container created in ${durationMs.toFixed(2)}ms`);
@@ -456,6 +483,16 @@ export function createTestContainer(): DependencyContainer {
   childContainer.register<ISampleService>(WORKSPACE_DI_TOKENS.SAMPLE_SERVICE, {
     useFactory: (c) =>
       new WorkflowSampleService(c.resolve<ISampleAdapter>(WORKSPACE_DI_TOKENS.SAMPLE_ADAPTER)),
+  });
+
+  // ==================== Plan 022 Phase 1: WorkGraph UI Test Services ====================
+
+  // Register workgraph test fakes
+  registerWorkgraphTestServices(childContainer);
+
+  // Register FakeWorkGraphUIService
+  childContainer.register<IWorkGraphUIService>(DI_TOKENS.WORKGRAPH_UI_SERVICE, {
+    useFactory: () => new FakeWorkGraphUIService(),
   });
 
   return childContainer;

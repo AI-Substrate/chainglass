@@ -75,3 +75,20 @@ export type {
   HandoverType,
   WorkNodeDataType,
 } from './worknode.schema.js';
+
+// Layout schema
+export {
+  PositionSchema,
+  NodeLayoutSchema,
+  ViewportSchema,
+  LayoutSchema,
+  createDefaultLayout,
+  LAYOUT_JSON_SCHEMA,
+} from './layout.schema.js';
+
+export type {
+  PositionType,
+  NodeLayoutType,
+  ViewportType,
+  LayoutType,
+} from './layout.schema.js';
