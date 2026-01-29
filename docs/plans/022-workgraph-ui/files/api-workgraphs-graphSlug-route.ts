@@ -1,0 +1,1 @@
+../../../../../../apps/web/app/api/workspaces/[slug]/workgraphs/[graphSlug]/route.ts

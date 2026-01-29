@@ -20,12 +20,14 @@ import {
   FakeConfigService,
   FakeLogger,
   FakeProcessManager,
+  FakeYamlParser,
   type IAgentAdapter,
   type IConfigService,
   type IFileSystem,
   type ILogger,
   type IPathResolver,
   type IProcessManager,
+  type IYamlParser,
   NodeFileSystemAdapter,
   PathResolverAdapter,
   PinoLoggerAdapter,
@@ -36,6 +38,7 @@ import {
   WORKGRAPH_DI_TOKENS,
   WORKSPACE_DI_TOKENS,
   WindowsProcessManager,
+  YamlParserAdapter,
 } from '@chainglass/shared';
 // Plan 014 Phase 6: Import workspace services from @chainglass/workflow
 import {
@@ -278,6 +281,11 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
     useFactory: () => new PathResolverAdapter(),
   });
 
+  // Register YAML parser (needed by workgraph services)
+  childContainer.register<IYamlParser>(SHARED_DI_TOKENS.YAML_PARSER, {
+    useFactory: () => new YamlParserAdapter(),
+  });
+
   // Register workspace registry adapter
   childContainer.register<IWorkspaceRegistryAdapter>(
     WORKSPACE_DI_TOKENS.WORKSPACE_REGISTRY_ADAPTER,
@@ -343,7 +351,9 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
   childContainer.register<IWorkGraphUIService>(DI_TOKENS.WORKGRAPH_UI_SERVICE, {
     useFactory: (c) => {
       const workGraphService = c.resolve<IWorkGraphService>(WORKGRAPH_DI_TOKENS.WORKGRAPH_SERVICE);
-      return new WorkGraphUIService(workGraphService);
+      const fs = c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
+      const pathResolver = c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
+      return new WorkGraphUIService(workGraphService, fs, pathResolver);
     },
   });
 
@@ -438,6 +448,11 @@ export function createTestContainer(): DependencyContainer {
   });
 
   // ==================== Plan 014 Phase 6: Workspace Service Fakes ====================
+
+  // Register fake YAML parser (needed by workgraph fakes)
+  childContainer.register<IYamlParser>(SHARED_DI_TOKENS.YAML_PARSER, {
+    useValue: new FakeYamlParser(),
+  });
 
   // Register fake workspace registry adapter
   const fakeWorkspaceRegistryAdapter = new FakeWorkspaceRegistryAdapter();

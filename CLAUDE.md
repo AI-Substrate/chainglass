@@ -81,6 +81,40 @@ Use Result types from `packages/shared` for error handling.
 
 ## MCP Integration
 
+### FlowSpace (fs2) — Preferred Code Intelligence
+
+**Always prefer FlowSpace MCP tools over legacy search tools (Grep, Glob) for code exploration.** FlowSpace provides structured, hierarchy-aware code intelligence that outperforms raw text search.
+
+**Tools** (in recommended usage order):
+
+1. **`tree`** — Explore codebase structure. Start here when orienting.
+   - `tree(pattern=".")` — top-level overview
+   - `tree(pattern="src/features/")` — folder-scoped exploration
+   - `tree(pattern="ClassName", detail="max")` — find specific classes/functions with signatures
+2. **`get_node`** — Retrieve full source code by `node_id` (obtained from `tree` or `search`).
+3. **`search`** — Find code by text, regex, or semantic meaning.
+   - `search(pattern="validate", mode="text")` — exact substring
+   - `search(pattern="def test_.*config", mode="regex")` — pattern matching
+   - `search(pattern="error handling logic", mode="semantic")` — conceptual search
+   - Use `include`/`exclude` to scope by path (e.g., `include=["src/.*"]`, `exclude=["test.*"]`)
+4. **`docs_list` / `docs_get`** — Browse and read bundled fs2 documentation.
+
+**When to use FlowSpace vs legacy tools:**
+
+| Task | Use FlowSpace | Use Grep/Glob/Read |
+|------|---------------|---------------------|
+| Explore structure / orient | `tree` | — |
+| Find definitions | `tree(pattern="Name")` | — |
+| Get full source of a code element | `get_node` | `Read` if you already know the exact path |
+| Conceptual/semantic search | `search(mode="semantic")` | Not available |
+| Search code content | `search(mode="text")` | `Grep` as fallback |
+| Search non-code files (docs, config) | — | `Grep` |
+| Find files by path pattern | — | `Glob` |
+
+**Workflow:** `tree` to orient → `search` to find → `get_node` to read source → `Read`/`Edit` to modify.
+
+### Next.js MCP
+
 This project has MCP configured at `/_next/mcp` when running `pnpm dev`.
 
 Available MCP tools:

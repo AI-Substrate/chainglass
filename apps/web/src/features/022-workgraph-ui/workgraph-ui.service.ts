@@ -13,6 +13,7 @@
  * Per Medium Impact Discovery 10: All methods return BaseResult with errors[]
  */
 
+import type { IFileSystem, IPathResolver } from '@chainglass/shared';
 import type { WorkspaceContext } from '@chainglass/workflow';
 import type { IWorkGraphService } from '@chainglass/workgraph';
 
@@ -33,15 +34,21 @@ import type {
  */
 export class WorkGraphUIService implements IWorkGraphUIService {
   private readonly backend: IWorkGraphService;
+  private readonly fs: IFileSystem;
+  private readonly pathResolver: IPathResolver;
   private readonly instanceCache = new Map<string, WorkGraphUIInstance>();
 
   /**
    * Create a new WorkGraphUIService.
    *
    * @param backend - The backend WorkGraphService for file operations
+   * @param fs - Filesystem interface for directory scanning
+   * @param pathResolver - Path resolution utilities
    */
-  constructor(backend: IWorkGraphService) {
+  constructor(backend: IWorkGraphService, fs: IFileSystem, pathResolver: IPathResolver) {
     this.backend = backend;
+    this.fs = fs;
+    this.pathResolver = pathResolver;
   }
 
   // ==================== Key Helper ====================
@@ -93,13 +100,51 @@ export class WorkGraphUIService implements IWorkGraphUIService {
   // ==================== listGraphs ====================
 
   async listGraphs(ctx: WorkspaceContext): Promise<ListGraphsResult> {
-    // Note: IWorkGraphService doesn't have a list method in the current interface
-    // We'll need to implement this via filesystem scanning or add to interface
-    // For now, return empty list - this will be expanded in Phase 3
-    return {
-      graphSlugs: [],
-      errors: [],
-    };
+    const graphsDir = this.pathResolver.join(ctx.worktreePath, '.chainglass/data/work-graphs');
+
+    try {
+      // Check if directory exists
+      const exists = await this.fs.exists(graphsDir);
+      if (!exists) {
+        return {
+          graphSlugs: [],
+          errors: [],
+        };
+      }
+
+      // List directory contents
+      const entries = await this.fs.readDir(graphsDir);
+
+      // Filter to directories that contain work-graph.yaml
+      const graphSlugs: string[] = [];
+      for (const entry of entries) {
+        const entryPath = this.pathResolver.join(graphsDir, entry);
+        const stat = await this.fs.stat(entryPath);
+        if (stat.isDirectory) {
+          const yamlPath = this.pathResolver.join(entryPath, 'work-graph.yaml');
+          const hasYaml = await this.fs.exists(yamlPath);
+          if (hasYaml) {
+            graphSlugs.push(entry);
+          }
+        }
+      }
+
+      return {
+        graphSlugs,
+        errors: [],
+      };
+    } catch (error) {
+      return {
+        graphSlugs: [],
+        errors: [
+          {
+            code: 'E104',
+            message: `Failed to list graphs: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            action: 'Check filesystem permissions',
+          },
+        ],
+      };
+    }
   }
 
   // ==================== createGraph ====================
