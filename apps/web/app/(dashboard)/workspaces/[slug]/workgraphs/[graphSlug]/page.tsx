@@ -129,7 +129,11 @@ export default async function WorkGraphDetailPage({ params, searchParams }: Page
 
       {/* Canvas (Client Component) */}
       <div className="flex-1">
-        <WorkGraphDetailClient data={graphData} />
+        <WorkGraphDetailClient
+          data={graphData}
+          workspaceSlug={slug}
+          worktreePath={worktreePath}
+        />
       </div>
     </div>
   );
