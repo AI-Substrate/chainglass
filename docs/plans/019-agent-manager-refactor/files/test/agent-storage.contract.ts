@@ -1,0 +1,1 @@
+../../../../../test/contracts/agent-storage.contract.ts
