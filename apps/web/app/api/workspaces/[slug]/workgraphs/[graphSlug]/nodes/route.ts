@@ -14,6 +14,7 @@ import { WORKGRAPH_DI_TOKENS, WORKSPACE_DI_TOKENS } from '@chainglass/shared';
 import type { IWorkspaceService } from '@chainglass/workflow';
 import type { IWorkGraphService } from '@chainglass/workgraph';
 import type { NextRequest } from 'next/server';
+import { broadcastGraphUpdated } from '../../../../../../../src/features/022-workgraph-ui/sse-broadcast';
 import { getContainer } from '../../../../../../../src/lib/bootstrap-singleton';
 import { isValidPath } from '../../../../../../../src/lib/utils';
 
@@ -96,6 +97,9 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
         return Response.json({ errors: result.errors }, { status });
       }
 
+      // Broadcast SSE notification (per ADR-0007)
+      broadcastGraphUpdated(graphSlug);
+
       return Response.json({
         nodeId: result.nodeId,
         inputs: result.inputs,
@@ -110,6 +114,9 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
         const status = result.errors[0].code === 'E120' ? 404 : 500;
         return Response.json({ errors: result.errors }, { status });
       }
+
+      // Broadcast SSE notification (per ADR-0007)
+      broadcastGraphUpdated(graphSlug);
 
       return Response.json({
         nodeId: result.nodeId,
@@ -190,6 +197,9 @@ export async function DELETE(request: NextRequest, { params }: RouteParams): Pro
       const status = result.errors[0].code === 'E102' ? 409 : 500; // E102 = has dependents
       return Response.json({ errors: result.errors }, { status });
     }
+
+    // Broadcast SSE notification (per ADR-0007)
+    broadcastGraphUpdated(graphSlug);
 
     return Response.json({
       removedNodes: result.removedNodes,

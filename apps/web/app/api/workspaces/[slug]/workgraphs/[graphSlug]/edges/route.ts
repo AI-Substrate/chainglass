@@ -14,6 +14,7 @@ import { WORKGRAPH_DI_TOKENS, WORKSPACE_DI_TOKENS } from '@chainglass/shared';
 import type { IWorkspaceService } from '@chainglass/workflow';
 import type { IWorkGraphService } from '@chainglass/workgraph';
 import type { NextRequest } from 'next/server';
+import { broadcastGraphUpdated } from '../../../../../../../src/features/022-workgraph-ui/sse-broadcast';
 import { getContainer } from '../../../../../../../src/lib/bootstrap-singleton';
 import { isValidPath } from '../../../../../../../src/lib/utils';
 
@@ -125,6 +126,9 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
       const status = connectResult.errors[0].code === 'E107' ? 404 : 400;
       return Response.json({ connected: false, errors: connectResult.errors }, { status });
     }
+
+    // Broadcast SSE notification (per ADR-0007)
+    broadcastGraphUpdated(graphSlug);
 
     return Response.json({
       connected: true,

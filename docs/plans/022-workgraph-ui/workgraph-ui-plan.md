@@ -1401,3 +1401,13 @@ just check  # Runs all lint, typecheck, test
 **Next steps:**
 - Run `/plan-4-complete-the-plan` to validate readiness
 - After validation: `/plan-5-phase-tasks-and-brief --phase 1` to generate Phase 1 task dossier
+
+---
+
+## Subtasks Registry
+
+Mid-implementation detours requiring structured tracking.
+
+| ID | Created | Phase | Parent Task | Reason | Status | Dossier |
+|----|---------|-------|-------------|--------|--------|---------|
+| 001-subtask-file-watching-for-cli-changes | 2026-01-29 | Phase 4: Real-time Updates | T006, T012 | Spec requires file watching (line 160, 267, 316) but only SSE was implemented; CLI changes don't trigger UI refresh | [ ] Pending | [Link](tasks/phase-4-real-time-updates/001-subtask-file-watching-for-cli-changes.md) |
