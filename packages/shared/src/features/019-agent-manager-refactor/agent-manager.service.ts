@@ -5,6 +5,7 @@
  * This is the single source of truth for all agent state.
  *
  * Per spec AC-01, AC-02, AC-03, AC-04, AC-23, AC-24.
+ * Per DYK-06: Receives notifier via DI and passes to AgentInstance.
  * Per Critical Finding 01: No central agent registry exists - this fixes it.
  */
 
@@ -16,20 +17,23 @@ import type {
   CreateAgentParams,
   IAgentManagerService,
 } from './agent-manager.interface.js';
+import type { IAgentNotifierService } from './agent-notifier.interface.js';
 
 /**
  * AgentManagerService is the central registry for all agents.
  *
  * Per spec: Returns agents regardless of which workspace/worktree they belong to.
  * Uses an in-memory Map<agentId, IAgentInstance> for agent storage.
+ * Per DYK-06: Receives notifier via DI and passes to AgentInstance.
  *
  * Usage:
  * ```typescript
  * const adapterFactory = (type) => type === 'claude-code'
  *   ? new ClaudeCodeAdapter(pm)
  *   : new CopilotAdapter(client);
+ * const notifier = container.resolve<IAgentNotifierService>(TOKENS.AGENT_NOTIFIER_SERVICE);
  *
- * const manager = new AgentManagerService(adapterFactory);
+ * const manager = new AgentManagerService(adapterFactory, notifier);
  *
  * const agent = manager.createAgent({
  *   name: 'chat-assistant',
@@ -44,16 +48,20 @@ import type {
 export class AgentManagerService implements IAgentManagerService {
   private readonly _agents = new Map<string, IAgentInstance>();
   private readonly _adapterFactory: AdapterFactory;
+  private readonly _notifier: IAgentNotifierService;
 
   /**
    * Create a new AgentManagerService.
    *
    * @param adapterFactory - Factory function that creates adapters based on type
+   * @param notifier - Agent notifier for SSE broadcasting
    *
    * Per DYK-01: Receives adapterFactory, not concrete adapter.
+   * Per DYK-06: Receives notifier via DI.
    */
-  constructor(adapterFactory: AdapterFactory) {
+  constructor(adapterFactory: AdapterFactory, notifier: IAgentNotifierService) {
     this._adapterFactory = adapterFactory;
+    this._notifier = notifier;
   }
 
   /**
@@ -70,7 +78,7 @@ export class AgentManagerService implements IAgentManagerService {
     const id = generateAgentId();
     assertValidAgentId(id);
 
-    // Create the real AgentInstance
+    // Create the real AgentInstance with notifier
     const instance = new AgentInstance(
       {
         id,
@@ -78,7 +86,8 @@ export class AgentManagerService implements IAgentManagerService {
         type: params.type,
         workspace: params.workspace,
       },
-      this._adapterFactory
+      this._adapterFactory,
+      this._notifier
     );
 
     // Register in the map

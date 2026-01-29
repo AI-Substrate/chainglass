@@ -42,7 +42,9 @@ import {
   type AdapterFactory as AgentAdapterFactory,
   AgentManagerService,
   FakeAgentManagerService,
+  FakeAgentNotifierService,
   type IAgentManagerService,
+  type IAgentNotifierService,
 } from '@chainglass/shared/features/019-agent-manager-refactor';
 // Plan 014 Phase 6: Import workspace services from @chainglass/workflow
 // Plan 018 Phase 2: Import AgentEventAdapter for workspace-scoped event storage
@@ -76,7 +78,11 @@ import {
 // Phase 4: Import CopilotClient from SDK for production adapter
 import { CopilotClient } from '@github/copilot-sdk';
 import { type DependencyContainer, container } from 'tsyringe';
+// Plan 019 Phase 2: Import notifier implementations
+import { AgentNotifierService } from '../features/019-agent-manager-refactor/agent-notifier.service';
+import { SSEManagerBroadcaster } from '../features/019-agent-manager-refactor/sse-manager-broadcaster';
 import { SampleService } from '../services/sample.service';
+import { sseManager } from './sse-manager';
 // Plan 012: Session persistence
 import { AgentSessionStore } from './stores/agent-session.store';
 
@@ -369,12 +375,24 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
 
   // ==================== Plan 019: Agent Manager Service ====================
 
-  // Register AgentManagerService with adapter factory
+  // Phase 2: Register AgentNotifierService with SSEManagerBroadcaster
+  // Per DYK-07: Real implementation lives in apps/web
+  // Per DYK-08: Uses SSEManagerBroadcaster adapter
+  childContainer.register<IAgentNotifierService>(SHARED_DI_TOKENS.AGENT_NOTIFIER_SERVICE, {
+    useFactory: () => {
+      const broadcaster = new SSEManagerBroadcaster(sseManager);
+      return new AgentNotifierService(broadcaster);
+    },
+  });
+
+  // Register AgentManagerService with adapter factory and notifier
+  // Per DYK-06: AgentManagerService receives notifier via DI
   childContainer.register<IAgentManagerService>(SHARED_DI_TOKENS.AGENT_MANAGER_SERVICE, {
     useFactory: (c) => {
       const logger = c.resolve<ILogger>(DI_TOKENS.LOGGER);
       const processManager = c.resolve<IProcessManager>(DI_TOKENS.PROCESS_MANAGER);
       const copilotClient = c.resolve<CopilotClient>(DI_TOKENS.COPILOT_CLIENT);
+      const notifier = c.resolve<IAgentNotifierService>(SHARED_DI_TOKENS.AGENT_NOTIFIER_SERVICE);
 
       // Per DYK-01: Factory function for adapter selection
       const agentAdapterFactory: AgentAdapterFactory = (agentType) => {
@@ -387,7 +405,7 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
         throw new Error(`Unknown agent type: ${agentType}`);
       };
 
-      return new AgentManagerService(agentAdapterFactory);
+      return new AgentManagerService(agentAdapterFactory, notifier);
     },
   });
 
@@ -551,9 +569,18 @@ export function createTestContainer(): DependencyContainer {
 
   // ==================== Plan 019: Agent Manager Service (Fake) ====================
 
+  // Phase 2: Register FakeAgentNotifierService for test isolation
+  const fakeNotifier = new FakeAgentNotifierService();
+  childContainer.register<IAgentNotifierService>(SHARED_DI_TOKENS.AGENT_NOTIFIER_SERVICE, {
+    useValue: fakeNotifier,
+  });
+
   // Register FakeAgentManagerService for test isolation
   childContainer.register<IAgentManagerService>(SHARED_DI_TOKENS.AGENT_MANAGER_SERVICE, {
-    useFactory: () => new FakeAgentManagerService(),
+    useFactory: (c) => {
+      const notifier = c.resolve<IAgentNotifierService>(SHARED_DI_TOKENS.AGENT_NOTIFIER_SERVICE);
+      return new FakeAgentManagerService();
+    },
   });
 
   return childContainer;

@@ -6,6 +6,7 @@
  * Per AC-27: Provides test helpers for status control, event setup, and assertions.
  * Per DYK-03: Composes FakeAgentAdapter internally for consistent test behavior.
  * Per DYK-05: Used in contract tests alongside real implementation.
+ * Per DYK-10: Accepts optional notifier (falls back to no-op for Phase 1 test compatibility).
  */
 
 import { FakeAgentAdapter } from '../../fakes/fake-agent-adapter.js';
@@ -19,6 +20,17 @@ import type {
   GetEventsOptions,
   IAgentInstance,
 } from './agent-instance.interface.js';
+import type { IAgentNotifierService } from './agent-notifier.interface.js';
+
+/**
+ * No-op notifier for backward compatibility with Phase 1 tests.
+ * Per DYK-10: FakeAgentInstance uses this when no notifier is provided.
+ */
+const noopNotifier: IAgentNotifierService = {
+  broadcastStatus: () => {},
+  broadcastIntent: () => {},
+  broadcastEvent: () => {},
+};
 
 /**
  * Configuration options for FakeAgentInstance.
@@ -44,6 +56,8 @@ export interface FakeAgentInstanceOptions {
   createdAt?: Date;
   /** Updated timestamp (default: new Date()) */
   updatedAt?: Date;
+  /** Optional notifier for SSE broadcasting (default: no-op) */
+  notifier?: IAgentNotifierService;
 }
 
 /**
@@ -99,6 +113,9 @@ export class FakeAgentInstance implements IAgentInstance {
   // Per DYK-03: Internal FakeAgentAdapter for consistent behavior
   private readonly _adapter: FakeAgentAdapter;
 
+  // Per DYK-10: Notifier for SSE broadcasting (may be no-op)
+  private readonly _notifier: IAgentNotifierService;
+
   // Test tracking
   private _runCalls: RecordedRunCall[] = [];
   private _terminateCalls: Date[] = [];
@@ -116,6 +133,7 @@ export class FakeAgentInstance implements IAgentInstance {
     this._events = options.events ?? [];
     this._createdAt = options.createdAt ?? new Date();
     this._updatedAt = options.updatedAt ?? new Date();
+    this._notifier = options.notifier ?? noopNotifier;
 
     // Create internal fake adapter
     this._adapter = new FakeAgentAdapter({

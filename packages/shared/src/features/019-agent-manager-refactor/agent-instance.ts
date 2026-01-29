@@ -6,6 +6,8 @@
  *
  * Per spec AC-06, AC-07, AC-07a, AC-08, AC-09, AC-10, AC-11, AC-12.
  * Per DYK-01: Receives adapterFactory at construction, not concrete adapter.
+ * Per DYK-10: Receives notifier as required parameter (Phase 2).
+ * Per DYK-09: Uses _setStatus() and _captureEvent() for storage-first pattern.
  * Per Critical Finding 02: Session state fragmented - AgentInstance becomes single source of truth.
  * Per Critical Finding 04: Race condition - status guard prevents double-run.
  */
@@ -20,6 +22,7 @@ import type {
   GetEventsOptions,
   IAgentInstance,
 } from './agent-instance.interface.js';
+import type { IAgentNotifierService } from './agent-notifier.interface.js';
 
 /**
  * Configuration options for creating an AgentInstance.
@@ -40,16 +43,18 @@ export interface AgentInstanceConfig {
  *
  * Per DYK-01: Adapters are stateless; sessionId is stored by AgentInstance
  * and passed to adapter on each run().
+ * Per DYK-10: Requires notifier for SSE broadcasting.
  *
  * Usage:
  * ```typescript
  * const adapterFactory = (type) => new FakeAgentAdapter();
+ * const notifier = new FakeAgentNotifierService();
  * const instance = new AgentInstance({
  *   id: 'agent-1',
  *   name: 'chat',
  *   type: 'claude-code',
  *   workspace: '/projects/myapp',
- * }, adapterFactory);
+ * }, adapterFactory, notifier);
  *
  * const result = await instance.run({ prompt: 'Hello' });
  * console.log(instance.sessionId); // Session persisted
@@ -70,8 +75,9 @@ export class AgentInstance implements IAgentInstance {
   private _createdAt: Date;
   private _updatedAt: Date;
 
-  // ===== Adapter =====
+  // ===== Adapter & Notifier =====
   private readonly _adapter: IAgentAdapter;
+  private readonly _notifier: IAgentNotifierService;
   private _eventIdCounter = 0;
 
   /**
@@ -79,16 +85,23 @@ export class AgentInstance implements IAgentInstance {
    *
    * @param config - Instance configuration (id, name, type, workspace)
    * @param adapterFactory - Factory function to create adapter based on type
+   * @param notifier - Agent notifier for SSE broadcasting
    *
    * Per DYK-01: Factory is called immediately to get the adapter.
+   * Per DYK-10: Notifier is required for SSE broadcasting.
    */
-  constructor(config: AgentInstanceConfig, adapterFactory: AdapterFactory) {
+  constructor(
+    config: AgentInstanceConfig,
+    adapterFactory: AdapterFactory,
+    notifier: IAgentNotifierService
+  ) {
     this.id = config.id;
     this.name = config.name;
     this.type = config.type;
     this.workspace = config.workspace;
     this._createdAt = new Date();
     this._updatedAt = new Date();
+    this._notifier = notifier;
 
     // Create adapter via factory
     this._adapter = adapterFactory(config.type);
@@ -116,6 +129,36 @@ export class AgentInstance implements IAgentInstance {
     return this._updatedAt;
   }
 
+  // ===== Private Helper Methods (Per DYK-09: Storage-First) =====
+
+  /**
+   * Set status and broadcast notification.
+   * Per PL-01: Status is stored THEN broadcast (storage-first).
+   */
+  private _setStatus(status: AgentInstanceStatus): void {
+    this._status = status;
+    this._updatedAt = new Date();
+    this._notifier.broadcastStatus(this.id, status);
+  }
+
+  /**
+   * Capture event and broadcast notification.
+   * Per PL-01: Event is stored THEN broadcast (storage-first).
+   */
+  private _captureEvent(event: AgentEvent): void {
+    // Create stored event with unique ID
+    const storedEvent: AgentStoredEvent = {
+      ...event,
+      eventId: `${this.id}-evt-${++this._eventIdCounter}`,
+    };
+
+    // Storage first
+    this._events.push(storedEvent);
+
+    // Then broadcast
+    this._notifier.broadcastEvent(this.id, storedEvent);
+  }
+
   // ===== IAgentInstance Methods =====
 
   /**
@@ -135,10 +178,10 @@ export class AgentInstance implements IAgentInstance {
       throw new Error('Agent is already running');
     }
 
-    // Transition to working state
-    this._status = 'working';
+    // Transition to working state (storage-first via _setStatus)
+    this._setStatus('working');
     this._intent = options.prompt.substring(0, 100); // Use prompt as initial intent
-    this._updatedAt = new Date();
+    this._notifier.broadcastIntent(this.id, this._intent);
 
     try {
       // Delegate to adapter with event capture
@@ -147,27 +190,22 @@ export class AgentInstance implements IAgentInstance {
         sessionId: this._sessionId ?? undefined,
         cwd: options.cwd,
         onEvent: (event) => {
-          // Capture events with unique IDs
-          const storedEvent: AgentStoredEvent = {
-            ...event,
-            eventId: `${this.id}-evt-${++this._eventIdCounter}`,
-          };
-          this._events.push(storedEvent);
+          // Per DYK-09: Use _captureEvent for storage-first pattern
+          this._captureEvent(event);
         },
       });
 
       // Per AC-12: Store adapter sessionId for resumption
       this._sessionId = result.sessionId;
 
-      // Transition to final state based on result
-      this._status = result.status === 'failed' ? 'error' : 'stopped';
-      this._updatedAt = new Date();
+      // Transition to final state based on result (storage-first via _setStatus)
+      const finalStatus: AgentInstanceStatus = result.status === 'failed' ? 'error' : 'stopped';
+      this._setStatus(finalStatus);
 
       return result;
     } catch (error) {
-      // On error, transition to error state
-      this._status = 'error';
-      this._updatedAt = new Date();
+      // On error, transition to error state (storage-first via _setStatus)
+      this._setStatus('error');
       throw error;
     }
   }
@@ -183,14 +221,12 @@ export class AgentInstance implements IAgentInstance {
     // If we have a session, terminate via adapter
     if (this._sessionId) {
       const result = await this._adapter.terminate(this._sessionId);
-      this._status = 'stopped';
-      this._updatedAt = new Date();
+      this._setStatus('stopped');
       return result;
     }
 
     // No session - just update status
-    this._status = 'stopped';
-    this._updatedAt = new Date();
+    this._setStatus('stopped');
 
     return {
       output: '',
@@ -234,5 +270,6 @@ export class AgentInstance implements IAgentInstance {
   setIntent(intent: string): void {
     this._intent = intent;
     this._updatedAt = new Date();
+    this._notifier.broadcastIntent(this.id, intent);
   }
 }

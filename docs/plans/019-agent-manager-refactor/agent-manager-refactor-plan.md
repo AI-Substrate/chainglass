@@ -4,6 +4,20 @@
 **Created**: 2026-01-28
 **Spec**: [./agent-manager-refactor-spec.md](./agent-manager-refactor-spec.md)
 **Status**: DRAFT
+**File Management**: PlanPak
+
+---
+
+## File Placement
+
+Per PlanPak, plan-scoped files live in feature folders:
+
+| Package | Feature Folder |
+|---------|---------------|
+| `packages/shared` | `packages/shared/src/features/019-agent-manager-refactor/` |
+| `apps/web` | `apps/web/src/features/019-agent-manager-refactor/` |
+
+Cross-cutting files (DI registration, tokens) stay in their traditional locations.
 
 ---
 
@@ -809,7 +823,12 @@ Per spec, documentation created after implementation validates:
   - Execution Log: [tasks/phase-1-agentmanagerservice-agentinstance-core/execution.log.md](./tasks/phase-1-agentmanagerservice-agentinstance-core/execution.log.md)
   - Contract Tests: 44 passed (22 Fake + 22 Real)
   - Integration Tests: 9 passed
-- [ ] Phase 2: AgentNotifierService (SSE Broadcast) - NOT STARTED
+- [x] Phase 2: AgentNotifierService (SSE Broadcast) - **COMPLETE** (2026-01-29)
+  - Tasks: [tasks/phase-2-agentnotifierservice-sse-broadcast/tasks.md](./tasks/phase-2-agentnotifierservice-sse-broadcast/tasks.md)
+  - Execution Log: [tasks/phase-2-agentnotifierservice-sse-broadcast/execution.log.md](./tasks/phase-2-agentnotifierservice-sse-broadcast/execution.log.md)
+  - Contract Tests: 40 passed (20 Fake + 20 Real)
+  - Integration Tests: 8 passed
+  - DYK Decisions Applied: DYK-06 through DYK-10
 - [ ] Phase 3: Storage Layer - NOT STARTED
 - [ ] Phase 4: Web Integration - NOT STARTED
 - [ ] Phase 5: Consolidation + Cleanup - NOT STARTED

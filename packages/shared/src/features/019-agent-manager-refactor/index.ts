@@ -22,6 +22,20 @@ export type {
   AgentStoredEvent,
 } from './agent-instance.interface.js';
 
+// Phase 2: Notifier interfaces (per DYK-07: interface in shared)
+export type {
+  IAgentNotifierService,
+  AgentSSEEventType,
+  BaseAgentSSEEvent,
+  AgentStatusSSEEvent,
+  AgentIntentSSEEvent,
+  AgentEventSSEEvent,
+  AgentSSEEvent,
+} from './agent-notifier.interface.js';
+
+// Phase 2: SSE Broadcaster interface (per DYK-08)
+export type { ISSEBroadcaster } from './sse-broadcaster.interface.js';
+
 // Real implementations
 export { AgentManagerService } from './agent-manager.service.js';
 export { AgentInstance } from './agent-instance.js';
@@ -34,3 +48,10 @@ export {
   type FakeAgentInstanceOptions,
   type RecordedRunCall,
 } from './fake-agent-instance.js';
+
+// Phase 2: Notifier fakes (per AC-28)
+export { FakeAgentNotifierService } from './fake-agent-notifier.service.js';
+export {
+  FakeSSEBroadcaster,
+  type RecordedBroadcast,
+} from './fake-sse-broadcaster.js';

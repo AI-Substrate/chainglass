@@ -8,6 +8,7 @@
  * - Double-run is rejected
  *
  * Per T011: Integration test with FakeAgentAdapter.
+ * Per DYK-10: AgentInstance receives FakeAgentNotifierService.
  */
 
 import { FakeAgentAdapter } from '@chainglass/shared';
@@ -16,6 +17,7 @@ import {
   AgentInstance,
   AgentManagerService,
   type AgentStoredEvent,
+  FakeAgentNotifierService,
 } from '@chainglass/shared/features/019-agent-manager-refactor';
 import { describe, expect, it } from 'vitest';
 
@@ -36,6 +38,13 @@ describe('AgentInstance Integration', () => {
       });
   }
 
+  /**
+   * Create a FakeAgentNotifierService for test isolation.
+   */
+  function createNotifier(): FakeAgentNotifierService {
+    return new FakeAgentNotifierService();
+  }
+
   it('run() delegates to FakeAgentAdapter and captures sessionId', async () => {
     /*
     Test Doc:
@@ -46,6 +55,7 @@ describe('AgentInstance Integration', () => {
     - Worked Example: run({prompt}) → result.sessionId stored in instance
     */
     const factory = createAdapterFactory({ sessionId: 'captured-session-abc' });
+    const notifier = createNotifier();
     const instance = new AgentInstance(
       {
         id: 'agent-1',
@@ -53,7 +63,8 @@ describe('AgentInstance Integration', () => {
         type: 'claude-code',
         workspace: '/projects/test',
       },
-      factory
+      factory,
+      notifier
     );
 
     expect(instance.sessionId).toBeNull();
@@ -76,6 +87,7 @@ describe('AgentInstance Integration', () => {
     - Worked Example: run() transitions through all states
     */
     const factory = createAdapterFactory();
+    const notifier = createNotifier();
     const instance = new AgentInstance(
       {
         id: 'agent-2',
@@ -83,7 +95,8 @@ describe('AgentInstance Integration', () => {
         type: 'copilot',
         workspace: '/ws',
       },
-      factory
+      factory,
+      notifier
     );
 
     expect(instance.status).toBe('stopped');
@@ -103,6 +116,7 @@ describe('AgentInstance Integration', () => {
     - Worked Example: Start run, immediate second run → Error
     */
     const factory = createAdapterFactory();
+    const notifier = createNotifier();
     const instance = new AgentInstance(
       {
         id: 'agent-3',
@@ -110,7 +124,8 @@ describe('AgentInstance Integration', () => {
         type: 'claude-code',
         workspace: '/ws',
       },
-      factory
+      factory,
+      notifier
     );
 
     // Start first run but don't await
@@ -144,6 +159,7 @@ describe('AgentInstance Integration', () => {
     ]);
 
     const factory: AdapterFactory = () => adapter;
+    const notifier = createNotifier();
     const instance = new AgentInstance(
       {
         id: 'agent-4',
@@ -151,7 +167,8 @@ describe('AgentInstance Integration', () => {
         type: 'claude-code',
         workspace: '/ws',
       },
-      factory
+      factory,
+      notifier
     );
 
     await instance.run({ prompt: 'test' });
@@ -177,6 +194,7 @@ describe('AgentInstance Integration', () => {
     - Worked Example: terminate() → status='killed', instance.status='stopped'
     */
     const factory = createAdapterFactory({ sessionId: 'terminate-session' });
+    const notifier = createNotifier();
     const instance = new AgentInstance(
       {
         id: 'agent-5',
@@ -184,7 +202,8 @@ describe('AgentInstance Integration', () => {
         type: 'claude-code',
         workspace: '/ws',
       },
-      factory
+      factory,
+      notifier
     );
 
     // Run to get a session
@@ -218,6 +237,7 @@ describe('AgentInstance Integration', () => {
     ]);
 
     const factory: AdapterFactory = () => adapter;
+    const notifier = createNotifier();
     const instance = new AgentInstance(
       {
         id: 'agent-6',
@@ -225,7 +245,8 @@ describe('AgentInstance Integration', () => {
         type: 'claude-code',
         workspace: '/ws',
       },
-      factory
+      factory,
+      notifier
     );
 
     await instance.run({ prompt: 'test' });
@@ -254,7 +275,8 @@ describe('AgentManagerService Integration', () => {
     - Worked Example: createAgent() → getAgent(id) returns same agent
     */
     const factory: AdapterFactory = () => new FakeAgentAdapter({ sessionId: 'mgr-test-session' });
-    const manager = new AgentManagerService(factory);
+    const notifier = new FakeAgentNotifierService();
+    const manager = new AgentManagerService(factory, notifier);
 
     const agent = manager.createAgent({
       name: 'Integration Test Agent',
@@ -286,7 +308,8 @@ describe('AgentManagerService Integration', () => {
     - Worked Example: 2 workspaces → filter returns only one
     */
     const factory: AdapterFactory = () => new FakeAgentAdapter();
-    const manager = new AgentManagerService(factory);
+    const notifier = new FakeAgentNotifierService();
+    const manager = new AgentManagerService(factory, notifier);
 
     manager.createAgent({ name: 'A1', type: 'claude-code', workspace: '/ws1' });
     manager.createAgent({ name: 'A2', type: 'copilot', workspace: '/ws1' });
@@ -314,7 +337,8 @@ describe('AgentManagerService Integration', () => {
         sessionId: 'e2e-session',
         output: 'E2E response',
       });
-    const manager = new AgentManagerService(factory);
+    const notifier = new FakeAgentNotifierService();
+    const manager = new AgentManagerService(factory, notifier);
 
     const agent = manager.createAgent({
       name: 'E2E Agent',

@@ -26,6 +26,8 @@ export const SHARED_DI_TOKENS = {
   PROCESS_MANAGER: 'IProcessManager',
   /** IAgentManagerService interface (Plan 019: Agent Manager Refactor) */
   AGENT_MANAGER_SERVICE: 'IAgentManagerService',
+  /** IAgentNotifierService interface (Plan 019: Phase 2) */
+  AGENT_NOTIFIER_SERVICE: 'IAgentNotifierService',
 } as const;
 
 /**
