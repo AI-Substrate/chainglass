@@ -15,6 +15,7 @@ import type { IWorkspaceService } from '@chainglass/workflow';
 import type { IWorkGraphService } from '@chainglass/workgraph';
 import type { NextRequest } from 'next/server';
 import { getContainer } from '../../../../../../../src/lib/bootstrap-singleton';
+import { isValidPath } from '../../../../../../../src/lib/utils';
 
 /** Force dynamic rendering - required for DI container access */
 export const dynamic = 'force-dynamic';
@@ -46,6 +47,14 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
   const { slug, graphSlug } = await params;
   const { searchParams } = new URL(request.url);
   const worktreePath = searchParams.get('worktree') ?? undefined;
+
+  // Validate worktree path to prevent path traversal
+  if (!isValidPath(worktreePath ?? null)) {
+    return Response.json(
+      { errors: [{ code: 'E400', message: 'Invalid worktree path' }] },
+      { status: 400 }
+    );
+  }
 
   const container = getContainer();
   const workspaceService = container.resolve<IWorkspaceService>(
@@ -116,9 +125,8 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
       `[/api/workspaces/${slug}/workgraphs/${graphSlug}/nodes] Error adding node:`,
       error
     );
-    const errorMessage = error instanceof Error ? error.message : 'Failed to add node';
     return Response.json(
-      { errors: [{ code: 'E500', message: errorMessage }] },
+      { errors: [{ code: 'E500', message: 'Internal server error' }] },
       { status: 500 }
     );
   }
@@ -138,6 +146,14 @@ export async function DELETE(request: NextRequest, { params }: RouteParams): Pro
   const { searchParams } = new URL(request.url);
   const worktreePath = searchParams.get('worktree') ?? undefined;
   const nodeId = searchParams.get('nodeId');
+
+  // Validate worktree path to prevent path traversal
+  if (!isValidPath(worktreePath ?? null)) {
+    return Response.json(
+      { errors: [{ code: 'E400', message: 'Invalid worktree path' }] },
+      { status: 400 }
+    );
+  }
 
   if (!nodeId) {
     return Response.json(

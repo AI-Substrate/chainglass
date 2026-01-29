@@ -11,13 +11,19 @@
  * Per DYK#3 Naming Convention:
  * - fakeBackendService = FakeWorkGraphService
  * - fakeUIInstance = FakeWorkGraphUIInstance
+ *
+ * Per Constitution Principle 4: Using Fake classes instead of vi.fn().
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { createTestWorkspaceContext } from '../../../../helpers/workspace-context.js';
 
 import { FakeWorkGraphUIInstance } from '../../../../../apps/web/src/features/022-workgraph-ui/fake-workgraph-ui-instance.js';
-import type { IWorkGraphUIInstanceCore } from '../../../../../apps/web/src/features/022-workgraph-ui/workgraph-ui.types.js';
+import { FakeSubscriber } from '../../../../../apps/web/src/features/022-workgraph-ui/test-fakes.js';
+import type {
+  IWorkGraphUIInstanceCore,
+  WorkGraphUIEvent,
+} from '../../../../../apps/web/src/features/022-workgraph-ui/workgraph-ui.types.js';
 
 describe('WorkGraphUIInstance Interface', () => {
   // Using FakeWorkGraphUIInstance to test the interface contract
@@ -118,17 +124,15 @@ describe('WorkGraphUIInstance Interface', () => {
       - Quality Contribution: Reactive updates
       - Worked Example: subscribe(fn) → refresh() → fn({type:'changed'}) called
       */
-      const callback = vi.fn();
+      const subscriber = new FakeSubscriber<WorkGraphUIEvent>();
 
-      instance.subscribe(callback);
+      instance.subscribe(subscriber.handler);
       await instance.refresh();
 
-      // If data changed, callback should be called
+      // If data changed, subscriber should be called
       // Note: Per DYK#2, only fires if data actually changed
-      expect(callback).toHaveBeenCalled();
-      expect(callback.mock.calls[0][0]).toMatchObject({
-        type: 'changed',
-      });
+      expect(subscriber.wasCalled()).toBe(true);
+      expect(subscriber.wasCalledWith({ type: 'changed' })).toBe(true);
     });
 
     it('should unsubscribe cleanly', async () => {
@@ -139,14 +143,14 @@ describe('WorkGraphUIInstance Interface', () => {
       - Quality Contribution: Cleanup capability
       - Worked Example: const unsub = subscribe(fn); unsub(); refresh() → fn not called
       */
-      const callback = vi.fn();
+      const subscriber = new FakeSubscriber<WorkGraphUIEvent>();
 
-      const unsubscribe = instance.subscribe(callback);
+      const unsubscribe = instance.subscribe(subscriber.handler);
       unsubscribe();
 
       await instance.refresh();
 
-      expect(callback).not.toHaveBeenCalled();
+      expect(subscriber.wasCalled()).toBe(false);
     });
 
     it('should support multiple subscribers', async () => {
@@ -156,15 +160,15 @@ describe('WorkGraphUIInstance Interface', () => {
       - Contract: Multiple subscribe() calls all receive events
       - Quality Contribution: Multi-consumer support
       */
-      const callback1 = vi.fn();
-      const callback2 = vi.fn();
+      const subscriber1 = new FakeSubscriber<WorkGraphUIEvent>();
+      const subscriber2 = new FakeSubscriber<WorkGraphUIEvent>();
 
-      instance.subscribe(callback1);
-      instance.subscribe(callback2);
+      instance.subscribe(subscriber1.handler);
+      instance.subscribe(subscriber2.handler);
       await instance.refresh();
 
-      expect(callback1).toHaveBeenCalled();
-      expect(callback2).toHaveBeenCalled();
+      expect(subscriber1.wasCalled()).toBe(true);
+      expect(subscriber2.wasCalled()).toBe(true);
     });
   });
 
@@ -200,14 +204,14 @@ describe('WorkGraphUIInstance Interface', () => {
       ]);
       fakeUIInstance.setDataChangedOnRefresh(false); // Simulate no data change
 
-      const callback = vi.fn();
-      fakeUIInstance.subscribe(callback);
+      const subscriber = new FakeSubscriber<WorkGraphUIEvent>();
+      fakeUIInstance.subscribe(subscriber.handler);
 
       // Refresh with no changes
       await fakeUIInstance.refresh();
 
-      // If data didn't change, callback should NOT be called
-      expect(callback).not.toHaveBeenCalled();
+      // If data didn't change, subscriber should NOT be called
+      expect(subscriber.wasCalled()).toBe(false);
     });
 
     it('should NOT emit changed if dispose() called mid-flight (DYK#5)', async () => {
@@ -224,8 +228,8 @@ describe('WorkGraphUIInstance Interface', () => {
       ]);
       fakeUIInstance.setRefreshDelay(50); // Add delay to simulate async
 
-      const callback = vi.fn();
-      fakeUIInstance.subscribe(callback);
+      const subscriber = new FakeSubscriber<WorkGraphUIEvent>();
+      fakeUIInstance.subscribe(subscriber.handler);
 
       // Start refresh (async)
       const refreshPromise = fakeUIInstance.refresh();
@@ -236,8 +240,8 @@ describe('WorkGraphUIInstance Interface', () => {
       // Wait for refresh to complete
       await refreshPromise;
 
-      // Callback should NOT be called because disposed
-      expect(callback).not.toHaveBeenCalled();
+      // Subscriber should NOT be called because disposed
+      expect(subscriber.wasCalled()).toBe(false);
     });
   });
 
@@ -250,14 +254,14 @@ describe('WorkGraphUIInstance Interface', () => {
       - Quality Contribution: Resource cleanup
       - Worked Example: dispose() → no more events fire
       */
-      const callback = vi.fn();
-      instance.subscribe(callback);
+      const subscriber = new FakeSubscriber<WorkGraphUIEvent>();
+      instance.subscribe(subscriber.handler);
 
       instance.dispose();
 
-      // After dispose, refresh should not trigger callback
+      // After dispose, refresh should not trigger subscriber
       await instance.refresh();
-      expect(callback).not.toHaveBeenCalled();
+      expect(subscriber.wasCalled()).toBe(false);
     });
 
     it('should be safe to call dispose() multiple times', async () => {
@@ -458,14 +462,14 @@ describe('WorkGraphUIInstance Real Implementation (T009)', () => {
         errors: [],
       });
 
-      const callback = vi.fn();
-      instance.subscribe(callback);
+      const subscriber = new FakeSubscriber<WorkGraphUIEvent>();
+      instance.subscribe(subscriber.handler);
 
       await instance.refresh();
 
       // Should have emitted changed because data differed
-      expect(callback).toHaveBeenCalled();
-      expect(callback.mock.calls[0][0].type).toBe('changed');
+      expect(subscriber.wasCalled()).toBe(true);
+      expect(subscriber.wasCalledWith({ type: 'changed' })).toBe(true);
     });
   });
 });

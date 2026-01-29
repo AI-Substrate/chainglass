@@ -489,7 +489,7 @@ export class WorkGraphUIInstance implements IWorkGraphUIInstance {
 
     // Optimistic update: add edge to local state
     const newEdge: UIEdge = {
-      id: `edge-${this._edges.length}`,
+      id: `edge-${crypto.randomUUID().slice(0, 8)}`,
       source: sourceNodeId,
       target: targetNodeId,
     };

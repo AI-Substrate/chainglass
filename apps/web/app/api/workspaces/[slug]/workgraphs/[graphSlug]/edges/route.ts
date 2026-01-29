@@ -15,6 +15,7 @@ import type { IWorkspaceService } from '@chainglass/workflow';
 import type { IWorkGraphService } from '@chainglass/workgraph';
 import type { NextRequest } from 'next/server';
 import { getContainer } from '../../../../../../../src/lib/bootstrap-singleton';
+import { isValidPath } from '../../../../../../../src/lib/utils';
 
 /** Force dynamic rendering - required for DI container access */
 export const dynamic = 'force-dynamic';
@@ -44,6 +45,14 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
   const { slug, graphSlug } = await params;
   const { searchParams } = new URL(request.url);
   const worktreePath = searchParams.get('worktree') ?? undefined;
+
+  // Validate worktree path to prevent path traversal
+  if (!isValidPath(worktreePath ?? null)) {
+    return Response.json(
+      { connected: false, errors: [{ code: 'E400', message: 'Invalid worktree path' }] },
+      { status: 400 }
+    );
+  }
 
   const container = getContainer();
   const workspaceService = container.resolve<IWorkspaceService>(
@@ -114,10 +123,7 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
 
     if (connectResult.errors.length > 0) {
       const status = connectResult.errors[0].code === 'E107' ? 404 : 400;
-      return Response.json(
-        { connected: false, errors: connectResult.errors },
-        { status }
-      );
+      return Response.json({ connected: false, errors: connectResult.errors }, { status });
     }
 
     return Response.json({
@@ -153,6 +159,14 @@ export async function DELETE(request: NextRequest, { params }: RouteParams): Pro
   const worktreePath = searchParams.get('worktree') ?? undefined;
   const source = searchParams.get('source');
   const target = searchParams.get('target');
+
+  // Validate worktree path to prevent path traversal
+  if (!isValidPath(worktreePath ?? null)) {
+    return Response.json(
+      { removed: false, errors: [{ code: 'E400', message: 'Invalid worktree path' }] },
+      { status: 400 }
+    );
+  }
 
   if (!source || !target) {
     return Response.json(

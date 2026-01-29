@@ -35,7 +35,11 @@ import '@xyflow/react/dist/style.css';
 
 import { cn } from '@/lib/utils';
 import { createDragOverHandler, createDropHandler } from './drop-handler';
-import { type WorkGraphFlowData, type WorkGraphRFNode, useWorkGraphFlow } from './use-workgraph-flow';
+import {
+  type WorkGraphFlowData,
+  type WorkGraphRFNode,
+  useWorkGraphFlow,
+} from './use-workgraph-flow';
 import { WorkGraphNode } from './workgraph-node';
 import type { IWorkGraphUIInstance, Position } from './workgraph-ui.types';
 
@@ -108,7 +112,7 @@ export function WorkGraphCanvas({
 
   // Local state for node positions (allows dragging without server round-trip)
   const [nodes, setNodes] = useState<WorkGraphRFNode[]>(serverNodes);
-  
+
   // Track if initial layout has been done
   const [hasInitialLayout, setHasInitialLayout] = useState(false);
 
@@ -117,10 +121,8 @@ export function WorkGraphCanvas({
   useEffect(() => {
     setNodes((currentNodes) => {
       // Build map of current positions
-      const currentPositions = new Map(
-        currentNodes.map((n) => [n.id, n.position])
-      );
-      
+      const currentPositions = new Map(currentNodes.map((n) => [n.id, n.position]));
+
       // Merge: use current position if node exists, otherwise use server position
       return serverNodes.map((serverNode) => {
         const existingPosition = currentPositions.get(serverNode.id);

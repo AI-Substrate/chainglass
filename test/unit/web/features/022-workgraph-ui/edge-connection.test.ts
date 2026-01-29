@@ -5,11 +5,17 @@
  * Per DYK#5: Uses canConnect() for type validation.
  *
  * Testing approach: Full TDD - write tests first (RED), implement (GREEN), refactor.
+ * Per Constitution Principle 4: Using Fake classes instead of vi.fn().
  */
 
 import { FakeWorkGraphUIInstance } from '@/features/022-workgraph-ui/fake-workgraph-ui-instance';
-import type { UIEdge, UINodeState } from '@/features/022-workgraph-ui/workgraph-ui.types';
-import { beforeEach, describe, expect, test, vi } from 'vitest';
+import { FakeSubscriber } from '@/features/022-workgraph-ui/test-fakes';
+import type {
+  UIEdge,
+  UINodeState,
+  WorkGraphUIEvent,
+} from '@/features/022-workgraph-ui/workgraph-ui.types';
+import { beforeEach, describe, expect, test } from 'vitest';
 
 describe('Edge Connection', () => {
   let fakeInstance: FakeWorkGraphUIInstance;
@@ -96,12 +102,12 @@ describe('Edge Connection', () => {
      * Acceptance Criteria: Subscriber receives changed event
      */
     test('should emit changed event on successful connection', async () => {
-      const subscriber = vi.fn();
-      fakeInstance.subscribe(subscriber);
+      const subscriber = new FakeSubscriber<WorkGraphUIEvent>();
+      fakeInstance.subscribe(subscriber.handler);
 
       await fakeInstance.connectNodes('nodeA', 'output', 'nodeB', 'input');
 
-      expect(subscriber).toHaveBeenCalledWith(expect.objectContaining({ type: 'changed' }));
+      expect(subscriber.wasCalledWith({ type: 'changed' })).toBe(true);
     });
 
     /**

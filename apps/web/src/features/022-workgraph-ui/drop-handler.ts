@@ -81,6 +81,7 @@ export function extractDropPosition(
 
 /**
  * Parse drag data from drop event.
+ * Includes runtime validation for security.
  *
  * @param event - Drop event
  * @returns Parsed WorkUnitDragData or null if invalid
@@ -92,7 +93,15 @@ function parseDragData(event: DragEvent): WorkUnitDragData | null {
   }
 
   try {
-    return JSON.parse(data) as WorkUnitDragData;
+    const parsed = JSON.parse(data);
+    // Runtime validation: ensure required fields exist and are valid
+    if (typeof parsed.unitSlug !== 'string' || !/^[a-zA-Z0-9_-]+$/.test(parsed.unitSlug)) {
+      return null;
+    }
+    if (typeof parsed.unitType !== 'string') {
+      return null;
+    }
+    return parsed as WorkUnitDragData;
   } catch {
     return null;
   }
@@ -148,7 +157,8 @@ export function createDropHandler(
     // Call addUnconnectedNode on instance
     const result = await instance.addUnconnectedNode(dragData.unitSlug, position);
 
-    if (!result.success && result.errors.length > 0) {
+    // Check for errors (errors array is empty on success)
+    if (result.errors && result.errors.length > 0) {
       onError(result.errors[0].message);
     }
   };

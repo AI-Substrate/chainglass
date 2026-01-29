@@ -6,9 +6,10 @@
  *
  * These tests should FAIL initially until T002 (API) and T003 (component) are implemented.
  *
- * Per Constitution Principle 4: Using vi.fn() for fetch mock, not MSW.
+ * Per Constitution Principle 4: Using Fake classes instead of vi.fn().
  */
 
+import { FakeDataTransfer, FakeFetch } from '@/features/022-workgraph-ui/test-fakes';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -28,20 +29,17 @@ const mockUnits = [
 ];
 
 // ============================================
-// Fetch Mock Setup
+// Fetch Fake Setup
 // ============================================
 
-const mockFetch = vi.fn();
+let fakeFetch: FakeFetch;
 
 beforeEach(() => {
-  // Reset fetch mock
-  mockFetch.mockReset();
+  // Reset fetch fake
+  fakeFetch = new FakeFetch();
   // Default success response
-  mockFetch.mockResolvedValue({
-    ok: true,
-    json: async () => ({ units: mockUnits, errors: [] }),
-  });
-  global.fetch = mockFetch;
+  fakeFetch.setDefaultResponse({ units: mockUnits, errors: [] }, 200);
+  global.fetch = fakeFetch.fetch as typeof global.fetch;
 });
 
 afterEach(() => {
@@ -68,26 +66,22 @@ describe('WorkUnitToolbox', () => {
       expect(screen.getByText('sample-transform')).toBeInTheDocument();
 
       // Verify the API was called with correct URL (full URL in jsdom)
-      expect(mockFetch).toHaveBeenCalledWith(
-        expect.stringContaining('/api/workspaces/test-workspace/units')
-      );
+      expect(fakeFetch.wasCalledWithUrl('/api/workspaces/test-workspace/units')).toBe(true);
     });
 
     it('should show loading state while fetching units', async () => {
-      // Delay the response
-      mockFetch.mockImplementation(
-        () =>
-          new Promise((resolve) =>
-            setTimeout(
-              () =>
-                resolve({
-                  ok: true,
-                  json: async () => ({ units: mockUnits, errors: [] }),
-                }),
-              100
-            )
-          )
-      );
+      // Delay the response by creating a slow fake
+      const slowFetch = new FakeFetch();
+      // Don't set a response - it will return 404 default, but we check loading first
+      slowFetch.fetch = async (url: string | URL | Request, init?: RequestInit) => {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        return slowFetch.fetch(url, init);
+      };
+      // Reset with the original fake that has the response
+      global.fetch = async (url: string | URL | Request, init?: RequestInit) => {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        return fakeFetch.fetch(url, init) as unknown as Response;
+      };
 
       render(<WorkUnitToolbox workspaceSlug="test-workspace" />);
 
@@ -101,14 +95,10 @@ describe('WorkUnitToolbox', () => {
     });
 
     it('should show error state when API fails', async () => {
-      mockFetch.mockResolvedValue({
-        ok: false,
-        status: 500,
-        json: async () => ({
-          units: [],
-          errors: [{ code: 'E100', message: 'Failed to load units' }],
-        }),
-      });
+      fakeFetch.setDefaultResponse(
+        { units: [], errors: [{ code: 'E100', message: 'Failed to load units' }] },
+        500
+      );
 
       render(<WorkUnitToolbox workspaceSlug="test-workspace" />);
 
@@ -118,10 +108,7 @@ describe('WorkUnitToolbox', () => {
     });
 
     it('should show empty state when no units available', async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: async () => ({ units: [], errors: [] }),
-      });
+      fakeFetch.setDefaultResponse({ units: [], errors: [] }, 200);
 
       render(<WorkUnitToolbox workspaceSlug="test-workspace" />);
 
@@ -186,24 +173,22 @@ describe('WorkUnitToolbox', () => {
       // Find the draggable unit item
       const unitItem = screen.getByTestId('unit-item-sample-coder');
 
-      // Create a mock dataTransfer object
-      const mockSetData = vi.fn();
-      const dataTransfer = {
-        setData: mockSetData,
-        effectAllowed: '',
-      };
+      // Create a fake DataTransfer
+      const fakeDataTransfer = new FakeDataTransfer();
 
       // Simulate drag start using fireEvent
-      fireEvent.dragStart(unitItem, { dataTransfer });
+      fireEvent.dragStart(unitItem, { dataTransfer: fakeDataTransfer });
 
       // Verify the drag data was set correctly
-      expect(mockSetData).toHaveBeenCalledWith(
-        'application/workgraph-unit',
-        JSON.stringify({
-          unitSlug: 'sample-coder',
-          unitType: 'agent',
-        })
-      );
+      expect(
+        fakeDataTransfer.wasSetDataCalledWith(
+          'application/workgraph-unit',
+          JSON.stringify({
+            unitSlug: 'sample-coder',
+            unitType: 'agent',
+          })
+        )
+      ).toBe(true);
     });
 
     it('should have draggable attribute on unit items', async () => {

@@ -934,7 +934,7 @@ export class WorkGraphService implements IWorkGraphService {
 
     // 5. Get source outputs and target inputs for validation
     const sourceOutputs = await this.getNodeOutputs(ctx, graphSlug, sourceNodeId);
-    
+
     // Get target inputs
     let targetInputs = new Set<string>();
     if (this.workUnitService && targetNodeId !== 'start') {
@@ -950,7 +950,7 @@ export class WorkGraphService implements IWorkGraphService {
     if (sourceOutput === '' && targetInput === '') {
       // Find any matching output→input by name
       const matchingPorts = [...sourceOutputs].filter((name) => targetInputs.has(name));
-      
+
       if (matchingPorts.length === 0 && sourceOutputs.size > 0 && targetInputs.size > 0) {
         // Both have ports but none match
         return {
@@ -1217,7 +1217,9 @@ export class WorkGraphService implements IWorkGraphService {
     };
     try {
       const content = await this.fs.readFile(targetNodePath);
-      targetNode = this.yamlParser.parse<typeof targetNode>(content, targetNodePath) || { inputs: {} };
+      targetNode = this.yamlParser.parse<typeof targetNode>(content, targetNodePath) || {
+        inputs: {},
+      };
     } catch {
       // Node yaml may not exist for start node or simple nodes
     }
@@ -1227,7 +1229,10 @@ export class WorkGraphService implements IWorkGraphService {
     let wiringsMade = 0;
     for (const outputName of sourceOutputs) {
       // Wire if target has matching input that isn't already wired
-      if (outputName in targetInputs || (await this.targetAcceptsInput(ctx, targetNodeId, outputName))) {
+      if (
+        outputName in targetInputs ||
+        (await this.targetAcceptsInput(ctx, targetNodeId, outputName))
+      ) {
         // Only wire if not already connected
         if (!targetInputs[outputName]?.from_node) {
           targetInputs[outputName] = {

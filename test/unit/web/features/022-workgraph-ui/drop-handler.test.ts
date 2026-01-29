@@ -6,6 +6,7 @@
  * Per DYK#2: Uses addUnconnectedNode() for UI pattern.
  *
  * Testing approach: Full TDD - write tests first (RED), implement (GREEN), refactor.
+ * Per Constitution Principle 4: Using Fake classes instead of vi.fn().
  */
 
 import {
@@ -14,11 +15,12 @@ import {
   extractDropPosition,
 } from '@/features/022-workgraph-ui/drop-handler';
 import { FakeWorkGraphUIInstance } from '@/features/022-workgraph-ui/fake-workgraph-ui-instance';
+import { FakeDragEvent, FakeErrorCallback } from '@/features/022-workgraph-ui/test-fakes';
 import {
   WORKUNIT_DRAG_TYPE,
   type WorkUnitDragData,
 } from '@/features/022-workgraph-ui/workunit-toolbox';
-import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 
 describe('Drop Handler', () => {
   let fakeInstance: FakeWorkGraphUIInstance;
@@ -106,10 +108,11 @@ describe('Drop Handler', () => {
      * Acceptance Criteria: Handler can parse WorkUnitDragData
      */
     test('should extract unit slug from drag data', async () => {
+      const errorCallback = new FakeErrorCallback();
       const handler = createDropHandler({
         instance: fakeInstance,
         getPosition: () => ({ x: 100, y: 200 }),
-        onError: vi.fn(),
+        onError: errorCallback.handler,
       });
 
       const dragData: WorkUnitDragData = {
@@ -118,7 +121,7 @@ describe('Drop Handler', () => {
       };
 
       const mockEvent = createMockDropEvent(dragData);
-      await handler(mockEvent);
+      await handler(mockEvent.asDragEvent());
 
       // Should have called addUnconnectedNode with correct unit
       const calls = fakeInstance.getMutationCalls();
@@ -136,10 +139,11 @@ describe('Drop Handler', () => {
      */
     test('should call addUnconnectedNode with drop position', async () => {
       const dropPosition = { x: 250, y: 350 };
+      const errorCallback = new FakeErrorCallback();
       const handler = createDropHandler({
         instance: fakeInstance,
         getPosition: () => dropPosition,
-        onError: vi.fn(),
+        onError: errorCallback.handler,
       });
 
       const dragData: WorkUnitDragData = {
@@ -147,7 +151,7 @@ describe('Drop Handler', () => {
         unitType: 'user-input',
       };
 
-      await handler(createMockDropEvent(dragData));
+      await handler(createMockDropEvent(dragData).asDragEvent());
 
       const calls = fakeInstance.getMutationCalls();
       expect(calls[0].args[1]).toEqual(dropPosition);
@@ -161,20 +165,18 @@ describe('Drop Handler', () => {
      * Acceptance Criteria: No mutation when wrong data type
      */
     test('should ignore drag data with wrong MIME type', async () => {
+      const errorCallback = new FakeErrorCallback();
       const handler = createDropHandler({
         instance: fakeInstance,
         getPosition: () => ({ x: 0, y: 0 }),
-        onError: vi.fn(),
+        onError: errorCallback.handler,
       });
 
-      const mockEvent = {
-        preventDefault: vi.fn(),
-        dataTransfer: {
-          getData: vi.fn((type) => (type === 'text/plain' ? 'some text' : '')),
-        },
-      } as unknown as DragEvent;
+      // Create event with wrong MIME type
+      const mockEvent = new FakeDragEvent();
+      mockEvent.setData('text/plain', 'some text');
 
-      await handler(mockEvent);
+      await handler(mockEvent.asDragEvent());
 
       // Should not have called any mutation
       expect(fakeInstance.getMutationCalls()).toHaveLength(0);
@@ -188,7 +190,7 @@ describe('Drop Handler', () => {
      * Acceptance Criteria: onError called with error message
      */
     test('should call onError when addUnconnectedNode fails', async () => {
-      const onError = vi.fn();
+      const errorCallback = new FakeErrorCallback();
       fakeInstance.setMutationResult({
         success: false,
         errors: [{ code: 'E001', message: 'Unit not found' }],
@@ -197,7 +199,7 @@ describe('Drop Handler', () => {
       const handler = createDropHandler({
         instance: fakeInstance,
         getPosition: () => ({ x: 100, y: 100 }),
-        onError,
+        onError: errorCallback.handler,
       });
 
       const dragData: WorkUnitDragData = {
@@ -205,9 +207,9 @@ describe('Drop Handler', () => {
         unitType: 'agent',
       };
 
-      await handler(createMockDropEvent(dragData));
+      await handler(createMockDropEvent(dragData).asDragEvent());
 
-      expect(onError).toHaveBeenCalledWith('Unit not found');
+      expect(errorCallback.wasCalledWith('Unit not found')).toBe(true);
     });
 
     /**
@@ -218,16 +220,17 @@ describe('Drop Handler', () => {
      * Acceptance Criteria: preventDefault called
      */
     test('should prevent default on drop', async () => {
+      const errorCallback = new FakeErrorCallback();
       const handler = createDropHandler({
         instance: fakeInstance,
         getPosition: () => ({ x: 0, y: 0 }),
-        onError: vi.fn(),
+        onError: errorCallback.handler,
       });
 
       const mockEvent = createMockDropEvent({ unitSlug: 'test', unitType: 'agent' });
-      await handler(mockEvent);
+      await handler(mockEvent.asDragEvent());
 
-      expect(mockEvent.preventDefault).toHaveBeenCalled();
+      expect(mockEvent.defaultPrevented).toBe(true);
     });
 
     /**
@@ -238,36 +241,30 @@ describe('Drop Handler', () => {
      * Acceptance Criteria: No mutation, no crash
      */
     test('should handle invalid JSON in drag data gracefully', async () => {
-      const onError = vi.fn();
+      const errorCallback = new FakeErrorCallback();
       const handler = createDropHandler({
         instance: fakeInstance,
         getPosition: () => ({ x: 0, y: 0 }),
-        onError,
+        onError: errorCallback.handler,
       });
 
-      const mockEvent = {
-        preventDefault: vi.fn(),
-        dataTransfer: {
-          getData: vi.fn((type) => (type === WORKUNIT_DRAG_TYPE ? 'not valid json' : '')),
-        },
-      } as unknown as DragEvent;
+      const mockEvent = new FakeDragEvent();
+      mockEvent.setData(WORKUNIT_DRAG_TYPE, 'not valid json');
 
-      await handler(mockEvent);
+      await handler(mockEvent.asDragEvent());
 
       expect(fakeInstance.getMutationCalls()).toHaveLength(0);
-      expect(onError).toHaveBeenCalled();
+      expect(errorCallback.wasCalled()).toBe(true);
     });
   });
 });
 
 /**
  * Helper to create mock drop event with proper drag data.
+ * Uses FakeDragEvent for Constitution compliance.
  */
-function createMockDropEvent(dragData: WorkUnitDragData): DragEvent {
-  return {
-    preventDefault: vi.fn(),
-    dataTransfer: {
-      getData: vi.fn((type) => (type === WORKUNIT_DRAG_TYPE ? JSON.stringify(dragData) : '')),
-    },
-  } as unknown as DragEvent;
+function createMockDropEvent(dragData: WorkUnitDragData): FakeDragEvent {
+  const event = new FakeDragEvent();
+  event.setData(WORKUNIT_DRAG_TYPE, JSON.stringify(dragData));
+  return event;
 }

@@ -5,11 +5,17 @@
  * Single-node deletion only (no cascade) per Phase 3 scope.
  *
  * Testing approach: Full TDD - write tests first (RED), implement (GREEN), refactor.
+ * Per Constitution Principle 4: Using Fake classes instead of vi.fn().
  */
 
 import { FakeWorkGraphUIInstance } from '@/features/022-workgraph-ui/fake-workgraph-ui-instance';
-import type { UIEdge, UINodeState } from '@/features/022-workgraph-ui/workgraph-ui.types';
-import { beforeEach, describe, expect, test, vi } from 'vitest';
+import { FakeSubscriber } from '@/features/022-workgraph-ui/test-fakes';
+import type {
+  UIEdge,
+  UINodeState,
+  WorkGraphUIEvent,
+} from '@/features/022-workgraph-ui/workgraph-ui.types';
+import { beforeEach, describe, expect, test } from 'vitest';
 
 describe('Node Deletion', () => {
   let fakeInstance: FakeWorkGraphUIInstance;
@@ -94,12 +100,12 @@ describe('Node Deletion', () => {
      * Acceptance Criteria: Subscriber receives changed event
      */
     test('should emit changed event on deletion', async () => {
-      const subscriber = vi.fn();
-      fakeInstance.subscribe(subscriber);
+      const subscriber = new FakeSubscriber<WorkGraphUIEvent>();
+      fakeInstance.subscribe(subscriber.handler);
 
       await fakeInstance.removeNode('nodeB');
 
-      expect(subscriber).toHaveBeenCalledWith(expect.objectContaining({ type: 'changed' }));
+      expect(subscriber.wasCalledWith({ type: 'changed' })).toBe(true);
     });
 
     /**
