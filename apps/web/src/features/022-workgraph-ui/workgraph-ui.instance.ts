@@ -1,21 +1,24 @@
 /**
- * WorkGraphUIInstance - Phase 1 (T010)
+ * WorkGraphUIInstance - Phase 1 (T010) + Phase 3 (T016)
  *
- * Real implementation of IWorkGraphUIInstanceCore.
+ * Real implementation of IWorkGraphUIInstance (extends IWorkGraphUIInstanceCore).
  *
  * Responsibilities:
  * - Hold canonical state for a single WorkGraph
- * - Compute node statuses from DAG structure (pending/ready)
+ * - Compute node statuses from DAG structure (pending/ready/disconnected)
  * - Preserve stored statuses (running, waiting-question, blocked-error, complete)
  * - Emit events on state changes
  * - Provide refresh mechanism for external updates
+ * - Phase 3: Mutation methods for graph editing (addUnconnectedNode, addNodeAfter, etc.)
  *
  * Per Critical Discovery 01: pending/ready are COMPUTED, others are STORED
  * Per DYK#1: Default positions via vertical cascade {x: 100, y: index * 150}
+ * Per DYK#1 (Phase 3): Disconnected nodes (no incoming edges, not start) get 'disconnected' status
  * Per DYK#2: refresh() only emits 'changed' if data actually differs
  * Per DYK#5: isDisposed flag checked before AND after async operations
  */
 
+import type { BaseResult } from '@chainglass/shared';
 import type { WorkspaceContext } from '@chainglass/workflow';
 import type {
   GraphStatusResult,
@@ -25,7 +28,9 @@ import type {
 } from '@chainglass/workgraph';
 
 import type {
-  IWorkGraphUIInstanceCore,
+  AddUnconnectedNodeResult,
+  ConnectNodesResult,
+  IWorkGraphUIInstance,
   Position,
   StoredNodeState,
   UIEdge,
@@ -46,7 +51,8 @@ import type {
  * Per Critical Discovery 01:
  * - If node has stored status (running, waiting-question, blocked-error, complete): use it
  * - Otherwise, compute from DAG:
- *   - If no incoming edges (start node): 'ready'
+ *   - If no incoming edges AND is 'start' node: 'ready'
+ *   - If no incoming edges AND is NOT 'start' node: 'disconnected' (DYK#1 Phase 3)
  *   - If all upstream nodes are 'complete': 'ready'
  *   - Otherwise: 'pending'
  *
@@ -77,10 +83,13 @@ function computeNodeStatus(
   // Find incoming edges (upstream nodes)
   const incomingEdges = edges.filter((e) => e.to === nodeId);
 
-  // No incoming edges = start node or orphan = ready
+  // No incoming edges:
+  // - 'start' node: always 'ready'
+  // - Other nodes: 'disconnected' (dropped from toolbox, not yet wired) per DYK#1
   if (incomingEdges.length === 0) {
-    computedStatuses.set(nodeId, 'ready');
-    return 'ready';
+    const status: NodeStatus = nodeId === 'start' ? 'ready' : 'disconnected';
+    computedStatuses.set(nodeId, status);
+    return status;
   }
 
   // Check all upstream nodes
@@ -125,8 +134,9 @@ export function computeAllNodeStatuses(
  * Real implementation of WorkGraphUIInstance.
  *
  * Holds the canonical state for a single WorkGraph.
+ * Phase 3 extends with mutation methods for graph editing.
  */
-export class WorkGraphUIInstance implements IWorkGraphUIInstanceCore {
+export class WorkGraphUIInstance implements IWorkGraphUIInstance {
   readonly graphSlug: string;
   private _definition: WorkGraphDefinition;
   private _state: WorkGraphState;
@@ -140,6 +150,12 @@ export class WorkGraphUIInstance implements IWorkGraphUIInstanceCore {
 
   // For change detection (DYK#2)
   private lastStateHash = '';
+
+  // For position tracking of nodes (Phase 3)
+  private nodePositions: Map<string, Position> = new Map();
+
+  // Counter for generating unique node IDs
+  private static nodeIdCounter = 0;
 
   constructor(
     graphSlug: string,
@@ -345,5 +361,209 @@ export class WorkGraphUIInstance implements IWorkGraphUIInstanceCore {
 
     this._isDisposed = true;
     this.subscribers.clear();
+  }
+
+  // ==================== Phase 3: Mutation Methods ====================
+
+  /**
+   * Generate a unique temporary node ID for optimistic updates.
+   * Will be replaced with real ID from backend.
+   */
+  private generateTempNodeId(): string {
+    return `temp-node-${++WorkGraphUIInstance.nodeIdCounter}`;
+  }
+
+  /**
+   * Add an unconnected node to the graph (UI drag-drop pattern).
+   * Creates a node at the given position without any edges.
+   * Node starts with 'disconnected' status per DYK#1.
+   *
+   * This is the UI pattern - node is dropped on canvas, user will wire it later.
+   */
+  async addUnconnectedNode(
+    unitSlug: string,
+    position: Position
+  ): Promise<AddUnconnectedNodeResult> {
+    if (this._isDisposed) {
+      return { errors: [{ code: 'E999', message: 'Instance disposed' }] };
+    }
+
+    // Generate temp ID for optimistic update
+    const tempNodeId = this.generateTempNodeId();
+
+    // Optimistic update: add node to local state immediately
+    const newNode: UINodeState = {
+      id: tempNodeId,
+      status: 'disconnected',
+      position,
+      unit: unitSlug,
+    };
+    this._nodes.set(tempNodeId, newNode);
+    this.nodePositions.set(tempNodeId, position);
+
+    // Emit change for UI update
+    this.emitChanged();
+
+    // TODO: T012 - Call API to persist node
+    // For now, return success with temp ID
+    // Real implementation will:
+    // 1. Call POST /api/.../nodes with {unitSlug, position}
+    // 2. On success: replace temp ID with real ID
+    // 3. On failure: rollback (remove temp node, show error toast)
+
+    return { errors: [], nodeId: tempNodeId };
+  }
+
+  /**
+   * Add a node after an existing node (CLI/agent pattern).
+   * Creates node with edge from predecessor and wires compatible inputs.
+   */
+  async addNodeAfter(afterNodeId: string, unitSlug: string): Promise<BaseResult> {
+    if (this._isDisposed) {
+      return { errors: [{ code: 'E999', message: 'Instance disposed' }] };
+    }
+
+    // Call backend to add node with edge
+    const result = await this.backend.addNodeAfter(this.ctx, this.graphSlug, afterNodeId, unitSlug);
+
+    if (result.errors.length === 0) {
+      // Refresh to get updated graph state
+      await this.refresh();
+    }
+
+    return result;
+  }
+
+  /**
+   * Remove a node from the graph.
+   * Single-node deletion only (no cascade) per Phase 3 scope.
+   */
+  async removeNode(nodeId: string): Promise<BaseResult> {
+    if (this._isDisposed) {
+      return { errors: [{ code: 'E999', message: 'Instance disposed' }] };
+    }
+
+    // Don't allow removing the start node
+    if (nodeId === 'start') {
+      return { errors: [{ code: 'E104', message: 'Cannot remove start node' }] };
+    }
+
+    // Call backend to remove node
+    const result = await this.backend.removeNode(this.ctx, this.graphSlug, nodeId);
+
+    if (result.errors.length === 0) {
+      // Refresh to get updated graph state
+      await this.refresh();
+    }
+
+    return result;
+  }
+
+  /**
+   * Connect two nodes with an edge.
+   * Validates type compatibility via backend.
+   *
+   * Note: T014a will add canConnect() to backend for validation.
+   * For now, we attempt the connection and handle errors.
+   */
+  async connectNodes(
+    sourceNodeId: string,
+    sourceHandle: string,
+    targetNodeId: string,
+    targetHandle: string
+  ): Promise<ConnectNodesResult> {
+    if (this._isDisposed) {
+      return { errors: [{ code: 'E999', message: 'Instance disposed' }], connected: false };
+    }
+
+    // TODO: T014 - Call POST /api/.../edges to create edge
+    // For now, add edge optimistically to local state
+
+    // Check if edge already exists
+    const edgeExists = this._edges.some(
+      (e) => e.source === sourceNodeId && e.target === targetNodeId
+    );
+    if (edgeExists) {
+      return { errors: [{ code: 'E105', message: 'Edge already exists' }], connected: false };
+    }
+
+    // Optimistic update: add edge to local state
+    const newEdge: UIEdge = {
+      id: `edge-${this._edges.length}`,
+      source: sourceNodeId,
+      target: targetNodeId,
+    };
+    this._edges.push(newEdge);
+
+    // Recompute node statuses (target node may now be ready/pending instead of disconnected)
+    this._nodes = this.buildNodesMap();
+
+    // Emit change for UI update
+    this.emitChanged();
+
+    return { errors: [], connected: true };
+  }
+
+  /**
+   * Disconnect a node from its upstream connections.
+   * Removes incoming edges, node becomes 'disconnected'.
+   */
+  async disconnectNode(nodeId: string): Promise<BaseResult> {
+    if (this._isDisposed) {
+      return { errors: [{ code: 'E999', message: 'Instance disposed' }] };
+    }
+
+    // Don't allow disconnecting the start node (it has no incoming edges anyway)
+    if (nodeId === 'start') {
+      return { errors: [{ code: 'E106', message: 'Cannot disconnect start node' }] };
+    }
+
+    // Remove all incoming edges to this node
+    this._edges = this._edges.filter((e) => e.target !== nodeId);
+
+    // Recompute node statuses
+    this._nodes = this.buildNodesMap();
+
+    // Emit change for UI update
+    this.emitChanged();
+
+    // TODO: T014 - Call API to persist edge removal
+    return { errors: [] };
+  }
+
+  /**
+   * Update a node's layout position.
+   * Does not affect graph structure, only visual layout.
+   */
+  updateNodeLayout(nodeId: string, position: Position): void {
+    if (this._isDisposed) {
+      return;
+    }
+
+    const node = this._nodes.get(nodeId);
+    if (node) {
+      // Update position in the node state
+      // Note: We need to create a new object to trigger React re-renders
+      this._nodes.set(nodeId, {
+        ...node,
+        position,
+      });
+      this.nodePositions.set(nodeId, position);
+
+      // Emit change for UI update
+      this.emitChanged();
+    }
+  }
+
+  /**
+   * Helper to emit 'changed' event.
+   */
+  private emitChanged(): void {
+    this.lastStateHash = this.computeStateHash();
+    this.emit({
+      type: 'changed',
+      graphSlug: this.graphSlug,
+      timestamp: new Date().toISOString(),
+    });
   }
 }

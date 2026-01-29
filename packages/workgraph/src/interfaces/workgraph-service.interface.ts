@@ -27,6 +27,7 @@ export type GraphStatus = 'pending' | 'in_progress' | 'complete' | 'failed';
  *
  * - pending: Computed - upstream not complete
  * - ready: Computed - can be started
+ * - disconnected: Computed - node has no incoming edges (dropped from toolbox, not yet wired)
  * - running: Stored - work in progress
  * - waiting-question: Stored - agent asked question
  * - blocked-error: Stored - agent reported error
@@ -35,6 +36,7 @@ export type GraphStatus = 'pending' | 'in_progress' | 'complete' | 'failed';
 export type NodeStatus =
   | 'pending'
   | 'ready'
+  | 'disconnected'
   | 'running'
   | 'waiting-question'
   | 'blocked-error'

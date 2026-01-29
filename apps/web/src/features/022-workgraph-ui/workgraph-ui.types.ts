@@ -196,27 +196,92 @@ export interface IWorkGraphUIInstanceCore {
 }
 
 /**
+ * Result of add unconnected node operation.
+ */
+export interface AddUnconnectedNodeResult extends BaseResult {
+  /** Created node ID */
+  nodeId?: string;
+}
+
+/**
+ * Result of connect nodes operation.
+ */
+export interface ConnectNodesResult extends BaseResult {
+  /** Whether connection was successful */
+  connected: boolean;
+}
+
+/**
  * Full interface for WorkGraphUIInstance (Phase 3+).
  *
  * Extends core with mutation methods.
- * Note: Not implemented until Phase 3.
+ * Per DYK#2: Two add-node patterns:
+ * - addUnconnectedNode: For UI drag-drop (creates disconnected node at position)
+ * - addNodeAfter: For CLI/agents (creates node with edge to predecessor)
  */
 export interface IWorkGraphUIInstance extends IWorkGraphUIInstanceCore {
   /**
-   * Add a node to the graph.
+   * Add an unconnected node to the graph (UI pattern).
+   * Creates a node at the given position without any edges.
+   * Node starts with 'disconnected' status per DYK#1.
+   *
+   * @param unitSlug - Unit to instantiate
+   * @param position - Position for the new node
+   * @returns Result with new node ID
+   */
+  addUnconnectedNode(unitSlug: string, position: Position): Promise<AddUnconnectedNodeResult>;
+
+  /**
+   * Add a node after an existing node (CLI/agent pattern).
+   * Creates node with edge from predecessor and wires compatible inputs.
+   *
    * @param afterNodeId - Node to add after
    * @param unitSlug - Unit to instantiate
+   * @returns Result with new node ID
    */
-  addNode(afterNodeId: string, unitSlug: string): Promise<BaseResult>;
+  addNodeAfter(afterNodeId: string, unitSlug: string): Promise<BaseResult>;
 
   /**
    * Remove a node from the graph.
+   * Cleans up edges and recomputes downstream statuses.
+   * Single-node deletion only (no cascade) per Phase 3 scope.
+   *
    * @param nodeId - Node to remove
+   * @returns Result indicating success/failure
    */
   removeNode(nodeId: string): Promise<BaseResult>;
 
   /**
+   * Connect two nodes with an edge.
+   * Validates type compatibility via backend canConnect().
+   *
+   * @param sourceNodeId - Source node
+   * @param sourceHandle - Output handle name
+   * @param targetNodeId - Target node
+   * @param targetHandle - Input handle name
+   * @returns Result indicating success/failure (E103 on type mismatch)
+   */
+  connectNodes(
+    sourceNodeId: string,
+    sourceHandle: string,
+    targetNodeId: string,
+    targetHandle: string
+  ): Promise<ConnectNodesResult>;
+
+  /**
+   * Disconnect a node from its upstream connections.
+   * Removes incoming edges, node becomes 'disconnected'.
+   * Used for rewiring support per DYK#2.
+   *
+   * @param nodeId - Node to disconnect
+   * @returns Result indicating success/failure
+   */
+  disconnectNode(nodeId: string): Promise<BaseResult>;
+
+  /**
    * Update a node's layout position.
+   * Does not affect graph structure, only visual layout.
+   *
    * @param nodeId - Node to update
    * @param position - New position
    */
