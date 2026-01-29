@@ -11,6 +11,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
+import type { Connection } from '@xyflow/react';
 import type { WorkGraphFlowData } from '../../../../../../src/features/022-workgraph-ui/use-workgraph-flow';
 import { useWorkGraphAPI } from '../../../../../../src/features/022-workgraph-ui/use-workgraph-api';
 import { WorkGraphCanvas } from '../../../../../../src/features/022-workgraph-ui/workgraph-canvas';
@@ -46,6 +47,28 @@ export function WorkGraphDetailClient({
     onMutation: () => router.refresh(),
   });
 
+  // Handle edge connections from React Flow
+  const handleConnect = useCallback(
+    async (connection: Connection) => {
+      if (!connection.source || !connection.target) {
+        handleError('Invalid connection: source and target required');
+        return;
+      }
+
+      const result = await instance.connectNodes(
+        connection.source,
+        connection.sourceHandle ?? '',
+        connection.target,
+        connection.targetHandle ?? ''
+      );
+
+      if (!result.success && result.errors.length > 0) {
+        handleError(result.errors[0].message);
+      }
+    },
+    [instance, handleError]
+  );
+
   return (
     <div className="flex h-full w-full">
       {/* Toolbox sidebar */}
@@ -70,6 +93,7 @@ export function WorkGraphDetailClient({
           editable={true}
           instance={instance}
           onError={handleError}
+          onConnect={handleConnect}
         />
       </div>
     </div>

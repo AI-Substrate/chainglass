@@ -187,16 +187,21 @@ export function useWorkGraphAPI({
   const connectNodes = useCallback(
     async (
       sourceNodeId: string,
-      outputName: string,
+      sourceHandle: string,
       targetNodeId: string,
-      inputName: string
+      targetHandle: string
     ): Promise<MutationResult> => {
       try {
         const url = buildApiUrl(workspaceSlug, graphSlug, '/edges', worktreePath);
         const response = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sourceNodeId, outputName, targetNodeId, inputName }),
+          body: JSON.stringify({
+            source: sourceNodeId,
+            sourceHandle,
+            target: targetNodeId,
+            targetHandle,
+          }),
         });
 
         const data = await response.json();

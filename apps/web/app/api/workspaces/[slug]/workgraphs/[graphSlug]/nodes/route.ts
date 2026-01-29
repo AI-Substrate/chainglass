@@ -116,8 +116,9 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
       `[/api/workspaces/${slug}/workgraphs/${graphSlug}/nodes] Error adding node:`,
       error
     );
+    const errorMessage = error instanceof Error ? error.message : 'Failed to add node';
     return Response.json(
-      { errors: [{ code: 'E500', message: 'Failed to add node' }] },
+      { errors: [{ code: 'E500', message: errorMessage }] },
       { status: 500 }
     );
   }

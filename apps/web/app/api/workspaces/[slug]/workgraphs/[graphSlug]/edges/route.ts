@@ -109,18 +109,22 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
       );
     }
 
-    // TODO: Implement actual edge creation via WorkGraphService.connectNodes()
-    // For now, return not implemented since we need to extend WorkGraphService
-    // The actual edge creation will wire inputs/outputs based on name matching
-    return Response.json(
-      {
-        connected: false,
-        errors: [
-          { code: 'E501', message: 'Direct edge creation not yet implemented - use addNodeAfter' },
-        ],
-      },
-      { status: 501 }
-    );
+    // Create edge via WorkGraphService.connectNodes()
+    const connectResult = await workgraphService.connectNodes(context, graphSlug, source, target);
+
+    if (connectResult.errors.length > 0) {
+      const status = connectResult.errors[0].code === 'E107' ? 404 : 400;
+      return Response.json(
+        { connected: false, errors: connectResult.errors },
+        { status }
+      );
+    }
+
+    return Response.json({
+      connected: true,
+      edgeId: connectResult.edgeId,
+      errors: [],
+    });
   } catch (error) {
     console.error(
       `[/api/workspaces/${slug}/workgraphs/${graphSlug}/edges] Error creating edge:`,

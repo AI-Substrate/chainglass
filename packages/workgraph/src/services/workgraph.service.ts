@@ -932,49 +932,75 @@ export class WorkGraphService implements IWorkGraphService {
       };
     }
 
-    // 5. Validate output exists on source and input exists on target (E103)
-    // Uses strict name matching per DYK#3
+    // 5. Get source outputs and target inputs for validation
     const sourceOutputs = await this.getNodeOutputs(ctx, graphSlug, sourceNodeId);
-    if (!sourceOutputs.has(sourceOutput)) {
-      return {
-        valid: false,
-        errors: [
-          {
-            code: 'E103',
-            message: `Source node '${sourceNodeId}' does not have output '${sourceOutput}'`,
-            action: `Available outputs: ${[...sourceOutputs].join(', ') || 'none'}`,
-          },
-        ],
-      };
-    }
-
-    // 6. Validate input exists on target
-    if (this.workUnitService) {
+    
+    // Get target inputs
+    let targetInputs = new Set<string>();
+    if (this.workUnitService && targetNodeId !== 'start') {
       const targetUnit = this.extractUnitSlug(targetNodeId);
       const unitResult = await this.workUnitService.load(ctx, targetUnit);
       if (unitResult.unit) {
-        const inputNames = new Set(unitResult.unit.inputs.map((i) => i.name));
-        if (!inputNames.has(targetInput)) {
-          return {
-            valid: false,
-            errors: [
-              {
-                code: 'E103',
-                message: `Target node '${targetNodeId}' does not have input '${targetInput}'`,
-                action: `Available inputs: ${[...inputNames].join(', ') || 'none'}`,
-              },
-            ],
-          };
-        }
+        targetInputs = new Set(unitResult.unit.inputs.map((i) => i.name));
       }
     }
 
-    // 7. Strict name matching per DYK#3 - output name must match input name
-    if (sourceOutput !== targetInput) {
-      return {
-        valid: false,
-        errors: [missingRequiredInputsError(targetNodeId, [targetInput])],
-      };
+    // 6. Auto-match mode: when both ports are empty, check if ANY output matches ANY input
+    // This supports UI drag-drop where handles don't have specific port names
+    if (sourceOutput === '' && targetInput === '') {
+      // Find any matching output→input by name
+      const matchingPorts = [...sourceOutputs].filter((name) => targetInputs.has(name));
+      
+      if (matchingPorts.length === 0 && sourceOutputs.size > 0 && targetInputs.size > 0) {
+        // Both have ports but none match
+        return {
+          valid: false,
+          errors: [
+            {
+              code: 'E103',
+              message: `No compatible connection between '${sourceNodeId}' and '${targetNodeId}'`,
+              action: `Source outputs: [${[...sourceOutputs].join(', ')}]. Target inputs: [${[...targetInputs].join(', ')}]. Names must match.`,
+            },
+          ],
+        };
+      }
+      // Either ports match, or one/both nodes have no ports (structural connection allowed)
+      // Continue to cycle check
+    } else {
+      // 7. Strict mode: validate specific port names
+      if (!sourceOutputs.has(sourceOutput)) {
+        return {
+          valid: false,
+          errors: [
+            {
+              code: 'E103',
+              message: `Source node '${sourceNodeId}' does not have output '${sourceOutput}'`,
+              action: `Available outputs: ${[...sourceOutputs].join(', ') || 'none'}`,
+            },
+          ],
+        };
+      }
+
+      if (!targetInputs.has(targetInput)) {
+        return {
+          valid: false,
+          errors: [
+            {
+              code: 'E103',
+              message: `Target node '${targetNodeId}' does not have input '${targetInput}'`,
+              action: `Available inputs: ${[...targetInputs].join(', ') || 'none'}`,
+            },
+          ],
+        };
+      }
+
+      // Strict name matching per DYK#3 - output name must match input name
+      if (sourceOutput !== targetInput) {
+        return {
+          valid: false,
+          errors: [missingRequiredInputsError(targetNodeId, [targetInput])],
+        };
+      }
     }
 
     // 8. Check for cycles (E108)
@@ -1105,6 +1131,180 @@ export class WorkGraphService implements IWorkGraphService {
       nodeId,
       errors: [],
     };
+  }
+
+  // ==================== connectNodes ====================
+
+  /**
+   * Connect two nodes by creating an edge.
+   *
+   * Per DYK#5: Uses canConnect() for type validation before creating edge.
+   * Per DYK#1: Target node transitions from 'disconnected' to 'pending' when connected.
+   *
+   * This method:
+   * 1. Validates connection via canConnect()
+   * 2. Updates work-graph.yaml with new edge
+   * 3. Updates target node's inputs mapping
+   * 4. Updates state.json - target transitions from 'disconnected' to 'pending'
+   *
+   * @param ctx - Workspace context for path resolution
+   * @param graphSlug - Graph to modify
+   * @param sourceNodeId - Source node ID
+   * @param targetNodeId - Target node ID
+   * @returns ConnectNodesResult with success status and edge ID
+   */
+  async connectNodes(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    sourceNodeId: string,
+    targetNodeId: string
+  ): Promise<import('../interfaces/index.js').ConnectNodesResult> {
+    // 1. Validate slug format
+    if (!this.isValidSlug(graphSlug)) {
+      return {
+        connected: false,
+        errors: [invalidGraphSlugError(graphSlug)],
+      };
+    }
+
+    // 2. Load graph
+    const loadResult = await this.load(ctx, graphSlug);
+    if (loadResult.errors.length > 0 || !loadResult.graph) {
+      return {
+        connected: false,
+        errors: loadResult.errors,
+      };
+    }
+
+    const graph = loadResult.graph;
+    const graphPath = this.getGraphPath(ctx, graphSlug);
+
+    // 3. Check nodes exist
+    if (!graph.nodes.includes(sourceNodeId)) {
+      return {
+        connected: false,
+        errors: [nodeNotFoundError(graphSlug, sourceNodeId)],
+      };
+    }
+    if (!graph.nodes.includes(targetNodeId)) {
+      return {
+        connected: false,
+        errors: [nodeNotFoundError(graphSlug, targetNodeId)],
+      };
+    }
+
+    // 4. Check if edge already exists
+    const edgeExists = graph.edges.some((e) => e.from === sourceNodeId && e.to === targetNodeId);
+    if (edgeExists) {
+      return {
+        connected: false,
+        errors: [
+          {
+            code: 'E105',
+            message: `Edge from '${sourceNodeId}' to '${targetNodeId}' already exists`,
+          },
+        ],
+      };
+    }
+
+    // 5. Get source outputs to wire matching inputs
+    const sourceOutputs = await this.getNodeOutputs(ctx, graphSlug, sourceNodeId);
+
+    // 6. Get target inputs from node.yaml
+    const targetNodePath = this.pathResolver.join(graphPath, 'nodes', targetNodeId, 'node.yaml');
+    let targetNode: { inputs?: Record<string, { from_node?: string; from_output?: string }> } = {
+      inputs: {},
+    };
+    try {
+      const content = await this.fs.readFile(targetNodePath);
+      targetNode = this.yamlParser.parse<typeof targetNode>(content, targetNodePath) || { inputs: {} };
+    } catch {
+      // Node yaml may not exist for start node or simple nodes
+    }
+
+    // 7. Wire matching outputs to inputs (name-based matching per DYK#3)
+    const targetInputs = targetNode.inputs ?? {};
+    let wiringsMade = 0;
+    for (const outputName of sourceOutputs) {
+      // Wire if target has matching input that isn't already wired
+      if (outputName in targetInputs || (await this.targetAcceptsInput(ctx, targetNodeId, outputName))) {
+        // Only wire if not already connected
+        if (!targetInputs[outputName]?.from_node) {
+          targetInputs[outputName] = {
+            from_node: sourceNodeId,
+            from_output: outputName,
+          };
+          wiringsMade++;
+        }
+      }
+    }
+
+    // Update target node.yaml with new wirings
+    if (wiringsMade > 0) {
+      targetNode.inputs = targetInputs;
+      const nodeYaml = this.yamlParser.stringify(targetNode);
+      await atomicWriteFile(this.fs, targetNodePath, nodeYaml);
+    }
+
+    // 8. Add edge to graph
+    const edgeId = `edge-${graph.edges.length}`;
+    const updatedGraphDef = {
+      slug: graph.slug,
+      version: graph.version,
+      description: graph.description,
+      created_at: graph.createdAt,
+      nodes: graph.nodes,
+      edges: [...graph.edges, { from: sourceNodeId, to: targetNodeId }],
+    };
+
+    // Write updated graph
+    const updatedYaml = this.yamlParser.stringify(updatedGraphDef);
+    await atomicWriteFile(
+      this.fs,
+      this.pathResolver.join(graphPath, 'work-graph.yaml'),
+      updatedYaml
+    );
+
+    // 9. Update state - transition target from 'disconnected' to 'pending'
+    const statePath = this.pathResolver.join(graphPath, 'state.json');
+    let stateData: Record<string, unknown> = {};
+    try {
+      const stateContent = await this.fs.readFile(statePath);
+      stateData = JSON.parse(stateContent);
+    } catch {
+      stateData = { status: 'idle', nodes: {} };
+    }
+
+    const stateNodes = (stateData.nodes ?? {}) as Record<string, { status: string }>;
+    // Only transition if currently disconnected
+    if (stateNodes[targetNodeId]?.status === 'disconnected') {
+      stateNodes[targetNodeId] = { status: 'pending' };
+    }
+    stateData.nodes = stateNodes;
+    stateData.updated_at = new Date().toISOString();
+
+    await atomicWriteJson(this.fs, statePath, stateData);
+
+    return {
+      connected: true,
+      edgeId,
+      errors: [],
+    };
+  }
+
+  /**
+   * Check if a target node accepts an input by name.
+   */
+  private async targetAcceptsInput(
+    ctx: WorkspaceContext,
+    targetNodeId: string,
+    inputName: string
+  ): Promise<boolean> {
+    if (!this.workUnitService) return false;
+    const unitSlug = this.extractUnitSlug(targetNodeId);
+    const unitResult = await this.workUnitService.load(ctx, unitSlug);
+    if (!unitResult.unit) return false;
+    return unitResult.unit.inputs.some((i) => i.name === inputName);
   }
 
   /**

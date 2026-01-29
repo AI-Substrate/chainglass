@@ -13,6 +13,7 @@ import type {
   AddNodeOptions,
   AddNodeResult,
   AddUnconnectedNodeResult,
+  ConnectNodesResult,
   GraphCreateResult,
   GraphLoadResult,
   GraphShowResult,
@@ -420,6 +421,23 @@ export class FakeWorkGraphService implements IWorkGraphService {
     const nodeId = `${unitSlug}-${Date.now()}`;
     return {
       nodeId,
+      errors: [],
+    };
+  }
+
+  // ==================== connectNodes ====================
+
+  async connectNodes(
+    _ctx: WorkspaceContext,
+    _graphSlug: string,
+    sourceNodeId: string,
+    targetNodeId: string
+  ): Promise<ConnectNodesResult> {
+    // Simple fake - always succeed with generated edge ID
+    const edgeId = `edge-${sourceNodeId}-${targetNodeId}`;
+    return {
+      connected: true,
+      edgeId,
       errors: [],
     };
   }

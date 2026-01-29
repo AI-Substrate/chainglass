@@ -220,6 +220,16 @@ export interface CanConnectResult extends BaseResult {
   valid: boolean;
 }
 
+/**
+ * Result of connecting two nodes.
+ */
+export interface ConnectNodesResult extends BaseResult {
+  /** Whether the connection was created */
+  connected: boolean;
+  /** The edge ID that was created (if successful) */
+  edgeId?: string;
+}
+
 // ============================================
 // Service Interface
 // ============================================
@@ -313,15 +323,18 @@ export interface IWorkGraphService {
   /**
    * Check if two nodes can be connected.
    *
-   * Validates that the source output name matches the target input name (strict name matching).
-   * Used by UI edge connection and CLI validation.
+   * Supports two modes:
+   * - **Auto-match mode**: When sourceOutput='' and targetInput='', checks if ANY
+   *   source output name matches ANY target input name. Used by UI drag-drop.
+   * - **Strict mode**: When specific port names provided, validates exact match.
+   *   Used by CLI/programmatic access.
    *
    * @param ctx - Workspace context for path resolution
    * @param graphSlug - Graph containing the nodes
    * @param sourceNodeId - Node to connect from
-   * @param sourceOutput - Output name on source node
+   * @param sourceOutput - Output name ('' for auto-match mode)
    * @param targetNodeId - Node to connect to
-   * @param targetInput - Input name on target node
+   * @param targetInput - Input name ('' for auto-match mode)
    * @returns CanConnectResult with validation status and errors
    */
   canConnect(
@@ -349,4 +362,23 @@ export interface IWorkGraphService {
     graphSlug: string,
     unitSlug: string
   ): Promise<AddUnconnectedNodeResult>;
+
+  /**
+   * Connect two nodes by creating an edge.
+   *
+   * Per DYK#5: Uses canConnect() for type validation before creating edge.
+   * Per DYK#1: Target node transitions from 'disconnected' to 'pending' when connected.
+   *
+   * @param ctx - Workspace context for path resolution
+   * @param graphSlug - Graph to modify
+   * @param sourceNodeId - Source node ID
+   * @param targetNodeId - Target node ID
+   * @returns ConnectNodesResult with success status and edge ID
+   */
+  connectNodes(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    sourceNodeId: string,
+    targetNodeId: string
+  ): Promise<ConnectNodesResult>;
 }
