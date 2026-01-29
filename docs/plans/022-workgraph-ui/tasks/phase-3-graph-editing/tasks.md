@@ -75,21 +75,22 @@ flowchart TD
         T001["T001: Tests for WorkUnitToolbox ✓"]:::completed
         T002["T002: API route for listing units ✓"]:::completed
         T003["T003: Implement WorkUnitToolbox ✓"]:::completed
-        T004["T004: Tests for drop-to-add-node"]:::pending
-        T005["T005: Implement onDrop handler"]:::pending
-        T006["T006: Tests for edge connection"]:::pending
-        T007["T007: Implement edge connection"]:::pending
-        T008["T008: Tests for node deletion"]:::pending
-        T009["T009: Implement node deletion"]:::pending
-        T010["T010: Tests for auto-save debounce"]:::pending
-        T011["T011: Implement auto-save"]:::pending
+        T004["T004: Tests for drop-to-add-node ✓"]:::completed
+        T005["T005: Implement onDrop handler ✓"]:::completed
+        T006["T006: Tests for edge connection ✓"]:::completed
+        T007["T007: Implement edge connection ✓"]:::completed
+        T008["T008: Tests for node deletion ✓"]:::completed
+        T009["T009: Implement node deletion ✓"]:::completed
+        T010["T010: Tests for auto-save debounce ✓"]:::completed
+        T011["T011: Implement auto-save ✓"]:::completed
         T012["T012: API route for adding node ✓"]:::completed
         T013["T013: API route for deleting node ✓"]:::completed
         T014["T014: API route for connecting nodes ✓"]:::completed
-        T015["T015: Tests for optimistic rollback"]:::pending
+        T014a["T014a: canConnect() implementation ✓"]:::completed
+        T015["T015: Tests for optimistic rollback ✓"]:::completed
         T016["T016: Extend IWorkGraphUIInstance ✓"]:::completed
-        T017["T017: Update canvas for editing"]:::pending
-        T018["T018: PlanPak symlinks"]:::pending
+        T017["T017: Update canvas for editing ✓"]:::completed
+        T018["T018: PlanPak symlinks ✓"]:::completed
 
         T001 --> T003
         T002 --> T003
@@ -100,6 +101,7 @@ flowchart TD
         T012 --> T005
         T013 --> T009
         T014 --> T007
+        T014a --> T014
         T015 --> T005
         T015 --> T007
         T015 --> T009
@@ -118,24 +120,24 @@ flowchart TD
     end
 
     subgraph Files["Components"]
-        F1["/apps/web/src/features/022-workgraph-ui/workunit-toolbox.tsx"]:::pending
-        F2["/apps/web/src/features/022-workgraph-ui/workgraph-canvas.tsx"]:::pending
-        F3["/apps/web/src/features/022-workgraph-ui/use-workgraph-flow.ts"]:::pending
-        F4["/apps/web/src/features/022-workgraph-ui/workgraph-ui.instance.ts"]:::pending
-        F5["/apps/web/src/features/022-workgraph-ui/workgraph-ui.types.ts"]:::pending
-        F6["/apps/web/src/features/022-workgraph-ui/fake-workgraph-ui-instance.ts"]:::pending
-        F7["/docs/plans/022-workgraph-ui/files/"]:::pending
+        F1["/apps/web/src/features/022-workgraph-ui/workunit-toolbox.tsx ✓"]:::completed
+        F2["/apps/web/src/features/022-workgraph-ui/workgraph-canvas.tsx ✓"]:::completed
+        F3["/apps/web/src/features/022-workgraph-ui/use-workgraph-flow.ts ✓"]:::completed
+        F4["/apps/web/src/features/022-workgraph-ui/workgraph-ui.instance.ts ✓"]:::completed
+        F5["/apps/web/src/features/022-workgraph-ui/workgraph-ui.types.ts ✓"]:::completed
+        F6["/apps/web/src/features/022-workgraph-ui/fake-workgraph-ui-instance.ts ✓"]:::completed
+        F7["/apps/web/src/features/022-workgraph-ui/drop-handler.ts ✓"]:::completed
     end
 
     subgraph API["API Routes"]
-        A1["/apps/web/app/api/workspaces/[slug]/units/route.ts"]:::pending
-        A2["/apps/web/app/api/workspaces/[slug]/workgraphs/[graphSlug]/nodes/route.ts"]:::pending
-        A3["/apps/web/app/api/workspaces/[slug]/workgraphs/[graphSlug]/edges/route.ts"]:::pending
+        A1["/apps/web/app/api/workspaces/[slug]/units/route.ts ✓"]:::completed
+        A2["/apps/web/app/api/workspaces/[slug]/workgraphs/[graphSlug]/nodes/route.ts ✓"]:::completed
+        A3["/apps/web/app/api/workspaces/[slug]/workgraphs/[graphSlug]/edges/route.ts ✓"]:::completed
     end
 
     T003 -.-> F1
     T005 -.-> F2
-    T005 -.-> F3
+    T005 -.-> F7
     T007 -.-> F3
     T009 -.-> F4
     T011 -.-> F4
@@ -147,7 +149,6 @@ flowchart TD
     T013 -.-> A2
     T014 -.-> A3
     T017 -.-> F2
-    T018 -.-> F7
 ```
 
 ### Task-to-Component Mapping
@@ -159,21 +160,22 @@ flowchart TD
 | T001 | WorkUnitToolbox Tests | test/unit/web/features/022-workgraph-ui/workunit-toolbox.test.tsx | ✅ Complete | TDD: tests first for toolbox component |
 | T002 | Units API | app/api/workspaces/[slug]/units/route.ts | ✅ Complete | Per CD-09: dynamic unit discovery |
 | T003 | WorkUnitToolbox | features/022-workgraph-ui/workunit-toolbox.tsx | ✅ Complete | Fetches units, renders drag handles |
-| T004 | Drop Handler Tests | test/unit/web/features/022-workgraph-ui/drop-handler.test.ts | ⬜ Pending | TDD: tests for onDrop flow |
-| T005 | Drop Handler | features/022-workgraph-ui/workgraph-canvas.tsx | ⬜ Pending | Creates unconnected node at drop position |
-| T006 | Edge Connection Tests | test/unit/web/features/022-workgraph-ui/edge-connection.test.ts | ⬜ Pending | TDD: tests for onConnect with type validation |
-| T007 | Edge Connection | use-workgraph-flow.ts, workgraph-canvas.tsx | ⬜ Pending | Per CD-04: manual edge with validation |
-| T008 | Node Deletion Tests | test/unit/web/features/022-workgraph-ui/node-deletion.test.ts | ⬜ Pending | TDD: tests for single node removal |
-| T009 | Node Deletion | workgraph-ui.instance.ts | ⬜ Pending | Remove node, clean edges, recompute status |
-| T010 | Auto-Save Tests | test/unit/web/features/022-workgraph-ui/auto-save.test.ts | ⬜ Pending | TDD: 500ms debounce behavior |
-| T011 | Auto-Save | workgraph-ui.instance.ts | ⬜ Pending | Debounced persistence on change |
+| T004 | Drop Handler Tests | test/unit/web/features/022-workgraph-ui/drop-handler.test.ts | ✅ Complete | TDD: tests for onDrop flow |
+| T005 | Drop Handler | features/022-workgraph-ui/drop-handler.ts | ✅ Complete | Creates unconnected node at drop position |
+| T006 | Edge Connection Tests | test/unit/web/features/022-workgraph-ui/edge-connection.test.ts | ✅ Complete | TDD: tests for onConnect with type validation |
+| T007 | Edge Connection | use-workgraph-flow.ts, workgraph-canvas.tsx | ✅ Complete | Per CD-04: manual edge with validation |
+| T008 | Node Deletion Tests | test/unit/web/features/022-workgraph-ui/node-deletion.test.ts | ✅ Complete | TDD: tests for single node removal |
+| T009 | Node Deletion | workgraph-ui.instance.ts | ✅ Complete | Remove node, clean edges, recompute status |
+| T010 | Auto-Save Tests | test/unit/web/features/022-workgraph-ui/auto-save.test.ts | ✅ Complete | TDD: 500ms debounce behavior |
+| T011 | Auto-Save | workgraph-ui.instance.ts | ✅ Complete | Debounced persistence on change |
 | T012 | Add Node API | app/api/.../nodes/route.ts | ✅ Complete | POST endpoint for node creation |
 | T013 | Delete Node API | app/api/.../nodes/route.ts | ✅ Complete | DELETE endpoint for node removal |
 | T014 | Connect Edges API | app/api/.../edges/route.ts | ✅ Complete | POST endpoint for edge creation |
-| T015 | Optimistic Rollback Tests | test/unit/web/features/022-workgraph-ui/optimistic-rollback.test.ts | ⬜ Pending | Tests for failure recovery per CD-07 |
+| T014a | canConnect() | workgraph.service.ts | ✅ Complete | Shared validation with auto-match mode |
+| T015 | Optimistic Rollback Tests | test/unit/web/features/022-workgraph-ui/optimistic-rollback.test.ts | ✅ Complete | Tests for failure recovery per CD-07 |
 | T016 | Instance Mutations | workgraph-ui.instance.ts, types.ts | ✅ Complete | Implement addNode, removeNode, connectNodes |
-| T017 | Canvas Editing Mode | workgraph-canvas.tsx | ⬜ Pending | Enable drag, connect, delete in canvas |
-| T018 | PlanPak Symlinks | docs/plans/022-workgraph-ui/files/, otherfiles/ | ⬜ Pending | Create symlinks for all new Phase 3 files |
+| T017 | Canvas Editing Mode | workgraph-canvas.tsx | ✅ Complete | Enable drag, connect, delete in canvas |
+| T018 | PlanPak Symlinks | docs/plans/022-workgraph-ui/files/ | ✅ Complete | Create symlinks for all new Phase 3 files |
 
 ---
 

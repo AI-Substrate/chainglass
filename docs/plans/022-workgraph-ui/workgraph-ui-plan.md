@@ -435,19 +435,19 @@ Each phase must test:
 
 | #   | Status | Task | CS | Success Criteria | Log | Notes |
 |-----|--------|------|----|------------------|-----|-------|
-| 1.1 | [ ] | Write interface tests for WorkGraphUIService | 2 | Tests define: getInstance, listGraphs, createGraph, deleteGraph, disposeAll | - | Interface-first per constitution |
-| 1.2 | [ ] | Write interface tests for WorkGraphUIInstance | 3 | Tests define: graphSlug, definition, state, nodes, edges, subscribe, refresh, dispose | - | Include computed properties |
-| 1.3 | [ ] | Write tests for status computation logic | 3 | Tests cover: pending (upstream incomplete), ready (all upstream complete), stored statuses override | - | Critical algorithm |
-| 1.4 | [ ] | Create TypeScript interfaces in workgraph-ui.types.ts | 2 | Interfaces compile, export cleanly | - | |
-| 1.5 | [ ] | Implement FakeWorkGraphUIService | 2 | Fake passes interface tests | - | Test double with assertion helpers |
-| 1.6 | [ ] | Implement FakeWorkGraphUIInstance | 2 | Fake passes interface tests | - | |
-| 1.7 | [ ] | Write tests for WorkGraphUIService real implementation | 2 | Tests use FakeWorkGraphService for backend | - | |
-| 1.8 | [ ] | Implement WorkGraphUIService | 3 | All tests pass, instance caching works | - | Singleton pattern |
-| 1.9 | [ ] | Write tests for WorkGraphUIInstance real implementation | 3 | Tests cover: hydration, computed status, event emission | - | |
-| 1.10 | [ ] | Implement WorkGraphUIInstance | 4 | All tests pass, status computation correct | - | Core state management |
-| 1.11 | [ ] | Write contract tests comparing computed status to CLI | 2 | Status matches `wg status` output for test graphs | - | Parity verification |
-| 1.12 | [ ] | Register services in DI container | 1 | Services injectable via useFactory | - | Cross-cutting: di-container.ts |
-| 1.13 | [ ] | Create layout.schema.ts in workgraph package | 1 | Zod schema for layout.json structure | - | Cross-cutting: shared schema |
+| 1.1 | [x] | Write interface tests for WorkGraphUIService | 2 | Tests define: getInstance, listGraphs, createGraph, deleteGraph, disposeAll | [📋](tasks/phase-1-headless-state-management/execution.log.md) | Interface-first per constitution |
+| 1.2 | [x] | Write interface tests for WorkGraphUIInstance | 3 | Tests define: graphSlug, definition, state, nodes, edges, subscribe, refresh, dispose | [📋](tasks/phase-1-headless-state-management/execution.log.md) | Include computed properties |
+| 1.3 | [x] | Write tests for status computation logic | 3 | Tests cover: pending (upstream incomplete), ready (all upstream complete), stored statuses override | [📋](tasks/phase-1-headless-state-management/execution.log.md) | Critical algorithm |
+| 1.4 | [x] | Create TypeScript interfaces in workgraph-ui.types.ts | 2 | Interfaces compile, export cleanly | [📋](tasks/phase-1-headless-state-management/execution.log.md) | |
+| 1.5 | [x] | Implement FakeWorkGraphUIService | 2 | Fake passes interface tests | [📋](tasks/phase-1-headless-state-management/execution.log.md) | Test double with assertion helpers |
+| 1.6 | [x] | Implement FakeWorkGraphUIInstance | 2 | Fake passes interface tests | [📋](tasks/phase-1-headless-state-management/execution.log.md) | |
+| 1.7 | [x] | Write tests for WorkGraphUIService real implementation | 2 | Tests use FakeWorkGraphService for backend | [📋](tasks/phase-1-headless-state-management/execution.log.md) | |
+| 1.8 | [x] | Implement WorkGraphUIService | 3 | All tests pass, instance caching works | [📋](tasks/phase-1-headless-state-management/execution.log.md) | Singleton pattern |
+| 1.9 | [x] | Write tests for WorkGraphUIInstance real implementation | 3 | Tests cover: hydration, computed status, event emission | [📋](tasks/phase-1-headless-state-management/execution.log.md) | |
+| 1.10 | [x] | Implement WorkGraphUIInstance | 4 | All tests pass, status computation correct | [📋](tasks/phase-1-headless-state-management/execution.log.md) | Core state management |
+| 1.11 | [x] | Write contract tests comparing computed status to CLI | 2 | Status matches `wg status` output for test graphs | [📋](tasks/phase-1-headless-state-management/execution.log.md) | Parity verification |
+| 1.12 | [x] | Register services in DI container | 1 | Services injectable via useFactory | [📋](tasks/phase-1-headless-state-management/execution.log.md) | Cross-cutting: di-container.ts |
+| 1.13 | [x] | Create layout.schema.ts in workgraph package | 1 | Zod schema for layout.json structure | [📋](tasks/phase-1-headless-state-management/execution.log.md) | Cross-cutting: shared schema |
 
 ### Test Examples (Write First!)
 
@@ -596,18 +596,18 @@ just build
 
 | #   | Status | Task | CS | Success Criteria | Log | Notes |
 |-----|--------|------|----|------------------|-----|-------|
-| 2.1 | [ ] | Write tests for useWorkGraphFlow hook | 2 | Tests cover: sync instance→RF state, node/edge transformation | - | |
-| 2.2 | [ ] | Implement useWorkGraphFlow hook | 3 | Hook transforms UINodeState to React Flow Node format | - | |
-| 2.3 | [ ] | Write tests for WorkGraphNode component | 2 | Tests cover: status colors, icons, unit type display | - | |
-| 2.4 | [ ] | Implement WorkGraphNode custom node | 3 | Node displays: id, unit type, status indicator | - | React Flow custom node |
-| 2.5 | [ ] | Write tests for status indicator rendering | 2 | Tests cover: 6 statuses with correct visual treatment | - | |
-| 2.6 | [ ] | Implement status indicator component | 2 | Visual indicators: pending(gray), ready(blue), running(yellow+spinner), waiting-question(purple+?), blocked-error(red+X), complete(green+✓) | - | |
-| 2.7 | [ ] | Create WorkGraphCanvas component | 2 | Canvas wraps ReactFlow with proper config | - | |
-| 2.8 | [ ] | Create /workgraphs page route | 2 | Lists available graphs in workspace | - | Server component |
-| 2.9 | [ ] | Create /workgraphs/[slug] page route | 2 | Displays single graph with WorkGraphCanvas | - | Client component wrapper |
-| 2.10 | [ ] | Add workspace context from URL param | 1 | Reads `?workspace=slug` and passes to service | - | |
-| 2.11 | [ ] | Create API route for listing graphs | 2 | GET /api/workgraphs returns GraphSummary[] | - | |
-| 2.12 | [ ] | Create API route for loading single graph | 2 | GET /api/workgraphs/[slug] returns full graph data | - | |
+| 2.1 | [x] | Write tests for useWorkGraphFlow hook | 2 | Tests cover: sync instance→RF state, node/edge transformation | [📋](tasks/phase-2-visual-graph-display/execution.log.md) | |
+| 2.2 | [x] | Implement useWorkGraphFlow hook | 3 | Hook transforms UINodeState to React Flow Node format | [📋](tasks/phase-2-visual-graph-display/execution.log.md) | |
+| 2.3 | [x] | Write tests for WorkGraphNode component | 2 | Tests cover: status colors, icons, unit type display | [📋](tasks/phase-2-visual-graph-display/execution.log.md) | |
+| 2.4 | [x] | Implement WorkGraphNode custom node | 3 | Node displays: id, unit type, status indicator | [📋](tasks/phase-2-visual-graph-display/execution.log.md) | React Flow custom node |
+| 2.5 | [x] | Write tests for status indicator rendering | 2 | Tests cover: 6 statuses with correct visual treatment | [📋](tasks/phase-2-visual-graph-display/execution.log.md) | |
+| 2.6 | [x] | Implement status indicator component | 2 | Visual indicators: pending(gray), ready(blue), running(yellow+spinner), waiting-question(purple+?), blocked-error(red+X), complete(green+✓) | [📋](tasks/phase-2-visual-graph-display/execution.log.md) | |
+| 2.7 | [x] | Create WorkGraphCanvas component | 2 | Canvas wraps ReactFlow with proper config | [📋](tasks/phase-2-visual-graph-display/execution.log.md) | |
+| 2.8 | [x] | Create /workgraphs page route | 2 | Lists available graphs in workspace | [📋](tasks/phase-2-visual-graph-display/execution.log.md) | Server component |
+| 2.9 | [x] | Create /workgraphs/[slug] page route | 2 | Displays single graph with WorkGraphCanvas | [📋](tasks/phase-2-visual-graph-display/execution.log.md) | Client component wrapper |
+| 2.10 | [x] | Add workspace context from URL param | 1 | Reads `?workspace=slug` and passes to service | [📋](tasks/phase-2-visual-graph-display/execution.log.md) | |
+| 2.11 | [x] | Create API route for listing graphs | 2 | GET /api/workgraphs returns GraphSummary[] | [📋](tasks/phase-2-visual-graph-display/execution.log.md) | |
+| 2.12 | [x] | Create API route for loading single graph | 2 | GET /api/workgraphs/[slug] returns full graph data | [📋](tasks/phase-2-visual-graph-display/execution.log.md) | |
 
 ### Test Examples (Write First!)
 
@@ -701,21 +701,21 @@ pnpm dev  # Navigate to http://localhost:3000/workgraphs?workspace=test
 
 | #   | Status | Task | CS | Success Criteria | Log | Notes |
 |-----|--------|------|----|------------------|-----|-------|
-| 3.1 | [ ] | Write tests for WorkUnitToolbox component | 2 | Tests cover: unit listing, drag data, grouping by type | - | |
-| 3.2 | [ ] | Create API route for listing WorkUnits | 2 | GET /api/units returns available units | - | |
-| 3.3 | [ ] | Implement WorkUnitToolbox component | 3 | Fetches units via API, renders with drag handles | - | |
-| 3.4 | [ ] | Write tests for drop-to-add-node flow | 3 | Tests cover: onDrop handler, optimistic add, API call | - | |
-| 3.5 | [ ] | Implement onDrop handler in WorkGraphCanvas | 3 | Dropping unit creates unconnected node | - | |
-| 3.6 | [ ] | Write tests for manual edge connection | 3 | Tests cover: onConnect, type validation, input mapping | - | |
-| 3.7 | [ ] | Implement edge connection with validation | 4 | Dragging from output to input validates types, updates inputs mapping | - | Critical: AC-2 |
-| 3.8 | [ ] | Write tests for node deletion | 2 | Tests cover: single node delete, edge cleanup, downstream nodes become pending | - | |
-| 3.9 | [ ] | Implement node deletion | 3 | Delete removes single node, cleans up edges, downstream nodes recompute to pending | - | |
-| 3.10 | [ ] | Write tests for auto-save debounce | 2 | Tests cover: 500ms debounce, save on structure change | - | |
-| 3.11 | [ ] | Implement auto-save mechanism | 2 | Changes saved within 500ms of last edit | - | AC-4 |
-| 3.12 | [ ] | Create API route for adding node | 2 | POST /api/workgraphs/[slug]/nodes | - | |
-| 3.13 | [ ] | Create API route for deleting node | 2 | DELETE /api/workgraphs/[slug]/nodes/[nodeId] | - | |
-| 3.14 | [ ] | Create API route for connecting nodes | 2 | POST /api/workgraphs/[slug]/edges | - | |
-| 3.15 | [ ] | Write tests for optimistic update rollback | 2 | Tests cover: API failure triggers rollback, UI state restored | - | |
+| 3.1 | [x] | Write tests for WorkUnitToolbox component | 2 | Tests cover: unit listing, drag data, grouping by type | [📋](tasks/phase-3-graph-editing/execution.log.md#task-t001) | [^1] |
+| 3.2 | [x] | Create API route for listing WorkUnits | 2 | GET /api/units returns available units | [📋](tasks/phase-3-graph-editing/execution.log.md#task-t002) | [^2] |
+| 3.3 | [x] | Implement WorkUnitToolbox component | 3 | Fetches units via API, renders with drag handles | [📋](tasks/phase-3-graph-editing/execution.log.md#task-t003) | [^3] |
+| 3.4 | [x] | Write tests for drop-to-add-node flow | 3 | Tests cover: onDrop handler, optimistic add, API call | [📋](tasks/phase-3-graph-editing/execution.log.md#task-t004) | [^4] |
+| 3.5 | [x] | Implement onDrop handler in WorkGraphCanvas | 3 | Dropping unit creates unconnected node | [📋](tasks/phase-3-graph-editing/execution.log.md#task-t005) | [^5] |
+| 3.6 | [x] | Write tests for manual edge connection | 3 | Tests cover: onConnect, type validation, input mapping | [📋](tasks/phase-3-graph-editing/execution.log.md#task-t006) | [^6] |
+| 3.7 | [x] | Implement edge connection with validation | 4 | Dragging from output to input validates types, updates inputs mapping | [📋](tasks/phase-3-graph-editing/execution.log.md#task-t014a) | Critical: AC-2 [^7] |
+| 3.8 | [x] | Write tests for node deletion | 2 | Tests cover: single node delete, edge cleanup, downstream nodes become pending | [📋](tasks/phase-3-graph-editing/execution.log.md#tasks-t007-t008-t009) | [^8] |
+| 3.9 | [x] | Implement node deletion | 3 | Delete removes single node, cleans up edges, downstream nodes recompute to pending | [📋](tasks/phase-3-graph-editing/execution.log.md#tasks-t007-t008-t009) | [^8] |
+| 3.10 | [x] | Write tests for auto-save debounce | 2 | Tests cover: 500ms debounce, save on structure change | [📋](tasks/phase-3-graph-editing/execution.log.md#task-t010) | [^9] |
+| 3.11 | [x] | Implement auto-save mechanism | 2 | Changes saved within 500ms of last edit | [📋](tasks/phase-3-graph-editing/execution.log.md#task-t010) | AC-4 [^9] |
+| 3.12 | [x] | Create API route for adding node | 2 | POST /api/workgraphs/[slug]/nodes | [📋](tasks/phase-3-graph-editing/execution.log.md#task-t012) | [^10] |
+| 3.13 | [x] | Create API route for deleting node | 2 | DELETE /api/workgraphs/[slug]/nodes/[nodeId] | [📋](tasks/phase-3-graph-editing/execution.log.md#task-t013) | [^10] |
+| 3.14 | [x] | Create API route for connecting nodes | 2 | POST /api/workgraphs/[slug]/edges | [📋](tasks/phase-3-graph-editing/execution.log.md#task-t014) | [^11] |
+| 3.15 | [x] | Write tests for optimistic update rollback | 2 | Tests cover: API failure triggers rollback, UI state restored | [📋](tasks/phase-3-graph-editing/execution.log.md#task-t015) | [^12] |
 
 ### Test Examples (Write First!)
 
@@ -1309,9 +1309,9 @@ just check  # Runs all lint, typecheck, test
 ## Progress Tracking
 
 ### Phase Completion Checklist
-- [ ] Phase 1: Headless State Management - NOT STARTED
-- [ ] Phase 2: Visual Graph Display - NOT STARTED
-- [ ] Phase 3: Graph Editing - NOT STARTED
+- [x] Phase 1: Headless State Management - COMPLETE
+- [x] Phase 2: Visual Graph Display - COMPLETE
+- [x] Phase 3: Graph Editing - COMPLETE
 - [ ] Phase 4: Real-time Updates - NOT STARTED
 - [ ] Phase 5: Question/Answer UI - NOT STARTED
 - [ ] Phase 6: Layout Persistence - NOT STARTED
@@ -1326,15 +1326,75 @@ just check  # Runs all lint, typecheck, test
 
 ## Change Footnotes Ledger
 
-**NOTE**: This section will be populated during implementation by plan-6a-update-progress.
+**NOTE**: This section tracks file changes during implementation by phase.
 
 **Footnote Numbering Authority**: plan-6a-update-progress is the **single source of truth** for footnote numbering across the entire plan.
 
-**Initial State** (before implementation begins):
+### Phase 1 Footnotes
 
-[^1]: [To be added during implementation via plan-6a]
-[^2]: [To be added during implementation via plan-6a]
-[^3]: [To be added during implementation via plan-6a]
+(Phase 1 changes predated formal footnote tracking)
+
+### Phase 2 Footnotes
+
+(Phase 2 changes predated formal footnote tracking)
+
+### Phase 3 Footnotes
+
+[^1]: Task 3.1 - WorkUnitToolbox tests
+  - `file:test/unit/web/features/022-workgraph-ui/workunit-toolbox.test.tsx`
+
+[^2]: Task 3.2 - Units API route
+  - `file:apps/web/app/api/workspaces/[slug]/units/route.ts`
+
+[^3]: Task 3.3 - WorkUnitToolbox component
+  - `file:apps/web/src/features/022-workgraph-ui/workunit-toolbox.tsx`
+
+[^4]: Task 3.4 - Drop handler tests
+  - `file:test/unit/web/features/022-workgraph-ui/drop-handler.test.ts`
+
+[^5]: Task 3.5 - Drop handler implementation
+  - `file:apps/web/src/features/022-workgraph-ui/drop-handler.ts`
+
+[^6]: Task 3.6 - Edge connection tests
+  - `file:test/unit/web/features/022-workgraph-ui/edge-connection.test.ts`
+
+[^7]: Task 3.7/T014a - canConnect() implementation and edge validation
+  - `method:packages/workgraph/src/services/workgraph.service.ts:WorkGraphService.canConnect`
+  - `method:packages/workgraph/src/services/workgraph.service.ts:WorkGraphService.connectNodes`
+  - `file:packages/workgraph/src/interfaces/workgraph-service.interface.ts`
+  - `file:packages/workgraph/src/fakes/fake-workgraph-service.ts`
+  - `file:apps/web/app/api/workspaces/[slug]/workgraphs/[graphSlug]/edges/route.ts`
+
+[^8]: Tasks 3.8-3.9/T008-T009 - Node deletion (already implemented in T016)
+  - `method:apps/web/src/features/022-workgraph-ui/workgraph-ui.instance.ts:WorkGraphUIInstance.removeNode`
+  - `method:apps/web/src/features/022-workgraph-ui/fake-workgraph-ui-instance.ts:FakeWorkGraphUIInstance.removeNode`
+
+[^9]: Tasks 3.10-3.11/T010-T011 - Auto-save tests and debounce
+  - `file:test/unit/web/features/022-workgraph-ui/auto-save.test.ts`
+
+[^10]: Tasks 3.12-3.13/T012-T013 - Nodes API routes
+  - `file:apps/web/app/api/workspaces/[slug]/workgraphs/[graphSlug]/nodes/route.ts`
+
+[^11]: Task 3.14/T014 - Edges API route
+  - `file:apps/web/app/api/workspaces/[slug]/workgraphs/[graphSlug]/edges/route.ts`
+
+[^12]: Task 3.15/T015 - Optimistic rollback tests
+  - `file:test/unit/web/features/022-workgraph-ui/optimistic-rollback.test.ts`
+
+[^13]: Task T016 - Extend IWorkGraphUIInstance with mutation methods
+  - `file:apps/web/src/features/022-workgraph-ui/workgraph-ui.types.ts`
+  - `method:apps/web/src/features/022-workgraph-ui/workgraph-ui.instance.ts:WorkGraphUIInstance.addUnconnectedNode`
+  - `method:apps/web/src/features/022-workgraph-ui/workgraph-ui.instance.ts:WorkGraphUIInstance.addNodeAfter`
+  - `method:apps/web/src/features/022-workgraph-ui/workgraph-ui.instance.ts:WorkGraphUIInstance.connectNodes`
+  - `method:apps/web/src/features/022-workgraph-ui/workgraph-ui.instance.ts:WorkGraphUIInstance.disconnectNode`
+  - `method:apps/web/src/features/022-workgraph-ui/workgraph-ui.instance.ts:WorkGraphUIInstance.updateNodeLayout`
+  - `file:apps/web/src/features/022-workgraph-ui/fake-workgraph-ui-instance.ts`
+
+[^14]: Task T017 - Canvas editing mode
+  - `file:apps/web/src/features/022-workgraph-ui/workgraph-canvas.tsx`
+
+[^15]: Task T018 - PlanPak symlinks (if created)
+  - `file:docs/plans/022-workgraph-ui/files/`
 
 ---
 
