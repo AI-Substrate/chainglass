@@ -42,6 +42,7 @@ import type {
 import type {
   AddNodeOptions,
   AddNodeResult,
+  AddUnconnectedNodeResult,
   GraphCreateResult,
   GraphLoadResult,
   GraphShowResult,
@@ -990,6 +991,118 @@ export class WorkGraphService implements IWorkGraphService {
 
     return {
       valid: true,
+      errors: [],
+    };
+  }
+
+  // ==================== addUnconnectedNode ====================
+
+  /**
+   * Add an unconnected node (UI drag-drop pattern).
+   *
+   * Creates a node without any edges. The node starts with 'disconnected' status.
+   * Per DYK#1: Dropped nodes start as 'disconnected' until wired.
+   * Per DYK#2: UI pattern - addUnconnectedNode(unitSlug, position)
+   */
+  async addUnconnectedNode(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    unitSlug: string
+  ): Promise<AddUnconnectedNodeResult> {
+    // 1. Validate slug format
+    if (!this.isValidSlug(graphSlug)) {
+      return {
+        nodeId: '',
+        errors: [invalidGraphSlugError(graphSlug)],
+      };
+    }
+
+    // 2. Load graph (returns E101 if not found)
+    const loadResult = await this.load(ctx, graphSlug);
+    if (loadResult.errors.length > 0 || !loadResult.graph) {
+      return {
+        nodeId: '',
+        errors: loadResult.errors,
+      };
+    }
+
+    const graph = loadResult.graph;
+
+    // 3. Load unit to validate it exists (E120)
+    if (this.workUnitService) {
+      const unitResult = await this.workUnitService.load(ctx, unitSlug);
+      if (unitResult.errors.length > 0 || !unitResult.unit) {
+        return {
+          nodeId: '',
+          errors: unitResult.errors,
+        };
+      }
+    }
+
+    // 4. Generate node ID
+    const nodeId = generateNodeId(unitSlug, graph.nodes);
+
+    // 5. Persist node.yaml with unit_slug (no inputs since unconnected)
+    const graphPath = this.getGraphPath(ctx, graphSlug);
+    const nodePath = this.pathResolver.join(graphPath, 'nodes', nodeId);
+
+    await this.fs.mkdir(nodePath, { recursive: true });
+
+    const nodeConfig = {
+      id: nodeId,
+      unit_slug: unitSlug,
+      created_at: new Date().toISOString(),
+      config: {},
+      inputs: {}, // No inputs - unconnected
+    };
+
+    const nodeYaml = this.yamlParser.stringify(nodeConfig);
+    await atomicWriteFile(this.fs, this.pathResolver.join(nodePath, 'node.yaml'), nodeYaml);
+
+    // 6. Update work-graph.yaml with new node (no new edges)
+    const updatedGraphDef = {
+      slug: graph.slug,
+      version: graph.version,
+      description: graph.description,
+      created_at: graph.createdAt,
+      nodes: [...graph.nodes, nodeId],
+      edges: graph.edges, // No new edges
+    };
+
+    const updatedYaml = this.yamlParser.stringify(updatedGraphDef);
+    await atomicWriteFile(
+      this.fs,
+      this.pathResolver.join(graphPath, 'work-graph.yaml'),
+      updatedYaml
+    );
+
+    // 7. Update state.json with new node (disconnected status)
+    const statePath = this.pathResolver.join(graphPath, 'state.json');
+    let stateData: Record<string, unknown> = {
+      graph_status: 'pending',
+      updated_at: new Date().toISOString(),
+      nodes: {},
+    };
+
+    if (await this.fs.exists(statePath)) {
+      try {
+        const stateContent = await this.fs.readFile(statePath);
+        stateData = JSON.parse(stateContent);
+      } catch {
+        // Use default state on error
+      }
+    }
+
+    // Add new node to state (disconnected)
+    const stateNodes = (stateData.nodes ?? {}) as Record<string, { status: string }>;
+    stateNodes[nodeId] = { status: 'disconnected' };
+    stateData.nodes = stateNodes;
+    stateData.updated_at = new Date().toISOString();
+
+    await atomicWriteJson(this.fs, statePath, stateData);
+
+    return {
+      nodeId,
       errors: [],
     };
   }

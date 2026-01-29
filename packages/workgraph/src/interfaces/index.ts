@@ -32,6 +32,7 @@ export type {
   GraphShowResult,
   GraphStatusResult,
   AddNodeResult,
+  AddUnconnectedNodeResult,
   RemoveNodeResult,
   AddNodeOptions,
   RemoveNodeOptions,

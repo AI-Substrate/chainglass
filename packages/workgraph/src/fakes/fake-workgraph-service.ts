@@ -12,6 +12,7 @@ import type { WorkspaceContext } from '@chainglass/workflow';
 import type {
   AddNodeOptions,
   AddNodeResult,
+  AddUnconnectedNodeResult,
   GraphCreateResult,
   GraphLoadResult,
   GraphShowResult,
@@ -406,6 +407,21 @@ export class FakeWorkGraphService implements IWorkGraphService {
     });
 
     return result;
+  }
+
+  // ==================== addUnconnectedNode ====================
+
+  async addUnconnectedNode(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    unitSlug: string
+  ): Promise<AddUnconnectedNodeResult> {
+    // Generate a simple node ID for testing
+    const nodeId = `${unitSlug}-${Date.now()}`;
+    return {
+      nodeId,
+      errors: [],
+    };
   }
 
   // ==================== Reset ====================

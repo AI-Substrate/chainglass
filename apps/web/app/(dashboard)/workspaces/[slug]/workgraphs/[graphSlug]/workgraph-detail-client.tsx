@@ -9,18 +9,27 @@
 
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
 import type { WorkGraphFlowData } from '../../../../../../src/features/022-workgraph-ui/use-workgraph-flow';
+import { useWorkGraphAPI } from '../../../../../../src/features/022-workgraph-ui/use-workgraph-api';
 import { WorkGraphCanvas } from '../../../../../../src/features/022-workgraph-ui/workgraph-canvas';
 import { WorkUnitToolbox } from '../../../../../../src/features/022-workgraph-ui/workunit-toolbox';
 
 interface WorkGraphDetailClientProps {
   data: WorkGraphFlowData;
   workspaceSlug: string;
+  graphSlug: string;
   worktreePath?: string;
 }
 
-export function WorkGraphDetailClient({ data, workspaceSlug, worktreePath }: WorkGraphDetailClientProps) {
+export function WorkGraphDetailClient({
+  data,
+  workspaceSlug,
+  graphSlug,
+  worktreePath,
+}: WorkGraphDetailClientProps) {
+  const router = useRouter();
   const [error, setError] = useState<string | null>(null);
 
   const handleError = useCallback((message: string) => {
@@ -28,6 +37,14 @@ export function WorkGraphDetailClient({ data, workspaceSlug, worktreePath }: Wor
     // Auto-clear after 5 seconds
     setTimeout(() => setError(null), 5000);
   }, []);
+
+  // API-backed instance for mutations
+  const instance = useWorkGraphAPI({
+    workspaceSlug,
+    graphSlug,
+    worktreePath,
+    onMutation: () => router.refresh(),
+  });
 
   return (
     <div className="flex h-full w-full">
@@ -51,6 +68,7 @@ export function WorkGraphDetailClient({ data, workspaceSlug, worktreePath }: Wor
           data={data}
           className="h-full w-full"
           editable={true}
+          instance={instance}
           onError={handleError}
         />
       </div>

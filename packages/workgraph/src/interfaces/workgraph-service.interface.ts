@@ -189,6 +189,14 @@ export interface AddNodeResult extends BaseResult {
 }
 
 /**
+ * Result of adding an unconnected node (UI drag-drop).
+ */
+export interface AddUnconnectedNodeResult extends BaseResult {
+  /** Created node ID */
+  nodeId: string;
+}
+
+/**
  * Options for removing a node.
  */
 export interface RemoveNodeOptions {
@@ -324,4 +332,21 @@ export interface IWorkGraphService {
     targetNodeId: string,
     targetInput: string
   ): Promise<CanConnectResult>;
+
+  /**
+   * Add an unconnected node (UI drag-drop pattern).
+   *
+   * Creates a node without any edges - used when dragging from toolbox.
+   * The node starts with 'disconnected' status until wired.
+   *
+   * @param ctx - Workspace context for path resolution
+   * @param graphSlug - Graph to add node to
+   * @param unitSlug - Unit to instantiate
+   * @returns AddUnconnectedNodeResult with new node ID
+   */
+  addUnconnectedNode(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    unitSlug: string
+  ): Promise<AddUnconnectedNodeResult>;
 }

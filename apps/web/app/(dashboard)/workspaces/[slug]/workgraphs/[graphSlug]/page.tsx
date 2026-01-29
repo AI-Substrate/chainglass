@@ -132,6 +132,7 @@ export default async function WorkGraphDetailPage({ params, searchParams }: Page
         <WorkGraphDetailClient
           data={graphData}
           workspaceSlug={slug}
+          graphSlug={graphSlug}
           worktreePath={worktreePath}
         />
       </div>

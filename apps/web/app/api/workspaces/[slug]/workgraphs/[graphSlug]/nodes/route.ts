@@ -95,19 +95,17 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
     }
     if (position) {
       // UI pattern: addUnconnectedNode
-      // This creates a node without edges - position is stored in layout.json (Phase 6)
-      // For now, we just create the node without wiring
-      // TODO: Implement proper unconnected node support in WorkGraphService
+      const result = await workgraphService.addUnconnectedNode(context, graphSlug, unitSlug);
 
-      // For now, return a temp node ID - the real implementation will be in T012 continuation
-      return Response.json(
-        {
-          errors: [
-            { code: 'E501', message: 'Unconnected node creation not yet implemented in backend' },
-          ],
-        },
-        { status: 501 }
-      );
+      if (result.errors.length > 0) {
+        const status = result.errors[0].code === 'E120' ? 404 : 500;
+        return Response.json({ errors: result.errors }, { status });
+      }
+
+      return Response.json({
+        nodeId: result.nodeId,
+        errors: [],
+      });
     }
     return Response.json(
       { errors: [{ code: 'E400', message: 'Either afterNodeId or position is required' }] },
