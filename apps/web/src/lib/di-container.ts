@@ -37,6 +37,13 @@ import {
   WORKSPACE_DI_TOKENS,
   WindowsProcessManager,
 } from '@chainglass/shared';
+// Plan 019: Import AgentManagerService for central agent registry
+import {
+  type AdapterFactory as AgentAdapterFactory,
+  AgentManagerService,
+  FakeAgentManagerService,
+  type IAgentManagerService,
+} from '@chainglass/shared/features/019-agent-manager-refactor';
 // Plan 014 Phase 6: Import workspace services from @chainglass/workflow
 // Plan 018 Phase 2: Import AgentEventAdapter for workspace-scoped event storage
 // Plan 018 Phase 3: Import AgentSessionAdapter and AgentSessionService
@@ -360,6 +367,30 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
       new WorkflowSampleService(c.resolve<ISampleAdapter>(WORKSPACE_DI_TOKENS.SAMPLE_ADAPTER)),
   });
 
+  // ==================== Plan 019: Agent Manager Service ====================
+
+  // Register AgentManagerService with adapter factory
+  childContainer.register<IAgentManagerService>(SHARED_DI_TOKENS.AGENT_MANAGER_SERVICE, {
+    useFactory: (c) => {
+      const logger = c.resolve<ILogger>(DI_TOKENS.LOGGER);
+      const processManager = c.resolve<IProcessManager>(DI_TOKENS.PROCESS_MANAGER);
+      const copilotClient = c.resolve<CopilotClient>(DI_TOKENS.COPILOT_CLIENT);
+
+      // Per DYK-01: Factory function for adapter selection
+      const agentAdapterFactory: AgentAdapterFactory = (agentType) => {
+        if (agentType === 'claude-code') {
+          return new ClaudeCodeAdapter(processManager, { logger });
+        }
+        if (agentType === 'copilot') {
+          return new SdkCopilotAdapter(copilotClient, { logger });
+        }
+        throw new Error(`Unknown agent type: ${agentType}`);
+      };
+
+      return new AgentManagerService(agentAdapterFactory);
+    },
+  });
+
   // FIX-010: Performance metrics for container creation
   const durationMs = performance.now() - startTime;
   console.log(`[createProductionContainer] Container created in ${durationMs.toFixed(2)}ms`);
@@ -516,6 +547,13 @@ export function createTestContainer(): DependencyContainer {
   childContainer.register<ISampleService>(WORKSPACE_DI_TOKENS.SAMPLE_SERVICE, {
     useFactory: (c) =>
       new WorkflowSampleService(c.resolve<ISampleAdapter>(WORKSPACE_DI_TOKENS.SAMPLE_ADAPTER)),
+  });
+
+  // ==================== Plan 019: Agent Manager Service (Fake) ====================
+
+  // Register FakeAgentManagerService for test isolation
+  childContainer.register<IAgentManagerService>(SHARED_DI_TOKENS.AGENT_MANAGER_SERVICE, {
+    useFactory: () => new FakeAgentManagerService(),
   });
 
   return childContainer;

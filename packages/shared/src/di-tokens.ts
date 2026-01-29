@@ -24,6 +24,8 @@ export const SHARED_DI_TOKENS = {
   EVENT_STORAGE: 'IEventStorage',
   /** IProcessManager interface (for git operations) */
   PROCESS_MANAGER: 'IProcessManager',
+  /** IAgentManagerService interface (Plan 019: Agent Manager Refactor) */
+  AGENT_MANAGER_SERVICE: 'IAgentManagerService',
 } as const;
 
 /**
