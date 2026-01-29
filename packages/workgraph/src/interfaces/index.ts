@@ -38,6 +38,7 @@ export type {
   WorkGraphDefinition,
   ShowTreeNode,
   NodeStatusEntry,
+  CanConnectResult,
 } from './workgraph-service.interface.js';
 
 // IWorkNodeService

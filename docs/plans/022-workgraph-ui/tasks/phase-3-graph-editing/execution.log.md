@@ -184,3 +184,174 @@ Current implementation validates inputs and returns 501 for the actual edge crea
 **Completed**: 2026-01-29T09:18:30Z
 ---
 
+## Task T004: Write tests for drop-to-add-node flow
+**Started**: 2026-01-29T09:29:00Z
+**Status**: ✅ Complete
+
+### What I Did
+Created TDD tests for drop handler covering:
+- Position extraction from drop event with viewport transform
+- Unit slug extraction from drag data
+- Drop position passed to addUnconnectedNode
+- Ignore non-workunit drag data
+- Error callback on failure
+- preventDefault on drop
+- Invalid JSON handling
+
+### Evidence
+```
+ ✓ test/unit/web/features/022-workgraph-ui/drop-handler.test.ts (8 tests) 4ms
+```
+
+### Files Changed
+- `test/unit/web/features/022-workgraph-ui/drop-handler.test.ts` - Created (8 tests)
+
+**Completed**: 2026-01-29T09:30:00Z
+---
+
+## Task T005: Implement onDrop handler in WorkGraphCanvas
+**Started**: 2026-01-29T09:30:00Z
+**Status**: ✅ Complete
+
+### What I Did
+Created `drop-handler.ts` with:
+- `extractDropPosition()` - Converts browser coordinates to flow coordinates
+- `createDropHandler()` - Factory for drop handler with instance and callbacks
+- `createDragOverHandler()` - Enables drop by preventing default
+- Parses drag data from WORKUNIT_DRAG_TYPE
+- Calls addUnconnectedNode on instance
+- Error handling for parse failures
+
+### Evidence
+All 8 tests pass.
+
+### Files Changed
+- `apps/web/src/features/022-workgraph-ui/drop-handler.ts` - Created
+
+**Completed**: 2026-01-29T09:31:00Z
+---
+
+## Task T014a: Add canConnect() to IWorkGraphService
+**Started**: 2026-01-29T09:32:00Z
+**Status**: ✅ Complete
+
+### What I Did
+Added `canConnect()` method to shared package:
+
+1. **workgraph-service.interface.ts**:
+   - Added `CanConnectResult` type
+   - Added `canConnect()` method signature
+
+2. **workgraph.service.ts**:
+   - Implemented validation logic (extracted from addNodeAfter):
+     - Graph exists (E101)
+     - Both nodes exist (E107)
+     - Source output exists
+     - Target input exists (if workUnitService available)
+     - Strict name matching (E103)
+     - Cycle detection (E108)
+
+3. **fake-workgraph-service.ts**:
+   - Added `CanConnectCall` type
+   - Added call tracking and preset results
+
+4. **edges/route.ts** (API):
+   - Updated to use `canConnect()` for validation
+
+### Evidence
+```
+ ✓ test/contracts/workgraph-service.contract.test.ts (9 tests) 3ms
+ ✓ pnpm --filter @chainglass/workgraph build - Success
+```
+
+### Files Changed
+- `packages/workgraph/src/interfaces/workgraph-service.interface.ts` - Added CanConnectResult, canConnect()
+- `packages/workgraph/src/interfaces/index.ts` - Export CanConnectResult
+- `packages/workgraph/src/services/workgraph.service.ts` - Implemented canConnect()
+- `packages/workgraph/src/fakes/fake-workgraph-service.ts` - Added fake methods
+- `apps/web/app/api/workspaces/[slug]/workgraphs/[graphSlug]/edges/route.ts` - Use canConnect()
+
+**Completed**: 2026-01-29T09:34:00Z
+---
+
+## Task T006: Write tests for manual edge connection
+**Started**: 2026-01-29T09:35:00Z
+**Status**: ✅ Complete
+
+### What I Did
+Created tests for edge connection:
+- Connect creates edge between nodes
+- Connect updates target node status
+- Tracks mutation call
+- Emits changed event
+- Returns error when connection invalid
+- Disconnect removes incoming edges
+- Disconnect updates node status
+
+### Evidence
+```
+ ✓ test/unit/web/features/022-workgraph-ui/edge-connection.test.ts (8 tests) 4ms
+```
+
+### Files Changed
+- `test/unit/web/features/022-workgraph-ui/edge-connection.test.ts` - Created (8 tests)
+
+**Completed**: 2026-01-29T09:36:00Z
+---
+
+## Tasks T007, T008, T009: Edge/Node implementation
+**Status**: ✅ Complete (already implemented in T016)
+
+Implementation exists in `fake-workgraph-ui-instance.ts` and `workgraph-ui.instance.ts`.
+Tests created in T006 and T008 pass.
+
+---
+
+## Task T010: Write tests for auto-save debounce
+**Started**: 2026-01-29T09:37:00Z
+**Status**: ✅ Complete
+
+### What I Did
+Created auto-save debounce tests:
+- Save after 500ms idle
+- Coalesce rapid changes into single save
+- Save on structural change
+- Save on layout change
+- Call onError on save failure
+- No save when nothing changed
+
+### Evidence
+```
+ ✓ test/unit/web/features/022-workgraph-ui/auto-save.test.ts (6 tests) 4ms
+```
+
+### Files Changed
+- `test/unit/web/features/022-workgraph-ui/auto-save.test.ts` - Created (6 tests)
+
+**Completed**: 2026-01-29T09:38:00Z
+---
+
+## Task T017: Update WorkGraphCanvas for editing mode
+**Started**: 2026-01-29T09:39:00Z
+**Status**: ✅ Complete
+
+### What I Did
+Updated WorkGraphCanvas to support editing mode:
+- Added `editable` prop (default false)
+- Added `instance` prop for mutations
+- Added `onError` callback
+- Added `onNodesChange`, `onEdgesChange`, `onConnect` callbacks
+- Integrated drop handler for drag-drop
+- nodesDraggable/nodesConnectable based on editable
+- deleteKeyCode/selectionKeyCode based on editable
+- data-readonly attribute reflects editable state
+
+### Evidence
+All 128 workgraph-ui tests pass. No MCP errors.
+
+### Files Changed
+- `apps/web/src/features/022-workgraph-ui/workgraph-canvas.tsx` - Updated for editing mode
+
+**Completed**: 2026-01-29T09:41:00Z
+---
+

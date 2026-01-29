@@ -204,6 +204,14 @@ export interface RemoveNodeResult extends BaseResult {
   removedNodes: string[];
 }
 
+/**
+ * Result of canConnect() validation.
+ */
+export interface CanConnectResult extends BaseResult {
+  /** Whether the connection is valid */
+  valid: boolean;
+}
+
 // ============================================
 // Service Interface
 // ============================================
@@ -293,4 +301,27 @@ export interface IWorkGraphService {
     nodeId: string,
     options?: RemoveNodeOptions
   ): Promise<RemoveNodeResult>;
+
+  /**
+   * Check if two nodes can be connected.
+   *
+   * Validates that the source output name matches the target input name (strict name matching).
+   * Used by UI edge connection and CLI validation.
+   *
+   * @param ctx - Workspace context for path resolution
+   * @param graphSlug - Graph containing the nodes
+   * @param sourceNodeId - Node to connect from
+   * @param sourceOutput - Output name on source node
+   * @param targetNodeId - Node to connect to
+   * @param targetInput - Input name on target node
+   * @returns CanConnectResult with validation status and errors
+   */
+  canConnect(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    sourceNodeId: string,
+    sourceOutput: string,
+    targetNodeId: string,
+    targetInput: string
+  ): Promise<CanConnectResult>;
 }

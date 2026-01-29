@@ -1,0 +1,1 @@
+../../../../../test/unit/web/features/022-workgraph-ui/node-deletion.test.ts

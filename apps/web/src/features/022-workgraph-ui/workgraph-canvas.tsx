@@ -1,15 +1,15 @@
 /**
- * WorkGraphCanvas Component - Phase 2 (T008)
+ * WorkGraphCanvas Component - Phase 2 (T008) + Phase 3 (T017)
  *
  * Main React Flow canvas for WorkGraph visualization.
- * Phase 2 is read-only (no drag-drop editing).
+ * Supports both read-only and editing modes.
  *
  * Features:
  * - Renders nodes and edges via useWorkGraphFlow hook
  * - Custom WorkGraphNode type
  * - Background pattern, minimap, and controls
  * - Fit view on mount
- * - Read-only mode (nodesDraggable=false)
+ * - Phase 3: Optional editing mode with drag-drop, connections
  *
  * @module features/022-workgraph-ui/workgraph-canvas
  */
@@ -22,15 +22,20 @@ import {
   Controls,
   MiniMap,
   type NodeTypes,
+  type OnConnect,
+  type OnEdgesChange,
+  type OnNodesChange,
   ReactFlow,
 } from '@xyflow/react';
 import type React from 'react';
-import { useMemo } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import '@xyflow/react/dist/style.css';
 
 import { cn } from '@/lib/utils';
+import { createDragOverHandler, createDropHandler } from './drop-handler';
 import { type WorkGraphFlowData, useWorkGraphFlow } from './use-workgraph-flow';
 import { WorkGraphNode } from './workgraph-node';
+import type { IWorkGraphUIInstance, Position } from './workgraph-ui.types';
 
 /**
  * Props for WorkGraphCanvas component.
@@ -40,6 +45,18 @@ export interface WorkGraphCanvasProps {
   data: WorkGraphFlowData;
   /** Additional CSS classes */
   className?: string;
+  /** Enable editing mode (drag nodes, connect edges) */
+  editable?: boolean;
+  /** Instance for mutations (required when editable=true) */
+  instance?: IWorkGraphUIInstance;
+  /** Error callback for user feedback */
+  onError?: (message: string) => void;
+  /** Node change callback (for position updates) */
+  onNodesChange?: OnNodesChange;
+  /** Edge change callback */
+  onEdgesChange?: OnEdgesChange;
+  /** Connection callback (for new edges) */
+  onConnect?: OnConnect;
 }
 
 /**
@@ -57,20 +74,38 @@ const nodeTypes = {
  * Renders a graph with custom WorkGraphNode components,
  * background pattern, minimap, and zoom controls.
  *
- * Phase 2 is read-only - nodes cannot be dragged or edited.
- * Editing features will be added in Phase 3.
- *
  * @example
  * ```tsx
+ * // Read-only mode
  * <WorkGraphCanvas
  *   data={{ nodes: [...], edges: [...] }}
  *   className="h-[600px]"
  * />
+ *
+ * // Editing mode
+ * <WorkGraphCanvas
+ *   data={{ nodes: [...], edges: [...] }}
+ *   editable
+ *   instance={workGraphUIInstance}
+ *   onError={(msg) => toast.error(msg)}
+ * />
  * ```
  */
-export function WorkGraphCanvas({ data, className }: WorkGraphCanvasProps): React.ReactElement {
+export function WorkGraphCanvas({
+  data,
+  className,
+  editable = false,
+  instance,
+  onError,
+  onNodesChange,
+  onEdgesChange,
+  onConnect,
+}: WorkGraphCanvasProps): React.ReactElement {
   // Transform data to React Flow format
   const { nodes, edges } = useWorkGraphFlow(data);
+
+  // Ref for drop position calculation
+  const reactFlowWrapper = useRef<HTMLDivElement>(null);
 
   // Memoize default edge options
   const defaultEdgeOptions = useMemo(
@@ -81,21 +116,67 @@ export function WorkGraphCanvas({ data, className }: WorkGraphCanvasProps): Reac
     []
   );
 
+  // Create drop handler for drag-drop from toolbox
+  const handleDrop = useCallback(
+    async (event: React.DragEvent<HTMLDivElement>) => {
+      if (!editable || !instance) return;
+
+      const handler = createDropHandler({
+        instance,
+        getPosition: (e: DragEvent) => {
+          // Get wrapper bounds
+          const bounds = reactFlowWrapper.current?.getBoundingClientRect();
+          if (!bounds) return { x: 0, y: 0 };
+
+          // Simple position calculation without viewport transform
+          const position: Position = {
+            x: e.clientX - bounds.left,
+            y: e.clientY - bounds.top,
+          };
+          return position;
+        },
+        onError: onError ?? (() => {}),
+      });
+
+      await handler(event.nativeEvent);
+    },
+    [editable, instance, onError]
+  );
+
+  // Create drag over handler
+  const handleDragOver = useCallback(
+    (event: React.DragEvent<HTMLDivElement>) => {
+      if (!editable) return;
+      createDragOverHandler()(event.nativeEvent);
+    },
+    [editable]
+  );
+
+  // Determine read-only based on editable prop
+  const isReadOnly = !editable;
+
   return (
     <div
+      ref={reactFlowWrapper}
       data-testid="workgraph-canvas"
-      data-readonly="true"
+      data-readonly={isReadOnly ? 'true' : 'false'}
       className={cn('w-full h-full min-h-[400px]', className)}
+      onDrop={editable ? handleDrop : undefined}
+      onDragOver={editable ? handleDragOver : undefined}
     >
       <ReactFlow
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
         defaultEdgeOptions={defaultEdgeOptions}
-        // Phase 2: Read-only mode
-        nodesDraggable={false}
-        nodesConnectable={false}
+        // Editing mode settings
+        nodesDraggable={editable}
+        nodesConnectable={editable}
         elementsSelectable={true}
+        // Event handlers (only active when editable)
+        onNodesChange={editable ? onNodesChange : undefined}
+        onEdgesChange={editable ? onEdgesChange : undefined}
+        onConnect={editable ? onConnect : undefined}
         // View options
         fitView
         fitViewOptions={{
@@ -107,12 +188,12 @@ export function WorkGraphCanvas({ data, className }: WorkGraphCanvasProps): Reac
         panOnDrag
         zoomOnScroll
         zoomOnPinch
-        // Prevent editing
-        deleteKeyCode={null}
-        selectionKeyCode={null}
+        // Editing controls (only enable delete when editable)
+        deleteKeyCode={editable ? 'Delete' : null}
+        selectionKeyCode={editable ? 'Shift' : null}
       >
         <Background variant={BackgroundVariant.Dots} gap={16} size={1} className="bg-muted/30" />
-        <Controls showZoom showFitView showInteractive={false} position="bottom-right" />
+        <Controls showZoom showFitView showInteractive={editable} position="bottom-right" />
         <MiniMap
           nodeStrokeWidth={3}
           zoomable

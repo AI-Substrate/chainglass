@@ -870,6 +870,131 @@ export class WorkGraphService implements IWorkGraphService {
   }
 
   /**
+   * Check if two nodes can be connected.
+   *
+   * Validates that:
+   * 1. Graph exists (E101)
+   * 2. Both nodes exist in the graph (E107)
+   * 3. Source output name matches target input name (E103)
+   * 4. Connection wouldn't create a cycle (E108)
+   *
+   * Per DYK#5: Extracts validation logic from addNodeAfter for reuse.
+   *
+   * @param ctx - Workspace context for path resolution
+   * @param graphSlug - Graph containing the nodes
+   * @param sourceNodeId - Node to connect from
+   * @param sourceOutput - Output name on source node
+   * @param targetNodeId - Node to connect to
+   * @param targetInput - Input name on target node
+   * @returns CanConnectResult with validation status and errors
+   */
+  async canConnect(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    sourceNodeId: string,
+    sourceOutput: string,
+    targetNodeId: string,
+    targetInput: string
+  ): Promise<import('../interfaces/index.js').CanConnectResult> {
+    // 1. Validate slug format and security
+    if (!this.isValidSlug(graphSlug)) {
+      return {
+        valid: false,
+        errors: [invalidGraphSlugError(graphSlug)],
+      };
+    }
+
+    // 2. Load graph (returns E101 if not found)
+    const loadResult = await this.load(ctx, graphSlug);
+    if (loadResult.errors.length > 0 || !loadResult.graph) {
+      return {
+        valid: false,
+        errors: loadResult.errors,
+      };
+    }
+
+    const graph = loadResult.graph;
+
+    // 3. Check source node exists (E107)
+    if (!graph.nodes.includes(sourceNodeId)) {
+      return {
+        valid: false,
+        errors: [nodeNotFoundError(graphSlug, sourceNodeId)],
+      };
+    }
+
+    // 4. Check target node exists (E107)
+    if (!graph.nodes.includes(targetNodeId)) {
+      return {
+        valid: false,
+        errors: [nodeNotFoundError(graphSlug, targetNodeId)],
+      };
+    }
+
+    // 5. Validate output exists on source and input exists on target (E103)
+    // Uses strict name matching per DYK#3
+    const sourceOutputs = await this.getNodeOutputs(ctx, graphSlug, sourceNodeId);
+    if (!sourceOutputs.has(sourceOutput)) {
+      return {
+        valid: false,
+        errors: [
+          {
+            code: 'E103',
+            message: `Source node '${sourceNodeId}' does not have output '${sourceOutput}'`,
+            action: `Available outputs: ${[...sourceOutputs].join(', ') || 'none'}`,
+          },
+        ],
+      };
+    }
+
+    // 6. Validate input exists on target
+    if (this.workUnitService) {
+      const targetUnit = this.extractUnitSlug(targetNodeId);
+      const unitResult = await this.workUnitService.load(ctx, targetUnit);
+      if (unitResult.unit) {
+        const inputNames = new Set(unitResult.unit.inputs.map((i) => i.name));
+        if (!inputNames.has(targetInput)) {
+          return {
+            valid: false,
+            errors: [
+              {
+                code: 'E103',
+                message: `Target node '${targetNodeId}' does not have input '${targetInput}'`,
+                action: `Available inputs: ${[...inputNames].join(', ') || 'none'}`,
+              },
+            ],
+          };
+        }
+      }
+    }
+
+    // 7. Strict name matching per DYK#3 - output name must match input name
+    if (sourceOutput !== targetInput) {
+      return {
+        valid: false,
+        errors: [missingRequiredInputsError(targetNodeId, [targetInput])],
+      };
+    }
+
+    // 8. Check for cycles (E108)
+    const proposedEdge = { from: sourceNodeId, to: targetNodeId };
+    const allEdges = [...graph.edges, proposedEdge];
+    const cycleResult = detectCycle(allEdges);
+
+    if (cycleResult.hasCycle) {
+      return {
+        valid: false,
+        errors: [cycleDetectedError(cycleResult.path ?? [])],
+      };
+    }
+
+    return {
+      valid: true,
+      errors: [],
+    };
+  }
+
+  /**
    * Find nodes that directly depend on a given node.
    * A node B depends on node A if there's an edge A→B.
    */

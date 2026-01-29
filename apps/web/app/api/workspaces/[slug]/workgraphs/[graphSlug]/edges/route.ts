@@ -4,7 +4,7 @@
  * POST handler to create edges between nodes.
  * DELETE handler to remove edges between nodes.
  *
- * Part of Plan 022: WorkGraph UI - Phase 3 (T014)
+ * Part of Plan 022: WorkGraph UI - Phase 3 (T014, T014a)
  *
  * Per DYK#5: Uses canConnect() for type validation before persisting
  * Per DYK#4: Uses workspaceService.resolveContextFromParams() per Phase 2 pattern
@@ -75,39 +75,32 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
       );
     }
 
-    // Per DYK#5: Check if canConnect() exists and use it for validation
-    // If not implemented yet, fall back to direct edge creation
-    // TODO: T014a will add canConnect() to IWorkGraphService
-    // For now, we'll validate by trying to load the graph and checking types
+    // Default handles to empty string if not provided
+    const srcHandle = sourceHandle ?? '';
+    const tgtHandle = targetHandle ?? '';
 
-    // Load the graph to get current state
+    // Per DYK#5: Use canConnect() for validation
+    const canConnectResult = await workgraphService.canConnect(
+      context,
+      graphSlug,
+      source,
+      srcHandle,
+      target,
+      tgtHandle
+    );
+
+    if (!canConnectResult.valid) {
+      return Response.json({ connected: false, errors: canConnectResult.errors }, { status: 400 });
+    }
+
+    // Load the graph to check for existing edge
     const loadResult = await workgraphService.load(context, graphSlug);
     if (loadResult.errors.length > 0 || !loadResult.graph) {
       return Response.json({ connected: false, errors: loadResult.errors }, { status: 404 });
     }
 
-    // Check if both nodes exist
-    const graph = loadResult.graph;
-    if (!graph.nodes.includes(source)) {
-      return Response.json(
-        {
-          connected: false,
-          errors: [{ code: 'E102', message: `Source node '${source}' not found` }],
-        },
-        { status: 404 }
-      );
-    }
-    if (!graph.nodes.includes(target)) {
-      return Response.json(
-        {
-          connected: false,
-          errors: [{ code: 'E102', message: `Target node '${target}' not found` }],
-        },
-        { status: 404 }
-      );
-    }
-
     // Check if edge already exists
+    const graph = loadResult.graph;
     const edgeExists = graph.edges.some((e) => e.from === source && e.to === target);
     if (edgeExists) {
       return Response.json(
@@ -116,12 +109,9 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
       );
     }
 
-    // TODO: Proper edge creation via WorkGraphService
-    // For now, return not implemented since we need T014a canConnect() first
+    // TODO: Implement actual edge creation via WorkGraphService.connectNodes()
+    // For now, return not implemented since we need to extend WorkGraphService
     // The actual edge creation will wire inputs/outputs based on name matching
-
-    // Temporary: Direct edge addition not supported yet
-    // Need to extend WorkGraphService with connectNodes() method
     return Response.json(
       {
         connected: false,
