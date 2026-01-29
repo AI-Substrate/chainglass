@@ -9,7 +9,7 @@
  */
 
 import type { Position } from '@/features/022-workgraph-ui/workgraph-ui.types';
-import type { IWorkGraphUIInstance } from './workgraph-ui.types';
+import type { IWorkGraphMutationAPI, IWorkGraphUIInstance } from './workgraph-ui.types';
 import { WORKUNIT_DRAG_TYPE, type WorkUnitDragData } from './workunit-toolbox';
 
 // ============================================
@@ -39,8 +39,8 @@ export interface Bounds {
  * Context for creating a drop handler.
  */
 export interface DropHandlerContext {
-  /** WorkGraphUIInstance to call mutations on */
-  instance: IWorkGraphUIInstance;
+  /** WorkGraphUIInstance or MutationAPI to call mutations on */
+  instance: IWorkGraphUIInstance | IWorkGraphMutationAPI;
   /** Function to get drop position in flow coordinates */
   getPosition: (event: DragEvent) => Position;
   /** Error callback for user feedback */

@@ -13,7 +13,12 @@
 'use client';
 
 import { useCallback, useMemo } from 'react';
-import type { IWorkGraphUIInstance, MutationResult, Position } from './workgraph-ui.types';
+import type {
+  ConnectNodesResult,
+  IWorkGraphMutationAPI,
+  MutationResult,
+  Position,
+} from './workgraph-ui.types';
 
 /**
  * Props for useWorkGraphAPI hook.
@@ -64,7 +69,7 @@ export function useWorkGraphAPI({
   graphSlug,
   worktreePath,
   onMutation,
-}: UseWorkGraphAPIProps): IWorkGraphUIInstance {
+}: UseWorkGraphAPIProps): IWorkGraphMutationAPI {
   /**
    * Add an unconnected node at a position (UI drag-drop pattern).
    */
@@ -190,7 +195,7 @@ export function useWorkGraphAPI({
       sourceHandle: string,
       targetNodeId: string,
       targetHandle: string
-    ): Promise<MutationResult> => {
+    ): Promise<ConnectNodesResult> => {
       try {
         const url = buildApiUrl(workspaceSlug, graphSlug, '/edges', worktreePath);
         const response = await fetch(url, {
@@ -208,16 +213,16 @@ export function useWorkGraphAPI({
 
         if (!response.ok || (data.errors && data.errors.length > 0)) {
           return {
-            success: false,
+            connected: false,
             errors: data.errors ?? [{ code: 'E500', message: 'Failed to connect nodes' }],
           };
         }
 
         onMutation?.();
-        return { success: true, errors: [] };
+        return { connected: true, errors: [] };
       } catch (error) {
         return {
-          success: false,
+          connected: false,
           errors: [
             {
               code: 'E500',
@@ -280,32 +285,19 @@ export function useWorkGraphAPI({
     []
   );
 
-  // Return instance-like object
+  // Return instance-like object matching IWorkGraphMutationAPI
   return useMemo(
     () => ({
-      // Required by IWorkGraphUIInstance but not used by canvas
       graphSlug,
       nodes: new Map(),
       edges: [],
-      isDisposed: false,
-      dispose: () => {},
 
       // Mutation methods used by canvas
       addUnconnectedNode,
-      addNodeAfter,
-      removeNode,
       connectNodes,
-      disconnectNode,
+      removeNode,
       updateNodeLayout,
     }),
-    [
-      graphSlug,
-      addUnconnectedNode,
-      addNodeAfter,
-      removeNode,
-      connectNodes,
-      disconnectNode,
-      updateNodeLayout,
-    ]
+    [graphSlug, addUnconnectedNode, connectNodes, removeNode, updateNodeLayout]
   );
 }

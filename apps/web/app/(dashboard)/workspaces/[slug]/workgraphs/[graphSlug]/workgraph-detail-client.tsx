@@ -9,11 +9,11 @@
 
 'use client';
 
+import type { Connection } from '@xyflow/react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
-import type { Connection } from '@xyflow/react';
-import type { WorkGraphFlowData } from '../../../../../../src/features/022-workgraph-ui/use-workgraph-flow';
 import { useWorkGraphAPI } from '../../../../../../src/features/022-workgraph-ui/use-workgraph-api';
+import type { WorkGraphFlowData } from '../../../../../../src/features/022-workgraph-ui/use-workgraph-flow';
 import { WorkGraphCanvas } from '../../../../../../src/features/022-workgraph-ui/workgraph-canvas';
 import { WorkUnitToolbox } from '../../../../../../src/features/022-workgraph-ui/workunit-toolbox';
 
@@ -62,7 +62,7 @@ export function WorkGraphDetailClient({
         connection.targetHandle ?? ''
       );
 
-      if (!result.success && result.errors.length > 0) {
+      if (result.errors && result.errors.length > 0) {
         handleError(result.errors[0].message);
       }
     },

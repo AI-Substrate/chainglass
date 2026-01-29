@@ -1,1 +1,0 @@
-../../../docs/plans/021-workgraph-workspaces-upgrade/code/tests/bootstrap-prompt.test.ts

@@ -120,6 +120,15 @@ export interface WorkGraphState {
 // ============================================
 
 /**
+ * Generic mutation result for API operations.
+ * Success indicated by empty errors array.
+ */
+export interface MutationResult extends BaseResult {
+  /** Whether the operation was successful (convenience check) */
+  success: boolean;
+}
+
+/**
  * Result of listing graphs.
  */
 export interface ListGraphsResult extends BaseResult {
@@ -285,6 +294,32 @@ export interface IWorkGraphUIInstance extends IWorkGraphUIInstanceCore {
    * @param nodeId - Node to update
    * @param position - New position
    */
+  updateNodeLayout(nodeId: string, position: Position): void;
+}
+
+/**
+ * Minimal interface for mutation-only API hook usage.
+ * Used when full IWorkGraphUIInstance isn't available (e.g., client-side API hook).
+ */
+export interface IWorkGraphMutationAPI {
+  /** Graph slug identifier */
+  graphSlug: string;
+  /** Nodes map (may be empty for API-only usage) */
+  nodes: Map<string, UINodeState>;
+  /** Edges array (may be empty for API-only usage) */
+  edges: UIEdge[];
+  /** Add unconnected node */
+  addUnconnectedNode(unitSlug: string, position: Position): Promise<AddUnconnectedNodeResult>;
+  /** Connect two nodes */
+  connectNodes(
+    sourceNodeId: string,
+    sourceHandle: string,
+    targetNodeId: string,
+    targetHandle: string
+  ): Promise<ConnectNodesResult>;
+  /** Remove a node */
+  removeNode(nodeId: string): Promise<BaseResult>;
+  /** Update node layout */
   updateNodeLayout(nodeId: string, position: Position): void;
 }
 

@@ -41,7 +41,7 @@ import {
   useWorkGraphFlow,
 } from './use-workgraph-flow';
 import { WorkGraphNode } from './workgraph-node';
-import type { IWorkGraphUIInstance, Position } from './workgraph-ui.types';
+import type { IWorkGraphMutationAPI, IWorkGraphUIInstance, Position } from './workgraph-ui.types';
 
 /**
  * Props for WorkGraphCanvas component.
@@ -53,8 +53,8 @@ export interface WorkGraphCanvasProps {
   className?: string;
   /** Enable editing mode (drag nodes, connect edges) */
   editable?: boolean;
-  /** Instance for mutations (required when editable=true) */
-  instance?: IWorkGraphUIInstance;
+  /** Instance for mutations (required when editable=true) - accepts full instance or API hook */
+  instance?: IWorkGraphUIInstance | IWorkGraphMutationAPI;
   /** Error callback for user feedback */
   onError?: (message: string) => void;
   /** Node change callback (for position updates) */
