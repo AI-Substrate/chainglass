@@ -19,3 +19,9 @@ export type {
 
 // Sample adapter (Plan 014 Phase 3)
 export { SampleAdapter } from './sample.adapter.js';
+
+// Chokidar file watcher adapter (Plan 022 Phase 4 Subtask 001)
+export {
+  ChokidarFileWatcherAdapter,
+  ChokidarFileWatcherFactory,
+} from './chokidar-file-watcher.adapter.js';

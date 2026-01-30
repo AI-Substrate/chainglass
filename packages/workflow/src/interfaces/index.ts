@@ -91,3 +91,18 @@ export type {
   AddSampleResult,
   DeleteSampleResult,
 } from './sample-service.interface.js';
+
+// File watcher interface (Plan 022 Phase 4 Subtask 001)
+export type {
+  FileWatcherEvent,
+  FileWatcherOptions,
+  IFileWatcher,
+  IFileWatcherFactory,
+} from './file-watcher.interface.js';
+
+// Workspace change notifier interface (Plan 022 Phase 4 Subtask 001)
+export type {
+  GraphChangedEvent,
+  GraphChangedCallback,
+  IWorkspaceChangeNotifierService,
+} from './workspace-change-notifier.interface.js';

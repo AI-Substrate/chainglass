@@ -304,3 +304,29 @@ export type {
   GetMainRepoPathCall,
   IsMainWorktreeCall,
 } from './fakes/index.js';
+
+// Workspace change notifier (Plan 022 Phase 4 Subtask 001)
+export { WorkspaceChangeNotifierService } from './services/index.js';
+export type {
+  GraphChangedEvent,
+  GraphChangedCallback,
+  IWorkspaceChangeNotifierService,
+} from './interfaces/index.js';
+export type {
+  FileWatcherEvent,
+  FileWatcherOptions,
+  IFileWatcher,
+  IFileWatcherFactory,
+} from './interfaces/index.js';
+export {
+  ChokidarFileWatcherAdapter,
+  ChokidarFileWatcherFactory,
+} from './adapters/index.js';
+export { FakeFileWatcher, FakeFileWatcherFactory } from './fakes/index.js';
+export { FakeWorkspaceChangeNotifierService } from './fakes/index.js';
+export type {
+  NotifierStartCall,
+  NotifierStopCall,
+  OnGraphChangedCall,
+  RescanCall,
+} from './fakes/index.js';

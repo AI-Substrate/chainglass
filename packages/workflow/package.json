@@ -35,6 +35,7 @@
     "@chainglass/shared": "workspace:*",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
+    "chokidar": "^5.0.0",
     "slugify": "^1.6.6",
     "yaml": "^2.8.2"
   },

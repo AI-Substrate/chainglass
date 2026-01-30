@@ -25,3 +25,6 @@ export type { ComposeResultWithEntity } from './workflow-service.types.js';
 // Workspace services (Plan 014 Phase 4)
 export { WorkspaceService } from './workspace.service.js';
 export { SampleService } from './sample.service.js';
+
+// Workspace change notifier service (Plan 022 Phase 4 Subtask 001)
+export { WorkspaceChangeNotifierService } from './workspace-change-notifier.service.js';
