@@ -34,6 +34,8 @@ import { LogEntry, type LogEntryProps } from './log-entry';
 export interface AgentChatViewProps {
   /** Agent ID to display */
   agentId: string;
+  /** Resolved filesystem path for the workspace (used as cwd for agent runs) */
+  workspacePath?: string;
   /** Additional CSS classes */
   className?: string;
 }
@@ -53,7 +55,7 @@ interface UserMessage {
  * @example
  * <AgentChatView agentId="agent-abc-123" />
  */
-export function AgentChatView({ agentId, className }: AgentChatViewProps) {
+export function AgentChatView({ agentId, workspacePath, className }: AgentChatViewProps) {
   // Local state for user messages (before they're persisted server-side)
   const [userMessages, setUserMessages] = useState<UserMessage[]>([]);
   const [streamingContent, setStreamingContent] = useState('');
@@ -63,10 +65,10 @@ export function AgentChatView({ agentId, className }: AgentChatViewProps) {
 
   // Event callback - uses ref to avoid circular dependency
   const onAgentEvent = useCallback(
-    (eventType: string, data: { agentId: string; delta?: string }) => {
-      // Handle streaming text deltas
-      if (eventType === 'agent_text_delta' && data.delta) {
-        setStreamingContent((prev) => prev + data.delta);
+    (eventType: string, data: { agentId: string; delta?: string; content?: string }) => {
+      // Handle streaming text deltas (inner event type 'text_delta' → 'agent_text_delta')
+      if (eventType === 'agent_text_delta' && (data.content || data.delta)) {
+        setStreamingContent((prev) => prev + (data.content ?? data.delta ?? ''));
       }
       // When agent stops, clear streaming and refetch for final state
       if (eventType === 'agent_status') {
@@ -154,14 +156,14 @@ export function AgentChatView({ agentId, className }: AgentChatViewProps) {
         // Use the hook's run method - calls POST /api/agents/{agentId}/run
         await run({
           prompt: content,
-          cwd: agent?.workspace,
+          cwd: workspacePath,
         });
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         setLocalError({ message });
       }
     },
-    [run, agent?.workspace]
+    [run, workspacePath]
   );
 
   // Handle retry after error

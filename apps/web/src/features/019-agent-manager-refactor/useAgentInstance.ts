@@ -199,17 +199,8 @@ export function useAgentInstance(
       }
     };
 
-    // Listen to all agent event types
-    const eventTypes = [
-      'agent_status',
-      'agent_intent',
-      'agent_text_delta',
-      'agent_text_replace',
-      'agent_text_append',
-      'agent_question',
-      'agent_created',
-      'agent_terminated',
-    ];
+    // Listen to SSE event types broadcast by AgentNotifierService
+    const eventTypes = ['agent_status', 'agent_intent', 'agent_event'];
 
     for (const eventType of eventTypes) {
       eventSource.addEventListener(eventType, (event) => {
@@ -225,7 +216,15 @@ export function useAgentInstance(
 
         // Call callback if provided
         if (onAgentEvent) {
-          onAgentEvent(eventType, data);
+          if (eventType === 'agent_event') {
+            // Unwrap the inner event type for the callback
+            // Server sends: { type: 'agent_event', agentId, event: { type: 'text_delta', data: {...} } }
+            const innerEvent = (data as { event?: { type?: string; data?: Record<string, unknown> } }).event;
+            const innerType = innerEvent?.type ? `agent_${innerEvent.type}` : eventType;
+            onAgentEvent(innerType, { agentId, ...innerEvent?.data } as AgentSSEEvent);
+          } else {
+            onAgentEvent(eventType, data);
+          }
         }
       });
     }

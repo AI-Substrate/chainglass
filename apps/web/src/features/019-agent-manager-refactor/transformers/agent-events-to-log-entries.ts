@@ -29,7 +29,7 @@ export function agentEventToLogEntryProps(
   event: AgentStoredEvent
 ): LogEntryProps & { key: string } {
   const baseProps = {
-    key: event.eventId,
+    key: `${event.timestamp}_${event.eventId}`,
     messageRole: 'assistant' as const,
     content: '',
   };
@@ -100,7 +100,7 @@ export function agentEventToLogEntryProps(
     case 'session_idle':
     case 'session_error': {
       return {
-        key: event.eventId,
+        key: `${event.timestamp}_${event.eventId}`,
         messageRole: 'system',
         contentType: 'text',
         content: `[${event.type}] ${event.data.message ?? ''}`.trim(),
@@ -110,7 +110,7 @@ export function agentEventToLogEntryProps(
     case 'usage': {
       // Usage events typically don't render - skip with empty content
       return {
-        key: event.eventId,
+        key: `${event.timestamp}_${event.eventId}`,
         messageRole: 'system',
         contentType: 'text',
         content: '',

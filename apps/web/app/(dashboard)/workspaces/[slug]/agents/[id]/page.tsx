@@ -13,8 +13,9 @@
  * Per Discovery 11: Must await params before use (Next.js 16+).
  */
 
-import { SHARED_DI_TOKENS } from '@chainglass/shared';
+import { SHARED_DI_TOKENS, WORKSPACE_DI_TOKENS } from '@chainglass/shared';
 import type { IAgentManagerService } from '@chainglass/shared/features/019-agent-manager-refactor/agent-manager.interface';
+import type { IWorkspaceService } from '@chainglass/workflow';
 import { ArrowLeft, Bot, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -47,6 +48,13 @@ export default async function AgentChatPage({ params }: PageProps) {
   if (!agent) {
     notFound();
   }
+
+  // Resolve workspace slug to filesystem path for agent cwd
+  const workspaceService = container.resolve<IWorkspaceService>(
+    WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE
+  );
+  const workspaceInfo = await workspaceService.getInfo(workspaceSlug);
+  const workspacePath = workspaceInfo?.path ?? undefined;
 
   // Get all agents for sidebar (filter by workspace if needed)
   const allAgents = agentManager.getAgents();
@@ -118,7 +126,7 @@ export default async function AgentChatPage({ params }: PageProps) {
         </header>
 
         {/* Chat view - client component */}
-        <AgentChatView agentId={agentId} className="flex-1 min-h-0" />
+        <AgentChatView agentId={agentId} workspacePath={workspacePath} className="flex-1 min-h-0" />
       </div>
 
       {/* Agent list sidebar */}
