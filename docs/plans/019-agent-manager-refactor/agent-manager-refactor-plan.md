@@ -3,7 +3,7 @@
 **Plan Version**: 1.0.0
 **Created**: 2026-01-28
 **Spec**: [./agent-manager-refactor-spec.md](./agent-manager-refactor-spec.md)
-**Status**: DRAFT
+**Status**: COMPLETE (with deferred items)
 **File Management**: PlanPak
 
 ---
@@ -835,9 +835,14 @@ Per spec, documentation created after implementation validates:
   - Contract Tests: 28 passed (14 Fake + 14 Real)
   - Integration Tests: 9 passed
   - DYK Decisions Applied: DYK-11 through DYK-15
-- [ ] Phase 4: Web Integration - **DOSSIER READY**
+- [x] Phase 4: Web Integration - **COMPLETE** (2026-01-29)
   - Tasks: [tasks/phase-4-web-integration/tasks.md](./tasks/phase-4-web-integration/tasks.md)
-- [ ] Phase 5: Consolidation + Cleanup - NOT STARTED
+  - Execution Log: [tasks/phase-4-web-integration/execution.log.md](./tasks/phase-4-web-integration/execution.log.md)
+  - DYK Decisions Applied: DYK-16 through DYK-19
+- [x] Phase 5: Consolidation + Cleanup - **COMPLETE** (2026-01-30)
+  - Tasks: [tasks/phase-5-consolidation-cleanup/tasks.md](./tasks/phase-5-consolidation-cleanup/tasks.md)
+  - Deferred: T004 (AgentSession entity) and T008 (old event schemas) — still used by worktree page + packages/workflow
+  - Verified: zero orphaned imports of useAgentSSE, AgentSessionStore, stored-event-to-log-entry
 
 ### STOP Rule
 
