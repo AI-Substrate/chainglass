@@ -294,6 +294,7 @@ export class SdkCopilotAdapter implements IAgentAdapter {
 
       default:
         // Unknown event type - return as raw for advanced consumers
+        console.log(`[SdkCopilotAdapter] Unhandled event type: "${event.type}"`, JSON.stringify(event).substring(0, 300));
         return {
           type: 'raw',
           timestamp,
