@@ -105,7 +105,29 @@ export class SdkCopilotAdapter implements IAgentAdapter {
     try {
       // DYK-02: Register handler BEFORE sendAndWait to avoid race condition
       let output = '';
+      let hasStreamedThinking = false;
+      let hasStreamedText = false;
       session.on((event: CopilotSessionEventLike) => {
+        // Track streaming deltas to suppress post-turn duplicates.
+        // The SDK emits deltas during streaming, then re-emits the full
+        // consolidated content (assistant.reasoning, assistant.message)
+        // after the turn ends. We skip the duplicates.
+        if (event.type === 'assistant.reasoning_delta') {
+          hasStreamedThinking = true;
+        }
+        if (event.type === 'assistant.message_delta') {
+          hasStreamedText = true;
+        }
+        if (event.type === 'assistant.reasoning' && hasStreamedThinking) {
+          return; // Skip duplicate consolidated thinking
+        }
+        if (event.type === 'assistant.message' && hasStreamedText) {
+          // Still capture output for AgentResult, but don't emit as event
+          const data = event.data as { content: string };
+          output = data.content;
+          return;
+        }
+
         // Translate SDK events to AgentEvent and emit via onEvent
         const agentEvent = this._translateToAgentEvent(event);
         if (agentEvent && onEvent) {
