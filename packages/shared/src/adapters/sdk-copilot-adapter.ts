@@ -292,8 +292,16 @@ export class SdkCopilotAdapter implements IAgentAdapter {
         };
       }
 
+      // Lifecycle events — not useful for display, skip
+      case 'pending_messages.modified':
+      case 'user.message':
+      case 'assistant.turn_start':
+      case 'assistant.turn_end':
+      case 'session.usage_info':
+        return null;
+
       default:
-        // Unknown event type - return as raw for advanced consumers
+        // Unknown event type - return as raw for forward compatibility
         console.log(`[SdkCopilotAdapter] Unhandled event type: "${event.type}"`, JSON.stringify(event).substring(0, 300));
         return {
           type: 'raw',

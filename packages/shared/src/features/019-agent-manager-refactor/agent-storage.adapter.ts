@@ -62,6 +62,8 @@ export class AgentStorageAdapter implements IAgentStorageAdapter {
   private readonly _fs: IFileSystem;
   private readonly _path: IPathResolver;
   private readonly _basePath: string;
+  /** Per-agent write queues to serialize concurrent appendEvent calls. */
+  private readonly _writeQueues = new Map<string, Promise<void>>();
 
   private static readonly REGISTRY_FILE = 'registry.json';
   private static readonly INSTANCE_FILE = 'instance.json';
@@ -144,6 +146,16 @@ export class AgentStorageAdapter implements IAgentStorageAdapter {
     assertValidAgentId(agentId);
     await this._ensureAgentDir(agentId);
 
+    // Serialize writes per-agent to prevent race conditions on the .tmp file.
+    // Without this, rapid-fire events (e.g., copilot emitting 5+ in one ms)
+    // all race on read → append → write, causing ENOENT on the temp file.
+    const prev = this._writeQueues.get(agentId) ?? Promise.resolve();
+    const next = prev.then(() => this._doAppendEvent(agentId, event));
+    this._writeQueues.set(agentId, next.catch(() => {})); // swallow so queue continues
+    return next;
+  }
+
+  private async _doAppendEvent(agentId: string, event: AgentStoredEvent): Promise<void> {
     const eventsPath = this._path.join(this._basePath, agentId, AgentStorageAdapter.EVENTS_FILE);
 
     // NDJSON append: each event is one JSON object per line
