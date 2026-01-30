@@ -79,6 +79,7 @@ import {
   WorkspaceService,
   YamlParserAdapter,
 } from '@chainglass/workflow';
+import { registerWorkgraphServices, registerWorkgraphTestServices } from '@chainglass/workgraph';
 import { CopilotClient } from '@github/copilot-sdk';
 import { type DependencyContainer, container } from 'tsyringe';
 
@@ -197,6 +198,10 @@ export function createCliProductionContainer(): DependencyContainer {
         c.resolve<IYamlParser>(WORKFLOW_DI_TOKENS.YAML_PARSER)
       ),
   });
+
+  // Register workgraph services (per ADR-0008: Module Registration Function Pattern)
+  // Use WORKFLOW_DI_TOKENS.YAML_PARSER since CLI already has YamlParserAdapter registered there
+  registerWorkgraphServices(childContainer, WORKFLOW_DI_TOKENS.YAML_PARSER);
 
   // Register output adapters
   childContainer.register<IOutputAdapter>(CLI_DI_TOKENS.OUTPUT_ADAPTER_JSON, {
@@ -405,6 +410,9 @@ export function createCliTestContainer(): DependencyContainer {
   childContainer.register<IPhaseAdapter>(WORKFLOW_DI_TOKENS.PHASE_ADAPTER, {
     useValue: fakePhaseAdapter,
   });
+
+  // Register workgraph test fakes (per ADR-0008: Module Registration Function Pattern)
+  registerWorkgraphTestServices(childContainer);
 
   // Per Plan 014: Workspaces - Phase 5: Register workspace fakes for testing
   const fakeWorkspaceRegistryAdapter = new FakeWorkspaceRegistryAdapter();

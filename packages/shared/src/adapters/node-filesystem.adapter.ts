@@ -1,4 +1,5 @@
 import { promises as fs } from 'node:fs';
+import fg from 'fast-glob';
 import type { FileStat, IFileSystem } from '../interfaces/filesystem.interface.js';
 import { FileSystemError } from '../interfaces/filesystem.interface.js';
 
@@ -185,6 +186,35 @@ export class NodeFileSystemAdapter implements IFileSystem {
         // Copy file
         await this.copyFile(sourcePath, destPath);
       }
+    }
+  }
+
+  /**
+   * Find files matching a glob pattern.
+   *
+   * Per Phase 2 DYK: Uses fast-glob for proper glob abstraction.
+   */
+  async glob(pattern: string, options?: { cwd?: string; absolute?: boolean }): Promise<string[]> {
+    return fg(pattern, {
+      cwd: options?.cwd,
+      absolute: options?.absolute ?? false,
+      onlyFiles: true,
+      dot: true, // Include dotfiles
+    });
+  }
+
+  /**
+   * Rename/move a file or directory.
+   *
+   * Per Phase 3 DYK#4: Required for atomic write pattern.
+   */
+  async rename(oldPath: string, newPath: string): Promise<void> {
+    try {
+      await fs.rename(oldPath, newPath);
+    } catch (err) {
+      // Determine which path caused the error
+      const errorPath = (await this.exists(oldPath)) ? newPath : oldPath;
+      throw this.wrapError(err, errorPath);
     }
   }
 

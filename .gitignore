@@ -149,6 +149,7 @@ scratch/*
 # Chainglass workflow runtime
 # Track workflow templates, ignore generated runs/checkpoints
 .chainglass/runs/
+.chainglass/work-graphs/
 .chainglass/workflows/*/checkpoints/
 !.chainglass/workflows/*/current/
 !.chainglass/workflows/*/workflow.json

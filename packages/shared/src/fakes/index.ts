@@ -13,6 +13,5 @@ export type { FormattedResult } from './fake-output.adapter.js';
 export { FakeDiffAction } from './fake-diff-action.js';
 export { FakeHashGenerator } from './fake-hash-generator.js';
 export { FakeProcessManager } from './fake-process-manager.js';
-
-// Note: FakeEventStorage removed in Plan 018 Phase 2.
-// Use FakeAgentEventAdapter from @chainglass/workflow for workspace-scoped event storage.
+// YAML parser fake (Phase 2: extracted from workflow for shared use)
+export { FakeYamlParser } from './fake-yaml-parser.js';

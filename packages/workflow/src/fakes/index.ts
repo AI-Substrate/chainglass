@@ -1,5 +1,6 @@
 // Workflow fakes barrel export
 
+// Keep workflow-specific FakeYamlParser for now (uses real YAML parsing fallback)
 export { FakeYamlParser } from './fake-yaml-parser.js';
 export { FakeSchemaValidator } from './fake-schema-validator.js';
 export { FakeWorkflowService } from './fake-workflow-service.js';

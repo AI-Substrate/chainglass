@@ -4,8 +4,9 @@
 export type { IWorkflowAdapter, RunListFilter } from './workflow-adapter.interface.js';
 export type { IPhaseAdapter } from './phase-adapter.interface.js';
 
-export { YamlParseError } from './yaml-parser.interface.js';
-export type { IYamlParser, ParseResult } from './yaml-parser.interface.js';
+// Re-export from @chainglass/shared for backward compatibility (Phase 2: moved to shared)
+export { YamlParseError } from '@chainglass/shared';
+export type { IYamlParser, ParseResult } from '@chainglass/shared';
 
 export { ValidationErrorCodes } from './schema-validator.interface.js';
 export type {

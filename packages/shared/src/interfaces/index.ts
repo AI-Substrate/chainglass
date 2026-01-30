@@ -6,6 +6,9 @@ export type { IFileSystem, FileStat } from './filesystem.interface.js';
 export { PathSecurityError } from './path-resolver.interface.js';
 export type { IPathResolver } from './path-resolver.interface.js';
 export type { IHashGenerator } from './hash-generator.interface.js';
+// YAML parser interface (Phase 2: extracted from workflow for shared use)
+export { YamlParseError } from './yaml-parser.interface.js';
+export type { IYamlParser, ParseResult } from './yaml-parser.interface.js';
 
 // Viewer interfaces (per Phase 1: Headless Viewer Hooks)
 export type { ViewerFile } from './viewer.interface.js';
