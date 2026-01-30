@@ -594,9 +594,9 @@ flowchart TD
     end
 
     subgraph Service["packages/workflow (THIS SUBTASK)"]
-        IWCN["IWorkspaceChangeNotifierService"]:::pending
-        WCNS["WorkspaceChangeNotifierService"]:::pending
-        FWCN["FakeWorkspaceChangeNotifierService"]:::pending
+        IWCN["IWorkspaceChangeNotifierService ✓"]:::completed
+        WCNS["WorkspaceChangeNotifierService ✓"]:::completed
+        FWCN["FakeWorkspaceChangeNotifierService ✓"]:::completed
         
         WCNS -.->|implements| IWCN
         FWCN -.->|implements| IWCN
@@ -628,9 +628,9 @@ flowchart TD
 |------|-------------|-------|--------|---------|
 | ST001 | Research | (this document) | ✅ Complete | chokidar v5.0 selected |
 | ST002 | Architecture | (this document) | ✅ Complete | WorkspaceChangeNotifierService |
-| ST003 | Interface + Tests | interfaces/*.ts, *.test.ts | ⬜ Pending | TDD: interface + failing tests |
-| ST004 | Service Impl | workspace-change-notifier.service.ts | ⬜ Pending | Core implementation |
-| ST005 | Integration Test | (test file) | ⬜ Pending | Real filesystem verification |
+| ST003 | Interface + Tests | interfaces/*.ts, fakes/*.ts, *.test.ts | ✅ Complete | 8 files created, 32 unit tests |
+| ST004 | Service Impl | workspace-change-notifier.service.ts | ✅ Complete | All 32 unit tests pass (Gate G1a) |
+| ST005 | Integration Test | workspace-change-notifier.integration.test.ts | ✅ Complete | All 4 integration tests pass (Gate G1b) |
 
 ---
 
@@ -675,9 +675,9 @@ flowchart TD
 |--------|------|------|----|------|------------|-------|
 | [x] | ST001 | Research file watching libraries | 1 | Research | Decision documented | ✅ chokidar v5.0 |
 | [x] | ST002 | Design service architecture | 2 | Design | Architecture documented | ✅ DI-integrated service |
-| [ ] | ST003 | Create interfaces + write failing tests | 2 | TDD | Tests exist, all fail | Interface + tests first |
-| [ ] | ST004 | Implement WorkspaceChangeNotifierService | 3 | Impl | Unit tests pass | Gate G1a |
-| [ ] | ST005 | Integration test with real filesystem | 2 | Test | Integration test passes | Gate G1b |
+| [x] | ST003 | Create interfaces + write failing tests | 2 | TDD | Tests exist, all fail | ✅ 32 tests, TDD RED→GREEN [^1] |
+| [x] | ST004 | Implement WorkspaceChangeNotifierService | 3 | Impl | Unit tests pass | ✅ Gate G1a passed (32 tests) [^2] |
+| [x] | ST005 | Integration test with real filesystem | 2 | Test | Integration test passes | ✅ Gate G1b passed (4 tests) [^3] |
 
 **Subtask 002 will cover:** ST006+ (web integration, SSE wiring, browser verification)
 
@@ -1295,28 +1295,55 @@ Subtask 002 will handle browser/SSE integration.
 
 ## Ready Check
 
-**For ST003 (Interface + Tests)**:
+**For ST003 (Interface + Tests)**: ✅ COMPLETE
 - [x] Research questions RES-001, RES-002 have documented answers
 - [x] Architecture decision recorded: WorkspaceChangeNotifierService in packages/workflow
 - [x] Library selected: chokidar v5.0 with atomic + awaitWriteFinish config
 - [x] Service interface fully specified with GraphChangedEvent
 - [x] Workspace registry integration documented
 - [x] Subtask split: This is headless-only, browser integration is Subtask 002
-- [ ] Ready to begin implementation
+- [x] Implementation complete
 
-**Gate Prerequisites (This Subtask)**:
-- G1a (ST004): ST003 interface + tests written and failing → implementation passes
-- G1b (ST005): Integration test with real filesystem passes
+**Gate Results**:
+- G1a (ST004): ✅ **32 unit tests pass**
+- G1b (ST005): ✅ **4 integration tests pass**
 
 ---
 
 ## Phase Footnote Stubs
 
-_Footnotes will be added by plan-6 during implementation._
-
 | ID | Task | Components/Methods | Added By |
 |----|------|-------------------|----------|
-| | | | |
+| [^1] | ST003 | Interfaces + Fakes | plan-6a |
+| [^2] | ST004 | Service + Adapter + Exports | plan-6a |
+| [^3] | ST005 | Integration tests | plan-6a |
+
+---
+
+## Footnotes
+
+[^1]: ST003 - Created interfaces and fakes
+  - `interface:packages/workflow/src/interfaces/file-watcher.interface.ts:IFileWatcher`
+  - `interface:packages/workflow/src/interfaces/file-watcher.interface.ts:IFileWatcherFactory`
+  - `interface:packages/workflow/src/interfaces/workspace-change-notifier.interface.ts:IWorkspaceChangeNotifierService`
+  - `interface:packages/workflow/src/interfaces/workspace-change-notifier.interface.ts:GraphChangedEvent`
+  - `class:packages/workflow/src/fakes/fake-file-watcher.ts:FakeFileWatcher`
+  - `class:packages/workflow/src/fakes/fake-file-watcher.ts:FakeFileWatcherFactory`
+  - `class:packages/workflow/src/fakes/fake-workspace-change-notifier.service.ts:FakeWorkspaceChangeNotifierService`
+  - `file:test/unit/workflow/workspace-change-notifier.service.test.ts`
+
+[^2]: ST004 - Implemented service and adapter
+  - `class:packages/workflow/src/adapters/chokidar-file-watcher.adapter.ts:ChokidarFileWatcherAdapter`
+  - `class:packages/workflow/src/adapters/chokidar-file-watcher.adapter.ts:ChokidarFileWatcherFactory`
+  - `class:packages/workflow/src/services/workspace-change-notifier.service.ts:WorkspaceChangeNotifierService`
+  - `file:packages/workflow/src/index.ts`
+  - `file:packages/workflow/src/interfaces/index.ts`
+  - `file:packages/workflow/src/fakes/index.ts`
+  - `file:packages/workflow/src/adapters/index.ts`
+  - `file:packages/workflow/src/services/index.ts`
+
+[^3]: ST005 - Integration tests with real filesystem
+  - `file:test/integration/workflow/workspace-change-notifier.integration.test.ts`
 
 ---
 
@@ -1340,6 +1367,11 @@ _Footnotes will be added by plan-6 during implementation._
 | 2026-01-29 | ST001 | insight | CLI uses `atomicWriteFile()` (temp→rename) which chokidar `atomic: true` handles | Use `atomic: true` | packages/shared |
 | 2026-01-29 | ST002 | decision | WorkspaceChangeNotifierService in packages/workflow | Shared, DI-integrated | DYK session |
 | 2026-01-29 | ST002 | decision | Split into 2 subtasks: headless (001) and browser (002) | Better TDD, isolation | User request |
+| 2026-01-30 | ST004 | gotcha | `Workspace` class has private constructor | Use `Workspace.create({...})` not `new Workspace({...})` | log#st004-3 |
+| 2026-01-30 | ST004 | gotcha | `Worktree` interface has specific fields (head, isDetached, isBare, isPrunable) | Fixed test object structure | log#st004-3 |
+| 2026-01-30 | ST004 | gotcha | `FakeFileSystem` not `FakeFilesystem` (capital S) | Fixed import | log#st004-3 |
+| 2026-01-30 | ST004 | gotcha | `setDir()` not `stubExists()` for filesystem fake | Fixed method call | log#st004-3 |
+| 2026-01-30 | ST005 | insight | chokidar needs ~200ms init time before detecting changes | Add sleep(200) after start() | log#st005-2 |
 
 ---
 

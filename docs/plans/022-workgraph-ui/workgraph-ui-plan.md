@@ -834,8 +834,8 @@ pnpm dev  # Test drag-drop manually in browser
 | 4.2 | [ ] | Implement useWorkGraphSSE hook | 2 | Subscribes to 'workgraphs' channel, filters by activeGraphSlug | - | |
 | 4.3 | [ ] | Write tests for server-side SSE emission | 2 | Tests cover: WorkGraphUIService broadcasts on change | - | |
 | 4.4 | [ ] | Implement server-side emission in WorkGraphUIService | 2 | Service calls sseManager.broadcast('workgraphs', 'graph-updated', {graphSlug}) | - | |
-| 4.5 | [ ] | Write tests for file watching (polling) | 2 | Tests cover: detect file change, emit event | - | |
-| 4.6 | [ ] | Implement file watcher in WorkGraphUIInstance | 3 | Polls state.json every 2s, emits 'changed' on modification | - | |
+| 4.5 | [x] | Write tests for file watching (polling) | 2 | Tests cover: detect file change, emit event | [📋](tasks/phase-4-real-time-updates/001-subtask-file-watching-for-cli-changes.execution.log.md#st003-5) | Subtask 001 [^16] |
+| 4.6 | [x] | Implement file watcher in WorkGraphUIInstance | 3 | WorkspaceChangeNotifierService watches state.json, emits GraphChangedEvent | [📋](tasks/phase-4-real-time-updates/001-subtask-file-watching-for-cli-changes.execution.log.md#st004-2) | Subtask 001 [^16] |
 | 4.7 | [ ] | Write tests for refresh-on-notify flow | 2 | Tests cover: SSE event → refresh() → state updated | - | |
 | 4.8 | [ ] | Wire up SSE hook in graph page | 1 | Page uses useWorkGraphSSE, instance refreshes on notify | - | |
 | 4.9 | [ ] | Write tests for conflict toast notification | 1 | Tests cover: external change shows toast | - | |
@@ -1396,6 +1396,22 @@ just check  # Runs all lint, typecheck, test
 [^15]: Task T018 - PlanPak symlinks (if created)
   - `file:docs/plans/022-workgraph-ui/files/`
 
+### Phase 4 Footnotes
+
+[^16]: Subtask 001 (Tasks 4.5-4.6) - WorkspaceChangeNotifierService file watching
+  - `interface:packages/workflow/src/interfaces/file-watcher.interface.ts:IFileWatcher`
+  - `interface:packages/workflow/src/interfaces/file-watcher.interface.ts:IFileWatcherFactory`
+  - `interface:packages/workflow/src/interfaces/workspace-change-notifier.interface.ts:IWorkspaceChangeNotifierService`
+  - `interface:packages/workflow/src/interfaces/workspace-change-notifier.interface.ts:GraphChangedEvent`
+  - `class:packages/workflow/src/adapters/chokidar-file-watcher.adapter.ts:ChokidarFileWatcherAdapter`
+  - `class:packages/workflow/src/adapters/chokidar-file-watcher.adapter.ts:ChokidarFileWatcherFactory`
+  - `class:packages/workflow/src/services/workspace-change-notifier.service.ts:WorkspaceChangeNotifierService`
+  - `class:packages/workflow/src/fakes/fake-file-watcher.ts:FakeFileWatcher`
+  - `class:packages/workflow/src/fakes/fake-file-watcher.ts:FakeFileWatcherFactory`
+  - `class:packages/workflow/src/fakes/fake-workspace-change-notifier.service.ts:FakeWorkspaceChangeNotifierService`
+  - `file:test/unit/workflow/workspace-change-notifier.service.test.ts`
+  - `file:test/integration/workflow/workspace-change-notifier.integration.test.ts`
+
 ---
 
 **Next steps:**
@@ -1410,4 +1426,4 @@ Mid-implementation detours requiring structured tracking.
 
 | ID | Created | Phase | Parent Task | Reason | Status | Dossier |
 |----|---------|-------|-------------|--------|--------|---------|
-| 001-subtask-file-watching-for-cli-changes | 2026-01-29 | Phase 4: Real-time Updates | T006, T012 | Spec requires file watching (line 160, 267, 316) but only SSE was implemented; CLI changes don't trigger UI refresh | [ ] Pending | [Link](tasks/phase-4-real-time-updates/001-subtask-file-watching-for-cli-changes.md) |
+| 001-subtask-file-watching-for-cli-changes | 2026-01-29 | Phase 4: Real-time Updates | T006, T012 | Spec requires file watching (line 160, 267, 316) but only SSE was implemented; CLI changes don't trigger UI refresh | [x] Complete | [Link](tasks/phase-4-real-time-updates/001-subtask-file-watching-for-cli-changes.md) |
