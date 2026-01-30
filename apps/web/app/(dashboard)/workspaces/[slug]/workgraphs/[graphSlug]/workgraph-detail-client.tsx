@@ -15,8 +15,8 @@ import type { Connection } from '@xyflow/react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
 import { useWorkGraphAPI } from '../../../../../../src/features/022-workgraph-ui/use-workgraph-api';
-import { useWorkGraphSSE } from '../../../../../../src/features/022-workgraph-ui/use-workgraph-sse';
 import type { WorkGraphFlowData } from '../../../../../../src/features/022-workgraph-ui/use-workgraph-flow';
+import { useWorkGraphSSE } from '../../../../../../src/features/022-workgraph-ui/use-workgraph-sse';
 import { WorkGraphCanvas } from '../../../../../../src/features/022-workgraph-ui/workgraph-canvas';
 import { WorkUnitToolbox } from '../../../../../../src/features/022-workgraph-ui/workunit-toolbox';
 
@@ -64,7 +64,7 @@ export function WorkGraphDetailClient({
   // Phase 4: SSE subscription for real-time updates
   const { isConnected } = useWorkGraphSSE({
     graphSlug,
-    instance: sseInstance as any, // Cast needed as we only provide refresh()
+    instance: sseInstance,
     onExternalChange: () => {
       setToast('Graph updated externally');
       setTimeout(() => setToast(null), 3000);

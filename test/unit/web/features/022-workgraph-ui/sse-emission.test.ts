@@ -13,8 +13,8 @@ vi.mock('@/lib/sse-manager', () => ({
   },
 }));
 
-import { sseManager } from '@/lib/sse-manager';
 import { broadcastGraphUpdated } from '@/features/022-workgraph-ui/sse-broadcast';
+import { sseManager } from '@/lib/sse-manager';
 
 describe('broadcastGraphUpdated', () => {
   beforeEach(() => {
@@ -29,11 +29,9 @@ describe('broadcastGraphUpdated', () => {
      */
     broadcastGraphUpdated('my-graph');
 
-    expect(sseManager.broadcast).toHaveBeenCalledWith(
-      'workgraphs',
-      'graph-updated',
-      { graphSlug: 'my-graph' }
-    );
+    expect(sseManager.broadcast).toHaveBeenCalledWith('workgraphs', 'graph-updated', {
+      graphSlug: 'my-graph',
+    });
   });
 
   test('should include graphSlug in payload', () => {
@@ -58,7 +56,7 @@ describe('broadcastGraphUpdated', () => {
 
     const call = vi.mocked(sseManager.broadcast).mock.calls[0];
     const payload = call[2] as Record<string, unknown>;
-    
+
     // Should only have graphSlug
     expect(Object.keys(payload)).toEqual(['graphSlug']);
   });

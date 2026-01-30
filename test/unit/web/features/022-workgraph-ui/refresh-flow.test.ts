@@ -8,9 +8,9 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
-import { createFakeEventSourceFactory } from '../../../../fakes/fake-event-source';
 import { FakeWorkGraphUIInstance } from '@/features/022-workgraph-ui/fake-workgraph-ui-instance';
 import { useWorkGraphSSE } from '@/features/022-workgraph-ui/use-workgraph-sse';
+import { createFakeEventSourceFactory } from '../../../../fakes/fake-event-source';
 
 describe('refresh-on-notify flow integration', () => {
   let fakeFactory: ReturnType<typeof createFakeEventSourceFactory>;

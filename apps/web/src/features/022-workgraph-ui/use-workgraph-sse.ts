@@ -14,10 +14,14 @@
 
 'use client';
 
-import { useCallback, useEffect, useRef } from 'react';
 import type { EventSourceFactory } from '@/hooks/useSSE';
 import { useSSE } from '@/hooks/useSSE';
-import type { IWorkGraphUIInstance } from './workgraph-ui.types';
+import { useCallback, useEffect, useRef } from 'react';
+
+/** Minimal interface for SSE - only needs refresh() */
+interface SSERefreshable {
+  refresh(): Promise<void>;
+}
 
 /** SSE event payload per ADR-0007 */
 interface WorkGraphSSEEvent {
@@ -32,8 +36,8 @@ const DEFAULT_POLLING_INTERVAL = 2000;
 export interface UseWorkGraphSSEOptions {
   /** The graph slug to filter events for */
   graphSlug: string;
-  /** The WorkGraphUIInstance to refresh on external changes */
-  instance: IWorkGraphUIInstance;
+  /** The WorkGraphUIInstance (or any object with refresh()) to refresh on external changes */
+  instance: SSERefreshable;
   /** Optional EventSource factory for testing (uses browser EventSource by default) */
   eventSourceFactory?: EventSourceFactory;
   /** Optional callback when external change is detected and refresh completed */
