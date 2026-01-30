@@ -12,8 +12,9 @@
 'use client';
 
 import type { Connection } from '@xyflow/react';
+import { RefreshCw } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, useTransition } from 'react';
 import { useWorkGraphAPI } from '../../../../../../src/features/022-workgraph-ui/use-workgraph-api';
 import type { WorkGraphFlowData } from '../../../../../../src/features/022-workgraph-ui/use-workgraph-flow';
 import { useWorkGraphSSE } from '../../../../../../src/features/022-workgraph-ui/use-workgraph-sse';
@@ -36,6 +37,13 @@ export function WorkGraphDetailClient({
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [isRefreshing, startRefresh] = useTransition();
+
+  const handleRefresh = useCallback(() => {
+    startRefresh(() => {
+      router.refresh();
+    });
+  }, [router]);
 
   const handleError = useCallback((message: string) => {
     setError(message);
@@ -108,12 +116,23 @@ export function WorkGraphDetailClient({
 
       {/* Canvas area */}
       <div className="flex-1 relative">
-        {/* Connection indicator */}
-        <div className="absolute top-4 left-4 z-50">
+        {/* Connection indicator + Refresh button */}
+        <div className="absolute top-4 left-4 z-50 flex items-center gap-2">
           <div
             className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-gray-400'}`}
             title={isConnected ? 'Connected to real-time updates' : 'Not connected'}
           />
+          <button
+            type="button"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="p-1.5 rounded-md hover:bg-muted transition-colors disabled:opacity-50"
+            title="Refresh graph"
+          >
+            <RefreshCw
+              className={`w-4 h-4 text-muted-foreground ${isRefreshing ? 'animate-spin' : ''}`}
+            />
+          </button>
         </div>
         {/* Error toast */}
         {error && (

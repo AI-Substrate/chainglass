@@ -90,6 +90,9 @@ flowchart TB
 | Status | ID | Task | CS | Type | Validation | Notes |
 |--------|------|------|----|------|------------|-------|
 | [ ] | ST006 | Create web integration layer | 2 | Impl | Unit test passes | globalThis pattern for HMR |
+| [ ] | ST006a | Add SSE broadcast deduplication | 1 | Impl | Unit test passes | 500ms window per graphSlug (DYK-01) |
+| [ ] | ST006b | Register service in DI container | 2 | Impl | Service resolves | Add IFileWatcherFactory + WorkspaceChangeNotifierService (DYK-02) |
+| [ ] | ST006c | Add SSE-activity-gated polling fallback | 2 | Impl | Unit test passes | Poll when SSE silent >60s, pause on SSE event (DYK-04) |
 | [ ] | ST007 | Verify SSE event on wire (curl) | 1 | Verify | JSON in terminal | Gate G3 |
 | [ ] | ST008 | Verify client receives event (MCP) | 1 | Verify | Console.log via MCP | Gate G4 |
 | [ ] | ST009 | Full E2E: CLI → Toast → Refresh | 1 | E2E | Visual confirmation | Gate G5 |
@@ -180,11 +183,13 @@ export async function register() {
 // Call in top-level await or via a server initialization module
 ```
 
-**Test**:
+**Test** (use injected fakes, no mocks - project convention DYK-05):
 ```typescript
 // test/unit/web/lib/workspace-change-notifier-web.test.ts
 
 describe('initWorkspaceChangeNotifier', () => {
+  // Use FakeWorkspaceChangeNotifierService injected via DI
+  // Do NOT use vi.mock() or vi.spyOn() for core dependencies
   it('starts the notifier on first call');
   it('is idempotent (second call does nothing)');
   it('wires onGraphChanged to broadcastGraphUpdated');
@@ -346,3 +351,174 @@ just typecheck
 - 📋 [Subtask 001 (Service)](./001-subtask-file-watching-for-cli-changes.md)
 - 📋 [Parent Dossier](./tasks.md)
 - 📄 [Parent Plan](../../workgraph-ui-plan.md)
+
+---
+
+## Critical Insights Discussion
+
+**Session**: 2026-01-30
+**Context**: Subtask 002 - Browser/SSE Integration for File Watcher
+**Analyst**: AI Clarity Agent
+**Reviewer**: Development Team
+**Format**: Water Cooler Conversation (5 Critical Insights)
+
+### Insight 1: Double-Broadcast Race Condition
+
+**Did you know**: When a CLI mutation writes state.json, BOTH the API route AND the file watcher will broadcast SSE events for the same change, causing duplicate UI updates.
+
+**Implications**:
+- Toast appears twice ("Graph updated externally" x2)
+- Graph refreshes twice in rapid succession
+- Wasted bandwidth and CPU cycles
+- Confusing user experience
+
+**Options Considered**:
+- Option A: Client-side deduplication - Hook ignores duplicate events within window
+- Option B: Server-side deduplication - broadcastGraphUpdated() dedupes in 500ms window
+- Option C: Source tagging - Tag events with source, client filters
+
+**AI Recommendation**: Option B - Server-side deduplication
+- Reasoning: Single fix location, simpler client code, no client-side timer management
+
+**Discussion Summary**: User chose server-side deduplication to keep complexity in one place. 500ms window per graphSlug is sufficient to catch file system delay.
+
+**Decision**: Server-side 500ms deduplication window in broadcastGraphUpdated()
+
+**Action Items**:
+- [x] Added task ST006a for SSE broadcast deduplication
+
+**Affects**: sse-broadcast.ts, ST006a added to task table
+
+---
+
+### Insight 2: DI Wiring Gap - Missing Service Registration
+
+**Did you know**: The subtask code sample imports `workspaceRegistryAdapter` from DI container, but WorkspaceChangeNotifierService and IFileWatcherFactory are NOT registered in the DI container.
+
+**Implications**:
+- Code will fail at runtime with missing dependency error
+- DI container exists but service registration incomplete
+- Need to add factory pattern registration (no decorators for RSC compatibility)
+
+**Options Considered**:
+- Option A: Full DI registration - Add IFileWatcherFactory + WorkspaceChangeNotifierService to container
+- Option B: Direct instantiation - Skip DI, instantiate directly in web layer
+- Option C: Lazy registration - Register on first use
+
+**AI Recommendation**: Option A - Full DI registration
+- Reasoning: Consistent with existing patterns, enables testing with fakes, clean architecture
+
+**Discussion Summary**: Subagent verified DI container exists at apps/web/src/lib/di-container.ts. IWorkspaceRegistryAdapter already registered. Need to add IFileWatcherFactory and WorkspaceChangeNotifierService.
+
+**Decision**: Full DI registration following existing factory pattern
+
+**Action Items**:
+- [x] Added task ST006b for DI registration
+
+**Affects**: di-container.ts, ST006b added to task table
+
+---
+
+### Insight 3: Instrumentation vs Root Layout Timing
+
+**Did you know**: There's a timing difference between instrumentation.ts (runs at server boot) and root layout (runs at first request) for initializing the file watcher.
+
+**Implications**:
+- instrumentation.ts: Watcher starts immediately, no race conditions
+- Root layout: Watcher starts on first request, potential gap where CLI changes are missed
+- First user to hit the site triggers initialization
+
+**Options Considered**:
+- Option A: instrumentation.ts - Start at server boot, guaranteed early initialization
+- Option B: Root layout - Start on first request, simpler but potential race
+
+**AI Recommendation**: Option A - instrumentation.ts
+- Reasoning: No race conditions, watcher ready before any requests, cleaner separation
+
+**Discussion Summary**: User agreed instrumentation.ts is the right choice for reliability.
+
+**Decision**: Use instrumentation.ts for service initialization (already in plan)
+
+**Action Items**: None (already specified in subtask)
+
+**Affects**: No changes needed
+
+---
+
+### Insight 4: Error Resilience - Chokidar Failure Detection
+
+**Did you know**: The polling fallback only triggers when SSE connection fails, NOT when chokidar (file watcher) fails. If chokidar fails silently, SSE stays connected but no events flow - and the browser has no way to know.
+
+**Implications**:
+- SSE failure → polling kicks in (handled)
+- Chokidar failure + SSE healthy → NO polling, UI never updates (not handled)
+- These are independent failure modes
+- User experience degrades silently with no indication
+
+**Options Considered**:
+- Option A: Accept degraded experience - Log warning, manual refresh required
+- Option B: Always-on parallel polling - 5s polling alongside SSE as safety net
+- Option C: Health check endpoint - Server exposes watcher status, client polls health
+
+**AI Recommendation**: Option B - Always-on polling
+- Reasoning: Simple safety net, minimal overhead with slow interval
+
+**Discussion Summary**: User proposed elegant hybrid: SSE-activity-gated polling. Poll when SSE has been silent for 60s, pause polling when SSE event arrives. Best of both worlds.
+
+**Decision**: SSE-activity-gated polling - poll only when SSE silent >60s, pause on SSE event
+
+**Action Items**:
+- [x] Added task ST006c for SSE-activity-gated polling fallback
+
+**Affects**: use-workgraph-sse.ts, ST006c added to task table
+
+---
+
+### Insight 5: Testing Gap - No Automated Integration Tests
+
+**Did you know**: All verification gates (G3-G5) are manual tests. There's no automated test that verifies the full chain: chokidar → event → SSE → client.
+
+**Implications**:
+- Unit tests prove components work in isolation (with injected fakes)
+- Manual tests prove system works once
+- Neither proves system KEEPS working
+- Regression risk on future changes
+
+**Options Considered**:
+- Option A: Accept manual verification - Manual gates sufficient for one-time feature
+- Option B: Integration test with real chokidar - Touch file, verify SSE output
+- Option C: E2E test with Playwright - Browser automation, assert toast appears
+
+**AI Recommendation**: Option A - Accept manual verification
+- Reasoning: One-time integration, manual tests are quick (~2 min), file watcher tests are notoriously flaky
+
+**Discussion Summary**: User chose manual verification. Also clarified project convention: tests must use injected fakes via DI, no mocks allowed.
+
+**Decision**: Manual verification for integration tests. Unit tests use injected fakes only.
+
+**Action Items**:
+- [x] Updated ST006 test spec to note fakes-only requirement
+
+**Affects**: Test specifications in subtask
+
+---
+
+## Session Summary
+
+**Insights Surfaced**: 5 critical insights identified and discussed
+**Decisions Made**: 5 decisions reached through collaborative discussion
+**Action Items Created**: 4 new tasks added (ST006a, ST006b, ST006c, test spec update)
+**Areas Updated**:
+- Task table: Added ST006a (deduplication), ST006b (DI registration), ST006c (SSE-gated polling)
+- ST006 test spec: Added fakes-only note
+
+**Shared Understanding Achieved**: ✓
+
+**Confidence Level**: High - Key risks identified and mitigated with practical solutions
+
+**Next Steps**:
+Proceed with implementation of Subtask 002, starting with ST006b (DI registration) as foundation.
+
+**Notes**:
+- SSE-activity-gated polling (user's idea) is an elegant solution to the chokidar failure detection problem
+- Project uses strict no-mocks testing policy - all dependencies must be injected fakes
