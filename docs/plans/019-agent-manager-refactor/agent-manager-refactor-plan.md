@@ -858,7 +858,7 @@ Mid-implementation detours requiring structured tracking.
 
 | ID | Created | Phase | Parent Task | Reason | Status | Dossier |
 |----|---------|-------|-------------|--------|--------|---------|
-| 001-subtask-migrate-agents-list-page | 2026-01-29 | Phase 5: Consolidation & Cleanup | T003 | List page still uses Plan 018 backend; users cannot create or list agents | [ ] Pending | [Link](tasks/phase-5-consolidation-cleanup/001-subtask-migrate-agents-list-page.md) |
+| 001-subtask-migrate-agents-list-page | 2026-01-29 | Phase 5: Consolidation & Cleanup | T003 | List page still uses Plan 018 backend; users cannot create or list agents | [x] Complete | [Link](tasks/phase-5-consolidation-cleanup/001-subtask-migrate-agents-list-page.md) |
 
 ---
 
