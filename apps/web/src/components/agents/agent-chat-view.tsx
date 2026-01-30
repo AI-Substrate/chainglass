@@ -70,6 +70,10 @@ export function AgentChatView({ agentId, workspacePath, className }: AgentChatVi
       if (eventType === 'agent_text_delta' && (data.content || data.delta)) {
         setStreamingContent((prev) => prev + (data.content ?? data.delta ?? ''));
       }
+      // Handle complete message events (short responses without streaming deltas)
+      if (eventType === 'agent_message' && data.content) {
+        setStreamingContent(data.content);
+      }
       // When agent stops, clear streaming and refetch for final state
       if (eventType === 'agent_status') {
         const statusData = data as { agentId: string; status?: string };

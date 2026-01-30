@@ -171,8 +171,10 @@ export function mergeAgentEvents(events: AgentStoredEvent[]): (LogEntryProps & {
   const result: (LogEntryProps & { key: string })[] = [];
   let currentThinking: { key: string; content: string; signature?: string } | null = null;
   let currentText: { key: string; content: string } | null = null;
-  let hasSeenTextDelta = false;
-  let hasSeenThinkingDelta = false;
+  // Per-turn dedup: count deltas since last turn boundary (session_start/session_idle/usage).
+  // A consolidated message/thinking is a duplicate only if deltas were seen in the SAME turn.
+  let textDeltaCountThisTurn = 0;
+  let thinkingDeltaCountThisTurn = 0;
 
   for (const event of events) {
     // Skip tool_result - they're merged into tool_call
@@ -180,31 +182,37 @@ export function mergeAgentEvents(events: AgentStoredEvent[]): (LogEntryProps & {
       continue;
     }
 
+    // Turn boundary events: reset per-turn dedup counters and flush accumulators
+    if (event.type === 'session_start' || event.type === 'session_idle') {
+      textDeltaCountThisTurn = 0;
+      thinkingDeltaCountThisTurn = 0;
+      continue; // Don't render these
+    }
+
     // Skip non-renderable events
-    if (event.type === 'usage' || event.type === 'session_idle' || event.type === 'raw') {
+    if (event.type === 'usage' || event.type === 'raw') {
       continue;
     }
 
-    // Skip consolidated duplicates: the copilot SDK emits streaming deltas
-    // then re-emits full content as message/thinking after the turn.
-    if (event.type === 'message' && hasSeenTextDelta && !event.data.content) {
-      continue; // Empty consolidated message
+    // Skip empty message events (copilot SDK emits message with empty content at turn start)
+    if (event.type === 'message' && !event.data.content) {
+      continue;
     }
-    if (event.type === 'message' && hasSeenTextDelta) {
-      continue; // Full consolidated message — duplicate of text_deltas
+
+    // Suppress consolidated message if text_deltas were streamed this turn
+    if (event.type === 'message' && textDeltaCountThisTurn > 0) {
+      continue;
     }
-    if (event.type === 'thinking' && hasSeenThinkingDelta) {
-      // Check if this is a consolidated duplicate (full content, not a delta)
-      // Heuristic: if we already have a currentThinking block being accumulated,
-      // a new thinking event that restarts the content is likely a duplicate
-      if (!currentThinking) {
-        continue; // Consolidated thinking after deltas were already flushed
-      }
+
+    // Suppress consolidated thinking if thinking_deltas were streamed this turn
+    // and the current thinking block has already been flushed
+    if (event.type === 'thinking' && thinkingDeltaCountThisTurn > 0 && !currentThinking) {
+      continue;
     }
 
     // Accumulate text_delta into single message
     if (event.type === 'text_delta') {
-      hasSeenTextDelta = true;
+      textDeltaCountThisTurn++;
       if (currentText) {
         currentText.content += event.data.content;
       } else {
@@ -218,7 +226,7 @@ export function mergeAgentEvents(events: AgentStoredEvent[]): (LogEntryProps & {
 
     // Consolidate consecutive thinking events
     if (event.type === 'thinking') {
-      hasSeenThinkingDelta = true;
+      thinkingDeltaCountThisTurn++;
       // Flush any pending text first
       if (currentText) {
         result.push({
