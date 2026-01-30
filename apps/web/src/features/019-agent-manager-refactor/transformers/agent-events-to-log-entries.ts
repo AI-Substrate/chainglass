@@ -171,6 +171,8 @@ export function mergeAgentEvents(events: AgentStoredEvent[]): (LogEntryProps & {
   const result: (LogEntryProps & { key: string })[] = [];
   let currentThinking: { key: string; content: string; signature?: string } | null = null;
   let currentText: { key: string; content: string } | null = null;
+  let hasSeenTextDelta = false;
+  let hasSeenThinkingDelta = false;
 
   for (const event of events) {
     // Skip tool_result - they're merged into tool_call
@@ -178,18 +180,36 @@ export function mergeAgentEvents(events: AgentStoredEvent[]): (LogEntryProps & {
       continue;
     }
 
-    // Skip usage events - don't render
-    if (event.type === 'usage') {
+    // Skip non-renderable events
+    if (event.type === 'usage' || event.type === 'session_idle' || event.type === 'raw') {
       continue;
+    }
+
+    // Skip consolidated duplicates: the copilot SDK emits streaming deltas
+    // then re-emits full content as message/thinking after the turn.
+    if (event.type === 'message' && hasSeenTextDelta && !event.data.content) {
+      continue; // Empty consolidated message
+    }
+    if (event.type === 'message' && hasSeenTextDelta) {
+      continue; // Full consolidated message — duplicate of text_deltas
+    }
+    if (event.type === 'thinking' && hasSeenThinkingDelta) {
+      // Check if this is a consolidated duplicate (full content, not a delta)
+      // Heuristic: if we already have a currentThinking block being accumulated,
+      // a new thinking event that restarts the content is likely a duplicate
+      if (!currentThinking) {
+        continue; // Consolidated thinking after deltas were already flushed
+      }
     }
 
     // Accumulate text_delta into single message
     if (event.type === 'text_delta') {
+      hasSeenTextDelta = true;
       if (currentText) {
         currentText.content += event.data.content;
       } else {
         currentText = {
-          key: event.eventId,
+          key: `${event.timestamp}_${event.eventId}`,
           content: event.data.content,
         };
       }
@@ -198,6 +218,7 @@ export function mergeAgentEvents(events: AgentStoredEvent[]): (LogEntryProps & {
 
     // Consolidate consecutive thinking events
     if (event.type === 'thinking') {
+      hasSeenThinkingDelta = true;
       // Flush any pending text first
       if (currentText) {
         result.push({
@@ -216,7 +237,7 @@ export function mergeAgentEvents(events: AgentStoredEvent[]): (LogEntryProps & {
         }
       } else {
         currentThinking = {
-          key: event.eventId,
+          key: `${event.timestamp}_${event.eventId}`,
           content: event.data.content,
           signature: event.data.signature,
         };

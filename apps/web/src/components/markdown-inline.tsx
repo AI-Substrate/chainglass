@@ -49,9 +49,9 @@ export function MarkdownInline({ content, className }: MarkdownInlineProps) {
         // Tighter spacing for chat messages
         'prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1',
         // Code block styling without Shiki
-        'prose-pre:bg-muted prose-pre:border prose-pre:border-border',
+        'prose-pre:bg-muted/70 prose-pre:border prose-pre:border-border prose-pre:text-foreground',
         'prose-code:before:content-none prose-code:after:content-none',
-        'prose-code:bg-muted prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-[0.85em]',
+        'prose-code:bg-muted/70 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-[0.85em] prose-code:text-foreground',
         className
       )}
     >

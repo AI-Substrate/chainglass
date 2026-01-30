@@ -119,10 +119,12 @@ export class SdkCopilotAdapter implements IAgentAdapter {
           hasStreamedText = true;
         }
         if (event.type === 'assistant.reasoning' && hasStreamedThinking) {
+          console.log(`[SdkCopilotAdapter] Suppressing duplicate consolidated thinking`);
           return; // Skip duplicate consolidated thinking
         }
         if (event.type === 'assistant.message' && hasStreamedText) {
           // Still capture output for AgentResult, but don't emit as event
+          console.log(`[SdkCopilotAdapter] Suppressing duplicate consolidated message`);
           const data = event.data as { content: string };
           output = data.content;
           return;

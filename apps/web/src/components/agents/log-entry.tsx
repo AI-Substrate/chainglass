@@ -208,7 +208,7 @@ export function LogEntry({
         <div className="flex-1 min-w-0">
           <MarkdownInline
             content={content}
-            className="text-sm leading-relaxed text-foreground/90"
+            className="text-sm leading-relaxed text-foreground"
           />
           {isStreaming && (
             <span className="inline-flex items-center gap-1 mt-1 text-[10px] text-blue-500">
