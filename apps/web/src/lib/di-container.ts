@@ -362,18 +362,19 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
         return agentManagerInstance;
       }
 
-      const logger = c.resolve<ILogger>(DI_TOKENS.LOGGER);
-      const processManager = c.resolve<IProcessManager>(DI_TOKENS.PROCESS_MANAGER);
-      const copilotClient = c.resolve<CopilotClient>(DI_TOKENS.COPILOT_CLIENT);
       const notifier = c.resolve<IAgentNotifierService>(SHARED_DI_TOKENS.AGENT_NOTIFIER_SERVICE);
       const storage = c.resolve<IAgentStorageAdapter>(SHARED_DI_TOKENS.AGENT_STORAGE_ADAPTER);
 
       // Per DYK-01: Factory function for adapter selection
+      // Resolve dependencies inside the factory (not outside) so they survive HMR reloads.
       const agentAdapterFactory: AgentAdapterFactory = (agentType) => {
+        const logger = c.resolve<ILogger>(DI_TOKENS.LOGGER);
         if (agentType === 'claude-code') {
+          const processManager = c.resolve<IProcessManager>(DI_TOKENS.PROCESS_MANAGER);
           return new ClaudeCodeAdapter(processManager, { logger });
         }
         if (agentType === 'copilot') {
+          const copilotClient = c.resolve<CopilotClient>(DI_TOKENS.COPILOT_CLIENT);
           return new SdkCopilotAdapter(copilotClient, { logger });
         }
         throw new Error(`Unknown agent type: ${agentType}`);
