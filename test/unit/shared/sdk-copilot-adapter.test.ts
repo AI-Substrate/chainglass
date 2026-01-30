@@ -1,6 +1,14 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import type { IAgentAdapter, ICopilotClient, ILogger } from '@chainglass/shared';
+import type {
+  AgentEvent,
+  AgentThinkingEvent,
+  AgentToolCallEvent,
+  AgentToolResultEvent,
+  IAgentAdapter,
+  ICopilotClient,
+  ILogger,
+} from '@chainglass/shared';
 import { FakeCopilotClient, FakeLogger } from '@chainglass/shared/fakes';
 // Note: SdkCopilotAdapter will be imported once T009 creates it
 // For now, we reference the interface to ensure tests are ready for implementation
@@ -1063,6 +1071,433 @@ describe('SdkCopilotAdapter', () => {
       expect(session).toBeDefined();
       expect(session?.getAbortCount()).toBe(1);
       expect(session?.wasDestroyed()).toBe(true);
+    });
+  });
+
+  // ============================================================
+  // Phase 2: Tool + Reasoning Event Parsing Tests (T006-T007a)
+  // ============================================================
+
+  describe('tool.execution_start event parsing (T006)', () => {
+    /**
+     * Test Doc:
+     * - Why: AC4 requires tool visibility for Copilot
+     * - Contract: tool.execution_start SDK events → AgentToolCallEvent
+     * - Usage Notes: Per Critical Discovery 04, Copilot has dedicated events
+     * - Quality Contribution: Core tool visibility for Copilot
+     */
+
+    it('should emit tool_call event for tool.execution_start', async () => {
+      /*
+      Test Doc:
+      - Why: AC4 requires tool visibility for Copilot
+      - Contract: tool.execution_start → AgentToolCallEvent with toolName, input, toolCallId
+      - Usage Notes: Different from Claude (SDK events vs content blocks)
+      - Quality Contribution: Core Copilot tool visibility
+      - Worked Example: { type: 'tool.execution_start', data: { toolName: 'bash', ... } }
+        → { type: 'tool_call', data: { toolName: 'bash', ... } }
+      */
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const client = new FakeCopilotClient({
+        events: [
+          {
+            type: 'tool.execution_start',
+            data: {
+              toolName: 'bash',
+              arguments: { command: 'ls -la' },
+              toolCallId: 'tool_abc123',
+            },
+          },
+          { type: 'assistant.message', data: { content: 'Done', messageId: 'msg-001' } },
+          { type: 'session.idle', data: {} },
+        ],
+      });
+      const adapter = new SdkCopilotAdapter(client);
+
+      const events: AgentEvent[] = [];
+      await adapter.run({
+        prompt: 'test',
+        onEvent: (e) => events.push(e),
+      });
+
+      const toolCallEvent = events.find((e) => e.type === 'tool_call') as
+        | AgentToolCallEvent
+        | undefined;
+      expect(toolCallEvent).toBeDefined();
+      expect(toolCallEvent?.data.toolName).toBe('bash');
+      expect(toolCallEvent?.data.input).toEqual({ command: 'ls -la' });
+      expect(toolCallEvent?.data.toolCallId).toBe('tool_abc123');
+    });
+
+    it('should handle Read tool execution_start', async () => {
+      /*
+      Test Doc:
+      - Why: Read is a common Copilot tool
+      - Contract: Read tool → tool_call with file_path input
+      - Usage Notes: Verifies various tool types work
+      - Quality Contribution: Tool type coverage
+      - Worked Example: { toolName: 'read', arguments: { file_path: '/etc/hosts' } }
+      */
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const client = new FakeCopilotClient({
+        events: [
+          {
+            type: 'tool.execution_start',
+            data: {
+              toolName: 'read',
+              arguments: { file_path: '/etc/hosts' },
+              toolCallId: 'tool_read123',
+            },
+          },
+          { type: 'assistant.message', data: { content: 'File contents', messageId: 'msg-001' } },
+          { type: 'session.idle', data: {} },
+        ],
+      });
+      const adapter = new SdkCopilotAdapter(client);
+
+      const events: AgentEvent[] = [];
+      await adapter.run({
+        prompt: 'test',
+        onEvent: (e) => events.push(e),
+      });
+
+      const toolCallEvent = events.find((e) => e.type === 'tool_call') as
+        | AgentToolCallEvent
+        | undefined;
+      expect(toolCallEvent).toBeDefined();
+      expect(toolCallEvent?.data.toolName).toBe('read');
+      expect(toolCallEvent?.data.input).toEqual({ file_path: '/etc/hosts' });
+    });
+
+    it('should include timestamp in tool_call events', async () => {
+      /*
+      Test Doc:
+      - Why: Events need timestamps for ordering
+      - Contract: tool_call events include ISO 8601 timestamp
+      - Usage Notes: Same as existing events
+      - Quality Contribution: Event metadata validation
+      - Worked Example: event.timestamp matches ISO format
+      */
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const client = new FakeCopilotClient({
+        events: [
+          {
+            type: 'tool.execution_start',
+            data: {
+              toolName: 'write',
+              arguments: { file_path: '/tmp/out.txt', content: 'hello' },
+              toolCallId: 'tool_write123',
+            },
+          },
+          { type: 'assistant.message', data: { content: 'Wrote file', messageId: 'msg-001' } },
+          { type: 'session.idle', data: {} },
+        ],
+      });
+      const adapter = new SdkCopilotAdapter(client);
+
+      const events: AgentEvent[] = [];
+      await adapter.run({
+        prompt: 'test',
+        onEvent: (e) => events.push(e),
+      });
+
+      const toolCallEvent = events.find((e) => e.type === 'tool_call');
+      expect(toolCallEvent?.timestamp).toBeDefined();
+      expect(toolCallEvent?.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    });
+  });
+
+  describe('tool.execution_complete event parsing (T007)', () => {
+    /**
+     * Test Doc:
+     * - Why: AC2 requires tool completion visibility
+     * - Contract: tool.execution_complete SDK events → AgentToolResultEvent
+     * - Usage Notes: Links to prior tool_call via toolCallId
+     * - Quality Contribution: Completes tool lifecycle visibility
+     */
+
+    it('should emit tool_result event for tool.execution_complete with success', async () => {
+      /*
+      Test Doc:
+      - Why: AC2 requires showing tool completion
+      - Contract: tool.execution_complete with success → tool_result with isError=false
+      - Usage Notes: Extracts result.content as output
+      - Quality Contribution: Success path validation
+      - Worked Example: { success: true, result: { content: '...' } } → { isError: false, output: '...' }
+      */
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const client = new FakeCopilotClient({
+        events: [
+          {
+            type: 'tool.execution_complete',
+            data: {
+              toolCallId: 'tool_abc123',
+              result: { content: 'total 48\ndrwxr-xr-x...' },
+              success: true,
+            },
+          },
+          { type: 'assistant.message', data: { content: 'Done', messageId: 'msg-001' } },
+          { type: 'session.idle', data: {} },
+        ],
+      });
+      const adapter = new SdkCopilotAdapter(client);
+
+      const events: AgentEvent[] = [];
+      await adapter.run({
+        prompt: 'test',
+        onEvent: (e) => events.push(e),
+      });
+
+      const toolResultEvent = events.find((e) => e.type === 'tool_result') as
+        | AgentToolResultEvent
+        | undefined;
+      expect(toolResultEvent).toBeDefined();
+      expect(toolResultEvent?.data.toolCallId).toBe('tool_abc123');
+      expect(toolResultEvent?.data.output).toContain('total 48');
+      expect(toolResultEvent?.data.isError).toBe(false);
+    });
+
+    it('should emit tool_result event with isError=true when success is false', async () => {
+      /*
+      Test Doc:
+      - Why: AC12a requires error visibility
+      - Contract: tool.execution_complete with success=false → tool_result with isError=true
+      - Usage Notes: UI will auto-expand error cards
+      - Quality Contribution: Error path validation
+      - Worked Example: { success: false } → { isError: true }
+      */
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const client = new FakeCopilotClient({
+        events: [
+          {
+            type: 'tool.execution_complete',
+            data: {
+              toolCallId: 'tool_error123',
+              result: { content: 'Error: ENOENT: no such file' },
+              success: false,
+            },
+          },
+          { type: 'assistant.message', data: { content: 'Failed', messageId: 'msg-001' } },
+          { type: 'session.idle', data: {} },
+        ],
+      });
+      const adapter = new SdkCopilotAdapter(client);
+
+      const events: AgentEvent[] = [];
+      await adapter.run({
+        prompt: 'test',
+        onEvent: (e) => events.push(e),
+      });
+
+      const toolResultEvent = events.find((e) => e.type === 'tool_result') as
+        | AgentToolResultEvent
+        | undefined;
+      expect(toolResultEvent).toBeDefined();
+      expect(toolResultEvent?.data.toolCallId).toBe('tool_error123');
+      expect(toolResultEvent?.data.isError).toBe(true);
+      expect(toolResultEvent?.data.output).toContain('ENOENT');
+    });
+
+    it('should handle tool.execution_complete with empty result', async () => {
+      /*
+      Test Doc:
+      - Why: Some tools return empty output
+      - Contract: Empty result.content → output=''
+      - Usage Notes: Empty output is valid
+      - Quality Contribution: Edge case handling
+      - Worked Example: { result: { content: '' } } → { output: '' }
+      */
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const client = new FakeCopilotClient({
+        events: [
+          {
+            type: 'tool.execution_complete',
+            data: {
+              toolCallId: 'tool_empty123',
+              result: { content: '' },
+              success: true,
+            },
+          },
+          { type: 'assistant.message', data: { content: 'Done', messageId: 'msg-001' } },
+          { type: 'session.idle', data: {} },
+        ],
+      });
+      const adapter = new SdkCopilotAdapter(client);
+
+      const events: AgentEvent[] = [];
+      await adapter.run({
+        prompt: 'test',
+        onEvent: (e) => events.push(e),
+      });
+
+      const toolResultEvent = events.find((e) => e.type === 'tool_result') as
+        | AgentToolResultEvent
+        | undefined;
+      expect(toolResultEvent).toBeDefined();
+      expect(toolResultEvent?.data.output).toBe('');
+      expect(toolResultEvent?.data.isError).toBe(false);
+    });
+  });
+
+  describe('assistant.reasoning event parsing (T007a)', () => {
+    /**
+     * Test Doc:
+     * - Why: AC7 requires Copilot reasoning visibility
+     * - Contract: assistant.reasoning + assistant.reasoning_delta → AgentThinkingEvent
+     * - Usage Notes: Per Insight 2, handle both event types
+     * - Quality Contribution: Reasoning visibility for Copilot
+     */
+
+    it('should emit thinking event for assistant.reasoning', async () => {
+      /*
+      Test Doc:
+      - Why: AC7 requires Copilot reasoning visibility
+      - Contract: assistant.reasoning → thinking event with content
+      - Usage Notes: Similar to Claude thinking blocks
+      - Quality Contribution: Core reasoning visibility
+      - Worked Example: { type: 'assistant.reasoning', data: { content: '...' } }
+        → { type: 'thinking', data: { content: '...' } }
+      */
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const client = new FakeCopilotClient({
+        events: [
+          {
+            type: 'assistant.reasoning',
+            data: {
+              content: 'Let me think through this step by step...',
+              reasoningId: 'reason_123',
+            },
+          },
+          {
+            type: 'assistant.message',
+            data: { content: 'Here is my answer', messageId: 'msg-001' },
+          },
+          { type: 'session.idle', data: {} },
+        ],
+      });
+      const adapter = new SdkCopilotAdapter(client);
+
+      const events: AgentEvent[] = [];
+      await adapter.run({
+        prompt: 'test',
+        onEvent: (e) => events.push(e),
+      });
+
+      const thinkingEvent = events.find((e) => e.type === 'thinking') as
+        | AgentThinkingEvent
+        | undefined;
+      expect(thinkingEvent).toBeDefined();
+      expect(thinkingEvent?.data.content).toContain('step by step');
+    });
+
+    it('should emit thinking event for assistant.reasoning_delta (streaming)', async () => {
+      /*
+      Test Doc:
+      - Why: Reasoning may stream like text (per Insight 2)
+      - Contract: assistant.reasoning_delta → thinking event
+      - Usage Notes: Follows message_delta → text_delta pattern
+      - Quality Contribution: Streaming reasoning support
+      - Worked Example: { type: 'assistant.reasoning_delta' } → { type: 'thinking' }
+      */
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const client = new FakeCopilotClient({
+        events: [
+          {
+            type: 'assistant.reasoning_delta',
+            data: {
+              deltaContent: 'Analyzing the request...',
+              reasoningId: 'reason_delta_123',
+            },
+          },
+          { type: 'assistant.message', data: { content: 'Done', messageId: 'msg-001' } },
+          { type: 'session.idle', data: {} },
+        ],
+      });
+      const adapter = new SdkCopilotAdapter(client);
+
+      const events: AgentEvent[] = [];
+      await adapter.run({
+        prompt: 'test',
+        onEvent: (e) => events.push(e),
+      });
+
+      const thinkingEvent = events.find((e) => e.type === 'thinking') as
+        | AgentThinkingEvent
+        | undefined;
+      expect(thinkingEvent).toBeDefined();
+      expect(thinkingEvent?.data.content).toContain('Analyzing');
+    });
+
+    it('should include timestamp in thinking events', async () => {
+      /*
+      Test Doc:
+      - Why: Events need timestamps for ordering
+      - Contract: thinking events include ISO 8601 timestamp
+      - Usage Notes: Same as other events
+      - Quality Contribution: Event metadata validation
+      - Worked Example: event.timestamp matches ISO format
+      */
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const client = new FakeCopilotClient({
+        events: [
+          {
+            type: 'assistant.reasoning',
+            data: {
+              content: 'Thinking...',
+              reasoningId: 'reason_ts_123',
+            },
+          },
+          { type: 'assistant.message', data: { content: 'Done', messageId: 'msg-001' } },
+          { type: 'session.idle', data: {} },
+        ],
+      });
+      const adapter = new SdkCopilotAdapter(client);
+
+      const events: AgentEvent[] = [];
+      await adapter.run({
+        prompt: 'test',
+        onEvent: (e) => events.push(e),
+      });
+
+      const thinkingEvent = events.find((e) => e.type === 'thinking');
+      expect(thinkingEvent?.timestamp).toBeDefined();
+      expect(thinkingEvent?.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    });
+
+    it('should emit multiple thinking events for multiple reasoning deltas', async () => {
+      /*
+      Test Doc:
+      - Why: Streaming reasoning may have multiple deltas
+      - Contract: Each delta → separate thinking event
+      - Usage Notes: Similar to text_delta streaming
+      - Quality Contribution: Multi-event streaming validation
+      - Worked Example: [delta1, delta2] → [thinking1, thinking2]
+      */
+      const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+      const client = new FakeCopilotClient({
+        events: [
+          {
+            type: 'assistant.reasoning_delta',
+            data: { deltaContent: 'First thought...', reasoningId: 'reason_multi' },
+          },
+          {
+            type: 'assistant.reasoning_delta',
+            data: { deltaContent: 'Second thought...', reasoningId: 'reason_multi' },
+          },
+          { type: 'assistant.message', data: { content: 'Done', messageId: 'msg-001' } },
+          { type: 'session.idle', data: {} },
+        ],
+      });
+      const adapter = new SdkCopilotAdapter(client);
+
+      const events: AgentEvent[] = [];
+      await adapter.run({
+        prompt: 'test',
+        onEvent: (e) => events.push(e),
+      });
+
+      const thinkingEvents = events.filter((e) => e.type === 'thinking');
+      expect(thinkingEvents).toHaveLength(2);
     });
   });
 });

@@ -266,6 +266,11 @@ export class UnixProcessManager implements IProcessManager {
     return managed?.stdout ?? '';
   }
 
+  getProcessStderr(pid: number): string {
+    const managed = this._processes.get(pid);
+    return managed?.stderr ?? '';
+  }
+
   /**
    * Handle process exit event.
    */

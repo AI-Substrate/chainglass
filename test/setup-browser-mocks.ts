@@ -43,6 +43,9 @@ if (typeof window !== 'undefined') {
     disconnect: vi.fn(),
   }));
 
+  // Element.scrollIntoView mock (not implemented in jsdom)
+  Element.prototype.scrollIntoView = vi.fn();
+
   // matchMedia mock (required for responsive design, theme detection, etc.)
   Object.defineProperty(window, 'matchMedia', {
     writable: true,

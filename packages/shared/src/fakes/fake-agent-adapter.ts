@@ -1,5 +1,6 @@
 import type { IAgentAdapter } from '../interfaces/agent-adapter.interface.js';
 import type {
+  AgentEvent,
   AgentResult,
   AgentRunOptions,
   AgentStatus,
@@ -32,6 +33,13 @@ export interface FakeAgentAdapterOptions {
    * Default: 0 (no delay).
    */
   runDuration?: number;
+  /**
+   * Events to emit via onEvent callback during run().
+   * Per Phase 2: Enables testing of tool_call, tool_result, thinking events.
+   * Events are emitted in order before returning the result.
+   * Default: [] (no events emitted).
+   */
+  events?: AgentEvent[];
 }
 
 /**
@@ -54,13 +62,16 @@ export interface FakeAgentAdapterOptions {
  * fake.assertRunCalled({ prompt: 'test' });
  * ```
  */
-type ResolvedOptions = Required<Omit<FakeAgentAdapterOptions, 'runDuration' | 'stderr'>> & {
+type ResolvedOptions = Required<
+  Omit<FakeAgentAdapterOptions, 'runDuration' | 'stderr' | 'events'>
+> & {
   stderr?: string;
 };
 
 export class FakeAgentAdapter implements IAgentAdapter {
   private readonly _options: ResolvedOptions;
   private readonly _runDuration: number;
+  private _events: AgentEvent[];
   private _runHistory: AgentRunOptions[] = [];
   private _terminateHistory: string[] = [];
   private _compactHistory: string[] = [];
@@ -75,6 +86,7 @@ export class FakeAgentAdapter implements IAgentAdapter {
       tokens: options.tokens === undefined ? { used: 0, total: 0, limit: 200000 } : options.tokens,
     };
     this._runDuration = options.runDuration ?? 0;
+    this._events = options.events ?? [];
   }
 
   async run(options: AgentRunOptions): Promise<AgentResult> {
@@ -83,6 +95,13 @@ export class FakeAgentAdapter implements IAgentAdapter {
     // Per Phase 5 DYK-03: Simulate slow run() for timeout testing
     if (this._runDuration > 0) {
       await new Promise((resolve) => setTimeout(resolve, this._runDuration));
+    }
+
+    // Per Phase 2: Emit configured events via onEvent callback
+    if (options.onEvent && this._events.length > 0) {
+      for (const event of this._events) {
+        options.onEvent(event);
+      }
     }
 
     // If sessionId was provided in options, use it (session resumption)
@@ -215,5 +234,90 @@ export class FakeAgentAdapter implements IAgentAdapter {
     this._runHistory = [];
     this._terminateHistory = [];
     this._compactHistory = [];
+  }
+
+  // ============================================
+  // Phase 2: Tool event helper methods
+  // ============================================
+
+  /**
+   * Configure events to emit on next run() call.
+   * Per Phase 2: Enables testing tool_call, tool_result, thinking events.
+   *
+   * @param events Events to emit via onEvent callback
+   */
+  setEvents(events: AgentEvent[]): void {
+    this._events = [...events];
+  }
+
+  /**
+   * Add a single event to the event queue.
+   * Per Phase 2: Convenience method for building event sequences.
+   *
+   * @param event Event to add to queue
+   */
+  addEvent(event: AgentEvent): void {
+    this._events.push(event);
+  }
+
+  /**
+   * Clear all configured events.
+   */
+  clearEvents(): void {
+    this._events = [];
+  }
+
+  /**
+   * Get currently configured events.
+   */
+  getEvents(): AgentEvent[] {
+    return [...this._events];
+  }
+
+  /**
+   * Emit a tool_call event on next run().
+   * Per Phase 2: Convenience method for common test pattern.
+   *
+   * @param toolName Name of the tool (e.g., 'Bash', 'Read')
+   * @param input Tool input parameters
+   * @param toolCallId Unique identifier for correlating with tool_result
+   */
+  emitToolCall(toolName: string, input: unknown, toolCallId: string): void {
+    this._events.push({
+      type: 'tool_call',
+      timestamp: new Date().toISOString(),
+      data: { toolName, input, toolCallId },
+    });
+  }
+
+  /**
+   * Emit a tool_result event on next run().
+   * Per Phase 2: Convenience method for common test pattern.
+   *
+   * @param toolCallId Links to prior tool_call event
+   * @param output Tool execution output
+   * @param isError True if tool execution failed
+   */
+  emitToolResult(toolCallId: string, output: string, isError = false): void {
+    this._events.push({
+      type: 'tool_result',
+      timestamp: new Date().toISOString(),
+      data: { toolCallId, output, isError },
+    });
+  }
+
+  /**
+   * Emit a thinking event on next run().
+   * Per Phase 2: Convenience method for common test pattern.
+   *
+   * @param content Thinking/reasoning content
+   * @param signature Optional cryptographic signature (Claude extended thinking)
+   */
+  emitThinking(content: string, signature?: string): void {
+    this._events.push({
+      type: 'thinking',
+      timestamp: new Date().toISOString(),
+      data: { content, signature },
+    });
   }
 }

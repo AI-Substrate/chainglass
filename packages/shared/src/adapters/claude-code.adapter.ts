@@ -212,12 +212,13 @@ export class ClaudeCodeAdapter implements IAgentAdapter {
         // the pipe-based hanging issue. The prompt is passed via -p flag, not stdin.
         stdio: isStreaming ? ['ignore', 'pipe', 'pipe'] : undefined,
         // Per DYK-02: Emit events as lines arrive
+        // Per Phase 2: Uses _translateClaudeToAgentEvents for multi-event support
         onStdoutLine: isStreaming
           ? (line: string) => {
               try {
                 const msg = JSON.parse(line);
-                const event = this._translateClaudeToAgentEvent(msg);
-                if (event) {
+                const events = this._translateClaudeToAgentEvents(msg);
+                for (const event of events) {
                   onEvent(event);
                   // Extract session ID from session_start event
                   if (event.type === 'session_start' && event.data.sessionId) {
@@ -270,6 +271,13 @@ export class ClaudeCodeAdapter implements IAgentAdapter {
     // Get output AFTER exit (for FakeProcessManager, use getProcessOutput)
     // Per DYK-06: Buffered output pattern - collect after process completes
     const output = this._getOutput(handle.pid);
+
+    if (exitCode !== 0) {
+      const stderr = this._processManager.getProcessStderr?.(handle.pid) ?? '';
+      console.log(
+        `[ClaudeCodeAdapter] Process exited with code ${exitCode}. stdout=${output.substring(0, 200)} stderr=${stderr.substring(0, 500)}`
+      );
+    }
 
     // Determine status from exit code
     const status = this._mapExitCodeToStatus(exitCode);
@@ -419,55 +427,135 @@ export class ClaudeCodeAdapter implements IAgentAdapter {
   }
 
   /**
-   * Translate a Claude stream-json message to an AgentEvent.
+   * Translate a Claude stream-json message to AgentEvent(s).
    *
    * Claude CLI stream-json event types:
    * - {"type":"system","subtype":"init","session_id":"..."} → session_start
-   * - {"type":"assistant","message":{"content":[{"type":"text","text":"..."}]}} → text_delta
+   * - {"type":"assistant","message":{"content":[...]}} → text_delta, tool_call, thinking
+   * - {"type":"user","message":{"content":[...]}} → tool_result
    * - {"type":"result","result":"...","usage":{...}} → message
    *
+   * Per Phase 2 Critical Discovery 03: Parses all content block types.
+   * Per Insight 1: Uses inline filtering pattern for content blocks.
+   * Per Insight 5: Additive code paths only - doesn't modify existing text extraction.
+   *
    * @param msg - Parsed JSON message from Claude CLI stdout
-   * @returns AgentEvent or null if message should be skipped
+   * @returns Array of AgentEvents (may be empty for skipped messages)
    */
-  private _translateClaudeToAgentEvent(msg: Record<string, unknown>): AgentEvent | null {
+  private _translateClaudeToAgentEvents(msg: Record<string, unknown>): AgentEvent[] {
     const timestamp = new Date().toISOString();
+    const events: AgentEvent[] = [];
 
     // System init → session_start
     if (msg.type === 'system' && msg.subtype === 'init') {
-      return {
+      events.push({
         type: 'session_start',
         timestamp,
         data: { sessionId: (msg.session_id as string) ?? '' },
-      };
+      });
+      return events;
     }
 
-    // Assistant message → text_delta (streaming text content)
+    // Assistant message → parse all content blocks
     if (msg.type === 'assistant' && msg.message) {
-      const message = msg.message as { content?: Array<{ type: string; text?: string }> };
-      const textBlocks = Array.isArray(message.content)
-        ? message.content.filter((c) => c.type === 'text')
-        : [];
-      const text = textBlocks.map((c) => c.text || '').join('');
-      if (text) {
-        return {
-          type: 'text_delta',
-          timestamp,
-          data: { content: text },
-        };
+      const message = msg.message as {
+        content?: Array<{
+          type: string;
+          text?: string;
+          id?: string;
+          name?: string;
+          input?: unknown;
+          thinking?: string;
+          signature?: string;
+        }>;
+      };
+
+      if (Array.isArray(message.content)) {
+        for (const block of message.content) {
+          switch (block.type) {
+            case 'text':
+              if (block.text) {
+                events.push({
+                  type: 'text_delta',
+                  timestamp,
+                  data: { content: block.text },
+                });
+              }
+              break;
+
+            case 'tool_use':
+              events.push({
+                type: 'tool_call',
+                timestamp,
+                data: {
+                  toolName: block.name ?? '',
+                  input: block.input ?? {},
+                  toolCallId: block.id ?? '',
+                },
+              });
+              break;
+
+            case 'thinking':
+              events.push({
+                type: 'thinking',
+                timestamp,
+                data: {
+                  content: block.thinking ?? '',
+                  signature: block.signature,
+                },
+              });
+              break;
+
+            // Other content block types are ignored (AC22: no crash)
+          }
+        }
       }
+
+      return events;
+    }
+
+    // User message → parse tool_result content blocks
+    if (msg.type === 'user' && msg.message) {
+      const message = msg.message as {
+        content?: Array<{
+          type: string;
+          tool_use_id?: string;
+          content?: string;
+          is_error?: boolean;
+        }>;
+      };
+
+      if (Array.isArray(message.content)) {
+        for (const block of message.content) {
+          if (block.type === 'tool_result') {
+            events.push({
+              type: 'tool_result',
+              timestamp,
+              data: {
+                toolCallId: block.tool_use_id ?? '',
+                output: block.content ?? '',
+                isError: block.is_error ?? false,
+              },
+            });
+          }
+        }
+      }
+
+      return events;
     }
 
     // Result → message (final output)
     if (msg.type === 'result') {
-      return {
+      events.push({
         type: 'message',
         timestamp,
         data: { content: (msg.result as string) ?? '' },
-      };
+      });
+      return events;
     }
 
     // Fallback: raw passthrough for other events
-    return {
+    events.push({
       type: 'raw',
       timestamp,
       data: {
@@ -475,7 +563,22 @@ export class ClaudeCodeAdapter implements IAgentAdapter {
         originalType: (msg.type as string) || 'unknown',
         originalData: msg,
       },
-    };
+    });
+    return events;
+  }
+
+  /**
+   * Translate a Claude stream-json message to an AgentEvent.
+   *
+   * @deprecated Use _translateClaudeToAgentEvents() instead for full content block support.
+   * This method is kept for backward compatibility and returns only the first event.
+   *
+   * @param msg - Parsed JSON message from Claude CLI stdout
+   * @returns AgentEvent or null if message should be skipped
+   */
+  private _translateClaudeToAgentEvent(msg: Record<string, unknown>): AgentEvent | null {
+    const events = this._translateClaudeToAgentEvents(msg);
+    return events.length > 0 ? events[0] : null;
   }
 
   /**

@@ -31,5 +31,5 @@
       "@test/*": ["./test/*"]
     }
   },
-  "exclude": ["node_modules", "dist", ".next", ".turbo", "test", "apps", "scripts"]
+  "exclude": ["node_modules", "dist", ".next", ".turbo", "test", "apps", "scripts", "docs"]
 }

@@ -18,6 +18,13 @@ export type { IYamlParser, ParseResult } from './interfaces/index.js';
 
 // Library utilities
 export { detectLanguage } from './lib/language-detection.js';
+// Plan 015: Phase 1 - Session ID validation
+export {
+  isValidSessionId,
+  MAX_SESSION_ID_LENGTH,
+  SessionIdValidationError,
+  validateSessionId,
+} from './lib/validators/session-id-validator.js';
 
 // Result types (per Phase 1a: Output Adapter Architecture)
 export type {
@@ -96,6 +103,9 @@ export type {
   AgentUsageEvent,
   TokenMetrics,
 } from './interfaces/index.js';
+
+// Note: IEventStorage, EventStorageService, FakeEventStorage removed in Plan 018 Phase 2.
+// Use AgentEventAdapter from @chainglass/workflow for workspace-scoped event storage.
 
 // Process manager interfaces and types
 export type {
@@ -188,3 +198,42 @@ export {
 // Services
 export { AgentService } from './services/index.js';
 export type { AdapterFactory, AgentServiceRunOptions } from './services/index.js';
+// Note: EventStorageService removed in Plan 018 Phase 2.
+// Use AgentEventAdapter from @chainglass/workflow for workspace-scoped event storage.
+
+// Schemas (Plan 015: Phase 1 - Zod-first approach, derive types via z.infer)
+export {
+  // Schemas
+  AgentEventBaseSchema,
+  AgentStoredEventSchema,
+  AgentThinkingEventSchema,
+  AgentToolCallEventSchema,
+  AgentToolResultEventSchema,
+  agentStoredEventSchemas,
+  // Session metadata schemas (Plan 015: Phase 3)
+  SessionMetadataSchema,
+  SessionMetadataCreateSchema,
+  SessionMetadataUpdateSchema,
+  AgentTypeSchema,
+  SessionStatusSchema,
+  // Agent session schemas (Plan 018)
+  AgentSessionJSONSchema,
+  AgentSessionInputSchema,
+  AgentSessionStatusSchema,
+  SESSION_ID_PATTERN,
+  isValidSessionId as isValidAgentSessionId,
+  validateSessionId as validateAgentSessionId,
+  // Types
+  type AgentStoredEvent,
+  type AgentThinkingEvent,
+  type AgentToolCallEvent,
+  type AgentToolResultEvent,
+  type SessionMetadata,
+  type SessionMetadataCreate,
+  type SessionMetadataUpdate,
+  type AgentType,
+  type SessionStatus,
+  type AgentSessionJSON,
+  type AgentSessionInput,
+  type AgentSessionStatus,
+} from './schemas/index.js';

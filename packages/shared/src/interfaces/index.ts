@@ -126,3 +126,6 @@ export type {
   ICopilotClient,
   ICopilotSession,
 } from './copilot-sdk.interface.js';
+
+// Note: IEventStorage, EventStorageService, FakeEventStorage removed in Plan 018 Phase 2.
+// Use AgentEventAdapter from @chainglass/workflow for workspace-scoped event storage.

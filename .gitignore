@@ -153,6 +153,9 @@ scratch/*
 .chainglass/workflows/*/checkpoints/
 !.chainglass/workflows/*/current/
 !.chainglass/workflows/*/workflow.json
+# Plan 018: Workspace-scoped agent data (events, sessions)
+.chainglass/workspaces/
+.chainglass/data/
 
 # Manual test harness results (regenerated each test run)
 docs/plans/*/manual-test/results/

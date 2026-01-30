@@ -8,9 +8,8 @@ import { beforeAll, describe, expect, it } from 'vitest';
  */
 function hasCopilotSdk(): boolean {
   try {
-    // Check if @github/copilot-sdk is importable
-    // This also validates that any native dependencies are present
-    execSync('node -e "require(\'@github/copilot-sdk\')"', {
+    // Check if @github/copilot-sdk is importable (ESM-only package)
+    execSync('node --input-type=module -e "await import(\'@github/copilot-sdk\')"', {
       stdio: 'ignore',
       timeout: 10000,
       cwd: process.cwd(),
@@ -75,6 +74,66 @@ describe.skipIf(!hasCopilotSdk() || isCI())('SdkCopilotAdapter Integration', () 
     const version = getSdkVersion();
     console.log(`GitHub Copilot SDK version: ${version}`);
   });
+
+  it('should emit events in logical order (thinking before message)', async () => {
+    /*
+    Test Doc:
+    - Why: Copilot SDK may emit message before thinking — need to verify raw SDK ordering
+    - Contract: Captures all raw SDK events AND translated AgentEvents to compare ordering
+    - Quality Contribution: Identifies if misordering is SDK-level or adapter-level
+    */
+    const { CopilotClient } = await import('@github/copilot-sdk');
+    const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
+
+    const realClient = new CopilotClient();
+    const adapter = new SdkCopilotAdapter(realClient);
+
+    const translatedEvents: Array<{ type: string; seq: number; contentPreview: string }> = [];
+    let seq = 0;
+
+    try {
+      const result = await adapter.run({
+        prompt: 'Say "hello world" in one sentence',
+        onEvent: (event) => {
+          const preview =
+            ('content' in event.data ? (event.data as { content?: string }).content : '') ?? '';
+          translatedEvents.push({
+            type: event.type,
+            seq: seq++,
+            contentPreview: preview.substring(0, 60),
+          });
+        },
+      });
+
+      console.log('\n=== TRANSLATED EVENT ORDER ===');
+      for (const e of translatedEvents) {
+        console.log(`  [${e.seq}] ${e.type}${e.contentPreview ? ` — "${e.contentPreview}"` : ''}`);
+      }
+
+      // With streaming, thinking deltas should come before text deltas.
+      // Consolidated message/thinking events should be suppressed (they're duplicates).
+      const firstThinkingIdx = translatedEvents.findIndex((e) => e.type === 'thinking');
+      const firstTextIdx = translatedEvents.findIndex((e) => e.type === 'text_delta');
+      const messageIdx = translatedEvents.findIndex((e) => e.type === 'message');
+
+      if (firstThinkingIdx >= 0 && firstTextIdx >= 0) {
+        console.log(
+          `\n  first thinking at index ${firstThinkingIdx}, first text_delta at index ${firstTextIdx}`
+        );
+        expect(firstThinkingIdx).toBeLessThan(firstTextIdx);
+      }
+
+      // Consolidated message should be suppressed when text_delta was streamed
+      console.log(
+        `  consolidated message event: ${messageIdx >= 0 ? 'PRESENT (unexpected)' : 'SUPPRESSED (correct)'}`
+      );
+      expect(messageIdx).toBe(-1);
+
+      expect(result.status).toBe('completed');
+    } finally {
+      await realClient.stop();
+    }
+  }, 60000);
 
   it('should create session with real SDK and return valid sessionId', async () => {
     /*

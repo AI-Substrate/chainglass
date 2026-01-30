@@ -21,3 +21,6 @@ export type { WorkspaceInput, WorkspaceJSON } from './workspace.js';
 
 export { Sample } from './sample.js';
 export type { SampleInput, SampleJSON } from './sample.js';
+
+export { AgentSession } from './agent-session.js';
+export type { AgentSessionInput, AgentSessionJSON } from './agent-session.js';

@@ -1,0 +1,1 @@
+../../../../apps/web/app/(dashboard)/workspaces/[slug]/agents/page.tsx
