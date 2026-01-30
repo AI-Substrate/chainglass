@@ -244,7 +244,9 @@ export class AgentInstance implements IAgentInstance {
       eventId: `${this.id}-evt-${++this._eventIdCounter}`,
     };
 
-    console.log(`[AgentInstance] Event captured: id=${storedEvent.eventId} type="${event.type}" data=${JSON.stringify(event.data).substring(0, 120)}`);
+    console.log(
+      `[AgentInstance] Event captured: id=${storedEvent.eventId} type="${event.type}" data=${JSON.stringify(event.data).substring(0, 120)}`
+    );
 
     // Storage first (in-memory)
     this._events.push(storedEvent);
@@ -309,7 +311,16 @@ export class AgentInstance implements IAgentInstance {
     this._intent = options.prompt.substring(0, 100); // Use prompt as initial intent
     this._notifier.broadcastIntent(this.id, this._intent);
 
-    console.log(`[AgentInstance] run() starting: id=${this.id} adapter=${this.type} sessionId=${this._sessionId ?? '(new)'} cwd=${options.cwd ?? '(none)'}`);
+    console.log(
+      `[AgentInstance] run() starting: id=${this.id} adapter=${this.type} sessionId=${this._sessionId ?? '(new)'} cwd=${options.cwd ?? '(none)'}`
+    );
+
+    // Capture user prompt as an event so it's part of the ordered event list
+    this._captureEvent({
+      type: 'user_prompt',
+      timestamp: new Date().toISOString(),
+      data: { content: options.prompt },
+    });
 
     try {
       // Delegate to adapter with event capture
@@ -323,7 +334,9 @@ export class AgentInstance implements IAgentInstance {
         },
       });
 
-      console.log(`[AgentInstance] run() finished: id=${this.id} result.status=${result.status} sessionId=${result.sessionId} events=${this._events.length}`);
+      console.log(
+        `[AgentInstance] run() finished: id=${this.id} result.status=${result.status} sessionId=${result.sessionId} events=${this._events.length}`
+      );
 
       // Per AC-12: Store adapter sessionId for resumption
       this._sessionId = result.sessionId;

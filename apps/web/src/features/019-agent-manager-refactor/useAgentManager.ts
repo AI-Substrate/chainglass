@@ -182,26 +182,30 @@ export function useAgentManager(options: UseAgentManagerOptions = {}): UseAgentM
       }
     };
 
-    // Listen to all agent event types
-    const eventTypes = [
-      'agent_status',
-      'agent_intent',
+    // Event types that change the agent list (status, creation, deletion)
+    const listEventTypes = ['agent_status', 'agent_intent', 'agent_created', 'agent_terminated'];
+    // Event types only forwarded to callback (streaming content, not list-relevant)
+    const streamEventTypes = [
       'agent_text_delta',
       'agent_text_replace',
       'agent_text_append',
       'agent_question',
-      'agent_created',
-      'agent_terminated',
     ];
 
-    for (const eventType of eventTypes) {
+    for (const eventType of listEventTypes) {
       eventSource.addEventListener(eventType, (event) => {
         const data = JSON.parse(event.data) as AgentSSEEvent;
-
-        // Invalidate queries to refetch agent list
         queryClient.invalidateQueries({ queryKey: [AGENTS_QUERY_KEY] });
+        if (onAgentEvent) {
+          onAgentEvent(eventType, data);
+        }
+      });
+    }
 
-        // Call callback if provided
+    for (const eventType of streamEventTypes) {
+      eventSource.addEventListener(eventType, (event) => {
+        const data = JSON.parse(event.data) as AgentSSEEvent;
+        // Don't refetch agent list on streaming events — only forward to callback
         if (onAgentEvent) {
           onAgentEvent(eventType, data);
         }

@@ -95,8 +95,13 @@ describe.skipIf(!hasCopilotSdk() || isCI())('SdkCopilotAdapter Integration', () 
       const result = await adapter.run({
         prompt: 'Say "hello world" in one sentence',
         onEvent: (event) => {
-          const preview = ('content' in event.data ? (event.data as {content?: string}).content : '') ?? '';
-          translatedEvents.push({ type: event.type, seq: seq++, contentPreview: preview.substring(0, 60) });
+          const preview =
+            ('content' in event.data ? (event.data as { content?: string }).content : '') ?? '';
+          translatedEvents.push({
+            type: event.type,
+            seq: seq++,
+            contentPreview: preview.substring(0, 60),
+          });
         },
       });
 
@@ -112,12 +117,16 @@ describe.skipIf(!hasCopilotSdk() || isCI())('SdkCopilotAdapter Integration', () 
       const messageIdx = translatedEvents.findIndex((e) => e.type === 'message');
 
       if (firstThinkingIdx >= 0 && firstTextIdx >= 0) {
-        console.log(`\n  first thinking at index ${firstThinkingIdx}, first text_delta at index ${firstTextIdx}`);
+        console.log(
+          `\n  first thinking at index ${firstThinkingIdx}, first text_delta at index ${firstTextIdx}`
+        );
         expect(firstThinkingIdx).toBeLessThan(firstTextIdx);
       }
 
       // Consolidated message should be suppressed when text_delta was streamed
-      console.log(`  consolidated message event: ${messageIdx >= 0 ? 'PRESENT (unexpected)' : 'SUPPRESSED (correct)'}`);
+      console.log(
+        `  consolidated message event: ${messageIdx >= 0 ? 'PRESENT (unexpected)' : 'SUPPRESSED (correct)'}`
+      );
       expect(messageIdx).toBe(-1);
 
       expect(result.status).toBe('completed');

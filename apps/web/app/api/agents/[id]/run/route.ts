@@ -70,11 +70,15 @@ export async function POST(
       return NextResponse.json({ error: 'Agent not found', agentId: id }, { status: 404 });
     }
 
-    console.log(`[agent-run] Agent found: name="${agent.name}" type="${agent.type}" status="${agent.status}"`);
+    console.log(
+      `[agent-run] Agent found: name="${agent.name}" type="${agent.type}" status="${agent.status}"`
+    );
 
     // Parse request body
     const body = (await request.json()) as AgentRunOptions;
-    console.log(`[agent-run] Prompt: "${body.prompt?.substring(0, 80)}..." cwd: ${body.cwd ?? '(none)'}`);
+    console.log(
+      `[agent-run] Prompt: "${body.prompt?.substring(0, 80)}..." cwd: ${body.cwd ?? '(none)'}`
+    );
 
     // Validate required fields
     if (!body.prompt) {
@@ -84,7 +88,7 @@ export async function POST(
     // Run prompt on agent
     // Per AC-07a: Double-run guard in AgentInstance will throw if already working
     try {
-      console.log(`[agent-run] Calling agent.run() ...`);
+      console.log('[agent-run] Calling agent.run() ...');
       const result = await agent.run({
         prompt: body.prompt,
         cwd: body.cwd,
@@ -102,7 +106,7 @@ export async function POST(
         );
       }
 
-      console.log(`[agent-run] agent.run() completed successfully`);
+      console.log('[agent-run] agent.run() completed successfully');
       return NextResponse.json({ success: true, agentId: id });
     } catch (error) {
       // Check for double-run error

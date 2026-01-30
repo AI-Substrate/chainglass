@@ -3,16 +3,13 @@
 /**
  * AgentChatView - Main chat view component for agent interactions
  *
- * Features:
- * - Renders events from server using LogEntry components
- * - Handles streaming content via SSE
- * - Message input with Cmd/Ctrl+Enter submission
- * - Error and loading states
+ * Single-authoritative-list architecture:
+ * - Server stores ALL events (including user prompts) in one ordered array
+ * - SSE delivers real-time updates; on page reload, server list is fetched
+ * - No client-side timestamp sorting — events render in server array order
+ * - Optimistic pending message shows until server confirms via refetch
  *
  * Part of Plan 019: Agent Manager Refactor (Phase 5: Consolidation & Cleanup)
- * Per DYK-01: Props changed from sessionId/workspaceSlug/agentType to just agentId
- * Per DYK-02: Uses useAgentInstance for both API fetch and SSE subscription
- * Per DYK-05: Uses transformAgentEventsToLogEntries from 019 feature folder
  */
 
 import {
@@ -24,12 +21,10 @@ import { cn } from '@/lib/utils';
 import { AlertCircle, Bot, Loader2, Wifi, WifiOff } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AgentChatInput } from './agent-chat-input';
-import { ContextWindowDisplay } from './context-window-display';
 import { LogEntry, type LogEntryProps } from './log-entry';
 
 /**
- * Props for AgentChatView - Plan 019 simplified interface.
- * Per DYK-01: Only agentId needed; agent metadata comes from API.
+ * Props for AgentChatView.
  */
 export interface AgentChatViewProps {
   /** Agent ID to display */
@@ -40,47 +35,36 @@ export interface AgentChatViewProps {
   className?: string;
 }
 
-/**
- * User message in local state (not from server events).
- */
-interface UserMessage {
-  role: 'user';
-  content: string;
-  timestamp: number;
-}
-
-/**
- * Main chat view component.
- *
- * @example
- * <AgentChatView agentId="agent-abc-123" />
- */
 export function AgentChatView({ agentId, workspacePath, className }: AgentChatViewProps) {
-  // Local state for user messages (before they're persisted server-side)
-  const [userMessages, setUserMessages] = useState<UserMessage[]>([]);
   const [streamingContent, setStreamingContent] = useState('');
   const [localError, setLocalError] = useState<{ message: string; code?: string } | null>(null);
+  // Optimistic pending message — shown until server events include the user_prompt
+  const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const refetchRef = useRef<(() => void) | null>(null);
 
-  // Event callback - uses ref to avoid circular dependency
+  // SSE event callback
   const onAgentEvent = useCallback(
     (eventType: string, data: { agentId: string; delta?: string; content?: string }) => {
-      // Handle streaming text deltas (inner event type 'text_delta' → 'agent_text_delta')
+      // Streaming text deltas
       if (eventType === 'agent_text_delta' && (data.content || data.delta)) {
         setStreamingContent((prev) => prev + (data.content ?? data.delta ?? ''));
       }
-      // Handle complete message events (short responses without streaming deltas)
+      // Complete message events (short responses without streaming deltas)
       if (eventType === 'agent_message' && data.content) {
         setStreamingContent(data.content);
       }
-      // When agent stops, clear streaming and refetch for final state
+      // User prompt arrived via SSE — clear optimistic pending message
+      if (eventType === 'agent_user_prompt') {
+        setPendingPrompt(null);
+      }
+      // Agent stopped — clear streaming and refetch for final state
       if (eventType === 'agent_status') {
         const statusData = data as { agentId: string; status?: string };
         if (statusData.status !== 'working') {
           setStreamingContent('');
+          setPendingPrompt(null);
           refetchRef.current?.();
-          // Surface error status to the user
           if (statusData.status === 'error') {
             setLocalError((prev) => prev ?? { message: 'Agent encountered an error' });
           }
@@ -90,7 +74,6 @@ export function AgentChatView({ agentId, workspacePath, className }: AgentChatVi
     []
   );
 
-  // Use the Plan 019 hook - handles API fetch + SSE subscription
   const {
     agent,
     events,
@@ -105,83 +88,61 @@ export function AgentChatView({ agentId, workspacePath, className }: AgentChatVi
     onAgentEvent,
   });
 
-  // Update refetch ref when it changes
   useEffect(() => {
     refetchRef.current = refetch;
   }, [refetch]);
 
-  // Transform events to LogEntry props
-  const serverEventProps = useMemo(() => {
+  // Transform server events to LogEntry props — already in server array order
+  const entryProps = useMemo(() => {
     if (!events || events.length === 0) return [];
     return transformAgentEventsToLogEntries(events);
   }, [events]);
 
-  // Merge user messages and server events into unified timeline
-  const unifiedTimeline = useMemo(() => {
-    // Convert user messages to timeline items
-    const userItems = userMessages.map((msg, idx) => ({
-      type: 'user' as const,
-      timestamp: msg.timestamp,
-      key: `user-${msg.timestamp}-${idx}`,
-      props: {
-        messageRole: 'user' as const,
-        content: msg.content,
-        contentType: 'text' as const,
-      } satisfies LogEntryProps,
-    }));
+  // Clear pending prompt when server events include it
+  useEffect(() => {
+    if (
+      pendingPrompt &&
+      events?.some((e) => e.type === 'user_prompt' && e.data.content === pendingPrompt)
+    ) {
+      setPendingPrompt(null);
+    }
+  }, [events, pendingPrompt]);
 
-    // Convert server events to timeline items
-    const serverItems = serverEventProps.map((props) => ({
-      type: 'server' as const,
-      timestamp: new Date(props.key.split('_')[0]).getTime() || Date.now(),
-      key: props.key,
-      props,
-    }));
-
-    // Merge and sort by timestamp
-    return [...userItems, ...serverItems].sort((a, b) => a.timestamp - b.timestamp);
-  }, [userMessages, serverEventProps]);
-
-  // Auto-scroll to bottom when new content arrives
-  // biome-ignore lint/correctness/useExhaustiveDependencies: scroll on both timeline and streaming changes
+  // Auto-scroll to bottom
+  // biome-ignore lint/correctness/useExhaustiveDependencies: scroll on content changes
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [unifiedTimeline, streamingContent]);
+  }, [entryProps, streamingContent, pendingPrompt]);
 
-  // Handle sending a message
+  // Send message
   const handleSendMessage = useCallback(
     async (content: string) => {
-      // Clear error and add user message to local state
       setLocalError(null);
-      setUserMessages((prev) => [...prev, { role: 'user', content, timestamp: Date.now() }]);
+      setPendingPrompt(content);
       setStreamingContent('');
 
       try {
-        // Use the hook's run method - calls POST /api/agents/{agentId}/run
-        await run({
-          prompt: content,
-          cwd: workspacePath,
-        });
+        await run({ prompt: content, cwd: workspacePath });
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         setLocalError({ message });
+        setPendingPrompt(null);
       }
     },
     [run, workspacePath]
   );
 
-  // Handle retry after error
+  // Retry last failed prompt
   const handleRetry = useCallback(() => {
-    const lastUserMsg = [...userMessages].reverse().find((m) => m.role === 'user');
-    if (lastUserMsg) {
-      handleSendMessage(lastUserMsg.content);
+    // Find last user_prompt in events
+    const lastPrompt = events && [...events].reverse().find((e) => e.type === 'user_prompt');
+    if (lastPrompt) {
+      handleSendMessage(lastPrompt.data.content);
     }
-  }, [userMessages, handleSendMessage]);
+  }, [events, handleSendMessage]);
 
-  // Combined error state
   const error = localError || (hookError ? { message: hookError.message } : null);
 
-  // Loading state
   if (isLoading) {
     return (
       <div className={cn('flex-1 flex items-center justify-center', className)}>
@@ -193,7 +154,6 @@ export function AgentChatView({ agentId, workspacePath, className }: AgentChatVi
     );
   }
 
-  // Agent not found
   if (agent === null) {
     return (
       <div className={cn('flex-1 flex items-center justify-center', className)}>
@@ -207,7 +167,7 @@ export function AgentChatView({ agentId, workspacePath, className }: AgentChatVi
 
   return (
     <div className={cn('flex flex-col h-full', className)}>
-      {/* Header with status */}
+      {/* Header */}
       <div className="shrink-0 border-b px-4 py-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -216,7 +176,6 @@ export function AgentChatView({ agentId, workspacePath, className }: AgentChatVi
             <span className="text-xs text-muted-foreground">({agent?.type})</span>
           </div>
           <div className="flex items-center gap-2">
-            {/* SSE connection indicator */}
             {isConnected ? (
               <span title="Connected">
                 <Wifi className="h-4 w-4 text-green-500" />
@@ -226,7 +185,6 @@ export function AgentChatView({ agentId, workspacePath, className }: AgentChatVi
                 <WifiOff className="h-4 w-4 text-red-500" />
               </span>
             )}
-            {/* Status indicator */}
             {isWorking && (
               <span className="inline-flex items-center gap-1 text-xs text-blue-600">
                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -242,9 +200,9 @@ export function AgentChatView({ agentId, workspacePath, className }: AgentChatVi
         </div>
       </div>
 
-      {/* Messages area */}
+      {/* Messages — single ordered list from server */}
       <div className="flex-1 overflow-auto">
-        {unifiedTimeline.length === 0 && !streamingContent ? (
+        {entryProps.length === 0 && !streamingContent && !pendingPrompt ? (
           <div className="h-full flex items-center justify-center text-muted-foreground">
             <div className="text-center">
               <Bot className="h-12 w-12 mx-auto mb-3 opacity-30" />
@@ -254,13 +212,14 @@ export function AgentChatView({ agentId, workspacePath, className }: AgentChatVi
           </div>
         ) : (
           <div className="divide-y divide-border">
-            {unifiedTimeline.map((item) => {
-              // Extract key from props to avoid React warning about key in spread
-              const { key: _key, ...restProps } = item.props as typeof item.props & {
-                key?: string;
-              };
-              return <LogEntry key={item.key} {...restProps} />;
+            {entryProps.map((props) => {
+              const { key: _key, ...restProps } = props as typeof props & { key?: string };
+              return <LogEntry key={props.key} {...restProps} />;
             })}
+            {/* Optimistic pending prompt — shown until server confirms */}
+            {pendingPrompt && (
+              <LogEntry messageRole="user" content={pendingPrompt} contentType="text" />
+            )}
             {/* Streaming content */}
             {streamingContent && (
               <LogEntry messageRole="assistant" content={streamingContent} isStreaming />
@@ -289,7 +248,7 @@ export function AgentChatView({ agentId, workspacePath, className }: AgentChatVi
         </div>
       )}
 
-      {/* Input area */}
+      {/* Input */}
       <div className="shrink-0 border-t p-4">
         <AgentChatInput
           onMessage={handleSendMessage}

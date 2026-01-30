@@ -274,7 +274,9 @@ export class ClaudeCodeAdapter implements IAgentAdapter {
 
     if (exitCode !== 0) {
       const stderr = this._processManager.getProcessStderr?.(handle.pid) ?? '';
-      console.log(`[ClaudeCodeAdapter] Process exited with code ${exitCode}. stdout=${output.substring(0, 200)} stderr=${stderr.substring(0, 500)}`);
+      console.log(
+        `[ClaudeCodeAdapter] Process exited with code ${exitCode}. stdout=${output.substring(0, 200)} stderr=${stderr.substring(0, 500)}`
+      );
     }
 
     // Determine status from exit code

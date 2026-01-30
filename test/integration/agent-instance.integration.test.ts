@@ -174,11 +174,13 @@ describe('AgentInstance Integration', () => {
     await instance.run({ prompt: 'test' });
 
     const events = instance.getEvents();
-    expect(events).toHaveLength(2);
+    expect(events).toHaveLength(3);
     expect(events[0].eventId).toBeDefined();
-    expect(events[0].type).toBe('text_delta');
+    expect(events[0].type).toBe('user_prompt');
     expect(events[1].eventId).toBeDefined();
-    expect(events[1].type).toBe('message');
+    expect(events[1].type).toBe('text_delta');
+    expect(events[2].eventId).toBeDefined();
+    expect(events[2].type).toBe('message');
 
     // Event IDs should be unique
     expect(events[0].eventId).not.toBe(events[1].eventId);
@@ -252,15 +254,17 @@ describe('AgentInstance Integration', () => {
     await instance.run({ prompt: 'test' });
 
     const allEvents = instance.getEvents();
-    expect(allEvents).toHaveLength(5);
+    // 1 user_prompt + 5 adapter events = 6
+    expect(allEvents).toHaveLength(6);
+    expect(allEvents[0].type).toBe('user_prompt');
 
-    // Get events since 2nd event
+    // Get events since 2nd event (first text_delta 'A')
     const sinceId = allEvents[1].eventId;
     const newEvents = instance.getEvents({ sinceId });
 
-    // Should get events 3, 4, 5 (indices 2, 3, 4)
-    expect(newEvents).toHaveLength(3);
-    expect(newEvents[0].data).toEqual({ content: 'C' });
+    // Should get events after 'A': B, C, D, E (indices 2-5)
+    expect(newEvents).toHaveLength(4);
+    expect(newEvents[0].data).toEqual({ content: 'B' });
   });
 });
 

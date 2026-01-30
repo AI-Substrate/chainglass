@@ -151,7 +151,10 @@ export class AgentStorageAdapter implements IAgentStorageAdapter {
     // all race on read → append → write, causing ENOENT on the temp file.
     const prev = this._writeQueues.get(agentId) ?? Promise.resolve();
     const next = prev.then(() => this._doAppendEvent(agentId, event));
-    this._writeQueues.set(agentId, next.catch(() => {})); // swallow so queue continues
+    this._writeQueues.set(
+      agentId,
+      next.catch(() => {})
+    ); // swallow so queue continues
     return next;
   }
 

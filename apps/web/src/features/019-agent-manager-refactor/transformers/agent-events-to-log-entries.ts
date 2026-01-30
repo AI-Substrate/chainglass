@@ -85,6 +85,15 @@ export function agentEventToLogEntryProps(
       };
     }
 
+    case 'user_prompt': {
+      return {
+        key: `${event.timestamp}_${event.eventId}`,
+        messageRole: 'user',
+        contentType: 'text',
+        content: event.data.content,
+      };
+    }
+
     case 'text_delta': {
       // text_delta events represent incremental text - accumulate for display
       return {
@@ -182,11 +191,39 @@ export function mergeAgentEvents(events: AgentStoredEvent[]): (LogEntryProps & {
       continue;
     }
 
-    // Turn boundary events: reset per-turn dedup counters and flush accumulators
+    // Turn boundary events: reset per-turn dedup counters
     if (event.type === 'session_start' || event.type === 'session_idle') {
       textDeltaCountThisTurn = 0;
       thinkingDeltaCountThisTurn = 0;
       continue; // Don't render these
+    }
+
+    // User prompt is a turn boundary AND renders
+    if (event.type === 'user_prompt') {
+      textDeltaCountThisTurn = 0;
+      thinkingDeltaCountThisTurn = 0;
+      // Flush pending blocks before rendering user prompt
+      if (currentText) {
+        result.push({
+          key: currentText.key,
+          messageRole: 'assistant',
+          contentType: 'text',
+          content: currentText.content,
+        });
+        currentText = null;
+      }
+      if (currentThinking) {
+        result.push({
+          key: currentThinking.key,
+          messageRole: 'assistant',
+          content: '',
+          contentType: 'thinking',
+          thinkingData: { content: currentThinking.content, signature: currentThinking.signature },
+        });
+        currentThinking = null;
+      }
+      result.push(agentEventToLogEntryProps(event));
+      continue;
     }
 
     // Skip non-renderable events

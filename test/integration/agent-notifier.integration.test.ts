@@ -135,25 +135,25 @@ describe('Phase 2 Integration: AgentNotifierService', () => {
 
       await instance.run({ prompt: 'test' });
 
-      // Verify events were broadcast
+      // Verify events were broadcast (1 user_prompt + 2 adapter events)
       const eventBroadcasts = notifier.getEventBroadcasts();
-      expect(eventBroadcasts).toHaveLength(2);
+      expect(eventBroadcasts).toHaveLength(3);
 
-      // Verify agentId included (AC-14)
-      const firstEvent = notifier.getEventBroadcasts()[0].data as {
+      // First broadcast is the user_prompt, second is text_delta from adapter
+      const firstAdapterEvent = notifier.getEventBroadcasts()[1].data as {
         agentId: string;
         event: AgentStoredEvent;
       };
-      expect(firstEvent.agentId).toBe('event-test');
+      expect(firstAdapterEvent.agentId).toBe('event-test');
 
       // Verify eventId present (storage-first pattern - event stored before broadcast)
-      expect(firstEvent.event.eventId).toBeDefined();
-      expect(firstEvent.event.eventId).toContain('event-test-evt-');
+      expect(firstAdapterEvent.event.eventId).toBeDefined();
+      expect(firstAdapterEvent.event.eventId).toContain('event-test-evt-');
 
       // Verify events also stored in instance (storage-first verification)
       const storedEvents = instance.getEvents();
-      expect(storedEvents).toHaveLength(2);
-      expect(storedEvents[0].eventId).toBe(firstEvent.event.eventId);
+      expect(storedEvents).toHaveLength(3);
+      expect(storedEvents[1].eventId).toBe(firstAdapterEvent.event.eventId);
     });
 
     it('broadcasts include agentId for client-side filtering (AC-14)', async () => {
@@ -272,16 +272,16 @@ describe('Phase 2 Integration: AgentNotifierService', () => {
 
       await instance.run({ prompt: 'test' });
 
-      // Get the stored event
+      // Get the stored events (1 user_prompt + 1 adapter event)
       const storedEvents = instance.getEvents();
-      expect(storedEvents).toHaveLength(1);
+      expect(storedEvents).toHaveLength(2);
 
-      // Get the broadcast event
-      const broadcast = notifier.getEventBroadcasts()[0].data as { event: AgentStoredEvent };
+      // Get the adapter event broadcast (index 1, after user_prompt at index 0)
+      const broadcast = notifier.getEventBroadcasts()[1].data as { event: AgentStoredEvent };
 
       // The broadcast should contain the SAME eventId as stored event
       // (This proves the event was stored first, then the same object was broadcast)
-      expect(broadcast.event.eventId).toBe(storedEvents[0].eventId);
+      expect(broadcast.event.eventId).toBe(storedEvents[1].eventId);
     });
   });
 });

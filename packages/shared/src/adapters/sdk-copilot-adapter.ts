@@ -119,12 +119,12 @@ export class SdkCopilotAdapter implements IAgentAdapter {
           hasStreamedText = true;
         }
         if (event.type === 'assistant.reasoning' && hasStreamedThinking) {
-          console.log(`[SdkCopilotAdapter] Suppressing duplicate consolidated thinking`);
+          console.log('[SdkCopilotAdapter] Suppressing duplicate consolidated thinking');
           return; // Skip duplicate consolidated thinking
         }
         if (event.type === 'assistant.message' && hasStreamedText) {
           // Still capture output for AgentResult, but don't emit as event
-          console.log(`[SdkCopilotAdapter] Suppressing duplicate consolidated message`);
+          console.log('[SdkCopilotAdapter] Suppressing duplicate consolidated message');
           const data = event.data as { content: string };
           output = data.content;
           return;
@@ -326,7 +326,10 @@ export class SdkCopilotAdapter implements IAgentAdapter {
 
       default:
         // Unknown event type - return as raw for forward compatibility
-        console.log(`[SdkCopilotAdapter] Unhandled event type: "${event.type}"`, JSON.stringify(event).substring(0, 300));
+        console.log(
+          `[SdkCopilotAdapter] Unhandled event type: "${event.type}"`,
+          JSON.stringify(event).substring(0, 300)
+        );
         return {
           type: 'raw',
           timestamp,

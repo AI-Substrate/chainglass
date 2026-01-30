@@ -211,15 +211,22 @@ export function useAgentInstance(
           return;
         }
 
-        // Invalidate query to refetch agent data
-        queryClient.invalidateQueries({ queryKey: [AGENT_QUERY_KEY, agentId] });
+        // Only refetch on status/intent changes, NOT on every event.
+        // During streaming, the onAgentEvent callback + streamingContent overlay
+        // handles real-time display. Refetching on every text_delta would cause
+        // the content to double up (server events + streaming overlay).
+        if (eventType !== 'agent_event') {
+          queryClient.invalidateQueries({ queryKey: [AGENT_QUERY_KEY, agentId] });
+        }
 
         // Call callback if provided
         if (onAgentEvent) {
           if (eventType === 'agent_event') {
             // Unwrap the inner event type for the callback
             // Server sends: { type: 'agent_event', agentId, event: { type: 'text_delta', data: {...} } }
-            const innerEvent = (data as { event?: { type?: string; data?: Record<string, unknown> } }).event;
+            const innerEvent = (
+              data as { event?: { type?: string; data?: Record<string, unknown> } }
+            ).event;
             const innerType = innerEvent?.type ? `agent_${innerEvent.type}` : eventType;
             onAgentEvent(innerType, { agentId, ...innerEvent?.data } as AgentSSEEvent);
           } else {

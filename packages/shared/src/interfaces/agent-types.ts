@@ -186,6 +186,18 @@ import type {
  *
  * Plan 015 Phase 1: Extended with tool_call, tool_result, thinking types.
  */
+/**
+ * User prompt submitted to the agent.
+ * Stored as an event so prompts and responses share one ordered list.
+ */
+export interface AgentUserPromptEvent extends AgentEventBase {
+  type: 'user_prompt';
+  data: {
+    /** The user's prompt text */
+    content: string;
+  };
+}
+
 export type AgentEvent =
   | AgentTextDeltaEvent
   | AgentMessageEvent
@@ -195,7 +207,8 @@ export type AgentEvent =
   // Plan 015: New event types for tool visibility
   | AgentToolCallEvent
   | AgentToolResultEvent
-  | AgentThinkingEvent;
+  | AgentThinkingEvent
+  | AgentUserPromptEvent;
 
 /**
  * Event handler callback type for streaming.
