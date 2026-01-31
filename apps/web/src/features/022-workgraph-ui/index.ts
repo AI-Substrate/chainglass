@@ -26,6 +26,7 @@ export type {
 
 // Types - Phase 2
 export type {
+  NodePortDeclaration,
   WorkGraphFlowData,
   WorkGraphFlowNode,
   WorkGraphFlowEdge,
