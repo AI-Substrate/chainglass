@@ -398,3 +398,17 @@ export type {
   OnGraphChangedCall,
   RescanCall,
 } from './fakes/index.js';
+
+// Central watcher notification system (Plan 023)
+export type {
+  WatcherEvent,
+  IWatcherAdapter,
+  ICentralWatcherService,
+} from './features/023-central-watcher-notifications/index.js';
+export { FakeWatcherAdapter } from './features/023-central-watcher-notifications/index.js';
+export {
+  FakeCentralWatcherService,
+  type StartCall as WatcherStartCall,
+  type StopCall as WatcherStopCall,
+  type RegisterAdapterCall,
+} from './features/023-central-watcher-notifications/index.js';
