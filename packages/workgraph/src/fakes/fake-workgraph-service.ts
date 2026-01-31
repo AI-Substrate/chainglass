@@ -12,6 +12,8 @@ import type { WorkspaceContext } from '@chainglass/workflow';
 import type {
   AddNodeOptions,
   AddNodeResult,
+  AddUnconnectedNodeResult,
+  ConnectNodesResult,
   GraphCreateResult,
   GraphLoadResult,
   GraphShowResult,
@@ -73,6 +75,17 @@ export interface RemoveNodeCall {
   result: RemoveNodeResult;
 }
 
+export interface CanConnectCall {
+  ctx: WorkspaceContext;
+  graphSlug: string;
+  sourceNodeId: string;
+  sourceOutput: string;
+  targetNodeId: string;
+  targetInput: string;
+  timestamp: string;
+  result: import('../interfaces/index.js').CanConnectResult;
+}
+
 // ============================================
 // Fake Implementation
 // ============================================
@@ -88,6 +101,7 @@ export class FakeWorkGraphService implements IWorkGraphService {
   private statusCalls: GraphStatusCall[] = [];
   private addNodeAfterCalls: AddNodeAfterCall[] = [];
   private removeNodeCalls: RemoveNodeCall[] = [];
+  private canConnectCalls: CanConnectCall[] = [];
 
   private presetCreateResults = new Map<string, GraphCreateResult>();
   private presetLoadResults = new Map<string, GraphLoadResult>();
@@ -95,6 +109,10 @@ export class FakeWorkGraphService implements IWorkGraphService {
   private presetStatusResults = new Map<string, GraphStatusResult>();
   private presetAddNodeResults = new Map<string, AddNodeResult>();
   private presetRemoveNodeResults = new Map<string, RemoveNodeResult>();
+  private presetCanConnectResults = new Map<
+    string,
+    import('../interfaces/index.js').CanConnectResult
+  >();
 
   // ==================== Key Helper ====================
 
@@ -338,6 +356,92 @@ export class FakeWorkGraphService implements IWorkGraphService {
     return result;
   }
 
+  // ==================== CanConnect ====================
+
+  getCanConnectCalls(): CanConnectCall[] {
+    return [...this.canConnectCalls];
+  }
+
+  getLastCanConnectCall(): CanConnectCall | null {
+    return this.canConnectCalls.length > 0
+      ? this.canConnectCalls[this.canConnectCalls.length - 1]
+      : null;
+  }
+
+  setPresetCanConnectResult(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    sourceNodeId: string,
+    targetNodeId: string,
+    result: import('../interfaces/index.js').CanConnectResult
+  ): void {
+    this.presetCanConnectResults.set(
+      this.getKey(ctx, graphSlug, sourceNodeId, targetNodeId),
+      result
+    );
+  }
+
+  async canConnect(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    sourceNodeId: string,
+    sourceOutput: string,
+    targetNodeId: string,
+    targetInput: string
+  ): Promise<import('../interfaces/index.js').CanConnectResult> {
+    const key = this.getKey(ctx, graphSlug, sourceNodeId, targetNodeId);
+
+    const result = this.presetCanConnectResults.get(key) ?? {
+      valid: true,
+      errors: [],
+    };
+
+    this.canConnectCalls.push({
+      ctx,
+      graphSlug,
+      sourceNodeId,
+      sourceOutput,
+      targetNodeId,
+      targetInput,
+      timestamp: new Date().toISOString(),
+      result,
+    });
+
+    return result;
+  }
+
+  // ==================== addUnconnectedNode ====================
+
+  async addUnconnectedNode(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    unitSlug: string
+  ): Promise<AddUnconnectedNodeResult> {
+    // Generate a simple node ID for testing
+    const nodeId = `${unitSlug}-${Date.now()}`;
+    return {
+      nodeId,
+      errors: [],
+    };
+  }
+
+  // ==================== connectNodes ====================
+
+  async connectNodes(
+    _ctx: WorkspaceContext,
+    _graphSlug: string,
+    sourceNodeId: string,
+    targetNodeId: string
+  ): Promise<ConnectNodesResult> {
+    // Simple fake - always succeed with generated edge ID
+    const edgeId = `edge-${sourceNodeId}-${targetNodeId}`;
+    return {
+      connected: true,
+      edgeId,
+      errors: [],
+    };
+  }
+
   // ==================== Reset ====================
 
   reset(): void {
@@ -347,11 +451,13 @@ export class FakeWorkGraphService implements IWorkGraphService {
     this.statusCalls = [];
     this.addNodeAfterCalls = [];
     this.removeNodeCalls = [];
+    this.canConnectCalls = [];
     this.presetCreateResults.clear();
     this.presetLoadResults.clear();
     this.presetShowResults.clear();
     this.presetStatusResults.clear();
     this.presetAddNodeResults.clear();
     this.presetRemoveNodeResults.clear();
+    this.presetCanConnectResults.clear();
   }
 }

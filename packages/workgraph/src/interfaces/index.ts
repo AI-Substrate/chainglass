@@ -32,12 +32,15 @@ export type {
   GraphShowResult,
   GraphStatusResult,
   AddNodeResult,
+  AddUnconnectedNodeResult,
+  ConnectNodesResult,
   RemoveNodeResult,
   AddNodeOptions,
   RemoveNodeOptions,
   WorkGraphDefinition,
   ShowTreeNode,
   NodeStatusEntry,
+  CanConnectResult,
 } from './workgraph-service.interface.js';
 
 // IWorkNodeService

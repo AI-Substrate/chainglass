@@ -21,20 +21,24 @@ import {
   FakeConfigService,
   FakeLogger,
   FakeProcessManager,
+  FakeYamlParser,
   type IAgentAdapter,
   type IConfigService,
   type IFileSystem,
   type ILogger,
   type IPathResolver,
   type IProcessManager,
+  type IYamlParser,
   NodeFileSystemAdapter,
   PathResolverAdapter,
   PinoLoggerAdapter,
   SHARED_DI_TOKENS,
   SdkCopilotAdapter,
   UnixProcessManager,
+  WORKGRAPH_DI_TOKENS,
   WORKSPACE_DI_TOKENS,
   WindowsProcessManager,
+  YamlParserAdapter,
 } from '@chainglass/shared';
 // Plan 019: Import AgentManagerService for central agent registry
 import {
@@ -77,12 +81,23 @@ import {
   WorkspaceRegistryAdapter,
   WorkspaceService,
 } from '@chainglass/workflow';
+// Plan 022: Import workgraph services
+import {
+  FakeWorkGraphService,
+  type IWorkGraphService,
+  registerWorkgraphServices,
+  registerWorkgraphTestServices,
+} from '@chainglass/workgraph';
 // Phase 4: Import CopilotClient from SDK for production adapter
 import { CopilotClient } from '@github/copilot-sdk';
 import { type DependencyContainer, container } from 'tsyringe';
 // Plan 019 Phase 2: Import notifier implementations
 import { AgentNotifierService } from '../features/019-agent-manager-refactor/agent-notifier.service';
 import { SSEManagerBroadcaster } from '../features/019-agent-manager-refactor/sse-manager-broadcaster';
+// Plan 022: WorkGraph UI services
+import { FakeWorkGraphUIService } from '../features/022-workgraph-ui/fake-workgraph-ui-service';
+import { WorkGraphUIService } from '../features/022-workgraph-ui/workgraph-ui.service';
+import type { IWorkGraphUIService } from '../features/022-workgraph-ui/workgraph-ui.types';
 import { SampleService } from '../services/sample.service';
 import { sseManager } from './sse-manager';
 
@@ -99,6 +114,8 @@ export const DI_TOKENS = {
   AGENT_SERVICE: 'AgentService',
   // Plan 018: Event storage moved to workspace-scoped AgentEventAdapter in @chainglass/workflow
   // Consumers should use WORKSPACE_DI_TOKENS.AGENT_EVENT_ADAPTER instead
+  // Plan 022: WorkGraph UI
+  WORKGRAPH_UI_SERVICE: 'WorkGraphUIService',
 } as const;
 
 /**
@@ -270,6 +287,11 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
     useFactory: () => new PathResolverAdapter(),
   });
 
+  // Register YAML parser (needed by workgraph services)
+  childContainer.register<IYamlParser>(SHARED_DI_TOKENS.YAML_PARSER, {
+    useFactory: () => new YamlParserAdapter(),
+  });
+
   // Register workspace registry adapter
   childContainer.register<IWorkspaceRegistryAdapter>(
     WORKSPACE_DI_TOKENS.WORKSPACE_REGISTRY_ADAPTER,
@@ -385,6 +407,21 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
     },
   });
 
+  // ==================== Plan 022 Phase 1: WorkGraph UI Services ====================
+
+  // Register workgraph backend services first
+  registerWorkgraphServices(childContainer);
+
+  // Register WorkGraphUIService (depends on IWorkGraphService)
+  childContainer.register<IWorkGraphUIService>(DI_TOKENS.WORKGRAPH_UI_SERVICE, {
+    useFactory: (c) => {
+      const workGraphService = c.resolve<IWorkGraphService>(WORKGRAPH_DI_TOKENS.WORKGRAPH_SERVICE);
+      const fs = c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
+      const pathResolver = c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
+      return new WorkGraphUIService(workGraphService, fs, pathResolver);
+    },
+  });
+
   // FIX-010: Performance metrics for container creation
   const durationMs = performance.now() - startTime;
   console.log(`[createProductionContainer] Container created in ${durationMs.toFixed(2)}ms`);
@@ -489,6 +526,11 @@ export function createTestContainer(): DependencyContainer {
 
   // ==================== Plan 014 Phase 6: Workspace Service Fakes ====================
 
+  // Register fake YAML parser (needed by workgraph fakes)
+  childContainer.register<IYamlParser>(SHARED_DI_TOKENS.YAML_PARSER, {
+    useValue: new FakeYamlParser(),
+  });
+
   // Register fake workspace registry adapter
   const fakeWorkspaceRegistryAdapter = new FakeWorkspaceRegistryAdapter();
   childContainer.register<IWorkspaceRegistryAdapter>(
@@ -554,6 +596,16 @@ export function createTestContainer(): DependencyContainer {
     useFactory: () => {
       return new FakeAgentManagerService();
     },
+  });
+
+  // ==================== Plan 022 Phase 1: WorkGraph UI Test Services ====================
+
+  // Register workgraph test fakes
+  registerWorkgraphTestServices(childContainer);
+
+  // Register FakeWorkGraphUIService
+  childContainer.register<IWorkGraphUIService>(DI_TOKENS.WORKGRAPH_UI_SERVICE, {
+    useFactory: () => new FakeWorkGraphUIService(),
   });
 
   return childContainer;

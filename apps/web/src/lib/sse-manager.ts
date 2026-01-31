@@ -58,8 +58,8 @@ export class SSEManager {
    * @param data - The data to send (will be JSON stringified)
    */
   broadcast(channelId: string, eventType: string, data: unknown): void {
-    // Validate eventType to prevent SSE injection
-    if (!/^[a-zA-Z0-9_]+$/.test(eventType)) {
+    // Validate eventType to prevent SSE injection (allow alphanumeric, underscore, hyphen)
+    if (!/^[a-zA-Z0-9_-]+$/.test(eventType)) {
       throw new Error(`Invalid SSE event type: ${eventType}`);
     }
 

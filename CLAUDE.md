@@ -79,7 +79,75 @@ Use Result types from `packages/shared` for error handling.
 - Pass data as props to Client Components
 - Don't use `useEffect` for initial data loads
 
+### Search Before Creating — Mandatory Concept Check
+
+**NEVER propose a new class, service, utility, hook, or pattern without first searching for existing implementations.** Code in this codebase may use different names than you expect — `connectNode` might be `GraphBuilder.link()`, a "rate limiter" might be `ThrottleGuard`.
+
+**Before creating anything new, you MUST run a concept search as a subagent:**
+
+1. **Launch `/code-concept-search` via the Task tool** (subagent) with a natural-language description of what you intend to build. This keeps the search results out of the main context window — the subagent does the heavy exploration and returns a concise summary.
+   ```
+   Task(subagent_type="general-purpose", prompt='Use /code-concept-search "file change notification service"')
+   Task(subagent_type="general-purpose", prompt='Use /code-concept-search "graph node connection utility" --scope "packages/"')
+   ```
+   The subagent searches semantically (not just by name) and returns provenance, usage, and reuse assessment.
+
+2. **If `/code-concept-search` is not available**, launch a subagent that uses FlowSpace semantic search:
+   ```
+   Task(subagent_type="Explore", prompt='Search for existing implementations of "your concept" using FlowSpace semantic search')
+   ```
+
+3. **If no search tools are available**, the subagent should walk the directory tree manually — read `tree` output, follow imports, and reason about what modules likely contain the functionality.
+
+**Why a subagent?** Concept searches are token-heavy — they explore multiple directories, read source files, and trace provenance. Running inline bloats the main context. A subagent does the work and returns only the findings.
+
+**What counts as "creating something new":**
+- A new file (class, service, utility, hook, component)
+- A new exported function that could overlap with existing helpers
+- A new type/interface that models a concept already in the codebase
+- A new pattern (e.g., event bus, pub/sub, observer) that may already be implemented
+
+**If you find an existing implementation:**
+- Reuse it, extend it, or explain to the user why a new one is warranted
+- Reference the existing code by file path and line number
+
+**If you skip this check**, you risk duplicating functionality and increasing maintenance burden. This is a blocking requirement, not a suggestion.
+
 ## MCP Integration
+
+### FlowSpace (fs2) — Preferred Code Intelligence
+
+**Always prefer FlowSpace MCP tools over legacy search tools (Grep, Glob) for code exploration.** FlowSpace provides structured, hierarchy-aware code intelligence that outperforms raw text search.
+
+**Tools** (in recommended usage order):
+
+1. **`tree`** — Explore codebase structure. Start here when orienting.
+   - `tree(pattern=".")` — top-level overview
+   - `tree(pattern="src/features/")` — folder-scoped exploration
+   - `tree(pattern="ClassName", detail="max")` — find specific classes/functions with signatures
+2. **`get_node`** — Retrieve full source code by `node_id` (obtained from `tree` or `search`).
+3. **`search`** — Find code by text, regex, or semantic meaning.
+   - `search(pattern="validate", mode="text")` — exact substring
+   - `search(pattern="def test_.*config", mode="regex")` — pattern matching
+   - `search(pattern="error handling logic", mode="semantic")` — conceptual search
+   - Use `include`/`exclude` to scope by path (e.g., `include=["src/.*"]`, `exclude=["test.*"]`)
+4. **`docs_list` / `docs_get`** — Browse and read bundled fs2 documentation.
+
+**When to use FlowSpace vs legacy tools:**
+
+| Task | Use FlowSpace | Use Grep/Glob/Read |
+|------|---------------|---------------------|
+| Explore structure / orient | `tree` | — |
+| Find definitions | `tree(pattern="Name")` | — |
+| Get full source of a code element | `get_node` | `Read` if you already know the exact path |
+| Conceptual/semantic search | `search(mode="semantic")` | Not available |
+| Search code content | `search(mode="text")` | `Grep` as fallback |
+| Search non-code files (docs, config) | — | `Grep` |
+| Find files by path pattern | — | `Glob` |
+
+**Workflow:** `tree` to orient → `search` to find → `get_node` to read source → `Read`/`Edit` to modify.
+
+### Next.js MCP
 
 This project has MCP configured at `/_next/mcp` when running `pnpm dev`.
 

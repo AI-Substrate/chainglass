@@ -28,3 +28,6 @@ export { SampleService } from './sample.service.js';
 
 // Agent session service (Plan 018)
 export { AgentSessionService } from './agent-session.service.js';
+
+// Workspace change notifier service (Plan 022 Phase 4 Subtask 001)
+export { WorkspaceChangeNotifierService } from './workspace-change-notifier.service.js';

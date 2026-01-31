@@ -14,6 +14,7 @@
   "dependencies": {
     "@chainglass/shared": "workspace:*",
     "@chainglass/workflow": "workspace:^",
+    "@chainglass/workgraph": "workspace:^",
     "@dagrejs/dagre": "^2.0.3",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",

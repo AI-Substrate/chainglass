@@ -96,3 +96,15 @@ export type {
   AgentEventArchiveCall,
   AgentEventExistsCall,
 } from './fake-agent-event-adapter.js';
+
+// File watcher fake (Plan 022 Phase 4 Subtask 001)
+export { FakeFileWatcher, FakeFileWatcherFactory } from './fake-file-watcher.js';
+
+// Workspace change notifier fake (Plan 022 Phase 4 Subtask 001)
+export { FakeWorkspaceChangeNotifierService } from './fake-workspace-change-notifier.service.js';
+export type {
+  StartCall as NotifierStartCall,
+  StopCall as NotifierStopCall,
+  OnGraphChangedCall,
+  RescanCall,
+} from './fake-workspace-change-notifier.service.js';
