@@ -7,7 +7,7 @@
 
 This specification incorporates findings from `research-dossier.md` and the `workshops/positional-graph-prototype.md` design workshop.
 
-- **Components affected**: New `packages/positional-graph/` package; new CLI commands under `cg pg`; new workspace data domain `positional-graphs`; future UI surface replacing the WorkGraph canvas
+- **Components affected**: New `packages/positional-graph/` package; new CLI commands under `cg wf`; new workspace data domain `positional-graphs`; future UI surface replacing the WorkGraph canvas
 - **Critical dependencies**: `@chainglass/workflow` (WorkspaceContext, WorkspaceDataAdapterBase, WorkUnit types — to be extracted from workgraph), `@chainglass/shared` (BaseResult, IFileSystem, DI tokens)
 - **Modification risks**: No existing code is modified — this is a greenfield package. The only coupling is consuming shared interfaces and WorkUnit definitions from existing packages.
 - **Key workshop decisions**: Lines (not buckets/stages), `transition` property on lines (not control nodes), three-state InputPack (available/waiting/error), multi-source input resolution, `collateInputs` as the single traversal method
@@ -20,7 +20,7 @@ Link: See `research-dossier.md` for full analysis, `workshops/positional-graph-p
 
 Replace the DAG-based WorkGraph execution model with a **positional graph** — an ordered sequence of **lines** containing **nodes**, where topology is implicit from line ordering rather than explicit edges. Data flows from preceding lines to subsequent lines through named input resolution, not through edge wiring. The result is a simpler mental model (drop nodes into lines, wire inputs by name), eliminates entire subsystems (cycle detection, edge validation, start node bootstrap), and makes parallel execution and diamond dependencies natural rather than exceptional.
 
-**WHAT**: A new `packages/positional-graph/` package providing a service layer, CLI surface (`cg pg`), schemas, and filesystem persistence for positional graphs — coexisting independently alongside the existing WorkGraph system.
+**WHAT**: A new `packages/positional-graph/` package providing a service layer, CLI surface (`cg wf`), schemas, and filesystem persistence for positional graphs — coexisting independently alongside the existing WorkGraph system.
 
 **WHY**: The DAG model has accumulated friction: manual edge wiring, the 5-layer connection bug, the start node bootstrap problem, and the "no merging" constraint that the codebase has already outgrown (diamond dependencies already work in tests). A positional model eliminates these pain points while preserving the core value — named inputs/outputs flowing between work units.
 
@@ -65,7 +65,7 @@ Replace the DAG-based WorkGraph execution model with a **positional graph** — 
 - **Assumptions**:
   - WorkspaceDataAdapterBase pattern is stable and suitable for the new domain
   - WorkUnit definitions in `@chainglass/workgraph` can be consumed without tight coupling to the workgraph service layer
-  - The existing `resolveOrOverrideContext` CLI pattern works unchanged for `cg pg` commands
+  - The existing `resolveOrOverrideContext` CLI pattern works unchanged for `cg wf` commands
 - **Dependencies**:
   - `@chainglass/workflow` must export `WorkspaceContext`, `WorkspaceDataAdapterBase`, and WorkUnit types (InputDeclaration, OutputDeclaration, WorkUnit — extracted from `@chainglass/workgraph`)
   - `@chainglass/shared` must export `BaseResult`, `IFileSystem`, `IPathResolver`
@@ -79,21 +79,21 @@ Replace the DAG-based WorkGraph execution model with a **positional graph** — 
   3. Graph and line CRUD operations with service layer — TDD
   4. Node operations (add, remove, move) with positional invariants — TDD
   5. Input wiring and `collateInputs` / `canRun` (status computation) — TDD
-  6. CLI integration under `cg pg`
+  6. CLI integration under `cg wf`
   7. Integration tests and E2E prototype script
 
 ---
 
 ## Acceptance Criteria
 
-1. **Graph lifecycle**: `cg pg create <slug>` creates a graph with one empty line; `cg pg show <slug>` displays structure; `cg pg delete <slug>` removes all files; `cg pg list` shows all graphs in the workspace
+1. **Graph lifecycle**: `cg wf create <slug>` creates a graph with one empty line; `cg wf show <slug>` displays structure; `cg wf delete <slug>` removes all files; `cg wf list` shows all graphs in the workspace
 2. **Line operations**: lines can be added (append, insert at index, before/after a line ID), removed (empty or cascade), moved to a new index, and have their label, description, execution mode, and transition set
 3. **Node operations**: nodes can be added to a line at a position, removed, moved within a line, and moved between lines; node instance descriptions can be set
 4. **Positional invariants hold**: every node belongs to exactly one line; node IDs are unique; line IDs are unique; at least one line always exists; line and node ordering is deterministic
 5. **Input wiring**: `set-input` wires a node's input to a named predecessor (`from_unit`) or explicit node ID (`from_node`); `remove-input` removes the wiring; wiring is persisted in `node.yaml`
 6. **Input resolution**: `collateInputs` resolves each declared input to one of three states — `available` (data present), `waiting` (source found but incomplete), or `error` (can't resolve source); multi-source inputs collect from all matching nodes
 7. **canRun computation**: a node can run when all preceding lines are complete, the transition gate (if manual) has been triggered, serial predecessors (if applicable) are complete, and `collateInputs` returns `ok: true`
-8. **Status display**: `cg pg status <slug>` shows all nodes with computed status (`pending`/`ready`/`running`/`complete`/etc.) and `canRun` result
+8. **Status display**: `cg wf status <slug>` shows all nodes with computed status (`pending`/`ready`/`running`/`complete`/etc.) and `canRun` result
 9. **Workspace isolation**: all data stored under `ctx.worktreePath/.chainglass/data/positional-graphs/`; `--workspace-path` override works; different worktrees have independent data
 10. **Error codes**: errors use the E150-E179 range with structured error codes; invalid operations return descriptive error messages
 11. **No regressions**: existing `cg wg` commands and WorkGraph system are completely unaffected

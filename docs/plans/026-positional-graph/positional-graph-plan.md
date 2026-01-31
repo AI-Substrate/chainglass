@@ -38,7 +38,7 @@
 
 **Problem**: The DAG-based WorkGraph model has accumulated friction: manual edge wiring, a 5-layer connection bug, the start node bootstrap problem, the "no merging" constraint already violated in practice (diamond dependencies work in tests), and a dual add-node API split between CLI and UI mental models.
 
-**Solution**: A new `packages/positional-graph/` package implementing a **positional graph** — ordered lines containing nodes, where topology is implicit from line ordering. Data flows from preceding lines to subsequent lines through named input resolution, not edge wiring. The package provides schemas, a service layer, filesystem persistence, and CLI commands under `cg pg` — coexisting independently alongside the existing WorkGraph system.
+**Solution**: A new `packages/positional-graph/` package implementing a **positional graph** — ordered lines containing nodes, where topology is implicit from line ordering. Data flows from preceding lines to subsequent lines through named input resolution, not edge wiring. The package provides schemas, a service layer, filesystem persistence, and CLI commands under `cg wf` — coexisting independently alongside the existing WorkGraph system.
 
 **Expected outcomes**:
 - Simpler workflow authoring (place nodes in lines, not wire edges)
@@ -74,7 +74,7 @@
 ### Assumptions
 - `WorkspaceDataAdapterBase` pattern is stable (confirmed: used by `SampleAdapter`, `AgentEventAdapter`)
 - WorkUnit definitions consumed read-only
-- `resolveOrOverrideContext` CLI pattern works unchanged for `cg pg` commands
+- `resolveOrOverrideContext` CLI pattern works unchanged for `cg wf` commands
 
 ---
 
@@ -201,8 +201,8 @@ Research was conducted via 7 parallel subagents during the `/plan-1a-explore` ph
 ### Critical Discovery 15: CLI Parent Options Inheritance for Nested Commands
 **Impact**: Medium
 **Sources**: [CLI pattern analysis]
-**Problem**: Commander.js nested commands (e.g., `cg pg node add`) require parent option inheritance via `cmd.parent?.opts()`.
-**Solution**: Follow the established `wrapAction` + parent opts pattern from `workgraph.command.ts`. All `pg` subcommands get `--json` and `--workspace-path` from parent.
+**Problem**: Commander.js nested commands (e.g., `cg wf node add`) require parent option inheritance via `cmd.parent?.opts()`.
+**Solution**: Follow the established `wrapAction` + parent opts pattern from `workgraph.command.ts`. All `wf` subcommands get `--json` and `--workspace-path` from parent.
 **Action Required**: Use `cmd.parent?.opts()` pattern in all nested command handlers.
 **Affects Phases**: Phase 6
 
@@ -297,7 +297,7 @@ Acceptance Criteria: [measurable assertions]
 │   └── cli/
 │       └── src/
 │           ├── commands/
-│           │   ├── positional-graph.command.ts  # NEW: cg pg commands
+│           │   ├── positional-graph.command.ts  # NEW: cg wf commands
 │           │   └── index.ts                     # EDIT: add export
 │           ├── bin/
 │           │   └── cg.ts                        # EDIT: register commands
@@ -504,7 +504,7 @@ describe('PositionalGraphDefinitionSchema', () => {
 | 3.7 | [ ] | Verify line operations maintain ordering consistency | 1 | After any line operation, lines array indices are contiguous and deterministic | - | |
 
 ### Acceptance Criteria
-- [ ] `cg pg create <slug>` produces graph with one empty line
+- [ ] `cg wf create <slug>` produces graph with one empty line
 - [ ] Lines can be added (append, insert at index, before/after ID), removed, moved
 - [ ] At-least-one-line invariant enforced (E156 on remove-last-line)
 - [ ] Line properties (label, description, execution_mode, transition) can be set
@@ -633,10 +633,10 @@ describe('collateInputs', () => {
 
 ## Phase 6: CLI Integration
 
-**Objective**: Wire the positional graph service to CLI commands under `cg pg`, following established Commander.js patterns.
+**Objective**: Wire the positional graph service to CLI commands under `cg wf`, following established Commander.js patterns.
 
 **Deliverables**:
-- `positional-graph.command.ts` with all `cg pg` commands
+- `positional-graph.command.ts` with all `cg wf` commands
 - Registration in CLI container and command index
 - `--json` and `--workspace-path` options on all commands
 
@@ -645,7 +645,7 @@ describe('collateInputs', () => {
 **Risks**:
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
-| CLI command naming conflicts | Low | Low | Use `pg` prefix, distinct from `wg` |
+| CLI command naming conflicts | Low | Low | Use `wf` prefix, distinct from `wg` |
 | Nested command option inheritance | Medium | Low | Use established `cmd.parent?.opts()` pattern |
 
 ### Tasks (Full TDD Approach)
@@ -653,20 +653,20 @@ describe('collateInputs', () => {
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
 | 6.1 | [ ] | Create `positional-graph.command.ts` with graph commands (create, show, status, delete, list) | 3 | Commands registered, workspace context resolved, service called, output formatted | - | Follow workgraph.command.ts pattern |
-| 6.2 | [ ] | Add line commands (add, remove, move, set) | 3 | Nested `pg line` subcommands work with parent option inheritance | - | `cg pg line add <graph>` etc. |
-| 6.3 | [ ] | Add node commands (add, remove, move, show, set, set-input, remove-input, collate) | 3 | Nested `pg node` subcommands work | - | `cg pg node add <graph> <lineId> <unitSlug>` etc. |
-| 6.4 | [ ] | Add canrun command | 1 | `cg pg canrun <graph> <nodeId>` works | - | |
+| 6.2 | [ ] | Add line commands (add, remove, move, set) | 3 | Nested `wf line` subcommands work with parent option inheritance | - | `cg wf line add <graph>` etc. |
+| 6.3 | [ ] | Add node commands (add, remove, move, show, set, set-input, remove-input, collate) | 3 | Nested `wf node` subcommands work | - | `cg wf node add <graph> <lineId> <unitSlug>` etc. |
+| 6.4 | [ ] | Add canrun command | 1 | `cg wf canrun <graph> <nodeId>` works | - | |
 | 6.5 | [ ] | Register commands in CLI container and command index | 2 | `registerPositionalGraphServices()` called in CLI container, `registerPositionalGraphCommands` exported and called in cg.ts | - | |
 | 6.6 | [ ] | Verify all commands with `--json` output | 2 | JSON output follows structured format for all commands | - | |
 
 ### Acceptance Criteria
-- [ ] All `cg pg` commands from spec AC-1 through AC-8 work
+- [ ] All `cg wf` commands from spec AC-1 through AC-8 work
 - [ ] `--json` flag produces structured JSON output
 - [ ] `--workspace-path` overrides workspace context
 - [ ] Error codes displayed with descriptive messages
 - [ ] Existing `cg wg` commands unaffected
-- [ ] Manual smoke test: `cg pg create test-graph && cg pg show test-graph && cg pg list --json` — valid output
-- [ ] `cg pg --help` lists all subcommands (graph, line, node, canrun)
+- [ ] Manual smoke test: `cg wf create test-graph && cg wf show test-graph && cg wf list --json` — valid output
+- [ ] `cg wf --help` lists all subcommands (graph, line, node, canrun)
 
 ---
 
@@ -696,7 +696,7 @@ describe('collateInputs', () => {
 | 7.3 | [ ] | Create E2E prototype script | 3 | Script runs end-to-end using service API (not CLI), validates all operations from workshop §E2E Prototype | - | Based on workshop E2E script pseudo-code |
 | 7.4 | [ ] | Survey existing `docs/how/` and create documentation plan | 1 | New `docs/how/positional-graph/` directory planned, no conflicts with existing docs | - | |
 | 7.5 | [ ] | Create `docs/how/positional-graph/1-overview.md` | 2 | Covers: concepts (lines, nodes, positions), data model, comparison with DAG model, key differences | - | Target: developers extending the system |
-| 7.6 | [ ] | Create `docs/how/positional-graph/2-cli-usage.md` | 2 | Covers: all cg pg commands with examples, common workflows, error code reference | - | Matches spec AC-1 through AC-10 |
+| 7.6 | [ ] | Create `docs/how/positional-graph/2-cli-usage.md` | 2 | Covers: all cg wf commands with examples, common workflows, error code reference | - | Matches spec AC-1 through AC-10 |
 | 7.7 | [ ] | Run full quality check | 1 | `just check` passes (test, typecheck, lint, build) | - | Final validation |
 
 ### Acceptance Criteria
@@ -784,7 +784,7 @@ No layer-boundary violations. The positional graph package follows the same stru
 | ADR | Status | Affects Phases | Notes |
 |-----|--------|----------------|-------|
 | ADR-0004 (DI Architecture) | Active | Phase 2-6 | useFactory registration, child containers |
-| ADR-0006 (CLI Orchestration) | Active | Phase 6 | Commander.js pattern for cg pg commands |
+| ADR-0006 (CLI Orchestration) | Active | Phase 6 | Commander.js pattern for cg wf commands |
 | ADR-0008 (Workspace Storage) | Active | Phase 2 | Per-worktree data under .chainglass/data/ |
 | ADR-0009 (Module Registration) | Active | Phase 2-6 | registerPositionalGraphServices() pattern |
 | (No ADR for graph model) | Recommended | — | Spec has ADR seeds; recommend /plan-3a-adr before finalizing |

@@ -102,7 +102,7 @@ Positional graphs are a **new concept**, not a subtype of WorkGraph. They get th
 - **Package**: `packages/positional-graph/` (new, independent of `packages/workgraph/`)
 - **Data domain**: `positional-graphs` (stored under `<worktree>/.chainglass/data/positional-graphs/`)
 - **DI tokens**: New `POSITIONAL_GRAPH_DI_TOKENS` (not mixed into `WORKGRAPH_DI_TOKENS`)
-- **CLI prefix**: `cg pg` (not `cg wg`)
+- **CLI prefix**: `cg wf` (not `cg wg`)
 
 The positional graph adapter extends `WorkspaceDataAdapterBase` from `packages/workflow` — same storage pattern as `SampleAdapter` and `AgentEventAdapter`, just a new domain.
 
@@ -283,7 +283,7 @@ You can reference a node by:
 
 ## Workspace Context
 
-All `cg pg` commands operate within a workspace context, following the same pattern as `cg wg`:
+All `cg wf` commands operate within a workspace context, following the same pattern as `cg wg`:
 
 - **Auto-detect**: By default, resolves workspace from `process.cwd()` — the current directory must be inside a registered workspace
 - **Override**: `--workspace-path <path>` flag to explicitly target a different workspace/worktree
@@ -292,13 +292,13 @@ All `cg pg` commands operate within a workspace context, following the same patt
 
 ```bash
 # Auto-detect from cwd (most common)
-cg pg create my-pipeline
+cg wf create my-pipeline
 
 # Explicit workspace override
-cg pg create my-pipeline --workspace-path /home/jak/projects/my-app
+cg wf create my-pipeline --workspace-path /home/jak/projects/my-app
 
 # JSON output (all commands)
-cg pg show my-pipeline --json
+cg wf show my-pipeline --json
 ```
 
 The `IPositionalGraphService` interface takes `WorkspaceContext` as the first parameter on every method — same convention as `IWorkGraphService`.
@@ -369,7 +369,7 @@ The `IPositionalGraphService` interface takes `WorkspaceContext` as the first pa
 ### 1. Create a graph
 
 ```
-$ cg pg create my-pipeline
+$ cg wf create my-pipeline
 ```
 ```json
 {
@@ -394,7 +394,7 @@ lines:
 ### 2. Add nodes to line 0
 
 ```
-$ cg pg node add my-pipeline line-a00 sample-input
+$ cg wf node add my-pipeline line-a00 sample-input
 ```
 ```json
 {
@@ -408,7 +408,7 @@ $ cg pg node add my-pipeline line-a00 sample-input
 ### 3. Add a second line
 
 ```
-$ cg pg line add my-pipeline
+$ cg wf line add my-pipeline
 ```
 ```json
 {
@@ -421,14 +421,14 @@ $ cg pg line add my-pipeline
 ### 4. Add nodes to line 1
 
 ```
-$ cg pg node add my-pipeline line-b11 sample-coder
-$ cg pg node add my-pipeline line-b11 sample-reviewer
+$ cg wf node add my-pipeline line-b11 sample-coder
+$ cg wf node add my-pipeline line-b11 sample-reviewer
 ```
 
 ### 5. Show the graph
 
 ```
-$ cg pg show my-pipeline
+$ cg wf show my-pipeline
 
 my-pipeline (v1.0.0)
 ═══════════════════════════════════════════
@@ -444,7 +444,7 @@ my-pipeline (v1.0.0)
 ### 6. Insert a line between 0 and 1
 
 ```
-$ cg pg line add my-pipeline --after line-a00 --label "Research"
+$ cg wf line add my-pipeline --after line-a00 --label "Research"
 ```
 ```json
 {
@@ -470,7 +470,7 @@ Now the graph looks like:
 ### 7. Move a node between lines
 
 ```
-$ cg pg node move my-pipeline sample-reviewer-c4d --to-line line-c22
+$ cg wf node move my-pipeline sample-reviewer-c4d --to-line line-c22
 ```
 
 ```
@@ -487,14 +487,14 @@ $ cg pg node move my-pipeline sample-reviewer-c4d --to-line line-c22
 ### 8. Set line execution mode
 
 ```
-$ cg pg line set my-pipeline line-c22 --mode serial
+$ cg wf line set my-pipeline line-c22 --mode serial
 ```
 
 ### 9. Reorder nodes within a line
 
 ```
-$ cg pg node add my-pipeline line-c22 research-concept
-$ cg pg node add my-pipeline line-c22 research-concept
+$ cg wf node add my-pipeline line-c22 research-concept
+$ cg wf node add my-pipeline line-c22 research-concept
 
   Line 1 "Research" (serial):
     [0] sample-reviewer-c4d (sample-reviewer)
@@ -503,7 +503,7 @@ $ cg pg node add my-pipeline line-c22 research-concept
 ```
 
 ```
-$ cg pg node move my-pipeline sample-reviewer-c4d --to 2
+$ cg wf node move my-pipeline sample-reviewer-c4d --to 2
 ```
 
 ```
@@ -515,9 +515,9 @@ $ cg pg node move my-pipeline sample-reviewer-c4d --to 2
 
 ---
 
-## CLI Command Prefix: `pg`
+## CLI Command Prefix: `wf`
 
-Positional graphs are a separate concept from WorkGraphs. The CLI prefix is `cg pg` ("positional graph"). The existing `cg wg` commands remain untouched — the two systems coexist independently.
+Positional graphs are a separate concept from WorkGraphs. The CLI prefix is `cg wf` ("workflow"). The existing `cg wg` commands remain untouched — the two systems coexist independently.
 
 ---
 
@@ -858,7 +858,7 @@ The prototype covers structure, status computation, and input resolution — eno
 - `node.yaml` with `unit_slug`, `description`, `config`, and `inputs`
 - Status computation: `canRun` based on positional rules + transition gates
 - Input resolution: `from_unit` named lookup + `from_node` explicit fallback
-- CLI commands under `cg pg`
+- CLI commands under `cg wf`
 - Workspace-aware storage (`positional-graphs` domain)
 - Basic contract tests with fakes
 
@@ -1180,20 +1180,20 @@ cg wg node add-after my-pipeline sample-input-a3f sample-coder
 cg wg node add-after my-pipeline sample-coder-b7e sample-tester
 ```
 
-**Positional Graph (`cg pg`)**:
+**Positional Graph (`cg wf`)**:
 ```bash
-cg pg create my-pipeline
-cg pg node add my-pipeline line-a00 sample-input
-cg pg line add my-pipeline
-cg pg node add my-pipeline line-b11 sample-coder
-cg pg line add my-pipeline
-cg pg node add my-pipeline line-c22 sample-tester
+cg wf create my-pipeline
+cg wf node add my-pipeline line-a00 sample-input
+cg wf line add my-pipeline
+cg wf node add my-pipeline line-b11 sample-coder
+cg wf line add my-pipeline
+cg wf node add my-pipeline line-c22 sample-tester
 ```
 
 More lines of CLI? Yes. But the tradeoff: no edge wiring, no cycle detection, no `start` node, and you can later add parallel nodes to any line trivially:
 
 ```bash
-cg pg node add my-pipeline line-b11 sample-reviewer
+cg wf node add my-pipeline line-b11 sample-reviewer
 # => line 1 now runs coder AND reviewer in parallel
 ```
 
