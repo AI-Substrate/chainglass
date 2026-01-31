@@ -18,10 +18,12 @@
 
 import { cn } from '@/lib/utils';
 import { Handle, type NodeProps, Position } from '@xyflow/react';
+import { Loader2, Trash2 } from 'lucide-react';
 import type React from 'react';
 import { memo } from 'react';
 import { StatusIndicator } from './status-indicator';
 import type { WorkGraphNodeData } from './use-workgraph-flow';
+import { useWorkGraphNodeActions } from './workgraph-node-actions-context';
 
 /**
  * Props for WorkGraphNode component.
@@ -93,14 +95,21 @@ export const WorkGraphNode = memo(function WorkGraphNode({
   selected,
 }: WorkGraphNodeProps): React.ReactElement {
   const data = rawData as WorkGraphNodeData;
+  const { removeNode, loadingNodes } = useWorkGraphNodeActions();
   const isUserInput = isUserInputNode(data.unit);
   const label = getNodeLabel(data);
+  const isLoading = loadingNodes.has(data.id);
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent node selection
+    removeNode(data.id);
+  };
 
   return (
     <div
       data-testid="workgraph-node"
       className={cn(
-        'relative px-4 py-3 rounded-lg border bg-card text-card-foreground shadow-sm',
+        'group relative px-4 py-3 rounded-lg border bg-card text-card-foreground shadow-sm',
         'min-w-[160px] max-w-[200px]',
         // Selected state
         selected && 'ring-2 ring-primary ring-offset-2',
@@ -113,6 +122,24 @@ export const WorkGraphNode = memo(function WorkGraphNode({
     >
       {/* Target handle (top) */}
       <Handle type="target" position={Position.Top} className="!w-3 !h-3 !bg-muted-foreground" />
+
+      {/* Delete button - visible on hover or when selected */}
+      <button
+        type="button"
+        onClick={handleDelete}
+        disabled={isLoading}
+        className={cn(
+          'absolute -top-2 -right-2 w-5 h-5 rounded-full',
+          'bg-destructive text-destructive-foreground',
+          'flex items-center justify-center',
+          'opacity-0 group-hover:opacity-100 transition-opacity',
+          'hover:bg-destructive/90 disabled:opacity-50',
+          selected && 'opacity-100'
+        )}
+        title="Delete node"
+      >
+        {isLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+      </button>
 
       {/* Header with status and optional user-input icon */}
       <div className="flex items-center justify-between mb-2">

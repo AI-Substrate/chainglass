@@ -9,18 +9,21 @@
 
 import type { NodeStatus } from '@/features/022-workgraph-ui';
 import { WorkGraphNode, type WorkGraphNodeProps } from '@/features/022-workgraph-ui/workgraph-node';
+import { WorkGraphNodeActionsProvider } from '@/features/022-workgraph-ui/workgraph-node-actions-context';
 import { render, screen } from '@testing-library/react';
 import { ReactFlowProvider } from '@xyflow/react';
 import { describe, expect, test } from 'vitest';
 
 /**
- * Helper to render WorkGraphNode within ReactFlowProvider.
+ * Helper to render WorkGraphNode within ReactFlowProvider and NodeActionsProvider.
  * React Flow nodes require the provider context.
  */
 function renderWithProvider(props: WorkGraphNodeProps) {
   return render(
     <ReactFlowProvider>
-      <WorkGraphNode {...props} />
+      <WorkGraphNodeActionsProvider removeNode={async () => {}} loadingNodes={new Set<string>()}>
+        <WorkGraphNode {...props} />
+      </WorkGraphNodeActionsProvider>
     </ReactFlowProvider>
   );
 }

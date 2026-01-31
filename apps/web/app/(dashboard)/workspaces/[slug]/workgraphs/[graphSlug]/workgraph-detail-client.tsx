@@ -19,6 +19,7 @@ import { useWorkGraphAPI } from '../../../../../../src/features/022-workgraph-ui
 import type { WorkGraphFlowData } from '../../../../../../src/features/022-workgraph-ui/use-workgraph-flow';
 import { useWorkGraphSSE } from '../../../../../../src/features/022-workgraph-ui/use-workgraph-sse';
 import { WorkGraphCanvas } from '../../../../../../src/features/022-workgraph-ui/workgraph-canvas';
+import { WorkGraphNodeActionsProvider } from '../../../../../../src/features/022-workgraph-ui/workgraph-node-actions-context';
 import { WorkUnitToolbox } from '../../../../../../src/features/022-workgraph-ui/workunit-toolbox';
 
 interface WorkGraphDetailClientProps {
@@ -38,6 +39,7 @@ export function WorkGraphDetailClient({
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [isRefreshing, startRefresh] = useTransition();
+  const [loadingNodes, setLoadingNodes] = useState<Set<string>>(new Set());
 
   const handleRefresh = useCallback(() => {
     startRefresh(() => {
@@ -58,6 +60,30 @@ export function WorkGraphDetailClient({
     worktreePath,
     onMutation: () => router.refresh(),
   });
+
+  // Handle node removal with loading state
+  const handleRemoveNode = useCallback(
+    async (nodeId: string): Promise<void> => {
+      // Add to loading set (immutable update)
+      setLoadingNodes((prev) => new Set(prev).add(nodeId));
+      try {
+        const result = await instance.removeNode(nodeId);
+        if (result.errors && result.errors.length > 0) {
+          handleError(result.errors[0].message);
+        }
+      } catch (err) {
+        handleError(err instanceof Error ? err.message : 'Failed to remove node');
+      } finally {
+        // Remove from loading set (immutable update)
+        setLoadingNodes((prev) => {
+          const next = new Set(prev);
+          next.delete(nodeId);
+          return next;
+        });
+      }
+    },
+    [instance, handleError]
+  );
 
   // Create a minimal instance wrapper for SSE hook that uses router.refresh()
   const sseInstance = useMemo(
@@ -146,14 +172,16 @@ export function WorkGraphDetailClient({
             {toast}
           </div>
         )}
-        <WorkGraphCanvas
-          data={data}
-          className="h-full w-full"
-          editable={true}
-          instance={instance}
-          onError={handleError}
-          onConnect={handleConnect}
-        />
+        <WorkGraphNodeActionsProvider removeNode={handleRemoveNode} loadingNodes={loadingNodes}>
+          <WorkGraphCanvas
+            data={data}
+            className="h-full w-full"
+            editable={true}
+            instance={instance}
+            onError={handleError}
+            onConnect={handleConnect}
+          />
+        </WorkGraphNodeActionsProvider>
       </div>
     </div>
   );
