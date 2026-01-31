@@ -93,6 +93,9 @@ importers:
       '@chainglass/workflow':
         specifier: workspace:^
         version: link:../../packages/workflow
+      '@chainglass/workgraph':
+        specifier: workspace:^
+        version: link:../../packages/workgraph
       '@dagrejs/dagre':
         specifier: ^2.0.3
         version: 2.0.3
