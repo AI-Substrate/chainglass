@@ -98,10 +98,7 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
       }
 
       // Broadcast SSE notification (per ADR-0007)
-      // NOTE: SSE broadcast disabled - event type validation rejects hyphenated names.
-      // Client refreshes via onMutation callback instead.
-      // TODO: Re-enable when SSE is fully implemented (change to graph_updated)
-      // broadcastGraphUpdated(graphSlug);
+      broadcastGraphUpdated(graphSlug);
 
       return Response.json({
         nodeId: result.nodeId,
@@ -119,10 +116,7 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
       }
 
       // Broadcast SSE notification (per ADR-0007)
-      // NOTE: SSE broadcast disabled - event type validation rejects hyphenated names.
-      // Client refreshes via onMutation callback instead.
-      // TODO: Re-enable when SSE is fully implemented (change to graph_updated)
-      // broadcastGraphUpdated(graphSlug);
+      broadcastGraphUpdated(graphSlug);
 
       return Response.json({
         nodeId: result.nodeId,
@@ -205,10 +199,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams): Pro
     }
 
     // Broadcast SSE notification (per ADR-0007)
-    // NOTE: SSE broadcast disabled - event type validation rejects hyphenated names.
-    // Client refreshes via onMutation callback instead.
-    // TODO: Re-enable when SSE is fully implemented (change to graph_updated)
-    // broadcastGraphUpdated(graphSlug);
+    broadcastGraphUpdated(graphSlug);
 
     return Response.json({
       removedNodes: result.removedNodes,

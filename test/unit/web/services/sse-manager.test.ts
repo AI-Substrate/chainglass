@@ -208,6 +208,11 @@ describe('SSEManager', () => {
       expect(() => {
         manager.broadcast('workflow-1', 'task_update', { taskId: '1' });
       }).not.toThrow();
+
+      // Also accept hyphenated event types (e.g., graph-updated)
+      expect(() => {
+        manager.broadcast('workflow-1', 'graph-updated', { graphSlug: 'demo' });
+      }).not.toThrow();
     });
   });
 
