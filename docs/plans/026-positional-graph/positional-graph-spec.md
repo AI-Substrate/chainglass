@@ -7,7 +7,7 @@
 
 This specification incorporates findings from `research-dossier.md` and the `workshops/positional-graph-prototype.md` design workshop.
 
-- **Components affected**: New `packages/positional-graph/` package; new CLI commands under `cg wf`; new workspace data domain `positional-graphs`; future UI surface replacing the WorkGraph canvas
+- **Components affected**: New `packages/positional-graph/` package; new CLI commands under `cg wf`; new workspace data domain `workflows`; future UI surface replacing the WorkGraph canvas
 - **Critical dependencies**: `@chainglass/workflow` (WorkspaceContext, WorkspaceDataAdapterBase, WorkUnit types — to be extracted from workgraph), `@chainglass/shared` (BaseResult, IFileSystem, DI tokens)
 - **Modification risks**: No existing code is modified — this is a greenfield package. The only coupling is consuming shared interfaces and WorkUnit definitions from existing packages.
 - **Key workshop decisions**: Lines (not buckets/stages), `transition` property on lines (not control nodes), three-state InputPack (available/waiting/error), multi-source input resolution, `collateInputs` as the single traversal method
@@ -32,7 +32,7 @@ Replace the DAG-based WorkGraph execution model with a **positional graph** — 
 2. **Eliminate structural complexity** — no cycle detection, no edge arrays, no start sentinel node, no dual add-node API; topology is implicit from line ordering
 3. **Preserve data flow semantics** — WorkUnit input/output declarations remain unchanged; only the resolution mechanism changes (from "follow edge" to "search preceding lines by name")
 4. **Independent coexistence** — positional graphs are a separate concept with their own package, data domain, CLI prefix, and DI tokens; the existing WorkGraph system is untouched
-5. **Workspace-aware persistence** — data stored under `<worktree>/.chainglass/data/positional-graphs/<slug>/`, following established workspace data adapter patterns
+5. **Workspace-aware persistence** — data stored under `<worktree>/.chainglass/data/workflows/<slug>/`, following established workspace data adapter patterns
 6. **Status computation from position** — a node's executability is determined by positional rules (all preceding lines complete, transition gates, serial ordering) rather than edge traversal
 7. **Single input resolution traversal** — `collateInputs` resolves all inputs once, consumed by both `canRun` (checking readiness) and execution (feeding data), avoiding duplicate traversals
 8. **Flow control without control nodes** — line `transition` property (auto/manual) governs inter-line flow, keeping the entity model simple
@@ -94,7 +94,7 @@ Replace the DAG-based WorkGraph execution model with a **positional graph** — 
 6. **Input resolution**: `collateInputs` resolves each declared input to one of three states — `available` (data present), `waiting` (source found but incomplete), or `error` (can't resolve source); multi-source inputs collect from all matching nodes
 7. **canRun computation**: a node can run when all preceding lines are complete, the transition gate (if manual) has been triggered, serial predecessors (if applicable) are complete, and `collateInputs` returns `ok: true`
 8. **Status display**: `cg wf status <slug>` shows all nodes with computed status (`pending`/`ready`/`running`/`complete`/etc.) and `canRun` result
-9. **Workspace isolation**: all data stored under `ctx.worktreePath/.chainglass/data/positional-graphs/`; `--workspace-path` override works; different worktrees have independent data
+9. **Workspace isolation**: all data stored under `ctx.worktreePath/.chainglass/data/workflows/`; `--workspace-path` override works; different worktrees have independent data
 10. **Error codes**: errors use the E150-E179 range with structured error codes; invalid operations return descriptive error messages
 11. **No regressions**: existing `cg wg` commands and WorkGraph system are completely unaffected
 12. **Test coverage**: unit tests verify schema validation and resolution logic; integration tests exercise full filesystem persistence with real services; E2E script validates the complete operational flow

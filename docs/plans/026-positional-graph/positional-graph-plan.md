@@ -170,8 +170,8 @@ Research was conducted via 7 parallel subagents during the `/plan-1a-explore` ph
 **Impact**: High
 **Sources**: [PL-11, ADR-0008, DC-03]
 **Problem**: Data must be workspace-scoped per worktree.
-**Solution**: Store under `ctx.worktreePath/.chainglass/data/positional-graphs/<slug>/`. Use `WorkspaceContext.worktreePath` (not `workspacePath`). Follow the `getDomainPath(ctx)`/`getEntityPath(ctx, slug)` helper pattern from `WorkspaceDataAdapterBase`.
-**Action Required**: Implement adapter with `domain = 'positional-graphs'`.
+**Solution**: Store under `ctx.worktreePath/.chainglass/data/workflows/<slug>/`. Use `WorkspaceContext.worktreePath` (not `workspacePath`). Follow the `getDomainPath(ctx)`/`getEntityPath(ctx, slug)` helper pattern from `WorkspaceDataAdapterBase`.
+**Action Required**: Implement adapter with `domain = 'workflows'`.
 **Affects Phases**: Phase 2
 
 ### Critical Discovery 12: Existing Error Code Ranges and Factory Pattern
@@ -418,7 +418,7 @@ Acceptance Criteria: [measurable assertions]
 | 2.7 | [ ] | Implement error code factory functions | 2 | All error tests pass | - | Factory pattern matching workgraph-errors.ts |
 | 2.8 | [ ] | Add `POSITIONAL_GRAPH_DI_TOKENS` to `@chainglass/shared` | 1 | Tokens exported from shared barrel | - | POSITIONAL_GRAPH_SERVICE token |
 | 2.9 | [ ] | Write tests for filesystem adapter (read/write graph.yaml, state.json, node.yaml) | 3 | Tests cover: create graph dir, write graph.yaml, read graph.yaml, write/read state.json, write/read node.yaml, list graphs, delete graph | - | Real filesystem with temp dirs |
-| 2.10 | [ ] | Implement filesystem adapter | 3 | All adapter tests pass, atomic writes used | - | Extend or follow WorkspaceDataAdapterBase pattern. Domain = 'positional-graphs'. Reimplement atomic write (temp-then-rename) locally — do not import from workgraph to avoid dependency |
+| 2.10 | [ ] | Implement filesystem adapter | 3 | All adapter tests pass, atomic writes used | - | Extend or follow WorkspaceDataAdapterBase pattern. Domain = 'workflows'. Reimplement atomic write (temp-then-rename) locally — do not import from workgraph to avoid dependency |
 | 2.11 | [ ] | Create DI container registration function | 2 | `registerPositionalGraphServices()` works per ADR-0009 | - | Module registration function pattern |
 
 ### Test Examples (Write First!)

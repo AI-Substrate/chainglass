@@ -100,7 +100,7 @@ erDiagram
 Positional graphs are a **new concept**, not a subtype of WorkGraph. They get their own package and workspace data domain:
 
 - **Package**: `packages/positional-graph/` (new, independent of `packages/workgraph/`)
-- **Data domain**: `positional-graphs` (stored under `<worktree>/.chainglass/data/positional-graphs/`)
+- **Data domain**: `workflows` (stored under `<worktree>/.chainglass/data/workflows/`)
 - **DI tokens**: New `POSITIONAL_GRAPH_DI_TOKENS` (not mixed into `WORKGRAPH_DI_TOKENS`)
 - **CLI prefix**: `cg wf` (not `cg wg`)
 
@@ -109,7 +109,7 @@ The positional graph adapter extends `WorkspaceDataAdapterBase` from `packages/w
 ## On-Disk Storage
 
 ```
-<worktree>/.chainglass/data/positional-graphs/<slug>/
+<worktree>/.chainglass/data/workflows/<slug>/
 ├── graph.yaml               # Graph definition (lines + node placement)
 ├── state.json               # Runtime state (node statuses)
 ├── layout.json              # UI viewport only (positions derived from lines)
@@ -288,7 +288,7 @@ All `cg wf` commands operate within a workspace context, following the same patt
 - **Auto-detect**: By default, resolves workspace from `process.cwd()` — the current directory must be inside a registered workspace
 - **Override**: `--workspace-path <path>` flag to explicitly target a different workspace/worktree
 - **Resolution**: `WorkspaceService.resolveContext(path)` finds the longest-matching registered workspace, detects git worktree info, and returns a `WorkspaceContext`
-- **Storage root**: Data lives under `ctx.worktreePath/.chainglass/data/positional-graphs/` — note this uses `worktreePath` (not `workspacePath`), so each git worktree gets its own positional graph data
+- **Storage root**: Data lives under `ctx.worktreePath/.chainglass/data/workflows/` — note this uses `worktreePath` (not `workspacePath`), so each git worktree gets its own positional graph data
 
 ```bash
 # Auto-detect from cwd (most common)
@@ -859,7 +859,7 @@ The prototype covers structure, status computation, and input resolution — eno
 - Status computation: `canRun` based on positional rules + transition gates
 - Input resolution: `from_unit` named lookup + `from_node` explicit fallback
 - CLI commands under `cg wf`
-- Workspace-aware storage (`positional-graphs` domain)
+- Workspace-aware storage (`workflows` domain)
 - Basic contract tests with fakes
 
 ### Out of scope (future phases):
