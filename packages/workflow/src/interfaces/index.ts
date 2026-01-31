@@ -92,6 +92,31 @@ export type {
   DeleteSampleResult,
 } from './sample-service.interface.js';
 
+// Agent session adapter interface (Plan 018)
+export type {
+  IAgentSessionAdapter,
+  AgentSessionErrorCode,
+  AgentSessionSaveResult,
+  AgentSessionRemoveResult,
+} from './agent-session-adapter.interface.js';
+
+// Agent session service interface (Plan 018)
+export type {
+  IAgentSessionService,
+  CreateSessionResult,
+  DeleteSessionResult,
+  UpdateSessionStatusResult,
+} from './agent-session-service.interface.js';
+
+// Agent event adapter interface (Plan 018 Phase 2)
+export type {
+  IAgentEventAdapter,
+  StoredAgentEvent,
+  AppendEventResult,
+  ArchiveResult,
+  ArchiveOptions,
+} from './agent-event-adapter.interface.js';
+
 // File watcher interface (Plan 022 Phase 4 Subtask 001)
 export type {
   FileWatcherEvent,

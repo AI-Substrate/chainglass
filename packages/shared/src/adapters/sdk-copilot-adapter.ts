@@ -105,7 +105,31 @@ export class SdkCopilotAdapter implements IAgentAdapter {
     try {
       // DYK-02: Register handler BEFORE sendAndWait to avoid race condition
       let output = '';
+      let hasStreamedThinking = false;
+      let hasStreamedText = false;
       session.on((event: CopilotSessionEventLike) => {
+        // Track streaming deltas to suppress post-turn duplicates.
+        // The SDK emits deltas during streaming, then re-emits the full
+        // consolidated content (assistant.reasoning, assistant.message)
+        // after the turn ends. We skip the duplicates.
+        if (event.type === 'assistant.reasoning_delta') {
+          hasStreamedThinking = true;
+        }
+        if (event.type === 'assistant.message_delta') {
+          hasStreamedText = true;
+        }
+        if (event.type === 'assistant.reasoning' && hasStreamedThinking) {
+          console.log('[SdkCopilotAdapter] Suppressing duplicate consolidated thinking');
+          return; // Skip duplicate consolidated thinking
+        }
+        if (event.type === 'assistant.message' && hasStreamedText) {
+          // Still capture output for AgentResult, but don't emit as event
+          console.log('[SdkCopilotAdapter] Suppressing duplicate consolidated message');
+          const data = event.data as { content: string };
+          output = data.content;
+          return;
+        }
+
         // Translate SDK events to AgentEvent and emit via onEvent
         const agentEvent = this._translateToAgentEvent(event);
         if (agentEvent && onEvent) {
@@ -174,6 +198,14 @@ export class SdkCopilotAdapter implements IAgentAdapter {
    * - assistant.usage → usage
    * - session.idle → session_idle
    * - session.error → session_error (handled in catch block)
+   * - tool.execution_start → tool_call (Phase 2)
+   * - tool.execution_complete → tool_result (Phase 2)
+   * - assistant.reasoning → thinking (Phase 2)
+   * - assistant.reasoning_delta → thinking (Phase 2)
+   *
+   * Per Phase 2 Critical Discovery 04: Copilot uses dedicated events for tools/reasoning.
+   * Per Insight 2: All 4 new event types added to existing switch.
+   * Per Insight 5: Additive code paths only.
    */
   private _translateToAgentEvent(event: CopilotSessionEventLike): AgentEvent | null {
     const timestamp = new Date().toISOString();
@@ -226,8 +258,78 @@ export class SdkCopilotAdapter implements IAgentAdapter {
         // Handled in catch block for proper error context
         return null;
 
+      // Phase 2: Tool execution events
+      case 'tool.execution_start': {
+        const data = event.data as {
+          toolName: string;
+          arguments: unknown;
+          toolCallId: string;
+        };
+        return {
+          type: 'tool_call',
+          timestamp,
+          data: {
+            toolName: data.toolName,
+            input: data.arguments,
+            toolCallId: data.toolCallId,
+          },
+        };
+      }
+
+      case 'tool.execution_complete': {
+        const data = event.data as {
+          toolCallId: string;
+          result?: { content?: string };
+          success: boolean;
+        };
+        return {
+          type: 'tool_result',
+          timestamp,
+          data: {
+            toolCallId: data.toolCallId,
+            output: data.result?.content ?? '',
+            isError: !data.success,
+          },
+        };
+      }
+
+      // Phase 2: Reasoning events
+      case 'assistant.reasoning': {
+        const data = event.data as { content: string; reasoningId?: string };
+        return {
+          type: 'thinking',
+          timestamp,
+          data: {
+            content: data.content,
+          },
+        };
+      }
+
+      case 'assistant.reasoning_delta': {
+        const data = event.data as { deltaContent: string; reasoningId?: string };
+        return {
+          type: 'thinking',
+          timestamp,
+          data: {
+            content: data.deltaContent,
+          },
+        };
+      }
+
+      // Lifecycle events — not useful for display, skip
+      case 'pending_messages.modified':
+      case 'user.message':
+      case 'assistant.turn_start':
+      case 'assistant.turn_end':
+      case 'session.usage_info':
+        return null;
+
       default:
-        // Unknown event type - return as raw for advanced consumers
+        // Unknown event type - return as raw for forward compatibility
+        console.log(
+          `[SdkCopilotAdapter] Unhandled event type: "${event.type}"`,
+          JSON.stringify(event).substring(0, 300)
+        );
         return {
           type: 'raw',
           timestamp,

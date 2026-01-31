@@ -5,6 +5,7 @@
 import '@xyflow/react/dist/style.css';
 import './globals.css';
 
+import { Providers } from '@/components/providers';
 import { ThemeProvider } from 'next-themes';
 
 export const metadata = {
@@ -24,7 +25,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           enableSystem
           disableTransitionOnChange
         >
-          {children}
+          <Providers>{children}</Providers>
         </ThemeProvider>
       </body>
     </html>

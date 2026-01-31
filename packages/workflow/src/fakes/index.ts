@@ -77,6 +77,26 @@ export type {
   IsMainWorktreeCall,
 } from './fake-git-worktree-resolver.js';
 
+// Agent session adapter fake (Plan 018)
+export { FakeAgentSessionAdapter } from './fake-agent-session-adapter.js';
+export type {
+  AgentSessionLoadCall,
+  AgentSessionSaveCall,
+  AgentSessionListCall,
+  AgentSessionRemoveCall,
+  AgentSessionExistsCall,
+} from './fake-agent-session-adapter.js';
+
+// Agent event adapter fake (Plan 018 Phase 2)
+export { FakeAgentEventAdapter } from './fake-agent-event-adapter.js';
+export type {
+  AgentEventAppendCall,
+  AgentEventGetAllCall,
+  AgentEventGetSinceCall,
+  AgentEventArchiveCall,
+  AgentEventExistsCall,
+} from './fake-agent-event-adapter.js';
+
 // File watcher fake (Plan 022 Phase 4 Subtask 001)
 export { FakeFileWatcher, FakeFileWatcherFactory } from './fake-file-watcher.js';
 

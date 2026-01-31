@@ -77,17 +77,17 @@ export function WorkspaceNav() {
     });
   }, []);
 
-  // Build worktree URL with query param
+  // Build worktree URL with query param - links to landing page
   const buildWorktreeUrl = (slug: string, worktreePath: string) => {
     const params = new URLSearchParams();
     params.set('worktree', worktreePath);
-    return `/workspaces/${slug}/samples?${params.toString()}`;
+    return `/workspaces/${slug}/worktree?${params.toString()}`;
   };
 
-  // Check if a worktree is selected
+  // Check if a worktree is selected (generic - works for any worktree-scoped page)
   const isWorktreeSelected = (slug: string, worktreePath: string) => {
     return (
-      pathname === `/workspaces/${slug}/samples` && searchParams.get('worktree') === worktreePath
+      pathname.startsWith(`/workspaces/${slug}/`) && searchParams.get('worktree') === worktreePath
     );
   };
 

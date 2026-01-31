@@ -20,6 +20,12 @@ export type {
 // Sample adapter (Plan 014 Phase 3)
 export { SampleAdapter } from './sample.adapter.js';
 
+// Agent session adapter (Plan 018)
+export { AgentSessionAdapter } from './agent-session.adapter.js';
+
+// Agent event adapter (Plan 018 Phase 2)
+export { AgentEventAdapter } from './agent-event.adapter.js';
+
 // Chokidar file watcher adapter (Plan 022 Phase 4 Subtask 001)
 export {
   ChokidarFileWatcherAdapter,

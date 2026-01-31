@@ -157,4 +157,11 @@ export interface IProcessManager {
    * @returns Buffered stdout content, or empty string if unavailable
    */
   getProcessOutput?(pid: number): string;
+
+  /**
+   * Get buffered stderr for a process.
+   * @param pid - Process ID to get stderr for
+   * @returns Buffered stderr content, or empty string if unavailable
+   */
+  getProcessStderr?(pid: number): string;
 }

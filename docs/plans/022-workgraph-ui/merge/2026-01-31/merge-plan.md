@@ -1,9 +1,9 @@
 # Merge Plan: Integrating Upstream Changes
 
-**Generated**: 2026-01-31
-**Your Branch**: `022-workgraph-ui` @ `a05d41f`
+**Generated**: 2026-01-31T (attempt 2 — clean restart)
+**Your Branch**: `022-workgraph-ui` @ `329e6a5`
 **Merging From**: `origin/main` @ `3ba3329`
-**Common Ancestor**: `d775d7e` (2026-01-29)
+**Common Ancestor**: `d775d7e`
 
 ---
 
@@ -11,250 +11,387 @@
 
 ### What Happened While You Worked
 
-You branched from main **2 days ago**. Since then, **1 PR** landed in main:
+You branched from `main` at `d775d7e`. Since then, **1 squash commit** (PR #15) landed on `main`:
 
-| PR | Merged | Purpose | Risk to You |
-|----|--------|---------|-------------|
-| #15 Agent Manager Refactor (Plans 015, 018, 019) | ~2 days ago | Agent session persistence, event storage, agent manager service | **Medium** - 7 overlapping files |
+| Plan | Merged As | Purpose | Risk to You |
+|------|-----------|---------|-------------|
+| Plans 015, 018, 019 | `3ba3329` (squash) | Agent Manager Refactor | **Medium** — 7 overlapping files |
 
 ### Conflict Summary
 
-- **Direct Conflicts**: 6 files (all "complementary append" pattern — both sides appended to barrel files)
-- **Semantic Conflicts**: 1 (di-container.ts structural change — upstream removed `SESSION_STORE` your branch still references)
-- **Regression Risks**: Low (changes are in different feature domains)
+- **Direct Conflicts**: 7 files (6 code + pnpm-lock.yaml)
+- **Semantic Conflicts**: 1 (SESSION_STORE removal)
+- **Regression Risks**: Low (changes are additive on both sides)
 
 ### Recommended Approach
 
-Single merge of `origin/main` with manual resolution of 6 append conflicts + 1 structural conflict in di-container.ts. All barrel file conflicts are trivial concatenations. The di-container.ts conflict requires accepting upstream's structural removals and layering your registrations on top.
+Single `git merge origin/main --no-commit` followed by manual resolution of 6 code files, then `pnpm install` to regenerate lock file.
 
 ---
 
-## Timeline
+## Conflict Map
 
 ```mermaid
-timeline
-    title Changes Since Branching (2 days)
-    section Jan 29
-      Branch created : d775d7e
-    section Jan 29-30
-      PR #15 merged : Plans 015, 018, 019 - Agent Manager Refactor
-    section Jan 27-31
-      Your work : Phases 1-4 WorkGraph UI (18 commits)
+graph LR
+    subgraph Yours["Your Changes (Plan 022)"]
+        Y1["di-container.ts<br/>+WorkGraph UI DI"]
+        Y2["adapters/index.ts<br/>+Chokidar"]
+        Y3["fakes/index.ts<br/>+FileWatcher fakes"]
+        Y4["index.ts<br/>+Change notifier"]
+        Y5["interfaces/index.ts<br/>+FileWatcher ifaces"]
+        Y6["services/index.ts<br/>+ChangeNotifier svc"]
+    end
+
+    subgraph Upstream["Upstream (Plans 018/019)"]
+        U1["di-container.ts<br/>+Agent Manager DI<br/>-SESSION_STORE"]
+        U2["adapters/index.ts<br/>+AgentSession/Event"]
+        U3["fakes/index.ts<br/>+AgentSession/Event fakes"]
+        U4["index.ts<br/>+Agent session exports"]
+        U5["interfaces/index.ts<br/>+Agent session ifaces"]
+        U6["services/index.ts<br/>+AgentSessionService"]
+    end
+
+    Y1 -.->|"STRUCTURAL"| U1
+    Y2 -.->|"APPEND"| U2
+    Y3 -.->|"APPEND"| U3
+    Y4 -.->|"APPEND"| U4
+    Y5 -.->|"APPEND"| U5
+    Y6 -.->|"APPEND"| U6
 ```
 
 ---
 
-## Upstream Plan Analysis
+## Upstream Plan Summary
 
-### PR #15: Agent Manager Refactor (Plans 015, 018, 019)
+### Plans 015, 018, 019 — Agent Manager Refactor
 
-**Purpose**: Complete overhaul of agent session management — moved from browser localStorage to server-side file-based persistence, added NDJSON event storage, and created a centralized agent manager service with SSE-powered real-time updates.
+**Purpose**: Central agent registry with persistent storage, session management, event storage, and SSE-based real-time notifications.
 
 | Attribute | Value |
 |-----------|-------|
-| Landed as | Single squash commit `3ba3329` |
+| Merged | PR #15, squash commit `3ba3329` |
 | Files Changed | 259 |
-| Lines Added | 53,127 |
-| Lines Deleted | 4,264 |
-| Conflicts with You | 7 files |
+| Key Removals | Plan 012 SessionStore, SESSION_STORE token, createInMemoryStorage() |
 
-**What Plan 015 Did** (Event Storage Foundation):
-- NDJSON-based event storage for agent sessions
-- Zod schemas for `AgentToolCallEvent`, `AgentToolResultEvent`, `AgentThinkingEvent`
-- `SessionIdValidator` for path traversal prevention
-- SSE broadcast integration for real-time event streaming
-
-**What Plan 018 Did** (Agent Workspace Data Model):
-- `AgentSession` entity in `packages/workflow/src/entities/`
-- `AgentSessionAdapter` / `AgentEventAdapter` — file-based persistence
-- `AgentSessionService` — session CRUD
-- New error codes E090-E093
-
-**What Plan 019 Did** (Agent Manager Refactor):
-- `AgentManagerService` — central in-memory registry of running agents
-- `AgentNotifierService` / `SSEManagerBroadcaster` — SSE push notifications
-- `AgentStorageAdapter` — persistent agent registry
-- New REST API routes: `GET/POST /api/agents`, `GET/DELETE /api/agents/[id]`, `POST /api/agents/[id]/run`
-- New UI components: `agent-chat-view`, `tool-call-card`, `agent-list-live`
-
-**Breaking Changes Upstream**:
-1. `DI_TOKENS.SESSION_STORE` removed (was `AgentSessionStore` using localStorage)
-2. `AgentSessionStore` class deleted entirely
-3. `createInMemoryStorage()` helper removed from di-container.ts
-4. `ProcessManagerAdapter` import removed from di-container.ts
-5. Old hooks deleted: `useAgentSSE.ts`, `useAgentSession.ts`
-6. Old API route deleted: `app/api/agents/run/route.ts`
-
----
-
-## Your Changes Summary
-
-**Branch**: `022-workgraph-ui` (18 commits, 97 files, +24,552 lines)
-
-**What You Built** (WorkGraph UI, Phases 1-4):
-- Phase 1: Headless state management (`WorkGraphUIInstance`, `WorkGraphUIService`)
-- Phase 2: Visual graph display with React Flow
-- Phase 3: Graph editing (drag-drop, edge connections, node deletion)
-- Phase 4: SSE real-time updates + `WorkspaceChangeNotifierService` for CLI file watching
-
-**Key additions to overlapping files**: All additive — new imports, new DI registrations, new barrel exports appended at end of files.
+**Key Changes**:
+- Plan 018: `AgentEventAdapter`, `AgentSessionAdapter`, `AgentSessionService` in `@chainglass/workflow`
+- Plan 019: `AgentManagerService`, `AgentStorageAdapter`, `AgentNotifierService` in `@chainglass/shared` + `apps/web`
+- Removed: `SESSION_STORE` DI token, `AgentSessionStore`, `createInMemoryStorage()`, `ProcessManagerAdapter` import
 
 ---
 
 ## Conflict Analysis
 
-### Conflict Map
+### Conflict 1: `packages/workflow/src/adapters/index.ts`
 
-```mermaid
-graph LR
-    subgraph Your["Your Changes (Plan 022)"]
-        Y1["di-container.ts<br/>+WorkGraphUI registrations"]
-        Y2["adapters/index.ts<br/>+ChokidarFileWatcher"]
-        Y3["fakes/index.ts<br/>+FakeFileWatcher"]
-        Y4["index.ts<br/>+FileWatcher exports"]
-        Y5["interfaces/index.ts<br/>+IFileWatcher"]
-        Y6["services/index.ts<br/>+WorkspaceChangeNotifier"]
-    end
+**Type**: Complementary Append
 
-    subgraph Upstream["Upstream (Plans 015/018/019)"]
-        U1["di-container.ts<br/>-SESSION_STORE<br/>+Agent registrations"]
-        U2["adapters/index.ts<br/>+AgentSession/Event"]
-        U3["fakes/index.ts<br/>+FakeAgentSession/Event"]
-        U4["index.ts<br/>+AgentSession exports"]
-        U5["interfaces/index.ts<br/>+IAgentSession/Event"]
-        U6["services/index.ts<br/>+AgentSessionService"]
-    end
+Both sides appended after the `SampleAdapter` export (ancestor line 21). No overlap.
 
-    Y1 -.->|"STRUCTURAL<br/>CONFLICT"| U1
-    Y2 -.->|"APPEND<br/>CONFLICT"| U2
-    Y3 -.->|"APPEND<br/>CONFLICT"| U3
-    Y4 -.->|"APPEND<br/>CONFLICT"| U4
-    Y5 -.->|"APPEND<br/>CONFLICT"| U5
-    Y6 -.->|"APPEND<br/>CONFLICT"| U6
+**Resolution**: Keep both — upstream first, then ours:
+```typescript
+// Sample adapter (Plan 014 Phase 3)
+export { SampleAdapter } from './sample.adapter.js';
+
+// Agent session adapter (Plan 018)
+export { AgentSessionAdapter } from './agent-session.adapter.js';
+
+// Agent event adapter (Plan 018 Phase 2)
+export { AgentEventAdapter } from './agent-event.adapter.js';
+
+// Chokidar file watcher adapter (Plan 022 Phase 4 Subtask 001)
+export {
+  ChokidarFileWatcherAdapter,
+  ChokidarFileWatcherFactory,
+} from './chokidar-file-watcher.adapter.js';
 ```
 
 ---
 
-### Conflict 1: `apps/web/src/lib/di-container.ts`
+### Conflict 2: `packages/workflow/src/services/index.ts`
 
-**Conflict Type**: Orthogonal (structural + additive)
+**Type**: Complementary Append
 
-**Your Change**: Added imports and DI registrations for Plan 022 (WorkGraphUIService, YAML parser, workgraph services). Kept existing `SESSION_STORE` / `AgentSessionStore` unchanged.
+Both sides appended after `SampleService` export (ancestor line 27).
 
-**Upstream Change**: Removed `SESSION_STORE` / `AgentSessionStore` / `createInMemoryStorage`. Added 6 new agent-related DI registrations in both production and test containers.
+**Resolution**: Keep both — upstream first, then ours:
+```typescript
+// Workspace services (Plan 014 Phase 4)
+export { WorkspaceService } from './workspace.service.js';
+export { SampleService } from './sample.service.js';
 
-**Resolution Strategy**:
-1. Accept upstream's removal of `SESSION_STORE`, `AgentSessionStore`, `createInMemoryStorage` (your code doesn't use these)
-2. Accept upstream's new agent registrations
-3. Layer your Plan 022 registrations (WorkGraphUIService, YAML parser, workgraph services) on top
-4. Verify all imports resolve correctly
+// Agent session service (Plan 018)
+export { AgentSessionService } from './agent-session.service.js';
 
-**Verification**:
-- [ ] TypeScript compiles without errors
-- [ ] Both production and test containers resolve all tokens
-- [ ] `just typecheck` passes
+// Workspace change notifier service (Plan 022 Phase 4 Subtask 001)
+export { WorkspaceChangeNotifierService } from './workspace-change-notifier.service.js';
+```
 
 ---
 
-### Conflicts 2-6: Barrel Export Files (packages/workflow/src/)
+### Conflict 3: `packages/workflow/src/interfaces/index.ts`
 
-**Conflict Type**: Complementary (both sides append to end-of-file)
+**Type**: Complementary Append
 
-These 5 files all have the identical conflict pattern:
+Both sides appended after `ISampleService` exports (ancestor line 93).
 
-| File | Your Appended Exports | Upstream Appended Exports |
-|------|----------------------|--------------------------|
-| `adapters/index.ts` | `ChokidarFileWatcherAdapter`, `ChokidarFileWatcherFactory` | `AgentSessionAdapter`, `AgentEventAdapter` |
-| `fakes/index.ts` | `FakeFileWatcher`, `FakeFileWatcherFactory`, `FakeWorkspaceChangeNotifierService` + call types | `FakeAgentSessionAdapter` + call types, `FakeAgentEventAdapter` + call types |
-| `index.ts` | `WorkspaceChangeNotifierService`, file watcher types, chokidar adapter, fakes | `AgentSession` entity, error classes, adapter/service/fake exports |
-| `interfaces/index.ts` | `IFileWatcher`, `IFileWatcherFactory`, `IWorkspaceChangeNotifierService` + types | `IAgentSessionAdapter`, `IAgentSessionService`, `IAgentEventAdapter` + types |
-| `services/index.ts` | `WorkspaceChangeNotifierService` | `AgentSessionService` |
+**Resolution**: Keep both — upstream first, then ours:
+```typescript
+// Agent session adapter interface (Plan 018)
+export type {
+  IAgentSessionAdapter,
+  AgentSessionErrorCode,
+  AgentSessionSaveResult,
+  AgentSessionRemoveResult,
+} from './agent-session-adapter.interface.js';
 
-**Resolution Strategy**: Keep both sets of exports. Order doesn't matter for barrel files. Simply concatenate: upstream exports first, then yours (or vice versa).
+// Agent session service interface (Plan 018)
+export type {
+  IAgentSessionService,
+  CreateSessionResult,
+  DeleteSessionResult,
+  UpdateSessionStatusResult,
+} from './agent-session-service.interface.js';
 
-**Verification**:
-- [ ] All imports resolve
-- [ ] `just typecheck` passes
+// Agent event adapter interface (Plan 018 Phase 2)
+export type {
+  IAgentEventAdapter,
+  StoredAgentEvent,
+  AppendEventResult,
+  ArchiveResult,
+  ArchiveOptions,
+} from './agent-event-adapter.interface.js';
+
+// File watcher interface (Plan 022 Phase 4 Subtask 001)
+export type {
+  FileWatcherEvent,
+  FileWatcherOptions,
+  IFileWatcher,
+  IFileWatcherFactory,
+} from './file-watcher.interface.js';
+
+// Workspace change notifier interface (Plan 022 Phase 4 Subtask 001)
+export type {
+  GraphChangedEvent,
+  GraphChangedCallback,
+  IWorkspaceChangeNotifierService,
+} from './workspace-change-notifier.interface.js';
+```
+
+---
+
+### Conflict 4: `packages/workflow/src/fakes/index.ts`
+
+**Type**: Complementary Append
+
+Both sides appended after `FakeGitWorktreeResolver` exports (ancestor line 79).
+
+**Resolution**: Keep both — upstream first, then ours:
+```typescript
+// Agent session adapter fake (Plan 018)
+export { FakeAgentSessionAdapter } from './fake-agent-session-adapter.js';
+export type {
+  AgentSessionLoadCall,
+  AgentSessionSaveCall,
+  AgentSessionListCall,
+  AgentSessionRemoveCall,
+  AgentSessionExistsCall,
+} from './fake-agent-session-adapter.js';
+
+// Agent event adapter fake (Plan 018 Phase 2)
+export { FakeAgentEventAdapter } from './fake-agent-event-adapter.js';
+export type {
+  AgentEventAppendCall,
+  AgentEventGetAllCall,
+  AgentEventGetSinceCall,
+  AgentEventArchiveCall,
+  AgentEventExistsCall,
+} from './fake-agent-event-adapter.js';
+
+// File watcher fake (Plan 022 Phase 4 Subtask 001)
+export { FakeFileWatcher, FakeFileWatcherFactory } from './fake-file-watcher.js';
+
+// Workspace change notifier fake (Plan 022 Phase 4 Subtask 001)
+export { FakeWorkspaceChangeNotifierService } from './fake-workspace-change-notifier.service.js';
+export type {
+  StartCall as NotifierStartCall,
+  StopCall as NotifierStopCall,
+  OnGraphChangedCall,
+  RescanCall,
+} from './fake-workspace-change-notifier.service.js';
+```
+
+---
+
+### Conflict 5: `packages/workflow/src/index.ts`
+
+**Type**: Complementary Append
+
+Both sides appended after `FakeGitWorktreeResolver` exports (ancestor line ~307). Upstream added Plan 018 agent session/event exports. Ours added Plan 022 workspace change notifier exports.
+
+**Resolution**: Keep both — upstream first, then ours. (Full resolved block is the upstream Plan 018 exports followed by our Plan 022 exports.)
+
+---
+
+### Conflict 6: `apps/web/src/lib/di-container.ts` (COMPLEX — 4 conflict regions)
+
+**Type**: Structural (Contradictory + Complementary)
+
+This is the most complex file. Upstream made breaking changes (removed SESSION_STORE, added Agent Manager), while we added WorkGraph UI.
+
+#### Region A: Imports + file header
+
+**Upstream changes from ancestor:**
+- Updated header doc comment (removed Plan 012 reference, added Plan 019)
+- Added `import * as os from 'node:os'` and `import * as path from 'node:path'`
+- Removed `ProcessManagerAdapter` from @chainglass/shared imports
+- Added Plan 019 imports: `AgentManagerService`, `AgentStorageAdapter`, `FakeAgentManagerService`, `FakeAgentNotifierService`, `FakeAgentStorageAdapter`, etc. from `@chainglass/shared/features/019-agent-manager-refactor`
+- Added Plan 018 Phase 2-3 imports: `AgentEventAdapter`, `AgentSessionAdapter`, `AgentSessionService` + fakes from `@chainglass/workflow`
+- Added: `AgentNotifierService`, `SSEManagerBroadcaster` from web features
+- Added: `sseManager` from `./sse-manager`
+- Removed: `AgentSessionStore` import from `./stores/agent-session.store`
+
+**Our changes from ancestor:**
+- Added `FakeYamlParser`, `IYamlParser`, `YamlParserAdapter`, `WORKGRAPH_DI_TOKENS` to @chainglass/shared imports
+- Added `@chainglass/workgraph` imports (`FakeWorkGraphService`, `IWorkGraphService`, `registerWorkgraphServices`, `registerWorkgraphTestServices`)
+- Added Plan 022 web feature imports (`FakeWorkGraphUIService`, `WorkGraphUIService`, `IWorkGraphUIService`)
+
+**Resolution**: Take upstream's restructured imports as base, then ADD our Plan 022 imports.
+
+#### Region B: DI_TOKENS + createInMemoryStorage
+
+**Upstream**: Removed `SESSION_STORE` token, removed `createInMemoryStorage()` function
+**Ours**: Added `WORKGRAPH_UI_SERVICE` token, kept `SESSION_STORE`
+
+**Resolution**: Take upstream's removal of SESSION_STORE and createInMemoryStorage. Add our WORKGRAPH_UI_SERVICE.
+```typescript
+export const DI_TOKENS = {
+  LOGGER: 'ILogger',
+  CONFIG: 'IConfigService',
+  SAMPLE_SERVICE: 'SampleService',
+  PROCESS_MANAGER: 'IProcessManager',
+  AGENT_ADAPTER: 'IAgentAdapter',
+  CLAUDE_CODE_ADAPTER: 'ClaudeCodeAdapter',
+  COPILOT_CLIENT: 'CopilotClient',
+  COPILOT_ADAPTER: 'CopilotAdapter',
+  AGENT_SERVICE: 'AgentService',
+  // Plan 018: Event storage moved to workspace-scoped AgentEventAdapter
+  // Consumers should use WORKSPACE_DI_TOKENS.AGENT_EVENT_ADAPTER instead
+  // Plan 022: WorkGraph UI
+  WORKGRAPH_UI_SERVICE: 'WorkGraphUIService',
+} as const;
+```
+
+#### Region C: Production container (after AgentService, before Plan 014 section)
+
+**Upstream**: Removed `SESSION_STORE` registration block, added Plan 018 Phase 2-3 registrations (AgentEventAdapter, AgentSessionAdapter, AgentSessionService)
+**Ours**: Kept `SESSION_STORE` registration, added YAML parser registration, added Plan 022 WorkGraph UI section at end
+
+**Resolution**:
+1. Remove SESSION_STORE registration (take upstream)
+2. Add Plan 018 registrations (AgentEventAdapter, AgentSessionAdapter, AgentSessionService) — these go BEFORE the Plan 014 section
+3. Keep our YAML parser registration in the Plan 014 section
+4. Keep Plan 014 workspace registrations (shared between both)
+5. Add Plan 019 Agent Manager section (upstream) AFTER Plan 014
+6. Add Plan 022 WorkGraph UI section (ours) AFTER Plan 019
+
+#### Region D: Test container
+
+**Upstream**: Removed `SESSION_STORE` test registration, added Plan 018 fakes (FakeAgentEventAdapter, FakeAgentSessionAdapter, AgentSessionService), added Plan 019 fakes (FakeAgentNotifierService, FakeAgentStorageAdapter, FakeAgentManagerService)
+**Ours**: Kept `SESSION_STORE` test registration, added YAML parser fake, added Plan 022 test section
+
+**Resolution**:
+1. Remove SESSION_STORE test registration (take upstream)
+2. Add Plan 018 fake registrations BEFORE Plan 014 section
+3. Keep our YAML parser fake in the Plan 014 section
+4. Keep Plan 014 workspace fakes (shared)
+5. Add Plan 019 fakes (upstream) AFTER Plan 014
+6. Add Plan 022 test section (ours) AFTER Plan 019
 
 ---
 
 ### Conflict 7: `pnpm-lock.yaml`
 
-**Conflict Type**: Lock file (regenerate)
+**Type**: Auto-Resolvable
 
-**Resolution**: After resolving all code conflicts, run `pnpm install` to regenerate the lock file.
+**Resolution**: Accept either side, then run `pnpm install` to regenerate.
 
 ---
 
 ## Regression Risk Analysis
 
-| Risk | Direction | Likelihood | Mitigation |
-|------|-----------|------------|------------|
-| Agent DI tokens not registered | Upstream->You | Low | Upstream registrations preserved in merge |
-| WorkGraph DI tokens not registered | You->Upstream | Low | Your registrations preserved in merge |
-| Import paths broken | Both | Low | TypeScript will catch at compile time |
-| Test container missing registrations | Both | Low | Both sides' test registrations included |
-
-**Overall Risk**: **Low**. The two feature tracks (agent management vs workgraph UI) are logically independent. No shared APIs, no shared state, no overlapping domain concepts. The only integration point is the DI container, and both sides register different tokens.
+| Risk | Direction | Likelihood | Verification |
+|------|-----------|------------|--------------|
+| SESSION_STORE consumers | Upstream→You | **Low** — our code doesn't use SESSION_STORE | Check for `SESSION_STORE` references in Plan 022 code |
+| YAML parser registration | You→Upstream | **None** — upstream doesn't register YAML parser | N/A |
+| WorkGraph DI tokens | You only | **None** — new tokens, no upstream overlap | Build verification |
+| Agent Manager singleton | Upstream only | **None** — our code doesn't touch AgentManager | Build verification |
 
 ---
 
 ## Merge Execution Plan
 
-### Pre-Merge: Create Backup
+### Prerequisites
 
 ```bash
-git branch backup-20260131-pre-merge
+# Verify clean state
+git status
+# Backup branch already exists: backup-20260131-pre-merge
 ```
 
-### Phase 1: Merge with Conflict Resolution
+### Phase 1: Start Merge
 
 ```bash
-# Fetch latest and merge
-git fetch origin main
 git merge origin/main --no-commit
 ```
 
-Git will report conflicts in 6-7 files. Resolve each:
+Expected: 7 conflicting files (6 code + pnpm-lock.yaml).
 
-**For barrel files** (adapters/index.ts, fakes/index.ts, index.ts, interfaces/index.ts, services/index.ts):
-- Open each file
-- Find conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`)
-- Keep BOTH sets of exports (remove markers, concatenate both sides)
+### Phase 2: Resolve Barrel Files (5 files)
 
-**For di-container.ts**:
-- Accept upstream's version as the base (it has the structural removals)
-- Re-add your Plan 022 imports and registrations
-- Verify no references to removed `SESSION_STORE` / `AgentSessionStore`
+For each barrel file (`adapters/index.ts`, `services/index.ts`, `interfaces/index.ts`, `fakes/index.ts`, `index.ts`):
+- Strategy: Write the complete resolved file content (upstream additions first, then ours)
+- These are all "complementary append" — both sides added to the end
 
-**For pnpm-lock.yaml**:
-- Accept either version, then regenerate
+### Phase 3: Resolve di-container.ts
 
-### Phase 2: Regenerate Lock File
+This requires careful manual merge across 4 regions:
+1. Take upstream imports as base, add our Plan 022 imports
+2. Take upstream DI_TOKENS (no SESSION_STORE), add WORKGRAPH_UI_SERVICE
+3. Remove createInMemoryStorage() and AgentSessionStore (upstream removed them)
+4. Production container: upstream Plan 018 + 019 registrations, then our Plan 022
+5. Test container: upstream Plan 018 + 019 fakes, then our Plan 022 fakes
+
+### Phase 4: Regenerate Lock File
 
 ```bash
 pnpm install
 ```
 
-### Phase 3: Validation
+### Phase 5: Validate
 
 ```bash
-# Full quality check
-just fft       # Fix, Format, Test
-just typecheck # TypeScript compilation
+just build    # All packages compile
+just fft      # Lint, format, test (full suite)
 ```
+
+### Phase 6: Commit
+
+```bash
+git add -A
+git commit -m "merge: integrate origin/main (Plans 015/018/019 Agent Manager Refactor)"
+```
+
+**Critical**: Verify commit has 2 parents (proper merge commit). Check with `git log --oneline --graph -3`.
 
 ---
 
-## Post-Merge Validation Checklist
+## Lessons from Previous Attempt
 
-- [ ] All conflicts resolved (no `<<<<<<<` markers remaining)
-- [ ] `just typecheck` passes
-- [ ] `just test` passes
-- [ ] `just lint` passes
-- [ ] Dev server starts (`just dev`)
-- [ ] WorkGraph UI features still work (Phases 1-4)
-- [ ] No references to removed `SESSION_STORE` / `AgentSessionStore`
+1. **MERGE_HEAD location**: This is a git worktree. MERGE_HEAD lives at `/home/jak/substrate/chainglass/.git/worktrees/022-workgraph-ui/MERGE_HEAD`, not `.git/MERGE_HEAD`.
+2. **Linter interference**: Biome auto-formats files between Read and Edit tool calls. Use `Write` tool to write complete resolved files rather than incremental `Edit` operations.
+3. **Verify merge commit integrity**: After committing, immediately run `git cat-file -p HEAD` to verify 2 parent lines.
+4. **No other agents**: Ensure no other agent processes are modifying the working tree during merge.
 
 ---
 
@@ -262,16 +399,8 @@ just typecheck # TypeScript compilation
 
 Before executing this merge plan, please review:
 
-### Summary
-- [ ] I understand that PR #15 (Plans 015, 018, 019) landed in main
-- [ ] I understand 6 files have complementary append conflicts (trivial resolution)
-- [ ] I understand di-container.ts needs structural merge (upstream removed SESSION_STORE)
+- [ ] I understand the 7 direct conflicts and their resolutions
+- [ ] I understand SESSION_STORE removal (upstream replaced with AgentManagerService)
+- [ ] I understand the di-container.ts will be rebuilt from both sides
 
-### Risk Acknowledgment
-- [ ] Backup branch will be created before merge
-- [ ] `just fft` will be run after merge
-- [ ] Rollback available via `git reset --hard backup-20260131-pre-merge`
-
----
-
-**Proceed with merge execution?** Type "PROCEED" to begin, or "ABORT" to cancel.
+**Type "PROCEED" to begin merge execution, or "ABORT" to cancel.**

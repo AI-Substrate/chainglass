@@ -4,22 +4,29 @@
  * AgentStatusIndicator - Color-coded status badge
  *
  * Displays the current session status with appropriate color and animation.
- * - idle: gray
- * - running: blue with pulse animation
- * - completed: green
- * - waiting_input: amber
- * - archived: gray (muted)
+ * - idle: gray bot icon
+ * - running: blue spinning loader
+ * - completed: green check icon
+ * - waiting_input: amber clock
+ * - archived: gray archive icon
+ *
+ * Compact mode: icon only (for list views)
+ * Full mode: icon + label (default)
  *
  * Part of Plan 012: Multi-Agent Web UI (Phase 2: Core Chat)
  */
 
-import type { SessionStatus } from '@/lib/schemas/agent-session.schema';
+/** Session status values */
+type SessionStatus = 'idle' | 'running' | 'waiting_input' | 'completed' | 'archived';
+
 import { cn } from '@/lib/utils';
 import { Archive, Bot, CheckCircle2, Clock, Loader2 } from 'lucide-react';
 
 export interface AgentStatusIndicatorProps {
   /** Current session status */
   status: SessionStatus;
+  /** Compact mode - icon only, no label */
+  compact?: boolean;
   /** Additional CSS classes */
   className?: string;
 }
@@ -70,10 +77,26 @@ const statusConfig: Record<
  * @example
  * <AgentStatusIndicator status="running" />
  * // → Blue badge with spinning loader: "Running"
+ *
+ * @example
+ * <AgentStatusIndicator status="completed" compact />
+ * // → Green check icon only (no label)
  */
-export function AgentStatusIndicator({ status, className }: AgentStatusIndicatorProps) {
+export function AgentStatusIndicator({ status, compact, className }: AgentStatusIndicatorProps) {
   const config = statusConfig[status];
   const Icon = config.icon;
+
+  if (compact) {
+    return (
+      <span
+        title={config.label}
+        className={cn('inline-flex items-center justify-center', config.color, className)}
+      >
+        <Icon className={cn('h-4 w-4', config.animate && 'animate-spin')} aria-hidden="true" />
+        <span className="sr-only">{config.label}</span>
+      </span>
+    );
+  }
 
   return (
     <output

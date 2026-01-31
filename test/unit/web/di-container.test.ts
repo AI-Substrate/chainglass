@@ -7,8 +7,8 @@
  * - Containers are isolated from each other
  * - SampleService can be resolved with injected logger (DYK-01)
  *
- * Extended for Plan 012: Multi-Agent Web UI
- * - SESSION_STORE token registration (Phase 1)
+ * Extended for Plan 019: Agent Manager Refactor
+ * - AgentManagerService registration
  */
 
 // Must import reflect-metadata before tsyringe
@@ -218,86 +218,6 @@ describe('DI Container', () => {
       // Intentionally NOT calling config.load()
 
       expect(() => createProductionContainer(config)).toThrow('CONFIG_NOT_LOADED');
-    });
-  });
-
-  // Plan 012: Session Store Registration Tests
-  describe('Session Store Registration (Plan 012)', () => {
-    it('should resolve SESSION_STORE from test container', () => {
-      /*
-      Test Doc:
-      - Why: Per DYK #1 - Don't assume DI registration works; verify resolve() succeeds
-      - Contract: createTestContainer().resolve(DI_TOKENS.SESSION_STORE) returns AgentSessionStore
-      - Usage Notes: Test container uses FakeLocalStorage-backed store
-      - Quality Contribution: Catches missing SESSION_STORE registration
-      - Worked Example: container.resolve(SESSION_STORE) returns AgentSessionStore instance
-      */
-      const testContainer = createTestContainer();
-      const store = testContainer.resolve(DI_TOKENS.SESSION_STORE);
-
-      // Verify it's an AgentSessionStore with expected methods
-      expect(store).toHaveProperty('saveSession');
-      expect(store).toHaveProperty('getSession');
-      expect(store).toHaveProperty('getAllSessions');
-      expect(store).toHaveProperty('deleteSession');
-      expect(store.constructor.name).toBe('AgentSessionStore');
-    });
-
-    it('should use FakeLocalStorage in test container session store', () => {
-      /*
-      Test Doc:
-      - Why: Test isolation - each test should have fresh, isolated storage
-      - Contract: Test container's SESSION_STORE is backed by FakeLocalStorage
-      - Usage Notes: Store starts empty; no cross-test contamination
-      - Quality Contribution: Validates test container provides proper test doubles
-      - Worked Example: Save session in store1, store2 shouldn't see it
-      */
-      const testContainer1 = createTestContainer();
-      const testContainer2 = createTestContainer();
-
-      const store1 = testContainer1.resolve(DI_TOKENS.SESSION_STORE);
-      const store2 = testContainer2.resolve(DI_TOKENS.SESSION_STORE);
-
-      // Save a session in store1
-      store1.saveSession({
-        id: 'test-session',
-        name: 'Test',
-        agentType: 'claude-code',
-        status: 'idle',
-        messages: [],
-        createdAt: Date.now(),
-        lastActiveAt: Date.now(),
-      });
-
-      // store2 should not see it (isolated storage)
-      expect(store1.getAllSessions().length).toBe(1);
-      expect(store2.getAllSessions().length).toBe(0);
-    });
-
-    it('should resolve SESSION_STORE from production container', async () => {
-      /*
-      Test Doc:
-      - Why: Production container must have SESSION_STORE for agent UI to work
-      - Contract: createProductionContainer(config).resolve(SESSION_STORE) succeeds
-      - Usage Notes: Production uses real localStorage (not available in test env)
-      - Quality Contribution: Catches missing production registration
-      - Worked Example: Production container has SESSION_STORE token registered
-      */
-      const { ChainglassConfigService } = await import('@chainglass/shared');
-      const config = new ChainglassConfigService({
-        userConfigDir: null,
-        projectConfigDir: null,
-      });
-      config.load();
-
-      const prodContainer = createProductionContainer(config);
-
-      // Just verify it resolves without throwing
-      // Note: localStorage may not be available in test environment,
-      // so we just verify the token is registered
-      expect(() => {
-        prodContainer.resolve(DI_TOKENS.SESSION_STORE);
-      }).not.toThrow();
     });
   });
 });

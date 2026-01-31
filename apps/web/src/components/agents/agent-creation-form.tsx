@@ -11,7 +11,9 @@
  * Part of Plan 012: Multi-Agent Web UI (Phase 2: Core Chat)
  */
 
-import type { AgentType } from '@/lib/schemas/agent-session.schema';
+/** Supported agent types */
+type AgentType = 'claude-code' | 'copilot';
+
 import { cn } from '@/lib/utils';
 import { Plus } from 'lucide-react';
 import { type ChangeEvent, type FormEvent, useCallback, useState } from 'react';

@@ -1,13 +1,11 @@
 /**
  * SSE Events Contract Test
  *
- * Verifies backward compatibility: all 7 existing SSE event types still parse
- * correctly after Plan 012 agent event extensions.
+ * Verifies all SSE event types still parse correctly.
+ * Plan 019 removed agent events (they use separate /api/agents/events endpoint).
  *
  * Per Critical Finding CF-03: This test serves as a backward compatibility gate.
- * If this test fails, it means the SSE schema extension broke existing consumers.
- *
- * Part of Plan 012: Multi-Agent Web UI (Phase 1: Foundation)
+ * If this test fails, it means the SSE schema broke existing consumers.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -204,71 +202,6 @@ describe('SSE Events Contract Test', () => {
       expect(result.success).toBe(true);
       if (result.success) {
         expect(result.data.type).toBe('answer');
-      }
-    });
-  });
-
-  describe('New Agent Event Types (Plan 012)', () => {
-    it('should parse agent_text_delta event', () => {
-      /*
-      Test Doc:
-      - Why: Verifies new agent events integrate with existing schema
-      - Contract: { type: 'agent_text_delta', data: { sessionId, delta } }
-      - Usage Notes: Part of Plan 012 extension
-      - Quality Contribution: Validates union extension works
-      - Worked Example: Streaming token arrives via SSE
-      */
-      const event = {
-        type: 'agent_text_delta',
-        timestamp: timestamp(),
-        data: {
-          sessionId: 'session-123',
-          delta: 'Hello',
-        },
-      };
-
-      const result = sseEventSchema.safeParse(event);
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.type).toBe('agent_text_delta');
-      }
-    });
-
-    it('should parse all 4 agent event types through extended union', () => {
-      /*
-      Test Doc:
-      - Why: Confirms all agent events work in combined schema
-      - Contract: Extended union accepts all 11 event types (7 original + 4 agent)
-      - Usage Notes: Order in union doesn't affect parsing (discriminated by 'type')
-      - Quality Contribution: Validates CF-03 additive extension strategy
-      - Worked Example: All event types coexist without conflict
-      */
-      const agentEvents = [
-        {
-          type: 'agent_text_delta',
-          timestamp: timestamp(),
-          data: { sessionId: 's1', delta: 'hi' },
-        },
-        {
-          type: 'agent_session_status',
-          timestamp: timestamp(),
-          data: { sessionId: 's1', status: 'running' },
-        },
-        {
-          type: 'agent_usage_update',
-          timestamp: timestamp(),
-          data: { sessionId: 's1', tokensUsed: 100, tokensTotal: 1000 },
-        },
-        {
-          type: 'agent_error',
-          timestamp: timestamp(),
-          data: { sessionId: 's1', message: 'Error' },
-        },
-      ];
-
-      for (const event of agentEvents) {
-        const result = sseEventSchema.safeParse(event);
-        expect(result.success).toBe(true);
       }
     });
   });

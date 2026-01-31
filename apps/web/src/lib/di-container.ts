@@ -4,14 +4,15 @@
  * Implements Critical Discovery 02: Decorator-free TSyringe pattern for RSC compatibility
  * Implements Critical Discovery 04: Child container pattern for test isolation
  *
- * Extended for Plan 012: Multi-Agent Web UI
- * - SESSION_STORE token for agent session persistence (Phase 1)
+ * Extended for Plan 019: Agent Manager Refactor - central agent registry
  *
  * IMPORTANT: Uses explicit container.register() instead of @injectable() decorators
  * because decorators may not survive React Server Component compilation.
  */
 
 import 'reflect-metadata';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import {
   type AdapterFactory,
   AgentService,
@@ -31,7 +32,6 @@ import {
   NodeFileSystemAdapter,
   PathResolverAdapter,
   PinoLoggerAdapter,
-  ProcessManagerAdapter,
   SHARED_DI_TOKENS,
   SdkCopilotAdapter,
   UnixProcessManager,
@@ -40,13 +40,35 @@ import {
   WindowsProcessManager,
   YamlParserAdapter,
 } from '@chainglass/shared';
-// Plan 014 Phase 6: Import workspace services from @chainglass/workflow
+// Plan 019: Import AgentManagerService for central agent registry
 import {
+  type AdapterFactory as AgentAdapterFactory,
+  AgentManagerService,
+  AgentStorageAdapter,
+  FakeAgentManagerService,
+  FakeAgentNotifierService,
+  FakeAgentStorageAdapter,
+  type IAgentManagerService,
+  type IAgentNotifierService,
+  type IAgentStorageAdapter,
+} from '@chainglass/shared/features/019-agent-manager-refactor';
+// Plan 014 Phase 6: Import workspace services from @chainglass/workflow
+// Plan 018 Phase 2: Import AgentEventAdapter for workspace-scoped event storage
+// Plan 018 Phase 3: Import AgentSessionAdapter and AgentSessionService
+import {
+  AgentEventAdapter,
+  AgentSessionAdapter,
+  AgentSessionService,
+  FakeAgentEventAdapter,
+  FakeAgentSessionAdapter,
   FakeGitWorktreeResolver,
   FakeSampleAdapter,
   FakeWorkspaceContextResolver,
   FakeWorkspaceRegistryAdapter,
   GitWorktreeResolver,
+  type IAgentEventAdapter,
+  type IAgentSessionAdapter,
+  type IAgentSessionService,
   type IGitWorktreeResolver,
   type ISampleAdapter,
   type ISampleService,
@@ -69,41 +91,15 @@ import {
 // Phase 4: Import CopilotClient from SDK for production adapter
 import { CopilotClient } from '@github/copilot-sdk';
 import { type DependencyContainer, container } from 'tsyringe';
-import { FakeWorkGraphUIService } from '../features/022-workgraph-ui/fake-workgraph-ui-service';
+// Plan 019 Phase 2: Import notifier implementations
+import { AgentNotifierService } from '../features/019-agent-manager-refactor/agent-notifier.service';
+import { SSEManagerBroadcaster } from '../features/019-agent-manager-refactor/sse-manager-broadcaster';
 // Plan 022: WorkGraph UI services
+import { FakeWorkGraphUIService } from '../features/022-workgraph-ui/fake-workgraph-ui-service';
 import { WorkGraphUIService } from '../features/022-workgraph-ui/workgraph-ui.service';
 import type { IWorkGraphUIService } from '../features/022-workgraph-ui/workgraph-ui.types';
 import { SampleService } from '../services/sample.service';
-// Plan 012: Session persistence
-import { AgentSessionStore } from './stores/agent-session.store';
-
-/**
- * Creates an in-memory storage implementation for SSR/test environments.
- * This is a lightweight implementation that doesn't persist across page loads.
- */
-function createInMemoryStorage(): Storage {
-  const data = new Map<string, string>();
-  return {
-    get length() {
-      return data.size;
-    },
-    getItem(key: string): string | null {
-      return data.get(key) ?? null;
-    },
-    setItem(key: string, value: string): void {
-      data.set(key, value);
-    },
-    removeItem(key: string): void {
-      data.delete(key);
-    },
-    clear(): void {
-      data.clear();
-    },
-    key(index: number): string | null {
-      return Array.from(data.keys())[index] ?? null;
-    },
-  };
-}
+import { sseManager } from './sse-manager';
 
 // Token constants for type-safe resolution
 export const DI_TOKENS = {
@@ -116,8 +112,8 @@ export const DI_TOKENS = {
   COPILOT_CLIENT: 'CopilotClient', // Singleton SDK client
   COPILOT_ADAPTER: 'CopilotAdapter',
   AGENT_SERVICE: 'AgentService',
-  // Plan 012: Agent session persistence
-  SESSION_STORE: 'SessionStore',
+  // Plan 018: Event storage moved to workspace-scoped AgentEventAdapter in @chainglass/workflow
+  // Consumers should use WORKSPACE_DI_TOKENS.AGENT_EVENT_ADAPTER instead
   // Plan 022: WorkGraph UI
   WORKGRAPH_UI_SERVICE: 'WorkGraphUIService',
 } as const;
@@ -253,20 +249,30 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
     },
   });
 
-  // Plan 012: Register AgentSessionStore with real localStorage
-  // Note: localStorage is a browser API, may be undefined in SSR
-  childContainer.register(DI_TOKENS.SESSION_STORE, {
-    useFactory: () => {
-      // Use globalThis.localStorage for browser compatibility
-      // Falls back to in-memory storage if not available (e.g., SSR, test env)
-      // Must check for getItem method because Node defines localStorage as empty object
-      const storage =
-        typeof globalThis !== 'undefined' &&
-        globalThis.localStorage &&
-        typeof globalThis.localStorage.getItem === 'function'
-          ? globalThis.localStorage
-          : createInMemoryStorage();
-      return new AgentSessionStore(storage);
+  // Plan 018 Phase 2: Register AgentEventAdapter for workspace-scoped event storage
+  childContainer.register<IAgentEventAdapter>(WORKSPACE_DI_TOKENS.AGENT_EVENT_ADAPTER, {
+    useFactory: (c) => {
+      const fileSystem = c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
+      const pathResolver = c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
+      const logger = c.resolve<ILogger>(DI_TOKENS.LOGGER);
+      return new AgentEventAdapter(fileSystem, pathResolver, logger);
+    },
+  });
+
+  // Plan 018 Phase 3: Register AgentSessionAdapter for workspace-scoped session storage
+  childContainer.register<IAgentSessionAdapter>(WORKSPACE_DI_TOKENS.AGENT_SESSION_ADAPTER, {
+    useFactory: (c) => {
+      const fileSystem = c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
+      const pathResolver = c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
+      return new AgentSessionAdapter(fileSystem, pathResolver);
+    },
+  });
+
+  // Plan 018 Phase 3: Register AgentSessionService for agent session operations
+  childContainer.register<IAgentSessionService>(WORKSPACE_DI_TOKENS.AGENT_SESSION_SERVICE, {
+    useFactory: (c) => {
+      const adapter = c.resolve<IAgentSessionAdapter>(WORKSPACE_DI_TOKENS.AGENT_SESSION_ADAPTER);
+      return new AgentSessionService(adapter);
     },
   });
 
@@ -340,6 +346,65 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
   childContainer.register<ISampleService>(WORKSPACE_DI_TOKENS.SAMPLE_SERVICE, {
     useFactory: (c) =>
       new WorkflowSampleService(c.resolve<ISampleAdapter>(WORKSPACE_DI_TOKENS.SAMPLE_ADAPTER)),
+  });
+
+  // ==================== Plan 019: Agent Manager Service ====================
+
+  // Phase 2: Register AgentNotifierService with SSEManagerBroadcaster
+  // Per DYK-07: Real implementation lives in apps/web
+  // Per DYK-08: Uses SSEManagerBroadcaster adapter
+  childContainer.register<IAgentNotifierService>(SHARED_DI_TOKENS.AGENT_NOTIFIER_SERVICE, {
+    useFactory: () => {
+      const broadcaster = new SSEManagerBroadcaster(sseManager);
+      return new AgentNotifierService(broadcaster);
+    },
+  });
+
+  // Phase 3: Register AgentStorageAdapter for persistent agent storage
+  // Per AC-19: Storage at ~/.config/chainglass/agents/
+  // Per DYK-11: Real adapter in packages/shared for contract test parity
+  childContainer.register<IAgentStorageAdapter>(SHARED_DI_TOKENS.AGENT_STORAGE_ADAPTER, {
+    useFactory: (c) => {
+      const fileSystem = c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
+      const pathResolver = c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
+      const basePath = path.join(os.homedir(), '.config', 'chainglass', 'agents');
+      return new AgentStorageAdapter(fileSystem, pathResolver, basePath);
+    },
+  });
+
+  // Register AgentManagerService as manual singleton with adapter factory, notifier, and storage
+  // Per DYK-06: AgentManagerService receives notifier via DI
+  // Per DYK-12: Storage is optional but provided for persistence
+  // Per Phase 5 ST001: Must be singleton — multiple resolve() calls must return the same instance
+  // so in-memory agent state is shared across server components and API routes.
+  let agentManagerInstance: IAgentManagerService | null = null;
+  childContainer.register<IAgentManagerService>(SHARED_DI_TOKENS.AGENT_MANAGER_SERVICE, {
+    useFactory: (c) => {
+      if (agentManagerInstance) {
+        return agentManagerInstance;
+      }
+
+      const notifier = c.resolve<IAgentNotifierService>(SHARED_DI_TOKENS.AGENT_NOTIFIER_SERVICE);
+      const storage = c.resolve<IAgentStorageAdapter>(SHARED_DI_TOKENS.AGENT_STORAGE_ADAPTER);
+
+      // Per DYK-01: Factory function for adapter selection
+      // Resolve dependencies inside the factory (not outside) so they survive HMR reloads.
+      const agentAdapterFactory: AgentAdapterFactory = (agentType) => {
+        const logger = c.resolve<ILogger>(DI_TOKENS.LOGGER);
+        if (agentType === 'claude-code') {
+          const processManager = c.resolve<IProcessManager>(DI_TOKENS.PROCESS_MANAGER);
+          return new ClaudeCodeAdapter(processManager, { logger });
+        }
+        if (agentType === 'copilot') {
+          const copilotClient = c.resolve<CopilotClient>(DI_TOKENS.COPILOT_CLIENT);
+          return new SdkCopilotAdapter(copilotClient, { logger });
+        }
+        throw new Error(`Unknown agent type: ${agentType}`);
+      };
+
+      agentManagerInstance = new AgentManagerService(agentAdapterFactory, notifier, storage);
+      return agentManagerInstance;
+    },
   });
 
   // ==================== Plan 022 Phase 1: WorkGraph UI Services ====================
@@ -439,11 +504,23 @@ export function createTestContainer(): DependencyContainer {
     },
   });
 
-  // Plan 012: Register AgentSessionStore with in-memory storage for test isolation
-  childContainer.register(DI_TOKENS.SESSION_STORE, {
-    useFactory: () => {
-      // Each test container gets its own in-memory storage for isolation
-      return new AgentSessionStore(createInMemoryStorage());
+  // Plan 018 Phase 2: Register FakeAgentEventAdapter for test isolation
+  const fakeAgentEventAdapter = new FakeAgentEventAdapter();
+  childContainer.register<IAgentEventAdapter>(WORKSPACE_DI_TOKENS.AGENT_EVENT_ADAPTER, {
+    useValue: fakeAgentEventAdapter,
+  });
+
+  // Plan 018 Phase 3: Register FakeAgentSessionAdapter for test isolation
+  const fakeAgentSessionAdapter = new FakeAgentSessionAdapter();
+  childContainer.register<IAgentSessionAdapter>(WORKSPACE_DI_TOKENS.AGENT_SESSION_ADAPTER, {
+    useValue: fakeAgentSessionAdapter,
+  });
+
+  // Plan 018 Phase 3: Register AgentSessionService with fake adapter
+  childContainer.register<IAgentSessionService>(WORKSPACE_DI_TOKENS.AGENT_SESSION_SERVICE, {
+    useFactory: (c) => {
+      const adapter = c.resolve<IAgentSessionAdapter>(WORKSPACE_DI_TOKENS.AGENT_SESSION_ADAPTER);
+      return new AgentSessionService(adapter);
     },
   });
 
@@ -498,6 +575,27 @@ export function createTestContainer(): DependencyContainer {
   childContainer.register<ISampleService>(WORKSPACE_DI_TOKENS.SAMPLE_SERVICE, {
     useFactory: (c) =>
       new WorkflowSampleService(c.resolve<ISampleAdapter>(WORKSPACE_DI_TOKENS.SAMPLE_ADAPTER)),
+  });
+
+  // ==================== Plan 019: Agent Manager Service (Fake) ====================
+
+  // Phase 2: Register FakeAgentNotifierService for test isolation
+  const fakeNotifier = new FakeAgentNotifierService();
+  childContainer.register<IAgentNotifierService>(SHARED_DI_TOKENS.AGENT_NOTIFIER_SERVICE, {
+    useValue: fakeNotifier,
+  });
+
+  // Phase 3: Register FakeAgentStorageAdapter for test isolation
+  const fakeStorage = new FakeAgentStorageAdapter();
+  childContainer.register<IAgentStorageAdapter>(SHARED_DI_TOKENS.AGENT_STORAGE_ADAPTER, {
+    useValue: fakeStorage,
+  });
+
+  // Register FakeAgentManagerService for test isolation
+  childContainer.register<IAgentManagerService>(SHARED_DI_TOKENS.AGENT_MANAGER_SERVICE, {
+    useFactory: () => {
+      return new FakeAgentManagerService();
+    },
   });
 
   // ==================== Plan 022 Phase 1: WorkGraph UI Test Services ====================

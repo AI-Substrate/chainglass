@@ -24,6 +24,12 @@ export const SHARED_DI_TOKENS = {
   YAML_PARSER: 'IYamlParser',
   /** IProcessManager interface (for git operations) */
   PROCESS_MANAGER: 'IProcessManager',
+  /** IAgentManagerService interface (Plan 019: Agent Manager Refactor) */
+  AGENT_MANAGER_SERVICE: 'IAgentManagerService',
+  /** IAgentNotifierService interface (Plan 019: Phase 2) */
+  AGENT_NOTIFIER_SERVICE: 'IAgentNotifierService',
+  /** IAgentStorageAdapter interface (Plan 019: Phase 3) */
+  AGENT_STORAGE_ADAPTER: 'IAgentStorageAdapter',
 } as const;
 
 /**
@@ -71,6 +77,12 @@ export const WORKSPACE_DI_TOKENS = {
   WORKSPACE_SERVICE: 'IWorkspaceService',
   /** ISampleService interface */
   SAMPLE_SERVICE: 'ISampleService',
+  /** IAgentSessionAdapter interface (Plan 018) */
+  AGENT_SESSION_ADAPTER: 'IAgentSessionAdapter',
+  /** IAgentSessionService interface (Plan 018) */
+  AGENT_SESSION_SERVICE: 'IAgentSessionService',
+  /** IAgentEventAdapter interface (Plan 018 Phase 2) */
+  AGENT_EVENT_ADAPTER: 'IAgentEventAdapter',
 } as const;
 
 /**

@@ -1,0 +1,692 @@
+# Phase 3: SSE Broadcast Integration – Tasks & Alignment Brief
+
+**Spec**: [../../better-agents-spec.md](../../better-agents-spec.md)
+**Plan**: [../../better-agents-plan.md](../../better-agents-plan.md)
+**Date**: 2026-01-27
+**Phase Slug**: `phase-3-sse-broadcast-integration`
+
+---
+
+## Executive Briefing
+
+### Purpose
+This phase wires up the complete event flow from adapters through storage, API routes, SSE broadcast, and frontend hooks. It's the critical integration layer that connects Phase 2's adapter event parsing with Phase 4's UI components—without this, the newly emitted tool_call, tool_result, and thinking events would never reach the browser.
+
+### What We're Building
+End-to-end event pipeline integration:
+
+**API Route (`/api/agents/run`):**
+- Extend `broadcastAgentEvent()` to handle `tool_call`, `tool_result`, `thinking` events
+- Integrate `EventStorageService` to persist events before broadcast (per Critical Discovery 01)
+- Ensure all events include `sessionId` for client-side routing (per ADR-0007)
+
+**useAgentSSE Hook:**
+- Add new callbacks: `onToolCall`, `onToolResult`, `onThinking`
+- Implement event fetching on connect to handle race conditions (per Critical Discovery 08)
+- Refactor listener management to AbortController pattern (per Medium Discovery 09)
+
+**Session State:**
+- Extend message schema with `contentType` discrimination
+- Update session state reducer for new message types
+
+### User Value
+When an agent runs a tool, users immediately see "Running Bash: ls -la" appear in the UI. When reasoning happens, users see the thinking process unfold. Events persist through page refresh—no more lost context.
+
+### Example
+**Before**: Claude runs `npm test` → User sees only "All tests passed" text response
+**After**:
+```
+[SSE: agent_tool_call]    → UI shows "Running npm test..."
+[SSE: agent_tool_result]  → UI shows "✓ 2055 tests passed" with output
+[SSE: agent_text_delta]   → UI shows "All tests passed" text
+[Storage: persisted]      → Refresh page → All events restored
+```
+
+---
+
+## Objectives & Scope
+
+### Objective
+Wire up the three-layer event pipeline as specified in the plan, satisfying:
+- **AC8**: Tool execution status updates in real-time via SSE (user sees "Running..." then "Complete")
+- **AC9**: Long tool outputs stream progressively, not all-at-once after completion
+- **AC10**: Text responses continue to stream normally alongside tool activity
+- **AC17**: Events are persisted to `.chainglass/workspaces/<slug>/data/` as NDJSON files
+- **AC18**: Page refresh reloads session events from server (no data loss)
+- **AC19**: `GET /events?since=<id>` returns only events after the specified ID
+
+### Goals
+
+- ✅ Extend `broadcastAgentEvent()` with `tool_call`, `tool_result`, `thinking` cases
+- ✅ Integrate `EventStorageService` into run route (persist before broadcast)
+- ✅ Add `onToolCall`, `onToolResult`, `onThinking` callbacks to `useAgentSSE`
+- ✅ Implement event fetching on SSE connect (race condition mitigation)
+- ✅ Refactor listener cleanup to AbortController pattern
+- ✅ Extend session message schema with `contentType` field
+- ✅ Update session state reducer for new event types
+- ✅ Deduplicate events by ID (fetch + SSE overlap)
+- ✅ Existing text streaming continues to work (regression tests pass)
+
+### Non-Goals (Scope Boundaries)
+
+- ❌ UI components (Phase 4) — no React components in this phase
+- ❌ Adapter modifications (Phase 2 complete) — adapters already emit events
+- ❌ Performance optimization — focus on correctness first
+- ❌ Virtualization for large event logs — defer to future if needed
+- ❌ Event compression or batching — simplicity over optimization
+- ❌ WebSocket alternative (per ADR-0007: SSE is the chosen pattern)
+- ❌ Multi-workspace support — hardcoded "default" workspace for now
+
+---
+
+## Architecture Map
+
+### Component Diagram
+<!-- Status: grey=pending, orange=in-progress, green=completed, red=blocked -->
+<!-- Updated by plan-6 during implementation -->
+
+```mermaid
+flowchart TD
+    classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
+    classDef inprogress fill:#FF9800,stroke:#F57C00,color:#fff
+    classDef completed fill:#4CAF50,stroke:#388E3C,color:#fff
+    classDef blocked fill:#F44336,stroke:#D32F2F,color:#fff
+
+    style Phase fill:#F5F5F5,stroke:#E0E0E0
+    style API fill:#E3F2FD,stroke:#90CAF9
+    style Hook fill:#E8F5E9,stroke:#A5D6A7
+    style Schema fill:#FFF3E0,stroke:#FFCC80
+    style State fill:#F3E5F5,stroke:#CE93D8
+
+    subgraph Phase["Phase 3: SSE Broadcast Integration"]
+        subgraph API["API Route"]
+            T001["T001: Test broadcast tool_call"]:::pending
+            T002["T002: Test broadcast tool_result"]:::pending
+            T003["T003: Test broadcast thinking"]:::pending
+            T004["T004: Implement broadcast cases"]:::pending
+            T005["T005: Integrate EventStorageService"]:::pending
+            T001 --> T004
+            T002 --> T004
+            T003 --> T004
+            T004 --> T005
+        end
+
+        subgraph Hook["useAgentSSE Hook"]
+            T006["T006: Test onToolCall listener"]:::pending
+            T007["T007: Test onToolResult listener"]:::pending
+            T008["T008: Test onThinking listener"]:::pending
+            T009["T009: Test event fetch on connect"]:::pending
+            T010["T010: Extend AgentSSECallbacks"]:::pending
+            T011["T011: Implement new listeners"]:::pending
+            T012["T012: Refactor to AbortController"]:::pending
+            T006 --> T011
+            T007 --> T011
+            T008 --> T011
+            T009 --> T011
+            T010 --> T011
+            T011 --> T012
+        end
+
+        subgraph Schema["Session Schema"]
+            T013["T013: Extend message schema"]:::pending
+        end
+
+        subgraph State["Session State"]
+            T014["T014: Update state reducer"]:::pending
+            T013 --> T014
+        end
+
+        T005 --> T006
+        T011 --> T014
+    end
+
+    subgraph Files["Files"]
+        F1["/apps/web/app/api/agents/run/route.ts"]:::pending
+        F2["/apps/web/src/hooks/useAgentSSE.ts"]:::pending
+        F3["/apps/web/src/lib/schemas/agent-session.schema.ts"]:::pending
+        F4["/test/unit/web/api/agents-run-route.test.ts"]:::pending
+        F5["/test/unit/web/hooks/useAgentSSE.test.ts"]:::pending
+    end
+
+    T004 -.-> F1
+    T005 -.-> F1
+    T011 -.-> F2
+    T012 -.-> F2
+    T013 -.-> F3
+    T001 -.-> F4
+    T006 -.-> F5
+```
+
+### Task-to-Component Mapping
+
+<!-- Status: ⬜ Pending | 🟧 In Progress | ✅ Complete | 🔴 Blocked -->
+
+| Task | Component(s) | Files | Status | Comment |
+|------|-------------|-------|--------|---------|
+| T001 | API Route Tests | /test/unit/web/api/agents-run-route.test.ts | ⬜ Pending | TDD: Write failing test for tool_call SSE broadcast |
+| T002 | API Route Tests | /test/unit/web/api/agents-run-route.test.ts | ⬜ Pending | TDD: Write failing test for tool_result SSE broadcast |
+| T003 | API Route Tests | /test/unit/web/api/agents-run-route.test.ts | ⬜ Pending | TDD: Write failing test for thinking SSE broadcast |
+| T004 | API Route | /apps/web/app/api/agents/run/route.ts | ⬜ Pending | Implement new cases in broadcastAgentEvent() |
+| T005 | API Route | /apps/web/app/api/agents/run/route.ts | ⬜ Pending | Integrate EventStorageService.append() before broadcast |
+| T006 | Hook Tests | /test/unit/web/hooks/useAgentSSE.test.ts | ⬜ Pending | TDD: Write failing test for onToolCall callback |
+| T007 | Hook Tests | /test/unit/web/hooks/useAgentSSE.test.ts | ⬜ Pending | TDD: Write failing test for onToolResult callback |
+| T008 | Hook Tests | /test/unit/web/hooks/useAgentSSE.test.ts | ⬜ Pending | TDD: Write failing test for onThinking callback |
+| T009 | Hook Tests | /test/unit/web/hooks/useAgentSSE.test.ts | ⬜ Pending | TDD: Write failing test for event fetch on connect |
+| T010 | Hook Interface | /apps/web/src/hooks/useAgentSSE.ts | ⬜ Pending | Extend AgentSSECallbacks with new callback types |
+| T011 | Hook Implementation | /apps/web/src/hooks/useAgentSSE.ts | ⬜ Pending | Implement listeners and event fetching logic |
+| T012 | Hook Refactor | /apps/web/src/hooks/useAgentSSE.ts | ⬜ Pending | Refactor to AbortController pattern (per Discovery 09) |
+| T013 | Session Schema | /apps/web/src/lib/schemas/agent-session.schema.ts | ⬜ Pending | Add contentType field for message discrimination |
+| T014 | Session State | /apps/web/src/hooks/useAgentSession.ts | ⬜ Pending | Update reducer to handle tool/thinking messages |
+
+---
+
+## Tasks
+
+| Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
+|--------|-----|------|-----|------|--------------|------------------|------------|----------|-------|
+| [ ] | T001 | Write tests for broadcastAgentEvent tool_call case | 2 | Test | – | /home/jak/substrate/015-better-agents/test/unit/web/api/agents-run-route.test.ts | Tests verify SSE broadcast format matches AgentToolCallBroadcastEventSchema | – | TDD RED phase |
+| [ ] | T002 | Write tests for broadcastAgentEvent tool_result case | 2 | Test | – | /home/jak/substrate/015-better-agents/test/unit/web/api/agents-run-route.test.ts | Tests verify SSE broadcast includes toolCallId, output, isError, sessionId | – | TDD RED phase |
+| [ ] | T003 | Write tests for broadcastAgentEvent thinking case | 2 | Test | – | /home/jak/substrate/015-better-agents/test/unit/web/api/agents-run-route.test.ts | Tests verify SSE broadcast includes content, optional signature, sessionId | – | TDD RED phase |
+| [ ] | T004 | Implement tool_call, tool_result, thinking cases in broadcastAgentEvent | 2 | Core | T001, T002, T003 | /home/jak/substrate/015-better-agents/apps/web/app/api/agents/run/route.ts | All broadcast tests pass; events include sessionId AND eventId per ADR-0007 + DYK-07 dedup | – | Include `id` field from storage for client dedup |
+| [ ] | T005 | Integrate EventStorageService with run route | 3 | Core | T004 | /home/jak/substrate/015-better-agents/apps/web/app/api/agents/run/route.ts | Events persisted via append() BEFORE SSE broadcast; on append() failure: log warning with sessionId, continue with broadcast (DYK-06) | – | Inject via DI; wrap append() in try-catch |
+| [ ] | T006 | Write tests for useAgentSSE onToolCall listener | 2 | Test | – | /home/jak/substrate/015-better-agents/test/unit/web/hooks/useAgentSSE.test.ts | Tests verify callback invoked with toolName, input, toolCallId, sessionId | – | TDD RED phase |
+| [ ] | T007 | Write tests for useAgentSSE onToolResult listener | 2 | Test | – | /home/jak/substrate/015-better-agents/test/unit/web/hooks/useAgentSSE.test.ts | Tests verify callback invoked with toolCallId, output, isError, sessionId | – | TDD RED phase |
+| [ ] | T008 | Write tests for useAgentSSE onThinking listener | 2 | Test | – | /home/jak/substrate/015-better-agents/test/unit/web/hooks/useAgentSSE.test.ts | Tests verify callback invoked with content, signature, sessionId | – | TDD RED phase |
+| [ ] | T009 | Write tests for event fetching on SSE connect | 3 | Test | – | /home/jak/substrate/015-better-agents/test/unit/web/hooks/useAgentSSE.test.ts | Tests verify GET /events called on connect, state populated, dedup by ID via seenIds Set | – | Per Critical Discovery 08 + DYK-07 |
+| [ ] | T010 | Extend AgentSSECallbacks interface with new callbacks | 1 | Core | – | /home/jak/substrate/015-better-agents/apps/web/src/hooks/useAgentSSE.ts | Interface includes onToolCall, onToolResult, onThinking; TS compiles | – | Types only, no impl |
+| [ ] | T011 | Implement new event listeners and fetch-on-connect | 3 | Core | T006, T007, T008, T009, T010 | /home/jak/substrate/015-better-agents/apps/web/src/hooks/useAgentSSE.ts | All listener tests pass; events deduplicated via seenIds: Set<string>; race condition handled | – | Add seenIds ref; check before callback; clear on session change |
+| [ ] | T012 | Refactor listener management to AbortController pattern | 2 | Core | T011 | /home/jak/substrate/015-better-agents/apps/web/src/hooks/useAgentSSE.ts | Memory leak test passes (mount/unmount cycle); no stale listeners | – | Enhancement (not bug fix); current MEM-001 pattern works; deprioritize if time-constrained; per DYK-08 DYK-16 |
+| [ ] | T013 | Extend agent session message schema with contentType | 2 | Core | – | /home/jak/substrate/015-better-agents/apps/web/src/lib/schemas/agent-session.schema.ts | Schema validates contentType: 'text' \| 'tool_call' \| 'tool_result' \| 'thinking'; use `.optional().default('text')` for backward compat (DYK-08) | – | Existing sessions without field get default 'text' |
+| [ ] | T014 | Update session state reducer for new message types | 2 | Core | T013 | /home/jak/substrate/015-better-agents/apps/web/src/hooks/useAgentSession.ts | Reducer correctly stores tool/thinking messages with contentType | – | State management |
+
+---
+
+## Alignment Brief
+
+### Prior Phases Review
+
+#### Phase 1: Event Storage Foundation (Complete - 20/20 tasks)
+
+##### A. Deliverables Created
+| Component | Absolute Path | Description |
+|-----------|--------------|-------------|
+| Zod Schemas | /home/jak/substrate/015-better-agents/packages/shared/src/schemas/agent-event.schema.ts | `AgentToolCallEventSchema`, `AgentToolResultEventSchema`, `AgentThinkingEventSchema` |
+| Schema Barrel | /home/jak/substrate/015-better-agents/packages/shared/src/schemas/index.ts | Exports all schemas |
+| Type Extensions | /home/jak/substrate/015-better-agents/packages/shared/src/interfaces/agent-types.ts | `AgentEvent` union extended with new types |
+| IEventStorage | /home/jak/substrate/015-better-agents/packages/shared/src/interfaces/event-storage.interface.ts | Interface with append, getAll, getSince, archive, exists |
+| FakeEventStorage | /home/jak/substrate/015-better-agents/packages/shared/src/fakes/fake-event-storage.ts | Test fake with helpers |
+| EventStorageService | /home/jak/substrate/015-better-agents/packages/shared/src/services/event-storage.service.ts | NDJSON file persistence |
+| SessionId Validator | /home/jak/substrate/015-better-agents/packages/shared/src/lib/validators/session-id-validator.ts | Security: path traversal prevention |
+| Events API Route | /home/jak/substrate/015-better-agents/apps/web/app/api/agents/sessions/[sessionId]/events/route.ts | GET /events, GET /events?since= |
+| SSE Broadcast Schemas | /home/jak/substrate/015-better-agents/apps/web/src/lib/schemas/agent-events.schema.ts | `AgentToolCallBroadcastEventSchema` etc. with sessionId |
+| Contract Tests | /home/jak/substrate/015-better-agents/test/contracts/event-storage.contract.test.ts | FakeEventStorage ↔ EventStorageService parity |
+
+##### B. Lessons Learned
+- **DYK-01**: Timestamp-based event IDs (`YYYY-MM-DDTHH:mm:ss.sssZ_<random>`) avoid race conditions and provide natural ordering
+- **DYK-02**: SessionId validation is critical security measure - rejects `/`, `..`, `\`, whitespace
+- **DYK-03**: Zod-first approach (define schemas, derive types via `z.infer<>`) eliminates type drift
+- **DYK-04**: Silent skip for malformed NDJSON lines enables resilient recovery from corruption
+- **DYK-05**: Dual-layer testing (real temp dir for storage, fake via DI for API) + contract tests ensure parity
+
+##### C. Technical Discoveries
+- SSE broadcast schemas require `sessionId` in payload per ADR-0007 single-channel routing
+- Storage vs SSE schemas serve different purposes: storage (tool_call) vs broadcast (agent_tool_call)
+- Event ID format matters for getSince() - must be sortable
+
+##### D. Dependencies Exported for Phase 3
+| Export | Usage in Phase 3 |
+|--------|------------------|
+| `EventStorageService` | Inject into run route, call `append()` before broadcast |
+| `IEventStorage` | Interface for DI registration |
+| `FakeEventStorage` | Test fake for API route tests |
+| `AgentToolCallBroadcastEventSchema` | Validate SSE broadcast format |
+| `AgentToolResultBroadcastEventSchema` | Validate SSE broadcast format |
+| `AgentThinkingBroadcastEventSchema` | Validate SSE broadcast format |
+| GET /api/agents/sessions/:id/events | Hook fetches events on connect |
+
+##### E. Test Infrastructure Created
+- `test/unit/shared/schemas/agent-event-schemas.test.ts` - 12 schema tests
+- `test/unit/shared/event-storage-service.test.ts` - 19 storage tests
+- `test/unit/shared/session-id-validator.test.ts` - 15 validator tests
+- `test/unit/web/api/agent-events-route.test.ts` - 9 API route tests
+- `test/contracts/event-storage.contract.test.ts` - 16 contract tests
+
+##### F. Key Log References
+- Phase 1 execution log: [../phase-1-event-storage-foundation/execution.log.md](../phase-1-event-storage-foundation/execution.log.md)
+- Final test count: 2020 passed
+
+---
+
+#### Phase 2: Adapter Event Parsing (Complete - 12/12 tasks)
+
+##### A. Deliverables Created
+| Component | Absolute Path | Description |
+|-----------|--------------|-------------|
+| Claude Parsing | /home/jak/substrate/015-better-agents/packages/shared/src/adapters/claude-code.adapter.ts | `_translateClaudeToAgentEvents()` returns `AgentEvent[]` with tool_call, tool_result, thinking |
+| Copilot Parsing | /home/jak/substrate/015-better-agents/packages/shared/src/adapters/sdk-copilot-adapter.ts | `_translateToAgentEvent()` handles 4 new event types |
+| FakeAgentAdapter | /home/jak/substrate/015-better-agents/packages/shared/src/fakes/fake-agent-adapter.ts | `emitToolCall()`, `emitToolResult()`, `emitThinking()` helpers |
+| Contract Tests | /home/jak/substrate/015-better-agents/test/contracts/agent-tool-events.contract.test.ts | Verifies both adapters emit same event shapes |
+
+##### B. Lessons Learned
+- **Insight-1**: Inline filtering pattern for Claude content blocks (process all blocks, filter by type)
+- **Insight-2**: Copilot uses dedicated events (`tool.execution_start`, `tool.execution_complete`, `assistant.reasoning`)
+- **Insight-3**: Contract test factory pattern enables testing same scenarios against multiple adapters
+- **Insight-4**: Session destruction guard in compact() prevents race conditions
+- **Insight-5**: Additive-only changes preserve backward compatibility
+
+##### C. Technical Discoveries
+- Claude content blocks appear in `message.content[]` array with `type` discriminator
+- Copilot SDK `tool.execution_start` includes `toolName`, `arguments`, `toolCallId`
+- Copilot SDK `tool.execution_complete` includes `toolCallId`, `result.content`, `success`
+- Copilot reasoning events: `assistant.reasoning` (complete) and `assistant.reasoning_delta` (streaming)
+- Both adapters now emit identical `AgentToolCallEvent` shapes (verified by contract tests)
+
+##### D. Dependencies Exported for Phase 3
+| Export | Usage in Phase 3 |
+|--------|------------------|
+| Adapter `onEvent` callback | Receives tool_call, tool_result, thinking events for broadcast |
+| `FakeAgentAdapter.emitToolCall()` | Simulate tool events in API route tests |
+| `FakeAgentAdapter.emitToolResult()` | Simulate tool results in tests |
+| `FakeAgentAdapter.emitThinking()` | Simulate thinking in tests |
+
+##### E. Test Infrastructure Created
+- `test/unit/shared/claude-code-adapter.test.ts` - 11 new tests for content block parsing
+- `test/unit/shared/sdk-copilot-adapter.test.ts` - 8 new tests for tool/reasoning events
+- `test/contracts/agent-tool-events.contract.test.ts` - Contract parity tests
+- Test fixtures in both test files for Claude content blocks and Copilot events
+
+##### F. Key Log References
+- Phase 2 execution log: [../phase-2-adapter-event-parsing/execution.log.md](../phase-2-adapter-event-parsing/execution.log.md)
+- Final test count: 2055 passed (35 new tests)
+
+---
+
+### Cumulative Deliverables Available to Phase 3
+
+#### From Phase 1 (Storage Foundation)
+- `EventStorageService` — Ready to inject into run route
+- `FakeEventStorage` — For testing run route without filesystem
+- `GET /events` endpoint — Hook will call this on connect
+- Broadcast schemas with sessionId — Define expected SSE format
+
+#### From Phase 2 (Adapter Parsing)
+- Adapters emit `tool_call`, `tool_result`, `thinking` events — Input for broadcastAgentEvent()
+- `FakeAgentAdapter` with emit helpers — Simulate events in tests
+- Contract tests proving event shape parity — Confidence both adapters work
+
+---
+
+### Critical Findings Affecting This Phase
+
+**Critical Discovery 01: Event-Sourced Storage Required Before Adapters**
+- **Impact**: CRITICAL — Events must persist BEFORE SSE broadcast
+- **Constraint**: `broadcastAgentEvent()` must call `eventStorage.append()` first
+- **What it requires**: Inject EventStorageService into run route via DI
+- **Addressed by**: T005
+
+**Critical Discovery 08: SSE Connection Race Loses Initial Events**
+- **Impact**: HIGH — If hook connects AFTER API starts, initial events are lost
+- **Constraint**: Hook must fetch existing events on connect, then subscribe for updates
+- **What it requires**: Implement fetch-on-connect pattern in useAgentSSE
+- **Addressed by**: T009, T011
+
+**Medium Discovery 09: Memory Leak from EventSource Listeners**
+- **Impact**: MEDIUM — Manual listener management error-prone in React strict mode
+- **Constraint**: Use AbortController pattern for atomic listener cleanup
+- **What it requires**: Refactor listener registration to use `{ signal: abortController.signal }`
+- **Addressed by**: T012
+
+**High Discovery 05: SSE Schema Extension Pattern Established**
+- **Impact**: MEDIUM — New SSE events must follow existing schema pattern
+- **Constraint**: Events must include sessionId, match AgentXxxBroadcastEventSchema
+- **What it requires**: Broadcast format must match Phase 1 schemas
+- **Addressed by**: T001-T004
+
+**High Discovery 06: Component Needs ContentType Discrimination**
+- **Impact**: MEDIUM — Session messages need contentType for rendering decisions
+- **Constraint**: Schema must distinguish text, tool_call, tool_result, thinking
+- **What it requires**: Add contentType field to session message schema
+- **Addressed by**: T013
+
+---
+
+### ADR Decision Constraints
+
+**ADR-0007: SSE Single-Channel Event Routing Pattern**
+- **Decision**: Single global SSE channel (`/api/events/agents`) with client-side routing by sessionId
+- **Constraint**: Every event MUST include `sessionId` in payload for routing
+- **Constraint**: Hook callbacks receive sessionId and route to correct session state
+- **Phase 3 Impact**: All broadcast events include sessionId; hook uses sessionId in callbacks
+- **Addressed by**: T001-T004 (sessionId in broadcast), T006-T008 (sessionId in callbacks)
+
+**ADR-0004: Dependency Injection Container Architecture**
+- **Decision**: Use `useFactory` pattern, never `useClass` with decorators
+- **Constraint**: EventStorageService registration must use factory function
+- **Phase 3 Impact**: Run route resolves EventStorageService via container
+- **Addressed by**: T005 (resolve from DI container)
+
+---
+
+### Invariants & Guardrails
+
+- **Event Ordering**: Events persist in arrival order; IDs are timestamp-based for natural sort
+- **Persistence Before Broadcast**: `append()` must complete before `sseManager.broadcast()`
+- **Deduplication**: Client deduplicates by event ID (fetch + SSE may overlap)
+- **Backward Compatibility**: Existing sessions without tool data continue to work
+- **Memory Safety**: AbortController ensures atomic listener cleanup on unmount
+
+---
+
+### Inputs to Read
+
+| File | Purpose |
+|------|---------|
+| `/home/jak/substrate/015-better-agents/apps/web/app/api/agents/run/route.ts:67-124` | Existing `broadcastAgentEvent()` switch statement to extend |
+| `/home/jak/substrate/015-better-agents/apps/web/src/hooks/useAgentSSE.ts:72-84` | Existing `AgentSSECallbacks` interface to extend |
+| `/home/jak/substrate/015-better-agents/apps/web/src/hooks/useAgentSSE.ts:141-147` | Handler refs for listener cleanup pattern |
+| `/home/jak/substrate/015-better-agents/apps/web/src/lib/schemas/agent-events.schema.ts` | Broadcast schema definitions (Phase 1) |
+| `/home/jak/substrate/015-better-agents/packages/shared/src/services/event-storage.service.ts` | EventStorageService.append() signature |
+| `/home/jak/substrate/015-better-agents/apps/web/src/lib/di-container.ts` | DI registration pattern |
+
+---
+
+### Visual Alignment Aids
+
+#### System State Flow
+```mermaid
+flowchart LR
+    subgraph Phase2["Phase 2 (Complete)"]
+        Adapters["Adapters<br/>(emit tool_call, tool_result, thinking)"]
+    end
+
+    subgraph Phase3["Phase 3 (This Phase)"]
+        Route["Run Route<br/>broadcastAgentEvent()"]
+        Storage["EventStorageService<br/>append()"]
+        SSE["SSEManager<br/>broadcast()"]
+        Hook["useAgentSSE<br/>onToolCall, onThinking"]
+        Fetch["GET /events<br/>(on connect)"]
+    end
+
+    subgraph Phase4["Phase 4 (Next)"]
+        UI["ToolCallCard<br/>ThinkingBlock"]
+    end
+
+    Adapters --> Route
+    Route --> Storage
+    Storage --> SSE
+    SSE --> Hook
+    Fetch --> Hook
+    Hook --> UI
+```
+
+#### Sequence: Tool Call Event Flow (Complete Pipeline)
+```mermaid
+sequenceDiagram
+    participant Adapter as ClaudeCodeAdapter
+    participant Route as /api/agents/run
+    participant Storage as EventStorageService
+    participant SSE as SSEManager
+    participant Hook as useAgentSSE
+    participant State as SessionState
+
+    Adapter->>Route: onEvent({ type: 'tool_call', data: {...} })
+    Route->>Storage: append(sessionId, event)
+    Storage-->>Route: evt_001 (ID assigned)
+    Route->>SSE: broadcast('agents', 'agent_tool_call', {..., sessionId})
+    SSE-->>Hook: SSE event received
+    Hook->>Hook: Parse agent_tool_call
+    Hook->>State: onToolCall(toolName, input, toolCallId, sessionId)
+    State->>State: Update session messages with contentType='tool_call'
+```
+
+#### Sequence: Event Fetch on Connect (Race Condition Handling)
+```mermaid
+sequenceDiagram
+    participant UI as Component Mount
+    participant Hook as useAgentSSE
+    participant API as GET /events
+    participant SSE as EventSource
+    participant State as SessionState
+
+    UI->>Hook: Mount hook
+    Hook->>SSE: Connect EventSource
+    Hook->>API: GET /events?sessionId=xxx
+    API-->>Hook: [evt_001, evt_002, evt_003]
+    Hook->>State: Apply events 001-003
+    Note over Hook: Now listening for new events
+    SSE-->>Hook: SSE: evt_004
+    Hook->>Hook: Dedupe: 004 is new
+    Hook->>State: Apply event 004
+    SSE-->>Hook: SSE: evt_003 (duplicate)
+    Hook->>Hook: Dedupe: 003 already seen, skip
+```
+
+---
+
+### Test Plan (Full TDD)
+
+Per spec Testing Strategy: "Full TDD with targeted mocks"
+
+#### Test Categories
+
+| Category | Tests | Rationale |
+|----------|-------|-----------|
+| Broadcast Tests | T001-T003 | Core SSE format verification |
+| Hook Listener Tests | T006-T008 | Callback invocation verification |
+| Hook Fetch Tests | T009 | Race condition handling |
+| Regression Tests | — | Verify existing text_delta, status events still work |
+
+#### Fixtures Required
+
+```typescript
+// test/fixtures/agent-broadcast-events.fixture.ts
+export const TOOL_CALL_BROADCAST_FIXTURE = {
+  type: 'agent_tool_call' as const,
+  timestamp: '2026-01-27T12:00:00.000Z',
+  data: {
+    sessionId: 'session-123',
+    toolName: 'Bash',
+    input: { command: 'ls -la' },
+    toolCallId: 'toolu_abc123',
+  },
+};
+
+export const TOOL_RESULT_BROADCAST_FIXTURE = {
+  type: 'agent_tool_result' as const,
+  timestamp: '2026-01-27T12:00:01.000Z',
+  data: {
+    sessionId: 'session-123',
+    toolCallId: 'toolu_abc123',
+    output: 'total 48\ndrwxr-xr-x...',
+    isError: false,
+  },
+};
+
+export const THINKING_BROADCAST_FIXTURE = {
+  type: 'agent_thinking' as const,
+  timestamp: '2026-01-27T12:00:02.000Z',
+  data: {
+    sessionId: 'session-123',
+    content: 'Let me analyze this step by step...',
+    signature: 'sig_xyz789', // Optional, Claude only
+  },
+};
+```
+
+#### Mock Usage Policy
+
+**Dual-Layer Test Strategy**:
+
+| Test Target | Approach | Rationale |
+|-------------|----------|-----------|
+| broadcastAgentEvent (T001-T004) | Mock SSEManager.broadcast() | Verify correct SSE format |
+| EventStorageService integration (T005) | FakeEventStorage via DI | Test append() called before broadcast |
+| useAgentSSE (T006-T012) | MockEventSource | Test hook logic without real SSE |
+| Event fetch (T009) | Mock fetch() | Test fetch-on-connect pattern |
+
+**Allowed (External Boundaries)**:
+- `vi.fn()` for SSE broadcast verification
+- `MockEventSource` for hook tests (existing pattern)
+- Mock `fetch()` for event retrieval tests
+- `FakeEventStorage` via DI for API route tests
+
+**Not Allowed (Internal Code)**:
+- NO `vi.mock()` to replace internal modules
+- NO mocking hook internal state management
+
+---
+
+### Step-by-Step Implementation Outline
+
+1. **Broadcast Tests (T001-T003)** - TDD RED
+   - Create test describe block for new broadcast cases
+   - Write failing tests verifying SSE format matches schemas
+   - Use mock SSEManager to capture broadcast calls
+
+2. **Broadcast Implementation (T004)** - TDD GREEN
+   - Add `case 'tool_call':` to `broadcastAgentEvent()` switch
+   - Add `case 'tool_result':` case
+   - Add `case 'thinking':` case
+   - Ensure all events include sessionId per ADR-0007
+
+3. **Storage Integration (T005)**
+   - Resolve EventStorageService from DI container
+   - Call `append(sessionId, event)` before `sseManager.broadcast()`
+   - Handle append errors gracefully (log, don't fail run)
+
+4. **Hook Listener Tests (T006-T008)** - TDD RED
+   - Create test describe block for new callbacks
+   - Write failing tests using MockEventSource
+   - Verify callback invoked with correct parameters
+
+5. **Event Fetch Test (T009)** - TDD RED
+   - Write test for fetch-on-connect behavior
+   - Mock fetch() to return event array
+   - Verify events applied and deduplicated
+
+6. **Hook Interface (T010)**
+   - Add `onToolCall?`, `onToolResult?`, `onThinking?` to AgentSSECallbacks
+   - Define callback signatures with sessionId parameter
+
+7. **Hook Implementation (T011)** - TDD GREEN
+   - Add event listeners for `agent_tool_call`, `agent_tool_result`, `agent_thinking`
+   - Implement fetch-on-connect logic
+   - Track seen event IDs for deduplication
+
+8. **AbortController Refactor (T012)**
+   - Create AbortController in connect()
+   - Pass signal to all addEventListener calls
+   - Call abort() in disconnect cleanup
+
+9. **Session Schema (T013)**
+   - Add `contentType: z.enum(['text', 'tool_call', 'tool_result', 'thinking']).optional()`
+   - Update message schema to include field
+
+10. **Session State Reducer (T014)**
+    - Add cases for tool_call, tool_result, thinking message types
+    - Store with contentType for Phase 4 rendering
+
+---
+
+### Commands to Run
+
+```bash
+# Test Phase 3 changes
+pnpm test test/unit/web/api/agents-run-route.test.ts
+pnpm test test/unit/web/hooks/useAgentSSE.test.ts
+
+# Full test suite (should still pass)
+just test
+
+# Type check (should pass)
+just typecheck
+
+# Lint (should pass)
+just lint
+
+# Dev server (verify SSE connects)
+just dev
+```
+
+---
+
+### Risks & Unknowns
+
+| Risk | Severity | Mitigation |
+|------|----------|------------|
+| SSE event ordering issues | MEDIUM | Event IDs provide ordering; client sorts by ID if needed |
+| Memory leaks from listeners | MEDIUM | AbortController pattern in T012; mount/unmount test |
+| Race between fetch and SSE | MEDIUM | Deduplicate by event ID; fetch completes before SSE processed |
+| EventStorageService append() failure | LOW | **DYK-06 Decision**: Log warning with sessionId, continue with broadcast anyway. Users see event in real-time but may lose it on refresh. Storage failures are rare; UX prioritized over strict consistency. |
+| Existing SSE behavior regression | HIGH | Run existing hook tests; verify text_delta still works |
+
+---
+
+### Ready Check
+
+- [ ] Phase 1 deliverables reviewed (EventStorageService, broadcast schemas)
+- [ ] Phase 2 deliverables reviewed (adapter event emission)
+- [ ] Critical Discoveries 01, 08, 09 documented and mapped to tasks
+- [ ] ADR-0007 single-channel routing understood (sessionId in all events)
+- [ ] Test fixtures designed for broadcast events
+- [ ] Mock strategy defined (MockEventSource for hook, mock broadcast for route)
+- [ ] AbortController refactor approach agreed (per Medium Discovery 09)
+- [ ] Regression test strategy defined (existing text_delta tests must pass)
+
+**AWAITING HUMAN GO**
+
+---
+
+## Phase Footnote Stubs
+
+_To be populated by plan-6 during implementation with `[^N]` tags._
+
+| Footnote | Description | Plan Section Reference |
+|----------|-------------|----------------------|
+| | | |
+
+---
+
+## Evidence Artifacts
+
+**Execution Log**: `./execution.log.md` (created by plan-6)
+
+**Directory Layout**:
+```
+docs/plans/015-better-agents/
+  ├── better-agents-plan.md
+  ├── better-agents-spec.md
+  └── tasks/
+      ├── phase-1-event-storage-foundation/
+      │   ├── tasks.md
+      │   └── execution.log.md
+      ├── phase-2-adapter-event-parsing/
+      │   ├── tasks.md
+      │   └── execution.log.md
+      └── phase-3-sse-broadcast-integration/
+          ├── tasks.md          ← This file
+          └── execution.log.md  # Created by plan-6
+```
+
+---
+
+## Discoveries & Learnings
+
+_Populated during implementation by plan-6. Log anything of interest to your future self._
+
+| Date | Task | Type | Discovery | Resolution | References |
+|------|------|------|-----------|------------|------------|
+| | | | | | |
+
+**Types**: `gotcha` | `research-needed` | `unexpected-behavior` | `workaround` | `decision` | `debt` | `insight`
+
+**What to log**:
+- Things that didn't work as expected
+- External research that was required
+- Implementation troubles and how they were resolved
+- Gotchas and edge cases discovered
+- Decisions made during implementation
+- Technical debt introduced (and why)
+- Insights that future phases should know about
+
+_See also: `execution.log.md` for detailed narrative._

@@ -34,3 +34,13 @@ export {
   SampleExistsError,
   InvalidSampleDataError,
 } from './sample-errors.js';
+
+// Agent session error codes and classes (E090-E093 per Plan 018)
+export { AgentSessionErrorCodes, AgentSessionErrors } from './agent-errors.js';
+export type { AgentSessionError } from './agent-errors.js';
+export {
+  AgentSessionNotFoundError,
+  AgentSessionExistsError,
+  InvalidAgentSessionDataError,
+  AgentEventNotFoundError,
+} from './agent-errors.js';

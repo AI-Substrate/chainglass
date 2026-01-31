@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import type { AgentEvent } from '@chainglass/shared';
+import type {
+  AgentEvent,
+  AgentThinkingEvent,
+  AgentToolCallEvent,
+  AgentToolResultEvent,
+} from '@chainglass/shared';
 import { FakeProcessManager } from '@chainglass/shared';
 
 // Import will fail until T005 implements the adapter
@@ -770,6 +775,527 @@ describe('ClaudeCodeAdapter', () => {
       expect(events.length).toBe(2);
       expect(events[0].type).toBe('session_start');
       expect(events[1].type).toBe('text_delta');
+    });
+  });
+
+  // ============================================================
+  // Phase 2: Tool Event Parsing Tests (T001-T003)
+  // ============================================================
+
+  describe('tool_use content block parsing (T001)', () => {
+    /**
+     * Test Doc:
+     * - Why: AC1 requires tool invocations visible in UI within 500ms
+     * - Contract: tool_use content blocks in assistant messages → AgentToolCallEvent
+     * - Usage Notes: Follows inline filtering pattern per Insight 1
+     * - Quality Contribution: Core tool visibility feature
+     */
+
+    // Sample NDJSON lines with tool_use content blocks
+    const toolUseLine = JSON.stringify({
+      type: 'assistant',
+      message: {
+        content: [
+          {
+            type: 'tool_use',
+            id: 'toolu_abc123',
+            name: 'Bash',
+            input: { command: 'ls -la' },
+          },
+        ],
+      },
+    });
+
+    const multiToolLine = JSON.stringify({
+      type: 'assistant',
+      message: {
+        content: [
+          {
+            type: 'tool_use',
+            id: 'toolu_first',
+            name: 'Read',
+            input: { file_path: '/etc/hosts' },
+          },
+          {
+            type: 'tool_use',
+            id: 'toolu_second',
+            name: 'Write',
+            input: { file_path: '/tmp/out.txt', content: 'hello' },
+          },
+        ],
+      },
+    });
+
+    const mixedContentLine = JSON.stringify({
+      type: 'assistant',
+      message: {
+        content: [
+          { type: 'text', text: 'Let me check that for you.' },
+          {
+            type: 'tool_use',
+            id: 'toolu_mixed',
+            name: 'Bash',
+            input: { command: 'pwd' },
+          },
+        ],
+      },
+    });
+
+    it('should emit tool_call event for tool_use content block', async () => {
+      /*
+      Test Doc:
+      - Why: AC1 requires tool visibility in UI
+      - Contract: tool_use block → AgentToolCallEvent with toolName, input, toolCallId
+      - Usage Notes: tool_use appears in assistant message content array
+      - Quality Contribution: Core tool visibility pipeline
+      - Worked Example: { type: 'tool_use', name: 'Bash', input: { command: 'ls' }, id: 'toolu_123' }
+        → { type: 'tool_call', data: { toolName: 'Bash', input: { command: 'ls' }, toolCallId: 'toolu_123' } }
+      */
+      const events: AgentEvent[] = [];
+
+      const spawnPromise = adapter.run({
+        prompt: 'test',
+        onEvent: (e) => events.push(e),
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      const pid = 1001 + fakeProcessManager.getSpawnHistory().length - 1;
+
+      fakeProcessManager.emitStdoutLines(pid, [toolUseLine]);
+      fakeProcessManager.exitProcess(pid, 0);
+
+      await spawnPromise;
+
+      const toolCallEvent = events.find((e) => e.type === 'tool_call') as
+        | AgentToolCallEvent
+        | undefined;
+      expect(toolCallEvent).toBeDefined();
+      expect(toolCallEvent?.data.toolName).toBe('Bash');
+      expect(toolCallEvent?.data.input).toEqual({ command: 'ls -la' });
+      expect(toolCallEvent?.data.toolCallId).toBe('toolu_abc123');
+    });
+
+    it('should emit multiple tool_call events for multiple tool_use blocks', async () => {
+      /*
+      Test Doc:
+      - Why: Agents may invoke multiple tools in one message
+      - Contract: Each tool_use block → separate AgentToolCallEvent
+      - Usage Notes: Events emitted in content array order
+      - Quality Contribution: Validates multi-tool parsing
+      - Worked Example: [tool_use_1, tool_use_2] → [tool_call_1, tool_call_2]
+      */
+      const events: AgentEvent[] = [];
+
+      const spawnPromise = adapter.run({
+        prompt: 'test',
+        onEvent: (e) => events.push(e),
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      const pid = 1001 + fakeProcessManager.getSpawnHistory().length - 1;
+
+      fakeProcessManager.emitStdoutLines(pid, [multiToolLine]);
+      fakeProcessManager.exitProcess(pid, 0);
+
+      await spawnPromise;
+
+      const toolCallEvents = events.filter((e) => e.type === 'tool_call') as AgentToolCallEvent[];
+      expect(toolCallEvents).toHaveLength(2);
+      expect(toolCallEvents[0].data.toolName).toBe('Read');
+      expect(toolCallEvents[0].data.toolCallId).toBe('toolu_first');
+      expect(toolCallEvents[1].data.toolName).toBe('Write');
+      expect(toolCallEvents[1].data.toolCallId).toBe('toolu_second');
+    });
+
+    it('should emit both text_delta and tool_call for mixed content', async () => {
+      /*
+      Test Doc:
+      - Why: Messages may contain text and tool_use together
+      - Contract: Both text and tool_use blocks emit their respective events
+      - Usage Notes: Order preserved from content array
+      - Quality Contribution: Validates mixed content handling
+      - Worked Example: [text, tool_use] → [text_delta, tool_call]
+      */
+      const events: AgentEvent[] = [];
+
+      const spawnPromise = adapter.run({
+        prompt: 'test',
+        onEvent: (e) => events.push(e),
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      const pid = 1001 + fakeProcessManager.getSpawnHistory().length - 1;
+
+      fakeProcessManager.emitStdoutLines(pid, [mixedContentLine]);
+      fakeProcessManager.exitProcess(pid, 0);
+
+      await spawnPromise;
+
+      const textEvent = events.find((e) => e.type === 'text_delta');
+      const toolCallEvent = events.find((e) => e.type === 'tool_call') as
+        | AgentToolCallEvent
+        | undefined;
+
+      expect(textEvent).toBeDefined();
+      expect(toolCallEvent).toBeDefined();
+      expect(toolCallEvent?.data.toolName).toBe('Bash');
+    });
+
+    it('should include timestamp in tool_call events', async () => {
+      /*
+      Test Doc:
+      - Why: All events need timestamps for ordering
+      - Contract: tool_call events include ISO 8601 timestamp
+      - Usage Notes: Follows existing event pattern
+      - Quality Contribution: Validates event metadata
+      - Worked Example: tool_call event.timestamp matches ISO format
+      */
+      const events: AgentEvent[] = [];
+
+      const spawnPromise = adapter.run({
+        prompt: 'test',
+        onEvent: (e) => events.push(e),
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      const pid = 1001 + fakeProcessManager.getSpawnHistory().length - 1;
+
+      fakeProcessManager.emitStdoutLines(pid, [toolUseLine]);
+      fakeProcessManager.exitProcess(pid, 0);
+
+      await spawnPromise;
+
+      const toolCallEvent = events.find((e) => e.type === 'tool_call');
+      expect(toolCallEvent?.timestamp).toBeDefined();
+      expect(toolCallEvent?.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    });
+  });
+
+  describe('tool_result content block parsing (T002)', () => {
+    /**
+     * Test Doc:
+     * - Why: AC2 requires tool completion with success/error status
+     * - Contract: tool_result content blocks in user messages → AgentToolResultEvent
+     * - Usage Notes: tool_result appears in user message following tool_use
+     * - Quality Contribution: Completes tool visibility lifecycle
+     */
+
+    const toolResultSuccessLine = JSON.stringify({
+      type: 'user',
+      message: {
+        content: [
+          {
+            type: 'tool_result',
+            tool_use_id: 'toolu_abc123',
+            content: 'total 48\ndrwxr-xr-x  12 user  staff  384 Jan 15 10:30 .',
+            is_error: false,
+          },
+        ],
+      },
+    });
+
+    const toolResultErrorLine = JSON.stringify({
+      type: 'user',
+      message: {
+        content: [
+          {
+            type: 'tool_result',
+            tool_use_id: 'toolu_def456',
+            content: 'Error: ENOENT: no such file or directory',
+            is_error: true,
+          },
+        ],
+      },
+    });
+
+    const toolResultEmptyLine = JSON.stringify({
+      type: 'user',
+      message: {
+        content: [
+          {
+            type: 'tool_result',
+            tool_use_id: 'toolu_empty',
+            content: '',
+            is_error: false,
+          },
+        ],
+      },
+    });
+
+    it('should emit tool_result event for successful tool_result block', async () => {
+      /*
+      Test Doc:
+      - Why: AC2 requires showing tool completion status
+      - Contract: tool_result block → AgentToolResultEvent with output, isError=false
+      - Usage Notes: Correlates with prior tool_call via toolCallId
+      - Quality Contribution: Core tool completion visibility
+      - Worked Example: { type: 'tool_result', content: '...', is_error: false }
+        → { type: 'tool_result', data: { output: '...', isError: false, toolCallId: '...' } }
+      */
+      const events: AgentEvent[] = [];
+
+      const spawnPromise = adapter.run({
+        prompt: 'test',
+        onEvent: (e) => events.push(e),
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      const pid = 1001 + fakeProcessManager.getSpawnHistory().length - 1;
+
+      fakeProcessManager.emitStdoutLines(pid, [toolResultSuccessLine]);
+      fakeProcessManager.exitProcess(pid, 0);
+
+      await spawnPromise;
+
+      const toolResultEvent = events.find((e) => e.type === 'tool_result') as
+        | AgentToolResultEvent
+        | undefined;
+      expect(toolResultEvent).toBeDefined();
+      expect(toolResultEvent?.data.toolCallId).toBe('toolu_abc123');
+      expect(toolResultEvent?.data.output).toContain('total 48');
+      expect(toolResultEvent?.data.isError).toBe(false);
+    });
+
+    it('should emit tool_result event with isError=true for error result', async () => {
+      /*
+      Test Doc:
+      - Why: AC12a requires error visibility (auto-expand on error)
+      - Contract: tool_result with is_error: true → AgentToolResultEvent with isError=true
+      - Usage Notes: UI will auto-expand error tool cards
+      - Quality Contribution: Error visibility for debugging
+      - Worked Example: { is_error: true } → { isError: true }
+      */
+      const events: AgentEvent[] = [];
+
+      const spawnPromise = adapter.run({
+        prompt: 'test',
+        onEvent: (e) => events.push(e),
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      const pid = 1001 + fakeProcessManager.getSpawnHistory().length - 1;
+
+      fakeProcessManager.emitStdoutLines(pid, [toolResultErrorLine]);
+      fakeProcessManager.exitProcess(pid, 0);
+
+      await spawnPromise;
+
+      const toolResultEvent = events.find((e) => e.type === 'tool_result') as
+        | AgentToolResultEvent
+        | undefined;
+      expect(toolResultEvent).toBeDefined();
+      expect(toolResultEvent?.data.toolCallId).toBe('toolu_def456');
+      expect(toolResultEvent?.data.isError).toBe(true);
+      expect(toolResultEvent?.data.output).toContain('ENOENT');
+    });
+
+    it('should handle empty tool_result output', async () => {
+      /*
+      Test Doc:
+      - Why: Some tools return no output (mkdir, touch, etc.)
+      - Contract: Empty content string → output='' (not undefined)
+      - Usage Notes: Empty output is valid, not an error
+      - Quality Contribution: Edge case handling
+      - Worked Example: { content: '' } → { output: '' }
+      */
+      const events: AgentEvent[] = [];
+
+      const spawnPromise = adapter.run({
+        prompt: 'test',
+        onEvent: (e) => events.push(e),
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      const pid = 1001 + fakeProcessManager.getSpawnHistory().length - 1;
+
+      fakeProcessManager.emitStdoutLines(pid, [toolResultEmptyLine]);
+      fakeProcessManager.exitProcess(pid, 0);
+
+      await spawnPromise;
+
+      const toolResultEvent = events.find((e) => e.type === 'tool_result') as
+        | AgentToolResultEvent
+        | undefined;
+      expect(toolResultEvent).toBeDefined();
+      expect(toolResultEvent?.data.output).toBe('');
+      expect(toolResultEvent?.data.isError).toBe(false);
+    });
+  });
+
+  describe('thinking content block parsing (T003)', () => {
+    /**
+     * Test Doc:
+     * - Why: AC5 requires thinking blocks visible as collapsible sections
+     * - Contract: thinking content blocks in assistant messages → AgentThinkingEvent
+     * - Usage Notes: Signature field is optional (Claude extended thinking only)
+     * - Quality Contribution: Agent reasoning visibility
+     */
+
+    const thinkingLine = JSON.stringify({
+      type: 'assistant',
+      message: {
+        content: [
+          {
+            type: 'thinking',
+            thinking:
+              'Let me analyze this step by step. First, I need to check the file structure...',
+          },
+        ],
+      },
+    });
+
+    const thinkingWithSignatureLine = JSON.stringify({
+      type: 'assistant',
+      message: {
+        content: [
+          {
+            type: 'thinking',
+            thinking: 'Considering the options carefully...',
+            signature: 'sig_xyz789abc',
+          },
+        ],
+      },
+    });
+
+    const thinkingWithTextLine = JSON.stringify({
+      type: 'assistant',
+      message: {
+        content: [
+          {
+            type: 'thinking',
+            thinking: 'Planning the approach...',
+          },
+          {
+            type: 'text',
+            text: 'Here is my analysis:',
+          },
+        ],
+      },
+    });
+
+    it('should emit thinking event for thinking content block', async () => {
+      /*
+      Test Doc:
+      - Why: AC5 requires thinking block visibility
+      - Contract: thinking block → AgentThinkingEvent with content
+      - Usage Notes: Content may be long reasoning text
+      - Quality Contribution: Core reasoning visibility
+      - Worked Example: { type: 'thinking', thinking: '...' }
+        → { type: 'thinking', data: { content: '...' } }
+      */
+      const events: AgentEvent[] = [];
+
+      const spawnPromise = adapter.run({
+        prompt: 'test',
+        onEvent: (e) => events.push(e),
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      const pid = 1001 + fakeProcessManager.getSpawnHistory().length - 1;
+
+      fakeProcessManager.emitStdoutLines(pid, [thinkingLine]);
+      fakeProcessManager.exitProcess(pid, 0);
+
+      await spawnPromise;
+
+      const thinkingEvent = events.find((e) => e.type === 'thinking') as
+        | AgentThinkingEvent
+        | undefined;
+      expect(thinkingEvent).toBeDefined();
+      expect(thinkingEvent?.data.content).toContain('step by step');
+    });
+
+    it('should include signature when present in thinking block', async () => {
+      /*
+      Test Doc:
+      - Why: Claude extended thinking includes cryptographic signature
+      - Contract: signature field preserved in AgentThinkingEvent
+      - Usage Notes: Signature is optional, only on Claude extended thinking
+      - Quality Contribution: Preserves full thinking block data
+      - Worked Example: { signature: 'sig_xyz' } → { signature: 'sig_xyz' }
+      */
+      const events: AgentEvent[] = [];
+
+      const spawnPromise = adapter.run({
+        prompt: 'test',
+        onEvent: (e) => events.push(e),
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      const pid = 1001 + fakeProcessManager.getSpawnHistory().length - 1;
+
+      fakeProcessManager.emitStdoutLines(pid, [thinkingWithSignatureLine]);
+      fakeProcessManager.exitProcess(pid, 0);
+
+      await spawnPromise;
+
+      const thinkingEvent = events.find((e) => e.type === 'thinking') as
+        | AgentThinkingEvent
+        | undefined;
+      expect(thinkingEvent).toBeDefined();
+      expect(thinkingEvent?.data.signature).toBe('sig_xyz789abc');
+    });
+
+    it('should handle thinking without signature', async () => {
+      /*
+      Test Doc:
+      - Why: Not all thinking blocks have signatures
+      - Contract: Missing signature → signature field undefined
+      - Usage Notes: Signature is optional per schema
+      - Quality Contribution: Validates optional field handling
+      - Worked Example: { thinking: '...' } (no signature) → { signature: undefined }
+      */
+      const events: AgentEvent[] = [];
+
+      const spawnPromise = adapter.run({
+        prompt: 'test',
+        onEvent: (e) => events.push(e),
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      const pid = 1001 + fakeProcessManager.getSpawnHistory().length - 1;
+
+      fakeProcessManager.emitStdoutLines(pid, [thinkingLine]);
+      fakeProcessManager.exitProcess(pid, 0);
+
+      await spawnPromise;
+
+      const thinkingEvent = events.find((e) => e.type === 'thinking') as
+        | AgentThinkingEvent
+        | undefined;
+      expect(thinkingEvent).toBeDefined();
+      expect(thinkingEvent?.data.signature).toBeUndefined();
+    });
+
+    it('should emit both thinking and text_delta for mixed content', async () => {
+      /*
+      Test Doc:
+      - Why: Thinking blocks may appear alongside text
+      - Contract: Both thinking and text blocks emit respective events
+      - Usage Notes: Order preserved from content array
+      - Quality Contribution: Validates mixed content handling
+      - Worked Example: [thinking, text] → [thinking, text_delta]
+      */
+      const events: AgentEvent[] = [];
+
+      const spawnPromise = adapter.run({
+        prompt: 'test',
+        onEvent: (e) => events.push(e),
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      const pid = 1001 + fakeProcessManager.getSpawnHistory().length - 1;
+
+      fakeProcessManager.emitStdoutLines(pid, [thinkingWithTextLine]);
+      fakeProcessManager.exitProcess(pid, 0);
+
+      await spawnPromise;
+
+      const thinkingEvent = events.find((e) => e.type === 'thinking');
+      const textEvent = events.find((e) => e.type === 'text_delta');
+
+      expect(thinkingEvent).toBeDefined();
+      expect(textEvent).toBeDefined();
     });
   });
 });
