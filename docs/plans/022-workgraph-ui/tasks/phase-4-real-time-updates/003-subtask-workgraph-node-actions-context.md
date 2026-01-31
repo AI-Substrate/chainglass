@@ -362,7 +362,9 @@ _Populated during implementation by plan-6. Log anything of interest to your fut
 
 | Date | Task | Type | Discovery | Resolution | References |
 |------|------|------|-----------|------------|------------|
-| | | | | | |
+| 2026-01-30 | ST002 | gotcha | SSE event type validation rejects hyphens | Updated regex in sse-manager.ts to allow hyphens: `/^[a-zA-Z0-9_-]+$/` | apps/web/src/lib/sse-manager.ts:62 |
+| 2026-01-30 | ST003 | insight | React Flow nodes need manual refresh after mutations | Call `refreshFromServer()` in `onMutation` callback since SSE only notifies | workgraph-detail-client.tsx |
+| 2026-01-30 | ST003 | decision | Delete uses optimistic removal + server confirm | Remove node from UI immediately, toast on error, no undo | use-workgraph-api.ts:116-132 |
 
 **Types**: `gotcha` | `research-needed` | `unexpected-behavior` | `workaround` | `decision` | `debt` | `insight`
 

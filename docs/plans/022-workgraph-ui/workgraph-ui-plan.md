@@ -1312,7 +1312,7 @@ just check  # Runs all lint, typecheck, test
 - [x] Phase 1: Headless State Management - COMPLETE
 - [x] Phase 2: Visual Graph Display - COMPLETE
 - [x] Phase 3: Graph Editing - COMPLETE
-- [ ] Phase 4: Real-time Updates - NOT STARTED
+- [~] Phase 4: Real-time Updates - IN PROGRESS (Subtasks 001, 003 complete)
 - [ ] Phase 5: Question/Answer UI - NOT STARTED
 - [ ] Phase 6: Layout Persistence - NOT STARTED
 - [ ] Phase 7: Graph Management - NOT STARTED
@@ -1427,4 +1427,4 @@ Mid-implementation detours requiring structured tracking.
 | ID | Created | Phase | Parent Task | Reason | Status | Dossier |
 |----|---------|-------|-------------|--------|--------|---------|
 | 001-subtask-file-watching-for-cli-changes | 2026-01-29 | Phase 4: Real-time Updates | T006, T012 | Spec requires file watching (line 160, 267, 316) but only SSE was implemented; CLI changes don't trigger UI refresh | [x] Complete | [Link](tasks/phase-4-real-time-updates/001-subtask-file-watching-for-cli-changes.md) |
-| 003-subtask-workgraph-node-actions-context | 2026-01-30 | Phase 4: Real-time Updates | T008, T010 | React Flow nodeTypes don't forward props; need extensible context for delete buttons and future node actions | [ ] Pending | [Link](tasks/phase-4-real-time-updates/003-subtask-workgraph-node-actions-context.md) |
+| 003-subtask-workgraph-node-actions-context | 2026-01-30 | Phase 4: Real-time Updates | T008, T010 | React Flow nodeTypes don't forward props; need extensible context for delete buttons and future node actions | [x] Complete | [Link](tasks/phase-4-real-time-updates/003-subtask-workgraph-node-actions-context.md) |
