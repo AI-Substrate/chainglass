@@ -7,6 +7,7 @@ import {
 } from '@chainglass/shared';
 import type { DependencyContainer } from 'tsyringe';
 import { PositionalGraphAdapter } from './adapter/positional-graph.adapter.js';
+import type { IWorkUnitLoader } from './interfaces/index.js';
 import { PositionalGraphService } from './services/positional-graph.service.js';
 
 /**
@@ -37,7 +38,10 @@ export function registerPositionalGraphServices(container: DependencyContainer):
       const adapter = c.resolve<PositionalGraphAdapter>(
         POSITIONAL_GRAPH_DI_TOKENS.POSITIONAL_GRAPH_ADAPTER
       );
-      return new PositionalGraphService(fs, pathResolver, yamlParser, adapter);
+      const workUnitLoader = c.resolve<IWorkUnitLoader>(
+        POSITIONAL_GRAPH_DI_TOKENS.WORK_UNIT_LOADER
+      );
+      return new PositionalGraphService(fs, pathResolver, yamlParser, adapter, workUnitLoader);
     },
   });
 }

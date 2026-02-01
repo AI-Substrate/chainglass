@@ -16,6 +16,7 @@ import {
   outputNotDeclaredError,
   predecessorNotFoundError,
   transitionBlockedError,
+  unitNotFoundError,
 } from '@chainglass/positional-graph/errors';
 import type { ResultError } from '@chainglass/shared';
 import { describe, expect, it } from 'vitest';
@@ -31,7 +32,7 @@ function expectResultError(error: ResultError, code: string): void {
 // ============================================
 
 describe('POSITIONAL_GRAPH_ERROR_CODES', () => {
-  it('defines structure error codes E150-E158', () => {
+  it('defines structure error codes E150-E159', () => {
     expect(POSITIONAL_GRAPH_ERROR_CODES.E150).toBe('E150');
     expect(POSITIONAL_GRAPH_ERROR_CODES.E151).toBe('E151');
     expect(POSITIONAL_GRAPH_ERROR_CODES.E152).toBe('E152');
@@ -41,6 +42,7 @@ describe('POSITIONAL_GRAPH_ERROR_CODES', () => {
     expect(POSITIONAL_GRAPH_ERROR_CODES.E156).toBe('E156');
     expect(POSITIONAL_GRAPH_ERROR_CODES.E157).toBe('E157');
     expect(POSITIONAL_GRAPH_ERROR_CODES.E158).toBe('E158');
+    expect(POSITIONAL_GRAPH_ERROR_CODES.E159).toBe('E159');
   });
 
   it('defines input resolution error codes E160-E164', () => {
@@ -113,6 +115,12 @@ describe('Structure error factories', () => {
     const error = graphAlreadyExistsError('my-pipeline');
     expectResultError(error, 'E158');
     expect(error.message).toContain('my-pipeline');
+  });
+
+  it('E159: unitNotFoundError', () => {
+    const error = unitNotFoundError('research-concept');
+    expectResultError(error, 'E159');
+    expect(error.message).toContain('research-concept');
   });
 });
 
@@ -195,10 +203,11 @@ describe('All error factories return ResultError shape', () => {
     invalidOrdinalError(5, 'unit', 2),
     nodeNotReadyError('node-a3f', 'reason'),
     transitionBlockedError('line-a4f'),
+    unitNotFoundError('research-concept'),
   ];
 
-  it('all 16 factories produce ResultError with code and message', () => {
-    expect(allErrors).toHaveLength(16);
+  it('all 17 factories produce ResultError with code and message', () => {
+    expect(allErrors).toHaveLength(17);
     for (const error of allErrors) {
       expect(error.code).toBeTruthy();
       expect(error.message).toBeTruthy();

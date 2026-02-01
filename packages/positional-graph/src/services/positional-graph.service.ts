@@ -3,11 +3,15 @@ import type { WorkspaceContext } from '@chainglass/workflow';
 import type { PositionalGraphAdapter } from '../adapter/positional-graph.adapter.js';
 import {
   cannotRemoveLastLineError,
+  duplicateNodeError,
   graphAlreadyExistsError,
   graphNotFoundError,
   invalidLineIndexError,
+  invalidNodePositionError,
   lineNotEmptyError,
   lineNotFoundError,
+  nodeNotFoundError,
+  unitNotFoundError,
 } from '../errors/index.js';
 import type {
   AddLineOptions,
@@ -16,6 +20,7 @@ import type {
   AddNodeResult,
   GraphCreateResult,
   IPositionalGraphService,
+  IWorkUnitLoader,
   MoveNodeOptions,
   NodeShowResult,
   PGListResult,
@@ -28,16 +33,18 @@ import {
   PositionalGraphDefinitionSchema,
   type TransitionMode,
 } from '../schemas/graph.schema.js';
-import type { Execution, InputResolution } from '../schemas/index.js';
+import type { Execution, InputResolution, NodeConfig } from '../schemas/index.js';
+import { NodeConfigSchema } from '../schemas/index.js';
 import { atomicWriteFile } from './atomic-file.js';
-import { generateLineId } from './id-generation.js';
+import { generateLineId, generateNodeId } from './id-generation.js';
 
 export class PositionalGraphService implements IPositionalGraphService {
   constructor(
     private readonly fs: IFileSystem,
     private readonly pathResolver: IPathResolver,
     private readonly yamlParser: IYamlParser,
-    private readonly adapter: PositionalGraphAdapter
+    private readonly adapter: PositionalGraphAdapter,
+    private readonly workUnitLoader: IWorkUnitLoader
   ) {}
 
   // ============================================
@@ -115,6 +122,106 @@ export class PositionalGraphService implements IPositionalGraphService {
     const index = definition.lines.findIndex((l) => l.id === lineId);
     if (index === -1) return undefined;
     return { line: definition.lines[index], index };
+  }
+
+  /**
+   * Per DYK-P4-I3: Rich return type — every node operation needs line context.
+   * Searches all lines for a node ID and returns the line, line index, and node position.
+   */
+  private findNodeInGraph(
+    definition: PositionalGraphDefinition,
+    nodeId: string
+  ): { lineIndex: number; line: LineDefinition; nodePositionInLine: number } | undefined {
+    for (let lineIndex = 0; lineIndex < definition.lines.length; lineIndex++) {
+      const line = definition.lines[lineIndex];
+      const nodePositionInLine = line.nodes.indexOf(nodeId);
+      if (nodePositionInLine !== -1) {
+        return { lineIndex, line, nodePositionInLine };
+      }
+    }
+    return undefined;
+  }
+
+  /**
+   * Get the directory path for a node within a graph.
+   * Convention: <graphDir>/nodes/<nodeId>/
+   */
+  private getNodeDir(ctx: WorkspaceContext, graphSlug: string, nodeId: string): string {
+    const graphDir = this.adapter.getGraphDir(ctx, graphSlug);
+    return this.pathResolver.join(graphDir, 'nodes', nodeId);
+  }
+
+  /**
+   * Load and validate a node's configuration from node.yaml.
+   * Returns discriminated union per Phase 3 pattern.
+   */
+  private async loadNodeConfig(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string
+  ): Promise<{ ok: true; config: NodeConfig } | { ok: false; errors: BaseResult['errors'] }> {
+    const nodeDir = this.getNodeDir(ctx, graphSlug, nodeId);
+    const nodePath = this.pathResolver.join(nodeDir, 'node.yaml');
+
+    const exists = await this.fs.exists(nodePath);
+    if (!exists) {
+      return { ok: false, errors: [nodeNotFoundError(nodeId)] };
+    }
+
+    const content = await this.fs.readFile(nodePath);
+    const parsed = this.yamlParser.parse(content, nodePath);
+    const validated = NodeConfigSchema.safeParse(parsed);
+    if (!validated.success) {
+      return {
+        ok: false,
+        errors: [
+          {
+            code: 'E153',
+            message: `Node '${nodeId}' has invalid config: ${validated.error.issues[0]?.message}`,
+            action: 'Check the node.yaml file',
+          },
+        ],
+      };
+    }
+
+    return { ok: true, config: validated.data };
+  }
+
+  /**
+   * Persist a node's configuration to node.yaml.
+   */
+  private async persistNodeConfig(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    config: NodeConfig
+  ): Promise<void> {
+    const nodeDir = this.getNodeDir(ctx, graphSlug, nodeId);
+    const nodePath = this.pathResolver.join(nodeDir, 'node.yaml');
+    const yaml = this.yamlParser.stringify(config);
+    await atomicWriteFile(this.fs, nodePath, yaml);
+  }
+
+  /**
+   * Remove a node's directory and all its contents.
+   */
+  private async removeNodeDir(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string
+  ): Promise<void> {
+    const nodeDir = this.getNodeDir(ctx, graphSlug, nodeId);
+    const exists = await this.fs.exists(nodeDir);
+    if (exists) {
+      await this.fs.rmdir(nodeDir, { recursive: true });
+    }
+  }
+
+  /**
+   * Collect all node IDs across all lines in a graph definition.
+   */
+  private getAllNodeIds(definition: PositionalGraphDefinition): string[] {
+    return definition.lines.flatMap((line) => line.nodes);
   }
 
   // ============================================
@@ -405,60 +512,226 @@ export class PositionalGraphService implements IPositionalGraphService {
   }
 
   // ============================================
-  // Node operations — Phase 4 stubs
+  // Node operations
   // ============================================
 
   async addNode(
-    _ctx: WorkspaceContext,
-    _graphSlug: string,
-    _lineId: string,
-    _unitSlug: string,
-    _options?: AddNodeOptions
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    lineId: string,
+    unitSlug: string,
+    options?: AddNodeOptions
   ): Promise<AddNodeResult> {
-    throw new Error('Not implemented — Phase 4');
+    const loaded = await this.loadGraphDefinition(ctx, graphSlug);
+    if (!loaded.ok) {
+      return { errors: loaded.errors };
+    }
+
+    const def = loaded.definition;
+    const found = this.findLine(def, lineId);
+    if (!found) {
+      return { errors: [lineNotFoundError(lineId)] };
+    }
+
+    // Validate WorkUnit exists (invariant 7)
+    const unitResult = await this.workUnitLoader.load(ctx, unitSlug);
+    if (unitResult.errors.length > 0) {
+      return { errors: [unitNotFoundError(unitSlug)] };
+    }
+
+    // Generate unique node ID
+    const allNodeIds = this.getAllNodeIds(def);
+    const nodeId = generateNodeId(unitSlug, allNodeIds);
+
+    // Determine insertion position
+    const position = options?.atPosition ?? found.line.nodes.length;
+    if (position < 0 || position > found.line.nodes.length) {
+      return { errors: [invalidNodePositionError(position, found.line.nodes.length)] };
+    }
+
+    // Create node directory and write node.yaml
+    const nodeDir = this.getNodeDir(ctx, graphSlug, nodeId);
+    await this.fs.mkdir(nodeDir, { recursive: true });
+
+    const now = new Date().toISOString();
+    const nodeConfig: import('../schemas/index.js').NodeConfig = {
+      id: nodeId,
+      unit_slug: unitSlug,
+      execution: options?.execution ?? 'serial',
+      created_at: now,
+    };
+    if (options?.description) {
+      nodeConfig.description = options.description;
+    }
+
+    await this.persistNodeConfig(ctx, graphSlug, nodeId, nodeConfig);
+
+    // Update graph.yaml — insert node ID into line's nodes array
+    found.line.nodes.splice(position, 0, nodeId);
+    await this.persistGraph(ctx, graphSlug, def);
+
+    return { nodeId, lineId, position, errors: [] };
   }
 
-  async removeNode(
-    _ctx: WorkspaceContext,
-    _graphSlug: string,
-    _nodeId: string
-  ): Promise<BaseResult> {
-    throw new Error('Not implemented — Phase 4');
+  async removeNode(ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<BaseResult> {
+    const loaded = await this.loadGraphDefinition(ctx, graphSlug);
+    if (!loaded.ok) {
+      return { errors: loaded.errors };
+    }
+
+    const def = loaded.definition;
+    const nodeLocation = this.findNodeInGraph(def, nodeId);
+    if (!nodeLocation) {
+      return { errors: [nodeNotFoundError(nodeId)] };
+    }
+
+    // Remove from line's nodes array
+    nodeLocation.line.nodes.splice(nodeLocation.nodePositionInLine, 1);
+
+    // Delete node directory
+    await this.removeNodeDir(ctx, graphSlug, nodeId);
+
+    // Persist updated graph
+    await this.persistGraph(ctx, graphSlug, def);
+
+    return { errors: [] };
   }
 
   async moveNode(
-    _ctx: WorkspaceContext,
-    _graphSlug: string,
-    _nodeId: string,
-    _options: MoveNodeOptions
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    options: MoveNodeOptions
   ): Promise<BaseResult> {
-    throw new Error('Not implemented — Phase 4');
+    const loaded = await this.loadGraphDefinition(ctx, graphSlug);
+    if (!loaded.ok) {
+      return { errors: loaded.errors };
+    }
+
+    const def = loaded.definition;
+    const nodeLocation = this.findNodeInGraph(def, nodeId);
+    if (!nodeLocation) {
+      return { errors: [nodeNotFoundError(nodeId)] };
+    }
+
+    // Determine target line
+    let targetLine: LineDefinition;
+    if (options.toLineId) {
+      const found = this.findLine(def, options.toLineId);
+      if (!found) {
+        return { errors: [lineNotFoundError(options.toLineId)] };
+      }
+      targetLine = found.line;
+    } else {
+      targetLine = nodeLocation.line;
+    }
+
+    // Remove from source line first
+    nodeLocation.line.nodes.splice(nodeLocation.nodePositionInLine, 1);
+
+    // Determine target position
+    const targetPosition = options.toPosition ?? targetLine.nodes.length;
+    if (targetPosition < 0 || targetPosition > targetLine.nodes.length) {
+      return { errors: [invalidNodePositionError(targetPosition, targetLine.nodes.length)] };
+    }
+
+    // Insert into target line
+    targetLine.nodes.splice(targetPosition, 0, nodeId);
+
+    // Single persist
+    await this.persistGraph(ctx, graphSlug, def);
+
+    return { errors: [] };
   }
 
   async setNodeDescription(
-    _ctx: WorkspaceContext,
-    _graphSlug: string,
-    _nodeId: string,
-    _description: string
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    description: string
   ): Promise<BaseResult> {
-    throw new Error('Not implemented — Phase 4');
+    // Verify node exists in graph
+    const loaded = await this.loadGraphDefinition(ctx, graphSlug);
+    if (!loaded.ok) {
+      return { errors: loaded.errors };
+    }
+    const nodeLocation = this.findNodeInGraph(loaded.definition, nodeId);
+    if (!nodeLocation) {
+      return { errors: [nodeNotFoundError(nodeId)] };
+    }
+
+    // Load, mutate, persist node config
+    const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
+    if (!nodeResult.ok) {
+      return { errors: nodeResult.errors };
+    }
+
+    nodeResult.config.description = description;
+    await this.persistNodeConfig(ctx, graphSlug, nodeId, nodeResult.config);
+
+    return { errors: [] };
   }
 
   async setNodeExecution(
-    _ctx: WorkspaceContext,
-    _graphSlug: string,
-    _nodeId: string,
-    _execution: Execution
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    execution: Execution
   ): Promise<BaseResult> {
-    throw new Error('Not implemented — Phase 4');
+    // Verify node exists in graph
+    const loaded = await this.loadGraphDefinition(ctx, graphSlug);
+    if (!loaded.ok) {
+      return { errors: loaded.errors };
+    }
+    const nodeLocation = this.findNodeInGraph(loaded.definition, nodeId);
+    if (!nodeLocation) {
+      return { errors: [nodeNotFoundError(nodeId)] };
+    }
+
+    // Load, mutate, persist node config
+    const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
+    if (!nodeResult.ok) {
+      return { errors: nodeResult.errors };
+    }
+
+    nodeResult.config.execution = execution;
+    await this.persistNodeConfig(ctx, graphSlug, nodeId, nodeResult.config);
+
+    return { errors: [] };
   }
 
   async showNode(
-    _ctx: WorkspaceContext,
-    _graphSlug: string,
-    _nodeId: string
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string
   ): Promise<NodeShowResult> {
-    throw new Error('Not implemented — Phase 4');
+    // Find node in graph structure
+    const loaded = await this.loadGraphDefinition(ctx, graphSlug);
+    if (!loaded.ok) {
+      return { errors: loaded.errors };
+    }
+    const nodeLocation = this.findNodeInGraph(loaded.definition, nodeId);
+    if (!nodeLocation) {
+      return { errors: [nodeNotFoundError(nodeId)] };
+    }
+
+    // Load node config
+    const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
+    if (!nodeResult.ok) {
+      return { errors: nodeResult.errors };
+    }
+
+    const config = nodeResult.config;
+    return {
+      nodeId: config.id,
+      unitSlug: config.unit_slug,
+      execution: config.execution,
+      description: config.description,
+      lineId: nodeLocation.line.id,
+      position: nodeLocation.nodePositionInLine,
+      inputs: config.inputs,
+      errors: [],
+    };
   }
 
   // ============================================

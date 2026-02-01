@@ -102,6 +102,8 @@ export const POSITIONAL_GRAPH_DI_TOKENS = {
   POSITIONAL_GRAPH_SERVICE: 'IPositionalGraphService',
   /** IPositionalGraphAdapter interface */
   POSITIONAL_GRAPH_ADAPTER: 'IPositionalGraphAdapter',
+  /** IWorkUnitLoader — narrow interface for WorkUnit existence validation */
+  WORK_UNIT_LOADER: 'IWorkUnitLoader',
 } as const;
 
 export const WORKGRAPH_DI_TOKENS = {

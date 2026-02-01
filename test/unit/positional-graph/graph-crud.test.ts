@@ -3,6 +3,7 @@ import { PositionalGraphAdapter } from '@chainglass/positional-graph/adapter';
 import type {
   GraphCreateResult,
   IPositionalGraphService,
+  IWorkUnitLoader,
   PGListResult,
   PGLoadResult,
   PGShowResult,
@@ -23,10 +24,16 @@ function createTestContext(worktreePath = '/workspace/my-project'): WorkspaceCon
   };
 }
 
+const stubWorkUnitLoader: IWorkUnitLoader = {
+  async load() {
+    return { errors: [] };
+  },
+};
+
 function createTestService(fs: FakeFileSystem, pathResolver: FakePathResolver) {
   const yamlParser = new YamlParserAdapter();
   const adapter = new PositionalGraphAdapter(fs, pathResolver);
-  return new PositionalGraphService(fs, pathResolver, yamlParser, adapter);
+  return new PositionalGraphService(fs, pathResolver, yamlParser, adapter, stubWorkUnitLoader);
 }
 
 describe('PositionalGraphService', () => {

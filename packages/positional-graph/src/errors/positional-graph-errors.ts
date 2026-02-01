@@ -15,6 +15,7 @@ export const POSITIONAL_GRAPH_ERROR_CODES = {
   E156: 'E156', // Cannot remove last line
   E157: 'E157', // Graph not found
   E158: 'E158', // Graph already exists
+  E159: 'E159', // WorkUnit not found
 
   // Input resolution errors (E160-E164)
   E160: 'E160', // Input not declared
@@ -107,6 +108,14 @@ export function graphAlreadyExistsError(slug: string): ResultError {
     code: POSITIONAL_GRAPH_ERROR_CODES.E158,
     message: `Graph '${slug}' already exists`,
     action: 'Use a different slug or delete the existing graph first',
+  };
+}
+
+export function unitNotFoundError(unitSlug: string): ResultError {
+  return {
+    code: POSITIONAL_GRAPH_ERROR_CODES.E159,
+    message: `WorkUnit '${unitSlug}' not found`,
+    action: 'Check available units with: cg unit list',
   };
 }
 

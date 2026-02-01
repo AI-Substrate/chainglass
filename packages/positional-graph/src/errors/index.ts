@@ -16,5 +16,6 @@ export {
   outputNotDeclaredError,
   predecessorNotFoundError,
   transitionBlockedError,
+  unitNotFoundError,
 } from './positional-graph-errors.js';
 export type { PositionalGraphErrorCode } from './positional-graph-errors.js';

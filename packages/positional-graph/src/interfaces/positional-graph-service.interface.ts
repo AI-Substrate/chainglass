@@ -1,4 +1,4 @@
-import type { BaseResult } from '@chainglass/shared';
+import type { BaseResult, ResultError } from '@chainglass/shared';
 import type { WorkspaceContext } from '@chainglass/workflow';
 import type {
   Execution,
@@ -6,6 +6,19 @@ import type {
   PositionalGraphDefinition,
   TransitionMode,
 } from '../schemas/index.js';
+
+// ============================================
+// Narrow Dependency Interfaces
+// ============================================
+
+/**
+ * Narrow interface for WorkUnit existence validation.
+ * Per DYK-P4-I2: avoids cross-package dependency on @chainglass/workgraph.
+ * Host app wires the real WorkUnitService to satisfy this at DI level.
+ */
+export interface IWorkUnitLoader {
+  load(ctx: WorkspaceContext, slug: string): Promise<{ unit?: unknown; errors: ResultError[] }>;
+}
 
 // ============================================
 // Result Types — Graph CRUD
@@ -80,9 +93,10 @@ export interface AddNodeOptions {
 }
 
 export interface MoveNodeOptions {
+  /** Position in the target line (current line if toLineId absent, target line if present). Appends if omitted. */
   toPosition?: number;
+  /** Target line ID. If omitted, node stays in its current line. */
   toLineId?: string;
-  toPositionInLine?: number;
 }
 
 export interface AddNodeResult extends BaseResult {

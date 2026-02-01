@@ -1,6 +1,9 @@
 import { PositionalGraphService } from '@chainglass/positional-graph';
 import { PositionalGraphAdapter } from '@chainglass/positional-graph/adapter';
-import type { IPositionalGraphService } from '@chainglass/positional-graph/interfaces';
+import type {
+  IPositionalGraphService,
+  IWorkUnitLoader,
+} from '@chainglass/positional-graph/interfaces';
 import { FakeFileSystem, FakePathResolver, YamlParserAdapter } from '@chainglass/shared';
 import type { WorkspaceContext } from '@chainglass/workflow';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -16,10 +19,16 @@ function createTestContext(worktreePath = '/workspace/my-project'): WorkspaceCon
   };
 }
 
+const stubWorkUnitLoader: IWorkUnitLoader = {
+  async load() {
+    return { errors: [] };
+  },
+};
+
 function createTestService(fs: FakeFileSystem, pathResolver: FakePathResolver) {
   const yamlParser = new YamlParserAdapter();
   const adapter = new PositionalGraphAdapter(fs, pathResolver);
-  return new PositionalGraphService(fs, pathResolver, yamlParser, adapter);
+  return new PositionalGraphService(fs, pathResolver, yamlParser, adapter, stubWorkUnitLoader);
 }
 
 describe('PositionalGraphService — Line Operations', () => {

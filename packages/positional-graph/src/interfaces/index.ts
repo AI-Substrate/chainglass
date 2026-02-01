@@ -5,6 +5,7 @@ export type {
   AddNodeResult,
   GraphCreateResult,
   IPositionalGraphService,
+  IWorkUnitLoader,
   MoveNodeOptions,
   NodeShowResult,
   PGListResult,
