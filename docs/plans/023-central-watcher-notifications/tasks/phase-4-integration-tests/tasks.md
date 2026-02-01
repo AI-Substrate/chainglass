@@ -139,10 +139,10 @@ flowchart TD
     style SUT fill:#F5F5F5,stroke:#E0E0E0
 
     subgraph Phase["Phase 4: Integration Tests"]
-        T001["T001: File creation detection"]:::pending
-        T002["T002: WorkGraph adapter E2E"]:::pending
-        T003["T003: Non-matching file ignored"]:::pending
-        T004["T004: Cleanup on stop"]:::pending
+        T001["T001: File creation detection ✓"]:::completed
+        T002["T002: WorkGraph adapter E2E ✓"]:::completed
+        T003["T003: Non-matching file ignored ✓"]:::completed
+        T004["T004: Cleanup on stop ✓"]:::completed
 
         T001 --> T002
         T001 --> T003
@@ -157,7 +157,7 @@ flowchart TD
     subgraph RealInfra["Real Infrastructure"]
         CHK["ChokidarFileWatcherFactory"]:::completed
         NFS["NodeFileSystemAdapter"]:::completed
-        TMP["Temp Directory + Real FS"]:::pending
+        TMP["Temp Directory + Real FS ✓"]:::completed
     end
 
     subgraph Fakes["Controlled Fakes"]
@@ -184,10 +184,10 @@ flowchart TD
 
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
-| T001 | Test setup + file detection | `test/integration/.../central-watcher.integration.test.ts` | ⬜ Pending | Establishes shared test structure + first test |
-| T002 | WorkGraph adapter E2E | same file | ⬜ Pending | Full pipeline: write state.json → onGraphChanged fires |
-| T003 | Non-matching filter | same file | ⬜ Pending | Write layout.json → no WorkGraphChangedEvent |
-| T004 | Service cleanup | same file | ⬜ Pending | stop() → write file → no events |
+| T001 | Test setup + file detection | `test/integration/.../central-watcher.integration.test.ts` | ✅ Complete | Establishes shared test structure + first test |
+| T002 | WorkGraph adapter E2E | same file | ✅ Complete | Full pipeline: write state.json → onGraphChanged fires |
+| T003 | Non-matching filter | same file | ✅ Complete | Write layout.json → no WorkGraphChangedEvent |
+| T004 | Service cleanup | same file | ✅ Complete | stop() → write file → no events |
 
 ---
 
@@ -195,10 +195,10 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|------|------|-----|------|-------------|-------------------|------------|----------|-------|
-| [ ] | T001 | Write integration test: service detects file creation via real chokidar | CS-2 | Test | – | `/home/jak/substrate/023-central-watcher-notifications/test/integration/workflow/features/023/central-watcher.integration.test.ts` | Test creates temp dir with `.chainglass/data/` structure, starts `CentralWatcherService` with real `ChokidarFileWatcherFactory` + `NodeFileSystemAdapter`, writes file, verifies `FakeWatcherAdapter` receives `WatcherEvent` with correct path and eventType | – | Per CF-04: Use 200ms init delay, 5s timeout. Shared `beforeEach`/`afterEach` established here. **Field name note**: Assert on `calls[0].path` (not `filePath`) — `WatcherEvent` uses `path`, whereas `WorkGraphChangedEvent` (T002) uses `filePath`. **Event capture**: Use `FakeWatcherAdapter.calls[]` array — sleep then check array length (poll-based). plan-scoped |
-| [ ] | T002 | Write integration test: workgraph adapter end-to-end pipeline | CS-2 | Test | T001 | `/home/jak/substrate/023-central-watcher-notifications/test/integration/workflow/features/023/central-watcher.integration.test.ts` | Writes `state.json` under `work-graphs/<slug>/`, verifies `WorkGraphWatcherAdapter.onGraphChanged()` callback fires with correct `graphSlug`, `workspaceSlug`, `worktreePath`, `filePath`, `timestamp instanceof Date` | – | Full pipeline: chokidar → service → adapter → callback. Per CF-09: validate all 5 WorkGraphChangedEvent fields. **Event capture**: Use promise-resolve-from-callback bridge pattern (adapter has no promise API) — `new Promise(resolve => { adapter.onGraphChanged(resolve) })` + `Promise.race` with 5s timeout (see old integration test lines 126-157 for reference). plan-scoped |
-| [ ] | T003 | Write integration test: non-matching file is ignored end-to-end | CS-1 | Test | T001 | `/home/jak/substrate/023-central-watcher-notifications/test/integration/workflow/features/023/central-watcher.integration.test.ts` | Writes `layout.json` under `work-graphs/`, waits 500ms, verifies no `WorkGraphChangedEvent` emitted | – | "No event" assertion pattern with timeout. plan-scoped |
-| [ ] | T004 | Write integration test: service cleanup prevents events after stop | CS-1 | Test | T001 | `/home/jak/substrate/023-central-watcher-notifications/test/integration/workflow/features/023/central-watcher.integration.test.ts` | Starts service, stops it, writes file, waits 500ms, verifies zero events dispatched and no leaked watchers | – | Cleanup verification. plan-scoped |
+| [x] | T001 | Write integration test: service detects file creation via real chokidar | CS-2 | Test | – | `/home/jak/substrate/023-central-watcher-notifications/test/integration/workflow/features/023/central-watcher.integration.test.ts` | Test creates temp dir with `.chainglass/data/` structure, starts `CentralWatcherService` with real `ChokidarFileWatcherFactory` + `NodeFileSystemAdapter`, writes file, verifies `FakeWatcherAdapter` receives `WatcherEvent` with correct path and eventType | – | Per CF-04: Use 200ms init delay, 5s timeout. Shared `beforeEach`/`afterEach` established here. **Field name note**: Assert on `calls[0].path` (not `filePath`) — `WatcherEvent` uses `path`, whereas `WorkGraphChangedEvent` (T002) uses `filePath`. **Event capture**: Use `FakeWatcherAdapter.calls[]` array — sleep then check array length (poll-based). plan-scoped · [📋 log](execution.log.md#task-t001-file-detection) [^4] |
+| [x] | T002 | Write integration test: workgraph adapter end-to-end pipeline | CS-2 | Test | T001 | `/home/jak/substrate/023-central-watcher-notifications/test/integration/workflow/features/023/central-watcher.integration.test.ts` | Writes `state.json` under `work-graphs/<slug>/`, verifies `WorkGraphWatcherAdapter.onGraphChanged()` callback fires with correct `graphSlug`, `workspaceSlug`, `worktreePath`, `filePath`, `timestamp instanceof Date` | – | Full pipeline: chokidar → service → adapter → callback. Per CF-09: validate all 5 WorkGraphChangedEvent fields. **Event capture**: Use promise-resolve-from-callback bridge pattern (adapter has no promise API) — `new Promise(resolve => { adapter.onGraphChanged(resolve) })` + `Promise.race` with 5s timeout (see old integration test lines 126-157 for reference). plan-scoped · [📋 log](execution.log.md#task-t002-adapter-e2e) [^4] |
+| [x] | T003 | Write integration test: non-matching file is ignored end-to-end | CS-1 | Test | T001 | `/home/jak/substrate/023-central-watcher-notifications/test/integration/workflow/features/023/central-watcher.integration.test.ts` | Writes `layout.json` under `work-graphs/`, waits 500ms, verifies no `WorkGraphChangedEvent` emitted | – | "No event" assertion pattern with timeout. plan-scoped · [📋 log](execution.log.md#task-t003-filter) [^4] |
+| [x] | T004 | Write integration test: service cleanup prevents events after stop | CS-1 | Test | T001 | `/home/jak/substrate/023-central-watcher-notifications/test/integration/workflow/features/023/central-watcher.integration.test.ts` | Starts service, stops it, writes file, waits 500ms, verifies zero events dispatched and no leaked watchers | – | Cleanup verification. plan-scoped · [📋 log](execution.log.md#task-t004-cleanup) [^4] |
 
 ---
 
@@ -462,24 +462,22 @@ npx vitest run central-watcher.integration.test.ts --reporter=verbose
 - [x] Prior phases reviewed — Phases 1-3 all complete, 54 unit tests passing
 - [x] Flight Plan reviewed — single new test file, no compliance issues
 - [x] Requirements Traceability verified — all relevant ACs covered
-- [ ] **GO / NO-GO**: Awaiting human approval
+- [x] **GO / NO-GO**: APPROVED (2026-02-01)
 
 ---
 
 ## Phase Footnote Stubs
 
-_No footnotes yet. To be populated by plan-6 during implementation._
-
 | Footnote | Task | Description |
 |----------|------|-------------|
-| | | |
+| [^4] | T001-T004 | `file:test/integration/workflow/features/023/central-watcher.integration.test.ts` — 4 integration tests |
 
 ---
 
 ## Evidence Artifacts
 
-Implementation will write:
-- `docs/plans/023-central-watcher-notifications/tasks/phase-4-integration-tests/execution.log.md` — Detailed execution narrative
+- [execution.log.md](execution.log.md) — Detailed execution narrative
+- `test/integration/workflow/features/023/central-watcher.integration.test.ts` — 4 integration tests (T001-T004)
 
 ---
 
@@ -489,7 +487,8 @@ _Populated during implementation by plan-6. Log anything of interest to your fut
 
 | Date | Task | Type | Discovery | Resolution | References |
 |------|------|------|-----------|------------|------------|
-| | | | | | |
+| 2026-02-01 | T004 | gotcha | Biome `organizeImports` rule requires merging `import type` with value import from same module using inline `type` keyword | Used `type WorkGraphChangedEvent` inside the value import block | [log#task-t004-cleanup](execution.log.md#task-t004-cleanup) |
+| 2026-02-01 | T002 | insight | Promise-bridge pattern works reliably — T002 resolved in 405ms, well within 5s timeout. `awaitWriteFinish` adds ~200-300ms as predicted | No changes needed — timing model from didyouknow session was accurate | [log#task-t002-adapter-e2e](execution.log.md#task-t002-adapter-e2e) |
 
 **Types**: `gotcha` | `research-needed` | `unexpected-behavior` | `workaround` | `decision` | `debt` | `insight`
 

@@ -575,10 +575,10 @@ describe('WorkGraphWatcherAdapter', () => {
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 4.1 | [ ] | Write integration test: service detects file creation | CS-2 | Test creates temp dir with `.chainglass/data/` structure, starts service with real `ChokidarFileWatcherFactory`, writes file, verifies `FakeWatcherAdapter` receives event | - | Real chokidar, real FS |
-| 4.2 | [ ] | Write integration test: workgraph adapter end-to-end | CS-2 | Test writes `state.json` under `work-graphs/<slug>/`, verifies `WorkGraphWatcherAdapter.onGraphChanged()` callback fires with correct `graphSlug` | - | Full pipeline test |
-| 4.3 | [ ] | Write integration test: non-matching file ignored | CS-1 | Test writes `layout.json` under `work-graphs/`, verifies no `WorkGraphChangedEvent` emitted within timeout | - | "No event" assertion pattern |
-| 4.4 | [ ] | Write integration test: service cleanup on stop | CS-1 | Test starts service, stops it, writes file, verifies no events dispatched. No leaked watchers. | - | Cleanup verification |
+| 4.1 | [x] | Write integration test: service detects file creation | CS-2 | Test creates temp dir with `.chainglass/data/` structure, starts service with real `ChokidarFileWatcherFactory`, writes file, verifies `FakeWatcherAdapter` receives event | [📋](tasks/phase-4-integration-tests/execution.log.md#task-t001-file-detection) | Completed · [^4] |
+| 4.2 | [x] | Write integration test: workgraph adapter end-to-end | CS-2 | Test writes `state.json` under `work-graphs/<slug>/`, verifies `WorkGraphWatcherAdapter.onGraphChanged()` callback fires with correct `graphSlug` | [📋](tasks/phase-4-integration-tests/execution.log.md#task-t002-adapter-e2e) | Completed · [^4] |
+| 4.3 | [x] | Write integration test: non-matching file ignored | CS-1 | Test writes `layout.json` under `work-graphs/`, verifies no `WorkGraphChangedEvent` emitted within timeout | [📋](tasks/phase-4-integration-tests/execution.log.md#task-t003-filter) | Completed · [^4] |
+| 4.4 | [x] | Write integration test: service cleanup on stop | CS-1 | Test starts service, stops it, writes file, verifies no events dispatched. No leaked watchers. | [📋](tasks/phase-4-integration-tests/execution.log.md#task-t004-cleanup) | Completed · [^4] |
 
 ### Test Examples (Write First!)
 
@@ -624,11 +624,11 @@ describe('CentralWatcherService integration', () => {
 ```
 
 ### Acceptance Criteria
-- [ ] All integration tests pass
-- [ ] Real file writes detected by real chokidar
-- [ ] Events flow through service to adapter correctly
-- [ ] Timing constants match existing proven values (200ms init, 5s timeout)
-- [ ] Tests clean up temp directories
+- [x] All integration tests pass
+- [x] Real file writes detected by real chokidar
+- [x] Events flow through service to adapter correctly
+- [x] Timing constants match existing proven values (200ms init, 5s timeout)
+- [x] Tests clean up temp directories
 
 ---
 
@@ -707,11 +707,13 @@ No components individually exceed CS-3. No deviations required.
 ## Progress Tracking
 
 ### Phase Completion Checklist
-- [ ] Phase 1: Interfaces & Fakes - Pending
-- [ ] Phase 2: CentralWatcherService (TDD) - Pending
-- [ ] Phase 3: WorkGraphWatcherAdapter (TDD) - Pending
-- [ ] Phase 4: Integration Tests - Pending
+- [x] Phase 1: Interfaces & Fakes - COMPLETE
+- [x] Phase 2: CentralWatcherService (TDD) - COMPLETE
+- [x] Phase 3: WorkGraphWatcherAdapter (TDD) - COMPLETE
+- [x] Phase 4: Integration Tests - COMPLETE
 - [ ] Phase 5: Cleanup & Validation - Pending
+
+Overall Progress: 4/5 phases (80%)
 
 ### STOP Rule
 This plan must be validated before creating tasks. After writing this plan:
@@ -725,3 +727,5 @@ This plan must be validated before creating tasks. After writing this plan:
 [^1]: [To be added during implementation via plan-6a]
 [^2]: [To be added during implementation via plan-6a]
 [^3]: [To be added during implementation via plan-6a]
+[^4]: Phase 4 Tasks 4.1-4.4 — Integration tests (4 tests in 1 file)
+  - `file:test/integration/workflow/features/023/central-watcher.integration.test.ts`
