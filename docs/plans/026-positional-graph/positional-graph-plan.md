@@ -372,15 +372,15 @@ Acceptance Criteria: [measurable assertions]
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 1.1 | [ ] | Identify all WorkUnit type exports from `@chainglass/workgraph` | 1 | List of types to extract documented | - | Read workunit-service.interface.ts and workunit.schema.ts |
-| 1.2 | [ ] | Create `packages/workflow/src/interfaces/workunit.types.ts` with extracted types | 2 | Types compile, exported from workflow barrel | - | InputDeclaration, OutputDeclaration, WorkUnit, AgentConfig, CodeConfig, UserInputConfig |
-| 1.3 | [ ] | Update `@chainglass/workgraph` to re-export from `@chainglass/workflow` | 2 | workgraph barrel still exports same types, no consumer changes needed | - | Re-export pattern: `export type { X } from '@chainglass/workflow'` |
-| 1.4 | [ ] | Run full test suite and build | 1 | `just check` passes, zero errors | - | Verify no regressions |
+| 1.1 | [x] | Identify all WorkUnit type exports from `@chainglass/workgraph` | 1 | List of types to extract documented | [^1] | Read workunit-service.interface.ts and workunit.schema.ts |
+| 1.2 | [x] | Create `packages/workflow/src/interfaces/workunit.types.ts` with extracted types | 2 | Types compile, exported from workflow barrel | [^1] | Renamed to WorkUnitInput/WorkUnitOutput to avoid InputDeclaration collision |
+| 1.3 | [x] | Update `@chainglass/workgraph` to re-export from `@chainglass/workflow` | 2 | workgraph barrel still exports same types, no consumer changes needed | [^1] | Import from `@chainglass/workflow/interfaces` subpath |
+| 1.4 | [x] | Run full test suite and build | 1 | `just check` passes, zero errors | [^1] | 187 test files, 2694 tests, 0 failures |
 
 ### Acceptance Criteria
-- [ ] `InputDeclaration`, `OutputDeclaration`, `WorkUnit` importable from `@chainglass/workflow`
-- [ ] All existing `@chainglass/workgraph` consumers unchanged (verify: `pnpm test --filter @chainglass/workgraph` — zero new failures)
-- [ ] `just check` passes — zero failures across lint (`just lint`), typecheck (`just typecheck`), test (`just test`), build (`pnpm build`)
+- [x] `InputDeclaration`, `OutputDeclaration`, `WorkUnit` importable from `@chainglass/workflow`
+- [x] All existing `@chainglass/workgraph` consumers unchanged (verify: `pnpm test --filter @chainglass/workgraph` — zero new failures)
+- [x] `just check` passes — zero failures across lint (`just lint`), typecheck (`just typecheck`), test (`just test`), build (`pnpm build`)
 
 ---
 
@@ -743,7 +743,7 @@ describe('collateInputs', () => {
 ## Progress Tracking
 
 ### Phase Completion Checklist
-- [ ] Phase 1: WorkUnit Type Extraction - Pending
+- [x] Phase 1: WorkUnit Type Extraction - Complete
 - [ ] Phase 2: Schema, Types, and Filesystem Adapter - Pending
 - [ ] Phase 3: Graph and Line CRUD Operations - Pending
 - [ ] Phase 4: Node Operations with Positional Invariants - Pending
@@ -793,10 +793,20 @@ No layer-boundary violations. The positional graph package follows the same stru
 
 ## Change Footnotes Ledger
 
-[^1]: [To be added during implementation via plan-6a]
+[^1]: Phase 1 complete (2026-01-31). WorkUnit types extracted to `@chainglass/workflow/interfaces/workunit.types.ts`. Renamed to `WorkUnitInput`/`WorkUnitOutput` with backward-compat aliases. Workgraph imports from `@chainglass/workflow/interfaces` subpath. `just check` green: 187 files, 2694 tests, 0 failures.
 [^2]: [To be added during implementation via plan-6a]
 [^3]: [To be added during implementation via plan-6a]
 
 ---
 
 **Next step**: Run `/plan-4-complete-the-plan` to validate readiness.
+
+---
+
+## Subtasks Registry
+
+Mid-implementation detours requiring structured tracking.
+
+| ID | Created | Phase | Parent Task | Reason | Status | Dossier |
+|----|---------|-------|-------------|--------|--------|---------|
+| 001-subtask-align-docs-with-execution-rules-workshop | 2026-02-01 | Phase 1: WorkUnit Type Extraction | T001-T006 (all) | Execution rules workshop introduced per-node execution model, getStatus API, E165 removal — spec/plan/prototype workshop need alignment before Phase 2 | [ ] Pending | [Link](tasks/phase-1-workunit-type-extraction/001-subtask-align-docs-with-execution-rules-workshop.md) |

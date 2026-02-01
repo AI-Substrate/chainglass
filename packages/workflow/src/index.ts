@@ -79,6 +79,20 @@ export type {
   PhaseRunStatus,
 } from './types/index.js';
 
+// WorkUnit types (Plan 026 Phase 1: extracted from @chainglass/workgraph)
+// Note: InputDeclaration/OutputDeclaration NOT re-exported here to avoid collision
+// with the existing workflow InputDeclaration (phase-level inputs from wf.types.ts).
+// Use WorkUnitInput/WorkUnitOutput instead, or import from '@chainglass/workflow/interfaces'.
+export type {
+  WorkUnitInput,
+  WorkUnitOutput,
+  AgentConfig,
+  CodeConfig,
+  UserInputOption,
+  UserInputConfig,
+  WorkUnit,
+} from './interfaces/index.js';
+
 // Interfaces
 export { YamlParseError } from './interfaces/index.js';
 export type { IYamlParser, ParseResult } from './interfaces/index.js';

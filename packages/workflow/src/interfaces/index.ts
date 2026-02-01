@@ -117,6 +117,19 @@ export type {
   ArchiveOptions,
 } from './agent-event-adapter.interface.js';
 
+// WorkUnit types (Plan 026 Phase 1: extracted from @chainglass/workgraph)
+export type {
+  WorkUnitInput,
+  WorkUnitOutput,
+  InputDeclaration,
+  OutputDeclaration,
+  AgentConfig,
+  CodeConfig,
+  UserInputOption,
+  UserInputConfig,
+  WorkUnit,
+} from './workunit.types.js';
+
 // File watcher interface (Plan 022 Phase 4 Subtask 001)
 export type {
   FileWatcherEvent,
