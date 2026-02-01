@@ -255,6 +255,22 @@ importers:
         specifier: ^5.7.3
         version: 5.9.3
 
+  packages/positional-graph:
+    dependencies:
+      '@chainglass/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@chainglass/workflow':
+        specifier: workspace:*
+        version: link:../workflow
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
+    devDependencies:
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+
   packages/shared:
     dependencies:
       '@github/copilot-sdk':

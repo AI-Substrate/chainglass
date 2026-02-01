@@ -21,6 +21,10 @@ export default defineConfig({
       { find: '@chainglass/shared', replacement: resolve(rootDir, 'packages/shared/src') },
       { find: '@chainglass/workflow', replacement: resolve(rootDir, 'packages/workflow/src') },
       { find: '@chainglass/mcp-server', replacement: resolve(rootDir, 'packages/mcp-server/src') },
+      {
+        find: '@chainglass/positional-graph',
+        replacement: resolve(rootDir, 'packages/positional-graph/src'),
+      },
     ],
   },
   test: {

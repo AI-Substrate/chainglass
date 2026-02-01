@@ -410,17 +410,17 @@ Acceptance Criteria: [measurable assertions]
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 2.1 | [ ] | Create `packages/positional-graph/` package scaffold | 2 | package.json, tsconfig.json, src/index.ts compile, pnpm workspace recognizes package | - | Model after packages/workgraph structure |
-| 2.2 | [ ] | Write tests for Zod schemas (graph definition, line, node config, input resolution, state) | 3 | Tests cover: valid parse, invalid slug, min-1-line constraint, execution/transition enums (execution is per-node with serial default), node config with optional inputs and execution field, InputResolution union (from_unit vs from_node) | - | Per Workshop §Zod Schemas |
-| 2.3 | [ ] | Implement Zod schemas to pass tests | 3 | All schema tests pass, types exported from barrel | - | PositionalGraphDefinitionSchema, LineDefinitionSchema, NodeConfigSchema, InputResolutionSchema, StateSchema |
-| 2.4 | [ ] | Write tests for ID generation (line IDs, node IDs) | 2 | Tests cover: format validation (line-xxx, unit-xxx), uniqueness, collision avoidance, hex3 pattern | - | Per Workshop §Line IDs, §Node IDs |
-| 2.5 | [ ] | Implement ID generation utilities | 1 | All ID generation tests pass | - | generateLineId(existingIds), reimplement hex3 pattern locally (no cross-package import to avoid workgraph dependency) |
-| 2.6 | [ ] | Write tests for error code factory functions | 2 | Tests cover: E150-E171 codes, message content, structured ResultError output | - | Per Workshop §Error Codes |
-| 2.7 | [ ] | Implement error code factory functions | 2 | All error tests pass | - | Factory pattern matching workgraph-errors.ts |
-| 2.8 | [ ] | Add `POSITIONAL_GRAPH_DI_TOKENS` to `@chainglass/shared` | 1 | Tokens exported from shared barrel | - | POSITIONAL_GRAPH_SERVICE token |
-| 2.9 | [ ] | Write tests for filesystem adapter (read/write graph.yaml, state.json, node.yaml) | 3 | Tests cover: create graph dir, write graph.yaml, read graph.yaml, write/read state.json, write/read node.yaml, list graphs, delete graph | - | Real filesystem with temp dirs |
-| 2.10 | [ ] | Implement filesystem adapter | 3 | All adapter tests pass, atomic writes used | - | Extend or follow WorkspaceDataAdapterBase pattern. Domain = 'workflows'. Reimplement atomic write (temp-then-rename) locally — do not import from workgraph to avoid dependency |
-| 2.11 | [ ] | Create DI container registration function | 2 | `registerPositionalGraphServices()` works per ADR-0009 | - | Module registration function pattern |
+| 2.1 | [x] | Create `packages/positional-graph/` package scaffold | 2 | package.json, tsconfig.json, src/index.ts compile, pnpm workspace recognizes package | [📋](tasks/phase-2-schema-types-and-filesystem-adapter/execution.log.md#task-t001) | Model after packages/workgraph structure [^2] |
+| 2.2 | [x] | Write tests for Zod schemas (graph definition, line, node config, input resolution, state) | 3 | Tests cover: valid parse, invalid slug, min-1-line constraint, execution/transition enums (execution is per-node with serial default), node config with optional inputs and execution field, InputResolution union (from_unit vs from_node) | [📋](tasks/phase-2-schema-types-and-filesystem-adapter/execution.log.md#task-t002) | Per Workshop §Zod Schemas [^3] |
+| 2.3 | [x] | Implement Zod schemas to pass tests | 3 | All schema tests pass, types exported from barrel | [📋](tasks/phase-2-schema-types-and-filesystem-adapter/execution.log.md#task-t003) | PositionalGraphDefinitionSchema, LineDefinitionSchema, NodeConfigSchema, InputResolutionSchema, StateSchema [^3] |
+| 2.4 | [x] | Write tests for ID generation (line IDs, node IDs) | 2 | Tests cover: format validation (line-xxx, unit-xxx), uniqueness, collision avoidance, hex3 pattern | [📋](tasks/phase-2-schema-types-and-filesystem-adapter/execution.log.md#task-t004) | Per Workshop §Line IDs, §Node IDs [^4] |
+| 2.5 | [x] | Implement ID generation utilities | 1 | All ID generation tests pass | [📋](tasks/phase-2-schema-types-and-filesystem-adapter/execution.log.md#task-t005) | generateLineId(existingIds), reimplemented hex3 locally [^4] |
+| 2.6 | [x] | Write tests for error code factory functions | 2 | Tests cover: E150-E171 codes, message content, structured ResultError output | [📋](tasks/phase-2-schema-types-and-filesystem-adapter/execution.log.md#task-t006) | Per Workshop §Error Codes [^5] |
+| 2.7 | [x] | Implement error code factory functions | 2 | All error tests pass | [📋](tasks/phase-2-schema-types-and-filesystem-adapter/execution.log.md#task-t007) | Factory pattern matching workgraph-errors.ts [^5] |
+| 2.8 | [x] | Add `POSITIONAL_GRAPH_DI_TOKENS` to `@chainglass/shared` | 1 | Tokens exported from shared barrel | [📋](tasks/phase-2-schema-types-and-filesystem-adapter/execution.log.md#task-t008) | 2 tokens only (per DYK-I4) [^6] |
+| 2.9 | [x] | Write tests for filesystem adapter (signpost pattern + dir lifecycle + atomicWriteFile) | 3 | Tests cover: getGraphDir path, ensureGraphDir, listGraphSlugs, graphExists, removeGraph, atomicWriteFile | [📋](tasks/phase-2-schema-types-and-filesystem-adapter/execution.log.md#task-t009) | Signpost adapter per DYK-I1 [^7] |
+| 2.10 | [x] | Implement filesystem adapter | 3 | All adapter tests pass, atomic writes used | [📋](tasks/phase-2-schema-types-and-filesystem-adapter/execution.log.md#task-t010) | Extends WorkspaceDataAdapterBase, domain='workflows', signpost pattern [^7] |
+| 2.11 | [x] | Create DI container registration function | 2 | `registerPositionalGraphServices()` works per ADR-0009 | [📋](tasks/phase-2-schema-types-and-filesystem-adapter/execution.log.md#task-t011) | Adapter factory: (fs, pathResolver) only per DYK-I5 [^8] |
 
 ### Test Examples (Write First!)
 
@@ -465,12 +465,12 @@ describe('PositionalGraphDefinitionSchema', () => {
 ```
 
 ### Acceptance Criteria
-- [ ] All Zod schemas match workshop specifications exactly
-- [ ] ID generation produces unique `line-<hex3>` and `<slug>-<hex3>` IDs
-- [ ] Error codes E150-E171 defined with factory functions
-- [ ] Filesystem adapter reads/writes `graph.yaml`, `state.json`, `node.yaml` with atomic writes
-- [ ] Package builds: `pnpm build --filter @chainglass/positional-graph` — zero errors
-- [ ] Unit tests pass: `pnpm test --filter @chainglass/positional-graph` — all schema, ID, error, adapter tests green
+- [x] All Zod schemas match workshop specifications exactly
+- [x] ID generation produces unique `line-<hex3>` and `<slug>-<hex3>` IDs
+- [x] Error codes E150-E171 defined with factory functions
+- [x] Filesystem adapter provides path signpost + directory lifecycle + atomicWriteFile utility (per DYK-I1)
+- [x] Package builds: `pnpm build --filter @chainglass/positional-graph` — zero errors
+- [x] Unit tests pass: 93 new tests (50 schema + 10 ID gen + 18 error + 15 adapter) — all green
 
 ---
 
@@ -746,7 +746,7 @@ describe('collateInputs', () => {
 
 ### Phase Completion Checklist
 - [x] Phase 1: WorkUnit Type Extraction - Complete
-- [ ] Phase 2: Schema, Types, and Filesystem Adapter - Pending
+- [x] Phase 2: Schema, Types, and Filesystem Adapter - Complete
 - [ ] Phase 3: Graph and Line CRUD Operations - Pending
 - [ ] Phase 4: Node Operations with Positional Invariants - Pending
 - [ ] Phase 5: Input Wiring and Status Computation - Pending
@@ -796,8 +796,41 @@ No layer-boundary violations. The positional graph package follows the same stru
 ## Change Footnotes Ledger
 
 [^1]: Phase 1 complete (2026-01-31). WorkUnit types extracted to `@chainglass/workflow/interfaces/workunit.types.ts`. Renamed to `WorkUnitInput`/`WorkUnitOutput` with backward-compat aliases. Workgraph imports from `@chainglass/workflow/interfaces` subpath. `just check` green: 187 files, 2694 tests, 0 failures.
-[^2]: [To be added during implementation via plan-6a]
-[^3]: [To be added during implementation via plan-6a]
+[^2]: Phase 2, Task 2.1 — Package scaffold
+  - `file:packages/positional-graph/package.json`
+  - `file:packages/positional-graph/tsconfig.json`
+  - `file:packages/positional-graph/src/index.ts`
+  - `file:tsconfig.json` (root — added path alias)
+  - `file:vitest.config.ts` (root — added resolve alias)
+
+[^3]: Phase 2, Tasks 2.2-2.3 — Zod schemas (50 tests)
+  - `file:packages/positional-graph/src/schemas/graph.schema.ts`
+  - `file:packages/positional-graph/src/schemas/node.schema.ts`
+  - `file:packages/positional-graph/src/schemas/state.schema.ts`
+  - `file:packages/positional-graph/src/schemas/index.ts`
+  - `file:test/unit/positional-graph/schemas.test.ts`
+
+[^4]: Phase 2, Tasks 2.4-2.5 — ID generation (10 tests)
+  - `function:packages/positional-graph/src/services/id-generation.ts:generateLineId`
+  - `function:packages/positional-graph/src/services/id-generation.ts:generateNodeId`
+  - `file:test/unit/positional-graph/id-generation.test.ts`
+
+[^5]: Phase 2, Tasks 2.6-2.7 — Error code factories (18 tests)
+  - `file:packages/positional-graph/src/errors/positional-graph-errors.ts`
+  - `file:packages/positional-graph/src/errors/index.ts`
+  - `file:test/unit/positional-graph/error-codes.test.ts`
+
+[^6]: Phase 2, Task 2.8 — DI tokens
+  - `file:packages/shared/src/di-tokens.ts` (added POSITIONAL_GRAPH_DI_TOKENS)
+  - `file:packages/shared/src/index.ts` (added barrel export)
+
+[^7]: Phase 2, Tasks 2.9-2.10 — Filesystem adapter + atomicWriteFile (15 tests)
+  - `class:packages/positional-graph/src/adapter/positional-graph.adapter.ts:PositionalGraphAdapter`
+  - `function:packages/positional-graph/src/services/atomic-file.ts:atomicWriteFile`
+  - `file:test/unit/positional-graph/adapter.test.ts`
+
+[^8]: Phase 2, Task 2.11 — DI container registration
+  - `function:packages/positional-graph/src/container.ts:registerPositionalGraphServices`
 
 ---
 

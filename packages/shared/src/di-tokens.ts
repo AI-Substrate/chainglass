@@ -91,6 +91,19 @@ export const WORKSPACE_DI_TOKENS = {
  *
  * Per Critical Discovery 01: DI tokens live in shared package for cross-package access.
  */
+/**
+ * DI tokens for @chainglass/positional-graph interfaces.
+ *
+ * Per Plan 026: Positional Graph — Phase 2.
+ * Only 2 tokens: service and adapter. YAML parser resolved via SHARED_DI_TOKENS.YAML_PARSER.
+ */
+export const POSITIONAL_GRAPH_DI_TOKENS = {
+  /** IPositionalGraphService interface */
+  POSITIONAL_GRAPH_SERVICE: 'IPositionalGraphService',
+  /** IPositionalGraphAdapter interface */
+  POSITIONAL_GRAPH_ADAPTER: 'IPositionalGraphAdapter',
+} as const;
+
 export const WORKGRAPH_DI_TOKENS = {
   /** IWorkUnitService interface */
   WORKUNIT_SERVICE: 'IWorkUnitService',

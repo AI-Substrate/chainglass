@@ -28,6 +28,8 @@
       "@chainglass/mcp-server/*": ["./packages/mcp-server/src/*"],
       "@chainglass/web": ["./apps/web/src"],
       "@chainglass/web/*": ["./apps/web/src/*"],
+      "@chainglass/positional-graph": ["./packages/positional-graph/src"],
+      "@chainglass/positional-graph/*": ["./packages/positional-graph/src/*"],
       "@test/*": ["./test/*"]
     }
   },
