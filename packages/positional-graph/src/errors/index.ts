@@ -3,6 +3,8 @@ export {
   ambiguousPredecessorError,
   cannotRemoveLastLineError,
   duplicateNodeError,
+  graphAlreadyExistsError,
+  graphNotFoundError,
   inputNotDeclaredError,
   invalidLineIndexError,
   invalidNodePositionError,

@@ -13,6 +13,8 @@ export const POSITIONAL_GRAPH_ERROR_CODES = {
   E154: 'E154', // Invalid node position
   E155: 'E155', // Duplicate node / unit not found
   E156: 'E156', // Cannot remove last line
+  E157: 'E157', // Graph not found
+  E158: 'E158', // Graph already exists
 
   // Input resolution errors (E160-E164)
   E160: 'E160', // Input not declared
@@ -89,6 +91,22 @@ export function cannotRemoveLastLineError(): ResultError {
     code: POSITIONAL_GRAPH_ERROR_CODES.E156,
     message: 'Cannot remove the last line — a graph must have at least one line',
     action: 'Add another line before removing this one',
+  };
+}
+
+export function graphNotFoundError(slug: string): ResultError {
+  return {
+    code: POSITIONAL_GRAPH_ERROR_CODES.E157,
+    message: `Graph '${slug}' not found`,
+    action: 'Check available graphs with: cg wf list',
+  };
+}
+
+export function graphAlreadyExistsError(slug: string): ResultError {
+  return {
+    code: POSITIONAL_GRAPH_ERROR_CODES.E158,
+    message: `Graph '${slug}' already exists`,
+    action: 'Use a different slug or delete the existing graph first',
   };
 }
 

@@ -20,6 +20,10 @@
     "./adapter": {
       "import": "./dist/adapter/index.js",
       "types": "./dist/adapter/index.d.ts"
+    },
+    "./interfaces": {
+      "import": "./dist/interfaces/index.js",
+      "types": "./dist/interfaces/index.d.ts"
     }
   },
   "scripts": {

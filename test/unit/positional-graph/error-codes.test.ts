@@ -3,6 +3,8 @@ import {
   ambiguousPredecessorError,
   cannotRemoveLastLineError,
   duplicateNodeError,
+  graphAlreadyExistsError,
+  graphNotFoundError,
   inputNotDeclaredError,
   invalidLineIndexError,
   invalidNodePositionError,
@@ -29,7 +31,7 @@ function expectResultError(error: ResultError, code: string): void {
 // ============================================
 
 describe('POSITIONAL_GRAPH_ERROR_CODES', () => {
-  it('defines structure error codes E150-E156', () => {
+  it('defines structure error codes E150-E158', () => {
     expect(POSITIONAL_GRAPH_ERROR_CODES.E150).toBe('E150');
     expect(POSITIONAL_GRAPH_ERROR_CODES.E151).toBe('E151');
     expect(POSITIONAL_GRAPH_ERROR_CODES.E152).toBe('E152');
@@ -37,6 +39,8 @@ describe('POSITIONAL_GRAPH_ERROR_CODES', () => {
     expect(POSITIONAL_GRAPH_ERROR_CODES.E154).toBe('E154');
     expect(POSITIONAL_GRAPH_ERROR_CODES.E155).toBe('E155');
     expect(POSITIONAL_GRAPH_ERROR_CODES.E156).toBe('E156');
+    expect(POSITIONAL_GRAPH_ERROR_CODES.E157).toBe('E157');
+    expect(POSITIONAL_GRAPH_ERROR_CODES.E158).toBe('E158');
   });
 
   it('defines input resolution error codes E160-E164', () => {
@@ -97,6 +101,18 @@ describe('Structure error factories', () => {
   it('E156: cannotRemoveLastLineError', () => {
     const error = cannotRemoveLastLineError();
     expectResultError(error, 'E156');
+  });
+
+  it('E157: graphNotFoundError', () => {
+    const error = graphNotFoundError('my-pipeline');
+    expectResultError(error, 'E157');
+    expect(error.message).toContain('my-pipeline');
+  });
+
+  it('E158: graphAlreadyExistsError', () => {
+    const error = graphAlreadyExistsError('my-pipeline');
+    expectResultError(error, 'E158');
+    expect(error.message).toContain('my-pipeline');
   });
 });
 
@@ -170,6 +186,8 @@ describe('All error factories return ResultError shape', () => {
     invalidNodePositionError(10, 3),
     duplicateNodeError('node-a3f'),
     cannotRemoveLastLineError(),
+    graphNotFoundError('my-pipeline'),
+    graphAlreadyExistsError('my-pipeline'),
     inputNotDeclaredError('spec', 'node-a3f'),
     predecessorNotFoundError('unit', 'node-a3f'),
     ambiguousPredecessorError('unit', ['n1', 'n2']),
@@ -179,8 +197,8 @@ describe('All error factories return ResultError shape', () => {
     transitionBlockedError('line-a4f'),
   ];
 
-  it('all 14 factories produce ResultError with code and message', () => {
-    expect(allErrors).toHaveLength(14);
+  it('all 16 factories produce ResultError with code and message', () => {
+    expect(allErrors).toHaveLength(16);
     for (const error of allErrors) {
       expect(error.code).toBeTruthy();
       expect(error.message).toBeTruthy();
