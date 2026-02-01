@@ -6,6 +6,7 @@ import {
   duplicateNodeError,
   graphAlreadyExistsError,
   graphNotFoundError,
+  inputNotDeclaredError,
   invalidLineIndexError,
   invalidNodePositionError,
   lineNotEmptyError,
@@ -19,10 +20,14 @@ import type {
   AddNodeOptions,
   AddNodeResult,
   GraphCreateResult,
+  GraphStatusResult,
   IPositionalGraphService,
   IWorkUnitLoader,
+  InputPack,
+  LineStatusResult,
   MoveNodeOptions,
   NodeShowResult,
+  NodeStatusResult,
   PGListResult,
   PGLoadResult,
   PGShowResult,
@@ -33,10 +38,14 @@ import {
   PositionalGraphDefinitionSchema,
   type TransitionMode,
 } from '../schemas/graph.schema.js';
-import type { Execution, InputResolution, NodeConfig } from '../schemas/index.js';
-import { NodeConfigSchema } from '../schemas/index.js';
+import type { Execution, InputResolution, NodeConfig, State } from '../schemas/index.js';
+import { NodeConfigSchema, StateSchema } from '../schemas/index.js';
 import { atomicWriteFile } from './atomic-file.js';
 import { generateLineId, generateNodeId } from './id-generation.js';
+import {
+  canRun as canRunAlgorithm,
+  collateInputs as collateInputsAlgorithm,
+} from './input-resolution.js';
 
 export class PositionalGraphService implements IPositionalGraphService {
   constructor(
@@ -222,6 +231,55 @@ export class PositionalGraphService implements IPositionalGraphService {
    */
   private getAllNodeIds(definition: PositionalGraphDefinition): string[] {
     return definition.lines.flatMap((line) => line.nodes);
+  }
+
+  /**
+   * Load state.json for a graph. Returns empty default state if not found.
+   */
+  private async loadState(ctx: WorkspaceContext, graphSlug: string): Promise<State> {
+    const graphDir = this.adapter.getGraphDir(ctx, graphSlug);
+    const statePath = this.pathResolver.join(graphDir, 'state.json');
+
+    const exists = await this.fs.exists(statePath);
+    if (!exists) {
+      return {
+        graph_status: 'pending',
+        updated_at: new Date().toISOString(),
+        nodes: {},
+        transitions: {},
+      };
+    }
+
+    const content = await this.fs.readFile(statePath);
+    try {
+      const parsed = JSON.parse(content);
+      const validated = StateSchema.safeParse(parsed);
+      if (validated.success) {
+        return validated.data;
+      }
+    } catch {
+      // Fall through to default
+    }
+
+    return {
+      graph_status: 'pending',
+      updated_at: new Date().toISOString(),
+      nodes: {},
+      transitions: {},
+    };
+  }
+
+  /**
+   * Persist state.json for a graph.
+   */
+  private async persistState(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    state: State
+  ): Promise<void> {
+    const graphDir = this.adapter.getGraphDir(ctx, graphSlug);
+    const statePath = this.pathResolver.join(graphDir, 'state.json');
+    await atomicWriteFile(this.fs, statePath, JSON.stringify(state, null, 2));
   }
 
   // ============================================
@@ -735,25 +793,441 @@ export class PositionalGraphService implements IPositionalGraphService {
   }
 
   // ============================================
-  // Input wiring — Phase 5 stubs
+  // Input wiring — Phase 5
   // ============================================
 
   async setInput(
-    _ctx: WorkspaceContext,
-    _graphSlug: string,
-    _nodeId: string,
-    _inputName: string,
-    _source: InputResolution
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    inputName: string,
+    source: InputResolution
   ): Promise<BaseResult> {
-    throw new Error('Not implemented — Phase 5');
+    // Verify graph and node exist
+    const loaded = await this.loadGraphDefinition(ctx, graphSlug);
+    if (!loaded.ok) return { errors: loaded.errors };
+
+    const nodeLocation = this.findNodeInGraph(loaded.definition, nodeId);
+    if (!nodeLocation) return { errors: [nodeNotFoundError(nodeId)] };
+
+    // Load node config
+    const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
+    if (!nodeResult.ok) return { errors: nodeResult.errors };
+
+    // Validate input name is declared on the WorkUnit
+    const unitResult = await this.workUnitLoader.load(ctx, nodeResult.config.unit_slug);
+    if (unitResult.errors.length > 0 || !unitResult.unit) {
+      return { errors: [unitNotFoundError(nodeResult.config.unit_slug)] };
+    }
+
+    const declaredInput = unitResult.unit.inputs.find((i) => i.name === inputName);
+    if (!declaredInput) {
+      return { errors: [inputNotDeclaredError(inputName, nodeId)] };
+    }
+
+    // Set the input wiring
+    if (!nodeResult.config.inputs) {
+      nodeResult.config.inputs = {};
+    }
+    nodeResult.config.inputs[inputName] = source;
+
+    await this.persistNodeConfig(ctx, graphSlug, nodeId, nodeResult.config);
+
+    return { errors: [] };
   }
 
   async removeInput(
-    _ctx: WorkspaceContext,
-    _graphSlug: string,
-    _nodeId: string,
-    _inputName: string
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    inputName: string
   ): Promise<BaseResult> {
-    throw new Error('Not implemented — Phase 5');
+    // Verify graph and node exist
+    const loaded = await this.loadGraphDefinition(ctx, graphSlug);
+    if (!loaded.ok) return { errors: loaded.errors };
+
+    const nodeLocation = this.findNodeInGraph(loaded.definition, nodeId);
+    if (!nodeLocation) return { errors: [nodeNotFoundError(nodeId)] };
+
+    // Load node config
+    const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
+    if (!nodeResult.ok) return { errors: nodeResult.errors };
+
+    // Remove the input wiring
+    if (nodeResult.config.inputs) {
+      delete nodeResult.config.inputs[inputName];
+      // Clean up empty inputs object
+      if (Object.keys(nodeResult.config.inputs).length === 0) {
+        nodeResult.config.inputs = undefined;
+      }
+    }
+
+    await this.persistNodeConfig(ctx, graphSlug, nodeId, nodeResult.config);
+
+    return { errors: [] };
+  }
+
+  // ============================================
+  // Input resolution — Phase 5
+  // ============================================
+
+  async collateInputs(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string
+  ): Promise<InputPack> {
+    // Load graph definition
+    const loaded = await this.loadGraphDefinition(ctx, graphSlug);
+    if (!loaded.ok) return { inputs: {}, ok: false };
+
+    // Find node and load its config
+    const nodeLocation = this.findNodeInGraph(loaded.definition, nodeId);
+    if (!nodeLocation) return { inputs: {}, ok: false };
+
+    const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
+    if (!nodeResult.ok) return { inputs: {}, ok: false };
+
+    // Load WorkUnit
+    const unitResult = await this.workUnitLoader.load(ctx, nodeResult.config.unit_slug);
+    if (unitResult.errors.length > 0 || !unitResult.unit) {
+      return { inputs: {}, ok: false };
+    }
+
+    // Load state
+    const state = await this.loadState(ctx, graphSlug);
+
+    return collateInputsAlgorithm(
+      ctx,
+      graphSlug,
+      nodeId,
+      loaded.definition,
+      state,
+      nodeResult.config,
+      unitResult.unit,
+      {
+        fs: this.fs,
+        pathResolver: this.pathResolver,
+        yamlParser: this.yamlParser,
+        adapter: this.adapter,
+        workUnitLoader: this.workUnitLoader,
+      }
+    );
+  }
+
+  // ============================================
+  // Status API — Phase 5
+  // ============================================
+
+  async getNodeStatus(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string
+  ): Promise<NodeStatusResult> {
+    // Load graph definition
+    const loaded = await this.loadGraphDefinition(ctx, graphSlug);
+    if (!loaded.ok) {
+      throw new Error(`Graph '${graphSlug}' not found`);
+    }
+
+    const def = loaded.definition;
+    const nodeLocation = this.findNodeInGraph(def, nodeId);
+    if (!nodeLocation) {
+      throw new Error(`Node '${nodeId}' not found in graph`);
+    }
+
+    // Load node config
+    const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
+    if (!nodeResult.ok) {
+      throw new Error(`Node config for '${nodeId}' could not be loaded`);
+    }
+
+    const nodeConfig = nodeResult.config;
+
+    // Load WorkUnit
+    const unitResult = await this.workUnitLoader.load(ctx, nodeConfig.unit_slug);
+    const unitFound = !!(unitResult.unit && unitResult.errors.length === 0);
+
+    // Load state
+    const state = await this.loadState(ctx, graphSlug);
+
+    // Collate inputs
+    let inputPack: import('../interfaces/index.js').InputPack;
+    if (unitFound && unitResult.unit) {
+      inputPack = await collateInputsAlgorithm(
+        ctx,
+        graphSlug,
+        nodeId,
+        def,
+        state,
+        nodeConfig,
+        unitResult.unit,
+        {
+          fs: this.fs,
+          pathResolver: this.pathResolver,
+          yamlParser: this.yamlParser,
+          adapter: this.adapter,
+          workUnitLoader: this.workUnitLoader,
+        }
+      );
+    } else {
+      inputPack = { inputs: {}, ok: false };
+    }
+
+    // Run canRun algorithm
+    const canRunResult = canRunAlgorithm(nodeId, def, state, inputPack, nodeConfig);
+
+    // Determine status
+    const storedState = state.nodes?.[nodeId];
+    let status: import('../interfaces/index.js').ExecutionStatus;
+
+    if (storedState) {
+      // Stored status takes precedence
+      status = storedState.status;
+    } else {
+      // Computed: pending or ready
+      status = canRunResult.canRun ? 'ready' : 'pending';
+    }
+
+    // Build readyDetail (always computed)
+    // Re-compute individual gates for the detail even if we short-circuited
+    const precedingLinesComplete = (() => {
+      for (let li = 0; li < nodeLocation.lineIndex; li++) {
+        for (const nid of def.lines[li].nodes) {
+          const ns = state.nodes?.[nid];
+          if (!ns || ns.status !== 'complete') return false;
+        }
+      }
+      return true;
+    })();
+
+    const transitionOpen = (() => {
+      if (nodeLocation.lineIndex === 0) return true;
+      const precedingLine = def.lines[nodeLocation.lineIndex - 1];
+      if (precedingLine.transition !== 'manual') return true;
+      const trigger = state.transitions?.[precedingLine.id];
+      return !!trigger?.triggered;
+    })();
+
+    const serialNeighborComplete = (() => {
+      if (nodeConfig.execution === 'parallel') return true;
+      if (nodeLocation.nodePositionInLine === 0) return true;
+      const leftId = nodeLocation.line.nodes[nodeLocation.nodePositionInLine - 1];
+      const leftState = state.nodes?.[leftId];
+      return leftState?.status === 'complete';
+    })();
+
+    return {
+      nodeId,
+      unitSlug: nodeConfig.unit_slug,
+      execution: nodeConfig.execution,
+      lineId: nodeLocation.line.id,
+      position: nodeLocation.nodePositionInLine,
+      status,
+      ready: canRunResult.canRun,
+      readyDetail: {
+        precedingLinesComplete,
+        transitionOpen,
+        serialNeighborComplete,
+        inputsAvailable: inputPack.ok,
+        unitFound,
+        reason: canRunResult.reason,
+      },
+      inputPack,
+      startedAt: storedState?.started_at,
+      completedAt: storedState?.completed_at,
+    };
+  }
+
+  async getLineStatus(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    lineId: string
+  ): Promise<LineStatusResult> {
+    const loaded = await this.loadGraphDefinition(ctx, graphSlug);
+    if (!loaded.ok) throw new Error(`Graph '${graphSlug}' not found`);
+
+    const def = loaded.definition;
+    const lineInfo = this.findLine(def, lineId);
+    if (!lineInfo) throw new Error(`Line '${lineId}' not found`);
+
+    const { line, index: lineIndex } = lineInfo;
+    const state = await this.loadState(ctx, graphSlug);
+
+    // Get status for all nodes on this line
+    const nodes: NodeStatusResult[] = [];
+    for (const nodeId of line.nodes) {
+      const nodeStatus = await this.getNodeStatus(ctx, graphSlug, nodeId);
+      nodes.push(nodeStatus);
+    }
+
+    // Determine transition state
+    const transitionTriggered = (() => {
+      if (lineIndex === 0) return false;
+      const precedingLine = def.lines[lineIndex - 1];
+      if (precedingLine.transition !== 'manual') return false;
+      const trigger = state.transitions?.[precedingLine.id];
+      return !!trigger?.triggered;
+    })();
+
+    // Line-level readiness
+    const precedingLinesComplete = (() => {
+      for (let li = 0; li < lineIndex; li++) {
+        for (const nid of def.lines[li].nodes) {
+          const ns = state.nodes?.[nid];
+          if (!ns || ns.status !== 'complete') return false;
+        }
+      }
+      return true;
+    })();
+
+    const transitionOpen = (() => {
+      if (lineIndex === 0) return true;
+      const precedingLine = def.lines[lineIndex - 1];
+      if (precedingLine.transition !== 'manual') return true;
+      const trigger = state.transitions?.[precedingLine.id];
+      return !!trigger?.triggered;
+    })();
+
+    // Identify starter nodes: position 0 or any parallel node
+    const starterNodes: import('../interfaces/index.js').StarterReadiness[] = [];
+    for (let pos = 0; pos < line.nodes.length; pos++) {
+      const nStatus = nodes[pos];
+      if (pos === 0 || nStatus.execution === 'parallel') {
+        starterNodes.push({
+          nodeId: nStatus.nodeId,
+          position: pos,
+          ready: nStatus.ready,
+          reason: nStatus.readyDetail.reason,
+        });
+      }
+    }
+
+    const empty = line.nodes.length === 0;
+    const complete = empty || nodes.every((n) => n.status === 'complete');
+    const canRun =
+      precedingLinesComplete && transitionOpen && (empty || starterNodes.some((s) => s.ready));
+
+    // Convenience buckets
+    const readyNodes = nodes.filter((n) => n.status === 'ready').map((n) => n.nodeId);
+    const runningNodes = nodes.filter((n) => n.status === 'running').map((n) => n.nodeId);
+    const waitingQuestionNodes = nodes
+      .filter((n) => n.status === 'waiting-question')
+      .map((n) => n.nodeId);
+    const blockedNodes = nodes.filter((n) => n.status === 'blocked-error').map((n) => n.nodeId);
+    const completedNodes = nodes.filter((n) => n.status === 'complete').map((n) => n.nodeId);
+
+    return {
+      lineId,
+      label: line.label,
+      index: lineIndex,
+      transition: line.transition,
+      transitionTriggered,
+      complete,
+      empty,
+      canRun,
+      precedingLinesComplete,
+      transitionOpen,
+      starterNodes,
+      nodes,
+      readyNodes,
+      runningNodes,
+      waitingQuestionNodes,
+      blockedNodes,
+      completedNodes,
+    };
+  }
+
+  async getStatus(ctx: WorkspaceContext, graphSlug: string): Promise<GraphStatusResult> {
+    const loaded = await this.loadGraphDefinition(ctx, graphSlug);
+    if (!loaded.ok) throw new Error(`Graph '${graphSlug}' not found`);
+
+    const def = loaded.definition;
+    const state = await this.loadState(ctx, graphSlug);
+
+    // Get line statuses
+    const lines: LineStatusResult[] = [];
+    for (const lineDef of def.lines) {
+      const lineStatus = await this.getLineStatus(ctx, graphSlug, lineDef.id);
+      lines.push(lineStatus);
+    }
+
+    // Flatten convenience lists
+    const readyNodes: string[] = [];
+    const runningNodes: string[] = [];
+    const waitingQuestionNodes: string[] = [];
+    const blockedNodes: string[] = [];
+    const completedNodeIds: string[] = [];
+
+    for (const ls of lines) {
+      readyNodes.push(...ls.readyNodes);
+      runningNodes.push(...ls.runningNodes);
+      waitingQuestionNodes.push(...ls.waitingQuestionNodes);
+      blockedNodes.push(...ls.blockedNodes);
+      completedNodeIds.push(...ls.completedNodes);
+    }
+
+    // Total counts
+    const totalNodes = lines.reduce((sum, ls) => sum + ls.nodes.length, 0);
+    const completedCount = completedNodeIds.length;
+
+    // Compute overall status
+    let overallStatus: 'pending' | 'in_progress' | 'complete' | 'failed';
+    if (totalNodes === 0) {
+      overallStatus = state.graph_status as typeof overallStatus;
+    } else if (completedCount === totalNodes) {
+      overallStatus = 'complete';
+    } else if (blockedNodes.length > 0 && runningNodes.length === 0 && readyNodes.length === 0) {
+      overallStatus = 'failed';
+    } else if (completedCount > 0 || runningNodes.length > 0) {
+      overallStatus = 'in_progress';
+    } else {
+      overallStatus = 'pending';
+    }
+
+    return {
+      graphSlug,
+      version: def.version,
+      description: def.description,
+      status: overallStatus,
+      totalNodes,
+      completedNodes: completedCount,
+      lines,
+      readyNodes,
+      runningNodes,
+      waitingQuestionNodes,
+      blockedNodes,
+      completedNodeIds,
+    };
+  }
+
+  // ============================================
+  // Transition control — Phase 5
+  // ============================================
+
+  async triggerTransition(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    lineId: string
+  ): Promise<BaseResult> {
+    const loaded = await this.loadGraphDefinition(ctx, graphSlug);
+    if (!loaded.ok) return { errors: loaded.errors };
+
+    const found = this.findLine(loaded.definition, lineId);
+    if (!found) return { errors: [lineNotFoundError(lineId)] };
+
+    const state = await this.loadState(ctx, graphSlug);
+
+    if (!state.transitions) {
+      state.transitions = {};
+    }
+
+    state.transitions[lineId] = {
+      triggered: true,
+      triggered_at: new Date().toISOString(),
+    };
+
+    await this.persistState(ctx, graphSlug, state);
+
+    return { errors: [] };
   }
 }

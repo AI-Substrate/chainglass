@@ -26,7 +26,7 @@ function createTestContext(worktreePath = '/workspace/my-project'): WorkspaceCon
 
 const stubWorkUnitLoader: IWorkUnitLoader = {
   async load() {
-    return { errors: [] };
+    return { unit: { slug: 'stub', inputs: [], outputs: [] }, errors: [] };
   },
 };
 

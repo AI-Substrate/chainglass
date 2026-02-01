@@ -36,7 +36,7 @@ function createFakeUnitLoader(knownSlugs: string[]): IWorkUnitLoader {
   return {
     async load(_ctx: WorkspaceContext, slug: string) {
       if (known.has(slug)) {
-        return { unit: { slug }, errors: [] };
+        return { unit: { slug, inputs: [], outputs: [] }, errors: [] };
       }
       return { errors: [{ code: 'E120', message: `Unit '${slug}' not found` } as ResultError] };
     },

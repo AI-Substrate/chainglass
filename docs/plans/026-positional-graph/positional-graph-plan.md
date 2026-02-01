@@ -580,17 +580,17 @@ describe('PositionalGraphDefinitionSchema', () => {
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 5.1 | [ ] | Write tests for input wiring operations (setInput, removeInput) | 2 | Tests cover: wire from_unit, wire from_node, remove input, persist in node.yaml, input not declared E160 | - | |
-| 5.2 | [ ] | Implement input wiring to pass tests | 2 | All wiring tests pass, node.yaml updated | - | |
-| 5.3 | [ ] | Write tests for collateInputs — single source resolution | 3 | Tests cover: available (source complete with data), waiting (source found, not complete), error (no matching node E161), error (output not declared E163), waiting (forward reference resolves as waiting, not an error) | - | Core algorithm. Forward refs are not errors — they resolve as `waiting`. |
-| 5.4 | [ ] | Write tests for collateInputs — multi-source resolution | 3 | Tests cover: multiple nodes matching from_unit (collect all), ordinal disambiguation (:1, :2), invalid ordinal E164, ambiguous predecessor E162, partial availability (some sources complete, some waiting) | - | |
-| 5.5 | [ ] | Write tests for collateInputs — from_node explicit resolution | 2 | Tests cover: direct node ID lookup, node not in preceding lines resolves as waiting (not an error), node not found E153 | - | |
-| 5.6 | [ ] | Write tests for collateInputs — optional vs required inputs | 2 | Tests cover: optional input error doesn't block ok, required input error blocks ok, optional waiting doesn't block ok | - | |
-| 5.7 | [ ] | Implement collateInputs to pass all resolution tests | 3 | All collateInputs tests pass | - | Search preceding lines, resolve by unit slug or node ID |
-| 5.8 | [ ] | Write tests for canRun (internal 4-gate algorithm) | 3 | Tests cover: all preceding lines complete → ready, preceding line incomplete → pending, manual transition gate blocks, serial left neighbor incomplete blocks (per-node, not per-line), parallel skips Gate 3, collateInputs ok required, combinations of rules | - | canRun is internal; public API is getNodeStatus |
-| 5.9 | [ ] | Implement canRun to pass tests | 3 | All canRun tests pass | - | 4 gates: preceding lines + transition + serial neighbor + collateInputs |
-| 5.10 | [ ] | Write tests for getNodeStatus / getLineStatus / getStatus | 3 | Tests cover: node status with readyDetail, line status with starterNodes and convenience buckets, graph status with overall state, stored status preserved, mixed statuses across lines, StarterReadiness for chain-starters | - | Three levels, one pattern — per execution rules workshop §12 |
-| 5.11 | [ ] | Implement getNodeStatus / getLineStatus / getStatus | 3 | All status tests pass | - | getNodeStatus computes readiness + resolves inputs; getLineStatus calls getNodeStatus for all nodes; getStatus calls getLineStatus for all lines |
+| 5.1 | [x] | Write tests for input wiring operations (setInput, removeInput) | 2 | Tests cover: wire from_unit, wire from_node, remove input, persist in node.yaml, input not declared E160 | [📋](tasks/phase-5-input-wiring-and-status-computation/execution.log.md#task-t002-write-input-wiring-tests-red) | [^9] |
+| 5.2 | [x] | Implement input wiring to pass tests | 2 | All wiring tests pass, node.yaml updated | [📋](tasks/phase-5-input-wiring-and-status-computation/execution.log.md#task-t003-implement-setinput-removeinput-green) | [^9] |
+| 5.3 | [x] | Write tests for collateInputs — single source resolution | 3 | Tests cover: available (source complete with data), waiting (source found, not complete), error (no matching node E161), error (output not declared E163), waiting (forward reference resolves as waiting, not an error) | [📋](tasks/phase-5-input-wiring-and-status-computation/execution.log.md#task-t004-t007-collate-inputs-tests-red-single-pass) | Core algorithm. Forward refs are not errors — they resolve as `waiting`. [^10] |
+| 5.4 | [x] | Write tests for collateInputs — multi-source resolution | 3 | Tests cover: multiple nodes matching from_unit (collect all), ordinal disambiguation (:1, :2), invalid ordinal E164, ambiguous predecessor E162, partial availability (some sources complete, some waiting) | [📋](tasks/phase-5-input-wiring-and-status-computation/execution.log.md#task-t004-t007-collate-inputs-tests-red-single-pass) | [^10] |
+| 5.5 | [x] | Write tests for collateInputs — from_node explicit resolution | 2 | Tests cover: direct node ID lookup, node not in preceding lines resolves as waiting (not an error), node not found E153 | [📋](tasks/phase-5-input-wiring-and-status-computation/execution.log.md#task-t004-t007-collate-inputs-tests-red-single-pass) | [^10] |
+| 5.6 | [x] | Write tests for collateInputs — optional vs required inputs | 2 | Tests cover: optional input error doesn't block ok, required input error blocks ok, optional waiting doesn't block ok | [📋](tasks/phase-5-input-wiring-and-status-computation/execution.log.md#task-t004-t007-collate-inputs-tests-red-single-pass) | [^10] |
+| 5.7 | [x] | Implement collateInputs to pass all resolution tests | 3 | All collateInputs tests pass | [📋](tasks/phase-5-input-wiring-and-status-computation/execution.log.md#task-t008-implement-collateinputs-green) | Search preceding lines, resolve by unit slug or node ID [^10] |
+| 5.8 | [x] | Write tests for canRun (internal 4-gate algorithm) | 3 | Tests cover: all preceding lines complete → ready, preceding line incomplete → pending, manual transition gate blocks, serial left neighbor incomplete blocks (per-node, not per-line), parallel skips Gate 3, collateInputs ok required, combinations of rules | [📋](tasks/phase-5-input-wiring-and-status-computation/execution.log.md#task-t009-write-canrun-tests-red) | canRun is internal; public API is getNodeStatus [^11] |
+| 5.9 | [x] | Implement canRun to pass tests | 3 | All canRun tests pass | [📋](tasks/phase-5-input-wiring-and-status-computation/execution.log.md#task-t010-implement-canrun-green) | 4 gates: preceding lines + transition + serial neighbor + collateInputs [^11] |
+| 5.10 | [x] | Write tests for getNodeStatus / getLineStatus / getStatus | 3 | Tests cover: node status with readyDetail, line status with starterNodes and convenience buckets, graph status with overall state, stored status preserved, mixed statuses across lines, StarterReadiness for chain-starters | [📋](tasks/phase-5-input-wiring-and-status-computation/execution.log.md#task-t011-write-status-api-tests-red) | Three levels, one pattern — per execution rules workshop §12 [^12] |
+| 5.11 | [x] | Implement getNodeStatus / getLineStatus / getStatus | 3 | All status tests pass | [📋](tasks/phase-5-input-wiring-and-status-computation/execution.log.md#task-t012-implement-getlinestatus-getstatus-green) | getNodeStatus computes readiness + resolves inputs; getLineStatus calls getNodeStatus for all nodes; getStatus calls getLineStatus for all lines [^12] |
 
 ### Test Examples (Write First!)
 
@@ -620,16 +620,16 @@ describe('collateInputs', () => {
 ```
 
 ### Acceptance Criteria
-- [ ] `setInput` wires node input to named predecessor or explicit node ID
-- [ ] `removeInput` removes input wiring
-- [ ] `collateInputs` resolves each input to available/waiting/error
-- [ ] Multi-source inputs collect from all matching nodes
-- [ ] Ordinal disambiguation (`:1`, `:2`) works correctly
-- [ ] `getNodeStatus` returns readiness detail (4 gates), input resolution, pending questions, errors
-- [ ] `getLineStatus` returns per-node status, starter nodes, convenience buckets
-- [ ] `getStatus` returns graph-wide status (overall state, per-line detail, flat convenience lists)
-- [ ] Forward references resolve as `waiting` (not an error — no E165)
-- [ ] Tests pass: `pnpm test --filter @chainglass/positional-graph` — input resolution, collateInputs, canRun, and status tests green
+- [x] `setInput` wires node input to named predecessor or explicit node ID
+- [x] `removeInput` removes input wiring
+- [x] `collateInputs` resolves each input to available/waiting/error
+- [x] Multi-source inputs collect from all matching nodes
+- [x] Ordinal disambiguation (`:1`, `:2`) works correctly
+- [x] `getNodeStatus` returns readiness detail (4 gates), input resolution, pending questions, errors
+- [x] `getLineStatus` returns per-node status, starter nodes, convenience buckets
+- [x] `getStatus` returns graph-wide status (overall state, per-line detail, flat convenience lists)
+- [x] Forward references resolve as `waiting` (not an error — no E165)
+- [x] Tests pass: `pnpm test --filter @chainglass/positional-graph` — input resolution, collateInputs, canRun, and status tests green
 
 ---
 
@@ -747,9 +747,9 @@ describe('collateInputs', () => {
 ### Phase Completion Checklist
 - [x] Phase 1: WorkUnit Type Extraction - Complete
 - [x] Phase 2: Schema, Types, and Filesystem Adapter - Complete
-- [ ] Phase 3: Graph and Line CRUD Operations - Pending
-- [ ] Phase 4: Node Operations with Positional Invariants - Pending
-- [ ] Phase 5: Input Wiring and Status Computation - Pending
+- [x] Phase 3: Graph and Line CRUD Operations - Complete
+- [x] Phase 4: Node Operations with Positional Invariants - Complete
+- [x] Phase 5: Input Wiring and Status Computation - Complete
 - [ ] Phase 6: CLI Integration - Pending
 - [ ] Phase 7: Integration Tests, E2E, and Documentation - Pending
 
@@ -831,6 +831,35 @@ No layer-boundary violations. The positional graph package follows the same stru
 
 [^8]: Phase 2, Task 2.11 — DI container registration
   - `function:packages/positional-graph/src/container.ts:registerPositionalGraphServices`
+
+[^9]: Phase 5, Tasks T001-T003 — Interface types + input wiring (9 tests)
+  - `file:packages/positional-graph/src/interfaces/positional-graph-service.interface.ts` (NarrowWorkUnit types, InputPack, CanRunResult, Status types, method signatures)
+  - `file:packages/positional-graph/src/interfaces/index.ts` (barrel export)
+  - `file:packages/positional-graph/src/services/positional-graph.service.ts` (setInput, removeInput, stubs)
+  - `file:test/unit/positional-graph/input-wiring.test.ts`
+
+[^10]: Phase 5, Tasks T004-T008 — collateInputs algorithm (15 tests)
+  - `function:packages/positional-graph/src/services/input-resolution.ts:collateInputs`
+  - `function:packages/positional-graph/src/services/input-resolution.ts:findSourcesByUnit`
+  - `function:packages/positional-graph/src/services/input-resolution.ts:isInScope`
+  - `function:packages/positional-graph/src/services/input-resolution.ts:loadNodeData`
+  - `function:packages/positional-graph/src/services/input-resolution.ts:loadAllNodeConfigs`
+  - `function:packages/positional-graph/src/services/input-resolution.ts:resolveInput`
+  - `file:test/unit/positional-graph/collate-inputs.test.ts`
+
+[^11]: Phase 5, Tasks T009-T010 — canRun 4-gate algorithm (12 tests)
+  - `function:packages/positional-graph/src/services/input-resolution.ts:canRun`
+  - `method:packages/positional-graph/src/services/positional-graph.service.ts:PositionalGraphService.getNodeStatus`
+  - `file:test/unit/positional-graph/can-run.test.ts`
+
+[^12]: Phase 5, Tasks T011-T013 — Status API + triggerTransition (10 tests)
+  - `method:packages/positional-graph/src/services/positional-graph.service.ts:PositionalGraphService.getLineStatus`
+  - `method:packages/positional-graph/src/services/positional-graph.service.ts:PositionalGraphService.getStatus`
+  - `method:packages/positional-graph/src/services/positional-graph.service.ts:PositionalGraphService.triggerTransition`
+  - `file:test/unit/positional-graph/status.test.ts`
+
+[^13]: Phase 5, Task T014 — Quality gate
+  - Full suite: 2908 tests passed, 0 failures, 0 lint errors, typecheck pass, build successful
 
 ---
 

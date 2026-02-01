@@ -3,6 +3,7 @@ import type { WorkspaceContext } from '@chainglass/workflow';
 import type {
   Execution,
   InputResolution,
+  NodeExecutionStatus,
   PositionalGraphDefinition,
   TransitionMode,
 } from '../schemas/index.js';
@@ -12,12 +13,48 @@ import type {
 // ============================================
 
 /**
- * Narrow interface for WorkUnit existence validation.
+ * Narrow representation of a WorkUnit's input declaration.
+ * Per DYK-P4-I2: local to positional-graph, mirrors WorkUnitInput from @chainglass/workflow.
+ */
+export interface NarrowWorkUnitInput {
+  name: string;
+  type: 'data' | 'file';
+  required: boolean;
+  description?: string;
+}
+
+/**
+ * Narrow representation of a WorkUnit's output declaration.
+ */
+export interface NarrowWorkUnitOutput {
+  name: string;
+  type: 'data' | 'file';
+  required: boolean;
+  description?: string;
+}
+
+/**
+ * Narrow representation of a loaded WorkUnit — just the fields collateInputs needs.
+ */
+export interface NarrowWorkUnit {
+  slug: string;
+  inputs: NarrowWorkUnitInput[];
+  outputs: NarrowWorkUnitOutput[];
+}
+
+/**
+ * Narrow interface for WorkUnit loading.
  * Per DYK-P4-I2: avoids cross-package dependency on @chainglass/workgraph.
  * Host app wires the real WorkUnitService to satisfy this at DI level.
+ *
+ * Phase 5: Return type widened to include typed `unit` with inputs/outputs
+ * for collateInputs to check declared inputs and validate output names.
  */
 export interface IWorkUnitLoader {
-  load(ctx: WorkspaceContext, slug: string): Promise<{ unit?: unknown; errors: ResultError[] }>;
+  load(
+    ctx: WorkspaceContext,
+    slug: string
+  ): Promise<{ unit?: NarrowWorkUnit; errors: ResultError[] }>;
 }
 
 // ============================================
@@ -116,6 +153,177 @@ export interface NodeShowResult extends BaseResult {
 }
 
 // ============================================
+// Result Types — Input Resolution (Phase 5)
+// ============================================
+
+/** A single resolved source for an available input. */
+export interface AvailableSource {
+  sourceNodeId: string;
+  sourceOutput: string;
+  data: unknown;
+}
+
+/** Detail for an input that is fully resolved. */
+export interface AvailableInput {
+  inputName: string;
+  required: boolean;
+  sources: AvailableSource[];
+}
+
+/** Detail for an input whose sources aren't all complete yet. */
+export interface WaitingInput {
+  inputName: string;
+  required: boolean;
+  available: AvailableSource[];
+  waiting: string[];
+  hint?: string;
+}
+
+/** Detail for an input with a resolution error. */
+export interface ErrorInput {
+  inputName: string;
+  required: boolean;
+  code: string;
+  message: string;
+}
+
+/** A single entry in the InputPack — one of three states. */
+export type InputEntry =
+  | { status: 'available'; detail: AvailableInput }
+  | { status: 'waiting'; detail: WaitingInput }
+  | { status: 'error'; detail: ErrorInput };
+
+/**
+ * The result of collateInputs — maps each declared input to its resolution status.
+ * `ok` is true when every REQUIRED input has status 'available'.
+ */
+export interface InputPack {
+  inputs: Record<string, InputEntry>;
+  ok: boolean;
+}
+
+// ============================================
+// Result Types — canRun (Phase 5)
+// ============================================
+
+export interface CanRunResult {
+  canRun: boolean;
+  reason?: string;
+  gate?: 'preceding' | 'transition' | 'serial' | 'inputs';
+  inputPack: InputPack;
+  blockingNodes?: string[];
+  waitingForTransition?: boolean;
+  waitingForSerial?: string;
+}
+
+// ============================================
+// Result Types — Status API (Phase 5)
+// ============================================
+
+/** Full computed or stored status for a node. */
+export type ExecutionStatus = 'pending' | 'ready' | NodeExecutionStatus; // 'running' | 'waiting-question' | 'blocked-error' | 'complete'
+
+export interface NodeStatusResult {
+  nodeId: string;
+  unitSlug: string;
+  execution: Execution;
+  lineId: string;
+  position: number;
+
+  /** Current state (computed or stored). */
+  status: ExecutionStatus;
+
+  /** Readiness detail — always computed, even for running/complete nodes. */
+  ready: boolean;
+  readyDetail: {
+    precedingLinesComplete: boolean;
+    transitionOpen: boolean;
+    serialNeighborComplete: boolean;
+    inputsAvailable: boolean;
+    unitFound: boolean;
+    reason?: string;
+  };
+
+  /** Input resolution (always resolved). */
+  inputPack: InputPack;
+
+  /**
+   * Present when status is 'waiting-question'.
+   * Populated by execution lifecycle (Phase 6+).
+   */
+  pendingQuestion?: {
+    questionId: string;
+    text: string;
+    questionType: 'text' | 'single' | 'multi' | 'confirm';
+    options?: { key: string; label: string }[];
+    askedAt: string;
+  };
+
+  /**
+   * Present when status is 'blocked-error'.
+   * Populated by execution lifecycle (Phase 6+).
+   */
+  error?: {
+    code: string;
+    message: string;
+    occurredAt: string;
+  };
+
+  startedAt?: string;
+  completedAt?: string;
+}
+
+/** A chain-starter is position 0, or any parallel node that breaks a serial chain. */
+export interface StarterReadiness {
+  nodeId: string;
+  position: number;
+  ready: boolean;
+  reason?: string;
+}
+
+export interface LineStatusResult {
+  lineId: string;
+  label?: string;
+  index: number;
+  transition: TransitionMode;
+  transitionTriggered: boolean;
+
+  complete: boolean;
+  empty: boolean;
+
+  canRun: boolean;
+  precedingLinesComplete: boolean;
+  transitionOpen: boolean;
+  starterNodes: StarterReadiness[];
+
+  nodes: NodeStatusResult[];
+
+  readyNodes: string[];
+  runningNodes: string[];
+  waitingQuestionNodes: string[];
+  blockedNodes: string[];
+  completedNodes: string[];
+}
+
+export interface GraphStatusResult {
+  graphSlug: string;
+  version: string;
+  description?: string;
+
+  status: 'pending' | 'in_progress' | 'complete' | 'failed';
+  totalNodes: number;
+  completedNodes: number;
+
+  lines: LineStatusResult[];
+
+  readyNodes: string[];
+  runningNodes: string[];
+  waitingQuestionNodes: string[];
+  blockedNodes: string[];
+  completedNodeIds: string[];
+}
+
+// ============================================
 // Service Interface
 // ============================================
 
@@ -202,4 +410,23 @@ export interface IPositionalGraphService {
     nodeId: string,
     inputName: string
   ): Promise<BaseResult>;
+
+  // Input resolution (Phase 5)
+  collateInputs(ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<InputPack>;
+
+  // Status API (Phase 5)
+  getNodeStatus(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string
+  ): Promise<NodeStatusResult>;
+  getLineStatus(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    lineId: string
+  ): Promise<LineStatusResult>;
+  getStatus(ctx: WorkspaceContext, graphSlug: string): Promise<GraphStatusResult>;
+
+  // Transition control (Phase 5)
+  triggerTransition(ctx: WorkspaceContext, graphSlug: string, lineId: string): Promise<BaseResult>;
 }
