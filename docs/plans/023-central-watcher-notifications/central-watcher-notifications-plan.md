@@ -473,12 +473,12 @@ describe('CentralWatcherService', () => {
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 3.1 | [ ] | Define `WorkGraphChangedEvent` type | CS-1 | Type has: `graphSlug`, `workspaceSlug`, `worktreePath`, `filePath`, `timestamp`. Matches old `GraphChangedEvent` shape exactly. | - | In feature directory |
-| 3.2 | [ ] | Write tests: state.json change detection and filtering | CS-2 | Tests cover: `state.json` change emits event, `graph.yaml` change ignored, `layout.json` change ignored, file in non-workgraph domain ignored, `state.json` add emits event, `state.json` unlink emits event | - | RED phase |
-| 3.3 | [ ] | Write tests: graphSlug extraction from path | CS-1 | Tests cover: correct slug extracted from `/.chainglass/data/work-graphs/<slug>/state.json`, nested node data paths ignored, edge-case slugs (hyphens, dots) work | - | RED phase |
-| 3.4 | [ ] | Write tests: subscriber callback pattern | CS-1 | Tests cover: `onGraphChanged(callback)` returns unsubscribe fn, unsubscribe removes callback, multiple subscribers all notified, `WorkGraphChangedEvent` has correct fields | - | RED phase |
-| 3.5 | [ ] | Implement `WorkGraphWatcherAdapter` to pass all tests | CS-2 | All tests from 3.2-3.4 pass. Adapter implements `IWatcherAdapter`, `handleEvent()` filters for `state.json` under `work-graphs/`, extracts slug, emits to subscribers. | - | GREEN phase |
-| 3.6 | [ ] | Update feature barrel export | CS-1 | `WorkGraphWatcherAdapter`, `WorkGraphChangedEvent` exported from feature `index.ts`. Main `index.ts` re-exports. `just typecheck` passes. | - | |
+| 3.1 | [x] | Define `WorkGraphChangedEvent` type | CS-1 | Type has: `graphSlug`, `workspaceSlug`, `worktreePath`, `filePath`, `timestamp`. Matches old `GraphChangedEvent` shape exactly. | [📋 log](tasks/phase-3-workgraphwatcheradapter-tdd/execution.log.md#task-t001-setup) | In feature directory |
+| 3.2 | [x] | Write tests: state.json change detection and filtering | CS-2 | Tests cover: `state.json` change emits event, `graph.yaml` change ignored, `layout.json` change ignored, file in non-workgraph domain ignored, `state.json` add emits event, `state.json` unlink emits event | [📋 log](tasks/phase-3-workgraphwatcheradapter-tdd/execution.log.md#tasks-t002-t004-red) | RED phase — 6 tests |
+| 3.3 | [x] | Write tests: graphSlug extraction from path | CS-1 | Tests cover: correct slug extracted from `/.chainglass/data/work-graphs/<slug>/state.json`, nested node data paths ignored, edge-case slugs (hyphens, dots) work | [📋 log](tasks/phase-3-workgraphwatcheradapter-tdd/execution.log.md#tasks-t002-t004-red) | RED phase — 4 tests |
+| 3.4 | [x] | Write tests: subscriber callback pattern | CS-1 | Tests cover: `onGraphChanged(callback)` returns unsubscribe fn, unsubscribe removes callback, multiple subscribers all notified, `WorkGraphChangedEvent` has correct fields | [📋 log](tasks/phase-3-workgraphwatcheradapter-tdd/execution.log.md#tasks-t002-t004-red) | RED phase — 6 tests |
+| 3.5 | [x] | Implement `WorkGraphWatcherAdapter` to pass all tests | CS-2 | All tests from 3.2-3.4 pass. Adapter implements `IWatcherAdapter`, `handleEvent()` filters for `state.json` under `work-graphs/`, extracts slug, emits to subscribers. | [📋 log](tasks/phase-3-workgraphwatcheradapter-tdd/execution.log.md#task-t005-green) | GREEN phase — 16/16 pass |
+| 3.6 | [x] | Update feature barrel export | CS-1 | `WorkGraphWatcherAdapter`, `WorkGraphChangedEvent` exported from feature `index.ts`. Main `index.ts` re-exports. `just typecheck` passes. | [📋 log](tasks/phase-3-workgraphwatcheradapter-tdd/execution.log.md#task-t006-barrel) | Done with T005 |
 
 ### Test Examples (Write First!)
 

@@ -12,6 +12,10 @@ export type { ICentralWatcherService } from './central-watcher.interface.js';
 // Service implementation
 export { CentralWatcherService } from './central-watcher.service.js';
 
+// WorkGraph watcher adapter (Phase 3)
+export { WorkGraphWatcherAdapter } from './workgraph-watcher.adapter.js';
+export type { WorkGraphChangedEvent } from './workgraph-watcher.adapter.js';
+
 // Fakes
 export { FakeWatcherAdapter } from './fake-watcher-adapter.js';
 export {

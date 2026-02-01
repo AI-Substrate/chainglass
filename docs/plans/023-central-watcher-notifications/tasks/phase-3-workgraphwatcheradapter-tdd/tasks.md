@@ -130,12 +130,12 @@ flowchart TD
     style Files fill:#F5F5F5,stroke:#E0E0E0
 
     subgraph Phase["Phase 3: WorkGraphWatcherAdapter TDD"]
-        T001["T001: Define WorkGraphChangedEvent"]:::pending
-        T002["T002: Tests — filtering"]:::pending
-        T003["T003: Tests — slug extraction"]:::pending
-        T004["T004: Tests — subscriber pattern"]:::pending
-        T005["T005: Implement adapter"]:::pending
-        T006["T006: Update barrel exports"]:::pending
+        T001["T001: Define WorkGraphChangedEvent ✓"]:::completed
+        T002["T002: Tests — filtering ✓"]:::completed
+        T003["T003: Tests — slug extraction ✓"]:::completed
+        T004["T004: Tests — subscriber pattern ✓"]:::completed
+        T005["T005: Implement adapter ✓"]:::completed
+        T006["T006: Update barrel exports ✓"]:::completed
 
         T001 --> T002
         T001 --> T003
@@ -147,10 +147,10 @@ flowchart TD
     end
 
     subgraph Files["Files"]
-        F1["workgraph-watcher.adapter.ts"]:::pending
-        F2["workgraph-watcher.adapter.test.ts"]:::pending
-        F3["features/.../index.ts"]:::pending
-        F4["packages/workflow/src/index.ts"]:::pending
+        F1["workgraph-watcher.adapter.ts ✓"]:::completed
+        F2["workgraph-watcher.adapter.test.ts ✓"]:::completed
+        F3["features/.../index.ts ✓"]:::completed
+        F4["packages/workflow/src/index.ts ✓"]:::completed
     end
 
     T001 -.-> F1
@@ -168,12 +168,12 @@ flowchart TD
 
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
-| T001 | Type Definition | `workgraph-watcher.adapter.ts` | ⬜ Pending | Define `WorkGraphChangedEvent` matching old `GraphChangedEvent` |
-| T002 | Test Suite | `workgraph-watcher.adapter.test.ts` | ⬜ Pending | RED: state.json filtering tests |
-| T003 | Test Suite | `workgraph-watcher.adapter.test.ts` | ⬜ Pending | RED: graphSlug extraction tests |
-| T004 | Test Suite | `workgraph-watcher.adapter.test.ts` | ⬜ Pending | RED: subscriber callback pattern tests |
-| T005 | Adapter Impl | `workgraph-watcher.adapter.ts` | ⬜ Pending | GREEN: implement to pass all tests |
-| T006 | Barrel Exports | `index.ts` (feature + main) | ⬜ Pending | Export new types and class |
+| T001 | Type Definition | `workgraph-watcher.adapter.ts` | ✅ Complete | Define `WorkGraphChangedEvent` matching old `GraphChangedEvent` |
+| T002 | Test Suite | `workgraph-watcher.adapter.test.ts` | ✅ Complete | RED: state.json filtering tests |
+| T003 | Test Suite | `workgraph-watcher.adapter.test.ts` | ✅ Complete | RED: graphSlug extraction tests |
+| T004 | Test Suite | `workgraph-watcher.adapter.test.ts` | ✅ Complete | RED: subscriber callback pattern tests |
+| T005 | Adapter Impl | `workgraph-watcher.adapter.ts` | ✅ Complete | GREEN: implement to pass all tests |
+| T006 | Barrel Exports | `index.ts` (feature + main) | ✅ Complete | Export new types and class |
 
 ---
 
@@ -181,12 +181,12 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|------|------|-----|------|--------------|-------------------|------------|----------|-------|
-| [ ] | T001 | Define `WorkGraphChangedEvent` type in adapter file | CS-1 | Setup | – | `/home/jak/substrate/023-central-watcher-notifications/packages/workflow/src/features/023-central-watcher-notifications/workgraph-watcher.adapter.ts` | Type has: `graphSlug: string`, `workspaceSlug: string`, `worktreePath: string`, `filePath: string`, `timestamp: Date`. Matches old `GraphChangedEvent` shape exactly (CF-09). | – | plan-scoped. Ref: `workspace-change-notifier.interface.ts:28-55` |
-| [ ] | T002 | Write tests: state.json change detection and filtering (RED) | CS-2 | Test | T001 | `/home/jak/substrate/023-central-watcher-notifications/test/unit/workflow/workgraph-watcher.adapter.test.ts` | Tests cover: `state.json` change emits event, `graph.yaml` change ignored, `layout.json` change ignored, file in non-workgraph domain ignored (e.g. `agents/x/state.json`), `state.json` add emits event, `state.json` unlink emits event. All tests FAIL (RED). | – | [📋 log](execution.log.md#task-t002-red) |
-| [ ] | T003 | Write tests: graphSlug extraction from path (RED) | CS-1 | Test | T001 | `/home/jak/substrate/023-central-watcher-notifications/test/unit/workflow/workgraph-watcher.adapter.test.ts` | Tests cover: correct slug extracted from `/.chainglass/data/work-graphs/<slug>/state.json`, nested node data paths ignored, edge-case slugs with hyphens/dots/underscores. All tests FAIL (RED). | – | [📋 log](execution.log.md#task-t003-red) |
-| [ ] | T004 | Write tests: subscriber callback pattern (RED) | CS-1 | Test | T001 | `/home/jak/substrate/023-central-watcher-notifications/test/unit/workflow/workgraph-watcher.adapter.test.ts` | Tests cover: `onGraphChanged(callback)` returns unsubscribe fn, unsubscribe removes callback, multiple subscribers all notified, `WorkGraphChangedEvent` has correct fields including `timestamp`, adapter `name` is `'workgraph-watcher'`, subscriber error isolation (throwing subscriber doesn't block others). All tests FAIL (RED). | – | [📋 log](execution.log.md#task-t004-red) |
-| [ ] | T005 | Implement `WorkGraphWatcherAdapter` to pass all tests (GREEN) | CS-2 | Core | T002, T003, T004 | `/home/jak/substrate/023-central-watcher-notifications/packages/workflow/src/features/023-central-watcher-notifications/workgraph-watcher.adapter.ts` | All tests from T002-T004 pass. Adapter implements `IWatcherAdapter`, `handleEvent()` filters for `state.json` under `work-graphs/`, extracts slug via regex, emits `WorkGraphChangedEvent` to subscribers via callback set. | – | [📋 log](execution.log.md#task-t005-green) |
-| [ ] | T006 | Update feature barrel and main barrel exports | CS-1 | Integration | T005 | `/home/jak/substrate/023-central-watcher-notifications/packages/workflow/src/features/023-central-watcher-notifications/index.ts`, `/home/jak/substrate/023-central-watcher-notifications/packages/workflow/src/index.ts` | `WorkGraphWatcherAdapter` and `WorkGraphChangedEvent` exported from feature `index.ts`. Main `index.ts` re-exports both. `just typecheck` passes. `just fft` passes. | – | [📋 log](execution.log.md#task-t006-barrel). plan-scoped + cross-plan-edit |
+| [x] | T001 | Define `WorkGraphChangedEvent` type in adapter file | CS-1 | Setup | – | `/home/jak/substrate/023-central-watcher-notifications/packages/workflow/src/features/023-central-watcher-notifications/workgraph-watcher.adapter.ts` | Type has: `graphSlug: string`, `workspaceSlug: string`, `worktreePath: string`, `filePath: string`, `timestamp: Date`. Matches old `GraphChangedEvent` shape exactly (CF-09). | – | [📋 log](execution.log.md#task-t001-setup). plan-scoped. Ref: `workspace-change-notifier.interface.ts:28-55` |
+| [x] | T002 | Write tests: state.json change detection and filtering (RED) | CS-2 | Test | T001 | `/home/jak/substrate/023-central-watcher-notifications/test/unit/workflow/workgraph-watcher.adapter.test.ts` | Tests cover: `state.json` change emits event, `graph.yaml` change ignored, `layout.json` change ignored, file in non-workgraph domain ignored (e.g. `agents/x/state.json`), `state.json` add emits event, `state.json` unlink emits event. All tests FAIL (RED). | – | [📋 log](execution.log.md#tasks-t002-t004-red) |
+| [x] | T003 | Write tests: graphSlug extraction from path (RED) | CS-1 | Test | T001 | `/home/jak/substrate/023-central-watcher-notifications/test/unit/workflow/workgraph-watcher.adapter.test.ts` | Tests cover: correct slug extracted from `/.chainglass/data/work-graphs/<slug>/state.json`, nested node data paths ignored, edge-case slugs with hyphens/dots/underscores. All tests FAIL (RED). | – | [📋 log](execution.log.md#tasks-t002-t004-red) |
+| [x] | T004 | Write tests: subscriber callback pattern (RED) | CS-1 | Test | T001 | `/home/jak/substrate/023-central-watcher-notifications/test/unit/workflow/workgraph-watcher.adapter.test.ts` | Tests cover: `onGraphChanged(callback)` returns unsubscribe fn, unsubscribe removes callback, multiple subscribers all notified, `WorkGraphChangedEvent` has correct fields including `timestamp`, adapter `name` is `'workgraph-watcher'`, subscriber error isolation (throwing subscriber doesn't block others). All tests FAIL (RED). | – | [📋 log](execution.log.md#tasks-t002-t004-red) |
+| [x] | T005 | Implement `WorkGraphWatcherAdapter` to pass all tests (GREEN) | CS-2 | Core | T002, T003, T004 | `/home/jak/substrate/023-central-watcher-notifications/packages/workflow/src/features/023-central-watcher-notifications/workgraph-watcher.adapter.ts` | All tests from T002-T004 pass. Adapter implements `IWatcherAdapter`, `handleEvent()` filters for `state.json` under `work-graphs/`, extracts slug via regex, emits `WorkGraphChangedEvent` to subscribers via callback set. | – | [📋 log](execution.log.md#task-t005-green) |
+| [x] | T006 | Update feature barrel and main barrel exports | CS-1 | Integration | T005 | `/home/jak/substrate/023-central-watcher-notifications/packages/workflow/src/features/023-central-watcher-notifications/index.ts`, `/home/jak/substrate/023-central-watcher-notifications/packages/workflow/src/index.ts` | `WorkGraphWatcherAdapter` and `WorkGraphChangedEvent` exported from feature `index.ts`. Main `index.ts` re-exports both. `just typecheck` passes. `just fft` passes. | – | [📋 log](execution.log.md#task-t006-barrel). plan-scoped + cross-plan-edit |
 
 ---
 
@@ -394,7 +394,8 @@ _Populated during implementation by plan-6. Log anything of interest to your fut
 
 | Date | Task | Type | Discovery | Resolution | References |
 |------|------|------|-----------|------------|------------|
-| | | | | | |
+| 2026-02-01 | T005/T006 | insight | Barrel exports must be wired before tests can pass — tests import from `@chainglass/workflow` which resolves through barrel chain | Combined T005+T006 execution; exports added alongside implementation | [log#task-t005-green](execution.log.md#task-t005-green) |
+| 2026-02-01 | T002 | gotcha | Biome `organizeImports` rule requires import sorting — `npx biome check --fix` resolves it | Ran biome fix after writing tests | [log#task-t005-green](execution.log.md#task-t005-green) |
 
 **Types**: `gotcha` | `research-needed` | `unexpected-behavior` | `workaround` | `decision` | `debt` | `insight`
 
