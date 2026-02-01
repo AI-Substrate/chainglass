@@ -1,0 +1,1 @@
+../../../../packages/workflow/src/features/023-central-watcher-notifications/watcher-adapter.interface.ts
