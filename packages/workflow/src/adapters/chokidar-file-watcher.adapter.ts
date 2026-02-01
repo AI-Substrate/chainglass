@@ -1,11 +1,11 @@
 /**
  * Chokidar File Watcher Adapter - wraps chokidar for production use.
  *
- * Per Subtask 001: WorkspaceChangeNotifierService - File Watching for CLI Changes
+ * Per Subtask 001: File Watching for CLI Changes (used by CentralWatcherService)
  * Per Constitution Principle 4: Use fakes over mocks - adapters enable testability
  *
  * This adapter wraps chokidar's FSWatcher to implement IFileWatcher,
- * allowing WorkspaceChangeNotifierService to be tested with FakeFileWatcher.
+ * allowing CentralWatcherService to be tested with FakeFileWatcher.
  *
  * Configuration optimized for detecting atomic file writes from CLI:
  * - atomic: true — handles temp→rename pattern from atomicWriteFile()

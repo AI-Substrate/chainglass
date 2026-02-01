@@ -373,13 +373,7 @@ export type {
   AgentEventExistsCall,
 } from './fakes/index.js';
 
-// Workspace change notifier (Plan 022 Phase 4 Subtask 001)
-export { WorkspaceChangeNotifierService } from './services/index.js';
-export type {
-  GraphChangedEvent,
-  GraphChangedCallback,
-  IWorkspaceChangeNotifierService,
-} from './interfaces/index.js';
+// File watcher infrastructure (shared by Plan 022 → Plan 023)
 export type {
   FileWatcherEvent,
   FileWatcherOptions,
@@ -391,13 +385,6 @@ export {
   ChokidarFileWatcherFactory,
 } from './adapters/index.js';
 export { FakeFileWatcher, FakeFileWatcherFactory } from './fakes/index.js';
-export { FakeWorkspaceChangeNotifierService } from './fakes/index.js';
-export type {
-  NotifierStartCall,
-  NotifierStopCall,
-  OnGraphChangedCall,
-  RescanCall,
-} from './fakes/index.js';
 
 // Central watcher notification system (Plan 023)
 export type {
@@ -411,7 +398,5 @@ export { WorkGraphWatcherAdapter } from './features/023-central-watcher-notifica
 export type { WorkGraphChangedEvent } from './features/023-central-watcher-notifications/index.js';
 export {
   FakeCentralWatcherService,
-  type StartCall as WatcherStartCall,
-  type StopCall as WatcherStopCall,
   type RegisterAdapterCall,
 } from './features/023-central-watcher-notifications/index.js';
