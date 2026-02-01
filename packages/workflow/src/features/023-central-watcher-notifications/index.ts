@@ -9,6 +9,9 @@
 export type { WatcherEvent, IWatcherAdapter } from './watcher-adapter.interface.js';
 export type { ICentralWatcherService } from './central-watcher.interface.js';
 
+// Service implementation
+export { CentralWatcherService } from './central-watcher.service.js';
+
 // Fakes
 export { FakeWatcherAdapter } from './fake-watcher-adapter.js';
 export {

@@ -405,6 +405,7 @@ export type {
   IWatcherAdapter,
   ICentralWatcherService,
 } from './features/023-central-watcher-notifications/index.js';
+export { CentralWatcherService } from './features/023-central-watcher-notifications/index.js';
 export { FakeWatcherAdapter } from './features/023-central-watcher-notifications/index.js';
 export {
   FakeCentralWatcherService,
