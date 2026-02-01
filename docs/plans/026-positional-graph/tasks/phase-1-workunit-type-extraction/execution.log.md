@@ -163,3 +163,19 @@ pnpm test --filter @chainglass/workgraph: No test files found (expected)
 **Completed**: 2026-01-31
 ---
 
+### Subtask 001-subtask-align-docs-with-execution-rules-workshop Complete
+
+Resolved: All design documents aligned with execution rules workshop.
+Per-node execution model, getStatus API, E165 removal, blind same-line resolution.
+See detailed log: [subtask execution log](./001-subtask-align-docs-with-execution-rules-workshop.execution.log.md)
+
+**Changes applied:**
+- Prototype workshop: 25 edits — ERD, Zod schemas, canonical service interface with NodeStatus/LineStatus/GraphStatus/StarterReadiness, error codes, CLI examples
+- Spec: 8 edits — Research Context, Goals 6-7, AC-2/7/8, Workshop Opportunities, Risks
+- Plan: 15 edits — Workshops, Critical Discoveries, Phases 2-6 tasks and ACs, setNodeExecution added to Phase 4
+- Phase 1 code: Confirmed clean (workunit.types.ts has no execution fields)
+- Quality gate: `just typecheck` and `pnpm build` both pass
+
+**Completed**: 2026-02-01
+---
+

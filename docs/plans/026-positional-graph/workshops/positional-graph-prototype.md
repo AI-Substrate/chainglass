@@ -7,6 +7,7 @@
 **Status**: Draft
 
 **Related Documents**:
+- [Execution Rules Workshop](./workflow-execution-rules.md) — authoritative execution semantics (canRun algorithm, getStatus API, per-node execution)
 - [Research Dossier](../research-dossier.md)
 - [Existing E2E Sample Flow](../../../../docs/how/dev/workgraph-run/e2e-sample-flow.ts)
 
@@ -78,13 +79,13 @@ erDiagram
         string id "stable identifier"
         string label "optional display name"
         string description "optional"
-        string execution_mode "parallel | serial"
         string transition "auto | manual"
     }
     Node {
         string id PK "unitSlug-hex3"
         int position "ordinal in line"
         string unit_slug FK
+        string execution "serial | parallel (default: serial)"
         string description "optional instance desc"
     }
     WorkUnit {
@@ -134,7 +135,6 @@ lines:
   - id: line-0
     label: "Input"
     description: "Gather requirements and specifications"
-    execution_mode: parallel
     transition: auto
     nodes:
       - sample-input-a3f
@@ -142,7 +142,6 @@ lines:
   - id: line-1
     label: "Processing"
     description: "Generate and review code in parallel"
-    execution_mode: parallel
     transition: auto
     nodes:
       - sample-coder-b7e
@@ -151,7 +150,6 @@ lines:
   - id: line-2
     label: "Verification"
     description: "Run tests sequentially"
-    execution_mode: serial
     transition: manual
     nodes:
       - sample-tester-d9a
@@ -161,15 +159,18 @@ lines:
 - No `edges[]` — topology is implicit from line ordering
 - No flat `nodes[]` array — nodes live inside their lines
 - No `start` sentinel node — line 0 IS the entry point
-- Line `execution_mode` controls how nodes **within** a line run:
-  - `parallel` — all nodes can run simultaneously (default)
-  - `serial` — nodes run left-to-right (position 0, then 1, then 2...)
+- Node `execution` controls whether a node waits for its left neighbor (per-node, not per-line):
+  - `serial` (default) — wait for the node at position N-1 to complete before starting
+  - `parallel` — start as soon as the line is eligible, regardless of left neighbor
+  - A single line can mix serial and parallel nodes to create independent execution chains
 - Line `transition` controls what happens when a line completes and the **next** line should begin:
   - `auto` — next line starts automatically when all nodes in this line complete (default)
   - `manual` — next line does NOT auto-start; the orchestrator (or user) must explicitly trigger it
   - (Future: `conditional` — next line starts only if some predicate passes)
 
-**Node ordering within a line matters** for `serial` mode and for ordinal display. Position 0 is leftmost.
+**Node ordering within a line matters** for serial execution chains and for ordinal display. Position 0 is leftmost.
+
+See [Execution Rules Workshop](./workflow-execution-rules.md) §1 and §6 for the authoritative definition of per-node execution semantics.
 
 ### Transition (Flow Control Between Lines)
 
@@ -191,20 +192,19 @@ This replaces the need for "control nodes" or explicit edge annotations. The flo
 ```typescript
 import { z } from 'zod';
 
-// Execution mode — how nodes WITHIN a line run
-export const ExecutionModeSchema = z.enum(['parallel', 'serial']);
-export type ExecutionMode = z.infer<typeof ExecutionModeSchema>;
+// Execution — per-node property controlling left-neighbor dependency
+export const ExecutionSchema = z.enum(['serial', 'parallel']);
+export type Execution = z.infer<typeof ExecutionSchema>;
 
 // Transition — what happens when this line completes (flow control to next line)
 export const TransitionModeSchema = z.enum(['auto', 'manual']);
 export type TransitionMode = z.infer<typeof TransitionModeSchema>;
 
-// A line definition
+// A line definition (no execution_mode — execution is per-node)
 export const LineDefinitionSchema = z.object({
   id: z.string().min(1),
   label: z.string().optional(),
   description: z.string().optional(),
-  execution_mode: ExecutionModeSchema.default('parallel'),
   transition: TransitionModeSchema.default('auto'),
   nodes: z.array(z.string()),  // Node IDs in positional order
 });
@@ -230,6 +230,7 @@ Nodes carry an instance-level `description` in their `node.yaml`. This is **in a
 export const NodeConfigSchema = z.object({
   id: z.string().min(1),
   unit_slug: z.string().min(1),
+  execution: ExecutionSchema.default('serial'),  // Per-node: serial (default) or parallel
   description: z.string().optional(),  // Instance-level description
   created_at: z.string().datetime(),
   config: z.record(z.unknown()).optional(),
@@ -238,8 +239,8 @@ export const NodeConfigSchema = z.object({
 
 Display example:
 ```
-Line 1 "Research" (serial, auto):
-  [0] research-concept-d9a (research-concept:1)
+Line 1 "Research" (auto):
+  [0] research-concept-d9a (S) (research-concept:1)
       "Deep-dive into authentication patterns"        ← node instance description
       Unit: research-concept — "Research a concept"   ← workunit description
 ```
@@ -327,7 +328,6 @@ The `IPositionalGraphService` interface takes `WorkspaceContext` as the first pa
 | `line add <graph> --before <lineId>` | Insert a new empty line before the specified line |
 | `line remove <graph> <lineId>` | Remove a line (must be empty, or use `--cascade`) |
 | `line move <graph> <lineId> --to <index>` | Move a line to a new ordinal position |
-| `line set <graph> <lineId> --mode <mode>` | Set execution mode (parallel/serial) |
 | `line set <graph> <lineId> --transition <mode>` | Set transition mode (auto/manual) |
 | `line set <graph> <lineId> --label <text>` | Set display label |
 | `line set <graph> <lineId> --description <text>` | Set line description |
@@ -345,6 +345,7 @@ The `IPositionalGraphService` interface takes `WorkspaceContext` as the first pa
 | `node move <graph> <nodeId> --to-line <lineId> --at <pos>` | Move node to specific position in another line |
 | `node show <graph> <nodeId>` | Show node details with resolved inputs |
 | `node set <graph> <nodeId> --description <text>` | Set node instance description |
+| `node set <graph> <nodeId> --execution <mode>` | Set execution mode (serial/parallel) |
 
 ### Input Wiring Operations
 
@@ -359,8 +360,9 @@ The `IPositionalGraphService` interface takes `WorkspaceContext` as the first pa
 
 | Operation | Description |
 |-----------|-------------|
-| `status <graph>` | Show all nodes with computed statuses |
-| `canrun <graph> <nodeId>` | Check if a specific node can execute |
+| `status <graph>` | Show full graph status (all lines and nodes with computed statuses) |
+| `status <graph> --node <nodeId>` | Show detailed status for a specific node |
+| `status <graph> --line <lineId>` | Show status for a specific line |
 
 ---
 
@@ -387,7 +389,7 @@ version: "1.0.0"
 created_at: "2026-01-31T12:00:00Z"
 lines:
   - id: line-a00
-    execution_mode: parallel
+    transition: auto
     nodes: []
 ```
 
@@ -433,12 +435,12 @@ $ cg wf show my-pipeline
 my-pipeline (v1.0.0)
 ═══════════════════════════════════════════
 
-  Line 0 (parallel):
-    [0] sample-input-a3f (sample-input)
+  Line 0 (auto):
+    [0] sample-input-a3f (S) (sample-input)
 
-  Line 1 (parallel):
-    [0] sample-coder-b7e (sample-coder)
-    [1] sample-reviewer-c4d (sample-reviewer)
+  Line 1 (auto):
+    [0] sample-coder-b7e (S) (sample-coder)
+    [1] sample-reviewer-c4d (S) (sample-reviewer)
 ```
 
 ### 6. Insert a line between 0 and 1
@@ -456,15 +458,15 @@ $ cg wf line add my-pipeline --after line-a00 --label "Research"
 
 Now the graph looks like:
 ```
-  Line 0 (parallel):
-    [0] sample-input-a3f (sample-input)
+  Line 0 (auto):
+    [0] sample-input-a3f (S) (sample-input)
 
-  Line 1 "Research" (parallel):
+  Line 1 "Research" (auto):
     (empty)
 
-  Line 2 (parallel):
-    [0] sample-coder-b7e (sample-coder)
-    [1] sample-reviewer-c4d (sample-reviewer)
+  Line 2 (auto):
+    [0] sample-coder-b7e (S) (sample-coder)
+    [1] sample-reviewer-c4d (S) (sample-reviewer)
 ```
 
 ### 7. Move a node between lines
@@ -474,20 +476,20 @@ $ cg wf node move my-pipeline sample-reviewer-c4d --to-line line-c22
 ```
 
 ```
-  Line 0 (parallel):
-    [0] sample-input-a3f (sample-input)
+  Line 0 (auto):
+    [0] sample-input-a3f (S) (sample-input)
 
-  Line 1 "Research" (parallel):
-    [0] sample-reviewer-c4d (sample-reviewer)
+  Line 1 "Research" (auto):
+    [0] sample-reviewer-c4d (S) (sample-reviewer)
 
-  Line 2 (parallel):
-    [0] sample-coder-b7e (sample-coder)
+  Line 2 (auto):
+    [0] sample-coder-b7e (S) (sample-coder)
 ```
 
-### 8. Set line execution mode
+### 8. Set node execution mode
 
 ```
-$ cg wf line set my-pipeline line-c22 --mode serial
+$ cg wf node set my-pipeline sample-reviewer-c4d --execution parallel
 ```
 
 ### 9. Reorder nodes within a line
@@ -496,10 +498,10 @@ $ cg wf line set my-pipeline line-c22 --mode serial
 $ cg wf node add my-pipeline line-c22 research-concept
 $ cg wf node add my-pipeline line-c22 research-concept
 
-  Line 1 "Research" (serial):
-    [0] sample-reviewer-c4d (sample-reviewer)
-    [1] research-concept-d9a (research-concept:1)
-    [2] research-concept-e2f (research-concept:2)
+  Line 1 "Research" (auto):
+    [0] sample-reviewer-c4d (P) (sample-reviewer)
+    [1] research-concept-d9a (S) (research-concept:1)
+    [2] research-concept-e2f (S) (research-concept:2)
 ```
 
 ```
@@ -507,10 +509,10 @@ $ cg wf node move my-pipeline sample-reviewer-c4d --to 2
 ```
 
 ```
-  Line 1 "Research" (serial):
-    [0] research-concept-d9a (research-concept:1)
-    [1] research-concept-e2f (research-concept:2)
-    [2] sample-reviewer-c4d (sample-reviewer)
+  Line 1 "Research" (auto):
+    [0] research-concept-d9a (S) (research-concept:1)
+    [1] research-concept-e2f (S) (research-concept:2)
+    [2] sample-reviewer-c4d (P) (sample-reviewer)
 ```
 
 ---
@@ -544,7 +546,8 @@ In the positional graph, `node.yaml` gains a `description` field and input mappi
 # Positional Graph node.yaml
 id: sample-coder-b7e
 unit_slug: sample-coder
-description: "Generates initial implementation from the spec"   # NEW: instance description
+execution: serial                # Per-node: serial (default) or parallel
+description: "Generates initial implementation from the spec"   # Instance description
 created_at: "2026-01-31T00:00:00Z"
 config: {}
 inputs:                          # Future phase — not in prototype
@@ -581,19 +584,23 @@ A node **can run** when ALL of these hold:
 
 1. **All preceding lines are complete** — every node on every line with a lower index has status `complete`
 2. **Line transition gate passed** — if the preceding line has `transition: manual`, the orchestrator must have explicitly triggered this line
-3. **Serial predecessor complete** (serial lines only) — if this node is at position N in a serial line, the node at position N-1 must be `complete`
+3. **Left neighbor complete** (serial nodes only) — if this node has `execution: serial` (the default) and is at position N > 0, the node at position N-1 must be `complete`. Parallel nodes skip this gate.
+4. **All required inputs available** — `collateInputs` returns `ok: true`
+
+See [Execution Rules Workshop](./workflow-execution-rules.md) §5 for the authoritative 4-gate canRun algorithm.
 
 ```
-Line 0 (parallel, auto):  [ A(complete), B(complete) ]
-                                    ↓ auto transition
-Line 1 (serial, auto):    [ C(ready), D(pending), E(pending) ]
-                                    ↓ auto transition
-Line 2 (parallel, manual): [ F(pending), G(pending) ]  ← blocked until manually triggered
+Line 0 (auto):  [ A(P,complete), B(P,complete) ]
+                              ↓ auto transition
+Line 1 (auto):  [ C(S,ready), D(S,pending), E(P,ready) ]
+                              ↓ auto transition
+Line 2 (manual): [ F(P,pending), G(S,pending) ]  ← blocked until manually triggered
 ```
 
 In this example:
-- **C** is `ready` because all of line 0 is complete (auto transition) and C is position 0 in a serial line
-- **D** is `pending` because C hasn't completed yet (serial: must wait for position 0)
+- **C** is `ready` because all of line 0 is complete (auto transition), C is position 0 (no left neighbor), and inputs resolve
+- **D** is `pending` because C hasn't completed yet (serial: must wait for left neighbor)
+- **E** is `ready` because it's parallel (skips Gate 3) — E and C can start at the same time
 - **F** and **G** are `pending` because line 1 has `transition: manual` — even when line 1 completes, line 2 won't start until triggered
 
 ### collateInputs — The Core Resolution Method
@@ -651,7 +658,7 @@ interface WaitingInput {
 /** Can't resolve to a valid source node — structural wiring problem */
 interface ErrorInput {
   inputName: string;
-  code: string;               // E160-E165
+  code: string;               // E160-E164
   message: string;
   required: boolean;
 }
@@ -710,12 +717,16 @@ Example: Node D has 3 inputs, "research" resolves to 2 source nodes
 - **Execution** calls `collateInputs`, extracts all `available` entries to feed data into the node
 - **Orchestrator diagnostics**: `waiting` entries tell it which nodes to watch. `error` entries tell it what to surface to the user. No need to cross-reference graph status separately — the pack has enough.
 
+**Note**: `canRun` is an **internal algorithm** (the 4-gate check). The **public API** is `getNodeStatus`/`getLineStatus`/`getStatus` — readiness is a field on the status object, not a separate method. See [Execution Rules Workshop](./workflow-execution-rules.md) §12 for the canonical `getStatus` API.
+
 ```typescript
-canRun(ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<CanRunResult>;
+// Internal algorithm (consumed by getNodeStatus, not exposed directly)
+canRun(graphSlug: string, nodeId: string): CanRunResult;
 
 interface CanRunResult {
   canRun: boolean;
   reason?: string;
+  gate?: 'preceding' | 'transition' | 'serial' | 'inputs';
   inputPack: InputPack;              // The full collation result
   blockingNodes?: BlockingNode[];    // Nodes in preceding lines that aren't complete
   waitingForTransition?: boolean;    // True if blocked by a manual transition gate
@@ -779,7 +790,7 @@ When node `sample-coder-b7e` on line 2 requests data `from_unit: sample-input`:
 1. **Search preceding lines** — scan lines 0, 1 (everything before line 2) for nodes whose `unit_slug` matches `sample-input`
 2. **Nearest-first** — if multiple matches exist, prefer the one on the highest-indexed preceding line (closest predecessor)
 3. **Ordinal disambiguation** — if multiple nodes on the same line match, use ordinal syntax: `from_unit: sample-input:2` (second instance)
-4. **Same-line resolution** (serial only) — in a serial line, a node can reference an earlier-position node on the same line
+4. **Same-line resolution** — any node at position N can reference a node at position < N on the same line, regardless of execution mode (the `execution` flag controls when a node starts, not what it can see)
 5. **Explicit node ID fallback** — `from_node: sample-input-a3f` bypasses name resolution and targets a specific node directly
 
 ```yaml
@@ -820,6 +831,7 @@ export const InputResolutionSchema = z.union([
 export const NodeConfigSchema = z.object({
   id: z.string().min(1),
   unit_slug: z.string().min(1),
+  execution: ExecutionSchema.default('serial'),  // Per-node: serial (default) or parallel
   description: z.string().optional(),
   created_at: z.string().datetime(),
   config: z.record(z.unknown()).optional(),
@@ -830,7 +842,7 @@ export const NodeConfigSchema = z.object({
 ### Validation
 
 Input resolution is validated at **execution time** (when canRun is checked), not at add time:
-- The referenced `from_unit` must exist in a preceding line (or earlier position in same serial line)
+- The referenced `from_unit` must exist in a preceding line (or earlier position on the same line)
 - The referenced `from_output` must be a declared output of that WorkUnit
 - If the source node hasn't completed, the requesting node can't run yet
 
@@ -932,15 +944,15 @@ async function main() {
   await run('pg node move', GRAPH, reviewer.nodeId, '--to', '2');
   // Expect: research line has [research-concept:1, research-concept:2, reviewer]
 
-  // 9. Set line mode
-  await run('pg line set', GRAPH, research.lineId, '--mode', 'serial');
+  // 9. Set node execution mode (e.g., make reviewer parallel)
+  await run('pg node set', GRAPH, reviewer.nodeId, '--execution', 'parallel');
 
   // 10. Show structure
   await run('pg show', GRAPH);
   // Expect:
-  //   Line 0 (parallel, auto):      [sample-input-xxx]
-  //   Line 1 "Research" (serial, auto): [research-concept:1, research-concept:2, reviewer]
-  //   Line 2 (parallel, auto):      [sample-coder-xxx]
+  //   Line 0 (auto):      [sample-input-xxx (S)]
+  //   Line 1 "Research" (auto): [research-concept:1 (S), research-concept:2 (S), reviewer (P)]
+  //   Line 2 (auto):      [sample-coder-xxx (S)]
 
   // 11. Move line 2 to position 1 (swap research and processing)
   await run('pg line move', GRAPH, '???', '--to', '1');
@@ -954,13 +966,13 @@ async function main() {
 
   // === STATUS COMPUTATION ===
 
-  // 14. Check canRun on line 0 nodes (should be ready — no predecessors)
-  const canRunInput = await run('pg canrun', GRAPH, input.nodeId);
-  // Expect: { canRun: true }
+  // 14. Check status on line 0 nodes (should be ready — no predecessors)
+  const statusInput = await run('pg status', GRAPH, '--node', input.nodeId);
+  // Expect: { status: 'ready', ready: true }
 
-  // 15. Check canRun on line 1 nodes (should be pending — line 0 not complete)
-  const canRunCoder = await run('pg canrun', GRAPH, coder.nodeId);
-  // Expect: { canRun: false, blockingNodes: [input.nodeId] }
+  // 15. Check status on line 1 nodes (should be pending — line 0 not complete)
+  const statusCoder = await run('pg status', GRAPH, '--node', coder.nodeId);
+  // Expect: { status: 'pending', ready: false, readyDetail: { precedingLinesComplete: false } }
 
   // 16. Set a manual transition gate
   await run('pg line set', GRAPH, research.lineId, '--transition', 'manual');
@@ -996,7 +1008,9 @@ This is pseudo-code — the real script will use `runCli()` from the existing ha
 
 ---
 
-## Service Interface Sketch
+## Service Interface — Canonical `IPositionalGraphService`
+
+This is the **canonical** `IPositionalGraphService` definition. The execution rules workshop defines the algorithms (canRun gates, collateInputs traversal, status computation rules); this section defines the API surface.
 
 ```typescript
 export interface IPositionalGraphService {
@@ -1005,12 +1019,12 @@ export interface IPositionalGraphService {
   load(ctx: WorkspaceContext, slug: string): Promise<PGLoadResult>;
   show(ctx: WorkspaceContext, slug: string): Promise<PGShowResult>;
   delete(ctx: WorkspaceContext, slug: string): Promise<BaseResult>;
+  list(ctx: WorkspaceContext): Promise<PGListResult>;
 
   // Line operations
   addLine(ctx: WorkspaceContext, graphSlug: string, options?: AddLineOptions): Promise<AddLineResult>;
   removeLine(ctx: WorkspaceContext, graphSlug: string, lineId: string, options?: RemoveLineOptions): Promise<BaseResult>;
   moveLine(ctx: WorkspaceContext, graphSlug: string, lineId: string, toIndex: number): Promise<BaseResult>;
-  setLineMode(ctx: WorkspaceContext, graphSlug: string, lineId: string, mode: ExecutionMode): Promise<BaseResult>;
   setLineTransition(ctx: WorkspaceContext, graphSlug: string, lineId: string, transition: TransitionMode): Promise<BaseResult>;
   setLineLabel(ctx: WorkspaceContext, graphSlug: string, lineId: string, label: string): Promise<BaseResult>;
   setLineDescription(ctx: WorkspaceContext, graphSlug: string, lineId: string, description: string): Promise<BaseResult>;
@@ -1020,17 +1034,27 @@ export interface IPositionalGraphService {
   removeNode(ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<BaseResult>;
   moveNode(ctx: WorkspaceContext, graphSlug: string, nodeId: string, options: MoveNodeOptions): Promise<BaseResult>;
   setNodeDescription(ctx: WorkspaceContext, graphSlug: string, nodeId: string, description: string): Promise<BaseResult>;
+  setNodeExecution(ctx: WorkspaceContext, graphSlug: string, nodeId: string, execution: Execution): Promise<BaseResult>;
   showNode(ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<NodeShowResult>;
 
   // Input wiring
   setInput(ctx: WorkspaceContext, graphSlug: string, nodeId: string, inputName: string, source: InputResolution): Promise<BaseResult>;
   removeInput(ctx: WorkspaceContext, graphSlug: string, nodeId: string, inputName: string): Promise<BaseResult>;
 
-  // Input resolution & status (collateInputs is the core method)
+  // Input resolution (core internal method — consumed by getNodeStatus)
   collateInputs(ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<InputPack>;
-  canRun(ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<CanRunResult>;
-  status(ctx: WorkspaceContext, graphSlug: string): Promise<PGStatusResult>;
+
+  // Status API — three levels, one pattern
+  // See execution rules workshop §12 for algorithm details
+  getNodeStatus(ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<NodeStatus>;
+  getLineStatus(ctx: WorkspaceContext, graphSlug: string, lineId: string): Promise<LineStatus>;
+  getStatus(ctx: WorkspaceContext, graphSlug: string): Promise<GraphStatus>;
+
+  // Transition trigger
+  triggerTransition(ctx: WorkspaceContext, graphSlug: string, lineId: string): Promise<BaseResult>;
 }
+
+// --- Options ---
 
 interface AddLineOptions {
   afterLineId?: string;
@@ -1038,7 +1062,6 @@ interface AddLineOptions {
   atIndex?: number;
   label?: string;
   description?: string;
-  mode?: ExecutionMode;
   transition?: TransitionMode;
 }
 
@@ -1049,6 +1072,7 @@ interface RemoveLineOptions {
 interface AddNodeOptions {
   atPosition?: number;      // Insert at specific position (default: append)
   description?: string;     // Instance-level description
+  execution?: Execution;    // Per-node execution mode (default: serial)
 }
 
 interface MoveNodeOptions {
@@ -1061,6 +1085,8 @@ interface MoveNodeOptions {
 type InputResolution =
   | { from_unit: string; from_output: string }   // Named predecessor lookup
   | { from_node: string; from_output: string };   // Explicit node ID
+
+// --- CRUD Result Types ---
 
 interface AddLineResult extends BaseResult {
   lineId: string;
@@ -1076,6 +1102,7 @@ interface AddNodeResult extends BaseResult {
 interface NodeShowResult extends BaseResult {
   nodeId: string;
   unitSlug: string;
+  execution: Execution;
   description?: string;
   lineId: string;
   position: number;
@@ -1083,22 +1110,110 @@ interface NodeShowResult extends BaseResult {
   inputPack: InputPack;  // Live collation result
 }
 
-interface PGStatusResult extends BaseResult {
+// --- Status Types (from execution rules workshop §12) ---
+
+type ExecutionStatus = 'pending' | 'ready' | 'running' | 'waiting-question' | 'blocked-error' | 'complete';
+
+interface NodeStatus {
+  nodeId: string;
+  unitSlug: string;
+  execution: Execution;
+  lineId: string;
+  position: number;
+
+  // Current state (computed or stored)
+  status: ExecutionStatus;
+
+  // Readiness (always computed, even if node is already running/complete)
+  ready: boolean;
+  readyDetail: {
+    precedingLinesComplete: boolean;
+    transitionOpen: boolean;
+    serialNeighborComplete: boolean;  // true if parallel (n/a), true if pos 0
+    inputsAvailable: boolean;         // collateInputs.ok
+    unitFound: boolean;               // false if WorkUnit no longer exists
+    reason?: string;                  // Human-readable summary of first failing condition
+  };
+
+  // Input resolution (always resolved)
+  inputPack: InputPack;
+
+  // Present when status is 'waiting-question'
+  pendingQuestion?: {
+    questionId: string;
+    text: string;
+    questionType: 'text' | 'single' | 'multi' | 'confirm';
+    options?: { key: string; label: string }[];
+    askedAt: string;
+  };
+
+  // Present when status is 'blocked-error'
+  error?: {
+    code: string;
+    message: string;
+    occurredAt: string;
+  };
+
+  // Timing
+  startedAt?: string;
+  completedAt?: string;
+}
+
+interface LineStatus {
+  lineId: string;
+  label?: string;
+  index: number;
+  transition: TransitionMode;
+  transitionTriggered: boolean;
+
+  // Line-level state
+  complete: boolean;
+  empty: boolean;
+
+  // Line-level readiness
+  canRun: boolean;
+  precedingLinesComplete: boolean;
+  transitionOpen: boolean;
+  starterNodes: StarterReadiness[];
+
+  // Per-node status
+  nodes: NodeStatus[];
+
+  // Convenience buckets
+  readyNodes: string[];
+  runningNodes: string[];
+  waitingQuestionNodes: string[];
+  blockedNodes: string[];
+  completedNodes: string[];
+}
+
+/** A chain-starter is position 0, or any parallel node that breaks a serial chain */
+interface StarterReadiness {
+  nodeId: string;
+  position: number;
+  ready: boolean;
+  reason?: string;
+}
+
+interface GraphStatus {
   graphSlug: string;
-  lines: Array<{
-    lineId: string;
-    label?: string;
-    index: number;
-    executionMode: ExecutionMode;
-    transition: TransitionMode;
-    nodes: Array<{
-      nodeId: string;
-      unitSlug: string;
-      position: number;
-      status: NodeStatus;
-      canRun: boolean;
-    }>;
-  }>;
+  version: string;
+  description?: string;
+
+  // Overall state
+  status: 'pending' | 'in_progress' | 'complete' | 'failed';
+  totalNodes: number;
+  completedNodes: number;
+
+  // Per-line status (in line order)
+  lines: LineStatus[];
+
+  // Convenience: flat lists across all lines
+  readyNodes: string[];
+  runningNodes: string[];
+  waitingQuestionNodes: string[];
+  blockedNodes: string[];
+  completedNodeIds: string[];
 }
 ```
 
@@ -1122,7 +1237,6 @@ interface PGStatusResult extends BaseResult {
 | E162 | Ambiguous predecessor | Multiple nodes match `from_unit` and no ordinal specified |
 | E163 | Output not declared | `from_output` doesn't exist on the resolved source WorkUnit |
 | E164 | Invalid ordinal | `from_unit` ordinal (e.g., `:3`) exceeds number of matching nodes |
-| E165 | Forward reference | Referenced node is on a later line (not a predecessor) |
 | **Status** | | |
 | E170 | Node not ready | Attempt to start a node that can't run yet |
 | E171 | Transition blocked | Line waiting for manual trigger |

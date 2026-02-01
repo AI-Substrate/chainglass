@@ -9,6 +9,7 @@
 
 **Workshops**:
 - [positional-graph-prototype.md](./workshops/positional-graph-prototype.md) — Data Model + CLI Flow
+- [workflow-execution-rules.md](./workshops/workflow-execution-rules.md) — Execution Rules, canRun Algorithm, getStatus API
 
 ---
 
@@ -150,13 +151,13 @@ Research was conducted via 7 parallel subagents during the `/plan-1a-explore` ph
 **Action Required**: `collateInputs` is the foundation — implement and test it thoroughly before `canRun`.
 **Affects Phases**: Phase 5
 
-### Critical Discovery 09: Line Transition Property Replaces Control Nodes
+### Critical Discovery 09: Line Transition Property Replaces Control Nodes; Execution is Per-Node
 **Impact**: High
-**Sources**: [Workshop §Transition, PL-05]
-**Problem**: DAG workshopped GATE/BRANCH/JOIN control nodes but never implemented them.
-**Solution**: Line `transition` property (`auto`/`manual`) governs inter-line flow. Auto = next line starts when all nodes complete. Manual = orchestrator must trigger explicitly.
-**Action Required**: Implement transition checking in `canRun` logic.
-**Affects Phases**: Phase 2 (schema), Phase 5 (canRun)
+**Sources**: [Workshop §Transition, PL-05, Execution Rules Workshop §1, §6]
+**Problem**: DAG workshopped GATE/BRANCH/JOIN control nodes but never implemented them. Execution mode was originally per-line.
+**Solution**: Line `transition` property (`auto`/`manual`) governs inter-line flow. Auto = next line starts when all nodes complete. Manual = orchestrator must trigger explicitly. Execution mode (`serial`/`parallel`) is a **per-node** property (serial default). A single line can mix serial and parallel nodes to create independent execution chains.
+**Action Required**: Implement transition checking in `getStatus` logic. Implement per-node serial/parallel in Gate 3 of canRun.
+**Affects Phases**: Phase 2 (schema), Phase 4 (setNodeExecution), Phase 5 (canRun/getStatus)
 
 ### Critical Discovery 10: DI Container Registration Pattern is Well-Established
 **Impact**: High
@@ -178,7 +179,7 @@ Research was conducted via 7 parallel subagents during the `/plan-1a-explore` ph
 **Impact**: Medium
 **Sources**: [IC-10, Workshop §Error Codes]
 **Problem**: Error codes must not collide with existing E101-E149 range.
-**Solution**: Per workshop: E150-E155 for structure errors, E160-E165 for input resolution errors, E170-E171 for status errors. Use factory function pattern from `workgraph-errors.ts`.
+**Solution**: Per workshop: E150-E155 for structure errors, E160-E164 for input resolution errors (E165 removed — forward references are not errors), E170-E171 for status errors. Use factory function pattern from `workgraph-errors.ts`.
 **Action Required**: Define error factory functions in new error codes file.
 **Affects Phases**: Phase 2 (error codes), Phase 3-5 (usage)
 
@@ -410,7 +411,7 @@ Acceptance Criteria: [measurable assertions]
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
 | 2.1 | [ ] | Create `packages/positional-graph/` package scaffold | 2 | package.json, tsconfig.json, src/index.ts compile, pnpm workspace recognizes package | - | Model after packages/workgraph structure |
-| 2.2 | [ ] | Write tests for Zod schemas (graph definition, line, node config, input resolution, state) | 3 | Tests cover: valid parse, invalid slug, min-1-line constraint, execution_mode/transition enums, node config with optional inputs, InputResolution union (from_unit vs from_node) | - | Per Workshop §Zod Schemas |
+| 2.2 | [ ] | Write tests for Zod schemas (graph definition, line, node config, input resolution, state) | 3 | Tests cover: valid parse, invalid slug, min-1-line constraint, execution/transition enums (execution is per-node with serial default), node config with optional inputs and execution field, InputResolution union (from_unit vs from_node) | - | Per Workshop §Zod Schemas |
 | 2.3 | [ ] | Implement Zod schemas to pass tests | 3 | All schema tests pass, types exported from barrel | - | PositionalGraphDefinitionSchema, LineDefinitionSchema, NodeConfigSchema, InputResolutionSchema, StateSchema |
 | 2.4 | [ ] | Write tests for ID generation (line IDs, node IDs) | 2 | Tests cover: format validation (line-xxx, unit-xxx), uniqueness, collision avoidance, hex3 pattern | - | Per Workshop §Line IDs, §Node IDs |
 | 2.5 | [ ] | Implement ID generation utilities | 1 | All ID generation tests pass | - | generateLineId(existingIds), reimplement hex3 pattern locally (no cross-package import to avoid workgraph dependency) |
@@ -437,7 +438,6 @@ describe('PositionalGraphDefinitionSchema', () => {
       created_at: '2026-01-31T00:00:00Z',
       lines: [{
         id: 'line-a4f',
-        execution_mode: 'parallel',
         transition: 'auto',
         nodes: [],
       }],
@@ -498,7 +498,7 @@ describe('PositionalGraphDefinitionSchema', () => {
 | 3.1 | [ ] | Define `IPositionalGraphService` interface (graph + line methods) | 2 | Interface compiles, all method signatures match workshop §Service Interface | - | WorkspaceContext as first param on every method |
 | 3.2 | [ ] | Write tests for graph CRUD (create, load, show, delete, list) | 3 | Tests cover: create produces 1 empty line, load returns graph, show formats output, delete removes files, list returns all slugs, create duplicate E105 | - | Real filesystem, temp dirs |
 | 3.3 | [ ] | Implement graph CRUD to pass tests | 3 | All graph CRUD tests pass | - | create writes graph.yaml + state.json, load validates with Zod |
-| 3.4 | [ ] | Write tests for line operations (add, remove, move, set properties) | 3 | Tests cover: append line, insert at index, insert after/before lineId, remove empty line, remove non-empty fails E151, remove with cascade, move line to new index, set mode/transition/label/description, cannot remove last line E156 | - | |
+| 3.4 | [ ] | Write tests for line operations (add, remove, move, set properties) | 3 | Tests cover: append line, insert at index, insert after/before lineId, remove empty line, remove non-empty fails E151, remove with cascade, move line to new index, set transition/label/description (no execution mode — that's per-node), cannot remove last line E156 | - | |
 | 3.5 | [ ] | Implement line operations to pass tests | 3 | All line operation tests pass | - | Each op: load graph → mutate → persist |
 | 3.6 | [ ] | Write tests for line invariant edge cases | 2 | Tests cover: invalid line index E152, line not found E150, duplicate line ID prevention | - | |
 | 3.7 | [ ] | Verify line operations maintain ordering consistency | 1 | After any line operation, lines array indices are contiguous and deterministic | - | |
@@ -507,7 +507,7 @@ describe('PositionalGraphDefinitionSchema', () => {
 - [ ] `cg wf create <slug>` produces graph with one empty line
 - [ ] Lines can be added (append, insert at index, before/after ID), removed, moved
 - [ ] At-least-one-line invariant enforced (E156 on remove-last-line)
-- [ ] Line properties (label, description, execution_mode, transition) can be set
+- [ ] Line properties (label, description, transition) can be set; execution mode is per-node, not per-line
 - [ ] All operations return `BaseResult` with appropriate error codes
 - [ ] Tests pass with real filesystem: `pnpm test --filter @chainglass/positional-graph` — graph CRUD and line operation tests green
 
@@ -542,7 +542,9 @@ describe('PositionalGraphDefinitionSchema', () => {
 | 4.6 | [ ] | Implement node move to pass tests | 3 | All move tests pass | - | Atomic: remove from source, add to target |
 | 4.7 | [ ] | Write tests for node description and show | 2 | Tests cover: set description updates node.yaml, show returns node details with line and position | - | |
 | 4.8 | [ ] | Implement node description and show to pass tests | 2 | All tests pass | - | |
-| 4.9 | [ ] | Write invariant enforcement tests | 2 | Tests cover: unique node IDs across graph, node belongs to exactly one line, deterministic ordering after operations | - | |
+| 4.9 | [ ] | Write tests for setNodeExecution | 2 | Tests cover: set execution to serial/parallel, persisted in node.yaml, node not found E153 | - | Per execution rules workshop: execution set "at add time or via setNodeExecution" |
+| 4.10 | [ ] | Implement setNodeExecution to pass tests | 1 | All tests pass | - | |
+| 4.11 | [ ] | Write invariant enforcement tests | 2 | Tests cover: unique node IDs across graph, node belongs to exactly one line, deterministic ordering after operations | - | |
 
 ### Acceptance Criteria
 - [ ] Nodes can be added to any line at any position
@@ -557,13 +559,12 @@ describe('PositionalGraphDefinitionSchema', () => {
 
 ## Phase 5: Input Wiring and Status Computation
 
-**Objective**: Implement input wiring (`setInput`, `removeInput`), the `collateInputs` resolution algorithm, and `canRun`/`status` computation.
+**Objective**: Implement input wiring (`setInput`, `removeInput`), the `collateInputs` resolution algorithm, and `getStatus` computation (canRun is the internal 4-gate algorithm; the public API is `getNodeStatus`/`getLineStatus`/`getStatus`).
 
 **Deliverables**:
 - Input wiring operations
 - `collateInputs` — the core resolution method
-- `canRun` — node executability check
-- `status` — graph-wide status computation
+- `getNodeStatus` / `getLineStatus` / `getStatus` — status at node/line/graph scope (readiness is a field, not a separate method)
 - `InputPack` type with three-state entries
 
 **Dependencies**: Phase 4 must be complete (node operations)
@@ -581,15 +582,15 @@ describe('PositionalGraphDefinitionSchema', () => {
 |---|--------|------|----|------------------|-----|-------|
 | 5.1 | [ ] | Write tests for input wiring operations (setInput, removeInput) | 2 | Tests cover: wire from_unit, wire from_node, remove input, persist in node.yaml, input not declared E160 | - | |
 | 5.2 | [ ] | Implement input wiring to pass tests | 2 | All wiring tests pass, node.yaml updated | - | |
-| 5.3 | [ ] | Write tests for collateInputs — single source resolution | 3 | Tests cover: available (source complete with data), waiting (source found, not complete), error (no matching node E161), error (output not declared E163), error (forward reference E165) | - | Core algorithm |
+| 5.3 | [ ] | Write tests for collateInputs — single source resolution | 3 | Tests cover: available (source complete with data), waiting (source found, not complete), error (no matching node E161), error (output not declared E163), waiting (forward reference resolves as waiting, not an error) | - | Core algorithm. Forward refs are not errors — they resolve as `waiting`. |
 | 5.4 | [ ] | Write tests for collateInputs — multi-source resolution | 3 | Tests cover: multiple nodes matching from_unit (collect all), ordinal disambiguation (:1, :2), invalid ordinal E164, ambiguous predecessor E162, partial availability (some sources complete, some waiting) | - | |
-| 5.5 | [ ] | Write tests for collateInputs — from_node explicit resolution | 2 | Tests cover: direct node ID lookup, node not in preceding lines E165, node not found E153 | - | |
+| 5.5 | [ ] | Write tests for collateInputs — from_node explicit resolution | 2 | Tests cover: direct node ID lookup, node not in preceding lines resolves as waiting (not an error), node not found E153 | - | |
 | 5.6 | [ ] | Write tests for collateInputs — optional vs required inputs | 2 | Tests cover: optional input error doesn't block ok, required input error blocks ok, optional waiting doesn't block ok | - | |
 | 5.7 | [ ] | Implement collateInputs to pass all resolution tests | 3 | All collateInputs tests pass | - | Search preceding lines, resolve by unit slug or node ID |
-| 5.8 | [ ] | Write tests for canRun rules | 3 | Tests cover: all preceding lines complete → ready, preceding line incomplete → pending, manual transition gate blocks, serial predecessor incomplete blocks, collateInputs ok required, combinations of rules | - | |
-| 5.9 | [ ] | Implement canRun to pass tests | 3 | All canRun tests pass | - | Checks: preceding lines + transition + serial + collateInputs |
-| 5.10 | [ ] | Write tests for graph-wide status computation | 2 | Tests cover: line 0 nodes ready (no predecessors), downstream pending, stored status preserved, mixed statuses across lines | - | |
-| 5.11 | [ ] | Implement status to pass tests | 2 | All status tests pass | - | Per-node: stored wins, else compute from position |
+| 5.8 | [ ] | Write tests for canRun (internal 4-gate algorithm) | 3 | Tests cover: all preceding lines complete → ready, preceding line incomplete → pending, manual transition gate blocks, serial left neighbor incomplete blocks (per-node, not per-line), parallel skips Gate 3, collateInputs ok required, combinations of rules | - | canRun is internal; public API is getNodeStatus |
+| 5.9 | [ ] | Implement canRun to pass tests | 3 | All canRun tests pass | - | 4 gates: preceding lines + transition + serial neighbor + collateInputs |
+| 5.10 | [ ] | Write tests for getNodeStatus / getLineStatus / getStatus | 3 | Tests cover: node status with readyDetail, line status with starterNodes and convenience buckets, graph status with overall state, stored status preserved, mixed statuses across lines, StarterReadiness for chain-starters | - | Three levels, one pattern — per execution rules workshop §12 |
+| 5.11 | [ ] | Implement getNodeStatus / getLineStatus / getStatus | 3 | All status tests pass | - | getNodeStatus computes readiness + resolves inputs; getLineStatus calls getNodeStatus for all nodes; getStatus calls getLineStatus for all lines |
 
 ### Test Examples (Write First!)
 
@@ -624,9 +625,10 @@ describe('collateInputs', () => {
 - [ ] `collateInputs` resolves each input to available/waiting/error
 - [ ] Multi-source inputs collect from all matching nodes
 - [ ] Ordinal disambiguation (`:1`, `:2`) works correctly
-- [ ] `canRun` checks preceding lines, transition gates, serial ordering, and input readiness
-- [ ] `status` computes graph-wide statuses (stored wins over computed)
-- [ ] Forward references detected and reported as E165
+- [ ] `getNodeStatus` returns readiness detail (4 gates), input resolution, pending questions, errors
+- [ ] `getLineStatus` returns per-node status, starter nodes, convenience buckets
+- [ ] `getStatus` returns graph-wide status (overall state, per-line detail, flat convenience lists)
+- [ ] Forward references resolve as `waiting` (not an error — no E165)
 - [ ] Tests pass: `pnpm test --filter @chainglass/positional-graph` — input resolution, collateInputs, canRun, and status tests green
 
 ---
@@ -655,7 +657,7 @@ describe('collateInputs', () => {
 | 6.1 | [ ] | Create `positional-graph.command.ts` with graph commands (create, show, status, delete, list) | 3 | Commands registered, workspace context resolved, service called, output formatted | - | Follow workgraph.command.ts pattern |
 | 6.2 | [ ] | Add line commands (add, remove, move, set) | 3 | Nested `wf line` subcommands work with parent option inheritance | - | `cg wf line add <graph>` etc. |
 | 6.3 | [ ] | Add node commands (add, remove, move, show, set, set-input, remove-input, collate) | 3 | Nested `wf node` subcommands work | - | `cg wf node add <graph> <lineId> <unitSlug>` etc. |
-| 6.4 | [ ] | Add canrun command | 1 | `cg wf canrun <graph> <nodeId>` works | - | |
+| 6.4 | [ ] | Add status command (node/line/graph scope) | 2 | `cg wf status <graph>` works, `--node` and `--line` flags narrow scope | - | Replaces separate canrun command. Readiness is a field on status. |
 | 6.5 | [ ] | Register commands in CLI container and command index | 2 | `registerPositionalGraphServices()` called in CLI container, `registerPositionalGraphCommands` exported and called in cg.ts | - | |
 | 6.6 | [ ] | Verify all commands with `--json` output | 2 | JSON output follows structured format for all commands | - | |
 
@@ -666,7 +668,7 @@ describe('collateInputs', () => {
 - [ ] Error codes displayed with descriptive messages
 - [ ] Existing `cg wg` commands unaffected
 - [ ] Manual smoke test: `cg wf create test-graph && cg wf show test-graph && cg wf list --json` — valid output
-- [ ] `cg wf --help` lists all subcommands (graph, line, node, canrun)
+- [ ] `cg wf --help` lists all subcommands (graph, line, node, status)
 
 ---
 
@@ -809,4 +811,4 @@ Mid-implementation detours requiring structured tracking.
 
 | ID | Created | Phase | Parent Task | Reason | Status | Dossier |
 |----|---------|-------|-------------|--------|--------|---------|
-| 001-subtask-align-docs-with-execution-rules-workshop | 2026-02-01 | Phase 1: WorkUnit Type Extraction | T001-T006 (all) | Execution rules workshop introduced per-node execution model, getStatus API, E165 removal — spec/plan/prototype workshop need alignment before Phase 2 | [ ] Pending | [Link](tasks/phase-1-workunit-type-extraction/001-subtask-align-docs-with-execution-rules-workshop.md) |
+| 001-subtask-align-docs-with-execution-rules-workshop | 2026-02-01 | Phase 1: WorkUnit Type Extraction | T001-T006 (all) | Execution rules workshop introduced per-node execution model, getStatus API, E165 removal — spec/plan/prototype workshop need alignment before Phase 2 | [x] Complete | [Link](tasks/phase-1-workunit-type-extraction/001-subtask-align-docs-with-execution-rules-workshop.md) |
