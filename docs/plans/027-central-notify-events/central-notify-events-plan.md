@@ -414,14 +414,14 @@ prepare the bootstrap lifecycle for the watcher.
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 2.1 | [ ] | Write unit tests for `CentralEventNotifierService` | CS-2 | Tests cover: `emit()` calls `ISSEBroadcaster.broadcast()` with correct channel/eventType/data, `suppressDomain()` prevents `emit()` for key within window, debounce expiry allows subsequent events. All fail (RED) | - | Uses `FakeSSEBroadcaster` |
-| 2.2 | [ ] | Run contract tests against `CentralEventNotifierService` | CS-1 | Wire the contract test factory from 1.1 to run against the real service (with `FakeSSEBroadcaster`). Tests fail (RED) | - | Contract parity |
-| 2.3 | [ ] | Implement `CentralEventNotifierService` | CS-3 | All unit tests from 2.1 pass. All contract tests from 2.2 pass (GREEN). Service maps `WorkspaceDomain` to SSE channel names | - | `apps/web/src/features/027-central-notify-events/central-event-notifier.service.ts` |
-| 2.4 | [ ] | Audit and register `CentralWatcherService` DI dependencies | CS-2 | All 6 constructor deps resolvable: (1) `IWorkspaceRegistryAdapter` via `WORKSPACE_DI_TOKENS.WORKSPACE_REGISTRY_ADAPTER`, (2) `IGitWorktreeResolver` via `WORKSPACE_DI_TOKENS.GIT_WORKTREE_RESOLVER`, (3) `IFileSystem` via `SHARED_DI_TOKENS.FILESYSTEM`, (4) `IFileWatcherFactory` — add `FILE_WATCHER_FACTORY: 'IFileWatcherFactory'` to `WORKSPACE_DI_TOKENS` in `packages/shared/src/di-tokens.ts` and register `ChokidarFileWatcherFactory` from `packages/workflow/src/adapters/chokidar-file-watcher.adapter.ts`, (5) `registryPath` string computed from config, (6) `ILogger` via `SHARED_DI_TOKENS.LOGGER`. Test resolves `CentralWatcherService` without throwing | - | Cross-cutting: `packages/shared/src/di-tokens.ts`, `apps/web/src/lib/di-container.ts` |
-| 2.5 | [ ] | Register `CentralEventNotifierService` in DI | CS-2 | `createProductionContainer()` registers real service. `createTestContainer()` registers fake. Both resolvable by token | - | `apps/web/src/lib/di-container.ts` |
-| 2.6 | [ ] | Write `startCentralNotificationSystem()` bootstrap helper | CS-2 | Async function: (1) resolves `CentralWatcherService` and `CentralEventNotifierService` from DI via `getContainer()`, (2) creates `WorkgraphDomainEventAdapter(notifier)`, (3) calls `watcher.registerAdapter(workgraphWatcherAdapter)`, (4) subscribes `workgraphWatcherAdapter.onGraphChanged()` to adapter's handler, (5) calls `watcher.start()`. Gates with `globalThis.centralWatcherStarted = true` to prevent double-start. Unit test verifies single-start idempotency | - | `apps/web/src/features/027-central-notify-events/start-central-notifications.ts` |
-| 2.7 | [ ] | Wire barrel exports for apps/web feature | CS-1 | Feature barrel exports all new modules. `pnpm build` succeeds | - | PL-12 |
-| 2.8 | [ ] | Refactor and validate | CS-1 | All tests pass, `pnpm typecheck` clean, `pnpm build` clean, `pnpm test` passes all existing + new tests | - | |
+| 2.1 | [x] | Write unit tests for `CentralEventNotifierService` | CS-2 | Tests cover: `emit()` calls `ISSEBroadcaster.broadcast()` with correct channel/eventType/data, `suppressDomain()` prevents `emit()` for key within window, debounce expiry allows subsequent events. All fail (RED) | [📋](tasks/phase-2-central-event-notifier-service-and-di-wiring/execution.log.md#task-t001) | Uses `FakeSSEBroadcaster` [^1] |
+| 2.2 | [x] | Run contract tests against `CentralEventNotifierService` | CS-1 | Wire the contract test factory from 1.1 to run against the real service (with `FakeSSEBroadcaster`). Tests fail (RED) | [📋](tasks/phase-2-central-event-notifier-service-and-di-wiring/execution.log.md#task-t002) | Contract parity [^1] |
+| 2.3 | [x] | Implement `CentralEventNotifierService` | CS-3 | All unit tests from 2.1 pass. All contract tests from 2.2 pass (GREEN). Service maps `WorkspaceDomain` to SSE channel names | [📋](tasks/phase-2-central-event-notifier-service-and-di-wiring/execution.log.md#task-t003) | `apps/web/src/features/027-central-notify-events/central-event-notifier.service.ts` [^2] |
+| 2.4 | [x] | Audit and register `CentralWatcherService` DI dependencies | CS-2 | All 6 constructor deps resolvable: (1) `IWorkspaceRegistryAdapter` via `WORKSPACE_DI_TOKENS.WORKSPACE_REGISTRY_ADAPTER`, (2) `IGitWorktreeResolver` via `WORKSPACE_DI_TOKENS.GIT_WORKTREE_RESOLVER`, (3) `IFileSystem` via `SHARED_DI_TOKENS.FILESYSTEM`, (4) `IFileWatcherFactory` — add `FILE_WATCHER_FACTORY: 'IFileWatcherFactory'` to `WORKSPACE_DI_TOKENS` in `packages/shared/src/di-tokens.ts` and register `ChokidarFileWatcherFactory` from `packages/workflow/src/adapters/chokidar-file-watcher.adapter.ts`, (5) `registryPath` string computed from config, (6) `ILogger` via `SHARED_DI_TOKENS.LOGGER`. Test resolves `CentralWatcherService` without throwing | [📋](tasks/phase-2-central-event-notifier-service-and-di-wiring/execution.log.md#task-t004) | Cross-cutting: `packages/shared/src/di-tokens.ts`, `apps/web/src/lib/di-container.ts` [^3] |
+| 2.5 | [x] | Register `CentralEventNotifierService` in DI | CS-2 | `createProductionContainer()` registers real service. `createTestContainer()` registers fake. Both resolvable by token | [📋](tasks/phase-2-central-event-notifier-service-and-di-wiring/execution.log.md#task-t005) | `apps/web/src/lib/di-container.ts` [^3] |
+| 2.6 | [x] | Write `startCentralNotificationSystem()` bootstrap helper | CS-2 | Async function: (1) resolves `CentralWatcherService` and `CentralEventNotifierService` from DI via `getContainer()`, (2) creates `WorkgraphDomainEventAdapter(notifier)`, (3) calls `watcher.registerAdapter(workgraphWatcherAdapter)`, (4) subscribes `workgraphWatcherAdapter.onGraphChanged()` to adapter's handler, (5) calls `watcher.start()`. Gates with `globalThis.centralWatcherStarted = true` to prevent double-start. Unit test verifies single-start idempotency | [📋](tasks/phase-2-central-event-notifier-service-and-di-wiring/execution.log.md#task-t006) | `apps/web/src/features/027-central-notify-events/start-central-notifications.ts` [^4] |
+| 2.7 | [x] | Wire barrel exports for apps/web feature | CS-1 | Feature barrel exports all new modules. `pnpm build` succeeds | [📋](tasks/phase-2-central-event-notifier-service-and-di-wiring/execution.log.md#task-t007) | PL-12 [^4] |
+| 2.8 | [x] | Refactor and validate | CS-1 | All tests pass, `pnpm typecheck` clean, `pnpm build` clean, `pnpm test` passes all existing + new tests | [📋](tasks/phase-2-central-event-notifier-service-and-di-wiring/execution.log.md#task-t008) | 2749 tests pass |
 
 ### Test Examples
 
@@ -672,7 +672,7 @@ and create the documentation guide.
 
 ### Phase Completion Checklist
 - [x] Phase 1: Types, Interfaces, and Fakes — COMPLETE
-- [ ] Phase 2: Central Event Notifier Service and DI Wiring — PENDING
+- [x] Phase 2: Central Event Notifier Service and DI Wiring — COMPLETE
 - [ ] Phase 3: Workgraph Domain Event Adapter, Debounce, and Toast — PENDING
 - [ ] Phase 4: Deprecation Markers and Validation — PENDING
 
@@ -707,7 +707,18 @@ over `ISSEBroadcaster` with domain routing, matching `AgentNotifierService`).
 
 ## Change Footnotes Ledger
 
-[^1]: [To be added during implementation via plan-6a]
-[^2]: [To be added during implementation via plan-6a]
-[^3]: [To be added during implementation via plan-6a]
-[^4]: [To be added during implementation via plan-6a]
+[^1]: Phase 2 T001/T002 - Unit tests and contract tests
+  - `file:test/unit/web/027-central-notify-events/central-event-notifier.service.test.ts`
+  - `file:test/contracts/central-event-notifier.contract.test.ts`
+
+[^2]: Phase 2 T003 - CentralEventNotifierService + shared extractSuppressionKey
+  - `class:apps/web/src/features/027-central-notify-events/central-event-notifier.service.ts:CentralEventNotifierService`
+  - `function:packages/shared/src/features/027-central-notify-events/extract-suppression-key.ts:extractSuppressionKey`
+
+[^3]: Phase 2 T004/T005 - DI wiring (tokens + container registrations)
+  - `file:packages/shared/src/di-tokens.ts`
+  - `file:apps/web/src/lib/di-container.ts`
+
+[^4]: Phase 2 T006/T007 - Bootstrap helper + barrel exports
+  - `function:apps/web/src/features/027-central-notify-events/start-central-notifications.ts:startCentralNotificationSystem`
+  - `file:apps/web/src/features/027-central-notify-events/index.ts`

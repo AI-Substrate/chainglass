@@ -52,6 +52,9 @@ import {
   type IAgentNotifierService,
   type IAgentStorageAdapter,
 } from '@chainglass/shared/features/019-agent-manager-refactor';
+// Plan 027: Import CentralEventNotifier types from shared
+import type { ICentralEventNotifier } from '@chainglass/shared/features/027-central-notify-events';
+import { FakeCentralEventNotifier } from '@chainglass/shared/features/027-central-notify-events';
 // Plan 014 Phase 6: Import workspace services from @chainglass/workflow
 // Plan 018 Phase 2: Import AgentEventAdapter for workspace-scoped event storage
 // Plan 018 Phase 3: Import AgentSessionAdapter and AgentSessionService
@@ -59,8 +62,12 @@ import {
   AgentEventAdapter,
   AgentSessionAdapter,
   AgentSessionService,
+  CentralWatcherService,
+  ChokidarFileWatcherFactory,
   FakeAgentEventAdapter,
   FakeAgentSessionAdapter,
+  FakeCentralWatcherService,
+  FakeFileWatcherFactory,
   FakeGitWorktreeResolver,
   FakeSampleAdapter,
   FakeWorkspaceContextResolver,
@@ -69,6 +76,8 @@ import {
   type IAgentEventAdapter,
   type IAgentSessionAdapter,
   type IAgentSessionService,
+  type ICentralWatcherService,
+  type IFileWatcherFactory,
   type IGitWorktreeResolver,
   type ISampleAdapter,
   type ISampleService,
@@ -98,6 +107,8 @@ import { SSEManagerBroadcaster } from '../features/019-agent-manager-refactor/ss
 import { FakeWorkGraphUIService } from '../features/022-workgraph-ui/fake-workgraph-ui-service';
 import { WorkGraphUIService } from '../features/022-workgraph-ui/workgraph-ui.service';
 import type { IWorkGraphUIService } from '../features/022-workgraph-ui/workgraph-ui.types';
+// Plan 027: CentralEventNotifierService (real implementation)
+import { CentralEventNotifierService } from '../features/027-central-notify-events/central-event-notifier.service';
 import { SampleService } from '../services/sample.service';
 import { sseManager } from './sse-manager';
 
@@ -422,6 +433,48 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
     },
   });
 
+  // ==================== Plan 027: Central Notification System ====================
+
+  // Register IFileWatcherFactory → ChokidarFileWatcherFactory
+  childContainer.register<IFileWatcherFactory>(WORKSPACE_DI_TOKENS.FILE_WATCHER_FACTORY, {
+    useFactory: () => new ChokidarFileWatcherFactory(),
+  });
+
+  // Register CentralWatcherService with all 6 constructor dependencies
+  // Construction only — Phase 3 activates the watcher via startCentralNotificationSystem()
+  childContainer.register<ICentralWatcherService>(WORKSPACE_DI_TOKENS.CENTRAL_WATCHER_SERVICE, {
+    useFactory: (c) => {
+      const registry = c.resolve<IWorkspaceRegistryAdapter>(
+        WORKSPACE_DI_TOKENS.WORKSPACE_REGISTRY_ADAPTER
+      );
+      const worktreeResolver = c.resolve<IGitWorktreeResolver>(
+        WORKSPACE_DI_TOKENS.GIT_WORKTREE_RESOLVER
+      );
+      const fs = c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
+      const fileWatcherFactory = c.resolve<IFileWatcherFactory>(
+        WORKSPACE_DI_TOKENS.FILE_WATCHER_FACTORY
+      );
+      const registryPath = path.join(os.homedir(), '.config', 'chainglass', 'workspaces.json');
+      const logger = c.resolve<ILogger>(DI_TOKENS.LOGGER);
+      return new CentralWatcherService(
+        registry,
+        worktreeResolver,
+        fs,
+        fileWatcherFactory,
+        registryPath,
+        logger
+      );
+    },
+  });
+
+  // Register CentralEventNotifierService as useValue singleton
+  // Per DYK Insight #2: Stateful suppression map requires identity stability
+  // Justified deviation from ADR-0004 useFactory pattern
+  const centralNotifier = new CentralEventNotifierService(new SSEManagerBroadcaster(sseManager));
+  childContainer.register<ICentralEventNotifier>(WORKSPACE_DI_TOKENS.CENTRAL_EVENT_NOTIFIER, {
+    useValue: centralNotifier,
+  });
+
   // FIX-010: Performance metrics for container creation
   const durationMs = performance.now() - startTime;
   console.log(`[createProductionContainer] Container created in ${durationMs.toFixed(2)}ms`);
@@ -596,6 +649,23 @@ export function createTestContainer(): DependencyContainer {
     useFactory: () => {
       return new FakeAgentManagerService();
     },
+  });
+
+  // ==================== Plan 027: Central Notification System (Fakes) ====================
+
+  // Register FakeFileWatcherFactory for test isolation
+  childContainer.register<IFileWatcherFactory>(WORKSPACE_DI_TOKENS.FILE_WATCHER_FACTORY, {
+    useValue: new FakeFileWatcherFactory(),
+  });
+
+  // Register FakeCentralWatcherService for test isolation
+  childContainer.register<ICentralWatcherService>(WORKSPACE_DI_TOKENS.CENTRAL_WATCHER_SERVICE, {
+    useValue: new FakeCentralWatcherService(),
+  });
+
+  // Register FakeCentralEventNotifier for test isolation
+  childContainer.register<ICentralEventNotifier>(WORKSPACE_DI_TOKENS.CENTRAL_EVENT_NOTIFIER, {
+    useValue: new FakeCentralEventNotifier(),
   });
 
   // ==================== Plan 022 Phase 1: WorkGraph UI Test Services ====================

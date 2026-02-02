@@ -10,6 +10,7 @@
  */
 
 import type { DomainEvent, ICentralEventNotifier } from './central-event-notifier.interface.js';
+import { extractSuppressionKey } from './extract-suppression-key.js';
 import type { WorkspaceDomainType } from './workspace-domain.js';
 
 /**
@@ -45,7 +46,7 @@ export class FakeCentralEventNotifier implements ICentralEventNotifier {
     // Extract key from data for suppression check
     // The key is domain-specific — for workgraphs it's graphSlug, for agents it's agentId
     // We check suppression for each data value that might be a key
-    const key = this.extractKey(data);
+    const key = extractSuppressionKey(data);
     if (key !== undefined && this.isSuppressed(domain, key)) {
       return; // Silently dropped per DYK-01
     }
@@ -81,16 +82,5 @@ export class FakeCentralEventNotifier implements ICentralEventNotifier {
     this.clockOffset += ms;
   }
 
-  /**
-   * Extract a suppression key from event data.
-   * Looks for common key fields: graphSlug, agentId, key.
-   * Returns undefined if no key field found (event won't be suppression-checked).
-   */
-  private extractKey(data: Record<string, unknown>): string | undefined {
-    // Check common key fields
-    if (typeof data.graphSlug === 'string') return data.graphSlug;
-    if (typeof data.agentId === 'string') return data.agentId;
-    if (typeof data.key === 'string') return data.key;
-    return undefined;
-  }
+  // Key extraction delegated to shared extractSuppressionKey() per DYK Insight #1
 }

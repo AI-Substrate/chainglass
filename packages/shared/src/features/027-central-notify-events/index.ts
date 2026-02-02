@@ -15,5 +15,8 @@ export type {
   ICentralEventNotifier,
 } from './central-event-notifier.interface.js';
 
+// Shared utilities
+export { extractSuppressionKey } from './extract-suppression-key.js';
+
 // Fakes
 export { FakeCentralEventNotifier } from './fake-central-event-notifier.js';
