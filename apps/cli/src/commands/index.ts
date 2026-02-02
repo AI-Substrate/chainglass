@@ -12,3 +12,5 @@ export { registerSampleCommands } from './sample.command.js';
 // WorkGraph commands (Phase 6: CLI Integration)
 export { registerUnitCommands } from './unit.command.js';
 export { registerWorkGraphCommands } from './workgraph.command.js';
+// Positional Graph commands (Plan 026: Phase 6)
+export { registerPositionalGraphCommands } from './positional-graph.command.js';

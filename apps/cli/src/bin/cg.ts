@@ -18,6 +18,7 @@ import { registerAgentCommands } from '../commands/agent.command.js';
 import { registerInitCommand } from '../commands/init.command.js';
 import { registerMcpCommand } from '../commands/mcp.command.js';
 import { registerPhaseCommands } from '../commands/phase.command.js';
+import { registerPositionalGraphCommands } from '../commands/positional-graph.command.js';
 import { registerRunsCommands } from '../commands/runs.command.js';
 import { registerSampleCommands } from '../commands/sample.command.js';
 import { registerUnitCommands } from '../commands/unit.command.js';
@@ -233,6 +234,8 @@ export function createProgram(options: CreateProgramOptions = {}): Command {
   // WorkGraph commands (Phase 6: CLI Integration)
   registerUnitCommands(program);
   registerWorkGraphCommands(program);
+  // Positional Graph commands (Plan 026: Phase 6)
+  registerPositionalGraphCommands(program);
 
   // Default behavior: show help when no command provided
   if (!options.testMode) {

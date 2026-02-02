@@ -31,16 +31,12 @@
  */
 
 import {
-  ConsoleOutputAdapter,
   type IFileSystem,
-  type IOutputAdapter,
   type IPathResolver,
-  JsonOutputAdapter,
   SHARED_DI_TOKENS,
   WORKGRAPH_DI_TOKENS,
-  WORKSPACE_DI_TOKENS,
 } from '@chainglass/shared';
-import type { IWorkspaceService, WorkspaceContext } from '@chainglass/workflow';
+import type { WorkspaceContext } from '@chainglass/workflow';
 import type {
   BootstrapPromptService,
   IWorkGraphService,
@@ -50,6 +46,12 @@ import type {
 } from '@chainglass/workgraph';
 import type { Command } from 'commander';
 import { createCliProductionContainer } from '../lib/container.js';
+import {
+  createOutputAdapter,
+  noContextError,
+  resolveOrOverrideContext,
+  wrapAction,
+} from './command-helpers.js';
 
 // ============================================
 // Option Interfaces
@@ -79,54 +81,6 @@ interface AskOptions extends BaseOptions {
 // ============================================
 // Helpers
 // ============================================
-
-/**
- * Create an output adapter based on options.
- */
-function createOutputAdapter(json: boolean): IOutputAdapter {
-  return json ? new JsonOutputAdapter() : new ConsoleOutputAdapter();
-}
-
-/**
- * Wrap async action handlers with try-catch for graceful error handling.
- * Per FIX-003: Prevents unhandled promise rejections from crashing CLI.
- */
-function wrapAction<T extends unknown[]>(
-  handler: (...args: T) => Promise<void>
-): (...args: T) => Promise<void> {
-  return async (...args: T) => {
-    try {
-      await handler(...args);
-    } catch (error) {
-      console.error('Error:', error instanceof Error ? error.message : String(error));
-      process.exit(1);
-    }
-  };
-}
-
-/**
- * Get the WorkspaceService from DI container.
- * Per ADR-0004: Services resolved from containers, not instantiated directly.
- */
-function getWorkspaceService(): IWorkspaceService {
-  const container = createCliProductionContainer();
-  return container.resolve<IWorkspaceService>(WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE);
-}
-
-/**
- * Resolve workspace context from CWD or explicit path.
- *
- * Per AC-23: --workspace-path flag overrides CWD-based context.
- * Per Plan 021: All service calls require WorkspaceContext.
- *
- * @param overridePath - Explicit path if --workspace-path was provided
- * @returns WorkspaceContext if found, null otherwise
- */
-async function resolveOrOverrideContext(overridePath?: string): Promise<WorkspaceContext | null> {
-  const workspaceService = getWorkspaceService();
-  const path = overridePath ?? process.cwd();
-  return workspaceService.resolveContext(path);
-}
 
 /**
  * Get the WorkGraphService from DI container.
