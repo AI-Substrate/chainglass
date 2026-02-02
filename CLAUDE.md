@@ -8,6 +8,12 @@
 - **Tailwind CSS v4** with tailwind-merge for className composition
 - **TypeScript 5.7+** with strict mode
 
+## Git & PR Style
+
+- **No emojis** in commit messages, PR titles, or PR descriptions
+- **No AI attribution** in commit messages or PR descriptions — do not mention Claude, AI, Co-Authored-By, or any AI tool
+- Keep commit messages and PR descriptions factual and concise
+
 ## Conventions
 
 ### Components

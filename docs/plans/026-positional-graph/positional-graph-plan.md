@@ -3,7 +3,7 @@
 **Plan Version**: 1.0.0
 **Created**: 2026-01-31
 **Spec**: [./positional-graph-spec.md](./positional-graph-spec.md)
-**Status**: DRAFT
+**Status**: COMPLETE
 **Mode**: Full
 **File Management**: PlanPak
 
@@ -495,21 +495,21 @@ describe('PositionalGraphDefinitionSchema', () => {
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 3.1 | [ ] | Define `IPositionalGraphService` interface (graph + line methods) | 2 | Interface compiles, all method signatures match workshop §Service Interface | - | WorkspaceContext as first param on every method |
-| 3.2 | [ ] | Write tests for graph CRUD (create, load, show, delete, list) | 3 | Tests cover: create produces 1 empty line, load returns graph, show formats output, delete removes files, list returns all slugs, create duplicate E105 | - | Real filesystem, temp dirs |
-| 3.3 | [ ] | Implement graph CRUD to pass tests | 3 | All graph CRUD tests pass | - | create writes graph.yaml + state.json, load validates with Zod |
-| 3.4 | [ ] | Write tests for line operations (add, remove, move, set properties) | 3 | Tests cover: append line, insert at index, insert after/before lineId, remove empty line, remove non-empty fails E151, remove with cascade, move line to new index, set transition/label/description (no execution mode — that's per-node), cannot remove last line E156 | - | |
-| 3.5 | [ ] | Implement line operations to pass tests | 3 | All line operation tests pass | - | Each op: load graph → mutate → persist |
-| 3.6 | [ ] | Write tests for line invariant edge cases | 2 | Tests cover: invalid line index E152, line not found E150, duplicate line ID prevention | - | |
-| 3.7 | [ ] | Verify line operations maintain ordering consistency | 1 | After any line operation, lines array indices are contiguous and deterministic | - | |
+| 3.1 | [x] | Define `IPositionalGraphService` interface (graph + line methods) | 2 | Interface compiles, all method signatures match workshop §Service Interface | [📋](tasks/phase-3-graph-and-line-crud-operations/execution.log.md) | Completed |
+| 3.2 | [x] | Write tests for graph CRUD (create, load, show, delete, list) | 3 | Tests cover: create produces 1 empty line, load returns graph, show formats output, delete removes files, list returns all slugs, create duplicate E105 | [📋](tasks/phase-3-graph-and-line-crud-operations/execution.log.md) | Completed |
+| 3.3 | [x] | Implement graph CRUD to pass tests | 3 | All graph CRUD tests pass | [📋](tasks/phase-3-graph-and-line-crud-operations/execution.log.md) | Completed |
+| 3.4 | [x] | Write tests for line operations (add, remove, move, set properties) | 3 | Tests cover: append line, insert at index, insert after/before lineId, remove empty line, remove non-empty fails E151, remove with cascade, move line to new index, set transition/label/description (no execution mode — that's per-node), cannot remove last line E156 | [📋](tasks/phase-3-graph-and-line-crud-operations/execution.log.md) | Completed |
+| 3.5 | [x] | Implement line operations to pass tests | 3 | All line operation tests pass | [📋](tasks/phase-3-graph-and-line-crud-operations/execution.log.md) | Completed |
+| 3.6 | [x] | Write tests for line invariant edge cases | 2 | Tests cover: invalid line index E152, line not found E150, duplicate line ID prevention | [📋](tasks/phase-3-graph-and-line-crud-operations/execution.log.md) | Completed |
+| 3.7 | [x] | Verify line operations maintain ordering consistency | 1 | After any line operation, lines array indices are contiguous and deterministic | [📋](tasks/phase-3-graph-and-line-crud-operations/execution.log.md) | Completed |
 
 ### Acceptance Criteria
-- [ ] `cg wf create <slug>` produces graph with one empty line
-- [ ] Lines can be added (append, insert at index, before/after ID), removed, moved
-- [ ] At-least-one-line invariant enforced (E156 on remove-last-line)
-- [ ] Line properties (label, description, transition) can be set; execution mode is per-node, not per-line
-- [ ] All operations return `BaseResult` with appropriate error codes
-- [ ] Tests pass with real filesystem: `pnpm test --filter @chainglass/positional-graph` — graph CRUD and line operation tests green
+- [x] `cg wf create <slug>` produces graph with one empty line
+- [x] Lines can be added (append, insert at index, before/after ID), removed, moved
+- [x] At-least-one-line invariant enforced (E156 on remove-last-line)
+- [x] Line properties (label, description, transition) can be set; execution mode is per-node, not per-line
+- [x] All operations return `BaseResult` with appropriate error codes
+- [x] Tests pass with real filesystem: `pnpm test --filter @chainglass/positional-graph` — graph CRUD and line operation tests green
 
 ---
 
@@ -534,26 +534,26 @@ describe('PositionalGraphDefinitionSchema', () => {
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 4.1 | [ ] | Write tests for node add operations | 3 | Tests cover: append to line, insert at position, add with description, generated node ID format, node.yaml created on disk, WorkUnit existence validated (E155), line not found (E150) | - | E155 = unit not found in positional-graph range |
-| 4.2 | [ ] | Implement node add to pass tests | 3 | All add tests pass, node.yaml persisted, graph.yaml updated | - | Generate ID, create node dir, write node.yaml, update line's nodes[] |
-| 4.3 | [ ] | Write tests for node remove | 2 | Tests cover: remove updates graph.yaml and deletes node dir, node not found E153 | - | |
-| 4.4 | [ ] | Implement node remove to pass tests | 2 | All remove tests pass | - | |
-| 4.5 | [ ] | Write tests for node move (within line, between lines) | 3 | Tests cover: move within line changes position, move to another line (append), move to another line at position, source line updated, target line updated, invalid position E154 | - | |
-| 4.6 | [ ] | Implement node move to pass tests | 3 | All move tests pass | - | Atomic: remove from source, add to target |
-| 4.7 | [ ] | Write tests for node description and show | 2 | Tests cover: set description updates node.yaml, show returns node details with line and position | - | |
-| 4.8 | [ ] | Implement node description and show to pass tests | 2 | All tests pass | - | |
-| 4.9 | [ ] | Write tests for setNodeExecution | 2 | Tests cover: set execution to serial/parallel, persisted in node.yaml, node not found E153 | - | Per execution rules workshop: execution set "at add time or via setNodeExecution" |
-| 4.10 | [ ] | Implement setNodeExecution to pass tests | 1 | All tests pass | - | |
-| 4.11 | [ ] | Write invariant enforcement tests | 2 | Tests cover: unique node IDs across graph, node belongs to exactly one line, deterministic ordering after operations | - | |
+| 4.1 | [x] | Write tests for node add operations | 3 | Tests cover: append to line, insert at position, add with description, generated node ID format, node.yaml created on disk, WorkUnit existence validated (E155), line not found (E150) | [📋](tasks/phase-4-node-operations-with-positional-invariants/execution.log.md) | Completed |
+| 4.2 | [x] | Implement node add to pass tests | 3 | All add tests pass, node.yaml persisted, graph.yaml updated | [📋](tasks/phase-4-node-operations-with-positional-invariants/execution.log.md) | Completed |
+| 4.3 | [x] | Write tests for node remove | 2 | Tests cover: remove updates graph.yaml and deletes node dir, node not found E153 | [📋](tasks/phase-4-node-operations-with-positional-invariants/execution.log.md) | Completed |
+| 4.4 | [x] | Implement node remove to pass tests | 2 | All remove tests pass | [📋](tasks/phase-4-node-operations-with-positional-invariants/execution.log.md) | Completed |
+| 4.5 | [x] | Write tests for node move (within line, between lines) | 3 | Tests cover: move within line changes position, move to another line (append), move to another line at position, source line updated, target line updated, invalid position E154 | [📋](tasks/phase-4-node-operations-with-positional-invariants/execution.log.md) | Completed |
+| 4.6 | [x] | Implement node move to pass tests | 3 | All move tests pass | [📋](tasks/phase-4-node-operations-with-positional-invariants/execution.log.md) | Completed |
+| 4.7 | [x] | Write tests for node description and show | 2 | Tests cover: set description updates node.yaml, show returns node details with line and position | [📋](tasks/phase-4-node-operations-with-positional-invariants/execution.log.md) | Completed |
+| 4.8 | [x] | Implement node description and show to pass tests | 2 | All tests pass | [📋](tasks/phase-4-node-operations-with-positional-invariants/execution.log.md) | Completed |
+| 4.9 | [x] | Write tests for setNodeExecution | 2 | Tests cover: set execution to serial/parallel, persisted in node.yaml, node not found E153 | [📋](tasks/phase-4-node-operations-with-positional-invariants/execution.log.md) | Completed |
+| 4.10 | [x] | Implement setNodeExecution to pass tests | 1 | All tests pass | [📋](tasks/phase-4-node-operations-with-positional-invariants/execution.log.md) | Completed |
+| 4.11 | [x] | Write invariant enforcement tests | 2 | Tests cover: unique node IDs across graph, node belongs to exactly one line, deterministic ordering after operations | [📋](tasks/phase-4-node-operations-with-positional-invariants/execution.log.md) | Completed |
 
 ### Acceptance Criteria
-- [ ] Nodes can be added to any line at any position
-- [ ] Nodes can be removed, cleaning up `node.yaml` and `graph.yaml`
-- [ ] Nodes can be moved within a line (reposition) and between lines
-- [ ] Node descriptions can be set via `setNodeDescription`
-- [ ] All positional invariants hold after every operation (unique IDs, no orphans, deterministic ordering)
-- [ ] WorkUnit existence validated at add time
-- [ ] Tests pass: `pnpm test --filter @chainglass/positional-graph` — node operation and invariant tests green
+- [x] Nodes can be added to any line at any position
+- [x] Nodes can be removed, cleaning up `node.yaml` and `graph.yaml`
+- [x] Nodes can be moved within a line (reposition) and between lines
+- [x] Node descriptions can be set via `setNodeDescription`
+- [x] All positional invariants hold after every operation (unique IDs, no orphans, deterministic ordering)
+- [x] WorkUnit existence validated at add time
+- [x] Tests pass: `pnpm test --filter @chainglass/positional-graph` — node operation and invariant tests green
 
 ---
 
@@ -654,21 +654,21 @@ describe('collateInputs', () => {
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 6.1 | [ ] | Create `positional-graph.command.ts` with graph commands (create, show, status, delete, list) | 3 | Commands registered, workspace context resolved, service called, output formatted | - | Follow workgraph.command.ts pattern |
-| 6.2 | [ ] | Add line commands (add, remove, move, set) | 3 | Nested `wf line` subcommands work with parent option inheritance | - | `cg wf line add <graph>` etc. |
-| 6.3 | [ ] | Add node commands (add, remove, move, show, set, set-input, remove-input, collate) | 3 | Nested `wf node` subcommands work | - | `cg wf node add <graph> <lineId> <unitSlug>` etc. |
-| 6.4 | [ ] | Add status command (node/line/graph scope) | 2 | `cg wf status <graph>` works, `--node` and `--line` flags narrow scope | - | Replaces separate canrun command. Readiness is a field on status. |
-| 6.5 | [ ] | Register commands in CLI container and command index | 2 | `registerPositionalGraphServices()` called in CLI container, `registerPositionalGraphCommands` exported and called in cg.ts | - | |
-| 6.6 | [ ] | Verify all commands with `--json` output | 2 | JSON output follows structured format for all commands | - | |
+| 6.1 | [x] | Create `positional-graph.command.ts` with graph commands (create, show, status, delete, list) | 3 | Commands registered, workspace context resolved, service called, output formatted | [📋](tasks/phase-6-cli-integration/execution.log.md#tasks-t001-t004-command-implementations) | Completed [^14] |
+| 6.2 | [x] | Add line commands (add, remove, move, set) | 3 | Nested `wf line` subcommands work with parent option inheritance | [📋](tasks/phase-6-cli-integration/execution.log.md#tasks-t001-t004-command-implementations) | Completed [^14] |
+| 6.3 | [x] | Add node commands (add, remove, move, show, set, set-input, remove-input, collate) | 3 | Nested `wf node` subcommands work | [📋](tasks/phase-6-cli-integration/execution.log.md#tasks-t001-t004-command-implementations) | Completed [^14] |
+| 6.4 | [x] | Add status command (node/line/graph scope) | 2 | `cg wf status <graph>` works, `--node` and `--line` flags narrow scope | [📋](tasks/phase-6-cli-integration/execution.log.md#tasks-t001-t004-command-implementations) | Completed [^14] |
+| 6.5 | [x] | Register commands in CLI container and command index | 2 | `registerPositionalGraphServices()` called in CLI container, `registerPositionalGraphCommands` exported and called in cg.ts | [📋](tasks/phase-6-cli-integration/execution.log.md#task-t005--t006-di-registration--iworkunitloader-bridge) | Completed [^14] |
+| 6.6 | [x] | Verify all commands with `--json` output | 2 | JSON output follows structured format for all commands | [📋](tasks/phase-6-cli-integration/execution.log.md#task-t008-json-output-verification) | Completed [^14] |
 
 ### Acceptance Criteria
-- [ ] All `cg wf` commands from spec AC-1 through AC-8 work
-- [ ] `--json` flag produces structured JSON output
-- [ ] `--workspace-path` overrides workspace context
-- [ ] Error codes displayed with descriptive messages
-- [ ] Existing `cg wg` commands unaffected
-- [ ] Manual smoke test: `cg wf create test-graph && cg wf show test-graph && cg wf list --json` — valid output
-- [ ] `cg wf --help` lists all subcommands (graph, line, node, status)
+- [x] All `cg wf` commands from spec AC-1 through AC-8 work
+- [x] `--json` flag produces structured JSON output
+- [x] `--workspace-path` overrides workspace context
+- [x] Error codes displayed with descriptive messages
+- [x] Existing `cg wg` commands unaffected
+- [x] Manual smoke test: `cg wf create test-graph && cg wf show test-graph && cg wf list --json` — valid output
+- [x] `cg wf --help` lists all subcommands (graph, line, node, status)
 
 ---
 
@@ -693,21 +693,21 @@ describe('collateInputs', () => {
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 7.1 | [ ] | Write integration test: full graph lifecycle | 3 | Test exercises: create → add lines → add nodes → move nodes → wire inputs → collate → canRun → status → delete | - | Real filesystem, temp dir |
-| 7.2 | [ ] | Write integration test: input wiring lifecycle | 3 | Test exercises: create graph → add producer/consumer nodes → wire inputs → verify resolution → test multi-source → test ordinal disambiguation | - | |
-| 7.3 | [ ] | Create E2E prototype script | 3 | Script runs end-to-end using service API (not CLI), validates all operations from workshop §E2E Prototype | - | Based on workshop E2E script pseudo-code |
-| 7.4 | [ ] | Survey existing `docs/how/` and create documentation plan | 1 | New `docs/how/positional-graph/` directory planned, no conflicts with existing docs | - | |
-| 7.5 | [ ] | Create `docs/how/positional-graph/1-overview.md` | 2 | Covers: concepts (lines, nodes, positions), data model, comparison with DAG model, key differences | - | Target: developers extending the system |
-| 7.6 | [ ] | Create `docs/how/positional-graph/2-cli-usage.md` | 2 | Covers: all cg wf commands with examples, common workflows, error code reference | - | Matches spec AC-1 through AC-10 |
-| 7.7 | [ ] | Run full quality check | 1 | `just check` passes (test, typecheck, lint, build) | - | Final validation |
+| 7.1 | [x] | Write integration test: full graph lifecycle | 3 | Test exercises: create → add lines → add nodes → move nodes → wire inputs → collate → canRun → status → delete | [📋](tasks/phase-7-integration-tests-e2e-and-documentation/execution.log.md#task-t001-write-integration-test--full-graph-lifecycle) | Completed [^15] |
+| 7.2 | [x] | Write integration test: input wiring lifecycle | 3 | Test exercises: create graph → add producer/consumer nodes → wire inputs → verify resolution → test multi-source → test ordinal disambiguation | [📋](tasks/phase-7-integration-tests-e2e-and-documentation/execution.log.md#task-t002-write-integration-test--input-wiring-lifecycle) | Completed [^15] |
+| 7.3 | [x] | Create E2E prototype script | 3 | Script runs end-to-end using service API (not CLI), validates all operations from workshop §E2E Prototype | [📋](tasks/phase-7-integration-tests-e2e-and-documentation/execution.log.md#task-t003-create-e2e-prototype-script) | Completed — 33 operations verified [^15] |
+| 7.4 | [x] | Survey existing `docs/how/` and create documentation plan | 1 | New `docs/how/positional-graph/` directory planned, no conflicts with existing docs | [📋](tasks/phase-7-integration-tests-e2e-and-documentation/execution.log.md#task-t004-survey-existing-docshow) | Completed [^15] |
+| 7.5 | [x] | Create `docs/how/positional-graph/1-overview.md` | 2 | Covers: concepts (lines, nodes, positions), data model, comparison with DAG model, key differences | [📋](tasks/phase-7-integration-tests-e2e-and-documentation/execution.log.md#task-t005-create-1-overviewmd) | Completed [^15] |
+| 7.6 | [x] | Create `docs/how/positional-graph/2-cli-usage.md` | 2 | Covers: all cg wf commands with examples, common workflows, error code reference | [📋](tasks/phase-7-integration-tests-e2e-and-documentation/execution.log.md#task-t006-create-2-cli-usagemd) | Completed [^15] |
+| 7.7 | [x] | Run full quality check | 1 | `just check` passes (test, typecheck, lint, build) | [📋](tasks/phase-7-integration-tests-e2e-and-documentation/execution.log.md#task-t007-quality-gate) | 2923 tests, 0 failures [^15] |
 
 ### Acceptance Criteria
-- [ ] Integration tests exercise full lifecycle with real filesystem
-- [ ] E2E script validates complete operational flow
-- [ ] Documentation covers concepts, CLI usage, and data model
-- [ ] Full quality gate: `just check` — zero failures across lint, typecheck, test, build
-- [ ] E2E script executes: `tsx test/e2e/positional-graph-e2e.ts` — zero errors, success message
-- [ ] No regressions to existing `cg wg` commands (`pnpm test --filter @chainglass/workgraph` — zero new failures)
+- [x] Integration tests exercise full lifecycle with real filesystem
+- [x] E2E script validates complete operational flow
+- [x] Documentation covers concepts, CLI usage, and data model
+- [x] Full quality gate: `just check` — zero failures across lint, typecheck, test, build
+- [x] E2E script executes: `tsx test/e2e/positional-graph-e2e.ts` — zero errors, success message
+- [x] No regressions to existing `cg wg` commands (`pnpm test --filter @chainglass/workgraph` — zero new failures)
 
 ---
 
@@ -750,8 +750,10 @@ describe('collateInputs', () => {
 - [x] Phase 3: Graph and Line CRUD Operations - Complete
 - [x] Phase 4: Node Operations with Positional Invariants - Complete
 - [x] Phase 5: Input Wiring and Status Computation - Complete
-- [ ] Phase 6: CLI Integration - Pending
-- [ ] Phase 7: Integration Tests, E2E, and Documentation - Pending
+- [x] Phase 6: CLI Integration - Complete
+- [x] Phase 7: Integration Tests, E2E, and Documentation - Complete
+
+**Overall Progress: 7/7 phases (100%) — PLAN COMPLETE**
 
 ### STOP Rule
 **IMPORTANT**: This plan must be complete before creating tasks. After writing this plan:
@@ -861,9 +863,27 @@ No layer-boundary violations. The positional graph package follows the same stru
 [^13]: Phase 5, Task T014 — Quality gate
   - Full suite: 2908 tests passed, 0 failures, 0 lint errors, typecheck pass, build successful
 
+[^14]: Phase 6 — CLI Integration (10 tasks complete)
+  - `file:apps/cli/src/commands/positional-graph.command.ts` (graph, line, node, status, trigger commands)
+  - `file:apps/cli/src/commands/command-helpers.ts` (shared CLI helpers extracted)
+  - `file:apps/cli/src/lib/container.ts` (DI registration + IWorkUnitLoader bridge)
+  - `file:apps/cli/src/bin/cg.ts` (command registration)
+  - `file:apps/cli/src/commands/index.ts` (export)
+  - `file:packages/shared/src/adapters/console-output.adapter.ts` (wf.* formatters)
+  - `file:test/unit/cli/command-helpers.test.ts` (8 tests)
+  - Full suite: 2916 tests passed, 0 failures
+
+[^15]: Phase 7 — Integration Tests, E2E, and Documentation (7 tasks complete)
+  - `file:test/integration/positional-graph/graph-lifecycle.test.ts` (1 test, full lifecycle)
+  - `file:test/integration/positional-graph/input-wiring-lifecycle.test.ts` (6 tests, input resolution)
+  - `file:test/e2e/positional-graph-e2e.ts` (33 operations, real filesystem)
+  - `file:docs/how/positional-graph/1-overview.md` (concepts, data model, DAG comparison)
+  - `file:docs/how/positional-graph/2-cli-usage.md` (all cg wf commands, error codes)
+  - Full suite: 2923 tests passed, 0 failures
+
 ---
 
-**Next step**: Run `/plan-4-complete-the-plan` to validate readiness.
+**Plan 026-positional-graph is COMPLETE.** All 7 phases implemented and verified.
 
 ---
 
