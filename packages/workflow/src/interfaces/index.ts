@@ -137,10 +137,3 @@ export type {
   IFileWatcher,
   IFileWatcherFactory,
 } from './file-watcher.interface.js';
-
-// Workspace change notifier interface (Plan 022 Phase 4 Subtask 001)
-export type {
-  GraphChangedEvent,
-  GraphChangedCallback,
-  IWorkspaceChangeNotifierService,
-} from './workspace-change-notifier.interface.js';

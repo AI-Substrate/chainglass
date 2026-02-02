@@ -1,7 +1,7 @@
 /**
  * File Watcher interfaces for abstracting file system watching.
  *
- * Per Subtask 001: WorkspaceChangeNotifierService - File Watching for CLI Changes
+ * Per Subtask 001: File Watching for CLI Changes (used by CentralWatcherService)
  * Per Constitution Principle 4: Use fakes over mocks for testing
  *
  * These interfaces wrap chokidar for file watching, enabling:

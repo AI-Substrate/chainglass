@@ -1,7 +1,7 @@
 /**
  * Fake File Watcher for unit testing.
  *
- * Per Subtask 001: WorkspaceChangeNotifierService - File Watching for CLI Changes
+ * Per Subtask 001: File Watching for CLI Changes (used by CentralWatcherService)
  * Per Constitution Principle 4: Use fakes over mocks for testing
  *
  * This fake provides:
@@ -12,10 +12,9 @@
  * Example usage in tests:
  * ```typescript
  * const factory = new FakeFileWatcherFactory();
- * const service = new WorkspaceChangeNotifierService(
+ * const service = new CentralWatcherService(
  *   fakeRegistry,
  *   fakeWorktreeResolver,
- *   fakeFilesystem,
  *   factory,
  * );
  *

@@ -25,7 +25,11 @@
       "import": "./dist/types/index.js",
       "types": "./dist/types/index.d.ts"
     },
-    "./schemas/*": "./schemas/*"
+    "./schemas/*": "./schemas/*",
+    "./features/023-central-watcher-notifications": {
+      "import": "./dist/features/023-central-watcher-notifications/index.js",
+      "types": "./dist/features/023-central-watcher-notifications/index.d.ts"
+    }
   },
   "scripts": {
     "build": "tsc --build",

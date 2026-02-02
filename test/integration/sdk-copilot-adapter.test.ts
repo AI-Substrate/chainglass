@@ -68,7 +68,7 @@ function getSdkVersion(): string | null {
  *
  * NOTE: These tests may incur API costs and are intended for local validation.
  */
-describe.skipIf(!hasCopilotSdk() || isCI())('SdkCopilotAdapter Integration', () => {
+describe.skipIf(!process.env.COPILOT_SDK_TESTS || isCI())('SdkCopilotAdapter Integration', () => {
   beforeAll(() => {
     // Log SDK version for debugging
     const version = getSdkVersion();

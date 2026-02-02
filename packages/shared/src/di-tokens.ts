@@ -83,6 +83,8 @@ export const WORKSPACE_DI_TOKENS = {
   AGENT_SESSION_SERVICE: 'IAgentSessionService',
   /** IAgentEventAdapter interface (Plan 018 Phase 2) */
   AGENT_EVENT_ADAPTER: 'IAgentEventAdapter',
+  /** Reserved for future SSE integration plan */
+  CENTRAL_WATCHER_SERVICE: 'ICentralWatcherService',
 } as const;
 
 /**
