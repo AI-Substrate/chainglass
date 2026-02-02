@@ -36,10 +36,9 @@ because the `CentralWatcherService` is not started, not in DI, and not connected
 
 This plan introduces a **central domain event notification system** that:
 - Defines `WorkspaceDomain` as a first-class concept with an enumerated identity
-- Creates `ICentralEventNotifier` with `emit()`, `suppressDomain()`, and `isSuppressed()`
+- Creates `ICentralEventNotifier` with `emit()` (suppression removed — client-side `isRefreshing` guard is sufficient)
 - Wires `CentralWatcherService` into web DI and bootstrap
 - Bridges watcher events through a `WorkgraphDomainEventAdapter` to the central notifier
-- Adds server-side debounce (~500ms) to prevent duplicate events from UI-initiated saves
 - Triggers toast notification in the workgraph detail page via the existing `onExternalChange` callback
 - Deprecates `broadcastGraphUpdated()` and `AgentNotifierService` with migration guidance
 
@@ -72,7 +71,7 @@ All components exist but are not connected at runtime:
 - Web server is long-lived (not serverless/edge)
 - One web server instance per workspace
 - `onExternalChange` in `useWorkGraphSSE` fires after refresh completes
-- Server-side debounce (~500ms) is sufficient to prevent dual notifications
+- Client-side `isRefreshing` guard in `useWorkGraphSSE` is sufficient to prevent duplicate refreshes (server-side debounce removed)
 
 ---
 
@@ -461,26 +460,23 @@ describe('CentralEventNotifierService', () => {
     });
   });
 
-  it('should suppress emit() within debounce window', () => {
+  it('should broadcast emit() with correct eventType', () => {
     /*
     Test Doc:
-    - Why: AC-07 — prevent duplicate SSE events from UI-initiated saves
-    - Contract: After suppressDomain(), emit() for same key is silently dropped
-    - Usage Notes: Suppression is per (domain, key) pair
-    - Quality Contribution: Prevents duplicate refreshes in UI
-    - Worked Example: suppress('workgraphs','g1',500) -> emit('workgraphs','graph-updated',{graphSlug:'g1'}) -> NO broadcast
+    - Why: Core delivery — eventType must be forwarded to broadcaster
+    - Contract: emit('workgraphs', 'graph-updated', data) passes eventType through
+    - Usage Notes: eventType is opaque string, not validated by notifier
+    - Quality Contribution: Catches eventType routing bugs
+    - Worked Example: emit(Workgraphs, 'graph-updated', {graphSlug:'g1'}) -> broadcast eventType='graph-updated'
     */
-    notifier.suppressDomain(WorkspaceDomain.Workgraphs, 'g1', 500);
     notifier.emit(WorkspaceDomain.Workgraphs, 'graph-updated', { graphSlug: 'g1' });
 
-    expect(broadcaster.broadcasts).toHaveLength(0);
+    expect(broadcaster.broadcasts[0].eventType).toBe('graph-updated');
   });
 });
 ```
 
 ### Non-Happy-Path Coverage
-- [ ] `emit()` after suppression window expires
-- [ ] Multiple rapid `suppressDomain()` calls for same key (extends window)
 - [ ] `startCentralNotificationSystem()` called twice (idempotent)
 - [ ] DI resolution with missing dependency (throws meaningful error)
 
@@ -489,20 +485,19 @@ describe('CentralEventNotifierService', () => {
 - [ ] Service registered in web DI container (AC-03)
 - [ ] `CentralWatcherService` registered in web DI container (AC-04 partial — registered but not started)
 - [ ] Bootstrap helper can start the notification system (AC-03, AC-04)
-- [ ] Debounce works: `suppressDomain()` prevents `emit()` for same key within window (AC-07 partial)
 - [ ] All tests pass (AC-11, AC-12)
 - [ ] ADR-0004 constraints respected (useFactory, child container isolation)
 
 ---
 
-## Phase 3: Workgraph Domain Event Adapter, Debounce, and Toast
+## Phase 3: Workgraph Domain Event Adapter and Toast
 
 **Objective**: Bridge filesystem watcher events through the `WorkgraphDomainEventAdapter` to the
-central notifier, add debounce calls to API routes, wire toast notification in the UI.
+central notifier, remove unused suppression infrastructure from Phases 1-2, wire toast notification in the UI.
 
 **Deliverables**:
 - `WorkgraphDomainEventAdapter` that receives `WorkGraphChangedEvent` and emits via central notifier
-- API routes call `suppressDomain()` after mutations
+- Remove suppression code (`suppressDomain`, `isSuppressed`, `extractSuppressionKey`) from interface, service, fake, and tests
 - `startCentralNotificationSystem()` called at server boot
 - Toast notification in workgraph detail page via `onExternalChange`
 - Integration test: filesystem change -> SSE event
@@ -514,15 +509,15 @@ central notifier, add debounce calls to API routes, wire toast notification in t
 |------|------------|--------|------------|
 | SSE channel/event strings mismatch | Medium | High | Use `WorkspaceDomain.Workgraphs` as channel name; verify against existing `use-workgraph-sse.ts` filter |
 | Watcher not started before first filesystem change | Medium | Medium | Start watcher eagerly in `instrumentation.ts` or lazily on first SSE route request |
-| Toast fires on own saves despite debounce | Low | Low | Server-side suppression + client `isRefreshing` guard |
+| Duplicate SSE on UI-initiated save | Low | Low | Client-side `isRefreshing` guard in `useWorkGraphSSE` already deduplicates (server-side suppression removed) |
 
 ### Tasks (Full TDD)
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 3.1 | [ ] | Write unit tests for `WorkgraphDomainEventAdapter` | CS-2 | Tests cover: receives `WorkGraphChangedEvent` -> calls `notifier.emit()` with correct domain/eventType/graphSlug; suppressed events are NOT emitted; events for non-workgraph domains ignored. All fail (RED) | - | Uses `FakeCentralEventNotifier` |
-| 3.2 | [ ] | Implement `WorkgraphDomainEventAdapter` | CS-2 | All unit tests from 3.1 pass (GREEN). Adapter subscribes to `WorkGraphWatcherAdapter.onGraphChanged()`, checks `isSuppressed()`, calls `emit()` | - | `apps/web/src/features/027-central-notify-events/workgraph-domain-event-adapter.ts` |
-| 3.3 | [ ] | Add `suppressDomain()` calls to workgraph API routes | CS-2 | After each `broadcastGraphUpdated(graphSlug)` call, add `notifier.suppressDomain(Workgraphs, graphSlug, 500)` where notifier is resolved via `getContainer().resolve(WORKSPACE_DI_TOKENS.CENTRAL_EVENT_NOTIFIER)` (PL-14). Files: (1) `apps/web/app/api/workspaces/[slug]/workgraphs/[graphSlug]/nodes/route.ts` — POST handler lines ~101,119 and DELETE handler line ~202, (2) `apps/web/app/api/workspaces/[slug]/workgraphs/[graphSlug]/edges/route.ts` — POST handler line ~131 and DELETE handler line ~202 | - | Cross-plan-edit: 2 route files, 4-5 call sites |
+| 3.1 | [ ] | Write unit tests for `WorkgraphDomainEventAdapter` | CS-2 | Tests cover: receives `WorkGraphChangedEvent` -> calls `notifier.emit()` with correct domain/eventType/graphSlug; multiple events emit in order; data contains only graphSlug (ADR-0007). All fail (RED) | - | Uses `FakeCentralEventNotifier` |
+| 3.2 | [ ] | Implement `WorkgraphDomainEventAdapter` | CS-2 | All unit tests from 3.1 pass (GREEN). Adapter extends `DomainEventAdapter<WorkGraphChangedEvent>` base class, calls `emit()` | - | Base class in `packages/shared`, concrete in `apps/web` |
+| 3.3 | [ ] | Remove suppression code from Phases 1-2 | CS-2 | Remove `suppressDomain()`, `isSuppressed()` from `ICentralEventNotifier` interface, `CentralEventNotifierService`, `FakeCentralEventNotifier`. Delete `extract-suppression-key.ts`. Remove suppression-related contract tests (C02-C05, C07-C08) and unit tests (U04-U08). Remove companion tests B02-B03. Update barrels. All remaining tests pass | - | Client-side `isRefreshing` guard is sufficient |
 | 3.4 | [ ] | Wire `startCentralNotificationSystem()` into server boot | CS-2 | Create `apps/web/instrumentation.ts` with an exported `register()` function (Next.js server startup hook). Inside `register()`, import and call `startCentralNotificationSystem()` from `@/features/027-central-notify-events/start-central-notifications`. The function resolves watcher + notifier from DI via `getContainer()`, registers the workgraph adapter, calls `watcher.start()`, and gates with `globalThis.centralWatcherStarted` flag. `instrumentation.ts` does NOT currently exist — create it | - | Cross-cutting: new file `apps/web/instrumentation.ts` |
 | 3.5 | [ ] | Write integration test: filesystem change -> notifier emit | CS-3 | Full chain test: `FakeFileWatcher.simulateChange('state.json')` -> `CentralWatcherService.dispatchEvent()` -> `WorkGraphWatcherAdapter` -> `WorkgraphDomainEventAdapter` -> `FakeCentralEventNotifier.emittedEvents` contains `{domain:'workgraphs', eventType:'graph-updated', data:{graphSlug:'test-graph'}}` | - | Uses fakes at boundaries only |
 | 3.6 | [ ] | Add toast notification to workgraph detail page | CS-1 | In `apps/web/app/(dashboard)/workspaces/[slug]/workgraphs/[graphSlug]/workgraph-detail-client.tsx`, the component already has a custom toast pattern using `useState<string \| null>` (line ~40) with `setToast()` and a timed dismiss via `setTimeout(() => setToast(null), 3000)` (lines ~103-104, ~170-174). Wire the `onExternalChange` callback in `useWorkGraphSSE` to call `setToast('Graph updated from external change')`. No new toast library needed — reuse existing inline toast UI | - | Cross-plan-edit: existing custom toast pattern, no new deps |
@@ -565,35 +560,33 @@ describe('WorkgraphDomainEventAdapter', () => {
     });
   });
 
-  it('should NOT emit when domain is suppressed', () => {
+  it('should emit only graphSlug in event data (ADR-0007)', () => {
     /*
     Test Doc:
-    - Why: AC-07 — suppress watcher events after UI-initiated saves
-    - Contract: If notifier.isSuppressed() returns true, adapter does NOT call emit()
-    - Usage Notes: Suppression set by API route via suppressDomain()
-    - Quality Contribution: Prevents duplicate SSE events
-    - Worked Example: suppress('workgraphs','g1',500) -> handleGraphChanged({graphSlug:'g1'}) -> emittedEvents is empty
+    - Why: ADR-0007 — minimal payload, client fetches state via REST
+    - Contract: event data contains only { graphSlug }, no extra fields
+    - Usage Notes: WorkGraphChangedEvent has many fields, adapter extracts only graphSlug
+    - Quality Contribution: Prevents data leakage into SSE payloads
+    - Worked Example: graphChanged({graphSlug:'g1', worktreePath:'/tmp', ...}) -> data is exactly {graphSlug:'g1'}
     */
-    notifier.suppressDomain(WorkspaceDomain.Workgraphs, 'g1', 500);
     adapter.handleGraphChanged({ graphSlug: 'g1', worktreePath: '/tmp', workspaceSlug: 'ws1' });
 
-    expect(notifier.emittedEvents).toHaveLength(0);
+    expect(notifier.emittedEvents[0].data).toEqual({ graphSlug: 'g1' });
   });
 });
 ```
 
 ### Non-Happy-Path Coverage
 - [ ] `handleGraphChanged` with undefined graphSlug
-- [ ] Rapid events for same graphSlug (only one should emit within debounce window)
 - [ ] `startCentralNotificationSystem()` when watcher deps are unavailable (graceful error)
 - [ ] SSE connection not yet established when event fires (event is fire-and-forget)
 
 ### Acceptance Criteria
 - [ ] Workgraph domain event adapter transforms watcher events to domain events (AC-05)
 - [ ] Filesystem change to `state.json` produces `graph-updated` SSE event (AC-06)
-- [ ] UI-initiated save followed by watcher event does NOT produce duplicate SSE (AC-07)
 - [ ] Workgraph detail page shows toast on external change (AC-08)
 - [ ] Domain event adapters can emit for any reason, not just filesystem (AC-13)
+- [ ] Suppression code removed from Phases 1-2 (interface, service, fake, tests, shared utility)
 - [ ] All tests pass (AC-11, AC-12)
 
 ---
@@ -644,8 +637,7 @@ and create the documentation guide.
 - No sensitive data in SSE payloads (only `graphSlug`, per ADR-0007)
 
 ### Observability
-- `CentralEventNotifierService.emit()` should log at DEBUG level: domain, eventType, key
-- `suppressDomain()` should log at DEBUG level: domain, key, duration
+- `CentralEventNotifierService.emit()` should log at DEBUG level: domain, eventType
 - Watcher start/stop lifecycle logged at INFO level
 - Errors in adapter chain logged at ERROR level with stack trace
 
@@ -701,7 +693,7 @@ over `ISSEBroadcaster` with domain routing, matching `AgentNotifierService`).
 
 | Principle Violated | Why Needed | Simpler Alternative Rejected | Risk Mitigation |
 |-------------------|------------|------------------------------|-----------------|
-| Timer-based debounce in production code | `suppressDomain()` requires expiry tracking via `Date.now()` comparison. Production `CentralEventNotifierService` uses real timestamps | Boolean flag (no expiry) — would suppress forever or require manual reset | `FakeCentralEventNotifier` exposes `advanceTime(ms)` for deterministic test control. Production code uses `Date.now()`, fake uses injectable time source. No `setTimeout` in production — only `Date.now()` comparison at `isSuppressed()` call time. Tests never sleep |
+| _(none — debounce deviation removed)_ | Server-side suppression (`suppressDomain`, `isSuppressed`, `extractSuppressionKey`) was removed. Client-side `isRefreshing` guard in `useWorkGraphSSE` provides sufficient deduplication | — | — |
 
 ---
 
