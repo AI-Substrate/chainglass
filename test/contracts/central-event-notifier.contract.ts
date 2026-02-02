@@ -4,40 +4,24 @@
  * Contract tests for ICentralEventNotifier.
  * Defines behavior contracts that BOTH Fake and Real implementations must satisfy.
  *
- * Per DYK-02: Factory returns `{ notifier, advanceTime? }` — time control protocol.
- * Per DYK-05: Stub enables true RED phase (tests run and fail with assertion/throw errors).
- *
  * These tests verify:
  * - AC-02 (partial): ICentralEventNotifier interface exists with correct behavior
- * - AC-07 (foundation): Suppression prevents duplicate events
  * - AC-12: Tests use fakes, no vi.mock()
  *
  * Phase 1: Runs against FakeCentralEventNotifier only.
- * Phase 2: Will add CentralEventNotifierService (real) to the runner.
+ * Phase 2: Adds CentralEventNotifierService (real) to the runner.
+ * Phase 3: Suppression tests removed — client-side isRefreshing guard is sufficient.
  */
 
-import type {
-  DomainEvent,
-  ICentralEventNotifier,
-} from '@chainglass/shared/features/027-central-notify-events/central-event-notifier.interface';
+import type { ICentralEventNotifier } from '@chainglass/shared/features/027-central-notify-events/central-event-notifier.interface';
 import { FakeCentralEventNotifier } from '@chainglass/shared/features/027-central-notify-events/fake-central-event-notifier';
 import { WorkspaceDomain } from '@chainglass/shared/features/027-central-notify-events/workspace-domain';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 /**
- * Per DYK-02: Time control protocol.
- * Factory returns notifier + optional advanceTime for deterministic expiry testing.
- * Phase 2 real service returns `{ notifier, advanceTime: undefined }`.
- */
-export interface NotifierTestHarness {
-  notifier: ICentralEventNotifier;
-  advanceTime?: (ms: number) => void;
-}
-
-/**
  * Factory type for creating notifier implementations under test.
  */
-export type NotifierFactory = () => NotifierTestHarness;
+export type NotifierFactory = () => { notifier: ICentralEventNotifier };
 
 /**
  * Contract tests for ICentralEventNotifier.
@@ -48,12 +32,10 @@ export type NotifierFactory = () => NotifierTestHarness;
 export function centralEventNotifierContractTests(name: string, factory: NotifierFactory): void {
   describe(`ICentralEventNotifier Contract: ${name}`, () => {
     let notifier: ICentralEventNotifier;
-    let advanceTime: ((ms: number) => void) | undefined;
 
     beforeEach(() => {
       const harness = factory();
       notifier = harness.notifier;
-      advanceTime = harness.advanceTime;
     });
 
     // === Domain Value Assertions (DYK-03) ===
@@ -109,70 +91,6 @@ export function centralEventNotifierContractTests(name: string, factory: Notifie
       // Real implementations verify via FakeSSEBroadcaster in their own test runner
     });
 
-    // === Suppression Contract ===
-
-    it('C02: should suppress events after suppressDomain()', () => {
-      /*
-      Test Doc:
-      - Why: Debounce contract — prevent duplicate events from UI-initiated saves (AC-07 foundation)
-      - Contract: isSuppressed() returns true within the suppression window
-      - Usage Notes: Key is typically graphSlug; duration in ms
-      - Quality Contribution: Prevents duplicate SSE events
-      - Worked Example: suppress('workgraphs', 'g1', 500) → isSuppressed('workgraphs', 'g1') returns true
-      */
-      notifier.suppressDomain(WorkspaceDomain.Workgraphs, 'my-graph', 500);
-      expect(notifier.isSuppressed(WorkspaceDomain.Workgraphs, 'my-graph')).toBe(true);
-    });
-
-    it('C03: should not suppress events for different keys', () => {
-      /*
-      Test Doc:
-      - Why: Suppression is per (domain, key) pair — different keys are independent
-      - Contract: suppressDomain(domain, 'a', ...) does not suppress (domain, 'b')
-      - Usage Notes: Enables concurrent operations on different graphs
-      - Quality Contribution: Catches overly broad suppression bugs
-      - Worked Example: suppress('workgraphs', 'graph-a', 500) → isSuppressed('workgraphs', 'graph-b') returns false
-      */
-      notifier.suppressDomain(WorkspaceDomain.Workgraphs, 'graph-a', 500);
-      expect(notifier.isSuppressed(WorkspaceDomain.Workgraphs, 'graph-b')).toBe(false);
-    });
-
-    it('C04: should not suppress events for different domains', () => {
-      /*
-      Test Doc:
-      - Why: Cross-domain independence — suppressing workgraphs must not affect agents
-      - Contract: suppressDomain(domainA, key, ...) does not suppress (domainB, key)
-      - Usage Notes: Each domain has its own suppression namespace
-      - Quality Contribution: Catches domain cross-contamination bugs
-      - Worked Example: suppress('workgraphs', 'k1', 500) → isSuppressed('agents', 'k1') returns false
-      */
-      notifier.suppressDomain(WorkspaceDomain.Workgraphs, 'my-key', 500);
-      expect(notifier.isSuppressed(WorkspaceDomain.Agents, 'my-key')).toBe(false);
-    });
-
-    // === Time-Sensitive Tests (conditional on advanceTime) ===
-
-    it('C05: should allow events after suppression expires', () => {
-      /*
-      Test Doc:
-      - Why: Expiry semantics — suppression must be time-bounded, not permanent
-      - Contract: After durationMs elapses, isSuppressed() returns false
-      - Usage Notes: Per DYK-02, uses advanceTime() for deterministic control. Skips if advanceTime unavailable.
-      - Quality Contribution: Catches missing expiry logic (permanent suppression bug)
-      - Worked Example: suppress('workgraphs','g1',500) → advanceTime(600) → isSuppressed returns false
-      */
-      if (!advanceTime) {
-        // Real service doesn't expose time control — skip this test
-        return;
-      }
-
-      notifier.suppressDomain(WorkspaceDomain.Workgraphs, 'my-graph', 500);
-      expect(notifier.isSuppressed(WorkspaceDomain.Workgraphs, 'my-graph')).toBe(true);
-
-      advanceTime(600);
-      expect(notifier.isSuppressed(WorkspaceDomain.Workgraphs, 'my-graph')).toBe(false);
-    });
-
     // === Edge Cases ===
 
     it('C06: should emit with empty data object', () => {
@@ -189,40 +107,6 @@ export function centralEventNotifierContractTests(name: string, factory: Notifie
       if (notifier instanceof FakeCentralEventNotifier) {
         expect(notifier.emittedEvents).toHaveLength(1);
         expect(notifier.emittedEvents[0]?.data).toEqual({});
-      }
-    });
-
-    it('C07: should handle 0ms suppression duration', () => {
-      /*
-      Test Doc:
-      - Why: Edge case — 0ms suppression means immediate expiry
-      - Contract: suppressDomain with 0ms → isSuppressed() returns false immediately
-      - Usage Notes: Degenerate case that should not break
-      - Quality Contribution: Catches off-by-one in expiry calculation
-      - Worked Example: suppress('workgraphs', 'g1', 0) → isSuppressed returns false
-      */
-      notifier.suppressDomain(WorkspaceDomain.Workgraphs, 'g1', 0);
-      expect(notifier.isSuppressed(WorkspaceDomain.Workgraphs, 'g1')).toBe(false);
-    });
-
-    // === Integration: emit + suppression ===
-
-    it('C08: should not emit when suppressed', () => {
-      /*
-      Test Doc:
-      - Why: DYK-01 — emit() owns suppression enforcement; suppressed events are silently dropped
-      - Contract: After suppressDomain(), emit() for same key does NOT record/broadcast
-      - Usage Notes: Callers never need to check isSuppressed() before emit()
-      - Quality Contribution: Core integration test — suppression actually blocks emission
-      - Worked Example: suppress('workgraphs','g1',500) → emit('workgraphs','graph-updated',{graphSlug:'g1'}) → emittedEvents is empty
-      */
-      notifier.suppressDomain(WorkspaceDomain.Workgraphs, 'g1', 500);
-      notifier.emit(WorkspaceDomain.Workgraphs, 'graph-updated', {
-        graphSlug: 'g1',
-      });
-
-      if (notifier instanceof FakeCentralEventNotifier) {
-        expect(notifier.emittedEvents).toHaveLength(0);
       }
     });
 

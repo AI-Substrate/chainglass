@@ -1,0 +1,1 @@
+../../../apps/web/app/(dashboard)/workspaces/[slug]/workgraphs/[graphSlug]/workgraph-detail-client.tsx

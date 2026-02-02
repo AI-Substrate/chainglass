@@ -468,8 +468,6 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
   });
 
   // Register CentralEventNotifierService as useValue singleton
-  // Per DYK Insight #2: Stateful suppression map requires identity stability
-  // Justified deviation from ADR-0004 useFactory pattern
   const centralNotifier = new CentralEventNotifierService(new SSEManagerBroadcaster(sseManager));
   childContainer.register<ICentralEventNotifier>(WORKSPACE_DI_TOKENS.CENTRAL_EVENT_NOTIFIER, {
     useValue: centralNotifier,

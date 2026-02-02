@@ -10,3 +10,6 @@ export { CentralEventNotifierService } from './central-event-notifier.service.js
 
 // Bootstrap
 export { startCentralNotificationSystem } from './start-central-notifications.js';
+
+// Adapters
+export { WorkgraphDomainEventAdapter } from './workgraph-domain-event-adapter.js';

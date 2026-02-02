@@ -35,41 +35,11 @@ export interface DomainEvent {
  */
 export interface ICentralEventNotifier {
   /**
-   * Emit a domain event. If the `(domain, key)` pair is currently suppressed,
-   * the event is silently dropped.
-   *
-   * Per DYK-01: `emit()` owns suppression enforcement internally. Callers
-   * (adapters) never need to call `isSuppressed()` before `emit()`. The
-   * notifier is the single enforcement point.
+   * Emit a domain event. Direct passthrough to the underlying broadcaster.
    *
    * @param domain - The workspace domain (e.g., `WorkspaceDomain.Workgraphs`)
    * @param eventType - The event type string (e.g., `'graph-updated'`)
    * @param data - Minimal payload per ADR-0007 (e.g., `{ graphSlug: 'my-graph' }`)
    */
   emit(domain: WorkspaceDomainType, eventType: string, data: Record<string, unknown>): void;
-
-  /**
-   * Suppress events for a `(domain, key)` pair for `durationMs` milliseconds.
-   *
-   * Called by API routes after mutations to prevent duplicate events from the
-   * filesystem watcher (which will fire shortly after the file is written).
-   *
-   * @param domain - The workspace domain to suppress
-   * @param key - The suppression key (e.g., graphSlug)
-   * @param durationMs - Suppression window in milliseconds (typically ~500ms)
-   */
-  suppressDomain(domain: WorkspaceDomainType, key: string, durationMs: number): void;
-
-  /**
-   * Check whether events for a `(domain, key)` pair are currently suppressed.
-   *
-   * Per DYK-01: This method is public for observability and debugging, but
-   * callers do NOT need to check it before calling `emit()` — `emit()` checks
-   * internally.
-   *
-   * @param domain - The workspace domain
-   * @param key - The suppression key
-   * @returns `true` if within the suppression window, `false` otherwise
-   */
-  isSuppressed(domain: WorkspaceDomainType, key: string): boolean;
 }
