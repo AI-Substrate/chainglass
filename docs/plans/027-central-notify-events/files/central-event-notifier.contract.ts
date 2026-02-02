@@ -1,0 +1,1 @@
+../../../test/contracts/central-event-notifier.contract.ts

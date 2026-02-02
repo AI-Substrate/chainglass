@@ -28,6 +28,10 @@
     "./features/019-agent-manager-refactor": {
       "import": "./dist/features/019-agent-manager-refactor/index.js",
       "types": "./dist/features/019-agent-manager-refactor/index.d.ts"
+    },
+    "./features/027-central-notify-events": {
+      "import": "./dist/features/027-central-notify-events/index.js",
+      "types": "./dist/features/027-central-notify-events/index.d.ts"
     }
   },
   "scripts": {

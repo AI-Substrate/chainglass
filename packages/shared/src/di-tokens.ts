@@ -85,6 +85,8 @@ export const WORKSPACE_DI_TOKENS = {
   AGENT_EVENT_ADAPTER: 'IAgentEventAdapter',
   /** Reserved for future SSE integration plan */
   CENTRAL_WATCHER_SERVICE: 'ICentralWatcherService',
+  /** ICentralEventNotifier interface (Plan 027: Central Domain Event Notification) */
+  CENTRAL_EVENT_NOTIFIER: 'ICentralEventNotifier',
 } as const;
 
 /**
