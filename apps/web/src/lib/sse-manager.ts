@@ -68,8 +68,14 @@ export class SSEManager {
       return; // No connections on this channel
     }
 
-    // Format as SSE message: event: type\ndata: json\n\n
-    const message = `event: ${eventType}\ndata: ${JSON.stringify(data)}\n\n`;
+    // Format as SSE message with type embedded in data payload.
+    // Uses unnamed events (no "event:" line) so EventSource.onmessage receives them.
+    // Named SSE events require addEventListener() which useSSE doesn't use.
+    const payload =
+      typeof data === 'object' && data !== null
+        ? { type: eventType, ...data }
+        : { type: eventType, data };
+    const message = `data: ${JSON.stringify(payload)}\n\n`;
     const encoded = this.encoder.encode(message);
 
     // Send to all connections on the channel (iterate snapshot to avoid iterator invalidation)

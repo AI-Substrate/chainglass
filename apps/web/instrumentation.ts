@@ -8,8 +8,12 @@
  */
 
 export async function register() {
-  const { startCentralNotificationSystem } = await import(
-    './src/features/027-central-notify-events/start-central-notifications'
-  );
-  await startCentralNotificationSystem();
+  // CentralWatcherService uses Node.js APIs (chokidar, fs) — skip on Edge runtime
+  if (process.env.NEXT_RUNTIME === 'nodejs') {
+    console.log('[central-notifications] instrumentation.register() called');
+    const { startCentralNotificationSystem } = await import(
+      './src/features/027-central-notify-events/start-central-notifications'
+    );
+    await startCentralNotificationSystem();
+  }
 }

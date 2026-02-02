@@ -255,3 +255,72 @@ Net change: -6 tests (from 2749 to 2736 — 13 removed + 7 added)
 **New Tests**: 7 (5 unit B01-B02/A01-A03 + 2 integration I01-I02)
 **Removed Tests**: 13 suppression tests
 
+---
+
+## Post-Phase Validation: SSE Protocol Mismatch Bug Fix
+
+**Date**: 2026-02-03
+**Context**: End-to-end manual validation revealed the notification pipeline was non-functional despite all tests passing.
+
+### Problem
+
+The central notification system started correctly (server logs confirmed `[CentralWatcherService] Started` with 10 worktrees), the SSE connection from the browser established successfully (green indicator), and the filesystem watcher detected state.json changes — but **no events ever reached the browser's `onmessage` handler**.
+
+### Root Cause: Named SSE Events vs `onmessage`
+
+`SSEManager.broadcast()` sent **named SSE events** using the `event:` field:
+
+```
+event: graph-updated
+data: {"graphSlug":"demo-graph"}
+```
+
+But the `useSSE` hook used `eventSource.onmessage`, which **only receives unnamed events** (events without an `event:` line, or with `event: message`). Named events like `event: graph-updated` require `eventSource.addEventListener('graph-updated', callback)` instead.
+
+This is a fundamental SSE protocol behavior: `onmessage` is NOT a catch-all handler. It only fires for the default event type.
+
+Additionally, even if the event had been received, the client filtered by `msg.type === 'graph-updated'`, but the data payload was `{"graphSlug":"demo-graph"}` — it did not contain a `type` field. So there were **two independent failures**:
+
+1. Named SSE events silently bypassed `onmessage` — events never reached client code
+2. Data payload lacked `type` field — client filter would never match
+
+### Fix
+
+Changed `SSEManager.broadcast()` in `apps/web/src/lib/sse-manager.ts` to send **unnamed events** with the event type embedded in the data payload:
+
+**Before** (broken):
+```
+event: graph-updated
+data: {"graphSlug":"demo-graph"}
+```
+
+**After** (working):
+```
+data: {"type":"graph-updated","graphSlug":"demo-graph"}
+```
+
+This aligns the server output with what `EventSource.onmessage` receives and what `useWorkGraphSSE` filters on.
+
+### Why Tests Didn't Catch This
+
+- **Unit tests** for `SSEManager.broadcast()` verified the message format was written to the stream controller but didn't test against a real `EventSource` implementation
+- **Integration tests** exercised `WatcherAdapter → DomainEventAdapter → Notifier` but stopped at the `ISSEBroadcaster.broadcast()` boundary
+- **useSSE hook tests** used `FakeEventSource` that fired `onmessage` directly, bypassing the real SSE protocol parsing
+- The gap existed at the **protocol boundary** between server-side SSE message formatting and browser-side `EventSource` message dispatching — a layer none of the tests crossed
+
+### Gotchas for Future Work
+
+1. **SSE `event:` field creates named events** — `EventSource.onmessage` only receives events with no `event:` line or `event: message`. Any other event type name requires `addEventListener()`. This is a common SSE pitfall.
+
+2. **`globalThis` singleton survival across HMR** — When changing `SSEManager` class code during development, the `globalThis.sseManager` instance retains the OLD class prototype. A dev server restart is required for changes to take effect. Bumping a version constant to force re-creation causes a split-brain where the DI container holds the old instance while the SSE route uses the new one.
+
+3. **chokidar `awaitWriteFinish`** — The watcher uses `stabilityThreshold: 200ms` and `pollInterval: 100ms`. Events arrive ~200-300ms after the filesystem write, not instantly. This is important for timing-sensitive tests.
+
+4. **`useSSE` initial connection failure** — On page load, the first SSE connection attempt always errors with `readyState: 2` (CLOSED), then successfully reconnects. This appears to be a race condition during hydration where the EventSource is created before the route handler is ready. The reconnect logic handles it, but the initial "Not connected" indicator flickers.
+
+### Files Changed
+- `apps/web/src/lib/sse-manager.ts` — changed broadcast format from named events to unnamed events with type in payload
+- `apps/web/src/hooks/useSSE.ts` — added temporary debug logging (to be removed)
+- `apps/web/src/features/022-workgraph-ui/use-workgraph-sse.ts` — added temporary debug logging (to be removed)
+- `apps/web/src/features/027-central-notify-events/start-central-notifications.ts` — added temporary debug logging (to be removed)
+
