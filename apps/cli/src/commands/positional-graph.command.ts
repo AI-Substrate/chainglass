@@ -74,6 +74,27 @@ interface StatusOptions extends BaseOptions {
 // Helpers
 // ============================================
 
+const VALID_TRANSITIONS = ['auto', 'manual'] as const;
+const VALID_EXECUTIONS = ['serial', 'parallel'] as const;
+
+function validateTransition(value: string | undefined): 'auto' | 'manual' | undefined {
+  if (value === undefined) return undefined;
+  if (!(VALID_TRANSITIONS as readonly string[]).includes(value)) return undefined;
+  return value as 'auto' | 'manual';
+}
+
+function validateExecution(value: string | undefined): 'serial' | 'parallel' | undefined {
+  if (value === undefined) return undefined;
+  if (!(VALID_EXECUTIONS as readonly string[]).includes(value)) return undefined;
+  return value as 'serial' | 'parallel';
+}
+
+function parseIntOrUndefined(value: string | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isNaN(parsed) ? undefined : parsed;
+}
+
 /**
  * Get the PositionalGraphService from DI container.
  */
@@ -174,10 +195,10 @@ async function handleLineAdd(graphSlug: string, options: AddLineOptions): Promis
   const result = await service.addLine(ctx, graphSlug, {
     afterLineId: options.afterLineId,
     beforeLineId: options.beforeLineId,
-    atIndex: options.atIndex !== undefined ? Number.parseInt(options.atIndex, 10) : undefined,
+    atIndex: parseIntOrUndefined(options.atIndex),
     label: options.label,
     description: options.description,
-    transition: options.transition as 'auto' | 'manual' | undefined,
+    transition: validateTransition(options.transition),
   });
   console.log(adapter.format('wf.line.add', result));
 
@@ -221,7 +242,7 @@ async function handleLineMove(
   }
 
   const service = getPositionalGraphService();
-  const result = await service.moveLine(ctx, graphSlug, lineId, Number.parseInt(toIndex, 10));
+  const result = await service.moveLine(ctx, graphSlug, lineId, parseIntOrUndefined(toIndex) ?? 0);
   console.log(adapter.format('wf.line.move', result));
 
   if (result.errors.length > 0) process.exit(1);
@@ -247,7 +268,7 @@ async function handleLineSetTransition(
     ctx,
     graphSlug,
     lineId,
-    transition as 'auto' | 'manual'
+    validateTransition(transition) as 'auto' | 'manual'
   );
   console.log(adapter.format('wf.line.set-transition', result));
 
@@ -319,10 +340,9 @@ async function handleNodeAdd(
 
   const service = getPositionalGraphService();
   const result = await service.addNode(ctx, graphSlug, lineId, unitSlug, {
-    atPosition:
-      options.atPosition !== undefined ? Number.parseInt(options.atPosition, 10) : undefined,
+    atPosition: parseIntOrUndefined(options.atPosition),
     description: options.description,
-    execution: options.execution as 'serial' | 'parallel' | undefined,
+    execution: validateExecution(options.execution),
   });
   console.log(adapter.format('wf.node.add', result));
 
@@ -366,8 +386,7 @@ async function handleNodeMove(
 
   const service = getPositionalGraphService();
   const result = await service.moveNode(ctx, graphSlug, nodeId, {
-    toPosition:
-      options.toPosition !== undefined ? Number.parseInt(options.toPosition, 10) : undefined,
+    toPosition: parseIntOrUndefined(options.toPosition),
     toLineId: options.toLineId,
   });
   console.log(adapter.format('wf.node.move', result));
@@ -438,7 +457,7 @@ async function handleNodeSetExecution(
     ctx,
     graphSlug,
     nodeId,
-    execution as 'serial' | 'parallel'
+    validateExecution(execution) as 'serial' | 'parallel'
   );
   console.log(adapter.format('wf.node.set-execution', result));
 
@@ -456,6 +475,21 @@ async function handleNodeSetInput(
   const ctx = await resolveOrOverrideContext(options.workspacePath);
   if (!ctx) {
     const result = { errors: noContextError(options.workspacePath) };
+    console.log(adapter.format('wf.node.set-input', result));
+    process.exit(1);
+  }
+
+  // Require at least one source option
+  if (!options.fromUnit && !options.fromNode) {
+    const result = {
+      errors: [
+        {
+          code: 'E074',
+          message: 'Missing input source',
+          action: 'Provide either --from-unit <slug> or --from-node <nodeId>',
+        },
+      ],
+    };
     console.log(adapter.format('wf.node.set-input', result));
     process.exit(1);
   }
@@ -513,6 +547,10 @@ async function handleNodeCollate(
   // Wrap InputPack into a BaseResult-compatible shape for the adapter
   const result = { ...inputPack, errors: [] as { code: string; message: string }[] };
   console.log(adapter.format('wf.node.collate', result));
+
+  if (!inputPack.ok) {
+    process.exit(1);
+  }
 }
 
 // ============================================

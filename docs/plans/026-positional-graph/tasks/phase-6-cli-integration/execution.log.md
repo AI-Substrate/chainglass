@@ -25,6 +25,8 @@
 - CLI suite: 76/76 pass (6 files), 0 regressions
 - Build: CLI compiles successfully
 
+**Note**: `resolveOrOverrideContext` unit testing covers `createOutputAdapter`, `wrapAction`, and `noContextError` (8 tests). The `resolveOrOverrideContext` function itself requires `WorkspaceService` integration (real filesystem + registered workspace) which is out of scope for CLI helper unit tests. Coverage is provided by T008 smoke tests and Phase 7 integration tests.
+
 ### Files Changed
 - `apps/cli/src/commands/command-helpers.ts` — Created (shared helpers)
 - `test/unit/cli/command-helpers.test.ts` — Created (8 tests)
