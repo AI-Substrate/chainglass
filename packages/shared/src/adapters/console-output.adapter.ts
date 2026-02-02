@@ -97,6 +97,107 @@ interface WgUnitValidateResult extends BaseResult {
   issues: Array<{ severity: string; code: string; path: string; message: string; action?: string }>;
 }
 
+// ============================================
+// Positional Graph Result Type Imports (Plan 026: Phase 6)
+// ============================================
+
+// Note: Inline types to avoid circular dependencies (same pattern as workgraph types).
+
+/** @internal Positional graph create result type */
+interface WfCreateResult extends BaseResult {
+  graphSlug: string;
+  lineId: string;
+}
+
+/** @internal Positional graph show result type */
+interface WfShowResult extends BaseResult {
+  slug?: string;
+  version?: string;
+  description?: string;
+  createdAt?: string;
+  lines?: Array<{
+    id: string;
+    label?: string;
+    description?: string;
+    transition: string;
+    nodeCount: number;
+  }>;
+  totalNodeCount?: number;
+}
+
+/** @internal Positional graph list result type */
+interface WfListResult extends BaseResult {
+  slugs: string[];
+}
+
+/** @internal Positional graph add line result type */
+interface WfAddLineResult extends BaseResult {
+  lineId?: string;
+  index?: number;
+}
+
+/** @internal Positional graph add node result type */
+interface WfAddNodeResult extends BaseResult {
+  nodeId?: string;
+  lineId?: string;
+  position?: number;
+}
+
+/** @internal Positional graph node show result type */
+interface WfNodeShowResult extends BaseResult {
+  nodeId?: string;
+  unitSlug?: string;
+  execution?: string;
+  description?: string;
+  lineId?: string;
+  position?: number;
+  inputs?: Record<string, unknown>;
+}
+
+/** @internal Positional graph status result type */
+interface WfGraphStatusResult extends BaseResult {
+  graphSlug: string;
+  status: string;
+  totalNodes: number;
+  completedNodes: number;
+  lines: Array<{
+    lineId: string;
+    label?: string;
+    complete: boolean;
+    nodes: Array<{ nodeId: string; unitSlug: string; status: string }>;
+    readyNodes: string[];
+  }>;
+  readyNodes: string[];
+  runningNodes: string[];
+  blockedNodes: string[];
+}
+
+/** @internal Positional graph node status result type */
+interface WfNodeStatusResult extends BaseResult {
+  nodeId: string;
+  unitSlug: string;
+  status: string;
+  ready: boolean;
+  readyDetail: {
+    precedingLinesComplete: boolean;
+    transitionOpen: boolean;
+    serialNeighborComplete: boolean;
+    inputsAvailable: boolean;
+    unitFound: boolean;
+    reason?: string;
+  };
+}
+
+/** @internal Positional graph line status result type */
+interface WfLineStatusResult extends BaseResult {
+  lineId: string;
+  label?: string;
+  complete: boolean;
+  canRun: boolean;
+  nodes: Array<{ nodeId: string; unitSlug: string; status: string }>;
+  readyNodes: string[];
+}
+
 /** @internal WorkGraph create result type */
 interface WgGraphCreateResult extends BaseResult {
   graphSlug: string;
@@ -402,6 +503,41 @@ export class ConsoleOutputAdapter implements IOutputAdapter {
         return this.formatWgNodeAnswerSuccess(result as unknown as WgAnswerResult);
       case 'wg.node.clear':
         return this.formatWgNodeClearSuccess(result as unknown as WgClearResult);
+      // ==================== Positional Graph Commands (Plan 026) ====================
+      case 'wf.create':
+        return this.formatWfCreateSuccess(result as unknown as WfCreateResult);
+      case 'wf.show':
+        return this.formatWfShowSuccess(result as unknown as WfShowResult);
+      case 'wf.list':
+        return this.formatWfListSuccess(result as unknown as WfListResult);
+      case 'wf.delete':
+      case 'wf.line.remove':
+      case 'wf.line.move':
+      case 'wf.line.set-transition':
+      case 'wf.line.set-label':
+      case 'wf.line.set-description':
+      case 'wf.node.remove':
+      case 'wf.node.move':
+      case 'wf.node.set-description':
+      case 'wf.node.set-execution':
+      case 'wf.node.set-input':
+      case 'wf.node.remove-input':
+      case 'wf.trigger':
+        return this.formatWfMutationSuccess(command);
+      case 'wf.line.add':
+        return this.formatWfAddLineSuccess(result as unknown as WfAddLineResult);
+      case 'wf.node.add':
+        return this.formatWfAddNodeSuccess(result as unknown as WfAddNodeResult);
+      case 'wf.node.show':
+        return this.formatWfNodeShowSuccess(result as unknown as WfNodeShowResult);
+      case 'wf.node.collate':
+        return this.formatGenericSuccess(result);
+      case 'wf.status':
+        return this.formatWfStatusSuccess(result as unknown as WfGraphStatusResult);
+      case 'wf.status.node':
+        return this.formatWfNodeStatusSuccess(result as unknown as WfNodeStatusResult);
+      case 'wf.status.line':
+        return this.formatWfLineStatusSuccess(result as unknown as WfLineStatusResult);
       default:
         return this.formatGenericSuccess(result);
     }
@@ -514,6 +650,31 @@ export class ConsoleOutputAdapter implements IOutputAdapter {
         return this.formatWgNodeAnswerFailure(result as unknown as WgAnswerResult);
       case 'wg.node.clear':
         return this.formatWgNodeClearFailure(result as unknown as WgClearResult);
+      // ==================== Positional Graph Commands (Plan 026) ====================
+      case 'wf.create':
+      case 'wf.show':
+      case 'wf.delete':
+      case 'wf.list':
+      case 'wf.line.add':
+      case 'wf.line.remove':
+      case 'wf.line.move':
+      case 'wf.line.set-transition':
+      case 'wf.line.set-label':
+      case 'wf.line.set-description':
+      case 'wf.node.add':
+      case 'wf.node.remove':
+      case 'wf.node.move':
+      case 'wf.node.show':
+      case 'wf.node.set-description':
+      case 'wf.node.set-execution':
+      case 'wf.node.set-input':
+      case 'wf.node.remove-input':
+      case 'wf.node.collate':
+      case 'wf.status':
+      case 'wf.status.node':
+      case 'wf.status.line':
+      case 'wf.trigger':
+        return this.formatWfFailure(command, result);
       default:
         return this.formatGenericFailure(result);
     }
@@ -1181,6 +1342,202 @@ export class ConsoleOutputAdapter implements IOutputAdapter {
     if (result.clearedOutputs.length > 0) {
       lines.push(`  Cleared outputs: ${result.clearedOutputs.join(', ')}`);
     }
+    return lines.join('\n');
+  }
+
+  // ==================== Positional Graph Success Formatters (Plan 026) ====================
+
+  private formatWfCreateSuccess(result: WfCreateResult): string {
+    const lines: string[] = [`✓ Created positional graph '${result.graphSlug}'`];
+    lines.push(`  Initial line: ${result.lineId}`);
+    return lines.join('\n');
+  }
+
+  private formatWfShowSuccess(result: WfShowResult): string {
+    if (!result.slug) return '✓ Graph info retrieved';
+
+    const lines: string[] = [`✓ Graph '${result.slug}'`];
+    if (result.version) lines.push(`  Version: ${result.version}`);
+    if (result.description) lines.push(`  Description: ${result.description}`);
+    if (result.totalNodeCount !== undefined) lines.push(`  Nodes: ${result.totalNodeCount}`);
+
+    if (result.lines && result.lines.length > 0) {
+      lines.push('');
+      lines.push('  Lines:');
+      for (const line of result.lines) {
+        const label = line.label ? ` "${line.label}"` : '';
+        lines.push(
+          `    ${line.id}${label} [${line.transition}] (${line.nodeCount} node${line.nodeCount !== 1 ? 's' : ''})`
+        );
+      }
+    }
+
+    return lines.join('\n');
+  }
+
+  private formatWfListSuccess(result: WfListResult): string {
+    if (result.slugs.length === 0) {
+      return "ℹ️ No positional graphs found\n  Run 'cg wf create <slug>' to create one.";
+    }
+
+    const lines: string[] = [`✓ Found ${result.slugs.length} graph(s)`];
+    for (const slug of result.slugs) {
+      lines.push(`  - ${slug}`);
+    }
+    return lines.join('\n');
+  }
+
+  private formatWfMutationSuccess(command: string): string {
+    // Extract operation name from command string (e.g., "wf.line.set-transition" → "Line set-transition")
+    const parts = command.replace('wf.', '').split('.');
+    const operation = parts.join(' ');
+    return `✓ ${operation.charAt(0).toUpperCase() + operation.slice(1)} succeeded`;
+  }
+
+  private formatWfAddLineSuccess(result: WfAddLineResult): string {
+    const lines: string[] = [];
+    if (result.lineId) {
+      lines.push(`✓ Added line '${result.lineId}'`);
+      if (result.index !== undefined) lines.push(`  Index: ${result.index}`);
+    } else {
+      lines.push('✓ Line added');
+    }
+    return lines.join('\n');
+  }
+
+  private formatWfAddNodeSuccess(result: WfAddNodeResult): string {
+    const lines: string[] = [];
+    if (result.nodeId) {
+      lines.push(`✓ Added node '${result.nodeId}'`);
+      if (result.lineId) lines.push(`  Line: ${result.lineId}`);
+      if (result.position !== undefined) lines.push(`  Position: ${result.position}`);
+    } else {
+      lines.push('✓ Node added');
+    }
+    return lines.join('\n');
+  }
+
+  private formatWfNodeShowSuccess(result: WfNodeShowResult): string {
+    if (!result.nodeId) return '✓ Node info retrieved';
+
+    const lines: string[] = [`✓ Node '${result.nodeId}'`];
+    if (result.unitSlug) lines.push(`  Unit: ${result.unitSlug}`);
+    if (result.execution) lines.push(`  Execution: ${result.execution}`);
+    if (result.description) lines.push(`  Description: ${result.description}`);
+    if (result.lineId) lines.push(`  Line: ${result.lineId}`);
+    if (result.position !== undefined) lines.push(`  Position: ${result.position}`);
+
+    if (result.inputs && Object.keys(result.inputs).length > 0) {
+      lines.push('  Inputs:');
+      for (const [name, wiring] of Object.entries(result.inputs)) {
+        lines.push(`    ${name}: ${JSON.stringify(wiring)}`);
+      }
+    }
+
+    return lines.join('\n');
+  }
+
+  private formatWfStatusSuccess(result: WfGraphStatusResult): string {
+    const statusIcon = (status: string): string => {
+      const icons: Record<string, string> = {
+        pending: '○',
+        ready: '◉',
+        running: '▶',
+        'waiting-question': '?',
+        'blocked-error': '✗',
+        complete: '✓',
+      };
+      return icons[status] || '·';
+    };
+
+    const lines: string[] = [
+      `✓ Graph '${result.graphSlug}' — ${result.status} (${result.completedNodes}/${result.totalNodes} complete)`,
+    ];
+
+    if (result.readyNodes.length > 0) {
+      lines.push(`  Ready: ${result.readyNodes.join(', ')}`);
+    }
+    if (result.runningNodes.length > 0) {
+      lines.push(`  Running: ${result.runningNodes.join(', ')}`);
+    }
+    if (result.blockedNodes.length > 0) {
+      lines.push(`  Blocked: ${result.blockedNodes.join(', ')}`);
+    }
+
+    lines.push('');
+    for (const line of result.lines) {
+      const label = line.label ? ` "${line.label}"` : '';
+      const completeMark = line.complete ? ' ✓' : '';
+      lines.push(`  Line ${line.lineId}${label}${completeMark}`);
+
+      for (const node of line.nodes) {
+        lines.push(
+          `    ${statusIcon(node.status)} ${node.nodeId} (${node.unitSlug}) — ${node.status}`
+        );
+      }
+    }
+
+    return lines.join('\n');
+  }
+
+  private formatWfNodeStatusSuccess(result: WfNodeStatusResult): string {
+    const lines: string[] = [
+      `✓ Node '${result.nodeId}' — ${result.status}`,
+      `  Unit: ${result.unitSlug}`,
+      `  Ready: ${result.ready ? 'yes' : 'no'}`,
+    ];
+
+    if (!result.ready && result.readyDetail.reason) {
+      lines.push(`  Reason: ${result.readyDetail.reason}`);
+    }
+
+    lines.push('  Gates:');
+    lines.push(`    Preceding lines: ${result.readyDetail.precedingLinesComplete ? '✓' : '○'}`);
+    lines.push(`    Transition: ${result.readyDetail.transitionOpen ? '✓' : '○'}`);
+    lines.push(`    Serial neighbor: ${result.readyDetail.serialNeighborComplete ? '✓' : '○'}`);
+    lines.push(`    Inputs: ${result.readyDetail.inputsAvailable ? '✓' : '○'}`);
+
+    return lines.join('\n');
+  }
+
+  private formatWfLineStatusSuccess(result: WfLineStatusResult): string {
+    const lines: string[] = [
+      `✓ Line '${result.lineId}'${result.label ? ` "${result.label}"` : ''} — ${result.complete ? 'complete' : 'in progress'}`,
+    ];
+
+    if (result.readyNodes.length > 0) {
+      lines.push(`  Ready nodes: ${result.readyNodes.join(', ')}`);
+    }
+
+    const statusIcon = (status: string): string => {
+      const icons: Record<string, string> = {
+        pending: '○',
+        ready: '◉',
+        running: '▶',
+        complete: '✓',
+      };
+      return icons[status] || '·';
+    };
+
+    for (const node of result.nodes) {
+      lines.push(
+        `    ${statusIcon(node.status)} ${node.nodeId} (${node.unitSlug}) — ${node.status}`
+      );
+    }
+
+    return lines.join('\n');
+  }
+
+  // ==================== Positional Graph Failure Formatter (Plan 026) ====================
+
+  private formatWfFailure<T extends BaseResult>(command: string, result: T): string {
+    const firstError = result.errors[0];
+    const parts = command.replace('wf.', '').split('.');
+    const operation = parts.join(' ');
+    const lines: string[] = [
+      `✗ ${operation.charAt(0).toUpperCase() + operation.slice(1)} failed [${firstError.code}]`,
+    ];
+    this.appendErrorDetails(lines, result.errors);
     return lines.join('\n');
   }
 

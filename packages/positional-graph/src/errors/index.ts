@@ -1,0 +1,21 @@
+export {
+  POSITIONAL_GRAPH_ERROR_CODES,
+  ambiguousPredecessorError,
+  cannotRemoveLastLineError,
+  duplicateNodeError,
+  graphAlreadyExistsError,
+  graphNotFoundError,
+  inputNotDeclaredError,
+  invalidLineIndexError,
+  invalidNodePositionError,
+  invalidOrdinalError,
+  lineNotEmptyError,
+  lineNotFoundError,
+  nodeNotFoundError,
+  nodeNotReadyError,
+  outputNotDeclaredError,
+  predecessorNotFoundError,
+  transitionBlockedError,
+  unitNotFoundError,
+} from './positional-graph-errors.js';
+export type { PositionalGraphErrorCode } from './positional-graph-errors.js';

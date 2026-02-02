@@ -7,6 +7,8 @@
  */
 
 import 'reflect-metadata';
+import { registerPositionalGraphServices } from '@chainglass/positional-graph';
+import type { IWorkUnitLoader } from '@chainglass/positional-graph';
 import {
   type AdapterFactory,
   AgentService,
@@ -29,12 +31,14 @@ import {
   type IProcessManager,
   JsonOutputAdapter,
   NodeFileSystemAdapter,
+  POSITIONAL_GRAPH_DI_TOKENS,
   PathResolverAdapter,
   PinoLoggerAdapter,
   SHARED_DI_TOKENS,
   SdkCopilotAdapter,
   UnixProcessManager,
   WORKFLOW_DI_TOKENS,
+  WORKGRAPH_DI_TOKENS,
   WORKSPACE_DI_TOKENS,
   WindowsProcessManager,
   getProjectConfigDir,
@@ -202,6 +206,14 @@ export function createCliProductionContainer(): DependencyContainer {
   // Register workgraph services (per ADR-0008: Module Registration Function Pattern)
   // Use WORKFLOW_DI_TOKENS.YAML_PARSER since CLI already has YamlParserAdapter registered there
   registerWorkgraphServices(childContainer, WORKFLOW_DI_TOKENS.YAML_PARSER);
+
+  // Register positional-graph services (per ADR-0009: Module Registration Function Pattern)
+  // Per DYK-P6-I3: Wire IWorkUnitLoader bridge — direct resolve with structural type compatibility
+  // WorkUnit ⊇ NarrowWorkUnit, so IWorkUnitService satisfies IWorkUnitLoader structurally
+  childContainer.register<IWorkUnitLoader>(POSITIONAL_GRAPH_DI_TOKENS.WORK_UNIT_LOADER, {
+    useFactory: (c) => c.resolve<IWorkUnitLoader>(WORKGRAPH_DI_TOKENS.WORKUNIT_SERVICE),
+  });
+  registerPositionalGraphServices(childContainer);
 
   // Register output adapters
   childContainer.register<IOutputAdapter>(CLI_DI_TOKENS.OUTPUT_ADAPTER_JSON, {
