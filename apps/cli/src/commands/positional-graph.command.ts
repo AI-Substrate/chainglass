@@ -15,6 +15,7 @@
  * - cg wf trigger <slug> <lineId>                    - Trigger manual transition
  * - cg wf line add|remove|move|get|set|set-label|set-description
  * - cg wf node add|remove|move|show|get|set|set-description|set-input|remove-input|collate
+ * - cg wf node save-output-data|save-output-file|get-output-data|get-output-file
  *
  * Per ADR-0004: Uses DI container, not direct instantiation.
  * Per ADR-0009: Module registration via registerPositionalGraphServices().
@@ -656,6 +657,113 @@ async function handleNodeCollate(
 }
 
 // ============================================
+// Output Storage Handlers (Phase 2, Plan 028)
+// ============================================
+
+async function handleSaveOutputData(
+  graphSlug: string,
+  nodeId: string,
+  outputName: string,
+  valueJson: string,
+  options: BaseOptions
+): Promise<void> {
+  const adapter = createOutputAdapter(options.json ?? false);
+
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = { saved: false, errors: noContextError(options.workspacePath) };
+    console.log(adapter.format('wf.node.save-output-data', result));
+    process.exit(1);
+  }
+
+  // Parse the JSON value
+  let value: unknown;
+  try {
+    value = JSON.parse(valueJson);
+  } catch {
+    const result = {
+      saved: false,
+      errors: [{ code: 'E001', message: `Invalid JSON value: ${valueJson}` }],
+    };
+    console.log(adapter.format('wf.node.save-output-data', result));
+    process.exit(1);
+  }
+
+  const service = getPositionalGraphService();
+  const result = await service.saveOutputData(ctx, graphSlug, nodeId, outputName, value);
+  console.log(adapter.format('wf.node.save-output-data', result));
+
+  if (result.errors.length > 0) process.exit(1);
+}
+
+async function handleSaveOutputFile(
+  graphSlug: string,
+  nodeId: string,
+  outputName: string,
+  sourcePath: string,
+  options: BaseOptions
+): Promise<void> {
+  const adapter = createOutputAdapter(options.json ?? false);
+
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = { saved: false, errors: noContextError(options.workspacePath) };
+    console.log(adapter.format('wf.node.save-output-file', result));
+    process.exit(1);
+  }
+
+  const service = getPositionalGraphService();
+  const result = await service.saveOutputFile(ctx, graphSlug, nodeId, outputName, sourcePath);
+  console.log(adapter.format('wf.node.save-output-file', result));
+
+  if (result.errors.length > 0) process.exit(1);
+}
+
+async function handleGetOutputData(
+  graphSlug: string,
+  nodeId: string,
+  outputName: string,
+  options: BaseOptions
+): Promise<void> {
+  const adapter = createOutputAdapter(options.json ?? false);
+
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = { errors: noContextError(options.workspacePath) };
+    console.log(adapter.format('wf.node.get-output-data', result));
+    process.exit(1);
+  }
+
+  const service = getPositionalGraphService();
+  const result = await service.getOutputData(ctx, graphSlug, nodeId, outputName);
+  console.log(adapter.format('wf.node.get-output-data', result));
+
+  if (result.errors.length > 0) process.exit(1);
+}
+
+async function handleGetOutputFile(
+  graphSlug: string,
+  nodeId: string,
+  outputName: string,
+  options: BaseOptions
+): Promise<void> {
+  const adapter = createOutputAdapter(options.json ?? false);
+
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = { errors: noContextError(options.workspacePath) };
+    console.log(adapter.format('wf.node.get-output-file', result));
+    process.exit(1);
+  }
+
+  const service = getPositionalGraphService();
+  const result = await service.getOutputFile(ctx, graphSlug, nodeId, outputName);
+  console.log(adapter.format('wf.node.get-output-file', result));
+
+  if (result.errors.length > 0) process.exit(1);
+}
+
+// ============================================
 // Status + Trigger Handlers
 // ============================================
 
@@ -1174,5 +1282,92 @@ export function registerPositionalGraphCommands(program: Command): void {
           workspacePath: parentOpts.workspacePath,
         });
       })
+    );
+
+  // Output Storage Commands (Phase 2, Plan 028)
+  node
+    .command('save-output-data <graph> <nodeId> <outputName> <valueJson>')
+    .description('Save an output data value (JSON) to a node')
+    .action(
+      wrapAction(
+        async (
+          graph: string,
+          nodeId: string,
+          outputName: string,
+          valueJson: string,
+          _options: BaseOptions,
+          cmd: Command
+        ) => {
+          const parentOpts = cmd.parent?.parent?.opts() ?? {};
+          await handleSaveOutputData(graph, nodeId, outputName, valueJson, {
+            json: parentOpts.json,
+            workspacePath: parentOpts.workspacePath,
+          });
+        }
+      )
+    );
+
+  node
+    .command('save-output-file <graph> <nodeId> <outputName> <sourcePath>')
+    .description('Save an output file by copying it to the node data directory')
+    .action(
+      wrapAction(
+        async (
+          graph: string,
+          nodeId: string,
+          outputName: string,
+          sourcePath: string,
+          _options: BaseOptions,
+          cmd: Command
+        ) => {
+          const parentOpts = cmd.parent?.parent?.opts() ?? {};
+          await handleSaveOutputFile(graph, nodeId, outputName, sourcePath, {
+            json: parentOpts.json,
+            workspacePath: parentOpts.workspacePath,
+          });
+        }
+      )
+    );
+
+  node
+    .command('get-output-data <graph> <nodeId> <outputName>')
+    .description('Get an output data value from a node')
+    .action(
+      wrapAction(
+        async (
+          graph: string,
+          nodeId: string,
+          outputName: string,
+          _options: BaseOptions,
+          cmd: Command
+        ) => {
+          const parentOpts = cmd.parent?.parent?.opts() ?? {};
+          await handleGetOutputData(graph, nodeId, outputName, {
+            json: parentOpts.json,
+            workspacePath: parentOpts.workspacePath,
+          });
+        }
+      )
+    );
+
+  node
+    .command('get-output-file <graph> <nodeId> <outputName>')
+    .description('Get the absolute path to an output file from a node')
+    .action(
+      wrapAction(
+        async (
+          graph: string,
+          nodeId: string,
+          outputName: string,
+          _options: BaseOptions,
+          cmd: Command
+        ) => {
+          const parentOpts = cmd.parent?.parent?.opts() ?? {};
+          await handleGetOutputFile(graph, nodeId, outputName, {
+            json: parentOpts.json,
+            workspacePath: parentOpts.workspacePath,
+          });
+        }
+      )
     );
 }

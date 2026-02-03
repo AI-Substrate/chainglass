@@ -340,6 +340,41 @@ export interface GraphStatusResult {
 }
 
 // ============================================
+// Result Types — Output Storage (Phase 2, Plan 028)
+// ============================================
+
+/** Result from saveOutputData */
+export interface SaveOutputDataResult extends BaseResult {
+  nodeId?: string;
+  outputName?: string;
+  saved: boolean;
+}
+
+/** Result from saveOutputFile */
+export interface SaveOutputFileResult extends BaseResult {
+  nodeId?: string;
+  outputName?: string;
+  saved: boolean;
+  /** Relative path where file was stored (relative to node dir) */
+  filePath?: string;
+}
+
+/** Result from getOutputData */
+export interface GetOutputDataResult extends BaseResult {
+  nodeId?: string;
+  outputName?: string;
+  value?: unknown;
+}
+
+/** Result from getOutputFile */
+export interface GetOutputFileResult extends BaseResult {
+  nodeId?: string;
+  outputName?: string;
+  /** Absolute path to the stored file */
+  filePath?: string;
+}
+
+// ============================================
 // Service Interface
 // ============================================
 
@@ -469,4 +504,32 @@ export interface IPositionalGraphService {
     nodeId: string,
     settings: Partial<NodeOrchestratorSettings>
   ): Promise<BaseResult>;
+
+  // Output Storage (Phase 2, Plan 028)
+  saveOutputData(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    outputName: string,
+    value: unknown
+  ): Promise<SaveOutputDataResult>;
+  saveOutputFile(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    outputName: string,
+    sourcePath: string
+  ): Promise<SaveOutputFileResult>;
+  getOutputData(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    outputName: string
+  ): Promise<GetOutputDataResult>;
+  getOutputFile(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    outputName: string
+  ): Promise<GetOutputFileResult>;
 }

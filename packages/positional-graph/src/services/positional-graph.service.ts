@@ -4,6 +4,7 @@ import type { PositionalGraphAdapter } from '../adapter/positional-graph.adapter
 import {
   cannotRemoveLastLineError,
   duplicateNodeError,
+  fileNotFoundError,
   graphAlreadyExistsError,
   graphNotFoundError,
   inputNotDeclaredError,
@@ -12,6 +13,7 @@ import {
   lineNotEmptyError,
   lineNotFoundError,
   nodeNotFoundError,
+  outputNotFoundError,
   unitNotFoundError,
 } from '../errors/index.js';
 import type {
@@ -19,6 +21,8 @@ import type {
   AddLineResult,
   AddNodeOptions,
   AddNodeResult,
+  GetOutputDataResult,
+  GetOutputFileResult,
   GraphCreateResult,
   GraphStatusResult,
   IPositionalGraphService,
@@ -31,6 +35,8 @@ import type {
   PGListResult,
   PGLoadResult,
   PGShowResult,
+  SaveOutputDataResult,
+  SaveOutputFileResult,
 } from '../interfaces/index.js';
 import {
   type LineDefinition,
@@ -1395,5 +1401,236 @@ export class PositionalGraphService implements IPositionalGraphService {
     await this.persistNodeConfig(ctx, graphSlug, nodeId, nodeResult.config);
 
     return { errors: [] };
+  }
+
+  // ============================================
+  // Output Storage (Phase 2, Plan 028)
+  // ============================================
+
+  /**
+   * Save an output data value to the node's data.json.
+   * Directory structure: nodes/{nodeId}/data/data.json with { "outputs": {...} } wrapper.
+   */
+  async saveOutputData(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    outputName: string,
+    value: unknown
+  ): Promise<SaveOutputDataResult> {
+    // Verify node exists
+    const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
+    if (!nodeResult.ok) {
+      return { saved: false, errors: nodeResult.errors };
+    }
+
+    const nodeDir = this.getNodeDir(ctx, graphSlug, nodeId);
+    const dataDir = this.pathResolver.join(nodeDir, 'data');
+    const dataPath = this.pathResolver.join(dataDir, 'data.json');
+
+    // Ensure data directory exists
+    const dirExists = await this.fs.exists(dataDir);
+    if (!dirExists) {
+      await this.fs.mkdir(dataDir, { recursive: true });
+    }
+
+    // Load existing data.json or create empty structure
+    let data: { outputs: Record<string, unknown> } = { outputs: {} };
+    const fileExists = await this.fs.exists(dataPath);
+    if (fileExists) {
+      const content = await this.fs.readFile(dataPath);
+      data = JSON.parse(content) as { outputs: Record<string, unknown> };
+    }
+
+    // Merge new output
+    data.outputs[outputName] = value;
+
+    // Write atomically
+    await atomicWriteFile(this.fs, dataPath, JSON.stringify(data, null, 2));
+
+    return {
+      nodeId,
+      outputName,
+      saved: true,
+      errors: [],
+    };
+  }
+
+  /**
+   * Save an output file by copying it to the node's data/outputs/ directory.
+   * Path traversal prevented via rejection of '..' and containment check.
+   */
+  async saveOutputFile(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    outputName: string,
+    sourcePath: string
+  ): Promise<SaveOutputFileResult> {
+    // Security: reject path traversal in output name
+    if (outputName.includes('..')) {
+      return {
+        saved: false,
+        errors: [fileNotFoundError(outputName, 'Output name contains invalid path traversal')],
+      };
+    }
+
+    // Security: reject path traversal in source path
+    if (sourcePath.includes('..')) {
+      return {
+        saved: false,
+        errors: [fileNotFoundError(sourcePath, 'Source path contains path traversal')],
+      };
+    }
+
+    // Verify node exists
+    const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
+    if (!nodeResult.ok) {
+      return { saved: false, errors: nodeResult.errors };
+    }
+
+    // Verify source file exists
+    const sourceExists = await this.fs.exists(sourcePath);
+    if (!sourceExists) {
+      return {
+        saved: false,
+        errors: [fileNotFoundError(sourcePath, 'Source file does not exist')],
+      };
+    }
+
+    const nodeDir = this.getNodeDir(ctx, graphSlug, nodeId);
+    const outputsDir = this.pathResolver.join(nodeDir, 'data', 'outputs');
+
+    // Ensure outputs directory exists
+    const dirExists = await this.fs.exists(outputsDir);
+    if (!dirExists) {
+      await this.fs.mkdir(outputsDir, { recursive: true });
+    }
+
+    // Extract filename and extension from source
+    const sourceFilename = this.pathResolver.basename(sourcePath);
+    const destPath = this.pathResolver.join(outputsDir, sourceFilename);
+
+    // Copy file
+    const content = await this.fs.readFile(sourcePath);
+    await atomicWriteFile(this.fs, destPath, content);
+
+    // Store relative path in data.json
+    const dataDir = this.pathResolver.join(nodeDir, 'data');
+    const dataPath = this.pathResolver.join(dataDir, 'data.json');
+
+    let data: { outputs: Record<string, unknown> } = { outputs: {} };
+    const fileExists = await this.fs.exists(dataPath);
+    if (fileExists) {
+      const dataContent = await this.fs.readFile(dataPath);
+      data = JSON.parse(dataContent) as { outputs: Record<string, unknown> };
+    }
+
+    // Store relative path (relative to node dir)
+    const relativePath = `data/outputs/${sourceFilename}`;
+    data.outputs[outputName] = relativePath;
+
+    await atomicWriteFile(this.fs, dataPath, JSON.stringify(data, null, 2));
+
+    return {
+      nodeId,
+      outputName,
+      saved: true,
+      filePath: relativePath,
+      errors: [],
+    };
+  }
+
+  /**
+   * Retrieve an output data value from the node's data.json.
+   */
+  async getOutputData(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    outputName: string
+  ): Promise<GetOutputDataResult> {
+    // Verify node exists
+    const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
+    if (!nodeResult.ok) {
+      return { errors: nodeResult.errors };
+    }
+
+    const nodeDir = this.getNodeDir(ctx, graphSlug, nodeId);
+    const dataPath = this.pathResolver.join(nodeDir, 'data', 'data.json');
+
+    // Check if data.json exists
+    const fileExists = await this.fs.exists(dataPath);
+    if (!fileExists) {
+      return {
+        errors: [outputNotFoundError(outputName, nodeId)],
+      };
+    }
+
+    const content = await this.fs.readFile(dataPath);
+    const data = JSON.parse(content) as { outputs: Record<string, unknown> };
+
+    // Check if output exists
+    if (!(outputName in data.outputs)) {
+      return {
+        errors: [outputNotFoundError(outputName, nodeId)],
+      };
+    }
+
+    return {
+      nodeId,
+      outputName,
+      value: data.outputs[outputName],
+      errors: [],
+    };
+  }
+
+  /**
+   * Retrieve the absolute path to a saved output file.
+   * Stored as relative path in data.json, returned as absolute path.
+   */
+  async getOutputFile(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    outputName: string
+  ): Promise<GetOutputFileResult> {
+    // Verify node exists
+    const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
+    if (!nodeResult.ok) {
+      return { errors: nodeResult.errors };
+    }
+
+    const nodeDir = this.getNodeDir(ctx, graphSlug, nodeId);
+    const dataPath = this.pathResolver.join(nodeDir, 'data', 'data.json');
+
+    // Check if data.json exists
+    const fileExists = await this.fs.exists(dataPath);
+    if (!fileExists) {
+      return {
+        errors: [outputNotFoundError(outputName, nodeId)],
+      };
+    }
+
+    const content = await this.fs.readFile(dataPath);
+    const data = JSON.parse(content) as { outputs: Record<string, unknown> };
+
+    // Check if output exists
+    if (!(outputName in data.outputs)) {
+      return {
+        errors: [outputNotFoundError(outputName, nodeId)],
+      };
+    }
+
+    // Convert relative path to absolute
+    const relativePath = data.outputs[outputName] as string;
+    const absolutePath = this.pathResolver.join(nodeDir, relativePath);
+
+    return {
+      nodeId,
+      outputName,
+      filePath: absolutePath,
+      errors: [],
+    };
   }
 }
