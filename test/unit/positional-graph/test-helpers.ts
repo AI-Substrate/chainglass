@@ -8,15 +8,15 @@
  * duplication and provide a consistent testing interface for Phase 2-6.
  */
 
-import type { ResultError } from '@chainglass/shared';
-import type { WorkspaceContext } from '@chainglass/workflow';
+import { unitNotFoundError } from '@chainglass/positional-graph/errors';
 import type {
   IWorkUnitLoader,
   NarrowWorkUnit,
   NarrowWorkUnitInput,
   NarrowWorkUnitOutput,
 } from '@chainglass/positional-graph/interfaces';
-import { unitNotFoundError } from '@chainglass/positional-graph/errors';
+import type { ResultError } from '@chainglass/shared';
+import type { WorkspaceContext } from '@chainglass/workflow';
 
 // ============================================
 // WorkUnit Builder
@@ -147,7 +147,13 @@ export interface StubWorkUnitLoaderOptions {
  * });
  */
 export function stubWorkUnitLoader(options: StubWorkUnitLoaderOptions = {}): IWorkUnitLoader {
-  const { units = [], slugs = [], defaultInputs = [], defaultOutputs = [], strictMode = false } = options;
+  const {
+    units = [],
+    slugs = [],
+    defaultInputs = [],
+    defaultOutputs = [],
+    strictMode = false,
+  } = options;
 
   // Build lookup map from units
   const unitMap = new Map<string, NarrowWorkUnit>(units.map((u) => [u.slug, u]));

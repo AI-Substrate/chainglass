@@ -1,1 +1,0 @@
-../../../test/integration/027-central-notify-events/watcher-to-notifier.integration.test.ts

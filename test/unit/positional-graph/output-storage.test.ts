@@ -85,7 +85,8 @@ describe('PositionalGraphService — saveOutputData', () => {
     // Create graph and node for testing
     const { lineId } = await service.create(ctx, 'test-graph');
     const result = await service.addNode(ctx, 'test-graph', lineId, 'sample-coder');
-    nodeId = result.nodeId!;
+    if (!result.nodeId) throw new Error('nodeId expected');
+    nodeId = result.nodeId;
   });
 
   it('saves value to data.json with outputs wrapper', async () => {
@@ -177,7 +178,13 @@ describe('PositionalGraphService — saveOutputData', () => {
      * Quality Contribution: Clear error messages for debugging
      * Acceptance Criteria: E153 error returned
      */
-    const result = await service.saveOutputData(ctx, 'test-graph', 'nonexistent-node', 'spec', 'hello');
+    const result = await service.saveOutputData(
+      ctx,
+      'test-graph',
+      'nonexistent-node',
+      'spec',
+      'hello'
+    );
 
     expect(result.saved).toBe(false);
     expect(result.errors.length).toBe(1);
@@ -218,7 +225,8 @@ describe('PositionalGraphService — saveOutputFile', () => {
     // Create graph and node for testing
     const { lineId } = await service.create(ctx, 'test-graph');
     const result = await service.addNode(ctx, 'test-graph', lineId, 'sample-coder');
-    nodeId = result.nodeId!;
+    if (!result.nodeId) throw new Error('nodeId expected');
+    nodeId = result.nodeId;
 
     // Create a source file to copy
     await fs.writeFile('/workspace/my-project/script.sh', '#!/bin/bash\necho "hello"');
@@ -392,7 +400,8 @@ describe('PositionalGraphService — getOutputData', () => {
     // Create graph and node for testing
     const { lineId } = await service.create(ctx, 'test-graph');
     const result = await service.addNode(ctx, 'test-graph', lineId, 'sample-coder');
-    nodeId = result.nodeId!;
+    if (!result.nodeId) throw new Error('nodeId expected');
+    nodeId = result.nodeId;
   });
 
   it('reads value from data.json', async () => {
@@ -472,7 +481,8 @@ describe('PositionalGraphService — getOutputFile', () => {
     // Create graph and node for testing
     const { lineId } = await service.create(ctx, 'test-graph');
     const result = await service.addNode(ctx, 'test-graph', lineId, 'sample-coder');
-    nodeId = result.nodeId!;
+    if (!result.nodeId) throw new Error('nodeId expected');
+    nodeId = result.nodeId;
 
     // Create a source file and save as output
     await fs.writeFile('/workspace/my-project/script.sh', '#!/bin/bash\necho "hello"');

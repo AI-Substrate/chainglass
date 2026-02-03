@@ -13,6 +13,7 @@
 - **No emojis** in commit messages, PR titles, or PR descriptions
 - **No AI attribution** in commit messages or PR descriptions — do not mention Claude, AI, Co-Authored-By, or any AI tool
 - Keep commit messages and PR descriptions factual and concise
+- **MANDATORY: Run `just fft` before every commit** — this runs lint, format, and tests. Do not commit if it fails. If lint fails due to unrelated issues (e.g., broken symlinks from other plans), you may proceed after verifying tests pass with `pnpm test`.
 
 ## Conventions
 
