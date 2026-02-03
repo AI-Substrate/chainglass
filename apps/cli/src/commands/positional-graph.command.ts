@@ -18,6 +18,7 @@
  * - cg wf node save-output-data|save-output-file|get-output-data|get-output-file
  * - cg wf node start|can-end|end (Phase 3 lifecycle commands)
  * - cg wf node ask|answer|get-answer (Phase 4 Q&A protocol)
+ * - cg wf node get-input-data|get-input-file (Phase 5 input retrieval)
  *
  * Per ADR-0004: Uses DI container, not direct instantiation.
  * Per ADR-0009: Module registration via registerPositionalGraphServices().
@@ -947,6 +948,54 @@ async function handleNodeGetAnswer(
 }
 
 // ============================================
+// Input Retrieval Handlers (Phase 5, Plan 028)
+// ============================================
+
+async function handleNodeGetInputData(
+  graphSlug: string,
+  nodeId: string,
+  inputName: string,
+  options: BaseOptions
+): Promise<void> {
+  const adapter = createOutputAdapter(options.json ?? false);
+
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = { errors: noContextError(options.workspacePath) };
+    console.log(adapter.format('wf.node.get-input-data', result));
+    process.exit(1);
+  }
+
+  const service = getPositionalGraphService();
+  const result = await service.getInputData(ctx, graphSlug, nodeId, inputName);
+  console.log(adapter.format('wf.node.get-input-data', result));
+
+  if (result.errors.length > 0) process.exit(1);
+}
+
+async function handleNodeGetInputFile(
+  graphSlug: string,
+  nodeId: string,
+  inputName: string,
+  options: BaseOptions
+): Promise<void> {
+  const adapter = createOutputAdapter(options.json ?? false);
+
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = { errors: noContextError(options.workspacePath) };
+    console.log(adapter.format('wf.node.get-input-file', result));
+    process.exit(1);
+  }
+
+  const service = getPositionalGraphService();
+  const result = await service.getInputFile(ctx, graphSlug, nodeId, inputName);
+  console.log(adapter.format('wf.node.get-input-file', result));
+
+  if (result.errors.length > 0) process.exit(1);
+}
+
+// ============================================
 // Status + Trigger Handlers
 // ============================================
 
@@ -1657,6 +1706,49 @@ export function registerPositionalGraphCommands(program: Command): void {
         ) => {
           const parentOpts = cmd.parent?.parent?.opts() ?? {};
           await handleNodeGetAnswer(graph, nodeId, questionId, {
+            json: parentOpts.json,
+            workspacePath: parentOpts.workspacePath,
+          });
+        }
+      )
+    );
+
+  // Input Retrieval Commands (Phase 5, Plan 028)
+  node
+    .command('get-input-data <graph> <nodeId> <inputName>')
+    .description('Get input data value from completed upstream node')
+    .action(
+      wrapAction(
+        async (
+          graph: string,
+          nodeId: string,
+          inputName: string,
+          _options: BaseOptions,
+          cmd: Command
+        ) => {
+          const parentOpts = cmd.parent?.parent?.opts() ?? {};
+          await handleNodeGetInputData(graph, nodeId, inputName, {
+            json: parentOpts.json,
+            workspacePath: parentOpts.workspacePath,
+          });
+        }
+      )
+    );
+
+  node
+    .command('get-input-file <graph> <nodeId> <inputName>')
+    .description('Get input file path from completed upstream node')
+    .action(
+      wrapAction(
+        async (
+          graph: string,
+          nodeId: string,
+          inputName: string,
+          _options: BaseOptions,
+          cmd: Command
+        ) => {
+          const parentOpts = cmd.parent?.parent?.opts() ?? {};
+          await handleNodeGetInputFile(graph, nodeId, inputName, {
             json: parentOpts.json,
             workspacePath: parentOpts.workspacePath,
           });

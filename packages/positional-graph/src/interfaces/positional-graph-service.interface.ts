@@ -435,6 +435,45 @@ export interface GetAnswerResult extends BaseResult {
 }
 
 // ============================================
+// Result Types — Input Retrieval (Phase 5, Plan 028)
+// ============================================
+
+/** A single resolved data source for an input. */
+export interface InputDataSource {
+  sourceNodeId: string;
+  sourceOutput: string;
+  value: unknown;
+}
+
+/** Result from getInputData */
+export interface GetInputDataResult extends BaseResult {
+  nodeId?: string;
+  inputName?: string;
+  /** All resolved sources (per Critical Insight #4: from_unit collects all matches) */
+  sources?: InputDataSource[];
+  /** True when all sources are complete; false if partial (per Insight #5) */
+  complete?: boolean;
+}
+
+/** A single resolved file source for an input. */
+export interface InputFileSource {
+  sourceNodeId: string;
+  sourceOutput: string;
+  /** Absolute path to the file */
+  filePath: string;
+}
+
+/** Result from getInputFile */
+export interface GetInputFileResult extends BaseResult {
+  nodeId?: string;
+  inputName?: string;
+  /** All resolved file sources (per Critical Insight #4: from_unit collects all matches) */
+  sources?: InputFileSource[];
+  /** True when all sources are complete; false if partial (per Insight #5) */
+  complete?: boolean;
+}
+
+// ============================================
 // Service Interface
 // ============================================
 
@@ -618,4 +657,18 @@ export interface IPositionalGraphService {
     nodeId: string,
     questionId: string
   ): Promise<GetAnswerResult>;
+
+  // Input Retrieval (Phase 5, Plan 028)
+  getInputData(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    inputName: string
+  ): Promise<GetInputDataResult>;
+  getInputFile(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    inputName: string
+  ): Promise<GetInputFileResult>;
 }

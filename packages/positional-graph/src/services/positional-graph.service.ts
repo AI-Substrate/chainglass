@@ -7,6 +7,7 @@ import {
   fileNotFoundError,
   graphAlreadyExistsError,
   graphNotFoundError,
+  inputNotAvailableError,
   inputNotDeclaredError,
   invalidLineIndexError,
   invalidNodePositionError,
@@ -31,6 +32,8 @@ import type {
   CanEndResult,
   EndNodeResult,
   GetAnswerResult,
+  GetInputDataResult,
+  GetInputFileResult,
   GetOutputDataResult,
   GetOutputFileResult,
   GraphCreateResult,
@@ -2127,6 +2130,206 @@ export class PositionalGraphService implements IPositionalGraphService {
       nodeId,
       questionId,
       answered: false,
+      errors: [],
+    };
+  }
+
+  // ============================================
+  // Input Retrieval (Phase 5, Plan 028)
+  // ============================================
+
+  /**
+   * Retrieve input data from completed upstream nodes.
+   * Uses collateInputs for resolution, then calls getOutputData on each source.
+   *
+   * Per CF-07: Thin wrapper around collateInputs, not new resolution logic.
+   * Per Critical Insight #4: Returns full sources[] array (from_unit collects all matches).
+   * Per Critical Insight #5: Returns partial results with complete flag.
+   *
+   * Error codes:
+   * - E153: Node not found
+   * - E160: Input not wired
+   * - E175: Source complete but output not saved
+   * - E178: Source node not complete (waiting status)
+   */
+  async getInputData(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    inputName: string
+  ): Promise<GetInputDataResult> {
+    // Verify node exists
+    const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
+    if (!nodeResult.ok) {
+      return { errors: nodeResult.errors };
+    }
+
+    // Resolve inputs using collateInputs
+    const inputPack = await this.collateInputs(ctx, graphSlug, nodeId);
+
+    // Check if input exists in InputPack
+    const entry = inputPack.inputs[inputName];
+    if (!entry) {
+      // Input not wired (E160)
+      return {
+        errors: [
+          {
+            code: 'E160',
+            message: `Input '${inputName}' is not wired on node '${nodeId}'`,
+            action: 'Wire the input with: cg wf node set-input <slug> <nodeId> <inputName> ...',
+          },
+        ],
+      };
+    }
+
+    // Handle based on input status
+    if (entry.status === 'error') {
+      // Resolution error (e.g., E163 output not declared)
+      return {
+        errors: [
+          {
+            code: entry.detail.code,
+            message: entry.detail.message,
+          },
+        ],
+      };
+    }
+
+    if (entry.status === 'waiting') {
+      // Source not complete (E178)
+      const waiting = entry.detail.waiting;
+      const reason =
+        waiting.length > 0
+          ? `Source node(s) not complete: ${waiting.join(', ')}`
+          : 'No matching source nodes found';
+      return {
+        errors: [inputNotAvailableError(inputName, reason)],
+      };
+    }
+
+    // status === 'available' — all sources are complete
+    // Get actual data values from source nodes
+    const sources = [];
+    for (const src of entry.detail.sources) {
+      const outputResult = await this.getOutputData(
+        ctx,
+        graphSlug,
+        src.sourceNodeId,
+        src.sourceOutput
+      );
+      if (outputResult.errors.length > 0) {
+        // E175: Output not saved on source node
+        return { errors: outputResult.errors };
+      }
+      sources.push({
+        sourceNodeId: src.sourceNodeId,
+        sourceOutput: src.sourceOutput,
+        value: outputResult.value,
+      });
+    }
+
+    return {
+      nodeId,
+      inputName,
+      sources,
+      complete: true,
+      errors: [],
+    };
+  }
+
+  /**
+   * Retrieve input file path from completed upstream nodes.
+   * Uses collateInputs for resolution, then calls getOutputFile on each source.
+   *
+   * Per CF-07: Thin wrapper around collateInputs, not new resolution logic.
+   * Per Critical Insight #3: Calls getOutputFile to convert relative → absolute paths.
+   * Per Critical Insight #4: Returns full sources[] array.
+   *
+   * Error codes:
+   * - E153: Node not found
+   * - E160: Input not wired
+   * - E175: Source complete but file output not saved
+   * - E178: Source node not complete
+   */
+  async getInputFile(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    inputName: string
+  ): Promise<GetInputFileResult> {
+    // Verify node exists
+    const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
+    if (!nodeResult.ok) {
+      return { errors: nodeResult.errors };
+    }
+
+    // Resolve inputs using collateInputs
+    const inputPack = await this.collateInputs(ctx, graphSlug, nodeId);
+
+    // Check if input exists in InputPack
+    const entry = inputPack.inputs[inputName];
+    if (!entry) {
+      // Input not wired (E160)
+      return {
+        errors: [
+          {
+            code: 'E160',
+            message: `Input '${inputName}' is not wired on node '${nodeId}'`,
+            action: 'Wire the input with: cg wf node set-input <slug> <nodeId> <inputName> ...',
+          },
+        ],
+      };
+    }
+
+    // Handle based on input status
+    if (entry.status === 'error') {
+      return {
+        errors: [
+          {
+            code: entry.detail.code,
+            message: entry.detail.message,
+          },
+        ],
+      };
+    }
+
+    if (entry.status === 'waiting') {
+      const waiting = entry.detail.waiting;
+      const reason =
+        waiting.length > 0
+          ? `Source node(s) not complete: ${waiting.join(', ')}`
+          : 'No matching source nodes found';
+      return {
+        errors: [inputNotAvailableError(inputName, reason)],
+      };
+    }
+
+    // status === 'available' — get file paths from source nodes
+    const sources = [];
+    for (const src of entry.detail.sources) {
+      // Use getOutputFile to get absolute path (handles relative → absolute conversion)
+      const fileResult = await this.getOutputFile(
+        ctx,
+        graphSlug,
+        src.sourceNodeId,
+        src.sourceOutput
+      );
+      if (fileResult.errors.length > 0) {
+        // E175: File output not saved on source node
+        return { errors: fileResult.errors };
+      }
+      sources.push({
+        sourceNodeId: src.sourceNodeId,
+        sourceOutput: src.sourceOutput,
+        filePath: fileResult.filePath ?? '', // Should always be present when no errors
+      });
+    }
+
+    return {
+      nodeId,
+      inputName,
+      sources,
+      complete: true,
       errors: [],
     };
   }
