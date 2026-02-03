@@ -14,6 +14,19 @@ import { useMemo } from 'react';
 import type { NodeStatus } from './workgraph-ui.types';
 
 /**
+ * Serializable port declaration for node inputs/outputs.
+ * Subset of OutputDeclaration/InputDeclaration from @chainglass/workgraph.
+ */
+export interface NodePortDeclaration {
+  /** Port name */
+  name: string;
+  /** Port type: data or file */
+  type: 'data' | 'file';
+  /** Data type (when type='data') */
+  dataType?: 'text' | 'number' | 'boolean' | 'json';
+}
+
+/**
  * Serialized node data from API response.
  */
 export interface WorkGraphFlowNode {
@@ -27,6 +40,14 @@ export interface WorkGraphFlowNode {
   unit?: string;
   /** Node type (only 'start' for start node) */
   type?: 'start';
+  /** Unit type (agent, code, user-input) */
+  unitType?: 'agent' | 'code' | 'user-input';
+  /** Unit description */
+  unitDescription?: string;
+  /** Output port declarations from the unit */
+  outputs?: NodePortDeclaration[];
+  /** Input port declarations from the unit */
+  inputs?: NodePortDeclaration[];
   /** Question ID if waiting-question status */
   questionId?: string;
   /** Error message if blocked-error status */
@@ -62,6 +83,10 @@ export interface WorkGraphNodeData extends Record<string, unknown> {
   status: NodeStatus;
   unit?: string;
   type?: 'start';
+  unitType?: 'agent' | 'code' | 'user-input';
+  unitDescription?: string;
+  outputs?: NodePortDeclaration[];
+  inputs?: NodePortDeclaration[];
   questionId?: string;
   errorMessage?: string;
 }
@@ -111,6 +136,10 @@ export function useWorkGraphFlow(data: WorkGraphFlowData): UseWorkGraphFlowResul
         status: node.status,
         unit: node.unit,
         type: node.type,
+        unitType: node.unitType,
+        unitDescription: node.unitDescription,
+        outputs: node.outputs,
+        inputs: node.inputs,
         questionId: node.questionId,
         errorMessage: node.errorMessage,
       },

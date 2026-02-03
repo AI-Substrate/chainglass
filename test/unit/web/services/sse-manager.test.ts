@@ -103,7 +103,7 @@ describe('SSEManager', () => {
 
       expect(controller1.chunks.length).toBe(1);
       expect(controller2.chunks.length).toBe(1);
-      expect(controller1.getAllContent()).toContain('event: workflow_status');
+      expect(controller1.getAllContent()).toContain('"type":"workflow_status"');
       expect(controller2.getAllContent()).toContain('"phase":"running"');
     });
 
@@ -151,10 +151,10 @@ describe('SSEManager', () => {
       /*
       Test Doc:
       - Why: Verify protocol compliance
-      - Contract: Event formatted as `event: {type}\ndata: {JSON}\n\n`
+      - Contract: Event formatted as unnamed SSE with type in data payload: `data: {JSON}\n\n`
       - Usage Notes: Check exact string written to FakeController
-      - Quality Contribution: SSE spec compliance
-      - Worked Example: broadcast('ch1', 'heartbeat', {}) → writes correctly formatted SSE
+      - Quality Contribution: SSE spec compliance — unnamed events ensure EventSource.onmessage receives them
+      - Worked Example: broadcast('ch1', 'heartbeat', {timestamp}) → data: {"type":"heartbeat","timestamp":...}\n\n
       */
       const controller = new FakeController();
       manager.addConnection('workflow-1', controller as unknown as ReadableStreamDefaultController);
@@ -162,8 +162,8 @@ describe('SSEManager', () => {
       manager.broadcast('workflow-1', 'heartbeat', { timestamp: '2026-01-23T00:00:00Z' });
 
       const content = controller.getAllContent();
-      expect(content).toMatch(/^event: heartbeat\n/);
-      expect(content).toContain('data: {');
+      expect(content).toMatch(/^data: \{/);
+      expect(content).toContain('"type":"heartbeat"');
       expect(content).toContain('"timestamp":"2026-01-23T00:00:00Z"');
       expect(content).toMatch(/\n\n$/);
     });

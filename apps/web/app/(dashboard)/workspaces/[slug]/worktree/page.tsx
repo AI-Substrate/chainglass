@@ -13,10 +13,12 @@
 
 import { WORKSPACE_DI_TOKENS } from '@chainglass/shared';
 import type { IAgentSessionService, ISampleService, IWorkspaceService } from '@chainglass/workflow';
-import { Bot, FileText, GitBranch, LayoutDashboard } from 'lucide-react';
+import { Bot, FileText, GitBranch, LayoutDashboard, Network } from 'lucide-react';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
+import type { IWorkGraphUIService } from '../../../../../src/features/022-workgraph-ui';
 import { getContainer } from '../../../../../src/lib/bootstrap-singleton';
+import { DI_TOKENS } from '../../../../../src/lib/di-container';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,6 +48,7 @@ export default async function WorktreeLandingPage({ params, searchParams }: Page
   const sessionService = container.resolve<IAgentSessionService>(
     WORKSPACE_DI_TOKENS.AGENT_SESSION_SERVICE
   );
+  const workgraphService = container.resolve<IWorkGraphUIService>(DI_TOKENS.WORKGRAPH_UI_SERVICE);
 
   // Resolve context
   const context = await workspaceService.resolveContextFromParams(slug, worktreePath);
@@ -58,14 +61,17 @@ export default async function WorktreeLandingPage({ params, searchParams }: Page
   const info = await workspaceService.getInfo(slug);
 
   // Get counts for feature cards
-  const [samples, sessions] = await Promise.all([
+  const [samples, sessions, graphsResult] = await Promise.all([
     sampleService.list(context),
     sessionService.listSessions(context),
+    workgraphService.listGraphs(context),
   ]);
+  const graphSlugs = graphsResult.errors.length === 0 ? graphsResult.graphSlugs : [];
 
   // Build URLs with worktree param
   const agentsUrl = `/workspaces/${slug}/agents?worktree=${encodeURIComponent(worktreePath)}`;
   const samplesUrl = `/workspaces/${slug}/samples?worktree=${encodeURIComponent(worktreePath)}`;
+  const workgraphsUrl = `/workspaces/${slug}/workgraphs?worktree=${encodeURIComponent(worktreePath)}`;
 
   return (
     <div className="container mx-auto py-6">
@@ -103,7 +109,7 @@ export default async function WorktreeLandingPage({ params, searchParams }: Page
       </div>
 
       {/* Feature Cards */}
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-3">
         {/* Agents Card */}
         <Link
           href={agentsUrl}
@@ -122,6 +128,27 @@ export default async function WorktreeLandingPage({ params, searchParams }: Page
           </div>
           <p className="text-sm text-muted-foreground">
             View and manage AI agent sessions for this worktree.
+          </p>
+        </Link>
+
+        {/* WorkGraphs Card */}
+        <Link
+          href={workgraphsUrl}
+          className="group rounded-lg border p-6 transition-colors hover:bg-muted/50"
+        >
+          <div className="mb-4 flex items-center gap-3">
+            <div className="rounded-full bg-primary/10 p-3">
+              <Network className="h-6 w-6 text-primary" />
+            </div>
+            <div>
+              <h2 className="text-xl font-semibold group-hover:text-primary">WorkGraphs</h2>
+              <p className="text-sm text-muted-foreground">
+                {graphSlugs.length} {graphSlugs.length === 1 ? 'graph' : 'graphs'}
+              </p>
+            </div>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            View and edit workflow graphs for this worktree.
           </p>
         </Link>
 

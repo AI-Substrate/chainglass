@@ -1,0 +1,1 @@
+../../../apps/web/src/features/027-central-notify-events/workgraph-domain-event-adapter.ts

@@ -100,7 +100,7 @@ export function WorkGraphDetailClient({
     graphSlug,
     instance: sseInstance,
     onExternalChange: () => {
-      setToast('Graph updated externally');
+      setToast('Graph updated from external change');
       setTimeout(() => setToast(null), 3000);
     },
     enablePolling: true, // Fallback to polling if SSE fails

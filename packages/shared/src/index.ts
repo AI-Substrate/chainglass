@@ -166,6 +166,15 @@ export {
   WORKGRAPH_DI_TOKENS,
 } from './di-tokens.js';
 
+// Plan 027: Central Domain Event Notification System
+export { WorkspaceDomain } from './features/027-central-notify-events/index.js';
+export type { WorkspaceDomainType } from './features/027-central-notify-events/index.js';
+export type {
+  DomainEvent,
+  ICentralEventNotifier,
+} from './features/027-central-notify-events/index.js';
+export { FakeCentralEventNotifier } from './features/027-central-notify-events/index.js';
+
 // Config (re-export key items from ./config for convenience)
 export {
   ConfigurationError,
