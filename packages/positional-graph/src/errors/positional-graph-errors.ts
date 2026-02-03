@@ -27,6 +27,16 @@ export const POSITIONAL_GRAPH_ERROR_CODES = {
   // Status errors (E170-E171)
   E170: 'E170', // Node not ready
   E171: 'E171', // Transition blocked
+
+  // Execution lifecycle errors (E172-E179)
+  E172: 'E172', // Invalid state transition
+  E173: 'E173', // Question not found
+  // E174 removed - output overwrites are allowed per spec clarification Q5
+  E175: 'E175', // Output not found
+  E176: 'E176', // Node not running
+  E177: 'E177', // Node not waiting
+  E178: 'E178', // Input not available
+  E179: 'E179', // File not found
 } as const;
 
 export type PositionalGraphErrorCode = keyof typeof POSITIONAL_GRAPH_ERROR_CODES;
@@ -189,5 +199,69 @@ export function transitionBlockedError(lineId: string): ResultError {
     code: POSITIONAL_GRAPH_ERROR_CODES.E171,
     message: `Transition to line '${lineId}' is blocked — manual trigger required`,
     action: `Trigger transition with: cg wf trigger <slug> ${lineId}`,
+  };
+}
+
+// ============================================
+// Execution Lifecycle Error Factories (E172-E179)
+// ============================================
+
+export function invalidStateTransitionError(
+  nodeId: string,
+  fromState: string,
+  toState: string
+): ResultError {
+  return {
+    code: POSITIONAL_GRAPH_ERROR_CODES.E172,
+    message: `Invalid state transition for node '${nodeId}': ${fromState} -> ${toState}`,
+    action: 'Check node status with: cg wf status <slug> --node <nodeId>',
+  };
+}
+
+export function questionNotFoundError(questionId: string): ResultError {
+  return {
+    code: POSITIONAL_GRAPH_ERROR_CODES.E173,
+    message: `Question not found: ${questionId}`,
+    action: 'Verify question ID and check node state for pending questions',
+  };
+}
+
+export function outputNotFoundError(outputName: string, nodeId: string): ResultError {
+  return {
+    code: POSITIONAL_GRAPH_ERROR_CODES.E175,
+    message: `Output '${outputName}' not found for node '${nodeId}'`,
+    action: 'Save output first with: cg wf node save-output-data <slug> <nodeId> <name> <value>',
+  };
+}
+
+export function nodeNotRunningError(nodeId: string): ResultError {
+  return {
+    code: POSITIONAL_GRAPH_ERROR_CODES.E176,
+    message: `Node '${nodeId}' is not in running state`,
+    action: 'Start node first with: cg wf node start <slug> <nodeId>',
+  };
+}
+
+export function nodeNotWaitingError(nodeId: string): ResultError {
+  return {
+    code: POSITIONAL_GRAPH_ERROR_CODES.E177,
+    message: `Node '${nodeId}' is not waiting for an answer`,
+    action: 'Node must be in waiting-question state to receive an answer',
+  };
+}
+
+export function inputNotAvailableError(inputName: string, reason: string): ResultError {
+  return {
+    code: POSITIONAL_GRAPH_ERROR_CODES.E178,
+    message: `Input '${inputName}' not available: ${reason}`,
+    action: 'Wait for source node to complete, then retry',
+  };
+}
+
+export function fileNotFoundError(sourcePath: string): ResultError {
+  return {
+    code: POSITIONAL_GRAPH_ERROR_CODES.E179,
+    message: `Source file not found: ${sourcePath}`,
+    action: 'Verify file path exists and is accessible',
   };
 }

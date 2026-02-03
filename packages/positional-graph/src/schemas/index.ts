@@ -16,7 +16,10 @@ export type { InputResolution, NodeConfig } from './node.schema.js';
 export {
   GraphStatusSchema,
   NodeExecutionStatusSchema,
+  NodeStateEntryErrorSchema,
   NodeStateEntrySchema,
+  QuestionSchema,
+  QuestionTypeSchema,
   StateSchema,
   TransitionEntrySchema,
 } from './state.schema.js';
@@ -24,6 +27,9 @@ export type {
   GraphStatus,
   NodeExecutionStatus,
   NodeStateEntry,
+  NodeStateEntryError,
+  Question,
+  QuestionType,
   State,
   TransitionEntry,
 } from './state.schema.js';
