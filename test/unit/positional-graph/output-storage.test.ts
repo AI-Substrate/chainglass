@@ -87,6 +87,9 @@ describe('PositionalGraphService — saveOutputData', () => {
     const result = await service.addNode(ctx, 'test-graph', lineId, 'sample-coder');
     if (!result.nodeId) throw new Error('nodeId expected');
     nodeId = result.nodeId;
+
+    // Start node (required for output operations per DYK #4)
+    await service.startNode(ctx, 'test-graph', nodeId);
   });
 
   it('saves value to data.json with outputs wrapper', async () => {
@@ -230,6 +233,9 @@ describe('PositionalGraphService — saveOutputFile', () => {
 
     // Create a source file to copy
     await fs.writeFile('/workspace/my-project/script.sh', '#!/bin/bash\necho "hello"');
+
+    // Start node (required for output operations per DYK #4)
+    await service.startNode(ctx, 'test-graph', nodeId);
   });
 
   it('copies file to data/outputs/ directory', async () => {
@@ -402,6 +408,9 @@ describe('PositionalGraphService — getOutputData', () => {
     const result = await service.addNode(ctx, 'test-graph', lineId, 'sample-coder');
     if (!result.nodeId) throw new Error('nodeId expected');
     nodeId = result.nodeId;
+
+    // Start node (required for save operations, and get operations need saved data)
+    await service.startNode(ctx, 'test-graph', nodeId);
   });
 
   it('reads value from data.json', async () => {
@@ -486,6 +495,9 @@ describe('PositionalGraphService — getOutputFile', () => {
 
     // Create a source file and save as output
     await fs.writeFile('/workspace/my-project/script.sh', '#!/bin/bash\necho "hello"');
+
+    // Start node (required for save operations, and get operations need saved data)
+    await service.startNode(ctx, 'test-graph', nodeId);
   });
 
   it('returns absolute path for saved file', async () => {

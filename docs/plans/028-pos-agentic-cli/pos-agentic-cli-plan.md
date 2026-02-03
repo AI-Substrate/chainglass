@@ -84,7 +84,7 @@ Per ADR-0008 (Workspace Split Storage):
 1. **No concurrent access support**: Per spec assumption, agents call commands sequentially per node
 2. **No auto-execution**: Service computes readiness; orchestrator drives execution
 3. **No WorkGraph code reuse**: Clean implementation in `packages/positional-graph/`
-4. **Direct output pattern required**: Nodes can skip `start`, go directly to `save-output-data` + `end`
+4. **Running state required for outputs**: Nodes must call `start` before `save-output-data`/`save-output-file`
 
 ### Assumptions
 
@@ -114,13 +114,13 @@ Per ADR-0008 (Workspace Split Storage):
 | 07 | Input retrieval reuses `collateInputs` | Implement as thin wrappers, not new resolution logic (per PL-02) | Phase 5 |
 | 08 | State transition logic needs centralized helper | Create private `transitionNodeState()` for atomic mutations | Phase 3 |
 | 09 | Concurrent state.json access is unsupported | Document limitation; use defensive merge strategy | All phases |
-| 10 | WorkUnit loader may be unavailable | Graceful degradation in `canEnd`/`endNode` if WorkUnit missing | Phase 3 |
+| 10 | WorkUnit loader may be unavailable | Not handling — assume WorkUnit always available (per DYK #3) | Phase 3 |
 
 ### Medium Impact Findings
 
 | # | Finding | Action | Affects Phases |
 |---|---------|--------|----------------|
-| 11 | Direct output pattern allows `end` without `start` | Accept both `running` and `ready`/`pending` as valid states for `endNode` | Phase 3 |
+| 11 | Running state required for outputs | `saveOutputData`/`saveOutputFile` return E176 if node not running; `endNode` only accepts `running` state | Phase 3 |
 | 12 | CLI commands follow service method order | Add CLI handler immediately after each service method is implemented | All phases |
 | 13 | No explicit fail command in this plan | Document as known gap; blocked-error status exists but no command sets it | Phase 6 (docs) |
 | 14 | Source node incomplete for `getInputData` | Return E178 InputNotAvailable; reuse `collateInputs` waiting status | Phase 5 |
@@ -340,17 +340,18 @@ describe('saveOutputFile path validation', () => {
 | 3.1 | [ ] | Write tests for state transition helper | 3 | Tests: validates from-state, writes atomically, handles all transitions | - | execution-lifecycle.test.ts |
 | 3.2 | [ ] | Implement private `transitionNodeState()` helper | 3 | All tests from 3.1 pass; atomic write pattern | - | positional-graph.service.ts |
 | 3.3 | [ ] | Write tests for `canEnd` service method | 2 | Tests: checks required outputs, returns missing list | - | execution-lifecycle.test.ts |
-| 3.4 | [ ] | Implement `canEnd` in service | 2 | All tests from 3.3 pass; graceful degradation if WorkUnit missing | - | positional-graph.service.ts |
+| 3.4 | [ ] | Implement `canEnd` in service | 2 | All tests from 3.3 pass | - | positional-graph.service.ts |
 | 3.4a | [ ] | Add interface signature for `canEnd` | 1 | Interface updated; TypeScript compiles | - | positional-graph-service.interface.ts |
 | 3.5 | [ ] | Add CLI command `cg wf node can-end` | 2 | CLI invokes service; JSON output per workshop | - | positional-graph.command.ts |
 | 3.6 | [ ] | Write tests for `startNode` | 3 | Tests: pending→running, ready→running, E172 for invalid states | - | execution-lifecycle.test.ts |
 | 3.7 | [ ] | Implement `startNode` in service | 2 | All tests from 3.6 pass; uses transitionNodeState | - | positional-graph.service.ts |
 | 3.7a | [ ] | Add interface signature for `startNode` | 1 | Interface updated; TypeScript compiles | - | positional-graph-service.interface.ts |
 | 3.8 | [ ] | Add CLI command `cg wf node start` | 2 | CLI invokes service; JSON output per workshop | - | positional-graph.command.ts |
-| 3.9 | [ ] | Write tests for `endNode` | 3 | Tests: running→complete, direct output pattern (ready→complete), missing outputs→E175 | - | execution-lifecycle.test.ts |
+| 3.9 | [ ] | Write tests for `endNode` | 3 | Tests: running→complete, E172 for non-running, missing outputs→E175 | - | execution-lifecycle.test.ts |
 | 3.10 | [ ] | Implement `endNode` in service | 3 | All tests from 3.9 pass; calls canEnd internally | - | positional-graph.service.ts |
 | 3.10a | [ ] | Add interface signature for `endNode` | 1 | Interface updated; TypeScript compiles | - | positional-graph-service.interface.ts |
 | 3.11 | [ ] | Add CLI command `cg wf node end` | 2 | CLI invokes service; JSON output per workshop | - | positional-graph.command.ts |
+| 3.12 | [ ] | Update `saveOutputData`/`saveOutputFile` to require running state | 2 | E176 returned if node not running; update tests | - | positional-graph.service.ts, output-storage.test.ts |
 
 #### Test Examples
 
@@ -383,18 +384,17 @@ describe('startNode state machine', () => {
   });
 });
 
-describe('endNode direct output pattern', () => {
-  test('should allow end without start when outputs saved', async () => {
+describe('endNode state validation', () => {
+  test('should reject end on non-running node with E172', async () => {
     /**
-     * Purpose: Proves AC-4 direct output pattern works
-     * Quality Contribution: Enables data-only nodes
-     * Acceptance Criteria: ready → complete transition succeeds
+     * Purpose: Proves AC-4 running state requirement
+     * Quality Contribution: Enforces state machine integrity
+     * Acceptance Criteria: pending/ready → complete rejected with E172
      */
-    // Setup: node ready, outputs saved via saveOutputData
-    await service.saveOutputData(ctx, 'graph-1', 'node-1', 'spec', 'value');
+    // Setup: node ready but not started
     const result = await service.endNode(ctx, 'graph-1', 'node-1');
-    expect(result.success).toBe(true);
-    expect(result.data.status).toBe('complete');
+    expect(result.success).toBe(false);
+    expect(result.errors[0].code).toBe('E172');
   });
 });
 ```
@@ -402,15 +402,16 @@ describe('endNode direct output pattern', () => {
 #### Non-Happy-Path Coverage
 - [ ] Start on already-running node → E172
 - [ ] Start on complete node → E172
-- [ ] End on pending node with missing outputs → E175
+- [ ] End on pending/ready node → E172 (must be running)
 - [ ] End on waiting-question node → E172
-- [ ] canEnd when WorkUnit not found → graceful degradation (warning, allow proceed)
+- [ ] End with missing outputs → E175
+- [ ] saveOutputData on non-running node → E176
 
 #### Acceptance Criteria
 - [ ] All 3 lifecycle methods tests passing
 - [ ] All 3 CLI commands functional with --json flag
 - [ ] State machine transitions validated
-- [ ] AC-1, AC-2, AC-3, AC-4, AC-16, AC-17 satisfied
+- [ ] AC-1, AC-2, AC-3, AC-4 (running required), AC-16, AC-17 satisfied
 
 ---
 
@@ -693,7 +694,7 @@ describe('getInputData', () => {
 ### Phase Completion Checklist
 - [x] Phase 1: Foundation - Error Codes and Schemas - Complete
 - [x] Phase 2: Output Storage - Complete (21 tests, 4 service methods, 4 CLI commands)
-- [ ] Phase 3: Node Lifecycle - [Status]
+- [x] Phase 3: Node Lifecycle - Complete (22 tests, 3 service methods, 3 CLI commands)
 - [ ] Phase 4: Question/Answer Protocol - [Status]
 - [ ] Phase 5: Input Retrieval - [Status]
 - [ ] Phase 6: E2E Test and Documentation - [Status]
@@ -745,3 +746,17 @@ describe('getInputData', () => {
   - `function:apps/cli/src/commands/positional-graph.command.ts:handleSaveOutputFile` - CLI handler
   - `function:apps/cli/src/commands/positional-graph.command.ts:handleGetOutputData` - CLI handler
   - `function:apps/cli/src/commands/positional-graph.command.ts:handleGetOutputFile` - CLI handler
+
+### Phase 3: Node Lifecycle
+
+[^5]: Phase 3 - Node lifecycle implementation (TDD - 22 tests, 3 service methods, 3 CLI commands)
+  - `file:test/unit/positional-graph/execution-lifecycle.test.ts` - 22 tests (startNode 6, canEnd 5, endNode 6, output state requirement 5)
+  - `file:packages/positional-graph/src/interfaces/positional-graph-service.interface.ts` - StartNodeResult, CanEndResult, EndNodeResult + 3 method signatures
+  - `method:packages/positional-graph/src/services/positional-graph.service.ts:PositionalGraphService.transitionNodeState` - Private helper for atomic state mutations
+  - `method:packages/positional-graph/src/services/positional-graph.service.ts:PositionalGraphService.startNode` - Transitions pending/ready → running
+  - `method:packages/positional-graph/src/services/positional-graph.service.ts:PositionalGraphService.canEnd` - Checks required outputs against WorkUnit declarations
+  - `method:packages/positional-graph/src/services/positional-graph.service.ts:PositionalGraphService.endNode` - Transitions running → complete
+  - `function:apps/cli/src/commands/positional-graph.command.ts:handleNodeStart` - CLI handler for start
+  - `function:apps/cli/src/commands/positional-graph.command.ts:handleNodeCanEnd` - CLI handler for can-end
+  - `function:apps/cli/src/commands/positional-graph.command.ts:handleNodeEnd` - CLI handler for end
+  - Phase 2 output methods updated to require running state (E176 if not running)

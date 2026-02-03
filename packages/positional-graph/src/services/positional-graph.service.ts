@@ -10,9 +10,11 @@ import {
   inputNotDeclaredError,
   invalidLineIndexError,
   invalidNodePositionError,
+  invalidStateTransitionError,
   lineNotEmptyError,
   lineNotFoundError,
   nodeNotFoundError,
+  nodeNotRunningError,
   outputNotFoundError,
   unitNotFoundError,
 } from '../errors/index.js';
@@ -21,6 +23,8 @@ import type {
   AddLineResult,
   AddNodeOptions,
   AddNodeResult,
+  CanEndResult,
+  EndNodeResult,
   GetOutputDataResult,
   GetOutputFileResult,
   GraphCreateResult,
@@ -37,6 +41,7 @@ import type {
   PGShowResult,
   SaveOutputDataResult,
   SaveOutputFileResult,
+  StartNodeResult,
 } from '../interfaces/index.js';
 import {
   type LineDefinition,
@@ -50,8 +55,10 @@ import type {
   LineOrchestratorSettings,
   LineProperties,
   NodeConfig,
+  NodeExecutionStatus,
   NodeOrchestratorSettings,
   NodeProperties,
+  NodeStateEntry,
   State,
 } from '../schemas/index.js';
 import {
@@ -1424,6 +1431,12 @@ export class PositionalGraphService implements IPositionalGraphService {
       return { saved: false, errors: nodeResult.errors };
     }
 
+    // Per DYK #4: Require running state for output operations
+    const status = await this.getNodeExecutionStatus(ctx, graphSlug, nodeId);
+    if (status !== 'running') {
+      return { saved: false, errors: [nodeNotRunningError(nodeId)] };
+    }
+
     const nodeDir = this.getNodeDir(ctx, graphSlug, nodeId);
     const dataDir = this.pathResolver.join(nodeDir, 'data');
     const dataPath = this.pathResolver.join(dataDir, 'data.json');
@@ -1487,6 +1500,12 @@ export class PositionalGraphService implements IPositionalGraphService {
     const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
     if (!nodeResult.ok) {
       return { saved: false, errors: nodeResult.errors };
+    }
+
+    // Per DYK #4: Require running state for output operations
+    const status = await this.getNodeExecutionStatus(ctx, graphSlug, nodeId);
+    if (status !== 'running') {
+      return { saved: false, errors: [nodeNotRunningError(nodeId)] };
     }
 
     // Verify source file exists
@@ -1651,6 +1670,246 @@ export class PositionalGraphService implements IPositionalGraphService {
       nodeId,
       outputName,
       filePath: absolutePath,
+      errors: [],
+    };
+  }
+
+  // ============================================
+  // Node Lifecycle (Phase 3, Plan 028)
+  // ============================================
+
+  /**
+   * Private helper for atomic state transitions.
+   * Validates from-state, writes atomically, handles missing entries as 'pending'.
+   *
+   * Per DYK #5: Missing state.json.nodes[nodeId] entry means implicit 'pending' status.
+   * Per CF-08: Centralized state transition logic for consistent validation.
+   */
+  private async transitionNodeState(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    toStatus: NodeExecutionStatus,
+    validFromStates: Array<NodeExecutionStatus | 'pending'>
+  ): Promise<
+    { ok: true; state: State; entry: NodeStateEntry } | { ok: false; errors: BaseResult['errors'] }
+  > {
+    const state = await this.loadState(ctx, graphSlug);
+
+    // Get current status - missing entry means 'pending'
+    const currentEntry = state.nodes?.[nodeId];
+    const currentStatus: NodeExecutionStatus | 'pending' = currentEntry?.status ?? 'pending';
+
+    // Validate transition
+    if (!validFromStates.includes(currentStatus)) {
+      return {
+        ok: false,
+        errors: [invalidStateTransitionError(nodeId, currentStatus, toStatus)],
+      };
+    }
+
+    // Create or update entry
+    const now = new Date().toISOString();
+    const newEntry: NodeStateEntry = {
+      ...currentEntry,
+      status: toStatus,
+    };
+
+    // Set timestamps based on transition
+    if (toStatus === 'running' && !newEntry.started_at) {
+      newEntry.started_at = now;
+    }
+    if (toStatus === 'complete') {
+      newEntry.completed_at = now;
+    }
+
+    // Ensure nodes object exists
+    if (!state.nodes) {
+      state.nodes = {};
+    }
+    state.nodes[nodeId] = newEntry;
+    state.updated_at = now;
+
+    // Update graph status if needed
+    if (toStatus === 'complete' && state.graph_status === 'pending') {
+      state.graph_status = 'in_progress';
+    }
+
+    // Persist atomically
+    await this.persistState(ctx, graphSlug, state);
+
+    return { ok: true, state, entry: newEntry };
+  }
+
+  /**
+   * Get the current execution status of a node.
+   * Returns 'pending' for nodes without state entries.
+   */
+  private async getNodeExecutionStatus(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string
+  ): Promise<NodeExecutionStatus | 'pending'> {
+    const state = await this.loadState(ctx, graphSlug);
+    return state.nodes?.[nodeId]?.status ?? 'pending';
+  }
+
+  /**
+   * Start a node, transitioning it from pending/ready to running.
+   * Records started_at timestamp.
+   *
+   * Per DYK #1: startNode does NOT call canRun - nodes are dumb executors.
+   * The orchestrator is responsible for checking readiness before calling start.
+   */
+  async startNode(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string
+  ): Promise<StartNodeResult> {
+    // Verify node exists
+    const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
+    if (!nodeResult.ok) {
+      return { errors: nodeResult.errors };
+    }
+
+    // Transition to running (valid from pending only - ready is computed, not stored)
+    const transition = await this.transitionNodeState(
+      ctx,
+      graphSlug,
+      nodeId,
+      'running',
+      ['pending'] // Only pending is valid; running/complete/waiting/blocked are rejected
+    );
+
+    if (!transition.ok) {
+      return { errors: transition.errors };
+    }
+
+    return {
+      nodeId,
+      status: 'running',
+      startedAt: transition.entry.started_at,
+      errors: [],
+    };
+  }
+
+  /**
+   * Check if a node can end (all required outputs are saved).
+   * Returns structured result with saved and missing output lists.
+   *
+   * Per DYK #2: canEnd serves both CLI (display) and endNode (validation).
+   * Per DYK #3: Assumes WorkUnit loader is always available.
+   */
+  async canEnd(ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<CanEndResult> {
+    // Verify node exists
+    const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
+    if (!nodeResult.ok) {
+      return {
+        canEnd: false,
+        savedOutputs: [],
+        missingOutputs: [],
+        errors: nodeResult.errors,
+      };
+    }
+
+    // Load WorkUnit to get output declarations
+    const unitSlug = nodeResult.config.unit_slug;
+    const unitResult = await this.workUnitLoader.load(ctx, unitSlug);
+    if (unitResult.errors.length > 0) {
+      return {
+        canEnd: false,
+        savedOutputs: [],
+        missingOutputs: [],
+        errors: unitResult.errors,
+      };
+    }
+
+    // Get required outputs from WorkUnit
+    const requiredOutputs = (unitResult.unit?.outputs ?? [])
+      .filter((o) => o.required)
+      .map((o) => o.name);
+
+    // Check which outputs are saved
+    const nodeDir = this.getNodeDir(ctx, graphSlug, nodeId);
+    const dataPath = this.pathResolver.join(nodeDir, 'data', 'data.json');
+
+    let savedOutputs: string[] = [];
+    const fileExists = await this.fs.exists(dataPath);
+    if (fileExists) {
+      const content = await this.fs.readFile(dataPath);
+      const data = JSON.parse(content) as { outputs: Record<string, unknown> };
+      savedOutputs = Object.keys(data.outputs ?? {});
+    }
+
+    // Find missing required outputs
+    const missingOutputs = requiredOutputs.filter((name) => !savedOutputs.includes(name));
+
+    return {
+      nodeId,
+      canEnd: missingOutputs.length === 0,
+      savedOutputs,
+      missingOutputs,
+      errors: [],
+    };
+  }
+
+  /**
+   * End a node, transitioning it from running to complete.
+   * Validates that all required outputs are saved before completing.
+   *
+   * Per AC-4 (updated): endNode only accepts running state.
+   * Per AC-17: Returns E175 with missing output names if outputs are missing.
+   */
+  async endNode(ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<EndNodeResult> {
+    // Verify node exists
+    const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
+    if (!nodeResult.ok) {
+      return { errors: nodeResult.errors };
+    }
+
+    // Check state FIRST - must be running (E172 takes precedence over E175)
+    const status = await this.getNodeExecutionStatus(ctx, graphSlug, nodeId);
+    if (status !== 'running') {
+      return {
+        errors: [invalidStateTransitionError(nodeId, status, 'complete')],
+      };
+    }
+
+    // Check if all required outputs are saved
+    const canEndResult = await this.canEnd(ctx, graphSlug, nodeId);
+    if (canEndResult.errors.length > 0) {
+      return { errors: canEndResult.errors };
+    }
+
+    if (!canEndResult.canEnd) {
+      return {
+        errors: [
+          {
+            code: 'E175',
+            message: `Cannot end node '${nodeId}': missing required outputs: ${canEndResult.missingOutputs.join(', ')}`,
+            action: 'Save all required outputs before ending the node',
+          },
+        ],
+      };
+    }
+
+    // Transition to complete (valid from running only)
+    const transition = await this.transitionNodeState(
+      ctx,
+      graphSlug,
+      nodeId,
+      'complete',
+      ['running'] // Only running is valid; pending/complete/waiting/blocked are rejected
+    );
+
+    if (!transition.ok) {
+      return { errors: transition.errors };
+    }
+
+    return {
+      nodeId,
+      status: 'complete',
+      completedAt: transition.entry.completed_at,
       errors: [],
     };
   }

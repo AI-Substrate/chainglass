@@ -375,6 +375,32 @@ export interface GetOutputFileResult extends BaseResult {
 }
 
 // ============================================
+// Result Types — Node Lifecycle (Phase 3, Plan 028)
+// ============================================
+
+/** Result from startNode */
+export interface StartNodeResult extends BaseResult {
+  nodeId?: string;
+  status?: 'running';
+  startedAt?: string;
+}
+
+/** Result from canEnd */
+export interface CanEndResult extends BaseResult {
+  nodeId?: string;
+  canEnd: boolean;
+  savedOutputs: string[];
+  missingOutputs: string[];
+}
+
+/** Result from endNode */
+export interface EndNodeResult extends BaseResult {
+  nodeId?: string;
+  status?: 'complete';
+  completedAt?: string;
+}
+
+// ============================================
 // Service Interface
 // ============================================
 
@@ -532,4 +558,9 @@ export interface IPositionalGraphService {
     nodeId: string,
     outputName: string
   ): Promise<GetOutputFileResult>;
+
+  // Node Lifecycle (Phase 3, Plan 028)
+  startNode(ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<StartNodeResult>;
+  canEnd(ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<CanEndResult>;
+  endNode(ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<EndNodeResult>;
 }

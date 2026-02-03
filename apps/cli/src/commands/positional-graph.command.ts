@@ -16,6 +16,7 @@
  * - cg wf line add|remove|move|get|set|set-label|set-description
  * - cg wf node add|remove|move|show|get|set|set-description|set-input|remove-input|collate
  * - cg wf node save-output-data|save-output-file|get-output-data|get-output-file
+ * - cg wf node start|can-end|end (Phase 3 lifecycle commands)
  *
  * Per ADR-0004: Uses DI container, not direct instantiation.
  * Per ADR-0009: Module registration via registerPositionalGraphServices().
@@ -764,6 +765,79 @@ async function handleGetOutputFile(
 }
 
 // ============================================
+// Node Lifecycle Handlers (Phase 3, Plan 028)
+// ============================================
+
+async function handleNodeStart(
+  graphSlug: string,
+  nodeId: string,
+  options: BaseOptions
+): Promise<void> {
+  const adapter = createOutputAdapter(options.json ?? false);
+
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = { errors: noContextError(options.workspacePath) };
+    console.log(adapter.format('wf.node.start', result));
+    process.exit(1);
+  }
+
+  const service = getPositionalGraphService();
+  const result = await service.startNode(ctx, graphSlug, nodeId);
+  console.log(adapter.format('wf.node.start', result));
+
+  if (result.errors.length > 0) process.exit(1);
+}
+
+async function handleNodeCanEnd(
+  graphSlug: string,
+  nodeId: string,
+  options: BaseOptions
+): Promise<void> {
+  const adapter = createOutputAdapter(options.json ?? false);
+
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = {
+      canEnd: false,
+      savedOutputs: [],
+      missingOutputs: [],
+      errors: noContextError(options.workspacePath),
+    };
+    console.log(adapter.format('wf.node.can-end', result));
+    process.exit(1);
+  }
+
+  const service = getPositionalGraphService();
+  const result = await service.canEnd(ctx, graphSlug, nodeId);
+  console.log(adapter.format('wf.node.can-end', result));
+
+  // canEnd returns canEnd: false with missingOutputs when not ready, but that's not an error
+  if (result.errors.length > 0) process.exit(1);
+}
+
+async function handleNodeEnd(
+  graphSlug: string,
+  nodeId: string,
+  options: BaseOptions
+): Promise<void> {
+  const adapter = createOutputAdapter(options.json ?? false);
+
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = { errors: noContextError(options.workspacePath) };
+    console.log(adapter.format('wf.node.end', result));
+    process.exit(1);
+  }
+
+  const service = getPositionalGraphService();
+  const result = await service.endNode(ctx, graphSlug, nodeId);
+  console.log(adapter.format('wf.node.end', result));
+
+  if (result.errors.length > 0) process.exit(1);
+}
+
+// ============================================
 // Status + Trigger Handlers
 // ============================================
 
@@ -1369,5 +1443,45 @@ export function registerPositionalGraphCommands(program: Command): void {
           });
         }
       )
+    );
+
+  // Node Lifecycle Commands (Phase 3, Plan 028)
+  node
+    .command('start <graph> <nodeId>')
+    .description('Start execution of a node (transitions pending → running)')
+    .action(
+      wrapAction(async (graph: string, nodeId: string, _options: BaseOptions, cmd: Command) => {
+        const parentOpts = cmd.parent?.parent?.opts() ?? {};
+        await handleNodeStart(graph, nodeId, {
+          json: parentOpts.json,
+          workspacePath: parentOpts.workspacePath,
+        });
+      })
+    );
+
+  node
+    .command('can-end <graph> <nodeId>')
+    .description('Check if a node can be ended (all required outputs saved)')
+    .action(
+      wrapAction(async (graph: string, nodeId: string, _options: BaseOptions, cmd: Command) => {
+        const parentOpts = cmd.parent?.parent?.opts() ?? {};
+        await handleNodeCanEnd(graph, nodeId, {
+          json: parentOpts.json,
+          workspacePath: parentOpts.workspacePath,
+        });
+      })
+    );
+
+  node
+    .command('end <graph> <nodeId>')
+    .description('End execution of a node (transitions running → complete)')
+    .action(
+      wrapAction(async (graph: string, nodeId: string, _options: BaseOptions, cmd: Command) => {
+        const parentOpts = cmd.parent?.parent?.opts() ?? {};
+        await handleNodeEnd(graph, nodeId, {
+          json: parentOpts.json,
+          workspacePath: parentOpts.workspacePath,
+        });
+      })
     );
 }

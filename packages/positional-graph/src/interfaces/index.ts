@@ -5,7 +5,9 @@ export type {
   AddNodeResult,
   AvailableInput,
   AvailableSource,
+  CanEndResult,
   CanRunResult,
+  EndNodeResult,
   ErrorInput,
   ExecutionStatus,
   GetOutputDataResult,
@@ -29,5 +31,6 @@ export type {
   SaveOutputDataResult,
   SaveOutputFileResult,
   StarterReadiness,
+  StartNodeResult,
   WaitingInput,
 } from './positional-graph-service.interface.js';

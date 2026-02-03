@@ -95,7 +95,7 @@ This plan is part of a transition from WorkGraph to Positional Graph:
 1. **AC-1**: Running `cg wf node start <slug> <nodeId>` on a ready node transitions its status to `running` and records `started_at` timestamp
 2. **AC-2**: Running `cg wf node end <slug> <nodeId>` on a running node with all required outputs transitions its status to `complete` and records `completed_at` timestamp
 3. **AC-3**: Running `cg wf node can-end <slug> <nodeId>` returns `canEnd: true` only when all required outputs are saved
-4. **AC-4**: Direct output pattern works: nodes can call `save-output-data` then `end` without calling `start`
+4. **AC-4**: Output operations require running state: `save-output-data` and `save-output-file` return E176 if node is not running
 
 ### Question/Answer Protocol
 

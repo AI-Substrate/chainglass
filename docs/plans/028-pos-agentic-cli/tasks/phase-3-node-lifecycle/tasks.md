@@ -34,9 +34,12 @@ $ cg wf node start sample-e2e sample-coder-a7b --json
 {"nodeId": "sample-coder-a7b", "status": "running", "startedAt": "2026-02-03T10:30:00.000Z", "errors": []}
 ```
 
-**Direct output pattern (skip start):**
+**Full lifecycle (start required):**
 ```bash
+$ cg wf node start sample-e2e sample-input-a1b --json
+{"nodeId": "sample-input-a1b", "status": "running", "startedAt": "2026-02-03T10:30:00.000Z", "errors": []}
 $ cg wf node save-output-data sample-e2e sample-input-a1b spec '"Write add(a,b)"'
+{"nodeId": "sample-input-a1b", "outputName": "spec", "saved": true, "errors": []}
 $ cg wf node end sample-e2e sample-input-a1b --json
 {"nodeId": "sample-input-a1b", "status": "complete", "completedAt": "2026-02-03T10:30:05.000Z", "errors": []}
 ```
@@ -63,7 +66,7 @@ Implement the node lifecycle methods as specified in the plan, enabling agents t
 - ❌ Input retrieval (Phase 5)
 - ❌ E2E test script (Phase 6)
 - ❌ Fail command to set `blocked-error` status (documented gap, not this plan)
-- ❌ WorkUnit output declaration validation warnings (canEnd gracefully degrades if WorkUnit missing)
+- ❌ WorkUnit loader unavailability handling (assume WorkUnit always available per DYK #3)
 
 ---
 
@@ -93,7 +96,7 @@ No violations found. All files comply with:
 | AC-1 | start: ready → running + started_at | CLI → service.startNode → loadState → transitionNodeState → persistState | interface, service, CLI, test | T001-T004 | ✅ Complete |
 | AC-2 | end: running → complete + completed_at | CLI → service.endNode → canEnd → transitionNodeState → persistState | interface, service, CLI, test | T001, T008-T011 | ✅ Complete |
 | AC-3 | can-end returns true only when outputs saved | CLI → service.canEnd → loadNodeConfig → workUnitLoader → getOutputData | interface, service, CLI, test | T001, T005-T007 | ✅ Complete |
-| AC-4 | Direct output pattern (end without start) | saveOutputData (Phase 2) + endNode accepting ready/pending → complete | service | T008 | ✅ Complete |
+| AC-4 | Running state required for outputs | saveOutputData/saveOutputFile return E176 if not running; endNode only accepts running | service, Phase 2 update | T008 | ✅ Complete |
 | AC-16 | Invalid state transitions return E172 | transitionNodeState validates from-state, returns E172 | service, errors | T001-T002, T004, T009 | ✅ Complete |
 | AC-17 | Missing outputs on end returns E175 | endNode calls canEnd → returns E175 with missing list | service, errors | T008-T009 | ✅ Complete |
 
@@ -126,16 +129,16 @@ flowchart TD
     style Tests fill:#F5F5F5,stroke:#E0E0E0
 
     subgraph Phase["Phase 3: Node Lifecycle"]
-        T001["T001: Write lifecycle tests (TDD RED)"]:::pending
-        T002["T002: Implement transitionNodeState helper"]:::pending
-        T003["T003: Add interface signatures"]:::pending
-        T004["T004: Implement startNode"]:::pending
-        T005["T005: Implement canEnd"]:::pending
-        T006["T006: Add can-end CLI"]:::pending
-        T007["T007: Add start CLI"]:::pending
-        T008["T008: Implement endNode"]:::pending
-        T009["T009: Write endNode tests (TDD RED)"]:::pending
-        T010["T010: Add end CLI"]:::pending
+        T001["T001: Write lifecycle tests (TDD RED) ✓"]:::completed
+        T002["T002: Implement transitionNodeState helper ✓"]:::completed
+        T003["T003: Add interface signatures ✓"]:::completed
+        T004["T004: Implement startNode ✓"]:::completed
+        T005["T005: Implement canEnd ✓"]:::completed
+        T006["T006: Add can-end CLI ✓"]:::completed
+        T007["T007: Add start CLI ✓"]:::completed
+        T008["T008: Implement endNode ✓"]:::completed
+        T009["T009: Write endNode tests (TDD RED) ✓"]:::completed
+        T010["T010: Add end CLI ✓"]:::completed
 
         T001 --> T002
         T001 --> T003
@@ -150,16 +153,16 @@ flowchart TD
     end
 
     subgraph Service["Service Layer"]
-        S1["positional-graph.service.ts"]:::pending
-        S2["positional-graph-service.interface.ts"]:::pending
+        S1["positional-graph.service.ts ✓"]:::completed
+        S2["positional-graph-service.interface.ts ✓"]:::completed
     end
 
     subgraph CLI["CLI Layer"]
-        C1["positional-graph.command.ts"]:::pending
+        C1["positional-graph.command.ts ✓"]:::completed
     end
 
     subgraph Tests["Test Layer"]
-        TS1["execution-lifecycle.test.ts"]:::pending
+        TS1["execution-lifecycle.test.ts ✓"]:::completed
     end
 
     T002 -.-> S1
@@ -180,16 +183,17 @@ flowchart TD
 
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
-| T001 | Test Suite | execution-lifecycle.test.ts | ⬜ Pending | TDD RED: transitionNodeState, startNode, canEnd tests |
-| T002 | Service | positional-graph.service.ts | ⬜ Pending | Private helper for atomic state transitions |
-| T003 | Interface | positional-graph-service.interface.ts | ⬜ Pending | StartNodeResult, CanEndResult, EndNodeResult types + signatures |
-| T004 | Service | positional-graph.service.ts | ⬜ Pending | startNode implementation using transitionNodeState |
-| T005 | Service | positional-graph.service.ts | ⬜ Pending | canEnd implementation with WorkUnit output checking |
-| T006 | CLI | positional-graph.command.ts | ⬜ Pending | cg wf node can-end command |
-| T007 | CLI | positional-graph.command.ts | ⬜ Pending | cg wf node start command |
-| T008 | Service | positional-graph.service.ts | ⬜ Pending | endNode implementation with direct output pattern |
-| T009 | Test Suite | execution-lifecycle.test.ts | ⬜ Pending | TDD RED: endNode tests including direct output pattern |
-| T010 | CLI | positional-graph.command.ts | ⬜ Pending | cg wf node end command |
+| T001 | Test Suite | execution-lifecycle.test.ts | ✅ Complete | TDD RED: 22 tests created, all fail as expected |
+| T002 | Service | positional-graph.service.ts | ✅ Complete | Private helper for atomic state transitions |
+| T003 | Interface | positional-graph-service.interface.ts | ✅ Complete | StartNodeResult, CanEndResult, EndNodeResult types + signatures |
+| T004 | Service | positional-graph.service.ts | ✅ Complete | startNode implementation using transitionNodeState |
+| T005 | Service | positional-graph.service.ts | ✅ Complete | canEnd implementation with WorkUnit output checking |
+| T006 | CLI | positional-graph.command.ts | ✅ Complete | cg wf node can-end command |
+| T007 | CLI | positional-graph.command.ts | ✅ Complete | cg wf node start command |
+| T008 | Service | positional-graph.service.ts | ✅ Complete | endNode implementation with state validation |
+| T009 | Test Suite | execution-lifecycle.test.ts | ✅ Complete | TDD: endNode tests pass (state validation, E172, E175) |
+| T010 | CLI | positional-graph.command.ts | ✅ Complete | cg wf node end command |
+| T011 | Service, Tests | positional-graph.service.ts, output-storage.test.ts | ✅ Complete | E176 returned if node not running; tests updated |
 
 ---
 
@@ -197,16 +201,17 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|------|------|-----|------|--------------|------------------|------------|----------|-------|
-| [ ] | T001 | Write tests for transitionNodeState helper, startNode, and canEnd | 3 | Test | – | `/home/jak/substrate/028-pos-agentic-cli/test/unit/positional-graph/execution-lifecycle.test.ts` | Tests fail with "method not defined" (TDD RED) | – | Per Critical Finding 04 |
-| [ ] | T002 | Implement private `transitionNodeState()` helper | 3 | Core | T001 | `/home/jak/substrate/028-pos-agentic-cli/packages/positional-graph/src/services/positional-graph.service.ts` | Tests from T001 for helper pass; atomic write pattern used | – | Per Critical Finding 04, 08 |
-| [ ] | T003 | Add interface signatures and result types | 2 | Setup | – | `/home/jak/substrate/028-pos-agentic-cli/packages/positional-graph/src/interfaces/positional-graph-service.interface.ts` | TypeScript compiles; StartNodeResult, CanEndResult, EndNodeResult exported | – | – |
-| [ ] | T004 | Implement `startNode` in service | 2 | Core | T002, T003 | `/home/jak/substrate/028-pos-agentic-cli/packages/positional-graph/src/services/positional-graph.service.ts` | startNode tests pass; E172 for invalid transitions | – | – |
-| [ ] | T005 | Implement `canEnd` in service | 2 | Core | T003 | `/home/jak/substrate/028-pos-agentic-cli/packages/positional-graph/src/services/positional-graph.service.ts` | canEnd tests pass; graceful degradation if WorkUnit missing | – | Per Critical Finding 10 |
-| [ ] | T006 | Add CLI command `cg wf node can-end` | 2 | CLI | T005 | `/home/jak/substrate/028-pos-agentic-cli/apps/cli/src/commands/positional-graph.command.ts` | CLI builds; JSON output per workshop | – | – |
-| [ ] | T007 | Add CLI command `cg wf node start` | 2 | CLI | T004 | `/home/jak/substrate/028-pos-agentic-cli/apps/cli/src/commands/positional-graph.command.ts` | CLI builds; JSON output per workshop | – | – |
-| [ ] | T008 | Implement `endNode` in service | 3 | Core | T005 | `/home/jak/substrate/028-pos-agentic-cli/packages/positional-graph/src/services/positional-graph.service.ts` | endNode tests pass; direct output pattern works | – | Per Critical Finding 11 |
-| [ ] | T009 | Write tests for `endNode` including direct output pattern | 3 | Test | T001 | `/home/jak/substrate/028-pos-agentic-cli/test/unit/positional-graph/execution-lifecycle.test.ts` | Tests fail with "endNode not defined" (TDD RED) | – | AC-4 direct output |
-| [ ] | T010 | Add CLI command `cg wf node end` | 2 | CLI | T008 | `/home/jak/substrate/028-pos-agentic-cli/apps/cli/src/commands/positional-graph.command.ts` | CLI builds; JSON output per workshop | – | – |
+| [x] | T001 | Write tests for transitionNodeState helper, startNode, and canEnd | 3 | Test | – | `/home/jak/substrate/028-pos-agentic-cli/test/unit/positional-graph/execution-lifecycle.test.ts` | Tests fail with "method not defined" (TDD RED) | – | Per Critical Finding 04 |
+| [x] | T002 | Implement private `transitionNodeState()` helper | 3 | Core | T001 | `/home/jak/substrate/028-pos-agentic-cli/packages/positional-graph/src/services/positional-graph.service.ts` | Tests from T001 for helper pass; atomic write pattern used | – | Per Critical Finding 04, 08 |
+| [x] | T003 | Add interface signatures and result types | 2 | Setup | – | `/home/jak/substrate/028-pos-agentic-cli/packages/positional-graph/src/interfaces/positional-graph-service.interface.ts` | TypeScript compiles; StartNodeResult, CanEndResult, EndNodeResult exported | – | – |
+| [x] | T004 | Implement `startNode` in service | 2 | Core | T002, T003 | `/home/jak/substrate/028-pos-agentic-cli/packages/positional-graph/src/services/positional-graph.service.ts` | startNode tests pass; E172 for invalid transitions | – | – |
+| [x] | T005 | Implement `canEnd` in service | 2 | Core | T003 | `/home/jak/substrate/028-pos-agentic-cli/packages/positional-graph/src/services/positional-graph.service.ts` | canEnd tests pass | – | – |
+| [x] | T006 | Add CLI command `cg wf node can-end` | 2 | CLI | T005 | `/home/jak/substrate/028-pos-agentic-cli/apps/cli/src/commands/positional-graph.command.ts` | CLI builds; JSON output per workshop | – | – |
+| [x] | T007 | Add CLI command `cg wf node start` | 2 | CLI | T004 | `/home/jak/substrate/028-pos-agentic-cli/apps/cli/src/commands/positional-graph.command.ts` | CLI builds; JSON output per workshop | – | – |
+| [x] | T008 | Implement `endNode` in service | 3 | Core | T005 | `/home/jak/substrate/028-pos-agentic-cli/packages/positional-graph/src/services/positional-graph.service.ts` | endNode tests pass; E172 for non-running state | – | Per DYK #4 |
+| [x] | T009 | Write tests for `endNode` including state validation | 3 | Test | T001 | `/home/jak/substrate/028-pos-agentic-cli/test/unit/positional-graph/execution-lifecycle.test.ts` | Tests fail with "endNode not defined" (TDD RED) | – | AC-4 running required |
+| [x] | T010 | Add CLI command `cg wf node end` | 2 | CLI | T008 | `/home/jak/substrate/028-pos-agentic-cli/apps/cli/src/commands/positional-graph.command.ts` | CLI builds; JSON output per workshop | – | – |
+| [x] | T011 | Update `saveOutputData`/`saveOutputFile` to require running state | 2 | Core | T004 | `/home/jak/substrate/028-pos-agentic-cli/packages/positional-graph/src/services/positional-graph.service.ts`, `/home/jak/substrate/028-pos-agentic-cli/test/unit/positional-graph/output-storage.test.ts` | E176 returned if node not running; update existing tests | – | Per DYK #4 |
 
 ---
 
@@ -257,7 +262,7 @@ flowchart TD
 | #04: Double-start state machine violation | Strict state validation before every mutation; return E172 for invalid transitions | T001, T002, T004 |
 | #08: State transition logic needs centralized helper | Create private `transitionNodeState()` for atomic mutations | T002 |
 | #10: WorkUnit loader may be unavailable | Graceful degradation in `canEnd` if WorkUnit missing | T005 |
-| #11: Direct output pattern allows `end` without `start` | Accept both `running` and `ready`/`pending` as valid states for `endNode` | T008, T009 |
+| DYK #4: Running state required for outputs | `saveOutputData`/`saveOutputFile` return E176 if not running; `endNode` only accepts `running` state | T008, T009, Phase 2 update |
 
 ---
 
@@ -320,8 +325,6 @@ flowchart TD
     RUNNING -->|"askQuestion"| WAITING
     WAITING -->|"answerQuestion"| RUNNING
     RUNNING -->|"endNode (outputs saved)"| COMPLETE
-    READY -->|"endNode (direct output)"| COMPLETE
-    PENDING -->|"endNode (direct output)"| COMPLETE
     RUNNING -->|"error"| BLOCKED
 ```
 
@@ -360,7 +363,7 @@ sequenceDiagram
     CLI-->>Agent: JSON response
 ```
 
-#### Sequence: Direct Output Pattern
+#### Sequence: Running State Required (Error Path)
 
 ```mermaid
 sequenceDiagram
@@ -368,19 +371,21 @@ sequenceDiagram
     participant CLI
     participant Service
 
-    Note over Agent: No start needed for data-only nodes
+    Note over Agent: Agent forgets to call start first
+
+    Agent->>CLI: cg wf node save-output-data sample-e2e node-1 spec '"value"'
+    CLI->>Service: saveOutputData(...)
+    Service->>Service: Check current status (pending/ready)
+    Service-->>CLI: { saved: false, errors: [E176 NodeNotRunning] }
+    Note over Agent: Agent must call start first
+
+    Agent->>CLI: cg wf node start sample-e2e node-1
+    CLI->>Service: startNode(...)
+    Service-->>CLI: { status: "running" }
 
     Agent->>CLI: cg wf node save-output-data sample-e2e node-1 spec '"value"'
     CLI->>Service: saveOutputData(...)
     Service-->>CLI: { saved: true }
-
-    Agent->>CLI: cg wf node end sample-e2e node-1
-    CLI->>Service: endNode(ctx, "sample-e2e", "node-1")
-    Service->>Service: Check current status (pending/ready)
-    Service->>Service: canEnd() check - outputs present
-    Service->>Service: transitionNodeState("node-1", "complete")
-    Note over Service: Direct transition: pending/ready → complete
-    Service-->>CLI: { nodeId, status: "complete" }
 ```
 
 ---
@@ -419,7 +424,6 @@ sequenceDiagram
 |------|---------|----------|
 | `returns true when all outputs saved` | Happy path | canEnd: true, missingOutputs: [] |
 | `returns false with missing outputs` | AC-3 requirement | canEnd: false, missingOutputs: ['name'] |
-| `gracefully degrades if WorkUnit not found` | Finding #10 | canEnd: true with warning |
 | `returns E153 for unknown node` | Node validation | E153 |
 
 **Tests for `endNode` (T009):**
@@ -427,7 +431,7 @@ sequenceDiagram
 | Test | Purpose | Expected |
 |------|---------|----------|
 | `transitions from running to complete` | Normal end | status: 'complete', completedAt set |
-| `allows end without start when outputs saved` | AC-4 direct output | status: 'complete' |
+| `rejects end on pending/ready node with E172` | AC-4 running required | E172 |
 | `returns E175 when outputs missing` | AC-17 | E175 with missing list |
 | `rejects end on waiting-question with E172` | State machine | E172 |
 | `records completed_at timestamp` | AC-2 timestamp | ISO timestamp |
@@ -476,7 +480,6 @@ just fft
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
-| WorkUnit loader unavailable during canEnd | Low | Medium | Graceful degradation with warning (per Finding #10) |
 | State machine edge cases | Medium | High | Comprehensive test coverage in T001, T009 |
 | Concurrent access to state.json | Low | Medium | Atomic write pattern (existing) |
 
@@ -484,21 +487,19 @@ just fft
 
 ### Ready Check
 
-- [ ] Prior phases complete (Phase 1 ✅, Phase 2 ✅)
-- [ ] Error codes exist (E172, E175, E176 from Phase 1)
-- [ ] Output storage works (Phase 2 provides getOutputData for canEnd)
-- [ ] Test helpers available (stubWorkUnitLoader from Phase 1)
-- [ ] ADR constraints understood and mapped to tasks
+- [x] Prior phases complete (Phase 1 ✅, Phase 2 ✅)
+- [x] Error codes exist (E172, E175, E176 from Phase 1)
+- [x] Output storage works (Phase 2 provides getOutputData for canEnd)
+- [x] Test helpers available (stubWorkUnitLoader from Phase 1)
+- [x] ADR constraints understood and mapped to tasks
 
 ---
 
 ## Phase Footnote Stubs
 
-_To be populated by plan-6 during implementation._
-
 | Footnote | Description | Files Changed |
 |----------|-------------|---------------|
-| [^5] | Phase 3 - Node lifecycle implementation | _pending_ |
+| [^5] | Phase 3 - Node lifecycle implementation (22 tests, 3 service methods, 3 CLI commands) | execution-lifecycle.test.ts, positional-graph.service.ts, positional-graph-service.interface.ts, positional-graph.command.ts, output-storage.test.ts |
 
 ---
 
@@ -553,3 +554,17 @@ docs/plans/028-pos-agentic-cli/
           ├── tasks.fltplan.md   # Generated by /plan-5b
           └── execution.log.md   # Created by /plan-6
 ```
+
+---
+
+## Critical Insights (2026-02-03)
+
+| # | Insight | Decision |
+|---|---------|----------|
+| 1 | `startNode` doesn't need to call `canRun` — nodes are dumb executors | Validates state machine only; orchestrator owns readiness decisions |
+| 2 | `canEnd` serves CLI (display) and `endNode` (validation) with different needs | Returns structured `{ canEnd, savedOutputs, missingOutputs }` for both |
+| 3 | WorkUnit loader may be unavailable during `canEnd` | Not handling — assume WorkUnit always available |
+| 4 | Direct output pattern creates implicit state transition skipping `running` | Removed — `start` required before outputs; added T011 to update Phase 2 |
+| 5 | Missing `state.json.nodes[nodeId]` entry means implicit `pending` | `transitionNodeState` treats missing as pending, creates entry on first transition |
+
+Action items: T011 added to update Phase 2 output methods to require running state
