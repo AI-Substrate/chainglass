@@ -62,7 +62,7 @@ describe('LineDefinitionSchema', () => {
       nodes: [],
     });
     expect(line.id).toBe('line-a4f');
-    expect(line.transition).toBe('auto'); // default
+    expect(line.orchestratorSettings.transition).toBe('auto'); // default
     expect(line.label).toBeUndefined();
     expect(line.description).toBeUndefined();
     expect(line.nodes).toEqual([]);
@@ -73,11 +73,11 @@ describe('LineDefinitionSchema', () => {
       id: 'line-b7e',
       label: 'Processing',
       description: 'Main processing step',
-      transition: 'manual',
+      orchestratorSettings: { transition: 'manual' },
       nodes: ['sample-coder-c4d', 'sample-reviewer-d9a'],
     });
     expect(line.label).toBe('Processing');
-    expect(line.transition).toBe('manual');
+    expect(line.orchestratorSettings.transition).toBe('manual');
     expect(line.nodes).toHaveLength(2);
   });
 
@@ -101,7 +101,7 @@ describe('PositionalGraphDefinitionSchema', () => {
     slug: 'my-pipeline',
     version: '1.0.0',
     created_at: '2026-02-01T00:00:00Z',
-    lines: [{ id: 'line-a4f', transition: 'auto', nodes: [] }],
+    lines: [{ id: 'line-a4f', nodes: [] }],
   };
 
   it('parses a valid graph definition', () => {
@@ -252,25 +252,24 @@ describe('NodeConfigSchema', () => {
     const node = NodeConfigSchema.parse(validNode);
     expect(node.id).toBe('sample-coder-c4d');
     expect(node.unit_slug).toBe('sample-coder');
-    expect(node.execution).toBe('serial'); // default
+    expect(node.orchestratorSettings.execution).toBe('serial'); // default
     expect(node.description).toBeUndefined();
-    expect(node.config).toBeUndefined();
     expect(node.inputs).toBeUndefined();
   });
 
   it('parses full node with all fields', () => {
     const node = NodeConfigSchema.parse({
       ...validNode,
-      execution: 'parallel',
+      orchestratorSettings: { execution: 'parallel' },
       description: 'Main coding agent',
-      config: { model: 'claude-3' },
+      properties: { model: 'claude-3' },
       inputs: {
         spec: { from_unit: 'research-concept', from_output: 'summary' },
       },
     });
-    expect(node.execution).toBe('parallel');
+    expect(node.orchestratorSettings.execution).toBe('parallel');
     expect(node.description).toBe('Main coding agent');
-    expect(node.config).toEqual({ model: 'claude-3' });
+    expect(node.properties).toEqual({ model: 'claude-3' });
     expect(node.inputs).toBeDefined();
   });
 

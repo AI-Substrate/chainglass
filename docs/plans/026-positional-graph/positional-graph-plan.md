@@ -881,6 +881,21 @@ No layer-boundary violations. The positional graph package follows the same stru
   - `file:docs/how/positional-graph/2-cli-usage.md` (all cg wf commands, error codes)
   - Full suite: 2923 tests passed, 0 failures
 
+[^16]: Subtask 001 — Property Bags and Orchestrator Settings (13 tasks, 19 new tests)
+  - `file:packages/positional-graph/src/schemas/enums.schema.ts` (new — ExecutionSchema, TransitionModeSchema extracted)
+  - `file:packages/positional-graph/src/schemas/properties.schema.ts` (new — 3 open-bag schemas with .catchall)
+  - `file:packages/positional-graph/src/schemas/orchestrator-settings.schema.ts` (new — base + 3 entity-specific strict schemas)
+  - `file:packages/positional-graph/src/schemas/graph.schema.ts` (removed top-level transition, added properties/orchestratorSettings)
+  - `file:packages/positional-graph/src/schemas/node.schema.ts` (removed top-level execution/config, added properties/orchestratorSettings)
+  - `file:packages/positional-graph/src/schemas/index.ts` (re-exports all new schemas and types)
+  - `file:packages/positional-graph/src/interfaces/positional-graph-service.interface.ts` (removed old setters, added 6 update methods)
+  - `file:packages/positional-graph/src/services/positional-graph.service.ts` (backfill migration, 6 new methods, accessor pattern refactor)
+  - `file:packages/positional-graph/src/services/input-resolution.ts` (Gate 2/3 updated to orchestratorSettings)
+  - `file:apps/cli/src/commands/positional-graph.command.ts` (kubectl-style get/set, prototype pollution guard)
+  - `file:test/unit/positional-graph/properties-and-orchestrator.test.ts` (new — 19 tests)
+  - 6 existing test files updated for new schema shape
+  - Full suite: 2959 tests passed, 0 failures
+
 ---
 
 **Plan 026-positional-graph is COMPLETE.** All 7 phases implemented and verified.
@@ -894,3 +909,4 @@ Mid-implementation detours requiring structured tracking.
 | ID | Created | Phase | Parent Task | Reason | Status | Dossier |
 |----|---------|-------|-------------|--------|--------|---------|
 | 001-subtask-align-docs-with-execution-rules-workshop | 2026-02-01 | Phase 1: WorkUnit Type Extraction | T001-T006 (all) | Execution rules workshop introduced per-node execution model, getStatus API, E165 removal — spec/plan/prototype workshop need alignment before Phase 2 | [x] Complete | [Link](tasks/phase-1-workunit-type-extraction/001-subtask-align-docs-with-execution-rules-workshop.md) |
+| 001-subtask-property-bags-and-orchestrator-settings | 2026-02-03 | Phase 7: Integration Tests, E2E, and Documentation | Post-completion | Add properties (open bag) and orchestratorSettings (typed) fields to Graph, Line, and Node schemas | [x] Complete [^16] | [Link](tasks/phase-7-integration-tests-e2e-and-documentation/001-subtask-property-bags-and-orchestrator-settings.md) |

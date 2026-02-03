@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { ExecutionSchema } from './graph.schema.js';
+import { NodeOrchestratorSettingsSchema } from './orchestrator-settings.schema.js';
+import { NodePropertiesSchema } from './properties.schema.js';
 
 export const InputResolutionSchema = z.union([
   z.object({
@@ -16,10 +17,10 @@ export type InputResolution = z.infer<typeof InputResolutionSchema>;
 export const NodeConfigSchema = z.object({
   id: z.string().min(1),
   unit_slug: z.string().min(1),
-  execution: ExecutionSchema.default('serial'),
   description: z.string().optional(),
   created_at: z.string().datetime(),
-  config: z.record(z.unknown()).optional(),
   inputs: z.record(InputResolutionSchema).optional(),
+  properties: NodePropertiesSchema.default({}),
+  orchestratorSettings: NodeOrchestratorSettingsSchema.default({}),
 });
 export type NodeConfig = z.infer<typeof NodeConfigSchema>;

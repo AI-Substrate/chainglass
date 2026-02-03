@@ -127,7 +127,9 @@ describe('PositionalGraphService — Status API', () => {
       // [S, S, P, S] → starters at pos 0 and pos 2
       await service.addNode(ctx, 'test-graph', lineId, 'simple-task');
       await service.addNode(ctx, 'test-graph', lineId, 'simple-task');
-      await service.addNode(ctx, 'test-graph', lineId, 'simple-task', { execution: 'parallel' });
+      await service.addNode(ctx, 'test-graph', lineId, 'simple-task', {
+        orchestratorSettings: { execution: 'parallel' },
+      });
       await service.addNode(ctx, 'test-graph', lineId, 'simple-task');
 
       const lineStatus = await service.getLineStatus(ctx, 'test-graph', lineId);
@@ -262,7 +264,9 @@ describe('PositionalGraphService — Status API', () => {
 
     it('triggerTransition reflected in status', async () => {
       const { lineId: line0 } = await service.create(ctx, 'test-graph');
-      await service.setLineTransition(ctx, 'test-graph', line0, 'manual');
+      await service.updateLineOrchestratorSettings(ctx, 'test-graph', line0, {
+        transition: 'manual',
+      });
 
       const addLine1 = await service.addLine(ctx, 'test-graph');
       const line1 = addLine1.lineId as string;

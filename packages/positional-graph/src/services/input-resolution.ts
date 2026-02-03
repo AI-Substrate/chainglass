@@ -439,7 +439,7 @@ export function canRun(
   let waitingForTransition = false;
   if (lineIndex > 0) {
     const precedingLine = definition.lines[lineIndex - 1];
-    if (precedingLine.transition === 'manual') {
+    if (precedingLine.orchestratorSettings.transition === 'manual') {
       const trigger = state.transitions?.[precedingLine.id];
       if (!trigger?.triggered) {
         transitionOpen = false;
@@ -462,7 +462,7 @@ export function canRun(
   let serialNeighborComplete = true;
   let waitingForSerial: string | undefined;
 
-  if (nodeConfig.execution !== 'parallel' && nodePositionInLine > 0) {
+  if (nodeConfig.orchestratorSettings.execution !== 'parallel' && nodePositionInLine > 0) {
     const leftNeighborId = definition.lines[lineIndex].nodes[nodePositionInLine - 1];
     const leftNeighborState = state.nodes?.[leftNeighborId];
     if (!leftNeighborState || leftNeighborState.status !== 'complete') {

@@ -36,10 +36,25 @@ import {
   type LineDefinition,
   type PositionalGraphDefinition,
   PositionalGraphDefinitionSchema,
-  type TransitionMode,
 } from '../schemas/graph.schema.js';
-import type { Execution, InputResolution, NodeConfig, State } from '../schemas/index.js';
-import { NodeConfigSchema, StateSchema } from '../schemas/index.js';
+import type {
+  GraphOrchestratorSettings,
+  GraphProperties,
+  InputResolution,
+  LineOrchestratorSettings,
+  LineProperties,
+  NodeConfig,
+  NodeOrchestratorSettings,
+  NodeProperties,
+  State,
+} from '../schemas/index.js';
+import {
+  GraphOrchestratorSettingsSchema,
+  LineOrchestratorSettingsSchema,
+  NodeConfigSchema,
+  NodeOrchestratorSettingsSchema,
+  StateSchema,
+} from '../schemas/index.js';
 import { atomicWriteFile } from './atomic-file.js';
 import { generateLineId, generateNodeId } from './id-generation.js';
 import {
@@ -94,6 +109,23 @@ export class PositionalGraphService implements IPositionalGraphService {
           },
         ],
       };
+    }
+
+    // Backfill migration: move top-level transition into orchestratorSettings
+    if (
+      parsed &&
+      typeof parsed === 'object' &&
+      'lines' in parsed &&
+      Array.isArray((parsed as Record<string, unknown>).lines)
+    ) {
+      const rawGraph = parsed as Record<string, unknown>;
+      rawGraph.lines = (rawGraph.lines as Record<string, unknown>[]).map((line) => {
+        if ('transition' in line && !('orchestratorSettings' in line)) {
+          const { transition, ...rest } = line;
+          return { ...rest, orchestratorSettings: { transition } };
+        }
+        return line;
+      });
     }
 
     const validated = PositionalGraphDefinitionSchema.safeParse(parsed);
@@ -179,7 +211,21 @@ export class PositionalGraphService implements IPositionalGraphService {
 
     const content = await this.fs.readFile(nodePath);
     const parsed = this.yamlParser.parse(content, nodePath);
-    const validated = NodeConfigSchema.safeParse(parsed);
+
+    // Backfill migration: move top-level execution into orchestratorSettings, drop dead 'config'
+    let migrated = parsed;
+    if (parsed && typeof parsed === 'object') {
+      const raw = parsed as Record<string, unknown>;
+      if ('execution' in raw && !('orchestratorSettings' in raw)) {
+        const { execution, config: _config, ...rest } = raw;
+        migrated = { ...rest, orchestratorSettings: { execution } };
+      } else if ('config' in raw) {
+        const { config: _config, ...rest } = raw;
+        migrated = rest;
+      }
+    }
+
+    const validated = NodeConfigSchema.safeParse(migrated);
     if (!validated.success) {
       return {
         ok: false,
@@ -301,7 +347,16 @@ export class PositionalGraphService implements IPositionalGraphService {
       slug,
       version: '0.1.0',
       created_at: now,
-      lines: [{ id: lineId, transition: 'auto', nodes: [] }],
+      lines: [
+        {
+          id: lineId,
+          nodes: [],
+          properties: {},
+          orchestratorSettings: { transition: 'auto', autoStartLine: true },
+        },
+      ],
+      properties: {},
+      orchestratorSettings: {},
     };
 
     await this.persistGraph(ctx, slug, definition);
@@ -342,7 +397,7 @@ export class PositionalGraphService implements IPositionalGraphService {
         id: line.id,
         label: line.label,
         description: line.description,
-        transition: line.transition,
+        transition: line.orchestratorSettings.transition,
         nodeCount: line.nodes.length,
       };
     });
@@ -407,8 +462,12 @@ export class PositionalGraphService implements IPositionalGraphService {
 
     const newLine: LineDefinition = {
       id: lineId,
-      transition: options?.transition ?? 'auto',
       nodes: [],
+      properties: {},
+      orchestratorSettings: {
+        transition: options?.orchestratorSettings?.transition ?? 'auto',
+        autoStartLine: options?.orchestratorSettings?.autoStartLine ?? true,
+      },
     };
     if (options?.label) newLine.label = options.label;
     if (options?.description) newLine.description = options.description;
@@ -495,29 +554,6 @@ export class PositionalGraphService implements IPositionalGraphService {
     // Remove from current position and insert at new position
     def.lines.splice(found.index, 1);
     def.lines.splice(toIndex, 0, found.line);
-    await this.persistGraph(ctx, graphSlug, def);
-
-    return { errors: [] };
-  }
-
-  async setLineTransition(
-    ctx: WorkspaceContext,
-    graphSlug: string,
-    lineId: string,
-    transition: TransitionMode
-  ): Promise<BaseResult> {
-    const loaded = await this.loadGraphDefinition(ctx, graphSlug);
-    if (!loaded.ok) {
-      return { errors: loaded.errors };
-    }
-
-    const def = loaded.definition;
-    const found = this.findLine(def, lineId);
-    if (!found) {
-      return { errors: [lineNotFoundError(lineId)] };
-    }
-
-    found.line.transition = transition;
     await this.persistGraph(ctx, graphSlug, def);
 
     return { errors: [] };
@@ -615,8 +651,12 @@ export class PositionalGraphService implements IPositionalGraphService {
     const nodeConfig: import('../schemas/index.js').NodeConfig = {
       id: nodeId,
       unit_slug: unitSlug,
-      execution: options?.execution ?? 'serial',
       created_at: now,
+      properties: {},
+      orchestratorSettings: {
+        execution: options?.orchestratorSettings?.execution ?? 'serial',
+        waitForPrevious: options?.orchestratorSettings?.waitForPrevious ?? true,
+      },
     };
     if (options?.description) {
       nodeConfig.description = options.description;
@@ -730,34 +770,6 @@ export class PositionalGraphService implements IPositionalGraphService {
     return { errors: [] };
   }
 
-  async setNodeExecution(
-    ctx: WorkspaceContext,
-    graphSlug: string,
-    nodeId: string,
-    execution: Execution
-  ): Promise<BaseResult> {
-    // Verify node exists in graph
-    const loaded = await this.loadGraphDefinition(ctx, graphSlug);
-    if (!loaded.ok) {
-      return { errors: loaded.errors };
-    }
-    const nodeLocation = this.findNodeInGraph(loaded.definition, nodeId);
-    if (!nodeLocation) {
-      return { errors: [nodeNotFoundError(nodeId)] };
-    }
-
-    // Load, mutate, persist node config
-    const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
-    if (!nodeResult.ok) {
-      return { errors: nodeResult.errors };
-    }
-
-    nodeResult.config.execution = execution;
-    await this.persistNodeConfig(ctx, graphSlug, nodeId, nodeResult.config);
-
-    return { errors: [] };
-  }
-
   async showNode(
     ctx: WorkspaceContext,
     graphSlug: string,
@@ -783,7 +795,7 @@ export class PositionalGraphService implements IPositionalGraphService {
     return {
       nodeId: config.id,
       unitSlug: config.unit_slug,
-      execution: config.execution,
+      execution: config.orchestratorSettings.execution,
       description: config.description,
       lineId: nodeLocation.line.id,
       position: nodeLocation.nodePositionInLine,
@@ -1003,13 +1015,13 @@ export class PositionalGraphService implements IPositionalGraphService {
     const transitionOpen = (() => {
       if (nodeLocation.lineIndex === 0) return true;
       const precedingLine = def.lines[nodeLocation.lineIndex - 1];
-      if (precedingLine.transition !== 'manual') return true;
+      if (precedingLine.orchestratorSettings.transition !== 'manual') return true;
       const trigger = state.transitions?.[precedingLine.id];
       return !!trigger?.triggered;
     })();
 
     const serialNeighborComplete = (() => {
-      if (nodeConfig.execution === 'parallel') return true;
+      if (nodeConfig.orchestratorSettings.execution === 'parallel') return true;
       if (nodeLocation.nodePositionInLine === 0) return true;
       const leftId = nodeLocation.line.nodes[nodeLocation.nodePositionInLine - 1];
       const leftState = state.nodes?.[leftId];
@@ -1019,7 +1031,7 @@ export class PositionalGraphService implements IPositionalGraphService {
     return {
       nodeId,
       unitSlug: nodeConfig.unit_slug,
-      execution: nodeConfig.execution,
+      execution: nodeConfig.orchestratorSettings.execution,
       lineId: nodeLocation.line.id,
       position: nodeLocation.nodePositionInLine,
       status,
@@ -1064,7 +1076,7 @@ export class PositionalGraphService implements IPositionalGraphService {
     const transitionTriggered = (() => {
       if (lineIndex === 0) return false;
       const precedingLine = def.lines[lineIndex - 1];
-      if (precedingLine.transition !== 'manual') return false;
+      if (precedingLine.orchestratorSettings.transition !== 'manual') return false;
       const trigger = state.transitions?.[precedingLine.id];
       return !!trigger?.triggered;
     })();
@@ -1083,7 +1095,7 @@ export class PositionalGraphService implements IPositionalGraphService {
     const transitionOpen = (() => {
       if (lineIndex === 0) return true;
       const precedingLine = def.lines[lineIndex - 1];
-      if (precedingLine.transition !== 'manual') return true;
+      if (precedingLine.orchestratorSettings.transition !== 'manual') return true;
       const trigger = state.transitions?.[precedingLine.id];
       return !!trigger?.triggered;
     })();
@@ -1120,7 +1132,7 @@ export class PositionalGraphService implements IPositionalGraphService {
       lineId,
       label: line.label,
       index: lineIndex,
-      transition: line.transition,
+      transition: line.orchestratorSettings.transition,
       transitionTriggered,
       complete,
       empty,
@@ -1227,6 +1239,160 @@ export class PositionalGraphService implements IPositionalGraphService {
     };
 
     await this.persistState(ctx, graphSlug, state);
+
+    return { errors: [] };
+  }
+
+  // ============================================
+  // Properties & Orchestrator Settings (Subtask 001)
+  // ============================================
+
+  async updateGraphProperties(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    properties: Partial<GraphProperties>
+  ): Promise<BaseResult> {
+    const loaded = await this.loadGraphDefinition(ctx, graphSlug);
+    if (!loaded.ok) return { errors: loaded.errors };
+
+    const def = loaded.definition;
+    def.properties = { ...def.properties, ...properties };
+    await this.persistGraph(ctx, graphSlug, def);
+
+    return { errors: [] };
+  }
+
+  async updateLineProperties(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    lineId: string,
+    properties: Partial<LineProperties>
+  ): Promise<BaseResult> {
+    const loaded = await this.loadGraphDefinition(ctx, graphSlug);
+    if (!loaded.ok) return { errors: loaded.errors };
+
+    const found = this.findLine(loaded.definition, lineId);
+    if (!found) return { errors: [lineNotFoundError(lineId)] };
+
+    found.line.properties = { ...found.line.properties, ...properties };
+    await this.persistGraph(ctx, graphSlug, loaded.definition);
+
+    return { errors: [] };
+  }
+
+  async updateNodeProperties(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    properties: Partial<NodeProperties>
+  ): Promise<BaseResult> {
+    const loaded = await this.loadGraphDefinition(ctx, graphSlug);
+    if (!loaded.ok) return { errors: loaded.errors };
+
+    const nodeLocation = this.findNodeInGraph(loaded.definition, nodeId);
+    if (!nodeLocation) return { errors: [nodeNotFoundError(nodeId)] };
+
+    const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
+    if (!nodeResult.ok) return { errors: nodeResult.errors };
+
+    nodeResult.config.properties = { ...nodeResult.config.properties, ...properties };
+    await this.persistNodeConfig(ctx, graphSlug, nodeId, nodeResult.config);
+
+    return { errors: [] };
+  }
+
+  async updateGraphOrchestratorSettings(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    settings: Partial<GraphOrchestratorSettings>
+  ): Promise<BaseResult> {
+    const validated = GraphOrchestratorSettingsSchema.partial().safeParse(settings);
+    if (!validated.success) {
+      return {
+        errors: [
+          {
+            code: 'E170',
+            message: `Invalid orchestrator settings: ${validated.error.issues[0]?.message}`,
+            action: 'Check the orchestrator settings schema for valid keys',
+          },
+        ],
+      };
+    }
+
+    const loaded = await this.loadGraphDefinition(ctx, graphSlug);
+    if (!loaded.ok) return { errors: loaded.errors };
+
+    const def = loaded.definition;
+    def.orchestratorSettings = { ...def.orchestratorSettings, ...validated.data };
+    await this.persistGraph(ctx, graphSlug, def);
+
+    return { errors: [] };
+  }
+
+  async updateLineOrchestratorSettings(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    lineId: string,
+    settings: Partial<LineOrchestratorSettings>
+  ): Promise<BaseResult> {
+    const validated = LineOrchestratorSettingsSchema.partial().safeParse(settings);
+    if (!validated.success) {
+      return {
+        errors: [
+          {
+            code: 'E170',
+            message: `Invalid orchestrator settings: ${validated.error.issues[0]?.message}`,
+            action: 'Check the orchestrator settings schema for valid keys',
+          },
+        ],
+      };
+    }
+
+    const loaded = await this.loadGraphDefinition(ctx, graphSlug);
+    if (!loaded.ok) return { errors: loaded.errors };
+
+    const found = this.findLine(loaded.definition, lineId);
+    if (!found) return { errors: [lineNotFoundError(lineId)] };
+
+    found.line.orchestratorSettings = { ...found.line.orchestratorSettings, ...validated.data };
+    await this.persistGraph(ctx, graphSlug, loaded.definition);
+
+    return { errors: [] };
+  }
+
+  async updateNodeOrchestratorSettings(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    settings: Partial<NodeOrchestratorSettings>
+  ): Promise<BaseResult> {
+    const validated = NodeOrchestratorSettingsSchema.partial().safeParse(settings);
+    if (!validated.success) {
+      return {
+        errors: [
+          {
+            code: 'E170',
+            message: `Invalid orchestrator settings: ${validated.error.issues[0]?.message}`,
+            action: 'Check the orchestrator settings schema for valid keys',
+          },
+        ],
+      };
+    }
+
+    const loaded = await this.loadGraphDefinition(ctx, graphSlug);
+    if (!loaded.ok) return { errors: loaded.errors };
+
+    const nodeLocation = this.findNodeInGraph(loaded.definition, nodeId);
+    if (!nodeLocation) return { errors: [nodeNotFoundError(nodeId)] };
+
+    const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
+    if (!nodeResult.ok) return { errors: nodeResult.errors };
+
+    nodeResult.config.orchestratorSettings = {
+      ...nodeResult.config.orchestratorSettings,
+      ...validated.data,
+    };
+    await this.persistNodeConfig(ctx, graphSlug, nodeId, nodeResult.config);
 
     return { errors: [] };
   }

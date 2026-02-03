@@ -2,8 +2,14 @@ import type { BaseResult, ResultError } from '@chainglass/shared';
 import type { WorkspaceContext } from '@chainglass/workflow';
 import type {
   Execution,
+  GraphOrchestratorSettings,
+  GraphProperties,
   InputResolution,
+  LineOrchestratorSettings,
+  LineProperties,
   NodeExecutionStatus,
+  NodeOrchestratorSettings,
+  NodeProperties,
   PositionalGraphDefinition,
   TransitionMode,
 } from '../schemas/index.js';
@@ -77,6 +83,7 @@ export interface PGLoadResult extends BaseResult {
 /**
  * Lightweight display summary for CLI.
  * Per DYK-P3-I2: structural summary, no runtime status (Phase 5).
+ * DYK-I3: transition stays flat for display formatting compatibility.
  */
 export interface PGShowResult extends BaseResult {
   slug?: string;
@@ -116,7 +123,7 @@ export interface AddLineOptions {
   atIndex?: number;
   label?: string;
   description?: string;
-  transition?: TransitionMode;
+  orchestratorSettings?: Partial<LineOrchestratorSettings>;
 }
 
 // ============================================
@@ -126,7 +133,7 @@ export interface AddLineOptions {
 export interface AddNodeOptions {
   atPosition?: number;
   description?: string;
-  execution?: Execution;
+  orchestratorSettings?: Partial<NodeOrchestratorSettings>;
 }
 
 export interface MoveNodeOptions {
@@ -142,6 +149,9 @@ export interface AddNodeResult extends BaseResult {
   position?: number;
 }
 
+/**
+ * DYK-I3: execution stays flat for display formatting compatibility.
+ */
 export interface NodeShowResult extends BaseResult {
   nodeId?: string;
   unitSlug?: string;
@@ -223,6 +233,9 @@ export interface CanRunResult {
 /** Full computed or stored status for a node. */
 export type ExecutionStatus = 'pending' | 'ready' | NodeExecutionStatus; // 'running' | 'waiting-question' | 'blocked-error' | 'complete'
 
+/**
+ * DYK-I3: execution stays flat for display formatting compatibility.
+ */
 export interface NodeStatusResult {
   nodeId: string;
   unitSlug: string;
@@ -281,6 +294,9 @@ export interface StarterReadiness {
   reason?: string;
 }
 
+/**
+ * DYK-I3: transition stays flat for display formatting compatibility.
+ */
 export interface LineStatusResult {
   lineId: string;
   label?: string;
@@ -348,12 +364,6 @@ export interface IPositionalGraphService {
     lineId: string,
     toIndex: number
   ): Promise<BaseResult>;
-  setLineTransition(
-    ctx: WorkspaceContext,
-    graphSlug: string,
-    lineId: string,
-    transition: TransitionMode
-  ): Promise<BaseResult>;
   setLineLabel(
     ctx: WorkspaceContext,
     graphSlug: string,
@@ -387,12 +397,6 @@ export interface IPositionalGraphService {
     graphSlug: string,
     nodeId: string,
     description: string
-  ): Promise<BaseResult>;
-  setNodeExecution(
-    ctx: WorkspaceContext,
-    graphSlug: string,
-    nodeId: string,
-    execution: Execution
   ): Promise<BaseResult>;
   showNode(ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<NodeShowResult>;
 
@@ -429,4 +433,40 @@ export interface IPositionalGraphService {
 
   // Transition control (Phase 5)
   triggerTransition(ctx: WorkspaceContext, graphSlug: string, lineId: string): Promise<BaseResult>;
+
+  // Properties & Orchestrator Settings (Subtask 001)
+  updateGraphProperties(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    properties: Partial<GraphProperties>
+  ): Promise<BaseResult>;
+  updateLineProperties(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    lineId: string,
+    properties: Partial<LineProperties>
+  ): Promise<BaseResult>;
+  updateNodeProperties(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    properties: Partial<NodeProperties>
+  ): Promise<BaseResult>;
+  updateGraphOrchestratorSettings(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    settings: Partial<GraphOrchestratorSettings>
+  ): Promise<BaseResult>;
+  updateLineOrchestratorSettings(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    lineId: string,
+    settings: Partial<LineOrchestratorSettings>
+  ): Promise<BaseResult>;
+  updateNodeOrchestratorSettings(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    settings: Partial<NodeOrchestratorSettings>
+  ): Promise<BaseResult>;
 }

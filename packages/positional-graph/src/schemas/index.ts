@@ -1,14 +1,13 @@
+export { ExecutionSchema, TransitionModeSchema } from './enums.schema.js';
+export type { Execution, TransitionMode } from './enums.schema.js';
+
 export {
-  ExecutionSchema,
   LineDefinitionSchema,
   PositionalGraphDefinitionSchema,
-  TransitionModeSchema,
 } from './graph.schema.js';
 export type {
-  Execution,
   LineDefinition,
   PositionalGraphDefinition,
-  TransitionMode,
 } from './graph.schema.js';
 
 export { InputResolutionSchema, NodeConfigSchema } from './node.schema.js';
@@ -28,3 +27,27 @@ export type {
   State,
   TransitionEntry,
 } from './state.schema.js';
+
+export {
+  GraphPropertiesSchema,
+  LinePropertiesSchema,
+  NodePropertiesSchema,
+} from './properties.schema.js';
+export type {
+  GraphProperties,
+  LineProperties,
+  NodeProperties,
+} from './properties.schema.js';
+
+export {
+  BaseOrchestratorSettingsSchema,
+  GraphOrchestratorSettingsSchema,
+  LineOrchestratorSettingsSchema,
+  NodeOrchestratorSettingsSchema,
+} from './orchestrator-settings.schema.js';
+export type {
+  BaseOrchestratorSettings,
+  GraphOrchestratorSettings,
+  LineOrchestratorSettings,
+  NodeOrchestratorSettings,
+} from './orchestrator-settings.schema.js';
