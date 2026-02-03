@@ -252,22 +252,22 @@ describe('Execution Lifecycle Error Codes', () => {
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 2.1 | [ ] | Write tests for `saveOutputData` service method | 2 | Tests: saves value to data.json, merges with existing, handles JSON types | - | output-storage.test.ts |
-| 2.2 | [ ] | Implement `saveOutputData` in service | 2 | All tests from 2.1 pass; atomic write pattern used | - | positional-graph.service.ts |
-| 2.3 | [ ] | Add interface signature for `saveOutputData` | 1 | Interface updated; TypeScript compiles | - | positional-graph-service.interface.ts |
-| 2.4 | [ ] | Add CLI command `cg wf node save-output-data` | 2 | CLI invokes service method; JSON output per workshop | - | positional-graph.command.ts |
-| 2.5 | [ ] | Write tests for `saveOutputFile` with path validation | 3 | Tests: copies file, validates path traversal, creates files/ dir | - | output-storage.test.ts |
-| 2.6 | [ ] | Implement `saveOutputFile` in service | 3 | All tests from 2.5 pass; path containment check enforced | - | positional-graph.service.ts |
-| 2.6a | [ ] | Add interface signature for `saveOutputFile` | 1 | Interface updated; TypeScript compiles | - | positional-graph-service.interface.ts |
-| 2.7 | [ ] | Add CLI command `cg wf node save-output-file` | 2 | CLI invokes service; JSON output per workshop | - | positional-graph.command.ts |
-| 2.8 | [ ] | Write tests for `getOutputData` | 2 | Tests: reads from data.json, returns E175 if missing | - | output-storage.test.ts |
-| 2.9 | [ ] | Implement `getOutputData` in service | 2 | All tests from 2.8 pass | - | positional-graph.service.ts |
-| 2.9a | [ ] | Add interface signature for `getOutputData` | 1 | Interface updated; TypeScript compiles | - | positional-graph-service.interface.ts |
-| 2.10 | [ ] | Add CLI command `cg wf node get-output-data` | 2 | CLI invokes service; JSON output per workshop | - | positional-graph.command.ts |
-| 2.11 | [ ] | Write tests for `getOutputFile` | 2 | Tests: returns absolute path, E175 if missing | - | output-storage.test.ts |
-| 2.12 | [ ] | Implement `getOutputFile` in service | 2 | All tests from 2.11 pass | - | positional-graph.service.ts |
-| 2.12a | [ ] | Add interface signature for `getOutputFile` | 1 | Interface updated; TypeScript compiles | - | positional-graph-service.interface.ts |
-| 2.13 | [ ] | Add CLI command `cg wf node get-output-file` | 2 | CLI invokes service; JSON output per workshop | - | positional-graph.command.ts |
+| 2.1 | [x] | Write tests for `saveOutputData` service method | 2 | Tests: saves value to data.json, merges with existing, handles JSON types | [📋](tasks/phase-2-output-storage/execution.log.md#task-t001) | 21 tests for all 4 methods [^4] |
+| 2.2 | [x] | Implement `saveOutputData` in service | 2 | All tests from 2.1 pass; atomic write pattern used | [📋](tasks/phase-2-output-storage/execution.log.md#task-t003) | All 4 methods implemented [^4] |
+| 2.3 | [x] | Add interface signature for `saveOutputData` | 1 | Interface updated; TypeScript compiles | [📋](tasks/phase-2-output-storage/execution.log.md#task-t002) | 4 result types + 4 signatures [^4] |
+| 2.4 | [x] | Add CLI command `cg wf node save-output-data` | 2 | CLI invokes service method; JSON output per workshop | [📋](tasks/phase-2-output-storage/execution.log.md#tasks-t004-t008-t011-t014) | Complete [^4] |
+| 2.5 | [x] | Write tests for `saveOutputFile` with path validation | 3 | Tests: copies file, validates path traversal, creates files/ dir | [📋](tasks/phase-2-output-storage/execution.log.md#task-t001) | Included in T001 [^4] |
+| 2.6 | [x] | Implement `saveOutputFile` in service | 3 | All tests from 2.5 pass; path containment check enforced | [📋](tasks/phase-2-output-storage/execution.log.md#task-t003) | Implemented with T003 [^4] |
+| 2.6a | [x] | Add interface signature for `saveOutputFile` | 1 | Interface updated; TypeScript compiles | [📋](tasks/phase-2-output-storage/execution.log.md#task-t002) | Included in T002 [^4] |
+| 2.7 | [x] | Add CLI command `cg wf node save-output-file` | 2 | CLI invokes service; JSON output per workshop | [📋](tasks/phase-2-output-storage/execution.log.md#tasks-t004-t008-t011-t014) | Complete [^4] |
+| 2.8 | [x] | Write tests for `getOutputData` | 2 | Tests: reads from data.json, returns E175 if missing | [📋](tasks/phase-2-output-storage/execution.log.md#task-t001) | Included in T001 [^4] |
+| 2.9 | [x] | Implement `getOutputData` in service | 2 | All tests from 2.8 pass | [📋](tasks/phase-2-output-storage/execution.log.md#task-t003) | Implemented with T003 [^4] |
+| 2.9a | [x] | Add interface signature for `getOutputData` | 1 | Interface updated; TypeScript compiles | [📋](tasks/phase-2-output-storage/execution.log.md#task-t002) | Included in T002 [^4] |
+| 2.10 | [x] | Add CLI command `cg wf node get-output-data` | 2 | CLI invokes service; JSON output per workshop | [📋](tasks/phase-2-output-storage/execution.log.md#tasks-t004-t008-t011-t014) | Complete [^4] |
+| 2.11 | [x] | Write tests for `getOutputFile` | 2 | Tests: returns absolute path, E175 if missing | [📋](tasks/phase-2-output-storage/execution.log.md#task-t001) | Included in T001 [^4] |
+| 2.12 | [x] | Implement `getOutputFile` in service | 2 | All tests from 2.11 pass | [📋](tasks/phase-2-output-storage/execution.log.md#task-t003) | Implemented with T003 [^4] |
+| 2.12a | [x] | Add interface signature for `getOutputFile` | 1 | Interface updated; TypeScript compiles | [📋](tasks/phase-2-output-storage/execution.log.md#task-t002) | Included in T002 [^4] |
+| 2.13 | [x] | Add CLI command `cg wf node get-output-file` | 2 | CLI invokes service; JSON output per workshop | [📋](tasks/phase-2-output-storage/execution.log.md#tasks-t004-t008-t011-t014) | Complete [^4] |
 
 #### Test Examples
 
@@ -692,7 +692,7 @@ describe('getInputData', () => {
 
 ### Phase Completion Checklist
 - [x] Phase 1: Foundation - Error Codes and Schemas - Complete
-- [ ] Phase 2: Output Storage - [Status]
+- [x] Phase 2: Output Storage - Complete (21 tests, 4 service methods, 4 CLI commands)
 - [ ] Phase 3: Node Lifecycle - [Status]
 - [ ] Phase 4: Question/Answer Protocol - [Status]
 - [ ] Phase 5: Input Retrieval - [Status]
@@ -731,3 +731,17 @@ describe('getInputData', () => {
 
 [^3]: Phase 1 - Test helper stubWorkUnitLoader
   - `file:test/unit/positional-graph/test-helpers.ts` - stubWorkUnitLoader, createWorkUnit, testFixtures
+
+### Phase 2: Output Storage
+
+[^4]: Phase 2 - Output storage implementation (TDD - 21 tests, 4 service methods, 4 CLI commands)
+  - `file:test/unit/positional-graph/output-storage.test.ts` - 21 tests (saveOutputData 6, saveOutputFile 7, getOutputData 4, getOutputFile 4)
+  - `file:packages/positional-graph/src/interfaces/positional-graph-service.interface.ts` - SaveOutputDataResult, SaveOutputFileResult, GetOutputDataResult, GetOutputFileResult + 4 method signatures
+  - `method:packages/positional-graph/src/services/positional-graph.service.ts:PositionalGraphService.saveOutputData` - Atomic write to data.json
+  - `method:packages/positional-graph/src/services/positional-graph.service.ts:PositionalGraphService.saveOutputFile` - File copy with path traversal prevention
+  - `method:packages/positional-graph/src/services/positional-graph.service.ts:PositionalGraphService.getOutputData` - Read value from data.json
+  - `method:packages/positional-graph/src/services/positional-graph.service.ts:PositionalGraphService.getOutputFile` - Resolve relative to absolute path
+  - `function:apps/cli/src/commands/positional-graph.command.ts:handleSaveOutputData` - CLI handler
+  - `function:apps/cli/src/commands/positional-graph.command.ts:handleSaveOutputFile` - CLI handler
+  - `function:apps/cli/src/commands/positional-graph.command.ts:handleGetOutputData` - CLI handler
+  - `function:apps/cli/src/commands/positional-graph.command.ts:handleGetOutputFile` - CLI handler
