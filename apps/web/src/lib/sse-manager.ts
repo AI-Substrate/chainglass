@@ -73,7 +73,7 @@ export class SSEManager {
     // Named SSE events require addEventListener() which useSSE doesn't use.
     const payload =
       typeof data === 'object' && data !== null
-        ? { type: eventType, ...data }
+        ? { ...(data as Record<string, unknown>), type: eventType }
         : { type: eventType, data };
     const message = `data: ${JSON.stringify(payload)}\n\n`;
     const encoded = this.encoder.encode(message);

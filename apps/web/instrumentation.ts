@@ -8,7 +8,9 @@
  */
 
 export async function register() {
-  // CentralWatcherService uses Node.js APIs (chokidar, fs) — skip on Edge runtime
+  // CentralWatcherService uses Node.js APIs (chokidar, fs) — skip on Edge runtime.
+  // console.log is intentional: this runs at process startup before the DI container
+  // or ILogger are available. It's a one-time breadcrumb in the host process logs.
   if (process.env.NEXT_RUNTIME === 'nodejs') {
     console.log('[central-notifications] instrumentation.register() called');
     const { startCentralNotificationSystem } = await import(

@@ -681,6 +681,7 @@ and create the documentation guide.
 |-----|--------|----------------|-------|
 | ADR-0004 (DI Architecture) | Accepted | 1, 2 | `useFactory` pattern, child container isolation, token naming |
 | ADR-0007 (SSE Routing) | Accepted | 2, 3 | Notification-fetch pattern, single channel per domain |
+| ADR-0010 (Central Domain Event Notification Architecture) | Accepted | 1, 2, 3, 4 | Core signpost: watcher → adapter → notifier → SSE architecture |
 | ADR-0008 (Workspace Storage) | Accepted | 3 | Data path structure for workgraph detection |
 | ADR-0009 (Module Registration) | Accepted | 2 | `registerXxxServices()` pattern for DI composition |
 

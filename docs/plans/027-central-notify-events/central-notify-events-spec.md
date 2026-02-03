@@ -123,6 +123,10 @@ All resolved — see [Clarifications](#clarifications) below.
   - C) Just use strings with a type guard (minimal structure)
 - **Stakeholders**: Core development team
 
+## ADRs
+
+- ADR-0010: Central Domain Event Notification Architecture (2026-02-03) -- status: Accepted
+
 ## Workshop Opportunities
 
 | Topic | Type | Why Workshop | Key Questions |

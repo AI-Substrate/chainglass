@@ -15,6 +15,7 @@ Architecture Decision Records (ADRs) document significant architectural decision
 | 0007 | [SSE Single-Channel Event Routing Pattern](./adr-0007-sse-single-channel-routing.md) | 2026-01-26 | Accepted | - | - | **Exemplar for multi-session SSE** |
 | 0008 | [Workspace Split Storage Data Model](./adr-0008-workspace-split-storage-data-model.md) | 2026-01-27 | Accepted | - | - | Git-native per-worktree data architecture |
 | 0009 | [Module Registration Function Pattern](./adr-0009-module-registration-function-pattern.md) | 2026-01-28 | Accepted | - | - | Extends ADR-0004 for module composition |
+| 0010 | [Central Domain Event Notification Architecture](./adr-0010-central-domain-event-notification-architecture.md) | 2026-02-03 | Accepted | - | - | Core signpost for domain event system (Plan 027) |
 
 ## ADR Format
 

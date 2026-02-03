@@ -47,7 +47,7 @@ const AGENTS_CHANNEL = 'agents';
  * @deprecated Future migration to domain event adapters via {@link CentralEventNotifierService}
  * is planned. When an agent domain adapter is created, it will replace this service with
  * filesystem-driven notifications through the central event system (Plan 027).
- * See `docs/how/central-events/1-architecture.md` for the adapter pattern.
+ * See `docs/how/dev/central-events/3-adapters.md` for the adapter pattern.
  */
 export class AgentNotifierService implements IAgentNotifierService {
   constructor(private readonly broadcaster: ISSEBroadcaster) {}
