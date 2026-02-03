@@ -1,0 +1,1 @@
+../../../apps/web/src/lib/di-container.ts

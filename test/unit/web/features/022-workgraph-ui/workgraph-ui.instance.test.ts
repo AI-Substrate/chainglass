@@ -372,8 +372,8 @@ describe('WorkGraphUIInstance Real Implementation (T009)', () => {
       );
 
       expect(instance.nodes.get('start')?.position).toEqual({ x: 100, y: 0 });
-      expect(instance.nodes.get('node-1')?.position).toEqual({ x: 100, y: 150 });
-      expect(instance.nodes.get('node-2')?.position).toEqual({ x: 100, y: 300 });
+      expect(instance.nodes.get('node-1')?.position).toEqual({ x: 100, y: 250 });
+      expect(instance.nodes.get('node-2')?.position).toEqual({ x: 100, y: 500 });
     });
 
     it('should build edges array from definition', () => {

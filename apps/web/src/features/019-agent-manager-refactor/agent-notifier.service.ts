@@ -43,6 +43,11 @@ const AGENTS_CHANNEL = 'agents';
  * to ISSEBroadcaster for actual transmission.
  *
  * Per ADR-0007 IMP-001: All events include agentId for client-side filtering.
+ *
+ * @deprecated Future migration to domain event adapters via {@link CentralEventNotifierService}
+ * is planned. When an agent domain adapter is created, it will replace this service with
+ * filesystem-driven notifications through the central event system (Plan 027).
+ * See `docs/how/dev/central-events/3-adapters.md` for the adapter pattern.
  */
 export class AgentNotifierService implements IAgentNotifierService {
   constructor(private readonly broadcaster: ISSEBroadcaster) {}

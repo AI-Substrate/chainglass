@@ -154,6 +154,9 @@ export class WorkGraphUIInstance implements IWorkGraphUIInstance {
   // For position tracking of nodes (Phase 3)
   private nodePositions: Map<string, Position> = new Map();
 
+  // Unit slug mapping from status result (nodeId -> unit slug)
+  private nodeUnitMap: Map<string, string> = new Map();
+
   // Counter for generating unique node IDs
   private static nodeIdCounter = 0;
 
@@ -208,6 +211,11 @@ export class WorkGraphUIInstance implements IWorkGraphUIInstance {
     const nodes: Record<string, StoredNodeState> = {};
 
     for (const nodeStatus of statusResult.nodes) {
+      // Track unit slug for each node
+      if (nodeStatus.unit) {
+        this.nodeUnitMap.set(nodeStatus.id, nodeStatus.unit);
+      }
+
       // Only store non-computed statuses
       if (
         ['running', 'waiting-question', 'blocked-error', 'complete'].includes(nodeStatus.status)
@@ -250,12 +258,14 @@ export class WorkGraphUIInstance implements IWorkGraphUIInstance {
       const status = computedStatuses.get(nodeId) ?? 'pending';
 
       // Per DYK#1: Default positions via vertical cascade
-      const position: Position = { x: 100, y: index * 150 };
+      // Increased spacing for redesigned nodes with output ports
+      const position: Position = { x: 100, y: index * 250 };
 
       const nodeState: UINodeState = {
         id: nodeId,
         status,
         position,
+        unit: this.nodeUnitMap.get(nodeId),
         type: nodeId === 'start' ? 'start' : undefined,
         questionId: storedState?.question_id,
       };
