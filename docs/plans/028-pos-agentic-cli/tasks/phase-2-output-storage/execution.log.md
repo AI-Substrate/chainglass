@@ -153,3 +153,47 @@ CLI builds and help displays correctly.
 
 ---
 
+## Code Review Fixes
+**Started**: 2026-02-03
+**Status**: ✅ Complete
+
+### Issues Addressed
+
+**F01: Missing interface exports (Critical)**
+- Added 4 result type exports to `interfaces/index.ts`:
+  - `GetOutputDataResult`
+  - `GetOutputFileResult`
+  - `SaveOutputDataResult`
+  - `SaveOutputFileResult`
+
+**F02: Incomplete path traversal prevention (Critical)**
+- Enhanced `saveOutputFile` security:
+  - Added rejection of `/` and `\` in output names (not just `..`)
+  - Added `resolvePath()` call with try/catch for containment checking
+  - Added explicit normalization-based containment verification
+  - Destination path must start with normalized outputsDir prefix
+
+**F03: fileNotFoundError() signature mismatch (Critical)**
+- Updated `fileNotFoundError()` to accept optional `reason` parameter
+- Signature: `fileNotFoundError(sourcePath: string, reason?: string): ResultError`
+- When reason provided: `"File error for '<path>': <reason>"`
+- When no reason: `"Source file not found: <path>"` (backward compatible)
+
+### Evidence
+```
+pnpm typecheck - passes
+pnpm test -- --run test/unit/positional-graph/output-storage.test.ts
+ ✓ test/unit/positional-graph/output-storage.test.ts (21 tests) 37ms
+ Test Files  1 passed (1)
+      Tests  21 passed (21)
+```
+
+### Files Changed
+- `packages/positional-graph/src/interfaces/index.ts` — Added 4 exports
+- `packages/positional-graph/src/errors/positional-graph-errors.ts` — Updated fileNotFoundError signature
+- `packages/positional-graph/src/services/positional-graph.service.ts` — Enhanced path traversal prevention
+
+**Completed**: 2026-02-03
+
+---
+

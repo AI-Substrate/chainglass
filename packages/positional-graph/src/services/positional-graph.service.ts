@@ -1467,11 +1467,11 @@ export class PositionalGraphService implements IPositionalGraphService {
     outputName: string,
     sourcePath: string
   ): Promise<SaveOutputFileResult> {
-    // Security: reject path traversal in output name
-    if (outputName.includes('..')) {
+    // Security: reject path traversal patterns in output name
+    if (outputName.includes('..') || outputName.includes('/') || outputName.includes('\\')) {
       return {
         saved: false,
-        errors: [fileNotFoundError(outputName, 'Output name contains invalid path traversal')],
+        errors: [fileNotFoundError(outputName, 'Output name contains invalid characters')],
       };
     }
 
@@ -1507,9 +1507,30 @@ export class PositionalGraphService implements IPositionalGraphService {
       await this.fs.mkdir(outputsDir, { recursive: true });
     }
 
-    // Extract filename and extension from source
+    // Extract filename from source and construct destination path
     const sourceFilename = this.pathResolver.basename(sourcePath);
-    const destPath = this.pathResolver.join(outputsDir, sourceFilename);
+
+    // Security: Use resolvePath for containment check
+    // This throws PathSecurityError if the resolved path escapes outputsDir
+    let destPath: string;
+    try {
+      destPath = this.pathResolver.resolvePath(outputsDir, sourceFilename);
+    } catch {
+      return {
+        saved: false,
+        errors: [fileNotFoundError(sourceFilename, 'Filename would escape output directory')],
+      };
+    }
+
+    // Additional containment verification: destPath must start with outputsDir
+    const normalizedDest = this.pathResolver.normalize(destPath);
+    const normalizedBase = this.pathResolver.normalize(outputsDir);
+    if (!normalizedDest.startsWith(normalizedBase)) {
+      return {
+        saved: false,
+        errors: [fileNotFoundError(sourceFilename, 'Destination path escapes output directory')],
+      };
+    }
 
     // Copy file
     const content = await this.fs.readFile(sourcePath);

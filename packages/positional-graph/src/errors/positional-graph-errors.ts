@@ -258,10 +258,13 @@ export function inputNotAvailableError(inputName: string, reason: string): Resul
   };
 }
 
-export function fileNotFoundError(sourcePath: string): ResultError {
+export function fileNotFoundError(sourcePath: string, reason?: string): ResultError {
+  const message = reason
+    ? `File error for '${sourcePath}': ${reason}`
+    : `Source file not found: ${sourcePath}`;
   return {
     code: POSITIONAL_GRAPH_ERROR_CODES.E179,
-    message: `Source file not found: ${sourcePath}`,
+    message,
     action: 'Verify file path exists and is accessible',
   };
 }

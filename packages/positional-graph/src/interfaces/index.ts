@@ -8,6 +8,8 @@ export type {
   CanRunResult,
   ErrorInput,
   ExecutionStatus,
+  GetOutputDataResult,
+  GetOutputFileResult,
   GraphCreateResult,
   GraphStatusResult,
   InputEntry,
@@ -24,6 +26,8 @@ export type {
   PGListResult,
   PGLoadResult,
   PGShowResult,
+  SaveOutputDataResult,
+  SaveOutputFileResult,
   StarterReadiness,
   WaitingInput,
 } from './positional-graph-service.interface.js';
