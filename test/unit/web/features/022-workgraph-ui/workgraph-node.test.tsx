@@ -45,15 +45,15 @@ describe('WorkGraphNode', () => {
   };
 
   /**
-   * Test: Render node with ID
+   * Test: Render node with unit title
    *
-   * Purpose: Proves node displays its identifier
-   * Quality Contribution: Users can identify nodes
-   * Acceptance Criteria: Node ID visible in rendered output
+   * Purpose: Proves node displays its unit slug as title
+   * Quality Contribution: Users can identify nodes by their unit
+   * Acceptance Criteria: Unit slug visible in rendered output
    */
-  test('should render node with ID', () => {
-    renderWithProvider({ ...baseProps, data: { ...baseProps.data, id: 'my-node-id' } });
-    expect(screen.getByText('my-node-id')).toBeInTheDocument();
+  test('should render node with unit title', () => {
+    renderWithProvider({ ...baseProps, data: { ...baseProps.data, unit: 'my-node-unit' } });
+    expect(screen.getByText('my-node-unit')).toBeInTheDocument();
   });
 
   /**
@@ -120,7 +120,12 @@ describe('WorkGraphNode', () => {
   test('should render user-input node with distinct icon', () => {
     renderWithProvider({
       ...baseProps,
-      data: { ...baseProps.data, unit: 'user-input', status: 'ready' as NodeStatus },
+      data: {
+        ...baseProps.data,
+        unit: 'user-input',
+        unitType: 'user-input',
+        status: 'ready' as NodeStatus,
+      },
     });
     // User-input nodes should have a distinct visual marker
     expect(screen.getByTestId('user-input-icon')).toBeInTheDocument();

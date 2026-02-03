@@ -44,9 +44,7 @@ export default async function WorkGraphDetailPage({ params, searchParams }: Page
     WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE
   );
   const workgraphService = container.resolve<IWorkGraphUIService>(DI_TOKENS.WORKGRAPH_UI_SERVICE);
-  const workUnitService = container.resolve<IWorkUnitService>(
-    WORKGRAPH_DI_TOKENS.WORKUNIT_SERVICE
-  );
+  const workUnitService = container.resolve<IWorkUnitService>(WORKGRAPH_DI_TOKENS.WORKUNIT_SERVICE);
   const workGraphBackend = container.resolve<IWorkGraphService>(
     WORKGRAPH_DI_TOKENS.WORKGRAPH_SERVICE
   );

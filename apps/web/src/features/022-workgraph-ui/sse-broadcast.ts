@@ -21,6 +21,11 @@ const GRAPH_UPDATED_EVENT = 'graph-updated';
  * Per ADR-0007: This is a notification only - no data payload.
  * Clients should call instance.refresh() to fetch latest state.
  *
+ * @deprecated Use {@link WorkgraphDomainEventAdapter} via {@link CentralEventNotifierService}
+ * instead. The central domain event system (Plan 027) provides automatic filesystem-driven
+ * notifications through domain event adapters. See `docs/how/central-events/1-architecture.md`
+ * for the migration path and how to add new domain adapters.
+ *
  * @param graphSlug - The slug of the graph that was updated
  */
 export function broadcastGraphUpdated(graphSlug: string): void {

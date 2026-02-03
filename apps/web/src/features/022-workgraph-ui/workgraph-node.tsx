@@ -16,8 +16,8 @@ import type React from 'react';
 import { memo } from 'react';
 import { StatusIndicator } from './status-indicator';
 import type { NodePortDeclaration, WorkGraphNodeData } from './use-workgraph-flow';
-import type { NodeStatus } from './workgraph-ui.types';
 import { useWorkGraphNodeActions } from './workgraph-node-actions-context';
+import type { NodeStatus } from './workgraph-ui.types';
 
 /**
  * Props for WorkGraphNode component.
@@ -56,11 +56,11 @@ const statusBgTints: Record<NodeStatus, string> = {
 function UnitTypeIcon({ unitType, className }: { unitType?: string; className?: string }) {
   switch (unitType) {
     case 'agent':
-      return <Bot className={className} />;
+      return <Bot className={className} data-testid="agent-icon" />;
     case 'code':
-      return <Code className={className} />;
+      return <Code className={className} data-testid="code-icon" />;
     case 'user-input':
-      return <UserPen className={className} />;
+      return <UserPen className={className} data-testid="user-input-icon" />;
     default:
       return null;
   }

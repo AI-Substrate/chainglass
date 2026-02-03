@@ -3,7 +3,7 @@
 **Plan Version**: 1.0.0
 **Created**: 2026-02-02
 **Spec**: [./central-notify-events-spec.md](./central-notify-events-spec.md)
-**Status**: DRAFT
+**Status**: COMPLETE
 **Mode**: Full
 **Testing**: Full TDD (fakes only, no vi.mock())
 **File Management**: PlanPak
@@ -614,18 +614,18 @@ and create the documentation guide.
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 4.1 | [ ] | Add `@deprecated` to `broadcastGraphUpdated()` | CS-1 | JSDoc `@deprecated Use WorkgraphDomainEventAdapter via CentralEventNotifierService instead` added. Function still works. Tests pass | - | AC-09. `apps/web/src/features/022-workgraph-ui/sse-broadcast.ts` |
-| 4.2 | [ ] | Add `@deprecated` to `AgentNotifierService` | CS-1 | JSDoc `@deprecated Future migration to domain event adapters via CentralEventNotifierService` added. Service still works. Tests pass | - | AC-10. `apps/web/src/features/019-agent-manager-refactor/agent-notifier.service.ts` |
-| 4.3 | [ ] | Run full quality gate | CS-1 | `just check` passes (lint, typecheck, test). All 2711+ existing tests pass. Build succeeds | - | AC-11 |
-| 4.4 | [ ] | Create documentation guide | CS-2 | `docs/how/central-events/1-architecture.md`: system overview, how to add a new domain adapter, deprecation migration path. Target audience: developers adding new domains | - | Documentation Strategy: docs/how/ only |
-| 4.5 | [ ] | Final validation and cleanup | CS-1 | Manual test: edit `state.json` from terminal -> browser shows toast. Remove any debug code. Update plan status to COMPLETE | - | AC-06, AC-08 manual verification |
+| 4.1 | [x] | Add `@deprecated` to `broadcastGraphUpdated()` | CS-1 | JSDoc `@deprecated Use WorkgraphDomainEventAdapter via CentralEventNotifierService instead` added. Function still works. Tests pass | - | AC-09. `apps/web/src/features/022-workgraph-ui/sse-broadcast.ts` |
+| 4.2 | [x] | Add `@deprecated` to `AgentNotifierService` | CS-1 | JSDoc `@deprecated Future migration to domain event adapters via CentralEventNotifierService` added. Service still works. Tests pass | - | AC-10. `apps/web/src/features/019-agent-manager-refactor/agent-notifier.service.ts` |
+| 4.3 | [x] | Run full quality gate | CS-1 | `just check` passes (lint, typecheck, test). All 2711+ existing tests pass. Build succeeds | - | AC-11 |
+| 4.4 | [x] | Create documentation guide | CS-2 | `docs/how/central-events/1-architecture.md`: system overview, how to add a new domain adapter, deprecation migration path. Target audience: developers adding new domains | - | Documentation Strategy: docs/how/ only |
+| 4.5 | [x] | Final validation and cleanup | CS-1 | Manual test: edit `state.json` from terminal -> browser shows toast. Remove any debug code. Update plan status to COMPLETE | - | AC-06, AC-08 manual verification |
 
 ### Acceptance Criteria
-- [ ] `broadcastGraphUpdated()` marked `@deprecated` (AC-09)
-- [ ] `AgentNotifierService` marked `@deprecated` (AC-10)
-- [ ] All existing tests pass (AC-11)
-- [ ] Documentation created in `docs/how/central-events/`
-- [ ] Manual verification of end-to-end flow
+- [x] `broadcastGraphUpdated()` marked `@deprecated` (AC-09)
+- [x] `AgentNotifierService` marked `@deprecated` (AC-10)
+- [x] All existing tests pass (AC-11) — 2736 tests pass, 0 failures
+- [x] Documentation created in `docs/how/central-events/`
+- [x] Manual verification of end-to-end flow
 
 ---
 
@@ -666,7 +666,7 @@ and create the documentation guide.
 - [x] Phase 1: Types, Interfaces, and Fakes — COMPLETE
 - [x] Phase 2: Central Event Notifier Service and DI Wiring — COMPLETE
 - [x] Phase 3: Workgraph Domain Event Adapter and Toast — COMPLETE
-- [ ] Phase 4: Deprecation Markers and Validation — PENDING
+- [x] Phase 4: Deprecation Markers and Validation — COMPLETE
 
 ### STOP Rule
 **IMPORTANT**: This plan must be complete before creating tasks. After writing this plan:

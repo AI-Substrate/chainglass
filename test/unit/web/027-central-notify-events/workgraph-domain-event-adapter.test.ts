@@ -17,8 +17,8 @@ import {
   FakeCentralEventNotifier,
   WorkspaceDomain,
 } from '@chainglass/shared/features/027-central-notify-events';
-import { describe, beforeEach, expect, it } from 'vitest';
 import { DomainEventAdapter } from '@chainglass/shared/features/027-central-notify-events/domain-event-adapter';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { WorkgraphDomainEventAdapter } from '../../../../apps/web/src/features/027-central-notify-events/workgraph-domain-event-adapter';
 
 // === Trivial TestAdapter for base class contract tests ===
@@ -167,7 +167,8 @@ describe('WorkgraphDomainEventAdapter', () => {
     });
 
     const data = notifier.emittedEvents[0]?.data;
+    expect(data).toBeDefined();
     expect(data).toEqual({ graphSlug: 'g1' });
-    expect(Object.keys(data!)).toEqual(['graphSlug']);
+    expect(Object.keys(data as Record<string, unknown>)).toEqual(['graphSlug']);
   });
 });
