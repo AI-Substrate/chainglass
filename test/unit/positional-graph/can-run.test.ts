@@ -158,7 +158,9 @@ describe('PositionalGraphService — canRun (via getNodeStatus)', () => {
     it('manual transition blocks until triggered', async () => {
       const { lineId: line0 } = await service.create(ctx, 'test-graph');
       // Set line 0 to manual transition
-      await service.setLineTransition(ctx, 'test-graph', line0, 'manual');
+      await service.updateLineOrchestratorSettings(ctx, 'test-graph', line0, {
+        transition: 'manual',
+      });
 
       const addLine1 = await service.addLine(ctx, 'test-graph');
       const line1 = addLine1.lineId as string;
@@ -188,7 +190,9 @@ describe('PositionalGraphService — canRun (via getNodeStatus)', () => {
 
     it('manual transition passes after trigger', async () => {
       const { lineId: line0 } = await service.create(ctx, 'test-graph');
-      await service.setLineTransition(ctx, 'test-graph', line0, 'manual');
+      await service.updateLineOrchestratorSettings(ctx, 'test-graph', line0, {
+        transition: 'manual',
+      });
 
       const addLine1 = await service.addLine(ctx, 'test-graph');
       const line1 = addLine1.lineId as string;
@@ -242,7 +246,7 @@ describe('PositionalGraphService — canRun (via getNodeStatus)', () => {
 
       await service.addNode(ctx, 'test-graph', lineId, 'simple-task');
       const node1 = await service.addNode(ctx, 'test-graph', lineId, 'simple-task', {
-        execution: 'parallel',
+        orchestratorSettings: { execution: 'parallel' },
       });
 
       const status = await service.getNodeStatus(ctx, 'test-graph', node1.nodeId as string);

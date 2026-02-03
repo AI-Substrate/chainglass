@@ -6,13 +6,15 @@
  *
  * Commands:
  * - cg wf create <slug>                              - Create new positional graph
- * - cg wf show <slug>                                - Show graph structure
+ * - cg wf show <slug>                                - Show graph structure (alias for get)
+ * - cg wf get <slug>                                 - Get graph details
+ * - cg wf set <slug> [--prop k=v] [--orch k=v]       - Set graph properties/settings
  * - cg wf delete <slug>                              - Delete a graph
  * - cg wf list                                       - List all graphs
  * - cg wf status <slug> [--node <id>] [--line <id>]  - Show status
  * - cg wf trigger <slug> <lineId>                    - Trigger manual transition
- * - cg wf line add|remove|move|set-transition|set-label|set-description
- * - cg wf node add|remove|move|show|set-description|set-execution|set-input|remove-input|collate
+ * - cg wf line add|remove|move|get|set|set-label|set-description
+ * - cg wf node add|remove|move|show|get|set|set-description|set-input|remove-input|collate
  *
  * Per ADR-0004: Uses DI container, not direct instantiation.
  * Per ADR-0009: Module registration via registerPositionalGraphServices().
@@ -45,13 +47,11 @@ interface AddLineOptions extends BaseOptions {
   atIndex?: string;
   label?: string;
   description?: string;
-  transition?: string;
 }
 
 interface AddNodeOptions extends BaseOptions {
   atPosition?: string;
   description?: string;
-  execution?: string;
 }
 
 interface MoveNodeOptions extends BaseOptions {
@@ -70,29 +70,44 @@ interface StatusOptions extends BaseOptions {
   line?: string;
 }
 
+interface SetOptions extends BaseOptions {
+  prop?: string[];
+  orch?: string[];
+  description?: string;
+  label?: string;
+}
+
 // ============================================
 // Helpers
 // ============================================
-
-const VALID_TRANSITIONS = ['auto', 'manual'] as const;
-const VALID_EXECUTIONS = ['serial', 'parallel'] as const;
-
-function validateTransition(value: string | undefined): 'auto' | 'manual' | undefined {
-  if (value === undefined) return undefined;
-  if (!(VALID_TRANSITIONS as readonly string[]).includes(value)) return undefined;
-  return value as 'auto' | 'manual';
-}
-
-function validateExecution(value: string | undefined): 'serial' | 'parallel' | undefined {
-  if (value === undefined) return undefined;
-  if (!(VALID_EXECUTIONS as readonly string[]).includes(value)) return undefined;
-  return value as 'serial' | 'parallel';
-}
 
 function parseIntOrUndefined(value: string | undefined): number | undefined {
   if (value === undefined) return undefined;
   const parsed = Number.parseInt(value, 10);
   return Number.isNaN(parsed) ? undefined : parsed;
+}
+
+/**
+ * Parse key=value pairs into a Record. Values are JSON-parsed for type coercion.
+ */
+const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+function parseKeyValuePairs(pairs: string[] | undefined): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  if (!pairs) return result;
+
+  for (const pair of pairs) {
+    const [key, ...valueParts] = pair.split('=');
+    if (key && !FORBIDDEN_KEYS.has(key) && valueParts.length > 0) {
+      const value = valueParts.join('=');
+      try {
+        result[key] = JSON.parse(value);
+      } catch {
+        result[key] = value;
+      }
+    }
+  }
+  return result;
 }
 
 /**
@@ -106,7 +121,7 @@ function getPositionalGraphService(): IPositionalGraphService {
 }
 
 // ============================================
-// Graph Command Handlers (T001)
+// Graph Command Handlers
 // ============================================
 
 async function handleWfCreate(slug: string, options: BaseOptions): Promise<void> {
@@ -141,6 +156,51 @@ async function handleWfShow(slug: string, options: BaseOptions): Promise<void> {
   console.log(adapter.format('wf.show', result));
 
   if (result.errors.length > 0) process.exit(1);
+}
+
+async function handleWfSet(slug: string, options: SetOptions): Promise<void> {
+  const adapter = createOutputAdapter(options.json ?? false);
+
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = { errors: noContextError(options.workspacePath) };
+    console.log(adapter.format('wf.set', result));
+    process.exit(1);
+  }
+
+  const service = getPositionalGraphService();
+  const props = parseKeyValuePairs(options.prop);
+  const orch = parseKeyValuePairs(options.orch);
+
+  if (Object.keys(props).length > 0) {
+    const result = await service.updateGraphProperties(ctx, slug, props);
+    if (result.errors.length > 0) {
+      console.log(adapter.format('wf.set', result));
+      process.exit(1);
+    }
+  }
+
+  if (Object.keys(orch).length > 0) {
+    const result = await service.updateGraphOrchestratorSettings(ctx, slug, orch);
+    if (result.errors.length > 0) {
+      console.log(adapter.format('wf.set', result));
+      process.exit(1);
+    }
+  }
+
+  if (options.description !== undefined) {
+    // Graph doesn't have a dedicated setDescription, update via properties for now
+    // or load+persist. For now, treat as property.
+    const result = await service.updateGraphProperties(ctx, slug, {
+      description: options.description,
+    });
+    if (result.errors.length > 0) {
+      console.log(adapter.format('wf.set', result));
+      process.exit(1);
+    }
+  }
+
+  console.log(adapter.format('wf.set', { errors: [] }));
 }
 
 async function handleWfDelete(slug: string, options: BaseOptions): Promise<void> {
@@ -178,7 +238,7 @@ async function handleWfList(options: BaseOptions): Promise<void> {
 }
 
 // ============================================
-// Line Command Handlers (T002)
+// Line Command Handlers
 // ============================================
 
 async function handleLineAdd(graphSlug: string, options: AddLineOptions): Promise<void> {
@@ -198,7 +258,6 @@ async function handleLineAdd(graphSlug: string, options: AddLineOptions): Promis
     atIndex: parseIntOrUndefined(options.atIndex),
     label: options.label,
     description: options.description,
-    transition: validateTransition(options.transition),
   });
   console.log(adapter.format('wf.line.add', result));
 
@@ -248,31 +307,57 @@ async function handleLineMove(
   if (result.errors.length > 0) process.exit(1);
 }
 
-async function handleLineSetTransition(
+async function handleLineSet(
   graphSlug: string,
   lineId: string,
-  transition: string,
-  options: BaseOptions
+  options: SetOptions
 ): Promise<void> {
   const adapter = createOutputAdapter(options.json ?? false);
 
   const ctx = await resolveOrOverrideContext(options.workspacePath);
   if (!ctx) {
     const result = { errors: noContextError(options.workspacePath) };
-    console.log(adapter.format('wf.line.set-transition', result));
+    console.log(adapter.format('wf.line.set', result));
     process.exit(1);
   }
 
   const service = getPositionalGraphService();
-  const result = await service.setLineTransition(
-    ctx,
-    graphSlug,
-    lineId,
-    validateTransition(transition) as 'auto' | 'manual'
-  );
-  console.log(adapter.format('wf.line.set-transition', result));
+  const props = parseKeyValuePairs(options.prop);
+  const orch = parseKeyValuePairs(options.orch);
 
-  if (result.errors.length > 0) process.exit(1);
+  if (Object.keys(props).length > 0) {
+    const result = await service.updateLineProperties(ctx, graphSlug, lineId, props);
+    if (result.errors.length > 0) {
+      console.log(adapter.format('wf.line.set', result));
+      process.exit(1);
+    }
+  }
+
+  if (Object.keys(orch).length > 0) {
+    const result = await service.updateLineOrchestratorSettings(ctx, graphSlug, lineId, orch);
+    if (result.errors.length > 0) {
+      console.log(adapter.format('wf.line.set', result));
+      process.exit(1);
+    }
+  }
+
+  if (options.label !== undefined) {
+    const result = await service.setLineLabel(ctx, graphSlug, lineId, options.label);
+    if (result.errors.length > 0) {
+      console.log(adapter.format('wf.line.set', result));
+      process.exit(1);
+    }
+  }
+
+  if (options.description !== undefined) {
+    const result = await service.setLineDescription(ctx, graphSlug, lineId, options.description);
+    if (result.errors.length > 0) {
+      console.log(adapter.format('wf.line.set', result));
+      process.exit(1);
+    }
+  }
+
+  console.log(adapter.format('wf.line.set', { errors: [] }));
 }
 
 async function handleLineSetLabel(
@@ -320,7 +405,7 @@ async function handleLineSetDescription(
 }
 
 // ============================================
-// Node Command Handlers (T003)
+// Node Command Handlers
 // ============================================
 
 async function handleNodeAdd(
@@ -342,7 +427,6 @@ async function handleNodeAdd(
   const result = await service.addNode(ctx, graphSlug, lineId, unitSlug, {
     atPosition: parseIntOrUndefined(options.atPosition),
     description: options.description,
-    execution: validateExecution(options.execution),
   });
   console.log(adapter.format('wf.node.add', result));
 
@@ -415,6 +499,51 @@ async function handleNodeShow(
   if (result.errors.length > 0) process.exit(1);
 }
 
+async function handleNodeSet(
+  graphSlug: string,
+  nodeId: string,
+  options: SetOptions
+): Promise<void> {
+  const adapter = createOutputAdapter(options.json ?? false);
+
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = { errors: noContextError(options.workspacePath) };
+    console.log(adapter.format('wf.node.set', result));
+    process.exit(1);
+  }
+
+  const service = getPositionalGraphService();
+  const props = parseKeyValuePairs(options.prop);
+  const orch = parseKeyValuePairs(options.orch);
+
+  if (Object.keys(props).length > 0) {
+    const result = await service.updateNodeProperties(ctx, graphSlug, nodeId, props);
+    if (result.errors.length > 0) {
+      console.log(adapter.format('wf.node.set', result));
+      process.exit(1);
+    }
+  }
+
+  if (Object.keys(orch).length > 0) {
+    const result = await service.updateNodeOrchestratorSettings(ctx, graphSlug, nodeId, orch);
+    if (result.errors.length > 0) {
+      console.log(adapter.format('wf.node.set', result));
+      process.exit(1);
+    }
+  }
+
+  if (options.description !== undefined) {
+    const result = await service.setNodeDescription(ctx, graphSlug, nodeId, options.description);
+    if (result.errors.length > 0) {
+      console.log(adapter.format('wf.node.set', result));
+      process.exit(1);
+    }
+  }
+
+  console.log(adapter.format('wf.node.set', { errors: [] }));
+}
+
 async function handleNodeSetDescription(
   graphSlug: string,
   nodeId: string,
@@ -433,33 +562,6 @@ async function handleNodeSetDescription(
   const service = getPositionalGraphService();
   const result = await service.setNodeDescription(ctx, graphSlug, nodeId, description);
   console.log(adapter.format('wf.node.set-description', result));
-
-  if (result.errors.length > 0) process.exit(1);
-}
-
-async function handleNodeSetExecution(
-  graphSlug: string,
-  nodeId: string,
-  execution: string,
-  options: BaseOptions
-): Promise<void> {
-  const adapter = createOutputAdapter(options.json ?? false);
-
-  const ctx = await resolveOrOverrideContext(options.workspacePath);
-  if (!ctx) {
-    const result = { errors: noContextError(options.workspacePath) };
-    console.log(adapter.format('wf.node.set-execution', result));
-    process.exit(1);
-  }
-
-  const service = getPositionalGraphService();
-  const result = await service.setNodeExecution(
-    ctx,
-    graphSlug,
-    nodeId,
-    validateExecution(execution) as 'serial' | 'parallel'
-  );
-  console.log(adapter.format('wf.node.set-execution', result));
 
   if (result.errors.length > 0) process.exit(1);
 }
@@ -554,7 +656,7 @@ async function handleNodeCollate(
 }
 
 // ============================================
-// Status + Trigger Handlers (T004)
+// Status + Trigger Handlers
 // ============================================
 
 async function handleWfStatus(slug: string, options: StatusOptions): Promise<void> {
@@ -626,7 +728,7 @@ export function registerPositionalGraphCommands(program: Command): void {
     .option('--json', 'Output as JSON', false)
     .option('--workspace-path <path>', 'Override workspace context');
 
-  // ==================== Graph Commands (T001) ====================
+  // ==================== Graph Commands ====================
 
   wf.command('create <slug>')
     .description('Create a new positional graph')
@@ -646,6 +748,45 @@ export function registerPositionalGraphCommands(program: Command): void {
       wrapAction(async (slug: string, _options: BaseOptions, cmd: Command) => {
         const parentOpts = cmd.parent?.opts() ?? {};
         await handleWfShow(slug, {
+          json: parentOpts.json,
+          workspacePath: parentOpts.workspacePath,
+        });
+      })
+    );
+
+  // get = alias for show
+  wf.command('get <slug>')
+    .description('Get graph details (alias for show)')
+    .action(
+      wrapAction(async (slug: string, _options: BaseOptions, cmd: Command) => {
+        const parentOpts = cmd.parent?.opts() ?? {};
+        await handleWfShow(slug, {
+          json: parentOpts.json,
+          workspacePath: parentOpts.workspacePath,
+        });
+      })
+    );
+
+  wf.command('set <slug>')
+    .description('Set graph properties or orchestrator settings')
+    .option(
+      '--prop <key=value>',
+      'Set a property (repeatable)',
+      (v: string, a: string[]) => [...a, v],
+      [] as string[]
+    )
+    .option(
+      '--orch <key=value>',
+      'Set an orchestrator setting (repeatable)',
+      (v: string, a: string[]) => [...a, v],
+      [] as string[]
+    )
+    .option('--description <desc>', 'Set graph description')
+    .action(
+      wrapAction(async (slug: string, options: SetOptions, cmd: Command) => {
+        const parentOpts = cmd.parent?.opts() ?? {};
+        await handleWfSet(slug, {
+          ...options,
           json: parentOpts.json,
           workspacePath: parentOpts.workspacePath,
         });
@@ -673,7 +814,7 @@ export function registerPositionalGraphCommands(program: Command): void {
       })
     );
 
-  // ==================== Status + Trigger Commands (T004) ====================
+  // ==================== Status + Trigger Commands ====================
 
   wf.command('status <slug>')
     .description('Show graph/node/line status')
@@ -702,7 +843,7 @@ export function registerPositionalGraphCommands(program: Command): void {
       })
     );
 
-  // ==================== Line Commands (T002) ====================
+  // ==================== Line Commands ====================
 
   const line = wf.command('line').description('Line operations');
 
@@ -714,7 +855,6 @@ export function registerPositionalGraphCommands(program: Command): void {
     .option('--at-index <index>', 'Insert at specific index')
     .option('--label <label>', 'Line label')
     .option('--description <desc>', 'Line description')
-    .option('--transition <mode>', 'Transition mode (auto|manual)')
     .action(
       wrapAction(async (graph: string, options: AddLineOptions, cmd: Command) => {
         const parentOpts = cmd.parent?.parent?.opts() ?? {};
@@ -760,25 +900,47 @@ export function registerPositionalGraphCommands(program: Command): void {
       )
     );
 
+  // get = show line details (delegates to wf show with line filter)
   line
-    .command('set-transition <graph> <lineId> <transition>')
-    .description('Set line transition mode (auto|manual)')
+    .command('get <graph> <lineId>')
+    .description('Get line details')
     .action(
-      wrapAction(
-        async (
-          graph: string,
-          lineId: string,
-          transition: string,
-          _options: BaseOptions,
-          cmd: Command
-        ) => {
-          const parentOpts = cmd.parent?.parent?.opts() ?? {};
-          await handleLineSetTransition(graph, lineId, transition, {
-            json: parentOpts.json,
-            workspacePath: parentOpts.workspacePath,
-          });
-        }
-      )
+      wrapAction(async (graph: string, lineId: string, _options: BaseOptions, cmd: Command) => {
+        const parentOpts = cmd.parent?.parent?.opts() ?? {};
+        await handleWfStatus(graph, {
+          line: lineId,
+          json: parentOpts.json,
+          workspacePath: parentOpts.workspacePath,
+        });
+      })
+    );
+
+  line
+    .command('set <graph> <lineId>')
+    .description('Set line properties, orchestrator settings, label, or description')
+    .option(
+      '--prop <key=value>',
+      'Set a property (repeatable)',
+      (v: string, a: string[]) => [...a, v],
+      [] as string[]
+    )
+    .option(
+      '--orch <key=value>',
+      'Set an orchestrator setting (repeatable)',
+      (v: string, a: string[]) => [...a, v],
+      [] as string[]
+    )
+    .option('--label <label>', 'Set line label')
+    .option('--description <desc>', 'Set line description')
+    .action(
+      wrapAction(async (graph: string, lineId: string, options: SetOptions, cmd: Command) => {
+        const parentOpts = cmd.parent?.parent?.opts() ?? {};
+        await handleLineSet(graph, lineId, {
+          ...options,
+          json: parentOpts.json,
+          workspacePath: parentOpts.workspacePath,
+        });
+      })
     );
 
   line
@@ -823,7 +985,7 @@ export function registerPositionalGraphCommands(program: Command): void {
       )
     );
 
-  // ==================== Node Commands (T003) ====================
+  // ==================== Node Commands ====================
 
   const node = wf.command('node').description('Node operations');
 
@@ -832,7 +994,6 @@ export function registerPositionalGraphCommands(program: Command): void {
     .description('Add a node to a line')
     .option('--at-position <pos>', 'Insert at specific position')
     .option('--description <desc>', 'Node description')
-    .option('--execution <mode>', 'Execution mode (serial|parallel)')
     .action(
       wrapAction(
         async (
@@ -894,6 +1055,47 @@ export function registerPositionalGraphCommands(program: Command): void {
       })
     );
 
+  // get = alias for show
+  node
+    .command('get <graph> <nodeId>')
+    .description('Get node details (alias for show)')
+    .action(
+      wrapAction(async (graph: string, nodeId: string, _options: BaseOptions, cmd: Command) => {
+        const parentOpts = cmd.parent?.parent?.opts() ?? {};
+        await handleNodeShow(graph, nodeId, {
+          json: parentOpts.json,
+          workspacePath: parentOpts.workspacePath,
+        });
+      })
+    );
+
+  node
+    .command('set <graph> <nodeId>')
+    .description('Set node properties, orchestrator settings, or description')
+    .option(
+      '--prop <key=value>',
+      'Set a property (repeatable)',
+      (v: string, a: string[]) => [...a, v],
+      [] as string[]
+    )
+    .option(
+      '--orch <key=value>',
+      'Set an orchestrator setting (repeatable)',
+      (v: string, a: string[]) => [...a, v],
+      [] as string[]
+    )
+    .option('--description <desc>', 'Set node description')
+    .action(
+      wrapAction(async (graph: string, nodeId: string, options: SetOptions, cmd: Command) => {
+        const parentOpts = cmd.parent?.parent?.opts() ?? {};
+        await handleNodeSet(graph, nodeId, {
+          ...options,
+          json: parentOpts.json,
+          workspacePath: parentOpts.workspacePath,
+        });
+      })
+    );
+
   node
     .command('set-description <graph> <nodeId> <description>')
     .description('Set node description')
@@ -908,27 +1110,6 @@ export function registerPositionalGraphCommands(program: Command): void {
         ) => {
           const parentOpts = cmd.parent?.parent?.opts() ?? {};
           await handleNodeSetDescription(graph, nodeId, description, {
-            json: parentOpts.json,
-            workspacePath: parentOpts.workspacePath,
-          });
-        }
-      )
-    );
-
-  node
-    .command('set-execution <graph> <nodeId> <execution>')
-    .description('Set node execution mode (serial|parallel)')
-    .action(
-      wrapAction(
-        async (
-          graph: string,
-          nodeId: string,
-          execution: string,
-          _options: BaseOptions,
-          cmd: Command
-        ) => {
-          const parentOpts = cmd.parent?.parent?.opts() ?? {};
-          await handleNodeSetExecution(graph, nodeId, execution, {
             json: parentOpts.json,
             workspacePath: parentOpts.workspacePath,
           });

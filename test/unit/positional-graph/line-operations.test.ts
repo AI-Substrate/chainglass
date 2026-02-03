@@ -105,11 +105,11 @@ describe('PositionalGraphService — Line Operations', () => {
       expect(showResult.lines?.[1].id).toBe(firstLineId);
     });
 
-    it('applies label, description, transition options', async () => {
+    it('applies label, description, orchestratorSettings options', async () => {
       const result = await service.addLine(ctx, 'test-graph', {
         label: 'Processing',
         description: 'Main processing line',
-        transition: 'manual',
+        orchestratorSettings: { transition: 'manual' },
       });
 
       expect(result.errors).toEqual([]);
@@ -242,15 +242,22 @@ describe('PositionalGraphService — Line Operations', () => {
   });
 
   // ============================================
-  // setLineTransition
+  // updateLineOrchestratorSettings
   // ============================================
 
-  describe('setLineTransition', () => {
+  describe('updateLineOrchestratorSettings', () => {
     it('sets transition to manual', async () => {
       const loadResult = await service.load(ctx, 'test-graph');
       const lineId = loadResult.definition?.lines[0].id;
 
-      const result = await service.setLineTransition(ctx, 'test-graph', lineId, 'manual');
+      const result = await service.updateLineOrchestratorSettings(
+        ctx,
+        'test-graph',
+        lineId as string,
+        {
+          transition: 'manual',
+        }
+      );
       expect(result.errors).toEqual([]);
 
       const showResult = await service.show(ctx, 'test-graph');
@@ -262,8 +269,17 @@ describe('PositionalGraphService — Line Operations', () => {
       const lineId = loadResult.definition?.lines[0].id;
 
       // Set to manual first, then back to auto
-      await service.setLineTransition(ctx, 'test-graph', lineId, 'manual');
-      const result = await service.setLineTransition(ctx, 'test-graph', lineId, 'auto');
+      await service.updateLineOrchestratorSettings(ctx, 'test-graph', lineId as string, {
+        transition: 'manual',
+      });
+      const result = await service.updateLineOrchestratorSettings(
+        ctx,
+        'test-graph',
+        lineId as string,
+        {
+          transition: 'auto',
+        }
+      );
       expect(result.errors).toEqual([]);
 
       const showResult = await service.show(ctx, 'test-graph');
@@ -271,11 +287,11 @@ describe('PositionalGraphService — Line Operations', () => {
     });
 
     it('returns error for nonexistent line (E150)', async () => {
-      const result = await service.setLineTransition(
+      const result = await service.updateLineOrchestratorSettings(
         ctx,
         'test-graph',
         'line-nonexistent',
-        'manual'
+        { transition: 'manual' }
       );
       expect(result.errors).toHaveLength(1);
       expect(result.errors[0].code).toBe('E150');

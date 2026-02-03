@@ -221,7 +221,9 @@ describe('PositionalGraph — Full Graph Lifecycle Integration', () => {
     // ── Step 5: Set line properties ──
 
     // Set transition to manual on line 0
-    const transResult = await service.setLineTransition(ctx, GRAPH, initialLineId, 'manual');
+    const transResult = await service.updateLineOrchestratorSettings(ctx, GRAPH, initialLineId, {
+      transition: 'manual',
+    });
     expect(transResult.errors).toHaveLength(0);
 
     // Set label and description on line 0
@@ -243,11 +245,11 @@ describe('PositionalGraph — Full Graph Lifecycle Integration', () => {
 
     // ── Step 6: Set node execution mode ──
 
-    const execResult = await service.setNodeExecution(
+    const execResult = await service.updateNodeOrchestratorSettings(
       ctx,
       GRAPH,
       worker2Node.nodeId as string,
-      'parallel'
+      { execution: 'parallel' }
     );
     expect(execResult.errors).toHaveLength(0);
 

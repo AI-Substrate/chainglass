@@ -118,7 +118,7 @@ describe('PositionalGraphService — Node Operations', () => {
       const { lineId } = await service.create(ctx, 'my-pipeline');
       const result = await service.addNode(ctx, 'my-pipeline', lineId, 'sample-coder', {
         description: 'Generate code from spec',
-        execution: 'parallel',
+        orchestratorSettings: { execution: 'parallel' },
       });
       const nodeId = expectNodeId(result);
 
@@ -127,7 +127,7 @@ describe('PositionalGraphService — Node Operations', () => {
       const nodeYaml = await fs.readFile(pathResolver.join(nodeDir, 'node.yaml'));
       const config = yamlParser.parse<Record<string, unknown>>(nodeYaml, 'node.yaml');
       expect(config.description).toBe('Generate code from spec');
-      expect(config.execution).toBe('parallel');
+      expect((config.orchestratorSettings as Record<string, unknown>).execution).toBe('parallel');
     });
 
     it('generates node ID in <unitSlug>-<hex3> format', async () => {
@@ -152,7 +152,7 @@ describe('PositionalGraphService — Node Operations', () => {
       if (validated.success) {
         expect(validated.data.id).toBe(nodeId);
         expect(validated.data.unit_slug).toBe('sample-coder');
-        expect(validated.data.execution).toBe('serial'); // default
+        expect(validated.data.orchestratorSettings.execution).toBe('serial'); // default
         expect(validated.data.created_at).toBeTruthy();
       }
     });
@@ -400,29 +400,36 @@ describe('PositionalGraphService — Node Operations', () => {
   });
 
   // ============================================
-  // setNodeExecution
+  // updateNodeOrchestratorSettings
   // ============================================
 
-  describe('setNodeExecution', () => {
+  describe('updateNodeOrchestratorSettings', () => {
     it('changes execution from serial to parallel', async () => {
       const { lineId } = await service.create(ctx, 'my-pipeline');
       const nodeId = expectNodeId(
         await service.addNode(ctx, 'my-pipeline', lineId, 'sample-coder')
       );
 
-      const result = await service.setNodeExecution(ctx, 'my-pipeline', nodeId, 'parallel');
+      const result = await service.updateNodeOrchestratorSettings(ctx, 'my-pipeline', nodeId, {
+        execution: 'parallel',
+      });
 
       expect(result.errors).toEqual([]);
 
       const nodeDir = `/workspace/my-project/.chainglass/data/workflows/my-pipeline/nodes/${nodeId}`;
       const nodeYaml = await fs.readFile(pathResolver.join(nodeDir, 'node.yaml'));
       const config = yamlParser.parse<Record<string, unknown>>(nodeYaml, 'node.yaml');
-      expect(config.execution).toBe('parallel');
+      expect((config.orchestratorSettings as Record<string, unknown>).execution).toBe('parallel');
     });
 
     it('returns E153 for nonexistent node', async () => {
       await service.create(ctx, 'my-pipeline');
-      const result = await service.setNodeExecution(ctx, 'my-pipeline', 'nonexistent', 'parallel');
+      const result = await service.updateNodeOrchestratorSettings(
+        ctx,
+        'my-pipeline',
+        'nonexistent',
+        { execution: 'parallel' }
+      );
 
       expect(result.errors).toHaveLength(1);
       expect(result.errors[0].code).toBe('E153');

@@ -1,17 +1,22 @@
 import { z } from 'zod';
+import { ExecutionSchema, TransitionModeSchema } from './enums.schema.js';
+import {
+  GraphOrchestratorSettingsSchema,
+  LineOrchestratorSettingsSchema,
+} from './orchestrator-settings.schema.js';
+import { GraphPropertiesSchema, LinePropertiesSchema } from './properties.schema.js';
 
-export const ExecutionSchema = z.enum(['serial', 'parallel']);
-export type Execution = z.infer<typeof ExecutionSchema>;
-
-export const TransitionModeSchema = z.enum(['auto', 'manual']);
-export type TransitionMode = z.infer<typeof TransitionModeSchema>;
+// Re-export enums for backward compatibility (consumers import from graph.schema)
+export { ExecutionSchema, TransitionModeSchema } from './enums.schema.js';
+export type { Execution, TransitionMode } from './enums.schema.js';
 
 export const LineDefinitionSchema = z.object({
   id: z.string().min(1),
   label: z.string().optional(),
   description: z.string().optional(),
-  transition: TransitionModeSchema.default('auto'),
   nodes: z.array(z.string()),
+  properties: LinePropertiesSchema.default({}),
+  orchestratorSettings: LineOrchestratorSettingsSchema.default({}),
 });
 export type LineDefinition = z.infer<typeof LineDefinitionSchema>;
 
@@ -21,5 +26,7 @@ export const PositionalGraphDefinitionSchema = z.object({
   description: z.string().optional(),
   created_at: z.string().datetime(),
   lines: z.array(LineDefinitionSchema).min(1),
+  properties: GraphPropertiesSchema.default({}),
+  orchestratorSettings: GraphOrchestratorSettingsSchema.default({}),
 });
 export type PositionalGraphDefinition = z.infer<typeof PositionalGraphDefinitionSchema>;
