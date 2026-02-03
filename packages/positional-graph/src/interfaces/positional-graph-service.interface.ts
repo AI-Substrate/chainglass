@@ -401,6 +401,40 @@ export interface EndNodeResult extends BaseResult {
 }
 
 // ============================================
+// Result Types — Question/Answer Protocol (Phase 4, Plan 028)
+// ============================================
+
+/** Input options for askQuestion */
+export interface AskQuestionOptions {
+  type: 'text' | 'single' | 'multi' | 'confirm';
+  text: string;
+  options?: string[];
+  default?: string | boolean;
+}
+
+/** Result from askQuestion */
+export interface AskQuestionResult extends BaseResult {
+  nodeId?: string;
+  questionId?: string;
+  status?: 'waiting-question';
+}
+
+/** Result from answerQuestion */
+export interface AnswerQuestionResult extends BaseResult {
+  nodeId?: string;
+  questionId?: string;
+  status?: 'running';
+}
+
+/** Result from getAnswer */
+export interface GetAnswerResult extends BaseResult {
+  nodeId?: string;
+  questionId?: string;
+  answered: boolean;
+  answer?: unknown;
+}
+
+// ============================================
 // Service Interface
 // ============================================
 
@@ -563,4 +597,25 @@ export interface IPositionalGraphService {
   startNode(ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<StartNodeResult>;
   canEnd(ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<CanEndResult>;
   endNode(ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<EndNodeResult>;
+
+  // Question/Answer Protocol (Phase 4, Plan 028)
+  askQuestion(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    options: AskQuestionOptions
+  ): Promise<AskQuestionResult>;
+  answerQuestion(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    questionId: string,
+    answer: unknown
+  ): Promise<AnswerQuestionResult>;
+  getAnswer(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    questionId: string
+  ): Promise<GetAnswerResult>;
 }

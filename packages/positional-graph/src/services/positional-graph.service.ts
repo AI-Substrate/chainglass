@@ -15,7 +15,9 @@ import {
   lineNotFoundError,
   nodeNotFoundError,
   nodeNotRunningError,
+  nodeNotWaitingError,
   outputNotFoundError,
+  questionNotFoundError,
   unitNotFoundError,
 } from '../errors/index.js';
 import type {
@@ -23,8 +25,12 @@ import type {
   AddLineResult,
   AddNodeOptions,
   AddNodeResult,
+  AnswerQuestionResult,
+  AskQuestionOptions,
+  AskQuestionResult,
   CanEndResult,
   EndNodeResult,
+  GetAnswerResult,
   GetOutputDataResult,
   GetOutputFileResult,
   GraphCreateResult,
@@ -59,6 +65,7 @@ import type {
   NodeOrchestratorSettings,
   NodeProperties,
   NodeStateEntry,
+  Question,
   State,
 } from '../schemas/index.js';
 import {
@@ -1910,6 +1917,216 @@ export class PositionalGraphService implements IPositionalGraphService {
       nodeId,
       status: 'complete',
       completedAt: transition.entry.completed_at,
+      errors: [],
+    };
+  }
+
+  // ============================================
+  // Question/Answer Protocol (Phase 4, Plan 028)
+  // ============================================
+
+  /**
+   * Generate a unique question ID using timestamp + random suffix.
+   * Format: YYYY-MM-DDTHH:mm:ss.sssZ_xxxxxx
+   */
+  private generateQuestionId(): string {
+    const timestamp = new Date().toISOString();
+    const suffix = Math.random().toString(16).slice(2, 8);
+    return `${timestamp}_${suffix}`;
+  }
+
+  /**
+   * Ask a question from a running node, transitioning it to waiting-question.
+   * Stores the question in state.json questions array.
+   *
+   * Per AC-5: Transitions node to waiting-question and returns question ID.
+   * Per Critical Finding 05: All state changes in single atomic write.
+   */
+  async askQuestion(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    options: AskQuestionOptions
+  ): Promise<AskQuestionResult> {
+    // Verify node exists
+    const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
+    if (!nodeResult.ok) {
+      return { errors: nodeResult.errors };
+    }
+
+    // Check state - must be running (E176)
+    const status = await this.getNodeExecutionStatus(ctx, graphSlug, nodeId);
+    if (status !== 'running') {
+      return {
+        errors: [nodeNotRunningError(nodeId)],
+      };
+    }
+
+    // Generate question ID
+    const questionId = this.generateQuestionId();
+    const now = new Date().toISOString();
+
+    // Create question
+    const question: Question = {
+      question_id: questionId,
+      node_id: nodeId,
+      type: options.type,
+      text: options.text,
+      asked_at: now,
+    };
+    if (options.options) {
+      question.options = options.options;
+    }
+    if (options.default !== undefined) {
+      question.default = options.default;
+    }
+
+    // Load state and update atomically
+    const state = await this.loadState(ctx, graphSlug);
+
+    // Initialize questions array if needed
+    if (!state.questions) {
+      state.questions = [];
+    }
+    state.questions.push(question);
+
+    // Update node state
+    if (!state.nodes) {
+      state.nodes = {};
+    }
+    if (!state.nodes[nodeId]) {
+      state.nodes[nodeId] = { status: 'running' };
+    }
+    state.nodes[nodeId].status = 'waiting-question';
+    state.nodes[nodeId].pending_question_id = questionId;
+    state.updated_at = now;
+
+    // Persist atomically
+    await this.persistState(ctx, graphSlug, state);
+
+    return {
+      nodeId,
+      questionId,
+      status: 'waiting-question',
+      errors: [],
+    };
+  }
+
+  /**
+   * Answer a question for a waiting node, transitioning it back to running.
+   * Stores the answer in the question and clears pending_question_id.
+   *
+   * Per AC-6: Stores answer and transitions node back to running.
+   * Per AC-18: Returns E173 for invalid question ID.
+   * Per Critical Finding 05: All state changes in single atomic write.
+   */
+  async answerQuestion(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    questionId: string,
+    answer: unknown
+  ): Promise<AnswerQuestionResult> {
+    // Verify node exists
+    const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
+    if (!nodeResult.ok) {
+      return { errors: nodeResult.errors };
+    }
+
+    // Check state - must be waiting-question (E177)
+    const status = await this.getNodeExecutionStatus(ctx, graphSlug, nodeId);
+    if (status !== 'waiting-question') {
+      return {
+        errors: [nodeNotWaitingError(nodeId)],
+      };
+    }
+
+    // Load state
+    const state = await this.loadState(ctx, graphSlug);
+
+    // Find question by ID (E173 if not found)
+    const questionIndex = state.questions?.findIndex((q) => q.question_id === questionId) ?? -1;
+    if (questionIndex === -1) {
+      return {
+        errors: [questionNotFoundError(questionId)],
+      };
+    }
+
+    const now = new Date().toISOString();
+
+    // Update question with answer (questions exists since we found the index)
+    const questions = state.questions ?? [];
+    questions[questionIndex].answer = answer;
+    questions[questionIndex].answered_at = now;
+
+    // Update node state (nodes exists since we're in waiting-question state)
+    const nodes = state.nodes ?? {};
+    nodes[nodeId].status = 'running';
+    nodes[nodeId].pending_question_id = undefined;
+    state.updated_at = now;
+
+    // Persist atomically
+    await this.persistState(ctx, graphSlug, state);
+
+    return {
+      nodeId,
+      questionId,
+      status: 'running',
+      errors: [],
+    };
+  }
+
+  /**
+   * Get the answer to a question.
+   * Returns {answered: false} if question exists but not yet answered.
+   * Returns E173 if question ID is invalid.
+   *
+   * Per AC-7: Returns stored answer.
+   * Per Critical Insight #5: Returns {answered: false} for unanswered, not E173.
+   */
+  async getAnswer(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    questionId: string
+  ): Promise<GetAnswerResult> {
+    // Verify node exists
+    const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
+    if (!nodeResult.ok) {
+      return {
+        answered: false,
+        errors: nodeResult.errors,
+      };
+    }
+
+    // Load state
+    const state = await this.loadState(ctx, graphSlug);
+
+    // Find question by ID (E173 if not found)
+    const question = state.questions?.find((q) => q.question_id === questionId);
+    if (!question) {
+      return {
+        answered: false,
+        errors: [questionNotFoundError(questionId)],
+      };
+    }
+
+    // Check if answered
+    if (question.answered_at !== undefined) {
+      return {
+        nodeId,
+        questionId,
+        answered: true,
+        answer: question.answer,
+        errors: [],
+      };
+    }
+
+    // Not yet answered
+    return {
+      nodeId,
+      questionId,
+      answered: false,
       errors: [],
     };
   }

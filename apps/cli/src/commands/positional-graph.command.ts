@@ -17,13 +17,14 @@
  * - cg wf node add|remove|move|show|get|set|set-description|set-input|remove-input|collate
  * - cg wf node save-output-data|save-output-file|get-output-data|get-output-file
  * - cg wf node start|can-end|end (Phase 3 lifecycle commands)
+ * - cg wf node ask|answer|get-answer (Phase 4 Q&A protocol)
  *
  * Per ADR-0004: Uses DI container, not direct instantiation.
  * Per ADR-0009: Module registration via registerPositionalGraphServices().
  * Per DYK-P6-I5: Imports shared helpers from command-helpers.ts.
  */
 
-import type { IPositionalGraphService } from '@chainglass/positional-graph';
+import type { AskQuestionOptions, IPositionalGraphService } from '@chainglass/positional-graph';
 import { POSITIONAL_GRAPH_DI_TOKENS } from '@chainglass/shared';
 import type { Command } from 'commander';
 import { createCliProductionContainer } from '../lib/container.js';
@@ -77,6 +78,12 @@ interface SetOptions extends BaseOptions {
   orch?: string[];
   description?: string;
   label?: string;
+}
+
+interface AskOptions extends BaseOptions {
+  type: string;
+  text: string;
+  options?: string[];
 }
 
 // ============================================
@@ -838,6 +845,108 @@ async function handleNodeEnd(
 }
 
 // ============================================
+// Question/Answer Handlers (Phase 4, Plan 028)
+// ============================================
+
+async function handleNodeAsk(
+  graphSlug: string,
+  nodeId: string,
+  options: AskOptions
+): Promise<void> {
+  const adapter = createOutputAdapter(options.json ?? false);
+
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = { errors: noContextError(options.workspacePath) };
+    console.log(adapter.format('wf.node.ask', result));
+    process.exit(1);
+  }
+
+  // Validate type
+  const validTypes = ['text', 'single', 'multi', 'confirm'];
+  if (!validTypes.includes(options.type)) {
+    const result = {
+      errors: [
+        {
+          code: 'E100',
+          message: `Invalid question type '${options.type}'. Must be one of: ${validTypes.join(', ')}`,
+          action: 'Use --type text|single|multi|confirm',
+        },
+      ],
+    };
+    console.log(adapter.format('wf.node.ask', result));
+    process.exit(1);
+  }
+
+  const askOptions: AskQuestionOptions = {
+    type: options.type as 'text' | 'single' | 'multi' | 'confirm',
+    text: options.text,
+  };
+  if (options.options && options.options.length > 0) {
+    askOptions.options = options.options;
+  }
+
+  const service = getPositionalGraphService();
+  const result = await service.askQuestion(ctx, graphSlug, nodeId, askOptions);
+  console.log(adapter.format('wf.node.ask', result));
+
+  if (result.errors.length > 0) process.exit(1);
+}
+
+async function handleNodeAnswer(
+  graphSlug: string,
+  nodeId: string,
+  questionId: string,
+  answer: string,
+  options: BaseOptions
+): Promise<void> {
+  const adapter = createOutputAdapter(options.json ?? false);
+
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = { errors: noContextError(options.workspacePath) };
+    console.log(adapter.format('wf.node.answer', result));
+    process.exit(1);
+  }
+
+  // Parse answer as JSON if possible, otherwise use as string
+  let parsedAnswer: unknown = answer;
+  try {
+    parsedAnswer = JSON.parse(answer);
+  } catch {
+    // Keep as string if not valid JSON
+  }
+
+  const service = getPositionalGraphService();
+  const result = await service.answerQuestion(ctx, graphSlug, nodeId, questionId, parsedAnswer);
+  console.log(adapter.format('wf.node.answer', result));
+
+  if (result.errors.length > 0) process.exit(1);
+}
+
+async function handleNodeGetAnswer(
+  graphSlug: string,
+  nodeId: string,
+  questionId: string,
+  options: BaseOptions
+): Promise<void> {
+  const adapter = createOutputAdapter(options.json ?? false);
+
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = { answered: false, errors: noContextError(options.workspacePath) };
+    console.log(adapter.format('wf.node.get-answer', result));
+    process.exit(1);
+  }
+
+  const service = getPositionalGraphService();
+  const result = await service.getAnswer(ctx, graphSlug, nodeId, questionId);
+  console.log(adapter.format('wf.node.get-answer', result));
+
+  if (result.errors.length > 0) process.exit(1);
+}
+
+// ============================================
 // Status + Trigger Handlers
 // ============================================
 
@@ -1483,5 +1592,75 @@ export function registerPositionalGraphCommands(program: Command): void {
           workspacePath: parentOpts.workspacePath,
         });
       })
+    );
+
+  // Question/Answer Commands (Phase 4, Plan 028)
+  node
+    .command('ask <graph> <nodeId>')
+    .description('Ask a question from a running node (transitions running → waiting-question)')
+    .requiredOption('--type <type>', 'Question type: text, single, multi, or confirm')
+    .requiredOption('--text <text>', 'Question text to display')
+    .option('--options <values...>', 'Answer options for single/multi choice questions')
+    .action(
+      wrapAction(
+        async (
+          graph: string,
+          nodeId: string,
+          localOpts: { type: string; text: string; options?: string[] },
+          cmd: Command
+        ) => {
+          const parentOpts = cmd.parent?.parent?.opts() ?? {};
+          await handleNodeAsk(graph, nodeId, {
+            type: localOpts.type,
+            text: localOpts.text,
+            options: localOpts.options,
+            json: parentOpts.json,
+            workspacePath: parentOpts.workspacePath,
+          });
+        }
+      )
+    );
+
+  node
+    .command('answer <graph> <nodeId> <questionId> <answer>')
+    .description('Answer a question for a waiting node (transitions waiting-question → running)')
+    .action(
+      wrapAction(
+        async (
+          graph: string,
+          nodeId: string,
+          questionId: string,
+          answer: string,
+          _options: BaseOptions,
+          cmd: Command
+        ) => {
+          const parentOpts = cmd.parent?.parent?.opts() ?? {};
+          await handleNodeAnswer(graph, nodeId, questionId, answer, {
+            json: parentOpts.json,
+            workspacePath: parentOpts.workspacePath,
+          });
+        }
+      )
+    );
+
+  node
+    .command('get-answer <graph> <nodeId> <questionId>')
+    .description('Get the answer to a question')
+    .action(
+      wrapAction(
+        async (
+          graph: string,
+          nodeId: string,
+          questionId: string,
+          _options: BaseOptions,
+          cmd: Command
+        ) => {
+          const parentOpts = cmd.parent?.parent?.opts() ?? {};
+          await handleNodeGetAnswer(graph, nodeId, questionId, {
+            json: parentOpts.json,
+            workspacePath: parentOpts.workspacePath,
+          });
+        }
+      )
     );
 }

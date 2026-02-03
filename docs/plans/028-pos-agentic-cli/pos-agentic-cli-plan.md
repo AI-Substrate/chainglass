@@ -695,7 +695,7 @@ describe('getInputData', () => {
 - [x] Phase 1: Foundation - Error Codes and Schemas - Complete
 - [x] Phase 2: Output Storage - Complete (21 tests, 4 service methods, 4 CLI commands)
 - [x] Phase 3: Node Lifecycle - Complete (22 tests, 3 service methods, 3 CLI commands)
-- [ ] Phase 4: Question/Answer Protocol - [Status]
+- [x] Phase 4: Question/Answer Protocol - Complete (17 tests, 3 service methods, 3 CLI commands)
 - [ ] Phase 5: Input Retrieval - [Status]
 - [ ] Phase 6: E2E Test and Documentation - [Status]
 
@@ -760,3 +760,16 @@ describe('getInputData', () => {
   - `function:apps/cli/src/commands/positional-graph.command.ts:handleNodeCanEnd` - CLI handler for can-end
   - `function:apps/cli/src/commands/positional-graph.command.ts:handleNodeEnd` - CLI handler for end
   - Phase 2 output methods updated to require running state (E176 if not running)
+
+### Phase 4: Question/Answer Protocol
+
+[^6]: Phase 4 - Q&A protocol implementation (TDD - 17 tests, 3 service methods, 3 CLI commands)
+  - `file:test/unit/positional-graph/question-answer.test.ts` - 17 tests (askQuestion 6, answerQuestion 6, getAnswer 4, multiple questions 1)
+  - `file:packages/positional-graph/src/interfaces/positional-graph-service.interface.ts` - AskQuestionOptions, AskQuestionResult, AnswerQuestionResult, GetAnswerResult + 3 method signatures
+  - `method:packages/positional-graph/src/services/positional-graph.service.ts:PositionalGraphService.generateQuestionId` - Private helper for timestamp-based IDs
+  - `method:packages/positional-graph/src/services/positional-graph.service.ts:PositionalGraphService.askQuestion` - Transitions running → waiting-question
+  - `method:packages/positional-graph/src/services/positional-graph.service.ts:PositionalGraphService.answerQuestion` - Transitions waiting-question → running
+  - `method:packages/positional-graph/src/services/positional-graph.service.ts:PositionalGraphService.getAnswer` - Returns answer or {answered: false}
+  - `function:apps/cli/src/commands/positional-graph.command.ts:handleNodeAsk` - CLI handler for ask
+  - `function:apps/cli/src/commands/positional-graph.command.ts:handleNodeAnswer` - CLI handler for answer
+  - `function:apps/cli/src/commands/positional-graph.command.ts:handleNodeGetAnswer` - CLI handler for get-answer
