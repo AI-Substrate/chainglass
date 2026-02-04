@@ -7,6 +7,7 @@ import {
 } from '@chainglass/shared';
 import type { DependencyContainer } from 'tsyringe';
 import { PositionalGraphAdapter } from './adapter/positional-graph.adapter.js';
+import { WorkUnitAdapter, WorkUnitService } from './features/029-agentic-work-units/index.js';
 import type { IWorkUnitLoader } from './interfaces/index.js';
 import { PositionalGraphService } from './services/positional-graph.service.js';
 
@@ -27,6 +28,26 @@ export function registerPositionalGraphServices(container: DependencyContainer):
       const fs = c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
       const pathResolver = c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
       return new PositionalGraphAdapter(fs, pathResolver);
+    },
+  });
+
+  // Register WorkUnitAdapter (Plan 029: Phase 3)
+  container.register(POSITIONAL_GRAPH_DI_TOKENS.WORKUNIT_ADAPTER, {
+    useFactory: (c: DependencyContainer) => {
+      const fs = c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
+      const pathResolver = c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
+      return new WorkUnitAdapter(fs, pathResolver);
+    },
+  });
+
+  // Register WorkUnitService (Plan 029: Phase 3)
+  // Per Critical Insight #5: Also wire to WORK_UNIT_LOADER for backward compatibility
+  container.register(POSITIONAL_GRAPH_DI_TOKENS.WORKUNIT_SERVICE, {
+    useFactory: (c: DependencyContainer) => {
+      const fs = c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
+      const yamlParser = c.resolve<IYamlParser>(SHARED_DI_TOKENS.YAML_PARSER);
+      const adapter = c.resolve<WorkUnitAdapter>(POSITIONAL_GRAPH_DI_TOKENS.WORKUNIT_ADAPTER);
+      return new WorkUnitService(adapter, fs, yamlParser);
     },
   });
 

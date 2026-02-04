@@ -535,16 +535,16 @@ pnpm test test/unit/positional-graph/features/029-agentic-work-units/ --coverage
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 3.1 | [ ] | Write tests for reserved parameter detection | 2 | Tests cover: main-prompt routing, main-script routing, non-reserved passthrough | - | TDD RED |
-| 3.2 | [ ] | Write tests for type mismatch error (E186) | 1 | Tests verify E186 when main-prompt used on CodeUnit | - | TDD RED |
-| 3.3 | [ ] | Implement reserved parameter routing | 2 | Reserved param tests pass | - | TDD GREEN |
-| 3.4 | [ ] | Write tests for `cg wf unit list` command | 1 | Tests verify unit listing output | - | TDD RED |
-| 3.5 | [ ] | Write tests for `cg wf unit info` command | 1 | Tests verify full unit info output | - | TDD RED |
-| 3.6 | [ ] | Write tests for `cg wf unit get-template` command | 1 | Tests verify template content output | - | TDD RED |
-| 3.7 | [ ] | Implement unit subcommands | 2 | All unit command tests pass | - | TDD GREEN |
-| 3.8 | [ ] | Add DI registration to positional-graph container.ts | 1 | WorkUnitAdapter, WorkUnitService registered | - | Cross-cutting |
-| 3.9 | [ ] | Write DI resolution tests | 1 | Both IWorkUnitService and IWorkUnitLoader resolve correctly | - | Integration |
-| 3.10 | [ ] | Refactor CLI command structure | 1 | Commands follow existing patterns, tests pass | - | TDD REFACTOR |
+| 3.1 | [x] | Write tests for reserved parameter detection | 2 | Tests cover: main-prompt routing, main-script routing, non-reserved passthrough | [📋](tasks/phase-3-cli-integration/execution.log.md#task-t001-write-tests-for-reserved-parameter-detection) | Complete [^9] |
+| 3.2 | [x] | Write tests for type mismatch error (E186) | 1 | Tests verify E186 when main-prompt used on CodeUnit | [📋](tasks/phase-3-cli-integration/execution.log.md#task-t002-write-tests-for-type-mismatch-error-e186) | Complete [^9] |
+| 3.3 | [x] | Implement reserved parameter routing | 2 | Reserved param tests pass | [📋](tasks/phase-3-cli-integration/execution.log.md#task-t003-implement-reserved-parameter-routing) | Complete [^9] |
+| 3.4 | [x] | Write tests for `cg wf unit list` command | 1 | Tests verify unit listing output | [📋](tasks/phase-3-cli-integration/execution.log.md#task-t004-write-tests-for-cg-wf-unit-list-command) | Complete [^10] |
+| 3.5 | [x] | Write tests for `cg wf unit info` command | 1 | Tests verify full unit info output | [📋](tasks/phase-3-cli-integration/execution.log.md#task-t005-write-tests-for-cg-wf-unit-info-command) | Complete [^10] |
+| 3.6 | [x] | Write tests for `cg wf unit get-template` command | 1 | Tests verify template content output | [📋](tasks/phase-3-cli-integration/execution.log.md#task-t006-write-tests-for-cg-wf-unit-get-template-command) | Complete [^10] |
+| 3.7 | [x] | Implement unit subcommands | 2 | All unit command tests pass | [📋](tasks/phase-3-cli-integration/execution.log.md#task-t007-implement-unit-subcommands) | Complete [^10] |
+| 3.8 | [x] | Add DI registration to positional-graph container.ts | 1 | WorkUnitAdapter, WorkUnitService registered | [📋](tasks/phase-3-cli-integration/execution.log.md#task-t008-add-di-registration-to-positional-graph-containerts) | Complete |
+| 3.9 | [x] | Write DI resolution tests | 1 | Both IWorkUnitService and IWorkUnitLoader resolve correctly | [📋](tasks/phase-3-cli-integration/execution.log.md#task-t009-write-di-resolution-tests) | Complete |
+| 3.10 | [x] | Refactor CLI command structure | 1 | Commands follow existing patterns, tests pass | [📋](tasks/phase-3-cli-integration/execution.log.md#task-t010-refactor-cli-command-structure) | Complete [^11] |
 
 ### Test Examples (Write First!)
 
@@ -845,7 +845,7 @@ cg wf unit info sample-coder
 
 - [x] Phase 1: Types and Schemas - COMPLETE (2026-02-04)
 - [x] Phase 2: Service and Adapter - COMPLETE (2026-02-04)
-- [ ] Phase 3: CLI Integration - PENDING
+- [x] Phase 3: CLI Integration - COMPLETE (2026-02-04)
 - [ ] Phase 4: Test Enrichment - PENDING
 - [ ] Phase 5: Cleanup and Documentation - PENDING
 
@@ -912,6 +912,22 @@ cg wf unit info sample-coder
 [^8]: Phase 2 T010-T011 - DI tokens and integration
   - `file:packages/shared/src/di-tokens.ts` (added WORKUNIT_ADAPTER, WORKUNIT_SERVICE)
   - `file:packages/positional-graph/src/features/029-agentic-work-units/index.ts` (updated exports)
+
+[^9]: Phase 3 T001-T003 - Reserved parameter routing
+  - `function:packages/positional-graph/src/features/029-agentic-work-units/reserved-params.ts:isReservedInputParam`
+  - `file:packages/positional-graph/src/features/029-agentic-work-units/reserved-params.ts`
+  - `function:apps/cli/src/commands/positional-graph.command.ts:handleNodeGetInputData`
+  - `function:apps/cli/src/commands/positional-graph.command.ts:getWorkUnitService`
+
+[^10]: Phase 3 T004-T007 - Unit subcommands
+  - `function:apps/cli/src/commands/positional-graph.command.ts:handleUnitList`
+  - `function:apps/cli/src/commands/positional-graph.command.ts:handleUnitInfo`
+  - `function:apps/cli/src/commands/positional-graph.command.ts:handleUnitGetTemplate`
+
+[^11]: Phase 3 T010 - CLI refactoring
+  - `file:apps/cli/src/commands/positional-graph.command.ts`
+  - `file:test/unit/cli/positional-graph-command.test.ts`
+  - `file:test/unit/positional-graph/container.test.ts`
 
 ---
 

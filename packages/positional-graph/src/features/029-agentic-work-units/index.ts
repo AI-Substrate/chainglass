@@ -95,3 +95,10 @@ export {
   type FakeUserInputUnitConfig,
   type FakeUnitConfig,
 } from './fake-workunit.service.js';
+
+// Reserved Input Parameters (Phase 3)
+export {
+  RESERVED_INPUT_PARAMS,
+  type ReservedInputParam,
+  isReservedInputParam,
+} from './reserved-params.js';

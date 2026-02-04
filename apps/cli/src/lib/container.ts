@@ -7,8 +7,8 @@
  */
 
 import 'reflect-metadata';
-import { registerPositionalGraphServices } from '@chainglass/positional-graph';
-import type { IWorkUnitLoader } from '@chainglass/positional-graph';
+import { FakeWorkUnitService, registerPositionalGraphServices } from '@chainglass/positional-graph';
+import type { IWorkUnitLoader, IWorkUnitService } from '@chainglass/positional-graph';
 import {
   type AdapterFactory,
   AgentService,
@@ -208,12 +208,13 @@ export function createCliProductionContainer(): DependencyContainer {
   registerWorkgraphServices(childContainer, WORKFLOW_DI_TOKENS.YAML_PARSER);
 
   // Register positional-graph services (per ADR-0009: Module Registration Function Pattern)
-  // Per DYK-P6-I3: Wire IWorkUnitLoader bridge — direct resolve with structural type compatibility
-  // WorkUnit ⊇ NarrowWorkUnit, so IWorkUnitService satisfies IWorkUnitLoader structurally
-  childContainer.register<IWorkUnitLoader>(POSITIONAL_GRAPH_DI_TOKENS.WORK_UNIT_LOADER, {
-    useFactory: (c) => c.resolve<IWorkUnitLoader>(WORKGRAPH_DI_TOKENS.WORKUNIT_SERVICE),
-  });
+  // Per Plan 029 Phase 3 Critical Insight #1: Register IWorkUnitLoader AFTER registerPositionalGraphServices()
+  // This resolves to positional-graph's WorkUnitService (not workgraph bridge)
+  // Per Critical Insight #5: WorkUnitService satisfies both IWorkUnitService and IWorkUnitLoader structurally
   registerPositionalGraphServices(childContainer);
+  childContainer.register<IWorkUnitLoader>(POSITIONAL_GRAPH_DI_TOKENS.WORK_UNIT_LOADER, {
+    useFactory: (c) => c.resolve<IWorkUnitLoader>(POSITIONAL_GRAPH_DI_TOKENS.WORKUNIT_SERVICE),
+  });
 
   // Register output adapters
   childContainer.register<IOutputAdapter>(CLI_DI_TOKENS.OUTPUT_ADAPTER_JSON, {
@@ -425,6 +426,16 @@ export function createCliTestContainer(): DependencyContainer {
 
   // Register workgraph test fakes (per ADR-0008: Module Registration Function Pattern)
   registerWorkgraphTestServices(childContainer);
+
+  // Register FakeWorkUnitService for positional-graph tests (Plan 029: Phase 3)
+  // Per Critical Insight #5: Wire both WORKUNIT_SERVICE and WORK_UNIT_LOADER to same fake
+  const fakeWorkUnitService = new FakeWorkUnitService();
+  childContainer.register<IWorkUnitService>(POSITIONAL_GRAPH_DI_TOKENS.WORKUNIT_SERVICE, {
+    useValue: fakeWorkUnitService,
+  });
+  childContainer.register<IWorkUnitLoader>(POSITIONAL_GRAPH_DI_TOKENS.WORK_UNIT_LOADER, {
+    useValue: fakeWorkUnitService,
+  });
 
   // Per Plan 014: Workspaces - Phase 5: Register workspace fakes for testing
   const fakeWorkspaceRegistryAdapter = new FakeWorkspaceRegistryAdapter();
