@@ -9,18 +9,24 @@
 ## Executive Briefing
 
 ### Purpose
-This phase creates an end-to-end test demonstrating the complete positional graph execution lifecycle and documents all 12 new CLI commands for agent developers. This is the capstone phase that proves the system works as a whole and provides the reference materials developers need.
+This phase validates the **execution lifecycle infrastructure** — the data system that lets nodes start, save outputs, ask questions, retrieve inputs, and complete. The 7-node E2E test exercises this infrastructure comprehensively (serial, parallel, manual gates, Q&A, cross-line inputs), creating a **solid foundation for more advanced WorkUnit types later**.
+
+The WorkUnits in this test are vehicles to exercise the plumbing, not the focus themselves. By proving the infrastructure works end-to-end, we enable future plans to add richer unit types (full `AgentUnit` with prompts, `CodeUnit` with execution config, etc.) on top of this validated base.
+
+This phase also documents all 12 CLI commands for agent developers.
 
 ### What We're Building
-- An E2E test script (`e2e-positional-graph-execution-e2e.ts`) that executes a 3-node pipeline using only `cg wf` CLI commands:
-  - Node 1 (sample-input): Direct output pattern — save data and complete
-  - Node 2 (sample-coder): Agent with question/answer protocol
-  - Node 3 (sample-tester): Input retrieval and script execution
+- An E2E test script (`e2e-positional-graph-execution-e2e.ts`) that executes a **3-line, 7-node** pipeline using only `cg wf` CLI commands:
+  - **Line 0** (Spec Creation): `spec-builder` → `spec-reviewer` (serial execution)
+  - **Line 1** (Implementation): `coder` (Q&A: "Which language?") → `tester` (serial, MANUAL gate to Line 2)
+  - **Line 2** (PR Preparation): `alignment-tester` + `pr-preparer` (PARALLEL) → `PR-creator` (serial code-unit)
 - Documentation in `docs/how/positional-graph-execution/`:
   - Overview with state machine diagram
   - CLI reference for all 12 commands
   - E2E flow walkthrough
 - CLI `--help` text for all 12 execution lifecycle commands
+
+> **Reference**: See [e2e-test-comprehensive.md](../../workshops/e2e-test-comprehensive.md) and [e2e-workunits.md](../../workshops/e2e-workunits.md) for full test design and WorkUnit definitions.
 
 ### User Value
 Agent developers can follow a working example to understand the complete workflow lifecycle. The documentation provides quick reference for command syntax, error codes, and expected behavior patterns.
@@ -28,11 +34,15 @@ Agent developers can follow a working example to understand the complete workflo
 ### Example
 **E2E Test Flow**:
 ```
-create graph → add nodes → wire inputs
-  → Node 1: save-output-data "spec" → end
-  → Node 2: start → ask question → answer → save-output-data/file → end
-  → Node 3: start → get-input-data/file → save-output-data → end
-  → validate all nodes complete, graph complete
+create graph → add 3 lines → add 7 nodes → wire inputs
+  → Line 0: spec-builder: start → save spec → end
+            spec-reviewer: start → save reviewed_spec → end
+  → Line 1: coder: start → ask "Which language?" → answer → save outputs → end
+            tester: start → get-input-data → save outputs → end
+  → Manual gate: cg wf trigger <slug> <line1Id>
+  → Line 2: alignment-tester + pr-preparer: start BOTH (parallel)
+            → complete both → PR-creator: start → save → end (code-unit)
+  → validate 7 nodes complete, 3 lines complete, graph complete
 ```
 
 ---
@@ -44,9 +54,9 @@ Create the E2E test script and documentation that proves and documents the execu
 
 ### Goals
 
-- ✅ Create E2E test script exercising full 3-node pipeline
+- ✅ Create E2E test script exercising full **3-line, 7-node** pipeline
 - ✅ E2E test uses CLI commands (spawns `cg` process), not direct service API
-- ✅ E2E test demonstrates: direct output pattern, agent with Q&A, input retrieval
+- ✅ E2E test demonstrates: serial execution, **parallel execution**, **manual transition gate**, Q&A protocol, **code-unit pattern**, **composite inputs**
 - ✅ Create documentation in `docs/how/positional-graph-execution/`
 - ✅ Add CLI `--help` text for all 12 new commands
 - ✅ Document error codes E172-E179
@@ -68,6 +78,7 @@ Create the E2E test script and documentation that proves and documents the execu
 ### Summary
 | File | Action | Origin | Modified By | Recommendation |
 |------|--------|--------|-------------|----------------|
+| `/home/jak/substrate/028-pos-agentic-cli/test/unit/positional-graph/test-helpers.ts` | Modify | Plan 028 Phase 1 | — | keep-as-is (add 7 WorkUnit fixtures) |
 | `/home/jak/substrate/028-pos-agentic-cli/test/e2e/positional-graph-execution-e2e.ts` | Create | New | — | keep-as-is |
 | `/home/jak/substrate/028-pos-agentic-cli/docs/how/positional-graph-execution/1-overview.md` | Create | New | — | keep-as-is |
 | `/home/jak/substrate/028-pos-agentic-cli/docs/how/positional-graph-execution/2-cli-reference.md` | Create | New | — | keep-as-is |
@@ -88,8 +99,8 @@ No violations found.
 ### Coverage Matrix
 | AC | Description | Flow Summary | Files in Flow | Tasks | Status |
 |----|-------------|-------------|---------------|-------|--------|
-| AC-14 | E2E test executes 3-node pipeline using only `cg wf` commands | Script → CLI → service → filesystem | e2e script, CLI commands | T001-T006 | ⬜ Pending |
-| AC-15 | All commands return valid JSON when `--json` flag is used | CLI handlers → output adapter | CLI commands, E2E validation | T006, T011 | ⬜ Pending |
+| AC-14 | E2E test executes **3-line, 7-node** pipeline using only `cg wf` commands | Script → CLI → service → filesystem | e2e script, CLI commands | T001-T006 | ✅ Complete |
+| AC-15 | All commands return valid JSON when `--json` flag is used | CLI handlers → output adapter | CLI commands, E2E validation | T006, T011 | ✅ Complete |
 
 ### Gaps Found
 No gaps — Phase 6 is documentation and E2E validation, not new functionality.
@@ -114,18 +125,18 @@ flowchart TD
     style Docs fill:#F5F5F5,stroke:#E0E0E0
 
     subgraph Phase["Phase 6: E2E Test and Documentation"]
-        T001["T001: E2E script skeleton"]:::pending
-        T002["T002: Graph creation + nodes"]:::pending
-        T003["T003: Node 1 direct output"]:::pending
-        T004["T004: Node 2 Q&A flow"]:::pending
-        T005["T005: Node 3 input retrieval"]:::pending
-        T006["T006: Final validation"]:::pending
-        T007["T007: Survey docs structure"]:::pending
-        T008["T008: Overview doc"]:::pending
-        T009["T009: CLI reference doc"]:::pending
-        T010["T010: E2E flow doc"]:::pending
-        T011["T011: CLI help text"]:::pending
-        T012["T012: Run full E2E"]:::pending
+        T001["T001: E2E script skeleton ✓"]:::completed
+        T002["T002: Graph creation + nodes ✓"]:::completed
+        T003["T003: Node 1 direct output ✓"]:::completed
+        T004["T004: Node 2 Q&A flow ✓"]:::completed
+        T005["T005: Node 3 input retrieval ✓"]:::completed
+        T006["T006: Final validation ✓"]:::completed
+        T007["T007: Survey docs structure ✓"]:::completed
+        T008["T008: Overview doc ✓"]:::completed
+        T009["T009: CLI reference doc ✓"]:::completed
+        T010["T010: E2E flow doc ✓"]:::completed
+        T011["T011: CLI help text ✓"]:::completed
+        T012["T012: Run full E2E ✓"]:::completed
 
         T001 --> T002 --> T003 --> T004 --> T005 --> T006
         T007 --> T008 --> T009 --> T010
@@ -134,14 +145,14 @@ flowchart TD
     end
 
     subgraph E2E["E2E Test"]
-        F1["e2e-positional-graph-execution-e2e.ts"]:::pending
+        F1["e2e-positional-graph-execution-e2e.ts ✓"]:::completed
     end
 
     subgraph Docs["Documentation"]
-        F2["1-overview.md"]:::pending
-        F3["2-cli-reference.md"]:::pending
-        F4["3-e2e-flow.md"]:::pending
-        F5["positional-graph.command.ts<br/>(help text)"]:::pending
+        F2["1-overview.md ✓"]:::completed
+        F3["2-cli-reference.md ✓"]:::completed
+        F4["3-e2e-flow.md ✓"]:::completed
+        F5["positional-graph.command.ts<br/>(help text) ✓"]:::completed
     end
 
     T001 -.-> F1
@@ -162,18 +173,18 @@ flowchart TD
 
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
-| T001 | E2E Test | e2e-positional-graph-execution-e2e.ts | ⬜ Pending | Script skeleton with CLI runner |
-| T002 | E2E Test | same | ⬜ Pending | Graph creation, node addition, input wiring |
-| T003 | E2E Test | same | ⬜ Pending | Node 1 direct output pattern |
-| T004 | E2E Test | same | ⬜ Pending | Node 2 agent with Q&A |
-| T005 | E2E Test | same | ⬜ Pending | Node 3 input retrieval |
-| T006 | E2E Test | same | ⬜ Pending | Final validation + cleanup |
-| T007 | Documentation | docs/how/ survey | ⬜ Pending | Understand existing structure |
-| T008 | Documentation | 1-overview.md | ⬜ Pending | State machine, architecture |
-| T009 | Documentation | 2-cli-reference.md | ⬜ Pending | All 12 commands with examples |
-| T010 | Documentation | 3-e2e-flow.md | ⬜ Pending | Step-by-step walkthrough |
-| T011 | CLI Help | positional-graph.command.ts | ⬜ Pending | --help descriptions |
-| T012 | Validation | E2E script | ⬜ Pending | Run and verify E2E passes |
+| T001 | E2E Test | e2e-positional-graph-execution-e2e.ts | ✅ Complete | Script skeleton with CLI runner |
+| T002 | E2E Test + WorkUnits | test-helpers.ts, e2e-positional-graph-execution-e2e.ts | ✅ Complete | 7 WorkUnit fixtures + 3-line, 7-node graph creation |
+| T003 | E2E Test | same | ✅ Complete | Line 0: spec-builder + spec-reviewer (serial) |
+| T004 | E2E Test | same | ✅ Complete | Line 1: coder (Q&A) + tester + manual gate |
+| T005 | E2E Test | same | ✅ Complete | Line 2: parallel nodes + PR-creator (code-unit) |
+| T006 | E2E Test | same | ✅ Complete | Final validation: 7 nodes, 3 lines, graph complete |
+| T007 | Documentation | docs/how/ survey | ✅ Complete | Understand existing structure |
+| T008 | Documentation | 1-overview.md | ✅ Complete | State machine, architecture |
+| T009 | Documentation | 2-cli-reference.md | ✅ Complete | All 12 commands with examples |
+| T010 | Documentation | 3-e2e-flow.md | ✅ Complete | Step-by-step walkthrough |
+| T011 | CLI Help | positional-graph.command.ts | ✅ Complete | --help descriptions |
+| T012 | Validation | E2E script | ✅ Complete | Run and verify E2E passes |
 
 ---
 
@@ -181,18 +192,18 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|------|--------------------------------------|-----|------|--------------|------------------|------------|----------|-------|
-| [ ] | T001 | Create E2E test script skeleton | 2 | Setup | – | /home/jak/substrate/028-pos-agentic-cli/test/e2e/positional-graph-execution-e2e.ts | Script compiles, CLI runner helper works | – | Per workshop §E2E |
-| [ ] | T002 | Implement cleanup and graph creation | 2 | Core | T001 | /home/jak/substrate/028-pos-agentic-cli/test/e2e/positional-graph-execution-e2e.ts | Creates graph, adds lines and nodes, wires inputs | – | Uses `cg wf create`, `node add`, `set-input` |
-| [ ] | T003 | Implement node 1 direct output execution | 2 | Core | T002 | /home/jak/substrate/028-pos-agentic-cli/test/e2e/positional-graph-execution-e2e.ts | save-output-data → end; node complete | – | Direct output pattern per workshop |
-| [ ] | T004 | Implement node 2 agent with question | 3 | Core | T003 | /home/jak/substrate/028-pos-agentic-cli/test/e2e/positional-graph-execution-e2e.ts | start → ask → answer → save outputs → end | – | Full Q&A protocol |
-| [ ] | T005 | Implement node 3 input retrieval and execution | 2 | Core | T004 | /home/jak/substrate/028-pos-agentic-cli/test/e2e/positional-graph-execution-e2e.ts | get-input-data/file → save outputs → end | – | Validates input resolution |
-| [ ] | T006 | Implement final validation | 2 | Core | T005 | /home/jak/substrate/028-pos-agentic-cli/test/e2e/positional-graph-execution-e2e.ts | All nodes complete, graph complete, JSON output valid | – | AC-14, AC-15 |
-| [ ] | T007 | Survey existing docs/how/ structure | 1 | Setup | – | /home/jak/substrate/028-pos-agentic-cli/docs/how/ | Documented patterns for new docs | – | Discovery step |
-| [ ] | T008 | Create 1-overview.md | 2 | Doc | T007 | /home/jak/substrate/028-pos-agentic-cli/docs/how/positional-graph-execution/1-overview.md | State machine diagram, CLI overview, architecture | – | Links to CLI ref |
-| [ ] | T009 | Create 2-cli-reference.md | 2 | Doc | T008 | /home/jak/substrate/028-pos-agentic-cli/docs/how/positional-graph-execution/2-cli-reference.md | All 12 commands documented with examples | – | Per workshop specs |
-| [ ] | T010 | Create 3-e2e-flow.md | 2 | Doc | T009 | /home/jak/substrate/028-pos-agentic-cli/docs/how/positional-graph-execution/3-e2e-flow.md | Step-by-step E2E flow walkthrough | – | Matches E2E script |
-| [ ] | T011 | Add CLI --help text for all 12 commands | 2 | Doc | – | /home/jak/substrate/028-pos-agentic-cli/apps/cli/src/commands/positional-graph.command.ts | Help text per workshop specs | – | Update command descriptions |
-| [ ] | T012 | Run full E2E test | 2 | Integration | T006, T011 | /home/jak/substrate/028-pos-agentic-cli/test/e2e/positional-graph-execution-e2e.ts | E2E passes with real filesystem | – | Final validation |
+| [x] | T001 | Create E2E test script skeleton | 2 | Setup | – | /home/jak/substrate/028-pos-agentic-cli/test/e2e/positional-graph-execution-e2e.ts | Script compiles, CLI runner helper works | – | Per workshop §E2E |
+| [x] | T002 | Define WorkUnits and create graph | 2 | Core | T001 | /home/jak/substrate/028-pos-agentic-cli/test/unit/positional-graph/test-helpers.ts, /home/jak/substrate/028-pos-agentic-cli/test/e2e/positional-graph-execution-e2e.ts | 7 WorkUnit fixtures defined, 3 lines, 7 nodes, 6 inputs wired | – | WorkUnits: spec-builder, spec-reviewer, coder, tester, alignment-tester, pr-preparer, PR-creator |
+| [x] | T003 | Implement Line 0 serial execution | 2 | Core | T002 | /home/jak/substrate/028-pos-agentic-cli/test/e2e/positional-graph-execution-e2e.ts | spec-builder → spec-reviewer complete | – | Serial execution pattern |
+| [x] | T004 | Implement Line 1 with Q&A and manual gate | 3 | Core | T003 | /home/jak/substrate/028-pos-agentic-cli/test/e2e/positional-graph-execution-e2e.ts | coder (Q&A) → tester → trigger gate | – | Q&A protocol, manual transition |
+| [x] | T005 | Implement Line 2 parallel and code-unit | 3 | Core | T004 | /home/jak/substrate/028-pos-agentic-cli/test/e2e/positional-graph-execution-e2e.ts | parallel start → both complete → PR-creator | – | Parallel execution, code-unit pattern |
+| [x] | T006 | Implement final validation | 2 | Core | T005 | /home/jak/substrate/028-pos-agentic-cli/test/e2e/positional-graph-execution-e2e.ts | 7 nodes complete, 3 lines complete, graph complete | – | AC-14, AC-15 |
+| [x] | T007 | Survey existing docs/how/ structure | 1 | Setup | – | /home/jak/substrate/028-pos-agentic-cli/docs/how/ | Documented patterns for new docs | – | Discovery step |
+| [x] | T008 | Create 1-overview.md | 2 | Doc | T007 | /home/jak/substrate/028-pos-agentic-cli/docs/how/positional-graph-execution/1-overview.md | State machine diagram, CLI overview, architecture | – | Links to CLI ref |
+| [x] | T009 | Create 2-cli-reference.md | 2 | Doc | T008 | /home/jak/substrate/028-pos-agentic-cli/docs/how/positional-graph-execution/2-cli-reference.md | All 12 commands documented with examples | – | Per workshop specs |
+| [x] | T010 | Create 3-e2e-flow.md | 2 | Doc | T009 | /home/jak/substrate/028-pos-agentic-cli/docs/how/positional-graph-execution/3-e2e-flow.md | Step-by-step E2E flow walkthrough | – | Matches E2E script |
+| [x] | T011 | Add CLI --help text for all 12 commands | 2 | Doc | – | /home/jak/substrate/028-pos-agentic-cli/apps/cli/src/commands/positional-graph.command.ts | Help text per workshop specs | – | Update command descriptions |
+| [x] | T012 | Run full E2E test | 2 | Integration | T006, T011 | /home/jak/substrate/028-pos-agentic-cli/test/e2e/positional-graph-execution-e2e.ts | E2E passes with real filesystem | – | Final validation |
 
 ---
 
@@ -276,23 +287,37 @@ flowchart LR
     classDef complete fill:#4CAF50,stroke:#388E3C,color:#fff
     classDef running fill:#FFC107,stroke:#FFA000,color:#000
     classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
+    classDef parallel fill:#E3F2FD,stroke:#2196F3,color:#000
 
-    subgraph Line0["Line 0: Input"]
-        N1[sample-input]
+    subgraph Line0["Line 0: Spec Creation (serial)"]
+        N1[spec-builder]
+        N2[spec-reviewer]
+        N1 --> N2
     end
 
-    subgraph Line1["Line 1: Code Generation"]
-        N2[sample-coder]
+    subgraph Line1["Line 1: Implementation (serial, MANUAL gate)"]
+        N3[coder]
+        N4[tester]
+        N3 --> N4
     end
 
-    subgraph Line2["Line 2: Testing"]
-        N3[sample-tester]
+    subgraph Line2["Line 2: PR Preparation (parallel + serial)"]
+        N5[alignment-tester]:::parallel
+        N6[pr-preparer]:::parallel
+        N7[PR-creator]
+        N5 --> N7
+        N6 --> N7
     end
 
-    N1 -->|spec| N2
-    N2 -->|language, script| N3
+    N2 -->|reviewed_spec| N3
+    N4 -->|test_output| N5
+    N4 -->|test_output| N6
+    N2 -->|reviewed_spec| N6
+    N5 -->|alignment_notes| N7
+    N6 -->|pr_summary| N7
 
-    N1 --> N2 --> N3
+    Line0 --> Line1
+    Line1 -.->|manual trigger| Line2
 ```
 
 #### Execution Sequence Diagram
@@ -303,39 +328,54 @@ sequenceDiagram
     participant CLI as cg wf CLI
     participant FS as Filesystem
 
-    Note over Script,FS: Setup
-    Script->>CLI: wf delete sample-e2e (cleanup)
-    Script->>CLI: wf create sample-e2e
-    Script->>CLI: wf node add ... (3 nodes)
+    Note over Script,FS: Setup - Create 3-line, 7-node graph
+    Script->>CLI: wf delete e2e-pipeline (cleanup)
+    Script->>CLI: wf create e2e-pipeline
+    Script->>CLI: wf line add (Line 0, 1, 2)
+    Script->>CLI: wf node add ... (7 nodes)
     Script->>CLI: wf node set-input ... (wirings)
 
-    Note over Script,FS: Node 1: Direct Output
-    Script->>CLI: wf node save-output-data sample-e2e node1 spec "..."
-    Script->>CLI: wf node end sample-e2e node1
-    CLI->>FS: state.json (node1 complete)
+    Note over Script,FS: Line 0: Spec Creation (serial)
+    Script->>CLI: wf node start e2e-pipeline spec-builder
+    Script->>CLI: wf node save-output-data ... spec
+    Script->>CLI: wf node end ... spec-builder
+    Script->>CLI: wf node start e2e-pipeline spec-reviewer
+    Script->>CLI: wf node save-output-data ... reviewed_spec
+    Script->>CLI: wf node end ... spec-reviewer
+    CLI->>FS: Line 0 complete
 
-    Note over Script,FS: Node 2: Agent with Q&A
-    Script->>CLI: wf node start sample-e2e node2
-    Script->>CLI: wf node ask sample-e2e node2 --type single ...
+    Note over Script,FS: Line 1: Implementation with Q&A (serial)
+    Script->>CLI: wf node start e2e-pipeline coder
+    Script->>CLI: wf node ask ... --type single Which language?
     CLI-->>Script: questionId
-    Script->>CLI: wf node answer sample-e2e node2 <qId> "bash"
-    Script->>CLI: wf node save-output-data sample-e2e node2 language "bash"
-    Script->>CLI: wf node save-output-file sample-e2e node2 script ./add.sh
-    Script->>CLI: wf node end sample-e2e node2
-    CLI->>FS: state.json (node2 complete)
+    Script->>CLI: wf node answer ... qId bash
+    Script->>CLI: wf node save-output-data ... code
+    Script->>CLI: wf node end ... coder
+    Script->>CLI: wf node start e2e-pipeline tester
+    Script->>CLI: wf node get-input-data ... code
+    Script->>CLI: wf node save-output-data ... test_output
+    Script->>CLI: wf node end ... tester
+    CLI->>FS: Line 1 complete (MANUAL gate blocks Line 2)
 
-    Note over Script,FS: Node 3: Input Retrieval
-    Script->>CLI: wf node start sample-e2e node3
-    Script->>CLI: wf node get-input-data sample-e2e node3 language
-    CLI-->>Script: {value: "bash"}
-    Script->>CLI: wf node get-input-file sample-e2e node3 script
-    CLI-->>Script: {filePath: "..."}
-    Script->>CLI: wf node save-output-data sample-e2e node3 success true
-    Script->>CLI: wf node end sample-e2e node3
+    Note over Script,FS: Manual Gate Trigger
+    Script->>CLI: wf trigger e2e-pipeline line1-id
+    CLI->>FS: transition_open=true
+
+    Note over Script,FS: Line 2: PR Preparation (parallel + serial)
+    Script->>CLI: wf node start e2e-pipeline alignment-tester
+    Script->>CLI: wf node start e2e-pipeline pr-preparer
+    Note over Script: Both start in parallel
+    Script->>CLI: wf node save-output-data ... alignment_notes
+    Script->>CLI: wf node end ... alignment-tester
+    Script->>CLI: wf node save-output-data ... pr_summary
+    Script->>CLI: wf node end ... pr-preparer
+    Script->>CLI: wf node start e2e-pipeline PR-creator
+    Script->>CLI: wf node save-output-data ... pr_number
+    Script->>CLI: wf node end ... PR-creator
 
     Note over Script,FS: Validation
-    Script->>CLI: wf status sample-e2e --json
-    CLI-->>Script: {status: "complete", completedNodes: 3}
+    Script->>CLI: wf status e2e-pipeline --json
+    CLI-->>Script: status complete, 7 nodes complete, 3 lines complete
 ```
 
 ### Test Plan
@@ -347,12 +387,17 @@ sequenceDiagram
 |------|-------------------|------------|
 | Cleanup | `wf delete` | No error on missing |
 | Create graph | `wf create` | Graph exists |
-| Add nodes | `wf node add` (x3) | Node IDs returned |
-| Wire inputs | `wf node set-input` (x3) | Inputs wired |
-| Node 1 execute | `save-output-data`, `end` | Node complete |
-| Node 2 execute | `start`, `ask`, `answer`, `save-output-data`, `save-output-file`, `end` | Node complete |
-| Node 3 execute | `start`, `get-input-data`, `get-input-file`, `save-output-data`, `end` | Node complete |
-| Final validation | `wf status --json` | Graph complete, all 3 nodes complete |
+| Add lines | `wf line add` (x2 after initial) | Line IDs returned |
+| Add nodes | `wf node add` (x7) | Node IDs returned |
+| Wire inputs | `wf node set-input` (x6) | Inputs wired |
+| Line 0: spec-builder | `start`, `save-output-data`, `end` | Node complete |
+| Line 0: spec-reviewer | `start`, `get-input-data`, `save-output-data`, `end` | Node complete, Line 0 complete |
+| Line 1: coder (Q&A) | `start`, `ask`, `answer`, `save-output-data`, `end` | Full Q&A protocol |
+| Line 1: tester | `start`, `get-input-data`, `save-output-data`, `end` | Line 1 complete (gated) |
+| Manual gate | `wf trigger` | Transition opens Line 2 |
+| Line 2: parallel nodes | `start` (x2 parallel), `save-output-data`, `end` (x2) | Both complete |
+| Line 2: PR-creator | `start`, `get-input-data`, `save-output-data`, `end` | Code-unit pattern |
+| Final validation | `wf status --json` | Graph complete, 7 nodes, 3 lines |
 
 **JSON Output Validation**:
 - All commands with `--json` flag return parseable JSON
@@ -366,35 +411,42 @@ sequenceDiagram
    - Create `runCli()` helper that spawns process and parses JSON output
    - Set up temp directory for workspace isolation
 
-2. **T002**: Implement graph setup
+2. **T002**: Define WorkUnit fixtures + implement graph setup
+   - Add 7 `NarrowWorkUnit` fixtures to `test-helpers.ts` (all same structure — behavior is implicit in E2E script):
+     - `sampleSpecBuilder`: outputs `spec`
+     - `sampleSpecReviewer`: inputs `spec`, outputs `reviewed_spec`
+     - `sampleCoder`: inputs `spec`, outputs `language`, `code` (file) — **agentic behavior: Q&A**
+     - `sampleTester`: inputs `language`, `code`, outputs `test_passed`, `test_output`
+     - `sampleAlignmentTester`: inputs `spec`, `code`, `test_output`, outputs `alignment_score`, `alignment_notes`
+     - `samplePrPreparer`: inputs `spec`, `test_output`, outputs `pr_title`, `pr_body`
+     - `samplePRCreator`: inputs `pr_title`, `pr_body`, outputs `pr_url`, `pr_number` — **code-unit behavior: no Q&A**
    - Delete existing graph (ignore errors)
-   - Create graph, capture initial line ID
-   - Add nodes to lines
-   - Wire inputs using `set-input`
+   - Create graph with initial Line 0
+   - Add Line 1 (serial, manual transition), Line 2 (parallel + serial)
+   - Add 7 nodes using the defined WorkUnit slugs
+   - Wire 6 inputs using `set-input`
 
-3. **T003**: Implement Node 1 (direct output pattern)
-   - Save spec output directly (no start)
-   - Call end (ready → complete)
-   - Validate node status
+3. **T003**: Implement Line 0 (serial execution)
+   - spec-builder: start → save spec → end
+   - spec-reviewer: start → get-input reviewed_spec → save reviewed_spec → end
+   - Validate Line 0 complete
 
-4. **T004**: Implement Node 2 (agent with Q&A)
-   - Start node
-   - Ask question, capture question ID
-   - Answer question
-   - Save language (data) and script (file) outputs
-   - End node
+4. **T004**: Implement Line 1 (Q&A + manual gate)
+   - coder: start → ask "Which language?" → answer → save code → end
+   - tester: start → get-input code → save test_output → end
+   - Line 1 complete but gated (transition_open=false)
+   - Call `wf trigger` to open manual gate
 
-5. **T005**: Implement Node 3 (input retrieval)
-   - Start node
-   - Get language input data
-   - Get script input file
-   - Execute mock script
-   - Save success and output
-   - End node
+5. **T005**: Implement Line 2 (parallel + code-unit)
+   - alignment-tester + pr-preparer: start BOTH (parallel)
+   - Complete both nodes
+   - PR-creator: start → get-input → save pr_number → end (code-unit: no Q&A)
+   - Validate Line 2 complete
 
 6. **T006**: Final validation
    - Get graph status
-   - Assert all nodes complete
+   - Assert 7 nodes complete
+   - Assert 3 lines complete
    - Assert graph status is complete
    - Clean up graph
 
@@ -436,23 +488,23 @@ cg wf node start --help
 
 ### Ready Check
 
-- [ ] Prior phases all complete (Phases 1-5) ✅
-- [ ] Workshop spec available for E2E script design ✅
-- [ ] Existing E2E test pattern available for reference ✅
-- [ ] docs/how/ structure understood ✅
-- [ ] ADR constraints understood (CLI-based orchestration) ✅
+- [x] Prior phases all complete (Phases 1-5) ✅
+- [x] Workshop spec available for E2E script design ✅
+- [x] Existing E2E test pattern available for reference ✅
+- [x] docs/how/ structure understood ✅
+- [x] ADR constraints understood (CLI-based orchestration) ✅
 
-**Awaiting GO** — Do not proceed until human approves.
+**Phase Complete** — All tasks completed successfully.
 
 ---
 
 ## Phase Footnote Stubs
 
-_To be populated by plan-6 during implementation._
-
 | Footnote | Reference | Description |
 |----------|-----------|-------------|
-| | | |
+| [^7] | Tasks 6.1-6.6 | E2E test implementation - 53-step test, 7 WorkUnit fixtures, unit YAML fixes |
+| [^8] | Tasks 6.7-6.10 | Documentation - overview, CLI reference, E2E flow walkthrough |
+| [^9] | Tasks 6.11-6.12 | CLI help text, final E2E validation, JsonOutputAdapter fix |
 
 ---
 
@@ -474,7 +526,9 @@ _Populated during implementation by plan-6. Log anything of interest to your fut
 
 | Date | Task | Type | Discovery | Resolution | References |
 |------|------|------|-----------|------------|------------|
-| | | | | | |
+| 2026-02-04 | T012 | gotcha | `JsonOutputAdapter.format()` expects `result.errors` array but status result types don't have it | Wrapped status results with `{ ...result, errors: [] }` in CLI handlers | `positional-graph.command.ts` |
+| 2026-02-04 | T012 | gotcha | Unit YAML naming mismatch: `sample-coder` output was `script` but E2E expected `code` | Updated `sample-coder/unit.yaml` to use `code` output name | `.chainglass/data/units/sample-coder/unit.yaml` |
+| 2026-02-04 | T012 | gotcha | Unit YAML naming mismatch: `sample-tester` outputs were `success`/`output` but E2E expected `test_passed`/`test_output` | Updated `sample-tester/unit.yaml` to use correct output names | `.chainglass/data/units/sample-tester/unit.yaml` |
 
 **Types**: `gotcha` | `research-needed` | `unexpected-behavior` | `workaround` | `decision` | `debt` | `insight`
 

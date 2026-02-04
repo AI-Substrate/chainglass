@@ -14,7 +14,20 @@
 
 ## Purpose
 
-Define the real WorkUnits for the comprehensive E2E test. These are **actual units** that will exist in the codebase, not mocks. The E2E test will "be the agent" — executing CLI commands on behalf of each unit.
+**Testing the data system, not the units themselves.**
+
+This E2E test validates the execution lifecycle infrastructure — the plumbing that lets nodes start, save outputs, ask questions, retrieve inputs, and complete. The 7 WorkUnits defined here are vehicles to exercise that infrastructure comprehensively:
+
+- Serial and parallel execution
+- Manual transition gates
+- Q&A protocol (agentic behavior)
+- Simple start→save→end (code-unit behavior)
+- Cross-line input resolution
+- Composite inputs from multiple sources
+
+By validating this foundation now, we create a solid base for more advanced WorkUnit types later (full `AgentUnit` with prompts, `CodeUnit` with execution config, etc.). The `NarrowWorkUnit` interface is intentionally minimal — just enough for the data system to work.
+
+The E2E test "becomes the agent" — executing CLI commands on behalf of each unit to prove the infrastructure works end-to-end.
 
 ---
 
@@ -110,19 +123,18 @@ cg wf trigger <slug> <line1Id>
 
 ### 1. sample-spec-builder
 
-**Type**: Agentic
+**Behavior**: Agentic (simulates agent creating spec)
 **Purpose**: Creates initial specification from requirements
 
 ```yaml
+# NarrowWorkUnit fixture (no type field - behavior is implicit)
 slug: sample-spec-builder
-type: agentic
-description: Creates a specification document from high-level requirements
 
 inputs: []  # Entry point - no inputs
 
 outputs:
   - name: spec
-    type: string
+    type: data
     required: true
     description: The generated specification document
 ```
@@ -136,27 +148,26 @@ outputs:
 
 ### 2. sample-spec-reviewer
 
-**Type**: Agentic
+**Behavior**: Agentic (simulates agent reviewing spec)
 **Purpose**: Reviews and refines the specification
 
 ```yaml
+# NarrowWorkUnit fixture
 slug: sample-spec-reviewer
-type: agentic
-description: Reviews a specification and provides feedback/refinements
 
 inputs:
   - name: spec
-    type: string
+    type: data
     required: true
     description: The specification to review
 
 outputs:
   - name: reviewed_spec
-    type: string
+    type: data
     required: true
     description: The reviewed/refined specification
   - name: review_notes
-    type: string
+    type: data
     required: false
     description: Review notes and feedback
 ```
@@ -170,23 +181,22 @@ outputs:
 
 ### 3. sample-coder
 
-**Type**: Agentic
+**Behavior**: Agentic with Q&A (asks "Which language?")
 **Purpose**: Writes code based on specification
 
 ```yaml
+# NarrowWorkUnit fixture
 slug: sample-coder
-type: agentic
-description: Writes implementation code based on a specification
 
 inputs:
   - name: spec
-    type: string
+    type: data
     required: true
     description: The specification to implement
 
 outputs:
   - name: language
-    type: string
+    type: data
     required: true
     description: Programming language used
   - name: code
@@ -204,17 +214,16 @@ outputs:
 
 ### 4. sample-tester
 
-**Type**: Agentic
+**Behavior**: Agentic (simulates running tests)
 **Purpose**: Tests the generated code
 
 ```yaml
+# NarrowWorkUnit fixture
 slug: sample-tester
-type: agentic
-description: Tests the implementation code
 
 inputs:
   - name: language
-    type: string
+    type: data
     required: true
     description: Programming language of the code
   - name: code
@@ -224,11 +233,11 @@ inputs:
 
 outputs:
   - name: test_passed
-    type: boolean
+    type: data
     required: true
     description: Whether tests passed
   - name: test_output
-    type: string
+    type: data
     required: true
     description: Test execution output
 ```
@@ -242,17 +251,16 @@ outputs:
 
 ### 5. sample-spec-alignment-tester
 
-**Type**: Agentic
+**Behavior**: Agentic (simulates spec alignment check)
 **Purpose**: Verifies implementation aligns with specification
 
 ```yaml
+# NarrowWorkUnit fixture
 slug: sample-spec-alignment-tester
-type: agentic
-description: Verifies the implementation matches the specification
 
 inputs:
   - name: spec
-    type: string
+    type: data
     required: true
     description: The original specification
   - name: code
@@ -260,17 +268,17 @@ inputs:
     required: true
     description: The implementation code
   - name: test_output
-    type: string
+    type: data
     required: true
     description: Test results
 
 outputs:
   - name: alignment_score
-    type: number
+    type: data
     required: true
     description: How well implementation matches spec (0-100)
   - name: alignment_notes
-    type: string
+    type: data
     required: true
     description: Detailed alignment analysis
 ```
@@ -284,35 +292,34 @@ outputs:
 
 ### 6. sample-pr-preparer
 
-**Type**: Agentic
+**Behavior**: Agentic (simulates PR metadata creation)
 **Purpose**: Prepares PR metadata (title, body, labels)
 
 ```yaml
+# NarrowWorkUnit fixture
 slug: sample-pr-preparer
-type: agentic
-description: Prepares pull request metadata
 
 inputs:
   - name: spec
-    type: string
+    type: data
     required: true
     description: The specification
   - name: test_output
-    type: string
+    type: data
     required: true
     description: Test results from tester
 
 outputs:
   - name: pr_title
-    type: string
+    type: data
     required: true
     description: PR title
   - name: pr_body
-    type: string
+    type: data
     required: true
     description: PR description/body
   - name: pr_labels
-    type: string
+    type: data
     required: false
     description: Comma-separated labels
 ```
@@ -328,31 +335,30 @@ outputs:
 
 ### 7. sample-PR-creator
 
-**Type**: Code-Unit (NOT agentic)
+**Behavior**: Code-unit (simple start → save → end, no Q&A)
 **Purpose**: Creates the actual PR via CLI/API
 
 ```yaml
+# NarrowWorkUnit fixture (same structure as agentic - behavior is implicit)
 slug: sample-PR-creator
-type: code-unit  # Different from agentic!
-description: Creates a pull request using the prepared metadata
 
 inputs:
   - name: pr_title
-    type: string
+    type: data
     required: true
     description: PR title
   - name: pr_body
-    type: string
+    type: data
     required: true
     description: PR description
 
 outputs:
   - name: pr_url
-    type: string
+    type: data
     required: true
     description: URL of the created PR
   - name: pr_number
-    type: number
+    type: data
     required: true
     description: PR number
 ```
@@ -362,18 +368,22 @@ outputs:
 - **Code-unit behavior**: Executes programmatically, no agent interaction
 - Just runs: `start` → `save-output-data` → `end`
 - No questions, no complex agent behavior
+- Note: NarrowWorkUnit has no `type` field — the code-unit behavior is implicit in how the E2E test script executes this node
 
 ---
 
-## Code-Unit vs Agentic Unit
+## Behavioral Patterns: Agentic vs Code-Unit
 
-| Aspect | Agentic Unit | Code-Unit |
-|--------|--------------|-----------|
+> **Note**: The positional-graph system uses `NarrowWorkUnit` which only has `slug`, `inputs`, `outputs` — no `type` field. The distinction below is **behavioral** (how the E2E test script acts), not type-based. Full WorkUnit types (`agent`, `code`, `user-input`) exist in the workgraph package but are not used by positional-graph. We may expand unit types later.
+
+| Aspect | Agentic Behavior | Code-Unit Behavior |
+|--------|------------------|-------------------|
 | **Execution** | Agent runs, makes decisions | Programmatic execution |
 | **Questions** | May ask questions | Never asks questions |
 | **Duration** | Variable (agent thinking) | Fast (just code) |
 | **State machine** | Full: start → (ask/answer)* → end | Simple: start → end |
-| **E2E simulation** | Simulate agent behavior | Just call start/save/end |
+| **E2E simulation** | Simulate agent behavior with Q&A | Just call start/save/end |
+| **NarrowWorkUnit** | Same structure | Same structure |
 
 ---
 

@@ -16,10 +16,10 @@ outputs:
     data_type: text
     required: true
     description: The programming language chosen
-  - name: script
+  - name: code
     type: file
     required: true
-    description: The generated script file
+    description: The generated code file
 
 agent:
   prompt_template: commands/main.md

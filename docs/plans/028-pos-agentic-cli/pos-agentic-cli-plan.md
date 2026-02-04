@@ -599,24 +599,24 @@ describe('getInputData', () => {
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 6.1 | [ ] | Create E2E test script skeleton | 2 | Script structure per workshop; TypeScript compiles | - | test/e2e/positional-graph-execution-e2e.ts |
-| 6.2 | [ ] | Implement cleanup and graph creation | 2 | Creates graph, adds lines and nodes | - | Same file |
-| 6.3 | [ ] | Implement node1 direct output execution | 2 | save-output-data → end; node complete | - | Same file |
-| 6.4 | [ ] | Implement node2 agent with question | 3 | start → ask → answer → save outputs → end | - | Same file |
-| 6.5 | [ ] | Implement node3 input retrieval and execution | 2 | get-input-data/file → save outputs → end | - | Same file |
-| 6.6 | [ ] | Implement final validation | 2 | All nodes complete, graph complete | - | Same file |
-| 6.7 | [ ] | Survey existing docs/how/ structure | 1 | Document existing feature areas | - | Discovery step |
-| 6.8 | [ ] | Create docs/how/positional-graph-execution/1-overview.md | 2 | State machine, CLI overview, architecture diagram | - | New docs |
-| 6.9 | [ ] | Create docs/how/positional-graph-execution/2-cli-reference.md | 2 | All 12 commands documented with examples | - | New docs |
-| 6.10 | [ ] | Create docs/how/positional-graph-execution/3-e2e-flow.md | 2 | Step-by-step E2E flow walkthrough | - | New docs |
-| 6.11 | [ ] | Add CLI --help text for all 12 commands | 2 | Help text per workshop specs | - | positional-graph.command.ts |
-| 6.12 | [ ] | Run full E2E test | 2 | E2E passes with real filesystem | - | Integration test |
+| 6.1 | [x] | Create E2E test script skeleton | 2 | Script structure per workshop; TypeScript compiles | [📋](tasks/phase-6-e2e-test-and-documentation/execution.log.md#T001) | test/e2e/positional-graph-execution-e2e.ts [^7] |
+| 6.2 | [x] | Implement cleanup and graph creation | 2 | Creates graph, adds lines and nodes | [📋](tasks/phase-6-e2e-test-and-documentation/execution.log.md#T002) | Same file [^7] |
+| 6.3 | [x] | Implement node1 direct output execution | 2 | save-output-data → end; node complete | [📋](tasks/phase-6-e2e-test-and-documentation/execution.log.md#T003) | Same file [^7] |
+| 6.4 | [x] | Implement node2 agent with question | 3 | start → ask → answer → save outputs → end | [📋](tasks/phase-6-e2e-test-and-documentation/execution.log.md#T004) | Same file [^7] |
+| 6.5 | [x] | Implement node3 input retrieval and execution | 2 | get-input-data/file → save outputs → end | [📋](tasks/phase-6-e2e-test-and-documentation/execution.log.md#T005) | Same file [^7] |
+| 6.6 | [x] | Implement final validation | 2 | All nodes complete, graph complete | [📋](tasks/phase-6-e2e-test-and-documentation/execution.log.md#T006) | Same file [^7] |
+| 6.7 | [x] | Survey existing docs/how/ structure | 1 | Document existing feature areas | [📋](tasks/phase-6-e2e-test-and-documentation/execution.log.md#T007) | Discovery step [^8] |
+| 6.8 | [x] | Create docs/how/positional-graph-execution/1-overview.md | 2 | State machine, CLI overview, architecture diagram | [📋](tasks/phase-6-e2e-test-and-documentation/execution.log.md#T008) | New docs [^8] |
+| 6.9 | [x] | Create docs/how/positional-graph-execution/2-cli-reference.md | 2 | All 12 commands documented with examples | [📋](tasks/phase-6-e2e-test-and-documentation/execution.log.md#T009) | New docs [^8] |
+| 6.10 | [x] | Create docs/how/positional-graph-execution/3-e2e-flow.md | 2 | Step-by-step E2E flow walkthrough | [📋](tasks/phase-6-e2e-test-and-documentation/execution.log.md#T010) | New docs [^8] |
+| 6.11 | [x] | Add CLI --help text for all 12 commands | 2 | Help text per workshop specs | [📋](tasks/phase-6-e2e-test-and-documentation/execution.log.md#T011) | positional-graph.command.ts [^9] |
+| 6.12 | [x] | Run full E2E test | 2 | E2E passes with real filesystem | [📋](tasks/phase-6-e2e-test-and-documentation/execution.log.md#T012) | Integration test - 53 steps pass [^9] |
 
 #### Acceptance Criteria
-- [ ] E2E test passes (AC-14)
-- [ ] All commands return valid JSON (AC-15)
-- [ ] Documentation complete in docs/how/positional-graph-execution/
-- [ ] CLI --help text matches workshop specs
+- [x] E2E test passes (AC-14)
+- [x] All commands return valid JSON (AC-15)
+- [x] Documentation complete in docs/how/positional-graph-execution/
+- [x] CLI --help text matches workshop specs
 
 ---
 
@@ -697,7 +697,7 @@ describe('getInputData', () => {
 - [x] Phase 3: Node Lifecycle - Complete (22 tests, 3 service methods, 3 CLI commands)
 - [x] Phase 4: Question/Answer Protocol - Complete (17 tests, 3 service methods, 3 CLI commands)
 - [x] Phase 5: Input Retrieval - Complete (13 tests, 2 service methods, 2 CLI commands)
-- [ ] Phase 6: E2E Test and Documentation - [Status]
+- [x] Phase 6: E2E Test and Documentation - Complete (53-step E2E test, 3 doc files, CLI help text)
 
 ### STOP Rule
 
@@ -773,3 +773,30 @@ describe('getInputData', () => {
   - `function:apps/cli/src/commands/positional-graph.command.ts:handleNodeAsk` - CLI handler for ask
   - `function:apps/cli/src/commands/positional-graph.command.ts:handleNodeAnswer` - CLI handler for answer
   - `function:apps/cli/src/commands/positional-graph.command.ts:handleNodeGetAnswer` - CLI handler for get-answer
+
+### Phase 5: Input Retrieval
+
+[^ph5]: Phase 5 - Input retrieval implementation (TDD - 13 tests, 2 service methods, 2 CLI commands)
+  - `file:test/unit/positional-graph/input-retrieval.test.ts` - 13 tests (getInputData 6, getInputFile 7)
+  - `method:packages/positional-graph/src/services/positional-graph.service.ts:PositionalGraphService.getInputData` - Thin wrapper around collateInputs
+  - `method:packages/positional-graph/src/services/positional-graph.service.ts:PositionalGraphService.getInputFile` - Thin wrapper around collateInputs for file inputs
+  - `function:apps/cli/src/commands/positional-graph.command.ts:handleGetInputData` - CLI handler
+  - `function:apps/cli/src/commands/positional-graph.command.ts:handleGetInputFile` - CLI handler
+
+### Phase 6: E2E Test and Documentation
+
+[^7]: Phase 6 - E2E test implementation (Tasks 6.1-6.6)
+  - `file:test/e2e/positional-graph-execution-e2e.ts` - 53-step E2E test validating 3-line, 7-node pipeline
+  - `file:test/unit/positional-graph/test-helpers.ts` - 7 NarrowWorkUnit fixtures (spec-builder, spec-reviewer, coder, tester, alignment-tester, pr-preparer, PR-creator)
+  - `file:.chainglass/data/units/sample-coder/unit.yaml` - Fixed output naming (script → code)
+  - `file:.chainglass/data/units/sample-tester/unit.yaml` - Fixed input/output naming (language, code, test_passed, test_output)
+
+[^8]: Phase 6 - Documentation (Tasks 6.7-6.10)
+  - `file:docs/how/positional-graph-execution/1-overview.md` - State machine, architecture, error codes E172-E179
+  - `file:docs/how/positional-graph-execution/2-cli-reference.md` - All 12 execution lifecycle commands with examples
+  - `file:docs/how/positional-graph-execution/3-e2e-flow.md` - Step-by-step walkthrough of 7-node pipeline
+
+[^9]: Phase 6 - CLI help text and final validation (Tasks 6.11-6.12)
+  - `function:apps/cli/src/commands/positional-graph.command.ts:handleWfStatus` - Fixed to wrap results with `errors: []` for JsonOutputAdapter
+  - E2E test passes with 53 steps validating: serial execution, parallel execution, manual transition gate, Q&A protocol, code-unit pattern
+  - Gotchas discovered: JsonOutputAdapter.format() requires `errors` array; unit YAML naming mismatches resolved

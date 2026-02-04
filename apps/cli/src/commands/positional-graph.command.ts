@@ -1014,22 +1014,21 @@ async function handleWfStatus(slug: string, options: StatusOptions): Promise<voi
   // Scope narrowing: --node takes priority over --line
   if (options.node) {
     const result = await service.getNodeStatus(ctx, slug, options.node);
-    console.log(adapter.format('wf.status.node', result));
+    // Wrap in BaseResult structure for adapter compatibility
+    console.log(adapter.format('wf.status.node', { ...result, errors: [] }));
     return;
   }
 
   if (options.line) {
     const result = await service.getLineStatus(ctx, slug, options.line);
-    console.log(adapter.format('wf.status.line', result));
+    // Wrap in BaseResult structure for adapter compatibility
+    console.log(adapter.format('wf.status.line', { ...result, errors: [] }));
     return;
   }
 
   const result = await service.getStatus(ctx, slug);
-  console.log(adapter.format('wf.status', result));
-
-  if (result.readyNodes.length === 0 && result.status !== 'complete') {
-    // Not an error, but no ready nodes — informational
-  }
+  // Wrap in BaseResult structure for adapter compatibility
+  console.log(adapter.format('wf.status', { ...result, errors: [] }));
 }
 
 async function handleWfTrigger(slug: string, lineId: string, options: BaseOptions): Promise<void> {
@@ -1519,7 +1518,7 @@ export function registerPositionalGraphCommands(program: Command): void {
   // Output Storage Commands (Phase 2, Plan 028)
   node
     .command('save-output-data <graph> <nodeId> <outputName> <valueJson>')
-    .description('Save an output data value (JSON) to a node')
+    .description('Save a JSON output value (node must be running). E176 if not running.')
     .action(
       wrapAction(
         async (
@@ -1541,7 +1540,9 @@ export function registerPositionalGraphCommands(program: Command): void {
 
   node
     .command('save-output-file <graph> <nodeId> <outputName> <sourcePath>')
-    .description('Save an output file by copying it to the node data directory')
+    .description(
+      'Copy a file to node storage (node must be running). E176 if not running, E179 if source missing.'
+    )
     .action(
       wrapAction(
         async (
@@ -1563,7 +1564,7 @@ export function registerPositionalGraphCommands(program: Command): void {
 
   node
     .command('get-output-data <graph> <nodeId> <outputName>')
-    .description('Get an output data value from a node')
+    .description('Retrieve a saved JSON output value. E175 if not yet saved.')
     .action(
       wrapAction(
         async (
@@ -1584,7 +1585,7 @@ export function registerPositionalGraphCommands(program: Command): void {
 
   node
     .command('get-output-file <graph> <nodeId> <outputName>')
-    .description('Get the absolute path to an output file from a node')
+    .description('Get absolute path to a saved output file. E175 if not yet saved.')
     .action(
       wrapAction(
         async (
@@ -1606,7 +1607,9 @@ export function registerPositionalGraphCommands(program: Command): void {
   // Node Lifecycle Commands (Phase 3, Plan 028)
   node
     .command('start <graph> <nodeId>')
-    .description('Start execution of a node (transitions pending → running)')
+    .description(
+      'Begin node execution (pending → running). Node must pass 4-gate readiness check. E170 if not ready.'
+    )
     .action(
       wrapAction(async (graph: string, nodeId: string, _options: BaseOptions, cmd: Command) => {
         const parentOpts = cmd.parent?.parent?.opts() ?? {};
@@ -1619,7 +1622,9 @@ export function registerPositionalGraphCommands(program: Command): void {
 
   node
     .command('can-end <graph> <nodeId>')
-    .description('Check if a node can be ended (all required outputs saved)')
+    .description(
+      'Check if all required outputs are saved. Returns canEnd: true/false and missingOutputs list.'
+    )
     .action(
       wrapAction(async (graph: string, nodeId: string, _options: BaseOptions, cmd: Command) => {
         const parentOpts = cmd.parent?.parent?.opts() ?? {};
@@ -1632,7 +1637,9 @@ export function registerPositionalGraphCommands(program: Command): void {
 
   node
     .command('end <graph> <nodeId>')
-    .description('End execution of a node (transitions running → complete)')
+    .description(
+      'Complete node execution (running → complete). All required outputs must be saved. E172 if wrong state.'
+    )
     .action(
       wrapAction(async (graph: string, nodeId: string, _options: BaseOptions, cmd: Command) => {
         const parentOpts = cmd.parent?.parent?.opts() ?? {};
@@ -1646,7 +1653,9 @@ export function registerPositionalGraphCommands(program: Command): void {
   // Question/Answer Commands (Phase 4, Plan 028)
   node
     .command('ask <graph> <nodeId>')
-    .description('Ask a question from a running node (transitions running → waiting-question)')
+    .description(
+      'Ask orchestrator a question (running → waiting-question). Returns questionId for answer/get-answer.'
+    )
     .requiredOption('--type <type>', 'Question type: text, single, multi, or confirm')
     .requiredOption('--text <text>', 'Question text to display')
     .option('--options <values...>', 'Answer options for single/multi choice questions')
@@ -1672,7 +1681,9 @@ export function registerPositionalGraphCommands(program: Command): void {
 
   node
     .command('answer <graph> <nodeId> <questionId> <answer>')
-    .description('Answer a question for a waiting node (transitions waiting-question → running)')
+    .description(
+      'Provide answer to waiting node (waiting-question → running). E173 if questionId invalid, E177 if not waiting.'
+    )
     .action(
       wrapAction(
         async (
@@ -1694,7 +1705,9 @@ export function registerPositionalGraphCommands(program: Command): void {
 
   node
     .command('get-answer <graph> <nodeId> <questionId>')
-    .description('Get the answer to a question')
+    .description(
+      'Retrieve answer to a question. Returns answered: true/false with answer value. E173 if questionId invalid.'
+    )
     .action(
       wrapAction(
         async (
@@ -1716,7 +1729,9 @@ export function registerPositionalGraphCommands(program: Command): void {
   // Input Retrieval Commands (Phase 5, Plan 028)
   node
     .command('get-input-data <graph> <nodeId> <inputName>')
-    .description('Get input data value from completed upstream node')
+    .description(
+      'Get wired input data from upstream node. E178 if source not complete or wiring error.'
+    )
     .action(
       wrapAction(
         async (
@@ -1737,7 +1752,9 @@ export function registerPositionalGraphCommands(program: Command): void {
 
   node
     .command('get-input-file <graph> <nodeId> <inputName>')
-    .description('Get input file path from completed upstream node')
+    .description(
+      'Get wired input file path from upstream node. E178 if source not complete or wiring error.'
+    )
     .action(
       wrapAction(
         async (

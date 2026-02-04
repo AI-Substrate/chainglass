@@ -264,3 +264,147 @@ export function createE2ETestLoader(): IWorkUnitLoader {
     strictMode: true,
   });
 }
+
+// ============================================
+// E2E Execution Lifecycle Test Fixtures (7-node pipeline)
+// ============================================
+
+/**
+ * E2E execution lifecycle test fixtures for the 3-line, 7-node pipeline.
+ *
+ * These fixtures test the **execution lifecycle infrastructure** — the data
+ * system that lets nodes start, save outputs, ask questions, retrieve inputs,
+ * and complete. All units use NarrowWorkUnit (no type field — behavior is
+ * implicit in the E2E test script).
+ *
+ * Pipeline structure:
+ * - Line 0 (Spec Creation): spec-builder → spec-reviewer (serial)
+ * - Line 1 (Implementation): coder (Q&A) → tester (serial, MANUAL gate)
+ * - Line 2 (PR Preparation): alignment-tester || pr-preparer → PR-creator
+ *
+ * @see e2e-workunits.md for full WorkUnit definitions
+ */
+export const e2eExecutionFixtures = {
+  /**
+   * sample-spec-builder: Entry point, produces spec
+   * Behavior: Agentic (simulates agent creating spec)
+   */
+  sampleSpecBuilder: createWorkUnit({
+    slug: 'sample-spec-builder',
+    inputs: [], // Entry point - no inputs
+    outputs: [{ name: 'spec', type: 'data', required: true }],
+  }),
+
+  /**
+   * sample-spec-reviewer: Reviews and refines spec
+   * Behavior: Agentic (simulates agent reviewing spec)
+   */
+  sampleSpecReviewer: createWorkUnit({
+    slug: 'sample-spec-reviewer',
+    inputs: [{ name: 'spec', type: 'data', required: true }],
+    outputs: [
+      { name: 'reviewed_spec', type: 'data', required: true },
+      { name: 'review_notes', type: 'data', required: false },
+    ],
+  }),
+
+  /**
+   * sample-coder: Writes code based on spec
+   * Behavior: Agentic with Q&A (asks "Which language?")
+   */
+  sampleCoderE2E: createWorkUnit({
+    slug: 'sample-coder',
+    inputs: [{ name: 'spec', type: 'data', required: true }],
+    outputs: [
+      { name: 'language', type: 'data', required: true },
+      { name: 'code', type: 'file', required: true },
+    ],
+  }),
+
+  /**
+   * sample-tester: Tests the generated code
+   * Behavior: Agentic (simulates running tests)
+   */
+  sampleTesterE2E: createWorkUnit({
+    slug: 'sample-tester',
+    inputs: [
+      { name: 'language', type: 'data', required: true },
+      { name: 'code', type: 'file', required: true },
+    ],
+    outputs: [
+      { name: 'test_passed', type: 'data', required: true },
+      { name: 'test_output', type: 'data', required: true },
+    ],
+  }),
+
+  /**
+   * sample-spec-alignment-tester: Verifies implementation aligns with spec
+   * Behavior: Agentic (simulates spec alignment check)
+   * Line 2, Position 0 (PARALLEL)
+   */
+  sampleSpecAlignmentTester: createWorkUnit({
+    slug: 'sample-spec-alignment-tester',
+    inputs: [
+      { name: 'spec', type: 'data', required: true },
+      { name: 'code', type: 'file', required: true },
+      { name: 'test_output', type: 'data', required: true },
+    ],
+    outputs: [
+      { name: 'alignment_score', type: 'data', required: true },
+      { name: 'alignment_notes', type: 'data', required: true },
+    ],
+  }),
+
+  /**
+   * sample-pr-preparer: Prepares PR metadata (title, body)
+   * Behavior: Agentic (simulates PR metadata creation)
+   * Line 2, Position 1 (PARALLEL - NO dependency on alignment-tester!)
+   */
+  samplePrPreparer: createWorkUnit({
+    slug: 'sample-pr-preparer',
+    inputs: [
+      { name: 'spec', type: 'data', required: true },
+      { name: 'test_output', type: 'data', required: true },
+    ],
+    outputs: [
+      { name: 'pr_title', type: 'data', required: true },
+      { name: 'pr_body', type: 'data', required: true },
+      { name: 'pr_labels', type: 'data', required: false },
+    ],
+  }),
+
+  /**
+   * sample-pr-creator: Creates the actual PR
+   * Behavior: Code-unit (simple start → save → end, no Q&A)
+   * Line 2, Position 2 (SERIAL - waits for pr-preparer)
+   */
+  samplePRCreator: createWorkUnit({
+    slug: 'sample-pr-creator',
+    inputs: [
+      { name: 'pr_title', type: 'data', required: true },
+      { name: 'pr_body', type: 'data', required: true },
+    ],
+    outputs: [
+      { name: 'pr_url', type: 'data', required: true },
+      { name: 'pr_number', type: 'data', required: true },
+    ],
+  }),
+};
+
+/**
+ * Creates a loader pre-configured with all 7 E2E execution lifecycle units.
+ */
+export function createE2EExecutionTestLoader(): IWorkUnitLoader {
+  return stubWorkUnitLoader({
+    units: [
+      e2eExecutionFixtures.sampleSpecBuilder,
+      e2eExecutionFixtures.sampleSpecReviewer,
+      e2eExecutionFixtures.sampleCoderE2E,
+      e2eExecutionFixtures.sampleTesterE2E,
+      e2eExecutionFixtures.sampleSpecAlignmentTester,
+      e2eExecutionFixtures.samplePrPreparer,
+      e2eExecutionFixtures.samplePRCreator,
+    ],
+    strictMode: true,
+  });
+}
