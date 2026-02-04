@@ -156,6 +156,8 @@ scratch/*
 # Plan 018: Workspace-scoped agent data (events, sessions)
 .chainglass/workspaces/
 .chainglass/data/
+# Ignore .chainglass in app workspaces (local dev/test data)
+apps/**/.chainglass/
 
 # Manual test harness results (regenerated each test run)
 docs/plans/*/manual-test/results/
