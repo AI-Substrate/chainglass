@@ -262,7 +262,8 @@ For a code-unit node (no Q&A):
 │      node.yaml        # Node configuration, input wiring         │
 │      data/                                                       │
 │        data.json      # Output data values                       │
-│        <outputName>   # Output files                             │
+│        outputs/       # Output files directory                   │
+│          <filename>   # Stored output files                      │
 └─────────────────────────────────────────────────────────────────┘
 ```
 

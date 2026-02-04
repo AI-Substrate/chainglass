@@ -83,7 +83,7 @@ Transitions a node from `running` to `complete`. All required outputs must be sa
 
 **Errors:**
 - `E172` — Node not in `running` state
-- `E176` — Required outputs missing
+- `E175` — Required outputs missing
 
 ---
 
@@ -356,9 +356,11 @@ cg wf node get-input-data my-pipeline coder-a1b spec
   "command": "wf.node.get-input-data",
   "success": true,
   "nodeId": "coder-a1b",
-  "input": "spec",
-  "value": "Build a REST API for user management",
-  "sourceNodeId": "spec-builder-b2c"
+  "inputName": "spec",
+  "sources": [
+    { "sourceNodeId": "spec-builder-b2c", "sourceOutput": "spec", "value": "Build a REST API for user management" }
+  ],
+  "complete": true
 }
 ```
 
@@ -368,11 +370,12 @@ cg wf node get-input-data my-pipeline coder-a1b spec
   "command": "wf.node.get-input-data",
   "success": true,
   "nodeId": "summarizer-c3d",
-  "input": "findings",
+  "inputName": "findings",
   "sources": [
-    { "nodeId": "researcher-1", "value": "Finding from researcher 1" },
-    { "nodeId": "researcher-2", "value": "Finding from researcher 2" }
-  ]
+    { "sourceNodeId": "researcher-1", "sourceOutput": "finding", "value": "Finding from researcher 1" },
+    { "sourceNodeId": "researcher-2", "sourceOutput": "finding", "value": "Finding from researcher 2" }
+  ],
+  "complete": true
 }
 ```
 

@@ -230,7 +230,8 @@ export function outputNotFoundError(outputName: string, nodeId: string): ResultE
   return {
     code: POSITIONAL_GRAPH_ERROR_CODES.E175,
     message: `Output '${outputName}' not found for node '${nodeId}'`,
-    action: 'Save output first with: cg wf node save-output-data <slug> <nodeId> <name> <value>',
+    action:
+      'Save the output first using: cg wf node save-output-data or cg wf node save-output-file',
   };
 }
 
