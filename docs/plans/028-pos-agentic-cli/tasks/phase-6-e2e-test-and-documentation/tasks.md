@@ -16,7 +16,7 @@ The WorkUnits in this test are vehicles to exercise the plumbing, not the focus 
 This phase also documents all 12 CLI commands for agent developers.
 
 ### What We're Building
-- An E2E test script (`e2e-positional-graph-execution-e2e.ts`) that executes a **3-line, 7-node** pipeline using only `cg wf` CLI commands:
+- An E2E test script (`e2e-positional-graph-execution-e2e.test.ts`) that executes a **3-line, 7-node** pipeline using only `cg wf` CLI commands:
   - **Line 0** (Spec Creation): `spec-builder` → `spec-reviewer` (serial execution)
   - **Line 1** (Implementation): `coder` (Q&A: "Which language?") → `tester` (serial, MANUAL gate to Line 2)
   - **Line 2** (PR Preparation): `alignment-tester` + `pr-preparer` (PARALLEL) → `PR-creator` (serial code-unit)
@@ -79,7 +79,7 @@ Create the E2E test script and documentation that proves and documents the execu
 | File | Action | Origin | Modified By | Recommendation |
 |------|--------|--------|-------------|----------------|
 | `/home/jak/substrate/028-pos-agentic-cli/test/unit/positional-graph/test-helpers.ts` | Modify | Plan 028 Phase 1 | — | keep-as-is (add 7 WorkUnit fixtures) |
-| `/home/jak/substrate/028-pos-agentic-cli/test/e2e/positional-graph-execution-e2e.ts` | Create | New | — | keep-as-is |
+| `/home/jak/substrate/028-pos-agentic-cli/test/e2e/positional-graph-execution-e2e.test.ts` | Create | New | — | keep-as-is |
 | `/home/jak/substrate/028-pos-agentic-cli/docs/how/positional-graph-execution/1-overview.md` | Create | New | — | keep-as-is |
 | `/home/jak/substrate/028-pos-agentic-cli/docs/how/positional-graph-execution/2-cli-reference.md` | Create | New | — | keep-as-is |
 | `/home/jak/substrate/028-pos-agentic-cli/docs/how/positional-graph-execution/3-e2e-flow.md` | Create | New | — | keep-as-is |
@@ -145,7 +145,7 @@ flowchart TD
     end
 
     subgraph E2E["E2E Test"]
-        F1["e2e-positional-graph-execution-e2e.ts ✓"]:::completed
+        F1["e2e-positional-graph-execution-e2e.test.ts ✓"]:::completed
     end
 
     subgraph Docs["Documentation"]
@@ -173,8 +173,8 @@ flowchart TD
 
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
-| T001 | E2E Test | e2e-positional-graph-execution-e2e.ts | ✅ Complete | Script skeleton with CLI runner |
-| T002 | E2E Test + WorkUnits | test-helpers.ts, e2e-positional-graph-execution-e2e.ts | ✅ Complete | 7 WorkUnit fixtures + 3-line, 7-node graph creation |
+| T001 | E2E Test | e2e-positional-graph-execution-e2e.test.ts | ✅ Complete | Script skeleton with CLI runner |
+| T002 | E2E Test + WorkUnits | test-helpers.ts, e2e-positional-graph-execution-e2e.test.ts | ✅ Complete | 7 WorkUnit fixtures + 3-line, 7-node graph creation |
 | T003 | E2E Test | same | ✅ Complete | Line 0: spec-builder + spec-reviewer (serial) |
 | T004 | E2E Test | same | ✅ Complete | Line 1: coder (Q&A) + tester + manual gate |
 | T005 | E2E Test | same | ✅ Complete | Line 2: parallel nodes + PR-creator (code-unit) |
@@ -192,18 +192,18 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|------|--------------------------------------|-----|------|--------------|------------------|------------|----------|-------|
-| [x] | T001 | Create E2E test script skeleton | 2 | Setup | – | /home/jak/substrate/028-pos-agentic-cli/test/e2e/positional-graph-execution-e2e.ts | Script compiles, CLI runner helper works | – | Per workshop §E2E |
-| [x] | T002 | Define WorkUnits and create graph | 2 | Core | T001 | /home/jak/substrate/028-pos-agentic-cli/test/unit/positional-graph/test-helpers.ts, /home/jak/substrate/028-pos-agentic-cli/test/e2e/positional-graph-execution-e2e.ts | 7 WorkUnit fixtures defined, 3 lines, 7 nodes, 6 inputs wired | – | WorkUnits: spec-builder, spec-reviewer, coder, tester, alignment-tester, pr-preparer, PR-creator |
-| [x] | T003 | Implement Line 0 serial execution | 2 | Core | T002 | /home/jak/substrate/028-pos-agentic-cli/test/e2e/positional-graph-execution-e2e.ts | spec-builder → spec-reviewer complete | – | Serial execution pattern |
-| [x] | T004 | Implement Line 1 with Q&A and manual gate | 3 | Core | T003 | /home/jak/substrate/028-pos-agentic-cli/test/e2e/positional-graph-execution-e2e.ts | coder (Q&A) → tester → trigger gate | – | Q&A protocol, manual transition |
-| [x] | T005 | Implement Line 2 parallel and code-unit | 3 | Core | T004 | /home/jak/substrate/028-pos-agentic-cli/test/e2e/positional-graph-execution-e2e.ts | parallel start → both complete → PR-creator | – | Parallel execution, code-unit pattern |
-| [x] | T006 | Implement final validation | 2 | Core | T005 | /home/jak/substrate/028-pos-agentic-cli/test/e2e/positional-graph-execution-e2e.ts | 7 nodes complete, 3 lines complete, graph complete | – | AC-14, AC-15 |
+| [x] | T001 | Create E2E test script skeleton | 2 | Setup | – | /home/jak/substrate/028-pos-agentic-cli/test/e2e/positional-graph-execution-e2e.test.ts | Script compiles, CLI runner helper works | – | Per workshop §E2E |
+| [x] | T002 | Define WorkUnits and create graph | 2 | Core | T001 | /home/jak/substrate/028-pos-agentic-cli/test/unit/positional-graph/test-helpers.ts, /home/jak/substrate/028-pos-agentic-cli/test/e2e/positional-graph-execution-e2e.test.ts | 7 WorkUnit fixtures defined, 3 lines, 7 nodes, 6 inputs wired | – | WorkUnits: spec-builder, spec-reviewer, coder, tester, alignment-tester, pr-preparer, PR-creator |
+| [x] | T003 | Implement Line 0 serial execution | 2 | Core | T002 | /home/jak/substrate/028-pos-agentic-cli/test/e2e/positional-graph-execution-e2e.test.ts | spec-builder → spec-reviewer complete | – | Serial execution pattern |
+| [x] | T004 | Implement Line 1 with Q&A and manual gate | 3 | Core | T003 | /home/jak/substrate/028-pos-agentic-cli/test/e2e/positional-graph-execution-e2e.test.ts | coder (Q&A) → tester → trigger gate | – | Q&A protocol, manual transition |
+| [x] | T005 | Implement Line 2 parallel and code-unit | 3 | Core | T004 | /home/jak/substrate/028-pos-agentic-cli/test/e2e/positional-graph-execution-e2e.test.ts | parallel start → both complete → PR-creator | – | Parallel execution, code-unit pattern |
+| [x] | T006 | Implement final validation | 2 | Core | T005 | /home/jak/substrate/028-pos-agentic-cli/test/e2e/positional-graph-execution-e2e.test.ts | 7 nodes complete, 3 lines complete, graph complete | – | AC-14, AC-15 |
 | [x] | T007 | Survey existing docs/how/ structure | 1 | Setup | – | /home/jak/substrate/028-pos-agentic-cli/docs/how/ | Documented patterns for new docs | – | Discovery step |
 | [x] | T008 | Create 1-overview.md | 2 | Doc | T007 | /home/jak/substrate/028-pos-agentic-cli/docs/how/positional-graph-execution/1-overview.md | State machine diagram, CLI overview, architecture | – | Links to CLI ref |
 | [x] | T009 | Create 2-cli-reference.md | 2 | Doc | T008 | /home/jak/substrate/028-pos-agentic-cli/docs/how/positional-graph-execution/2-cli-reference.md | All 12 commands documented with examples | – | Per workshop specs |
 | [x] | T010 | Create 3-e2e-flow.md | 2 | Doc | T009 | /home/jak/substrate/028-pos-agentic-cli/docs/how/positional-graph-execution/3-e2e-flow.md | Step-by-step E2E flow walkthrough | – | Matches E2E script |
 | [x] | T011 | Add CLI --help text for all 12 commands | 2 | Doc | – | /home/jak/substrate/028-pos-agentic-cli/apps/cli/src/commands/positional-graph.command.ts | Help text per workshop specs | – | Update command descriptions |
-| [x] | T012 | Run full E2E test | 2 | Integration | T006, T011 | /home/jak/substrate/028-pos-agentic-cli/test/e2e/positional-graph-execution-e2e.ts | E2E passes with real filesystem | – | Final validation |
+| [x] | T012 | Run full E2E test | 2 | Integration | T006, T011 | /home/jak/substrate/028-pos-agentic-cli/test/e2e/positional-graph-execution-e2e.test.ts | E2E passes with real filesystem | – | Final validation |
 
 ---
 
@@ -314,7 +314,7 @@ flowchart LR
     N4 -->|test_output| N6
     N2 -->|reviewed_spec| N6
     N5 -->|alignment_notes| N7
-    N6 -->|pr_summary| N7
+    N6 -->|pr_title, pr_body| N7
 
     Line0 --> Line1
     Line1 -.->|manual trigger| Line2
@@ -468,7 +468,7 @@ sequenceDiagram
 pnpm build
 
 # Run E2E test
-npx tsx test/e2e/positional-graph-execution-e2e.ts
+npx tsx test/e2e/positional-graph-execution-e2e.test.ts
 
 # Full quality check
 just fft

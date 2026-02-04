@@ -11,7 +11,7 @@
 
 **Where we are**: Phases 1-5 delivered the complete execution lifecycle infrastructure: 7 error codes (E172-E179), 12 service methods, 12 CLI commands, and 86 unit tests. Agents can now start work, save outputs, ask questions, and retrieve inputs. But there's no end-to-end validation that the data system works across a real multi-line pipeline, and no documentation for developers.
 
-**Where we're going**: By the end of this phase, an E2E test validates the **execution lifecycle infrastructure** — the data plumbing that makes workflows work. The 7-node pipeline exercises serial execution, parallel execution, manual transition gates, Q&A protocol, and cross-line input resolution. This creates a **solid foundation for more advanced WorkUnit types later** (full prompts, execution configs, etc.). A developer can run `npx tsx test/e2e/positional-graph-execution-e2e.ts` and watch the infrastructure handle a complete workflow lifecycle.
+**Where we're going**: By the end of this phase, an E2E test validates the **execution lifecycle infrastructure** — the data plumbing that makes workflows work. The 7-node pipeline exercises serial execution, parallel execution, manual transition gates, Q&A protocol, and cross-line input resolution. This creates a **solid foundation for more advanced WorkUnit types later** (full prompts, execution configs, etc.). A developer can run `npx tsx test/e2e/positional-graph-execution-e2e.test.ts` and watch the infrastructure handle a complete workflow lifecycle.
 
 ---
 
@@ -63,7 +63,7 @@ stateDiagram-v2
 
 <!-- Updated by /plan-6 during implementation: [ ] → [~] → [x] -->
 
-- [x] **Stage 1: Create E2E script skeleton** — Set up CLI runner helper for spawning `cg` commands (`test/e2e/positional-graph-execution-e2e.ts` — new file)
+- [x] **Stage 1: Create E2E script skeleton** — Set up CLI runner helper for spawning `cg` commands (`test/e2e/positional-graph-execution-e2e.test.ts` — new file)
 - [x] **Stage 2: Implement graph setup** — Define 7 `NarrowWorkUnit` fixtures in `test-helpers.ts` (same structure for all — agentic vs code-unit behavior is implicit in E2E script), then create 3-line, 7-node graph with input wirings
 - [x] **Stage 3: Implement Line 0 serial execution** — spec-builder → spec-reviewer complete
 - [x] **Stage 4: Implement Line 1 with Q&A and manual gate** — coder (Q&A) → tester → trigger gate
@@ -123,7 +123,7 @@ flowchart LR
         PS2[PositionalGraphService<br/>12 execution methods]:::existing
         CLI2[positional-graph.command.ts<br/>+help text for 12 cmds]:::changed
         TH2[test-helpers.ts<br/>+7 NarrowWorkUnit fixtures<br/>behavior is implicit in E2E]:::changed
-        E2E2[positional-graph-execution-e2e.ts<br/>7-node pipeline test]:::new
+        E2E2[positional-graph-execution-e2e.test.ts<br/>7-node pipeline test]:::new
         DOC2[docs/how/positional-graph-execution/<br/>1-overview.md<br/>2-cli-reference.md<br/>3-e2e-flow.md]:::new
 
         TH2 --> E2E2

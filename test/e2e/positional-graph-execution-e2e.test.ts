@@ -20,7 +20,7 @@
  * - Input resolution (from_unit, from_node, composite inputs)
  *
  * Usage:
- *   npx tsx test/e2e/positional-graph-execution-e2e.ts
+ *   npx tsx test/e2e/positional-graph-execution-e2e.test.ts
  *
  * Exit codes:
  *   0 = all tests passed
@@ -138,6 +138,14 @@ interface GetInputDataResult {
 
 interface GetOutputDataResult {
   value?: unknown;
+  errors: Array<{ code: string; message: string }>;
+}
+
+interface GetInputFileResult {
+  /** All resolved file sources (matches service interface) */
+  sources?: Array<{ sourceNodeId: string; sourceOutput: string; filePath: string }>;
+  /** True when all sources are complete */
+  complete?: boolean;
   errors: Array<{ code: string; message: string }>;
 }
 
@@ -916,25 +924,31 @@ async function executeLine1WithQA(): Promise<void> {
   assert(specValue.includes('APPROVED'), `Should get reviewed spec, got: ${specValue}`);
   console.log('    spec input received (from_unit)');
 
-  step('7.2: Complete coder');
+  step('7.2: Complete coder (code as file output)');
   await runCli(['node', 'save-output-data', GRAPH_SLUG, nodeIds.coder, 'language', '"TypeScript"']);
-  await runCli([
-    'node',
-    'save-output-data',
-    GRAPH_SLUG,
-    nodeIds.coder,
-    'code',
-    '"function isPrime(n: number): boolean { if (n <= 1) return false; for (let i = 2; i * i <= n; i++) { if (n % i === 0) return false; } return true; }"',
-  ]);
+
+  // Create temp file for code output (file type per WorkUnit definition)
+  const codeContent = `function isPrime(n: number): boolean {
+  if (n <= 1) return false;
+  for (let i = 2; i * i <= n; i++) {
+    if (n % i === 0) return false;
+  }
+  return true;
+}`;
+  const codeTempPath = path.join(workspacePath, 'temp-code.ts');
+  await fs.writeFile(codeTempPath, codeContent);
+
+  // Save code as file output
+  await runCli(['node', 'save-output-file', GRAPH_SLUG, nodeIds.coder, 'code', codeTempPath]);
   await runCli(['node', 'end', GRAPH_SLUG, nodeIds.coder]);
-  console.log('    coder completed');
+  console.log('    coder completed (code saved as file)');
 
   step('8.1: Verify tester now ready');
   const testerStatus = await runCli<StatusResult>(['status', GRAPH_SLUG, '--node', nodeIds.tester]);
   assert(testerStatus.data?.ready === true, 'tester should be ready');
   console.log('    tester ready: true');
 
-  step('8.2: Start tester and get inputs (from_node)');
+  step('8.2: Start tester and get inputs (from_node, code as file)');
   await runCli(['node', 'start', GRAPH_SLUG, nodeIds.tester]);
   const languageInput = await runCli<GetInputDataResult>([
     'node',
@@ -944,7 +958,18 @@ async function executeLine1WithQA(): Promise<void> {
     'language',
   ]);
   assert(languageInput.ok, `Get language input failed: ${JSON.stringify(languageInput.errors)}`);
-  console.log('    tester started, inputs received');
+
+  // Get code as file input (matches WorkUnit file type declaration)
+  const codeFileInput = await runCli<GetInputFileResult>([
+    'node',
+    'get-input-file',
+    GRAPH_SLUG,
+    nodeIds.tester,
+    'code',
+  ]);
+  assert(codeFileInput.ok, `Get code file input failed: ${JSON.stringify(codeFileInput.errors)}`);
+  assert(codeFileInput.data?.sources?.[0]?.filePath, 'Code file path should be returned');
+  console.log('    tester started, inputs received (code as file)');
 
   step('8.3: Complete tester');
   await runCli(['node', 'save-output-data', GRAPH_SLUG, nodeIds.tester, 'test_passed', 'true']);
@@ -1059,7 +1084,7 @@ async function testParallelExecution(): Promise<void> {
   await runCli(['node', 'start', GRAPH_SLUG, nodeIds.prPreparer]);
   console.log('    Both parallel nodes started');
 
-  step('10.4: Complete alignment-tester (composite inputs)');
+  step('10.4: Complete alignment-tester (composite inputs, code as file)');
   // Get composite inputs from multiple upstream nodes
   const specInput = await runCli<GetInputDataResult>([
     'node',
@@ -1069,6 +1094,19 @@ async function testParallelExecution(): Promise<void> {
     'spec',
   ]);
   assert(specInput.ok, `Get spec input failed: ${JSON.stringify(specInput.errors)}`);
+
+  // Get code as file input (matches WorkUnit file type declaration)
+  const alignmentCodeFile = await runCli<GetInputFileResult>([
+    'node',
+    'get-input-file',
+    GRAPH_SLUG,
+    nodeIds.alignmentTester,
+    'code',
+  ]);
+  assert(
+    alignmentCodeFile.ok,
+    `Get alignment code file failed: ${JSON.stringify(alignmentCodeFile.errors)}`
+  );
 
   await runCli([
     'node',

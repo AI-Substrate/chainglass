@@ -1,6 +1,6 @@
 # Positional Graph Execution — E2E Flow
 
-This document walks through the 3-line, 7-node E2E test that validates the execution lifecycle infrastructure. Each section corresponds to a test phase in `test/e2e/positional-graph-execution-e2e.ts`.
+This document walks through the 3-line, 7-node E2E test that validates the execution lifecycle infrastructure. Each section corresponds to a test phase in `test/e2e/positional-graph-execution-e2e.test.ts`.
 
 ## Pipeline Overview
 
@@ -208,18 +208,21 @@ cg wf node get-answer e2e-execution-test <coder> fake-question-id
 cg wf node get-input-data e2e-execution-test <coder> spec
 # Returns reviewed spec from spec-reviewer
 
-# 10. Complete coder
+# 10. Complete coder (code as file output)
 cg wf node save-output-data e2e-execution-test <coder> language '"TypeScript"'
-cg wf node save-output-data e2e-execution-test <coder> code '"function isPrime(n) {...}"'
+# Save code as file (matches WorkUnit file type declaration)
+echo 'function isPrime(n) {...}' > /tmp/code.ts
+cg wf node save-output-file e2e-execution-test <coder> code /tmp/code.ts
 cg wf node end e2e-execution-test <coder>
 
 # 11. Verify tester now ready
 cg wf status e2e-execution-test --node <tester>
 # ready: true
 
-# 12. Execute tester
+# 12. Execute tester (code as file input)
 cg wf node start e2e-execution-test <tester>
 cg wf node get-input-data e2e-execution-test <tester> language
+cg wf node get-input-file e2e-execution-test <tester> code  # File input
 cg wf node save-output-data e2e-execution-test <tester> test_passed 'true'
 cg wf node save-output-data e2e-execution-test <tester> test_output '"All 5 tests passed"'
 cg wf node end e2e-execution-test <tester>
@@ -276,7 +279,7 @@ cg wf node start e2e-execution-test <pr-preparer>
 
 # 4. Get composite inputs (alignment-tester has 3 inputs from different sources)
 cg wf node get-input-data e2e-execution-test <alignment-tester> spec
-cg wf node get-input-data e2e-execution-test <alignment-tester> code
+cg wf node get-input-file e2e-execution-test <alignment-tester> code  # File input
 cg wf node get-input-data e2e-execution-test <alignment-tester> test_output
 
 # 5. Complete alignment-tester
@@ -353,7 +356,7 @@ cg wf status e2e-execution-test --line <line2-id>  # complete: true
 ## Running the E2E Test
 
 ```bash
-npx tsx test/e2e/positional-graph-execution-e2e.ts
+npx tsx test/e2e/positional-graph-execution-e2e.test.ts
 ```
 
 Exit code 0 = all tests passed, exit code 1 = failure.

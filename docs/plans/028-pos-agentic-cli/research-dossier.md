@@ -560,7 +560,7 @@ No external research gaps identified during codebase exploration. All required p
 | `execution-lifecycle.test.ts` | Unit tests for state transitions |
 | `question-answer.test.ts` | Unit tests for Q&A flow |
 | `output-storage.test.ts` | Unit tests for output methods |
-| `positional-graph-execution-e2e.ts` | Full E2E with execution |
+| `positional-graph-execution-e2e.test.ts` | Full E2E with execution |
 
 ---
 

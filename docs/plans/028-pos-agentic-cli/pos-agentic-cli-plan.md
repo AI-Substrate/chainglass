@@ -599,7 +599,7 @@ describe('getInputData', () => {
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 6.1 | [x] | Create E2E test script skeleton | 2 | Script structure per workshop; TypeScript compiles | [📋](tasks/phase-6-e2e-test-and-documentation/execution.log.md#T001) | test/e2e/positional-graph-execution-e2e.ts [^7] |
+| 6.1 | [x] | Create E2E test script skeleton | 2 | Script structure per workshop; TypeScript compiles | [📋](tasks/phase-6-e2e-test-and-documentation/execution.log.md#T001) | test/e2e/positional-graph-execution-e2e.test.ts [^7] |
 | 6.2 | [x] | Implement cleanup and graph creation | 2 | Creates graph, adds lines and nodes | [📋](tasks/phase-6-e2e-test-and-documentation/execution.log.md#T002) | Same file [^7] |
 | 6.3 | [x] | Implement node1 direct output execution | 2 | save-output-data → end; node complete | [📋](tasks/phase-6-e2e-test-and-documentation/execution.log.md#T003) | Same file [^7] |
 | 6.4 | [x] | Implement node2 agent with question | 3 | start → ask → answer → save outputs → end | [📋](tasks/phase-6-e2e-test-and-documentation/execution.log.md#T004) | Same file [^7] |
@@ -670,7 +670,7 @@ describe('getInputData', () => {
 | Unit tests | plan-scoped | `test/unit/positional-graph/question-answer.test.ts` | New test file |
 | Unit tests | plan-scoped | `test/unit/positional-graph/output-storage.test.ts` | New test file |
 | Unit tests | plan-scoped | `test/unit/positional-graph/input-retrieval.test.ts` | New test file |
-| E2E test | plan-scoped | `test/e2e/positional-graph-execution-e2e.ts` | New test file |
+| E2E test | plan-scoped | `test/e2e/positional-graph-execution-e2e.test.ts` | New test file |
 | Documentation | plan-scoped | `docs/how/positional-graph-execution/*.md` | New docs directory |
 
 **Note**: Most implementation extends existing files (cross-cutting), while tests and docs are plan-scoped.
@@ -786,7 +786,7 @@ describe('getInputData', () => {
 ### Phase 6: E2E Test and Documentation
 
 [^7]: Phase 6 - E2E test implementation (Tasks 6.1-6.6)
-  - `file:test/e2e/positional-graph-execution-e2e.ts` - 53-step E2E test validating 3-line, 7-node pipeline
+  - `file:test/e2e/positional-graph-execution-e2e.test.ts` - 53-step E2E test validating 3-line, 7-node pipeline
   - `file:test/unit/positional-graph/test-helpers.ts` - 7 NarrowWorkUnit fixtures (spec-builder, spec-reviewer, coder, tester, alignment-tester, pr-preparer, PR-creator)
   - `file:.chainglass/data/units/sample-coder/unit.yaml` - Fixed output naming (script → code)
   - `file:.chainglass/data/units/sample-tester/unit.yaml` - Fixed input/output naming (language, code, test_passed, test_output)

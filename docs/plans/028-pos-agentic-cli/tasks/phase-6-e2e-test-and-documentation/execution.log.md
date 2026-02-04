@@ -21,12 +21,12 @@ Created E2E test script skeleton with:
 
 ### Evidence
 ```
-$ pnpm exec tsc --noEmit test/e2e/positional-graph-execution-e2e.ts
+$ pnpm exec tsc --noEmit test/e2e/positional-graph-execution-e2e.test.ts
 (no errors)
 ```
 
 ### Files Changed
-- `test/e2e/positional-graph-execution-e2e.ts` — new file (~800 lines, complete E2E test)
+- `test/e2e/positional-graph-execution-e2e.test.ts` — new file (~800 lines, complete E2E test)
 
 **Completed**: 2026-02-04
 
@@ -82,7 +82,7 @@ The E2E script covers:
 - Composite inputs from multiple upstream nodes
 
 ### Files Changed
-- `test/e2e/positional-graph-execution-e2e.ts` — All logic already present
+- `test/e2e/positional-graph-execution-e2e.test.ts` — All logic already present
 
 **Completed**: 2026-02-04
 
@@ -265,7 +265,7 @@ Ran the full E2E test and debugged issues that arose:
 
 ### Evidence
 ```
-$ npx tsx test/e2e/positional-graph-execution-e2e.ts
+$ npx tsx test/e2e/positional-graph-execution-e2e.test.ts
 [Step 1/53] PASS: Graph cleanup (delete if exists)
 [Step 2/53] PASS: Create graph with Line 0
 [Step 3/53] PASS: Add Line 1 (serial, manual transition)
