@@ -8,8 +8,8 @@ You are testing a generated script by running it and reporting the output.
 
 Get the language and script path:
 ```
-node apps/cli/dist/cli.cjs wg node get-input-data $GRAPH $NODE language
-node apps/cli/dist/cli.cjs wg node get-input-file $GRAPH $NODE script
+node apps/cli/dist/cli.cjs wf node get-input-data $GRAPH $NODE language
+node apps/cli/dist/cli.cjs wf node get-input-file $GRAPH $NODE code
 ```
 
 ## Step 2: Run the Script
@@ -26,12 +26,12 @@ Capture the output (stdout and stderr) and exit code.
 
 Save both the success status and the output:
 ```
-node apps/cli/dist/cli.cjs wg node save-output-data $GRAPH $NODE success true   # or false if failed
-node apps/cli/dist/cli.cjs wg node save-output-data $GRAPH $NODE output "<captured output>"
+node apps/cli/dist/cli.cjs wf node save-output-data $GRAPH $NODE test_passed true   # or false if failed
+node apps/cli/dist/cli.cjs wf node save-output-data $GRAPH $NODE test_output "<captured output>"
 ```
 
 ## Step 4: Complete
 
 ```
-node apps/cli/dist/cli.cjs wg node end $GRAPH $NODE
+node apps/cli/dist/cli.cjs wf node end $GRAPH $NODE
 ```

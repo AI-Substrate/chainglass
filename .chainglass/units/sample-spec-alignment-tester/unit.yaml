@@ -32,7 +32,7 @@ outputs:
     description: Detailed alignment notes
 
 agent:
-  prompt_template: commands/main.md
+  prompt_template: prompts/main.md
   supported_agents:
     - claude-code
   estimated_tokens: 1500

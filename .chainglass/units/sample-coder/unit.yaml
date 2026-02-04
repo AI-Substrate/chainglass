@@ -22,7 +22,7 @@ outputs:
     description: The generated code file
 
 agent:
-  prompt_template: commands/main.md
+  prompt_template: prompts/main.md
   supported_agents:
     - claude-code
   estimated_tokens: 2000

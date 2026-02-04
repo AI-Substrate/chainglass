@@ -386,32 +386,21 @@ async function setup(): Promise<void> {
   await fs.mkdir(chaingleassDir, { recursive: true });
   console.log(`    Workspace: ${workspacePath}`);
 
-  // Copy units from project to temp workspace
-  // IMPORTANT: WorkUnitAdapter (per Plan 029 Phase 2 DYK #1) looks ONLY at .chainglass/units/
-  // So ALL units must end up there, regardless of where they live in the source workspace.
+  // Copy units from canonical path to temp workspace
+  // WorkUnitAdapter (per Plan 029 Phase 2) looks ONLY at .chainglass/units/
+  // Phase 5 consolidated all units to this canonical path
   const projectRoot = path.resolve(import.meta.dirname, '../..');
+  const srcUnits = path.join(projectRoot, '.chainglass', 'units');
   const dstUnits = path.join(workspacePath, '.chainglass', 'units');
   await fs.mkdir(dstUnits, { recursive: true });
 
-  // Copy legacy-format units from .chainglass/data/units/ → temp .chainglass/units/
-  const legacySrcUnits = path.join(projectRoot, '.chainglass', 'data', 'units');
+  // Copy units from canonical .chainglass/units/ path
   try {
-    await fs.cp(legacySrcUnits, dstUnits, { recursive: true });
-    const legacyCopied = await fs.readdir(dstUnits);
-    console.log(`    Legacy units copied to WorkUnitAdapter path: ${legacyCopied.join(', ')}`);
+    await fs.cp(srcUnits, dstUnits, { recursive: true });
+    const unitsCopied = await fs.readdir(dstUnits);
+    console.log(`    Units copied: ${unitsCopied.join(', ')}`);
   } catch {
-    console.log('    No legacy units in .chainglass/data/units/');
-  }
-
-  // Copy new-format units from .chainglass/units/ → temp .chainglass/units/
-  const newSrcUnits = path.join(projectRoot, '.chainglass', 'units');
-  try {
-    await fs.cp(newSrcUnits, dstUnits, { recursive: true });
-    const allCopied = await fs.readdir(dstUnits);
-    console.log(`    All units in temp workspace: ${allCopied.join(', ')}`);
-  } catch {
-    // No new-format units exist - this is fine
-    console.log('    No new units in .chainglass/units/');
+    throw new Error(`Failed to copy units from ${srcUnits} - ensure canonical units exist`);
   }
 
   step('1.2: Register temp directory as workspace');

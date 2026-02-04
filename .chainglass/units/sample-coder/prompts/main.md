@@ -8,14 +8,14 @@ You are generating code based on a specification.
 
 Read the input specification:
 ```
-node apps/cli/dist/cli.cjs wg node get-input-data $GRAPH $NODE spec
+node apps/cli/dist/cli.cjs wf node get-input-data $GRAPH $NODE spec
 ```
 
 ## Step 2: Ask Which Language
 
 Before generating code, ask the user which programming language to use:
 ```
-node apps/cli/dist/cli.cjs wg node ask $GRAPH $NODE \
+node apps/cli/dist/cli.cjs wf node ask $GRAPH $NODE \
   --type single \
   --text "Which programming language should I use?" \
   --options "typescript" "javascript" "python" "bash"
@@ -25,7 +25,7 @@ node apps/cli/dist/cli.cjs wg node ask $GRAPH $NODE \
 
 When re-invoked, retrieve the answer using:
 ```
-node apps/cli/dist/cli.cjs wg node get-answer $GRAPH $NODE <questionId>
+node apps/cli/dist/cli.cjs wf node get-answer $GRAPH $NODE <questionId>
 ```
 
 The questionId was returned when you asked the question. Then proceed to Step 3.
@@ -39,12 +39,12 @@ Save it to a file in the current directory (e.g., `./script.sh` for bash, `./scr
 
 Save both outputs (use the language from the continuation prompt):
 ```
-node apps/cli/dist/cli.cjs wg node save-output-data $GRAPH $NODE language "<language-from-continuation>"
-node apps/cli/dist/cli.cjs wg node save-output-file $GRAPH $NODE script ./script.<ext>
+node apps/cli/dist/cli.cjs wf node save-output-data $GRAPH $NODE language "<language-from-continuation>"
+node apps/cli/dist/cli.cjs wf node save-output-file $GRAPH $NODE code ./script.<ext>
 ```
 
 ## Step 5: Complete
 
 ```
-node apps/cli/dist/cli.cjs wg node end $GRAPH $NODE
+node apps/cli/dist/cli.cjs wf node end $GRAPH $NODE
 ```

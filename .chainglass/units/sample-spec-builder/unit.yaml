@@ -15,7 +15,7 @@ outputs:
     description: The generated specification document
 
 agent:
-  prompt_template: commands/main.md
+  prompt_template: prompts/main.md
   supported_agents:
     - claude-code
   estimated_tokens: 2000

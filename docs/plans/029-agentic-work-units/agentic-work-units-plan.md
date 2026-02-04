@@ -847,7 +847,7 @@ cg wf unit info sample-coder
 - [x] Phase 2: Service and Adapter - COMPLETE (2026-02-04)
 - [x] Phase 3: CLI Integration - COMPLETE (2026-02-04)
 - [x] Phase 4: Test Enrichment - COMPLETE (2026-02-04)
-- [ ] Phase 5: Cleanup and Documentation - PENDING
+- [x] Phase 5: Cleanup and Documentation - COMPLETE (2026-02-05)
 
 ### STOP Rule
 
@@ -952,7 +952,24 @@ cg wf unit info sample-coder
   - `file:.chainglass/units/sample-pr-creator/scripts/main.sh`
   - 65 E2E steps pass, 3233 unit tests pass
 
+[^15]: Phase 5 T002-T009 - Canonical unit files and prompts
+  - `file:.chainglass/units/sample-spec-builder/unit.yaml`
+  - `file:.chainglass/units/sample-spec-reviewer/unit.yaml`
+  - `file:.chainglass/units/sample-coder/unit.yaml`
+  - `file:.chainglass/units/sample-tester/unit.yaml`
+  - `file:.chainglass/units/sample-spec-alignment-tester/unit.yaml`
+  - `file:.chainglass/units/sample-pr-preparer/unit.yaml`
+  - `file:.chainglass/units/sample-input/unit.yaml`
+  - 6 prompt templates at `prompts/main.md` for agent units
+
+[^16]: Phase 5 T010-T013 - Documentation and cleanup
+  - `file:docs/how/positional-graph/workunit-api.md`
+  - E2E test setup simplified to canonical path only
+  - Legacy `.chainglass/data/units/` removed
+  - 65 E2E steps pass, 3233 unit tests pass
+
 ---
 
 *Plan created: 2026-02-04*
+*Plan completed: 2026-02-05*
 *Plan folder: `docs/plans/029-agentic-work-units/`*
