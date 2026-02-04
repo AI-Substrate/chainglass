@@ -1,1 +1,0 @@
-../../../packages/shared/src/features/027-central-notify-events/central-event-notifier.interface.ts

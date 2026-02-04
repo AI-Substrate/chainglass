@@ -4,14 +4,21 @@ import type { PositionalGraphAdapter } from '../adapter/positional-graph.adapter
 import {
   cannotRemoveLastLineError,
   duplicateNodeError,
+  fileNotFoundError,
   graphAlreadyExistsError,
   graphNotFoundError,
+  inputNotAvailableError,
   inputNotDeclaredError,
   invalidLineIndexError,
   invalidNodePositionError,
+  invalidStateTransitionError,
   lineNotEmptyError,
   lineNotFoundError,
   nodeNotFoundError,
+  nodeNotRunningError,
+  nodeNotWaitingError,
+  outputNotFoundError,
+  questionNotFoundError,
   unitNotFoundError,
 } from '../errors/index.js';
 import type {
@@ -19,6 +26,16 @@ import type {
   AddLineResult,
   AddNodeOptions,
   AddNodeResult,
+  AnswerQuestionResult,
+  AskQuestionOptions,
+  AskQuestionResult,
+  CanEndResult,
+  EndNodeResult,
+  GetAnswerResult,
+  GetInputDataResult,
+  GetInputFileResult,
+  GetOutputDataResult,
+  GetOutputFileResult,
   GraphCreateResult,
   GraphStatusResult,
   IPositionalGraphService,
@@ -31,6 +48,9 @@ import type {
   PGListResult,
   PGLoadResult,
   PGShowResult,
+  SaveOutputDataResult,
+  SaveOutputFileResult,
+  StartNodeResult,
 } from '../interfaces/index.js';
 import {
   type LineDefinition,
@@ -44,8 +64,11 @@ import type {
   LineOrchestratorSettings,
   LineProperties,
   NodeConfig,
+  NodeExecutionStatus,
   NodeOrchestratorSettings,
   NodeProperties,
+  NodeStateEntry,
+  Question,
   State,
 } from '../schemas/index.js';
 import {
@@ -1395,5 +1418,919 @@ export class PositionalGraphService implements IPositionalGraphService {
     await this.persistNodeConfig(ctx, graphSlug, nodeId, nodeResult.config);
 
     return { errors: [] };
+  }
+
+  // ============================================
+  // Output Storage (Phase 2, Plan 028)
+  // ============================================
+
+  /**
+   * Save an output data value to the node's data.json.
+   * Directory structure: nodes/{nodeId}/data/data.json with { "outputs": {...} } wrapper.
+   */
+  async saveOutputData(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    outputName: string,
+    value: unknown
+  ): Promise<SaveOutputDataResult> {
+    // Verify node exists
+    const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
+    if (!nodeResult.ok) {
+      return { saved: false, errors: nodeResult.errors };
+    }
+
+    // Per DYK #4: Require running state for output operations
+    const status = await this.getNodeExecutionStatus(ctx, graphSlug, nodeId);
+    if (status !== 'running') {
+      return { saved: false, errors: [nodeNotRunningError(nodeId)] };
+    }
+
+    const nodeDir = this.getNodeDir(ctx, graphSlug, nodeId);
+    const dataDir = this.pathResolver.join(nodeDir, 'data');
+    const dataPath = this.pathResolver.join(dataDir, 'data.json');
+
+    // Ensure data directory exists
+    const dirExists = await this.fs.exists(dataDir);
+    if (!dirExists) {
+      await this.fs.mkdir(dataDir, { recursive: true });
+    }
+
+    // Load existing data.json or create empty structure
+    let data: { outputs: Record<string, unknown> } = { outputs: {} };
+    const fileExists = await this.fs.exists(dataPath);
+    if (fileExists) {
+      const content = await this.fs.readFile(dataPath);
+      data = JSON.parse(content) as { outputs: Record<string, unknown> };
+    }
+
+    // Merge new output
+    data.outputs[outputName] = value;
+
+    // Write atomically
+    await atomicWriteFile(this.fs, dataPath, JSON.stringify(data, null, 2));
+
+    return {
+      nodeId,
+      outputName,
+      saved: true,
+      errors: [],
+    };
+  }
+
+  /**
+   * Save an output file by copying it to the node's data/outputs/ directory.
+   * Path traversal prevented via rejection of '..' and containment check.
+   */
+  async saveOutputFile(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    outputName: string,
+    sourcePath: string
+  ): Promise<SaveOutputFileResult> {
+    // Security: reject path traversal patterns in output name
+    if (outputName.includes('..') || outputName.includes('/') || outputName.includes('\\')) {
+      return {
+        saved: false,
+        errors: [fileNotFoundError(outputName, 'Output name contains invalid characters')],
+      };
+    }
+
+    // Security: reject path traversal in source path
+    if (sourcePath.includes('..')) {
+      return {
+        saved: false,
+        errors: [fileNotFoundError(sourcePath, 'Source path contains path traversal')],
+      };
+    }
+
+    // Verify node exists
+    const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
+    if (!nodeResult.ok) {
+      return { saved: false, errors: nodeResult.errors };
+    }
+
+    // Per DYK #4: Require running state for output operations
+    const status = await this.getNodeExecutionStatus(ctx, graphSlug, nodeId);
+    if (status !== 'running') {
+      return { saved: false, errors: [nodeNotRunningError(nodeId)] };
+    }
+
+    // Verify source file exists
+    const sourceExists = await this.fs.exists(sourcePath);
+    if (!sourceExists) {
+      return {
+        saved: false,
+        errors: [fileNotFoundError(sourcePath, 'Source file does not exist')],
+      };
+    }
+
+    const nodeDir = this.getNodeDir(ctx, graphSlug, nodeId);
+    const outputsDir = this.pathResolver.join(nodeDir, 'data', 'outputs');
+
+    // Ensure outputs directory exists
+    const dirExists = await this.fs.exists(outputsDir);
+    if (!dirExists) {
+      await this.fs.mkdir(outputsDir, { recursive: true });
+    }
+
+    // Extract filename from source and construct destination path
+    const sourceFilename = this.pathResolver.basename(sourcePath);
+
+    // Security: Use resolvePath for containment check
+    // This throws PathSecurityError if the resolved path escapes outputsDir
+    let destPath: string;
+    try {
+      destPath = this.pathResolver.resolvePath(outputsDir, sourceFilename);
+    } catch {
+      return {
+        saved: false,
+        errors: [fileNotFoundError(sourceFilename, 'Filename would escape output directory')],
+      };
+    }
+
+    // Additional containment verification: destPath must start with outputsDir
+    const normalizedDest = this.pathResolver.normalize(destPath);
+    const normalizedBase = this.pathResolver.normalize(outputsDir);
+    if (!normalizedDest.startsWith(normalizedBase)) {
+      return {
+        saved: false,
+        errors: [fileNotFoundError(sourceFilename, 'Destination path escapes output directory')],
+      };
+    }
+
+    // Copy file
+    const content = await this.fs.readFile(sourcePath);
+    await atomicWriteFile(this.fs, destPath, content);
+
+    // Store relative path in data.json
+    const dataDir = this.pathResolver.join(nodeDir, 'data');
+    const dataPath = this.pathResolver.join(dataDir, 'data.json');
+
+    let data: { outputs: Record<string, unknown> } = { outputs: {} };
+    const fileExists = await this.fs.exists(dataPath);
+    if (fileExists) {
+      const dataContent = await this.fs.readFile(dataPath);
+      data = JSON.parse(dataContent) as { outputs: Record<string, unknown> };
+    }
+
+    // Store relative path (relative to node dir)
+    const relativePath = `data/outputs/${sourceFilename}`;
+    data.outputs[outputName] = relativePath;
+
+    await atomicWriteFile(this.fs, dataPath, JSON.stringify(data, null, 2));
+
+    return {
+      nodeId,
+      outputName,
+      saved: true,
+      filePath: relativePath,
+      errors: [],
+    };
+  }
+
+  /**
+   * Retrieve an output data value from the node's data.json.
+   */
+  async getOutputData(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    outputName: string
+  ): Promise<GetOutputDataResult> {
+    // Verify node exists
+    const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
+    if (!nodeResult.ok) {
+      return { errors: nodeResult.errors };
+    }
+
+    const nodeDir = this.getNodeDir(ctx, graphSlug, nodeId);
+    const dataPath = this.pathResolver.join(nodeDir, 'data', 'data.json');
+
+    // Check if data.json exists
+    const fileExists = await this.fs.exists(dataPath);
+    if (!fileExists) {
+      return {
+        errors: [outputNotFoundError(outputName, nodeId)],
+      };
+    }
+
+    const content = await this.fs.readFile(dataPath);
+    const data = JSON.parse(content) as { outputs: Record<string, unknown> };
+
+    // Check if output exists
+    if (!(outputName in data.outputs)) {
+      return {
+        errors: [outputNotFoundError(outputName, nodeId)],
+      };
+    }
+
+    return {
+      nodeId,
+      outputName,
+      value: data.outputs[outputName],
+      errors: [],
+    };
+  }
+
+  /**
+   * Retrieve the absolute path to a saved output file.
+   * Stored as relative path in data.json, returned as absolute path.
+   */
+  async getOutputFile(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    outputName: string
+  ): Promise<GetOutputFileResult> {
+    // Verify node exists
+    const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
+    if (!nodeResult.ok) {
+      return { errors: nodeResult.errors };
+    }
+
+    const nodeDir = this.getNodeDir(ctx, graphSlug, nodeId);
+    const dataPath = this.pathResolver.join(nodeDir, 'data', 'data.json');
+
+    // Check if data.json exists
+    const fileExists = await this.fs.exists(dataPath);
+    if (!fileExists) {
+      return {
+        errors: [outputNotFoundError(outputName, nodeId)],
+      };
+    }
+
+    const content = await this.fs.readFile(dataPath);
+    const data = JSON.parse(content) as { outputs: Record<string, unknown> };
+
+    // Check if output exists
+    if (!(outputName in data.outputs)) {
+      return {
+        errors: [outputNotFoundError(outputName, nodeId)],
+      };
+    }
+
+    // Convert relative path to absolute
+    const relativePath = data.outputs[outputName] as string;
+    const absolutePath = this.pathResolver.join(nodeDir, relativePath);
+
+    return {
+      nodeId,
+      outputName,
+      filePath: absolutePath,
+      errors: [],
+    };
+  }
+
+  // ============================================
+  // Node Lifecycle (Phase 3, Plan 028)
+  // ============================================
+
+  /**
+   * Private helper for atomic state transitions.
+   * Validates from-state, writes atomically, handles missing entries as 'pending'.
+   *
+   * Per DYK #5: Missing state.json.nodes[nodeId] entry means implicit 'pending' status.
+   * Per CF-08: Centralized state transition logic for consistent validation.
+   */
+  private async transitionNodeState(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    toStatus: NodeExecutionStatus,
+    validFromStates: Array<NodeExecutionStatus | 'pending'>
+  ): Promise<
+    { ok: true; state: State; entry: NodeStateEntry } | { ok: false; errors: BaseResult['errors'] }
+  > {
+    const state = await this.loadState(ctx, graphSlug);
+
+    // Get current status - missing entry means 'pending'
+    const currentEntry = state.nodes?.[nodeId];
+    const currentStatus: NodeExecutionStatus | 'pending' = currentEntry?.status ?? 'pending';
+
+    // Validate transition
+    if (!validFromStates.includes(currentStatus)) {
+      return {
+        ok: false,
+        errors: [invalidStateTransitionError(nodeId, currentStatus, toStatus)],
+      };
+    }
+
+    // Create or update entry
+    const now = new Date().toISOString();
+    const newEntry: NodeStateEntry = {
+      ...currentEntry,
+      status: toStatus,
+    };
+
+    // Set timestamps based on transition
+    if (toStatus === 'running' && !newEntry.started_at) {
+      newEntry.started_at = now;
+    }
+    if (toStatus === 'complete') {
+      newEntry.completed_at = now;
+    }
+
+    // Ensure nodes object exists
+    if (!state.nodes) {
+      state.nodes = {};
+    }
+    state.nodes[nodeId] = newEntry;
+    state.updated_at = now;
+
+    // Update graph status if needed
+    if (toStatus === 'complete' && state.graph_status === 'pending') {
+      state.graph_status = 'in_progress';
+    }
+
+    // Persist atomically
+    await this.persistState(ctx, graphSlug, state);
+
+    return { ok: true, state, entry: newEntry };
+  }
+
+  /**
+   * Get the current execution status of a node.
+   * Returns 'pending' for nodes without state entries.
+   */
+  private async getNodeExecutionStatus(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string
+  ): Promise<NodeExecutionStatus | 'pending'> {
+    const state = await this.loadState(ctx, graphSlug);
+    return state.nodes?.[nodeId]?.status ?? 'pending';
+  }
+
+  /**
+   * Start a node, transitioning it from pending/ready to running.
+   * Records started_at timestamp.
+   *
+   * Per DYK #1: startNode does NOT call canRun - nodes are dumb executors.
+   * The orchestrator is responsible for checking readiness before calling start.
+   */
+  async startNode(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string
+  ): Promise<StartNodeResult> {
+    // Verify node exists
+    const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
+    if (!nodeResult.ok) {
+      return { errors: nodeResult.errors };
+    }
+
+    // Transition to running (valid from pending only - ready is computed, not stored)
+    const transition = await this.transitionNodeState(
+      ctx,
+      graphSlug,
+      nodeId,
+      'running',
+      ['pending'] // Only pending is valid; running/complete/waiting/blocked are rejected
+    );
+
+    if (!transition.ok) {
+      return { errors: transition.errors };
+    }
+
+    return {
+      nodeId,
+      status: 'running',
+      startedAt: transition.entry.started_at,
+      errors: [],
+    };
+  }
+
+  /**
+   * Check if a node can end (all required outputs are saved).
+   * Returns structured result with saved and missing output lists.
+   *
+   * Per DYK #2: canEnd serves both CLI (display) and endNode (validation).
+   * Per DYK #3: Assumes WorkUnit loader is always available.
+   */
+  async canEnd(ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<CanEndResult> {
+    // Verify node exists
+    const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
+    if (!nodeResult.ok) {
+      return {
+        canEnd: false,
+        savedOutputs: [],
+        missingOutputs: [],
+        errors: nodeResult.errors,
+      };
+    }
+
+    // Load WorkUnit to get output declarations
+    const unitSlug = nodeResult.config.unit_slug;
+    const unitResult = await this.workUnitLoader.load(ctx, unitSlug);
+    if (unitResult.errors.length > 0) {
+      return {
+        canEnd: false,
+        savedOutputs: [],
+        missingOutputs: [],
+        errors: unitResult.errors,
+      };
+    }
+
+    // Get required outputs from WorkUnit
+    const requiredOutputs = (unitResult.unit?.outputs ?? [])
+      .filter((o) => o.required)
+      .map((o) => o.name);
+
+    // Check which outputs are saved
+    const nodeDir = this.getNodeDir(ctx, graphSlug, nodeId);
+    const dataPath = this.pathResolver.join(nodeDir, 'data', 'data.json');
+
+    let savedOutputs: string[] = [];
+    const fileExists = await this.fs.exists(dataPath);
+    if (fileExists) {
+      const content = await this.fs.readFile(dataPath);
+      const data = JSON.parse(content) as { outputs: Record<string, unknown> };
+      savedOutputs = Object.keys(data.outputs ?? {});
+    }
+
+    // Find missing required outputs
+    const missingOutputs = requiredOutputs.filter((name) => !savedOutputs.includes(name));
+
+    return {
+      nodeId,
+      canEnd: missingOutputs.length === 0,
+      savedOutputs,
+      missingOutputs,
+      errors: [],
+    };
+  }
+
+  /**
+   * End a node, transitioning it from running to complete.
+   * Validates that all required outputs are saved before completing.
+   *
+   * Per AC-4 (updated): endNode only accepts running state.
+   * Per AC-17: Returns E175 with missing output names if outputs are missing.
+   */
+  async endNode(ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<EndNodeResult> {
+    // Verify node exists
+    const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
+    if (!nodeResult.ok) {
+      return { errors: nodeResult.errors };
+    }
+
+    // Check state FIRST - must be running (E172 takes precedence over E175)
+    const status = await this.getNodeExecutionStatus(ctx, graphSlug, nodeId);
+    if (status !== 'running') {
+      return {
+        errors: [invalidStateTransitionError(nodeId, status, 'complete')],
+      };
+    }
+
+    // Check if all required outputs are saved
+    const canEndResult = await this.canEnd(ctx, graphSlug, nodeId);
+    if (canEndResult.errors.length > 0) {
+      return { errors: canEndResult.errors };
+    }
+
+    if (!canEndResult.canEnd) {
+      return {
+        errors: [
+          {
+            code: 'E175',
+            message: `Cannot end node '${nodeId}': missing required outputs: ${canEndResult.missingOutputs.join(', ')}`,
+            action: 'Save all required outputs before ending the node',
+          },
+        ],
+      };
+    }
+
+    // Transition to complete (valid from running only)
+    const transition = await this.transitionNodeState(
+      ctx,
+      graphSlug,
+      nodeId,
+      'complete',
+      ['running'] // Only running is valid; pending/complete/waiting/blocked are rejected
+    );
+
+    if (!transition.ok) {
+      return { errors: transition.errors };
+    }
+
+    return {
+      nodeId,
+      status: 'complete',
+      completedAt: transition.entry.completed_at,
+      errors: [],
+    };
+  }
+
+  // ============================================
+  // Question/Answer Protocol (Phase 4, Plan 028)
+  // ============================================
+
+  /**
+   * Generate a unique question ID using timestamp + random suffix.
+   * Format: YYYY-MM-DDTHH:mm:ss.sssZ_xxxxxx
+   */
+  private generateQuestionId(): string {
+    const timestamp = new Date().toISOString();
+    const suffix = Math.random().toString(16).slice(2, 8);
+    return `${timestamp}_${suffix}`;
+  }
+
+  /**
+   * Ask a question from a running node, transitioning it to waiting-question.
+   * Stores the question in state.json questions array.
+   *
+   * Per AC-5: Transitions node to waiting-question and returns question ID.
+   * Per Critical Finding 05: All state changes in single atomic write.
+   */
+  async askQuestion(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    options: AskQuestionOptions
+  ): Promise<AskQuestionResult> {
+    // Verify node exists
+    const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
+    if (!nodeResult.ok) {
+      return { errors: nodeResult.errors };
+    }
+
+    // Check state - must be running (E176)
+    const status = await this.getNodeExecutionStatus(ctx, graphSlug, nodeId);
+    if (status !== 'running') {
+      return {
+        errors: [nodeNotRunningError(nodeId)],
+      };
+    }
+
+    // Generate question ID
+    const questionId = this.generateQuestionId();
+    const now = new Date().toISOString();
+
+    // Create question
+    const question: Question = {
+      question_id: questionId,
+      node_id: nodeId,
+      type: options.type,
+      text: options.text,
+      asked_at: now,
+    };
+    if (options.options) {
+      question.options = options.options;
+    }
+    if (options.default !== undefined) {
+      question.default = options.default;
+    }
+
+    // Load state and update atomically
+    const state = await this.loadState(ctx, graphSlug);
+
+    // Initialize questions array if needed
+    if (!state.questions) {
+      state.questions = [];
+    }
+    state.questions.push(question);
+
+    // Update node state
+    if (!state.nodes) {
+      state.nodes = {};
+    }
+    if (!state.nodes[nodeId]) {
+      state.nodes[nodeId] = { status: 'running' };
+    }
+    state.nodes[nodeId].status = 'waiting-question';
+    state.nodes[nodeId].pending_question_id = questionId;
+    state.updated_at = now;
+
+    // Persist atomically
+    await this.persistState(ctx, graphSlug, state);
+
+    return {
+      nodeId,
+      questionId,
+      status: 'waiting-question',
+      errors: [],
+    };
+  }
+
+  /**
+   * Answer a question for a waiting node, transitioning it back to running.
+   * Stores the answer in the question and clears pending_question_id.
+   *
+   * Per AC-6: Stores answer and transitions node back to running.
+   * Per AC-18: Returns E173 for invalid question ID.
+   * Per Critical Finding 05: All state changes in single atomic write.
+   */
+  async answerQuestion(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    questionId: string,
+    answer: unknown
+  ): Promise<AnswerQuestionResult> {
+    // Verify node exists
+    const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
+    if (!nodeResult.ok) {
+      return { errors: nodeResult.errors };
+    }
+
+    // Check state - must be waiting-question (E177)
+    const status = await this.getNodeExecutionStatus(ctx, graphSlug, nodeId);
+    if (status !== 'waiting-question') {
+      return {
+        errors: [nodeNotWaitingError(nodeId)],
+      };
+    }
+
+    // Load state
+    const state = await this.loadState(ctx, graphSlug);
+
+    // Find question by ID (E173 if not found)
+    const questionIndex = state.questions?.findIndex((q) => q.question_id === questionId) ?? -1;
+    if (questionIndex === -1) {
+      return {
+        errors: [questionNotFoundError(questionId)],
+      };
+    }
+
+    const now = new Date().toISOString();
+
+    // Update question with answer (questions exists since we found the index)
+    const questions = state.questions ?? [];
+    questions[questionIndex].answer = answer;
+    questions[questionIndex].answered_at = now;
+
+    // Update node state (nodes exists since we're in waiting-question state)
+    const nodes = state.nodes ?? {};
+    nodes[nodeId].status = 'running';
+    nodes[nodeId].pending_question_id = undefined;
+    state.updated_at = now;
+
+    // Persist atomically
+    await this.persistState(ctx, graphSlug, state);
+
+    return {
+      nodeId,
+      questionId,
+      status: 'running',
+      errors: [],
+    };
+  }
+
+  /**
+   * Get the answer to a question.
+   * Returns {answered: false} if question exists but not yet answered.
+   * Returns E173 if question ID is invalid.
+   *
+   * Per AC-7: Returns stored answer.
+   * Per Critical Insight #5: Returns {answered: false} for unanswered, not E173.
+   */
+  async getAnswer(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    questionId: string
+  ): Promise<GetAnswerResult> {
+    // Verify node exists
+    const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
+    if (!nodeResult.ok) {
+      return {
+        answered: false,
+        errors: nodeResult.errors,
+      };
+    }
+
+    // Load state
+    const state = await this.loadState(ctx, graphSlug);
+
+    // Find question by ID (E173 if not found)
+    const question = state.questions?.find((q) => q.question_id === questionId);
+    if (!question) {
+      return {
+        answered: false,
+        errors: [questionNotFoundError(questionId)],
+      };
+    }
+
+    // Check if answered
+    if (question.answered_at !== undefined) {
+      return {
+        nodeId,
+        questionId,
+        answered: true,
+        answer: question.answer,
+        errors: [],
+      };
+    }
+
+    // Not yet answered
+    return {
+      nodeId,
+      questionId,
+      answered: false,
+      errors: [],
+    };
+  }
+
+  // ============================================
+  // Input Retrieval (Phase 5, Plan 028)
+  // ============================================
+
+  /**
+   * Retrieve input data from completed upstream nodes.
+   * Uses collateInputs for resolution, then calls getOutputData on each source.
+   *
+   * Per CF-07: Thin wrapper around collateInputs, not new resolution logic.
+   * Per Critical Insight #4: Returns full sources[] array (from_unit collects all matches).
+   * Per Critical Insight #5: Returns partial results with complete flag.
+   *
+   * Error codes:
+   * - E153: Node not found
+   * - E160: Input not wired
+   * - E175: Source complete but output not saved
+   * - E178: Source node not complete (waiting status)
+   */
+  async getInputData(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    inputName: string
+  ): Promise<GetInputDataResult> {
+    // Verify node exists
+    const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
+    if (!nodeResult.ok) {
+      return { errors: nodeResult.errors };
+    }
+
+    // Resolve inputs using collateInputs
+    const inputPack = await this.collateInputs(ctx, graphSlug, nodeId);
+
+    // Check if input exists in InputPack
+    const entry = inputPack.inputs[inputName];
+    if (!entry) {
+      // Input not wired (E160)
+      return {
+        errors: [
+          {
+            code: 'E160',
+            message: `Input '${inputName}' is not wired on node '${nodeId}'`,
+            action: 'Wire the input with: cg wf node set-input <slug> <nodeId> <inputName> ...',
+          },
+        ],
+      };
+    }
+
+    // Handle based on input status
+    if (entry.status === 'error') {
+      // Resolution error (e.g., E163 output not declared)
+      return {
+        errors: [
+          {
+            code: entry.detail.code,
+            message: entry.detail.message,
+          },
+        ],
+      };
+    }
+
+    if (entry.status === 'waiting') {
+      // Source not complete (E178)
+      const waiting = entry.detail.waiting;
+      const reason =
+        waiting.length > 0
+          ? `Source node(s) not complete: ${waiting.join(', ')}`
+          : 'No matching source nodes found';
+      return {
+        errors: [inputNotAvailableError(inputName, reason)],
+      };
+    }
+
+    // status === 'available' — all sources are complete
+    // Get actual data values from source nodes
+    const sources = [];
+    for (const src of entry.detail.sources) {
+      const outputResult = await this.getOutputData(
+        ctx,
+        graphSlug,
+        src.sourceNodeId,
+        src.sourceOutput
+      );
+      if (outputResult.errors.length > 0) {
+        // E175: Output not saved on source node
+        return { errors: outputResult.errors };
+      }
+      sources.push({
+        sourceNodeId: src.sourceNodeId,
+        sourceOutput: src.sourceOutput,
+        value: outputResult.value,
+      });
+    }
+
+    return {
+      nodeId,
+      inputName,
+      sources,
+      complete: true,
+      errors: [],
+    };
+  }
+
+  /**
+   * Retrieve input file path from completed upstream nodes.
+   * Uses collateInputs for resolution, then calls getOutputFile on each source.
+   *
+   * Per CF-07: Thin wrapper around collateInputs, not new resolution logic.
+   * Per Critical Insight #3: Calls getOutputFile to convert relative → absolute paths.
+   * Per Critical Insight #4: Returns full sources[] array.
+   *
+   * Error codes:
+   * - E153: Node not found
+   * - E160: Input not wired
+   * - E175: Source complete but file output not saved
+   * - E178: Source node not complete
+   */
+  async getInputFile(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    inputName: string
+  ): Promise<GetInputFileResult> {
+    // Verify node exists
+    const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
+    if (!nodeResult.ok) {
+      return { errors: nodeResult.errors };
+    }
+
+    // Resolve inputs using collateInputs
+    const inputPack = await this.collateInputs(ctx, graphSlug, nodeId);
+
+    // Check if input exists in InputPack
+    const entry = inputPack.inputs[inputName];
+    if (!entry) {
+      // Input not wired (E160)
+      return {
+        errors: [
+          {
+            code: 'E160',
+            message: `Input '${inputName}' is not wired on node '${nodeId}'`,
+            action: 'Wire the input with: cg wf node set-input <slug> <nodeId> <inputName> ...',
+          },
+        ],
+      };
+    }
+
+    // Handle based on input status
+    if (entry.status === 'error') {
+      return {
+        errors: [
+          {
+            code: entry.detail.code,
+            message: entry.detail.message,
+          },
+        ],
+      };
+    }
+
+    if (entry.status === 'waiting') {
+      const waiting = entry.detail.waiting;
+      const reason =
+        waiting.length > 0
+          ? `Source node(s) not complete: ${waiting.join(', ')}`
+          : 'No matching source nodes found';
+      return {
+        errors: [inputNotAvailableError(inputName, reason)],
+      };
+    }
+
+    // status === 'available' — get file paths from source nodes
+    const sources = [];
+    for (const src of entry.detail.sources) {
+      // Use getOutputFile to get absolute path (handles relative → absolute conversion)
+      const fileResult = await this.getOutputFile(
+        ctx,
+        graphSlug,
+        src.sourceNodeId,
+        src.sourceOutput
+      );
+      if (fileResult.errors.length > 0) {
+        // E175: File output not saved on source node
+        return { errors: fileResult.errors };
+      }
+      sources.push({
+        sourceNodeId: src.sourceNodeId,
+        sourceOutput: src.sourceOutput,
+        filePath: fileResult.filePath ?? '', // Should always be present when no errors
+      });
+    }
+
+    return {
+      nodeId,
+      inputName,
+      sources,
+      complete: true,
+      errors: [],
+    };
   }
 }

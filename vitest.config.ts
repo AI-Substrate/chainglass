@@ -34,6 +34,8 @@ export default defineConfig({
     environment: 'node',
     // Include both .ts and .tsx test files (relative to project root)
     include: ['test/**/*.test.ts', 'test/**/*.test.tsx'],
+    // Exclude standalone E2E scripts (run via npx tsx, not vitest)
+    exclude: ['test/e2e/**', '**/node_modules/**'],
     // Use jsdom for React component tests
     environmentMatchGlobs: [
       ['**/*.test.tsx', 'jsdom'],

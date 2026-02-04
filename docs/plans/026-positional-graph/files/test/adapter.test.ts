@@ -1,1 +1,0 @@
-../../../../../test/unit/positional-graph/adapter.test.ts

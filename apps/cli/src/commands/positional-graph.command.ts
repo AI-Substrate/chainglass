@@ -15,13 +15,17 @@
  * - cg wf trigger <slug> <lineId>                    - Trigger manual transition
  * - cg wf line add|remove|move|get|set|set-label|set-description
  * - cg wf node add|remove|move|show|get|set|set-description|set-input|remove-input|collate
+ * - cg wf node save-output-data|save-output-file|get-output-data|get-output-file
+ * - cg wf node start|can-end|end (Phase 3 lifecycle commands)
+ * - cg wf node ask|answer|get-answer (Phase 4 Q&A protocol)
+ * - cg wf node get-input-data|get-input-file (Phase 5 input retrieval)
  *
  * Per ADR-0004: Uses DI container, not direct instantiation.
  * Per ADR-0009: Module registration via registerPositionalGraphServices().
  * Per DYK-P6-I5: Imports shared helpers from command-helpers.ts.
  */
 
-import type { IPositionalGraphService } from '@chainglass/positional-graph';
+import type { AskQuestionOptions, IPositionalGraphService } from '@chainglass/positional-graph';
 import { POSITIONAL_GRAPH_DI_TOKENS } from '@chainglass/shared';
 import type { Command } from 'commander';
 import { createCliProductionContainer } from '../lib/container.js';
@@ -75,6 +79,12 @@ interface SetOptions extends BaseOptions {
   orch?: string[];
   description?: string;
   label?: string;
+}
+
+interface AskOptions extends BaseOptions {
+  type: string;
+  text: string;
+  options?: string[];
 }
 
 // ============================================
@@ -656,6 +666,336 @@ async function handleNodeCollate(
 }
 
 // ============================================
+// Output Storage Handlers (Phase 2, Plan 028)
+// ============================================
+
+async function handleSaveOutputData(
+  graphSlug: string,
+  nodeId: string,
+  outputName: string,
+  valueJson: string,
+  options: BaseOptions
+): Promise<void> {
+  const adapter = createOutputAdapter(options.json ?? false);
+
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = { saved: false, errors: noContextError(options.workspacePath) };
+    console.log(adapter.format('wf.node.save-output-data', result));
+    process.exit(1);
+  }
+
+  // Parse the JSON value
+  let value: unknown;
+  try {
+    value = JSON.parse(valueJson);
+  } catch {
+    const result = {
+      saved: false,
+      errors: [{ code: 'E001', message: `Invalid JSON value: ${valueJson}` }],
+    };
+    console.log(adapter.format('wf.node.save-output-data', result));
+    process.exit(1);
+  }
+
+  const service = getPositionalGraphService();
+  const result = await service.saveOutputData(ctx, graphSlug, nodeId, outputName, value);
+  console.log(adapter.format('wf.node.save-output-data', result));
+
+  if (result.errors.length > 0) process.exit(1);
+}
+
+async function handleSaveOutputFile(
+  graphSlug: string,
+  nodeId: string,
+  outputName: string,
+  sourcePath: string,
+  options: BaseOptions
+): Promise<void> {
+  const adapter = createOutputAdapter(options.json ?? false);
+
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = { saved: false, errors: noContextError(options.workspacePath) };
+    console.log(adapter.format('wf.node.save-output-file', result));
+    process.exit(1);
+  }
+
+  const service = getPositionalGraphService();
+  const result = await service.saveOutputFile(ctx, graphSlug, nodeId, outputName, sourcePath);
+  console.log(adapter.format('wf.node.save-output-file', result));
+
+  if (result.errors.length > 0) process.exit(1);
+}
+
+async function handleGetOutputData(
+  graphSlug: string,
+  nodeId: string,
+  outputName: string,
+  options: BaseOptions
+): Promise<void> {
+  const adapter = createOutputAdapter(options.json ?? false);
+
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = { errors: noContextError(options.workspacePath) };
+    console.log(adapter.format('wf.node.get-output-data', result));
+    process.exit(1);
+  }
+
+  const service = getPositionalGraphService();
+  const result = await service.getOutputData(ctx, graphSlug, nodeId, outputName);
+  console.log(adapter.format('wf.node.get-output-data', result));
+
+  if (result.errors.length > 0) process.exit(1);
+}
+
+async function handleGetOutputFile(
+  graphSlug: string,
+  nodeId: string,
+  outputName: string,
+  options: BaseOptions
+): Promise<void> {
+  const adapter = createOutputAdapter(options.json ?? false);
+
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = { errors: noContextError(options.workspacePath) };
+    console.log(adapter.format('wf.node.get-output-file', result));
+    process.exit(1);
+  }
+
+  const service = getPositionalGraphService();
+  const result = await service.getOutputFile(ctx, graphSlug, nodeId, outputName);
+  console.log(adapter.format('wf.node.get-output-file', result));
+
+  if (result.errors.length > 0) process.exit(1);
+}
+
+// ============================================
+// Node Lifecycle Handlers (Phase 3, Plan 028)
+// ============================================
+
+async function handleNodeStart(
+  graphSlug: string,
+  nodeId: string,
+  options: BaseOptions
+): Promise<void> {
+  const adapter = createOutputAdapter(options.json ?? false);
+
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = { errors: noContextError(options.workspacePath) };
+    console.log(adapter.format('wf.node.start', result));
+    process.exit(1);
+  }
+
+  const service = getPositionalGraphService();
+  const result = await service.startNode(ctx, graphSlug, nodeId);
+  console.log(adapter.format('wf.node.start', result));
+
+  if (result.errors.length > 0) process.exit(1);
+}
+
+async function handleNodeCanEnd(
+  graphSlug: string,
+  nodeId: string,
+  options: BaseOptions
+): Promise<void> {
+  const adapter = createOutputAdapter(options.json ?? false);
+
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = {
+      canEnd: false,
+      savedOutputs: [],
+      missingOutputs: [],
+      errors: noContextError(options.workspacePath),
+    };
+    console.log(adapter.format('wf.node.can-end', result));
+    process.exit(1);
+  }
+
+  const service = getPositionalGraphService();
+  const result = await service.canEnd(ctx, graphSlug, nodeId);
+  console.log(adapter.format('wf.node.can-end', result));
+
+  // canEnd returns canEnd: false with missingOutputs when not ready, but that's not an error
+  if (result.errors.length > 0) process.exit(1);
+}
+
+async function handleNodeEnd(
+  graphSlug: string,
+  nodeId: string,
+  options: BaseOptions
+): Promise<void> {
+  const adapter = createOutputAdapter(options.json ?? false);
+
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = { errors: noContextError(options.workspacePath) };
+    console.log(adapter.format('wf.node.end', result));
+    process.exit(1);
+  }
+
+  const service = getPositionalGraphService();
+  const result = await service.endNode(ctx, graphSlug, nodeId);
+  console.log(adapter.format('wf.node.end', result));
+
+  if (result.errors.length > 0) process.exit(1);
+}
+
+// ============================================
+// Question/Answer Handlers (Phase 4, Plan 028)
+// ============================================
+
+async function handleNodeAsk(
+  graphSlug: string,
+  nodeId: string,
+  options: AskOptions
+): Promise<void> {
+  const adapter = createOutputAdapter(options.json ?? false);
+
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = { errors: noContextError(options.workspacePath) };
+    console.log(adapter.format('wf.node.ask', result));
+    process.exit(1);
+  }
+
+  // Validate type
+  const validTypes = ['text', 'single', 'multi', 'confirm'];
+  if (!validTypes.includes(options.type)) {
+    const result = {
+      errors: [
+        {
+          code: 'E100',
+          message: `Invalid question type '${options.type}'. Must be one of: ${validTypes.join(', ')}`,
+          action: 'Use --type text|single|multi|confirm',
+        },
+      ],
+    };
+    console.log(adapter.format('wf.node.ask', result));
+    process.exit(1);
+  }
+
+  const askOptions: AskQuestionOptions = {
+    type: options.type as 'text' | 'single' | 'multi' | 'confirm',
+    text: options.text,
+  };
+  if (options.options && options.options.length > 0) {
+    askOptions.options = options.options;
+  }
+
+  const service = getPositionalGraphService();
+  const result = await service.askQuestion(ctx, graphSlug, nodeId, askOptions);
+  console.log(adapter.format('wf.node.ask', result));
+
+  if (result.errors.length > 0) process.exit(1);
+}
+
+async function handleNodeAnswer(
+  graphSlug: string,
+  nodeId: string,
+  questionId: string,
+  answer: string,
+  options: BaseOptions
+): Promise<void> {
+  const adapter = createOutputAdapter(options.json ?? false);
+
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = { errors: noContextError(options.workspacePath) };
+    console.log(adapter.format('wf.node.answer', result));
+    process.exit(1);
+  }
+
+  // Parse answer as JSON if possible, otherwise use as string
+  let parsedAnswer: unknown = answer;
+  try {
+    parsedAnswer = JSON.parse(answer);
+  } catch {
+    // Keep as string if not valid JSON
+  }
+
+  const service = getPositionalGraphService();
+  const result = await service.answerQuestion(ctx, graphSlug, nodeId, questionId, parsedAnswer);
+  console.log(adapter.format('wf.node.answer', result));
+
+  if (result.errors.length > 0) process.exit(1);
+}
+
+async function handleNodeGetAnswer(
+  graphSlug: string,
+  nodeId: string,
+  questionId: string,
+  options: BaseOptions
+): Promise<void> {
+  const adapter = createOutputAdapter(options.json ?? false);
+
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = { answered: false, errors: noContextError(options.workspacePath) };
+    console.log(adapter.format('wf.node.get-answer', result));
+    process.exit(1);
+  }
+
+  const service = getPositionalGraphService();
+  const result = await service.getAnswer(ctx, graphSlug, nodeId, questionId);
+  console.log(adapter.format('wf.node.get-answer', result));
+
+  if (result.errors.length > 0) process.exit(1);
+}
+
+// ============================================
+// Input Retrieval Handlers (Phase 5, Plan 028)
+// ============================================
+
+async function handleNodeGetInputData(
+  graphSlug: string,
+  nodeId: string,
+  inputName: string,
+  options: BaseOptions
+): Promise<void> {
+  const adapter = createOutputAdapter(options.json ?? false);
+
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = { errors: noContextError(options.workspacePath) };
+    console.log(adapter.format('wf.node.get-input-data', result));
+    process.exit(1);
+  }
+
+  const service = getPositionalGraphService();
+  const result = await service.getInputData(ctx, graphSlug, nodeId, inputName);
+  console.log(adapter.format('wf.node.get-input-data', result));
+
+  if (result.errors.length > 0) process.exit(1);
+}
+
+async function handleNodeGetInputFile(
+  graphSlug: string,
+  nodeId: string,
+  inputName: string,
+  options: BaseOptions
+): Promise<void> {
+  const adapter = createOutputAdapter(options.json ?? false);
+
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = { errors: noContextError(options.workspacePath) };
+    console.log(adapter.format('wf.node.get-input-file', result));
+    process.exit(1);
+  }
+
+  const service = getPositionalGraphService();
+  const result = await service.getInputFile(ctx, graphSlug, nodeId, inputName);
+  console.log(adapter.format('wf.node.get-input-file', result));
+
+  if (result.errors.length > 0) process.exit(1);
+}
+
+// ============================================
 // Status + Trigger Handlers
 // ============================================
 
@@ -674,22 +1014,21 @@ async function handleWfStatus(slug: string, options: StatusOptions): Promise<voi
   // Scope narrowing: --node takes priority over --line
   if (options.node) {
     const result = await service.getNodeStatus(ctx, slug, options.node);
-    console.log(adapter.format('wf.status.node', result));
+    // Wrap in BaseResult structure for adapter compatibility
+    console.log(adapter.format('wf.status.node', { ...result, errors: [] }));
     return;
   }
 
   if (options.line) {
     const result = await service.getLineStatus(ctx, slug, options.line);
-    console.log(adapter.format('wf.status.line', result));
+    // Wrap in BaseResult structure for adapter compatibility
+    console.log(adapter.format('wf.status.line', { ...result, errors: [] }));
     return;
   }
 
   const result = await service.getStatus(ctx, slug);
-  console.log(adapter.format('wf.status', result));
-
-  if (result.readyNodes.length === 0 && result.status !== 'complete') {
-    // Not an error, but no ready nodes — informational
-  }
+  // Wrap in BaseResult structure for adapter compatibility
+  console.log(adapter.format('wf.status', { ...result, errors: [] }));
 }
 
 async function handleWfTrigger(slug: string, lineId: string, options: BaseOptions): Promise<void> {
@@ -1174,5 +1513,263 @@ export function registerPositionalGraphCommands(program: Command): void {
           workspacePath: parentOpts.workspacePath,
         });
       })
+    );
+
+  // Output Storage Commands (Phase 2, Plan 028)
+  node
+    .command('save-output-data <graph> <nodeId> <outputName> <valueJson>')
+    .description('Save a JSON output value (node must be running). E176 if not running.')
+    .action(
+      wrapAction(
+        async (
+          graph: string,
+          nodeId: string,
+          outputName: string,
+          valueJson: string,
+          _options: BaseOptions,
+          cmd: Command
+        ) => {
+          const parentOpts = cmd.parent?.parent?.opts() ?? {};
+          await handleSaveOutputData(graph, nodeId, outputName, valueJson, {
+            json: parentOpts.json,
+            workspacePath: parentOpts.workspacePath,
+          });
+        }
+      )
+    );
+
+  node
+    .command('save-output-file <graph> <nodeId> <outputName> <sourcePath>')
+    .description(
+      'Copy a file to node storage (node must be running). E176 if not running, E179 if source missing.'
+    )
+    .action(
+      wrapAction(
+        async (
+          graph: string,
+          nodeId: string,
+          outputName: string,
+          sourcePath: string,
+          _options: BaseOptions,
+          cmd: Command
+        ) => {
+          const parentOpts = cmd.parent?.parent?.opts() ?? {};
+          await handleSaveOutputFile(graph, nodeId, outputName, sourcePath, {
+            json: parentOpts.json,
+            workspacePath: parentOpts.workspacePath,
+          });
+        }
+      )
+    );
+
+  node
+    .command('get-output-data <graph> <nodeId> <outputName>')
+    .description('Retrieve a saved JSON output value. E175 if not yet saved.')
+    .action(
+      wrapAction(
+        async (
+          graph: string,
+          nodeId: string,
+          outputName: string,
+          _options: BaseOptions,
+          cmd: Command
+        ) => {
+          const parentOpts = cmd.parent?.parent?.opts() ?? {};
+          await handleGetOutputData(graph, nodeId, outputName, {
+            json: parentOpts.json,
+            workspacePath: parentOpts.workspacePath,
+          });
+        }
+      )
+    );
+
+  node
+    .command('get-output-file <graph> <nodeId> <outputName>')
+    .description('Get absolute path to a saved output file. E175 if not yet saved.')
+    .action(
+      wrapAction(
+        async (
+          graph: string,
+          nodeId: string,
+          outputName: string,
+          _options: BaseOptions,
+          cmd: Command
+        ) => {
+          const parentOpts = cmd.parent?.parent?.opts() ?? {};
+          await handleGetOutputFile(graph, nodeId, outputName, {
+            json: parentOpts.json,
+            workspacePath: parentOpts.workspacePath,
+          });
+        }
+      )
+    );
+
+  // Node Lifecycle Commands (Phase 3, Plan 028)
+  node
+    .command('start <graph> <nodeId>')
+    .description(
+      'Begin node execution (pending → running). Node must pass 4-gate readiness check. E170 if not ready.'
+    )
+    .action(
+      wrapAction(async (graph: string, nodeId: string, _options: BaseOptions, cmd: Command) => {
+        const parentOpts = cmd.parent?.parent?.opts() ?? {};
+        await handleNodeStart(graph, nodeId, {
+          json: parentOpts.json,
+          workspacePath: parentOpts.workspacePath,
+        });
+      })
+    );
+
+  node
+    .command('can-end <graph> <nodeId>')
+    .description(
+      'Check if all required outputs are saved. Returns canEnd: true/false and missingOutputs list.'
+    )
+    .action(
+      wrapAction(async (graph: string, nodeId: string, _options: BaseOptions, cmd: Command) => {
+        const parentOpts = cmd.parent?.parent?.opts() ?? {};
+        await handleNodeCanEnd(graph, nodeId, {
+          json: parentOpts.json,
+          workspacePath: parentOpts.workspacePath,
+        });
+      })
+    );
+
+  node
+    .command('end <graph> <nodeId>')
+    .description(
+      'Complete node execution (running → complete). All required outputs must be saved. E172 if wrong state.'
+    )
+    .action(
+      wrapAction(async (graph: string, nodeId: string, _options: BaseOptions, cmd: Command) => {
+        const parentOpts = cmd.parent?.parent?.opts() ?? {};
+        await handleNodeEnd(graph, nodeId, {
+          json: parentOpts.json,
+          workspacePath: parentOpts.workspacePath,
+        });
+      })
+    );
+
+  // Question/Answer Commands (Phase 4, Plan 028)
+  node
+    .command('ask <graph> <nodeId>')
+    .description(
+      'Ask orchestrator a question (running → waiting-question). Returns questionId for answer/get-answer.'
+    )
+    .requiredOption('--type <type>', 'Question type: text, single, multi, or confirm')
+    .requiredOption('--text <text>', 'Question text to display')
+    .option('--options <values...>', 'Answer options for single/multi choice questions')
+    .action(
+      wrapAction(
+        async (
+          graph: string,
+          nodeId: string,
+          localOpts: { type: string; text: string; options?: string[] },
+          cmd: Command
+        ) => {
+          const parentOpts = cmd.parent?.parent?.opts() ?? {};
+          await handleNodeAsk(graph, nodeId, {
+            type: localOpts.type,
+            text: localOpts.text,
+            options: localOpts.options,
+            json: parentOpts.json,
+            workspacePath: parentOpts.workspacePath,
+          });
+        }
+      )
+    );
+
+  node
+    .command('answer <graph> <nodeId> <questionId> <answer>')
+    .description(
+      'Provide answer to waiting node (waiting-question → running). E173 if questionId invalid, E177 if not waiting.'
+    )
+    .action(
+      wrapAction(
+        async (
+          graph: string,
+          nodeId: string,
+          questionId: string,
+          answer: string,
+          _options: BaseOptions,
+          cmd: Command
+        ) => {
+          const parentOpts = cmd.parent?.parent?.opts() ?? {};
+          await handleNodeAnswer(graph, nodeId, questionId, answer, {
+            json: parentOpts.json,
+            workspacePath: parentOpts.workspacePath,
+          });
+        }
+      )
+    );
+
+  node
+    .command('get-answer <graph> <nodeId> <questionId>')
+    .description(
+      'Retrieve answer to a question. Returns answered: true/false with answer value. E173 if questionId invalid.'
+    )
+    .action(
+      wrapAction(
+        async (
+          graph: string,
+          nodeId: string,
+          questionId: string,
+          _options: BaseOptions,
+          cmd: Command
+        ) => {
+          const parentOpts = cmd.parent?.parent?.opts() ?? {};
+          await handleNodeGetAnswer(graph, nodeId, questionId, {
+            json: parentOpts.json,
+            workspacePath: parentOpts.workspacePath,
+          });
+        }
+      )
+    );
+
+  // Input Retrieval Commands (Phase 5, Plan 028)
+  node
+    .command('get-input-data <graph> <nodeId> <inputName>')
+    .description(
+      'Get wired input data from upstream node. E178 if source not complete or wiring error.'
+    )
+    .action(
+      wrapAction(
+        async (
+          graph: string,
+          nodeId: string,
+          inputName: string,
+          _options: BaseOptions,
+          cmd: Command
+        ) => {
+          const parentOpts = cmd.parent?.parent?.opts() ?? {};
+          await handleNodeGetInputData(graph, nodeId, inputName, {
+            json: parentOpts.json,
+            workspacePath: parentOpts.workspacePath,
+          });
+        }
+      )
+    );
+
+  node
+    .command('get-input-file <graph> <nodeId> <inputName>')
+    .description(
+      'Get wired input file path from upstream node. E178 if source not complete or wiring error.'
+    )
+    .action(
+      wrapAction(
+        async (
+          graph: string,
+          nodeId: string,
+          inputName: string,
+          _options: BaseOptions,
+          cmd: Command
+        ) => {
+          const parentOpts = cmd.parent?.parent?.opts() ?? {};
+          await handleNodeGetInputFile(graph, nodeId, inputName, {
+            json: parentOpts.json,
+            workspacePath: parentOpts.workspacePath,
+          });
+        }
+      )
     );
 }

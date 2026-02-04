@@ -1,1 +1,0 @@
-../../../test/unit/web/027-central-notify-events/central-event-notifier.service.test.ts

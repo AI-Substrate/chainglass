@@ -340,6 +340,140 @@ export interface GraphStatusResult {
 }
 
 // ============================================
+// Result Types — Output Storage (Phase 2, Plan 028)
+// ============================================
+
+/** Result from saveOutputData */
+export interface SaveOutputDataResult extends BaseResult {
+  nodeId?: string;
+  outputName?: string;
+  saved: boolean;
+}
+
+/** Result from saveOutputFile */
+export interface SaveOutputFileResult extends BaseResult {
+  nodeId?: string;
+  outputName?: string;
+  saved: boolean;
+  /** Relative path where file was stored (relative to node dir) */
+  filePath?: string;
+}
+
+/** Result from getOutputData */
+export interface GetOutputDataResult extends BaseResult {
+  nodeId?: string;
+  outputName?: string;
+  value?: unknown;
+}
+
+/** Result from getOutputFile */
+export interface GetOutputFileResult extends BaseResult {
+  nodeId?: string;
+  outputName?: string;
+  /** Absolute path to the stored file */
+  filePath?: string;
+}
+
+// ============================================
+// Result Types — Node Lifecycle (Phase 3, Plan 028)
+// ============================================
+
+/** Result from startNode */
+export interface StartNodeResult extends BaseResult {
+  nodeId?: string;
+  status?: 'running';
+  startedAt?: string;
+}
+
+/** Result from canEnd */
+export interface CanEndResult extends BaseResult {
+  nodeId?: string;
+  canEnd: boolean;
+  savedOutputs: string[];
+  missingOutputs: string[];
+}
+
+/** Result from endNode */
+export interface EndNodeResult extends BaseResult {
+  nodeId?: string;
+  status?: 'complete';
+  completedAt?: string;
+}
+
+// ============================================
+// Result Types — Question/Answer Protocol (Phase 4, Plan 028)
+// ============================================
+
+/** Input options for askQuestion */
+export interface AskQuestionOptions {
+  type: 'text' | 'single' | 'multi' | 'confirm';
+  text: string;
+  options?: string[];
+  default?: string | boolean;
+}
+
+/** Result from askQuestion */
+export interface AskQuestionResult extends BaseResult {
+  nodeId?: string;
+  questionId?: string;
+  status?: 'waiting-question';
+}
+
+/** Result from answerQuestion */
+export interface AnswerQuestionResult extends BaseResult {
+  nodeId?: string;
+  questionId?: string;
+  status?: 'running';
+}
+
+/** Result from getAnswer */
+export interface GetAnswerResult extends BaseResult {
+  nodeId?: string;
+  questionId?: string;
+  answered: boolean;
+  answer?: unknown;
+}
+
+// ============================================
+// Result Types — Input Retrieval (Phase 5, Plan 028)
+// ============================================
+
+/** A single resolved data source for an input. */
+export interface InputDataSource {
+  sourceNodeId: string;
+  sourceOutput: string;
+  value: unknown;
+}
+
+/** Result from getInputData */
+export interface GetInputDataResult extends BaseResult {
+  nodeId?: string;
+  inputName?: string;
+  /** All resolved sources (per Critical Insight #4: from_unit collects all matches) */
+  sources?: InputDataSource[];
+  /** True when all sources are complete; false if partial (per Insight #5) */
+  complete?: boolean;
+}
+
+/** A single resolved file source for an input. */
+export interface InputFileSource {
+  sourceNodeId: string;
+  sourceOutput: string;
+  /** Absolute path to the file */
+  filePath: string;
+}
+
+/** Result from getInputFile */
+export interface GetInputFileResult extends BaseResult {
+  nodeId?: string;
+  inputName?: string;
+  /** All resolved file sources (per Critical Insight #4: from_unit collects all matches) */
+  sources?: InputFileSource[];
+  /** True when all sources are complete; false if partial (per Insight #5) */
+  complete?: boolean;
+}
+
+// ============================================
 // Service Interface
 // ============================================
 
@@ -469,4 +603,72 @@ export interface IPositionalGraphService {
     nodeId: string,
     settings: Partial<NodeOrchestratorSettings>
   ): Promise<BaseResult>;
+
+  // Output Storage (Phase 2, Plan 028)
+  saveOutputData(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    outputName: string,
+    value: unknown
+  ): Promise<SaveOutputDataResult>;
+  saveOutputFile(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    outputName: string,
+    sourcePath: string
+  ): Promise<SaveOutputFileResult>;
+  getOutputData(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    outputName: string
+  ): Promise<GetOutputDataResult>;
+  getOutputFile(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    outputName: string
+  ): Promise<GetOutputFileResult>;
+
+  // Node Lifecycle (Phase 3, Plan 028)
+  startNode(ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<StartNodeResult>;
+  canEnd(ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<CanEndResult>;
+  endNode(ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<EndNodeResult>;
+
+  // Question/Answer Protocol (Phase 4, Plan 028)
+  askQuestion(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    options: AskQuestionOptions
+  ): Promise<AskQuestionResult>;
+  answerQuestion(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    questionId: string,
+    answer: unknown
+  ): Promise<AnswerQuestionResult>;
+  getAnswer(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    questionId: string
+  ): Promise<GetAnswerResult>;
+
+  // Input Retrieval (Phase 5, Plan 028)
+  getInputData(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    inputName: string
+  ): Promise<GetInputDataResult>;
+  getInputFile(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    inputName: string
+  ): Promise<GetInputFileResult>;
 }

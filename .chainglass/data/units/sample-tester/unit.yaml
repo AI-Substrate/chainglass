@@ -8,23 +8,23 @@ inputs:
     type: data
     data_type: text
     required: true
-    description: The programming language of the script
-  - name: script
+    description: The programming language of the code
+  - name: code
     type: file
     required: true
-    description: The script file to run
+    description: The code file to test
 
 outputs:
-  - name: success
+  - name: test_passed
     type: data
     data_type: boolean
     required: true
-    description: Whether the script executed successfully
-  - name: output
+    description: Whether all tests passed
+  - name: test_output
     type: data
     data_type: text
     required: true
-    description: The script's stdout/stderr output
+    description: The test execution output
 
 agent:
   prompt_template: commands/main.md

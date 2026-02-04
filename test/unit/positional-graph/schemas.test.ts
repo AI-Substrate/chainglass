@@ -5,8 +5,11 @@ import {
   LineDefinitionSchema,
   NodeConfigSchema,
   NodeExecutionStatusSchema,
+  NodeStateEntryErrorSchema,
   NodeStateEntrySchema,
   PositionalGraphDefinitionSchema,
+  QuestionSchema,
+  QuestionTypeSchema,
   StateSchema,
   TransitionEntrySchema,
   TransitionModeSchema,
@@ -468,5 +471,282 @@ describe('StateSchema', () => {
       updated_at: 'not-a-date',
     });
     expect(result.success).toBe(false);
+  });
+
+  it('accepts optional questions array', () => {
+    /**
+     * Purpose: Proves state can contain questions for Q&A protocol
+     * Quality Contribution: Enables question/answer protocol in state.json
+     * Acceptance Criteria: State with questions array parses successfully
+     */
+    const state = StateSchema.parse({
+      graph_status: 'in_progress',
+      updated_at: '2026-02-01T10:30:00Z',
+      questions: [
+        {
+          question_id: '2026-02-03T10:32:00.000Z_f4e',
+          node_id: 'sample-coder-c4d',
+          type: 'single',
+          text: 'Which language?',
+          options: ['bash', 'python'],
+          asked_at: '2026-02-03T10:32:00Z',
+        },
+      ],
+    });
+    expect(state.questions).toHaveLength(1);
+    expect(state.questions?.[0]?.question_id).toBe('2026-02-03T10:32:00.000Z_f4e');
+  });
+});
+
+// ============================================
+// QuestionTypeSchema (Plan 028)
+// ============================================
+
+describe('QuestionTypeSchema', () => {
+  it('accepts "text"', () => {
+    expect(QuestionTypeSchema.parse('text')).toBe('text');
+  });
+
+  it('accepts "single"', () => {
+    expect(QuestionTypeSchema.parse('single')).toBe('single');
+  });
+
+  it('accepts "multi"', () => {
+    expect(QuestionTypeSchema.parse('multi')).toBe('multi');
+  });
+
+  it('accepts "confirm"', () => {
+    expect(QuestionTypeSchema.parse('confirm')).toBe('confirm');
+  });
+
+  it('rejects invalid values', () => {
+    const result = QuestionTypeSchema.safeParse('checkbox');
+    expect(result.success).toBe(false);
+  });
+});
+
+// ============================================
+// QuestionSchema (Plan 028)
+// ============================================
+
+describe('QuestionSchema', () => {
+  const validQuestion = {
+    question_id: '2026-02-03T10:32:00.000Z_f4e',
+    node_id: 'sample-coder-c4d',
+    type: 'single',
+    text: 'Which programming language should I use?',
+    asked_at: '2026-02-03T10:32:00Z',
+  };
+
+  it('parses minimal question (required fields only)', () => {
+    /**
+     * Purpose: Proves Question can be created with required fields only
+     * Quality Contribution: Ensures minimal valid question is accepted
+     * Acceptance Criteria: Question with question_id, node_id, type, text, asked_at parses
+     */
+    const question = QuestionSchema.parse(validQuestion);
+    expect(question.question_id).toBe('2026-02-03T10:32:00.000Z_f4e');
+    expect(question.node_id).toBe('sample-coder-c4d');
+    expect(question.type).toBe('single');
+    expect(question.text).toBe('Which programming language should I use?');
+    expect(question.asked_at).toBe('2026-02-03T10:32:00Z');
+  });
+
+  it('parses question with options', () => {
+    const question = QuestionSchema.parse({
+      ...validQuestion,
+      options: ['typescript', 'javascript', 'python', 'bash'],
+    });
+    expect(question.options).toEqual(['typescript', 'javascript', 'python', 'bash']);
+  });
+
+  it('parses question with default value (string)', () => {
+    /**
+     * Purpose: Proves Question supports string default values
+     * Quality Contribution: Enables pre-filled form values
+     * Acceptance Criteria: default field accepts string
+     */
+    const question = QuestionSchema.parse({
+      ...validQuestion,
+      options: ['bash', 'python'],
+      default: 'bash',
+    });
+    expect(question.default).toBe('bash');
+  });
+
+  it('parses question with default value (boolean)', () => {
+    /**
+     * Purpose: Proves Question supports boolean default for confirm type
+     * Quality Contribution: Enables pre-filled confirm dialogs
+     * Acceptance Criteria: default field accepts boolean
+     */
+    const question = QuestionSchema.parse({
+      question_id: 'q-456',
+      node_id: 'node-1',
+      type: 'confirm',
+      text: 'Continue?',
+      asked_at: '2026-02-03T10:32:00Z',
+      default: true,
+    });
+    expect(question.default).toBe(true);
+  });
+
+  it('parses answered question with answer and answered_at', () => {
+    /**
+     * Purpose: Proves answered questions store answer and timestamp
+     * Quality Contribution: Enables answer retrieval in Q&A protocol
+     * Acceptance Criteria: answer and answered_at fields parse
+     */
+    const question = QuestionSchema.parse({
+      ...validQuestion,
+      options: ['bash', 'python'],
+      answer: 'bash',
+      answered_at: '2026-02-03T10:33:00Z',
+    });
+    expect(question.answer).toBe('bash');
+    expect(question.answered_at).toBe('2026-02-03T10:33:00Z');
+  });
+
+  it('rejects question without question_id', () => {
+    const { question_id, ...noId } = validQuestion;
+    const result = QuestionSchema.safeParse(noId);
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects question without node_id', () => {
+    const { node_id, ...noNodeId } = validQuestion;
+    const result = QuestionSchema.safeParse(noNodeId);
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects invalid question type', () => {
+    /**
+     * Purpose: Proves type enum is enforced
+     * Quality Contribution: Prevents invalid question types
+     * Acceptance Criteria: Invalid type is rejected
+     */
+    const result = QuestionSchema.safeParse({
+      ...validQuestion,
+      type: 'dropdown',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects empty text', () => {
+    const result = QuestionSchema.safeParse({
+      ...validQuestion,
+      text: '',
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+// ============================================
+// NodeStateEntryErrorSchema (Plan 028)
+// ============================================
+
+describe('NodeStateEntryErrorSchema', () => {
+  it('parses error with code and message', () => {
+    /**
+     * Purpose: Proves error schema captures structured error info
+     * Quality Contribution: Enables error tracking in node state
+     * Acceptance Criteria: Error with code and message parses
+     */
+    const error = NodeStateEntryErrorSchema.parse({
+      code: 'E172',
+      message: 'Invalid state transition',
+    });
+    expect(error.code).toBe('E172');
+    expect(error.message).toBe('Invalid state transition');
+  });
+
+  it('parses error with optional details', () => {
+    const error = NodeStateEntryErrorSchema.parse({
+      code: 'E175',
+      message: 'Missing outputs',
+      details: { missing: ['script', 'language'] },
+    });
+    expect(error.details).toEqual({ missing: ['script', 'language'] });
+  });
+
+  it('rejects error without code', () => {
+    const result = NodeStateEntryErrorSchema.safeParse({
+      message: 'Something went wrong',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects error without message', () => {
+    const result = NodeStateEntryErrorSchema.safeParse({
+      code: 'E172',
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+// ============================================
+// NodeStateEntrySchema Extended (Plan 028)
+// ============================================
+
+describe('NodeStateEntrySchema extended fields', () => {
+  it('accepts optional pending_question_id', () => {
+    /**
+     * Purpose: Proves NodeStateEntry can track pending question
+     * Quality Contribution: Enables Q&A protocol state tracking
+     * Acceptance Criteria: pending_question_id is optional and valid
+     */
+    const entry = NodeStateEntrySchema.parse({
+      status: 'waiting-question',
+      started_at: '2026-02-01T10:00:00Z',
+      pending_question_id: '2026-02-03T10:32:00.000Z_f4e',
+    });
+    expect(entry.pending_question_id).toBe('2026-02-03T10:32:00.000Z_f4e');
+  });
+
+  it('accepts optional error object', () => {
+    /**
+     * Purpose: Proves NodeStateEntry can track error details
+     * Quality Contribution: Enables error tracking in blocked-error state
+     * Acceptance Criteria: error object with code, message parses
+     */
+    const entry = NodeStateEntrySchema.parse({
+      status: 'blocked-error',
+      started_at: '2026-02-01T10:00:00Z',
+      error: {
+        code: 'E175',
+        message: 'Missing required outputs',
+      },
+    });
+    expect(entry.error?.code).toBe('E175');
+    expect(entry.error?.message).toBe('Missing required outputs');
+  });
+
+  it('accepts error with details', () => {
+    const entry = NodeStateEntrySchema.parse({
+      status: 'blocked-error',
+      started_at: '2026-02-01T10:00:00Z',
+      error: {
+        code: 'E175',
+        message: 'Missing required outputs',
+        details: { missing: ['script'] },
+      },
+    });
+    expect(entry.error?.details).toEqual({ missing: ['script'] });
+  });
+
+  it('backward compatible - existing state.json still parses', () => {
+    /**
+     * Purpose: Proves backward compatibility with existing state.json files
+     * Quality Contribution: Prevents breaking changes during migration
+     * Acceptance Criteria: Old NodeStateEntry without new fields parses
+     */
+    const entry = NodeStateEntrySchema.parse({
+      status: 'complete',
+      started_at: '2026-02-01T10:00:00Z',
+      completed_at: '2026-02-01T10:05:00Z',
+    });
+    expect(entry.status).toBe('complete');
+    expect(entry.pending_question_id).toBeUndefined();
+    expect(entry.error).toBeUndefined();
   });
 });

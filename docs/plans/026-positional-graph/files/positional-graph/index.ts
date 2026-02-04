@@ -1,1 +1,0 @@
-../../../../../packages/positional-graph/src/adapter/index.ts

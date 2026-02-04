@@ -1,1 +1,0 @@
-../../../packages/shared/src/features/027-central-notify-events/domain-event-adapter.ts
