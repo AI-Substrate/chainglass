@@ -1,0 +1,34 @@
+slug: sample-pr-preparer
+type: agent
+version: 1.0.0
+description: Prepares PR description and metadata
+
+inputs:
+  - name: spec
+    type: data
+    data_type: text
+    required: true
+    description: The specification for context
+  - name: test_output
+    type: data
+    data_type: text
+    required: true
+    description: Test execution output for PR summary
+
+outputs:
+  - name: pr_title
+    type: data
+    data_type: text
+    required: true
+    description: The PR title
+  - name: pr_body
+    type: data
+    data_type: text
+    required: true
+    description: The PR body/description
+
+agent:
+  prompt_template: commands/main.md
+  supported_agents:
+    - claude-code
+  estimated_tokens: 1000

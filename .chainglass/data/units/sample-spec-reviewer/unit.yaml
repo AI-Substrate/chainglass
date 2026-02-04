@@ -1,0 +1,29 @@
+slug: sample-spec-reviewer
+type: agent
+version: 1.0.0
+description: Reviews and improves specifications
+
+inputs:
+  - name: spec
+    type: data
+    data_type: text
+    required: true
+    description: The specification to review
+
+outputs:
+  - name: reviewed_spec
+    type: data
+    data_type: text
+    required: true
+    description: The reviewed and improved specification
+  - name: review_notes
+    type: data
+    data_type: text
+    required: false
+    description: Notes from the review (optional)
+
+agent:
+  prompt_template: commands/main.md
+  supported_agents:
+    - claude-code
+  estimated_tokens: 1500

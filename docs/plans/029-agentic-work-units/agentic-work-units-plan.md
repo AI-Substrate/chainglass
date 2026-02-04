@@ -647,15 +647,15 @@ pnpm lint
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 4.1 | [ ] | Add `e2eEnrichedFixtures` to test-helpers.ts | 2 | All 7 units have full WorkUnit types | - | |
-| 4.2 | [ ] | Add `sampleUserRequirements` and `sampleLanguageSelector` fixtures | 1 | UserInputUnit fixtures available | - | |
-| 4.3 | [ ] | Implement `stubWorkUnitService()` helper | 2 | Helper supports template content, strict mode | - | |
-| 4.4 | [ ] | Fix naming inconsistency: samplePRCreator → samplePrCreator | 1 | Consistent camelCase naming | - | |
-| 4.5 | [ ] | Write E2E Section 13: Unit Type Verification | 2 | Tests verify type discrimination via CLI | - | |
-| 4.6 | [ ] | Write E2E Section 14: Reserved Parameter Routing | 2 | Tests verify main-prompt/main-script routing | - | |
-| 4.7 | [ ] | Write E2E Section 15: Row 0 UserInputUnit | 2 | Tests verify UserInputUnit as entry point | - | |
-| 4.8 | [ ] | Update E2E main flow to include new sections | 1 | Sections 13-15 run in correct order | - | |
-| 4.9 | [ ] | Run full E2E test and verify | 1 | All 15 sections pass | - | |
+| 4.1 | [x] | Add `e2eEnrichedFixtures` to test-helpers.ts | 2 | All 7 units have full WorkUnit types | [📋](tasks/phase-4-test-enrichment/execution.log.md#task-t001) | Completed [^12] |
+| 4.2 | [x] | Add `sampleUserRequirements` and `sampleLanguageSelector` fixtures | 1 | UserInputUnit fixtures available | [📋](tasks/phase-4-test-enrichment/execution.log.md#task-t002) | Completed [^12] |
+| 4.3 | [x] | Implement `stubWorkUnitService()` helper | 2 | Helper supports template content, strict mode | [📋](tasks/phase-4-test-enrichment/execution.log.md#task-t003) | Completed [^12] |
+| 4.4 | [x] | Fix naming inconsistency: samplePRCreator → samplePrCreator | 1 | Consistent camelCase naming | [📋](tasks/phase-4-test-enrichment/execution.log.md#task-t004) | Completed [^12] |
+| 4.5 | [x] | Write E2E Section 13: Unit Type Verification | 2 | Tests verify type discrimination via CLI | [📋](tasks/phase-4-test-enrichment/execution.log.md#task-t005-t008) | Completed [^13] |
+| 4.6 | [x] | Write E2E Section 14: Reserved Parameter Routing | 2 | Tests verify main-prompt/main-script routing | [📋](tasks/phase-4-test-enrichment/execution.log.md#task-t005-t008) | Completed [^13] |
+| 4.7 | [x] | Write E2E Section 15: Row 0 UserInputUnit | 2 | Tests verify UserInputUnit as entry point | [📋](tasks/phase-4-test-enrichment/execution.log.md#task-t005-t008) | Completed [^13] |
+| 4.8 | [x] | Update E2E main flow to include new sections | 1 | Sections 13-15 run in correct order | [📋](tasks/phase-4-test-enrichment/execution.log.md#task-t005-t008) | Completed [^13] |
+| 4.9 | [x] | Run full E2E test and verify | 1 | All 15 sections pass | [📋](tasks/phase-4-test-enrichment/execution.log.md#task-t009) | Completed - 65 steps pass [^14] |
 
 ### Test Examples (From Workshop)
 
@@ -846,7 +846,7 @@ cg wf unit info sample-coder
 - [x] Phase 1: Types and Schemas - COMPLETE (2026-02-04)
 - [x] Phase 2: Service and Adapter - COMPLETE (2026-02-04)
 - [x] Phase 3: CLI Integration - COMPLETE (2026-02-04)
-- [ ] Phase 4: Test Enrichment - PENDING
+- [x] Phase 4: Test Enrichment - COMPLETE (2026-02-04)
 - [ ] Phase 5: Cleanup and Documentation - PENDING
 
 ### STOP Rule
@@ -928,6 +928,29 @@ cg wf unit info sample-coder
   - `file:apps/cli/src/commands/positional-graph.command.ts`
   - `file:test/unit/cli/positional-graph-command.test.ts`
   - `file:test/unit/positional-graph/container.test.ts`
+
+[^12]: Phase 4 T001-T004 - Test fixtures and helpers
+  - `function:test/unit/positional-graph/test-helpers.ts:e2eEnrichedFixtures`
+  - `function:test/unit/positional-graph/test-helpers.ts:sampleUserRequirements`
+  - `function:test/unit/positional-graph/test-helpers.ts:sampleLanguageSelector`
+  - `function:test/unit/positional-graph/test-helpers.ts:stubWorkUnitService`
+  - Naming fix: samplePRCreator → samplePrCreator
+
+[^13]: Phase 4 T005-T008 - E2E Sections 13-15
+  - `function:test/e2e/positional-graph-execution-e2e.test.ts:testUnitTypeVerification`
+  - `function:test/e2e/positional-graph-execution-e2e.test.ts:testReservedParameterRouting`
+  - `function:test/e2e/positional-graph-execution-e2e.test.ts:testRow0UserInput`
+  - Fixed CLI --json flag placement
+  - Fixed E2E setup() to copy units to WorkUnitAdapter path
+
+[^14]: Phase 4 T009 - E2E verification and unit files
+  - `file:.chainglass/data/units/sample-spec-builder/unit.yaml`
+  - `file:.chainglass/data/units/sample-spec-reviewer/unit.yaml`
+  - `file:.chainglass/data/units/sample-spec-alignment-tester/unit.yaml`
+  - `file:.chainglass/data/units/sample-pr-preparer/unit.yaml`
+  - `file:.chainglass/units/sample-pr-creator/unit.yaml`
+  - `file:.chainglass/units/sample-pr-creator/scripts/main.sh`
+  - 65 E2E steps pass, 3233 unit tests pass
 
 ---
 

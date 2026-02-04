@@ -1,0 +1,38 @@
+slug: sample-spec-alignment-tester
+type: agent
+version: 1.0.0
+description: Tests code alignment with specification
+
+inputs:
+  - name: spec
+    type: data
+    data_type: text
+    required: true
+    description: The specification to test against
+  - name: code
+    type: file
+    required: true
+    description: The code file to test
+  - name: test_output
+    type: data
+    data_type: text
+    required: true
+    description: Test execution output to verify
+
+outputs:
+  - name: alignment_score
+    type: data
+    data_type: text
+    required: true
+    description: Numeric alignment score
+  - name: alignment_notes
+    type: data
+    data_type: text
+    required: true
+    description: Detailed alignment notes
+
+agent:
+  prompt_template: commands/main.md
+  supported_agents:
+    - claude-code
+  estimated_tokens: 1500
