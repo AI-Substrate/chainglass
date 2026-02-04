@@ -110,6 +110,10 @@ export const POSITIONAL_GRAPH_DI_TOKENS = {
   POSITIONAL_GRAPH_ADAPTER: 'IPositionalGraphAdapter',
   /** IWorkUnitLoader — narrow interface for WorkUnit existence validation */
   WORK_UNIT_LOADER: 'IWorkUnitLoader',
+  /** WorkUnitAdapter — filesystem adapter for work units (Plan 029: Phase 2) */
+  WORKUNIT_ADAPTER: 'WorkUnitAdapter',
+  /** IWorkUnitService — service for loading/listing/validating work units (Plan 029: Phase 2) */
+  WORKUNIT_SERVICE: 'IWorkUnitService',
 } as const;
 
 export const WORKGRAPH_DI_TOKENS = {

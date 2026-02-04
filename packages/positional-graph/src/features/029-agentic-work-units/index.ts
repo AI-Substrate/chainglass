@@ -53,3 +53,45 @@ export {
   workunitTypeMismatchError,
   workunitSlugInvalidError,
 } from './workunit-errors.js';
+
+// Adapter (Phase 2)
+export { WorkUnitAdapter } from './workunit.adapter.js';
+
+// Service Interface and Types (Phase 2)
+export type {
+  IWorkUnitService,
+  WorkUnitSummary,
+  ListUnitsResult,
+  LoadUnitResult,
+  ValidateUnitResult,
+} from './workunit-service.interface.js';
+export {
+  isAgenticWorkUnit,
+  isCodeUnit,
+  isUserInputUnit,
+} from './workunit-service.interface.js';
+
+// Service Implementation (Phase 2)
+export { WorkUnitService } from './workunit.service.js';
+
+// Rich Domain Classes (Phase 2)
+export type {
+  WorkUnitInstance,
+  AgenticWorkUnitInstance,
+  CodeUnitInstance,
+  UserInputUnitInstance,
+} from './workunit.classes.js';
+export {
+  createAgenticWorkUnitInstance,
+  createCodeUnitInstance,
+  createUserInputUnitInstance,
+} from './workunit.classes.js';
+
+// Fake Service for Testing (Phase 2)
+export {
+  FakeWorkUnitService,
+  type FakeAgentUnitConfig,
+  type FakeCodeUnitConfig,
+  type FakeUserInputUnitConfig,
+  type FakeUnitConfig,
+} from './fake-workunit.service.js';

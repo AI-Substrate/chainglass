@@ -395,17 +395,17 @@ pnpm lint
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 2.1 | [ ] | Write tests for WorkUnitAdapter path resolution | 2 | Tests cover: getUnitDir, getUnitYamlPath, getTemplatePath | - | TDD RED |
-| 2.2 | [ ] | Implement WorkUnitAdapter | 2 | All adapter tests pass | - | TDD GREEN |
-| 2.3 | [ ] | Write tests for WorkUnitService.list() | 2 | Tests cover: empty list, multiple units, error cases | - | TDD RED |
-| 2.4 | [ ] | Write tests for WorkUnitService.load() | 2 | Tests cover: valid load, not found (E180), parse error (E181), schema error (E182) | - | TDD RED |
-| 2.5 | [ ] | Write tests for WorkUnitService.validate() | 1 | Tests verify validation without loading | - | TDD RED |
-| 2.6 | [ ] | Write tests for WorkUnitService.getTemplateContent() | 2 | Tests cover: agent prompt, code script, user-input error (E183), path escape (E184), not found (E185) | - | TDD RED |
-| 2.7 | [ ] | Implement WorkUnitService | 3 | All service tests pass | - | TDD GREEN |
-| 2.8 | [ ] | Write security tests for path escape prevention | 2 | Tests verify E184 for `../` paths, absolute paths, symlinks | - | Security |
-| 2.9 | [ ] | Create FakeWorkUnitService | 2 | Fake supports all IWorkUnitService methods with configurable state | - | Test infrastructure |
-| 2.10 | [ ] | Add DI tokens to positional-graph-tokens.ts | 1 | `WORKUNIT_ADAPTER`, `WORKUNIT_SERVICE` tokens exported | - | Cross-cutting |
-| 2.11 | [ ] | Refactor and verify coverage | 2 | >80% coverage, all tests pass | - | TDD REFACTOR |
+| 2.1 | [x] | Write tests for WorkUnitAdapter path resolution | 2 | Tests cover: getUnitDir, getUnitYamlPath, getTemplatePath | [📋](tasks/phase-2-service-and-adapter/execution.log.md#task-t001-write-tests-for-workunitadapter-path-resolution) | Complete |
+| 2.2 | [x] | Implement WorkUnitAdapter extending WorkspaceDataAdapterBase | 2 | All adapter tests pass | [📋](tasks/phase-2-service-and-adapter/execution.log.md#task-t002-implement-workunitadapter-extending-workspacedataadapterbase) | Complete |
+| 2.3 | [x] | Write tests for WorkUnitService.list() | 2 | Tests cover: empty list, multiple units, error cases | [📋](tasks/phase-2-service-and-adapter/execution.log.md#task-t003-t006-write-tests-for-workunitservice-combined) | Complete |
+| 2.4 | [x] | Write tests for WorkUnitService.load() | 2 | Tests cover: valid load, not found (E180), parse error (E181), schema error (E182) | [📋](tasks/phase-2-service-and-adapter/execution.log.md#task-t003-t006-write-tests-for-workunitservice-combined) | Complete |
+| 2.5 | [x] | Write tests for WorkUnitService.validate() | 1 | Tests verify validation without loading | [📋](tasks/phase-2-service-and-adapter/execution.log.md#task-t003-t006-write-tests-for-workunitservice-combined) | Complete |
+| 2.6 | [x] | Write tests for WorkUnitService.getTemplateContent() | 2 | Tests cover: agent prompt, code script, user-input error (E183), path escape (E184), not found (E185) | [📋](tasks/phase-2-service-and-adapter/execution.log.md#task-t003-t006-write-tests-for-workunitservice-combined) | Complete |
+| 2.7 | [x] | Implement WorkUnitService + Unit classes | 3 | All service tests pass | [📋](tasks/phase-2-service-and-adapter/execution.log.md#task-t007-implement-workunitservice--unit-classes) | Complete |
+| 2.8 | [x] | Write security tests for path escape prevention | 2 | Tests verify E184 for `../` paths, absolute paths, symlinks | [📋](tasks/phase-2-service-and-adapter/execution.log.md#task-t008-write-security-tests-for-path-escape-prevention) | Complete |
+| 2.9 | [x] | Create FakeWorkUnitService | 2 | Fake supports all IWorkUnitService methods with configurable state | [📋](tasks/phase-2-service-and-adapter/execution.log.md#task-t009-create-fakeworkunitservice) | Complete |
+| 2.10 | [x] | Add DI tokens to positional-graph-tokens.ts | 1 | `WORKUNIT_ADAPTER`, `WORKUNIT_SERVICE` tokens exported | [📋](tasks/phase-2-service-and-adapter/execution.log.md#task-t010-add-di-tokens-to-positional-graph-tokens) | Complete |
+| 2.11 | [x] | Refactor and verify coverage | 2 | >80% coverage, all tests pass | [📋](tasks/phase-2-service-and-adapter/execution.log.md#task-t011-refactor-and-verify-coverage) | Complete |
 
 ### Test Examples (Write First!)
 
@@ -844,7 +844,7 @@ cg wf unit info sample-coder
 ### Phase Completion Checklist
 
 - [x] Phase 1: Types and Schemas - COMPLETE (2026-02-04)
-- [ ] Phase 2: Service and Adapter - PENDING
+- [x] Phase 2: Service and Adapter - COMPLETE (2026-02-04)
 - [ ] Phase 3: CLI Integration - PENDING
 - [ ] Phase 4: Test Enrichment - PENDING
 - [ ] Phase 5: Cleanup and Documentation - PENDING
@@ -881,6 +881,37 @@ cg wf unit info sample-coder
 [^4]: Phase 1 T008-T009 - Feature barrel exports and package integration
   - `file:packages/positional-graph/src/features/029-agentic-work-units/index.ts`
   - `file:packages/positional-graph/src/index.ts` (cross-plan edit)
+
+[^5]: Phase 2 T001-T002 - WorkUnitAdapter implementation
+  - `class:packages/positional-graph/src/features/029-agentic-work-units/workunit.adapter.ts:WorkUnitAdapter`
+  - `method:packages/positional-graph/src/features/029-agentic-work-units/workunit.adapter.ts:WorkUnitAdapter.getUnitDir`
+  - `method:packages/positional-graph/src/features/029-agentic-work-units/workunit.adapter.ts:WorkUnitAdapter.getUnitYamlPath`
+  - `method:packages/positional-graph/src/features/029-agentic-work-units/workunit.adapter.ts:WorkUnitAdapter.getTemplatePath`
+  - `method:packages/positional-graph/src/features/029-agentic-work-units/workunit.adapter.ts:WorkUnitAdapter.listUnitSlugs`
+  - `method:packages/positional-graph/src/features/029-agentic-work-units/workunit.adapter.ts:WorkUnitAdapter.unitExists`
+  - `method:packages/positional-graph/src/features/029-agentic-work-units/workunit.adapter.ts:WorkUnitAdapter.validateSlug`
+  - `file:test/unit/positional-graph/features/029-agentic-work-units/workunit.adapter.test.ts`
+
+[^6]: Phase 2 T003-T007 - WorkUnitService and domain classes
+  - `class:packages/positional-graph/src/features/029-agentic-work-units/workunit.service.ts:WorkUnitService`
+  - `method:packages/positional-graph/src/features/029-agentic-work-units/workunit.service.ts:WorkUnitService.list`
+  - `method:packages/positional-graph/src/features/029-agentic-work-units/workunit.service.ts:WorkUnitService.load`
+  - `method:packages/positional-graph/src/features/029-agentic-work-units/workunit.service.ts:WorkUnitService.validate`
+  - `file:packages/positional-graph/src/features/029-agentic-work-units/workunit-service.interface.ts`
+  - `file:packages/positional-graph/src/features/029-agentic-work-units/workunit.classes.ts`
+  - `function:packages/positional-graph/src/features/029-agentic-work-units/workunit.classes.ts:createAgenticWorkUnitInstance`
+  - `function:packages/positional-graph/src/features/029-agentic-work-units/workunit.classes.ts:createCodeUnitInstance`
+  - `function:packages/positional-graph/src/features/029-agentic-work-units/workunit.classes.ts:createUserInputUnitInstance`
+  - `function:packages/positional-graph/src/features/029-agentic-work-units/workunit.classes.ts:validatePathContainment`
+  - `file:test/unit/positional-graph/features/029-agentic-work-units/workunit.service.test.ts`
+
+[^7]: Phase 2 T008-T009 - Security tests and FakeWorkUnitService
+  - `class:packages/positional-graph/src/features/029-agentic-work-units/fake-workunit.service.ts:FakeWorkUnitService`
+  - `file:test/unit/positional-graph/features/029-agentic-work-units/fake-workunit.service.test.ts`
+
+[^8]: Phase 2 T010-T011 - DI tokens and integration
+  - `file:packages/shared/src/di-tokens.ts` (added WORKUNIT_ADAPTER, WORKUNIT_SERVICE)
+  - `file:packages/positional-graph/src/features/029-agentic-work-units/index.ts` (updated exports)
 
 ---
 
