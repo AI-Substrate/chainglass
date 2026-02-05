@@ -26,6 +26,11 @@
  */
 
 import type { AskQuestionOptions, IPositionalGraphService } from '@chainglass/positional-graph';
+import {
+  type IWorkUnitService,
+  isReservedInputParam,
+  workunitTypeMismatchError,
+} from '@chainglass/positional-graph';
 import { POSITIONAL_GRAPH_DI_TOKENS } from '@chainglass/shared';
 import type { Command } from 'commander';
 import { createCliProductionContainer } from '../lib/container.js';
@@ -128,6 +133,15 @@ function getPositionalGraphService(): IPositionalGraphService {
   return container.resolve<IPositionalGraphService>(
     POSITIONAL_GRAPH_DI_TOKENS.POSITIONAL_GRAPH_SERVICE
   );
+}
+
+/**
+ * Get the WorkUnitService from DI container.
+ * Per Plan 029 Phase 3: Used for reserved parameter routing.
+ */
+function getWorkUnitService(): IWorkUnitService {
+  const container = createCliProductionContainer();
+  return container.resolve<IWorkUnitService>(POSITIONAL_GRAPH_DI_TOKENS.WORKUNIT_SERVICE);
 }
 
 // ============================================
@@ -966,6 +980,75 @@ async function handleNodeGetInputData(
     process.exit(1);
   }
 
+  // Per Plan 029 Phase 3: Reserved parameter routing
+  // Reserved params (main-prompt, main-script) route to WorkUnitService
+  if (isReservedInputParam(inputName)) {
+    const pgService = getPositionalGraphService();
+    const workUnitService = getWorkUnitService();
+
+    // First, get the node to determine its unit slug
+    const nodeResult = await pgService.showNode(ctx, graphSlug, nodeId);
+    if (nodeResult.errors.length > 0) {
+      console.log(adapter.format('wf.node.get-input-data', nodeResult));
+      process.exit(1);
+    }
+
+    // Load the work unit
+    const loadResult = await workUnitService.load(ctx, nodeResult.unitSlug);
+    if (loadResult.errors.length > 0 || !loadResult.unit) {
+      console.log(
+        adapter.format('wf.node.get-input-data', { errors: loadResult.errors, value: undefined })
+      );
+      process.exit(1);
+    }
+
+    const unit = loadResult.unit;
+
+    // Route based on reserved param type and verify unit type
+    if (inputName === 'main-prompt') {
+      if (unit.type !== 'agent') {
+        const error = workunitTypeMismatchError('main-prompt', 'agent', unit.type);
+        console.log(
+          adapter.format('wf.node.get-input-data', { errors: [error], value: undefined })
+        );
+        process.exit(1);
+      }
+      // Get prompt content from AgenticWorkUnitInstance
+      const content = await unit.getPrompt(ctx);
+      console.log(
+        adapter.format('wf.node.get-input-data', {
+          errors: [],
+          value: content,
+          templateType: 'prompt',
+          templatePath: unit.agent.prompt_template,
+        })
+      );
+      return;
+    }
+
+    if (inputName === 'main-script') {
+      if (unit.type !== 'code') {
+        const error = workunitTypeMismatchError('main-script', 'code', unit.type);
+        console.log(
+          adapter.format('wf.node.get-input-data', { errors: [error], value: undefined })
+        );
+        process.exit(1);
+      }
+      // Get script content from CodeUnitInstance
+      const content = await unit.getScript(ctx);
+      console.log(
+        adapter.format('wf.node.get-input-data', {
+          errors: [],
+          value: content,
+          templateType: 'script',
+          templatePath: unit.code.script,
+        })
+      );
+      return;
+    }
+  }
+
+  // Non-reserved inputs: route to normal getInputData
   const service = getPositionalGraphService();
   const result = await service.getInputData(ctx, graphSlug, nodeId, inputName);
   console.log(adapter.format('wf.node.get-input-data', result));
@@ -1046,6 +1129,123 @@ async function handleWfTrigger(slug: string, lineId: string, options: BaseOption
   console.log(adapter.format('wf.trigger', result));
 
   if (result.errors.length > 0) process.exit(1);
+}
+
+// ============================================
+// Unit Subcommand Handlers (Phase 3, Plan 029)
+// ============================================
+
+async function handleUnitList(options: BaseOptions): Promise<void> {
+  const adapter = createOutputAdapter(options.json ?? false);
+
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = { errors: noContextError(options.workspacePath), units: [] };
+    console.log(adapter.format('wf.unit.list', result));
+    process.exit(1);
+  }
+
+  const service = getWorkUnitService();
+  const result = await service.list(ctx);
+  console.log(adapter.format('wf.unit.list', result));
+
+  if (result.errors.length > 0) process.exit(1);
+}
+
+async function handleUnitInfo(slug: string, options: BaseOptions): Promise<void> {
+  const adapter = createOutputAdapter(options.json ?? false);
+
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = { errors: noContextError(options.workspacePath), unit: undefined };
+    console.log(adapter.format('wf.unit.info', result));
+    process.exit(1);
+  }
+
+  const service = getWorkUnitService();
+  const result = await service.load(ctx, slug);
+
+  // Transform unit instance to plain object for output
+  if (result.unit) {
+    const unit = result.unit;
+    const plainUnit: Record<string, unknown> = {
+      slug: unit.slug,
+      type: unit.type,
+      version: unit.version,
+      description: unit.description,
+      inputs: unit.inputs,
+      outputs: unit.outputs,
+    };
+
+    // Add type-specific config
+    if (unit.type === 'agent') {
+      plainUnit.agent = unit.agent;
+    } else if (unit.type === 'code') {
+      plainUnit.code = unit.code;
+    } else if (unit.type === 'user-input') {
+      plainUnit.user_input = unit.user_input;
+    }
+
+    console.log(adapter.format('wf.unit.info', { unit: plainUnit, errors: [] }));
+  } else {
+    console.log(adapter.format('wf.unit.info', { unit: undefined, errors: result.errors }));
+    process.exit(1);
+  }
+}
+
+async function handleUnitGetTemplate(slug: string, options: BaseOptions): Promise<void> {
+  const adapter = createOutputAdapter(options.json ?? false);
+
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = { errors: noContextError(options.workspacePath), content: undefined };
+    console.log(adapter.format('wf.unit.get-template', result));
+    process.exit(1);
+  }
+
+  const service = getWorkUnitService();
+  const loadResult = await service.load(ctx, slug);
+
+  if (loadResult.errors.length > 0 || !loadResult.unit) {
+    console.log(
+      adapter.format('wf.unit.get-template', { content: undefined, errors: loadResult.errors })
+    );
+    process.exit(1);
+  }
+
+  const unit = loadResult.unit;
+
+  // Get template based on unit type
+  if (unit.type === 'agent') {
+    const content = await unit.getPrompt(ctx);
+    console.log(
+      adapter.format('wf.unit.get-template', {
+        content,
+        templateType: 'prompt',
+        templatePath: unit.agent.prompt_template,
+        errors: [],
+      })
+    );
+  } else if (unit.type === 'code') {
+    const content = await unit.getScript(ctx);
+    console.log(
+      adapter.format('wf.unit.get-template', {
+        content,
+        templateType: 'script',
+        templatePath: unit.code.script,
+        errors: [],
+      })
+    );
+  } else {
+    // user-input units have no template
+    const error = {
+      code: 'E183',
+      message: `WorkUnit '${slug}' is a user-input type and has no template`,
+      action: 'User-input units collect input directly; use agent or code units for templates',
+    };
+    console.log(adapter.format('wf.unit.get-template', { content: undefined, errors: [error] }));
+    process.exit(1);
+  }
 }
 
 // ============================================
@@ -1771,5 +1971,50 @@ export function registerPositionalGraphCommands(program: Command): void {
           });
         }
       )
+    );
+
+  // ==================== Unit Commands (Phase 3, Plan 029) ====================
+
+  const unit = wf.command('unit').description('Manage work units (agents, code, user-input)');
+
+  unit
+    .command('list')
+    .description('List all available work units')
+    .action(
+      wrapAction(async (_options: BaseOptions, cmd: Command) => {
+        const parentOpts = cmd.parent?.parent?.opts() ?? {};
+        await handleUnitList({
+          json: parentOpts.json,
+          workspacePath: parentOpts.workspacePath,
+        });
+      })
+    );
+
+  unit
+    .command('info <slug>')
+    .description('Show detailed information about a work unit')
+    .action(
+      wrapAction(async (slug: string, _options: BaseOptions, cmd: Command) => {
+        const parentOpts = cmd.parent?.parent?.opts() ?? {};
+        await handleUnitInfo(slug, {
+          json: parentOpts.json,
+          workspacePath: parentOpts.workspacePath,
+        });
+      })
+    );
+
+  unit
+    .command('get-template <slug>')
+    .description(
+      'Get the template content for an agent (prompt) or code (script) unit. E183 for user-input.'
+    )
+    .action(
+      wrapAction(async (slug: string, _options: BaseOptions, cmd: Command) => {
+        const parentOpts = cmd.parent?.parent?.opts() ?? {};
+        await handleUnitGetTemplate(slug, {
+          json: parentOpts.json,
+          workspacePath: parentOpts.workspacePath,
+        });
+      })
     );
 }

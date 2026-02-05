@@ -149,6 +149,25 @@ interface GetInputFileResult {
   errors: Array<{ code: string; message: string }>;
 }
 
+interface UnitInfoResult {
+  unit?: {
+    slug?: string;
+    type?: 'agent' | 'code' | 'user-input';
+    version?: string;
+    description?: string;
+    agent?: { prompt_template?: string };
+    code?: { script?: string };
+    user_input?: { question_type?: string; prompt?: string };
+  };
+  errors: Array<{ code: string; message: string }>;
+}
+
+interface GetTemplateResult {
+  content?: string;
+  templateType?: 'prompt' | 'script';
+  errors: Array<{ code: string; message: string }>;
+}
+
 // ============================================
 // CLI Runner
 // ============================================
@@ -160,8 +179,10 @@ let workspacePath: string;
  * All commands are run with --json flag and against the temp workspace.
  */
 async function runCli<T>(args: string[]): Promise<CliResult<T>> {
-  // Build full command: cg wf <args> --json --workspace-path <path>
-  const fullArgs = ['wf', ...args, '--json', '--workspace-path', workspacePath];
+  // Build full command: cg wf --json --workspace-path <path> <args>
+  // IMPORTANT: --json and --workspace-path are parent options on 'wf' command,
+  // so they must come BEFORE the subcommand (e.g., 'create', 'node', 'line').
+  const fullArgs = ['wf', '--json', '--workspace-path', workspacePath, ...args];
 
   return new Promise((resolve, reject) => {
     const proc = spawn('cg', fullArgs, {
@@ -365,13 +386,22 @@ async function setup(): Promise<void> {
   await fs.mkdir(chaingleassDir, { recursive: true });
   console.log(`    Workspace: ${workspacePath}`);
 
-  // Copy units from project to temp workspace
+  // Copy units from canonical path to temp workspace
+  // WorkUnitAdapter (per Plan 029 Phase 2) looks ONLY at .chainglass/units/
+  // Phase 5 consolidated all units to this canonical path
   const projectRoot = path.resolve(import.meta.dirname, '../..');
-  const srcUnits = path.join(projectRoot, '.chainglass', 'data', 'units');
-  const dstUnits = path.join(workspacePath, '.chainglass', 'data', 'units');
-  await fs.cp(srcUnits, dstUnits, { recursive: true });
-  const copiedUnits = await fs.readdir(dstUnits);
-  console.log(`    Units copied to temp workspace: ${copiedUnits.join(', ')}`);
+  const srcUnits = path.join(projectRoot, '.chainglass', 'units');
+  const dstUnits = path.join(workspacePath, '.chainglass', 'units');
+  await fs.mkdir(dstUnits, { recursive: true });
+
+  // Copy units from canonical .chainglass/units/ path
+  try {
+    await fs.cp(srcUnits, dstUnits, { recursive: true });
+    const unitsCopied = await fs.readdir(dstUnits);
+    console.log(`    Units copied: ${unitsCopied.join(', ')}`);
+  } catch {
+    throw new Error(`Failed to copy units from ${srcUnits} - ensure canonical units exist`);
+  }
 
   step('1.2: Register temp directory as workspace');
   // Use workspace add command (it's a root command, not under wf)
@@ -968,7 +998,7 @@ async function executeLine1WithQA(): Promise<void> {
     'code',
   ]);
   assert(codeFileInput.ok, `Get code file input failed: ${JSON.stringify(codeFileInput.errors)}`);
-  assert(codeFileInput.data?.sources?.[0]?.filePath, 'Code file path should be returned');
+  assert(!!codeFileInput.data?.sources?.[0]?.filePath, 'Code file path should be returned');
   console.log('    tester started, inputs received (code as file)');
 
   step('8.3: Complete tester');
@@ -1244,6 +1274,200 @@ async function validateFinalState(): Promise<void> {
 }
 
 // ============================================
+// SECTION 13: Unit Type Verification (Phase 4)
+// ============================================
+
+/**
+ * Verifies that CLI returns correct unit types for agent, code, and user-input units.
+ * Per spec AC-8: E2E Section 13 (Unit Type Verification)
+ */
+async function testUnitTypeVerification(): Promise<void> {
+  section('Unit Type Verification (Phase 4)');
+
+  step('13.1: Verify sample-coder is AgenticWorkUnit (type=agent)');
+  const coderInfo = await runCli<UnitInfoResult>(['unit', 'info', 'sample-coder']);
+  assert(coderInfo.ok, `Unit info failed: ${JSON.stringify(coderInfo.errors)}`);
+  assert(
+    coderInfo.data?.unit?.type === 'agent',
+    `Expected type='agent', got ${coderInfo.data?.unit?.type}`
+  );
+  assert(
+    !!coderInfo.data?.unit?.agent?.prompt_template,
+    'Agent should have prompt_template config'
+  );
+  console.log(`    sample-coder: type=${coderInfo.data?.unit?.type}, has prompt_template`);
+
+  step('13.2: Verify sample-pr-creator is CodeUnit (type=code)');
+  const prCreatorInfo = await runCli<UnitInfoResult>(['unit', 'info', 'sample-pr-creator']);
+  assert(prCreatorInfo.ok, `Unit info failed: ${JSON.stringify(prCreatorInfo.errors)}`);
+  assert(
+    prCreatorInfo.data?.unit?.type === 'code',
+    `Expected type='code', got ${prCreatorInfo.data?.unit?.type}`
+  );
+  assert(!!prCreatorInfo.data?.unit?.code?.script, 'Code unit should have script config');
+  console.log(`    sample-pr-creator: type=${prCreatorInfo.data?.unit?.type}, has script`);
+
+  step('13.3: Verify sample-input is UserInputUnit (type=user-input)');
+  const inputInfo = await runCli<UnitInfoResult>(['unit', 'info', 'sample-input']);
+  assert(inputInfo.ok, `Unit info failed: ${JSON.stringify(inputInfo.errors)}`);
+  assert(
+    inputInfo.data?.unit?.type === 'user-input',
+    `Expected type='user-input', got ${inputInfo.data?.unit?.type}`
+  );
+  assert(!!inputInfo.data?.unit?.user_input?.question_type, 'UserInput should have question_type');
+  console.log(`    sample-input: type=${inputInfo.data?.unit?.type}, has question_type`);
+}
+
+// ============================================
+// SECTION 14: Reserved Parameter Routing (Phase 4)
+// ============================================
+
+/**
+ * Verifies reserved parameter routing for main-prompt and main-script.
+ * Per spec AC-9: E2E Section 14 (Reserved Parameter Routing)
+ *
+ * Design note: Reserved parameters access STATIC template content, not runtime data.
+ * They work regardless of node state (pending, running, completed).
+ */
+async function testReservedParameterRouting(): Promise<void> {
+  section('Reserved Parameter Routing (Phase 4)');
+
+  // Note: This section runs after Line 1 completes but before Line 2.
+  // Tests verify reserved params work on both completed and pending nodes.
+
+  step('14.1: Get main-prompt for AgenticWorkUnit (coder node completed)');
+  const promptResult = await runCli<GetInputDataResult>([
+    'node',
+    'get-input-data',
+    GRAPH_SLUG,
+    nodeIds.coder,
+    'main-prompt',
+  ]);
+  assert(promptResult.ok, `Get main-prompt failed: ${JSON.stringify(promptResult.errors)}`);
+  const promptValue = String(promptResult.data?.value ?? '');
+  assert(promptValue.length > 0, 'main-prompt should return non-empty content');
+  console.log(
+    `    main-prompt on completed coder: ${promptValue.length} chars (works post-completion)`
+  );
+
+  step('14.2: Get main-script for CodeUnit (pr-creator node pending)');
+  // PR-creator hasn't started yet — verifies reserved params work on pending nodes
+  const scriptResult = await runCli<GetInputDataResult>([
+    'node',
+    'get-input-data',
+    GRAPH_SLUG,
+    nodeIds.prCreator,
+    'main-script',
+  ]);
+  assert(scriptResult.ok, `Get main-script failed: ${JSON.stringify(scriptResult.errors)}`);
+  const scriptValue = String(scriptResult.data?.value ?? '');
+  assert(scriptValue.length > 0, 'main-script should return non-empty content');
+  console.log(
+    `    main-script on pending pr-creator: ${scriptValue.length} chars (works pre-execution)`
+  );
+
+  step('14.3: E186 - main-prompt on CodeUnit should fail (type mismatch)');
+  const e186Result = await runCli<GetInputDataResult>([
+    'node',
+    'get-input-data',
+    GRAPH_SLUG,
+    nodeIds.prCreator,
+    'main-prompt',
+  ]);
+  assert(!e186Result.ok, 'Expected error for main-prompt on CodeUnit');
+  const e186Error = e186Result.errors.find((e) => e.code === 'E186');
+  assert(!!e186Error, `Expected E186 error, got: ${JSON.stringify(e186Result.errors)}`);
+  console.log('    E186 UnitTypeMismatch: main-prompt on CodeUnit correctly rejected');
+
+  step('14.4: E183 - get-template on UserInputUnit should fail');
+  // UserInputUnit has no template (no prompt or script)
+  const e183Result = await runCli<GetTemplateResult>(['unit', 'get-template', 'sample-input']);
+  assert(!e183Result.ok, 'Expected error for get-template on UserInputUnit');
+  const e183Error = e183Result.errors.find((e) => e.code === 'E183');
+  assert(!!e183Error, `Expected E183 error, got: ${JSON.stringify(e183Result.errors)}`);
+  console.log('    E183 NoTemplate: UserInputUnit has no template');
+}
+
+// ============================================
+// SECTION 15: Row 0 UserInputUnit (Phase 4)
+// ============================================
+
+/**
+ * Verifies UserInputUnit on Line 0 is immediately ready as workflow entry point.
+ * Per spec AC-10: E2E Section 15 (Row 0 UserInputUnit)
+ *
+ * Uses a separate test graph to avoid interfering with the main E2E flow.
+ */
+async function testRow0UserInput(): Promise<void> {
+  section('Row 0 UserInputUnit Entry Point (Phase 4)');
+
+  const altGraphSlug = 'e2e-user-input-test';
+
+  step('15.1: Create alternate graph for UserInputUnit test');
+  // Clean up any existing test graph
+  await runCli(['delete', altGraphSlug]).catch(() => {});
+
+  const createResult = await runCli<GraphCreateResult>(['create', altGraphSlug]);
+  assert(createResult.ok, `Create failed: ${JSON.stringify(createResult.errors)}`);
+  const altLine0 = unwrap(createResult.data?.lineId, 'altGraphResult.lineId');
+  console.log(`    Alt graph created: ${altGraphSlug}, Line 0: ${altLine0}`);
+
+  step('15.2: Add UserInputUnit (sample-input) to Line 0');
+  const addResult = await runCli<AddNodeResult>([
+    'node',
+    'add',
+    altGraphSlug,
+    altLine0,
+    'sample-input',
+  ]);
+  assert(addResult.ok, `Add node failed: ${JSON.stringify(addResult.errors)}`);
+  const userInputNodeId = unwrap(addResult.data?.nodeId, 'addResult.nodeId');
+  console.log(`    UserInputUnit node added: ${userInputNodeId}`);
+
+  step('15.3: Verify UserInputUnit is immediately ready (Line 0 entry point)');
+  const status = await runCli<StatusResult>(['status', altGraphSlug, '--node', userInputNodeId]);
+  assert(status.data?.ready === true, 'UserInputUnit on Line 0 should be immediately ready');
+  console.log(`    UserInputUnit ready: ${status.data?.ready} (entry point semantics verified)`);
+
+  step('15.4: Complete UserInputUnit and verify outputs available');
+  // Start the node
+  const startResult = await runCli(['node', 'start', altGraphSlug, userInputNodeId]);
+  assert(startResult.ok, `Start failed: ${JSON.stringify(startResult.errors)}`);
+
+  // Save output (simulating user providing requirements)
+  const saveResult = await runCli([
+    'node',
+    'save-output-data',
+    altGraphSlug,
+    userInputNodeId,
+    'spec',
+    '"Build a function that validates email addresses"',
+  ]);
+  assert(saveResult.ok, `Save output failed: ${JSON.stringify(saveResult.errors)}`);
+
+  // Complete the node
+  const endResult = await runCli(['node', 'end', altGraphSlug, userInputNodeId]);
+  assert(endResult.ok, `End failed: ${JSON.stringify(endResult.errors)}`);
+
+  // Verify output is available
+  const outputResult = await runCli<GetOutputDataResult>([
+    'node',
+    'get-output-data',
+    altGraphSlug,
+    userInputNodeId,
+    'spec',
+  ]);
+  assert(outputResult.ok, `Get output failed: ${JSON.stringify(outputResult.errors)}`);
+  const outputValue = String(outputResult.data?.value ?? '');
+  assert(outputValue.includes('email'), 'Output should contain the user-provided requirements');
+  console.log(`    UserInputUnit output: "${outputValue.substring(0, 50)}..."`);
+
+  step('15.5: Cleanup alternate test graph');
+  await runCli(['delete', altGraphSlug]);
+  console.log(`    Alt graph deleted: ${altGraphSlug}`);
+}
+
+// ============================================
 // Cleanup
 // ============================================
 
@@ -1269,27 +1493,39 @@ async function cleanup(): Promise<void> {
 async function main(): Promise<void> {
   console.log('=== Positional Graph Execution Lifecycle E2E Test ===\n');
   console.log('Graph: 3 lines, 7 nodes');
-  console.log('  Line 0: spec-builder, spec-reviewer (serial)');
-  console.log('  Line 1: coder (Q&A), tester (serial, MANUAL gate to Line 2)');
-  console.log('  Line 2: alignment-tester, pr-preparer (PARALLEL) + PR-creator (serial)\n');
+  console.log('  Line 0: spec-builder [agent], spec-reviewer [agent] (serial)');
+  console.log('  Line 1: coder [agent+Q&A], tester [agent] (serial, MANUAL gate to Line 2)');
+  console.log(
+    '  Line 2: alignment-tester, pr-preparer [agent] (PARALLEL) + PR-creator [code] (serial)'
+  );
+  console.log(
+    '\nPhase 4 additions: Sections 13-15 verify unit types, reserved params, and Row 0 entry\n'
+  );
 
   try {
     await setup();
     await testReadinessDetection();
     await testErrorCodes();
+    await testUnitTypeVerification(); // Section 13: Unit type discrimination (Phase 4)
     await executeLine0();
     await executeLine1WithQA();
+    await testReservedParameterRouting(); // Section 14: Reserved params (Phase 4)
     await testManualTransition();
     await testParallelExecution();
     await completePRCreator();
     await validateFinalState();
+    await testRow0UserInput(); // Section 15: Row 0 UserInputUnit (Phase 4)
 
     console.log('\n=== ALL TESTS PASSED ===');
     console.log(`Total steps: ${stepNum}`);
     console.log('7 nodes complete across 3 lines:');
-    console.log('  - spec-builder, spec-reviewer (serial)');
-    console.log('  - coder (with Q&A), tester (serial)');
-    console.log('  - alignment-tester, pr-preparer (parallel), PR-creator (serial)');
+    console.log('  - spec-builder, spec-reviewer (serial) [agent]');
+    console.log('  - coder (with Q&A), tester (serial) [agent]');
+    console.log('  - alignment-tester, pr-preparer (parallel) [agent], PR-creator (serial) [code]');
+    console.log('\nPhase 4 verified:');
+    console.log('  - Section 13: Unit type discrimination (agent/code/user-input)');
+    console.log('  - Section 14: Reserved parameter routing (main-prompt/main-script)');
+    console.log('  - Section 15: Row 0 UserInputUnit entry point semantics');
   } finally {
     await cleanup();
   }

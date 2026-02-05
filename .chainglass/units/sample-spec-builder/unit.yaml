@@ -1,0 +1,21 @@
+slug: sample-spec-builder
+type: agent
+version: 1.0.0
+description: Creates detailed specifications from user requirements
+
+inputs: []
+  # Entry point unit - no required inputs
+  # Gets user requirements interactively via Q&A protocol
+
+outputs:
+  - name: spec
+    type: data
+    data_type: text
+    required: true
+    description: The generated specification document
+
+agent:
+  prompt_template: prompts/main.md
+  supported_agents:
+    - claude-code
+  estimated_tokens: 2000

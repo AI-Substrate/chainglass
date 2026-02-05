@@ -1,0 +1,32 @@
+slug: sample-pr-creator
+type: code
+version: 1.0.0
+description: Creates PR using GitHub CLI
+
+inputs:
+  - name: pr_title
+    type: data
+    data_type: text
+    required: true
+    description: The PR title
+  - name: pr_body
+    type: data
+    data_type: text
+    required: true
+    description: The PR body/description
+
+outputs:
+  - name: pr_url
+    type: data
+    data_type: text
+    required: true
+    description: The URL of the created PR
+  - name: pr_number
+    type: data
+    data_type: text
+    required: true
+    description: The PR number
+
+code:
+  script: scripts/main.sh
+  timeout: 60
