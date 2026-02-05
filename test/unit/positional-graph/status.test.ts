@@ -60,6 +60,7 @@ async function writeState(
 
 const simpleUnit: NarrowWorkUnit = {
   slug: 'simple-task',
+  type: 'agent',
   inputs: [],
   outputs: [{ name: 'result', type: 'data', required: true }],
 };

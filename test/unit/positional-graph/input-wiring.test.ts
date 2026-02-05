@@ -55,6 +55,7 @@ function createTestService(
 // WorkUnit definitions for testing
 const sampleInput: NarrowWorkUnit = {
   slug: 'sample-input',
+  type: 'user-input',
   inputs: [],
   outputs: [
     { name: 'spec', type: 'data', required: true },
@@ -64,6 +65,7 @@ const sampleInput: NarrowWorkUnit = {
 
 const sampleCoder: NarrowWorkUnit = {
   slug: 'sample-coder',
+  type: 'agent',
   inputs: [
     { name: 'spec', type: 'data', required: true },
     { name: 'config', type: 'data', required: false },

@@ -1054,6 +1054,7 @@ export class PositionalGraphService implements IPositionalGraphService {
     return {
       nodeId,
       unitSlug: nodeConfig.unit_slug,
+      unitType: unitResult.unit?.type ?? 'agent',
       execution: nodeConfig.orchestratorSettings.execution,
       lineId: nodeLocation.line.id,
       position: nodeLocation.nodePositionInLine,

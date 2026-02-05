@@ -44,6 +44,7 @@ export interface NarrowWorkUnitOutput {
  */
 export interface NarrowWorkUnit {
   slug: string;
+  type: 'agent' | 'code' | 'user-input';
   inputs: NarrowWorkUnitInput[];
   outputs: NarrowWorkUnitOutput[];
 }
@@ -239,6 +240,7 @@ export type ExecutionStatus = 'pending' | 'ready' | NodeExecutionStatus; // 'run
 export interface NodeStatusResult {
   nodeId: string;
   unitSlug: string;
+  unitType: 'agent' | 'code' | 'user-input';
   execution: Execution;
   lineId: string;
   position: number;

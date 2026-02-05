@@ -39,6 +39,7 @@ export const QuestionSchema = z.object({
   options: z.array(z.string()).optional(),
   default: z.union([z.string(), z.boolean()]).optional(),
   asked_at: z.string().datetime(),
+  surfaced_at: z.string().datetime().optional(),
   answer: z.unknown().optional(),
   answered_at: z.string().datetime().optional(),
 });

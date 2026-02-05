@@ -1,0 +1,772 @@
+# Positional Graph Orchestration System — Implementation Plan
+
+**Plan Version**: 1.0.0
+**Created**: 2026-02-05
+**Spec**: [./positional-orchestrator-spec.md](./positional-orchestrator-spec.md)
+**Status**: DRAFT
+
+---
+
+## Table of Contents
+
+1. [Executive Summary](#executive-summary)
+2. [Technical Context](#technical-context)
+3. [Workshops](#workshops)
+4. [Critical Research Findings](#critical-research-findings)
+5. [Testing Philosophy](#testing-philosophy)
+6. [Project Structure](#project-structure)
+7. [Implementation Phases](#implementation-phases)
+   - [Phase 1: PositionalGraphReality Snapshot](#phase-1-positionalgraphreality-snapshot)
+   - [Phase 2: OrchestrationRequest Discriminated Union](#phase-2-orchestrationrequest-discriminated-union)
+   - [Phase 3: AgentContextService](#phase-3-agentcontextservice)
+   - [Phase 4: WorkUnitPods and PodManager](#phase-4-workunitpods-and-podmanager)
+   - [Phase 5: ONBAS Walk Algorithm](#phase-5-onbas-walk-algorithm)
+   - [Phase 6: ODS Action Handlers](#phase-6-ods-action-handlers)
+   - [Phase 7: Orchestration Entry Point](#phase-7-orchestration-entry-point)
+   - [Phase 8: E2E and Integration Testing](#phase-8-e2e-and-integration-testing)
+8. [Cross-Cutting Concerns](#cross-cutting-concerns)
+9. [File Placement Manifest](#file-placement-manifest)
+10. [Complexity Tracking](#complexity-tracking)
+11. [Progress Tracking](#progress-tracking)
+12. [ADR Ledger](#adr-ledger)
+13. [Deviation Ledger](#deviation-ledger)
+14. [Change Footnotes Ledger](#change-footnotes-ledger)
+
+---
+
+## Executive Summary
+
+The positional graph (Plan 026) has structure and state but no engine to drive it. This plan delivers an orchestration system — a loop that reads graph state, decides what to do next, executes the decision, and repeats — through 8 phases, each delivering one key component workshopped in detail.
+
+**Solution approach**:
+- Phase 1-2: Data models (immutable snapshot + discriminated union for actions)
+- Phase 3-4: Internal collaborators (context rules + execution containers)
+- Phase 5-6: Decision and execution engines (ONBAS walk + ODS action handlers)
+- Phase 7: Entry point facade (IOrchestrationService + IGraphOrchestration)
+- Phase 8: End-to-end validation (human-as-agent testing)
+
+**Expected outcomes**: A fully testable orchestration loop that advances graphs through multi-line, multi-node workflows using fake agents, with deterministic behavior proven by comprehensive tests.
+
+---
+
+## Technical Context
+
+### Current System State
+
+- **Plan 026** delivers the positional graph model: ordered lines, serial/parallel nodes, 4-gate readiness, input wiring
+- **Plan 027** delivers `ICentralEventNotifier` for domain event broadcast via SSE
+- **Plan 029** delivers agentic work units: discriminated types (agent, code, user-input), `IWorkUnitService`, CLI execution lifecycle commands
+- **Plan 019** delivers `IAgentAdapter` for agent execution (run, compact, terminate) — accessed via `IAgentManagerService`
+
+### Integration Requirements
+
+- `IPositionalGraphService` (POSITIONAL_GRAPH_DI_TOKENS.POSITIONAL_GRAPH_SERVICE) — graph CRUD, status, state reads
+- `IWorkUnitService` (POSITIONAL_GRAPH_DI_TOKENS.WORKUNIT_SERVICE) — work unit loading and type resolution
+- `ICentralEventNotifier` (WORKSPACE_DI_TOKENS.CENTRAL_EVENT_NOTIFIER) — domain event emission
+- `IAgentManagerService` (SHARED_DI_TOKENS.AGENT_MANAGER_SERVICE) — agent adapter resolution
+
+### Constraints
+
+- All new code in `packages/positional-graph/src/features/030-orchestration/` (PlanPak)
+- Only 1 public DI token: `ORCHESTRATION_DI_TOKENS.ORCHESTRATION_SERVICE`
+- Internal collaborators (ONBAS, ODS, PodManager, AgentContextService) stay private — not in DI
+- Web/CLI wiring explicitly out of scope — tests call `.run()` directly
+- Fakes over mocks: no `vi.mock`/`jest.mock` ever
+
+### Assumptions
+
+- Orchestration is single-process: one `run()` invocation at a time per graph
+- `getNodeStatus()` correctly implements the 4-gate readiness algorithm
+- `IAgentAdapter.run()` returns a stable `sessionId` for resumption
+- Graph structure does not change during orchestration
+- Line 0 is reserved for user-input/setup nodes with auto-transition
+
+---
+
+## Workshops
+
+**Workshops**: 7 complete, 1 pending
+- [Workshop #1: PositionalGraphReality](./workshops/01-positional-graph-reality.md) — Snapshot of entire graph state
+- [Workshop #2: OrchestrationRequest](./workshops/02-orchestration-request.md) — Discriminated union for orchestrator actions
+- [Workshop #3: AgentContextService](./workshops/03-agent-context-service.md) — Context continuity rules
+- [Workshop #4: WorkUnitPods](./workshops/04-work-unit-pods.md) — Execution containers for nodes
+- [Workshop #5: ONBAS](./workshops/05-onbas.md) — Rules engine: graph to next action
+- [Workshop #6: E2E Integration Testing](./workshops/06-e2e-integration-testing.md) — Human-as-agent E2E + integration test strategy
+- [Workshop #7: Orchestration Entry Point](./workshops/07-orchestration-entry-point.md) — IOrchestrationService + IGraphOrchestration
+- Workshop #8: ODS — Pending (executor: action to state change)
+
+---
+
+## Critical Research Findings
+
+Findings sourced from `research-dossier.md` (55+ findings) and workshop analysis. Ordered by impact.
+
+### 01: Snapshot Must Compose Existing Services, Not Duplicate
+
+**Impact**: Critical
+**Sources**: Research IA-02, IA-04; Workshop #1
+**Problem**: PositionalGraphReality needs data from `getNodeStatus()`, `getLineStatus()`, input resolution, and question state — all already computed by `IPositionalGraphService`.
+**Action**: `buildPositionalGraphReality()` calls `IPositionalGraphService.getStatus()` and composes the result with pod session data. Never re-implement gate logic.
+**Affects**: Phase 1
+
+### 02: Four-Type Discriminated Union is Exhaustive
+
+**Impact**: Critical
+**Sources**: Research PL-09; Workshop #2
+**Problem**: The research dossier proposed a 5-type union with `continue-agent` and `complete`. Workshops refined to 4 types: `start-node`, `resume-node`, `question-pending`, `no-action`. The `no-action` variant carries a `reason` field that covers all terminal conditions (graph-complete, graph-failed, all-running, etc.).
+**Action**: Implement exactly 4 variants per Workshop #2. Use TypeScript exhaustive `never` check in switch statements.
+**Affects**: Phase 2, Phase 5, Phase 6
+
+### 03: IAgentAdapter Has No DI Token
+
+**Impact**: Critical
+**Sources**: Research IA-08, IA-14
+**Problem**: `IAgentAdapter` is resolved through `IAgentManagerService.getAgent(agentType)`, not directly from the container. Pods cannot inject `IAgentAdapter` directly.
+**Action**: PodManager receives `IAgentManagerService` and passes the correct adapter to each pod based on work unit type.
+**Affects**: Phase 4, Phase 6
+
+### 04: ONBAS is Pure and Synchronous
+
+**Impact**: Critical
+**Sources**: Workshop #5
+**Problem**: ONBAS must have zero side effects — no I/O, no adapter calls, no memory between invocations. It receives a snapshot and returns a request.
+**Action**: `walkForNextAction(reality: PositionalGraphReality): OrchestrationRequest` is a pure function. No `async`. No injected services.
+**Affects**: Phase 5
+
+### 05: Pod Sessions Persist via Atomic Writes
+
+**Impact**: High
+**Sources**: Research IA-15; Workshop #4
+**Problem**: Pod session IDs must survive server restarts. The existing codebase uses temp-then-rename for all state persistence.
+**Action**: PodManager writes `pod-sessions.json` using `IFileSystem.writeFileAtomic()` (or equivalent temp+rename pattern). Sessions are a simple `Record<nodeId, sessionId>` map.
+**Affects**: Phase 4
+
+### 06: Context Inheritance is Positional, Not Temporal
+
+**Impact**: High
+**Sources**: Workshop #3
+**Problem**: An agent's context source is determined by its position in the graph (line index, position within line, execution mode), not by when it ran.
+**Action**: Implement `getContextSource()` as a pure function on `PositionalGraphReality` following the 5 rules from Workshop #3.
+**Affects**: Phase 3
+
+### 07: Question Lifecycle Has Three States
+
+**Impact**: High
+**Sources**: Workshop #5, Spec AC-9
+**Problem**: Questions transition through: asked (stored, not surfaced) → surfaced (`surfaced_at` set) → answered (answer stored). ONBAS and ODS each handle different transitions.
+**Action**: ONBAS detects question state; ODS performs state updates. The three states are: `{ answer: null, surfaced_at: null }` (asked), `{ answer: null, surfaced_at: set }` (surfaced), `{ answer: set }` (answered).
+**Affects**: Phase 5, Phase 6
+
+### 08: Existing `canRun` Gates Must Not Be Replaced
+
+**Impact**: High
+**Sources**: Research IA-04
+**Problem**: The 4-gate readiness algorithm (`canRun`) already handles dependency checks, input availability, predecessor completion, and line readiness. Orchestration reads the result; it does not re-implement the logic.
+**Action**: `PositionalGraphReality.readyNodeIds` is derived from nodes where all 4 gates pass. ONBAS trusts this list.
+**Affects**: Phase 1, Phase 5
+
+### 09: ICentralEventNotifier Token Location
+
+**Impact**: High
+**Sources**: Research IA-10; ADR-0010
+**Problem**: The `ICentralEventNotifier` token is `WORKSPACE_DI_TOKENS.CENTRAL_EVENT_NOTIFIER`, not `SHARED_DI_TOKENS.EVENT_NOTIFIER` as some workshop examples show.
+**Action**: Use the correct token `WORKSPACE_DI_TOKENS.CENTRAL_EVENT_NOTIFIER` in DI registration.
+**Affects**: Phase 7
+
+### 10: Two-Level Pattern Caches Handles by Slug
+
+**Impact**: High
+**Sources**: Workshop #7
+**Problem**: `IOrchestrationService.get()` must return the same `IGraphOrchestration` handle for the same `graphSlug` within a process lifetime. This avoids re-loading sessions on every call.
+**Action**: Service maintains a `Map<string, IGraphOrchestration>` registry. Same slug returns same handle.
+**Affects**: Phase 7
+
+### 11: Module Registration Follows ADR-0009
+
+**Impact**: Medium
+**Sources**: ADR-0009
+**Problem**: Orchestration services must be registered via `registerOrchestrationServices(container)` function, not inline in consumer containers.
+**Action**: Export `registerOrchestrationServices()` from `packages/positional-graph/src/container.ts` alongside existing registrations.
+**Affects**: Phase 7
+
+### 12: Test Graph is 4-Line, 8-Node Pipeline
+
+**Impact**: Medium
+**Sources**: Workshop #6
+**Problem**: E2E and integration tests need a shared fixture graph that exercises all patterns.
+**Action**: Use the Workshop #6 test graph: Line 0 (get-spec), Line 1 (spec-builder, spec-reviewer), Line 2 (coder, tester, alignment-tester), Line 3 (pr-preparer, pr-creator).
+**Affects**: Phase 8
+
+### 13: FakeAgentAdapter Already Exists
+
+**Impact**: Medium
+**Sources**: Research IA-14
+**Problem**: `FakeAgentAdapter` in the test infrastructure already supports configurable responses, session IDs, and call history tracking.
+**Action**: Reuse `FakeAgentAdapter` in pod tests. Do not create a new one.
+**Affects**: Phase 4
+
+### 14: State Schema Extensions Must Be Optional
+
+**Impact**: Medium
+**Sources**: Spec Risk #1
+**Problem**: Adding `surfaced_at` to questions and pod session tracking to state.json must not break existing graphs.
+**Action**: All new fields are optional in Zod schemas with `z.optional()` and sensible defaults (null, empty).
+**Affects**: Phase 1, Phase 4
+
+### 15: Atomic Writes Use Temp-Then-Rename Pattern
+
+**Impact**: Medium
+**Sources**: Research IA-15
+**Problem**: All state persistence must use the established atomic write pattern to prevent corruption.
+**Action**: Write to temp file first, then rename to target. Use existing `writeFileAtomic` or implement the 2-step pattern.
+**Affects**: Phase 4, Phase 6
+
+---
+
+## Testing Philosophy
+
+### Testing Approach
+
+**Selected Approach**: Full TDD (per constitution and spec)
+**Rationale**: The spec states "TDD-first development" and the constitution mandates RED-GREEN-REFACTOR
+**Focus Areas**: Interface contracts, pure function determinism, fake/real parity via contract tests
+
+### Test-Driven Development
+
+Every phase follows the TDD cycle:
+1. Write interface (`.interface.ts`)
+2. Write fake (`.fake.ts`) implementing the interface + test helpers
+3. Write tests against the fake (RED)
+4. Implement the real adapter/service (GREEN)
+5. Write contract tests proving fake and real behave identically
+6. Refactor for quality (REFACTOR)
+
+### Test Documentation
+
+Every test file includes the 5-field Test Doc comment block:
+```typescript
+/*
+Test Doc:
+- Why: <business/bug/regression reason>
+- Contract: <invariant(s) this test asserts>
+- Usage Notes: <how to use the API; gotchas>
+- Quality Contribution: <what failure this catches>
+- Worked Example: <inputs/outputs for scanning>
+*/
+```
+
+### Mock Usage
+
+**Policy**: Fakes over mocks — no `vi.mock`/`jest.mock` ever. All test doubles implement the real interface. Contract tests verify fake/real parity.
+
+---
+
+## Project Structure
+
+```
+./  (project root)
+├── packages/
+│   ├── positional-graph/
+│   │   └── src/
+│   │       ├── features/
+│   │       │   ├── 029-agentic-work-units/    # Existing
+│   │       │   └── 030-orchestration/          # NEW (PlanPak feature folder)
+│   │       │       ├── index.ts                # Public exports
+│   │       │       ├── orchestration-types.ts   # Shared types/schemas
+│   │       │       ├── reality.interface.ts
+│   │       │       ├── reality.builder.ts
+│   │       │       ├── orchestration-request.schema.ts
+│   │       │       ├── orchestration-request.types.ts
+│   │       │       ├── agent-context.ts            # Pure function utility
+│   │       │       ├── agent-context.types.ts
+│   │       │       ├── pod.interface.ts
+│   │       │       ├── pod.types.ts
+│   │       │       ├── agent-pod.ts
+│   │       │       ├── code-pod.ts
+│   │       │       ├── pod-manager.interface.ts
+│   │       │       ├── pod-manager.ts
+│   │       │       ├── fake-pod-manager.ts
+│   │       │       ├── onbas.interface.ts
+│   │       │       ├── onbas.ts
+│   │       │       ├── ods.interface.ts
+│   │       │       ├── ods.ts
+│   │       │       ├── orchestration-service.interface.ts
+│   │       │       ├── orchestration-service.ts
+│   │       │       ├── graph-orchestration.interface.ts
+│   │       │       ├── graph-orchestration.ts
+│   │       │       ├── fake-orchestration-service.ts
+│   │       │       └── fake-graph-orchestration.ts
+│   │       └── container.ts                    # Add registerOrchestrationServices()
+│   └── shared/
+│       └── src/
+│           └── di-tokens.ts                    # Add ORCHESTRATION_DI_TOKENS
+├── test/
+│   ├── unit/positional-graph/
+│   │   └── features/
+│   │       └── 030-orchestration/              # Unit tests
+│   │           ├── reality.test.ts
+│   │           ├── orchestration-request.test.ts
+│   │           ├── agent-context.test.ts
+│   │           ├── pod.test.ts
+│   │           ├── pod-manager.test.ts
+│   │           ├── onbas.test.ts
+│   │           ├── ods.test.ts
+│   │           ├── orchestration-service.test.ts
+│   │           └── graph-orchestration.test.ts
+│   ├── integration/positional-graph/
+│   │   └── orchestration-loop.test.ts          # Integration tests
+│   └── e2e/
+│       └── orchestration-e2e.test.ts           # E2E human-as-agent tests
+└── docs/plans/030-positional-orchestrator/
+    └── positional-orchestrator-plan.md          # This file
+```
+
+---
+
+## Implementation Phases
+
+### Phase 1: PositionalGraphReality Snapshot
+
+**Objective**: Create an immutable snapshot object that captures the entire graph state for decision-making and testing.
+
+**Workshop**: [01-positional-graph-reality.md](./workshops/01-positional-graph-reality.md)
+
+**Deliverables**:
+- `PositionalGraphReality` Zod schema and TypeScript type
+- `buildPositionalGraphReality()` builder function
+- Convenience accessors: `currentLineIndex`, `readyNodeIds`, `runningNodeIds`, `completedNodeIds`, `waitingQuestionNodeIds`, `pendingQuestions`, `isComplete`, `isFailed`
+- Unit tests for snapshot construction and all accessors
+
+**Dependencies**: None (foundational phase)
+
+**Risks**:
+| Risk | Likelihood | Impact | Mitigation |
+|------|------------|--------|------------|
+| Existing `getStatus()` output shape changes | Low | High | Pin to current interface, add contract test |
+| Snapshot grows too large for complex graphs | Low | Medium | Lazy computation for derived fields |
+
+### Tasks (Full TDD Approach)
+
+| # | Status | Task | CS | Success Criteria | Log | Notes |
+|---|--------|------|----|------------------|-----|-------|
+| 1.1 | [ ] | Create feature folder `030-orchestration/` and `index.ts` | 1 | Directory exists, empty index.ts compiles | - | PlanPak setup |
+| 1.2 | [ ] | Define `PositionalGraphReality` Zod schema and types | 2 | Schema validates sample data, types export cleanly | - | Per Workshop #1 schema |
+| 1.3 | [ ] | Write tests for `buildPositionalGraphReality()` | 2 | Tests cover: empty graph, single line, multi-line, mixed statuses, questions, pod sessions | - | RED phase |
+| 1.4 | [ ] | Implement `buildPositionalGraphReality()` | 3 | All tests from 1.3 pass. Composes `getStatus()` result with pod session data | - | GREEN phase |
+| 1.5 | [ ] | Write tests for convenience accessors | 2 | Tests cover: `readyNodeIds`, `runningNodeIds`, `isComplete`, `isFailed`, `pendingQuestions`, all edge cases | - | RED phase |
+| 1.6 | [ ] | Implement convenience accessors | 2 | All accessor tests pass | - | GREEN phase |
+| 1.7 | [ ] | Refactor and verify all tests pass | 1 | Clean code, `just fft` passes | - | REFACTOR phase |
+
+### Acceptance Criteria
+- [ ] Snapshot captures all lines, nodes, questions, and pod sessions (AC-1)
+- [ ] Pre-computed accessors return correct values for all states
+- [ ] Schema accepts existing state.json without error (backward compatible)
+- [ ] All tests passing, `just fft` clean
+
+---
+
+### Phase 2: OrchestrationRequest Discriminated Union
+
+**Objective**: Define the exhaustive discriminated union that represents what the orchestrator should do next.
+
+**Workshop**: [02-orchestration-request.md](./workshops/02-orchestration-request.md)
+
+**Deliverables**:
+- `OrchestrationRequest` Zod schema with 4 variants
+- Type guards for each variant
+- `OrchestrationExecuteResult` type for ODS responses
+- Unit tests for schema validation and type discrimination
+
+**Dependencies**: Phase 1 (uses `PositionalGraphReality` types for node references)
+
+**Risks**:
+| Risk | Likelihood | Impact | Mitigation |
+|------|------------|--------|------------|
+| Missing a request type | Low | High | Exhaustive `never` check catches at compile time |
+
+### Tasks (Full TDD Approach)
+
+| # | Status | Task | CS | Success Criteria | Log | Notes |
+|---|--------|------|----|------------------|-----|-------|
+| 2.1 | [ ] | Define `OrchestrationRequest` Zod schema with 4 variants | 2 | Schema discriminates on `type` field, all 4 variants parse correctly | - | Per Workshop #2 |
+| 2.2 | [ ] | Write tests for type guards and exhaustive checking | 2 | Tests prove: `isStartNode()`, `isResumeNode()`, `isQuestionPending()`, `isNoAction()`, `never` in default case | - | RED phase |
+| 2.3 | [ ] | Implement type guards | 1 | All tests from 2.2 pass | - | GREEN phase |
+| 2.4 | [ ] | Define `OrchestrationExecuteResult` type | 1 | Type compiles, covers all ODS outcomes | - | Per Workshop #2 |
+| 2.5 | [ ] | Write tests for `no-action` reason variants | 1 | Tests cover all `NoActionReason` values: `graph-complete`, `graph-failed`, `all-running`, `all-waiting`, `empty-graph` | - | |
+| 2.6 | [ ] | Refactor and verify | 1 | `just fft` clean | - | |
+
+### Acceptance Criteria
+- [ ] 4-type discriminated union compiles with exhaustive checking (AC-2)
+- [ ] Each variant carries all data ODS needs to execute without additional lookups
+- [ ] Type guards work correctly for all variants
+- [ ] `just fft` clean
+
+---
+
+### Phase 3: AgentContextService (Pure Function Utility)
+
+**Objective**: Implement context continuity rules that determine which session context a node should inherit. Despite the "Service" suffix (retained for discoverability with Workshop #3), this is a **pure function utility** — no state, no I/O, no DI registration. It takes a `PositionalGraphReality` and a `nodeId` and returns the context source.
+
+**Workshop**: [03-agent-context-service.md](./workshops/03-agent-context-service.md)
+
+**Deliverables**:
+- `getContextSource(reality, nodeId): ContextSourceResult` pure function
+- `ContextSourceResult` type with `source`, `sourceNodeId`, `reason` fields
+- `FakeAgentContextService` for testing (allows overriding context decisions)
+- Unit tests covering all 5 context rules
+
+**Dependencies**: Phase 1 (uses `PositionalGraphReality` for graph state queries)
+
+**Risks**:
+| Risk | Likelihood | Impact | Mitigation |
+|------|------------|--------|------------|
+| Edge case: line with no agent nodes | Medium | Low | Return `new` with descriptive reason |
+| Context source lookup for non-existent session | Low | Medium | Return `new` if source node has no session |
+
+### Tasks (Full TDD Approach)
+
+| # | Status | Task | CS | Success Criteria | Log | Notes |
+|---|--------|------|----|------------------|-----|-------|
+| 3.1 | [ ] | Define `getContextSource()` function signature and `ContextSourceResult` type | 1 | Function signature compiles, type includes `source`, `sourceNodeId`, `reason` | - | Per Workshop #3 |
+| 3.2 | [ ] | Write tests for all 5 context rules | 3 | Tests cover: non-agent returns not-applicable, first-on-line-0 returns new, cross-line inherit, serial inherit from left, parallel returns new. Each with `reason` string | - | RED phase |
+| 3.3 | [ ] | Implement `getContextSource()` | 2 | All tests from 3.2 pass | - | GREEN phase, pure function |
+| 3.4 | [ ] | Write edge case tests | 2 | Tests cover: no agent on previous line, code node as left neighbor, user-input node as left neighbor, empty line | - | Additional RED-GREEN |
+| 3.5 | [ ] | Implement `FakeAgentContextService` | 1 | Fake implements interface, supports `setContextSource()` for test configuration | - | |
+| 3.6 | [ ] | Refactor and verify | 1 | `just fft` clean | - | |
+
+### Acceptance Criteria
+- [ ] All 5 context rules produce correct results (AC-5)
+- [ ] Every result includes a human-readable `reason` string
+- [ ] Pure function: no side effects, no I/O
+- [ ] `just fft` clean
+
+---
+
+### Phase 4: WorkUnitPods and PodManager
+
+**Objective**: Create execution containers that wrap nodes and manage agent/code lifecycle, with session persistence for server restarts.
+
+**Workshop**: [04-work-unit-pods.md](./workshops/04-work-unit-pods.md)
+
+**Deliverables**:
+- `IWorkUnitPod` interface with `execute()` and `resumeWithAnswer()`
+- `AgentPod` and `CodePod` implementations
+- `IPodManager` interface with pod lifecycle methods
+- `PodManager` implementation with session persistence to `pod-sessions.json`
+- `FakePodManager` and `FakePod` for testing
+- Unit tests for pod execution, session persistence, and manager lifecycle
+
+**Dependencies**: Phase 1 (types), Phase 2 (execute result types)
+
+**Risks**:
+| Risk | Likelihood | Impact | Mitigation |
+|------|------------|--------|------------|
+| Session file corruption on crash | Low | High | Atomic writes (temp-then-rename) |
+| IAgentAdapter interface mismatch | Low | Medium | Contract test against FakeAgentAdapter |
+
+### Tasks (Full TDD Approach)
+
+| # | Status | Task | CS | Success Criteria | Log | Notes |
+|---|--------|------|----|------------------|-----|-------|
+| 4.1 | [ ] | Define `IWorkUnitPod` interface and `PodExecuteResult` types | 2 | Interface compiles, result type covers: completed, question, error, terminated | - | Per Workshop #4 |
+| 4.2 | [ ] | Write tests for `AgentPod.execute()` | 2 | Tests cover: successful completion, question asked, error, session ID capture | - | RED phase |
+| 4.3 | [ ] | Implement `AgentPod` | 3 | All tests from 4.2 pass, delegates to `IAgentAdapter.run()` | - | GREEN phase |
+| 4.4 | [ ] | Write tests for `CodePod.execute()` | 1 | Tests cover: script execution, no session tracking | - | |
+| 4.5 | [ ] | Implement `CodePod` | 1 | All tests from 4.4 pass | - | |
+| 4.6 | [ ] | Define `IPodManager` interface | 1 | Interface includes: `getOrCreatePod()`, `loadSessions()`, `persistSessions()`, `getSessionId()` | - | |
+| 4.7 | [ ] | Write tests for `FakePodManager` | 2 | Tests prove: configurable pod behaviors, call history tracking, session seeding | - | |
+| 4.8 | [ ] | Implement `FakePodManager` | 2 | All tests from 4.7 pass, supports `configurePod()`, `getHistory()`, `reset()` | - | |
+| 4.9 | [ ] | Write tests for real `PodManager` | 2 | Tests cover: pod creation, session persistence to file, session loading from file, atomic writes | - | RED phase |
+| 4.10 | [ ] | Implement real `PodManager` | 3 | All tests from 4.9 pass, uses atomic writes for `pod-sessions.json` | - | GREEN phase |
+| 4.11 | [ ] | Write contract tests (fake vs real PodManager) | 2 | Same assertions pass on both implementations | - | |
+| 4.12 | [ ] | Refactor and verify | 1 | `just fft` clean | - | |
+
+### Acceptance Criteria
+- [ ] Pods manage agent/code execution lifecycle (AC-7)
+- [ ] Pod sessions survive server restarts via `pod-sessions.json` (AC-8)
+- [ ] FakePodManager enables deterministic testing (AC-13)
+- [ ] Contract tests pass on both fake and real implementations
+- [ ] `just fft` clean
+
+---
+
+### Phase 5: ONBAS Walk Algorithm
+
+**Objective**: Implement the stateless rules engine that walks the graph and returns the next best action as an OrchestrationRequest.
+
+**Workshop**: [05-onbas.md](./workshops/05-onbas.md)
+
+**Deliverables**:
+- `walkForNextAction(reality): OrchestrationRequest` pure function
+- Walk visits lines in index order, nodes in position order
+- Handles all node statuses: ready, running, waiting-question (3 sub-states), complete, pending, blocked-error
+- Unit tests covering every walk path
+
+**Dependencies**: Phase 1 (PositionalGraphReality), Phase 2 (OrchestrationRequest)
+
+**Risks**:
+| Risk | Likelihood | Impact | Mitigation |
+|------|------------|--------|------------|
+| Gate logic misinterpretation | Medium | High | Comprehensive tests per Workshop #5 walk rules |
+| Question sub-state detection bugs | Medium | Medium | Explicit tests for each of the 3 question states |
+
+### Tasks (Full TDD Approach)
+
+| # | Status | Task | CS | Success Criteria | Log | Notes |
+|---|--------|------|----|------------------|-----|-------|
+| 5.1 | [ ] | Define `IONBAS` interface (optional — it is a pure function, but interface aids testing) | 1 | Interface with `walkForNextAction(reality): OrchestrationRequest` | - | |
+| 5.2 | [ ] | Write tests for basic walk: single ready node | 1 | Returns `start-node` for the ready node | - | RED |
+| 5.3 | [ ] | Write tests for multi-line walk order | 2 | Lines visited 0..N, nodes visited by position, first actionable stops walk | - | RED |
+| 5.4 | [ ] | Write tests for question handling | 2 | Unsurfaced question → `question-pending`; surfaced+unanswered → skip; answered → `resume-node` | - | RED |
+| 5.5 | [ ] | Write tests for no-action scenarios | 2 | All complete → `graph-complete`; has failure → `graph-failed`; all running → `no-action` with reason; empty graph → `no-action` | - | RED |
+| 5.6 | [ ] | Write tests for skip logic | 2 | Running nodes skipped, complete nodes skipped, blocked-error skipped, pending nodes skipped | - | RED |
+| 5.7 | [ ] | Implement `walkForNextAction()` | 3 | All tests from 5.2-5.6 pass | - | GREEN phase |
+| 5.8 | [ ] | Write tests proving pure/stateless behavior | 1 | Same input → same output across multiple calls, no side effects | - | AC-4 |
+| 5.9 | [ ] | Refactor and verify | 1 | `just fft` clean | - | |
+
+### Acceptance Criteria
+- [ ] Walk visits lines in index order, nodes in position order (AC-3)
+- [ ] Each node status maps to the correct action or skip behavior (AC-3)
+- [ ] Pure, synchronous, stateless — same input always same output (AC-4)
+- [ ] Question lifecycle handled correctly for all 3 sub-states
+- [ ] `just fft` clean
+
+---
+
+### Phase 6: ODS Action Handlers
+
+**Objective**: Implement the executor that takes an OrchestrationRequest from ONBAS and performs the corresponding state changes.
+
+**Workshop**: Workshop #8 (pending). Design is fully derivable from spec AC-6 (action execution), Workshop #2 (request types define handler signatures), Workshop #4 (PodManager provides execution), and Workshop #7 (ODS is composed inside GraphOrchestration). Workshop #8 will formalize this design; no blocking unknowns remain.
+
+**Deliverables**:
+- `IODS` interface with `execute(request): OrchestrationExecuteResult`
+- ODS implementation with handlers for all 4 request types
+- State updates via `IPositionalGraphService`
+- Domain event emission via `ICentralEventNotifier`
+- Unit tests for each handler
+
+**Dependencies**: Phase 2 (request types), Phase 3 (AgentContextService), Phase 4 (PodManager)
+
+**Risks**:
+| Risk | Likelihood | Impact | Mitigation |
+|------|------------|--------|------------|
+| ODS workshop not complete | High | Medium | Spec AC-6 + Workshops #2/#4 provide sufficient detail for handlers |
+| State update ordering | Medium | Medium | Tests verify state transitions in correct order |
+| Event emission failures | Low | Low | Non-blocking event emission, log errors |
+
+### Tasks (Full TDD Approach)
+
+| # | Status | Task | CS | Success Criteria | Log | Notes |
+|---|--------|------|----|------------------|-----|-------|
+| 6.1 | [ ] | Define `IODS` interface | 1 | Interface with `execute(request, ctx): Promise<OrchestrationExecuteResult>` | - | |
+| 6.2 | [ ] | Write tests for `start-node` handler | 3 | Tests cover: create pod via PodManager, resolve context via AgentContextService, call pod.execute(), update node to running, handle all pod outcomes (completed, question, error) | - | RED |
+| 6.3 | [ ] | Implement `start-node` handler | 3 | All tests from 6.2 pass | - | GREEN |
+| 6.4 | [ ] | Write tests for `resume-node` handler | 2 | Tests cover: get pod from PodManager (with persisted session), call resumeWithAnswer(), handle outcomes | - | RED |
+| 6.5 | [ ] | Implement `resume-node` handler | 2 | All tests from 6.4 pass | - | GREEN |
+| 6.6 | [ ] | Write tests for `question-pending` handler | 2 | Tests cover: set surfaced_at timestamp, emit domain event, verify state update | - | RED |
+| 6.7 | [ ] | Implement `question-pending` handler | 1 | All tests from 6.6 pass | - | GREEN |
+| 6.8 | [ ] | Write tests for `no-action` handler | 1 | Tests prove: no state changes, no side effects | - | |
+| 6.9 | [ ] | Implement `no-action` handler | 1 | Pass-through, returns result | - | |
+| 6.10 | [ ] | Write tests for input passing to pods | 2 | Tests verify InputPack from reality reaches pod.execute() correctly (AC-14) | - | |
+| 6.11 | [ ] | Refactor and verify | 1 | `just fft` clean | - | |
+
+### Acceptance Criteria
+- [ ] Each request type handled correctly (AC-6)
+- [ ] `start-node` creates pod, resolves context, executes, updates state
+- [ ] `resume-node` retrieves session, resumes with answer
+- [ ] `question-pending` sets `surfaced_at`, emits domain event
+- [ ] `no-action` has no side effects
+- [ ] Input wiring flows from reality through to pods (AC-14)
+- [ ] `just fft` clean
+
+---
+
+### Phase 7: Orchestration Entry Point
+
+**Objective**: Create the two-level entry point (singleton service + per-graph handle) that composes all internal collaborators into a single developer UX.
+
+**Workshop**: [07-orchestration-entry-point.md](./workshops/07-orchestration-entry-point.md)
+
+**Deliverables**:
+- `IOrchestrationService` interface and implementation (singleton, DI-registered)
+- `IGraphOrchestration` interface and implementation (per-graph handle)
+- `OrchestrationRunResult` type with actions, stop reason, final reality
+- `FakeOrchestrationService` and `FakeGraphOrchestration` for downstream testing
+- DI token `ORCHESTRATION_DI_TOKENS.ORCHESTRATION_SERVICE` in `packages/shared/src/di-tokens.ts`
+- `registerOrchestrationServices()` in `packages/positional-graph/src/container.ts`
+- Orchestration loop: build reality → ONBAS → ODS → repeat until stop
+
+**Dependencies**: All previous phases (1-6). Phase 7 composes all internal collaborators into a single facade.
+
+**Task ordering**: Task 7.1 (DI token) must be completed before tasks 7.2-7.12, as the token is referenced by interfaces and registration.
+
+**Risks**:
+| Risk | Likelihood | Impact | Mitigation |
+|------|------------|--------|------------|
+| Loop infinite cycle (ONBAS always returns action) | Low | High | Maximum iteration guard (configurable, default 100) |
+| Handle caching memory leak | Low | Low | Handles are lightweight; registry cleared on service dispose |
+
+### Tasks (Full TDD Approach)
+
+| # | Status | Task | CS | Success Criteria | Log | Notes |
+|---|--------|------|----|------------------|-----|-------|
+| 7.1 | [ ] | Add `ORCHESTRATION_DI_TOKENS` to `packages/shared/src/di-tokens.ts` | 1 | Token exists, exports correctly | - | Cross-cutting; **must complete before 7.2-7.12** |
+| 7.2 | [ ] | Define `IOrchestrationService` and `IGraphOrchestration` interfaces | 2 | Interfaces compile, match Workshop #7 spec | - | Per Workshop #7 |
+| 7.3 | [ ] | Define `OrchestrationRunResult`, `OrchestrationAction`, `OrchestrationStopReason` types | 2 | Types compile, stop reason covers: no-action, question-pending, graph-complete, graph-failed | - | Per Workshop #7 |
+| 7.4 | [ ] | Write tests for `FakeOrchestrationService` and `FakeGraphOrchestration` | 2 | Tests prove: configureGraph, run returns queued results, getReality returns configured state, getHistory tracked | - | |
+| 7.5 | [ ] | Implement `FakeOrchestrationService` and `FakeGraphOrchestration` | 2 | All tests from 7.4 pass | - | |
+| 7.6 | [ ] | Write tests for `IGraphOrchestration.run()` loop | 3 | Tests cover: single iteration, multi-iteration (start 2 nodes in one pass), stops on no-action, stops on question-pending, stops on graph-complete, max iteration guard | - | RED |
+| 7.7 | [ ] | Implement `GraphOrchestration.run()` loop | 3 | All tests from 7.6 pass. Loop: build reality → ONBAS → if actionable → ODS → record → repeat | - | GREEN |
+| 7.8 | [ ] | Write tests for `IOrchestrationService.get()` handle caching | 2 | Tests prove: same slug returns same handle, different slug returns different handle | - | |
+| 7.9 | [ ] | Implement `OrchestrationService.get()` with caching | 2 | All tests from 7.8 pass | - | |
+| 7.10 | [ ] | Add `registerOrchestrationServices()` to container | 2 | DI registration resolves IOrchestrationService correctly | - | Cross-cutting |
+| 7.11 | [ ] | Write container integration test | 2 | Container resolves service, `.get()` returns handle, `.run()` executes | - | |
+| 7.12 | [ ] | Refactor and verify | 1 | `just fft` clean | - | |
+
+### Acceptance Criteria
+- [ ] Two-level pattern works: service → per-graph handle (AC-10)
+- [ ] `run()` executes the full loop: reality → ONBAS → ODS → repeat (AC-11)
+- [ ] Handle caching returns same handle for same slug (AC-10)
+- [ ] FakeOrchestrationService supports pre-configured behaviors (AC-10)
+- [ ] DI registration works via `registerOrchestrationServices()` (ADR-0009)
+- [ ] `just fft` clean
+
+---
+
+### Phase 8: E2E and Integration Testing
+
+**Objective**: Validate the complete orchestration system with human-as-agent E2E tests and multi-service integration tests.
+
+**Workshop**: [06-e2e-integration-testing.md](./workshops/06-e2e-integration-testing.md)
+
+**Deliverables**:
+- Integration tests: orchestration loop with FakePodManager on 4-line test graph
+- E2E tests: human-as-agent pattern using CLI commands + `.run()` direct calls
+- Test fixture: 4-line, 8-node graph exercising all patterns
+- All 7 test patterns from Workshop #6 exercised
+
+**Dependencies**: All previous phases (1-7)
+
+**Risks**:
+| Risk | Likelihood | Impact | Mitigation |
+|------|------------|--------|------------|
+| CLI commands not wired for test graph setup | Medium | Medium | Use `IPositionalGraphService` directly for setup, CLI for agent actions |
+| Test fixture graph too complex | Low | Medium | Build incrementally, test each pattern in isolation then compose |
+
+### Tasks (Full TDD Approach)
+
+| # | Status | Task | CS | Success Criteria | Log | Notes |
+|---|--------|------|----|------------------|-----|-------|
+| 8.1 | [ ] | Create test graph fixture (4-line, 8-node pipeline) | 2 | Graph YAML and work unit definitions for: get-spec (user-input), spec-builder (agent), spec-reviewer (agent), coder (agent), tester (agent), alignment-tester (agent), pr-preparer (code), pr-creator (agent) | - | Per Workshop #6 |
+| 8.2 | [ ] | Write integration test: user-input flow | 2 | Tests: user-input node auto-completes, output wired to next line | - | Pattern 1 |
+| 8.3 | [ ] | Write integration test: serial agent execution | 2 | Tests: spec-builder starts, completes, spec-reviewer starts with inherited context | - | Pattern 2 + 5 |
+| 8.4 | [ ] | Write integration test: question cycle | 2 | Tests: agent asks question, question surfaced, user answers, agent resumes | - | Pattern 3 |
+| 8.5 | [ ] | Write integration test: parallel execution | 2 | Tests: coder, tester, alignment-tester all start on same run() call | - | Pattern 4 |
+| 8.6 | [ ] | Write integration test: manual transition | 2 | Tests: line 1 requires manual transition, orchestrator waits until transitioned | - | Pattern 6 |
+| 8.7 | [ ] | Write integration test: code node execution | 2 | Tests: pr-preparer (code type) executes via CodePod, no session tracking | - | Pattern 7 |
+| 8.8 | [ ] | Write integration test: error recovery | 2 | Tests: agent pod returns error, node goes to blocked-error, graph shows failure in reality | - | Pattern 8 |
+| 8.9 | [ ] | Write E2E test: full pipeline with human-as-agent | 3 | Full graph from start to completion: get-spec → spec-builder → spec-reviewer → parallel agents → manual transition → code node → pr-creator → graph-complete | - | AC-12 |
+| 8.10 | [ ] | Write E2E test: question/answer via CLI | 2 | Agent asks question, test answers via CLI `cg wf answer`, orchestration resumes | - | |
+| 8.11 | [ ] | Verify all acceptance criteria in tests | 2 | AC-1 through AC-14 have test coverage | - | |
+| 8.12 | [ ] | Final `just fft` validation | 1 | All tests pass, lint clean, format clean | - | |
+
+### Acceptance Criteria
+- [ ] E2E tests drive full workflow without real agents (AC-12)
+- [ ] All 7 test patterns from Workshop #6 exercised
+- [ ] Graph reaches `complete` status with all nodes complete
+- [ ] Question lifecycle flows correctly through the system (AC-9)
+- [ ] Input wiring flows from user-input to agent nodes (AC-14)
+- [ ] `just fft` clean
+
+---
+
+## Cross-Cutting Concerns
+
+### Security Considerations
+- No user-facing input beyond CLI arguments (validated by existing CLI framework)
+- Pod sessions stored on local filesystem with same permissions as existing state files
+- No network calls except through `IAgentAdapter` (which is faked in this plan)
+
+### Observability
+- Domain events emitted via `ICentralEventNotifier` for state changes (question surfaced, node started)
+- `OrchestrationRunResult` provides full action log for each `run()` call
+- `PositionalGraphReality` captures complete state snapshot for debugging
+
+### Documentation
+**Strategy**: None (per spec — no documentation phases needed)
+- Code is self-documenting through interfaces and Test Doc blocks
+- Workshops serve as design documentation
+
+---
+
+## File Placement Manifest
+
+| File | Classification | Location | Rationale |
+|------|---------------|----------|-----------|
+| All orchestration source | plan-scoped | `packages/positional-graph/src/features/030-orchestration/` | Serves only this plan |
+| `ORCHESTRATION_DI_TOKENS` | cross-cutting | `packages/shared/src/di-tokens.ts` | DI tokens must be in shared |
+| `registerOrchestrationServices()` | cross-cutting | `packages/positional-graph/src/container.ts` | Module registration per ADR-0009 |
+| Unit tests | plan-scoped | `test/unit/positional-graph/features/030-orchestration/` | Test conventions |
+| Integration tests | plan-scoped | `test/integration/positional-graph/` | Test conventions |
+| E2E tests | plan-scoped | `test/e2e/` | Test conventions |
+
+---
+
+## Complexity Tracking
+
+| Component | CS | Label | Breakdown (S,I,D,N,F,T) | Justification | Mitigation |
+|-----------|-----|-------|------------------------|---------------|------------|
+| Overall Plan | 4 | Large | S=2,I=1,D=2,N=1,F=0,T=2 | Cross-cutting: new services, schemas, CLI, test infra across 3+ packages | Phase-by-phase delivery, each phase independently testable |
+| ONBAS Walk Algorithm | 3 | Medium | S=1,I=0,D=1,N=1,F=0,T=2 | Walk logic has edge cases (question sub-states, parallel nodes, empty lines) | Extensive unit tests per Workshop #5 |
+| ODS Action Handlers | 3 | Medium | S=1,I=1,D=1,N=1,F=0,T=1 | Coordinates PodManager, AgentContextService, state updates, events | Each handler tested independently |
+| PodManager + Persistence | 3 | Medium | S=1,I=1,D=1,N=0,F=1,T=1 | Session persistence adds fragility; atomic writes needed | Contract tests on fake/real parity |
+| Orchestration Loop | 3 | Medium | S=1,I=1,D=0,N=1,F=1,T=1 | Multi-iteration loop with stop conditions | Max iteration guard, integration tests |
+
+---
+
+## Progress Tracking
+
+### Phase Completion Checklist
+- [ ] Phase 1: PositionalGraphReality Snapshot - Pending
+- [ ] Phase 2: OrchestrationRequest Discriminated Union - Pending
+- [ ] Phase 3: AgentContextService - Pending
+- [ ] Phase 4: WorkUnitPods and PodManager - Pending
+- [ ] Phase 5: ONBAS Walk Algorithm - Pending
+- [ ] Phase 6: ODS Action Handlers - Pending
+- [ ] Phase 7: Orchestration Entry Point - Pending
+- [ ] Phase 8: E2E and Integration Testing - Pending
+
+### STOP Rule
+
+**IMPORTANT**: This plan must be validated before creating tasks. After writing this plan:
+1. Run `/plan-4-complete-the-plan` to validate readiness
+2. Only proceed to `/plan-5-phase-tasks-and-brief` after validation passes
+
+---
+
+## ADR Ledger
+
+| ADR | Status | Affects Phases | Notes |
+|-----|--------|----------------|-------|
+| ADR-0004 | Accepted | All | DI with `useFactory`, no decorators, child containers |
+| ADR-0006 | Accepted | Phase 4, 6 | CLI-based agent orchestration: session continuity, process isolation, CWD binding |
+| ADR-0009 | Accepted | Phase 7 | Module registration function pattern for orchestration |
+| ADR-0010 | Accepted | Phase 6, 7 | Central event notification via `ICentralEventNotifier` |
+
+---
+
+## Deviation Ledger
+
+| Principle Violated | Why Needed | Simpler Alternative Rejected | Risk Mitigation |
+|-------------------|------------|------------------------------|-----------------|
+| DI for all collaborators | Internal collaborators (ONBAS, ODS, PodManager, AgentContextService) stay private, not in DI container | Register every collaborator as a DI token — rejected because it exposes implementation detail and creates coupling | Only `ORCHESTRATION_SERVICE` is public; internal wiring tested via integration tests |
+| Max iteration guard | `run()` loop has a configurable max-iterations ceiling (default 100) to prevent infinite loops | Trust ONBAS to always terminate — rejected because a bug in walk logic could hang the process | Guard is configurable; tests verify it triggers correctly |
+| Workshop #8 not finalized | Phase 6 (ODS) proceeds with design derived from spec + other workshops | Wait for Workshop #8 before planning Phase 6 — rejected to avoid blocking the entire plan | Design fully derivable from AC-6, Workshops #2/#4/#7; Workshop #8 will formalize, not change |
+
+---
+
+## Change Footnotes Ledger
+
+[^1]: [To be added during implementation via plan-6a]
+[^2]: [To be added during implementation via plan-6a]

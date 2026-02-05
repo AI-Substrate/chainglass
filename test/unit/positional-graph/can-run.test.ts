@@ -61,6 +61,7 @@ async function writeState(
 // WorkUnit definitions — no inputs needed for canRun tests
 const simpleUnit: NarrowWorkUnit = {
   slug: 'simple-task',
+  type: 'agent',
   inputs: [],
   outputs: [{ name: 'result', type: 'data', required: true }],
 };
@@ -273,6 +274,7 @@ describe('PositionalGraphService — canRun (via getNodeStatus)', () => {
     it('node with unavailable required inputs is pending', async () => {
       const coderUnit: NarrowWorkUnit = {
         slug: 'needs-input',
+        type: 'agent',
         inputs: [{ name: 'spec', type: 'data', required: true }],
         outputs: [],
       };
