@@ -35,3 +35,38 @@ export type { BuildRealityOptions } from './reality.builder.js';
 
 // View
 export { PositionalGraphRealityView } from './reality.view.js';
+
+// OrchestrationRequest — Schemas + derived types (Phase 2)
+export {
+  NoActionReasonSchema,
+  StartNodeRequestSchema,
+  ResumeNodeRequestSchema,
+  QuestionPendingRequestSchema,
+  NoActionRequestSchema,
+  OrchestrationRequestSchema,
+} from './orchestration-request.schema.js';
+export type {
+  NoActionReason,
+  StartNodeRequest,
+  ResumeNodeRequest,
+  QuestionPendingRequest,
+  NoActionRequest,
+  OrchestrationRequest,
+} from './orchestration-request.schema.js';
+
+// OrchestrationRequest — Non-schema types (Phase 2)
+export type {
+  NodeLevelRequest,
+  OrchestrationError,
+  OrchestrationExecuteResult,
+} from './orchestration-request.types.js';
+
+// OrchestrationRequest — Type guards (Phase 2)
+export {
+  isStartNodeRequest,
+  isResumeNodeRequest,
+  isQuestionPendingRequest,
+  isNoActionRequest,
+  isNodeLevelRequest,
+  getNodeId,
+} from './orchestration-request.guards.js';

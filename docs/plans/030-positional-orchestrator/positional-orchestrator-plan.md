@@ -349,19 +349,19 @@ Test Doc:
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 1.1 | [ ] | Create feature folder `030-orchestration/` and `index.ts` | 1 | Directory exists, empty index.ts compiles | - | PlanPak setup |
-| 1.2 | [ ] | Define `PositionalGraphReality` Zod schema and types | 2 | Schema validates sample data, types export cleanly | - | Per Workshop #1 schema |
-| 1.3 | [ ] | Write tests for `buildPositionalGraphReality()` | 2 | Tests cover: empty graph, single line, multi-line, mixed statuses, questions, pod sessions | - | RED phase |
-| 1.4 | [ ] | Implement `buildPositionalGraphReality()` | 3 | All tests from 1.3 pass. Composes `getStatus()` result with pod session data | - | GREEN phase |
-| 1.5 | [ ] | Write tests for convenience accessors | 2 | Tests cover: `readyNodeIds`, `runningNodeIds`, `isComplete`, `isFailed`, `pendingQuestions`, all edge cases | - | RED phase |
-| 1.6 | [ ] | Implement convenience accessors | 2 | All accessor tests pass | - | GREEN phase |
-| 1.7 | [ ] | Refactor and verify all tests pass | 1 | Clean code, `just fft` passes | - | REFACTOR phase |
+| 1.1 | [x] | Create feature folder `030-orchestration/` and `index.ts` | 1 | Directory exists, empty index.ts compiles | [📋](tasks/phase-1-positionalgraphreality-snapshot/execution.log.md#task-t001-create-feature-folder-030-orchestration-with-barrel-index) | PlanPak setup |
+| 1.2 | [x] | Define `PositionalGraphReality` Zod schema and types | 2 | Schema validates sample data, types export cleanly | [📋](tasks/phase-1-positionalgraphreality-snapshot/execution.log.md#task-t004-define-reality-typescript-interfaces) | Per Workshop #1 schema |
+| 1.3 | [x] | Write tests for `buildPositionalGraphReality()` | 2 | Tests cover: empty graph, single line, multi-line, mixed statuses, questions, pod sessions | [📋](tasks/phase-1-positionalgraphreality-snapshot/execution.log.md#task-t006-write-builder-tests-red) | RED phase |
+| 1.4 | [x] | Implement `buildPositionalGraphReality()` | 3 | All tests from 1.3 pass. Composes `getStatus()` result with pod session data | [📋](tasks/phase-1-positionalgraphreality-snapshot/execution.log.md#task-t007-implement-builder-green) | GREEN phase |
+| 1.5 | [x] | Write tests for convenience accessors | 2 | Tests cover: `readyNodeIds`, `runningNodeIds`, `isComplete`, `isFailed`, `pendingQuestions`, all edge cases | [📋](tasks/phase-1-positionalgraphreality-snapshot/execution.log.md#task-t008-write-accessor-tests-red) | RED phase |
+| 1.6 | [x] | Implement convenience accessors | 2 | All accessor tests pass | [📋](tasks/phase-1-positionalgraphreality-snapshot/execution.log.md#task-t009-implement-accessors-green) | GREEN phase |
+| 1.7 | [x] | Refactor and verify all tests pass | 1 | Clean code, `just fft` passes | [📋](tasks/phase-1-positionalgraphreality-snapshot/execution.log.md#task-t012-refactor-and-verify) | REFACTOR phase |
 
 ### Acceptance Criteria
-- [ ] Snapshot captures all lines, nodes, questions, and pod sessions (AC-1)
-- [ ] Pre-computed accessors return correct values for all states
-- [ ] Schema accepts existing state.json without error (backward compatible)
-- [ ] All tests passing, `just fft` clean
+- [x] Snapshot captures all lines, nodes, questions, and pod sessions (AC-1)
+- [x] Pre-computed accessors return correct values for all states
+- [x] Schema accepts existing state.json without error (backward compatible)
+- [x] All tests passing, `just fft` clean
 
 ---
 
@@ -388,18 +388,18 @@ Test Doc:
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 2.1 | [ ] | Define `OrchestrationRequest` Zod schema with 4 variants | 2 | Schema discriminates on `type` field, all 4 variants parse correctly | - | Per Workshop #2 |
-| 2.2 | [ ] | Write tests for type guards and exhaustive checking | 2 | Tests prove: `isStartNode()`, `isResumeNode()`, `isQuestionPending()`, `isNoAction()`, `never` in default case | - | RED phase |
-| 2.3 | [ ] | Implement type guards | 1 | All tests from 2.2 pass | - | GREEN phase |
-| 2.4 | [ ] | Define `OrchestrationExecuteResult` type | 1 | Type compiles, covers all ODS outcomes | - | Per Workshop #2 |
-| 2.5 | [ ] | Write tests for `no-action` reason variants | 1 | Tests cover all `NoActionReason` values: `graph-complete`, `graph-failed`, `all-running`, `all-waiting`, `empty-graph` | - | |
-| 2.6 | [ ] | Refactor and verify | 1 | `just fft` clean | - | |
+| 2.1 | [x] | Define `OrchestrationRequest` Zod schema with 4 variants | 2 | Schema discriminates on `type` field, all 4 variants parse correctly | [📋](tasks/phase-2-orchestrationrequest-discriminated-union/execution.log.md#task-t001-define-orchestrationrequest-zod-schemas-with-derived-types) | Completed (T001+T002) [^1] |
+| 2.2 | [x] | Write tests for type guards and exhaustive checking | 2 | Tests prove: `isStartNode()`, `isResumeNode()`, `isQuestionPending()`, `isNoAction()`, `never` in default case | [📋](tasks/phase-2-orchestrationrequest-discriminated-union/execution.log.md#task-t003-write-type-guard--schema-validation-tests-red) | Completed (T003) [^2] |
+| 2.3 | [x] | Implement type guards | 1 | All tests from 2.2 pass | [📋](tasks/phase-2-orchestrationrequest-discriminated-union/execution.log.md#task-t004-implement-type-guards-green) | Completed (T004) [^3] |
+| 2.4 | [x] | Define `OrchestrationExecuteResult` type | 1 | Type compiles, covers all ODS outcomes | [📋](tasks/phase-2-orchestrationrequest-discriminated-union/execution.log.md#task-t006-define-orchestrationexecuteresult-type) | Completed (T006) [^4] |
+| 2.5 | [x] | Write tests for `no-action` reason variants | 1 | Tests cover all `NoActionReason` values: `graph-complete`, `graph-failed`, `all-running`, `all-waiting`, `empty-graph` | [📋](tasks/phase-2-orchestrationrequest-discriminated-union/execution.log.md#task-t005-write-no-action-reason-tests) | Completed (T005) [^2] |
+| 2.6 | [x] | Refactor and verify | 1 | `just fft` clean | [📋](tasks/phase-2-orchestrationrequest-discriminated-union/execution.log.md#task-t007-update-barrel-index--just-fft) | Completed (T007) [^5] |
 
 ### Acceptance Criteria
-- [ ] 4-type discriminated union compiles with exhaustive checking (AC-2)
-- [ ] Each variant carries all data ODS needs to execute without additional lookups
-- [ ] Type guards work correctly for all variants
-- [ ] `just fft` clean
+- [x] 4-type discriminated union compiles with exhaustive checking (AC-2)
+- [x] Each variant carries all data ODS needs to execute without additional lookups
+- [x] Type guards work correctly for all variants
+- [x] `just fft` clean
 
 ---
 
@@ -728,8 +728,8 @@ Test Doc:
 ## Progress Tracking
 
 ### Phase Completion Checklist
-- [ ] Phase 1: PositionalGraphReality Snapshot - Pending
-- [ ] Phase 2: OrchestrationRequest Discriminated Union - Pending
+- [x] Phase 1: PositionalGraphReality Snapshot - COMPLETE
+- [x] Phase 2: OrchestrationRequest Discriminated Union - COMPLETE
 - [ ] Phase 3: AgentContextService - Pending
 - [ ] Phase 4: WorkUnitPods and PodManager - Pending
 - [ ] Phase 5: ONBAS Walk Algorithm - Pending
@@ -768,5 +768,23 @@ Test Doc:
 
 ## Change Footnotes Ledger
 
-[^1]: [To be added during implementation via plan-6a]
-[^2]: [To be added during implementation via plan-6a]
+[^1]: Phase 2 Task 2.1 (T001+T002) - Zod schemas + derived types + non-schema types
+  - `file:packages/positional-graph/src/features/030-orchestration/orchestration-request.schema.ts`
+  - `file:packages/positional-graph/src/features/030-orchestration/orchestration-request.types.ts`
+
+[^2]: Phase 2 Task 2.2+2.5 (T003+T005) - Type guard + schema validation + no-action reason tests
+  - `file:test/unit/positional-graph/features/030-orchestration/orchestration-request.test.ts`
+
+[^3]: Phase 2 Task 2.3 (T004) - Type guard implementations
+  - `function:packages/positional-graph/src/features/030-orchestration/orchestration-request.guards.ts:isStartNodeRequest`
+  - `function:packages/positional-graph/src/features/030-orchestration/orchestration-request.guards.ts:isResumeNodeRequest`
+  - `function:packages/positional-graph/src/features/030-orchestration/orchestration-request.guards.ts:isQuestionPendingRequest`
+  - `function:packages/positional-graph/src/features/030-orchestration/orchestration-request.guards.ts:isNoActionRequest`
+  - `function:packages/positional-graph/src/features/030-orchestration/orchestration-request.guards.ts:isNodeLevelRequest`
+  - `function:packages/positional-graph/src/features/030-orchestration/orchestration-request.guards.ts:getNodeId`
+
+[^4]: Phase 2 Task 2.4 (T006) - OrchestrationExecuteResult + OrchestrationError types
+  - `file:packages/positional-graph/src/features/030-orchestration/orchestration-request.types.ts`
+
+[^5]: Phase 2 Task 2.6 (T007) - Barrel index update with Phase 2 exports
+  - `file:packages/positional-graph/src/features/030-orchestration/index.ts`
