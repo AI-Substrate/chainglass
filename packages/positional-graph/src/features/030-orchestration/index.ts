@@ -98,3 +98,42 @@ export { getContextSource, AgentContextService } from './agent-context.js';
 
 // AgentContext — Fake (Phase 3)
 export { FakeAgentContextService } from './fake-agent-context.js';
+
+// Pod — Schemas + derived types (Phase 4)
+export {
+  PodOutcomeSchema,
+  PodErrorSchema,
+  PodQuestionSchema,
+  PodExecuteResultSchema,
+} from './pod.schema.js';
+export type {
+  PodOutcome,
+  PodError,
+  PodQuestion,
+  PodExecuteResult,
+  PodExecuteOptions,
+  PodEventHandler,
+  PodEvent,
+  PodOutputEvent,
+  PodQuestionEvent,
+  PodProgressEvent,
+  IWorkUnitPod,
+} from './pod.types.js';
+
+// Pod — Implementations (Phase 4)
+export { AgentPod } from './pod.agent.js';
+export { CodePod } from './pod.code.js';
+
+// ScriptRunner — Interface + Fake (Phase 4)
+export type { IScriptRunner, ScriptRunOptions, ScriptRunResult } from './script-runner.types.js';
+export { FakeScriptRunner } from './script-runner.types.js';
+
+// PodManager — Interface + types (Phase 4)
+export type { IPodManager, PodCreateParams } from './pod-manager.types.js';
+
+// PodManager — Real implementation (Phase 4)
+export { PodManager } from './pod-manager.js';
+
+// PodManager — Fake (Phase 4)
+export { FakePodManager, FakePod } from './fake-pod-manager.js';
+export type { FakePodConfig, CreateHistoryEntry } from './fake-pod-manager.js';

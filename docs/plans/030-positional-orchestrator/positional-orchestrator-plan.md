@@ -468,25 +468,25 @@ Test Doc:
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 4.1 | [ ] | Define `IWorkUnitPod` interface and `PodExecuteResult` types | 2 | Interface compiles, result type covers: completed, question, error, terminated | - | Per Workshop #4 |
-| 4.2 | [ ] | Write tests for `AgentPod.execute()` | 2 | Tests cover: successful completion, question asked, error, session ID capture | - | RED phase |
-| 4.3 | [ ] | Implement `AgentPod` | 3 | All tests from 4.2 pass, delegates to `IAgentAdapter.run()` | - | GREEN phase |
-| 4.4 | [ ] | Write tests for `CodePod.execute()` | 1 | Tests cover: script execution, no session tracking | - | |
-| 4.5 | [ ] | Implement `CodePod` | 1 | All tests from 4.4 pass | - | |
-| 4.6 | [ ] | Define `IPodManager` interface | 1 | Interface includes: `getOrCreatePod()`, `loadSessions()`, `persistSessions()`, `getSessionId()` | - | |
-| 4.7 | [ ] | Write tests for `FakePodManager` | 2 | Tests prove: configurable pod behaviors, call history tracking, session seeding | - | |
-| 4.8 | [ ] | Implement `FakePodManager` | 2 | All tests from 4.7 pass, supports `configurePod()`, `getHistory()`, `reset()` | - | |
-| 4.9 | [ ] | Write tests for real `PodManager` | 2 | Tests cover: pod creation, session persistence to file, session loading from file, atomic writes | - | RED phase |
-| 4.10 | [ ] | Implement real `PodManager` | 3 | All tests from 4.9 pass, uses atomic writes for `pod-sessions.json` | - | GREEN phase |
-| 4.11 | [ ] | Write contract tests (fake vs real PodManager) | 2 | Same assertions pass on both implementations | - | |
-| 4.12 | [ ] | Refactor and verify | 1 | `just fft` clean | - | |
+| 4.1 | [x] | Define `IWorkUnitPod` interface and `PodExecuteResult` types | 2 | Interface compiles, result type covers: completed, question, error, terminated | [📋](tasks/phase-4-workunitpods-and-podmanager/execution.log.md#task-t001-define-pod-types-zod-schemas-iscriptrunner-and-node-starter-prompt) | Per Workshop #4 · [^11] |
+| 4.2 | [x] | Write tests for `AgentPod.execute()` | 2 | Tests cover: successful completion, question asked, error, session ID capture | [📋](tasks/phase-4-workunitpods-and-podmanager/execution.log.md#task-t003-write-agentpod-tests-red) | RED phase · [^12] |
+| 4.3 | [x] | Implement `AgentPod` | 3 | All tests from 4.2 pass, delegates to `IAgentAdapter.run()` | [📋](tasks/phase-4-workunitpods-and-podmanager/execution.log.md#task-t004-implement-agentpod-green) | GREEN phase · [^13] |
+| 4.4 | [x] | Write tests for `CodePod.execute()` | 1 | Tests cover: script execution, no session tracking | [📋](tasks/phase-4-workunitpods-and-podmanager/execution.log.md#task-t005-write-codepod-tests-red--t006-implement-codepod-green) | [^14] |
+| 4.5 | [x] | Implement `CodePod` | 1 | All tests from 4.4 pass | [📋](tasks/phase-4-workunitpods-and-podmanager/execution.log.md#task-t005-write-codepod-tests-red--t006-implement-codepod-green) | [^14] |
+| 4.6 | [x] | Define `IPodManager` interface | 1 | Interface includes: `getOrCreatePod()`, `loadSessions()`, `persistSessions()`, `getSessionId()` | [📋](tasks/phase-4-workunitpods-and-podmanager/execution.log.md#task-t002-define-ipodmanager-interface) | [^11] |
+| 4.7 | [x] | Write tests for `FakePodManager` | 2 | Tests prove: configurable pod behaviors, call history tracking, session seeding | [📋](tasks/phase-4-workunitpods-and-podmanager/execution.log.md#tasks-t007t009t011-write-fakepodmanager-podmanager-and-contract-tests-red) | [^15] |
+| 4.8 | [x] | Implement `FakePodManager` | 2 | All tests from 4.7 pass, supports `configurePod()`, `getHistory()`, `reset()` | [📋](tasks/phase-4-workunitpods-and-podmanager/execution.log.md#tasks-t008t010-implement-fakepodmanager-and-podmanager-green) | [^16] |
+| 4.9 | [x] | Write tests for real `PodManager` | 2 | Tests cover: pod creation, session persistence to file, session loading from file, atomic writes | [📋](tasks/phase-4-workunitpods-and-podmanager/execution.log.md#tasks-t007t009t011-write-fakepodmanager-podmanager-and-contract-tests-red) | RED phase · [^15] |
+| 4.10 | [x] | Implement real `PodManager` | 3 | All tests from 4.9 pass, uses atomic writes for `pod-sessions.json` | [📋](tasks/phase-4-workunitpods-and-podmanager/execution.log.md#tasks-t008t010-implement-fakepodmanager-and-podmanager-green) | GREEN phase · [^16] |
+| 4.11 | [x] | Write contract tests (fake vs real PodManager) | 2 | Same assertions pass on both implementations | [📋](tasks/phase-4-workunitpods-and-podmanager/execution.log.md#tasks-t007t009t011-write-fakepodmanager-podmanager-and-contract-tests-red) | [^15] |
+| 4.12 | [x] | Refactor and verify | 1 | `just fft` clean | [📋](tasks/phase-4-workunitpods-and-podmanager/execution.log.md#task-t012-update-barrel-index--just-fft) | [^17] |
 
 ### Acceptance Criteria
-- [ ] Pods manage agent/code execution lifecycle (AC-7)
-- [ ] Pod sessions survive server restarts via `pod-sessions.json` (AC-8)
-- [ ] FakePodManager enables deterministic testing (AC-13)
-- [ ] Contract tests pass on both fake and real implementations
-- [ ] `just fft` clean
+- [x] Pods manage agent/code execution lifecycle (AC-7)
+- [x] Pod sessions survive server restarts via `pod-sessions.json` (AC-8)
+- [x] FakePodManager enables deterministic testing (AC-13)
+- [x] Contract tests pass on both fake and real implementations
+- [x] `just fft` clean
 
 ---
 
@@ -731,7 +731,7 @@ Test Doc:
 - [x] Phase 1: PositionalGraphReality Snapshot - COMPLETE
 - [x] Phase 2: OrchestrationRequest Discriminated Union - COMPLETE
 - [x] Phase 3: AgentContextService - COMPLETE
-- [ ] Phase 4: WorkUnitPods and PodManager - Pending
+- [x] Phase 4: WorkUnitPods and PodManager - COMPLETE
 - [ ] Phase 5: ONBAS Walk Algorithm - Pending
 - [ ] Phase 6: ODS Action Handlers - Pending
 - [ ] Phase 7: Orchestration Entry Point - Pending
@@ -804,4 +804,32 @@ Test Doc:
   - `class:packages/positional-graph/src/features/030-orchestration/fake-agent-context.ts:FakeAgentContextService`
 
 [^10]: Phase 3 Task 3.6 (T007) - Barrel index update with Phase 3 exports
+  - `file:packages/positional-graph/src/features/030-orchestration/index.ts`
+
+[^11]: Phase 4 Task 4.1+4.6 (T001+T002) - Pod types, Zod schemas, IScriptRunner, IPodManager interface
+  - `file:packages/positional-graph/src/features/030-orchestration/pod.types.ts`
+  - `file:packages/positional-graph/src/features/030-orchestration/pod.schema.ts`
+  - `file:packages/positional-graph/src/features/030-orchestration/script-runner.types.ts`
+  - `file:packages/positional-graph/src/features/030-orchestration/pod-manager.types.ts`
+  - `file:packages/positional-graph/src/features/030-orchestration/node-starter-prompt.md`
+
+[^12]: Phase 4 Task 4.2 (T003) - AgentPod tests (RED)
+  - `file:test/unit/positional-graph/features/030-orchestration/pod.test.ts`
+
+[^13]: Phase 4 Task 4.3 (T004) - AgentPod implementation (GREEN)
+  - `class:packages/positional-graph/src/features/030-orchestration/pod.agent.ts:AgentPod`
+
+[^14]: Phase 4 Task 4.4+4.5 (T005+T006) - CodePod tests + implementation
+  - `class:packages/positional-graph/src/features/030-orchestration/pod.code.ts:CodePod`
+  - `file:test/unit/positional-graph/features/030-orchestration/pod.test.ts`
+
+[^15]: Phase 4 Task 4.7+4.9+4.11 (T007+T009+T011) - FakePodManager, PodManager, and Contract tests (RED)
+  - `file:test/unit/positional-graph/features/030-orchestration/pod-manager.test.ts`
+
+[^16]: Phase 4 Task 4.8+4.10 (T008+T010) - FakePodManager + PodManager implementation (GREEN)
+  - `class:packages/positional-graph/src/features/030-orchestration/fake-pod-manager.ts:FakePodManager`
+  - `class:packages/positional-graph/src/features/030-orchestration/fake-pod-manager.ts:FakePod`
+  - `class:packages/positional-graph/src/features/030-orchestration/pod-manager.ts:PodManager`
+
+[^17]: Phase 4 Task 4.12 (T012) - Barrel index update with Phase 4 exports
   - `file:packages/positional-graph/src/features/030-orchestration/index.ts`
