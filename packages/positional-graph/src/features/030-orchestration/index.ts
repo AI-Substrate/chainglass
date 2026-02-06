@@ -137,3 +137,18 @@ export { PodManager } from './pod-manager.js';
 // PodManager — Fake (Phase 4)
 export { FakePodManager, FakePod } from './fake-pod-manager.js';
 export type { FakePodConfig, CreateHistoryEntry } from './fake-pod-manager.js';
+
+// ONBAS — Interface + types (Phase 5)
+export type { IONBAS } from './onbas.types.js';
+
+// ONBAS — Pure function + class wrapper (Phase 5)
+export { walkForNextAction, ONBAS } from './onbas.js';
+
+// ONBAS — Fake + buildFakeReality helper (Phase 5)
+export { FakeONBAS, buildFakeReality } from './fake-onbas.js';
+export type {
+  FakeRealityOptions,
+  FakeLineInput,
+  FakeNodeInput,
+  FakeQuestionInput,
+} from './fake-onbas.js';

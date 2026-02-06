@@ -514,22 +514,22 @@ Test Doc:
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 5.1 | [ ] | Define `IONBAS` interface (optional — it is a pure function, but interface aids testing) | 1 | Interface with `walkForNextAction(reality): OrchestrationRequest` | - | |
-| 5.2 | [ ] | Write tests for basic walk: single ready node | 1 | Returns `start-node` for the ready node | - | RED |
-| 5.3 | [ ] | Write tests for multi-line walk order | 2 | Lines visited 0..N, nodes visited by position, first actionable stops walk | - | RED |
-| 5.4 | [ ] | Write tests for question handling | 2 | Unsurfaced question → `question-pending`; surfaced+unanswered → skip; answered → `resume-node` | - | RED |
-| 5.5 | [ ] | Write tests for no-action scenarios | 2 | All complete → `graph-complete`; has failure → `graph-failed`; all running → `no-action` with reason; empty graph → `no-action` | - | RED |
-| 5.6 | [ ] | Write tests for skip logic | 2 | Running nodes skipped, complete nodes skipped, blocked-error skipped, pending nodes skipped | - | RED |
-| 5.7 | [ ] | Implement `walkForNextAction()` | 3 | All tests from 5.2-5.6 pass | - | GREEN phase |
-| 5.8 | [ ] | Write tests proving pure/stateless behavior | 1 | Same input → same output across multiple calls, no side effects | - | AC-4 |
-| 5.9 | [ ] | Refactor and verify | 1 | `just fft` clean | - | |
+| 5.1 | [x] | Define `IONBAS` interface (optional — it is a pure function, but interface aids testing) | 1 | Interface with `walkForNextAction(reality): OrchestrationRequest` | [📋](tasks/phase-5-onbas-walk-algorithm/execution.log.md#task-t001-define-ionbas-interface--fakeonbas--buildfakereality) | [^18] |
+| 5.2 | [x] | Write tests for basic walk: single ready node | 1 | Returns `start-node` for the ready node | [📋](tasks/phase-5-onbas-walk-algorithm/execution.log.md#tasks-t002-t006t008-write-all-onbas-tests-red) | RED · [^19] |
+| 5.3 | [x] | Write tests for multi-line walk order | 2 | Lines visited 0..N, nodes visited by position, first actionable stops walk | [📋](tasks/phase-5-onbas-walk-algorithm/execution.log.md#tasks-t002-t006t008-write-all-onbas-tests-red) | RED · [^19] |
+| 5.4 | [x] | Write tests for question handling | 2 | Unsurfaced question → `question-pending`; surfaced+unanswered → skip; answered → `resume-node` | [📋](tasks/phase-5-onbas-walk-algorithm/execution.log.md#tasks-t002-t006t008-write-all-onbas-tests-red) | RED · [^19] |
+| 5.5 | [x] | Write tests for no-action scenarios | 2 | All complete → `graph-complete`; has failure → `graph-failed`; all running → `no-action` with reason; empty graph → `no-action` | [📋](tasks/phase-5-onbas-walk-algorithm/execution.log.md#tasks-t002-t006t008-write-all-onbas-tests-red) | RED · [^19] |
+| 5.6 | [x] | Write tests for skip logic | 2 | Running nodes skipped, complete nodes skipped, blocked-error skipped, pending nodes skipped | [📋](tasks/phase-5-onbas-walk-algorithm/execution.log.md#tasks-t002-t006t008-write-all-onbas-tests-red) | RED · [^19] |
+| 5.7 | [x] | Implement `walkForNextAction()` | 3 | All tests from 5.2-5.6 pass | [📋](tasks/phase-5-onbas-walk-algorithm/execution.log.md#task-t007-implement-walkfornextaction) | GREEN · [^20] |
+| 5.8 | [x] | Write tests proving pure/stateless behavior | 1 | Same input → same output across multiple calls, no side effects | [📋](tasks/phase-5-onbas-walk-algorithm/execution.log.md#tasks-t002-t006t008-write-all-onbas-tests-red) | AC-4 · [^19] |
+| 5.9 | [x] | Refactor and verify | 1 | `just fft` clean | [📋](tasks/phase-5-onbas-walk-algorithm/execution.log.md#task-t009-update-barrel--just-fft) | [^21] |
 
 ### Acceptance Criteria
-- [ ] Walk visits lines in index order, nodes in position order (AC-3)
-- [ ] Each node status maps to the correct action or skip behavior (AC-3)
-- [ ] Pure, synchronous, stateless — same input always same output (AC-4)
-- [ ] Question lifecycle handled correctly for all 3 sub-states
-- [ ] `just fft` clean
+- [x] Walk visits lines in index order, nodes in position order (AC-3)
+- [x] Each node status maps to the correct action or skip behavior (AC-3)
+- [x] Pure, synchronous, stateless — same input always same output (AC-4)
+- [x] Question lifecycle handled correctly for all 3 sub-states
+- [x] `just fft` clean
 
 ---
 
@@ -732,7 +732,7 @@ Test Doc:
 - [x] Phase 2: OrchestrationRequest Discriminated Union - COMPLETE
 - [x] Phase 3: AgentContextService - COMPLETE
 - [x] Phase 4: WorkUnitPods and PodManager - COMPLETE
-- [ ] Phase 5: ONBAS Walk Algorithm - Pending
+- [x] Phase 5: ONBAS Walk Algorithm - COMPLETE
 - [ ] Phase 6: ODS Action Handlers - Pending
 - [ ] Phase 7: Orchestration Entry Point - Pending
 - [ ] Phase 8: E2E and Integration Testing - Pending
@@ -832,4 +832,19 @@ Test Doc:
   - `class:packages/positional-graph/src/features/030-orchestration/pod-manager.ts:PodManager`
 
 [^17]: Phase 4 Task 4.12 (T012) - Barrel index update with Phase 4 exports
+  - `file:packages/positional-graph/src/features/030-orchestration/index.ts`
+
+[^18]: Phase 5 Task 5.1 (T001) - IONBAS interface + FakeONBAS + buildFakeReality
+  - `file:packages/positional-graph/src/features/030-orchestration/onbas.types.ts`
+  - `class:packages/positional-graph/src/features/030-orchestration/fake-onbas.ts:FakeONBAS`
+  - `function:packages/positional-graph/src/features/030-orchestration/fake-onbas.ts:buildFakeReality`
+
+[^19]: Phase 5 Task 5.2-5.6+5.8 (T002-T006+T008) - All ONBAS tests (RED)
+  - `file:test/unit/positional-graph/features/030-orchestration/onbas.test.ts`
+
+[^20]: Phase 5 Task 5.7 (T007) - walkForNextAction implementation (GREEN)
+  - `function:packages/positional-graph/src/features/030-orchestration/onbas.ts:walkForNextAction`
+  - `class:packages/positional-graph/src/features/030-orchestration/onbas.ts:ONBAS`
+
+[^21]: Phase 5 Task 5.9 (T009) - Barrel index update with Phase 5 exports
   - `file:packages/positional-graph/src/features/030-orchestration/index.ts`
