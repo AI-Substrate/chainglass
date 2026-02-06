@@ -427,18 +427,18 @@ Test Doc:
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 3.1 | [ ] | Define `getContextSource()` function signature and `ContextSourceResult` type | 1 | Function signature compiles, type includes `source`, `sourceNodeId`, `reason` | - | Per Workshop #3 |
-| 3.2 | [ ] | Write tests for all 5 context rules | 3 | Tests cover: non-agent returns not-applicable, first-on-line-0 returns new, cross-line inherit, serial inherit from left, parallel returns new. Each with `reason` string | - | RED phase |
-| 3.3 | [ ] | Implement `getContextSource()` | 2 | All tests from 3.2 pass | - | GREEN phase, pure function |
-| 3.4 | [ ] | Write edge case tests | 2 | Tests cover: no agent on previous line, code node as left neighbor, user-input node as left neighbor, empty line | - | Additional RED-GREEN |
-| 3.5 | [ ] | Implement `FakeAgentContextService` | 1 | Fake implements interface, supports `setContextSource()` for test configuration | - | |
-| 3.6 | [ ] | Refactor and verify | 1 | `just fft` clean | - | |
+| 3.1 | [x] | Define `getContextSource()` function signature and `ContextSourceResult` type | 1 | Function signature compiles, type includes `source`, `sourceNodeId`, `reason` | [📋](tasks/phase-3-agentcontextservice/execution.log.md#task-t001-define-contextsourceresult-zod-schemas--derived-types--type-guards) | T001+T002 [^6] |
+| 3.2 | [x] | Write tests for all 5 context rules | 3 | Tests cover: non-agent returns not-applicable, first-on-line-0 returns new, cross-line inherit, serial inherit from left, parallel returns new. Each with `reason` string | [📋](tasks/phase-3-agentcontextservice/execution.log.md#task-t003-write-tests-for-all-5-context-rules-red) | T003 [^7] |
+| 3.3 | [x] | Implement `getContextSource()` | 2 | All tests from 3.2 pass | [📋](tasks/phase-3-agentcontextservice/execution.log.md#task-t004-implement-getcontextsource-bare-function--class-wrapper-green) | T004 [^8] |
+| 3.4 | [x] | Write edge case tests | 2 | Tests cover: no agent on previous line, code node as left neighbor, user-input node as left neighbor, empty line | [📋](tasks/phase-3-agentcontextservice/execution.log.md#task-t005-write-edge-case-tests--implement) | T005 [^7] |
+| 3.5 | [x] | Implement `FakeAgentContextService` | 1 | Fake implements interface, supports `setContextSource()` for test configuration | [📋](tasks/phase-3-agentcontextservice/execution.log.md#task-t006-implement-fakeagentcontextservice) | T006 [^9] |
+| 3.6 | [x] | Refactor and verify | 1 | `just fft` clean | [📋](tasks/phase-3-agentcontextservice/execution.log.md#task-t007-update-barrel-index--just-fft) | T007 [^10] |
 
 ### Acceptance Criteria
-- [ ] All 5 context rules produce correct results (AC-5)
-- [ ] Every result includes a human-readable `reason` string
-- [ ] Pure function: no side effects, no I/O
-- [ ] `just fft` clean
+- [x] All 5 context rules produce correct results (AC-5)
+- [x] Every result includes a human-readable `reason` string
+- [x] Pure function: no side effects, no I/O
+- [x] `just fft` clean
 
 ---
 
@@ -730,7 +730,7 @@ Test Doc:
 ### Phase Completion Checklist
 - [x] Phase 1: PositionalGraphReality Snapshot - COMPLETE
 - [x] Phase 2: OrchestrationRequest Discriminated Union - COMPLETE
-- [ ] Phase 3: AgentContextService - Pending
+- [x] Phase 3: AgentContextService - COMPLETE
 - [ ] Phase 4: WorkUnitPods and PodManager - Pending
 - [ ] Phase 5: ONBAS Walk Algorithm - Pending
 - [ ] Phase 6: ODS Action Handlers - Pending
@@ -787,4 +787,21 @@ Test Doc:
   - `file:packages/positional-graph/src/features/030-orchestration/orchestration-request.types.ts`
 
 [^5]: Phase 2 Task 2.6 (T007) - Barrel index update with Phase 2 exports
+  - `file:packages/positional-graph/src/features/030-orchestration/index.ts`
+
+[^6]: Phase 3 Task 3.1 (T001+T002) - ContextSourceResult schemas + types + IAgentContextService interface
+  - `file:packages/positional-graph/src/features/030-orchestration/agent-context.schema.ts`
+  - `file:packages/positional-graph/src/features/030-orchestration/agent-context.types.ts`
+
+[^7]: Phase 3 Task 3.2+3.4 (T003+T005) - Context rule tests + edge case tests
+  - `file:test/unit/positional-graph/features/030-orchestration/agent-context.test.ts`
+
+[^8]: Phase 3 Task 3.3 (T004) - getContextSource() bare function + AgentContextService class
+  - `function:packages/positional-graph/src/features/030-orchestration/agent-context.ts:getContextSource`
+  - `class:packages/positional-graph/src/features/030-orchestration/agent-context.ts:AgentContextService`
+
+[^9]: Phase 3 Task 3.5 (T006) - FakeAgentContextService escape hatch
+  - `class:packages/positional-graph/src/features/030-orchestration/fake-agent-context.ts:FakeAgentContextService`
+
+[^10]: Phase 3 Task 3.6 (T007) - Barrel index update with Phase 3 exports
   - `file:packages/positional-graph/src/features/030-orchestration/index.ts`

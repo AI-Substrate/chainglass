@@ -70,3 +70,31 @@ export {
   isNodeLevelRequest,
   getNodeId,
 } from './orchestration-request.guards.js';
+
+// AgentContext — Schemas + derived types (Phase 3)
+export {
+  InheritContextResultSchema,
+  NewContextResultSchema,
+  NotApplicableResultSchema,
+  ContextSourceResultSchema,
+} from './agent-context.schema.js';
+export type {
+  InheritContextResult,
+  NewContextResult,
+  NotApplicableResult,
+  ContextSourceResult,
+} from './agent-context.schema.js';
+
+// AgentContext — Type guards + interface (Phase 3)
+export {
+  isInheritContext,
+  isNewContext,
+  isNotApplicable,
+} from './agent-context.types.js';
+export type { IAgentContextService } from './agent-context.types.js';
+
+// AgentContext — Pure function + class wrapper (Phase 3)
+export { getContextSource, AgentContextService } from './agent-context.js';
+
+// AgentContext — Fake (Phase 3)
+export { FakeAgentContextService } from './fake-agent-context.js';

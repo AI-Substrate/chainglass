@@ -85,50 +85,62 @@ if (contextResult.source === 'inherit') {
 | Position | Execution Mode | Rule | Source |
 |----------|----------------|------|--------|
 | First on line 0 | any | **New context** | No predecessor exists |
-| First on line N (N>0) | any | **Inherit from first AGENT on line N-1** | Cross-line continuity |
-| Not first | serial | **Inherit from left neighbor** (if agent) | Serial chain |
+| First on line N (N>0) | any | **Inherit from first AGENT on ANY previous line** (walk N-1, N-2, ... 0) | Cross-line continuity (DYK-I10) |
+| Not first | serial | **Inherit from nearest agent walking left** (skip non-agents; parallel agents are valid sources) | Serial chain (DYK-I13) |
 | Not first | parallel | **New context** | Independent execution |
 
 ### Why These Rules?
 
 **First node on line 0**: The graph starts here. No prior work exists to inherit from.
 
-**First node on line N (N>0)**: Continues the "main thread" from the previous line. We pick the **first AGENT node** on the previous line because:
-- It's deterministic (always same source)
-- It represents the primary work of that line
-- Code/user-input nodes don't have sessions
+**First node on line N (N>0)**: Continues the "main thread" from a previous line. We walk backward through lines N-1, N-2, ... 0 and pick the **first AGENT node** on the first line that has one because:
+- It's deterministic (always same source for a given graph)
+- Lines with only code/user-input represent processing steps, not context boundaries
+- Stopping at N-1 would force users to always put an agent on every line, which is overly restrictive
+- If no agent exists on any previous line, the node gets new context
 
-**Serial not-first**: Serial execution means waiting for the left neighbor to complete. Inheriting context enables multi-step agent workflows on the same line.
+**Serial not-first**: Serial execution means waiting for predecessors to complete. We walk left past non-agent nodes (code, user-input) to find the nearest agent on the same line. Parallel agents are valid inheritance sources — the `parallel` execution mode only affects the parallel node itself (it gets fresh context), not serial nodes to its right. If no agent is found walking left (all non-agents or start of line), the node gets new context.
 
 **Parallel not-first**: Parallel execution means independent work. Each parallel agent gets a fresh context to avoid state conflicts.
 
 ### Edge Cases
 
-#### No Agent on Previous Line
+#### No Agent on ANY Previous Line (DYK-I10)
 
-If line N-1 has only code or user-input nodes (no agents), the first node on line N gets **new context**.
+If no previous line has an agent, the first node on line N gets **new context**. The function walks ALL previous lines, not just N-1.
 
 ```
 Line 0: [user-prompt] [code-validator]    ← no agents
-Line 1: [spec-builder (first, agent)]     ← new context (no agent to inherit from)
+Line 1: [formatter (code)]               ← no agents
+Line 2: [spec-builder (first, agent)]     ← new context (no agent on any previous line)
+```
+
+#### Cross-Line Skips Non-Agent Lines (DYK-I10)
+
+If line N-1 has no agents but an earlier line does, the function walks back to find it.
+
+```
+Line 0: [prompter (agent)]               ← has agent
+Line 1: [validator (code)] [formatter (code)]  ← no agents
+Line 2: [builder (agent)]                ← inherits from 'prompter' on line 0
 ```
 
 #### First Node is Non-Agent
 
-If the first node on a line is a code unit, context lookup is `not-applicable`. If the second node is an agent with serial execution, it also gets **new context** (the left neighbor has no session).
+If the first node on a line is a code unit, context lookup is `not-applicable`. If the second node is an agent with serial execution, it walks left — but if no agent is found, it gets **new context**.
 
 ```
 Line 1: [code-linter (serial)] → [spec-builder (serial, agent)]
-                                  ↑ new context (code node has no session)
+                                  ↑ new context (no agent to the left)
 ```
 
-#### Mixed Agent/Code Serial Chain
+#### Mixed Agent/Code Serial Chain (DYK-I13)
 
-If a serial agent follows a code node, the agent gets new context. If a serial agent follows another agent, it inherits.
+Serial agents walk left past non-agent nodes to find the nearest agent. Code nodes between agents don't break the inheritance chain.
 
 ```
 Line 1: [agent-A (serial)] → [code-B (serial)] → [agent-C (serial)]
-        ↑ new or inherited   ↑ not-applicable    ↑ new context (code-B has no session)
+        ↑ new or inherited   ↑ not-applicable    ↑ inherits from agent-A (walks past code-B)
 ```
 
 #### Parallel Agent Following Serial Agent
@@ -138,6 +150,16 @@ Even though there's a "left neighbor", parallel nodes don't wait and don't inher
 ```
 Line 1: [agent-A (serial)] → [agent-B (parallel)] → [agent-C (parallel)]
         ↑ inherits from L0    ↑ new context          ↑ new context
+```
+
+#### Serial Agent Following Parallel Agent
+
+A serial node waits for everything to its left to complete. It CAN inherit from a parallel agent — the `parallel` execution mode only affects the parallel node itself (it gets fresh context), not serial nodes to its right.
+
+```
+Line 1: [agent-A (parallel)] → [agent-B (parallel)] → [agent-C (serial)]
+        ↑ new context          ↑ new context          ↑ inherits from agent-B
+                                                        (walks left: B is agent, inherit)
 ```
 
 #### No-Context Flag (Future)
@@ -280,179 +302,180 @@ export interface IAgentContextService {
 
 ### Algorithm
 
+> **DYK-I9**: Logic is a bare exported function; class is a thin wrapper for interface injection.
+> **DYK-I10**: Cross-line walks ALL previous lines, not just N-1.
+> **DYK-I13**: Serial walks left past non-agents to find nearest agent (parallel agents are valid sources).
+
 ```typescript
-import type { PositionalGraphReality, NodeReality } from './reality.types.js';
+import type { PositionalGraphReality, NodeReality, LineReality } from './reality.types.js';
 import type { ContextSourceResult } from './context.types.js';
+import { PositionalGraphRealityView } from './reality.view.js';
 
-export class AgentContextService implements IAgentContextService {
-  getContextSource(
-    reality: PositionalGraphReality,
-    nodeId: string
-  ): ContextSourceResult {
-    const node = reality.nodes.get(nodeId);
+/**
+ * Bare exported pure function — the actual implementation.
+ * AgentContextService class delegates to this.
+ */
+export function getContextSource(
+  reality: PositionalGraphReality,
+  nodeId: string
+): ContextSourceResult {
+  const view = new PositionalGraphRealityView(reality);
+  const node = view.getNode(nodeId);
 
-    if (!node) {
-      return {
-        source: 'not-applicable',
-        reason: `Node '${nodeId}' not found in reality`,
-      };
+  if (!node) {
+    return {
+      source: 'not-applicable',
+      reason: `Node '${nodeId}' not found in reality`,
+    };
+  }
+
+  // ── Rule 0: Only agents have context ────────────
+  if (node.unitType !== 'agent') {
+    return {
+      source: 'not-applicable',
+      reason: `Node '${nodeId}' is ${node.unitType}, not an agent`,
+    };
+  }
+
+  // ── noContext override (Workshop #3 Q2) ────────────
+  // Overrides all positional rules. Field is on NodeReality when schema is extended.
+  if ('noContext' in node && (node as any).noContext === true) {
+    return {
+      source: 'new',
+      reason: `noContext flag set on '${nodeId}' — forced new context`,
+    };
+  }
+
+  // ── Rule 1: First node on line 0 ────────────────
+  if (node.lineIndex === 0 && node.positionInLine === 0) {
+    return {
+      source: 'new',
+      reason: 'First node on first line — no predecessor exists',
+    };
+  }
+
+  // ── Rule 2: First node on line N (N>0) ──────────
+  // DYK-I10: Walk ALL previous lines (N-1, N-2, ... 0) to find an agent
+  if (node.positionInLine === 0 && node.lineIndex > 0) {
+    for (let i = node.lineIndex - 1; i >= 0; i--) {
+      const line = view.getLineByIndex(i);
+      if (!line) continue;
+      for (const nid of line.nodeIds) {
+        const n = view.getNode(nid);
+        if (n && n.unitType === 'agent') {
+          return {
+            source: 'inherit',
+            fromNodeId: n.nodeId,
+            reason: `First on line ${node.lineIndex} — inherits from first agent on line ${i}`,
+          };
+        }
+      }
     }
+    return {
+      source: 'new',
+      reason: `First on line ${node.lineIndex} — no agent on any previous line`,
+    };
+  }
 
-    // ── Rule 0: Only agents have context ────────────
-    if (node.unitType !== 'agent') {
-      return {
-        source: 'not-applicable',
-        reason: `Node '${nodeId}' is ${node.unitType}, not an agent`,
-      };
-    }
+  // ── Rule 3: Parallel execution ──────────────────
+  if (node.execution === 'parallel') {
+    return {
+      source: 'new',
+      reason: 'Parallel execution — independent context',
+    };
+  }
 
-    // ── Rule 1: Check for noContext flag ────────────
-    // Future: if (node.orchestratorSettings?.noContext) { return new }
+  // ── Rule 4: Serial execution — walk left to find nearest agent ─
+  // DYK-I13: Walk left past non-agent nodes; parallel agents are valid sources
+  const line = view.getLineByIndex(node.lineIndex);
+  if (line) {
+    for (let pos = node.positionInLine - 1; pos >= 0; pos--) {
+      const leftNode = view.getNode(line.nodeIds[pos]);
+      if (!leftNode) continue;
 
-    // ── Rule 2: First node on line 0 ────────────────
-    if (node.lineIndex === 0 && node.positionInLine === 0) {
-      return {
-        source: 'new',
-        reason: 'First node on first line — no predecessor exists',
-      };
-    }
-
-    // ── Rule 3: First node on line N (N>0) ──────────
-    if (node.positionInLine === 0 && node.lineIndex > 0) {
-      const previousLine = reality.lines[node.lineIndex - 1];
-      const firstAgentOnPrevLine = this.findFirstAgentOnLine(reality, previousLine);
-
-      if (firstAgentOnPrevLine) {
+      // Found an agent — inherit regardless of its execution mode
+      // (parallel mode only affects the parallel node itself, not serial nodes to its right)
+      if (leftNode.unitType === 'agent') {
         return {
           source: 'inherit',
-          fromNodeId: firstAgentOnPrevLine.nodeId,
-          reason: `First on line ${node.lineIndex} — inherits from first agent on line ${node.lineIndex - 1}`,
-        };
-      } else {
-        return {
-          source: 'new',
-          reason: `First on line ${node.lineIndex} — no agent on previous line`,
+          fromNodeId: leftNode.nodeId,
+          reason: `Serial — inherits from '${leftNode.nodeId}' on same line`,
         };
       }
-    }
-
-    // ── Rule 4: Parallel execution ──────────────────
-    if (node.execution === 'parallel') {
-      return {
-        source: 'new',
-        reason: 'Parallel execution — independent context',
-      };
-    }
-
-    // ── Rule 5: Serial execution (inherit from left) ─
-    const leftNeighbor = this.getLeftNeighbor(reality, node);
-
-    if (!leftNeighbor) {
-      return {
-        source: 'new',
-        reason: 'Serial but no left neighbor (should not happen)',
-      };
-    }
-
-    if (leftNeighbor.unitType === 'agent') {
-      return {
-        source: 'inherit',
-        fromNodeId: leftNeighbor.nodeId,
-        reason: `Serial — inherits from left neighbor '${leftNeighbor.nodeId}'`,
-      };
-    } else {
-      return {
-        source: 'new',
-        reason: `Serial — left neighbor '${leftNeighbor.nodeId}' is ${leftNeighbor.unitType}, not agent`,
-      };
+      // Non-agent node (code, user-input) — skip and keep walking left
     }
   }
 
-  /**
-   * Find the first agent node on a line (by position).
-   */
-  private findFirstAgentOnLine(
-    reality: PositionalGraphReality,
-    line: LineReality
-  ): NodeReality | undefined {
-    for (const nodeId of line.nodeIds) {
-      const node = reality.nodes.get(nodeId);
-      if (node && node.unitType === 'agent') {
-        return node;
-      }
-    }
-    return undefined;
-  }
+  return {
+    source: 'new',
+    reason: `Serial — no agent found in serial group on line ${node.lineIndex}`,
+  };
+}
 
-  /**
-   * Get the node immediately to the left (position - 1) on the same line.
-   */
-  private getLeftNeighbor(
-    reality: PositionalGraphReality,
-    node: NodeReality
-  ): NodeReality | undefined {
-    if (node.positionInLine === 0) {
-      return undefined;
-    }
-
-    const line = reality.lines[node.lineIndex];
-    const leftNodeId = line.nodeIds[node.positionInLine - 1];
-    return reality.nodes.get(leftNodeId);
+/**
+ * Thin class wrapper for interface injection (DYK-I9).
+ * ODS depends on IAgentContextService; this delegates to the bare function.
+ */
+export class AgentContextService implements IAgentContextService {
+  getContextSource(reality: PositionalGraphReality, nodeId: string): ContextSourceResult {
+    return getContextSource(reality, nodeId);
   }
 }
 ```
 
 ### Visual Decision Tree
 
-```
-getContextSource(reality, nodeId)
-        │
-        ▼
-   ┌─────────────┐
-   │ Node exists?│
-   └─────────────┘
-        │
-    no  │  yes
-        ▼    └──────────────────────────────────────────┐
-   not-applicable                                        ▼
-   "Node not found"                              ┌───────────────┐
-                                                 │ unitType=agent│
-                                                 └───────────────┘
-                                                        │
-                                                    no  │  yes
-                                                        ▼    └──────────────────┐
-                                               not-applicable                    ▼
-                                               "Not an agent"           ┌────────────────────┐
-                                                                        │ line=0, position=0 │
-                                                                        └────────────────────┘
-                                                                               │
-                                                                           yes │  no
-                                                                               ▼    └────────────────┐
-                                                                         new context                  ▼
-                                                                         "First on L0"      ┌─────────────────┐
-                                                                                            │ position=0, L>0 │
-                                                                                            └─────────────────┘
-                                                                                                    │
-                                                                                                yes │  no
-                                                                                                    ▼    └──────────┐
-                                                                                        ┌─────────────────────┐     │
-                                                                                        │ First agent on L-1? │     ▼
-                                                                                        └─────────────────────┘  ┌──────────┐
-                                                                                               │                 │ parallel?│
-                                                                                           yes │  no             └──────────┘
-                                                                                               ▼    └──────            │
-                                                                                         inherit           ▼       yes │  no
-                                                                                         from agent     new ctx        ▼    └──────┐
-                                                                                                        "no agent"  new ctx       ▼
-                                                                                                                    "parallel" ┌────────────────┐
-                                                                                                                               │ left = agent?  │
-                                                                                                                               └────────────────┘
-                                                                                                                                       │
-                                                                                                                                   yes │  no
-                                                                                                                                       ▼    └───────┐
-                                                                                                                                 inherit           ▼
-                                                                                                                                 from left      new ctx
-                                                                                                                                               "left not agent"
+```mermaid
+flowchart TD
+    classDef result_inherit fill:#E8F5E9,stroke:#4CAF50,color:#000
+    classDef result_new fill:#FFF3E0,stroke:#FF9800,color:#000
+    classDef result_na fill:#ECEFF1,stroke:#90A4AE,color:#000
+    classDef check fill:#E3F2FD,stroke:#2196F3,color:#000
+    classDef walk fill:#F3E5F5,stroke:#9C27B0,color:#000
+
+    Start["getContextSource(reality, nodeId)"]:::check
+    Exists{Node exists?}:::check
+    IsAgent{unitType = agent?}:::check
+    NoCtx{noContext = true?}:::check
+    FirstL0{line=0 AND position=0?}:::check
+    FirstOnLine{position=0 AND line>0?}:::check
+    IsParallel{execution = parallel?}:::check
+
+    WalkLines["Walk lines L-1, L-2, ... 0<br/>Find first agent on any line<br/>(DYK-I10)"]:::walk
+    FoundCrossLine{Agent found?}:::check
+
+    WalkLeft["Walk left on same line<br/>Skip non-agents (code, user-input)<br/>Parallel agents are valid sources<br/>(DYK-I13)"]:::walk
+    FoundSerial{Agent found?}:::check
+
+    NA1["not-applicable<br/>Node not found"]:::result_na
+    NA2["not-applicable<br/>Not an agent"]:::result_na
+    NewNoCtx["new<br/>noContext flag set"]:::result_new
+    New1["new<br/>First on line 0"]:::result_new
+    Inherit1["inherit<br/>from agent on prev line"]:::result_inherit
+    New2["new<br/>No agent on any prev line"]:::result_new
+    New3["new<br/>Parallel execution"]:::result_new
+    Inherit2["inherit<br/>from agent in serial group"]:::result_inherit
+    New4["new<br/>No agent in serial group"]:::result_new
+
+    Start --> Exists
+    Exists -- no --> NA1
+    Exists -- yes --> IsAgent
+    IsAgent -- no --> NA2
+    IsAgent -- yes --> NoCtx
+    NoCtx -- yes --> NewNoCtx
+    NoCtx -- no --> FirstL0
+    FirstL0 -- yes --> New1
+    FirstL0 -- no --> FirstOnLine
+    FirstOnLine -- yes --> WalkLines
+    WalkLines --> FoundCrossLine
+    FoundCrossLine -- yes --> Inherit1
+    FoundCrossLine -- no --> New2
+    FirstOnLine -- no --> IsParallel
+    IsParallel -- yes --> New3
+    IsParallel -- no --> WalkLeft
+    WalkLeft --> FoundSerial
+    FoundSerial -- yes --> Inherit2
+    FoundSerial -- no --> New4
 ```
 
 ---
@@ -549,7 +572,7 @@ Line 1: [reviewer-A (agent, serial)] → [reviewer-B (agent, parallel)] → [rev
 | `reviewer-B` | new (parallel execution) |
 | `reviewer-C` | new (parallel execution) |
 
-### Example 3: Serial Chain with Code Unit
+### Example 3: Serial Chain with Code Unit (DYK-I13)
 
 ```
 Line 0: [prompter (agent, serial)]
@@ -560,8 +583,8 @@ Line 1: [linter (code, serial)] → [reviewer (agent, serial)] → [fixer (agent
 |------|----------------|
 | `prompter` | new (first on L0) |
 | `linter` | not-applicable (code) |
-| `reviewer` | new (left neighbor `linter` is code, not agent) |
-| `fixer` | inherit from `reviewer` (serial, left is agent) |
+| `reviewer` | new (walks left: linter is code, no more nodes — no agent in serial group) |
+| `fixer` | inherit from `reviewer` (walks left: reviewer is agent) |
 
 ### Example 4: Cross-Line Inheritance
 
@@ -574,12 +597,12 @@ Line 2: [coder (agent)]
 | Node | Context Source |
 |------|----------------|
 | `setup` | not-applicable (code) |
-| `prompter` | new (left is code) |
-| `spec-builder` | inherit from `prompter` (first agent on L0) |
-| `spec-reviewer` | inherit from `spec-builder` (serial, left is agent) |
-| `coder` | inherit from `spec-builder` (first agent on L1) |
+| `prompter` | new (walks left: setup is code, no more nodes — no agent in serial group) |
+| `spec-builder` | inherit from `prompter` (walks L0: found `prompter`) |
+| `spec-reviewer` | inherit from `spec-builder` (walks left: found agent) |
+| `coder` | inherit from `spec-builder` (walks L1: found `spec-builder`) |
 
-### Example 5: Line with No Agents
+### Example 5: Line with No Agents (DYK-I10)
 
 ```
 Line 0: [user-prompt (user-input)]
@@ -592,7 +615,35 @@ Line 2: [builder (agent)]
 | `user-prompt` | not-applicable |
 | `validator` | not-applicable |
 | `formatter` | not-applicable |
-| `builder` | new (L1 has no agents to inherit from) |
+| `builder` | new (walks L1→L0: no agents on any previous line) |
+
+### Example 6: Cross-Line Walk-Back Finds Agent (DYK-I10)
+
+```
+Line 0: [prompter (agent, serial)]
+Line 1: [validator (code)] → [formatter (code)]
+Line 2: [builder (agent)]
+```
+
+| Node | Context Source |
+|------|----------------|
+| `prompter` | new (first on L0) |
+| `validator` | not-applicable (code) |
+| `formatter` | not-applicable (code) |
+| `builder` | inherit from `prompter` (walks L1: no agents → L0: found `prompter`) |
+
+### Example 7: Serial Walk-Back Past Non-Agents (DYK-I13)
+
+```
+Line 0: [agent-A (serial)] → [code-B (serial)] → [user-input-C (serial)] → [agent-D (serial)]
+```
+
+| Node | Context Source |
+|------|----------------|
+| `agent-A` | new (first on L0) |
+| `code-B` | not-applicable (code) |
+| `user-input-C` | not-applicable (user-input) |
+| `agent-D` | inherit from `agent-A` (walks left: user-input-C skip → code-B skip → agent-A found) |
 
 ---
 
@@ -773,13 +824,13 @@ describe('AgentContextService (table-driven)', () => {
 
 ### Q1: Should context inheritance skip non-agent nodes when looking backward?
 
-**RESOLVED**: Yes.
+**RESOLVED**: Yes — and walk backward until an agent is found (DYK-I10, DYK-I13).
 
-When looking for "first agent on previous line", we only consider agent nodes. Code and user-input nodes don't have sessions, so they can't be context sources.
+**Cross-line (Rule 2)**: When looking for an agent to inherit from, walk ALL previous lines (N-1, N-2, ... 0). Lines with only code/user-input nodes represent processing steps, not context boundaries. Only return `new` if no agent exists on any previous line.
 
-When looking for "left neighbor" in serial execution, we check `unitType === 'agent'`. If the left neighbor is not an agent, we return `new` context rather than searching further left.
+**Serial left-neighbor (Rule 4)**: Walk left past non-agent nodes (code, user-input) to find the nearest agent in the serial group. Stop at parallel boundaries (different execution group). Only return `new` if no agent is found in the serial group.
 
-**Rationale**: Simple rules are easier to reason about. "Inherit from immediate left if it's an agent, otherwise start fresh" is clearer than "search leftward until you find an agent."
+**Rationale** (updated from original): The original "single-hop" rule was too restrictive — it forced users to put an agent on every line and never use code processing steps between agents in serial chains. Walk-back is still deterministic and predictable: same graph → same result.
 
 ### Q2: Should there be a `noContext` flag to force fresh context?
 
@@ -883,14 +934,15 @@ packages/positional-graph/
 `AgentContextService` answers **"how should this agent start?"** by determining whether to inherit session context from a prior node or start fresh.
 
 **Key Points**:
-1. **Pure function** on `PositionalGraphReality` — no side effects
+1. **Pure function** on `PositionalGraphReality` — no side effects (DYK-I9: bare exported function + thin class wrapper)
 2. **Three outcomes**: `inherit`, `new`, or `not-applicable`
 3. **Rules are positional**: line index, position in line, execution mode
-4. **Separation**: Context service says "inherit from X", PodManager provides session ID
-5. **Integration**: ODS calls context service when handling `start-node` for agents
+4. **Walk-back**: both cross-line and serial-left rules walk backward to find agents, not just immediate neighbors (DYK-I10, DYK-I13)
+5. **Separation**: Context service says "inherit from X", PodManager provides session ID
+6. **Integration**: ODS calls context service when handling `start-node` for agents
 
-The rules are intentionally simple:
+The rules:
 - First on line 0 → new
-- First on line N → inherit from first agent on line N-1 (or new if none)
-- Serial not-first → inherit from left if agent (or new if code/user-input)
+- First on line N → walk lines N-1, N-2, ... 0 to find first agent (or new if none on any line) (DYK-I10)
+- Serial not-first → walk left past non-agents to find nearest agent on same line; parallel agents are valid sources (or new if none found) (DYK-I13)
 - Parallel → always new
