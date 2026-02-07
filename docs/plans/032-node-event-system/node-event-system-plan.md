@@ -527,25 +527,25 @@ event log.
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 4.1 | [ ] | Write tests for `node:accepted` handler | 2 | Status transitions `starting` → `agent-accepted`; event marked `handled` | - | Per Workshop #02 Walkthrough 1 |
-| 4.2 | [ ] | Write tests for `node:completed` handler | 2 | Status transitions to `complete`; `completed_at` set; event `handled` | - | |
-| 4.3 | [ ] | Write tests for `node:error` handler | 2 | Status transitions to `blocked-error`; error field populated from payload | - | Per Workshop #02 Walkthrough 3 |
-| 4.4 | [ ] | Write tests for `question:ask` handler | 2 | Status → `waiting-question`; `pending_question_id` set; event stays `new` (deferred processing) | - | Per Workshop #02 Walkthrough 2 |
-| 4.5 | [ ] | Write tests for `question:answer` handler | 2 | Ask event marked `handled`; `pending_question_id` cleared; answer event `handled`; node status unchanged | - | Per Workshop #02 Q&A lifecycle |
-| 4.6 | [ ] | Write tests for `progress:update` handler | 1 | No state change; event `handled` immediately | - | |
-| 4.7 | [ ] | Implement all 6 event handlers | 3 | All tests from 4.1-4.6 pass | - | GREEN |
-| 4.10 | [ ] | Write tests for `deriveBackwardCompatFields()` | 2 | `pending_question_id` derived from latest unanswered ask; `error` from latest error event; `questions[]` reconstructed from ask+answer pairs | - | Finding 03 |
-| 4.11 | [ ] | Implement `deriveBackwardCompatFields()` | 2 | All tests from 4.10 pass | - | GREEN |
-| 4.12 | [ ] | Wire handlers and compat derivation into `raiseEvent()` | 2 | `raiseEvent` now: validate → create event → run handler → derive compat → persist state | - | |
-| 4.13 | [ ] | Write end-to-end handler tests matching Workshop #02 walkthroughs | 2 | Walkthrough 1 (happy path), 2 (Q&A), 3 (error), 4 (progress) — literal JSON output matches workshop | - | |
-| 4.14 | [ ] | Refactor and verify | 1 | `just fft` clean | - | |
+| 4.1 | [x] | Write tests for `node:accepted` handler | 2 | Status transitions `starting` → `agent-accepted`; event marked `handled` | [📋](tasks/phase-4-event-handlers-and-state-transitions/execution.log.md#task-41-implement-phase-4) | Completed [^6] |
+| 4.2 | [x] | Write tests for `node:completed` handler | 2 | Status transitions to `complete`; `completed_at` set; event `handled` | [📋](tasks/phase-4-event-handlers-and-state-transitions/execution.log.md#task-41-implement-phase-4) | Completed [^6] |
+| 4.3 | [x] | Write tests for `node:error` handler | 2 | Status transitions to `blocked-error`; error field populated from payload | [📋](tasks/phase-4-event-handlers-and-state-transitions/execution.log.md#task-41-implement-phase-4) | Completed [^6] |
+| 4.4 | [x] | Write tests for `question:ask` handler | 2 | Status → `waiting-question`; `pending_question_id` set; event stays `new` (deferred processing) | [📋](tasks/phase-4-event-handlers-and-state-transitions/execution.log.md#task-41-implement-phase-4) | Completed [^6] |
+| 4.5 | [x] | Write tests for `question:answer` handler | 2 | Ask event marked `handled`; `pending_question_id` cleared; answer event `handled`; node status unchanged | [📋](tasks/phase-4-event-handlers-and-state-transitions/execution.log.md#task-41-implement-phase-4) | Completed [^6] |
+| 4.6 | [x] | Write tests for `progress:update` handler | 1 | No state change; event `handled` immediately | [📋](tasks/phase-4-event-handlers-and-state-transitions/execution.log.md#task-41-implement-phase-4) | Completed [^6] |
+| 4.7 | [x] | Implement all 6 event handlers | 3 | All tests from 4.1-4.6 pass | [📋](tasks/phase-4-event-handlers-and-state-transitions/execution.log.md#task-41-implement-phase-4) | Completed [^7] |
+| 4.10 | [x] | Write tests for `deriveBackwardCompatFields()` | 2 | `pending_question_id` derived from latest unanswered ask; `error` from latest error event; `questions[]` reconstructed from ask+answer pairs | [📋](tasks/phase-4-event-handlers-and-state-transitions/execution.log.md#task-41-implement-phase-4) | Completed [^8] |
+| 4.11 | [x] | Implement `deriveBackwardCompatFields()` | 2 | All tests from 4.10 pass | [📋](tasks/phase-4-event-handlers-and-state-transitions/execution.log.md#task-41-implement-phase-4) | Completed [^9] |
+| 4.12 | [x] | Wire handlers and compat derivation into `raiseEvent()` | 2 | `raiseEvent` now: validate → create event → run handler → derive compat → persist state | [📋](tasks/phase-4-event-handlers-and-state-transitions/execution.log.md#task-41-implement-phase-4) | Completed [^10] |
+| 4.13 | [x] | Write end-to-end handler tests matching Workshop #02 walkthroughs | 2 | Walkthrough 1 (happy path), 2 (Q&A), 3 (error), 4 (progress) — literal JSON output matches workshop | [📋](tasks/phase-4-event-handlers-and-state-transitions/execution.log.md#task-41-implement-phase-4) | Completed [^11] |
+| 4.14 | [x] | Refactor and verify | 1 | `just fft` clean | [📋](tasks/phase-4-event-handlers-and-state-transitions/execution.log.md#task-41-implement-phase-4) | Completed [^6] |
 
 ### Acceptance Criteria
-- [ ] All 6 event types have working handlers (AC-6, AC-7)
-- [ ] `node:accepted` drives two-phase handshake (AC-6)
-- [ ] Question lifecycle flows through events (AC-7)
-- [ ] Backward-compat fields derived correctly (AC-15)
-- [ ] `just fft` clean
+- [x] All 6 event types have working handlers (AC-6, AC-7)
+- [x] `node:accepted` drives two-phase handshake (AC-6)
+- [x] Question lifecycle flows through events (AC-7)
+- [x] Backward-compat fields derived correctly (AC-15)
+- [x] `just fft` clean
 
 ---
 
@@ -820,7 +820,7 @@ answers, and completion happen step by step with clear console output.
 - [x] Phase 1: Event Types, Schemas, and Registry - Complete (94 tests, 12 source files, `just fft` clean)
 - [x] Phase 2: State Schema Extension and Two-Phase Handshake - Complete (18 tests added, 7 source files + 13 test files modified, 3541 total tests green)
 - [x] Phase 3: raiseEvent Core Write Path - Complete (22 tests, 1 new source file + 1 modified, 3563 total tests green)
-- [ ] Phase 4: Event Handlers and State Transitions - Pending
+- [x] Phase 4: Event Handlers and State Transitions - Complete (36 tests added, 3 new source files + 2 modified, 3588 total tests green)
 - [ ] Phase 5: Service Method Wrappers - Pending
 - [ ] Phase 6: CLI Commands - Pending
 - [ ] Phase 7: ONBAS Adaptation and Backward-Compat Projections - Pending
@@ -873,5 +873,29 @@ answers, and completion happen step by step with clear console output.
 [^3]: Phase 3 complete (2026-02-07). Created `raise-event.ts` with `raiseEvent()` function, `RaiseEventDeps`/`RaiseEventResult` interfaces, and `VALID_FROM_STATES` map (6 entries; output events removed). Updated `index.ts` barrel export. 22 tests in `raise-event.test.ts` covering all 5 validation steps + success + persistence safety. `createFakeStateStore()` test helper. No cross-plan edits.
   - `function:packages/positional-graph/src/features/032-node-event-system/raise-event.ts:raiseEvent`
   - `file:packages/positional-graph/src/features/032-node-event-system/index.ts`
-[^4]: [To be added during implementation via plan-6a]
-[^5]: [To be added during implementation via plan-6a]
+[^6]: Phase 4 tasks 4.1-4.6 and 4.14 complete (2026-02-07). Handler test infrastructure — created `event-handlers.test.ts` with 23 unit tests across 6 describe blocks covering all 6 event types (node:accepted, node:completed, node:error, question:ask, question:answer, progress:update). Test helpers: `makeState()`, `makeEvent()`. All tests RED, ready for GREEN implementation.
+  - `function:test/unit/positional-graph/features/032-node-event-system/event-handlers.test.ts:makeState`
+  - `function:test/unit/positional-graph/features/032-node-event-system/event-handlers.test.ts:makeEvent`
+[^7]: Phase 4 task 4.7 complete (2026-02-07). Event handlers implementation — created `event-handlers.ts` with all 6 handlers plus factory function and shared helper. All Phase 4.1-4.6 tests GREEN.
+  - `function:packages/positional-graph/src/features/032-node-event-system/event-handlers.ts:createEventHandlers`
+  - `function:packages/positional-graph/src/features/032-node-event-system/event-handlers.ts:markHandled`
+  - `function:packages/positional-graph/src/features/032-node-event-system/event-handlers.ts:handleNodeAccepted`
+  - `function:packages/positional-graph/src/features/032-node-event-system/event-handlers.ts:handleNodeCompleted`
+  - `function:packages/positional-graph/src/features/032-node-event-system/event-handlers.ts:handleNodeError`
+  - `function:packages/positional-graph/src/features/032-node-event-system/event-handlers.ts:handleQuestionAsk`
+  - `function:packages/positional-graph/src/features/032-node-event-system/event-handlers.ts:handleQuestionAnswer`
+  - `function:packages/positional-graph/src/features/032-node-event-system/event-handlers.ts:handleProgressUpdate`
+[^8]: Phase 4 task 4.10 complete (2026-02-07). Backward-compat derivation tests — created `derive-compat-fields.test.ts` with 9 tests across 2 describe blocks (pending_question_id, error). Test helpers: `makeState()`, `makeAskEvent()`, `makeAnswerEvent()`, `makeErrorEvent()`. Scoped to node-level fields per DYK #4. All tests RED.
+  - `function:test/unit/positional-graph/features/032-node-event-system/derive-compat-fields.test.ts:makeState`
+  - `function:test/unit/positional-graph/features/032-node-event-system/derive-compat-fields.test.ts:makeAskEvent`
+  - `function:test/unit/positional-graph/features/032-node-event-system/derive-compat-fields.test.ts:makeAnswerEvent`
+  - `function:test/unit/positional-graph/features/032-node-event-system/derive-compat-fields.test.ts:makeErrorEvent`
+[^9]: Phase 4 task 4.11 complete (2026-02-07). Backward-compat derivation implementation — created `derive-compat-fields.ts` with `deriveBackwardCompatFields()` function. Derives `pending_question_id` (latest unanswered ask, walking backwards with answered set) and `error` (latest node:error payload). All Phase 4.10 tests GREEN.
+  - `function:packages/positional-graph/src/features/032-node-event-system/derive-compat-fields.ts:deriveBackwardCompatFields`
+[^10]: Phase 4 task 4.12 complete (2026-02-07). Wiring into raiseEvent — modified `raise-event.ts` to add handler + compat wiring, updated `index.ts` barrel exports. Flow now: validate → create event → append → run handler → derive compat → persist. Phase 3 test impact: 1 of 21 tests updated (expected 'handled' instead of 'new' for node:accepted).
+  - `file:packages/positional-graph/src/features/032-node-event-system/raise-event.ts`
+  - `file:packages/positional-graph/src/features/032-node-event-system/index.ts`
+  - `file:test/unit/positional-graph/features/032-node-event-system/raise-event.test.ts`
+[^11]: Phase 4 task 4.13 complete (2026-02-07). E2E walkthrough tests — added 4 Workshop #02 walkthrough tests to `event-handlers.test.ts` (Happy Path, Q&A Lifecycle, Error Path, Progress Updates). Test helpers: `createFakeStateStore()`, `createE2EDeps()`.
+  - `function:test/unit/positional-graph/features/032-node-event-system/event-handlers.test.ts:createFakeStateStore`
+  - `function:test/unit/positional-graph/features/032-node-event-system/event-handlers.test.ts:createE2EDeps`

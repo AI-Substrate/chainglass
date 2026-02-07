@@ -1,6 +1,7 @@
 import type { ResultError } from '@chainglass/shared';
 
 import type { State } from '../../schemas/state.schema.js';
+import { deriveBackwardCompatFields } from './derive-compat-fields.js';
 import {
   eventAlreadyAnsweredError,
   eventPayloadValidationError,
@@ -9,6 +10,7 @@ import {
   eventStateTransitionError,
   eventTypeNotFoundError,
 } from './event-errors.js';
+import { createEventHandlers } from './event-handlers.js';
 import { generateEventId } from './event-id.js';
 import type { EventSource } from './event-source.schema.js';
 import type { INodeEventRegistry } from './node-event-registry.interface.js';
@@ -27,6 +29,10 @@ export interface RaiseEventResult {
   readonly event?: NodeEvent;
   readonly errors: ResultError[];
 }
+
+// ── Handler Map (module-level singleton) ─────────────────
+
+const EVENT_HANDLERS = createEventHandlers();
 
 // ── Valid-From-States Map ────────────────────────────────
 // Source: Workshop #02 §Validation Rules, §Valid States table.
@@ -142,18 +148,28 @@ export async function raiseEvent(
     created_at: new Date().toISOString(),
   };
 
-  // ── Append and persist ─────────────────────────────────
-  // nodeEntry is guaranteed non-null here — Step 4 validated the status,
-  // and implicit-pending (no entry) was already rejected above.
-  // However, for state.nodes being undefined, we need to handle the case
-  // where nodeEntry came from optional chaining. Since Step 4 passed,
-  // the node entry must exist.
+  // ── Append → Handle → Derive Compat → Persist ──────────
+  // Flow: append event to array → run handler → derive backward-compat fields → persist.
+  //
+  // The event is appended BEFORE the handler runs. The handler receives the
+  // event object by reference — mutations to event.status, event.handled_at
+  // etc. are visible in the array entry (intentional JS reference aliasing).
+  // deriveBackwardCompatFields needs all events including the new one.
 
   if (!state.nodes) state.nodes = {};
   const entry = state.nodes[nodeId];
   if (entry) {
     const nodeEvents = entry.events ?? [];
     entry.events = [...nodeEvents, event];
+
+    // Run handler (if one is registered for this event type)
+    const handler = EVENT_HANDLERS.get(eventType);
+    if (handler) {
+      handler(state, nodeId, event);
+    }
+
+    // Derive backward-compat fields from the full event log
+    deriveBackwardCompatFields(state, nodeId);
   }
   state.updated_at = new Date().toISOString();
   await persistState(graphSlug, state);

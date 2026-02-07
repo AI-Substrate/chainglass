@@ -55,6 +55,13 @@ export { generateEventId } from './event-id.js';
 // Helpers
 export { canNodeDoWork, isNodeActive } from './event-helpers.js';
 
+// Event handlers
+export { createEventHandlers } from './event-handlers.js';
+export type { EventHandler } from './event-handlers.js';
+
+// Backward-compat derivation
+export { deriveBackwardCompatFields } from './derive-compat-fields.js';
+
 // Core write path
 export { raiseEvent } from './raise-event.js';
 export type { RaiseEventDeps, RaiseEventResult } from './raise-event.js';

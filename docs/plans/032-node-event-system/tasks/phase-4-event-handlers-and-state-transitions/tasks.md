@@ -108,18 +108,18 @@ flowchart TD
     style Tests fill:#F5F5F5,stroke:#E0E0E0
 
     subgraph Phase["Phase 4: Event Handlers and State Transitions"]
-        T001["T001: node:accepted tests"]:::pending
-        T002["T002: node:completed tests"]:::pending
-        T003["T003: node:error tests"]:::pending
-        T004["T004: question:ask tests"]:::pending
-        T005["T005: question:answer tests"]:::pending
-        T006["T006: progress:update tests"]:::pending
-        T007["T007: Implement 6 handlers"]:::pending
-        T008["T008: deriveBackwardCompatFields tests"]:::pending
-        T009["T009: Implement deriveBackwardCompatFields"]:::pending
-        T010["T010: Wire into raiseEvent"]:::pending
-        T011["T011: E2E walkthrough tests"]:::pending
-        T012["T012: Refactor + verify"]:::pending
+        T001["T001: node:accepted tests ✓"]:::completed
+        T002["T002: node:completed tests ✓"]:::completed
+        T003["T003: node:error tests ✓"]:::completed
+        T004["T004: question:ask tests ✓"]:::completed
+        T005["T005: question:answer tests ✓"]:::completed
+        T006["T006: progress:update tests ✓"]:::completed
+        T007["T007: Implement 6 handlers ✓"]:::completed
+        T008["T008: deriveBackwardCompatFields tests ✓"]:::completed
+        T009["T009: Implement deriveBackwardCompatFields ✓"]:::completed
+        T010["T010: Wire into raiseEvent ✓"]:::completed
+        T011["T011: E2E walkthrough tests ✓"]:::completed
+        T012["T012: Refactor + verify ✓"]:::completed
 
         T001 --> T007
         T002 --> T007
@@ -135,15 +135,15 @@ flowchart TD
     end
 
     subgraph Source["Source Files"]
-        F1["event-handlers.ts"]:::pending
-        F2["derive-compat-fields.ts"]:::pending
-        F3["raise-event.ts"]:::pending
-        F4["index.ts"]:::pending
+        F1["event-handlers.ts ✓"]:::completed
+        F2["derive-compat-fields.ts ✓"]:::completed
+        F3["raise-event.ts ✓"]:::completed
+        F4["index.ts ✓"]:::completed
     end
 
     subgraph Tests["Test Files"]
-        FT1["event-handlers.test.ts"]:::pending
-        FT2["derive-compat-fields.test.ts"]:::pending
+        FT1["event-handlers.test.ts ✓"]:::completed
+        FT2["derive-compat-fields.test.ts ✓"]:::completed
     end
 
     T007 -.-> F1
@@ -160,18 +160,18 @@ flowchart TD
 
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
-| T001 | Handler Tests | event-handlers.test.ts | Pending | `node:accepted`: starting → agent-accepted |
-| T002 | Handler Tests | event-handlers.test.ts | Pending | `node:completed`: agent-accepted → complete |
-| T003 | Handler Tests | event-handlers.test.ts | Pending | `node:error`: → blocked-error |
-| T004 | Handler Tests | event-handlers.test.ts | Pending | `question:ask`: → waiting-question |
-| T005 | Handler Tests | event-handlers.test.ts | Pending | `question:answer`: mark ask handled, clear pending |
-| T006 | Handler Tests | event-handlers.test.ts | Pending | `progress:update`: no state change |
-| T007 | Event Handlers | event-handlers.ts | Pending | Implement all 6 handlers |
-| T008 | Compat Tests | derive-compat-fields.test.ts | Pending | Test backward-compat derivation |
-| T009 | Compat Impl | derive-compat-fields.ts | Pending | Implement deriveBackwardCompatFields |
-| T010 | Wiring | raise-event.ts, index.ts | Pending | Wire handlers + compat into raiseEvent |
-| T011 | E2E Tests | event-handlers.test.ts | Pending | Workshop #02 walkthroughs |
-| T012 | Quality | All | Pending | just fft clean |
+| T001 | Handler Tests | event-handlers.test.ts | ✅ Complete | `node:accepted`: starting → agent-accepted |
+| T002 | Handler Tests | event-handlers.test.ts | ✅ Complete | `node:completed`: agent-accepted → complete |
+| T003 | Handler Tests | event-handlers.test.ts | ✅ Complete | `node:error`: → blocked-error |
+| T004 | Handler Tests | event-handlers.test.ts | ✅ Complete | `question:ask`: → waiting-question |
+| T005 | Handler Tests | event-handlers.test.ts | ✅ Complete | `question:answer`: mark ask handled, clear pending |
+| T006 | Handler Tests | event-handlers.test.ts | ✅ Complete | `progress:update`: no state change |
+| T007 | Event Handlers | event-handlers.ts | ✅ Complete | Implement all 6 handlers |
+| T008 | Compat Tests | derive-compat-fields.test.ts | ✅ Complete | Test backward-compat derivation |
+| T009 | Compat Impl | derive-compat-fields.ts | ✅ Complete | Implement deriveBackwardCompatFields |
+| T010 | Wiring | raise-event.ts, index.ts | ✅ Complete | Wire handlers + compat into raiseEvent |
+| T011 | E2E Tests | event-handlers.test.ts | ✅ Complete | Workshop #02 walkthroughs |
+| T012 | Quality | All | ✅ Complete | just fft clean |
 
 ---
 
@@ -179,18 +179,18 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|------|------|-----|------|-------------|-------------------|------------|----------|-------|
-| [ ] | T001 | Write tests for `node:accepted` handler: status transitions `starting` → `agent-accepted`, event marked `handled` with `handled_at` | 2 | Test | – | `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/features/032-node-event-system/event-handlers.test.ts` | Tests fail (RED) | – | Per Workshop #02 Walkthrough 1; plan task 4.1 |
-| [ ] | T002 | Write tests for `node:completed` handler: status → `complete`, `completed_at` set, event `handled` | 2 | Test | – | `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/features/032-node-event-system/event-handlers.test.ts` | Tests fail (RED) | – | Plan task 4.2 |
-| [ ] | T003 | Write tests for `node:error` handler: status → `blocked-error`, error field populated from payload (`code`, `message`, `details`), event `handled` | 2 | Test | – | `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/features/032-node-event-system/event-handlers.test.ts` | Tests fail (RED) | – | Per Workshop #02 Walkthrough 3; plan task 4.3 |
-| [ ] | T004 | Write tests for `question:ask` handler: status → `waiting-question`, `pending_question_id` set to event_id, event stays `new` (deferred processing) | 2 | Test | – | `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/features/032-node-event-system/event-handlers.test.ts` | Tests fail (RED) | – | Per Workshop #02 Walkthrough 2; plan task 4.4. Note: event stays `new` because external action is required |
-| [ ] | T005 | Write tests for `question:answer` handler: ask event marked `handled` with `handler_notes`, `pending_question_id` cleared, answer event `handled`, node status stays `waiting-question` | 2 | Test | – | `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/features/032-node-event-system/event-handlers.test.ts` | Tests fail (RED) | – | Per Workshop #02 Q&A lifecycle; plan task 4.5. Node status does NOT change on answer — ONBAS detects the answer on next walk |
-| [ ] | T006 | Write tests for `progress:update` handler: no state change, event `handled` immediately | 1 | Test | – | `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/features/032-node-event-system/event-handlers.test.ts` | Tests fail (RED) | – | Plan task 4.6 |
-| [ ] | T007 | Implement all 6 event handlers as a handler map: `Map<string, (state, nodeId, event) => void>` | 3 | Core | T001, T002, T003, T004, T005, T006 | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/032-node-event-system/event-handlers.ts` | All T001-T006 tests pass (GREEN) | – | Plan task 4.7. Handlers mutate state in-place (pre-persist). Output handlers removed — orchestrator handles output persistence directly. |
-| [ ] | T008 | Write tests for `deriveBackwardCompatFields()`: `pending_question_id` from latest unanswered ask, `error` from latest error event, `questions[]` reconstructed from ask+answer pairs | 2 | Test | – | `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/features/032-node-event-system/derive-compat-fields.test.ts` | Tests fail (RED) | – | Finding 03; plan task 4.8 |
-| [ ] | T009 | Implement `deriveBackwardCompatFields()` | 2 | Core | T008 | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/032-node-event-system/derive-compat-fields.ts` | All T008 tests pass (GREEN) | – | Plan task 4.9 |
-| [ ] | T010 | Wire handlers and compat derivation into `raiseEvent()`: validate → create event → run handler → derive compat → persist state. Update barrel exports. | 2 | Core | T007, T009 | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/032-node-event-system/raise-event.ts`, `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/032-node-event-system/index.ts` | raiseEvent now applies side effects; existing Phase 3 tests still pass | – | Plan task 4.10. Must not break Phase 3's 22 existing tests |
-| [ ] | T011 | Write end-to-end handler tests matching Workshop #02 walkthroughs: Walkthrough 1 (happy path), 2 (Q&A), 3 (error), 4 (progress) | 2 | Test | T010 | `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/features/032-node-event-system/event-handlers.test.ts` | All 4 walkthroughs produce expected state per Workshop #02 | – | Plan task 4.11. Verify literal state matches workshop JSON |
-| [ ] | T012 | Refactor and verify with `just fft` | 1 | Quality | T011 | All files | `just fft` clean, all tests green | – | Plan task 4.12 |
+| [x] | T001 | Write tests for `node:accepted` handler: status transitions `starting` → `agent-accepted`, event marked `handled` with `handled_at` | 2 | Test | – | `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/features/032-node-event-system/event-handlers.test.ts` | Tests fail (RED) | – | Per Workshop #02 Walkthrough 1; plan task 4.1 · log#task-41-implement-phase-4 [^6] |
+| [x] | T002 | Write tests for `node:completed` handler: status → `complete`, `completed_at` set, event `handled` | 2 | Test | – | `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/features/032-node-event-system/event-handlers.test.ts` | Tests fail (RED) | – | Plan task 4.2 · log#task-41-implement-phase-4 [^6] |
+| [x] | T003 | Write tests for `node:error` handler: status → `blocked-error`, error field populated from payload (`code`, `message`, `details`), event `handled` | 2 | Test | – | `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/features/032-node-event-system/event-handlers.test.ts` | Tests fail (RED) | – | Per Workshop #02 Walkthrough 3; plan task 4.3 · log#task-41-implement-phase-4 [^6] |
+| [x] | T004 | Write tests for `question:ask` handler: status → `waiting-question`, `pending_question_id` set to event_id, event stays `new` (deferred processing) | 2 | Test | – | `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/features/032-node-event-system/event-handlers.test.ts` | Tests fail (RED) | – | Per Workshop #02 Walkthrough 2; plan task 4.4. Note: event stays `new` because external action is required · log#task-41-implement-phase-4 [^6] |
+| [x] | T005 | Write tests for `question:answer` handler: ask event marked `handled` with `handler_notes`, `pending_question_id` cleared, answer event `handled`, node status stays `waiting-question` | 2 | Test | – | `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/features/032-node-event-system/event-handlers.test.ts` | Tests fail (RED) | – | Per Workshop #02 Q&A lifecycle; plan task 4.5. Node status does NOT change on answer — ONBAS detects the answer on next walk · log#task-41-implement-phase-4 [^6] |
+| [x] | T006 | Write tests for `progress:update` handler: no state change, event `handled` immediately | 1 | Test | – | `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/features/032-node-event-system/event-handlers.test.ts` | Tests fail (RED) | – | Plan task 4.6 · log#task-41-implement-phase-4 [^6] |
+| [x] | T007 | Implement all 6 event handlers as a handler map: `Map<string, (state, nodeId, event) => void>` | 3 | Core | T001, T002, T003, T004, T005, T006 | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/032-node-event-system/event-handlers.ts` | All T001-T006 tests pass (GREEN) | – | Plan task 4.7. Handlers mutate state in-place (pre-persist). Output handlers removed — orchestrator handles output persistence directly. · log#task-41-implement-phase-4 [^7] |
+| [x] | T008 | Write tests for `deriveBackwardCompatFields()`: `pending_question_id` from latest unanswered ask, `error` from latest error event, `questions[]` reconstructed from ask+answer pairs | 2 | Test | – | `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/features/032-node-event-system/derive-compat-fields.test.ts` | Tests fail (RED) | – | Finding 03; plan task 4.8 · log#task-41-implement-phase-4 [^8] |
+| [x] | T009 | Implement `deriveBackwardCompatFields()` | 2 | Core | T008 | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/032-node-event-system/derive-compat-fields.ts` | All T008 tests pass (GREEN) | – | Plan task 4.9 · log#task-41-implement-phase-4 [^9] |
+| [x] | T010 | Wire handlers and compat derivation into `raiseEvent()`: validate → create event → run handler → derive compat → persist state. Update barrel exports. | 2 | Core | T007, T009 | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/032-node-event-system/raise-event.ts`, `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/032-node-event-system/index.ts` | raiseEvent now applies side effects; existing Phase 3 tests still pass | – | Plan task 4.10. Must not break Phase 3's 22 existing tests · log#task-41-implement-phase-4 [^10] |
+| [x] | T011 | Write end-to-end handler tests matching Workshop #02 walkthroughs: Walkthrough 1 (happy path), 2 (Q&A), 3 (error), 4 (progress) | 2 | Test | T010 | `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/features/032-node-event-system/event-handlers.test.ts` | All 4 walkthroughs produce expected state per Workshop #02 | – | Plan task 4.11. Verify literal state matches workshop JSON · log#task-41-implement-phase-4 [^11] |
+| [x] | T012 | Refactor and verify with `just fft` | 1 | Quality | T011 | All files | `just fft` clean, all tests green | – | Plan task 4.12 · log#task-41-implement-phase-4 [^6] |
 
 ---
 
@@ -390,7 +390,37 @@ just fft
 
 ## Phase Footnote Stubs
 
-_Populated by plan-6a during implementation._
+[^6]: Task 4.1 (T001-T006, T012) - Handler test infrastructure
+  - `function:test/unit/positional-graph/features/032-node-event-system/event-handlers.test.ts:makeState`
+  - `function:test/unit/positional-graph/features/032-node-event-system/event-handlers.test.ts:makeEvent`
+
+[^7]: Task 4.1 (T007) - Event handler implementations
+  - `function:packages/positional-graph/src/features/032-node-event-system/event-handlers.ts:createEventHandlers`
+  - `function:packages/positional-graph/src/features/032-node-event-system/event-handlers.ts:markHandled`
+  - `function:packages/positional-graph/src/features/032-node-event-system/event-handlers.ts:handleNodeAccepted`
+  - `function:packages/positional-graph/src/features/032-node-event-system/event-handlers.ts:handleNodeCompleted`
+  - `function:packages/positional-graph/src/features/032-node-event-system/event-handlers.ts:handleNodeError`
+  - `function:packages/positional-graph/src/features/032-node-event-system/event-handlers.ts:handleQuestionAsk`
+  - `function:packages/positional-graph/src/features/032-node-event-system/event-handlers.ts:handleQuestionAnswer`
+  - `function:packages/positional-graph/src/features/032-node-event-system/event-handlers.ts:handleProgressUpdate`
+
+[^8]: Task 4.1 (T008) - Backward-compat derivation tests
+  - `function:test/unit/positional-graph/features/032-node-event-system/derive-compat-fields.test.ts:makeState`
+  - `function:test/unit/positional-graph/features/032-node-event-system/derive-compat-fields.test.ts:makeAskEvent`
+  - `function:test/unit/positional-graph/features/032-node-event-system/derive-compat-fields.test.ts:makeAnswerEvent`
+  - `function:test/unit/positional-graph/features/032-node-event-system/derive-compat-fields.test.ts:makeErrorEvent`
+
+[^9]: Task 4.1 (T009) - Backward-compat derivation implementation
+  - `function:packages/positional-graph/src/features/032-node-event-system/derive-compat-fields.ts:deriveBackwardCompatFields`
+
+[^10]: Task 4.1 (T010) - raiseEvent wiring and barrel exports
+  - `file:packages/positional-graph/src/features/032-node-event-system/raise-event.ts`
+  - `file:packages/positional-graph/src/features/032-node-event-system/index.ts`
+  - `file:test/unit/positional-graph/features/032-node-event-system/raise-event.test.ts`
+
+[^11]: Task 4.1 (T011) - E2E walkthrough tests
+  - `function:test/unit/positional-graph/features/032-node-event-system/event-handlers.test.ts:createFakeStateStore`
+  - `function:test/unit/positional-graph/features/032-node-event-system/event-handlers.test.ts:createE2EDeps`
 
 ---
 

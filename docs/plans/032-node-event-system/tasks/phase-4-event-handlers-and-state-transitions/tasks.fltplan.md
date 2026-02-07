@@ -3,7 +3,7 @@
 **Plan**: [node-event-system-plan.md](../../node-event-system-plan.md)
 **Phase**: Phase 4: Event Handlers and State Transitions
 **Generated**: 2026-02-07
-**Status**: Ready for takeoff
+**Status**: Landed
 
 ---
 
@@ -43,7 +43,7 @@ stateDiagram-v2
     S6 --> S7
     S7 --> [*]
 
-    class S1,S2,S3,S4,S5,S6,S7 pending
+    class S1,S2,S3,S4,S5,S6,S7 done
 ```
 
 **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -54,13 +54,13 @@ stateDiagram-v2
 
 <!-- Updated by /plan-6 during implementation: [ ] → [~] → [x] -->
 
-- [ ] **Stage 1: Write handler tests for all 6 event types** — one describe block per type covering status transitions, event lifecycle, timestamps, and type-specific side effects like `completed_at`, `pending_question_id`, and error fields (`event-handlers.test.ts` — new file)
-- [ ] **Stage 2: Implement all 6 event handlers** — a `Map<string, EventHandler>` where each handler mutates state in-place: status transitions, timestamp updates, and question lifecycle (`event-handlers.ts` — new file)
-- [ ] **Stage 3: Write backward-compat derivation tests** — verify `pending_question_id` from latest unanswered ask, `error` from latest error event, and `questions[]` reconstructed from ask+answer pairs (`derive-compat-fields.test.ts` — new file)
-- [ ] **Stage 4: Implement deriveBackwardCompatFields** — recompute derived fields from the event log after every handler call (`derive-compat-fields.ts` — new file)
-- [ ] **Stage 5: Wire handlers and compat into raiseEvent** — change the flow to validate → create event → append → run handler → derive compat → persist, and update barrel exports (`raise-event.ts`, `index.ts`)
-- [ ] **Stage 6: End-to-end walkthrough tests** — replay all 4 Workshop #02 scenarios (happy path, Q&A, error, progress) through the full `raiseEvent()` pipeline and verify literal state matches (`event-handlers.test.ts`)
-- [ ] **Stage 7: Refactor and verify** — run `just fft`, confirm full test suite green
+- [x] **Stage 1: Write handler tests for all 6 event types** — one describe block per type covering status transitions, event lifecycle, timestamps, and type-specific side effects like `completed_at`, `pending_question_id`, and error fields (`event-handlers.test.ts` — new file)
+- [x] **Stage 2: Implement all 6 event handlers** — a `Map<string, EventHandler>` where each handler mutates state in-place: status transitions, timestamp updates, and question lifecycle (`event-handlers.ts` — new file)
+- [x] **Stage 3: Write backward-compat derivation tests** — verify `pending_question_id` from latest unanswered ask, `error` from latest error event (`derive-compat-fields.test.ts` — new file)
+- [x] **Stage 4: Implement deriveBackwardCompatFields** — recompute derived fields from the event log after every handler call (`derive-compat-fields.ts` — new file)
+- [x] **Stage 5: Wire handlers and compat into raiseEvent** — change the flow to validate → create event → append → run handler → derive compat → persist, and update barrel exports (`raise-event.ts`, `index.ts`)
+- [x] **Stage 6: End-to-end walkthrough tests** — replay all 4 Workshop #02 scenarios (happy path, Q&A, error, progress) through the full `raiseEvent()` pipeline and verify literal state matches (`event-handlers.test.ts`)
+- [x] **Stage 7: Refactor and verify** — run `just fft`, confirm full test suite green (3588 tests pass)
 
 ---
 
@@ -111,11 +111,11 @@ flowchart LR
 
 ## Acceptance Criteria
 
-- [ ] All 6 event types have working handlers (AC-6, AC-7)
-- [ ] `node:accepted` drives two-phase handshake: `starting` → `agent-accepted` (AC-6)
-- [ ] Question lifecycle flows through events: ask → `waiting-question`, answer → mark handled (AC-7)
-- [ ] Backward-compat fields (`pending_question_id`, `error`, `questions[]`) derived from event log (AC-15)
-- [ ] `just fft` clean
+- [x] All 6 event types have working handlers (AC-6, AC-7)
+- [x] `node:accepted` drives two-phase handshake: `starting` → `agent-accepted` (AC-6)
+- [x] Question lifecycle flows through events: ask → `waiting-question`, answer → mark handled (AC-7)
+- [x] Backward-compat fields (`pending_question_id`, `error`) derived from event log (AC-15)
+- [x] `just fft` clean
 
 ## Goals & Non-Goals
 
@@ -138,18 +138,18 @@ flowchart LR
 
 ## Checklist
 
-- [ ] T001: Write `node:accepted` handler tests (CS-2)
-- [ ] T002: Write `node:completed` handler tests (CS-2)
-- [ ] T003: Write `node:error` handler tests (CS-2)
-- [ ] T004: Write `question:ask` handler tests (CS-2)
-- [ ] T005: Write `question:answer` handler tests (CS-2)
-- [ ] T006: Write `progress:update` handler tests (CS-1)
-- [ ] T007: Implement all 6 event handlers (CS-3)
-- [ ] T008: Write `deriveBackwardCompatFields()` tests (CS-2)
-- [ ] T009: Implement `deriveBackwardCompatFields()` (CS-2)
-- [ ] T010: Wire handlers and compat into `raiseEvent()` (CS-2)
-- [ ] T011: Write end-to-end Workshop #02 walkthrough tests (CS-2)
-- [ ] T012: Refactor and verify with `just fft` (CS-1)
+- [x] T001: Write `node:accepted` handler tests (CS-2)
+- [x] T002: Write `node:completed` handler tests (CS-2)
+- [x] T003: Write `node:error` handler tests (CS-2)
+- [x] T004: Write `question:ask` handler tests (CS-2)
+- [x] T005: Write `question:answer` handler tests (CS-2)
+- [x] T006: Write `progress:update` handler tests (CS-1)
+- [x] T007: Implement all 6 event handlers (CS-3)
+- [x] T008: Write `deriveBackwardCompatFields()` tests (CS-2)
+- [x] T009: Implement `deriveBackwardCompatFields()` (CS-2)
+- [x] T010: Wire handlers and compat into `raiseEvent()` (CS-2)
+- [x] T011: Write end-to-end Workshop #02 walkthrough tests (CS-2)
+- [x] T012: Refactor and verify with `just fft` (CS-1)
 
 ---
 
