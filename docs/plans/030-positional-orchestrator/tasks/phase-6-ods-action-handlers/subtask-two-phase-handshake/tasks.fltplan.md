@@ -1,9 +1,11 @@
-# Flight Plan: Phase 6 Subtask — Two-Phase Handshake Schema Migration
+# ~~Flight Plan: Phase 6 Subtask — Two-Phase Handshake Schema Migration~~ — SUPERSEDED
+
+> **SUPERSEDED**: This subtask has been absorbed into [Plan 032: Node Event System](../../../../032-node-event-system/workshops/01-node-event-system.md). See the subtask dossier for full context.
 
 **Plan**: [../../positional-orchestrator-plan.md](../../positional-orchestrator-plan.md)
 **Phase**: Phase 6: ODS Action Handlers (Subtask)
 **Generated**: 2026-02-06
-**Status**: Ready for takeoff
+**Status**: ~~Ready for takeoff~~ Superseded by Plan 032
 
 ---
 

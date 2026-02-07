@@ -3,8 +3,10 @@
 **Plan**: [../../positional-orchestrator-plan.md](../../positional-orchestrator-plan.md)
 **Spec**: [../../positional-orchestrator-spec.md](../../positional-orchestrator-spec.md)
 **Phase**: Phase 6: ODS Action Handlers
-**Status**: Pending
+**Status**: **BLOCKED on Plan 032** (Node Event System)
 **Testing Approach**: Full TDD (RED-GREEN-REFACTOR)
+
+> **BLOCKED**: Phase 6 is paused pending [Plan 032: Node Event System](../../../032-node-event-system/workshops/01-node-event-system.md). Plan 032 introduces a unified event protocol that changes how ODS interacts with nodes — from bespoke service method calls to typed, schema-validated events. The two-phase handshake subtask has been [superseded](subtask-two-phase-handshake/tasks.md). **Resume Phase 6 after Plan 032 completes.** This dossier and its task definitions remain valid reference material.
 
 ---
 

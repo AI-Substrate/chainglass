@@ -3,7 +3,7 @@
 **Plan**: [../../positional-orchestrator-plan.md](../../positional-orchestrator-plan.md)
 **Phase**: Phase 6: ODS Action Handlers
 **Generated**: 2026-02-06
-**Status**: Ready for takeoff
+**Status**: **BLOCKED on Plan 032** (Node Event System) — resume after Plan 032 completes
 
 ---
 

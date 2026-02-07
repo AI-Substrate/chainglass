@@ -535,9 +535,11 @@ Test Doc:
 
 ### Phase 6: ODS Action Handlers
 
+> **BLOCKED ON PLAN 032**: Phase 6 is paused. [Plan 032: Node Event System](../032-node-event-system/workshops/01-node-event-system.md) introduces a unified, typed event protocol that changes how ODS interacts with nodes. The two-phase handshake subtask has been superseded by Plan 032. **Resume Phase 6 after Plan 032 completes.** The Phase 6 parent dossier and Workshop #8 remain valid reference material — Plan 032 builds on them, not replaces them.
+
 **Objective**: Implement the executor that takes an OrchestrationRequest from ONBAS and performs the corresponding state changes.
 
-**Workshop**: Workshop #8 (pending). Design is fully derivable from spec AC-6 (action execution), Workshop #2 (request types define handler signatures), Workshop #4 (PodManager provides execution), and Workshop #7 (ODS is composed inside GraphOrchestration). Workshop #8 will formalize this design; no blocking unknowns remain.
+**Workshop**: [Workshop #8](./workshops/08-ods-orchestrator-agent-handover.md) (complete). Design informed by spec AC-6, Workshops #2/#4/#7, and the shared transition ownership model. **Note**: Plan 032 (Node Event System) will refine ODS's interaction model from bespoke service calls to event-based communication.
 
 **Deliverables**:
 - `IODS` interface with `execute(request): OrchestrationExecuteResult`
@@ -733,9 +735,9 @@ Test Doc:
 - [x] Phase 3: AgentContextService - COMPLETE
 - [x] Phase 4: WorkUnitPods and PodManager - COMPLETE
 - [x] Phase 5: ONBAS Walk Algorithm - COMPLETE
-- [ ] Phase 6: ODS Action Handlers - Pending
-- [ ] Phase 7: Orchestration Entry Point - Pending
-- [ ] Phase 8: E2E and Integration Testing - Pending
+- [ ] Phase 6: ODS Action Handlers - **BLOCKED on Plan 032** (Node Event System). Resume after Plan 032 completes.
+- [ ] Phase 7: Orchestration Entry Point - Pending (awaiting Phase 6)
+- [ ] Phase 8: E2E and Integration Testing - Pending (awaiting Phase 7)
 
 ### STOP Rule
 

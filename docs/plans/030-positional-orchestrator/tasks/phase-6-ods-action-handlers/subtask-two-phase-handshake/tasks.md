@@ -1,9 +1,11 @@
-# Subtask: Two-Phase Handshake Schema Migration
+# ~~Subtask: Two-Phase Handshake Schema Migration~~ — SUPERSEDED
+
+> **SUPERSEDED**: This subtask has been absorbed into [Plan 032: Node Event System](../../../../032-node-event-system/workshops/01-node-event-system.md). The two-phase handshake (`starting`/`agent-accepted`) is now part of a broader event system redesign. This document is retained as reference material — the analysis, concept drift report, and gap findings remain valuable context for Plan 032.
 
 **Parent Phase**: [Phase 6: ODS Action Handlers](../tasks.md)
 **Plan**: [../../positional-orchestrator-plan.md](../../positional-orchestrator-plan.md)
 **Workshop**: [../../workshops/08-ods-orchestrator-agent-handover.md](../../workshops/08-ods-orchestrator-agent-handover.md)
-**Status**: Pending
+**Status**: ~~Pending~~ Superseded by Plan 032
 **Testing Approach**: Full TDD (RED-GREEN-REFACTOR)
 
 ---
