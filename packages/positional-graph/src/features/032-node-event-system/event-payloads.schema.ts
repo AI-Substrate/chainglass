@@ -43,24 +43,6 @@ export const QuestionAnswerPayloadSchema = z
   .strict();
 export type QuestionAnswerPayload = z.infer<typeof QuestionAnswerPayloadSchema>;
 
-// ── output:save-data ─────────────────────────
-export const OutputSaveDataPayloadSchema = z
-  .object({
-    name: z.string().min(1),
-    value: z.unknown(),
-  })
-  .strict();
-export type OutputSaveDataPayload = z.infer<typeof OutputSaveDataPayloadSchema>;
-
-// ── output:save-file ─────────────────────────
-export const OutputSaveFilePayloadSchema = z
-  .object({
-    name: z.string().min(1),
-    source_path: z.string().min(1),
-  })
-  .strict();
-export type OutputSaveFilePayload = z.infer<typeof OutputSaveFilePayloadSchema>;
-
 // ── progress:update ──────────────────────────
 export const ProgressUpdatePayloadSchema = z
   .object({

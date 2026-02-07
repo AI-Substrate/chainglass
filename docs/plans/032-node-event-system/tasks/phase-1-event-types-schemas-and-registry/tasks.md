@@ -10,16 +10,16 @@
 
 ### Purpose
 
-This phase creates the typed, extensible data model that underpins the entire Node Event System. It delivers Zod schemas for all 8 event types, the `NodeEventRegistry` class that validates payloads and tracks metadata, and the error codes that will drive actionable diagnostics throughout the system.
+This phase creates the typed, extensible data model that underpins the entire Node Event System. It delivers Zod schemas for all 6 event types, the `NodeEventRegistry` class that validates payloads and tracks metadata, and the error codes that will drive actionable diagnostics throughout the system.
 
 ### What We're Building
 
-- **8 event payload schemas** (Zod `.strict()`) covering node lifecycle, Q&A, output persistence, and progress
+- **6 event payload schemas** (Zod `.strict()`) covering node lifecycle, Q&A, and progress (output events removed — orchestrator handles output persistence directly)
 - **EventSourceSchema** and **EventStatusSchema** enums for the event object
 - **NodeEventSchema** defining the full event record stored per-node
 - **INodeEventRegistry** interface with register/get/list/listByDomain/validatePayload
 - **NodeEventRegistry** implementation and **FakeNodeEventRegistry** test double
-- **`registerCoreEventTypes()`** function that populates the registry with all 8 types
+- **`registerCoreEventTypes()`** function that populates the registry with all 6 types
 - **`generateEventId()`** utility producing monotonic `evt_<hex_ts>_<hex4>` IDs
 - **Error codes E190-E195** with factory functions producing `ResultError` with actionable messages
 
@@ -33,7 +33,7 @@ Agents and future phases can validate event payloads before any state changes oc
 const registry = new NodeEventRegistry();
 registerCoreEventTypes(registry);
 
-registry.list().length;               // 8
+registry.list().length;               // 6
 registry.get('question:ask');          // { type: 'question:ask', displayName: 'Ask Question', ... }
 registry.get('nonexistent');           // undefined
 registry.validatePayload('question:ask', { type: 'single', text: 'Which framework?' });
@@ -48,14 +48,14 @@ registry.validatePayload('question:ask', { type: 'invalid' });
 
 ### Objective
 
-Implement the event type data model, Zod schemas for all 8 event payloads, the NodeEventRegistry, and event error codes -- all testable in isolation with no service or state changes.
+Implement the event type data model, Zod schemas for all 6 event payloads, the NodeEventRegistry, and event error codes -- all testable in isolation with no service or state changes.
 
 ### Goals
 
-- Create all foundational schemas (EventSource, EventStatus, NodeEvent, 8 payloads)
+- Create all foundational schemas (EventSource, EventStatus, NodeEvent, 6 payloads)
 - Implement NodeEventRegistry with full CRUD + validation
 - Implement FakeNodeEventRegistry with test helpers
-- Deliver registerCoreEventTypes() populating all 8 types per Workshop #01
+- Deliver registerCoreEventTypes() populating all 6 types per Workshop #01 (output events removed)
 - Deliver generateEventId() with monotonic hex timestamp format
 - Define error codes E190-E195 with factory functions per existing error pattern
 - Contract tests proving fake/real registry parity
@@ -130,7 +130,7 @@ No violations found.
 
 | AC | Description | Flow Summary | Files in Flow | Tasks | Status |
 |----|-------------|--------------|---------------|-------|--------|
-| AC-1 | Registry registers, validates, lists 8 types | `registerCoreEventTypes()` -> `registry.register()` x8; `list()`/`get()`/`validatePayload()` | registration, interface, impl, fake, core-event-types, payloads, source schema | T001-T009 | Complete |
+| AC-1 | Registry registers, validates, lists 6 types | `registerCoreEventTypes()` -> `registry.register()` x6; `list()`/`get()`/`validatePayload()` | registration, interface, impl, fake, core-event-types, payloads, source schema | T001-T009 | Complete |
 | AC-3 (partial) | Payload validation rejects invalid data | `validatePayload()` -> Zod `.safeParse()` -> E191 factory | registry impl, payloads, event-errors | T003, T005-T006, T011 | Complete |
 | AC-4 (partial) | Source validation metadata defined | `allowedSources` in registrations; E192 factory defined | core-event-types, source schema, event-errors | T002, T009, T011 | Complete (enforcement deferred to Phase 3) |
 | Phase AC | Contract tests pass on fake and real | Parameterized test factory runs identical assertions | registry, fake-registry, test file | T006-T008 | Complete |
@@ -239,13 +239,13 @@ flowchart TD
 |--------|------|------|-----|------|--------------|-------------------|------------|----------|-------|
 | [x] | T001 | Create feature folder `032-node-event-system/` with barrel `index.ts` | 1 | Setup | -- | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/032-node-event-system/index.ts` | Directory exists, empty barrel compiles with `pnpm typecheck` | -- | plan-scoped; PlanPak T000 |
 | [x] | T002 | Define `EventSourceSchema`, `EventStatusSchema`, `NodeEventSchema` Zod schemas with derived types | 2 | Core | T001 | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/032-node-event-system/event-source.schema.ts`, `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/032-node-event-system/event-status.schema.ts`, `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/032-node-event-system/node-event.schema.ts` | Schemas validate sample events from Workshop #02 walkthroughs; types derived via `z.infer<>` | -- | plan-scoped; Per Workshop #01 |
-| [x] | T003 | Define all 8 payload schemas with unit tests | 2 | Core | T001 | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/032-node-event-system/event-payloads.schema.ts`, `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/features/032-node-event-system/event-payloads.test.ts` | Each schema accepts valid payloads and rejects invalid; `.strict()` rejects extra fields; positive and negative tests per schema | -- | plan-scoped; Per Workshop #01 Payload Schemas |
+| [x] | T003 | Define all 6 payload schemas with unit tests (output payload schemas removed) | 2 | Core | T001 | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/032-node-event-system/event-payloads.schema.ts`, `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/features/032-node-event-system/event-payloads.test.ts` | Each schema accepts valid payloads and rejects invalid; `.strict()` rejects extra fields; positive and negative tests per schema | -- | plan-scoped; Per Workshop #01 Payload Schemas |
 | [x] | T004 | Define `EventTypeRegistration` interface and `INodeEventRegistry` interface | 1 | Core | T002 | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/032-node-event-system/event-type-registration.ts`, `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/032-node-event-system/node-event-registry.interface.ts` | Interfaces compile; includes register/get/list/listByDomain/validatePayload methods | -- | plan-scoped |
 | [x] | T005 | Write tests for `NodeEventRegistry` | 2 | Test | T003, T004 | `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/features/032-node-event-system/node-event-registry.test.ts` | Tests cover: register type, get type, get unknown returns undefined, list all, listByDomain, validatePayload valid, validatePayload invalid with Zod errors, duplicate registration throws. All tests FAIL (RED). 5-field Test Doc per test. | -- | plan-scoped; RED |
 | [x] | T006 | Implement `NodeEventRegistry` | 2 | Core | T005 | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/032-node-event-system/node-event-registry.ts` | All tests from T005 pass (GREEN); `validatePayload()` includes `zodToResultErrors()` helper (inline or imported from `event-errors.ts`) to convert ZodIssue[] to ResultError[] per Workshop #01 | -- | plan-scoped; GREEN |
 | [x] | T007 | Implement `FakeNodeEventRegistry` with test helpers | 1 | Core | T004 | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/032-node-event-system/fake-node-event-registry.ts` | Fake has: `addEventType()`, `getValidationHistory()`, `reset()` test helpers; implements `INodeEventRegistry` | -- | plan-scoped |
 | [x] | T008 | Write contract tests (fake vs real registry parity) | 2 | Test | T006, T007 | `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/features/032-node-event-system/node-event-registry.test.ts` | Parameterized test factory runs same assertions on both `NodeEventRegistry` and `FakeNodeEventRegistry`; all pass | -- | plan-scoped |
-| [x] | T009 | Implement `registerCoreEventTypes()` function | 1 | Core | T003, T006 | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/032-node-event-system/core-event-types.ts` | All 8 types registered with correct metadata per Workshop #01; `registry.list().length === 8`; each has correct displayName, allowedSources, stopsExecution, domain | -- | plan-scoped; Per ADR-0008 registration pattern |
+| [x] | T009 | Implement `registerCoreEventTypes()` function | 1 | Core | T003, T006 | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/032-node-event-system/core-event-types.ts` | All 6 types registered with correct metadata per Workshop #01 (output events removed); `registry.list().length === 6`; each has correct displayName, allowedSources, stopsExecution, domain | -- | plan-scoped; Per ADR-0008 registration pattern |
 | [x] | T010 | Implement `generateEventId()` utility | 1 | Core | T001 | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/032-node-event-system/event-id.ts`, `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/features/032-node-event-system/event-id.test.ts` | Format: `evt_<timestamp_hex>_<random_4hex>`; monotonic ordering; tested with regex pattern match and uniqueness assertion | -- | plan-scoped; Per Workshop #01 Q3 |
 | [x] | T011 | Add E190-E195 error codes to central file and factory functions to feature folder | 2 | Core | T001 | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/errors/positional-graph-errors.ts`, `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/errors/index.ts`, `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/032-node-event-system/event-errors.ts`, `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/features/032-node-event-system/event-errors.test.ts` | 6 error codes added to `POSITIONAL_GRAPH_ERROR_CODES`; 6 factory functions in `event-errors.ts` following existing pattern (code, message, action fields); each factory tested; `errors/index.ts` barrel updated | -- | cross-plan-edit for codes; plan-scoped for factories; Finding 06 |
 | [x] | T012 | Refactor, update barrel exports, verify `just fft` clean | 1 | Integration | T008, T009, T010, T011 | All files | `just fft` passes; barrel `index.ts` exports all public types/schemas/functions; all tests green | -- | -- |
@@ -352,7 +352,7 @@ sequenceDiagram
 
 | Test | Rationale | Fixtures | Expected Output |
 |------|-----------|----------|-----------------|
-| Payload schemas: valid inputs accepted | Ensure each schema validates Workshop #01 examples | 8 valid payload objects per Workshop #01 | `safeParse().success === true` |
+| Payload schemas: valid inputs accepted | Ensure each schema validates Workshop #01 examples | 6 valid payload objects per Workshop #01 (output payloads removed) | `safeParse().success === true` |
 | Payload schemas: invalid inputs rejected | Ensure `.strict()` catches extra/missing fields | Missing required fields, extra fields, wrong types | `safeParse().success === false` with field-level errors |
 | Registry: register and get | Core CRUD contract | One `EventTypeRegistration` | `get(type)` returns the registration |
 | Registry: list and listByDomain | Enumeration contract | 3+ registrations across 2 domains | `list()` returns all; `listByDomain('x')` filters |
@@ -360,7 +360,7 @@ sequenceDiagram
 | Registry: validatePayload (invalid) | Validation error path | Invalid payload | `{ ok: false, errors: [{code, message, action}] }` |
 | Registry: duplicate registration throws | Guard against accidental overwrite | Two registrations with same type | Throws Error |
 | Contract: fake and real pass same assertions | Fake/real parity | Parameterized factory | All shared assertions pass |
-| registerCoreEventTypes: all 8 types | Registration completeness | Empty registry | `list().length === 8`; each has correct metadata |
+| registerCoreEventTypes: all 6 types | Registration completeness | Empty registry | `list().length === 6`; each has correct metadata |
 | generateEventId: format and uniqueness | ID generation contract | None | Matches `/^evt_[0-9a-f]+_[0-9a-f]{4}$/`; 100 IDs are unique |
 | Error factories: all 6 produce ResultError | Error contract | Various inputs | Each has code, message, action fields |
 
@@ -368,13 +368,13 @@ sequenceDiagram
 
 1. **T001**: `mkdir -p features/032-node-event-system/`, create `index.ts` with placeholder exports
 2. **T002**: Create 3 schema files with Zod enums and object schema, export types via `z.infer<>`
-3. **T003**: Create `event-payloads.schema.ts` with all 8 schemas using `.strict()`. Write `event-payloads.test.ts` with positive/negative tests per schema.
+3. **T003**: Create `event-payloads.schema.ts` with all 6 schemas using `.strict()` (output payloads removed). Write `event-payloads.test.ts` with positive/negative tests per schema.
 4. **T004**: Create `event-type-registration.ts` (data shape) and `node-event-registry.interface.ts` (service contract with `INodeEventRegistry`)
 5. **T005**: Write failing tests in `node-event-registry.test.ts` covering register/get/list/validate/duplicate
 6. **T006**: Implement `NodeEventRegistry` class to make all tests pass
 7. **T007**: Implement `FakeNodeEventRegistry` with `addEventType()`, `getValidationHistory()`, `reset()`
 8. **T008**: Add contract test factory in same test file; run against both impl and fake
-9. **T009**: Implement `registerCoreEventTypes(registry)` with all 8 types per Workshop #01
+9. **T009**: Implement `registerCoreEventTypes(registry)` with all 6 types per Workshop #01 (output events removed)
 10. **T010**: Implement `generateEventId()` using `Date.now().toString(16)` + random hex 4. Write `event-id.test.ts` with regex format match and uniqueness assertion.
 11. **T011**: Add E190-E195 to `POSITIONAL_GRAPH_ERROR_CODES`, update `errors/index.ts` barrel, create `event-errors.ts` with 6 factories, write `event-errors.test.ts`
 12. **T012**: Update barrel `index.ts` with all public exports, run `just fft`, fix any issues

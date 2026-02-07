@@ -280,26 +280,6 @@ describe('raiseEvent — node state validation (E193)', () => {
     expect(result.errors[0].message).toContain('agent-accepted');
   });
 
-  it('returns E193 when output:save-data is raised on a waiting-question node', async () => {
-    // output:save-data requires 'agent-accepted'
-    const stateStore = createFakeStateStore({
-      'my-graph': makeState('node-1', 'waiting-question'),
-    });
-    const { deps } = createDeps(stateStore);
-
-    const result = await raiseEvent(
-      deps,
-      'my-graph',
-      'node-1',
-      'output:save-data',
-      { name: 'result', value: 42 },
-      'agent'
-    );
-
-    expect(result.ok).toBe(false);
-    expect(result.errors[0].code).toBe('E193');
-  });
-
   it('returns E193 for implicit pending node (no entry in state.nodes)', async () => {
     // Node not in state.nodes → treated as 'pending' → not in any VALID_FROM_STATES
     const stateStore = createFakeStateStore({

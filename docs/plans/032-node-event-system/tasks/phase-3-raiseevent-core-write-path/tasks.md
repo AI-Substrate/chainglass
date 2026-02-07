@@ -197,7 +197,7 @@ flowchart TD
 **Deliverables available to Phase 3**:
 - `INodeEventRegistry` interface with `register()`, `get()`, `list()`, `listByDomain()`, `validatePayload()`
 - `NodeEventRegistry` implementation (Map-backed) and `FakeNodeEventRegistry` test double
-- `registerCoreEventTypes(registry)` — populates 8 event types with metadata
+- `registerCoreEventTypes(registry)` — populates 6 event types with metadata (output events removed)
 - `generateEventId()` — returns `evt_<hex_ts>_<hex4>` format IDs
 - 8 payload Zod schemas (all `.strict()`)
 - 6 error factories: E190-E195 (`eventTypeNotFoundError`, `eventPayloadValidationError`, `eventSourceNotAllowedError`, `eventStateTransitionError`, `eventQuestionNotFoundError`, `eventAlreadyAnsweredError`)
@@ -301,9 +301,8 @@ const VALID_FROM_STATES: Record<string, readonly string[]> = {
   'node:error': ['starting', 'agent-accepted'],
   'question:ask': ['agent-accepted'],
   'question:answer': ['waiting-question'],
-  'output:save-data': ['agent-accepted'],
-  'output:save-file': ['agent-accepted'],
   'progress:update': ['starting', 'agent-accepted', 'waiting-question'],
+  // output:save-data and output:save-file removed — orchestrator handles output persistence directly
 };
 ```
 
@@ -339,7 +338,7 @@ Phase 4 wires handlers into `raiseEvent()` to apply all side effects. The Phase 
 | Unknown type | 2 | E190 | Unknown type returns error with available types; event not in state |
 | Invalid payload | 3 | E191 | Missing required field; extra field (.strict()); error includes field names and schema hint |
 | Unauthorized source | 2 | E192 | Source not in allowedSources; error lists allowed sources |
-| Wrong node state | 4+ | E193 | Per Workshop #02 table: node:accepted on complete, question:ask on starting, output:save-data on waiting-question, implicit pending (no entry) |
+| Wrong node state | 4+ | E193 | Per Workshop #02 table: node:accepted on complete, question:ask on starting, implicit pending (no entry) |
 | Question refs | 3 | E194/E195 | question:answer with nonexistent ask ID; question:answer with already-answered ask; valid question:answer succeeds |
 | Success creation | 4 | — | Event has correct ID format; status='new'; stops_execution from registry; created_at is ISO-8601; appended to events[]; state.updated_at set; previous events preserved |
 | Persistence safety | 2 | — | Failed validation → events array unchanged; failed validation → persistState never called |
@@ -389,7 +388,7 @@ just fft
 - [x] Prior phases reviewed (Phase 1 + Phase 2) — deliverables, discoveries, patterns understood
 - [x] Critical findings mapped to tasks — Finding 08 (atomic persistence), Finding 01/02 (status enum)
 - [x] ADR constraints mapped to tasks — ADR-0004 (no DI token), ADR-0009 (registration function pattern)
-- [x] `VALID_FROM_STATES` map matches Workshop #02 §Valid States table (8 entries)
+- [x] `VALID_FROM_STATES` map matches Workshop #02 §Valid States table (6 entries; output events removed)
 - [x] Test plan covers all 5 validation steps + success + persistence safety
 - [x] `raiseEvent` signature agreed (deps bag pattern)
 - [x] Phase 3 scope boundary clear (no handlers, no side effects)

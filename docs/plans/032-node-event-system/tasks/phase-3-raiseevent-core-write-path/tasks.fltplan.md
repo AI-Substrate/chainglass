@@ -9,7 +9,7 @@
 
 ## Departure → Destination
 
-**Where we are**: Phases 1 and 2 delivered the complete event data model and the two-phase handshake. The registry knows about 8 event types with Zod-validated payload schemas. The state schema has an optional `events` array on every node entry. Nodes now transition through `starting` and `agent-accepted` instead of `running`. Six error factories (E190-E195) are ready to use. But nothing actually writes events yet — the `events` array sits empty in every node.
+**Where we are**: Phases 1 and 2 delivered the complete event data model and the two-phase handshake. The registry knows about 6 event types with Zod-validated payload schemas. The state schema has an optional `events` array on every node entry. Nodes now transition through `starting` and `agent-accepted` instead of `running`. Six error factories (E190-E195) are ready to use. But nothing actually writes events yet — the `events` array sits empty in every node.
 
 **Where we're going**: By the end of this phase, any caller can raise a validated event on a node and have it persisted atomically. The `raiseEvent()` function will accept an event type, payload, and source, run a 5-step validation pipeline (type exists, payload valid, source allowed, node in correct state, question references valid), create a `NodeEvent` record with a unique ID and `status: 'new'`, append it to the node's event log, and persist state. A developer can call `raiseEvent(deps, 'my-graph', 'node-1', 'node:accepted', {}, 'agent')` and get back the created event — or a clear error explaining exactly what went wrong.
 

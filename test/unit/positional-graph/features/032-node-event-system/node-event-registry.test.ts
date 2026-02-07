@@ -224,7 +224,7 @@ describe('NodeEventRegistry', () => {
       Test Doc:
       - Why: .strict() enforcement prevents accidental data leakage through extra fields
       - Contract: Payload with extra fields fails validation even if required fields are present
-      - Usage Notes: All 8 core schemas use .strict() — this tests the mechanism
+      - Usage Notes: All 6 core schemas use .strict() — this tests the mechanism
       - Quality Contribution: Catches .strict() removal or passthrough mode regression
       - Worked Example: schema({value:string}).strict(), validate({value:'ok',extra:true}) → ok:false
       */
@@ -450,36 +450,36 @@ describe('FakeNodeEventRegistry test helpers', () => {
 // ── registerCoreEventTypes ──────────────────────────────────
 /*
 Test Doc:
-- Why: Verify all 8 core event types are registered with correct metadata per Workshop #01
-- Contract: registerCoreEventTypes() populates exactly 8 types; each has correct displayName, allowedSources, stopsExecution, domain
+- Why: Verify all 6 core event types are registered with correct metadata per Workshop #01
+- Contract: registerCoreEventTypes() populates exactly 6 types; each has correct displayName, allowedSources, stopsExecution, domain
 - Usage Notes: Follows ADR-0008 module registration function pattern
 - Quality Contribution: Catches any drift from Workshop #01 event type definitions
-- Worked Example: After registerCoreEventTypes(registry), registry.list().length === 8; get('question:ask').stopsExecution === true
+- Worked Example: After registerCoreEventTypes(registry), registry.list().length === 6; get('question:ask').stopsExecution === true
 */
 
 describe('registerCoreEventTypes', () => {
-  it('registers exactly 8 event types', () => {
+  it('registers exactly 6 event types', () => {
     /*
     Test Doc:
-    - Why: Workshop #01 defines exactly 8 event types — no more, no less
-    - Contract: After registerCoreEventTypes(), list().length === 8
-    - Usage Notes: If a 9th type is added, this test and the names test must both update
+    - Why: Workshop #01 defines exactly 6 event types — no more, no less
+    - Contract: After registerCoreEventTypes(), list().length === 6
+    - Usage Notes: If a 7th type is added, this test and the names test must both update
     - Quality Contribution: Catches accidental addition or removal of event types
-    - Worked Example: registerCoreEventTypes(registry) → registry.list().length === 8
+    - Worked Example: registerCoreEventTypes(registry) → registry.list().length === 6
     */
     const registry = new NodeEventRegistry();
     registerCoreEventTypes(registry);
-    expect(registry.list()).toHaveLength(8);
+    expect(registry.list()).toHaveLength(6);
   });
 
   it('registers all expected type names', () => {
     /*
     Test Doc:
-    - Why: The 8 type names are the canonical API contract for event raising
+    - Why: The 6 type names are the canonical API contract for event raising
     - Contract: Sorted type names match the exact expected set
     - Usage Notes: Sorting removes insertion-order sensitivity
     - Quality Contribution: Catches renamed or missing event types
-    - Worked Example: sorted types === ['node:accepted','node:completed','node:error','output:save-data','output:save-file','progress:update','question:answer','question:ask']
+    - Worked Example: sorted types === ['node:accepted','node:completed','node:error','progress:update','question:answer','question:ask']
     */
     const registry = new NodeEventRegistry();
     registerCoreEventTypes(registry);
@@ -491,8 +491,6 @@ describe('registerCoreEventTypes', () => {
       'node:accepted',
       'node:completed',
       'node:error',
-      'output:save-data',
-      'output:save-file',
       'progress:update',
       'question:answer',
       'question:ask',
@@ -580,21 +578,6 @@ describe('registerCoreEventTypes', () => {
     expect(reg?.stopsExecution).toBe(false);
   });
 
-  it('output types do not stop execution', () => {
-    /*
-    Test Doc:
-    - Why: Output events are fire-and-forget — agent continues working
-    - Contract: Both output:save-data and output:save-file have stopsExecution=false
-    - Usage Notes: Agent can emit multiple outputs before completing
-    - Quality Contribution: Catches accidental blocking behavior on output events
-    - Worked Example: get('output:save-data').stopsExecution → false
-    */
-    const registry = new NodeEventRegistry();
-    registerCoreEventTypes(registry);
-    expect(registry.get('output:save-data')?.stopsExecution).toBe(false);
-    expect(registry.get('output:save-file')?.stopsExecution).toBe(false);
-  });
-
   it('progress:update does not stop execution', () => {
     /*
     Test Doc:
@@ -613,7 +596,7 @@ describe('registerCoreEventTypes', () => {
     /*
     Test Doc:
     - Why: Integration test — verify schemas work through the registry after core registration
-    - Contract: All 8 types accept their valid payloads; reject known-invalid payloads
+    - Contract: All 6 types accept their valid payloads; reject known-invalid payloads
     - Usage Notes: Tests both positive (valid) and negative (invalid) cases per type
     - Quality Contribution: Catches schema-registration wiring bugs
     - Worked Example: validatePayload('node:accepted',{}).ok → true; validatePayload('node:accepted',{extra:true}).ok → false
@@ -629,10 +612,6 @@ describe('registerCoreEventTypes', () => {
     expect(
       registry.validatePayload('question:answer', { question_event_id: 'evt_1', answer: 'A' }).ok
     ).toBe(true);
-    expect(registry.validatePayload('output:save-data', { name: 'n', value: 'v' }).ok).toBe(true);
-    expect(registry.validatePayload('output:save-file', { name: 'n', source_path: '/p' }).ok).toBe(
-      true
-    );
     expect(registry.validatePayload('progress:update', { message: 'Working' }).ok).toBe(true);
 
     // Invalid

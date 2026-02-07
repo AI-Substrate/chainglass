@@ -17,7 +17,7 @@ Today, nodes communicate through bespoke service methods: `askQuestion()`, `answ
 
 This plan replaces the bespoke approach with a unified **typed, extensible, schema-validated event system**. Every node interaction becomes a NodeEvent — raised by any source (agent, executor, orchestrator, human), validated against a registered Zod schema, stored in an append-only event log per node, and progressed through a three-state lifecycle (new, acknowledged, handled).
 
-The event system ships with 8 initial event types covering all current interactions plus two new capabilities (node acceptance, progress reporting). New event types are added by defining a schema and registering one entry — the CLI discovers them automatically. Agents learn the system at runtime through self-discovery commands (`event list-types`, `event schema`).
+The event system ships with 6 initial event types covering all current interactions plus two new capabilities (node acceptance, progress reporting). New event types are added by defining a schema and registering one entry — the CLI discovers them automatically. Agents learn the system at runtime through self-discovery commands (`event list-types`, `event schema`).
 
 The plan also delivers the two-phase node handshake (`starting` / `agent-accepted` statuses) that Workshop #8 designed, since events and the handshake are co-dependent: `node:accepted` is the event that drives the `starting` to `agent-accepted` transition.
 
@@ -27,11 +27,11 @@ The culminating deliverable is a fully automatic E2E script that visually traces
 
 ## Goals
 
-1. **Unified event protocol**: All node interactions (acceptance, completion, errors, questions, answers, outputs, progress) flow through one `raiseEvent()` path with consistent validation, storage, and lifecycle tracking.
+1. **Unified event protocol**: All node interactions (acceptance, completion, errors, questions, answers, progress) flow through one `raiseEvent()` path with consistent validation, storage, and lifecycle tracking.
 
 2. **Extensible without code changes**: Adding a new event type requires one schema definition and one registry call. No new CLI commands, no new service methods, no new status fields. The CLI self-discovers registered types.
 
-3. **Full audit trail**: Every node maintains an append-only event log in `state.json`. Every event records who raised it, when, and what happened. Questions, errors, outputs — all traceable.
+3. **Full audit trail**: Every node maintains an append-only event log in `state.json`. Every event records who raised it, when, and what happened. Questions, errors — all traceable.
 
 4. **Agent self-discovery**: Agents learn available event types and their schemas at runtime via `event list-types` and `event schema`. No hardcoded knowledge of event payloads.
 
@@ -71,7 +71,7 @@ The culminating deliverable is a fully automatic E2E script that visually traces
 
 | Dimension | Score | Rationale |
 |-----------|-------|-----------|
-| Surface Area (S) | 2 | New types/schemas, registry class, service method changes, 4+ CLI commands, state schema extension, ONBAS adaptation, test infrastructure, E2E script |
+| Surface Area (S) | 2 | New types/schemas, registry class, service method changes, 4+ CLI commands, state schema extension, ONBAS adaptation, test infrastructure, E2E script. Output persistence handled directly by the orchestrator, not via events. |
 | Integration (I) | 1 | Depends on Plan 028 question schema, Plan 026 graph service, Plan 029 work units (all internal, stable) |
 | Data/State (D) | 2 | `state.json` schema extension (events array), new node statuses (starting, agent-accepted), event lifecycle tracking, backward-compatible migration |
 | Novelty (N) | 0 | Well-specified by Workshop #01 with resolved open questions; event types, schemas, CLI surface all designed |
@@ -102,10 +102,10 @@ The culminating deliverable is a fully automatic E2E script that visually traces
 2. NodeEvent object and event log storage (state schema extension)
 3. Two-phase handshake status migration (starting/agent-accepted)
 4. Event raise and validate service layer (core write path)
-5. Event handlers for state transitions (side effect application)
+5. Event handlers for state transitions (side effect application; output persistence handled by orchestrator, not via events)
 6. CLI commands (event list-types, schema, raise, log)
 7. Shortcut commands (accept, end, error) wired through events
-8. Service method wrappers (endNode, askQuestion, etc. become thin wrappers constructing events)
+8. Service method wrappers (endNode, askQuestion become thin wrappers constructing events; output methods remain unchanged)
 9. ONBAS adaptation (read event log instead of flat fields)
 10. E2E validation script (fully automatic, visual output)
 
@@ -115,9 +115,9 @@ The culminating deliverable is a fully automatic E2E script that visually traces
 
 ### AC-1: NodeEventRegistry registers, validates, and lists event types
 
-Given 8 initial event types registered in the NodeEventRegistry,
+Given 6 initial event types registered in the NodeEventRegistry,
 when `registry.list()` is called,
-then all 8 types are returned with their metadata (type, displayName, description, payloadSchema, allowedSources, stopsExecution, domain).
+then all 6 types are returned with their metadata (type, displayName, description, payloadSchema, allowedSources, stopsExecution, domain).
 
 When `registry.validatePayload('question:ask', validPayload)` is called,
 then it returns `{ ok: true, errors: [] }`.
@@ -196,14 +196,10 @@ When a question:answer references a nonexistent question:
 When a question:answer references an already-answered question:
 - E195 error returned
 
-### AC-8: Output events persist data correctly
+### AC-8: Removed — orchestrator handles output persistence directly
 
-Given an `agent-accepted` node,
-when `output:save-data` event is raised with `{ name: "spec", value: "..." }`,
-then:
-- The data is persisted to the node's output storage (same location as current `saveOutputData`)
-- The event is stored with `status: 'handled'`
-- If the output name is not in the work unit's declared outputs, a warning is added to `handler_notes`
+Output events (`output:save-data`, `output:save-file`) have been removed from the event system.
+The orchestrator handles output persistence directly through existing service methods, not via the event protocol.
 
 ### AC-9: Events that stop execution communicate clearly
 
@@ -213,7 +209,7 @@ then the CLI output includes: `[AGENT INSTRUCTION] This event requires you to st
 
 ### AC-10: `event list-types` CLI command lists all registered types
 
-Given 8 registered event types,
+Given 6 registered event types,
 when `cg wf node event list-types` is run (human-readable mode),
 then output shows types grouped by domain with displayName and description.
 
@@ -279,10 +275,9 @@ then it constructs a `node:completed` event payload and calls `raiseEvent()`. Th
 When `askQuestion(graphSlug, nodeId, questionData)` is called,
 then it constructs a `question:ask` event payload and calls `raiseEvent()`. The event handler transitions to `waiting-question`.
 
-When `saveOutputData(graphSlug, nodeId, name, value)` is called,
-then it constructs an `output:save-data` event payload and calls `raiseEvent()`. The event handler persists the data.
+There is no separate write path for node lifecycle and question events. The event handler IS the implementation. Backward-compat fields (`pending_question_id`, `error`, top-level `questions[]`) are derived projections computed from the event log after each raise.
 
-There is no separate write path. The event handler IS the implementation. Backward-compat fields (`pending_question_id`, `error`, top-level `questions[]`) are derived projections computed from the event log after each raise.
+Note: Output persistence (`saveOutputData`, `saveOutputFile`) is handled directly by the orchestrator and does not flow through the event system.
 
 ### AC-16: ONBAS reads event log for sub-state determination
 
@@ -332,14 +327,14 @@ when run via `npx tsx e2e-event-system-sample-flow.ts`:
 
 4. **Status enum extension**: Adding `starting` and `agent-accepted` to `NodeExecutionStatus` could break existing `switch` statements or status checks. Mitigation: Exhaustive `never` checks in switch statements catch missing cases at compile time.
 
-5. **Event handler ordering**: When multiple events are raised in quick succession, handler ordering matters (e.g., save-data then complete). Mitigation: Events are processed sequentially in raise order; each event's handler runs to completion before the next.
+5. **Event handler ordering**: When multiple events are raised in quick succession, handler ordering matters (e.g., ask then complete). Mitigation: Events are processed sequentially in raise order; each event's handler runs to completion before the next.
 
 ### Assumptions
 
 1. Single-process execution — only one CLI invocation at a time per graph
 2. Existing `loadState()`/`persistState()` and atomic writes are reliable
 3. ONBAS walk structure (line order, position order, first-match-wins) does not need restructuring
-4. The 8 initial event types cover all current node interactions
+4. The 6 initial event types cover all current node lifecycle and communication interactions (output persistence handled separately by the orchestrator)
 5. Q6 from Workshop #01 resolved as Option B (events as the implementation — single write path)
 6. `question_id` generation pattern (monotonic + random) is sufficient for event IDs
 

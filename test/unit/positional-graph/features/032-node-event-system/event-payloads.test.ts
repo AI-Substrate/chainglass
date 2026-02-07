@@ -1,6 +1,6 @@
 /*
 Test Doc:
-- Why: Validate all 8 event payload schemas accept valid data and reject invalid data
+- Why: Validate all 6 event payload schemas accept valid data and reject invalid data
 - Contract: Each schema enforces required fields, field types, and .strict() (no extra fields)
 - Usage Notes: Schemas use .strict() so any extra field causes rejection
 - Quality Contribution: Catches schema regressions when payload shapes change
@@ -13,8 +13,6 @@ import {
   NodeAcceptedPayloadSchema,
   NodeCompletedPayloadSchema,
   NodeErrorPayloadSchema,
-  OutputSaveDataPayloadSchema,
-  OutputSaveFilePayloadSchema,
   ProgressUpdatePayloadSchema,
   QuestionAnswerPayloadSchema,
   QuestionAskPayloadSchema,
@@ -202,72 +200,6 @@ describe('QuestionAnswerPayloadSchema', () => {
         answer: 'R',
         bonus: true,
       }).success
-    ).toBe(false);
-  });
-});
-
-describe('OutputSaveDataPayloadSchema', () => {
-  /*
-  Test Doc:
-  - Why: output:save-data carries a named key-value pair — name required min(1), value is any JSON
-  - Contract: {name,value} required; name min(1); value is z.unknown(); extras rejected
-  - Usage Notes: value can be string, object, array, number — any JSON-serializable type
-  - Quality Contribution: Catches empty name or missing value regressions
-  - Worked Example: {name:'result',value:{key:'val'}} → success; {value:'ts'} → failure (no name)
-  */
-  it('accepts valid payload', () => {
-    expect(
-      OutputSaveDataPayloadSchema.safeParse({ name: 'result', value: { key: 'val' } }).success
-    ).toBe(true);
-  });
-
-  it('accepts string value', () => {
-    expect(OutputSaveDataPayloadSchema.safeParse({ name: 'lang', value: 'ts' }).success).toBe(true);
-  });
-
-  it('rejects missing name', () => {
-    expect(OutputSaveDataPayloadSchema.safeParse({ value: 'ts' }).success).toBe(false);
-  });
-
-  it('rejects empty name', () => {
-    expect(OutputSaveDataPayloadSchema.safeParse({ name: '', value: 'ts' }).success).toBe(false);
-  });
-
-  it('rejects extra fields', () => {
-    expect(
-      OutputSaveDataPayloadSchema.safeParse({ name: 'n', value: 'v', extra: true }).success
-    ).toBe(false);
-  });
-});
-
-describe('OutputSaveFilePayloadSchema', () => {
-  /*
-  Test Doc:
-  - Why: output:save-file references a file to copy — name + source_path both required min(1)
-  - Contract: {name,source_path} required; both min(1); extras rejected
-  - Usage Notes: source_path is a filesystem path string, not validated for existence at schema level
-  - Quality Contribution: Catches empty path or missing field regressions
-  - Worked Example: {name:'script',source_path:'/tmp/s.sh'} → success; {name:'script'} → failure
-  */
-  it('accepts valid payload', () => {
-    expect(
-      OutputSaveFilePayloadSchema.safeParse({ name: 'script', source_path: '/tmp/s.sh' }).success
-    ).toBe(true);
-  });
-
-  it('rejects missing source_path', () => {
-    expect(OutputSaveFilePayloadSchema.safeParse({ name: 'script' }).success).toBe(false);
-  });
-
-  it('rejects empty source_path', () => {
-    expect(OutputSaveFilePayloadSchema.safeParse({ name: 'script', source_path: '' }).success).toBe(
-      false
-    );
-  });
-
-  it('rejects extra fields', () => {
-    expect(
-      OutputSaveFilePayloadSchema.safeParse({ name: 'f', source_path: '/p', extra: true }).success
     ).toBe(false);
   });
 });

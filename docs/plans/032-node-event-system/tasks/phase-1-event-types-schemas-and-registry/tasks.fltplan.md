@@ -9,9 +9,9 @@
 
 ## Departure → Destination
 
-**Where we are**: Plan 030 Phases 1-5 delivered the orchestration core (Reality snapshots, OrchestrationRequests, AgentContext, Pods, ONBAS walk algorithm), but Phase 6 (ODS action handlers) is blocked because nodes still communicate through bespoke service methods (`askQuestion`, `endNode`, `saveOutputData`) — each with its own validation, storage, and CLI command. There is no unified event protocol. Plan 032 has a spec, two workshops with resolved design questions, and a validated 8-phase plan. No code has been written yet.
+**Where we are**: Plan 030 Phases 1-5 delivered the orchestration core (Reality snapshots, OrchestrationRequests, AgentContext, Pods, ONBAS walk algorithm), but Phase 6 (ODS action handlers) is blocked because nodes still communicate through bespoke service methods (`askQuestion`, `endNode`) — each with its own validation, storage, and CLI command. There is no unified event protocol. Plan 032 has a spec, two workshops with resolved design questions, and a validated 8-phase plan. No code has been written yet.
 
-**Where we're going**: By the end of this phase, the data model for the entire Node Event System exists: 8 event payload schemas validated by Zod, a `NodeEventRegistry` that registers types and validates payloads at runtime, error codes E190-E195 with actionable diagnostics, and a `generateEventId()` utility. A developer can instantiate a registry, call `registerCoreEventTypes(registry)`, and immediately validate payloads, list event types, and discover schemas — all in isolation with no state changes or service dependencies.
+**Where we're going**: By the end of this phase, the data model for the entire Node Event System exists: 6 event payload schemas validated by Zod, a `NodeEventRegistry` that registers types and validates payloads at runtime, error codes E190-E195 with actionable diagnostics, and a `generateEventId()` utility. A developer can instantiate a registry, call `registerCoreEventTypes(registry)`, and immediately validate payloads, list event types, and discover schemas — all in isolation with no state changes or service dependencies.
 
 ---
 
@@ -53,10 +53,10 @@ stateDiagram-v2
 <!-- Updated by /plan-6 during implementation: [ ] → [~] → [x] -->
 
 - [x] **Stage 1: Create feature folder and barrel** — set up `features/032-node-event-system/` with an empty `index.ts` barrel that compiles (`features/032-node-event-system/index.ts` — new file)
-- [x] **Stage 2: Define core and payload schemas** — create `EventSourceSchema`, `EventStatusSchema`, `NodeEventSchema` plus all 8 payload schemas with `.strict()` and unit tests (`event-source.schema.ts`, `event-status.schema.ts`, `node-event.schema.ts`, `event-payloads.schema.ts`, `event-payloads.test.ts` — new files)
+- [x] **Stage 2: Define core and payload schemas** — create `EventSourceSchema`, `EventStatusSchema`, `NodeEventSchema` plus all 6 payload schemas with `.strict()` and unit tests (`event-source.schema.ts`, `event-status.schema.ts`, `node-event.schema.ts`, `event-payloads.schema.ts`, `event-payloads.test.ts` — new files; output payload schemas removed — orchestrator handles output persistence directly)
 - [x] **Stage 3: Define interfaces and TDD the registry** — create `EventTypeRegistration` and `INodeEventRegistry` interfaces, write failing registry tests (RED), then implement `NodeEventRegistry` to make them pass (GREEN) (`event-type-registration.ts`, `node-event-registry.interface.ts`, `node-event-registry.ts`, `node-event-registry.test.ts` — new files)
 - [x] **Stage 4: Fake registry and contract tests** — implement `FakeNodeEventRegistry` with test helpers, then write parameterized contract tests proving fake and real behave identically (`fake-node-event-registry.ts` — new file, `node-event-registry.test.ts` — updated)
-- [x] **Stage 5: Core registration, event IDs, and error codes** — implement `registerCoreEventTypes()` populating all 8 types, `generateEventId()` with `evt_<hex_ts>_<hex4>` format, and E190-E195 error factories (`core-event-types.ts`, `event-id.ts`, `event-errors.ts`, `event-errors.test.ts` — new files; `positional-graph-errors.ts` — modified)
+- [x] **Stage 5: Core registration, event IDs, and error codes** — implement `registerCoreEventTypes()` populating all 6 types (output events removed), `generateEventId()` with `evt_<hex_ts>_<hex4>` format, and E190-E195 error factories (`core-event-types.ts`, `event-id.ts`, `event-errors.ts`, `event-errors.test.ts` — new files; `positional-graph-errors.ts` — modified)
 - [x] **Stage 6: Final verification** — update barrel exports, run `just fft`, fix any issues (all files)
 
 ---
@@ -85,7 +85,7 @@ flowchart LR
         ERR2[Error Codes E150-E195]:::changed
         Q2[QuestionSchema]:::existing
         NER[NodeEventRegistry]:::new
-        PS[8 Payload Schemas]:::new
+        PS[6 Payload Schemas]:::new
         CS[Core Schemas]:::new
         REG[registerCoreEventTypes]:::new
         GEN[generateEventId]:::new
@@ -107,8 +107,8 @@ flowchart LR
 
 ## Acceptance Criteria
 
-- [x] All 8 event types registered with correct metadata (AC-1)
-- [x] Payload validation works for all 8 schemas (AC-3 partial)
+- [x] All 6 event types registered with correct metadata (AC-1; output events removed)
+- [x] Payload validation works for all 6 schemas (AC-3 partial)
 - [x] Registry rejects unknown types, invalid payloads, unauthorized sources (AC-1, AC-3, AC-4 partial)
 - [x] Contract tests pass on fake and real registry
 - [x] Error codes E190-E195 with actionable messages
@@ -117,10 +117,10 @@ flowchart LR
 ## Goals & Non-Goals
 
 **Goals**:
-- Create all foundational schemas (EventSource, EventStatus, NodeEvent, 8 payloads)
+- Create all foundational schemas (EventSource, EventStatus, NodeEvent, 6 payloads)
 - Implement NodeEventRegistry with full CRUD + validation
 - Implement FakeNodeEventRegistry with test helpers
-- Deliver registerCoreEventTypes() populating all 8 types per Workshop #01
+- Deliver registerCoreEventTypes() populating all 6 types per Workshop #01 (output events removed)
 - Deliver generateEventId() with monotonic hex timestamp format
 - Define error codes E190-E195 with factory functions per existing error pattern
 - Contract tests proving fake/real registry parity

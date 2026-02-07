@@ -98,7 +98,7 @@ then resume, consuming events instead of calling bespoke methods.
 - Single-process execution: one CLI invocation at a time per graph
 - Existing `loadState()`/`persistState()` and atomic writes are reliable
 - ONBAS walk structure (line order, position order, first-match-wins) unchanged
-- The 8 initial event types cover all current node interactions
+- The 6 initial event types cover all current node lifecycle and communication interactions (output persistence handled separately by the orchestrator)
 - Existing CLI commands (`ask`, `answer`, `end`, `save-output-data`) become aliases
 
 ---
@@ -282,7 +282,7 @@ implement the real interface. Contract tests verify fake/real parity.
 │   │       │       ├── event-source.schema.ts  # EventSource enum
 │   │       │       ├── event-status.schema.ts  # EventStatus enum
 │   │       │       ├── node-event.schema.ts    # NodeEvent object schema
-│   │       │       ├── event-payloads.schema.ts # 8 payload schemas
+│   │       │       ├── event-payloads.schema.ts # 6 payload schemas
 │   │       │       ├── event-type-registration.ts # EventTypeRegistration interface
 │   │       │       ├── node-event-registry.interface.ts
 │   │       │       ├── node-event-registry.ts  # Registry implementation
@@ -332,7 +332,7 @@ implement the real interface. Contract tests verify fake/real parity.
 
 ### Phase 1: Event Types, Schemas, and Registry
 
-**Objective**: Create the event type data model, Zod schemas for all 8 event payloads,
+**Objective**: Create the event type data model, Zod schemas for all 6 event payloads,
 the NodeEventRegistry, and event error codes — all testable in isolation with no
 service or state changes.
 
@@ -341,12 +341,12 @@ service or state changes.
 
 **Deliverables**:
 - `EventSourceSchema`, `EventStatusSchema`, `NodeEventSchema` Zod schemas
-- 8 payload schemas (per Workshop #01)
+- 6 payload schemas (per Workshop #01; output events removed — orchestrator handles output persistence directly)
 - `EventTypeRegistration` interface
 - `INodeEventRegistry` interface with `register`, `get`, `list`, `listByDomain`, `validatePayload`
 - `NodeEventRegistry` implementation
 - `FakeNodeEventRegistry` with test helpers
-- `registerCoreEventTypes()` function registering all 8 types
+- `registerCoreEventTypes()` function registering all 6 types
 - `generateEventId()` utility
 - Error codes E190-E195 and factory functions
 - Contract tests for registry (fake/real parity)
@@ -366,13 +366,13 @@ service or state changes.
 |---|--------|------|----|------------------|-----|-------|
 | 1.1 | [x] | Create feature folder `032-node-event-system/` with barrel `index.ts` | 1 | Directory exists, empty index compiles | [^1] | PlanPak setup (T000) |
 | 1.2 | [x] | Define `EventSourceSchema`, `EventStatusSchema`, `NodeEventSchema` | 2 | Schemas validate sample events from Workshop #02 walkthroughs | [^1] | Per Workshop #01 |
-| 1.3 | [x] | Define all 8 payload schemas | 2 | Each schema accepts valid payloads and rejects invalid. Tests for `.strict()` (no extra fields) | [^1] | Per Workshop #01 §Payload Schemas; 38 tests |
+| 1.3 | [x] | Define all 6 payload schemas | 2 | Each schema accepts valid payloads and rejects invalid. Tests for `.strict()` (no extra fields) | [^1] | Per Workshop #01 §Payload Schemas; output payload schemas removed — orchestrator handles output persistence directly; 38 tests |
 | 1.4 | [x] | Define `EventTypeRegistration` interface and `INodeEventRegistry` | 1 | Interface compiles, includes register/get/list/validatePayload | [^1] | |
 | 1.5 | [x] | Write tests for `NodeEventRegistry` | 2 | Tests: register, get, list, listByDomain, validatePayload (valid + invalid), duplicate registration error | [^1] | RED; 12 tests failing |
 | 1.6 | [x] | Implement `NodeEventRegistry` | 2 | All tests from 1.5 pass | [^1] | GREEN; 12 tests passing |
 | 1.7 | [x] | Implement `FakeNodeEventRegistry` with test helpers | 1 | Fake has: `addEventType()`, `getValidationHistory()`, `reset()` | [^1] | |
 | 1.8 | [x] | Write contract tests (fake vs real registry) | 2 | Same assertions pass on both implementations | [^1] | 33 total tests |
-| 1.9 | [x] | Implement `registerCoreEventTypes()` | 1 | All 8 types registered with correct metadata from Workshop #01 | [^1] | 43 total tests |
+| 1.9 | [x] | Implement `registerCoreEventTypes()` | 1 | All 6 types registered with correct metadata from Workshop #01 (output events removed) | [^1] | 43 total tests |
 | 1.10 | [x] | Implement `generateEventId()` | 1 | Format: `evt_<timestamp_hex>_<random_4hex>`, monotonic ordering | [^1] | Per Workshop #01 Q3; 5 tests |
 | 1.11 | [x] | Add E190-E195 error codes and factory functions | 2 | 6 factories follow existing pattern: eventTypeNotFoundError, eventPayloadValidationError, eventSourceNotAllowedError, eventStateTransitionError, eventQuestionNotFoundError, eventAlreadyAnsweredError | [^1] | 8 tests; `errors/index.ts` not modified |
 | 1.12 | [x] | Refactor and verify | 1 | `just fft` clean | [^1] | 3523 tests, 0 failures |
@@ -380,8 +380,8 @@ service or state changes.
 **DI Note**: `NodeEventRegistry` is constructed internally by `IPositionalGraphService` (or by `raiseEvent()` caller). It does NOT get a public DI token — there are no consumers outside `positional-graph` package. The registry is created via `new NodeEventRegistry()` + `registerCoreEventTypes(registry)` during service initialization. Tests use `FakeNodeEventRegistry` directly.
 
 ### Acceptance Criteria
-- [x] All 8 event types registered with correct metadata (AC-1)
-- [x] Payload validation works for all 8 schemas (AC-3)
+- [x] All 6 event types registered with correct metadata (AC-1; output events removed — orchestrator handles output persistence directly)
+- [x] Payload validation works for all 6 schemas (AC-3)
 - [x] Registry rejects unknown types, invalid payloads, unauthorized sources (AC-1, AC-3, AC-4)
 - [x] Contract tests pass on fake and real registry
 - [x] Error codes E190-E195 with actionable messages
@@ -509,9 +509,8 @@ event log.
 - `node:error` handler: → `blocked-error`, set error field
 - `question:ask` handler: → `waiting-question`, set `pending_question_id`
 - `question:answer` handler: mark ask event `handled`, clear `pending_question_id`
-- `output:save-data` handler: persist data to `data/data.json`
-- `output:save-file` handler: copy file to `data/outputs/`
 - `progress:update` handler: log only (no state change)
+- Note: `output:save-data` and `output:save-file` handlers removed — orchestrator handles output persistence directly
 - `deriveBackwardCompatFields()` function called after every handler
 - Wire handlers into `raiseEvent()` — event is created, handler runs, compat derived,
   state persisted
@@ -533,10 +532,8 @@ event log.
 | 4.3 | [ ] | Write tests for `node:error` handler | 2 | Status transitions to `blocked-error`; error field populated from payload | - | Per Workshop #02 Walkthrough 3 |
 | 4.4 | [ ] | Write tests for `question:ask` handler | 2 | Status → `waiting-question`; `pending_question_id` set; event stays `new` (deferred processing) | - | Per Workshop #02 Walkthrough 2 |
 | 4.5 | [ ] | Write tests for `question:answer` handler | 2 | Ask event marked `handled`; `pending_question_id` cleared; answer event `handled`; node status unchanged | - | Per Workshop #02 Q&A lifecycle |
-| 4.6 | [ ] | Write tests for `output:save-data` handler | 2 | Data persisted to node's `data/data.json`; event `handled`; warning in `handler_notes` for undeclared output | - | AC-8 |
-| 4.7 | [ ] | Write tests for `output:save-file` handler | 1 | File copied to `data/outputs/`; event `handled` | - | |
-| 4.8 | [ ] | Write tests for `progress:update` handler | 1 | No state change; event `handled` immediately | - | |
-| 4.9 | [ ] | Implement all 8 event handlers | 3 | All tests from 4.1-4.8 pass | - | GREEN |
+| 4.6 | [ ] | Write tests for `progress:update` handler | 1 | No state change; event `handled` immediately | - | |
+| 4.7 | [ ] | Implement all 6 event handlers | 3 | All tests from 4.1-4.6 pass | - | GREEN |
 | 4.10 | [ ] | Write tests for `deriveBackwardCompatFields()` | 2 | `pending_question_id` derived from latest unanswered ask; `error` from latest error event; `questions[]` reconstructed from ask+answer pairs | - | Finding 03 |
 | 4.11 | [ ] | Implement `deriveBackwardCompatFields()` | 2 | All tests from 4.10 pass | - | GREEN |
 | 4.12 | [ ] | Wire handlers and compat derivation into `raiseEvent()` | 2 | `raiseEvent` now: validate → create event → run handler → derive compat → persist state | - | |
@@ -544,10 +541,9 @@ event log.
 | 4.14 | [ ] | Refactor and verify | 1 | `just fft` clean | - | |
 
 ### Acceptance Criteria
-- [ ] All 8 event types have working handlers (AC-6, AC-7, AC-8)
+- [ ] All 6 event types have working handlers (AC-6, AC-7)
 - [ ] `node:accepted` drives two-phase handshake (AC-6)
 - [ ] Question lifecycle flows through events (AC-7)
-- [ ] Output persistence works via events (AC-8)
 - [ ] Backward-compat fields derived correctly (AC-15)
 - [ ] `just fft` clean
 
@@ -556,9 +552,11 @@ event log.
 ### Phase 5: Service Method Wrappers
 
 **Objective**: Refactor existing service methods (`endNode`, `askQuestion`,
-`answerQuestion`, `saveOutputData`, `saveOutputFile`) to become thin wrappers that
-construct event payloads and delegate to `raiseEvent()`. After this phase, there is
-no separate write path — the event system IS the implementation.
+`answerQuestion`) to become thin wrappers that construct event payloads and delegate
+to `raiseEvent()`. After this phase, there is no separate write path for node lifecycle
+and question events — the event system IS the implementation. Output methods
+(`saveOutputData`, `saveOutputFile`) remain unchanged — the orchestrator handles output
+persistence directly.
 
 **Workshop**: [01-node-event-system.md](./workshops/01-node-event-system.md) §Backward
 Compatibility; [02-event-schema-and-storage.md](./workshops/02-event-schema-and-storage.md)
@@ -568,10 +566,9 @@ Compatibility; [02-event-schema-and-storage.md](./workshops/02-event-schema-and-
 - `endNode()` → constructs `node:completed` payload, calls `raiseEvent()`
 - `askQuestion()` → constructs `question:ask` payload, calls `raiseEvent()`
 - `answerQuestion()` → constructs `question:answer` payload, calls `raiseEvent()`
-- `saveOutputData()` → constructs `output:save-data` payload, calls `raiseEvent()`
-- `saveOutputFile()` → constructs `output:save-file` payload, calls `raiseEvent()`
+- `saveOutputData()` and `saveOutputFile()` remain unchanged — orchestrator handles output persistence directly
 - Contract tests: old path (direct method call) and new path (via events) produce
-  identical state.json
+  identical state.json for lifecycle and question methods
 
 **Dependencies**: Phase 4 (handlers must work before wrappers can delegate)
 
@@ -588,13 +585,13 @@ Compatibility; [02-event-schema-and-storage.md](./workshops/02-event-schema-and-
 | 5.1 | [ ] | Write contract tests: `endNode()` via events produces same state as current | 2 | Same inputs → same node status, completed_at, events recorded | - | AC-15 |
 | 5.2 | [ ] | Write contract tests: `askQuestion()` via events produces same state | 2 | Same inputs → same pending_question_id, question in questions[], events recorded | - | AC-15 |
 | 5.3 | [ ] | Write contract tests: `answerQuestion()` via events produces same state | 2 | Same inputs → question answered, pending cleared, events recorded | - | AC-15 |
-| 5.4 | [ ] | Write contract tests: `saveOutputData()` via events produces same state | 2 | Same inputs → data in data.json, event recorded | - | AC-15 |
-| 5.5 | [ ] | Write contract tests: `saveOutputFile()` via events produces same state | 1 | Same inputs → file copied, event recorded | - | AC-15 |
+| ~~5.4~~ | N/A | ~~Write contract tests: `saveOutputData()` via events~~ | - | Removed — orchestrator handles output persistence directly | - | - |
+| ~~5.5~~ | N/A | ~~Write contract tests: `saveOutputFile()` via events~~ | - | Removed — orchestrator handles output persistence directly | - | - |
 | 5.6 | [ ] | Refactor `endNode()` to delegate to `raiseEvent('node:completed')` | 2 | Contract test from 5.1 passes; method return type unchanged | - | GREEN |
 | 5.7 | [ ] | Refactor `askQuestion()` to delegate to `raiseEvent('question:ask')` | 2 | Contract test from 5.2 passes | - | GREEN |
 | 5.8 | [ ] | Refactor `answerQuestion()` to delegate to `raiseEvent('question:answer')` | 2 | Contract test from 5.3 passes | - | GREEN |
-| 5.9 | [ ] | Refactor `saveOutputData()` to delegate to `raiseEvent('output:save-data')` | 2 | Contract test from 5.4 passes | - | GREEN |
-| 5.10 | [ ] | Refactor `saveOutputFile()` to delegate to `raiseEvent('output:save-file')` | 1 | Contract test from 5.5 passes | - | GREEN |
+| ~~5.9~~ | N/A | ~~Refactor `saveOutputData()` to delegate to `raiseEvent('output:save-data')`~~ | - | Removed — orchestrator handles output persistence directly | - | - |
+| ~~5.10~~ | N/A | ~~Refactor `saveOutputFile()` to delegate to `raiseEvent('output:save-file')`~~ | - | Removed — orchestrator handles output persistence directly | - | - |
 | 5.11 | [ ] | Verify all existing CLI tests still pass | 2 | E2E test `positional-graph-execution-e2e.test.ts` green | - | Regression check |
 | 5.12 | [ ] | Refactor and verify | 1 | `just fft` clean | - | |
 
@@ -690,7 +687,7 @@ the executor that acts on OrchestrationRequests — and does not modify ONBAS in
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
 | ONBAS regression from reading events vs flat fields | Medium | High | Same-input-same-output property tests on ONBAS |
-| Reality builder performance with large event logs | Low | Low | Events are per-node; typical 3-8 events per node |
+| Reality builder performance with large event logs | Low | Low | Events are per-node; typical 3-6 events per node |
 
 ### Tasks (Full TDD Approach)
 
@@ -745,14 +742,14 @@ answers, and completion happen step by step with clear console output.
 |---|--------|------|----|------------------|-----|-------|
 | 8.1 | [ ] | Create E2E script structure with helpers (runCli, log, assert, banner) | 2 | Script scaffolding compiles, helpers work. File: `test/e2e/node-event-system-visual-e2e.ts` (new file) | - | Design reference: `docs/plans/032-node-event-system/e2e-event-system-sample-flow.ts` (design doc with intended CLI surface — adapt, do not copy verbatim) |
 | 8.2 | [ ] | Implement Step 1: Create graph and add nodes | 1 | Graph created, 2 nodes added with wiring | - | |
-| 8.3 | [ ] | Implement Step 2: Schema self-discovery | 1 | `event list-types` returns all 8 types; `event schema question:ask` returns schema | - | AC-18 |
+| 8.3 | [ ] | Implement Step 2: Schema self-discovery | 1 | `event list-types` returns all 6 types; `event schema question:ask` returns schema | - | AC-18 |
 | 8.4 | [ ] | Implement Step 3: Direct output node (user-input) | 1 | Save output data + end on Node 1, status → complete | - | |
 | 8.5 | [ ] | Implement Step 4: Agent accepts Node 2 | 1 | Start node → starting; accept → agent-accepted; event logged | - | Two-phase handshake |
 | 8.6 | [ ] | Implement Step 5: Agent does work (progress + output) | 1 | Progress event raised; output saved via event | - | |
 | 8.7 | [ ] | Implement Step 6: Agent asks question (stops execution) | 2 | Question event raised; status → waiting-question; AGENT INSTRUCTION shown | - | |
 | 8.8 | [ ] | Implement Step 7: Human answers question | 1 | Answer event raised with `--source human`; question handled | - | |
 | 8.9 | [ ] | Implement Step 8-9: Agent resumes and completes | 2 | Agent retrieves answer, saves final output, completes via shortcut | - | |
-| 8.10 | [ ] | Implement Step 10: Inspect event log | 2 | Full event log printed as table; all 8 events visible with correct statuses | - | |
+| 8.10 | [ ] | Implement Step 10: Inspect event log | 2 | Full event log printed as table; all events visible with correct statuses | - | |
 | 8.11 | [ ] | Implement Step 11: Validate final state | 1 | All nodes complete; assertions pass; exit 0 | - | |
 | 8.12 | [ ] | Run complete script and verify visual output | 1 | Script runs end-to-end, human can follow every step | - | AC-18 |
 | 8.13 | [ ] | Final `just fft` validation | 1 | All tests pass | - | |
@@ -873,7 +870,7 @@ answers, and completion happen step by step with clear console output.
   - `file:packages/positional-graph/src/features/030-orchestration/reality.types.ts` — type union
   - `file:packages/positional-graph/src/features/030-orchestration/reality.schema.ts` — Zod enum
   - `file:packages/positional-graph/src/interfaces/positional-graph-service.interface.ts` — result types
-[^3]: Phase 3 complete (2026-02-07). Created `raise-event.ts` with `raiseEvent()` function, `RaiseEventDeps`/`RaiseEventResult` interfaces, and `VALID_FROM_STATES` map (8 entries). Updated `index.ts` barrel export. 22 tests in `raise-event.test.ts` covering all 5 validation steps + success + persistence safety. `createFakeStateStore()` test helper. No cross-plan edits.
+[^3]: Phase 3 complete (2026-02-07). Created `raise-event.ts` with `raiseEvent()` function, `RaiseEventDeps`/`RaiseEventResult` interfaces, and `VALID_FROM_STATES` map (6 entries; output events removed). Updated `index.ts` barrel export. 22 tests in `raise-event.test.ts` covering all 5 validation steps + success + persistence safety. `createFakeStateStore()` test helper. No cross-plan edits.
   - `function:packages/positional-graph/src/features/032-node-event-system/raise-event.ts:raiseEvent`
   - `file:packages/positional-graph/src/features/032-node-event-system/index.ts`
 [^4]: [To be added during implementation via plan-6a]

@@ -37,8 +37,6 @@ const VALID_FROM_STATES: Record<string, readonly string[]> = {
   'node:error': ['starting', 'agent-accepted'],
   'question:ask': ['agent-accepted'],
   'question:answer': ['waiting-question'],
-  'output:save-data': ['agent-accepted'],
-  'output:save-file': ['agent-accepted'],
   'progress:update': ['starting', 'agent-accepted', 'waiting-question'],
 };
 

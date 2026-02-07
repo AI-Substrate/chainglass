@@ -2,8 +2,6 @@ import {
   NodeAcceptedPayloadSchema,
   NodeCompletedPayloadSchema,
   NodeErrorPayloadSchema,
-  OutputSaveDataPayloadSchema,
-  OutputSaveFilePayloadSchema,
   ProgressUpdatePayloadSchema,
   QuestionAnswerPayloadSchema,
   QuestionAskPayloadSchema,
@@ -11,7 +9,7 @@ import {
 import type { INodeEventRegistry } from './node-event-registry.interface.js';
 
 /**
- * Register the 8 core event types into a registry.
+ * Register the 6 core event types into a registry.
  *
  * Follows the ADR-0008 Module Registration Function pattern:
  * the function receives a registry and populates it with known entries.
@@ -65,26 +63,6 @@ export function registerCoreEventTypes(registry: INodeEventRegistry): void {
     allowedSources: ['human', 'orchestrator'],
     stopsExecution: false,
     domain: 'question',
-  });
-
-  registry.register({
-    type: 'output:save-data',
-    displayName: 'Save Output Data',
-    description: 'Save a named data output (JSON value)',
-    payloadSchema: OutputSaveDataPayloadSchema,
-    allowedSources: ['agent', 'executor'],
-    stopsExecution: false,
-    domain: 'output',
-  });
-
-  registry.register({
-    type: 'output:save-file',
-    displayName: 'Save Output File',
-    description: 'Save a named file output (copy from source path)',
-    payloadSchema: OutputSaveFilePayloadSchema,
-    allowedSources: ['agent', 'executor'],
-    stopsExecution: false,
-    domain: 'output',
   });
 
   registry.register({
