@@ -899,3 +899,14 @@ answers, and completion happen step by step with clear console output.
 [^11]: Phase 4 task 4.13 complete (2026-02-07). E2E walkthrough tests — added 4 Workshop #02 walkthrough tests to `event-handlers.test.ts` (Happy Path, Q&A Lifecycle, Error Path, Progress Updates). Test helpers: `createFakeStateStore()`, `createE2EDeps()`.
   - `function:test/unit/positional-graph/features/032-node-event-system/event-handlers.test.ts:createFakeStateStore`
   - `function:test/unit/positional-graph/features/032-node-event-system/event-handlers.test.ts:createE2EDeps`
+
+---
+
+## Subtasks Registry
+
+Mid-implementation detours requiring structured tracking.
+
+| ID | Created | Phase | Parent Task | Reason | Status | Dossier |
+|----|---------|-------|-------------|--------|--------|---------|
+| 001 | 2026-02-07 | Phase 5 | T001, T002 | Drop backward compat layer per Workshop 04 Option C | [ ] Pending | [001-subtask-drop-backward-compat.md](./tasks/phase-5-service-method-wrappers/001-subtask-drop-backward-compat.md) |
+| 002 | 2026-02-07 | Phase 5 | T003, T004, T005, T006 | Remove inline handlers from raiseEvent per Workshop 05 | [ ] Pending | [002-subtask-remove-inline-handlers.md](./tasks/phase-5-service-method-wrappers/002-subtask-remove-inline-handlers.md) |
