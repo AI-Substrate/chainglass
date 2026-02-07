@@ -59,6 +59,10 @@ export { generateEventId } from './event-id.js';
 // Helpers
 export { canNodeDoWork, isNodeActive } from './event-helpers.js';
 
+// Core write path
+export { raiseEvent } from './raise-event.js';
+export type { RaiseEventDeps, RaiseEventResult } from './raise-event.js';
+
 // Error factories
 export {
   eventAlreadyAnsweredError,

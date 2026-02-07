@@ -471,23 +471,23 @@ State Transition Mapping; [02-event-schema-and-storage.md](./workshops/02-event-
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 3.1 | [ ] | Write tests for `raiseEvent` validation: unknown type (E190) | 1 | Returns E190 error with available types listed | - | RED |
-| 3.2 | [ ] | Write tests for `raiseEvent` validation: invalid payload (E191) | 2 | Returns E191 error with field-level Zod details and schema hint | - | RED |
-| 3.3 | [ ] | Write tests for `raiseEvent` validation: unauthorized source (E192) | 1 | Returns E192 error listing allowed sources | - | RED |
-| 3.4 | [ ] | Write tests for `raiseEvent` validation: wrong node state (E193) | 2 | Returns E193 error listing valid states for event type. Tests per Workshop #02 §Valid States table | - | RED |
-| 3.5 | [ ] | Write tests for `raiseEvent` validation: question refs (E194, E195) | 2 | E194 for nonexistent question, E195 for already-answered question | - | RED |
-| 3.6 | [ ] | Write tests for successful event creation | 2 | Event created with correct ID, status `new`, timestamps, stops_execution flag. Appended to events array. State persisted. | - | RED |
-| 3.7 | [ ] | Implement `raiseEvent()` | 3 | All tests from 3.1-3.6 pass | - | GREEN |
-| 3.8 | [ ] | Write tests proving validation fails before persistence | 1 | When validation fails, events array unchanged, state not persisted | - | AC-3 |
-| 3.9 | [ ] | Refactor and verify | 1 | `just fft` clean | - | |
+| 3.1 | [x] | Write tests for `raiseEvent` validation: unknown type (E190) | 1 | Returns E190 error with available types listed | [📋](tasks/phase-3-raiseevent-core-write-path/execution.log.md#task-t001-t006-write-all-validation-and-success-tests) | Complete [^3] |
+| 3.2 | [x] | Write tests for `raiseEvent` validation: invalid payload (E191) | 2 | Returns E191 error with field-level Zod details and schema hint | [📋](tasks/phase-3-raiseevent-core-write-path/execution.log.md#task-t001-t006-write-all-validation-and-success-tests) | Complete [^3] |
+| 3.3 | [x] | Write tests for `raiseEvent` validation: unauthorized source (E192) | 1 | Returns E192 error listing allowed sources | [📋](tasks/phase-3-raiseevent-core-write-path/execution.log.md#task-t001-t006-write-all-validation-and-success-tests) | Complete [^3] |
+| 3.4 | [x] | Write tests for `raiseEvent` validation: wrong node state (E193) | 2 | Returns E193 error listing valid states for event type. Tests per Workshop #02 §Valid States table | [📋](tasks/phase-3-raiseevent-core-write-path/execution.log.md#task-t001-t006-write-all-validation-and-success-tests) | Complete [^3] |
+| 3.5 | [x] | Write tests for `raiseEvent` validation: question refs (E194, E195) | 2 | E194 for nonexistent question, E195 for already-answered question | [📋](tasks/phase-3-raiseevent-core-write-path/execution.log.md#task-t001-t006-write-all-validation-and-success-tests) | Complete [^3] |
+| 3.6 | [x] | Write tests for successful event creation | 2 | Event created with correct ID, status `new`, timestamps, stops_execution flag. Appended to events array. State persisted. | [📋](tasks/phase-3-raiseevent-core-write-path/execution.log.md#task-t001-t006-write-all-validation-and-success-tests) | Complete [^3] |
+| 3.7 | [x] | Implement `raiseEvent()` | 3 | All tests from 3.1-3.6 pass | [📋](tasks/phase-3-raiseevent-core-write-path/execution.log.md#task-t007-implement-raiseevent) | Complete [^3] |
+| 3.8 | [x] | Write tests proving validation fails before persistence | 1 | When validation fails, events array unchanged, state not persisted | [📋](tasks/phase-3-raiseevent-core-write-path/execution.log.md#task-t008-persistence-safety-tests) | Complete [^3] |
+| 3.9 | [x] | Refactor and verify | 1 | `just fft` clean | [📋](tasks/phase-3-raiseevent-core-write-path/execution.log.md#task-t009-refactor-and-verify) | Complete [^3] |
 
 ### Acceptance Criteria
-- [ ] 5-step validation catches all invalid events (AC-3, AC-4, AC-5)
-- [ ] Valid events create NodeEvent records with correct fields (AC-2)
-- [ ] Events appended to node's events array in state.json
-- [ ] Invalid events never persisted
-- [ ] Error messages include actionable guidance (AC-3)
-- [ ] `just fft` clean
+- [x] 5-step validation catches all invalid events (AC-3, AC-4, AC-5)
+- [x] Valid events create NodeEvent records with correct fields (AC-2)
+- [x] Events appended to node's events array in state.json
+- [x] Invalid events never persisted
+- [x] Error messages include actionable guidance (AC-3)
+- [x] `just fft` clean
 
 ---
 
@@ -822,7 +822,7 @@ answers, and completion happen step by step with clear console output.
 ### Phase Completion Checklist
 - [x] Phase 1: Event Types, Schemas, and Registry - Complete (94 tests, 12 source files, `just fft` clean)
 - [x] Phase 2: State Schema Extension and Two-Phase Handshake - Complete (18 tests added, 7 source files + 13 test files modified, 3541 total tests green)
-- [ ] Phase 3: raiseEvent Core Write Path - Pending
+- [x] Phase 3: raiseEvent Core Write Path - Complete (22 tests, 1 new source file + 1 modified, 3563 total tests green)
 - [ ] Phase 4: Event Handlers and State Transitions - Pending
 - [ ] Phase 5: Service Method Wrappers - Pending
 - [ ] Phase 6: CLI Commands - Pending
@@ -873,6 +873,8 @@ answers, and completion happen step by step with clear console output.
   - `file:packages/positional-graph/src/features/030-orchestration/reality.types.ts` — type union
   - `file:packages/positional-graph/src/features/030-orchestration/reality.schema.ts` — Zod enum
   - `file:packages/positional-graph/src/interfaces/positional-graph-service.interface.ts` — result types
-[^3]: [To be added during implementation via plan-6a]
+[^3]: Phase 3 complete (2026-02-07). Created `raise-event.ts` with `raiseEvent()` function, `RaiseEventDeps`/`RaiseEventResult` interfaces, and `VALID_FROM_STATES` map (8 entries). Updated `index.ts` barrel export. 22 tests in `raise-event.test.ts` covering all 5 validation steps + success + persistence safety. `createFakeStateStore()` test helper. No cross-plan edits.
+  - `function:packages/positional-graph/src/features/032-node-event-system/raise-event.ts:raiseEvent`
+  - `file:packages/positional-graph/src/features/032-node-event-system/index.ts`
 [^4]: [To be added during implementation via plan-6a]
 [^5]: [To be added during implementation via plan-6a]
