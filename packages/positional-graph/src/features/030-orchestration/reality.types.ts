@@ -15,7 +15,8 @@ import type { InputPack } from '../../interfaces/positional-graph-service.interf
 export type ExecutionStatus =
   | 'pending'
   | 'ready'
-  | 'running'
+  | 'starting'
+  | 'agent-accepted'
   | 'waiting-question'
   | 'blocked-error'
   | 'complete';

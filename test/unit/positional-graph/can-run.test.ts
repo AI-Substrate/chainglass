@@ -297,7 +297,7 @@ describe('PositionalGraphService — canRun (via getNodeStatus)', () => {
   // ============================================
 
   describe('stored status', () => {
-    it('uses stored running status from state.json', async () => {
+    it('uses stored agent-accepted status from state.json', async () => {
       const { lineId } = await service.create(ctx, 'test-graph');
       const node = await service.addNode(ctx, 'test-graph', lineId, 'simple-task');
       const nodeId = node.nodeId as string;
@@ -306,14 +306,14 @@ describe('PositionalGraphService — canRun (via getNodeStatus)', () => {
         graph_status: 'in_progress',
         updated_at: new Date().toISOString(),
         nodes: {
-          [nodeId]: { status: 'running', started_at: new Date().toISOString() },
+          [nodeId]: { status: 'agent-accepted', started_at: new Date().toISOString() },
         },
         transitions: {},
       });
 
       const status = await service.getNodeStatus(ctx, 'test-graph', nodeId);
 
-      expect(status.status).toBe('running');
+      expect(status.status).toBe('agent-accepted');
     });
 
     it('uses stored complete status from state.json', async () => {

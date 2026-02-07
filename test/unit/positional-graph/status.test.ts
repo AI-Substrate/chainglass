@@ -166,7 +166,7 @@ describe('PositionalGraphService — Status API', () => {
         updated_at: new Date().toISOString(),
         nodes: {
           [node.nodeId as string]: {
-            status: 'running',
+            status: 'agent-accepted',
             started_at: new Date().toISOString(),
           },
         },

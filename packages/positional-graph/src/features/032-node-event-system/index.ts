@@ -56,6 +56,9 @@ export { registerCoreEventTypes } from './core-event-types.js';
 // Utilities
 export { generateEventId } from './event-id.js';
 
+// Helpers
+export { canNodeDoWork, isNodeActive } from './event-helpers.js';
+
 // Error factories
 export {
   eventAlreadyAnsweredError,

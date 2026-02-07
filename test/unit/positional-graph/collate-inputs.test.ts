@@ -169,13 +169,13 @@ describe('PositionalGraphService — collateInputs', () => {
         from_output: 'spec',
       });
 
-      // Mark input node as running (not complete)
+      // Mark input node as agent-accepted (not complete)
       await writeState(fs, pathResolver, 'test-graph', {
         graph_status: 'in_progress',
         updated_at: new Date().toISOString(),
         nodes: {
           [inputNode.nodeId as string]: {
-            status: 'running',
+            status: 'agent-accepted',
             started_at: new Date().toISOString(),
           },
         },
@@ -337,7 +337,7 @@ describe('PositionalGraphService — collateInputs', () => {
         updated_at: new Date().toISOString(),
         nodes: {
           [r1Id]: { status: 'complete', completed_at: new Date().toISOString() },
-          [r2Id]: { status: 'running', started_at: new Date().toISOString() },
+          [r2Id]: { status: 'agent-accepted', started_at: new Date().toISOString() },
         },
         transitions: {},
       });

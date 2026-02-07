@@ -402,7 +402,8 @@ old `running` status. This is the breaking change — everything downstream adap
 - `NodeExecutionStatusSchema` updated: remove `running`, add `starting` + `agent-accepted`
 - `NodeStateEntrySchema` updated: add optional `events` array
 - All `status === 'running'` references updated across codebase
-- Helper predicate: `isNodeActive(status)` for graph status computation
+- Helper predicates: `isNodeActive(status)` and `canNodeDoWork(status)` for graph status computation and service guards
+- `answerQuestion()` transitions to `starting` (not `agent-accepted`) — only agents set `agent-accepted`; resume path reuses two-phase handshake: `waiting-question → starting → agent-accepted`
 - Backward compatibility: old state.json without events parses correctly
 - All existing tests updated to use new status values
 
@@ -418,24 +419,24 @@ old `running` status. This is the breaking change — everything downstream adap
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 2.1 | [ ] | Update `NodeExecutionStatusSchema`: remove `running`, add `starting` + `agent-accepted` | 2 | Schema compiles, old values rejected, new values accepted | - | Breaking change — cascades |
-| 2.2 | [ ] | Add `events: z.array(NodeEventSchema).optional()` to `NodeStateEntrySchema` | 1 | Schema accepts both old (no events) and new (with events) state | - | Backward compat |
-| 2.3a | [ ] | Write tests for `isNodeActive()` and `canNodeDoWork()` predicates | 1 | `isNodeActive(starting)` → true, `isNodeActive(agent-accepted)` → true, `isNodeActive(pending)` → false; `canNodeDoWork(agent-accepted)` → true, `canNodeDoWork(starting)` → false | - | RED; Per Finding 01, 02 |
-| 2.3b | [ ] | Implement `isNodeActive()` and `canNodeDoWork()` helper predicates | 1 | All tests from 2.3a pass | - | GREEN; helpers go in `features/032-node-event-system/event-helpers.ts` |
-| 2.4 | [ ] | Update `positional-graph.service.ts`: replace all `=== 'running'` with helpers | 3 | `startNode()` transitions to `starting`; `saveOutputData/File`, `endNode`, `askQuestion` guard on `canNodeDoWork()`; graph status uses `isNodeActive()`. Run `pnpm typecheck` to catch all missing cases. | - | 7+ sites; Finding 01 |
-| 2.5 | [ ] | Update `transitionNodeState()` valid states map | 2 | New transitions: `pending→starting`, `starting→agent-accepted`, `agent-accepted→waiting-question`, `agent-accepted→complete`, `agent-accepted→blocked-error`, `starting→blocked-error` | - | Per Workshop #01 §Event → State Transition |
-| 2.6 | [ ] | Update all test fixtures from `running` to `starting`/`agent-accepted` | 2 | All tests in `test/unit/positional-graph/` and `test/integration/` compile and reference new statuses | - | Finding 09 |
-| 2.7 | [ ] | Update ONBAS switch: replace `case 'running':` with `case 'starting':` + `case 'agent-accepted':` | 2 | ONBAS skips both starting and agent-accepted nodes (they're already executing) | - | ONBAS cross-plan-edit |
-| 2.8 | [ ] | Update FakeONBAS and reality builder for new statuses | 1 | `buildFakeReality` supports new statuses; `runningNodeIds` accessor renamed or handles both | - | |
-| 2.9 | [ ] | Write backward compatibility test: load old state.json without events | 1 | Old state.json parses without error; nodes without events work correctly | - | AC-17 |
-| 2.10 | [ ] | Verify all tests pass with `just fft` | 1 | Full test suite green | - | |
+| 2.1 | [x] | Update `NodeExecutionStatusSchema`: remove `running`, add `starting` + `agent-accepted` | 2 | Schema compiles, old values rejected, new values accepted | [📋](tasks/phase-2-state-schema-extension-and-two-phase-handshake/execution.log.md#task-t001t002-update-stateschemats-enum--events-array) | Complete [^2] |
+| 2.2 | [x] | Add `events: z.array(NodeEventSchema).optional()` to `NodeStateEntrySchema` | 1 | Schema accepts both old (no events) and new (with events) state | [📋](tasks/phase-2-state-schema-extension-and-two-phase-handshake/execution.log.md#task-t001t002-update-stateschemats-enum--events-array) | Complete (batched with 2.1) [^2] |
+| 2.3a | [x] | Write tests for `isNodeActive()` and `canNodeDoWork()` predicates | 1 | `isNodeActive(starting)` → true, `isNodeActive(agent-accepted)` → true, `isNodeActive(pending)` → false; `canNodeDoWork(agent-accepted)` → true, `canNodeDoWork(starting)` → false | [📋](tasks/phase-2-state-schema-extension-and-two-phase-handshake/execution.log.md#task-t003-write-predicate-tests-red) | Complete [^2] |
+| 2.3b | [x] | Implement `isNodeActive()` and `canNodeDoWork()` helper predicates | 1 | All tests from 2.3a pass | [📋](tasks/phase-2-state-schema-extension-and-two-phase-handshake/execution.log.md#task-t004-implement-predicates-green) | Complete [^2] |
+| 2.4 | [x] | Update `positional-graph.service.ts`: replace all `=== 'running'` with helpers | 3 | `startNode()` transitions to `starting`; `saveOutputData/File`, `endNode`, `askQuestion` guard on `canNodeDoWork()`; graph status uses `isNodeActive()`. Run `pnpm typecheck` to catch all missing cases. | [📋](tasks/phase-2-state-schema-extension-and-two-phase-handshake/execution.log.md#task-t005-update-positional-graphservicets) | Complete [^2] |
+| 2.5 | [x] | Update `transitionNodeState()` valid states map | 2 | New transitions: `pending→starting`, `starting→agent-accepted`, `agent-accepted→waiting-question`, `agent-accepted→complete`, `agent-accepted→blocked-error`, `starting→blocked-error` | [📋](tasks/phase-2-state-schema-extension-and-two-phase-handshake/execution.log.md#task-t006-update-transitionnodestate-valid-states-map) | Complete; transitions distributed across callers [^2] |
+| 2.6 | [x] | Update all test fixtures from `running` to `starting`/`agent-accepted` | 2 | All tests in `test/unit/positional-graph/` and `test/integration/` compile and reference new statuses | [📋](tasks/phase-2-state-schema-extension-and-two-phase-handshake/execution.log.md#task-t007-migrate-test-fixtures) | Complete; 9 test files + simulateAgentAccept helpers [^2] |
+| 2.7 | [x] | Update ONBAS switch: replace `case 'running':` with `case 'starting':` + `case 'agent-accepted':` | 2 | ONBAS skips both starting and agent-accepted nodes (they're already executing) | [📋](tasks/phase-2-state-schema-extension-and-two-phase-handshake/execution.log.md#task-t008-update-onbas-switch-cases) | Complete [^2] |
+| 2.8 | [x] | Update FakeONBAS and reality builder for new statuses | 1 | `buildFakeReality` supports new statuses; `runningNodeIds` accessor renamed or handles both | [📋](tasks/phase-2-state-schema-extension-and-two-phase-handshake/execution.log.md#task-t009-update-fakeonbas-reality-interfaces) | Complete; kept `runningNodeIds` name [^2] |
+| 2.9 | [x] | Write backward compatibility test: load old state.json without events | 1 | Old state.json parses without error; nodes without events work correctly | [📋](tasks/phase-2-state-schema-extension-and-two-phase-handshake/execution.log.md#task-t010-backward-compatibility-test) | Complete; 6 tests [^2] |
+| 2.10 | [x] | Verify all tests pass with `just fft` | 1 | Full test suite green | [📋](tasks/phase-2-state-schema-extension-and-two-phase-handshake/execution.log.md#task-t011-final-verification-just-fft) | Complete; 3541 tests green [^2] |
 
 ### Acceptance Criteria
-- [ ] Two new statuses (`starting`, `agent-accepted`) replace `running` (AC-6)
-- [ ] `events` array on NodeStateEntry is optional (AC-17)
-- [ ] All existing tests updated and passing
-- [ ] Old state.json files parse without error (AC-17)
-- [ ] `just fft` clean
+- [x] Two new statuses (`starting`, `agent-accepted`) replace `running` (AC-6)
+- [x] `events` array on NodeStateEntry is optional (AC-17)
+- [x] All existing tests updated and passing
+- [x] Old state.json files parse without error (AC-17)
+- [x] `just fft` clean
 
 ---
 
@@ -820,7 +821,7 @@ answers, and completion happen step by step with clear console output.
 
 ### Phase Completion Checklist
 - [x] Phase 1: Event Types, Schemas, and Registry - Complete (94 tests, 12 source files, `just fft` clean)
-- [ ] Phase 2: State Schema Extension and Two-Phase Handshake - Pending
+- [x] Phase 2: State Schema Extension and Two-Phase Handshake - Complete (18 tests added, 7 source files + 13 test files modified, 3541 total tests green)
 - [ ] Phase 3: raiseEvent Core Write Path - Pending
 - [ ] Phase 4: Event Handlers and State Transitions - Pending
 - [ ] Phase 5: Service Method Wrappers - Pending
@@ -862,7 +863,16 @@ answers, and completion happen step by step with clear console output.
 ## Change Footnotes Ledger
 
 [^1]: Phase 1 complete (2026-02-07). 12 source files in `features/032-node-event-system/`, 1 modified file (`positional-graph-errors.ts` — E190-E195), 4 test files with 94 tests. Discovery: `errors/index.ts` did not need modification (auto-exports via `keyof typeof`).
-[^2]: [To be added during implementation via plan-6a]
+[^2]: Phase 2 complete (2026-02-07). Replaced `'running'` with `'starting'` + `'agent-accepted'` across 7 source files and 13 test files. New files: `event-helpers.ts` (predicates), `event-helpers.test.ts` (10 tests), `backward-compat.test.ts` (6 tests). Key discovery: two-phase handshake requires `simulateAgentAccept()` test helpers until Phase 3-4 delivers `acceptNode()`. DYK #1 enforced: `answerQuestion()` returns `'starting'`, not `'agent-accepted'`.
+  - `file:packages/positional-graph/src/schemas/state.schema.ts` — enum + events array
+  - `function:packages/positional-graph/src/features/032-node-event-system/event-helpers.ts:isNodeActive`
+  - `function:packages/positional-graph/src/features/032-node-event-system/event-helpers.ts:canNodeDoWork`
+  - `file:packages/positional-graph/src/services/positional-graph.service.ts` — 10 sites updated
+  - `file:packages/positional-graph/src/features/030-orchestration/onbas.ts` — switch cases
+  - `file:packages/positional-graph/src/features/030-orchestration/fake-onbas.ts` — status filter
+  - `file:packages/positional-graph/src/features/030-orchestration/reality.types.ts` — type union
+  - `file:packages/positional-graph/src/features/030-orchestration/reality.schema.ts` — Zod enum
+  - `file:packages/positional-graph/src/interfaces/positional-graph-service.interface.ts` — result types
 [^3]: [To be added during implementation via plan-6a]
 [^4]: [To be added during implementation via plan-6a]
 [^5]: [To be added during implementation via plan-6a]

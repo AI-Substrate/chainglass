@@ -14,7 +14,8 @@ import { z } from 'zod';
 export const ExecutionStatusSchema = z.enum([
   'pending',
   'ready',
-  'running',
+  'starting',
+  'agent-accepted',
   'waiting-question',
   'blocked-error',
   'complete',

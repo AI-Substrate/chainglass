@@ -31,6 +31,29 @@ import { beforeEach, describe, expect, it } from 'vitest';
 // Test Helpers
 // ============================================
 
+/**
+ * Simulate agent accepting a node that is in 'starting' state.
+ *
+ * Plan 032 introduced a two-phase handshake: startNode() puts nodes in 'starting',
+ * and the agent must accept before doing work. The acceptNode service method is
+ * not yet implemented, so tests that need to do work after startNode() use this
+ * helper to transition state.json directly.
+ */
+async function simulateAgentAccept(
+  fs: FakeFileSystem,
+  graphSlug: string,
+  nodeId: string,
+  worktreePath = '/workspace/my-project'
+): Promise<void> {
+  const statePath = `${worktreePath}/.chainglass/data/workflows/${graphSlug}/state.json`;
+  const content = fs.getFile(statePath);
+  if (!content) throw new Error(`state.json not found at ${statePath}`);
+  const state = JSON.parse(content);
+  if (!state.nodes?.[nodeId]) throw new Error(`Node ${nodeId} not found in state.json`);
+  state.nodes[nodeId].status = 'agent-accepted';
+  fs.setFile(statePath, JSON.stringify(state, null, 2));
+}
+
 function createTestContext(worktreePath = '/workspace/my-project'): WorkspaceContext {
   return {
     workspaceSlug: 'test-workspace',
@@ -146,6 +169,7 @@ describe('PositionalGraphService — getInputData', () => {
 
     // Complete upstream node using service methods (not raw file writes)
     await service.startNode(ctx, 'test-graph', inputNodeId);
+    await simulateAgentAccept(fs, 'test-graph', inputNodeId);
     await service.saveOutputData(ctx, 'test-graph', inputNodeId, 'spec', 'The spec content');
     await service.endNode(ctx, 'test-graph', inputNodeId);
 
@@ -217,6 +241,7 @@ describe('PositionalGraphService — getInputData', () => {
 
     // Complete upstream node with only spec output (not notes)
     await service.startNode(ctx, 'test-graph', inputNodeId);
+    await simulateAgentAccept(fs, 'test-graph', inputNodeId);
     await service.saveOutputData(ctx, 'test-graph', inputNodeId, 'spec', 'spec content');
     await service.endNode(ctx, 'test-graph', inputNodeId);
 
@@ -285,6 +310,7 @@ describe('PositionalGraphService — getInputData', () => {
 
     // Complete upstream node
     await service.startNode(ctx, 'test-graph', inputNodeId);
+    await simulateAgentAccept(fs, 'test-graph', inputNodeId);
     await service.saveOutputData(ctx, 'test-graph', inputNodeId, 'spec', {
       version: 1,
       data: 'test',
@@ -324,10 +350,12 @@ describe('PositionalGraphService — getInputData', () => {
 
     // Complete both upstream nodes with different data
     await service.startNode(ctx, 'test-graph', input1Id);
+    await simulateAgentAccept(fs, 'test-graph', input1Id);
     await service.saveOutputData(ctx, 'test-graph', input1Id, 'spec', 'from-input-1');
     await service.endNode(ctx, 'test-graph', input1Id);
 
     await service.startNode(ctx, 'test-graph', input2Id);
+    await simulateAgentAccept(fs, 'test-graph', input2Id);
     await service.saveOutputData(ctx, 'test-graph', input2Id, 'spec', 'from-input-2');
     await service.endNode(ctx, 'test-graph', input2Id);
 
@@ -385,6 +413,7 @@ describe('PositionalGraphService — getInputFile', () => {
     await fs.writeFile(sourceFile, 'key: value\n');
 
     await service.startNode(ctx, 'test-graph', inputNodeId);
+    await simulateAgentAccept(fs, 'test-graph', inputNodeId);
     await service.saveOutputData(ctx, 'test-graph', inputNodeId, 'spec', 'spec content'); // Required output
     await service.saveOutputFile(ctx, 'test-graph', inputNodeId, 'config', sourceFile);
     const endResult = await service.endNode(ctx, 'test-graph', inputNodeId);
@@ -454,6 +483,7 @@ describe('PositionalGraphService — getInputFile', () => {
 
     // Complete upstream node without saving config output
     await service.startNode(ctx, 'test-graph', inputNodeId);
+    await simulateAgentAccept(fs, 'test-graph', inputNodeId);
     await service.saveOutputData(ctx, 'test-graph', inputNodeId, 'spec', 'some spec');
     await service.endNode(ctx, 'test-graph', inputNodeId);
 
@@ -528,6 +558,7 @@ describe('PositionalGraphService — getInputFile', () => {
 
     // Complete both upstream nodes (must save required 'spec' output too)
     await service.startNode(ctx, 'test-graph', input1Id);
+    await simulateAgentAccept(fs, 'test-graph', input1Id);
     await service.saveOutputData(ctx, 'test-graph', input1Id, 'spec', 'spec1');
     await service.saveOutputFile(
       ctx,
@@ -539,6 +570,7 @@ describe('PositionalGraphService — getInputFile', () => {
     await service.endNode(ctx, 'test-graph', input1Id);
 
     await service.startNode(ctx, 'test-graph', input2Id);
+    await simulateAgentAccept(fs, 'test-graph', input2Id);
     await service.saveOutputData(ctx, 'test-graph', input2Id, 'spec', 'spec2');
     await service.saveOutputFile(
       ctx,

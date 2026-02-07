@@ -913,10 +913,10 @@ async function executeLine1WithQA(): Promise<void> {
   assert(answerResult.ok, `Answer failed: ${JSON.stringify(answerResult.errors)}`);
   console.log('    Question answered: TypeScript');
 
-  step('6.5: Verify coder back to running');
+  step('6.5: Verify coder back to starting');
   const coderStatus2 = await runCli<StatusResult>(['status', GRAPH_SLUG, '--node', nodeIds.coder]);
-  assert(coderStatus2.data?.status === 'running', 'Should be back to running');
-  console.log('    coder status: running');
+  assert(coderStatus2.data?.status === 'starting', 'Should be back to starting');
+  console.log('    coder status: starting');
 
   step('6.6: Get answer (agent retrieves after resume)');
   const getAnswerResult = await runCli<GetAnswerResult>([

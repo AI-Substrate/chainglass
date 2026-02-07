@@ -21,6 +21,7 @@ import {
   questionNotFoundError,
   unitNotFoundError,
 } from '../errors/index.js';
+import { canNodeDoWork, isNodeActive } from '../features/032-node-event-system/event-helpers.js';
 import type {
   AddLineOptions,
   AddLineResult,
@@ -1145,7 +1146,10 @@ export class PositionalGraphService implements IPositionalGraphService {
 
     // Convenience buckets
     const readyNodes = nodes.filter((n) => n.status === 'ready').map((n) => n.nodeId);
-    const runningNodes = nodes.filter((n) => n.status === 'running').map((n) => n.nodeId);
+    // runningNodes: includes both 'starting' and 'agent-accepted' (two-phase handshake)
+    const runningNodes = nodes
+      .filter((n) => n.status === 'starting' || n.status === 'agent-accepted')
+      .map((n) => n.nodeId);
     const waitingQuestionNodes = nodes
       .filter((n) => n.status === 'waiting-question')
       .map((n) => n.nodeId);
@@ -1442,9 +1446,9 @@ export class PositionalGraphService implements IPositionalGraphService {
       return { saved: false, errors: nodeResult.errors };
     }
 
-    // Per DYK #4: Require running state for output operations
+    // Require agent-accepted state for output operations (two-phase handshake)
     const status = await this.getNodeExecutionStatus(ctx, graphSlug, nodeId);
-    if (status !== 'running') {
+    if (status === 'pending' || !canNodeDoWork(status)) {
       return { saved: false, errors: [nodeNotRunningError(nodeId)] };
     }
 
@@ -1513,9 +1517,9 @@ export class PositionalGraphService implements IPositionalGraphService {
       return { saved: false, errors: nodeResult.errors };
     }
 
-    // Per DYK #4: Require running state for output operations
+    // Require agent-accepted state for output operations (two-phase handshake)
     const status = await this.getNodeExecutionStatus(ctx, graphSlug, nodeId);
-    if (status !== 'running') {
+    if (status === 'pending' || !canNodeDoWork(status)) {
       return { saved: false, errors: [nodeNotRunningError(nodeId)] };
     }
 
@@ -1727,7 +1731,7 @@ export class PositionalGraphService implements IPositionalGraphService {
     };
 
     // Set timestamps based on transition
-    if (toStatus === 'running' && !newEntry.started_at) {
+    if (toStatus === 'starting' && !newEntry.started_at) {
       newEntry.started_at = now;
     }
     if (toStatus === 'complete') {
@@ -1783,13 +1787,13 @@ export class PositionalGraphService implements IPositionalGraphService {
       return { errors: nodeResult.errors };
     }
 
-    // Transition to running (valid from pending only - ready is computed, not stored)
+    // Transition to starting (valid from pending only - ready is computed, not stored)
     const transition = await this.transitionNodeState(
       ctx,
       graphSlug,
       nodeId,
-      'running',
-      ['pending'] // Only pending is valid; running/complete/waiting/blocked are rejected
+      'starting',
+      ['pending'] // Only pending is valid; starting/complete/waiting/blocked are rejected
     );
 
     if (!transition.ok) {
@@ -1798,7 +1802,7 @@ export class PositionalGraphService implements IPositionalGraphService {
 
     return {
       nodeId,
-      status: 'running',
+      status: 'starting',
       startedAt: transition.entry.started_at,
       errors: [],
     };
@@ -1878,9 +1882,9 @@ export class PositionalGraphService implements IPositionalGraphService {
       return { errors: nodeResult.errors };
     }
 
-    // Check state FIRST - must be running (E172 takes precedence over E175)
+    // Check state FIRST - must be agent-accepted (E172 takes precedence over E175)
     const status = await this.getNodeExecutionStatus(ctx, graphSlug, nodeId);
-    if (status !== 'running') {
+    if (status === 'pending' || !canNodeDoWork(status)) {
       return {
         errors: [invalidStateTransitionError(nodeId, status, 'complete')],
       };
@@ -1904,13 +1908,13 @@ export class PositionalGraphService implements IPositionalGraphService {
       };
     }
 
-    // Transition to complete (valid from running only)
+    // Transition to complete (valid from agent-accepted only)
     const transition = await this.transitionNodeState(
       ctx,
       graphSlug,
       nodeId,
       'complete',
-      ['running'] // Only running is valid; pending/complete/waiting/blocked are rejected
+      ['agent-accepted'] // Only agent-accepted is valid; pending/starting/complete/waiting/blocked are rejected
     );
 
     if (!transition.ok) {
@@ -1958,9 +1962,9 @@ export class PositionalGraphService implements IPositionalGraphService {
       return { errors: nodeResult.errors };
     }
 
-    // Check state - must be running (E176)
+    // Check state - must be agent-accepted (E176)
     const status = await this.getNodeExecutionStatus(ctx, graphSlug, nodeId);
-    if (status !== 'running') {
+    if (status === 'pending' || !canNodeDoWork(status)) {
       return {
         errors: [nodeNotRunningError(nodeId)],
       };
@@ -1999,7 +2003,7 @@ export class PositionalGraphService implements IPositionalGraphService {
       state.nodes = {};
     }
     if (!state.nodes[nodeId]) {
-      state.nodes[nodeId] = { status: 'running' };
+      state.nodes[nodeId] = { status: 'agent-accepted' };
     }
     state.nodes[nodeId].status = 'waiting-question';
     state.nodes[nodeId].pending_question_id = questionId;
@@ -2063,9 +2067,9 @@ export class PositionalGraphService implements IPositionalGraphService {
     questions[questionIndex].answer = answer;
     questions[questionIndex].answered_at = now;
 
-    // Update node state (nodes exists since we're in waiting-question state)
+    // Update node state — resume via two-phase handshake (DYK #1: agent must re-accept)
     const nodes = state.nodes ?? {};
-    nodes[nodeId].status = 'running';
+    nodes[nodeId].status = 'starting';
     nodes[nodeId].pending_question_id = undefined;
     state.updated_at = now;
 
@@ -2075,7 +2079,7 @@ export class PositionalGraphService implements IPositionalGraphService {
     return {
       nodeId,
       questionId,
-      status: 'running',
+      status: 'starting',
       errors: [],
     };
   }

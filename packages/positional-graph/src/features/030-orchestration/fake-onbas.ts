@@ -193,7 +193,9 @@ export function buildFakeReality(options: FakeRealityOptions = {}): PositionalGr
 
   const completedNodeIds = nodes.filter((n) => n.status === 'complete').map((n) => n.nodeId);
   const readyNodeIds = nodes.filter((n) => n.status === 'ready').map((n) => n.nodeId);
-  const runningNodeIds = nodes.filter((n) => n.status === 'running').map((n) => n.nodeId);
+  const runningNodeIds = nodes
+    .filter((n) => n.status === 'starting' || n.status === 'agent-accepted')
+    .map((n) => n.nodeId);
   const waitingQuestionNodeIds = nodes
     .filter((n) => n.status === 'waiting-question')
     .map((n) => n.nodeId);

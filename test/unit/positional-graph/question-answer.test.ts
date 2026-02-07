@@ -30,6 +30,23 @@ import { stubWorkUnitLoader, testFixtures } from './test-helpers.js';
 // Test Helpers
 // ============================================
 
+/**
+ * Simulate agent accepting a node by transitioning its status from 'starting'
+ * to 'agent-accepted' in state.json. This completes the two-phase handshake
+ * introduced in Plan 032 Phase 2.
+ */
+async function acceptNodeInState(
+  fs: FakeFileSystem,
+  graphSlug: string,
+  nodeId: string
+): Promise<void> {
+  const statePath = `/workspace/my-project/.chainglass/data/workflows/${graphSlug}/state.json`;
+  const stateContent = await fs.readFile(statePath, 'utf-8');
+  const state = JSON.parse(stateContent);
+  state.nodes[nodeId].status = 'agent-accepted';
+  await fs.writeFile(statePath, JSON.stringify(state));
+}
+
 function createTestContext(worktreePath = '/workspace/my-project'): WorkspaceContext {
   return {
     workspaceSlug: 'test-workspace',
@@ -74,8 +91,9 @@ describe('PositionalGraphService — askQuestion', () => {
     if (!result.nodeId) throw new Error('nodeId expected');
     nodeId = result.nodeId;
 
-    // Start node so we're in running state
+    // Start node and simulate agent accepting (two-phase handshake)
     await service.startNode(ctx, 'test-graph', nodeId);
+    await acceptNodeInState(fs, 'test-graph', nodeId);
   });
 
   it('generates timestamp-based question ID', async () => {
@@ -220,8 +238,9 @@ describe('PositionalGraphService — answerQuestion', () => {
     if (!result.nodeId) throw new Error('nodeId expected');
     nodeId = result.nodeId;
 
-    // Start node and ask a question to get to waiting-question state
+    // Start node, simulate agent accepting, then ask a question to get to waiting-question state
     await service.startNode(ctx, 'test-graph', nodeId);
+    await acceptNodeInState(fs, 'test-graph', nodeId);
     const askResult = await service.askQuestion(ctx, 'test-graph', nodeId, {
       type: 'single',
       text: 'Which language?',
@@ -282,10 +301,10 @@ describe('PositionalGraphService — answerQuestion', () => {
     const result = await service.answerQuestion(ctx, 'test-graph', nodeId, questionId, 'bash');
 
     expect(result.errors).toEqual([]);
-    expect(result.status).toBe('running');
+    expect(result.status).toBe('starting');
 
     const status = await service.getNodeStatus(ctx, 'test-graph', nodeId);
-    expect(status.status).toBe('running');
+    expect(status.status).toBe('starting');
   });
 
   it('clears pending_question_id', async () => {
@@ -366,8 +385,9 @@ describe('PositionalGraphService — getAnswer', () => {
     if (!result.nodeId) throw new Error('nodeId expected');
     nodeId = result.nodeId;
 
-    // Start node and ask a question
+    // Start node, simulate agent accepting, then ask a question
     await service.startNode(ctx, 'test-graph', nodeId);
+    await acceptNodeInState(fs, 'test-graph', nodeId);
     const askResult = await service.askQuestion(ctx, 'test-graph', nodeId, {
       type: 'single',
       text: 'Which language?',
@@ -457,6 +477,7 @@ describe('PositionalGraphService — multiple questions', () => {
     nodeId = result.nodeId;
 
     await service.startNode(ctx, 'test-graph', nodeId);
+    await acceptNodeInState(fs, 'test-graph', nodeId);
   });
 
   it('stores multiple questions from same node', async () => {
@@ -472,8 +493,11 @@ describe('PositionalGraphService — multiple questions', () => {
       options: ['a', 'b'],
     });
 
-    // Answer first question (transitions back to running)
+    // Answer first question (transitions back to starting via two-phase handshake)
     await service.answerQuestion(ctx, 'test-graph', nodeId, q1.questionId as string, 'a');
+
+    // Simulate agent re-accepting after answer (required for two-phase handshake)
+    await acceptNodeInState(fs, 'test-graph', nodeId);
 
     // Ask second question
     const q2 = await service.askQuestion(ctx, 'test-graph', nodeId, {

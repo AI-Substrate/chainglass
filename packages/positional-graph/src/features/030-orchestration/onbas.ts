@@ -80,7 +80,8 @@ function visitNode(
     case 'complete':
       return null;
 
-    case 'running':
+    case 'starting':
+    case 'agent-accepted':
       return null;
 
     case 'waiting-question':
@@ -165,7 +166,8 @@ function diagnoseStuckLine(reality: PositionalGraphReality, line: LineReality): 
     if (!node) continue;
 
     switch (node.status) {
-      case 'running':
+      case 'starting':
+      case 'agent-accepted':
         hasRunning = true;
         break;
       case 'waiting-question':

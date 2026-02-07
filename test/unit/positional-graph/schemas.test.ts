@@ -339,8 +339,12 @@ describe('GraphStatusSchema', () => {
 // ============================================
 
 describe('NodeExecutionStatusSchema', () => {
-  it('accepts "running"', () => {
-    expect(NodeExecutionStatusSchema.parse('running')).toBe('running');
+  it('accepts "starting"', () => {
+    expect(NodeExecutionStatusSchema.parse('starting')).toBe('starting');
+  });
+
+  it('accepts "agent-accepted"', () => {
+    expect(NodeExecutionStatusSchema.parse('agent-accepted')).toBe('agent-accepted');
   });
 
   it('accepts "waiting-question"', () => {
@@ -359,6 +363,10 @@ describe('NodeExecutionStatusSchema', () => {
     expect(NodeExecutionStatusSchema.safeParse('pending').success).toBe(false);
     expect(NodeExecutionStatusSchema.safeParse('ready').success).toBe(false);
   });
+
+  it('rejects legacy "running" status', () => {
+    expect(NodeExecutionStatusSchema.safeParse('running').success).toBe(false);
+  });
 });
 
 // ============================================
@@ -367,8 +375,8 @@ describe('NodeExecutionStatusSchema', () => {
 
 describe('NodeStateEntrySchema', () => {
   it('parses minimal entry with status only', () => {
-    const entry = NodeStateEntrySchema.parse({ status: 'running' });
-    expect(entry.status).toBe('running');
+    const entry = NodeStateEntrySchema.parse({ status: 'starting' });
+    expect(entry.status).toBe('starting');
     expect(entry.started_at).toBeUndefined();
     expect(entry.completed_at).toBeUndefined();
   });
@@ -442,7 +450,7 @@ describe('StateSchema', () => {
           completed_at: '2026-02-01T10:05:00Z',
         },
         'sample-coder-c4d': {
-          status: 'running',
+          status: 'agent-accepted',
           started_at: '2026-02-01T10:06:00Z',
         },
       },
@@ -453,7 +461,7 @@ describe('StateSchema', () => {
       },
     });
     expect(state.nodes?.['sample-input-a3f']?.status).toBe('complete');
-    expect(state.nodes?.['sample-coder-c4d']?.status).toBe('running');
+    expect(state.nodes?.['sample-coder-c4d']?.status).toBe('agent-accepted');
     expect(state.transitions?.['line-c8b']?.triggered).toBe(false);
   });
 
