@@ -364,28 +364,28 @@ service or state changes.
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 1.1 | [ ] | Create feature folder `032-node-event-system/` with barrel `index.ts` | 1 | Directory exists, empty index compiles | - | PlanPak setup (T000) |
-| 1.2 | [ ] | Define `EventSourceSchema`, `EventStatusSchema`, `NodeEventSchema` | 2 | Schemas validate sample events from Workshop #02 walkthroughs | - | Per Workshop #01 |
-| 1.3 | [ ] | Define all 8 payload schemas | 2 | Each schema accepts valid payloads and rejects invalid. Tests for `.strict()` (no extra fields) | - | Per Workshop #01 §Payload Schemas |
-| 1.4 | [ ] | Define `EventTypeRegistration` interface and `INodeEventRegistry` | 1 | Interface compiles, includes register/get/list/validatePayload | - | |
-| 1.5 | [ ] | Write tests for `NodeEventRegistry` | 2 | Tests: register, get, list, listByDomain, validatePayload (valid + invalid), duplicate registration error | - | RED |
-| 1.6 | [ ] | Implement `NodeEventRegistry` | 2 | All tests from 1.5 pass | - | GREEN |
-| 1.7 | [ ] | Implement `FakeNodeEventRegistry` with test helpers | 1 | Fake has: `addEventType()`, `getValidationHistory()`, `reset()` | - | |
-| 1.8 | [ ] | Write contract tests (fake vs real registry) | 2 | Same assertions pass on both implementations | - | |
-| 1.9 | [ ] | Implement `registerCoreEventTypes()` | 1 | All 8 types registered with correct metadata from Workshop #01 | - | |
-| 1.10 | [ ] | Implement `generateEventId()` | 1 | Format: `evt_<timestamp_hex>_<random_4hex>`, monotonic ordering | - | Per Workshop #01 Q3 |
-| 1.11 | [ ] | Add E190-E195 error codes and factory functions | 2 | 6 factories follow existing pattern: eventTypeNotFoundError, eventPayloadValidationError, eventSourceNotAllowedError, eventStateTransitionError, eventQuestionNotFoundError, eventAlreadyAnsweredError | - | |
-| 1.12 | [ ] | Refactor and verify | 1 | `just fft` clean | - | |
+| 1.1 | [x] | Create feature folder `032-node-event-system/` with barrel `index.ts` | 1 | Directory exists, empty index compiles | [^1] | PlanPak setup (T000) |
+| 1.2 | [x] | Define `EventSourceSchema`, `EventStatusSchema`, `NodeEventSchema` | 2 | Schemas validate sample events from Workshop #02 walkthroughs | [^1] | Per Workshop #01 |
+| 1.3 | [x] | Define all 8 payload schemas | 2 | Each schema accepts valid payloads and rejects invalid. Tests for `.strict()` (no extra fields) | [^1] | Per Workshop #01 §Payload Schemas; 38 tests |
+| 1.4 | [x] | Define `EventTypeRegistration` interface and `INodeEventRegistry` | 1 | Interface compiles, includes register/get/list/validatePayload | [^1] | |
+| 1.5 | [x] | Write tests for `NodeEventRegistry` | 2 | Tests: register, get, list, listByDomain, validatePayload (valid + invalid), duplicate registration error | [^1] | RED; 12 tests failing |
+| 1.6 | [x] | Implement `NodeEventRegistry` | 2 | All tests from 1.5 pass | [^1] | GREEN; 12 tests passing |
+| 1.7 | [x] | Implement `FakeNodeEventRegistry` with test helpers | 1 | Fake has: `addEventType()`, `getValidationHistory()`, `reset()` | [^1] | |
+| 1.8 | [x] | Write contract tests (fake vs real registry) | 2 | Same assertions pass on both implementations | [^1] | 33 total tests |
+| 1.9 | [x] | Implement `registerCoreEventTypes()` | 1 | All 8 types registered with correct metadata from Workshop #01 | [^1] | 43 total tests |
+| 1.10 | [x] | Implement `generateEventId()` | 1 | Format: `evt_<timestamp_hex>_<random_4hex>`, monotonic ordering | [^1] | Per Workshop #01 Q3; 5 tests |
+| 1.11 | [x] | Add E190-E195 error codes and factory functions | 2 | 6 factories follow existing pattern: eventTypeNotFoundError, eventPayloadValidationError, eventSourceNotAllowedError, eventStateTransitionError, eventQuestionNotFoundError, eventAlreadyAnsweredError | [^1] | 8 tests; `errors/index.ts` not modified |
+| 1.12 | [x] | Refactor and verify | 1 | `just fft` clean | [^1] | 3523 tests, 0 failures |
 
 **DI Note**: `NodeEventRegistry` is constructed internally by `IPositionalGraphService` (or by `raiseEvent()` caller). It does NOT get a public DI token — there are no consumers outside `positional-graph` package. The registry is created via `new NodeEventRegistry()` + `registerCoreEventTypes(registry)` during service initialization. Tests use `FakeNodeEventRegistry` directly.
 
 ### Acceptance Criteria
-- [ ] All 8 event types registered with correct metadata (AC-1)
-- [ ] Payload validation works for all 8 schemas (AC-3)
-- [ ] Registry rejects unknown types, invalid payloads, unauthorized sources (AC-1, AC-3, AC-4)
-- [ ] Contract tests pass on fake and real registry
-- [ ] Error codes E190-E195 with actionable messages
-- [ ] `just fft` clean
+- [x] All 8 event types registered with correct metadata (AC-1)
+- [x] Payload validation works for all 8 schemas (AC-3)
+- [x] Registry rejects unknown types, invalid payloads, unauthorized sources (AC-1, AC-3, AC-4)
+- [x] Contract tests pass on fake and real registry
+- [x] Error codes E190-E195 with actionable messages
+- [x] `just fft` clean
 
 ---
 
@@ -819,7 +819,7 @@ answers, and completion happen step by step with clear console output.
 ## Progress Tracking
 
 ### Phase Completion Checklist
-- [ ] Phase 1: Event Types, Schemas, and Registry - Pending
+- [x] Phase 1: Event Types, Schemas, and Registry - Complete (94 tests, 12 source files, `just fft` clean)
 - [ ] Phase 2: State Schema Extension and Two-Phase Handshake - Pending
 - [ ] Phase 3: raiseEvent Core Write Path - Pending
 - [ ] Phase 4: Event Handlers and State Transitions - Pending
@@ -861,7 +861,7 @@ answers, and completion happen step by step with clear console output.
 
 ## Change Footnotes Ledger
 
-[^1]: [To be added during implementation via plan-6a]
+[^1]: Phase 1 complete (2026-02-07). 12 source files in `features/032-node-event-system/`, 1 modified file (`positional-graph-errors.ts` — E190-E195), 4 test files with 94 tests. Discovery: `errors/index.ts` did not need modification (auto-exports via `keyof typeof`).
 [^2]: [To be added during implementation via plan-6a]
 [^3]: [To be added during implementation via plan-6a]
 [^4]: [To be added during implementation via plan-6a]

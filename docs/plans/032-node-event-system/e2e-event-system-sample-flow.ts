@@ -42,8 +42,8 @@ const GRAPH_SLUG = 'event-system-e2e';
 
 // Store node IDs
 const nodeIds = {
-  specWriter: '',   // Node 1: writes a spec (user-input, no agent)
-  codeBuilder: '',  // Node 2: agent builds code from spec
+  specWriter: '', // Node 1: writes a spec (user-input, no agent)
+  codeBuilder: '', // Node 2: agent builds code from spec
 };
 
 // ---------------------------------------------------------------------------
@@ -64,8 +64,12 @@ async function runCli<T = Record<string, unknown>>(args: string[]): Promise<CliR
     let stdout = '';
     let stderr = '';
 
-    proc.stdout?.on('data', (d) => { stdout += d.toString(); });
-    proc.stderr?.on('data', (d) => { stderr += d.toString(); });
+    proc.stdout?.on('data', (d) => {
+      stdout += d.toString();
+    });
+    proc.stderr?.on('data', (d) => {
+      stderr += d.toString();
+    });
 
     proc.on('close', (code) => {
       const lines = stdout.trim().split('\n');
@@ -169,7 +173,11 @@ async function cleanup(): Promise<void> {
     `.chainglass/data/work-graphs/${GRAPH_SLUG}`,
   ];
   for (const p of paths) {
-    try { await fs.rm(p, { recursive: true, force: true }); } catch { /* ignore */ }
+    try {
+      await fs.rm(p, { recursive: true, force: true });
+    } catch {
+      /* ignore */
+    }
   }
 }
 
@@ -186,15 +194,26 @@ async function step1_createGraphAndNodes(): Promise<void> {
 
   // Add Node 1: spec-writer (user-input unit — no agent needed)
   const n1 = await runCli<{ nodeId: string }>([
-    'wf', 'node', 'add-after', GRAPH_SLUG, 'start', 'spec-writer',
+    'wf',
+    'node',
+    'add-after',
+    GRAPH_SLUG,
+    'start',
+    'spec-writer',
   ]);
   nodeIds.specWriter = n1.data.nodeId;
   ok(`Added node: ${nodeIds.specWriter} (spec-writer)`);
 
   // Add Node 2: code-builder (agent unit, depends on spec-writer.spec)
   const n2 = await runCli<{ nodeId: string }>([
-    'wf', 'node', 'add-after', GRAPH_SLUG, nodeIds.specWriter, 'code-builder',
-    '-i', `spec:${nodeIds.specWriter}.spec`,
+    'wf',
+    'node',
+    'add-after',
+    GRAPH_SLUG,
+    nodeIds.specWriter,
+    'code-builder',
+    '-i',
+    `spec:${nodeIds.specWriter}.spec`,
   ]);
   nodeIds.codeBuilder = n2.data.nodeId;
   ok(`Added node: ${nodeIds.codeBuilder} (code-builder) -> after ${nodeIds.specWriter}`);
@@ -210,9 +229,9 @@ async function step2_schemaDiscovery(): Promise<void> {
   // Agent's first action: discover what event types exist
   //   cg wf node event list-types
   info('Agent runs: cg wf node event list-types');
-  const listResult = await runCli<{ types: Array<{ type: string; domain: string; description: string }> }>([
-    'wf', 'node', 'event', 'list-types',
-  ]);
+  const listResult = await runCli<{
+    types: Array<{ type: string; domain: string; description: string }>;
+  }>(['wf', 'node', 'event', 'list-types']);
   ok('Available event types:');
   for (const t of listResult.data.types ?? []) {
     ok(`  ${t.type} (${t.domain}) — ${t.description}`);
@@ -222,7 +241,11 @@ async function step2_schemaDiscovery(): Promise<void> {
   //   cg wf node event schema question:ask
   info('Agent runs: cg wf node event schema question:ask');
   const schemaResult = await runCli<{ type: string; schema: unknown }>([
-    'wf', 'node', 'event', 'schema', 'question:ask',
+    'wf',
+    'node',
+    'event',
+    'schema',
+    'question:ask',
   ]);
   ok(`Schema for question:ask: ${JSON.stringify(schemaResult.data.schema, null, 2)}`);
 
@@ -240,7 +263,13 @@ async function step3_executeNode1_directOutput(): Promise<void> {
   const spec = 'Write a TypeScript function fibonacci(n) that returns the nth Fibonacci number';
 
   await runCli([
-    'wf', 'node', 'save-output-data', GRAPH_SLUG, nodeIds.specWriter, 'spec', JSON.stringify(spec),
+    'wf',
+    'node',
+    'save-output-data',
+    GRAPH_SLUG,
+    nodeIds.specWriter,
+    'spec',
+    JSON.stringify(spec),
   ]);
   ok(`Saved output: spec = "${spec}"`);
 
@@ -281,7 +310,12 @@ async function step5_agentDoesWork(): Promise<void> {
 
   // Agent reads the spec input (wired from spec-writer.spec)
   const inputResult = await runCli<{ value?: string }>([
-    'wf', 'node', 'get-input-data', GRAPH_SLUG, nodeIds.codeBuilder, 'spec',
+    'wf',
+    'node',
+    'get-input-data',
+    GRAPH_SLUG,
+    nodeIds.codeBuilder,
+    'spec',
   ]);
   ok(`Agent read input: spec = "${inputResult.data.value}"`);
 
@@ -289,8 +323,14 @@ async function step5_agentDoesWork(): Promise<void> {
   //   cg wf node event raise <graph> <nodeId> progress:update '{"message":"Analyzing spec...","percent":25}'
   info('Agent runs: cg wf node event raise ... progress:update (progress event)');
   await runCli([
-    'wf', 'node', 'event', 'raise', GRAPH_SLUG, nodeIds.codeBuilder,
-    'progress:update', '{"message":"Analyzing spec...","percent":25}',
+    'wf',
+    'node',
+    'event',
+    'raise',
+    GRAPH_SLUG,
+    nodeIds.codeBuilder,
+    'progress:update',
+    '{"message":"Analyzing spec...","percent":25}',
   ]);
   ok('Progress event raised: "Analyzing spec..." (25%)');
 
@@ -298,8 +338,14 @@ async function step5_agentDoesWork(): Promise<void> {
   //   cg wf node event raise <graph> <nodeId> output:save-data '{"name":"language","value":"typescript"}'
   info('Agent runs: cg wf node event raise ... output:save-data');
   await runCli([
-    'wf', 'node', 'event', 'raise', GRAPH_SLUG, nodeIds.codeBuilder,
-    'output:save-data', '{"name":"language","value":"typescript"}',
+    'wf',
+    'node',
+    'event',
+    'raise',
+    GRAPH_SLUG,
+    nodeIds.codeBuilder,
+    'output:save-data',
+    '{"name":"language","value":"typescript"}',
   ]);
   ok('Output saved via event: language = "typescript"');
 }
@@ -326,8 +372,14 @@ async function step6_agentAsksQuestion(): Promise<void> {
   });
 
   const raiseResult = await runCli<{ eventId: string; stopsExecution: boolean }>([
-    'wf', 'node', 'event', 'raise', GRAPH_SLUG, nodeIds.codeBuilder,
-    'question:ask', questionPayload,
+    'wf',
+    'node',
+    'event',
+    'raise',
+    GRAPH_SLUG,
+    nodeIds.codeBuilder,
+    'question:ask',
+    questionPayload,
   ]);
   ok(`Question event raised: eventId=${raiseResult.data.eventId}`);
   ok(`stops_execution: ${raiseResult.data.stopsExecution} — agent must exit now`);
@@ -350,10 +402,20 @@ async function step7_humanAnswersQuestion(): Promise<void> {
 
   // Orchestrator (or human via CLI) inspects the event log to see the question
   info('Orchestrator runs: cg wf node event log --type question:ask --status new');
-  const logResult = await runCli<{ events: Array<{ eventId: string; payload: { text: string } }> }>([
-    'wf', 'node', 'event', 'log', GRAPH_SLUG, nodeIds.codeBuilder,
-    '--type', 'question:ask', '--status', 'new',
-  ]);
+  const logResult = await runCli<{ events: Array<{ eventId: string; payload: { text: string } }> }>(
+    [
+      'wf',
+      'node',
+      'event',
+      'log',
+      GRAPH_SLUG,
+      nodeIds.codeBuilder,
+      '--type',
+      'question:ask',
+      '--status',
+      'new',
+    ]
+  );
 
   const questionEvent = logResult.data.events?.[0];
   ok(`Found pending question: "${questionEvent?.payload?.text}"`);
@@ -374,8 +436,16 @@ async function step7_humanAnswersQuestion(): Promise<void> {
 
   info('Human runs: cg wf node event raise ... question:answer --source human');
   await runCli([
-    'wf', 'node', 'event', 'raise', GRAPH_SLUG, nodeIds.codeBuilder,
-    'question:answer', answerPayload, '--source', 'human',
+    'wf',
+    'node',
+    'event',
+    'raise',
+    GRAPH_SLUG,
+    nodeIds.codeBuilder,
+    'question:answer',
+    answerPayload,
+    '--source',
+    'human',
   ]);
   ok('Answer event raised: "memoized" (source: human)');
   info('Question lifecycle: new -> acknowledged -> handled');
@@ -413,16 +483,28 @@ async function step9_agentCompletesNode(): Promise<void> {
   // Agent checks the event log for the answer
   info('Agent runs: cg wf node event log --type question:answer');
   const logResult = await runCli<{ events: Array<{ payload: { answer: string } }> }>([
-    'wf', 'node', 'event', 'log', GRAPH_SLUG, nodeIds.codeBuilder,
-    '--type', 'question:answer',
+    'wf',
+    'node',
+    'event',
+    'log',
+    GRAPH_SLUG,
+    nodeIds.codeBuilder,
+    '--type',
+    'question:answer',
   ]);
   const answer = logResult.data.events?.[0]?.payload?.answer ?? 'memoized';
   ok(`Agent retrieved answer: "${answer}"`);
 
   // Agent reports progress
   await runCli([
-    'wf', 'node', 'event', 'raise', GRAPH_SLUG, nodeIds.codeBuilder,
-    'progress:update', '{"message":"Generating memoized fibonacci...","percent":75}',
+    'wf',
+    'node',
+    'event',
+    'raise',
+    GRAPH_SLUG,
+    nodeIds.codeBuilder,
+    'progress:update',
+    '{"message":"Generating memoized fibonacci...","percent":75}',
   ]);
   ok('Progress: "Generating memoized fibonacci..." (75%)');
 
@@ -440,8 +522,14 @@ async function step9_agentCompletesNode(): Promise<void> {
 }`;
 
   await runCli([
-    'wf', 'node', 'event', 'raise', GRAPH_SLUG, nodeIds.codeBuilder,
-    'output:save-data', JSON.stringify({ name: 'code', value: code }),
+    'wf',
+    'node',
+    'event',
+    'raise',
+    GRAPH_SLUG,
+    nodeIds.codeBuilder,
+    'output:save-data',
+    JSON.stringify({ name: 'code', value: code }),
   ]);
   ok('Output saved via event: code = fibonacci function (memoized)');
 
@@ -471,10 +559,8 @@ async function step10_inspectEventLog(): Promise<void> {
       status: string;
       stopsExecution: boolean;
       createdAt: string;
-    }>
-  }>([
-    'wf', 'node', 'event', 'log', GRAPH_SLUG, nodeIds.codeBuilder,
-  ]);
+    }>;
+  }>(['wf', 'node', 'event', 'log', GRAPH_SLUG, nodeIds.codeBuilder]);
 
   ok('Full event log:');
   console.log('');
@@ -483,14 +569,14 @@ async function step10_inspectEventLog(): Promise<void> {
   console.log('  +---------+------------------+---------------+----------+-------+');
 
   const expectedEvents = [
-    { type: 'node:accepted',    source: 'agent',  status: 'handled', stops: false },
-    { type: 'progress:update',  source: 'agent',  status: 'handled', stops: false },
-    { type: 'output:save-data', source: 'agent',  status: 'handled', stops: false },
-    { type: 'question:ask',     source: 'agent',  status: 'handled', stops: true  },
-    { type: 'question:answer',  source: 'human',  status: 'handled', stops: false },
-    { type: 'progress:update',  source: 'agent',  status: 'handled', stops: false },
-    { type: 'output:save-data', source: 'agent',  status: 'handled', stops: false },
-    { type: 'node:completed',   source: 'agent',  status: 'handled', stops: true  },
+    { type: 'node:accepted', source: 'agent', status: 'handled', stops: false },
+    { type: 'progress:update', source: 'agent', status: 'handled', stops: false },
+    { type: 'output:save-data', source: 'agent', status: 'handled', stops: false },
+    { type: 'question:ask', source: 'agent', status: 'handled', stops: true },
+    { type: 'question:answer', source: 'human', status: 'handled', stops: false },
+    { type: 'progress:update', source: 'agent', status: 'handled', stops: false },
+    { type: 'output:save-data', source: 'agent', status: 'handled', stops: false },
+    { type: 'node:completed', source: 'agent', status: 'handled', stops: true },
   ];
 
   for (let i = 0; i < expectedEvents.length; i++) {

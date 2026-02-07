@@ -37,6 +37,14 @@ export const POSITIONAL_GRAPH_ERROR_CODES = {
   E177: 'E177', // Node not waiting
   E178: 'E178', // Input not available
   E179: 'E179', // File not found
+
+  // Node event system errors (E190-E195) — Plan 032
+  E190: 'E190', // Event type not found
+  E191: 'E191', // Event payload validation failed
+  E192: 'E192', // Event source not allowed
+  E193: 'E193', // Event state transition invalid
+  E194: 'E194', // Question event not found (for answer)
+  E195: 'E195', // Question already answered
 } as const;
 
 export type PositionalGraphErrorCode = keyof typeof POSITIONAL_GRAPH_ERROR_CODES;

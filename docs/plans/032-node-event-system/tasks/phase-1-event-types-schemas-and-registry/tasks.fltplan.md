@@ -3,7 +3,7 @@
 **Plan**: [node-event-system-plan.md](../../node-event-system-plan.md)
 **Phase**: Phase 1: Event Types, Schemas, and Registry
 **Generated**: 2026-02-07
-**Status**: Ready for takeoff
+**Status**: Landed
 
 ---
 
@@ -41,7 +41,7 @@ stateDiagram-v2
     S5 --> S6
     S6 --> [*]
 
-    class S1,S2,S3,S4,S5,S6 pending
+    class S1,S2,S3,S4,S5,S6 done
 ```
 
 **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -52,12 +52,12 @@ stateDiagram-v2
 
 <!-- Updated by /plan-6 during implementation: [ ] → [~] → [x] -->
 
-- [ ] **Stage 1: Create feature folder and barrel** — set up `features/032-node-event-system/` with an empty `index.ts` barrel that compiles (`features/032-node-event-system/index.ts` — new file)
-- [ ] **Stage 2: Define core and payload schemas** — create `EventSourceSchema`, `EventStatusSchema`, `NodeEventSchema` plus all 8 payload schemas with `.strict()` and unit tests (`event-source.schema.ts`, `event-status.schema.ts`, `node-event.schema.ts`, `event-payloads.schema.ts`, `event-payloads.test.ts` — new files)
-- [ ] **Stage 3: Define interfaces and TDD the registry** — create `EventTypeRegistration` and `INodeEventRegistry` interfaces, write failing registry tests (RED), then implement `NodeEventRegistry` to make them pass (GREEN) (`event-type-registration.ts`, `node-event-registry.interface.ts`, `node-event-registry.ts`, `node-event-registry.test.ts` — new files)
-- [ ] **Stage 4: Fake registry and contract tests** — implement `FakeNodeEventRegistry` with test helpers, then write parameterized contract tests proving fake and real behave identically (`fake-node-event-registry.ts` — new file, `node-event-registry.test.ts` — updated)
-- [ ] **Stage 5: Core registration, event IDs, and error codes** — implement `registerCoreEventTypes()` populating all 8 types, `generateEventId()` with `evt_<hex_ts>_<hex4>` format, and E190-E195 error factories (`core-event-types.ts`, `event-id.ts`, `event-errors.ts`, `event-errors.test.ts` — new files; `positional-graph-errors.ts`, `errors/index.ts` — modified)
-- [ ] **Stage 6: Final verification** — update barrel exports, run `just fft`, fix any issues (all files)
+- [x] **Stage 1: Create feature folder and barrel** — set up `features/032-node-event-system/` with an empty `index.ts` barrel that compiles (`features/032-node-event-system/index.ts` — new file)
+- [x] **Stage 2: Define core and payload schemas** — create `EventSourceSchema`, `EventStatusSchema`, `NodeEventSchema` plus all 8 payload schemas with `.strict()` and unit tests (`event-source.schema.ts`, `event-status.schema.ts`, `node-event.schema.ts`, `event-payloads.schema.ts`, `event-payloads.test.ts` — new files)
+- [x] **Stage 3: Define interfaces and TDD the registry** — create `EventTypeRegistration` and `INodeEventRegistry` interfaces, write failing registry tests (RED), then implement `NodeEventRegistry` to make them pass (GREEN) (`event-type-registration.ts`, `node-event-registry.interface.ts`, `node-event-registry.ts`, `node-event-registry.test.ts` — new files)
+- [x] **Stage 4: Fake registry and contract tests** — implement `FakeNodeEventRegistry` with test helpers, then write parameterized contract tests proving fake and real behave identically (`fake-node-event-registry.ts` — new file, `node-event-registry.test.ts` — updated)
+- [x] **Stage 5: Core registration, event IDs, and error codes** — implement `registerCoreEventTypes()` populating all 8 types, `generateEventId()` with `evt_<hex_ts>_<hex4>` format, and E190-E195 error factories (`core-event-types.ts`, `event-id.ts`, `event-errors.ts`, `event-errors.test.ts` — new files; `positional-graph-errors.ts` — modified)
+- [x] **Stage 6: Final verification** — update barrel exports, run `just fft`, fix any issues (all files)
 
 ---
 
@@ -107,12 +107,12 @@ flowchart LR
 
 ## Acceptance Criteria
 
-- [ ] All 8 event types registered with correct metadata (AC-1)
-- [ ] Payload validation works for all 8 schemas (AC-3 partial)
-- [ ] Registry rejects unknown types, invalid payloads, unauthorized sources (AC-1, AC-3, AC-4 partial)
-- [ ] Contract tests pass on fake and real registry
-- [ ] Error codes E190-E195 with actionable messages
-- [ ] `just fft` clean
+- [x] All 8 event types registered with correct metadata (AC-1)
+- [x] Payload validation works for all 8 schemas (AC-3 partial)
+- [x] Registry rejects unknown types, invalid payloads, unauthorized sources (AC-1, AC-3, AC-4 partial)
+- [x] Contract tests pass on fake and real registry
+- [x] Error codes E190-E195 with actionable messages
+- [x] `just fft` clean
 
 ## Goals & Non-Goals
 
@@ -141,18 +141,18 @@ flowchart LR
 
 ## Checklist
 
-- [ ] T001: Create feature folder `032-node-event-system/` with barrel `index.ts` (CS-1)
-- [ ] T002: Define EventSourceSchema, EventStatusSchema, NodeEventSchema Zod schemas (CS-2)
-- [ ] T003: Define all 8 payload schemas with unit tests (CS-2)
-- [ ] T004: Define EventTypeRegistration interface and INodeEventRegistry interface (CS-1)
-- [ ] T005: Write tests for NodeEventRegistry (CS-2)
-- [ ] T006: Implement NodeEventRegistry (CS-2)
-- [ ] T007: Implement FakeNodeEventRegistry with test helpers (CS-1)
-- [ ] T008: Write contract tests (fake vs real registry parity) (CS-2)
-- [ ] T009: Implement registerCoreEventTypes() function (CS-1)
-- [ ] T010: Implement generateEventId() utility (CS-1)
-- [ ] T011: Add E190-E195 error codes and factory functions (CS-2)
-- [ ] T012: Refactor, update barrel exports, verify `just fft` clean (CS-1)
+- [x] T001: Create feature folder `032-node-event-system/` with barrel `index.ts` (CS-1)
+- [x] T002: Define EventSourceSchema, EventStatusSchema, NodeEventSchema Zod schemas (CS-2)
+- [x] T003: Define all 8 payload schemas with unit tests (CS-2)
+- [x] T004: Define EventTypeRegistration interface and INodeEventRegistry interface (CS-1)
+- [x] T005: Write tests for NodeEventRegistry (CS-2)
+- [x] T006: Implement NodeEventRegistry (CS-2)
+- [x] T007: Implement FakeNodeEventRegistry with test helpers (CS-1)
+- [x] T008: Write contract tests (fake vs real registry parity) (CS-2)
+- [x] T009: Implement registerCoreEventTypes() function (CS-1)
+- [x] T010: Implement generateEventId() utility with tests (CS-1)
+- [x] T011: Add E190-E195 error codes and factory functions (CS-2)
+- [x] T012: Refactor, update barrel exports, verify `just fft` clean (CS-1)
 
 ---
 
