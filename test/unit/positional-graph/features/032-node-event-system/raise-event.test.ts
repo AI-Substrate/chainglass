@@ -270,7 +270,7 @@ describe('raiseEvent — node state validation (E193)', () => {
       'my-graph',
       'node-1',
       'question:ask',
-      { type: 'text', text: 'What color?' },
+      { question_id: 'q1', type: 'text', text: 'What color?' },
       'agent'
     );
 
@@ -418,9 +418,9 @@ describe('raiseEvent — successful event creation', () => {
   Test Doc:
   - Why: Valid events must create NodeEvent records with correct fields and persist atomically
   - Contract: Created event has correct ID format, status 'new', stops_execution from registry, ISO-8601 timestamps; appended to events[]; state persisted
-  - Usage Notes: After Phase 4 wiring, handlers run during raiseEvent() — event status and node state may change.
+  - Usage Notes: After T007, raiseEvent is record-only. Event status stays 'new', no stamps. Handlers run via INodeEventService.handleEvents() separately.
   - Quality Contribution: Verifies the happy path end-to-end; catches field mapping bugs
-  - Worked Example: raiseEvent(deps, 'g', 'n1', 'node:accepted', {}, 'agent') with node in 'starting' → ok: true, event created, status 'handled'
+  - Worked Example: raiseEvent(deps, 'g', 'n1', 'node:accepted', {}, 'agent') with node in 'starting' → ok: true, event created, status 'new', no stamps
   */
 
   it('creates a NodeEvent with correct fields for node:accepted', async () => {
@@ -438,10 +438,9 @@ describe('raiseEvent — successful event creation', () => {
     expect(event.event_type).toBe('node:accepted');
     expect(event.source).toBe('agent');
     expect(event.payload).toEqual({});
-    // After Phase 4 wiring: handlers run during raiseEvent(), so
-    // node:accepted handler marks the event 'handled' immediately.
-    expect(event.status).toBe('handled');
-    expect(event.handled_at).toBeDefined();
+    // After T007: raiseEvent is record-only — no handlers, no stamps.
+    expect(event.status).toBe('new');
+    expect(event.stamps).toBeUndefined();
     expect(event.stops_execution).toBe(false); // node:accepted has stopsExecution: false
     expect(event.created_at).toBeDefined();
     // Verify ISO-8601 format

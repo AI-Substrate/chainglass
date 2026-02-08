@@ -3,7 +3,7 @@
 **Plan**: [node-event-system-plan.md](../../node-event-system-plan.md)
 **Phase**: Phase 5: Service Method Wrappers
 **Generated**: 2026-02-08
-**Status**: Ready
+**Status**: Complete
 
 ---
 
@@ -53,7 +53,7 @@ stateDiagram-v2
     S11 --> S12
     S12 --> [*]
 
-    class S1,S2,S3,S4,S5,S6,S7,S8,S9,S10,S11,S12 pending
+    class S1,S2,S3,S4,S5,S6,S7,S8,S9,S10,S11,S12 done
 ```
 
 **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -64,18 +64,18 @@ stateDiagram-v2
 
 <!-- Updated by /plan-6 during implementation: [ ] → [~] → [x] -->
 
-- [ ] **Stage 1: EventStampSchema + stamps field + question_id** — add `EventStampSchema` Zod schema (`stamped_at`, `action`, `data?`) and an optional `stamps: Record<string, EventStamp>` field on `NodeEventSchema`. Add `question_id: z.string()` to `QuestionAskPayloadSchema` (DYK #3). Existing event parsing must still work without stamps. (`event-stamp.schema.ts` — new, `node-event.schema.ts` — modified, `event-payloads.schema.ts` — modified)
-- [ ] **Stage 2: INodeEventService + HandlerContext interfaces** — define `INodeEventService` with 6 methods (`raise`, `handleEvents(state, nodeId, subscriber, context)`, `getEventsForNode`, `findEvents`, `getUnstampedEvents`, `stamp`) and `HandlerContext` with `node`, `event`, `events`, `subscriber`, `nodeId`, `stamp(action, data?)`, `stampEvent(event, action, data?)`, `findEvents(predicate)`. Change `EventHandler` type to `(ctx: HandlerContext) => void`. (`node-event-service.interface.ts`, `handler-context.interface.ts` — new)
-- [ ] **Stage 3: EventHandlerRegistry** — `EventHandlerRegistry` class with `on(eventType, handler, { context, name })` and `getHandlers(eventType, context)` methods. Types: `EventHandlerRegistration`, `EventHandlerContextTag = 'cli' | 'web' | 'both'`. `createEventHandlerRegistry()` factory registers all 6 handlers as `context: 'both'`. Unit tests for registration, context filtering, ordering. (`event-handler-registry.ts` — new)
-- [ ] **Stage 4: FakeNodeEventService** — implement fake with test helpers (`addEvent`, `getRaiseHistory`, `getHandleEventsHistory`, `getStampHistory`, `reset`). Unit tests verify fake behavior. (`fake-node-event-service.ts` — new)
-- [ ] **Stage 5: NodeEventService implementation** — real service: `raise()` delegates to existing raiseEvent logic with constructor-bound deps, `handleEvents()` scans unstamped events + filters handlers by context via `registry.getHandlers(eventType, context)` + constructs HandlerContext + runs handlers + stamps. JSDoc warns "state must be loaded AFTER raise() returns" (DYK #2). Stale-state no-op test. Query methods read from state. `stamp()` writes to `event.stamps[subscriber]`. Full unit tests. (`node-event-service.ts` — new, `node-event-service.test.ts` — new)
-- [ ] **Stage 6: Refactor handlers to HandlerContext** — change all 6 handlers from `(state, nodeId, event)` to `(ctx: HandlerContext)`. `markHandled()` REMOVED — `ctx.stamp('state-transition')` writes ONLY to `event.stamps[subscriber]`, not to `event.status`/`handled_at` (DYK #4). Fix `handleQuestionAnswer` to add `ctx.node.status = 'starting'` (DYK #1b), read `question_id` from payload (DYK #3), use `ctx.findEvents()` to locate original ask event by `question_event_id`, and call `ctx.stampEvent(askEvent, 'answer-linked')` to cross-stamp it (DYK5 #1). `createEventHandlerRegistry()` replaces `createEventHandlers()`. Handler tests updated. (`event-handlers.ts` — modified, `event-handlers.test.ts` — modified)
-- [ ] **Stage 7: Make raiseEvent record-only** — remove handler invocation (lines 163-167) and `createEventHandlers` import from `raise-event.ts`. Events stay `'new'` after raise. Update Phase 3 tests (status expectations change). (`raise-event.ts` — modified, `raise-event.test.ts` — modified)
-- [ ] **Stage 8: endNode wrapper** — `endNode()` validates canEnd (pre-flight guard, DYK #1), then calls `eventService.raise(graphSlug, nodeId, 'node:completed', {}, 'agent')`. Contract test: verify correct node status, `completed_at`, events recorded, stamps present after raise + handleEvents. (`positional-graph.service.ts` — modified, `service-wrapper-contracts.test.ts` — new)
-- [ ] **Stage 9: askQuestion wrapper** — `askQuestion()` builds payload (includes `question_id`), calls `eventService.raise()`. `state.questions[]` still written by service (DD-6). Contract test: verify node status (`waiting-question`), `pending_question_id` set, event recorded with stamps. (`positional-graph.service.ts` — modified)
-- [ ] **Stage 10: answerQuestion wrapper** — `answerQuestion()` builds payload, calls `eventService.raise()`. Node transitions to `'starting'` via handler (DYK #1b). Contract test: verify node status (`starting`), `pending_question_id` cleared, original ask event cross-stamped, answer event recorded with stamps. (`positional-graph.service.ts` — modified)
-- [ ] **Stage 11: E2E walkthrough updates** — Phase 4 E2E tests updated to use raise + handleEvents (with context param) sequence. `simulateAgentAccept()` helpers updated. All 4 walkthroughs pass. (`raise-event-e2e.test.ts` — modified)
-- [ ] **Stage 12: Regression verification** — `just fft` clean. All existing tests pass. No new lint errors. Total test count verified.
+- [x] **Stage 1: EventStampSchema + stamps field + question_id** — add `EventStampSchema` Zod schema (`stamped_at`, `action`, `data?`) and an optional `stamps: Record<string, EventStamp>` field on `NodeEventSchema`. Add `question_id: z.string()` to `QuestionAskPayloadSchema` (DYK #3). Existing event parsing must still work without stamps. (`event-stamp.schema.ts` — new, `node-event.schema.ts` — modified, `event-payloads.schema.ts` — modified)
+- [x] **Stage 2: INodeEventService + HandlerContext interfaces** — define `INodeEventService` with 6 methods (`raise`, `handleEvents(state, nodeId, subscriber, context)`, `getEventsForNode`, `findEvents`, `getUnstampedEvents`, `stamp`) and `HandlerContext` with `node`, `event`, `events`, `subscriber`, `nodeId`, `stamp(action, data?)`, `stampEvent(event, action, data?)`, `findEvents(predicate)`. Change `EventHandler` type to `(ctx: HandlerContext) => void`. (`node-event-service.interface.ts`, `handler-context.interface.ts` — new)
+- [x] **Stage 3: EventHandlerRegistry** — `EventHandlerRegistry` class with `on(eventType, handler, { context, name })` and `getHandlers(eventType, context)` methods. Types: `EventHandlerRegistration`, `EventHandlerContextTag = 'cli' | 'web' | 'both'`. `createEventHandlerRegistry()` factory registers all 6 handlers as `context: 'both'`. Unit tests for registration, context filtering, ordering. (`event-handler-registry.ts` — new)
+- [x] **Stage 4: FakeNodeEventService** — implement fake with test helpers (`addEvent`, `getRaiseHistory`, `getHandleEventsHistory`, `getStampHistory`, `reset`). Unit tests verify fake behavior. (`fake-node-event-service.ts` — new)
+- [x] **Stage 5: NodeEventService implementation** — real service: `raise()` delegates to existing raiseEvent logic with constructor-bound deps, `handleEvents()` scans unstamped events + filters handlers by context via `registry.getHandlers(eventType, context)` + constructs HandlerContext + runs handlers + stamps. JSDoc warns "state must be loaded AFTER raise() returns" (DYK #2). Stale-state no-op test. Query methods read from state. `stamp()` writes to `event.stamps[subscriber]`. Full unit tests. (`node-event-service.ts` — new, `node-event-service.test.ts` — new)
+- [x] **Stage 6: Refactor handlers to HandlerContext** — change all 6 handlers from `(state, nodeId, event)` to `(ctx: HandlerContext)`. `markHandled()` REMOVED — `ctx.stamp('state-transition')` writes ONLY to `event.stamps[subscriber]`, not to `event.status`/`handled_at` (DYK #4). Fix `handleQuestionAnswer` to add `ctx.node.status = 'starting'` (DYK #1b), read `question_id` from payload (DYK #3), use `ctx.findEvents()` to locate original ask event by `question_event_id`, and call `ctx.stampEvent(askEvent, 'answer-linked')` to cross-stamp it (DYK5 #1). `createEventHandlerRegistry()` replaces `createEventHandlers()`. Handler tests updated. (`event-handlers.ts` — modified, `event-handlers.test.ts` — modified)
+- [x] **Stage 7: Make raiseEvent record-only** — remove handler invocation (lines 163-167) and `createEventHandlers` import from `raise-event.ts`. Events stay `'new'` after raise. Update Phase 3 tests (status expectations change). (`raise-event.ts` — modified, `raise-event.test.ts` — modified)
+- [x] **Stage 8: endNode wrapper** — `endNode()` validates canEnd (pre-flight guard, DYK #1), then calls `eventService.raise(graphSlug, nodeId, 'node:completed', {}, 'agent')`. Contract test: verify correct node status, `completed_at`, events recorded, stamps present after raise + handleEvents. (`positional-graph.service.ts` — modified, `service-wrapper-contracts.test.ts` — new)
+- [x] **Stage 9: askQuestion wrapper** — `askQuestion()` builds payload (includes `question_id`), calls `eventService.raise()`. `state.questions[]` still written by service (DD-6). Contract test: verify node status (`waiting-question`), `pending_question_id` set, event recorded with stamps. (`positional-graph.service.ts` — modified)
+- [x] **Stage 10: answerQuestion wrapper** — `answerQuestion()` builds payload, calls `eventService.raise()`. Node transitions to `'starting'` via handler (DYK #1b). Contract test: verify node status (`starting`), `pending_question_id` cleared, original ask event cross-stamped, answer event recorded with stamps. (`positional-graph.service.ts` — modified)
+- [x] **Stage 11: E2E walkthrough updates** — Phase 4 E2E tests updated to use raise + handleEvents (with context param) sequence. `simulateAgentAccept()` helpers updated. All 4 walkthroughs pass. (`raise-event-e2e.test.ts` — modified, `event-handlers.test.ts` — walkthroughs rewritten for two-phase flow)
+- [x] **Stage 12: Regression verification** — `just fft` clean. 241 test files, 3634 tests passed. No new lint errors.
 
 ---
 
@@ -159,18 +159,18 @@ flowchart LR
 
 ## Checklist
 
-- [ ] T001: EventStampSchema + stamps field + question_id payload (CS-1)
-- [ ] T002: INodeEventService interface + HandlerContext interface (CS-1)
-- [ ] T003: EventHandlerRegistry + context tags (CS-2)
-- [ ] T004: FakeNodeEventService + test helpers (CS-2)
-- [ ] T005: NodeEventService implementation + unit tests (CS-3)
-- [ ] T006: Refactor handlers to HandlerContext signature (CS-2)
-- [ ] T007: Make raiseEvent record-only (CS-2)
-- [ ] T008: Service wrapper: endNode() delegates to eventService.raise() (CS-2)
-- [ ] T009: Service wrapper: askQuestion() delegates to eventService.raise() (CS-2)
-- [ ] T010: Service wrapper: answerQuestion() delegates to eventService.raise() (CS-2)
-- [ ] T011: Update E2E walkthrough tests (CS-2)
-- [ ] T012: Regression verification (CS-1)
+- [x] T001: EventStampSchema + stamps field + question_id payload (CS-1)
+- [x] T002: INodeEventService interface + HandlerContext interface (CS-1)
+- [x] T003: EventHandlerRegistry + context tags (CS-2)
+- [x] T004: FakeNodeEventService + test helpers (CS-2)
+- [x] T005: NodeEventService implementation + unit tests (CS-3)
+- [x] T006: Refactor handlers to HandlerContext signature (CS-2)
+- [x] T007: Make raiseEvent record-only (CS-2)
+- [x] T008: Service wrapper: endNode() delegates to eventService.raise() (CS-2)
+- [x] T009: Service wrapper: askQuestion() delegates to eventService.raise() (CS-2)
+- [x] T010: Service wrapper: answerQuestion() delegates to eventService.raise() (CS-2)
+- [x] T011: Update E2E walkthrough tests (CS-2)
+- [x] T012: Regression verification (CS-1)
 
 ---
 

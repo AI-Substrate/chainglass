@@ -592,25 +592,25 @@ Output methods remain unchanged.
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 5.1 | [ ] | Write contract tests: `endNode()` via events produces same state as current | 2 | Same inputs → same node status, completed_at, events recorded | - | AC-15 |
-| 5.2 | [ ] | Write contract tests: `askQuestion()` via events produces same state | 2 | Same inputs → same pending_question_id, question in questions[], events recorded | - | AC-15 |
-| 5.3 | [ ] | Write contract tests: `answerQuestion()` via events produces same state | 2 | Same inputs → question answered, pending cleared, events recorded | - | AC-15 |
+| 5.1 | [x] | Write contract tests: `endNode()` via events produces same state as current | 2 | Same inputs → same node status, completed_at, events recorded | - | AC-15 [^13] |
+| 5.2 | [x] | Write contract tests: `askQuestion()` via events produces same state | 2 | Same inputs → same pending_question_id, question in questions[], events recorded | - | AC-15 [^13] |
+| 5.3 | [x] | Write contract tests: `answerQuestion()` via events produces same state | 2 | Same inputs → question answered, pending cleared, events recorded | - | AC-15 [^13] |
 | ~~5.4~~ | N/A | ~~Write contract tests: `saveOutputData()` via events~~ | - | Removed — orchestrator handles output persistence directly | - | - |
 | ~~5.5~~ | N/A | ~~Write contract tests: `saveOutputFile()` via events~~ | - | Removed — orchestrator handles output persistence directly | - | - |
-| 5.6 | [ ] | Refactor `endNode()` to delegate to `raiseEvent('node:completed')` | 2 | Contract test from 5.1 passes; method return type unchanged | - | GREEN |
-| 5.7 | [ ] | Refactor `askQuestion()` to delegate to `raiseEvent('question:ask')` | 2 | Contract test from 5.2 passes | - | GREEN |
-| 5.8 | [ ] | Refactor `answerQuestion()` to delegate to `raiseEvent('question:answer')` | 2 | Contract test from 5.3 passes | - | GREEN |
+| 5.6 | [x] | Refactor `endNode()` to delegate to `eventService.raise('node:completed')` | 2 | Contract test from 5.1 passes; method return type unchanged | - | GREEN [^13] |
+| 5.7 | [x] | Refactor `askQuestion()` to delegate to `eventService.raise('question:ask')` | 2 | Contract test from 5.2 passes | - | GREEN [^13] |
+| 5.8 | [x] | Refactor `answerQuestion()` to delegate to `eventService.raise('question:answer')` | 2 | Contract test from 5.3 passes | - | GREEN [^13] |
 | ~~5.9~~ | N/A | ~~Refactor `saveOutputData()` to delegate to `raiseEvent('output:save-data')`~~ | - | Removed — orchestrator handles output persistence directly | - | - |
 | ~~5.10~~ | N/A | ~~Refactor `saveOutputFile()` to delegate to `raiseEvent('output:save-file')`~~ | - | Removed — orchestrator handles output persistence directly | - | - |
-| 5.11 | [ ] | Verify all existing CLI tests still pass | 2 | E2E test `positional-graph-execution-e2e.test.ts` green | - | Regression check |
-| 5.12 | [ ] | Refactor and verify | 1 | `just fft` clean | - | |
+| 5.11 | [x] | Verify all existing CLI tests still pass | 2 | E2E test `positional-graph-execution-e2e.test.ts` green | - | Regression check [^13] |
+| 5.12 | [x] | Refactor and verify | 1 | `just fft` clean | - | [^13] |
 
 ### Acceptance Criteria
-- [ ] All service methods delegate to `raiseEvent()` (AC-15)
-- [ ] No separate write path exists (AC-15)
-- [ ] Contract tests prove behavioral parity between old and new paths
-- [ ] All existing E2E/integration tests still pass
-- [ ] `just fft` clean
+- [x] All service methods delegate to `eventService.raise()` (AC-15)
+- [x] No separate write path exists (AC-15)
+- [x] Contract tests prove behavioral parity between old and new paths
+- [x] All existing E2E/integration tests still pass
+- [x] `just fft` clean
 
 ---
 
@@ -847,7 +847,7 @@ command names to Workshop 07 surface)
 - [x] Phase 2: State Schema Extension and Two-Phase Handshake - Complete (18 tests added, 7 source files + 13 test files modified, 3541 total tests green)
 - [x] Phase 3: raiseEvent Core Write Path - Complete (22 tests, 1 new source file + 1 modified, 3563 total tests green)
 - [x] Phase 4: Event Handlers and State Transitions - Complete (36 tests added, 3 new source files + 2 modified, 3588 total tests green)
-- [~] Phase 5: Service Method Wrappers - In Progress (Subtask 001 complete, Subtask 002 + T003-T011 pending)
+- [x] Phase 5: Service Method Wrappers - Complete (12/12 tasks, 203 event system tests, 3634 total tests, `just fft` clean)
 - [ ] Phase 6: CLI Commands - Pending
 - [ ] Phase 7: ONBAS Adaptation and Backward-Compat Projections - Pending
 - [ ] Phase 8: E2E Validation Script - Pending
@@ -933,6 +933,20 @@ command names to Workshop 07 surface)
   - `file:packages/positional-graph/src/features/032-node-event-system/index.ts` — removed compat barrel export
   - `file:docs/plans/032-node-event-system/node-event-system-spec.md` — AC-15 updated
   - `file:docs/plans/032-node-event-system/tasks/phase-5-service-method-wrappers/tasks.md` — T001/T002 eliminated, deps/architecture updated
+[^13]: Phase 5 main implementation complete (2026-02-08). T001–T012: EventStampSchema + stamps field, INodeEventService + HandlerContext interfaces, EventHandlerRegistry with context tags, FakeNodeEventService, NodeEventService implementation, handler refactor to HandlerContext (removed markHandled, replaced with ctx.stamp), raiseEvent made record-only, endNode/askQuestion/answerQuestion wrappers delegate to eventService.raise() + handleEvents(). 203 event system tests, 3634 total tests, `just fft` clean.
+  - `file:packages/positional-graph/src/features/032-node-event-system/event-stamp.schema.ts` — NEW: EventStampSchema Zod schema
+  - `file:packages/positional-graph/src/features/032-node-event-system/node-event-service.interface.ts` — NEW: INodeEventService + HandlerContext interfaces
+  - `file:packages/positional-graph/src/features/032-node-event-system/handler-context.interface.ts` — NEW: HandlerContext type + EventHandler type
+  - `file:packages/positional-graph/src/features/032-node-event-system/event-handler-registry.ts` — NEW: EventHandlerRegistry with context tags (cli/web/both)
+  - `file:packages/positional-graph/src/features/032-node-event-system/fake-node-event-service.ts` — NEW: FakeNodeEventService with test helpers
+  - `file:packages/positional-graph/src/features/032-node-event-system/node-event-service.ts` — NEW: NodeEventService implementation (raise, handleEvents, query, stamp)
+  - `file:packages/positional-graph/src/features/032-node-event-system/event-handlers.ts` — MODIFIED: handlers refactored to HandlerContext, createEventHandlers removed, createEventHandlerRegistry added
+  - `file:packages/positional-graph/src/features/032-node-event-system/raise-event.ts` — MODIFIED: made record-only (handler invocation removed)
+  - `file:packages/positional-graph/src/features/032-node-event-system/index.ts` — MODIFIED: barrel exports updated for new modules
+  - `file:packages/positional-graph/src/services/positional-graph.service.ts` — MODIFIED: endNode/askQuestion/answerQuestion delegate to INodeEventService
+  - `file:test/unit/positional-graph/features/032-node-event-system/service-wrapper-contracts.test.ts` — NEW: 10 contract tests for service wrappers
+  - `file:test/unit/positional-graph/features/032-node-event-system/event-handlers.test.ts` — MODIFIED: handlers + walkthroughs rewritten for HandlerContext + two-phase flow
+  - `file:test/unit/positional-graph/features/032-node-event-system/raise-event.test.ts` — MODIFIED: assertions updated for record-only behavior
 
 ---
 

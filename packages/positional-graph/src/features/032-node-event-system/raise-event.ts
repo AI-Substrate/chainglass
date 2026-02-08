@@ -9,7 +9,6 @@ import {
   eventStateTransitionError,
   eventTypeNotFoundError,
 } from './event-errors.js';
-import { createEventHandlers } from './event-handlers.js';
 import { generateEventId } from './event-id.js';
 import type { EventSource } from './event-source.schema.js';
 import type { INodeEventRegistry } from './node-event-registry.interface.js';
@@ -28,10 +27,6 @@ export interface RaiseEventResult {
   readonly event?: NodeEvent;
   readonly errors: ResultError[];
 }
-
-// ── Handler Map (module-level singleton) ─────────────────
-
-const EVENT_HANDLERS = createEventHandlers();
 
 // ── Valid-From-States Map ────────────────────────────────
 // Source: Workshop #02 §Validation Rules, §Valid States table.
@@ -147,24 +142,15 @@ export async function raiseEvent(
     created_at: new Date().toISOString(),
   };
 
-  // ── Append → Handle → Persist ───────────────────────────
-  // Flow: append event to array → run handler → persist.
-  //
-  // The event is appended BEFORE the handler runs. The handler receives the
-  // event object by reference — mutations to event.status, event.handled_at
-  // etc. are visible in the array entry (intentional JS reference aliasing).
+  // ── Append → Persist (record-only) ─────────────────────
+  // raiseEvent is record-only: validate → create → append → persist.
+  // Handler invocation moved to INodeEventService.handleEvents().
 
   if (!state.nodes) state.nodes = {};
   const entry = state.nodes[nodeId];
   if (entry) {
     const nodeEvents = entry.events ?? [];
     entry.events = [...nodeEvents, event];
-
-    // Run handler (if one is registered for this event type)
-    const handler = EVENT_HANDLERS.get(eventType);
-    if (handler) {
-      handler(state, nodeId, event);
-    }
   }
   state.updated_at = new Date().toISOString();
   await persistState(graphSlug, state);

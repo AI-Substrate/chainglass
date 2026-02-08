@@ -117,11 +117,14 @@ describe('QuestionAskPayloadSchema', () => {
   - Worked Example: {type:'single',text:'Which?',options:['React','Vue']} → success; {type:'invalid',text:'Q?'} → failure
   */
   it('accepts text question', () => {
-    expect(QuestionAskPayloadSchema.safeParse({ type: 'text', text: 'Why?' }).success).toBe(true);
+    expect(
+      QuestionAskPayloadSchema.safeParse({ question_id: 'q1', type: 'text', text: 'Why?' }).success
+    ).toBe(true);
   });
 
   it('accepts single-choice with options', () => {
     const result = QuestionAskPayloadSchema.safeParse({
+      question_id: 'q2',
       type: 'single',
       text: 'Which framework?',
       options: ['React', 'Vue', 'Angular'],
@@ -131,6 +134,7 @@ describe('QuestionAskPayloadSchema', () => {
 
   it('accepts confirm with default', () => {
     const result = QuestionAskPayloadSchema.safeParse({
+      question_id: 'q3',
       type: 'confirm',
       text: 'Proceed?',
       default: true,
@@ -139,20 +143,35 @@ describe('QuestionAskPayloadSchema', () => {
   });
 
   it('rejects invalid type', () => {
-    expect(QuestionAskPayloadSchema.safeParse({ type: 'invalid', text: 'Q?' }).success).toBe(false);
+    expect(
+      QuestionAskPayloadSchema.safeParse({ question_id: 'q1', type: 'invalid', text: 'Q?' }).success
+    ).toBe(false);
   });
 
   it('rejects empty text', () => {
-    expect(QuestionAskPayloadSchema.safeParse({ type: 'text', text: '' }).success).toBe(false);
+    expect(
+      QuestionAskPayloadSchema.safeParse({ question_id: 'q1', type: 'text', text: '' }).success
+    ).toBe(false);
   });
 
   it('rejects missing text', () => {
-    expect(QuestionAskPayloadSchema.safeParse({ type: 'text' }).success).toBe(false);
+    expect(QuestionAskPayloadSchema.safeParse({ question_id: 'q1', type: 'text' }).success).toBe(
+      false
+    );
+  });
+
+  it('rejects missing question_id', () => {
+    expect(QuestionAskPayloadSchema.safeParse({ type: 'text', text: 'Q?' }).success).toBe(false);
   });
 
   it('rejects extra fields', () => {
     expect(
-      QuestionAskPayloadSchema.safeParse({ type: 'text', text: 'Q?', extra: true }).success
+      QuestionAskPayloadSchema.safeParse({
+        question_id: 'q1',
+        type: 'text',
+        text: 'Q?',
+        extra: true,
+      }).success
     ).toBe(false);
   });
 });

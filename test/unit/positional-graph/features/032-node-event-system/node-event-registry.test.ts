@@ -608,7 +608,9 @@ describe('registerCoreEventTypes', () => {
     expect(registry.validatePayload('node:accepted', {}).ok).toBe(true);
     expect(registry.validatePayload('node:completed', {}).ok).toBe(true);
     expect(registry.validatePayload('node:error', { code: 'E', message: 'M' }).ok).toBe(true);
-    expect(registry.validatePayload('question:ask', { type: 'text', text: 'Q?' }).ok).toBe(true);
+    expect(
+      registry.validatePayload('question:ask', { question_id: 'q1', type: 'text', text: 'Q?' }).ok
+    ).toBe(true);
     expect(
       registry.validatePayload('question:answer', { question_event_id: 'evt_1', answer: 'A' }).ok
     ).toBe(true);

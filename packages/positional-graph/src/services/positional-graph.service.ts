@@ -22,6 +22,13 @@ import {
   unitNotFoundError,
 } from '../errors/index.js';
 import { canNodeDoWork, isNodeActive } from '../features/032-node-event-system/event-helpers.js';
+import {
+  NodeEventRegistry,
+  NodeEventService,
+  createEventHandlerRegistry,
+  registerCoreEventTypes,
+} from '../features/032-node-event-system/index.js';
+import type { INodeEventService } from '../features/032-node-event-system/index.js';
 import type {
   AddLineOptions,
   AddLineResult,
@@ -87,13 +94,31 @@ import {
 } from './input-resolution.js';
 
 export class PositionalGraphService implements IPositionalGraphService {
+  private readonly nodeEventRegistry;
+  private readonly handlerRegistry;
+
   constructor(
     private readonly fs: IFileSystem,
     private readonly pathResolver: IPathResolver,
     private readonly yamlParser: IYamlParser,
     private readonly adapter: PositionalGraphAdapter,
     private readonly workUnitLoader: IWorkUnitLoader
-  ) {}
+  ) {
+    this.nodeEventRegistry = new NodeEventRegistry();
+    registerCoreEventTypes(this.nodeEventRegistry);
+    this.handlerRegistry = createEventHandlerRegistry();
+  }
+
+  private createEventService(ctx: WorkspaceContext): INodeEventService {
+    return new NodeEventService(
+      {
+        registry: this.nodeEventRegistry,
+        loadState: (graphSlug) => this.loadState(ctx, graphSlug),
+        persistState: (graphSlug, state) => this.persistState(ctx, graphSlug, state),
+      },
+      this.handlerRegistry
+    );
+  }
 
   // ============================================
   // Private helpers
@@ -1869,11 +1894,11 @@ export class PositionalGraphService implements IPositionalGraphService {
   }
 
   /**
-   * End a node, transitioning it from running to complete.
+   * End a node, transitioning it from agent-accepted to complete.
    * Validates that all required outputs are saved before completing.
    *
-   * Per AC-4 (updated): endNode only accepts running state.
-   * Per AC-17: Returns E175 with missing output names if outputs are missing.
+   * Pre-flight guards: node exists, state is agent-accepted (E172), outputs saved (E175).
+   * State transition delegated to eventService.raise() + handleEvents().
    */
   async endNode(ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<EndNodeResult> {
     // Verify node exists
@@ -1890,7 +1915,7 @@ export class PositionalGraphService implements IPositionalGraphService {
       };
     }
 
-    // Check if all required outputs are saved
+    // Check if all required outputs are saved (DYK #1: canEnd pre-flight guard)
     const canEndResult = await this.canEnd(ctx, graphSlug, nodeId);
     if (canEndResult.errors.length > 0) {
       return { errors: canEndResult.errors };
@@ -1908,23 +1933,23 @@ export class PositionalGraphService implements IPositionalGraphService {
       };
     }
 
-    // Transition to complete (valid from agent-accepted only)
-    const transition = await this.transitionNodeState(
-      ctx,
-      graphSlug,
-      nodeId,
-      'complete',
-      ['agent-accepted'] // Only agent-accepted is valid; pending/starting/complete/waiting/blocked are rejected
-    );
-
-    if (!transition.ok) {
-      return { errors: transition.errors };
+    // Raise node:completed event (record-only: validate, create, append, persist)
+    const eventService = this.createEventService(ctx);
+    const raiseResult = await eventService.raise(graphSlug, nodeId, 'node:completed', {}, 'agent');
+    if (!raiseResult.ok) {
+      return { errors: raiseResult.errors };
     }
 
+    // Process events: handler transitions status to 'complete' and sets completed_at
+    const state = await this.loadState(ctx, graphSlug);
+    eventService.handleEvents(state, nodeId, 'cli', 'cli');
+    await this.persistState(ctx, graphSlug, state);
+
+    const entry = state.nodes?.[nodeId];
     return {
       nodeId,
       status: 'complete',
-      completedAt: transition.entry.completed_at,
+      completedAt: entry?.completed_at,
       errors: [],
     };
   }
@@ -1945,10 +1970,10 @@ export class PositionalGraphService implements IPositionalGraphService {
 
   /**
    * Ask a question from a running node, transitioning it to waiting-question.
-   * Stores the question in state.json questions array.
+   * Stores the question in state.json questions array (backward compat).
+   * State transition delegated to eventService.raise() + handleEvents().
    *
    * Per AC-5: Transitions node to waiting-question and returns question ID.
-   * Per Critical Finding 05: All state changes in single atomic write.
    */
   async askQuestion(
     ctx: WorkspaceContext,
@@ -1972,9 +1997,39 @@ export class PositionalGraphService implements IPositionalGraphService {
 
     // Generate question ID
     const questionId = this.generateQuestionId();
-    const now = new Date().toISOString();
 
-    // Create question
+    // Build question:ask payload (DYK #3: question_id from payload, not event_id)
+    const payload: Record<string, unknown> = {
+      question_id: questionId,
+      type: options.type,
+      text: options.text,
+    };
+    if (options.options) {
+      payload.options = options.options;
+    }
+    if (options.default !== undefined) {
+      payload.default = options.default;
+    }
+
+    // Raise question:ask event (record-only)
+    const eventService = this.createEventService(ctx);
+    const raiseResult = await eventService.raise(
+      graphSlug,
+      nodeId,
+      'question:ask',
+      payload,
+      'agent'
+    );
+    if (!raiseResult.ok) {
+      return { errors: raiseResult.errors };
+    }
+
+    // Process events: handler transitions to waiting-question + sets pending_question_id
+    const state = await this.loadState(ctx, graphSlug);
+    eventService.handleEvents(state, nodeId, 'cli', 'cli');
+
+    // Write to state.questions[] for backward compat (DD-6)
+    const now = new Date().toISOString();
     const question: Question = {
       question_id: questionId,
       node_id: nodeId,
@@ -1988,28 +2043,11 @@ export class PositionalGraphService implements IPositionalGraphService {
     if (options.default !== undefined) {
       question.default = options.default;
     }
-
-    // Load state and update atomically
-    const state = await this.loadState(ctx, graphSlug);
-
-    // Initialize questions array if needed
     if (!state.questions) {
       state.questions = [];
     }
     state.questions.push(question);
 
-    // Update node state
-    if (!state.nodes) {
-      state.nodes = {};
-    }
-    if (!state.nodes[nodeId]) {
-      state.nodes[nodeId] = { status: 'agent-accepted' };
-    }
-    state.nodes[nodeId].status = 'waiting-question';
-    state.nodes[nodeId].pending_question_id = questionId;
-    state.updated_at = now;
-
-    // Persist atomically
     await this.persistState(ctx, graphSlug, state);
 
     return {
@@ -2021,12 +2059,12 @@ export class PositionalGraphService implements IPositionalGraphService {
   }
 
   /**
-   * Answer a question for a waiting node, transitioning it back to running.
-   * Stores the answer in the question and clears pending_question_id.
+   * Answer a question for a waiting node, transitioning it back to starting.
+   * Stores the answer in state.questions[] (backward compat).
+   * State transition delegated to eventService.raise() + handleEvents().
    *
-   * Per AC-6: Stores answer and transitions node back to running.
+   * Per AC-6: Stores answer and transitions node to starting (DYK #1b).
    * Per AC-18: Returns E173 for invalid question ID.
-   * Per Critical Finding 05: All state changes in single atomic write.
    */
   async answerQuestion(
     ctx: WorkspaceContext,
@@ -2049,7 +2087,7 @@ export class PositionalGraphService implements IPositionalGraphService {
       };
     }
 
-    // Load state
+    // Load state to find question and ask event
     const state = await this.loadState(ctx, graphSlug);
 
     // Find question by ID (E173 if not found)
@@ -2060,21 +2098,46 @@ export class PositionalGraphService implements IPositionalGraphService {
       };
     }
 
+    // Find the original ask event to get its event_id for the answer payload
+    const nodeEvents = state.nodes?.[nodeId]?.events ?? [];
+    const askEvent = nodeEvents.find(
+      (e: { event_type: string; payload?: Record<string, unknown> }) =>
+        e.event_type === 'question:ask' &&
+        (e.payload as { question_id?: string })?.question_id === questionId
+    );
+    if (!askEvent) {
+      return {
+        errors: [questionNotFoundError(questionId)],
+      };
+    }
+
+    // Raise question:answer event (record-only)
+    const eventService = this.createEventService(ctx);
+    const raiseResult = await eventService.raise(
+      graphSlug,
+      nodeId,
+      'question:answer',
+      { question_event_id: askEvent.event_id, answer },
+      'human'
+    );
+    if (!raiseResult.ok) {
+      return { errors: raiseResult.errors };
+    }
+
+    // Process events: handler transitions to starting + clears pending_question_id + cross-stamps ask
+    const updatedState = await this.loadState(ctx, graphSlug);
+    eventService.handleEvents(updatedState, nodeId, 'cli', 'cli');
+
+    // Update question with answer in state.questions[] (backward compat)
     const now = new Date().toISOString();
+    const questions = updatedState.questions ?? [];
+    const qIdx = questions.findIndex((q) => q.question_id === questionId);
+    if (qIdx !== -1) {
+      questions[qIdx].answer = answer;
+      questions[qIdx].answered_at = now;
+    }
 
-    // Update question with answer (questions exists since we found the index)
-    const questions = state.questions ?? [];
-    questions[questionIndex].answer = answer;
-    questions[questionIndex].answered_at = now;
-
-    // Update node state — resume via two-phase handshake (DYK #1: agent must re-accept)
-    const nodes = state.nodes ?? {};
-    nodes[nodeId].status = 'starting';
-    nodes[nodeId].pending_question_id = undefined;
-    state.updated_at = now;
-
-    // Persist atomically
-    await this.persistState(ctx, graphSlug, state);
+    await this.persistState(ctx, graphSlug, updatedState);
 
     return {
       nodeId,

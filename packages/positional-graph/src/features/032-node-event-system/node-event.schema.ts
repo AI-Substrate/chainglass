@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { EventSourceSchema } from './event-source.schema.js';
+import { EventStampSchema } from './event-stamp.schema.js';
 import { EventStatusSchema } from './event-status.schema.js';
 
 /**
@@ -40,6 +41,9 @@ export const NodeEventSchema = z.object({
 
   /** Optional handler notes (who handled it, what happened) */
   handler_notes: z.string().optional(),
+
+  /** Per-subscriber processing stamps (subscriber name → stamp) */
+  stamps: z.record(z.string(), EventStampSchema).optional(),
 });
 
 export type NodeEvent = z.infer<typeof NodeEventSchema>;

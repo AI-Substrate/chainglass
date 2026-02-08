@@ -26,6 +26,7 @@ export type NodeErrorPayload = z.infer<typeof NodeErrorPayloadSchema>;
 // ── question:ask ─────────────────────────────
 export const QuestionAskPayloadSchema = z
   .object({
+    question_id: z.string().min(1),
     type: z.enum(['text', 'single', 'multi', 'confirm']),
     text: z.string().min(1),
     options: z.array(z.string()).optional(),

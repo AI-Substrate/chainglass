@@ -1,96 +1,83 @@
-import type { State } from '../../schemas/state.schema.js';
-import type { NodeEvent } from './node-event.schema.js';
+import { EventHandlerRegistry } from './event-handler-registry.js';
+import type { HandlerContext } from './handler-context.interface.js';
 
-// ── Handler Type ─────────────────────────────────────────
+// ── Handlers (HandlerContext signature) ─────────────────
 
-/**
- * An event handler receives the full state (mutable), the target node ID,
- * and the event record (mutable). Handlers mutate state and event in-place.
- * raiseEvent() persists state after the handler returns.
- */
-export type EventHandler = (state: State, nodeId: string, event: NodeEvent) => void;
-
-// ── Helper ───────────────────────────────────────────────
-
-function markHandled(event: NodeEvent): void {
-  event.status = 'handled';
-  event.handled_at = new Date().toISOString();
+function handleNodeAccepted(ctx: HandlerContext): void {
+  ctx.node.status = 'agent-accepted';
+  ctx.stamp('state-transition');
 }
 
-// ── Handlers ─────────────────────────────────────────────
-
-function handleNodeAccepted(state: State, nodeId: string, event: NodeEvent): void {
-  const nodes = state.nodes as NonNullable<typeof state.nodes>;
-  nodes[nodeId].status = 'agent-accepted';
-  markHandled(event);
+function handleNodeCompleted(ctx: HandlerContext): void {
+  ctx.node.status = 'complete';
+  ctx.node.completed_at = new Date().toISOString();
+  ctx.stamp('state-transition');
 }
 
-function handleNodeCompleted(state: State, nodeId: string, event: NodeEvent): void {
-  const nodes = state.nodes as NonNullable<typeof state.nodes>;
-  nodes[nodeId].status = 'complete';
-  nodes[nodeId].completed_at = new Date().toISOString();
-  markHandled(event);
-}
-
-function handleNodeError(state: State, nodeId: string, event: NodeEvent): void {
-  const nodes = state.nodes as NonNullable<typeof state.nodes>;
-  const payload = event.payload as { code: string; message: string; details?: unknown };
-  nodes[nodeId].status = 'blocked-error';
-  nodes[nodeId].error = {
+function handleNodeError(ctx: HandlerContext): void {
+  const payload = ctx.event.payload as { code: string; message: string; details?: unknown };
+  ctx.node.status = 'blocked-error';
+  ctx.node.error = {
     code: payload.code,
     message: payload.message,
     details: payload.details,
   };
-  markHandled(event);
+  ctx.stamp('state-transition');
 }
 
-function handleQuestionAsk(state: State, nodeId: string, _event: NodeEvent): void {
-  const nodes = state.nodes as NonNullable<typeof state.nodes>;
-  nodes[nodeId].status = 'waiting-question';
-  nodes[nodeId].pending_question_id = _event.event_id;
-  // question:ask stays 'new' — deferred processing. External action required.
+function handleQuestionAsk(ctx: HandlerContext): void {
+  ctx.node.status = 'waiting-question';
+  ctx.node.pending_question_id = (ctx.event.payload as { question_id: string }).question_id;
+  ctx.stamp('state-transition');
 }
 
-function handleQuestionAnswer(state: State, nodeId: string, event: NodeEvent): void {
-  const nodes = state.nodes as NonNullable<typeof state.nodes>;
-  const payload = event.payload as { question_event_id: string };
-  const nodeEvents = nodes[nodeId].events ?? [];
+function handleQuestionAnswer(ctx: HandlerContext): void {
+  const payload = ctx.event.payload as { question_event_id: string };
 
-  // Find and mark the original ask event as handled
-  const askEvent = nodeEvents.find(
+  // Find the original ask event and cross-stamp it
+  const askEvent = ctx.findEvents(
     (e) => e.event_type === 'question:ask' && e.event_id === payload.question_event_id
-  );
+  )[0];
   if (askEvent) {
-    markHandled(askEvent);
-    askEvent.handler_notes = `answered by ${event.source} via ${event.event_id}`;
+    ctx.stampEvent(askEvent, 'answer-linked');
   }
 
-  // Clear pending_question_id
-  nodes[nodeId].pending_question_id = undefined;
-
-  // Mark the answer event as handled
-  markHandled(event);
-  // Node status does NOT change on answer — ONBAS detects answer on next walk
+  // Clear pending_question_id and transition to starting (DYK #1b)
+  ctx.node.pending_question_id = undefined;
+  ctx.node.status = 'starting';
+  ctx.stamp('state-transition');
 }
 
-function handleProgressUpdate(_state: State, _nodeId: string, event: NodeEvent): void {
+function handleProgressUpdate(ctx: HandlerContext): void {
   // No state change — progress events are informational only
-  markHandled(event);
+  ctx.stamp('state-transition');
 }
 
-// ── Factory ──────────────────────────────────────────────
+// ── Registry Factory ────────────────────────────────────
 
 /**
- * Create the handler map — one handler per event type.
- * Handlers mutate state in-place (pre-persist).
+ * Create the EventHandlerRegistry with all 6 core handlers registered.
+ * All handlers registered as context: 'both' (run in CLI and web).
  */
-export function createEventHandlers(): Map<string, EventHandler> {
-  const handlers = new Map<string, EventHandler>();
-  handlers.set('node:accepted', handleNodeAccepted);
-  handlers.set('node:completed', handleNodeCompleted);
-  handlers.set('node:error', handleNodeError);
-  handlers.set('question:ask', handleQuestionAsk);
-  handlers.set('question:answer', handleQuestionAnswer);
-  handlers.set('progress:update', handleProgressUpdate);
-  return handlers;
+export function createEventHandlerRegistry(): EventHandlerRegistry {
+  const registry = new EventHandlerRegistry();
+  registry.on('node:accepted', handleNodeAccepted, {
+    context: 'both',
+    name: 'handleNodeAccepted',
+  });
+  registry.on('node:completed', handleNodeCompleted, {
+    context: 'both',
+    name: 'handleNodeCompleted',
+  });
+  registry.on('node:error', handleNodeError, { context: 'both', name: 'handleNodeError' });
+  registry.on('question:ask', handleQuestionAsk, { context: 'both', name: 'handleQuestionAsk' });
+  registry.on('question:answer', handleQuestionAnswer, {
+    context: 'both',
+    name: 'handleQuestionAnswer',
+  });
+  registry.on('progress:update', handleProgressUpdate, {
+    context: 'both',
+    name: 'handleProgressUpdate',
+  });
+  return registry;
 }
