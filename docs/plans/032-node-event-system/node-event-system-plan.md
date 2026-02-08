@@ -3,7 +3,7 @@
 **Plan Version**: 1.0.0
 **Created**: 2026-02-07
 **Spec**: [./node-event-system-spec.md](./node-event-system-spec.md)
-**Status**: DRAFT
+**Status**: COMPLETE
 
 **Workshops**:
 - [01-node-event-system.md](./workshops/01-node-event-system.md) — Event types, registry, CLI design, state machine
@@ -652,24 +652,24 @@ as the primary output mode.
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 6.1 | [ ] | Add `getNodeEvents()` and `stampNodeEvent()` to service interface + implementation | 2 | New methods on `IPositionalGraphService`, error codes E196/E197 | - | Workshop 07 |
-| 6.2 | [ ] | Implement `raise-event` command (calls raiseEvent + handleEvents) | 3 | JSON output: event with stamps. `--source` defaults to `agent`. `[AGENT INSTRUCTION]` for stop events | - | AC-12, AC-9 |
-| 6.3 | [ ] | Implement `events` command (list + detail via `--id`) | 2 | List: table of events. Detail: single event with stamps. Filters: `--type`, `--status` | - | AC-13 |
-| 6.4 | [ ] | Implement `stamp-event` command | 2 | Writes subscriber stamp, returns updated event. E196 for missing event | - | Workshop 07 |
-| 6.5 | [ ] | Implement `accept` shortcut command | 1 | Equivalent to `raise-event node:accepted`. Shows status transition | - | AC-14 |
-| 6.6 | [ ] | Update `end` command to route through events | 1 | `--message` constructs payload. Calls raiseEvent + handleEvents | - | AC-14 |
-| 6.7 | [ ] | Implement `error` shortcut command | 1 | `--code`, `--message`, `--details`, `--recoverable` flags construct payload | - | AC-14 |
-| 6.8 | [ ] | Implement `event list-types` and `event schema` discovery commands | 2 | Types grouped by domain. Schema shows fields + example | - | AC-10, AC-11 |
-| 6.9 | [ ] | Register all commands, write CLI integration tests | 2 | All commands registered, `--json` output verified | - | |
-| 6.10 | [ ] | Refactor and verify | 1 | `just fft` clean | - | |
+| 6.1 | [x] | Add `getNodeEvents()` and `stampNodeEvent()` to service interface + implementation | 2 | New methods on `IPositionalGraphService`, error codes E196/E197 | [📋](tasks/phase-6-cli-commands/execution.log.md) | Workshop 07 |
+| 6.2 | [x] | Implement `raise-event` command (calls raiseEvent + handleEvents) | 3 | JSON output: event with stamps. `--source` defaults to `agent`. `[AGENT INSTRUCTION]` for stop events | [📋](tasks/phase-6-cli-commands/execution.log.md) | AC-12, AC-9 |
+| 6.3 | [x] | Implement `events` command (list + detail via `--id`) | 2 | List: table of events. Detail: single event with stamps. Filters: `--type`, `--status` | [📋](tasks/phase-6-cli-commands/execution.log.md) | AC-13 |
+| 6.4 | [x] | Implement `stamp-event` command | 2 | Writes subscriber stamp, returns updated event. E196 for missing event | [📋](tasks/phase-6-cli-commands/execution.log.md) | Workshop 07 |
+| 6.5 | [x] | Implement `accept` shortcut command | 1 | Equivalent to `raise-event node:accepted`. Shows status transition | [📋](tasks/phase-6-cli-commands/execution.log.md) | AC-14 |
+| 6.6 | [x] | Update `end` command to route through events | 1 | `--message` constructs payload. Calls raiseEvent + handleEvents | [📋](tasks/phase-6-cli-commands/execution.log.md) | AC-14 |
+| 6.7 | [x] | Implement `error` shortcut command | 1 | `--code`, `--message`, `--details`, `--recoverable` flags construct payload | [📋](tasks/phase-6-cli-commands/execution.log.md) | AC-14 |
+| 6.8 | [x] | Implement `event list-types` and `event schema` discovery commands | 2 | Types grouped by domain. Schema shows fields + example | [📋](tasks/phase-6-cli-commands/execution.log.md) | AC-10, AC-11 |
+| 6.9 | [x] | Register all commands, write CLI integration tests | 2 | All commands registered, `--json` output verified | [📋](tasks/phase-6-cli-commands/execution.log.md) | |
+| 6.10 | [x] | Refactor and verify | 1 | `just fft` clean | [📋](tasks/phase-6-cli-commands/execution.log.md) | |
 
 ### Acceptance Criteria
-- [ ] Core event commands work: raise-event, events, stamp-event (AC-12, AC-13)
-- [ ] Discovery commands work: list-types, schema (AC-10, AC-11)
-- [ ] Shortcut commands route through event system (AC-14)
-- [ ] Stop-execution events show agent instruction (AC-9)
-- [ ] All commands support `--json` output (agent-first)
-- [ ] `just fft` clean
+- [x] Core event commands work: raise-event, events, stamp-event (AC-12, AC-13)
+- [x] Discovery commands work: list-types, schema (AC-10, AC-11)
+- [x] Shortcut commands route through event system (AC-14)
+- [x] Stop-execution events show agent instruction (AC-9)
+- [x] All commands support `--json` output (agent-first)
+- [x] `just fft` clean
 
 ---
 
@@ -762,28 +762,28 @@ command names to Workshop 07 surface)
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 8.1 | [ ] | Create E2E script structure with helpers (runCli, log, assert, banner) | 2 | Script scaffolding compiles, helpers work. File: `test/e2e/node-event-system-visual-e2e.ts` (new file) | - | Design reference: `docs/plans/032-node-event-system/e2e-event-system-sample-flow.ts` (design doc with intended CLI surface — adapt, do not copy verbatim) |
-| 8.2 | [ ] | Implement Step 1: Create graph and add nodes | 1 | Graph created, 2 nodes added with wiring | - | |
-| 8.3 | [ ] | Implement Step 2: Schema self-discovery | 1 | `event list-types` returns all 6+ types; `event schema question:ask` returns schema | - | AC-18 |
-| 8.4 | [ ] | Implement Step 3: Direct output node (user-input) | 1 | Save output data + end on Node 1, status → complete | - | |
-| 8.5 | [ ] | Implement Step 4: Agent accepts Node 2 | 1 | Start node → starting; accept → agent-accepted; event logged | - | Two-phase handshake |
-| 8.6 | [ ] | Implement Step 5: Agent does work (progress + output) | 1 | Progress event raised via `raise-event`; output saved | - | |
-| 8.7 | [ ] | Implement Step 6: Agent asks question (stops execution) | 2 | Question event raised; status → waiting-question; AGENT INSTRUCTION shown | - | |
-| 8.8 | [ ] | Implement Step 7: Human answers question | 1 | Answer event raised with `--source human`; question handled | - | |
-| 8.9 | [ ] | Implement Step 8-9: Agent resumes and completes | 2 | Agent retrieves answer, saves final output, completes via shortcut | - | |
-| 8.10 | [ ] | Implement Step 10: Inspect event log with stamps | 2 | `events` command shows full log as table; stamps visible per subscriber | - | Workshop 07 |
-| 8.11 | [ ] | Implement Step 11: Validate final state | 1 | All nodes complete; assertions pass; exit 0 | - | |
-| 8.12 | [ ] | Run complete script and verify visual output | 1 | Script runs end-to-end, human can follow every step | - | AC-18 |
-| 8.13 | [ ] | Final `just fft` validation | 1 | All tests pass | - | |
+| 8.1 | [x] | Create E2E script structure with helpers (runCli, log, assert, banner) | 2 | Script scaffolding compiles, helpers work. File: `test/e2e/node-event-system-visual-e2e.ts` (new file) | [📋](tasks/phase-8-e2e-validation-script/execution.log.md) | Design reference: `docs/plans/032-node-event-system/e2e-event-system-sample-flow.ts` (design doc with intended CLI surface — adapt, do not copy verbatim) |
+| 8.2 | [x] | Implement Step 1: Create graph and add nodes | 1 | Graph created, 2 nodes added with wiring | [📋](tasks/phase-8-e2e-validation-script/execution.log.md) | |
+| 8.3 | [x] | Implement Step 2: Schema self-discovery | 1 | `event list-types` returns all 6+ types; `event schema question:ask` returns schema | [📋](tasks/phase-8-e2e-validation-script/execution.log.md) | AC-18 |
+| 8.4 | [x] | Implement Step 3: Direct output node (user-input) | 1 | Save output data + end on Node 1, status → complete | [📋](tasks/phase-8-e2e-validation-script/execution.log.md) | |
+| 8.5 | [x] | Implement Step 4: Agent accepts Node 2 | 1 | Start node → starting; accept → agent-accepted; event logged | [📋](tasks/phase-8-e2e-validation-script/execution.log.md) | Two-phase handshake |
+| 8.6 | [x] | Implement Step 5: Agent does work (progress + output) | 1 | Progress event raised via `raise-event`; output saved | [📋](tasks/phase-8-e2e-validation-script/execution.log.md) | |
+| 8.7 | [x] | Implement Step 6: Agent asks question (stops execution) | 2 | Question event raised; status → waiting-question; AGENT INSTRUCTION shown | [📋](tasks/phase-8-e2e-validation-script/execution.log.md) | |
+| 8.8 | [x] | Implement Step 7: Human answers question | 1 | Answer event raised with `--source human`; question handled | [📋](tasks/phase-8-e2e-validation-script/execution.log.md) | |
+| 8.9 | [x] | Implement Step 8-9: Agent resumes and completes | 2 | Agent retrieves answer, saves final output, completes via shortcut | [📋](tasks/phase-8-e2e-validation-script/execution.log.md) | |
+| 8.10 | [x] | Implement Step 10: Inspect event log with stamps | 2 | `events` command shows full log as table; stamps visible per subscriber | [📋](tasks/phase-8-e2e-validation-script/execution.log.md) | Workshop 07 |
+| 8.11 | [x] | Implement Step 11: Validate final state | 1 | All nodes complete; assertions pass; exit 0 | [📋](tasks/phase-8-e2e-validation-script/execution.log.md) | |
+| 8.12 | [x] | Run complete script and verify visual output | 1 | Script runs end-to-end, human can follow every step | [📋](tasks/phase-8-e2e-validation-script/execution.log.md) | AC-18 |
+| 8.13 | [x] | Final `just fft` validation | 1 | All tests pass | [📋](tasks/phase-8-e2e-validation-script/execution.log.md) | |
 
 ### Acceptance Criteria
-- [ ] Script runs fully automatically with zero manual intervention (AC-18)
-- [ ] Every step prints human-readable output (AC-18)
-- [ ] Both shortcuts and generic event raise demonstrated (AC-18)
-- [ ] Schema self-discovery shown (AC-18)
-- [ ] Event log inspected and displayed (AC-18)
-- [ ] Exit 0 on success, 1 on failure (AC-18)
-- [ ] `just fft` clean
+- [x] Script runs fully automatically with zero manual intervention (AC-18)
+- [x] Every step prints human-readable output (AC-18)
+- [x] Both shortcuts and generic event raise demonstrated (AC-18)
+- [x] Schema self-discovery shown (AC-18)
+- [x] Event log inspected and displayed (AC-18)
+- [x] Exit 0 on success, 1 on failure (AC-18)
+- [x] `just fft` clean
 
 ---
 
@@ -954,6 +954,12 @@ command names to Workshop 07 surface)
   - `file:test/contracts/event-handler-service.contract.ts` — NEW: shared contract (3 tests x 2 implementations)
   - `file:test/contracts/event-handler-service.contract.test.ts` — NEW: contract runner
   - `file:test/integration/positional-graph/event-handler-service.integration.test.ts` — NEW: 5 integration tests (real handlers)
+[^16]: Phase 8 complete (2026-02-08). 41-step E2E validation script proves the full node event system lifecycle: graph creation, schema discovery, error handling (5 error codes), simple node completion, agent accept/question/answer/resume cycle, processGraph settlement + idempotency, and event log inspection with subscriber stamps. Vitest wrapper added at `test/integration/positional-graph/node-event-system-e2e.test.ts` (skips gracefully if CLI not built). Worked example at `docs/plans/032-node-event-system/tasks/phase-8-e2e-validation-script/examples/worked-example.ts`. 3690 total tests green. Plan 032 COMPLETE — all 8 phases landed.
+  - `file:test/e2e/node-event-system-visual-e2e.ts` — NEW: 41-step standalone E2E script (hybrid CLI + in-process)
+  - `file:test/helpers/positional-graph-e2e-helpers.ts` — NEW: shared E2E helpers (createTestServiceStack, runCli, assert, banner, unwrap)
+  - `file:test/integration/positional-graph/node-event-system-e2e.test.ts` — NEW: vitest wrapper for E2E script
+  - `file:packages/positional-graph/src/services/positional-graph-service.interface.ts` — MODIFIED: added loadGraphState/persistGraphState to interface
+  - `file:packages/positional-graph/src/services/positional-graph.service.ts` — MODIFIED: implemented loadGraphState/persistGraphState
 
 ---
 
