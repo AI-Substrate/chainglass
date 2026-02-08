@@ -673,63 +673,59 @@ as the primary output mode.
 
 ---
 
-### Phase 7: ONBAS Adaptation and Backward-Compat Projections
+### Phase 7: IEventHandlerService — Graph-Wide Event Processor
 
-**Objective**: Update ONBAS to read the event log and subscriber stamps for question
-sub-state detection instead of flat `pending_question_id` field. Update the reality
-builder to include events in `NodeReality`. ONBAS is a read-only observer — it reads
-stamps but does NOT stamp events itself (Workshop 06: "ONBAS does NOT stamp — read-only
-advisory").
+**Objective** (revised per Workshops 11-12): Build `IEventHandlerService` — the graph-wide
+event processor that serves as the Settle phase of the orchestration loop. A single
+`processGraph(state, subscriber, context)` call iterates every node, finds unstamped events,
+delegates per-node handling to `INodeEventService`, and returns `ProcessGraphResult` with
+counts of nodes visited, events processed, and handler invocations.
 
-**Workshop**: [06-inline-handlers-and-subscriber-stamps.md](./workshops/06-inline-handlers-and-subscriber-stamps.md)
-§Subscriber Roles (ONBAS as read-only);
-[01-node-event-system.md](./workshops/01-node-event-system.md) §ONBAS Changes;
-[02-event-schema-and-storage.md](./workshops/02-event-schema-and-storage.md) §ONBAS Event
-Log Reading
+Original scope (ONBAS adaptation, backward-compat projections) deferred to a future phase.
+
+**Workshop**: [11-ieventhandlerservice-and-onbas-question-ownership.md](./workshops/11-ieventhandlerservice-and-onbas-question-ownership.md);
+[12-testable-event-handler-service-design.md](./workshops/12-testable-event-handler-service-design.md)
 
 **Deliverables**:
-- `NodeReality` type extended with optional `events` field
-- Reality builder includes events from state.json in snapshot
-- ONBAS `visitWaitingQuestion` reads event log and stamps: unstamped ask → `question-pending`;
-  ask with answer stamp → `resume-node`; stamped without answer → skip
-- Backward fallback: if no events array, use `pendingQuestionId` (old behavior)
-- All existing ONBAS tests updated and still passing
-- New ONBAS tests for event-based question detection with stamps awareness
+- `IEventHandlerService` interface with `processGraph()` method
+- `ProcessGraphResult` type with `nodesVisited`, `eventsProcessed`, `handlerInvocations`
+- `EventHandlerService` implementation with single dependency on `INodeEventService`
+- `FakeEventHandlerService` test double with call history
+- Three-level test coverage: orchestration (FakeNES), dispatch (spy handlers), contract (fake/real parity)
+- Integration tests with real handlers proving state mutations and idempotency
+- Barrel exports for Plan 030 consumption
 
 **Dependencies**:
-- Plan 032 Phase 5 (service wrappers must be in place so events exist in state)
-- Plan 030 Phase 5 (ONBAS Walk Algorithm — COMPLETE). ONBAS already exists and is working.
-  This phase **modifies** the existing ONBAS, it does not create it.
-
-**Cross-Plan Sequencing Note**: There is no circular dependency between Plans 030 and 032.
-The execution order is: Plan 030 Phases 1-5 (done) → Plan 032 Phases 1-8 (this plan, all phases) → Plan 030 Phases 6-8 (resume).
-ONBAS is stable after Plan 030 Phase 5. Plan 030 Phase 6 (ODS) is a separate component —
-the executor that acts on OrchestrationRequests — and does not modify ONBAS internals.
+- Plan 032 Phase 5 (INodeEventService with handleEvents and getUnstampedEvents)
+- Plan 032 Phase 4 (6 core event handlers registered via createEventHandlerRegistry)
 
 **Risks**:
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
-| ONBAS regression from reading events vs flat fields | Medium | High | Same-input-same-output property tests on ONBAS |
-| Reality builder performance with large event logs | Low | Low | Events are per-node; typical 3-6 events per node |
+| handlerInvocations count imprecise (handleEvents returns void) | Low | Low | Documented approximation (Critical Insight #3); equals eventsProcessed |
+| Count-before-stamp ordering violated | Medium | Medium | Unit test documents intent; dispatch tests verify via real stamps |
 
 ### Tasks (Full TDD Approach)
 
+**Scope revised per Workshops 11-12**: Phase 7 now delivers IEventHandlerService (graph-wide event processor for the Settle phase) instead of ONBAS adaptation. ONBAS adaptation deferred to a future phase. See [tasks.fltplan.md](./tasks/phase-7-onbas-adaptation-and-backward-compat-projections/tasks.fltplan.md) for the revised flight plan.
+
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 7.1 | [ ] | Extend `NodeReality` type with optional `events` field | 1 | Type compiles, backward compat (events undefined for old graphs) | - | |
-| 7.2 | [ ] | Update reality builder to include events from state.json | 2 | Events populated in snapshot when present; absent when state has no events | - | |
-| 7.3 | [ ] | Write tests for ONBAS event-based question detection with stamps | 2 | `question:ask` unstamped → `question-pending`; ask with answer stamp → `resume-node`; stamped no answer → skip | - | RED; AC-16; Workshop 06 |
-| 7.4 | [ ] | Update ONBAS `visitWaitingQuestion` to read events and stamps | 2 | All tests from 7.3 pass. Falls back to `pendingQuestionId` when no events | - | GREEN |
-| 7.5 | [ ] | Write property tests: ONBAS with events/stamps produces same results as with flat fields | 2 | Given identical graph state (one with events, one with flat fields), ONBAS returns the same OrchestrationRequest | - | AC-16 |
-| 7.6 | [ ] | Write integration test: full event lifecycle through ONBAS | 2 | Create graph, raise events, build reality, walk ONBAS — correct actions returned | - | |
-| 7.7 | [ ] | Refactor and verify | 1 | `just fft` clean | - | |
+| 7.1 | [x] | Define IEventHandlerService interface + ProcessGraphResult | 1 | Type compiles, processGraph(state, subscriber, context) signature | [T001](./tasks/phase-7-onbas-adaptation-and-backward-compat-projections/execution.log.md) | |
+| 7.2 | [x] | Build FakeEventHandlerService | 1 | getHistory(), setResult(), reset() test helpers | [T002](./tasks/phase-7-onbas-adaptation-and-backward-compat-projections/execution.log.md) | |
+| 7.3 | [x] | Write unit tests RED — orchestration logic | 2 | 10 tests: empty graph, single node, multi-node, stamped-skipped, subscriber isolation, context passthrough | [T003](./tasks/phase-7-onbas-adaptation-and-backward-compat-projections/execution.log.md) | RED then GREEN |
+| 7.4 | [x] | Implement EventHandlerService GREEN | 2 | All 10 unit tests pass; single-dep on INodeEventService | [T004](./tasks/phase-7-onbas-adaptation-and-backward-compat-projections/execution.log.md) | |
+| 7.5 | [x] | Contract tests — fake/real parity | 2 | 3 contract tests x 2 implementations = 6 tests pass | [T005](./tasks/phase-7-onbas-adaptation-and-backward-compat-projections/execution.log.md) | |
+| 7.6 | [x] | Handler dispatch tests — spy handlers | 2 | 8 tests: dispatch, stamp-skip, context filtering, multi-handler, multi-node | [T006](./tasks/phase-7-onbas-adaptation-and-backward-compat-projections/execution.log.md) | |
+| 7.7 | [x] | Integration test + barrel exports + regression | 2 | 5 integration tests; barrel exports; `just fft` clean (3689 tests) | [T007-T008](./tasks/phase-7-onbas-adaptation-and-backward-compat-projections/execution.log.md) | |
 
 ### Acceptance Criteria
-- [ ] ONBAS reads event log for question sub-state (AC-16)
-- [ ] Backward fallback to flat fields when no events (AC-17)
-- [ ] Property tests prove event-based and flat-field paths produce same results
-- [ ] All existing ONBAS tests still pass
-- [ ] `just fft` clean
+- [x] IEventHandlerService processes all unhandled events across the graph before ONBAS walks (AC-16 revised)
+- [x] processGraph() returns correct counts: nodesVisited, eventsProcessed, handlerInvocations
+- [x] Second processGraph() call with same subscriber returns eventsProcessed: 0 (idempotent)
+- [x] FakeEventHandlerService passes same contract tests as real implementation
+- [x] Barrel exports enable Plan 030 to import IEventHandlerService
+- [x] `just fft` clean
 
 ---
 
@@ -848,8 +844,8 @@ command names to Workshop 07 surface)
 - [x] Phase 3: raiseEvent Core Write Path - Complete (22 tests, 1 new source file + 1 modified, 3563 total tests green)
 - [x] Phase 4: Event Handlers and State Transitions - Complete (36 tests added, 3 new source files + 2 modified, 3588 total tests green)
 - [x] Phase 5: Service Method Wrappers - Complete (12/12 tasks, 203 event system tests, 3634 total tests, `just fft` clean)
-- [ ] Phase 6: CLI Commands - Pending
-- [ ] Phase 7: ONBAS Adaptation and Backward-Compat Projections - Pending
+- [x] Phase 6: CLI Commands - Complete (8 CLI commands, 55 tests added, 3689 total tests green)[^14]
+- [x] Phase 7: IEventHandlerService - Complete (29 tests added across 4 test files, 3689 total tests green)[^15]
 - [ ] Phase 8: E2E Validation Script - Pending
 
 ### STOP Rule
@@ -947,6 +943,17 @@ command names to Workshop 07 surface)
   - `file:test/unit/positional-graph/features/032-node-event-system/service-wrapper-contracts.test.ts` — NEW: 10 contract tests for service wrappers
   - `file:test/unit/positional-graph/features/032-node-event-system/event-handlers.test.ts` — MODIFIED: handlers + walkthroughs rewritten for HandlerContext + two-phase flow
   - `file:test/unit/positional-graph/features/032-node-event-system/raise-event.test.ts` — MODIFIED: assertions updated for record-only behavior
+[^14]: Phase 6 complete (2026-02-08). 8 CLI commands for event discovery, raising, and inspection. 55 tests added, 3689 total tests green. Commit: `f27b0d1 feat(032): Phase 6 complete`.
+[^15]: Phase 7 complete (2026-02-08). IEventHandlerService — graph-wide event processor (Settle phase). 4 new source files, 4 new test files, 29 tests (10 unit + 8 dispatch + 6 contract + 5 integration). Phase 7 scope revised from original ONBAS adaptation to IEventHandlerService per Workshops 11-12. `just fft` clean, 3689 total tests green.
+  - `file:packages/positional-graph/src/features/032-node-event-system/event-handler-service.interface.ts` — NEW: IEventHandlerService interface + ProcessGraphResult type
+  - `file:packages/positional-graph/src/features/032-node-event-system/event-handler-service.ts` — NEW: EventHandlerService implementation (single-dep on INodeEventService)
+  - `file:packages/positional-graph/src/features/032-node-event-system/fake-event-handler-service.ts` — NEW: FakeEventHandlerService with getHistory/setResult/reset
+  - `file:packages/positional-graph/src/features/032-node-event-system/index.ts` — MODIFIED: barrel exports for Phase 7 types
+  - `file:test/unit/positional-graph/features/032-node-event-system/event-handler-service.test.ts` — NEW: 10 orchestration tests (FakeNES)
+  - `file:test/unit/positional-graph/features/032-node-event-system/event-handler-service-handlers.test.ts` — NEW: 8 dispatch tests (spy handlers)
+  - `file:test/contracts/event-handler-service.contract.ts` — NEW: shared contract (3 tests x 2 implementations)
+  - `file:test/contracts/event-handler-service.contract.test.ts` — NEW: contract runner
+  - `file:test/integration/positional-graph/event-handler-service.integration.test.ts` — NEW: 5 integration tests (real handlers)
 
 ---
 

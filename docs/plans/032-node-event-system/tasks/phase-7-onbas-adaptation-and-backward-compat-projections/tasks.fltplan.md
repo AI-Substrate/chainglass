@@ -3,7 +3,7 @@
 **Plan**: [node-event-system-plan.md](../../node-event-system-plan.md)
 **Phase**: Phase 7: IEventHandlerService — Graph-Wide Event Processor
 **Generated**: 2026-02-08
-**Status**: Ready for takeoff
+**Status**: Complete
 
 ---
 
@@ -47,7 +47,7 @@ stateDiagram-v2
     S7 --> S8
     S8 --> [*]
 
-    class S1,S2,S3,S4,S5,S6,S7,S8 pending
+    class S1,S2,S3,S4,S5,S6,S7,S8 done
 ```
 
 **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -58,14 +58,14 @@ stateDiagram-v2
 
 <!-- Updated by /plan-6 during implementation: [ ] → [~] → [x] -->
 
-- [ ] **Stage 1: Define IEventHandlerService interface** — `ProcessGraphResult` type with three count fields and `IEventHandlerService` with single `processGraph()` method (`event-handler-service.interface.ts` — new file)
-- [ ] **Stage 2: Build FakeEventHandlerService** — test double with `getHistory()`, `setResult()`, `reset()` following the `FakeNodeEventService` pattern (`fake-event-handler-service.ts` — new file)
-- [ ] **Stage 3: Write unit tests RED** — orchestration logic tests using `FakeNodeEventService`: empty graph, single node, multiple nodes, stamped-events-skipped, correct counts (`event-handler-service.test.ts` — new file)
-- [ ] **Stage 4: Implement EventHandlerService GREEN** — single-dep constructor taking `INodeEventService`, iterates `state.nodes`, calls `getUnstampedEvents()` + `handleEvents()` per node (`event-handler-service.ts` — new file)
-- [ ] **Stage 5: Contract tests** — shared contract verifying empty-graph result and return type shape, run against both fake and real implementations (`test/contracts/event-handler-service.contract.ts`, `.contract.test.ts` — new files)
-- [ ] **Stage 6: Handler dispatch tests** — real EHS + real NES + spy handler functions proving dispatch pipeline: matching events fire handlers, stamped events skipped, context filtering works (`event-handler-service-handlers.test.ts` — new file)
-- [ ] **Stage 7: Integration test** — real EHS + real NES + real handlers, multi-node graph with mixed event types, verify state mutations and idempotency (`test/integration/positional-graph/event-handler-service.integration.test.ts` — new file)
-- [ ] **Stage 8: Update barrel exports and regression** — add `IEventHandlerService`, `ProcessGraphResult`, `EventHandlerService`, `FakeEventHandlerService` to `index.ts`; `just fft` clean
+- [x] **Stage 1: Define IEventHandlerService interface** — `ProcessGraphResult` type with three count fields and `IEventHandlerService` with single `processGraph()` method (`event-handler-service.interface.ts` — new file)
+- [x] **Stage 2: Build FakeEventHandlerService** — test double with `getHistory()`, `setResult()`, `reset()` following the `FakeNodeEventService` pattern (`fake-event-handler-service.ts` — new file)
+- [x] **Stage 3: Write unit tests RED** — orchestration logic tests using `FakeNodeEventService`: empty graph, single node, multiple nodes, stamped-events-skipped, correct counts (`event-handler-service.test.ts` — new file)
+- [x] **Stage 4: Implement EventHandlerService GREEN** — single-dep constructor taking `INodeEventService`, iterates `state.nodes`, calls `getUnstampedEvents()` + `handleEvents()` per node (`event-handler-service.ts` — new file)
+- [x] **Stage 5: Contract tests** — shared contract verifying empty-graph result and return type shape, run against both fake and real implementations (`test/contracts/event-handler-service.contract.ts`, `.contract.test.ts` — new files)
+- [x] **Stage 6: Handler dispatch tests** — real EHS + real NES + spy handler functions proving dispatch pipeline: matching events fire handlers, stamped events skipped, context filtering works (`event-handler-service-handlers.test.ts` — new file)
+- [x] **Stage 7: Integration test** — real EHS + real NES + real handlers, multi-node graph with mixed event types, verify state mutations and idempotency (`test/integration/positional-graph/event-handler-service.integration.test.ts` — new file)
+- [x] **Stage 8: Update barrel exports and regression** — add `IEventHandlerService`, `ProcessGraphResult`, `EventHandlerService`, `FakeEventHandlerService` to `index.ts`; `just fft` clean
 
 ---
 
@@ -102,12 +102,12 @@ flowchart LR
 
 ## Acceptance Criteria
 
-- [ ] IEventHandlerService processes all unhandled events across the graph before ONBAS walks (AC-16 revised)
-- [ ] processGraph() returns correct counts: nodesVisited, eventsProcessed, handlerInvocations
-- [ ] Second processGraph() call with same subscriber returns eventsProcessed: 0 (idempotent)
-- [ ] FakeEventHandlerService passes same contract tests as real implementation
-- [ ] Barrel exports enable Plan 030 to import IEventHandlerService
-- [ ] `just fft` clean
+- [x] IEventHandlerService processes all unhandled events across the graph before ONBAS walks (AC-16 revised)
+- [x] processGraph() returns correct counts: nodesVisited, eventsProcessed, handlerInvocations
+- [x] Second processGraph() call with same subscriber returns eventsProcessed: 0 (idempotent)
+- [x] FakeEventHandlerService passes same contract tests as real implementation
+- [x] Barrel exports enable Plan 030 to import IEventHandlerService
+- [x] `just fft` clean
 
 ## Goals & Non-Goals
 
@@ -128,14 +128,14 @@ flowchart LR
 
 ## Checklist
 
-- [ ] T001: Define IEventHandlerService interface + ProcessGraphResult (CS-1)
-- [ ] T002: Implement FakeEventHandlerService with test helpers (CS-1)
-- [ ] T003: Write unit tests RED — orchestration logic (CS-2)
-- [ ] T004: Implement EventHandlerService GREEN (CS-2)
-- [ ] T005: Write contract tests — fake/real parity (CS-2)
-- [ ] T006: Write handler dispatch tests — spy handlers (CS-2)
-- [ ] T007: Write integration test — multi-node graph processing (CS-2)
-- [ ] T008: Update barrel exports + regression verification (CS-1)
+- [x] T001: Define IEventHandlerService interface + ProcessGraphResult (CS-1)
+- [x] T002: Implement FakeEventHandlerService with test helpers (CS-1)
+- [x] T003: Write unit tests RED — orchestration logic (CS-2)
+- [x] T004: Implement EventHandlerService GREEN (CS-2)
+- [x] T005: Write contract tests — fake/real parity (CS-2)
+- [x] T006: Write handler dispatch tests — spy handlers (CS-2)
+- [x] T007: Write integration test — multi-node graph processing (CS-2)
+- [x] T008: Update barrel exports + regression verification (CS-1)
 
 ---
 

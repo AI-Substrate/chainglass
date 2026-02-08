@@ -49,6 +49,10 @@ export type {
   RaiseResult,
 } from './node-event-service.interface.js';
 export type { HandlerContext, EventHandler } from './handler-context.interface.js';
+export type {
+  IEventHandlerService,
+  ProcessGraphResult,
+} from './event-handler-service.interface.js';
 
 // Registry
 export { NodeEventRegistry } from './node-event-registry.js';
@@ -80,6 +84,11 @@ export type {
   RaiseHistoryEntry,
   StampHistoryEntry,
 } from './fake-node-event-service.js';
+
+// Event handler service (Phase 7)
+export { EventHandlerService } from './event-handler-service.js';
+export { FakeEventHandlerService } from './fake-event-handler-service.js';
+export type { ProcessGraphHistoryEntry } from './fake-event-handler-service.js';
 
 // Core write path
 export { raiseEvent } from './raise-event.js';
