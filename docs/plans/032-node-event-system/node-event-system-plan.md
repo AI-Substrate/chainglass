@@ -159,14 +159,14 @@ events array on first event raise.
 ### 05: ONBAS Must Read Events for Question Sub-State Detection
 
 **Impact**: High
-**Sources**: [I1-05, R1-03, Workshop #01]
+**Sources**: [I1-05, R1-03, Workshop #01, Workshop #06]
 **Problem**: ONBAS currently reads `node.pendingQuestionId` to detect question state.
-After migration, `pending_question_id` becomes a derived projection. ONBAS should read
-the event log directly: `question:ask` with status `new` → `question-pending`;
-`question:ask` with matching `question:answer` → `resume-node`.
+After migration, ONBAS should read the event log and subscriber stamps: unstamped
+`question:ask` → `question-pending`; ask with answer stamp → `resume-node`. ONBAS
+is read-only — it reads stamps but does NOT stamp events itself (Workshop 06).
 **Action**: Update reality builder to include `events` in NodeReality. Update ONBAS
-`visitWaitingQuestion` to use event log. Keep backward compat: if no events array,
-fall back to `pendingQuestionId` field.
+`visitWaitingQuestion` to use event log and stamps. Keep backward compat: if no events
+array, fall back to `pendingQuestionId` field.
 **Affects**: Phase 7
 
 ### 06: Error Code Range E190-E195 Is Unallocated
@@ -183,12 +183,13 @@ Each includes `code`, `message`, and `action` fields.
 ### 07: CLI Commands Follow Established Registration Pattern
 
 **Impact**: Medium
-**Sources**: [I1-06, R1-05]
-**Problem**: `positional-graph.command.ts` already has 40+ commands. New event commands
-(4 generic + 3 shortcuts) follow the same pattern: Commander handler → DI resolution →
-`wrapAction()` → `createOutputAdapter()`.
-**Action**: Add 7 command handlers in one batch. Reuse existing helpers. Follow
-`--json` option pattern for machine-readable output.
+**Sources**: [I1-06, R1-05, Workshop #07]
+**Problem**: `positional-graph.command.ts` already has 40+ commands. Workshop 07 redesigns
+the CLI surface with agent-first JSON output: 3 core commands (`raise-event`, `events`,
+`stamp-event`) + 3 shortcuts + 2 discovery commands.
+**Action**: Add commands following existing Commander registration pattern. Reuse
+`wrapAction()` → `createOutputAdapter()`. `--json` is primary output mode (agent-first).
+New error codes E196 (event not found), E197 (invalid JSON).
 **Affects**: Phase 6
 
 ### 08: Atomic State Persistence Handles Event Appends
@@ -197,7 +198,8 @@ Each includes `code`, `message`, and `action` fields.
 **Sources**: [I1-08]
 **Problem**: All state.json writes use `atomicWriteFile()` (temp-then-rename). Events
 are append-only within a node's state entry. Each `raiseEvent()` loads state, appends
-to the events array, derives backward-compat fields, then persists atomically.
+to the events array, then persists atomically. (Backward-compat derivation was removed
+by Subtask 001.)
 **Action**: No new persistence infrastructure needed. Existing `persistState()` handles
 the full state.json write. Event ordering guaranteed by array position + timestamp.
 **Affects**: Phase 3
@@ -512,7 +514,7 @@ event log.
 - Note: `output:save-data` and `output:save-file` handlers removed — orchestrator handles output persistence directly
 - `deriveBackwardCompatFields()` function called after every handler [later deleted by Phase 5 Subtask 001]
 - Wire handlers into `raiseEvent()` — event is created, handler runs, compat derived,
-  state persisted
+  state persisted [to be separated into `handleEvents()` per Workshop 06; raiseEvent becomes record-only]
 
 **Dependencies**: Phase 3 (raiseEvent function to wire handlers into)
 
@@ -520,7 +522,7 @@ event log.
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
 | Handler side effects partially applied on crash | Low | Medium | Atomic write covers entire state; output files written before state persist |
-| Backward-compat projection drift | Medium | Medium | Contract test: same inputs → identical state whether via events or old methods |
+| ~~Backward-compat projection drift~~ | ~~Medium~~ | ~~Medium~~ | ~~Contract test: same inputs → identical state whether via events or old methods~~ [RESOLVED — compat layer deleted by Subtask 001] |
 
 ### Tasks (Full TDD Approach)
 
@@ -550,24 +552,29 @@ event log.
 
 ### Phase 5: Service Method Wrappers
 
-**Objective**: Refactor existing service methods (`endNode`, `askQuestion`,
-`answerQuestion`) to become thin wrappers that construct event payloads and delegate
-to `raiseEvent()`. After this phase, there is no separate write path for node lifecycle
-and question events — the event system IS the implementation. Output methods
-(`saveOutputData`, `saveOutputFile`) remain unchanged — the orchestrator handles output
-persistence directly.
+**Objective**: Separate event recording from event processing (Workshop 06), then
+refactor service methods (`endNode`, `askQuestion`, `answerQuestion`) to become thin
+wrappers that call `raiseEvent()` (record-only). Processing happens via `handleEvents()`
+called by the CLI layer. This phase introduces subscriber stamps, creates `handleEvents()`,
+refactors handlers from `markHandled()` to `stampEvent()`, and fixes the `question:answer`
+handler's missing `starting` transition. Output methods remain unchanged.
 
-**Workshop**: [01-node-event-system.md](./workshops/01-node-event-system.md) §Backward
-Compatibility; [02-event-schema-and-storage.md](./workshops/02-event-schema-and-storage.md)
-§Migration Strategy
+**Workshop**: [06-inline-handlers-and-subscriber-stamps.md](./workshops/06-inline-handlers-and-subscriber-stamps.md)
+§raiseEvent/handleEvents Separation, §Subscriber Stamps;
+[08-concept-drift-and-remediation.md](./workshops/08-concept-drift-and-remediation.md)
+§Remediation Roadmap
 
 **Deliverables**:
+- `EventStampSchema` and `stamps` field on `NodeEventSchema` (schema extension)
+- `stampEvent()` helper (replaces `markHandled()`)
+- `handleEvents(subscriber, nodeId, state, deps)` function — node-scoped, subscriber-aware
+- `raiseEvent()` refactored to record-only (remove handler invocation)
+- Handlers refactored: `markHandled()` → `stampEvent()`, `handleQuestionAnswer` gains `starting` transition
 - `endNode()` → constructs `node:completed` payload, calls `raiseEvent()`
 - `askQuestion()` → constructs `question:ask` payload, calls `raiseEvent()`
 - `answerQuestion()` → constructs `question:answer` payload, calls `raiseEvent()`
-- `saveOutputData()` and `saveOutputFile()` remain unchanged — orchestrator handles output persistence directly
-- Contract tests: old path (direct method call) and new path (via events) produce
-  identical state.json for lifecycle and question methods
+- Contract tests: old path and new path produce identical state for lifecycle and question methods
+- Output methods (`saveOutputData`, `saveOutputFile`) remain unchanged
 
 **Dependencies**: Phase 4 (handlers must work before wrappers can delegate)
 
@@ -576,6 +583,7 @@ Compatibility; [02-event-schema-and-storage.md](./workshops/02-event-schema-and-
 |------|------------|--------|------------|
 | Return type mismatch | Medium | Medium | Wrappers map event result back to original method return types |
 | Subtle behavior change | Medium | High | Contract tests compare state.json byte-for-byte (modulo timestamps) |
+| raiseEvent/handleEvents separation breaks existing tests | Medium | Medium | Subtask handles separation first, updates affected tests before wrapper work |
 
 ### Tasks (Full TDD Approach)
 
@@ -605,72 +613,85 @@ Compatibility; [02-event-schema-and-storage.md](./workshops/02-event-schema-and-
 
 ### Phase 6: CLI Commands
 
-**Objective**: Add the 4 generic event CLI commands and 3 shortcut commands, all wired
-through the existing CLI registration pattern.
+**Objective**: Add agent-first event CLI commands with JSON-primary output. Three core
+commands (`raise-event`, `events`, `stamp-event`) plus shortcut commands for common
+operations. Two new service methods (`getNodeEvents`, `stampNodeEvent`) bridge the CLI
+to the event system. All commands designed for LLM agent consumption with `--json`
+as the primary output mode.
 
-**Workshop**: [01-node-event-system.md](./workshops/01-node-event-system.md) §CLI Design
+**Workshop**: [07-event-system-cli-commands.md](./workshops/07-event-system-cli-commands.md)
+§Command Design; [06-inline-handlers-and-subscriber-stamps.md](./workshops/06-inline-handlers-and-subscriber-stamps.md)
+§handleEvents Integration
 
 **Deliverables**:
-- `cg wf node event list-types [--domain <domain>]` — lists registered types
-- `cg wf node event schema <eventType>` — shows payload schema and example
-- `cg wf node event raise <graph> <nodeId> <eventType> <payloadJson> [--source <source>]`
-- `cg wf node event log <graph> <nodeId> [--type <type>] [--status <status>]`
-- `cg wf node accept <graph> <nodeId>` — shortcut for `node:accepted`
-- `cg wf node end <graph> <nodeId> [--message <msg>]` — update existing to route via events
-- `cg wf node error <graph> <nodeId> --code <code> --message <msg>` — shortcut for `node:error`
-- All commands support `--json` for machine-readable output
+- `cg wf node raise-event <graph> <nodeId> <eventType> [payloadJson] [--source <source>]` — raise + handleEvents, returns event with stamps
+- `cg wf node events <graph> <nodeId> [--id <eventId>] [--type <type>] [--status <status>]` — list/detail combined via `--id`
+- `cg wf node stamp-event <graph> <nodeId> <eventId> --subscriber <sub> --action <act> [--data <json>]` — write subscriber stamp
+- `cg wf node accept <graph> <nodeId>` — shortcut for `raise-event node:accepted`
+- `cg wf node end <graph> <nodeId> [--message <msg>]` — shortcut for `raise-event node:completed`
+- `cg wf node error <graph> <nodeId> --code <code> --message <msg>` — shortcut for `raise-event node:error`
+- `getNodeEvents()` and `stampNodeEvent()` service interface additions
+- New error codes: E196 (event not found), E197 (invalid JSON payload)
+- All commands support `--json` for machine-readable output (agent-first design)
 - `stops_execution` events show `[AGENT INSTRUCTION]` message (AC-9)
 
-**Dependencies**: Phase 5 (service methods must be event-based before CLI routes through them)
+**Dependencies**: Phase 5 (service methods must be event-based; handleEvents must exist)
 
 **Risks**:
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
 | Existing `end` command behavior change | Medium | Medium | `end` already works; now routes through events internally — same user-facing behavior |
-| JSON payload parsing errors | Low | Low | CLI validates JSON before passing to service; clear error on parse failure |
+| JSON payload parsing errors | Low | Low | CLI validates JSON before passing to service; clear error with E197 on parse failure |
 
 ### Tasks (Full TDD Approach)
 
+*Note: Task table is directional. Detailed task breakdown will be generated by `/plan-5` when this phase is dossier'd.*
+
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 6.1 | [ ] | Implement `event list-types` command handler | 2 | Human-readable: types grouped by domain. JSON: array of type metadata. `--domain` filter works | - | AC-10 |
-| 6.2 | [ ] | Implement `event schema` command handler | 2 | Shows metadata, payload fields, concrete example. JSON mode shows JSON Schema. E190 for unknown type | - | AC-11 |
-| 6.3 | [ ] | Implement `event raise` command handler | 3 | Validates JSON payload, calls `raiseEvent()`, shows event ID/status/stops_execution. Shows `[AGENT INSTRUCTION]` for stop events. `--source` defaults to `agent` | - | AC-12, AC-9 |
-| 6.4 | [ ] | Implement `event log` command handler | 2 | Table format: event_id, type, source, status, created_at. Filters: `--type`, `--status`. JSON mode: full event objects | - | AC-13 |
-| 6.5 | [ ] | Implement `accept` shortcut command | 1 | Equivalent to `event raise node:accepted '{}'`. Shows status transition | - | AC-14 |
-| 6.6 | [ ] | Update `end` command to route through events | 1 | `--message` flag constructs payload. Internally calls `raiseEvent('node:completed')` | - | AC-14 |
+| 6.1 | [ ] | Add `getNodeEvents()` and `stampNodeEvent()` to service interface + implementation | 2 | New methods on `IPositionalGraphService`, error codes E196/E197 | - | Workshop 07 |
+| 6.2 | [ ] | Implement `raise-event` command (calls raiseEvent + handleEvents) | 3 | JSON output: event with stamps. `--source` defaults to `agent`. `[AGENT INSTRUCTION]` for stop events | - | AC-12, AC-9 |
+| 6.3 | [ ] | Implement `events` command (list + detail via `--id`) | 2 | List: table of events. Detail: single event with stamps. Filters: `--type`, `--status` | - | AC-13 |
+| 6.4 | [ ] | Implement `stamp-event` command | 2 | Writes subscriber stamp, returns updated event. E196 for missing event | - | Workshop 07 |
+| 6.5 | [ ] | Implement `accept` shortcut command | 1 | Equivalent to `raise-event node:accepted`. Shows status transition | - | AC-14 |
+| 6.6 | [ ] | Update `end` command to route through events | 1 | `--message` constructs payload. Calls raiseEvent + handleEvents | - | AC-14 |
 | 6.7 | [ ] | Implement `error` shortcut command | 1 | `--code`, `--message`, `--details`, `--recoverable` flags construct payload | - | AC-14 |
-| 6.8 | [ ] | Register all commands in `positional-graph.command.ts` | 2 | All 7 commands registered, `--help` shows them, TypeScript compiles | - | |
-| 6.9 | [ ] | Write CLI integration tests | 2 | Test each command via `runCli()` helper; verify JSON output structure | - | |
+| 6.8 | [ ] | Implement `event list-types` and `event schema` discovery commands | 2 | Types grouped by domain. Schema shows fields + example | - | AC-10, AC-11 |
+| 6.9 | [ ] | Register all commands, write CLI integration tests | 2 | All commands registered, `--json` output verified | - | |
 | 6.10 | [ ] | Refactor and verify | 1 | `just fft` clean | - | |
 
 ### Acceptance Criteria
-- [ ] 4 generic event commands work (AC-10, AC-11, AC-12, AC-13)
-- [ ] 3 shortcut commands route through event system (AC-14)
+- [ ] Core event commands work: raise-event, events, stamp-event (AC-12, AC-13)
+- [ ] Discovery commands work: list-types, schema (AC-10, AC-11)
+- [ ] Shortcut commands route through event system (AC-14)
 - [ ] Stop-execution events show agent instruction (AC-9)
-- [ ] All commands support `--json` output
+- [ ] All commands support `--json` output (agent-first)
 - [ ] `just fft` clean
 
 ---
 
 ### Phase 7: ONBAS Adaptation and Backward-Compat Projections
 
-**Objective**: Update ONBAS to read the event log for question sub-state detection
-instead of flat `pending_question_id` field. Update the reality builder to include
-events in `NodeReality`. Verify backward-compat projections work end-to-end.
+**Objective**: Update ONBAS to read the event log and subscriber stamps for question
+sub-state detection instead of flat `pending_question_id` field. Update the reality
+builder to include events in `NodeReality`. ONBAS is a read-only observer — it reads
+stamps but does NOT stamp events itself (Workshop 06: "ONBAS does NOT stamp — read-only
+advisory").
 
-**Workshop**: [01-node-event-system.md](./workshops/01-node-event-system.md) §ONBAS Changes;
+**Workshop**: [06-inline-handlers-and-subscriber-stamps.md](./workshops/06-inline-handlers-and-subscriber-stamps.md)
+§Subscriber Roles (ONBAS as read-only);
+[01-node-event-system.md](./workshops/01-node-event-system.md) §ONBAS Changes;
 [02-event-schema-and-storage.md](./workshops/02-event-schema-and-storage.md) §ONBAS Event
 Log Reading
 
 **Deliverables**:
 - `NodeReality` type extended with optional `events` field
 - Reality builder includes events from state.json in snapshot
-- ONBAS `visitWaitingQuestion` reads event log: `new` ask → `question-pending`;
-  ask with answer → `resume-node`; `acknowledged` without answer → skip
+- ONBAS `visitWaitingQuestion` reads event log and stamps: unstamped ask → `question-pending`;
+  ask with answer stamp → `resume-node`; stamped without answer → skip
 - Backward fallback: if no events array, use `pendingQuestionId` (old behavior)
 - All existing ONBAS tests updated and still passing
-- New ONBAS tests for event-based question detection
+- New ONBAS tests for event-based question detection with stamps awareness
 
 **Dependencies**:
 - Plan 032 Phase 5 (service wrappers must be in place so events exist in state)
@@ -694,9 +715,9 @@ the executor that acts on OrchestrationRequests — and does not modify ONBAS in
 |---|--------|------|----|------------------|-----|-------|
 | 7.1 | [ ] | Extend `NodeReality` type with optional `events` field | 1 | Type compiles, backward compat (events undefined for old graphs) | - | |
 | 7.2 | [ ] | Update reality builder to include events from state.json | 2 | Events populated in snapshot when present; absent when state has no events | - | |
-| 7.3 | [ ] | Write tests for ONBAS event-based question detection | 2 | `question:ask` with `status: 'new'` → `question-pending`; with matching answer → `resume-node`; `acknowledged` no answer → skip | - | RED; AC-16 |
-| 7.4 | [ ] | Update ONBAS `visitWaitingQuestion` to read events | 2 | All tests from 7.3 pass. Falls back to `pendingQuestionId` when no events | - | GREEN |
-| 7.5 | [ ] | Write property tests: ONBAS with events produces same results as with flat fields | 2 | Given identical graph state (one with events, one with flat fields), ONBAS returns the same OrchestrationRequest | - | AC-16 |
+| 7.3 | [ ] | Write tests for ONBAS event-based question detection with stamps | 2 | `question:ask` unstamped → `question-pending`; ask with answer stamp → `resume-node`; stamped no answer → skip | - | RED; AC-16; Workshop 06 |
+| 7.4 | [ ] | Update ONBAS `visitWaitingQuestion` to read events and stamps | 2 | All tests from 7.3 pass. Falls back to `pendingQuestionId` when no events | - | GREEN |
+| 7.5 | [ ] | Write property tests: ONBAS with events/stamps produces same results as with flat fields | 2 | Given identical graph state (one with events, one with flat fields), ONBAS returns the same OrchestrationRequest | - | AC-16 |
 | 7.6 | [ ] | Write integration test: full event lifecycle through ONBAS | 2 | Create graph, raise events, build reality, walk ONBAS — correct actions returned | - | |
 | 7.7 | [ ] | Refactor and verify | 1 | `just fft` clean | - | |
 
@@ -715,15 +736,18 @@ the executor that acts on OrchestrationRequests — and does not modify ONBAS in
 every event through the system. A human runs it and watches acceptance, work, questions,
 answers, and completion happen step by step with clear console output.
 
-**Workshop**: See `e2e-event-system-sample-flow.ts` (design document)
+**Workshop**: [07-event-system-cli-commands.md](./workshops/07-event-system-cli-commands.md)
+§Command Design; See also `e2e-event-system-sample-flow.ts` (design document — adapt
+command names to Workshop 07 surface)
 
 **Deliverables**:
 - Fully automatic script: creates graph, adds nodes, walks full lifecycle
 - Plays all roles: orchestrator (starts nodes), agent (accepts, works, asks, completes),
   human (answers questions)
-- Uses both generic `event raise` and shortcuts (`accept`, `end`)
+- Uses `raise-event` command, `events` command, and shortcut commands (`accept`, `end`)
+- Demonstrates `stamp-event` for subscriber processing
 - Demonstrates schema self-discovery (`event list-types`, `event schema`)
-- Inspects and prints event log as table
+- Inspects and prints event log with stamps as table
 - Human-readable output at every step with clear status indicators
 - Exits 0 on success, 1 on failure
 
@@ -741,14 +765,14 @@ answers, and completion happen step by step with clear console output.
 |---|--------|------|----|------------------|-----|-------|
 | 8.1 | [ ] | Create E2E script structure with helpers (runCli, log, assert, banner) | 2 | Script scaffolding compiles, helpers work. File: `test/e2e/node-event-system-visual-e2e.ts` (new file) | - | Design reference: `docs/plans/032-node-event-system/e2e-event-system-sample-flow.ts` (design doc with intended CLI surface — adapt, do not copy verbatim) |
 | 8.2 | [ ] | Implement Step 1: Create graph and add nodes | 1 | Graph created, 2 nodes added with wiring | - | |
-| 8.3 | [ ] | Implement Step 2: Schema self-discovery | 1 | `event list-types` returns all 6 types; `event schema question:ask` returns schema | - | AC-18 |
+| 8.3 | [ ] | Implement Step 2: Schema self-discovery | 1 | `event list-types` returns all 6+ types; `event schema question:ask` returns schema | - | AC-18 |
 | 8.4 | [ ] | Implement Step 3: Direct output node (user-input) | 1 | Save output data + end on Node 1, status → complete | - | |
 | 8.5 | [ ] | Implement Step 4: Agent accepts Node 2 | 1 | Start node → starting; accept → agent-accepted; event logged | - | Two-phase handshake |
-| 8.6 | [ ] | Implement Step 5: Agent does work (progress + output) | 1 | Progress event raised; output saved via event | - | |
+| 8.6 | [ ] | Implement Step 5: Agent does work (progress + output) | 1 | Progress event raised via `raise-event`; output saved | - | |
 | 8.7 | [ ] | Implement Step 6: Agent asks question (stops execution) | 2 | Question event raised; status → waiting-question; AGENT INSTRUCTION shown | - | |
 | 8.8 | [ ] | Implement Step 7: Human answers question | 1 | Answer event raised with `--source human`; question handled | - | |
 | 8.9 | [ ] | Implement Step 8-9: Agent resumes and completes | 2 | Agent retrieves answer, saves final output, completes via shortcut | - | |
-| 8.10 | [ ] | Implement Step 10: Inspect event log | 2 | Full event log printed as table; all events visible with correct statuses | - | |
+| 8.10 | [ ] | Implement Step 10: Inspect event log with stamps | 2 | `events` command shows full log as table; stamps visible per subscriber | - | Workshop 07 |
 | 8.11 | [ ] | Implement Step 11: Validate final state | 1 | All nodes complete; assertions pass; exit 0 | - | |
 | 8.12 | [ ] | Run complete script and verify visual output | 1 | Script runs end-to-end, human can follow every step | - | AC-18 |
 | 8.13 | [ ] | Final `just fft` validation | 1 | All tests pass | - | |
