@@ -135,12 +135,12 @@ flowchart TD
     end
 
     subgraph Subtask["Subtask 001: Drop Backward Compat"]
-        ST001["ST001: Remove compat from raiseEvent"]:::pending
-        ST002["ST002: Delete compat source + tests"]:::pending
-        ST003["ST003: Update spec AC-15"]:::pending
-        ST004["ST004: Update Phase 5 dossier"]:::pending
-        ST005["ST005: Regenerate flight plan"]:::pending
-        ST006["ST006: Verify all tests pass"]:::pending
+        ST001["ST001: Remove compat from raiseEvent ✓"]:::completed
+        ST002["ST002: Delete compat source + tests ✓"]:::completed
+        ST003["ST003: Update spec AC-15 ✓"]:::completed
+        ST004["ST004: Update Phase 5 dossier ✓"]:::completed
+        ST005["ST005: Regenerate flight plan ✓"]:::completed
+        ST006["ST006: Verify all tests pass ✓"]:::completed
 
         ST001 --> ST002
         ST002 --> ST003
@@ -174,12 +174,12 @@ flowchart TD
 
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
-| ST001 | raiseEvent Pipeline | raise-event.ts | ⬜ Pending | Remove import + call to deriveBackwardCompatFields |
-| ST002 | Compat Layer Deletion | derive-compat-fields.ts, derive-compat-fields.test.ts, index.ts | ⬜ Pending | Delete source + test, remove barrel export |
-| ST003 | Spec Update | node-event-system-spec.md | ⬜ Pending | AC-15 wording: "derived projections" → "handler-written fields" |
-| ST004 | Dossier Update | tasks.md (Phase 5) | ⬜ Pending | Eliminate T001-T002, update deps/architecture/findings |
-| ST005 | Flight Plan | tasks.fltplan.md | ⬜ Pending | Regenerate via /plan-5b-flightplan |
-| ST006 | Verification | All test files | ⬜ Pending | `just fft` proves compat layer was redundant |
+| ST001 | raiseEvent Pipeline | raise-event.ts | ✅ Complete | Removed import + call; 157 tests pass |
+| ST002 | Compat Layer Deletion | derive-compat-fields.ts, derive-compat-fields.test.ts, index.ts | ✅ Complete | Files deleted, barrel export removed; 148 tests pass |
+| ST003 | Spec Update | node-event-system-spec.md | ✅ Complete | AC-15 updated: "handler-written fields, no derivation pass" |
+| ST004 | Dossier Update | tasks.md (Phase 5) | ✅ Complete | T001/T002 marked [—] Eliminated; deps, architecture, findings updated |
+| ST005 | Flight Plan | tasks.fltplan.md | ✅ Complete | Regenerated; T001/T002 marked eliminated, architecture updated |
+| ST006 | Verification | All test files | ✅ Complete | `just fft` clean: 3579 tests, 0 failures |
 
 ---
 
@@ -187,12 +187,12 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|------|------|-----|------|-------------|-------------------|------------|----------|-------|
-| [ ] | ST001 | Remove `deriveBackwardCompatFields` from raiseEvent pipeline: delete import (line 4) and call (line 172) from `raise-event.ts`. The pipeline becomes: validate → create → append → handle → persist. | 1 | Core | – | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/032-node-event-system/raise-event.ts` | raiseEvent no longer calls deriveBackwardCompatFields; pipeline flow verified by reading code | – | 2 lines removed. Handlers already write pending_question_id and error directly. |
-| [ ] | ST002 | Delete `derive-compat-fields.ts` source file, delete `derive-compat-fields.test.ts` test file, remove export from `index.ts` (line 63). | 1 | Core | ST001 | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/032-node-event-system/derive-compat-fields.ts`, `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/features/032-node-event-system/derive-compat-fields.test.ts`, `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/032-node-event-system/index.ts` | Files deleted; barrel export removed; TypeScript compiles | – | ~62 lines source + ~238 lines test removed. |
-| [ ] | ST003 | Update spec AC-15: change "Backward-compat fields (pending_question_id, error, top-level questions[]) are derived projections computed from the event log after each raise" to "pending_question_id and error are written directly by event handlers. No separate derivation pass." Remove `questions[]` from the compat fields list. | 1 | Doc | ST002 | `/home/jak/substrate/030-positional-orchestrator/docs/plans/032-node-event-system/node-event-system-spec.md` | AC-15 reflects reality: handler-written, not derived | – | Workshop 04 Q3 resolved. |
-| [ ] | ST004 | Update Phase 5 parent dossier (`tasks.md`): (a) eliminate T001 and T002 rows, (b) update T005/T006 dependencies (remove T002), (c) update architecture map (remove T001/T002 nodes), (d) update Alignment Brief Finding 03 ("handler-written, not derived"), (e) update Executive Briefing (remove questions[] reconstruction mention), (f) update Objectives (remove questions[] goal), (g) renumber if needed. | 2 | Doc | ST003 | `/home/jak/substrate/030-positional-orchestrator/docs/plans/032-node-event-system/tasks/phase-5-service-method-wrappers/tasks.md` | Dossier reflects Option C from Workshop 04; no references to deriveBackwardCompatFields, T001, or T002 remain | – | Parent plan task table (§ 8) should also be updated. |
-| [ ] | ST005 | Regenerate Phase 5 flight plan to reflect the simplified task list (9 tasks instead of 11, no compat stages). | 1 | Doc | ST004 | `/home/jak/substrate/030-positional-orchestrator/docs/plans/032-node-event-system/tasks/phase-5-service-method-wrappers/tasks.fltplan.md` | Flight plan stages match updated dossier | – | Run /plan-5b-flightplan or update manually. |
-| [ ] | ST006 | Run `just fft` to verify all existing tests pass without the compat layer. This proves the layer was redundant — handlers already produce correct state. | 1 | Test | ST002 | All test files | `just fft` clean; all Phase 1-4 tests pass; E2E walkthrough tests pass | – | Key validation: if any test fails, it means the compat layer was doing something the handlers don't. Workshop 04 predicts zero failures. |
+| [x] | ST001 | Remove `deriveBackwardCompatFields` from raiseEvent pipeline: delete import (line 4) and call (line 172) from `raise-event.ts`. The pipeline becomes: validate → create → append → handle → persist. | 1 | Core | – | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/032-node-event-system/raise-event.ts` | raiseEvent no longer calls deriveBackwardCompatFields; pipeline flow verified by reading code | – | 2 lines removed. Handlers already write pending_question_id and error directly. **Run tests immediately after this step** (`pnpm test`) — this is the real proof that handlers are sufficient without compat. ST006 is the final gate; this intermediate check isolates "disconnect" failures from "delete" failures. |
+| [x] | ST002 | Delete `derive-compat-fields.ts` source file, delete `derive-compat-fields.test.ts` test file, remove export from `index.ts` (line 63). | 1 | Core | ST001 | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/032-node-event-system/derive-compat-fields.ts`, `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/features/032-node-event-system/derive-compat-fields.test.ts`, `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/032-node-event-system/index.ts` | Files deleted; barrel export removed; TypeScript compiles | – | ~62 lines source + ~238 lines test removed. |
+| [x] | ST003 | Update spec AC-15: change "Backward-compat fields (pending_question_id, error, top-level questions[]) are derived projections computed from the event log after each raise" to "pending_question_id and error are written directly by event handlers. No separate derivation pass." Remove `questions[]` from the compat fields list. | 1 | Doc | ST002 | `/home/jak/substrate/030-positional-orchestrator/docs/plans/032-node-event-system/node-event-system-spec.md` | AC-15 reflects reality: handler-written, not derived | – | Workshop 04 Q3 resolved. |
+| [x] | ST004 | Update Phase 5 parent dossier (`tasks.md`): (a) mark T001 and T002 as `[—] Eliminated` with note "Eliminated by Subtask 001 per Workshop 04" (keep rows for traceability), (b) update T005/T006 dependencies (remove T002), (c) update architecture map (grey out T001/T002 nodes), (d) update Alignment Brief Finding 03 ("handler-written, not derived"), (e) update Executive Briefing (remove questions[] reconstruction mention), (f) update Objectives (remove questions[] goal). | 2 | Doc | ST003 | `/home/jak/substrate/030-positional-orchestrator/docs/plans/032-node-event-system/tasks/phase-5-service-method-wrappers/tasks.md` | Dossier reflects Option C from Workshop 04; T001/T002 marked `[—] Eliminated`, no active dependencies on them or pending references to deriveBackwardCompatFields remain | – | Parent plan task table (§ 8) should also be updated. Keep T001/T002 rows — deleting would break footnote refs and cross-links. |
+| [x] | ST005 | Regenerate Phase 5 flight plan to reflect the simplified task list (9 tasks instead of 11, no compat stages). | 1 | Doc | ST004 | `/home/jak/substrate/030-positional-orchestrator/docs/plans/032-node-event-system/tasks/phase-5-service-method-wrappers/tasks.fltplan.md` | Flight plan stages match updated dossier | – | Run /plan-5b-flightplan or update manually. |
+| [x] | ST006 | Run `just fft` to verify all existing tests pass without the compat layer. This proves the layer was redundant — handlers already produce correct state. | 1 | Test | ST002 | All test files | `just fft` clean; all Phase 1-4 tests pass; E2E walkthrough tests pass | – | Key validation: if any test fails, it means the compat layer was doing something the handlers don't. Workshop 04 predicts zero failures. |
 
 ---
 
@@ -264,6 +264,7 @@ just fft
 | A test depends on compat derivation producing a specific value | Low | E2E walkthrough tests verify final state, not mechanism. Handler writes are tested independently. |
 | raise-event.test.ts has assertions about compat being called | Low | Audit shows no direct assertions — compat is tested indirectly via state assertions. |
 | Future "replay from events" need | Low | YAGNI — build it if/when needed. Handlers can be replayed. |
+| Misleading comment at `event-handlers.test.ts:596` says "cleared by compat derivation" — actually cleared by handler (`event-handlers.ts:69`) | Low | Not in ST001 scope (test file untouched). Fixed in Subtask 002 ST004 when E2E walkthrough tests are updated. |
 
 ### Ready Check
 
@@ -278,7 +279,13 @@ just fft
 
 ## Phase Footnote Stubs
 
-_Populated during implementation by plan-6._
+[^12]: Phase 5 Subtask 001 complete (2026-02-07). Dropped backward-compat layer — removed `deriveBackwardCompatFields()` from raiseEvent pipeline, deleted source + test files, updated spec AC-15, updated Phase 5 dossier (T001/T002 eliminated). Pipeline: 6→5 steps. Tests: 3579 passed (9 compat tests removed).
+  - `file:packages/positional-graph/src/features/032-node-event-system/raise-event.ts` — removed compat import and call
+  - `file:packages/positional-graph/src/features/032-node-event-system/derive-compat-fields.ts` — DELETED
+  - `file:test/unit/positional-graph/features/032-node-event-system/derive-compat-fields.test.ts` — DELETED
+  - `file:packages/positional-graph/src/features/032-node-event-system/index.ts` — removed compat barrel export
+  - `file:docs/plans/032-node-event-system/node-event-system-spec.md` — AC-15 updated
+  - `file:docs/plans/032-node-event-system/tasks/phase-5-service-method-wrappers/tasks.md` — T001/T002 eliminated, deps/architecture updated
 
 ---
 
@@ -295,7 +302,9 @@ _Populated during implementation by plan-6. Log anything of interest to your fut
 
 | Date | Task | Type | Discovery | Resolution | References |
 |------|------|------|-----------|------------|------------|
-| | | | | | |
+| 2026-02-07 | ST001 | insight | Compat layer was fully redundant — removing it from pipeline caused zero test failures | Workshop 04 correctly predicted this outcome | Workshop 04 Option C |
+| 2026-02-07 | ST002 | insight | Test count dropped by exactly 9 (3588→3579), matching the 9 deleted compat tests | Clean removal confirmed | [^12] |
+| 2026-02-07 | ST004 | decision | Used `[—] Eliminated` convention for T001/T002 rows instead of deleting them | Preserves footnote refs and cross-links for traceability | DYK insight #3 |
 
 **Types**: `gotcha` | `research-needed` | `unexpected-behavior` | `workaround` | `decision` | `debt` | `insight`
 
@@ -311,12 +320,12 @@ _See also: `001-subtask-drop-backward-compat.execution.log.md` for detailed narr
 
 **When all ST### tasks complete:**
 
-1. **T001 and T002 are eliminated** — they no longer exist in the dossier. The compat layer they were going to extend has been removed.
+1. **T001 and T002 are eliminated** — marked `[—] Eliminated` in the dossier (rows kept for traceability). The compat layer they were going to extend has been removed.
 
 2. **Parent dossier updated** (done in ST004):
-   - T001/T002 rows removed from task table
+   - T001/T002 rows marked `[—] Eliminated` (not deleted — preserves footnote refs and cross-links)
    - Dependencies updated (T005, T006 no longer depend on T002)
-   - Architecture map simplified
+   - Architecture map: T001/T002 nodes greyed out
    - Finding 03 annotated as superseded
 
 3. **Resume parent phase work:**

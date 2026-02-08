@@ -9,9 +9,9 @@
 
 ## Departure → Destination
 
-**Where we are**: Phases 1-4 delivered the complete node event system engine. There's a registry of 6 event types with Zod-validated payloads, a 5-step validation pipeline in `raiseEvent()`, handlers that drive real state transitions (accept, complete, error, ask, answer, progress), and backward-compat derivation for `pending_question_id` and `error`. A caller can `raiseEvent(deps, graphSlug, nodeId, 'node:completed', {}, 'agent')` and see the node transition to `complete` with a `completed_at` timestamp and a full event trail. But the three service methods that agents actually call — `endNode()`, `askQuestion()`, `answerQuestion()` — still mutate state directly, bypassing the event system entirely. Two write paths coexist.
+**Where we are**: Phases 1-4 delivered the complete node event system engine. Subtask 001 removed the redundant `deriveBackwardCompatFields()` from the pipeline — handlers write `pending_question_id` and `error` directly. The raiseEvent pipeline is now: validate → create event → append → handle → persist. But the three service methods that agents actually call — `endNode()`, `askQuestion()`, `answerQuestion()` — still mutate state directly, bypassing the event system entirely. Two write paths coexist. Subtask 002 will further simplify by removing inline handler invocation from raiseEvent, making it a pure recording function.
 
-**Where we're going**: By the end of this phase, there is exactly one write path. `endNode()`, `askQuestion()`, and `answerQuestion()` become thin wrappers that construct an event payload and call `raiseEvent()`. The top-level `questions[]` array is derived from events automatically. A developer calling `service.endNode(ctx, 'my-graph', 'node-1')` will get back the same `EndNodeResult` as before, but under the hood an event is created, a handler fires, backward-compat fields are derived, and state is persisted atomically — with a complete audit trail.
+**Where we're going**: By the end of this phase, there is exactly one write path. `endNode()`, `askQuestion()`, and `answerQuestion()` become thin wrappers that construct an event payload and call `raiseEvent()`. A developer calling `service.endNode(ctx, 'my-graph', 'node-1')` will get back the same `EndNodeResult` as before, but under the hood an event is created, persisted atomically, and the wrapper applies the necessary state mutations — with a complete audit trail.
 
 ---
 
@@ -26,17 +26,15 @@ stateDiagram-v2
     classDef done fill:#4CAF50,stroke:#388E3C,color:#fff
     classDef blocked fill:#F44336,stroke:#D32F2F,color:#fff
 
-    state "1: questions[] derive tests" as S1
-    state "2: Implement questions[] derive" as S2
-    state "3: Fix answer handler" as S3
-    state "4: endNode contract tests" as S4
-    state "5: askQuestion contract tests" as S5
-    state "6: answerQuestion contract tests" as S6
-    state "7: Refactor endNode" as S7
-    state "8: Refactor askQuestion" as S8
-    state "9: Refactor answerQuestion" as S9
-    state "10: Regression tests" as S10
-    state "11: Refactor + verify" as S11
+    state "1: Fix answer handler" as S1
+    state "2: endNode contract tests" as S2
+    state "3: askQuestion contract tests" as S3
+    state "4: answerQuestion contract tests" as S4
+    state "5: Refactor endNode" as S5
+    state "6: Refactor askQuestion" as S6
+    state "7: Refactor answerQuestion" as S7
+    state "8: Regression tests" as S8
+    state "9: Refactor + verify" as S9
 
     [*] --> S1
     S1 --> S2
@@ -47,11 +45,9 @@ stateDiagram-v2
     S6 --> S7
     S7 --> S8
     S8 --> S9
-    S9 --> S10
-    S10 --> S11
-    S11 --> [*]
+    S9 --> [*]
 
-    class S1,S2,S3,S4,S5,S6,S7,S8,S9,S10,S11 pending
+    class S1,S2,S3,S4,S5,S6,S7,S8,S9 pending
 ```
 
 **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -62,8 +58,8 @@ stateDiagram-v2
 
 <!-- Updated by /plan-6 during implementation: [ ] → [~] → [x] -->
 
-- [ ] **Stage 1: Write questions[] derivation tests** — verify the backward-compat function can reconstruct the top-level `questions[]` array from question events across all nodes (`derive-compat-fields.test.ts`)
-- [ ] **Stage 2: Implement questions[] derivation** — extend `deriveBackwardCompatFields()` to build `questions[]` from `question:ask` + `question:answer` event pairs (`derive-compat-fields.ts`)
+- [x] ~~**Stage 1: questions[] derive tests**~~ — Eliminated by Subtask 001 (T001)
+- [x] ~~**Stage 2: Implement questions[] derive**~~ — Eliminated by Subtask 001 (T002)
 - [ ] **Stage 3: Fix answer handler status transition** — update `handleQuestionAnswer` to set node status to `starting` after answer, matching current `answerQuestion()` behavior (`event-handlers.ts`, `event-handlers.test.ts`)
 - [ ] **Stage 4: Write endNode contract tests** — happy path completion, missing output rejection, wrong state error, return type verification (`service-wrappers.test.ts` — new file)
 - [ ] **Stage 5: Write askQuestion contract tests** — happy path with question in `questions[]`, event_id as questionId, wrong state error (`service-wrappers.test.ts`)
@@ -88,25 +84,21 @@ flowchart LR
         SVC1[PositionalGraphService<br/>endNode / askQuestion / answerQuestion<br/>direct state mutation]:::existing
         ST1[State<br/>state.json]:::existing
         RE1[raiseEvent<br/>event pipeline]:::existing
-        DC1[deriveBackwardCompatFields<br/>pending_question_id, error]:::existing
 
         SVC1 -->|"reads/writes directly"| ST1
         RE1 -->|"separate path"| ST1
-        RE1 --> DC1
     end
 
     subgraph After["After Phase 5"]
         SVC2[PositionalGraphService<br/>endNode / askQuestion / answerQuestion<br/>thin wrappers]:::changed
         ST2[State<br/>state.json]:::existing
         RE2[raiseEvent<br/>event pipeline]:::existing
-        DC2[deriveBackwardCompatFields<br/>+ questions[] reconstruction]:::changed
         HQ2[handleQuestionAnswer<br/>+ starting transition]:::changed
         CE2[canEnd<br/>output validation]:::existing
 
         SVC2 -->|"delegates to"| RE2
         SVC2 -->|"pre-check"| CE2
         RE2 -->|"runs handler"| HQ2
-        RE2 -->|"derives compat"| DC2
         RE2 -->|"single write path"| ST2
     end
 ```
@@ -119,7 +111,7 @@ flowchart LR
 
 - [ ] All service methods delegate to `raiseEvent()` (AC-15)
 - [ ] No separate write path exists for node lifecycle and question events (AC-15)
-- [ ] Backward-compat fields (`pending_question_id`, `error`, `questions[]`) are derived projections from event log (AC-15)
+- [ ] `pending_question_id` and `error` written directly by event handlers (AC-15)
 - [ ] Contract tests prove behavioral parity between old and new paths
 - [ ] Two-phase handshake preserved: answerQuestion resumes to `starting` (AC-6)
 - [ ] Question lifecycle flows through events: ask → waiting-question, answer → starting (AC-7)
@@ -129,7 +121,6 @@ flowchart LR
 ## Goals & Non-Goals
 
 **Goals**:
-- Extend `deriveBackwardCompatFields()` to reconstruct top-level `questions[]` from event pairs
 - Update `handleQuestionAnswer` to transition node status to `starting` (DYK #1)
 - Write contract tests comparing old-path vs new-path for all 3 methods
 - Refactor `endNode()` to delegate to `raiseEvent('node:completed')` (keeping `canEnd()` pre-check)
@@ -150,8 +141,8 @@ flowchart LR
 
 ## Checklist
 
-- [ ] T001: Write questions[] derivation tests (CS-2)
-- [ ] T002: Implement questions[] derivation in deriveBackwardCompatFields (CS-2)
+- [—] T001: ~~Write questions[] derivation tests~~ — Eliminated by Subtask 001
+- [—] T002: ~~Implement questions[] derivation~~ — Eliminated by Subtask 001
 - [ ] T003: Update handleQuestionAnswer to transition to starting (CS-2)
 - [ ] T004: Write endNode contract tests (CS-2)
 - [ ] T005: Write askQuestion contract tests (CS-2)

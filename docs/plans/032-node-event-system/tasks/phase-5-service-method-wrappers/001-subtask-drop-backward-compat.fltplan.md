@@ -4,7 +4,7 @@
 **Phase**: Phase 5: Service Method Wrappers
 **Subtask**: 001-subtask-drop-backward-compat
 **Generated**: 2026-02-07
-**Status**: Ready for takeoff
+**Status**: Landed
 
 ---
 
@@ -42,7 +42,7 @@ stateDiagram-v2
     S5 --> S6
     S6 --> [*]
 
-    class S1,S2,S3,S4,S5,S6 pending
+    class S1,S2,S3,S4,S5,S6 done
 ```
 
 **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -53,12 +53,12 @@ stateDiagram-v2
 
 <!-- Updated by /plan-6 during implementation: [ ] → [~] → [x] -->
 
-- [ ] **Stage 1: Remove compat from raiseEvent pipeline** — delete the import and function call from the event write path, reducing the pipeline from 6 steps to 5 (`raise-event.ts`)
-- [ ] **Stage 2: Delete compat source and tests** — remove `derive-compat-fields.ts`, its test file, and the barrel export (`derive-compat-fields.ts`, `derive-compat-fields.test.ts`, `index.ts`)
-- [ ] **Stage 3: Update spec AC-15 wording** — change "derived projections computed from the event log" to "written directly by event handlers" (`node-event-system-spec.md`)
-- [ ] **Stage 4: Update Phase 5 dossier** — eliminate T001-T002 rows, update dependencies, simplify architecture map and alignment brief (`tasks.md`)
-- [ ] **Stage 5: Regenerate Phase 5 flight plan** — update to reflect the simplified 9-task structure (`tasks.fltplan.md`)
-- [ ] **Stage 6: Verify all tests pass** — run `just fft` to prove the compat layer was redundant; zero test failures expected
+- [x] **Stage 1: Remove compat from raiseEvent pipeline** — delete the import and function call from the event write path, reducing the pipeline from 6 steps to 5 (`raise-event.ts`)
+- [x] **Stage 2: Delete compat source and tests** — remove `derive-compat-fields.ts`, its test file, and the barrel export (`derive-compat-fields.ts`, `derive-compat-fields.test.ts`, `index.ts`)
+- [x] **Stage 3: Update spec AC-15 wording** — change "derived projections computed from the event log" to "written directly by event handlers" (`node-event-system-spec.md`)
+- [x] **Stage 4: Update Phase 5 dossier** — eliminate T001-T002 rows, update dependencies, simplify architecture map and alignment brief (`tasks.md`)
+- [x] **Stage 5: Regenerate Phase 5 flight plan** — update to reflect the simplified 9-task structure (`tasks.fltplan.md`)
+- [x] **Stage 6: Verify all tests pass** — run `just fft` to prove the compat layer was redundant; zero test failures expected
 
 ---
 
@@ -117,12 +117,12 @@ flowchart LR
 
 ## Checklist
 
-- [ ] ST001: Remove deriveBackwardCompatFields from raiseEvent pipeline (CS-1)
-- [ ] ST002: Delete compat source + test files, remove barrel export (CS-1)
-- [ ] ST003: Update spec AC-15 wording (CS-1)
-- [ ] ST004: Update Phase 5 parent dossier (CS-2)
-- [ ] ST005: Regenerate Phase 5 flight plan (CS-1)
-- [ ] ST006: Verify all tests pass with just fft (CS-1)
+- [x] ST001: Remove deriveBackwardCompatFields from raiseEvent pipeline (CS-1)
+- [x] ST002: Delete compat source + test files, remove barrel export (CS-1)
+- [x] ST003: Update spec AC-15 wording (CS-1)
+- [x] ST004: Update Phase 5 parent dossier (CS-2)
+- [x] ST005: Regenerate Phase 5 flight plan (CS-1)
+- [x] ST006: Verify all tests pass with just fft (CS-1)
 
 ---
 

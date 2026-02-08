@@ -13,7 +13,6 @@ This phase refactors `endNode()`, `askQuestion()`, and `answerQuestion()` from d
 
 ### What We're Building
 - **3 refactored service methods** — each becomes a wrapper that validates preconditions, constructs an event payload, calls `raiseEvent()`, and maps the result back to the original return type
-- **Extended `deriveBackwardCompatFields()`** — adds `questions[]` reconstruction from event pairs (deferred from Phase 4 per DYK #4)
 - **Updated `handleQuestionAnswer`** — adds `starting` status transition (resolving the Phase 4 design tension per DYK #1)
 - **Contract tests** — proving behavioral parity between old direct path and new event path
 - **`RaiseEventDeps` factory** — closure pattern to adapt `WorkspaceContext`-based service methods to the `raiseEvent` dependency bag
@@ -47,11 +46,10 @@ async endNode(ctx, graphSlug, nodeId) {
 ## Objectives & Scope
 
 ### Objective
-Refactor `endNode()`, `askQuestion()`, and `answerQuestion()` to delegate to `raiseEvent()` while maintaining behavioral parity verified by contract tests. Extend backward-compat derivation to cover `questions[]` array reconstruction.
+Refactor `endNode()`, `askQuestion()`, and `answerQuestion()` to delegate to `raiseEvent()` while maintaining behavioral parity verified by contract tests.
 
 ### Goals
 
-- Extend `deriveBackwardCompatFields()` to reconstruct top-level `questions[]` from event pairs
 - Update `handleQuestionAnswer` to transition node status to `starting` (DYK #1 compliance)
 - Write contract tests comparing old-path vs new-path behavior for all 3 methods
 - Refactor `endNode()` to delegate to `raiseEvent('node:completed')` (keeping `canEnd()` pre-check)
@@ -76,11 +74,11 @@ Refactor `endNode()`, `askQuestion()`, and `answerQuestion()` to delegate to `ra
 ### Summary
 | File | Action | Origin | Modified By | Recommendation |
 |------|--------|--------|-------------|----------------|
-| `packages/positional-graph/src/features/032-node-event-system/derive-compat-fields.ts` | Modify | Phase 4 | — | Extend for questions[] |
+| ~~`packages/positional-graph/src/features/032-node-event-system/derive-compat-fields.ts`~~ | ~~Modify~~ Deleted | Phase 4 | Subtask 001 | Deleted by Subtask 001 — no derivation pass needed |
 | `packages/positional-graph/src/features/032-node-event-system/event-handlers.ts` | Modify | Phase 4 | — | Add starting transition to question:answer |
 | `packages/positional-graph/src/services/positional-graph.service.ts` | Modify | Plan 026 | Plans 028, 029, 030, 032-P2 | Cross-plan edit: refactor 3 methods |
 | `packages/positional-graph/src/features/032-node-event-system/index.ts` | Modify | Phase 1 | Phase 3, Phase 4 | Update barrel exports |
-| `test/unit/positional-graph/features/032-node-event-system/derive-compat-fields.test.ts` | Modify | Phase 4 | — | Add questions[] tests |
+| ~~`test/unit/positional-graph/features/032-node-event-system/derive-compat-fields.test.ts`~~ | ~~Modify~~ Deleted | Phase 4 | Subtask 001 | Deleted by Subtask 001 |
 | `test/unit/positional-graph/features/032-node-event-system/event-handlers.test.ts` | Modify | Phase 4 | — | Update question:answer status assertion |
 | `test/unit/positional-graph/features/032-node-event-system/service-wrappers.test.ts` | Create | New | — | Contract tests for 3 wrappers |
 
@@ -104,13 +102,13 @@ One cross-plan edit to `positional-graph.service.ts` — this is expected and do
 ### Coverage Matrix
 | AC | Description | Flow Summary | Files in Flow | Tasks | Status |
 |----|-------------|-------------|---------------|-------|--------|
-| AC-15 | raiseEvent is single write path | Service methods → construct payload → raiseEvent() → handler → derive compat → persist | positional-graph.service.ts, raise-event.ts, event-handlers.ts, derive-compat-fields.ts | T001–T012 | Planned |
+| AC-15 | raiseEvent is single write path | Service methods → construct payload → raiseEvent() → handler → persist | positional-graph.service.ts, raise-event.ts, event-handlers.ts | T003–T011 | Planned |
 | AC-6 | Two-phase handshake preserved | endNode guards on agent-accepted via VALID_FROM_STATES; answerQuestion resumes to starting | event-handlers.ts (updated), positional-graph.service.ts | T003, T005, T008 | Planned |
 | AC-7 | Question lifecycle through events | askQuestion → question:ask event → waiting-question; answerQuestion → question:answer → starting + questions[] updated | event-handlers.ts, derive-compat-fields.ts, positional-graph.service.ts | T002, T003, T004, T005, T007, T008 | Planned |
 
 ### Gaps Found
 
-**Gap 1 (RESOLVED IN THIS PHASE)**: `deriveBackwardCompatFields()` does not reconstruct `questions[]` — Phase 4 explicitly deferred this (DYK #4). Tasks T001–T002 add tests and implementation.
+**Gap 1 (ELIMINATED by Subtask 001)**: `deriveBackwardCompatFields()` has been deleted per Workshop 04 Option C. T001–T002 eliminated. `questions[]` will be written by the service wrappers (T008, T009) directly, not derived from events.
 
 **Gap 2 (RESOLVED IN THIS PHASE)**: `handleQuestionAnswer` does not transition node status to `starting` — contradicts DYK #1 and current `answerQuestion()` behavior. Task T003 updates the handler. Resolution: the plan (line 406) explicitly states answerQuestion transitions to `starting`. The Workshop #02 "status does NOT change" note describes the future ONBAS-driven pattern (Phase 7). For Phase 5, the handler must match current behavior.
 
@@ -141,8 +139,8 @@ flowchart TD
     style Tests fill:#F5F5F5,stroke:#E0E0E0
 
     subgraph Phase["Phase 5: Service Method Wrappers"]
-        T001["T001: questions[] derive tests"]:::pending
-        T002["T002: Implement questions[] derive"]:::pending
+        T001["T001: questions[] derive tests [—]"]:::pending
+        T002["T002: Implement questions[] derive [—]"]:::pending
         T003["T003: Update answer handler + tests"]:::pending
         T004["T004: endNode contract tests"]:::pending
         T005["T005: askQuestion contract tests"]:::pending
@@ -153,9 +151,7 @@ flowchart TD
         T010["T010: Regression tests"]:::pending
         T011["T011: Refactor + verify"]:::pending
 
-        T001 --> T002
-        T002 --> T005
-        T002 --> T006
+        T001 -.- T002
         T003 --> T006
         T003 --> T009
         T004 --> T007
@@ -180,13 +176,13 @@ flowchart TD
         FT3["service-wrappers.test.ts"]:::pending
     end
 
-    T002 -.-> F1
+    T002 -.- F1
     T003 -.-> F2
     T007 -.-> F3
     T008 -.-> F3
     T009 -.-> F3
     T007 -.-> F4
-    T001 -.-> FT1
+    T001 -.- FT1
     T003 -.-> FT2
     T004 -.-> FT3
 ```
@@ -197,8 +193,8 @@ flowchart TD
 
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
-| T001 | Compat Derive Tests | derive-compat-fields.test.ts | ⬜ Pending | Add questions[] reconstruction tests |
-| T002 | Compat Derive Impl | derive-compat-fields.ts | ⬜ Pending | Extend for questions[] from event pairs |
+| T001 | ~~Compat Derive Tests~~ | ~~derive-compat-fields.test.ts~~ | [—] Eliminated | Eliminated by Subtask 001 per Workshop 04 |
+| T002 | ~~Compat Derive Impl~~ | ~~derive-compat-fields.ts~~ | [—] Eliminated | Eliminated by Subtask 001 per Workshop 04 |
 | T003 | Answer Handler | event-handlers.ts, event-handlers.test.ts | ⬜ Pending | Add starting transition, update tests |
 | T004 | Contract Tests | service-wrappers.test.ts | ⬜ Pending | endNode old-path vs new-path |
 | T005 | Contract Tests | service-wrappers.test.ts | ⬜ Pending | askQuestion old-path vs new-path |
@@ -215,12 +211,12 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|------|------|-----|------|-------------|-------------------|------------|----------|-------|
-| [ ] | T001 | Write tests for `deriveBackwardCompatFields()` questions[] reconstruction: single ask → question entry, ask+answer → answered question, multiple nodes → aggregated questions[], empty events → empty questions[] | 2 | Test | – | `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/features/032-node-event-system/derive-compat-fields.test.ts` | Tests fail (RED) | 001-subtask-drop-backward-compat | Prerequisite: Phase 4 deferred questions[] to Phase 5 (DYK #4); plan task 5.2 prep. **BLOCKED: Subtask 001 will eliminate this task per Workshop 04 Option C.** |
-| [ ] | T002 | Extend `deriveBackwardCompatFields()` to reconstruct top-level `questions[]` array from `question:ask` + `question:answer` event pairs across all nodes in state. Map ask event payload to `Question` schema fields, populate `answer`/`answered_at` from matching answer events. | 2 | Core | T001 | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/032-node-event-system/derive-compat-fields.ts` | All T001 tests pass (GREEN) | 001-subtask-drop-backward-compat | Plan task 5.2 prep. questions[] is a graph-level field derived from per-node events. Event `event_id` becomes `question_id` in the Question object. **BLOCKED: Subtask 001 will eliminate this task per Workshop 04 Option C.** |
+| [—] | T001 | ~~Write tests for `deriveBackwardCompatFields()` questions[] reconstruction~~ | 2 | Test | – | ~~`derive-compat-fields.test.ts`~~ | ~~Tests fail (RED)~~ | 001-subtask-drop-backward-compat | Eliminated by Subtask 001 per Workshop 04 Option C. `deriveBackwardCompatFields()` deleted — handlers write fields directly. |
+| [—] | T002 | ~~Extend `deriveBackwardCompatFields()` to reconstruct top-level `questions[]`~~ | 2 | Core | ~~T001~~ | ~~`derive-compat-fields.ts`~~ | ~~All T001 tests pass (GREEN)~~ | 001-subtask-drop-backward-compat | Eliminated by Subtask 001 per Workshop 04 Option C. `deriveBackwardCompatFields()` deleted — no derivation pass needed. |
 | [ ] | T003 | Update `handleQuestionAnswer` to transition node status to `'starting'` (two-phase handshake resume per DYK #1). Update Phase 4 tests that assert status stays `waiting-question` after answer. | 2 | Core | – | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/032-node-event-system/event-handlers.ts`, `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/features/032-node-event-system/event-handlers.test.ts` | Handler transitions to starting; Phase 4 tests updated and pass | 002-subtask-remove-inline-handlers | Resolves Phase 4/5 design tension. Plan line 406: "answerQuestion() transitions to starting." DYK #1: agent must re-accept after answer. Workshop #02's "no status change" pattern deferred to Phase 7 ONBAS. **BLOCKED: Subtask 002 will eliminate this task per Workshop 05 — handlers no longer called inline.** |
 | [ ] | T004 | Write contract tests for `endNode()` via events: (a) happy path — agent-accepted node completes, `status='complete'`, `completed_at` set, event in log; (b) missing outputs — `canEnd()` rejects before raiseEvent; (c) wrong state — non-agent-accepted node returns error; (d) return type matches `EndNodeResult` | 2 | Test | – | `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/features/032-node-event-system/service-wrappers.test.ts` | Tests fail (RED) | 002-subtask-remove-inline-handlers | Plan task 5.1. AC-15. canEnd() pre-check must remain in wrapper. **SCOPE CHANGE: Subtask 002 simplifies — raiseEvent records only, wrapper tests verify state mutations.** |
-| [ ] | T005 | Write contract tests for `askQuestion()` via events: (a) happy path — agent-accepted node asks question, `status='waiting-question'`, question in questions[], event_id returned as questionId; (b) wrong state — returns error; (c) payload maps AskQuestionOptions to question:ask payload; (d) return type matches `AskQuestionResult` | 2 | Test | T002 | `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/features/032-node-event-system/service-wrappers.test.ts` | Tests fail (RED) | 002-subtask-remove-inline-handlers | Plan task 5.2. AC-15, AC-7. Depends on T002 because questions[] derivation must work. **SCOPE CHANGE: Subtask 002 simplifies — raiseEvent records only, wrapper tests verify state mutations.** |
-| [ ] | T006 | Write contract tests for `answerQuestion()` via events: (a) happy path — waiting-question node answers, ask event handled, status='starting', pending cleared, questions[] updated with answer; (b) question not found → error; (c) already answered → error (E195, new validation); (d) return type matches `AnswerQuestionResult` | 2 | Test | T002, T003 | `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/features/032-node-event-system/service-wrappers.test.ts` | Tests fail (RED) | 002-subtask-remove-inline-handlers | Plan task 5.3. AC-15, AC-7. Depends on T002 (questions[] derive) and T003 (starting transition). **SCOPE CHANGE: Subtask 002 simplifies — raiseEvent records only, wrapper tests verify state mutations.** |
+| [ ] | T005 | Write contract tests for `askQuestion()` via events: (a) happy path — agent-accepted node asks question, `status='waiting-question'`, question in questions[], event_id returned as questionId; (b) wrong state — returns error; (c) payload maps AskQuestionOptions to question:ask payload; (d) return type matches `AskQuestionResult` | 2 | Test | – | `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/features/032-node-event-system/service-wrappers.test.ts` | Tests fail (RED) | 002-subtask-remove-inline-handlers | Plan task 5.2. AC-15, AC-7. Depends on T002 because questions[] derivation must work. **SCOPE CHANGE: Subtask 002 simplifies — raiseEvent records only, wrapper tests verify state mutations.** |
+| [ ] | T006 | Write contract tests for `answerQuestion()` via events: (a) happy path — waiting-question node answers, ask event handled, status='starting', pending cleared, questions[] updated with answer; (b) question not found → error; (c) already answered → error (E195, new validation); (d) return type matches `AnswerQuestionResult` | 2 | Test | T003 | `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/features/032-node-event-system/service-wrappers.test.ts` | Tests fail (RED) | 002-subtask-remove-inline-handlers | Plan task 5.3. AC-15, AC-7. Depends on T002 (questions[] derive) and T003 (starting transition). **SCOPE CHANGE: Subtask 002 simplifies — raiseEvent records only, wrapper tests verify state mutations.** |
 | [ ] | T007 | Refactor `endNode()` to delegate to `raiseEvent('node:completed')`: keep `canEnd()` pre-check, create `RaiseEventDeps` via closure pattern, call raiseEvent, map `RaiseEventResult` to `EndNodeResult`. Remove direct state mutation. Update barrel exports if needed. | 2 | Core | T004 | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/services/positional-graph.service.ts`, `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/032-node-event-system/index.ts` | Contract test T004 passes (GREEN); return type unchanged | – | Plan task 5.6. Wrapper pattern: pre-validate → construct deps → raiseEvent → map result. Source: 'agent'. |
 | [ ] | T008 | Refactor `askQuestion()` to delegate to `raiseEvent('question:ask')`: construct payload from `AskQuestionOptions`, call raiseEvent, extract `event.event_id` as questionId, map to `AskQuestionResult`. Remove direct state mutation and question ID generation. | 2 | Core | T005 | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/services/positional-graph.service.ts` | Contract test T005 passes (GREEN); return type unchanged | – | Plan task 5.7. `event.event_id` returned directly as `questionId` — no translation needed (D6). `generateQuestionId()` removed. Source: 'agent'. |
 | [ ] | T009 | Refactor `answerQuestion()` to delegate to `raiseEvent('question:answer')`: construct payload with `{ question_event_id, answer }`, call raiseEvent, map to `AnswerQuestionResult`. Remove direct state mutation. | 2 | Core | T006, T003 | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/services/positional-graph.service.ts` | Contract test T006 passes (GREEN); return type unchanged, status='starting' | – | Plan task 5.8. Source: 'human'. Caller's `questionId` passed directly as `question_event_id` — no translation needed (D6). Same `event_id` value, different field name. |
@@ -272,8 +268,8 @@ flowchart TD
 - `handleQuestionAsk`: `agent-accepted` → `waiting-question`, sets `pending_question_id` to event_id, event stays `new`
 - `handleQuestionAnswer`: marks ask event `handled` with `handler_notes`, clears `pending_question_id`, marks answer `handled`, **does NOT change node status** (must be updated in T003)
 - `handleProgressUpdate`: no state change, marks event `handled`
-- `deriveBackwardCompatFields()`: derives `pending_question_id` (latest unanswered ask) and `error` (latest error payload); **does NOT derive `questions[]`** (deferred to Phase 5 per DYK #4)
-- Wired into raiseEvent: validate → create → append → handle → derive compat → persist
+- ~~`deriveBackwardCompatFields()`~~: **Deleted by Subtask 001** — handlers write `pending_question_id` and `error` directly; no derivation pass needed
+- Wired into raiseEvent: validate → create → append → handle → persist (compat derivation removed by Subtask 001)
 - 36 new tests (23 handler + 9 compat + 4 E2E walkthroughs), 3588 total
 
 ### Cumulative Dependencies for Phase 5
@@ -281,9 +277,8 @@ flowchart TD
 Phase 5 builds on the complete Phases 1-4 stack. The key integration points:
 1. **raiseEvent()** — the write path through which all 3 wrappers will delegate
 2. **Event handlers** — `handleNodeCompleted`, `handleQuestionAsk`, `handleQuestionAnswer` drive state transitions
-3. **deriveBackwardCompatFields()** — must be extended for `questions[]` before wrappers can remove direct `questions[]` writes
-4. **`canEnd()` on PositionalGraphService** — output validation that endNode() must preserve
-5. **Test infrastructure** — `createFakeStateStore()`, `createDeps()`, `makeState()` from Phase 3/4
+3. **`canEnd()` on PositionalGraphService** — output validation that endNode() must preserve
+4. **Test infrastructure** — `createFakeStateStore()`, `createDeps()`, `makeState()` from Phase 3/4
 
 ### Critical Findings Affecting This Phase
 
@@ -293,8 +288,8 @@ All service methods that manipulate node state gate on `canNodeDoWork(status)` w
 **Finding 02: Service Methods Must Guard on agent-accepted, Not starting (Critical)**
 `endNode()`, `askQuestion()` require `agent-accepted`. `answerQuestion()` requires `waiting-question`. All three are encoded in `VALID_FROM_STATES` and enforced by raiseEvent Step 4.
 
-**Finding 03: Backward-Compat Fields Are Derived Projections (Critical)**
-After Phase 5, `pending_question_id`, `error`, and `questions[]` are all computed from the event log after every `raiseEvent()` call. No dual-write. The wrappers must NOT write these fields directly — `deriveBackwardCompatFields()` handles them.
+**Finding 03: Backward-Compat Fields Are Handler-Written (Critical) [SUPERSEDED by Workshop 04]**
+`pending_question_id` and `error` are written directly by event handlers during `raiseEvent()`. The `deriveBackwardCompatFields()` derivation pass has been removed (Subtask 001). No separate derivation — handlers are the single source of truth for these fields.
 
 ### Design Decisions
 
@@ -345,14 +340,7 @@ E172/E176/E177 → E193 (generic state transition error). E173 → E194 (questio
 
 ### Test Plan (Full TDD)
 
-**Test file 1: `derive-compat-fields.test.ts` (MODIFY)**
-
-New describe block for questions[] reconstruction (T001):
-- Single question:ask event → `questions[]` contains one Question object with correct fields
-- ask + answer pair → Question has `answer` and `answered_at`
-- Multiple nodes with questions → all aggregated into single `questions[]` array
-- Empty events → empty `questions[]`
-- Mixed: one answered + one pending → both in `questions[]`, only answered has `answer`
+~~**Test file 1: `derive-compat-fields.test.ts` — DELETED by Subtask 001**~~
 
 **Test file 2: `event-handlers.test.ts` (MODIFY)**
 
@@ -374,8 +362,8 @@ Contract tests using `createFakeStateStore` pattern (T004-T006):
 
 ### Implementation Outline
 
-1. **T001** (RED): Add questions[] derivation tests to `derive-compat-fields.test.ts`
-2. **T002** (GREEN): Extend `deriveBackwardCompatFields()` to reconstruct questions[]
+1. ~~**T001** — Eliminated by Subtask 001~~
+2. ~~**T002** — Eliminated by Subtask 001~~
 3. **T003** (FIX): Update `handleQuestionAnswer` to set `starting`, update Phase 4 tests
 4. **T004** (RED): Write endNode contract tests in `service-wrappers.test.ts`
 5. **T005** (RED): Write askQuestion contract tests

@@ -54,7 +54,7 @@ log per node, and tracked through a three-state lifecycle (`new` → `acknowledg
 **Solution approach**:
 - Phase 1-2: Data model (event types/registry + state schema extension)
 - Phase 3-4: Core engine (raiseEvent write path + event handlers)
-- Phase 5: Migration (existing service methods become thin wrappers)
+- Phase 5: Migration (drop compat layer, remove inline handlers, service method wrappers)
 - Phase 6: CLI surface (4 generic commands + 3 shortcuts)
 - Phase 7: Adaptation (ONBAS reads event log, backward-compat projections)
 - Phase 8: Visual E2E script (fully automatic, human-readable output)
@@ -133,17 +133,16 @@ reserved the node but no agent has acknowledged yet.
 `'agent-accepted'`. Replace all `=== 'running'` guards in service methods.
 **Affects**: Phase 2, Phase 5
 
-### 03: Backward-Compat Fields Are Derived Projections, Not Independent State
+### 03: Backward-Compat Fields Are Handler-Written [SUPERSEDED by Workshop 04]
 
-**Impact**: Critical
-**Sources**: [I1-01, R1-04, Workshop #02]
-**Problem**: After Option B, `pending_question_id`, `error`, and top-level `questions[]`
-are computed from the event log after every `raiseEvent()` call. No dual-write — these
-fields are read-only projections. Any code that writes them directly creates inconsistency.
-**Action**: Create `deriveBackwardCompatFields(state, nodeId)` function called after
-every event raise. Mark old fields as `@deprecated` in schema comments. Add contract
-test verifying old and new paths produce identical state.json.
-**Affects**: Phase 4, Phase 5, Phase 7
+**Impact**: Critical → Resolved
+**Sources**: [I1-01, R1-04, Workshop #02, Workshop #04]
+**Problem**: Originally, `pending_question_id`, `error`, and `questions[]` were planned
+as derived projections computed from the event log. Workshop 04 demonstrated this was
+redundant — event handlers already write `pending_question_id` and `error` directly.
+**Resolution**: `deriveBackwardCompatFields()` deleted by Subtask 001 (Phase 5). Handlers
+are the single source of truth. T001-T002 (extend compat for questions[]) eliminated.
+**Affects**: Phase 4 (built it), Phase 5 Subtask 001 (removed it)
 
 ### 04: State Schema Migration Requires Optional Events Array
 
@@ -511,7 +510,7 @@ event log.
 - `question:answer` handler: mark ask event `handled`, clear `pending_question_id`
 - `progress:update` handler: log only (no state change)
 - Note: `output:save-data` and `output:save-file` handlers removed — orchestrator handles output persistence directly
-- `deriveBackwardCompatFields()` function called after every handler
+- `deriveBackwardCompatFields()` function called after every handler [later deleted by Phase 5 Subtask 001]
 - Wire handlers into `raiseEvent()` — event is created, handler runs, compat derived,
   state persisted
 
@@ -821,7 +820,7 @@ answers, and completion happen step by step with clear console output.
 - [x] Phase 2: State Schema Extension and Two-Phase Handshake - Complete (18 tests added, 7 source files + 13 test files modified, 3541 total tests green)
 - [x] Phase 3: raiseEvent Core Write Path - Complete (22 tests, 1 new source file + 1 modified, 3563 total tests green)
 - [x] Phase 4: Event Handlers and State Transitions - Complete (36 tests added, 3 new source files + 2 modified, 3588 total tests green)
-- [ ] Phase 5: Service Method Wrappers - Pending
+- [~] Phase 5: Service Method Wrappers - In Progress (Subtask 001 complete, Subtask 002 + T003-T011 pending)
 - [ ] Phase 6: CLI Commands - Pending
 - [ ] Phase 7: ONBAS Adaptation and Backward-Compat Projections - Pending
 - [ ] Phase 8: E2E Validation Script - Pending
@@ -899,6 +898,13 @@ answers, and completion happen step by step with clear console output.
 [^11]: Phase 4 task 4.13 complete (2026-02-07). E2E walkthrough tests — added 4 Workshop #02 walkthrough tests to `event-handlers.test.ts` (Happy Path, Q&A Lifecycle, Error Path, Progress Updates). Test helpers: `createFakeStateStore()`, `createE2EDeps()`.
   - `function:test/unit/positional-graph/features/032-node-event-system/event-handlers.test.ts:createFakeStateStore`
   - `function:test/unit/positional-graph/features/032-node-event-system/event-handlers.test.ts:createE2EDeps`
+[^12]: Phase 5 Subtask 001 complete (2026-02-07). Dropped backward-compat layer — removed `deriveBackwardCompatFields()` from raiseEvent pipeline, deleted source + test files, updated spec AC-15, updated Phase 5 dossier (T001/T002 eliminated). Pipeline: 6→5 steps. Tests: 3579 passed (9 compat tests removed). Workshop 04 prediction confirmed.
+  - `file:packages/positional-graph/src/features/032-node-event-system/raise-event.ts` — removed compat import and call
+  - `file:packages/positional-graph/src/features/032-node-event-system/derive-compat-fields.ts` — DELETED
+  - `file:test/unit/positional-graph/features/032-node-event-system/derive-compat-fields.test.ts` — DELETED
+  - `file:packages/positional-graph/src/features/032-node-event-system/index.ts` — removed compat barrel export
+  - `file:docs/plans/032-node-event-system/node-event-system-spec.md` — AC-15 updated
+  - `file:docs/plans/032-node-event-system/tasks/phase-5-service-method-wrappers/tasks.md` — T001/T002 eliminated, deps/architecture updated
 
 ---
 
@@ -908,5 +914,5 @@ Mid-implementation detours requiring structured tracking.
 
 | ID | Created | Phase | Parent Task | Reason | Status | Dossier |
 |----|---------|-------|-------------|--------|--------|---------|
-| 001 | 2026-02-07 | Phase 5 | T001, T002 | Drop backward compat layer per Workshop 04 Option C | [ ] Pending | [001-subtask-drop-backward-compat.md](./tasks/phase-5-service-method-wrappers/001-subtask-drop-backward-compat.md) |
+| 001 | 2026-02-07 | Phase 5 | T001, T002 | Drop backward compat layer per Workshop 04 Option C | [x] Complete | [001-subtask-drop-backward-compat.md](./tasks/phase-5-service-method-wrappers/001-subtask-drop-backward-compat.md) |
 | 002 | 2026-02-07 | Phase 5 | T003, T004, T005, T006 | Remove inline handlers from raiseEvent per Workshop 05 | [ ] Pending | [002-subtask-remove-inline-handlers.md](./tasks/phase-5-service-method-wrappers/002-subtask-remove-inline-handlers.md) |

@@ -275,7 +275,7 @@ then it constructs a `node:completed` event payload and calls `raiseEvent()`. Th
 When `askQuestion(graphSlug, nodeId, questionData)` is called,
 then it constructs a `question:ask` event payload and calls `raiseEvent()`. The event handler transitions to `waiting-question`.
 
-There is no separate write path for node lifecycle and question events. The event handler IS the implementation. Backward-compat fields (`pending_question_id`, `error`, top-level `questions[]`) are derived projections computed from the event log after each raise.
+There is no separate write path for node lifecycle and question events. The event handler IS the implementation. `pending_question_id` and `error` are written directly by event handlers. No separate derivation pass.
 
 Note: Output persistence (`saveOutputData`, `saveOutputFile`) is handled directly by the orchestrator and does not flow through the event system.
 

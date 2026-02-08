@@ -1,7 +1,6 @@
 import type { ResultError } from '@chainglass/shared';
 
 import type { State } from '../../schemas/state.schema.js';
-import { deriveBackwardCompatFields } from './derive-compat-fields.js';
 import {
   eventAlreadyAnsweredError,
   eventPayloadValidationError,
@@ -148,13 +147,12 @@ export async function raiseEvent(
     created_at: new Date().toISOString(),
   };
 
-  // ── Append → Handle → Derive Compat → Persist ──────────
-  // Flow: append event to array → run handler → derive backward-compat fields → persist.
+  // ── Append → Handle → Persist ───────────────────────────
+  // Flow: append event to array → run handler → persist.
   //
   // The event is appended BEFORE the handler runs. The handler receives the
   // event object by reference — mutations to event.status, event.handled_at
   // etc. are visible in the array entry (intentional JS reference aliasing).
-  // deriveBackwardCompatFields needs all events including the new one.
 
   if (!state.nodes) state.nodes = {};
   const entry = state.nodes[nodeId];
@@ -167,9 +165,6 @@ export async function raiseEvent(
     if (handler) {
       handler(state, nodeId, event);
     }
-
-    // Derive backward-compat fields from the full event log
-    deriveBackwardCompatFields(state, nodeId);
   }
   state.updated_at = new Date().toISOString();
   await persistState(graphSlug, state);
