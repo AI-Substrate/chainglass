@@ -8,6 +8,7 @@
 **Workshops**:
 - [01-node-event-system.md](./workshops/01-node-event-system.md) — Event types, registry, CLI design, state machine
 - [02-event-schema-and-storage.md](./workshops/02-event-schema-and-storage.md) — Concrete data shapes, storage, migration
+- [09-first-class-node-event-service.md](./workshops/09-first-class-node-event-service.md) — INodeEventService, HandlerContext, first-class concept principles (overrides WS06 standalone function approach)
 
 ---
 
@@ -940,3 +941,4 @@ Mid-implementation detours requiring structured tracking.
 |----|---------|-------|-------------|--------|--------|---------|
 | 001 | 2026-02-07 | Phase 5 | T001, T002 | Drop backward compat layer per Workshop 04 Option C | [x] Complete | [001-subtask-drop-backward-compat.md](./tasks/phase-5-service-method-wrappers/001-subtask-drop-backward-compat.md) |
 | 002 | 2026-02-07 | Phase 5 | T003, T004, T005, T006 | ~~Remove inline handlers from raiseEvent per Workshop 05~~ | [—] Superseded by Workshop 06 | ~~002-subtask-remove-inline-handlers.md~~ (deleted) |
+| 002 | 2026-02-08 | Phase 5 | T003, T004, T005, T006 | raiseEvent/handleEvents separation + subscriber stamps per Workshop 06 | [ ] Pending | [002-subtask-raiseevent-handleevents-separation.md](./tasks/phase-5-service-method-wrappers/002-subtask-raiseevent-handleevents-separation.md) |

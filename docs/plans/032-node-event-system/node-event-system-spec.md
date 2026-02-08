@@ -386,10 +386,9 @@ when run via `npx tsx e2e-event-system-sample-flow.ts`:
 
 ## Workshop Opportunities
 
-The primary workshop for this plan is already complete:
-
 | Topic | Type | Status | Workshop |
 |-------|------|--------|----------|
 | Node Event System | Data Model / CLI Flow / State Machine | Complete | [Workshop #01](workshops/01-node-event-system.md) |
+| First-Class Node Event Service | Data Model / Integration Pattern | Complete | [Workshop #09](workshops/09-first-class-node-event-service.md) |
 
-No additional workshops are needed — Workshop #01 covers event types, registry, CLI design, state transitions, ONBAS/ODS interaction, error handling, extensibility, and backward compatibility.
+Workshop #09 overrides Workshop #06's standalone function approach. Events are elevated to a first-class service (`INodeEventService`) with `HandlerContext` for clean handler ergonomics. See Workshop #09 for the override matrix.
