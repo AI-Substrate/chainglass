@@ -2548,4 +2548,16 @@ export class PositionalGraphService implements IPositionalGraphService {
       errors: [],
     };
   }
+
+  // ============================================
+  // State Access (Phase 8, Plan 032 — E2E support)
+  // ============================================
+
+  async loadGraphState(ctx: WorkspaceContext, graphSlug: string): Promise<State> {
+    return this.loadState(ctx, graphSlug);
+  }
+
+  async persistGraphState(ctx: WorkspaceContext, graphSlug: string, state: State): Promise<void> {
+    return this.persistState(ctx, graphSlug, state);
+  }
 }

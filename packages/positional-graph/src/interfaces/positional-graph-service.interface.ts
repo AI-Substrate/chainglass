@@ -12,6 +12,7 @@ import type {
   NodeOrchestratorSettings,
   NodeProperties,
   PositionalGraphDefinition,
+  State,
   TransitionMode,
 } from '../schemas/index.js';
 
@@ -740,4 +741,8 @@ export interface IPositionalGraphService {
     action: string,
     data?: Record<string, unknown>
   ): Promise<StampNodeEventResult>;
+
+  // State Access (Phase 8, Plan 032 — E2E support)
+  loadGraphState(ctx: WorkspaceContext, graphSlug: string): Promise<State>;
+  persistGraphState(ctx: WorkspaceContext, graphSlug: string, state: State): Promise<void>;
 }

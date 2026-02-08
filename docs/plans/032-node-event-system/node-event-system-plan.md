@@ -846,7 +846,7 @@ command names to Workshop 07 surface)
 - [x] Phase 5: Service Method Wrappers - Complete (12/12 tasks, 203 event system tests, 3634 total tests, `just fft` clean)
 - [x] Phase 6: CLI Commands - Complete (8 CLI commands, 55 tests added, 3689 total tests green)[^14]
 - [x] Phase 7: IEventHandlerService - Complete (29 tests added across 4 test files, 3689 total tests green)[^15]
-- [ ] Phase 8: E2E Validation Script - Pending
+- [x] Phase 8: E2E Validation Script - Complete (41-step E2E script, 10 CLI commands exercised, 6 event types, 5 error codes, processGraph idempotency proven, 3689 total tests green)
 
 ### STOP Rule
 
