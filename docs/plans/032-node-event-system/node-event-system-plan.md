@@ -915,4 +915,4 @@ Mid-implementation detours requiring structured tracking.
 | ID | Created | Phase | Parent Task | Reason | Status | Dossier |
 |----|---------|-------|-------------|--------|--------|---------|
 | 001 | 2026-02-07 | Phase 5 | T001, T002 | Drop backward compat layer per Workshop 04 Option C | [x] Complete | [001-subtask-drop-backward-compat.md](./tasks/phase-5-service-method-wrappers/001-subtask-drop-backward-compat.md) |
-| 002 | 2026-02-07 | Phase 5 | T003, T004, T005, T006 | Remove inline handlers from raiseEvent per Workshop 05 | [ ] Pending | [002-subtask-remove-inline-handlers.md](./tasks/phase-5-service-method-wrappers/002-subtask-remove-inline-handlers.md) |
+| 002 | 2026-02-07 | Phase 5 | T003, T004, T005, T006 | ~~Remove inline handlers from raiseEvent per Workshop 05~~ | [—] Superseded by Workshop 06 | ~~002-subtask-remove-inline-handlers.md~~ (deleted) |
