@@ -392,3 +392,9 @@ when run via `npx tsx e2e-event-system-sample-flow.ts`:
 | First-Class Node Event Service | Data Model / Integration Pattern | Complete | [Workshop #09](workshops/09-first-class-node-event-service.md) |
 
 Workshop #09 overrides Workshop #06's standalone function approach. Events are elevated to a first-class service (`INodeEventService`) with `HandlerContext` for clean handler ergonomics. See Workshop #09 for the override matrix.
+
+---
+
+## ADRs
+
+- ADR-0011: First-Class Domain Concepts Over Diffuse Functions (2026-02-08) -- status: Accepted

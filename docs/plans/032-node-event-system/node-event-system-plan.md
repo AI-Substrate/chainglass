@@ -869,6 +869,7 @@ command names to Workshop 07 surface)
 | (Seed) ADR: Events as Logged Facts | Proposed | Phase 3, 4 | Events are facts, logged first then handled |
 | (Seed) ADR: Events as Implementation (Option B) | Proposed | Phase 5 | raiseEvent is single write path |
 | (Seed) ADR: CLI Shortcuts Scope | Proposed | Phase 6 | Shortcuts for accept/end/error, NOT Q&A |
+| ADR-0011 | Accepted | Phase 5 | First-class domain concepts over diffuse functions (WS09 golden example) |
 
 ---
 
