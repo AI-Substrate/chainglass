@@ -598,6 +598,7 @@ Test Doc:
 - DI token `ORCHESTRATION_DI_TOKENS.ORCHESTRATION_SERVICE` in `packages/shared/src/di-tokens.ts`
 - `registerOrchestrationServices()` in `packages/positional-graph/src/container.ts`
 - Orchestration loop: build reality → ONBAS → ODS → repeat until stop
+- `IEventHandlerService` interface and implementation (graph-wide event processing — Settle phase, via subtask; see Workshop 10 Part 3)
 
 **Dependencies**: All previous phases (1-6). Phase 7 composes all internal collaborators into a single facade.
 
@@ -632,6 +633,7 @@ Test Doc:
 - [ ] Handle caching returns same handle for same slug (AC-10)
 - [ ] FakeOrchestrationService supports pre-configured behaviors (AC-10)
 - [ ] DI registration works via `registerOrchestrationServices()` (ADR-0009)
+- [ ] IEventHandlerService processes graph-wide events as Settle step before ONBAS (subtask, per Workshop 10 Part 3, ADR-0011)
 - [ ] `just fft` clean
 
 ---
@@ -755,6 +757,7 @@ Test Doc:
 | ADR-0006 | Accepted | Phase 4, 6 | CLI-based agent orchestration: session continuity, process isolation, CWD binding |
 | ADR-0009 | Accepted | Phase 7 | Module registration function pattern for orchestration |
 | ADR-0010 | Accepted | Phase 6, 7 | Central event notification via `ICentralEventNotifier` |
+| ADR-0011 | Accepted | Phase 7 | First-class domain concepts — IEventHandlerService meets litmus test (subtask) |
 
 ---
 
@@ -850,3 +853,11 @@ Test Doc:
 
 [^21]: Phase 5 Task 5.9 (T009) - Barrel index update with Phase 5 exports
   - `file:packages/positional-graph/src/features/030-orchestration/index.ts`
+
+---
+
+## Subtask Registry
+
+| Phase | Parent Task | Subtask | Status | Dossier |
+|-------|-------------|---------|--------|---------|
+| 7 | T007 | IEventHandlerService — graph-wide event processing (Settle phase) | Pending | `tasks/phase-7-orchestration-entry-point/subtask-event-handler-service/tasks.md` |
