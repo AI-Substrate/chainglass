@@ -77,3 +77,25 @@ export function eventAlreadyAnsweredError(questionEventId: string): ResultError 
     action: 'Each question can only be answered once.',
   };
 }
+
+/**
+ * E196: Event not found by ID.
+ */
+export function eventNotFoundError(eventId: string): ResultError {
+  return {
+    code: POSITIONAL_GRAPH_ERROR_CODES.E196,
+    message: `Event '${eventId}' not found`,
+    action: "Check the event ID with 'cg wf node events <graph> <nodeId>'.",
+  };
+}
+
+/**
+ * E197: Invalid JSON payload string.
+ */
+export function invalidJsonPayloadError(input: string, parseError: string): ResultError {
+  return {
+    code: POSITIONAL_GRAPH_ERROR_CODES.E197,
+    message: `Invalid JSON payload: ${parseError}`,
+    action: `Ensure the payload is valid JSON. Received: ${input.length > 100 ? `${input.slice(0, 100)}...` : input}`,
+  };
+}

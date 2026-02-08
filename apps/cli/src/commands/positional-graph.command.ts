@@ -25,7 +25,11 @@
  * Per DYK-P6-I5: Imports shared helpers from command-helpers.ts.
  */
 
-import type { AskQuestionOptions, IPositionalGraphService } from '@chainglass/positional-graph';
+import type {
+  AskQuestionOptions,
+  EventSource,
+  IPositionalGraphService,
+} from '@chainglass/positional-graph';
 import {
   type IWorkUnitService,
   isReservedInputParam,
@@ -841,7 +845,7 @@ async function handleNodeCanEnd(
 async function handleNodeEnd(
   graphSlug: string,
   nodeId: string,
-  options: BaseOptions
+  options: EndOptions
 ): Promise<void> {
   const adapter = createOutputAdapter(options.json ?? false);
 
@@ -853,7 +857,7 @@ async function handleNodeEnd(
   }
 
   const service = getPositionalGraphService();
-  const result = await service.endNode(ctx, graphSlug, nodeId);
+  const result = await service.endNode(ctx, graphSlug, nodeId, options.message);
   console.log(adapter.format('wf.node.end', result));
 
   if (result.errors.length > 0) process.exit(1);
@@ -1129,6 +1133,363 @@ async function handleWfTrigger(slug: string, lineId: string, options: BaseOption
   console.log(adapter.format('wf.trigger', result));
 
   if (result.errors.length > 0) process.exit(1);
+}
+
+// ============================================
+// Node Event System Handlers (Phase 6, Plan 032)
+// ============================================
+
+interface RaiseEventOptions extends BaseOptions {
+  payload?: string;
+  source?: string;
+}
+
+interface EventsOptions extends BaseOptions {
+  id?: string;
+  type?: string[];
+  status?: string;
+}
+
+interface StampEventOptions extends BaseOptions {
+  subscriber: string;
+  action: string;
+  data?: string;
+}
+
+interface ErrorShortcutOptions extends BaseOptions {
+  code: string;
+  message: string;
+  details?: string;
+  recoverable?: boolean;
+}
+
+interface EndOptions extends BaseOptions {
+  message?: string;
+}
+
+/**
+ * Walk the Commander parent chain to find the --json flag.
+ * Discovery commands are 4 levels deep (cg wf node event list-types),
+ * so we can't assume a fixed depth.
+ */
+function getJsonFlag(cmd: Command): boolean {
+  let current: Command | null = cmd;
+  while (current) {
+    const opts = current.opts();
+    if (opts.json !== undefined) return !!opts.json;
+    current = current.parent ?? null;
+  }
+  return false;
+}
+
+/**
+ * Walk the Commander parent chain to find --workspace-path.
+ */
+function getWorkspacePath(cmd: Command): string | undefined {
+  let current: Command | null = cmd;
+  while (current) {
+    const opts = current.opts();
+    if (opts.workspacePath !== undefined) return opts.workspacePath as string;
+    current = current.parent ?? null;
+  }
+  return undefined;
+}
+
+function parseJsonPayload(
+  jsonStr: string,
+  adapter: { format: (cmd: string, result: unknown) => string },
+  command: string
+): Record<string, unknown> | null {
+  try {
+    const parsed: unknown = JSON.parse(jsonStr);
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+      const result = {
+        errors: [
+          {
+            code: 'E197',
+            message: 'Invalid JSON payload: must be a JSON object',
+            action: `Received: ${jsonStr.length > 100 ? `${jsonStr.slice(0, 100)}...` : jsonStr}`,
+          },
+        ],
+      };
+      console.log(adapter.format(command, result));
+      process.exit(1);
+    }
+    return parsed as Record<string, unknown>;
+  } catch (e) {
+    const result = {
+      errors: [
+        {
+          code: 'E197',
+          message: `Invalid JSON payload: ${e instanceof Error ? e.message : String(e)}`,
+          action: `Ensure the payload is valid JSON. Received: ${jsonStr.length > 100 ? `${jsonStr.slice(0, 100)}...` : jsonStr}`,
+        },
+      ],
+    };
+    console.log(adapter.format(command, result));
+    process.exit(1);
+  }
+}
+
+async function handleNodeRaiseEvent(
+  graphSlug: string,
+  nodeId: string,
+  eventType: string,
+  options: RaiseEventOptions
+): Promise<void> {
+  const adapter = createOutputAdapter(options.json ?? false);
+
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = { errors: noContextError(options.workspacePath) };
+    console.log(adapter.format('wf.node.raise-event', result));
+    process.exit(1);
+  }
+
+  // Parse payload JSON if provided (parseJsonPayload exits on invalid JSON, null never reached)
+  const payload = options.payload
+    ? (parseJsonPayload(options.payload, adapter, 'wf.node.raise-event') ?? {})
+    : {};
+
+  const source = (options.source ?? 'agent') as EventSource;
+
+  const service = getPositionalGraphService();
+  const result = await service.raiseNodeEvent(ctx, graphSlug, nodeId, eventType, payload, source);
+
+  // For stop-execution events, add agent instruction to output
+  if (result.errors.length === 0 && result.stopsExecution) {
+    const augmented = {
+      ...result,
+      agentInstruction:
+        '[AGENT INSTRUCTION] This event stops execution. Do not continue processing this node.',
+    };
+    console.log(adapter.format('wf.node.raise-event', augmented));
+  } else {
+    console.log(adapter.format('wf.node.raise-event', result));
+  }
+
+  if (result.errors.length > 0) process.exit(1);
+}
+
+async function handleNodeEvents(
+  graphSlug: string,
+  nodeId: string,
+  options: EventsOptions
+): Promise<void> {
+  const adapter = createOutputAdapter(options.json ?? false);
+
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = { errors: noContextError(options.workspacePath) };
+    console.log(adapter.format('wf.node.events', result));
+    process.exit(1);
+  }
+
+  const service = getPositionalGraphService();
+  const result = await service.getNodeEvents(ctx, graphSlug, nodeId, {
+    eventId: options.id,
+    types: options.type,
+    status: options.status,
+  });
+  console.log(adapter.format('wf.node.events', result));
+
+  if (result.errors.length > 0) process.exit(1);
+}
+
+async function handleNodeStampEvent(
+  graphSlug: string,
+  nodeId: string,
+  eventId: string,
+  options: StampEventOptions
+): Promise<void> {
+  const adapter = createOutputAdapter(options.json ?? false);
+
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = { errors: noContextError(options.workspacePath) };
+    console.log(adapter.format('wf.node.stamp-event', result));
+    process.exit(1);
+  }
+
+  // Parse optional data JSON (parseJsonPayload exits on invalid JSON, null never reached)
+  const data = options.data
+    ? (parseJsonPayload(options.data, adapter, 'wf.node.stamp-event') ?? undefined)
+    : undefined;
+
+  const service = getPositionalGraphService();
+  const result = await service.stampNodeEvent(
+    ctx,
+    graphSlug,
+    nodeId,
+    eventId,
+    options.subscriber,
+    options.action,
+    data
+  );
+  console.log(adapter.format('wf.node.stamp-event', result));
+
+  if (result.errors.length > 0) process.exit(1);
+}
+
+async function handleNodeAccept(
+  graphSlug: string,
+  nodeId: string,
+  options: BaseOptions
+): Promise<void> {
+  const adapter = createOutputAdapter(options.json ?? false);
+
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = { errors: noContextError(options.workspacePath) };
+    console.log(adapter.format('wf.node.accept', result));
+    process.exit(1);
+  }
+
+  const service = getPositionalGraphService();
+  const result = await service.raiseNodeEvent(ctx, graphSlug, nodeId, 'node:accepted', {}, 'agent');
+  console.log(adapter.format('wf.node.accept', result));
+
+  if (result.errors.length > 0) process.exit(1);
+}
+
+async function handleNodeError(
+  graphSlug: string,
+  nodeId: string,
+  options: ErrorShortcutOptions
+): Promise<void> {
+  const adapter = createOutputAdapter(options.json ?? false);
+
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = { errors: noContextError(options.workspacePath) };
+    console.log(adapter.format('wf.node.error', result));
+    process.exit(1);
+  }
+
+  const payload: Record<string, unknown> = {
+    code: options.code,
+    message: options.message,
+    recoverable: options.recoverable ?? false,
+  };
+
+  if (options.details) {
+    const parsed = parseJsonPayload(options.details, adapter, 'wf.node.error');
+    if (parsed) payload.details = parsed;
+  }
+
+  const service = getPositionalGraphService();
+  const result = await service.raiseNodeEvent(
+    ctx,
+    graphSlug,
+    nodeId,
+    'node:error',
+    payload,
+    'agent'
+  );
+
+  // node:error stopsExecution — always show agent instruction
+  if (result.errors.length === 0 && result.stopsExecution) {
+    const augmented = {
+      ...result,
+      agentInstruction:
+        '[AGENT INSTRUCTION] This event stops execution. Do not continue processing this node.',
+    };
+    console.log(adapter.format('wf.node.error', augmented));
+  } else {
+    console.log(adapter.format('wf.node.error', result));
+  }
+
+  if (result.errors.length > 0) process.exit(1);
+}
+
+async function handleNodeEventListTypes(
+  _graphSlug: string,
+  _nodeId: string,
+  options: BaseOptions & { domain?: string }
+): Promise<void> {
+  const adapter = createOutputAdapter(options.json ?? false);
+
+  // Discovery commands query the registry, not state — but we keep the
+  // <graph> <nodeId> pattern for CLI consistency (DYK #4)
+  const { NodeEventRegistry, registerCoreEventTypes } = await import(
+    '@chainglass/positional-graph/features/032-node-event-system'
+  );
+  const registry = new NodeEventRegistry();
+  registerCoreEventTypes(registry);
+
+  const types = options.domain ? registry.listByDomain(options.domain) : registry.list();
+
+  const result = {
+    types: types.map((t) => ({
+      type: t.type,
+      displayName: t.displayName,
+      description: t.description,
+      domain: t.domain,
+      stopsExecution: t.stopsExecution,
+      allowedSources: [...t.allowedSources],
+    })),
+    errors: [] as { code: string; message: string; action: string }[],
+  };
+  console.log(adapter.format('wf.node.event.list-types', result));
+}
+
+async function handleNodeEventSchema(
+  _graphSlug: string,
+  _nodeId: string,
+  eventType: string,
+  options: BaseOptions
+): Promise<void> {
+  const adapter = createOutputAdapter(options.json ?? false);
+
+  const { NodeEventRegistry, registerCoreEventTypes } = await import(
+    '@chainglass/positional-graph/features/032-node-event-system'
+  );
+  const registry = new NodeEventRegistry();
+  registerCoreEventTypes(registry);
+
+  const registration = registry.get(eventType);
+  if (!registration) {
+    const available = registry.list().map((t) => t.type);
+    const result = {
+      errors: [
+        {
+          code: 'E190',
+          message: `Unknown event type '${eventType}'. Available types: ${available.join(', ')}`,
+          action: "Run 'cg wf node event list-types' to see available event types.",
+        },
+      ],
+    };
+    console.log(adapter.format('wf.node.event.schema', result));
+    process.exit(1);
+  }
+
+  // Extract schema shape from Zod
+  const shape = registration.payloadSchema;
+  let fields: Record<string, string> = {};
+  if ('shape' in shape && typeof shape.shape === 'object') {
+    const zodShape = shape.shape as Record<
+      string,
+      { _def?: { typeName?: string }; isOptional?: () => boolean }
+    >;
+    fields = {};
+    for (const [key, val] of Object.entries(zodShape)) {
+      const typeName = val?._def?.typeName ?? 'unknown';
+      const optional = typeof val?.isOptional === 'function' && val.isOptional();
+      fields[key] = optional ? `${typeName} (optional)` : typeName;
+    }
+  }
+
+  const result = {
+    type: registration.type,
+    displayName: registration.displayName,
+    description: registration.description,
+    domain: registration.domain,
+    stopsExecution: registration.stopsExecution,
+    allowedSources: [...registration.allowedSources],
+    fields,
+    errors: [] as { code: string; message: string; action: string }[],
+  };
+  console.log(adapter.format('wf.node.event.schema', result));
 }
 
 // ============================================
@@ -1840,12 +2201,14 @@ export function registerPositionalGraphCommands(program: Command): void {
     .description(
       'Complete node execution (running → complete). All required outputs must be saved. E172 if wrong state.'
     )
+    .option('--message <msg>', 'Completion message (stored as event payload)')
     .action(
-      wrapAction(async (graph: string, nodeId: string, _options: BaseOptions, cmd: Command) => {
+      wrapAction(async (graph: string, nodeId: string, localOpts: EndOptions, cmd: Command) => {
         const parentOpts = cmd.parent?.parent?.opts() ?? {};
         await handleNodeEnd(graph, nodeId, {
           json: parentOpts.json,
           workspacePath: parentOpts.workspacePath,
+          message: localOpts.message,
         });
       })
     );
@@ -1969,6 +2332,177 @@ export function registerPositionalGraphCommands(program: Command): void {
             json: parentOpts.json,
             workspacePath: parentOpts.workspacePath,
           });
+        }
+      )
+    );
+
+  // ==================== Node Event System Commands (Phase 6, Plan 032) ====================
+
+  node
+    .command('raise-event <graph> <nodeId> <eventType>')
+    .description(
+      'Raise an event on a node. Validates, records, processes handlers, and persists. Default source: agent.'
+    )
+    .option('--payload <json>', 'JSON payload for the event')
+    .option('--source <source>', 'Event source (agent, executor, orchestrator, human)', 'agent')
+    .action(
+      wrapAction(
+        async (
+          graph: string,
+          nodeId: string,
+          eventType: string,
+          localOpts: { payload?: string; source?: string },
+          cmd: Command
+        ) => {
+          const json = getJsonFlag(cmd);
+          const workspacePath = getWorkspacePath(cmd);
+          await handleNodeRaiseEvent(graph, nodeId, eventType, {
+            payload: localOpts.payload,
+            source: localOpts.source,
+            json,
+            workspacePath,
+          });
+        }
+      )
+    );
+
+  node
+    .command('events <graph> <nodeId>')
+    .description(
+      'List events for a node. Use --id for single event detail. Filters: --type, --status.'
+    )
+    .option('--id <eventId>', 'Show single event by ID (with stamps)')
+    .option('--type <type...>', 'Filter by event type(s)')
+    .option('--status <status>', 'Filter by event status')
+    .action(
+      wrapAction(
+        async (
+          graph: string,
+          nodeId: string,
+          localOpts: { id?: string; type?: string[]; status?: string },
+          cmd: Command
+        ) => {
+          const json = getJsonFlag(cmd);
+          const workspacePath = getWorkspacePath(cmd);
+          await handleNodeEvents(graph, nodeId, {
+            id: localOpts.id,
+            type: localOpts.type,
+            status: localOpts.status,
+            json,
+            workspacePath,
+          });
+        }
+      )
+    );
+
+  node
+    .command('stamp-event <graph> <nodeId> <eventId>')
+    .description('Stamp an event as processed by a subscriber. E196 if event not found.')
+    .requiredOption('--subscriber <sub>', 'Subscriber name')
+    .requiredOption('--action <act>', 'Stamp action (e.g., forwarded, processed)')
+    .option('--data <json>', 'Optional JSON data to attach to stamp')
+    .action(
+      wrapAction(
+        async (
+          graph: string,
+          nodeId: string,
+          eventId: string,
+          localOpts: { subscriber: string; action: string; data?: string },
+          cmd: Command
+        ) => {
+          const json = getJsonFlag(cmd);
+          const workspacePath = getWorkspacePath(cmd);
+          await handleNodeStampEvent(graph, nodeId, eventId, {
+            subscriber: localOpts.subscriber,
+            action: localOpts.action,
+            data: localOpts.data,
+            json,
+            workspacePath,
+          });
+        }
+      )
+    );
+
+  node
+    .command('accept <graph> <nodeId>')
+    .description(
+      'Accept a node (shortcut for raise-event node:accepted). Transitions starting → agent-accepted.'
+    )
+    .action(
+      wrapAction(async (graph: string, nodeId: string, _options: BaseOptions, cmd: Command) => {
+        const json = getJsonFlag(cmd);
+        const workspacePath = getWorkspacePath(cmd);
+        await handleNodeAccept(graph, nodeId, { json, workspacePath });
+      })
+    );
+
+  node
+    .command('error <graph> <nodeId>')
+    .description(
+      'Report an error on a node (shortcut for raise-event node:error). Stops execution.'
+    )
+    .requiredOption('--code <code>', 'Error code')
+    .requiredOption('--message <msg>', 'Error message')
+    .option('--details <json>', 'Additional error details as JSON')
+    .option('--recoverable', 'Mark error as recoverable', false)
+    .action(
+      wrapAction(
+        async (
+          graph: string,
+          nodeId: string,
+          localOpts: { code: string; message: string; details?: string; recoverable?: boolean },
+          cmd: Command
+        ) => {
+          const json = getJsonFlag(cmd);
+          const workspacePath = getWorkspacePath(cmd);
+          await handleNodeError(graph, nodeId, {
+            code: localOpts.code,
+            message: localOpts.message,
+            details: localOpts.details,
+            recoverable: localOpts.recoverable,
+            json,
+            workspacePath,
+          });
+        }
+      )
+    );
+
+  // Discovery commands — under 'event' subgroup (cg wf node event list-types / schema)
+  const nodeEvent = node.command('event').description('Event system discovery commands');
+
+  nodeEvent
+    .command('list-types <graph> <nodeId>')
+    .description('List all registered event types, grouped by domain.')
+    .option('--domain <domain>', 'Filter by domain (e.g., node, question)')
+    .action(
+      wrapAction(
+        async (graph: string, nodeId: string, localOpts: { domain?: string }, cmd: Command) => {
+          const json = getJsonFlag(cmd);
+          const workspacePath = getWorkspacePath(cmd);
+          await handleNodeEventListTypes(graph, nodeId, {
+            domain: localOpts.domain,
+            json,
+            workspacePath,
+          });
+        }
+      )
+    );
+
+  nodeEvent
+    .command('schema <graph> <nodeId> <eventType>')
+    .description('Show payload schema and metadata for a specific event type. E190 if unknown.')
+    .action(
+      wrapAction(
+        async (
+          graph: string,
+          nodeId: string,
+          eventType: string,
+          _options: BaseOptions,
+          cmd: Command
+        ) => {
+          const json = getJsonFlag(cmd);
+          const workspacePath = getWorkspacePath(cmd);
+          await handleNodeEventSchema(graph, nodeId, eventType, { json, workspacePath });
         }
       )
     );

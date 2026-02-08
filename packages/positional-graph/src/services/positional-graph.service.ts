@@ -26,9 +26,10 @@ import {
   NodeEventRegistry,
   NodeEventService,
   createEventHandlerRegistry,
+  eventNotFoundError,
   registerCoreEventTypes,
 } from '../features/032-node-event-system/index.js';
-import type { INodeEventService } from '../features/032-node-event-system/index.js';
+import type { EventSource, INodeEventService } from '../features/032-node-event-system/index.js';
 import type {
   AddLineOptions,
   AddLineResult,
@@ -42,6 +43,8 @@ import type {
   GetAnswerResult,
   GetInputDataResult,
   GetInputFileResult,
+  GetNodeEventsFilter,
+  GetNodeEventsResult,
   GetOutputDataResult,
   GetOutputFileResult,
   GraphCreateResult,
@@ -56,8 +59,10 @@ import type {
   PGListResult,
   PGLoadResult,
   PGShowResult,
+  RaiseNodeEventResult,
   SaveOutputDataResult,
   SaveOutputFileResult,
+  StampNodeEventResult,
   StartNodeResult,
 } from '../interfaces/index.js';
 import {
@@ -1900,7 +1905,12 @@ export class PositionalGraphService implements IPositionalGraphService {
    * Pre-flight guards: node exists, state is agent-accepted (E172), outputs saved (E175).
    * State transition delegated to eventService.raise() + handleEvents().
    */
-  async endNode(ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<EndNodeResult> {
+  async endNode(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    message?: string
+  ): Promise<EndNodeResult> {
     // Verify node exists
     const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
     if (!nodeResult.ok) {
@@ -1934,8 +1944,15 @@ export class PositionalGraphService implements IPositionalGraphService {
     }
 
     // Raise node:completed event (record-only: validate, create, append, persist)
+    const payload = message ? { message } : {};
     const eventService = this.createEventService(ctx);
-    const raiseResult = await eventService.raise(graphSlug, nodeId, 'node:completed', {}, 'agent');
+    const raiseResult = await eventService.raise(
+      graphSlug,
+      nodeId,
+      'node:completed',
+      payload,
+      'agent'
+    );
     if (!raiseResult.ok) {
       return { errors: raiseResult.errors };
     }
@@ -2398,6 +2415,136 @@ export class PositionalGraphService implements IPositionalGraphService {
       inputName,
       sources,
       complete: true,
+      errors: [],
+    };
+  }
+
+  // ============================================
+  // Node Event System (Phase 6, Plan 032)
+  // ============================================
+
+  /**
+   * Raise an event on a node: validate, record, handle, persist.
+   * Returns the event with stamps and whether execution should stop.
+   */
+  async raiseNodeEvent(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    eventType: string,
+    payload: Record<string, unknown>,
+    source: EventSource
+  ): Promise<RaiseNodeEventResult> {
+    // Verify node exists
+    const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
+    if (!nodeResult.ok) {
+      return { errors: nodeResult.errors };
+    }
+
+    // Raise event (record-only: validate, create, append, persist)
+    const eventService = this.createEventService(ctx);
+    const raiseResult = await eventService.raise(graphSlug, nodeId, eventType, payload, source);
+    if (!raiseResult.ok) {
+      return { errors: raiseResult.errors };
+    }
+
+    // Process events: load fresh state (after raise persisted), run handlers, persist
+    const state = await this.loadState(ctx, graphSlug);
+    eventService.handleEvents(state, nodeId, 'cli', 'cli');
+    await this.persistState(ctx, graphSlug, state);
+
+    // Look up stopsExecution from registry
+    const registration = this.nodeEventRegistry.get(eventType);
+    const stopsExecution = registration?.stopsExecution ?? false;
+
+    return {
+      nodeId,
+      event: raiseResult.event,
+      stopsExecution,
+      errors: [],
+    };
+  }
+
+  /**
+   * Get events for a node, optionally filtered by type, status, or single event ID.
+   */
+  async getNodeEvents(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    filter?: GetNodeEventsFilter
+  ): Promise<GetNodeEventsResult> {
+    // Verify node exists
+    const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
+    if (!nodeResult.ok) {
+      return { errors: nodeResult.errors };
+    }
+
+    const state = await this.loadState(ctx, graphSlug);
+    const eventService = this.createEventService(ctx);
+    let events = [...eventService.getEventsForNode(state, nodeId)];
+
+    // Single event lookup by ID
+    if (filter?.eventId) {
+      const event = events.find((e) => e.event_id === filter.eventId);
+      if (!event) {
+        return { errors: [eventNotFoundError(filter.eventId)] };
+      }
+      return { nodeId, events: [event], errors: [] };
+    }
+
+    // Filter by type(s)
+    if (filter?.types && filter.types.length > 0) {
+      events = events.filter((e) => filter.types?.includes(e.event_type));
+    }
+
+    // Filter by status
+    if (filter?.status) {
+      events = events.filter((e) => e.status === filter.status);
+    }
+
+    return { nodeId, events, errors: [] };
+  }
+
+  /**
+   * Stamp an event as processed by a named subscriber.
+   */
+  async stampNodeEvent(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    eventId: string,
+    subscriber: string,
+    action: string,
+    data?: Record<string, unknown>
+  ): Promise<StampNodeEventResult> {
+    // Verify node exists
+    const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
+    if (!nodeResult.ok) {
+      return { errors: nodeResult.errors };
+    }
+
+    const state = await this.loadState(ctx, graphSlug);
+    const eventService = this.createEventService(ctx);
+    const events = eventService.getEventsForNode(state, nodeId);
+    const event = events.find((e) => e.event_id === eventId);
+
+    if (!event) {
+      return { errors: [eventNotFoundError(eventId)] };
+    }
+
+    const stamp = eventService.stamp(event, subscriber, action, data);
+    await this.persistState(ctx, graphSlug, state);
+
+    return {
+      nodeId,
+      eventId,
+      subscriber,
+      stamp: {
+        action: stamp.action,
+        stamped_at: stamp.stamped_at,
+        data: stamp.data,
+      },
       errors: [],
     };
   }

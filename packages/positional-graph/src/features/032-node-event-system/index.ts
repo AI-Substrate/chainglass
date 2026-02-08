@@ -88,9 +88,11 @@ export type { RaiseEventDeps, RaiseEventResult } from './raise-event.js';
 // Error factories
 export {
   eventAlreadyAnsweredError,
+  eventNotFoundError,
   eventPayloadValidationError,
   eventQuestionNotFoundError,
   eventSourceNotAllowedError,
   eventStateTransitionError,
   eventTypeNotFoundError,
+  invalidJsonPayloadError,
 } from './event-errors.js';

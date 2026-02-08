@@ -538,6 +538,19 @@ export class ConsoleOutputAdapter implements IOutputAdapter {
         return this.formatWfNodeStatusSuccess(result as unknown as WfNodeStatusResult);
       case 'wf.status.line':
         return this.formatWfLineStatusSuccess(result as unknown as WfLineStatusResult);
+      // ==================== Node Event System Commands (Plan 032 Phase 6) ====================
+      case 'wf.node.raise-event':
+      case 'wf.node.accept':
+      case 'wf.node.error':
+        return this.formatWfNodeRaiseEventSuccess(result as Record<string, unknown>);
+      case 'wf.node.events':
+        return this.formatWfNodeEventsSuccess(result as Record<string, unknown>);
+      case 'wf.node.stamp-event':
+        return this.formatWfNodeStampEventSuccess(result as Record<string, unknown>);
+      case 'wf.node.event.list-types':
+        return this.formatWfNodeEventListTypesSuccess(result as Record<string, unknown>);
+      case 'wf.node.event.schema':
+        return this.formatWfNodeEventSchemaSuccess(result as Record<string, unknown>);
       default:
         return this.formatGenericSuccess(result);
     }
@@ -674,6 +687,14 @@ export class ConsoleOutputAdapter implements IOutputAdapter {
       case 'wf.status.node':
       case 'wf.status.line':
       case 'wf.trigger':
+      // Node Event System Commands (Plan 032 Phase 6)
+      case 'wf.node.raise-event':
+      case 'wf.node.events':
+      case 'wf.node.stamp-event':
+      case 'wf.node.accept':
+      case 'wf.node.error':
+      case 'wf.node.event.list-types':
+      case 'wf.node.event.schema':
         return this.formatWfFailure(command, result);
       default:
         return this.formatGenericFailure(result);
@@ -2176,6 +2197,157 @@ export class ConsoleOutputAdapter implements IOutputAdapter {
   /**
    * Append error details to output lines.
    */
+  // ==================== Node Event System Formatters (Plan 032 Phase 6) ====================
+
+  private formatWfNodeRaiseEventSuccess(result: Record<string, unknown>): string {
+    const event = result.event as Record<string, unknown> | undefined;
+    if (!event) return '✓ Event raised';
+
+    const lines: string[] = [
+      `✓ Event raised: ${event.event_type} (${event.event_id})`,
+      `  Source: ${event.source}`,
+      `  Node: ${result.nodeId}`,
+    ];
+
+    if (result.stopsExecution) {
+      lines.push('');
+      lines.push(
+        '  [AGENT INSTRUCTION] This event stops execution. Do not continue processing this node.'
+      );
+    }
+
+    if (result.agentInstruction && !result.stopsExecution) {
+      lines.push('');
+      lines.push(`  ${result.agentInstruction}`);
+    }
+
+    return lines.join('\n');
+  }
+
+  private formatWfNodeEventsSuccess(result: Record<string, unknown>): string {
+    const events = (result.events ?? []) as Record<string, unknown>[];
+    const nodeId = result.nodeId as string;
+
+    if (events.length === 0) {
+      return `ℹ No events for node '${nodeId}'`;
+    }
+
+    // Single event detail mode
+    if (events.length === 1 && events[0].stamps) {
+      const e = events[0];
+      const lines: string[] = [
+        `✓ Event '${e.event_id}'`,
+        `  Type: ${e.event_type}`,
+        `  Source: ${e.source}`,
+        `  Status: ${e.status}`,
+        `  Created: ${e.created_at}`,
+      ];
+
+      if (e.payload && Object.keys(e.payload as object).length > 0) {
+        lines.push(`  Payload: ${JSON.stringify(e.payload)}`);
+      }
+
+      const stamps = e.stamps as Record<string, Record<string, unknown>> | undefined;
+      if (stamps && Object.keys(stamps).length > 0) {
+        lines.push('  Stamps:');
+        for (const [sub, stamp] of Object.entries(stamps)) {
+          lines.push(`    ${sub}: ${stamp.action} (${stamp.stamped_at})`);
+        }
+      }
+
+      return lines.join('\n');
+    }
+
+    // List mode — table
+    const lines: string[] = [`✓ Events for node '${nodeId}' (${events.length} events):`];
+    lines.push('');
+    lines.push('  ID                   Type                Source       Status   Created');
+    lines.push(
+      '  ───────────────────  ──────────────────  ───────────  ───────  ────────────────────'
+    );
+
+    for (const e of events) {
+      const id = String(e.event_id ?? '')
+        .slice(0, 19)
+        .padEnd(19);
+      const type = String(e.event_type ?? '').padEnd(18);
+      const source = String(e.source ?? '').padEnd(11);
+      const status = String(e.status ?? '').padEnd(7);
+      const created = String(e.created_at ?? '').slice(0, 19);
+      lines.push(`  ${id}  ${type}  ${source}  ${status}  ${created}`);
+    }
+
+    return lines.join('\n');
+  }
+
+  private formatWfNodeStampEventSuccess(result: Record<string, unknown>): string {
+    const stamp = result.stamp as Record<string, unknown> | undefined;
+    const lines: string[] = [`✓ Event '${result.eventId}' stamped by '${result.subscriber}'`];
+
+    if (stamp) {
+      lines.push(`  Action: ${stamp.action}`);
+      lines.push(`  Stamped at: ${stamp.stamped_at}`);
+      if (stamp.data) {
+        lines.push(`  Data: ${JSON.stringify(stamp.data)}`);
+      }
+    }
+
+    return lines.join('\n');
+  }
+
+  private formatWfNodeEventListTypesSuccess(result: Record<string, unknown>): string {
+    const types = (result.types ?? []) as Record<string, unknown>[];
+
+    if (types.length === 0) {
+      return 'ℹ No event types registered';
+    }
+
+    // Group by domain
+    const byDomain = new Map<string, Record<string, unknown>[]>();
+    for (const t of types) {
+      const domain = String(t.domain ?? 'other');
+      if (!byDomain.has(domain)) byDomain.set(domain, []);
+      byDomain.get(domain)?.push(t);
+    }
+
+    const lines: string[] = [`✓ ${types.length} event types registered:`];
+    lines.push('');
+
+    for (const [domain, domainTypes] of byDomain) {
+      lines.push(`  ${domain}:`);
+      for (const t of domainTypes) {
+        const stop = t.stopsExecution ? ' [stops execution]' : '';
+        lines.push(`    ${t.type} — ${t.description}${stop}`);
+      }
+      lines.push('');
+    }
+
+    return lines.join('\n').trimEnd();
+  }
+
+  private formatWfNodeEventSchemaSuccess(result: Record<string, unknown>): string {
+    const lines: string[] = [
+      `✓ Event type: ${result.type}`,
+      `  Display name: ${result.displayName}`,
+      `  Description: ${result.description}`,
+      `  Domain: ${result.domain}`,
+      `  Stops execution: ${result.stopsExecution}`,
+      `  Allowed sources: ${(result.allowedSources as string[])?.join(', ')}`,
+    ];
+
+    const fields = result.fields as Record<string, string> | undefined;
+    if (fields && Object.keys(fields).length > 0) {
+      lines.push('  Payload fields:');
+      for (const [name, type] of Object.entries(fields)) {
+        lines.push(`    ${name}: ${type}`);
+      }
+    } else {
+      lines.push('  Payload fields: (empty object)');
+    }
+
+    return lines.join('\n');
+  }
+
   private appendErrorDetails(lines: string[], errors: ResultError[]): void {
     // Show paths for all errors
     if (errors.some((e) => e.path)) {

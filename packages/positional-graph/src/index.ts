@@ -9,3 +9,6 @@ export { registerPositionalGraphServices } from './container.js';
 
 // Feature exports
 export * from './features/029-agentic-work-units/index.js';
+
+// Node event system exports (Plan 032, Phase 6)
+export type { EventSource } from './features/032-node-event-system/index.js';
