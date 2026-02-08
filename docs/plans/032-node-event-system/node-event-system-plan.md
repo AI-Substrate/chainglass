@@ -553,14 +553,16 @@ event log.
 
 ### Phase 5: Service Method Wrappers
 
-**Objective**: Separate event recording from event processing (Workshop 06), then
-refactor service methods (`endNode`, `askQuestion`, `answerQuestion`) to become thin
-wrappers that call `raiseEvent()` (record-only). Processing happens via `handleEvents()`
-called by the CLI layer. This phase introduces subscriber stamps, creates `handleEvents()`,
-refactors handlers from `markHandled()` to `stampEvent()`, and fixes the `question:answer`
-handler's missing `starting` transition. Output methods remain unchanged.
+**Objective**: Elevate node event operations into a first-class `INodeEventService` (Workshop 09,
+ADR-0011), separate event recording from processing (Workshop 06), introduce subscriber stamps
+and `HandlerContext`, refactor handlers from `markHandled()` to `ctx.stamp()`, fix the
+`question:answer` handler's missing `starting` transition, and make service methods (`endNode`,
+`askQuestion`, `answerQuestion`) thin wrappers delegating to `INodeEventService.raise()`.
+Output methods remain unchanged.
 
-**Workshop**: [06-inline-handlers-and-subscriber-stamps.md](./workshops/06-inline-handlers-and-subscriber-stamps.md)
+**Workshop**: [09-first-class-node-event-service.md](./workshops/09-first-class-node-event-service.md)
+§INodeEventService, §HandlerContext;
+[06-inline-handlers-and-subscriber-stamps.md](./workshops/06-inline-handlers-and-subscriber-stamps.md)
 §raiseEvent/handleEvents Separation, §Subscriber Stamps;
 [08-concept-drift-and-remediation.md](./workshops/08-concept-drift-and-remediation.md)
 §Remediation Roadmap
@@ -942,4 +944,4 @@ Mid-implementation detours requiring structured tracking.
 |----|---------|-------|-------------|--------|--------|---------|
 | 001 | 2026-02-07 | Phase 5 | T001, T002 | Drop backward compat layer per Workshop 04 Option C | [x] Complete | [001-subtask-drop-backward-compat.md](./tasks/phase-5-service-method-wrappers/001-subtask-drop-backward-compat.md) |
 | 002 | 2026-02-07 | Phase 5 | T003, T004, T005, T006 | ~~Remove inline handlers from raiseEvent per Workshop 05~~ | [—] Superseded by Workshop 06 | ~~002-subtask-remove-inline-handlers.md~~ (deleted) |
-| 002 | 2026-02-08 | Phase 5 | T003, T004, T005, T006 | raiseEvent/handleEvents separation + subscriber stamps per Workshop 06 | [ ] Pending | [002-subtask-raiseevent-handleevents-separation.md](./tasks/phase-5-service-method-wrappers/002-subtask-raiseevent-handleevents-separation.md) |
+| 002 | 2026-02-08 | Phase 5 | T003, T004, T005, T006 | ~~raiseEvent/handleEvents separation + subscriber stamps per Workshop 06~~ | [—] Collapsed into parent dossier per WS09/ADR-0011 | ~~002-subtask-raiseevent-handleevents-separation.md~~ (collapsed — scope absorbed into regenerated [tasks.md](./tasks/phase-5-service-method-wrappers/tasks.md)) |
