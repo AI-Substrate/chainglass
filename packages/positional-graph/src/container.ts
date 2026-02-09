@@ -1,14 +1,24 @@
 import {
+  type IAgentAdapter,
   type IFileSystem,
   type IPathResolver,
   type IYamlParser,
+  ORCHESTRATION_DI_TOKENS,
   POSITIONAL_GRAPH_DI_TOKENS,
   SHARED_DI_TOKENS,
 } from '@chainglass/shared';
 import type { DependencyContainer } from 'tsyringe';
 import { PositionalGraphAdapter } from './adapter/positional-graph.adapter.js';
 import { WorkUnitAdapter, WorkUnitService } from './features/029-agentic-work-units/index.js';
+import { AgentContextService } from './features/030-orchestration/agent-context.js';
+import { ODS } from './features/030-orchestration/ods.js';
+import { ONBAS } from './features/030-orchestration/onbas.js';
+import { OrchestrationService } from './features/030-orchestration/orchestration-service.js';
+import { PodManager } from './features/030-orchestration/pod-manager.js';
+import type { IScriptRunner } from './features/030-orchestration/script-runner.types.js';
+import type { IEventHandlerService } from './features/032-node-event-system/event-handler-service.interface.js';
 import type { IWorkUnitLoader } from './interfaces/index.js';
+import type { IPositionalGraphService } from './interfaces/positional-graph-service.interface.js';
 import { PositionalGraphService } from './services/positional-graph.service.js';
 
 /**
@@ -63,6 +73,45 @@ export function registerPositionalGraphServices(container: DependencyContainer):
         POSITIONAL_GRAPH_DI_TOKENS.WORK_UNIT_LOADER
       );
       return new PositionalGraphService(fs, pathResolver, yamlParser, adapter, workUnitLoader);
+    },
+  });
+}
+
+/**
+ * Register orchestration services into a DI container.
+ *
+ * Per Plan 030 Phase 7, ADR-0009: Module registration function.
+ * Per ADR-0004: useFactory pattern only.
+ *
+ * Internal collaborators (ONBAS, ODS, PodManager, AgentContextService)
+ * are created inside the factory — NOT registered as separate tokens.
+ *
+ * Prerequisite tokens (must be registered before calling):
+ * - POSITIONAL_GRAPH_DI_TOKENS.POSITIONAL_GRAPH_SERVICE (IPositionalGraphService)
+ * - ORCHESTRATION_DI_TOKENS.AGENT_ADAPTER (IAgentAdapter)
+ * - ORCHESTRATION_DI_TOKENS.SCRIPT_RUNNER (IScriptRunner)
+ * - ORCHESTRATION_DI_TOKENS.EVENT_HANDLER_SERVICE (IEventHandlerService)
+ * - SHARED_DI_TOKENS.FILESYSTEM (IFileSystem)
+ */
+export function registerOrchestrationServices(container: DependencyContainer): void {
+  container.register(ORCHESTRATION_DI_TOKENS.ORCHESTRATION_SERVICE, {
+    useFactory: (c: DependencyContainer) => {
+      const graphService = c.resolve<IPositionalGraphService>(
+        POSITIONAL_GRAPH_DI_TOKENS.POSITIONAL_GRAPH_SERVICE
+      );
+      const agentAdapter = c.resolve<IAgentAdapter>(ORCHESTRATION_DI_TOKENS.AGENT_ADAPTER);
+      const scriptRunner = c.resolve<IScriptRunner>(ORCHESTRATION_DI_TOKENS.SCRIPT_RUNNER);
+      const eventHandlerService = c.resolve<IEventHandlerService>(
+        ORCHESTRATION_DI_TOKENS.EVENT_HANDLER_SERVICE
+      );
+      const fs = c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
+
+      const onbas = new ONBAS();
+      const contextService = new AgentContextService();
+      const podManager = new PodManager(fs);
+      const ods = new ODS({ graphService, podManager, contextService, agentAdapter, scriptRunner });
+
+      return new OrchestrationService({ graphService, onbas, ods, eventHandlerService });
     },
   });
 }

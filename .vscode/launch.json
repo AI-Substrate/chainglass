@@ -1,0 +1,16 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run Current TS File",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "/app/code-server/lib/node",
+      "runtimeArgs": ["--import", "tsx"],
+      "args": ["${file}"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    }
+  ]
+}

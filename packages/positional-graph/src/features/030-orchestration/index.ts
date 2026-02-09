@@ -162,3 +162,28 @@ export { ODS } from './ods.js';
 // ODS — Fake (Phase 6)
 export { FakeODS } from './fake-ods.js';
 export type { FakeODSCallRecord } from './fake-ods.js';
+
+// OrchestrationService — Types + interfaces (Phase 7)
+export type {
+  OrchestrationStopReason,
+  OrchestrationAction,
+  OrchestrationRunResult,
+  IGraphOrchestration,
+  IOrchestrationService,
+  FakeGraphConfig,
+} from './orchestration-service.types.js';
+
+// OrchestrationService — Implementation (Phase 7)
+export { OrchestrationService } from './orchestration-service.js';
+export type { OrchestrationServiceDeps } from './orchestration-service.js';
+
+// GraphOrchestration — Implementation (Phase 7)
+export { GraphOrchestration } from './graph-orchestration.js';
+export type { GraphOrchestrationOptions } from './graph-orchestration.js';
+
+// OrchestrationService — Fakes (Phase 7)
+export {
+  FakeOrchestrationService,
+  FakeGraphOrchestration,
+} from './fake-orchestration-service.js';
+export type { FakeGetCallRecord } from './fake-orchestration-service.js';
