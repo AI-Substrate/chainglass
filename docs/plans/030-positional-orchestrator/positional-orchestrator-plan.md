@@ -861,3 +861,4 @@ Test Doc:
 | Phase | Parent Task | Subtask | Status | Dossier |
 |-------|-------------|---------|--------|---------|
 | 7 | T007 | IEventHandlerService — graph-wide event processing (Settle phase) | Pending | `tasks/phase-7-orchestration-entry-point/subtask-event-handler-service/tasks.md` |
+| 6 | T001 | Concept drift remediation — align Plan 030/032 domains before Phase 6 | Pending | `tasks/phase-6-ods-action-handlers/001-subtask-concept-drift-remediation.md` |

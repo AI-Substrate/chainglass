@@ -3,10 +3,11 @@
 **Plan**: [../../positional-orchestrator-plan.md](../../positional-orchestrator-plan.md)
 **Spec**: [../../positional-orchestrator-spec.md](../../positional-orchestrator-spec.md)
 **Phase**: Phase 6: ODS Action Handlers
-**Status**: **BLOCKED on Plan 032** (Node Event System)
+**Status**: **STALE — Pending Archive** (see subtask below)
 **Testing Approach**: Full TDD (RED-GREEN-REFACTOR)
+**Subtasks**: [001-subtask-concept-drift-remediation](./001-subtask-concept-drift-remediation.md)
 
-> **BLOCKED**: Phase 6 is paused pending [Plan 032: Node Event System](../../../032-node-event-system/workshops/01-node-event-system.md). Plan 032 introduces a unified event protocol that changes how ODS interacts with nodes — from bespoke service method calls to typed, schema-validated events. The two-phase handshake subtask has been [superseded](subtask-two-phase-handshake/tasks.md). **Resume Phase 6 after Plan 032 completes.** This dossier and its task definitions remain valid reference material.
+> **STALE**: This dossier was written before Workshop #8, Workshop #9, and Plan 032 completion. Every major design assumption crosses the two-domain boundary identified in [Workshop #9](../../workshops/09-concept-drift-remediation.md). The subtask [001-subtask-concept-drift-remediation](./001-subtask-concept-drift-remediation.md) will archive this file and a fresh dossier will be generated via `/plan-5` after remediation completes.
 
 ---
 
