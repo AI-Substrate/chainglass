@@ -68,16 +68,21 @@ function makeStatusResult(overrides: Partial<GraphStatusResult> = {}): GraphStat
   };
 }
 
-/** Stub graphService that returns configurable status + state. */
+/** Stub graphService that returns configurable status + state and tracks persist calls. */
 function makeGraphServiceStub(
   overrides: {
     statusResult?: GraphStatusResult;
     state?: State;
+    persistCalls?: State[];
   } = {}
 ): IPositionalGraphService {
+  const persistCalls = overrides.persistCalls ?? [];
   return {
     getStatus: async () => overrides.statusResult ?? makeStatusResult(),
     loadGraphState: async () => overrides.state ?? makeState(),
+    persistGraphState: async (_ctx: WorkspaceContext, _slug: string, state: State) => {
+      persistCalls.push(structuredClone(state));
+    },
   } as unknown as IPositionalGraphService;
 }
 
@@ -273,5 +278,27 @@ describe('GraphOrchestration — run() loop', () => {
   it('graphSlug property is set', () => {
     const handle = makeHandle(deps);
     expect(handle.graphSlug).toBe('test-graph');
+  });
+
+  it('persists state after EHS settle each iteration', async () => {
+    const persistCalls: State[] = [];
+    const graphService = makeGraphServiceStub({ persistCalls });
+
+    deps = makeDeps({ graphService });
+    deps.onbas.setActions([
+      {
+        type: 'start-node',
+        graphSlug: 'test-graph',
+        nodeId: 'A',
+        inputs: { ok: true, inputs: {} },
+      },
+      { type: 'no-action', graphSlug: 'test-graph', reason: 'graph-complete' },
+    ]);
+
+    const handle = makeHandle(deps);
+    await handle.run();
+
+    // 2 iterations = 2 persist calls (one per settle)
+    expect(persistCalls).toHaveLength(2);
   });
 });

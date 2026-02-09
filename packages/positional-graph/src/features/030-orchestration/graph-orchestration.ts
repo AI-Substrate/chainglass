@@ -74,9 +74,10 @@ export class GraphOrchestration implements IGraphOrchestration {
     for (let i = 0; i < this.maxIterations; i++) {
       iterations++;
 
-      // 1. Settle: process pending events
+      // 1. Settle: process pending events and persist mutations
       const state = await this.graphService.loadGraphState(this.ctx, this.graphSlug);
       this.eventHandlerService.processGraph(state, 'orchestrator', 'cli');
+      await this.graphService.persistGraphState(this.ctx, this.graphSlug, state);
 
       // 2. Build reality snapshot
       reality = await this.buildReality();

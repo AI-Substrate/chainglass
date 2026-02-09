@@ -36,6 +36,12 @@ export class OrchestrationService implements IOrchestrationService {
     this.deps = deps;
   }
 
+  /**
+   * Get or create a per-graph orchestration handle, cached by graphSlug.
+   * The ctx from the first call is captured for the handle's lifetime.
+   * Subsequent calls with a different ctx for the same slug return the
+   * original handle bound to the first caller's ctx.
+   */
   async get(ctx: WorkspaceContext, graphSlug: string): Promise<IGraphOrchestration> {
     let handle = this.handles.get(graphSlug);
     if (!handle) {

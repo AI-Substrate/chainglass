@@ -563,26 +563,26 @@ Test Doc:
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 6.1 | [ ] | Define `IODS` interface | 1 | Interface with `execute(request, ctx): Promise<OrchestrationExecuteResult>` | - | |
-| 6.2 | [ ] | Write tests for `start-node` handler | 3 | Tests cover: create pod via PodManager, resolve context via AgentContextService, call pod.execute(), update node to running, handle all pod outcomes (completed, question, error) | - | RED |
-| 6.3 | [ ] | Implement `start-node` handler | 3 | All tests from 6.2 pass | - | GREEN |
-| 6.4 | [ ] | Write tests for `resume-node` handler | 2 | Tests cover: get pod from PodManager (with persisted session), call resumeWithAnswer(), handle outcomes | - | RED |
-| 6.5 | [ ] | Implement `resume-node` handler | 2 | All tests from 6.4 pass | - | GREEN |
-| 6.6 | [ ] | Write tests for `question-pending` handler | 2 | Tests cover: set surfaced_at timestamp, emit domain event, verify state update | - | RED |
-| 6.7 | [ ] | Implement `question-pending` handler | 1 | All tests from 6.6 pass | - | GREEN |
-| 6.8 | [ ] | Write tests for `no-action` handler | 1 | Tests prove: no state changes, no side effects | - | |
-| 6.9 | [ ] | Implement `no-action` handler | 1 | Pass-through, returns result | - | |
-| 6.10 | [ ] | Write tests for input passing to pods | 2 | Tests verify InputPack from reality reaches pod.execute() correctly (AC-14) | - | |
-| 6.11 | [ ] | Refactor and verify | 1 | `just fft` clean | - | |
+| 6.1 | [x] | Define `IODS` interface | 1 | Interface with `execute(request, ctx): Promise<OrchestrationExecuteResult>` | [T003](tasks/phase-6-ods-action-handlers/execution.log.md) | |
+| 6.2 | [x] | Write tests for `start-node` handler | 3 | Tests cover: create pod via PodManager, resolve context via AgentContextService, call pod.execute(), update node to running, handle all pod outcomes (completed, question, error) | [T005](tasks/phase-6-ods-action-handlers/execution.log.md) | RED |
+| 6.3 | [x] | Implement `start-node` handler | 3 | All tests from 6.2 pass | [T008](tasks/phase-6-ods-action-handlers/execution.log.md) | GREEN |
+| 6.4 | [x] | Write tests for `resume-node` handler | 2 | Tests cover: defensive UNSUPPORTED_REQUEST_TYPE error | [T006](tasks/phase-6-ods-action-handlers/execution.log.md) | Simplified per Workshop 11/12 |
+| 6.5 | [x] | Implement `resume-node` handler | 2 | All tests from 6.4 pass | [T008](tasks/phase-6-ods-action-handlers/execution.log.md) | Defensive stub |
+| 6.6 | [x] | Write tests for `question-pending` handler | 2 | Tests cover: defensive UNSUPPORTED_REQUEST_TYPE error | [T006](tasks/phase-6-ods-action-handlers/execution.log.md) | Simplified per Workshop 11/12 |
+| 6.7 | [x] | Implement `question-pending` handler | 1 | All tests from 6.6 pass | [T008](tasks/phase-6-ods-action-handlers/execution.log.md) | Defensive stub |
+| 6.8 | [x] | Write tests for `no-action` handler | 1 | Tests prove: no state changes, no side effects | [T006](tasks/phase-6-ods-action-handlers/execution.log.md) | |
+| 6.9 | [x] | Implement `no-action` handler | 1 | Pass-through, returns result | [T008](tasks/phase-6-ods-action-handlers/execution.log.md) | |
+| 6.10 | [x] | Write tests for input passing to pods | 2 | Tests verify InputPack from reality reaches pod.execute() correctly (AC-14) | [T007](tasks/phase-6-ods-action-handlers/execution.log.md) | |
+| 6.11 | [x] | Refactor and verify | 1 | `just fft` clean | [T009](tasks/phase-6-ods-action-handlers/execution.log.md) | |
 
 ### Acceptance Criteria
-- [ ] Each request type handled correctly (AC-6)
-- [ ] `start-node` creates pod, resolves context, executes, updates state
-- [ ] `resume-node` retrieves session, resumes with answer
-- [ ] `question-pending` sets `surfaced_at`, emits domain event
-- [ ] `no-action` has no side effects
-- [ ] Input wiring flows from reality through to pods (AC-14)
-- [ ] `just fft` clean
+- [x] Each request type handled correctly (AC-6)
+- [x] `start-node` creates pod, resolves context, executes, updates state
+- [x] `resume-node` retrieves session, resumes with answer — defensive stub per Workshop 11/12
+- [x] `question-pending` sets `surfaced_at`, emits domain event — defensive stub per Workshop 11/12
+- [x] `no-action` has no side effects
+- [x] Input wiring flows from reality through to pods (AC-14)
+- [x] `just fft` clean
 
 ---
 
@@ -616,27 +616,27 @@ Test Doc:
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 7.1 | [ ] | Add `ORCHESTRATION_DI_TOKENS` to `packages/shared/src/di-tokens.ts` | 1 | Token exists, exports correctly | - | Cross-cutting; **must complete before 7.2-7.12** |
-| 7.2 | [ ] | Define `IOrchestrationService` and `IGraphOrchestration` interfaces | 2 | Interfaces compile, match Workshop #7 spec | - | Per Workshop #7 |
-| 7.3 | [ ] | Define `OrchestrationRunResult`, `OrchestrationAction`, `OrchestrationStopReason` types | 2 | Types compile, stop reason covers: no-action, question-pending, graph-complete, graph-failed | - | Per Workshop #7 |
-| 7.4 | [ ] | Write tests for `FakeOrchestrationService` and `FakeGraphOrchestration` | 2 | Tests prove: configureGraph, run returns queued results, getReality returns configured state, getHistory tracked | - | |
-| 7.5 | [ ] | Implement `FakeOrchestrationService` and `FakeGraphOrchestration` | 2 | All tests from 7.4 pass | - | |
-| 7.6 | [ ] | Write tests for `IGraphOrchestration.run()` loop | 3 | Tests cover: single iteration, multi-iteration (start 2 nodes in one pass), stops on no-action, stops on question-pending, stops on graph-complete, max iteration guard | - | RED |
-| 7.7 | [ ] | Implement `GraphOrchestration.run()` loop | 3 | All tests from 7.6 pass. Loop: build reality → ONBAS → if actionable → ODS → record → repeat | - | GREEN |
-| 7.8 | [ ] | Write tests for `IOrchestrationService.get()` handle caching | 2 | Tests prove: same slug returns same handle, different slug returns different handle | - | |
-| 7.9 | [ ] | Implement `OrchestrationService.get()` with caching | 2 | All tests from 7.8 pass | - | |
-| 7.10 | [ ] | Add `registerOrchestrationServices()` to container | 2 | DI registration resolves IOrchestrationService correctly | - | Cross-cutting |
-| 7.11 | [ ] | Write container integration test | 2 | Container resolves service, `.get()` returns handle, `.run()` executes | - | |
-| 7.12 | [ ] | Refactor and verify | 1 | `just fft` clean | - | |
+| 7.1 | [x] | Add `ORCHESTRATION_DI_TOKENS` to `packages/shared/src/di-tokens.ts` | 1 | Token exists, exports correctly | [T001](tasks/phase-7-orchestration-entry-point/execution.log.md) | Cross-cutting; 1 public + 3 prerequisite tokens |
+| 7.2 | [x] | Define `IOrchestrationService` and `IGraphOrchestration` interfaces | 2 | Interfaces compile, match Workshop #7 spec | [T002](tasks/phase-7-orchestration-entry-point/execution.log.md) | Per Workshop #7 |
+| 7.3 | [x] | Define `OrchestrationRunResult`, `OrchestrationAction`, `OrchestrationStopReason` types | 2 | Types compile, stop reason covers: no-action, graph-complete, graph-failed | [T003](tasks/phase-7-orchestration-entry-point/execution.log.md) | Per Workshop #7; 3-value union per DYK #3 |
+| 7.4 | [x] | Write tests for `FakeOrchestrationService` and `FakeGraphOrchestration` | 2 | Tests prove: configureGraph, run returns queued results, getReality returns configured state, getHistory tracked | [T004](tasks/phase-7-orchestration-entry-point/execution.log.md) | RED |
+| 7.5 | [x] | Implement `FakeOrchestrationService` and `FakeGraphOrchestration` | 2 | All tests from 7.4 pass | [T005](tasks/phase-7-orchestration-entry-point/execution.log.md) | GREEN |
+| 7.6 | [x] | Write tests for `IGraphOrchestration.run()` loop | 3 | Tests cover: single iteration, multi-iteration, stops on no-action, stops on graph-complete, stops on graph-failed, max iteration guard | [T006](tasks/phase-7-orchestration-entry-point/execution.log.md) | RED |
+| 7.7 | [x] | Implement `GraphOrchestration.run()` loop | 3 | All tests from 7.6 pass. Loop: settle → reality → ONBAS → if actionable → ODS → record → repeat | [T007](tasks/phase-7-orchestration-entry-point/execution.log.md) | GREEN |
+| 7.8 | [x] | Write tests for `IOrchestrationService.get()` handle caching | 2 | Tests prove: same slug returns same handle, different slug returns different handle | [T008](tasks/phase-7-orchestration-entry-point/execution.log.md) | |
+| 7.9 | [x] | Implement `OrchestrationService.get()` with caching | 2 | All tests from 7.8 pass | [T009](tasks/phase-7-orchestration-entry-point/execution.log.md) | |
+| 7.10 | [x] | Add `registerOrchestrationServices()` to container | 2 | DI registration resolves IOrchestrationService correctly | [T010](tasks/phase-7-orchestration-entry-point/execution.log.md) | Cross-cutting |
+| 7.11 | [x] | Write container integration test | 2 | Container resolves service, `.get()` returns handle, `.run()` executes | [T011](tasks/phase-7-orchestration-entry-point/execution.log.md) | |
+| 7.12 | [x] | Refactor and verify | 1 | `just fft` clean | [T013](tasks/phase-7-orchestration-entry-point/execution.log.md) | |
 
 ### Acceptance Criteria
-- [ ] Two-level pattern works: service → per-graph handle (AC-10)
-- [ ] `run()` executes the full loop: reality → ONBAS → ODS → repeat (AC-11)
-- [ ] Handle caching returns same handle for same slug (AC-10)
-- [ ] FakeOrchestrationService supports pre-configured behaviors (AC-10)
-- [ ] DI registration works via `registerOrchestrationServices()` (ADR-0009)
+- [x] Two-level pattern works: service → per-graph handle (AC-10)
+- [x] `run()` executes the full loop: settle → reality → ONBAS → ODS → repeat (AC-11)
+- [x] Handle caching returns same handle for same slug (AC-10)
+- [x] FakeOrchestrationService supports pre-configured behaviors (AC-10)
+- [x] DI registration works via `registerOrchestrationServices()` (ADR-0009)
 - [x] ~~IEventHandlerService processes graph-wide events as Settle step before ONBAS~~ — **SUPERSEDED**: Delivered by Plan 032. `EventHandlerService.processGraph()` is the Settle step.
-- [ ] `just fft` clean
+- [x] `just fft` clean
 
 ---
 
@@ -739,8 +739,8 @@ Test Doc:
 - [x] Phase 3: AgentContextService - COMPLETE
 - [x] Phase 4: WorkUnitPods and PodManager - COMPLETE
 - [x] Phase 5: ONBAS Walk Algorithm - COMPLETE
-- [ ] Phase 6: ODS Action Handlers - READY (Plan 032 complete, blocker resolved)
-- [ ] Phase 7: Orchestration Entry Point - Pending (awaiting Phase 6)
+- [x] Phase 6: ODS Action Handlers - COMPLETE
+- [x] Phase 7: Orchestration Entry Point - COMPLETE
 - [ ] Phase 8: E2E and Integration Testing - Pending (awaiting Phase 7)
 
 ### STOP Rule
@@ -855,6 +855,49 @@ Test Doc:
 
 [^21]: Phase 5 Task 5.9 (T009) - Barrel index update with Phase 5 exports
   - `file:packages/positional-graph/src/features/030-orchestration/index.ts`
+
+[^22]: Phase 6 Task 6.1 (T001+T002) - ONBAS simplification (remove question production per Workshop 11/12)
+  - `function:packages/positional-graph/src/features/030-orchestration/onbas.ts:walkForNextAction`
+  - `file:test/unit/positional-graph/features/030-orchestration/onbas.test.ts`
+
+[^23]: Phase 6 Task 6.1 (T003) - IODS interface and ODSDependencies
+  - `file:packages/positional-graph/src/features/030-orchestration/ods.types.ts`
+
+[^24]: Phase 6 Task 6.2-6.10 (T004-T008) - FakeODS, ODS tests + implementation
+  - `class:packages/positional-graph/src/features/030-orchestration/fake-ods.ts:FakeODS`
+  - `class:packages/positional-graph/src/features/030-orchestration/ods.ts:ODS`
+  - `file:test/unit/positional-graph/features/030-orchestration/ods.test.ts`
+
+[^25]: Phase 6 Task 6.11 (T009) - Barrel index update with Phase 6 exports
+  - `file:packages/positional-graph/src/features/030-orchestration/index.ts`
+
+[^26]: Phase 7 Task 7.1 (T001) - ORCHESTRATION_DI_TOKENS (1 public + 3 prerequisite)
+  - `file:packages/shared/src/di-tokens.ts`
+
+[^27]: Phase 7 Task 7.2+7.3 (T002+T003) - Orchestration service types, interfaces, and result types
+  - `file:packages/positional-graph/src/features/030-orchestration/orchestration-service.types.ts`
+
+[^28]: Phase 7 Task 7.4+7.5 (T004+T005) - FakeOrchestrationService + FakeGraphOrchestration
+  - `class:packages/positional-graph/src/features/030-orchestration/fake-orchestration-service.ts:FakeOrchestrationService`
+  - `class:packages/positional-graph/src/features/030-orchestration/fake-orchestration-service.ts:FakeGraphOrchestration`
+  - `file:test/unit/positional-graph/features/030-orchestration/fake-orchestration-service.test.ts`
+
+[^29]: Phase 7 Task 7.6+7.7 (T006+T007) - GraphOrchestration loop tests + implementation
+  - `class:packages/positional-graph/src/features/030-orchestration/graph-orchestration.ts:GraphOrchestration`
+  - `file:test/unit/positional-graph/features/030-orchestration/graph-orchestration.test.ts`
+
+[^30]: Phase 7 Task 7.8+7.9 (T008+T009) - OrchestrationService caching tests + implementation
+  - `class:packages/positional-graph/src/features/030-orchestration/orchestration-service.ts:OrchestrationService`
+  - `file:test/unit/positional-graph/features/030-orchestration/orchestration-service.test.ts`
+
+[^31]: Phase 7 Task 7.10+7.11 (T010+T011) - Container registration + integration test
+  - `file:packages/positional-graph/src/container.ts`
+  - `file:test/unit/positional-graph/features/030-orchestration/container-orchestration.test.ts`
+
+[^32]: Phase 7 Task 7.12 (T012) - Barrel index updates
+  - `file:packages/positional-graph/src/features/030-orchestration/index.ts`
+  - `file:packages/positional-graph/src/index.ts`
+  - `file:packages/shared/src/index.ts`
 
 ---
 

@@ -223,3 +223,23 @@ Ran `just fft`:
 
 **Test totals**: 24 new tests (7 + 11 + 3 + 3), all passing.
 
+---
+
+## Post-Review Fix: QS-001 — Missing state persistence after EHS settle
+
+**Status**: Complete
+**Date**: 2026-02-10
+
+**Issue**: Code review (plan-7-code-review) identified that `GraphOrchestration.run()` did not call `persistGraphState()` after `eventHandlerService.processGraph()` mutated state in memory. The Plan 032 E2E script (`node-event-system-visual-e2e.ts:437-456`) shows the correct load→mutate→persist→reload pattern. Without persistence, EHS state mutations (event stamps, status transitions) were silently discarded each iteration.
+
+**Fix (TDD)**:
+1. RED: Added test `persists state after EHS settle each iteration` — expected 2 persist calls for 2 iterations, got 0.
+2. GREEN: Added `await this.graphService.persistGraphState(this.ctx, this.graphSlug, state)` after `processGraph()` in `graph-orchestration.ts`.
+3. All 227 orchestration tests pass (12 in graph-orchestration.test.ts, including new test).
+
+**Also fixed**:
+- DOC-001: Added JSDoc to `OrchestrationService.get()` documenting ctx-binding semantics.
+- BK-001: Updated Phase 6+7 task statuses in plan from `[ ]` to `[x]`.
+- BK-002: Added Change Footnotes [^22]-[^32] for Phases 6 and 7.
+- BK-004: Updated Progress Tracking to show Phase 6+7 as COMPLETE.
+

@@ -58,6 +58,7 @@ const statusResult: GraphStatusResult = {
 const graphService = {
   getStatus: async () => statusResult,
   loadGraphState: async () => state,
+  persistGraphState: async () => {},
 } as unknown as IPositionalGraphService;
 
 // ──────────────────────────────────────────────────────────────────────
