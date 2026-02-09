@@ -2,9 +2,9 @@
 Test Doc:
 - Why: ONBAS is the decision engine that determines the next action from a graph snapshot (AC-3, AC-4)
 - Contract: walkForNextAction is pure, synchronous, stateless; walks lines 0→N, nodes by position;
-            returns first actionable OrchestrationRequest; handles all 6 node statuses and 3 question sub-states
+            returns first actionable OrchestrationRequest; waiting-question always skips (event-based lifecycle per Workshop 12)
 - Usage Notes: Import walkForNextAction from onbas.ts; pass a PositionalGraphReality; get an OrchestrationRequest
-- Quality Contribution: Prevents walk order bugs, missed question states, incorrect no-action reasons
+- Quality Contribution: Prevents walk order bugs, incorrect no-action reasons; confirms question lifecycle is fully event-driven
 - Worked Example: buildFakeReality({ nodes: [{ nodeId: 'A', status: 'ready' }] }) → walkForNextAction → { type: 'start-node', nodeId: 'A' }
 */
 
@@ -290,219 +290,65 @@ describe('walkForNextAction — multi-line walk order', () => {
 });
 
 // ═══════════════════════════════════════════════════════
-// T004: Question handling tests
+// T004: Waiting-question skip behavior (Workshop 12 — event-based lifecycle)
 // ═══════════════════════════════════════════════════════
 
-describe('walkForNextAction — question handling', () => {
-  it('unsurfaced question → question-pending', () => {
+describe('walkForNextAction — waiting-question skip', () => {
+  it('waiting-question node is always skipped regardless of question state', () => {
     const reality = buildFakeReality({
       nodes: [
-        {
-          nodeId: 'A',
-          status: 'waiting-question',
-          pendingQuestionId: 'q1',
-        },
+        { nodeId: 'A', status: 'waiting-question', pendingQuestionId: 'q1', positionInLine: 0 },
+        { nodeId: 'B', status: 'ready', positionInLine: 1 },
+      ],
+      questions: [
+        { questionId: 'q1', nodeId: 'A', isSurfaced: true, isAnswered: true, answer: 'blue' },
+      ],
+      lines: [{ nodeIds: ['A', 'B'] }],
+    });
+
+    const result = walkForNextAction(reality);
+
+    // Even with an answered question, ONBAS skips — question lifecycle is event-driven
+    expect(result).toMatchObject({ type: 'start-node', nodeId: 'B' });
+  });
+
+  it('waiting-question with unsurfaced question is skipped', () => {
+    const reality = buildFakeReality({
+      nodes: [
+        { nodeId: 'A', status: 'waiting-question', pendingQuestionId: 'q1', positionInLine: 0 },
+        { nodeId: 'B', status: 'ready', positionInLine: 1 },
       ],
       questions: [
         {
           questionId: 'q1',
           nodeId: 'A',
-          text: 'What color?',
+          text: 'What?',
           questionType: 'text',
           isSurfaced: false,
           isAnswered: false,
         },
       ],
+      lines: [{ nodeIds: ['A', 'B'] }],
+    });
+
+    const result = walkForNextAction(reality);
+
+    expect(result).toMatchObject({ type: 'start-node', nodeId: 'B' });
+  });
+
+  it('sole waiting-question node on incomplete line → all-waiting', () => {
+    const reality = buildFakeReality({
+      nodes: [{ nodeId: 'A', status: 'waiting-question', pendingQuestionId: 'q1' }],
+      questions: [{ questionId: 'q1', nodeId: 'A', isSurfaced: true, isAnswered: false }],
+      lines: [{ nodeIds: ['A'], isComplete: false }],
     });
 
     const result = walkForNextAction(reality);
 
     expect(result).toEqual({
-      type: 'question-pending',
+      type: 'no-action',
       graphSlug: 'test-graph',
-      nodeId: 'A',
-      questionId: 'q1',
-      questionText: 'What color?',
-      questionType: 'text',
-    });
-  });
-
-  it('surfaced + unanswered → skip (null, continue walk)', () => {
-    const reality = buildFakeReality({
-      nodes: [
-        { nodeId: 'A', status: 'waiting-question', pendingQuestionId: 'q1', positionInLine: 0 },
-        { nodeId: 'B', status: 'ready', positionInLine: 1 },
-      ],
-      questions: [
-        {
-          questionId: 'q1',
-          nodeId: 'A',
-          isSurfaced: true,
-          isAnswered: false,
-        },
-      ],
-      lines: [{ nodeIds: ['A', 'B'] }],
-    });
-
-    const result = walkForNextAction(reality);
-
-    // A is surfaced+unanswered → skip, B is ready → start B
-    expect(result).toMatchObject({ type: 'start-node', nodeId: 'B' });
-  });
-
-  it('answered question → resume-node', () => {
-    const reality = buildFakeReality({
-      nodes: [
-        {
-          nodeId: 'A',
-          status: 'waiting-question',
-          pendingQuestionId: 'q1',
-        },
-      ],
-      questions: [
-        {
-          questionId: 'q1',
-          nodeId: 'A',
-          isSurfaced: true,
-          isAnswered: true,
-          answer: 'blue',
-        },
-      ],
-    });
-
-    const result = walkForNextAction(reality);
-
-    expect(result).toEqual({
-      type: 'resume-node',
-      graphSlug: 'test-graph',
-      nodeId: 'A',
-      questionId: 'q1',
-      answer: 'blue',
-    });
-  });
-
-  it('answered question is prioritized over ready node on same line', () => {
-    const reality = buildFakeReality({
-      nodes: [
-        { nodeId: 'A', status: 'waiting-question', pendingQuestionId: 'q1', positionInLine: 0 },
-        { nodeId: 'B', status: 'ready', positionInLine: 1 },
-      ],
-      questions: [
-        {
-          questionId: 'q1',
-          nodeId: 'A',
-          isSurfaced: true,
-          isAnswered: true,
-          answer: 'yes',
-        },
-      ],
-      lines: [{ nodeIds: ['A', 'B'] }],
-    });
-
-    const result = walkForNextAction(reality);
-
-    // A is at position 0 and has answered question → resume A, not start B
-    expect(result).toMatchObject({ type: 'resume-node', nodeId: 'A' });
-  });
-
-  it('missing question (no pendingQuestionId match) → skip (defensive)', () => {
-    const reality = buildFakeReality({
-      nodes: [
-        {
-          nodeId: 'A',
-          status: 'waiting-question',
-          pendingQuestionId: 'q-missing',
-          positionInLine: 0,
-        },
-        { nodeId: 'B', status: 'ready', positionInLine: 1 },
-      ],
-      questions: [],
-      lines: [{ nodeIds: ['A', 'B'] }],
-    });
-
-    const result = walkForNextAction(reality);
-
-    // A has missing question → skip, B is ready → start B
-    expect(result).toMatchObject({ type: 'start-node', nodeId: 'B' });
-  });
-
-  it('node with no pendingQuestionId but waiting-question status → skip (defensive)', () => {
-    const reality = buildFakeReality({
-      nodes: [
-        { nodeId: 'A', status: 'waiting-question', positionInLine: 0 },
-        { nodeId: 'B', status: 'ready', positionInLine: 1 },
-      ],
-      questions: [],
-      lines: [{ nodeIds: ['A', 'B'] }],
-    });
-
-    const result = walkForNextAction(reality);
-
-    // No pendingQuestionId → skip, B is ready → start B
-    expect(result).toMatchObject({ type: 'start-node', nodeId: 'B' });
-  });
-
-  it('question-pending includes options mapped from QuestionOption to string[]', () => {
-    const reality = buildFakeReality({
-      nodes: [
-        {
-          nodeId: 'A',
-          status: 'waiting-question',
-          pendingQuestionId: 'q1',
-        },
-      ],
-      questions: [
-        {
-          questionId: 'q1',
-          nodeId: 'A',
-          text: 'Pick one',
-          questionType: 'single',
-          options: [
-            { key: 'a', label: 'Option A' },
-            { key: 'b', label: 'Option B' },
-          ],
-          isSurfaced: false,
-          isAnswered: false,
-        },
-      ],
-    });
-
-    const result = walkForNextAction(reality);
-
-    // DYK-I1: options must be mapped from QuestionOption[] to string[] (label extraction)
-    expect(result).toMatchObject({
-      type: 'question-pending',
-      options: ['Option A', 'Option B'],
-    });
-  });
-
-  it('question-pending includes defaultValue when present', () => {
-    const reality = buildFakeReality({
-      nodes: [
-        {
-          nodeId: 'A',
-          status: 'waiting-question',
-          pendingQuestionId: 'q1',
-        },
-      ],
-      questions: [
-        {
-          questionId: 'q1',
-          nodeId: 'A',
-          text: 'Continue?',
-          questionType: 'confirm',
-          defaultValue: true,
-          isSurfaced: false,
-          isAnswered: false,
-        },
-      ],
-    });
-
-    const result = walkForNextAction(reality);
-
-    expect(result).toMatchObject({
-      type: 'question-pending',
-      defaultValue: true,
+      reason: 'all-waiting',
     });
   });
 });
@@ -552,7 +398,7 @@ describe('walkForNextAction — no-action scenarios', () => {
     });
   });
 
-  it('surfaced-awaiting on incomplete line → all-waiting', () => {
+  it('waiting-question on incomplete line → all-waiting', () => {
     const reality = buildFakeReality({
       nodes: [{ nodeId: 'A', status: 'waiting-question', pendingQuestionId: 'q1' }],
       questions: [
@@ -687,20 +533,7 @@ describe('walkForNextAction — skip logic', () => {
     expect(result.type).toBe('start-node');
   });
 
-  it('waiting-question with answered question is not skipped — returns resume-node', () => {
-    const reality = buildFakeReality({
-      nodes: [{ nodeId: 'A', status: 'waiting-question', pendingQuestionId: 'q1' }],
-      questions: [
-        { questionId: 'q1', nodeId: 'A', isSurfaced: true, isAnswered: true, answer: 42 },
-      ],
-    });
-
-    const result = walkForNextAction(reality);
-
-    expect(result.type).toBe('resume-node');
-  });
-
-  it('surfaced-unanswered question IS skipped', () => {
+  it('waiting-question is always skipped (event-driven lifecycle)', () => {
     const reality = buildFakeReality({
       nodes: [
         { nodeId: 'A', status: 'waiting-question', pendingQuestionId: 'q1', positionInLine: 0 },

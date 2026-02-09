@@ -3,7 +3,7 @@
 **Plan**: [positional-orchestrator-plan.md](../../positional-orchestrator-plan.md)
 **Phase**: Phase 6: ODS Action Handlers
 **Generated**: 2026-02-09
-**Status**: Ready for takeoff
+**Status**: Landed
 
 ---
 
@@ -47,7 +47,7 @@ stateDiagram-v2
     S8 --> S9
     S9 --> [*]
 
-    class S1,S2,S3,S4,S5,S6,S7,S8,S9 pending
+    class S1,S2,S3,S4,S5,S6,S7,S8,S9 done
 ```
 
 **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -58,15 +58,15 @@ stateDiagram-v2
 
 <!-- Updated by /plan-6 during implementation: [ ] -> [~] -> [x] -->
 
-- [ ] **Stage 1: Simplify ONBAS walk** — remove `visitWaitingQuestion()`, make `waiting-question` a skip case (`onbas.ts`)
-- [ ] **Stage 2: Update ONBAS tests** — remove question-production suites, add skip-behavior test, verify all non-question tests pass (`onbas.test.ts`)
-- [ ] **Stage 3: Define IODS interface** — `execute(request, ctx, reality)` signature with `ODSDependencies` type (`ods.types.ts` — new file)
-- [ ] **Stage 4: Create FakeODS** — test double with `getHistory()`, `setNextResult()`, `reset()` helpers (`fake-ods.ts` — new file)
-- [ ] **Stage 5: Write start-node tests** — agent path, code path, user-input no-op, readiness validation, startNode failure (`ods.test.ts` — new file)
-- [ ] **Stage 6: Write dispatch tests** — no-action pass-through, defensive errors for resume-node/question-pending (`ods.test.ts`)
-- [ ] **Stage 7: Write input wiring tests** — verify InputPack flows from request to pod.execute() (`ods.test.ts`)
-- [ ] **Stage 8: Implement ODS** — dispatch table + `handleStartNode()`, all tests pass (`ods.ts` — new file)
-- [ ] **Stage 9: Update barrel exports** — add IODS, ODS, FakeODS to barrel index, run `just fft` (`index.ts`)
+- [x] **Stage 1: Simplify ONBAS walk** — remove `visitWaitingQuestion()`, make `waiting-question` a skip case (`onbas.ts`)
+- [x] **Stage 2: Update ONBAS tests** — remove question-production suites, add skip-behavior test, verify all non-question tests pass (`onbas.test.ts`)
+- [x] **Stage 3: Define IODS interface** — `execute(request, ctx, reality)` signature with `ODSDependencies` type (`ods.types.ts` — new file)
+- [x] **Stage 4: Create FakeODS** — test double with `getHistory()`, `setNextResult()`, `reset()` helpers (`fake-ods.ts` — new file)
+- [x] **Stage 5: Write start-node tests** — agent path, code path, user-input no-op, readiness validation, startNode failure (`ods.test.ts` — new file)
+- [x] **Stage 6: Write dispatch tests** — no-action pass-through, defensive errors for resume-node/question-pending (`ods.test.ts`)
+- [x] **Stage 7: Write input wiring tests** — verify InputPack flows from request to pod.execute() (`ods.test.ts`)
+- [x] **Stage 8: Implement ODS** — dispatch table + `handleStartNode()`, all tests pass (`ods.ts` — new file)
+- [x] **Stage 9: Update barrel exports** — add IODS, ODS, FakeODS to barrel index, run `just fft` (`index.ts`)
 
 ---
 
@@ -115,12 +115,12 @@ flowchart LR
 
 ## Acceptance Criteria
 
-- [ ] Each request type handled correctly (AC-6): `start-node` creates pod and launches, `no-action` is pass-through, `resume-node`/`question-pending` return defensive errors
-- [ ] `start-node` validates readiness, transitions state via `startNode()`, resolves context, creates pod, fires execution
-- [ ] User-input nodes return ok without pod creation
-- [ ] Input wiring flows from request.inputs through to pod.execute() (AC-14)
-- [ ] ONBAS only produces `start-node` and `no-action` after simplification (Workshop 11/12)
-- [ ] `just fft` clean
+- [x] Each request type handled correctly (AC-6): `start-node` creates pod and launches, `no-action` is pass-through, `resume-node`/`question-pending` return defensive errors
+- [x] `start-node` validates readiness, transitions state via `startNode()`, resolves context, creates pod, fires execution
+- [x] User-input nodes return ok without pod creation
+- [x] Input wiring flows from request.inputs through to pod.execute() (AC-14)
+- [x] ONBAS only produces `start-node` and `no-action` after simplification (Workshop 11/12)
+- [x] `just fft` clean
 
 ## Goals & Non-Goals
 
@@ -144,15 +144,15 @@ flowchart LR
 
 ## Checklist
 
-- [ ] T001: Remove visitWaitingQuestion from ONBAS (CS-2)
-- [ ] T002: Update ONBAS tests for simplified walk (CS-2)
-- [ ] T003: Define IODS interface and ODSDependencies (CS-1)
-- [ ] T004: Create FakeODS with test helpers (CS-2)
-- [ ] T005: Write start-node handler tests (CS-3)
-- [ ] T006: Write dispatch + edge case tests (CS-2)
-- [ ] T007: Write input wiring tests (CS-2)
-- [ ] T008: Implement ODS with dispatch table (CS-3)
-- [ ] T009: Update barrel index with ODS exports (CS-1)
+- [x] T001: Remove visitWaitingQuestion from ONBAS (CS-2)
+- [x] T002: Update ONBAS tests for simplified walk (CS-2)
+- [x] T003: Define IODS interface and ODSDependencies (CS-1)
+- [x] T004: Create FakeODS with test helpers (CS-2)
+- [x] T005: Write start-node handler tests (CS-3)
+- [x] T006: Write dispatch + edge case tests (CS-2)
+- [x] T007: Write input wiring tests (CS-2)
+- [x] T008: Implement ODS with dispatch table (CS-3)
+- [x] T009: Update barrel index with ODS exports (CS-1)
 
 ---
 

@@ -4,7 +4,7 @@
  * Pure, synchronous, stateless rules engine.
  * Walks the graph snapshot and returns the next best action.
  *
- * Per Workshop #5: walkForNextAction + visitNode + visitWaitingQuestion + diagnoseStuckLine.
+ * Per Workshop #5: walkForNextAction + visitNode + diagnoseStuckLine.
  *
  * @packageDocumentation
  */
@@ -85,7 +85,7 @@ function visitNode(
       return null;
 
     case 'waiting-question':
-      return visitWaitingQuestion(reality, node);
+      return null;
 
     case 'blocked-error':
       return null;
@@ -104,54 +104,6 @@ function visitNode(
     default:
       return null;
   }
-}
-
-// ── visitWaitingQuestion ────────────────────────────
-
-function visitWaitingQuestion(
-  reality: PositionalGraphReality,
-  node: NodeReality
-): OrchestrationRequest | null {
-  const { graphSlug } = reality;
-
-  // Find the pending question
-  const question = node.pendingQuestionId
-    ? reality.questions.find((q) => q.questionId === node.pendingQuestionId)
-    : undefined;
-
-  // Defensive: no question found
-  if (!question) {
-    return null;
-  }
-
-  // Sub-state 1: Question has been answered
-  if (question.isAnswered) {
-    return {
-      type: 'resume-node',
-      graphSlug,
-      nodeId: node.nodeId,
-      questionId: question.questionId,
-      answer: question.answer,
-    };
-  }
-
-  // Sub-state 2: Question not yet surfaced to user
-  if (!question.isSurfaced) {
-    return {
-      type: 'question-pending',
-      graphSlug,
-      nodeId: node.nodeId,
-      questionId: question.questionId,
-      questionText: question.text,
-      questionType: question.questionType,
-      // DYK-I1: Map QuestionOption[] to string[] (extract label)
-      options: question.options?.map((o) => o.label),
-      defaultValue: question.defaultValue,
-    };
-  }
-
-  // Sub-state 3: Question surfaced, waiting for user answer — skip
-  return null;
 }
 
 // ── diagnoseStuckLine ───────────────────────────────

@@ -152,3 +152,13 @@ export type {
   FakeNodeInput,
   FakeQuestionInput,
 } from './fake-onbas.js';
+
+// ODS — Interface + types (Phase 6)
+export type { IODS, ODSDependencies } from './ods.types.js';
+
+// ODS — Implementation (Phase 6)
+export { ODS } from './ods.js';
+
+// ODS — Fake (Phase 6)
+export { FakeODS } from './fake-ods.js';
+export type { FakeODSCallRecord } from './fake-ods.js';

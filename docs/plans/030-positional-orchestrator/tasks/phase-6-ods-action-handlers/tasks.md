@@ -144,19 +144,19 @@ flowchart TD
     style Files fill:#F5F5F5,stroke:#E0E0E0
 
     subgraph Sub002["Subtask 002: ONBAS Simplification"]
-        T001["T001: Remove visitWaitingQuestion"]:::pending
-        T002["T002: Update ONBAS tests"]:::pending
+        T001["T001: Remove visitWaitingQuestion"]:::completed
+        T002["T002: Update ONBAS tests"]:::completed
         T001 --> T002
     end
 
     subgraph ODS["ODS Implementation"]
-        T003["T003: IODS interface"]:::pending
-        T004["T004: FakeODS"]:::pending
-        T005["T005: Start-node tests (RED)"]:::pending
-        T006["T006: Dispatch + edge tests (RED)"]:::pending
-        T007["T007: Input wiring tests (RED)"]:::pending
-        T008["T008: ODS implementation (GREEN)"]:::pending
-        T009["T009: Update barrel index"]:::pending
+        T003["T003: IODS interface"]:::completed
+        T004["T004: FakeODS"]:::completed
+        T005["T005: Start-node tests (RED)"]:::completed
+        T006["T006: Dispatch + edge tests (RED)"]:::completed
+        T007["T007: Input wiring tests (RED)"]:::completed
+        T008["T008: ODS implementation (GREEN)"]:::completed
+        T009["T009: Update barrel index"]:::completed
 
         T003 --> T004
         T004 --> T005
@@ -169,13 +169,13 @@ flowchart TD
     T002 --> T003
 
     subgraph Files["Files"]
-        F1["onbas.ts"]:::pending
-        F2["onbas.test.ts"]:::pending
-        F3["ods.types.ts"]:::pending
-        F4["fake-ods.ts"]:::pending
-        F5["ods.test.ts"]:::pending
-        F6["ods.ts"]:::pending
-        F7["index.ts"]:::pending
+        F1["onbas.ts"]:::completed
+        F2["onbas.test.ts"]:::completed
+        F3["ods.types.ts"]:::completed
+        F4["fake-ods.ts"]:::completed
+        F5["ods.test.ts"]:::completed
+        F6["ods.ts"]:::completed
+        F7["index.ts"]:::completed
     end
 
     T001 -.-> F1
@@ -195,15 +195,15 @@ flowchart TD
 
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
-| T001 | ONBAS Simplification | onbas.ts | Pending | Remove visitWaitingQuestion, simplify waiting-question to skip |
-| T002 | ONBAS Tests | onbas.test.ts | Pending | Remove question-specific test suites, verify simplified walk |
-| T003 | IODS Interface | ods.types.ts | Pending | Interface + ODSDependencies type |
-| T004 | FakeODS | fake-ods.ts | Pending | Test double with getHistory/setNextResult/reset |
-| T005 | ODS Tests (start-node) | ods.test.ts | Pending | Agent path, code path, user-input no-op, readiness check |
-| T006 | ODS Tests (dispatch) | ods.test.ts | Pending | No-action pass-through, defensive errors, exhaustive check |
-| T007 | ODS Tests (inputs) | ods.test.ts | Pending | AC-14 input wiring verification |
-| T008 | ODS Implementation | ods.ts | Pending | Dispatch table + handleStartNode |
-| T009 | Barrel Exports | index.ts | Pending | Add IODS, ODS, FakeODS exports |
+| T001 | ONBAS Simplification | onbas.ts | Complete | Remove visitWaitingQuestion, simplify waiting-question to skip |
+| T002 | ONBAS Tests | onbas.test.ts | Complete | Remove question-specific test suites, verify simplified walk |
+| T003 | IODS Interface | ods.types.ts | Complete | Interface + ODSDependencies type |
+| T004 | FakeODS | fake-ods.ts | Complete | Test double with getHistory/setNextResult/reset |
+| T005 | ODS Tests (start-node) | ods.test.ts | Complete | Agent path, code path, user-input no-op, readiness check |
+| T006 | ODS Tests (dispatch) | ods.test.ts | Complete | No-action pass-through, defensive errors, exhaustive check |
+| T007 | ODS Tests (inputs) | ods.test.ts | Complete | AC-14 input wiring verification |
+| T008 | ODS Implementation | ods.ts | Complete | Dispatch table + handleStartNode |
+| T009 | Barrel Exports | index.ts | Complete | Add IODS, ODS, FakeODS exports |
 
 ---
 
@@ -211,15 +211,15 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|------|------|-----|------|--------------|-------------------|------------|----------|-------|
-| [ ] | T001 | Remove `visitWaitingQuestion()` from ONBAS — simplify `waiting-question` case to `return null` | 2 | Core | – | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/030-orchestration/onbas.ts` | ONBAS never produces `resume-node` or `question-pending`; `waiting-question` nodes skipped | – | Subtask 002 per Workshop 11 Part 13 |
-| [ ] | T002 | Update ONBAS tests — remove question-specific suites, add tests that `waiting-question` is skipped | 2 | Test | T001 | `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/features/030-orchestration/onbas.test.ts` | All existing non-question tests still pass; new test confirms skip behavior; `just fft` clean | – | Subtask 002 per Workshop 11 Part 13 |
-| [ ] | T003 | Define `IODS` interface and `ODSDependencies` type | 1 | Setup | T002 | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/030-orchestration/ods.types.ts` | Interface has `execute(request, ctx, reality): Promise<OrchestrationExecuteResult>` | – | Per Workshop 12 Part 2; ADR-0011 |
-| [ ] | T004 | Create `FakeODS` with standard test helpers | 2 | Setup | T003 | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/030-orchestration/fake-ods.ts` | FakeODS implements IODS; has `getHistory()`, `setNextResult()`, `reset()` | – | Per ADR-0011 fake pattern |
-| [ ] | T005 | Write `start-node` handler tests (agent path, code path, user-input no-op, readiness validation, startNode failure) | 3 | Test | T004 | `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/features/030-orchestration/ods.test.ts` | Tests cover: agent pod creation + execute, code pod creation + execute, user-input returns ok without pod, node.ready=false returns NODE_NOT_READY, startNode() failure returns START_NODE_FAILED | – | RED phase; uses FakePodManager, FakeAgentContextService, inline startNode stub |
-| [ ] | T006 | Write dispatch table + edge case tests (no-action, defensive errors, exhaustive check) | 2 | Test | T004 | `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/features/030-orchestration/ods.test.ts` | Tests cover: no-action returns {ok:true}, resume-node returns UNSUPPORTED_REQUEST_TYPE, question-pending returns UNSUPPORTED_REQUEST_TYPE | – | RED phase |
-| [ ] | T007 | Write input wiring tests verifying InputPack flows from request to pod.execute() | 2 | Test | T004 | `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/features/030-orchestration/ods.test.ts` | FakePodManager captures pod.execute() call args; inputs match request.inputs (AC-14) | – | RED phase |
-| [ ] | T008 | Implement ODS with dispatch table and handleStartNode | 3 | Core | T005, T006, T007 | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/030-orchestration/ods.ts` | All tests from T005-T007 pass; dispatch table handles all 4 request types; fire-and-forget execution | – | GREEN phase; per Workshop 12 Part 8 |
-| [ ] | T009 | Update barrel index with ODS exports (IODS, ODS, FakeODS) | 1 | Setup | T008 | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/030-orchestration/index.ts` | Exports accessible from `030-orchestration/index.ts`; `just fft` clean | – | – |
+| [x] | T001 | Remove `visitWaitingQuestion()` from ONBAS — simplify `waiting-question` case to `return null` | 2 | Core | – | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/030-orchestration/onbas.ts` | ONBAS never produces `resume-node` or `question-pending`; `waiting-question` nodes skipped | – | Subtask 002 per Workshop 11 Part 13 |
+| [x] | T002 | Update ONBAS tests — remove question-specific suites, add tests that `waiting-question` is skipped | 2 | Test | T001 | `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/features/030-orchestration/onbas.test.ts` | All existing non-question tests still pass; new test confirms skip behavior; `just fft` clean | – | Subtask 002 per Workshop 11 Part 13 |
+| [x] | T003 | Define `IODS` interface and `ODSDependencies` type | 1 | Setup | T002 | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/030-orchestration/ods.types.ts` | Interface has `execute(request, ctx, reality): Promise<OrchestrationExecuteResult>` | – | Per Workshop 12 Part 2; ADR-0011 |
+| [x] | T004 | Create `FakeODS` with standard test helpers | 2 | Setup | T003 | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/030-orchestration/fake-ods.ts` | FakeODS implements IODS; has `getHistory()`, `setNextResult()`, `reset()` | – | Per ADR-0011 fake pattern |
+| [x] | T005 | Write `start-node` handler tests (agent path, code path, user-input no-op, readiness validation, startNode failure) | 3 | Test | T004 | `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/features/030-orchestration/ods.test.ts` | Tests cover: agent pod creation + execute, code pod creation + execute, user-input returns ok without pod, node.ready=false returns NODE_NOT_READY, startNode() failure returns START_NODE_FAILED | – | RED phase; uses FakePodManager, FakeAgentContextService, inline startNode stub |
+| [x] | T006 | Write dispatch table + edge case tests (no-action, defensive errors, exhaustive check) | 2 | Test | T004 | `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/features/030-orchestration/ods.test.ts` | Tests cover: no-action returns {ok:true}, resume-node returns UNSUPPORTED_REQUEST_TYPE, question-pending returns UNSUPPORTED_REQUEST_TYPE | – | RED phase |
+| [x] | T007 | Write input wiring tests verifying InputPack flows from request to pod.execute() | 2 | Test | T004 | `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/features/030-orchestration/ods.test.ts` | FakePodManager captures pod.execute() call args; inputs match request.inputs (AC-14) | – | RED phase |
+| [x] | T008 | Implement ODS with dispatch table and handleStartNode | 3 | Core | T005, T006, T007 | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/030-orchestration/ods.ts` | All tests from T005-T007 pass; dispatch table handles all 4 request types; fire-and-forget execution | – | GREEN phase; per Workshop 12 Part 8 |
+| [x] | T009 | Update barrel index with ODS exports (IODS, ODS, FakeODS) | 1 | Setup | T008 | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/030-orchestration/index.ts` | Exports accessible from `030-orchestration/index.ts`; `just fft` clean | – | – |
 
 ---
 
@@ -454,7 +454,8 @@ _Populated during implementation by plan-6. Log anything of interest to your fut
 
 | Date | Task | Type | Discovery | Resolution | References |
 |------|------|------|-----------|------------|------------|
-| | | | | | |
+| 2026-02-09 | T008 | gotcha | ODSDependencies needed 5 deps not 3 — Workshop 12's "Three dependencies. That's all." didn't account for `PodCreateParams` requiring `agentAdapter` and `scriptRunner` | Added `agentAdapter: IAgentAdapter` and `scriptRunner: IScriptRunner` to ODSDependencies; updated all test constructions | Workshop 12 Part 2 vs `pod-manager.types.ts` PodCreateParams |
+| 2026-02-09 | T009 | insight | Plan 032 `event-id.test.ts` has a flaky uniqueness test (99 unique out of 100) — not related to Phase 6 but shows up in `just fft` runs occasionally | No action needed for Phase 6; Plan 032 should address the flaky test | `test/unit/positional-graph/features/032-node-event-system/event-id.test.ts:71` |
 
 **Types**: `gotcha` | `research-needed` | `unexpected-behavior` | `workaround` | `decision` | `debt` | `insight`
 
