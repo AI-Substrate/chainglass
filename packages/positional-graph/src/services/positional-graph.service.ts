@@ -1047,8 +1047,10 @@ export class PositionalGraphService implements IPositionalGraphService {
     let status: import('../interfaces/index.js').ExecutionStatus;
 
     if (storedState) {
-      // Stored status takes precedence
-      status = storedState.status;
+      // Stored status takes precedence; restart-pending maps to ready
+      // (convention-based contract: handler sets restart-pending, reality
+      // builder exposes as ready, ONBAS returns start-node)
+      status = storedState.status === 'restart-pending' ? 'ready' : storedState.status;
     } else {
       // Computed: pending or ready
       status = canRunResult.canRun ? 'ready' : 'pending';
@@ -1817,13 +1819,13 @@ export class PositionalGraphService implements IPositionalGraphService {
       return { errors: nodeResult.errors };
     }
 
-    // Transition to starting (valid from pending only - ready is computed, not stored)
+    // Transition to starting (valid from pending or restart-pending - ready is computed, not stored)
     const transition = await this.transitionNodeState(
       ctx,
       graphSlug,
       nodeId,
       'starting',
-      ['pending'] // Only pending is valid; starting/complete/waiting/blocked are rejected
+      ['pending', 'restart-pending'] // pending (first start) or restart-pending (after node:restart)
     );
 
     if (!transition.ok) {
@@ -2076,11 +2078,11 @@ export class PositionalGraphService implements IPositionalGraphService {
   }
 
   /**
-   * Answer a question for a waiting node, transitioning it back to starting.
+   * Answer a question for a waiting node.
    * Stores the answer in state.questions[] (backward compat).
-   * State transition delegated to eventService.raise() + handleEvents().
+   * Handler stamps answer-recorded — no status transition.
+   * Node stays waiting-question; restart via node:restart event.
    *
-   * Per AC-6: Stores answer and transitions node to starting (DYK #1b).
    * Per AC-18: Returns E173 for invalid question ID.
    */
   async answerQuestion(
@@ -2141,7 +2143,7 @@ export class PositionalGraphService implements IPositionalGraphService {
       return { errors: raiseResult.errors };
     }
 
-    // Process events: handler transitions to starting + clears pending_question_id + cross-stamps ask
+    // Process events: handler stamps answer-recorded + cross-stamps ask (no status transition)
     const updatedState = await this.loadState(ctx, graphSlug);
     eventService.handleEvents(updatedState, nodeId, 'cli', 'cli');
 
@@ -2159,7 +2161,7 @@ export class PositionalGraphService implements IPositionalGraphService {
     return {
       nodeId,
       questionId,
-      status: 'starting',
+      status: 'waiting-question',
       errors: [],
     };
   }

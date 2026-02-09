@@ -38,6 +38,7 @@ const VALID_FROM_STATES: Record<string, readonly string[]> = {
   'question:ask': ['agent-accepted'],
   'question:answer': ['waiting-question'],
   'progress:update': ['starting', 'agent-accepted', 'waiting-question'],
+  'node:restart': ['waiting-question', 'blocked-error'],
 };
 
 // ── Core Write Path ──────────────────────────────────────

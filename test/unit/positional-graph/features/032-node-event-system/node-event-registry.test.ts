@@ -462,24 +462,24 @@ describe('registerCoreEventTypes', () => {
     /*
     Test Doc:
     - Why: Workshop #01 defines exactly 6 event types — no more, no less
-    - Contract: After registerCoreEventTypes(), list().length === 6
-    - Usage Notes: If a 7th type is added, this test and the names test must both update
+    - Contract: After registerCoreEventTypes(), list().length === 7
+    - Usage Notes: If an 8th type is added, this test and the names test must both update
     - Quality Contribution: Catches accidental addition or removal of event types
-    - Worked Example: registerCoreEventTypes(registry) → registry.list().length === 6
+    - Worked Example: registerCoreEventTypes(registry) → registry.list().length === 7
     */
     const registry = new NodeEventRegistry();
     registerCoreEventTypes(registry);
-    expect(registry.list()).toHaveLength(6);
+    expect(registry.list()).toHaveLength(7);
   });
 
   it('registers all expected type names', () => {
     /*
     Test Doc:
-    - Why: The 6 type names are the canonical API contract for event raising
+    - Why: The 7 type names are the canonical API contract for event raising
     - Contract: Sorted type names match the exact expected set
     - Usage Notes: Sorting removes insertion-order sensitivity
     - Quality Contribution: Catches renamed or missing event types
-    - Worked Example: sorted types === ['node:accepted','node:completed','node:error','progress:update','question:answer','question:ask']
+    - Worked Example: sorted types === ['node:accepted','node:completed','node:error','node:restart','progress:update','question:answer','question:ask']
     */
     const registry = new NodeEventRegistry();
     registerCoreEventTypes(registry);
@@ -491,6 +491,7 @@ describe('registerCoreEventTypes', () => {
       'node:accepted',
       'node:completed',
       'node:error',
+      'node:restart',
       'progress:update',
       'question:answer',
       'question:ask',

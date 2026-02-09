@@ -2,6 +2,7 @@ import {
   NodeAcceptedPayloadSchema,
   NodeCompletedPayloadSchema,
   NodeErrorPayloadSchema,
+  NodeRestartPayloadSchema,
   ProgressUpdatePayloadSchema,
   QuestionAnswerPayloadSchema,
   QuestionAskPayloadSchema,
@@ -9,7 +10,7 @@ import {
 import type { INodeEventRegistry } from './node-event-registry.interface.js';
 
 /**
- * Register the 6 core event types into a registry.
+ * Register the 7 core event types into a registry.
  *
  * Follows the ADR-0008 Module Registration Function pattern:
  * the function receives a registry and populates it with known entries.
@@ -73,5 +74,15 @@ export function registerCoreEventTypes(registry: INodeEventRegistry): void {
     allowedSources: ['agent', 'executor'],
     stopsExecution: false,
     domain: 'progress',
+  });
+
+  registry.register({
+    type: 'node:restart',
+    displayName: 'Restart Node',
+    description: 'Request node restart after question answer or error recovery',
+    payloadSchema: NodeRestartPayloadSchema,
+    allowedSources: ['human', 'orchestrator'],
+    stopsExecution: false,
+    domain: 'node',
   });
 }

@@ -85,7 +85,7 @@ The positional graph (Plan 026) has structure and state but no engine to drive i
 
 ## Workshops
 
-**Workshops**: 7 complete, 1 pending
+**Workshops**: 10 complete
 - [Workshop #1: PositionalGraphReality](./workshops/01-positional-graph-reality.md) — Snapshot of entire graph state
 - [Workshop #2: OrchestrationRequest](./workshops/02-orchestration-request.md) — Discriminated union for orchestrator actions
 - [Workshop #3: AgentContextService](./workshops/03-agent-context-service.md) — Context continuity rules
@@ -93,7 +93,9 @@ The positional graph (Plan 026) has structure and state but no engine to drive i
 - [Workshop #5: ONBAS](./workshops/05-onbas.md) — Rules engine: graph to next action
 - [Workshop #6: E2E Integration Testing](./workshops/06-e2e-integration-testing.md) — Human-as-agent E2E + integration test strategy
 - [Workshop #7: Orchestration Entry Point](./workshops/07-orchestration-entry-point.md) — IOrchestrationService + IGraphOrchestration
-- Workshop #8: ODS — Pending (executor: action to state change)
+- [Workshop #8: ODS](./workshops/08-ods-orchestrator-agent-handover.md) — Executor: action to state change
+- [Workshop #9: Concept Drift Audit](./workshops/09-concept-drift-audit.md) — Plan 030/032 domain boundary alignment
+- [Workshop #10: node:restart Mechanics](./workshops/10-node-restart-mechanics.md) — Convention-based restart protocol via event system
 
 ---
 
@@ -149,12 +151,12 @@ Findings sourced from `research-dossier.md` (55+ findings) and workshop analysis
 **Action**: Implement `getContextSource()` as a pure function on `PositionalGraphReality` following the 5 rules from Workshop #3.
 **Affects**: Phase 3
 
-### 07: Question Lifecycle Has Three States
+### 07: Question Lifecycle Is Event-Based (Updated per Workshop 09/10)
 
 **Impact**: High
-**Sources**: Workshop #5, Spec AC-9
-**Problem**: Questions transition through: asked (stored, not surfaced) → surfaced (`surfaced_at` set) → answered (answer stored). ONBAS and ODS each handle different transitions.
-**Action**: ONBAS detects question state; ODS performs state updates. The three states are: `{ answer: null, surfaced_at: null }` (asked), `{ answer: null, surfaced_at: set }` (surfaced), `{ answer: set }` (answered).
+**Sources**: Workshop #5, #9, #10, Spec AC-9
+**Problem**: Originally described as "three states" managed by direct ONBAS/ODS state writes. Plan 032 introduced event handlers that own state transitions for questions. The handler `handleQuestionAnswer` was crossing the domain boundary by transitioning status.
+**Action**: Question lifecycle flows through events: `question:ask` (handler sets `waiting-question`), `question:answer` (handler stamps only — no status transition), `node:restart` (handler sets `restart-pending`). ONBAS reads settled state via reality builder. ODS executes graph actions (start-node, resume-node). Two-domain boundary: Event Domain records, Graph Domain decides and acts.
 **Affects**: Phase 5, Phase 6
 
 ### 08: Existing `canRun` Gates Must Not Be Replaced
@@ -535,11 +537,11 @@ Test Doc:
 
 ### Phase 6: ODS Action Handlers
 
-> **UNBLOCKED**: Plan 032 (Node Event System) is COMPLETE (all 8 phases landed, 3690 tests green). Phase 6 can now proceed using the event-based communication model from Plan 032. The Phase 6 parent dossier and Workshop #8 remain valid reference material — Plan 032's `INodeEventService`, `EventHandlerService`, and 6 typed event types provide the foundation ODS will use.
+> **UNBLOCKED**: Plan 032 (Node Event System) is COMPLETE (all 8 phases landed). Subtask 001 (Concept Drift Remediation) has aligned the two-domain boundary — event handlers record, ONBAS decides, ODS acts. Phase 6 can now proceed with 7 typed event types (including `node:restart` from Workshop 10) and the Settle-Decide-Act loop pattern.
 
 **Objective**: Implement the executor that takes an OrchestrationRequest from ONBAS and performs the corresponding state changes.
 
-**Workshop**: [Workshop #8](./workshops/08-ods-orchestrator-agent-handover.md) (complete). Design informed by spec AC-6, Workshops #2/#4/#7, and the shared transition ownership model. **Note**: Plan 032 (Node Event System) will refine ODS's interaction model from bespoke service calls to event-based communication.
+**Workshop**: [Workshop #8](./workshops/08-ods-orchestrator-agent-handover.md) (complete). Design informed by spec AC-6, Workshops #2/#4/#7/#9/#10, and the Settle-Decide-Act loop. ODS uses Plan 032's event-based communication model: EHS settles events, ONBAS reads settled state, ODS executes actions.
 
 **Deliverables**:
 - `IODS` interface with `execute(request): OrchestrationExecuteResult`
@@ -598,7 +600,7 @@ Test Doc:
 - DI token `ORCHESTRATION_DI_TOKENS.ORCHESTRATION_SERVICE` in `packages/shared/src/di-tokens.ts`
 - `registerOrchestrationServices()` in `packages/positional-graph/src/container.ts`
 - Orchestration loop: build reality → ONBAS → ODS → repeat until stop
-- `IEventHandlerService` interface and implementation (graph-wide event processing — Settle phase, via subtask; see Workshop 10 Part 3)
+- ~~`IEventHandlerService` interface and implementation~~ — **SUPERSEDED**: Delivered by Plan 032 (Node Event System). `EventHandlerService.processGraph()` provides graph-wide event processing (Settle phase).
 
 **Dependencies**: All previous phases (1-6). Phase 7 composes all internal collaborators into a single facade.
 
@@ -633,7 +635,7 @@ Test Doc:
 - [ ] Handle caching returns same handle for same slug (AC-10)
 - [ ] FakeOrchestrationService supports pre-configured behaviors (AC-10)
 - [ ] DI registration works via `registerOrchestrationServices()` (ADR-0009)
-- [ ] IEventHandlerService processes graph-wide events as Settle step before ONBAS (subtask, per Workshop 10 Part 3, ADR-0011)
+- [x] ~~IEventHandlerService processes graph-wide events as Settle step before ONBAS~~ — **SUPERSEDED**: Delivered by Plan 032. `EventHandlerService.processGraph()` is the Settle step.
 - [ ] `just fft` clean
 
 ---
@@ -860,5 +862,5 @@ Test Doc:
 
 | Phase | Parent Task | Subtask | Status | Dossier |
 |-------|-------------|---------|--------|---------|
-| 7 | T007 | IEventHandlerService — graph-wide event processing (Settle phase) | Pending | `tasks/phase-7-orchestration-entry-point/subtask-event-handler-service/tasks.md` |
-| 6 | T001 | Concept drift remediation — align Plan 030/032 domains before Phase 6 | Pending | `tasks/phase-6-ods-action-handlers/001-subtask-concept-drift-remediation.md` |
+| 7 | T007 | ~~IEventHandlerService — graph-wide event processing (Settle phase)~~ | SUPERSEDED by Plan 032 | `tasks/phase-7-orchestration-entry-point/subtask-event-handler-service/tasks.md` |
+| 6 | T001 | Concept drift remediation — align Plan 030/032 domains before Phase 6 | Complete | `tasks/phase-6-ods-action-handlers/001-subtask-concept-drift-remediation.md` |

@@ -234,7 +234,7 @@ export interface CanRunResult {
 // ============================================
 
 /** Full computed or stored status for a node. */
-export type ExecutionStatus = 'pending' | 'ready' | NodeExecutionStatus; // 'starting' | 'agent-accepted' | 'waiting-question' | 'blocked-error' | 'complete'
+export type ExecutionStatus = 'pending' | 'ready' | NodeExecutionStatus; // 'starting' | 'agent-accepted' | 'waiting-question' | 'blocked-error' | 'restart-pending' | 'complete'
 
 /**
  * DYK-I3: execution stays flat for display formatting compatibility.
@@ -423,11 +423,11 @@ export interface AskQuestionResult extends BaseResult {
   status?: 'waiting-question';
 }
 
-/** Result from answerQuestion — DYK #1: returns 'starting', agent must re-accept */
+/** Result from answerQuestion — node stays waiting-question, restart via node:restart event */
 export interface AnswerQuestionResult extends BaseResult {
   nodeId?: string;
   questionId?: string;
-  status?: 'starting';
+  status?: 'waiting-question';
 }
 
 /** Result from getAnswer */

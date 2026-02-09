@@ -20,6 +20,7 @@ export const NodeExecutionStatusSchema = z.enum([
   'agent-accepted',
   'waiting-question',
   'blocked-error',
+  'restart-pending',
   'complete',
 ]);
 export type NodeExecutionStatus = z.infer<typeof NodeExecutionStatusSchema>;

@@ -593,15 +593,18 @@ async function main(): Promise<void> {
     `processGraph: visited=${settle3.nodesVisited}, processed=${settle3.eventsProcessed}, handlers=${settle3.handlerInvocations}`
   );
 
-  // DYK #1: answerQuestion returns 'starting', NOT 'agent-accepted'
+  // Answer handler is record-only: node stays waiting-question, pending_question_id preserved
   state = await service.loadGraphState(ctx, GRAPH_SLUG);
   const cbAfterAnswer = unwrap(state.nodes?.[codeBuilderId], 'code-builder node');
   assert(
-    cbAfterAnswer.status === 'starting',
-    `DYK #1: Expected 'starting' after answer, got ${cbAfterAnswer.status}`
+    cbAfterAnswer.status === 'waiting-question',
+    `Expected 'waiting-question' after answer, got ${cbAfterAnswer.status}`
   );
-  assert(cbAfterAnswer.pending_question_id === undefined, 'pending_question_id should be cleared');
-  step(`Verified: ${codeBuilderId} status=starting (DYK #1: answer -> starting)`);
+  assert(
+    cbAfterAnswer.pending_question_id === 'q-001',
+    `Expected pending_question_id='q-001' preserved, got ${cbAfterAnswer.pending_question_id}`
+  );
+  step(`Verified: ${codeBuilderId} status=waiting-question (answer is record-only)`);
 
   // Agent reads the answer [CLI]
   console.log('\n        Agent resumes and reads the answer                        [CLI]');
@@ -617,13 +620,71 @@ async function main(): Promise<void> {
   assert(answerEvents.length >= 1, `Expected >= 1 answer event, got ${answerEvents.length}`);
   step(`Agent retrieved answer event (${answerEvents.length} answer(s) found)`);
 
-  // ── Step 9: Agent completes ──
-  console.log('\nSTEP 9: Agent completes code-builder                              [CLI]');
+  // ── Step 9: Workshop 10 restart — raise node:restart, settle, startNode ──
+  console.log(
+    '\nSTEP 9: Workshop 10 restart flow (node:restart -> startNode)       [CLI + IN-PROCESS]'
+  );
 
-  // Re-accept after question (status was 'starting' per DYK #1)
+  // Raise node:restart via CLI (human or orchestrator triggers restart)
+  const restartResult = await runCli(
+    [
+      'wf',
+      'node',
+      'raise-event',
+      GRAPH_SLUG,
+      codeBuilderId,
+      'node:restart',
+      '--payload',
+      JSON.stringify({ reason: 'Question answered, resuming work' }),
+      '--source',
+      'orchestrator',
+    ],
+    workspacePath
+  );
+  assert(restartResult.success, `Failed to raise node:restart: ${restartResult.rawOutput}`);
+  step('Raised node:restart (source=orchestrator)');
+
+  // Settle — handler sets restart-pending, clears pending_question_id
+  state = await service.loadGraphState(ctx, GRAPH_SLUG);
+  const settleRestart = ehs.processGraph(state, SUBSCRIBER_ORCHESTRATOR, 'cli');
+  await service.persistGraphState(ctx, GRAPH_SLUG, state);
+
+  assert(
+    settleRestart.eventsProcessed >= 1,
+    `Expected >= 1 events after restart, got ${settleRestart.eventsProcessed}`
+  );
+  step(
+    `processGraph: visited=${settleRestart.nodesVisited}, processed=${settleRestart.eventsProcessed}, handlers=${settleRestart.handlerInvocations}`
+  );
+
+  // Verify restart-pending state
+  state = await service.loadGraphState(ctx, GRAPH_SLUG);
+  const cbAfterRestart = unwrap(state.nodes?.[codeBuilderId], 'code-builder node');
+  assert(
+    cbAfterRestart.status === 'restart-pending',
+    `Expected 'restart-pending' after restart settle, got ${cbAfterRestart.status}`
+  );
+  assert(
+    cbAfterRestart.pending_question_id === undefined,
+    `Expected pending_question_id cleared by restart handler, got ${cbAfterRestart.pending_question_id}`
+  );
+  step(`Verified: ${codeBuilderId} status=restart-pending, pending_question_id cleared`);
+
+  // startNode via CLI (simulates what ODS would do: restart-pending -> starting)
+  const restartStart = await runCli(
+    ['wf', 'node', 'start', GRAPH_SLUG, codeBuilderId],
+    workspacePath
+  );
+  assert(restartStart.success, `Failed to start after restart: ${restartStart.rawOutput}`);
+  step(`${codeBuilderId}: restart-pending -> starting (Workshop 10 startNode)`);
+
+  // Re-accept after restart
   const reAccept = await runCli(['wf', 'node', 'accept', GRAPH_SLUG, codeBuilderId], workspacePath);
   assert(reAccept.success, `Failed to re-accept: ${reAccept.rawOutput}`);
-  step(`${codeBuilderId}: starting -> agent-accepted (re-accept after question)`);
+  step(`${codeBuilderId}: starting -> agent-accepted (re-accept after restart)`);
+
+  // ── Step 10: Agent completes ──
+  console.log('\nSTEP 10: Agent completes code-builder                             [CLI]');
 
   // Final progress via generic raise-event
   const finalProgress = await runCli(
@@ -683,8 +744,8 @@ async function main(): Promise<void> {
 
   banner('ACT 4: Inspection & Proof');
 
-  // ── Step 10: Event log inspection ──
-  console.log('\nSTEP 10: Event log inspection                                     [CLI]');
+  // ── Step 11: Event log inspection ──
+  console.log('\nSTEP 11: Event log inspection                                     [CLI]');
 
   const allEvents = await runCli<{
     events: Array<{
@@ -755,8 +816,8 @@ async function main(): Promise<void> {
   );
   step(`Verified: event has ${subscriberCount} subscriber stamp(s)`);
 
-  // ── Steps 11-12: Final processGraph settle + idempotency proof ──
-  console.log('\nSTEP 11: Final processGraph — settle remaining + idempotency      [IN-PROCESS]');
+  // ── Steps 12-13: Final processGraph settle + idempotency proof ──
+  console.log('\nSTEP 12: Final processGraph — settle remaining + idempotency      [IN-PROCESS]');
 
   // First pass: settle any remaining unstamped events (from re-accept + final progress/complete)
   state = await service.loadGraphState(ctx, GRAPH_SLUG);
@@ -779,7 +840,7 @@ async function main(): Promise<void> {
     `processGraph idempotency: visited=${settleFinal.nodesVisited}, processed=${settleFinal.eventsProcessed} (idempotent!)`
   );
 
-  console.log('\nSTEP 12: Final state validation');
+  console.log('\nSTEP 13: Final state validation');
 
   state = await service.loadGraphState(ctx, GRAPH_SLUG);
   const finalSpecWriter = unwrap(state.nodes?.[specWriterId], 'spec-writer');
@@ -805,12 +866,12 @@ async function main(): Promise<void> {
 
   banner(`ALL ${count()} STEPS PASSED — Node Event System E2E Complete`);
   console.log('\nPlan 032 validation: PASS');
-  console.log('Events exercised: 6 types (node:accepted, node:completed, node:error,');
-  console.log('  question:ask, question:answer, progress:update)');
+  console.log('Events exercised: 7 types (node:accepted, node:completed, node:error,');
+  console.log('  question:ask, question:answer, progress:update, node:restart)');
   console.log('Error codes verified: E190, E191, E193, E196, E197');
   console.log('CLI commands used: raise-event, events, stamp-event, accept, end, error,');
   console.log('  event list-types, event schema, start, save-output-data');
-  console.log('In-process: processGraph() x5 (3 mid-story + 1 final settle + 1 idempotency)\n');
+  console.log('In-process: processGraph() x6 (4 mid-story + 1 final settle + 1 idempotency)\n');
 }
 
 // ============================================

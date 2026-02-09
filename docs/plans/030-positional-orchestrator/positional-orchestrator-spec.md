@@ -38,7 +38,7 @@ The entire system is designed for TDD-first development: every service accepts i
 
 3. **Testable without agents**: The full orchestration loop — snapshot, decide, execute, update — runs with fake pods and deterministic responses. Real agents are a late-stage injection, not a development dependency.
 
-4. **Question/answer protocol**: Agents can ask questions during execution. Questions surface to users through the orchestration loop, answers flow back in, and agents resume with context. The loop does not stall on unanswered questions — it skips past surfaced questions and continues checking other actionable nodes.
+4. **Question/answer protocol**: Agents can ask questions during execution via the node event system (`question:ask`/`question:answer` events). Questions surface to users through the orchestration loop, answers flow back in via events, and agents resume after a `node:restart` event triggers the restart-pending → ready → start-node convention. The loop does not stall on unanswered questions — it skips past waiting nodes and continues checking other actionable nodes.
 
 5. **Context continuity**: Agent sessions carry forward across serial execution chains. When a spec-builder finishes and a spec-reviewer starts, the reviewer inherits the builder's conversation context. Parallel agents start fresh. The rules are positional and deterministic.
 
@@ -175,9 +175,9 @@ then:
 Given an OrchestrationRequest from ONBAS,
 when `ODS.execute(request)` is called,
 then:
-- `start-node`: Creates/retrieves pod via PodManager, resolves context source via AgentContextService, calls `pod.execute()` with inputs and optional context session ID, updates node status to `running`
+- `start-node`: Creates/retrieves pod via PodManager, resolves context source via AgentContextService, calls `pod.execute()` with inputs and optional context session ID, transitions node via `startNode()` (pending/restart-pending → starting)
 - `resume-node`: Retrieves pod (or recreates from persisted session), calls `pod.resumeWithAnswer()`, handles result
-- `question-pending`: Marks the question as surfaced (`surfaced_at` timestamp), emits domain event for UI notification
+- `question-pending`: Surfaces the question for human attention, emits domain event for UI notification
 - `no-action`: No state changes, no side effects
 - All state updates use atomic writes
 
@@ -202,16 +202,16 @@ then:
 - Pods are not auto-recreated; the orchestrator creates them as needed using the persisted session ID for context continuity
 - A fresh `cg wf run` after restart correctly resumes where execution left off
 
-### AC-9: Question lifecycle flows through the system
+### AC-9: Question lifecycle flows through the event system
 
 Given an agent that asks a question during execution,
 when the orchestration loop runs:
-1. Agent pod returns `outcome: 'question'` — ODS stores question in state, node becomes `waiting-question`
-2. Next ONBAS walk finds unsurfaced question — returns `question-pending` OR
-3. ODS marks question as surfaced (`surfaced_at` set), emits domain event
-4. User answers via CLI — answer stored in state
-5. Next ONBAS walk finds answered question — returns `resume-node` OR
-6. ODS calls `pod.resumeWithAnswer()` — agent continues with answer
+1. Agent pod returns `outcome: 'question'` — ODS raises `question:ask` event, handler sets node to `waiting-question` with `pending_question_id`
+2. Next ONBAS walk finds node in `waiting-question` with unsurfaced question — returns `question-pending`
+3. ODS surfaces the question, emits domain event for UI notification
+4. User answers via CLI — `question:answer` event raised, handler stamps `answer-recorded` (node stays `waiting-question`)
+5. Orchestrator raises `node:restart` event — handler sets `restart-pending`, clears `pending_question_id`
+6. Reality builder maps `restart-pending` → `ready`; ONBAS returns `start-node`; ODS calls `startNode()` then `pod.resumeWithAnswer()` — agent continues with answer
 
 ### AC-10: Two-level orchestration entry point (service → per-graph handle)
 

@@ -52,3 +52,11 @@ export const ProgressUpdatePayloadSchema = z
   })
   .strict();
 export type ProgressUpdatePayload = z.infer<typeof ProgressUpdatePayloadSchema>;
+
+// ── node:restart ─────────────────────────────
+export const NodeRestartPayloadSchema = z
+  .object({
+    reason: z.string().min(1).optional(),
+  })
+  .strict();
+export type NodeRestartPayload = z.infer<typeof NodeRestartPayloadSchema>;

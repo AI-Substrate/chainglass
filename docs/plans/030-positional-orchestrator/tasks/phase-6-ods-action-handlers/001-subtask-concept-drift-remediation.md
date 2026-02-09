@@ -5,7 +5,7 @@
 **Parent Task(s):** T001: Define IODS interface and ODS dependency types
 **Spec:** [positional-orchestrator-spec.md](../../positional-orchestrator-spec.md)
 **Date:** 2026-02-09
-**Status:** Pending
+**Status:** Complete
 
 ---
 
@@ -169,18 +169,18 @@ flowchart TD
     end
 
     subgraph CodeFix["Category A: Code Fixes"]
-        ST001["ST001: Fix handler"]:::pending
-        ST005["ST005: Fix answerQuestion()"]:::pending
+        ST001["ST001: Fix handler ✓"]:::completed
+        ST005["ST005: Fix answerQuestion() ✓"]:::completed
         ST001 --> ST005
     end
 
     subgraph Restart["Workshop 10: node:restart"]
-        ST010["ST010: Schema + payload"]:::pending
-        ST011["ST011: Event type + VALID_FROM"]:::pending
-        ST012["ST012: handleNodeRestart"]:::pending
-        ST013["ST013: Reality builder mapping"]:::pending
-        ST014["ST014: startNode() from-states"]:::pending
-        ST015["ST015: Restart unit tests"]:::pending
+        ST010["ST010: Schema + payload ✓"]:::completed
+        ST011["ST011: Event type + VALID_FROM ✓"]:::completed
+        ST012["ST012: handleNodeRestart ✓"]:::completed
+        ST013["ST013: Reality builder mapping ✓"]:::completed
+        ST014["ST014: startNode() from-states ✓"]:::completed
+        ST015["ST015: Restart unit tests ✓"]:::completed
         ST001 --> ST010
         ST010 --> ST011
         ST010 --> ST012
@@ -193,9 +193,9 @@ flowchart TD
     end
 
     subgraph TestFix["Category A: Test Fixes"]
-        ST002["ST002: Handler unit tests"]:::pending
-        ST003["ST003: Service contract tests"]:::pending
-        ST004["ST004: E2E script"]:::pending
+        ST002["ST002: Handler unit tests ✓"]:::completed
+        ST003["ST003: Service contract tests ✓"]:::completed
+        ST004["ST004: E2E script"]:::completed
         ST001 --> ST002
         ST001 --> ST003
         ST005 --> ST003
@@ -204,12 +204,12 @@ flowchart TD
     end
 
     subgraph DocFix["Categories B+C: Doc Fixes"]
-        ST006["ST006: Amend spec"]:::pending
-        ST007["ST007: Update plan"]:::pending
-        ST008["ST008: Archive dossier"]:::pending
+        ST006["ST006: Amend spec"]:::completed
+        ST007["ST007: Update plan"]:::completed
+        ST008["ST008: Archive dossier"]:::completed
     end
 
-    ST009["ST009: Validate (just fft)"]:::pending
+    ST009["ST009: Validate (just fft)"]:::completed
 
     ST002 --> ST009
     ST003 --> ST009
@@ -228,21 +228,21 @@ flowchart TD
 
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
-| ST001 | Event Handler | `event-handlers.ts` | Pending | Remove status transition + pending_question_id clear |
-| ST002 | Handler Unit Tests | `event-handlers.test.ts` | Pending | Update T005 suite + walkthrough assertions |
-| ST003 | Service Contract Tests | `service-wrapper-contracts.test.ts`, `question-answer.test.ts` | Pending | Update answer assertions in 2 files |
-| ST004 | E2E Visual Test | `node-event-system-visual-e2e.ts` | Pending | Restructure post-answer flow |
-| ST005 | Service + Interface | `positional-graph-service.interface.ts`, `positional-graph.service.ts` | Pending | Return `waiting-question` not `starting` |
-| ST006 | Spec | `positional-orchestrator-spec.md` | Pending | Amend AC-6, AC-9, Goal 4, Non-Goal 5 |
-| ST007 | Plan | `positional-orchestrator-plan.md` | Pending | Phase 6/7, CF-07, workshops, subtask registry |
-| ST008 | Phase 6 Dossier | `tasks.md`, `tasks.fltplan.md` | Pending | Rename to `.archived` suffix |
-| ST010 | Status Schema + Payload | `state.schema.ts`, `reality.types.ts`, `interface.ts`, `event-payloads.schema.ts` | Pending | Add `restart-pending` status and `NodeRestartPayload` |
-| ST011 | Event Registration | `core-event-types.ts`, `raise-event.ts` | Pending | Register `node:restart` as 7th core event type |
-| ST012 | Restart Handler | `event-handlers.ts` | Pending | Implement `handleNodeRestart` |
-| ST013 | Reality Builder | `positional-graph.service.ts` | Pending | Map `restart-pending` → `ready` |
-| ST014 | startNode Extension | `positional-graph.service.ts` | Pending | Accept `restart-pending` as valid from-state |
-| ST015 | Restart Unit Tests | `event-handlers.test.ts`, `reality.test.ts`, `execution-lifecycle.test.ts` | Pending | Test handler, mapping, and lifecycle |
-| ST009 | Validation | All | Pending | `just fft` must pass |
+| ST001 | Event Handler | `event-handlers.ts` | ✅ Complete | Remove status transition + pending_question_id clear |
+| ST002 | Handler Unit Tests | `event-handlers.test.ts` | ✅ Complete | Update T005 suite + walkthrough assertions |
+| ST003 | Service Contract Tests | `service-wrapper-contracts.test.ts`, `question-answer.test.ts` | ✅ Complete | Update answer assertions in 2 files |
+| ST004 | E2E Visual Test | `node-event-system-visual-e2e.ts` | ✅ Complete | Restructured: Workshop 10 restart flow, 45 steps pass |
+| ST005 | Service + Interface | `positional-graph-service.interface.ts`, `positional-graph.service.ts` | ✅ Complete | Return `waiting-question` not `starting` |
+| ST006 | Spec | `positional-orchestrator-spec.md` | ✅ Complete | AC-6, AC-9, Goal 4 amended |
+| ST007 | Plan | `positional-orchestrator-plan.md` | ✅ Complete | CF-07, workshops, subtask registry, Phase 6/7 updated |
+| ST008 | Phase 6 Dossier | `tasks.md`, `tasks.fltplan.md` | ✅ Complete | Renamed to `.archived` suffix |
+| ST010 | Status Schema + Payload | `state.schema.ts`, `reality.types.ts`, `interface.ts`, `event-payloads.schema.ts` | ✅ Complete | Add `restart-pending` status and `NodeRestartPayload` |
+| ST011 | Event Registration | `core-event-types.ts`, `raise-event.ts` | ✅ Complete | Register `node:restart` as 7th core event type |
+| ST012 | Restart Handler | `event-handlers.ts` | ✅ Complete | Implement `handleNodeRestart` |
+| ST013 | Reality Builder | `positional-graph.service.ts` | ✅ Complete | Map `restart-pending` → `ready` |
+| ST014 | startNode Extension | `positional-graph.service.ts` | ✅ Complete | Accept `restart-pending` as valid from-state |
+| ST015 | Restart Unit Tests | `event-handlers.test.ts`, `reality.test.ts`, `execution-lifecycle.test.ts` | ✅ Complete | Test handler, mapping, and lifecycle |
+| ST009 | Validation | All | ✅ Complete | 3696 tests pass, lint/format clean |
 
 ---
 
@@ -250,21 +250,21 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|------|------|-----|------|--------------|-------------------|------------|----------|-------|
-| [ ] | ST001 | Fix `handleQuestionAnswer`: remove status transition and `pending_question_id` clear, stamp `answer-recorded`. Fix `handleProgressUpdate`: change stamp from `state-transition` to `progress-recorded`. Clean up `DYK #1b` comment. | 1 | Core | -- | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/032-node-event-system/event-handlers.ts` | `handleQuestionAnswer` stamps `answer-recorded`, does NOT set `ctx.node.status` or clear `ctx.node.pending_question_id`; `handleProgressUpdate` stamps `progress-recorded`; no stale `DYK #1b` comment | -- | Workshop 09 Violation 5; DYK #1b cleanup; progress stamp fix |
-| [ ] | ST002 | Update handler unit tests: T005 suite (4 tests) + Walkthrough 2 (2 assertions) to assert new behavior. Update T006 progress stamp assertion (line 400) and Walkthrough 3 (lines 731, 733) from `state-transition` to `progress-recorded`. Clean up `DYK #1b` references in test doc blocks. | 2 | Test | ST001 | `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/features/032-node-event-system/event-handlers.test.ts` | Tests pass; assert node stays `waiting-question`, `pending_question_id` unchanged, stamp action `answer-recorded`; progress stamp assertions expect `progress-recorded`; no stale `DYK #1b` references | -- | Lines 265-368 (T005), 400 (T006 stamp), 519-607 (Walkthrough 2), 731/733 (Walkthrough 3); DYK #1b cleanup |
-| [ ] | ST003 | Update service contract tests: `service-wrapper-contracts.test.ts` (lines 257-275) and `question-answer.test.ts` (lines 301-325) to assert `waiting-question`. Clean up `DYK #1b` references in test names/doc blocks. | 2 | Test | ST001, ST005 | `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/features/032-node-event-system/service-wrapper-contracts.test.ts`, `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/question-answer.test.ts` | Tests pass; assert `result.status === 'waiting-question'`, node stays `waiting-question`, stamp action `answer-recorded`; no stale `DYK #1b` references | -- | Gap files from requirements flow; DYK #1b cleanup |
-| [ ] | ST004 | Update E2E visual test: change post-answer assertions (steps 7-8), restructure post-answer lifecycle per Workshop 10 hybrid approach (raise `node:restart`, call `startNode()` in-process to simulate ODS), clean up `DYK #1` comments. Update Vitest wrapper test name to remove hardcoded step count. | 3 | Test | ST001, ST005, ST010-ST014 | `/home/jak/substrate/030-positional-orchestrator/test/e2e/node-event-system-visual-e2e.ts`, `/home/jak/substrate/030-positional-orchestrator/test/integration/positional-graph/node-event-system-e2e.test.ts` | E2E script exits 0; after answer, node is `waiting-question`; post-answer lifecycle uses Workshop 10 hybrid approach; no stale `DYK #1` references; Vitest wrapper test name says "exit 0" not "41 steps" | -- | Workshop 10 § E2E hybrid approach; Lines 596-626; DYK #1 cleanup; Vitest wrapper line 31 |
-| [ ] | ST005 | Update `answerQuestion()` return value from `starting` to `waiting-question`, update `AnswerQuestionResult` type, clean up `DYK #1b` JSDoc/comments in both files | 1 | Core | ST001 | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/interfaces/positional-graph-service.interface.ts`, `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/services/positional-graph.service.ts` | `answerQuestion()` returns `{ status: 'waiting-question' }`; `AnswerQuestionResult.status` type includes `'waiting-question'`; no stale `DYK #1b` references | -- | Interface line 426/430, service lines 2079-2083/2162; DYK #1b cleanup |
-| [ ] | ST006 | Amend spec: AC-6 (remove "updates node status to running"), AC-9 (rewrite question lifecycle to event-based), add Settle AC, update Goal 4, Non-Goal 5 | 2 | Doc | -- | `/home/jak/substrate/030-positional-orchestrator/docs/plans/030-positional-orchestrator/positional-orchestrator-spec.md` | ACs describe the two-domain boundary correctly; no references to "ODS stores questions" or "ODS marks surfaced" or "running" status | -- | Category B from Workshop 09 |
-| [ ] | ST007 | Update plan: mark Phase 7 IEventHandlerService subtask SUPERSEDED, update Phase 6/7 descriptions for Settle-Decide-Act, rewrite CF-07, add Workshops #8/#9 to list, update Phase 6 unblocked note | 2 | Doc | -- | `/home/jak/substrate/030-positional-orchestrator/docs/plans/030-positional-orchestrator/positional-orchestrator-plan.md` | Plan reflects Plan 032 completion; Phase 7 subtask status correct; CF-07 describes event-based flow; workshop count updated | -- | Category C from Workshop 09 |
-| [ ] | ST008 | Archive stale Phase 6 dossier: rename `tasks.md` to `tasks.md.archived`, rename `tasks.fltplan.md` to `tasks.fltplan.md.archived` | 1 | Doc | -- | `/home/jak/substrate/030-positional-orchestrator/docs/plans/030-positional-orchestrator/tasks/phase-6-ods-action-handlers/tasks.md`, `/home/jak/substrate/030-positional-orchestrator/docs/plans/030-positional-orchestrator/tasks/phase-6-ods-action-handlers/tasks.fltplan.md` | Stale files renamed with `.archived` suffix; directory ready for fresh `/plan-5` | -- | Category C |
-| [ ] | ST010 | Add `restart-pending` status and `node:restart` payload schema: extend `NodeExecutionStatusSchema` with `restart-pending`, add to `ExecutionStatus` type in both `reality.types.ts` and `positional-graph-service.interface.ts`, create `NodeRestartPayloadSchema` in `event-payloads.schema.ts` | 2 | Core | ST001 | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/schemas/state.schema.ts`, `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/030-orchestration/reality.types.ts`, `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/interfaces/positional-graph-service.interface.ts`, `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/032-node-event-system/event-payloads.schema.ts` | `restart-pending` compiles as valid stored status; `NodeRestartPayload` type exists | -- | Workshop 10 |
-| [ ] | ST011 | Register `node:restart` as 7th core event type in `core-event-types.ts` and add to `VALID_FROM_STATES` in `raise-event.ts` (valid from `waiting-question`, `blocked-error`) | 2 | Core | ST010 | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/032-node-event-system/core-event-types.ts`, `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/032-node-event-system/raise-event.ts` | `node:restart` can be raised from `waiting-question` and `blocked-error`; event registry recognizes the type | -- | Workshop 10 |
-| [ ] | ST012 | Implement `handleNodeRestart`: sets `ctx.node.status = 'restart-pending'`, clears `pending_question_id`, stamps `restart-initiated`; register in `createEventHandlerRegistry()` | 1 | Core | ST010 | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/032-node-event-system/event-handlers.ts` | Handler registered for `node:restart`; transitions to `restart-pending`; `pending_question_id` cleared; stamp recorded | -- | Workshop 10 |
-| [ ] | ST013 | Update reality builder: in `getNodeStatus()`, map stored `restart-pending` to computed `ready` so ONBAS naturally returns `start-node` | 2 | Core | ST010 | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/services/positional-graph.service.ts` | Node with stored `restart-pending` computes to `ready`; ONBAS returns `start-node` for it | -- | Workshop 10 § reality builder; lines 1047-1055 |
-| [ ] | ST014 | Extend `startNode()` valid from-states to include `restart-pending` alongside `pending` | 1 | Core | ST010 | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/services/positional-graph.service.ts` | `startNode()` succeeds from `restart-pending`; still rejects from other invalid states | -- | Workshop 10; line 1826 |
-| [ ] | ST015 | Unit tests for `node:restart` mechanics: handler tests in `event-handlers.test.ts` (T007 suite), reality builder mapping in `reality.test.ts`, `startNode()` from `restart-pending` in `execution-lifecycle.test.ts` | 3 | Test | ST010, ST011, ST012, ST013, ST014 | `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/features/032-node-event-system/event-handlers.test.ts`, `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/features/030-orchestration/reality.test.ts`, `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/execution-lifecycle.test.ts` | All tests pass; handler stamps correctly, reality maps `restart-pending` to `ready`, `startNode()` transitions from `restart-pending` | -- | Workshop 10 |
-| [ ] | ST009 | Validate: run `just fft` (lint, format, test) | 1 | Validation | ST001-ST008, ST010-ST015 | -- | Exit code 0; all tests green | -- | -- |
+| [x] | ST001 | Fix `handleQuestionAnswer`: remove status transition and `pending_question_id` clear, stamp `answer-recorded`. Fix `handleProgressUpdate`: change stamp from `state-transition` to `progress-recorded`. Clean up `DYK #1b` comment. | 1 | Core | -- | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/032-node-event-system/event-handlers.ts` | `handleQuestionAnswer` stamps `answer-recorded`, does NOT set `ctx.node.status` or clear `ctx.node.pending_question_id`; `handleProgressUpdate` stamps `progress-recorded`; no stale `DYK #1b` comment | -- | Workshop 09 Violation 5; DYK #1b cleanup; progress stamp fix |
+| [x] | ST002 | Update handler unit tests: T005 suite (4 tests) + Walkthrough 2 (2 assertions) to assert new behavior. Update T006 progress stamp assertion (line 400) and Walkthrough 3 (lines 731, 733) from `state-transition` to `progress-recorded`. Clean up `DYK #1b` references in test doc blocks. | 2 | Test | ST001 | `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/features/032-node-event-system/event-handlers.test.ts` | Tests pass; assert node stays `waiting-question`, `pending_question_id` unchanged, stamp action `answer-recorded`; progress stamp assertions expect `progress-recorded`; no stale `DYK #1b` references | -- | Lines 265-368 (T005), 400 (T006 stamp), 519-607 (Walkthrough 2), 731/733 (Walkthrough 3); DYK #1b cleanup |
+| [x] | ST003 | Update service contract tests: `service-wrapper-contracts.test.ts` (lines 257-275) and `question-answer.test.ts` (lines 301-325) to assert `waiting-question`. Clean up `DYK #1b` references in test names/doc blocks. | 2 | Test | ST001, ST005 | `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/features/032-node-event-system/service-wrapper-contracts.test.ts`, `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/question-answer.test.ts` | Tests pass; assert `result.status === 'waiting-question'`, node stays `waiting-question`, stamp action `answer-recorded`; no stale `DYK #1b` references | -- | Gap files from requirements flow; DYK #1b cleanup |
+| [x] | ST004 | Update E2E visual test: change post-answer assertions (steps 7-8), restructure post-answer lifecycle per Workshop 10 hybrid approach (raise `node:restart`, call `startNode()` in-process to simulate ODS), clean up `DYK #1` comments. Update Vitest wrapper test name to remove hardcoded step count. | 3 | Test | ST001, ST005, ST010-ST014 | `/home/jak/substrate/030-positional-orchestrator/test/e2e/node-event-system-visual-e2e.ts`, `/home/jak/substrate/030-positional-orchestrator/test/integration/positional-graph/node-event-system-e2e.test.ts` | E2E script exits 0; after answer, node is `waiting-question`; post-answer lifecycle uses Workshop 10 hybrid approach; no stale `DYK #1` references; Vitest wrapper test name says "exit 0" not "41 steps" | -- | Workshop 10 § E2E hybrid approach; Lines 596-626; DYK #1 cleanup; Vitest wrapper line 31 |
+| [x] | ST005 | Update `answerQuestion()` return value from `starting` to `waiting-question`, update `AnswerQuestionResult` type, clean up `DYK #1b` JSDoc/comments in both files | 1 | Core | ST001 | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/interfaces/positional-graph-service.interface.ts`, `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/services/positional-graph.service.ts` | `answerQuestion()` returns `{ status: 'waiting-question' }`; `AnswerQuestionResult.status` type includes `'waiting-question'`; no stale `DYK #1b` references | -- | Interface line 426/430, service lines 2079-2083/2162; DYK #1b cleanup |
+| [x] | ST006 | Amend spec: AC-6 (remove "updates node status to running"), AC-9 (rewrite question lifecycle to event-based), add Settle AC, update Goal 4, Non-Goal 5 | 2 | Doc | -- | `/home/jak/substrate/030-positional-orchestrator/docs/plans/030-positional-orchestrator/positional-orchestrator-spec.md` | ACs describe the two-domain boundary correctly; no references to "ODS stores questions" or "ODS marks surfaced" or "running" status | -- | Category B from Workshop 09 |
+| [x] | ST007 | Update plan: mark Phase 7 IEventHandlerService subtask SUPERSEDED, update Phase 6/7 descriptions for Settle-Decide-Act, rewrite CF-07, add Workshops #8/#9 to list, update Phase 6 unblocked note | 2 | Doc | -- | `/home/jak/substrate/030-positional-orchestrator/docs/plans/030-positional-orchestrator/positional-orchestrator-plan.md` | Plan reflects Plan 032 completion; Phase 7 subtask status correct; CF-07 describes event-based flow; workshop count updated | -- | Category C from Workshop 09 |
+| [x] | ST008 | Archive stale Phase 6 dossier: rename `tasks.md` to `tasks.md.archived`, rename `tasks.fltplan.md` to `tasks.fltplan.md.archived` | 1 | Doc | -- | `/home/jak/substrate/030-positional-orchestrator/docs/plans/030-positional-orchestrator/tasks/phase-6-ods-action-handlers/tasks.md`, `/home/jak/substrate/030-positional-orchestrator/docs/plans/030-positional-orchestrator/tasks/phase-6-ods-action-handlers/tasks.fltplan.md` | Stale files renamed with `.archived` suffix; directory ready for fresh `/plan-5` | -- | Category C |
+| [x] | ST010 | Add `restart-pending` status and `node:restart` payload schema: extend `NodeExecutionStatusSchema` with `restart-pending`, add to `ExecutionStatus` type in both `reality.types.ts` and `positional-graph-service.interface.ts`, create `NodeRestartPayloadSchema` in `event-payloads.schema.ts` | 2 | Core | ST001 | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/schemas/state.schema.ts`, `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/030-orchestration/reality.types.ts`, `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/interfaces/positional-graph-service.interface.ts`, `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/032-node-event-system/event-payloads.schema.ts` | `restart-pending` compiles as valid stored status; `NodeRestartPayload` type exists | -- | Workshop 10 |
+| [x] | ST011 | Register `node:restart` as 7th core event type in `core-event-types.ts` and add to `VALID_FROM_STATES` in `raise-event.ts` (valid from `waiting-question`, `blocked-error`) | 2 | Core | ST010 | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/032-node-event-system/core-event-types.ts`, `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/032-node-event-system/raise-event.ts` | `node:restart` can be raised from `waiting-question` and `blocked-error`; event registry recognizes the type | -- | Workshop 10 |
+| [x] | ST012 | Implement `handleNodeRestart`: sets `ctx.node.status = 'restart-pending'`, clears `pending_question_id`, stamps `restart-initiated`; register in `createEventHandlerRegistry()` | 1 | Core | ST010 | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/032-node-event-system/event-handlers.ts` | Handler registered for `node:restart`; transitions to `restart-pending`; `pending_question_id` cleared; stamp recorded | -- | Workshop 10 |
+| [x] | ST013 | Update reality builder: in `getNodeStatus()`, map stored `restart-pending` to computed `ready` so ONBAS naturally returns `start-node` | 2 | Core | ST010 | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/services/positional-graph.service.ts` | Node with stored `restart-pending` computes to `ready`; ONBAS returns `start-node` for it | -- | Workshop 10 § reality builder; lines 1047-1055 |
+| [x] | ST014 | Extend `startNode()` valid from-states to include `restart-pending` alongside `pending` | 1 | Core | ST010 | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/services/positional-graph.service.ts` | `startNode()` succeeds from `restart-pending`; still rejects from other invalid states | -- | Workshop 10; line 1826 |
+| [x] | ST015 | Unit tests for `node:restart` mechanics: handler tests in `event-handlers.test.ts` (T007 suite), reality builder mapping in `reality.test.ts`, `startNode()` from `restart-pending` in `execution-lifecycle.test.ts` | 3 | Test | ST010, ST011, ST012, ST013, ST014 | `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/features/032-node-event-system/event-handlers.test.ts`, `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/features/030-orchestration/reality.test.ts`, `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/execution-lifecycle.test.ts` | All tests pass; handler stamps correctly, reality maps `restart-pending` to `ready`, `startNode()` transitions from `restart-pending` | -- | Workshop 10 |
+| [x] | ST009 | Validate: run `just fft` (lint, format, test) | 1 | Validation | ST001-ST008, ST010-ST015 | -- | Exit code 0; all tests green | -- | -- |
 
 ---
 
@@ -450,7 +450,9 @@ _Populated during implementation by plan-6. Log anything of interest to your fut
 
 | Date | Task | Type | Discovery | Resolution | References |
 |------|------|------|-----------|------------|------------|
-| | | | | | |
+| 2026-02-09 | ST003 | unexpected-behavior | Duplicate answer now returns E195 (already answered) instead of E177 (not waiting) because node stays `waiting-question` | Correct behavior — event system protects against duplicate answers at the event level; updated test assertion | log#task-st003 |
+| 2026-02-09 | ST004 | gotcha | Turbo build cache doesn't detect positional-graph source changes — E2E ran against stale CLI binary | Use `pnpm build --filter=@chainglass/positional-graph --force` before E2E after handler changes | log#task-st004 |
+| 2026-02-09 | ST004 | insight | No Vitest wrapper test exists for the E2E — it's a standalone `npx tsx` script with exit code validation | The "update Vitest wrapper" part of ST004 was N/A | log#task-st004 |
 
 **Types**: `gotcha` | `research-needed` | `unexpected-behavior` | `workaround` | `decision` | `debt` | `insight`
 

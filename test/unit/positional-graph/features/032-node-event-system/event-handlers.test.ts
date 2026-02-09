@@ -1,9 +1,9 @@
 /*
 Test Doc:
-- Why: Verify all 6 event handlers apply correct state transitions via HandlerContext and subscriber stamps
-- Contract: Each handler receives HandlerContext, mutates node state, and stamps events. markHandled() replaced by ctx.stamp().
+- Why: Verify all core event handlers apply correct state transitions (or record-only stamps) via HandlerContext
+- Contract: Each handler receives HandlerContext, mutates node state (or not), and stamps events. Record-only handlers (answer, progress) stamp without transitioning.
 - Usage Notes: Handlers receive (ctx: HandlerContext). Unit tests use createEventHandlerRegistry() + NodeEventService.handleEvents(). E2E walkthroughs use raiseEvent() → handleEvents() two-step sequence.
-- Quality Contribution: Catches incorrect status transitions, missing stamps, and handler regression. Each handler tested against Workshop #02 walkthrough expectations updated for stamps model.
+- Quality Contribution: Catches incorrect status transitions, missing stamps, and handler regression. Two-domain boundary: handlers that transition state vs handlers that record only.
 - Worked Example: handleNodeAccepted(ctx) with status 'starting' → status becomes 'agent-accepted', event.stamps['test'] has action 'state-transition'
 */
 
@@ -267,11 +267,11 @@ describe('question:ask handler', () => {
 describe('question:answer handler', () => {
   /*
   Test Doc:
-  - Why: Answer handler cross-stamps ask event, clears pending_question_id, transitions to starting (DYK #1b)
-  - Contract: Ask event cross-stamped with 'answer-linked', pending_question_id cleared, status → 'starting', answer event stamped
-  - Usage Notes: handleQuestionAnswer now transitions to 'starting' (DYK #1b). The agent must re-accept. Cross-stamps via ctx.stampEvent().
-  - Quality Contribution: Catches missing starting transition, cross-stamp regression, pending_question_id lifecycle
-  - Worked Example: answer event + ask event → ask cross-stamped, status='starting', pending cleared
+  - Why: Answer handler cross-stamps ask event and stamps answer-recorded. Node stays waiting-question — no graph decisions.
+  - Contract: Ask event cross-stamped with 'answer-linked', pending_question_id preserved, status stays 'waiting-question', answer event stamped 'answer-recorded'
+  - Usage Notes: handleQuestionAnswer is record-only. Graph-domain restart via node:restart event (Workshop 10). Cross-stamps via ctx.stampEvent().
+  - Quality Contribution: Catches accidental status transition or pending_question_id clearing in the answer handler
+  - Worked Example: answer event + ask event → ask cross-stamped, status='waiting-question', pending preserved, stamp='answer-recorded'
   */
 
   it('cross-stamps the original ask event with answer-linked', () => {
@@ -298,7 +298,7 @@ describe('question:answer handler', () => {
     expect(askEvent.stamps?.test.action).toBe('answer-linked');
   });
 
-  it('clears pending_question_id on the node', () => {
+  it('preserves pending_question_id on the node', () => {
     const askEvent = makeEvent(
       'question:ask',
       { question_id: 'q1', type: 'text', text: 'What?' },
@@ -318,10 +318,10 @@ describe('question:answer handler', () => {
 
     service.handleEvents(state, 'node-1', 'test', 'cli');
 
-    expect(state.nodes?.['node-1'].pending_question_id).toBeUndefined();
+    expect(state.nodes?.['node-1'].pending_question_id).toBe('q1');
   });
 
-  it('transitions node to starting (DYK #1b)', () => {
+  it('keeps node in waiting-question (no status transition)', () => {
     const askEvent = makeEvent(
       'question:ask',
       { question_id: 'q1', type: 'text', text: 'What?' },
@@ -341,7 +341,7 @@ describe('question:answer handler', () => {
 
     service.handleEvents(state, 'node-1', 'test', 'cli');
 
-    expect(state.nodes?.['node-1'].status).toBe('starting');
+    expect(state.nodes?.['node-1'].status).toBe('waiting-question');
   });
 
   it('stamps the answer event', () => {
@@ -364,7 +364,7 @@ describe('question:answer handler', () => {
 
     service.handleEvents(state, 'node-1', 'test', 'cli');
 
-    expect(answerEvent.stamps?.test?.action).toBe('state-transition');
+    expect(answerEvent.stamps?.test?.action).toBe('answer-recorded');
   });
 });
 
@@ -397,7 +397,72 @@ describe('progress:update handler', () => {
 
     service.handleEvents(state, 'node-1', 'test', 'cli');
 
-    expect(event.stamps?.test?.action).toBe('state-transition');
+    expect(event.stamps?.test?.action).toBe('progress-recorded');
+  });
+});
+
+// ── T007: node:restart handler tests ──────────────────────
+
+describe('node:restart handler', () => {
+  /*
+  Test Doc:
+  - Why: Restart handler sets restart-pending status, clears pending_question_id, stamps restart-initiated (Workshop 10)
+  - Contract: Status → 'restart-pending', pending_question_id cleared, event stamped 'restart-initiated'
+  - Usage Notes: Convention-based contract: handler sets restart-pending, reality builder maps to ready, ONBAS returns start-node
+  - Quality Contribution: Catches missing status transition, pending_question_id clearing, or wrong stamp action
+  - Worked Example: node in waiting-question + handleEvents(node:restart) → status='restart-pending', pending cleared, stamp='restart-initiated'
+  */
+
+  it('transitions node status to restart-pending', () => {
+    const event = makeEvent('node:restart', {});
+    const state = makeState('node-1', 'waiting-question', {
+      pending_question_id: 'q1',
+      events: [event],
+    });
+    const service = createTestService();
+
+    service.handleEvents(state, 'node-1', 'test', 'cli');
+
+    expect(state.nodes?.['node-1'].status).toBe('restart-pending');
+  });
+
+  it('clears pending_question_id', () => {
+    const event = makeEvent('node:restart', {});
+    const state = makeState('node-1', 'waiting-question', {
+      pending_question_id: 'q1',
+      events: [event],
+    });
+    const service = createTestService();
+
+    service.handleEvents(state, 'node-1', 'test', 'cli');
+
+    expect(state.nodes?.['node-1'].pending_question_id).toBeUndefined();
+  });
+
+  it('stamps the event with restart-initiated', () => {
+    const event = makeEvent('node:restart', {});
+    const state = makeState('node-1', 'waiting-question', {
+      pending_question_id: 'q1',
+      events: [event],
+    });
+    const service = createTestService();
+
+    service.handleEvents(state, 'node-1', 'test', 'cli');
+
+    expect(event.stamps?.test?.action).toBe('restart-initiated');
+  });
+
+  it('works from blocked-error status', () => {
+    const event = makeEvent('node:restart', {});
+    const state = makeState('node-1', 'blocked-error', {
+      error: { code: 'FAIL', message: 'bad' },
+      events: [event],
+    });
+    const service = createTestService();
+
+    service.handleEvents(state, 'node-1', 'test', 'cli');
+
+    expect(state.nodes?.['node-1'].status).toBe('restart-pending');
   });
 });
 
@@ -520,10 +585,10 @@ describe('Workshop #02 Walkthrough 2: Q&A Lifecycle', () => {
   /*
   Test Doc:
   - Why: Verify question ask/answer lifecycle through raise + handleEvents with stamps
-  - Contract: question:ask → waiting-question + pending_question_id from payload; question:answer → starting + pending cleared + ask cross-stamped
-  - Usage Notes: handleQuestionAnswer transitions to starting (DYK #1b). pending_question_id from payload.question_id (DYK #3).
-  - Quality Contribution: Proves the most complex handler interaction works end-to-end
-  - Worked Example: accept → ask → answer → status='starting', pending=undefined, ask cross-stamped
+  - Contract: question:ask → waiting-question + pending_question_id from payload; question:answer → stays waiting-question + pending preserved + ask cross-stamped
+  - Usage Notes: handleQuestionAnswer is record-only (no status transition). pending_question_id from payload.question_id (DYK #3). Restart via node:restart event (Workshop 10).
+  - Quality Contribution: Proves the answer handler respects the two-domain boundary
+  - Worked Example: accept → ask → answer → status='waiting-question', pending='q-framework', ask cross-stamped, stamp='answer-recorded'
   */
 
   it('manages question lifecycle with correct state at each step', async () => {
@@ -590,19 +655,19 @@ describe('Workshop #02 Walkthrough 2: Q&A Lifecycle', () => {
     state = stateStore.getState('my-graph') as State;
     nodes = state.nodes as State['nodes'];
 
-    // DYK #1b: Node transitions to starting (agent must re-accept)
-    expect(nodes['node-1'].status).toBe('starting');
-    expect(nodes['node-1'].pending_question_id).toBeUndefined();
+    // Record-only: Node stays waiting-question, pending preserved
+    expect(nodes['node-1'].status).toBe('waiting-question');
+    expect(nodes['node-1'].pending_question_id).toBe('q-framework');
     expect(nodes['node-1'].events).toHaveLength(3);
 
     // Ask event cross-stamped with answer-linked
     const persistedAskEvent = nodes['node-1'].events?.[1];
     expect(persistedAskEvent.stamps?.e2e?.action).toBe('answer-linked');
 
-    // Answer event stamped
+    // Answer event stamped with answer-recorded
     const answerEvent = nodes['node-1'].events?.[2];
     expect(answerEvent.event_type).toBe('question:answer');
-    expect(answerEvent.stamps?.e2e?.action).toBe('state-transition');
+    expect(answerEvent.stamps?.e2e?.action).toBe('answer-recorded');
   });
 });
 
@@ -728,8 +793,8 @@ describe('Workshop #02 Walkthrough 4: Progress Updates', () => {
 
     const events = nodes['node-1'].events ?? [];
     expect(events[1].event_type).toBe('progress:update');
-    expect(events[1].stamps?.e2e?.action).toBe('state-transition');
+    expect(events[1].stamps?.e2e?.action).toBe('progress-recorded');
     expect(events[2].event_type).toBe('progress:update');
-    expect(events[2].stamps?.e2e?.action).toBe('state-transition');
+    expect(events[2].stamps?.e2e?.action).toBe('progress-recorded');
   });
 });

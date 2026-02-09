@@ -19,6 +19,7 @@ export type ExecutionStatus =
   | 'agent-accepted'
   | 'waiting-question'
   | 'blocked-error'
+  | 'restart-pending'
   | 'complete';
 
 // ============================================

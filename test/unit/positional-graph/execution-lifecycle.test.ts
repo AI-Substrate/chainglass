@@ -196,6 +196,50 @@ describe('PositionalGraphService — startNode', () => {
     expect(result.status).toBeUndefined();
     expect(result.errors.length).toBeGreaterThan(0);
   });
+
+  it('transitions from restart-pending to starting (Workshop 10)', async () => {
+    /**
+     * Purpose: Proves startNode works after node:restart handler sets restart-pending
+     * Quality Contribution: Convention-based contract — ODS can start restart-pending nodes
+     * Acceptance Criteria: Status becomes starting from restart-pending
+     */
+    // First start and get node into waiting-question via simulated state
+    await service.startNode(ctx, 'test-graph', nodeId);
+    // Simulate node:restart handler setting restart-pending
+    const statePath = '/workspace/my-project/.chainglass/data/workflows/test-graph/state.json';
+    const content = fs.getFile(statePath);
+    if (!content) throw new Error('state.json not found');
+    const state = JSON.parse(content);
+    state.nodes[nodeId].status = 'restart-pending';
+    fs.setFile(statePath, JSON.stringify(state, null, 2));
+
+    const result = await service.startNode(ctx, 'test-graph', nodeId);
+
+    expect(result.errors).toEqual([]);
+    expect(result.status).toBe('starting');
+    expect(result.startedAt).toBeDefined();
+  });
+
+  it('computes restart-pending as ready in getNodeStatus (Workshop 10)', async () => {
+    /**
+     * Purpose: Proves reality builder maps restart-pending to ready for ONBAS
+     * Quality Contribution: Convention-based contract — ONBAS sees ready, returns start-node
+     * Acceptance Criteria: getNodeStatus returns ready for a restart-pending node
+     */
+    await service.startNode(ctx, 'test-graph', nodeId);
+    // Simulate node:restart handler setting restart-pending
+    const statePath = '/workspace/my-project/.chainglass/data/workflows/test-graph/state.json';
+    const content = fs.getFile(statePath);
+    if (!content) throw new Error('state.json not found');
+    const state = JSON.parse(content);
+    state.nodes[nodeId].status = 'restart-pending';
+    fs.setFile(statePath, JSON.stringify(state, null, 2));
+
+    const status = await service.getNodeStatus(ctx, 'test-graph', nodeId);
+
+    expect(status.status).toBe('ready');
+    expect(status.ready).toBe(true);
+  });
 });
 
 // ============================================

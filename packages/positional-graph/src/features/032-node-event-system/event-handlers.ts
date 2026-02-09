@@ -42,21 +42,28 @@ function handleQuestionAnswer(ctx: HandlerContext): void {
     ctx.stampEvent(askEvent, 'answer-linked');
   }
 
-  // Clear pending_question_id and transition to starting (DYK #1b)
-  ctx.node.pending_question_id = undefined;
-  ctx.node.status = 'starting';
-  ctx.stamp('state-transition');
+  // Record only — no status transition, no clearing pending_question_id.
+  // Graph-domain decisions (restart, resume) belong to ONBAS/ODS.
+  ctx.stamp('answer-recorded');
 }
 
 function handleProgressUpdate(ctx: HandlerContext): void {
   // No state change — progress events are informational only
-  ctx.stamp('state-transition');
+  ctx.stamp('progress-recorded');
+}
+
+function handleNodeRestart(ctx: HandlerContext): void {
+  // Convention-based contract (Workshop 10): set restart-pending so reality
+  // builder maps to ready, ONBAS returns start-node, ODS executes.
+  ctx.node.status = 'restart-pending';
+  ctx.node.pending_question_id = undefined;
+  ctx.stamp('restart-initiated');
 }
 
 // ── Registry Factory ────────────────────────────────────
 
 /**
- * Create the EventHandlerRegistry with all 6 core handlers registered.
+ * Create the EventHandlerRegistry with all 7 core handlers registered.
  * All handlers registered as context: 'both' (run in CLI and web).
  */
 export function createEventHandlerRegistry(): EventHandlerRegistry {
@@ -78,6 +85,10 @@ export function createEventHandlerRegistry(): EventHandlerRegistry {
   registry.on('progress:update', handleProgressUpdate, {
     context: 'both',
     name: 'handleProgressUpdate',
+  });
+  registry.on('node:restart', handleNodeRestart, {
+    context: 'both',
+    name: 'handleNodeRestart',
   });
   return registry;
 }

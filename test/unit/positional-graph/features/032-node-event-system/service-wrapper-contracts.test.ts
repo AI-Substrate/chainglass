@@ -254,7 +254,7 @@ describe('answerQuestion — event service wrapper contract', () => {
     const result = await service.answerQuestion(ctx, 'test-graph', nodeId, questionId, 'React');
 
     expect(result.errors).toEqual([]);
-    expect(result.status).toBe('starting');
+    expect(result.status).toBe('waiting-question');
 
     const state = readState(fs, 'test-graph');
     const events = state.nodes[nodeId].events;
@@ -264,15 +264,15 @@ describe('answerQuestion — event service wrapper contract', () => {
 
     expect(answerEvent).toBeDefined();
     expect(answerEvent.source).toBe('human');
-    expect(answerEvent.stamps?.cli?.action).toBe('state-transition');
+    expect(answerEvent.stamps?.cli?.action).toBe('answer-recorded');
   });
 
-  it('transitions node to starting and clears pending_question_id (DYK #1b)', async () => {
+  it('keeps node in waiting-question and preserves pending_question_id', async () => {
     await service.answerQuestion(ctx, 'test-graph', nodeId, questionId, 'React');
 
     const state = readState(fs, 'test-graph');
-    expect(state.nodes[nodeId].status).toBe('starting');
-    expect(state.nodes[nodeId].pending_question_id).toBeUndefined();
+    expect(state.nodes[nodeId].status).toBe('waiting-question');
+    expect(state.nodes[nodeId].pending_question_id).toBe(questionId);
   });
 
   it('cross-stamps the original ask event with answer-linked', async () => {
