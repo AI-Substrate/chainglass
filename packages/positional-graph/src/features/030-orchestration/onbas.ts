@@ -91,6 +91,10 @@ function visitNode(
       return null;
 
     case 'ready':
+      // User-input nodes are a UI concern — orchestration does not start them
+      if (node.unitType === 'user-input') {
+        return null;
+      }
       return {
         type: 'start-node',
         graphSlug,

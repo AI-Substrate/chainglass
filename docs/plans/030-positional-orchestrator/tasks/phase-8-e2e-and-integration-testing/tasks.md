@@ -139,24 +139,24 @@ flowchart TD
     style Infra fill:#F5F5F5,stroke:#E0E0E0
 
     subgraph Setup["Setup & Fixture"]
-        T001["T001: Graph fixture + stack wiring"]:::pending
+        T001["T001: Graph fixture + stack wiring"]:::completed
     end
 
     subgraph Acts["E2E Acts"]
-        T002["T002: User-input flow"]:::pending
-        T003["T003: Serial agents"]:::pending
-        T004["T004: Question cycle"]:::pending
-        T005["T005: Parallel execution"]:::pending
-        T006["T006: Manual transition"]:::pending
-        T007["T007: Code node"]:::pending
-        T008["T008: Error recovery"]:::pending
-        T009["T009: Full pipeline"]:::pending
+        T002["T002: User-input flow"]:::completed
+        T003["T003: Serial agents"]:::completed
+        T004["T004: Question cycle"]:::completed
+        T005["T005: Parallel execution"]:::completed
+        T006["T006: Manual transition"]:::completed
+        T007["T007: Code node"]:::completed
+        T008["T008: Error recovery"]:::completed
+        T009["T009: Full pipeline"]:::completed
     end
 
     subgraph Infra["Infrastructure"]
-        T010["T010: Vitest wrapper"]:::pending
-        T011["T011: AC verification"]:::pending
-        T012["T012: just fft"]:::pending
+        T010["T010: Vitest wrapper"]:::completed
+        T011["T011: AC verification"]:::completed
+        T012["T012: just fft"]:::completed
     end
 
     T001 --> T002
@@ -179,18 +179,18 @@ flowchart TD
 
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
-| T001 | Graph Fixture + Stack | `test/e2e/positional-graph-orchestration-e2e.ts` | Pending | ACT 0: temp workspace, unit YAML, graph + lines + nodes, input wiring, orchestration stack |
-| T002 | User-Input Act | `test/e2e/positional-graph-orchestration-e2e.ts` | Pending | ACT 1: get-spec user-input node, ODS returns ok, CLI provides data |
-| T003 | Serial Agent Act | `test/e2e/positional-graph-orchestration-e2e.ts` | Pending | ACT 2: spec-builder + spec-reviewer serial chain with context inheritance |
-| T004 | Question Cycle Act | `test/e2e/positional-graph-orchestration-e2e.ts` | Pending | ACT 3: coder ask -> answer -> node:restart -> re-start |
-| T005 | Parallel Execution Act | `test/e2e/positional-graph-orchestration-e2e.ts` | Pending | ACT 6: alignment-tester + pr-preparer parallel start |
-| T006 | Manual Transition Act | `test/e2e/positional-graph-orchestration-e2e.ts` | Pending | ACT 5: line-002 manual gate, trigger opens line-003 |
-| T007 | Code Node Act | `test/e2e/positional-graph-orchestration-e2e.ts` | Pending | ACT 4: tester code node, no session tracking |
-| T008 | Error Recovery Act | `test/e2e/positional-graph-orchestration-e2e.ts` | Pending | ACT E: separate graph, blocked-error scenario |
-| T009 | Full Pipeline | `test/e2e/positional-graph-orchestration-e2e.ts` | Pending | ACTs 7-9: serial after parallel, graph-complete, cleanup |
-| T010 | Vitest Wrapper | `test/integration/positional-graph/orchestration-e2e.test.ts` | Pending | skipIf(!cliExists), 120s timeout |
-| T011 | AC Verification | `test/e2e/positional-graph-orchestration-e2e.ts` | Pending | Map each AC to test coverage |
-| T012 | Final Validation | — | Pending | `just fft` clean |
+| T001 | Graph Fixture + Stack | `test/e2e/positional-graph-orchestration-e2e.ts` | ✅ Complete | ACT 0: temp workspace, 8 unit YAMLs, 4-line graph, 7 input wirings, orchestration stack |
+| T002 | User-Input Act | `test/e2e/positional-graph-orchestration-e2e.ts` | ✅ Complete | ACT 1: get-spec user-input node completed via CLI, ONBAS skips |
+| T003 | Serial Agent Act | `test/e2e/positional-graph-orchestration-e2e.ts` | ✅ Complete | ACT 2: spec-builder + spec-reviewer serial chain with context inheritance |
+| T004 | Question Cycle Act | `test/e2e/positional-graph-orchestration-e2e.ts` | ✅ Complete | ACT 4: coder ask -> answer -> node:restart -> re-start |
+| T005 | Parallel Execution Act | `test/e2e/positional-graph-orchestration-e2e.ts` | ✅ Complete | ACT 6: alignment-tester + pr-preparer parallel start |
+| T006 | Manual Transition Act | `test/e2e/positional-graph-orchestration-e2e.ts` | ✅ Complete | ACT 3: line-001 manual gate, trigger opens line-002 |
+| T007 | Code Node Act | `test/e2e/positional-graph-orchestration-e2e.ts` | ✅ Complete | ACT 5: tester code node, no session tracking |
+| T008 | Error Recovery Act | `test/e2e/positional-graph-orchestration-e2e.ts` | ✅ Complete | ACT E: separate graph, blocked-error, cross-graph isolation |
+| T009 | Full Pipeline | `test/e2e/positional-graph-orchestration-e2e.ts` | ✅ Complete | ACTs 7-8: serial after parallel, graph-complete, cleanup |
+| T010 | Vitest Wrapper | `test/integration/positional-graph/orchestration-e2e.test.ts` | ✅ Complete | skipIf(!cliExists), 120s timeout, follows Plan 032 pattern |
+| T011 | AC Verification | `test/e2e/positional-graph-orchestration-e2e.ts` | ✅ Complete | AC-1 through AC-14 mapped (AC-8 deferred), annotations added |
+| T012 | Final Validation | — | ✅ Complete | 3730 tests pass, lint clean, format clean |
 
 ---
 
@@ -198,19 +198,19 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|------|------|-----|------|-------------|-------------------|------------|----------|-------|
-| [ ] | T000 | Fix ONBAS to skip user-input nodes: add `unitType === 'user-input' → return null` in `visitNode()`, add test for user-input skip behavior | 2 | Fix | – | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/030-orchestration/onbas.ts`, `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/onbas.test.ts` | ONBAS returns null for ready user-input nodes; no start-node emitted; existing 39 tests still pass | – | DYK #1: user-input nodes need no orchestration; ODS no-ops them but ONBAS was still emitting start-node |
-| [ ] | T001 | Create test graph fixture (ACT 0): temp workspace, 8 work unit YAMLs inline, create graph with 4 lines (line-002 manual transition), add 8 nodes (2 parallel), wire all 12 inputs, build orchestration stack with real services + FakeAgentAdapter + FakeScriptRunner; verify FakeAgentAdapter behavior (must not resolve instantly — configure to block/hang for E2E) | 3 | Setup | T000 | `/home/jak/substrate/030-positional-orchestrator/test/e2e/positional-graph-orchestration-e2e.ts` | Graph created with 4 lines, 8 nodes, 12 input wirings; orchestration handle obtained; FakeAgentAdapter configured for E2E; step counter starts | – | Plan 8.1 + 8.9 setup; per Workshop #13 Option B (inline generation); per CF-12 test graph; DYK #4: verify FakeAgentAdapter doesn't race CLI |
-| [ ] | T002 | Write ACT 1 — user-input flow: complete get-spec via CLI (save-output-data + end), then `handle.run()` advances past completed user-input to next ready node | 2 | E2E | T001 | `/home/jak/substrate/030-positional-orchestrator/test/e2e/positional-graph-orchestration-e2e.ts` | get-spec status `complete` after CLI end; ONBAS skips user-input (T000 fix); next node starts | – | Plan 8.2; Pattern 1; DYK #1: user-input completed via CLI before run() |
-| [ ] | T003 | Write ACT 2 — serial agent execution: spec-builder starts (inherits from line 0), completes via CLI; spec-reviewer starts as serial successor, completes; input wiring validated | 2 | E2E | T002 | `/home/jak/substrate/030-positional-orchestrator/test/e2e/positional-graph-orchestration-e2e.ts` | Two `run()` calls each produce 1 action; spec-reviewer starts after spec-builder completes; AC-5 context inheritance exercised | – | Plan 8.3; Patterns 2+5 |
-| [ ] | T004 | Write ACT 3 — question/answer cycle: coder starts, accepts via CLI, asks question via CLI (`question:ask` event), `handle.run()` settles (no-action), answer via CLI, raise `node:restart` event, `handle.run()` re-starts coder, completes | 3 | E2E | T003 | `/home/jak/substrate/030-positional-orchestrator/test/e2e/positional-graph-orchestration-e2e.ts` | Full 5-phase control handoff (A-E); after restart: `result.actions[0].request.type === 'start-node'` for coder; multi-subscriber stamps verified; AC-9 | – | Plan 8.4 + 8.10; Pattern 3; per CF-07 event-based question lifecycle |
-| [ ] | T005 | Write ACT 6 — parallel execution: alignment-tester + pr-preparer both start in one `run()` call; pr-creator NOT started (serial gate); both complete via CLI | 2 | E2E | T004 | `/home/jak/substrate/030-positional-orchestrator/test/e2e/positional-graph-orchestration-e2e.ts` | `result.actions.length === 2`; both are `start-node`; pr-creator not started | – | Plan 8.5; Pattern 4 |
-| [ ] | T006 | Write ACT 5 — manual transition gate: line 2 complete, `handle.run()` returns `no-action` (line 3 blocked), trigger via CLI `cg wf trigger`, next `handle.run()` starts line 3 nodes | 2 | E2E | T004 | `/home/jak/substrate/030-positional-orchestrator/test/e2e/positional-graph-orchestration-e2e.ts` | Pre-trigger: `stopReason === 'no-action'`; post-trigger: line 3 nodes start | – | Plan 8.6; Pattern 6 |
-| [ ] | T007 | Write ACT 4 — code node execution: tester (type=code) starts as serial successor to coder, executes via CodePod (FakeScriptRunner), no session tracking, completes | 2 | E2E | T004 | `/home/jak/substrate/030-positional-orchestrator/test/e2e/positional-graph-orchestration-e2e.ts` | Tester status `complete`; no session ID tracked for code nodes | – | Plan 8.7; Pattern 7 |
-| [ ] | T008 | Write ACT E — error recovery (separate 1-line 2-node graph): start node, accept via CLI, error via CLI -> `blocked-error`, `handle.run()` returns appropriate stop reason. Run AFTER main pipeline completes. Verify event scoping by graph slug is airtight (no cross-graph event contamination). | 2 | E2E | T009 | `/home/jak/substrate/030-positional-orchestrator/test/e2e/positional-graph-orchestration-e2e.ts` | Node shows `blocked-error`; reality reflects failure; separate graph from main pipeline; no cross-graph event leakage | – | Plan 8.8; Pattern 8; DYK #3: run last to avoid cross-graph event issues |
-| [ ] | T009 | Write ACTs 7-9 — serial after parallel (pr-creator starts), graph-complete verification (stopReason, 0 actions, all 8 nodes complete, reality.isComplete), cleanup | 2 | E2E | T005,T006,T007 | `/home/jak/substrate/030-positional-orchestrator/test/e2e/positional-graph-orchestration-e2e.ts` | `stopReason === 'graph-complete'`; `reality.completedCount === 8`; `reality.isComplete === true`; AC-12 | – | Plan 8.9 |
-| [ ] | T010 | Write Vitest wrapper: `skipIf(!cliExists)`, runs E2E script via `execSync`, 120s timeout | 1 | Test | T009 | `/home/jak/substrate/030-positional-orchestrator/test/integration/positional-graph/orchestration-e2e.test.ts` | Vitest wrapper passes when CLI built; skips gracefully otherwise | – | Per Plan 032 Vitest wrapper pattern |
-| [ ] | T011 | Verify all acceptance criteria have test coverage: map AC-1 through AC-14 to specific assertions in E2E; add any missing assertion comments | 1 | Doc | T009 | `/home/jak/substrate/030-positional-orchestrator/test/e2e/positional-graph-orchestration-e2e.ts` | Each AC-N has at least one test assertion or is documented as deferred (AC-8) | – | Plan 8.11 |
-| [ ] | T012 | Final `just fft` validation: lint clean, format clean, all tests pass | 1 | Validation | T010,T011 | — | Exit code 0; no regressions in existing 2135+ orchestration tests | – | Plan 8.12 |
+| [x] | T000 | Fix ONBAS to skip user-input nodes: add `unitType === 'user-input' → return null` in `visitNode()`, add test for user-input skip behavior | 2 | Fix | – | `/home/jak/substrate/030-positional-orchestrator/packages/positional-graph/src/features/030-orchestration/onbas.ts`, `/home/jak/substrate/030-positional-orchestrator/test/unit/positional-graph/onbas.test.ts` | ONBAS returns null for ready user-input nodes; no start-node emitted; existing 39 tests still pass | – | DYK #1: user-input nodes need no orchestration; ODS no-ops them but ONBAS was still emitting start-node |
+| [x] | T001 | Create test graph fixture (ACT 0): temp workspace, 8 work unit YAMLs inline, create graph with 4 lines (line-002 manual transition), add 8 nodes (2 parallel), wire all 12 inputs, build orchestration stack with real services + FakeAgentAdapter + FakeScriptRunner; verify FakeAgentAdapter behavior (must not resolve instantly — configure to block/hang for E2E) | 3 | Setup | T000 | `/home/jak/substrate/030-positional-orchestrator/test/e2e/positional-graph-orchestration-e2e.ts` | Graph created with 4 lines, 8 nodes, 12 input wirings; orchestration handle obtained; FakeAgentAdapter configured for E2E; step counter starts | – | Plan 8.1 + 8.9 setup; per Workshop #13 Option B (inline generation); per CF-12 test graph; DYK #4: verify FakeAgentAdapter doesn't race CLI |
+| [x] | T002 | Write ACT 1 — user-input flow: complete get-spec via CLI (save-output-data + end), then `handle.run()` advances past completed user-input to next ready node | 2 | E2E | T001 | `/home/jak/substrate/030-positional-orchestrator/test/e2e/positional-graph-orchestration-e2e.ts` | get-spec status `complete` after CLI end; ONBAS skips user-input (T000 fix); next node starts | – | Plan 8.2; Pattern 1; DYK #1: user-input completed via CLI before run() |
+| [x] | T003 | Write ACT 2 — serial agent execution: spec-builder starts (inherits from line 0), completes via CLI; spec-reviewer starts as serial successor, completes; input wiring validated | 2 | E2E | T002 | `/home/jak/substrate/030-positional-orchestrator/test/e2e/positional-graph-orchestration-e2e.ts` | Two `run()` calls each produce 1 action; spec-reviewer starts after spec-builder completes; AC-5 context inheritance exercised | – | Plan 8.3; Patterns 2+5 |
+| [x] | T004 | Write ACT 3 — question/answer cycle: coder starts, accepts via CLI, asks question via CLI (`question:ask` event), `handle.run()` settles (no-action), answer via CLI, raise `node:restart` event, `handle.run()` re-starts coder, completes | 3 | E2E | T003 | `/home/jak/substrate/030-positional-orchestrator/test/e2e/positional-graph-orchestration-e2e.ts` | Full 5-phase control handoff (A-E); after restart: `result.actions[0].request.type === 'start-node'` for coder; multi-subscriber stamps verified; AC-9 | – | Plan 8.4 + 8.10; Pattern 3; per CF-07 event-based question lifecycle |
+| [x] | T005 | Write ACT 6 — parallel execution: alignment-tester + pr-preparer both start in one `run()` call; pr-creator NOT started (serial gate); both complete via CLI | 2 | E2E | T004 | `/home/jak/substrate/030-positional-orchestrator/test/e2e/positional-graph-orchestration-e2e.ts` | `result.actions.length === 2`; both are `start-node`; pr-creator not started | – | Plan 8.5; Pattern 4 |
+| [x] | T006 | Write ACT 5 — manual transition gate: line 2 complete, `handle.run()` returns `no-action` (line 3 blocked), trigger via CLI `cg wf trigger`, next `handle.run()` starts line 3 nodes | 2 | E2E | T004 | `/home/jak/substrate/030-positional-orchestrator/test/e2e/positional-graph-orchestration-e2e.ts` | Pre-trigger: `stopReason === 'no-action'`; post-trigger: line 3 nodes start | – | Plan 8.6; Pattern 6 |
+| [x] | T007 | Write ACT 4 — code node execution: tester (type=code) starts as serial successor to coder, executes via CodePod (FakeScriptRunner), no session tracking, completes | 2 | E2E | T004 | `/home/jak/substrate/030-positional-orchestrator/test/e2e/positional-graph-orchestration-e2e.ts` | Tester status `complete`; no session ID tracked for code nodes | – | Plan 8.7; Pattern 7 |
+| [x] | T008 | Write ACT E — error recovery (separate 1-line 2-node graph): start node, accept via CLI, error via CLI -> `blocked-error`, `handle.run()` returns appropriate stop reason. Run AFTER main pipeline completes. Verify event scoping by graph slug is airtight (no cross-graph event contamination). | 2 | E2E | T009 | `/home/jak/substrate/030-positional-orchestrator/test/e2e/positional-graph-orchestration-e2e.ts` | Node shows `blocked-error`; reality reflects failure; separate graph from main pipeline; no cross-graph event leakage | – | Plan 8.8; Pattern 8; DYK #3: run last to avoid cross-graph event issues |
+| [x] | T009 | Write ACTs 7-9 — serial after parallel (pr-creator starts), graph-complete verification (stopReason, 0 actions, all 8 nodes complete, reality.isComplete), cleanup | 2 | E2E | T005,T006,T007 | `/home/jak/substrate/030-positional-orchestrator/test/e2e/positional-graph-orchestration-e2e.ts` | `stopReason === 'graph-complete'`; `reality.completedCount === 8`; `reality.isComplete === true`; AC-12 | – | Plan 8.9 |
+| [x] | T010 | Write Vitest wrapper: `skipIf(!cliExists)`, runs E2E script via `execSync`, 120s timeout | 1 | Test | T009 | `/home/jak/substrate/030-positional-orchestrator/test/integration/positional-graph/orchestration-e2e.test.ts` | Vitest wrapper passes when CLI built; skips gracefully otherwise | – | Per Plan 032 Vitest wrapper pattern |
+| [x] | T011 | Verify all acceptance criteria have test coverage: map AC-1 through AC-14 to specific assertions in E2E; add any missing assertion comments | 1 | Doc | T009 | `/home/jak/substrate/030-positional-orchestrator/test/e2e/positional-graph-orchestration-e2e.ts` | Each AC-N has at least one test assertion or is documented as deferred (AC-8) | – | Plan 8.11 |
+| [x] | T012 | Final `just fft` validation: lint clean, format clean, all tests pass | 1 | Validation | T010,T011 | — | Exit code 0; no regressions in existing 2135+ orchestration tests | – | Plan 8.12 |
 
 ---
 

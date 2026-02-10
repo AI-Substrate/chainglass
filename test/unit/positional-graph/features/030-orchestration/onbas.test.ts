@@ -533,6 +533,37 @@ describe('walkForNextAction — skip logic', () => {
     expect(result.type).toBe('start-node');
   });
 
+  it('user-input node is always skipped — orchestration does not start user-input nodes', () => {
+    const reality = buildFakeReality({
+      nodes: [
+        { nodeId: 'human', status: 'ready', unitType: 'user-input', positionInLine: 0 },
+        { nodeId: 'agent', status: 'ready', unitType: 'agent', positionInLine: 1 },
+      ],
+      lines: [{ nodeIds: ['human', 'agent'] }],
+    });
+
+    const result = walkForNextAction(reality);
+
+    // user-input should be skipped; agent should be started
+    expect(result).toMatchObject({ type: 'start-node', nodeId: 'agent' });
+  });
+
+  it('sole user-input node on incomplete line → all-waiting (not start-node)', () => {
+    const reality = buildFakeReality({
+      nodes: [{ nodeId: 'human', status: 'ready', unitType: 'user-input' }],
+      lines: [{ nodeIds: ['human'], isComplete: false }],
+    });
+
+    const result = walkForNextAction(reality);
+
+    // Should NOT produce start-node — user-input is a UI concern
+    expect(result).toEqual({
+      type: 'no-action',
+      graphSlug: 'test-graph',
+      reason: 'all-waiting',
+    });
+  });
+
   it('waiting-question is always skipped (event-driven lifecycle)', () => {
     const reality = buildFakeReality({
       nodes: [

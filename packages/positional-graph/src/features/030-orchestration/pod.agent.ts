@@ -14,14 +14,25 @@ import { fileURLToPath } from 'node:url';
 import type { AgentResult, IAgentAdapter } from '@chainglass/shared';
 import type { IWorkUnitPod, PodExecuteOptions, PodExecuteResult } from './pod.types.js';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const PROMPT_PATH = resolve(__dirname, 'node-starter-prompt.md');
-
 let cachedPrompt: string | undefined;
+
+function getModuleDir(): string {
+  if (typeof import.meta?.dirname === 'string') {
+    return import.meta.dirname;
+  }
+  if (typeof import.meta?.url === 'string') {
+    return dirname(fileURLToPath(import.meta.url));
+  }
+  if (typeof __dirname === 'string') {
+    return __dirname;
+  }
+  return process.cwd();
+}
 
 function loadStarterPrompt(): string {
   if (cachedPrompt === undefined) {
-    cachedPrompt = readFileSync(PROMPT_PATH, 'utf-8');
+    const promptPath = resolve(getModuleDir(), 'node-starter-prompt.md');
+    cachedPrompt = readFileSync(promptPath, 'utf-8');
   }
   return cachedPrompt;
 }
