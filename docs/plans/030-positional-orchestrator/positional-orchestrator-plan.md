@@ -907,3 +907,4 @@ Test Doc:
 |-------|-------------|---------|--------|---------|
 | 7 | T007 | ~~IEventHandlerService — graph-wide event processing (Settle phase)~~ | SUPERSEDED by Plan 032 | `tasks/phase-7-orchestration-entry-point/subtask-event-handler-service/tasks.md` |
 | 6 | T001 | Concept drift remediation — align Plan 030/032 domains before Phase 6 | Complete | `tasks/phase-6-ods-action-handlers/001-subtask-concept-drift-remediation.md` |
+| 8 | T009 | Upgrade worked example to cover all orchestration patterns | [x] Complete | `tasks/phase-8-e2e-and-integration-testing/001-subtask-upgrade-worked-example.md` |

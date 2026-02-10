@@ -8,6 +8,10 @@
  * a graph with two serial agent nodes gets driven from "pending" to "graph-complete"
  * by the settle-decide-act loop. You'll see real ONBAS decisions, real ODS dispatch,
  * real event settlement, and real reality snapshots — all in-process with no CLI.
+ *
+ * For the comprehensive version covering all orchestration patterns (user-input,
+ * serial agents, manual transitions, question/answer/restart lifecycle, code nodes,
+ * parallel execution, and settlement idempotency), see worked-example-full.ts.
  */
 
 import * as fs from 'node:fs/promises';
