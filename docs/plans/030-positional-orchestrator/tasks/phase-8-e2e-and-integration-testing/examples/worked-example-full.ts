@@ -666,7 +666,7 @@ async function main() {
     console.log();
     console.log('→ Reality snapshot:');
     console.log('    NODE              TYPE         STATUS     LINE  POS   EXEC      READY');
-    for (const [nodeId, node] of reality.nodes) {
+    for (const [_nodeId, node] of reality.nodes) {
       console.log(
         `    ${node.unitSlug.padEnd(18)}` +
           `${node.unitType.padEnd(13)}` +

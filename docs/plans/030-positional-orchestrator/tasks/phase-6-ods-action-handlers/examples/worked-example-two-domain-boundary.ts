@@ -112,7 +112,7 @@ console.log();
 // ──────────────────────────────────────────────────────────────────────────────
 
 const questionId = 'q-framework';
-const askEventId = generateEventId();
+const _askEventId = generateEventId();
 
 const askResult = await nodeEventService.raise(
   GRAPH,
