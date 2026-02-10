@@ -664,26 +664,26 @@ Test Doc:
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 8.1 | [ ] | Create test graph fixture (4-line, 8-node pipeline) | 2 | Graph YAML and work unit definitions for: get-spec (user-input), spec-builder (agent), spec-reviewer (agent), coder (agent), tester (agent), alignment-tester (agent), pr-preparer (code), pr-creator (agent) | - | Per Workshop #6 |
-| 8.2 | [ ] | Write integration test: user-input flow | 2 | Tests: user-input node auto-completes, output wired to next line | - | Pattern 1 |
-| 8.3 | [ ] | Write integration test: serial agent execution | 2 | Tests: spec-builder starts, completes, spec-reviewer starts with inherited context | - | Pattern 2 + 5 |
-| 8.4 | [ ] | Write integration test: question cycle | 2 | Tests: agent asks question, question surfaced, user answers, agent resumes | - | Pattern 3 |
-| 8.5 | [ ] | Write integration test: parallel execution | 2 | Tests: coder, tester, alignment-tester all start on same run() call | - | Pattern 4 |
-| 8.6 | [ ] | Write integration test: manual transition | 2 | Tests: line 1 requires manual transition, orchestrator waits until transitioned | - | Pattern 6 |
-| 8.7 | [ ] | Write integration test: code node execution | 2 | Tests: pr-preparer (code type) executes via CodePod, no session tracking | - | Pattern 7 |
-| 8.8 | [ ] | Write integration test: error recovery | 2 | Tests: agent pod returns error, node goes to blocked-error, graph shows failure in reality | - | Pattern 8 |
-| 8.9 | [ ] | Write E2E test: full pipeline with human-as-agent | 3 | Full graph from start to completion: get-spec → spec-builder → spec-reviewer → parallel agents → manual transition → code node → pr-creator → graph-complete | - | AC-12 |
-| 8.10 | [ ] | Write E2E test: question/answer via CLI | 2 | Agent asks question, test answers via CLI `cg wf answer`, orchestration resumes | - | |
-| 8.11 | [ ] | Verify all acceptance criteria in tests | 2 | AC-1 through AC-14 have test coverage | - | |
-| 8.12 | [ ] | Final `just fft` validation | 1 | All tests pass, lint clean, format clean | - | |
+| 8.1 | [x] | Create test graph fixture (4-line, 8-node pipeline) | 2 | Graph YAML and work unit definitions for: get-spec (user-input), spec-builder (agent), spec-reviewer (agent), coder (agent), tester (agent), alignment-tester (agent), pr-preparer (code), pr-creator (agent) | - | Per Workshop #6 |
+| 8.2 | [x] | Write integration test: user-input flow | 2 | Tests: user-input node auto-completes, output wired to next line | - | Pattern 1 |
+| 8.3 | [x] | Write integration test: serial agent execution | 2 | Tests: spec-builder starts, completes, spec-reviewer starts with inherited context | - | Pattern 2 + 5 |
+| 8.4 | [x] | Write integration test: question cycle | 2 | Tests: agent asks question, question surfaced, user answers, agent resumes | - | Pattern 3 |
+| 8.5 | [x] | Write integration test: parallel execution | 2 | Tests: coder, tester, alignment-tester all start on same run() call | - | Pattern 4 |
+| 8.6 | [x] | Write integration test: manual transition | 2 | Tests: line 1 requires manual transition, orchestrator waits until transitioned | - | Pattern 6 |
+| 8.7 | [x] | Write integration test: code node execution | 2 | Tests: pr-preparer (code type) executes via CodePod, no session tracking | - | Pattern 7 |
+| 8.8 | [x] | Write integration test: error recovery | 2 | Tests: agent pod returns error, node goes to blocked-error, graph shows failure in reality | - | Pattern 8 |
+| 8.9 | [x] | Write E2E test: full pipeline with human-as-agent | 3 | Full graph from start to completion: get-spec → spec-builder → spec-reviewer → parallel agents → manual transition → code node → pr-creator → graph-complete | - | AC-12 |
+| 8.10 | [x] | Write E2E test: question/answer via CLI | 2 | Agent asks question, test answers via CLI `cg wf answer`, orchestration resumes | - | |
+| 8.11 | [x] | Verify all acceptance criteria in tests | 2 | AC-1 through AC-14 have test coverage | - | |
+| 8.12 | [x] | Final `just fft` validation | 1 | All tests pass, lint clean, format clean | - | |
 
 ### Acceptance Criteria
-- [ ] E2E tests drive full workflow without real agents (AC-12)
-- [ ] All 7 test patterns from Workshop #6 exercised
-- [ ] Graph reaches `complete` status with all nodes complete
-- [ ] Question lifecycle flows correctly through the system (AC-9)
-- [ ] Input wiring flows from user-input to agent nodes (AC-14)
-- [ ] `just fft` clean
+- [x] E2E tests drive full workflow without real agents (AC-12)
+- [x] All 7 test patterns from Workshop #6 exercised
+- [x] Graph reaches `complete` status with all nodes complete
+- [x] Question lifecycle flows correctly through the system (AC-9)
+- [x] Input wiring flows from user-input to agent nodes (AC-14)
+- [x] `just fft` clean
 
 ---
 
@@ -741,7 +741,7 @@ Test Doc:
 - [x] Phase 5: ONBAS Walk Algorithm - COMPLETE
 - [x] Phase 6: ODS Action Handlers - COMPLETE
 - [x] Phase 7: Orchestration Entry Point - COMPLETE
-- [ ] Phase 8: E2E and Integration Testing - Pending (awaiting Phase 7)
+- [x] Phase 8: E2E and Integration Testing - COMPLETE
 
 ### STOP Rule
 
