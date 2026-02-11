@@ -16,6 +16,7 @@ Architecture Decision Records (ADRs) document significant architectural decision
 | 0008 | [Workspace Split Storage Data Model](./adr-0008-workspace-split-storage-data-model.md) | 2026-01-27 | Accepted | - | - | Git-native per-worktree data architecture |
 | 0009 | [Module Registration Function Pattern](./adr-0009-module-registration-function-pattern.md) | 2026-01-28 | Accepted | - | - | Extends ADR-0004 for module composition |
 | 0010 | [Central Domain Event Notification Architecture](./adr-0010-central-domain-event-notification-architecture.md) | 2026-02-03 | Accepted | - | - | Core signpost for domain event system (Plan 027) |
+| 0011 | [First-Class Domain Concepts Over Diffuse Functions](./adr-0011-first-class-domain-concepts.md) | 2026-02-08 | Accepted | - | - | Golden example: INodeEventService (Plan 032 WS09) |
 
 ## ADR Format
 

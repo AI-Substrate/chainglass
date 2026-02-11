@@ -40,6 +40,7 @@ import type { WorkspaceContext } from '@chainglass/workflow';
  */
 export interface WorkUnitConfig {
   slug: string;
+  unitType?: 'agent' | 'code' | 'user-input';
   inputs?: Array<{
     name: string;
     type?: 'data' | 'file';
@@ -85,6 +86,7 @@ export function createWorkUnit(config: WorkUnitConfig): NarrowWorkUnit {
 
   return {
     slug: config.slug,
+    type: config.unitType ?? 'agent',
     inputs,
     outputs,
   };
@@ -176,6 +178,7 @@ export function stubWorkUnitLoader(options: StubWorkUnitLoaderOptions = {}): IWo
     if (!unitMap.has(slug)) {
       unitMap.set(slug, {
         slug,
+        type: 'agent',
         inputs: defaultInputs,
         outputs: defaultOutputs,
       });
@@ -199,7 +202,7 @@ export function stubWorkUnitLoader(options: StubWorkUnitLoaderOptions = {}): IWo
 
       // Non-strict mode: return a minimal stub for any unknown slug
       return {
-        unit: { slug, inputs: defaultInputs, outputs: defaultOutputs },
+        unit: { slug, type: 'agent' as const, inputs: defaultInputs, outputs: defaultOutputs },
         errors: [],
       };
     },
@@ -287,8 +290,8 @@ export function createE2ETestLoader(): IWorkUnitLoader {
  *
  * These fixtures test the **execution lifecycle infrastructure** — the data
  * system that lets nodes start, save outputs, ask questions, retrieve inputs,
- * and complete. All units use NarrowWorkUnit (no type field — behavior is
- * implicit in the E2E test script).
+ * and complete. All units use NarrowWorkUnit with a `type` discriminator
+ * ('agent', 'code', or 'user-input').
  *
  * Pipeline structure:
  * - Line 0 (Spec Creation): spec-builder → spec-reviewer (serial)

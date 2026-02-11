@@ -140,7 +140,7 @@ describe('CLI WorkGraph Integration', () => {
       // Step 7: Start the node
       const startResult = await workNodeService.start(ctx, 'my-workflow', nodeId);
       expect(startResult.errors).toHaveLength(0);
-      expect(startResult.status).toBe('running');
+      expect(startResult.status).toBe('starting');
 
       // Step 8: Save output data
       const saveResult = await workNodeService.saveOutputData(
@@ -264,7 +264,7 @@ describe('CLI WorkGraph Integration', () => {
         'Poetry'
       );
       expect(answerResult.errors).toHaveLength(0);
-      expect(answerResult.status).toBe('running');
+      expect(answerResult.status).toBe('starting');
     });
   });
 });

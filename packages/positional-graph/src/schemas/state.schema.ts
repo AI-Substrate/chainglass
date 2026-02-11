@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { NodeEventSchema } from '../features/032-node-event-system/node-event.schema.js';
+
 export const GraphStatusSchema = z.enum(['pending', 'in_progress', 'complete', 'failed']);
 export type GraphStatus = z.infer<typeof GraphStatusSchema>;
 
@@ -8,11 +10,17 @@ export type GraphStatus = z.infer<typeof GraphStatusSchema>;
  *
  * Note: There is no 'pending' status - a node without an entry in state.json
  * is implicitly pending. This keeps state.json compact.
+ *
+ * Two-phase handshake (Plan 032):
+ * - 'starting': orchestrator reserved the node — agent should accept
+ * - 'agent-accepted': agent acknowledged — work in progress
  */
 export const NodeExecutionStatusSchema = z.enum([
-  'running',
+  'starting',
+  'agent-accepted',
   'waiting-question',
   'blocked-error',
+  'restart-pending',
   'complete',
 ]);
 export type NodeExecutionStatus = z.infer<typeof NodeExecutionStatusSchema>;
@@ -39,6 +47,7 @@ export const QuestionSchema = z.object({
   options: z.array(z.string()).optional(),
   default: z.union([z.string(), z.boolean()]).optional(),
   asked_at: z.string().datetime(),
+  surfaced_at: z.string().datetime().optional(),
   answer: z.unknown().optional(),
   answered_at: z.string().datetime().optional(),
 });
@@ -73,6 +82,8 @@ export const NodeStateEntrySchema = z.object({
   // Plan 028 extensions - optional for backward compatibility
   pending_question_id: z.string().optional(),
   error: NodeStateEntryErrorSchema.optional(),
+  // Plan 032 extension - optional event log for backward compatibility
+  events: z.array(NodeEventSchema).optional(),
 });
 export type NodeStateEntry = z.infer<typeof NodeStateEntrySchema>;
 

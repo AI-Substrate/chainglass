@@ -76,6 +76,7 @@ async function writeState(
 // WorkUnit definitions
 const sampleInput: NarrowWorkUnit = {
   slug: 'sample-input',
+  type: 'user-input',
   inputs: [],
   outputs: [
     { name: 'spec', type: 'data', required: true },
@@ -85,6 +86,7 @@ const sampleInput: NarrowWorkUnit = {
 
 const sampleCoder: NarrowWorkUnit = {
   slug: 'sample-coder',
+  type: 'agent',
   inputs: [
     { name: 'spec', type: 'data', required: true },
     { name: 'config', type: 'data', required: false },
@@ -94,6 +96,7 @@ const sampleCoder: NarrowWorkUnit = {
 
 const researchConcept: NarrowWorkUnit = {
   slug: 'research-concept',
+  type: 'agent',
   inputs: [{ name: 'topic', type: 'data', required: true }],
   outputs: [{ name: 'summary', type: 'data', required: true }],
 };
@@ -166,13 +169,13 @@ describe('PositionalGraphService — collateInputs', () => {
         from_output: 'spec',
       });
 
-      // Mark input node as running (not complete)
+      // Mark input node as agent-accepted (not complete)
       await writeState(fs, pathResolver, 'test-graph', {
         graph_status: 'in_progress',
         updated_at: new Date().toISOString(),
         nodes: {
           [inputNode.nodeId as string]: {
-            status: 'running',
+            status: 'agent-accepted',
             started_at: new Date().toISOString(),
           },
         },
@@ -334,7 +337,7 @@ describe('PositionalGraphService — collateInputs', () => {
         updated_at: new Date().toISOString(),
         nodes: {
           [r1Id]: { status: 'complete', completed_at: new Date().toISOString() },
-          [r2Id]: { status: 'running', started_at: new Date().toISOString() },
+          [r2Id]: { status: 'agent-accepted', started_at: new Date().toISOString() },
         },
         transitions: {},
       });

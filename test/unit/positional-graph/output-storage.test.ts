@@ -31,6 +31,23 @@ import { beforeEach, describe, expect, it } from 'vitest';
 // Test Helpers
 // ============================================
 
+/**
+ * Simulate agent accepting the node after startNode() puts it in 'starting'.
+ * Reads state.json, changes the node's status to 'agent-accepted', writes back.
+ * Required because canNodeDoWork() only returns true for 'agent-accepted'.
+ */
+async function simulateAgentAccept(
+  fs: FakeFileSystem,
+  graphSlug: string,
+  nodeId: string
+): Promise<void> {
+  const statePath = `/workspace/my-project/.chainglass/data/workflows/${graphSlug}/state.json`;
+  const raw = await fs.readFile(statePath);
+  const state = JSON.parse(raw);
+  state.nodes[nodeId].status = 'agent-accepted';
+  await fs.writeFile(statePath, JSON.stringify(state, null, 2));
+}
+
 function createTestContext(worktreePath = '/workspace/my-project'): WorkspaceContext {
   return {
     workspaceSlug: 'test-workspace',
@@ -90,6 +107,9 @@ describe('PositionalGraphService — saveOutputData', () => {
 
     // Start node (required for output operations per DYK #4)
     await service.startNode(ctx, 'test-graph', nodeId);
+
+    // Simulate agent accepting the node (two-phase handshake: starting -> agent-accepted)
+    await simulateAgentAccept(fs, 'test-graph', nodeId);
   });
 
   it('saves value to data.json with outputs wrapper', async () => {
@@ -236,6 +256,9 @@ describe('PositionalGraphService — saveOutputFile', () => {
 
     // Start node (required for output operations per DYK #4)
     await service.startNode(ctx, 'test-graph', nodeId);
+
+    // Simulate agent accepting the node (two-phase handshake: starting -> agent-accepted)
+    await simulateAgentAccept(fs, 'test-graph', nodeId);
   });
 
   it('copies file to data/outputs/ directory', async () => {
@@ -411,6 +434,9 @@ describe('PositionalGraphService — getOutputData', () => {
 
     // Start node (required for save operations, and get operations need saved data)
     await service.startNode(ctx, 'test-graph', nodeId);
+
+    // Simulate agent accepting the node (two-phase handshake: starting -> agent-accepted)
+    await simulateAgentAccept(fs, 'test-graph', nodeId);
   });
 
   it('reads value from data.json', async () => {
@@ -498,6 +524,9 @@ describe('PositionalGraphService — getOutputFile', () => {
 
     // Start node (required for save operations, and get operations need saved data)
     await service.startNode(ctx, 'test-graph', nodeId);
+
+    // Simulate agent accepting the node (two-phase handshake: starting -> agent-accepted)
+    await simulateAgentAccept(fs, 'test-graph', nodeId);
   });
 
   it('returns absolute path for saved file', async () => {

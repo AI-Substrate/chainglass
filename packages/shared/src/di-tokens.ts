@@ -116,6 +116,24 @@ export const POSITIONAL_GRAPH_DI_TOKENS = {
   WORKUNIT_SERVICE: 'IWorkUnitService',
 } as const;
 
+/**
+ * DI tokens for orchestration interfaces.
+ *
+ * Per Plan 030: Positional Orchestrator — Phase 7.
+ * Only 1 public token: the orchestration service facade.
+ * Internal collaborators (ONBAS, ODS, PodManager, AgentContextService) are NOT in DI.
+ */
+export const ORCHESTRATION_DI_TOKENS = {
+  /** IOrchestrationService interface */
+  ORCHESTRATION_SERVICE: 'IOrchestrationService',
+  /** IAgentAdapter — prerequisite token for ODS pod creation (agent nodes) */
+  AGENT_ADAPTER: 'IAgentAdapter',
+  /** IScriptRunner — prerequisite token for ODS pod creation (code nodes) */
+  SCRIPT_RUNNER: 'IScriptRunner',
+  /** IEventHandlerService — prerequisite token for settle step (Plan 032) */
+  EVENT_HANDLER_SERVICE: 'IEventHandlerService',
+} as const;
+
 export const WORKGRAPH_DI_TOKENS = {
   /** IWorkUnitService interface */
   WORKUNIT_SERVICE: 'IWorkUnitService',

@@ -23,7 +23,6 @@
  */
 
 import * as fs from 'node:fs/promises';
-import * as os from 'node:os';
 import * as path from 'node:path';
 
 import { PositionalGraphService } from '@chainglass/positional-graph';
@@ -33,31 +32,19 @@ import { NodeFileSystemAdapter, PathResolverAdapter, YamlParserAdapter } from '@
 import type { ResultError } from '@chainglass/shared';
 import type { WorkspaceContext } from '@chainglass/workflow';
 
+import {
+  assert,
+  cleanup,
+  createStepCounter,
+  createTestServiceStack,
+  unwrap,
+} from '../helpers/positional-graph-e2e-helpers.js';
+
 // ============================================
 // Helpers
 // ============================================
 
 const GRAPH = 'proto-test';
-let stepNum = 0;
-
-function step(description: string): void {
-  stepNum++;
-  console.log(`  [${stepNum}] ${description}`);
-}
-
-function assert(condition: boolean, message: string): void {
-  if (!condition) {
-    throw new Error(`ASSERTION FAILED: ${message}`);
-  }
-}
-
-/** Unwrap an optional value, throwing if undefined. */
-function unwrap<T>(value: T | undefined | null, label: string): T {
-  if (value === undefined || value === null) {
-    throw new Error(`ASSERTION FAILED: ${label} is ${String(value)}`);
-  }
-  return value;
-}
 
 function createTestUnit(
   slug: string,
@@ -120,29 +107,11 @@ async function main(): Promise<void> {
   console.log('=== Positional Graph E2E Prototype ===\n');
   console.log('Using real NodeFileSystemAdapter + temp directory\n');
 
-  // Create temp workspace
-  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pg-e2e-'));
-  const workspacePath = tmpDir;
-  const chaingleassDir = path.join(workspacePath, '.chainglass', 'data', 'workflows');
-  await fs.mkdir(chaingleassDir, { recursive: true });
+  const { step, count } = createStepCounter();
 
-  const ctx: WorkspaceContext = {
-    workspaceSlug: 'e2e-workspace',
-    workspaceName: 'E2E Workspace',
-    workspacePath,
-    worktreePath: workspacePath,
-    worktreeBranch: null,
-    isMainWorktree: true,
-    hasGit: false,
-  };
-
-  // Set up service with REAL filesystem
-  const nodeFs = new NodeFileSystemAdapter();
-  const pathResolver = new PathResolverAdapter();
-  const yamlParser = new YamlParserAdapter();
-  const adapter = new PositionalGraphAdapter(nodeFs, pathResolver);
+  // Create service stack with custom unit loader
   const loader = createFakeUnitLoader([sampleInput, sampleCoder, sampleReviewer, researchConcept]);
-  const service = new PositionalGraphService(nodeFs, pathResolver, yamlParser, adapter, loader);
+  const { service, ctx, workspacePath } = await createTestServiceStack('pg-e2e', loader);
 
   try {
     // ── 1. Create graph ──
@@ -223,7 +192,9 @@ async function main(): Promise<void> {
 
     // ── 10. Set node execution mode ──
     step('Set reviewer to parallel execution');
-    const execResult = await service.setNodeExecution(ctx, GRAPH, reviewerNodeId, 'parallel');
+    const execResult = await service.updateNodeOrchestratorSettings(ctx, GRAPH, reviewerNodeId, {
+      execution: 'parallel',
+    });
     assert(
       execResult.errors.length === 0,
       `Set execution failed: ${JSON.stringify(execResult.errors)}`
@@ -318,7 +289,9 @@ async function main(): Promise<void> {
 
     // ── 18. Set manual transition gate ──
     step('Set manual transition on line 0');
-    const transResult = await service.setLineTransition(ctx, GRAPH, line0Id, 'manual');
+    const transResult = await service.updateLineOrchestratorSettings(ctx, GRAPH, line0Id, {
+      transition: 'manual',
+    });
     assert(transResult.errors.length === 0, 'Set transition failed');
 
     // ── 19. Show node detail ──
@@ -470,11 +443,9 @@ async function main(): Promise<void> {
     const finalList = await service.list(ctx);
     assert(!finalList.slugs.includes(GRAPH), 'Graph should not be in listing after delete');
 
-    console.log(`\n=== ALL ${stepNum} E2E OPERATIONS VERIFIED ===\n`);
+    console.log(`\n=== ALL ${count()} E2E OPERATIONS VERIFIED ===\n`);
   } finally {
-    // Always clean up temp directory
-    await fs.rm(tmpDir, { recursive: true, force: true });
-    console.log(`Cleaned up temp dir: ${tmpDir}`);
+    await cleanup(workspacePath);
   }
 }
 

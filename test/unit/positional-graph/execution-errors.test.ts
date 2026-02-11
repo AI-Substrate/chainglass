@@ -63,15 +63,15 @@ describe('Execution lifecycle error factories', () => {
        * Quality Contribution: Enables debugging of state machine violations
        * Acceptance Criteria: Error includes from state, to state, node ID
        */
-      const error = invalidStateTransitionError('node-123', 'complete', 'running');
+      const error = invalidStateTransitionError('node-123', 'complete', 'starting');
       expectResultError(error, 'E172');
       expect(error.message).toContain('complete');
-      expect(error.message).toContain('running');
+      expect(error.message).toContain('starting');
       expect(error.message).toContain('node-123');
     });
 
     it('provides action hint for recovery', () => {
-      const error = invalidStateTransitionError('sample-coder-c4d', 'running', 'running');
+      const error = invalidStateTransitionError('sample-coder-c4d', 'starting', 'starting');
       expect(error.action).toBeTruthy();
     });
   });
@@ -193,7 +193,7 @@ describe('Execution lifecycle error factories', () => {
 
 describe('All execution lifecycle error factories return ResultError shape', () => {
   const allErrors: ResultError[] = [
-    invalidStateTransitionError('node-1', 'pending', 'running'),
+    invalidStateTransitionError('node-1', 'pending', 'starting'),
     questionNotFoundError('q-123'),
     outputNotFoundError('output-name', 'node-1'),
     nodeNotRunningError('node-1'),

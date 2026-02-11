@@ -60,6 +60,7 @@ async function writeState(
 
 const simpleUnit: NarrowWorkUnit = {
   slug: 'simple-task',
+  type: 'agent',
   inputs: [],
   outputs: [{ name: 'result', type: 'data', required: true }],
 };
@@ -165,7 +166,7 @@ describe('PositionalGraphService — Status API', () => {
         updated_at: new Date().toISOString(),
         nodes: {
           [node.nodeId as string]: {
-            status: 'running',
+            status: 'agent-accepted',
             started_at: new Date().toISOString(),
           },
         },

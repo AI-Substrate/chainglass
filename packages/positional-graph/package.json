@@ -24,6 +24,10 @@
     "./interfaces": {
       "import": "./dist/interfaces/index.js",
       "types": "./dist/interfaces/index.d.ts"
+    },
+    "./features/032-node-event-system": {
+      "import": "./dist/features/032-node-event-system/index.js",
+      "types": "./dist/features/032-node-event-system/index.d.ts"
     }
   },
   "scripts": {

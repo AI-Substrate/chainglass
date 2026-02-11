@@ -21,6 +21,15 @@ import {
   questionNotFoundError,
   unitNotFoundError,
 } from '../errors/index.js';
+import { canNodeDoWork, isNodeActive } from '../features/032-node-event-system/event-helpers.js';
+import {
+  NodeEventRegistry,
+  NodeEventService,
+  createEventHandlerRegistry,
+  eventNotFoundError,
+  registerCoreEventTypes,
+} from '../features/032-node-event-system/index.js';
+import type { EventSource, INodeEventService } from '../features/032-node-event-system/index.js';
 import type {
   AddLineOptions,
   AddLineResult,
@@ -34,6 +43,8 @@ import type {
   GetAnswerResult,
   GetInputDataResult,
   GetInputFileResult,
+  GetNodeEventsFilter,
+  GetNodeEventsResult,
   GetOutputDataResult,
   GetOutputFileResult,
   GraphCreateResult,
@@ -48,8 +59,10 @@ import type {
   PGListResult,
   PGLoadResult,
   PGShowResult,
+  RaiseNodeEventResult,
   SaveOutputDataResult,
   SaveOutputFileResult,
+  StampNodeEventResult,
   StartNodeResult,
 } from '../interfaces/index.js';
 import {
@@ -86,13 +99,31 @@ import {
 } from './input-resolution.js';
 
 export class PositionalGraphService implements IPositionalGraphService {
+  private readonly nodeEventRegistry;
+  private readonly handlerRegistry;
+
   constructor(
     private readonly fs: IFileSystem,
     private readonly pathResolver: IPathResolver,
     private readonly yamlParser: IYamlParser,
     private readonly adapter: PositionalGraphAdapter,
     private readonly workUnitLoader: IWorkUnitLoader
-  ) {}
+  ) {
+    this.nodeEventRegistry = new NodeEventRegistry();
+    registerCoreEventTypes(this.nodeEventRegistry);
+    this.handlerRegistry = createEventHandlerRegistry();
+  }
+
+  private createEventService(ctx: WorkspaceContext): INodeEventService {
+    return new NodeEventService(
+      {
+        registry: this.nodeEventRegistry,
+        loadState: (graphSlug) => this.loadState(ctx, graphSlug),
+        persistState: (graphSlug, state) => this.persistState(ctx, graphSlug, state),
+      },
+      this.handlerRegistry
+    );
+  }
 
   // ============================================
   // Private helpers
@@ -1016,8 +1047,10 @@ export class PositionalGraphService implements IPositionalGraphService {
     let status: import('../interfaces/index.js').ExecutionStatus;
 
     if (storedState) {
-      // Stored status takes precedence
-      status = storedState.status;
+      // Stored status takes precedence; restart-pending maps to ready
+      // (convention-based contract: handler sets restart-pending, reality
+      // builder exposes as ready, ONBAS returns start-node)
+      status = storedState.status === 'restart-pending' ? 'ready' : storedState.status;
     } else {
       // Computed: pending or ready
       status = canRunResult.canRun ? 'ready' : 'pending';
@@ -1054,6 +1087,7 @@ export class PositionalGraphService implements IPositionalGraphService {
     return {
       nodeId,
       unitSlug: nodeConfig.unit_slug,
+      unitType: unitResult.unit?.type ?? 'agent',
       execution: nodeConfig.orchestratorSettings.execution,
       lineId: nodeLocation.line.id,
       position: nodeLocation.nodePositionInLine,
@@ -1144,7 +1178,10 @@ export class PositionalGraphService implements IPositionalGraphService {
 
     // Convenience buckets
     const readyNodes = nodes.filter((n) => n.status === 'ready').map((n) => n.nodeId);
-    const runningNodes = nodes.filter((n) => n.status === 'running').map((n) => n.nodeId);
+    // runningNodes: includes both 'starting' and 'agent-accepted' (two-phase handshake)
+    const runningNodes = nodes
+      .filter((n) => n.status === 'starting' || n.status === 'agent-accepted')
+      .map((n) => n.nodeId);
     const waitingQuestionNodes = nodes
       .filter((n) => n.status === 'waiting-question')
       .map((n) => n.nodeId);
@@ -1441,9 +1478,9 @@ export class PositionalGraphService implements IPositionalGraphService {
       return { saved: false, errors: nodeResult.errors };
     }
 
-    // Per DYK #4: Require running state for output operations
+    // Require agent-accepted state for output operations (two-phase handshake)
     const status = await this.getNodeExecutionStatus(ctx, graphSlug, nodeId);
-    if (status !== 'running') {
+    if (status === 'pending' || !canNodeDoWork(status)) {
       return { saved: false, errors: [nodeNotRunningError(nodeId)] };
     }
 
@@ -1512,9 +1549,9 @@ export class PositionalGraphService implements IPositionalGraphService {
       return { saved: false, errors: nodeResult.errors };
     }
 
-    // Per DYK #4: Require running state for output operations
+    // Require agent-accepted state for output operations (two-phase handshake)
     const status = await this.getNodeExecutionStatus(ctx, graphSlug, nodeId);
-    if (status !== 'running') {
+    if (status === 'pending' || !canNodeDoWork(status)) {
       return { saved: false, errors: [nodeNotRunningError(nodeId)] };
     }
 
@@ -1726,7 +1763,7 @@ export class PositionalGraphService implements IPositionalGraphService {
     };
 
     // Set timestamps based on transition
-    if (toStatus === 'running' && !newEntry.started_at) {
+    if (toStatus === 'starting' && !newEntry.started_at) {
       newEntry.started_at = now;
     }
     if (toStatus === 'complete') {
@@ -1782,13 +1819,13 @@ export class PositionalGraphService implements IPositionalGraphService {
       return { errors: nodeResult.errors };
     }
 
-    // Transition to running (valid from pending only - ready is computed, not stored)
+    // Transition to starting (valid from pending or restart-pending - ready is computed, not stored)
     const transition = await this.transitionNodeState(
       ctx,
       graphSlug,
       nodeId,
-      'running',
-      ['pending'] // Only pending is valid; running/complete/waiting/blocked are rejected
+      'starting',
+      ['pending', 'restart-pending'] // pending (first start) or restart-pending (after node:restart)
     );
 
     if (!transition.ok) {
@@ -1797,7 +1834,7 @@ export class PositionalGraphService implements IPositionalGraphService {
 
     return {
       nodeId,
-      status: 'running',
+      status: 'starting',
       startedAt: transition.entry.started_at,
       errors: [],
     };
@@ -1864,28 +1901,33 @@ export class PositionalGraphService implements IPositionalGraphService {
   }
 
   /**
-   * End a node, transitioning it from running to complete.
+   * End a node, transitioning it from agent-accepted to complete.
    * Validates that all required outputs are saved before completing.
    *
-   * Per AC-4 (updated): endNode only accepts running state.
-   * Per AC-17: Returns E175 with missing output names if outputs are missing.
+   * Pre-flight guards: node exists, state is agent-accepted (E172), outputs saved (E175).
+   * State transition delegated to eventService.raise() + handleEvents().
    */
-  async endNode(ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<EndNodeResult> {
+  async endNode(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    message?: string
+  ): Promise<EndNodeResult> {
     // Verify node exists
     const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
     if (!nodeResult.ok) {
       return { errors: nodeResult.errors };
     }
 
-    // Check state FIRST - must be running (E172 takes precedence over E175)
+    // Check state FIRST - must be agent-accepted (E172 takes precedence over E175)
     const status = await this.getNodeExecutionStatus(ctx, graphSlug, nodeId);
-    if (status !== 'running') {
+    if (status === 'pending' || !canNodeDoWork(status)) {
       return {
         errors: [invalidStateTransitionError(nodeId, status, 'complete')],
       };
     }
 
-    // Check if all required outputs are saved
+    // Check if all required outputs are saved (DYK #1: canEnd pre-flight guard)
     const canEndResult = await this.canEnd(ctx, graphSlug, nodeId);
     if (canEndResult.errors.length > 0) {
       return { errors: canEndResult.errors };
@@ -1903,23 +1945,30 @@ export class PositionalGraphService implements IPositionalGraphService {
       };
     }
 
-    // Transition to complete (valid from running only)
-    const transition = await this.transitionNodeState(
-      ctx,
+    // Raise node:completed event (record-only: validate, create, append, persist)
+    const payload = message ? { message } : {};
+    const eventService = this.createEventService(ctx);
+    const raiseResult = await eventService.raise(
       graphSlug,
       nodeId,
-      'complete',
-      ['running'] // Only running is valid; pending/complete/waiting/blocked are rejected
+      'node:completed',
+      payload,
+      'agent'
     );
-
-    if (!transition.ok) {
-      return { errors: transition.errors };
+    if (!raiseResult.ok) {
+      return { errors: raiseResult.errors };
     }
 
+    // Process events: handler transitions status to 'complete' and sets completed_at
+    const state = await this.loadState(ctx, graphSlug);
+    eventService.handleEvents(state, nodeId, 'cli', 'cli');
+    await this.persistState(ctx, graphSlug, state);
+
+    const entry = state.nodes?.[nodeId];
     return {
       nodeId,
       status: 'complete',
-      completedAt: transition.entry.completed_at,
+      completedAt: entry?.completed_at,
       errors: [],
     };
   }
@@ -1940,10 +1989,10 @@ export class PositionalGraphService implements IPositionalGraphService {
 
   /**
    * Ask a question from a running node, transitioning it to waiting-question.
-   * Stores the question in state.json questions array.
+   * Stores the question in state.json questions array (backward compat).
+   * State transition delegated to eventService.raise() + handleEvents().
    *
    * Per AC-5: Transitions node to waiting-question and returns question ID.
-   * Per Critical Finding 05: All state changes in single atomic write.
    */
   async askQuestion(
     ctx: WorkspaceContext,
@@ -1957,9 +2006,9 @@ export class PositionalGraphService implements IPositionalGraphService {
       return { errors: nodeResult.errors };
     }
 
-    // Check state - must be running (E176)
+    // Check state - must be agent-accepted (E176)
     const status = await this.getNodeExecutionStatus(ctx, graphSlug, nodeId);
-    if (status !== 'running') {
+    if (status === 'pending' || !canNodeDoWork(status)) {
       return {
         errors: [nodeNotRunningError(nodeId)],
       };
@@ -1967,9 +2016,39 @@ export class PositionalGraphService implements IPositionalGraphService {
 
     // Generate question ID
     const questionId = this.generateQuestionId();
-    const now = new Date().toISOString();
 
-    // Create question
+    // Build question:ask payload (DYK #3: question_id from payload, not event_id)
+    const payload: Record<string, unknown> = {
+      question_id: questionId,
+      type: options.type,
+      text: options.text,
+    };
+    if (options.options) {
+      payload.options = options.options;
+    }
+    if (options.default !== undefined) {
+      payload.default = options.default;
+    }
+
+    // Raise question:ask event (record-only)
+    const eventService = this.createEventService(ctx);
+    const raiseResult = await eventService.raise(
+      graphSlug,
+      nodeId,
+      'question:ask',
+      payload,
+      'agent'
+    );
+    if (!raiseResult.ok) {
+      return { errors: raiseResult.errors };
+    }
+
+    // Process events: handler transitions to waiting-question + sets pending_question_id
+    const state = await this.loadState(ctx, graphSlug);
+    eventService.handleEvents(state, nodeId, 'cli', 'cli');
+
+    // Write to state.questions[] for backward compat (DD-6)
+    const now = new Date().toISOString();
     const question: Question = {
       question_id: questionId,
       node_id: nodeId,
@@ -1983,28 +2062,11 @@ export class PositionalGraphService implements IPositionalGraphService {
     if (options.default !== undefined) {
       question.default = options.default;
     }
-
-    // Load state and update atomically
-    const state = await this.loadState(ctx, graphSlug);
-
-    // Initialize questions array if needed
     if (!state.questions) {
       state.questions = [];
     }
     state.questions.push(question);
 
-    // Update node state
-    if (!state.nodes) {
-      state.nodes = {};
-    }
-    if (!state.nodes[nodeId]) {
-      state.nodes[nodeId] = { status: 'running' };
-    }
-    state.nodes[nodeId].status = 'waiting-question';
-    state.nodes[nodeId].pending_question_id = questionId;
-    state.updated_at = now;
-
-    // Persist atomically
     await this.persistState(ctx, graphSlug, state);
 
     return {
@@ -2016,12 +2078,12 @@ export class PositionalGraphService implements IPositionalGraphService {
   }
 
   /**
-   * Answer a question for a waiting node, transitioning it back to running.
-   * Stores the answer in the question and clears pending_question_id.
+   * Answer a question for a waiting node.
+   * Stores the answer in state.questions[] (backward compat).
+   * Handler stamps answer-recorded — no status transition.
+   * Node stays waiting-question; restart via node:restart event.
    *
-   * Per AC-6: Stores answer and transitions node back to running.
    * Per AC-18: Returns E173 for invalid question ID.
-   * Per Critical Finding 05: All state changes in single atomic write.
    */
   async answerQuestion(
     ctx: WorkspaceContext,
@@ -2044,7 +2106,7 @@ export class PositionalGraphService implements IPositionalGraphService {
       };
     }
 
-    // Load state
+    // Load state to find question and ask event
     const state = await this.loadState(ctx, graphSlug);
 
     // Find question by ID (E173 if not found)
@@ -2055,26 +2117,51 @@ export class PositionalGraphService implements IPositionalGraphService {
       };
     }
 
+    // Find the original ask event to get its event_id for the answer payload
+    const nodeEvents = state.nodes?.[nodeId]?.events ?? [];
+    const askEvent = nodeEvents.find(
+      (e: { event_type: string; payload?: Record<string, unknown> }) =>
+        e.event_type === 'question:ask' &&
+        (e.payload as { question_id?: string })?.question_id === questionId
+    );
+    if (!askEvent) {
+      return {
+        errors: [questionNotFoundError(questionId)],
+      };
+    }
+
+    // Raise question:answer event (record-only)
+    const eventService = this.createEventService(ctx);
+    const raiseResult = await eventService.raise(
+      graphSlug,
+      nodeId,
+      'question:answer',
+      { question_event_id: askEvent.event_id, answer },
+      'human'
+    );
+    if (!raiseResult.ok) {
+      return { errors: raiseResult.errors };
+    }
+
+    // Process events: handler stamps answer-recorded + cross-stamps ask (no status transition)
+    const updatedState = await this.loadState(ctx, graphSlug);
+    eventService.handleEvents(updatedState, nodeId, 'cli', 'cli');
+
+    // Update question with answer in state.questions[] (backward compat)
     const now = new Date().toISOString();
+    const questions = updatedState.questions ?? [];
+    const qIdx = questions.findIndex((q) => q.question_id === questionId);
+    if (qIdx !== -1) {
+      questions[qIdx].answer = answer;
+      questions[qIdx].answered_at = now;
+    }
 
-    // Update question with answer (questions exists since we found the index)
-    const questions = state.questions ?? [];
-    questions[questionIndex].answer = answer;
-    questions[questionIndex].answered_at = now;
-
-    // Update node state (nodes exists since we're in waiting-question state)
-    const nodes = state.nodes ?? {};
-    nodes[nodeId].status = 'running';
-    nodes[nodeId].pending_question_id = undefined;
-    state.updated_at = now;
-
-    // Persist atomically
-    await this.persistState(ctx, graphSlug, state);
+    await this.persistState(ctx, graphSlug, updatedState);
 
     return {
       nodeId,
       questionId,
-      status: 'running',
+      status: 'waiting-question',
       errors: [],
     };
   }
@@ -2332,5 +2419,147 @@ export class PositionalGraphService implements IPositionalGraphService {
       complete: true,
       errors: [],
     };
+  }
+
+  // ============================================
+  // Node Event System (Phase 6, Plan 032)
+  // ============================================
+
+  /**
+   * Raise an event on a node: validate, record, handle, persist.
+   * Returns the event with stamps and whether execution should stop.
+   */
+  async raiseNodeEvent(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    eventType: string,
+    payload: Record<string, unknown>,
+    source: EventSource
+  ): Promise<RaiseNodeEventResult> {
+    // Verify node exists
+    const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
+    if (!nodeResult.ok) {
+      return { errors: nodeResult.errors };
+    }
+
+    // Raise event (record-only: validate, create, append, persist)
+    const eventService = this.createEventService(ctx);
+    const raiseResult = await eventService.raise(graphSlug, nodeId, eventType, payload, source);
+    if (!raiseResult.ok) {
+      return { errors: raiseResult.errors };
+    }
+
+    // Process events: load fresh state (after raise persisted), run handlers, persist
+    const state = await this.loadState(ctx, graphSlug);
+    eventService.handleEvents(state, nodeId, 'cli', 'cli');
+    await this.persistState(ctx, graphSlug, state);
+
+    // Look up stopsExecution from registry
+    const registration = this.nodeEventRegistry.get(eventType);
+    const stopsExecution = registration?.stopsExecution ?? false;
+
+    return {
+      nodeId,
+      event: raiseResult.event,
+      stopsExecution,
+      errors: [],
+    };
+  }
+
+  /**
+   * Get events for a node, optionally filtered by type, status, or single event ID.
+   */
+  async getNodeEvents(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    filter?: GetNodeEventsFilter
+  ): Promise<GetNodeEventsResult> {
+    // Verify node exists
+    const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
+    if (!nodeResult.ok) {
+      return { errors: nodeResult.errors };
+    }
+
+    const state = await this.loadState(ctx, graphSlug);
+    const eventService = this.createEventService(ctx);
+    let events = [...eventService.getEventsForNode(state, nodeId)];
+
+    // Single event lookup by ID
+    if (filter?.eventId) {
+      const event = events.find((e) => e.event_id === filter.eventId);
+      if (!event) {
+        return { errors: [eventNotFoundError(filter.eventId)] };
+      }
+      return { nodeId, events: [event], errors: [] };
+    }
+
+    // Filter by type(s)
+    if (filter?.types && filter.types.length > 0) {
+      events = events.filter((e) => filter.types?.includes(e.event_type));
+    }
+
+    // Filter by status
+    if (filter?.status) {
+      events = events.filter((e) => e.status === filter.status);
+    }
+
+    return { nodeId, events, errors: [] };
+  }
+
+  /**
+   * Stamp an event as processed by a named subscriber.
+   */
+  async stampNodeEvent(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    eventId: string,
+    subscriber: string,
+    action: string,
+    data?: Record<string, unknown>
+  ): Promise<StampNodeEventResult> {
+    // Verify node exists
+    const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
+    if (!nodeResult.ok) {
+      return { errors: nodeResult.errors };
+    }
+
+    const state = await this.loadState(ctx, graphSlug);
+    const eventService = this.createEventService(ctx);
+    const events = eventService.getEventsForNode(state, nodeId);
+    const event = events.find((e) => e.event_id === eventId);
+
+    if (!event) {
+      return { errors: [eventNotFoundError(eventId)] };
+    }
+
+    const stamp = eventService.stamp(event, subscriber, action, data);
+    await this.persistState(ctx, graphSlug, state);
+
+    return {
+      nodeId,
+      eventId,
+      subscriber,
+      stamp: {
+        action: stamp.action,
+        stamped_at: stamp.stamped_at,
+        data: stamp.data,
+      },
+      errors: [],
+    };
+  }
+
+  // ============================================
+  // State Access (Phase 8, Plan 032 — E2E support)
+  // ============================================
+
+  async loadGraphState(ctx: WorkspaceContext, graphSlug: string): Promise<State> {
+    return this.loadState(ctx, graphSlug);
+  }
+
+  async persistGraphState(ctx: WorkspaceContext, graphSlug: string, state: State): Promise<void> {
+    return this.persistState(ctx, graphSlug, state);
   }
 }

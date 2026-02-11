@@ -1,5 +1,6 @@
 import type { BaseResult, ResultError } from '@chainglass/shared';
 import type { WorkspaceContext } from '@chainglass/workflow';
+import type { EventSource, NodeEvent } from '../features/032-node-event-system/index.js';
 import type {
   Execution,
   GraphOrchestratorSettings,
@@ -11,6 +12,7 @@ import type {
   NodeOrchestratorSettings,
   NodeProperties,
   PositionalGraphDefinition,
+  State,
   TransitionMode,
 } from '../schemas/index.js';
 
@@ -44,6 +46,7 @@ export interface NarrowWorkUnitOutput {
  */
 export interface NarrowWorkUnit {
   slug: string;
+  type: 'agent' | 'code' | 'user-input';
   inputs: NarrowWorkUnitInput[];
   outputs: NarrowWorkUnitOutput[];
 }
@@ -231,7 +234,7 @@ export interface CanRunResult {
 // ============================================
 
 /** Full computed or stored status for a node. */
-export type ExecutionStatus = 'pending' | 'ready' | NodeExecutionStatus; // 'running' | 'waiting-question' | 'blocked-error' | 'complete'
+export type ExecutionStatus = 'pending' | 'ready' | NodeExecutionStatus; // 'starting' | 'agent-accepted' | 'waiting-question' | 'blocked-error' | 'restart-pending' | 'complete'
 
 /**
  * DYK-I3: execution stays flat for display formatting compatibility.
@@ -239,6 +242,7 @@ export type ExecutionStatus = 'pending' | 'ready' | NodeExecutionStatus; // 'run
 export interface NodeStatusResult {
   nodeId: string;
   unitSlug: string;
+  unitType: 'agent' | 'code' | 'user-input';
   execution: Execution;
   lineId: string;
   position: number;
@@ -381,7 +385,7 @@ export interface GetOutputFileResult extends BaseResult {
 /** Result from startNode */
 export interface StartNodeResult extends BaseResult {
   nodeId?: string;
-  status?: 'running';
+  status?: 'starting';
   startedAt?: string;
 }
 
@@ -419,11 +423,11 @@ export interface AskQuestionResult extends BaseResult {
   status?: 'waiting-question';
 }
 
-/** Result from answerQuestion */
+/** Result from answerQuestion — node stays waiting-question, restart via node:restart event */
 export interface AnswerQuestionResult extends BaseResult {
   nodeId?: string;
   questionId?: string;
-  status?: 'running';
+  status?: 'waiting-question';
 }
 
 /** Result from getAnswer */
@@ -432,6 +436,42 @@ export interface GetAnswerResult extends BaseResult {
   questionId?: string;
   answered: boolean;
   answer?: unknown;
+}
+
+// ============================================
+// Result Types — Node Event System (Phase 6, Plan 032)
+// ============================================
+
+/** Result from raiseNodeEvent — includes event with stamps after handleEvents */
+export interface RaiseNodeEventResult extends BaseResult {
+  nodeId?: string;
+  event?: NodeEvent;
+  /** Whether this event type stops execution (from registry metadata) */
+  stopsExecution?: boolean;
+}
+
+/** Filter options for getNodeEvents */
+export interface GetNodeEventsFilter {
+  /** Return a single event by ID */
+  eventId?: string;
+  /** Filter by event type(s) */
+  types?: string[];
+  /** Filter by event status */
+  status?: string;
+}
+
+/** Result from getNodeEvents */
+export interface GetNodeEventsResult extends BaseResult {
+  nodeId?: string;
+  events?: NodeEvent[];
+}
+
+/** Result from stampNodeEvent */
+export interface StampNodeEventResult extends BaseResult {
+  nodeId?: string;
+  eventId?: string;
+  subscriber?: string;
+  stamp?: { action: string; stamped_at: string; data?: Record<string, unknown> };
 }
 
 // ============================================
@@ -635,7 +675,12 @@ export interface IPositionalGraphService {
   // Node Lifecycle (Phase 3, Plan 028)
   startNode(ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<StartNodeResult>;
   canEnd(ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<CanEndResult>;
-  endNode(ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<EndNodeResult>;
+  endNode(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    message?: string
+  ): Promise<EndNodeResult>;
 
   // Question/Answer Protocol (Phase 4, Plan 028)
   askQuestion(
@@ -671,4 +716,33 @@ export interface IPositionalGraphService {
     nodeId: string,
     inputName: string
   ): Promise<GetInputFileResult>;
+
+  // Node Event System (Phase 6, Plan 032)
+  raiseNodeEvent(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    eventType: string,
+    payload: Record<string, unknown>,
+    source: EventSource
+  ): Promise<RaiseNodeEventResult>;
+  getNodeEvents(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    filter?: GetNodeEventsFilter
+  ): Promise<GetNodeEventsResult>;
+  stampNodeEvent(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    eventId: string,
+    subscriber: string,
+    action: string,
+    data?: Record<string, unknown>
+  ): Promise<StampNodeEventResult>;
+
+  // State Access (Phase 8, Plan 032 — E2E support)
+  loadGraphState(ctx: WorkspaceContext, graphSlug: string): Promise<State>;
+  persistGraphState(ctx: WorkspaceContext, graphSlug: string, state: State): Promise<void>;
 }
