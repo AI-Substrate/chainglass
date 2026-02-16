@@ -25,6 +25,10 @@ build:
 test:
     pnpm vitest run
 
+# Run E2E agent tests (requires real agent CLIs, manually unskip tests first)
+test-e2e:
+    pnpm vitest run test/e2e/agent-cli-e2e.test.ts --config vitest.e2e.config.ts
+
 # Run linter
 lint:
     pnpm biome check .
