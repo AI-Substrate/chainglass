@@ -4,10 +4,15 @@
 **Plan**: 033-real-agent-pods
 **Spec**: (pending)
 **Created**: 2026-02-16
-**Status**: Draft
+**Updated**: 2026-02-16 (post Plan 034 completion)
+**Status**: Phase A Complete — Phase B Pending
 
 **Related Documents**:
 - `docs/plans/033-real-agent-pods/workshops/02-unified-agent-design.md` (AgentInstance/AgentManagerService redesign)
+- `docs/plans/034-agentic-cli/agentic-cli-plan.md` (**Phase A implementation — COMPLETE**)
+- `docs/plans/034-agentic-cli/agentic-cli-spec.md` (Phase A spec)
+- `docs/how/agent-system/1-overview.md` (Agent system developer guide)
+- `docs/how/agent-system/2-usage.md` (Agent system usage patterns)
 - `docs/plans/030-positional-orchestrator/workshops/13-phase-8-e2e-design.md` (Plan 030 E2E design)
 - `docs/plans/030-positional-orchestrator/workshops/03-agent-context-service.md` (session inheritance rules)
 - `test/e2e/positional-graph-orchestration-e2e.ts` (Plan 030 E2E script — to be upgraded)
@@ -52,14 +57,15 @@ Define the CLI-first approach to running real agents in the orchestration system
 The agent system (`AgentManagerService` / `AgentInstance`) is independently usable. It has no knowledge of workflows, graphs, or orchestration. We build and test it in isolation via `cg agent` commands **before** integrating into the WF system.
 
 ```
-Phase A: Agent System (no WF dependency)
-  ├── Redesign AgentInstance (Workshop 02)
-  ├── Redesign AgentManagerService (Workshop 02)
-  ├── Update cg agent commands to use new system
-  ├── Test with real agents via CLI
-  └── Verify: event streaming, sessions, same-instance guarantee
+Phase A: Agent System (no WF dependency) ✅ COMPLETE (Plan 034)
+  ├── ✅ Redesign AgentInstance (Workshop 02 → Plan 034 Phase 1-2)
+  ├── ✅ Redesign AgentManagerService (Workshop 02 → Plan 034 Phase 2)
+  ├── ✅ Update cg agent commands to use new system (Plan 034 Phase 3)
+  ├── ✅ Test with real agents via CLI (Plan 034 Phase 4)
+  ├── ✅ Export wiring and documentation (Plan 034 Phase 5)
+  └── ✅ Verify: event streaming, sessions, same-instance guarantee
 
-Phase B: WF Integration (depends on Phase A)
+Phase B: WF Integration (depends on Phase A) — NEXT
   ├── Update ODS to use AgentManagerService
   ├── Update AgentPod to wrap AgentInstance
   ├── Add cg wf run command
@@ -67,31 +73,56 @@ Phase B: WF Integration (depends on Phase A)
   └── Real agent E2E tests
 ```
 
+### Phase A Delivery Summary (Plan 034)
+
+Plan 034 delivered 5 phases, 37 tasks, 141 new tests:
+
+| Phase | What | Tests |
+|-------|------|-------|
+| Phase 1 | Types, interfaces, PlanPak setup | 0 (interfaces only) |
+| Phase 2 | AgentInstance, AgentManagerService, fakes, contract tests | 90 |
+| Phase 3 | CLI handlers, terminal output, DI rewiring | 37 |
+| Phase 4 | Real agent integration tests (Claude + Copilot), CLI E2E | 14 (13 skipped) |
+| Phase 5 | Barrel exports, README, developer docs | 0 (docs only) |
+
+**Key files delivered**:
+- `packages/shared/src/features/034-agentic-cli/` — all implementations + fakes
+- `apps/cli/src/features/034-agentic-cli/` — CLI handlers
+- `apps/cli/src/commands/agent.command.ts` — rewritten command registration
+- `apps/cli/src/lib/container.ts` — DI rewiring (`CLI_DI_TOKENS.AGENT_MANAGER`)
+- `test/unit/features/034-agentic-cli/` — 127 unit + contract tests
+- `test/integration/agent-instance-real.test.ts` — 13 real agent tests (skipped)
+- `test/e2e/agent-cli-e2e.test.ts` — 4 CLI E2E tests (skipped)
+- `docs/how/agent-system/` — developer guides
+
 ---
 
-## Agent Commands Without Workflow (Phase A)
+## Agent Commands Without Workflow (Phase A) — ✅ DELIVERED
 
-### Current State
+> **This entire section reflects the actual Plan 034 implementation.**
+> Original workshop proposals have been updated to match delivered code.
 
-The existing `cg agent run` (in `apps/cli/src/commands/agent.command.ts`):
-- Uses `AgentService` (thin timeout wrapper around `IAgentAdapter`)
-- Supports `--session <id>` for resumption
-- Supports `--stream` for NDJSON event output
-- Outputs `AgentResult` JSON on completion
-- Has no concept of `AgentInstance`, metadata, or event handlers
+### Current State (Post Plan 034)
 
-### What Changes
-
-`cg agent run` switches from `AgentService` to `AgentManagerService` / `AgentInstance`. The external interface stays compatible but gains new capabilities.
+The `cg agent run` and `cg agent compact` commands (in `apps/cli/src/commands/agent.command.ts`):
+- Use `AgentManagerService` via `CLI_DI_TOKENS.AGENT_MANAGER` (not `AgentService`)
+- Support `--session <id>` for resumption via `getWithSessionId()`
+- Support `--stream` for NDJSON events, `--verbose` for human-readable, `--quiet` for silent
+- Default output: JSON `AgentResult` to stdout (per DYK-P3#1)
+- Handler functions are pure with deps injection (`handleAgentRun`, `handleAgentCompact`)
+- `--stream`, `--verbose`, `--quiet` are mutually exclusive (per DYK-P3#2)
+- No timeout enforcement (per DYK-P3#3 — agents run for hours)
 
 ### Updated Command Surface
 
 ```
-cg agent run       - Run a prompt (new or resume session) — UPDATED
-cg agent compact   - Reduce session context — UNCHANGED (stays on AgentService)
-cg agent status    - Show running agent status — NEW
-cg agent kill      - Terminate a running agent — NEW
+cg agent run       - Run a prompt (new or resume session) — ✅ DELIVERED
+cg agent compact   - Reduce session context — ✅ DELIVERED (via AgentManagerService)
 ```
+
+**Deferred to Plan 033 Phase B** (only meaningful in long-lived processes):
+- `cg agent status` — Show running agent status
+- `cg agent kill` — Terminate a running agent
 
 ### `cg agent run` (Updated)
 
@@ -116,19 +147,21 @@ $ cg agent run -t <type> [-p <text> | -f <path>] [-s <sessionId>]
 
 ### How It Works Internally
 
+> **Authoritative source**: `apps/cli/src/features/034-agentic-cli/agent-run-handler.ts`
+> See also: [Plan 034 Phase 3 tasks](../../034-agentic-cli/tasks/phase-3-cli-command-update-with-tdd/tasks.md)
+
 ```typescript
-async function handleAgentRun(options: RunOptions): Promise<void> {
+// Actual implementation (apps/cli/src/features/034-agentic-cli/agent-run-handler.ts)
+export async function handleAgentRun(
+  options: AgentRunOptions,
+  deps: AgentRunDeps  // { agentManager, fileSystem?, pathResolver?, write? }
+): Promise<{ exitCode: number; result: AgentResult }> {
   const agentType = validateAgentType(options.type);
-  const prompt = await resolvePrompt(options);
+  validateOutputMode(options); // DYK-P3#2: mutual exclusivity
 
-  // 1. Get AgentManagerService from DI container
-  const container = createCliProductionContainer();
-  const agentManager = container.resolve<IAgentManagerService>(
-    ORCHESTRATION_DI_TOKENS.AGENT_MANAGER
-  );
+  const prompt = resolvePrompt(options, deps);
 
-  // 2. Create instance: getNew or getWithSessionId
-  const params: CreateAgentParams = {
+  const params = {
     name: options.name ?? `agent-${agentType}`,
     type: agentType,
     workspace: options.cwd ?? process.cwd(),
@@ -136,45 +169,53 @@ async function handleAgentRun(options: RunOptions): Promise<void> {
   };
 
   const instance = options.session
-    ? agentManager.getWithSessionId(options.session, params)
-    : agentManager.getNew(params);
+    ? deps.agentManager.getWithSessionId(options.session, params)
+    : deps.agentManager.getNew(params);
 
-  // 3. Attach event handler based on output mode
+  // DYK-P3#1: JSON is default. No event handler in default mode.
+  const write = deps.write ?? ((s: string) => process.stdout.write(s));
   if (options.stream) {
     instance.addEventHandler(ndjsonEventHandler);
-  } else if (!options.quiet) {
-    instance.addEventHandler(createTerminalEventHandler(instance.name));
+  } else if (options.verbose) {
+    instance.addEventHandler(createTerminalEventHandler(instance.name, { verbose: true, write }));
+  }
+  // Default and --quiet: no event handler (JSON result only)
+
+  const result = await instance.run({ prompt, cwd: workspace });
+
+  // Output JSON result (unless --quiet)
+  if (!options.quiet) {
+    write(`${JSON.stringify(result)}\n`);
   }
 
-  // 4. Run
-  const result = await instance.run({
-    prompt,
-    cwd: options.cwd ?? process.cwd(),
-  });
-
-  // 5. Output result
-  printSessionInfo(instance, result);
-  process.exit(result.status === 'completed' ? 0 : 1);
+  return { exitCode: result.status === 'completed' ? 0 : 1, result };
 }
 ```
 
-### Terminal Output: Human-Readable Mode (Default)
+**Key differences from original workshop proposal**:
+- Uses `CLI_DI_TOKENS.AGENT_MANAGER` (not `ORCHESTRATION_DI_TOKENS`)
+- Pure function with deps injection (not container-resolving inside handler)
+- JSON default output, not human-readable (DYK-P3#1)
+- No `printSessionInfo()` — raw JSON result to stdout
+- `process.exit()` lives in Commander action wrapper, not in handler
+
+### Terminal Output: Default Mode (JSON)
+
+> **Per DYK-P3#1**: JSON is the default output, not human-readable. This is backward-compatible and scriptable.
+> See: [Plan 034 Phase 3 DYK discoveries](../../034-agentic-cli/tasks/phase-3-cli-command-update-with-tdd/tasks.md#discoveries--learnings)
 
 ```
 $ cg agent run -t claude-code -p "Create a fibonacci function in TypeScript"
 
-[agent-claude-code] I'll create a fibonacci function in TypeScript.
-[agent-claude-code] [tool] Write: fibonacci.ts
-[agent-claude-code] [tool] Bash: npx tsc --noEmit fibonacci.ts
-[agent-claude-code] Created fibonacci.ts with an iterative implementation.
-
----
-Status:    completed
-Session:   ses-abc123
-Duration:  12.4s
+{"output":"Created fibonacci.ts with an iterative implementation.","sessionId":"ses-abc123","status":"completed","exitCode":0,"tokens":null}
 ```
 
-### Terminal Output: Verbose Mode
+Default mode attaches no event handler — only the final `AgentResult` JSON is written to stdout.
+
+### Terminal Output: Verbose Mode (Human-Readable)
+
+> **Opt-in via `--verbose`**. Shows `[name]` prefixed events + JSON result.
+> See: `apps/cli/src/features/034-agentic-cli/terminal-event-handler.ts`
 
 ```
 $ cg agent run -t claude-code -p "Create a fibonacci function" --verbose
@@ -183,21 +224,19 @@ $ cg agent run -t claude-code -p "Create a fibonacci function" --verbose
   approach for better performance...
 [agent-claude-code] I'll create a fibonacci function in TypeScript.
 [agent-claude-code] [tool] Write: fibonacci.ts
-  → function fibonacci(n: number): number {
+  > function fibonacci(n: number): number {
       if (n <= 1) return n;
       let a = 0, b = 1;
       for (let i = 2; i <= n; i++) { [a, b] = [b, a + b]; }
       return b;
     }
 [agent-claude-code] [tool] Bash: npx tsc --noEmit fibonacci.ts
-  → (no errors)
+  > (no errors)
 [agent-claude-code] Created fibonacci.ts with an iterative implementation.
-
----
-Status:    completed
-Session:   ses-abc123
-Duration:  12.4s
+{"output":"Created fibonacci.ts...","sessionId":"ses-abc123","status":"completed","exitCode":0,"tokens":null}
 ```
+
+Verbose adds: `thinking` events and `tool_result` content. Final line is still JSON result.
 
 ### Terminal Output: Stream Mode (NDJSON)
 
@@ -253,9 +292,11 @@ $ cg agent run -t claude-code -p "Review this PR" \
 
 Metadata is set on the `AgentInstance` at creation. It's available via `instance.metadata` for any event handler or consumer. In CLI mode, metadata is informational — useful for structured logging or when piping to external tools.
 
-### `cg agent status` (New)
+### `cg agent status` (Deferred to Phase B)
 
-Shows the status of a running agent. Only meaningful in long-lived processes (web server), but included for completeness and testing.
+> **Not implemented in Plan 034.** Only meaningful in long-lived processes (web server, orchestration daemon). Included here for Phase B reference.
+
+Shows the status of a running agent.
 
 ```
 $ cg agent status <agentId>
@@ -272,7 +313,9 @@ Updated:   2026-02-16T10:05:23Z
 
 In the CLI context (ephemeral process), this would query a running web server's API. Out of scope for Plan 033 (no web), but the command skeleton exists for future use.
 
-### `cg agent kill` (New)
+### `cg agent kill` (Deferred to Phase B)
+
+> **Not implemented in Plan 034.** Same rationale as `cg agent status`.
 
 Terminates a running agent.
 
@@ -287,25 +330,40 @@ Same caveat as `status` — meaningful in long-lived processes. In CLI, the agen
 
 ### What About `AgentService`?
 
-`AgentService` (the thin timeout wrapper from Plan 019) **stays as-is**. It's still used by:
-- `cg agent compact` (calls `adapter.compact()` with timeout)
-- Any code that needs a simple one-shot agent call with timeout enforcement
+> **Updated post Plan 034**: `AgentService` is no longer registered in the CLI DI container. All commands (`run`, `compact`) use `AgentManagerService`.
 
-The updated `cg agent run` uses `AgentManagerService` instead of `AgentService`, but `AgentService` is not removed. It's a different abstraction level:
+`AgentService` (the thin timeout wrapper from Plan 019) **remains as a module** but is **no longer registered in the CLI container** (AC-49). The CLI's `AGENT_SERVICE` token was replaced by `CLI_DI_TOKENS.AGENT_MANAGER`.
 
-| | AgentService | AgentManagerService |
+**Per DYK-P3#3**: The 10-minute timeout that `AgentService` enforced is intentionally dropped. Real agents legitimately run for hours. `timeoutMs` remains on `AgentRunOptions` as an opt-in parameter for callers who need it.
+
+| | AgentService (legacy module) | AgentManagerService (active) |
 |-|-------------|---------------------|
 | Purpose | One-shot agent calls with timeout | Agent lifecycle management |
 | State | Stateless | In-memory registry with session index |
 | Events | Passthrough (onEvent callback) | addEventHandler (multiple consumers) |
 | Sessions | Caller manages | Service manages (same-instance guarantee) |
-| Use case | CLI one-shot, timeout-sensitive | Orchestration, web UI, multi-consumer |
+| CLI registration | **Not registered** (removed in Plan 034 Phase 3) | `CLI_DI_TOKENS.AGENT_MANAGER` |
+| Use case | Available for import but not wired | CLI, orchestration, web UI, multi-consumer |
 
-### Testing the Agent System in Isolation (Phase A Tests)
+### Testing the Agent System in Isolation (Phase A Tests) — ✅ DELIVERED
 
-Before touching any WF code, we validate the new agent system works:
+> **Authoritative source**: Plan 034 Phase 2 + Phase 4 test files.
+> See: [Plan 034 Phase 2 tasks](../../034-agentic-cli/tasks/phase-2-core-implementation-with-tdd/tasks.md) and [Phase 4 tasks](../../034-agentic-cli/tasks/phase-4-real-agent-integration-tests/tasks.md)
 
-#### Test A1: AgentManagerService Unit Tests (fast, no real agents)
+All Phase A tests have been implemented. Summary:
+
+| Test Tier | File | Tests | Status |
+|-----------|------|-------|--------|
+| A1: AgentManagerService unit | `test/unit/features/034-agentic-cli/agent-manager-service.test.ts` | 15 | ✅ Runs in CI |
+| A2: AgentInstance unit | `test/unit/features/034-agentic-cli/agent-instance.test.ts` | 29 | ✅ Runs in CI |
+| A3: Contract (fake↔real) | `test/unit/features/034-agentic-cli/agent-instance-contract.test.ts` + `agent-manager-contract.test.ts` | 46 | ✅ Runs in CI |
+| A3b: CLI handler unit | `test/unit/features/034-agentic-cli/cli-agent-handlers.test.ts` + others | 37 | ✅ Runs in CI |
+| A4: Real agent integration | `test/integration/agent-instance-real.test.ts` | 13 | ⏭ describe.skip (DYK-P4#2) |
+| A5: CLI E2E | `test/e2e/agent-cli-e2e.test.ts` | 4 | ⏭ describe.skip (DYK-P4#2) |
+
+**Total: 141 new tests** (127 run in CI, 17 skipped real agent tests + diagnostic tests).
+
+#### Test A1: AgentManagerService Unit Tests — ✅ DELIVERED
 
 ```
 - getNew() creates instance with no session
@@ -318,7 +376,7 @@ Before touching any WF code, we validate the new agent system works:
 - Session index updated after run() gives new sessionId
 ```
 
-#### Test A2: AgentInstance Unit Tests (fast, FakeAgentAdapter)
+#### Test A2: AgentInstance Unit Tests — ✅ DELIVERED
 
 ```
 - run() delegates to adapter
@@ -333,7 +391,7 @@ Before touching any WF code, we validate the new agent system works:
 - terminate() delegates to adapter
 ```
 
-#### Test A3: Contract Tests (FakeAgentInstance ↔ AgentInstance parity)
+#### Test A3: Contract Tests — ✅ DELIVERED
 
 ```
 - Both implement IAgentInstance identically
@@ -342,7 +400,11 @@ Before touching any WF code, we validate the new agent system works:
 - Session tracking matches
 ```
 
-#### Test A4: CLI Integration Test (real agent, manual/skipped)
+#### Test A4: CLI Integration Test — ✅ DELIVERED
+
+> **Actual implementation**: `test/integration/agent-instance-real.test.ts` (13 tests, `describe.skip`)
+> **Per DYK-P4#2**: Uses hardcoded `describe.skip`, not `describe.skipIf`. Unskip to validate.
+> **Per DYK-P4#3**: Default mode outputs JSON, not `--quiet`. Parse `JSON.parse(stdout)` for sessionId.
 
 ```bash
 # Automated test script (test/e2e/agent-system-e2e.ts):
@@ -359,7 +421,9 @@ Before touching any WF code, we validate the new agent system works:
 # This proves: getNew, getWithSessionId, event streaming, session continuity
 ```
 
-#### Test A5: Event Handler Integration Test (real agent, manual/skipped)
+#### Test A5: Event Handler Integration Test — ✅ DELIVERED
+
+> **Actual implementation**: `test/integration/agent-instance-real.test.ts` — "multiple handlers receive identical events" test (AC-37, AC-42)
 
 ```typescript
 describe.skip('AgentInstance Event Handlers (Real Agent)', { timeout: 60_000 }, () => {
@@ -649,6 +713,8 @@ if (completedNodeId) {
 
 ### Event Flow Path
 
+> **Authoritative source**: `apps/cli/src/features/034-agentic-cli/terminal-event-handler.ts`
+
 ```
 Claude Code subprocess
   → IAgentAdapter.run(onEvent callback)
@@ -656,9 +722,12 @@ Claude Code subprocess
       → CLI event handler prints to terminal
 ```
 
-### CLI Event Handler
+### CLI Event Handler — ✅ DELIVERED
 
-The `cg wf run` command attaches an event handler to each AgentInstance before execution:
+> **Actual implementation**: `apps/cli/src/features/034-agentic-cli/terminal-event-handler.ts`
+> See also: [Plan 034 Workshop 01](../../034-agentic-cli/workshops/01-cli-agent-run-and-e2e-testing.md#event-handler-implementation)
+
+The delivered event handler matches the workshop proposal with one key addition — an injectable `write` function for testability:
 
 ```typescript
 function createTerminalEventHandler(nodeId: string): AgentEventHandler {
@@ -694,42 +763,24 @@ function createTerminalEventHandler(nodeId: string): AgentEventHandler {
 }
 ```
 
-### How It Gets Wired
+### How It Gets Wired (Phase B Design — NOT YET IMPLEMENTED)
 
-In the **new AgentPod** (from Workshop 02), the pod wraps `IAgentInstance`. The CLI run command creates the instance via AgentManagerService and attaches the handler BEFORE the pod executes:
+> **Note**: The `onInstanceCreated` hook proposed below was NOT implemented in Plan 034.
+> Plan 034 wires event handlers in the CLI handler functions directly (per pure-function deps injection pattern).
+> For Phase B (`cg wf run`), the orchestration layer needs a different wiring strategy.
 
-```typescript
-// In ODS (after Workshop 02 changes):
-const instance = agentManager.getNew(baseParams);  // or getWithSessionId
+For `cg wf run`, the orchestration command needs to attach terminal event handlers to each `AgentInstance` created by the manager. Options:
 
-// The CLI driver attaches event handlers before the loop starts.
-// But ODS fires pod.execute() inside handle.run()...
-// So: attach handler at instance creation time (in the AgentManagerService wrapper),
-// OR have PodManager expose a hook for new pods.
+**Option A: Hook on AgentManagerService** (original proposal — not yet implemented)
+Add `onInstanceCreated` callback to `AgentManagerService` that attaches handlers automatically. This keeps orchestration code clean.
 
-// Simplest: AgentManagerService accepts a default event handler at construction.
-// The CLI sets this when creating the container.
-```
+**Option B: ODS wires handler after instance creation** 
+ODS creates the instance and attaches the handler before passing to AgentPod. Simpler but scatters handler logic.
 
-**Resolution**: The CLI container registers an `AgentManagerService` with a `defaultEventHandler` option. Every instance created by the service gets this handler pre-attached. This keeps the orchestration code clean — it doesn't know about terminal output.
+**Option C: CLI driver attaches handler via metadata nodeId**
+The CLI `cg wf run` driver attaches a handler factory that reads `instance.metadata.nodeId` for the prefix. The manager doesn't need to know about terminal output.
 
-```typescript
-// CLI container setup:
-container.register(ORCHESTRATION_DI_TOKENS.AGENT_MANAGER, {
-  useFactory: () => {
-    const adapterFactory = buildAdapterFactory();
-    const manager = new AgentManagerService(adapterFactory);
-
-    // Pre-register a factory that attaches terminal handlers
-    manager.onInstanceCreated = (instance) => {
-      const nodeId = (instance.metadata.nodeId as string) ?? instance.id;
-      instance.addEventHandler(createTerminalEventHandler(nodeId));
-    };
-
-    return manager;
-  },
-});
-```
+**Recommendation for Phase B**: Option C — keep the manager's API minimal (no hook). The CLI driver iterates over newly created instances and attaches handlers. This is consistent with Plan 034's pure-function pattern.
 
 ### Verbose Mode
 
@@ -1021,6 +1072,14 @@ export class AgentPod implements IWorkUnitPod {
 
 ## ODS Changes for Real Agents
 
+> **Phase B design** — not yet implemented. Uses Plan 034's delivered `AgentManagerService` and `AgentInstance`.
+> **Authoritative constructor signatures** (from Plan 034):
+> - `new AgentInstance(config: AgentInstanceConfig, adapter: IAgentAdapter, onSessionAcquired?: (sid: string) => void)`
+> - `new AgentManagerService(adapterFactory: AdapterFactory)` where `AdapterFactory = (type: AgentType) => IAgentAdapter`
+> - `manager.getNew(params: CreateAgentParams)` → `IAgentInstance`
+> - `manager.getWithSessionId(sessionId: string, params: CreateAgentParams)` → `IAgentInstance`
+> See: [Agent system overview](../../how/agent-system/1-overview.md), [Plan 034 types](../../../packages/shared/src/features/034-agentic-cli/types.ts)
+
 ### Creating AgentInstance via AgentManagerService
 
 ```typescript
@@ -1091,6 +1150,9 @@ private async handleAgentOrCode(
 ---
 
 ## E2E Test Strategy
+
+> **Phase A agent-level tests are DELIVERED** — see [Plan 034 Phase 4](../../034-agentic-cli/tasks/phase-4-real-agent-integration-tests/tasks.md).
+> Phase B adds orchestration-level E2E tests (Layers 1-3 below).
 
 ### The Three Testing Layers
 
@@ -1281,8 +1343,45 @@ describe.skip('Real Agent: Parallel Execution', { timeout: 180_000 }, () => {
 
 ## File Structure
 
+### Delivered by Plan 034 (Phase A) ✅
+
 ```
-test/
+packages/shared/src/features/034-agentic-cli/
+├── agent-instance.ts                    # AgentInstance implementation (194 lines)
+├── agent-instance.interface.ts          # IAgentInstance interface
+├── agent-manager-service.ts             # AgentManagerService (109 lines)
+├── agent-manager-service.interface.ts   # IAgentManagerService interface
+├── types.ts                             # All types + AdapterFactory
+├── index.ts                             # Feature barrel
+└── fakes/
+    ├── fake-agent-instance.ts           # FakeAgentInstance (255 lines)
+    ├── fake-agent-manager-service.ts    # FakeAgentManagerService (127 lines)
+    └── index.ts                         # Fakes barrel
+
+apps/cli/src/features/034-agentic-cli/
+├── agent-run-handler.ts                 # handleAgentRun (pure function)
+├── agent-compact-handler.ts             # handleAgentCompact (pure function)
+├── terminal-event-handler.ts            # createTerminalEventHandler, ndjsonEventHandler
+└── parse-meta-options.ts                # --meta key=value parser
+
+test/unit/features/034-agentic-cli/
+├── agent-instance.test.ts               # 29 unit tests
+├── agent-manager-service.test.ts        # 15 unit tests
+├── agent-instance-contract.test.ts      # 22 contract tests
+├── agent-manager-contract.test.ts       # 24 contract tests
+├── terminal-event-handler.test.ts       # 10 tests
+├── parse-meta-options.test.ts           # 6 tests
+└── cli-agent-handlers.test.ts           # 21 tests
+
+test/integration/agent-instance-real.test.ts  # 13 real agent tests (describe.skip)
+test/e2e/agent-cli-e2e.test.ts                # 4 CLI E2E tests (describe.skip)
+
+docs/how/agent-system/
+├── 1-overview.md                        # Lifecycle, methods, event pass-through
+└── 2-usage.md                           # Session chaining, handlers, testing patterns
+```
+
+### New Files for Plan 033 Phase B
 ├── e2e/
 │   ├── positional-graph-orchestration-e2e.ts       # Layer 1: Fake E2E (updated)
 │   └── real-agent-orchestration-e2e.ts             # Layer 2: Real Agent E2E (NEW)
@@ -1298,7 +1397,7 @@ test/
             └── ...                                  # (extended with prompt templates)
 ```
 
-### New Files
+### New Files (Phase B)
 
 | File | Purpose |
 |------|---------|
@@ -1444,35 +1543,44 @@ Everything else. The test still acts as the agent via CLI commands. The orchestr
 
 ## DI Container Wiring
 
-### CLI Container (Production)
+### CLI Container (Production) — ✅ DELIVERED
+
+> **Authoritative source**: `apps/cli/src/lib/container.ts` lines 261-280
+> **Key difference from original workshop**: Uses `CLI_DI_TOKENS.AGENT_MANAGER`, not `ORCHESTRATION_DI_TOKENS`
 
 ```typescript
-// apps/cli/src/lib/container.ts
+// apps/cli/src/lib/container.ts (actual implementation)
 
-function registerOrchestrationServices(container: Container): void {
-  // Agent adapter factory (creates real ClaudeCodeAdapter instances)
-  const adapterFactory: AdapterFactory = () => {
-    const processManager = container.resolve(UnixProcessManager);
+// AdapterFactory closure captures dependencies from container scope
+const adapterFactory: AdapterFactory = (type: AgentType): IAgentAdapter => {
+  if (type === 'claude-code') {
     return new ClaudeCodeAdapter(processManager, { logger });
-  };
+  }
+  if (type === 'copilot') {
+    return new SdkCopilotAdapter(copilotClient, { logger });
+  }
+  throw new Error(`Unknown agent type: ${type}`);
+};
 
-  // Agent manager (creates AgentInstances wrapping real adapters)
-  const agentManager = new AgentManagerService(adapterFactory);
-  container.registerInstance(ORCHESTRATION_DI_TOKENS.AGENT_MANAGER, agentManager);
+// Plan 034: AgentManagerService replaces AgentService for all agent commands
+const agentManager = new AgentManagerService(adapterFactory);
+container.registerInstance(CLI_DI_TOKENS.AGENT_MANAGER, agentManager);
 
-  // Other orchestration services unchanged
-  container.registerInstance(ORCHESTRATION_DI_TOKENS.SCRIPT_RUNNER, new NodeScriptRunner());
-  // ... ONBAS, ODS, etc.
-}
+// AgentService is NO LONGER registered. All commands go through AgentManagerService.
 ```
 
-### Test Container (Fakes)
+**For Phase B**: When orchestration services are added, they should use the SAME `AgentManagerService` instance (resolve from `CLI_DI_TOKENS.AGENT_MANAGER`). Do NOT create a second instance — the same-instance guarantee requires a single registry.
+
+### Test Container (Fakes) — Phase B Design
+
+> **Imports from Plan 034**: `FakeAgentManagerService` is exported from `@chainglass/shared`
 
 ```typescript
-// test/e2e/positional-graph-orchestration-e2e.ts
+// test/e2e/positional-graph-orchestration-e2e.ts (Phase B update)
+import { FakeAgentManagerService } from '@chainglass/shared';
 
 function createOrchestrationStack(service, ctx) {
-  // Fake agent manager (no real agents)
+  // Fake agent manager (no real agents) — Plan 034 fake
   const agentManager = new FakeAgentManagerService();
   const scriptRunner = new FakeScriptRunner();
 
@@ -1538,6 +1646,14 @@ These need to be simple enough that real agents complete quickly but realistic e
 
 This workshop defines the CLI-first approach for Plan 033:
 
+**Phase A (✅ COMPLETE — Plan 034)**:
+- `cg agent run` and `cg agent compact` use `AgentManagerService` / `AgentInstance`
+- Event pass-through via `addEventHandler()` to terminal (verbose/stream modes)
+- Session chaining via `--session` flag
+- 141 new tests (unit, contract, integration, CLI E2E)
+- See: [Plan 034 plan](../../034-agentic-cli/agentic-cli-plan.md), [Agent system docs](../../how/agent-system/1-overview.md)
+
+**Phase B (NEXT — Plan 033)**:
 1. **`cg wf run <slug>`** drives a loop around `handle.run()`, waiting for real agents between iterations
 2. **Terminal events** flow through AgentInstance handlers to stdout, prefixed by node ID
 3. **Node starter prompt** is a template with graph/node IDs and concrete CLI commands
