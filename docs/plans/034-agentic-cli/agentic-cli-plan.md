@@ -469,15 +469,15 @@ describe('AgentInstance', () => {
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 3.1 | [ ] | Write terminal event handler tests (RED) | 2 | Tests cover: human-readable output format (text_delta, message, tool_call, tool_result, thinking), verbose mode shows thinking/tool results, NDJSON mode outputs raw JSON, quiet mode suppresses events. All fail initially. | - | Per Workshop 01 event handler code |
-| 3.2 | [ ] | Implement terminal event handlers (GREEN) | 2 | `createTerminalEventHandler(name, options)` and `ndjsonEventHandler` pass all tests. | - | Per Workshop 01 |
-| 3.3 | [ ] | Write parse-meta-options tests (RED) | 1 | Tests cover: `--meta key=value` parsing, multiple metas, invalid format, empty value. | - | |
-| 3.4 | [ ] | Implement parse-meta-options (GREEN) | 1 | All tests pass. | - | |
-| 3.5 | [ ] | Write CLI agent handler tests (RED) | 2 | Tests cover: handleAgentRun creates via getNew (AC-29), handleAgentRun creates via getWithSessionId when --session (AC-30), handleAgentCompact uses getWithSessionId (AC-34a), event handlers attached based on --stream/--verbose/--quiet (AC-31, AC-32), session ID printed on completion (AC-33), exit codes (AC-34). Uses FakeAgentManagerService. All fail initially. | - | Per AC-29 through AC-34b |
-| 3.6 | [ ] | Implement handleAgentRun and handleAgentCompact (GREEN) | 2 | All tests from 3.5 pass. Handlers use AgentManagerService. | - | Per Workshop 01 handler code |
-| 3.7 | [ ] | Update DI container | 2 | `CLI_DI_TOKENS.AGENT_MANAGER` registered with AgentManagerService. AgentService no longer registered. Container builds and resolves correctly. | - | Per AC-34b, Workshop 01 DI section |
-| 3.8 | [ ] | Update agent.command.ts command registration | 1 | `cg agent run` and `cg agent compact` wired to new handlers. New options (--name, --meta, --verbose, --quiet) registered. | - | Per Workshop 01 command surface |
-| 3.9 | [ ] | Verify `just fft` passes | 1 | All existing tests pass. No regressions. | - | AC-47 |
+| 3.1 | [x] | Write terminal event handler tests (RED) | 2 | Tests cover: human-readable output format (text_delta, message, tool_call, tool_result, thinking), verbose mode shows thinking/tool results, NDJSON mode outputs raw JSON, quiet mode suppresses events. All fail initially. | - | Per Workshop 01 event handler code |
+| 3.2 | [x] | Implement terminal event handlers (GREEN) | 2 | `createTerminalEventHandler(name, options)` and `ndjsonEventHandler` pass all tests. | - | Per Workshop 01 |
+| 3.3 | [x] | Write parse-meta-options tests (RED) | 1 | Tests cover: `--meta key=value` parsing, multiple metas, invalid format, empty value. | - | |
+| 3.4 | [x] | Implement parse-meta-options (GREEN) | 1 | All tests pass. | - | |
+| 3.5 | [x] | Write CLI agent handler tests (RED) | 2 | Tests cover: handleAgentRun creates via getNew (AC-29), handleAgentRun creates via getWithSessionId when --session (AC-30), handleAgentCompact uses getWithSessionId (AC-34a), event handlers attached based on --stream/--verbose/--quiet (AC-31, AC-32), session ID printed on completion (AC-33), exit codes (AC-34). Uses FakeAgentManagerService. All fail initially. | - | Per AC-29 through AC-34b |
+| 3.6 | [x] | Implement handleAgentRun and handleAgentCompact (GREEN) | 2 | All tests from 3.5 pass. Handlers use AgentManagerService. | - | Per Workshop 01 handler code |
+| 3.7 | [x] | Update DI container | 2 | `CLI_DI_TOKENS.AGENT_MANAGER` registered with AgentManagerService. AgentService no longer registered. Container builds and resolves correctly. | - | Per AC-34b, Workshop 01 DI section |
+| 3.8 | [x] | Update agent.command.ts command registration | 1 | `cg agent run` and `cg agent compact` wired to new handlers. New options (--name, --meta, --verbose, --quiet) registered. | - | Per Workshop 01 command surface |
+| 3.9 | [x] | Verify `just fft` passes | 1 | All existing tests pass. No regressions. | - | AC-47 |
 
 ### Test Examples (Write First!)
 
@@ -691,7 +691,7 @@ Per Documentation Strategy (Hybrid):
 
 - [x] Phase 1: Types, Interfaces, and PlanPak Setup
 - [x] Phase 2: Core Implementation with TDD
-- [ ] Phase 3: CLI Command Update with TDD
+- [x] Phase 3: CLI Command Update with TDD
 - [ ] Phase 4: Real Agent Integration Tests
 - [ ] Phase 5: Export Wiring and Documentation
 

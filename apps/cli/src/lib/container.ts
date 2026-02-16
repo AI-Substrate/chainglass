@@ -11,7 +11,7 @@ import { FakeWorkUnitService, registerPositionalGraphServices } from '@chainglas
 import type { IWorkUnitLoader, IWorkUnitService } from '@chainglass/positional-graph';
 import {
   type AdapterFactory,
-  AgentService,
+  AgentManagerService,
   ChainglassConfigService,
   ClaudeCodeAdapter,
   ConsoleOutputAdapter,
@@ -103,8 +103,8 @@ export const CLI_DI_TOKENS = {
   PROCESS_MANAGER: 'IProcessManager',
   /** CopilotClient singleton */
   COPILOT_CLIENT: 'CopilotClient',
-  /** AgentService for agent invocation */
-  AGENT_SERVICE: 'AgentService',
+  /** AgentManagerService for agent lifecycle (Plan 034, replaces AGENT_SERVICE) */
+  AGENT_MANAGER: 'IAgentManagerService',
 } as const;
 
 /**
@@ -258,17 +258,14 @@ export function createCliProductionContainer(): DependencyContainer {
   // Register CopilotClient as singleton
   childContainer.registerSingleton<CopilotClient>(CLI_DI_TOKENS.COPILOT_CLIENT, CopilotClient);
 
-  // Register AgentService with adapter factory
-  childContainer.register(CLI_DI_TOKENS.AGENT_SERVICE, {
+  // Register AgentManagerService with adapter factory (Plan 034, replaces AgentService)
+  childContainer.register(CLI_DI_TOKENS.AGENT_MANAGER, {
     useFactory: (c) => {
       const logger = c.resolve<ILogger>(SHARED_DI_TOKENS.LOGGER);
-      const cfg = c.resolve<IConfigService>(CLI_DI_TOKENS.CONFIG_SERVICE);
       const processManager = c.resolve<IProcessManager>(CLI_DI_TOKENS.PROCESS_MANAGER);
       const copilotClient = c.resolve<CopilotClient>(CLI_DI_TOKENS.COPILOT_CLIENT);
 
-      // Factory function for runtime adapter selection based on agent type.
-      // AgentService calls this factory with the user's --type flag value.
-      const adapterFactory: AdapterFactory = (agentType: string): IAgentAdapter => {
+      const adapterFactory = (agentType: string): IAgentAdapter => {
         if (agentType === 'claude-code') {
           return new ClaudeCodeAdapter(processManager, { logger });
         }
@@ -278,7 +275,7 @@ export function createCliProductionContainer(): DependencyContainer {
         throw new Error(`Unknown agent type: ${agentType}`);
       };
 
-      return new AgentService(adapterFactory, cfg, logger);
+      return new AgentManagerService(adapterFactory);
     },
   });
 
