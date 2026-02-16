@@ -304,17 +304,17 @@ Content assertions (exact text, specific word) are NOT used.
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 1.0 | [ ] | Create PlanPak feature folder structure | 1 | Directories exist: `packages/shared/src/features/034-agentic-cli/`, `packages/shared/src/features/034-agentic-cli/fakes/`, `apps/cli/src/features/034-agentic-cli/`, `test/unit/features/034-agentic-cli/` | - | T000 PlanPak setup |
-| 1.1 | [ ] | Define `types.ts` with all supporting types | 1 | `AgentInstanceStatus`, `AgentEventHandler`, `AgentInstanceConfig`, `CreateAgentParams`, `AgentRunOptions`, `AgentFilter` compile correctly | - | Per Workshop 02 |
-| 1.2 | [ ] | Define `agent-instance.interface.ts` (IAgentInstance) | 1 | Interface includes: id, name, type, workspace, status, isRunning, sessionId, createdAt, updatedAt, metadata, setMetadata, addEventHandler, removeEventHandler, run, compact, terminate | - | Per AC-01, AC-02 |
-| 1.3 | [ ] | Define `agent-manager-service.interface.ts` (IAgentManagerService) | 1 | Interface includes: getNew, getWithSessionId, getAgent, getAgents, terminateAgent, initialize | - | Per AC-14-21 |
-| 1.4 | [ ] | Create barrel `index.ts` for 034 feature | 1 | All types and interfaces importable from feature barrel | - | |
+| 1.0 | [x] | Create PlanPak feature folder structure | 1 | Directories exist: `packages/shared/src/features/034-agentic-cli/`, `packages/shared/src/features/034-agentic-cli/fakes/`, `apps/cli/src/features/034-agentic-cli/`, `test/unit/features/034-agentic-cli/` | - | T000 PlanPak setup |
+| 1.1 | [x] | Define `types.ts` with all supporting types | 1 | `AgentInstanceStatus`, `AgentEventHandler`, `AgentInstanceConfig`, `CreateAgentParams`, `AgentRunOptions`, `AgentFilter` compile correctly | - | Per Workshop 02 |
+| 1.2 | [x] | Define `agent-instance.interface.ts` (IAgentInstance) | 1 | Interface includes: id, name, type, workspace, status, isRunning, sessionId, createdAt, updatedAt, metadata, setMetadata, addEventHandler, removeEventHandler, run, compact, terminate | - | Per AC-01, AC-02 |
+| 1.3 | [x] | Define `agent-manager-service.interface.ts` (IAgentManagerService) | 1 | Interface includes: getNew, getWithSessionId, getAgent, getAgents, terminateAgent, initialize | - | Per AC-14-21 |
+| 1.4 | [x] | Create barrel `index.ts` for 034 feature | 1 | All types and interfaces importable from feature barrel | - | |
 
 ### Acceptance Criteria
-- [ ] All types and interfaces compile (`tsc --noEmit` passes)
-- [ ] PlanPak directories exist
-- [ ] No implementation code (interfaces only)
-- [ ] AC-01, AC-02, AC-03, AC-10, AC-13 type contracts expressed
+- [x] All types and interfaces compile (`tsc --noEmit` passes)
+- [x] PlanPak directories exist
+- [x] No implementation code (interfaces only)
+- [x] AC-01, AC-02, AC-03, AC-10, AC-13 type contracts expressed
 
 ---
 
@@ -689,7 +689,7 @@ Per Documentation Strategy (Hybrid):
 
 ### Phase Completion Checklist
 
-- [ ] Phase 1: Types, Interfaces, and PlanPak Setup
+- [x] Phase 1: Types, Interfaces, and PlanPak Setup
 - [ ] Phase 2: Core Implementation with TDD
 - [ ] Phase 3: CLI Command Update with TDD
 - [ ] Phase 4: Real Agent Integration Tests

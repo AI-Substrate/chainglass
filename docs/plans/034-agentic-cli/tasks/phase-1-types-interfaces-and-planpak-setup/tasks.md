@@ -175,11 +175,11 @@ flowchart TD
     style ExistingImports fill:#E8F5E9,stroke:#C8E6C9
 
     subgraph Phase["Phase 1: Types, Interfaces, and PlanPak Setup"]
-        T001["T001: Create PlanPak dirs"]:::pending
-        T002["T002: Define types.ts"]:::pending
-        T003["T003: Define IAgentInstance"]:::pending
-        T004["T004: Define IAgentManagerService"]:::pending
-        T005["T005: Create barrel index.ts"]:::pending
+        T001["T001: Create PlanPak dirs ✓"]:::completed
+        T002["T002: Define types.ts ✓"]:::completed
+        T003["T003: Define IAgentInstance ✓"]:::completed
+        T004["T004: Define IAgentManagerService ✓"]:::completed
+        T005["T005: Create barrel index.ts ✓"]:::completed
 
         T001 --> T002
         T002 --> T003
@@ -189,10 +189,10 @@ flowchart TD
     end
 
     subgraph NewFiles["New Files (034)"]
-        F1["types.ts"]:::pending
-        F2["agent-instance.interface.ts"]:::pending
-        F3["agent-manager-service.interface.ts"]:::pending
-        F4["index.ts"]:::pending
+        F1["types.ts ✓"]:::completed
+        F2["agent-instance.interface.ts ✓"]:::completed
+        F3["agent-manager-service.interface.ts ✓"]:::completed
+        F4["index.ts ✓"]:::completed
     end
 
     subgraph ExistingImports["Existing (read-only)"]
@@ -222,11 +222,11 @@ flowchart TD
 
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
-| T001 | Directory Structure | 4 directories | ⬜ Pending | PlanPak feature folders for shared, cli, test, fakes |
-| T002 | Type Definitions | types.ts | ⬜ Pending | All supporting types + re-exports |
-| T003 | Agent Instance Interface | agent-instance.interface.ts | ⬜ Pending | IAgentInstance per Workshop 02 |
-| T004 | Agent Manager Interface | agent-manager-service.interface.ts | ⬜ Pending | IAgentManagerService with getNew/getWithSessionId |
-| T005 | Barrel Exports | index.ts | ⬜ Pending | Re-exports all types and interfaces |
+| T001 | Directory Structure | 4 directories | ✅ Complete | PlanPak feature folders for shared, cli, test, fakes |
+| T002 | Type Definitions | types.ts | ✅ Complete | All supporting types + re-exports |
+| T003 | Agent Instance Interface | agent-instance.interface.ts | ✅ Complete | IAgentInstance per Workshop 02 |
+| T004 | Agent Manager Interface | agent-manager-service.interface.ts | ✅ Complete | IAgentManagerService with getNew/getWithSessionId |
+| T005 | Barrel Exports | index.ts | ✅ Complete | Re-exports all types and interfaces |
 
 ---
 
@@ -234,11 +234,11 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|------|------|-----|------|-------------|-------------------|------------|----------|-------|
-| [ ] | T001 | Create PlanPak feature folder structure: `packages/shared/src/features/034-agentic-cli/`, `packages/shared/src/features/034-agentic-cli/fakes/`, `apps/cli/src/features/034-agentic-cli/`, `test/unit/features/034-agentic-cli/` | 1 | Setup | – | `/home/jak/substrate/033-real-agent-pods/packages/shared/src/features/034-agentic-cli/`, `/home/jak/substrate/033-real-agent-pods/packages/shared/src/features/034-agentic-cli/fakes/`, `/home/jak/substrate/033-real-agent-pods/apps/cli/src/features/034-agentic-cli/`, `/home/jak/substrate/033-real-agent-pods/test/unit/features/034-agentic-cli/` | All 4 directories exist | – | plan-scoped; maps to plan task 1.0 |
-| [ ] | T002 | Define `types.ts` with: `AgentType`, `AgentInstanceStatus` (3-state: working/stopped/error), `AgentEventHandler` (re-export from `interfaces/agent-types.ts`), `AgentInstanceConfig` (id, name, type, workspace, sessionId?, metadata? — NO adapter; adapter is a separate constructor dependency per DYK-P5#2), `CreateAgentParams` (name, type, workspace, metadata?), `AgentRunOptions` (instance-level: prompt, cwd?, onEvent?, timeoutMs?), `AgentCompactOptions` (timeoutMs?), `AgentFilter` (type?, workspace?). Import `AgentEvent`, `AgentResult` from `../../interfaces/agent-types.js`. | 2 | Core | T001 | `/home/jak/substrate/033-real-agent-pods/packages/shared/src/features/034-agentic-cli/types.ts` | All 8 types compile; `tsc --noEmit` passes; JSDoc distinguishes instance-level `AgentRunOptions` from adapter-level; `AgentInstanceConfig` does NOT include adapter | – | plan-scoped; maps to plan task 1.1; AgentType added per requirements tracing Gap 1; timeoutMs per Discovery 09; AgentCompactOptions per DYK-P5#1; adapter removed from config per DYK-P5#2 |
-| [ ] | T003 | Define `IAgentInstance` interface with: readonly props (id, name, type, workspace, status, isRunning, sessionId, createdAt, updatedAt, metadata), methods (setMetadata, addEventHandler, removeEventHandler, run, compact, terminate). `run(options)` returns `Promise<AgentResult>`, `compact(options?)` returns `Promise<AgentResult>` (accepts optional `AgentCompactOptions` for timeoutMs), `terminate()` returns `Promise<AgentResult>`. NO `getEvents()`, `setIntent()`, notifier, or storage. | 2 | Core | T002 | `/home/jak/substrate/033-real-agent-pods/packages/shared/src/features/034-agentic-cli/agent-instance.interface.ts` | Interface compiles; exposes exactly the members per AC-01; does NOT expose AC-02 members; `isRunning` is `boolean` (AC-11); `metadata` is `Readonly<Record<string, unknown>>` (AC-10); `compact()` accepts optional `AgentCompactOptions` per DYK-P5#1 | – | plan-scoped; maps to plan task 1.2; per ADR-0011 interface-first |
-| [ ] | T004 | Define `IAgentManagerService` interface with: `getNew(params)`, `getWithSessionId(sessionId, params)`, `getAgent(agentId)`, `getAgents(filter?)`, `terminateAgent(agentId)`, `initialize()`. JSDoc on `getWithSessionId` documents same-instance guarantee. Constructor constraint documented: accepts only `AdapterFactory`. | 2 | Core | T002, T003 | `/home/jak/substrate/033-real-agent-pods/packages/shared/src/features/034-agentic-cli/agent-manager-service.interface.ts` | Interface compiles; all 6 methods present; JSDoc documents same-instance guarantee (AC-16); no notifier/storage params (AC-21) | – | plan-scoped; maps to plan task 1.3; per ADR-0011 interface-first |
-| [ ] | T005 | Create barrel `index.ts` re-exporting all types from `./types.js`, `IAgentInstance` from `./agent-instance.interface.js`, `IAgentManagerService` from `./agent-manager-service.interface.js`. | 1 | Core | T002, T003, T004 | `/home/jak/substrate/033-real-agent-pods/packages/shared/src/features/034-agentic-cli/index.ts` | All types and interfaces importable via `from '../features/034-agentic-cli/index.js'`; `tsc --noEmit` passes on the full project | – | plan-scoped; maps to plan task 1.4 |
+| [x] | T001 | Create PlanPak feature folder structure: `packages/shared/src/features/034-agentic-cli/`, `packages/shared/src/features/034-agentic-cli/fakes/`, `apps/cli/src/features/034-agentic-cli/`, `test/unit/features/034-agentic-cli/` | 1 | Setup | – | `/home/jak/substrate/033-real-agent-pods/packages/shared/src/features/034-agentic-cli/`, `/home/jak/substrate/033-real-agent-pods/packages/shared/src/features/034-agentic-cli/fakes/`, `/home/jak/substrate/033-real-agent-pods/apps/cli/src/features/034-agentic-cli/`, `/home/jak/substrate/033-real-agent-pods/test/unit/features/034-agentic-cli/` | All 4 directories exist | – | plan-scoped; maps to plan task 1.0 |
+| [x] | T002 | Define `types.ts` with: `AgentType`, `AgentInstanceStatus` (3-state: working/stopped/error), `AgentEventHandler` (re-export from `interfaces/agent-types.ts`), `AgentInstanceConfig` (id, name, type, workspace, sessionId?, metadata? — NO adapter; adapter is a separate constructor dependency per DYK-P5#2), `CreateAgentParams` (name, type, workspace, metadata?), `AgentRunOptions` (instance-level: prompt, cwd?, onEvent?, timeoutMs?), `AgentCompactOptions` (timeoutMs?), `AgentFilter` (type?, workspace?). Import `AgentEvent`, `AgentResult` from `../../interfaces/agent-types.js`. | 2 | Core | T001 | `/home/jak/substrate/033-real-agent-pods/packages/shared/src/features/034-agentic-cli/types.ts` | All 8 types compile; `tsc --noEmit` passes; JSDoc distinguishes instance-level `AgentRunOptions` from adapter-level; `AgentInstanceConfig` does NOT include adapter | – | plan-scoped; maps to plan task 1.1; AgentType added per requirements tracing Gap 1; timeoutMs per Discovery 09; AgentCompactOptions per DYK-P5#1; adapter removed from config per DYK-P5#2 |
+| [x] | T003 | Define `IAgentInstance` interface with: readonly props (id, name, type, workspace, status, isRunning, sessionId, createdAt, updatedAt, metadata), methods (setMetadata, addEventHandler, removeEventHandler, run, compact, terminate). `run(options)` returns `Promise<AgentResult>`, `compact(options?)` returns `Promise<AgentResult>` (accepts optional `AgentCompactOptions` for timeoutMs), `terminate()` returns `Promise<AgentResult>`. NO `getEvents()`, `setIntent()`, notifier, or storage. | 2 | Core | T002 | `/home/jak/substrate/033-real-agent-pods/packages/shared/src/features/034-agentic-cli/agent-instance.interface.ts` | Interface compiles; exposes exactly the members per AC-01; does NOT expose AC-02 members; `isRunning` is `boolean` (AC-11); `metadata` is `Readonly<Record<string, unknown>>` (AC-10); `compact()` accepts optional `AgentCompactOptions` per DYK-P5#1 | – | plan-scoped; maps to plan task 1.2; per ADR-0011 interface-first |
+| [x] | T004 | Define `IAgentManagerService` interface with: `getNew(params)`, `getWithSessionId(sessionId, params)`, `getAgent(agentId)`, `getAgents(filter?)`, `terminateAgent(agentId)`, `initialize()`. JSDoc on `getWithSessionId` documents same-instance guarantee. Constructor constraint documented: accepts only `AdapterFactory`. | 2 | Core | T002, T003 | `/home/jak/substrate/033-real-agent-pods/packages/shared/src/features/034-agentic-cli/agent-manager-service.interface.ts` | Interface compiles; all 6 methods present; JSDoc documents same-instance guarantee (AC-16); no notifier/storage params (AC-21) | – | plan-scoped; maps to plan task 1.3; per ADR-0011 interface-first |
+| [x] | T005 | Create barrel `index.ts` re-exporting all types from `./types.js`, `IAgentInstance` from `./agent-instance.interface.js`, `IAgentManagerService` from `./agent-manager-service.interface.js`. | 1 | Core | T002, T003, T004 | `/home/jak/substrate/033-real-agent-pods/packages/shared/src/features/034-agentic-cli/index.ts` | All types and interfaces importable via `from '../features/034-agentic-cli/index.js'`; `tsc --noEmit` passes on the full project | – | plan-scoped; maps to plan task 1.4 |
 
 ---
 

@@ -45,12 +45,12 @@ test/unit/features/
 
 ## Stages
 
-- [ ] **Stage 1**: Create PlanPak directories (T001)
-- [ ] **Stage 2**: Define types.ts with 7 type exports (T002)
-- [ ] **Stage 3**: Define IAgentInstance interface — 10 props, 6 methods (T003)
-- [ ] **Stage 4**: Define IAgentManagerService interface — 6 methods (T004)
-- [ ] **Stage 5**: Create barrel index.ts (T005)
-- [ ] **Stage 6**: Verify `tsc --noEmit` passes, run `just fft`
+- [x] **Stage 1**: Create PlanPak directories (T001)
+- [x] **Stage 2**: Define types.ts with 7 type exports (T002)
+- [x] **Stage 3**: Define IAgentInstance interface — 10 props, 6 methods (T003)
+- [x] **Stage 4**: Define IAgentManagerService interface — 6 methods (T004)
+- [x] **Stage 5**: Create barrel index.ts (T005)
+- [x] **Stage 6**: Verify `tsc --noEmit` passes, run `just fft`
 
 ## Key Constraints
 
