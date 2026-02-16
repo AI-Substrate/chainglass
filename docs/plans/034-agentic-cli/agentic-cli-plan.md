@@ -342,17 +342,17 @@ Content assertions (exact text, specific word) are NOT used.
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 2.1 | [ ] | Write AgentInstance unit tests (RED) | 2 | Tests cover: status transitions (AC-04), double-run guard (AC-05), event pass-through (AC-06, AC-07, AC-08), per-run onEvent (AC-09), metadata (AC-10), isRunning (AC-11), terminate (AC-12), compact transitions (AC-12a), compact no-session guard (AC-12b), compact working guard (AC-12c), compact token metrics (AC-12d), sessionId tracking. All fail initially. | - | Per Workshop 01 test code |
-| 2.2 | [ ] | Write AgentManagerService unit tests (RED) | 2 | Tests cover: getNew creates no-session instance (AC-14), getWithSessionId pre-sets session (AC-15), same-instance guarantee (AC-16), different sessions different instances (AC-17), getAgent by ID (AC-18), getAgents with filter (AC-19), terminateAgent cleanup (AC-20), constructor accepts only adapterFactory (AC-21), session index update after run (AC-22). All fail initially. | - | Per Workshop 01 test code |
-| 2.3 | [ ] | Verify FakeAgentAdapter supports compact | 1 | FakeAgentAdapter has `compact()` method and `setNextCompactResult()` helper. Add if missing. | - | Discovery 12 |
-| 2.4 | [ ] | Implement FakeAgentInstance | 2 | Implements IAgentInstance with test helpers: `setStatus()`, `assertRunCalled()`, `reset()`, configurable status/metadata. Composable with FakeAgentAdapter. | - | AC-23, AC-25 |
-| 2.5 | [ ] | Implement FakeAgentManagerService | 2 | Implements IAgentManagerService with same-instance guarantee, session index, test helpers: `addAgent()`, `getCreatedAgents()`, `reset()`. | - | AC-24 |
-| 2.6 | [ ] | Implement AgentInstance (GREEN) | 3 | All tests from 2.1 pass. Status model: working/stopped/error. Event pass-through via Set of handlers. Metadata bag. compact() delegates to adapter.compact(). | - | AC-04 through AC-12d |
-| 2.7 | [ ] | Implement AgentManagerService (GREEN) | 3 | All tests from 2.2 pass. Session index (_sessionIndex Map). Same-instance guarantee. Internal handler for session index update after run(). | - | AC-14 through AC-22 |
-| 2.8 | [ ] | Write contract test suite for IAgentInstance | 2 | Shared test function runs against both AgentInstance (with FakeAgentAdapter) and FakeAgentInstance. Covers: status transitions, double-run guard, compact guard, session tracking, metadata, event pass-through, isRunning. | - | AC-26, AC-28 |
-| 2.9 | [ ] | Write contract test suite for IAgentManagerService | 2 | Shared test function runs against both AgentManagerService and FakeAgentManagerService. Covers: getNew, getWithSessionId same-instance, getAgent, getAgents, terminateAgent. | - | AC-27 |
-| 2.10 | [ ] | Update fakes barrel exports | 1 | `features/034-agentic-cli/fakes/index.ts` exports both fakes. Feature barrel re-exports fakes. | - | |
-| 2.11 | [ ] | Refactor: review code quality | 1 | All tests still pass. Code follows idioms. No unnecessary complexity. | - | REFACTOR step |
+| 2.1 | [x] | Write AgentInstance unit tests (RED) | 2 | Tests cover: status transitions (AC-04), double-run guard (AC-05), event pass-through (AC-06, AC-07, AC-08), per-run onEvent (AC-09), metadata (AC-10), isRunning (AC-11), terminate (AC-12), compact transitions (AC-12a), compact no-session guard (AC-12b), compact working guard (AC-12c), compact token metrics (AC-12d), sessionId tracking. All fail initially. | - | Per Workshop 01 test code |
+| 2.2 | [x] | Write AgentManagerService unit tests (RED) | 2 | Tests cover: getNew creates no-session instance (AC-14), getWithSessionId pre-sets session (AC-15), same-instance guarantee (AC-16), different sessions different instances (AC-17), getAgent by ID (AC-18), getAgents with filter (AC-19), terminateAgent cleanup (AC-20), constructor accepts only adapterFactory (AC-21), session index update after run (AC-22). All fail initially. | - | Per Workshop 01 test code |
+| 2.3 | [x] | Verify FakeAgentAdapter supports compact | 1 | FakeAgentAdapter has `compact()` method and `setNextCompactResult()` helper. Add if missing. | - | Discovery 12 |
+| 2.4 | [x] | Implement FakeAgentInstance | 2 | Implements IAgentInstance with test helpers: `setStatus()`, `assertRunCalled()`, `reset()`, configurable status/metadata. Composable with FakeAgentAdapter. | - | AC-23, AC-25 |
+| 2.5 | [x] | Implement FakeAgentManagerService | 2 | Implements IAgentManagerService with same-instance guarantee, session index, test helpers: `addAgent()`, `getCreatedAgents()`, `reset()`. | - | AC-24 |
+| 2.6 | [x] | Implement AgentInstance (GREEN) | 3 | All tests from 2.1 pass. Status model: working/stopped/error. Event pass-through via Set of handlers. Metadata bag. compact() delegates to adapter.compact(). | - | AC-04 through AC-12d |
+| 2.7 | [x] | Implement AgentManagerService (GREEN) | 3 | All tests from 2.2 pass. Session index (_sessionIndex Map). Same-instance guarantee. Internal handler for session index update after run(). | - | AC-14 through AC-22 |
+| 2.8 | [x] | Write contract test suite for IAgentInstance | 2 | Shared test function runs against both AgentInstance (with FakeAgentAdapter) and FakeAgentInstance. Covers: status transitions, double-run guard, compact guard, session tracking, metadata, event pass-through, isRunning. | - | AC-26, AC-28 |
+| 2.9 | [x] | Write contract test suite for IAgentManagerService | 2 | Shared test function runs against both AgentManagerService and FakeAgentManagerService. Covers: getNew, getWithSessionId same-instance, getAgent, getAgents, terminateAgent. | - | AC-27 |
+| 2.10 | [x] | Update fakes barrel exports | 1 | `features/034-agentic-cli/fakes/index.ts` exports both fakes. Feature barrel re-exports fakes. | - | |
+| 2.11 | [x] | Refactor: review code quality | 1 | All tests still pass. Code follows idioms. No unnecessary complexity. | - | REFACTOR step |
 
 ### Test Examples (Write First!)
 
@@ -437,11 +437,11 @@ describe('AgentInstance', () => {
 - [ ] `removeEventHandler()` with unregistered handler (no-op)
 
 ### Acceptance Criteria
-- [ ] All unit tests pass (AC-04 through AC-12d, AC-14 through AC-22)
-- [ ] Contract tests pass for both real and fake implementations (AC-26, AC-27, AC-28)
-- [ ] Fakes provide test helpers (AC-23, AC-24, AC-25)
-- [ ] `just fft` passes (no regressions, AC-47)
-- [ ] No mocks used — fakes only
+- [x] All unit tests pass (AC-04 through AC-12d, AC-14 through AC-22)
+- [x] Contract tests pass for both real and fake implementations (AC-26, AC-27, AC-28)
+- [x] Fakes provide test helpers (AC-23, AC-24, AC-25)
+- [x] `just fft` passes (no regressions, AC-47)
+- [x] No mocks used — fakes only
 
 ---
 
@@ -690,7 +690,7 @@ Per Documentation Strategy (Hybrid):
 ### Phase Completion Checklist
 
 - [x] Phase 1: Types, Interfaces, and PlanPak Setup
-- [ ] Phase 2: Core Implementation with TDD
+- [x] Phase 2: Core Implementation with TDD
 - [ ] Phase 3: CLI Command Update with TDD
 - [ ] Phase 4: Real Agent Integration Tests
 - [ ] Phase 5: Export Wiring and Documentation

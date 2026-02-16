@@ -52,8 +52,10 @@ export interface IAgentInstance {
 
   // ── Event Pass-Through ───────────────────────────────
   /**
-   * Register a handler that receives all adapter events during `run()`
-   * and `compact()`. Multiple handlers receive the same event objects.
+   * Register a handler that receives all adapter events during `run()`.
+   * Multiple handlers receive the same event objects.
+   *
+   * Note: `compact()` does not emit events (adapter.compact has no onEvent callback).
    */
   addEventHandler(handler: AgentEventHandler): void;
 
@@ -83,6 +85,9 @@ export interface IAgentInstance {
    *
    * Always transitions to `stopped` regardless of adapter outcome — adapters
    * guarantee terminate never throws (returns status `'killed'`, exit 137/143).
+   *
+   * If `sessionId` is null (no session established), skips the adapter call
+   * and returns a synthetic result with `status: 'killed'`, `exitCode: 0`.
    */
   terminate(): Promise<AgentResult>;
 }

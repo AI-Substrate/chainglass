@@ -6,6 +6,7 @@
  * sessionId, AgentResult, AgentEvent), see `../../interfaces/agent-types.js`.
  */
 
+import type { IAgentAdapter } from '../../interfaces/agent-adapter.interface.js';
 import type { AgentEvent, AgentResult } from '../../interfaces/agent-types.js';
 
 // Re-export shared types consumed by the 034 interfaces
@@ -75,3 +76,6 @@ export interface AgentFilter {
   readonly type?: AgentType;
   readonly workspace?: string;
 }
+
+/** Factory function that creates an adapter for the given agent type. */
+export type AdapterFactory = (type: AgentType) => IAgentAdapter;

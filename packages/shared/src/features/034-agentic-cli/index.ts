@@ -1,12 +1,11 @@
 /**
  * Plan 034: Agentic CLI — Feature Barrel
  *
- * Re-exports all types and interfaces for the redesigned agent system.
- * Consumers import from this barrel; implementation exports are added
- * in Phase 2 and fakes in `./fakes/index.js`.
+ * Re-exports all types, interfaces, implementations, and fakes.
  */
 
 export type {
+  AdapterFactory,
   AgentCompactOptions,
   AgentEvent,
   AgentEventHandler,
@@ -21,3 +20,17 @@ export type {
 
 export type { IAgentInstance } from './agent-instance.interface.js';
 export type { IAgentManagerService } from './agent-manager-service.interface.js';
+
+// Implementations (Phase 2)
+export { AgentInstance } from './agent-instance.js';
+export { AgentManagerService } from './agent-manager-service.js';
+
+// Fakes (Phase 2)
+export {
+  FakeAgentInstance,
+  FakeAgentManagerService,
+} from './fakes/index.js';
+export type {
+  FakeAgentInstanceOptions,
+  FakeAgentManagerServiceOptions,
+} from './fakes/index.js';
