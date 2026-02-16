@@ -212,11 +212,20 @@ export type { AdapterFactory, AgentServiceRunOptions } from './services/index.js
 // Note: EventStorageService removed in Plan 018 Phase 2.
 // Use AgentEventAdapter from @chainglass/workflow for workspace-scoped event storage.
 
-// Plan 034: Agentic CLI — AgentManagerService + AgentInstance (Phase 2/3 pull-forward for DI)
+// Plan 034: Agentic CLI — AgentManagerService + AgentInstance
 export { AgentInstance } from './features/034-agentic-cli/agent-instance.js';
 export { AgentManagerService } from './features/034-agentic-cli/agent-manager-service.js';
+export type { IAgentInstance } from './features/034-agentic-cli/agent-instance.interface.js';
 export type { IAgentManagerService } from './features/034-agentic-cli/agent-manager-service.interface.js';
-export type { AdapterFactory as AgentAdapterFactory } from './features/034-agentic-cli/types.js';
+export type {
+  AdapterFactory as AgentAdapterFactory,
+  AgentCompactOptions,
+  AgentFilter,
+  AgentInstanceConfig,
+  AgentInstanceStatus,
+  AgentType as AgentInstanceType,
+  CreateAgentParams,
+} from './features/034-agentic-cli/types.js';
 export { FakeAgentInstance } from './features/034-agentic-cli/fakes/fake-agent-instance.js';
 export { FakeAgentManagerService } from './features/034-agentic-cli/fakes/fake-agent-manager-service.js';
 

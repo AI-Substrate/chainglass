@@ -542,12 +542,12 @@ describe('createTerminalEventHandler', () => {
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 4.1 | [x] | Write Claude Code integration tests | 2 | Tests: new session (AC-35), session resume (AC-36), multiple handlers (AC-37), parallel agents (AC-38), compact+resume (AC-38a). All wrapped in `describe.skip` (per DYK-P4#2). | - | Per Workshop 01 Tier 2 tests |
-| 4.2 | [x] | Write Copilot SDK integration tests | 2 | Tests: same pattern as 4.1 but with SdkCopilotAdapter (AC-40 through AC-43a). Wrapped in `describe.skip`. | - | Per Workshop 01 |
-| 4.3 | [x] | Write cross-adapter parity tests | 2 | Tests: both produce text events (AC-45), both support resume (AC-46), both support compact (AC-46a). Wrapped in `describe.skip`. | - | Per AC-45, AC-46, AC-46a |
-| 4.4 | [x] | Write CLI E2E tests | 2 | Tests: new session via CLI, session chaining, compact, stream NDJSON. Wrapped in `describe.skip`. | - | Per Workshop 01 Tier 3 tests |
-| 4.5 | [x] | Run real agent tests manually and verify | 1 | Both test files discovered, all real tests properly skipped. | - | Manual verification |
-| 4.6 | [x] | Verify CI skip behavior | 1 | `just fft` passes: 3858 tests, 0 failures. Real tests skipped. | - | AC-39, AC-44 |
+| 4.1 | [x] | Write Claude Code integration tests | 2 | Tests: new session (AC-35), session resume (AC-36), multiple handlers (AC-37), parallel agents (AC-38), compact+resume (AC-38a). All wrapped in `describe.skip` (per DYK-P4#2). | [📋](tasks/phase-4-real-agent-integration-tests/execution.log.md#task-t001-write-claude-code-integration-tests) | Per Workshop 01 Tier 2 tests [^6] |
+| 4.2 | [x] | Write Copilot SDK integration tests | 2 | Tests: same pattern as 4.1 but with SdkCopilotAdapter (AC-40 through AC-43a). Wrapped in `describe.skip`. | [📋](tasks/phase-4-real-agent-integration-tests/execution.log.md#task-t002-write-copilot-sdk-integration-tests) | Per Workshop 01 [^6] |
+| 4.3 | [x] | Write cross-adapter parity tests | 2 | Tests: both produce text events (AC-45), both support resume (AC-46), both support compact (AC-46a). Wrapped in `describe.skip`. | [📋](tasks/phase-4-real-agent-integration-tests/execution.log.md#task-t003-write-cross-adapter-parity-tests) | Per AC-45, AC-46, AC-46a [^6] |
+| 4.4 | [x] | Write CLI E2E tests | 2 | Tests: new session via CLI, session chaining, compact, stream NDJSON. Wrapped in `describe.skip`. | [📋](tasks/phase-4-real-agent-integration-tests/execution.log.md#task-t004-write-cli-e2e-tests) | Per Workshop 01 Tier 3 tests [^7] |
+| 4.5 | [x] | Run real agent tests manually and verify | 1 | Both test files discovered, all real tests properly skipped. | [📋](tasks/phase-4-real-agent-integration-tests/execution.log.md#task-t005-manual-verification) | Manual verification |
+| 4.6 | [x] | Verify CI skip behavior | 1 | `just fft` passes: 3858 tests, 0 failures. Real tests skipped. | [📋](tasks/phase-4-real-agent-integration-tests/execution.log.md#task-t006-verify-ci-skip-behavior-and-regression) | AC-39, AC-44 |
 
 ### Test Examples (Write First!)
 
@@ -622,21 +622,21 @@ describe.skipIf(!hasClaudeCli())(
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 5.1 | [ ] | Update `packages/shared/src/index.ts` barrel exports | 1 | New types/interfaces importable from `@chainglass/shared`: IAgentInstance, AgentInstance, IAgentManagerService, AgentManagerService, FakeAgentInstance, FakeAgentManagerService, all types | - | Discovery 03 |
-| 5.2 | [ ] | Verify old 019 exports don't conflict | 1 | Old 019 barrel re-exports from 034 where type names match. Where types changed shape (IAgentInstance), the old barrel does NOT re-export them — producing TypeScript errors in web consumers (deliberate per spec Q6). CLI and shared compile cleanly. | - | |
-| 5.3 | [ ] | Update README.md with quick-start | 2 | README contains code example showing `getNew()` and `getWithSessionId()` usage, lists available CLI commands (`cg agent run`, `cg agent compact`), links to `docs/how/agent-system/` | - | Per Documentation Strategy |
-| 5.4 | [ ] | Create `docs/how/agent-system/1-overview.md` | 2 | Contains: text-based status state diagram (stopped/working/error), lists all IAgentInstance methods with one-line descriptions, explains event pass-through pattern vs old event storage | - | Per Documentation Strategy |
-| 5.5 | [ ] | Create `docs/how/agent-system/2-usage.md` | 2 | Contains: event handler registration code example, session chaining code example (run → get sessionId → getWithSessionId → run again), testing patterns showing FakeAgentInstance/FakeAgentManagerService usage | - | Per Documentation Strategy |
-| 5.6 | [ ] | Final regression check: `just fft` | 1 | All tests pass. No compile errors in packages/shared, apps/cli. Web errors are expected and deliberate. | - | AC-47, AC-50 |
+| 5.1 | [x] | Update `packages/shared/src/index.ts` barrel exports | 1 | New types/interfaces importable from `@chainglass/shared`: IAgentInstance, AgentInstance, IAgentManagerService, AgentManagerService, FakeAgentInstance, FakeAgentManagerService, all types | [📋](tasks/phase-5-export-wiring-and-documentation/execution.log.md#task-t001-add-missing-034-exports-to-shared-barrel) | Discovery 03 [^8] |
+| 5.2 | [x] | Verify old 019 exports don't conflict | 1 | Old 019 barrel re-exports from 034 where type names match. Where types changed shape (IAgentInstance), the old barrel does NOT re-export them — producing TypeScript errors in web consumers (deliberate per spec Q6). CLI and shared compile cleanly. | [📋](tasks/phase-5-export-wiring-and-documentation/execution.log.md#task-t002-verify-019-exports-dont-conflict) | [^8] |
+| 5.3 | [x] | Update README.md with quick-start | 2 | README contains code example showing `getNew()` and `getWithSessionId()` usage, lists available CLI commands (`cg agent run`, `cg agent compact`), links to `docs/how/agent-system/` | [📋](tasks/phase-5-export-wiring-and-documentation/execution.log.md#task-t003-add-agent-system-quick-start-to-readme) | Per Documentation Strategy [^8] |
+| 5.4 | [x] | Create `docs/how/agent-system/1-overview.md` | 2 | Contains: text-based status state diagram (stopped/working/error), lists all IAgentInstance methods with one-line descriptions, explains event pass-through pattern vs old event storage | [📋](tasks/phase-5-export-wiring-and-documentation/execution.log.md#task-t004-create-overview-documentation) | Per Documentation Strategy [^8] |
+| 5.5 | [x] | Create `docs/how/agent-system/2-usage.md` | 2 | Contains: event handler registration code example, session chaining code example (run → get sessionId → getWithSessionId → run again), testing patterns showing FakeAgentInstance/FakeAgentManagerService usage | [📋](tasks/phase-5-export-wiring-and-documentation/execution.log.md#task-t005-create-usage-documentation) | Per Documentation Strategy [^8] |
+| 5.6 | [x] | Final regression check: `just fft` | 1 | All tests pass. No compile errors in packages/shared, apps/cli. Web errors are expected and deliberate. | [📋](tasks/phase-5-export-wiring-and-documentation/execution.log.md#task-t006-final-regression-check) | AC-47, AC-50 |
 
 ### Acceptance Criteria
-- [ ] All new types importable from `@chainglass/shared` (AC-47)
-- [ ] README updated with quick-start
-- [ ] docs/how/agent-system/ guides created
-- [ ] `just fft` passes (final regression, AC-47)
-- [ ] Existing Plan 030 E2E tests pass (AC-50)
-- [ ] AgentService unchanged as module (AC-49)
-- [ ] IAgentAdapter unchanged (AC-48)
+- [x] All new types importable from `@chainglass/shared` (AC-47)
+- [x] README updated with quick-start
+- [x] docs/how/agent-system/ guides created
+- [x] `just fft` passes (final regression, AC-47)
+- [x] Existing Plan 030 E2E tests pass (AC-50)
+- [x] AgentService unchanged as module (AC-49)
+- [x] IAgentAdapter unchanged (AC-48)
 
 ---
 
@@ -693,7 +693,7 @@ Per Documentation Strategy (Hybrid):
 - [x] Phase 2: Core Implementation with TDD
 - [x] Phase 3: CLI Command Update with TDD
 - [x] Phase 4: Real Agent Integration Tests
-- [ ] Phase 5: Export Wiring and Documentation
+- [x] Phase 5: Export Wiring and Documentation
 
 ### STOP Rule
 
@@ -733,8 +733,17 @@ This plan follows constitution principles P1-P5 and ADR constraints throughout, 
 
 ## Change Footnotes Ledger
 
-[^1]: [To be added during implementation via plan-6a]
-[^2]: [To be added during implementation via plan-6a]
-[^3]: [To be added during implementation via plan-6a]
-[^4]: [To be added during implementation via plan-6a]
-[^5]: [To be added during implementation via plan-6a]
+[^1]: Phase 1 — Types, interfaces, and PlanPak setup (implementation via plan-6a)
+[^2]: Phase 2 — Core implementation: AgentInstance, AgentManagerService, fakes, contract tests
+[^3]: Phase 3 — CLI command update: handlers, terminal output, DI container rewiring
+[^6]: Phase 4 Tasks 4.1-4.3 — Real agent integration tests (Tier 2)
+  - `file:test/integration/agent-instance-real.test.ts`
+[^7]: Phase 4 Task 4.4 — CLI E2E tests (Tier 3) + justfile + vitest config
+  - `file:test/e2e/agent-cli-e2e.test.ts`
+  - `file:vitest.e2e.config.ts`
+  - `file:justfile`
+[^8]: Phase 5 Tasks 5.1-5.5 — Export wiring and documentation
+  - `file:packages/shared/src/index.ts`
+  - `file:README.md`
+  - `file:docs/how/agent-system/1-overview.md`
+  - `file:docs/how/agent-system/2-usage.md`

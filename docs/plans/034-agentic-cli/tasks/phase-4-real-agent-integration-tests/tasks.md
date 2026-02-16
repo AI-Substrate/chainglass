@@ -420,11 +420,10 @@ just fft
 
 ## Phase Footnote Stubs
 
-_To be populated during implementation by plan-6a._
-
 | Footnote | Description |
 |----------|-------------|
-| | |
+| [^6] | Tasks 4.1-4.3: Real agent integration tests — `file:test/integration/agent-instance-real.test.ts` |
+| [^7] | Task 4.4: CLI E2E tests — `file:test/e2e/agent-cli-e2e.test.ts`, `file:vitest.e2e.config.ts`, `file:justfile` |
 
 ---
 
