@@ -343,7 +343,7 @@ Acceptance Criteria: [measurable assertions]
 **Objective**: Prove the ODS → AgentManagerService → AgentInstance → real adapter chain works end-to-end with both Claude Code and Copilot SDK.
 
 **Deliverables**:
-- `test/integration/orchestration-wiring-real.test.ts` with 3 suites (Claude, Copilot, parity)
+- `test/integration/orchestration-wiring-real.test.ts` with 4 suites (Claude, Copilot, parity, session durability)
 - All tests use `describe.skip` — documentation/validation tests
 - Structural assertions only
 
@@ -360,15 +360,16 @@ Acceptance Criteria: [measurable assertions]
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 4.1 | [x] | Write test scaffolding with real orchestration stack construction | 2 | `createRealOrchestrationStack()` builds real AgentManagerService with both adapter factories | [📋](tasks/phase-4-real-agent-wiring-integration-tests/execution.log.md) | Dynamic imports per Plan 034 pattern [^12] |
-| 4.2 | [x] | Write Claude Code single-node wiring test | 2 | ODS creates instance via getNew, pod executes, real agent spawns, sessionId acquired | [📋](tasks/phase-4-real-agent-wiring-integration-tests/execution.log.md) | `describe.skip`, 120s timeout [^13] |
-| 4.3 | [x] | Write Claude Code session inheritance test | 2 | node-b inherits node-a's session via getWithSessionId, fork produces different sessionId | [📋](tasks/phase-4-real-agent-wiring-integration-tests/execution.log.md) | Manual node completion for graph advance [^13] |
-| 4.4 | [x] | Write Claude Code event pass-through test | 2 | Events from real adapter flow through instance handlers to test collector | [📋](tasks/phase-4-real-agent-wiring-integration-tests/execution.log.md) | Verify text_delta or message events [^13] |
-| 4.5 | [x] | Write Copilot SDK single-node wiring test | 2 | Same as 4.2 but with SdkCopilotAdapter | [📋](tasks/phase-4-real-agent-wiring-integration-tests/execution.log.md) | `describe.skip` [^14] |
-| 4.6 | [x] | Write Copilot SDK session inheritance test | 2 | Same as 4.3 but with Copilot | [📋](tasks/phase-4-real-agent-wiring-integration-tests/execution.log.md) | `describe.skip` [^14] |
-| 4.7 | [x] | Write Copilot SDK event pass-through test | 2 | Same as 4.4 but with Copilot | [📋](tasks/phase-4-real-agent-wiring-integration-tests/execution.log.md) | `describe.skip` [^14] |
-| 4.8 | [x] | Write cross-adapter parity test | 2 | Both adapters produce sessionId and emit text events through same wiring chain | [📋](tasks/phase-4-real-agent-wiring-integration-tests/execution.log.md) | `describe.skip` [^15] |
-| 4.9 | [x] | Verify `just fft` still passes (no impact from skipped tests) | 1 | 3858+ tests pass, skipped tests don't interfere | [📋](tasks/phase-4-real-agent-wiring-integration-tests/execution.log.md) | Gate check |
+| 4.1 | [x] | Write test scaffolding with real orchestration stack construction | 2 | `createRealOrchestrationStack()` builds real AgentManagerService with both adapter factories | [📋](tasks/phase-4-real-agent-wiring-integration-tests/execution.log.md#t001--test-scaffolding-12) | Dynamic imports per Plan 034 pattern [^12] |
+| 4.2 | [x] | Write Claude Code single-node wiring test | 2 | ODS creates instance via getNew, pod executes, real agent spawns, sessionId acquired | [📋](tasks/phase-4-real-agent-wiring-integration-tests/execution.log.md#t002--claude-code-single-node-wiring-13) | `describe.skip`, 120s timeout [^13] |
+| 4.3 | [x] | Write Claude Code session inheritance test | 2 | node-b inherits node-a's session via getWithSessionId, fork produces different sessionId | [📋](tasks/phase-4-real-agent-wiring-integration-tests/execution.log.md#t003--claude-code-session-inheritance-13) | Manual node completion for graph advance [^13] |
+| 4.4 | [x] | Write Claude Code event pass-through test | 2 | Events from real adapter flow through instance handlers to test collector | [📋](tasks/phase-4-real-agent-wiring-integration-tests/execution.log.md#t004--claude-code-event-pass-through-13) | Verify text_delta or message events [^13] |
+| 4.5 | [x] | Write Copilot SDK single-node wiring test | 2 | Same as 4.2 but with SdkCopilotAdapter | [📋](tasks/phase-4-real-agent-wiring-integration-tests/execution.log.md#t005--copilot-sdk-single-node-wiring-14) | `describe.skip` [^14] |
+| 4.6 | [x] | Write Copilot SDK session inheritance test | 2 | Same as 4.3 but with Copilot | [📋](tasks/phase-4-real-agent-wiring-integration-tests/execution.log.md#t006--copilot-sdk-session-inheritance-14) | `describe.skip` [^14] |
+| 4.7 | [x] | Write Copilot SDK event pass-through test | 2 | Same as 4.4 but with Copilot | [📋](tasks/phase-4-real-agent-wiring-integration-tests/execution.log.md#t007--copilot-sdk-event-pass-through-14) | `describe.skip` [^14] |
+| 4.8 | [x] | Write cross-adapter parity test | 2 | Both adapters produce sessionId and emit text events through same wiring chain | [📋](tasks/phase-4-real-agent-wiring-integration-tests/execution.log.md#t008--cross-adapter-parity-15) | `describe.skip` [^15] |
+| 4.9 | [x] | Verify `just fft` still passes (no impact from skipped tests) | 1 | 3858+ tests pass, skipped tests don't interfere | [📋](tasks/phase-4-real-agent-wiring-integration-tests/execution.log.md#t009--gate-check) | Gate check |
+| 4.10 | [x] | Write multi-turn session durability test (Workshop 02: poem → compact → recall) | 2 | Same sessionId throughout, output non-empty, `describe.skip` | [📋](tasks/phase-4-real-agent-wiring-integration-tests/execution.log.md#t010--session-durability-15) | Claude only [^15] |
 
 ### Acceptance Criteria
 - [x] Real orchestration stack constructs with both adapter types

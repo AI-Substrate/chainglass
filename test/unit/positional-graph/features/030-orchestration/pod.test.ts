@@ -72,7 +72,11 @@ function makeFakeInstance(runResult?: {
 describe('AgentPod', () => {
   describe('execute()', () => {
     it('successful completion returns completed + sessionId', async () => {
-      const instance = makeFakeInstance({ status: 'completed', sessionId: 'sess-1', output: 'done' });
+      const instance = makeFakeInstance({
+        status: 'completed',
+        sessionId: 'sess-1',
+        output: 'done',
+      });
       const pod = new AgentPod('node-1', instance, 'test-unit');
 
       const result = await pod.execute(makeOptions());
@@ -82,7 +86,12 @@ describe('AgentPod', () => {
     });
 
     it('failed status maps to error outcome', async () => {
-      const instance = makeFakeInstance({ status: 'failed', exitCode: 1, stderr: 'something broke', sessionId: 'sess-err' });
+      const instance = makeFakeInstance({
+        status: 'failed',
+        exitCode: 1,
+        stderr: 'something broke',
+        sessionId: 'sess-err',
+      });
       const pod = new AgentPod('node-1', instance, 'test-unit');
 
       const result = await pod.execute(makeOptions());

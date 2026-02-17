@@ -1109,7 +1109,9 @@ async function main(): Promise<void> {
   console.log('  AC-9:  Question lifecycle (ACT 4 ask->answer->restart->re-start)');
   console.log('  AC-10: Two-level entry point (svc.get() -> handle.run() ACT 0)');
   console.log('  AC-11: In-process loop (all handle.run() calls)');
-  console.log('  AC-12: E2E without real agents (8 nodes, FakeAgentManagerService+FakeScriptRunner)');
+  console.log(
+    '  AC-12: E2E without real agents (8 nodes, FakeAgentManagerService+FakeScriptRunner)'
+  );
   console.log('  AC-13: Deterministic tests (real PodManager + fake adapters)');
   console.log('  AC-14: Input wiring (7 connections wired ACT 0, data flows ACTs 2+)\n');
 }

@@ -1,3 +1,4 @@
+import { GraphOrchestratorSettingsSchema } from '@chainglass/positional-graph';
 /**
  * GraphOrchestratorSettingsSchema — agentType field tests.
  *
@@ -12,7 +13,6 @@
  * optional agentType field defaulting to 'copilot')
  */
 import { describe, expect, it } from 'vitest';
-import { GraphOrchestratorSettingsSchema } from '@chainglass/positional-graph';
 
 describe('GraphOrchestratorSettingsSchema agentType', () => {
   it('accepts claude-code', () => {

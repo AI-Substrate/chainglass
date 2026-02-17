@@ -13,6 +13,7 @@
  * @packageDocumentation
  */
 
+import type { IAgentInstance } from '@chainglass/shared';
 import type { WorkspaceContext } from '@chainglass/workflow';
 import type { IODS, ODSDependencies } from './ods.types.js';
 import type { OrchestrationRequest, StartNodeRequest } from './orchestration-request.schema.js';
@@ -122,12 +123,16 @@ export class ODS implements IODS {
     return { ok: true, request, newStatus: 'starting', sessionId: pod.sessionId };
   }
 
-  private buildPodParams(node: NodeReality, ctx: WorkspaceContext, reality: PositionalGraphReality) {
+  private buildPodParams(
+    node: NodeReality,
+    ctx: WorkspaceContext,
+    reality: PositionalGraphReality
+  ) {
     if (node.unitType === 'agent') {
       const agentType = reality.settings?.agentType ?? 'copilot';
       const contextResult = this.deps.contextService.getContextSource(reality, node.nodeId);
 
-      let agentInstance;
+      let agentInstance: IAgentInstance | undefined;
       if (contextResult.source === 'inherit') {
         const sessionId = this.deps.podManager.getSessionId(contextResult.fromNodeId);
         if (sessionId) {

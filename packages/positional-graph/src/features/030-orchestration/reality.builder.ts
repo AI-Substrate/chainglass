@@ -8,8 +8,8 @@
  */
 
 import type { GraphStatusResult } from '../../interfaces/positional-graph-service.interface.js';
-import type { State } from '../../schemas/state.schema.js';
 import type { GraphOrchestratorSettings } from '../../schemas/orchestrator-settings.schema.js';
+import type { State } from '../../schemas/state.schema.js';
 import type {
   LineReality,
   NodeReality,

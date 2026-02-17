@@ -18,7 +18,7 @@
  * @see Workshop 02: Multi-Turn Session Durability Test
  */
 
-import type { AgentEvent } from '@chainglass/shared';
+import type { AgentEvent, IAgentAdapter } from '@chainglass/shared';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import {
@@ -42,13 +42,16 @@ import type { IPositionalGraphService } from '@chainglass/positional-graph/inter
 import { NodeFileSystemAdapter } from '@chainglass/shared';
 import type { WorkspaceContext } from '@chainglass/workflow';
 
-import {
-  createTestServiceStack,
-} from '../helpers/positional-graph-e2e-helpers.js';
+import { createTestServiceStack } from '../helpers/positional-graph-e2e-helpers.js';
 
 // ════════════════════════════════════════════════════════════════════
 // Helpers
 // ════════════════════════════════════════════════════════════════════
+
+/** Type-narrowing guard that throws if value is null/undefined. */
+function assertDefined<T>(value: T | undefined | null, message: string): asserts value is T {
+  if (value == null) throw new Error(`Expected defined value: ${message}`);
+}
 
 /** Poll pod.sessionId until truthy or timeout. */
 async function waitForPodSession(
@@ -79,7 +82,7 @@ async function createRealOrchestrationStack(
   const shared = await import('@chainglass/shared');
   const { AgentManagerService, UnixProcessManager, FakeLogger } = shared;
 
-  let adapterFactory: (type: string) => InstanceType<typeof shared.ClaudeCodeAdapter>;
+  let adapterFactory: (type: string) => IAgentAdapter;
   if (adapterType === 'claude-code') {
     const { ClaudeCodeAdapter } = shared;
     const logger = new FakeLogger();
@@ -91,7 +94,7 @@ async function createRealOrchestrationStack(
     const { CopilotClient } = await import('@github/copilot-sdk');
     const { SdkCopilotAdapter } = copilotModule;
     const client = new CopilotClient();
-    adapterFactory = () => new SdkCopilotAdapter(client) as never;
+    adapterFactory = () => new SdkCopilotAdapter(client);
   }
 
   const agentManager = new AgentManagerService(adapterFactory);
@@ -101,7 +104,10 @@ async function createRealOrchestrationStack(
   registerCoreEventTypes(eventRegistry);
   const handlerRegistry = createEventHandlerRegistry(service, ctx);
   const nes = new NodeEventService(
-    { loadState: async (slug) => service.loadGraphState(ctx, slug), persistState: async (slug, state) => service.persistGraphState(ctx, slug, state) },
+    {
+      loadState: async (slug) => service.loadGraphState(ctx, slug),
+      persistState: async (slug, state) => service.persistGraphState(ctx, slug, state),
+    },
     handlerRegistry
   );
   const eventHandlerService = new EventHandlerService(nes);
@@ -151,21 +157,22 @@ describe.skip('Claude Code orchestration wiring', { timeout: 180_000 }, () => {
     await service.create(ctx, graphSlug);
     const lineId = (await service.getStatus(ctx, graphSlug)).lines[0].lineId;
     const addResult = await service.addNode(ctx, graphSlug, lineId, 'spec-builder');
-    const nodeId = addResult.nodeId!;
+    assertDefined(addResult.nodeId, 'addResult.nodeId');
+    const nodeId = addResult.nodeId;
 
     // Run orchestration — ONBAS dispatches start-node, ODS fires pod
     await stack.orchestrationService.run(ctx, graphSlug);
 
     // Get the pod (ODS created it)
     const pod = stack.podManager.getPod(nodeId);
-    expect(pod).toBeDefined();
-    expect(pod!.unitType).toBe('agent');
+    assertDefined(pod, 'pod should exist after orchestration run');
+    expect(pod.unitType).toBe('agent');
 
     // Wait for real agent to complete (fire-and-forget, poll)
-    await waitForPodSession(pod!, 120_000);
+    await waitForPodSession(pod, 120_000);
 
     // Structural assertions
-    expect(pod!.sessionId).toBeTruthy();
+    expect(pod.sessionId).toBeTruthy();
     const agents = stack.agentManager.getAgents();
     expect(agents.length).toBeGreaterThanOrEqual(1);
     expect(agents[0].status).toBe('stopped');
@@ -177,7 +184,8 @@ describe.skip('Claude Code orchestration wiring', { timeout: 180_000 }, () => {
     const lineId = (await service.getStatus(ctx, graphSlug)).lines[0].lineId;
     await service.addNode(ctx, graphSlug, lineId, 'spec-builder');
     const addB = await service.addNode(ctx, graphSlug, lineId, 'spec-reviewer');
-    const nodeBId = addB.nodeId!;
+    assertDefined(addB.nodeId, 'addB.nodeId');
+    const nodeBId = addB.nodeId;
 
     // Run first iteration — starts node-a
     await stack.orchestrationService.run(ctx, graphSlug);
@@ -186,8 +194,10 @@ describe.skip('Claude Code orchestration wiring', { timeout: 180_000 }, () => {
     const status = await service.getStatus(ctx, graphSlug);
     const nodeAId = status.lines[0].nodes[0].nodeId;
     const podA = stack.podManager.getPod(nodeAId);
-    await waitForPodSession(podA!, 120_000);
-    const sessionA = podA!.sessionId!;
+    assertDefined(podA, 'podA should exist');
+    await waitForPodSession(podA, 120_000);
+    assertDefined(podA.sessionId, 'podA.sessionId');
+    const sessionA = podA.sessionId;
 
     // Manually complete node-a (agent doesn't know WF protocol yet)
     await service.completeNode(ctx, graphSlug, nodeAId, {});
@@ -196,11 +206,12 @@ describe.skip('Claude Code orchestration wiring', { timeout: 180_000 }, () => {
     await stack.orchestrationService.run(ctx, graphSlug);
 
     const podB = stack.podManager.getPod(nodeBId);
-    await waitForPodSession(podB!, 120_000);
+    assertDefined(podB, 'podB should exist');
+    await waitForPodSession(podB, 120_000);
 
     // Session inheritance: fork produces different sessionId
-    expect(podB!.sessionId).toBeTruthy();
-    expect(podB!.sessionId).not.toBe(sessionA);
+    expect(podB.sessionId).toBeTruthy();
+    expect(podB.sessionId).not.toBe(sessionA);
   });
 
   it('event pass-through: real adapter events reach instance handlers (AC-53)', async () => {
@@ -209,18 +220,23 @@ describe.skip('Claude Code orchestration wiring', { timeout: 180_000 }, () => {
     await service.create(ctx, graphSlug);
     const lineId = (await service.getStatus(ctx, graphSlug)).lines[0].lineId;
     const addResult = await service.addNode(ctx, graphSlug, lineId, 'spec-builder');
-    const nodeId = addResult.nodeId!;
+    assertDefined(addResult.nodeId, 'addResult.nodeId');
+    const nodeId = addResult.nodeId;
 
-    // Attach event handler to the instance AFTER ODS creates it
+    // Note: handler attached after run() — real agents take seconds to start,
+    // so events are reliably captured. This would race with instant adapters.
+    const countBefore = stack.agentManager.getAgents().length;
     await stack.orchestrationService.run(ctx, graphSlug);
 
     const agents = stack.agentManager.getAgents();
-    expect(agents.length).toBeGreaterThanOrEqual(1);
-    agents[0].addEventHandler((e: AgentEvent) => events.push(e));
+    const newAgent = agents[countBefore];
+    assertDefined(newAgent, 'new agent should exist after run');
+    newAgent.addEventHandler((e: AgentEvent) => events.push(e));
 
     // Wait for completion
     const pod = stack.podManager.getPod(nodeId);
-    await waitForPodSession(pod!, 120_000);
+    assertDefined(pod, 'pod should exist');
+    await waitForPodSession(pod, 120_000);
 
     // Events should have flowed through
     expect(events.length).toBeGreaterThan(0);
@@ -249,14 +265,15 @@ describe.skip('Copilot SDK orchestration wiring', { timeout: 180_000 }, () => {
     await service.create(ctx, graphSlug);
     const lineId = (await service.getStatus(ctx, graphSlug)).lines[0].lineId;
     const addResult = await service.addNode(ctx, graphSlug, lineId, 'spec-builder');
-    const nodeId = addResult.nodeId!;
+    assertDefined(addResult.nodeId, 'addResult.nodeId');
+    const nodeId = addResult.nodeId;
 
     await stack.orchestrationService.run(ctx, graphSlug);
 
     const pod = stack.podManager.getPod(nodeId);
-    expect(pod).toBeDefined();
-    await waitForPodSession(pod!, 120_000);
-    expect(pod!.sessionId).toBeTruthy();
+    assertDefined(pod, 'pod should exist');
+    await waitForPodSession(pod, 120_000);
+    expect(pod.sessionId).toBeTruthy();
   });
 
   it('session inheritance: node-b inherits node-a session (AC-52)', async () => {
@@ -265,23 +282,27 @@ describe.skip('Copilot SDK orchestration wiring', { timeout: 180_000 }, () => {
     const lineId = (await service.getStatus(ctx, graphSlug)).lines[0].lineId;
     await service.addNode(ctx, graphSlug, lineId, 'spec-builder');
     const addB = await service.addNode(ctx, graphSlug, lineId, 'spec-reviewer');
-    const nodeBId = addB.nodeId!;
+    assertDefined(addB.nodeId, 'addB.nodeId');
+    const nodeBId = addB.nodeId;
 
     await stack.orchestrationService.run(ctx, graphSlug);
 
     const status = await service.getStatus(ctx, graphSlug);
     const nodeAId = status.lines[0].nodes[0].nodeId;
     const podA = stack.podManager.getPod(nodeAId);
-    await waitForPodSession(podA!, 120_000);
-    const sessionA = podA!.sessionId!;
+    assertDefined(podA, 'podA should exist');
+    await waitForPodSession(podA, 120_000);
+    assertDefined(podA.sessionId, 'podA.sessionId');
+    const sessionA = podA.sessionId;
 
     await service.completeNode(ctx, graphSlug, nodeAId, {});
     await stack.orchestrationService.run(ctx, graphSlug);
 
     const podB = stack.podManager.getPod(nodeBId);
-    await waitForPodSession(podB!, 120_000);
-    expect(podB!.sessionId).toBeTruthy();
-    expect(podB!.sessionId).not.toBe(sessionA);
+    assertDefined(podB, 'podB should exist');
+    await waitForPodSession(podB, 120_000);
+    expect(podB.sessionId).toBeTruthy();
+    expect(podB.sessionId).not.toBe(sessionA);
   });
 
   it('event pass-through: real Copilot events reach instance handlers (AC-53)', async () => {
@@ -290,16 +311,22 @@ describe.skip('Copilot SDK orchestration wiring', { timeout: 180_000 }, () => {
     await service.create(ctx, graphSlug);
     const lineId = (await service.getStatus(ctx, graphSlug)).lines[0].lineId;
     const addResult = await service.addNode(ctx, graphSlug, lineId, 'spec-builder');
-    const nodeId = addResult.nodeId!;
+    assertDefined(addResult.nodeId, 'addResult.nodeId');
+    const nodeId = addResult.nodeId;
 
+    // Note: handler attached after run() — real agents take seconds to start,
+    // so events are reliably captured. This would race with instant adapters.
+    const countBefore = stack.agentManager.getAgents().length;
     await stack.orchestrationService.run(ctx, graphSlug);
 
     const agents = stack.agentManager.getAgents();
-    expect(agents.length).toBeGreaterThanOrEqual(1);
-    agents[0].addEventHandler((e: AgentEvent) => events.push(e));
+    const newAgent = agents[countBefore];
+    assertDefined(newAgent, 'new agent should exist after run');
+    newAgent.addEventHandler((e: AgentEvent) => events.push(e));
 
     const pod = stack.podManager.getPod(nodeId);
-    await waitForPodSession(pod!, 120_000);
+    assertDefined(pod, 'pod should exist');
+    await waitForPodSession(pod, 120_000);
 
     expect(events.length).toBeGreaterThan(0);
     expect(events.some((e) => e.type === 'text_delta' || e.type === 'message')).toBe(true);
@@ -323,23 +350,29 @@ describe.skip('Cross-adapter parity', { timeout: 300_000 }, () => {
       await service.create(ctx, graphSlug);
       const lineId = (await service.getStatus(ctx, graphSlug)).lines[0].lineId;
       const addResult = await service.addNode(ctx, graphSlug, lineId, 'spec-builder');
-      const nodeId = addResult.nodeId!;
+      assertDefined(addResult.nodeId, 'addResult.nodeId');
+      const nodeId = addResult.nodeId;
 
       const events: AgentEvent[] = [];
 
+      // Note: handler attached after run() — real agents take seconds to start,
+      // so events are reliably captured. This would race with instant adapters.
+      const countBefore = stack.agentManager.getAgents().length;
       await stack.orchestrationService.run(ctx, graphSlug);
 
       const agents = stack.agentManager.getAgents();
-      if (agents.length > 0) {
-        agents[0].addEventHandler((e: AgentEvent) => events.push(e));
+      const newAgent = agents[countBefore];
+      if (newAgent) {
+        newAgent.addEventHandler((e: AgentEvent) => events.push(e));
       }
 
       const pod = stack.podManager.getPod(nodeId);
-      await waitForPodSession(pod!, 120_000);
+      assertDefined(pod, 'pod should exist');
+      await waitForPodSession(pod, 120_000);
 
       results.push({
         type: adapterType,
-        sessionId: pod!.sessionId,
+        sessionId: pod.sessionId,
         hasEvents: events.some((e) => e.type === 'text_delta' || e.type === 'message'),
       });
     }
@@ -377,22 +410,24 @@ describe.skip('Session durability: poem → compact → recall', { timeout: 180_
     await service.create(ctx, graphSlug);
     const lineId = (await service.getStatus(ctx, graphSlug)).lines[0].lineId;
     const addResult = await service.addNode(ctx, graphSlug, lineId, 'spec-builder');
-    const nodeId = addResult.nodeId!;
+    assertDefined(addResult.nodeId, 'addResult.nodeId');
+    const nodeId = addResult.nodeId;
 
     await stack.orchestrationService.run(ctx, graphSlug);
 
     const pod = stack.podManager.getPod(nodeId);
-    expect(pod).toBeDefined();
+    assertDefined(pod, 'pod should exist');
 
     // Wait for pod to complete with real agent (starter prompt)
-    await waitForPodSession(pod!, 120_000);
-    expect(pod!.sessionId).toBeTruthy();
+    await waitForPodSession(pod, 120_000);
+    expect(pod.sessionId).toBeTruthy();
 
     // Verify manager tracks instances
     expect(stack.agentManager.getAgents().length).toBeGreaterThanOrEqual(1);
 
     // ── Get THIS pod's instance via session lookup ──
-    const sessionId = stack.podManager.getSessionId(nodeId)!;
+    const sessionId = stack.podManager.getSessionId(nodeId);
+    assertDefined(sessionId, 'sessionId should exist');
     const instance = stack.agentManager.getWithSessionId(sessionId, {
       name: 'spec-builder',
       type: 'claude-code',
@@ -423,8 +458,7 @@ describe.skip('Session durability: poem → compact → recall', { timeout: 180_
     // ── TURN 3: Recall the subject ──
     const turn3Events: AgentEvent[] = [];
     const turn3Result = await instance.run({
-      prompt:
-        'What was the subject of the poem you wrote? Reply with just the subject, one word.',
+      prompt: 'What was the subject of the poem you wrote? Reply with just the subject, one word.',
       cwd: ctx.worktreePath,
       onEvent: (e: AgentEvent) => turn3Events.push(e),
     });

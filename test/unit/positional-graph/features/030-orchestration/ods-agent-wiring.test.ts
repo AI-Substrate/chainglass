@@ -86,7 +86,12 @@ describe('ODS Agent Wiring', () => {
       contextService.setContextSource('n1', { source: 'new' });
 
       const result = await ods.execute(
-        { type: 'start-node', nodeId: 'n1', graphSlug: 'test-graph', inputs: { ok: true, inputs: {} } },
+        {
+          type: 'start-node',
+          nodeId: 'n1',
+          graphSlug: 'test-graph',
+          inputs: { ok: true, inputs: {} },
+        },
         ctx,
         reality
       );
@@ -113,7 +118,12 @@ describe('ODS Agent Wiring', () => {
       podManager.seedSession('n1', 'session-abc');
 
       const result = await ods.execute(
-        { type: 'start-node', nodeId: 'n2', graphSlug: 'test-graph', inputs: { ok: true, inputs: {} } },
+        {
+          type: 'start-node',
+          nodeId: 'n2',
+          graphSlug: 'test-graph',
+          inputs: { ok: true, inputs: {} },
+        },
         ctx,
         reality
       );
@@ -138,7 +148,12 @@ describe('ODS Agent Wiring', () => {
       // No session seeded for n1
 
       const result = await ods.execute(
-        { type: 'start-node', nodeId: 'n2', graphSlug: 'test-graph', inputs: { ok: true, inputs: {} } },
+        {
+          type: 'start-node',
+          nodeId: 'n2',
+          graphSlug: 'test-graph',
+          inputs: { ok: true, inputs: {} },
+        },
         ctx,
         reality
       );
@@ -165,7 +180,12 @@ describe('ODS Agent Wiring', () => {
       contextService.setContextSource('n1', { source: 'new' });
 
       await ods.execute(
-        { type: 'start-node', nodeId: 'n1', graphSlug: 'test-graph', inputs: { ok: true, inputs: {} } },
+        {
+          type: 'start-node',
+          nodeId: 'n1',
+          graphSlug: 'test-graph',
+          inputs: { ok: true, inputs: {} },
+        },
         ctx,
         reality
       );
@@ -181,7 +201,12 @@ describe('ODS Agent Wiring', () => {
       contextService.setContextSource('n1', { source: 'new' });
 
       await ods.execute(
-        { type: 'start-node', nodeId: 'n1', graphSlug: 'test-graph', inputs: { ok: true, inputs: {} } },
+        {
+          type: 'start-node',
+          nodeId: 'n1',
+          graphSlug: 'test-graph',
+          inputs: { ok: true, inputs: {} },
+        },
         ctx,
         reality
       );

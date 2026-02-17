@@ -189,6 +189,8 @@ Single new file: `test/integration/orchestration-wiring-real.test.ts` — **plan
 
 ### Test Plan
 
+**TDD Adaptation**: Phase 4 tests use `describe.skip` and cannot be executed without real agent auth (costs money). Classical RED/GREEN/REFACTOR is inapplicable. Phase 4 follows **Compile TDD**: write test → verify TypeScript compilation → verify structural correctness via code review. This is documented as a legitimate adaptation of the plan's Full TDD approach.
+
 All tests use `describe.skip`. Fakes only for `IScriptRunner` (code pods). Real adapters for agent pods.
 
 | Test | Suite | Adapter | Assertion |

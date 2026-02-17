@@ -410,7 +410,7 @@ export class PositionalGraphService implements IPositionalGraphService {
         },
       ],
       properties: {},
-      orchestratorSettings: {},
+      orchestratorSettings: { agentType: 'copilot' },
     };
 
     await this.persistGraph(ctx, slug, definition);
