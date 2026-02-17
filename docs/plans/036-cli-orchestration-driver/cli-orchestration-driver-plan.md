@@ -381,23 +381,23 @@ Test Doc:
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 4.1 | [ ] | Write tests for drive() happy path | 3 | Tests: graph completes after N iterations, returns DriveResult with exitReason 'complete', correct iteration count, correct totalActions | - | RED |
-| 4.2 | [ ] | Write tests for drive() failure paths | 2 | Tests: graph-failed → exitReason 'failed', max-iterations → exitReason 'max-iterations' | - | RED |
-| 4.3 | [ ] | Write tests for drive() delay strategy | 2 | Tests: short delay after actions, long delay after no-action. Configurable via DriveOptions. | - | RED |
-| 4.4 | [ ] | Write tests for drive() event emission | 2 | Tests: onEvent receives status, iteration, idle, error events. No agent events. Graph status view emitted. | - | RED |
-| 4.5 | [ ] | Write tests for drive() session persistence | 2 | Tests: persistSessions called after action-producing iterations, NOT after no-action iterations | - | RED |
-| 4.6 | [ ] | Implement `GraphOrchestration.drive()` | 3 | All tests from 4.1-4.5 pass | - | GREEN |
-| 4.7 | [ ] | Refactor, verify domain boundary compliance | 1 | drive() mentions zero agent/pod/event concepts. `just fft` clean. | - | ADR-0012 |
+| 4.1 | [x] | Write tests for drive() happy path | 3 | Tests: graph completes after N iterations, returns DriveResult with exitReason 'complete', correct iteration count, correct totalActions | - | RED |
+| 4.2 | [x] | Write tests for drive() failure paths | 2 | Tests: graph-failed → exitReason 'failed', max-iterations → exitReason 'max-iterations' | - | RED |
+| 4.3 | [x] | Write tests for drive() delay strategy | 2 | Tests: short delay after actions, long delay after no-action. Configurable via DriveOptions. | - | RED |
+| 4.4 | [x] | Write tests for drive() event emission | 2 | Tests: onEvent receives status, iteration, idle, error events. No agent events. Graph status view emitted. | - | RED |
+| 4.5 | [x] | Write tests for drive() session persistence | 2 | Tests: persistSessions called after action-producing iterations, NOT after no-action iterations | - | RED |
+| 4.6 | [x] | Implement `GraphOrchestration.drive()` | 3 | All tests from 4.1-4.5 pass | - | GREEN |
+| 4.7 | [x] | Refactor, verify domain boundary compliance | 1 | drive() mentions zero agent/pod/event concepts. `just fft` clean. | - | ADR-0012 |
 
 ### Acceptance Criteria
-- [ ] `drive()` calls `run()` repeatedly until terminal stopReason (AC-22)
-- [ ] Returns `DriveResult` with exitReason, iterations, totalActions
-- [ ] Short delay (100ms) after actions, long delay (10s) after no-action (AC-23 adapted)
-- [ ] Exits on graph-complete or graph-failed (AC-24)
-- [ ] Configurable max iterations (AC-25)
-- [ ] Emits DriveEvent for orchestration status (AC-26 adapted)
-- [ ] Agent-agnostic: no pod/agent/event knowledge (ADR-0012)
-- [ ] `just fft` clean
+- [x] `drive()` calls `run()` repeatedly until terminal stopReason (AC-22)
+- [x] Returns `DriveResult` with exitReason, iterations, totalActions
+- [x] Short delay (100ms) after actions, long delay (10s) after no-action (AC-23 adapted)
+- [x] Exits on graph-complete or graph-failed (AC-24)
+- [x] Configurable max iterations (AC-25)
+- [x] Emits DriveEvent for orchestration status (AC-26 adapted)
+- [x] Agent-agnostic: no pod/agent/event knowledge (ADR-0012)
+- [x] `just fft` clean
 
 ---
 
@@ -503,10 +503,10 @@ Test Doc:
 - [x] Phase 1: Types, Interfaces, and PlanPak Setup - COMPLETE
 - [x] Phase 2: Prompt Templates and AgentPod Selection - COMPLETE
 - [x] Phase 3: Graph Status View - COMPLETE
-- [ ] Phase 4: drive() Implementation - PENDING
+- [x] Phase 4: drive() Implementation - COMPLETE
 - [ ] Phase 5: CLI Command and Integration Tests - PENDING
 
-Overall Progress: 3/5 phases (60%)
+Overall Progress: 4/5 phases (80%)
 
 ### STOP Rule
 
