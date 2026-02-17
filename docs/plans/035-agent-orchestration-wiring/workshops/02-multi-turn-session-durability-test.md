@@ -123,22 +123,35 @@ expect(agents[0].sessionId).toBeTruthy();
 - ✅ Real Claude/Copilot spawns and completes
 - ✅ SessionId flows from adapter → instance → pod
 
-### Test 2: Instance-Level Multi-Turn (Poem → Compact → Recall)
+### Test 2: Pod-Level Multi-Turn with Session Durability (Poem → Compact → Recall)
 
-**What it proves**: Sessions survive compact and the agent can recall context. Uses the SAME `AgentManagerService` that ODS uses (same adapter factory, same lifecycle tracking), proving the production code path produces functional, reusable instances.
+**What it proves**: Sessions survive compact AND the pod's `resumeWithAnswer()` works with real agents through the full pod → instance → adapter chain.
 
 ```
-                    ┌── Same manager ODS uses ──┐
-                    │                           │
-Step 1: instance = agentManager.getNew({ name, type, workspace })
-Step 2: instance.run({ prompt: "Write a poem..." })     ← CUSTOM prompt
-Step 3: instance.compact()                                ← compact session
-Step 4: instance.run({ prompt: "What was the subject?" }) ← recall
+Step 1: ODS creates pod via full chain (same as Test 1)
+Step 2: pod.execute() → agent runs with starter prompt → sessionId acquired
+Step 3: Access instance via agentManager → instance.compact() (only bypass)
+Step 4: pod.resumeWithAnswer('recall', 'What subject?') → full pod chain
 ```
 
-**Why this must bypass the pod for prompt control**: The pod always sends `node-starter-prompt.md`. For a controlled multi-turn test, we need specific prompts. The instance is the right level for this.
+**Three of four steps go through the pod**. Only `compact()` bypasses — it's not on the `IWorkUnitPod` interface (a ~3-line addition if ever needed, not Spec A scope).
 
-**Critically**: The instance was created by the production `AgentManagerService` with a real `AdapterFactory` — this is NOT a fake. The only thing bypassed is the pod's prompt loading.
+```typescript
+// After pod.execute() completes and sessionId is acquired:
+
+// ── COMPACT (instance-level, only bypass) ──
+const agents = agentManager.getAgents();
+const instance = agents[0];
+await instance.compact();
+
+// ── RECALL (through the pod!) ──
+const recallResult = await pod.resumeWithAnswer(
+  'recall-subject',
+  'What was the subject of the poem you wrote? Reply with just the subject, one word.',
+  executeOptions
+);
+// recallResult goes through: pod.resumeWithAnswer → instance.run → adapter.run
+```
 
 ---
 
@@ -148,24 +161,25 @@ Step 4: instance.run({ prompt: "What was the subject?" }) ← recall
                            Test 1          Test 2
                         (Full Stack)    (Multi-Turn)     Combined
                         ─────────────   ─────────────    ─────────
-orchestrationService      ✅               ─               ✅
-ONBAS decision            ✅               ─               ✅
-ODS.handleAgentOrCode     ✅               ─               ✅
-agentManager.getNew       ✅               ✅              ✅
-PodManager.createPod      ✅               ─               ✅
-AgentPod.execute          ✅               ─               ✅
-node-starter-prompt.md    ✅               ─               ✅
-instance.run()            ✅ (via pod)     ✅ (direct)     ✅
-instance.compact()         ─               ✅              ✅
+orchestrationService      ✅               ✅ (setup)     ✅
+ONBAS decision            ✅               ✅ (setup)     ✅
+ODS.handleAgentOrCode     ✅               ✅ (setup)     ✅
+agentManager.getNew       ✅               ✅ (via ODS)   ✅
+PodManager.createPod      ✅               ✅ (via ODS)   ✅
+AgentPod.execute          ✅               ✅ (turn 1)    ✅
+AgentPod.resumeWithAnswer  ─               ✅ (turn 3)    ✅
+node-starter-prompt.md    ✅               ✅ (turn 1)    ✅
+instance.run()            ✅ (via pod)     ✅ (via pod)   ✅
+instance.compact()         ─               ✅ (direct)    ✅
 session creation          ✅               ✅              ✅
 session resume            ─                ✅              ✅
 session survives compact   ─               ✅              ✅
 real adapter spawns       ✅               ✅              ✅
 events collected          ─                ✅              ✅
-custom prompts            ❌ (generic)     ✅              partial
+pod.resumeWithAnswer       ─               ✅              ✅
 ```
 
-**Together**: These two tests cover the FULL wiring (Test 1) and the FULL session lifecycle (Test 2). The only gap is **custom prompts through the pod** — that's Spec B's `PromptBuilder`.
+**Together**: These two tests cover the FULL wiring (Test 1), the FULL session lifecycle (Test 2), AND `pod.resumeWithAnswer()` with a real agent (Test 2 turn 3). The only bypass is `instance.compact()` — not on the pod interface.
 
 ---
 
@@ -195,17 +209,17 @@ t=5-15s  Polling succeeds! Test assertions run.
 ### Test 2 Timeline
 
 ```
-t=0s     agentManager.getNew() → fresh instance (same real AdapterFactory)
-t=0.1s   TURN 1: instance.run("Write a poem...") → adapter spawns Claude
-t=1-8s   Claude writes poem, text_delta events collected
-t=8s     Turn 1 complete. sessionId = 'sess-abc'
-t=8.1s   TURN 2: instance.compact() → adapter sends /compact
-t=8.5s   Claude compacts session (summarizes in place)
-t=12-20s Compact complete. sessionId still 'sess-abc'
-t=20.1s  TURN 3: instance.run("What was the subject?") → adapter resumes
-t=21-25s Claude recalls from compacted context
-t=25s    Turn 3 complete. Output: "Lighthouses" (or similar)
-t=25s    Assertions: all 3 turns completed, same sessionId throughout
+t=0s     orchestrationService.run() → ODS creates pod with real agent
+t=0.5s   Pod fire-and-forget: pod.execute() sends starter prompt
+t=1-15s  Real Claude processes starter prompt → sessionId acquired
+t=15s    Poll succeeds: pod.sessionId truthy
+t=15.1s  COMPACT: access instance via agentManager → instance.compact()
+t=15.5s  Claude compacts session (summarizes in place)
+t=20-28s Compact complete. sessionId preserved.
+t=28.1s  RECALL: pod.resumeWithAnswer('recall', 'What was the subject?')
+         → pod → instance.run() → adapter.run() → Claude resumes
+t=30-35s Claude responds from compacted context
+t=35s    Assertions: all turns completed, same sessionId, output non-empty
 ```
 
 ---
@@ -294,24 +308,28 @@ claude \
 ## Structural Assertions (No Content Matching)
 
 ```typescript
-// ── TURN 1 ──
-expect(turn1Result.status).toBe('completed');
-expect(instance.sessionId).toBeTruthy();
-expect(turn1Result.output.length).toBeGreaterThan(20);  // poem is non-trivial
-expect(turn1Events.some(e => e.type === 'text_delta')).toBe(true);
-expect(turn1Events.some(e => e.type === 'message')).toBe(true);
+// ── TEST 1: Full-stack ──
+const pod = podManager.getPod(nodeId);
+await waitForPodSession(pod!, 120_000);
+expect(pod!.sessionId).toBeTruthy();
 
-const sessionId = instance.sessionId!;
+const sessionId = pod!.sessionId;
 
-// ── TURN 2 (compact) ──
+// ── COMPACT (only instance-level bypass) ──
+const agents = agentManager.getAgents();
+const instance = agents[0];
+const compactResult = await instance.compact();
 expect(compactResult.status).toBe('completed');
 expect(compactResult.sessionId).toBe(sessionId);  // ← SAME session
 
-// ── TURN 3 (recall) ──
-expect(turn3Result.status).toBe('completed');
-expect(turn3Result.sessionId).toBe(sessionId);     // ← STILL same session
-expect(turn3Result.output.length).toBeGreaterThan(0);  // agent replied
-expect(turn3Events.some(e => e.type === 'text_delta')).toBe(true);
+// ── RECALL (through the pod!) ──
+const recallResult = await pod!.resumeWithAnswer(
+  'recall-subject',
+  'What was the subject of the poem you wrote? Reply with just the subject, one word.',
+  { inputs: { ok: true, inputs: {} }, ctx: { worktreePath }, graphSlug }
+);
+expect(recallResult.outcome).toBe('completed');
+expect(recallResult.sessionId).toBe(sessionId);     // ← STILL same session
 ```
 
 ### Why We Don't Assert on Content
@@ -343,8 +361,7 @@ This proves session resume works without the compact step.
 
 | Gap | Why | When Fixed |
 |-----|-----|------------|
-| Pod sends generic prompt, not work-unit-specific | `PromptBuilder` not yet wired | Spec B |
-| `compact()` not on pod interface | Only on `IAgentInstance` | Spec B (if needed) |
+| `compact()` not on pod interface | Only on `IAgentInstance` — ~3 line addition if needed | Spec B (if needed) |
 | Node doesn't auto-complete after agent finishes | No event bridge pod→graph yet | Spec B (execution tracking) |
 | Only Claude tested for compact | Copilot has no `/compact` | Design decision |
 
@@ -356,7 +373,7 @@ Add as **T010** alongside existing T001-T009. The file is `orchestration-wiring-
 
 - T001-T008: Existing Phase 4 tests (single-turn structural assertions)
 - T010: Multi-turn session durability (`describe.skip`)
-  - Test 1 (full-stack): ODS → pod → real agent with generic prompt
-  - Test 2 (multi-turn): poem → compact → recall via same AgentManagerService
-
-Both use `describe.skip` — manually unskipped for validation.
+  - Full-stack setup: ODS → pod → real agent (generic prompt, sessionId acquired)
+  - Compact: instance-level (only bypass — not on pod interface)
+  - Recall: `pod.resumeWithAnswer()` → full pod → instance → adapter chain
+  - 3 of 4 steps go through the pod. Only compact bypasses.
