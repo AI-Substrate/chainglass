@@ -76,7 +76,7 @@ The end result: ODS creates agents through `AgentManagerService.getNew()` and `.
 2. **AC-02**: ODS creates agents via `agentManager.getNew(params)` when `AgentContextService` returns `{ source: 'new' }`.
 3. **AC-03**: ODS creates agents via `agentManager.getWithSessionId(sessionId, params)` when `AgentContextService` returns `{ source: 'inherit', fromNodeId }` and a session exists for the source node.
 4. **AC-04**: ODS falls back to `agentManager.getNew(params)` when inheriting but the source node has no session (never ran or failed before session creation).
-5. **AC-11**: ODS resolves agent type from `reality.settings.agentType` falling back to `'claude-code'`.
+5. **AC-11**: ODS resolves agent type from `reality.settings.agentType` falling back to `'copilot'`.
 
 ### AgentPod
 
@@ -88,7 +88,7 @@ The end result: ODS creates agents through `AgentManagerService.getNew()` and `.
 
 9. **AC-08**: `PodCreateParams` agent variant has `agentInstance: IAgentInstance` instead of `adapter: IAgentAdapter`.
 10. **AC-09**: `PodExecuteOptions.contextSessionId` is removed — session is baked into the `IAgentInstance` at creation.
-11. **AC-10**: `GraphOrchestratorSettingsSchema` includes an optional `agentType` field (`'claude-code' | 'copilot'`), defaulting to `'claude-code'` when not specified.
+11. **AC-10**: `GraphOrchestratorSettingsSchema` includes an optional `agentType` field (`'claude-code' | 'copilot'`), defaulting to `'copilot'` when not specified.
 12. **AC-12**: DI container has an `ORCHESTRATION_DI_TOKENS.AGENT_MANAGER` token. The CLI container registers the SAME `AgentManagerService` instance for both `CLI_DI_TOKENS.AGENT_MANAGER` and `ORCHESTRATION_DI_TOKENS.AGENT_MANAGER`.
 
 ### Test Updates

@@ -141,7 +141,7 @@ ODS.handleAgentOrCode()
 ### 07: GraphOrchestratorSettingsSchema Is Currently Empty
 **Impact**: Medium
 **What**: `GraphOrchestratorSettingsSchema = z.object({}).strict()`. Adding `agentType` is additive and non-breaking.
-**Action**: Add `agentType: z.enum(['claude-code', 'copilot']).optional()`. ODS reads from `reality.settings.agentType` with fallback to `'claude-code'`.
+**Action**: Add `agentType: z.enum(['claude-code', 'copilot']).default('copilot')`. ODS reads from `reality.settings.agentType` — default applied at schema level.
 **Affects**: Phase 1
 
 ### 08: E2E Script Has 4 FakeAgentAdapter References
@@ -201,7 +201,7 @@ Acceptance Criteria: [measurable assertions]
 | `ods.types.ts` (ODSDependencies change) | cross-plan-edit | `packages/positional-graph/src/features/030-orchestration/` | Edits existing types |
 | `pod.agent.ts` (rewired) | cross-plan-edit | `packages/positional-graph/src/features/030-orchestration/` | Edits existing AgentPod |
 | `pod-manager.types.ts` (PodCreateParams change) | cross-plan-edit | `packages/positional-graph/src/features/030-orchestration/` | Edits existing types |
-| `pod.schema.ts` (PodExecuteOptions change) | cross-plan-edit | `packages/positional-graph/src/features/030-orchestration/` | Edits existing schema |
+| `pod.types.ts` (PodExecuteOptions change) | cross-plan-edit | `packages/positional-graph/src/features/030-orchestration/` | Edits existing types |
 | `container.ts` (DI token) | cross-plan-edit | `packages/positional-graph/src/container.ts` | DI registration |
 | `di-tokens.ts` (new token) | cross-cutting | `packages/shared/src/di-tokens.ts` | Shared token definition |
 | `container.ts` (CLI token alias) | cross-plan-edit | `apps/cli/src/lib/container.ts` | DI wiring |
@@ -237,11 +237,11 @@ Acceptance Criteria: [measurable assertions]
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
 | 1.1 | [ ] | Write unit tests for `GraphOrchestratorSettingsSchema` with `agentType` field | 1 | Tests verify: optional field, valid values, default fallback, invalid rejected | - | RED phase |
-| 1.2 | [ ] | Add `agentType` to `GraphOrchestratorSettingsSchema` | 1 | Tests from 1.1 pass. Schema accepts `'claude-code'` and `'copilot'`, rejects others | - | GREEN phase |
+| 1.2 | [ ] | Add `agentType` to `GraphOrchestratorSettingsSchema` with `.default('copilot')` | 1 | Tests from 1.1 pass. `parse({})` returns `{ agentType: 'copilot' }` | - | GREEN phase |
 | 1.3 | [ ] | Update `ODSDependencies` interface: `agentAdapter` → `agentManager: IAgentManagerService` | 1 | Interface compiles, imports `IAgentManagerService` from Plan 034 | - | Type change only |
 | 1.4 | [ ] | Update `PodCreateParams` agent variant: `adapter: IAgentAdapter` → `agentInstance: IAgentInstance` | 1 | Type compiles, imports `IAgentInstance` from Plan 034 | - | Type change only |
 | 1.5 | [ ] | Remove `contextSessionId` from `PodExecuteOptions` | 1 | Type compiles, field removed | - | Breaking — callers updated in Phase 2 |
-| 1.6 | [ ] | Add `ORCHESTRATION_DI_TOKENS.AGENT_MANAGER` to `di-tokens.ts` | 1 | Token exists, JSDoc describes purpose | - | Additive |
+| 1.6 | [ ] | Add `ORCHESTRATION_DI_TOKENS.AGENT_MANAGER` to `di-tokens.ts` referencing `SHARED_DI_TOKENS.AGENT_MANAGER_SERVICE` (not duplicate string) | 1 | Token exists, value references shared token | - | Additive |
 
 ### Acceptance Criteria
 - [ ] All type definitions compile cleanly in isolation
@@ -276,7 +276,7 @@ Acceptance Criteria: [measurable assertions]
 | 2.1 | [ ] | Write ODS unit tests: `getNew` path (source='new') | 2 | Tests verify: ODS calls `agentManager.getNew(params)` with correct name, type, workspace, metadata when context is 'new' | - | RED phase |
 | 2.2 | [ ] | Write ODS unit tests: `getWithSessionId` path (source='inherit') | 2 | Tests verify: ODS calls `getWithSessionId(sessionId, params)` when inheriting and session exists | - | RED phase |
 | 2.3 | [ ] | Write ODS unit tests: inherit fallback to `getNew` | 1 | Tests verify: ODS calls `getNew` when inheriting but source node has no session | - | RED phase |
-| 2.4 | [ ] | Write ODS unit tests: agent type resolution | 2 | Tests verify: type from `reality.settings.agentType`, fallback to `'claude-code'` | - | RED phase |
+| 2.4 | [ ] | Write ODS unit tests: agent type resolution | 2 | Tests verify: type from `reality.settings.agentType`, fallback to `'copilot'` | - | RED phase |
 | 2.5 | [ ] | Rewire ODS.handleAgentOrCode() to use `agentManager` | 3 | All tests from 2.1-2.4 pass. ODS creates instances via manager, passes to createPod | - | GREEN phase |
 | 2.6 | [ ] | Write AgentPod unit tests: constructor, delegation, sessionId | 2 | Tests verify: wraps IAgentInstance, delegates run/terminate, reads sessionId from instance | - | RED phase |
 | 2.7 | [ ] | Write AgentPod unit tests: no contextSessionId in execute | 1 | Tests verify: execute() does not pass contextSessionId; session comes from instance | - | RED phase |

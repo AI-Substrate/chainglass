@@ -9,7 +9,7 @@
  * @packageDocumentation
  */
 
-import type { IAgentAdapter } from '@chainglass/shared';
+import type { IAgentManagerService } from '@chainglass/shared';
 import type { WorkspaceContext } from '@chainglass/workflow';
 import type { IPositionalGraphService } from '../../interfaces/positional-graph-service.interface.js';
 import type { IAgentContextService } from './agent-context.types.js';
@@ -52,6 +52,6 @@ export interface ODSDependencies {
   readonly graphService: IPositionalGraphService;
   readonly podManager: IPodManager;
   readonly contextService: IAgentContextService;
-  readonly agentAdapter: IAgentAdapter;
+  readonly agentManager: IAgentManagerService;
   readonly scriptRunner: IScriptRunner;
 }

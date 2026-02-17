@@ -7,6 +7,7 @@
  */
 
 import type { InputPack } from '../../interfaces/positional-graph-service.interface.js';
+import type { GraphOrchestratorSettings } from '../../schemas/orchestrator-settings.schema.js';
 
 // ============================================
 // ExecutionStatus
@@ -118,6 +119,7 @@ export interface PositionalGraphReality {
   readonly version: string;
   readonly snapshotAt: string;
   readonly graphStatus: 'pending' | 'in_progress' | 'complete' | 'failed';
+  readonly settings?: GraphOrchestratorSettings;
 
   readonly lines: readonly LineReality[];
   readonly nodes: ReadonlyMap<string, NodeReality>;

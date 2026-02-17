@@ -8,7 +8,9 @@ export type BaseOrchestratorSettings = z.infer<typeof BaseOrchestratorSettingsSc
 
 // --- Entity-specific overrides ---
 
-export const GraphOrchestratorSettingsSchema = BaseOrchestratorSettingsSchema.extend({}).strict();
+export const GraphOrchestratorSettingsSchema = BaseOrchestratorSettingsSchema.extend({
+  agentType: z.enum(['claude-code', 'copilot']).default('copilot'),
+}).strict();
 export type GraphOrchestratorSettings = z.infer<typeof GraphOrchestratorSettingsSchema>;
 
 export const LineOrchestratorSettingsSchema = BaseOrchestratorSettingsSchema.extend({

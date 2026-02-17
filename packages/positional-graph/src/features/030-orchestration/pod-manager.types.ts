@@ -7,7 +7,7 @@
  * @see Workshop #4 (04-work-unit-pods.md)
  */
 
-import type { IAgentAdapter } from '@chainglass/shared';
+import type { IAgentInstance } from '@chainglass/shared';
 import type { IWorkUnitPod } from './pod.types.js';
 import type { IScriptRunner } from './script-runner.types.js';
 
@@ -20,7 +20,7 @@ export type PodCreateParams =
   | {
       readonly unitType: 'agent';
       readonly unitSlug: string;
-      readonly adapter: IAgentAdapter;
+      readonly agentInstance: IAgentInstance;
     }
   | {
       readonly unitType: 'code';

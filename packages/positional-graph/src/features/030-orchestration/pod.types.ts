@@ -31,9 +31,6 @@ export interface PodExecuteOptions {
   /** Resolved inputs from collateInputs */
   readonly inputs: { readonly inputs: Record<string, unknown>; readonly ok: boolean };
 
-  /** Session ID to resume (from context inheritance) */
-  readonly contextSessionId?: string;
-
   /** Workspace context for file operations */
   readonly ctx: { readonly worktreePath: string };
 

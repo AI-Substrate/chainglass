@@ -126,7 +126,7 @@ The end result: `cg wf run my-pipeline` starts an orchestration loop that spawns
 7. **AC-07**: AgentPod delegates `run()` to `agentInstance.run()` and `terminate()` to `agentInstance.terminate()`.
 8. **AC-08**: `PodCreateParams` agent variant has `agentInstance: IAgentInstance` instead of `adapter: IAgentAdapter`.
 9. **AC-09**: `PodExecuteOptions.contextSessionId` is removed — session is baked into the `IAgentInstance` at creation.
-10. **AC-10**: `GraphOrchestratorSettingsSchema` includes an optional `agentType` field (`'claude-code' | 'copilot'`), defaulting to `'claude-code'` when not specified.
+10. **AC-10**: `GraphOrchestratorSettingsSchema` includes an optional `agentType` field (`'claude-code' | 'copilot'`), defaulting to `'copilot'` when not specified.
 11. **AC-11**: ODS resolves agent type from `reality.settings.agentType` falling back to `'claude-code'`.
 12. **AC-12**: DI container has an `ORCHESTRATION_DI_TOKENS.AGENT_MANAGER` token. The CLI container registers the SAME `AgentManagerService` instance for both `CLI_DI_TOKENS.AGENT_MANAGER` and `ORCHESTRATION_DI_TOKENS.AGENT_MANAGER`.
 
