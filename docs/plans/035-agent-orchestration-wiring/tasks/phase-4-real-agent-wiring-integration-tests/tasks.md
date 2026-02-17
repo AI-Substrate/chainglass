@@ -108,14 +108,20 @@ flowchart TD
         T008["T008: Parity test"]:::pending
     end
 
+    subgraph Durability["Session Durability"]
+        T010["T010: Poem→Compact→Recall"]:::pending
+    end
+
     T009["T009: just fft gate"]:::pending
 
     T001 --> T002
     T001 --> T005
     T001 --> T008
+    T001 --> T010
     T002 --> T009
     T005 --> T009
     T008 --> T009
+    T010 --> T009
 
     subgraph Files["Files"]
         F1["orchestration-wiring-real.test.ts"]:::pending
@@ -136,6 +142,7 @@ flowchart TD
 | T006 | Copilot inheritance | ⬜ Pending | describe.skip |
 | T007 | Copilot events | ⬜ Pending | describe.skip |
 | T008 | Cross-adapter parity | ⬜ Pending | describe.skip |
+| T010 | Session durability | ⬜ Pending | Workshop 02: poem→compact→recall |
 | T009 | Gate check | ⬜ Pending | just fft |
 
 ---
@@ -152,7 +159,8 @@ flowchart TD
 | [ ] | T006 | Write Copilot SDK session inheritance test. Same as T003 with Copilot. `describe.skip`. | 2 | Test | T001 | `/home/jak/substrate/033-real-agent-pods/test/integration/orchestration-wiring-real.test.ts` | Test exists in `describe.skip`. | – | Plan 4.6 |
 | [ ] | T007 | Write Copilot SDK event pass-through test. Same as T004 with Copilot. `describe.skip`. | 2 | Test | T001 | `/home/jak/substrate/033-real-agent-pods/test/integration/orchestration-wiring-real.test.ts` | Test exists in `describe.skip`. | – | Plan 4.7 |
 | [ ] | T008 | Write cross-adapter parity test: both Claude and Copilot produce sessionId and emit text events through same ODS → pod wiring chain. `describe.skip`. | 2 | Test | T001 | `/home/jak/substrate/033-real-agent-pods/test/integration/orchestration-wiring-real.test.ts` | Test exists in `describe.skip`. | – | Plan 4.8 |
-| [ ] | T009 | Verify `just fft` still passes (skipped tests don't interfere). 3873+ tests pass. | 1 | Integration | T001-T008 | All | 3873+ pass, 0 failures from skipped tests. | – | Plan 4.9. Gate check |
+| [ ] | T009 | Verify `just fft` still passes (skipped tests don't interfere). 3873+ tests pass. | 1 | Integration | T001-T010 | All | 3873+ pass, 0 failures from skipped tests. | – | Plan 4.9. Gate check |
+| [ ] | T010 | Write multi-turn session durability test per Workshop 02: full-stack ODS setup → wait for pod sessionId → get instance via `getWithSessionId()` (assert same-instance guarantee) → poem prompt → compact → recall prompt. Assert same sessionId throughout, output non-empty. `describe.skip`. | 2 | Test | T001 | `/home/jak/substrate/033-real-agent-pods/test/integration/orchestration-wiring-real.test.ts` | Test exists in `describe.skip`. | – | Workshop 02. Claude only (Copilot has no compact) |
 
 ---
 

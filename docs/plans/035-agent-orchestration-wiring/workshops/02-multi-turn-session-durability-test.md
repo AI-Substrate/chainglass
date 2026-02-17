@@ -309,6 +309,10 @@ const instance = agentManager.getWithSessionId(sessionId, {
   name: 'spec-builder', type: 'claude-code', workspace: worktreePath,
 });
 
+// Same-instance guarantee (Plan 034): this is the SAME object ODS created
+expect(instance.name).toBe('spec-builder');
+expect(instance.sessionId).toBe(sessionId);
+
 // ── TURN 1: Custom prompt via instance ──
 const turn1Result = await instance.run({
   prompt: 'Write a 4-line poem about a random subject. State the subject in the first line.',
