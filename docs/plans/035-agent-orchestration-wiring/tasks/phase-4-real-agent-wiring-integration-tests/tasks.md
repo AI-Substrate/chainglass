@@ -89,30 +89,30 @@ flowchart TD
     classDef completed fill:#4CAF50,stroke:#388E3C,color:#fff
 
     subgraph Setup["Setup"]
-        T001["T001: Stack scaffolding"]:::pending
+        T001["T001: Stack scaffolding ✓"]:::completed
     end
 
     subgraph Claude["Claude Code Suite"]
-        T002["T002: Single-node"]:::pending
-        T003["T003: Session inheritance"]:::pending
-        T004["T004: Event pass-through"]:::pending
+        T002["T002: Single-node ✓"]:::completed
+        T003["T003: Session inheritance ✓"]:::completed
+        T004["T004: Event pass-through ✓"]:::completed
     end
 
     subgraph Copilot["Copilot SDK Suite"]
-        T005["T005: Single-node"]:::pending
-        T006["T006: Session inheritance"]:::pending
-        T007["T007: Event pass-through"]:::pending
+        T005["T005: Single-node ✓"]:::completed
+        T006["T006: Session inheritance ✓"]:::completed
+        T007["T007: Event pass-through ✓"]:::completed
     end
 
     subgraph Parity["Cross-Adapter"]
-        T008["T008: Parity test"]:::pending
+        T008["T008: Parity test ✓"]:::completed
     end
 
     subgraph Durability["Session Durability"]
-        T010["T010: Poem→Compact→Recall"]:::pending
+        T010["T010: Poem→Compact→Recall ✓"]:::completed
     end
 
-    T009["T009: just fft gate"]:::pending
+    T009["T009: just fft gate ✓"]:::completed
 
     T001 --> T002
     T001 --> T005
@@ -124,7 +124,7 @@ flowchart TD
     T010 --> T009
 
     subgraph Files["Files"]
-        F1["orchestration-wiring-real.test.ts"]:::pending
+        F1["orchestration-wiring-real.test.ts ✓"]:::completed
     end
 
     T001 -.-> F1
@@ -134,16 +134,16 @@ flowchart TD
 
 | Task | Component(s) | Status | Comment |
 |------|-------------|--------|---------|
-| T001 | Test scaffolding | ⬜ Pending | createRealOrchestrationStack + helpers |
-| T002 | Claude single-node | ⬜ Pending | describe.skip, 120s timeout |
-| T003 | Claude inheritance | ⬜ Pending | describe.skip, manual node completion |
-| T004 | Claude events | ⬜ Pending | describe.skip, event collector |
-| T005 | Copilot single-node | ⬜ Pending | describe.skip |
-| T006 | Copilot inheritance | ⬜ Pending | describe.skip |
-| T007 | Copilot events | ⬜ Pending | describe.skip |
-| T008 | Cross-adapter parity | ⬜ Pending | describe.skip |
-| T010 | Session durability | ⬜ Pending | Workshop 02: poem→compact→recall |
-| T009 | Gate check | ⬜ Pending | just fft |
+| T001 | Test scaffolding | ✅ Complete | createRealOrchestrationStack + helpers |
+| T002 | Claude single-node | ✅ Complete | describe.skip, 120s timeout |
+| T003 | Claude inheritance | ✅ Complete | describe.skip, manual node completion |
+| T004 | Claude events | ✅ Complete | describe.skip, event collector |
+| T005 | Copilot single-node | ✅ Complete | describe.skip |
+| T006 | Copilot inheritance | ✅ Complete | describe.skip |
+| T007 | Copilot events | ✅ Complete | describe.skip |
+| T008 | Cross-adapter parity | ✅ Complete | describe.skip |
+| T010 | Session durability | ✅ Complete | Workshop 02: poem→compact→recall |
+| T009 | Gate check | ✅ Complete | just fft |
 
 ---
 
@@ -151,16 +151,16 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|------|------|-----|------|------------|-------------------|------------|----------|-------|
-| [ ] | T001 | Write test scaffolding: `createRealOrchestrationStack(service, ctx, adapterType)` with dynamic imports for `ClaudeCodeAdapter`/`UnixProcessManager` and `SdkCopilotAdapter`/`CopilotClient`. Helper `waitForPodSession(pod, timeoutMs)` polls sessionId every 1s. Helper `completeNodeManually()` for session inheritance. Follow Plan 034 dynamic import pattern. | 2 | Setup | – | `/home/jak/substrate/033-real-agent-pods/test/integration/orchestration-wiring-real.test.ts` | File compiles, helpers resolve adapters. | – | plan-scoped. Plan 4.1, Critical Finding #09 |
-| [ ] | T002 | Write Claude Code single-node wiring test: ODS creates instance via `getNew`, pod executes, real Claude spawns, pod acquires sessionId. `describe.skip`, 120s timeout. Structural assertions only. | 2 | Test | T001 | `/home/jak/substrate/033-real-agent-pods/test/integration/orchestration-wiring-real.test.ts` | Test exists in `describe.skip`. | – | Plan 4.2 |
-| [ ] | T003 | Write Claude Code session inheritance test: node-b inherits node-a's session via `getWithSessionId`. Manual node-a completion. Assert fork sessionId differs from source. `describe.skip`. | 2 | Test | T001 | `/home/jak/substrate/033-real-agent-pods/test/integration/orchestration-wiring-real.test.ts` | Test exists in `describe.skip`. | – | Plan 4.3 |
-| [ ] | T004 | Write Claude Code event pass-through test: events from real adapter flow through instance handlers to test collector. Assert `text_delta` or `message` events received. `describe.skip`. | 2 | Test | T001 | `/home/jak/substrate/033-real-agent-pods/test/integration/orchestration-wiring-real.test.ts` | Test exists in `describe.skip`. | – | Plan 4.4 |
-| [ ] | T005 | Write Copilot SDK single-node wiring test. Same as T002 with Copilot adapter. `describe.skip`. | 2 | Test | T001 | `/home/jak/substrate/033-real-agent-pods/test/integration/orchestration-wiring-real.test.ts` | Test exists in `describe.skip`. | – | Plan 4.5 |
-| [ ] | T006 | Write Copilot SDK session inheritance test. Same as T003 with Copilot. `describe.skip`. | 2 | Test | T001 | `/home/jak/substrate/033-real-agent-pods/test/integration/orchestration-wiring-real.test.ts` | Test exists in `describe.skip`. | – | Plan 4.6 |
-| [ ] | T007 | Write Copilot SDK event pass-through test. Same as T004 with Copilot. `describe.skip`. | 2 | Test | T001 | `/home/jak/substrate/033-real-agent-pods/test/integration/orchestration-wiring-real.test.ts` | Test exists in `describe.skip`. | – | Plan 4.7 |
-| [ ] | T008 | Write cross-adapter parity test: both Claude and Copilot produce sessionId and emit text events through same ODS → pod wiring chain. `describe.skip`. | 2 | Test | T001 | `/home/jak/substrate/033-real-agent-pods/test/integration/orchestration-wiring-real.test.ts` | Test exists in `describe.skip`. | – | Plan 4.8 |
-| [ ] | T009 | Verify `just fft` still passes (skipped tests don't interfere). 3873+ tests pass. | 1 | Integration | T001-T010 | All | 3873+ pass, 0 failures from skipped tests. | – | Plan 4.9. Gate check |
-| [ ] | T010 | Write multi-turn session durability test per Workshop 02: full-stack ODS setup → wait for pod sessionId → get instance via `getWithSessionId()` (assert same-instance guarantee) → poem prompt → compact → recall prompt. Assert same sessionId throughout, output non-empty. `describe.skip`. | 2 | Test | T001 | `/home/jak/substrate/033-real-agent-pods/test/integration/orchestration-wiring-real.test.ts` | Test exists in `describe.skip`. | – | Workshop 02. Claude only (Copilot has no compact) |
+| [x] | T001 | Write test scaffolding: `createRealOrchestrationStack(service, ctx, adapterType)` with dynamic imports for `ClaudeCodeAdapter`/`UnixProcessManager` and `SdkCopilotAdapter`/`CopilotClient`. Helper `waitForPodSession(pod, timeoutMs)` polls sessionId every 1s. Helper `completeNodeManually()` for session inheritance. Follow Plan 034 dynamic import pattern. | 2 | Setup | – | `/home/jak/substrate/033-real-agent-pods/test/integration/orchestration-wiring-real.test.ts` | File compiles, helpers resolve adapters. | – | plan-scoped. Plan 4.1, Critical Finding #09 [^12] |
+| [x] | T002 | Write Claude Code single-node wiring test: ODS creates instance via `getNew`, pod executes, real Claude spawns, pod acquires sessionId. `describe.skip`, 120s timeout. Structural assertions only. | 2 | Test | T001 | `/home/jak/substrate/033-real-agent-pods/test/integration/orchestration-wiring-real.test.ts` | Test exists in `describe.skip`. | – | Plan 4.2 [^13] |
+| [x] | T003 | Write Claude Code session inheritance test: node-b inherits node-a's session via `getWithSessionId`. Manual node-a completion. Assert fork sessionId differs from source. `describe.skip`. | 2 | Test | T001 | `/home/jak/substrate/033-real-agent-pods/test/integration/orchestration-wiring-real.test.ts` | Test exists in `describe.skip`. | – | Plan 4.3 [^13] |
+| [x] | T004 | Write Claude Code event pass-through test: events from real adapter flow through instance handlers to test collector. Assert `text_delta` or `message` events received. `describe.skip`. | 2 | Test | T001 | `/home/jak/substrate/033-real-agent-pods/test/integration/orchestration-wiring-real.test.ts` | Test exists in `describe.skip`. | – | Plan 4.4 [^13] |
+| [x] | T005 | Write Copilot SDK single-node wiring test. Same as T002 with Copilot adapter. `describe.skip`. | 2 | Test | T001 | `/home/jak/substrate/033-real-agent-pods/test/integration/orchestration-wiring-real.test.ts` | Test exists in `describe.skip`. | – | Plan 4.5 [^14] |
+| [x] | T006 | Write Copilot SDK session inheritance test. Same as T003 with Copilot. `describe.skip`. | 2 | Test | T001 | `/home/jak/substrate/033-real-agent-pods/test/integration/orchestration-wiring-real.test.ts` | Test exists in `describe.skip`. | – | Plan 4.6 [^14] |
+| [x] | T007 | Write Copilot SDK event pass-through test. Same as T004 with Copilot. `describe.skip`. | 2 | Test | T001 | `/home/jak/substrate/033-real-agent-pods/test/integration/orchestration-wiring-real.test.ts` | Test exists in `describe.skip`. | – | Plan 4.7 [^14] |
+| [x] | T008 | Write cross-adapter parity test: both Claude and Copilot produce sessionId and emit text events through same ODS → pod wiring chain. `describe.skip`. | 2 | Test | T001 | `/home/jak/substrate/033-real-agent-pods/test/integration/orchestration-wiring-real.test.ts` | Test exists in `describe.skip`. | – | Plan 4.8 [^15] |
+| [x] | T009 | Verify `just fft` still passes (skipped tests don't interfere). 3873+ tests pass. | 1 | Integration | T001-T010 | All | 3873+ pass, 0 failures from skipped tests. | – | Plan 4.9. Gate check |
+| [x] | T010 | Write multi-turn session durability test per Workshop 02: full-stack ODS setup → wait for pod sessionId → get instance via `getWithSessionId()` (assert same-instance guarantee) → poem prompt → compact → recall prompt. Assert same sessionId throughout, output non-empty. `describe.skip`. | 2 | Test | T001 | `/home/jak/substrate/033-real-agent-pods/test/integration/orchestration-wiring-real.test.ts` | Test exists in `describe.skip`. | – | Workshop 02. Claude only (Copilot has no compact) [^15] |
 
 ---
 
@@ -228,17 +228,18 @@ npx vitest run test/integration/orchestration-wiring-real.test.ts --no-file-para
 - [x] Critical Findings mapped (#09 → T001, #10 → T001/T003/T006)
 - [x] Pre-implementation audit complete (1 new file)
 - [x] Requirements traceability complete (6 ACs covered)
-- [ ] **Awaiting GO/NO-GO**
+- [x] **GO — Phase 4 Complete**
 
 ---
 
 ## Phase Footnote Stubs
 
-_To be populated by plan-6 during implementation._
-
 | Footnote | Phase | Summary |
 |----------|-------|---------|
-| | | |
+| [^12] | Phase 4 | T001 — Test scaffolding: `createRealOrchestrationStack`, helpers |
+| [^13] | Phase 4 | T002-T004 — Claude Code wiring tests |
+| [^14] | Phase 4 | T005-T007 — Copilot SDK wiring tests |
+| [^15] | Phase 4 | T008, T010 — Cross-adapter parity + session durability |
 
 ---
 
