@@ -110,12 +110,12 @@ flowchart TD
     classDef blocked fill:#F44336,stroke:#D32F2F,color:#fff
 
     subgraph ODS_TDD["ODS TDD Cycle"]
-        T001["T001: ODS test getNew (RED)"]:::pending
-        T002["T002: ODS test inherit (RED)"]:::pending
-        T003["T003: ODS test fallback (RED)"]:::pending
-        T004["T004: ODS test type resolution (RED)"]:::pending
-        T005["T005: Rewire ODS (GREEN)"]:::pending
-        T006["T006: Reality builder settings"]:::pending
+        T001["T001: ODS test getNew (RED) ✓"]:::completed
+        T002["T002: ODS test inherit (RED) ✓"]:::completed
+        T003["T003: ODS test fallback (RED) ✓"]:::completed
+        T004["T004: ODS test type resolution (RED) ✓"]:::completed
+        T005["T005: Rewire ODS (GREEN) ✓"]:::completed
+        T006["T006: Reality builder settings ✓"]:::completed
 
         T001 --> T005
         T002 --> T005
@@ -125,11 +125,11 @@ flowchart TD
     end
 
     subgraph Pod_TDD["AgentPod TDD Cycle"]
-        T007["T007: Pod test constructor (RED)"]:::pending
-        T008["T008: Pod test sessionId (RED)"]:::pending
-        T009["T009: Rewire AgentPod (GREEN)"]:::pending
-        T010["T010: PodManager.createPod"]:::pending
-        T011["T011: resumeWithAnswer"]:::pending
+        T007["T007: Pod test constructor (RED) ✓"]:::completed
+        T008["T008: Pod test sessionId (RED) ✓"]:::completed
+        T009["T009: Rewire AgentPod (GREEN) ✓"]:::completed
+        T010["T010: PodManager.createPod ✓"]:::completed
+        T011["T011: resumeWithAnswer ✓"]:::completed
 
         T007 --> T009
         T008 --> T009
@@ -137,20 +137,20 @@ flowchart TD
         T009 --> T011
     end
 
-    T012["T012: Final verification"]:::pending
+    T012["T012: Final verification ✓"]:::completed
     T005 --> T012
     T009 --> T012
     T010 --> T012
     T011 --> T012
 
     subgraph Files["Files"]
-        F1["ods.ts"]:::pending
-        F2["pod.agent.ts"]:::pending
-        F3["pod-manager.ts"]:::pending
-        F4["reality.builder.ts"]:::pending
-        F5["graph-orchestration.ts"]:::pending
-        F6["ods-agent-wiring.test.ts"]:::pending
-        F7["pod-agent-wiring.test.ts"]:::pending
+        F1["ods.ts ✓"]:::completed
+        F2["pod.agent.ts ✓"]:::completed
+        F3["pod-manager.ts ✓"]:::completed
+        F4["reality.builder.ts ✓"]:::completed
+        F5["graph-orchestration.ts ✓"]:::completed
+        F6["ods-agent-wiring.test.ts ✓"]:::completed
+        F7["pod-agent-wiring.test.ts ✓"]:::completed
     end
 
     T001 -.-> F6
@@ -167,18 +167,18 @@ flowchart TD
 
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
-| T001 | ODS test | ods-agent-wiring.test.ts | ⬜ Pending | RED: getNew path |
-| T002 | ODS test | ods-agent-wiring.test.ts | ⬜ Pending | RED: getWithSessionId path |
-| T003 | ODS test | ods-agent-wiring.test.ts | ⬜ Pending | RED: inherit fallback |
-| T004 | ODS test | ods-agent-wiring.test.ts | ⬜ Pending | RED: agent type resolution |
-| T005 | ODS impl | ods.ts | ⬜ Pending | GREEN: rewire handleAgentOrCode |
-| T006 | Reality builder | reality.builder.ts, graph-orchestration.ts | ⬜ Pending | Populate settings in reality |
-| T007 | AgentPod test | pod-agent-wiring.test.ts | ⬜ Pending | RED: constructor + delegation |
-| T008 | AgentPod test | pod-agent-wiring.test.ts | ⬜ Pending | RED: sessionId from instance |
-| T009 | AgentPod impl | pod.agent.ts | ⬜ Pending | GREEN: rewire AgentPod |
-| T010 | PodManager | pod-manager.ts | ⬜ Pending | Use agentInstance in createPod |
-| T011 | AgentPod resume | pod.agent.ts | ⬜ Pending | resumeWithAnswer via instance |
-| T012 | Verification | all | ⬜ Pending | All Phase 2 tests pass |
+| T001 | ODS test | ods-agent-wiring.test.ts | ✅ Complete | RED: getNew path |
+| T002 | ODS test | ods-agent-wiring.test.ts | ✅ Complete | RED: getWithSessionId path |
+| T003 | ODS test | ods-agent-wiring.test.ts | ✅ Complete | RED: inherit fallback |
+| T004 | ODS test | ods-agent-wiring.test.ts | ✅ Complete | RED: agent type resolution |
+| T005 | ODS impl | ods.ts | ✅ Complete | GREEN: rewire handleAgentOrCode |
+| T006 | Reality builder | reality.builder.ts, graph-orchestration.ts | ✅ Complete | Populate settings in reality |
+| T007 | AgentPod test | pod-agent-wiring.test.ts | ✅ Complete | RED: constructor + delegation |
+| T008 | AgentPod test | pod-agent-wiring.test.ts | ✅ Complete | RED: sessionId from instance |
+| T009 | AgentPod impl | pod.agent.ts | ✅ Complete | GREEN: rewire AgentPod |
+| T010 | PodManager | pod-manager.ts | ✅ Complete | Use agentInstance in createPod |
+| T011 | AgentPod resume | pod.agent.ts | ✅ Complete | resumeWithAnswer via instance |
+| T012 | Verification | all | ✅ Complete | All Phase 2 tests pass |
 
 ---
 
@@ -186,18 +186,18 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|------|------|-----|------|------------|-------------------|------------|----------|-------|
-| [ ] | T001 | Write ODS unit test: `getNew` path — when context source='new', ODS calls `agentManager.getNew({ name, type, workspace, metadata })` with correct params. Uses `FakeAgentManagerService` + `FakeAgentContextService` | 2 | Test | – | `/home/jak/substrate/033-real-agent-pods/test/unit/positional-graph/features/030-orchestration/ods-agent-wiring.test.ts` | Test exists and FAILS (RED) | – | cross-plan-edit. Plan 2.1 |
-| [ ] | T002 | Write ODS unit test: `getWithSessionId` path — when context source='inherit' and session exists, ODS calls `agentManager.getWithSessionId(sessionId, params)`. Verify sessionId from `podManager.getSessionId(fromNodeId)` | 2 | Test | – | `/home/jak/substrate/033-real-agent-pods/test/unit/positional-graph/features/030-orchestration/ods-agent-wiring.test.ts` | Test exists and FAILS (RED) | – | cross-plan-edit. Plan 2.2 |
-| [ ] | T003 | Write ODS unit test: inherit fallback — when context source='inherit' but `podManager.getSessionId()` returns undefined, ODS calls `agentManager.getNew()` instead of `getWithSessionId()` | 1 | Test | – | `/home/jak/substrate/033-real-agent-pods/test/unit/positional-graph/features/030-orchestration/ods-agent-wiring.test.ts` | Test exists and FAILS (RED) | – | cross-plan-edit. Plan 2.3 |
-| [ ] | T004 | Write ODS unit test: agent type resolution — ODS reads `reality.settings?.agentType` and passes to `getNew`/`getWithSessionId`. Test with explicit `'claude-code'`, test fallback to `'copilot'` when settings missing | 2 | Test | – | `/home/jak/substrate/033-real-agent-pods/test/unit/positional-graph/features/030-orchestration/ods-agent-wiring.test.ts` | Test exists and FAILS (RED) | – | cross-plan-edit. Plan 2.4 |
-| [ ] | T005 | Rewire `ODS.handleAgentOrCode()`: branch on `node.unitType` — agent path calls `this.deps.agentManager.getNew({ name: node.unitSlug, type: agentType, workspace: ctx.worktreePath })` or `.getWithSessionId()`. Resolve `agentType` from `reality.settings?.agentType ?? 'copilot'`. Code path preserved as-is (runner pass-through). Remove `contextSessionId` from execute options. Fix stale JSDoc on ODSDependencies. | 3 | Core | T001, T002, T003, T004 | `/home/jak/substrate/033-real-agent-pods/packages/positional-graph/src/features/030-orchestration/ods.ts` | All T001-T004 tests pass (GREEN). 3 compile errors resolved. | – | cross-plan-edit. Plan 2.5, Critical Finding #01 |
-| [ ] | T006 | Populate `settings` in reality builder: add `settings?: GraphOrchestratorSettings` to `BuildRealityOptions`, pass through in `buildPositionalGraphReality()` return object. Update `graph-orchestration.ts` `buildReality()` to add `graphService.loadGraphDefinition()` to the `Promise.all` and pass `definition.orchestratorSettings` as settings. Load every cycle (no caching). | 2 | Core | T005 | `/home/jak/substrate/033-real-agent-pods/packages/positional-graph/src/features/030-orchestration/reality.builder.ts`, `/home/jak/substrate/033-real-agent-pods/packages/positional-graph/src/features/030-orchestration/graph-orchestration.ts` | `reality.settings.agentType` is defined in production path. | – | cross-plan-edit. Gap G1 fix |
-| [ ] | T007 | Write AgentPod unit tests: constructor accepts `(nodeId, agentInstance: IAgentInstance, unitSlug)`, `run()` delegates to `agentInstance.run()`, `terminate()` delegates to `agentInstance.terminate()`. Uses `FakeAgentInstance`. | 2 | Test | – | `/home/jak/substrate/033-real-agent-pods/test/unit/positional-graph/features/030-orchestration/pod-agent-wiring.test.ts` | Tests exist and FAIL (RED) | – | cross-plan-edit. Plan 2.6 |
-| [ ] | T008 | Write AgentPod unit tests: `sessionId` reads from `agentInstance.sessionId` (not internal `_sessionId`), `execute()` does NOT pass `contextSessionId`, session comes from instance. Verify `null→undefined` bridge. | 1 | Test | – | `/home/jak/substrate/033-real-agent-pods/test/unit/positional-graph/features/030-orchestration/pod-agent-wiring.test.ts` | Tests exist and FAIL (RED) | – | cross-plan-edit. Plan 2.7 |
-| [ ] | T009 | Rewire AgentPod: constructor `(nodeId, agentInstance: IAgentInstance, unitSlug)`, remove `_sessionId` field, `get sessionId()` → `agentInstance.sessionId ?? undefined`, `execute()` → `agentInstance.run({ prompt, cwd })`, `terminate()` → `agentInstance.terminate()`. | 2 | Core | T007, T008 | `/home/jak/substrate/033-real-agent-pods/packages/positional-graph/src/features/030-orchestration/pod.agent.ts` | All T007-T008 tests pass (GREEN). 1 compile error resolved. | – | cross-plan-edit. Plan 2.8 |
-| [ ] | T010 | Update `PodManager.createPod()`: change `new AgentPod(nodeId, params.adapter)` to `new AgentPod(nodeId, params.agentInstance, params.unitSlug)` | 1 | Core | T009 | `/home/jak/substrate/033-real-agent-pods/packages/positional-graph/src/features/030-orchestration/pod-manager.ts` | 1 compile error resolved. createPod passes agentInstance. | – | cross-plan-edit. Plan 2.9 |
-| [ ] | T011 | Update `AgentPod.resumeWithAnswer()`: delegate to `agentInstance.run({ prompt: resumePrompt, cwd })` instead of `agentAdapter.run()`. Preserve guard logic using `agentInstance.sessionId`. | 1 | Core | T009 | `/home/jak/substrate/033-real-agent-pods/packages/positional-graph/src/features/030-orchestration/pod.agent.ts` | resumeWithAnswer delegates to instance. | – | cross-plan-edit. Plan 2.10 |
-| [ ] | T012 | Refactor and verify: run all Phase 2 tests together. Verify 0 compile errors in modified files. Run `pnpm vitest run test/unit/positional-graph/features/030-orchestration/ods-agent-wiring.test.ts test/unit/positional-graph/features/030-orchestration/pod-agent-wiring.test.ts`. | 1 | Integration | T005, T006, T009, T010, T011 | All Phase 2 files | All Phase 2 tests pass. No compile errors in modified files. | – | Plan 2.11 |
+| [x] | T001 | Write ODS unit test: `getNew` path — when context source='new', ODS calls `agentManager.getNew({ name, type, workspace, metadata })` with correct params. Uses `FakeAgentManagerService` + `FakeAgentContextService` | 2 | Test | – | `/home/jak/substrate/033-real-agent-pods/test/unit/positional-graph/features/030-orchestration/ods-agent-wiring.test.ts` | Test exists and FAILS (RED) | – | cross-plan-edit. Plan 2.1 [^5] |
+| [x] | T002 | Write ODS unit test: `getWithSessionId` path — when context source='inherit' and session exists, ODS calls `agentManager.getWithSessionId(sessionId, params)`. Verify sessionId from `podManager.getSessionId(fromNodeId)` | 2 | Test | – | `/home/jak/substrate/033-real-agent-pods/test/unit/positional-graph/features/030-orchestration/ods-agent-wiring.test.ts` | Test exists and FAILS (RED) | – | cross-plan-edit. Plan 2.2 [^5] |
+| [x] | T003 | Write ODS unit test: inherit fallback — when context source='inherit' but `podManager.getSessionId()` returns undefined, ODS calls `agentManager.getNew()` instead of `getWithSessionId()` | 1 | Test | – | `/home/jak/substrate/033-real-agent-pods/test/unit/positional-graph/features/030-orchestration/ods-agent-wiring.test.ts` | Test exists and FAILS (RED) | – | cross-plan-edit. Plan 2.3 [^5] |
+| [x] | T004 | Write ODS unit test: agent type resolution — ODS reads `reality.settings?.agentType` and passes to `getNew`/`getWithSessionId`. Test with explicit `'claude-code'`, test fallback to `'copilot'` when settings missing | 2 | Test | – | `/home/jak/substrate/033-real-agent-pods/test/unit/positional-graph/features/030-orchestration/ods-agent-wiring.test.ts` | Test exists and FAILS (RED) | – | cross-plan-edit. Plan 2.4 [^5] |
+| [x] | T005 | Rewire `ODS.handleAgentOrCode()`: branch on `node.unitType` — agent path calls `this.deps.agentManager.getNew({ name: node.unitSlug, type: agentType, workspace: ctx.worktreePath })` or `.getWithSessionId()`. Resolve `agentType` from `reality.settings?.agentType ?? 'copilot'`. Code path preserved as-is (runner pass-through). Remove `contextSessionId` from execute options. Fix stale JSDoc on ODSDependencies. | 3 | Core | T001, T002, T003, T004 | `/home/jak/substrate/033-real-agent-pods/packages/positional-graph/src/features/030-orchestration/ods.ts` | All T001-T004 tests pass (GREEN). 3 compile errors resolved. | – | cross-plan-edit. Plan 2.5, Critical Finding #01 [^6] |
+| [x] | T006 | Populate `settings` in reality builder: add `settings?: GraphOrchestratorSettings` to `BuildRealityOptions`, pass through in `buildPositionalGraphReality()` return object. Update `graph-orchestration.ts` `buildReality()` to add `graphService.loadGraphDefinition()` to the `Promise.all` and pass `definition.orchestratorSettings` as settings. Load every cycle (no caching). | 2 | Core | T005 | `/home/jak/substrate/033-real-agent-pods/packages/positional-graph/src/features/030-orchestration/reality.builder.ts`, `/home/jak/substrate/033-real-agent-pods/packages/positional-graph/src/features/030-orchestration/graph-orchestration.ts` | `reality.settings.agentType` is defined in production path. | – | cross-plan-edit. Gap G1 fix [^7] |
+| [x] | T007 | Write AgentPod unit tests: constructor accepts `(nodeId, agentInstance: IAgentInstance, unitSlug)`, `run()` delegates to `agentInstance.run()`, `terminate()` delegates to `agentInstance.terminate()`. Uses `FakeAgentInstance`. | 2 | Test | – | `/home/jak/substrate/033-real-agent-pods/test/unit/positional-graph/features/030-orchestration/pod-agent-wiring.test.ts` | Tests exist and FAIL (RED) | – | cross-plan-edit. Plan 2.6 [^8] |
+| [x] | T008 | Write AgentPod unit tests: `sessionId` reads from `agentInstance.sessionId` (not internal `_sessionId`), `execute()` does NOT pass `contextSessionId`, session comes from instance. Verify `null→undefined` bridge. | 1 | Test | – | `/home/jak/substrate/033-real-agent-pods/test/unit/positional-graph/features/030-orchestration/pod-agent-wiring.test.ts` | Tests exist and FAIL (RED) | – | cross-plan-edit. Plan 2.7 [^8] |
+| [x] | T009 | Rewire AgentPod: constructor `(nodeId, agentInstance: IAgentInstance, unitSlug)`, remove `_sessionId` field, `get sessionId()` → `agentInstance.sessionId ?? undefined`, `execute()` → `agentInstance.run({ prompt, cwd })`, `terminate()` → `agentInstance.terminate()`. | 2 | Core | T007, T008 | `/home/jak/substrate/033-real-agent-pods/packages/positional-graph/src/features/030-orchestration/pod.agent.ts` | All T007-T008 tests pass (GREEN). 1 compile error resolved. | – | cross-plan-edit. Plan 2.8 [^8] |
+| [x] | T010 | Update `PodManager.createPod()`: change `new AgentPod(nodeId, params.adapter)` to `new AgentPod(nodeId, params.agentInstance, params.unitSlug)` | 1 | Core | T009 | `/home/jak/substrate/033-real-agent-pods/packages/positional-graph/src/features/030-orchestration/pod-manager.ts` | 1 compile error resolved. createPod passes agentInstance. | – | cross-plan-edit. Plan 2.9 [^8] |
+| [x] | T011 | Update `AgentPod.resumeWithAnswer()`: delegate to `agentInstance.run({ prompt: resumePrompt, cwd })` instead of `agentAdapter.run()`. Preserve guard logic using `agentInstance.sessionId`. | 1 | Core | T009 | `/home/jak/substrate/033-real-agent-pods/packages/positional-graph/src/features/030-orchestration/pod.agent.ts` | resumeWithAnswer delegates to instance. | – | cross-plan-edit. Plan 2.10 [^8] |
+| [x] | T012 | Refactor and verify: run all Phase 2 tests together. Verify 0 compile errors in modified files. Run `pnpm vitest run test/unit/positional-graph/features/030-orchestration/ods-agent-wiring.test.ts test/unit/positional-graph/features/030-orchestration/pod-agent-wiring.test.ts`. | 1 | Integration | T005, T006, T009, T010, T011 | All Phase 2 files | All Phase 2 tests pass. No compile errors in modified files. | – | Plan 2.11 |
 
 ---
 
@@ -363,7 +363,7 @@ npx tsc --noEmit --pretty false 2>&1 | grep -E "ods\.ts|pod\.agent\.ts|pod-manag
 - [x] Pre-implementation audit complete (6 files, 1 gap resolved)
 - [x] Requirements traceability complete (7 ACs, 1 gap resolved as T006)
 - [x] TDD tests defined before implementation tasks
-- [ ] **Awaiting GO/NO-GO**
+- [x] **GO — Phase 2 Complete**
 
 ---
 
@@ -373,7 +373,10 @@ _To be populated by plan-6 during implementation._
 
 | Footnote | Phase | Summary |
 |----------|-------|---------|
-| | | |
+| [^5] | Phase 2 | T001-T004 — ODS wiring tests: `ods-agent-wiring.test.ts` |
+| [^6] | Phase 2 | T005 — ODS rewiring: `ods.ts`, `ods.types.ts` |
+| [^7] | Phase 2 | T006 — Reality builder settings: `reality.builder.ts`, `graph-orchestration.ts` |
+| [^8] | Phase 2 | T007-T011 — AgentPod TDD + PodManager: `pod-agent-wiring.test.ts`, `pod.agent.ts`, `pod-manager.ts` |
 
 ---
 

@@ -273,25 +273,25 @@ Acceptance Criteria: [measurable assertions]
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 2.1 | [ ] | Write ODS unit tests: `getNew` path (source='new') | 2 | Tests verify: ODS calls `agentManager.getNew(params)` with correct name, type, workspace, metadata when context is 'new' | - | RED phase |
-| 2.2 | [ ] | Write ODS unit tests: `getWithSessionId` path (source='inherit') | 2 | Tests verify: ODS calls `getWithSessionId(sessionId, params)` when inheriting and session exists | - | RED phase |
-| 2.3 | [ ] | Write ODS unit tests: inherit fallback to `getNew` | 1 | Tests verify: ODS calls `getNew` when inheriting but source node has no session | - | RED phase |
-| 2.4 | [ ] | Write ODS unit tests: agent type resolution | 2 | Tests verify: type from `reality.settings.agentType`, fallback to `'copilot'` | - | RED phase |
-| 2.5 | [ ] | Rewire ODS.handleAgentOrCode() to use `agentManager` | 3 | All tests from 2.1-2.4 pass. ODS creates instances via manager, passes to createPod | - | GREEN phase |
-| 2.6 | [ ] | Write AgentPod unit tests: constructor, delegation, sessionId | 2 | Tests verify: wraps IAgentInstance, delegates run/terminate, reads sessionId from instance | - | RED phase |
-| 2.7 | [ ] | Write AgentPod unit tests: no contextSessionId in execute | 1 | Tests verify: execute() does not pass contextSessionId; session comes from instance | - | RED phase |
-| 2.8 | [ ] | Rewire AgentPod to wrap IAgentInstance | 2 | All tests from 2.6-2.7 pass. Constructor accepts `(nodeId, agentInstance, unitSlug)` | - | GREEN phase |
-| 2.9 | [ ] | Update PodManager.createPod for new PodCreateParams | 1 | createPod reads `agentInstance` from params, passes to AgentPod constructor | - | |
-| 2.10 | [ ] | Update AgentPod.resumeWithAnswer to use instance.run() | 1 | Resume delegates to `agentInstance.run()` with continuation prompt | - | |
-| 2.11 | [ ] | Refactor and verify all Phase 2 tests pass together | 1 | `pnpm vitest run test/unit/features/030-orchestration/` passes | - | REFACTOR phase |
+| 2.1 | [x] | Write ODS unit tests: `getNew` path (source='new') | 2 | Tests verify: ODS calls `agentManager.getNew(params)` with correct name, type, workspace, metadata when context is 'new' | [📋](tasks/phase-2-ods-and-agentpod-rewiring-with-tdd/execution.log.md) | RED phase [^5] |
+| 2.2 | [x] | Write ODS unit tests: `getWithSessionId` path (source='inherit') | 2 | Tests verify: ODS calls `getWithSessionId(sessionId, params)` when inheriting and session exists | [📋](tasks/phase-2-ods-and-agentpod-rewiring-with-tdd/execution.log.md) | RED phase [^5] |
+| 2.3 | [x] | Write ODS unit tests: inherit fallback to `getNew` | 1 | Tests verify: ODS calls `getNew` when inheriting but source node has no session | [📋](tasks/phase-2-ods-and-agentpod-rewiring-with-tdd/execution.log.md) | RED phase [^5] |
+| 2.4 | [x] | Write ODS unit tests: agent type resolution | 2 | Tests verify: type from `reality.settings.agentType`, fallback to `'copilot'` | [📋](tasks/phase-2-ods-and-agentpod-rewiring-with-tdd/execution.log.md) | RED phase [^5] |
+| 2.5 | [x] | Rewire ODS.handleAgentOrCode() to use `agentManager` | 3 | All tests from 2.1-2.4 pass. ODS creates instances via manager, passes to createPod | [📋](tasks/phase-2-ods-and-agentpod-rewiring-with-tdd/execution.log.md) | GREEN phase [^6] |
+| 2.6 | [x] | Write AgentPod unit tests: constructor, delegation, sessionId | 2 | Tests verify: wraps IAgentInstance, delegates run/terminate, reads sessionId from instance | [📋](tasks/phase-2-ods-and-agentpod-rewiring-with-tdd/execution.log.md) | RED phase [^8] |
+| 2.7 | [x] | Write AgentPod unit tests: no contextSessionId in execute | 1 | Tests verify: execute() does not pass contextSessionId; session comes from instance | [📋](tasks/phase-2-ods-and-agentpod-rewiring-with-tdd/execution.log.md) | RED phase [^8] |
+| 2.8 | [x] | Rewire AgentPod to wrap IAgentInstance | 2 | All tests from 2.6-2.7 pass. Constructor accepts `(nodeId, agentInstance, unitSlug)` | [📋](tasks/phase-2-ods-and-agentpod-rewiring-with-tdd/execution.log.md) | GREEN phase [^8] |
+| 2.9 | [x] | Update PodManager.createPod for new PodCreateParams | 1 | createPod reads `agentInstance` from params, passes to AgentPod constructor | [📋](tasks/phase-2-ods-and-agentpod-rewiring-with-tdd/execution.log.md) | [^8] |
+| 2.10 | [x] | Update AgentPod.resumeWithAnswer to use instance.run() | 1 | Resume delegates to `agentInstance.run()` with continuation prompt | [📋](tasks/phase-2-ods-and-agentpod-rewiring-with-tdd/execution.log.md) | [^8] |
+| 2.11 | [x] | Refactor and verify all Phase 2 tests pass together | 1 | `pnpm vitest run test/unit/features/030-orchestration/` passes | [📋](tasks/phase-2-ods-and-agentpod-rewiring-with-tdd/execution.log.md) | REFACTOR phase |
 
 ### Acceptance Criteria
-- [ ] ODS creates agents through AgentManagerService (getNew/getWithSessionId)
-- [ ] ODS resolves agent type from graph settings with fallback
-- [ ] AgentPod wraps IAgentInstance — no internal `_sessionId`
-- [ ] PodCreateParams agent variant uses `agentInstance`
-- [ ] All new unit tests pass
-- [ ] Fakes only — no mocks
+- [x] ODS creates agents through AgentManagerService (getNew/getWithSessionId)
+- [x] ODS resolves agent type from graph settings with fallback
+- [x] AgentPod wraps IAgentInstance — no internal `_sessionId`
+- [x] PodCreateParams agent variant uses `agentInstance`
+- [x] All new unit tests pass
+- [x] Fakes only — no mocks
 
 ---
 
@@ -412,7 +412,7 @@ Acceptance Criteria: [measurable assertions]
 ## Phase Completion Checklist
 
 - [x] Phase 1: Types, Interfaces, and Schema Changes — COMPLETE
-- [ ] Phase 2: ODS and AgentPod Rewiring with TDD
+- [x] Phase 2: ODS and AgentPod Rewiring with TDD — COMPLETE
 - [ ] Phase 3: DI Container and Existing Test Updates
 - [ ] Phase 4: Real Agent Wiring Integration Tests
 
@@ -439,3 +439,19 @@ This plan must be validated before creating tasks. After review:
 [^4]: Phase 1 Tasks 1.6 + T006 — Reality type + DI token
   - `file:packages/positional-graph/src/features/030-orchestration/reality.types.ts`
   - `file:packages/shared/src/di-tokens.ts`
+
+[^5]: Phase 2 Tasks 2.1-2.4 — ODS wiring tests
+  - `file:test/unit/positional-graph/features/030-orchestration/ods-agent-wiring.test.ts`
+
+[^6]: Phase 2 Task 2.5 — ODS rewiring
+  - `file:packages/positional-graph/src/features/030-orchestration/ods.ts`
+  - `file:packages/positional-graph/src/features/030-orchestration/ods.types.ts`
+
+[^7]: Phase 2 Task T006 — Reality builder settings
+  - `file:packages/positional-graph/src/features/030-orchestration/reality.builder.ts`
+  - `file:packages/positional-graph/src/features/030-orchestration/graph-orchestration.ts`
+
+[^8]: Phase 2 Tasks 2.6-2.10 — AgentPod TDD + PodManager
+  - `file:test/unit/positional-graph/features/030-orchestration/pod-agent-wiring.test.ts`
+  - `file:packages/positional-graph/src/features/030-orchestration/pod.agent.ts`
+  - `file:packages/positional-graph/src/features/030-orchestration/pod-manager.ts`
