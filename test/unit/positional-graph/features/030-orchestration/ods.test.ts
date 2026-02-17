@@ -10,7 +10,7 @@ Test Doc:
 
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import type { IAgentAdapter } from '@chainglass/shared';
+import { FakeAgentManagerService } from '@chainglass/shared';
 import type { WorkspaceContext } from '@chainglass/workflow';
 
 import { FakeAgentContextService } from '../../../../../packages/positional-graph/src/features/030-orchestration/fake-agent-context.js';
@@ -63,18 +63,6 @@ function makeGraphServiceStub(
   } as unknown as IPositionalGraphService;
 }
 
-/** Stub IAgentAdapter for pod creation params. */
-const stubAdapter: IAgentAdapter = {
-  run: async () => ({
-    output: '',
-    sessionId: 's1',
-    status: 'complete',
-    exitCode: 0,
-    tokens: { input: 0, output: 0, cacheRead: 0 },
-  }),
-  terminate: async () => {},
-} as IAgentAdapter;
-
 /** Stub IScriptRunner for pod creation params. */
 const stubRunner = {
   run: async () => ({ exitCode: 0, stdout: '', stderr: '', outputs: {} }),
@@ -98,7 +86,7 @@ describe('ODS — start-node handler', () => {
       graphService: makeGraphServiceStub(),
       podManager,
       contextService,
-      agentAdapter: stubAdapter,
+      agentManager: new FakeAgentManagerService(),
       scriptRunner: stubRunner,
     };
   });
@@ -267,7 +255,7 @@ describe('ODS — dispatch table', () => {
       graphService: makeGraphServiceStub(),
       podManager: new FakePodManager(),
       contextService: new FakeAgentContextService(),
-      agentAdapter: stubAdapter,
+      agentManager: new FakeAgentManagerService(),
       scriptRunner: stubRunner,
     };
   });
@@ -338,7 +326,7 @@ describe('ODS — input wiring (AC-14)', () => {
       graphService: makeGraphServiceStub(),
       podManager,
       contextService: new FakeAgentContextService(),
-      agentAdapter: stubAdapter,
+      agentManager: new FakeAgentManagerService(),
       scriptRunner: stubRunner,
     };
   });

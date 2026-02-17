@@ -2,7 +2,7 @@
 Test Doc:
 - Why: Verify registerOrchestrationServices() wires all deps correctly via DI (AC-10)
 - Contract: Container resolves IOrchestrationService; .get(ctx, slug) returns a handle; handle has correct graphSlug
-- Usage Notes: Prerequisite tokens (graphService, agentAdapter, scriptRunner, eventHandlerService, filesystem) must be registered before calling registerOrchestrationServices()
+- Usage Notes: Prerequisite tokens (graphService, agentManager, scriptRunner, eventHandlerService, filesystem) must be registered before calling registerOrchestrationServices()
 - Quality Contribution: Proves DI wiring is correct — the factory resolves all internal collaborators (ONBAS, ODS, PodManager, AgentContextService) without exposing them as tokens
 - Worked Example: container.resolve(ORCHESTRATION_SERVICE) → service; service.get(ctx, 'my-graph') → handle; handle.graphSlug === 'my-graph'
 */
@@ -16,7 +16,7 @@ import {
   registerPositionalGraphServices,
 } from '@chainglass/positional-graph';
 import {
-  FakeAgentAdapter,
+  FakeAgentManagerService,
   FakeFileSystem,
   FakePathResolver,
   ORCHESTRATION_DI_TOKENS,
@@ -71,8 +71,8 @@ describe('Orchestration DI container', () => {
     });
 
     // Register orchestration prerequisite tokens
-    childContainer.register(ORCHESTRATION_DI_TOKENS.AGENT_ADAPTER, {
-      useValue: new FakeAgentAdapter(),
+    childContainer.register(ORCHESTRATION_DI_TOKENS.AGENT_MANAGER, {
+      useValue: new FakeAgentManagerService(),
     });
     childContainer.register(ORCHESTRATION_DI_TOKENS.SCRIPT_RUNNER, {
       useValue: new FakeScriptRunner(),

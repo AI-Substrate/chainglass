@@ -1,24 +1,24 @@
 /**
  * Test Doc:
  * - Why: Pods are the execution containers that bridge work unit definitions
- *   with agent/code adapters. Incorrect pod behavior breaks agent execution,
- *   session tracking, and question/answer flows.
- * - Contract: AgentPod wraps IAgentAdapter.run() — maps AgentResult to
- *   PodExecuteResult (4 outcomes), owns mutable sessionId, reads
- *   node-starter-prompt.md. CodePod wraps IScriptRunner — no sessions,
- *   no question support. Both return PodExecuteResult.
- * - Usage Notes: Use FakeAgentAdapter (from @chainglass/shared) and
+ *   with agent instances and code runners. Incorrect pod behavior breaks agent
+ *   execution, session tracking, and question/answer flows.
+ * - Contract: AgentPod wraps IAgentInstance — delegates run/terminate,
+ *   reads sessionId from instance (not internal tracking), maps AgentResult
+ *   to PodExecuteResult (4 outcomes). CodePod wraps IScriptRunner — no
+ *   sessions, no question support. Both return PodExecuteResult.
+ * - Usage Notes: Use FakeAgentInstance (from @chainglass/shared) and
  *   FakeScriptRunner for deterministic testing. AgentPod requires
  *   node-starter-prompt.md in the feature folder.
- * - Quality Contribution: Catches regressions in adapter delegation,
- *   session tracking (DYK-P4#2), prompt loading (DYK-P4#1), and
+ * - Quality Contribution: Catches regressions in instance delegation,
+ *   session tracking (via instance), prompt loading (DYK-P4#1), and
  *   result mapping.
- * - Worked Example: AgentPod.execute() with FakeAgentAdapter returning
+ * - Worked Example: AgentPod.execute() with FakeAgentInstance returning
  *   { status: 'completed', sessionId: 'sess-1' } → PodExecuteResult
  *   { outcome: 'completed', sessionId: 'sess-1' }
  */
 
-import { FakeAgentAdapter } from '@chainglass/shared';
+import { FakeAgentInstance } from '@chainglass/shared';
 import { describe, expect, it } from 'vitest';
 // T003/T005 RED: These imports will fail until T004/T006 create the modules
 import { AgentPod } from '../../../../../packages/positional-graph/src/features/030-orchestration/pod.agent.js';
@@ -39,6 +39,32 @@ function makeOptions(overrides: Partial<PodExecuteOptions> = {}): PodExecuteOpti
   };
 }
 
+function makeFakeInstance(runResult?: {
+  status?: 'completed' | 'failed' | 'killed';
+  sessionId?: string;
+  output?: string;
+  exitCode?: number;
+  stderr?: string;
+}): FakeAgentInstance {
+  const instance = new FakeAgentInstance({
+    id: 'inst-test',
+    name: 'test-unit',
+    type: 'copilot',
+    workspace: '/workspace',
+  });
+  if (runResult) {
+    instance.setNextRunResult({
+      status: runResult.status ?? 'completed',
+      sessionId: runResult.sessionId ?? 'sess-default',
+      output: runResult.output ?? '',
+      exitCode: runResult.exitCode ?? 0,
+      tokens: { input: 0, output: 0, cacheRead: 0 },
+      stderr: runResult.stderr,
+    });
+  }
+  return instance;
+}
+
 // ============================================
 // T003: AgentPod Tests (RED)
 // ============================================
@@ -46,12 +72,8 @@ function makeOptions(overrides: Partial<PodExecuteOptions> = {}): PodExecuteOpti
 describe('AgentPod', () => {
   describe('execute()', () => {
     it('successful completion returns completed + sessionId', async () => {
-      const adapter = new FakeAgentAdapter({
-        status: 'completed',
-        sessionId: 'sess-1',
-        output: 'done',
-      });
-      const pod = new AgentPod('node-1', adapter);
+      const instance = makeFakeInstance({ status: 'completed', sessionId: 'sess-1', output: 'done' });
+      const pod = new AgentPod('node-1', instance, 'test-unit');
 
       const result = await pod.execute(makeOptions());
 
@@ -60,13 +82,8 @@ describe('AgentPod', () => {
     });
 
     it('failed status maps to error outcome', async () => {
-      const adapter = new FakeAgentAdapter({
-        status: 'failed',
-        exitCode: 1,
-        stderr: 'something broke',
-        sessionId: 'sess-err',
-      });
-      const pod = new AgentPod('node-1', adapter);
+      const instance = makeFakeInstance({ status: 'failed', exitCode: 1, stderr: 'something broke', sessionId: 'sess-err' });
+      const pod = new AgentPod('node-1', instance, 'test-unit');
 
       const result = await pod.execute(makeOptions());
 
@@ -77,11 +94,8 @@ describe('AgentPod', () => {
     });
 
     it('killed status maps to terminated outcome', async () => {
-      const adapter = new FakeAgentAdapter({
-        status: 'killed',
-        sessionId: 'sess-kill',
-      });
-      const pod = new AgentPod('node-1', adapter);
+      const instance = makeFakeInstance({ status: 'killed', sessionId: 'sess-kill' });
+      const pod = new AgentPod('node-1', instance, 'test-unit');
 
       const result = await pod.execute(makeOptions());
 
@@ -89,12 +103,9 @@ describe('AgentPod', () => {
       expect(result.sessionId).toBe('sess-kill');
     });
 
-    it('captures sessionId from adapter result', async () => {
-      const adapter = new FakeAgentAdapter({
-        status: 'completed',
-        sessionId: 'sess-captured',
-      });
-      const pod = new AgentPod('node-1', adapter);
+    it('sessionId reads from instance after execute', async () => {
+      const instance = makeFakeInstance({ status: 'completed', sessionId: 'sess-captured' });
+      const pod = new AgentPod('node-1', instance, 'test-unit');
 
       expect(pod.sessionId).toBeUndefined();
 
@@ -103,90 +114,84 @@ describe('AgentPod', () => {
       expect(pod.sessionId).toBe('sess-captured');
     });
 
-    it('passes contextSessionId to adapter', async () => {
-      const adapter = new FakeAgentAdapter({
-        status: 'completed',
-        sessionId: 'sess-new',
-      });
-      const pod = new AgentPod('node-1', adapter);
-
-      await pod.execute(makeOptions({ contextSessionId: 'sess-from-prev' }));
-
-      const history = adapter.getRunHistory();
-      expect(history).toHaveLength(1);
-      expect(history[0].sessionId).toBe('sess-from-prev');
-    });
-
-    it('passes prompt content to adapter', async () => {
-      const adapter = new FakeAgentAdapter({
-        status: 'completed',
-        sessionId: 'sess-1',
-      });
-      const pod = new AgentPod('node-1', adapter);
+    it('does not pass sessionId in run options (session baked into instance)', async () => {
+      const instance = makeFakeInstance({ status: 'completed', sessionId: 'sess-new' });
+      const pod = new AgentPod('node-1', instance, 'test-unit');
 
       await pod.execute(makeOptions());
 
-      const history = adapter.getRunHistory();
+      const history = instance.getRunHistory();
       expect(history).toHaveLength(1);
-      // AgentPod should pass some prompt content (from node-starter-prompt.md)
+      expect(history[0]).not.toHaveProperty('sessionId');
+    });
+
+    it('passes prompt content to instance', async () => {
+      const instance = makeFakeInstance({ status: 'completed', sessionId: 'sess-1' });
+      const pod = new AgentPod('node-1', instance, 'test-unit');
+
+      await pod.execute(makeOptions());
+
+      const history = instance.getRunHistory();
+      expect(history).toHaveLength(1);
       expect(history[0].prompt).toBeDefined();
       expect(history[0].prompt.length).toBeGreaterThan(0);
     });
 
-    it('adapter exception returns error outcome', async () => {
-      const adapter = new FakeAgentAdapter({ status: 'completed' });
-      // Override run to throw
-      adapter.run = async () => {
-        throw new Error('adapter crashed');
+    it('instance exception returns error outcome', async () => {
+      const instance = makeFakeInstance({ status: 'completed' });
+      instance.run = async () => {
+        throw new Error('instance crashed');
       };
-      const pod = new AgentPod('node-1', adapter);
+      const pod = new AgentPod('node-1', instance, 'test-unit');
 
       const result = await pod.execute(makeOptions());
 
       expect(result.outcome).toBe('error');
       expect(result.error).toBeDefined();
       expect(result.error?.code).toBe('POD_AGENT_EXECUTION_ERROR');
-      expect(result.error?.message).toContain('adapter crashed');
+      expect(result.error?.message).toContain('instance crashed');
     });
 
-    it('passes cwd from ctx.worktreePath to adapter', async () => {
-      const adapter = new FakeAgentAdapter({
-        status: 'completed',
-        sessionId: 'sess-1',
-      });
-      const pod = new AgentPod('node-1', adapter);
+    it('passes cwd from ctx.worktreePath to instance', async () => {
+      const instance = makeFakeInstance({ status: 'completed', sessionId: 'sess-1' });
+      const pod = new AgentPod('node-1', instance, 'test-unit');
 
       await pod.execute(makeOptions({ ctx: { worktreePath: '/my/workspace' } }));
 
-      const history = adapter.getRunHistory();
+      const history = instance.getRunHistory();
       expect(history[0].cwd).toBe('/my/workspace');
     });
   });
 
   describe('resumeWithAnswer()', () => {
-    it('formats answer and calls adapter with existing session', async () => {
-      const adapter = new FakeAgentAdapter({
-        status: 'completed',
-        sessionId: 'sess-resume',
-      });
-      const pod = new AgentPod('node-1', adapter);
+    it('formats answer and calls instance with resume prompt', async () => {
+      const instance = makeFakeInstance({ status: 'completed', sessionId: 'sess-resume' });
+      const pod = new AgentPod('node-1', instance, 'test-unit');
 
       // First execute to establish session
       await pod.execute(makeOptions());
-      adapter.reset();
+
+      // Set up next run result (don't reset — preserve sessionId)
+      instance.setNextRunResult({
+        status: 'completed',
+        sessionId: 'sess-resume',
+        output: '',
+        exitCode: 0,
+        tokens: { input: 0, output: 0, cacheRead: 0 },
+      });
 
       const result = await pod.resumeWithAnswer('q-1', 'Yes', makeOptions());
 
       expect(result.outcome).toBe('completed');
-      const history = adapter.getRunHistory();
-      expect(history).toHaveLength(1);
-      expect(history[0].sessionId).toBe('sess-resume');
-      expect(history[0].prompt).toContain('Yes');
+      const history = instance.getRunHistory();
+      expect(history.length).toBeGreaterThanOrEqual(2);
+      const lastRun = history[history.length - 1];
+      expect(lastRun.prompt).toContain('Yes');
     });
 
     it('no session returns error', async () => {
-      const adapter = new FakeAgentAdapter({ status: 'completed' });
-      const pod = new AgentPod('node-1', adapter);
+      const instance = makeFakeInstance();
+      const pod = new AgentPod('node-1', instance, 'test-unit');
       // Do NOT execute first — no sessionId
 
       const result = await pod.resumeWithAnswer('q-1', 'answer', makeOptions());
@@ -197,38 +202,33 @@ describe('AgentPod', () => {
   });
 
   describe('terminate()', () => {
-    it('calls adapter.terminate() with sessionId', async () => {
-      const adapter = new FakeAgentAdapter({
-        status: 'completed',
-        sessionId: 'sess-term',
-      });
-      const pod = new AgentPod('node-1', adapter);
+    it('calls instance.terminate() when session exists', async () => {
+      const instance = makeFakeInstance({ status: 'completed', sessionId: 'sess-term' });
+      const pod = new AgentPod('node-1', instance, 'test-unit');
 
       // Establish session
       await pod.execute(makeOptions());
 
       await pod.terminate();
 
-      const terminateHistory = adapter.getTerminateHistory();
-      expect(terminateHistory).toHaveLength(1);
-      expect(terminateHistory[0]).toBe('sess-term');
+      expect(instance.getTerminateCount()).toBe(1);
     });
 
     it('does nothing if no session', async () => {
-      const adapter = new FakeAgentAdapter({ status: 'completed' });
-      const pod = new AgentPod('node-1', adapter);
+      const instance = makeFakeInstance();
+      const pod = new AgentPod('node-1', instance, 'test-unit');
 
       // Should not throw
       await pod.terminate();
 
-      expect(adapter.getTerminateHistory()).toHaveLength(0);
+      expect(instance.getTerminateCount()).toBe(0);
     });
   });
 
   describe('properties', () => {
     it('has correct nodeId and unitType', () => {
-      const adapter = new FakeAgentAdapter({ status: 'completed' });
-      const pod = new AgentPod('my-node', adapter);
+      const instance = makeFakeInstance();
+      const pod = new AgentPod('my-node', instance, 'test-unit');
 
       expect(pod.nodeId).toBe('my-node');
       expect(pod.unitType).toBe('agent');

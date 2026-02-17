@@ -92,9 +92,9 @@ describe('Properties and Orchestrator Settings', () => {
       expect(result.autoStartLine).toBe(true);
     });
 
-    it('GraphOrchestratorSettingsSchema is empty', () => {
+    it('GraphOrchestratorSettingsSchema has default agentType', () => {
       const result = GraphOrchestratorSettingsSchema.parse({});
-      expect(result).toEqual({});
+      expect(result).toEqual({ agentType: 'copilot' });
     });
   });
 

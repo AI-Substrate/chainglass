@@ -17,7 +17,7 @@
  *   contain 'node-1' → 'sess-1'.
  */
 
-import { FakeAgentAdapter, FakeFileSystem } from '@chainglass/shared';
+import { FakeAgentInstance, FakeFileSystem } from '@chainglass/shared';
 import { beforeEach, describe, expect, it } from 'vitest';
 // T007/T009 RED: These imports will fail until T008/T010 create the modules
 import { FakePodManager } from '../../../../../packages/positional-graph/src/features/030-orchestration/fake-pod-manager.js';
@@ -32,11 +32,16 @@ import { FakeScriptRunner } from '../../../../../packages/positional-graph/src/f
 // Shared Fixtures
 // ============================================
 
-function makeAgentParams(adapter?: FakeAgentAdapter): PodCreateParams {
+function makeAgentParams(): PodCreateParams {
   return {
     unitType: 'agent',
     unitSlug: 'test-agent',
-    adapter: adapter ?? new FakeAgentAdapter({ status: 'completed', sessionId: 'sess-1' }),
+    agentInstance: new FakeAgentInstance({
+      id: 'inst-test',
+      name: 'test-agent',
+      type: 'copilot',
+      workspace: '/workspace',
+    }),
   };
 }
 

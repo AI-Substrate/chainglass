@@ -24,7 +24,7 @@ import * as path from 'node:path';
 
 import type { IPositionalGraphService } from '@chainglass/positional-graph/interfaces';
 import type { State } from '@chainglass/positional-graph/schemas';
-import { FakeAgentAdapter, NodeFileSystemAdapter } from '@chainglass/shared';
+import { FakeAgentManagerService, NodeFileSystemAdapter } from '@chainglass/shared';
 
 import {
   AgentContextService,
@@ -94,13 +94,13 @@ function createOrchestrationStack(
   const onbas = new ONBAS();
   const contextService = new AgentContextService();
   const podManager = new PodManager(nodeFs);
-  const agentAdapter = new FakeAgentAdapter();
+  const agentManager = new FakeAgentManagerService();
   const scriptRunner = new FakeScriptRunner();
   const ods = new ODS({
     graphService: service,
     podManager,
     contextService,
-    agentAdapter,
+    agentManager,
     scriptRunner,
   });
 
@@ -111,7 +111,7 @@ function createOrchestrationStack(
     eventHandlerService,
   });
 
-  return { orchestrationService, eventHandlerService, agentAdapter, scriptRunner, podManager };
+  return { orchestrationService, eventHandlerService, agentManager, scriptRunner, podManager };
 }
 
 // ============================================
@@ -1104,12 +1104,12 @@ async function main(): Promise<void> {
   console.log('  AC-4:  Pure/synchronous ONBAS (real ONBAS in all ACTs)');
   console.log('  AC-5:  Context inheritance (ACT 2 serial chain)');
   console.log('  AC-6:  ODS handles all types (user-input ACT 1, agent ACTs 2-7, code ACT 5)');
-  console.log('  AC-7:  Pod lifecycle (FakeAgentAdapter ACTs 2-7, FakeScriptRunner ACT 5)');
+  console.log('  AC-7:  Pod lifecycle (FakeAgentManagerService ACTs 2-7, FakeScriptRunner ACT 5)');
   console.log('  AC-8:  Session restart resilience — DEFERRED (unit-level scope)');
   console.log('  AC-9:  Question lifecycle (ACT 4 ask->answer->restart->re-start)');
   console.log('  AC-10: Two-level entry point (svc.get() -> handle.run() ACT 0)');
   console.log('  AC-11: In-process loop (all handle.run() calls)');
-  console.log('  AC-12: E2E without real agents (8 nodes, FakeAgentAdapter+FakeScriptRunner)');
+  console.log('  AC-12: E2E without real agents (8 nodes, FakeAgentManagerService+FakeScriptRunner)');
   console.log('  AC-13: Deterministic tests (real PodManager + fake adapters)');
   console.log('  AC-14: Input wiring (7 connections wired ACT 0, data flows ACTs 2+)\n');
 }

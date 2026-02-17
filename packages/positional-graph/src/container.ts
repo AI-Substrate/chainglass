@@ -1,5 +1,5 @@
 import {
-  type IAgentAdapter,
+  type IAgentManagerService,
   type IFileSystem,
   type IPathResolver,
   type IYamlParser,
@@ -88,7 +88,7 @@ export function registerPositionalGraphServices(container: DependencyContainer):
  *
  * Prerequisite tokens (must be registered before calling):
  * - POSITIONAL_GRAPH_DI_TOKENS.POSITIONAL_GRAPH_SERVICE (IPositionalGraphService)
- * - ORCHESTRATION_DI_TOKENS.AGENT_ADAPTER (IAgentAdapter)
+ * - ORCHESTRATION_DI_TOKENS.AGENT_MANAGER (IAgentManagerService)
  * - ORCHESTRATION_DI_TOKENS.SCRIPT_RUNNER (IScriptRunner)
  * - ORCHESTRATION_DI_TOKENS.EVENT_HANDLER_SERVICE (IEventHandlerService)
  * - SHARED_DI_TOKENS.FILESYSTEM (IFileSystem)
@@ -99,7 +99,7 @@ export function registerOrchestrationServices(container: DependencyContainer): v
       const graphService = c.resolve<IPositionalGraphService>(
         POSITIONAL_GRAPH_DI_TOKENS.POSITIONAL_GRAPH_SERVICE
       );
-      const agentAdapter = c.resolve<IAgentAdapter>(ORCHESTRATION_DI_TOKENS.AGENT_ADAPTER);
+      const agentManager = c.resolve<IAgentManagerService>(ORCHESTRATION_DI_TOKENS.AGENT_MANAGER);
       const scriptRunner = c.resolve<IScriptRunner>(ORCHESTRATION_DI_TOKENS.SCRIPT_RUNNER);
       const eventHandlerService = c.resolve<IEventHandlerService>(
         ORCHESTRATION_DI_TOKENS.EVENT_HANDLER_SERVICE
@@ -109,7 +109,7 @@ export function registerOrchestrationServices(container: DependencyContainer): v
       const onbas = new ONBAS();
       const contextService = new AgentContextService();
       const podManager = new PodManager(fs);
-      const ods = new ODS({ graphService, podManager, contextService, agentAdapter, scriptRunner });
+      const ods = new ODS({ graphService, podManager, contextService, agentManager, scriptRunner });
 
       return new OrchestrationService({ graphService, onbas, ods, eventHandlerService });
     },
