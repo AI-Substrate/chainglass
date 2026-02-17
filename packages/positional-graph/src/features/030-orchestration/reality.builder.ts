@@ -9,6 +9,7 @@
 
 import type { GraphStatusResult } from '../../interfaces/positional-graph-service.interface.js';
 import type { State } from '../../schemas/state.schema.js';
+import type { GraphOrchestratorSettings } from '../../schemas/orchestrator-settings.schema.js';
 import type {
   LineReality,
   NodeReality,
@@ -21,10 +22,11 @@ export interface BuildRealityOptions {
   state: State;
   podSessions?: Map<string, string>;
   snapshotAt?: string;
+  settings?: GraphOrchestratorSettings;
 }
 
 export function buildPositionalGraphReality(options: BuildRealityOptions): PositionalGraphReality {
-  const { statusResult, state, podSessions = new Map(), snapshotAt } = options;
+  const { statusResult, state, podSessions = new Map(), snapshotAt, settings } = options;
   const now = snapshotAt ?? new Date().toISOString();
 
   // Build lines
@@ -107,6 +109,7 @@ export function buildPositionalGraphReality(options: BuildRealityOptions): Posit
     version: statusResult.version,
     snapshotAt: now,
     graphStatus: statusResult.status,
+    settings,
     lines,
     nodes,
     questions,

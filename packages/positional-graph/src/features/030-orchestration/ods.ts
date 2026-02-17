@@ -108,20 +108,12 @@ export class ODS implements IODS {
       };
     }
 
-    // 2. Resolve context (agents only — code pods don't have sessions)
-    let contextSessionId: string | undefined;
-    const contextResult = this.deps.contextService.getContextSource(reality, nodeId);
-    if (contextResult.source === 'inherit') {
-      contextSessionId = this.deps.podManager.getSessionId(contextResult.fromNodeId);
-    }
+    // 2. Create pod (agent nodes go through manager, code nodes use runner directly)
+    const pod = this.deps.podManager.createPod(nodeId, this.buildPodParams(node, ctx, reality));
 
-    // 3. Create pod
-    const pod = this.deps.podManager.createPod(nodeId, this.buildPodParams(node));
-
-    // 4. Fire and forget — DO NOT await
+    // 3. Fire and forget — DO NOT await
     pod.execute({
       inputs: request.inputs,
-      contextSessionId,
       ctx: { worktreePath: ctx.worktreePath },
       graphSlug: request.graphSlug,
     });
@@ -129,12 +121,35 @@ export class ODS implements IODS {
     return { ok: true, request, newStatus: 'starting', sessionId: pod.sessionId };
   }
 
-  private buildPodParams(node: NodeReality) {
+  private buildPodParams(node: NodeReality, ctx: WorkspaceContext, reality: PositionalGraphReality) {
     if (node.unitType === 'agent') {
+      const agentType = reality.settings?.agentType ?? 'copilot';
+      const contextResult = this.deps.contextService.getContextSource(reality, node.nodeId);
+
+      let agentInstance;
+      if (contextResult.source === 'inherit') {
+        const sessionId = this.deps.podManager.getSessionId(contextResult.fromNodeId);
+        if (sessionId) {
+          agentInstance = this.deps.agentManager.getWithSessionId(sessionId, {
+            name: node.unitSlug,
+            type: agentType,
+            workspace: ctx.worktreePath,
+          });
+        }
+      }
+
+      if (!agentInstance) {
+        agentInstance = this.deps.agentManager.getNew({
+          name: node.unitSlug,
+          type: agentType,
+          workspace: ctx.worktreePath,
+        });
+      }
+
       return {
         unitType: 'agent' as const,
         unitSlug: node.unitSlug,
-        adapter: this.deps.agentAdapter,
+        agentInstance,
       };
     }
     return {

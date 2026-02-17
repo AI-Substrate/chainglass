@@ -45,7 +45,7 @@ export interface IODS {
  * - graphService: startNode() to reserve the node (pending → starting)
  * - podManager: createPod() to create execution container
  * - contextService: getContextSource() for session inheritance
- * - agentAdapter: passed to podManager.createPod() for agent-type nodes
+ * - agentManager: creates agent instances for agent-type nodes
  * - scriptRunner: passed to podManager.createPod() for code-type nodes
  */
 export interface ODSDependencies {

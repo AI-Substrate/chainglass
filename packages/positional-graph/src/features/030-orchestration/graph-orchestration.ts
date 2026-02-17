@@ -127,11 +127,16 @@ export class GraphOrchestration implements IGraphOrchestration {
   }
 
   private async buildReality(): Promise<PositionalGraphReality> {
-    const [statusResult, state] = await Promise.all([
+    const [statusResult, state, loadResult] = await Promise.all([
       this.graphService.getStatus(this.ctx, this.graphSlug),
       this.graphService.loadGraphState(this.ctx, this.graphSlug),
+      this.graphService.load(this.ctx, this.graphSlug),
     ]);
-    return buildPositionalGraphReality({ statusResult, state });
+    return buildPositionalGraphReality({
+      statusResult,
+      state,
+      settings: loadResult.definition?.orchestratorSettings,
+    });
   }
 
   private mapStopReason(reason: string | undefined): OrchestrationStopReason {
