@@ -131,6 +131,7 @@ async function createRealOrchestrationStack(
     onbas,
     ods,
     eventHandlerService,
+    podManager,
   });
 
   return { orchestrationService, agentManager, podManager, eventHandlerService };

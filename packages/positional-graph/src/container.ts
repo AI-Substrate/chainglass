@@ -111,7 +111,13 @@ export function registerOrchestrationServices(container: DependencyContainer): v
       const podManager = new PodManager(fs);
       const ods = new ODS({ graphService, podManager, contextService, agentManager, scriptRunner });
 
-      return new OrchestrationService({ graphService, onbas, ods, eventHandlerService });
+      return new OrchestrationService({
+        graphService,
+        onbas,
+        ods,
+        eventHandlerService,
+        podManager,
+      });
     },
   });
 }

@@ -109,6 +109,7 @@ function createOrchestrationStack(
     onbas,
     ods,
     eventHandlerService,
+    podManager,
   });
 
   return { orchestrationService, eventHandlerService, agentManager, scriptRunner, podManager };

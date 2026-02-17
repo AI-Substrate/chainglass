@@ -14,6 +14,7 @@ import type { WorkspaceContext } from '@chainglass/workflow';
 
 import { FakeODS } from '../../../../../packages/positional-graph/src/features/030-orchestration/fake-ods.js';
 import { FakeONBAS } from '../../../../../packages/positional-graph/src/features/030-orchestration/fake-onbas.js';
+import { FakePodManager } from '../../../../../packages/positional-graph/src/features/030-orchestration/fake-pod-manager.js';
 import { OrchestrationService } from '../../../../../packages/positional-graph/src/features/030-orchestration/orchestration-service.js';
 import { FakeEventHandlerService } from '../../../../../packages/positional-graph/src/features/032-node-event-system/fake-event-handler-service.js';
 import type { IPositionalGraphService } from '../../../../../packages/positional-graph/src/interfaces/positional-graph-service.interface.js';
@@ -70,6 +71,7 @@ describe('OrchestrationService — get() caching', () => {
       onbas: new FakeONBAS(),
       ods: new FakeODS(),
       eventHandlerService: new FakeEventHandlerService(),
+      podManager: new FakePodManager(),
     });
   });
 

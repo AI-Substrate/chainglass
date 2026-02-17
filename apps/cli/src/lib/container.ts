@@ -7,8 +7,21 @@
  */
 
 import 'reflect-metadata';
-import { FakeWorkUnitService, registerPositionalGraphServices } from '@chainglass/positional-graph';
+import {
+  FakeWorkUnitService,
+  registerOrchestrationServices,
+  registerPositionalGraphServices,
+} from '@chainglass/positional-graph';
 import type { IWorkUnitLoader, IWorkUnitService } from '@chainglass/positional-graph';
+import {
+  EventHandlerService,
+  FakeScriptRunner,
+  NodeEventRegistry,
+  NodeEventService,
+  createEventHandlerRegistry,
+  registerCoreEventTypes,
+} from '@chainglass/positional-graph';
+import type { IEventHandlerService, IScriptRunner } from '@chainglass/positional-graph';
 import {
   type AdapterFactory,
   AgentManagerService,
@@ -31,6 +44,7 @@ import {
   type IProcessManager,
   JsonOutputAdapter,
   NodeFileSystemAdapter,
+  ORCHESTRATION_DI_TOKENS,
   POSITIONAL_GRAPH_DI_TOKENS,
   PathResolverAdapter,
   PinoLoggerAdapter,
@@ -215,6 +229,40 @@ export function createCliProductionContainer(): DependencyContainer {
   childContainer.register<IWorkUnitLoader>(POSITIONAL_GRAPH_DI_TOKENS.WORK_UNIT_LOADER, {
     useFactory: (c) => c.resolve<IWorkUnitLoader>(POSITIONAL_GRAPH_DI_TOKENS.WORKUNIT_SERVICE),
   });
+
+  // Register orchestration prerequisites (Plan 036 Phase 5)
+  // ScriptRunner: no real impl exists yet — use FakeScriptRunner for agent-only graphs
+  // TODO: Replace with real ScriptRunner when code node execution is implemented
+  childContainer.register<IScriptRunner>(ORCHESTRATION_DI_TOKENS.SCRIPT_RUNNER, {
+    useFactory: () => new FakeScriptRunner(),
+  });
+
+  // EventHandlerService: needed by orchestration settle phase (Plan 036)
+  // Note: loadState/persistState on NodeEventService are only used by raise() (agent CLI path).
+  // The orchestrator uses processGraph(state) which operates on state directly.
+  childContainer.register<IEventHandlerService>(ORCHESTRATION_DI_TOKENS.EVENT_HANDLER_SERVICE, {
+    useFactory: () => {
+      const registry = new NodeEventRegistry();
+      registerCoreEventTypes(registry);
+      const handlerRegistry = createEventHandlerRegistry();
+      const nes = new NodeEventService(
+        {
+          registry,
+          loadState: async () => {
+            throw new Error('loadState not available in orchestration context');
+          },
+          persistState: async () => {
+            throw new Error('persistState not available in orchestration context');
+          },
+        },
+        handlerRegistry
+      );
+      return new EventHandlerService(nes);
+    },
+  });
+
+  // Register orchestration services (per ADR-0009 pattern)
+  registerOrchestrationServices(childContainer);
 
   // Register output adapters
   childContainer.register<IOutputAdapter>(CLI_DI_TOKENS.OUTPUT_ADAPTER_JSON, {

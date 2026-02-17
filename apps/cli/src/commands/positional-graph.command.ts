@@ -35,8 +35,10 @@ import {
   isReservedInputParam,
   workunitTypeMismatchError,
 } from '@chainglass/positional-graph';
-import { POSITIONAL_GRAPH_DI_TOKENS } from '@chainglass/shared';
+import type { IOrchestrationService } from '@chainglass/positional-graph';
+import { ORCHESTRATION_DI_TOKENS, POSITIONAL_GRAPH_DI_TOKENS } from '@chainglass/shared';
 import type { Command } from 'commander';
+import { cliDriveGraph } from '../features/036-cli-orchestration-driver/cli-drive-handler.js';
 import { createCliProductionContainer } from '../lib/container.js';
 import {
   createOutputAdapter,
@@ -146,6 +148,15 @@ function getPositionalGraphService(): IPositionalGraphService {
 function getWorkUnitService(): IWorkUnitService {
   const container = createCliProductionContainer();
   return container.resolve<IWorkUnitService>(POSITIONAL_GRAPH_DI_TOKENS.WORKUNIT_SERVICE);
+}
+
+/**
+ * Get the OrchestrationService from DI container.
+ * Per Plan 036 Phase 5: Used by cg wf run command.
+ */
+function getOrchestrationService(): IOrchestrationService {
+  const container = createCliProductionContainer();
+  return container.resolve<IOrchestrationService>(ORCHESTRATION_DI_TOKENS.ORCHESTRATION_SERVICE);
 }
 
 // ============================================
@@ -1741,6 +1752,40 @@ export function registerPositionalGraphCommands(program: Command): void {
           workspacePath: parentOpts.workspacePath,
         });
       })
+    );
+
+  // ==================== Run Command (Plan 036) ====================
+
+  wf.command('run <slug>')
+    .description('Drive a graph to completion (polling loop)')
+    .option('--verbose', 'Show detailed iteration info', false)
+    .option('--max-iterations <n>', 'Maximum drive iterations', '200')
+    .action(
+      wrapAction(
+        async (
+          slug: string,
+          options: { verbose: boolean; maxIterations: string },
+          cmd: Command
+        ) => {
+          const parentOpts = cmd.parent?.opts() ?? {};
+          const ctx = await resolveOrOverrideContext(parentOpts.workspacePath);
+          if (!ctx) {
+            const adapter = createOutputAdapter(parentOpts.json ?? false);
+            console.log(
+              adapter.format('wf.run', { errors: noContextError(parentOpts.workspacePath) })
+            );
+            process.exit(1);
+          }
+
+          const orchestrationService = getOrchestrationService();
+          const handle = await orchestrationService.get(ctx, slug);
+          const exitCode = await cliDriveGraph(handle, {
+            maxIterations: Number.parseInt(options.maxIterations, 10),
+            verbose: options.verbose,
+          });
+          process.exit(exitCode);
+        }
+      )
     );
 
   // ==================== Line Commands ====================

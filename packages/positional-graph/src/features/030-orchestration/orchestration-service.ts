@@ -16,6 +16,7 @@ import { GraphOrchestration } from './graph-orchestration.js';
 import type { IODS } from './ods.types.js';
 import type { IONBAS } from './onbas.types.js';
 import type { IGraphOrchestration, IOrchestrationService } from './orchestration-service.types.js';
+import type { IPodManager } from './pod-manager.types.js';
 
 // ── Constructor dependencies ────────────────────────────
 
@@ -24,6 +25,7 @@ export interface OrchestrationServiceDeps {
   readonly onbas: IONBAS;
   readonly ods: IODS;
   readonly eventHandlerService: IEventHandlerService;
+  readonly podManager: IPodManager;
 }
 
 // ── OrchestrationService ────────────────────────────────
@@ -52,6 +54,7 @@ export class OrchestrationService implements IOrchestrationService {
         onbas: this.deps.onbas,
         ods: this.deps.ods,
         eventHandlerService: this.deps.eventHandlerService,
+        podManager: this.deps.podManager,
       });
       this.handles.set(graphSlug, handle);
     }

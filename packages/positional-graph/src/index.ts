@@ -39,3 +39,16 @@ export type {
 
 // Node event system exports (Plan 032, Phase 6)
 export type { EventSource } from './features/032-node-event-system/index.js';
+export type { IEventHandlerService } from './features/032-node-event-system/index.js';
+export {
+  EventHandlerService,
+  NodeEventService,
+  NodeEventRegistry,
+  FakeNodeEventRegistry,
+  registerCoreEventTypes,
+  createEventHandlerRegistry,
+} from './features/032-node-event-system/index.js';
+
+// Script runner (Plan 030, Phase 4)
+export type { IScriptRunner } from './features/030-orchestration/index.js';
+export { FakeScriptRunner } from './features/030-orchestration/index.js';
