@@ -71,6 +71,7 @@ export class AgentPod implements IWorkUnitPod {
     }
   }
 
+  /** @deprecated Not implemented — Q&A handled by event system (Plan 032). */
   async resumeWithAnswer(
     questionId: string,
     answer: unknown,

@@ -34,6 +34,7 @@ export class ODS implements IODS {
       case 'no-action':
         return { ok: true, request };
 
+      // Not implemented — Q&A handled by event system (Plan 032), not ODS dispatch
       case 'resume-node':
       case 'question-pending':
         return {
