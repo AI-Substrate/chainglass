@@ -318,23 +318,23 @@ Acceptance Criteria: [measurable assertions]
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 3.1 | [ ] | Update `registerOrchestrationServices()` to resolve `AGENT_MANAGER` | 2 | Container resolves `IAgentManagerService` and passes to ODS | - | `packages/positional-graph/src/container.ts` |
-| 3.2 | [ ] | Register `ORCHESTRATION_DI_TOKENS.AGENT_MANAGER` in CLI container | 1 | Same `AgentManagerService` instance for both CLI and orchestration tokens | - | `apps/cli/src/lib/container.ts` |
-| 3.3 | [ ] | Update ODS unit tests for new interface | 2 | All existing ODS tests pass with `FakeAgentManagerService` replacing `FakeAgentAdapter` | - | `test/unit/features/030-orchestration/ods.test.ts` |
-| 3.4 | [ ] | Update AgentPod unit tests for new interface | 2 | All existing pod tests pass with `FakeAgentInstance` replacing `FakeAgentAdapter` | - | `test/unit/features/030-orchestration/pod.test.ts` |
-| 3.5 | [ ] | Update PodManager unit tests for new PodCreateParams | 1 | All existing pod-manager tests pass with `agentInstance` in params | - | `test/unit/features/030-orchestration/pod-manager.test.ts` |
-| 3.6 | [ ] | Update container orchestration unit tests | 1 | DI token resolution tests pass | - | `test/unit/features/030-orchestration/container-orchestration.test.ts` |
-| 3.7 | [ ] | Update Plan 030 E2E script wiring | 1 | `FakeAgentManagerService` replaces `FakeAgentAdapter`. Same 58-step behavior. | - | 4 lines per Workshop 06 |
-| 3.8 | [ ] | Verify E2E before/after equivalence | 1 | E2E script exits 0. Output structure matches pre-change run. | - | |
-| 3.9 | [ ] | Run `just fft` — full test suite passes | 1 | 3858+ tests pass, 0 failures | - | Gate check |
+| 3.1 | [x] | Update `registerOrchestrationServices()` to resolve `AGENT_MANAGER` | 2 | Container resolves `IAgentManagerService` and passes to ODS | [📋](tasks/phase-3-di-container-and-existing-test-updates/execution.log.md) | `packages/positional-graph/src/container.ts` [^9] |
+| 3.2 | [x] | Register `ORCHESTRATION_DI_TOKENS.AGENT_MANAGER` in CLI container | 1 | Same `AgentManagerService` instance for both CLI and orchestration tokens | [📋](tasks/phase-3-di-container-and-existing-test-updates/execution.log.md) | `apps/cli/src/lib/container.ts` [^9] |
+| 3.3 | [x] | Update ODS unit tests for new interface | 2 | All existing ODS tests pass with `FakeAgentManagerService` replacing `FakeAgentAdapter` | [📋](tasks/phase-3-di-container-and-existing-test-updates/execution.log.md) | `test/unit/features/030-orchestration/ods.test.ts` [^10] |
+| 3.4 | [x] | Update AgentPod unit tests for new interface | 2 | All existing pod tests pass with `FakeAgentInstance` replacing `FakeAgentAdapter` | [📋](tasks/phase-3-di-container-and-existing-test-updates/execution.log.md) | `test/unit/features/030-orchestration/pod.test.ts` [^10] |
+| 3.5 | [x] | Update PodManager unit tests for new PodCreateParams | 1 | All existing pod-manager tests pass with `agentInstance` in params | [📋](tasks/phase-3-di-container-and-existing-test-updates/execution.log.md) | `test/unit/features/030-orchestration/pod-manager.test.ts` [^10] |
+| 3.6 | [x] | Update container orchestration unit tests | 1 | DI token resolution tests pass | [📋](tasks/phase-3-di-container-and-existing-test-updates/execution.log.md) | `test/unit/features/030-orchestration/container-orchestration.test.ts` [^10] |
+| 3.7 | [x] | Update Plan 030 E2E script wiring | 1 | `FakeAgentManagerService` replaces `FakeAgentAdapter`. Same 58-step behavior. | [📋](tasks/phase-3-di-container-and-existing-test-updates/execution.log.md) | 4 lines per Workshop 06 [^11] |
+| 3.8 | [x] | Verify E2E before/after equivalence | 1 | E2E script exits 0. Output structure matches pre-change run. | [📋](tasks/phase-3-di-container-and-existing-test-updates/execution.log.md) | [^11] |
+| 3.9 | [x] | Run `just fft` — full test suite passes | 1 | 3858+ tests pass, 0 failures | [📋](tasks/phase-3-di-container-and-existing-test-updates/execution.log.md) | Gate check |
 
 ### Acceptance Criteria
-- [ ] DI container correctly resolves `IAgentManagerService` for orchestration
-- [ ] CLI container shares same instance for both tokens
-- [ ] ALL existing orchestration unit tests pass (unchanged behavior)
-- [ ] Plan 030 E2E passes with new wiring (58 steps, exit 0)
-- [ ] `just fft` passes (3858+ tests)
-- [ ] No `agentAdapter` or `FakeAgentAdapter` references remain in orchestration code or tests (grep verified)
+- [x] DI container correctly resolves `IAgentManagerService` for orchestration
+- [x] CLI container shares same instance for both tokens
+- [x] ALL existing orchestration unit tests pass (unchanged behavior)
+- [x] Plan 030 E2E passes with new wiring (58 steps, exit 0)
+- [x] `just fft` passes (3858+ tests)
+- [x] No `agentAdapter` or `FakeAgentAdapter` references remain in orchestration code or tests (grep verified)
 
 ---
 
@@ -413,7 +413,7 @@ Acceptance Criteria: [measurable assertions]
 
 - [x] Phase 1: Types, Interfaces, and Schema Changes — COMPLETE
 - [x] Phase 2: ODS and AgentPod Rewiring with TDD — COMPLETE
-- [ ] Phase 3: DI Container and Existing Test Updates
+- [x] Phase 3: DI Container and Existing Test Updates — COMPLETE
 - [ ] Phase 4: Real Agent Wiring Integration Tests
 
 ### STOP Rule
@@ -455,3 +455,17 @@ This plan must be validated before creating tasks. After review:
   - `file:test/unit/positional-graph/features/030-orchestration/pod-agent-wiring.test.ts`
   - `file:packages/positional-graph/src/features/030-orchestration/pod.agent.ts`
   - `file:packages/positional-graph/src/features/030-orchestration/pod-manager.ts`
+
+[^9]: Phase 3 Tasks 3.1-3.2 — DI container wiring
+  - `file:packages/positional-graph/src/container.ts`
+
+[^10]: Phase 3 Tasks 3.3-3.6 + T007 — Existing test updates
+  - `file:test/unit/positional-graph/features/030-orchestration/ods.test.ts`
+  - `file:test/unit/positional-graph/features/030-orchestration/pod.test.ts`
+  - `file:test/unit/positional-graph/features/030-orchestration/pod-manager.test.ts`
+  - `file:test/unit/positional-graph/features/030-orchestration/container-orchestration.test.ts`
+  - `file:test/unit/positional-graph/features/030-orchestration/graph-orchestration.test.ts`
+  - `file:test/unit/positional-graph/properties-and-orchestrator.test.ts`
+
+[^11]: Phase 3 Tasks 3.7-3.8 — E2E script wiring
+  - `file:test/e2e/positional-graph-orchestration-e2e.ts`

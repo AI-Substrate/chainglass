@@ -94,24 +94,24 @@ flowchart TD
     classDef blocked fill:#F44336,stroke:#D32F2F,color:#fff
 
     subgraph DI["DI Wiring"]
-        T001["T001: registerOrchestrationServices"]:::pending
-        T002["T002: CLI container alias"]:::pending
+        T001["T001: registerOrchestrationServices ✓"]:::completed
+        T002["T002: CLI container alias ✓"]:::completed
     end
 
     subgraph Tests["Existing Test Updates"]
-        T003["T003: ods.test.ts"]:::pending
-        T004["T004: pod.test.ts"]:::pending
-        T005["T005: pod-manager.test.ts"]:::pending
-        T006["T006: container-orchestration.test.ts"]:::pending
-        T007["T007: properties-orchestrator.test.ts"]:::pending
+        T003["T003: ods.test.ts ✓"]:::completed
+        T004["T004: pod.test.ts ✓"]:::completed
+        T005["T005: pod-manager.test.ts ✓"]:::completed
+        T006["T006: container-orchestration.test.ts ✓"]:::completed
+        T007["T007: properties-orchestrator.test.ts ✓"]:::completed
     end
 
     subgraph E2E["E2E"]
-        T008["T008: E2E script wiring"]:::pending
-        T009["T009: E2E verification"]:::pending
+        T008["T008: E2E script wiring ✓"]:::completed
+        T009["T009: E2E verification ✓"]:::completed
     end
 
-    T010["T010: just fft + grep sweep"]:::pending
+    T010["T010: just fft + grep sweep ✓"]:::completed
 
     T001 --> T006
     T003 --> T010
@@ -127,16 +127,16 @@ flowchart TD
 
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
-| T001 | DI container | container.ts (pkg) | ⬜ Pending | Resolve AGENT_MANAGER for ODS |
-| T002 | CLI container | container.ts (cli) | ⬜ Pending | Register orchestration token alias |
-| T003 | ODS tests | ods.test.ts | ⬜ Pending | Replace stubAdapter → FakeAgentManagerService |
-| T004 | Pod tests | pod.test.ts | ⬜ Pending | Replace FakeAgentAdapter → FakeAgentInstance |
-| T005 | PodManager tests | pod-manager.test.ts | ⬜ Pending | Replace adapter → agentInstance |
-| T006 | Container tests | container-orchestration.test.ts | ⬜ Pending | AGENT_MANAGER token resolution |
-| T007 | Schema tests | properties-and-orchestrator.test.ts | ⬜ Pending | Fix "schema is empty" assertion |
-| T008 | E2E script | positional-graph-orchestration-e2e.ts | ⬜ Pending | 4-line FakeAgentAdapter swap |
-| T009 | E2E verify | E2E script | ⬜ Pending | 58-step pipeline passes |
-| T010 | Full suite | all | ⬜ Pending | just fft + grep sweep |
+| T001 | DI container | container.ts (pkg) | ✅ Complete | Resolve AGENT_MANAGER for ODS |
+| T002 | CLI container | container.ts (cli) | ✅ Complete | Register orchestration token alias |
+| T003 | ODS tests | ods.test.ts | ✅ Complete | Replace stubAdapter → FakeAgentManagerService |
+| T004 | Pod tests | pod.test.ts | ✅ Complete | Replace FakeAgentAdapter → FakeAgentInstance |
+| T005 | PodManager tests | pod-manager.test.ts | ✅ Complete | Replace adapter → agentInstance |
+| T006 | Container tests | container-orchestration.test.ts | ✅ Complete | AGENT_MANAGER token resolution |
+| T007 | Schema tests | properties-and-orchestrator.test.ts | ✅ Complete | Fix "schema is empty" assertion |
+| T008 | E2E script | positional-graph-orchestration-e2e.ts | ✅ Complete | 4-line FakeAgentAdapter swap |
+| T009 | E2E verify | E2E script | ✅ Complete | 58-step pipeline passes |
+| T010 | Full suite | all | ✅ Complete | just fft + grep sweep |
 
 ---
 
@@ -144,16 +144,16 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|------|------|-----|------|------------|-------------------|------------|----------|-------|
-| [ ] | T001 | Update `registerOrchestrationServices()`: resolve `IAgentManagerService` from `ORCHESTRATION_DI_TOKENS.AGENT_MANAGER` instead of `IAgentAdapter` from `AGENT_ADAPTER`. Pass as `agentManager` to ODS constructor. Update import + prerequisite JSDoc. | 2 | Core | – | `/home/jak/substrate/033-real-agent-pods/packages/positional-graph/src/container.ts` | Container compiles. ODS receives `agentManager`. | – | cross-plan-edit. Per ADR-0004, ADR-0009 |
-| [ ] | T002 | Verify `ORCHESTRATION_DI_TOKENS.AGENT_MANAGER` resolves to same instance as `CLI_DI_TOKENS.AGENT_MANAGER` in CLI container — both tokens equal `'IAgentManagerService'`, existing registration covers both. No code change needed. | 1 | Test | T001 | `/home/jak/substrate/033-real-agent-pods/apps/cli/src/lib/container.ts` | Assert both tokens resolve to same `AgentManagerService` instance. | – | No-op per DYK #1 — tokens share string |
-| [ ] | T003 | Update `ods.test.ts`: replace `stubAdapter: IAgentAdapter` with `FakeAgentManagerService`, replace `agentAdapter: stubAdapter` with `agentManager: new FakeAgentManagerService()` in all 3 `beforeEach` blocks. Remove `IAgentAdapter` import, add `FakeAgentManagerService` import. | 2 | Test | – | `/home/jak/substrate/033-real-agent-pods/test/unit/positional-graph/features/030-orchestration/ods.test.ts` | All existing ODS tests pass. | – | cross-plan-edit. Plan 3.3 |
-| [ ] | T004 | Update `pod.test.ts`: replace `FakeAgentAdapter` with `FakeAgentInstance` (11 occurrences). Update `AgentPod` constructor calls to `(nodeId, instance, unitSlug)`. Remove `contextSessionId` from `makeOptions()`. | 2 | Test | – | `/home/jak/substrate/033-real-agent-pods/test/unit/positional-graph/features/030-orchestration/pod.test.ts` | All existing pod tests pass. | – | cross-plan-edit. Plan 3.4 |
-| [ ] | T005 | Update `pod-manager.test.ts`: replace `adapter: new FakeAgentAdapter()` with `agentInstance: new FakeAgentInstance(...)` in `makeAgentParams()`. Update import. | 1 | Test | – | `/home/jak/substrate/033-real-agent-pods/test/unit/positional-graph/features/030-orchestration/pod-manager.test.ts` | All existing pod-manager tests pass. | – | cross-plan-edit. Plan 3.5 |
-| [ ] | T006 | Update `container-orchestration.test.ts`: change `AGENT_ADAPTER` token resolution to `AGENT_MANAGER`. Update any assertions on resolved types. | 1 | Test | T001 | `/home/jak/substrate/033-real-agent-pods/test/unit/positional-graph/features/030-orchestration/container-orchestration.test.ts` | DI resolution tests pass. | – | cross-plan-edit. Plan 3.6 |
-| [ ] | T007 | Fix `properties-and-orchestrator.test.ts`: update "GraphOrchestratorSettingsSchema is empty" assertion. `parse({})` now returns `{ agentType: 'copilot' }` due to `.default('copilot')`. | 1 | Test | – | `/home/jak/substrate/033-real-agent-pods/test/unit/positional-graph/properties-and-orchestrator.test.ts` | Schema test passes. | – | cross-plan-edit. Phase 1 debt |
-| [ ] | T008 | Update E2E script: replace `FakeAgentAdapter` with `FakeAgentManagerService` in `createOrchestrationStack()`. Replace `agentAdapter` in ODS deps with `agentManager`. ~4-line change per Workshop 06. | 1 | Integration | T001 | `/home/jak/substrate/033-real-agent-pods/test/e2e/positional-graph-orchestration-e2e.ts` | E2E script compiles. | – | cross-plan-edit. Plan 3.7, Critical Finding #08 |
-| [ ] | T009 | Verify E2E: run E2E script, confirm 58 steps complete, exit 0. Output structure matches pre-change behavior. | 1 | Integration | T008 | `/home/jak/substrate/033-real-agent-pods/test/e2e/positional-graph-orchestration-e2e.ts` | Exit 0. 58 steps. | – | Plan 3.8 |
-| [ ] | T010 | Run `just fft` — full test suite. Verify 3858+ tests pass, 0 failures. Run `grep -rn 'agentAdapter\|FakeAgentAdapter' test/ packages/positional-graph/src/features/030-orchestration/` — 0 hits in orchestration code/tests. | 1 | Integration | T003-T009 | All | 3858+ pass. grep returns 0. | – | Plan 3.9. Gate check |
+| [x] | T001 | Update `registerOrchestrationServices()`: resolve `IAgentManagerService` from `ORCHESTRATION_DI_TOKENS.AGENT_MANAGER` instead of `IAgentAdapter` from `AGENT_ADAPTER`. Pass as `agentManager` to ODS constructor. Update import + prerequisite JSDoc. | 2 | Core | – | `/home/jak/substrate/033-real-agent-pods/packages/positional-graph/src/container.ts` | Container compiles. ODS receives `agentManager`. | – | cross-plan-edit. Per ADR-0004, ADR-0009 [^9] |
+| [x] | T002 | Verify `ORCHESTRATION_DI_TOKENS.AGENT_MANAGER` resolves to same instance as `CLI_DI_TOKENS.AGENT_MANAGER` in CLI container — both tokens equal `'IAgentManagerService'`, existing registration covers both. No code change needed. | 1 | Test | T001 | `/home/jak/substrate/033-real-agent-pods/apps/cli/src/lib/container.ts` | Assert both tokens resolve to same `AgentManagerService` instance. | – | No-op per DYK #1 — tokens share string [^9] |
+| [x] | T003 | Update `ods.test.ts`: replace `stubAdapter: IAgentAdapter` with `FakeAgentManagerService`, replace `agentAdapter: stubAdapter` with `agentManager: new FakeAgentManagerService()` in all 3 `beforeEach` blocks. Remove `IAgentAdapter` import, add `FakeAgentManagerService` import. | 2 | Test | – | `/home/jak/substrate/033-real-agent-pods/test/unit/positional-graph/features/030-orchestration/ods.test.ts` | All existing ODS tests pass. | – | cross-plan-edit. Plan 3.3 [^10] |
+| [x] | T004 | Update `pod.test.ts`: replace `FakeAgentAdapter` with `FakeAgentInstance` (11 occurrences). Update `AgentPod` constructor calls to `(nodeId, instance, unitSlug)`. Remove `contextSessionId` from `makeOptions()`. | 2 | Test | – | `/home/jak/substrate/033-real-agent-pods/test/unit/positional-graph/features/030-orchestration/pod.test.ts` | All existing pod tests pass. | – | cross-plan-edit. Plan 3.4 [^10] |
+| [x] | T005 | Update `pod-manager.test.ts`: replace `adapter: new FakeAgentAdapter()` with `agentInstance: new FakeAgentInstance(...)` in `makeAgentParams()`. Update import. | 1 | Test | – | `/home/jak/substrate/033-real-agent-pods/test/unit/positional-graph/features/030-orchestration/pod-manager.test.ts` | All existing pod-manager tests pass. | – | cross-plan-edit. Plan 3.5 [^10] |
+| [x] | T006 | Update `container-orchestration.test.ts`: change `AGENT_ADAPTER` token resolution to `AGENT_MANAGER`. Update any assertions on resolved types. | 1 | Test | T001 | `/home/jak/substrate/033-real-agent-pods/test/unit/positional-graph/features/030-orchestration/container-orchestration.test.ts` | DI resolution tests pass. | – | cross-plan-edit. Plan 3.6 [^10] |
+| [x] | T007 | Fix `properties-and-orchestrator.test.ts`: update "GraphOrchestratorSettingsSchema is empty" assertion. `parse({})` now returns `{ agentType: 'copilot' }` due to `.default('copilot')`. | 1 | Test | – | `/home/jak/substrate/033-real-agent-pods/test/unit/positional-graph/properties-and-orchestrator.test.ts` | Schema test passes. | – | cross-plan-edit. Phase 1 debt [^10] |
+| [x] | T008 | Update E2E script: replace `FakeAgentAdapter` with `FakeAgentManagerService` in `createOrchestrationStack()`. Replace `agentAdapter` in ODS deps with `agentManager`. ~4-line change per Workshop 06. | 1 | Integration | T001 | `/home/jak/substrate/033-real-agent-pods/test/e2e/positional-graph-orchestration-e2e.ts` | E2E script compiles. | – | cross-plan-edit. Plan 3.7, Critical Finding #08 [^11] |
+| [x] | T009 | Verify E2E: run E2E script, confirm 58 steps complete, exit 0. Output structure matches pre-change behavior. | 1 | Integration | T008 | `/home/jak/substrate/033-real-agent-pods/test/e2e/positional-graph-orchestration-e2e.ts` | Exit 0. 58 steps. | – | Plan 3.8 [^11] |
+| [x] | T010 | Run `just fft` — full test suite. Verify 3858+ tests pass, 0 failures. Run `grep -rn 'agentAdapter\|FakeAgentAdapter' test/ packages/positional-graph/src/features/030-orchestration/` — 0 hits in orchestration code/tests. | 1 | Integration | T003-T009 | All | 3858+ pass. grep returns 0. | – | Plan 3.9. Gate check |
 
 ---
 
@@ -236,17 +236,17 @@ grep -rn 'agentAdapter\|FakeAgentAdapter' test/ packages/positional-graph/src/fe
 - [x] Prior phases review complete (Phase 1+2 deliverables documented)
 - [x] Pre-implementation audit complete (8 files, all cross-plan-edit)
 - [x] Requirements traceability complete (5 ACs covered)
-- [ ] **Awaiting GO/NO-GO**
+- [x] **GO — Phase 3 Complete**
 
 ---
 
 ## Phase Footnote Stubs
 
-_To be populated by plan-6 during implementation._
-
 | Footnote | Phase | Summary |
 |----------|-------|---------|
-| | | |
+| [^9] | Phase 3 | T001-T002 — DI container wiring: `container.ts` (pkg + cli) |
+| [^10] | Phase 3 | T003-T007 — Existing test updates: ods/pod/pod-manager/container/schema tests |
+| [^11] | Phase 3 | T008-T009 — E2E script wiring: `positional-graph-orchestration-e2e.ts` |
 
 ---
 
