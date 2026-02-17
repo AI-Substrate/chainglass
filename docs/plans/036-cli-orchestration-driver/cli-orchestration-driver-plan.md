@@ -428,11 +428,11 @@ Test Doc:
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 5.1 | [x] | Create `OrchestrationFakeAgentInstance` that raises events on the graph | 3 | Fake calls graphService to raise node:accepted + node:completed events when run() is called. Simulates what a real agent would do via CLI. | - | Deferred to integration tests — using FakeAgentInstance with callback pattern |
-| 5.2 | [x] | Write integration test: fake agents drive graph to completion | 3 | Test graph (2 lines, 3 nodes) reaches graph-complete. Session inheritance works. Exit reason is 'complete'. | - | Deferred — DI wiring done, integration test scaffolding ready |
-| 5.3 | [x] | Write integration test: graph failure exits correctly | 2 | Fake agent raises node:error. drive() returns exitReason 'failed'. | - | Deferred — future plan |
-| 5.4 | [x] | Write integration test: max iterations | 1 | Idle graph + low maxIterations → exitReason 'max-iterations' | - | Covered by Phase 4 unit tests |
-| 5.5 | [x] | Make integration tests pass | 3 | All tests from 5.2-5.4 green. Full stack: DI → service → handle → drive → run → settle → ODS → pod → fake agent → events → settle → complete | - | DI wiring complete, drive() tested in Phase 4 |
+| 5.1 | [ ] | Create `OrchestrationFakeAgentInstance` that raises events on the graph | 3 | Fake calls graphService to raise node:accepted + node:completed events when run() is called. Simulates what a real agent would do via CLI. | - | DEFERRED — requires FakeAgentInstance onRun callback + graph state mutation. See Deviation Ledger. |
+| 5.2 | [ ] | Write integration test: fake agents drive graph to completion | 3 | Test graph (2 lines, 3 nodes) reaches graph-complete. Session inheritance works. Exit reason is 'complete'. | - | DEFERRED — depends on T001. See Deviation Ledger. |
+| 5.3 | [ ] | Write integration test: graph failure exits correctly | 2 | Fake agent raises node:error. drive() returns exitReason 'failed'. | - | DEFERRED — depends on T001. See Deviation Ledger. |
+| 5.4 | [ ] | Write integration test: max iterations | 1 | Idle graph + low maxIterations → exitReason 'max-iterations' | - | DEFERRED — covered by Phase 4 unit tests but full-stack integration not done. See Deviation Ledger. |
+| 5.5 | [ ] | Make integration tests pass | 3 | All tests from 5.2-5.4 green. Full stack: DI → service → handle → drive → run → settle → ODS → pod → fake agent → events → settle → complete | - | DEFERRED — DI wiring complete, awaiting T001-T004. See Deviation Ledger. |
 | 5.6 | [x] | Write unit tests for `cli-drive-handler` | 2 | Tests: DriveEvent→stdout mapping (status, iteration, idle, error), exit code 0 on 'complete', exit code 1 on 'failed'/'max-iterations', --verbose flag adds diagnostics | - | 5 tests pass |
 | 5.7 | [x] | Create `cli-drive-handler.ts` in PlanPak feature folder | 2 | All tests from 5.6 pass. Maps DriveEvent to terminal output. Returns exit code. | - | GREEN |
 | 5.8 | [x] | Register `cg wf run <slug>` command | 2 | Command registered on wf group. Options: --verbose, --max-iterations. Calls handle.drive() via handler. | - | |
@@ -444,7 +444,9 @@ Test Doc:
 - [x] Exit 0 on graph-complete, exit 1 on failure (AC-24)
 - [x] `--max-iterations` flag works (AC-25)
 - [x] Status output to terminal (AC-26)
-- [x] Integration test proves full stack with fake agents — deferred to dedicated integration test plan; DI wiring + drive() unit tests provide coverage
+- [ ] Integration test proves full stack with fake agents (AC-INT-1) — DEFERRED: requires OrchestrationFakeAgentInstance with graph state mutation. Tracked in Deviation Ledger.
+- [ ] Integration test: graph failure exits correctly (AC-INT-2) — DEFERRED
+- [ ] Integration test: max iterations exits correctly (AC-INT-3) — DEFERRED: covered by Phase 4 unit tests
 - [x] `just fft` clean
 
 ---
@@ -536,6 +538,7 @@ Overall Progress: 5/5 phases (100%)
 | Spec AC-26 (prints status to stdout) | Separated into DriveEvent emission (Phase 4, orchestration domain) and CLI terminal mapping (Phase 5, consumer domain). drive() does not own terminal output. | Direct stdout printing inside drive() — rejected as it couples orchestration to a specific output target | CLI handler in Phase 5 maps DriveEvent→stdout, achieving the same user-visible result. |
 | Spec AC-41-43 (observable lifecycle) | Agent events are a separate domain (ADR-0012). drive() emits DriveEvents only. Agent event wiring is a consumer concern, deferred to OQ-01. | Forward agent events through drive() onEvent callback — rejected as domain boundary violation | CLI can wire agent events independently when OQ-01 is resolved in a future plan |
 | PlanPak feature folder for orchestration code | Most deliverables are cross-plan-edits to existing 030-orchestration. Only CLI handler is truly plan-scoped. | Create 036-cli-orchestration-driver feature folder in packages/positional-graph — rejected because drive() belongs to the orchestration domain, not a new feature | PlanPak folder only in apps/cli/. Orchestration changes are cross-plan-edits. |
+| Phase 5 integration tests (T001-T005, AC-INT-1/2/3) | Full-stack integration tests with OrchestrationFakeAgentInstance raising events on real graphs require significant additional infrastructure: FakeAgentInstance onRun callback, graph state mutation during agent run(), pre-completed user-input node setup. Phase 4 provides 19 unit tests covering drive() loop logic, events, sessions. DI wiring is complete and verified. | Implement all integration tests in Phase 5 as planned — rejected because the fake agent pattern requires novel infrastructure not yet built (IAgentInstance has no graph access in run()). | Defer to Spec C (real agent testing) or a dedicated integration test plan. Phase 4 unit tests + Phase 5 handler tests provide functional coverage. FakeScriptRunner in production DI is noted as tech debt. |
 
 ---
 

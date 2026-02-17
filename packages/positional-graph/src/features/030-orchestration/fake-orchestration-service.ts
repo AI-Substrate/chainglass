@@ -9,6 +9,7 @@
 
 import type { WorkspaceContext } from '@chainglass/workflow';
 import type {
+  DriveEvent,
   DriveOptions,
   DriveResult,
   FakeGraphConfig,
@@ -34,6 +35,7 @@ export class FakeGraphOrchestration implements IGraphOrchestration {
   private readonly driveResults: DriveResult[] = [];
   private driveCallIndex = 0;
   private readonly driveHistory: (DriveOptions | undefined)[] = [];
+  private driveEvents: DriveEvent[] = [];
 
   constructor(graphSlug: string, config: FakeGraphConfig) {
     this.graphSlug = graphSlug;
@@ -55,6 +57,10 @@ export class FakeGraphOrchestration implements IGraphOrchestration {
     if (this.driveResults.length === 0) {
       throw new Error(`FakeGraphOrchestration(${this.graphSlug}): no driveResults configured`);
     }
+    // Emit configured events via onEvent callback
+    for (const event of this.driveEvents) {
+      await options?.onEvent?.(event);
+    }
     const index = Math.min(this.driveCallIndex, this.driveResults.length - 1);
     this.driveCallIndex++;
     return this.driveResults[index];
@@ -69,6 +75,11 @@ export class FakeGraphOrchestration implements IGraphOrchestration {
   /** Queue a DriveResult for drive() — FIFO, last repeats. */
   setDriveResult(result: DriveResult): void {
     this.driveResults.push(result);
+  }
+
+  /** Configure events that drive() will emit via onEvent before returning. */
+  setDriveEvents(events: DriveEvent[]): void {
+    this.driveEvents = events;
   }
 
   /** Get all drive() call options. */

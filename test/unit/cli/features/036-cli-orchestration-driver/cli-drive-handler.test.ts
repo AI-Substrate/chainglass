@@ -1,17 +1,19 @@
 /*
 Test Doc:
 - Why: Validate CLI drive handler maps DriveEvent → terminal output and DriveResult → exit code
-- Contract: cliDriveGraph calls handle.drive() with options, maps events to stdout, returns 0 on complete, 1 on failed
-- Usage Notes: Uses FakeGraphOrchestration with setDriveResult(). Capture console.log output to verify event mapping.
+- Contract: cliDriveGraph calls handle.drive() with options, maps events via injectable output, returns 0 on complete, 1 on failed
+- Usage Notes: Uses FakeGraphOrchestration with setDriveResult() + setDriveEvents(). Injectable CliOutput captures logs.
 - Quality Contribution: Catches event → output mapping errors and exit code bugs before CLI integration
-- Worked Example: DriveResult{exitReason:'complete'} → exit code 0; DriveEvent{type:'status'} → console.log(message)
+- Worked Example: DriveResult{exitReason:'complete'} → exit code 0; DriveEvent{type:'status'} → output.log(message)
 */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-import type { DriveEvent, DriveResult } from '@chainglass/positional-graph';
+import type { DriveResult } from '@chainglass/positional-graph';
 import { FakeGraphOrchestration } from '@chainglass/positional-graph';
-import { cliDriveGraph } from '../../../../../apps/cli/src/features/036-cli-orchestration-driver/cli-drive-handler.js';
+import { describe, expect, it } from 'vitest';
+import {
+  type CliOutput,
+  cliDriveGraph,
+} from '../../../../../apps/cli/src/features/036-cli-orchestration-driver/cli-drive-handler.js';
 import { buildFakeReality } from '../../../../../packages/positional-graph/src/features/030-orchestration/fake-onbas.js';
 import type { FakeGraphConfig } from '../../../../../packages/positional-graph/src/features/030-orchestration/orchestration-service.types.js';
 
@@ -22,74 +24,103 @@ function makeConfig(): FakeGraphConfig {
   };
 }
 
-const COMPLETE_RESULT: DriveResult = { exitReason: 'complete', iterations: 3, totalActions: 5 };
-const FAILED_RESULT: DriveResult = { exitReason: 'failed', iterations: 1, totalActions: 0 };
-const MAX_ITER_RESULT: DriveResult = {
-  exitReason: 'max-iterations',
-  iterations: 200,
-  totalActions: 0,
-};
+function makeOutput(): CliOutput & { logs: string[]; errors: string[] } {
+  const logs: string[] = [];
+  const errors: string[] = [];
+  return {
+    logs,
+    errors,
+    log: (msg: string) => logs.push(msg),
+    error: (msg: string) => errors.push(msg),
+  };
+}
 
-describe('cliDriveGraph()', () => {
-  let logs: string[];
+const COMPLETE: DriveResult = { exitReason: 'complete', iterations: 3, totalActions: 5 };
+const FAILED: DriveResult = { exitReason: 'failed', iterations: 1, totalActions: 0 };
+const MAX_ITER: DriveResult = { exitReason: 'max-iterations', iterations: 200, totalActions: 0 };
 
-  beforeEach(() => {
-    logs = [];
-    vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
-      logs.push(args.map(String).join(' '));
-    });
-    vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
-      logs.push(`[stderr] ${args.map(String).join(' ')}`);
-    });
+describe('cliDriveGraph() exit codes', () => {
+  it('returns 0 on complete', async () => {
+    const fake = new FakeGraphOrchestration('g', makeConfig());
+    fake.setDriveResult(COMPLETE);
+    expect(await cliDriveGraph(fake, { output: makeOutput() })).toBe(0);
   });
 
-  it('returns exit code 0 on complete', async () => {
-    const fake = new FakeGraphOrchestration('test-graph', makeConfig());
-    fake.setDriveResult(COMPLETE_RESULT);
-
-    const code = await cliDriveGraph(fake, {});
-
-    expect(code).toBe(0);
+  it('returns 1 on failed', async () => {
+    const fake = new FakeGraphOrchestration('g', makeConfig());
+    fake.setDriveResult(FAILED);
+    expect(await cliDriveGraph(fake, { output: makeOutput() })).toBe(1);
   });
 
-  it('returns exit code 1 on failed', async () => {
-    const fake = new FakeGraphOrchestration('test-graph', makeConfig());
-    fake.setDriveResult(FAILED_RESULT);
+  it('returns 1 on max-iterations', async () => {
+    const fake = new FakeGraphOrchestration('g', makeConfig());
+    fake.setDriveResult(MAX_ITER);
+    expect(await cliDriveGraph(fake, { output: makeOutput() })).toBe(1);
+  });
+});
 
-    const code = await cliDriveGraph(fake, {});
+describe('cliDriveGraph() options passthrough', () => {
+  it('passes maxIterations to drive()', async () => {
+    const fake = new FakeGraphOrchestration('g', makeConfig());
+    fake.setDriveResult(COMPLETE);
+    await cliDriveGraph(fake, { maxIterations: 50, output: makeOutput() });
+    expect(fake.getDriveHistory()[0]?.maxIterations).toBe(50);
+  });
+});
 
-    expect(code).toBe(1);
+describe('cliDriveGraph() DriveEvent → output mapping', () => {
+  it('status event logs message', async () => {
+    const fake = new FakeGraphOrchestration('g', makeConfig());
+    fake.setDriveResult(COMPLETE);
+    fake.setDriveEvents([{ type: 'status', message: 'Graph: test (in_progress)' }]);
+    const out = makeOutput();
+    await cliDriveGraph(fake, { output: out });
+    expect(out.logs).toContain('Graph: test (in_progress)');
   });
 
-  it('returns exit code 1 on max-iterations', async () => {
-    const fake = new FakeGraphOrchestration('test-graph', makeConfig());
-    fake.setDriveResult(MAX_ITER_RESULT);
-
-    const code = await cliDriveGraph(fake, {});
-
-    expect(code).toBe(1);
+  it('iteration event logs in verbose mode', async () => {
+    const fake = new FakeGraphOrchestration('g', makeConfig());
+    fake.setDriveResult(COMPLETE);
+    fake.setDriveEvents([{ type: 'iteration', message: '1 action(s)', data: {} as never }]);
+    const out = makeOutput();
+    await cliDriveGraph(fake, { verbose: true, output: out });
+    expect(out.logs.some((l) => l.includes('[iteration]'))).toBe(true);
   });
 
-  it('passes maxIterations option to drive()', async () => {
-    const fake = new FakeGraphOrchestration('test-graph', makeConfig());
-    fake.setDriveResult(COMPLETE_RESULT);
-
-    await cliDriveGraph(fake, { maxIterations: 50 });
-
-    const history = fake.getDriveHistory();
-    expect(history).toHaveLength(1);
-    expect(history[0]?.maxIterations).toBe(50);
+  it('iteration event silent without verbose', async () => {
+    const fake = new FakeGraphOrchestration('g', makeConfig());
+    fake.setDriveResult(COMPLETE);
+    fake.setDriveEvents([{ type: 'iteration', message: '1 action(s)', data: {} as never }]);
+    const out = makeOutput();
+    await cliDriveGraph(fake, { verbose: false, output: out });
+    expect(out.logs.some((l) => l.includes('[iteration]'))).toBe(false);
   });
 
-  it('logs status events to stdout', async () => {
-    const fake = new FakeGraphOrchestration('test-graph', makeConfig());
-    fake.setDriveResult(COMPLETE_RESULT);
+  it('idle event logs in verbose mode', async () => {
+    const fake = new FakeGraphOrchestration('g', makeConfig());
+    fake.setDriveResult(COMPLETE);
+    fake.setDriveEvents([{ type: 'idle', message: 'No actions — polling' }]);
+    const out = makeOutput();
+    await cliDriveGraph(fake, { verbose: true, output: out });
+    expect(out.logs.some((l) => l.includes('[idle]'))).toBe(true);
+  });
 
-    // FakeGraphOrchestration.drive() doesn't emit events, so we test the handler's
-    // event mapping indirectly — the exit code and options passing prove the wiring.
-    // Full event → stdout mapping is validated by the real drive() integration tests.
-    const code = await cliDriveGraph(fake, {});
+  it('idle event silent without verbose', async () => {
+    const fake = new FakeGraphOrchestration('g', makeConfig());
+    fake.setDriveResult(COMPLETE);
+    fake.setDriveEvents([{ type: 'idle', message: 'No actions — polling' }]);
+    const out = makeOutput();
+    await cliDriveGraph(fake, { verbose: false, output: out });
+    expect(out.logs.some((l) => l.includes('[idle]'))).toBe(false);
+  });
 
-    expect(code).toBe(0);
+  it('error event logs to stderr', async () => {
+    const fake = new FakeGraphOrchestration('g', makeConfig());
+    fake.setDriveResult(FAILED);
+    fake.setDriveEvents([{ type: 'error', message: 'disk failure' }]);
+    const out = makeOutput();
+    await cliDriveGraph(fake, { output: out });
+    expect(out.errors.some((l) => l.includes('[error]'))).toBe(true);
+    expect(out.errors.some((l) => l.includes('disk failure'))).toBe(true);
   });
 });

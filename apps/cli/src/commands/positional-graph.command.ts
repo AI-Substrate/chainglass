@@ -1779,8 +1779,13 @@ export function registerPositionalGraphCommands(program: Command): void {
 
           const orchestrationService = getOrchestrationService();
           const handle = await orchestrationService.get(ctx, slug);
+          const maxIterations = Number.parseInt(options.maxIterations, 10);
+          if (Number.isNaN(maxIterations) || maxIterations < 1) {
+            console.error(`Invalid --max-iterations value: ${options.maxIterations}`);
+            process.exit(1);
+          }
           const exitCode = await cliDriveGraph(handle, {
-            maxIterations: Number.parseInt(options.maxIterations, 10),
+            maxIterations,
             verbose: options.verbose,
           });
           process.exit(exitCode);
