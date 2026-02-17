@@ -134,3 +134,7 @@ Should PodManager persist `sessionId → agentType` in `pod-sessions.json`? Curr
 - **Workshop 03**: Driver loop pseudo-implementation, terminal event output, session sync ordering
 - **Plan 032 Workshop 13**: Hybrid CLI/in-process test pattern
 - **Legacy wf.md**: `dev/examples/wf/template/hello-workflow/wf.md` (prior art for agent instructions)
+
+## ADRs
+
+- ADR-0012: Workflow System Domain Boundaries (2026-02-17) – status: Accepted
