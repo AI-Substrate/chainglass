@@ -236,18 +236,18 @@ Acceptance Criteria: [measurable assertions]
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 1.1 | [ ] | Write unit tests for `GraphOrchestratorSettingsSchema` with `agentType` field | 1 | Tests verify: optional field, valid values, default fallback, invalid rejected | - | RED phase |
-| 1.2 | [ ] | Add `agentType` to `GraphOrchestratorSettingsSchema` with `.default('copilot')` | 1 | Tests from 1.1 pass. `parse({})` returns `{ agentType: 'copilot' }` | - | GREEN phase |
-| 1.3 | [ ] | Update `ODSDependencies` interface: `agentAdapter` → `agentManager: IAgentManagerService` | 1 | Interface compiles, imports `IAgentManagerService` from Plan 034 | - | Type change only |
-| 1.4 | [ ] | Update `PodCreateParams` agent variant: `adapter: IAgentAdapter` → `agentInstance: IAgentInstance` | 1 | Type compiles, imports `IAgentInstance` from Plan 034 | - | Type change only |
-| 1.5 | [ ] | Remove `contextSessionId` from `PodExecuteOptions` | 1 | Type compiles, field removed | - | Breaking — callers updated in Phase 2 |
-| 1.6 | [ ] | Add `ORCHESTRATION_DI_TOKENS.AGENT_MANAGER` to `di-tokens.ts` referencing `SHARED_DI_TOKENS.AGENT_MANAGER_SERVICE` (not duplicate string) | 1 | Token exists, value references shared token | - | Additive |
+| 1.1 | [x] | Write unit tests for `GraphOrchestratorSettingsSchema` with `agentType` field | 1 | Tests verify: optional field, valid values, default fallback, invalid rejected | [📋](tasks/phase-1-types-interfaces-and-schema-changes/execution.log.md#task-t001-schema-tests-red) | RED phase · 5 tests, all FAIL [^1] |
+| 1.2 | [x] | Add `agentType` to `GraphOrchestratorSettingsSchema` with `.default('copilot')` | 1 | Tests from 1.1 pass. `parse({})` returns `{ agentType: 'copilot' }` | [📋](tasks/phase-1-types-interfaces-and-schema-changes/execution.log.md#task-t002-schema-implementation-green) | GREEN phase · 5 tests pass [^1] |
+| 1.3 | [x] | Update `ODSDependencies` interface: `agentAdapter` → `agentManager: IAgentManagerService` | 1 | Interface compiles, imports `IAgentManagerService` from Plan 034 | [📋](tasks/phase-1-types-interfaces-and-schema-changes/execution.log.md#tasks-t003-t004-t005-type-definition-changes-parallel) | Completed [^2] |
+| 1.4 | [x] | Update `PodCreateParams` agent variant: `adapter: IAgentAdapter` → `agentInstance: IAgentInstance` | 1 | Type compiles, imports `IAgentInstance` from Plan 034 | [📋](tasks/phase-1-types-interfaces-and-schema-changes/execution.log.md#tasks-t003-t004-t005-type-definition-changes-parallel) | Completed [^3] |
+| 1.5 | [x] | Remove `contextSessionId` from `PodExecuteOptions` | 1 | Type compiles, field removed | [📋](tasks/phase-1-types-interfaces-and-schema-changes/execution.log.md#tasks-t003-t004-t005-type-definition-changes-parallel) | Completed · callers updated in Phase 2 [^3] |
+| 1.6 | [x] | Add `ORCHESTRATION_DI_TOKENS.AGENT_MANAGER` to `di-tokens.ts` referencing `SHARED_DI_TOKENS.AGENT_MANAGER_SERVICE` (not duplicate string) | 1 | Token exists, value references shared token | [📋](tasks/phase-1-types-interfaces-and-schema-changes/execution.log.md#task-t007-di-token) | Completed [^4] |
 
 ### Acceptance Criteria
-- [ ] All type definitions compile cleanly in isolation
-- [ ] `GraphOrchestratorSettingsSchema` validates agentType correctly
-- [ ] `ORCHESTRATION_DI_TOKENS.AGENT_MANAGER` token defined
-- [ ] `just typecheck` may have errors from unchanged callers (expected — resolved in Phase 2-3)
+- [x] All type definitions compile cleanly in isolation
+- [x] `GraphOrchestratorSettingsSchema` validates agentType correctly
+- [x] `ORCHESTRATION_DI_TOKENS.AGENT_MANAGER` token defined
+- [x] `just typecheck` may have errors from unchanged callers (expected — resolved in Phase 2-3)
 
 ---
 
@@ -411,7 +411,7 @@ Acceptance Criteria: [measurable assertions]
 
 ## Phase Completion Checklist
 
-- [ ] Phase 1: Types, Interfaces, and Schema Changes
+- [x] Phase 1: Types, Interfaces, and Schema Changes — COMPLETE
 - [ ] Phase 2: ODS and AgentPod Rewiring with TDD
 - [ ] Phase 3: DI Container and Existing Test Updates
 - [ ] Phase 4: Real Agent Wiring Integration Tests
@@ -425,7 +425,17 @@ This plan must be validated before creating tasks. After review:
 
 ## Change Footnotes Ledger
 
-[^1]: [To be added during implementation via plan-6a]
-[^2]: [To be added during implementation via plan-6a]
-[^3]: [To be added during implementation via plan-6a]
-[^4]: [To be added during implementation via plan-6a]
+[^1]: Phase 1 Tasks 1.1-1.2 — Schema TDD cycle
+  - `file:packages/positional-graph/src/schemas/orchestrator-settings.schema.ts`
+  - `file:test/unit/schemas/orchestrator-settings.schema.test.ts`
+
+[^2]: Phase 1 Task 1.3 — ODSDependencies type change
+  - `file:packages/positional-graph/src/features/030-orchestration/ods.types.ts`
+
+[^3]: Phase 1 Tasks 1.4-1.5 — Pod type changes
+  - `file:packages/positional-graph/src/features/030-orchestration/pod-manager.types.ts`
+  - `file:packages/positional-graph/src/features/030-orchestration/pod.types.ts`
+
+[^4]: Phase 1 Tasks 1.6 + T006 — Reality type + DI token
+  - `file:packages/positional-graph/src/features/030-orchestration/reality.types.ts`
+  - `file:packages/shared/src/di-tokens.ts`
