@@ -171,6 +171,11 @@ export type {
   IGraphOrchestration,
   IOrchestrationService,
   FakeGraphConfig,
+  DriveOptions,
+  DriveEvent,
+  DriveEventType,
+  DriveResult,
+  DriveExitReason,
 } from './orchestration-service.types.js';
 
 // OrchestrationService — Implementation (Phase 7)

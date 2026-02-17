@@ -21,11 +21,14 @@ import type { IEventHandlerService } from '../032-node-event-system/event-handle
 import type { IODS } from './ods.types.js';
 import type { IONBAS } from './onbas.types.js';
 import type {
+  DriveOptions,
+  DriveResult,
   IGraphOrchestration,
   OrchestrationAction,
   OrchestrationRunResult,
   OrchestrationStopReason,
 } from './orchestration-service.types.js';
+import type { IPodManager } from './pod-manager.types.js';
 import { buildPositionalGraphReality } from './reality.builder.js';
 import type { PositionalGraphReality } from './reality.types.js';
 
@@ -39,6 +42,8 @@ export interface GraphOrchestrationOptions {
   readonly ods: IODS;
   readonly eventHandlerService: IEventHandlerService;
   readonly maxIterations?: number;
+  /** Optional — required only if drive() is used. Throws at runtime if missing. */
+  readonly podManager?: IPodManager;
 }
 
 // ── Default max iterations ──────────────────────────────
@@ -55,6 +60,7 @@ export class GraphOrchestration implements IGraphOrchestration {
   private readonly ods: IODS;
   private readonly eventHandlerService: IEventHandlerService;
   private readonly maxIterations: number;
+  private readonly podManager?: IPodManager;
 
   constructor(options: GraphOrchestrationOptions) {
     this.graphSlug = options.graphSlug;
@@ -64,6 +70,7 @@ export class GraphOrchestration implements IGraphOrchestration {
     this.ods = options.ods;
     this.eventHandlerService = options.eventHandlerService;
     this.maxIterations = options.maxIterations ?? DEFAULT_MAX_ITERATIONS;
+    this.podManager = options.podManager;
   }
 
   async run(): Promise<OrchestrationRunResult> {
@@ -124,6 +131,10 @@ export class GraphOrchestration implements IGraphOrchestration {
 
   async getReality(): Promise<PositionalGraphReality> {
     return this.buildReality();
+  }
+
+  async drive(_options?: DriveOptions): Promise<DriveResult> {
+    throw new Error('drive() not implemented — see Phase 4 of Plan 036');
   }
 
   private async buildReality(): Promise<PositionalGraphReality> {

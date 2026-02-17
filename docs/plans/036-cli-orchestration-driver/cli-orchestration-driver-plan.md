@@ -252,20 +252,20 @@ Test Doc:
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 1.1 | [ ] | Create PlanPak feature folder `apps/cli/src/features/036-cli-orchestration-driver/` | 1 | Directory exists | - | PlanPak setup |
-| 1.2 | [ ] | Define `DriveOptions`, `DriveEvent`, `DriveResult`, `DriveExitReason` types in `orchestration-service.types.ts` | 2 | Types compile. DriveEvent has 4 types: iteration, idle, status, error. No agent events. | - | Per Workshop 01 Part 5 |
-| 1.3 | [ ] | Add `drive(options?: DriveOptions): Promise<DriveResult>` to `IGraphOrchestration` | 1 | Interface compiles | - | |
-| 1.4 | [ ] | Add `podManager: IPodManager` to `GraphOrchestrationOptions` | 1 | Constructor accepts podManager | - | Finding 01 |
-| 1.5 | [ ] | Write tests for `FakeGraphOrchestration.drive()` | 2 | Tests: returns configured DriveResult, tracks call history | - | RED |
-| 1.6 | [ ] | Implement `FakeGraphOrchestration.drive()` with test helpers | 2 | All tests from 1.5 pass. Supports `setDriveResult()`, `getDriveHistory()` | - | GREEN |
-| 1.7 | [ ] | Update barrel exports, `just fft` | 1 | All types exported, full suite green | - | |
+| 1.1 | [x] | Create PlanPak feature folder `apps/cli/src/features/036-cli-orchestration-driver/` | 1 | Directory exists | - | PlanPak setup |
+| 1.2 | [x] | Define `DriveOptions`, `DriveEvent`, `DriveResult`, `DriveExitReason` types in `orchestration-service.types.ts` | 2 | Types compile. DriveEvent has 4 types: iteration, idle, status, error. No agent events. | - | Per Workshop 01 Part 5 |
+| 1.3 | [x] | Add `drive(options?: DriveOptions): Promise<DriveResult>` to `IGraphOrchestration` | 1 | Interface compiles | - | |
+| 1.4 | [x] | Add `podManager: IPodManager` to `GraphOrchestrationOptions` | 1 | Constructor accepts podManager | - | Finding 01 |
+| 1.5 | [x] | Write tests for `FakeGraphOrchestration.drive()` | 2 | Tests: returns configured DriveResult, tracks call history | - | RED |
+| 1.6 | [x] | Implement `FakeGraphOrchestration.drive()` with test helpers | 2 | All tests from 1.5 pass. Supports `setDriveResult()`, `getDriveHistory()` | - | GREEN |
+| 1.7 | [x] | Update barrel exports, `just fft` | 1 | All types exported, full suite green | - | |
 
 ### Acceptance Criteria
-- [ ] `drive()` is on `IGraphOrchestration` (interface extension)
-- [ ] `DriveEvent` has exactly 4 types (no agent events — ADR-0012)
-- [ ] `FakeGraphOrchestration` implements `drive()`
-- [ ] `GraphOrchestrationOptions` includes `podManager`
-- [ ] `just fft` clean
+- [x] `drive()` is on `IGraphOrchestration` (interface extension)
+- [x] `DriveEvent` has exactly 4 types (no agent events — ADR-0012)
+- [x] `FakeGraphOrchestration` implements `drive()`
+- [x] `GraphOrchestrationOptions` includes `podManager`
+- [x] `just fft` clean
 
 ---
 
@@ -295,22 +295,22 @@ Test Doc:
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 2.1 | [ ] | Write tests for template resolution | 2 | Tests: all `{{placeholders}}` resolved, no `{{` remains, graphSlug/nodeId/unitSlug correct | - | RED |
-| 2.2 | [ ] | Write tests for prompt selection (_hasExecuted) | 2 | Tests: first execute → starter, second execute → resume, inherited session first execute → starter | - | RED |
-| 2.3 | [ ] | Replace `node-starter-prompt.md` with full Workshop 04 template | 2 | File contains all CLI commands, placeholders, 5-step protocol, question protocol, error handling | - | Per Workshop 04 |
-| 2.4 | [ ] | Create `node-resume-prompt.md` per Workshop 04 | 1 | File contains resume instructions, get-answer, continue, complete | - | Per Workshop 04 |
-| 2.5 | [ ] | Implement `resolveTemplate()` and `_hasExecuted` selection in AgentPod | 3 | All tests from 2.1-2.2 pass. Module-level cache removed. Both prompts loaded from disk each call. | - | GREEN |
-| 2.6 | [ ] | Refactor and verify | 1 | `just fft` clean | - | |
+| 2.1 | [x] | Write tests for template resolution | 2 | Tests: all `{{placeholders}}` resolved, no `{{` remains, graphSlug/nodeId/unitSlug correct | - | RED |
+| 2.2 | [x] | Write tests for prompt selection (_hasExecuted) | 2 | Tests: first execute → starter, second execute → resume, inherited session first execute → starter | - | RED |
+| 2.3 | [x] | Replace `node-starter-prompt.md` with full Workshop 04 template | 2 | File contains all CLI commands, placeholders, 5-step protocol, question protocol, error handling | - | Per Workshop 04 |
+| 2.4 | [x] | Create `node-resume-prompt.md` per Workshop 04 | 1 | File contains resume instructions, get-answer, continue, complete | - | Per Workshop 04 |
+| 2.5 | [x] | Implement `resolveTemplate()` and `_hasExecuted` selection in AgentPod | 3 | All tests from 2.1-2.2 pass. Module-level cache removed. Both prompts loaded from disk each call. | - | GREEN |
+| 2.6 | [x] | Refactor and verify | 1 | `just fft` clean | - | |
 
 ### Acceptance Criteria
-- [ ] Starter prompt has {{graphSlug}}, {{nodeId}}, {{unitSlug}} placeholders (AC-13)
-- [ ] Starter prompt contains full protocol (accept, read, work, save, complete) (AC-14)
-- [ ] Starter prompt includes question protocol (AC-15) and error handling (AC-16)
-- [ ] Template resolved before passing to agent (AC-17)
-- [ ] Resume prompt exists (AC-18) with continuation instructions (AC-19)
-- [ ] First execute → starter, subsequent → resume (AC-20)
-- [ ] Inherited session, first execute → starter (AC-20)
-- [ ] `just fft` clean
+- [x] Starter prompt has {{graphSlug}}, {{nodeId}}, {{unitSlug}} placeholders (AC-13)
+- [x] Starter prompt contains full protocol (accept, read, work, save, complete) (AC-14)
+- [x] Starter prompt includes question protocol (AC-15) and error handling (AC-16)
+- [x] Template resolved before passing to agent (AC-17)
+- [x] Resume prompt exists (AC-18) with continuation instructions (AC-19)
+- [x] First execute → starter, subsequent → resume (AC-20)
+- [x] Inherited session, first execute → starter (AC-20)
+- [x] `just fft` clean
 
 ---
 
@@ -500,13 +500,13 @@ Test Doc:
 ## Progress Checklist
 
 ### Phase Completion Status
-- [ ] Phase 1: Types, Interfaces, and PlanPak Setup - PENDING
-- [ ] Phase 2: Prompt Templates and AgentPod Selection - PENDING
+- [x] Phase 1: Types, Interfaces, and PlanPak Setup - COMPLETE
+- [x] Phase 2: Prompt Templates and AgentPod Selection - COMPLETE
 - [ ] Phase 3: Graph Status View - PENDING
 - [ ] Phase 4: drive() Implementation - PENDING
 - [ ] Phase 5: CLI Command and Integration Tests - PENDING
 
-Overall Progress: 0/5 phases (0%)
+Overall Progress: 2/5 phases (40%)
 
 ### STOP Rule
 

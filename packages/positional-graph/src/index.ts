@@ -18,6 +18,11 @@ export type {
   IGraphOrchestration,
   IOrchestrationService,
   FakeGraphConfig,
+  DriveOptions,
+  DriveEvent,
+  DriveEventType,
+  DriveResult,
+  DriveExitReason,
 } from './features/030-orchestration/index.js';
 export {
   OrchestrationService,
