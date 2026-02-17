@@ -36,6 +36,9 @@ export type { BuildRealityOptions } from './reality.builder.js';
 // View
 export { PositionalGraphRealityView } from './reality.view.js';
 
+// Format (Plan 036 Phase 3)
+export { formatGraphStatus } from './reality.format.js';
+
 // OrchestrationRequest — Schemas + derived types (Phase 2)
 export {
   NoActionReasonSchema,

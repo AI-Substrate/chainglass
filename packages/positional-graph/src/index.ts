@@ -29,6 +29,7 @@ export {
   GraphOrchestration,
   FakeOrchestrationService,
   FakeGraphOrchestration,
+  formatGraphStatus,
 } from './features/030-orchestration/index.js';
 export type {
   OrchestrationServiceDeps,

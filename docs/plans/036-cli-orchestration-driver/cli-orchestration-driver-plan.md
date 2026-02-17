@@ -338,19 +338,19 @@ Test Doc:
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 3.1 | [ ] | Write tests for `formatGraphStatus()` | 3 | Tests: empty graph, single line, multi-line, all status glyphs, serial vs parallel separators, progress line, failure count | - | RED |
-| 3.2 | [ ] | Implement `formatGraphStatus()` | 2 | All tests from 3.1 pass. Pure function, no side effects. | - | GREEN |
-| 3.3 | [ ] | Write tests for edge cases | 1 | Tests: single node line, all-complete, all-failed, mixed statuses, ⏸️ for waiting-question and restart-pending | - | RED → GREEN |
-| 3.4 | [ ] | Add to barrel exports, `just fft` | 1 | Exported from 030-orchestration index, full suite green | - | |
+| 3.1 | [x] | Write tests for `formatGraphStatus()` | 3 | Tests: empty graph, single line, multi-line, all status glyphs, serial vs parallel separators, progress line, failure count | - | RED |
+| 3.2 | [x] | Implement `formatGraphStatus()` | 2 | All tests from 3.1 pass. Pure function, no side effects. | - | GREEN |
+| 3.3 | [x] | Write tests for edge cases | 1 | Tests: single node line, all-complete, all-failed, mixed statuses, ⏸️ for waiting-question and restart-pending | - | RED → GREEN |
+| 3.4 | [x] | Add to barrel exports, `just fft` | 1 | Exported from 030-orchestration index, full suite green | - | |
 
 ### Acceptance Criteria
-- [ ] Pure function: `PositionalGraphReality` in, `string` out
-- [ ] All 6 status glyphs render correctly
-- [ ] Serial (`→`) and parallel (`│`) separators based on execution mode
-- [ ] Progress line shows `N/M complete` with failure count if any
-- [ ] No event-domain concepts leak (no question IDs, no "waiting for answer")
-- [ ] Log-friendly: no ANSI codes, readable when piped to file
-- [ ] `just fft` clean
+- [x] Pure function: `PositionalGraphReality` in, `string` out
+- [x] All 6 status glyphs render correctly
+- [x] Serial (`→`) and parallel (`│`) separators based on execution mode
+- [x] Progress line shows `N/M complete` with failure count if any
+- [x] No event-domain concepts leak (no question IDs, no "waiting for answer")
+- [x] Log-friendly: no ANSI codes, readable when piped to file
+- [x] `just fft` clean
 
 ---
 
@@ -502,11 +502,11 @@ Test Doc:
 ### Phase Completion Status
 - [x] Phase 1: Types, Interfaces, and PlanPak Setup - COMPLETE
 - [x] Phase 2: Prompt Templates and AgentPod Selection - COMPLETE
-- [ ] Phase 3: Graph Status View - PENDING
+- [x] Phase 3: Graph Status View - COMPLETE
 - [ ] Phase 4: drive() Implementation - PENDING
 - [ ] Phase 5: CLI Command and Integration Tests - PENDING
 
-Overall Progress: 2/5 phases (40%)
+Overall Progress: 3/5 phases (60%)
 
 ### STOP Rule
 

@@ -55,3 +55,7 @@ clean:
 reset: clean
     rm -rf node_modules packages/*/node_modules apps/*/node_modules pnpm-lock.yaml
     pnpm install
+
+# Show graph status view gallery (all visual scenarios)
+graph-gallery:
+    npx tsx scripts/graph-status-gallery.ts
