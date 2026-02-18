@@ -300,15 +300,15 @@ Every test file includes the 5-field Test Doc comment block.
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 2.1 | [ ] | Add `onRun` callback to `FakeAgentInstance` | 1 | Optional callback, called during run() before returning | - | Cross-plan-edit @chainglass/shared |
-| 2.2 | [ ] | Create `dev/test-graphs/` directory structure with README.md | 1 | Directory exists with catalogue | - | |
-| 2.3 | [ ] | Write RED smoke test: `withTestGraph` creates workspace, registers it, copies units, `addNode` validates unit, runs test callback, cleans up. File: `test/integration/test-graph-infrastructure.test.ts`. Run: `pnpm test -- --run test/integration/test-graph-infrastructure.test.ts` | 2 | Test fails (helpers don't exist yet) | - | RED — must precede helper implementation |
-| 2.4 | [ ] | Implement `withTestGraph()` helper: mkdtemp → workspace add → copy units → setup graph → test → remove → cleanup | 3 | Helper creates workspace, copies units, runs test, cleans up | - | Finding 03, 04 |
-| 2.5 | [ ] | Implement `completeUserInputNode()` helper | 1 | Raises accept + saves outputs + raises completed events | - | |
-| 2.6 | [ ] | Implement `makeScriptsExecutable()` helper | 1 | Globs *.sh, chmod +x | - | R1-08 |
-| 2.7 | [ ] | Implement assertion library (assertGraphComplete, assertNodeComplete, assertOutputExists) | 1 | Assertions work against real graph state | - | |
-| 2.8 | [ ] | Make smoke test GREEN — all helpers wired | 1 | Smoke test from 2.3 passes | - | GREEN |
-| 2.9 | [ ] | `just fft` clean | 1 | All tests pass | - | |
+| 2.1 | [x] | Add `onRun` callback to `FakeAgentInstance` | 1 | Optional callback, called during run() before returning | [📋](tasks/phase-2-test-graph-infrastructure/execution.log.md#task-t001-add-onrun-callback-to-fakeagentinstance) | Completed · log#task-t001-add-onrun-callback-to-fakeagentinstance [^3] |
+| 2.2 | [x] | Create `dev/test-graphs/` directory structure with README.md | 1 | Directory exists with catalogue | [📋](tasks/phase-2-test-graph-infrastructure/execution.log.md#task-t002-dev-test-graphs-directory-readme) | Completed · log#task-t002-dev-test-graphs-directory-readme [^4] |
+| 2.3 | [x] | Write RED smoke test: `withTestGraph` creates workspace, registers it, copies units, `addNode` validates unit, runs test callback, cleans up. File: `test/integration/test-graph-infrastructure.test.ts`. Run: `pnpm test -- --run test/integration/test-graph-infrastructure.test.ts` | 2 | Test fails (helpers don't exist yet) | [📋](tasks/phase-2-test-graph-infrastructure/execution.log.md#task-t003-red-smoke-test) | Completed · log#task-t003-red-smoke-test [^5] |
+| 2.4 | [x] | Implement `withTestGraph()` helper: mkdtemp → workspace add → copy units → setup graph → test → remove → cleanup | 3 | Helper creates workspace, copies units, runs test, cleans up | [📋](tasks/phase-2-test-graph-infrastructure/execution.log.md#task-t004-withtestgraph-implementation) | Completed · log#task-t004-withtestgraph-implementation [^6] |
+| 2.5 | [x] | Implement `completeUserInputNode()` helper | 1 | Raises accept + saves outputs + raises completed events | [📋](tasks/phase-2-test-graph-infrastructure/execution.log.md#task-t008-completeuserinputnode) | Completed · log#task-t008-completeuserinputnode [^10] |
+| 2.6 | [x] | Implement `makeScriptsExecutable()` helper | 1 | Globs *.sh, chmod +x | [📋](tasks/phase-2-test-graph-infrastructure/execution.log.md#task-t006-makescriptsexecutable) | Completed · log#task-t006-makescriptsexecutable [^8] |
+| 2.7 | [x] | Implement assertion library (assertGraphComplete, assertNodeComplete, assertOutputExists) | 1 | Assertions work against real graph state | [📋](tasks/phase-2-test-graph-infrastructure/execution.log.md#task-t007-assertion-library) | Completed · log#task-t007-assertion-library [^9] |
+| 2.8 | [x] | Make smoke test GREEN — all helpers wired | 1 | Smoke test from 2.3 passes | [📋](tasks/phase-2-test-graph-infrastructure/execution.log.md#task-t005-smoke-test-green) | Completed · log#task-t005-smoke-test-green [^7] |
+| 2.9 | [x] | `just fft` clean | 1 | All tests pass | [📋](tasks/phase-2-test-graph-infrastructure/execution.log.md#task-t009-just-fft) | Completed · log#task-t009-just-fft [^11] |
 
 ### Acceptance Criteria
 - [ ] Test graph fixtures stored in `dev/test-graphs/` (AC-09)
@@ -473,11 +473,11 @@ Feature flags not needed — these are infrastructure changes, not user-facing b
 
 ### Phase Completion Status
 - [ ] Phase 1: CodePod Completion and ScriptRunner - PENDING
-- [ ] Phase 2: Test Graph Infrastructure - PENDING
+- [x] Phase 2: Test Graph Infrastructure - COMPLETE
 - [ ] Phase 3: Simple Test Graphs - PENDING
 - [ ] Phase 4: GOAT Graph and Demo Script - PENDING
 
-Overall Progress: 0/4 phases (0%)
+Overall Progress: 1/4 phases (25%)
 
 ### STOP Rule
 
@@ -509,3 +509,33 @@ Overall Progress: 0/4 phases (0%)
 
 [^1]: [To be added during implementation via plan-6a]
 [^2]: [To be added during implementation via plan-6a]
+
+[^3]: Task 2.1 (T001) - Added onRun callback to FakeAgentInstance
+  - `class:packages/shared/src/features/034-agentic-cli/fakes/fake-agent-instance.ts:FakeAgentInstance`
+  - `file:test/unit/shared/features/034-agentic-cli/fakes/fake-agent-instance.test.ts`
+
+[^4]: Task 2.2 (T002) - Created dev/test-graphs directory structure
+  - `file:dev/test-graphs/README.md`
+
+[^5]: Task 2.3 (T003) - RED smoke test with minimal fixture
+  - `file:test/integration/test-graph-infrastructure.test.ts`
+  - `file:dev/test-graphs/smoke/units/ping/unit.yaml`
+  - `file:dev/test-graphs/smoke/units/ping/scripts/ping.sh`
+
+[^6]: Task 2.4 (T004) - withTestGraph() lifecycle manager
+  - `file:dev/test-graphs/shared/graph-test-runner.ts`
+
+[^7]: Task 2.8 (T005) - Smoke test GREEN
+  - `file:test/integration/test-graph-infrastructure.test.ts`
+
+[^8]: Task 2.6 (T006) - makeScriptsExecutable helper
+  - `function:dev/test-graphs/shared/helpers.ts:makeScriptsExecutable`
+
+[^9]: Task 2.7 (T007) - Assertion library
+  - `file:dev/test-graphs/shared/assertions.ts`
+
+[^10]: Task 2.5 (T008) - completeUserInputNode helper
+  - `function:dev/test-graphs/shared/helpers.ts:completeUserInputNode`
+
+[^11]: Task 2.9 (T009) - Quality gate validation
+  - `file:all`

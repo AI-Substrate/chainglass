@@ -133,7 +133,10 @@ Test Files  274 passed | 6 skipped (280)
 **Completed**: 2026-02-18T07:34Z
 ---
 
-
+## Task T001: Add onRun callback to FakeAgentInstance
+**Dossier Task**: T001 | **Plan Task**: 2.1
+**Started**: 2026-02-18T07:20Z
+**Status**: ✅ Complete
 
 ### What I Did
 Added optional `onRun` callback to `FakeAgentInstanceOptions` and `FakeAgentInstance`. The callback is invoked during `run()` after event emission but before returning the result. Added `setOnRun()` test helper for runtime replacement.
