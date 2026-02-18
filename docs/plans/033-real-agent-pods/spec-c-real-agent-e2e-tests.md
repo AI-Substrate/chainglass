@@ -100,6 +100,16 @@ Line 1: spec-writer (agent, serial) → reviewer (agent, serial, inherits sessio
 
 **Why simple tasks?** Real agents need to complete quickly (30-60s each). Simple prompts with clear instructions minimize non-determinism while proving the full protocol.
 
+### GOAT Graph (Comprehensive E2E)
+
+Plan 037 (CodePod Completion and GOAT Integration Testing) builds a comprehensive test graph fixture — the GOAT — that exercises every orchestration scenario in a single graph: serial progression, parallel fan-out, manual transitions, error recovery, question/answer cycles, and multi-input aggregation.
+
+**The GOAT graph is designed for reuse with real agents.** Plan 037 builds it with `type: code` work units (simulation scripts). When Spec C is implemented, the same graph structure and assertions can be reused with `type: agent` work units — swapping scripts for real LLM prompts. Same graph, same validation, different executors.
+
+See:
+- [Plan 037 Spec](../037-codepod-and-goat-integration/codepod-and-goat-integration-spec.md) — AC-24 through AC-27
+- [Workshop 07: Test Graph Fixtures and GOAT](../036-cli-orchestration-driver/workshops/07-test-graph-fixtures-and-goat.md) — full GOAT design, reuse strategy (Part 7)
+
 ## Non-Determinism Handling
 
 | What We Assert | Why Reliable |
