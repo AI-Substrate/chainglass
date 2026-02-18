@@ -1,5 +1,11 @@
 # CodePod Completion and GOAT Integration Testing
 
+**Mode**: Full
+**Testing**: Full TDD
+**Mock Policy**: Avoid mocks entirely — fakes only
+**Documentation**: No new docs — workshops are the docs, `dev/test-graphs/README.md` catalogues fixtures
+**File Management**: PlanPak
+
 📚 This specification incorporates findings from Plan 036 Workshops 05-07:
 - [05-real-integration-testing.md](../036-cli-orchestration-driver/workshops/05-real-integration-testing.md)
 - [06-finishing-codepod.md](../036-cli-orchestration-driver/workshops/06-finishing-codepod.md)
@@ -168,11 +174,80 @@ These same graph fixtures are designed for later reuse with real agents — the 
 
 ---
 
+## Testing Strategy
+
+- **Approach**: Full TDD
+- **Rationale**: Complex infrastructure (CodePod, ScriptRunner, ODS wiring) plus integration tests that prove the full orchestration pipeline. RED-GREEN-REFACTOR for all production code.
+- **Focus Areas**:
+  - ScriptRunner subprocess execution (exit codes, stdout/stderr, env vars, kill)
+  - CodePod script path resolution and graph context env vars
+  - Integration tests with real graph state, real events, real CLI commands
+  - GOAT graph multi-step sequence (serial → parallel → error → question → completion)
+- **Excluded**: Simulation scripts themselves (they ARE the test — if they fail, the integration test fails)
+- **Mock Usage**: Avoid mocks entirely. All test doubles implement real interfaces (FakeScriptRunner, FakeAgentInstance, FakePodManager). No `vi.mock` / `jest.mock`.
+
+---
+
+## Documentation Strategy
+
+- **Location**: No new documentation files
+- **Rationale**: Workshops 05-07 serve as comprehensive design docs. `dev/test-graphs/README.md` catalogues the test graph fixtures. Code is self-documenting via Test Doc blocks and inline comments.
+- **Target Audience**: Future plan implementers building on the orchestration system
+- **Maintenance**: Update `dev/test-graphs/README.md` when new test graphs are added
+
+---
+
+## Clarifications
+
+### Session 2026-02-18
+
+**Q1: Workflow mode?**
+- **Answer**: Full (B) — CS-4, multi-phase, cross-cutting infrastructure + integration tests.
+
+**Q2: Testing approach?**
+- **Answer**: Full TDD (A) — complex infrastructure needs rigorous RED-GREEN-REFACTOR.
+
+**Q3: Mock policy?**
+- **Answer**: Avoid mocks entirely (A) — fakes only, per project constitution. No `vi.spyOn`.
+
+**Q4: Documentation strategy?**
+- **Answer**: No new docs (D) — workshops ARE the docs. `dev/test-graphs/README.md` for fixture catalogue.
+
+**Q5: File management?**
+- **Answer**: PlanPak (A) — feature folders for plan-scoped files. Note: most changes are cross-plan-edits to existing 030-orchestration. PlanPak folder for ScriptRunner and test infrastructure.
+
+**Q6 (OQ-01): ScriptRunner executor detection?**
+- **Answer**: Bash only (A) — scripts use shebangs for other runtimes. Keep ScriptRunner simple.
+- **Updated**: OQ-01 in spec marked RESOLVED.
+
+**Q7 (OQ-02): GOAT test structure?**
+- **Answer**: Single GOAT test (A) — multiple `drive()` calls with interventions between. Focused graphs (simple-serial, etc.) test individual scenarios. GOAT proves the full combined sequence.
+- **Updated**: OQ-02 in spec marked RESOLVED.
+
+**Q8 (OQ-03): Agent-unit variants now or deferred?**
+- **Answer**: Defer (B) — code-unit variants only for now. Agent-unit variants built when real agent testing plan begins. The reuse strategy is designed but not exercised yet.
+- **Updated**: OQ-03 in spec marked RESOLVED.
+
+### Coverage Summary
+
+| Category | Status |
+|----------|--------|
+| Workflow Mode | ✅ Resolved — Full |
+| Testing Strategy | ✅ Resolved — Full TDD, fakes only |
+| Documentation | ✅ Resolved — No new docs |
+| File Management | ✅ Resolved — PlanPak |
+| OQ-01 (ScriptRunner) | ✅ Resolved — Bash only |
+| OQ-02 (GOAT structure) | ✅ Resolved — Single test, multiple drives |
+| OQ-03 (Agent variants) | ✅ Resolved — Deferred |
+| Outstanding | None |
+
+---
+
 ## Open Questions
 
-- OQ-01: Should `ScriptRunner` detect file extension and use appropriate executor (bash vs node vs tsx), or always use bash with shebangs? [NEEDS CLARIFICATION: workshop recommends bash-only for simplicity]
-- OQ-02: Should the GOAT graph test be a single large test or broken into smaller focused tests that each test one intervention type? [NEEDS CLARIFICATION: workshop recommends multiple drive() calls with interventions between]
-- OQ-03: Should we also create an `agent-unit` variant of the GOAT for real agent testing now (placeholder prompts), or defer that entirely to a real agent testing plan?
+- OQ-01: ~~Should `ScriptRunner` detect file extension?~~ **RESOLVED**: Bash only — scripts use shebangs for other runtimes. Keep ScriptRunner simple.
+- OQ-02: ~~Should the GOAT graph test be a single large test or broken into smaller focused tests?~~ **RESOLVED**: Single GOAT test with multiple drive() calls + interventions between. Focused graphs test individual scenarios.
+- OQ-03: ~~Should we also create agent-unit variants now?~~ **RESOLVED**: Deferred to real agent testing plan. Code-unit variants only for now.
 
 ---
 
