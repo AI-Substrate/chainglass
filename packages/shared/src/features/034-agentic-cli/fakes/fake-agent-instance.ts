@@ -26,6 +26,8 @@ export interface FakeAgentInstanceOptions {
   compactResult?: AgentResult;
   /** Events to emit during run() */
   events?: Array<{ type: string; timestamp: string; data: unknown }>;
+  /** Callback invoked during run() before returning — enables graph state mutation in integration tests */
+  onRun?: (options: AgentRunOptions) => Promise<void>;
 }
 
 const DEFAULT_RUN_RESULT: AgentResult = {
@@ -60,6 +62,7 @@ export class FakeAgentInstance implements IAgentInstance {
   private _runResult: AgentResult;
   private _compactResult: AgentResult;
   private _events: Array<{ type: string; timestamp: string; data: unknown }>;
+  private _onRun?: (options: AgentRunOptions) => Promise<void>;
   private _runHistory: AgentRunOptions[] = [];
   private _compactHistory: Array<AgentCompactOptions | undefined> = [];
   private _terminateCount = 0;
@@ -77,6 +80,7 @@ export class FakeAgentInstance implements IAgentInstance {
     this._runResult = options.runResult ?? { ...DEFAULT_RUN_RESULT };
     this._compactResult = options.compactResult ?? { ...DEFAULT_COMPACT_RESULT };
     this._events = options.events ?? [];
+    this._onRun = options.onRun;
   }
 
   get status(): AgentInstanceStatus {
@@ -139,6 +143,11 @@ export class FakeAgentInstance implements IAgentInstance {
       }
     }
 
+    // Execute onRun callback (enables graph state mutation in integration tests)
+    if (this._onRun) {
+      await this._onRun(options);
+    }
+
     this._sessionId = this._runResult.sessionId;
     this._status = 'stopped';
     this._updatedAt = new Date();
@@ -199,6 +208,10 @@ export class FakeAgentInstance implements IAgentInstance {
 
   setEventsToEmit(events: Array<{ type: string; timestamp: string; data: unknown }>): void {
     this._events = events;
+  }
+
+  setOnRun(fn: ((options: AgentRunOptions) => Promise<void>) | undefined): void {
+    this._onRun = fn;
   }
 
   getRunHistory(): AgentRunOptions[] {
