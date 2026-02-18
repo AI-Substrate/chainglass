@@ -251,15 +251,16 @@ Every test file includes the 5-field Test Doc comment block.
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 1.1 | [ ] | Write RED tests for ScriptRunner: spawns bash script, captures exit code/stdout/stderr, kill works, timeout | 2 | Tests fail (no real ScriptRunner) | - | RED |
+| 1.1 | [ ] | Write RED tests for ScriptRunner: spawns bash script, captures exit code/stdout/stderr, kill works, timeout. File: `test/unit/positional-graph/features/030-orchestration/script-runner.test.ts`. Run: `pnpm test -- --run test/unit/positional-graph/features/030-orchestration/script-runner.test.ts` | 2 | Tests fail (no real ScriptRunner) | - | RED |
 | 1.2 | [ ] | Implement real `ScriptRunner` using `child_process.spawn` | 2 | All tests from 1.1 pass | - | GREEN |
-| 1.3 | [ ] | Update `PodCreateParams` code variant with `scriptPath: string` | 1 | Types compile | - | pod-manager.types.ts |
-| 1.4 | [ ] | Update CodePod constructor: add `scriptPath`, `unitSlug`. Add `CG_GRAPH_SLUG`, `CG_NODE_ID`, `CG_WORKSPACE_PATH` env vars. Use `this.scriptPath` instead of `''`. | 2 | CodePod compiles | - | pod.code.ts |
-| 1.5 | [ ] | Update PodManager to pass `scriptPath` + `unitSlug` to CodePod | 1 | PodManager compiles | - | pod-manager.ts |
-| 1.6 | [ ] | Add `workUnitLoader: IWorkUnitLoader` to `ODSDependencies`. Update ODS `buildPodParams()` to resolve scriptPath. | 2 | ODS compiles | - | ods.ts, ods.types.ts |
-| 1.7 | [ ] | Update all 25 test call sites (9 CodePod + 16 ODS) with placeholder values | 2 | All existing tests compile and pass | - | Cascade fix |
-| 1.8 | [ ] | Register real ScriptRunner in DI containers (positional-graph + CLI) | 1 | Containers resolve ScriptRunner | - | container.ts × 2 |
-| 1.9 | [ ] | Write CodePod env var tests: verify CG_GRAPH_SLUG, CG_NODE_ID, CG_WORKSPACE_PATH passed to runner | 2 | Tests pass | - | RED→GREEN |
+| 1.2b | [ ] | Write contract test for IScriptRunner: parameterized factory running against both FakeScriptRunner and real ScriptRunner (R-TEST-008). File: `test/contracts/script-runner.contract.ts` | 2 | Contract test passes for both implementations | - | R-TEST-008 |
+| 1.3 | [ ] | Write RED tests for CodePod env vars: verify CG_GRAPH_SLUG, CG_NODE_ID, CG_WORKSPACE_PATH passed to runner via FakeScriptRunner | 2 | Tests fail (CodePod doesn't pass env vars yet) | - | RED — must precede implementation |
+| 1.4 | [ ] | Update `PodCreateParams` code variant with `scriptPath: string` | 1 | Types compile | - | pod-manager.types.ts |
+| 1.5 | [ ] | Update CodePod constructor: add `scriptPath`, `unitSlug`. Add `CG_GRAPH_SLUG`, `CG_NODE_ID`, `CG_WORKSPACE_PATH` env vars. Use `this.scriptPath` instead of `''`. | 2 | CodePod compiles. Tests from 1.3 pass. | - | GREEN |
+| 1.6 | [ ] | Update PodManager to pass `scriptPath` + `unitSlug` to CodePod | 1 | PodManager compiles | - | pod-manager.ts |
+| 1.7 | [ ] | Add `workUnitLoader: IWorkUnitLoader` to `ODSDependencies`. Update ODS `buildPodParams()` to resolve scriptPath. | 2 | ODS compiles | - | ods.ts, ods.types.ts |
+| 1.8 | [ ] | Update all 25 test call sites (9 CodePod + 16 ODS) with placeholder values | 2 | All existing tests compile and pass | - | Cascade fix |
+| 1.9 | [ ] | Register real ScriptRunner in DI containers (positional-graph + CLI) | 1 | Containers resolve ScriptRunner | - | container.ts × 2 |
 | 1.10 | [ ] | `just fft` clean | 1 | All tests pass, lint clean | - | |
 
 ### Acceptance Criteria
@@ -301,14 +302,16 @@ Every test file includes the 5-field Test Doc comment block.
 |---|--------|------|----|------------------|-----|-------|
 | 2.1 | [ ] | Add `onRun` callback to `FakeAgentInstance` | 1 | Optional callback, called during run() before returning | - | Cross-plan-edit @chainglass/shared |
 | 2.2 | [ ] | Create `dev/test-graphs/` directory structure with README.md | 1 | Directory exists with catalogue | - | |
-| 2.3 | [ ] | Implement `withTestGraph()` helper: mkdtemp → workspace add → copy units → setup graph → test → remove → cleanup | 3 | Helper creates workspace, copies units, runs test, cleans up | - | Finding 03, 04 |
-| 2.4 | [ ] | Implement `completeUserInputNode()` helper | 1 | Raises accept + saves outputs + raises completed events | - | |
-| 2.5 | [ ] | Implement `makeScriptsExecutable()` helper | 1 | Globs *.sh, chmod +x | - | R1-08 |
-| 2.6 | [ ] | Implement assertion library (assertGraphComplete, assertNodeComplete, assertOutputExists) | 1 | Assertions work against real graph state | - | |
-| 2.7 | [ ] | Write smoke test: withTestGraph creates workspace, addNode validates unit, cleanup works | 2 | Smoke test passes | - | RED→GREEN |
-| 2.8 | [ ] | `just fft` clean | 1 | All tests pass | - | |
+| 2.3 | [ ] | Write RED smoke test: `withTestGraph` creates workspace, registers it, copies units, `addNode` validates unit, runs test callback, cleans up. File: `test/integration/test-graph-infrastructure.test.ts`. Run: `pnpm test -- --run test/integration/test-graph-infrastructure.test.ts` | 2 | Test fails (helpers don't exist yet) | - | RED — must precede helper implementation |
+| 2.4 | [ ] | Implement `withTestGraph()` helper: mkdtemp → workspace add → copy units → setup graph → test → remove → cleanup | 3 | Helper creates workspace, copies units, runs test, cleans up | - | Finding 03, 04 |
+| 2.5 | [ ] | Implement `completeUserInputNode()` helper | 1 | Raises accept + saves outputs + raises completed events | - | |
+| 2.6 | [ ] | Implement `makeScriptsExecutable()` helper | 1 | Globs *.sh, chmod +x | - | R1-08 |
+| 2.7 | [ ] | Implement assertion library (assertGraphComplete, assertNodeComplete, assertOutputExists) | 1 | Assertions work against real graph state | - | |
+| 2.8 | [ ] | Make smoke test GREEN — all helpers wired | 1 | Smoke test from 2.3 passes | - | GREEN |
+| 2.9 | [ ] | `just fft` clean | 1 | All tests pass | - | |
 
 ### Acceptance Criteria
+- [ ] Test graph fixtures stored in `dev/test-graphs/` (AC-09)
 - [ ] `withTestGraph()` creates temp workspace and registers it (AC-10, AC-11)
 - [ ] Work units copied to `.chainglass/units/` with correct structure (AC-12)
 - [ ] `addNode()` validates units exist on disk (AC-13)
@@ -358,6 +361,7 @@ Every test file includes the 5-field Test Doc comment block.
 - [ ] error-recovery graph shows failure correctly (AC-22)
 - [ ] Graph status view shows correct glyphs (AC-23)
 - [ ] Simulation scripts call CLI with env vars (AC-15, AC-19)
+- [ ] Error simulation script calls `cg wf node error` (AC-16)
 - [ ] `just fft` clean (AC-31)
 
 ---
@@ -398,6 +402,8 @@ Every test file includes the 5-field Test Doc comment block.
 - [ ] GOAT test drives through all intervention steps (AC-25)
 - [ ] GOAT validates all nodes complete, outputs saved (AC-26)
 - [ ] Assertions reusable for code-unit and agent-unit variants (AC-27)
+- [ ] Question simulation script calls `cg wf node ask` (AC-17)
+- [ ] Recovery simulation script fails first, succeeds on retry (AC-18)
 - [ ] Demo script shows visual progression (AC-28, AC-29, AC-30)
 - [ ] `just fft` clean (AC-31)
 
@@ -409,6 +415,17 @@ Every test file includes the 5-field Test Doc comment block.
 - ScriptRunner spawns subprocesses — scripts execute with full user permissions
 - Script path containment validated by WorkUnitLoader (no `../` escapes)
 - Temp workspaces cleaned up after tests
+
+### Rollback Plan (R-EST-004)
+
+| Phase | Rollback Strategy |
+|-------|-------------------|
+| Phase 1 | Single atomic commit for all 25 call-site changes — `git revert <commit>`. No data migration. |
+| Phase 2 | Delete `dev/test-graphs/` directory + revert FakeAgentInstance change. Test-only files. |
+| Phase 3 | Delete test graph fixtures + integration test file. No production code affected. |
+| Phase 4 | Delete GOAT fixtures + demo script + justfile entry. No production code affected. |
+
+Feature flags not needed — these are infrastructure changes, not user-facing behavior toggles.
 
 ### Observability
 - DriveEvent (from Plan 036) provides orchestration status
