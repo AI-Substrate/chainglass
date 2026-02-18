@@ -12,6 +12,7 @@
 import type { IAgentManagerService } from '@chainglass/shared';
 import type { WorkspaceContext } from '@chainglass/workflow';
 import type { IPositionalGraphService } from '../../interfaces/positional-graph-service.interface.js';
+import type { IWorkUnitService } from '../029-agentic-work-units/workunit-service.interface.js';
 import type { IAgentContextService } from './agent-context.types.js';
 import type { OrchestrationRequest } from './orchestration-request.schema.js';
 import type { OrchestrationExecuteResult } from './orchestration-request.types.js';
@@ -54,4 +55,5 @@ export interface ODSDependencies {
   readonly contextService: IAgentContextService;
   readonly agentManager: IAgentManagerService;
   readonly scriptRunner: IScriptRunner;
+  readonly workUnitService: IWorkUnitService;
 }

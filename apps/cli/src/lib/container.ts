@@ -15,9 +15,9 @@ import {
 import type { IWorkUnitLoader, IWorkUnitService } from '@chainglass/positional-graph';
 import {
   EventHandlerService,
-  FakeScriptRunner,
   NodeEventRegistry,
   NodeEventService,
+  ScriptRunner,
   createEventHandlerRegistry,
   registerCoreEventTypes,
 } from '@chainglass/positional-graph';
@@ -231,10 +231,9 @@ export function createCliProductionContainer(): DependencyContainer {
   });
 
   // Register orchestration prerequisites (Plan 036 Phase 5)
-  // ScriptRunner: no real impl exists yet — use FakeScriptRunner for agent-only graphs
-  // TODO: Replace with real ScriptRunner when code node execution is implemented
+  // ScriptRunner: real subprocess executor for code work units (Plan 037)
   childContainer.register<IScriptRunner>(ORCHESTRATION_DI_TOKENS.SCRIPT_RUNNER, {
-    useFactory: () => new FakeScriptRunner(),
+    useFactory: () => new ScriptRunner(),
   });
 
   // EventHandlerService: needed by orchestration settle phase (Plan 036)

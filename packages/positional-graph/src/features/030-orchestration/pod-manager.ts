@@ -33,7 +33,7 @@ export class PodManager implements IPodManager {
         pod = new AgentPod(nodeId, params.agentInstance, params.unitSlug);
         break;
       case 'code':
-        pod = new CodePod(nodeId, params.runner);
+        pod = new CodePod(nodeId, params.runner, params.scriptPath, params.unitSlug);
         break;
     }
 

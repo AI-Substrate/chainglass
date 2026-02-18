@@ -1,9 +1,11 @@
 /**
  * CodePod: execution container for code-type work units.
  *
- * Wraps IScriptRunner for script execution. No sessions, no questions.
+ * Wraps IScriptRunner for script execution. Passes graph context
+ * as env vars (CG_GRAPH_SLUG, CG_NODE_ID, CG_WORKSPACE_PATH) so
+ * scripts can interact with the workflow via CLI commands.
  *
- * @see Workshop #4 (04-work-unit-pods.md)
+ * @see Workshop #4 (04-work-unit-pods.md), Workshop 06 (finishing-codepod.md)
  */
 
 import type { IWorkUnitPod, PodExecuteOptions, PodExecuteResult } from './pod.types.js';
@@ -15,17 +17,24 @@ export class CodePod implements IWorkUnitPod {
 
   constructor(
     readonly nodeId: string,
-    private readonly scriptRunner: IScriptRunner
+    private readonly scriptRunner: IScriptRunner,
+    private readonly scriptPath: string,
+    private readonly unitSlug: string
   ) {}
 
   async execute(options: PodExecuteOptions): Promise<PodExecuteResult> {
     const { inputs, ctx } = options;
 
-    const env = buildScriptEnv(inputs.inputs);
+    const env = {
+      ...buildScriptEnv(inputs.inputs),
+      CG_GRAPH_SLUG: options.graphSlug,
+      CG_NODE_ID: this.nodeId,
+      CG_WORKSPACE_PATH: ctx.worktreePath,
+    };
 
     try {
       const result = await this.scriptRunner.run({
-        script: '',
+        script: this.scriptPath,
         cwd: ctx.worktreePath,
         env,
         timeout: 60,

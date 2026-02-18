@@ -257,7 +257,7 @@ describe('CodePod', () => {
         stdout: 'ok',
         outputs: { result: 'done' },
       });
-      const pod = new CodePod('code-1', runner);
+      const pod = new CodePod('code-1', runner, '/test/script.sh', 'test-unit');
 
       const result = await pod.execute(makeOptions());
 
@@ -270,7 +270,7 @@ describe('CodePod', () => {
         exitCode: 1,
         stderr: 'lint failed',
       });
-      const pod = new CodePod('code-1', runner);
+      const pod = new CodePod('code-1', runner, '/test/script.sh', 'test-unit');
 
       const result = await pod.execute(makeOptions());
 
@@ -282,7 +282,7 @@ describe('CodePod', () => {
 
     it('sessionId is always undefined', async () => {
       const runner = new FakeScriptRunner({ exitCode: 0 });
-      const pod = new CodePod('code-1', runner);
+      const pod = new CodePod('code-1', runner, '/test/script.sh', 'test-unit');
 
       expect(pod.sessionId).toBeUndefined();
 
@@ -293,7 +293,7 @@ describe('CodePod', () => {
 
     it('passes inputs as env vars to runner', async () => {
       const runner = new FakeScriptRunner({ exitCode: 0 });
-      const pod = new CodePod('code-1', runner);
+      const pod = new CodePod('code-1', runner, '/test/script.sh', 'test-unit');
 
       await pod.execute(
         makeOptions({
@@ -315,7 +315,7 @@ describe('CodePod', () => {
       runner.run = async () => {
         throw new Error('process crashed');
       };
-      const pod = new CodePod('code-1', runner);
+      const pod = new CodePod('code-1', runner, '/test/script.sh', 'test-unit');
 
       const result = await pod.execute(makeOptions());
 
@@ -328,7 +328,7 @@ describe('CodePod', () => {
   describe('resumeWithAnswer()', () => {
     it('returns not-supported error', async () => {
       const runner = new FakeScriptRunner({ exitCode: 0 });
-      const pod = new CodePod('code-1', runner);
+      const pod = new CodePod('code-1', runner, '/test/script.sh', 'test-unit');
 
       const result = await pod.resumeWithAnswer('q-1', 'answer', makeOptions());
 
@@ -340,7 +340,7 @@ describe('CodePod', () => {
   describe('terminate()', () => {
     it('kills the runner', async () => {
       const runner = new FakeScriptRunner({ exitCode: 0 });
-      const pod = new CodePod('code-1', runner);
+      const pod = new CodePod('code-1', runner, '/test/script.sh', 'test-unit');
 
       await pod.terminate();
 
@@ -351,7 +351,7 @@ describe('CodePod', () => {
   describe('properties', () => {
     it('has correct nodeId and unitType', () => {
       const runner = new FakeScriptRunner({ exitCode: 0 });
-      const pod = new CodePod('my-code', runner);
+      const pod = new CodePod('my-code', runner, '/test/script.sh', 'test-unit');
 
       expect(pod.nodeId).toBe('my-code');
       expect(pod.unitType).toBe('code');

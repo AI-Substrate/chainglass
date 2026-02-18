@@ -127,9 +127,10 @@ export type {
 export { AgentPod } from './pod.agent.js';
 export { CodePod } from './pod.code.js';
 
-// ScriptRunner — Interface + Fake (Phase 4)
+// ScriptRunner — Interface + Fake + Real (Phase 4 / Plan 037)
 export type { IScriptRunner, ScriptRunOptions, ScriptRunResult } from './script-runner.types.js';
 export { FakeScriptRunner } from './script-runner.types.js';
+export { ScriptRunner } from './script-runner.js';
 
 // PodManager — Interface + types (Phase 4)
 export type { IPodManager, PodCreateParams } from './pod-manager.types.js';

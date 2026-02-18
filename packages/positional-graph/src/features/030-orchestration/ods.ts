@@ -13,6 +13,7 @@
  * @packageDocumentation
  */
 
+import { join } from 'node:path';
 import type { IAgentInstance } from '@chainglass/shared';
 import type { WorkspaceContext } from '@chainglass/workflow';
 import type { IODS, ODSDependencies } from './ods.types.js';
@@ -111,7 +112,8 @@ export class ODS implements IODS {
     }
 
     // 2. Create pod (agent nodes go through manager, code nodes use runner directly)
-    const pod = this.deps.podManager.createPod(nodeId, this.buildPodParams(node, ctx, reality));
+    const podParams = await this.buildPodParams(node, ctx, reality);
+    const pod = this.deps.podManager.createPod(nodeId, podParams);
 
     // 3. Fire and forget — DO NOT await
     pod.execute({
@@ -123,7 +125,7 @@ export class ODS implements IODS {
     return { ok: true, request, newStatus: 'starting', sessionId: pod.sessionId };
   }
 
-  private buildPodParams(
+  private async buildPodParams(
     node: NodeReality,
     ctx: WorkspaceContext,
     reality: PositionalGraphReality
@@ -158,10 +160,25 @@ export class ODS implements IODS {
         agentInstance,
       };
     }
+
+    // Code type — resolve script path from work unit config
+    const loadResult = await this.deps.workUnitService.load(ctx, node.unitSlug);
+    let scriptPath = '';
+    if (loadResult.unit && loadResult.unit.type === 'code') {
+      scriptPath = join(
+        ctx.worktreePath,
+        '.chainglass',
+        'units',
+        node.unitSlug,
+        loadResult.unit.code.script
+      );
+    }
+
     return {
       unitType: 'code' as const,
       unitSlug: node.unitSlug,
       runner: this.deps.scriptRunner,
+      scriptPath,
     };
   }
 }

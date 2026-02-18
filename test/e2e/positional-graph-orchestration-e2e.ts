@@ -35,6 +35,8 @@ import {
   PodManager,
 } from '@chainglass/positional-graph/features/030-orchestration';
 
+import { FakeWorkUnitService } from '@chainglass/positional-graph/features/029-agentic-work-units';
+
 import {
   EventHandlerService,
   FakeNodeEventRegistry,
@@ -102,6 +104,7 @@ function createOrchestrationStack(
     contextService,
     agentManager,
     scriptRunner,
+    workUnitService: new FakeWorkUnitService(),
   });
 
   const orchestrationService = new OrchestrationService({

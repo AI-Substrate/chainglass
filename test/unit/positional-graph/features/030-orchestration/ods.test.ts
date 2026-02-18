@@ -13,6 +13,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { FakeAgentManagerService } from '@chainglass/shared';
 import type { WorkspaceContext } from '@chainglass/workflow';
 
+import { FakeWorkUnitService } from '../../../../../packages/positional-graph/src/features/029-agentic-work-units/fake-workunit.service.js';
 import { FakeAgentContextService } from '../../../../../packages/positional-graph/src/features/030-orchestration/fake-agent-context.js';
 import { buildFakeReality } from '../../../../../packages/positional-graph/src/features/030-orchestration/fake-onbas.js';
 import {
@@ -88,6 +89,7 @@ describe('ODS — start-node handler', () => {
       contextService,
       agentManager: new FakeAgentManagerService(),
       scriptRunner: stubRunner,
+      workUnitService: new FakeWorkUnitService(),
     };
   });
 

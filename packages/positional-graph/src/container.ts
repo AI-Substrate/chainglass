@@ -10,6 +10,7 @@ import {
 import type { DependencyContainer } from 'tsyringe';
 import { PositionalGraphAdapter } from './adapter/positional-graph.adapter.js';
 import { WorkUnitAdapter, WorkUnitService } from './features/029-agentic-work-units/index.js';
+import type { IWorkUnitService } from './features/029-agentic-work-units/workunit-service.interface.js';
 import { AgentContextService } from './features/030-orchestration/agent-context.js';
 import { ODS } from './features/030-orchestration/ods.js';
 import { ONBAS } from './features/030-orchestration/onbas.js';
@@ -105,11 +106,21 @@ export function registerOrchestrationServices(container: DependencyContainer): v
         ORCHESTRATION_DI_TOKENS.EVENT_HANDLER_SERVICE
       );
       const fs = c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
+      const workUnitService = c.resolve<IWorkUnitService>(
+        POSITIONAL_GRAPH_DI_TOKENS.WORKUNIT_SERVICE
+      );
 
       const onbas = new ONBAS();
       const contextService = new AgentContextService();
       const podManager = new PodManager(fs);
-      const ods = new ODS({ graphService, podManager, contextService, agentManager, scriptRunner });
+      const ods = new ODS({
+        graphService,
+        podManager,
+        contextService,
+        agentManager,
+        scriptRunner,
+        workUnitService,
+      });
 
       return new OrchestrationService({
         graphService,

@@ -51,4 +51,4 @@ export {
 
 // Script runner (Plan 030, Phase 4)
 export type { IScriptRunner } from './features/030-orchestration/index.js';
-export { FakeScriptRunner } from './features/030-orchestration/index.js';
+export { FakeScriptRunner, ScriptRunner } from './features/030-orchestration/index.js';

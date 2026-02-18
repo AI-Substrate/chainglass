@@ -26,6 +26,7 @@ export type PodCreateParams =
       readonly unitType: 'code';
       readonly unitSlug: string;
       readonly runner: IScriptRunner;
+      readonly scriptPath: string;
     };
 
 /**

@@ -16,6 +16,7 @@ import type { IAgentManagerService } from '@chainglass/shared';
 import { FakeAgentManagerService } from '@chainglass/shared';
 import type { WorkspaceContext } from '@chainglass/workflow';
 
+import { FakeWorkUnitService } from '../../../../../packages/positional-graph/src/features/029-agentic-work-units/fake-workunit.service.js';
 import { FakeAgentContextService } from '../../../../../packages/positional-graph/src/features/030-orchestration/fake-agent-context.js';
 import { buildFakeReality } from '../../../../../packages/positional-graph/src/features/030-orchestration/fake-onbas.js';
 import { FakePodManager } from '../../../../../packages/positional-graph/src/features/030-orchestration/fake-pod-manager.js';
@@ -70,6 +71,7 @@ describe('ODS Agent Wiring', () => {
       contextService,
       agentManager,
       scriptRunner: stubRunner,
+      workUnitService: new FakeWorkUnitService(),
     };
     ods = new ODS(deps);
   });
