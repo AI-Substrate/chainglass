@@ -112,7 +112,20 @@ export class ODS implements IODS {
     }
 
     // 2. Create pod (agent nodes go through manager, code nodes use runner directly)
-    const podParams = await this.buildPodParams(node, ctx, reality);
+    let podParams: Awaited<ReturnType<typeof this.buildPodParams>>;
+    try {
+      podParams = await this.buildPodParams(node, ctx, reality);
+    } catch (err) {
+      return {
+        ok: false,
+        error: {
+          code: 'POD_CREATION_FAILED',
+          message: err instanceof Error ? err.message : String(err),
+          nodeId,
+        },
+        request,
+      };
+    }
     const pod = this.deps.podManager.createPod(nodeId, podParams);
 
     // 3. Fire and forget — DO NOT await
@@ -163,16 +176,19 @@ export class ODS implements IODS {
 
     // Code type — resolve script path from work unit config
     const loadResult = await this.deps.workUnitService.load(ctx, node.unitSlug);
-    let scriptPath = '';
-    if (loadResult.unit && loadResult.unit.type === 'code') {
-      scriptPath = join(
-        ctx.worktreePath,
-        '.chainglass',
-        'units',
-        node.unitSlug,
-        loadResult.unit.code.script
-      );
+    if (loadResult.errors.length > 0 || !loadResult.unit || loadResult.unit.type !== 'code') {
+      const msg =
+        loadResult.errors[0]?.message ??
+        `Work unit '${node.unitSlug}' not found or not a code unit`;
+      throw new Error(`SCRIPT_PATH_RESOLUTION_FAILED: ${msg}`);
     }
+    const scriptPath = join(
+      ctx.worktreePath,
+      '.chainglass',
+      'units',
+      node.unitSlug,
+      loadResult.unit.code.script
+    );
 
     return {
       unitType: 'code' as const,

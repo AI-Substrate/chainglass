@@ -107,4 +107,18 @@ describe('ScriptRunner', () => {
     // Killed process returns non-zero
     expect(result.exitCode).not.toBe(0);
   });
+
+  it('times out and kills process after timeout seconds', async () => {
+    const script = await writeScript('hang.sh', 'sleep 30');
+
+    const result = await runner.run({
+      script,
+      cwd: tmpDir,
+      env: {},
+      timeout: 1,
+    });
+
+    expect(result.exitCode).toBe(124);
+    expect(result.stderr).toContain('timed out');
+  });
 });

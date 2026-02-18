@@ -27,6 +27,15 @@ export class ScriptRunner implements IScriptRunner {
       this.childProcess = child;
       let stdout = '';
       let stderr = '';
+      let timedOut = false;
+
+      const timer =
+        options.timeout > 0
+          ? setTimeout(() => {
+              timedOut = true;
+              this.kill();
+            }, options.timeout * 1000)
+          : undefined;
 
       child.stdout?.on('data', (data: Buffer) => {
         const text = data.toString();
@@ -39,16 +48,18 @@ export class ScriptRunner implements IScriptRunner {
       });
 
       child.on('close', (exitCode) => {
+        if (timer) clearTimeout(timer);
         this.childProcess = undefined;
         resolve({
-          exitCode: exitCode ?? 1,
+          exitCode: timedOut ? 124 : (exitCode ?? 1),
           stdout,
-          stderr,
+          stderr: timedOut ? `${stderr}Script timed out after ${options.timeout}s` : stderr,
           outputs: {},
         });
       });
 
       child.on('error', (err) => {
+        if (timer) clearTimeout(timer);
         this.childProcess = undefined;
         reject(err);
       });

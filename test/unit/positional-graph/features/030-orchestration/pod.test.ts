@@ -310,6 +310,23 @@ describe('CodePod', () => {
       expect(history[0].env.INPUT_COUNT).toBe('42');
     });
 
+    it('passes CG_GRAPH_SLUG, CG_NODE_ID, CG_WORKSPACE_PATH env vars (AC-02)', async () => {
+      const runner = new FakeScriptRunner({ exitCode: 0 });
+      const pod = new CodePod('my-node', runner, '/test/script.sh', 'my-unit');
+
+      await pod.execute(
+        makeOptions({
+          graphSlug: 'my-graph',
+          ctx: { worktreePath: '/workspace/root' },
+        })
+      );
+
+      const history = runner.getRunHistory();
+      expect(history[0].env.CG_GRAPH_SLUG).toBe('my-graph');
+      expect(history[0].env.CG_NODE_ID).toBe('my-node');
+      expect(history[0].env.CG_WORKSPACE_PATH).toBe('/workspace/root');
+    });
+
     it('runner exception returns error outcome', async () => {
       const runner = new FakeScriptRunner({ exitCode: 0 });
       runner.run = async () => {

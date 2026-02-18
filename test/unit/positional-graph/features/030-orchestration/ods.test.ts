@@ -83,13 +83,22 @@ describe('ODS — start-node handler', () => {
   beforeEach(() => {
     podManager = new FakePodManager();
     contextService = new FakeAgentContextService();
+    const fakeWUS = new FakeWorkUnitService();
+    fakeWUS.addUnit({
+      type: 'code',
+      slug: 'unit-C',
+      version: '1.0.0',
+      code: { script: 'scripts/run.sh' },
+      scriptContent: '#!/bin/bash\necho ok',
+      outputs: [{ name: 'result', type: 'data', data_type: 'text', required: true }],
+    });
     deps = {
       graphService: makeGraphServiceStub(),
       podManager,
       contextService,
       agentManager: new FakeAgentManagerService(),
       scriptRunner: stubRunner,
-      workUnitService: new FakeWorkUnitService(),
+      workUnitService: fakeWUS,
     };
   });
 
