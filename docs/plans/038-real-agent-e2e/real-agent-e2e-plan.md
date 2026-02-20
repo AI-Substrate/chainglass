@@ -164,8 +164,8 @@ This gives ~250s total budget (50 × 5s) — sufficient for a 2-3 node graph.
 
 **Impact**: Medium
 **Sources**: [ODS buildPodParams, graph-orchestration.ts]
-**Finding**: `reality.settings?.agentType ?? 'copilot'` — defaults to `copilot` if not set. The graph's orchestrator settings must specify `agentType: 'claude-code'`. Set via `service.setGraphOrchestratorSettings()`.
-**Action**: Call `service.setGraphOrchestratorSettings(ctx, slug, { agentType: 'claude-code' })` after graph creation.
+**Finding**: `reality.settings?.agentType ?? 'copilot'` — defaults to `copilot` if not set. The graph's orchestrator settings must specify `agentType: 'claude-code'`. Set via `service.updateGraphOrchestratorSettings()`.
+**Action**: Call `service.updateGraphOrchestratorSettings(ctx, slug, { agentType: 'claude-code' })` after graph creation.
 
 ---
 
@@ -219,7 +219,7 @@ Every test file includes the 5-field Test Doc comment block.
 │       └── README.md                   # MODIFY: add entries
 ├── test/
 │   └── integration/
-│       └── real-agent-e2e.test.ts      # NEW: describe.skip tests
+│       └── real-agent-orchestration.test.ts  # NEW: describe.skip tests
 └── docs/plans/038-real-agent-e2e/
     └── real-agent-e2e-plan.md          # This file
 ```
@@ -254,18 +254,18 @@ Every test file includes the 5-field Test Doc comment block.
 |---|--------|------|----|------------------|-----|-------|
 | 1.1 | [ ] | Create `dev/test-graphs/real-agent-serial/units/` fixture: `get-spec/unit.yaml` (user-input, output: spec), `spec-writer/unit.yaml` (agent, input: spec, output: summary, prompt_template: prompts/main.md), `reviewer/unit.yaml` (agent, input: summary, output: decision, prompt_template: prompts/main.md). Write `prompts/main.md` for each agent: simple tasks — "Read the spec and write a 1-sentence summary" and "Review the summary and output 'approved' or 'needs-changes'". | 2 | Files on disk, unit.yaml valid per schema | - | AC-34 |
 | 1.2 | [ ] | Create `dev/test-graphs/real-agent-parallel/units/` fixture: `get-spec/unit.yaml` (user-input), `worker-a/unit.yaml` (agent, parallel, input: spec, output: result), `worker-b/unit.yaml` (agent, parallel, input: spec, output: result). Write prompts: "Read the spec and output a 1-word summary". | 1 | Files on disk, unit.yaml valid | - | AC-37 |
-| 1.3 | [ ] | Write `test/integration/real-agent-e2e.test.ts` with `describe.skip` containing 2 tests: (a) Serial pipeline: `withTestGraph('real-agent-serial')` → create graph (Line 0: get-spec, Line 1: spec-writer → reviewer serial) → set agentType to 'claude-code' → complete get-spec → drive with real agent → assert both agent nodes complete, reviewer has sessionId (proving inheritance), outputs saved. (b) Parallel: `withTestGraph('real-agent-parallel')` → create graph (Line 0: get-spec, Line 1: worker-a + worker-b parallel) → set agentType → complete get-spec → drive → assert both complete, different sessionIds. Inline orchestration stack with real AgentManagerService via dynamic import. | 3 | Tests written, `describe.skip` applied, file compiles | - | AC-34, AC-35, AC-36, AC-37, AC-38, AC-39 |
+| 1.3 | [ ] | Write `test/integration/real-agent-orchestration.test.ts` with `describe.skip` containing 2 tests: (a) Serial pipeline: `withTestGraph('real-agent-serial')` → create graph (Line 0: get-spec, Line 1: spec-writer → reviewer serial) → `updateGraphOrchestratorSettings(ctx, slug, { agentType: 'claude-code' })` → complete get-spec → drive with real agent → assert both agent nodes complete, reviewer sessionId differs from spec-writer's (fork proves inheritance, AC-36), outputs saved. (b) Parallel: `withTestGraph('real-agent-parallel')` → create graph (Line 0: get-spec, Line 1: worker-a + worker-b parallel) → set agentType → complete get-spec → drive → assert both complete, different sessionIds. Inline orchestration stack with real AgentManagerService via dynamic import. | 3 | Tests written, `describe.skip` applied, file compiles | - | AC-34, AC-35, AC-36, AC-37, AC-38, AC-39 |
 | 1.4 | [ ] | Update `dev/test-graphs/README.md` with real-agent-serial and real-agent-parallel entries | 1 | Catalogue updated | - | |
-| 1.5 | [ ] | Verify `service.setGraphOrchestratorSettings()` exists and takes `{ agentType: 'claude-code' }`. If not, find the correct API. | 1 | agentType setting confirmed | - | Finding 08 |
+| 1.5 | [ ] | Verify `service.updateGraphOrchestratorSettings()` takes `{ agentType: 'claude-code' }` — confirmed as the correct API. | 1 | agentType setting confirmed | - | Finding 08 |
 | 1.6 | [ ] | `just fft` clean (skip tests don't affect gate) | 1 | All existing tests pass, lint clean | - | AC-40 |
 
 ### Acceptance Criteria
 - [ ] Real agent serial test exists with `describe.skip` (AC-34, AC-38)
 - [ ] Serial test verifies accept/read/save/complete via structural assertions (AC-35)
-- [ ] Serial test proves session inheritance — reviewer gets sessionId from spec-writer (AC-36)
+- [ ] Serial test proves session inheritance — reviewer's sessionId differs from spec-writer's (fork happened) (AC-36)
 - [ ] Parallel test proves independent sessions — different sessionIds for worker-a and worker-b (AC-37)
 - [ ] All assertions are structural (status, sessionId, output existence) — no content assertions (AC-39)
-- [ ] All existing 3956+ tests continue to pass (AC-40)
+- [ ] All existing tests continue to pass (AC-40)
 
 ---
 
@@ -282,7 +282,9 @@ Every test file includes the 5-field Test Doc comment block.
 
 ### Documentation
 - No new docs — fixtures serve as documentation of agent unit structure
+- Agent fixtures (`real-agent-serial/`, `real-agent-parallel/`) are the project's first agent-type exemplars — canonical reference for `type: agent` unit.yaml + `prompts/main.md` structure (per ADR-0002)
 - `dev/test-graphs/README.md` updated with new entries
+- Test Doc for each test references the fixture it validates
 
 ---
 
@@ -292,7 +294,7 @@ Every test file includes the 5-field Test Doc comment block.
 |------|---------------|----------|-----------|
 | `real-agent-serial/units/*` | plan-scoped | `dev/test-graphs/` | Agent test fixture |
 | `real-agent-parallel/units/*` | plan-scoped | `dev/test-graphs/` | Agent test fixture |
-| `real-agent-e2e.test.ts` | plan-scoped | `test/integration/` | describe.skip test |
+| `real-agent-orchestration.test.ts` | plan-scoped | `test/integration/` | describe.skip test (integration, not e2e — uses programmatic APIs) |
 | `README.md` | cross-plan-edit | `dev/test-graphs/` | Fixture catalogue update |
 
 ---
@@ -301,7 +303,7 @@ Every test file includes the 5-field Test Doc comment block.
 
 | Component | CS | Label | Breakdown (S,I,D,N,F,T) | Justification | Mitigation |
 |-----------|-----|-------|------------------------|---------------|------------|
-| Overall Plan | 2 | Small | S=1,I=1,D=0,N=1,F=0,T=0 | All infrastructure exists. Just fixtures + describe.skip tests. | Proven patterns from Plans 034+037 |
+| Overall Plan | 2 | Small | S=1,I=1,D=0,N=1,F=0,T=0 | All infrastructure exists. Just fixtures + describe.skip tests. Spec C estimated CS-3; refined to CS-2 after Plans 034-037 proved all infrastructure (see Workshop 07). | Proven patterns from Plans 034+037 |
 | Real agent wiring | 2 | Small | S=0,I=1,D=0,N=1,F=0,T=0 | Dynamic import pattern proven in 4 existing test files | Copy from orchestration-wiring-real.test.ts |
 
 ---
@@ -325,7 +327,10 @@ Overall Progress: 0/1 phases (0%)
 
 | ADR | Status | Affects Phases | Notes |
 |-----|--------|----------------|-------|
-| ADR-0012 | Accepted | Phase 1 | Domain boundaries — AgentPod is pod-domain, agents go through ODS |
+| ADR-0002 | Accepted | Phase 1 | Exemplar-driven development — agent fixtures are canonical exemplars for agent-type work units |
+| ADR-0004 | Accepted | Phase 1 | DI container architecture — test inlines wiring (deviation documented below) |
+| ADR-0006 | Accepted | Phase 1 | CLI-based workflow agent orchestration — validates the exact pattern this ADR documents |
+| ADR-0012 | Accepted | Phase 1 | Domain boundaries — agent tests route through ODS (pod domain), not directly |
 
 ---
 
@@ -334,6 +339,7 @@ Overall Progress: 0/1 phases (0%)
 | Principle Violated | Why Needed | Simpler Alternative Rejected | Risk Mitigation |
 |-------------------|------------|------------------------------|-----------------|
 | Tests not in CI | Real agents cost money, need auth, non-deterministic | Run in CI with mocked adapter — rejected because that's already proven | describe.skip + structural assertions |
+| ADR-0004 container resolution (R-ARCH-003) | describe.skip test with real adapters needs custom wiring; shared helper hardcodes FakeAgentManagerService | Modify shared createTestOrchestrationStack() to accept real agent manager — rejected to avoid polluting shared helper with real-adapter concerns | Inline wiring is 25 lines, identical pattern to 4 existing real-agent test files |
 
 ---
 
