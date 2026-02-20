@@ -9,11 +9,13 @@
  */
 
 import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
 import type { DriveEvent } from '@chainglass/positional-graph/features/030-orchestration';
 import { describe, expect, it } from 'vitest';
 import {
   assertGraphComplete,
   assertNodeComplete,
+  assertOutputExists,
 } from '../../dev/test-graphs/shared/assertions.js';
 import {
   buildDiskWorkUnitService,
@@ -22,8 +24,14 @@ import {
 } from '../../dev/test-graphs/shared/graph-test-runner.js';
 import { completeUserInputNode, ensureGraphsDir } from '../../dev/test-graphs/shared/helpers.js';
 
+/** Resolve CLI path relative to repo root (portable across machines). */
+const CLI_PATH = path.resolve(
+  path.dirname(new URL(import.meta.url).pathname),
+  '../../apps/cli/dist/cli.cjs'
+);
+
 const CLI_EXISTS = await fs
-  .stat('/home/jak/substrate/033-real-agent-pods/apps/cli/dist/cli.cjs')
+  .stat(CLI_PATH)
   .then(() => true)
   .catch(() => false);
 
@@ -153,7 +161,7 @@ describe.skipIf(!CLI_EXISTS)('Orchestration Drive Integration Tests', () => {
           config: 'run all',
         });
 
-        // Drive with limited iterations to debug
+        // Drive — all 3 parallel nodes + combiner should complete
         const handle = await orchestrationService.get(tgc.ctx, SLUG);
         const result = await handle.drive(TEST_DRIVE_OPTIONS);
         console.log(
@@ -171,6 +179,7 @@ describe.skipIf(!CLI_EXISTS)('Orchestration Drive Integration Tests', () => {
         ]) {
           await assertNodeComplete(tgc.service, tgc.ctx, SLUG, nodeId);
         }
+        await assertOutputExists(tgc.service, tgc.ctx, SLUG, combiner.nodeId as string, 'combined');
       });
     }, 60_000);
   });
@@ -218,6 +227,8 @@ describe.skipIf(!CLI_EXISTS)('Orchestration Drive Integration Tests', () => {
           failNode.nodeId as string
         );
         expect(failStatus.status).toBe('blocked-error');
+        const graphStatus = await tgc.service.getStatus(tgc.ctx, SLUG);
+        expect(graphStatus.status).toBe('failed');
       });
     }, 60_000);
   });

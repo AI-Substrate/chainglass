@@ -346,14 +346,14 @@ Every test file includes the 5-field Test Doc comment block.
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 3.1 | [x] | Create `simple-serial` graph fixture: graph.setup.ts + units (setup, worker) + simulate.sh | 2 | Files on disk, unit.yaml validates | [📋](tasks/phase-3-simple-test-graphs/execution.log.md#task-t002) | |
-| 3.2 | [x] | Write RED integration test: simple-serial drives to completion | 2 | Test fails (graph doesn't exist in test yet) | [📋](tasks/phase-3-simple-test-graphs/execution.log.md#task-t003) | RED |
-| 3.3 | [x] | Make simple-serial integration test pass | 2 | drive() returns exitReason: 'complete' | [📋](tasks/phase-3-simple-test-graphs/execution.log.md#task-t003) | GREEN |
-| 3.4 | [x] | Create `parallel-fan-out` graph fixture | 2 | 3 parallel nodes + combiner | [📋](tasks/phase-3-simple-test-graphs/execution.log.md#task-t005) | |
-| 3.5 | [x] | Write + make pass: parallel-fan-out integration test | 2 | All parallel nodes complete, combiner completes | [📋](tasks/phase-3-simple-test-graphs/execution.log.md#task-t005) | RED→GREEN |
-| 3.6 | [x] | Create `error-recovery` graph fixture with fail script | 1 | Script exits non-zero | [📋](tasks/phase-3-simple-test-graphs/execution.log.md#task-t007) | |
-| 3.7 | [x] | Write + make pass: error-recovery integration test | 2 | drive() returns exitReason: 'failed', node in blocked-error status | [📋](tasks/phase-3-simple-test-graphs/execution.log.md#task-t007) | RED→GREEN |
-| 3.8 | [x] | `just fft` clean | 1 | All tests pass | [📋](tasks/phase-3-simple-test-graphs/execution.log.md#task-t009) | |
+| 3.1 | [x] | Create `simple-serial` graph fixture: graph.setup.ts + units (setup, worker) + simulate.sh | 2 | Files on disk, unit.yaml validates | [📋](tasks/phase-3-simple-test-graphs/execution.log.md#task-t002) | [^13] |
+| 3.2 | [x] | Write RED integration test: simple-serial drives to completion | 2 | Test fails (graph doesn't exist in test yet) | [📋](tasks/phase-3-simple-test-graphs/execution.log.md#task-t003) | RED [^14] |
+| 3.3 | [x] | Make simple-serial integration test pass | 2 | drive() returns exitReason: 'complete' | [📋](tasks/phase-3-simple-test-graphs/execution.log.md#task-t003) | GREEN [^14] |
+| 3.4 | [x] | Create `parallel-fan-out` graph fixture | 2 | 3 parallel nodes + combiner | [📋](tasks/phase-3-simple-test-graphs/execution.log.md#task-t005) | [^15] |
+| 3.5 | [x] | Write + make pass: parallel-fan-out integration test | 2 | All parallel nodes complete, combiner completes | [📋](tasks/phase-3-simple-test-graphs/execution.log.md#task-t005) | RED→GREEN [^15] |
+| 3.6 | [x] | Create `error-recovery` graph fixture with fail script | 1 | Script exits non-zero | [📋](tasks/phase-3-simple-test-graphs/execution.log.md#task-t007) | [^16] |
+| 3.7 | [x] | Write + make pass: error-recovery integration test | 2 | drive() returns exitReason: 'failed', node in blocked-error status | [📋](tasks/phase-3-simple-test-graphs/execution.log.md#task-t007) | RED→GREEN [^16] |
+| 3.8 | [x] | `just fft` clean | 1 | All tests pass | [📋](tasks/phase-3-simple-test-graphs/execution.log.md#task-t009) | [^17] |
 
 ### Acceptance Criteria
 - [ ] simple-serial graph drives to completion (AC-20)
@@ -538,4 +538,35 @@ Overall Progress: 3/4 phases (75%)
   - `function:dev/test-graphs/shared/helpers.ts:completeUserInputNode`
 
 [^11]: Task 2.9 (T009) - Quality gate validation
+  - `file:all`
+
+[^12]: Task 3.1 (T001) - Workspace registration in withTestGraph + CLI resolution test
+  - `file:dev/test-graphs/shared/graph-test-runner.ts` — added WorkspaceService.add/remove, buildDiskWorkUnitService, createTestOrchestrationStack
+  - `file:test/integration/test-graph-infrastructure.test.ts` — added CLI resolution test
+
+[^13]: Task 3.1 (T002) - simple-serial fixture
+  - `file:dev/test-graphs/simple-serial/units/setup/unit.yaml`
+  - `file:dev/test-graphs/simple-serial/units/worker/unit.yaml`
+  - `file:dev/test-graphs/simple-serial/units/worker/scripts/simulate.sh`
+
+[^14]: Task 3.2-3.3 (T003, T004) - simple-serial integration test RED→GREEN
+  - `file:test/integration/orchestration-drive.test.ts`
+  - `function:dev/test-graphs/shared/helpers.ts:completeUserInputNode` — fixed event sequence
+  - `function:dev/test-graphs/shared/helpers.ts:ensureGraphsDir` — new helper
+
+[^15]: Task 3.4-3.5 (T005, T006) - parallel-fan-out fixture + integration test
+  - `file:dev/test-graphs/parallel-fan-out/units/setup/unit.yaml`
+  - `file:dev/test-graphs/parallel-fan-out/units/parallel-1/unit.yaml`
+  - `file:dev/test-graphs/parallel-fan-out/units/parallel-2/unit.yaml`
+  - `file:dev/test-graphs/parallel-fan-out/units/parallel-3/unit.yaml`
+  - `file:dev/test-graphs/parallel-fan-out/units/combiner/unit.yaml`
+  - `file:test/integration/orchestration-drive.test.ts`
+
+[^16]: Task 3.6-3.7 (T007, T008) - error-recovery fixture + integration test
+  - `file:dev/test-graphs/error-recovery/units/setup/unit.yaml`
+  - `file:dev/test-graphs/error-recovery/units/fail-node/unit.yaml`
+  - `file:dev/test-graphs/error-recovery/units/fail-node/scripts/error-simulate.sh`
+  - `file:test/integration/orchestration-drive.test.ts`
+
+[^17]: Task 3.8 (T009) - Quality gate
   - `file:all`

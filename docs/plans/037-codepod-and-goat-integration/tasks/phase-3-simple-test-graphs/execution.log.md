@@ -5,6 +5,7 @@
 **Started**: 2026-02-20
 
 ## Task T001: Workspace Registration in withTestGraph
+**Dossier Task**: T001 | **Plan Task**: 3.1 (workspace prerequisite)
 **Started**: 2026-02-20T13:30
 **Status**: ✅ Complete
 
@@ -31,6 +32,7 @@
 ---
 
 ## Task T002: Create simple-serial fixture
+**Dossier Task**: T002 | **Plan Task**: 3.1
 **Started**: 2026-02-20T13:34
 **Status**: ✅ Complete
 
@@ -46,6 +48,7 @@ Created `dev/test-graphs/simple-serial/units/` with setup (user-input) and worke
 ---
 
 ## Task T003+T004: Simple-serial integration test (RED→GREEN)
+**Dossier Task**: T003, T004 | **Plan Task**: 3.2, 3.3
 **Started**: 2026-02-20T13:35
 **Status**: ✅ Complete
 
@@ -69,6 +72,7 @@ Wrote `test/integration/orchestration-drive.test.ts` with full orchestration sta
 ---
 
 ## Task T005+T006: Parallel-fan-out fixture + test (RED→GREEN)
+**Dossier Task**: T005, T006 | **Plan Task**: 3.4, 3.5
 **Started**: 2026-02-20T13:51
 **Status**: ✅ Complete
 
@@ -89,6 +93,7 @@ Created 5-node parallel fixture. Hit E182 schema validation error on combiner be
 ---
 
 ## Task T007+T008: Error-recovery fixture + test (RED→GREEN)
+**Dossier Task**: T007, T008 | **Plan Task**: 3.6, 3.7
 **Started**: 2026-02-20T14:06
 **Status**: ✅ Complete
 
@@ -104,6 +109,7 @@ Created 2-node error fixture with script that calls `cg wf node error`. Test ass
 ---
 
 ## Task T009: Quality Gate
+**Dossier Task**: T009 | **Plan Task**: 3.8
 **Started**: 2026-02-20T14:07
 **Status**: ✅ Complete
 

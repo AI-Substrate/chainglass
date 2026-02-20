@@ -9,14 +9,21 @@
 
 import { spawn } from 'node:child_process';
 import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { withTestGraph } from '../../dev/test-graphs/shared/graph-test-runner.js';
 import { makeScriptsExecutable } from '../../dev/test-graphs/shared/helpers.js';
 
+/** Resolve CLI path relative to repo root (portable across machines). */
+const CLI_PATH = path.resolve(
+  path.dirname(new URL(import.meta.url).pathname),
+  '../../apps/cli/dist/cli.cjs'
+);
+
 /** Check if the CLI binary exists (guard for integration tests that need it). */
 async function cliAvailable(): Promise<boolean> {
   try {
-    await fs.stat('/home/jak/substrate/033-real-agent-pods/apps/cli/dist/cli.cjs');
+    await fs.stat(CLI_PATH);
     return true;
   } catch {
     return false;
