@@ -346,14 +346,14 @@ Every test file includes the 5-field Test Doc comment block.
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 3.1 | [ ] | Create `simple-serial` graph fixture: graph.setup.ts + units (setup, worker) + simulate.sh | 2 | Files on disk, unit.yaml validates | - | |
-| 3.2 | [ ] | Write RED integration test: simple-serial drives to completion | 2 | Test fails (graph doesn't exist in test yet) | - | RED |
-| 3.3 | [ ] | Make simple-serial integration test pass | 2 | drive() returns exitReason: 'complete' | - | GREEN — THIS IS THE BIG MOMENT |
-| 3.4 | [ ] | Create `parallel-fan-out` graph fixture | 2 | 3 parallel nodes + combiner | - | |
-| 3.5 | [ ] | Write + make pass: parallel-fan-out integration test | 2 | All parallel nodes complete, combiner completes | - | RED→GREEN |
-| 3.6 | [ ] | Create `error-recovery` graph fixture with fail script | 1 | Script exits non-zero | - | |
-| 3.7 | [ ] | Write + make pass: error-recovery integration test | 2 | drive() returns exitReason: 'failed', node in blocked-error status | - | RED→GREEN |
-| 3.8 | [ ] | `just fft` clean | 1 | All tests pass | - | |
+| 3.1 | [x] | Create `simple-serial` graph fixture: graph.setup.ts + units (setup, worker) + simulate.sh | 2 | Files on disk, unit.yaml validates | [📋](tasks/phase-3-simple-test-graphs/execution.log.md#task-t002) | |
+| 3.2 | [x] | Write RED integration test: simple-serial drives to completion | 2 | Test fails (graph doesn't exist in test yet) | [📋](tasks/phase-3-simple-test-graphs/execution.log.md#task-t003) | RED |
+| 3.3 | [x] | Make simple-serial integration test pass | 2 | drive() returns exitReason: 'complete' | [📋](tasks/phase-3-simple-test-graphs/execution.log.md#task-t003) | GREEN |
+| 3.4 | [x] | Create `parallel-fan-out` graph fixture | 2 | 3 parallel nodes + combiner | [📋](tasks/phase-3-simple-test-graphs/execution.log.md#task-t005) | |
+| 3.5 | [x] | Write + make pass: parallel-fan-out integration test | 2 | All parallel nodes complete, combiner completes | [📋](tasks/phase-3-simple-test-graphs/execution.log.md#task-t005) | RED→GREEN |
+| 3.6 | [x] | Create `error-recovery` graph fixture with fail script | 1 | Script exits non-zero | [📋](tasks/phase-3-simple-test-graphs/execution.log.md#task-t007) | |
+| 3.7 | [x] | Write + make pass: error-recovery integration test | 2 | drive() returns exitReason: 'failed', node in blocked-error status | [📋](tasks/phase-3-simple-test-graphs/execution.log.md#task-t007) | RED→GREEN |
+| 3.8 | [x] | `just fft` clean | 1 | All tests pass | [📋](tasks/phase-3-simple-test-graphs/execution.log.md#task-t009) | |
 
 ### Acceptance Criteria
 - [ ] simple-serial graph drives to completion (AC-20)
@@ -474,10 +474,10 @@ Feature flags not needed — these are infrastructure changes, not user-facing b
 ### Phase Completion Status
 - [ ] Phase 1: CodePod Completion and ScriptRunner - PENDING
 - [x] Phase 2: Test Graph Infrastructure - COMPLETE
-- [ ] Phase 3: Simple Test Graphs - PENDING
+- [x] Phase 3: Simple Test Graphs - COMPLETE
 - [ ] Phase 4: GOAT Graph and Demo Script - PENDING
 
-Overall Progress: 1/4 phases (25%)
+Overall Progress: 3/4 phases (75%)
 
 ### STOP Rule
 
