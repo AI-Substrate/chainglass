@@ -1,0 +1,13 @@
+slug: get-spec
+type: user-input
+version: 1.0.0
+description: User provides a spec for agents to work on
+inputs: []
+outputs:
+  - name: spec
+    type: data
+    data_type: text
+    required: true
+user_input:
+  question_type: text
+  prompt: "Enter a spec for the agents"

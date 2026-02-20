@@ -18,7 +18,9 @@ dev/test-graphs/
 ├── simple-serial/              # (Phase 3) Serial: user-input → code worker
 ├── parallel-fan-out/           # (Phase 3) 3 parallel code nodes + combiner
 ├── error-recovery/             # (Phase 3) Node that fails
-└── goat/                       # (Phase 4) All scenarios in one graph
+├── goat/                       # (Phase 4) All scenarios in one graph
+├── real-agent-serial/          # (Plan 038) Agent: get-spec → spec-writer → reviewer
+└── real-agent-parallel/        # (Plan 038) Agent: get-spec → worker-a + worker-b parallel
 ```
 
 ## Fixture Structure
@@ -65,3 +67,4 @@ cg wf node end "$CG_GRAPH_SLUG" "$CG_NODE_ID" --workspace-path "$CG_WORKSPACE_PA
 - **Plan 037 Phase 2**: Infrastructure (this directory, helpers, assertions)
 - **Plan 037 Phase 3**: Simple fixtures (simple-serial, parallel-fan-out, error-recovery)
 - **Plan 037 Phase 4**: GOAT fixture (comprehensive integration test)
+- **Plan 038**: Real agent fixtures (agent-type units with prompt templates, describe.skip tests)

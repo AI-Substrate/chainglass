@@ -1,0 +1,16 @@
+slug: spec-writer
+type: agent
+version: 1.0.0
+description: Agent reads spec and writes a summary
+agent:
+  prompt_template: prompts/main.md
+inputs:
+  - name: spec
+    type: data
+    data_type: text
+    required: true
+outputs:
+  - name: summary
+    type: data
+    data_type: text
+    required: true
