@@ -402,6 +402,9 @@ describe.skipIf(!CLI_EXISTS)('Orchestration Drive Integration Tests', () => {
         const questionId =
           (events.events?.[0] as { payload?: { questionId?: string } })?.payload?.questionId ??
           (events.events?.[0] as { event_id?: string })?.event_id;
+        if (!questionId) {
+          throw new Error('Failed to extract questionId from question:ask event');
+        }
         console.log(`  [GOAT] questionId: ${questionId}`);
 
         await answerNodeQuestion(
@@ -409,7 +412,7 @@ describe.skipIf(!CLI_EXISTS)('Orchestration Drive Integration Tests', () => {
           tgc.ctx,
           SLUG,
           questioner.nodeId as string,
-          questionId as string,
+          questionId,
           'blue'
         );
 

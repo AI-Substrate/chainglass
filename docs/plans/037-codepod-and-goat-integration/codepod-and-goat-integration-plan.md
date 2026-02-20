@@ -390,7 +390,7 @@ Every test file includes the 5-field Test Doc comment block.
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 4.1 | [x] | Create GOAT graph fixture: graph.setup.ts + all 9 node units with scripts (standard, error, question, recovery) | 3 | All units on disk, graph.setup.ts creates 6-line graph | [📋](tasks/phase-4-goat-graph-and-demo-script/execution.log.md#task-t001) | [^18] |
+| 4.1 | [x] | Create GOAT graph fixture: 9 node units with scripts (standard, error, question, recovery). Graph setup inline in test per approved dossier non-goal. | 3 | All units on disk, 6-line graph created inline | [📋](tasks/phase-4-goat-graph-and-demo-script/execution.log.md#task-t001) | [^18] |
 | 4.2 | [x] | Write RED GOAT integration test: multi-step drive sequence with interventions | 3 | Test structure written, fails because GOAT graph doesn't exist yet | [📋](tasks/phase-4-goat-graph-and-demo-script/execution.log.md#task-t005t006) | RED [^19] |
 | 4.3 | [x] | Make GOAT test pass through all 4 drive+intervention steps | 3 | Graph reaches complete, all nodes ✅ | [📋](tasks/phase-4-goat-graph-and-demo-script/execution.log.md#task-t005t006) | GREEN [^19] |
 | 4.4 | [x] | Create `scripts/drive-demo.ts` — visual demo with simple-serial graph | 2 | `npx tsx scripts/drive-demo.ts` shows progression | [📋](tasks/phase-4-goat-graph-and-demo-script/execution.log.md#task-t007) | [^20] |

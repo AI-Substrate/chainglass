@@ -9,12 +9,12 @@ MARKER="$MARKER_DIR/$CG_NODE_ID-ran"
 cg wf node accept "$CG_GRAPH_SLUG" "$CG_NODE_ID" --workspace-path "$CG_WORKSPACE_PATH"
 
 if [ ! -f "$MARKER" ]; then
-  # First run: fail deliberately
+  # First run: fail deliberately — touch marker AFTER error to avoid ambiguous state
   mkdir -p "$MARKER_DIR"
-  touch "$MARKER"
   cg wf node error "$CG_GRAPH_SLUG" "$CG_NODE_ID" \
     --code DELIBERATE_FAIL --message "First run fails deliberately" \
     --workspace-path "$CG_WORKSPACE_PATH"
+  touch "$MARKER"
   exit 1
 else
   # Retry: succeed
