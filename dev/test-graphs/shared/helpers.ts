@@ -61,3 +61,46 @@ export async function completeUserInputNode(
   // 4. Complete the node (agent-accepted → complete)
   await service.endNode(ctx, graphSlug, nodeId);
 }
+
+/**
+ * Clear a blocked-error node and restart it.
+ * Raises node:restart with source 'orchestrator' (allowed per core event types).
+ */
+export async function clearErrorAndRestart(
+  service: IPositionalGraphService,
+  ctx: WorkspaceContext,
+  graphSlug: string,
+  nodeId: string
+): Promise<void> {
+  await service.raiseNodeEvent(
+    ctx,
+    graphSlug,
+    nodeId,
+    'node:restart',
+    { reason: 'Error cleared' },
+    'orchestrator'
+  );
+}
+
+/**
+ * Answer a question on a waiting-question node and restart it.
+ * Calls answerQuestion then raises node:restart to resume execution.
+ */
+export async function answerNodeQuestion(
+  service: IPositionalGraphService,
+  ctx: WorkspaceContext,
+  graphSlug: string,
+  nodeId: string,
+  questionId: string,
+  answer: unknown
+): Promise<void> {
+  await service.answerQuestion(ctx, graphSlug, nodeId, questionId, answer);
+  await service.raiseNodeEvent(
+    ctx,
+    graphSlug,
+    nodeId,
+    'node:restart',
+    { reason: 'Question answered' },
+    'orchestrator'
+  );
+}

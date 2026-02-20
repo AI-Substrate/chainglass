@@ -39,7 +39,7 @@ stateDiagram-v2
     S5 --> S6
     S6 --> [*]
 
-    class S1,S2,S3,S4,S5,S6 pending
+    class S1,S2,S3,S4,S5,S6 done
 ```
 
 **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -48,26 +48,26 @@ stateDiagram-v2
 
 ## Stages
 
-- [ ] **Stage 1: Create GOAT fixture files** — 9 unit.yaml files across 6 graph lines: user-setup, serial-a/b, parallel-1/2/3, error-node, questioner, final-combiner
-- [ ] **Stage 2: Write simulation scripts** — 6 standard (accept/save/end) + 1 recovery (fail-first/succeed-retry) + 1 question (ask/check-answer/complete)
-- [ ] **Stage 3: Add test helpers and assertions** — clearErrorAndRestart, answerNodeQuestion, assertNodeFailed, assertNodeWaitingQuestion
-- [ ] **Stage 4: Write GOAT multi-step integration test** — 4 drive() calls: serial+parallel → trigger transition → error+recovery → question+answer → combiner → complete
-- [ ] **Stage 5: Build demo script and justfile recipe** — `scripts/drive-demo.ts` with formatGraphStatus visual output + `just drive-demo`
-- [ ] **Stage 6: Run quality gate** — `just fft` clean
+- [x] **Stage 1: Create GOAT fixture files** — 9 unit.yaml files across 6 graph lines: user-setup, serial-a/b, parallel-1/2/3, error-node, questioner, final-combiner
+- [x] **Stage 2: Write simulation scripts** — 6 standard (accept/save/end) + 1 recovery (fail-first/succeed-retry) + 1 question (ask/check-answer/complete)
+- [x] **Stage 3: Add test helpers and assertions** — clearErrorAndRestart, answerNodeQuestion, assertNodeFailed, assertNodeWaitingQuestion
+- [x] **Stage 4: Write GOAT multi-step integration test** — 4 drive() calls: serial+parallel → trigger transition → error+recovery → question+answer → combiner → complete
+- [x] **Stage 5: Build demo script and justfile recipe** — `scripts/drive-demo.ts` with formatGraphStatus visual output + `just drive-demo`
+- [x] **Stage 6: Run quality gate** — `just fft` clean
 
 ---
 
 ## Acceptance Criteria
 
-- [ ] GOAT graph has 6 lines covering all scenarios (AC-24)
-- [ ] GOAT test drives through all 4 intervention steps (AC-25)
-- [ ] GOAT validates all nodes complete, outputs saved (AC-26)
-- [ ] Assertions reusable for code/agent variants (AC-27)
-- [ ] Question simulation script calls `cg wf node ask` (AC-17)
-- [ ] Recovery simulation script fails first, succeeds on retry (AC-18)
-- [ ] Demo script shows visual progression (AC-28, AC-30)
-- [ ] `just drive-demo` runs the demo (AC-29)
-- [ ] `just fft` clean (AC-31)
+- [x] GOAT graph has 6 lines covering all scenarios (AC-24)
+- [x] GOAT test drives through all 4 intervention steps (AC-25)
+- [x] GOAT validates all nodes complete, outputs saved (AC-26)
+- [x] Assertions reusable for code/agent variants (AC-27)
+- [x] Question simulation script calls `cg wf node ask` (AC-17)
+- [x] Recovery simulation script fails first, succeeds on retry (AC-18)
+- [x] Demo script shows visual progression (AC-28, AC-30)
+- [x] `just drive-demo` runs the demo (AC-29)
+- [x] `just fft` clean (AC-31)
 
 ---
 
@@ -126,15 +126,15 @@ flowchart LR
 
 ## Checklist
 
-- [ ] T001: Create 9 GOAT unit.yaml files (CS-2)
-- [ ] T002: Create 6 standard simulation scripts (CS-2)
-- [ ] T003: Create error recovery + question scripts (CS-3)
-- [ ] T004: Add test helpers and assertions (CS-2)
-- [ ] T005: Write RED GOAT integration test (CS-4)
-- [ ] T006: Make GOAT test GREEN (CS-4)
-- [ ] T007: Create drive-demo.ts (CS-2)
-- [ ] T008: Add just drive-demo recipe (CS-1)
-- [ ] T009: Run just fft quality gate (CS-1)
+- [x] T001: Create 9 GOAT unit.yaml files (CS-2)
+- [x] T002: Create 6 standard simulation scripts (CS-2)
+- [x] T003: Create error recovery + question scripts (CS-3)
+- [x] T004: Add test helpers and assertions (CS-2)
+- [x] T005: Write RED GOAT integration test (CS-4)
+- [x] T006: Make GOAT test GREEN (CS-4)
+- [x] T007: Create drive-demo.ts (CS-2)
+- [x] T008: Add just drive-demo recipe (CS-1)
+- [x] T009: Run just fft quality gate (CS-1)
 
 ---
 

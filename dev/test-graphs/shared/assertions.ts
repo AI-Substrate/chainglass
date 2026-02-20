@@ -61,3 +61,37 @@ export async function assertOutputExists(
     );
   }
 }
+
+/**
+ * Asserts a specific node has status 'blocked-error'.
+ */
+export async function assertNodeFailed(
+  service: IPositionalGraphService,
+  ctx: WorkspaceContext,
+  graphSlug: string,
+  nodeId: string
+): Promise<void> {
+  const nodeStatus = await service.getNodeStatus(ctx, graphSlug, nodeId);
+  if (nodeStatus.status !== 'blocked-error') {
+    throw new Error(
+      `Expected node '${nodeId}' to be blocked-error, but status is '${nodeStatus.status}'`
+    );
+  }
+}
+
+/**
+ * Asserts a specific node has status 'waiting-question'.
+ */
+export async function assertNodeWaitingQuestion(
+  service: IPositionalGraphService,
+  ctx: WorkspaceContext,
+  graphSlug: string,
+  nodeId: string
+): Promise<void> {
+  const nodeStatus = await service.getNodeStatus(ctx, graphSlug, nodeId);
+  if (nodeStatus.status !== 'waiting-question') {
+    throw new Error(
+      `Expected node '${nodeId}' to be waiting-question, but status is '${nodeStatus.status}'`
+    );
+  }
+}

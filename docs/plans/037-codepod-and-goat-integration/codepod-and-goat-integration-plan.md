@@ -390,12 +390,12 @@ Every test file includes the 5-field Test Doc comment block.
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 4.1 | [ ] | Create GOAT graph fixture: graph.setup.ts + all 9 node units with scripts (standard, error, question, recovery) | 3 | All units on disk, graph.setup.ts creates 6-line graph | - | AC-24 |
-| 4.2 | [ ] | Write RED GOAT integration test: multi-step drive sequence with interventions | 3 | Test structure written, fails because GOAT graph doesn't exist yet | - | RED |
-| 4.3 | [ ] | Make GOAT test pass through all 4 drive+intervention steps | 3 | Graph reaches complete, all nodes ✅ | - | GREEN — AC-25, AC-26 |
-| 4.4 | [ ] | Create `scripts/drive-demo.ts` — visual demo with simple-serial graph | 2 | `npx tsx scripts/drive-demo.ts` shows progression | - | AC-28, AC-30 |
-| 4.5 | [ ] | Add `just drive-demo` to justfile | 1 | `just drive-demo` works | - | AC-29 |
-| 4.6 | [ ] | Final `just fft` clean | 1 | All tests pass, lint clean, format clean | - | AC-31 |
+| 4.1 | [x] | Create GOAT graph fixture: graph.setup.ts + all 9 node units with scripts (standard, error, question, recovery) | 3 | All units on disk, graph.setup.ts creates 6-line graph | [📋](tasks/phase-4-goat-graph-and-demo-script/execution.log.md#task-t001) | [^18] |
+| 4.2 | [x] | Write RED GOAT integration test: multi-step drive sequence with interventions | 3 | Test structure written, fails because GOAT graph doesn't exist yet | [📋](tasks/phase-4-goat-graph-and-demo-script/execution.log.md#task-t005t006) | RED [^19] |
+| 4.3 | [x] | Make GOAT test pass through all 4 drive+intervention steps | 3 | Graph reaches complete, all nodes ✅ | [📋](tasks/phase-4-goat-graph-and-demo-script/execution.log.md#task-t005t006) | GREEN [^19] |
+| 4.4 | [x] | Create `scripts/drive-demo.ts` — visual demo with simple-serial graph | 2 | `npx tsx scripts/drive-demo.ts` shows progression | [📋](tasks/phase-4-goat-graph-and-demo-script/execution.log.md#task-t007) | [^20] |
+| 4.5 | [x] | Add `just drive-demo` to justfile | 1 | `just drive-demo` works | [📋](tasks/phase-4-goat-graph-and-demo-script/execution.log.md#task-t008) | [^21] |
+| 4.6 | [x] | Final `just fft` clean | 1 | All tests pass, lint clean, format clean | [📋](tasks/phase-4-goat-graph-and-demo-script/execution.log.md#task-t009) | [^22] |
 
 ### Acceptance Criteria
 - [ ] GOAT graph has 6 lines covering all scenarios (AC-24)
@@ -475,9 +475,9 @@ Feature flags not needed — these are infrastructure changes, not user-facing b
 - [ ] Phase 1: CodePod Completion and ScriptRunner - PENDING
 - [x] Phase 2: Test Graph Infrastructure - COMPLETE
 - [x] Phase 3: Simple Test Graphs - COMPLETE
-- [ ] Phase 4: GOAT Graph and Demo Script - PENDING
+- [x] Phase 4: GOAT Graph and Demo Script - COMPLETE
 
-Overall Progress: 3/4 phases (75%)
+Overall Progress: 4/4 phases (100%)
 
 ### STOP Rule
 
@@ -569,4 +569,27 @@ Overall Progress: 3/4 phases (75%)
   - `file:test/integration/orchestration-drive.test.ts`
 
 [^17]: Task 3.8 (T009) - Quality gate
+  - `file:all`
+
+[^18]: Task 4.1 (T001-T003) - GOAT graph fixture: 9 units + 8 scripts
+  - `file:dev/test-graphs/goat/units/user-setup/unit.yaml`
+  - `file:dev/test-graphs/goat/units/serial-a/unit.yaml` + `scripts/simulate.sh`
+  - `file:dev/test-graphs/goat/units/serial-b/unit.yaml` + `scripts/simulate.sh`
+  - `file:dev/test-graphs/goat/units/parallel-1/unit.yaml` + `scripts/simulate.sh`
+  - `file:dev/test-graphs/goat/units/parallel-2/unit.yaml` + `scripts/simulate.sh`
+  - `file:dev/test-graphs/goat/units/parallel-3/unit.yaml` + `scripts/simulate.sh`
+  - `file:dev/test-graphs/goat/units/error-node/unit.yaml` + `scripts/recovery-simulate.sh`
+  - `file:dev/test-graphs/goat/units/questioner/unit.yaml` + `scripts/question-simulate.sh`
+  - `file:dev/test-graphs/goat/units/final-combiner/unit.yaml` + `scripts/simulate.sh`
+
+[^19]: Task 4.2-4.3 (T005, T006) - GOAT integration test RED→GREEN
+  - `file:test/integration/orchestration-drive.test.ts` — GOAT describe block, 4 drive() calls
+
+[^20]: Task 4.4 (T007) - drive-demo.ts standalone demo
+  - `file:scripts/drive-demo.ts`
+
+[^21]: Task 4.5 (T008) - just drive-demo recipe
+  - `file:justfile`
+
+[^22]: Task 4.6 (T009) - Final quality gate
   - `file:all`

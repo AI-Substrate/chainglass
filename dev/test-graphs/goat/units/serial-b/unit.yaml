@@ -1,0 +1,16 @@
+slug: serial-b
+type: code
+version: 1.0.0
+description: Second serial worker in GOAT pipeline
+inputs:
+  - name: previous_work
+    type: data
+    data_type: text
+    required: true
+outputs:
+  - name: result
+    type: data
+    data_type: text
+    required: true
+code:
+  script: scripts/simulate.sh

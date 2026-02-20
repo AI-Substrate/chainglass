@@ -59,3 +59,7 @@ reset: clean
 # Show graph status view gallery (all visual scenarios)
 graph-gallery:
     npx tsx scripts/graph-status-gallery.ts
+
+# Run drive() demo — creates a graph, drives it to completion with real scripts
+drive-demo:
+    npx tsx scripts/drive-demo.ts
