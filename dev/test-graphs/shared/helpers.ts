@@ -16,7 +16,9 @@ export async function makeScriptsExecutable(dir: string): Promise<void> {
   const entries = await fs.readdir(dir, { withFileTypes: true, recursive: true });
   for (const entry of entries) {
     if (entry.isFile() && entry.name.endsWith('.sh')) {
-      const fullPath = path.join(entry.parentPath ?? entry.path, entry.name);
+      // parentPath available in Node 20.12+; fall back to manual join
+      const parent = (entry as { parentPath?: string }).parentPath ?? dir;
+      const fullPath = path.join(parent, entry.name);
       await fs.chmod(fullPath, 0o755);
     }
   }

@@ -145,7 +145,13 @@ export class FakeAgentInstance implements IAgentInstance {
 
     // Execute onRun callback (enables graph state mutation in integration tests)
     if (this._onRun) {
-      await this._onRun(options);
+      try {
+        await this._onRun(options);
+      } catch (err) {
+        this._status = 'stopped';
+        this._updatedAt = new Date();
+        throw err;
+      }
     }
 
     this._sessionId = this._runResult.sessionId;

@@ -46,7 +46,7 @@ function buildDiskLoader(workspacePath: string) {
       const unitPath = path.join(workspacePath, '.chainglass', 'units', slug, 'unit.yaml');
       try {
         const content = await nodeFs.readFile(unitPath);
-        const parsed = yamlParser.parse(content) as {
+        const parsed = yamlParser.parse(content, unitPath) as {
           slug: string;
           type: 'agent' | 'code' | 'user-input';
           inputs?: Array<{
@@ -109,6 +109,11 @@ export async function withTestGraph(
   fixtureName: string,
   testFn: (tgc: TestGraphContext) => Promise<void>
 ): Promise<void> {
+  // Validate fixtureName to prevent path traversal
+  if (!/^[a-z0-9_-]+$/.test(fixtureName)) {
+    throw new Error(`Invalid fixtureName: "${fixtureName}" (must match ^[a-z0-9_-]+$)`);
+  }
+
   // 1. Determine fixture source
   const fixtureDir = path.join(FIXTURES_ROOT, fixtureName);
   const unitsSource = path.join(fixtureDir, 'units');
@@ -124,6 +129,7 @@ export async function withTestGraph(
   // We need to create the temp dir first, then build the loader pointing at it
   const os = await import('node:os');
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), `tg-${fixtureName}-`));
+  let stackWorkspacePath: string | undefined;
 
   try {
     // 3. Create required directories
@@ -141,6 +147,7 @@ export async function withTestGraph(
     // 6. Build loader and service stack
     const loader = buildDiskLoader(tmpDir);
     const stack: TestServiceStack = await createTestServiceStack(`tg-${fixtureName}`, loader);
+    stackWorkspacePath = stack.workspacePath;
 
     // Override the workspace path to use OUR temp dir (createTestServiceStack makes its own)
     // We need to use our tmpDir because that's where units are copied
@@ -161,7 +168,10 @@ export async function withTestGraph(
     // 7. Run the test
     await testFn(tgc);
   } finally {
-    // 8. Cleanup
+    // 8. Cleanup our temp dir + the one createTestServiceStack allocated
     await fs.rm(tmpDir, { recursive: true, force: true });
+    if (stackWorkspacePath && stackWorkspacePath !== tmpDir) {
+      await fs.rm(stackWorkspacePath, { recursive: true, force: true });
+    }
   }
 }
