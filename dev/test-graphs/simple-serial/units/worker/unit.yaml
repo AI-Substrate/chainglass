@@ -1,0 +1,18 @@
+slug: worker
+type: code
+version: 1.0.0
+description: Code worker that accepts, saves output, and completes via CLI
+inputs:
+  - name: task
+    type: data
+    data_type: text
+    required: true
+    description: Task from setup node
+outputs:
+  - name: result
+    type: data
+    data_type: text
+    required: true
+    description: Worker result
+code:
+  script: scripts/simulate.sh

@@ -7,10 +7,44 @@
  * Worked Example: withTestGraph('smoke', ...) → creates graph + node with real unit validation → cleans up temp dir.
  */
 
+import { spawn } from 'node:child_process';
 import * as fs from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 import { withTestGraph } from '../../dev/test-graphs/shared/graph-test-runner.js';
 import { makeScriptsExecutable } from '../../dev/test-graphs/shared/helpers.js';
+
+/** Check if the CLI binary exists (guard for integration tests that need it). */
+async function cliAvailable(): Promise<boolean> {
+  try {
+    await fs.stat('/home/jak/substrate/033-real-agent-pods/apps/cli/dist/cli.cjs');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Run a CLI command and return stdout + exit code. */
+function runCliCommand(
+  args: string[],
+  env: Record<string, string> = {}
+): Promise<{ stdout: string; stderr: string; code: number }> {
+  return new Promise((resolve) => {
+    const proc = spawn('cg', args, {
+      timeout: 10_000,
+      env: { ...process.env, ...env },
+    });
+    let stdout = '';
+    let stderr = '';
+    proc.stdout?.on('data', (d: Buffer) => {
+      stdout += d.toString();
+    });
+    proc.stderr?.on('data', (d: Buffer) => {
+      stderr += d.toString();
+    });
+    proc.on('close', (code) => resolve({ stdout, stderr, code: code ?? 1 }));
+    proc.on('error', () => resolve({ stdout, stderr, code: 1 }));
+  });
+}
 
 describe('Test Graph Infrastructure', () => {
   it('withTestGraph creates workspace, copies units, validates addNode, cleans up', async () => {
@@ -77,4 +111,27 @@ describe('Test Graph Infrastructure', () => {
       await rm(tmpDir, { recursive: true });
     }
   });
+
+  it('withTestGraph registers workspace so CLI --workspace-path resolves', async () => {
+    const hasCli = await cliAvailable();
+    if (!hasCli) {
+      console.log('  [skip] CLI not built — run pnpm build --filter=@chainglass/cli');
+      return;
+    }
+
+    await withTestGraph('smoke', async (tgc) => {
+      // CLI should resolve the temp workspace path without E074
+      const result = await runCliCommand([
+        'wf',
+        'list',
+        '--workspace-path',
+        tgc.workspacePath,
+        '--json',
+      ]);
+      // The command should not fail with E074 (path not registered)
+      expect(result.stdout).not.toContain('E074');
+      // Exit code 0 = workspace resolved successfully
+      expect(result.code).toBe(0);
+    });
+  }, 30_000);
 });

@@ -1,0 +1,24 @@
+slug: combiner
+type: code
+version: 1.0.0
+description: Combines results from all parallel workers
+inputs:
+  - name: result_1
+    type: data
+    data_type: text
+    required: true
+  - name: result_2
+    type: data
+    data_type: text
+    required: true
+  - name: result_3
+    type: data
+    data_type: text
+    required: true
+outputs:
+  - name: combined
+    type: data
+    data_type: text
+    required: true
+code:
+  script: scripts/simulate.sh

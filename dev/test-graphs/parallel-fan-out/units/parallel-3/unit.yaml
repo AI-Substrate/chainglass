@@ -1,0 +1,16 @@
+slug: parallel-3
+type: code
+version: 1.0.0
+description: Third parallel worker
+inputs:
+  - name: config
+    type: data
+    data_type: text
+    required: true
+outputs:
+  - name: result
+    type: data
+    data_type: text
+    required: true
+code:
+  script: scripts/simulate.sh

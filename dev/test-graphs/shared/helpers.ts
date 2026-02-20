@@ -10,6 +10,15 @@ import type { IPositionalGraphService } from '@chainglass/positional-graph/inter
 import type { WorkspaceContext } from '@chainglass/workflow';
 
 /**
+ * Ensure the PodManager graphs directory exists for a given graph slug.
+ * PodManager writes pod-sessions.json to .chainglass/graphs/<slug>/ which is
+ * separate from the service's graph data at .chainglass/data/workflows/<slug>/.
+ */
+export async function ensureGraphsDir(workspacePath: string, graphSlug: string): Promise<void> {
+  await fs.mkdir(path.join(workspacePath, '.chainglass', 'graphs', graphSlug), { recursive: true });
+}
+
+/**
  * Recursively finds all .sh files under the given directory and makes them executable.
  */
 export async function makeScriptsExecutable(dir: string): Promise<void> {
@@ -25,10 +34,11 @@ export async function makeScriptsExecutable(dir: string): Promise<void> {
 }
 
 /**
- * Completes a user-input node by raising accept, saving outputs, and raising completed.
+ * Completes a user-input node by calling the proper service methods.
  * Simulates a human completing their input via the UI (programmatic service calls).
  *
- * Event source is 'human' — this is the UI/CLI acting on behalf of a person.
+ * Status flow: ready → starting → agent-accepted → complete
+ * Uses the same API as CLI commands: startNode, raiseNodeEvent(accepted), saveOutputData, endNode.
  */
 export async function completeUserInputNode(
   service: IPositionalGraphService,
@@ -37,14 +47,17 @@ export async function completeUserInputNode(
   nodeId: string,
   outputs: Record<string, unknown> = {}
 ): Promise<void> {
-  // 1. Accept the node (waiting → accepted)
-  await service.raiseNodeEvent(ctx, graphSlug, nodeId, 'node:accepted', {}, 'human');
+  // 1. Start the node (ready → starting)
+  await service.startNode(ctx, graphSlug, nodeId);
 
-  // 2. Save each output
+  // 2. Accept the node (starting → agent-accepted)
+  await service.raiseNodeEvent(ctx, graphSlug, nodeId, 'node:accepted', {}, 'agent');
+
+  // 3. Save each output
   for (const [name, value] of Object.entries(outputs)) {
     await service.saveOutputData(ctx, graphSlug, nodeId, name, value);
   }
 
-  // 3. Complete the node (accepted → complete)
-  await service.raiseNodeEvent(ctx, graphSlug, nodeId, 'node:completed', {}, 'human');
+  // 4. Complete the node (agent-accepted → complete)
+  await service.endNode(ctx, graphSlug, nodeId);
 }
