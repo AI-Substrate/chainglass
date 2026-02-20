@@ -16,6 +16,12 @@
 - **MANDATORY: Run `just fft` before every commit** — this runs lint, format, and tests. Do not commit if it fails. If lint fails due to unrelated issues (e.g., broken symlinks from other plans), you may proceed after verifying tests pass with `pnpm test`.
 - **NEVER use `git stash`, `git stash pop`, `git checkout -- .`, `git reset`, or any command that discards/undoes work** unless the user gives express permission. If you need a clean state, ask first.
 
+## Communication Style
+
+- **Always end with next steps** — after completing any task, reporting status, or answering a question, tell the user what you think should happen next. The user works on many things and won't always remember the current plan state.
+- Suggest the specific command or action, not just "we could do X or Y"
+- If there are multiple reasonable next steps, rank them by priority
+
 ## Conventions
 
 ### Components
