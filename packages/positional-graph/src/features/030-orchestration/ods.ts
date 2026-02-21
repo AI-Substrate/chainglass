@@ -141,9 +141,9 @@ export class ODS implements IODS {
       })
       .then(async () => {
         const sid = pod.sessionId;
+        console.log(`[ODS] .then() fired for ${nodeId}: sessionId=${sid ?? 'none'}`);
         if (sid) {
           this.deps.podManager.setSessionId(nodeId, sid);
-          // Persist immediately so next node dispatch can find this session
           await this.deps.podManager.persistSessions(
             { worktreePath: ctx.worktreePath },
             request.graphSlug,
@@ -171,10 +171,14 @@ export class ODS implements IODS {
         let sessionId: string | undefined;
         for (let attempt = 0; attempt < 10; attempt++) {
           sessionId = this.deps.podManager.getSessionId(contextResult.fromNodeId);
-          if (sessionId) break;
+          if (sessionId) {
+            console.log(`[ODS] Found session for ${node.nodeId} from ${contextResult.fromNodeId} on attempt ${attempt}: ${sessionId}`);
+            break;
+          }
           if (attempt === 0) {
             console.log(`[ODS] Waiting for session from ${contextResult.fromNodeId} for ${node.nodeId}...`);
           }
+          console.log(`[ODS] Retry ${attempt + 1}/10 — no session yet`);
           await new Promise(r => setTimeout(r, 500));
         }
         if (sessionId) {

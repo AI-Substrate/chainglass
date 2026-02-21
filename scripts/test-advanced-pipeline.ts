@@ -484,8 +484,17 @@ async function main() {
       });
 
       // ── §6: Result + Assertions ───────────────────────────────────
-      // Allow fire-and-forget session persistence to settle, then reload
-      await new Promise((r) => setTimeout(r, 1000));
+      // Wait for fire-and-forget pod.execute() promises to settle.
+      // The drive loop exits when it sees graph-complete on disk, but the
+      // last agent's adapter may still be returning (sendAndWait completing).
+      // Poll until all sessions are captured or timeout.
+      const sessionNodes = [ids.specId, ids.progAId, ids.progBId, ids.reviewerId, ids.summariserId];
+      for (let wait = 0; wait < 10; wait++) {
+        await new Promise((r) => setTimeout(r, 1000));
+        const missing = sessionNodes.filter(id => !podManager.getSessionId(id));
+        if (missing.length === 0) break;
+        if (wait === 9) console.log(`${YELLOW}⚠ Session capture timeout — missing: ${missing.join(', ')}${RESET}`);
+      }
       await podManager.loadSessions(tgc.ctx, SLUG);
 
       console.log('');
