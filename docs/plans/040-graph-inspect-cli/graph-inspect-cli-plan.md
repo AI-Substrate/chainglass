@@ -75,7 +75,7 @@ The Chainglass CLI has `cg wf status` for dashboard views but no command that du
 | 03 | High | `getOutputData()` reads from `data.json` — file outputs stored as relative path `data/outputs/<filename>` (not the file content itself) | Detect `data/outputs/` prefix to distinguish file from data outputs |
 | 04 | High | `canEnd()` returns `savedOutputs: string[]` — efficient way to discover output names without reading all data | Use `canEnd()` first, then `getOutputData()` per name for values |
 | 05 | High | `loadGraphState()` returns raw `State` with `nodes[id].events[]` and `questions[]` — needed for event log and Q&A display | Use `loadGraphState()` for events; `getNodeStatus()` for structured status |
-| 06 | High | `FakeFileSystem` supports `setFile()`, `setDir()` — testable without real disk | Use FakeFileSystem for all unit tests; real disk for integration |
+| 06 | High | `createTestServiceStack()` provides real service + real temp filesystem — use for all tests | Use createTestServiceStack; tests create graphs via service API, no manual file manipulation |
 | 07 | High | Node config (`node.yaml`) has `inputs` wiring (from_node, from_output) and `orchestratorSettings` — needed for input display and context line | Load via `loadNodeConfig()` per node |
 | 08 | Medium | `formatGraphStatus()` is a pure function taking `PositionalGraphReality` — but `inspectGraph()` returns `InspectResult`, not reality | Build reality separately for header, or embed formatted header in InspectResult |
 | 09 | Medium | Work unit type (agent/code/user-input) comes from `workUnitLoader.load()` — one extra async call per node | Batch with `Promise.all` for parallel loading |
@@ -96,9 +96,9 @@ The Chainglass CLI has `cg wf status` for dashboard views but no command that du
 - All test files MUST include Test Doc comment per R-TEST-002 (Why, Contract, Usage Notes, Quality Contribution, Worked Example)
 
 ### Mock Usage
-- **Fakes only, no mocks** — use `FakeFileSystem` with pre-set state files
-- Real `PositionalGraphService` with fake filesystem for unit tests
-- Real CLI + real filesystem for integration tests
+- **No fakes, no mocks** — use `createTestServiceStack()` with real filesystem in temp directory
+- Tests create graphs via service API (addLine, addNode, save outputs), run inspectGraph(), assert on results
+- Temp directories cleaned up after each test
 - Real advanced-pipeline for E2E validation
 
 ---

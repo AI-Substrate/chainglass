@@ -206,13 +206,15 @@ flowchart TD
 - `positional-graph-service.interface.ts` → stays in `interfaces/` (cross-plan-edit)
 - `positional-graph.service.ts` → stays in `services/` (cross-plan-edit)
 
-### Test Plan (Full TDD, Fakes Only)
+### Test Plan (Full TDD, Real Filesystem)
 
-**Test setup**: Real `PositionalGraphService` with `FakeFileSystem`. Pre-populate fake FS with:
-- `graph.yaml` — graph definition with lines/nodes
-- `node.yaml` — per node config with inputs/orchestratorSettings
-- `state.json` — node execution states, events, questions
-- `data/data.json` — per node output data (values + file refs)
+**Test setup**: `createTestServiceStack()` which provides real `PositionalGraphService` with real filesystem in a temp directory. Tests create graphs via service API (addLine, addNode, startNode, save outputs, etc.), then call `inspectGraph()` and assert on the result. Temp dirs auto-cleaned.
+
+Pre-populate via service calls:
+- `service.create()` — create graph
+- `service.addLine()` + `service.addNode()` — topology
+- `service.startNode()` + `service.saveOutputData()` + `service.endNode()` — simulate execution
+- Event system processes state transitions (questions, errors, etc.)
 
 **Named tests** (T003-T006):
 
