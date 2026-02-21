@@ -1,9 +1,9 @@
 # Graph Inspect CLI — Implementation Plan
 
-**Plan Version**: 1.0.0
+**Plan Version**: 1.1.0
 **Created**: 2026-02-21
 **Spec**: [graph-inspect-cli-spec.md](./graph-inspect-cli-spec.md)
-**Status**: DRAFT
+**Status**: READY
 **Workshops**:
 - [06-graph-inspect-cli-command.md](./workshops/06-graph-inspect-cli-command.md) — CLI Flow (full design + sample output)
 
@@ -21,10 +21,12 @@
 8. [Phase 3: CLI Command Registration + Integration Tests](#phase-3-cli-command-registration--integration-tests)
 9. [Phase 4: E2E Validation Against Real Pipeline](#phase-4-e2e-validation-against-real-pipeline)
 10. [Phase 5: Documentation](#phase-5-documentation)
-11. [Progress Tracking](#progress-tracking)
-12. [ADR Ledger](#adr-ledger)
-13. [Deviation Ledger](#deviation-ledger)
-14. [Change Footnotes Ledger](#change-footnotes-ledger)
+11. [Cross-Cutting Concerns](#cross-cutting-concerns)
+12. [Complexity Tracking](#complexity-tracking)
+13. [Progress Tracking](#progress-tracking)
+14. [ADR Ledger](#adr-ledger)
+15. [Deviation Ledger](#deviation-ledger)
+16. [Change Footnotes Ledger](#change-footnotes-ledger)
 
 ---
 
@@ -49,7 +51,7 @@ The Chainglass CLI has `cg wf status` for dashboard views but no command that du
 
 ### Integration Requirements
 - New `inspectGraph()` method on `IPositionalGraphService` (composes existing methods)
-- New `formatInspect()` module (pure function, no ANSI — per ADR-0012 convention)
+- New `formatInspect()` module (pure function, no ANSI — per OutputAdapter contract)
 - New `cg wf inspect` command in `positional-graph.command.ts`
 - Existing `OutputAdapter` pattern for JSON vs human-readable
 
@@ -91,6 +93,7 @@ The Chainglass CLI has `cg wf status` for dashboard views but no command that du
 - Write tests FIRST (RED)
 - Implement minimal code (GREEN)
 - Refactor for quality (REFACTOR)
+- All test files MUST include Test Doc comment per R-TEST-002 (Why, Contract, Usage Notes, Quality Contribution, Worked Example)
 
 ### Mock Usage
 - **Fakes only, no mocks** — use `FakeFileSystem` with pre-set state files
@@ -140,7 +143,7 @@ The Chainglass CLI has `cg wf status` for dashboard views but no command that du
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 1.0 | [ ] | Create feature folder `features/040-graph-inspect/` | 1 | Directory exists | - | PlanPak setup |
+| 1.0 | [ ] | Create feature folder `features/040-graph-inspect/` and test dir `test/unit/positional-graph/features/040-graph-inspect/` | 1 | Directories exist, index.ts barrel created | - | PlanPak setup |
 | 1.1 | [ ] | Define `InspectResult` and `InspectNodeResult` types | 2 | Types compile, exported via index.ts | - | Per Workshop 06 schema |
 | 1.2 | [ ] | Write unit tests for inspectGraph() — complete graph | 3 | Tests cover: 6-node graph all complete, outputs present, events counted, inputs wired | - | RED first |
 | 1.3 | [ ] | Write unit tests for inspectGraph() — in-progress graph | 2 | Tests cover: running nodes with elapsed, pending with waiting reason, Q&A state | - | RED first |
@@ -149,6 +152,8 @@ The Chainglass CLI has `cg wf status` for dashboard views but no command that du
 | 1.6 | [ ] | Add `inspectGraph()` to `IPositionalGraphService` interface | 1 | Interface updated, compiles | - | Cross-plan-edit |
 | 1.7 | [ ] | Implement `inspectGraph()` in `PositionalGraphService` | 3 | All tests from 1.2–1.5 pass (GREEN) | - | Compose existing methods |
 | 1.8 | [ ] | Compile check + existing tests pass | 1 | `just fft` passes, no regressions | - | Safety gate |
+
+**Fast TDD command**: `pnpm vitest run test/unit/positional-graph/features/040-graph-inspect/` (run after each RED→GREEN cycle; `just fft` only at phase end)
 
 ### Acceptance Criteria
 - [ ] `inspectGraph()` returns complete `InspectResult` for a 6-node graph
@@ -191,6 +196,8 @@ The Chainglass CLI has `cg wf status` for dashboard views but no command that du
 | 2.6 | [ ] | Implement all formatters to pass tests | 3 | All formatter tests GREEN | - | `inspect.format.ts` |
 | 2.7 | [ ] | Compile check + all tests pass | 1 | `just fft` passes | - | Safety gate |
 
+**Fast TDD command**: `pnpm vitest run test/unit/positional-graph/features/040-graph-inspect/` (run after each RED→GREEN cycle; `just fft` only at phase end)
+
 ### Acceptance Criteria
 - [ ] Default mode matches Workshop 06 sample output structure
 - [ ] `--node` mode shows full values + event log + raw node.yaml
@@ -226,6 +233,7 @@ The Chainglass CLI has `cg wf status` for dashboard views but no command that du
 | 3.2 | [ ] | Write integration test: `--json` mode parseable | 2 | Test verifies: JSON parseable, has `data.nodes[]`, output values present | - | RED first |
 | 3.3 | [ ] | Write integration test: `--node` mode with events | 2 | Test verifies: single node output, event list, node.yaml dump | - | RED first |
 | 3.4 | [ ] | Write integration test: `--compact` mode | 1 | Test verifies: one line per node, correct output count | - | RED first |
+| 3.4b | [ ] | Write integration test: `--outputs` mode | 2 | Test verifies: output-only sections, 40-char truncation, grouped by node | - | RED first; mirrors Phase 2 task 2.3 at integration level |
 | 3.5 | [ ] | Implement `handleWfInspect()` CLI handler | 2 | Thin handler: resolve context → call service → format → print | - | Cross-plan-edit |
 | 3.6 | [ ] | Register `cg wf inspect <slug>` command with options | 1 | Command registered with `--node`, `--outputs`, `--compact` flags | - | Cross-plan-edit |
 | 3.7 | [ ] | JSON mode uses existing OutputAdapter | 1 | `--json` wraps InspectResult in CommandResponse envelope | - | Reuse pattern |
@@ -264,7 +272,7 @@ The Chainglass CLI has `cg wf status` for dashboard views but no command that du
 |---|--------|------|----|------------------|-----|-------|
 | 4.1 | [ ] | Add inspect snapshot calls to test-advanced-pipeline.ts | 2 | 3 snapshots: (1) during Q&A pause, (2) during parallel, (3) after completion | - | In onEvent handler, NOT production code |
 | 4.2 | [ ] | Rebuild CLI: `pnpm turbo build --force` | 1 | Build succeeds | - | CLI imports from dist/ |
-| 4.3 | [ ] | Run `just test-advanced-pipeline` full E2E | 2 | 23/23 assertions pass, 3 inspect snapshots captured | - | ~2 min with real agents |
+| 4.3 | [ ] | Run `just test-advanced-pipeline` full E2E | 2 | All existing assertions pass, 3 inspect snapshots captured | - | ~2 min with real agents |
 | 4.4 | [ ] | Verify snapshot 1 (Q&A): spec-writer waiting-question | 1 | Shows ⏸️ for spec-writer, pending question text | - | Structural check |
 | 4.5 | [ ] | Verify snapshot 2 (parallel): programmers running | 1 | Shows 🔶 for both programmers, ⚪ for reviewer/summariser | - | Structural check |
 | 4.6 | [ ] | Verify snapshot 3 (complete): all nodes complete with outputs | 1 | All ✅, all outputs present, session chain not exposed | - | Full data check |
@@ -287,6 +295,11 @@ The Chainglass CLI has `cg wf status` for dashboard views but no command that du
 - `docs/how/graph-inspect.md` — usage guide with real examples
 
 **Dependencies**: Phase 4 (real output to reference)
+
+**Risks**:
+| Risk | Likelihood | Impact | Mitigation |
+|------|------------|--------|------------|
+| E2E output changes between Phase 4 and docs | Low | Low | Re-run inspect to capture fresh output |
 
 ### Tasks
 
@@ -348,7 +361,7 @@ This plan must be complete before creating tasks. After writing this plan:
 
 | ADR | Status | Affects Phases | Notes |
 |-----|--------|----------------|-------|
-| ADR-0006 | Accepted | Phase 3 | CLI is Consumer Domain — thin wrapper pattern |
+| ADR-0006 | Accepted | Phase 2, Phase 3 | CLI is Consumer Domain — thin wrapper + OutputAdapter pattern |
 | ADR-0012 | Accepted | All phases | No pod/session internals in inspect output; events on disk only |
 
 ---
