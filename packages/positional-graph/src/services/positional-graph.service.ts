@@ -710,6 +710,8 @@ export class PositionalGraphService implements IPositionalGraphService {
       orchestratorSettings: {
         execution: options?.orchestratorSettings?.execution ?? 'serial',
         waitForPrevious: options?.orchestratorSettings?.waitForPrevious ?? true,
+        noContext: options?.orchestratorSettings?.noContext ?? false,
+        contextFrom: options?.orchestratorSettings?.contextFrom,
       },
     };
     if (options?.description) {
@@ -1089,6 +1091,8 @@ export class PositionalGraphService implements IPositionalGraphService {
       unitSlug: nodeConfig.unit_slug,
       unitType: unitResult.unit?.type ?? 'agent',
       execution: nodeConfig.orchestratorSettings.execution,
+      noContext: nodeConfig.orchestratorSettings.noContext ?? false,
+      contextFrom: nodeConfig.orchestratorSettings.contextFrom,
       lineId: nodeLocation.line.id,
       position: nodeLocation.nodePositionInLine,
       status,

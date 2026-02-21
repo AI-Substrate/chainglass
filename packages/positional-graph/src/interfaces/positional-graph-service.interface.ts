@@ -244,6 +244,8 @@ export interface NodeStatusResult {
   unitSlug: string;
   unitType: 'agent' | 'code' | 'user-input';
   execution: Execution;
+  noContext?: boolean;
+  contextFrom?: string;
   lineId: string;
   position: number;
 

@@ -54,7 +54,9 @@ const TEST_DRIVE_OPTIONS = {
   },
 };
 
-describe.skipIf(!CLI_EXISTS)('Orchestration Drive Integration Tests', () => {
+const RUN_INTEGRATION = process.env.RUN_INTEGRATION === '1';
+
+describe.skipIf(!CLI_EXISTS || !RUN_INTEGRATION)('Orchestration Drive Integration Tests', () => {
   describe('simple-serial', () => {
     it('drives a two-node graph to completion', async () => {
       await withTestGraph('simple-serial', async (tgc) => {

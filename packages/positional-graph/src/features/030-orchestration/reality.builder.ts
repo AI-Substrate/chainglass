@@ -56,6 +56,8 @@ export function buildPositionalGraphReality(options: BuildRealityOptions): Posit
         unitType: ns.unitType,
         status: ns.status,
         execution: ns.execution,
+        noContext: ns.noContext ?? false,
+        contextFrom: ns.contextFrom,
         ready: ns.ready,
         readyDetail: {
           precedingLinesComplete: ns.readyDetail.precedingLinesComplete,

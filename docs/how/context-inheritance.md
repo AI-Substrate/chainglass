@@ -1,0 +1,1 @@
+../../plans/039-advanced-e2e-pipeline/workshops/03-simplified-context-model.md

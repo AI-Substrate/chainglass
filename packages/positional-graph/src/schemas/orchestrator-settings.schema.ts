@@ -22,5 +22,7 @@ export type LineOrchestratorSettings = z.infer<typeof LineOrchestratorSettingsSc
 export const NodeOrchestratorSettingsSchema = BaseOrchestratorSettingsSchema.extend({
   execution: ExecutionSchema.default('serial'),
   waitForPrevious: z.boolean().default(true),
+  noContext: z.boolean().default(false),
+  contextFrom: z.string().min(1).optional(),
 }).strict();
 export type NodeOrchestratorSettings = z.infer<typeof NodeOrchestratorSettingsSchema>;

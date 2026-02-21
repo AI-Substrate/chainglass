@@ -26,12 +26,17 @@ import { describe, it } from 'vitest';
 
 const CLI_PATH = resolve(__dirname, '../../../apps/cli/dist/cli.cjs');
 const E2E_SCRIPT = resolve(__dirname, '../../e2e/node-event-system-visual-e2e.ts');
+const RUN_INTEGRATION = process.env.RUN_INTEGRATION === '1';
 
 describe('Node Event System E2E', () => {
-  it.skipIf(!existsSync(CLI_PATH))('full lifecycle passes (41 steps)', { timeout: 120_000 }, () => {
-    execSync(`npx tsx ${E2E_SCRIPT}`, {
-      stdio: 'inherit',
-      cwd: resolve(__dirname, '../../..'),
-    });
-  });
+  it.skipIf(!existsSync(CLI_PATH) || !RUN_INTEGRATION)(
+    'full lifecycle passes (41 steps)',
+    { timeout: 120_000 },
+    () => {
+      execSync(`npx tsx ${E2E_SCRIPT}`, {
+        stdio: 'inherit',
+        cwd: resolve(__dirname, '../../..'),
+      });
+    }
+  );
 });

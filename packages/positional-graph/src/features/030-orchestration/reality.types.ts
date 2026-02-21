@@ -33,6 +33,7 @@ export interface ReadinessDetail {
   readonly serialNeighborComplete: boolean;
   readonly inputsAvailable: boolean;
   readonly unitFound: boolean;
+  readonly contextFromReady?: boolean;
   readonly reason?: string;
 }
 
@@ -58,6 +59,8 @@ export interface NodeReality {
   readonly unitType: 'agent' | 'code' | 'user-input';
   readonly status: ExecutionStatus;
   readonly execution: 'serial' | 'parallel';
+  readonly noContext?: boolean;
+  readonly contextFrom?: string;
   readonly ready: boolean;
   readonly readyDetail: ReadinessDetail;
   readonly inputPack: InputPack;
