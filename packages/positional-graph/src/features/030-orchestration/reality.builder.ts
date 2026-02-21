@@ -63,6 +63,7 @@ export function buildPositionalGraphReality(options: BuildRealityOptions): Posit
           precedingLinesComplete: ns.readyDetail.precedingLinesComplete,
           transitionOpen: ns.readyDetail.transitionOpen,
           serialNeighborComplete: ns.readyDetail.serialNeighborComplete,
+          contextFromReady: ns.readyDetail.contextFromReady,
           inputsAvailable: ns.readyDetail.inputsAvailable,
           unitFound: ns.readyDetail.unitFound,
           reason: ns.readyDetail.reason,

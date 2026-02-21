@@ -222,7 +222,7 @@ export interface InputPack {
 export interface CanRunResult {
   canRun: boolean;
   reason?: string;
-  gate?: 'preceding' | 'transition' | 'serial' | 'inputs';
+  gate?: 'preceding' | 'transition' | 'serial' | 'contextFrom' | 'inputs';
   inputPack: InputPack;
   blockingNodes?: string[];
   waitingForTransition?: boolean;
@@ -258,6 +258,7 @@ export interface NodeStatusResult {
     precedingLinesComplete: boolean;
     transitionOpen: boolean;
     serialNeighborComplete: boolean;
+    contextFromReady?: boolean;
     inputsAvailable: boolean;
     unitFound: boolean;
     reason?: string;

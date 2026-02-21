@@ -287,12 +287,12 @@ describe('getContextSource — Global Session + Left Neighbor', () => {
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |-----|--------|------|----|------------------|-----|-------|
-| 2.1 | [ ] | Add `contextFromReady` to `ReadinessDetail` interface | 1 | Interface compiles; existing code unaffected (new field optional or defaulted) | - | `reality.types.ts` |
-| 2.2 | [ ] | Write tests for contextFrom readiness gate | 2 | Tests RED: node with contextFrom targeting incomplete node → not ready; targeting complete node → ready; no contextFrom → always ready | - | New test file or extend existing |
-| 2.3 | [ ] | Implement contextFrom gate in `getNodeStatus()` | 2 | Tests from 2.2 pass GREEN | - | `positional-graph.service.ts` ~line 1087 |
-| 2.4 | [ ] | Wire `contextFromReady` in reality builder | 1 | Reality snapshot includes gate value | - | `reality.builder.ts` |
-| 2.5 | [ ] | Verify runtime guard in `getContextSource()` handles invalid contextFrom | 1 | Invalid contextFrom returns `new` with reason (belt-and-suspenders) | - | Already in Phase 1 implementation |
-| 2.6 | [ ] | Run full test suite — verify no regressions | 1 | `pnpm test` all pass; all 5 existing readiness gates still function (precedingLinesComplete, transitionOpen, serialNeighborComplete, inputsAvailable, unitFound); new contextFromReady gate tests pass; `just fft` passes | - | Shakedown checkpoint |
+| 2.1 | [x] | Add `contextFromReady` to `ReadinessDetail` interface | 1 | Interface compiles; existing code unaffected (new field optional or defaulted) | - | `reality.types.ts` |
+| 2.2 | [x] | Write tests for contextFrom readiness gate | 2 | Tests RED: node with contextFrom targeting incomplete node → not ready; targeting complete node → ready; no contextFrom → always ready | - | New test file or extend existing |
+| 2.3 | [x] | Implement contextFrom gate in `getNodeStatus()` | 2 | Tests from 2.2 pass GREEN | - | `positional-graph.service.ts` ~line 1087 |
+| 2.4 | [x] | Wire `contextFromReady` in reality builder | 1 | Reality snapshot includes gate value | - | `reality.builder.ts` |
+| 2.5 | [x] | Verify runtime guard in `getContextSource()` handles invalid contextFrom | 1 | Invalid contextFrom returns `new` with reason (belt-and-suspenders) | - | Already in Phase 1 implementation |
+| 2.6 | [x] | Run full test suite — verify no regressions | 1 | `pnpm test` all pass; all 5 existing readiness gates still function (precedingLinesComplete, transitionOpen, serialNeighborComplete, inputsAvailable, unitFound); new contextFromReady gate tests pass; `just fft` passes | - | Shakedown checkpoint |
 
 ### Test Examples
 
@@ -320,11 +320,11 @@ describe('contextFrom readiness gate', () => {
 ```
 
 ### Acceptance Criteria
-- [ ] `contextFromReady` gate prevents premature execution (AC-3)
-- [ ] Gate is transparent for nodes without `contextFrom`
-- [ ] Runtime guard in getContextSource handles edge cases
-- [ ] All existing readiness gates still function correctly
-- [ ] `pnpm test` passes; `just fft` passes
+- [x] `contextFromReady` gate prevents premature execution (AC-3)
+- [x] Gate is transparent for nodes without `contextFrom`
+- [x] Runtime guard in getContextSource handles edge cases
+- [x] All existing readiness gates still function correctly
+- [x] `pnpm test` passes; `just fft` passes
 
 ---
 
@@ -454,7 +454,7 @@ describe('contextFrom readiness gate', () => {
 
 ### Phase Completion Checklist
 - [x] Phase 1: Context Engine — Types, Schema, and Rules
-- [ ] Phase 2: Readiness Gate and Status Pipeline
+- [x] Phase 2: Readiness Gate and Status Pipeline
 - [ ] Phase 3: E2E Test Fixtures and Script
 - [ ] Phase 4: Real Agent Verification and Polish
 
@@ -488,4 +488,4 @@ describe('contextFrom readiness gate', () => {
 ## Change Footnotes Ledger
 
 [^1]: Phase 1 complete — modified: `orchestrator-settings.schema.ts` (noContext/contextFrom fields), `positional-graph-service.interface.ts` (NodeStatusResult fields), `positional-graph.service.ts` (getNodeStatus + addNode wiring), `reality.types.ts` (NodeReality + ReadinessDetail stub), `reality.builder.ts` (status→reality wiring), `agent-context.ts` (6-rule engine replacement), `agent-context.test.ts` (20 tests rewrite), `reality.view.ts` (deleted getFirstAgentOnPreviousLine), `reality.test.ts` (removed 4 dead tests), plus 3 integration test files gated with RUN_INTEGRATION=1.
-[^2]: [To be added during implementation via plan-6a]
+[^2]: Phase 2 complete — modified: `input-resolution.ts` (Gate 5 contextFromReady in canRun()), `positional-graph-service.interface.ts` (CanRunResult gate union + NodeStatusResult inline readyDetail type), `positional-graph.service.ts` (contextFromReady in getNodeStatus() readyDetail), `reality.builder.ts` (contextFromReady pass-through). Tests: 4 new gate tests in `can-run.test.ts`, 21/21 agent-context tests pass. Discovery: NodeStatusResult has separate inline readyDetail type from ReadinessDetail — both need updating for new gates. `just fft`: 274 files, 3960 tests, 0 failures.

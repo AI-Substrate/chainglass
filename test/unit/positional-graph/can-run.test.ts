@@ -335,4 +335,109 @@ describe('PositionalGraphService — canRun (via getNodeStatus)', () => {
       expect(status.status).toBe('complete');
     });
   });
+
+  // ============================================
+  // Gate 5: contextFrom ready (target node must be complete)
+  // ============================================
+
+  /**
+   * Test Doc:
+   * - Why: A node with contextFrom must not start until its target completes.
+   *   Without this gate, ONBAS could dispatch the node before the context source
+   *   session exists, causing invalid inheritance or silent data loss.
+   * - Contract: canRun() Gate 5 checks nodeConfig.orchestratorSettings.contextFrom.
+   *   If set, the target must appear in state.nodes with status='complete'.
+   *   If not set, the gate is transparent (always passes).
+   * - Usage Notes: Uses full service integration (not bare canRun) via getNodeStatus.
+   *   Requires writeState() to set target node status in state.json.
+   * - Quality Contribution: Prevents race condition where context engine receives
+   *   an incomplete/nonexistent target — belt-and-suspenders with getContextSource R2 guard.
+   * - Worked Example: Node R with contextFrom='S', S status='starting' →
+   *   getNodeStatus(R).ready=false, readyDetail.contextFromReady=false.
+   *   After S completes → getNodeStatus(R).ready=true, readyDetail.contextFromReady=true.
+   */
+  describe('Gate 5: contextFromReady', () => {
+    it('node with contextFrom targeting incomplete node is NOT ready', async () => {
+      const { lineId: line0 } = await service.create(ctx, 'test-graph');
+      const addLine1 = await service.addLine(ctx, 'test-graph');
+      const line1 = addLine1.lineId as string;
+
+      const target = await service.addNode(ctx, 'test-graph', line0, 'simple-task');
+      const targetId = target.nodeId as string;
+      const dependent = await service.addNode(ctx, 'test-graph', line1, 'simple-task', {
+        orchestratorSettings: { contextFrom: targetId },
+      });
+      const depId = dependent.nodeId as string;
+
+      // Target is starting (not complete)
+      await writeState(fs, pathResolver, 'test-graph', {
+        graph_status: 'in_progress',
+        updated_at: new Date().toISOString(),
+        nodes: { [targetId]: { status: 'starting' } },
+        transitions: {},
+      });
+
+      const status = await service.getNodeStatus(ctx, 'test-graph', depId);
+      expect(status.ready).toBe(false);
+      expect(status.readyDetail.contextFromReady).toBe(false);
+    });
+
+    it('node with contextFrom targeting complete node IS ready', async () => {
+      const { lineId: line0 } = await service.create(ctx, 'test-graph');
+      const addLine1 = await service.addLine(ctx, 'test-graph');
+      const line1 = addLine1.lineId as string;
+
+      const target = await service.addNode(ctx, 'test-graph', line0, 'simple-task');
+      const targetId = target.nodeId as string;
+      const dependent = await service.addNode(ctx, 'test-graph', line1, 'simple-task', {
+        orchestratorSettings: { contextFrom: targetId },
+      });
+      const depId = dependent.nodeId as string;
+
+      // Target is complete → preceding line also complete
+      await writeState(fs, pathResolver, 'test-graph', {
+        graph_status: 'in_progress',
+        updated_at: new Date().toISOString(),
+        nodes: { [targetId]: { status: 'complete', completed_at: new Date().toISOString() } },
+        transitions: {},
+      });
+
+      const status = await service.getNodeStatus(ctx, 'test-graph', depId);
+      expect(status.readyDetail.contextFromReady).toBe(true);
+    });
+
+    it('node without contextFrom always passes gate', async () => {
+      const { lineId } = await service.create(ctx, 'test-graph');
+      const node = await service.addNode(ctx, 'test-graph', lineId, 'simple-task');
+
+      const status = await service.getNodeStatus(ctx, 'test-graph', node.nodeId as string);
+      expect(status.readyDetail.contextFromReady).toBe(true);
+    });
+
+    it('node with contextFrom targeting nonexistent node is NOT ready', async () => {
+      const { lineId: line0 } = await service.create(ctx, 'test-graph');
+      const addLine1 = await service.addLine(ctx, 'test-graph');
+      const line1 = addLine1.lineId as string;
+
+      await service.addNode(ctx, 'test-graph', line0, 'simple-task');
+      const dependent = await service.addNode(ctx, 'test-graph', line1, 'simple-task', {
+        orchestratorSettings: { contextFrom: 'ghost-node-does-not-exist' },
+      });
+      const depId = dependent.nodeId as string;
+
+      // Mark line 0 node complete so preceding gate passes
+      const line0Status = await service.getStatus(ctx, 'test-graph');
+      const node0Id = line0Status.lines[0].nodes[0].nodeId;
+      await writeState(fs, pathResolver, 'test-graph', {
+        graph_status: 'in_progress',
+        updated_at: new Date().toISOString(),
+        nodes: { [node0Id]: { status: 'complete', completed_at: new Date().toISOString() } },
+        transitions: {},
+      });
+
+      const status = await service.getNodeStatus(ctx, 'test-graph', depId);
+      expect(status.ready).toBe(false);
+      expect(status.readyDetail.contextFromReady).toBe(false);
+    });
+  });
 });

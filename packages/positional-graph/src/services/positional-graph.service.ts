@@ -1101,6 +1101,9 @@ export class PositionalGraphService implements IPositionalGraphService {
         precedingLinesComplete,
         transitionOpen,
         serialNeighborComplete,
+        contextFromReady: nodeConfig.orchestratorSettings.contextFrom
+          ? state.nodes?.[nodeConfig.orchestratorSettings.contextFrom]?.status === 'complete'
+          : true,
         inputsAvailable: inputPack.ok,
         unitFound,
         reason: canRunResult.reason,

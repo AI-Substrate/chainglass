@@ -1,0 +1,184 @@
+diff --git a/packages/positional-graph/src/features/030-orchestration/reality.builder.ts b/packages/positional-graph/src/features/030-orchestration/reality.builder.ts
+index b4c2c9d..05d8a25 100644
+--- a/packages/positional-graph/src/features/030-orchestration/reality.builder.ts
++++ b/packages/positional-graph/src/features/030-orchestration/reality.builder.ts
+@@ -63,6 +63,7 @@ export function buildPositionalGraphReality(options: BuildRealityOptions): Posit
+           precedingLinesComplete: ns.readyDetail.precedingLinesComplete,
+           transitionOpen: ns.readyDetail.transitionOpen,
+           serialNeighborComplete: ns.readyDetail.serialNeighborComplete,
++          contextFromReady: ns.readyDetail.contextFromReady,
+           inputsAvailable: ns.readyDetail.inputsAvailable,
+           unitFound: ns.readyDetail.unitFound,
+           reason: ns.readyDetail.reason,
+diff --git a/packages/positional-graph/src/interfaces/positional-graph-service.interface.ts b/packages/positional-graph/src/interfaces/positional-graph-service.interface.ts
+index dbfa95d..3cc3ca1 100644
+--- a/packages/positional-graph/src/interfaces/positional-graph-service.interface.ts
++++ b/packages/positional-graph/src/interfaces/positional-graph-service.interface.ts
+@@ -222,7 +222,7 @@ export interface InputPack {
+ export interface CanRunResult {
+   canRun: boolean;
+   reason?: string;
+-  gate?: 'preceding' | 'transition' | 'serial' | 'inputs';
++  gate?: 'preceding' | 'transition' | 'serial' | 'contextFrom' | 'inputs';
+   inputPack: InputPack;
+   blockingNodes?: string[];
+   waitingForTransition?: boolean;
+@@ -258,6 +258,7 @@ export interface NodeStatusResult {
+     precedingLinesComplete: boolean;
+     transitionOpen: boolean;
+     serialNeighborComplete: boolean;
++    contextFromReady?: boolean;
+     inputsAvailable: boolean;
+     unitFound: boolean;
+     reason?: string;
+diff --git a/packages/positional-graph/src/services/input-resolution.ts b/packages/positional-graph/src/services/input-resolution.ts
+index bd2a974..b389f2b 100644
+--- a/packages/positional-graph/src/services/input-resolution.ts
++++ b/packages/positional-graph/src/services/input-resolution.ts
+@@ -386,11 +386,12 @@ async function resolveInput(
+ 
+ /**
+  * Determines if a node is eligible to execute.
+- * Checks 4 gates in order, short-circuits on failure.
++ * Checks 5 gates in order, short-circuits on failure.
+  *
+  * Gate 1: All preceding lines complete
+  * Gate 2: Transition gate open (if preceding line is manual)
+  * Gate 3: Serial left neighbor complete (skipped for parallel nodes)
++ * Gate 5: contextFrom target complete (skipped if no contextFrom)
+  * Gate 4: All required inputs available (collateInputs.ok)
+  */
+ export function canRun(
+@@ -481,6 +482,20 @@ export function canRun(
+     };
+   }
+ 
++  // Gate 5: contextFrom target complete
++  const contextFrom = nodeConfig.orchestratorSettings.contextFrom;
++  if (contextFrom) {
++    const targetState = state.nodes?.[contextFrom];
++    if (!targetState || targetState.status !== 'complete') {
++      return {
++        canRun: false,
++        reason: `contextFrom target '${contextFrom}' not complete`,
++        gate: 'contextFrom',
++        inputPack,
++      };
++    }
++  }
++
+   // Gate 4: Input availability
+   if (!inputPack.ok) {
+     return {
+diff --git a/packages/positional-graph/src/services/positional-graph.service.ts b/packages/positional-graph/src/services/positional-graph.service.ts
+index eff7071..2566291 100644
+--- a/packages/positional-graph/src/services/positional-graph.service.ts
++++ b/packages/positional-graph/src/services/positional-graph.service.ts
+@@ -1101,6 +1101,9 @@ export class PositionalGraphService implements IPositionalGraphService {
+         precedingLinesComplete,
+         transitionOpen,
+         serialNeighborComplete,
++        contextFromReady: nodeConfig.orchestratorSettings.contextFrom
++          ? state.nodes?.[nodeConfig.orchestratorSettings.contextFrom]?.status === 'complete'
++          : true,
+         inputsAvailable: inputPack.ok,
+         unitFound,
+         reason: canRunResult.reason,
+diff --git a/test/unit/positional-graph/can-run.test.ts b/test/unit/positional-graph/can-run.test.ts
+index 87597b8..fbc1960 100644
+--- a/test/unit/positional-graph/can-run.test.ts
++++ b/test/unit/positional-graph/can-run.test.ts
+@@ -335,4 +335,93 @@ describe('PositionalGraphService — canRun (via getNodeStatus)', () => {
+       expect(status.status).toBe('complete');
+     });
+   });
++
++  // ============================================
++  // Gate 5: contextFrom ready (target node must be complete)
++  // ============================================
++
++  describe('Gate 5: contextFromReady', () => {
++    it('node with contextFrom targeting incomplete node is NOT ready', async () => {
++      const { lineId: line0 } = await service.create(ctx, 'test-graph');
++      const addLine1 = await service.addLine(ctx, 'test-graph');
++      const line1 = addLine1.lineId as string;
++
++      const target = await service.addNode(ctx, 'test-graph', line0, 'simple-task');
++      const targetId = target.nodeId as string;
++      const dependent = await service.addNode(ctx, 'test-graph', line1, 'simple-task', {
++        orchestratorSettings: { contextFrom: targetId },
++      });
++      const depId = dependent.nodeId as string;
++
++      // Target is starting (not complete)
++      await writeState(fs, pathResolver, 'test-graph', {
++        graph_status: 'in_progress',
++        updated_at: new Date().toISOString(),
++        nodes: { [targetId]: { status: 'starting' } },
++        transitions: {},
++      });
++
++      const status = await service.getNodeStatus(ctx, 'test-graph', depId);
++      expect(status.ready).toBe(false);
++      expect(status.readyDetail.contextFromReady).toBe(false);
++    });
++
++    it('node with contextFrom targeting complete node IS ready', async () => {
++      const { lineId: line0 } = await service.create(ctx, 'test-graph');
++      const addLine1 = await service.addLine(ctx, 'test-graph');
++      const line1 = addLine1.lineId as string;
++
++      const target = await service.addNode(ctx, 'test-graph', line0, 'simple-task');
++      const targetId = target.nodeId as string;
++      const dependent = await service.addNode(ctx, 'test-graph', line1, 'simple-task', {
++        orchestratorSettings: { contextFrom: targetId },
++      });
++      const depId = dependent.nodeId as string;
++
++      // Target is complete → preceding line also complete
++      await writeState(fs, pathResolver, 'test-graph', {
++        graph_status: 'in_progress',
++        updated_at: new Date().toISOString(),
++        nodes: { [targetId]: { status: 'complete', completed_at: new Date().toISOString() } },
++        transitions: {},
++      });
++
++      const status = await service.getNodeStatus(ctx, 'test-graph', depId);
++      expect(status.readyDetail.contextFromReady).toBe(true);
++    });
++
++    it('node without contextFrom always passes gate', async () => {
++      const { lineId } = await service.create(ctx, 'test-graph');
++      const node = await service.addNode(ctx, 'test-graph', lineId, 'simple-task');
++
++      const status = await service.getNodeStatus(ctx, 'test-graph', node.nodeId as string);
++      expect(status.readyDetail.contextFromReady).toBe(true);
++    });
++
++    it('node with contextFrom targeting nonexistent node is NOT ready', async () => {
++      const { lineId: line0 } = await service.create(ctx, 'test-graph');
++      const addLine1 = await service.addLine(ctx, 'test-graph');
++      const line1 = addLine1.lineId as string;
++
++      await service.addNode(ctx, 'test-graph', line0, 'simple-task');
++      const dependent = await service.addNode(ctx, 'test-graph', line1, 'simple-task', {
++        orchestratorSettings: { contextFrom: 'ghost-node-does-not-exist' },
++      });
++      const depId = dependent.nodeId as string;
++
++      // Mark line 0 node complete so preceding gate passes
++      const line0Status = await service.getStatus(ctx, 'test-graph');
++      const node0Id = line0Status.lines[0].nodes[0].nodeId;
++      await writeState(fs, pathResolver, 'test-graph', {
++        graph_status: 'in_progress',
++        updated_at: new Date().toISOString(),
++        nodes: { [node0Id]: { status: 'complete', completed_at: new Date().toISOString() } },
++        transitions: {},
++      });
++
++      const status = await service.getNodeStatus(ctx, 'test-graph', depId);
++      expect(status.ready).toBe(false);
++      expect(status.readyDetail.contextFromReady).toBe(false);
++    });
++  });
+ });

@@ -386,11 +386,12 @@ async function resolveInput(
 
 /**
  * Determines if a node is eligible to execute.
- * Checks 4 gates in order, short-circuits on failure.
+ * Checks 5 gates in order, short-circuits on failure.
  *
  * Gate 1: All preceding lines complete
  * Gate 2: Transition gate open (if preceding line is manual)
  * Gate 3: Serial left neighbor complete (skipped for parallel nodes)
+ * Gate 5: contextFrom target complete (skipped if no contextFrom)
  * Gate 4: All required inputs available (collateInputs.ok)
  */
 export function canRun(
@@ -479,6 +480,20 @@ export function canRun(
       inputPack,
       waitingForSerial,
     };
+  }
+
+  // Gate 5: contextFrom target complete
+  const contextFrom = nodeConfig.orchestratorSettings.contextFrom;
+  if (contextFrom) {
+    const targetState = state.nodes?.[contextFrom];
+    if (!targetState || targetState.status !== 'complete') {
+      return {
+        canRun: false,
+        reason: `contextFrom target '${contextFrom}' not complete`,
+        gate: 'contextFrom',
+        inputPack,
+      };
+    }
   }
 
   // Gate 4: Input availability
