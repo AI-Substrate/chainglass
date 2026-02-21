@@ -486,7 +486,7 @@ async function main() {
 
       let allPass = true;
       let passCount = 0;
-      const totalAssertions = 17;
+      const totalAssertions = 23;
       const check = async (label: string, fn: () => Promise<void>) => {
         try {
           await fn();
@@ -542,6 +542,11 @@ async function main() {
         if (!progBSid || !specSid) throw new Error(`missing sid`);
         if (progBSid === specSid) throw new Error(`same: ${progBSid}`);
       });
+      // AC-10: programmer-a ≠ programmer-b
+      await check('isolation: programmer-a ≠ programmer-b', async () => {
+        if (!progASid || !progBSid) throw new Error(`missing sid`);
+        if (progASid === progBSid) throw new Error(`same: ${progASid}`);
+      });
 
       // 15: Q&A was answered
       await check('Q&A: question was answered', async () => {
@@ -555,6 +560,26 @@ async function main() {
       // 17: summariser has overall_pass
       await check('summariser has overall_pass', () =>
         assertOutputExists(tgc.service, tgc.ctx, SLUG, ids.summariserId, 'overall_pass'));
+
+      // AC-12: line ordering — parallel nodes started after spec-writer completed
+      await check('line ordering: programmers started after spec-writer', async () => {
+        const specStatus = await tgc.service.getNodeStatus(tgc.ctx, SLUG, ids.specId);
+        const progAStatus = await tgc.service.getNodeStatus(tgc.ctx, SLUG, ids.progAId);
+        if (!specStatus.completedAt || !progAStatus.startedAt) throw new Error('missing timestamps');
+        if (new Date(progAStatus.startedAt) < new Date(specStatus.completedAt)) {
+          throw new Error(`programmer-a started ${progAStatus.startedAt} before spec-writer completed ${specStatus.completedAt}`);
+        }
+      });
+
+      // AC-13: all agent outputs non-empty
+      await check('programmer-a has code output', () =>
+        assertOutputExists(tgc.service, tgc.ctx, SLUG, ids.progAId, 'code'));
+      await check('programmer-b has code output', () =>
+        assertOutputExists(tgc.service, tgc.ctx, SLUG, ids.progBId, 'code'));
+      await check('reviewer has review_a output', () =>
+        assertOutputExists(tgc.service, tgc.ctx, SLUG, ids.reviewerId, 'review_a'));
+      await check('summariser has total_loc output', () =>
+        assertOutputExists(tgc.service, tgc.ctx, SLUG, ids.summariserId, 'total_loc'));
 
       // ── Session chain display ─────────────────────────────────────
       console.log('');

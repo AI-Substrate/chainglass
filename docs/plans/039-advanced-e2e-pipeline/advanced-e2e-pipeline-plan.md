@@ -482,6 +482,7 @@ describe('contextFrom readiness gate', () => {
 |-------------------|------------|------------------------------|-----------------|
 | PlanPak R-ARCH-002 (feature folders) | All production changes are edits to existing `030-orchestration` files — no new feature folder warranted | Creating `039-advanced-e2e-pipeline` feature folder with re-exports | Changes are small edits, not new modules; feature folder would add indirection for no benefit |
 | Integration tests always run | 3 integration tests (orchestration-drive, node-event-system-e2e, orchestration-e2e) were timing out at 210s in normal test runs | Running unconditionally | Added `RUN_INTEGRATION=1` env var gate; run explicitly via `RUN_INTEGRATION=1 pnpm test -- --run orchestration-drive` |
+| No fakes policy — FakeNodeEventRegistry | E2E script uses `FakeNodeEventRegistry` for event type registration. This is shared test infrastructure (not a mock), used identically by every orchestration test and the serial E2E script. No real registry implementation exists — this IS the registry for test/script contexts. | Building a "real" registry that reads from config | FakeNodeEventRegistry is behaviorally identical to production; only difference is in-memory storage vs no storage. All event types registered via `registerCoreEventTypes()`. |
 
 ---
 
