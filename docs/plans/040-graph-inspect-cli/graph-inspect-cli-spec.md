@@ -1,6 +1,6 @@
 # Graph Inspect CLI Command
 
-**Mode**: Simple
+**Mode**: Full
 **File Management**: PlanPak
 
 📚 This specification incorporates findings from Workshop 06 (`workshops/06-graph-inspect-cli-command.md`), created during Plan 039 E2E shakedown.
@@ -34,19 +34,19 @@ The Chainglass workflow CLI has `cg wf status` for a compact dashboard and `cg w
 
 ## Complexity
 
-- **Score**: CS-2 (small)
-- **Breakdown**: S=1, I=0, D=0, N=0, F=0, T=1
+- **Score**: CS-3 (medium)
+- **Breakdown**: S=1, I=0, D=0, N=0, F=0, T=2
   - S=1: Multiple files (service method, CLI command, formatter) but all additive
   - I=0: Internal only, composes existing service methods
   - D=0: No schema changes, reads existing data structures
   - N=0: Well-specified via Workshop 06 with complete sample output
   - F=0: Standard CLI output, no perf/security concerns
-  - T=1: Integration tests needed (real graph fixture + inspect output verification)
+  - T=2: Full TDD with fakes, plus E2E validation against real advanced pipeline
 - **Confidence**: 0.90
 - **Assumptions**: Existing service methods provide all needed data; no new data access patterns required
 - **Dependencies**: None — all building blocks exist
 - **Risks**: Long output formatting could be tedious but is well-defined in workshop
-- **Phases**: Single phase (CS-2, straightforward)
+- **Phases**: Multiple (Full mode, Full TDD, E2E validation)
 
 ## Acceptance Criteria
 
@@ -69,9 +69,15 @@ The Chainglass workflow CLI has `cg wf status` for a compact dashboard and `cg w
 - **Assumption**: `save-output-file` stores relative path `data/outputs/<filename>` as the value in `data.json` — verified in `positional-graph.service.ts:1624`
 - **Assumption**: Events are stored in `state.json` per node — verified in E2E test state analysis
 
-## Open Questions
+## Clarifications
 
-1. Should `--node` mode also show the raw `node.yaml` content, or is the structured view sufficient?
+**Q1 — Mode**: Full
+**Q2 — Testing**: Full TDD
+**Q3 — Mocks**: Fakes only, no mocks
+**Q4 — Documentation**: `docs/how/` CLI usage guide with examples
+**Q5 — node.yaml in --node mode**: Include raw node.yaml dump at the bottom for full transparency
+**Q6 — E2E validation**: Run `just test-advanced-pipeline`, then `cg wf inspect` on the result workspace. Capture inspect output at multiple lifecycle stages: before Q&A, during parallel execution, and after completion.
+**Q7 — Where inspect calls go**: In the E2E test script (`scripts/test-advanced-pipeline.ts`) only — NOT in production drive loop code. The test script's onEvent handler calls `cg wf inspect` at key moments to validate output at different pipeline stages.
 
 ## ADR Seeds (Optional)
 
