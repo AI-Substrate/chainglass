@@ -1,0 +1,3520 @@
+diff --git a/dev/test-graphs/advanced-pipeline/units/programmer-a/prompts/main.md b/dev/test-graphs/advanced-pipeline/units/programmer-a/prompts/main.md
+index beb79d2..591c646 100644
+--- a/dev/test-graphs/advanced-pipeline/units/programmer-a/prompts/main.md
++++ b/dev/test-graphs/advanced-pipeline/units/programmer-a/prompts/main.md
+@@ -1,13 +1,35 @@
+-You are a programmer. Write a short program based on the spec provided.
++You are a programmer helping debug a workflow system. Log what you are doing at each step.
+ 
+-## Your Task
++## Your Task (follow these steps EXACTLY in order)
+ 
+-1. Read the "spec" input to understand what to build.
+-2. Read the "language" input to know which programming language to use.
+-3. Write a small, working program in that language. Save it as the "code" output.
+-4. Describe the test results (you can state "tests would pass" with rationale). Save as "test_results".
+-5. Write a 1-2 sentence summary of what you built. Save as "summary".
++Step 1: Accept this node assignment.
++Run: `cg wf node accept $CG_GRAPH_SLUG $CG_NODE_ID`
++Log: "Step 1: Accepted node"
+ 
+-Keep all outputs concise.
++Step 2: Read inputs.
++Run: `cg wf node get-input-data $CG_GRAPH_SLUG $CG_NODE_ID spec`
++Run: `cg wf node get-input-data $CG_GRAPH_SLUG $CG_NODE_ID language`
++Log: "Step 2: Language is <language>, spec is <summary>"
+ 
+-Do NOT edit any yaml files or configuration. Only use the cg CLI commands to interact with the workflow.
++Step 3: Save a hello-world stub as code.
++Run: `cg wf node save-output-data $CG_GRAPH_SLUG $CG_NODE_ID code '"print(hello world) # stub in <language>"'`
++Log: "Step 3: Saved code"
++
++Step 4: Save test results.
++Run: `cg wf node save-output-data $CG_GRAPH_SLUG $CG_NODE_ID test_results '"tests would pass"'`
++Log: "Step 4: Saved test_results"
++
++Step 5: Save summary.
++Run: `cg wf node save-output-data $CG_GRAPH_SLUG $CG_NODE_ID summary '"Stub program in <language>"'`
++Log: "Step 5: Saved summary"
++
++Step 6: End the node.
++Run: `cg wf node end $CG_GRAPH_SLUG $CG_NODE_ID --message "Done"`
++Log: "Step 6: Node complete"
++
++IMPORTANT:
++- Do NOT edit any yaml files
++- Do NOT skip steps
++- Only use the cg CLI commands shown above
++
++NOTE: The cg wf node commands work even though --help does not list them. Trust the commands shown above. Do NOT run --help to check.
+diff --git a/dev/test-graphs/advanced-pipeline/units/programmer-b/prompts/main.md b/dev/test-graphs/advanced-pipeline/units/programmer-b/prompts/main.md
+index beb79d2..591c646 100644
+--- a/dev/test-graphs/advanced-pipeline/units/programmer-b/prompts/main.md
++++ b/dev/test-graphs/advanced-pipeline/units/programmer-b/prompts/main.md
+@@ -1,13 +1,35 @@
+-You are a programmer. Write a short program based on the spec provided.
++You are a programmer helping debug a workflow system. Log what you are doing at each step.
+ 
+-## Your Task
++## Your Task (follow these steps EXACTLY in order)
+ 
+-1. Read the "spec" input to understand what to build.
+-2. Read the "language" input to know which programming language to use.
+-3. Write a small, working program in that language. Save it as the "code" output.
+-4. Describe the test results (you can state "tests would pass" with rationale). Save as "test_results".
+-5. Write a 1-2 sentence summary of what you built. Save as "summary".
++Step 1: Accept this node assignment.
++Run: `cg wf node accept $CG_GRAPH_SLUG $CG_NODE_ID`
++Log: "Step 1: Accepted node"
+ 
+-Keep all outputs concise.
++Step 2: Read inputs.
++Run: `cg wf node get-input-data $CG_GRAPH_SLUG $CG_NODE_ID spec`
++Run: `cg wf node get-input-data $CG_GRAPH_SLUG $CG_NODE_ID language`
++Log: "Step 2: Language is <language>, spec is <summary>"
+ 
+-Do NOT edit any yaml files or configuration. Only use the cg CLI commands to interact with the workflow.
++Step 3: Save a hello-world stub as code.
++Run: `cg wf node save-output-data $CG_GRAPH_SLUG $CG_NODE_ID code '"print(hello world) # stub in <language>"'`
++Log: "Step 3: Saved code"
++
++Step 4: Save test results.
++Run: `cg wf node save-output-data $CG_GRAPH_SLUG $CG_NODE_ID test_results '"tests would pass"'`
++Log: "Step 4: Saved test_results"
++
++Step 5: Save summary.
++Run: `cg wf node save-output-data $CG_GRAPH_SLUG $CG_NODE_ID summary '"Stub program in <language>"'`
++Log: "Step 5: Saved summary"
++
++Step 6: End the node.
++Run: `cg wf node end $CG_GRAPH_SLUG $CG_NODE_ID --message "Done"`
++Log: "Step 6: Node complete"
++
++IMPORTANT:
++- Do NOT edit any yaml files
++- Do NOT skip steps
++- Only use the cg CLI commands shown above
++
++NOTE: The cg wf node commands work even though --help does not list them. Trust the commands shown above. Do NOT run --help to check.
+diff --git a/dev/test-graphs/advanced-pipeline/units/reviewer/prompts/main.md b/dev/test-graphs/advanced-pipeline/units/reviewer/prompts/main.md
+index d16180a..ed4db64 100644
+--- a/dev/test-graphs/advanced-pipeline/units/reviewer/prompts/main.md
++++ b/dev/test-graphs/advanced-pipeline/units/reviewer/prompts/main.md
+@@ -1,17 +1,18 @@
+-You are a code reviewer. Review both language implementations against the spec.
++You are a reviewer helping debug a workflow system. Log what you are doing at each step.
+ 
+-## Your Task
++CRITICAL: ONLY operate on YOUR node ($CG_NODE_ID). Do NOT accept, read, or save outputs for any other node.
+ 
+-1. Read the "spec" input to understand what was requested.
+-2. Read "code_a" and "results_a" for the first language implementation.
+-3. Read "code_b" and "results_b" for the second language implementation.
+-4. Write a review for each:
+-   - Save review of first language as "review_a"
+-   - Save review of second language as "review_b"
+-5. Write metrics for each (lines of code estimate, pass/fail assessment, brief comments):
+-   - Save first language metrics as "metrics_a"
+-   - Save second language metrics as "metrics_b"
++## Your Task (follow these steps EXACTLY in order)
+ 
+-Keep all outputs concise — a few sentences each.
++Step 1: Accept YOUR node. Run: `cg wf node accept $CG_GRAPH_SLUG $CG_NODE_ID`
++Step 2: Read YOUR inputs. Run get-input-data for: spec, code_a, code_b, results_a, results_b
++Step 3: Save review_a. Run: `cg wf node save-output-data $CG_GRAPH_SLUG $CG_NODE_ID review_a '"Looks good"'`
++Step 4: Save review_b. Run: `cg wf node save-output-data $CG_GRAPH_SLUG $CG_NODE_ID review_b '"Looks good"'`
++Step 5: Save metrics_a. Run: `cg wf node save-output-data $CG_GRAPH_SLUG $CG_NODE_ID metrics_a '"loc: 5, pass: yes"'`
++Step 6: Save metrics_b. Run: `cg wf node save-output-data $CG_GRAPH_SLUG $CG_NODE_ID metrics_b '"loc: 5, pass: yes"'`
++Step 7: End YOUR node. Run: `cg wf node end $CG_GRAPH_SLUG $CG_NODE_ID --message "Done"`
+ 
+-Do NOT edit any yaml files or configuration. Only use the cg CLI commands to interact with the workflow.
++After step 7, STOP. Do not continue to other nodes.
++
++Do NOT edit yaml files. Only use cg CLI commands.
++NOTE: The cg wf node commands work even though --help does not list them. Trust the commands shown above. Do NOT run --help to check.
+diff --git a/dev/test-graphs/advanced-pipeline/units/spec-writer/prompts/main.md b/dev/test-graphs/advanced-pipeline/units/spec-writer/prompts/main.md
+index 4756f46..82b48ce 100644
+--- a/dev/test-graphs/advanced-pipeline/units/spec-writer/prompts/main.md
++++ b/dev/test-graphs/advanced-pipeline/units/spec-writer/prompts/main.md
+@@ -1,27 +1,45 @@
+-You are a spec writer. You have been given application requirements.
++You are a spec writer helping debug a workflow system. Log what you are doing at each step.
+ 
+-## Your Task
++## Your Task (follow these steps EXACTLY in order)
+ 
+-1. First, read the "requirements" input to understand what the user wants built.
++Step 1: Accept this node assignment.
++Run: `cg wf node accept $CG_GRAPH_SLUG $CG_NODE_ID`
++Log: "Step 1: Accepted node"
+ 
+-2. Before writing the spec, you MUST ask the user what programming languages they want.
+-   Run this command to ask:
+-   ```
+-   cg wf node ask $CG_GRAPH_SLUG $CG_NODE_ID --type text --text "What two programming languages would you like this application written in? Please name exactly two languages."
+-   ```
+-   Wait for the answer before proceeding.
++Step 2: Read the requirements input.
++Run: `cg wf node get-input-data $CG_GRAPH_SLUG $CG_NODE_ID requirements`
++Log: "Step 2: Read requirements: <summary>"
+ 
+-3. After receiving the answer, retrieve it:
+-   ```
+-   cg wf node get-answer $CG_GRAPH_SLUG $CG_NODE_ID <questionId>
+-   ```
++Step 3: Ask the user what languages they want. Use --json to capture the questionId.
++Run: `cg wf node ask $CG_GRAPH_SLUG $CG_NODE_ID --type text --text "What two programming languages would you like this application written in? Please name exactly two languages." --json`
++The JSON output contains a "questionId" field. NOTE THIS VALUE — you need it in Step 4.
++Log: "Step 3: Asked question, questionId=<the ID from JSON output>"
++Then STOP and wait for the answer.
+ 
+-4. Parse the two languages from the answer. Save each as a separate output using EXACTLY these output names:
+-   - Save the first language as output "language_1"
+-   - Save the second language as output "language_2"
++Step 4: After answer arrives, retrieve it using the questionId from Step 3.
++Run: `cg wf node get-answer $CG_GRAPH_SLUG $CG_NODE_ID <questionId from step 3> --json`
++Log: "Step 4: Got answer: <answer>"
+ 
+-5. Write a brief technical specification based on the requirements and save it as the "spec" output.
+-   The spec should describe what the application does and mention both chosen languages.
++Step 5: Save the first language.
++Run: `cg wf node save-output-data $CG_GRAPH_SLUG $CG_NODE_ID language_1 '"<first language>"'`
++Log: "Step 5: Saved language_1"
+ 
+-Keep all outputs concise — a few sentences each.
+-Do NOT edit any yaml files or configuration. Only use the cg CLI commands to interact with the workflow.
++Step 6: Save the second language.
++Run: `cg wf node save-output-data $CG_GRAPH_SLUG $CG_NODE_ID language_2 '"<second language>"'`
++Log: "Step 6: Saved language_2"
++
++Step 7: Save a 1-sentence spec.
++Run: `cg wf node save-output-data $CG_GRAPH_SLUG $CG_NODE_ID spec '"<one sentence spec>"'`
++Log: "Step 7: Saved spec"
++
++Step 8: End the node.
++Run: `cg wf node end $CG_GRAPH_SLUG $CG_NODE_ID --message "Done"`
++Log: "Step 8: Node complete"
++
++IMPORTANT:
++- Do NOT edit any yaml files or configuration
++- Do NOT skip steps
++- Only use the cg CLI commands shown above
++- Keep outputs to a single short sentence each
++
++NOTE: The cg wf node commands work even though --help does not list them. Trust the commands shown above. Do NOT run --help to check.
+diff --git a/dev/test-graphs/advanced-pipeline/units/summariser/prompts/main.md b/dev/test-graphs/advanced-pipeline/units/summariser/prompts/main.md
+index 9317010..956b301 100644
+--- a/dev/test-graphs/advanced-pipeline/units/summariser/prompts/main.md
++++ b/dev/test-graphs/advanced-pipeline/units/summariser/prompts/main.md
+@@ -1,12 +1,14 @@
+-You are a report summariser. Collate the reviews into a final report.
++You are a summariser helping debug a workflow system. Log what you are doing at each step.
+ 
+-## Your Task
++## Your Task (follow these steps EXACTLY in order)
+ 
+-1. Read "review_a", "review_b", "metrics_a", and "metrics_b" inputs.
+-2. Write a combined final report covering both implementations. Save as "final_report".
+-3. Determine overall pass/fail (if both pass, overall is "pass"). Save as "overall_pass".
+-4. Estimate total lines of code across both implementations. Save as "total_loc".
++Step 1: Accept node. Run: `cg wf node accept $CG_GRAPH_SLUG $CG_NODE_ID`
++Step 2: Read inputs. Run get-input-data for: review_a, review_b, metrics_a, metrics_b
++Step 3: Save final_report. Run: `cg wf node save-output-data $CG_GRAPH_SLUG $CG_NODE_ID final_report '"Both implementations pass review"'`
++Step 4: Save overall_pass. Run: `cg wf node save-output-data $CG_GRAPH_SLUG $CG_NODE_ID overall_pass '"pass"'`
++Step 5: Save total_loc. Run: `cg wf node save-output-data $CG_GRAPH_SLUG $CG_NODE_ID total_loc '"10"'`
++Step 6: End node. Run: `cg wf node end $CG_GRAPH_SLUG $CG_NODE_ID --message "Done"`
+ 
+-Keep all outputs concise.
++Do NOT edit yaml files. Only use cg CLI commands.
+ 
+-Do NOT edit any yaml files or configuration. Only use the cg CLI commands to interact with the workflow.
++NOTE: The cg wf node commands work even though --help does not list them. Trust the commands shown above. Do NOT run --help to check.
+diff --git a/docs/plans/038-real-agent-e2e/reviews/fix-tasks.phase-1-agent-fixtures-and-real-agent-e2e-tests.md b/docs/plans/038-real-agent-e2e/reviews/fix-tasks.phase-1-agent-fixtures-and-real-agent-e2e-tests.md
+new file mode 100644
+index 0000000..b6e64c0
+--- /dev/null
++++ b/docs/plans/038-real-agent-e2e/reviews/fix-tasks.phase-1-agent-fixtures-and-real-agent-e2e-tests.md
+@@ -0,0 +1,46 @@
++# Fix Tasks — Phase 1: Agent Fixtures and Real Agent E2E Tests
++
++## Priority Order
++
++### 1) CRITICAL — Restore required review artifacts
++1. Recreate or commit `docs/plans/038-real-agent-e2e/tasks/phase-1-agent-fixtures-and-real-agent-e2e-tests/tasks.md`.
++2. Sync plan progress + links using `/plan-6a-update-progress`.
++3. Ensure each completed task has log links and footnote references.
++
++### 2) HIGH — Manual testing evidence completion
++1. Populate `execution.log.md` with concrete manual run records for each real-agent scenario.
++2. For each run include: command, setup preconditions (auth), observed result, and artifact references.
++3. Map each AC (AC-34..AC-40) to a log section.
++
++### 3) HIGH — Test coverage gap in Claude serial scenario
++1. In `test/integration/real-agent-orchestration.test.ts`, add structural output assertions in Claude serial block:
++   - `assertOutputExists(...specWriter..., 'summary')`
++   - `assertOutputExists(...reviewer..., 'decision')`
++2. Manual verification checklist:
++   - Remove `.skip`, run scenario, confirm both outputs persist.
++
++### 4) HIGH — Resolve session inheritance contract ambiguity (AC-36)
++1. Decide policy: **reuse same session** vs **fork different session**.
++2. Update plan AC-36 wording to match policy.
++3. Add explicit assertion in serial tests:
++   - reuse policy: `expect(writerSession).toBe(reviewerSession)`
++   - fork policy: `expect(writerSession).not.toBe(reviewerSession)`
++4. Log manual evidence proving chosen behavior.
++
++### 5) HIGH — Footnote authority sync
++1. Replace placeholder ledger entries (`[^1]`, `[^2]`) with real entries mapped to changed files/node IDs.
++2. Add corresponding footnote tags in task/dossier notes.
++3. Verify sequential numbering, no gaps, no orphan references.
++
++### 6) MEDIUM — Scope/accountability cleanup
++1. Either justify workshop/plan/log modifications in phase alignment notes, or move them to dedicated planning task.
++2. Keep phase implementation scope focused on task-table paths.
++
++### 7) MEDIUM — Observability improvements in drive callback
++1. Log `event.error` details on error events.
++2. Include result metrics (`totalActions`, elapsed ms) in scenario summaries.
++3. Re-run manual scenarios to ensure logs remain readable.
++
++### 8) LOW — Tighten prompt determinism
++1. Update `spec-writer/prompts/main.md` to exactly one sentence summary.
++2. Re-run manual serial scenario and confirm output still structurally valid.
+diff --git a/docs/plans/038-real-agent-e2e/reviews/review.phase-1-agent-fixtures-and-real-agent-e2e-tests.md b/docs/plans/038-real-agent-e2e/reviews/review.phase-1-agent-fixtures-and-real-agent-e2e-tests.md
+new file mode 100644
+index 0000000..aa30a59
+--- /dev/null
++++ b/docs/plans/038-real-agent-e2e/reviews/review.phase-1-agent-fixtures-and-real-agent-e2e-tests.md
+@@ -0,0 +1,145 @@
++# Phase Review — Phase 1: Agent Fixtures and Real Agent E2E Tests
++
++## A) Verdict
++**REQUEST_CHANGES**
++
++## B) Summary
++- Workflow mode resolved as **Full** (no `Mode: Simple` marker in plan).
++- Required Full-mode dossier artifact is missing: `tasks/phase-1-agent-fixtures-and-real-agent-e2e-tests/tasks.md`.
++- `execution.log.md` exists but is effectively empty (no task-level evidence, links, or test evidence).
++- Testing strategy detected from plan: **Manual validation with structural assertions**, **Mock Usage: No mocks**.
++- `just fft` exited successfully; build/test pipeline ran with known warnings.
++- Multiple HIGH/CRITICAL governance gaps block approval (artifact/link/footnote authority and evidence completeness).
++
++## C) Checklist
++**Testing Approach: Manual**
++
++- [ ] Manual verification steps documented
++- [ ] Manual test results recorded with observed outcomes
++- [ ] All acceptance criteria manually verified
++- [ ] Evidence artifacts present (screenshots, logs)
++- [x] Mock usage matches spec: No mocks
++- [ ] BridgeContext patterns followed (Uri, RelativePattern, module: 'pytest')
++- [ ] Only in-scope files changed
++- [x] Linters/type checks are clean (`just fft` exited 0)
++- [x] Absolute paths used (review command inputs)
++
++## D) Findings Table
++| ID | Severity | File:Lines | Summary | Recommendation |
++|----|----------|------------|---------|----------------|
++| R-001 | CRITICAL | docs/plans/038-real-agent-e2e/tasks/phase-1-agent-fixtures-and-real-agent-e2e-tests/tasks.md | Required Full-mode phase dossier missing | Generate dossier via `/plan-5-phase-tasks-and-brief` (or restore committed `tasks.md`) before review |
++| R-002 | HIGH | docs/plans/038-real-agent-e2e/tasks/phase-1-agent-fixtures-and-real-agent-e2e-tests/execution.log.md:1-9 | Execution log contains no task execution evidence | Run `/plan-6a-update-progress` and populate task entries, links, evidence artifacts |
++| R-003 | HIGH | docs/plans/038-real-agent-e2e/real-agent-e2e-plan.md:254-263 | Plan task table remains `[ ]` for all tasks despite implemented diff | Sync plan task statuses and log links from implementation artifacts |
++| R-004 | HIGH | docs/plans/038-real-agent-e2e/real-agent-e2e-plan.md:349-353 | Footnote ledger still placeholder-only (`[^1]`, `[^2]`) and not mapped to changed files | Sync plan footnotes with actual changed files/node IDs using `/plan-6a-update-progress --sync-footnotes` |
++| R-005 | HIGH | test/integration/real-agent-orchestration.test.ts:401-405 | Claude serial test omits output persistence assertions used in Copilot serial path | Add `assertOutputExists(..., 'summary')` and `assertOutputExists(..., 'decision')` |
++| R-006 | HIGH | test/integration/real-agent-orchestration.test.ts:251-256,406-410 + plan AC-36 | Session inheritance acceptance criterion is not asserted explicitly | Align AC-36 with intended reuse/fork policy and assert exact relationship in tests |
++| R-007 | MEDIUM | diff scope | Phase diff includes extra planning/workshop/log files outside explicit phase task paths | Document explicit alignment justification in dossier/execution log or split into separate task |
++| R-008 | MEDIUM | test/integration/real-agent-orchestration.test.ts:55-57 | Drive error events log message only, losing error payload detail | Log structured error details for `event.type === 'error'` |
++| R-009 | LOW | dev/test-graphs/real-agent-serial/units/spec-writer/prompts/main.md:1 | Prompt says “1-2 sentence summary” vs plan’s “1-sentence summary” | Constrain prompt to exactly one sentence for tighter determinism |
++
++## E) Detailed Findings
++
++### E.0) Cross-Phase Regression Analysis
++- Prior phases in this plan: none (single-phase plan despite Full workflow structure).
++- Tests rerun from prior phases: 0
++- Contracts broken from prior phases: 0
++- Verdict: **PASS (N/A for prior-phase regression)**
++
++### E.1) Doctrine & Testing Compliance
++
++#### Graph integrity (Step 3a)
++- **Task↔Log**: BROKEN (no completed-task links, no log anchors).
++- **Task↔Footnote**: BROKEN (no task footnotes, placeholder ledger only).
++- **Footnote↔File**: BROKEN (changed files not represented by authoritative ledger entries).
++- **Plan↔Dossier**: BROKEN (dossier missing, cannot validate synchronization).
++- **Parent↔Subtask**: N/A (no subtask artifacts found).
++
++Graph Integrity Verdict: **❌ BROKEN**
++
++#### Authority conflicts (Step 3c)
++- Plan §13 is primary authority but contains unresolved placeholders.
++- No synchronized dossier stubs available to reconcile.
++- Conflict status: **FAIL** (blocking until ledger synchronization is completed).
++
++#### Testing-strategy compliance (Manual)
++- Required manual verification record not present in execution log.
++- Required observed outcomes/evidence artifacts not present.
++- Approach compliance: **FAIL**.
++
++### E.2) Semantic Analysis
++- **HIGH** `test/integration/real-agent-orchestration.test.ts:401-405` — Claude path does not verify output-save behavior required by phase intent.
++- **HIGH** Plan AC-36 vs implementation mismatch — criterion says forked/different sessions, while plan task 1.0 and assertions only require truthy sessions.
++- **LOW** Prompt determinism drift (`1-2` sentences instead of exactly `1`).
++
++### E.3) Quality & Safety Analysis
++**Safety Score: -10/100** (CRITICAL: 0, HIGH: 2, MEDIUM: 2, LOW: 1)
++**Verdict: REQUEST_CHANGES**
++
++- **HIGH (Observability)** `test/integration/real-agent-orchestration.test.ts:55-57` — drive error event details not logged.
++- **MEDIUM (Observability)** result logs omit richer execution metrics (`totalActions`, elapsed time).
++- **No confirmed security vulnerabilities** detected in reviewed phase diff.
++- **No clear performance regressions** detected in reviewed phase diff.
++
++### E.4) Doctrine Evolution Recommendations (Advisory)
++- **Rules candidate (MEDIUM)**: Add explicit rule for plan/phase artifact completeness before review (`tasks.md`, populated `execution.log.md`, synchronized footnotes).
++- **Rules candidate (MEDIUM)**: Require manual-mode plans to include a minimal evidence checklist template in execution logs.
++- **Positive alignment**: Real-agent tests remain `describe.skip` and assertions are structural, matching plan intent.
++
++| Category | New | Updates | Priority HIGH |
++|----------|-----|---------|---------------|
++| ADRs | 0 | 0 | 0 |
++| Rules | 2 | 0 | 0 |
++| Idioms | 0 | 0 | 0 |
++| Architecture | 0 | 0 | 0 |
++
++## F) Coverage Map
++
++| Acceptance Criterion | Evidence | Confidence | Notes |
++|---|---|---:|---|
++| AC-34 serial real-agent test exists | `test/integration/real-agent-orchestration.test.ts` (`describe.skip`) | 75% | Present in code; no manual run evidence logged |
++| AC-35 structural protocol assertions | Serial tests assert completion and outputs (Copilot path) | 50% | Claude path lacks output assertions; no execution evidence |
++| AC-36 session inheritance semantics | Truthy session assertions only | 25% | Exact expected relation (same vs different) unresolved/untested |
++| AC-37 parallel independent sessions | `expect(sessionA).not.toBe(sessionB)` | 75% | Present in code; no manual run evidence logged |
++| AC-39 structural-only assertions | Structural assertions only in test body | 100% | Clear conformance in code |
++| AC-40 existing tests pass | `just fft` exit 0 | 75% | Gate run succeeded; output log is noisy but successful |
++
++**Overall coverage confidence: 67% (MEDIUM)**
++
++Narrative/weak mappings:
++- Manual-run outcomes are not recorded, so mappings are code-inferred rather than evidence-backed.
++
++Recommendations:
++- Add explicit AC IDs in test names/comments and execution-log entries.
++- Record manual run outcomes (command, date, observed completion, artifact paths) per AC.
++
++## G) Commands Executed
++```bash
++git --no-pager status --short
++git --no-pager log --oneline -n 12
++git --no-pager diff --name-only e569504..HEAD
++git --no-pager diff --unified=3 --no-color e569504..HEAD > /tmp/phase1.diff
++just fft
++```
++
++## H) Decision & Next Steps
++- Decision owner: reviewer/maintainer for Plan 038.
++- Required before re-review:
++  1. Restore/generate phase dossier (`tasks.md`) and synchronize plan progress artifacts.
++  2. Populate execution log with manual test evidence and trace links.
++  3. Fix test coverage gaps (Claude output assertions; explicit AC-36 session semantics assertion).
++  4. Re-run `just fft` and update evidence references.
++
++## I) Footnotes Audit
++
++| Diff-touched path | Footnote tag(s) in phase artifacts | Plan ledger node-ID entry |
++|---|---|---|
++| packages/shared/src/adapters/claude-code.adapter.ts | none | missing |
++| test/integration/real-agent-orchestration.test.ts | none | missing |
++| dev/test-graphs/real-agent-serial/units/* | none | missing |
++| dev/test-graphs/real-agent-parallel/units/* | none | missing |
++| dev/test-graphs/README.md | none | missing |
++| docs/plans/038-real-agent-e2e/real-agent-e2e-plan.md | placeholders only | unresolved |
++| docs/plans/038-real-agent-e2e/tasks/.../execution.log.md | none | unresolved |
++| docs/plans/038-real-agent-e2e/workshops/01-agent-prompt-flow-and-adapters.md | none | missing |
++
++Footnotes verdict: **FAIL** (ledger not synchronized with actual change set).
+diff --git a/docs/plans/038-real-agent-e2e/workshops/02-agent-workspace-context-resolution.md b/docs/plans/038-real-agent-e2e/workshops/02-agent-workspace-context-resolution.md
+new file mode 100644
+index 0000000..4ccf48e
+--- /dev/null
++++ b/docs/plans/038-real-agent-e2e/workshops/02-agent-workspace-context-resolution.md
+@@ -0,0 +1,355 @@
++# Workshop: Agent Workspace Context Resolution
++
++**Type**: Integration Pattern
++**Plan**: 038-real-agent-e2e
++**Spec**: [spec-c-real-agent-e2e-tests.md](../../033-real-agent-pods/spec-c-real-agent-e2e-tests.md)
++**Created**: 2026-02-20
++**Status**: Draft
++
++**Related Documents**:
++- [01-agent-prompt-flow-and-adapters.md](./01-agent-prompt-flow-and-adapters.md) — what agents see
++- [08-spec-c-implementation-wiring.md](../../033-real-agent-pods/workshops/08-spec-c-implementation-wiring.md) — orchestration stack construction
++
++---
++
++## Purpose
++
++Real agent tests fail because the spawned agent can't execute `cg wf node` commands against the test workspace. This workshop identifies three distinct issues found during live testing, proposes fixes, and recommends which to implement now vs. defer.
++
++## Key Questions Addressed
++
++- Why does the agent's `cg wf node get-input-data` fail with E157?
++- Does the `--workspace-path` override actually work for unregistered paths?
++- What's the minimum fix to get real agents completing graphs in test?
++
++---
++
++## Issue Map
++
++Three distinct issues were discovered during the Copilot serial agent test. They compound but each has an independent fix.
++
++```
++Agent spawned by orchestrator
++        │
++        ▼
++┌──────────────────────────────────────────────────┐
++│ ISSUE 1: Stale CLI binary                        │
++│                                                  │
++│ `cg` → /030-positional-orchestrator/dist/cli.cjs │
++│ Missing: agentType in GraphOrchestratorSettings   │
++│ Error: E157 "Unrecognized key(s): 'agentType'"   │
++│                                                  │
++│ Fix: `just install` (relinks cg to 033 repo)     │
++│ Scope: Cross-cutting (CLI binary)                │
++│ Effort: 1 command                                │
++└──────────────────────────────────────────────────┘
++        │
++        ▼ (after fix 1)
++┌──────────────────────────────────────────────────┐
++│ ISSUE 2: CopilotClient cwd                       │
++│                                                  │
++│ CopilotClient({ cwd }) must point at workspace   │
++│ so the agent's bash tool runs from the right dir │
++│                                                  │
++│ Test script: pass cwd to CopilotClient           │
++│ Production: ODS already passes worktreePath      │
++│   to pod.execute → adapter.run({ cwd })          │
++│   BUT SdkCopilotAdapter validates cwd, doesn't   │
++│   pass it to CopilotClient (client-level cwd)    │
++│                                                  │
++│ Fix: Test scripts create CopilotClient per-graph │
++│ Scope: Test infrastructure only (for now)        │
++│ Effort: Small                                    │
++└──────────────────────────────────────────────────┘
++        │
++        ▼ (after fix 2)
++┌──────────────────────────────────────────────────┐
++│ ISSUE 3: Workspace context for `cg` subprocess   │
++│                                                  │
++│ withTestGraph registers workspace to disk via     │
++│ WorkspaceService.add() → workspaces.json          │
++│ Agent's `cg` spawns fresh process, reads registry │
++│ Registry HAS the entry. Context resolves.         │
++│                                                  │
++│ STATUS: NOT actually broken once Issue 1 is fixed │
++│ The E157 masked the real problem — schema, not    │
++│ workspace resolution.                             │
++└──────────────────────────────────────────────────┘
++```
++
++---
++
++## Issue 1: Stale CLI Binary (PRIMARY BLOCKER)
++
++### Root Cause
++
++The globally-linked `cg` command points at the wrong repository:
++
++```bash
++$ head -20 /home/jak/.local/share/pnpm/cg
++# ...
++exec node "$basedir/../../../substrate/030-positional-orchestrator/apps/cli/dist/cli.cjs" "$@"
++#                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
++#                                    OLD REPO — should be 033-real-agent-pods
++```
++
++The old repo's schema (`030-positional-orchestrator`) has an empty `GraphOrchestratorSettingsSchema`:
++
++```typescript
++// 030-positional-orchestrator (STALE)
++export const GraphOrchestratorSettingsSchema = BaseOrchestratorSettingsSchema
++  .extend({})     // ← no agentType
++  .strict();      // ← rejects unknown keys
++```
++
++The current repo (`033-real-agent-pods`) added `agentType`:
++
++```typescript
++// 033-real-agent-pods (CURRENT)
++export const GraphOrchestratorSettingsSchema = BaseOrchestratorSettingsSchema
++  .extend({
++    agentType: z.enum(['claude-code', 'copilot']).default('copilot'),
++  })
++  .strict();
++```
++
++When the in-process service writes `graph.yaml` with `orchestratorSettings.agentType: copilot`, the agent's `cg` reads it with the old schema and rejects `agentType` as unrecognized.
++
++### Fix
++
++```bash
++# From 033-real-agent-pods root
++just install
++# This runs: cd apps/cli && pnpm link --global
++# Which re-points the global `cg` shim to 033's dist/cli.cjs
++```
++
++After relinking, `cg` uses the current repo's compiled code with `agentType` in the schema. **All E157 errors go away.**
++
++### Verification
++
++```bash
++cg wf show <slug> --workspace-path <temp-dir> --json 2>&1 | grep -c "agentType"
++# Should return 0 errors (no E157)
++```
++
++### Note on Cross-Cutting Scope
++
++The CLI binary is **cross-cutting infrastructure**, not plan-scoped. PlanPak rules don't apply. The `just install` command already handles global linking correctly — the issue was simply that it hadn't been run since switching repos.
++
++---
++
++## Issue 2: CopilotClient Working Directory
++
++### Root Cause
++
++`CopilotClient` is constructed with a `cwd` option that determines where the spawned Copilot CLI process runs. When an agent executes `cg wf node accept copilot-serial spec-writer-646` via its bash tool, that command runs from the CopilotClient's cwd.
++
++In the test script, creating `CopilotClient()` without `cwd` defaults to `process.cwd()` (the project root). The agent's bash commands run from there, and `cg` uses the project root to resolve workspace context — which doesn't match the temp workspace.
++
++### The Two Layers of cwd
++
++```
++Layer 1: CopilotClient({ cwd })
++  → Where the Copilot CLI process itself runs
++  → Determines where agent's bash tool executes commands
++  → Must be the workspace root for `cg` to resolve context from CWD
++
++Layer 2: AgentPod.execute({ ctx: { worktreePath } })
++  → Passed to adapter.run({ cwd: worktreePath })
++  → SdkCopilotAdapter validates but doesn't forward to CopilotClient
++  → This is an adapter-level concern, not client-level
++```
++
++### Fix for Test Scripts (Option A — Recommended Now)
++
++Create `CopilotClient` inside `withTestGraph` with workspace cwd:
++
++```typescript
++await withTestGraph('real-agent-serial', async (tgc) => {
++  const client = new CopilotClient({ cwd: tgc.workspacePath });
++  //                                 ^^^^^^^^^^^^^^^^^^^^^^^^
++  // Agent's bash tool now runs from the temp workspace
++  // `cg` resolves context from CWD → finds registered workspace
++});
++```
++
++This is already proven — the first successful run (spec-writer completed at ~61s) used this approach.
++
++### Fix for Production (Option B — Future)
++
++In production, `AgentManagerService` creates adapters via factory. The factory should accept workspace path:
++
++```typescript
++// Future: Wire workspace through adapter factory
++const agentManager = new AgentManagerService(
++  (workspacePath) => new SdkCopilotAdapter(
++    new CopilotClient({ cwd: workspacePath })
++  )
++);
++```
++
++This is a Plan 034 concern (Phase 3: DI container wiring). Not needed for test validation.
++
++### Decision
++
++**Option A for now.** Test scripts create CopilotClient per-graph with workspace cwd. Production wiring is a separate concern.
++
++---
++
++## Issue 3: Workspace Registry (NOT BROKEN)
++
++### Analysis
++
++Initial hypothesis: temp workspace isn't in the registry, so `cg` can't resolve context.
++
++**Disproved.** `withTestGraph` already persists workspace registrations to `~/.config/chainglass/workspaces.json`:
++
++```typescript
++// graph-test-runner.ts line 187
++await workspaceService.add(workspaceSlug, tmpDir);
++// Persists to ~/.config/chainglass/workspaces.json
++// Agent's `cg` reads the same file → finds the workspace
++```
++
++Verified empirically:
++```bash
++$ cg workspace list | grep tg-real-agent
++tg-real-agent-serial-1771630552116  tg-real-agent-serial  /tmp/tg-real-agent-serial-jE5WOy
++```
++
++The E157 errors were caused by Issue 1 (stale schema rejecting `agentType`), not by missing workspace context. Once the CLI binary is relinked, workspace resolution works correctly.
++
++### Stale Registry Entries
++
++One minor issue: 34 workspace entries have accumulated because cleanup in `withTestGraph`'s `finally` block sometimes doesn't execute (process killed, test timeout). The temp dirs are deleted but registry entries remain as orphans pointing to non-existent paths.
++
++This is cosmetic — `resolveContext` checks `isPathInWorkspace(path, ws.path)` which does a prefix match. Orphan entries for deleted dirs never match. But it clutters the registry.
++
++**Future cleanup**: Add a `cg workspace prune` command that removes entries for non-existent paths. Not blocking.
++
++---
++
++## Option 2 Analysis: Synthetic WorkspaceContext (DEFERRED)
++
++The user considered adding a `--workspace-path-override` mode that synthesizes a `WorkspaceContext` from a bare path without hitting the registry.
++
++### How It Would Work
++
++```typescript
++// In command-helpers.ts
++export async function resolveOrOverrideContext(
++  overridePath?: string
++): Promise<WorkspaceContext | null> {
++  const container = createCliProductionContainer();
++  const workspaceService = container.resolve<IWorkspaceService>(
++    WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE
++  );
++  const path = overridePath ?? process.cwd();
++  
++  // Try registry first
++  const ctx = await workspaceService.resolveContext(path);
++  if (ctx) return ctx;
++  
++  // NEW: If --workspace-path was explicit and registry miss, synthesize
++  if (overridePath) {
++    return {
++      workspaceSlug: sanitizeSlug(basename(overridePath)),
++      workspaceName: basename(overridePath),
++      workspacePath: overridePath,
++      worktreePath: overridePath,
++      worktreeBranch: null,
++      isMainWorktree: true,
++      hasGit: await exists(join(overridePath, '.git')),
++    };
++  }
++  
++  return null;
++}
++```
++
++### Why It's Not Needed Now
++
++1. **`withTestGraph` already registers the workspace.** The CLI finds it.
++2. **Issue 1 (stale binary) was the real blocker.** Once fixed, everything works.
++3. **Synthetic context has risks**: no slug uniqueness guarantee, no workspace-level settings, could mask real configuration errors.
++
++### When It Would Be Needed
++
++- If tests move to isolated containers where the registry file isn't shared
++- If agents need to operate on paths that genuinely aren't registered
++- If we want `cg` to work without any workspace setup (zero-config mode)
++
++**Decision: Defer.** Not needed for the current test scenario. Revisit if the workspace model changes.
++
++---
++
++## Recommended Fix Sequence
++
++### Step 1: Relink CLI (Issue 1)
++
++```bash
++cd /home/jak/substrate/033-real-agent-pods
++pnpm build && cd apps/cli && pnpm link --global
++# Or: just install
++```
++
++Verify:
++```bash
++cg --version  # Should still work
++head -20 $(which cg)  # Should reference 033-real-agent-pods
++```
++
++### Step 2: Update Test Script (Issue 2)
++
++Create `CopilotClient` with workspace cwd inside `withTestGraph`:
++
++```typescript
++const client = new CopilotClient({ cwd: tgc.workspacePath });
++```
++
++Already implemented in `scripts/test-copilot-serial.ts`.
++
++### Step 3: Rerun Test
++
++```bash
++npx tsx scripts/test-copilot-serial.ts
++```
++
++Expected: spec-writer completes (~60s), reviewer completes (~60s), all assertions pass.
++
++### Step 4: Clean Up Stale Registry
++
++```bash
++# One-time cleanup of orphan entries
++cat ~/.config/chainglass/workspaces.json | python3 -c "
++import json, sys, os
++d = json.load(sys.stdin)
++before = len(d['workspaces'])
++d['workspaces'] = [w for w in d['workspaces'] if os.path.isdir(w['path'])]
++after = len(d['workspaces'])
++json.dump(d, sys.stdout, indent=2)
++print(f'\nRemoved {before - after} orphan entries', file=sys.stderr)
++" > /tmp/ws-clean.json && mv /tmp/ws-clean.json ~/.config/chainglass/workspaces.json
++```
++
++---
++
++## Open Questions
++
++### Q1: Should SdkCopilotAdapter forward cwd to CopilotClient?
++
++**OPEN**: Currently the adapter validates cwd but the CopilotClient is pre-constructed. In production, each agent node could need a different cwd. Options:
++- A) One CopilotClient per agent run (current test approach)
++- B) Adapter creates CopilotClient lazily with the provided cwd
++- C) Leave as-is; `cg --workspace-path` handles it from within the agent's commands
++
++Likely answer: C for now, B when we tackle Plan 034 Phase 3 (DI wiring).
++
++### Q2: Should the starter prompt include `--workspace-path`?
++
++**RESOLVED: No.** The agent's bash tool inherits cwd from CopilotClient. The `cg` CLI resolves context from CWD. No explicit `--workspace-path` flag needed in the prompt template — it would add noise and couple the protocol to the adapter implementation.
++
++### Q3: Should ClaudeCodeAdapter also handle cwd?
++
++**RESOLVED: Yes, and it already does.** `ClaudeCodeAdapter._buildArgs()` doesn't include `--workspace-path`, but `processManager.spawn({ cwd: validatedCwd })` sets the working directory for the `claude` subprocess. Claude Code's bash tool then inherits that cwd.
+diff --git a/docs/plans/038-real-agent-e2e/workshops/03-local-cli-shortcut-scripts.md b/docs/plans/038-real-agent-e2e/workshops/03-local-cli-shortcut-scripts.md
+new file mode 100644
+index 0000000..a2d87a5
+--- /dev/null
++++ b/docs/plans/038-real-agent-e2e/workshops/03-local-cli-shortcut-scripts.md
+@@ -0,0 +1,402 @@
++# Workshop: Local CLI Shortcut Scripts for Agent Nodes
++
++**Type**: Integration Pattern
++**Plan**: 038-real-agent-e2e
++**Spec**: [spec-c-real-agent-e2e-tests.md](../../033-real-agent-pods/spec-c-real-agent-e2e-tests.md)
++**Created**: 2026-02-21
++**Status**: Draft
++
++**Related Documents**:
++- [02-agent-workspace-context-resolution.md](./02-agent-workspace-context-resolution.md) — why global `cg` breaks
++- [node-starter-prompt.md](../../../../packages/positional-graph/src/features/030-orchestration/node-starter-prompt.md) — agent protocol contract
++
++---
++
++## Purpose
++
++Agents must call `cg wf node` CLI commands to interact with the orchestrator. Today the prompt hardcodes `cg` which resolves to a globally-linked binary that can point at the wrong branch, the wrong repo snapshot, or not exist at all. This workshop designs a system where short, self-contained shell scripts are placed inside the workspace before any pod runs, so agents always use the correct CLI version — the one from the same codebase they're running in.
++
++## Key Questions Addressed
++
++- Where should shortcut scripts live within the workspace?
++- What commands need shortcuts and what do they look like?
++- Which service creates them (SRP) and who orchestrates that?
++- How does the agent prompt reference them?
++- What happens in test vs production?
++
++---
++
++## Problem Statement
++
++```
++Global cg shim → /substrate/030-.../apps/cli/dist/cli.cjs   (STALE)
++                                     ↑
++In-process code → /substrate/033-.../packages/...            (CURRENT)
++                                     ↑
++                              Schema mismatch → E157
++```
++
++The globally-linked `cg` is a cross-cutting tool that any branch can relink. When the agent spawns `cg wf node accept ...` it gets whichever version was last linked globally. This is fragile, untestable, and invisible when it breaks.
++
++**Principle**: The agent should use CLI commands that are **co-versioned** with the orchestrator that spawned it.
++
++---
++
++## Design
++
++### Location: `.chainglass/bin/`
++
++Shortcut scripts live at `<worktreePath>/.chainglass/bin/` inside the workspace.
++
++```
++<workspace>/
++└── .chainglass/
++    ├── bin/                          ← NEW: shortcut scripts
++    │   ├── cg-accept
++    │   ├── cg-collate
++    │   ├── cg-get-input
++    │   ├── cg-save-output
++    │   ├── cg-end
++    │   ├── cg-ask
++    │   ├── cg-error
++    │   └── cg-get-answer
++    ├── data/
++    │   └── workflows/
++    ├── graphs/
++    └── units/
++```
++
++**Why `.chainglass/bin/`**:
++
++| Option | Pros | Cons |
++|--------|------|------|
++| `<workspace>/.chainglass/bin/` | Co-located with all other WF state. Already in `.chainglass` which is the orchestration data root. Cleaned up naturally with workspace. | One extra path segment |
++| `<workspace>/bin/` | Short path | Pollutes workspace root. Conflicts with user's own `bin/`. |
++| `<workspace>/.cg/` | Short | New hidden dir convention. Not discoverable. |
++| Injected into `$PATH` | Agent uses bare `cg` | Fragile. Process env manipulation. |
++
++**Decision**: `.chainglass/bin/` — consistent with existing `.chainglass/` conventions, no workspace pollution.
++
++### Script Design
++
++Each script is a thin wrapper that calls `node` with the correct CLI entrypoint, forwarding arguments. Scripts are self-contained — no dependency on PATH, global installs, or symlinks.
++
++#### Exemplar: `cg-accept`
++
++```bash
++#!/usr/bin/env bash
++# Auto-generated by WorkflowBinService — do not edit
++# Accepts the agent's assignment on a workflow node.
++# Usage: .chainglass/bin/cg-accept <graphSlug> <nodeId>
++set -euo pipefail
++CLI_ENTRY="%%CLI_ENTRY%%"
++exec node "$CLI_ENTRY" wf node accept "$@"
++```
++
++`%%CLI_ENTRY%%` is resolved at generation time to the absolute path of the current repo's compiled CLI entrypoint (e.g., `/home/jak/substrate/033-real-agent-pods/apps/cli/dist/cli.cjs`).
++
++#### Exemplar: `cg-save-output`
++
++```bash
++#!/usr/bin/env bash
++# Auto-generated by WorkflowBinService — do not edit
++# Saves output data for a workflow node.
++# Usage: .chainglass/bin/cg-save-output <graphSlug> <nodeId> <outputName> '<jsonValue>'
++set -euo pipefail
++CLI_ENTRY="%%CLI_ENTRY%%"
++exec node "$CLI_ENTRY" wf node save-output-data "$@"
++```
++
++#### Full Command Map
++
++| Script | Resolves To | Agent Usage |
++|--------|-------------|-------------|
++| `cg-accept` | `cg wf node accept` | `.chainglass/bin/cg-accept {{graphSlug}} {{nodeId}}` |
++| `cg-collate` | `cg wf node collate` | `.chainglass/bin/cg-collate {{graphSlug}} {{nodeId}}` |
++| `cg-get-input` | `cg wf node get-input-data` | `.chainglass/bin/cg-get-input {{graphSlug}} {{nodeId}} <name>` |
++| `cg-save-output` | `cg wf node save-output-data` | `.chainglass/bin/cg-save-output {{graphSlug}} {{nodeId}} <name> '<val>'` |
++| `cg-end` | `cg wf node end` | `.chainglass/bin/cg-end {{graphSlug}} {{nodeId}} --message "..."` |
++| `cg-ask` | `cg wf node ask` | `.chainglass/bin/cg-ask {{graphSlug}} {{nodeId}} --type text --text "..."` |
++| `cg-error` | `cg wf node error` | `.chainglass/bin/cg-error {{graphSlug}} {{nodeId}} --code X --message "..."` |
++| `cg-get-answer` | `cg wf node get-answer` | `.chainglass/bin/cg-get-answer {{graphSlug}} {{nodeId}} <qId>` |
++
++**Why individual scripts instead of one `cg` wrapper?**
++- Agent sees named commands → less prompt token overhead per invocation
++- Agent can't accidentally call non-WF commands (e.g., `cg workspace remove`)
++- Each script has its own usage comment → agent self-documents if confused
++- Scripts are short (~5 lines each) so total footprint is small
++
++### WorkflowBinService (New Service — SRP)
++
++A single-responsibility service that generates and manages the `.chainglass/bin/` scripts.
++
++```typescript
++/**
++ * WorkflowBinService: Generates version-locked CLI shortcut scripts.
++ *
++ * Ensures agents always use the same CLI version as the orchestrator.
++ * Scripts are idempotent — calling ensure() multiple times is safe.
++ */
++export interface IWorkflowBinService {
++  /**
++   * Ensure all shortcut scripts exist and are current.
++   * Creates .chainglass/bin/ if missing, writes/updates scripts.
++   * Idempotent — safe to call before every pod execution.
++   */
++  ensure(ctx: { readonly worktreePath: string }): Promise<void>;
++
++  /**
++   * Get the absolute path to the bin directory.
++   */
++  getBinDir(ctx: { readonly worktreePath: string }): string;
++}
++```
++
++#### Implementation Sketch
++
++```typescript
++import { resolve, dirname } from 'node:path';
++import { fileURLToPath } from 'node:url';
++
++const COMMANDS: Array<{ name: string; args: string; description: string }> = [
++  { name: 'cg-accept',      args: 'wf node accept',          description: 'Accepts the agent assignment' },
++  { name: 'cg-collate',     args: 'wf node collate',         description: 'Collates all node inputs' },
++  { name: 'cg-get-input',   args: 'wf node get-input-data',  description: 'Reads an input by name' },
++  { name: 'cg-save-output', args: 'wf node save-output-data', description: 'Saves output data' },
++  { name: 'cg-end',         args: 'wf node end',             description: 'Completes the node' },
++  { name: 'cg-ask',         args: 'wf node ask',             description: 'Asks a question' },
++  { name: 'cg-error',       args: 'wf node error',           description: 'Reports an error' },
++  { name: 'cg-get-answer',  args: 'wf node get-answer',      description: 'Reads answer to a question' },
++];
++
++export class WorkflowBinService implements IWorkflowBinService {
++  private readonly cliEntry: string;
++
++  constructor() {
++    // Resolve CLI entrypoint relative to this package
++    // apps/cli/dist/cli.cjs from the repo root
++    this.cliEntry = resolveCliEntry();
++  }
++
++  async ensure(ctx: { readonly worktreePath: string }): Promise<void> {
++    const binDir = this.getBinDir(ctx);
++    await fs.mkdir(binDir, { recursive: true });
++
++    for (const cmd of COMMANDS) {
++      const scriptPath = join(binDir, cmd.name);
++      const content = this.generateScript(cmd);
++      await fs.writeFile(scriptPath, content, { mode: 0o755 });
++    }
++  }
++
++  getBinDir(ctx: { readonly worktreePath: string }): string {
++    return join(ctx.worktreePath, '.chainglass', 'bin');
++  }
++
++  private generateScript(cmd: typeof COMMANDS[number]): string {
++    return [
++      '#!/usr/bin/env bash',
++      '# Auto-generated by WorkflowBinService — do not edit',
++      `# ${cmd.description}`,
++      'set -euo pipefail',
++      `exec node "${this.cliEntry}" ${cmd.args} "$@"`,
++      '',
++    ].join('\n');
++  }
++}
++```
++
++#### Resolving the CLI Entrypoint
++
++The service needs to find `apps/cli/dist/cli.cjs` from the running process. Two options:
++
++**Option A — Relative from package**: The service lives in `packages/positional-graph/`. Walk up to repo root and resolve `apps/cli/dist/cli.cjs`.
++
++```typescript
++function resolveCliEntry(): string {
++  // __dirname of this file → repo root → apps/cli/dist/cli.cjs
++  const thisDir = dirname(fileURLToPath(import.meta.url));
++  // Walk up from packages/positional-graph/dist/features/... to repo root
++  const repoRoot = resolve(thisDir, '..', '..', '..', '..', '..');
++  return resolve(repoRoot, 'apps', 'cli', 'dist', 'cli.cjs');
++}
++```
++
++**Option B — Injected via DI/config**: The CLI entrypoint path is provided at construction time by the DI container which knows the repo layout.
++
++**Recommendation**: Option A with a fallback to `which cg` for production deployments where the repo structure may differ. Test harness always uses Option A.
++
++### Orchestration: Who Calls `ensure()`?
++
++The `ensure()` call must happen **before any pod executes**. Two candidate call sites:
++
++#### Option 1: ODS calls ensure() before pod.execute()
++
++```typescript
++// In ODS.handleAgentOrCode()
++await this.deps.workflowBinService.ensure({ worktreePath: ctx.worktreePath });
++const pod = this.deps.podManager.createPod(nodeId, podParams);
++pod.execute({ ... });
++```
++
++**Pros**: Single call site. Every pod gets bins.
++**Cons**: ODS gains a new dependency. Runs for every node (idempotent but extra I/O).
++
++#### Option 2: OrchestrationService calls ensure() once per drive()
++
++```typescript
++// In OrchestrationService or DriveHandle, at start of drive()
++await this.deps.workflowBinService.ensure({ worktreePath: ctx.worktreePath });
++// ... then proceed with iterations
++```
++
++**Pros**: Called once per drive session, not per-node. Cleaner separation.
++**Cons**: If someone calls ODS directly without OrchestrationService, bins might be missing.
++
++#### Option 3: PodManager calls ensure() at createPod() time
++
++```typescript
++// PodManager.createPod()
++createPod(nodeId: string, params: PodCreateParams): IWorkUnitPod {
++  // Bins are guaranteed by the time any pod exists
++  this.binService.ensureSync(this.currentCtx);
++  // ...
++}
++```
++
++**Cons**: PodManager is an internal collaborator, not a good place for I/O orchestration. Violates SRP.
++
++**Recommendation: Option 2** — OrchestrationService (or DriveHandle) calls `ensure()` once when a drive session starts. This is the natural "setup before execution" point. ODS stays focused on node dispatch.
++
++### Prompt Template Changes
++
++The starter and resume prompts update to use shortcut scripts:
++
++```markdown
++## Step 1: Accept Your Assignment
++
++Before doing anything else, accept your assignment:
++
++\`\`\`
++.chainglass/bin/cg-accept {{graphSlug}} {{nodeId}}
++\`\`\`
++
++## Step 2: Read Your Task
++
++\`\`\`
++.chainglass/bin/cg-collate {{graphSlug}} {{nodeId}}
++.chainglass/bin/cg-get-input {{graphSlug}} {{nodeId}} main-prompt
++.chainglass/bin/cg-get-input {{graphSlug}} {{nodeId}} <inputName>
++\`\`\`
++```
++
++All 8 `cg wf node ...` references change to `.chainglass/bin/cg-*` references.
++
++**Note**: Since agent cwd is already set to `worktreePath`, relative paths like `.chainglass/bin/cg-accept` just work. No absolute paths needed in the prompt.
++
++### Test Infrastructure
++
++`withTestGraph` already creates `.chainglass/` subdirectories. Adding `bin/` is a one-line change:
++
++```typescript
++// In withTestGraph(), after creating directories:
++const binService = new WorkflowBinService();
++await binService.ensure({ worktreePath: tmpDir });
++```
++
++Or, if the real DriveHandle calls `ensure()`, the test's `orchestrationService.get(ctx, slug)` handles it automatically.
++
++---
++
++## Lifecycle
++
++```
++                    Workspace exists
++                         │
++                         ▼
++        ┌──────────────────────────────┐
++        │ OrchestrationService.drive() │
++        │   or first get() call        │
++        └──────────┬───────────────────┘
++                   │
++                   ▼
++        ┌──────────────────────────────┐
++        │ WorkflowBinService.ensure()  │
++        │   mkdir .chainglass/bin/     │
++        │   write 8 scripts            │
++        │   chmod +x each              │
++        │   (idempotent, ~5ms)         │
++        └──────────┬───────────────────┘
++                   │
++                   ▼
++        ┌──────────────────────────────┐
++        │ ODS dispatches AgentPod      │
++        │   cwd = worktreePath         │
++        │                              │
++        │ Agent runs:                  │
++        │   .chainglass/bin/cg-accept  │
++        │   .chainglass/bin/cg-get-input│
++        │   .chainglass/bin/cg-save-output│
++        │   .chainglass/bin/cg-end     │
++        └──────────────────────────────┘
++```
++
++---
++
++## Scope and Boundaries
++
++### In Scope
++- `WorkflowBinService` class (generate + ensure)
++- 8 shortcut scripts
++- Prompt template updates (starter + resume)
++- `ensure()` call wired into OrchestrationService or DriveHandle
++- Test infrastructure update (`withTestGraph`)
++
++### Out of Scope
++- Removing global `cg` link (still useful for human CLI use)
++- Changing `cg` command structure or registration
++- Any changes to the adapter layer (SdkCopilotAdapter, ClaudeCodeAdapter)
++- PATH manipulation
++
++---
++
++## Open Questions
++
++### Q1: Should scripts embed `--workspace-path` automatically?
++
++**RESOLVED: No.** The agent's cwd IS the workspace root. `cg` resolves context from cwd via the workspace registry. Adding `--workspace-path` would add noise and create a second source of truth for workspace location.
++
++### Q2: Should we generate a single `cg` wrapper instead of per-command scripts?
++
++**RESOLVED: No, use per-command scripts.** Per-command scripts are safer (agent can't call arbitrary `cg` subcommands), more discoverable (each has a usage comment), and reduce prompt token usage per invocation. Total footprint is ~40 lines across 8 scripts.
++
++### Q3: What if the CLI dist is stale (not built)?
++
++**OPEN**: `resolveCliEntry()` could check if `cli.cjs` exists and warn/fail early. In practice, `just install` or `pnpm build` keeps dist current. For tests, the build is always run before test execution. Could add a guard:
++
++```typescript
++if (!existsSync(this.cliEntry)) {
++  throw new Error(
++    `CLI entrypoint not found: ${this.cliEntry}. Run 'pnpm build' first.`
++  );
++}
++```
++
++### Q4: Where does WorkflowBinService live (package location)?
++
++**RESOLVED: `packages/positional-graph/src/features/030-orchestration/`** — it's an orchestration infrastructure concern, co-located with PodManager, ODS, and the prompt templates it serves. Not PlanPak'd because it's cross-cutting orchestration infrastructure.
++
++---
++
++## Implementation Estimate
++
++| Component | Files | Complexity |
++|-----------|-------|------------|
++| `WorkflowBinService` | 1 new file + interface | Small (~60 lines) |
++| Script templates | Inline in service | Trivial |
++| Prompt template updates | 2 files (starter + resume) | Small (find/replace) |
++| OrchestrationService wiring | 1 edit | Trivial |
++| `withTestGraph` update | 1 edit | Trivial |
++| Tests | 1 new test file | Small (ensure creates files, scripts are executable, content is correct) |
++
++Total: **~150 lines of new code**, mostly template strings.
+diff --git a/docs/plans/039-advanced-e2e-pipeline/advanced-e2e-pipeline-plan.md b/docs/plans/039-advanced-e2e-pipeline/advanced-e2e-pipeline-plan.md
+index 8143602..3dae351 100644
+--- a/docs/plans/039-advanced-e2e-pipeline/advanced-e2e-pipeline-plan.md
++++ b/docs/plans/039-advanced-e2e-pipeline/advanced-e2e-pipeline-plan.md
+@@ -482,6 +482,7 @@ describe('contextFrom readiness gate', () => {
+ |-------------------|------------|------------------------------|-----------------|
+ | PlanPak R-ARCH-002 (feature folders) | All production changes are edits to existing `030-orchestration` files — no new feature folder warranted | Creating `039-advanced-e2e-pipeline` feature folder with re-exports | Changes are small edits, not new modules; feature folder would add indirection for no benefit |
+ | Integration tests always run | 3 integration tests (orchestration-drive, node-event-system-e2e, orchestration-e2e) were timing out at 210s in normal test runs | Running unconditionally | Added `RUN_INTEGRATION=1` env var gate; run explicitly via `RUN_INTEGRATION=1 pnpm test -- --run orchestration-drive` |
++| No fakes policy — FakeNodeEventRegistry | E2E script uses `FakeNodeEventRegistry` for event type registration. This is shared test infrastructure (not a mock), used identically by every orchestration test and the serial E2E script. No real registry implementation exists — this IS the registry for test/script contexts. | Building a "real" registry that reads from config | FakeNodeEventRegistry is behaviorally identical to production; only difference is in-memory storage vs no storage. All event types registered via `registerCoreEventTypes()`. |
+ 
+ ---
+ 
+diff --git a/docs/plans/039-advanced-e2e-pipeline/reviews/fix-tasks.phase-3-e2e-test-fixtures-and-script.md b/docs/plans/039-advanced-e2e-pipeline/reviews/fix-tasks.phase-3-e2e-test-fixtures-and-script.md
+new file mode 100644
+index 0000000..2c7faf3
+--- /dev/null
++++ b/docs/plans/039-advanced-e2e-pipeline/reviews/fix-tasks.phase-3-e2e-test-fixtures-and-script.md
+@@ -0,0 +1,45 @@
++# Fix Tasks — Phase 3 (REQUEST_CHANGES)
++
++## 1) Restore required phase evidence (Full TDD first)
++1. Create `docs/plans/039-advanced-e2e-pipeline/tasks/phase-3-e2e-test-fixtures-and-script/execution.log.md`.
++2. Record RED→GREEN→REFACTOR evidence per T001–T013, including command outputs and anchorable entries.
++3. Add task/log backlinks (`Dossier Task`, `Plan Task`) for each completed task.
++
++## 2) Repair provenance graph links (blocking)
++1. Add footnote tags in `tasks.md` Notes for each diff-touched file.
++2. Populate `## Phase Footnote Stubs` in phase dossier.
++3. Sync plan `## Change Footnotes Ledger` with Phase 3 entries (plan authority).
++
++## 3) Fix plan-compliance gaps in script (test-first)
++1. Add missing AC-10 assertion: `programmer-a != programmer-b`.
++2. Add explicit AC-12 assertion for line ordering (line 2 starts after line 1 completes).
++3. Add AC-13 non-empty assertions for all required agent outputs (not just subset).
++4. Add explicit phase banners for line 1, line 2, and line 3.
++
++## 4) Resolve mock/fake policy conflict
++1. Replace `FakeNodeEventRegistry` usage with approved real registry implementation **or** log a documented plan deviation with rationale and risk controls.
++2. Re-run phase validation command(s) and update execution log evidence.
++
++## 5) Security/observability hardening
++1. Mask/omit session IDs in logs.
++2. Redact or remove raw tool argument/result logging.
++3. Improve output-read failure logging (capture error message, keep concise).
++
++## 6) Correctness cleanup
++1. Align `VerboseCopilotAdapter` contract methods (`terminate`, `compact`) with adapter interface behavior.
++2. Re-run:  
++   - `pnpm tsx scripts/test-advanced-pipeline.ts --help`  
++   - `just test-advanced-pipeline --help`
++
++## 7) Command alignment and naming consistency
++1. Align `justfile` recipe command with task validation (`pnpm tsx`) or update the task validation text.
++2. Resolve output naming drift (kebab-case vs snake_case) by either:
++   - normalizing implementation names and wiring, **or**
++   - updating plan/task text and all references consistently.
++
++## 8) Re-validate before rerun of plan-7
++1. `pnpm test -- --run agent-context.test.ts`
++2. `pnpm test -- --run can-run.test.ts`
++3. `just fft`
++4. Re-run `plan-7-code-review` for Phase 3.
++
+diff --git a/docs/plans/039-advanced-e2e-pipeline/reviews/review.phase-3-e2e-test-fixtures-and-script.md b/docs/plans/039-advanced-e2e-pipeline/reviews/review.phase-3-e2e-test-fixtures-and-script.md
+new file mode 100644
+index 0000000..79ab8fb
+--- /dev/null
++++ b/docs/plans/039-advanced-e2e-pipeline/reviews/review.phase-3-e2e-test-fixtures-and-script.md
+@@ -0,0 +1,147 @@
++# Phase Review: Phase 3 — E2E Test Fixtures and Script
++
++## A) Verdict
++**REQUEST_CHANGES**
++
++## B) Summary
++- Mode detected: **Full**.
++- Diff source: `git diff --unified=3 --no-color c5d0ce9..58ed7ec` (scoped to phase files).
++- Testing approach: **Full TDD**; mock policy: **No fakes, no mocks**.
++- Scope guard: phase files are in-scope.
++- Blocking issues found in graph integrity, TDD evidence, plan compliance, and security/observability.
++- Cross-phase regression checks rerun for Phase 1/2 targets and passed.
++
++## C) Checklist
++**Testing Approach: Full TDD**
++
++- [ ] Tests precede code (RED-GREEN-REFACTOR evidence)
++- [ ] Tests as docs (assertions show behavior)
++- [ ] Mock usage matches spec: Avoid/No fakes
++- [ ] Negative/edge cases covered
++
++**Universal**
++- [x] BridgeContext patterns followed (not applicable in this non-VSCode diff)
++- [x] Only in-scope files changed
++- [ ] Linters/type checks are clean (vitest emits tsconfig-path parsing warnings)
++- [x] Absolute paths used (no hidden context assumptions in changed code)
++
++## D) Findings Table
++| ID | Severity | File:Lines | Summary | Recommendation |
++|----|----------|------------|---------|----------------|
++| F-001 | CRITICAL | `scripts/test-advanced-pipeline.ts:266-267` | Uses `FakeNodeEventRegistry` while plan policy says no fakes/mocks for this plan's tests. | Replace with real registry or explicitly document/approve policy deviation in plan artifacts. |
++| F-002 | HIGH | `tasks/phase-3.../execution.log.md` | Required execution log artifact is missing. | Create phase execution log with task-by-task RED/GREEN/REFACTOR evidence and command outputs. |
++| F-003 | HIGH | `tasks.md:129-141`, `plan.md:488+` | No Phase 3 footnotes in task Notes/stubs/ledger; graph provenance links are broken. | Run plan progress sync and footnote sync (`plan-6a`), add footnotes for each touched path. |
++| F-004 | HIGH | `scripts/test-advanced-pipeline.ts:537-544` | Isolation proof is incomplete (`prog-a != prog-b` missing). | Add explicit assertion for `programmer-a !== programmer-b`. |
++| F-005 | HIGH | `scripts/test-advanced-pipeline.ts:518-557` | AC-12 ordering check and full AC-13 non-empty output checks are missing. | Add line-order timestamp assertions and non-empty checks for all agent outputs. |
++| F-006 | HIGH | `scripts/test-advanced-pipeline.ts:459-471` | Plan asks phase banners per line; only line 0 banner exists. | Add explicit line 1/2/3 phase banners in drive events. |
++| F-007 | HIGH | `scripts/test-advanced-pipeline.ts:182-183` | Adapter `terminate()` signature/behavior appears incompatible with adapter contract (missing sessionId passthrough). | Match interface contract and delegate with sessionId. |
++| F-008 | HIGH | `scripts/test-advanced-pipeline.ts:110,562-566` | Session IDs logged in cleartext. | Mask session IDs in logs (`prefix…suffix`) or omit. |
++| F-009 | HIGH | `scripts/test-advanced-pipeline.ts:134-147` | Tool args/results are logged raw; can leak sensitive prompt/tool data. | Redact sensitive fields and log bounded metadata only. |
++| F-010 | MEDIUM | `spec-writer/unit.yaml`, `summariser/unit.yaml`, script wiring | Output naming drifts from plan text (`language-1`/`final-report` vs underscore forms). | Normalize naming or update plan/tasks explicitly with rationale and synchronized references. |
++| F-011 | MEDIUM | `scripts/test-advanced-pipeline.ts` | Q&A polling recomputes full reality each idle cycle. | Throttle polling and stop once required Q&A is satisfied. |
++| F-012 | MEDIUM | `justfile:67-68` | Recipe uses `npx tsx` while task validation text says `pnpm tsx`. | Align command or update task validation text. |
++
++## E) Detailed Findings
++### E.0 Cross-Phase Regression Analysis
++- Prior-phase tests rerun:
++  - `pnpm test -- --run agent-context.test.ts` ✅ (21 passed)
++  - `pnpm test -- --run can-run.test.ts` ✅ (16 passed)
++- Contracts/integration: no regression detected in Phase 1/2 context/readiness behavior.
++- Tests rerun: 2, failures: 0, contracts broken: 0.
++
++### E.1 Doctrine & Testing Compliance
++**Graph integrity (3a): ❌ BROKEN**
++- Task↔Log: execution log missing (cannot validate backlinks/anchors).
++- Task↔Footnote: no `[^\N]` references on phase tasks; phase footnote stubs empty; no Phase 3 ledger entries.
++- Footnote↔File: ledger entries are non-FlowSpace filename lists (format invalid for node-ID rules).
++
++**Authority conflicts (3c): FAIL**
++- Plan is primary authority; phase dossier and plan ledger are not synchronized for Phase 3 provenance.
++- Resolution: sync plan/dossier footnotes and task notes before merge.
++
++**Doctrine validators (4):**
++- TDD validator: HIGH (missing RED/GREEN/REFACTOR evidence due missing execution log).
++- Mock policy validator: CRITICAL (fake registry usage conflicts with no-fake/no-mock policy).
++- Universal/Bridge validator: PASS.
++- Plan compliance validator: HIGH (T010/T011/T013 gaps).
++- PlanPak validator: PASS (placements match manifest).
++
++**Testing evidence & coverage (5):**
++- Evidence artifact required by phase doc is missing (`execution.log.md`).
++- Coverage mapping confidence: **62.5%** (MEDIUM).
++
++### E.2 Semantic Analysis
++- AC-10 isolation requirement only partially implemented (missing `prog-a != prog-b` assertion).
++- AC-12 ordering requirement not explicitly asserted.
++- AC-13 non-empty output requirement only partially asserted.
++- Naming drift between plan vocabulary and implementation output keys increases requirement traceability risk.
++
++### E.3 Quality & Safety Analysis
++**Safety Score: -210/100** (CRITICAL: 1, HIGH: 7, MEDIUM: 3, LOW: 0)  
++**Verdict: REQUEST_CHANGES**
++
++- Correctness:
++  - Potential adapter contract mismatch around terminate signature/passthrough.
++- Security:
++  - Cleartext session ID logging.
++- Observability:
++  - Raw tool args/results logged without redaction.
++  - Some output-read failures are swallowed with low diagnostic detail.
++- Performance:
++  - Repeated full status/reality recomputation every idle tick.
++
++### E.4 Doctrine Evolution Recommendations (Advisory)
++- ADR candidate: formalize real-agent E2E harness pattern (fixtures + drive loop + assertion matrix).
++- Rules candidate: require phase execution log presence for completed phases.
++- Rules/idioms candidate: avoid private-member introspection in assertions; add QuestionWatcher idiom.
++- Architecture update: document advanced pipeline topology pattern as canonical verification harness.
++
++## F) Coverage Map
++| Acceptance Criterion | Evidence | Confidence |
++|---|---|---|
++| AC-8 all 6 nodes complete | `assertGraphComplete` + per-node completion checks | 100% |
++| AC-9 session chain equality | explicit `spec == reviewer`, `reviewer == summariser` checks | 100% |
++| AC-10 isolation | `prog-a != spec`, `prog-b != spec` only; missing `prog-a != prog-b` | 75% |
++| AC-11 Q&A handshake | prompt includes ask command + answered question count check | 75% |
++| AC-12 line ordering | no explicit timestamp/order assertion | 0% |
++| AC-13 non-empty outputs | only subset output-existence checks | 25% |
++
++**Overall coverage confidence: 62.5% (MEDIUM).**  
++Narrative tests detected where checks are inferred rather than criterion-tagged; add AC IDs in assertion labels/comments.
++
++## G) Commands Executed
++```bash
++git --no-pager status --short
++git --no-pager log --oneline --decorate -- dev/test-graphs/advanced-pipeline scripts/test-advanced-pipeline.ts justfile
++git --no-pager diff --unified=3 --no-color c5d0ce9..58ed7ec -- dev/test-graphs/advanced-pipeline scripts/test-advanced-pipeline.ts justfile
++pnpm tsx scripts/test-advanced-pipeline.ts --help
++just test-advanced-pipeline --help
++pnpm test -- --run agent-context.test.ts
++pnpm test -- --run can-run.test.ts
++just fft
++```
++
++## H) Decision & Next Steps
++- Approval owner: human reviewer after fixes and rerun of this review phase.
++- Required before merge:
++  1. Complete fix tasks in `fix-tasks.phase-3-e2e-test-fixtures-and-script.md`.
++  2. Re-run `plan-6` for fixes and update phase artifacts.
++  3. Re-run `plan-7-code-review` for Phase 3.
++
++## I) Footnotes Audit
++| Diff-touched path | Footnote tag(s) in phase dossier | Node-ID link(s) in plan ledger |
++|---|---|---|
++| `dev/test-graphs/advanced-pipeline/units/human-input/unit.yaml` | None | None |
++| `dev/test-graphs/advanced-pipeline/units/spec-writer/unit.yaml` | None | None |
++| `dev/test-graphs/advanced-pipeline/units/spec-writer/prompts/main.md` | None | None |
++| `dev/test-graphs/advanced-pipeline/units/programmer-a/unit.yaml` | None | None |
++| `dev/test-graphs/advanced-pipeline/units/programmer-a/prompts/main.md` | None | None |
++| `dev/test-graphs/advanced-pipeline/units/programmer-b/unit.yaml` | None | None |
++| `dev/test-graphs/advanced-pipeline/units/programmer-b/prompts/main.md` | None | None |
++| `dev/test-graphs/advanced-pipeline/units/reviewer/unit.yaml` | None | None |
++| `dev/test-graphs/advanced-pipeline/units/reviewer/prompts/main.md` | None | None |
++| `dev/test-graphs/advanced-pipeline/units/summariser/unit.yaml` | None | None |
++| `dev/test-graphs/advanced-pipeline/units/summariser/prompts/main.md` | None | None |
++| `scripts/test-advanced-pipeline.ts` | None | None |
++| `justfile` | None | None |
++
+diff --git a/docs/plans/039-advanced-e2e-pipeline/tasks/phase-4-real-agent-verification-and-polish/001-subtask-fix-session-persistence.fltplan.md b/docs/plans/039-advanced-e2e-pipeline/tasks/phase-4-real-agent-verification-and-polish/001-subtask-fix-session-persistence.fltplan.md
+new file mode 100644
+index 0000000..8a3e8f2
+--- /dev/null
++++ b/docs/plans/039-advanced-e2e-pipeline/tasks/phase-4-real-agent-verification-and-polish/001-subtask-fix-session-persistence.fltplan.md
+@@ -0,0 +1,127 @@
++# Flight Plan: Phase 4 Subtask 001 — Fix Session Persistence Timing
++
++**Plan**: [../../advanced-e2e-pipeline-plan.md](../../advanced-e2e-pipeline-plan.md)
++**Phase**: Phase 4: Real Agent Verification and Polish → Subtask 001
++**Generated**: 2026-02-21
++**Status**: Ready for takeoff
++
++---
++
++## Departure → Destination
++
++**Where we are**: The advanced pipeline E2E test runs end-to-end with real Copilot agents — all 6 nodes complete, Q&A works, outputs are produced. But 2 of 17 assertions fail: the adapter factory counter drifts on Q&A restarts (spec-writer consumes counter slots meant for other nodes), and session chain verification gives wrong results because labels are misattributed.
++
++**Where we're going**: By the end of this subtask, ODS reuses existing pods on restart (no unnecessary factory calls), the E2E script labels match actual nodes, and all 17 assertions pass — proving context inheritance, isolation, and Q&A work correctly with real agents.
++
++---
++
++## Flight Status
++
++```mermaid
++stateDiagram-v2
++    classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
++    classDef active fill:#FFC107,stroke:#FFA000,color:#000
++    classDef done fill:#4CAF50,stroke:#388E3C,color:#fff
++    classDef blocked fill:#F44336,stroke:#D32F2F,color:#fff
++
++    state "1: Fix ODS pod reuse" as S1
++    state "2: Fix script labels" as S2
++    state "3: Re-run E2E 17/17" as S3
++    state "4: Quality gate" as S4
++
++    [*] --> S1
++    S1 --> S2
++    S2 --> S3
++    S3 --> S4
++    S4 --> [*]
++
++    class S1,S2,S3,S4 pending
++```
++
++**Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
++
++---
++
++## Stages
++
++<!-- Updated by /plan-6 during implementation: [ ] → [~] → [x] -->
++
++- [ ] **Stage 1: Fix ODS pod reuse on restart** — check for existing pod before calling buildPodParams; if pod exists, skip the agent factory and reuse it (`ods.ts` ~line 115)
++- [ ] **Stage 2: Fix E2E script label assignment** — replace counter-based factory labels with a nodeId→label map so labels match actual dispatched nodes (`scripts/test-advanced-pipeline.ts`)
++- [ ] **Stage 3: Re-run E2E with real agents** — `just test-advanced-pipeline` must show 17/17 assertions green
++- [ ] **Stage 4: Full quality gate** — `just fft` passes with zero regressions
++
++---
++
++## Acceptance Criteria
++
++- [ ] ODS does not call buildPodParams or adapter factory when restarting a node that already has a pod
++- [ ] E2E script labels match actual node names in all output lines
++- [ ] Session chain: spec-writer = reviewer = summariser (same session ID)
++- [ ] Isolation: programmer-a ≠ programmer-b ≠ spec-writer (different session IDs)
++- [ ] 17/17 assertions pass, exit code 0
++
++---
++
++## Goals & Non-Goals
++
++**Goals**:
++- Fix pod reuse on Q&A restart in ODS (production bug)
++- Fix adapter label assignment in E2E script (test bug)
++- Achieve 17/17 on the advanced pipeline E2E
++
++**Non-Goals**:
++- Refactoring ODS fire-and-forget pattern (it works when pod is reused)
++- Synchronous session persistence (not needed within a single drive)
++- PodManager disk persistence changes (in-memory Map sufficient)
++- Interactive mode testing (deferred until scripted mode passes)
++
++---
++
++## Architecture: Before & After
++
++```mermaid
++flowchart LR
++    classDef existing fill:#E8F5E9,stroke:#4CAF50,color:#000
++    classDef changed fill:#FFF3E0,stroke:#FF9800,color:#000
++    classDef new fill:#E3F2FD,stroke:#2196F3,color:#000
++
++    subgraph Before["Before Fix"]
++        ODS1["ODS handleAgentOrCode<br/>Always calls buildPodParams"]:::existing
++        PM1["PodManager.createPod<br/>Returns existing pod<br/>(discards new adapter)"]:::existing
++        AM1["AgentManagerService<br/>Factory called every time"]:::existing
++        SC1["E2E Script<br/>Counter-based labels"]:::existing
++
++        ODS1 -->|"buildPodParams()"| AM1
++        AM1 -->|"getNew()/getWithSession()"| ODS1
++        ODS1 -->|"createPod()"| PM1
++    end
++
++    subgraph After["After Fix"]
++        ODS2["ODS handleAgentOrCode<br/>Check existing pod FIRST"]:::changed
++        PM2["PodManager.getPod<br/>Returns existing → skip rebuild"]:::existing
++        AM2["AgentManagerService<br/>Factory only for first dispatch"]:::existing
++        SC2["E2E Script<br/>NodeId→label map"]:::changed
++
++        ODS2 -->|"getPod() exists?"| PM2
++        PM2 -->|"yes → reuse"| ODS2
++        PM2 -->|"no → buildPodParams"| AM2
++    end
++```
++
++**Legend**: existing (green, unchanged) | changed (orange, modified) | new (blue, created)
++
++---
++
++## Checklist
++
++- [ ] ST001: Fix ODS pod reuse on restart — skip buildPodParams if pod exists (CS-2)
++- [ ] ST002: Fix E2E script label assignment — nodeId→label map (CS-2)
++- [ ] ST003: Re-run E2E test → 17/17 (CS-2)
++- [ ] ST004: Full quality gate — just fft (CS-1)
++
++---
++
++## PlanPak
++
++Active — but no feature folder changes in this subtask. All edits are cross-plan-edits to existing `030-orchestration/ods.ts` and the E2E script.
+diff --git a/docs/plans/039-advanced-e2e-pipeline/tasks/phase-4-real-agent-verification-and-polish/001-subtask-fix-session-persistence.md b/docs/plans/039-advanced-e2e-pipeline/tasks/phase-4-real-agent-verification-and-polish/001-subtask-fix-session-persistence.md
+new file mode 100644
+index 0000000..d3e1a64
+--- /dev/null
++++ b/docs/plans/039-advanced-e2e-pipeline/tasks/phase-4-real-agent-verification-and-polish/001-subtask-fix-session-persistence.md
+@@ -0,0 +1,169 @@
++# Subtask 001: Fix Session Persistence Timing in ODS
++
++## Parent Context
++
++**Parent Plan:** [View Plan](../../advanced-e2e-pipeline-plan.md)
++**Parent Phase:** Phase 4: Real Agent Verification and Polish
++**Parent Task(s):** [4.6: Report and fix any orchestration issues found](../../advanced-e2e-pipeline-plan.md#phase-4-real-agent-verification-and-polish)
++
++**Why This Subtask:**
++Phase 3 E2E run scored 15/17. Two failures traced to session persistence timing in ODS — PodManager's in-memory session cache isn't reliably populated when the next node needs to inherit. Additionally, the E2E script's adapter factory counter drifts because spec-writer (global agent) calls `getNew()` on every Q&A restart. See [Workshop 04](../../workshops/04-e2e-shakedown-findings.md) for full analysis.
++
++---
++
++## Executive Briefing
++
++### Purpose
++Fix the session persistence timing bug in ODS that causes context inheritance to silently fail. Without this fix, any multi-node workflow where node B inherits from node A may get a fresh session instead — losing conversation continuity.
++
++### What We're Building
++Two surgical fixes:
++1. **ODS**: Check for existing pod before calling `buildPodParams()` on restart — skip the agent factory if pod already exists
++2. **E2E Script**: Fix adapter label assignment so labels match actual nodes, not factory call order
++
++### Unblocks
++- E2E assertion: `session chain: reviewer = summariser` (currently fails)
++- E2E assertion: `isolation: programmer-a ≠ spec-writer` (fails due to label mismatch)
++- Full 17/17 pass on the advanced pipeline E2E
++
++### Example
++**Before**: Reviewer dispatched → PodManager lookup for spec-writer session → returns the session from memory (was set in fire-and-forget `.then()`) → BUT on restart, ODS calls `buildPodParams()` → `getNew()` → creates unnecessary new adapter → counter drifts
++**After**: Reviewer dispatched → existing pod found → reuses same adapter → correct session inheritance
++
++---
++
++## Objectives & Scope
++
++### Objective
++Fix 2 bugs found during Phase 3 E2E shakedown so all 17 assertions pass.
++
++### Goals
++- ✅ ODS skips `buildPodParams()` when existing pod found for a restarting node
++- ✅ E2E script labels match actual node dispatch (not factory counter)
++- ✅ 17/17 assertions pass on re-run
++
++### Non-Goals
++- ❌ Refactoring ODS fire-and-forget pattern (works correctly when pod is reused)
++- ❌ Synchronous session persistence (not needed if pod reuse works)
++- ❌ PodManager disk persistence changes (in-memory Map is sufficient within a single drive)
++
++---
++
++## Root Cause Analysis
++
++### Bug 1: Adapter factory called on restart (label drift + unnecessary work)
++
++**Path**: ODS `handleAgentOrCode()` → `buildPodParams()` → context engine returns `source: 'new'` for spec-writer (it's the global agent, R3) → `getNew()` calls adapter factory → counter++ → BUT `createPod()` returns the EXISTING pod, discarding the new adapter.
++
++**Fix**: In `handleAgentOrCode()`, check `podManager.getPod(nodeId)` BEFORE calling `buildPodParams()`. If pod exists, skip the rebuild — the existing pod has the correct adapter from the first dispatch.
++
++### Bug 2: Session inheritance lookup may fail on reviewer
++
++**Path**: ODS `buildPodParams()` for reviewer → context engine returns `source: 'inherit', fromNodeId: 'spec-writer-xxx'` → `podManager.getSessionId('spec-writer-xxx')` → should return the session ID from the `.then()` callback that ran when spec-writer completed.
++
++**Analysis**: The `.then()` callback writes to the in-memory Map. The Map IS populated by the time reviewer dispatches (spec-writer completed iterations ago, and the `.then()` fires as a microtask when the promise resolves). The 15/17 run showed `session chain: spec-writer = reviewer` PASSED — so this actually works. The real failure was `reviewer = summariser` and `programmer-a isolation`.
++
++**Revised diagnosis**: Bug 1 (factory counter drift) causes the wrong session IDs to be attributed to the wrong nodes in the assertion output. Fixing Bug 1 may resolve all failures.
++
++---
++
++## Tasks
++
++| Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
++|--------|------|------|-----|------|-------------|-------------------|-----------|----------|-------|
++| [ ] | ST001 | In ODS `handleAgentOrCode()`, check `podManager.getPod(nodeId)` before `buildPodParams()`. If existing pod found, skip rebuild and reuse it. | 2 | Core | – | `/home/jak/substrate/033-real-agent-pods/packages/positional-graph/src/features/030-orchestration/ods.ts` | Existing pod reused on restart; factory NOT called for restarting nodes | – | ~line 115-130 |
++| [ ] | ST002 | Fix E2E script adapter label assignment: use a `Map<string, string>` keyed by nodeId instead of counter. Assign label when ODS dispatches (via pod creation), not when factory is called. | 2 | Core | – | `/home/jak/substrate/033-real-agent-pods/scripts/test-advanced-pipeline.ts` | Labels match actual nodes in output | – | Replace counter with nodeId→label map |
++| [ ] | ST003 | Re-run E2E test: `just test-advanced-pipeline` | 2 | Verify | ST001, ST002 | `/home/jak/substrate/033-real-agent-pods/scripts/test-advanced-pipeline.ts` | 17/17 assertions pass; exit code 0 | – | May need timeout increase |
++| [ ] | ST004 | Run `just fft` — full quality gate | 1 | Verify | ST003 | All | Lint + format + test pass | – | |
++
++---
++
++## Alignment Brief
++
++### Workshop Reference
++See [Workshop 04: E2E Shakedown Findings](../../workshops/04-e2e-shakedown-findings.md) for complete analysis with code traces, session ID evidence, and flow diagrams.
++
++### Key Code Locations
++
++| File | Line | What |
++|------|------|------|
++| `ods.ts` | ~115 | `handleAgentOrCode()` — dispatch entry point |
++| `ods.ts` | ~117 | `buildPodParams()` call — should be conditional |
++| `ods.ts` | ~129 | `podManager.createPod()` — returns existing if found |
++| `ods.ts` | ~139-142 | Fire-and-forget `.then()` — sets session in Map |
++| `pod-manager.ts` | ~27-28 | `createPod()` reuse check |
++| `agent-manager-service.ts` | ~35 | `getNew()` calls adapter factory |
++| `agent-manager-service.ts` | ~53-56 | `getWithSessionId()` reuses existing instance |
++
++### Implementation Outline
++
++**ST001**: In `ods.ts handleAgentOrCode()` (~line 115), add:
++```typescript
++// Reuse existing pod on restart (skip factory + buildPodParams)
++const existingPod = this.deps.podManager.getPod(nodeId);
++if (existingPod) {
++  existingPod.execute({...}).then(() => { /* persist session */ });
++  return { ok: true, request, newStatus: 'starting', sessionId: existingPod.sessionId };
++}
++// ... existing buildPodParams + createPod flow for first dispatch
++```
++
++**ST002**: In the E2E script, replace the counter-based factory with a label map:
++```typescript
++const labelMap = new Map<string, string>();
++// After buildAdvancedPipeline(), populate labelMap with nodeId → label
++labelMap.set(ids.specId, 'spec-writer');
++labelMap.set(ids.progAId, 'programmer-a');
++// ... etc
++```
++Then in the factory, look up the label by the adapter's assigned node (may need the AgentManagerService to pass node info to factory).
++
++### Commands to Run
++```bash
++# After ST001-ST002
++just test-advanced-pipeline    # 17/17 expected
++just fft                       # quality gate
++```
++
++### Risks
++| Risk | Severity | Mitigation |
++|------|----------|------------|
++| Pod reuse changes execution semantics | Medium | AgentPod already has `_hasExecuted` flag for starter vs resume prompt selection — reuse is the designed path |
++| Label fix requires AgentManagerService API change | Low | May just assign labels after graph build using nodeId map instead of factory counter |
++
++---
++
++## Phase Footnote Stubs
++
++| Footnote | Task | Description |
++|----------|------|-------------|
++| | | |
++
++---
++
++## Evidence Artifacts
++
++- **Execution log**: `docs/plans/039-advanced-e2e-pipeline/tasks/phase-4-real-agent-verification-and-polish/001-subtask-fix-session-persistence.execution.log.md`
++
++---
++
++## Discoveries & Learnings
++
++| Date | Task | Type | Discovery | Resolution | References |
++|------|------|------|-----------|------------|------------|
++| | | | | | |
++
++**Types**: `gotcha` | `research-needed` | `unexpected-behavior` | `workaround` | `decision` | `debt` | `insight`
++
++---
++
++## After Subtask Completion
++
++**This subtask resolves a blocker for:**
++- Parent Task: [4.6: Report and fix any orchestration issues found](../../advanced-e2e-pipeline-plan.md#phase-4-real-agent-verification-and-polish)
++
++**When all ST### tasks complete:**
++
++1. **Record completion** in parent execution log
++2. **Resume parent phase work** — remaining Phase 4 tasks (4.1-4.5, 4.7-4.9) can proceed
++3. **Run**: `/plan-6-implement-phase --phase "Phase 4" --plan "/home/jak/substrate/033-real-agent-pods/docs/plans/039-advanced-e2e-pipeline/advanced-e2e-pipeline-plan.md"`
+diff --git a/docs/plans/039-advanced-e2e-pipeline/workshops/04-e2e-shakedown-findings.md b/docs/plans/039-advanced-e2e-pipeline/workshops/04-e2e-shakedown-findings.md
+new file mode 100644
+index 0000000..43bb99e
+--- /dev/null
++++ b/docs/plans/039-advanced-e2e-pipeline/workshops/04-e2e-shakedown-findings.md
+@@ -0,0 +1,250 @@
++# Workshop: E2E Shakedown Findings — Session Wiring and Label Assignment
++
++**Type**: Integration Pattern + Bug Analysis
++**Plan**: 039-advanced-e2e-pipeline
++**Created**: 2026-02-21T08:10:00Z
++**Status**: Draft
++
++**Related Documents**:
++- [Workshop 03: Simplified Context Model](./03-simplified-context-model.md) — the context engine being validated
++- [Workshop 01: E2E Test Design](./01-multi-line-qa-e2e-test-design.md) — the test that surfaced these issues
++- [ODS](../../../../packages/positional-graph/src/features/030-orchestration/ods.ts) — dispatch + session wiring
++- [PodManager](../../../../packages/positional-graph/src/features/030-orchestration/pod-manager.ts) — session ID cache
++- [AgentManagerService](../../../../packages/shared/src/features/034-agentic-cli/agent-manager-service.ts) — agent factory
++- [VerboseCopilotAdapter](../../../../scripts/test-advanced-pipeline.ts) — SDK wrapper in E2E script
++
++---
++
++## Purpose
++
++The first real E2E run (Phase 3) scored 15/17 assertions. This workshop analyses the 2 failures, traces them to root causes, and designs fixes. This is the shakedown working exactly as intended — finding real orchestration issues before committing to the web world.
++
++## Key Questions Addressed
++
++- Why does programmer-a appear to share spec-writer's session ID?
++- Why does reviewer create a new session instead of inheriting from spec-writer?
++- Why does summariser have no session ID in PodManager?
++- What needs to change in ODS, PodManager, or the E2E script?
++
++---
++
++## Finding 1: Node Label Mis-Assignment (Script Bug)
++
++### Symptom
++
++Assertion `isolation: programmer-a ≠ spec-writer` fails — both show session `83854683-dd83-4caa-a379-f371c6adb5b2`.
++
++### Root Cause
++
++The `AgentManagerService` factory creates adapters via a counter-based label array:
++
++```typescript
++const nodeLabels = ['spec-writer', 'programmer-a', 'programmer-b', 'reviewer', 'summariser'];
++let nodeCounter = 0;
++
++const agentManager = new AgentManagerService(() => {
++  const label = nodeLabels[nodeCounter] ?? `node-${nodeCounter}`;
++  nodeCounter++;
++  return new VerboseCopilotAdapter(client, label, colour, t0);
++});
++```
++
++**Problem**: The factory is called every time `AgentManagerService.getNew()` or `getWithSessionId()` is invoked. Spec-writer gets restarted 3 times during Q&A (ask → answer → restart → resume), and each restart may call the factory again. This consumes counter slots meant for other nodes.
++
++**Evidence from the E2E log**:
++
++```
++[4.3]   [spec-writer] Session: 838... (new)      ← counter=0, label='spec-writer'
++[151.9] [spec-writer] Session: 838... (resumed)   ← counter=1, label='programmer-a' BUT shows as spec-writer??
++[177.4] [spec-writer] Session: 838... (resumed)   ← counter=2, label='programmer-b'??  
++[177.5] [programmer-b] Session: 9eb... (new)       ← counter=3, label='reviewer'??
++[237.1] [spec-writer] Session: 838... (resumed)   ← counter=4, label='summariser'??
++[259.7] [reviewer] Session: 3e4... (new)           ← counter=5, label='node-5'??
++```
++
++Wait — that's not right either. The `getWithSessionId()` call reuses the existing instance (it looks up by session ID in the session index), so it should NOT call the factory again. Let me re-examine.
++
++Actually, `getWithSessionId()` in `AgentManagerService` line 53:
++```typescript
++getWithSessionId(sessionId: string, params: CreateAgentParams): IAgentInstance {
++  const existing = this._sessionIndex.get(sessionId);
++  if (existing) return existing;  // ← REUSES, no factory call
++  // ... only creates new if not found
++}
++```
++
++So the factory is only called for `getNew()`. Spec-writer should only call it once. The Q&A restart resumes the same instance.
++
++**Revised analysis**: The labels might be correct. Let me re-examine the assertion. The assertion uses `podManager.getSessionId(ids.progAId)` — it's checking whether PodManager has a session cached for programmer-a's node ID. If PodManager returns the spec-writer's session ID for programmer-a's node ID, that's a PodManager cache bug.
++
++### Revised Root Cause
++
++The actual issue is that `PodManager.getSessionId(progAId)` returns `838...` (spec-writer's session) for programmer-a's nodeId. This means ODS's fire-and-forget `.then()` callback persisted the wrong nodeId→sessionId mapping.
++
++**Tracing the ODS fire-and-forget** (ods.ts ~line 133):
++```typescript
++pod.execute({...})
++  .then(() => {
++    const sid = pod.sessionId;
++    if (sid) {
++      this.deps.podManager.setSessionId(nodeId, sid);
++    }
++  });
++```
++
++Here `nodeId` is captured in the closure from the outer `handleStartNode()` scope. If ODS is dispatching nodes in parallel (programmer-a and programmer-b on the same line), the closure captures the correct nodeId for each. This should be safe.
++
++**But**: The assertion output shows programmer-a's session = spec-writer's session. The `(new — isolated)` label in the output is from the script's display logic, not from actual session comparison. Let me check if PodManager has stale data from the spec-writer being stored under programmer-a's ID somehow.
++
++### Most Likely Explanation
++
++The `VerboseCopilotAdapter` bypasses the normal `AgentInstance` flow. It creates sessions directly via `this.client.createSession()` and returns the session ID in `AgentResult`. But the `CopilotClient` might be sharing a single connection that creates sessions with the same ID when called rapidly. Or — more likely — the test's `podManager.getSessionId()` is reading from PodManager's in-memory cache which was NOT populated for programmer-a (fire-and-forget timing), and the stale value from a previous graph operation is there.
++
++### Fix
++
++**Option A (Recommended)**: After drive completes, reload PodManager sessions from disk:
++```typescript
++await podManager.loadSessions(ctx, SLUG);
++```
++This ensures all fire-and-forget callbacks have completed and disk state is authoritative.
++
++**Option B**: Add a delay between drive completion and assertion reading to allow fire-and-forget callbacks to settle.
++
++---
++
++## Finding 2: Reviewer Creates New Session (Context Inheritance Failure)
++
++### Symptom
++
++The reviewer gets session `3e4...` (new) instead of inheriting `838...` from spec-writer. The session chain assertion `spec-writer = reviewer` passed in the E2E output, which contradicts the log. Let me reconcile.
++
++**From assertions**: `✓ session chain: spec-writer = reviewer` — PASSED
++**From log**: `[reviewer] Session: 3e4... (new)` — shows NEW
++
++**Reconciliation**: The assertion uses `podManager.getSessionId()` which may return the value ODS stored after execution. If ODS stored the correct inherited session, the assertion passes even though the VerboseCopilotAdapter log shows "new". 
++
++Actually wait — the VerboseCopilotAdapter decides "new" vs "resumed" based on whether `options.sessionId` was set:
++```typescript
++const session = options.sessionId
++  ? await this.client.resumeSession(options.sessionId)
++  : await this.client.createSession({ streaming: true });
++```
++
++If `options.sessionId` is `undefined`, it creates new. This means **the session ID from PodManager was not passed through to the adapter**. The context engine said `inherit`, ODS looked up the session ID, but it was `undefined` (PodManager didn't have it yet), so ODS fell through to `getNew()`.
++
++### Root Cause
++
++ODS's `handleStartNode` (ods.ts ~line 159):
++```typescript
++if (contextResult.source === 'inherit') {
++  const sessionId = this.deps.podManager.getSessionId(contextResult.fromNodeId);
++  if (sessionId) {
++    agentInstance = this.deps.agentManager.getWithSessionId(sessionId, {...});
++  }
++}
++if (!agentInstance) {
++  agentInstance = this.deps.agentManager.getNew({...});
++}
++```
++
++If `podManager.getSessionId(specWriterId)` returns `undefined`, ODS falls through to `getNew()`. This happens because:
++
++1. Spec-writer completed on a previous drive iteration
++2. ODS persisted its session ID in the fire-and-forget `.then()` callback
++3. But PodManager only stores in **memory** (Map) — the `.then()` may have run, but if the PodManager was reconstructed between drive iterations, the in-memory map is empty
++4. PodManager persistence to disk (`pod-sessions.json`) happens asynchronously
++
++**This is the fire-and-forget timing issue** from the research dossier (PL-12: "Subscribe before send").
++
++### Fix
++
++**Option A (Recommended)**: Ensure PodManager loads sessions from disk before each node dispatch:
++```typescript
++// In ODS.handleStartNode, before getContextSource:
++await this.deps.podManager.loadSessionsIfNeeded(ctx, graphSlug);
++```
++
++**Option B**: Make `setSessionId` synchronously persist to disk (slower, but deterministic).
++
++**Option C (Script-level)**: For the E2E test specifically, ensure PodManager is persistent across the full drive by NOT recreating it between iterations (it's already a single instance).
++
++---
++
++## Finding 3: Summariser Has No Session ID
++
++### Symptom
++
++`podManager.getSessionId(summariserId)` returns `undefined`.
++
++### Root Cause
++
++Same as Finding 2. Reviewer's session was not persisted in PodManager before summariser needed to inherit from it. Or the fire-and-forget callback hasn't run by the time the drive loop checks.
++
++### Fix
++
++Same as Finding 2 — ensuring session persistence before next dispatch resolves this cascading issue.
++
++---
++
++## Summary of Issues and Fixes
++
++```mermaid
++flowchart TD
++    classDef bug fill:#F44336,color:#fff
++    classDef fix fill:#4CAF50,color:#fff
++
++    subgraph "Root Causes"
++        RC1["PodManager session lookup<br/>returns undefined for<br/>fire-and-forget timing"]:::bug
++        RC2["VerboseCopilotAdapter<br/>label counter drift<br/>(possible secondary)"]:::bug
++    end
++
++    subgraph "Symptoms"
++        S1["programmer-a same session<br/>as spec-writer"]:::bug
++        S2["reviewer creates new<br/>session (not inherited)"]:::bug
++        S3["summariser has no<br/>session ID"]:::bug
++    end
++
++    subgraph "Fixes"
++        F1["Load PodManager sessions<br/>from disk before dispatch"]:::fix
++        F2["Fix adapter label<br/>assignment in script"]:::fix
++    end
++
++    RC1 --> S1
++    RC1 --> S2
++    RC1 --> S3
++    RC2 --> S1
++
++    F1 --> RC1
++    F2 --> RC2
++```
++
++## Recommended Fix Order
++
++| Priority | Fix | Scope | Effort |
++|----------|-----|-------|--------|
++| 1 | Ensure PodManager session persistence before dispatch | ODS or PodManager | ~10 lines |
++| 2 | Verify adapter label assignment in E2E script | Script only | ~5 lines |
++| 3 | Re-run E2E and verify 17/17 | Test | ~5 minutes |
++
++## Open Questions
++
++### OQ1: Should PodManager be synchronous-persist or load-before-read?
++
++**OPEN**: Two approaches:
++- **A**: `setSessionId()` writes to disk immediately (synchronous persist) — guarantees consistency, slightly slower
++- **B**: `loadSessions()` call added to ODS before each dispatch — reads disk once per dispatch cycle, fire-and-forget writes stay async
++
++Option A is simpler. Option B is faster for large graphs.
++
++### OQ2: Is the label counter drift real or a red herring?
++
++**OPEN**: Need to verify by adding debug logging to the factory callback. If `getWithSessionId()` reuses instances as documented, the counter should only increment once per unique node. The E2E log labels may be misleading.
++
++---
++
++## Next Steps
++
++1. Investigate PodManager session persistence timing in ODS
++2. Add `await podManager.loadSessions()` or synchronous persist
++3. Verify adapter label assignment
++4. Re-run E2E → expect 17/17
+diff --git a/docs/plans/039-advanced-e2e-pipeline/workshops/05-faster-feedback-loops.md b/docs/plans/039-advanced-e2e-pipeline/workshops/05-faster-feedback-loops.md
+new file mode 100644
+index 0000000..dd3f14a
+--- /dev/null
++++ b/docs/plans/039-advanced-e2e-pipeline/workshops/05-faster-feedback-loops.md
+@@ -0,0 +1,587 @@
++# Workshop: Faster Feedback Loops for E2E Agent Testing
++
++**Type**: Integration Pattern
++**Plan**: 039-advanced-e2e-pipeline
++**Spec**: [advanced-e2e-pipeline-spec.md](../advanced-e2e-pipeline-spec.md)
++**Created**: 2026-02-21
++**Status**: Draft
++
++**Related Documents**:
++- [04-e2e-shakedown-findings.md](./04-e2e-shakedown-findings.md) — Session persistence timing bug
++- [scratch/session-persistence-bug.md](../../../../scratch/session-persistence-bug.md) — Detailed investigation
++- [scripts/test-advanced-pipeline.ts](../../../../scripts/test-advanced-pipeline.ts) — The E2E test script
++
++---
++
++## Purpose
++
++Document strategies for dramatically shortening the change→observe→fix cycle when working with real-agent E2E tests. A single full run takes 3–5 minutes with real LLM agents. During Phase 4, we discovered bugs that required 8+ full iterations to diagnose — that's 30+ minutes of wall-clock just waiting. This workshop identifies concrete techniques to compress that feedback loop from minutes to seconds where possible, and from many minutes to one run where not.
++
++## Key Questions Addressed
++
++- How do we get signal from a 5-minute E2E test in under 30 seconds?
++- What is the optimal progression from fast feedback to full-run confidence?
++- How do we debug timing races (like the session persistence bug) without running the full pipeline every time?
++- What structural changes to the test infrastructure would enable faster iteration?
++
++---
++
++## The Feedback Loop Problem
++
++### Current State — What a Full Iteration Looks Like
++
++```
++┌─────────────────────────────────────────────────────────────────┐
++│ 1. CHANGE CODE                                          ~30s   │
++│    Edit ods.ts, agent-context.ts, prompts, etc.                │
++└───────────────────────────────┬─────────────────────────────────┘
++                                │
++                                ▼
++┌─────────────────────────────────────────────────────────────────┐
++│ 2. REBUILD                                              ~30s   │
++│    pnpm turbo build --force --filter=@chainglass/positional-graph│
++│    (dist/ must be fresh — E2E script imports from dist/)        │
++└───────────────────────────────┬─────────────────────────────────┘
++                                │
++                                ▼
++┌─────────────────────────────────────────────────────────────────┐
++│ 3. RUN E2E                                           ~3-5 min  │
++│    just test-advanced-pipeline                                  │
++│    - Human input completed (instant)                            │
++│    - Spec-writer runs (30-60s, includes Q&A restart)            │
++│    - Programmers a+b run in parallel (30-60s)                   │
++│    - Reviewer runs (30-60s)                                     │
++│    - Summariser runs (30-60s)                                   │
++└───────────────────────────────┬─────────────────────────────────┘
++                                │
++                                ▼
++┌─────────────────────────────────────────────────────────────────┐
++│ 4. CHECK OUTPUT                                         ~30s   │
++│    Scroll back through verbose agent logs                      │
++│    Find the 23 assertions at the bottom                        │
++│    Identify which failed and WHY                               │
++└───────────────────────────────┬─────────────────────────────────┘
++                                │
++                                ▼
++┌─────────────────────────────────────────────────────────────────┐
++│ 5. DIAGNOSE                                          ~2-5 min  │
++│    Read agent output: did it do what we expected?               │
++│    Check debug logs ([ODS] lines)                              │
++│    Inspect disk state (.chainglass/graphs/...)                  │
++│    Form hypothesis about failure                                │
++└─────────────────────────────────────────────────────────────────┘
++
++TOTAL: ~5-8 minutes per iteration
++PHASE 4 REQUIRED: 8+ iterations → ~45 minutes of wall-clock waiting
++```
++
++### What We Did in Practice — Time-Boxed Runs
++
++During Phase 4 development, we used a manual time-boxing strategy:
++
++```
++Step 1: Run for 30 seconds, kill, check output
++        → "Is the first agent dispatching correctly?"
++        → "Is the prompt being sent?"
++        → "Is the model responding?"
++
++Step 2: Run for 1-2 minutes, kill, check output
++        → "Does Q&A work?"
++        → "Does the agent produce outputs?"
++        → "Does it complete gracefully?"
++
++Step 3: Run for 5 minutes (or to completion)
++        → "Does the full pipeline complete?"
++        → "Do assertions pass?"
++
++Step 4: Full run with assertions
++        → "22/23? Which failed? Why?"
++```
++
++**This was effective** — it compressed early discovery from 5 minutes to 30 seconds. But it was entirely manual: Ctrl+C at the right moment, eyeball the output, form a mental model.
++
++### Why Agent E2E Is Fundamentally Slow
++
++| Component | Time | Why It's Slow |
++|-----------|------|---------------|
++| Real LLM call | 30-60s | Network round-trips, model thinking, tool calls |
++| Agent tool execution | 10-30s | Bash commands, file I/O, CLI invocations |
++| Q&A restart | 5-10s | Agent asks question → watcher answers → agent resumes |
++| Drive loop polling | 3s idle | `idleDelayMs: 3000` between no-action iterations |
++| Sequential dependencies | serial | Line 2 waits for line 1, line 3 waits for line 2 |
++| Build | ~30s | TypeScript compilation, dist/ output |
++
++**Key insight**: The agents themselves are the bottleneck. Everything else is fast. Any strategy that removes or shortens agent execution wins big.
++
++---
++
++## Feedback Loop Tiers
++
++We propose a **4-tier feedback system** — each tier is faster but tests less. Start at Tier 1 for every change, escalate to higher tiers as confidence builds.
++
++### Tier 1: Unit Tests — Instant (< 5 seconds)
++
++**What it tests**: Logic correctness (context engine rules, readiness gates, ODS dispatch decisions).
++
++**Current state**: Already excellent. 21 agent-context tests, 4 gate tests, ODS unit tests.
++
++```bash
++# Run specific test file
++pnpm vitest run test/unit/positional-graph/features/030-orchestration/agent-context.test.ts
++
++# Run pattern
++pnpm vitest run --reporter=dot agent-context
++
++# Run all orchestration unit tests
++pnpm vitest run --reporter=dot 030-orchestration
++```
++
++**Key principle**: Every bug found in E2E should produce a unit test. The session persistence timing bug (22/23) should have a unit test that exercises the race condition in isolation — without calling a real agent.
++
++**Example — how to unit-test the session timing race**:
++
++```typescript
++// Simulates: ODS dispatches node A (fire-and-forget), then immediately
++// dispatches node B which inherits from A. Does B get A's session?
++it('inheriting node gets session even when source just completed', async () => {
++  const podManager = new PodManager(fakeFs);
++
++  // Simulate fire-and-forget: set session ID after a microtask delay
++  const fireAndForget = Promise.resolve().then(() => {
++    podManager.setSessionId('node-a', 'session-123');
++  });
++
++  // Simulate: ODS tries to read session BEFORE .then() settles
++  const sessionBefore = podManager.getSessionId('node-a');
++  expect(sessionBefore).toBeUndefined(); // race condition!
++
++  // After settling:
++  await fireAndForget;
++  const sessionAfter = podManager.getSessionId('node-a');
++  expect(sessionAfter).toBe('session-123');
++});
++```
++
++---
++
++### Tier 2: Plumbing Test with Echo Agent — Fast (< 15 seconds)
++
++**What it tests**: The full orchestration pipeline (ONBAS → ODS → PodManager → drive loop) — without real LLM calls.
++
++**Current gap**: We don't have this. Building it is the highest-ROI investment.
++
++**Concept**: An `EchoAgentAdapter` that completes instantly with deterministic output. No network, no model, no waiting. Tests the plumbing, not the agent.
++
++```typescript
++class EchoAgentAdapter implements IAgentAdapter {
++  private sessionCounter = 0;
++
++  async run(options: AgentRunOptions): Promise<AgentResult> {
++    this.sessionCounter++;
++    const sessionId = options.sessionId ?? `echo-session-${this.sessionCounter}`;
++
++    // Simulate: read prompt, "write" outputs by calling cg wf node end
++    // Use a tiny delay to simulate async completion
++    await new Promise(r => setTimeout(r, 50));
++
++    return {
++      output: `Echo: processed ${options.prompt.slice(0, 50)}`,
++      sessionId,
++      status: 'completed',
++      exitCode: 0,
++      tokens: null,
++    };
++  }
++
++  async terminate(): Promise<void> {}
++}
++```
++
++**What this enables**:
++
++```
++Full run time: ~15 seconds (vs 3-5 minutes)
++  - 6 nodes × 50ms each = 300ms agent time
++  - Drive loop overhead ~5s
++  - Graph setup, assertions ~5s
++```
++
++**Critical: echo agent must still call CLI commands.** The ODS detects node completion via disk state (event system), not via promise resolution. The echo agent must run the actual `cg wf node start` and `cg wf node end` CLI commands, just without doing any real work between them.
++
++```typescript
++class EchoAgentAdapter implements IAgentAdapter {
++  async run(options: AgentRunOptions): Promise<AgentResult> {
++    const sessionId = options.sessionId ?? `echo-${Date.now()}`;
++
++    // Must actually run the lifecycle commands so ONBAS sees state changes
++    if (options.cwd) {
++      execSync(`cg wf node start ...`, { cwd: options.cwd });
++      // Write minimal outputs
++      execSync(`cg wf node output set ... --value "echo"`, { cwd: options.cwd });
++      execSync(`cg wf node end ...`, { cwd: options.cwd });
++    }
++
++    return { output: 'echo', sessionId, status: 'completed', exitCode: 0, tokens: null };
++  }
++}
++```
++
++**This tier catches**: Session inheritance bugs, readiness gate failures, Q&A flow issues, drive loop termination, node ordering. Basically everything except "does the LLM produce correct output".
++
++---
++
++### Tier 3: Single-Node Real Agent — Medium (30-60 seconds)
++
++**What it tests**: Does a real LLM agent correctly interact with the workflow system? Does it call the right CLI commands? Does it produce outputs?
++
++**Concept**: Run the full pipeline but swap all agents except the one you're debugging for echo agents.
++
++```typescript
++// Test just the spec-writer with a real agent, everything else echo
++const agentFactory = (label: string) => {
++  if (label === 'spec-writer') {
++    return new VerboseCopilotAdapter(client, label, BLUE, Date.now());
++  }
++  return new EchoAgentAdapter();
++};
++```
++
++**When to use**: You've changed a prompt (main.md), a node-starter template, or model config, and want to see if the agent behaves correctly in the real workflow context.
++
++**What this enables**: Debugging agent-specific issues (wrong commands, yaml edits, verbose output) without waiting for 5 other agents.
++
++---
++
++### Tier 4: Full Pipeline Real Agents — Slow (3-5 minutes)
++
++**What it tests**: Everything. Real agents, real sessions, real Q&A, real parallelism, real context inheritance.
++
++**When to use**: Final validation before committing. Or when hunting a timing/race condition that only manifests with real async agents.
++
++```bash
++just test-advanced-pipeline
++```
++
++**Improvements to make Tier 4 more productive**:
++
++1. **Live assertion checking** — don't wait until the end
++2. **Structured summary** — one line per phase, not scrolling through logs
++3. **Auto-timeout** — fail fast if any single agent exceeds 120s
++
++---
++
++## Concrete Improvements
++
++### Improvement 1: `--fast` Mode (Echo Agent Pipeline)
++
++Add a `--fast` flag to `test-advanced-pipeline.ts` that swaps real agents for echo agents.
++
++```bash
++just test-advanced-pipeline --fast     # Echo agents, ~15s
++just test-advanced-pipeline            # Real agents, ~3-5 min
++just test-advanced-pipeline --solo spec-writer  # One real, rest echo
++```
++
++**Implementation sketch**:
++
++```typescript
++const FAST = process.argv.includes('--fast');
++const SOLO = process.argv.find(a => a.startsWith('--solo='))?.split('=')[1];
++
++const agentManager = new AgentManagerService(() => {
++  const label = nodeLabels[adapterIndex] ?? `node-${adapterIndex}`;
++  adapterIndex++;
++
++  if (FAST) return new EchoAgentAdapter(label);
++  if (SOLO && label !== SOLO) return new EchoAgentAdapter(label);
++  return new VerboseCopilotAdapter(client, label, colour, t0);
++});
++```
++
++**Justfile entries**:
++
++```makefile
++test-pipeline-fast:
++    npx tsx scripts/test-advanced-pipeline.ts --fast
++
++test-pipeline-solo node:
++    npx tsx scripts/test-advanced-pipeline.ts --solo={{node}}
++```
++
++---
++
++### Improvement 2: Progressive Assertions (Fail Fast)
++
++Currently, all 23 assertions run AFTER the pipeline completes. If the pipeline itself fails to complete (timeout, crash), we get zero assertion signal.
++
++**Better**: Check assertions progressively as nodes complete.
++
++```typescript
++// In the drive loop's onEvent handler:
++case 'iteration': {
++  // After each iteration, check if any newly-completed nodes fail assertions
++  const completed = getNewlyCompleted(event.data.finalReality);
++  for (const nodeId of completed) {
++    await checkNodeAssertions(nodeId); // fails early with clear signal
++  }
++  break;
++}
++```
++
++**Example output during a run**:
++
++```
++[15.2] ▶ 1 action(s)
++  ✓ human-input: complete
++[45.8] ▶ 1 action(s)
++  ✓ spec-writer: complete, has spec output, has language_1
++  ✓ Q&A answered
++[92.1] ▶ 2 action(s)
++  ✓ programmer-a: complete, has code output
++  ✓ programmer-b: complete, has code output
++  ✓ isolation: a ≠ b ≠ spec-writer
++[138.4] ▶ 1 action(s)
++  ✓ reviewer: complete, has review_a, session = spec-writer ✓
++[175.0] ▶ 1 action(s)
++  ✗ summariser: session = undefined (expected reviewer's)  ← FAIL FAST HERE
++```
++
++**Benefit**: You know the failure point 60 seconds earlier AND you know exactly when it happened relative to the drive loop state.
++
++---
++
++### Improvement 3: Build Bypass for Prompt-Only Changes
++
++Many iterations only change prompt files (`dev/test-graphs/advanced-pipeline/units/*/prompts/main.md`) or the test script itself. These don't require a full rebuild.
++
++```bash
++# Prompt changes: no build needed (prompts read from disk at runtime)
++vim dev/test-graphs/advanced-pipeline/units/spec-writer/prompts/main.md
++just test-advanced-pipeline  # direct — skip build
++
++# Source changes: build required
++vim packages/positional-graph/src/features/030-orchestration/ods.ts
++pnpm turbo build --force --filter=@chainglass/positional-graph && just test-advanced-pipeline
++```
++
++**Implementation**: Add a `--skip-build` flag or detect file timestamps. Or just document the rule clearly:
++
++```
++RULE: If you only changed files under dev/ or scripts/, skip rebuild.
++      If you changed files under packages/ or apps/, rebuild first.
++```
++
++---
++
++### Improvement 4: Structured Debug Output
++
++Current debug logging (`[ODS] Context for ...` console.log lines) is mixed into the verbose agent output. It's hard to grep and easy to miss.
++
++**Better**: A structured debug log file.
++
++```typescript
++// debug-log.ts
++const DEBUG_LOG: DebugEntry[] = [];
++
++export function debugLog(component: string, event: string, data: Record<string, unknown>) {
++  DEBUG_LOG.push({
++    ts: Date.now(),
++    component,
++    event,
++    data,
++  });
++}
++
++export function dumpDebugLog(path: string) {
++  writeFileSync(path, JSON.stringify(DEBUG_LOG, null, 2));
++}
++```
++
++```typescript
++// In ODS:
++debugLog('ods', 'session-lookup', {
++  nodeId: node.nodeId,
++  source: contextResult.source,
++  fromNodeId: contextResult.fromNodeId,
++  sessionId: sessionId ?? null,
++});
++```
++
++**Output** (debug-log.json):
++```json
++[
++  { "ts": 1708512345678, "component": "ods", "event": "dispatch",
++    "data": { "nodeId": "spec-writer-7f7", "source": "new" }},
++  { "ts": 1708512395000, "component": "ods", "event": "session-captured",
++    "data": { "nodeId": "spec-writer-7f7", "sessionId": "68119c00" }},
++  { "ts": 1708512396000, "component": "ods", "event": "dispatch",
++    "data": { "nodeId": "reviewer-111", "source": "inherit",
++             "fromNodeId": "spec-writer-7f7", "sessionId": "68119c00" }},
++  { "ts": 1708512456000, "component": "ods", "event": "session-captured",
++    "data": { "nodeId": "reviewer-111", "sessionId": "68119c00" }},
++  { "ts": 1708512457000, "component": "ods", "event": "dispatch",
++    "data": { "nodeId": "summariser-0c7", "source": "inherit",
++             "fromNodeId": "reviewer-111", "sessionId": null }},
++]
++```
++
++**Benefit**: Post-mortem analysis without re-running. Timestamp tells you exactly when things happened. You can diff two runs.
++
++---
++
++### Improvement 5: `--timeout` Per Node
++
++A stuck agent (model timeout, infinite loop) holds up the entire pipeline. Currently the only safeguard is `maxIterations: 200` on the drive loop.
++
++```typescript
++// In AgentPod.execute():
++const timeoutMs = options.timeoutMs ?? 120_000; // 2 min default
++const result = await Promise.race([
++  this.agentInstance.run({ prompt, sessionId, cwd }),
++  sleep(timeoutMs).then(() => {
++    throw new Error(`Agent timed out after ${timeoutMs}ms`);
++  }),
++]);
++```
++
++**Benefit**: A stuck agent fails in 2 minutes instead of silently holding the pipeline for 10+. Combined with progressive assertions, you get clear signal about which node timed out.
++
++---
++
++## Applying to the Current Bug
++
++### The Session Persistence Timing Race
++
++**Current diagnosis flow** (slow, ~45 min total):
++
++```
++1. Hypothesis: "maybe sessions aren't persisting"
++   → Change persistSessions call location
++   → Rebuild (30s) → Run (5min) → Check → Still 22/23
++   → 6 min wasted, hypothesis rejected
++
++2. Hypothesis: "maybe loadSessions is overwriting"
++   → Remove loadSessions per-iteration
++   → Rebuild → Run → Check → Still 22/23
++   → 6 min wasted, hypothesis rejected
++
++3. Hypothesis: "maybe .then() hasn't fired"
++   → Add debug logging
++   → Rebuild → Run → Check → "AHA: sessionId=undefined at dispatch time"
++   → 6 min, but got signal
++
++4+ iterations to explore fixes...
++```
++
++**With faster feedback (proposed flow)**:
++
++```
++1. Write unit test for the race condition (Tier 1)
++   → 5 seconds → confirms: getSessionId returns undefined before .then() settles
++
++2. Test fix in unit test (Tier 1)
++   → 5 seconds → retry loop works in unit test
++
++3. Wire fix into ODS, run --fast (Tier 2)
++   → 15 seconds → echo agent pipeline: session chain passes
++
++4. Run full pipeline (Tier 4)
++   → 5 min → 23/23 ✓
++
++TOTAL: ~6 minutes instead of ~45 minutes
++```
++
++**The key difference**: Steps 1-3 give you confidence BEFORE you spend 5 minutes on a full run.
++
++---
++
++## Immediate Action Items
++
++Ranked by ROI (highest first):
++
++### 1. Fix the Current Bug (Option C — Retry with Delay)
++
++This is the immediate priority. ~5 lines in ODS:
++
++```typescript
++// In buildPodParams, when source === 'inherit' and sessionId is undefined:
++if (contextResult.source === 'inherit') {
++  let sessionId: string | undefined;
++  for (let attempt = 0; attempt < 5; attempt++) {
++    sessionId = this.deps.podManager.getSessionId(contextResult.fromNodeId);
++    if (sessionId) break;
++    await new Promise(r => setTimeout(r, 200));
++  }
++  // ... use sessionId
++}
++```
++
++**Why first**: This unblocks 23/23 and proves the fix. Everything else improves velocity for FUTURE iterations.
++
++### 2. Build EchoAgentAdapter + `--fast` Flag
++
++Highest-ROI infrastructure investment. Enables Tier 2 testing for ALL future changes.
++
++**Estimated effort**: ~50 lines for the adapter, ~20 lines to wire the flag.
++
++### 3. Add Unit Test for Session Timing Race
++
++Captures the current bug as a reproducible test case. Prevents regression.
++
++### 4. Add Progressive Assertions to Drive Loop
++
++Medium effort, high visibility. Makes every Tier 4 run more informative.
++
++### 5. Structured Debug Log
++
++Low effort, compounds over time. Replace `[ODS]` console.logs with structured entries.
++
++---
++
++## Open Questions
++
++### Q1: Should EchoAgentAdapter actually call CLI commands?
++
++**OPEN**: Two options:
++
++- **Option A**: Echo agent calls real `cg wf node start/end` commands. Tests the full stack including event system and state persistence. More realistic but slower (~2s per node for CLI overhead).
++
++- **Option B**: Echo agent uses a `FakeNodeEventRegistry` to simulate state changes without CLI. Tests plumbing only. Faster (~50ms per node) but doesn't test CLI integration.
++
++Recommendation: Start with Option A. If 2s×6 nodes = 12s is too slow, build Option B.
++
++### Q2: Should `--fast` mode skip Q&A?
++
++**OPEN**: The echo agent won't ask questions. But Q&A is a critical part of the flow. Options:
++
++- **Skip it**: Echo agents don't ask questions, Q&A watcher never fires. Simpler but doesn't test Q&A flow.
++- **Simulate it**: Echo agent asks a scripted question via CLI, watcher answers it. Tests Q&A plumbing with echo speed.
++
++Recommendation: Start simple (skip Q&A in fast mode). Add simulated Q&A later if needed.
++
++### Q3: Should we record and replay agent outputs?
++
++**DEFERRED**: A "cassette" system (record real agent outputs, replay them without API calls) would give Tier 2 speed with Tier 4 realism. But it's a significant investment and agent outputs are non-deterministic. Consider for a future plan if E2E iteration velocity remains a bottleneck.
++
++---
++
++## Quick Reference
++
++```bash
++# Tier 1: Unit tests (< 5s)
++pnpm vitest run --reporter=dot agent-context
++pnpm vitest run --reporter=dot can-run
++pnpm vitest run --reporter=dot 030-orchestration
++
++# Tier 2: Echo pipeline (< 15s) [PROPOSED]
++just test-advanced-pipeline --fast
++
++# Tier 3: Single real agent (30-60s) [PROPOSED]
++just test-advanced-pipeline --solo=spec-writer
++
++# Tier 4: Full pipeline (3-5 min)
++just test-advanced-pipeline
++
++# Remember: prompt-only changes don't need rebuild
++# Source changes need: pnpm turbo build --force --filter=@chainglass/positional-graph
++```
+diff --git a/packages/positional-graph/src/features/030-orchestration/graph-orchestration.ts b/packages/positional-graph/src/features/030-orchestration/graph-orchestration.ts
+index e52977e..122bc11 100644
+--- a/packages/positional-graph/src/features/030-orchestration/graph-orchestration.ts
++++ b/packages/positional-graph/src/features/030-orchestration/graph-orchestration.ts
+@@ -172,11 +172,8 @@ export class GraphOrchestration implements IGraphOrchestration {
+       // Emit status view after every iteration (including terminal)
+       await emit({ type: 'status', message: formatGraphStatus(result.finalReality) });
+ 
+-      // Persist sessions if this iteration produced actions
+-      const hadActions = result.actions.length > 0;
+-      if (hadActions) {
+-        await this.podManager?.persistSessions(this.ctx, this.graphSlug);
+-      }
++      // Persist sessions every iteration (fire-and-forget .then() may have settled)
++      await this.podManager?.persistSessions(this.ctx, this.graphSlug);
+ 
+       // Check for terminal state
+       if (result.stopReason === 'graph-complete') {
+@@ -189,6 +186,7 @@ export class GraphOrchestration implements IGraphOrchestration {
+       }
+ 
+       // Non-terminal: emit iteration or idle event, delay
++      const hadActions = result.actions.length > 0;
+       if (hadActions) {
+         await emit({
+           type: 'iteration',
+diff --git a/packages/positional-graph/src/features/030-orchestration/node-resume-prompt.md b/packages/positional-graph/src/features/030-orchestration/node-resume-prompt.md
+index 4a8633d..9c8844a 100644
+--- a/packages/positional-graph/src/features/030-orchestration/node-resume-prompt.md
++++ b/packages/positional-graph/src/features/030-orchestration/node-resume-prompt.md
+@@ -11,6 +11,11 @@ You are resuming work on a workflow node after a pause.
+ - **Graph**: {{graphSlug}}
+ - **Node**: {{nodeId}}
+ 
++**IMPORTANT**: You are operating node **{{nodeId}}** only. Your conversation history
++may contain work from this node's prior run or from other nodes in the same session.
++Only use `cg wf node` commands with YOUR node ID ({{nodeId}}). Do not operate on
++any other node.
++
+ ## What Happened
+ 
+ You were previously working on this node and paused. Your conversation
+@@ -18,23 +23,35 @@ history contains your prior work. Check it to understand where you left off.
+ 
+ ## What To Do Now
+ 
+-### 1. Check for answers to questions you asked
++### 1. Re-accept your assignment
++
++After resuming, you MUST re-accept your assignment before saving outputs:
++
++```
++cg wf node accept {{graphSlug}} {{nodeId}}
++```
++
++This is required even though you accepted before — the orchestrator resets the handshake on resume.
++
++### 2. Check for answers to questions you asked
+ 
+-If you asked a question before pausing, check for the answer:
++If you asked a question before pausing, retrieve the answer. The questionId
++was in the JSON output of the `ask` command. Look in your conversation history
++for the `ask` command output — find the `questionId` field in the JSON response.
+ 
+ ```
+-cg wf node get-answer {{graphSlug}} {{nodeId}} <questionId>
++cg wf node get-answer {{graphSlug}} {{nodeId}} <questionId> --json
+ ```
+ 
+-The questionId was returned when you asked the question. If you don't
+-remember it, check your conversation history for the `ask` command output.
++Do NOT try to list questions or discover the ID via other commands. The
++questionId is in YOUR conversation history from when you ran the `ask` command.
+ 
+-### 2. Continue your work
++### 3. Continue your work
+ 
+ Based on any new information (answers, resolved errors), continue from
+ where you left off. Do NOT repeat work you already completed.
+ 
+-### 3. Save outputs and complete
++### 4. Save outputs and complete
+ 
+ When done, save any remaining outputs and complete:
+ 
+diff --git a/packages/positional-graph/src/features/030-orchestration/node-starter-prompt.md b/packages/positional-graph/src/features/030-orchestration/node-starter-prompt.md
+index 1d9c144..8f01da5 100644
+--- a/packages/positional-graph/src/features/030-orchestration/node-starter-prompt.md
++++ b/packages/positional-graph/src/features/030-orchestration/node-starter-prompt.md
+@@ -29,21 +29,22 @@ This tells the orchestrator you are alive and ready to work.
+ Get an overview of all your available inputs:
+ 
+ ```
+-cg wf node collate {{graphSlug}} {{nodeId}}
++cg wf node collate {{graphSlug}} {{nodeId}} --json
+ ```
+ 
+ Read your task-specific instructions (the work unit's prompt):
+ 
+ ```
+-cg wf node get-input-data {{graphSlug}} {{nodeId}} main-prompt
++cg wf node get-input-data {{graphSlug}} {{nodeId}} main-prompt --json
+ ```
+ 
+ Read any additional inputs by name:
+ 
+ ```
+-cg wf node get-input-data {{graphSlug}} {{nodeId}} <inputName>
++cg wf node get-input-data {{graphSlug}} {{nodeId}} <inputName> --json
+ ```
+ 
++**Always use `--json`** — it returns structured data you can parse reliably.
+ Your task instructions and any data from upstream nodes are accessed
+ through these commands. Do not look for them elsewhere.
+ 
+@@ -92,19 +93,31 @@ guess the answer. You will be resumed later with the answer available.
+ 
+ ## Error Handling
+ 
+-If you encounter an error **related to the workflow system** (missing inputs,
+-CLI failures, unclear instructions, contradictory requirements):
++**FAIL FAST. Do not try to fix problems yourself.** If something goes wrong —
++a CLI command fails, an input is missing, a tool returns an error, your work
++hits an unexpected blocker — report it immediately and stop. The orchestrator
++will figure out what to do next.
+ 
+ ```
+-cg wf node error {{graphSlug}} {{nodeId}} --code ERROR_CODE --message "What went wrong"
++cg wf node error {{graphSlug}} {{nodeId}} --code ERROR_CODE --message "Descriptive explanation of what you tried, what failed, and any error output"
+ ```
+ 
+-**FAIL FAST on workflow errors.** Do not attempt workarounds. Do not retry.
+-Do not try to fix the system. Report the error and STOP.
++Your error message is critical — it helps the orchestrator diagnose the issue.
++Include: what step you were on, the command you ran, and the error output.
+ 
+-If the error is in your **regular work** (a test fails, code doesn't compile,
+-a file is missing from the project), handle it normally as part of your task.
+-Only use the error command for workflow-system problems.
++Do not attempt workarounds. Do not retry. Do not try to fix the system or
++guess at solutions. Report the error and STOP.
++
++## Important: Session Context
++
++You may have conversation history from a **previous node** in this workflow.
++This is by design — the orchestrator sometimes continues the same conversation
++across nodes so you have context from earlier work.
++
++**However, you are now operating a DIFFERENT node.** Your current assignment is
++**{{nodeId}}** (shown above). Only use `cg wf node` commands with YOUR node ID.
++Do not operate on any other node, even if you can see prior work on other nodes
++in your history.
+ 
+ ## Rules
+ 
+@@ -112,5 +125,5 @@ Only use the error command for workflow-system problems.
+ 2. **Read via CLI** — get your task and inputs through the CLI commands above
+ 3. **Save before ending** — all outputs must be saved before you call end
+ 4. **Stop after asking** — do not continue past a question
+-5. **Fail fast on WF errors** — report and stop, do not guess or retry
+-6. **One node only** — you are executing this node only, not the whole graph
++5. **Fail fast** — report errors and stop, do not guess, retry, or attempt fixes
++6. **One node only** — you are executing **{{nodeId}}** only, not the whole graph. Do not accept, read inputs, save outputs, or end ANY other node.
+diff --git a/packages/positional-graph/src/features/030-orchestration/ods.ts b/packages/positional-graph/src/features/030-orchestration/ods.ts
+index 81e494e..408f2ea 100644
+--- a/packages/positional-graph/src/features/030-orchestration/ods.ts
++++ b/packages/positional-graph/src/features/030-orchestration/ods.ts
+@@ -111,29 +111,44 @@ export class ODS implements IODS {
+       };
+     }
+ 
+-    // 2. Create pod (agent nodes go through manager, code nodes use runner directly)
+-    let podParams: Awaited<ReturnType<typeof this.buildPodParams>>;
+-    try {
+-      podParams = await this.buildPodParams(node, ctx, reality);
+-    } catch (err) {
+-      return {
+-        ok: false,
+-        error: {
+-          code: 'POD_CREATION_FAILED',
+-          message: err instanceof Error ? err.message : String(err),
+-          nodeId,
+-        },
+-        request,
+-      };
++    // 2. Reuse existing pod on restart, or create new one for first dispatch
++    let pod = this.deps.podManager.getPod(nodeId);
++    if (!pod) {
++      let podParams: Awaited<ReturnType<typeof this.buildPodParams>>;
++      try {
++        podParams = await this.buildPodParams(node, ctx, reality);
++      } catch (err) {
++        return {
++          ok: false,
++          error: {
++            code: 'POD_CREATION_FAILED',
++            message: err instanceof Error ? err.message : String(err),
++            nodeId,
++          },
++          request,
++        };
++      }
++      pod = this.deps.podManager.createPod(nodeId, podParams);
+     }
+-    const pod = this.deps.podManager.createPod(nodeId, podParams);
+ 
+     // 3. Fire and forget — DO NOT await
+-    pod.execute({
+-      inputs: request.inputs,
+-      ctx: { worktreePath: ctx.worktreePath },
+-      graphSlug: request.graphSlug,
+-    });
++    // Persist session ID to PodManager after completion (for session inheritance)
++    pod
++      .execute({
++        inputs: request.inputs,
++        ctx: { worktreePath: ctx.worktreePath },
++        graphSlug: request.graphSlug,
++      })
++      .then(async () => {
++        const sid = pod.sessionId;
++        if (sid) {
++          this.deps.podManager.setSessionId(nodeId, sid);
++          await this.deps.podManager.persistSessions(
++            { worktreePath: ctx.worktreePath },
++            request.graphSlug
++          );
++        }
++      });
+ 
+     return { ok: true, request, newStatus: 'starting', sessionId: pod.sessionId };
+   }
+@@ -149,7 +164,15 @@ export class ODS implements IODS {
+ 
+       let agentInstance: IAgentInstance | undefined;
+       if (contextResult.source === 'inherit') {
+-        const sessionId = this.deps.podManager.getSessionId(contextResult.fromNodeId);
++        // Retry loop: the source node's .then() (which captures the session ID)
++        // may not have settled yet when ONBAS dispatches this node in the same tick.
++        // Up to 5s total wait (10 × 500ms) for the promise to resolve.
++        let sessionId: string | undefined;
++        for (let attempt = 0; attempt < 10; attempt++) {
++          sessionId = this.deps.podManager.getSessionId(contextResult.fromNodeId);
++          if (sessionId) break;
++          await new Promise((r) => setTimeout(r, 500));
++        }
+         if (sessionId) {
+           agentInstance = this.deps.agentManager.getWithSessionId(sessionId, {
+             name: node.unitSlug,
+diff --git a/scripts/test-advanced-pipeline.ts b/scripts/test-advanced-pipeline.ts
+index b15e5db..a5c7ea3 100644
+--- a/scripts/test-advanced-pipeline.ts
++++ b/scripts/test-advanced-pipeline.ts
+@@ -61,6 +61,9 @@ if (process.argv.includes('--help')) {
+   process.exit(0);
+ }
+ 
++// ─── Model ──────────────────────────────────────────────────────────
++const MODEL = process.env.CG_MODEL ?? 'claude-sonnet-4.6';
++
+ // ─── Colours ────────────────────────────────────────────────────────
+ const DIM = '\x1b[2m';
+ const RESET = '\x1b[0m';
+@@ -105,7 +108,7 @@ class VerboseCopilotAdapter implements IAgentAdapter {
+ 
+     const session = options.sessionId
+       ? await this.client.resumeSession(options.sessionId)
+-      : await this.client.createSession({ streaming: true });
++      : await this.client.createSession({ model: MODEL, streaming: true });
+ 
+     console.log(`${this.tag()} ${CYAN}Session: ${session.sessionId}${RESET}${options.sessionId ? ' (resumed)' : ' (new)'}`);
+ 
+@@ -384,6 +387,7 @@ async function main() {
+   console.log('  Chainglass Advanced Pipeline E2E');
+   console.log('  Real agents • Q&A • Parallel fan-out • Context inheritance');
+   console.log(`  Mode: ${INTERACTIVE ? 'INTERACTIVE (you answer questions)' : 'SCRIPTED (auto-answers)'}`);
++  console.log(`  Model: ${MODEL}`);
+   console.log('══════════════════════════════════════════════════════════════');
+   console.log('');
+ 
+@@ -400,15 +404,19 @@ async function main() {
+ 
+       // ── Wire real orchestration stack ──────────────────────────────
+       const client = new CopilotClient({ cwd: tgc.workspacePath });
+-      let nodeCounter = 0;
++      const adapterCache = new Map<string, VerboseCopilotAdapter>();
++      let adapterIndex = 0;
+       const nodeLabels = ['spec-writer', 'programmer-a', 'programmer-b', 'reviewer', 'summariser'];
+ 
+       const agentManager = new AgentManagerService(
+         () => {
+-          const label = nodeLabels[nodeCounter] ?? `node-${nodeCounter}`;
+-          const colour = COLOURS[nodeCounter % COLOURS.length];
+-          nodeCounter++;
+-          return new VerboseCopilotAdapter(client, label, colour, t0) as unknown as InstanceType<typeof SdkCopilotAdapter>;
++          // AgentManagerService.getWithSessionId() reuses instances from session index,
++          // so this factory is only called for genuinely new dispatches.
++          const label = nodeLabels[adapterIndex] ?? `node-${adapterIndex}`;
++          const colour = COLOURS[adapterIndex % COLOURS.length];
++          adapterIndex++;
++          const adapter = new VerboseCopilotAdapter(client, label, colour, t0);
++          return adapter as unknown as InstanceType<typeof SdkCopilotAdapter>;
+         },
+       ) as unknown as IAgentManagerService;
+ 
+@@ -441,7 +449,7 @@ async function main() {
+ 
+       const handle = await orchestrationService.get(tgc.ctx, SLUG);
+       const result = await handle.drive({
+-        maxIterations: 100,
++        maxIterations: 200,
+         actionDelayMs: 1000,
+         idleDelayMs: 3000,
+         onEvent: async (event: DriveEvent) => {
+@@ -476,6 +484,19 @@ async function main() {
+       });
+ 
+       // ── §6: Result + Assertions ───────────────────────────────────
++      // Wait for fire-and-forget pod.execute() promises to settle.
++      // The drive loop exits when it sees graph-complete on disk, but the
++      // last agent's adapter may still be returning (sendAndWait completing).
++      // Poll until all sessions are captured or timeout.
++      const sessionNodes = [ids.specId, ids.progAId, ids.progBId, ids.reviewerId, ids.summariserId];
++      for (let wait = 0; wait < 10; wait++) {
++        await new Promise((r) => setTimeout(r, 1000));
++        const missing = sessionNodes.filter(id => !podManager.getSessionId(id));
++        if (missing.length === 0) break;
++        if (wait === 9) console.log(`${YELLOW}⚠ Session capture timeout — missing: ${missing.join(', ')}${RESET}`);
++      }
++      await podManager.loadSessions(tgc.ctx, SLUG);
++
+       console.log('');
+       console.log('');
+       console.log(`${BOLD}═══ RESULT ═══${RESET}`);
+@@ -486,7 +507,7 @@ async function main() {
+ 
+       let allPass = true;
+       let passCount = 0;
+-      const totalAssertions = 17;
++      const totalAssertions = 23;
+       const check = async (label: string, fn: () => Promise<void>) => {
+         try {
+           await fn();
+@@ -542,6 +563,11 @@ async function main() {
+         if (!progBSid || !specSid) throw new Error(`missing sid`);
+         if (progBSid === specSid) throw new Error(`same: ${progBSid}`);
+       });
++      // AC-10: programmer-a ≠ programmer-b
++      await check('isolation: programmer-a ≠ programmer-b', async () => {
++        if (!progASid || !progBSid) throw new Error(`missing sid`);
++        if (progASid === progBSid) throw new Error(`same: ${progASid}`);
++      });
+ 
+       // 15: Q&A was answered
+       await check('Q&A: question was answered', async () => {
+@@ -556,6 +582,26 @@ async function main() {
+       await check('summariser has overall_pass', () =>
+         assertOutputExists(tgc.service, tgc.ctx, SLUG, ids.summariserId, 'overall_pass'));
+ 
++      // AC-12: line ordering — parallel nodes started after spec-writer completed
++      await check('line ordering: programmers started after spec-writer', async () => {
++        const specStatus = await tgc.service.getNodeStatus(tgc.ctx, SLUG, ids.specId);
++        const progAStatus = await tgc.service.getNodeStatus(tgc.ctx, SLUG, ids.progAId);
++        if (!specStatus.completedAt || !progAStatus.startedAt) throw new Error('missing timestamps');
++        if (new Date(progAStatus.startedAt) < new Date(specStatus.completedAt)) {
++          throw new Error(`programmer-a started ${progAStatus.startedAt} before spec-writer completed ${specStatus.completedAt}`);
++        }
++      });
++
++      // AC-13: all agent outputs non-empty
++      await check('programmer-a has code output', () =>
++        assertOutputExists(tgc.service, tgc.ctx, SLUG, ids.progAId, 'code'));
++      await check('programmer-b has code output', () =>
++        assertOutputExists(tgc.service, tgc.ctx, SLUG, ids.progBId, 'code'));
++      await check('reviewer has review_a output', () =>
++        assertOutputExists(tgc.service, tgc.ctx, SLUG, ids.reviewerId, 'review_a'));
++      await check('summariser has total_loc output', () =>
++        assertOutputExists(tgc.service, tgc.ctx, SLUG, ids.summariserId, 'total_loc'));
++
+       // ── Session chain display ─────────────────────────────────────
+       console.log('');
+       console.log(`${BOLD}Session Chain:${RESET}`);
+diff --git a/scripts/test-copilot-serial.ts b/scripts/test-copilot-serial.ts
+new file mode 100644
+index 0000000..f818755
+--- /dev/null
++++ b/scripts/test-copilot-serial.ts
+@@ -0,0 +1,426 @@
++/**
++ * Real Agent E2E — Copilot Serial Pipeline
++ *
++ * Drives a 3-node graph (get-spec → spec-writer → reviewer) with a real
++ * Copilot agent. Streams ALL SDK events so you can see exactly what the
++ * agent is doing: thinking, tool calls, outputs, completions.
++ *
++ * Run: npx tsx scripts/test-copilot-serial.ts
++ * Or:  just test-copilot-serial
++ */
++
++import {
++  buildDiskWorkUnitService,
++  withTestGraph,
++} from '../dev/test-graphs/shared/graph-test-runner.js';
++import {
++  assertGraphComplete,
++  assertNodeComplete,
++  assertOutputExists,
++} from '../dev/test-graphs/shared/assertions.js';
++import { completeUserInputNode, ensureGraphsDir } from '../dev/test-graphs/shared/helpers.js';
++
++import {
++  AgentContextService,
++  ODS,
++  ONBAS,
++  OrchestrationService,
++  PodManager,
++  ScriptRunner,
++} from '@chainglass/positional-graph/features/030-orchestration';
++import type { DriveEvent } from '@chainglass/positional-graph/features/030-orchestration';
++import {
++  EventHandlerService,
++  FakeNodeEventRegistry,
++  NodeEventService,
++  createEventHandlerRegistry,
++  registerCoreEventTypes,
++} from '@chainglass/positional-graph/features/032-node-event-system';
++import type { IPositionalGraphService } from '@chainglass/positional-graph/interfaces';
++import { NodeFileSystemAdapter } from '@chainglass/shared';
++import type { IAgentManagerService } from '@chainglass/shared';
++import type { WorkspaceContext } from '@chainglass/workflow';
++import { CopilotClient, CopilotSession } from '@github/copilot-sdk';
++import type { SessionEvent } from '@github/copilot-sdk';
++import { AgentManagerService } from '@chainglass/shared/features/034-agentic-cli';
++import { SdkCopilotAdapter } from '@chainglass/shared';
++import type { AgentRunOptions, AgentResult, IAgentAdapter } from '@chainglass/shared';
++
++// ─── Colours ────────────────────────────────────────────────────────
++const DIM = '\x1b[2m';
++const RESET = '\x1b[0m';
++const BOLD = '\x1b[1m';
++const CYAN = '\x1b[36m';
++const GREEN = '\x1b[32m';
++const YELLOW = '\x1b[33m';
++const RED = '\x1b[31m';
++const MAGENTA = '\x1b[35m';
++const BLUE = '\x1b[34m';
++
++function elapsed(start: number): string {
++  return `${((Date.now() - start) / 1000).toFixed(1)}s`;
++}
++
++// ─── Transparent Adapter Wrapper (dumps raw SDK events) ─────────────
++class VerboseCopilotAdapter implements IAgentAdapter {
++  private inner: SdkCopilotAdapter;
++  private client: CopilotClient;
++  private nodeLabel: string;
++  private startTime: number;
++
++  constructor(client: CopilotClient, label: string, startTime: number) {
++    this.inner = new SdkCopilotAdapter(client);
++    this.client = client;
++    this.nodeLabel = label;
++    this.startTime = startTime;
++  }
++
++  private tag(): string {
++    const t = ((Date.now() - this.startTime) / 1000).toFixed(1);
++    return `${DIM}[${t}]${RESET} ${BLUE}[${this.nodeLabel}]${RESET}`;
++  }
++
++  async run(options: AgentRunOptions): Promise<AgentResult> {
++    console.log(`${this.tag()} ${BOLD}Starting agent run${RESET}`);
++    if (options.cwd) console.log(`${this.tag()} ${DIM}cwd: ${options.cwd}${RESET}`);
++    console.log(`${this.tag()} ${DIM}prompt (first 200 chars): ${options.prompt?.slice(0, 200)}...${RESET}`);
++
++    // Create session manually so we can hook raw events
++    const session = options.sessionId
++      ? await this.client.resumeSession(options.sessionId)
++      : await this.client.createSession({ streaming: true });
++
++    console.log(`${this.tag()} ${CYAN}Session: ${session.sessionId}${RESET}${options.sessionId ? ' (resumed)' : ' (new)'}`);
++
++    let output = '';
++    let toolCount = 0;
++
++    session.on((event: any) => {
++      switch (event.type) {
++        case 'assistant.reasoning_delta': {
++          const d = event.data as { deltaContent: string };
++          if (d.deltaContent.trim()) {
++            process.stdout.write(`${DIM}${d.deltaContent}${RESET}`);
++          }
++          break;
++        }
++        case 'assistant.message_delta': {
++          const d = event.data as { deltaContent: string };
++          process.stdout.write(`${YELLOW}${d.deltaContent}${RESET}`);
++          break;
++        }
++        case 'assistant.message': {
++          const d = event.data as { content: string };
++          output = d.content;
++          break;
++        }
++        case 'tool.execution_start': {
++          toolCount++;
++          const d = event.data as { toolName: string; arguments?: unknown; toolCallId?: string };
++          const args = typeof d.arguments === 'string'
++            ? d.arguments.slice(0, 300)
++            : JSON.stringify(d.arguments ?? '').slice(0, 300);
++          console.log(`\n${this.tag()} ${MAGENTA}🔧 ${d.toolName}${RESET} ${DIM}${args}${RESET}`);
++          break;
++        }
++        case 'tool.execution_complete': {
++          const d = event.data as { toolCallId?: string; success: boolean; result?: { content?: string } };
++          const preview = d.result?.content?.slice(0, 200) ?? '';
++          console.log(`${this.tag()} ${d.success ? GREEN + '✓' : RED + '✗'}${RESET} tool done ${DIM}${preview}${RESET}`);
++          break;
++        }
++        case 'tool.execution_partial_result': {
++          const d = event.data as { partialOutput?: string };
++          const preview = (d.partialOutput ?? '').slice(0, 150);
++          if (preview.trim()) {
++            console.log(`${this.tag()} ${DIM}⋯ ${preview}${RESET}`);
++          }
++          break;
++        }
++        case 'session.error': {
++          const d = event.data as { errorType: string; message: string };
++          console.log(`${this.tag()} ${RED}❌ SESSION ERROR: ${d.errorType}: ${d.message}${RESET}`);
++          break;
++        }
++        case 'assistant.turn_start':
++          console.log(`${this.tag()} ${DIM}── turn start ──${RESET}`);
++          break;
++        case 'assistant.turn_end':
++          console.log(`${this.tag()} ${DIM}── turn end ──${RESET}`);
++          break;
++        case 'assistant.usage': {
++          const d = event.data as { inputTokens?: number; outputTokens?: number };
++          console.log(`${this.tag()} ${DIM}tokens: in=${d.inputTokens ?? '?'} out=${d.outputTokens ?? '?'}${RESET}`);
++          break;
++        }
++        case 'session.idle':
++          break; // quiet
++        case 'assistant.reasoning':
++        case 'pending_messages.modified':
++        case 'user.message':
++        case 'session.usage_info':
++          break; // skip consolidated duplicates and internal events
++        default:
++          console.log(`${this.tag()} ${DIM}[${event.type}]${RESET}`);
++      }
++    });
++
++    try {
++      await session.sendAndWait({ prompt: options.prompt.trim() });
++
++      console.log(`\n${this.tag()} ${GREEN}✓ Agent completed${RESET} (${toolCount} tool calls)`);
++
++      return {
++        output,
++        sessionId: session.sessionId,
++        status: 'completed',
++        exitCode: 0,
++        tokens: null,
++      };
++    } catch (error) {
++      const msg = error instanceof Error ? error.message : String(error);
++      console.log(`\n${this.tag()} ${RED}✗ Agent FAILED: ${msg}${RESET}`);
++      return {
++        output: msg,
++        sessionId: session.sessionId,
++        status: 'failed',
++        exitCode: 1,
++        tokens: null,
++      };
++    } finally {
++      await session.destroy();
++    }
++  }
++
++  async terminate(): Promise<void> {
++    return this.inner.terminate();
++  }
++}
++
++function buildStack(
++  service: IPositionalGraphService,
++  ctx: WorkspaceContext,
++  agentManager: IAgentManagerService,
++  workUnitService: ReturnType<typeof buildDiskWorkUnitService>,
++) {
++  const eventRegistry = new FakeNodeEventRegistry();
++  registerCoreEventTypes(eventRegistry);
++  const handlerRegistry = createEventHandlerRegistry();
++  const nes = new NodeEventService(
++    {
++      registry: eventRegistry,
++      loadState: async (slug: string) => service.loadGraphState(ctx, slug),
++      persistState: async (slug: string, state: unknown) =>
++        service.persistGraphState(ctx, slug, state),
++    },
++    handlerRegistry,
++  );
++  const eventHandlerService = new EventHandlerService(nes);
++  const nodeFs = new NodeFileSystemAdapter();
++  const podManager = new PodManager(nodeFs);
++  const contextService = new AgentContextService();
++  const scriptRunner = new ScriptRunner();
++
++  const ods = new ODS({
++    graphService: service,
++    podManager,
++    contextService,
++    agentManager,
++    scriptRunner,
++    workUnitService,
++  });
++
++  const orchestrationService = new OrchestrationService({
++    graphService: service,
++    onbas: new ONBAS(),
++    ods,
++    eventHandlerService,
++    podManager,
++  });
++
++  return { orchestrationService, podManager };
++}
++
++// ─── Main ───────────────────────────────────────────────────────────
++
++async function main() {
++  const t0 = Date.now();
++
++  console.log('');
++  console.log('══════════════════════════════════════════════════');
++  console.log('  Real Agent E2E — Copilot Serial Pipeline');
++  console.log('══════════════════════════════════════════════════');
++  console.log('');
++
++  await withTestGraph('real-agent-serial', async (tgc) => {
++    console.log(`${DIM}workspace: ${tgc.workspacePath}${RESET}`);
++    console.log('');
++
++    // ── Wire the orchestration stack with a real Copilot adapter ──
++    const client = new CopilotClient({ cwd: tgc.workspacePath });
++
++    // Build adapter with full event streaming
++    let nodeCounter = 0;
++    const nodeLabels = ['spec-writer', 'reviewer', 'node-3', 'node-4'];
++    const agentManager = new AgentManagerService(
++      () => {
++        const label = nodeLabels[nodeCounter++] ?? `node-${nodeCounter}`;
++        return new VerboseCopilotAdapter(client, label, t0) as unknown as InstanceType<typeof SdkCopilotAdapter>;
++      },
++    ) as unknown as IAgentManagerService;
++
++    const workUnitService = buildDiskWorkUnitService(tgc.workspacePath);
++    const { orchestrationService, podManager } = buildStack(
++      tgc.service,
++      tgc.ctx,
++      agentManager,
++      workUnitService,
++    );
++
++    // ── Build graph ─────────────────────────────────────────────────
++    const SLUG = 'copilot-serial';
++    const { lineId: line0 } = await tgc.service.create(tgc.ctx, SLUG);
++    await ensureGraphsDir(tgc.workspacePath, SLUG);
++
++    const line1 = await tgc.service.addLine(tgc.ctx, SLUG);
++    const getSpec = await tgc.service.addNode(tgc.ctx, SLUG, line0, 'get-spec');
++    const specWriter = await tgc.service.addNode(
++      tgc.ctx, SLUG, line1.lineId as string, 'spec-writer',
++    );
++    const reviewer = await tgc.service.addNode(
++      tgc.ctx, SLUG, line1.lineId as string, 'reviewer',
++    );
++
++    await tgc.service.setInput(tgc.ctx, SLUG, specWriter.nodeId as string, 'spec', {
++      from_node: getSpec.nodeId as string,
++      from_output: 'spec',
++    });
++    await tgc.service.setInput(tgc.ctx, SLUG, reviewer.nodeId as string, 'summary', {
++      from_node: specWriter.nodeId as string,
++      from_output: 'summary',
++    });
++
++    console.log(`${BOLD}Graph:${RESET} ${SLUG}`);
++    console.log(`  get-spec    (${getSpec.nodeId}) — user-input`);
++    console.log(`  spec-writer (${specWriter.nodeId}) — agent`);
++    console.log(`  reviewer    (${reviewer.nodeId}) — agent`);
++    console.log('');
++
++    // ── Complete user input ─────────────────────────────────────────
++    await completeUserInputNode(tgc.service, tgc.ctx, SLUG, getSpec.nodeId as string, {
++      spec: 'Write a function that adds two numbers',
++    });
++    console.log(`${GREEN}✓${RESET} User input completed: "Write a function that adds two numbers"`);
++    console.log('');
++
++    // ── Drive ───────────────────────────────────────────────────────
++    console.log(`${BOLD}═══ DRIVING ═══${RESET}`);
++    console.log('');
++
++    const handle = await orchestrationService.get(tgc.ctx, SLUG);
++    const result = await handle.drive({
++      maxIterations: 50,
++      actionDelayMs: 1000,
++      idleDelayMs: 5000,
++      onEvent: (event: DriveEvent) => {
++        const t = elapsed(t0);
++        switch (event.type) {
++          case 'status':
++            console.log(`${DIM}[${t}]${RESET} ${event.message}`);
++            break;
++          case 'iteration':
++            console.log(`${CYAN}[${t}] ▶${RESET} ${event.message}`);
++            break;
++          case 'idle':
++            // quiet — just a dot to show progress
++            process.stdout.write(`${DIM}.${RESET}`);
++            break;
++          default:
++            console.log(`${DIM}[${t}]${RESET} ${event.type}: ${event.message ?? ''}`);
++        }
++      },
++    });
++
++    console.log('');
++    console.log('');
++    console.log(`${BOLD}═══ RESULT ═══${RESET}`);
++    console.log(`  Time:       ${elapsed(t0)}`);
++    console.log(`  Exit:       ${result.exitReason}`);
++    console.log(`  Iterations: ${result.iterations}`);
++    console.log('');
++
++    // ── Assertions ──────────────────────────────────────────────────
++    let allPass = true;
++    const check = async (label: string, fn: () => Promise<void>) => {
++      try {
++        await fn();
++        console.log(`  ${GREEN}✓${RESET} ${label}`);
++      } catch (err) {
++        console.log(`  ${RED}✗${RESET} ${label}: ${err}`);
++        allPass = false;
++      }
++    };
++
++    console.log(`${BOLD}Assertions:${RESET}`);
++    await check('exitReason=complete', async () => {
++      if (result.exitReason !== 'complete') throw new Error(`got ${result.exitReason}`);
++    });
++    await check('graph complete', () => assertGraphComplete(tgc.service, tgc.ctx, SLUG));
++    await check('spec-writer complete', () =>
++      assertNodeComplete(tgc.service, tgc.ctx, SLUG, specWriter.nodeId as string));
++    await check('reviewer complete', () =>
++      assertNodeComplete(tgc.service, tgc.ctx, SLUG, reviewer.nodeId as string));
++    await check('spec-writer has summary', () =>
++      assertOutputExists(tgc.service, tgc.ctx, SLUG, specWriter.nodeId as string, 'summary'));
++    await check('reviewer has decision', () =>
++      assertOutputExists(tgc.service, tgc.ctx, SLUG, reviewer.nodeId as string, 'decision'));
++
++    // Session tracking
++    const writerSid = podManager.getSessionId(specWriter.nodeId as string);
++    const reviewerSid = podManager.getSessionId(reviewer.nodeId as string);
++    await check('writer has session ID', async () => {
++      if (!writerSid) throw new Error('undefined');
++    });
++    await check('reviewer has session ID', async () => {
++      if (!reviewerSid) throw new Error('undefined');
++    });
++
++    console.log('');
++    console.log(`  ${DIM}writer session:   ${writerSid ?? '(none)'}${RESET}`);
++    console.log(`  ${DIM}reviewer session:  ${reviewerSid ?? '(none)'}${RESET}`);
++
++    // ── Read outputs ────────────────────────────────────────────────
++    console.log('');
++    console.log(`${BOLD}Outputs:${RESET}`);
++    try {
++      const summaryData = await tgc.service.getNodeOutputData(
++        tgc.ctx, SLUG, specWriter.nodeId as string, 'summary',
++      );
++      console.log(`  ${MAGENTA}summary:${RESET} ${JSON.stringify(summaryData)}`);
++    } catch { console.log(`  ${DIM}summary: (not readable)${RESET}`); }
++
++    try {
++      const decisionData = await tgc.service.getNodeOutputData(
++        tgc.ctx, SLUG, reviewer.nodeId as string, 'decision',
++      );
++      console.log(`  ${MAGENTA}decision:${RESET} ${JSON.stringify(decisionData)}`);
++    } catch { console.log(`  ${DIM}decision: (not readable)${RESET}`); }
++
++    console.log('');
++    if (allPass) {
++      console.log(`${GREEN}${BOLD}══════════════════════════════════════════════════${RESET}`);
++      console.log(`${GREEN}${BOLD}  ✅ ALL PASSED${RESET}`);
++      console.log(`${GREEN}${BOLD}══════════════════════════════════════════════════${RESET}`);
++    } else {
++      console.log(`${RED}${BOLD}══════════════════════════════════════════════════${RESET}`);
++      console.log(`${RED}${BOLD}  ❌ SOME CHECKS FAILED${RESET}`);
++      console.log(`${RED}${BOLD}══════════════════════════════════════════════════${RESET}`);
++      process.exit(1);
++    }
++  });
++}
++
++main().catch((err) => {
++  console.error(`${RED}FATAL:${RESET}`, err);
++  process.exit(1);
++});
+diff --git a/test/unit/cli/cg-binary-linkage.test.ts b/test/unit/cli/cg-binary-linkage.test.ts
+new file mode 100644
+index 0000000..f07b217
+--- /dev/null
++++ b/test/unit/cli/cg-binary-linkage.test.ts
+@@ -0,0 +1,80 @@
++/**
++ * Test: Verify `cg` CLI binary is linked to this repository.
++ *
++ * The global `cg` command is installed via `pnpm link --global` from apps/cli.
++ * If it points at a different branch checkout or stale repo, agent tests will
++ * fail with cryptic schema errors (e.g., E157 "Unrecognized key: agentType").
++ *
++ * This test catches that early with an actionable error message.
++ */
++
++import { execSync } from 'node:child_process';
++import * as path from 'node:path';
++import { describe, expect, it } from 'vitest';
++
++const REPO_ROOT = path.resolve(import.meta.dirname, '..', '..', '..');
++
++describe('cg CLI binary linkage', () => {
++  it('cg resolves to this repository (not a stale branch checkout)', () => {
++    // Find the cg binary
++    let cgPath: string;
++    try {
++      cgPath = execSync('which cg', { encoding: 'utf-8' }).trim();
++    } catch {
++      throw new Error(
++        [
++          'SETUP ERROR: `cg` command not found on PATH.',
++          '',
++          'Fix: Run from the repo root:',
++          '  just install',
++          '',
++          'This builds the CLI and links it globally so `cg` is available.',
++        ].join('\n')
++      );
++    }
++
++    // Read the shim to find which cli.cjs it points at
++    const shimContent = execSync(`cat "${cgPath}"`, { encoding: 'utf-8' });
++    const cliEntryMatch = shimContent.match(/substrate\/([^/]+)\/apps\/cli\/dist\/cli\.cjs/);
++
++    if (!cliEntryMatch) {
++      // Non-standard shim — try running cg and checking it works
++      try {
++        execSync('cg --version', { encoding: 'utf-8', timeout: 5000 });
++        return; // cg works, just not a standard pnpm shim — pass
++      } catch {
++        throw new Error(
++          [
++            'SETUP ERROR: `cg` shim does not point at a recognized CLI entrypoint.',
++            '',
++            'Fix: Run from the repo root:',
++            '  just install',
++          ].join('\n')
++        );
++      }
++    }
++
++    // Extract the folder name from the shim path
++    const shimFolder = cliEntryMatch[1];
++    const repoFolder = path.basename(REPO_ROOT);
++
++    expect(
++      shimFolder,
++      [
++        `STALE CLI: \`cg\` points at "${shimFolder}" but this repo is "${repoFolder}".`,
++        '',
++        `  cg shim: ${cgPath}`,
++        `  points at: substrate/${shimFolder}/apps/cli/dist/cli.cjs`,
++        `  expected:  substrate/${repoFolder}/apps/cli/dist/cli.cjs`,
++        '',
++        'This causes agent tests to fail with schema errors (E157) because',
++        'the old CLI does not recognize fields added in this branch.',
++        '',
++        'Fix: Run from this repo root:',
++        '  just install',
++        '',
++        'This rebuilds and relinks `cg` to the current branch.',
++      ].join('\n')
++    ).toBe(repoFolder);
++  });
++});
+diff --git a/test/unit/positional-graph/features/030-orchestration/drive.test.ts b/test/unit/positional-graph/features/030-orchestration/drive.test.ts
+index c02748d..e6e4881 100644
+--- a/test/unit/positional-graph/features/030-orchestration/drive.test.ts
++++ b/test/unit/positional-graph/features/030-orchestration/drive.test.ts
+@@ -361,14 +361,15 @@ describe('drive() session persistence', () => {
+     expect(deps.podManager.persistSessionsCalls).toBe(2);
+   });
+ 
+-  it('does not call persistSessions after no-action iterations', async () => {
++  it('calls persistSessions every iteration including no-action', async () => {
+     const deps = makeDeps();
+     deps.onbas.setActions([noAction('all-waiting'), noAction('graph-complete')]);
+     const handle = makeDriveHandle(deps);
+ 
+     await handle.drive(FAST_OPTS);
+ 
+-    expect(deps.podManager.persistSessionsCalls).toBe(0);
++    // Persist every iteration so fire-and-forget .then() settlements are captured
++    expect(deps.podManager.persistSessionsCalls).toBe(2);
+   });
+ 
+   it('works without podManager (optional chaining)', async () => {
+diff --git a/test/unit/positional-graph/features/030-orchestration/ods-agent-wiring.test.ts b/test/unit/positional-graph/features/030-orchestration/ods-agent-wiring.test.ts
+index f2d7325..33bf403 100644
+--- a/test/unit/positional-graph/features/030-orchestration/ods-agent-wiring.test.ts
++++ b/test/unit/positional-graph/features/030-orchestration/ods-agent-wiring.test.ts
+@@ -147,7 +147,7 @@ describe('ODS Agent Wiring', () => {
+         nodes: [{ nodeId: 'n2', unitSlug: 'spec-reviewer', unitType: 'agent', status: 'ready' }],
+       });
+       contextService.setContextSource('n2', { source: 'inherit', fromNodeId: 'n1' });
+-      // No session seeded for n1
++      // No session seeded for n1 — ODS retries up to 5s before falling back
+ 
+       const result = await ods.execute(
+         {
+@@ -164,7 +164,7 @@ describe('ODS Agent Wiring', () => {
+       const agents = agentManager.getCreatedAgents();
+       expect(agents).toHaveLength(1);
+       expect(agents[0].sessionId).toBeNull();
+-    });
++    }, 10_000);
+   });
+ 
+   // ═══════════════════════════════════════════════════════

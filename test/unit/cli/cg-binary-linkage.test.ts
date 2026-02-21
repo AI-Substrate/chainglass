@@ -9,6 +9,7 @@
  */
 
 import { execSync } from 'node:child_process';
+import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -34,7 +35,7 @@ describe('cg CLI binary linkage', () => {
     }
 
     // Read the shim to find which cli.cjs it points at
-    const shimContent = execSync(`cat "${cgPath}"`, { encoding: 'utf-8' });
+    const shimContent = fs.readFileSync(cgPath, 'utf-8');
     const cliEntryMatch = shimContent.match(/substrate\/([^/]+)\/apps\/cli\/dist\/cli\.cjs/);
 
     if (!cliEntryMatch) {

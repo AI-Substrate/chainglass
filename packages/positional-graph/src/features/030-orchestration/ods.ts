@@ -148,6 +148,10 @@ export class ODS implements IODS {
             request.graphSlug
           );
         }
+      })
+      .catch((err) => {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`[ODS] Pod execution failed for ${nodeId}: ${msg}`);
       });
 
     return { ok: true, request, newStatus: 'starting', sessionId: pod.sessionId };
