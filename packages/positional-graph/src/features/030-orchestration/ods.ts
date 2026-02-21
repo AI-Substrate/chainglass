@@ -167,11 +167,15 @@ export class ODS implements IODS {
       if (contextResult.source === 'inherit') {
         // Retry loop: the source node's .then() (which captures the session ID)
         // may not have settled yet when ONBAS dispatches this node in the same tick.
+        // Up to 5s total wait (10 × 500ms) for the promise to resolve.
         let sessionId: string | undefined;
-        for (let attempt = 0; attempt < 5; attempt++) {
+        for (let attempt = 0; attempt < 10; attempt++) {
           sessionId = this.deps.podManager.getSessionId(contextResult.fromNodeId);
           if (sessionId) break;
-          await new Promise(r => setTimeout(r, 200));
+          if (attempt === 0) {
+            console.log(`[ODS] Waiting for session from ${contextResult.fromNodeId} for ${node.nodeId}...`);
+          }
+          await new Promise(r => setTimeout(r, 500));
         }
         if (sessionId) {
           agentInstance = this.deps.agentManager.getWithSessionId(sessionId, {
