@@ -35,14 +35,16 @@ This is required even though you accepted before — the orchestrator resets the
 
 ### 2. Check for answers to questions you asked
 
-If you asked a question before pausing, check for the answer:
+If you asked a question before pausing, retrieve the answer. The questionId
+was in the JSON output of the `ask` command. Look in your conversation history
+for the `ask` command output — find the `questionId` field in the JSON response.
 
 ```
-cg wf node get-answer {{graphSlug}} {{nodeId}} <questionId>
+cg wf node get-answer {{graphSlug}} {{nodeId}} <questionId> --json
 ```
 
-The questionId was returned when you asked the question. If you don't
-remember it, check your conversation history for the `ask` command output.
+Do NOT try to list questions or discover the ID via other commands. The
+questionId is in YOUR conversation history from when you ran the `ask` command.
 
 ### 3. Continue your work
 

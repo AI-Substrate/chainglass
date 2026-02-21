@@ -10,13 +10,14 @@ Step 2: Read the requirements input.
 Run: `cg wf node get-input-data $CG_GRAPH_SLUG $CG_NODE_ID requirements`
 Log: "Step 2: Read requirements: <summary>"
 
-Step 3: Ask the user what languages they want.
-Run: `cg wf node ask $CG_GRAPH_SLUG $CG_NODE_ID --type text --text "What two programming languages would you like this application written in? Please name exactly two languages."`
-Log: "Step 3: Asked question, waiting for answer"
+Step 3: Ask the user what languages they want. Use --json to capture the questionId.
+Run: `cg wf node ask $CG_GRAPH_SLUG $CG_NODE_ID --type text --text "What two programming languages would you like this application written in? Please name exactly two languages." --json`
+The JSON output contains a "questionId" field. NOTE THIS VALUE — you need it in Step 4.
+Log: "Step 3: Asked question, questionId=<the ID from JSON output>"
 Then STOP and wait for the answer.
 
-Step 4: After answer arrives, retrieve it.
-Run: `cg wf node get-answer $CG_GRAPH_SLUG $CG_NODE_ID <questionId>`
+Step 4: After answer arrives, retrieve it using the questionId from Step 3.
+Run: `cg wf node get-answer $CG_GRAPH_SLUG $CG_NODE_ID <questionId from step 3> --json`
 Log: "Step 4: Got answer: <answer>"
 
 Step 5: Save the first language.
