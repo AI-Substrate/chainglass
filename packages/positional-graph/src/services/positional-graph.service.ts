@@ -1300,6 +1300,7 @@ export class PositionalGraphService implements IPositionalGraphService {
     result: import('../features/040-graph-inspect/index.js').InspectResult
   ): Promise<import('../features/040-graph-inspect/index.js').InspectResult> {
     const { isFileOutput } = await import('../features/040-graph-inspect/inspect.types.js');
+    const enrichmentErrors: Array<{ code: string; message: string }> = [];
     const enrichedNodes = await Promise.all(
       result.nodes.map(async (node) => {
         // Enrich file metadata for file outputs
@@ -1310,34 +1311,60 @@ export class PositionalGraphService implements IPositionalGraphService {
         for (const [name, value] of Object.entries(node.outputs)) {
           if (isFileOutput(value)) {
             const nodeDir = this.getNodeDir(ctx, graphSlug, node.nodeId);
-            const filePath = this.pathResolver.join(nodeDir, value as string);
+            const outputsDir = this.pathResolver.join(nodeDir, 'data', 'outputs');
+            const relPath = (value as string).slice('data/outputs/'.length);
+            let filePath: string;
+            try {
+              filePath = this.pathResolver.resolvePath(outputsDir, relPath);
+            } catch {
+              // Path traversal attempt — skip this output
+              enrichmentErrors.push({
+                code: 'PATH_TRAVERSAL',
+                message: `${node.nodeId}/${name}: blocked path "${value as string}"`,
+              });
+              continue;
+            }
             try {
               const content = await this.fs.readFile(filePath);
-              const filename = (value as string).split('/').pop() ?? '';
+              const filename = relPath.split('/').pop() ?? '';
               const sizeBytes = Buffer.byteLength(content, 'utf8');
               const isBinary = hasBinaryContent(content.slice(0, 512));
               const extract = isBinary ? undefined : content.split('\n').slice(0, 2).join('\n');
               fileMetadata[name] = { filename, sizeBytes, isBinary, extract };
-            } catch {
-              // File not readable — skip metadata
+            } catch (err) {
+              enrichmentErrors.push({
+                code: 'FILE_READ_FAILED',
+                message: `${node.nodeId}/${name}: ${err instanceof Error ? err.message : String(err)}`,
+              });
             }
           }
         }
 
-        // Enrich waitForPrevious from node config (private access)
+        // Enrich waitForPrevious from node config (private access) — Fix #2: non-fatal
         let orchestratorSettings = node.orchestratorSettings;
-        const configResult = await this.loadNodeConfig(ctx, graphSlug, node.nodeId);
-        if (configResult.ok && configResult.config.orchestratorSettings) {
-          orchestratorSettings = {
-            ...orchestratorSettings,
-            waitForPrevious: configResult.config.orchestratorSettings.waitForPrevious,
-          };
+        try {
+          const configResult = await this.loadNodeConfig(ctx, graphSlug, node.nodeId);
+          if (configResult.ok && configResult.config.orchestratorSettings) {
+            orchestratorSettings = {
+              ...orchestratorSettings,
+              waitForPrevious: configResult.config.orchestratorSettings.waitForPrevious,
+            };
+          }
+        } catch {
+          enrichmentErrors.push({
+            code: 'CONFIG_READ_FAILED',
+            message: `${node.nodeId}: loadNodeConfig failed, using defaults`,
+          });
         }
 
         return { ...node, fileMetadata, orchestratorSettings };
       })
     );
-    return { ...result, nodes: enrichedNodes };
+    return {
+      ...result,
+      nodes: enrichedNodes,
+      errors: [...result.errors, ...enrichmentErrors],
+    };
   }
 
   // ============================================

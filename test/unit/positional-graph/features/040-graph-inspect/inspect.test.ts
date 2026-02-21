@@ -37,7 +37,10 @@ function createCtx(): WorkspaceContext {
   };
 }
 
-function createService(fs: FakeFileSystem): IPositionalGraphService {
+function createService(fs: FakeFileSystem): {
+  service: IPositionalGraphService;
+  adapter: PositionalGraphAdapter;
+} {
   const pathResolver = new FakePathResolver();
   const yamlParser = new YamlParserAdapter();
   const adapter = new PositionalGraphAdapter(fs, pathResolver);
@@ -47,7 +50,8 @@ function createService(fs: FakeFileSystem): IPositionalGraphService {
       createWorkUnit({ slug: 'worker', inputs: [{ name: 'data' }] }),
     ],
   });
-  return new PositionalGraphService(fs, pathResolver, yamlParser, adapter, loader);
+  const service = new PositionalGraphService(fs, pathResolver, yamlParser, adapter, loader);
+  return { service, adapter };
 }
 
 async function buildSimpleGraph(
@@ -89,11 +93,14 @@ async function acceptNode(
 describe('inspectGraph', () => {
   let fs: FakeFileSystem;
   let service: IPositionalGraphService;
+  let adapter: PositionalGraphAdapter;
   let ctx: WorkspaceContext;
 
   beforeEach(() => {
     fs = new FakeFileSystem();
-    service = createService(fs);
+    const created = createService(fs);
+    service = created.service;
+    adapter = created.adapter;
     ctx = createCtx();
   });
 
@@ -466,8 +473,8 @@ describe('inspectGraph', () => {
       const { nodeAId } = await buildSimpleGraph(service, ctx, SLUG);
 
       await acceptNode(service, ctx, SLUG, nodeAId);
-      // Write an actual file to the node's data/outputs directory using FakeFileSystem helper
-      const graphDir = `/workspace/.chainglass/data/workflows/${SLUG}`;
+      // Write an actual file using adapter-derived path (Fix #6: no hardcoded paths)
+      const graphDir = adapter.getGraphDir(ctx, SLUG);
       const outputDir = `${graphDir}/nodes/${nodeAId}/data/outputs`;
       fs.setFile(`${outputDir}/report.md`, '# Report\nThis is a test report\nLine 3');
       await service.saveOutputData(ctx, SLUG, nodeAId, 'report', 'data/outputs/report.md');
@@ -499,6 +506,44 @@ describe('inspectGraph', () => {
       >;
 
       expect(nodeA.fileMetadata).not.toHaveProperty('result');
+    });
+
+    it('blocks path traversal in output values', async () => {
+      const { nodeAId } = await buildSimpleGraph(service, ctx, SLUG);
+
+      await acceptNode(service, ctx, SLUG, nodeAId);
+      // Simulate a malicious output path
+      await service.saveOutputData(ctx, SLUG, nodeAId, 'evil', 'data/outputs/../../secret.txt');
+      await service.endNode(ctx, SLUG, nodeAId, 'done');
+
+      const result = await service.inspectGraph(ctx, SLUG);
+      const nodeA = result.nodes.find((n) => n.nodeId === nodeAId) as NonNullable<
+        (typeof result.nodes)[0]
+      >;
+
+      // Traversal attempt must not produce fileMetadata
+      expect(nodeA.fileMetadata).not.toHaveProperty('evil');
+      // Should surface as an enrichment error
+      const traversalError = result.errors.find((e) => e.code === 'PATH_TRAVERSAL');
+      expect(traversalError).toBeDefined();
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════
+  // Fix #5: OrchestratorSettings enrichment coverage
+  // ═══════════════════════════════════════════════════════
+
+  describe('orchestratorSettings enrichment', () => {
+    it('enriches waitForPrevious from node config', async () => {
+      const { nodeAId } = await buildSimpleGraph(service, ctx, SLUG);
+
+      const result = await service.inspectGraph(ctx, SLUG);
+      const nodeA = result.nodes.find((n) => n.nodeId === nodeAId) as NonNullable<
+        (typeof result.nodes)[0]
+      >;
+
+      // Default serial node has waitForPrevious=true from node config
+      expect(nodeA.orchestratorSettings.waitForPrevious).toBe(true);
     });
   });
 });
