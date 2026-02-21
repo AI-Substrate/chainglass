@@ -1,0 +1,13 @@
+slug: human-input
+type: user-input
+version: 1.0.0
+description: User provides application requirements for the pipeline
+inputs: []
+outputs:
+  - name: requirements
+    type: data
+    data_type: text
+    required: true
+user_input:
+  question_type: text
+  prompt: "Describe the application you want built"

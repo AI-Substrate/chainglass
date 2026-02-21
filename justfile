@@ -63,3 +63,6 @@ graph-gallery:
 # Run drive() demo — creates a graph, drives it to completion with real scripts
 drive-demo:
     npx tsx scripts/drive-demo.ts
+
+test-advanced-pipeline *args:
+    npx tsx scripts/test-advanced-pipeline.ts {{args}}

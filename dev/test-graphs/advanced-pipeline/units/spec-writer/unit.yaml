@@ -1,0 +1,24 @@
+slug: spec-writer
+type: agent
+version: 1.0.0
+description: Reads requirements, asks about languages via Q&A, writes spec
+agent:
+  prompt_template: prompts/main.md
+inputs:
+  - name: requirements
+    type: data
+    data_type: text
+    required: true
+outputs:
+  - name: spec
+    type: data
+    data_type: text
+    required: true
+  - name: language_1
+    type: data
+    data_type: text
+    required: true
+  - name: language_2
+    type: data
+    data_type: text
+    required: true
