@@ -31,6 +31,34 @@ export interface InspectNodeError {
   readonly occurredAt: string;
 }
 
+export interface InspectNodeEventStamp {
+  readonly stampedAt: string;
+  readonly action: string;
+}
+
+export interface InspectNodeEvent {
+  readonly eventId: string;
+  readonly type: string;
+  readonly actor: string;
+  readonly timestamp: string;
+  readonly status: string;
+  readonly stamps: Record<string, InspectNodeEventStamp>;
+}
+
+export interface InspectOrchestratorSettings {
+  readonly execution: string;
+  readonly waitForPrevious?: boolean;
+  readonly noContext?: boolean;
+  readonly contextFrom?: string;
+}
+
+export interface InspectFileMetadata {
+  readonly filename: string;
+  readonly sizeBytes: number;
+  readonly isBinary: boolean;
+  readonly extract?: string;
+}
+
 export interface InspectNodeResult {
   readonly nodeId: string;
   readonly unitSlug: string;
@@ -46,6 +74,9 @@ export interface InspectNodeResult {
   readonly outputs: Record<string, unknown>;
   readonly outputCount: number;
   readonly eventCount: number;
+  readonly events: InspectNodeEvent[];
+  readonly orchestratorSettings: InspectOrchestratorSettings;
+  readonly fileMetadata: Record<string, InspectFileMetadata>;
   readonly questions: InspectNodeQuestion[];
   readonly error?: InspectNodeError;
 }

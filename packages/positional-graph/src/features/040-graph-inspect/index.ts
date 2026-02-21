@@ -9,6 +9,10 @@ export type {
   InspectNodeInput,
   InspectNodeQuestion,
   InspectNodeError,
+  InspectNodeEvent,
+  InspectNodeEventStamp,
+  InspectOrchestratorSettings,
+  InspectFileMetadata,
 } from './inspect.types.js';
 
 export { isFileOutput } from './inspect.types.js';

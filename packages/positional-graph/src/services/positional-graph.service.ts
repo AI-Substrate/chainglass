@@ -1289,7 +1289,55 @@ export class PositionalGraphService implements IPositionalGraphService {
     ctx: WorkspaceContext,
     graphSlug: string
   ): Promise<import('../features/040-graph-inspect/index.js').InspectResult> {
-    return buildInspectResult(this, ctx, graphSlug);
+    const result = await buildInspectResult(this, ctx, graphSlug);
+    return this.enrichInspectResult(ctx, graphSlug, result);
+  }
+
+  /** Enrich InspectResult with file metadata and waitForPrevious (requires private service access). */
+  private async enrichInspectResult(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    result: import('../features/040-graph-inspect/index.js').InspectResult
+  ): Promise<import('../features/040-graph-inspect/index.js').InspectResult> {
+    const { isFileOutput } = await import('../features/040-graph-inspect/inspect.types.js');
+    const enrichedNodes = await Promise.all(
+      result.nodes.map(async (node) => {
+        // Enrich file metadata for file outputs
+        const fileMetadata: Record<
+          string,
+          import('../features/040-graph-inspect/index.js').InspectFileMetadata
+        > = {};
+        for (const [name, value] of Object.entries(node.outputs)) {
+          if (isFileOutput(value)) {
+            const nodeDir = this.getNodeDir(ctx, graphSlug, node.nodeId);
+            const filePath = this.pathResolver.join(nodeDir, value as string);
+            try {
+              const content = await this.fs.readFile(filePath);
+              const filename = (value as string).split('/').pop() ?? '';
+              const sizeBytes = Buffer.byteLength(content, 'utf8');
+              const isBinary = hasBinaryContent(content.slice(0, 512));
+              const extract = isBinary ? undefined : content.split('\n').slice(0, 2).join('\n');
+              fileMetadata[name] = { filename, sizeBytes, isBinary, extract };
+            } catch {
+              // File not readable — skip metadata
+            }
+          }
+        }
+
+        // Enrich waitForPrevious from node config (private access)
+        let orchestratorSettings = node.orchestratorSettings;
+        const configResult = await this.loadNodeConfig(ctx, graphSlug, node.nodeId);
+        if (configResult.ok && configResult.config.orchestratorSettings) {
+          orchestratorSettings = {
+            ...orchestratorSettings,
+            waitForPrevious: configResult.config.orchestratorSettings.waitForPrevious,
+          };
+        }
+
+        return { ...node, fileMetadata, orchestratorSettings };
+      })
+    );
+    return { ...result, nodes: enrichedNodes };
   }
 
   // ============================================
@@ -2582,4 +2630,13 @@ export class PositionalGraphService implements IPositionalGraphService {
   async persistGraphState(ctx: WorkspaceContext, graphSlug: string, state: State): Promise<void> {
     return this.persistState(ctx, graphSlug, state);
   }
+}
+
+/** Detect binary content by checking for control characters (avoids regex control char lint). */
+function hasBinaryContent(sample: string): boolean {
+  for (let i = 0; i < sample.length; i++) {
+    const code = sample.charCodeAt(i);
+    if ((code >= 0 && code <= 8) || (code >= 14 && code <= 31)) return true;
+  }
+  return false;
 }

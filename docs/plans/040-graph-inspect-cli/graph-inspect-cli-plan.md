@@ -378,3 +378,13 @@ This plan must be complete before creating tasks. After writing this plan:
 
 [^1]: [To be added during implementation via plan-6a]
 [^2]: [To be added during implementation via plan-6a]
+
+---
+
+## Subtasks Registry
+
+Mid-implementation detours requiring structured tracking.
+
+| ID | Created | Phase | Parent Task | Reason | Status | Dossier |
+|----|---------|-------|-------------|--------|--------|---------|
+| 001-subtask-enrich-inspectresult-data-model | 2026-02-21 | Phase 1 | T008 | Phase 2 formatters blocked: InspectResult missing events array, file metadata, orchestratorSettings (DYK #1-3, #5) | [x] Complete | [dossier](./tasks/phase-1-inspectgraph-service-method-unit-tests/001-subtask-enrich-inspectresult-data-model.md) |

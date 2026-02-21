@@ -142,6 +142,15 @@ flowchart LR
 - [ ] T006: Write unit tests — file output detection (CS-2)
 - [ ] T007: Add inspectGraph() to IPositionalGraphService (CS-1)
 - [ ] T008: Implement inspectGraph() in service (CS-3)
+  - [ ] **Subtask 001**: Enrich InspectResult data model (events, file metadata, orchestratorSettings)
+    - [ ] ST001: Add InspectNodeEvent + InspectFileMetadata types (CS-2)
+    - [ ] ST002: Tests for events array (CS-2)
+    - [ ] ST003: Tests for orchestratorSettings (CS-1)
+    - [ ] ST004: Tests for file metadata (CS-2)
+    - [ ] ST005: Implement population in buildInspectResult (CS-3)
+    - [ ] ST006: Verify backward compat (CS-1)
+    - [ ] ST007: Export new types (CS-1)
+    - [ ] ST008: just fft (CS-1)
 - [ ] T009: Full quality gate — just fft (CS-1)
 
 ---

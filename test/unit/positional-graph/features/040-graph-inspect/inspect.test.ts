@@ -352,4 +352,153 @@ describe('inspectGraph', () => {
       expect(result.errors[0].code).toBe('E999');
     });
   });
+
+  // ═══════════════════════════════════════════════════════
+  // ST002: Events array population
+  // AC-4: --node event log with timestamps
+  // ═══════════════════════════════════════════════════════
+
+  describe('events array (ST002)', () => {
+    /**
+     * Test Doc
+     * - **Why**: Phase 2 formatInspectNode() needs full event objects for numbered event log display.
+     * - **Contract**: events[] contains mapped objects with type, actor, timestamp, stamps from nodeState.events.
+     * - **AC**: AC-4 (event log with timestamps)
+     */
+    it('populates events with type, actor, timestamp from state', async () => {
+      const { nodeAId } = await buildSimpleGraph(service, ctx, SLUG);
+
+      await acceptNode(service, ctx, SLUG, nodeAId);
+      await service.saveOutputData(ctx, SLUG, nodeAId, 'result', 'x');
+      await service.endNode(ctx, SLUG, nodeAId, 'done');
+
+      const result = await service.inspectGraph(ctx, SLUG);
+      const nodeA = result.nodes.find((n) => n.nodeId === nodeAId) as NonNullable<
+        (typeof result.nodes)[0]
+      >;
+
+      expect(nodeA.events.length).toBeGreaterThanOrEqual(2);
+      const firstEvent = nodeA.events[0];
+      expect(firstEvent.type).toBeDefined();
+      expect(firstEvent.actor).toBeDefined();
+      expect(firstEvent.timestamp).toBeDefined();
+      expect(firstEvent.eventId).toBeDefined();
+    });
+
+    it('events.length matches eventCount', async () => {
+      const { nodeAId } = await buildSimpleGraph(service, ctx, SLUG);
+
+      await acceptNode(service, ctx, SLUG, nodeAId);
+      await service.saveOutputData(ctx, SLUG, nodeAId, 'result', 'x');
+      await service.endNode(ctx, SLUG, nodeAId, 'done');
+
+      const result = await service.inspectGraph(ctx, SLUG);
+      const nodeA = result.nodes.find((n) => n.nodeId === nodeAId) as NonNullable<
+        (typeof result.nodes)[0]
+      >;
+
+      expect(nodeA.events.length).toBe(nodeA.eventCount);
+    });
+
+    it('returns empty array when no events', async () => {
+      await buildSimpleGraph(service, ctx, SLUG);
+
+      const result = await service.inspectGraph(ctx, SLUG);
+      // Pending nodes that were never started have no events
+      const pendingNode = result.nodes.find((n) => n.status === 'pending' || n.status === 'ready');
+      if (pendingNode) {
+        expect(pendingNode.events).toEqual([]);
+        expect(pendingNode.eventCount).toBe(0);
+      }
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════
+  // ST003: OrchestratorSettings population
+  // AC-6: --compact context notes
+  // ═══════════════════════════════════════════════════════
+
+  describe('orchestratorSettings (ST003)', () => {
+    /**
+     * Test Doc
+     * - **Why**: Phase 2 formatters need execution mode + context inheritance for Context line.
+     * - **Contract**: orchestratorSettings populated from NodeStatusResult fields.
+     * - **AC**: AC-6 (compact context notes)
+     */
+    it('includes execution mode from nodeStatus', async () => {
+      const { nodeAId } = await buildSimpleGraph(service, ctx, SLUG);
+
+      const result = await service.inspectGraph(ctx, SLUG);
+      const nodeA = result.nodes.find((n) => n.nodeId === nodeAId) as NonNullable<
+        (typeof result.nodes)[0]
+      >;
+
+      expect(nodeA.orchestratorSettings).toBeDefined();
+      expect(nodeA.orchestratorSettings.execution).toBe('serial');
+    });
+
+    it('defaults noContext to false and contextFrom to undefined', async () => {
+      const { nodeAId } = await buildSimpleGraph(service, ctx, SLUG);
+
+      const result = await service.inspectGraph(ctx, SLUG);
+      const nodeA = result.nodes.find((n) => n.nodeId === nodeAId) as NonNullable<
+        (typeof result.nodes)[0]
+      >;
+
+      expect(nodeA.orchestratorSettings.noContext).toBeFalsy();
+      expect(nodeA.orchestratorSettings.contextFrom).toBeUndefined();
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════
+  // ST004: File metadata population
+  // AC-3: File outputs with → arrow, filename, size, extract
+  // ═══════════════════════════════════════════════════════
+
+  describe('file metadata (ST004)', () => {
+    /**
+     * Test Doc
+     * - **Why**: Phase 2 formatters need filename, size, extract for → display.
+     * - **Contract**: fileMetadata populated for data/outputs/* values; absent for regular values.
+     * - **AC**: AC-3 (file outputs with arrow, size, extract)
+     */
+    it('populates fileMetadata for data/outputs/ values', async () => {
+      const { nodeAId } = await buildSimpleGraph(service, ctx, SLUG);
+
+      await acceptNode(service, ctx, SLUG, nodeAId);
+      // Write an actual file to the node's data/outputs directory using FakeFileSystem helper
+      const graphDir = `/workspace/.chainglass/data/workflows/${SLUG}`;
+      const outputDir = `${graphDir}/nodes/${nodeAId}/data/outputs`;
+      fs.setFile(`${outputDir}/report.md`, '# Report\nThis is a test report\nLine 3');
+      await service.saveOutputData(ctx, SLUG, nodeAId, 'report', 'data/outputs/report.md');
+      await service.saveOutputData(ctx, SLUG, nodeAId, 'result', 'hello');
+      await service.endNode(ctx, SLUG, nodeAId, 'done');
+
+      const result = await service.inspectGraph(ctx, SLUG);
+      const nodeA = result.nodes.find((n) => n.nodeId === nodeAId) as NonNullable<
+        (typeof result.nodes)[0]
+      >;
+
+      expect(nodeA.fileMetadata).toHaveProperty('report');
+      expect(nodeA.fileMetadata.report.filename).toBe('report.md');
+      expect(nodeA.fileMetadata.report.sizeBytes).toBeGreaterThan(0);
+      expect(nodeA.fileMetadata.report.isBinary).toBe(false);
+      expect(nodeA.fileMetadata.report.extract).toContain('# Report');
+    });
+
+    it('does not create fileMetadata for regular string outputs', async () => {
+      const { nodeAId } = await buildSimpleGraph(service, ctx, SLUG);
+
+      await acceptNode(service, ctx, SLUG, nodeAId);
+      await service.saveOutputData(ctx, SLUG, nodeAId, 'result', 'just a string');
+      await service.endNode(ctx, SLUG, nodeAId, 'done');
+
+      const result = await service.inspectGraph(ctx, SLUG);
+      const nodeA = result.nodes.find((n) => n.nodeId === nodeAId) as NonNullable<
+        (typeof result.nodes)[0]
+      >;
+
+      expect(nodeA.fileMetadata).not.toHaveProperty('result');
+    });
+  });
 });

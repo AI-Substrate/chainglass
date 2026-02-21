@@ -9,7 +9,12 @@
 
 import type { WorkspaceContext } from '@chainglass/workflow';
 import type { IPositionalGraphService } from '../../interfaces/index.js';
-import type { InspectNodeResult, InspectResult } from './inspect.types.js';
+import type {
+  InspectNodeEvent,
+  InspectNodeResult,
+  InspectOrchestratorSettings,
+  InspectResult,
+} from './inspect.types.js';
 
 export async function buildInspectResult(
   service: IPositionalGraphService,
@@ -44,9 +49,30 @@ export async function buildInspectResult(
         outputErrors.push({ code: 'OUTPUT_READ_FAILED', message: msg });
       }
 
-      // Gather events from state
+      // Gather events from state — map full event objects for formatter display
       const nodeState = state.nodes?.[nodeStatus.nodeId];
-      const eventCount = nodeState?.events?.length ?? 0;
+      const rawEvents = nodeState?.events ?? [];
+      const eventCount = rawEvents.length;
+      const events: InspectNodeEvent[] = rawEvents.map((e) => ({
+        eventId: e.event_id,
+        type: e.event_type,
+        actor: e.source as string,
+        timestamp: e.created_at,
+        status: e.status,
+        stamps: Object.fromEntries(
+          Object.entries(e.stamps ?? {}).map(([k, v]) => [
+            k,
+            { stampedAt: v.stamped_at, action: v.action },
+          ])
+        ),
+      }));
+
+      // Build orchestratorSettings from NodeStatusResult fields
+      const orchestratorSettings: InspectOrchestratorSettings = {
+        execution: nodeStatus.execution,
+        ...(nodeStatus.noContext ? { noContext: true } : {}),
+        ...(nodeStatus.contextFrom ? { contextFrom: nodeStatus.contextFrom } : {}),
+      };
 
       // Gather questions
       const questions = (state.questions ?? [])
@@ -115,6 +141,9 @@ export async function buildInspectResult(
         outputs,
         outputCount,
         eventCount,
+        events,
+        orchestratorSettings,
+        fileMetadata: {},
         questions,
         error,
       });
