@@ -147,7 +147,7 @@ describe('ODS Agent Wiring', () => {
         nodes: [{ nodeId: 'n2', unitSlug: 'spec-reviewer', unitType: 'agent', status: 'ready' }],
       });
       contextService.setContextSource('n2', { source: 'inherit', fromNodeId: 'n1' });
-      // No session seeded for n1
+      // No session seeded for n1 — ODS retries up to 5s before falling back
 
       const result = await ods.execute(
         {
@@ -164,7 +164,7 @@ describe('ODS Agent Wiring', () => {
       const agents = agentManager.getCreatedAgents();
       expect(agents).toHaveLength(1);
       expect(agents[0].sessionId).toBeNull();
-    });
+    }, 10_000);
   });
 
   // ═══════════════════════════════════════════════════════
