@@ -61,6 +61,9 @@ if (process.argv.includes('--help')) {
   process.exit(0);
 }
 
+// ─── Model ──────────────────────────────────────────────────────────
+const MODEL = process.env.CG_MODEL ?? 'gpt-5-mini';
+
 // ─── Colours ────────────────────────────────────────────────────────
 const DIM = '\x1b[2m';
 const RESET = '\x1b[0m';
@@ -105,7 +108,7 @@ class VerboseCopilotAdapter implements IAgentAdapter {
 
     const session = options.sessionId
       ? await this.client.resumeSession(options.sessionId)
-      : await this.client.createSession({ streaming: true });
+      : await this.client.createSession({ model: MODEL, streaming: true });
 
     console.log(`${this.tag()} ${CYAN}Session: ${session.sessionId}${RESET}${options.sessionId ? ' (resumed)' : ' (new)'}`);
 
@@ -384,6 +387,7 @@ async function main() {
   console.log('  Chainglass Advanced Pipeline E2E');
   console.log('  Real agents • Q&A • Parallel fan-out • Context inheritance');
   console.log(`  Mode: ${INTERACTIVE ? 'INTERACTIVE (you answer questions)' : 'SCRIPTED (auto-answers)'}`);
+  console.log(`  Model: ${MODEL}`);
   console.log('══════════════════════════════════════════════════════════════');
   console.log('');
 

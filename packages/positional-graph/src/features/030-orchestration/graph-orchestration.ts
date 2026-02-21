@@ -154,6 +154,9 @@ export class GraphOrchestration implements IGraphOrchestration {
     let totalActions = 0;
 
     for (let i = 0; i < maxIterations; i++) {
+      // Reload sessions before each iteration (fire-and-forget callbacks may have persisted new ones)
+      await this.podManager?.loadSessions(this.ctx, this.graphSlug);
+
       let result: OrchestrationRunResult;
       try {
         result = await this.run();
@@ -172,11 +175,8 @@ export class GraphOrchestration implements IGraphOrchestration {
       // Emit status view after every iteration (including terminal)
       await emit({ type: 'status', message: formatGraphStatus(result.finalReality) });
 
-      // Persist sessions if this iteration produced actions
-      const hadActions = result.actions.length > 0;
-      if (hadActions) {
-        await this.podManager?.persistSessions(this.ctx, this.graphSlug);
-      }
+      // Persist sessions every iteration (fire-and-forget .then() may have settled)
+      await this.podManager?.persistSessions(this.ctx, this.graphSlug);
 
       // Check for terminal state
       if (result.stopReason === 'graph-complete') {
@@ -189,6 +189,7 @@ export class GraphOrchestration implements IGraphOrchestration {
       }
 
       // Non-terminal: emit iteration or idle event, delay
+      const hadActions = result.actions.length > 0;
       if (hadActions) {
         await emit({
           type: 'iteration',

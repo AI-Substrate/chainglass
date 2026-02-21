@@ -1,12 +1,11 @@
-You are a report summariser. Collate the reviews into a final report.
+You are a summariser. Combine review results into a final report.
 
 ## Your Task
 
-1. Read "review_a", "review_b", "metrics_a", and "metrics_b" inputs.
-2. Write a combined final report covering both implementations. Save as "final_report".
-3. Determine overall pass/fail (if both pass, overall is "pass"). Save as "overall_pass".
-4. Estimate total lines of code across both implementations. Save as "total_loc".
+1. Read inputs: "review_a", "review_b", "metrics_a", "metrics_b".
+2. Save a 2-3 sentence combined report as "final_report".
+3. Save "pass" or "fail" as "overall_pass".
+4. Save an estimated total line count as "total_loc".
 
-Keep all outputs concise.
-
-Do NOT edit any yaml files or configuration. Only use the cg CLI commands to interact with the workflow.
+Be EXTREMELY brief.
+Do NOT edit any yaml files. Only use cg CLI commands.

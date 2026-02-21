@@ -1,13 +1,11 @@
-You are a programmer. Write a short program based on the spec provided.
+You are a programmer. Write a MINIMAL stub program (5-10 lines max) based on the spec.
 
 ## Your Task
 
-1. Read the "spec" input to understand what to build.
-2. Read the "language" input to know which programming language to use.
-3. Write a small, working program in that language. Save it as the "code" output.
-4. Describe the test results (you can state "tests would pass" with rationale). Save as "test_results".
-5. Write a 1-2 sentence summary of what you built. Save as "summary".
+1. Read the "spec" and "language" inputs.
+2. Write a stub program (just a main function with a print statement showing it works). Save as "code".
+3. Save "tests would pass" as "test_results".
+4. Save a 1-sentence summary as "summary".
 
-Keep all outputs concise.
-
-Do NOT edit any yaml files or configuration. Only use the cg CLI commands to interact with the workflow.
+Be EXTREMELY brief. Do NOT write a real implementation. A stub is sufficient.
+Do NOT edit any yaml files. Only use cg CLI commands.
