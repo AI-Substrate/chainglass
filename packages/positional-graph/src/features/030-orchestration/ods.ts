@@ -111,29 +111,40 @@ export class ODS implements IODS {
       };
     }
 
-    // 2. Create pod (agent nodes go through manager, code nodes use runner directly)
-    let podParams: Awaited<ReturnType<typeof this.buildPodParams>>;
-    try {
-      podParams = await this.buildPodParams(node, ctx, reality);
-    } catch (err) {
-      return {
-        ok: false,
-        error: {
-          code: 'POD_CREATION_FAILED',
-          message: err instanceof Error ? err.message : String(err),
-          nodeId,
-        },
-        request,
-      };
+    // 2. Reuse existing pod on restart, or create new one for first dispatch
+    let pod = this.deps.podManager.getPod(nodeId);
+    if (!pod) {
+      let podParams: Awaited<ReturnType<typeof this.buildPodParams>>;
+      try {
+        podParams = await this.buildPodParams(node, ctx, reality);
+      } catch (err) {
+        return {
+          ok: false,
+          error: {
+            code: 'POD_CREATION_FAILED',
+            message: err instanceof Error ? err.message : String(err),
+            nodeId,
+          },
+          request,
+        };
+      }
+      pod = this.deps.podManager.createPod(nodeId, podParams);
     }
-    const pod = this.deps.podManager.createPod(nodeId, podParams);
 
     // 3. Fire and forget — DO NOT await
-    pod.execute({
-      inputs: request.inputs,
-      ctx: { worktreePath: ctx.worktreePath },
-      graphSlug: request.graphSlug,
-    });
+    // Persist session ID to PodManager after completion (for session inheritance)
+    pod
+      .execute({
+        inputs: request.inputs,
+        ctx: { worktreePath: ctx.worktreePath },
+        graphSlug: request.graphSlug,
+      })
+      .then(() => {
+        const sid = pod.sessionId;
+        if (sid) {
+          this.deps.podManager.setSessionId(nodeId, sid);
+        }
+      });
 
     return { ok: true, request, newStatus: 'starting', sessionId: pod.sessionId };
   }

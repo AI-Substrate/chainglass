@@ -400,15 +400,19 @@ async function main() {
 
       // ── Wire real orchestration stack ──────────────────────────────
       const client = new CopilotClient({ cwd: tgc.workspacePath });
-      let nodeCounter = 0;
+      const adapterCache = new Map<string, VerboseCopilotAdapter>();
+      let adapterIndex = 0;
       const nodeLabels = ['spec-writer', 'programmer-a', 'programmer-b', 'reviewer', 'summariser'];
 
       const agentManager = new AgentManagerService(
         () => {
-          const label = nodeLabels[nodeCounter] ?? `node-${nodeCounter}`;
-          const colour = COLOURS[nodeCounter % COLOURS.length];
-          nodeCounter++;
-          return new VerboseCopilotAdapter(client, label, colour, t0) as unknown as InstanceType<typeof SdkCopilotAdapter>;
+          // AgentManagerService.getWithSessionId() reuses instances from session index,
+          // so this factory is only called for genuinely new dispatches.
+          const label = nodeLabels[adapterIndex] ?? `node-${adapterIndex}`;
+          const colour = COLOURS[adapterIndex % COLOURS.length];
+          adapterIndex++;
+          const adapter = new VerboseCopilotAdapter(client, label, colour, t0);
+          return adapter as unknown as InstanceType<typeof SdkCopilotAdapter>;
         },
       ) as unknown as IAgentManagerService;
 
@@ -441,7 +445,7 @@ async function main() {
 
       const handle = await orchestrationService.get(tgc.ctx, SLUG);
       const result = await handle.drive({
-        maxIterations: 100,
+        maxIterations: 200,
         actionDelayMs: 1000,
         idleDelayMs: 3000,
         onEvent: async (event: DriveEvent) => {
@@ -476,6 +480,10 @@ async function main() {
       });
 
       // ── §6: Result + Assertions ───────────────────────────────────
+      // Allow fire-and-forget session persistence to settle, then reload
+      await new Promise((r) => setTimeout(r, 1000));
+      await podManager.loadSessions(tgc.ctx, SLUG);
+
       console.log('');
       console.log('');
       console.log(`${BOLD}═══ RESULT ═══${RESET}`);
