@@ -23,7 +23,17 @@ history contains your prior work. Check it to understand where you left off.
 
 ## What To Do Now
 
-### 1. Check for answers to questions you asked
+### 1. Re-accept your assignment
+
+After resuming, you MUST re-accept your assignment before saving outputs:
+
+```
+cg wf node accept {{graphSlug}} {{nodeId}}
+```
+
+This is required even though you accepted before — the orchestrator resets the handshake on resume.
+
+### 2. Check for answers to questions you asked
 
 If you asked a question before pausing, check for the answer:
 
@@ -34,12 +44,12 @@ cg wf node get-answer {{graphSlug}} {{nodeId}} <questionId>
 The questionId was returned when you asked the question. If you don't
 remember it, check your conversation history for the `ask` command output.
 
-### 2. Continue your work
+### 3. Continue your work
 
 Based on any new information (answers, resolved errors), continue from
 where you left off. Do NOT repeat work you already completed.
 
-### 3. Save outputs and complete
+### 4. Save outputs and complete
 
 When done, save any remaining outputs and complete:
 
