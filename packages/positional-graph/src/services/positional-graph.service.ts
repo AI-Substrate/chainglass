@@ -30,6 +30,7 @@ import {
   registerCoreEventTypes,
 } from '../features/032-node-event-system/index.js';
 import type { EventSource, INodeEventService } from '../features/032-node-event-system/index.js';
+import { buildInspectResult } from '../features/040-graph-inspect/index.js';
 import type {
   AddLineOptions,
   AddLineResult,
@@ -1277,6 +1278,18 @@ export class PositionalGraphService implements IPositionalGraphService {
       blockedNodes,
       completedNodeIds,
     };
+  }
+
+  // ============================================
+  // ============================================
+  // Inspect (Plan 040)
+  // ============================================
+
+  async inspectGraph(
+    ctx: WorkspaceContext,
+    graphSlug: string
+  ): Promise<import('../features/040-graph-inspect/index.js').InspectResult> {
+    return buildInspectResult(this, ctx, graphSlug);
   }
 
   // ============================================

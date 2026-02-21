@@ -1,6 +1,7 @@
 import type { BaseResult, ResultError } from '@chainglass/shared';
 import type { WorkspaceContext } from '@chainglass/workflow';
 import type { EventSource, NodeEvent } from '../features/032-node-event-system/index.js';
+import type { InspectResult } from '../features/040-graph-inspect/index.js';
 import type {
   Execution,
   GraphOrchestratorSettings,
@@ -607,6 +608,9 @@ export interface IPositionalGraphService {
     lineId: string
   ): Promise<LineStatusResult>;
   getStatus(ctx: WorkspaceContext, graphSlug: string): Promise<GraphStatusResult>;
+
+  // Inspect (Plan 040)
+  inspectGraph(ctx: WorkspaceContext, graphSlug: string): Promise<InspectResult>;
 
   // Transition control (Phase 5)
   triggerTransition(ctx: WorkspaceContext, graphSlug: string, lineId: string): Promise<BaseResult>;
