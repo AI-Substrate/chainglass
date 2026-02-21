@@ -62,7 +62,7 @@ if (process.argv.includes('--help')) {
 }
 
 // ─── Model ──────────────────────────────────────────────────────────
-const MODEL = process.env.CG_MODEL ?? 'gpt-5-mini';
+const MODEL = process.env.CG_MODEL ?? 'claude-sonnet-4.6';
 
 // ─── Colours ────────────────────────────────────────────────────────
 const DIM = '\x1b[2m';
