@@ -99,9 +99,11 @@ describe('inspectGraph', () => {
 
   // ═══════════════════════════════════════════════════════
   // T003: Complete graph with outputs
+  // AC-1, AC-7: Graph topology + per-node sections + JSON schema
   // ═══════════════════════════════════════════════════════
 
   describe('complete graph (T003)', () => {
+    /** Test Doc: Why — validates complete graph returns all nodes with correct status, outputs, inputs, timing. */
     it('returns all nodes with status complete', async () => {
       const { nodeAId, nodeBId } = await buildSimpleGraph(service, ctx, SLUG);
 
@@ -193,9 +195,11 @@ describe('inspectGraph', () => {
 
   // ═══════════════════════════════════════════════════════
   // T004: In-progress graph
+  // AC-8: Running nodes with elapsed, pending with wait reason
   // ═══════════════════════════════════════════════════════
 
   describe('in-progress graph (T004)', () => {
+    /** Test Doc: Why — validates in-progress states: running node has startedAt but no completedAt, pending nodes detected. */
     it('returns running node with startedAt, no completedAt', async () => {
       const { nodeAId } = await buildSimpleGraph(service, ctx, SLUG);
 
@@ -225,9 +229,11 @@ describe('inspectGraph', () => {
 
   // ═══════════════════════════════════════════════════════
   // T005: Error states
+  // AC-9: Failed nodes show error code and message
   // ═══════════════════════════════════════════════════════
 
   describe('error states (T005)', () => {
+    /** Test Doc: Why — validates blocked-error nodes surface error detail in InspectNodeResult. */
     it('returns blocked-error node with error detail', async () => {
       const { nodeAId } = await buildSimpleGraph(service, ctx, SLUG);
 
@@ -278,9 +284,11 @@ describe('inspectGraph', () => {
 
   // ═══════════════════════════════════════════════════════
   // T006: File output detection
+  // AC-3: File outputs distinguished from data values
   // ═══════════════════════════════════════════════════════
 
   describe('file output detection (T006)', () => {
+    /** Test Doc: Why — validates file output paths (data/outputs/*) preserved in outputs map. */
     it('preserves file output paths in outputs map', async () => {
       const { nodeAId } = await buildSimpleGraph(service, ctx, SLUG);
 
@@ -297,6 +305,51 @@ describe('inspectGraph', () => {
       expect(nodeA.outputs.report).toBe('data/outputs/report.md');
       expect(nodeA.outputs.status).toBe('pass');
       expect(nodeA.outputCount).toBe(2);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════
+  // Additional coverage (review fix #3)
+  // ═══════════════════════════════════════════════════════
+
+  describe('event counting and questions', () => {
+    /** Test Doc: Why — validates eventCount reflects actual state events (AC-7). */
+    it('counts events per node from state', async () => {
+      const { nodeAId } = await buildSimpleGraph(service, ctx, SLUG);
+
+      await acceptNode(service, ctx, SLUG, nodeAId);
+      await service.saveOutputData(ctx, SLUG, nodeAId, 'result', 'x');
+      await service.endNode(ctx, SLUG, nodeAId, 'done');
+
+      const result = await service.inspectGraph(ctx, SLUG);
+      const nodeA = result.nodes.find((n) => n.nodeId === nodeAId) as NonNullable<
+        (typeof result.nodes)[0]
+      >;
+
+      // startNode raises node:started, accept raises node:accepted, endNode raises node:completed
+      expect(nodeA.eventCount).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  describe('errors surfaced in result', () => {
+    /** Test Doc: Why — validates that blocked-error nodes populate InspectResult.errors (review fix #5). */
+    it('populates InspectResult.errors for blocked-error nodes', async () => {
+      const { nodeAId } = await buildSimpleGraph(service, ctx, SLUG);
+
+      await acceptNode(service, ctx, SLUG, nodeAId);
+      await service.raiseNodeEvent(
+        ctx,
+        SLUG,
+        nodeAId,
+        'node:error',
+        { code: 'E999', message: 'boom', recoverable: false },
+        'agent'
+      );
+
+      const result = await service.inspectGraph(ctx, SLUG);
+
+      expect(result.errors.length).toBeGreaterThanOrEqual(1);
+      expect(result.errors[0].code).toBe('E999');
     });
   });
 });

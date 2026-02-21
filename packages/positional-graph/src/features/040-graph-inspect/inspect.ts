@@ -26,6 +26,7 @@ export async function buildInspectResult(
       // Gather outputs
       let outputs: Record<string, unknown> = {};
       let outputCount = 0;
+      const outputErrors: Array<{ code: string; message: string }> = [];
       try {
         const canEndResult = await service.canEnd(ctx, graphSlug, nodeStatus.nodeId);
         const savedNames = canEndResult.savedOutputs ?? [];
@@ -38,8 +39,9 @@ export async function buildInspectResult(
           })
         );
         outputs = Object.fromEntries(outputEntries.filter(([, v]) => v !== undefined));
-      } catch {
-        // canEnd may fail for deleted work units — graceful fallback
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        outputErrors.push({ code: 'OUTPUT_READ_FAILED', message: msg });
       }
 
       // Gather events from state
@@ -120,6 +122,11 @@ export async function buildInspectResult(
   }
 
   const failedNodes = nodes.filter((n) => n.status === 'blocked-error').length;
+  const allErrors = nodes.flatMap((n) =>
+    n.status === 'blocked-error' && n.error
+      ? [{ code: n.error.code, message: `${n.nodeId}: ${n.error.message}` }]
+      : []
+  );
 
   return {
     graphSlug,
@@ -129,6 +136,6 @@ export async function buildInspectResult(
     completedNodes: status.completedNodes,
     failedNodes,
     nodes,
-    errors: [],
+    errors: allErrors,
   };
 }
