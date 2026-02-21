@@ -31,3 +31,5 @@ IMPORTANT:
 - Do NOT edit any yaml files
 - Do NOT skip steps
 - Only use the cg CLI commands shown above
+
+NOTE: The cg wf node commands work even though --help does not list them. Trust the commands shown above. Do NOT run --help to check.

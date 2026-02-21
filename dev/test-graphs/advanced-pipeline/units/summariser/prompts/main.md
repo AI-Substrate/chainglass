@@ -10,3 +10,5 @@ Step 5: Save total_loc. Run: `cg wf node save-output-data $CG_GRAPH_SLUG $CG_NOD
 Step 6: End node. Run: `cg wf node end $CG_GRAPH_SLUG $CG_NODE_ID --message "Done"`
 
 Do NOT edit yaml files. Only use cg CLI commands.
+
+NOTE: The cg wf node commands work even though --help does not list them. Trust the commands shown above. Do NOT run --help to check.

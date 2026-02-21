@@ -40,3 +40,5 @@ IMPORTANT:
 - Do NOT skip steps
 - Only use the cg CLI commands shown above
 - Keep outputs to a single short sentence each
+
+NOTE: The cg wf node commands work even though --help does not list them. Trust the commands shown above. Do NOT run --help to check.

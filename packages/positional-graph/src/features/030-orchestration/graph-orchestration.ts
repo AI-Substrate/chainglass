@@ -154,9 +154,6 @@ export class GraphOrchestration implements IGraphOrchestration {
     let totalActions = 0;
 
     for (let i = 0; i < maxIterations; i++) {
-      // Reload sessions before each iteration (fire-and-forget callbacks may have persisted new ones)
-      await this.podManager?.loadSessions(this.ctx, this.graphSlug);
-
       let result: OrchestrationRunResult;
       try {
         result = await this.run();

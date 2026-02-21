@@ -29,21 +29,22 @@ This tells the orchestrator you are alive and ready to work.
 Get an overview of all your available inputs:
 
 ```
-cg wf node collate {{graphSlug}} {{nodeId}}
+cg wf node collate {{graphSlug}} {{nodeId}} --json
 ```
 
 Read your task-specific instructions (the work unit's prompt):
 
 ```
-cg wf node get-input-data {{graphSlug}} {{nodeId}} main-prompt
+cg wf node get-input-data {{graphSlug}} {{nodeId}} main-prompt --json
 ```
 
 Read any additional inputs by name:
 
 ```
-cg wf node get-input-data {{graphSlug}} {{nodeId}} <inputName>
+cg wf node get-input-data {{graphSlug}} {{nodeId}} <inputName> --json
 ```
 
+**Always use `--json`** — it returns structured data you can parse reliably.
 Your task instructions and any data from upstream nodes are accessed
 through these commands. Do not look for them elsewhere.
 
@@ -92,19 +93,31 @@ guess the answer. You will be resumed later with the answer available.
 
 ## Error Handling
 
-If you encounter an error **related to the workflow system** (missing inputs,
-CLI failures, unclear instructions, contradictory requirements):
+**FAIL FAST. Do not try to fix problems yourself.** If something goes wrong —
+a CLI command fails, an input is missing, a tool returns an error, your work
+hits an unexpected blocker — report it immediately and stop. The orchestrator
+will figure out what to do next.
 
 ```
-cg wf node error {{graphSlug}} {{nodeId}} --code ERROR_CODE --message "What went wrong"
+cg wf node error {{graphSlug}} {{nodeId}} --code ERROR_CODE --message "Descriptive explanation of what you tried, what failed, and any error output"
 ```
 
-**FAIL FAST on workflow errors.** Do not attempt workarounds. Do not retry.
-Do not try to fix the system. Report the error and STOP.
+Your error message is critical — it helps the orchestrator diagnose the issue.
+Include: what step you were on, the command you ran, and the error output.
 
-If the error is in your **regular work** (a test fails, code doesn't compile,
-a file is missing from the project), handle it normally as part of your task.
-Only use the error command for workflow-system problems.
+Do not attempt workarounds. Do not retry. Do not try to fix the system or
+guess at solutions. Report the error and STOP.
+
+## Important: Session Context
+
+You may have conversation history from a **previous node** in this workflow.
+This is by design — the orchestrator sometimes continues the same conversation
+across nodes so you have context from earlier work.
+
+**However, you are now operating a DIFFERENT node.** Your current assignment is
+**{{nodeId}}** (shown above). Only use `cg wf node` commands with YOUR node ID.
+Do not operate on any other node, even if you can see prior work on other nodes
+in your history.
 
 ## Rules
 
@@ -112,5 +125,5 @@ Only use the error command for workflow-system problems.
 2. **Read via CLI** — get your task and inputs through the CLI commands above
 3. **Save before ending** — all outputs must be saved before you call end
 4. **Stop after asking** — do not continue past a question
-5. **Fail fast on WF errors** — report and stop, do not guess or retry
-6. **One node only** — you are executing this node only, not the whole graph
+5. **Fail fast** — report errors and stop, do not guess, retry, or attempt fixes
+6. **One node only** — you are executing **{{nodeId}}** only, not the whole graph. Do not accept, read inputs, save outputs, or end ANY other node.

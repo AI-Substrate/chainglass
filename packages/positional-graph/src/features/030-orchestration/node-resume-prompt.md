@@ -11,6 +11,11 @@ You are resuming work on a workflow node after a pause.
 - **Graph**: {{graphSlug}}
 - **Node**: {{nodeId}}
 
+**IMPORTANT**: You are operating node **{{nodeId}}** only. Your conversation history
+may contain work from this node's prior run or from other nodes in the same session.
+Only use `cg wf node` commands with YOUR node ID ({{nodeId}}). Do not operate on
+any other node.
+
 ## What Happened
 
 You were previously working on this node and paused. Your conversation

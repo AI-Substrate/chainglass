@@ -139,10 +139,15 @@ export class ODS implements IODS {
         ctx: { worktreePath: ctx.worktreePath },
         graphSlug: request.graphSlug,
       })
-      .then(() => {
+      .then(async () => {
         const sid = pod.sessionId;
         if (sid) {
           this.deps.podManager.setSessionId(nodeId, sid);
+          // Persist immediately so next node dispatch can find this session
+          await this.deps.podManager.persistSessions(
+            { worktreePath: ctx.worktreePath },
+            request.graphSlug,
+          );
         }
       });
 
@@ -160,7 +165,14 @@ export class ODS implements IODS {
 
       let agentInstance: IAgentInstance | undefined;
       if (contextResult.source === 'inherit') {
-        const sessionId = this.deps.podManager.getSessionId(contextResult.fromNodeId);
+        // Retry loop: the source node's .then() (which captures the session ID)
+        // may not have settled yet when ONBAS dispatches this node in the same tick.
+        let sessionId: string | undefined;
+        for (let attempt = 0; attempt < 5; attempt++) {
+          sessionId = this.deps.podManager.getSessionId(contextResult.fromNodeId);
+          if (sessionId) break;
+          await new Promise(r => setTimeout(r, 200));
+        }
         if (sessionId) {
           agentInstance = this.deps.agentManager.getWithSessionId(sessionId, {
             name: node.unitSlug,

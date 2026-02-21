@@ -361,14 +361,15 @@ describe('drive() session persistence', () => {
     expect(deps.podManager.persistSessionsCalls).toBe(2);
   });
 
-  it('does not call persistSessions after no-action iterations', async () => {
+  it('calls persistSessions every iteration including no-action', async () => {
     const deps = makeDeps();
     deps.onbas.setActions([noAction('all-waiting'), noAction('graph-complete')]);
     const handle = makeDriveHandle(deps);
 
     await handle.drive(FAST_OPTS);
 
-    expect(deps.podManager.persistSessionsCalls).toBe(0);
+    // Persist every iteration so fire-and-forget .then() settlements are captured
+    expect(deps.podManager.persistSessionsCalls).toBe(2);
   });
 
   it('works without podManager (optional chaining)', async () => {
