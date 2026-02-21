@@ -52,6 +52,12 @@ export function getContextSource(
 
   // R2: contextFrom override (runtime guard for safety — readiness gate is belt-and-suspenders)
   if (node.contextFrom) {
+    if (node.contextFrom === nodeId) {
+      return {
+        source: 'new',
+        reason: `contextFrom '${node.contextFrom}' cannot reference self — runtime guard`,
+      };
+    }
     const targetNode = view.getNode(node.contextFrom);
     if (!targetNode || targetNode.unitType !== 'agent') {
       return {

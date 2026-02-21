@@ -214,6 +214,15 @@ describe('getContextSource — Global Session + Left Neighbor', () => {
       const result = getContextSource(reality, 'R');
       expect(result.source).toBe('new');
     });
+
+    it('returns new when contextFrom references self (cycle guard)', () => {
+      const reality = makeRealityFromLines([
+        [makeNode({ nodeId: 'A', execution: 'serial', contextFrom: 'A' })],
+      ]);
+      const result = getContextSource(reality, 'A');
+      expect(result.source).toBe('new');
+      expect(result.reason).toContain('cannot reference self');
+    });
   });
 
   // ── R3: Global agent → new ─────────────────

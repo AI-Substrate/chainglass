@@ -481,6 +481,7 @@ describe('contextFrom readiness gate', () => {
 | Principle Violated | Why Needed | Simpler Alternative Rejected | Risk Mitigation |
 |-------------------|------------|------------------------------|-----------------|
 | PlanPak R-ARCH-002 (feature folders) | All production changes are edits to existing `030-orchestration` files — no new feature folder warranted | Creating `039-advanced-e2e-pipeline` feature folder with re-exports | Changes are small edits, not new modules; feature folder would add indirection for no benefit |
+| Integration tests always run | 3 integration tests (orchestration-drive, node-event-system-e2e, orchestration-e2e) were timing out at 210s in normal test runs | Running unconditionally | Added `RUN_INTEGRATION=1` env var gate; run explicitly via `RUN_INTEGRATION=1 pnpm test -- --run orchestration-drive` |
 
 ---
 
