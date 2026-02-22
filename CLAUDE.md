@@ -15,6 +15,7 @@
 - Keep commit messages and PR descriptions factual and concise
 - **MANDATORY: Run `just fft` before every commit** — this runs lint, format, and tests. Do not commit if it fails. If lint fails due to unrelated issues (e.g., broken symlinks from other plans), you may proceed after verifying tests pass with `pnpm test`.
 - **NEVER use `git stash`, `git stash pop`, `git checkout -- .`, `git reset`, or any command that discards/undoes work** unless the user gives express permission. If you need a clean state, ask first.
+- **XDG_CONFIG_HOME override**: This agent is launched with `XDG_CONFIG_HOME=~/.copilot-alt`, which means `gh` CLI commands inherit the wrong config and show "not logged in". For any `gh` or `git push` commands that need GitHub auth, prefix with `XDG_CONFIG_HOME=~/.config` to use the real credentials at `~/.config/gh/hosts.yml`.
 
 ## Communication Style
 
