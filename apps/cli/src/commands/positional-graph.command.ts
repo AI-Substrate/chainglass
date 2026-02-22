@@ -1161,6 +1161,15 @@ async function handleWfInspect(slug: string, options: InspectOptions): Promise<v
   if (options.json) {
     console.log(adapter.format('wf.inspect', result));
   } else if (options.node) {
+    const nodeExists = result.nodes.some((n) => n.nodeId === options.node);
+    if (!nodeExists) {
+      console.log(
+        adapter.format('wf.inspect', {
+          errors: [{ code: 'E040', message: `Node not found: ${options.node}` }],
+        })
+      );
+      process.exit(1);
+    }
     console.log(formatInspectNode(result, options.node));
   } else if (options.outputs) {
     console.log(formatInspectOutputs(result));
@@ -1168,6 +1177,10 @@ async function handleWfInspect(slug: string, options: InspectOptions): Promise<v
     console.log(formatInspectCompact(result));
   } else {
     console.log(formatInspect(result));
+  }
+
+  if (result.errors.length > 0 && !options.json) {
+    process.exit(1);
   }
 }
 

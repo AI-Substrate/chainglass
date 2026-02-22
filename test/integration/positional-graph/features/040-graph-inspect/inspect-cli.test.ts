@@ -38,10 +38,16 @@ async function buildFixtureGraph(
   await service.saveOutputData(ctx, slug, nodeAId, 'instructions', 'do the thing');
   await service.endNode(ctx, slug, nodeAId, 'done');
 
-  // Complete nodeB
+  // Complete nodeB with a long output value for truncation testing
   await service.startNode(ctx, slug, nodeBId);
   await service.raiseNodeEvent(ctx, slug, nodeBId, 'node:accepted', {}, 'agent');
-  await service.saveOutputData(ctx, slug, nodeBId, 'result', 'task completed successfully');
+  await service.saveOutputData(
+    ctx,
+    slug,
+    nodeBId,
+    'result',
+    'This is a very long result string that exceeds forty characters for truncation testing purposes'
+  );
   await service.endNode(ctx, slug, nodeBId, 'done');
 
   return { nodeAId, nodeBId };
@@ -198,6 +204,28 @@ describe('cg wf inspect --outputs (T007)', () => {
       expect(capturedOutput).toContain('result');
     });
   });
+
+  it('truncates output values at 40 chars', async () => {
+    await withTestGraph('simple-serial', async (tgc) => {
+      await buildFixtureGraph(tgc.service, tgc.ctx, 'test-inspect');
+
+      const program = createProgram({ testMode: true });
+      await program.parseAsync([
+        'node',
+        'cg',
+        'wf',
+        'inspect',
+        'test-inspect',
+        '--outputs',
+        '--workspace-path',
+        tgc.workspacePath,
+      ]);
+
+      // The long result value (93 chars) should be truncated at 40
+      expect(capturedOutput).toContain('…');
+      expect(capturedOutput).toContain('chars)');
+    });
+  });
 });
 
 // ═══════════════════════════════════════════════════════
@@ -226,6 +254,74 @@ describe('cg wf inspect --compact (T008)', () => {
       // Both nodes should appear
       expect(capturedOutput).toContain(nodeAId);
       expect(capturedOutput).toContain(nodeBId);
+    });
+  });
+});
+
+// ═══════════════════════════════════════════════════════
+// Fix #6: Stronger JSON content assertions
+// ═══════════════════════════════════════════════════════
+
+describe('cg wf inspect --json content (fix #6)', () => {
+  it('JSON contains node output values', async () => {
+    await withTestGraph('simple-serial', async (tgc) => {
+      await buildFixtureGraph(tgc.service, tgc.ctx, 'test-inspect');
+
+      const program = createProgram({ testMode: true });
+      await program.parseAsync([
+        'node',
+        'cg',
+        'wf',
+        '--json',
+        'inspect',
+        'test-inspect',
+        '--workspace-path',
+        tgc.workspacePath,
+      ]);
+
+      const parsed = JSON.parse(capturedOutput.trim());
+      const nodeA = parsed.data.nodes.find(
+        (n: { outputs: { instructions?: string } }) => n.outputs.instructions
+      );
+      expect(nodeA).toBeDefined();
+      expect(nodeA.outputs.instructions).toBe('do the thing');
+    });
+  });
+});
+
+// ═══════════════════════════════════════════════════════
+// Fix #7: Negative-path tests
+// ═══════════════════════════════════════════════════════
+
+describe('cg wf inspect — negative paths (fix #7)', () => {
+  it('exits with error for invalid --node target', async () => {
+    await withTestGraph('simple-serial', async (tgc) => {
+      await buildFixtureGraph(tgc.service, tgc.ctx, 'test-inspect');
+
+      const program = createProgram({ testMode: true });
+      const mockExit = vi.spyOn(process, 'exit').mockImplementation(() => {
+        throw new Error('process.exit');
+      });
+
+      try {
+        await program.parseAsync([
+          'node',
+          'cg',
+          'wf',
+          'inspect',
+          'test-inspect',
+          '--node',
+          'nonexistent-node',
+          '--workspace-path',
+          tgc.workspacePath,
+        ]);
+      } catch {
+        // Expected — process.exit throws
+      }
+
+      expect(mockExit).toHaveBeenCalledWith(1);
+      expect(capturedOutput).toContain('E040');
+      mockExit.mockRestore();
     });
   });
 });
