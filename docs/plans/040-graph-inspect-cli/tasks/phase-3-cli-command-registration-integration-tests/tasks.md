@@ -159,9 +159,9 @@ flowchart TD
 
 | Task | Component | Files | Status | Comment |
 |------|-----------|-------|--------|---------|
-| T001 | Fix | inspect.format.ts, inspect-format.test.ts | ⬜ Pending | Compact header bug |
-| T002 | Test | inspect-cli.test.ts | ⬜ Pending | RED: default mode integration |
-| T003 | Core | positional-graph.command.ts | ⬜ Pending | handleWfInspect handler |
+| T001 | Fix | inspect.format.ts, inspect-format.test.ts | ✅ Complete | Compact header bug — done in ae7770d |
+| T002 | Test | inspect-cli.test.ts | ⬜ Pending | RED: default mode via withTestGraph + createProgram |
+| T003 | Core | positional-graph.command.ts, cli/package.json | ⬜ Pending | handleWfInspect handler + dep |
 | T004 | Core | positional-graph.command.ts | ⬜ Pending | Commander registration |
 | T005 | Test | inspect-cli.test.ts | ⬜ Pending | RED→GREEN: --json mode |
 | T006 | Test | inspect-cli.test.ts | ⬜ Pending | RED→GREEN: --node mode |
@@ -175,14 +175,14 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|------|------|----|------|-------------|-------------------|------------|----------|-------|
-| [ ] | T001 | Fix `formatInspectCompact` header bug: `totalNodes/totalNodes` → `completedNodes/totalNodes`. Add regression test. | 1 | Fix | – | `/home/jak/substrate/033-real-agent-pods/packages/positional-graph/src/features/040-graph-inspect/inspect.format.ts` `/home/jak/substrate/033-real-agent-pods/test/unit/positional-graph/features/040-graph-inspect/inspect-format.test.ts` | Compact header shows `2/4` for 2 complete out of 4 total. Test asserts correct ratio. | – | Phase 2 debt |
-| [ ] | T002 | Write integration test: `handleWfInspect()` default mode on fixture graph | 2 | Test | T001 | `/home/jak/substrate/033-real-agent-pods/test/unit/positional-graph/features/040-graph-inspect/inspect-cli.test.ts` | Test RED. Creates graph via service, calls handler, verifies output contains graph header + per-node sections. | – | plan-scoped |
-| [ ] | T003 | Implement `handleWfInspect()` CLI handler | 2 | Core | T002 | `/home/jak/substrate/033-real-agent-pods/apps/cli/src/commands/positional-graph.command.ts` | Handler follows wrapAction pattern: resolve context → `service.inspectGraph()` → dispatch to formatter based on flags → `console.log()`. Default/node/outputs/compact use formatters; --json uses adapter.format(). | – | cross-plan-edit, per ADR-0006 |
+| [x] | T001 | Fix `formatInspectCompact` header bug: `totalNodes/totalNodes` → `completedNodes/totalNodes`. Add regression test. | 1 | Fix | – | `/home/jak/substrate/033-real-agent-pods/packages/positional-graph/src/features/040-graph-inspect/inspect.format.ts` `/home/jak/substrate/033-real-agent-pods/test/unit/positional-graph/features/040-graph-inspect/inspect-format.test.ts` | Compact header shows `2/4` for 2 complete out of 4 total. Test asserts correct ratio. | – | Phase 2 debt — DONE in review fix ae7770d |
+| [ ] | T002 | Write integration test: `cg wf inspect` default mode via `withTestGraph` + `createProgram().parseAsync()` | 3 | Test | T001 | `/home/jak/substrate/033-real-agent-pods/test/integration/positional-graph/features/040-graph-inspect/inspect-cli.test.ts` | Test RED. Uses `withTestGraph('simple-serial')` for real workspace, builds graph via service, runs full CLI program, captures console.log, verifies output contains graph header + per-node sections. | – | plan-scoped, DYK3 |
+| [ ] | T003 | Add `@chainglass/positional-graph` dependency to CLI + implement `handleWfInspect()` handler | 2 | Core | T002 | `/home/jak/substrate/033-real-agent-pods/apps/cli/package.json` `/home/jak/substrate/033-real-agent-pods/apps/cli/src/commands/positional-graph.command.ts` | Handler follows wrapAction pattern: resolve context → `service.inspectGraph()` → dispatch to formatter based on flags → `console.log()`. Default/node/outputs/compact use formatters; --json uses adapter.format(). Package dep added for formatter imports. | – | cross-plan-edit, per ADR-0006, DYK1 |
 | [ ] | T004 | Register `cg wf inspect <slug>` command with `--node`, `--outputs`, `--compact` options | 1 | Core | T003 | `/home/jak/substrate/033-real-agent-pods/apps/cli/src/commands/positional-graph.command.ts` | Command shows in `cg wf --help`. Options: `--node <nodeId>`, `--outputs`, `--compact`. JSON inherited from parent `wf` command. | – | cross-plan-edit |
-| [ ] | T005 | Write integration test: `--json` mode parseable + envelope | 2 | Test | T004 | `/home/jak/substrate/033-real-agent-pods/test/unit/positional-graph/features/040-graph-inspect/inspect-cli.test.ts` | Test verifies: output is valid JSON, has `success: true`, `command: 'wf.inspect'`, `data.nodes[]` array, output values present. | – | plan-scoped, AC-7/AC-10 |
-| [ ] | T006 | Write integration test: `--node` mode | 2 | Test | T004 | `/home/jak/substrate/033-real-agent-pods/test/unit/positional-graph/features/040-graph-inspect/inspect-cli.test.ts` | Test verifies: single node output, full untruncated values, event list present. | – | plan-scoped, AC-4 |
-| [ ] | T007 | Write integration test: `--outputs` mode | 1 | Test | T004 | `/home/jak/substrate/033-real-agent-pods/test/unit/positional-graph/features/040-graph-inspect/inspect-cli.test.ts` | Test verifies: output-only sections, grouped by nodeId, 40-char truncation. | – | plan-scoped, AC-5 |
-| [ ] | T008 | Write integration test: `--compact` mode | 1 | Test | T004 | `/home/jak/substrate/033-real-agent-pods/test/unit/positional-graph/features/040-graph-inspect/inspect-cli.test.ts` | Test verifies: one line per node, correct completion ratio in header. | – | plan-scoped, AC-6 |
+| [ ] | T005 | Write integration test: `--json` mode parseable + envelope | 2 | Test | T004 | `/home/jak/substrate/033-real-agent-pods/test/integration/positional-graph/features/040-graph-inspect/inspect-cli.test.ts` | Test verifies: output is valid JSON, has `success: true`, `command: 'wf.inspect'`, `data.nodes[]` array, output values present. | – | plan-scoped, AC-7/AC-10 |
+| [ ] | T006 | Write integration test: `--node` mode | 2 | Test | T004 | `/home/jak/substrate/033-real-agent-pods/test/integration/positional-graph/features/040-graph-inspect/inspect-cli.test.ts` | Test verifies: single node output, full untruncated values, event list present. | – | plan-scoped, AC-4 |
+| [ ] | T007 | Write integration test: `--outputs` mode | 1 | Test | T004 | `/home/jak/substrate/033-real-agent-pods/test/integration/positional-graph/features/040-graph-inspect/inspect-cli.test.ts` | Test verifies: output-only sections, grouped by nodeId, 40-char truncation. | – | plan-scoped, AC-5 |
+| [ ] | T008 | Write integration test: `--compact` mode | 1 | Test | T004 | `/home/jak/substrate/033-real-agent-pods/test/integration/positional-graph/features/040-graph-inspect/inspect-cli.test.ts` | Test verifies: one line per node, correct completion ratio in header. | – | plan-scoped, AC-6 |
 | [ ] | T009 | Compile check + full test suite | 1 | Gate | T005-T008 | — | `just fft` passes, 0 regressions | – | Safety gate |
 
 ---
@@ -194,8 +194,17 @@ flowchart TD
 | # | Finding | Impact | Addressed By |
 |---|---------|--------|-------------|
 | 02 | `createOutputAdapter(json)` wraps in CommandResponse envelope | JSON mode: `adapter.format('wf.inspect', result)` | T003, T005 |
-| 06 | `createTestServiceStack()` for real service + temp filesystem | Integration tests use real service, build graphs via API | T002, T005-T008 |
 | 10 | ConsoleOutputAdapter too basic for inspect | Human-readable modes use Phase 2 formatters directly, NOT the adapter | T003 |
+
+### DYK Findings (Pre-Phase 3)
+
+| # | Finding | Decision | Impact |
+|---|---------|----------|--------|
+| DYK1 | `apps/cli/package.json` missing `@chainglass/positional-graph` dep | Add dependency — formatters are pure functions, not DI candidates | T003 |
+| DYK2 | `handleWf*` functions are module-private, can't be imported in tests | Use `createProgram().parseAsync()` for full CLI integration tests | T002, T005-T008 |
+| DYK3 | `createTestServiceStack()` wrong for CLI integration — need real workspace | Use `withTestGraph('simple-serial')` from `dev/test-graphs/shared/graph-test-runner.ts` | T002, T005-T008 |
+| DYK4 | DI container creates fresh instance each call — tests need real `.chainglass/` on disk | `withTestGraph` handles workspace setup + cleanup automatically | T002, T005-T008 |
+| DYK5 | T001 (compact header bug) already fixed in Phase 2 review (ae7770d) | Mark T001 as done, start from T002 | T001 |
 
 ### ADR Constraints
 
@@ -228,7 +237,33 @@ async function handleWfInspect(slug: string, options: InspectOptions): Promise<v
 
 ### Test Plan (Full TDD, No Mocks)
 
-Integration tests create real graphs via `createTestServiceStack()`, call `handleWfInspect()`, capture console.log output, and assert on content.
+Integration tests use `withTestGraph('simple-serial')` (from `dev/test-graphs/shared/graph-test-runner.ts`) for real workspace setup, then `createProgram().parseAsync()` for full CLI execution. Console.log captured via spy.
+
+**Pattern:**
+```typescript
+import { withTestGraph } from '../../../../dev/test-graphs/shared/graph-test-runner.js';
+
+await withTestGraph('simple-serial', async (tgc) => {
+  // Build a graph with completed nodes
+  await tgc.service.create(tgc.ctx, 'test-inspect', { description: 'test' });
+  // ... addLine, addNode, startNode, saveOutputData, endNode ...
+
+  // Capture output
+  let output = '';
+  const origLog = console.log;
+  console.log = (msg: string) => { output += msg + '\n'; };
+
+  // Run full CLI
+  const program = createProgram({ testMode: true });
+  await program.parseAsync(['node', 'cg', 'wf', 'inspect', 'test-inspect',
+    '--workspace-path', tgc.workspacePath]);
+
+  console.log = origLog;
+
+  // Assert
+  expect(output).toContain('Graph: test-inspect');
+});
+```
 
 ```
 describe('cg wf inspect (integration)')
@@ -242,12 +277,13 @@ describe('cg wf inspect (integration)')
 
   describe('--node mode')
     it('outputs single node with full values')
-    it('outputs event log')
 
   describe('--outputs mode')
     it('outputs grouped by node')
 
   describe('--compact mode')
+    it('outputs one line per node with correct header ratio')
+```
     it('outputs one line per node with correct header ratio')
 ```
 
