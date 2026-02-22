@@ -30,13 +30,13 @@ async function cliAvailable(): Promise<boolean> {
   }
 }
 
-/** Run a CLI command and return stdout + exit code. */
+/** Run a CLI command and return stdout + exit code. Uses dist/cli.cjs directly instead of global `cg`. */
 function runCliCommand(
   args: string[],
   env: Record<string, string> = {}
 ): Promise<{ stdout: string; stderr: string; code: number }> {
   return new Promise((resolve) => {
-    const proc = spawn('cg', args, {
+    const proc = spawn('node', [CLI_PATH, ...args], {
       timeout: 10_000,
       env: { ...process.env, ...env },
     });
