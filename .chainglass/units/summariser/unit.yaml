@@ -1,0 +1,36 @@
+slug: summariser
+type: agent
+version: 1.0.0
+description: Collates reviews into a final report with overall metrics
+agent:
+  prompt_template: prompts/main.md
+inputs:
+  - name: review_a
+    type: data
+    data_type: text
+    required: true
+  - name: review_b
+    type: data
+    data_type: text
+    required: true
+  - name: metrics_a
+    type: data
+    data_type: text
+    required: true
+  - name: metrics_b
+    type: data
+    data_type: text
+    required: true
+outputs:
+  - name: final_report
+    type: data
+    data_type: text
+    required: true
+  - name: overall_pass
+    type: data
+    data_type: text
+    required: true
+  - name: total_loc
+    type: data
+    data_type: text
+    required: true

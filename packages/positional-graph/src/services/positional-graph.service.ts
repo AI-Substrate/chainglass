@@ -1341,14 +1341,42 @@ export class PositionalGraphService implements IPositionalGraphService {
         }
 
         // Enrich waitForPrevious from node config (private access) — Fix #2: non-fatal
+        // Also backfill inputs from node config when inputPack resolution failed (missing work units)
         let orchestratorSettings = node.orchestratorSettings;
+        let inputs = node.inputs;
         try {
           const configResult = await this.loadNodeConfig(ctx, graphSlug, node.nodeId);
-          if (configResult.ok && configResult.config.orchestratorSettings) {
-            orchestratorSettings = {
-              ...orchestratorSettings,
-              waitForPrevious: configResult.config.orchestratorSettings.waitForPrevious,
-            };
+          if (configResult.ok) {
+            if (configResult.config.orchestratorSettings) {
+              orchestratorSettings = {
+                ...orchestratorSettings,
+                waitForPrevious: configResult.config.orchestratorSettings.waitForPrevious,
+              };
+            }
+            // Backfill inputs from node.yaml when inputPack was empty
+            if (Object.keys(inputs).length === 0 && configResult.config.inputs) {
+              const configInputs = configResult.config.inputs as Record<
+                string,
+                { from_node: string; from_output: string }
+              >;
+              const backfilled: typeof inputs = {};
+              for (const [name, src] of Object.entries(configInputs)) {
+                if (src.from_node && src.from_output) {
+                  backfilled[name] = {
+                    fromNode: src.from_node,
+                    fromOutput: src.from_output,
+                    available: true,
+                  };
+                }
+              }
+              if (Object.keys(backfilled).length > 0) {
+                inputs = backfilled;
+                enrichmentErrors.push({
+                  code: 'INPUT_RESOLUTION_FALLBACK',
+                  message: `${node.nodeId}: inputs resolved from node.yaml (work unit not found for live resolution)`,
+                });
+              }
+            }
           }
         } catch {
           enrichmentErrors.push({
@@ -1357,7 +1385,7 @@ export class PositionalGraphService implements IPositionalGraphService {
           });
         }
 
-        return { ...node, fileMetadata, orchestratorSettings };
+        return { ...node, inputs, fileMetadata, orchestratorSettings };
       })
     );
     return {
