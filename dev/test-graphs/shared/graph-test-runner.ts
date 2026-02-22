@@ -13,6 +13,11 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
+import type {
+  IWorkUnitService,
+  WorkUnitInstance,
+  WorkUnitSummary,
+} from '@chainglass/positional-graph/features/029-agentic-work-units';
 import {
   AgentContextService,
   ODS,
@@ -30,11 +35,6 @@ import {
 } from '@chainglass/positional-graph/features/032-node-event-system';
 import type { IPositionalGraphService } from '@chainglass/positional-graph/interfaces';
 import type { State } from '@chainglass/positional-graph/schemas';
-import type {
-  IWorkUnitService,
-  WorkUnitInstance,
-  WorkUnitSummary,
-} from '@chainglass/positional-graph/features/029-agentic-work-units';
 import {
   FakeAgentManagerService,
   NodeFileSystemAdapter,
