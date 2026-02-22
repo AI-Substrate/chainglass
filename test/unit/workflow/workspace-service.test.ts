@@ -309,4 +309,140 @@ describe('WorkspaceService', () => {
       expect(result).toBeNull();
     });
   });
+
+  // ==================== T012: updatePreferences() ====================
+
+  describe('updatePreferences()', () => {
+    it('should update emoji preference for existing workspace', async () => {
+      /*
+      Test Doc:
+      - Why: Core use case — user picks an emoji for their workspace
+      - Contract: updatePreferences(slug, {emoji}) → { success: true }, preference persisted
+      - Quality Contribution: Validates the primary update flow
+      */
+      const ws = Workspace.create({
+        name: 'Test',
+        path: '/home/user/test',
+        preferences: { emoji: '', color: '', starred: false, sortOrder: 0 },
+      });
+      registryAdapter.addWorkspace(ws);
+
+      const result = await service.updatePreferences(ws.slug, { emoji: '🔮' });
+
+      expect(result.success).toBe(true);
+      expect(result.errors).toHaveLength(0);
+
+      const loaded = await registryAdapter.load(ws.slug);
+      expect(loaded.preferences.emoji).toBe('🔮');
+    });
+
+    it('should preserve existing preferences on partial update', async () => {
+      /*
+      Test Doc:
+      - Why: Partial updates must not clobber other preferences
+      - Contract: updatePreferences with only starred preserves emoji/color
+      - Quality Contribution: Prevents accidental data loss during partial update
+      */
+      const ws = Workspace.create({
+        name: 'Test',
+        path: '/home/user/test',
+        preferences: { emoji: '🦊', color: 'orange', starred: false, sortOrder: 3 },
+      });
+      registryAdapter.addWorkspace(ws);
+
+      await service.updatePreferences(ws.slug, { starred: true });
+
+      const loaded = await registryAdapter.load(ws.slug);
+      expect(loaded.preferences.emoji).toBe('🦊');
+      expect(loaded.preferences.color).toBe('orange');
+      expect(loaded.preferences.starred).toBe(true);
+      expect(loaded.preferences.sortOrder).toBe(3);
+    });
+
+    it('should reject invalid emoji not in palette', async () => {
+      /*
+      Test Doc:
+      - Why: Palette validation prevents garbage data
+      - Contract: updatePreferences with invalid emoji → { success: false }
+      - Quality Contribution: Ensures data quality
+      */
+      const ws = Workspace.create({ name: 'Test', path: '/home/user/test' });
+      registryAdapter.addWorkspace(ws);
+
+      const result = await service.updatePreferences(ws.slug, { emoji: '💩' });
+
+      expect(result.success).toBe(false);
+      expect(result.errors.length).toBeGreaterThan(0);
+    });
+
+    it('should reject invalid color not in palette', async () => {
+      /*
+      Test Doc:
+      - Why: Color validation prevents garbage data
+      - Contract: updatePreferences with invalid color → { success: false }
+      - Quality Contribution: Ensures data quality
+      */
+      const ws = Workspace.create({ name: 'Test', path: '/home/user/test' });
+      registryAdapter.addWorkspace(ws);
+
+      const result = await service.updatePreferences(ws.slug, { color: 'neon-chartreuse' });
+
+      expect(result.success).toBe(false);
+      expect(result.errors.length).toBeGreaterThan(0);
+    });
+
+    it('should allow empty string for emoji (unset)', async () => {
+      /*
+      Test Doc:
+      - Why: DYK-P1-05 — empty string means "unset", must be valid
+      - Contract: updatePreferences with emoji='' → { success: true }
+      - Quality Contribution: Prevents one-way door where emoji can never be removed
+      */
+      const ws = Workspace.create({
+        name: 'Test',
+        path: '/home/user/test',
+        preferences: { emoji: '🔮', color: 'purple', starred: false, sortOrder: 0 },
+      });
+      registryAdapter.addWorkspace(ws);
+
+      const result = await service.updatePreferences(ws.slug, { emoji: '' });
+
+      expect(result.success).toBe(true);
+      const loaded = await registryAdapter.load(ws.slug);
+      expect(loaded.preferences.emoji).toBe('');
+    });
+
+    it('should allow empty string for color (unset)', async () => {
+      /*
+      Test Doc:
+      - Why: DYK-P1-05 — empty string means "unset", must be valid
+      - Contract: updatePreferences with color='' → { success: true }
+      */
+      const ws = Workspace.create({
+        name: 'Test',
+        path: '/home/user/test',
+        preferences: { emoji: '🔮', color: 'purple', starred: false, sortOrder: 0 },
+      });
+      registryAdapter.addWorkspace(ws);
+
+      const result = await service.updatePreferences(ws.slug, { color: '' });
+
+      expect(result.success).toBe(true);
+      const loaded = await registryAdapter.load(ws.slug);
+      expect(loaded.preferences.color).toBe('');
+    });
+
+    it('should return error for non-existent workspace', async () => {
+      /*
+      Test Doc:
+      - Why: Must handle missing workspace gracefully
+      - Contract: updatePreferences(missing) → { success: false }
+      - Quality Contribution: Prevents uncaught exceptions
+      */
+      const result = await service.updatePreferences('nonexistent', { emoji: '🔮' });
+
+      expect(result.success).toBe(false);
+      expect(result.errors.length).toBeGreaterThan(0);
+    });
+  });
 });

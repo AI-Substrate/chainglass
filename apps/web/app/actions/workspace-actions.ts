@@ -321,3 +321,72 @@ export async function deleteSample(
     };
   }
 }
+
+// ==================== Update Workspace Preferences ====================
+
+const updatePreferencesSchema = z.object({
+  slug: z.string().min(1, 'Workspace slug is required'),
+  emoji: z.string().optional(),
+  color: z.string().optional(),
+  starred: z.enum(['true', 'false']).optional(),
+  sortOrder: z.string().optional(),
+});
+
+/**
+ * Update workspace preferences (emoji, color, starred, sortOrder).
+ *
+ * Per Plan 041: File Browser & Workspace-Centric UI — Phase 1.
+ */
+export async function updateWorkspacePreferences(
+  _prevState: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  // 1. Validate form data
+  const parsed = updatePreferencesSchema.safeParse({
+    slug: formData.get('slug'),
+    emoji: formData.get('emoji') ?? undefined,
+    color: formData.get('color') ?? undefined,
+    starred: formData.get('starred') ?? undefined,
+    sortOrder: formData.get('sortOrder') ?? undefined,
+  });
+
+  if (!parsed.success) {
+    const fieldErrors = parsed.error.flatten().fieldErrors;
+    return {
+      success: false,
+      errors: {
+        _form: fieldErrors.slug ?? ['Invalid input'],
+      },
+    };
+  }
+
+  // 2. Build preferences object (only include provided fields)
+  const prefs: Record<string, string | boolean | number> = {};
+  if (parsed.data.emoji !== undefined) prefs.emoji = parsed.data.emoji;
+  if (parsed.data.color !== undefined) prefs.color = parsed.data.color;
+  if (parsed.data.starred !== undefined) prefs.starred = parsed.data.starred === 'true';
+  if (parsed.data.sortOrder !== undefined)
+    prefs.sortOrder = Number.parseInt(parsed.data.sortOrder, 10);
+
+  // 3. Call service
+  const container = getContainer();
+  const workspaceService = container.resolve<IWorkspaceService>(
+    WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE
+  );
+  const result = await workspaceService.updatePreferences(parsed.data.slug, prefs);
+
+  if (!result.success) {
+    return {
+      success: false,
+      errors: {
+        _form: result.errors.map((e) => e.message),
+      },
+    };
+  }
+
+  // 4. Invalidate cache
+  revalidatePath('/');
+  revalidatePath(`/workspaces/${parsed.data.slug}`);
+
+  return { success: true, message: 'Preferences updated' };
+}

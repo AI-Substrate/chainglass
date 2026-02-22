@@ -16,6 +16,34 @@
 
 import slugify from 'slugify';
 
+// ==================== Preferences ====================
+
+/**
+ * Workspace preferences for visual identity and display.
+ * Stored in the global registry alongside workspace metadata.
+ */
+export interface WorkspacePreferences {
+  /** Workspace emoji for visual identification (empty = not yet assigned) */
+  emoji: string;
+  /** Accent color name from curated palette (empty = not yet assigned) */
+  color: string;
+  /** Whether workspace is starred/pinned to top */
+  starred: boolean;
+  /** Display order within starred/unstarred group (lower = first) */
+  sortOrder: number;
+}
+
+/**
+ * Default preferences for new or migrated workspaces.
+ * Empty emoji/color means "not yet assigned" — UI shows fallback.
+ */
+export const DEFAULT_PREFERENCES: WorkspacePreferences = {
+  emoji: '',
+  color: '',
+  starred: false,
+  sortOrder: 0,
+};
+
 /**
  * Input for creating a new workspace.
  *
@@ -43,6 +71,12 @@ export interface WorkspaceInput {
    * If not provided, defaults to current time.
    */
   readonly createdAt?: Date;
+
+  /**
+   * Optional preferences for loading existing workspaces.
+   * If not provided (or partially provided), merges with DEFAULT_PREFERENCES.
+   */
+  readonly preferences?: Partial<WorkspacePreferences>;
 }
 
 /**
@@ -64,6 +98,9 @@ export interface WorkspaceJSON {
 
   /** When the workspace was registered (ISO-8601 string) */
   createdAt: string;
+
+  /** Workspace preferences (visual identity, display) */
+  preferences: WorkspacePreferences;
 }
 
 /**
@@ -90,14 +127,24 @@ export class Workspace {
   /** When the workspace was registered */
   readonly createdAt: Date;
 
+  /** Workspace preferences (visual identity, display) */
+  readonly preferences: WorkspacePreferences;
+
   /**
    * Private constructor - use create() factory method instead.
    */
-  private constructor(slug: string, name: string, path: string, createdAt: Date) {
+  private constructor(
+    slug: string,
+    name: string,
+    path: string,
+    createdAt: Date,
+    preferences: WorkspacePreferences
+  ) {
     this.slug = slug;
     this.name = name;
     this.path = path;
     this.createdAt = createdAt;
+    this.preferences = preferences;
   }
 
   /**
@@ -122,7 +169,32 @@ export class Workspace {
     // Use provided createdAt or default to now
     const createdAt = input.createdAt ?? new Date();
 
-    return new Workspace(slug, input.name, input.path, createdAt);
+    // Merge provided preferences with defaults
+    const preferences: WorkspacePreferences = {
+      ...DEFAULT_PREFERENCES,
+      ...input.preferences,
+    };
+
+    return new Workspace(slug, input.name, input.path, createdAt, preferences);
+  }
+
+  /**
+   * Create a new Workspace with updated preferences (immutable).
+   *
+   * Returns a new Workspace instance with the merged preferences.
+   * The original workspace is not modified.
+   *
+   * @param prefs - Partial preferences to merge with existing
+   * @returns New Workspace with updated preferences
+   */
+  withPreferences(prefs: Partial<WorkspacePreferences>): Workspace {
+    return Workspace.create({
+      slug: this.slug,
+      name: this.name,
+      path: this.path,
+      createdAt: this.createdAt,
+      preferences: { ...this.preferences, ...prefs },
+    });
   }
 
   /**
@@ -169,6 +241,7 @@ export class Workspace {
       name: this.name,
       path: this.path,
       createdAt: this.createdAt.toISOString(),
+      preferences: { ...this.preferences },
     };
   }
 }

@@ -9,10 +9,222 @@
  */
 
 import { FakeFileSystem, FakePathResolver } from '@chainglass/shared';
-import { Workspace, WorkspaceRegistryAdapter } from '@chainglass/workflow';
+import { DEFAULT_PREFERENCES, Workspace, WorkspaceRegistryAdapter } from '@chainglass/workflow';
+import type { WorkspacePreferences } from '@chainglass/workflow';
 import { describe, expect, it } from 'vitest';
 
 describe('Workspace entity', () => {
+  // ==================== T002: WorkspacePreferences type + DEFAULT_PREFERENCES ====================
+
+  describe('preferences defaults (T002)', () => {
+    it('should have DEFAULT_PREFERENCES with empty emoji and color', () => {
+      /*
+      Test Doc:
+      - Why: Default preferences indicate "not yet assigned" state
+      - Contract: DEFAULT_PREFERENCES has emoji='', color='', starred=false, sortOrder=0
+      - Quality Contribution: Ensures consistent defaults across entity creation and migration
+      - Worked Example: DEFAULT_PREFERENCES → { emoji: '', color: '', starred: false, sortOrder: 0 }
+      */
+      expect(DEFAULT_PREFERENCES.emoji).toBe('');
+      expect(DEFAULT_PREFERENCES.color).toBe('');
+      expect(DEFAULT_PREFERENCES.starred).toBe(false);
+      expect(DEFAULT_PREFERENCES.sortOrder).toBe(0);
+    });
+
+    it('should create workspace with default preferences when none provided', () => {
+      /*
+      Test Doc:
+      - Why: New workspaces start with unassigned preferences
+      - Contract: Workspace.create() without preferences uses DEFAULT_PREFERENCES
+      - Quality Contribution: Prevents undefined preferences on new entities
+      - Worked Example: create({ name: 'Test', path: '/tmp' }) → preferences = DEFAULT_PREFERENCES
+      */
+      const ws = Workspace.create({ name: 'Test', path: '/tmp/test' });
+      expect(ws.preferences.emoji).toBe('');
+      expect(ws.preferences.color).toBe('');
+      expect(ws.preferences.starred).toBe(false);
+      expect(ws.preferences.sortOrder).toBe(0);
+    });
+
+    it('should create workspace with partial preferences merged with defaults', () => {
+      /*
+      Test Doc:
+      - Why: Partial preference overrides must merge with defaults
+      - Contract: Provided preferences override defaults, missing ones use defaults
+      - Quality Contribution: Enables flexible preference creation
+      - Worked Example: create({ preferences: { emoji: '🔮' } }) → color='', starred=false
+      */
+      const ws = Workspace.create({
+        name: 'Test',
+        path: '/tmp/test',
+        preferences: { emoji: '🔮', color: 'purple' },
+      });
+      expect(ws.preferences.emoji).toBe('🔮');
+      expect(ws.preferences.color).toBe('purple');
+      expect(ws.preferences.starred).toBe(false);
+      expect(ws.preferences.sortOrder).toBe(0);
+    });
+
+    it('should create workspace with full preferences', () => {
+      /*
+      Test Doc:
+      - Why: Full preference specification must be preserved exactly
+      - Contract: All provided preference fields are stored
+      - Quality Contribution: Ensures no data loss on full create
+      */
+      const ws = Workspace.create({
+        name: 'Test',
+        path: '/tmp/test',
+        preferences: { emoji: '🦊', color: 'orange', starred: true, sortOrder: 5 },
+      });
+      expect(ws.preferences.emoji).toBe('🦊');
+      expect(ws.preferences.color).toBe('orange');
+      expect(ws.preferences.starred).toBe(true);
+      expect(ws.preferences.sortOrder).toBe(5);
+    });
+  });
+
+  // ==================== T003: Workspace.withPreferences() ====================
+
+  describe('withPreferences() immutable update (T003)', () => {
+    it('should return a new Workspace instance', () => {
+      /*
+      Test Doc:
+      - Why: Entity immutability prevents accidental state corruption
+      - Contract: withPreferences() returns a different object than the original
+      - Quality Contribution: Enforces immutable entity pattern
+      */
+      const ws = Workspace.create({ name: 'Test', path: '/tmp/test' });
+      const updated = ws.withPreferences({ starred: true });
+      expect(updated).not.toBe(ws);
+    });
+
+    it('should not modify the original workspace', () => {
+      /*
+      Test Doc:
+      - Why: Original entity must remain unchanged after update
+      - Contract: Original workspace preferences unchanged after withPreferences()
+      - Quality Contribution: Prevents side effects in service layer
+      */
+      const ws = Workspace.create({
+        name: 'Test',
+        path: '/tmp/test',
+        preferences: { emoji: '🔮', color: 'purple', starred: false, sortOrder: 0 },
+      });
+      ws.withPreferences({ starred: true });
+      expect(ws.preferences.starred).toBe(false);
+    });
+
+    it('should merge partial preferences with existing', () => {
+      /*
+      Test Doc:
+      - Why: Partial updates are the primary use case (e.g., just toggling star)
+      - Contract: Only provided fields change, others preserved
+      - Quality Contribution: Enables granular preference updates
+      - Worked Example: withPreferences({ starred: true }) keeps emoji, color
+      */
+      const ws = Workspace.create({
+        name: 'Test',
+        path: '/tmp/test',
+        preferences: { emoji: '🔮', color: 'purple', starred: false, sortOrder: 3 },
+      });
+      const updated = ws.withPreferences({ starred: true });
+      expect(updated.preferences.starred).toBe(true);
+      expect(updated.preferences.emoji).toBe('🔮');
+      expect(updated.preferences.color).toBe('purple');
+      expect(updated.preferences.sortOrder).toBe(3);
+    });
+
+    it('should preserve all non-preference fields', () => {
+      /*
+      Test Doc:
+      - Why: withPreferences must not alter slug, name, path, createdAt
+      - Contract: Non-preference fields identical between original and updated
+      - Quality Contribution: Prevents data corruption during updates
+      */
+      const date = new Date('2025-06-15T10:00:00Z');
+      const ws = Workspace.create({
+        name: 'My Project',
+        path: '/home/user/project',
+        slug: 'my-project',
+        createdAt: date,
+      });
+      const updated = ws.withPreferences({ emoji: '🦋' });
+      expect(updated.slug).toBe('my-project');
+      expect(updated.name).toBe('My Project');
+      expect(updated.path).toBe('/home/user/project');
+      expect(updated.createdAt.getTime()).toBe(date.getTime());
+    });
+  });
+
+  // ==================== T004: toJSON() with preferences ====================
+
+  describe('toJSON() with preferences (T004)', () => {
+    it('should include preferences in JSON output', () => {
+      /*
+      Test Doc:
+      - Why: Preferences must be serialized for registry storage and API responses
+      - Contract: toJSON() output includes preferences object
+      - Quality Contribution: Ensures preferences persist through serialization
+      */
+      const ws = Workspace.create({
+        name: 'Test',
+        path: '/tmp/test',
+        preferences: { emoji: '🔮', color: 'purple', starred: true, sortOrder: 1 },
+      });
+      const json = ws.toJSON();
+      expect(json.preferences).toBeDefined();
+      expect(json.preferences.emoji).toBe('🔮');
+      expect(json.preferences.color).toBe('purple');
+      expect(json.preferences.starred).toBe(true);
+      expect(json.preferences.sortOrder).toBe(1);
+    });
+
+    it('should include default preferences in JSON when none set', () => {
+      /*
+      Test Doc:
+      - Why: Even unset preferences must serialize (no undefined in JSON)
+      - Contract: toJSON() includes preferences even when using defaults
+      - Quality Contribution: Prevents undefined fields in registry file
+      */
+      const ws = Workspace.create({ name: 'Test', path: '/tmp/test' });
+      const json = ws.toJSON();
+      expect(json.preferences).toBeDefined();
+      expect(json.preferences.emoji).toBe('');
+      expect(json.preferences.color).toBe('');
+      expect(json.preferences.starred).toBe(false);
+      expect(json.preferences.sortOrder).toBe(0);
+    });
+
+    it('should roundtrip preferences through JSON serialization', () => {
+      /*
+      Test Doc:
+      - Why: Registry stores and loads as JSON — roundtrip must preserve preferences
+      - Contract: create→toJSON→parse→create preserves all preferences
+      - Quality Contribution: Validates persistence roundtrip with preferences
+      - Worked Example: 🦊 orange starred → JSON → parse → same preferences
+      */
+      const original = Workspace.create({
+        name: 'Test',
+        path: '/tmp/test',
+        preferences: { emoji: '🦊', color: 'orange', starred: true, sortOrder: 42 },
+      });
+      const json = JSON.stringify(original.toJSON());
+      const parsed = JSON.parse(json);
+      const restored = Workspace.create({
+        name: parsed.name,
+        path: parsed.path,
+        slug: parsed.slug,
+        createdAt: new Date(parsed.createdAt),
+        preferences: parsed.preferences,
+      });
+      expect(restored.preferences.emoji).toBe('🦊');
+      expect(restored.preferences.color).toBe('orange');
+      expect(restored.preferences.starred).toBe(true);
+      expect(restored.preferences.sortOrder).toBe(42);
+    });
+  });
+
   describe('create() factory', () => {
     it('should generate slug from name', () => {
       /*

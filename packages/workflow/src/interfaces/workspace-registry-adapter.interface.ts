@@ -120,4 +120,17 @@ export interface IWorkspaceRegistryAdapter {
    * @returns true if workspace is registered, false otherwise
    */
   exists(slug: string): Promise<boolean>;
+
+  /**
+   * Update a workspace in the registry.
+   *
+   * Replaces the workspace entry matching the slug.
+   * Returns error result if workspace with slug not found.
+   *
+   * Per Plan 041: Used for updating workspace preferences.
+   *
+   * @param workspace - Workspace with updated data
+   * @returns WorkspaceSaveResult with ok=true on success, or error details
+   */
+  update(workspace: Workspace): Promise<WorkspaceSaveResult>;
 }

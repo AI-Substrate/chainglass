@@ -50,6 +50,7 @@ export type {
   WorkspaceListCall,
   WorkspaceRemoveCall,
   WorkspaceExistsCall,
+  WorkspaceUpdateCall,
 } from './fake-workspace-registry-adapter.js';
 
 // Workspace context resolver fake (Plan 014 Phase 2)
