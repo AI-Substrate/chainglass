@@ -355,8 +355,11 @@ export function formatInspectCompact(result: InspectResult): string {
         context = chalk.dim(`  (inherit: ${settings.contextFrom})`);
       }
 
+      // Use │ for parallel nodes, → for serial nodes on same line
+      const isParallel = node.orchestratorSettings.execution === 'parallel';
+      const connector = isParallel ? chalk.dim('│') : chalk.dim('→');
       const leader =
-        i === 0 ? `  ${lineLabel} ` : `  ${' '.repeat(visWidth(lineLabel))} ${chalk.dim('│')} `;
+        i === 0 ? `  ${lineLabel} ` : `  ${' '.repeat(visWidth(lineLabel))} ${connector} `;
       lines.push(`${leader}${glyph} ${nodeId} ${unitType} ${dur} ${outLabel}${context}`);
     }
   }
