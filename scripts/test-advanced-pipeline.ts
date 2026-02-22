@@ -634,6 +634,22 @@ async function main() {
         console.log(`${GREEN}${BOLD}══════════════════════════════════════════════════════════════${RESET}`);
         console.log(`${GREEN}${BOLD}  ✅ ALL ${passCount}/${totalAssertions} ASSERTIONS PASSED (${elapsed(t0)})${RESET}`);
         console.log(`${GREEN}${BOLD}══════════════════════════════════════════════════════════════${RESET}`);
+
+        // Copy graph to project root so user can inspect after cleanup
+        const projectRoot = process.env.CG_PROJECT_ROOT ?? process.cwd();
+        const srcGraph = `${tgc.workspacePath}/.chainglass/data/workflows/${SLUG}`;
+        const dstGraph = `${projectRoot}/.chainglass/data/workflows/${SLUG}`;
+        try {
+          const { execSync } = await import('node:child_process');
+          execSync(`mkdir -p "${dstGraph}" && cp -r "${srcGraph}/." "${dstGraph}/"`, { stdio: 'pipe' });
+          console.log('');
+          console.log(`${DIM}Graph copied to project root. Inspect with:${RESET}`);
+          console.log(`  cg wf inspect ${SLUG}`);
+          console.log(`  cg wf inspect ${SLUG} --compact`);
+          console.log(`  cg wf inspect ${SLUG} --json | jq .`);
+        } catch {
+          console.log(`${DIM}(graph copy to project root skipped)${RESET}`);
+        }
       } else {
         console.log(`${RED}${BOLD}══════════════════════════════════════════════════════════════${RESET}`);
         console.log(`${RED}${BOLD}  ❌ ${passCount}/${totalAssertions} PASSED — SOME CHECKS FAILED${RESET}`);
