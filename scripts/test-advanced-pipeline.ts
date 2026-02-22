@@ -641,7 +641,11 @@ async function main() {
         const dstGraph = `${projectRoot}/.chainglass/data/workflows/${SLUG}`;
         try {
           const { execSync } = await import('node:child_process');
+          // Copy graph data + work units so inspect can resolve inputs/outputs
+          const srcUnits = `${tgc.workspacePath}/.chainglass/units`;
+          const dstUnits = `${projectRoot}/.chainglass/units`;
           execSync(`mkdir -p "${dstGraph}" && cp -r "${srcGraph}/." "${dstGraph}/"`, { stdio: 'pipe' });
+          execSync(`mkdir -p "${dstUnits}" && cp -rn "${srcUnits}/." "${dstUnits}/" 2>/dev/null || true`, { stdio: 'pipe' });
           console.log('');
           console.log(`${DIM}Graph copied to project root. Inspect with:${RESET}`);
           console.log(`  cg wf inspect ${SLUG}`);
