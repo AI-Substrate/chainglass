@@ -130,7 +130,7 @@ export class WindowsProcessManager implements IProcessManager {
             waitForExit: () => exitPromise,
           };
 
-          this._logger.info('Process spawned (Windows)', { pid, command });
+          this._logger.debug('Process spawned (Windows)', { pid, command });
           resolve(handle);
         }
       });
@@ -148,7 +148,7 @@ export class WindowsProcessManager implements IProcessManager {
       return;
     }
 
-    this._logger.info('Terminating process with taskkill (Windows)', { pid });
+    this._logger.debug('Terminating process with taskkill (Windows)', { pid });
 
     // First attempt: try graceful termination
     // Note: On Windows, there's no direct equivalent to SIGINT for console processes
@@ -284,7 +284,7 @@ export class WindowsProcessManager implements IProcessManager {
     managed.exitResult = result;
     managed.exitResolve(result);
 
-    this._logger.info('Process exited (Windows)', { pid, exitCode: code, signal });
+    this._logger.debug('Process exited (Windows)', { pid, exitCode: code, signal });
   }
 
   private _waitForExit(managed: ManagedProcess, timeoutMs: number): Promise<boolean> {
