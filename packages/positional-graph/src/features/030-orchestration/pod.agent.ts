@@ -1,20 +1,19 @@
 /**
  * AgentPod: execution container for agent-type work units.
  *
- * Wraps IAgentAdapter.run() with prompt loading and session tracking.
- * Reads generic node-starter-prompt.md (DYK-P4#1) — does NOT call
- * unit.getPrompt(). Owns mutable sessionId (DYK-P4#2).
+ * Wraps IAgentInstance with prompt loading and lifecycle delegation.
+ * Reads node-starter-prompt.md or node-resume-prompt.md based on
+ * _hasExecuted flag (Finding 04). Template placeholders resolved
+ * before passing to agent (AC-17). No caching (Finding 03).
  *
- * @see Workshop #4 (04-work-unit-pods.md)
+ * @see Workshop #4 (04-node-starter-and-resume-prompts.md)
  */
 
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { AgentResult, IAgentAdapter } from '@chainglass/shared';
+import type { AgentResult, IAgentInstance } from '@chainglass/shared';
 import type { IWorkUnitPod, PodExecuteOptions, PodExecuteResult } from './pod.types.js';
-
-let cachedPrompt: string | undefined;
 
 function getModuleDir(): string {
   if (typeof import.meta?.dirname === 'string') {
@@ -30,40 +29,40 @@ function getModuleDir(): string {
 }
 
 function loadStarterPrompt(): string {
-  if (cachedPrompt === undefined) {
-    const promptPath = resolve(getModuleDir(), 'node-starter-prompt.md');
-    cachedPrompt = readFileSync(promptPath, 'utf-8');
-  }
-  return cachedPrompt;
+  const promptPath = resolve(getModuleDir(), 'node-starter-prompt.md');
+  return readFileSync(promptPath, 'utf-8');
+}
+
+function loadResumePrompt(): string {
+  const promptPath = resolve(getModuleDir(), 'node-resume-prompt.md');
+  return readFileSync(promptPath, 'utf-8');
 }
 
 export class AgentPod implements IWorkUnitPod {
   readonly unitType = 'agent' as const;
-  private _sessionId: string | undefined;
+  private _hasExecuted = false;
 
   constructor(
     readonly nodeId: string,
-    private readonly agentAdapter: IAgentAdapter
+    private readonly agentInstance: IAgentInstance,
+    private readonly unitSlug: string
   ) {}
 
   get sessionId(): string | undefined {
-    return this._sessionId;
+    return this.agentInstance.sessionId ?? undefined;
   }
 
   async execute(options: PodExecuteOptions): Promise<PodExecuteResult> {
-    const { contextSessionId, ctx } = options;
-
-    const prompt = loadStarterPrompt();
-    const sessionId = contextSessionId ?? this._sessionId;
+    const template = this._hasExecuted ? loadResumePrompt() : loadStarterPrompt();
+    const prompt = this.resolveTemplate(template, options);
+    this._hasExecuted = true;
 
     try {
-      const result = await this.agentAdapter.run({
+      const result = await this.agentInstance.run({
         prompt,
-        sessionId,
-        cwd: ctx.worktreePath,
+        cwd: options.ctx.worktreePath,
       });
 
-      this._sessionId = result.sessionId;
       return this.mapAgentResult(result);
     } catch (err) {
       return {
@@ -76,12 +75,13 @@ export class AgentPod implements IWorkUnitPod {
     }
   }
 
+  /** @deprecated Not implemented — Q&A handled by event system (Plan 032). */
   async resumeWithAnswer(
     questionId: string,
     answer: unknown,
     options: PodExecuteOptions
   ): Promise<PodExecuteResult> {
-    if (!this._sessionId) {
+    if (!this.agentInstance.sessionId) {
       return {
         outcome: 'error',
         error: {
@@ -95,13 +95,11 @@ export class AgentPod implements IWorkUnitPod {
     const prompt = `Answer to question ${questionId}: ${answerStr}`;
 
     try {
-      const result = await this.agentAdapter.run({
+      const result = await this.agentInstance.run({
         prompt,
-        sessionId: this._sessionId,
         cwd: options.ctx.worktreePath,
       });
 
-      this._sessionId = result.sessionId;
       return this.mapAgentResult(result);
     } catch (err) {
       return {
@@ -115,9 +113,16 @@ export class AgentPod implements IWorkUnitPod {
   }
 
   async terminate(): Promise<void> {
-    if (this._sessionId) {
-      await this.agentAdapter.terminate(this._sessionId);
+    if (this.agentInstance.sessionId) {
+      await this.agentInstance.terminate();
     }
+  }
+
+  private resolveTemplate(template: string, options: PodExecuteOptions): string {
+    return template
+      .replaceAll('{{graphSlug}}', options.graphSlug)
+      .replaceAll('{{nodeId}}', this.nodeId)
+      .replaceAll('{{unitSlug}}', this.unitSlug);
   }
 
   private mapAgentResult(result: AgentResult): PodExecuteResult {

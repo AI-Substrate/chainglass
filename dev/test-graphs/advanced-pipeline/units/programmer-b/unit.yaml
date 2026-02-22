@@ -1,0 +1,28 @@
+slug: programmer-b
+type: agent
+version: 1.0.0
+description: Writes the application in the second language
+agent:
+  prompt_template: prompts/main.md
+inputs:
+  - name: spec
+    type: data
+    data_type: text
+    required: true
+  - name: language
+    type: data
+    data_type: text
+    required: true
+outputs:
+  - name: code
+    type: data
+    data_type: text
+    required: true
+  - name: test_results
+    type: data
+    data_type: text
+    required: true
+  - name: summary
+    type: data
+    data_type: text
+    required: true

@@ -35,8 +35,16 @@ import {
   isReservedInputParam,
   workunitTypeMismatchError,
 } from '@chainglass/positional-graph';
-import { POSITIONAL_GRAPH_DI_TOKENS } from '@chainglass/shared';
+import type { IOrchestrationService } from '@chainglass/positional-graph';
+import {
+  formatInspect,
+  formatInspectCompact,
+  formatInspectNode,
+  formatInspectOutputs,
+} from '@chainglass/positional-graph';
+import { ORCHESTRATION_DI_TOKENS, POSITIONAL_GRAPH_DI_TOKENS } from '@chainglass/shared';
 import type { Command } from 'commander';
+import { cliDriveGraph } from '../features/036-cli-orchestration-driver/cli-drive-handler.js';
 import { createCliProductionContainer } from '../lib/container.js';
 import {
   createOutputAdapter,
@@ -146,6 +154,15 @@ function getPositionalGraphService(): IPositionalGraphService {
 function getWorkUnitService(): IWorkUnitService {
   const container = createCliProductionContainer();
   return container.resolve<IWorkUnitService>(POSITIONAL_GRAPH_DI_TOKENS.WORKUNIT_SERVICE);
+}
+
+/**
+ * Get the OrchestrationService from DI container.
+ * Per Plan 036 Phase 5: Used by cg wf run command.
+ */
+function getOrchestrationService(): IOrchestrationService {
+  const container = createCliProductionContainer();
+  return container.resolve<IOrchestrationService>(ORCHESTRATION_DI_TOKENS.ORCHESTRATION_SERVICE);
 }
 
 // ============================================
@@ -1118,6 +1135,55 @@ async function handleWfStatus(slug: string, options: StatusOptions): Promise<voi
   console.log(adapter.format('wf.status', { ...result, errors: [] }));
 }
 
+// ============================================
+// Inspect (Plan 040)
+// ============================================
+
+interface InspectOptions extends BaseOptions {
+  node?: string;
+  outputs?: boolean;
+  compact?: boolean;
+}
+
+async function handleWfInspect(slug: string, options: InspectOptions): Promise<void> {
+  const adapter = createOutputAdapter(options.json ?? false);
+
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = { errors: noContextError(options.workspacePath) };
+    console.log(adapter.format('wf.inspect', result));
+    process.exit(1);
+  }
+
+  const service = getPositionalGraphService();
+  const result = await service.inspectGraph(ctx, slug);
+
+  if (options.json) {
+    console.log(adapter.format('wf.inspect', result));
+  } else if (options.node) {
+    const nodeExists = result.nodes.some((n) => n.nodeId === options.node);
+    if (!nodeExists) {
+      console.log(
+        adapter.format('wf.inspect', {
+          errors: [{ code: 'E040', message: `Node not found: ${options.node}` }],
+        })
+      );
+      process.exit(1);
+    }
+    console.log(formatInspectNode(result, options.node));
+  } else if (options.outputs) {
+    console.log(formatInspectOutputs(result));
+  } else if (options.compact) {
+    console.log(formatInspectCompact(result));
+  } else {
+    console.log(formatInspect(result));
+  }
+
+  if (result.errors.length > 0 && !options.json) {
+    process.exit(1);
+  }
+}
+
 async function handleWfTrigger(slug: string, lineId: string, options: BaseOptions): Promise<void> {
   const adapter = createOutputAdapter(options.json ?? false);
 
@@ -1731,6 +1797,24 @@ export function registerPositionalGraphCommands(program: Command): void {
       })
     );
 
+  // ==================== Inspect Command (Plan 040) ====================
+
+  wf.command('inspect <slug>')
+    .description('Full graph state dump (status, timing, inputs, outputs, events)')
+    .option('--node <nodeId>', 'Single node deep dive with full values and event log')
+    .option('--outputs', 'Show output data only, grouped by node')
+    .option('--compact', 'One line per node summary')
+    .action(
+      wrapAction(async (slug: string, options: InspectOptions, cmd: Command) => {
+        const parentOpts = cmd.parent?.opts() ?? {};
+        await handleWfInspect(slug, {
+          ...options,
+          json: parentOpts.json,
+          workspacePath: parentOpts.workspacePath,
+        });
+      })
+    );
+
   wf.command('trigger <slug> <lineId>')
     .description('Trigger a manual line transition')
     .action(
@@ -1741,6 +1825,45 @@ export function registerPositionalGraphCommands(program: Command): void {
           workspacePath: parentOpts.workspacePath,
         });
       })
+    );
+
+  // ==================== Run Command (Plan 036) ====================
+
+  wf.command('run <slug>')
+    .description('Drive a graph to completion (polling loop)')
+    .option('--verbose', 'Show detailed iteration info', false)
+    .option('--max-iterations <n>', 'Maximum drive iterations', '200')
+    .action(
+      wrapAction(
+        async (
+          slug: string,
+          options: { verbose: boolean; maxIterations: string },
+          cmd: Command
+        ) => {
+          const parentOpts = cmd.parent?.opts() ?? {};
+          const ctx = await resolveOrOverrideContext(parentOpts.workspacePath);
+          if (!ctx) {
+            const adapter = createOutputAdapter(parentOpts.json ?? false);
+            console.log(
+              adapter.format('wf.run', { errors: noContextError(parentOpts.workspacePath) })
+            );
+            process.exit(1);
+          }
+
+          const orchestrationService = getOrchestrationService();
+          const handle = await orchestrationService.get(ctx, slug);
+          const maxIterations = Number.parseInt(options.maxIterations, 10);
+          if (Number.isNaN(maxIterations) || maxIterations < 1) {
+            console.error(`Invalid --max-iterations value: ${options.maxIterations}`);
+            process.exit(1);
+          }
+          const exitCode = await cliDriveGraph(handle, {
+            maxIterations,
+            verbose: options.verbose,
+          });
+          process.exit(exitCode);
+        }
+      )
     );
 
   // ==================== Line Commands ====================

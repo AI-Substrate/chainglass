@@ -80,6 +80,7 @@ function makeGraphServiceStub(
   return {
     getStatus: async () => overrides.statusResult ?? makeStatusResult(),
     loadGraphState: async () => overrides.state ?? makeState(),
+    load: async () => ({ ok: true, errors: [], definition: { orchestratorSettings: {} } }),
     persistGraphState: async (_ctx: WorkspaceContext, _slug: string, state: State) => {
       persistCalls.push(structuredClone(state));
     },

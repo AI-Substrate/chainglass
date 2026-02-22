@@ -21,12 +21,17 @@ import type { IEventHandlerService } from '../032-node-event-system/event-handle
 import type { IODS } from './ods.types.js';
 import type { IONBAS } from './onbas.types.js';
 import type {
+  DriveEvent,
+  DriveOptions,
+  DriveResult,
   IGraphOrchestration,
   OrchestrationAction,
   OrchestrationRunResult,
   OrchestrationStopReason,
 } from './orchestration-service.types.js';
+import type { IPodManager } from './pod-manager.types.js';
 import { buildPositionalGraphReality } from './reality.builder.js';
+import { formatGraphStatus } from './reality.format.js';
 import type { PositionalGraphReality } from './reality.types.js';
 
 // ── Constructor options ─────────────────────────────────
@@ -39,11 +44,18 @@ export interface GraphOrchestrationOptions {
   readonly ods: IODS;
   readonly eventHandlerService: IEventHandlerService;
   readonly maxIterations?: number;
+  /** Optional — required only if drive() is used. Throws at runtime if missing. */
+  readonly podManager?: IPodManager;
 }
 
 // ── Default max iterations ──────────────────────────────
 
 const DEFAULT_MAX_ITERATIONS = 100;
+const DEFAULT_DRIVE_MAX_ITERATIONS = 200;
+const DEFAULT_ACTION_DELAY_MS = 100;
+const DEFAULT_IDLE_DELAY_MS = 10_000;
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 // ── GraphOrchestration ──────────────────────────────────
 
@@ -55,6 +67,7 @@ export class GraphOrchestration implements IGraphOrchestration {
   private readonly ods: IODS;
   private readonly eventHandlerService: IEventHandlerService;
   private readonly maxIterations: number;
+  private readonly podManager?: IPodManager;
 
   constructor(options: GraphOrchestrationOptions) {
     this.graphSlug = options.graphSlug;
@@ -64,6 +77,7 @@ export class GraphOrchestration implements IGraphOrchestration {
     this.ods = options.ods;
     this.eventHandlerService = options.eventHandlerService;
     this.maxIterations = options.maxIterations ?? DEFAULT_MAX_ITERATIONS;
+    this.podManager = options.podManager;
   }
 
   async run(): Promise<OrchestrationRunResult> {
@@ -126,12 +140,80 @@ export class GraphOrchestration implements IGraphOrchestration {
     return this.buildReality();
   }
 
+  async drive(options?: DriveOptions): Promise<DriveResult> {
+    const maxIterations = options?.maxIterations ?? DEFAULT_DRIVE_MAX_ITERATIONS;
+    const actionDelayMs = options?.actionDelayMs ?? DEFAULT_ACTION_DELAY_MS;
+    const idleDelayMs = options?.idleDelayMs ?? DEFAULT_IDLE_DELAY_MS;
+    const emit = async (event: DriveEvent) => {
+      await options?.onEvent?.(event);
+    };
+
+    await this.podManager?.loadSessions(this.ctx, this.graphSlug);
+
+    let iterations = 0;
+    let totalActions = 0;
+
+    for (let i = 0; i < maxIterations; i++) {
+      let result: OrchestrationRunResult;
+      try {
+        result = await this.run();
+      } catch (err) {
+        await emit({
+          type: 'error',
+          message: err instanceof Error ? err.message : String(err),
+          error: err,
+        });
+        return { exitReason: 'failed', iterations, totalActions };
+      }
+
+      iterations++;
+      totalActions += result.actions.length;
+
+      // Emit status view after every iteration (including terminal)
+      await emit({ type: 'status', message: formatGraphStatus(result.finalReality) });
+
+      // Persist sessions every iteration (fire-and-forget .then() may have settled)
+      await this.podManager?.persistSessions(this.ctx, this.graphSlug);
+
+      // Check for terminal state
+      if (result.stopReason === 'graph-complete') {
+        await emit({ type: 'iteration', message: 'Graph complete', data: result });
+        return { exitReason: 'complete', iterations, totalActions };
+      }
+      if (result.stopReason === 'graph-failed') {
+        await emit({ type: 'iteration', message: 'Graph failed', data: result });
+        return { exitReason: 'failed', iterations, totalActions };
+      }
+
+      // Non-terminal: emit iteration or idle event, delay
+      const hadActions = result.actions.length > 0;
+      if (hadActions) {
+        await emit({
+          type: 'iteration',
+          message: `${result.actions.length} action(s)`,
+          data: result,
+        });
+        await sleep(actionDelayMs);
+      } else {
+        await emit({ type: 'idle', message: 'No actions — polling' });
+        await sleep(idleDelayMs);
+      }
+    }
+
+    return { exitReason: 'max-iterations', iterations, totalActions };
+  }
+
   private async buildReality(): Promise<PositionalGraphReality> {
-    const [statusResult, state] = await Promise.all([
+    const [statusResult, state, loadResult] = await Promise.all([
       this.graphService.getStatus(this.ctx, this.graphSlug),
       this.graphService.loadGraphState(this.ctx, this.graphSlug),
+      this.graphService.load(this.ctx, this.graphSlug),
     ]);
-    return buildPositionalGraphReality({ statusResult, state });
+    return buildPositionalGraphReality({
+      statusResult,
+      state,
+      settings: loadResult.definition?.orchestratorSettings,
+    });
   }
 
   private mapStopReason(reason: string | undefined): OrchestrationStopReason {

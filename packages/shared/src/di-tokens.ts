@@ -128,6 +128,8 @@ export const ORCHESTRATION_DI_TOKENS = {
   ORCHESTRATION_SERVICE: 'IOrchestrationService',
   /** IAgentAdapter — prerequisite token for ODS pod creation (agent nodes) */
   AGENT_ADAPTER: 'IAgentAdapter',
+  /** Orchestration alias — references SHARED_DI_TOKENS.AGENT_MANAGER_SERVICE. See also CLI_DI_TOKENS.AGENT_MANAGER */
+  AGENT_MANAGER: SHARED_DI_TOKENS.AGENT_MANAGER_SERVICE,
   /** IScriptRunner — prerequisite token for ODS pod creation (code nodes) */
   SCRIPT_RUNNER: 'IScriptRunner',
   /** IEventHandlerService — prerequisite token for settle step (Plan 032) */

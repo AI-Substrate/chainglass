@@ -8,6 +8,7 @@
  */
 
 import type { GraphStatusResult } from '../../interfaces/positional-graph-service.interface.js';
+import type { GraphOrchestratorSettings } from '../../schemas/orchestrator-settings.schema.js';
 import type { State } from '../../schemas/state.schema.js';
 import type {
   LineReality,
@@ -21,10 +22,11 @@ export interface BuildRealityOptions {
   state: State;
   podSessions?: Map<string, string>;
   snapshotAt?: string;
+  settings?: GraphOrchestratorSettings;
 }
 
 export function buildPositionalGraphReality(options: BuildRealityOptions): PositionalGraphReality {
-  const { statusResult, state, podSessions = new Map(), snapshotAt } = options;
+  const { statusResult, state, podSessions = new Map(), snapshotAt, settings } = options;
   const now = snapshotAt ?? new Date().toISOString();
 
   // Build lines
@@ -54,11 +56,14 @@ export function buildPositionalGraphReality(options: BuildRealityOptions): Posit
         unitType: ns.unitType,
         status: ns.status,
         execution: ns.execution,
+        noContext: ns.noContext ?? false,
+        contextFrom: ns.contextFrom,
         ready: ns.ready,
         readyDetail: {
           precedingLinesComplete: ns.readyDetail.precedingLinesComplete,
           transitionOpen: ns.readyDetail.transitionOpen,
           serialNeighborComplete: ns.readyDetail.serialNeighborComplete,
+          contextFromReady: ns.readyDetail.contextFromReady,
           inputsAvailable: ns.readyDetail.inputsAvailable,
           unitFound: ns.readyDetail.unitFound,
           reason: ns.readyDetail.reason,
@@ -107,6 +112,7 @@ export function buildPositionalGraphReality(options: BuildRealityOptions): Posit
     version: statusResult.version,
     snapshotAt: now,
     graphStatus: statusResult.status,
+    settings,
     lines,
     nodes,
     questions,

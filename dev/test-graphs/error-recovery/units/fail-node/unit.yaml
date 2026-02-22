@@ -1,0 +1,16 @@
+slug: fail-node
+type: code
+version: 1.0.0
+description: Code node that deliberately fails with an error
+inputs:
+  - name: task
+    type: data
+    data_type: text
+    required: true
+outputs:
+  - name: result
+    type: data
+    data_type: text
+    required: true
+code:
+  script: scripts/error-simulate.sh

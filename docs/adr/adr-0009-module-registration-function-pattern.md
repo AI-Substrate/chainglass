@@ -1,5 +1,5 @@
 ---
-title: "ADR-0008: Module Registration Function Pattern"
+title: "ADR-0009: Module Registration Function Pattern"
 status: "Accepted"
 date: "2026-01-28"
 authors: "Chainglass Team"
@@ -8,7 +8,7 @@ supersedes: ""
 superseded_by: ""
 ---
 
-# ADR-0008: Module Registration Function Pattern
+# ADR-0009: Module Registration Function Pattern
 
 ## Status
 

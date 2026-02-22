@@ -1,21 +1,22 @@
 /**
  * getContextSource() — Pure function determining context inheritance for agent nodes.
  *
- * 5 rules applied in order:
- * - Rule 0: Non-agent → not-applicable
- * - Rule 1: First agent on line 0 → new
- * - Rule 2: First on line N>0 → walk ALL previous lines for agent (DYK-I10) → inherit or new
- * - Rule 3: Parallel → new
- * - Rule 4: Serial not-first → walk left past non-agents (DYK-I13) → inherit or new
+ * Global Session + Left Neighbor model (6 rules, first match wins):
+ *   R0: non-agent             → not-applicable
+ *   R1: noContext              → new
+ *   R2: contextFrom set       → inherit from specified node (runtime guard)
+ *   R3: I am the global agent → new
+ *   R4: parallel AND pos > 0  → new
+ *   R5: serial left walk + global fallback → inherit
  *
- * AgentContextService is a thin wrapper for interface injection (DYK-I9).
+ * AgentContextService is a thin wrapper for interface injection.
  *
  * @packageDocumentation
  */
 
 import type { ContextSourceResult } from './agent-context.schema.js';
 import type { IAgentContextService } from './agent-context.types.js';
-import type { PositionalGraphReality } from './reality.types.js';
+import type { NodeReality, PositionalGraphReality } from './reality.types.js';
 import { PositionalGraphRealityView } from './reality.view.js';
 
 /**
@@ -33,13 +34,10 @@ export function getContextSource(
 
   // Guard: node not found
   if (!node) {
-    return {
-      source: 'not-applicable',
-      reason: `Node '${nodeId}' not found in reality`,
-    };
+    return { source: 'not-applicable', reason: `Node '${nodeId}' not found in reality` };
   }
 
-  // Rule 0: non-agent → not-applicable
+  // R0: non-agent
   if (node.unitType !== 'agent') {
     return {
       source: 'not-applicable',
@@ -47,78 +45,85 @@ export function getContextSource(
     };
   }
 
-  // noContext override: if set, return new immediately (Workshop #3 Q2)
-  // Field doesn't exist on NodeReality yet — forward-compatible guard
-  if ('noContext' in node && (node as { noContext: unknown }).noContext === true) {
-    return {
-      source: 'new',
-      reason: 'noContext flag set',
-    };
+  // R1: noContext
+  if (node.noContext === true) {
+    return { source: 'new', reason: 'Isolated — noContext flag set' };
   }
 
-  // Rule 1: first agent on line 0 → new
-  if (node.lineIndex === 0 && node.positionInLine === 0) {
-    return {
-      source: 'new',
-      reason: 'First agent on line 0 — no prior context available',
-    };
-  }
-
-  // Rule 2: first on line N>0 → walk ALL previous lines (DYK-I10)
-  if (node.positionInLine === 0 && node.lineIndex > 0) {
-    for (let i = node.lineIndex - 1; i >= 0; i--) {
-      const line = view.getLineByIndex(i);
-      if (!line) continue;
-      for (const nid of line.nodeIds) {
-        const n = view.getNode(nid);
-        if (n && n.unitType === 'agent') {
-          return {
-            source: 'inherit',
-            fromNodeId: n.nodeId,
-            reason: `First on line ${node.lineIndex} — inherits from agent '${n.nodeId}' on line ${i}`,
-          };
-        }
-      }
+  // R2: contextFrom override (runtime guard for safety — readiness gate is belt-and-suspenders)
+  if (node.contextFrom) {
+    if (node.contextFrom === nodeId) {
+      return {
+        source: 'new',
+        reason: `contextFrom '${node.contextFrom}' cannot reference self — runtime guard`,
+      };
+    }
+    const targetNode = view.getNode(node.contextFrom);
+    if (!targetNode || targetNode.unitType !== 'agent') {
+      return {
+        source: 'new',
+        reason: `contextFrom '${node.contextFrom}' invalid (not found or not agent) — runtime guard`,
+      };
     }
     return {
-      source: 'new',
-      reason: `First on line ${node.lineIndex} — no agent found on any previous line`,
+      source: 'inherit',
+      fromNodeId: node.contextFrom,
+      reason: 'Explicit contextFrom override',
     };
   }
 
-  // Rule 3: parallel → new
-  if (node.execution === 'parallel') {
-    return {
-      source: 'new',
-      reason: 'Parallel execution — starts with fresh context',
-    };
+  // R3: am I the global agent?
+  const globalAgentId = findGlobalAgent(reality);
+  if (!globalAgentId || globalAgentId === nodeId) {
+    return { source: 'new', reason: 'Global agent — no prior context' };
   }
 
-  // Rule 4: serial not-first → walk left past non-agents (DYK-I13)
+  // R4: parallel at pos > 0 → always new (independent workers)
+  if (node.execution === 'parallel' && node.positionInLine > 0) {
+    return { source: 'new', reason: 'Parallel at pos > 0 — independent worker' };
+  }
+
+  // R5: serial left walk + global fallback
   const line = view.getLineByIndex(node.lineIndex);
-  if (line) {
+  if (line && node.positionInLine > 0) {
     for (let pos = node.positionInLine - 1; pos >= 0; pos--) {
       const leftId = line.nodeIds[pos];
       const leftNode = view.getNode(leftId);
-      if (leftNode && leftNode.unitType === 'agent') {
-        return {
-          source: 'inherit',
-          fromNodeId: leftNode.nodeId,
-          reason: `Serial — inherits from agent '${leftNode.nodeId}' at position ${pos}`,
-        };
-      }
-      // Skip non-agent nodes (code, user-input) — do NOT stop at parallel agents (DYK-I13 updated)
+      if (!leftNode) continue;
+      if (leftNode.unitType !== 'agent') continue; // skip code, user-input
+      // Left-hand rule: absolute — includes parallel and noContext nodes
+      return {
+        source: 'inherit',
+        fromNodeId: leftNode.nodeId,
+        reason: `Left neighbor '${leftNode.nodeId}' at position ${pos}`,
+      };
     }
   }
 
+  // pos 0 or no agent to the left → global
   return {
-    source: 'new',
-    reason: `Serial on line ${node.lineIndex} — no agent found to the left`,
+    source: 'inherit',
+    fromNodeId: globalAgentId,
+    reason: `No left neighbor — inheriting from global agent '${globalAgentId}'`,
   };
 }
 
+// ── Helpers ──────────────────────────────────────────
+
+function findGlobalAgent(reality: PositionalGraphReality): string | undefined {
+  for (const line of reality.lines) {
+    for (const nodeId of line.nodeIds) {
+      const node = reality.nodes.get(nodeId);
+      if (node && node.unitType === 'agent' && node.noContext !== true) {
+        return node.nodeId;
+      }
+    }
+  }
+  return undefined;
+}
+
 /**
- * Thin class wrapper for interface injection (DYK-I9).
+ * Thin class wrapper for interface injection.
  * Delegates to the bare getContextSource() function.
  */
 export class AgentContextService implements IAgentContextService {

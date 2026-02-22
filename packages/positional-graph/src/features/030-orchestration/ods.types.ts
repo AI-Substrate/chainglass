@@ -9,9 +9,10 @@
  * @packageDocumentation
  */
 
-import type { IAgentAdapter } from '@chainglass/shared';
+import type { IAgentManagerService } from '@chainglass/shared';
 import type { WorkspaceContext } from '@chainglass/workflow';
 import type { IPositionalGraphService } from '../../interfaces/positional-graph-service.interface.js';
+import type { IWorkUnitService } from '../029-agentic-work-units/workunit-service.interface.js';
 import type { IAgentContextService } from './agent-context.types.js';
 import type { OrchestrationRequest } from './orchestration-request.schema.js';
 import type { OrchestrationExecuteResult } from './orchestration-request.types.js';
@@ -45,13 +46,14 @@ export interface IODS {
  * - graphService: startNode() to reserve the node (pending → starting)
  * - podManager: createPod() to create execution container
  * - contextService: getContextSource() for session inheritance
- * - agentAdapter: passed to podManager.createPod() for agent-type nodes
+ * - agentManager: creates agent instances for agent-type nodes
  * - scriptRunner: passed to podManager.createPod() for code-type nodes
  */
 export interface ODSDependencies {
   readonly graphService: IPositionalGraphService;
   readonly podManager: IPodManager;
   readonly contextService: IAgentContextService;
-  readonly agentAdapter: IAgentAdapter;
+  readonly agentManager: IAgentManagerService;
   readonly scriptRunner: IScriptRunner;
+  readonly workUnitService: IWorkUnitService;
 }

@@ -25,6 +25,10 @@ build:
 test:
     pnpm vitest run
 
+# Run E2E agent tests (requires real agent CLIs, manually unskip tests first)
+test-e2e:
+    pnpm vitest run test/e2e/agent-cli-e2e.test.ts --config vitest.e2e.config.ts
+
 # Run linter
 lint:
     pnpm biome check .
@@ -34,7 +38,7 @@ format:
     pnpm biome format --write .
 
 # Fix, format, and test (fft) - full quality check sequence
-fft: lint format build test
+fft: lint format build typecheck test
 
 # Run TypeScript type checking
 typecheck:
@@ -51,3 +55,22 @@ clean:
 reset: clean
     rm -rf node_modules packages/*/node_modules apps/*/node_modules pnpm-lock.yaml
     pnpm install
+
+# Show graph status view gallery (all visual scenarios)
+graph-gallery:
+    npx tsx scripts/graph-status-gallery.ts
+
+# Run drive() demo — creates a graph, drives it to completion with real scripts
+drive-demo:
+    npx tsx scripts/drive-demo.ts
+
+test-advanced-pipeline *args:
+    npx tsx scripts/test-advanced-pipeline.ts {{args}}
+
+# Run tests for a specific plan/feature by number (e.g., just test-feature 040)
+test-feature plan:
+    pnpm vitest run --reporter=verbose $(find test -path "*{{plan}}*" -name "*.test.ts" 2>/dev/null | tr '\n' ' ')
+
+# Watch tests for a specific plan/feature (re-runs on file change)
+test-watch plan:
+    pnpm vitest --reporter=verbose $(find test -path "*{{plan}}*" -name "*.test.ts" 2>/dev/null | tr '\n' ' ')

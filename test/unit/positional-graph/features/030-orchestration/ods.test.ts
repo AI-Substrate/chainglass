@@ -10,9 +10,10 @@ Test Doc:
 
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import type { IAgentAdapter } from '@chainglass/shared';
+import { FakeAgentManagerService } from '@chainglass/shared';
 import type { WorkspaceContext } from '@chainglass/workflow';
 
+import { FakeWorkUnitService } from '../../../../../packages/positional-graph/src/features/029-agentic-work-units/fake-workunit.service.js';
 import { FakeAgentContextService } from '../../../../../packages/positional-graph/src/features/030-orchestration/fake-agent-context.js';
 import { buildFakeReality } from '../../../../../packages/positional-graph/src/features/030-orchestration/fake-onbas.js';
 import {
@@ -63,18 +64,6 @@ function makeGraphServiceStub(
   } as unknown as IPositionalGraphService;
 }
 
-/** Stub IAgentAdapter for pod creation params. */
-const stubAdapter: IAgentAdapter = {
-  run: async () => ({
-    output: '',
-    sessionId: 's1',
-    status: 'complete',
-    exitCode: 0,
-    tokens: { input: 0, output: 0, cacheRead: 0 },
-  }),
-  terminate: async () => {},
-} as IAgentAdapter;
-
 /** Stub IScriptRunner for pod creation params. */
 const stubRunner = {
   run: async () => ({ exitCode: 0, stdout: '', stderr: '', outputs: {} }),
@@ -94,12 +83,22 @@ describe('ODS — start-node handler', () => {
   beforeEach(() => {
     podManager = new FakePodManager();
     contextService = new FakeAgentContextService();
+    const fakeWUS = new FakeWorkUnitService();
+    fakeWUS.addUnit({
+      type: 'code',
+      slug: 'unit-C',
+      version: '1.0.0',
+      code: { script: 'scripts/run.sh' },
+      scriptContent: '#!/bin/bash\necho ok',
+      outputs: [{ name: 'result', type: 'data', data_type: 'text', required: true }],
+    });
     deps = {
       graphService: makeGraphServiceStub(),
       podManager,
       contextService,
-      agentAdapter: stubAdapter,
+      agentManager: new FakeAgentManagerService(),
       scriptRunner: stubRunner,
+      workUnitService: fakeWUS,
     };
   });
 
@@ -267,7 +266,7 @@ describe('ODS — dispatch table', () => {
       graphService: makeGraphServiceStub(),
       podManager: new FakePodManager(),
       contextService: new FakeAgentContextService(),
-      agentAdapter: stubAdapter,
+      agentManager: new FakeAgentManagerService(),
       scriptRunner: stubRunner,
     };
   });
@@ -338,7 +337,7 @@ describe('ODS — input wiring (AC-14)', () => {
       graphService: makeGraphServiceStub(),
       podManager,
       contextService: new FakeAgentContextService(),
-      agentAdapter: stubAdapter,
+      agentManager: new FakeAgentManagerService(),
       scriptRunner: stubRunner,
     };
   });

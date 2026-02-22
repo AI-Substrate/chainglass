@@ -1,0 +1,1 @@
+../../039-advanced-e2e-pipeline/workshops/06-graph-inspect-cli-command.md

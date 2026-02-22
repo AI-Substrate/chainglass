@@ -8,7 +8,9 @@ export type BaseOrchestratorSettings = z.infer<typeof BaseOrchestratorSettingsSc
 
 // --- Entity-specific overrides ---
 
-export const GraphOrchestratorSettingsSchema = BaseOrchestratorSettingsSchema.extend({}).strict();
+export const GraphOrchestratorSettingsSchema = BaseOrchestratorSettingsSchema.extend({
+  agentType: z.enum(['claude-code', 'copilot']).default('copilot'),
+}).strict();
 export type GraphOrchestratorSettings = z.infer<typeof GraphOrchestratorSettingsSchema>;
 
 export const LineOrchestratorSettingsSchema = BaseOrchestratorSettingsSchema.extend({
@@ -20,5 +22,7 @@ export type LineOrchestratorSettings = z.infer<typeof LineOrchestratorSettingsSc
 export const NodeOrchestratorSettingsSchema = BaseOrchestratorSettingsSchema.extend({
   execution: ExecutionSchema.default('serial'),
   waitForPrevious: z.boolean().default(true),
+  noContext: z.boolean().default(false),
+  contextFrom: z.string().min(1).optional(),
 }).strict();
 export type NodeOrchestratorSettings = z.infer<typeof NodeOrchestratorSettingsSchema>;

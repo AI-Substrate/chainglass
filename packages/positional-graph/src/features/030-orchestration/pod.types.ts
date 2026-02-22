@@ -31,9 +31,6 @@ export interface PodExecuteOptions {
   /** Resolved inputs from collateInputs */
   readonly inputs: { readonly inputs: Record<string, unknown>; readonly ok: boolean };
 
-  /** Session ID to resume (from context inheritance) */
-  readonly contextSessionId?: string;
-
   /** Workspace context for file operations */
   readonly ctx: { readonly worktreePath: string };
 
@@ -98,9 +95,11 @@ export interface IWorkUnitPod {
   /**
    * Resume execution after a question is answered.
    *
-   * For agents: Calls IAgentAdapter.run() with answer as prompt,
-   *   using existing sessionId for context continuity.
-   * For code: Not applicable (code units don't ask questions).
+   * @deprecated Not implemented — Q&A is handled by the node event system
+   * (Plan 032: question:ask / question:answer events → node restart).
+   * This method was designed in Plan 030 Phase 4 before the event system
+   * existed. The production flow uses event-driven node restart (new pod),
+   * not session-level resume. Will be removed in a future plan.
    */
   resumeWithAnswer(
     questionId: string,

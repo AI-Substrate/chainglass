@@ -30,10 +30,10 @@ export class PodManager implements IPodManager {
     let pod: IWorkUnitPod;
     switch (params.unitType) {
       case 'agent':
-        pod = new AgentPod(nodeId, params.adapter);
+        pod = new AgentPod(nodeId, params.agentInstance, params.unitSlug);
         break;
       case 'code':
-        pod = new CodePod(nodeId, params.runner);
+        pod = new CodePod(nodeId, params.runner, params.scriptPath, params.unitSlug);
         break;
     }
 

@@ -28,6 +28,14 @@
     "./features/032-node-event-system": {
       "import": "./dist/features/032-node-event-system/index.js",
       "types": "./dist/features/032-node-event-system/index.d.ts"
+    },
+    "./features/030-orchestration": {
+      "import": "./dist/features/030-orchestration/index.js",
+      "types": "./dist/features/030-orchestration/index.d.ts"
+    },
+    "./features/029-agentic-work-units": {
+      "import": "./dist/features/029-agentic-work-units/index.js",
+      "types": "./dist/features/029-agentic-work-units/index.d.ts"
     }
   },
   "scripts": {
@@ -37,6 +45,7 @@
   "dependencies": {
     "@chainglass/shared": "workspace:*",
     "@chainglass/workflow": "workspace:*",
+    "chalk": "^5.6.2",
     "zod": "^3.24.1"
   },
   "devDependencies": {

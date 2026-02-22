@@ -7,6 +7,7 @@
  */
 
 import type { InputPack } from '../../interfaces/positional-graph-service.interface.js';
+import type { GraphOrchestratorSettings } from '../../schemas/orchestrator-settings.schema.js';
 
 // ============================================
 // ExecutionStatus
@@ -32,6 +33,7 @@ export interface ReadinessDetail {
   readonly serialNeighborComplete: boolean;
   readonly inputsAvailable: boolean;
   readonly unitFound: boolean;
+  readonly contextFromReady?: boolean;
   readonly reason?: string;
 }
 
@@ -57,6 +59,8 @@ export interface NodeReality {
   readonly unitType: 'agent' | 'code' | 'user-input';
   readonly status: ExecutionStatus;
   readonly execution: 'serial' | 'parallel';
+  readonly noContext?: boolean;
+  readonly contextFrom?: string;
   readonly ready: boolean;
   readonly readyDetail: ReadinessDetail;
   readonly inputPack: InputPack;
@@ -118,6 +122,7 @@ export interface PositionalGraphReality {
   readonly version: string;
   readonly snapshotAt: string;
   readonly graphStatus: 'pending' | 'in_progress' | 'complete' | 'failed';
+  readonly settings?: GraphOrchestratorSettings;
 
   readonly lines: readonly LineReality[];
   readonly nodes: ReadonlyMap<string, NodeReality>;

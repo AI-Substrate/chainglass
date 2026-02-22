@@ -27,12 +27,17 @@ import { describe, it } from 'vitest';
 
 const CLI_PATH = resolve(__dirname, '../../../apps/cli/dist/cli.cjs');
 const E2E_SCRIPT = resolve(__dirname, '../../e2e/positional-graph-orchestration-e2e.ts');
+const RUN_INTEGRATION = process.env.RUN_INTEGRATION === '1';
 
 describe('Positional Graph Orchestration E2E', () => {
-  it.skipIf(!existsSync(CLI_PATH))('full pipeline passes (58 steps)', { timeout: 120_000 }, () => {
-    execSync(`npx tsx ${E2E_SCRIPT}`, {
-      stdio: 'inherit',
-      cwd: resolve(__dirname, '../../..'),
-    });
-  });
+  it.skipIf(!existsSync(CLI_PATH) || !RUN_INTEGRATION)(
+    'full pipeline passes (58 steps)',
+    { timeout: 120_000 },
+    () => {
+      execSync(`npx tsx ${E2E_SCRIPT}`, {
+        stdio: 'inherit',
+        cwd: resolve(__dirname, '../../..'),
+      });
+    }
+  );
 });

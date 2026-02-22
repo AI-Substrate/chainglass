@@ -1,0 +1,13 @@
+slug: setup
+type: user-input
+version: 1.0.0
+description: User provides task for fail-node
+inputs: []
+outputs:
+  - name: task
+    type: data
+    data_type: text
+    required: true
+user_input:
+  question_type: text
+  prompt: "What task for the fail node?"

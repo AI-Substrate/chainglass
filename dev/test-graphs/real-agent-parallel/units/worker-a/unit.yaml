@@ -1,0 +1,16 @@
+slug: worker-a
+type: agent
+version: 1.0.0
+description: Parallel worker A
+agent:
+  prompt_template: prompts/main.md
+inputs:
+  - name: spec
+    type: data
+    data_type: text
+    required: true
+outputs:
+  - name: result
+    type: data
+    data_type: text
+    required: true

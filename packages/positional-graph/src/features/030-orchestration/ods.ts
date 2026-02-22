@@ -13,6 +13,8 @@
  * @packageDocumentation
  */
 
+import { join } from 'node:path';
+import type { IAgentInstance } from '@chainglass/shared';
 import type { WorkspaceContext } from '@chainglass/workflow';
 import type { IODS, ODSDependencies } from './ods.types.js';
 import type { OrchestrationRequest, StartNodeRequest } from './orchestration-request.schema.js';
@@ -34,6 +36,7 @@ export class ODS implements IODS {
       case 'no-action':
         return { ok: true, request };
 
+      // Not implemented — Q&A handled by event system (Plan 032), not ODS dispatch
       case 'resume-node':
       case 'question-pending':
         return {
@@ -108,39 +111,117 @@ export class ODS implements IODS {
       };
     }
 
-    // 2. Resolve context (agents only — code pods don't have sessions)
-    let contextSessionId: string | undefined;
-    const contextResult = this.deps.contextService.getContextSource(reality, nodeId);
-    if (contextResult.source === 'inherit') {
-      contextSessionId = this.deps.podManager.getSessionId(contextResult.fromNodeId);
+    // 2. Reuse existing pod on restart, or create new one for first dispatch
+    let pod = this.deps.podManager.getPod(nodeId);
+    if (!pod) {
+      let podParams: Awaited<ReturnType<typeof this.buildPodParams>>;
+      try {
+        podParams = await this.buildPodParams(node, ctx, reality);
+      } catch (err) {
+        return {
+          ok: false,
+          error: {
+            code: 'POD_CREATION_FAILED',
+            message: err instanceof Error ? err.message : String(err),
+            nodeId,
+          },
+          request,
+        };
+      }
+      pod = this.deps.podManager.createPod(nodeId, podParams);
     }
 
-    // 3. Create pod
-    const pod = this.deps.podManager.createPod(nodeId, this.buildPodParams(node));
-
-    // 4. Fire and forget — DO NOT await
-    pod.execute({
-      inputs: request.inputs,
-      contextSessionId,
-      ctx: { worktreePath: ctx.worktreePath },
-      graphSlug: request.graphSlug,
-    });
+    // 3. Fire and forget — DO NOT await
+    // Persist session ID to PodManager after completion (for session inheritance)
+    pod
+      .execute({
+        inputs: request.inputs,
+        ctx: { worktreePath: ctx.worktreePath },
+        graphSlug: request.graphSlug,
+      })
+      .then(async () => {
+        const sid = pod.sessionId;
+        if (sid) {
+          this.deps.podManager.setSessionId(nodeId, sid);
+          await this.deps.podManager.persistSessions(
+            { worktreePath: ctx.worktreePath },
+            request.graphSlug
+          );
+        }
+      })
+      .catch((err) => {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`[ODS] Pod execution failed for ${nodeId}: ${msg}`);
+      });
 
     return { ok: true, request, newStatus: 'starting', sessionId: pod.sessionId };
   }
 
-  private buildPodParams(node: NodeReality) {
+  private async buildPodParams(
+    node: NodeReality,
+    ctx: WorkspaceContext,
+    reality: PositionalGraphReality
+  ) {
     if (node.unitType === 'agent') {
+      const agentType = reality.settings?.agentType ?? 'copilot';
+      const contextResult = this.deps.contextService.getContextSource(reality, node.nodeId);
+
+      let agentInstance: IAgentInstance | undefined;
+      if (contextResult.source === 'inherit') {
+        // Retry loop: the source node's .then() (which captures the session ID)
+        // may not have settled yet when ONBAS dispatches this node in the same tick.
+        // Up to 5s total wait (10 × 500ms) for the promise to resolve.
+        let sessionId: string | undefined;
+        for (let attempt = 0; attempt < 10; attempt++) {
+          sessionId = this.deps.podManager.getSessionId(contextResult.fromNodeId);
+          if (sessionId) break;
+          await new Promise((r) => setTimeout(r, 500));
+        }
+        if (sessionId) {
+          agentInstance = this.deps.agentManager.getWithSessionId(sessionId, {
+            name: node.unitSlug,
+            type: agentType,
+            workspace: ctx.worktreePath,
+          });
+        }
+      }
+
+      if (!agentInstance) {
+        agentInstance = this.deps.agentManager.getNew({
+          name: node.unitSlug,
+          type: agentType,
+          workspace: ctx.worktreePath,
+        });
+      }
+
       return {
         unitType: 'agent' as const,
         unitSlug: node.unitSlug,
-        adapter: this.deps.agentAdapter,
+        agentInstance,
       };
     }
+
+    // Code type — resolve script path from work unit config
+    const loadResult = await this.deps.workUnitService.load(ctx, node.unitSlug);
+    if (loadResult.errors.length > 0 || !loadResult.unit || loadResult.unit.type !== 'code') {
+      const msg =
+        loadResult.errors[0]?.message ??
+        `Work unit '${node.unitSlug}' not found or not a code unit`;
+      throw new Error(`SCRIPT_PATH_RESOLUTION_FAILED: ${msg}`);
+    }
+    const scriptPath = join(
+      ctx.worktreePath,
+      '.chainglass',
+      'units',
+      node.unitSlug,
+      loadResult.unit.code.script
+    );
+
     return {
       unitType: 'code' as const,
       unitSlug: node.unitSlug,
       runner: this.deps.scriptRunner,
+      scriptPath,
     };
   }
 }

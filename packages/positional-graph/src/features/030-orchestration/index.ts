@@ -36,6 +36,9 @@ export type { BuildRealityOptions } from './reality.builder.js';
 // View
 export { PositionalGraphRealityView } from './reality.view.js';
 
+// Format (Plan 036 Phase 3)
+export { formatGraphStatus } from './reality.format.js';
+
 // OrchestrationRequest — Schemas + derived types (Phase 2)
 export {
   NoActionReasonSchema,
@@ -124,9 +127,10 @@ export type {
 export { AgentPod } from './pod.agent.js';
 export { CodePod } from './pod.code.js';
 
-// ScriptRunner — Interface + Fake (Phase 4)
+// ScriptRunner — Interface + Fake + Real (Phase 4 / Plan 037)
 export type { IScriptRunner, ScriptRunOptions, ScriptRunResult } from './script-runner.types.js';
 export { FakeScriptRunner } from './script-runner.types.js';
+export { ScriptRunner } from './script-runner.js';
 
 // PodManager — Interface + types (Phase 4)
 export type { IPodManager, PodCreateParams } from './pod-manager.types.js';
@@ -171,6 +175,11 @@ export type {
   IGraphOrchestration,
   IOrchestrationService,
   FakeGraphConfig,
+  DriveOptions,
+  DriveEvent,
+  DriveEventType,
+  DriveResult,
+  DriveExitReason,
 } from './orchestration-service.types.js';
 
 // OrchestrationService — Implementation (Phase 7)

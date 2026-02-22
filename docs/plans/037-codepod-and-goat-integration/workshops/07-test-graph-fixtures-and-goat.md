@@ -1,0 +1,1 @@
+../../036-cli-orchestration-driver/workshops/07-test-graph-fixtures-and-goat.md

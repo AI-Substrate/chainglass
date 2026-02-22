@@ -1,6 +1,7 @@
 import type { BaseResult, ResultError } from '@chainglass/shared';
 import type { WorkspaceContext } from '@chainglass/workflow';
 import type { EventSource, NodeEvent } from '../features/032-node-event-system/index.js';
+import type { InspectResult } from '../features/040-graph-inspect/index.js';
 import type {
   Execution,
   GraphOrchestratorSettings,
@@ -222,7 +223,7 @@ export interface InputPack {
 export interface CanRunResult {
   canRun: boolean;
   reason?: string;
-  gate?: 'preceding' | 'transition' | 'serial' | 'inputs';
+  gate?: 'preceding' | 'transition' | 'serial' | 'contextFrom' | 'inputs';
   inputPack: InputPack;
   blockingNodes?: string[];
   waitingForTransition?: boolean;
@@ -244,6 +245,8 @@ export interface NodeStatusResult {
   unitSlug: string;
   unitType: 'agent' | 'code' | 'user-input';
   execution: Execution;
+  noContext?: boolean;
+  contextFrom?: string;
   lineId: string;
   position: number;
 
@@ -256,6 +259,7 @@ export interface NodeStatusResult {
     precedingLinesComplete: boolean;
     transitionOpen: boolean;
     serialNeighborComplete: boolean;
+    contextFromReady?: boolean;
     inputsAvailable: boolean;
     unitFound: boolean;
     reason?: string;
@@ -604,6 +608,9 @@ export interface IPositionalGraphService {
     lineId: string
   ): Promise<LineStatusResult>;
   getStatus(ctx: WorkspaceContext, graphSlug: string): Promise<GraphStatusResult>;
+
+  // Inspect (Plan 040)
+  inspectGraph(ctx: WorkspaceContext, graphSlug: string): Promise<InspectResult>;
 
   // Transition control (Phase 5)
   triggerTransition(ctx: WorkspaceContext, graphSlug: string, lineId: string): Promise<BaseResult>;

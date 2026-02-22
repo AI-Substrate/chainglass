@@ -1,0 +1,14 @@
+slug: setup
+type: user-input
+version: 1.0.0
+description: User provides task instructions for the worker node
+inputs: []
+outputs:
+  - name: instructions
+    type: data
+    data_type: text
+    required: true
+    description: Task instructions for worker
+user_input:
+  question_type: text
+  prompt: "What should the worker do?"

@@ -1,5 +1,5 @@
 import {
-  type IAgentAdapter,
+  type IAgentManagerService,
   type IFileSystem,
   type IPathResolver,
   type IYamlParser,
@@ -10,6 +10,7 @@ import {
 import type { DependencyContainer } from 'tsyringe';
 import { PositionalGraphAdapter } from './adapter/positional-graph.adapter.js';
 import { WorkUnitAdapter, WorkUnitService } from './features/029-agentic-work-units/index.js';
+import type { IWorkUnitService } from './features/029-agentic-work-units/workunit-service.interface.js';
 import { AgentContextService } from './features/030-orchestration/agent-context.js';
 import { ODS } from './features/030-orchestration/ods.js';
 import { ONBAS } from './features/030-orchestration/onbas.js';
@@ -88,7 +89,7 @@ export function registerPositionalGraphServices(container: DependencyContainer):
  *
  * Prerequisite tokens (must be registered before calling):
  * - POSITIONAL_GRAPH_DI_TOKENS.POSITIONAL_GRAPH_SERVICE (IPositionalGraphService)
- * - ORCHESTRATION_DI_TOKENS.AGENT_ADAPTER (IAgentAdapter)
+ * - ORCHESTRATION_DI_TOKENS.AGENT_MANAGER (IAgentManagerService)
  * - ORCHESTRATION_DI_TOKENS.SCRIPT_RUNNER (IScriptRunner)
  * - ORCHESTRATION_DI_TOKENS.EVENT_HANDLER_SERVICE (IEventHandlerService)
  * - SHARED_DI_TOKENS.FILESYSTEM (IFileSystem)
@@ -99,19 +100,35 @@ export function registerOrchestrationServices(container: DependencyContainer): v
       const graphService = c.resolve<IPositionalGraphService>(
         POSITIONAL_GRAPH_DI_TOKENS.POSITIONAL_GRAPH_SERVICE
       );
-      const agentAdapter = c.resolve<IAgentAdapter>(ORCHESTRATION_DI_TOKENS.AGENT_ADAPTER);
+      const agentManager = c.resolve<IAgentManagerService>(ORCHESTRATION_DI_TOKENS.AGENT_MANAGER);
       const scriptRunner = c.resolve<IScriptRunner>(ORCHESTRATION_DI_TOKENS.SCRIPT_RUNNER);
       const eventHandlerService = c.resolve<IEventHandlerService>(
         ORCHESTRATION_DI_TOKENS.EVENT_HANDLER_SERVICE
       );
       const fs = c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
+      const workUnitService = c.resolve<IWorkUnitService>(
+        POSITIONAL_GRAPH_DI_TOKENS.WORKUNIT_SERVICE
+      );
 
       const onbas = new ONBAS();
       const contextService = new AgentContextService();
       const podManager = new PodManager(fs);
-      const ods = new ODS({ graphService, podManager, contextService, agentAdapter, scriptRunner });
+      const ods = new ODS({
+        graphService,
+        podManager,
+        contextService,
+        agentManager,
+        scriptRunner,
+        workUnitService,
+      });
 
-      return new OrchestrationService({ graphService, onbas, ods, eventHandlerService });
+      return new OrchestrationService({
+        graphService,
+        onbas,
+        ods,
+        eventHandlerService,
+        podManager,
+      });
     },
   });
 }

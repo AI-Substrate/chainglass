@@ -1,0 +1,16 @@
+slug: serial-a
+type: code
+version: 1.0.0
+description: First serial worker in GOAT pipeline
+inputs:
+  - name: task
+    type: data
+    data_type: text
+    required: true
+outputs:
+  - name: result
+    type: data
+    data_type: text
+    required: true
+code:
+  script: scripts/simulate.sh

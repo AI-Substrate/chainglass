@@ -133,13 +133,26 @@ export class FakePodManager implements IPodManager {
   }
 
   async loadSessions(_ctx: { readonly worktreePath: string }, _graphSlug: string): Promise<void> {
-    // No-op for fake
+    this._loadSessionsCalls++;
   }
 
   async persistSessions(
     _ctx: { readonly worktreePath: string },
     _graphSlug: string
   ): Promise<void> {
-    // No-op for fake
+    this._persistSessionsCalls++;
+  }
+
+  // ── Session call tracking (Plan 036 Phase 4) ────────────
+
+  private _loadSessionsCalls = 0;
+  private _persistSessionsCalls = 0;
+
+  get loadSessionsCalls(): number {
+    return this._loadSessionsCalls;
+  }
+
+  get persistSessionsCalls(): number {
+    return this._persistSessionsCalls;
   }
 }

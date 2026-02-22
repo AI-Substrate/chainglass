@@ -1,0 +1,16 @@
+slug: questioner
+type: code
+version: 1.0.0
+description: Node that asks a question, pauses, resumes after answer
+inputs:
+  - name: data
+    type: data
+    data_type: text
+    required: true
+outputs:
+  - name: result
+    type: data
+    data_type: text
+    required: true
+code:
+  script: scripts/question-simulate.sh

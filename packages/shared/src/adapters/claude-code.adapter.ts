@@ -382,8 +382,7 @@ export class ClaudeCodeAdapter implements IAgentAdapter {
     ];
 
     if (sessionId) {
-      // Per scripts/agents/claude-code-session-demo.ts: Claude Code requires both flags
-      args.push('--fork-session', '--resume', sessionId);
+      args.push('--resume', sessionId);
     }
 
     // Validate and sanitize prompt

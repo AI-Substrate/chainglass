@@ -1014,63 +1014,6 @@ describe('PositionalGraphRealityView', () => {
       const view = buildMultiLineView();
       expect(view.getLeftNeighbor('nonexistent')).toBeUndefined();
     });
-
-    it('getFirstAgentOnPreviousLine returns first agent on line above', () => {
-      const view = buildMultiLineView();
-      // node-003 is on line-001; line-000 has node-001 (user-input) then node-002 (agent)
-      const agent = view.getFirstAgentOnPreviousLine('node-003');
-
-      expect(agent).toBeDefined();
-      expect(agent?.nodeId).toBe('node-002');
-      expect(agent?.unitType).toBe('agent');
-    });
-
-    it('getFirstAgentOnPreviousLine returns undefined for nodes on line 0', () => {
-      const view = buildMultiLineView();
-      expect(view.getFirstAgentOnPreviousLine('node-001')).toBeUndefined();
-    });
-
-    it('getFirstAgentOnPreviousLine returns undefined for missing node', () => {
-      const view = buildMultiLineView();
-      expect(view.getFirstAgentOnPreviousLine('nonexistent')).toBeUndefined();
-    });
-
-    it('getFirstAgentOnPreviousLine returns undefined when no agent on previous line', () => {
-      // Build a graph where line-0 has only user-input nodes
-      const node1 = makeNodeStatus({
-        nodeId: 'n1',
-        unitSlug: 'prompt',
-        unitType: 'user-input',
-        lineId: 'l0',
-        position: 0,
-        status: 'complete',
-        ready: false,
-      });
-      const node2 = makeNodeStatus({
-        nodeId: 'n2',
-        unitSlug: 'reviewer',
-        unitType: 'agent',
-        lineId: 'l1',
-        position: 0,
-        status: 'ready',
-        ready: true,
-      });
-      const line0 = makeLineStatus({ lineId: 'l0', index: 0, nodes: [node1], complete: true });
-      const line1 = makeLineStatus({ lineId: 'l1', index: 1, nodes: [node2] });
-      const statusResult = makeGraphStatus({
-        status: 'in_progress',
-        totalNodes: 2,
-        lines: [line0, line1],
-      });
-      const reality = buildPositionalGraphReality({
-        statusResult,
-        state: makeState({ graph_status: 'in_progress' }),
-        snapshotAt: SNAPSHOT_AT,
-      });
-      const view = new PositionalGraphRealityView(reality);
-
-      expect(view.getFirstAgentOnPreviousLine('n2')).toBeUndefined();
-    });
   });
 
   describe('T010-3: question, pod session, and utility lookups', () => {

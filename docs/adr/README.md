@@ -17,6 +17,7 @@ Architecture Decision Records (ADRs) document significant architectural decision
 | 0009 | [Module Registration Function Pattern](./adr-0009-module-registration-function-pattern.md) | 2026-01-28 | Accepted | - | - | Extends ADR-0004 for module composition |
 | 0010 | [Central Domain Event Notification Architecture](./adr-0010-central-domain-event-notification-architecture.md) | 2026-02-03 | Accepted | - | - | Core signpost for domain event system (Plan 027) |
 | 0011 | [First-Class Domain Concepts Over Diffuse Functions](./adr-0011-first-class-domain-concepts.md) | 2026-02-08 | Accepted | - | - | Golden example: INodeEventService (Plan 032 WS09) |
+| 0012 | [Workflow System Domain Boundaries](./adr-0012-workflow-domain-boundaries.md) | 2026-02-17 | Accepted | - | - | Six domains, dependency rules, litmus test. **Read before any WF plan.** |
 
 ## ADR Format
 

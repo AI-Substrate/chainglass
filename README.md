@@ -106,6 +106,8 @@ After building (`just build`), the CLI is available:
 | `cg sample list` | List samples in current worktree |
 | `cg sample info <slug>` | Show sample details |
 | `cg sample delete <slug>` | Delete sample (--force required) |
+| `cg agent run -t <type> -p <prompt>` | Run an agent with a prompt |
+| `cg agent compact -t <type> -s <id>` | Compact an agent session |
 | `cg --help` | Show available commands |
 
 To use the CLI globally during development:
@@ -160,8 +162,52 @@ chainglass/
 └── docs/                 # Documentation
 ```
 
+## Agent System
+
+The agent system provides a domain-agnostic wrapper around AI coding agents (Claude Code CLI, GitHub Copilot SDK). See [Agent System Guide](docs/how/agent-system/1-overview.md) for full documentation.
+
+### Quick Start
+
+```typescript
+import { AgentManagerService, ClaudeCodeAdapter, UnixProcessManager, FakeLogger } from '@chainglass/shared';
+
+// Create a manager with an adapter factory
+const manager = new AgentManagerService(
+  (type) => new ClaudeCodeAdapter(new UnixProcessManager(new FakeLogger()))
+);
+
+// New session
+const instance = manager.getNew({ name: 'my-agent', type: 'claude-code', workspace: '.' });
+instance.addEventHandler((event) => console.log(event.type, event.data));
+await instance.run({ prompt: 'What is 2+2?' });
+console.log(instance.sessionId); // ses-abc123
+
+// Resume session
+const resumed = manager.getWithSessionId(instance.sessionId, {
+  name: 'resumed', type: 'claude-code', workspace: '.',
+});
+await resumed.run({ prompt: 'What did I ask before?' });
+```
+
+### CLI Usage
+
+```bash
+# New session
+cg agent run -t claude-code -p "Write a hello world"
+
+# Resume with session ID (from previous output)
+cg agent run -t claude-code -s ses-abc123 -p "Add error handling"
+
+# Compact session context
+cg agent compact -t claude-code -s ses-abc123
+
+# Stream events as NDJSON
+cg agent run -t claude-code -p "Say hello" --stream
+```
+
 ## Documentation
 
+- [Agent System Guide](docs/how/agent-system/1-overview.md) - Agent lifecycle, event handling, session management
 - [Workflows Guide](docs/how/workflows/1-overview.md) - Multi-phase workflow execution
 - [Workflow Management](docs/how/workflows/5-workflow-management.md) - Template versioning and checkpoint workflow
 - [Workspaces Guide](docs/how/workspaces/1-overview.md) - Multi-workspace management (local dev tool)

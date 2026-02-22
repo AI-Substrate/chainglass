@@ -2,28 +2,30 @@
  * Test Doc:
  * - Why: AgentContextService determines whether an agent inherits a session from a prior
  *   agent or starts fresh. Incorrect context inheritance breaks conversation continuity
- *   across workflow steps.
- * - Contract: getContextSource() is a pure function that applies 5 positional rules
- *   deterministically: (0) non-agent → not-applicable, (1) first on line 0 → new,
- *   (2) first on line N>0 → walk ALL previous lines for agent → inherit or new,
- *   (3) parallel → new, (4) serial not-first → walk left past non-agents → inherit or new.
+ *   across workflow steps — e.g., a reviewer inheriting a parallel worker's session
+ *   instead of the spec-writer's global session.
+ * - Contract: getContextSource() is a pure function that applies 6 positional rules
+ *   deterministically (first match wins):
+ *   R0: non-agent → not-applicable
+ *   R1: noContext → new
+ *   R2: contextFrom set → inherit from specified node (runtime guard)
+ *   R3: I am the global agent → new
+ *   R4: parallel AND pos > 0 → new
+ *   R5: serial left walk + global fallback → inherit
  *   Every result includes a non-empty reason string.
  * - Usage Notes: Pass a PositionalGraphReality snapshot and a nodeId. The function
- *   constructs a View internally — no need to pre-build one. For testing, construct
- *   minimal PositionalGraphReality objects as plain data with ReadonlyMap.
- * - Quality Contribution: Catches regressions in context inheritance rules, walk-back
- *   behavior (DYK-I10, DYK-I13), and reason string accuracy.
- * - Worked Example: Graph with agent on line 0, agent first on line 1 →
- *   getContextSource(reality, 'line1-agent') returns { source: 'inherit', fromNodeId: 'line0-agent', reason: '...' }
+ *   constructs a View internally. For testing, use makeRealityFromLines() to build
+ *   minimal reality objects from nested line/node arrays.
+ * - Quality Contribution: Catches regressions in context inheritance rules, global agent
+ *   selection, left-hand rule behaviour, and noContext/contextFrom overrides.
+ * - Worked Example: Graph with spec-writer on line 1, parallel noContext workers on line 2,
+ *   reviewer on line 3 → getContextSource(reality, 'reviewer') returns
+ *   { source: 'inherit', fromNodeId: 'spec-writer', reason: '...' }
  */
 
 import { describe, expect, it } from 'vitest';
-// T003 RED: This import will fail until T004 creates the module
 import { getContextSource } from '../../../../../packages/positional-graph/src/features/030-orchestration/agent-context.js';
-import type {
-  ContextSourceResult,
-  InheritContextResult,
-} from '../../../../../packages/positional-graph/src/features/030-orchestration/agent-context.schema.js';
+import type { InheritContextResult } from '../../../../../packages/positional-graph/src/features/030-orchestration/agent-context.schema.js';
 import {
   isInheritContext,
   isNewContext,
@@ -110,462 +112,306 @@ function makeReality(
   };
 }
 
+/**
+ * Convenience helper: build a reality from nested line arrays.
+ * Each inner array is a list of nodes on that line; positions and line indices
+ * are auto-assigned.
+ */
+function makeRealityFromLines(
+  lineNodes: NodeReality[][],
+  overrides: Partial<PositionalGraphReality> = {}
+): PositionalGraphReality {
+  const allNodes: NodeReality[] = [];
+  const lines: LineReality[] = [];
+  for (let li = 0; li < lineNodes.length; li++) {
+    const nodeIds: string[] = [];
+    for (let pi = 0; pi < lineNodes[li].length; pi++) {
+      const n: NodeReality = { ...lineNodes[li][pi], lineIndex: li, positionInLine: pi };
+      allNodes.push(n);
+      nodeIds.push(n.nodeId);
+    }
+    lines.push(makeLine({ lineId: `line-${li}`, index: li, nodeIds }));
+  }
+  return makeReality(allNodes, lines, overrides);
+}
+
 // ============================================
-// T003: Core Rule Tests (5 Rules)
+// Context Engine Tests — Global Session + Left Neighbor Model (6 Rules)
 // ============================================
 
-describe('getContextSource', () => {
-  describe('Rule 0: non-agent → not-applicable', () => {
+describe('getContextSource — Global Session + Left Neighbor', () => {
+  // ── R0: Non-agent → not-applicable ─────────────────
+
+  describe('R0: non-agent', () => {
     it('returns not-applicable for a code node', () => {
-      const codeNode = makeNode({
-        nodeId: 'code-1',
-        unitType: 'code',
-        lineIndex: 0,
-        positionInLine: 0,
-      });
-      const line = makeLine({
-        lineId: 'line-0',
-        index: 0,
-        nodeIds: ['code-1'],
-      });
-      const reality = makeReality([codeNode], [line]);
-
+      const reality = makeRealityFromLines([[makeNode({ nodeId: 'code-1', unitType: 'code' })]]);
       const result = getContextSource(reality, 'code-1');
-
-      expect(isNotApplicable(result)).toBe(true);
       expect(result.source).toBe('not-applicable');
       expect(result.reason.length).toBeGreaterThan(0);
     });
 
     it('returns not-applicable for a user-input node', () => {
-      const uiNode = makeNode({
-        nodeId: 'ui-1',
-        unitType: 'user-input',
-        lineIndex: 0,
-        positionInLine: 0,
-      });
-      const line = makeLine({
-        lineId: 'line-0',
-        index: 0,
-        nodeIds: ['ui-1'],
-      });
-      const reality = makeReality([uiNode], [line]);
-
-      const result = getContextSource(reality, 'ui-1');
-
-      expect(isNotApplicable(result)).toBe(true);
+      const reality = makeRealityFromLines([
+        [makeNode({ nodeId: 'human', unitType: 'user-input' })],
+      ]);
+      const result = getContextSource(reality, 'human');
+      expect(result.source).toBe('not-applicable');
     });
   });
 
-  describe('Rule 1: first agent on line 0 → new', () => {
-    it('returns new for first agent on line 0', () => {
-      const agent = makeNode({
-        nodeId: 'agent-1',
-        unitType: 'agent',
-        lineIndex: 0,
-        positionInLine: 0,
-      });
-      const line = makeLine({
-        lineId: 'line-0',
-        index: 0,
-        nodeIds: ['agent-1'],
-      });
-      const reality = makeReality([agent], [line]);
+  // ── R1: noContext → new ─────────────────
 
-      const result = getContextSource(reality, 'agent-1');
-
-      expect(isNewContext(result)).toBe(true);
+  describe('R1: noContext', () => {
+    it('returns new for a serial agent with noContext', () => {
+      const reality = makeRealityFromLines([
+        [makeNode({ nodeId: 'global', execution: 'serial' })],
+        [makeNode({ nodeId: 'isolated', execution: 'serial', noContext: true })],
+      ]);
+      const result = getContextSource(reality, 'isolated');
       expect(result.source).toBe('new');
-      expect(result.reason.length).toBeGreaterThan(0);
     });
-  });
 
-  describe('Rule 2: first on line N>0 → cross-line inherit', () => {
-    it('inherits from first agent on previous line', () => {
-      const agentLine0 = makeNode({
-        nodeId: 'builder',
-        unitType: 'agent',
-        lineIndex: 0,
-        positionInLine: 0,
-      });
-      const agentLine1 = makeNode({
-        nodeId: 'reviewer',
-        unitType: 'agent',
-        lineIndex: 1,
-        positionInLine: 0,
-      });
-      const line0 = makeLine({
-        lineId: 'line-0',
-        index: 0,
-        nodeIds: ['builder'],
-      });
-      const line1 = makeLine({
-        lineId: 'line-1',
-        index: 1,
-        nodeIds: ['reviewer'],
-      });
-      const reality = makeReality([agentLine0, agentLine1], [line0, line1]);
-
-      const result = getContextSource(reality, 'reviewer');
-
-      expect(isInheritContext(result)).toBe(true);
-      expect((result as InheritContextResult).fromNodeId).toBe('builder');
-      expect(result.reason.length).toBeGreaterThan(0);
-    });
-  });
-
-  describe('Rule 3: parallel agent → new', () => {
-    it('returns new for a parallel agent', () => {
-      const agent = makeNode({
-        nodeId: 'parallel-agent',
-        unitType: 'agent',
-        lineIndex: 1,
-        positionInLine: 1,
-        execution: 'parallel',
-      });
-      const prevAgent = makeNode({
-        nodeId: 'prev-agent',
-        unitType: 'agent',
-        lineIndex: 0,
-        positionInLine: 0,
-      });
-      const line0 = makeLine({
-        lineId: 'line-0',
-        index: 0,
-        nodeIds: ['prev-agent'],
-      });
-      const line1 = makeLine({
-        lineId: 'line-1',
-        index: 1,
-        nodeIds: ['some-first', 'parallel-agent'],
-      });
-      const firstOnLine1 = makeNode({
-        nodeId: 'some-first',
-        unitType: 'agent',
-        lineIndex: 1,
-        positionInLine: 0,
-      });
-      const reality = makeReality([prevAgent, firstOnLine1, agent], [line0, line1]);
-
-      const result = getContextSource(reality, 'parallel-agent');
-
-      expect(isNewContext(result)).toBe(true);
+    it('returns new for a parallel pos 0 agent with noContext', () => {
+      const reality = makeRealityFromLines([
+        [makeNode({ nodeId: 'global', execution: 'serial' })],
+        [makeNode({ nodeId: 'worker', execution: 'parallel', noContext: true })],
+      ]);
+      const result = getContextSource(reality, 'worker');
       expect(result.source).toBe('new');
     });
   });
 
-  describe('Rule 4: serial not-first → inherit from left agent', () => {
-    it('inherits from immediate left agent neighbor', () => {
-      const agentA = makeNode({
-        nodeId: 'agent-a',
-        unitType: 'agent',
-        lineIndex: 0,
-        positionInLine: 0,
-        execution: 'serial',
-      });
-      const agentB = makeNode({
-        nodeId: 'agent-b',
-        unitType: 'agent',
-        lineIndex: 0,
-        positionInLine: 1,
-        execution: 'serial',
-      });
-      const line = makeLine({
-        lineId: 'line-0',
-        index: 0,
-        nodeIds: ['agent-a', 'agent-b'],
-      });
-      const reality = makeReality([agentA, agentB], [line]);
+  // ── R2: contextFrom override ─────────────────
 
-      const result = getContextSource(reality, 'agent-b');
+  describe('R2: contextFrom', () => {
+    it('inherits from specified node, overriding default', () => {
+      const reality = makeRealityFromLines([
+        [
+          makeNode({ nodeId: 'A', execution: 'serial' }),
+          makeNode({ nodeId: 'B', execution: 'serial', noContext: true }),
+        ],
+        [makeNode({ nodeId: 'R', execution: 'serial', contextFrom: 'B' })],
+      ]);
+      const result = getContextSource(reality, 'R');
+      expect(result.source).toBe('inherit');
+      expect((result as InheritContextResult).fromNodeId).toBe('B');
+    });
 
-      expect(isInheritContext(result)).toBe(true);
-      expect((result as InheritContextResult).fromNodeId).toBe('agent-a');
+    it('returns new when contextFrom targets a non-agent (runtime guard)', () => {
+      const reality = makeRealityFromLines([
+        [makeNode({ nodeId: 'code-1', unitType: 'code' })],
+        [makeNode({ nodeId: 'R', execution: 'serial', contextFrom: 'code-1' })],
+      ]);
+      const result = getContextSource(reality, 'R');
+      expect(result.source).toBe('new');
+    });
+
+    it('returns new when contextFrom targets nonexistent node (runtime guard)', () => {
+      const reality = makeRealityFromLines([
+        [makeNode({ nodeId: 'A', execution: 'serial' })],
+        [makeNode({ nodeId: 'R', execution: 'serial', contextFrom: 'does-not-exist' })],
+      ]);
+      const result = getContextSource(reality, 'R');
+      expect(result.source).toBe('new');
+    });
+
+    it('returns new when contextFrom references self (cycle guard)', () => {
+      const reality = makeRealityFromLines([
+        [makeNode({ nodeId: 'A', execution: 'serial', contextFrom: 'A' })],
+      ]);
+      const result = getContextSource(reality, 'A');
+      expect(result.source).toBe('new');
+      expect(result.reason).toContain('cannot reference self');
     });
   });
 
-  // ============================================
-  // T005: Edge Case Tests (Walk-Back)
-  // ============================================
+  // ── R3: Global agent → new ─────────────────
 
-  describe('Rule 2 walk-back: cross-line skips non-agent lines (DYK-I10)', () => {
-    it('walks past line with only code nodes to find agent on earlier line', () => {
-      const agentLine0 = makeNode({
-        nodeId: 'agent-0',
-        unitType: 'agent',
-        lineIndex: 0,
-        positionInLine: 0,
-      });
-      const codeLine1 = makeNode({
-        nodeId: 'code-1',
-        unitType: 'code',
-        lineIndex: 1,
-        positionInLine: 0,
-      });
-      const agentLine2 = makeNode({
-        nodeId: 'agent-2',
-        unitType: 'agent',
-        lineIndex: 2,
-        positionInLine: 0,
-      });
-      const line0 = makeLine({
-        lineId: 'line-0',
-        index: 0,
-        nodeIds: ['agent-0'],
-      });
-      const line1 = makeLine({
-        lineId: 'line-1',
-        index: 1,
-        nodeIds: ['code-1'],
-      });
-      const line2 = makeLine({
-        lineId: 'line-2',
-        index: 2,
-        nodeIds: ['agent-2'],
-      });
-      const reality = makeReality([agentLine0, codeLine1, agentLine2], [line0, line1, line2]);
+  describe('R3: global agent', () => {
+    it('returns new for the first eligible agent in graph', () => {
+      const reality = makeRealityFromLines([
+        [makeNode({ nodeId: 'global', execution: 'serial' })],
+        [makeNode({ nodeId: 'second', execution: 'serial' })],
+      ]);
+      const result = getContextSource(reality, 'global');
+      expect(result.source).toBe('new');
+    });
 
-      const result = getContextSource(reality, 'agent-2');
-
-      // Line 1 has no agent, so walk-back continues to line 0
-      expect(isInheritContext(result)).toBe(true);
-      expect((result as InheritContextResult).fromNodeId).toBe('agent-0');
+    it('returns new for global agent on line > 0 (line 0 has only user-input)', () => {
+      const reality = makeRealityFromLines([
+        [makeNode({ nodeId: 'human', unitType: 'user-input' })],
+        [makeNode({ nodeId: 'spec', execution: 'serial' })],
+      ]);
+      const result = getContextSource(reality, 'spec');
+      expect(result.source).toBe('new');
     });
   });
 
-  describe('Rule 2 walk-back: no agent on any previous line → new', () => {
-    it('returns new when all previous lines have only non-agent nodes', () => {
-      const codeLine0 = makeNode({
-        nodeId: 'code-0',
-        unitType: 'code',
-        lineIndex: 0,
-        positionInLine: 0,
-      });
-      const codeLine1 = makeNode({
-        nodeId: 'code-1',
-        unitType: 'code',
-        lineIndex: 1,
-        positionInLine: 0,
-      });
-      const agentLine2 = makeNode({
-        nodeId: 'agent-2',
-        unitType: 'agent',
-        lineIndex: 2,
-        positionInLine: 0,
-      });
-      const line0 = makeLine({
-        lineId: 'line-0',
-        index: 0,
-        nodeIds: ['code-0'],
-      });
-      const line1 = makeLine({
-        lineId: 'line-1',
-        index: 1,
-        nodeIds: ['code-1'],
-      });
-      const line2 = makeLine({
-        lineId: 'line-2',
-        index: 2,
-        nodeIds: ['agent-2'],
-      });
-      const reality = makeReality([codeLine0, codeLine1, agentLine2], [line0, line1, line2]);
+  // ── R4: Parallel pos > 0 → new ─────────────────
 
-      const result = getContextSource(reality, 'agent-2');
-
-      expect(isNewContext(result)).toBe(true);
+  describe('R4: parallel at pos > 0', () => {
+    it('returns new for parallel agent at pos > 0 without noContext', () => {
+      const reality = makeRealityFromLines([
+        [makeNode({ nodeId: 'global', execution: 'serial' })],
+        [
+          makeNode({ nodeId: 'w1', execution: 'parallel' }),
+          makeNode({ nodeId: 'w2', execution: 'parallel' }),
+        ],
+      ]);
+      const result = getContextSource(reality, 'w2');
+      expect(result.source).toBe('new');
     });
   });
 
-  describe('Rule 4 walk-back: serial walks past code nodes (DYK-I13)', () => {
-    it('walks left past code node to find agent', () => {
-      const agentA = makeNode({
-        nodeId: 'agent-a',
-        unitType: 'agent',
-        lineIndex: 0,
-        positionInLine: 0,
-        execution: 'serial',
-      });
-      const codeB = makeNode({
-        nodeId: 'code-b',
-        unitType: 'code',
-        lineIndex: 0,
-        positionInLine: 1,
-        execution: 'serial',
-      });
-      const agentC = makeNode({
-        nodeId: 'agent-c',
-        unitType: 'agent',
-        lineIndex: 0,
-        positionInLine: 2,
-        execution: 'serial',
-      });
-      const line = makeLine({
-        lineId: 'line-0',
-        index: 0,
-        nodeIds: ['agent-a', 'code-b', 'agent-c'],
-      });
-      const reality = makeReality([agentA, codeB, agentC], [line]);
+  // ── R5: Serial left walk + global fallback ─────────────────
 
-      const result = getContextSource(reality, 'agent-c');
+  describe('R5: serial left walk + global fallback', () => {
+    it('pos 0 with no left neighbor inherits from global', () => {
+      const reality = makeRealityFromLines([
+        [makeNode({ nodeId: 'global', execution: 'serial' })],
+        [makeNode({ nodeId: 'B', execution: 'serial' })],
+      ]);
+      const result = getContextSource(reality, 'B');
+      expect(result.source).toBe('inherit');
+      expect((result as InheritContextResult).fromNodeId).toBe('global');
+    });
 
-      expect(isInheritContext(result)).toBe(true);
-      expect((result as InheritContextResult).fromNodeId).toBe('agent-a');
+    it('walks left and finds agent neighbor', () => {
+      const reality = makeRealityFromLines([
+        [makeNode({ nodeId: 'global', execution: 'serial' })],
+        [
+          makeNode({ nodeId: 'B', execution: 'serial' }),
+          makeNode({ nodeId: 'C', execution: 'serial' }),
+          makeNode({ nodeId: 'D', execution: 'serial' }),
+        ],
+      ]);
+      const result = getContextSource(reality, 'D');
+      expect(result.source).toBe('inherit');
+      expect((result as InheritContextResult).fromNodeId).toBe('C');
+    });
+
+    it('left walk skips code nodes', () => {
+      const reality = makeRealityFromLines([
+        [makeNode({ nodeId: 'global', execution: 'serial' })],
+        [
+          makeNode({ nodeId: 'B', execution: 'serial' }),
+          makeNode({ nodeId: 'code-1', unitType: 'code' }),
+          makeNode({ nodeId: 'C', execution: 'serial' }),
+        ],
+      ]);
+      const result = getContextSource(reality, 'C');
+      expect(result.source).toBe('inherit');
+      expect((result as InheritContextResult).fromNodeId).toBe('B');
+    });
+
+    it('left walk inherits from parallel left neighbor (absolute rule)', () => {
+      const reality = makeRealityFromLines([
+        [makeNode({ nodeId: 'global', execution: 'serial' })],
+        [
+          makeNode({ nodeId: 'PA', execution: 'parallel' }),
+          makeNode({ nodeId: 'PB', execution: 'parallel' }),
+          makeNode({ nodeId: 'AGG', execution: 'serial' }),
+        ],
+      ]);
+      const result = getContextSource(reality, 'AGG');
+      expect(result.source).toBe('inherit');
+      expect((result as InheritContextResult).fromNodeId).toBe('PB');
+    });
+
+    it('left walk inherits from noContext left neighbor (absolute rule)', () => {
+      // Scenario 6 from Workshop 03: C inherits from N's fresh session
+      const reality = makeRealityFromLines([
+        [makeNode({ nodeId: 'A', execution: 'serial' })],
+        [
+          makeNode({ nodeId: 'B', execution: 'serial' }),
+          makeNode({ nodeId: 'N', execution: 'serial', noContext: true }),
+          makeNode({ nodeId: 'C', execution: 'serial' }),
+        ],
+      ]);
+      const result = getContextSource(reality, 'C');
+      expect(result.source).toBe('inherit');
+      expect((result as InheritContextResult).fromNodeId).toBe('N');
+    });
+
+    it('parallel at pos 0 without noContext inherits from global', () => {
+      const reality = makeRealityFromLines([
+        [makeNode({ nodeId: 'global', execution: 'serial' })],
+        [
+          makeNode({ nodeId: 'w1', execution: 'parallel' }),
+          makeNode({ nodeId: 'w2', execution: 'parallel' }),
+        ],
+      ]);
+      const result = getContextSource(reality, 'w1');
+      expect(result.source).toBe('inherit');
+      expect((result as InheritContextResult).fromNodeId).toBe('global');
     });
   });
 
-  describe('Rule 4 walk-back: serial walks past user-input nodes', () => {
-    it('walks left past user-input node to find agent', () => {
-      const agentA = makeNode({
-        nodeId: 'agent-a',
-        unitType: 'agent',
-        lineIndex: 0,
-        positionInLine: 0,
-        execution: 'serial',
-      });
-      const uiB = makeNode({
-        nodeId: 'ui-b',
-        unitType: 'user-input',
-        lineIndex: 0,
-        positionInLine: 1,
-        execution: 'serial',
-      });
-      const agentC = makeNode({
-        nodeId: 'agent-c',
-        unitType: 'agent',
-        lineIndex: 0,
-        positionInLine: 2,
-        execution: 'serial',
-      });
-      const line = makeLine({
-        lineId: 'line-0',
-        index: 0,
-        nodeIds: ['agent-a', 'ui-b', 'agent-c'],
-      });
-      const reality = makeReality([agentA, uiB, agentC], [line]);
+  // ── Scenario 3: The E2E Pipeline (motivating case) ─────────────────
 
-      const result = getContextSource(reality, 'agent-c');
+  describe('Scenario 3: E2E Pipeline', () => {
+    it('reviewer at pos 0 inherits from global, skipping noContext parallel line', () => {
+      const reality = makeRealityFromLines([
+        [makeNode({ nodeId: 'human', unitType: 'user-input' })],
+        [makeNode({ nodeId: 'spec', execution: 'serial' })],
+        [
+          makeNode({ nodeId: 'prog-a', execution: 'parallel', noContext: true }),
+          makeNode({ nodeId: 'prog-b', execution: 'parallel', noContext: true }),
+        ],
+        [
+          makeNode({ nodeId: 'reviewer', execution: 'serial' }),
+          makeNode({ nodeId: 'summariser', execution: 'serial' }),
+        ],
+      ]);
 
-      expect(isInheritContext(result)).toBe(true);
-      expect((result as InheritContextResult).fromNodeId).toBe('agent-a');
+      const specResult = getContextSource(reality, 'spec');
+      expect(specResult.source).toBe('new'); // R3: global agent
+
+      const progAResult = getContextSource(reality, 'prog-a');
+      expect(progAResult.source).toBe('new'); // R1: noContext
+
+      const progBResult = getContextSource(reality, 'prog-b');
+      expect(progBResult.source).toBe('new'); // R1: noContext
+
+      const reviewerResult = getContextSource(reality, 'reviewer');
+      expect(reviewerResult.source).toBe('inherit');
+      expect((reviewerResult as InheritContextResult).fromNodeId).toBe('spec'); // R5: global fallback
+
+      const summariserResult = getContextSource(reality, 'summariser');
+      expect(summariserResult.source).toBe('inherit');
+      expect((summariserResult as InheritContextResult).fromNodeId).toBe('reviewer'); // R5: left walk
     });
   });
 
-  describe('Rule 4 walk-back: serial inherits from parallel agent', () => {
-    it('inherits from parallel agent to its left (DYK-I13 updated)', () => {
-      const parallelA = makeNode({
-        nodeId: 'parallel-a',
-        unitType: 'agent',
-        lineIndex: 0,
-        positionInLine: 0,
-        execution: 'parallel',
-      });
-      const serialB = makeNode({
-        nodeId: 'serial-b',
-        unitType: 'agent',
-        lineIndex: 0,
-        positionInLine: 1,
-        execution: 'serial',
-      });
-      const line = makeLine({
-        lineId: 'line-0',
-        index: 0,
-        nodeIds: ['parallel-a', 'serial-b'],
-      });
-      const reality = makeReality([parallelA, serialB], [line]);
+  // ── Edge cases ─────────────────
 
-      const result = getContextSource(reality, 'serial-b');
-
-      // Parallel mode only affects the parallel node itself — serial can inherit from it
-      expect(isInheritContext(result)).toBe(true);
-      expect((result as InheritContextResult).fromNodeId).toBe('parallel-a');
+  describe('Edge cases', () => {
+    it('all agents have noContext → every node gets new', () => {
+      const reality = makeRealityFromLines([
+        [makeNode({ nodeId: 'A', execution: 'serial', noContext: true })],
+        [makeNode({ nodeId: 'B', execution: 'serial', noContext: true })],
+      ]);
+      expect(getContextSource(reality, 'A').source).toBe('new');
+      expect(getContextSource(reality, 'B').source).toBe('new');
     });
-  });
 
-  describe('Rule 4 walk-back: no agent to the left → new', () => {
-    it('returns new when only code nodes are to the left', () => {
-      const codeA = makeNode({
-        nodeId: 'code-a',
-        unitType: 'code',
-        lineIndex: 0,
-        positionInLine: 0,
-        execution: 'serial',
-      });
-      const agentB = makeNode({
-        nodeId: 'agent-b',
-        unitType: 'agent',
-        lineIndex: 0,
-        positionInLine: 1,
-        execution: 'serial',
-      });
-      const line = makeLine({
-        lineId: 'line-0',
-        index: 0,
-        nodeIds: ['code-a', 'agent-b'],
-      });
-      const reality = makeReality([codeA, agentB], [line]);
-
-      const result = getContextSource(reality, 'agent-b');
-
-      expect(isNewContext(result)).toBe(true);
+    it('nonexistent node → not-applicable', () => {
+      const reality = makeRealityFromLines([[makeNode({ nodeId: 'A', execution: 'serial' })]]);
+      const result = getContextSource(reality, 'does-not-exist');
+      expect(result.source).toBe('not-applicable');
     });
-  });
 
-  describe('Guard: node not found → not-applicable', () => {
-    it('returns not-applicable for an unknown nodeId', () => {
-      const line = makeLine({ lineId: 'line-0', index: 0, nodeIds: [] });
-      const reality = makeReality([], [line]);
-
-      const result = getContextSource(reality, 'nonexistent');
-
-      expect(isNotApplicable(result)).toBe(true);
-      expect(result.reason).toContain('not found');
-    });
-  });
-
-  describe('Reason strings', () => {
-    it('all variants include non-empty reason strings', () => {
-      // Create a graph that exercises all 3 result types
-      const agent0 = makeNode({
-        nodeId: 'a0',
-        unitType: 'agent',
-        lineIndex: 0,
-        positionInLine: 0,
-      });
-      const codeNode = makeNode({
-        nodeId: 'c0',
-        unitType: 'code',
-        lineIndex: 0,
-        positionInLine: 1,
-      });
-      const agent1 = makeNode({
-        nodeId: 'a1',
-        unitType: 'agent',
-        lineIndex: 1,
-        positionInLine: 0,
-      });
-      const line0 = makeLine({
-        lineId: 'line-0',
-        index: 0,
-        nodeIds: ['a0', 'c0'],
-      });
-      const line1 = makeLine({
-        lineId: 'line-1',
-        index: 1,
-        nodeIds: ['a1'],
-      });
-      const reality = makeReality([agent0, codeNode, agent1], [line0, line1]);
-
-      // new (Rule 1)
-      const newResult = getContextSource(reality, 'a0');
-      expect(newResult.reason.length).toBeGreaterThan(0);
-
-      // not-applicable (Rule 0)
-      const naResult = getContextSource(reality, 'c0');
-      expect(naResult.reason.length).toBeGreaterThan(0);
-
-      // inherit (Rule 2)
-      const inheritResult = getContextSource(reality, 'a1');
-      expect(inheritResult.reason.length).toBeGreaterThan(0);
+    it('every result has non-empty reason string', () => {
+      const reality = makeRealityFromLines([
+        [makeNode({ nodeId: 'human', unitType: 'user-input' })],
+        [makeNode({ nodeId: 'spec', execution: 'serial' })],
+        [makeNode({ nodeId: 'worker', execution: 'parallel', noContext: true })],
+        [makeNode({ nodeId: 'reviewer', execution: 'serial' })],
+      ]);
+      for (const nodeId of ['human', 'spec', 'worker', 'reviewer']) {
+        const result = getContextSource(reality, nodeId);
+        expect(result.reason.length).toBeGreaterThan(0);
+      }
     });
   });
 });

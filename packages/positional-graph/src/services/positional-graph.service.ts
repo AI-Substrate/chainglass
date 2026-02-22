@@ -30,6 +30,7 @@ import {
   registerCoreEventTypes,
 } from '../features/032-node-event-system/index.js';
 import type { EventSource, INodeEventService } from '../features/032-node-event-system/index.js';
+import { buildInspectResult } from '../features/040-graph-inspect/index.js';
 import type {
   AddLineOptions,
   AddLineResult,
@@ -410,7 +411,7 @@ export class PositionalGraphService implements IPositionalGraphService {
         },
       ],
       properties: {},
-      orchestratorSettings: {},
+      orchestratorSettings: { agentType: 'copilot' },
     };
 
     await this.persistGraph(ctx, slug, definition);
@@ -710,6 +711,8 @@ export class PositionalGraphService implements IPositionalGraphService {
       orchestratorSettings: {
         execution: options?.orchestratorSettings?.execution ?? 'serial',
         waitForPrevious: options?.orchestratorSettings?.waitForPrevious ?? true,
+        noContext: options?.orchestratorSettings?.noContext ?? false,
+        contextFrom: options?.orchestratorSettings?.contextFrom,
       },
     };
     if (options?.description) {
@@ -1089,6 +1092,8 @@ export class PositionalGraphService implements IPositionalGraphService {
       unitSlug: nodeConfig.unit_slug,
       unitType: unitResult.unit?.type ?? 'agent',
       execution: nodeConfig.orchestratorSettings.execution,
+      noContext: nodeConfig.orchestratorSettings.noContext ?? false,
+      contextFrom: nodeConfig.orchestratorSettings.contextFrom,
       lineId: nodeLocation.line.id,
       position: nodeLocation.nodePositionInLine,
       status,
@@ -1097,6 +1102,9 @@ export class PositionalGraphService implements IPositionalGraphService {
         precedingLinesComplete,
         transitionOpen,
         serialNeighborComplete,
+        contextFromReady: nodeConfig.orchestratorSettings.contextFrom
+          ? state.nodes?.[nodeConfig.orchestratorSettings.contextFrom]?.status === 'complete'
+          : true,
         inputsAvailable: inputPack.ok,
         unitFound,
         reason: canRunResult.reason,
@@ -1269,6 +1277,121 @@ export class PositionalGraphService implements IPositionalGraphService {
       waitingQuestionNodes,
       blockedNodes,
       completedNodeIds,
+    };
+  }
+
+  // ============================================
+  // ============================================
+  // Inspect (Plan 040)
+  // ============================================
+
+  async inspectGraph(
+    ctx: WorkspaceContext,
+    graphSlug: string
+  ): Promise<import('../features/040-graph-inspect/index.js').InspectResult> {
+    const result = await buildInspectResult(this, ctx, graphSlug);
+    return this.enrichInspectResult(ctx, graphSlug, result);
+  }
+
+  /** Enrich InspectResult with file metadata and waitForPrevious (requires private service access). */
+  private async enrichInspectResult(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    result: import('../features/040-graph-inspect/index.js').InspectResult
+  ): Promise<import('../features/040-graph-inspect/index.js').InspectResult> {
+    const { isFileOutput } = await import('../features/040-graph-inspect/inspect.types.js');
+    const enrichmentErrors: Array<{ code: string; message: string }> = [];
+    const enrichedNodes = await Promise.all(
+      result.nodes.map(async (node) => {
+        // Enrich file metadata for file outputs
+        const fileMetadata: Record<
+          string,
+          import('../features/040-graph-inspect/index.js').InspectFileMetadata
+        > = {};
+        for (const [name, value] of Object.entries(node.outputs)) {
+          if (isFileOutput(value)) {
+            const nodeDir = this.getNodeDir(ctx, graphSlug, node.nodeId);
+            const outputsDir = this.pathResolver.join(nodeDir, 'data', 'outputs');
+            const relPath = (value as string).slice('data/outputs/'.length);
+            let filePath: string;
+            try {
+              filePath = this.pathResolver.resolvePath(outputsDir, relPath);
+            } catch {
+              // Path traversal attempt — skip this output
+              enrichmentErrors.push({
+                code: 'PATH_TRAVERSAL',
+                message: `${node.nodeId}/${name}: blocked path "${value as string}"`,
+              });
+              continue;
+            }
+            try {
+              const content = await this.fs.readFile(filePath);
+              const filename = relPath.split('/').pop() ?? '';
+              const sizeBytes = Buffer.byteLength(content, 'utf8');
+              const isBinary = hasBinaryContent(content.slice(0, 512));
+              const extract = isBinary ? undefined : content.split('\n').slice(0, 2).join('\n');
+              fileMetadata[name] = { filename, sizeBytes, isBinary, extract };
+            } catch (err) {
+              enrichmentErrors.push({
+                code: 'FILE_READ_FAILED',
+                message: `${node.nodeId}/${name}: ${err instanceof Error ? err.message : String(err)}`,
+              });
+            }
+          }
+        }
+
+        // Enrich waitForPrevious from node config (private access) — Fix #2: non-fatal
+        // Also backfill inputs from node config when inputPack resolution failed (missing work units)
+        let orchestratorSettings = node.orchestratorSettings;
+        let inputs = node.inputs;
+        try {
+          const configResult = await this.loadNodeConfig(ctx, graphSlug, node.nodeId);
+          if (configResult.ok) {
+            if (configResult.config.orchestratorSettings) {
+              orchestratorSettings = {
+                ...orchestratorSettings,
+                waitForPrevious: configResult.config.orchestratorSettings.waitForPrevious,
+              };
+            }
+            // Backfill inputs from node.yaml when inputPack was empty
+            if (Object.keys(inputs).length === 0 && configResult.config.inputs) {
+              const configInputs = configResult.config.inputs as Record<
+                string,
+                { from_node: string; from_output: string }
+              >;
+              const backfilled: typeof inputs = {};
+              for (const [name, src] of Object.entries(configInputs)) {
+                if (src.from_node && src.from_output) {
+                  backfilled[name] = {
+                    fromNode: src.from_node,
+                    fromOutput: src.from_output,
+                    available: true,
+                  };
+                }
+              }
+              if (Object.keys(backfilled).length > 0) {
+                inputs = backfilled;
+                enrichmentErrors.push({
+                  code: 'INPUT_RESOLUTION_FALLBACK',
+                  message: `${node.nodeId}: inputs resolved from node.yaml (work unit not found for live resolution)`,
+                });
+              }
+            }
+          }
+        } catch {
+          enrichmentErrors.push({
+            code: 'CONFIG_READ_FAILED',
+            message: `${node.nodeId}: loadNodeConfig failed, using defaults`,
+          });
+        }
+
+        return { ...node, inputs, fileMetadata, orchestratorSettings };
+      })
+    );
+    return {
+      ...result,
+      nodes: enrichedNodes,
+      errors: [...result.errors, ...enrichmentErrors],
     };
   }
 
@@ -2562,4 +2685,13 @@ export class PositionalGraphService implements IPositionalGraphService {
   async persistGraphState(ctx: WorkspaceContext, graphSlug: string, state: State): Promise<void> {
     return this.persistState(ctx, graphSlug, state);
   }
+}
+
+/** Detect binary content by checking for control characters (avoids regex control char lint). */
+function hasBinaryContent(sample: string): boolean {
+  for (let i = 0; i < sample.length; i++) {
+    const code = sample.charCodeAt(i);
+    if ((code >= 0 && code <= 8) || (code >= 14 && code <= 31)) return true;
+  }
+  return false;
 }

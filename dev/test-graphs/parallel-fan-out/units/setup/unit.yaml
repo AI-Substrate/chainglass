@@ -1,0 +1,14 @@
+slug: setup
+type: user-input
+version: 1.0.0
+description: User provides config for parallel workers
+inputs: []
+outputs:
+  - name: config
+    type: data
+    data_type: text
+    required: true
+    description: Configuration for parallel workers
+user_input:
+  question_type: text
+  prompt: "What config for parallel workers?"

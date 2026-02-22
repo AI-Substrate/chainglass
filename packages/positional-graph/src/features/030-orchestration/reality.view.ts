@@ -50,18 +50,6 @@ export class PositionalGraphRealityView {
     return this.reality.nodes.get(leftId);
   }
 
-  /** Get first agent node on previous line (for context inheritance). */
-  getFirstAgentOnPreviousLine(nodeId: string): NodeReality | undefined {
-    const node = this.getNode(nodeId);
-    if (!node || node.lineIndex === 0) return undefined;
-    const prevLine = this.reality.lines[node.lineIndex - 1];
-    for (const nid of prevLine.nodeIds) {
-      const n = this.reality.nodes.get(nid);
-      if (n && n.unitType === 'agent') return n;
-    }
-    return undefined;
-  }
-
   /** Get question by ID. */
   getQuestion(questionId: string): QuestionReality | undefined {
     return this.reality.questions.find((q) => q.questionId === questionId);

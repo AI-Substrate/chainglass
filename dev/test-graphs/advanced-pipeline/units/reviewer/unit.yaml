@@ -1,0 +1,44 @@
+slug: reviewer
+type: agent
+version: 1.0.0
+description: Reviews both language implementations and produces per-language reports
+agent:
+  prompt_template: prompts/main.md
+inputs:
+  - name: spec
+    type: data
+    data_type: text
+    required: true
+  - name: code_a
+    type: data
+    data_type: text
+    required: true
+  - name: code_b
+    type: data
+    data_type: text
+    required: true
+  - name: results_a
+    type: data
+    data_type: text
+    required: true
+  - name: results_b
+    type: data
+    data_type: text
+    required: true
+outputs:
+  - name: review_a
+    type: data
+    data_type: text
+    required: true
+  - name: review_b
+    type: data
+    data_type: text
+    required: true
+  - name: metrics_a
+    type: data
+    data_type: text
+    required: true
+  - name: metrics_b
+    type: data
+    data_type: text
+    required: true

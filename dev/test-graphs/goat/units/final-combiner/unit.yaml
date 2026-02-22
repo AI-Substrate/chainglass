@@ -1,0 +1,20 @@
+slug: final-combiner
+type: code
+version: 1.0.0
+description: Combines results from error-node and questioner
+inputs:
+  - name: error_result
+    type: data
+    data_type: text
+    required: true
+  - name: question_result
+    type: data
+    data_type: text
+    required: true
+outputs:
+  - name: combined
+    type: data
+    data_type: text
+    required: true
+code:
+  script: scripts/simulate.sh

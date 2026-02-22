@@ -1,0 +1,16 @@
+slug: error-node
+type: code
+version: 1.0.0
+description: Node that fails on first run, succeeds on retry
+inputs:
+  - name: data
+    type: data
+    data_type: text
+    required: true
+outputs:
+  - name: result
+    type: data
+    data_type: text
+    required: true
+code:
+  script: scripts/recovery-simulate.sh

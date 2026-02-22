@@ -18,12 +18,18 @@ export type {
   IGraphOrchestration,
   IOrchestrationService,
   FakeGraphConfig,
+  DriveOptions,
+  DriveEvent,
+  DriveEventType,
+  DriveResult,
+  DriveExitReason,
 } from './features/030-orchestration/index.js';
 export {
   OrchestrationService,
   GraphOrchestration,
   FakeOrchestrationService,
   FakeGraphOrchestration,
+  formatGraphStatus,
 } from './features/030-orchestration/index.js';
 export type {
   OrchestrationServiceDeps,
@@ -33,3 +39,33 @@ export type {
 
 // Node event system exports (Plan 032, Phase 6)
 export type { EventSource } from './features/032-node-event-system/index.js';
+export type { IEventHandlerService } from './features/032-node-event-system/index.js';
+export {
+  EventHandlerService,
+  NodeEventService,
+  NodeEventRegistry,
+  FakeNodeEventRegistry,
+  registerCoreEventTypes,
+  createEventHandlerRegistry,
+} from './features/032-node-event-system/index.js';
+
+// Script runner (Plan 030, Phase 4)
+export type { IScriptRunner } from './features/030-orchestration/index.js';
+export { FakeScriptRunner, ScriptRunner } from './features/030-orchestration/index.js';
+
+// Graph inspect (Plan 040)
+export type {
+  InspectResult,
+  InspectNodeResult,
+  InspectFileMetadata,
+  InspectNodeEvent,
+  InspectOrchestratorSettings,
+} from './features/040-graph-inspect/index.js';
+export {
+  buildInspectResult,
+  isFileOutput,
+  formatInspect,
+  formatInspectNode,
+  formatInspectOutputs,
+  formatInspectCompact,
+} from './features/040-graph-inspect/index.js';
