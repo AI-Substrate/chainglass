@@ -28,14 +28,29 @@ This finds all `*.test.ts` files matching the plan number across `test/unit/` an
 
 ## Why Full Suite Is Slow
 
-`just fft` runs lint + format + build + typecheck + all ~4000 tests (~120s). The breakdown:
+`just fft` takes ~105s. The test step alone is ~99s (95% of total):
 
-- **collect**: ~27s scanning 286 test files
-- **tests**: ~27s actual execution
-- **environment**: ~10s jsdom setup for web component tests
-- **lint/format/build/typecheck**: ~30s
+| fft step | time | notes |
+|----------|------|-------|
+| lint | 0.5s | fast |
+| format | 0.5s | fast |
+| build | 1.8s | turbo cached |
+| typecheck | 2.0s | fast |
+| **test** | **99s** | 95% of total |
 
-**Slowest test files** (top 10 = 63% of total test time):
+Within the test step:
+
+| phase | time | notes |
+|-------|------|-------|
+| collect (scan 286 files) | 26s | vitest parsing overhead |
+| setup + prepare | 15s | vitest internal |
+| environment (jsdom) | 10s | web component test setup |
+| **actual test execution** | 27s | the real work |
+| transform (TS compile) | 2s | - |
+
+**51s is pure overhead** before tests even start running. The actual test execution is only 27s.
+
+**Slowest test files** (top 10 = 63% of 27s execution time):
 
 | ms | file | why |
 |----|------|-----|
