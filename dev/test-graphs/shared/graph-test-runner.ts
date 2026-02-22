@@ -145,7 +145,10 @@ export async function withTestGraph(
   testFnOrOptions: ((tgc: TestGraphContext) => Promise<void>) | WithTestGraphOptions,
   maybeTestFn?: (tgc: TestGraphContext) => Promise<void>
 ): Promise<void> {
-  const testFn = typeof testFnOrOptions === 'function' ? testFnOrOptions : maybeTestFn!;
+  const testFn =
+    typeof testFnOrOptions === 'function'
+      ? testFnOrOptions
+      : (maybeTestFn as (tgc: TestGraphContext) => Promise<void>);
   const options = typeof testFnOrOptions === 'object' ? testFnOrOptions : {};
 
   // Validate fixtureName to prevent path traversal
