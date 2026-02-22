@@ -52,3 +52,20 @@ export {
 // Script runner (Plan 030, Phase 4)
 export type { IScriptRunner } from './features/030-orchestration/index.js';
 export { FakeScriptRunner, ScriptRunner } from './features/030-orchestration/index.js';
+
+// Graph inspect (Plan 040)
+export type {
+  InspectResult,
+  InspectNodeResult,
+  InspectFileMetadata,
+  InspectNodeEvent,
+  InspectOrchestratorSettings,
+} from './features/040-graph-inspect/index.js';
+export {
+  buildInspectResult,
+  isFileOutput,
+  formatInspect,
+  formatInspectNode,
+  formatInspectOutputs,
+  formatInspectCompact,
+} from './features/040-graph-inspect/index.js';

@@ -36,6 +36,12 @@ import {
   workunitTypeMismatchError,
 } from '@chainglass/positional-graph';
 import type { IOrchestrationService } from '@chainglass/positional-graph';
+import {
+  formatInspect,
+  formatInspectCompact,
+  formatInspectNode,
+  formatInspectOutputs,
+} from '@chainglass/positional-graph';
 import { ORCHESTRATION_DI_TOKENS, POSITIONAL_GRAPH_DI_TOKENS } from '@chainglass/shared';
 import type { Command } from 'commander';
 import { cliDriveGraph } from '../features/036-cli-orchestration-driver/cli-drive-handler.js';
@@ -1129,6 +1135,42 @@ async function handleWfStatus(slug: string, options: StatusOptions): Promise<voi
   console.log(adapter.format('wf.status', { ...result, errors: [] }));
 }
 
+// ============================================
+// Inspect (Plan 040)
+// ============================================
+
+interface InspectOptions extends BaseOptions {
+  node?: string;
+  outputs?: boolean;
+  compact?: boolean;
+}
+
+async function handleWfInspect(slug: string, options: InspectOptions): Promise<void> {
+  const adapter = createOutputAdapter(options.json ?? false);
+
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    const result = { errors: noContextError(options.workspacePath) };
+    console.log(adapter.format('wf.inspect', result));
+    process.exit(1);
+  }
+
+  const service = getPositionalGraphService();
+  const result = await service.inspectGraph(ctx, slug);
+
+  if (options.json) {
+    console.log(adapter.format('wf.inspect', result));
+  } else if (options.node) {
+    console.log(formatInspectNode(result, options.node));
+  } else if (options.outputs) {
+    console.log(formatInspectOutputs(result));
+  } else if (options.compact) {
+    console.log(formatInspectCompact(result));
+  } else {
+    console.log(formatInspect(result));
+  }
+}
+
 async function handleWfTrigger(slug: string, lineId: string, options: BaseOptions): Promise<void> {
   const adapter = createOutputAdapter(options.json ?? false);
 
@@ -1735,6 +1777,24 @@ export function registerPositionalGraphCommands(program: Command): void {
       wrapAction(async (slug: string, options: StatusOptions, cmd: Command) => {
         const parentOpts = cmd.parent?.opts() ?? {};
         await handleWfStatus(slug, {
+          ...options,
+          json: parentOpts.json,
+          workspacePath: parentOpts.workspacePath,
+        });
+      })
+    );
+
+  // ==================== Inspect Command (Plan 040) ====================
+
+  wf.command('inspect <slug>')
+    .description('Full graph state dump (status, timing, inputs, outputs, events)')
+    .option('--node <nodeId>', 'Single node deep dive with full values and event log')
+    .option('--outputs', 'Show output data only, grouped by node')
+    .option('--compact', 'One line per node summary')
+    .action(
+      wrapAction(async (slug: string, options: InspectOptions, cmd: Command) => {
+        const parentOpts = cmd.parent?.opts() ?? {};
+        await handleWfInspect(slug, {
           ...options,
           json: parentOpts.json,
           workspacePath: parentOpts.workspacePath,
