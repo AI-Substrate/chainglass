@@ -417,6 +417,7 @@ describe('in-progress and error rendering (T006)', () => {
 
     // Should show a running indicator instead of Ended
     expect(output).not.toContain('Ended:');
+    expect(output).toContain('Running:');
   });
 
   it('shows pending node with waiting reason', async () => {
@@ -436,6 +437,7 @@ describe('in-progress and error rendering (T006)', () => {
 
     const output = formatInspect(result);
 
+    expect(output).toContain('Waiting:');
     expect(output).toContain('pending');
   });
 
@@ -457,5 +459,52 @@ describe('in-progress and error rendering (T006)', () => {
 
     expect(output).toContain('E999');
     expect(output).toContain('Something broke');
+  });
+});
+
+// ═══════════════════════════════════════════════════════
+// Review fixes: compact header, file fallback
+// ═══════════════════════════════════════════════════════
+
+describe('review fix: compact header progress', () => {
+  it('shows completedNodes/totalNodes not totalNodes/totalNodes', async () => {
+    const { formatInspectCompact } = await loadFormatters();
+    const nodeA = makeNode({ nodeId: 'done-a1b', status: 'complete' });
+    const nodeB = makeNode({
+      nodeId: 'pending-c3d',
+      status: 'pending',
+      startedAt: undefined,
+      completedAt: undefined,
+      durationMs: undefined,
+    });
+    const result = makeResult({
+      nodes: [nodeA, nodeB],
+      totalNodes: 2,
+      completedNodes: 1,
+    });
+
+    const output = formatInspectCompact(result);
+
+    expect(output).toContain('1/2 nodes');
+    expect(output).not.toContain('2/2 nodes');
+  });
+});
+
+describe('review fix: file output missing metadata fallback', () => {
+  it('renders → filename (missing) when fileMetadata absent for data/outputs/ value', async () => {
+    const { formatInspect } = await loadFormatters();
+    const nodeA = makeNode({
+      nodeId: 'node-a1b',
+      outputs: { report: 'data/outputs/report.md' },
+      outputCount: 1,
+      fileMetadata: {},
+    });
+    const result = makeResult({ nodes: [nodeA] });
+
+    const output = formatInspect(result);
+
+    expect(output).toContain('→');
+    expect(output).toContain('report.md');
+    expect(output).toContain('(missing)');
   });
 });

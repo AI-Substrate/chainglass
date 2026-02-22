@@ -74,6 +74,11 @@ function formatOutputValue(
     }
     return lines.join('\n');
   }
+  // File output path but no metadata available (file unreadable)
+  if (isFileOutput(value)) {
+    const filename = String(value).split('/').pop() ?? '';
+    return `    ${name} → ${filename} (missing)`;
+  }
   if (typeof value === 'number' || typeof value === 'boolean') {
     return `    ${name} = ${value}`;
   }
@@ -122,6 +127,12 @@ export function formatInspect(result: InspectResult): string {
     }
     if (node.completedAt && node.durationMs != null) {
       lines.push(`  Ended:    ${node.completedAt}  (${formatDuration(node.durationMs)})`);
+    } else if (node.startedAt && !node.completedAt) {
+      lines.push('  Running:  in progress');
+    } else if (!node.startedAt && (node.status === 'pending' || node.status === 'ready')) {
+      lines.push(
+        `  Waiting:  ${node.status === 'ready' ? 'ready to start' : 'dependencies pending'}`
+      );
     }
 
     if (node.error) {
@@ -267,7 +278,7 @@ export function formatInspectCompact(result: InspectResult): string {
   const lines: string[] = [];
 
   lines.push(
-    `Graph: ${result.graphSlug} (${result.graphStatus}) — ${result.totalNodes}/${result.totalNodes} nodes`
+    `Graph: ${result.graphSlug} (${result.graphStatus}) — ${result.completedNodes}/${result.totalNodes} nodes`
   );
   lines.push('');
 
