@@ -47,16 +47,16 @@ Primary: `apps/web/src/lib/`
 
 | File | Role | Notes |
 |------|------|-------|
-| `apps/web/src/lib/workspace-url.ts` | URL builder (`workspaceHref`) | Cross-cutting. Planned in Phase 2. |
-| `apps/web/src/lib/params/workspace.params.ts` | Shared workspace param defs + server cache | Cross-cutting. Planned in Phase 2. |
-| `apps/web/src/lib/params/index.ts` | Barrel export for params | Planned in Phase 2. |
-| `apps/web/src/components/providers.tsx` | NuqsAdapter wiring | Cross-plan edit (additive). |
+| `apps/web/src/lib/workspace-url.ts` | URL builder (`workspaceHref`) | Cross-cutting. Flat options API (DYK-P2-03). |
+| `apps/web/src/lib/params/workspace.params.ts` | Shared workspace param defs + server cache | Cross-cutting (DYK-P2-02). |
+| `apps/web/src/lib/params/index.ts` | Barrel export for params | Exports `workspaceParams`, `workspaceParamsCache`. |
+| `apps/web/src/components/providers.tsx` | NuqsAdapter wiring | Inside Providers (DYK-P2-04). |
 
 ### Consumer Notes
 
 | Consumer File | Current Pattern | Migration Status |
 |---------------|----------------|-----------------|
-| `apps/web/src/components/workspaces/workspace-nav.tsx` | Inline `buildWorktreeUrl()` (lines 81-85) | Will import `workspaceHref` in Phase 2 T003 |
+| `apps/web/src/components/workspaces/workspace-nav.tsx` | Uses `workspaceHref()` | ✅ Migrated in Phase 2 T003 |
 | `apps/web/app/(dashboard)/workspaces/[slug]/page.tsx` | Manual URL template literals | Opportunistic migration (not required) |
 | `apps/web/app/(dashboard)/workspaces/[slug]/worktree/page.tsx` | Manual URL template literals | Opportunistic migration |
 | `apps/web/src/features/022-workgraph-ui/use-workgraph-api.ts` | Inline `buildApiUrl()` | Opportunistic migration |
@@ -78,4 +78,4 @@ Primary: `apps/web/src/lib/`
 | Plan | What Changed | Date |
 |------|-------------|------|
 | *(extracted)* | Domain extracted from existing codebase patterns. Inline URL construction exists in 10+ files; this domain formalizes and consolidates it. | 2026-02-22 |
-| Plan 041 Phase 2 | Implementation: `workspaceHref()`, `workspaceParams`, NuqsAdapter wiring | Pending |
+| Plan 041 Phase 2 | Implemented: `workspaceHref()` (flat options API), `workspaceParams` + cache, NuqsAdapter in Providers, retired `buildWorktreeUrl`. 21 tests. | 2026-02-22 |
