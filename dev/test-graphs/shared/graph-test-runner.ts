@@ -135,10 +135,19 @@ function buildDiskLoader(workspacePath: string) {
  *
  * Phase 3 extensibility: Build orchestration stack on top of tgc.service in your test.
  */
+export interface WithTestGraphOptions {
+  /** If true, keep the temp workspace after test completes (for post-run inspection). Default: false. */
+  preserveOnSuccess?: boolean;
+}
+
 export async function withTestGraph(
   fixtureName: string,
-  testFn: (tgc: TestGraphContext) => Promise<void>
+  testFnOrOptions: ((tgc: TestGraphContext) => Promise<void>) | WithTestGraphOptions,
+  maybeTestFn?: (tgc: TestGraphContext) => Promise<void>
 ): Promise<void> {
+  const testFn = typeof testFnOrOptions === 'function' ? testFnOrOptions : maybeTestFn!;
+  const options = typeof testFnOrOptions === 'object' ? testFnOrOptions : {};
+
   // Validate fixtureName to prevent path traversal
   if (!/^[a-z0-9_-]+$/.test(fixtureName)) {
     throw new Error(`Invalid fixtureName: "${fixtureName}" (must match ^[a-z0-9_-]+$)`);
@@ -210,15 +219,19 @@ export async function withTestGraph(
     // 8. Run the test
     await testFn(tgc);
   } finally {
-    // 9. Unregister workspace, then clean up temp dirs
-    try {
-      await workspaceService.remove(workspaceSlug);
-    } catch {
-      // Best-effort cleanup — don't mask test errors
-    }
-    await fs.rm(tmpDir, { recursive: true, force: true });
-    if (stackWorkspacePath && stackWorkspacePath !== tmpDir) {
-      await fs.rm(stackWorkspacePath, { recursive: true, force: true });
+    if (options.preserveOnSuccess) {
+      // Keep workspace for post-run inspection — don't unregister or delete
+    } else {
+      // 9. Unregister workspace, then clean up temp dirs
+      try {
+        await workspaceService.remove(workspaceSlug);
+      } catch {
+        // Best-effort cleanup — don't mask test errors
+      }
+      await fs.rm(tmpDir, { recursive: true, force: true });
+      if (stackWorkspacePath && stackWorkspacePath !== tmpDir) {
+        await fs.rm(stackWorkspacePath, { recursive: true, force: true });
+      }
     }
   }
 }
