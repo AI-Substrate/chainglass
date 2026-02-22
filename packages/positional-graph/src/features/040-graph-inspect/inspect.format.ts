@@ -282,24 +282,39 @@ export function formatInspectCompact(result: InspectResult): string {
   );
   lines.push('');
 
+  // Group nodes by line
+  const byLine = new Map<number, InspectNodeResult[]>();
   for (const node of result.nodes) {
-    const glyph = getGlyph(node);
-    const dur = formatDuration(node.durationMs);
-    const outLabel = node.outputCount === 1 ? '1 output' : `${node.outputCount} outputs`;
+    const group = byLine.get(node.lineIndex) ?? [];
+    group.push(node);
+    byLine.set(node.lineIndex, group);
+  }
 
-    let context = '';
-    const settings = node.orchestratorSettings;
-    if (node.questions.length > 0) {
-      context = `  (Q&A: ${node.questions.length} question${node.questions.length > 1 ? 's' : ''})`;
-    } else if (settings.noContext) {
-      context = `  (${settings.execution}, noContext)`;
-    } else if (settings.contextFrom) {
-      context = `  (inherit: ${settings.contextFrom})`;
+  for (const [lineIdx, lineNodes] of [...byLine.entries()].sort((a, b) => a[0] - b[0])) {
+    const prefix = `  Line ${lineIdx}: `;
+    const pad = ' '.repeat(prefix.length);
+
+    for (let i = 0; i < lineNodes.length; i++) {
+      const node = lineNodes[i];
+      const glyph = getGlyph(node);
+      const dur = formatDuration(node.durationMs);
+      const outLabel = node.outputCount === 1 ? '1 output' : `${node.outputCount} outputs`;
+
+      let context = '';
+      const settings = node.orchestratorSettings;
+      if (node.questions.length > 0) {
+        context = `  (Q&A: ${node.questions.length} question${node.questions.length > 1 ? 's' : ''})`;
+      } else if (settings.noContext) {
+        context = `  (${settings.execution}, noContext)`;
+      } else if (settings.contextFrom) {
+        context = `  (inherit: ${settings.contextFrom})`;
+      }
+
+      const leader = i === 0 ? prefix : `${pad}│ `;
+      lines.push(
+        `${leader}${glyph} ${node.nodeId.padEnd(20)} ${node.unitType.padEnd(12)} ${dur.padEnd(6)} ${outLabel}${context}`
+      );
     }
-
-    lines.push(
-      `  ${glyph} ${node.nodeId.padEnd(20)} ${node.unitType.padEnd(12)} ${dur.padEnd(6)} ${outLabel}${context}`
-    );
   }
 
   return lines.join('\n');
