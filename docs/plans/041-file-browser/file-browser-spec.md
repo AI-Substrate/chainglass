@@ -120,7 +120,7 @@ The product vibe is "one human, many agents" — a single developer managing a f
 ### Visual Identity
 
 12. Each workspace has a persistent emoji and accent color, auto-assigned randomly on creation from curated palettes (~30 emojis, ~10 colors).
-13. Emoji and color are stored in the workspace registry (schema v2). Reading a v1 registry auto-migrates to v2 with random assignments.
+13. Emoji and color are stored in the workspace registry alongside other workspace fields. Reading a registry without preferences uses spread-with-defaults (empty emoji/color). Auto-assignment of random emoji/color happens when the landing page "Add workspace" flow is built (Phase 3).
 14. Emoji + color appear on: landing page cards, sidebar header, browser tab title (emoji prefix), breadcrumbs.
 15. Users can change emoji and color on a workspace settings/manage page (`/settings/workspaces`).
 
@@ -163,7 +163,7 @@ The product vibe is "one human, many agents" — a single developer managing a f
 ### Data Model
 
 40. The Workspace entity gains a `preferences` field with: emoji (string), color (string), starred (boolean), sortOrder (number).
-41. The workspace registry file (`workspaces.json`) migrates from version 1 to version 2 automatically on first read. Existing fields are preserved; preferences are added with random defaults.
+41. The workspace registry file (`workspaces.json`) handles missing preferences gracefully via spread-with-defaults when reading. No formal schema migration is needed — the v2 schema is a superset of v1. Existing fields are preserved; missing preferences default to empty emoji/color, unstarred, sortOrder 0.
 42. A new `updatePreferences()` method on IWorkspaceService allows partial preference updates. A corresponding `update()` method is added to IWorkspaceRegistryAdapter.
 43. A new `updateWorkspacePreferences` server action handles preference mutations from the UI.
 

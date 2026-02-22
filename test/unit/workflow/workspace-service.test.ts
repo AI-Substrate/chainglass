@@ -444,5 +444,50 @@ describe('WorkspaceService', () => {
       expect(result.success).toBe(false);
       expect(result.errors.length).toBeGreaterThan(0);
     });
+
+    it('should reject negative sortOrder', async () => {
+      /*
+      Test Doc:
+      - Why: FIX-Q1 — sortOrder must be non-negative integer
+      - Contract: updatePreferences with sortOrder < 0 → { success: false }
+      - Quality Contribution: Prevents invalid display ordering
+      */
+      const ws = Workspace.create({ name: 'Test', path: '/home/user/test' });
+      registryAdapter.addWorkspace(ws);
+
+      const result = await service.updatePreferences(ws.slug, { sortOrder: -1 });
+      expect(result.success).toBe(false);
+      expect(result.errors.length).toBeGreaterThan(0);
+    });
+
+    it('should reject NaN sortOrder', async () => {
+      /*
+      Test Doc:
+      - Why: FIX-Q1 — non-finite sortOrder must be rejected
+      - Contract: updatePreferences with NaN sortOrder → { success: false }
+      - Quality Contribution: Prevents data corruption from invalid numeric input
+      */
+      const ws = Workspace.create({ name: 'Test', path: '/home/user/test' });
+      registryAdapter.addWorkspace(ws);
+
+      const result = await service.updatePreferences(ws.slug, { sortOrder: Number.NaN });
+      expect(result.success).toBe(false);
+    });
+
+    it('should accept valid sortOrder', async () => {
+      /*
+      Test Doc:
+      - Why: FIX-Q1 — valid non-negative integers must be accepted
+      - Contract: updatePreferences with sortOrder >= 0 → { success: true }
+      - Quality Contribution: Confirms happy path with hardened validation
+      */
+      const ws = Workspace.create({ name: 'Test', path: '/home/user/test' });
+      registryAdapter.addWorkspace(ws);
+
+      const result = await service.updatePreferences(ws.slug, { sortOrder: 5 });
+      expect(result.success).toBe(true);
+      const loaded = await registryAdapter.load(ws.slug);
+      expect(loaded.preferences.sortOrder).toBe(5);
+    });
   });
 });

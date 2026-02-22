@@ -30,11 +30,10 @@ All 11 FAILED as expected (entity not yet updated).
 - Updated `WorkspaceInput` and `WorkspaceJSON` types
 - Updated `entities/index.ts` and `packages/workflow/src/index.ts` barrels
 
-### Evidence
-```
-✓ test/unit/workflow/workspace-entity.test.ts (34 tests) 5ms
-Tests: 34 passed (34)
-```
+### REFACTOR Phase (T002-T005)
+No refactoring needed — implementation is minimal and follows established entity patterns. `withPreferences()` uses `Workspace.create()` internally (consistent with immutable entity pattern).
+
+### Evidence (T002-T005)
 
 **Files Changed**:
 - `packages/workflow/src/entities/workspace.ts` — preferences field, withPreferences(), toJSON()
@@ -72,11 +71,10 @@ Added 4 tests to contract test file:
 - Added `createWorkspaceFromJson()` helper with spread-with-defaults for v1 compatibility
 - Updated `load()` and `list()` to use the helper (DYK-P1-01 fix)
 
-### Evidence
-```
-✓ test/contracts/workspace-registry-adapter.contract.test.ts (28 tests) 6ms
-Tests: 28 passed (28)
-```
+### REFACTOR Phase (T008-T009)
+Extracted `createWorkspaceFromJson()` as private helper in adapter — consolidates the spread-with-defaults pattern used by both `load()` and `list()`. Initially used `as any` cast which biome rejected; refactored to `as unknown as { preferences?: ... }` pattern.
+
+### Evidence (T008-T009)
 
 **Files**: `packages/workflow/src/adapters/workspace-registry.adapter.ts` (MODIFIED)
 
@@ -98,11 +96,10 @@ Added 4 contract tests for `update()`:
 - Implemented on `FakeWorkspaceRegistryAdapter` with `WorkspaceUpdateCall` tracking
 - Updated fakes barrel to export `WorkspaceUpdateCall` type
 
-### Evidence
-```
-✓ test/contracts/workspace-registry-adapter.contract.test.ts (36 tests) 7ms
-Tests: 36 passed (36)
-```
+### REFACTOR Phase (T010-T011)
+No refactoring needed — `update()` follows the established read-modify-write pattern from `save()` and `remove()`.
+
+### Evidence (T010-T011)
 
 **Files Changed**:
 - `packages/workflow/src/interfaces/workspace-registry-adapter.interface.ts` — update()
@@ -128,11 +125,10 @@ Added 7 tests for `updatePreferences()`:
 - Implemented on `WorkspaceService`: load → validate palette → withPreferences → update
 - Imports `WORKSPACE_COLOR_NAMES`, `WORKSPACE_EMOJI_SET` for validation
 
-### Evidence
-```
-✓ test/unit/workflow/workspace-service.test.ts (22 tests) 5ms
-Tests: 22 passed (22)
-```
+### REFACTOR Phase (T012-T013)
+No refactoring needed — validation follows guard-clause pattern. Each validation (emoji, color, sortOrder) returns early on failure.
+
+### Evidence (T012-T013)
 
 **Files Changed**:
 - `packages/workflow/src/interfaces/workspace-service.interface.ts` — updatePreferences()
@@ -182,3 +178,49 @@ The `createWorkspaceFromJson()` helper initially used `(json as any).preferences
 **Files Changed**: 12 files modified/created
 **Regressions**: None (4040 tests pass)
 **Completed**: 2026-02-22T12:00Z
+
+---
+
+## Post-Review Fixes (2026-02-22T21:33Z)
+
+Applied fixes from `review.phase-1-data-model-infrastructure.md` (verdict: REQUEST_CHANGES):
+
+### FIX-Q1: sortOrder validation hardening
+- **RED**: Added 3 tests (reject negative, reject NaN, accept valid) to `workspace-service.test.ts`
+- **GREEN**: Added sortOrder validation in `WorkspaceService.updatePreferences()` — rejects non-finite and negative values
+- Also hardened Zod schema in server action with `.refine()` for non-negative numeric constraint
+
+### FIX-Q2: Action try/catch + logging
+- Wrapped service call in try/catch with `console.error('[updateWorkspacePreferences] Error:', error)`
+- Returns safe ActionState fallback on unexpected errors
+
+### FIX-Q3: Narrow cache invalidation
+- Changed `revalidatePath('/')` to only `revalidatePath('/workspaces/${slug}')` — scoped to affected workspace
+
+### FIX-S1: Migration authority formalized
+- **Spec amended**: AC-41 now says "handles missing preferences gracefully via spread-with-defaults" (no formal migration)
+- **Spec amended**: AC-13 now says "auto-assignment happens in Phase 3 add() flow" (not on read)
+- **Plan amended**: Deviation Ledger entry added documenting the DYK-P1-02 decision (user approved 2026-02-22)
+
+### FIX-S2: T014 status corrected
+- Changed from `[x]` to `WAIVED` in both dossier and plan task tables
+- Added explicit justification: no-mocks rule incompatible with server action isolation testing
+- Compensating control: core logic tested at service layer (T012, 7 tests)
+
+### FIX-V1/V2/V3: Traceability graph restored
+- Plan task statuses synced with dossier (all `[x]` or `WAIVED`)
+- Plan acceptance criteria marked with `[x]`
+- Plan Change Footnotes Ledger populated with 10 entries (all Phase 1 changed files)
+- Log links added to plan task table Notes column
+
+### FIX-S3: REFACTOR evidence added
+- Added `### REFACTOR Phase` subsections to each RED→GREEN group in execution log
+- Documented refactoring decisions (or explicit no-refactor notes)
+
+### FIX-S4: Scope docs justified
+- Added "Scope Note" in dossier explaining planning documents in Phase 1 commit were pre-existing uncommitted artifacts
+
+### Evidence
+```
+Tests: 25 passed (25) — workspace-service.test.ts (3 new sortOrder tests)
+```

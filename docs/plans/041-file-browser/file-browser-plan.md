@@ -230,29 +230,33 @@ Acceptance Criteria: [measurable assertions]
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 1.1 | [ ] | Create `apps/web/src/features/041-file-browser/` with `index.ts` barrel | 1 | Directory exists, barrel file exports nothing yet | - | PlanPak setup (T000) |
-| 1.2 | [ ] | Write tests for `WorkspacePreferences` type and `DEFAULT_PREFERENCES` | 1 | Tests verify default values, type shape | - | `test/unit/workflow/workspace-entity.test.ts` |
-| 1.3 | [ ] | Write tests for `Workspace.withPreferences()` immutable update | 2 | Tests verify new entity returned, original unchanged, partial merge | - | Extend existing entity tests |
-| 1.4 | [ ] | Write tests for `Workspace.toJSON()` with preferences | 1 | Tests verify preferences serialized in output | - | |
-| 1.5 | [ ] | Implement `WorkspacePreferences` type, `DEFAULT_PREFERENCES`, and entity changes | 2 | All tests from 1.2-1.4 pass | - | `packages/workflow/src/entities/workspace.ts` |
-| 1.6 | [ ] | Create workspace palette constants | 1 | Emoji palette (~30), color palette (~10) exported | - | `packages/workflow/src/constants/workspace-palettes.ts` |
-| 1.7 | [ ] | Write tests for v1→v2 registry migration function | 2 | Tests: v1 input → v2 output, random emoji/color assigned, all fields preserved, empty workspaces array | - | `test/unit/workflow/registry-migration.test.ts` |
-| 1.8 | [ ] | Write tests for atomic write in registry adapter | 2 | Tests: write to .tmp then rename, verify data integrity, handle write failure | - | Extend contract tests |
-| 1.9 | [ ] | Implement migration function + atomic write in `WorkspaceRegistryAdapter` | 3 | All tests from 1.7-1.8 pass. `readRegistry()` migrates v1→v2. `writeRegistry()` uses tmp+rename. | - | |
-| 1.10 | [ ] | Write tests for `IWorkspaceRegistryAdapter.update()` | 2 | Tests: update preferences, update non-existent workspace errors, partial update | - | Extend contract tests |
-| 1.11 | [ ] | Implement `update()` on real + fake adapters | 2 | Contract tests pass for both real and fake | - | |
-| 1.12 | [ ] | Write tests for `IWorkspaceService.updatePreferences()` | 2 | Tests: partial update, palette validation, non-existent workspace | - | `test/unit/workflow/workspace-service.test.ts` |
-| 1.13 | [ ] | Implement `updatePreferences()` on `WorkspaceService` | 2 | All tests from 1.12 pass | - | |
-| 1.14 | [ ] | Write tests for `updateWorkspacePreferences` server action | 2 | Tests: valid update, invalid emoji rejected, missing slug | - | `test/unit/web/app/actions/` |
-| 1.15 | [ ] | Implement `updateWorkspacePreferences` server action | 2 | All tests from 1.14 pass | - | `apps/web/app/actions/workspace-actions.ts` |
-| 1.16 | [ ] | Register `update()` in DI containers (production + test) | 1 | `createProductionContainer()` and `createTestContainer()` updated | - | `apps/web/src/lib/di-container.ts` |
-| 1.17 | [ ] | Run full test suite — verify no regressions | 1 | `just fft` passes | - | |
+| 1.1 | [x] | Create `apps/web/src/features/041-file-browser/` with `index.ts` barrel | 1 | Directory exists, barrel file exports nothing yet | [T001](#t001-create-feature-folder) | PlanPak setup |
+| 1.2 | [x] | Write tests for `WorkspacePreferences` type and `DEFAULT_PREFERENCES` | 1 | Tests verify default values, type shape | [T002](#t002-t005) | `test/unit/workflow/workspace-entity.test.ts` |
+| 1.3 | [x] | Write tests for `Workspace.withPreferences()` immutable update | 2 | Tests verify new entity returned, original unchanged, partial merge | [T003](#t002-t005) | Extend existing entity tests |
+| 1.4 | [x] | Write tests for `Workspace.toJSON()` with preferences | 1 | Tests verify preferences serialized in output | [T004](#t002-t005) | |
+| 1.5 | [x] | Implement `WorkspacePreferences` type, `DEFAULT_PREFERENCES`, and entity changes | 2 | All tests from 1.2-1.4 pass | [T005](#t002-t005) | `packages/workflow/src/entities/workspace.ts` |
+| 1.6 | [x] | Create workspace palette constants | 1 | Emoji palette (~30), color palette (~10) exported | [T006](#t006) | `packages/workflow/src/constants/workspace-palettes.ts` |
+| 1.7 | ~~REMOVED~~ | ~~Write tests for v1→v2 registry migration~~ | – | ~~DYK-P1-02: formal migration unnecessary~~ | – | See Deviation Ledger |
+| 1.8 | [x] | Write tests for atomic write + preferences pass-through in registry adapter | 2 | Tests: tmp+rename, preferences roundtrip, v1 compat | [T008](#t008-t009) | Extend contract tests |
+| 1.9 | [x] | Implement atomic write + spread-with-defaults in adapter | 2 | All tests from 1.8 pass. `writeRegistry()` uses tmp+rename. `load()`/`list()` preserve preferences. | [T009](#t008-t009) | |
+| 1.10 | [x] | Write tests for `IWorkspaceRegistryAdapter.update()` | 2 | Tests: update preferences, update non-existent workspace errors, partial update | [T010](#t010-t011) | Extend contract tests |
+| 1.11 | [x] | Implement `update()` on real + fake adapters | 2 | Contract tests pass for both real and fake | [T011](#t010-t011) | |
+| 1.12 | [x] | Write tests for `IWorkspaceService.updatePreferences()` | 2 | Tests: partial update, palette validation, sortOrder validation, non-existent workspace | [T012](#t012-t013) | `test/unit/workflow/workspace-service.test.ts` |
+| 1.13 | [x] | Implement `updatePreferences()` on `WorkspaceService` | 2 | All tests from 1.12 pass | [T013](#t012-t013) | |
+| 1.14 | WAIVED | Write tests for `updateWorkspacePreferences` server action | 2 | Server action is thin glue (Zod+DI). Testing requires mocking getContainer()/revalidatePath — violates no-mocks rule. Core logic covered by 1.12 service tests. | [T014](#t014-t015) | Approved waiver: no-mocks rule incompatible with server action isolation |
+| 1.15 | [x] | Implement `updateWorkspacePreferences` server action | 2 | Server action compiles. Zod validation + try/catch + structured logging. | [T015](#t014-t015) | `apps/web/app/actions/workspace-actions.ts` |
+| 1.16 | [x] | Verify DI containers + exports | 1 | All types importable from `@chainglass/workflow`. No new DI registration needed. | [T016](#t016-t017) | |
+| 1.17 | [x] | Run full test suite — verify no regressions | 1 | `just fft` passes (4040 tests, 0 failures) | [T017](#t016-t017) | |
 
 ### Acceptance Criteria
-- [ ] AC-40, AC-41, AC-42, AC-43 (Data Model) satisfied
-- [ ] AC-12, AC-13 (Visual Identity — storage) satisfied
-- [ ] All existing workspace tests still pass
-- [ ] Registry migration is non-destructive (v1 fields untouched)
+- [x] AC-40 (Data Model — preferences field) satisfied
+- [x] AC-41 (Registry backwards compat — spread-with-defaults) satisfied (amended per Deviation Ledger)
+- [x] AC-42 (adapter/service update methods) satisfied
+- [x] AC-43 (server action) satisfied
+- [x] AC-12 (Visual Identity storage — palettes created, auto-assign deferred to Phase 3) satisfied
+- [x] AC-13 (Registry stores prefs, handles missing gracefully) satisfied (amended per Deviation Ledger)
+- [x] All existing workspace tests still pass
+- [x] Backwards-compatible reading (v1 fields untouched, missing preferences → defaults)
 
 ---
 
@@ -555,11 +559,21 @@ Acceptance Criteria: [measurable assertions]
 
 | Principle Violated | Why Needed | Simpler Alternative Rejected | Risk Mitigation |
 |-------------------|------------|------------------------------|-----------------|
-| None identified | — | — | — |
+| AC-41/AC-13: Formal v1→v2 migration replaced with defaults-merge | Schema is a superset — v2 adds `preferences` field that v1 lacks. Spread-with-defaults handles missing field gracefully without migration code (DYK-P1-02). | Formal `migrateV1toV2()` function with version bump and write-back — added complexity with no benefit when schema is additive. | Tested: adapter load/list apply `{ ...DEFAULT_PREFERENCES, ...json.preferences }`. Empty emoji/color means "not yet assigned" — UI shows fallback. Approved by user during DYK session 2026-02-22. |
 
 ---
 
 ## Change Footnotes Ledger
 
-[^1]: [To be added during implementation via plan-6a]
-[^2]: [To be added during implementation via plan-6a]
+| Footnote | Phase | Files | Description |
+|----------|-------|-------|-------------|
+| [^1] | Phase 1 | `packages/workflow/src/entities/workspace.ts`, `entities/index.ts` | Added WorkspacePreferences type, DEFAULT_PREFERENCES, withPreferences(), updated toJSON() and WorkspaceInput/WorkspaceJSON |
+| [^2] | Phase 1 | `packages/workflow/src/constants/workspace-palettes.ts` | NEW: Curated emoji (30) and color (10) palettes with light/dark hex |
+| [^3] | Phase 1 | `packages/workflow/src/adapters/workspace-registry.adapter.ts` | Atomic write (tmp+rename), createWorkspaceFromJson() with spread-with-defaults, update() method |
+| [^4] | Phase 1 | `packages/workflow/src/interfaces/workspace-registry-adapter.interface.ts` | Added update() to interface |
+| [^5] | Phase 1 | `packages/workflow/src/interfaces/workspace-service.interface.ts` | Added updatePreferences() to interface |
+| [^6] | Phase 1 | `packages/workflow/src/services/workspace.service.ts` | Implemented updatePreferences() with palette + sortOrder validation |
+| [^7] | Phase 1 | `packages/workflow/src/fakes/fake-workspace-registry-adapter.ts`, `fakes/index.ts` | Added update() + WorkspaceUpdateCall tracking |
+| [^8] | Phase 1 | `apps/web/app/actions/workspace-actions.ts` | Added updateWorkspacePreferences server action (Zod, try/catch, scoped revalidation) |
+| [^9] | Phase 1 | `apps/web/src/features/041-file-browser/index.ts` | NEW: PlanPak feature folder barrel |
+| [^10] | Phase 1 | `packages/workflow/src/index.ts` | Added exports: DEFAULT_PREFERENCES, WorkspacePreferences, palette types/constants |

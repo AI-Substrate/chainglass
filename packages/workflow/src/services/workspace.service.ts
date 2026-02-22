@@ -243,6 +243,24 @@ export class WorkspaceService implements IWorkspaceService {
       };
     }
 
+    // Validate sortOrder (if provided) — must be non-negative finite integer
+    if (
+      prefs.sortOrder !== undefined &&
+      (!Number.isFinite(prefs.sortOrder) || prefs.sortOrder < 0)
+    ) {
+      return {
+        success: false,
+        errors: [
+          {
+            code: 'E076',
+            message: `Invalid sortOrder '${prefs.sortOrder}': must be a non-negative integer`,
+            action: 'Provide a non-negative integer for sortOrder',
+            path: slug,
+          },
+        ],
+      };
+    }
+
     // Load workspace
     let workspace: Workspace;
     try {

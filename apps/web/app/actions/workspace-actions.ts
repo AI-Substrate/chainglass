@@ -329,7 +329,12 @@ const updatePreferencesSchema = z.object({
   emoji: z.string().optional(),
   color: z.string().optional(),
   starred: z.enum(['true', 'false']).optional(),
-  sortOrder: z.string().optional(),
+  sortOrder: z
+    .string()
+    .optional()
+    .refine((val) => val === undefined || (!Number.isNaN(Number(val)) && Number(val) >= 0), {
+      message: 'sortOrder must be a non-negative number',
+    }),
 });
 
 /**
@@ -369,24 +374,33 @@ export async function updateWorkspacePreferences(
     prefs.sortOrder = Number.parseInt(parsed.data.sortOrder, 10);
 
   // 3. Call service
-  const container = getContainer();
-  const workspaceService = container.resolve<IWorkspaceService>(
-    WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE
-  );
-  const result = await workspaceService.updatePreferences(parsed.data.slug, prefs);
+  try {
+    const container = getContainer();
+    const workspaceService = container.resolve<IWorkspaceService>(
+      WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE
+    );
+    const result = await workspaceService.updatePreferences(parsed.data.slug, prefs);
 
-  if (!result.success) {
+    if (!result.success) {
+      return {
+        success: false,
+        errors: {
+          _form: result.errors.map((e) => e.message),
+        },
+      };
+    }
+
+    // 4. Invalidate cache (scoped to affected workspace)
+    revalidatePath(`/workspaces/${parsed.data.slug}`);
+
+    return { success: true, message: 'Preferences updated' };
+  } catch (error) {
+    console.error('[updateWorkspacePreferences] Error:', error);
     return {
       success: false,
       errors: {
-        _form: result.errors.map((e) => e.message),
+        _form: ['Failed to update preferences. Please try again.'],
       },
     };
   }
-
-  // 4. Invalidate cache
-  revalidatePath('/');
-  revalidatePath(`/workspaces/${parsed.data.slug}`);
-
-  return { success: true, message: 'Preferences updated' };
 }
