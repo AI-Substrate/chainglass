@@ -66,3 +66,11 @@ drive-demo:
 
 test-advanced-pipeline *args:
     npx tsx scripts/test-advanced-pipeline.ts {{args}}
+
+# Run tests for a specific plan/feature by number (e.g., just test-feature 040)
+test-feature plan:
+    pnpm vitest run --reporter=verbose $(find test -path "*{{plan}}*" -name "*.test.ts" 2>/dev/null | tr '\n' ' ')
+
+# Watch tests for a specific plan/feature (re-runs on file change)
+test-watch plan:
+    pnpm vitest --reporter=verbose $(find test -path "*{{plan}}*" -name "*.test.ts" 2>/dev/null | tr '\n' ' ')

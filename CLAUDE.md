@@ -182,22 +182,28 @@ Use `just` for common development tasks. Run `just --list` to see all commands.
 
 ```bash
 # Quality checks (USE THESE BEFORE COMMITTING)
-just fft                    # Fix, Format, Test - runs lint, format, then test
+just fft                    # Fix, Format, Test - runs lint, format, typecheck, then test
 just check                  # Full quality check: lint, typecheck, test
 just lint                   # Run biome linter only
 just format                 # Format code only
 just typecheck              # TypeScript type checking only
 
+# Fast feedback (USE DURING DEVELOPMENT)
+just test-feature 040       # Run tests for a specific plan (~1-2s)
+just test-watch 040         # Watch mode for a plan (re-runs on change)
+
 # Development
 just dev                    # Start development server
 just build                  # Build all packages
-just test                   # Run test suite
+just test                   # Run full test suite
 
 # Setup & Maintenance
 just install                # Install deps, build, link CLI globally
 just clean                  # Clean build artifacts
 just reset                  # Full reset (clean + reinstall)
 ```
+
+See `docs/how/dev/fast-feedback-loops.md` for the full testing strategy and feedback tier guide.
 
 ### pnpm Commands (Alternative)
 
