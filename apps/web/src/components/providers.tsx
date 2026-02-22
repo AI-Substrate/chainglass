@@ -5,11 +5,13 @@
  *
  * Includes:
  * - React Query (QueryClientProvider) for server state management
+ * - nuqs (NuqsAdapter) for type-safe URL state management (Plan 041 Phase 2)
  *
  * Part of Plan 015: Phase 3 notification-fetch architecture
  */
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { NuqsAdapter } from 'nuqs/adapters/next/app';
 import { type ReactNode, useState } from 'react';
 
 interface ProvidersProps {
@@ -43,5 +45,9 @@ export function Providers({ children }: ProvidersProps) {
       })
   );
 
-  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+  return (
+    <QueryClientProvider client={queryClient}>
+      <NuqsAdapter>{children}</NuqsAdapter>
+    </QueryClientProvider>
+  );
 }

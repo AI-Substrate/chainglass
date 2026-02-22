@@ -5,5 +5,8 @@
  * PlanPak feature folder — components and services for file browsing.
  *
  * Phase 1: Empty barrel (infrastructure only).
- * Phase 2+: Will export file browser components, hooks, params.
+ * Phase 2: Param definitions for file browser deep linking.
+ * Phase 3+: Will export file browser components, hooks.
  */
+
+export { fileBrowserParams, fileBrowserPageParamsCache } from './params';

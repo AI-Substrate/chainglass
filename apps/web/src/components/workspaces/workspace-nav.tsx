@@ -11,6 +11,7 @@
 
 import { useSidebar } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
+import { workspaceHref } from '@/lib/workspace-url';
 import { ChevronDown, ChevronRight, FolderOpen, GitBranch } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
@@ -76,13 +77,6 @@ export function WorkspaceNav() {
       return next;
     });
   }, []);
-
-  // Build worktree URL with query param - links to landing page
-  const buildWorktreeUrl = (slug: string, worktreePath: string) => {
-    const params = new URLSearchParams();
-    params.set('worktree', worktreePath);
-    return `/workspaces/${slug}/worktree?${params.toString()}`;
-  };
 
   // Check if a worktree is selected (generic - works for any worktree-scoped page)
   const isWorktreeSelected = (slug: string, worktreePath: string) => {
@@ -178,7 +172,7 @@ export function WorkspaceNav() {
                   return (
                     <Link
                       key={worktree.path}
-                      href={buildWorktreeUrl(workspace.slug, worktree.path)}
+                      href={workspaceHref(workspace.slug, '/worktree', { worktree: worktree.path })}
                       className={cn(
                         'flex items-center gap-2 rounded px-2 py-1 text-xs hover:bg-accent',
                         isSelected && 'bg-accent text-accent-foreground'
