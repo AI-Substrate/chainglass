@@ -38,7 +38,7 @@ format:
     pnpm biome format --write .
 
 # Fix, format, and test (fft) - full quality check sequence
-fft: lint format build test
+fft: lint format build typecheck test
 
 # Run TypeScript type checking
 typecheck:

@@ -29,6 +29,12 @@ import {
   registerCoreEventTypes,
 } from '@chainglass/positional-graph/features/032-node-event-system';
 import type { IPositionalGraphService } from '@chainglass/positional-graph/interfaces';
+import type { State } from '@chainglass/positional-graph/schemas';
+import type {
+  IWorkUnitService,
+  WorkUnitInstance,
+  WorkUnitSummary,
+} from '@chainglass/positional-graph/features/029-agentic-work-units';
 import {
   FakeAgentManagerService,
   NodeFileSystemAdapter,
@@ -255,7 +261,7 @@ export function buildDiskWorkUnitService(workspacePath: string) {
       const unitPath = path.join(workspacePath, '.chainglass', 'units', slug, 'unit.yaml');
       try {
         const content = await nodeFs.readFile(unitPath);
-        const parsed = yamlParser.parse(content, unitPath) as Record<string, unknown>;
+        const parsed = yamlParser.parse(content, unitPath) as WorkUnitInstance;
         return { unit: parsed, errors: [] as Array<{ code: string; message: string }> };
       } catch {
         return {
@@ -265,12 +271,15 @@ export function buildDiskWorkUnitService(workspacePath: string) {
       }
     },
     async list() {
-      return { units: [] as unknown[], errors: [] as Array<{ code: string; message: string }> };
+      return {
+        units: [] as WorkUnitSummary[],
+        errors: [] as Array<{ code: string; message: string }>,
+      };
     },
     async validate() {
       return { valid: true, errors: [] as Array<{ code: string; message: string }> };
     },
-  };
+  } satisfies IWorkUnitService;
 }
 
 /** Return value from createTestOrchestrationStack. */
@@ -298,7 +307,7 @@ export function createTestOrchestrationStack(
     {
       registry: eventRegistry,
       loadState: async (graphSlug: string) => service.loadGraphState(ctx, graphSlug),
-      persistState: async (graphSlug: string, state: unknown) =>
+      persistState: async (graphSlug: string, state: State) =>
         service.persistGraphState(ctx, graphSlug, state),
     },
     handlerRegistry
