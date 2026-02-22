@@ -1,16 +1,46 @@
 /**
  * Plan 040: Graph Inspect CLI — Formatters
  *
- * Pure functions: InspectResult → string. No side effects, no ANSI codes.
+ * Pure functions: InspectResult → string. Uses chalk for terminal styling.
  * Consumed by CLI handler (Phase 3) and tests.
  *
  * @packageDocumentation
  */
 
+import chalk from 'chalk';
 import { isFileOutput } from './inspect.types.js';
 import type { InspectFileMetadata, InspectNodeResult, InspectResult } from './inspect.types.js';
 
-// ── Helpers ─────────────────────────────────────────────
+// ── Alignment helpers ───────────────────────────────────
+
+/** Visible width of a string accounting for emoji (2-wide) and ANSI codes (0-wide). */
+function visWidth(str: string): number {
+  // Strip ANSI escape codes using ESC[...m pattern
+  const ESC = String.fromCharCode(0x1b);
+  const stripped = str.split(ESC).reduce((acc, part, i) => {
+    if (i === 0) return acc + part;
+    const mIdx = part.indexOf('m');
+    return mIdx >= 0 ? acc + part.slice(mIdx + 1) : acc + part;
+  }, '');
+  let w = 0;
+  for (const ch of stripped) {
+    const code = ch.codePointAt(0) ?? 0;
+    // Most emoji and CJK are double-width; variation selectors are 0-width
+    if (code >= 0x1f000 || (code >= 0x2600 && code <= 0x27bf)) w += 2;
+    else if (code === 0xfe0f)
+      w += 0; // variation selector
+    else w += 1;
+  }
+  return w;
+}
+
+/** Pad a string to a target visible width. */
+function padTo(str: string, width: number): string {
+  const diff = width - visWidth(str);
+  return diff > 0 ? str + ' '.repeat(diff) : str;
+}
+
+// ── Value helpers ───────────────────────────────────────
 
 function truncate(value: string, maxLen: number): string {
   if (value.length <= maxLen) return value;
@@ -62,31 +92,31 @@ function formatOutputValue(
   fileMeta: InspectFileMetadata | undefined,
   maxLen: number
 ): string {
+  const label = chalk.cyan(name);
   if (fileMeta) {
-    const sizeStr = formatFileSize(fileMeta.sizeBytes);
-    const lines = [`    ${name} → ${fileMeta.filename} (${sizeStr})`];
+    const sizeStr = chalk.dim(formatFileSize(fileMeta.sizeBytes));
+    const lines = [`    ${label} ${chalk.yellow('→')} ${fileMeta.filename} (${sizeStr})`];
     if (!fileMeta.isBinary && fileMeta.extract) {
       for (const extractLine of fileMeta.extract.split('\n').slice(0, 2)) {
-        lines.push(`               ${truncate(extractLine, maxLen)}`);
+        lines.push(`               ${chalk.dim(truncate(extractLine, maxLen))}`);
       }
     } else if (fileMeta.isBinary) {
-      lines.push('               [binary]');
+      lines.push(`               ${chalk.dim('[binary]')}`);
     }
     return lines.join('\n');
   }
-  // File output path but no metadata available (file unreadable)
   if (isFileOutput(value)) {
     const filename = String(value).split('/').pop() ?? '';
-    return `    ${name} → ${filename} (missing)`;
+    return `    ${label} ${chalk.yellow('→')} ${filename} ${chalk.dim('(missing)')}`;
   }
   if (typeof value === 'number' || typeof value === 'boolean') {
-    return `    ${name} = ${value}`;
+    return `    ${label} ${chalk.dim('=')} ${chalk.green(String(value))}`;
   }
   const strVal = String(value);
   if (strVal.length > maxLen) {
-    return `    ${name} = "${truncate(strVal, maxLen)}" (${strVal.length} chars)`;
+    return `    ${label} ${chalk.dim('=')} "${truncate(strVal, maxLen)}" ${chalk.dim(`(${strVal.length} chars)`)}`;
   }
-  return `    ${name} = "${strVal}"`;
+  return `    ${label} ${chalk.dim('=')} "${strVal}"`;
 }
 
 // ── formatInspect (default mode) ────────────────────────
@@ -94,14 +124,13 @@ function formatOutputValue(
 export function formatInspect(result: InspectResult): string {
   const lines: string[] = [];
 
-  // Header
-  lines.push(`Graph: ${result.graphSlug}`);
-  lines.push(`Status: ${result.graphStatus}`);
-  lines.push(`Updated: ${result.updatedAt}`);
+  lines.push(`${chalk.bold('Graph:')} ${result.graphSlug}`);
+  lines.push(`${chalk.bold('Status:')} ${result.graphStatus}`);
+  lines.push(`${chalk.bold('Updated:')} ${chalk.dim(result.updatedAt)}`);
   lines.push('');
 
   // Topology
-  lines.push('─────────────────────────────');
+  lines.push(chalk.dim('─────────────────────────────────────────'));
   const byLine = new Map<number, InspectNodeResult[]>();
   for (const node of result.nodes) {
     const group = byLine.get(node.lineIndex) ?? [];
@@ -109,51 +138,55 @@ export function formatInspect(result: InspectResult): string {
     byLine.set(node.lineIndex, group);
   }
   for (const [lineIdx, nodes] of [...byLine.entries()].sort((a, b) => a[0] - b[0])) {
-    const nodeStrs = nodes.map((n) => `${getGlyph(n)} ${n.nodeId}`);
-    lines.push(`  Line ${lineIdx}: ${nodeStrs.join(' │ ')}`);
+    const nodeStrs = nodes.map((n) => `${getGlyph(n)} ${chalk.bold(n.nodeId)}`);
+    lines.push(`  ${chalk.dim(`Line ${lineIdx}:`)} ${nodeStrs.join(chalk.dim(' │ '))}`);
   }
-  lines.push(`  Progress: ${result.completedNodes}/${result.totalNodes} complete`);
-  lines.push('─────────────────────────────');
+  lines.push(`  ${chalk.dim('Progress:')} ${result.completedNodes}/${result.totalNodes} complete`);
+  lines.push(chalk.dim('─────────────────────────────────────────'));
   lines.push('');
 
   // Per-node sections
   for (const node of result.nodes) {
-    lines.push(`━━━ ${node.nodeId} ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-    lines.push(`  Unit:     ${node.unitSlug} (${node.unitType})`);
-    lines.push(`  Status:   ${node.status}`);
+    lines.push(chalk.bold(`━━━ ${node.nodeId} ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`));
+    lines.push(`  ${chalk.dim('Unit:')}     ${node.unitSlug} ${chalk.dim(`(${node.unitType})`)}`);
+    lines.push(`  ${chalk.dim('Status:')}   ${node.status}`);
 
     if (node.startedAt) {
-      lines.push(`  Started:  ${node.startedAt}`);
+      lines.push(`  ${chalk.dim('Started:')}  ${chalk.dim(node.startedAt)}`);
     }
     if (node.completedAt && node.durationMs != null) {
-      lines.push(`  Ended:    ${node.completedAt}  (${formatDuration(node.durationMs)})`);
+      lines.push(
+        `  ${chalk.dim('Ended:')}    ${chalk.dim(node.completedAt)}  ${chalk.green(`(${formatDuration(node.durationMs)})`)}`
+      );
     } else if (node.startedAt && !node.completedAt) {
-      lines.push('  Running:  in progress');
+      lines.push(`  ${chalk.yellow('Running:')}  in progress`);
     } else if (!node.startedAt && (node.status === 'pending' || node.status === 'ready')) {
       lines.push(
-        `  Waiting:  ${node.status === 'ready' ? 'ready to start' : 'dependencies pending'}`
+        `  ${chalk.dim('Waiting:')}  ${node.status === 'ready' ? 'ready to start' : 'dependencies pending'}`
       );
     }
 
     if (node.error) {
-      lines.push(`  Error:    ${node.error.code} — ${node.error.message}`);
+      lines.push(
+        `  ${chalk.red('Error:')}    ${chalk.red(node.error.code)} — ${node.error.message}`
+      );
     }
 
     // Inputs
     const inputEntries = Object.entries(node.inputs);
     if (inputEntries.length === 0) {
-      lines.push('  Inputs:   (none)');
+      lines.push(`  ${chalk.dim('Inputs:')}   ${chalk.dim('(none)')}`);
     } else {
-      lines.push('  Inputs:');
+      lines.push(`  ${chalk.dim('Inputs:')}`);
       for (const [inputName, input] of inputEntries) {
-        const mark = input.available ? '✓' : '✗';
-        lines.push(`    ${inputName} ← ${input.fromNode}/${input.fromOutput}  ${mark}`);
+        const mark = input.available ? chalk.green('✓') : chalk.red('✗');
+        lines.push(`    ${chalk.cyan(inputName)} ← ${input.fromNode}/${input.fromOutput}  ${mark}`);
       }
     }
 
     // Outputs
     if (node.outputCount > 0) {
-      lines.push('  Outputs:');
+      lines.push(`  ${chalk.dim('Outputs:')}`);
       for (const [name, value] of Object.entries(node.outputs)) {
         const fileMeta = node.fileMetadata[name];
         lines.push(formatOutputValue(name, value, fileMeta, 60));
@@ -170,67 +203,72 @@ export function formatInspect(result: InspectResult): string {
 
 export function formatInspectNode(result: InspectResult, nodeId: string): string {
   const node = result.nodes.find((n) => n.nodeId === nodeId);
-  if (!node) return `Node not found: ${nodeId}`;
+  if (!node) return chalk.red(`Node not found: ${nodeId}`);
 
   const lines: string[] = [];
 
-  lines.push(`━━━ ${node.nodeId} ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-  lines.push(`  Unit:     ${node.unitSlug} (${node.unitType})`);
-  lines.push(`  Status:   ${node.status}`);
+  lines.push(chalk.bold(`━━━ ${node.nodeId} ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`));
+  lines.push(`  ${chalk.dim('Unit:')}     ${node.unitSlug} ${chalk.dim(`(${node.unitType})`)}`);
+  lines.push(`  ${chalk.dim('Status:')}   ${node.status}`);
 
   if (node.startedAt) {
-    lines.push(`  Started:  ${node.startedAt}`);
+    lines.push(`  ${chalk.dim('Started:')}  ${chalk.dim(node.startedAt)}`);
   }
   if (node.completedAt && node.durationMs != null) {
-    lines.push(`  Ended:    ${node.completedAt}  (${formatDuration(node.durationMs)})`);
+    lines.push(
+      `  ${chalk.dim('Ended:')}    ${chalk.dim(node.completedAt)}  ${chalk.green(`(${formatDuration(node.durationMs)})`)}`
+    );
   }
 
   if (node.error) {
-    lines.push(`  Error:    ${node.error.code} — ${node.error.message}`);
+    lines.push(`  ${chalk.red('Error:')}    ${chalk.red(node.error.code)} — ${node.error.message}`);
   }
 
   // Inputs
   const inputEntries = Object.entries(node.inputs);
   if (inputEntries.length === 0) {
-    lines.push('  Inputs:   (none)');
+    lines.push(`  ${chalk.dim('Inputs:')}   ${chalk.dim('(none)')}`);
   } else {
-    lines.push('  Inputs:');
+    lines.push(`  ${chalk.dim('Inputs:')}`);
     for (const [inputName, input] of inputEntries) {
-      const mark = input.available ? '✓' : '✗';
-      lines.push(`    ${inputName} ← ${input.fromNode}/${input.fromOutput}  ${mark}`);
+      const mark = input.available ? chalk.green('✓') : chalk.red('✗');
+      lines.push(`    ${chalk.cyan(inputName)} ← ${input.fromNode}/${input.fromOutput}  ${mark}`);
     }
   }
 
   // Outputs — full (untruncated)
   if (node.outputCount > 0) {
-    lines.push(`\n  Outputs (${node.outputCount}):`);
+    lines.push(`\n  ${chalk.dim(`Outputs (${node.outputCount}):`)}`);
     for (const [name, value] of Object.entries(node.outputs)) {
       const fileMeta = node.fileMetadata[name];
       if (fileMeta) {
-        const sizeStr = formatFileSize(fileMeta.sizeBytes);
-        lines.push(`    ${name} → ${fileMeta.filename} (${sizeStr})`);
+        const sizeStr = chalk.dim(formatFileSize(fileMeta.sizeBytes));
+        lines.push(
+          `    ${chalk.cyan(name)} ${chalk.yellow('→')} ${fileMeta.filename} (${sizeStr})`
+        );
         if (!fileMeta.isBinary && fileMeta.extract) {
           for (const extractLine of fileMeta.extract.split('\n')) {
-            lines.push(`               ${extractLine}`);
+            lines.push(`               ${chalk.dim(extractLine)}`);
           }
         }
       } else if (typeof value === 'number' || typeof value === 'boolean') {
-        lines.push(`    ${name} = ${value}`);
+        lines.push(`    ${chalk.cyan(name)} ${chalk.dim('=')} ${chalk.green(String(value))}`);
       } else {
-        lines.push(`    ${name} = "${String(value)}"`);
+        lines.push(`    ${chalk.cyan(name)} ${chalk.dim('=')} "${String(value)}"`);
       }
     }
   }
 
   // Events
   if (node.events.length > 0) {
-    lines.push(`\n  Events (${node.events.length}):`);
+    lines.push(`\n  ${chalk.dim(`Events (${node.events.length}):`)}`);
     for (let i = 0; i < node.events.length; i++) {
       const ev = node.events[i];
       const stampKeys = Object.keys(ev.stamps);
-      const stampStr = stampKeys.map((k) => `${k}✓`).join(' ');
+      const stampStr = stampKeys.map((k) => chalk.green(`${k}✓`)).join(' ');
+      const num = chalk.dim(`${i + 1}.`);
       lines.push(
-        `    ${i + 1}. ${ev.type.padEnd(16)} ${ev.actor.padEnd(14)} ${ev.timestamp}  ${stampStr}`
+        `    ${num} ${padTo(ev.type, 18)} ${padTo(ev.actor, 14)} ${chalk.dim(ev.timestamp)}  ${stampStr}`
       );
     }
   }
@@ -244,25 +282,29 @@ export function formatInspectNode(result: InspectResult, nodeId: string): string
 export function formatInspectOutputs(result: InspectResult): string {
   const lines: string[] = [];
 
-  lines.push(`Graph: ${result.graphSlug} (${result.graphStatus})`);
+  lines.push(`${chalk.bold('Graph:')} ${result.graphSlug} ${chalk.dim(`(${result.graphStatus})`)}`);
   lines.push('');
 
   for (const node of result.nodes) {
     if (node.outputCount === 0) continue;
 
-    lines.push(`${node.nodeId}:`);
+    lines.push(`${chalk.bold(node.nodeId)}:`);
     for (const [name, value] of Object.entries(node.outputs)) {
       const fileMeta = node.fileMetadata[name];
       if (fileMeta) {
-        lines.push(`  ${name} → ${fileMeta.filename} (${formatFileSize(fileMeta.sizeBytes)})`);
+        lines.push(
+          `  ${chalk.cyan(name)} ${chalk.yellow('→')} ${fileMeta.filename} ${chalk.dim(`(${formatFileSize(fileMeta.sizeBytes)})`)}`
+        );
       } else if (typeof value === 'number' || typeof value === 'boolean') {
-        lines.push(`  ${name} = ${value}`);
+        lines.push(`  ${chalk.cyan(name)} ${chalk.dim('=')} ${chalk.green(String(value))}`);
       } else {
         const strVal = String(value);
         if (strVal.length > 40) {
-          lines.push(`  ${name} = "${truncate(strVal, 40)}" (${strVal.length} chars)`);
+          lines.push(
+            `  ${chalk.cyan(name)} ${chalk.dim('=')} "${truncate(strVal, 40)}" ${chalk.dim(`(${strVal.length} chars)`)}`
+          );
         } else {
-          lines.push(`  ${name} = "${strVal}"`);
+          lines.push(`  ${chalk.cyan(name)} ${chalk.dim('=')} "${strVal}"`);
         }
       }
     }
@@ -278,7 +320,7 @@ export function formatInspectCompact(result: InspectResult): string {
   const lines: string[] = [];
 
   lines.push(
-    `Graph: ${result.graphSlug} (${result.graphStatus}) — ${result.completedNodes}/${result.totalNodes} nodes`
+    `${chalk.bold('Graph:')} ${result.graphSlug} ${chalk.dim(`(${result.graphStatus})`)} — ${result.completedNodes}/${result.totalNodes} nodes`
   );
   lines.push('');
 
@@ -291,29 +333,31 @@ export function formatInspectCompact(result: InspectResult): string {
   }
 
   for (const [lineIdx, lineNodes] of [...byLine.entries()].sort((a, b) => a[0] - b[0])) {
-    const prefix = `  Line ${lineIdx}: `;
-    const pad = ' '.repeat(prefix.length);
+    const lineLabel = chalk.dim(`Line ${lineIdx}:`);
 
     for (let i = 0; i < lineNodes.length; i++) {
       const node = lineNodes[i];
       const glyph = getGlyph(node);
-      const dur = formatDuration(node.durationMs);
+      const nodeId = padTo(chalk.bold(node.nodeId), 22);
+      const unitType = padTo(chalk.dim(node.unitType), 12);
+      const dur = padTo(formatDuration(node.durationMs), 8);
       const outLabel = node.outputCount === 1 ? '1 output' : `${node.outputCount} outputs`;
 
       let context = '';
       const settings = node.orchestratorSettings;
       if (node.questions.length > 0) {
-        context = `  (Q&A: ${node.questions.length} question${node.questions.length > 1 ? 's' : ''})`;
+        context = chalk.dim(
+          `  (Q&A: ${node.questions.length} question${node.questions.length > 1 ? 's' : ''})`
+        );
       } else if (settings.noContext) {
-        context = `  (${settings.execution}, noContext)`;
+        context = chalk.dim(`  (${settings.execution}, noContext)`);
       } else if (settings.contextFrom) {
-        context = `  (inherit: ${settings.contextFrom})`;
+        context = chalk.dim(`  (inherit: ${settings.contextFrom})`);
       }
 
-      const leader = i === 0 ? prefix : `${pad}│ `;
-      lines.push(
-        `${leader}${glyph} ${node.nodeId.padEnd(20)} ${node.unitType.padEnd(12)} ${dur.padEnd(6)} ${outLabel}${context}`
-      );
+      const leader =
+        i === 0 ? `  ${lineLabel} ` : `  ${' '.repeat(visWidth(lineLabel))} ${chalk.dim('│')} `;
+      lines.push(`${leader}${glyph} ${nodeId} ${unitType} ${dur} ${outLabel}${context}`);
     }
   }
 
