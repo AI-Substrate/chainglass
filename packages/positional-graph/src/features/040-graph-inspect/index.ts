@@ -18,3 +18,10 @@ export type {
 export { isFileOutput } from './inspect.types.js';
 
 export { buildInspectResult } from './inspect.js';
+
+export {
+  formatInspect,
+  formatInspectNode,
+  formatInspectOutputs,
+  formatInspectCompact,
+} from './inspect.format.js';
