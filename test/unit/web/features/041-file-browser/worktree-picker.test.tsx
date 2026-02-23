@@ -154,5 +154,24 @@ describe('WorktreePicker', () => {
       const current = screen.getByText('main').closest('button');
       expect(current).toHaveAttribute('aria-current', 'true');
     });
+
+    it('selects worktree via Enter key on focused button', async () => {
+      const user = userEvent.setup();
+      const onSelect = vi.fn();
+      render(
+        <WorktreePicker
+          worktrees={sampleWorktrees}
+          currentWorktree="/home/user/substrate"
+          onSelect={onSelect}
+        />
+      );
+
+      const secondItem = screen.getByText('002-agents').closest('button');
+      if (secondItem) {
+        secondItem.focus();
+        await user.keyboard('{Enter}');
+      }
+      expect(onSelect).toHaveBeenCalledWith('/home/user/substrate-002');
+    });
   });
 });

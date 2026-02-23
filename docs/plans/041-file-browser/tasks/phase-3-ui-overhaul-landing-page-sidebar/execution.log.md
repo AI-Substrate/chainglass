@@ -9,15 +9,20 @@
 ## Task T001: Write tests for WorkspaceCard component
 **Plan Task**: 3.1 | **Dossier Task**: T001
 **Started**: 2026-02-23T08:55Z
-**Status**: 🔄 In Progress
+**Status**: ✅ Complete
 
-### What I Did
-Writing RED tests for WorkspaceCard Server Component. 15 tests covering:
+### RED Phase
+15 tests written for WorkspaceCard Server Component:
 - Visual identity: emoji+name, fallback avatar (first letter), accent color border, neutral border
 - Worktree summary: count >3, branch names ≤3, single branch
 - Star toggle: form element, filled/empty star states
 - Agent summary: omitted when absent, running count, attention indicator
 - Navigation: link to `/workspaces/[slug]`, path display
+
+**RED evidence**: Module not found error — `WorkspaceCard` does not exist yet. 0 tests executed.
+
+### GREEN Phase (via T002)
+All 15 tests pass after T002 implementation.
 
 ### Evidence
 ```
@@ -25,6 +30,9 @@ Writing RED tests for WorkspaceCard Server Component. 15 tests covering:
  Test Files  1 passed (1)
       Tests  15 passed (15)
 ```
+
+### REFACTOR
+No refactor needed — clean on first pass.
 
 ### Discoveries
 - `workspaceHref(slug)` without subPath appends "undefined" — must pass `''` explicitly

@@ -291,7 +291,10 @@ _Populated during implementation by plan-6._
 |------|------|------|-----------|------------|------------|
 | 2026-02-23 | T002 | gotcha | `workspaceHref(slug)` without subPath appends "undefined" to URL — subPath is required, not optional | Pass `''` as subPath: `workspaceHref(slug, '')` | log#task-t001 |
 | 2026-02-23 | T009 | gotcha | Biome lint rejects `div[role="option"]` and `div[role="listbox"]` — requires semantic elements or button | Changed to `<button>` elements with `aria-current` instead of `role="option"` with `aria-selected` | log#task-t009 |
+| 2026-02-23 | T010 | debt | Sidebar header shows decoded slug only — no emoji or display name from workspace preferences | Deferred: requires workspace data plumbing through layout or context. Sidebar renders slug as workspace name for now. Full identity wiring tracked for Phase 5. | log#task-t010, FT-006 |
 | 2026-02-23 | T002 | gotcha | `updateWorkspacePreferences` is `(prevState, formData)` for useActionState — can't be used as `<form action>` directly | Created `toggleWorkspaceStar(formData)` single-arg action for `<form action>` | log#task-t002 |
+| 2026-02-23 | T012 | debt | `useAttentionTitle` exists and is tested but not wired into workspace pages | Deferred: requires workspace layout wrapper that provides emoji + workspace name. Hook ready for integration when workspace context data flows through layout. | log#task-t012, FT-007 |
+| 2026-02-23 | T013 | decision | `toggleWorkspaceStar` silent on failure — no user-visible error | Intentional: Server Component form action has no client feedback mechanism. Action validates slug, logs errors server-side. Future enhancement: wire `useActionState` in client wrapper for toast feedback. | FT-009 |
 
 ---
 
@@ -301,6 +304,19 @@ _Populated by plan-6a during implementation._
 
 | Footnote | Task | File(s) | Description |
 |----------|------|---------|-------------|
+| [^21] | T001 | `test/unit/web/features/041-file-browser/workspace-card.test.tsx` | NEW: 15 WorkspaceCard tests |
+| [^22] | T002 | `apps/web/src/features/041-file-browser/components/workspace-card.tsx` | NEW: Server Component card |
+| [^23] | T003 | `test/unit/web/features/041-file-browser/fleet-status-bar.test.tsx` | NEW: 6 FleetStatusBar tests |
+| [^24] | T004 | `apps/web/src/features/041-file-browser/components/fleet-status-bar.tsx` | NEW: Server Component fleet bar |
+| [^25] | T006 | `apps/web/app/(dashboard)/page.tsx` | REPLACED: Workspace card grid landing page |
+| [^26] | T008 | `test/unit/web/features/041-file-browser/worktree-picker.test.tsx` | NEW: 8 WorktreePicker tests |
+| [^27] | T009 | `apps/web/src/features/041-file-browser/components/worktree-picker.tsx` | NEW: Searchable worktree picker |
+| [^28] | T010 | `apps/web/src/components/dashboard-sidebar.tsx` | RESTRUCTURED: Context-aware sidebar |
+| [^29] | T007 | `apps/web/src/lib/navigation-utils.ts` | RESTRUCTURED: Nav item groups |
+| [^30] | T011 | `test/unit/web/features/041-file-browser/use-attention-title.test.ts` | NEW: 5 useAttentionTitle tests |
+| [^31] | T012 | `apps/web/src/features/041-file-browser/hooks/use-attention-title.ts` | NEW: Tab title hook |
+| [^32] | T013 | `apps/web/src/components/navigation/bottom-tab-bar.tsx` | MODIFIED: Workspace-scoped tabs |
+| [^33] | T014 | `apps/web/app/actions/workspace-actions.ts`, `apps/web/src/features/041-file-browser/index.ts` | toggleWorkspaceStar + barrel update |
 
 ---
 
