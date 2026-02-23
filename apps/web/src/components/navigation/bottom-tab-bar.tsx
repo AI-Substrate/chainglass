@@ -1,8 +1,9 @@
 'use client';
 
 import { useResponsive } from '@/hooks/useResponsive';
-import { MOBILE_NAV_ITEMS } from '@/lib/navigation-utils';
+import { LANDING_NAV_ITEMS, WORKSPACE_NAV_ITEMS } from '@/lib/navigation-utils';
 import { cn } from '@/lib/utils';
+import { workspaceHref } from '@/lib/workspace-url';
 import { usePathname, useRouter } from 'next/navigation';
 
 /**
@@ -31,6 +32,17 @@ export function BottomTabBar() {
     return null;
   }
 
+  // Detect workspace context from URL
+  const workspaceSlug = pathname.match(/^\/workspaces\/([^/]+)/)?.[1] ?? null;
+  const isInWorkspace = workspaceSlug != null;
+
+  const navItems = isInWorkspace
+    ? WORKSPACE_NAV_ITEMS.map((item) => ({
+        ...item,
+        href: workspaceHref(workspaceSlug, item.href),
+      }))
+    : LANDING_NAV_ITEMS;
+
   const handleTabClick = (href: string) => {
     // Don't navigate if already on this route
     if (pathname === href) {
@@ -53,8 +65,8 @@ export function BottomTabBar() {
         className={cn('flex items-center justify-around', 'h-16 px-2')}
         aria-label="Mobile navigation"
       >
-        {MOBILE_NAV_ITEMS.map((item) => {
-          const isActive = pathname === item.href;
+        {navItems.map((item) => {
+          const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
           const Icon = item.icon;
 
           return (

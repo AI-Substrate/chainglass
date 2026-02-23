@@ -404,3 +404,30 @@ export async function updateWorkspacePreferences(
     };
   }
 }
+
+// ==================== Toggle Star (form action compatible) ====================
+
+/**
+ * Toggle workspace starred status. Single-arg form action for <form action>.
+ *
+ * Per Plan 041 Phase 3: WorkspaceCard uses <form action> (not useActionState).
+ */
+export async function toggleWorkspaceStar(formData: FormData): Promise<void> {
+  const slug = formData.get('slug');
+  const starred = formData.get('starred');
+
+  if (!slug || typeof slug !== 'string') return;
+
+  try {
+    const container = getContainer();
+    const workspaceService = container.resolve<IWorkspaceService>(
+      WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE
+    );
+    await workspaceService.updatePreferences(slug, {
+      starred: starred === 'true',
+    });
+    revalidatePath('/');
+  } catch (error) {
+    console.error('[toggleWorkspaceStar] Error:', error);
+  }
+}
