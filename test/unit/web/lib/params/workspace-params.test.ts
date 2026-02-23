@@ -24,9 +24,9 @@ describe('workspaceParamsCache', () => {
     expect(result.worktree).toBe('/home/jak/project');
   });
 
-  it('ignores non-string worktree (array)', () => {
+  it('takes first element when worktree is array', () => {
     const result = workspaceParamsCache.parse({ worktree: ['a', 'b'] });
-    // parseAsString should handle this gracefully
-    expect(typeof result.worktree).toBe('string');
+    // nuqs parseAsString takes the first array element
+    expect(result.worktree).toBe('a');
   });
 });

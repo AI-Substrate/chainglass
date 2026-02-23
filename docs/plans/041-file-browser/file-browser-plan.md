@@ -265,11 +265,12 @@ Acceptance Criteria: [measurable assertions]
 **Objective**: Install and wire nuqs for type-safe URL state management. Create the workspace URL kit (`workspaceHref()`, param definitions) that all subsequent phases depend on.
 
 **Deliverables**:
-- `nuqs` installed and `NuqsAdapter` wired in root layout
-- `workspaceHref()` helper
-- `workspaceParams` definition (worktree)
-- `fileBrowserParams` definition (dir, file, mode, changed)
+- `nuqs` installed and `NuqsAdapter` wired inside Providers component (DYK-P2-04)
+- `workspaceHref()` helper with flat options API (DYK-P2-03)
+- `workspaceParams` definition in `src/lib/params/` (cross-cutting, DYK-P2-02)
+- `fileBrowserParams` definition (dir, file, mode, changed) — plan-scoped
 - Server-side `createSearchParamsCache` for each param set
+- Domain extracted: `_platform/workspace-url`
 
 **Dependencies**: None (can run in parallel with Phase 1)
 
@@ -283,20 +284,20 @@ Acceptance Criteria: [measurable assertions]
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 2.1 | [ ] | Install `nuqs`, wire `NuqsAdapter` in root layout, verify build passes | 2 | `pnpm add nuqs && pnpm build` succeeds. `pnpm dev` starts without errors. Navigate to `/workspaces` and `/` — no hydration errors in console. Turbopack compat confirmed. | - | Spike: verify Turbopack compat. If fails, fall back to custom hooks per Finding 07. |
-| 2.2 | [ ] | Write tests for `workspaceHref()` | 2 | Tests: basic URL, with worktree, with params, omits empty/false/undefined | - | `test/unit/web/lib/workspace-url.test.ts` |
-| 2.3 | [ ] | Implement `workspaceHref()` | 1 | All tests from 2.2 pass | - | `apps/web/src/lib/workspace-url.ts` |
-| 2.4 | [ ] | Write tests for `workspaceParams` (server-side cache) | 1 | Tests: empty params → defaults, populated params parsed correctly | - | |
-| 2.5 | [ ] | Write tests for `fileBrowserParams` (server-side cache) | 2 | Tests: defaults, all params populated, invalid mode falls back | - | |
-| 2.6 | [ ] | Implement param definitions + server caches | 2 | All tests from 2.4-2.5 pass | - | `apps/web/src/features/041-file-browser/params/` |
-| 2.7 | [ ] | Write tests for `parseWorkspacePageProps()` helper | 1 | Tests: extracts slug + worktree from Next.js page props | - | |
-| 2.8 | [ ] | Implement `parseWorkspacePageProps()` | 1 | Tests from 2.7 pass | - | `apps/web/src/lib/workspace-url.ts` |
-| 2.9 | [ ] | Verify existing pages still work with NuqsAdapter | 1 | Navigate to 5+ existing pages, no errors | - | Manual verification |
+| 2.1 | [x] | Install `nuqs`, wire `NuqsAdapter` inside Providers component (DYK-P2-04), verify build passes | 2 | `pnpm add nuqs && pnpm build` succeeds. No hydration errors. Turbopack compat confirmed. | [log](./tasks/phase-2-deep-linking-url-state/execution.log.md#task-t001) | nuqs@2.8.8 compatible with Next.js 16 + Turbopack. [^11] [^12] |
+| 2.2 | [x] | Write tests for `workspaceHref()` (flat options API, DYK-P2-03) | 2 | Tests: basic URL, worktree in options, feature params, omits empty/false/undefined/null | [log](./tasks/phase-2-deep-linking-url-state/execution.log.md#task-t002) | [^13] |
+| 2.3 | [x] | Implement `workspaceHref()`, retire `buildWorktreeUrl` from workspace-nav | 1 | All tests from 2.2 pass | [log](./tasks/phase-2-deep-linking-url-state/execution.log.md#task-t003) | [^13] [^14] |
+| 2.4 | [x] | Write tests for `workspaceParams` (cross-cutting, DYK-P2-02) | 1 | Tests: empty params → defaults, populated params parsed correctly | [log](./tasks/phase-2-deep-linking-url-state/execution.log.md#tasks-t004--t005) | [^15] |
+| 2.5 | [x] | Write tests for `fileBrowserParams` (plan-scoped) | 2 | Tests: defaults, all params populated, invalid mode falls back | [log](./tasks/phase-2-deep-linking-url-state/execution.log.md#tasks-t004--t005) | [^16] |
+| 2.6 | [x] | Implement param definitions + server caches | 2 | All tests from 2.4-2.5 pass | [log](./tasks/phase-2-deep-linking-url-state/execution.log.md#task-t006) | `workspaceParams` in `src/lib/params/` (DYK-P2-02). [^17] [^18] [^19] |
+| 2.7 | REMOVED | ~~Write tests for `parseWorkspacePageProps()`~~ | - | - | - | DYK-P2-01/P2-05: Dropped. Pages use `cache.parse()` directly. |
+| 2.8 | REMOVED | ~~Implement `parseWorkspacePageProps()`~~ | - | - | - | DYK-P2-01/P2-05: Dropped. |
+| 2.9 | [x] | Verify existing pages still work with NuqsAdapter | 1 | Navigate to 5+ existing pages, no errors | [log](./tasks/phase-2-deep-linking-url-state/execution.log.md#task-t008) | Browser automation verified `/`, `/workspaces`, `/workspaces/chainglass-main`. |
 
 ### Acceptance Criteria
-- [ ] AC-16, AC-17, AC-18, AC-19 (Deep Linking) satisfied
-- [ ] Existing pages unaffected by NuqsAdapter addition
-- [ ] `workspaceHref()` produces correct URLs for all test cases
+- [x] AC-16, AC-17, AC-18, AC-19 (Deep Linking) satisfied
+- [x] Existing pages unaffected by NuqsAdapter addition
+- [x] `workspaceHref()` produces correct URLs for all test cases
 
 ---
 
@@ -531,7 +532,7 @@ Acceptance Criteria: [measurable assertions]
 
 ### Phase Completion Checklist
 - [x] Phase 1: Data Model & Infrastructure — COMPLETE
-- [ ] Phase 2: Deep Linking & URL State — NOT STARTED
+- [x] Phase 2: Deep Linking & URL State — COMPLETE
 - [ ] Phase 3: UI Overhaul — Landing Page & Sidebar — NOT STARTED
 - [ ] Phase 4: File Browser (Part A: Backend + Part B: Frontend) — NOT STARTED
 - [ ] Phase 5: Attention System & Polish — NOT STARTED
@@ -577,3 +578,13 @@ Acceptance Criteria: [measurable assertions]
 | [^8] | Phase 1 | `apps/web/app/actions/workspace-actions.ts` | Added updateWorkspacePreferences server action (Zod, try/catch, scoped revalidation) |
 | [^9] | Phase 1 | `apps/web/src/features/041-file-browser/index.ts` | NEW: PlanPak feature folder barrel |
 | [^10] | Phase 1 | `packages/workflow/src/index.ts` | Added exports: DEFAULT_PREFERENCES, WorkspacePreferences, palette types/constants |
+| [^11] | Phase 2 | `apps/web/package.json`, `pnpm-lock.yaml` | Added nuqs@^2.8.8 dependency |
+| [^12] | Phase 2 | `apps/web/src/components/providers.tsx` | Added NuqsAdapter import + wrapper inside Providers (DYK-P2-04) |
+| [^13] | Phase 2 | `apps/web/src/lib/workspace-url.ts` | NEW: workspaceHref() URL builder with flat options API (DYK-P2-03) |
+| [^14] | Phase 2 | `apps/web/src/components/workspaces/workspace-nav.tsx` | Retired inline buildWorktreeUrl(), imports workspaceHref() |
+| [^15] | Phase 2 | `apps/web/src/lib/params/workspace.params.ts`, `apps/web/src/lib/params/index.ts` | NEW: Cross-cutting workspaceParams + workspaceParamsCache (DYK-P2-02) |
+| [^16] | Phase 2 | `test/unit/web/features/041-file-browser/params.test.ts` | NEW: 5 tests for fileBrowserPageParamsCache |
+| [^17] | Phase 2 | `apps/web/src/features/041-file-browser/params/file-browser.params.ts` | NEW: fileBrowserParams + fileBrowserPageParamsCache |
+| [^18] | Phase 2 | `apps/web/src/features/041-file-browser/params/index.ts` | NEW: Params barrel export |
+| [^19] | Phase 2 | `apps/web/src/features/041-file-browser/index.ts` | Updated: exports fileBrowserParams + cache from params barrel |
+| [^20] | Phase 2 | `docs/domains/_platform/workspace-url/domain.md`, `docs/domains/registry.md` | NEW: First domain extraction — _platform/workspace-url infrastructure domain |

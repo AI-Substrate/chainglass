@@ -356,7 +356,16 @@ _Populated by plan-6 during implementation. Do not create footnote tags during p
 
 | Footnote | Phase | Task | Description | Impact |
 |----------|-------|------|-------------|--------|
-| | | | | |
+| [^11] | Phase 2 | T001 | nuqs dependency added | New npm dependency |
+| [^12] | Phase 2 | T001 | NuqsAdapter wired in Providers | Cross-plan edit (additive) |
+| [^13] | Phase 2 | T002,T003 | workspaceHref() created | New cross-cutting URL builder |
+| [^14] | Phase 2 | T003 | workspace-nav.tsx updated | Retired inline buildWorktreeUrl |
+| [^15] | Phase 2 | T004,T006 | workspaceParams + cache created | New cross-cutting params |
+| [^16] | Phase 2 | T005 | fileBrowserParams tests | Plan-scoped test file |
+| [^17] | Phase 2 | T006 | fileBrowserParams + cache created | Plan-scoped params |
+| [^18] | Phase 2 | T006 | Params barrel created | Plan-scoped barrel |
+| [^19] | Phase 2 | T007 | Feature barrel updated | Added param exports |
+| [^20] | Phase 2 | — | Domain docs created | Scope note: domain extraction is a project-level activity concurrent with Phase 2 delivery |
 
 ---
 
@@ -382,6 +391,8 @@ _Populated during implementation by plan-6. Log anything of interest to your fut
 | 2026-02-22 | T002 | gotcha | vitest has no `toStartWith` matcher | Use `toMatch(/^.../)` regex instead | log#task-t002 |
 | 2026-02-22 | T002 | gotcha | URLSearchParams encodes spaces as `+` not `%20` | Both valid per spec; adjusted test expectations | log#task-t002 |
 | 2026-02-22 | T009 | gotcha | Biome organizeImports wants alphabetical order | vitest imports must come after app imports; auto-fixable | log#task-t009 |
+| 2026-02-22 | — | decision | Domain docs (`docs/domains/`) created alongside Phase 2 | Domain extraction is a project-level activity concurrent with feature delivery. The `_platform/workspace-url` domain formalizes the code being built in this phase. Scope justified as [^20] in Change Footnotes Ledger. | /plan-v2-extract-domain |
+| 2026-02-22 | Review | gotcha | nuqs parseAsString takes first array element, not default | Test updated to assert `'a'` not `''` for array input | review fix V7 |
 
 **Types**: `gotcha` | `research-needed` | `unexpected-behavior` | `workaround` | `decision` | `debt` | `insight`
 

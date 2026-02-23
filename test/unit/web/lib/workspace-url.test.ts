@@ -51,6 +51,11 @@ describe('workspaceHref', () => {
     expect(url).toBe('/workspaces/my-proj/browser');
   });
 
+  it('omits null params', () => {
+    const url = workspaceHref('my-proj', '/browser', { worktree: null, file: null });
+    expect(url).toBe('/workspaces/my-proj/browser');
+  });
+
   it('keeps truthy boolean params', () => {
     const url = workspaceHref('my-proj', '/browser', { changed: true });
     expect(url).toContain('changed=true');

@@ -28,7 +28,7 @@ export function workspaceHref(
   const params = new URLSearchParams();
 
   // Worktree first for URL readability
-  if (options.worktree !== undefined && options.worktree !== '' && options.worktree !== false) {
+  if (options.worktree != null && options.worktree !== '' && options.worktree !== false) {
     params.set('worktree', String(options.worktree));
   }
 
