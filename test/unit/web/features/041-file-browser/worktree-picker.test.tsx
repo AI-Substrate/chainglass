@@ -173,5 +173,40 @@ describe('WorktreePicker', () => {
       }
       expect(onSelect).toHaveBeenCalledWith('/home/user/substrate-002');
     });
+
+    it('calls onToggleStar when star button clicked', async () => {
+      const user = userEvent.setup();
+      const onToggleStar = vi.fn();
+      render(
+        <WorktreePicker
+          worktrees={sampleWorktrees}
+          currentWorktree="/home/user/substrate"
+          onSelect={vi.fn()}
+          onToggleStar={onToggleStar}
+        />
+      );
+
+      const starButton = screen.getByLabelText(/star main/i);
+      await user.click(starButton);
+      expect(onToggleStar).toHaveBeenCalledWith('/home/user/substrate', true);
+    });
+
+    it('calls onToggleStar with false when unstarring', async () => {
+      const user = userEvent.setup();
+      const onToggleStar = vi.fn();
+      render(
+        <WorktreePicker
+          worktrees={sampleWorktrees}
+          starredPaths={['/home/user/substrate']}
+          currentWorktree="/home/user/substrate"
+          onSelect={vi.fn()}
+          onToggleStar={onToggleStar}
+        />
+      );
+
+      const unstarButton = screen.getByLabelText(/unstar main/i);
+      await user.click(unstarButton);
+      expect(onToggleStar).toHaveBeenCalledWith('/home/user/substrate', false);
+    });
   });
 });

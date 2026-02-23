@@ -29,6 +29,7 @@ describe('Workspace entity', () => {
       expect(DEFAULT_PREFERENCES.color).toBe('');
       expect(DEFAULT_PREFERENCES.starred).toBe(false);
       expect(DEFAULT_PREFERENCES.sortOrder).toBe(0);
+      expect(DEFAULT_PREFERENCES.starredWorktrees).toEqual([]);
     });
 
     it('should create workspace with default preferences when none provided', () => {
@@ -44,6 +45,7 @@ describe('Workspace entity', () => {
       expect(ws.preferences.color).toBe('');
       expect(ws.preferences.starred).toBe(false);
       expect(ws.preferences.sortOrder).toBe(0);
+      expect(ws.preferences.starredWorktrees).toEqual([]);
     });
 
     it('should create workspace with partial preferences merged with defaults', () => {

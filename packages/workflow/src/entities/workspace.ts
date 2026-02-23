@@ -31,6 +31,8 @@ export interface WorkspacePreferences {
   starred: boolean;
   /** Display order within starred/unstarred group (lower = first) */
   sortOrder: number;
+  /** Worktree paths that are starred/pinned to top of picker */
+  starredWorktrees: string[];
 }
 
 /**
@@ -42,6 +44,7 @@ export const DEFAULT_PREFERENCES: WorkspacePreferences = {
   color: '',
   starred: false,
   sortOrder: 0,
+  starredWorktrees: [],
 };
 
 /**

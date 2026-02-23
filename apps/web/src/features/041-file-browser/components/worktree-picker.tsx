@@ -23,6 +23,7 @@ export interface WorktreePickerProps {
   currentWorktree: string;
   starredPaths?: string[];
   onSelect: (worktreePath: string) => void;
+  onToggleStar?: (worktreePath: string, starred: boolean) => void;
 }
 
 export function WorktreePicker({
@@ -30,6 +31,7 @@ export function WorktreePicker({
   currentWorktree,
   starredPaths = [],
   onSelect,
+  onToggleStar,
 }: WorktreePickerProps) {
   const [filter, setFilter] = useState('');
 
@@ -71,19 +73,40 @@ export function WorktreePicker({
           const isStarred = starredSet.has(wt.path);
 
           return (
-            <button
-              type="button"
+            <div
               key={wt.path}
-              data-selected={isSelected || undefined}
-              aria-current={isSelected ? 'true' : undefined}
-              onClick={() => onSelect(wt.path)}
-              className={`flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent ${
+              className={`flex items-center gap-1 rounded-md transition-colors hover:bg-accent ${
                 isSelected ? 'bg-accent font-medium' : ''
               }`}
             >
-              {isStarred && <Star className="h-3 w-3 fill-yellow-500 text-yellow-500" />}
-              <span className="truncate">{wt.branch}</span>
-            </button>
+              {onToggleStar && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleStar(wt.path, !isStarred);
+                  }}
+                  className="shrink-0 rounded p-1 text-muted-foreground hover:text-yellow-500"
+                  aria-label={isStarred ? `Unstar ${wt.branch}` : `Star ${wt.branch}`}
+                >
+                  <Star
+                    className={`h-3 w-3 ${isStarred ? 'fill-yellow-500 text-yellow-500' : ''}`}
+                  />
+                </button>
+              )}
+              {!onToggleStar && isStarred && (
+                <Star className="ml-2 h-3 w-3 shrink-0 fill-yellow-500 text-yellow-500" />
+              )}
+              <button
+                type="button"
+                data-selected={isSelected || undefined}
+                aria-current={isSelected ? 'true' : undefined}
+                onClick={() => onSelect(wt.path)}
+                className="flex-1 truncate px-2 py-1.5 text-left text-sm"
+              >
+                {wt.branch}
+              </button>
+            </div>
           );
         })}
       </div>

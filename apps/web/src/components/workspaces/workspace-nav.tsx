@@ -12,10 +12,11 @@
 import { useSidebar } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
 import { workspaceHref } from '@/lib/workspace-url';
-import { ChevronDown, ChevronRight, FolderOpen, GitBranch } from 'lucide-react';
+import { ChevronDown, ChevronRight, FolderOpen, GitBranch, Star } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
+import { toggleWorktreeStar } from '../../../app/actions/workspace-actions';
 
 /**
  * Workspace data from API response.
@@ -25,6 +26,9 @@ interface Workspace {
   name: string;
   path: string;
   hasGit?: boolean;
+  preferences?: {
+    starredWorktrees?: string[];
+  };
   worktrees?: Array<{
     path: string;
     branch: string | null;
@@ -165,25 +169,58 @@ export function WorkspaceNav() {
             {/* Worktrees */}
             {isExpanded && hasWorktrees && (
               <div className="ml-6 space-y-0.5 border-l pl-2">
-                {workspace.worktrees?.map((worktree) => {
-                  const isSelected = isWorktreeSelected(workspace.slug, worktree.path);
-                  const label = worktree.branch || (worktree.isDetached ? 'detached' : 'main');
+                {[...(workspace.worktrees ?? [])]
+                  .sort((a, b) => {
+                    const starredSet = new Set(workspace.preferences?.starredWorktrees ?? []);
+                    const aStarred = starredSet.has(a.path);
+                    const bStarred = starredSet.has(b.path);
+                    if (aStarred !== bStarred) return aStarred ? -1 : 1;
+                    return (a.branch ?? '').localeCompare(b.branch ?? '');
+                  })
+                  .map((worktree) => {
+                    const isSelected = isWorktreeSelected(workspace.slug, worktree.path);
+                    const label = worktree.branch || (worktree.isDetached ? 'detached' : 'main');
+                    const isStarred = (workspace.preferences?.starredWorktrees ?? []).includes(
+                      worktree.path
+                    );
 
-                  return (
-                    <Link
-                      key={worktree.path}
-                      href={workspaceHref(workspace.slug, '/worktree', { worktree: worktree.path })}
-                      className={cn(
-                        'flex items-center gap-2 rounded px-2 py-1 text-xs hover:bg-accent',
-                        isSelected && 'bg-accent text-accent-foreground'
-                      )}
-                      title={worktree.path}
-                    >
-                      <GitBranch className="h-3 w-3 flex-shrink-0" />
-                      <span className="truncate">{label}</span>
-                    </Link>
-                  );
-                })}
+                    return (
+                      <div key={worktree.path} className="group/wt flex items-center gap-0.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const formData = new FormData();
+                            formData.set('slug', workspace.slug);
+                            formData.set('worktreePath', worktree.path);
+                            formData.set('action', isStarred ? 'unstar' : 'star');
+                            toggleWorktreeStar(formData);
+                          }}
+                          className={cn(
+                            'shrink-0 rounded p-0.5',
+                            isStarred
+                              ? 'text-yellow-500'
+                              : 'text-transparent group-hover/wt:text-muted-foreground'
+                          )}
+                          aria-label={isStarred ? `Unstar ${label}` : `Star ${label}`}
+                        >
+                          <Star className={`h-3 w-3 ${isStarred ? 'fill-yellow-500' : ''}`} />
+                        </button>
+                        <Link
+                          href={workspaceHref(workspace.slug, '/worktree', {
+                            worktree: worktree.path,
+                          })}
+                          className={cn(
+                            'flex flex-1 items-center gap-2 rounded px-1 py-1 text-xs hover:bg-accent',
+                            isSelected && 'bg-accent text-accent-foreground'
+                          )}
+                          title={worktree.path}
+                        >
+                          <GitBranch className="h-3 w-3 flex-shrink-0" />
+                          <span className="truncate">{label}</span>
+                        </Link>
+                      </div>
+                    );
+                  })}
               </div>
             )}
           </div>

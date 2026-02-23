@@ -431,3 +431,42 @@ export async function toggleWorkspaceStar(formData: FormData): Promise<void> {
     console.error('[toggleWorkspaceStar] Error:', error);
   }
 }
+
+// ==================== Toggle Worktree Star (form action compatible) ====================
+
+/**
+ * Toggle a worktree's starred status within a workspace.
+ * Adds or removes the worktree path from workspace preferences.starredWorktrees.
+ */
+export async function toggleWorktreeStar(formData: FormData): Promise<void> {
+  const slug = formData.get('slug');
+  const worktreePath = formData.get('worktreePath');
+  const action = formData.get('action'); // 'star' or 'unstar'
+
+  if (!slug || typeof slug !== 'string') return;
+  if (!worktreePath || typeof worktreePath !== 'string') return;
+
+  try {
+    const container = getContainer();
+    const workspaceService = container.resolve<IWorkspaceService>(
+      WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE
+    );
+
+    const workspaces = await workspaceService.list();
+    const ws = workspaces.find((w) => w.slug === slug);
+    if (!ws) return;
+
+    const current = ws.toJSON().preferences.starredWorktrees ?? [];
+    const updated =
+      action === 'unstar'
+        ? current.filter((p: string) => p !== worktreePath)
+        : current.includes(worktreePath)
+          ? current
+          : [...current, worktreePath];
+
+    await workspaceService.updatePreferences(slug, { starredWorktrees: updated });
+    revalidatePath(`/workspaces/${slug}`);
+  } catch (error) {
+    console.error('[toggleWorktreeStar] Error:', error);
+  }
+}

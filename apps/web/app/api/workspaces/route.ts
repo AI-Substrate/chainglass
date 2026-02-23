@@ -38,6 +38,14 @@ interface WorkspaceListItem {
   }>;
   /** Only present when ?include=worktrees is specified */
   hasGit?: boolean;
+  /** Workspace preferences (visual identity, starring) */
+  preferences?: {
+    emoji: string;
+    color: string;
+    starred: boolean;
+    sortOrder: number;
+    starredWorktrees: string[];
+  };
 }
 
 /**
@@ -73,6 +81,7 @@ export async function GET(request: NextRequest): Promise<Response> {
             createdAt: ws.createdAt.toISOString(),
             hasGit: info?.hasGit ?? false,
             worktrees: info?.worktrees ?? [],
+            preferences: ws.toJSON().preferences,
           };
         })
       );
@@ -86,6 +95,7 @@ export async function GET(request: NextRequest): Promise<Response> {
       name: ws.name,
       path: ws.path,
       createdAt: ws.createdAt.toISOString(),
+      preferences: ws.toJSON().preferences,
     }));
 
     return Response.json({ workspaces: basicWorkspaces });
