@@ -533,7 +533,7 @@ Acceptance Criteria: [measurable assertions]
 ### Phase Completion Checklist
 - [x] Phase 1: Data Model & Infrastructure — COMPLETE
 - [x] Phase 2: Deep Linking & URL State — COMPLETE
-- [ ] Phase 3: UI Overhaul — Landing Page & Sidebar — NOT STARTED
+- [x] Phase 3: UI Overhaul — Landing Page & Sidebar — COMPLETE
 - [ ] Phase 4: File Browser (Part A: Backend + Part B: Frontend) — NOT STARTED
 - [ ] Phase 5: Attention System & Polish — NOT STARTED
 - [ ] Phase 6: Documentation — NOT STARTED
