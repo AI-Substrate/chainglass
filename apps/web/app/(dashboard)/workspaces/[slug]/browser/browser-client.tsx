@@ -22,6 +22,7 @@ import type { ReadFileResult } from '@/features/041-file-browser/services/file-a
 import type { DiffResult } from '@chainglass/shared';
 import { useQueryStates } from 'nuqs';
 import { useCallback, useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import {
   fetchChangedFiles,
   fetchGitDiff,
@@ -140,28 +141,37 @@ export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: Bro
     window.location.reload();
   }, []);
 
-  // Save file
+  // Save file — DYK-042-01: use toast.promise() for loading→success→error
   const handleSave = useCallback(
     async (content: string) => {
       if (!selectedFile || !fileData?.ok) return;
-      try {
+
+      const savePromise = (async () => {
         const result = await saveFile(slug, worktreePath, selectedFile, content, fileData.mtime);
-        if (result.ok) {
-          const refreshed = await readFile(slug, worktreePath, selectedFile);
-          setFileData(refreshed);
-          if (refreshed.ok) setEditContent(refreshed.content);
-          // Invalidate diff cache for this file since content changed
-          setDiffCache((prev) => {
-            const next = { ...prev };
-            delete next[selectedFile];
-            return next;
-          });
-        } else {
-          setFileData({ ...fileData });
+        if (!result.ok) {
+          if (result.error === 'conflict') {
+            throw new Error('File was modified externally. Refresh to see changes.');
+          }
+          throw new Error('Save failed');
         }
-      } catch (error) {
-        console.error('Failed to save file:', error);
-      }
+        // Re-read to get new mtime + highlighted content
+        const refreshed = await readFile(slug, worktreePath, selectedFile);
+        setFileData(refreshed);
+        if (refreshed.ok) setEditContent(refreshed.content);
+        // Invalidate diff cache since content changed
+        setDiffCache((prev) => {
+          const next = { ...prev };
+          delete next[selectedFile];
+          return next;
+        });
+        return result;
+      })();
+
+      toast.promise(savePromise, {
+        loading: 'Saving...',
+        success: 'File saved',
+        error: (err) => err.message,
+      });
     },
     [slug, worktreePath, selectedFile, fileData]
   );

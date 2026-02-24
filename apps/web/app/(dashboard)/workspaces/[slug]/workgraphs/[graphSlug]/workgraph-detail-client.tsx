@@ -15,6 +15,7 @@ import type { Connection } from '@xyflow/react';
 import { RefreshCw } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState, useTransition } from 'react';
+import { toast } from 'sonner';
 import { useWorkGraphAPI } from '../../../../../../src/features/022-workgraph-ui/use-workgraph-api';
 import type { WorkGraphFlowData } from '../../../../../../src/features/022-workgraph-ui/use-workgraph-flow';
 import { useWorkGraphSSE } from '../../../../../../src/features/022-workgraph-ui/use-workgraph-sse';
@@ -37,7 +38,6 @@ export function WorkGraphDetailClient({
 }: WorkGraphDetailClientProps) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
   const [isRefreshing, startRefresh] = useTransition();
   const [loadingNodes, setLoadingNodes] = useState<Set<string>>(new Set());
 
@@ -100,8 +100,7 @@ export function WorkGraphDetailClient({
     graphSlug,
     instance: sseInstance,
     onExternalChange: () => {
-      setToast('Graph updated from external change');
-      setTimeout(() => setToast(null), 3000);
+      toast.info('Graph updated from external change');
     },
     enablePolling: true, // Fallback to polling if SSE fails
     pollingInterval: 5000, // Poll every 5s as fallback
@@ -164,12 +163,6 @@ export function WorkGraphDetailClient({
         {error && (
           <div className="absolute top-4 right-4 z-50 bg-destructive text-destructive-foreground px-4 py-2 rounded-md shadow-lg">
             {error}
-          </div>
-        )}
-        {/* External change toast */}
-        {toast && (
-          <div className="absolute top-16 right-4 z-50 bg-blue-500 text-white px-4 py-2 rounded-md shadow-lg">
-            {toast}
           </div>
         )}
         <WorkGraphNodeActionsProvider removeNode={handleRemoveNode} loadingNodes={loadingNodes}>

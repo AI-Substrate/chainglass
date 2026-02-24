@@ -90,20 +90,24 @@ Primary: scattered across `packages/shared`, `packages/workflow`, `apps/web` (Pl
 | `apps/web/src/hooks/useSSE.ts` | useSSE hook | Client SSE connection |
 | `apps/web/src/hooks/useWorkspaceSSE.ts` | useWorkspaceSSE hook | Workspace-scoped SSE |
 | `apps/web/instrumentation.ts` | Next.js bootstrap hook | Starts notification system |
-| `apps/web/src/components/ui/toaster.tsx` | Toaster wrapper | Planned (sonner) |
+| `apps/web/src/components/ui/toaster.tsx` | Toaster wrapper | Plan 042 — theme-aware sonner wrapper |
+
+## Gotchas
+
+- **toast() is client-only**: Calling `import { toast } from 'sonner'` in a Server Component or server action is a silent no-op — no error, no feedback. The pattern is: server returns result → client reads result → client calls toast().
 
 ## Dependencies
 
 ### This Domain Depends On
 - `chokidar` — filesystem watching (npm)
-- `sonner` — toast UI (npm, planned)
+- `sonner` — toast UI (npm)
 - `next-themes` — theme detection for toast (npm)
 - `zod` — SSE event schema validation (npm)
 - Node.js streams — SSE response writing
 
 ### Domains That Depend On This
-- `file-browser` — will use `toast()` for save/refresh feedback
-- Workgraph UI (022) — `useWorkGraphSSE` consumes `useSSE`; `WorkgraphDomainEventAdapter` extends `DomainEventAdapter`
+- `file-browser` — uses `toast()` for save/refresh feedback
+- Workgraph UI (022) — `useWorkGraphSSE` consumes `useSSE`; `toast.info()` for external changes
 - Agent UI (019) — `AgentNotifierService` consumes `ISSEBroadcaster`
 - Workflow content — consumes `useWorkspaceSSE`
 
@@ -117,3 +121,4 @@ Primary: scattered across `packages/shared`, `packages/workflow`, `apps/web` (Pl
 | ADR-0010 | Architecture decision: three-layer notification pattern | 2026-02-03 |
 | Plan 041 FX001 | Toast system workshop (sonner), domain extraction | 2026-02-24 |
 | *(extracted)* | Domain formalized from Plans 019, 023, 027 deliverables | 2026-02-24 |
+| Plan 042 | Global toast: installed sonner, Toaster wrapper, wired file browser + workgraph | 2026-02-24 |
