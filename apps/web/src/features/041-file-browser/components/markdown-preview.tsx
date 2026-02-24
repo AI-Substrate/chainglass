@@ -10,15 +10,16 @@
  */
 
 import { useTheme } from 'next-themes';
-import { useCallback, useEffect, useRef } from 'react';
+import { memo, useCallback, useEffect, useRef } from 'react';
 
 interface MarkdownPreviewProps {
   html: string;
 }
 
-export function MarkdownPreview({ html }: MarkdownPreviewProps) {
+export const MarkdownPreview = memo(function MarkdownPreview({ html }: MarkdownPreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const { resolvedTheme } = useTheme();
+  const renderedHtmlRef = useRef<string>('');
 
   // Activate mermaid diagrams after HTML is rendered
   // biome-ignore lint/correctness/useExhaustiveDependencies: html changes trigger re-render which needs mermaid re-activation
@@ -26,8 +27,15 @@ export function MarkdownPreview({ html }: MarkdownPreviewProps) {
     const container = containerRef.current;
     if (!container) return;
 
+    // Skip if already rendered for this exact html + theme combo
+    const cacheKey = `${html}::${resolvedTheme}`;
+    if (renderedHtmlRef.current === cacheKey) return;
+
     const mermaidDivs = container.querySelectorAll<HTMLElement>('[data-mermaid="true"]');
-    if (mermaidDivs.length === 0) return;
+    if (mermaidDivs.length === 0) {
+      renderedHtmlRef.current = cacheKey;
+      return;
+    }
 
     let mounted = true;
 
@@ -42,6 +50,8 @@ export function MarkdownPreview({ html }: MarkdownPreviewProps) {
       });
 
       for (const div of mermaidDivs) {
+        // Skip already-rendered diagrams
+        if (div.classList.contains('mermaid-renderer-svg')) continue;
         const code = div.getAttribute('data-mermaid-code');
         if (!code || !mounted) continue;
 
@@ -58,6 +68,10 @@ export function MarkdownPreview({ html }: MarkdownPreviewProps) {
             div.classList.add('mermaid-renderer-error');
           }
         }
+      }
+
+      if (mounted) {
+        renderedHtmlRef.current = cacheKey;
       }
     });
 
@@ -106,4 +120,4 @@ export function MarkdownPreview({ html }: MarkdownPreviewProps) {
       dangerouslySetInnerHTML={{ __html: html }}
     />
   );
-}
+});
