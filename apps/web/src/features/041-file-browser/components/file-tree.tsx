@@ -183,14 +183,14 @@ function TreeItem({
   if (entry.type === 'directory') {
     return (
       <div>
-        <ContextMenu>
-          <ContextMenuTrigger asChild>
-            <div
-              className={`group flex w-full items-center gap-1 px-2 py-1 text-left hover:bg-accent cursor-pointer ${
-                isSelected ? 'bg-accent' : ''
-              }`}
-              style={{ paddingLeft: `${depth * 16 + 8}px` }}
-            >
+        <div
+          className={`group relative flex w-full items-center gap-1 px-2 py-1 text-left hover:bg-accent ${
+            isSelected ? 'bg-accent' : ''
+          }`}
+          style={{ paddingLeft: `${depth * 16 + 8}px` }}
+        >
+          <ContextMenu>
+            <ContextMenuTrigger asChild>
               <button
                 type="button"
                 onClick={() => onDirClick(entry.path)}
@@ -209,35 +209,32 @@ function TreeItem({
                 )}
                 <span className="truncate">{entry.name}</span>
               </button>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onExpand(entry.path);
-                }}
-                className="hidden group-hover:block shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground"
-                aria-label={`Refresh ${entry.name}`}
-              >
-                <RefreshCw className="h-3 w-3" />
-              </button>
-            </div>
-          </ContextMenuTrigger>
-          <ContextMenuContent>
-            <ContextMenuItem onSelect={() => onCopyFullPath?.(entry.path)}>
-              <ClipboardCopy className="h-3.5 w-3.5 mr-2" />
-              Copy Full Path
-            </ContextMenuItem>
-            <ContextMenuItem onSelect={() => onCopyRelativePath?.(entry.path)}>
-              <FileText className="h-3.5 w-3.5 mr-2" />
-              Copy Relative Path
-            </ContextMenuItem>
-            <ContextMenuSeparator />
-            <ContextMenuItem onSelect={() => onCopyTree?.(entry.path)}>
-              <FolderTree className="h-3.5 w-3.5 mr-2" />
-              Copy Tree From Here
-            </ContextMenuItem>
-          </ContextMenuContent>
-        </ContextMenu>
+            </ContextMenuTrigger>
+            <ContextMenuContent>
+              <ContextMenuItem onSelect={() => onCopyFullPath?.(entry.path)}>
+                <ClipboardCopy className="h-3.5 w-3.5 mr-2" />
+                Copy Full Path
+              </ContextMenuItem>
+              <ContextMenuItem onSelect={() => onCopyRelativePath?.(entry.path)}>
+                <FileText className="h-3.5 w-3.5 mr-2" />
+                Copy Relative Path
+              </ContextMenuItem>
+              <ContextMenuSeparator />
+              <ContextMenuItem onSelect={() => onCopyTree?.(entry.path)}>
+                <FolderTree className="h-3.5 w-3.5 mr-2" />
+                Copy Tree From Here
+              </ContextMenuItem>
+            </ContextMenuContent>
+          </ContextMenu>
+          <button
+            type="button"
+            onClick={() => onExpand(entry.path)}
+            className="hidden group-hover:block shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground"
+            aria-label={`Refresh ${entry.name}`}
+          >
+            <RefreshCw className="h-3 w-3" />
+          </button>
+        </div>
         {isExpanded && children && (
           <div>
             {children
