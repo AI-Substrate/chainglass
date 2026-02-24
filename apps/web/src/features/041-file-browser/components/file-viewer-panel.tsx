@@ -92,9 +92,20 @@ export function FileViewerPanel({
   return (
     <div className="flex flex-col h-full">
       {/* Toolbar */}
-      <div className="flex items-center justify-between border-b px-3 py-2">
-        <div className="flex items-center gap-1">
+      <div className="flex items-center justify-between border-b px-3 py-2 shrink-0">
+        <div className="flex items-center gap-1 min-w-0">
           <span className="mr-2 text-sm font-medium truncate max-w-[200px]">{filePath}</span>
+          {mode === 'edit' && (
+            <button
+              type="button"
+              onClick={() => onSave(currentContent)}
+              className="flex items-center gap-1 rounded px-2 py-1 text-xs bg-green-600 text-white hover:bg-green-700 shrink-0"
+              aria-label="Save file"
+            >
+              <Save className="h-3.5 w-3.5" />
+              Save
+            </button>
+          )}
           <ModeButton
             label="Edit"
             icon={<Edit className="h-3.5 w-3.5" />}
@@ -114,18 +125,7 @@ export function FileViewerPanel({
             onClick={() => onModeChange('diff')}
           />
         </div>
-        <div className="flex items-center gap-1">
-          {mode === 'edit' && (
-            <button
-              type="button"
-              onClick={() => onSave(currentContent)}
-              className="flex items-center gap-1 rounded px-2 py-1 text-xs bg-primary text-primary-foreground hover:bg-primary/90"
-              aria-label="Save file"
-            >
-              <Save className="h-3.5 w-3.5" />
-              Save
-            </button>
-          )}
+        <div className="flex items-center gap-1 shrink-0">
           <button
             type="button"
             onClick={onRefresh}

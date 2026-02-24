@@ -73,7 +73,10 @@ export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: Bro
   // Select a file — load its content
   const handleSelect = useCallback(
     async (filePath: string) => {
-      setParams({ file: filePath });
+      // Only update URL if file actually changed (avoids resetting mode on mount)
+      if (filePath !== params.file) {
+        setParams({ file: filePath });
+      }
       try {
         const result = await readFile(slug, worktreePath, filePath);
         setFileData(result);
@@ -84,7 +87,7 @@ export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: Bro
         console.error('Failed to read file:', error);
       }
     },
-    [setParams, slug, worktreePath]
+    [setParams, slug, worktreePath, params.file]
   );
 
   // Auto-expand tree to show selected file on mount
