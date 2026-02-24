@@ -4,7 +4,7 @@ import { useResponsive } from '@/hooks/useResponsive';
 import { LANDING_NAV_ITEMS, WORKSPACE_NAV_ITEMS } from '@/lib/navigation-utils';
 import { cn } from '@/lib/utils';
 import { workspaceHref } from '@/lib/workspace-url';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 /**
  * BottomTabBar
@@ -25,6 +25,7 @@ import { usePathname, useRouter } from 'next/navigation';
 export function BottomTabBar() {
   const { useMobilePatterns } = useResponsive();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const router = useRouter();
 
   // Only render on phone viewports
@@ -35,11 +36,14 @@ export function BottomTabBar() {
   // Detect workspace context from URL
   const workspaceSlug = pathname.match(/^\/workspaces\/([^/]+)/)?.[1] ?? null;
   const isInWorkspace = workspaceSlug != null;
+  const currentWorktree = searchParams.get('worktree');
 
   const navItems = isInWorkspace
     ? WORKSPACE_NAV_ITEMS.map((item) => ({
         ...item,
-        href: workspaceHref(workspaceSlug, item.href),
+        href: workspaceHref(workspaceSlug, item.href, {
+          worktree: currentWorktree ?? undefined,
+        }),
       }))
     : LANDING_NAV_ITEMS;
 

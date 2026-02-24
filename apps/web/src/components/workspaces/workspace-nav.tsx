@@ -38,7 +38,10 @@ interface Workspace {
 }
 
 /**
- * WorkspaceNav displays workspace list with expandable worktrees.
+ * WorkspaceNav displays workspace list or worktree list depending on context.
+ *
+ * Outside workspace: shows all workspaces with expandable worktrees
+ * Inside workspace: shows only that workspace's worktrees (flat list for switching)
  */
 export function WorkspaceNav() {
   const pathname = usePathname();
@@ -49,6 +52,10 @@ export function WorkspaceNav() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  // Detect workspace context
+  const workspaceSlug = pathname.match(/^\/workspaces\/([^/]+)/)?.[1] ?? null;
+  const currentWorktree = searchParams.get('worktree');
 
   // Load workspaces on mount
   useEffect(() => {
@@ -128,6 +135,76 @@ export function WorkspaceNav() {
     );
   }
 
+  // Inside workspace: show worktrees for this workspace only
+  if (workspaceSlug) {
+    const currentWs = workspaces.find((w) => w.slug === workspaceSlug);
+    if (!currentWs && !loading) {
+      return <div className="px-3 py-2 text-xs text-muted-foreground">No worktrees</div>;
+    }
+    if (!currentWs) {
+      return <div className="px-3 py-2 text-xs text-muted-foreground">Loading...</div>;
+    }
+
+    const worktrees = currentWs.worktrees ?? [];
+    const starredSet = new Set(currentWs.preferences?.starredWorktrees ?? []);
+
+    const sorted = [...worktrees].sort((a, b) => {
+      const aStarred = starredSet.has(a.path);
+      const bStarred = starredSet.has(b.path);
+      if (aStarred !== bStarred) return aStarred ? -1 : 1;
+      return (a.branch ?? '').localeCompare(b.branch ?? '');
+    });
+
+    const subPath = pathname.replace(`/workspaces/${workspaceSlug}`, '') || '/';
+
+    return (
+      <div className="space-y-0.5 py-1">
+        {sorted.map((wt) => {
+          const label = wt.branch || (wt.isDetached ? 'detached' : 'main');
+          const isSelected = currentWorktree === wt.path;
+          const isStarred = starredSet.has(wt.path);
+          const href = workspaceHref(workspaceSlug, subPath, { worktree: wt.path });
+
+          return (
+            <div key={wt.path} className="group/wt flex items-center gap-0.5">
+              <button
+                type="button"
+                onClick={() => {
+                  const formData = new FormData();
+                  formData.set('slug', workspaceSlug);
+                  formData.set('worktreePath', wt.path);
+                  formData.set('action', isStarred ? 'unstar' : 'star');
+                  toggleWorktreeStar(formData);
+                }}
+                className={cn(
+                  'shrink-0 rounded p-0.5',
+                  isStarred
+                    ? 'text-yellow-500'
+                    : 'text-transparent group-hover/wt:text-muted-foreground'
+                )}
+                aria-label={isStarred ? `Unstar ${label}` : `Star ${label}`}
+              >
+                <Star className={`h-3 w-3 ${isStarred ? 'fill-yellow-500' : ''}`} />
+              </button>
+              <Link
+                href={href}
+                className={cn(
+                  'flex flex-1 items-center gap-2 truncate rounded px-1 py-1 text-xs hover:bg-accent',
+                  isSelected && 'bg-accent font-medium text-accent-foreground'
+                )}
+                title={wt.path}
+              >
+                <GitBranch className="h-3 w-3 shrink-0" />
+                <span className="truncate">{label}</span>
+              </Link>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // Outside workspace: show all workspaces with expandable worktrees
   return (
     <div className="space-y-1 py-2">
       {workspaces.map((workspace) => {

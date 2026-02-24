@@ -20,22 +20,24 @@ import { cn } from '@/lib/utils';
 import { workspaceHref } from '@/lib/workspace-url';
 import { ChevronLeft, PanelLeft } from 'lucide-react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { Suspense, useMemo, useState } from 'react';
 
 /**
  * DashboardSidebar
  *
- * Context-aware sidebar:
- * - Inside workspace (/workspaces/[slug]/*): workspace header with emoji,
- *   worktree picker, Browser/Agents/Workflows nav, "← All Workspaces", Dev section
- * - Outside workspace (/): minimal sidebar or collapsed
+ * Context-aware sidebar with three levels:
+ * - Home (/): workspace list + Dev section
+ * - Workspace (/workspaces/[slug]): worktree list, no tools yet
+ * - Worktree (/workspaces/[slug]/*?worktree=): tools first, worktree list below
  *
- * Phase 3: UI Overhaul — Plan 041: File Browser
- * Finding 04: Shared by all 21+ pages — test all routes after changes.
+ * Workshop: workspace-context-session-binding.md
+ * Tools (Browser/Agents/Workflows) are top-level, scoped to active worktree.
+ * Worktree list is for switching context — NOT parent of tools.
  */
 export function DashboardSidebar() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === 'collapsed';
   const [devOpen, setDevOpen] = useState(false);
@@ -47,17 +49,25 @@ export function DashboardSidebar() {
   }, [pathname]);
 
   const isInWorkspace = workspaceSlug != null;
+  const currentWorktree = searchParams.get('worktree');
 
   return (
     <Sidebar role="complementary" collapsible="icon" className={cn(isCollapsed && 'w-16')}>
       <SidebarHeader className="border-b p-4">
         <div className="flex items-center justify-between gap-2">
           {!isCollapsed && (
-            <span className="font-semibold">
-              {isInWorkspace ? decodeURIComponent(workspaceSlug) : 'Chainglass'}
-            </span>
+            <div className="min-w-0">
+              <span className="block truncate font-semibold">
+                {isInWorkspace ? decodeURIComponent(workspaceSlug) : 'Chainglass'}
+              </span>
+              {isInWorkspace && currentWorktree && (
+                <span className="block truncate text-xs text-muted-foreground">
+                  {currentWorktree.split('/').pop()}
+                </span>
+              )}
+            </div>
           )}
-          <div className="flex items-center gap-1">
+          <div className="flex shrink-0 items-center gap-1">
             <Button
               variant="ghost"
               size="icon"
@@ -75,25 +85,15 @@ export function DashboardSidebar() {
       <SidebarContent>
         {isInWorkspace ? (
           <>
-            {/* Workspace-scoped navigation */}
+            {/* 1. Tools — scoped to active worktree (top) */}
             <SidebarGroup>
-              {!isCollapsed && <SidebarGroupLabel>Workspace</SidebarGroupLabel>}
-              <SidebarGroupContent>
-                <Suspense
-                  fallback={
-                    <div className="px-3 py-2 text-xs text-muted-foreground">Loading...</div>
-                  }
-                >
-                  <WorkspaceNav />
-                </Suspense>
-              </SidebarGroupContent>
-            </SidebarGroup>
-
-            <SidebarGroup>
+              {!isCollapsed && <SidebarGroupLabel>Tools</SidebarGroupLabel>}
               <SidebarGroupContent>
                 <SidebarMenu>
                   {WORKSPACE_NAV_ITEMS.map((item) => {
-                    const href = workspaceHref(workspaceSlug, item.href);
+                    const href = workspaceHref(workspaceSlug, item.href, {
+                      worktree: currentWorktree ?? undefined,
+                    });
                     const isActive = pathname.startsWith(
                       `/workspaces/${workspaceSlug}${item.href}`
                     );
@@ -120,7 +120,21 @@ export function DashboardSidebar() {
               </SidebarGroupContent>
             </SidebarGroup>
 
-            {/* Back to all workspaces */}
+            {/* 2. Worktree list — for switching context (below tools) */}
+            <SidebarGroup>
+              {!isCollapsed && <SidebarGroupLabel>Worktrees</SidebarGroupLabel>}
+              <SidebarGroupContent>
+                <Suspense
+                  fallback={
+                    <div className="px-3 py-2 text-xs text-muted-foreground">Loading...</div>
+                  }
+                >
+                  <WorkspaceNav />
+                </Suspense>
+              </SidebarGroupContent>
+            </SidebarGroup>
+
+            {/* 3. Back to all workspaces */}
             <SidebarGroup>
               <SidebarGroupContent>
                 <SidebarMenu>
