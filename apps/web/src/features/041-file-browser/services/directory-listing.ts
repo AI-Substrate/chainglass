@@ -140,3 +140,116 @@ async function listFromReadDir(
 
   return { entries };
 }
+
+// Re-export from client-safe module
+export type { TreeEntry } from './format-tree';
+import type { TreeEntry } from './format-tree';
+
+// ==================== Recursive Tree Listing ====================
+
+export interface ListTreeOptions {
+  worktreePath: string;
+  dirPath: string;
+  fileSystem: IFileSystem;
+  maxDepth?: number;
+}
+
+/**
+ * Recursively list all files and directories as a tree structure.
+ * Uses git ls-files for efficient listing, falls back to readDir.
+ */
+export async function listDirectoryTree(options: ListTreeOptions): Promise<TreeEntry[]> {
+  const { worktreePath, dirPath, fileSystem, maxDepth = 10 } = options;
+
+  try {
+    const args = ['ls-files', '--full-name'];
+    if (dirPath) args.push('--', `${dirPath}/`);
+
+    const { stdout } = await execFileAsync('git', args, { cwd: worktreePath });
+    const allPaths = stdout.trim().split('\n').filter(Boolean);
+    return buildTreeFromPaths(allPaths, dirPath, maxDepth);
+  } catch {
+    return buildTreeFromReadDir(worktreePath, dirPath, fileSystem, 0, maxDepth);
+  }
+}
+
+function buildTreeFromPaths(paths: string[], rootDir: string, maxDepth: number): TreeEntry[] {
+  const prefix = rootDir ? `${rootDir}/` : '';
+  const tree: TreeEntry[] = [];
+
+  for (const filePath of paths) {
+    const relative = prefix ? filePath.slice(prefix.length) : filePath;
+    if (!relative) continue;
+
+    const parts = relative.split('/');
+    if (parts.length > maxDepth) continue;
+
+    let parentList = tree;
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      const isFile = i === parts.length - 1;
+      const entryPath = prefix + parts.slice(0, i + 1).join('/');
+
+      let existing = parentList.find((e) => e.name === part);
+      if (!existing) {
+        existing = {
+          name: part,
+          type: isFile ? 'file' : 'directory',
+          path: entryPath,
+          children: isFile ? undefined : [],
+        };
+        parentList.push(existing);
+      }
+
+      if (!isFile && existing.children) {
+        parentList = existing.children;
+      }
+    }
+  }
+
+  return tree;
+}
+
+async function buildTreeFromReadDir(
+  worktreePath: string,
+  dirPath: string,
+  fileSystem: IFileSystem,
+  depth: number,
+  maxDepth: number
+): Promise<TreeEntry[]> {
+  if (depth >= maxDepth) return [];
+
+  const absoluteDir = dirPath ? path.join(worktreePath, dirPath) : worktreePath;
+  let items: string[];
+  try {
+    items = await fileSystem.readDir(absoluteDir);
+  } catch {
+    return [];
+  }
+
+  const entries: TreeEntry[] = [];
+  for (const item of items) {
+    const fullPath = path.join(absoluteDir, item);
+    const relativePath = dirPath ? `${dirPath}/${item}` : item;
+
+    try {
+      const stats = await fileSystem.stat(fullPath);
+      if (stats.isDirectory) {
+        const children = await buildTreeFromReadDir(
+          worktreePath,
+          relativePath,
+          fileSystem,
+          depth + 1,
+          maxDepth
+        );
+        entries.push({ name: item, type: 'directory', path: relativePath, children });
+      } else {
+        entries.push({ name: item, type: 'file', path: relativePath });
+      }
+    } catch {
+      // Skip items we can't stat
+    }
+  }
+
+  return entries;
+}

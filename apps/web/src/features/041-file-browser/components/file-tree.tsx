@@ -11,7 +11,24 @@
  * DYK-P4-03: Scales to huge repos
  */
 
-import { ChevronDown, ChevronRight, File, Folder, FolderOpen, RefreshCw } from 'lucide-react';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
+import {
+  ChevronDown,
+  ChevronRight,
+  ClipboardCopy,
+  File,
+  FileText,
+  Folder,
+  FolderOpen,
+  FolderTree,
+  RefreshCw,
+} from 'lucide-react';
 import { useCallback, useState } from 'react';
 import type { FileEntry } from '../services/directory-listing';
 
@@ -24,6 +41,10 @@ export interface FileTreeProps {
   onExpand: (dirPath: string) => void;
   onRefresh: () => void;
   childEntries?: Record<string, FileEntry[]>;
+  onCopyFullPath?: (path: string) => void;
+  onCopyRelativePath?: (path: string) => void;
+  onCopyContent?: (filePath: string) => void;
+  onCopyTree?: (dirPath: string) => void;
 }
 
 export function FileTree({
@@ -35,6 +56,10 @@ export function FileTree({
   onExpand,
   onRefresh,
   childEntries = {},
+  onCopyFullPath,
+  onCopyRelativePath,
+  onCopyContent,
+  onCopyTree,
 }: FileTreeProps) {
   const [expanded, setExpanded] = useState<Set<string>>(() => {
     // Auto-expand to selected file on initial render
@@ -102,6 +127,10 @@ export function FileTree({
             onSelect={onSelect}
             onDirClick={handleDirClick}
             onExpand={onExpand}
+            onCopyFullPath={onCopyFullPath}
+            onCopyRelativePath={onCopyRelativePath}
+            onCopyContent={onCopyContent}
+            onCopyTree={onCopyTree}
           />
         ))}
       </div>
@@ -120,6 +149,10 @@ function TreeItem({
   onSelect,
   onDirClick,
   onExpand,
+  onCopyFullPath,
+  onCopyRelativePath,
+  onCopyContent,
+  onCopyTree,
 }: {
   entry: FileEntry;
   depth: number;
@@ -131,6 +164,10 @@ function TreeItem({
   onSelect: (path: string) => void;
   onDirClick: (path: string) => void;
   onExpand: (path: string) => void;
+  onCopyFullPath?: (path: string) => void;
+  onCopyRelativePath?: (path: string) => void;
+  onCopyContent?: (filePath: string) => void;
+  onCopyTree?: (dirPath: string) => void;
 }) {
   const isExpanded = expanded.has(entry.path);
   const isSelected = selectedFile === entry.path;
@@ -140,27 +177,46 @@ function TreeItem({
   if (entry.type === 'directory') {
     return (
       <div>
-        <button
-          type="button"
-          onClick={() => onDirClick(entry.path)}
-          className={`flex w-full items-center gap-1 px-2 py-1 text-left hover:bg-accent ${
-            isSelected ? 'bg-accent' : ''
-          }`}
-          style={{ paddingLeft: `${depth * 16 + 8}px` }}
-        >
-          {isExpanded ? (
-            <>
-              <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-              <FolderOpen className="h-4 w-4 shrink-0 text-blue-500" />
-            </>
-          ) : (
-            <>
-              <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-              <Folder className="h-4 w-4 shrink-0 text-blue-500" />
-            </>
-          )}
-          <span className="truncate">{entry.name}</span>
-        </button>
+        <ContextMenu>
+          <ContextMenuTrigger asChild>
+            <button
+              type="button"
+              onClick={() => onDirClick(entry.path)}
+              className={`flex w-full items-center gap-1 px-2 py-1 text-left hover:bg-accent ${
+                isSelected ? 'bg-accent' : ''
+              }`}
+              style={{ paddingLeft: `${depth * 16 + 8}px` }}
+            >
+              {isExpanded ? (
+                <>
+                  <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <FolderOpen className="h-4 w-4 shrink-0 text-blue-500" />
+                </>
+              ) : (
+                <>
+                  <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <Folder className="h-4 w-4 shrink-0 text-blue-500" />
+                </>
+              )}
+              <span className="truncate">{entry.name}</span>
+            </button>
+          </ContextMenuTrigger>
+          <ContextMenuContent>
+            <ContextMenuItem onSelect={() => onCopyFullPath?.(entry.path)}>
+              <ClipboardCopy className="h-3.5 w-3.5 mr-2" />
+              Copy Full Path
+            </ContextMenuItem>
+            <ContextMenuItem onSelect={() => onCopyRelativePath?.(entry.path)}>
+              <FileText className="h-3.5 w-3.5 mr-2" />
+              Copy Relative Path
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+            <ContextMenuItem onSelect={() => onCopyTree?.(entry.path)}>
+              <FolderTree className="h-3.5 w-3.5 mr-2" />
+              Copy Tree From Here
+            </ContextMenuItem>
+          </ContextMenuContent>
+        </ContextMenu>
         {isExpanded && children && (
           <div>
             {children
@@ -184,6 +240,10 @@ function TreeItem({
                   onSelect={onSelect}
                   onDirClick={onDirClick}
                   onExpand={onExpand}
+                  onCopyFullPath={onCopyFullPath}
+                  onCopyRelativePath={onCopyRelativePath}
+                  onCopyContent={onCopyContent}
+                  onCopyTree={onCopyTree}
                 />
               ))}
           </div>
@@ -203,17 +263,36 @@ function TreeItem({
   );
 
   return (
-    <button
-      ref={scrollRef}
-      type="button"
-      onClick={() => onSelect(entry.path)}
-      className={`flex w-full items-center gap-1 px-2 py-1 text-left hover:bg-accent ${
-        isSelected ? 'bg-accent font-medium' : ''
-      } ${isChanged ? 'text-amber-600 dark:text-amber-400' : ''}`}
-      style={{ paddingLeft: `${depth * 16 + 8 + 14}px` }}
-    >
-      <File className="h-4 w-4 shrink-0 text-muted-foreground" />
-      <span className="truncate">{entry.name}</span>
-    </button>
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <button
+          ref={scrollRef}
+          type="button"
+          onClick={() => onSelect(entry.path)}
+          className={`flex w-full items-center gap-1 px-2 py-1 text-left hover:bg-accent ${
+            isSelected ? 'bg-accent font-medium' : ''
+          } ${isChanged ? 'text-amber-600 dark:text-amber-400' : ''}`}
+          style={{ paddingLeft: `${depth * 16 + 8 + 14}px` }}
+        >
+          <File className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <span className="truncate">{entry.name}</span>
+        </button>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem onSelect={() => onCopyFullPath?.(entry.path)}>
+          <ClipboardCopy className="h-3.5 w-3.5 mr-2" />
+          Copy Full Path
+        </ContextMenuItem>
+        <ContextMenuItem onSelect={() => onCopyRelativePath?.(entry.path)}>
+          <FileText className="h-3.5 w-3.5 mr-2" />
+          Copy Relative Path
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem onSelect={() => onCopyContent?.(entry.path)}>
+          <ClipboardCopy className="h-3.5 w-3.5 mr-2" />
+          Copy Content
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }

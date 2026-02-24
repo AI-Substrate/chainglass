@@ -11,7 +11,10 @@
 import { SHARED_DI_TOKENS } from '@chainglass/shared';
 import type { IFileSystem } from '@chainglass/shared';
 import type { NextRequest } from 'next/server';
-import { listDirectory } from '../../../../../src/features/041-file-browser/services/directory-listing';
+import {
+  listDirectory,
+  listDirectoryTree,
+} from '../../../../../src/features/041-file-browser/services/directory-listing';
 import { getContainer } from '../../../../../src/lib/bootstrap-singleton';
 
 export const dynamic = 'force-dynamic';
@@ -46,6 +49,17 @@ export async function GET(
     // Check worktree path exists on disk
     if (!(await fileSystem.exists(worktree))) {
       return Response.json({ error: 'Worktree path not found' }, { status: 404 });
+    }
+
+    // Recursive tree mode for "Copy Tree From Here"
+    if (searchParams.get('tree') === 'true') {
+      const tree = await listDirectoryTree({
+        worktreePath: worktree,
+        dirPath: dir,
+        fileSystem,
+        maxDepth: 10,
+      });
+      return Response.json({ tree });
     }
 
     const result = await listDirectory({

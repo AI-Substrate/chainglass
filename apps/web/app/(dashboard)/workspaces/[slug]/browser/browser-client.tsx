@@ -19,6 +19,7 @@ import {
 import { fileBrowserParams } from '@/features/041-file-browser/params/file-browser.params';
 import type { FileEntry } from '@/features/041-file-browser/services/directory-listing';
 import type { ReadFileResult } from '@/features/041-file-browser/services/file-actions';
+import { type TreeEntry, formatTree } from '@/features/041-file-browser/services/format-tree';
 import type { DiffResult } from '@chainglass/shared';
 import { useQueryStates } from 'nuqs';
 import { useCallback, useEffect, useState } from 'react';
@@ -199,6 +200,57 @@ export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: Bro
     });
   }, [slug, worktreePath, selectedFile]);
 
+  // Clipboard handlers for context menu
+  const handleCopyFullPath = useCallback(
+    async (relativePath: string) => {
+      await navigator.clipboard.writeText(`${worktreePath}/${relativePath}`);
+      toast.success('Full path copied');
+    },
+    [worktreePath]
+  );
+
+  const handleCopyRelativePath = useCallback(async (relativePath: string) => {
+    await navigator.clipboard.writeText(relativePath);
+    toast.success('Relative path copied');
+  }, []);
+
+  const handleCopyContent = useCallback(
+    async (filePath: string) => {
+      try {
+        const result = await readFile(slug, worktreePath, filePath);
+        if (result.ok) {
+          await navigator.clipboard.writeText(result.content);
+          toast.success('Content copied');
+        } else {
+          toast.error('Could not copy content');
+        }
+      } catch {
+        toast.error('Could not copy content');
+      }
+    },
+    [slug, worktreePath]
+  );
+
+  const handleCopyTree = useCallback(
+    async (dirPath: string) => {
+      try {
+        const url = `/api/workspaces/${slug}/files?worktree=${encodeURIComponent(worktreePath)}&dir=${encodeURIComponent(dirPath)}&tree=true`;
+        const res = await fetch(url);
+        if (res.ok) {
+          const data = await res.json();
+          const treeText = formatTree(data.tree as TreeEntry[], dirPath);
+          await navigator.clipboard.writeText(treeText);
+          toast.success('Tree copied');
+        } else {
+          toast.error('Could not copy tree');
+        }
+      } catch {
+        toast.error('Could not copy tree');
+      }
+    },
+    [slug, worktreePath]
+  );
+
   return (
     <div className="flex h-[calc(100vh-4rem)] overflow-hidden">
       {/* Left panel: File tree */}
@@ -212,6 +264,10 @@ export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: Bro
           onExpand={handleExpand}
           onRefresh={handleRefresh}
           childEntries={childEntries}
+          onCopyFullPath={handleCopyFullPath}
+          onCopyRelativePath={handleCopyRelativePath}
+          onCopyContent={handleCopyContent}
+          onCopyTree={handleCopyTree}
         />
       </div>
 
