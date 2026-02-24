@@ -12,7 +12,7 @@
 import { execFile } from 'node:child_process';
 import * as path from 'node:path';
 import { promisify } from 'node:util';
-import type { IFileSystem } from '@chainglass/shared';
+import { type IFileSystem, type IPathResolver, PathSecurityError } from '@chainglass/shared';
 
 const execFileAsync = promisify(execFile);
 
@@ -27,6 +27,7 @@ export interface ListDirectoryOptions {
   dirPath: string;
   isGit: boolean;
   fileSystem: IFileSystem;
+  pathResolver?: IPathResolver;
 }
 
 export interface ListDirectoryResult {
@@ -38,11 +39,18 @@ export interface ListDirectoryResult {
  * Scoped to one level — does not recurse (lazy loading on expand).
  */
 export async function listDirectory(options: ListDirectoryOptions): Promise<ListDirectoryResult> {
-  const { worktreePath, dirPath, isGit, fileSystem } = options;
+  const { worktreePath, dirPath, isGit, fileSystem, pathResolver } = options;
 
-  // Security: reject traversal
-  if (dirPath.includes('..')) {
-    throw new Error('Path traversal not allowed');
+  // Security: reject absolute paths
+  if (dirPath && path.isAbsolute(dirPath)) {
+    throw new PathSecurityError('Absolute paths not allowed', worktreePath, dirPath);
+  }
+
+  // Security: validate path stays within workspace
+  if (pathResolver) {
+    pathResolver.resolvePath(worktreePath, dirPath || '.');
+  } else if (dirPath.includes('..')) {
+    throw new PathSecurityError('Path traversal not allowed', worktreePath, dirPath);
   }
 
   const absoluteDir = dirPath ? path.join(worktreePath, dirPath) : worktreePath;

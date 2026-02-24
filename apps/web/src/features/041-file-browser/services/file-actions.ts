@@ -52,7 +52,9 @@ export async function readFileAction(options: ReadFileOptions): Promise<ReadFile
   // Security: symlink escape check via realpath
   try {
     const realPath = await fileSystem.realpath(absolutePath);
-    if (!realPath.startsWith(worktreePath)) {
+    // Separator-safe containment: must be exact root or true descendant
+    const normalizedRoot = worktreePath.endsWith('/') ? worktreePath : `${worktreePath}/`;
+    if (realPath !== worktreePath && !realPath.startsWith(normalizedRoot)) {
       return { ok: false, error: 'security' };
     }
   } catch {

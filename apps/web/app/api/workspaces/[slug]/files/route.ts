@@ -50,6 +50,12 @@ export async function GET(
       return Response.json({ error: 'Workspace not found' }, { status: 404 });
     }
 
+    // Security: validate worktree is owned by this workspace
+    const ownedPaths = [info.path, ...(info.worktrees ?? []).map((wt) => wt.path)];
+    if (!ownedPaths.includes(worktree)) {
+      return Response.json({ error: 'Worktree not owned by workspace' }, { status: 403 });
+    }
+
     const result = await listDirectory({
       worktreePath: worktree,
       dirPath: dir,

@@ -75,7 +75,8 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
 | `apps/web/src/features/041-file-browser/components/file-tree.tsx` | FileTree | Phase 4 (planned) |
 | `apps/web/src/features/041-file-browser/components/code-editor.tsx` | CodeEditor wrapper | Phase 4 (planned) |
 | `apps/web/src/features/041-file-browser/components/file-viewer-panel.tsx` | FileViewerPanel | Phase 4 (planned) |
-| `apps/web/app/actions/file-actions.ts` | readFile + saveFile | Phase 4 (planned) |
+| `apps/web/app/actions/file-actions.ts` | readFile + saveFile server actions | Phase 4 |
+| `apps/web/src/features/041-file-browser/services/file-actions.ts` | readFile + saveFile service logic | Phase 4 |
 | `apps/web/app/api/workspaces/[slug]/files/route.ts` | Files API route | Phase 4 (planned) |
 | `apps/web/app/(dashboard)/workspaces/[slug]/browser/page.tsx` | Browser page | Phase 4 (planned) |
 | `apps/web/src/features/041-file-browser/index.ts` | Feature barrel | Phase 1 |

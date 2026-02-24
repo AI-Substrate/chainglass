@@ -16,12 +16,10 @@ import {
 } from '@/features/041-file-browser/components/file-viewer-panel';
 import { fileBrowserParams } from '@/features/041-file-browser/params/file-browser.params';
 import type { FileEntry } from '@/features/041-file-browser/services/directory-listing';
-import { readFileAction } from '@/features/041-file-browser/services/file-actions';
-import { useQueryStates } from 'nuqs';
-import { useCallback, useState } from 'react';
-
-// Lazy import types
 import type { ReadFileResult } from '@/features/041-file-browser/services/file-actions';
+import { useQueryStates } from 'nuqs';
+import { useCallback, useEffect, useState } from 'react';
+import { readFile, saveFile } from '../../../../actions/file-actions';
 
 export interface BrowserClientProps {
   slug: string;
@@ -57,15 +55,30 @@ export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: Bro
     [slug, worktreePath]
   );
 
-  // Select a file
+  // Select a file — load its content
   const handleSelect = useCallback(
     async (filePath: string) => {
       setParams({ file: filePath });
-      // Note: In production this would call a server action.
-      // For now, we set the file path and let the viewer handle it.
+      try {
+        const result = await readFile(slug, worktreePath, filePath);
+        setFileData(result);
+        if (result.ok) {
+          setEditContent(result.content);
+        }
+      } catch (error) {
+        console.error('Failed to read file:', error);
+      }
     },
-    [setParams]
+    [setParams, slug, worktreePath]
   );
+
+  // Re-read file when URL changes with a file param already set
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional mount-only effect
+  useEffect(() => {
+    if (params.file && !fileData) {
+      handleSelect(params.file);
+    }
+  }, []);
 
   // Change viewer mode
   const handleModeChange = useCallback(
@@ -78,24 +91,38 @@ export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: Bro
   // Refresh file tree
   const handleRefresh = useCallback(() => {
     setChildEntries({});
-    // Force re-fetch by reloading page
     window.location.reload();
   }, []);
 
-  // Load changed files
-  const handleLoadChanged = useCallback(async () => {
-    try {
-      const res = await fetch(
-        `/api/workspaces/${slug}/files?worktree=${encodeURIComponent(worktreePath)}&changed=true`
-      );
-      if (res.ok) {
-        const data = await res.json();
-        setChangedFiles(data.files || []);
+  // Save file
+  const handleSave = useCallback(
+    async (content: string) => {
+      if (!selectedFile || !fileData?.ok) return;
+      try {
+        const result = await saveFile(slug, worktreePath, selectedFile, content, fileData.mtime);
+        if (result.ok) {
+          // Re-read to get new mtime
+          const refreshed = await readFile(slug, worktreePath, selectedFile);
+          setFileData(refreshed);
+          if (refreshed.ok) setEditContent(refreshed.content);
+        } else {
+          setFileData({ ...fileData }); // trigger re-render
+          // Conflict handled by FileViewerPanel via conflictError prop
+        }
+      } catch (error) {
+        console.error('Failed to save file:', error);
       }
-    } catch {
-      // ignore
-    }
-  }, [slug, worktreePath]);
+    },
+    [slug, worktreePath, selectedFile, fileData]
+  );
+
+  // Refresh current file
+  const handleRefreshFile = useCallback(async () => {
+    if (!selectedFile) return;
+    const result = await readFile(slug, worktreePath, selectedFile);
+    setFileData(result);
+    if (result.ok) setEditContent(result.content);
+  }, [slug, worktreePath, selectedFile]);
 
   return (
     <div className="flex h-[calc(100vh-4rem)] overflow-hidden">
@@ -123,12 +150,8 @@ export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: Bro
             mtime={fileData?.ok ? fileData.mtime : ''}
             mode={mode}
             onModeChange={handleModeChange}
-            onSave={() => {
-              /* TODO: wire saveFileAction */
-            }}
-            onRefresh={() => {
-              /* TODO: re-read file */
-            }}
+            onSave={handleSave}
+            onRefresh={handleRefreshFile}
             editContent={editContent}
             onEditChange={setEditContent}
             errorType={
