@@ -281,9 +281,9 @@ function TreeItem({
           } ${isChanged ? 'text-amber-600 dark:text-amber-400' : ''}`}
           style={{ paddingLeft: `${depth * 16 + 8 + 14}px` }}
         >
-          {isSelected && <ChevronRight className="absolute left-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />}
+          {isSelected && <ChevronRight className="absolute left-0 h-5 w-5 shrink-0 text-amber-500 stroke-[3]" />}
           <File className="h-4 w-4 shrink-0 text-muted-foreground" />
-          <span className="truncate">{entry.name}</span>
+          <span className={`truncate ${isSelected ? 'text-[0.9375rem]' : ''}`}>{entry.name}</span>
         </button>
       </ContextMenuTrigger>
       <ContextMenuContent>
