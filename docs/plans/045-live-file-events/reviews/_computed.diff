@@ -1,0 +1,2001 @@
+diff --git a/apps/web/src/features/027-central-notify-events/file-change-domain-event-adapter.ts b/apps/web/src/features/027-central-notify-events/file-change-domain-event-adapter.ts
+new file mode 100644
+index 0000000..0897221
+--- /dev/null
++++ b/apps/web/src/features/027-central-notify-events/file-change-domain-event-adapter.ts
+@@ -0,0 +1,38 @@
++/**
++ * Plan 045: Live File Events
++ *
++ * Domain event adapter for file changes. Transforms FileChangeBatchItem arrays
++ * from FileChangeWatcherAdapter into SSE-compatible domain events via the
++ * central notifier.
++ *
++ * Per ADR-0007: SSE carries only identifiers — path + eventType per change.
++ * Per ADR-0010: Three-layer notification pipeline — adapter → notifier → SSE.
++ * Follows WorkgraphDomainEventAdapter pattern.
++ */
++
++import type { ICentralEventNotifier } from '@chainglass/shared/features/027-central-notify-events/central-event-notifier.interface';
++import { DomainEventAdapter } from '@chainglass/shared/features/027-central-notify-events/domain-event-adapter';
++import { WorkspaceDomain } from '@chainglass/shared/features/027-central-notify-events/workspace-domain';
++import type { FileChangeBatchItem } from '@chainglass/workflow';
++
++/** Event shape passed to handleEvent — a batch of file changes */
++export interface FileChangeBatchEvent {
++  changes: FileChangeBatchItem[];
++}
++
++export class FileChangeDomainEventAdapter extends DomainEventAdapter<FileChangeBatchEvent> {
++  constructor(notifier: ICentralEventNotifier) {
++    super(notifier, WorkspaceDomain.FileChanges, 'file-changed');
++  }
++
++  extractData(event: FileChangeBatchEvent): Record<string, unknown> {
++    return {
++      changes: event.changes.map((c) => ({
++        path: c.path,
++        eventType: c.eventType,
++        worktreePath: c.worktreePath,
++        timestamp: c.timestamp,
++      })),
++    };
++  }
++}
+diff --git a/apps/web/src/features/027-central-notify-events/start-central-notifications.ts b/apps/web/src/features/027-central-notify-events/start-central-notifications.ts
+index 333330d..1d0c225 100644
+--- a/apps/web/src/features/027-central-notify-events/start-central-notifications.ts
++++ b/apps/web/src/features/027-central-notify-events/start-central-notifications.ts
+@@ -14,8 +14,9 @@
+ import { WORKSPACE_DI_TOKENS } from '@chainglass/shared/di-tokens';
+ import type { ICentralEventNotifier } from '@chainglass/shared/features/027-central-notify-events/central-event-notifier.interface';
+ import type { ICentralWatcherService } from '@chainglass/workflow';
+-import { WorkGraphWatcherAdapter } from '@chainglass/workflow';
++import { FileChangeWatcherAdapter, WorkGraphWatcherAdapter } from '@chainglass/workflow';
+ import { getContainer } from '../../lib/bootstrap-singleton';
++import { FileChangeDomainEventAdapter } from './file-change-domain-event-adapter';
+ import { WorkgraphDomainEventAdapter } from './workgraph-domain-event-adapter';
+ 
+ declare global {
+@@ -48,15 +49,22 @@ export async function startCentralNotificationSystem(): Promise<void> {
+       WORKSPACE_DI_TOKENS.CENTRAL_EVENT_NOTIFIER
+     );
+ 
+-    // 2. Create domain event adapter
+-    const domainAdapter = new WorkgraphDomainEventAdapter(notifier);
++    // 2. Create domain event adapters
++    const workgraphDomainAdapter = new WorkgraphDomainEventAdapter(notifier);
++    const fileChangeDomainAdapter = new FileChangeDomainEventAdapter(notifier);
+ 
+-    // 3. Create and register watcher adapter
+-    const watcherAdapter = new WorkGraphWatcherAdapter();
+-    watcher.registerAdapter(watcherAdapter);
++    // 3. Create and register watcher adapters
++    const workgraphWatcherAdapter = new WorkGraphWatcherAdapter();
++    watcher.registerAdapter(workgraphWatcherAdapter);
+ 
+-    // 4. Subscribe domain adapter to watcher adapter events
+-    watcherAdapter.onGraphChanged((event) => domainAdapter.handleEvent(event));
++    const fileChangeWatcherAdapter = new FileChangeWatcherAdapter(300);
++    watcher.registerAdapter(fileChangeWatcherAdapter);
++
++    // 4. Subscribe domain adapters to watcher adapter events
++    workgraphWatcherAdapter.onGraphChanged((event) => workgraphDomainAdapter.handleEvent(event));
++    fileChangeWatcherAdapter.onFilesChanged((changes) =>
++      fileChangeDomainAdapter.handleEvent({ changes })
++    );
+ 
+     // 5. Start watching
+     await watcher.start();
+diff --git a/docs/plans/045-live-file-events/live-file-events-plan.md b/docs/plans/045-live-file-events/live-file-events-plan.md
+index 7651d79..8f0973d 100644
+--- a/docs/plans/045-live-file-events/live-file-events-plan.md
++++ b/docs/plans/045-live-file-events/live-file-events-plan.md
+@@ -106,13 +106,13 @@ The file browser currently requires manual refresh to see filesystem changes. Th
+ | 1.7 | Wire adapters in `startCentralNotificationSystem()` | events | 2 | Bootstrap creates FileChangeWatcherAdapter(300), FileChangeDomainEventAdapter(notifier). Wires `onFilesChanged → handleEvent`. Registers adapter with watcher service. Integration test: file change → adapter → notifier.emit('file-changes', ...). | Follows existing workgraph wiring pattern. |
+ 
+ ### Acceptance Criteria (Phase 1)
+-- [ ] AC-01: File created → `file-changed` SSE event with `add` type within ~700ms
+-- [ ] AC-02: File modified → `file-changed` SSE event with `change` type
+-- [ ] AC-03: File deleted → `file-changed` SSE event with `unlink` type
+-- [ ] AC-04: node_modules/.git/dist/.next/.chainglass changes produce NO SSE events
+-- [ ] AC-05: Rapid changes within 300ms batched + deduped
+-- [ ] AC-06: WorkspaceDomain.FileChanges === 'file-changes'
+-- [ ] AC-28: Server watcher starts at startup via instrumentation.ts
++- [x] AC-01: File created → `file-changed` SSE event with `add` type within ~700ms
++- [x] AC-02: File modified → `file-changed` SSE event with `change` type
++- [x] AC-03: File deleted → `file-changed` SSE event with `unlink` type
++- [x] AC-04: node_modules/.git/dist/.next/.chainglass changes produce NO SSE events
++- [x] AC-05: Rapid changes within 300ms batched + deduped
++- [x] AC-06: WorkspaceDomain.FileChanges === 'file-changes'
++- [x] AC-28: Server watcher starts at startup via instrumentation.ts
+ 
+ ---
+ 
+@@ -194,7 +194,7 @@ The file browser currently requires manual refresh to see filesystem changes. Th
+ 
+ ## Phase Completion Checklist
+ 
+-- [ ] Phase 1: Server-Side Event Pipeline
++- [x] Phase 1: Server-Side Event Pipeline
+ - [ ] Phase 2: Browser-Side Event Hub
+ - [ ] Phase 3: UI Wiring
+ 
+diff --git a/docs/plans/045-live-file-events/tasks/phase-1-server-side-event-pipeline/execution.log.md b/docs/plans/045-live-file-events/tasks/phase-1-server-side-event-pipeline/execution.log.md
+new file mode 100644
+index 0000000..3842fc2
+--- /dev/null
++++ b/docs/plans/045-live-file-events/tasks/phase-1-server-side-event-pipeline/execution.log.md
+@@ -0,0 +1,193 @@
++# Execution Log: Phase 1 — Server-Side Event Pipeline
++
++**Plan**: [live-file-events-plan.md](../../live-file-events-plan.md)
++**Phase**: Phase 1: Server-Side Event Pipeline
++**Started**: 2026-02-24
++
++---
++
++## Task T001: Add `ignored` field to FileWatcherOptions + ChokidarAdapter passthrough
++**Started**: 2026-02-24T10:02
++**Status**: ✅ Complete
++
++### What I Did
++Added optional `ignored?: (string | RegExp)[]` field to `FileWatcherOptions` interface and passed it through in `ChokidarFileWatcherAdapter` constructor to chokidar options.
++
++### Evidence
++All 25 existing CentralWatcherService tests pass without modification (additive change).
++
++### Files Changed
++- `packages/workflow/src/interfaces/file-watcher.interface.ts` — Added `ignored` field
++- `packages/workflow/src/adapters/chokidar-file-watcher.adapter.ts` — Added `ignored: options.ignored` to chokidar config
++
++**Completed**: 2026-02-24T10:02
++---
++
++## Task T002: Create SOURCE_WATCHER_IGNORED constants
++**Started**: 2026-02-24T10:02
++**Status**: ✅ Complete
++
++### What I Did
++Created `source-watcher.constants.ts` with `SOURCE_WATCHER_IGNORED` array containing 23 ignore patterns covering: .git, node_modules, vendor, .pnpm-store, dist, build, .next, .turbo, .cache, coverage, __pycache__, .idea, .vscode, *.swp, *.swo, *~, .DS_Store, Thumbs.db, .chainglass, pnpm-lock.yaml, package-lock.json, yarn.lock. Uses both string globs and RegExp for editor swap files.
++
++### Files Changed
++- `packages/workflow/src/features/023-central-watcher-notifications/source-watcher.constants.ts` — New file
++
++**Completed**: 2026-02-24T10:02
++---
++
++## Task T003: Add FileChanges to WorkspaceDomain
++**Started**: 2026-02-24T10:02
++**Status**: ✅ Complete
++
++### What I Did
++Added `FileChanges: 'file-changes'` entry to the `WorkspaceDomain` const. The `WorkspaceDomainType` union automatically includes the new value.
++
++### Evidence
++Build compiles. All existing tests pass.
++
++### Files Changed
++- `packages/shared/src/features/027-central-notify-events/workspace-domain.ts` — Added FileChanges entry
++
++**Completed**: 2026-02-24T10:02
++---
++
++## Task T004: Create FileChangeWatcherAdapter
++**Started**: 2026-02-24T10:03
++**Status**: ✅ Complete
++
++### What I Did
++Created `FileChangeWatcherAdapter` implementing `IWatcherAdapter` with:
++- .chainglass/ path filtering
++- Absolute→relative path conversion (from worktree root)
++- 300ms debounce batching (configurable)
++- Last-event-wins deduplication per `worktreePath:relativePath` key
++- Callback-set subscriber pattern with error isolation
++- `flushNow()` for testing, `destroy()` for cleanup
++- Exported `FileChangeBatchItem` interface
++
++### Evidence
++20 unit tests pass covering filtering, path conversion, debounce, dedup, dispatch, error isolation, flushNow, destroy, and event shape.
++
++### Files Changed
++- `packages/workflow/src/features/023-central-watcher-notifications/file-change-watcher.adapter.ts` — New file
++- `packages/workflow/src/features/023-central-watcher-notifications/index.ts` — Added exports
++- `packages/workflow/src/index.ts` — Added exports
++- `test/unit/workflow/file-change-watcher.adapter.test.ts` — New file (20 tests)
++
++**Completed**: 2026-02-24T10:05
++---
++
++## Task T005: Create FileChangeDomainEventAdapter
++**Started**: 2026-02-24T10:06
++**Status**: ✅ Complete
++
++### What I Did
++Created `FileChangeDomainEventAdapter` extending `DomainEventAdapter<FileChangeBatchEvent>`. Constructor: `super(notifier, WorkspaceDomain.FileChanges, 'file-changed')`. `extractData()` maps changes array to `{ changes: [{path, eventType, worktreePath, timestamp}] }`.
++
++### Evidence
++3 unit tests pass: correct domain/event type, payload shape, empty changes array.
++
++### Files Changed
++- `apps/web/src/features/027-central-notify-events/file-change-domain-event-adapter.ts` — New file
++- `test/unit/web/027/file-change-domain-event-adapter.test.ts` — New file (3 tests)
++
++**Completed**: 2026-02-24T10:07
++---
++
++## Task T006: Create FakeFileChangeWatcherAdapter + contract tests
++**Started**: 2026-02-24T10:06
++**Status**: ✅ Complete
++
++### What I Did
++Created `FakeFileChangeWatcherAdapter` with: event recording via `handledEvents`, same .chainglass filtering and path conversion as real adapter, dedup, `flushNow()`, `subscriberCount`, `destroy()`, `reset()`. Created shared contract test suite with 8 tests (C01-C08) covering filtering, path conversion, dispatch, error isolation, dedup, unsubscribe, no-op flush. Both real and fake pass all 8.
++
++### Evidence
++16 contract tests pass (8 per implementation).
++
++### Files Changed
++- `packages/workflow/src/features/023-central-watcher-notifications/fake-file-change-watcher.ts` — New file
++- `packages/workflow/src/features/023-central-watcher-notifications/index.ts` — Added export
++- `packages/workflow/src/index.ts` — Added export
++- `test/contracts/file-change-watcher.contract.ts` — New file (contract suite)
++- `test/contracts/file-change-watcher.contract.test.ts` — New file (runner)
++
++**Completed**: 2026-02-24T10:07
++---
++
++## Task T007: Write comprehensive unit tests for FileChangeWatcherAdapter
++**Started**: 2026-02-24T10:03
++**Status**: ✅ Complete
++
++### What I Did
++Unit tests for T004 were written as part of T004 (TDD — tests first). 20 tests in `file-change-watcher.adapter.test.ts` covering: 3 filtering tests, 3 path conversion tests, 4 debounce tests, 3 dedup tests, 3 subscriber dispatch tests, 3 flushNow/destroy tests, 1 event shape test.
++
++### Evidence
++All 20 tests pass.
++
++### Files Changed
++- `test/unit/workflow/file-change-watcher.adapter.test.ts` — Same file as T004
++
++**Completed**: 2026-02-24T10:05
++---
++
++## Task T008: Expand CentralWatcherService with source watchers
++**Started**: 2026-02-24T10:08
++**Status**: ✅ Complete
++
++### What I Did
++- Added `sourceWatchers: Map<string, IFileWatcher>` alongside existing `dataWatchers`
++- Added `createSourceWatchers()` method: creates one chokidar watcher per worktree root with `SOURCE_WATCHER_IGNORED` patterns, `awaitWriteFinish: { stabilityThreshold: 300 }`, and event handlers for change/add/unlink/addDir/unlinkDir
++- Updated `start()`: calls `createSourceWatchers()` wrapped in try-catch after `createDataWatchers()` so source watcher failure doesn't block data watchers
++- Updated `stop()`: closes both data and source watchers
++- Updated `performRescan()`: closes source watchers for removed worktrees, creates source watchers for new worktrees (wrapped in try-catch)
++
++### Evidence
++32 tests pass (25 original + 7 new source watcher tests).
++
++### Files Changed
++- `packages/workflow/src/features/023-central-watcher-notifications/central-watcher.service.ts` — Added sourceWatchers map, createSourceWatchers(), updated start/stop/rescan
++
++**Completed**: 2026-02-24T10:09
++---
++
++## Task T009: Refactor existing CentralWatcherService tests
++**Started**: 2026-02-24T10:09
++**Status**: ✅ Complete
++
++### What I Did
++- Added `findWatcherByPath()` and `findWatchersByPath()` helper methods to `FakeFileWatcherFactory` (query by path instead of index)
++- Updated 3 watcher count assertions to account for source watchers (N*2 + 1 registry)
++- Added 7 new tests for source watchers: creation per worktree, multiple worktrees, ignored patterns, event dispatch, stop cleanup, partial failure isolation, rescan cleanup
++
++### Discoveries
++- Source watcher creation order is: data(1) → source(2) → registry(3), not data → registry → source. Important for factory.create count-based tests.
++
++### Evidence
++All 32 tests pass (25 updated + 7 new).
++
++### Files Changed
++- `packages/workflow/src/fakes/fake-file-watcher.ts` — Added findWatcherByPath/findWatchersByPath
++- `test/unit/workflow/central-watcher.service.test.ts` — Updated 3 assertions, added 7 new tests
++
++**Completed**: 2026-02-24T10:11
++---
++
++## Task T010: Wire adapters in bootstrap + integration test
++**Started**: 2026-02-24T10:11
++**Status**: ✅ Complete
++
++### What I Did
++- Updated `startCentralNotificationSystem()` to create and wire `FileChangeWatcherAdapter(300)` and `FileChangeDomainEventAdapter(notifier)` alongside existing workgraph adapters
++- Wired `fileChangeWatcherAdapter.onFilesChanged → fileChangeDomainAdapter.handleEvent({ changes })`
++- Created integration test proving full pipeline: WatcherEvent → FileChangeWatcherAdapter → FileChangeDomainEventAdapter → notifier.emit('file-changes', 'file-changed', { changes }). Tests cover: modify, add, unlink, .chainglass filtering, batch+dedup.
++
++### Evidence
++5 integration tests pass.
++
++### Files Changed
++- `apps/web/src/features/027-central-notify-events/start-central-notifications.ts` — Added file change adapter wiring
++- `test/integration/045-live-file-events/watcher-to-file-change-notifier.integration.test.ts` — New file (5 tests)
++
++**Completed**: 2026-02-24T10:13
++---
+diff --git a/docs/plans/045-live-file-events/tasks/phase-1-server-side-event-pipeline/tasks.fltplan.md b/docs/plans/045-live-file-events/tasks/phase-1-server-side-event-pipeline/tasks.fltplan.md
+index 409a9eb..fbce1c3 100644
+--- a/docs/plans/045-live-file-events/tasks/phase-1-server-side-event-pipeline/tasks.fltplan.md
++++ b/docs/plans/045-live-file-events/tasks/phase-1-server-side-event-pipeline/tasks.fltplan.md
+@@ -3,7 +3,7 @@
+ **Plan**: [live-file-events-plan.md](../../live-file-events-plan.md)
+ **Phase**: Phase 1: Server-Side Event Pipeline (1 of 3)
+ **Generated**: 2026-02-24
+-**Status**: Ready for takeoff
++**Status**: All stages complete
+ 
+ ---
+ 
+@@ -41,7 +41,7 @@ stateDiagram-v2
+     S5 --> S6
+     S6 --> [*]
+ 
+-    class S1,S2,S3,S4,S5,S6 pending
++    class S1,S2,S3,S4,S5,S6 done
+ ```
+ 
+ **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
+@@ -52,13 +52,13 @@ stateDiagram-v2
+ 
+ <!-- Updated by /plan-6 during implementation: [ ] → [~] → [x] -->
+ 
+-- [ ] **Stage 1: Add `ignored` field and ignore constants** — extend `FileWatcherOptions` with an optional `ignored` field, pass it through in the chokidar adapter, and create the `SOURCE_WATCHER_IGNORED` patterns array (`file-watcher.interface.ts`, `chokidar-file-watcher.adapter.ts`, `source-watcher.constants.ts` — new file)
+-- [ ] **Stage 2: Add file-changes channel** — add `FileChanges: 'file-changes'` to the `WorkspaceDomain` const so the domain adapter can reference it (`workspace-domain.ts`)
+-- [ ] **Stage 3: Build the core FileChangeWatcherAdapter** — implement `IWatcherAdapter` with .chainglass filtering, absolute→relative path conversion, 300ms debounce batching, and last-event-wins deduplication. TDD: write failing tests first (`file-change-watcher.adapter.ts` — new file, `file-change-watcher.adapter.test.ts` — new file)
+-- [ ] **Stage 4: Build the fake + contract tests** — create `FakeFileChangeWatcherAdapter` with event recording and `flushNow()`, then write a shared contract test suite that both real and fake pass (`fake-file-change-watcher.ts` — new file, contract test files — new files)
+-- [ ] **Stage 5: Build the domain event adapter** — create `FileChangeDomainEventAdapter` extending `DomainEventAdapter<T>` with `extractData()` returning `{ changes: [{path, eventType, worktreePath, timestamp}] }` (`file-change-domain-event-adapter.ts` — new file)
+-- [ ] **Stage 6: Expand CentralWatcherService** — add `sourceWatchers` map, `createSourceWatchers()` per worktree root with ignore patterns, wrap in try/catch so source watcher failure doesn't block data watchers. Refactor existing tests to query by path instead of index (`central-watcher.service.ts`, `central-watcher.service.test.ts`)
+-- [ ] **Stage 7: Wire everything in bootstrap** — create `FileChangeWatcherAdapter(300)` and `FileChangeDomainEventAdapter(notifier)` in `startCentralNotificationSystem()`, wire `onFilesChanged → handleEvent`, and write an integration test proving file change → notifier.emit (`start-central-notifications.ts`, integration test — new file)
++- [x] **Stage 1: Add `ignored` field and ignore constants** — extend `FileWatcherOptions` with an optional `ignored` field, pass it through in the chokidar adapter, and create the `SOURCE_WATCHER_IGNORED` patterns array (`file-watcher.interface.ts`, `chokidar-file-watcher.adapter.ts`, `source-watcher.constants.ts` — new file)
++- [x] **Stage 2: Add file-changes channel** — add `FileChanges: 'file-changes'` to the `WorkspaceDomain` const so the domain adapter can reference it (`workspace-domain.ts`)
++- [x] **Stage 3: Build the core FileChangeWatcherAdapter** — implement `IWatcherAdapter` with .chainglass filtering, absolute→relative path conversion, 300ms debounce batching, and last-event-wins deduplication. TDD: write failing tests first (`file-change-watcher.adapter.ts` — new file, `file-change-watcher.adapter.test.ts` — new file)
++- [x] **Stage 4: Build the fake + contract tests** — create `FakeFileChangeWatcherAdapter` with event recording and `flushNow()`, then write a shared contract test suite that both real and fake pass (`fake-file-change-watcher.ts` — new file, contract test files — new files)
++- [x] **Stage 5: Build the domain event adapter** — create `FileChangeDomainEventAdapter` extending `DomainEventAdapter<T>` with `extractData()` returning `{ changes: [{path, eventType, worktreePath, timestamp}] }` (`file-change-domain-event-adapter.ts` — new file)
++- [x] **Stage 6: Expand CentralWatcherService** — add `sourceWatchers` map, `createSourceWatchers()` per worktree root with ignore patterns, wrap in try/catch so source watcher failure doesn't block data watchers. Refactor existing tests to query by path instead of index (`central-watcher.service.ts`, `central-watcher.service.test.ts`)
++- [x] **Stage 7: Wire everything in bootstrap** — create `FileChangeWatcherAdapter(300)` and `FileChangeDomainEventAdapter(notifier)` in `startCentralNotificationSystem()`, wire `onFilesChanged → handleEvent`, and write an integration test proving file change → notifier.emit (`start-central-notifications.ts`, integration test — new file)
+ 
+ ---
+ 
+@@ -149,16 +149,16 @@ flowchart LR
+ 
+ ## Checklist
+ 
+-- [ ] T001: Add `ignored` field to FileWatcherOptions + ChokidarAdapter passthrough (CS-1)
+-- [ ] T002: Create SOURCE_WATCHER_IGNORED constants (CS-1)
+-- [ ] T003: Add FileChanges to WorkspaceDomain (CS-1)
+-- [ ] T004: Create FileChangeWatcherAdapter with debounce + dedup (CS-3)
+-- [ ] T005: Create FileChangeDomainEventAdapter (CS-1)
+-- [ ] T006: Create FakeFileChangeWatcherAdapter + contract tests (CS-2)
+-- [ ] T007: Write comprehensive unit tests for adapter (CS-2)
+-- [ ] T008: Expand CentralWatcherService with source watchers (CS-3)
+-- [ ] T009: Refactor existing CentralWatcherService tests (CS-2)
+-- [ ] T010: Wire adapters in bootstrap + integration test (CS-2)
++- [x] T001: Add `ignored` field to FileWatcherOptions + ChokidarAdapter passthrough (CS-1)
++- [x] T002: Create SOURCE_WATCHER_IGNORED constants (CS-1)
++- [x] T003: Add FileChanges to WorkspaceDomain (CS-1)
++- [x] T004: Create FileChangeWatcherAdapter with debounce + dedup (CS-3)
++- [x] T005: Create FileChangeDomainEventAdapter (CS-1)
++- [x] T006: Create FakeFileChangeWatcherAdapter + contract tests (CS-2)
++- [x] T007: Write comprehensive unit tests for adapter (CS-2)
++- [x] T008: Expand CentralWatcherService with source watchers (CS-3)
++- [x] T009: Refactor existing CentralWatcherService tests (CS-2)
++- [x] T010: Wire adapters in bootstrap + integration test (CS-2)
+ 
+ ---
+ 
+diff --git a/docs/plans/045-live-file-events/tasks/phase-1-server-side-event-pipeline/tasks.md b/docs/plans/045-live-file-events/tasks/phase-1-server-side-event-pipeline/tasks.md
+index fa3d998..0cf0663 100644
+--- a/docs/plans/045-live-file-events/tasks/phase-1-server-side-event-pipeline/tasks.md
++++ b/docs/plans/045-live-file-events/tasks/phase-1-server-side-event-pipeline/tasks.md
+@@ -120,25 +120,25 @@ flowchart TD
+     classDef blocked fill:#F44336,stroke:#D32F2F,color:#fff
+ 
+     subgraph Infra["Infrastructure (interfaces + constants)"]
+-        T001["T001: FileWatcherOptions.ignored"]:::pending
+-        T002["T002: SOURCE_WATCHER_IGNORED"]:::pending
+-        T003["T003: WorkspaceDomain.FileChanges"]:::pending
++        T001["T001: FileWatcherOptions.ignored ✓"]:::completed
++        T002["T002: SOURCE_WATCHER_IGNORED ✓"]:::completed
++        T003["T003: WorkspaceDomain.FileChanges ✓"]:::completed
+     end
+ 
+     subgraph Core["Core Adapters"]
+-        T004["T004: FileChangeWatcherAdapter<br/>(debounce + dedup)"]:::pending
+-        T005["T005: FileChangeDomainEventAdapter"]:::pending
+-        T006["T006: FakeFileChangeWatcherAdapter<br/>+ contract tests"]:::pending
++        T004["T004: FileChangeWatcherAdapter<br/>(debounce + dedup) ✓"]:::completed
++        T005["T005: FileChangeDomainEventAdapter ✓"]:::completed
++        T006["T006: FakeFileChangeWatcherAdapter<br/>+ contract tests ✓"]:::completed
+     end
+ 
+     subgraph Service["Service Expansion"]
+-        T007["T007: Unit tests for adapter"]:::pending
+-        T008["T008: CentralWatcherService<br/>source watchers"]:::pending
+-        T009["T009: Refactor existing tests"]:::pending
++        T007["T007: Unit tests for adapter ✓"]:::completed
++        T008["T008: CentralWatcherService<br/>source watchers ✓"]:::completed
++        T009["T009: Refactor existing tests ✓"]:::completed
+     end
+ 
+     subgraph Bootstrap["Bootstrap + Integration"]
+-        T010["T010: Wire in bootstrap<br/>+ integration test"]:::pending
++        T010["T010: Wire in bootstrap<br/>+ integration test ✓"]:::completed
+     end
+ 
+     T001 --> T004
+@@ -159,16 +159,16 @@ flowchart TD
+ 
+ | Task | Component(s) | Files | Status | Comment |
+ |------|-------------|-------|--------|---------|
+-| T001 | FileWatcherOptions + ChokidarAdapter | file-watcher.interface.ts, chokidar-file-watcher.adapter.ts | ⬜ Pending | Add `ignored` field + passthrough |
+-| T002 | Source watcher constants | source-watcher.constants.ts | ⬜ Pending | Ignore patterns array |
+-| T003 | WorkspaceDomain | workspace-domain.ts | ⬜ Pending | Add FileChanges channel |
+-| T004 | FileChangeWatcherAdapter | file-change-watcher.adapter.ts | ⬜ Pending | Core: debounce + dedup + filtering |
+-| T005 | FileChangeDomainEventAdapter | file-change-domain-event-adapter.ts | ⬜ Pending | Domain → SSE adapter |
+-| T006 | FakeFileChangeWatcherAdapter | fake-file-change-watcher.ts | ⬜ Pending | Test fake + contract tests |
+-| T007 | Adapter unit tests | test files | ⬜ Pending | Comprehensive adapter tests |
+-| T008 | CentralWatcherService | central-watcher.service.ts | ⬜ Pending | Source watchers expansion |
+-| T009 | Existing test refactor | central-watcher.service.test.ts | ⬜ Pending | Fix index-based watcher queries |
+-| T010 | Bootstrap wiring | start-central-notifications.ts | ⬜ Pending | Wire + integration test |
++| T001 | FileWatcherOptions + ChokidarAdapter | file-watcher.interface.ts, chokidar-file-watcher.adapter.ts | ✅ Complete | Added `ignored` field + passthrough |
++| T002 | Source watcher constants | source-watcher.constants.ts | ✅ Complete | 23 ignore patterns |
++| T003 | WorkspaceDomain | workspace-domain.ts | ✅ Complete | Added FileChanges channel |
++| T004 | FileChangeWatcherAdapter | file-change-watcher.adapter.ts | ✅ Complete | Core: debounce + dedup + filtering |
++| T005 | FileChangeDomainEventAdapter | file-change-domain-event-adapter.ts | ✅ Complete | Domain → SSE adapter |
++| T006 | FakeFileChangeWatcherAdapter | fake-file-change-watcher.ts | ✅ Complete | Test fake + 16 contract tests |
++| T007 | Adapter unit tests | file-change-watcher.adapter.test.ts | ✅ Complete | 20 comprehensive tests |
++| T008 | CentralWatcherService | central-watcher.service.ts | ✅ Complete | Source watchers expansion |
++| T009 | Existing test refactor | central-watcher.service.test.ts | ✅ Complete | Added findWatcherByPath, 7 new tests |
++| T010 | Bootstrap wiring | start-central-notifications.ts | ✅ Complete | Wired + 5 integration tests |
+ 
+ ---
+ 
+@@ -176,16 +176,16 @@ flowchart TD
+ 
+ | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
+ |--------|------|------|-----|------|-------------|-------------------|------------|----------|-------|
+-| [ ] | T001 | Add `ignored` field to `FileWatcherOptions` interface + ChokidarFileWatcherAdapter passthrough | 1 | Core | – | `/home/jak/substrate/041-file-browser/packages/workflow/src/interfaces/file-watcher.interface.ts`, `/home/jak/substrate/041-file-browser/packages/workflow/src/adapters/chokidar-file-watcher.adapter.ts` | `ignored` field is optional in interface. Chokidar adapter maps it to chokidar options. Unit test passes `ignored: ['node_modules']` and verifies it reaches chokidar. | – | Per finding 01. Non-breaking additive change. Plan task 1.1. |
+-| [ ] | T002 | Create `SOURCE_WATCHER_IGNORED` constants | 1 | Core | – | `/home/jak/substrate/041-file-browser/packages/workflow/src/features/023-central-watcher-notifications/source-watcher.constants.ts` | Exports `SOURCE_WATCHER_IGNORED` array with: `.git`, `node_modules`, `vendor`, `.pnpm-store`, `dist`, `build`, `.next`, `.turbo`, `.cache`, `coverage`, `__pycache__`, `.idea`, `.vscode`, `*.swp`, `*.swo`, `*~`, `.DS_Store`, `Thumbs.db`, `.chainglass`, `pnpm-lock.yaml`, `package-lock.json`, `yarn.lock`. | – | Per workshop 02. Plan task 1.2. |
+-| [ ] | T003 | Add `FileChanges: 'file-changes'` to `WorkspaceDomain` const | 1 | Core | – | `/home/jak/substrate/041-file-browser/packages/shared/src/features/027-central-notify-events/workspace-domain.ts` | `WorkspaceDomain.FileChanges === 'file-changes'`. `WorkspaceDomainType` union includes the new value. Build compiles. | – | Per finding 02. Plan task 1.3. |
+-| [ ] | T004 | Create `FileChangeWatcherAdapter` implementing `IWatcherAdapter` | 3 | Core | T001 | `/home/jak/substrate/041-file-browser/packages/workflow/src/features/023-central-watcher-notifications/file-change-watcher.adapter.ts` | Implements `IWatcherAdapter.handleEvent()`. Filters `.chainglass/` paths. Converts absolute→relative paths. Batches events in 300ms debounce window. Deduplicates: last-event-wins per `worktreePath:path` key. Emits via `onFilesChanged(callback)` callback-set. Error isolation: throwing subscriber doesn't block others. `flushNow()` for testing. `destroy()` cancels pending flush. | – | Core server logic. Plan task 1.4. |
+-| [ ] | T005 | Create `FileChangeDomainEventAdapter` extending `DomainEventAdapter<T>` | 1 | Core | T003, T004 | `/home/jak/substrate/041-file-browser/apps/web/src/features/027-central-notify-events/file-change-domain-event-adapter.ts` | Extends `DomainEventAdapter<FileChangeBatchEvent>`. Constructor: `super(notifier, WorkspaceDomain.FileChanges, 'file-changed')`. `extractData()` returns `{ changes: [{path, eventType, worktreePath, timestamp}] }`. Unit test verifies payload shape matches SSE contract. | – | Follows WorkgraphDomainEventAdapter pattern. Plan task 1.5. |
+-| [ ] | T006 | Create `FakeFileChangeWatcherAdapter` + contract tests | 2 | Test | T004 | `/home/jak/substrate/041-file-browser/packages/workflow/src/features/023-central-watcher-notifications/fake-file-change-watcher.ts`, `/home/jak/substrate/041-file-browser/test/contracts/file-change-watcher.contract.ts`, `/home/jak/substrate/041-file-browser/test/contracts/file-change-watcher.contract.test.ts` | Fake implements `IWatcherAdapter`. Records events via `handledEvents` array. Exposes `flushNow()` and `subscriberCount`. Contract test suite: both fake and real pass identical tests for handleEvent filtering, callback dispatch, error isolation, deduplication. | – | Follows FakeWatcherAdapter pattern. Plan task 1.4 (fake portion). |
+-| [ ] | T007 | Write comprehensive unit tests for FileChangeWatcherAdapter | 2 | Test | T004, T006 | `/home/jak/substrate/041-file-browser/test/unit/workflow/file-change-watcher.adapter.test.ts` | Tests: filters .chainglass/ events, converts abs→rel paths, debounce batches rapid events, dedup last-event-wins, emits to all subscribers, isolates subscriber errors, `flushNow()` works, `destroy()` cancels pending. All pass. | – | Plan task 1.4 (test portion). |
+-| [ ] | T008 | Expand `CentralWatcherService` with source watchers | 3 | Core | T001, T002 | `/home/jak/substrate/041-file-browser/packages/workflow/src/features/023-central-watcher-notifications/central-watcher.service.ts` | New `sourceWatchers: Map<string, IFileWatcher>`. `createSourceWatchers()` creates one chokidar watcher per worktree root with `SOURCE_WATCHER_IGNORED`. `start()` calls both `createDataWatchers()` + `createSourceWatchers()` (source wrapped in try/catch — failure doesn't block data). `stop()` closes both maps. `rescan()` handles both. Source watcher events dispatch through same `dispatchEvent()`. | – | Per finding 03 (partial failure). Plan task 1.6. |
+-| [ ] | T009 | Refactor existing CentralWatcherService tests for source watcher awareness | 2 | Test | T008 | `/home/jak/substrate/041-file-browser/test/unit/workflow/central-watcher.service.test.ts` | Existing tests still pass. Tests no longer use `factory.getWatcher(0)` by index — refactored to query by path or purpose. New tests verify: source watchers created for each worktree, source watcher uses SOURCE_WATCHER_IGNORED, source watcher failure doesn't block data watchers, rescan handles both watcher types. | – | Per finding 04 (index regression). Plan task 1.6. |
+-| [ ] | T010 | Wire file change adapters in `startCentralNotificationSystem()` + integration test | 2 | Integration | T004, T005, T008 | `/home/jak/substrate/041-file-browser/apps/web/src/features/027-central-notify-events/start-central-notifications.ts`, `/home/jak/substrate/041-file-browser/test/integration/045-live-file-events/watcher-to-file-change-notifier.integration.test.ts` | Bootstrap creates `FileChangeWatcherAdapter(300)` + `FileChangeDomainEventAdapter(notifier)`. Wires `onFilesChanged → handleEvent`. Registers adapter with watcher. Integration test: simulate file change → verify notifier.emit called with domain='file-changes', eventType='file-changed', data contains changes array. | – | Follows workgraph wiring pattern. Plan task 1.7. |
++| [x] | T001 | Add `ignored` field to `FileWatcherOptions` interface + ChokidarFileWatcherAdapter passthrough | 1 | Core | – | `/home/jak/substrate/041-file-browser/packages/workflow/src/interfaces/file-watcher.interface.ts`, `/home/jak/substrate/041-file-browser/packages/workflow/src/adapters/chokidar-file-watcher.adapter.ts` | `ignored` field is optional in interface. Chokidar adapter maps it to chokidar options. Unit test passes `ignored: ['node_modules']` and verifies it reaches chokidar. | – | Per finding 01. Non-breaking additive change. Plan task 1.1. |
++| [x] | T002 | Create `SOURCE_WATCHER_IGNORED` constants | 1 | Core | – | `/home/jak/substrate/041-file-browser/packages/workflow/src/features/023-central-watcher-notifications/source-watcher.constants.ts` | Exports `SOURCE_WATCHER_IGNORED` array with: `.git`, `node_modules`, `vendor`, `.pnpm-store`, `dist`, `build`, `.next`, `.turbo`, `.cache`, `coverage`, `__pycache__`, `.idea`, `.vscode`, `*.swp`, `*.swo`, `*~`, `.DS_Store`, `Thumbs.db`, `.chainglass`, `pnpm-lock.yaml`, `package-lock.json`, `yarn.lock`. | – | Per workshop 02. Plan task 1.2. |
++| [x] | T003 | Add `FileChanges: 'file-changes'` to `WorkspaceDomain` const | 1 | Core | – | `/home/jak/substrate/041-file-browser/packages/shared/src/features/027-central-notify-events/workspace-domain.ts` | `WorkspaceDomain.FileChanges === 'file-changes'`. `WorkspaceDomainType` union includes the new value. Build compiles. | – | Per finding 02. Plan task 1.3. |
++| [x] | T004 | Create `FileChangeWatcherAdapter` implementing `IWatcherAdapter` | 3 | Core | T001 | `/home/jak/substrate/041-file-browser/packages/workflow/src/features/023-central-watcher-notifications/file-change-watcher.adapter.ts` | Implements `IWatcherAdapter.handleEvent()`. Filters `.chainglass/` paths. Converts absolute→relative paths. Batches events in 300ms debounce window. Deduplicates: last-event-wins per `worktreePath:path` key. Emits via `onFilesChanged(callback)` callback-set. Error isolation: throwing subscriber doesn't block others. `flushNow()` for testing. `destroy()` cancels pending flush. | – | Core server logic. Plan task 1.4. |
++| [x] | T005 | Create `FileChangeDomainEventAdapter` extending `DomainEventAdapter<T>` | 1 | Core | T003, T004 | `/home/jak/substrate/041-file-browser/apps/web/src/features/027-central-notify-events/file-change-domain-event-adapter.ts` | Extends `DomainEventAdapter<FileChangeBatchEvent>`. Constructor: `super(notifier, WorkspaceDomain.FileChanges, 'file-changed')`. `extractData()` returns `{ changes: [{path, eventType, worktreePath, timestamp}] }`. Unit test verifies payload shape matches SSE contract. | – | Follows WorkgraphDomainEventAdapter pattern. Plan task 1.5. |
++| [x] | T006 | Create `FakeFileChangeWatcherAdapter` + contract tests | 2 | Test | T004 | `/home/jak/substrate/041-file-browser/packages/workflow/src/features/023-central-watcher-notifications/fake-file-change-watcher.ts`, `/home/jak/substrate/041-file-browser/test/contracts/file-change-watcher.contract.ts`, `/home/jak/substrate/041-file-browser/test/contracts/file-change-watcher.contract.test.ts` | Fake implements `IWatcherAdapter`. Records events via `handledEvents` array. Exposes `flushNow()` and `subscriberCount`. Contract test suite: both fake and real pass identical tests for handleEvent filtering, callback dispatch, error isolation, deduplication. | – | Follows FakeWatcherAdapter pattern. Plan task 1.4 (fake portion). |
++| [x] | T007 | Write comprehensive unit tests for FileChangeWatcherAdapter | 2 | Test | T004, T006 | `/home/jak/substrate/041-file-browser/test/unit/workflow/file-change-watcher.adapter.test.ts` | Tests: filters .chainglass/ events, converts abs→rel paths, debounce batches rapid events, dedup last-event-wins, emits to all subscribers, isolates subscriber errors, `flushNow()` works, `destroy()` cancels pending. All pass. | – | Plan task 1.4 (test portion). |
++| [x] | T008 | Expand `CentralWatcherService` with source watchers | 3 | Core | T001, T002 | `/home/jak/substrate/041-file-browser/packages/workflow/src/features/023-central-watcher-notifications/central-watcher.service.ts` | New `sourceWatchers: Map<string, IFileWatcher>`. `createSourceWatchers()` creates one chokidar watcher per worktree root with `SOURCE_WATCHER_IGNORED`. `start()` calls both `createDataWatchers()` + `createSourceWatchers()` (source wrapped in try/catch — failure doesn't block data). `stop()` closes both maps. `rescan()` handles both. Source watcher events dispatch through same `dispatchEvent()`. | – | Per finding 03 (partial failure). Plan task 1.6. |
++| [x] | T009 | Refactor existing CentralWatcherService tests for source watcher awareness | 2 | Test | T008 | `/home/jak/substrate/041-file-browser/test/unit/workflow/central-watcher.service.test.ts` | Existing tests still pass. Tests no longer use `factory.getWatcher(0)` by index — refactored to query by path or purpose. New tests verify: source watchers created for each worktree, source watcher uses SOURCE_WATCHER_IGNORED, source watcher failure doesn't block data watchers, rescan handles both watcher types. | – | Per finding 04 (index regression). Plan task 1.6. |
++| [x] | T010 | Wire file change adapters in `startCentralNotificationSystem()` + integration test | 2 | Integration | T004, T005, T008 | `/home/jak/substrate/041-file-browser/apps/web/src/features/027-central-notify-events/start-central-notifications.ts`, `/home/jak/substrate/041-file-browser/test/integration/045-live-file-events/watcher-to-file-change-notifier.integration.test.ts` | Bootstrap creates `FileChangeWatcherAdapter(300)` + `FileChangeDomainEventAdapter(notifier)`. Wires `onFilesChanged → handleEvent`. Registers adapter with watcher. Integration test: simulate file change → verify notifier.emit called with domain='file-changes', eventType='file-changed', data contains changes array. | – | Follows workgraph wiring pattern. Plan task 1.7. |
+ 
+ ---
+ 
+@@ -315,10 +315,10 @@ just typecheck
+ 
+ ### Ready Check
+ 
+-- [ ] ADR constraints mapped to tasks (ADR-0007→T005, ADR-0008→T002/T004, ADR-0010→T004/T005/T010)
+-- [ ] All 7 Phase 1 ACs covered in task table
+-- [ ] Pre-implementation audit complete (no reuse-existing findings)
+-- [ ] Requirements flow tracing complete (no gaps)
++- [x] ADR constraints mapped to tasks (ADR-0007→T005, ADR-0008→T002/T004, ADR-0010→T004/T005/T010)
++- [x] All 7 Phase 1 ACs covered in task table
++- [x] Pre-implementation audit complete (no reuse-existing findings)
++- [x] Requirements flow tracing complete (no gaps)
+ 
+ ---
+ 
+@@ -345,7 +345,10 @@ _Populated during implementation by plan-6. Log anything of interest to your fut
+ 
+ | Date | Task | Type | Discovery | Resolution | References |
+ |------|------|------|-----------|------------|------------|
+-| | | | | | |
++| 2026-02-24 | T009 | insight | Source watcher creation order is data→source→registry, not data→registry→source. Factory.create call indices shifted. | Fixed test to throw on call 2 (source) instead of call 3 (registry) | log#task-t009 |
++| 2026-02-24 | T008 | decision | Source watchers use 300ms awaitWriteFinish (vs 200ms for data watchers) to absorb editor write-rename-write sequences | Per Workshop 02 recommendation | log#task-t008 |
++| 2026-02-24 | T008 | insight | Source watchers listen for addDir/unlinkDir in addition to file events (data watchers only listen for add/change/unlink) | Needed for tree directory updates in Phase 3 | log#task-t008 |
++| 2026-02-24 | all | insight | Pre-existing build failure in packages/shared fake-filesystem.ts (Buffer type issue) unrelated to Plan 045 changes | Ignored per instructions — all tests pass, lint clean | N/A |
+ 
+ **Types**: `gotcha` | `research-needed` | `unexpected-behavior` | `workaround` | `decision` | `debt` | `insight`
+ 
+diff --git a/packages/shared/src/features/027-central-notify-events/workspace-domain.ts b/packages/shared/src/features/027-central-notify-events/workspace-domain.ts
+index bc11885..6bf602a 100644
+--- a/packages/shared/src/features/027-central-notify-events/workspace-domain.ts
++++ b/packages/shared/src/features/027-central-notify-events/workspace-domain.ts
+@@ -17,6 +17,8 @@ export const WorkspaceDomain = {
+   Workgraphs: 'workgraphs',
+   /** SSE channel: `'agents'` — matches `/api/events/agents` subscription path */
+   Agents: 'agents',
++  /** SSE channel: `'file-changes'` — matches `/api/events/file-changes` subscription path */
++  FileChanges: 'file-changes',
+ } as const;
+ 
+ /**
+diff --git a/packages/workflow/src/adapters/chokidar-file-watcher.adapter.ts b/packages/workflow/src/adapters/chokidar-file-watcher.adapter.ts
+index d4092b5..88d15a2 100644
+--- a/packages/workflow/src/adapters/chokidar-file-watcher.adapter.ts
++++ b/packages/workflow/src/adapters/chokidar-file-watcher.adapter.ts
+@@ -38,6 +38,7 @@ export class ChokidarFileWatcherAdapter implements IFileWatcher {
+       persistent: options.persistent ?? true,
+       usePolling: options.usePolling,
+       interval: options.interval,
++      ignored: options.ignored,
+     });
+   }
+ 
+diff --git a/packages/workflow/src/fakes/fake-file-watcher.ts b/packages/workflow/src/fakes/fake-file-watcher.ts
+index 0b4f57a..94c8ed7 100644
+--- a/packages/workflow/src/fakes/fake-file-watcher.ts
++++ b/packages/workflow/src/fakes/fake-file-watcher.ts
+@@ -250,6 +250,26 @@ export class FakeFileWatcherFactory implements IFileWatcherFactory {
+     return this.watchers[index];
+   }
+ 
++  /**
++   * Find the first watcher watching a specific path.
++   *
++   * @param path - Path to find in watched paths
++   * @returns Watcher watching that path, or undefined
++   */
++  findWatcherByPath(path: string): FakeFileWatcher | undefined {
++    return this.watchers.find((w) => w.getWatchedPaths().includes(path));
++  }
++
++  /**
++   * Find all watchers watching a specific path.
++   *
++   * @param path - Path to find in watched paths
++   * @returns Array of watchers watching that path
++   */
++  findWatchersByPath(path: string): FakeFileWatcher[] {
++    return this.watchers.filter((w) => w.getWatchedPaths().includes(path));
++  }
++
+   /**
+    * Get the total number of watchers created.
+    *
+diff --git a/packages/workflow/src/features/023-central-watcher-notifications/central-watcher.service.ts b/packages/workflow/src/features/023-central-watcher-notifications/central-watcher.service.ts
+index b6f0936..0508192 100644
+--- a/packages/workflow/src/features/023-central-watcher-notifications/central-watcher.service.ts
++++ b/packages/workflow/src/features/023-central-watcher-notifications/central-watcher.service.ts
+@@ -20,6 +20,7 @@ import type {
+ import type { IGitWorktreeResolver } from '../../interfaces/git-worktree-resolver.interface.js';
+ import type { IWorkspaceRegistryAdapter } from '../../interfaces/workspace-registry-adapter.interface.js';
+ import type { ICentralWatcherService } from './central-watcher.interface.js';
++import { SOURCE_WATCHER_IGNORED } from './source-watcher.constants.js';
+ import type { IWatcherAdapter, WatcherEvent } from './watcher-adapter.interface.js';
+ 
+ /** Metadata for a data watcher — maps watcher to its worktree/workspace context */
+@@ -46,6 +47,9 @@ export class CentralWatcherService implements ICentralWatcherService {
+   /** Data watchers keyed by worktree path */
+   private readonly dataWatchers = new Map<string, IFileWatcher>();
+ 
++  /** Source file watchers keyed by worktree path */
++  private readonly sourceWatchers = new Map<string, IFileWatcher>();
++
+   /** Metadata for each data watcher — maps worktree path to context */
+   private readonly watcherMetadata = new Map<string, WatcherMetadata>();
+ 
+@@ -82,10 +86,20 @@ export class CentralWatcherService implements ICentralWatcherService {
+       throw new Error('Already watching');
+     }
+ 
+-    // Discover all worktrees and create watchers
++    // Discover all worktrees and create data watchers
+     await this.createDataWatchers();
+ 
+-    this.logInfo('Started', { worktreeCount: this.dataWatchers.size });
++    // Create source watchers (failure must not block data watchers)
++    try {
++      await this.createSourceWatchers();
++    } catch (err) {
++      this.logError('Source watcher creation failed (data watchers still active)', err);
++    }
++
++    this.logInfo('Started', {
++      dataWatcherCount: this.dataWatchers.size,
++      sourceWatcherCount: this.sourceWatchers.size,
++    });
+ 
+     // Create registry watcher
+     this.registryWatcher = this.fileWatcherFactory.create({
+@@ -108,7 +122,10 @@ export class CentralWatcherService implements ICentralWatcherService {
+       return;
+     }
+ 
+-    this.logInfo('Stopping', { watcherCount: this.dataWatchers.size });
++    this.logInfo('Stopping', {
++      dataWatcherCount: this.dataWatchers.size,
++      sourceWatcherCount: this.sourceWatchers.size,
++    });
+ 
+     this.watching = false;
+     this.rescanQueued = false;
+@@ -120,6 +137,12 @@ export class CentralWatcherService implements ICentralWatcherService {
+     this.dataWatchers.clear();
+     this.watcherMetadata.clear();
+ 
++    // Close all source watchers
++    for (const [, watcher] of this.sourceWatchers) {
++      await watcher.close();
++    }
++    this.sourceWatchers.clear();
++
+     // Close registry watcher
+     if (this.registryWatcher) {
+       await this.registryWatcher.close();
+@@ -228,6 +251,39 @@ export class CentralWatcherService implements ICentralWatcherService {
+     }
+   }
+ 
++  private async createSourceWatchers(): Promise<void> {
++    // Source watchers reuse the same worktree discovery but watch the worktree root
++    // with ignore patterns instead of just .chainglass/data/
++    for (const [worktreePath, metadata] of this.watcherMetadata) {
++      if (this.sourceWatchers.has(worktreePath)) continue;
++
++      try {
++        const watcher = this.fileWatcherFactory.create({
++          ignoreInitial: true,
++          atomic: true,
++          awaitWriteFinish: { stabilityThreshold: 300, pollInterval: 100 },
++          ignored: SOURCE_WATCHER_IGNORED,
++        });
++
++        watcher.add(worktreePath);
++
++        const eventTypes: FileWatcherEvent[] = ['change', 'add', 'unlink', 'addDir', 'unlinkDir'];
++        for (const eventType of eventTypes) {
++          watcher.on(eventType, (pathOrError) => {
++            if (typeof pathOrError === 'string') {
++              this.dispatchEvent(pathOrError, eventType, worktreePath, metadata.workspaceSlug);
++            }
++          });
++        }
++
++        this.sourceWatchers.set(worktreePath, watcher);
++        this.logDebug('Source watcher created', { worktreePath });
++      } catch (err) {
++        this.logError(`Failed to create source watcher for ${worktreePath}`, err);
++      }
++    }
++  }
++
+   private dispatchEvent(
+     path: string,
+     eventType: FileWatcherEvent,
+@@ -292,6 +348,13 @@ export class CentralWatcherService implements ICentralWatcherService {
+         this.watcherMetadata.delete(wtPath);
+       }
+     }
++    // Close source watchers for removed worktrees
++    for (const [wtPath, watcher] of this.sourceWatchers) {
++      if (!currentWorktrees.has(wtPath)) {
++        removals.push(watcher.close());
++        this.sourceWatchers.delete(wtPath);
++      }
++    }
+     await Promise.all(removals);
+ 
+     // Create watchers for new worktrees in parallel
+@@ -299,6 +362,13 @@ export class CentralWatcherService implements ICentralWatcherService {
+       .filter(([wtPath]) => !this.dataWatchers.has(wtPath))
+       .map(([wtPath, slug]) => this.createWatcherForWorktree(wtPath, slug));
+     await Promise.all(additions);
++
++    // Create source watchers for new worktrees (failure doesn't block)
++    try {
++      await this.createSourceWatchers();
++    } catch (err) {
++      this.logError('Source watcher creation failed during rescan', err);
++    }
+   }
+ 
+   private logInfo(message: string, data?: Record<string, unknown>): void {
+diff --git a/packages/workflow/src/features/023-central-watcher-notifications/fake-file-change-watcher.ts b/packages/workflow/src/features/023-central-watcher-notifications/fake-file-change-watcher.ts
+new file mode 100644
+index 0000000..8ea47f3
+--- /dev/null
++++ b/packages/workflow/src/features/023-central-watcher-notifications/fake-file-change-watcher.ts
+@@ -0,0 +1,106 @@
++/**
++ * Plan 045: Live File Events
++ *
++ * Fake implementation of file change watcher adapter for testing.
++ *
++ * Per Constitution Principle 4: Use fakes over mocks for testing
++ * Follows FakeWatcherAdapter pattern from Plan 023.
++ *
++ * Records events and provides test hooks for inspection.
++ * Must pass the same contract tests as the real FileChangeWatcherAdapter.
++ */
++
++import type { FileChangeBatchItem } from './file-change-watcher.adapter.js';
++import type { IWatcherAdapter, WatcherEvent } from './watcher-adapter.interface.js';
++
++/** Callback type for batch subscribers */
++type FilesChangedCallback = (changes: FileChangeBatchItem[]) => void;
++
++/**
++ * Fake file change watcher adapter for unit testing.
++ *
++ * Simplified behavior: no debounce, immediate dispatch on flushNow().
++ * Records all events for test assertions.
++ */
++export class FakeFileChangeWatcherAdapter implements IWatcherAdapter {
++  readonly name = 'fake-file-change-watcher';
++
++  /** All events received via handleEvent() */
++  public readonly handledEvents: WatcherEvent[] = [];
++
++  /** Pending batch items (accumulated, not yet dispatched) */
++  private readonly pendingBatch = new Map<string, FileChangeBatchItem>();
++
++  /** Subscribers */
++  private readonly subscribers = new Set<FilesChangedCallback>();
++
++  handleEvent(event: WatcherEvent): void {
++    // Filter .chainglass/ paths (same as real adapter)
++    if (event.path.includes('/.chainglass/') || event.path.endsWith('/.chainglass')) {
++      return;
++    }
++
++    this.handledEvents.push(event);
++
++    // Convert absolute → relative path
++    const relativePath = event.path.startsWith(`${event.worktreePath}/`)
++      ? event.path.slice(event.worktreePath.length + 1)
++      : event.path === event.worktreePath
++        ? ''
++        : event.path;
++
++    if (event.eventType === 'error') return;
++
++    const item: FileChangeBatchItem = {
++      path: relativePath,
++      eventType: event.eventType as FileChangeBatchItem['eventType'],
++      worktreePath: event.worktreePath,
++      timestamp: Date.now(),
++    };
++
++    // Dedup: last-event-wins per key
++    const key = `${event.worktreePath}:${relativePath}`;
++    this.pendingBatch.set(key, item);
++  }
++
++  /** Subscribe to batched file change events (callback-set pattern). */
++  onFilesChanged(callback: FilesChangedCallback): () => void {
++    this.subscribers.add(callback);
++    return () => {
++      this.subscribers.delete(callback);
++    };
++  }
++
++  /** Number of active subscribers (for test inspection). */
++  get subscriberCount(): number {
++    return this.subscribers.size;
++  }
++
++  /** Flush pending batch immediately (no debounce in fake). */
++  flushNow(): void {
++    if (this.pendingBatch.size === 0) return;
++
++    const changes = [...this.pendingBatch.values()];
++    this.pendingBatch.clear();
++
++    for (const subscriber of this.subscribers) {
++      try {
++        subscriber(changes);
++      } catch {
++        // Error isolation: same as real adapter
++      }
++    }
++  }
++
++  /** Cancel pending and clear state. */
++  destroy(): void {
++    this.pendingBatch.clear();
++    this.subscribers.clear();
++  }
++
++  /** Clear tracked events for test isolation. */
++  reset(): void {
++    this.handledEvents.length = 0;
++    this.pendingBatch.clear();
++  }
++}
+diff --git a/packages/workflow/src/features/023-central-watcher-notifications/file-change-watcher.adapter.ts b/packages/workflow/src/features/023-central-watcher-notifications/file-change-watcher.adapter.ts
+new file mode 100644
+index 0000000..4c620ef
+--- /dev/null
++++ b/packages/workflow/src/features/023-central-watcher-notifications/file-change-watcher.adapter.ts
+@@ -0,0 +1,144 @@
++/**
++ * Plan 045: Live File Events
++ *
++ * Watcher adapter for source file changes. Receives ALL filesystem events
++ * from CentralWatcherService, filters out .chainglass/ paths, converts
++ * absolute paths to relative, batches events in a debounce window, and
++ * deduplicates with last-event-wins per worktreePath:relativePath key.
++ *
++ * Per ADR-02: Self-filtering adapter — receives all events, filters internally
++ * Per ADR-0007: SSE carries only identifiers (path, eventType)
++ * Per ADR-0008: .chainglass/ excluded (watched by data watchers separately)
++ * Per PL-03: Callback-set pattern, NOT EventEmitter
++ * Per Workshop 02: 300ms debounce, last-event-wins dedup
++ */
++
++import type { IWatcherAdapter, WatcherEvent } from './watcher-adapter.interface.js';
++
++/**
++ * A single file change item within a batch.
++ * Minimal payload per ADR-0007 — clients fetch full state via REST.
++ */
++export interface FileChangeBatchItem {
++  /** Relative path from worktree root (e.g., 'src/app.tsx') */
++  path: string;
++  /** Type of filesystem event */
++  eventType: 'add' | 'change' | 'unlink' | 'addDir' | 'unlinkDir';
++  /** Absolute path to worktree root */
++  worktreePath: string;
++  /** When the change was detected (Date.now()) */
++  timestamp: number;
++}
++
++/** Callback type for batch subscribers */
++type FilesChangedCallback = (changes: FileChangeBatchItem[]) => void;
++
++/**
++ * Adapter that filters, batches, and deduplicates source file change events.
++ *
++ * - Filters: drops `.chainglass/` paths (watched by data watchers)
++ * - Converts: absolute → relative paths (from worktree root)
++ * - Batches: accumulates events in a configurable debounce window
++ * - Deduplicates: last-event-wins per `worktreePath:relativePath` key
++ * - Dispatches: callback-set pattern with error isolation
++ */
++export class FileChangeWatcherAdapter implements IWatcherAdapter {
++  readonly name = 'file-change-watcher';
++
++  private readonly debounceMs: number;
++  private readonly subscribers = new Set<FilesChangedCallback>();
++  private readonly pendingBatch = new Map<string, FileChangeBatchItem>();
++  private flushTimer: ReturnType<typeof setTimeout> | null = null;
++
++  constructor(debounceMs = 300) {
++    this.debounceMs = debounceMs;
++  }
++
++  handleEvent(event: WatcherEvent): void {
++    // Filter .chainglass/ paths (watched by data watchers per ADR-0008)
++    if (event.path.includes('/.chainglass/') || event.path.endsWith('/.chainglass')) {
++      return;
++    }
++
++    // Convert absolute path to relative from worktree root
++    const relativePath = event.path.startsWith(`${event.worktreePath}/`)
++      ? event.path.slice(event.worktreePath.length + 1)
++      : event.path === event.worktreePath
++        ? ''
++        : event.path;
++
++    // Exclude non-file events (error) from batching
++    if (event.eventType === 'error') {
++      return;
++    }
++
++    const item: FileChangeBatchItem = {
++      path: relativePath,
++      eventType: event.eventType as FileChangeBatchItem['eventType'],
++      worktreePath: event.worktreePath,
++      timestamp: Date.now(),
++    };
++
++    // Dedup key: worktreePath:relativePath — last event wins
++    const key = `${event.worktreePath}:${relativePath}`;
++    this.pendingBatch.set(key, item);
++
++    // Reset debounce timer
++    if (this.flushTimer !== null) {
++      clearTimeout(this.flushTimer);
++    }
++    this.flushTimer = setTimeout(() => this.flush(), this.debounceMs);
++  }
++
++  /**
++   * Subscribe to batched file change events.
++   * Returns an unsubscribe function (callback-set pattern per PL-03).
++   */
++  onFilesChanged(callback: FilesChangedCallback): () => void {
++    this.subscribers.add(callback);
++    return () => {
++      this.subscribers.delete(callback);
++    };
++  }
++
++  /** Flush pending batch immediately (for testing). */
++  flushNow(): void {
++    if (this.flushTimer !== null) {
++      clearTimeout(this.flushTimer);
++      this.flushTimer = null;
++    }
++    this.flush();
++  }
++
++  /** Cancel pending flush and clear state. */
++  destroy(): void {
++    if (this.flushTimer !== null) {
++      clearTimeout(this.flushTimer);
++      this.flushTimer = null;
++    }
++    this.pendingBatch.clear();
++    this.subscribers.clear();
++  }
++
++  // ═══════════════════════════════════════════════════════════════
++  // Private
++  // ═══════════════════════════════════════════════════════════════
++
++  private flush(): void {
++    this.flushTimer = null;
++    if (this.pendingBatch.size === 0) {
++      return;
++    }
++
++    const changes = [...this.pendingBatch.values()];
++    this.pendingBatch.clear();
++
++    for (const subscriber of this.subscribers) {
++      try {
++        subscriber(changes);
++      } catch {
++        // Error isolation: throwing subscriber must not block others
++      }
++    }
++  }
++}
+diff --git a/packages/workflow/src/features/023-central-watcher-notifications/index.ts b/packages/workflow/src/features/023-central-watcher-notifications/index.ts
+index 71f33ea..9d5359a 100644
+--- a/packages/workflow/src/features/023-central-watcher-notifications/index.ts
++++ b/packages/workflow/src/features/023-central-watcher-notifications/index.ts
+@@ -24,3 +24,13 @@ export {
+   type StopCall,
+   type RegisterAdapterCall,
+ } from './fake-central-watcher.service.js';
++
++// File change watcher adapter (Plan 045)
++export { FileChangeWatcherAdapter } from './file-change-watcher.adapter.js';
++export type { FileChangeBatchItem } from './file-change-watcher.adapter.js';
++
++// Source watcher constants (Plan 045)
++export { SOURCE_WATCHER_IGNORED } from './source-watcher.constants.js';
++
++// Fake file change watcher (Plan 045)
++export { FakeFileChangeWatcherAdapter } from './fake-file-change-watcher.js';
+diff --git a/packages/workflow/src/features/023-central-watcher-notifications/source-watcher.constants.ts b/packages/workflow/src/features/023-central-watcher-notifications/source-watcher.constants.ts
+new file mode 100644
+index 0000000..a6636e9
+--- /dev/null
++++ b/packages/workflow/src/features/023-central-watcher-notifications/source-watcher.constants.ts
+@@ -0,0 +1,44 @@
++/**
++ * Plan 045: Live File Events
++ *
++ * Ignore patterns for source file watchers. These directories and files
++ * generate noise that should never reach the file change event pipeline.
++ *
++ * Per Workshop 02: Worktree-Wide Watcher Strategy
++ * Per ADR-0008: .chainglass is watched separately by data watchers
++ */
++
++/** Patterns passed to chokidar `ignored` option for source file watchers */
++export const SOURCE_WATCHER_IGNORED: (string | RegExp)[] = [
++  // Version control
++  '**/.git/**',
++  // Package managers
++  '**/node_modules/**',
++  '**/vendor/**',
++  '**/.pnpm-store/**',
++  // Build output
++  '**/dist/**',
++  '**/build/**',
++  '**/.next/**',
++  '**/.turbo/**',
++  '**/.cache/**',
++  '**/coverage/**',
++  // Python
++  '**/__pycache__/**',
++  // IDE directories
++  '**/.idea/**',
++  '**/.vscode/**',
++  // Editor swap/backup files
++  /\.swp$/,
++  /\.swo$/,
++  /~$/,
++  // OS files
++  '**/.DS_Store',
++  '**/Thumbs.db',
++  // Chainglass data (watched by data watchers per ADR-0008)
++  '**/.chainglass/**',
++  // Lock files (high-churn, not user-authored)
++  '**/pnpm-lock.yaml',
++  '**/package-lock.json',
++  '**/yarn.lock',
++];
+diff --git a/packages/workflow/src/index.ts b/packages/workflow/src/index.ts
+index ce716fc..8d93182 100644
+--- a/packages/workflow/src/index.ts
++++ b/packages/workflow/src/index.ts
+@@ -414,6 +414,10 @@ export {
+   FakeCentralWatcherService,
+   type RegisterAdapterCall,
+ } from './features/023-central-watcher-notifications/index.js';
++export { FileChangeWatcherAdapter } from './features/023-central-watcher-notifications/index.js';
++export type { FileChangeBatchItem } from './features/023-central-watcher-notifications/index.js';
++export { SOURCE_WATCHER_IGNORED } from './features/023-central-watcher-notifications/index.js';
++export { FakeFileChangeWatcherAdapter } from './features/023-central-watcher-notifications/index.js';
+ 
+ // Workspace palettes (Plan 041: File Browser)
+ export {
+diff --git a/packages/workflow/src/interfaces/file-watcher.interface.ts b/packages/workflow/src/interfaces/file-watcher.interface.ts
+index 4189dbc..9f85397 100644
+--- a/packages/workflow/src/interfaces/file-watcher.interface.ts
++++ b/packages/workflow/src/interfaces/file-watcher.interface.ts
+@@ -64,6 +64,12 @@ export interface FileWatcherOptions {
+    * Polling interval if usePolling is true (ms).
+    */
+   interval?: number;
++
++  /**
++   * Paths/globs to ignore. Matched against absolute paths.
++   * Supports strings and RegExp patterns (passed to chokidar's `ignored` option).
++   */
++  ignored?: (string | RegExp)[];
+ }
+ 
+ /**
+diff --git a/test/contracts/file-change-watcher.contract.test.ts b/test/contracts/file-change-watcher.contract.test.ts
+new file mode 100644
+index 0000000..bd9231f
+--- /dev/null
++++ b/test/contracts/file-change-watcher.contract.test.ts
+@@ -0,0 +1,19 @@
++/**
++ * Plan 045: Live File Events
++ *
++ * Contract test runner for file change watcher adapters.
++ * Both real and fake must pass the same contract suite.
++ */
++
++import { FakeFileChangeWatcherAdapter, FileChangeWatcherAdapter } from '@chainglass/workflow';
++import { fileChangeWatcherContractTests } from './file-change-watcher.contract';
++
++// Real adapter
++fileChangeWatcherContractTests('FileChangeWatcherAdapter (Real)', () => {
++  return new FileChangeWatcherAdapter(300);
++});
++
++// Fake adapter
++fileChangeWatcherContractTests('FakeFileChangeWatcherAdapter (Fake)', () => {
++  return new FakeFileChangeWatcherAdapter();
++});
+diff --git a/test/contracts/file-change-watcher.contract.ts b/test/contracts/file-change-watcher.contract.ts
+new file mode 100644
+index 0000000..d9aaf05
+--- /dev/null
++++ b/test/contracts/file-change-watcher.contract.ts
+@@ -0,0 +1,150 @@
++/**
++ * Plan 045: Live File Events
++ *
++ * Contract tests for file change watcher adapters.
++ * Both FileChangeWatcherAdapter (real) and FakeFileChangeWatcherAdapter (fake)
++ * must satisfy these contracts.
++ *
++ * Tests: .chainglass filtering, callback dispatch, error isolation, deduplication.
++ */
++
++import type { WatcherEvent } from '@chainglass/workflow';
++import type { FileChangeBatchItem } from '@chainglass/workflow';
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++
++/**
++ * Adapter under test must expose these methods.
++ */
++export interface FileChangeAdapterUnderTest {
++  readonly name: string;
++  handleEvent(event: WatcherEvent): void;
++  onFilesChanged(callback: (changes: FileChangeBatchItem[]) => void): () => void;
++  flushNow(): void;
++  destroy(): void;
++}
++
++export type AdapterFactory = () => FileChangeAdapterUnderTest;
++
++function makeEvent(overrides: Partial<WatcherEvent> = {}): WatcherEvent {
++  return {
++    path: '/repo/src/app.tsx',
++    eventType: 'change',
++    worktreePath: '/repo',
++    workspaceSlug: 'ws-1',
++    ...overrides,
++  };
++}
++
++/**
++ * Shared contract tests that both real and fake must pass.
++ */
++export function fileChangeWatcherContractTests(name: string, factory: AdapterFactory): void {
++  describe(`FileChangeWatcher Contract: ${name}`, () => {
++    let adapter: FileChangeAdapterUnderTest;
++
++    beforeEach(() => {
++      vi.useFakeTimers();
++      adapter = factory();
++    });
++
++    afterEach(() => {
++      adapter.destroy();
++      vi.useRealTimers();
++    });
++
++    it('C01: should filter .chainglass/ paths', () => {
++      const received: FileChangeBatchItem[][] = [];
++      adapter.onFilesChanged((items) => received.push(items));
++
++      adapter.handleEvent(
++        makeEvent({ path: '/repo/.chainglass/data/work-graphs/demo/state.json' })
++      );
++      adapter.flushNow();
++
++      expect(received).toHaveLength(0);
++    });
++
++    it('C02: should pass through non-.chainglass paths', () => {
++      const received: FileChangeBatchItem[][] = [];
++      adapter.onFilesChanged((items) => received.push(items));
++
++      adapter.handleEvent(makeEvent({ path: '/repo/src/app.tsx' }));
++      adapter.flushNow();
++
++      expect(received).toHaveLength(1);
++      expect(received[0]).toHaveLength(1);
++    });
++
++    it('C03: should convert absolute paths to relative', () => {
++      const received: FileChangeBatchItem[][] = [];
++      adapter.onFilesChanged((items) => received.push(items));
++
++      adapter.handleEvent(
++        makeEvent({ path: '/repo/src/components/Button.tsx', worktreePath: '/repo' })
++      );
++      adapter.flushNow();
++
++      expect(received[0][0].path).toBe('src/components/Button.tsx');
++    });
++
++    it('C04: should dispatch to all subscribers', () => {
++      const received1: FileChangeBatchItem[][] = [];
++      const received2: FileChangeBatchItem[][] = [];
++      adapter.onFilesChanged((items) => received1.push(items));
++      adapter.onFilesChanged((items) => received2.push(items));
++
++      adapter.handleEvent(makeEvent());
++      adapter.flushNow();
++
++      expect(received1).toHaveLength(1);
++      expect(received2).toHaveLength(1);
++    });
++
++    it('C05: should isolate subscriber errors', () => {
++      const received: FileChangeBatchItem[][] = [];
++      adapter.onFilesChanged(() => {
++        throw new Error('boom');
++      });
++      adapter.onFilesChanged((items) => received.push(items));
++
++      adapter.handleEvent(makeEvent());
++      adapter.flushNow();
++
++      expect(received).toHaveLength(1);
++    });
++
++    it('C06: should deduplicate (last-event-wins per worktreePath:path)', () => {
++      const received: FileChangeBatchItem[][] = [];
++      adapter.onFilesChanged((items) => received.push(items));
++
++      adapter.handleEvent(makeEvent({ path: '/repo/a.ts', eventType: 'add' }));
++      adapter.handleEvent(makeEvent({ path: '/repo/a.ts', eventType: 'change' }));
++      adapter.handleEvent(makeEvent({ path: '/repo/a.ts', eventType: 'unlink' }));
++      adapter.flushNow();
++
++      expect(received).toHaveLength(1);
++      expect(received[0]).toHaveLength(1);
++      expect(received[0][0].eventType).toBe('unlink');
++    });
++
++    it('C07: should unsubscribe when returned function is called', () => {
++      const received: FileChangeBatchItem[][] = [];
++      const unsub = adapter.onFilesChanged((items) => received.push(items));
++      unsub();
++
++      adapter.handleEvent(makeEvent());
++      adapter.flushNow();
++
++      expect(received).toHaveLength(0);
++    });
++
++    it('C08: flushNow should be no-op when nothing pending', () => {
++      const received: FileChangeBatchItem[][] = [];
++      adapter.onFilesChanged((items) => received.push(items));
++
++      adapter.flushNow();
++
++      expect(received).toHaveLength(0);
++    });
++  });
++}
+diff --git a/test/integration/045-live-file-events/watcher-to-file-change-notifier.integration.test.ts b/test/integration/045-live-file-events/watcher-to-file-change-notifier.integration.test.ts
+new file mode 100644
+index 0000000..0f2b537
+--- /dev/null
++++ b/test/integration/045-live-file-events/watcher-to-file-change-notifier.integration.test.ts
+@@ -0,0 +1,138 @@
++/**
++ * Integration test: Watcher → FileChangeWatcherAdapter → FileChangeDomainEventAdapter → Notifier
++ *
++ * Per Plan 045: Live File Events - Phase 1 (T010)
++ * Verifies the full server-side pipeline from simulated file change to notifier.emit().
++ */
++
++import { FakeCentralEventNotifier } from '@chainglass/shared/features/027-central-notify-events/fake-central-event-notifier';
++import { WorkspaceDomain } from '@chainglass/shared/features/027-central-notify-events/workspace-domain';
++import { FileChangeWatcherAdapter } from '@chainglass/workflow';
++import type { WatcherEvent } from '@chainglass/workflow';
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++import { FileChangeDomainEventAdapter } from '../../../apps/web/src/features/027-central-notify-events/file-change-domain-event-adapter';
++
++describe('Watcher → FileChange → Notifier Integration', () => {
++  let notifier: FakeCentralEventNotifier;
++  let watcherAdapter: FileChangeWatcherAdapter;
++  let domainAdapter: FileChangeDomainEventAdapter;
++
++  beforeEach(() => {
++    vi.useFakeTimers();
++    notifier = new FakeCentralEventNotifier();
++    watcherAdapter = new FileChangeWatcherAdapter(300);
++    domainAdapter = new FileChangeDomainEventAdapter(notifier);
++
++    // Wire: watcherAdapter → domainAdapter (same as bootstrap)
++    watcherAdapter.onFilesChanged((changes) => domainAdapter.handleEvent({ changes }));
++  });
++
++  afterEach(() => {
++    watcherAdapter.destroy();
++    vi.useRealTimers();
++  });
++
++  it('should emit file-changed event on file modification', () => {
++    const event: WatcherEvent = {
++      path: '/repo/src/app.tsx',
++      eventType: 'change',
++      worktreePath: '/repo',
++      workspaceSlug: 'ws-1',
++    };
++
++    watcherAdapter.handleEvent(event);
++    vi.advanceTimersByTime(300);
++
++    expect(notifier.emittedEvents).toHaveLength(1);
++    expect(notifier.emittedEvents[0].domain).toBe(WorkspaceDomain.FileChanges);
++    expect(notifier.emittedEvents[0].eventType).toBe('file-changed');
++
++    const data = notifier.emittedEvents[0].data as {
++      changes: Array<{ path: string; eventType: string }>;
++    };
++    expect(data.changes).toHaveLength(1);
++    expect(data.changes[0].path).toBe('src/app.tsx');
++    expect(data.changes[0].eventType).toBe('change');
++  });
++
++  it('should emit file-changed event on file creation (add)', () => {
++    const event: WatcherEvent = {
++      path: '/repo/src/new-file.ts',
++      eventType: 'add',
++      worktreePath: '/repo',
++      workspaceSlug: 'ws-1',
++    };
++
++    watcherAdapter.handleEvent(event);
++    vi.advanceTimersByTime(300);
++
++    const data = notifier.emittedEvents[0].data as {
++      changes: Array<{ path: string; eventType: string }>;
++    };
++    expect(data.changes[0].eventType).toBe('add');
++  });
++
++  it('should emit file-changed event on file deletion (unlink)', () => {
++    const event: WatcherEvent = {
++      path: '/repo/src/deleted.ts',
++      eventType: 'unlink',
++      worktreePath: '/repo',
++      workspaceSlug: 'ws-1',
++    };
++
++    watcherAdapter.handleEvent(event);
++    vi.advanceTimersByTime(300);
++
++    const data = notifier.emittedEvents[0].data as {
++      changes: Array<{ path: string; eventType: string }>;
++    };
++    expect(data.changes[0].eventType).toBe('unlink');
++  });
++
++  it('should filter .chainglass paths — no notifier emit', () => {
++    const event: WatcherEvent = {
++      path: '/repo/.chainglass/data/work-graphs/demo/state.json',
++      eventType: 'change',
++      worktreePath: '/repo',
++      workspaceSlug: 'ws-1',
++    };
++
++    watcherAdapter.handleEvent(event);
++    vi.advanceTimersByTime(300);
++
++    expect(notifier.emittedEvents).toHaveLength(0);
++  });
++
++  it('should batch and deduplicate rapid changes', () => {
++    watcherAdapter.handleEvent({
++      path: '/repo/src/app.tsx',
++      eventType: 'add',
++      worktreePath: '/repo',
++      workspaceSlug: 'ws-1',
++    });
++    watcherAdapter.handleEvent({
++      path: '/repo/src/app.tsx',
++      eventType: 'change',
++      worktreePath: '/repo',
++      workspaceSlug: 'ws-1',
++    });
++    watcherAdapter.handleEvent({
++      path: '/repo/src/index.ts',
++      eventType: 'add',
++      worktreePath: '/repo',
++      workspaceSlug: 'ws-1',
++    });
++
++    vi.advanceTimersByTime(300);
++
++    // Should have 1 emit with 2 changes (app.tsx deduped: last-event-wins = change)
++    expect(notifier.emittedEvents).toHaveLength(1);
++    const data = notifier.emittedEvents[0].data as {
++      changes: Array<{ path: string; eventType: string }>;
++    };
++    expect(data.changes).toHaveLength(2);
++
++    const appChange = data.changes.find((c: { path: string }) => c.path === 'src/app.tsx');
++    expect(appChange?.eventType).toBe('change'); // last-event-wins
++  });
++});
+diff --git a/test/unit/web/027/file-change-domain-event-adapter.test.ts b/test/unit/web/027/file-change-domain-event-adapter.test.ts
+new file mode 100644
+index 0000000..e2b5374
+--- /dev/null
++++ b/test/unit/web/027/file-change-domain-event-adapter.test.ts
+@@ -0,0 +1,74 @@
++/**
++ * Tests for FileChangeDomainEventAdapter.
++ *
++ * Per Plan 045: Live File Events - Phase 1 (T005)
++ * Verifies extractData payload shape matches SSE contract (ADR-0007).
++ */
++
++import { FakeCentralEventNotifier } from '@chainglass/shared/features/027-central-notify-events/fake-central-event-notifier';
++import { WorkspaceDomain } from '@chainglass/shared/features/027-central-notify-events/workspace-domain';
++import { beforeEach, describe, expect, it } from 'vitest';
++import {
++  type FileChangeBatchEvent,
++  FileChangeDomainEventAdapter,
++} from '../../../../apps/web/src/features/027-central-notify-events/file-change-domain-event-adapter';
++
++describe('FileChangeDomainEventAdapter', () => {
++  let notifier: FakeCentralEventNotifier;
++  let adapter: FileChangeDomainEventAdapter;
++
++  beforeEach(() => {
++    notifier = new FakeCentralEventNotifier();
++    adapter = new FileChangeDomainEventAdapter(notifier);
++  });
++
++  it('should emit to file-changes domain with file-changed event type', () => {
++    const event: FileChangeBatchEvent = {
++      changes: [
++        { path: 'src/app.tsx', eventType: 'change', worktreePath: '/repo', timestamp: 1000 },
++      ],
++    };
++
++    adapter.handleEvent(event);
++
++    expect(notifier.emittedEvents).toHaveLength(1);
++    expect(notifier.emittedEvents[0].domain).toBe(WorkspaceDomain.FileChanges);
++    expect(notifier.emittedEvents[0].eventType).toBe('file-changed');
++  });
++
++  it('should extract changes array with path, eventType, worktreePath, timestamp', () => {
++    const event: FileChangeBatchEvent = {
++      changes: [
++        { path: 'src/app.tsx', eventType: 'change', worktreePath: '/repo', timestamp: 1000 },
++        { path: 'src/index.ts', eventType: 'add', worktreePath: '/repo', timestamp: 1001 },
++      ],
++    };
++
++    adapter.handleEvent(event);
++
++    const data = notifier.emittedEvents[0].data as { changes: unknown[] };
++    expect(data.changes).toHaveLength(2);
++    expect(data.changes[0]).toEqual({
++      path: 'src/app.tsx',
++      eventType: 'change',
++      worktreePath: '/repo',
++      timestamp: 1000,
++    });
++    expect(data.changes[1]).toEqual({
++      path: 'src/index.ts',
++      eventType: 'add',
++      worktreePath: '/repo',
++      timestamp: 1001,
++    });
++  });
++
++  it('should handle empty changes array', () => {
++    const event: FileChangeBatchEvent = { changes: [] };
++
++    adapter.handleEvent(event);
++
++    expect(notifier.emittedEvents).toHaveLength(1);
++    const data = notifier.emittedEvents[0].data as { changes: unknown[] };
++    expect(data.changes).toHaveLength(0);
++  });
++});
+diff --git a/test/unit/workflow/central-watcher.service.test.ts b/test/unit/workflow/central-watcher.service.test.ts
+index b4bdac7..851b6b3 100644
+--- a/test/unit/workflow/central-watcher.service.test.ts
++++ b/test/unit/workflow/central-watcher.service.test.ts
+@@ -122,17 +122,17 @@ describe('CentralWatcherService', () => {
+       /*
+       Test Doc:
+       - Why: AC1 + CF-07 require one IFileWatcher per worktree plus one registry watcher
+-      - Contract: start() creates N data watchers + 1 registry watcher
+-      - Usage Notes: 2 worktrees → 3 total watchers (2 data + 1 registry)
++      - Contract: start() creates N data watchers + N source watchers + 1 registry watcher
++      - Usage Notes: 2 worktrees → 5 total watchers (2 data + 2 source + 1 registry)
+       - Quality Contribution: Ensures proper watcher fan-out per worktree
+-      - Worked Example: 1 workspace with 2 worktrees → factory.getWatcherCount() === 3
++      - Worked Example: 1 workspace with 2 worktrees → factory.getWatcherCount() === 5
+       */
+       setupTwoWorktrees(registry, resolver, fs);
+ 
+       await service.start();
+ 
+-      // 2 data watchers + 1 registry watcher = 3
+-      expect(factory.getWatcherCount()).toBe(3);
++      // 2 data watchers + 2 source watchers + 1 registry watcher = 5
++      expect(factory.getWatcherCount()).toBe(5);
+     });
+ 
+     it('should watch <worktree>/.chainglass/data/ for each worktree', async () => {
+@@ -302,10 +302,10 @@ describe('CentralWatcherService', () => {
+       /*
+       Test Doc:
+       - Why: Robustness — worktree may not have been initialized with chainglass
+-      - Contract: Only create data watcher for worktrees where .chainglass/data/ exists
++      - Contract: Only create data/source watchers for worktrees where .chainglass/data/ exists
+       - Usage Notes: fs.exists() check prevents watching non-existent directories
+       - Quality Contribution: Prevents watcher errors on uninitialized worktrees
+-      - Worked Example: 2 worktrees, 1 has data dir → 1 data watcher + 1 registry = 2
++      - Worked Example: 2 worktrees, 1 has data dir → 1 data + 1 source + 1 registry = 3
+       */
+       const ws = createTestWorkspace('ws-1', '/repo');
+       registry.addWorkspace(ws);
+@@ -332,8 +332,8 @@ describe('CentralWatcherService', () => {
+ 
+       await service.start();
+ 
+-      // 1 data watcher + 1 registry watcher = 2
+-      expect(factory.getWatcherCount()).toBe(2);
++      // 1 data watcher + 1 source watcher + 1 registry watcher = 3
++      expect(factory.getWatcherCount()).toBe(3);
+     });
+   });
+ 
+@@ -527,8 +527,8 @@ describe('CentralWatcherService', () => {
+ 
+       await service.rescan();
+ 
+-      // Should have created 1 additional data watcher
+-      expect(factory.getWatcherCount()).toBe(initialCount + 1);
++      // Should have created 1 additional data watcher + 1 source watcher
++      expect(factory.getWatcherCount()).toBe(initialCount + 2);
+     });
+ 
+     it('should close watcher for removed workspace on rescan', async () => {
+@@ -802,4 +802,127 @@ describe('CentralWatcherService', () => {
+       expect(errorEntries.length).toBeGreaterThanOrEqual(1);
+     });
+   });
++
++  // ═════════════════════════════════════════════════════════════
++  // T009: Source Watcher Tests (Plan 045)
++  // ═════════════════════════════════════════════════════════════
++
++  describe('source watchers (Plan 045)', () => {
++    it('should create source watcher per worktree watching worktree root', async () => {
++      setupSingleWorktree(registry, resolver, fs);
++
++      await service.start();
++
++      // Find the source watcher (watches /repo root, not /repo/.chainglass/data)
++      const sourceWatcher = factory.findWatcherByPath('/repo');
++      expect(sourceWatcher).toBeDefined();
++      expect(sourceWatcher?.getWatchedPaths()).toContain('/repo');
++    });
++
++    it('should create source watchers for multiple worktrees', async () => {
++      setupTwoWorktrees(registry, resolver, fs);
++
++      await service.start();
++
++      const sourceWatcher1 = factory.findWatcherByPath('/repo');
++      const sourceWatcher2 = factory.findWatcherByPath('/repo-wt');
++      expect(sourceWatcher1).toBeDefined();
++      expect(sourceWatcher2).toBeDefined();
++    });
++
++    it('should configure source watchers with ignored patterns', async () => {
++      setupSingleWorktree(registry, resolver, fs);
++
++      await service.start();
++
++      const sourceWatcher = factory.findWatcherByPath('/repo');
++      expect(sourceWatcher).toBeDefined();
++      expect(sourceWatcher?.options.ignored).toBeDefined();
++      expect(sourceWatcher?.options.ignored?.length).toBeGreaterThan(0);
++    });
++
++    it('should dispatch source watcher events to adapters', async () => {
++      setupSingleWorktree(registry, resolver, fs);
++      const adapter = new FakeWatcherAdapter('test-adapter');
++      service.registerAdapter(adapter);
++
++      await service.start();
++
++      const sourceWatcher = factory.findWatcherByPath('/repo');
++      sourceWatcher?.simulateChange('/repo/src/app.tsx');
++
++      expect(adapter.calls).toHaveLength(1);
++      expect(adapter.calls[0].path).toBe('/repo/src/app.tsx');
++      expect(adapter.calls[0].eventType).toBe('change');
++      expect(adapter.calls[0].worktreePath).toBe('/repo');
++    });
++
++    it('should close source watchers on stop', async () => {
++      setupSingleWorktree(registry, resolver, fs);
++
++      await service.start();
++
++      const sourceWatcher = factory.findWatcherByPath('/repo');
++
++      await service.stop();
++
++      expect(sourceWatcher?.isClosed()).toBe(true);
++    });
++
++    it('should not block data watchers if source watcher creation fails', async () => {
++      const ws = createTestWorkspace('ws-1', '/repo');
++      registry.addWorkspace(ws);
++      resolver.setWorktrees('/repo', [
++        {
++          path: '/repo',
++          head: 'abc123',
++          branch: 'main',
++          isDetached: false,
++          isBare: false,
++          isPrunable: false,
++        },
++      ]);
++      fs.setDir('/repo/.chainglass/data');
++
++      // Make factory throw on the 2nd call (source watcher)
++      // Data watcher = call 1, source watcher = call 2, registry watcher = call 3
++      let createCount = 0;
++      const originalCreate = factory.create.bind(factory);
++      factory.create = (options) => {
++        createCount++;
++        if (createCount === 2) {
++          throw new Error('Source watcher creation failed');
++        }
++        return originalCreate(options);
++      };
++
++      await service.start();
++
++      // Service should still be watching (data watchers succeeded)
++      expect(service.isWatching()).toBe(true);
++
++      // Data watcher should exist
++      const dataWatcher = factory.findWatcherByPath('/repo/.chainglass/data');
++      expect(dataWatcher).toBeDefined();
++
++      // Error should be logged
++      const errorEntries = logger.getEntriesByLevel(LogLevel.ERROR);
++      expect(errorEntries.length).toBeGreaterThanOrEqual(1);
++    });
++
++    it('should close source watchers for removed worktrees on rescan', async () => {
++      setupSingleWorktree(registry, resolver, fs);
++
++      await service.start();
++
++      const sourceWatcher = factory.findWatcherByPath('/repo');
++
++      // Remove the workspace
++      await registry.remove('ws-1');
++
++      await service.rescan();
++
++      expect(sourceWatcher?.isClosed()).toBe(true);
++    });
++  });
+ });
+diff --git a/test/unit/workflow/file-change-watcher.adapter.test.ts b/test/unit/workflow/file-change-watcher.adapter.test.ts
+new file mode 100644
+index 0000000..bb5a263
+--- /dev/null
++++ b/test/unit/workflow/file-change-watcher.adapter.test.ts
+@@ -0,0 +1,331 @@
++/**
++ * Tests for FileChangeWatcherAdapter.
++ *
++ * Per Plan 045: Live File Events - Phase 1 (T004/T007)
++ * Full TDD: RED tests first, then implementation.
++ *
++ * Tests: filtering, absolute→relative path conversion, debounce batching,
++ * last-event-wins deduplication, callback-set dispatch, error isolation,
++ * flushNow(), and destroy().
++ */
++
++import type { WatcherEvent } from '@chainglass/workflow';
++import { FileChangeWatcherAdapter } from '@chainglass/workflow';
++import type { FileChangeBatchItem } from '@chainglass/workflow';
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++
++// ═══════════════════════════════════════════════════════════════
++// Test helpers
++// ═══════════════════════════════════════════════════════════════
++
++function makeEvent(overrides: Partial<WatcherEvent> = {}): WatcherEvent {
++  return {
++    path: '/repo/src/app.tsx',
++    eventType: 'change',
++    worktreePath: '/repo',
++    workspaceSlug: 'ws-1',
++    ...overrides,
++  };
++}
++
++// ═══════════════════════════════════════════════════════════════
++// Tests
++// ═══════════════════════════════════════════════════════════════
++
++describe('FileChangeWatcherAdapter', () => {
++  let adapter: FileChangeWatcherAdapter;
++
++  beforeEach(() => {
++    vi.useFakeTimers();
++    adapter = new FileChangeWatcherAdapter(300);
++  });
++
++  afterEach(() => {
++    adapter.destroy();
++    vi.useRealTimers();
++  });
++
++  // ═══════════════════════════════════════════════════════════
++  // Filtering
++  // ═══════════════════════════════════════════════════════════
++
++  describe('filtering', () => {
++    it('should filter out .chainglass/ paths', () => {
++      const received: FileChangeBatchItem[][] = [];
++      adapter.onFilesChanged((items) => received.push(items));
++
++      adapter.handleEvent(
++        makeEvent({ path: '/repo/.chainglass/data/work-graphs/demo/state.json' })
++      );
++      vi.advanceTimersByTime(300);
++
++      expect(received).toHaveLength(0);
++    });
++
++    it('should pass through non-.chainglass paths', () => {
++      const received: FileChangeBatchItem[][] = [];
++      adapter.onFilesChanged((items) => received.push(items));
++
++      adapter.handleEvent(makeEvent({ path: '/repo/src/app.tsx' }));
++      vi.advanceTimersByTime(300);
++
++      expect(received).toHaveLength(1);
++      expect(received[0]).toHaveLength(1);
++    });
++
++    it('should filter .chainglass anywhere in path', () => {
++      const received: FileChangeBatchItem[][] = [];
++      adapter.onFilesChanged((items) => received.push(items));
++
++      adapter.handleEvent(makeEvent({ path: '/repo/.chainglass/config.json' }));
++      vi.advanceTimersByTime(300);
++
++      expect(received).toHaveLength(0);
++    });
++  });
++
++  // ═══════════════════════════════════════════════════════════
++  // Path conversion
++  // ═══════════════════════════════════════════════════════════
++
++  describe('path conversion', () => {
++    it('should convert absolute paths to relative (from worktree root)', () => {
++      const received: FileChangeBatchItem[][] = [];
++      adapter.onFilesChanged((items) => received.push(items));
++
++      adapter.handleEvent(
++        makeEvent({ path: '/repo/src/components/Button.tsx', worktreePath: '/repo' })
++      );
++      vi.advanceTimersByTime(300);
++
++      expect(received[0][0].path).toBe('src/components/Button.tsx');
++    });
++
++    it('should keep worktreePath as-is (absolute)', () => {
++      const received: FileChangeBatchItem[][] = [];
++      adapter.onFilesChanged((items) => received.push(items));
++
++      adapter.handleEvent(makeEvent({ worktreePath: '/repo' }));
++      vi.advanceTimersByTime(300);
++
++      expect(received[0][0].worktreePath).toBe('/repo');
++    });
++
++    it('should handle paths that equal worktree root', () => {
++      const received: FileChangeBatchItem[][] = [];
++      adapter.onFilesChanged((items) => received.push(items));
++
++      adapter.handleEvent(makeEvent({ path: '/repo', worktreePath: '/repo' }));
++      vi.advanceTimersByTime(300);
++
++      // Root path should become empty string or "."
++      expect(received[0][0].path).toBe('');
++    });
++  });
++
++  // ═══════════════════════════════════════════════════════════
++  // Debounce batching
++  // ═══════════════════════════════════════════════════════════
++
++  describe('debounce batching', () => {
++    it('should batch events within 300ms window', () => {
++      const received: FileChangeBatchItem[][] = [];
++      adapter.onFilesChanged((items) => received.push(items));
++
++      adapter.handleEvent(makeEvent({ path: '/repo/a.ts' }));
++      vi.advanceTimersByTime(100);
++      adapter.handleEvent(makeEvent({ path: '/repo/b.ts' }));
++      vi.advanceTimersByTime(100);
++      adapter.handleEvent(makeEvent({ path: '/repo/c.ts' }));
++      vi.advanceTimersByTime(300);
++
++      expect(received).toHaveLength(1);
++      expect(received[0]).toHaveLength(3);
++    });
++
++    it('should emit separate batches for events outside 300ms window', () => {
++      const received: FileChangeBatchItem[][] = [];
++      adapter.onFilesChanged((items) => received.push(items));
++
++      adapter.handleEvent(makeEvent({ path: '/repo/a.ts' }));
++      vi.advanceTimersByTime(300);
++      adapter.handleEvent(makeEvent({ path: '/repo/b.ts' }));
++      vi.advanceTimersByTime(300);
++
++      expect(received).toHaveLength(2);
++    });
++
++    it('should not emit if no events accumulated', () => {
++      const received: FileChangeBatchItem[][] = [];
++      adapter.onFilesChanged((items) => received.push(items));
++
++      vi.advanceTimersByTime(1000);
++
++      expect(received).toHaveLength(0);
++    });
++
++    it('should reset debounce timer on each new event', () => {
++      const received: FileChangeBatchItem[][] = [];
++      adapter.onFilesChanged((items) => received.push(items));
++
++      adapter.handleEvent(makeEvent({ path: '/repo/a.ts' }));
++      vi.advanceTimersByTime(200);
++      adapter.handleEvent(makeEvent({ path: '/repo/b.ts' }));
++      vi.advanceTimersByTime(200);
++      // Only 200ms since last event, not yet flushed
++      expect(received).toHaveLength(0);
++
++      vi.advanceTimersByTime(100);
++      // 300ms since last event now — should flush
++      expect(received).toHaveLength(1);
++      expect(received[0]).toHaveLength(2);
++    });
++  });
++
++  // ═══════════════════════════════════════════════════════════
++  // Deduplication (last-event-wins)
++  // ═══════════════════════════════════════════════════════════
++
++  describe('deduplication', () => {
++    it('should deduplicate: last-event-wins per worktreePath:path key', () => {
++      const received: FileChangeBatchItem[][] = [];
++      adapter.onFilesChanged((items) => received.push(items));
++
++      adapter.handleEvent(makeEvent({ path: '/repo/a.ts', eventType: 'add' }));
++      adapter.handleEvent(makeEvent({ path: '/repo/a.ts', eventType: 'change' }));
++      adapter.handleEvent(makeEvent({ path: '/repo/a.ts', eventType: 'unlink' }));
++      vi.advanceTimersByTime(300);
++
++      expect(received).toHaveLength(1);
++      expect(received[0]).toHaveLength(1);
++      expect(received[0][0].eventType).toBe('unlink');
++    });
++
++    it('should not deduplicate different paths', () => {
++      const received: FileChangeBatchItem[][] = [];
++      adapter.onFilesChanged((items) => received.push(items));
++
++      adapter.handleEvent(makeEvent({ path: '/repo/a.ts', eventType: 'change' }));
++      adapter.handleEvent(makeEvent({ path: '/repo/b.ts', eventType: 'change' }));
++      vi.advanceTimersByTime(300);
++
++      expect(received).toHaveLength(1);
++      expect(received[0]).toHaveLength(2);
++    });
++
++    it('should not deduplicate same path across different worktrees', () => {
++      const received: FileChangeBatchItem[][] = [];
++      adapter.onFilesChanged((items) => received.push(items));
++
++      adapter.handleEvent(
++        makeEvent({ path: '/repo/a.ts', worktreePath: '/repo', eventType: 'change' })
++      );
++      adapter.handleEvent(
++        makeEvent({ path: '/repo-wt/a.ts', worktreePath: '/repo-wt', eventType: 'add' })
++      );
++      vi.advanceTimersByTime(300);
++
++      expect(received).toHaveLength(1);
++      expect(received[0]).toHaveLength(2);
++    });
++  });
++
++  // ═══════════════════════════════════════════════════════════
++  // Subscriber dispatch
++  // ═══════════════════════════════════════════════════════════
++
++  describe('subscriber dispatch', () => {
++    it('should emit to all subscribers', () => {
++      const received1: FileChangeBatchItem[][] = [];
++      const received2: FileChangeBatchItem[][] = [];
++      adapter.onFilesChanged((items) => received1.push(items));
++      adapter.onFilesChanged((items) => received2.push(items));
++
++      adapter.handleEvent(makeEvent());
++      vi.advanceTimersByTime(300);
++
++      expect(received1).toHaveLength(1);
++      expect(received2).toHaveLength(1);
++    });
++
++    it('should unsubscribe when returned function is called', () => {
++      const received: FileChangeBatchItem[][] = [];
++      const unsub = adapter.onFilesChanged((items) => received.push(items));
++      unsub();
++
++      adapter.handleEvent(makeEvent());
++      vi.advanceTimersByTime(300);
++
++      expect(received).toHaveLength(0);
++    });
++
++    it('should isolate subscriber errors (throwing subscriber does not block others)', () => {
++      const received: FileChangeBatchItem[][] = [];
++      adapter.onFilesChanged(() => {
++        throw new Error('boom');
++      });
++      adapter.onFilesChanged((items) => received.push(items));
++
++      adapter.handleEvent(makeEvent());
++      vi.advanceTimersByTime(300);
++
++      expect(received).toHaveLength(1);
++    });
++  });
++
++  // ═══════════════════════════════════════════════════════════
++  // flushNow() and destroy()
++  // ═══════════════════════════════════════════════════════════
++
++  describe('flushNow and destroy', () => {
++    it('should flush pending events immediately on flushNow()', () => {
++      const received: FileChangeBatchItem[][] = [];
++      adapter.onFilesChanged((items) => received.push(items));
++
++      adapter.handleEvent(makeEvent());
++      adapter.flushNow();
++
++      expect(received).toHaveLength(1);
++    });
++
++    it('should be a no-op if nothing pending on flushNow()', () => {
++      const received: FileChangeBatchItem[][] = [];
++      adapter.onFilesChanged((items) => received.push(items));
++
++      adapter.flushNow();
++
++      expect(received).toHaveLength(0);
++    });
++
++    it('should cancel pending flush on destroy()', () => {
++      const received: FileChangeBatchItem[][] = [];
++      adapter.onFilesChanged((items) => received.push(items));
++
++      adapter.handleEvent(makeEvent());
++      adapter.destroy();
++      vi.advanceTimersByTime(300);
++
++      expect(received).toHaveLength(0);
++    });
++  });
++
++  // ═══════════════════════════════════════════════════════════
++  // Event shape
++  // ═══════════════════════════════════════════════════════════
++
++  describe('event shape', () => {
++    it('should include path, eventType, worktreePath, and timestamp', () => {
++      const received: FileChangeBatchItem[][] = [];
++      adapter.onFilesChanged((items) => received.push(items));
++
++      adapter.handleEvent(makeEvent({ path: '/repo/src/app.tsx', eventType: 'add' }));
++      vi.advanceTimersByTime(300);
++
++      const item = received[0][0];
++      expect(item.path).toBe('src/app.tsx');
++      expect(item.eventType).toBe('add');
++      expect(item.worktreePath).toBe('/repo');
++      expect(typeof item.timestamp).toBe('number');
++    });
++  });
++});

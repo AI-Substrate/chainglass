@@ -115,14 +115,14 @@ flowchart TD
     end
 
     subgraph Phase2["Phase 2: Browser-Side Event Hub"]
-        T001["T001: Client types<br/>(FileChange, SSE event)"]:::pending
-        T002["T002: FileChangeHub<br/>(pattern dispatch)"]:::pending
-        T003["T003: FakeFileChangeHub<br/>+ contract tests"]:::pending
-        T004["T004: Hub unit tests"]:::pending
-        T005["T005: FileChangeProvider<br/>(SSE + context)"]:::pending
-        T006["T006: useFileChanges hook"]:::pending
-        T007["T007: Hook unit tests"]:::pending
-        T008["T008: Barrel export"]:::pending
+        T001["T001: Client types<br/>(FileChange, SSE event) ✓"]:::completed
+        T002["T002: FileChangeHub<br/>(pattern dispatch) ✓"]:::completed
+        T003["T003: FakeFileChangeHub<br/>+ contract tests ✓"]:::completed
+        T004["T004: Hub unit tests ✓"]:::completed
+        T005["T005: FileChangeProvider<br/>(SSE + context) ✓"]:::completed
+        T006["T006: useFileChanges hook ✓"]:::completed
+        T007["T007: Hook unit tests ✓"]:::completed
+        T008["T008: Barrel export ✓"]:::completed
     end
 
     SSE --> T005
@@ -143,14 +143,14 @@ flowchart TD
 
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
-| T001 | Client-side types | file-change.types.ts | ⬜ Pending | FileChange, FileChangeSSEEvent |
-| T002 | FileChangeHub | file-change-hub.ts | ⬜ Pending | Pattern matching + subscriber dispatch |
-| T003 | FakeFileChangeHub | fake-file-change-hub.ts | ⬜ Pending | Test double + contract tests |
-| T004 | Hub unit tests | file-change-hub.test.ts | ⬜ Pending | 4 patterns + edge cases |
-| T005 | FileChangeProvider | file-change-provider.tsx | ⬜ Pending | SSE + React context |
-| T006 | useFileChanges | use-file-changes.ts | ⬜ Pending | Consumer hook |
-| T007 | Hook unit tests | use-file-changes.test.tsx | ⬜ Pending | Lifecycle + cleanup |
-| T008 | Barrel export | index.ts | ⬜ Pending | Public API |
+| T001 | Client-side types | file-change.types.ts | ✅ Complete | 5 event types per DYK #2 |
+| T002 | FileChangeHub | file-change-hub.ts | ✅ Complete | 4 pattern types + error isolation |
+| T003 | FakeFileChangeHub | fake-file-change-hub.ts | ✅ Complete | 16 contract tests (8 per impl) |
+| T004 | Hub unit tests | file-change-hub.test.ts | ✅ Complete | 18 tests |
+| T005 | FileChangeProvider | file-change-provider.tsx | ✅ Complete | SSE + worktreePath filter (DYK #1) |
+| T006 | useFileChanges | use-file-changes.ts | ✅ Complete | Debounce + replace/accumulate |
+| T007 | Hook unit tests | use-file-changes.test.tsx | ✅ Complete | 10 tests with FakeEventSource |
+| T008 | Barrel export | index.ts | ✅ Complete | Full public API |
 
 ---
 
@@ -158,14 +158,14 @@ flowchart TD
 
 | Status | ID | Task | Domain | Path(s) | Done When | Notes |
 |--------|-----|------|--------|---------|-----------|-------|
-| [ ] | T001 | Create client-side `FileChange` and `FileChangeSSEEvent` types | events | `/home/jak/substrate/041-file-browser/apps/web/src/features/045-live-file-events/file-change.types.ts` | `FileChange` type: `{ path, eventType, timestamp }`. `FileChangeSSEEvent` type: `{ type: 'file-changed', changes: FileChange[] }`. Types compile and are importable. | Client-side types are a subset of server `FileChangeBatchItem` (no `worktreePath` — hub filters by worktree before dispatch). Per workshop 01. |
-| [ ] | T002 | Create `FileChangeHub` class with pattern-based dispatch | events | `/home/jak/substrate/041-file-browser/apps/web/src/features/045-live-file-events/file-change-hub.ts` | `subscribe(pattern, callback) → unsubscribe`. `dispatch(changes)` fans out to matching subscribers. Pattern matching: exact (`src/App.tsx`), directory (`src/components/`), recursive (`src/**`), wildcard (`*`). `subscriberCount` getter. Error isolation: throwing subscriber doesn't block others. | Core of Phase 2. Per workshop 01. Callback-set pattern per PL-03. No external glob library — 3 patterns only. |
-| [ ] | T003 | Create `FakeFileChangeHub` + contract tests | events | `/home/jak/substrate/041-file-browser/apps/web/src/features/045-live-file-events/fake-file-change-hub.ts`, `/home/jak/substrate/041-file-browser/test/contracts/file-change-hub.contract.ts`, `/home/jak/substrate/041-file-browser/test/contracts/file-change-hub.contract.test.ts` | Fake records dispatched events. Exposes `dispatchedBatches` for test inspection. Same `subscribe`/`dispatch` API as real. Contract tests: both real and fake pass identical pattern matching + dispatch tests. | Follows FakeFileChangeWatcherAdapter pattern from Phase 1. Phase 3 components use this for testing. |
-| [ ] | T004 | Write comprehensive unit tests for FileChangeHub | events | `/home/jak/substrate/041-file-browser/test/unit/web/features/045-live-file-events/file-change-hub.test.ts` | Tests: exact match, directory match (non-recursive), recursive match, wildcard match, no-match (no dispatch), subscriber unsubscription, error isolation, subscriberCount, empty dispatch no-op, edge cases (root path, trailing slashes). All pass. | TDD: write tests first, then implement T002. |
-| [ ] | T005 | Create `FileChangeProvider` React context + SSE lifecycle | events | `/home/jak/substrate/041-file-browser/apps/web/src/features/045-live-file-events/file-change-provider.tsx` | `'use client'` component. Creates `FileChangeHub` per worktree (new hub on worktreePath change). Opens `EventSource` to `/api/events/file-changes`. Parses SSE `message` events as `FileChangeSSEEvent`. Dispatches to hub. Closes EventSource on unmount. `useFileChangeHub()` context accessor throws if used outside provider. | Per workshop 01. Raw EventSource (browser auto-reconnect). Filter SSE messages to only dispatch changes matching current worktreePath. |
-| [ ] | T006 | Create `useFileChanges` hook | events | `/home/jak/substrate/041-file-browser/apps/web/src/features/045-live-file-events/use-file-changes.ts` | `'use client'` hook. Returns `{ changes, hasChanges, clearChanges }`. Subscribes to hub via pattern. Debounce configurable (default 100ms). Mode: `replace` (default) or `accumulate`. Auto-unsubscribe on unmount. Clears timer on unmount (no memory leaks). | Per workshop 01. The "SDK For Us" API. |
-| [ ] | T007 | Write unit tests for `useFileChanges` hook | events | `/home/jak/substrate/041-file-browser/test/unit/web/features/045-live-file-events/use-file-changes.test.tsx` | Tests: subscribe on mount, unsubscribe on unmount, debounce delays state update, replace mode replaces changes, accumulate mode appends, clearChanges resets, hasChanges reflects state, pattern change re-subscribes, throws outside provider. All pass. | Uses FakeFileChangeHub from T003. React Testing Library + `renderHook`. |
-| [ ] | T008 | Create feature folder barrel export | events | `/home/jak/substrate/041-file-browser/apps/web/src/features/045-live-file-events/index.ts` | Exports: `FileChangeHub`, `FileChangeProvider`, `useFileChangeHub`, `useFileChanges`, `FakeFileChangeHub`, `FileChange`, `FileChangeSSEEvent`. Imports work from `@/features/045-live-file-events`. | PlanPak barrel pattern. |
+| [x] | T001 | Create client-side `FileChange` and `FileChangeSSEEvent` types | events | `/home/jak/substrate/041-file-browser/apps/web/src/features/045-live-file-events/file-change.types.ts` | `FileChange` type: `{ path, eventType, timestamp }`. `FileChangeSSEEvent` type: `{ type: 'file-changed', changes: FileChange[] }`. Types compile and are importable. | Client-side types are a subset of server `FileChangeBatchItem` (no `worktreePath` — hub filters by worktree before dispatch). Per workshop 01. |
+| [x] | T002 | Create `FileChangeHub` class with pattern-based dispatch | events | `/home/jak/substrate/041-file-browser/apps/web/src/features/045-live-file-events/file-change-hub.ts` | `subscribe(pattern, callback) → unsubscribe`. `dispatch(changes)` fans out to matching subscribers. Pattern matching: exact (`src/App.tsx`), directory (`src/components/`), recursive (`src/**`), wildcard (`*`). `subscriberCount` getter. Error isolation: throwing subscriber doesn't block others. | Core of Phase 2. Per workshop 01. Callback-set pattern per PL-03. No external glob library — 3 patterns only. |
+| [x] | T003 | Create `FakeFileChangeHub` + contract tests | events | `/home/jak/substrate/041-file-browser/apps/web/src/features/045-live-file-events/fake-file-change-hub.ts`, `/home/jak/substrate/041-file-browser/test/contracts/file-change-hub.contract.ts`, `/home/jak/substrate/041-file-browser/test/contracts/file-change-hub.contract.test.ts` | Fake records dispatched events. Exposes `dispatchedBatches` for test inspection. Same `subscribe`/`dispatch` API as real. Contract tests: both real and fake pass identical pattern matching + dispatch tests. | Follows FakeFileChangeWatcherAdapter pattern from Phase 1. Phase 3 components use this for testing. |
+| [x] | T004 | Write comprehensive unit tests for FileChangeHub | events | `/home/jak/substrate/041-file-browser/test/unit/web/features/045-live-file-events/file-change-hub.test.ts` | Tests: exact match, directory match (non-recursive), recursive match, wildcard match, no-match (no dispatch), subscriber unsubscription, error isolation, subscriberCount, empty dispatch no-op, edge cases (root path, trailing slashes). All pass. | TDD: write tests first, then implement T002. |
+| [x] | T005 | Create `FileChangeProvider` React context + SSE lifecycle | events | `/home/jak/substrate/041-file-browser/apps/web/src/features/045-live-file-events/file-change-provider.tsx` | `'use client'` component. Creates `FileChangeHub` per worktree (new hub on worktreePath change). Opens `EventSource` to `/api/events/file-changes`. Parses SSE `message` events as `FileChangeSSEEvent`. Dispatches to hub. Closes EventSource on unmount. `useFileChangeHub()` context accessor throws if used outside provider. | Per workshop 01. Raw EventSource (browser auto-reconnect). Filter SSE messages to only dispatch changes matching current worktreePath. |
+| [x] | T006 | Create `useFileChanges` hook | events | `/home/jak/substrate/041-file-browser/apps/web/src/features/045-live-file-events/use-file-changes.ts` | `'use client'` hook. Returns `{ changes, hasChanges, clearChanges }`. Subscribes to hub via pattern. Debounce configurable (default 100ms). Mode: `replace` (default) or `accumulate`. Auto-unsubscribe on unmount. Clears timer on unmount (no memory leaks). | Per workshop 01. The "SDK For Us" API. |
+| [x] | T007 | Write unit tests for `useFileChanges` hook | events | `/home/jak/substrate/041-file-browser/test/unit/web/features/045-live-file-events/use-file-changes.test.tsx` | Tests: subscribe on mount, unsubscribe on unmount, debounce delays state update, replace mode replaces changes, accumulate mode appends, clearChanges resets, hasChanges reflects state, pattern change re-subscribes, throws outside provider. All pass. | Uses FakeEventSource for controlled SSE. React Testing Library + renderHook. |
+| [x] | T008 | Create feature folder barrel export | events | `/home/jak/substrate/041-file-browser/apps/web/src/features/045-live-file-events/index.ts` | Exports: `FileChangeHub`, `FileChangeProvider`, `useFileChangeHub`, `useFileChanges`, `FakeFileChangeHub`, `FileChange`, `FileChangeSSEEvent`. Imports work from `@/features/045-live-file-events`. | PlanPak barrel pattern. |
 
 ---
 

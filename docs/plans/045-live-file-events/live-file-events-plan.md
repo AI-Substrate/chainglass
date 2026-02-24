@@ -137,13 +137,13 @@ The file browser currently requires manual refresh to see filesystem changes. Th
 | 2.4 | Create feature folder scaffold + barrel export | events | 1 | `apps/web/src/features/045-live-file-events/index.ts` exports FileChangeHub, FileChangeProvider, useFileChanges. | PlanPak pattern. |
 
 ### Acceptance Criteria (Phase 2)
-- [ ] AC-07: `useFileChanges('src/App.tsx')` → hasChanges true on modification
-- [ ] AC-08: `useFileChanges('src/components/')` → direct children only
-- [ ] AC-09: `useFileChanges('src/**')` → recursive match
-- [ ] AC-10: `useFileChanges('*')` → wildcard match
-- [ ] AC-11: Unmount cleans up subscription, no memory leaks
-- [ ] AC-12: Single SSE connection per worktree
-- [ ] AC-13: useFileChanges outside FileChangeProvider throws
+- [x] AC-07: `useFileChanges('src/App.tsx')` → hasChanges true on modification
+- [x] AC-08: `useFileChanges('src/components/')` → direct children only
+- [x] AC-09: `useFileChanges('src/**')` → recursive match
+- [x] AC-10: `useFileChanges('*')` → wildcard match
+- [x] AC-11: Unmount cleans up subscription, no memory leaks
+- [x] AC-12: Single SSE connection per worktree
+- [x] AC-13: useFileChanges outside FileChangeProvider throws
 
 ---
 
@@ -195,7 +195,7 @@ The file browser currently requires manual refresh to see filesystem changes. Th
 ## Phase Completion Checklist
 
 - [x] Phase 1: Server-Side Event Pipeline
-- [ ] Phase 2: Browser-Side Event Hub
+- [x] Phase 2: Browser-Side Event Hub
 - [ ] Phase 3: UI Wiring
 
 ---

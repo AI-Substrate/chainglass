@@ -3,7 +3,7 @@
 **Plan**: [live-file-events-plan.md](../../live-file-events-plan.md)
 **Phase**: Phase 2: Browser-Side Event Hub (2 of 3)
 **Generated**: 2026-02-24
-**Status**: Ready for takeoff
+**Status**: All stages complete
 
 ---
 
@@ -57,7 +57,7 @@ stateDiagram-v2
     S5 --> S6
     S6 --> [*]
 
-    class S1,S2,S3,S4,S5,S6 pending
+    class S1,S2,S3,S4,S5,S6 done
 ```
 
 **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -66,12 +66,12 @@ stateDiagram-v2
 
 ## Stages
 
-- [ ] **Stage 1: Client types** — Create `FileChange` and `FileChangeSSEEvent` types in the feature folder. Subset of server `FileChangeBatchItem` (no `worktreePath` in `FileChange` — hub handles worktree filtering).
-- [ ] **Stage 2: FileChangeHub + unit tests** — TDD: write pattern matching tests first (exact, directory, recursive, wildcard), then implement hub class with `subscribe()`, `dispatch()`, error isolation, and `subscriberCount`.
-- [ ] **Stage 3: FakeFileChangeHub + contract tests** — Create test double that records dispatches. Write shared contract suite both real and fake pass.
-- [ ] **Stage 4: FileChangeProvider + SSE lifecycle** — Create React context component. Opens raw `EventSource` to `/api/events/file-changes`. Parses SSE messages, filters by worktreePath, dispatches to hub. Closes on unmount. `useFileChangeHub()` throws outside provider.
-- [ ] **Stage 5: useFileChanges hook + unit tests** — TDD: write hook tests first (mount/unmount, debounce, modes, clearChanges, outside-provider throw), then implement. Uses FakeFileChangeHub for testing.
-- [ ] **Stage 6: Barrel export** — Create `index.ts` exporting all public APIs.
+- [x] **Stage 1: Client types**
+- [x] **Stage 2: FileChangeHub + unit tests**
+- [x] **Stage 3: FakeFileChangeHub + contract tests**
+- [x] **Stage 4: FileChangeProvider + SSE lifecycle**
+- [x] **Stage 5: useFileChanges hook + unit tests**
+- [x] **Stage 6: Barrel export**
 
 ---
 
@@ -137,14 +137,14 @@ flowchart LR
 
 ## Checklist
 
-- [ ] T001: Client-side types (CS-1)
-- [ ] T002: FileChangeHub class (CS-2)
-- [ ] T003: FakeFileChangeHub + contract tests (CS-2)
-- [ ] T004: Hub unit tests (CS-2)
-- [ ] T005: FileChangeProvider + SSE (CS-2)
-- [ ] T006: useFileChanges hook (CS-2)
-- [ ] T007: Hook unit tests (CS-2)
-- [ ] T008: Barrel export (CS-1)
+- [x] T001: Client-side types (CS-1)
+- [x] T002: FileChangeHub class (CS-2)
+- [x] T003: FakeFileChangeHub + contract tests (CS-2)
+- [x] T004: Hub unit tests (CS-2)
+- [x] T005: FileChangeProvider + SSE (CS-2)
+- [x] T006: useFileChanges hook (CS-2)
+- [x] T007: Hook unit tests (CS-2)
+- [x] T008: Barrel export (CS-1)
 
 ---
 
