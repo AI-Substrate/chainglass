@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/sidebar';
 import { WorkspaceNav } from '@/components/workspaces/workspace-nav';
 import { PasteUploadButton } from '@/features/041-file-browser/components/paste-upload-button';
+import { WorktreeIdentityPopover } from '@/features/041-file-browser/components/worktree-identity-popover';
 import { useWorkspaceContext } from '@/features/041-file-browser/hooks/use-workspace-context';
 import { DEV_NAV_ITEMS, WORKSPACE_NAV_ITEMS } from '@/lib/navigation-utils';
 import { cn } from '@/lib/utils';
@@ -25,7 +26,6 @@ import { ChevronLeft, ExternalLink, PanelLeft, Settings } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { Suspense, useMemo, useState } from 'react';
-import { WorktreeIdentityPopover } from './worktree-identity-popover';
 
 /**
  * DashboardSidebar
@@ -189,28 +189,6 @@ export function DashboardSidebar() {
             </SidebarGroup>
           </>
         )}
-
-        {/* Settings link — always visible */}
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === '/settings/workspaces'}>
-                  <Link
-                    href="/settings/workspaces"
-                    className={cn(
-                      'flex items-center gap-3',
-                      pathname === '/settings/workspaces' && 'bg-accent text-accent-foreground'
-                    )}
-                  >
-                    <Settings className="h-5 w-5" />
-                    {!isCollapsed && <span>Settings</span>}
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
 
         {/* Dev section — collapsed by default */}
         <SidebarGroup>

@@ -16,6 +16,7 @@ export { FleetStatusBar } from './components/fleet-status-bar';
 export type { FleetStatusBarProps } from './components/fleet-status-bar';
 export { WorktreePicker } from './components/worktree-picker';
 export type { WorktreePickerProps, WorktreeItem } from './components/worktree-picker';
+export { WorktreeIdentityPopover } from './components/worktree-identity-popover';
 export { useAttentionTitle } from './hooks/use-attention-title';
 export type { UseAttentionTitleOptions } from './hooks/use-attention-title';
 export { WorkspaceProvider, useWorkspaceContext } from './hooks/use-workspace-context';

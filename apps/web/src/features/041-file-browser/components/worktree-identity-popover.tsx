@@ -14,9 +14,9 @@ import { EmojiPicker } from '@/features/041-file-browser/components/emoji-picker
 import { useWorkspaceContext } from '@/features/041-file-browser/hooks/use-workspace-context';
 import { Settings2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { updateWorktreePreferences } from '../../app/actions/workspace-actions';
+import { updateWorktreePreferences } from '../../../../app/actions/workspace-actions';
 
 interface Props {
   slug: string;
@@ -27,6 +27,19 @@ export function WorktreeIdentityPopover({ slug, worktreePath }: Props) {
   const router = useRouter();
   const wsCtx = useWorkspaceContext();
   const [open, setOpen] = useState(false);
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  // Click-outside-to-close (F002)
+  useEffect(() => {
+    if (!open) return;
+    const handleClick = (e: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [open]);
 
   const currentEmoji = wsCtx?.worktreeIdentity?.emoji || '';
   const currentColor = wsCtx?.worktreeIdentity?.color || '';
@@ -54,7 +67,7 @@ export function WorktreeIdentityPopover({ slug, worktreePath }: Props) {
   };
 
   return (
-    <div className="relative">
+    <div className="relative" ref={popoverRef}>
       <button
         type="button"
         onClick={() => setOpen((p) => !p)}
