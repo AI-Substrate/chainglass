@@ -124,7 +124,7 @@ flowchart TD
     classDef completed fill:#4CAF50,stroke:#388E3C,color:#fff
 
     subgraph Infra["Infrastructure"]
-        T001["T001: IFileSystem.realpath()"]:::pending
+        T001["T001: IFileSystem.realpath() ✓"]:::completed
         T013["T013: detectLanguage()"]:::pending
         T014["T014: Install CodeMirror"]:::pending
     end
@@ -175,28 +175,28 @@ flowchart TD
 
 | Status | ID | Task | Domain | Path(s) | Done When | Notes |
 |--------|-----|------|--------|---------|-----------|-------|
-| [ ] | T001 | Add `realpath()` to IFileSystem interface + NodeFileSystemAdapter + FakeFileSystem | cross-plan | `packages/shared/src/interfaces/filesystem.interface.ts`, adapters, fakes | FakeFileSystem.realpath() resolves paths; can simulate symlink escape via configurable map | DYK-P4-02. CS-2. |
-| [ ] | T002 | Write tests for directory listing service | plan-scoped | `test/unit/web/features/041-file-browser/directory-listing.test.ts` | Tests: git repo lists files for given dir only, non-git uses readDir, `../` → PathSecurityError, empty → `[]`, one-level entries (not full tree) | DYK-P4-03. Finding 05. CS-3. |
-| [ ] | T003 | Implement directory listing service | plan-scoped | `apps/web/src/features/041-file-browser/services/directory-listing.ts` | All T002 tests pass. `execFile('git', ['ls-files', '--', dir])` scoped. `readDir` fallback. Returns `FileEntry[]`. | DYK-P4-03. CS-3. |
-| [ ] | T004 | Write tests for files API route | plan-scoped | `test/unit/web/features/041-file-browser/files-api.test.ts` | GET → `{ entries }`, invalid path → 400, `../` → 403, workspace not found → 404 | DYK-P4-01. CS-2. |
-| [ ] | T005 | Implement `GET /api/workspaces/[slug]/files` route | cross-plan | `apps/web/app/api/workspaces/[slug]/files/route.ts` | All T004 tests pass. Uses directory listing service via DI. | DYK-P4-01. AC-44. CS-2. |
-| [ ] | T006 | Write tests for `readFile()` server action | plan-scoped | `test/unit/web/features/041-file-browser/file-actions.test.ts` | Returns `{ content, mtime, size, language }`. >5MB → `file-too-large`. Null-byte → `binary-file`. `../` → PathSecurityError. Symlink escape → PathSecurityError. Not found → `not-found`. | DYK-P4-02. Finding 02, 09. CS-3. |
-| [ ] | T007 | Implement `readFile()` server action | plan-scoped | `apps/web/app/actions/file-actions.ts` | All T006 tests pass. stat check → null-byte scan → realpath verification via IFileSystem.realpath(). | Finding 02, 09. CS-2. |
-| [ ] | T008 | Write tests for `saveFile()` server action | plan-scoped | `test/unit/web/features/041-file-browser/file-actions.test.ts` | Save → `{ ok, newMtime }`. Mtime mismatch → `{ error: 'conflict', serverMtime }`. force=true overrides. Atomic tmp+rename. `../` → PathSecurityError. | Finding 06. CS-3. |
-| [ ] | T009 | Implement `saveFile()` server action | plan-scoped | `apps/web/app/actions/file-actions.ts` | All T008 tests pass. Atomic: writeFile(tmp) + rename(tmp, target). | Finding 06. CS-3. |
-| [ ] | T010 | Write tests for changed-files filter | plan-scoped | `test/unit/web/features/041-file-browser/changed-files.test.ts` | Returns `string[]` of changed paths. Empty when clean. Non-git → `not-git` error. | CS-2. |
-| [ ] | T011 | Implement changed-files filter | plan-scoped | `apps/web/src/features/041-file-browser/services/changed-files.ts` | All T010 tests pass. `execFile('git', ['diff', '--name-only'])` with workspace cwd. | CS-2. |
-| [ ] | T012 | Extend `getGitDiff()` with optional `cwd` param | cross-plan | `apps/web/src/lib/server/git-diff-action.ts` | Existing tests still pass. Workspace path used as cwd. | AC-47. CS-2. |
-| [ ] | T013 | Extract shared `detectLanguage(filename)` utility | cross-cutting | `apps/web/src/lib/language-detection.ts` | Tests: .ts→typescript, .md→markdown, .py→python, unknown→plaintext. Shiki processor updated to consume it. | DYK-P4-05. CS-1. |
-| [ ] | T014 | Install `@uiw/react-codemirror` + language extensions | cross-plan | `apps/web/package.json` | Installed, `pnpm build` passes. | CS-1. |
-| [ ] | T015 | Write tests for `FileTree` component | plan-scoped | `test/unit/web/features/041-file-browser/file-tree.test.tsx` | Renders entries. Expand fires onExpand callback. File click fires onSelect. Changed-only filter. Refresh button. Empty state. | DYK-P4-01. CS-3. |
-| [ ] | T016 | Implement `FileTree` component | plan-scoped | `apps/web/src/features/041-file-browser/components/file-tree.tsx` | All T015 tests pass. Client component. Lazy-loads via onExpand. Icons. Filter toggle. | DYK-P4-01, DYK-P4-03. CS-3. |
-| [ ] | T017 | Write tests for `CodeEditor` wrapper | plan-scoped | `test/unit/web/features/041-file-browser/code-editor.test.tsx` | Renders without crash. Passes language/theme/readOnly/onChange correctly. CodeMirror stubbed. | DYK-P4-04. CS-2. |
-| [ ] | T018 | Implement `CodeEditor` wrapper (lazy-loaded) | plan-scoped | `apps/web/src/features/041-file-browser/components/code-editor.tsx` | All T017 tests pass. Dynamic import. github-light/dark themes. Uses `detectLanguage()`. | DYK-P4-04, DYK-P4-05. Finding 10. CS-3. |
-| [ ] | T019 | Write tests for `FileViewerPanel` | plan-scoped | `test/unit/web/features/041-file-browser/file-viewer-panel.test.tsx` | Mode toggle (edit/preview/diff). Save button in edit. Conflict error display. Refresh. Large file/binary messages. | CS-3. |
-| [ ] | T020 | Implement `FileViewerPanel` | plan-scoped | `apps/web/src/features/041-file-browser/components/file-viewer-panel.tsx` | All T019 tests pass. Integrates CodeEditor + MarkdownViewer + DiffViewer. Mode buttons update URL. | CS-3. |
-| [ ] | T021 | Implement browser page | cross-plan | `apps/web/app/(dashboard)/workspaces/[slug]/browser/page.tsx` | Server Component fetches root entries via DI, passes to FileTree. Two-panel layout. URL state via `fileBrowserPageParamsCache`. | DYK-P4-01. AC-20. CS-3. |
-| [ ] | T022 | Regression verification | – | – | `just fft` passes. All existing pages work. | CS-1. |
+| [x] | T001 | Add `realpath()` to IFileSystem interface + NodeFileSystemAdapter + FakeFileSystem | cross-plan | `packages/shared/src/interfaces/filesystem.interface.ts`, adapters, fakes | FakeFileSystem.realpath() resolves paths; can simulate symlink escape via configurable map | DYK-P4-02. CS-2. |
+| [x] | T002 | Write tests for directory listing service | plan-scoped | `test/unit/web/features/041-file-browser/directory-listing.test.ts` | Tests: git repo lists files for given dir only, non-git uses readDir, `../` → PathSecurityError, empty → `[]`, one-level entries (not full tree) | DYK-P4-03. Finding 05. CS-3. |
+| [x] | T003 | Implement directory listing service | plan-scoped | `apps/web/src/features/041-file-browser/services/directory-listing.ts` | All T002 tests pass. `execFile('git', ['ls-files', '--', dir])` scoped. `readDir` fallback. Returns `FileEntry[]`. | DYK-P4-03. CS-3. |
+| [x] | T004 | Write tests for files API route | plan-scoped | `test/unit/web/features/041-file-browser/files-api.test.ts` | GET → `{ entries }`, invalid path → 400, `../` → 403, workspace not found → 404 | DYK-P4-01. CS-2. |
+| [x] | T005 | Implement `GET /api/workspaces/[slug]/files` route | cross-plan | `apps/web/app/api/workspaces/[slug]/files/route.ts` | All T004 tests pass. Uses directory listing service via DI. | DYK-P4-01. AC-44. CS-2. |
+| [x] | T006 | Write tests for `readFile()` server action | plan-scoped | `test/unit/web/features/041-file-browser/file-actions.test.ts` | Returns `{ content, mtime, size, language }`. >5MB → `file-too-large`. Null-byte → `binary-file`. `../` → PathSecurityError. Symlink escape → PathSecurityError. Not found → `not-found`. | DYK-P4-02. Finding 02, 09. CS-3. |
+| [x] | T007 | Implement `readFile()` server action | plan-scoped | `apps/web/app/actions/file-actions.ts` | All T006 tests pass. stat check → null-byte scan → realpath verification via IFileSystem.realpath(). | Finding 02, 09. CS-2. |
+| [x] | T008 | Write tests for `saveFile()` server action | plan-scoped | `test/unit/web/features/041-file-browser/file-actions.test.ts` | Save → `{ ok, newMtime }`. Mtime mismatch → `{ error: 'conflict', serverMtime }`. force=true overrides. Atomic tmp+rename. `../` → PathSecurityError. | Finding 06. CS-3. |
+| [x] | T009 | Implement `saveFile()` server action | plan-scoped | `apps/web/app/actions/file-actions.ts` | All T008 tests pass. Atomic: writeFile(tmp) + rename(tmp, target). | Finding 06. CS-3. |
+| [x] | T010 | Write tests for changed-files filter | plan-scoped | `test/unit/web/features/041-file-browser/changed-files.test.ts` | Returns `string[]` of changed paths. Empty when clean. Non-git → `not-git` error. | CS-2. |
+| [x] | T011 | Implement changed-files filter | plan-scoped | `apps/web/src/features/041-file-browser/services/changed-files.ts` | All T010 tests pass. `execFile('git', ['diff', '--name-only'])` with workspace cwd. | CS-2. |
+| [x] | T012 | Extend `getGitDiff()` with optional `cwd` param | cross-plan | `apps/web/src/lib/server/git-diff-action.ts` | Existing tests still pass. Workspace path used as cwd. | AC-47. CS-2. |
+| [x] | T013 | Extract shared `detectLanguage(filename)` utility | cross-cutting | `apps/web/src/lib/language-detection.ts` | Tests: .ts→typescript, .md→markdown, .py→python, unknown→plaintext. Shiki processor updated to consume it. | DYK-P4-05. CS-1. |
+| [x] | T014 | Install `@uiw/react-codemirror` + language extensions | cross-plan | `apps/web/package.json` | Installed, `pnpm build` passes. | CS-1. |
+| [x] | T015 | Write tests for `FileTree` component | plan-scoped | `test/unit/web/features/041-file-browser/file-tree.test.tsx` | Renders entries. Expand fires onExpand callback. File click fires onSelect. Changed-only filter. Refresh button. Empty state. | DYK-P4-01. CS-3. |
+| [x] | T016 | Implement `FileTree` component | plan-scoped | `apps/web/src/features/041-file-browser/components/file-tree.tsx` | All T015 tests pass. Client component. Lazy-loads via onExpand. Icons. Filter toggle. | DYK-P4-01, DYK-P4-03. CS-3. |
+| [x] | T017 | Write tests for `CodeEditor` wrapper | plan-scoped | `test/unit/web/features/041-file-browser/code-editor.test.tsx` | Renders without crash. Passes language/theme/readOnly/onChange correctly. CodeMirror stubbed. | DYK-P4-04. CS-2. |
+| [x] | T018 | Implement `CodeEditor` wrapper (lazy-loaded) | plan-scoped | `apps/web/src/features/041-file-browser/components/code-editor.tsx` | All T017 tests pass. Dynamic import. github-light/dark themes. Uses `detectLanguage()`. | DYK-P4-04, DYK-P4-05. Finding 10. CS-3. |
+| [x] | T019 | Write tests for `FileViewerPanel` | plan-scoped | `test/unit/web/features/041-file-browser/file-viewer-panel.test.tsx` | Mode toggle (edit/preview/diff). Save button in edit. Conflict error display. Refresh. Large file/binary messages. | CS-3. |
+| [x] | T020 | Implement `FileViewerPanel` | plan-scoped | `apps/web/src/features/041-file-browser/components/file-viewer-panel.tsx` | All T019 tests pass. Integrates CodeEditor + MarkdownViewer + DiffViewer. Mode buttons update URL. | CS-3. |
+| [x] | T021 | Implement browser page | cross-plan | `apps/web/app/(dashboard)/workspaces/[slug]/browser/page.tsx` | Server Component fetches root entries via DI, passes to FileTree. Two-panel layout. URL state via `fileBrowserPageParamsCache`. | DYK-P4-01. AC-20. CS-3. |
+| [x] | T022 | Regression verification | – | – | `just fft` passes. All existing pages work. | CS-1. |
 
 ---
 

@@ -153,4 +153,15 @@ export interface IFileSystem {
    * @throws FileSystemError with code 'ENOENT' if newPath parent directory doesn't exist
    */
   rename(oldPath: string, newPath: string): Promise<void>;
+
+  /**
+   * Resolve a path to its canonical absolute path, resolving symlinks.
+   *
+   * Per Plan 041 Phase 4 DYK-P4-02: Required for symlink escape detection.
+   *
+   * @param path Absolute path to resolve
+   * @returns Resolved absolute path with symlinks dereferenced
+   * @throws FileSystemError with code 'ENOENT' if path doesn't exist
+   */
+  realpath(path: string): Promise<string>;
 }

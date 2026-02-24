@@ -8,7 +8,15 @@
 
 import { WORKSPACE_DI_TOKENS } from '@chainglass/shared';
 import type { IWorkspaceService } from '@chainglass/workflow';
-import { ArrowRight, Bot, FileText, FolderOpen, GitBranch, LayoutDashboard, Star } from 'lucide-react';
+import {
+  ArrowRight,
+  Bot,
+  FileText,
+  FolderOpen,
+  GitBranch,
+  LayoutDashboard,
+  Star,
+} from 'lucide-react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { WorkspaceRemoveButton } from '../../../../src/components/workspaces/workspace-remove-button';

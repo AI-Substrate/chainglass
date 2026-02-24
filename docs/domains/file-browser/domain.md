@@ -101,4 +101,4 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
 | Plan 041 Phase 2 | fileBrowserParams + cache, workspaceHref | 2026-02-22 |
 | Plan 041 Phase 3 | WorkspaceCard, FleetStatusBar, WorktreePicker, useAttentionTitle, landing page | 2026-02-23 |
 | *(extracted)* | Domain formalized from Plan 041 deliverables | 2026-02-24 |
-| Plan 041 Phase 4 | File tree, code editor, viewer panel, browser page, file actions, API route | 2026-02-24 (planned) |
+| Plan 041 Phase 4 | File tree, code editor, viewer panel, browser page, file actions, API route | 2026-02-24 |

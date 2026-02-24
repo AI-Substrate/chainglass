@@ -218,6 +218,14 @@ export class NodeFileSystemAdapter implements IFileSystem {
     }
   }
 
+  async realpath(path: string): Promise<string> {
+    try {
+      return await fs.realpath(path);
+    } catch (err) {
+      throw this.wrapError(err, path);
+    }
+  }
+
   /**
    * Wrap Node.js errors in FileSystemError.
    */

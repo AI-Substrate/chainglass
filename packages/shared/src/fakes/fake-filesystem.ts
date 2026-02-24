@@ -17,6 +17,8 @@ export class FakeFileSystem implements IFileSystem {
   private mtimes = new Map<string, string>();
   /** Simulated errors for specific paths */
   private errors = new Map<string, Error>();
+  /** Simulated symlinks: path -> real target */
+  private symlinks = new Map<string, string>();
 
   // ========== Test Helpers ==========
 
@@ -60,6 +62,14 @@ export class FakeFileSystem implements IFileSystem {
   }
 
   /**
+   * Register a simulated symlink (test helper).
+   * When realpath() is called on `linkPath`, it returns `targetPath`.
+   */
+  setSymlink(linkPath: string, targetPath: string): void {
+    this.symlinks.set(linkPath, targetPath);
+  }
+
+  /**
    * Reset all state (test helper).
    */
   reset(): void {
@@ -67,6 +77,7 @@ export class FakeFileSystem implements IFileSystem {
     this.dirs.clear();
     this.mtimes.clear();
     this.errors.clear();
+    this.symlinks.clear();
   }
 
   /**
@@ -603,6 +614,27 @@ export class FakeFileSystem implements IFileSystem {
       currentPath = `${currentPath}/${parts[i]}`;
       this.dirs.add(currentPath);
     }
+  }
+
+  async realpath(path: string): Promise<string> {
+    this.checkSimulatedError(path);
+
+    // Check if there's a symlink registered for this path
+    const target = this.symlinks.get(path);
+    if (target) {
+      return target;
+    }
+
+    // Path must exist as file or directory
+    if (!(await this.exists(path))) {
+      throw new FileSystemError(
+        `ENOENT: no such file or directory, realpath '${path}'`,
+        'ENOENT',
+        path
+      );
+    }
+
+    return pathModule.resolve(path);
   }
 
   /**

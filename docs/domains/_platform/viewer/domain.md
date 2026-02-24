@@ -93,4 +93,4 @@ Primary: `apps/web/src/components/viewers/` + `apps/web/src/lib/server/` + `apps
 |------|-------------|------|
 | Plan 006-web-extras | Built all viewer components (Phases 1-5) | 2026-02 (prior) |
 | *(extracted)* | Domain extracted from Plan 006 deliverables | 2026-02-24 |
-| Plan 041 Phase 4 | Extracts `detectLanguage()` as shared utility (DYK-P4-05), integrates viewers in file browser | 2026-02-24 (planned) |
+| Plan 041 Phase 4 | Extracts `detectLanguage()` as shared utility (DYK-P4-05), integrates viewers in file browser | 2026-02-24 |
