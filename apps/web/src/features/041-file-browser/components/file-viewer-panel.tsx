@@ -11,7 +11,16 @@
  */
 
 import type { DiffError } from '@chainglass/shared';
-import { ArrowUp, Edit, Eye, GitCompare, Loader2, RefreshCw, Save } from 'lucide-react';
+import {
+  ArrowUp,
+  Edit,
+  ExternalLink,
+  Eye,
+  GitCompare,
+  Loader2,
+  RefreshCw,
+  Save,
+} from 'lucide-react';
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 
 import { detectContentType } from '@/lib/content-type-detection';
@@ -60,6 +69,8 @@ export interface FileViewerPanelProps {
   binaryContentType?: string;
   binarySize?: number;
   rawFileUrl?: string;
+  /** URL for pop-out button — opens file in new tab (Phase 5) */
+  popOutUrl?: string;
 }
 
 export function FileViewerPanel({
@@ -84,6 +95,7 @@ export function FileViewerPanel({
   binaryContentType,
   binarySize,
   rawFileUrl,
+  popOutUrl,
 }: FileViewerPanelProps) {
   // All hooks must be called before any early returns (Rules of Hooks)
   const isMarkdown = language === 'markdown';
@@ -183,6 +195,16 @@ export function FileViewerPanel({
             >
               <RefreshCw className="h-3.5 w-3.5" />
             </button>
+            {popOutUrl && (
+              <button
+                type="button"
+                onClick={() => window.open(popOutUrl, '_blank')}
+                className="rounded p-1 text-muted-foreground hover:text-foreground"
+                aria-label="Open in new tab"
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
         </div>
       </div>

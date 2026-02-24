@@ -18,3 +18,5 @@ export { WorktreePicker } from './components/worktree-picker';
 export type { WorktreePickerProps, WorktreeItem } from './components/worktree-picker';
 export { useAttentionTitle } from './hooks/use-attention-title';
 export type { UseAttentionTitleOptions } from './hooks/use-attention-title';
+export { WorkspaceProvider, useWorkspaceContext } from './hooks/use-workspace-context';
+export type { WorkspaceContextValue, WorkspaceProviderProps } from './hooks/use-workspace-context';

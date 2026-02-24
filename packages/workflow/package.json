@@ -13,6 +13,10 @@
       "import": "./dist/interfaces/index.js",
       "types": "./dist/interfaces/index.d.ts"
     },
+    "./constants/workspace-palettes": {
+      "import": "./dist/constants/workspace-palettes.js",
+      "types": "./dist/constants/workspace-palettes.d.ts"
+    },
     "./fakes": {
       "import": "./dist/fakes/index.js",
       "types": "./dist/fakes/index.d.ts"

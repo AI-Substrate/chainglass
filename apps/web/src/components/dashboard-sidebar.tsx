@@ -16,10 +16,11 @@ import {
 } from '@/components/ui/sidebar';
 import { WorkspaceNav } from '@/components/workspaces/workspace-nav';
 import { PasteUploadButton } from '@/features/041-file-browser/components/paste-upload-button';
+import { useWorkspaceContext } from '@/features/041-file-browser/hooks/use-workspace-context';
 import { DEV_NAV_ITEMS, WORKSPACE_NAV_ITEMS } from '@/lib/navigation-utils';
 import { cn } from '@/lib/utils';
 import { workspaceHref } from '@/lib/workspace-url';
-import { ChevronLeft, PanelLeft } from 'lucide-react';
+import { ChevronLeft, PanelLeft, Settings } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { Suspense, useMemo, useState } from 'react';
@@ -51,6 +52,7 @@ export function DashboardSidebar() {
 
   const isInWorkspace = workspaceSlug != null;
   const currentWorktree = searchParams.get('worktree');
+  const wsCtx = useWorkspaceContext();
 
   return (
     <Sidebar role="complementary" collapsible="icon" className={cn(isCollapsed && 'w-16')}>
@@ -59,7 +61,9 @@ export function DashboardSidebar() {
           {!isCollapsed && (
             <div className="min-w-0">
               <span className="block truncate font-semibold">
-                {isInWorkspace ? decodeURIComponent(workspaceSlug) : 'Chainglass'}
+                {isInWorkspace
+                  ? `${wsCtx?.emoji || ''} ${wsCtx?.name || decodeURIComponent(workspaceSlug)}`.trim()
+                  : 'Chainglass'}
               </span>
               {isInWorkspace && currentWorktree && (
                 <span className="block truncate text-xs text-muted-foreground">
@@ -155,17 +159,43 @@ export function DashboardSidebar() {
             </SidebarGroup>
           </>
         ) : (
-          /* Non-workspace: show workspace list */
-          <SidebarGroup>
-            {!isCollapsed && <SidebarGroupLabel>Workspaces</SidebarGroupLabel>}
-            <SidebarGroupContent>
-              <Suspense
-                fallback={<div className="px-3 py-2 text-xs text-muted-foreground">Loading...</div>}
-              >
-                <WorkspaceNav />
-              </Suspense>
-            </SidebarGroupContent>
-          </SidebarGroup>
+          <>
+            {/* Non-workspace: show workspace list */}
+            <SidebarGroup>
+              {!isCollapsed && <SidebarGroupLabel>Workspaces</SidebarGroupLabel>}
+              <SidebarGroupContent>
+                <Suspense
+                  fallback={
+                    <div className="px-3 py-2 text-xs text-muted-foreground">Loading...</div>
+                  }
+                >
+                  <WorkspaceNav />
+                </Suspense>
+              </SidebarGroupContent>
+            </SidebarGroup>
+
+            {/* Settings link */}
+            <SidebarGroup>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={pathname === '/settings/workspaces'}>
+                      <Link
+                        href="/settings/workspaces"
+                        className={cn(
+                          'flex items-center gap-3',
+                          pathname === '/settings/workspaces' && 'bg-accent text-accent-foreground'
+                        )}
+                      >
+                        <Settings className="h-5 w-5" />
+                        {!isCollapsed && <span>Settings</span>}
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </>
         )}
 
         {/* Dev section — collapsed by default */}

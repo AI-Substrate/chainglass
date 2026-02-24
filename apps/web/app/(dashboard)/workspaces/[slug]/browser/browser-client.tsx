@@ -19,6 +19,7 @@ import { useClipboard } from '@/features/041-file-browser/hooks/use-clipboard';
 import { useFileNavigation } from '@/features/041-file-browser/hooks/use-file-navigation';
 import { usePanelState } from '@/features/041-file-browser/hooks/use-panel-state';
 import { useTreeDirectoryChanges } from '@/features/041-file-browser/hooks/use-tree-directory-changes';
+import { useWorkspaceContext } from '@/features/041-file-browser/hooks/use-workspace-context';
 import { fileBrowserParams } from '@/features/041-file-browser/params/file-browser.params';
 import type { FileEntry } from '@/features/041-file-browser/services/directory-listing';
 import { createFilePathHandler } from '@/features/041-file-browser/services/file-path-handler';
@@ -102,6 +103,9 @@ function BrowserClientInner({ slug, worktreePath, isGit, initialEntries }: Brows
 
   const clipboard = useClipboard({ slug, worktreePath, readFile });
 
+  // --- Workspace attention context (Phase 5) ---
+  const wsCtx = useWorkspaceContext();
+
   // --- Live file events (Plan 045) ---
 
   const treeRef = useRef<FileTreeHandle>(null);
@@ -152,6 +156,11 @@ function BrowserClientInner({ slug, worktreePath, isGit, initialEntries }: Brows
     }
     treeChanges.clearAll();
   }, [treeChanges.hasChanges]);
+
+  // Phase 5: Sync working changes into WorkspaceContext for tab title attention
+  useEffect(() => {
+    wsCtx?.setHasChanges(panelState.workingChanges.length > 0);
+  }, [panelState.workingChanges.length, wsCtx]);
 
   // T006: Wrap save to track recently-saved paths for suppression
   const handleSaveWithSuppression = useCallback(
@@ -378,6 +387,11 @@ function BrowserClientInner({ slug, worktreePath, isGit, initialEntries }: Brows
                 rawFileUrl={
                   selectedFile
                     ? `/api/workspaces/${slug}/files/raw?worktree=${encodeURIComponent(worktreePath)}&file=${encodeURIComponent(selectedFile)}`
+                    : undefined
+                }
+                popOutUrl={
+                  selectedFile
+                    ? `/workspaces/${slug}/browser?worktree=${encodeURIComponent(worktreePath)}&file=${encodeURIComponent(selectedFile)}&mode=${mode}`
                     : undefined
                 }
                 errorType={
