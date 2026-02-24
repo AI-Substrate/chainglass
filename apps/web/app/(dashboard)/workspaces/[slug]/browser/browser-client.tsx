@@ -32,7 +32,8 @@ import {
 import type { PanelMode } from '@/features/_platform/panel-layout/types';
 import { FileDiff, GitBranch } from 'lucide-react';
 import { useQueryStates } from 'nuqs';
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { toast } from 'sonner';
 import {
   fetchChangedFiles,
   fetchGitDiff,
@@ -54,6 +55,7 @@ export interface BrowserClientProps {
 export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: BrowserClientProps) {
   const [params, setParams] = useQueryStates(fileBrowserParams);
   const explorerRef = useRef<ExplorerPanelHandle>(null);
+  const [expandPaths, setExpandPaths] = useState<string[]>([]);
 
   const mode = (params.mode as ViewerMode) || 'preview';
   const selectedFile = params.file || undefined;
@@ -97,20 +99,24 @@ export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: Bro
       pathExists: (relativePath: string) => pathExists(slug, worktreePath, relativePath),
       navigateToFile: (relativePath: string) => fileNav.handleSelect(relativePath),
       navigateToDirectory: (relativePath: string) => {
-        // Expand all ancestors + the directory itself, then scroll into view
+        // Expand all ancestors + the directory itself
         const parts = relativePath.split('/');
+        const paths: string[] = [];
         let current = '';
         for (let i = 0; i < parts.length; i++) {
           current = current ? `${current}/${parts[i]}` : parts[i];
+          paths.push(current);
           fileNav.handleExpand(current);
         }
+        // Tell FileTree to visually expand these paths
+        setExpandPaths(paths);
         // Switch to tree mode if in changes mode
         if (panelMode !== 'tree') {
           panelState.handlePanelModeChange('tree');
         }
       },
       showError: (message: string) => {
-        // toast handled by ExplorerPanel
+        toast.error(message);
       },
     }),
     [
@@ -198,6 +204,7 @@ export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: Bro
                   onSelect={fileNav.handleSelect}
                   onExpand={fileNav.handleExpand}
                   childEntries={fileNav.childEntries}
+                  expandPaths={expandPaths}
                   onCopyFullPath={clipboard.handleCopyFullPath}
                   onCopyRelativePath={clipboard.handleCopyRelativePath}
                   onCopyContent={clipboard.handleCopyContent}

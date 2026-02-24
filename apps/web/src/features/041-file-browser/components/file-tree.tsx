@@ -30,7 +30,7 @@ import {
   FolderTree,
   RefreshCw,
 } from 'lucide-react';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { FileEntry } from '../services/directory-listing';
 
 export interface FileTreeProps {
@@ -40,6 +40,8 @@ export interface FileTreeProps {
   onSelect: (filePath: string) => void;
   onExpand: (dirPath: string) => void;
   childEntries?: Record<string, FileEntry[]>;
+  /** Programmatically expand these paths (merged into internal state) */
+  expandPaths?: string[];
   onCopyFullPath?: (path: string) => void;
   onCopyRelativePath?: (path: string) => void;
   onCopyContent?: (filePath: string) => void;
@@ -54,6 +56,7 @@ export function FileTree({
   onSelect,
   onExpand,
   childEntries = {},
+  expandPaths,
   onCopyFullPath,
   onCopyRelativePath,
   onCopyContent,
@@ -72,6 +75,22 @@ export function FileTree({
     }
     return paths;
   });
+
+  // Merge externally-requested expand paths into internal state
+  useEffect(() => {
+    if (!expandPaths || expandPaths.length === 0) return;
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      let changed = false;
+      for (const p of expandPaths) {
+        if (!next.has(p)) {
+          next.add(p);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [expandPaths]);
 
   const handleDirClick = (dirPath: string) => {
     const next = new Set(expanded);
