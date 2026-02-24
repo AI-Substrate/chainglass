@@ -129,6 +129,21 @@ export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: Bro
     ]
   );
 
+  // --- Auto-expand tree to selected file ---
+  useEffect(() => {
+    if (!selectedFile) return;
+    const parts = selectedFile.split('/');
+    if (parts.length <= 1) return;
+    const ancestors: string[] = [];
+    let current = '';
+    for (let i = 0; i < parts.length - 1; i++) {
+      current = current ? `${current}/${parts[i]}` : parts[i];
+      ancestors.push(current);
+      fileNav.handleExpand(current);
+    }
+    setExpandPaths(ancestors);
+  }, [selectedFile, fileNav.handleExpand]);
+
   // --- Ctrl+P / Cmd+P keyboard shortcut (DYK-P3-04) ---
 
   useEffect(() => {

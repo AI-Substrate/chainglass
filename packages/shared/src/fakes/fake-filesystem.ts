@@ -35,7 +35,7 @@ export class FakeFileSystem implements IFileSystem {
   /**
    * Get a file's content directly (test helper).
    */
-  getFile(path: string): string | undefined {
+  getFile(path: string): string | Buffer | undefined {
     return this.files.get(path);
   }
 

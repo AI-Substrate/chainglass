@@ -35,7 +35,7 @@ export function PanelShell({ explorer, left, main }: PanelShellProps) {
         >
           {left}
         </div>
-        <div className="flex-1 overflow-hidden">{main}</div>
+        <div className="flex-1 flex flex-col overflow-hidden">{main}</div>
       </div>
     </div>
   );
