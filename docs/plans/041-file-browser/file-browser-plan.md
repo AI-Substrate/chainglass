@@ -602,3 +602,11 @@ Acceptance Criteria: [measurable assertions]
 | [^31] | Phase 3 | `apps/web/src/features/041-file-browser/hooks/use-attention-title.ts` | NEW: Client hook for dynamic browser tab titles |
 | [^32] | Phase 3 | `apps/web/src/components/navigation/bottom-tab-bar.tsx` | MODIFIED: Workspace-scoped tabs — WORKSPACE_NAV_ITEMS inside workspace, LANDING_NAV_ITEMS outside |
 | [^33] | Phase 3 | `apps/web/app/actions/workspace-actions.ts`, `apps/web/src/features/041-file-browser/index.ts` | MODIFIED: Added toggleWorkspaceStar form action, updated feature barrel with Phase 3 exports |
+
+---
+
+## Fixes
+
+| ID | Created | Summary | Domain(s) | Status | Source |
+|----|---------|---------|-----------|--------|--------|
+| FX001 | 2026-02-24 | Wire file browser end-to-end (viewer integration, tree expand, diff, changed filter) | file-browser | Proposed | Phase 4 review + viewer workshop |
