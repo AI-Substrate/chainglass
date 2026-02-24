@@ -101,7 +101,7 @@ function BrowserClientInner({
     readFile,
     saveFile,
     fetchGitDiff,
-    setUrlFile: (file) => setParams({ file }),
+    setUrlFile: (file) => setParams({ file }, { history: 'push' }),
     setUrlMode: (m) => setParams({ mode: m as 'edit' | 'preview' | 'diff' }),
   });
 
