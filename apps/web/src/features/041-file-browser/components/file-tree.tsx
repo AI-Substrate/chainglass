@@ -36,7 +36,18 @@ export function FileTree({
   onRefresh,
   childEntries = {},
 }: FileTreeProps) {
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [expanded, setExpanded] = useState<Set<string>>(() => {
+    // Auto-expand to selected file on initial render
+    if (!selectedFile) return new Set();
+    const parts = selectedFile.split('/');
+    const paths = new Set<string>();
+    let current = '';
+    for (let i = 0; i < parts.length - 1; i++) {
+      current = current ? `${current}/${parts[i]}` : parts[i];
+      paths.add(current);
+    }
+    return paths;
+  });
 
   const filteredEntries =
     showChangedOnly && changedFiles

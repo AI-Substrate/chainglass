@@ -72,11 +72,21 @@ export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: Bro
     [setParams, slug, worktreePath]
   );
 
-  // Re-read file when URL changes with a file param already set
+  // Auto-expand tree to show selected file on mount
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional mount-only effect
   useEffect(() => {
-    if (params.file && !fileData) {
-      handleSelect(params.file);
+    if (params.file) {
+      // Expand all parent directories of the selected file
+      const parts = params.file.split('/');
+      let current = '';
+      for (let i = 0; i < parts.length - 1; i++) {
+        current = current ? `${current}/${parts[i]}` : parts[i];
+        handleExpand(current);
+      }
+      // Load the file content
+      if (!fileData) {
+        handleSelect(params.file);
+      }
     }
   }, []);
 
