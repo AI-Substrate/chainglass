@@ -15,5 +15,5 @@ export interface MainPanelProps {
 }
 
 export function MainPanel({ children }: MainPanelProps) {
-  return <div className="flex-1 overflow-hidden">{children}</div>;
+  return <div className="flex-1 flex flex-col overflow-hidden">{children}</div>;
 }
