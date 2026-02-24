@@ -4,7 +4,7 @@
 **Plan Version**: 1.0.0
 **Created**: 2026-02-24
 **Spec**: [paste-upload-spec.md](./paste-upload-spec.md)
-**Status**: DRAFT
+**Status**: COMPLETE
 
 ## Summary
 
@@ -54,41 +54,41 @@ Users need to paste screenshots, drag files, or browse-select files in the brows
 
 | Status | ID | Task | Domain | Path(s) | Done When | Notes |
 |--------|-----|------|--------|---------|-----------|-------|
-| [ ] | T001 | Raise server action body size limit to 10MB | file-browser | `/home/jak/substrate/041-file-browser/apps/web/next.config.mjs` | `serverActions: { bodySizeLimit: '10mb' }` present in config | Per finding 01 |
-| [ ] | T002 | Widen `IFileSystem.writeFile` signature to `string \| Buffer` | _platform/file-ops | `/home/jak/substrate/041-file-browser/packages/shared/src/interfaces/filesystem.interface.ts` | Interface accepts both types, JSDoc updated | Per finding 02 |
-| [ ] | T003 | Update `NodeFileSystemAdapter.writeFile` to handle Buffer | _platform/file-ops | `/home/jak/substrate/041-file-browser/packages/shared/src/adapters/node-filesystem.adapter.ts` | Omits `'utf-8'` when content is Buffer, writes binary correctly | Per finding 02 |
-| [ ] | T004 | Update `FakeFileSystem` for Buffer support | _platform/file-ops | `/home/jak/substrate/041-file-browser/packages/shared/src/fakes/fake-filesystem.ts` | Map typed `string \| Buffer`, `setFile` accepts both, `stat().size` uses `Buffer.byteLength` for Buffers, `readFile` returns `buffer.toString('utf-8')` for Buffer (contract parity) | DYK-01: readFile must NOT throw on Buffer |
-| [ ] | T005 | Add Buffer contract test | _platform/file-ops | `/home/jak/substrate/041-file-browser/test/contracts/filesystem.contract.ts` | Test writes Buffer, verifies stat size, verifies readFile returns string (not throw) | DYK-01 corrected. Per finding 02. |
-| [ ] | T006 | Create upload service (`uploadFileService`) | file-browser | `/home/jak/substrate/041-file-browser/apps/web/src/features/041-file-browser/services/upload-file.ts` | Service: validates path, mkdir recursive, generates timestamp filename, resolves collisions, atomic write (tmp+rename) | Workshop 01, 04 |
-| [ ] | T007 | Write upload service tests | file-browser | `/home/jak/substrate/041-file-browser/test/unit/web/features/041-file-browser/upload-file.test.ts` | Tests: happy path write, mkdir creation, timestamp naming, collision suffix, path traversal rejection, size limit rejection | TDD per constitution |
-| [ ] | T008 | Add `uploadFile` server action | file-browser | `/home/jak/substrate/041-file-browser/apps/web/app/actions/file-actions.ts` | Accepts FormData, extracts File, converts to Buffer, calls uploadFileService, returns `{ ok, filePath?, error? }` | Workshop 01 |
-| [ ] | T009 | Create `PasteUploadButton` component | file-browser | `/home/jak/substrate/041-file-browser/apps/web/src/features/041-file-browser/components/paste-upload-button.tsx` | Upload icon button with Tooltip, manages Dialog open state, conditionally renders when worktreePath present | Workshop 02 |
-| [ ] | T010 | Create `PasteUploadModal` component | file-browser | `/home/jak/substrate/041-file-browser/apps/web/src/features/041-file-browser/components/paste-upload-modal.tsx` | Radix Dialog with: paste handler (onPaste), drag handlers (onDragOver/Leave/Drop), hidden file input with "Browse files..." button, sequential upload with toast feedback, auto-close on success / stay open on error | Workshop 02 |
-| [ ] | T011 | Add upload button to sidebar header | file-browser | `/home/jak/substrate/041-file-browser/apps/web/src/components/dashboard-sidebar.tsx` | PasteUploadButton rendered in sidebar header flex row (line ~79), visible only when `currentWorktree` is non-null | Per finding 04 |
-| [ ] | T012 | Verify via Next.js MCP and `just fft` | file-browser | — | `nextjs_call get_errors` returns zero errors on port 3000, `just fft` passes (lint + format + test) | Verification |
+| [x] | T001 | Raise server action body size limit to 10MB | file-browser | `/home/jak/substrate/041-file-browser/apps/web/next.config.mjs` | `serverActions: { bodySizeLimit: '10mb' }` present in config | Per finding 01. Discovery: must be under `experimental` in Next.js 16.1.4. |
+| [x] | T002 | Widen `IFileSystem.writeFile` signature to `string \| Buffer` | _platform/file-ops | `/home/jak/substrate/041-file-browser/packages/shared/src/interfaces/filesystem.interface.ts` | Interface accepts both types, JSDoc updated | Per finding 02 |
+| [x] | T003 | Update `NodeFileSystemAdapter.writeFile` to handle Buffer | _platform/file-ops | `/home/jak/substrate/041-file-browser/packages/shared/src/adapters/node-filesystem.adapter.ts` | Omits `'utf-8'` when content is Buffer, writes binary correctly | Per finding 02 |
+| [x] | T004 | Update `FakeFileSystem` for Buffer support | _platform/file-ops | `/home/jak/substrate/041-file-browser/packages/shared/src/fakes/fake-filesystem.ts` | Map typed `string \| Buffer`, `setFile` accepts both, `stat().size` uses `Buffer.byteLength` for Buffers, `readFile` returns `buffer.toString('utf-8')` for Buffer (contract parity) | DYK-01: readFile must NOT throw on Buffer |
+| [x] | T005 | Add Buffer contract test | _platform/file-ops | `/home/jak/substrate/041-file-browser/test/contracts/filesystem.contract.ts` | Test writes Buffer, verifies stat size, verifies readFile returns string (not throw) | DYK-01 corrected. 48 contract tests pass. |
+| [x] | T006 | Create upload service (`uploadFileService`) | file-browser | `/home/jak/substrate/041-file-browser/apps/web/src/features/041-file-browser/services/upload-file.ts` | Service: validates path, mkdir recursive, generates timestamp filename, resolves collisions, atomic write (tmp+rename) | Workshop 01, 04 |
+| [x] | T007 | Write upload service tests | file-browser | `/home/jak/substrate/041-file-browser/test/unit/web/features/041-file-browser/upload-file.test.ts` | Tests: happy path write, mkdir creation, timestamp naming, collision suffix, path traversal rejection, size limit rejection | 6 tests pass |
+| [x] | T008 | Add `uploadFile` server action | file-browser | `/home/jak/substrate/041-file-browser/apps/web/app/actions/file-actions.ts` | Accepts FormData, extracts File, converts to Buffer, calls uploadFileService, returns `{ ok, filePath?, error? }` | Workshop 01 |
+| [x] | T009 | Create `PasteUploadButton` component | file-browser | `/home/jak/substrate/041-file-browser/apps/web/src/features/041-file-browser/components/paste-upload-button.tsx` | Upload icon button with Tooltip, manages Dialog open state, conditionally renders when worktreePath present | Workshop 02 |
+| [x] | T010 | Create `PasteUploadModal` component | file-browser | `/home/jak/substrate/041-file-browser/apps/web/src/features/041-file-browser/components/paste-upload-modal.tsx` | Radix Dialog with paste/drag/select, toast with Copy path action (isSecureContext fallback), auto-close on success | Workshop 02. DYK-03: toast copy path. Discovery: clipboard needs isSecureContext guard. |
+| [x] | T011 | Add upload button to sidebar header | file-browser | `/home/jak/substrate/041-file-browser/apps/web/src/components/dashboard-sidebar.tsx` | PasteUploadButton rendered in sidebar header flex row, visible only when `currentWorktree` is non-null | Per finding 04 |
+| [x] | T012 | Verify via Next.js MCP and `just fft` | file-browser | — | MCP: zero errors, 4190 tests pass, upload confirmed: scratch/paste/20260224T074228.png, .heic upload verified | Verification complete |
 
 ### Acceptance Criteria
 
-- [ ] AC-01: Upload button visible in sidebar header when worktree selected
-- [ ] AC-02: Button hidden when no worktree context
-- [ ] AC-03: Click opens modal with "Upload to scratch/paste" title
-- [ ] AC-04: Modal has dropzone with paste/drag/select instructions
-- [ ] AC-05: "Browse files..." button opens OS file picker (multiple)
-- [ ] AC-08: Ctrl+V in modal with screenshot uploads the image
-- [ ] AC-11: Drag over dropzone changes visual state
-- [ ] AC-12: Drop uploads file
-- [ ] AC-16: Files written to `<worktree>/scratch/paste/`
-- [ ] AC-17: Directory auto-created on first upload
-- [ ] AC-18: ISO timestamp naming (`YYYYMMDDTHHMMSS.<ext>`)
-- [ ] AC-20: Collision suffix `-1`, `-2` for same-second uploads
-- [ ] AC-21: Atomic write (tmp + rename)
-- [ ] AC-23: Loading toast during upload
-- [ ] AC-24: Success toast with server path
-- [ ] AC-26: Modal auto-closes on success
-- [ ] AC-28: 10MB size limit enforced
-- [ ] AC-29: Worktree path validated (absolute, no traversal)
-- [ ] AC-32: `IFileSystem.writeFile` accepts `string | Buffer`
-- [ ] AC-35: Contract tests verify Buffer write/stat parity
+- [x] AC-01: Upload button visible in sidebar header when worktree selected
+- [x] AC-02: Button hidden when no worktree context
+- [x] AC-03: Click opens modal with "Upload to scratch/paste" title
+- [x] AC-04: Modal has dropzone with paste/drag/select instructions
+- [x] AC-05: "Browse files..." button opens OS file picker (multiple)
+- [x] AC-08: Ctrl+V in modal with screenshot uploads the image
+- [x] AC-11: Drag over dropzone changes visual state
+- [x] AC-12: Drop uploads file
+- [x] AC-16: Files written to `<worktree>/scratch/paste/`
+- [x] AC-17: Directory auto-created on first upload
+- [x] AC-18: ISO timestamp naming (`YYYYMMDDTHHMMSS.<ext>`)
+- [x] AC-20: Collision suffix `-1`, `-2` for same-second uploads
+- [x] AC-21: Atomic write (tmp + rename)
+- [x] AC-23: Loading toast during upload
+- [x] AC-24: Success toast with server path
+- [x] AC-26: Modal auto-closes on success
+- [x] AC-28: 10MB size limit enforced
+- [x] AC-29: Worktree path validated (absolute, no traversal)
+- [x] AC-32: `IFileSystem.writeFile` accepts `string | Buffer`
+- [x] AC-35: Contract tests verify Buffer write/stat parity
 
 ### Risks
 
