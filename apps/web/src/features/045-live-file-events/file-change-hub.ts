@@ -14,17 +14,16 @@
  * - Wildcard: '*' → matches everything
  */
 
-import type { FileChange, FileChangeCallback } from './file-change.types';
-
-type PathMatcher = (path: string) => boolean;
+import type { FileChange, FileChangeCallback, IFileChangeHub } from './file-change.types';
+import { createMatcher } from './path-matcher';
 
 interface Subscription {
   id: string;
-  matcher: PathMatcher;
+  matcher: (path: string) => boolean;
   callback: FileChangeCallback;
 }
 
-export class FileChangeHub {
+export class FileChangeHub implements IFileChangeHub {
   private readonly subscriptions = new Map<string, Subscription>();
   private nextId = 0;
 
@@ -71,26 +70,4 @@ export class FileChangeHub {
   get subscriberCount(): number {
     return this.subscriptions.size;
   }
-}
-
-function createMatcher(pattern: string): PathMatcher {
-  // Wildcard: match everything
-  if (pattern === '*') {
-    return () => true;
-  }
-  // Recursive: 'src/**' → matches src/ and all descendants
-  if (pattern.endsWith('/**')) {
-    const prefix = pattern.slice(0, -3);
-    return (path) => path.startsWith(`${prefix}/`) || path === prefix;
-  }
-  // Directory: 'src/components/' → direct children only
-  if (pattern.endsWith('/')) {
-    return (path) => {
-      if (!path.startsWith(pattern)) return false;
-      // No further slashes = direct child
-      return !path.slice(pattern.length).includes('/');
-    };
-  }
-  // Exact match (no wildcards, no trailing slash)
-  return (path) => path === pattern;
 }

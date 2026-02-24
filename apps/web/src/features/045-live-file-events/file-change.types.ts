@@ -35,3 +35,13 @@ export interface FileChangeSSEMessage {
 
 /** Callback type for FileChangeHub subscribers */
 export type FileChangeCallback = (changes: FileChange[]) => void;
+
+/**
+ * Interface for FileChangeHub implementations.
+ * Both FileChangeHub (real) and FakeFileChangeHub (test) implement this.
+ */
+export interface IFileChangeHub {
+  subscribe(pattern: string, callback: FileChangeCallback): () => void;
+  dispatch(changes: FileChange[]): void;
+  readonly subscriberCount: number;
+}

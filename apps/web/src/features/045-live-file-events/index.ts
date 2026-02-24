@@ -6,7 +6,16 @@
  */
 
 // Types
-export type { FileChange, FileChangeSSEMessage, FileChangeCallback } from './file-change.types';
+export type {
+  FileChange,
+  FileChangeSSEMessage,
+  FileChangeCallback,
+  IFileChangeHub,
+} from './file-change.types';
+
+// Path matcher
+export { createMatcher } from './path-matcher';
+export type { PathMatcher } from './path-matcher';
 
 // Hub
 export { FileChangeHub } from './file-change-hub';

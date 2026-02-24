@@ -8,7 +8,8 @@
  * Must pass the same contract tests as the real FileChangeHub.
  */
 
-import type { FileChange, FileChangeCallback } from './file-change.types';
+import type { FileChange, FileChangeCallback, IFileChangeHub } from './file-change.types';
+import { createMatcher } from './path-matcher';
 
 interface Subscription {
   id: string;
@@ -16,7 +17,7 @@ interface Subscription {
   callback: FileChangeCallback;
 }
 
-export class FakeFileChangeHub {
+export class FakeFileChangeHub implements IFileChangeHub {
   private readonly subscriptions = new Map<string, Subscription>();
   private nextId = 0;
 
@@ -64,20 +65,4 @@ export class FakeFileChangeHub {
   reset(): void {
     this.dispatchedBatches.length = 0;
   }
-}
-
-// Same pattern matching logic as real hub
-function createMatcher(pattern: string): (path: string) => boolean {
-  if (pattern === '*') return () => true;
-  if (pattern.endsWith('/**')) {
-    const prefix = pattern.slice(0, -3);
-    return (path) => path.startsWith(`${prefix}/`) || path === prefix;
-  }
-  if (pattern.endsWith('/')) {
-    return (path) => {
-      if (!path.startsWith(pattern)) return false;
-      return !path.slice(pattern.length).includes('/');
-    };
-  }
-  return (path) => path === pattern;
 }

@@ -51,16 +51,29 @@ export function useFileChanges(
   const hub = useFileChangeHub();
   const [changes, setChanges] = useState<FileChange[]>([]);
   const timerRef = useRef<ReturnType<typeof setTimeout>>();
+  const bufferRef = useRef<FileChange[]>([]);
 
   useEffect(() => {
     const unsubscribe = hub.subscribe(pattern, (incoming) => {
       if (timerRef.current) clearTimeout(timerRef.current);
 
+      // Buffer incoming changes so debounce resets don't lose prior batches
+      if (mode === 'accumulate') {
+        bufferRef.current.push(...incoming);
+      } else {
+        bufferRef.current = [...incoming];
+      }
+
       if (debounce === 0) {
-        setChanges((prev) => (mode === 'accumulate' ? [...prev, ...incoming] : incoming));
+        // Capture buffer before clearing — React state updates are async
+        const snapshot = bufferRef.current;
+        bufferRef.current = [];
+        setChanges((prev) => (mode === 'accumulate' ? [...prev, ...snapshot] : snapshot));
       } else {
         timerRef.current = setTimeout(() => {
-          setChanges((prev) => (mode === 'accumulate' ? [...prev, ...incoming] : incoming));
+          const snapshot = bufferRef.current;
+          bufferRef.current = [];
+          setChanges((prev) => (mode === 'accumulate' ? [...prev, ...snapshot] : snapshot));
         }, debounce);
       }
     });
@@ -68,6 +81,7 @@ export function useFileChanges(
     return () => {
       unsubscribe();
       if (timerRef.current) clearTimeout(timerRef.current);
+      bufferRef.current = [];
     };
   }, [hub, pattern, debounce, mode]);
 
