@@ -197,7 +197,27 @@ sequenceDiagram
 
 ---
 
-## What We're NOT Doing
+## Decisions
+
+### D1: Server action returns rendered HTML for all preview types (not ReactNode)
+**Context**: The demo page uses `<MarkdownServer>` (Server Component) passed as a ReactNode prop. But file selection happens client-side — we can't render Server Components from the client.
+**Decision**: The `readFile` server action returns `previewHtml` as a string. Server-side rendering uses the same pipeline (react-markdown + @shikijs/rehype + mermaid) but outputs HTML string. Client renders via `dangerouslySetInnerHTML`.
+**Rationale**: Supports any preview type (markdown today, potentially others tomorrow). Single roundtrip. Same visual quality as demo page. Extensible.
+
+### D2: Reuse existing rendering pipeline, don't reinvent
+**Context**: Plan 006 Phase 3 built MarkdownServer with GFM, Shiki code blocks, mermaid diagrams.
+**Decision**: Extract the rendering logic from MarkdownServer into a reusable `renderMarkdownToHtml()` function. Both MarkdownServer (for demo pages) and readFile (for browser) call the same function.
+**Rationale**: Single source of truth. No feature drift between demo and browser. All the hard work from Plan 006 is reused.
+
+### D3: Diff data lazy-loaded on mode switch, not upfront
+**Context**: Diff requires a separate `git diff` command per file.
+**Decision**: Only fetch diff when user clicks "Diff" mode button. Cache result for that file until file changes or refresh.
+**Rationale**: Most users open files in preview/edit mode. Avoid unnecessary git commands. Keep initial load fast.
+
+### D4: Highlighted HTML cached with file data, not re-fetched on mode switch
+**Context**: Switching between edit/preview/diff shouldn't trigger server roundtrips.
+**Decision**: `readFile` returns `content` (for editor) + `highlightedHtml` (for code preview) + `previewHtml` (for markdown preview) all in one response. Stored in `fileData` state.
+**Rationale**: Mode switching is instant — just pick which piece to render. Only file selection triggers a server call.
 
 - ❌ Client-side ReactMarkdown (loses mermaid + syntax highlighting — use server-rendered HTML instead)
 - ❌ Re-highlighting on mode switch — highlighted HTML cached with file data
