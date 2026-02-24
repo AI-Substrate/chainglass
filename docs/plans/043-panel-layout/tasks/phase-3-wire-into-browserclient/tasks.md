@@ -247,7 +247,7 @@ sequenceDiagram
 | 2026-02-24 | Pre-impl | Decision | DYK-P3-02: ChangesView context menus need actual ContextMenu component wrapping, not just callback props. | Import ContextMenu from shadcn, wrap each ChangeFileItem button (same pattern as FileTree TreeItem). ~30 lines JSX per section. | AC-22 |
 | 2026-02-24 | Pre-impl | Decision | DYK-P3-03: `showChangedOnly` prop on FileTree becomes dead code after `?changed` removal. | Remove `showChangedOnly` prop + filtering logic from FileTree. Keep `changedFiles` prop (still used for amber text on changed files). | Finding 05 |
 | 2026-02-24 | Pre-impl | Decision | DYK-P3-04: Ctrl+P on Mac needs `e.metaKey`, not `e.ctrlKey`. Ctrl+P on Mac opens print dialog. | Platform detection: `navigator.platform.includes('Mac') ? e.metaKey : e.ctrlKey`. Both checked alongside `e.key === 'p'`. | Finding 01 |
-| 2026-02-24 | Pre-impl | Decision | DYK-P3-05: BrowserClient (~360 lines, 12 handlers, 7 state vars) will grow past 500 lines with panel wiring. | Extract 3 custom hooks: `useFileNavigation()`, `usePanelState()`, `useClipboard()`. BrowserClient becomes thin render layer (~150 lines). Idiomatic React pattern. | React docs, Vercel examples |
+| 2026-02-24 | T005 | Decision | DYK-P3-06: react-resizable-panels defaultSize broken — library miscalculates flex values during initial layout (renders 6.4% instead of 30%). Imperative resize(30) also fails. | Replaced with CSS `resize: horizontal` on left panel div. Pixel-based: width=280px, min=150px, max=50%. Native browser resize handle. No library dependency. | react-resizable-panels GitHub issues #114, #142, Perplexity deep research |
 
 ---
 

@@ -3,46 +3,40 @@
 /**
  * PanelShell — Root layout compositor with resizable panels.
  *
- * Arranges ExplorerPanel (top, fixed height) + LeftPanel and MainPanel
- * in a horizontal ResizablePanelGroup with a drag handle.
+ * Uses CSS resize for the left panel — simple, reliable, no library issues.
  *
  * Phase 1: Panel Infrastructure — Plan 043
- * DYK-02: autoSaveId persists resize state to localStorage.
  */
 
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import type { ReactNode } from 'react';
 
 export interface PanelShellProps {
   /** Top utility bar (ExplorerPanel) — full width, not resizable */
   explorer: ReactNode;
-  /** Left sidebar (LeftPanel) — resizable */
+  /** Left sidebar (LeftPanel) — resizable via CSS */
   left: ReactNode;
   /** Main content area (MainPanel) — fills remaining space */
   main: ReactNode;
-  /** Unique ID for persisting panel sizes (defaults to 'browser-panels') */
+  /** Unique ID for persisting panel sizes */
   autoSaveId?: string;
 }
 
-export function PanelShell({
-  explorer,
-  left,
-  main,
-  autoSaveId = 'browser-panels',
-}: PanelShellProps) {
+export function PanelShell({ explorer, left, main }: PanelShellProps) {
   return (
-    <div className="flex flex-col h-full overflow-hidden">
-      {/* Explorer bar — fixed height, not resizable */}
-      {explorer}
+    <div className="flex flex-col h-full w-full overflow-hidden">
+      {/* Explorer bar — fixed height */}
+      <div className="shrink-0">{explorer}</div>
 
-      {/* Resizable left + main split */}
-      <ResizablePanelGroup direction="horizontal" autoSaveId={autoSaveId}>
-        <ResizablePanel defaultSize={20} minSize={15} maxSize={40}>
+      {/* Left + Main split */}
+      <div className="flex flex-1 overflow-hidden">
+        <div
+          className="shrink-0 overflow-y-auto border-r"
+          style={{ width: 280, minWidth: 150, maxWidth: '50%', resize: 'horizontal' }}
+        >
           {left}
-        </ResizablePanel>
-        <ResizableHandle withHandle />
-        <ResizablePanel defaultSize={80}>{main}</ResizablePanel>
-      </ResizablePanelGroup>
+        </div>
+        <div className="flex-1 overflow-hidden">{main}</div>
+      </div>
     </div>
   );
 }
