@@ -21,7 +21,7 @@ import { useWorkspaceContext } from '@/features/041-file-browser/hooks/use-works
 import { DEV_NAV_ITEMS, WORKSPACE_NAV_ITEMS } from '@/lib/navigation-utils';
 import { cn } from '@/lib/utils';
 import { workspaceHref } from '@/lib/workspace-url';
-import { ChevronLeft, PanelLeft, Settings } from 'lucide-react';
+import { ChevronLeft, ExternalLink, PanelLeft, Settings } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { Suspense, useMemo, useState } from 'react';
@@ -91,6 +91,15 @@ export function DashboardSidebar() {
               <PanelLeft className="h-4 w-4" />
             </Button>
             <ThemeToggle />
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => window.open(window.location.href, '_blank')}
+              aria-label="Open in new tab"
+              className="h-8 w-8"
+            >
+              <ExternalLink className="h-4 w-4" />
+            </Button>
           </div>
         </div>
       </SidebarHeader>
