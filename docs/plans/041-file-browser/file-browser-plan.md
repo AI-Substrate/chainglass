@@ -3,7 +3,7 @@
 **Plan Version**: 1.0.0
 **Created**: 2026-02-22
 **Spec**: [file-browser-spec.md](./file-browser-spec.md)
-**Status**: DRAFT
+**Status**: COMPLETE
 
 **Workshops**:
 - [deep-linking-system.md](./workshops/deep-linking-system.md) — URL state management with nuqs
@@ -488,13 +488,15 @@ Acceptance Criteria: [measurable assertions]
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 6.1 | [ ] | Survey existing `docs/how/` structure | 1 | Documented existing directories | - | Discovery step |
-| 6.2 | [ ] | Write `docs/how/deep-linking.md` | 2 | Covers: param definitions, nuqs usage, workspaceHref(), adding params to new pages, server-side caching. Code examples from real implementation. | - | |
-| 6.3 | [ ] | Write `docs/how/file-browser.md` | 2 | Covers: architecture overview, file operations (read/write/diff), security model (path validation, symlink), size limits, conflict detection. | - | |
-| 6.4 | [ ] | Review documentation for accuracy | 1 | Code examples verified, links working | - | |
+| 6.1 | [x] | Survey existing `docs/how/` structure | 1 | Documented existing directories | - | 43 files, standalone + subdirectory pattern |
+| 6.2 | [x] | Write `docs/how/deep-linking.md` | 2 | Covers: param definitions, nuqs usage, workspaceHref(), adding params to new pages, server-side caching. Code examples from real implementation. | - | |
+| 6.3 | [x] | Write `docs/how/file-browser.md` | 2 | Covers: architecture overview, file operations (read/write/diff), security model (path validation, symlink), size limits, conflict detection. | - | |
+| 6.4 | [x] | Review documentation for accuracy | 1 | Code examples verified, links working | - | All 16 file paths verified |
 
 ### Acceptance Criteria
-- [ ] Documentation exists at specified paths
+- [x] Documentation exists at specified paths
+- [x] A developer can follow the deep-linking guide to add URL params to a new page
+- [x] Security model for file operations is clearly documented
 - [ ] A developer can follow the deep-linking guide to add URL params to a new page
 - [ ] Security model for file operations is clearly documented
 
@@ -540,7 +542,7 @@ Acceptance Criteria: [measurable assertions]
 - [x] Phase 3: UI Overhaul — Landing Page & Sidebar — COMPLETE
 - [x] Phase 4: File Browser (Part A: Backend + Part B: Frontend) — COMPLETE
 - [x] Phase 5: Attention System & Polish — COMPLETE (+ Subtask 001: Worktree Identity)
-- [ ] Phase 6: Documentation — NOT STARTED
+- [x] Phase 6: Documentation — COMPLETE
 
 ### STOP Rule
 **IMPORTANT**: This plan must be complete before creating tasks. After writing this plan:
