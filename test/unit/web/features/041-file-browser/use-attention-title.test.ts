@@ -61,11 +61,11 @@ describe('useAttentionTitle', () => {
     expect(document.title).toBe('❗ 🔮 Agents');
   });
 
-  it('restores original title on unmount', () => {
+  it('keeps title after unmount (no restoration)', () => {
     const { unmount } = renderHook(() => useAttentionTitle({ emoji: '🔮', pageName: 'Browser' }));
 
     expect(document.title).toBe('🔮 Browser');
     unmount();
-    expect(document.title).toBe('Chainglass');
+    expect(document.title).toBe('🔮 Browser');
   });
 });

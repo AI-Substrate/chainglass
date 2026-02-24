@@ -9,7 +9,7 @@
  * Phase 3: UI Overhaul — Plan 041: File Browser
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 
 export interface UseAttentionTitleOptions {
   emoji: string;
@@ -24,19 +24,12 @@ export function useAttentionTitle({
   workspaceName,
   needsAttention,
 }: UseAttentionTitleOptions) {
-  const originalTitle = useRef<string>('');
-
-  useEffect(() => {
-    originalTitle.current = document.title;
-
-    return () => {
-      document.title = originalTitle.current;
-    };
-  }, []);
-
   useEffect(() => {
     const prefix = emoji || (workspaceName ? workspaceName.charAt(0).toUpperCase() : '');
     const attention = needsAttention ? '❗ ' : '';
-    document.title = `${attention}${prefix} ${pageName}`;
+    const title = `${attention}${prefix} ${pageName}`.trim();
+    if (title) {
+      document.title = title;
+    }
   }, [emoji, pageName, workspaceName, needsAttention]);
 }
