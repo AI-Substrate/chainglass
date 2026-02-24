@@ -12,6 +12,7 @@ flowchart LR
     fileOps["⚙️ _platform/file-ops<br/>IFileSystem · IPathResolver"]:::infra
     wsUrl["🔗 _platform/workspace-url<br/>workspaceHref · paramsCaches"]:::infra
     viewer["🖥️ _platform/viewer<br/>FileViewer · MarkdownViewer<br/>DiffViewer · highlightCode"]:::infra
+    notify["🔔 _platform/notifications<br/>ICentralEventNotifier<br/>ISSEBroadcaster · useSSE<br/>toast() · Toaster"]:::infra
 
     %% Business domains
     fileBrowser["📁 file-browser<br/>Browser page · FileTree<br/>CodeEditor · FileViewerPanel"]:::business
@@ -20,6 +21,7 @@ flowchart LR
     fileBrowser -->|"IFileSystem<br/>IPathResolver"| fileOps
     fileBrowser -->|"workspaceHref<br/>fileBrowserParams"| wsUrl
     fileBrowser -->|"FileViewer<br/>MarkdownViewer<br/>DiffViewer"| viewer
+    fileBrowser -->|"toast()"| notify
     viewer -->|"IFileSystem (Shiki reads)"| fileOps
 ```
 
@@ -29,3 +31,15 @@ flowchart LR
 - **Purple**: Infrastructure domains (cross-cutting technical capabilities)
 - **Solid arrows** (→): Contract dependency (A consumes B's contract)
 - **Labels on arrows**: Contract name being consumed
+
+## Domain Health Summary
+
+| Domain | Contracts Out | Consumers | Contracts In | Providers | Status |
+|--------|--------------|-----------|-------------|-----------|--------|
+| _platform/file-ops | IFileSystem, IPathResolver | file-browser, viewer | — | — | ✅ |
+| _platform/workspace-url | workspaceHref, paramsCaches | file-browser | — | — | ✅ |
+| _platform/viewer | FileViewer, MarkdownViewer, DiffViewer, highlightCode | file-browser | IFileSystem | file-ops | ✅ |
+| _platform/notifications | ICentralEventNotifier, ISSEBroadcaster, useSSE, toast() | file-browser, workgraph-ui*, agent-ui* | — | — | ✅ |
+| file-browser | Browser page, FileTree, FileViewerPanel | — | IFileSystem, workspaceHref, viewers, toast | file-ops, workspace-url, viewer, notifications | ✅ |
+
+*workgraph-ui and agent-ui are not yet formalized as domains but are known consumers
