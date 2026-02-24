@@ -11,7 +11,7 @@
  */
 
 import type { DiffError } from '@chainglass/shared';
-import { Edit, Eye, GitCompare, Loader2, RefreshCw, Save } from 'lucide-react';
+import { ClipboardCopy, Edit, Eye, GitCompare, Loader2, RefreshCw, Save } from 'lucide-react';
 import { Suspense, lazy } from 'react';
 
 import { MarkdownPreview } from './markdown-preview';
@@ -92,40 +92,39 @@ export function FileViewerPanel({
   return (
     <div className="flex flex-col h-full">
       {/* Toolbar */}
-      <div className="flex items-center justify-between border-b px-3 py-2 shrink-0">
-        <div className="flex items-center gap-1 min-w-0">
-          <span className="mr-2 text-sm font-medium truncate max-w-[200px]">{filePath}</span>
-          {mode === 'edit' && (
-            <button
-              type="button"
-              onClick={() => onSave(currentContent)}
-              className="flex items-center gap-1 rounded px-2 py-1 text-xs bg-green-600 text-white hover:bg-green-700 shrink-0"
-              aria-label="Save file"
-            >
-              <Save className="h-3.5 w-3.5" />
-              Save
-            </button>
-          )}
-          <ModeButton
-            label="Edit"
-            icon={<Edit className="h-3.5 w-3.5" />}
-            active={mode === 'edit'}
-            onClick={() => onModeChange('edit')}
-          />
-          <ModeButton
-            label="Preview"
-            icon={<Eye className="h-3.5 w-3.5" />}
-            active={mode === 'preview'}
-            onClick={() => onModeChange('preview')}
-          />
-          <ModeButton
-            label="Diff"
-            icon={<GitCompare className="h-3.5 w-3.5" />}
-            active={mode === 'diff'}
-            onClick={() => onModeChange('diff')}
-          />
-        </div>
-        <div className="flex items-center gap-1 shrink-0">
+      <div className="border-b shrink-0">
+        <div className="flex items-center justify-between px-3 py-1.5">
+          <div className="flex items-center gap-1">
+            {mode === 'edit' && (
+              <button
+                type="button"
+                onClick={() => onSave(currentContent)}
+                className="flex items-center gap-1 rounded px-2 py-1 text-xs bg-green-600 text-white hover:bg-green-700 shrink-0"
+                aria-label="Save file"
+              >
+                <Save className="h-3.5 w-3.5" />
+                Save
+              </button>
+            )}
+            <ModeButton
+              label="Edit"
+              icon={<Edit className="h-3.5 w-3.5" />}
+              active={mode === 'edit'}
+              onClick={() => onModeChange('edit')}
+            />
+            <ModeButton
+              label="Preview"
+              icon={<Eye className="h-3.5 w-3.5" />}
+              active={mode === 'preview'}
+              onClick={() => onModeChange('preview')}
+            />
+            <ModeButton
+              label="Diff"
+              icon={<GitCompare className="h-3.5 w-3.5" />}
+              active={mode === 'diff'}
+              onClick={() => onModeChange('diff')}
+            />
+          </div>
           <button
             type="button"
             onClick={onRefresh}
@@ -133,6 +132,38 @@ export function FileViewerPanel({
             aria-label="Refresh file"
           >
             <RefreshCw className="h-3.5 w-3.5" />
+          </button>
+        </div>
+        <div className="flex items-center gap-1 px-3 py-1 bg-muted/30">
+          <span className="text-xs text-muted-foreground font-mono truncate flex-1">
+            {filePath}
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              if (globalThis.isSecureContext && navigator.clipboard?.writeText) {
+                navigator.clipboard.writeText(filePath);
+              } else {
+                setTimeout(() => {
+                  const ta = document.createElement('textarea');
+                  ta.value = filePath;
+                  ta.style.position = 'fixed';
+                  ta.style.left = '-9999px';
+                  document.body.appendChild(ta);
+                  ta.focus();
+                  ta.select();
+                  try {
+                    document.execCommand('copy');
+                  } finally {
+                    document.body.removeChild(ta);
+                  }
+                }, 0);
+              }
+            }}
+            className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground"
+            aria-label="Copy file path"
+          >
+            <ClipboardCopy className="h-3 w-3" />
           </button>
         </div>
       </div>
