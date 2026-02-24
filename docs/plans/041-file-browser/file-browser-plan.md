@@ -449,24 +449,28 @@ Acceptance Criteria: [measurable assertions]
 
 | # | Status | Task | CS | Success Criteria | Log | Notes |
 |---|--------|------|----|------------------|-----|-------|
-| 5.1 | [ ] | Write tests for attention state derivation (`workspaceNeedsAttention`, `attentionCount`) | 1 | Tests: no agents = false, all working = false, one error = true, count matches | - | |
-| 5.2 | [ ] | Implement attention derivation functions | 1 | Tests from 5.1 pass | - | `features/041-file-browser/` |
-| 5.3 | [ ] | Wire attention indicators into `WorkspaceCard` | 2 | Cards show amber border + ◆ when agents in error state. Live via SSE. | - | |
-| 5.4 | [ ] | Wire attention into `FleetStatusBar` | 2 | "◆ N needs attention" shown. Clickable → navigates to first affected workspace. | - | |
-| 5.5 | [ ] | Wire `useAttentionTitle` into workspace pages | 1 | Tab title shows ❗ prefix when attention needed | - | |
-| 5.6 | [ ] | Write tests for `EmojiPicker` component | 2 | Tests: renders palette grid, click selects emoji, current emoji highlighted | - | |
-| 5.7 | [ ] | Write tests for `ColorPicker` component | 2 | Tests: renders color swatches, click selects color, current color highlighted, light/dark mode | - | |
-| 5.8 | [ ] | Implement `EmojiPicker` and `ColorPicker` | 2 | All tests from 5.6-5.7 pass | - | `features/041-file-browser/` |
-| 5.9 | [ ] | Implement `/settings/workspaces` page | 3 | Table: emoji+color (clickable pickers) + name + path + actions. Star toggle. Remove button. | - | |
-| 5.10 | [ ] | Add pop-out `[↗]` buttons to agent list and file viewer | 1 | Buttons call `window.open(deepLinkedUrl, '_blank')` | - | |
-| 5.11 | [ ] | Final responsive polish pass | 2 | All pages verified at 375px, 768px, 1440px | - | Use browser MCP |
-| 5.12 | [ ] | Run full test suite | 1 | `just fft` passes | - | |
+| 5.1 | [x] | ~~Folded into 5.5 (DYK-04)~~ | - | - | - | Attention derivation trivially simple |
+| 5.2 | [x] | ~~Folded into 5.5 (DYK-04)~~ | - | - | - | See 5.1 |
+| 5.3 | [-] | ~~Deferred (DYK-01)~~ Landing page indicators deferred to SSE | - | - | - | N×M git processes per page load |
+| 5.4 | [x] | Wire emoji into sidebar header via WorkspaceContext | 2 | Sidebar shows emoji + name | 33d1c2c | Phase 3 debt FT-006 |
+| 5.5 | [x] | Workspace layout + WorkspaceContext + useAttentionTitle | 1 | Tab title shows emoji + page | 33d1c2c | DYK-02/03/04 |
+| 5.6 | [x] | Write tests for EmojiPicker | 2 | 4 tests pass | 33d1c2c | |
+| 5.7 | [x] | Write tests for ColorPicker | 2 | 4 tests pass | 33d1c2c | |
+| 5.8 | [x] | Implement EmojiPicker and ColorPicker | 2 | All tests pass | 33d1c2c | Subpath import for client safety |
+| 5.9 | [x] | Settings page + pickers | 3 | Table with emoji/color/star/remove | 33d1c2c | Split T009a+T009b per DYK-05 |
+| 5.10 | [x] | Pop-out button on file viewer + global sidebar | 1 | Opens URL in new tab | 33d1c2c, b6a27d4 | |
+| 5.11 | [x] | Visual verification | 2 | All pages 200, MCP 0 errors | 33d1c2c | Playwright unavailable, verified via curl + MCP |
+| 5.12 | [x] | Run full test suite | 1 | 4370 tests pass, lint clean | 33d1c2c | Pre-existing build failure (Plan 045) |
 
 ### Acceptance Criteria
-- [ ] AC-31 through AC-34 (Attention System) satisfied
-- [ ] AC-5 (Star toggle) fully wired
-- [ ] AC-15 (Settings page for emoji/color) satisfied
-- [ ] All pages responsive
+- [x] AC-31 (adapted): Workspace pages show attention in tab title when changes exist
+- [x] AC-33: Browser tab title prefixed with ❗ when workspace has changes
+- [x] AC-34: Attention indicators are state-driven (derived from working changes)
+- [x] AC-5 (Star toggle) fully wired
+- [x] AC-15 (Settings page for emoji/color) satisfied
+- [-] AC-32: Fleet status bar deferred (DYK-01 — needs SSE eventing)
+- [-] Responsive polish partial (Playwright unavailable for screenshots)
+- [x] Per-worktree emoji + color (Subtask 001)
 
 ---
 
@@ -535,7 +539,7 @@ Acceptance Criteria: [measurable assertions]
 - [x] Phase 2: Deep Linking & URL State — COMPLETE
 - [x] Phase 3: UI Overhaul — Landing Page & Sidebar — COMPLETE
 - [x] Phase 4: File Browser (Part A: Backend + Part B: Frontend) — COMPLETE
-- [ ] Phase 5: Attention System & Polish — NOT STARTED
+- [x] Phase 5: Attention System & Polish — COMPLETE (+ Subtask 001: Worktree Identity)
 - [ ] Phase 6: Documentation — NOT STARTED
 
 ### STOP Rule

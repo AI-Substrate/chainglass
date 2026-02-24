@@ -67,9 +67,41 @@
 - `pnpm test` — 4365 tests pass, 72 skipped (pre-existing), 314 test files
 - Build failure is pre-existing (Plan 045 parallel work — fast-glob/fs in client bundle via di-container)
 
+---
+
+## Subtask 001: Worktree Identity & Tab Titles
+
+### ST01-ST08: All Complete
+- **Data model**: WorktreeVisualPreferences type + worktreePreferences map on WorkspacePreferences
+- **Context**: worktreeIdentity (branch, emoji, color, pageTitle) + setWorktreeIdentity with provider-side resolution from map
+- **Title composition**: `{attention}{emoji} {branch} — {page}` with workspace fallback
+- **Browser wiring**: page resolves branch server-side, client announces via setWorktreeIdentity
+- **Server action**: updateWorktreePreferences with read-modify-write deep merge
+- **Inline popover**: gear icon in sidebar header with EmojiPicker + ColorPicker, click-outside-to-close
+- **Sidebar**: shows worktree emoji + branch when identity set
+- **4370 tests pass**, lint clean
+
+### Post-subtask polish commits
+- Popover positioning fix (left-0 not right-0)
+- Derive identity from props via useMemo (not stale state)
+- Global pop-out button in sidebar header
+- Sidebar buttons moved to second row
+- Review fixes: duplicate Settings link, domain file placement, click-outside handler
+- Browser history push on file selection (back/forward nav)
+- Scroll to top on file change
+
 ## Commits
 
 | Commit | Description |
 |--------|-------------|
-| TBD | Plan 041 Phase 5: Attention system, workspace context, settings page, pickers, pop-out button |
+| 33d1c2c | Plan 041 Phase 5: Attention system, workspace context, settings page, pickers |
+| 7b52cd0 | Move settings link to SidebarFooter for persistent visibility |
+| 371a5ad | Worktree identity: per-worktree emoji/color, tab titles, inline settings (Subtask 001) |
+| 34aa8ad | Fix worktree identity popover positioning |
+| b3c0024 | Fix worktree emoji: derive identity from props, close popover on select |
+| b6a27d4 | Add pop-out button to sidebar header |
+| e240cca | Move sidebar action buttons to second row |
+| 60cf87e | Apply Phase 5 subtask 001 review fixes (F001-F004) |
+| 8f17143 | Push browser history on file selection for back/forward navigation |
+| cf3968d | Scroll to top of file viewer when selecting a new file |
 
