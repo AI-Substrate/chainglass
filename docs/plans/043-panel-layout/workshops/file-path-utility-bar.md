@@ -1,0 +1,1 @@
+../../041-file-browser/workshops/file-path-utility-bar.md

@@ -1,0 +1,1 @@
+../../041-file-browser/workshops/left-panel-view-modes.md

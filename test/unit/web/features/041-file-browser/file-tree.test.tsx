@@ -75,7 +75,7 @@ describe('FileTree', () => {
       />
     );
 
-    const refreshBtn = screen.getByRole('button', { name: /refresh/i });
+    const refreshBtn = screen.getByRole('button', { name: /refresh file tree/i });
     await user.click(refreshBtn);
     expect(onRefresh).toHaveBeenCalled();
   });

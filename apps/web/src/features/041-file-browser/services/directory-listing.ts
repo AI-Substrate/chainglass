@@ -34,6 +34,14 @@ export interface ListDirectoryResult {
   entries: FileEntry[];
 }
 
+/** Sort entries: directories first (alpha), then files (alpha), case-insensitive. */
+function sortEntries(entries: FileEntry[]): FileEntry[] {
+  return entries.sort((a, b) => {
+    if (a.type !== b.type) return a.type === 'directory' ? -1 : 1;
+    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+  });
+}
+
 /**
  * List files and directories in a workspace directory.
  * Scoped to one level — does not recurse (lazy loading on expand).
@@ -63,7 +71,7 @@ export async function listDirectory(options: ListDirectoryOptions): Promise<List
 }
 
 async function listFromGit(worktreePath: string, dirPath: string): Promise<ListDirectoryResult> {
-  const args = ['ls-files', '--full-name'];
+  const args = ['ls-files', '--full-name', '--cached', '--others', '--exclude-standard'];
   if (dirPath) {
     args.push('--', `${dirPath}/`);
   }
@@ -105,7 +113,7 @@ async function listFromGit(worktreePath: string, dirPath: string): Promise<ListD
     }
   }
 
-  return { entries };
+  return { entries: sortEntries(entries) };
 }
 
 async function listFromReadDir(
@@ -138,7 +146,7 @@ async function listFromReadDir(
     }
   }
 
-  return { entries };
+  return { entries: sortEntries(entries) };
 }
 
 // Re-export from client-safe module
@@ -207,7 +215,19 @@ function buildTreeFromPaths(paths: string[], rootDir: string, maxDepth: number):
     }
   }
 
+  sortTreeEntries(tree);
   return tree;
+}
+
+/** Recursively sort tree: directories first (alpha), then files (alpha). */
+function sortTreeEntries(entries: TreeEntry[]): void {
+  entries.sort((a, b) => {
+    if (a.type !== b.type) return a.type === 'directory' ? -1 : 1;
+    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+  });
+  for (const e of entries) {
+    if (e.children) sortTreeEntries(e.children);
+  }
 }
 
 async function buildTreeFromReadDir(
@@ -251,5 +271,8 @@ async function buildTreeFromReadDir(
     }
   }
 
-  return entries;
+  return entries.sort((a, b) => {
+    if (a.type !== b.type) return a.type === 'directory' ? -1 : 1;
+    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+  });
 }

@@ -228,7 +228,10 @@ function TreeItem({
           </ContextMenu>
           <button
             type="button"
-            onClick={() => onExpand(entry.path)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onExpand(entry.path);
+            }}
             className="hidden group-hover:block shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground"
             aria-label={`Refresh ${entry.name}`}
           >

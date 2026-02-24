@@ -13,6 +13,7 @@ flowchart LR
     wsUrl["🔗 _platform/workspace-url<br/>workspaceHref · paramsCaches"]:::infra
     viewer["🖥️ _platform/viewer<br/>FileViewer · MarkdownViewer<br/>DiffViewer · highlightCode"]:::infra
     notify["🔔 _platform/notifications<br/>ICentralEventNotifier<br/>ISSEBroadcaster · useSSE<br/>toast() · Toaster"]:::infra
+    panels["🗂️ _platform/panel-layout<br/>PanelShell · ExplorerPanel<br/>LeftPanel · MainPanel<br/>PanelHeader · BarHandler"]:::infra
 
     %% Business domains
     fileBrowser["📁 file-browser<br/>Browser page · FileTree<br/>CodeEditor · FileViewerPanel"]:::business
@@ -22,6 +23,9 @@ flowchart LR
     fileBrowser -->|"workspaceHref<br/>fileBrowserParams"| wsUrl
     fileBrowser -->|"FileViewer<br/>MarkdownViewer<br/>DiffViewer"| viewer
     fileBrowser -->|"toast()"| notify
+    %% planned in Plan 043 Phase 3 (not yet wired)
+    %% fileBrowser -->|"PanelShell<br/>ExplorerPanel<br/>LeftPanel · MainPanel"| panels
+    panels -->|"panel URL param"| wsUrl
     viewer -->|"IFileSystem (Shiki reads)"| fileOps
 ```
 
@@ -37,9 +41,10 @@ flowchart LR
 | Domain | Contracts Out | Consumers | Contracts In | Providers | Status |
 |--------|--------------|-----------|-------------|-----------|--------|
 | _platform/file-ops | IFileSystem, IPathResolver | file-browser, viewer | — | — | ✅ |
-| _platform/workspace-url | workspaceHref, paramsCaches | file-browser | — | — | ✅ |
+| _platform/workspace-url | workspaceHref, paramsCaches | file-browser, panel-layout | — | — | ✅ |
 | _platform/viewer | FileViewer, MarkdownViewer, DiffViewer, highlightCode | file-browser | IFileSystem | file-ops | ✅ |
 | _platform/notifications | ICentralEventNotifier, ISSEBroadcaster, useSSE, toast() | file-browser, workgraph-ui*, agent-ui* | — | — | ✅ |
-| file-browser | Browser page, FileTree, FileViewerPanel | — | IFileSystem, workspaceHref, viewers, toast | file-ops, workspace-url, viewer, notifications | ✅ |
+| _platform/panel-layout | PanelShell, ExplorerPanel, LeftPanel, MainPanel, PanelHeader, BarHandler | file-browser, future workspace pages | panel URL param | workspace-url | ✅ |
+| file-browser | Browser page, FileTree, FileViewerPanel | — | IFileSystem, workspaceHref, viewers, toast, panels | file-ops, workspace-url, viewer, notifications, panel-layout | ✅ |
 
 *workgraph-ui and agent-ui are not yet formalized as domains but are known consumers

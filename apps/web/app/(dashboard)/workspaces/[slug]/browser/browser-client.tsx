@@ -255,7 +255,7 @@ export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: Bro
         toast.error('Could not copy content');
       }
     },
-    [slug, worktreePath]
+    [slug, worktreePath, copyToClipboard]
   );
 
   const handleCopyTree = useCallback(
@@ -275,7 +275,7 @@ export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: Bro
         toast.error('Could not copy tree');
       }
     },
-    [slug, worktreePath]
+    [slug, worktreePath, copyToClipboard]
   );
 
   const handleDownload = useCallback(
