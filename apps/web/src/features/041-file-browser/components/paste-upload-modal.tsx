@@ -43,7 +43,7 @@ export function PasteUploadModal({
 
         if (result.ok) {
           const fullPath = `${worktreePath}/${result.filePath}`;
-          toast.success(`Uploaded: ${fullPath}`, {
+          toast.success(`Uploaded: ${result.filePath}`, {
             id: toastId,
             action: {
               label: 'Copy path',
