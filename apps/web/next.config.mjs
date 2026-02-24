@@ -23,7 +23,7 @@ const nextConfig = {
   experimental: {
     // Raise server action body size limit for file uploads (default 1MB)
     serverActions: {
-      bodySizeLimit: '10mb',
+      bodySizeLimit: '250mb',
     },
   },
   // Enable Turbopack (default in Next.js 16) - empty config acknowledges migration
