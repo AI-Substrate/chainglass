@@ -14,7 +14,13 @@ import type { DiffError } from '@chainglass/shared';
 import { ArrowUp, Edit, Eye, GitCompare, Loader2, RefreshCw, Save } from 'lucide-react';
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 
+import { detectContentType } from '@/lib/content-type-detection';
+import { AudioViewer } from './audio-viewer';
+import { BinaryPlaceholder } from './binary-placeholder';
+import { ImageViewer } from './image-viewer';
 import { MarkdownPreview } from './markdown-preview';
+import { PdfViewer } from './pdf-viewer';
+import { VideoViewer } from './video-viewer';
 
 // Lazy-load heavy components
 const CodeEditor = lazy(() => import('./code-editor').then((m) => ({ default: m.CodeEditor })));
@@ -36,7 +42,7 @@ export interface FileViewerPanelProps {
   editContent?: string;
   onEditChange?: (content: string) => void;
   conflictError?: string;
-  errorType?: 'file-too-large' | 'binary-file';
+  errorType?: 'file-too-large';
   /** Pre-highlighted HTML from Shiki (for code preview) */
   highlightedHtml?: string;
   /** Pre-rendered markdown HTML (for markdown preview) */
@@ -47,6 +53,11 @@ export interface FileViewerPanelProps {
   diffError?: DiffError | null;
   /** Whether diff is loading */
   diffLoading?: boolean;
+  /** Binary file metadata (Plan 046) */
+  isBinary?: boolean;
+  binaryContentType?: string;
+  binarySize?: number;
+  rawFileUrl?: string;
 }
 
 export function FileViewerPanel({
@@ -66,6 +77,10 @@ export function FileViewerPanel({
   diffData,
   diffError,
   diffLoading,
+  isBinary,
+  binaryContentType,
+  binarySize,
+  rawFileUrl,
 }: FileViewerPanelProps) {
   // Error states
   if (errorType === 'file-too-large') {
@@ -77,12 +92,16 @@ export function FileViewerPanel({
     );
   }
 
-  if (errorType === 'binary-file') {
+  // Binary file viewing (Plan 046)
+  if (isBinary && rawFileUrl) {
     return (
-      <div className="flex flex-col items-center justify-center gap-2 p-8 text-muted-foreground">
-        <p className="text-lg">Binary file</p>
-        <p className="text-sm">Binary files cannot be displayed.</p>
-      </div>
+      <BinaryFileView
+        filePath={filePath}
+        contentType={binaryContentType ?? 'application/octet-stream'}
+        size={binarySize ?? 0}
+        rawFileUrl={rawFileUrl}
+        onRefresh={onRefresh}
+      />
     );
   }
 
@@ -250,5 +269,57 @@ function ModeButton({
       {icon}
       {label}
     </button>
+  );
+}
+
+/** Binary file viewer — routes to correct viewer by content type category */
+function BinaryFileView({
+  filePath,
+  contentType,
+  size,
+  rawFileUrl,
+  onRefresh,
+}: {
+  filePath: string;
+  contentType: string;
+  size: number;
+  rawFileUrl: string;
+  onRefresh: () => void;
+}) {
+  const filename = filePath.split('/').pop() ?? filePath;
+  const { category } = detectContentType(filename);
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="border-b shrink-0">
+        <div className="flex items-center justify-between px-3 py-1.5">
+          <span className="text-xs text-muted-foreground">Preview</span>
+          <button
+            type="button"
+            onClick={onRefresh}
+            className="rounded p-1 text-muted-foreground hover:text-foreground"
+            aria-label="Refresh file"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+      <div className="flex-1 overflow-auto">
+        {category === 'image' && <ImageViewer src={rawFileUrl} alt={filename} />}
+        {category === 'pdf' && <PdfViewer src={rawFileUrl} />}
+        {category === 'video' && <VideoViewer src={rawFileUrl} mimeType={contentType} />}
+        {category === 'audio' && (
+          <AudioViewer src={rawFileUrl} mimeType={contentType} filename={filename} />
+        )}
+        {category === 'binary' && (
+          <BinaryPlaceholder
+            src={rawFileUrl}
+            size={size}
+            mimeType={contentType}
+            filename={filename}
+          />
+        )}
+      </div>
+    </div>
   );
 }

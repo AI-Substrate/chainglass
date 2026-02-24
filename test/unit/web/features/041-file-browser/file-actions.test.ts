@@ -61,7 +61,7 @@ describe('readFileAction', () => {
     }
   });
 
-  it('returns binary-file error for files with null bytes', async () => {
+  it('returns binary metadata for files with null bytes', async () => {
     fs.setFile('/workspace/image.bin', 'header\x00binary\x00data');
 
     const result = await readFileAction({
@@ -71,9 +71,31 @@ describe('readFileAction', () => {
       pathResolver,
     });
 
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error).toBe('binary-file');
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.isBinary).toBe(true);
+      if (result.isBinary) {
+        expect(result.contentType).toBe('application/octet-stream');
+      }
+    }
+  });
+
+  it('returns binary metadata for known binary extensions without reading content', async () => {
+    fs.setFile('/workspace/photo.png', 'PNG fake data');
+
+    const result = await readFileAction({
+      worktreePath: '/workspace',
+      filePath: 'photo.png',
+      fileSystem: fs,
+      pathResolver,
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.isBinary).toBe(true);
+      if (result.isBinary) {
+        expect(result.contentType).toBe('image/png');
+      }
     }
   });
 

@@ -24,3 +24,5 @@ export { MainPanel } from './components/main-panel';
 export type { MainPanelProps } from './components/main-panel';
 export { PanelShell } from './components/panel-shell';
 export type { PanelShellProps } from './components/panel-shell';
+export { AsciiSpinner } from './components/ascii-spinner';
+export type { AsciiSpinnerProps } from './components/ascii-spinner';

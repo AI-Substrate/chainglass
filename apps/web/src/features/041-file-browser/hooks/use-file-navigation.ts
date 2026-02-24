@@ -82,7 +82,7 @@ export function useFileNavigation(options: UseFileNavigationOptions) {
       try {
         const result = await readFileFn(slug, worktreePath, filePath);
         setFileData(result);
-        if (result.ok) {
+        if (result.ok && !result.isBinary) {
           setEditContent(result.content);
         }
       } catch (error) {
@@ -150,7 +150,7 @@ export function useFileNavigation(options: UseFileNavigationOptions) {
         }
         const refreshed = await readFileFn(slug, worktreePath, initialFile);
         setFileData(refreshed);
-        if (refreshed.ok) setEditContent(refreshed.content);
+        if (refreshed.ok && !refreshed.isBinary) setEditContent(refreshed.content);
         setDiffCache((prev) => {
           const next = { ...prev };
           delete next[initialFile];
@@ -168,7 +168,7 @@ export function useFileNavigation(options: UseFileNavigationOptions) {
     if (!initialFile) return;
     const result = await readFileFn(slug, worktreePath, initialFile);
     setFileData(result);
-    if (result.ok) {
+    if (result.ok && !result.isBinary) {
       setEditContent(result.content);
       toast.info('File refreshed');
     }

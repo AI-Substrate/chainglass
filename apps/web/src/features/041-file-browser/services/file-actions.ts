@@ -11,6 +11,7 @@
  */
 
 import * as path from 'node:path';
+import { detectContentType, isBinaryExtension } from '@/lib/content-type-detection';
 import { detectLanguage } from '@/lib/language-detection';
 import type { IFileSystem, IPathResolver } from '@chainglass/shared';
 import { PathSecurityError } from '@chainglass/shared';
@@ -22,6 +23,7 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 export type ReadFileResult =
   | {
       ok: true;
+      isBinary: false;
       content: string;
       mtime: string;
       size: number;
@@ -29,7 +31,14 @@ export type ReadFileResult =
       highlightedHtml: string;
       markdownHtml?: string;
     }
-  | { ok: false; error: 'file-too-large' | 'binary-file' | 'not-found' | 'security' };
+  | {
+      ok: true;
+      isBinary: true;
+      contentType: string;
+      mtime: string;
+      size: number;
+    }
+  | { ok: false; error: 'file-too-large' | 'not-found' | 'security' };
 
 export interface ReadFileOptions {
   worktreePath: string;
@@ -80,13 +89,33 @@ export async function readFileAction(options: ReadFileOptions): Promise<ReadFile
     return { ok: false, error: 'file-too-large' };
   }
 
+  // Binary detection: extension-first (avoids reading binary content as UTF-8)
+  const filename = path.basename(filePath);
+  if (isBinaryExtension(filename)) {
+    const { mimeType } = detectContentType(filename);
+    return {
+      ok: true,
+      isBinary: true,
+      contentType: mimeType,
+      mtime: stats.mtime,
+      size: stats.size,
+    };
+  }
+
   // Read content
   const content = await fileSystem.readFile(absolutePath);
 
-  // Binary detection: null-byte in first 8KB
+  // Binary detection fallback: null-byte in first 8KB (for unknown extensions)
   const sample = content.slice(0, 8192);
   if (sample.includes('\x00')) {
-    return { ok: false, error: 'binary-file' };
+    const { mimeType } = detectContentType(filename);
+    return {
+      ok: true,
+      isBinary: true,
+      contentType: mimeType,
+      mtime: stats.mtime,
+      size: stats.size,
+    };
   }
 
   const language = detectLanguage(path.basename(filePath));
@@ -113,6 +142,7 @@ export async function readFileAction(options: ReadFileOptions): Promise<ReadFile
 
   return {
     ok: true,
+    isBinary: false,
     content,
     mtime: stats.mtime,
     size: stats.size,

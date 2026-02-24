@@ -247,8 +247,16 @@ export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: Bro
             {selectedFile ? (
               <FileViewerPanel
                 filePath={selectedFile}
-                content={fileNav.fileData?.ok ? fileNav.fileData.content : null}
-                language={fileNav.fileData?.ok ? fileNav.fileData.language : 'text'}
+                content={
+                  fileNav.fileData?.ok && !fileNav.fileData.isBinary
+                    ? fileNav.fileData.content
+                    : null
+                }
+                language={
+                  fileNav.fileData?.ok && !fileNav.fileData.isBinary
+                    ? fileNav.fileData.language
+                    : 'text'
+                }
                 mtime={fileNav.fileData?.ok ? fileNav.fileData.mtime : ''}
                 mode={mode}
                 onModeChange={fileNav.handleModeChange}
@@ -257,15 +265,37 @@ export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: Bro
                 editContent={fileNav.editContent}
                 onEditChange={fileNav.setEditContent}
                 highlightedHtml={
-                  fileNav.fileData?.ok ? fileNav.fileData.highlightedHtml : undefined
+                  fileNav.fileData?.ok && !fileNav.fileData.isBinary
+                    ? fileNav.fileData.highlightedHtml
+                    : undefined
                 }
-                markdownHtml={fileNav.fileData?.ok ? fileNav.fileData.markdownHtml : undefined}
+                markdownHtml={
+                  fileNav.fileData?.ok && !fileNav.fileData.isBinary
+                    ? fileNav.fileData.markdownHtml
+                    : undefined
+                }
                 diffData={currentDiff?.diff}
                 diffError={currentDiff?.error}
                 diffLoading={fileNav.diffLoading}
+                isBinary={fileNav.fileData?.ok ? fileNav.fileData.isBinary : false}
+                binaryContentType={
+                  fileNav.fileData?.ok && fileNav.fileData.isBinary
+                    ? fileNav.fileData.contentType
+                    : undefined
+                }
+                binarySize={
+                  fileNav.fileData?.ok && fileNav.fileData.isBinary
+                    ? fileNav.fileData.size
+                    : undefined
+                }
+                rawFileUrl={
+                  selectedFile
+                    ? `/api/workspaces/${slug}/files/raw?worktree=${encodeURIComponent(worktreePath)}&file=${encodeURIComponent(selectedFile)}`
+                    : undefined
+                }
                 errorType={
                   fileNav.fileData && !fileNav.fileData.ok
-                    ? (fileNav.fileData.error as 'file-too-large' | 'binary-file')
+                    ? (fileNav.fileData.error as 'file-too-large')
                     : undefined
                 }
               />

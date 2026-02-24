@@ -157,10 +157,19 @@ describe('FileViewerPanel', () => {
       expect(screen.getByText(/too large/i)).toBeInTheDocument();
     });
 
-    it('shows binary file message', () => {
-      render(<FileViewerPanel {...baseProps} content={null} errorType="binary-file" />);
+    it('shows binary file viewer when isBinary is true', () => {
+      render(
+        <FileViewerPanel
+          {...baseProps}
+          content={null}
+          isBinary={true}
+          binaryContentType="image/png"
+          binarySize={1024}
+          rawFileUrl="/api/workspaces/test/files/raw?file=image.png"
+        />
+      );
 
-      expect(screen.getByText('Binary file')).toBeInTheDocument();
+      expect(screen.getByText('Preview')).toBeInTheDocument();
     });
   });
 });

@@ -16,6 +16,7 @@ import { ArrowRight, ClipboardCopy } from 'lucide-react';
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 
 import type { BarContext, BarHandler, ExplorerPanelHandle } from '../types';
+import { AsciiSpinner } from './ascii-spinner';
 
 export interface ExplorerPanelProps {
   filePath: string;
@@ -25,15 +26,11 @@ export interface ExplorerPanelProps {
   placeholder?: string;
 }
 
-const SPINNER_FRAMES = ['|', '/', '—', '\\'];
-const SPINNER_INTERVAL = 80;
-
 export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>(
   function ExplorerPanel({ filePath, handlers, context, onCopy, placeholder }, ref) {
     const [editing, setEditing] = useState(false);
     const [inputValue, setInputValue] = useState(filePath);
     const [processing, setProcessing] = useState(false);
-    const [spinnerFrame, setSpinnerFrame] = useState(0);
     const inputRef = useRef<HTMLInputElement>(null);
     const prevFilePathRef = useRef(filePath);
 
@@ -47,15 +44,6 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
         setInputValue(filePath);
       }
     }, [filePath, processing]);
-
-    // ASCII spinner animation
-    useEffect(() => {
-      if (!processing) return;
-      const id = setInterval(() => {
-        setSpinnerFrame((prev) => (prev + 1) % SPINNER_FRAMES.length);
-      }, SPINNER_INTERVAL);
-      return () => clearInterval(id);
-    }, [processing]);
 
     // Expose focusInput for Ctrl+P
     useImperativeHandle(ref, () => ({
@@ -130,9 +118,7 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
     return (
       <div className="flex items-center gap-1.5 border-b px-3 py-1.5 bg-muted/30 shrink-0">
         {processing ? (
-          <span className="shrink-0 w-5 text-center font-mono text-sm text-muted-foreground">
-            {SPINNER_FRAMES[spinnerFrame]}
-          </span>
+          <AsciiSpinner active={processing} />
         ) : (
           <button
             type="button"
