@@ -25,6 +25,8 @@ Workspace-scoped file browsing, editing, and diffing. The core feature that make
 - Landing page components — WorkspaceCard, FleetStatusBar (Phase 3)
 - Worktree picker component (Phase 3)
 - useAttentionTitle hook (Phase 3)
+- Binary file viewers — ImageViewer, PdfViewer, VideoViewer, AudioViewer, BinaryPlaceholder for inline binary rendering
+- Raw file streaming API route — /api/workspaces/[slug]/files/raw with Range request support
 
 ### Does NOT Own
 - Viewer components (FileViewer, MarkdownViewer, DiffViewer) — consumes from `_platform/viewer`
@@ -62,6 +64,12 @@ Workspace-scoped file browsing, editing, and diffing. The core feature that make
 | saveFile action | Atomic write + conflict detection | IFileSystem (stat, writeFile, rename), IPathResolver |
 | fileExists action | Lightweight stat check for ExplorerPanel | IFileSystem, IPathResolver |
 | Files API route | GET handler for client fetch | Directory listing service |
+| Raw file API route | Streaming binary file delivery with Range support | IFileSystem, IPathResolver |
+| ImageViewer | Renders images via raw file URL | Raw file API route, detectContentType |
+| PdfViewer | Embeds PDF via iframe | Raw file API route, detectContentType |
+| VideoViewer | HTML5 video player | Raw file API route, detectContentType |
+| AudioViewer | HTML5 audio player | Raw file API route, detectContentType |
+| BinaryPlaceholder | Fallback for unknown binary types | detectContentType |
 
 ## Source Location
 
@@ -93,6 +101,12 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
 | `apps/web/src/features/041-file-browser/components/paste-upload-button.tsx` | PasteUploadButton (sidebar upload trigger) | Plan 044 |
 | `apps/web/src/features/041-file-browser/components/paste-upload-modal.tsx` | PasteUploadModal (paste/drag/select dialog) | Plan 044 |
 | `apps/web/src/features/041-file-browser/index.ts` | Feature barrel | Phase 1 |
+| `apps/web/app/api/workspaces/[slug]/files/raw/route.ts` | Raw file streaming API route | Plan 046 |
+| `apps/web/src/features/041-file-browser/components/image-viewer.tsx` | ImageViewer component | Plan 046 |
+| `apps/web/src/features/041-file-browser/components/pdf-viewer.tsx` | PdfViewer component | Plan 046 |
+| `apps/web/src/features/041-file-browser/components/video-viewer.tsx` | VideoViewer component | Plan 046 |
+| `apps/web/src/features/041-file-browser/components/audio-viewer.tsx` | AudioViewer component | Plan 046 |
+| `apps/web/src/features/041-file-browser/components/binary-placeholder.tsx` | BinaryPlaceholder component | Plan 046 |
 
 ## Dependencies
 
@@ -121,3 +135,4 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
 | Plan 044 | Paste/upload to scratch/paste/ — upload button in sidebar, modal with paste/drag/select, uploadFile server action, uploadFileService | 2026-02-24 |
 | Plan 043 Phase 2 | Working changes service (git status --porcelain), recent files service (git log), ChangesView component, fileExists server action, directory listing switched to readDir | 2026-02-24 |
 | Plan 043 Phase 3 | Wired PanelShell into BrowserClient — resizable panels, ExplorerPanel path bar, LeftPanel tree/changes toggle, extracted 3 custom hooks (useFileNavigation, usePanelState, useClipboard), removed FileTree header + FileViewerPanel path row, replaced ?changed with ?panel, Ctrl+P shortcut | 2026-02-24 |
+| Plan 046 | Binary file viewers: raw file streaming route, detectContentType-based routing, 5 viewer components (ImageViewer, PdfViewer, VideoViewer, AudioViewer, BinaryPlaceholder), ReadFileResult isBinary variant | 2026-02-24 |

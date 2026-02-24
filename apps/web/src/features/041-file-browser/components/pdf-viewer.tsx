@@ -23,16 +23,22 @@ export function PdfViewer({ src }: PdfViewerProps) {
   const [error, setError] = useState(false);
 
   useEffect(() => {
+    const controller = new AbortController();
     let revoke: string | null = null;
-    fetch(src)
+    fetch(src, { signal: controller.signal })
       .then((res) => res.blob())
       .then((blob) => {
+        if (controller.signal.aborted) return;
         const url = URL.createObjectURL(blob);
         revoke = url;
         setBlobUrl(url);
       })
-      .catch(() => setError(true));
+      .catch((e) => {
+        if (e instanceof DOMException && e.name === 'AbortError') return;
+        setError(true);
+      });
     return () => {
+      controller.abort();
       if (revoke) URL.revokeObjectURL(revoke);
     };
   }, [src]);

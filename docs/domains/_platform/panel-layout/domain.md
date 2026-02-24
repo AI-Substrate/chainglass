@@ -40,6 +40,7 @@ Reusable three-panel layout system for workspace detail pages. Provides the stru
 | `BarHandler` | Type | file-browser (path handler), future (search handler) | Handler chain type for ExplorerPanel input |
 | `BarContext` | Type | BarHandler implementations | Context passed to input handlers |
 | `PanelMode` | Type | LeftPanel consumers | Union type for left panel modes (`'tree' \| 'changes' \| ...`) |
+| `AsciiSpinner` | Component | file-browser | `<AsciiSpinner active={boolean} />` spinning \| / — \ indicator |
 
 ## Composition (Internal)
 
@@ -50,6 +51,7 @@ Reusable three-panel layout system for workspace detail pages. Provides the stru
 | LeftPanel | Mode header + content slot | PanelHeader, PanelMode, URL state |
 | MainPanel | Content wrapper with flex-1 | — (pure layout) |
 | PanelHeader | Title + icon buttons + mode toggle | — (pure presentational) |
+| AsciiSpinner | ASCII character spinner | Nothing (standalone) |
 
 ## Source Location
 
@@ -65,6 +67,7 @@ Primary: `apps/web/src/features/_platform/panel-layout/`
 | `apps/web/src/features/_platform/panel-layout/components/main-panel.tsx` | Content area wrapper | Created Phase 1 |
 | `apps/web/src/features/_platform/panel-layout/components/panel-shell.tsx` | Root compositor with resizable panels | Created Phase 1 |
 | `apps/web/src/components/ui/resizable.tsx` | shadcn resizable wrapper | Installed Phase 1 |
+| `apps/web/src/features/_platform/panel-layout/components/ascii-spinner.tsx` | AsciiSpinner component | Extracted from ExplorerPanel |
 
 **Migration note**: The current raw `div+flex` layout in `browser-client.tsx` (lines 305-358) and the sticky header in `file-tree.tsx` (lines 107-118) will be refactored to use these components when implemented. The agent chat page (`agents/[id]/page.tsx`) is a future consumer.
 
@@ -86,3 +89,4 @@ Primary: `apps/web/src/features/_platform/panel-layout/`
 | *(extracted)* | Domain formalized from Plan 041 browser layout + workshops (file-path-utility-bar, left-panel-view-modes) | 2026-02-24 |
 | Plan 043 Phase 1 | Created all 5 components (PanelShell, ExplorerPanel, LeftPanel, MainPanel, PanelHeader), types, barrel export. Installed react-resizable-panels. 19 tests. | 2026-02-24 |
 | Plan 043 Phase 3 | Wired into BrowserClient. PanelShell with resizable layout, ExplorerPanel with file path handler, LeftPanel with tree/changes modes. First active consumer. | 2026-02-24 |
+| Plan 046 | Extracted AsciiSpinner from ExplorerPanel as reusable component, exported via barrel | 2026-02-24 |

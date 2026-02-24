@@ -11,9 +11,9 @@ flowchart LR
     %% Infrastructure domains
     fileOps["⚙️ _platform/file-ops<br/>IFileSystem · IPathResolver"]:::infra
     wsUrl["🔗 _platform/workspace-url<br/>workspaceHref · paramsCaches"]:::infra
-    viewer["🖥️ _platform/viewer<br/>FileViewer · MarkdownViewer<br/>DiffViewer · highlightCode"]:::infra
+    viewer["🖥️ _platform/viewer<br/>FileViewer · MarkdownViewer<br/>DiffViewer · highlightCode<br/>detectContentType"]:::infra
     events["🔔 _platform/events<br/>ICentralEventNotifier<br/>ISSEBroadcaster · useSSE<br/>FileChangeHub · useFileChanges<br/>toast() · Toaster"]:::infra
-    panels["🗂️ _platform/panel-layout<br/>PanelShell · ExplorerPanel<br/>LeftPanel · MainPanel<br/>PanelHeader · BarHandler"]:::infra
+    panels["🗂️ _platform/panel-layout<br/>PanelShell · ExplorerPanel<br/>LeftPanel · MainPanel<br/>PanelHeader · BarHandler<br/>AsciiSpinner"]:::infra
 
     %% Business domains
     fileBrowser["📁 file-browser<br/>Browser page · FileTree<br/>CodeEditor · FileViewerPanel"]:::business
@@ -21,9 +21,9 @@ flowchart LR
     %% Contract dependencies (consumer → provider)
     fileBrowser -->|"IFileSystem<br/>IPathResolver"| fileOps
     fileBrowser -->|"workspaceHref<br/>fileBrowserParams"| wsUrl
-    fileBrowser -->|"FileViewer<br/>MarkdownViewer<br/>DiffViewer"| viewer
+    fileBrowser -->|"FileViewer<br/>MarkdownViewer<br/>DiffViewer<br/>detectContentType"| viewer
     fileBrowser -->|"toast()<br/>useFileChanges<br/>FileChangeProvider"| events
-    fileBrowser -->|"PanelShell<br/>ExplorerPanel<br/>LeftPanel · MainPanel"| panels
+    fileBrowser -->|"PanelShell<br/>ExplorerPanel<br/>LeftPanel · MainPanel<br/>AsciiSpinner"| panels
     panels -->|"panel URL param"| wsUrl
     viewer -->|"IFileSystem (Shiki reads)"| fileOps
 ```
@@ -41,9 +41,9 @@ flowchart LR
 |--------|--------------|-----------|-------------|-----------|--------|
 | _platform/file-ops | IFileSystem, IPathResolver | file-browser, viewer | — | — | ✅ |
 | _platform/workspace-url | workspaceHref, paramsCaches | file-browser, panel-layout | — | — | ✅ |
-| _platform/viewer | FileViewer, MarkdownViewer, DiffViewer, highlightCode | file-browser | IFileSystem | file-ops | ✅ |
+| _platform/viewer | FileViewer, MarkdownViewer, DiffViewer, highlightCode, detectContentType, isBinaryExtension | file-browser | IFileSystem | file-ops | ✅ |
 | _platform/events | ICentralEventNotifier, ISSEBroadcaster, useSSE, FileChangeHub, useFileChanges, FileChangeProvider, toast() | file-browser, workgraph-ui*, agent-ui* | — | — | ✅ |
-| _platform/panel-layout | PanelShell, ExplorerPanel, LeftPanel, MainPanel, PanelHeader, BarHandler | file-browser, future workspace pages | panel URL param | workspace-url | ✅ |
+| _platform/panel-layout | PanelShell, ExplorerPanel, LeftPanel, MainPanel, PanelHeader, BarHandler, AsciiSpinner | file-browser, future workspace pages | panel URL param | workspace-url | ✅ |
 | file-browser | Browser page, FileTree, FileViewerPanel | — | IFileSystem, workspaceHref, viewers, toast, events, panels | file-ops, workspace-url, viewer, events, panel-layout | ✅ |
 
 *workgraph-ui and agent-ui are not yet formalized as domains but are known consumers

@@ -40,6 +40,8 @@ Reusable rendering primitives for displaying code, markdown, and git diffs. Prov
 | `detectLanguage()` | Function | Shiki, CodeMirror, any language-aware component | `(filename) → string` language ID |
 | `ViewerFile` | Interface | All viewer consumers | `{ path, filename, content }` |
 | `DiffError` | Type | DiffViewer consumers | `'not-git' \| 'no-changes' \| 'git-not-available' \| null` |
+| `detectContentType()` | Function | file-browser | `(filename) → { category, mimeType }` |
+| `isBinaryExtension()` | Function | file-browser | `(filename) → boolean` |
 
 ## Composition (Internal)
 
@@ -74,6 +76,7 @@ Primary: `apps/web/src/components/viewers/` + `apps/web/src/lib/server/` + `apps
 | `apps/web/src/hooks/useDiffViewerState.ts` | DiffViewer state hook | Client hook |
 | `packages/shared/src/interfaces/viewer.interface.ts` | ViewerFile interface | Shared type |
 | `packages/shared/src/interfaces/diff.interface.ts` | DiffError type | Shared type |
+| `apps/web/src/lib/content-type-detection.ts` | detectContentType + isBinaryExtension | Content type detection |
 
 ## Dependencies
 
@@ -94,3 +97,4 @@ Primary: `apps/web/src/components/viewers/` + `apps/web/src/lib/server/` + `apps
 | Plan 006-web-extras | Built all viewer components (Phases 1-5) | 2026-02 (prior) |
 | *(extracted)* | Domain extracted from Plan 006 deliverables | 2026-02-24 |
 | Plan 041 Phase 4 | Extracts `detectLanguage()` as shared utility (DYK-P4-05), integrates viewers in file browser | 2026-02-24 |
+| Plan 046 | Added detectContentType() and isBinaryExtension() content type utilities | 2026-02-24 |

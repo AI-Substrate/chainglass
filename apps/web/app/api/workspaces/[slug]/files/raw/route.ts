@@ -15,8 +15,10 @@
 import * as fs from 'node:fs';
 import * as fsPromises from 'node:fs/promises';
 import * as path from 'node:path';
-import type { NextRequest } from 'next/server';
+import { getContainer } from '@/lib/bootstrap-singleton';
 import { detectContentType } from '@/lib/content-type-detection';
+import { type IPathResolver, PathSecurityError, SHARED_DI_TOKENS } from '@chainglass/shared';
+import type { NextRequest } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,7 +26,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ): Promise<Response> {
-  await params;
+  await params; // consume async params (required by Next.js 16)
   const { searchParams } = new URL(request.url);
   const worktree = searchParams.get('worktree');
   const file = searchParams.get('file');
@@ -38,19 +40,24 @@ export async function GET(
     return new Response('Invalid worktree path', { status: 400 });
   }
 
-  if (file.includes('..') || file.startsWith('/')) {
-    return new Response('Path traversal not allowed', { status: 403 });
+  // Security: use IPathResolver for path traversal + symlink escape prevention
+  const container = getContainer();
+  const pathResolver = container.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
+  let absolutePath: string;
+  try {
+    absolutePath = pathResolver.resolvePath(worktree, file);
+  } catch (e) {
+    if (e instanceof PathSecurityError) {
+      return new Response('Path traversal not allowed', { status: 403 });
+    }
+    return new Response('File not found', { status: 404 });
   }
-
-  const absolutePath = path.join(worktree, file);
 
   // Symlink escape check via realpath
   try {
     const realPath = await fsPromises.realpath(absolutePath);
-    if (
-      !realPath.startsWith(worktree) ||
-      (realPath !== worktree && !realPath.startsWith(`${worktree}/`))
-    ) {
+    const normalizedRoot = worktree.endsWith('/') ? worktree : `${worktree}/`;
+    if (realPath !== worktree && !realPath.startsWith(normalizedRoot)) {
       return new Response('Path escape not allowed', { status: 403 });
     }
   } catch {
@@ -70,7 +77,8 @@ export async function GET(
 
   const { mimeType } = detectContentType(file);
   const filename = path.basename(file);
-  const disposition = download ? `attachment; filename="${filename}"` : 'inline';
+  const sanitizedFilename = filename.replace(/"/g, '');
+  const disposition = download ? `attachment; filename="${sanitizedFilename}"` : 'inline';
 
   const headers: Record<string, string> = {
     'Content-Type': mimeType,

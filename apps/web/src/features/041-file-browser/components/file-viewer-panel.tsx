@@ -85,6 +85,26 @@ export function FileViewerPanel({
   binarySize,
   rawFileUrl,
 }: FileViewerPanelProps) {
+  // All hooks must be called before any early returns (Rules of Hooks)
+  const isMarkdown = language === 'markdown';
+  const currentContent = editContent ?? content ?? '';
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [scrolledDown, setScrolledDown] = useState(false);
+
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (el) setScrolledDown(el.scrollTop > 100);
+  }, []);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally reset scroll state when file changes
+  useEffect(() => {
+    setScrolledDown(false);
+  }, [filePath]);
+
+  const scrollToTop = useCallback(() => {
+    scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
   // Error states
   if (errorType === 'file-too-large') {
     return (
@@ -107,25 +127,6 @@ export function FileViewerPanel({
       />
     );
   }
-
-  const isMarkdown = language === 'markdown';
-  const currentContent = editContent ?? content ?? '';
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const [scrolledDown, setScrolledDown] = useState(false);
-
-  const handleScroll = useCallback(() => {
-    const el = scrollRef.current;
-    if (el) setScrolledDown(el.scrollTop > 100);
-  }, []);
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally reset scroll state when file changes
-  useEffect(() => {
-    setScrolledDown(false);
-  }, [filePath]);
-
-  const scrollToTop = useCallback(() => {
-    scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-  }, []);
 
   return (
     <div className="flex flex-col h-full">
