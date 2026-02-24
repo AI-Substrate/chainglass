@@ -185,27 +185,42 @@ function TreeItem({
       <div>
         <ContextMenu>
           <ContextMenuTrigger asChild>
-            <button
-              type="button"
-              onClick={() => onDirClick(entry.path)}
-              className={`flex w-full items-center gap-1 px-2 py-1 text-left hover:bg-accent ${
+            <div
+              className={`group flex w-full items-center gap-1 px-2 py-1 text-left hover:bg-accent cursor-pointer ${
                 isSelected ? 'bg-accent' : ''
               }`}
               style={{ paddingLeft: `${depth * 16 + 8}px` }}
             >
-              {isExpanded ? (
-                <>
-                  <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                  <FolderOpen className="h-4 w-4 shrink-0 text-blue-500" />
-                </>
-              ) : (
-                <>
-                  <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                  <Folder className="h-4 w-4 shrink-0 text-blue-500" />
-                </>
-              )}
-              <span className="truncate">{entry.name}</span>
-            </button>
+              <button
+                type="button"
+                onClick={() => onDirClick(entry.path)}
+                className="flex items-center gap-1 min-w-0 flex-1"
+              >
+                {isExpanded ? (
+                  <>
+                    <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <FolderOpen className="h-4 w-4 shrink-0 text-blue-500" />
+                  </>
+                ) : (
+                  <>
+                    <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <Folder className="h-4 w-4 shrink-0 text-blue-500" />
+                  </>
+                )}
+                <span className="truncate">{entry.name}</span>
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onExpand(entry.path);
+                }}
+                className="hidden group-hover:block shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground"
+                aria-label={`Refresh ${entry.name}`}
+              >
+                <RefreshCw className="h-3 w-3" />
+              </button>
+            </div>
           </ContextMenuTrigger>
           <ContextMenuContent>
             <ContextMenuItem onSelect={() => onCopyFullPath?.(entry.path)}>
@@ -281,7 +296,9 @@ function TreeItem({
           } ${isChanged ? 'text-amber-600 dark:text-amber-400' : ''}`}
           style={{ paddingLeft: `${depth * 16 + 8 + 14}px` }}
         >
-          {isSelected && <span className="absolute left-0.5 text-amber-500 font-black text-sm">▶</span>}
+          {isSelected && (
+            <span className="absolute left-0.5 text-amber-500 font-black text-sm">▶</span>
+          )}
           <File className="h-4 w-4 shrink-0 text-muted-foreground" />
           <span className={`truncate ${isSelected ? 'text-base' : ''}`}>{entry.name}</span>
         </button>
