@@ -134,10 +134,7 @@ export function FileViewerPanel({
             <RefreshCw className="h-3.5 w-3.5" />
           </button>
         </div>
-        <div className="flex items-center gap-1 px-3 py-1 bg-muted/30">
-          <span className="text-xs text-muted-foreground font-mono truncate flex-1">
-            {filePath}
-          </span>
+        <div className="flex items-center gap-1.5 px-3 py-1 bg-muted/30">
           <button
             type="button"
             onClick={() => {
@@ -163,8 +160,11 @@ export function FileViewerPanel({
             className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground"
             aria-label="Copy file path"
           >
-            <ClipboardCopy className="h-3 w-3" />
+            <ClipboardCopy className="h-3.5 w-3.5" />
           </button>
+          <span className="text-sm text-muted-foreground font-mono truncate flex-1">
+            {filePath}
+          </span>
         </div>
       </div>
 
