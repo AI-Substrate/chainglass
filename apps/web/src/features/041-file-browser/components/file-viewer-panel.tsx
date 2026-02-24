@@ -11,8 +11,8 @@
  */
 
 import type { DiffError } from '@chainglass/shared';
-import { Edit, Eye, GitCompare, Loader2, RefreshCw, Save } from 'lucide-react';
-import { Suspense, lazy } from 'react';
+import { ArrowUp, Edit, Eye, GitCompare, Loader2, RefreshCw, Save } from 'lucide-react';
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 
 import { MarkdownPreview } from './markdown-preview';
 
@@ -88,6 +88,22 @@ export function FileViewerPanel({
 
   const isMarkdown = language === 'markdown';
   const currentContent = editContent ?? content ?? '';
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [scrolledDown, setScrolledDown] = useState(false);
+
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (el) setScrolledDown(el.scrollTop > 100);
+  }, []);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally reset scroll state when file changes
+  useEffect(() => {
+    setScrolledDown(false);
+  }, [filePath]);
+
+  const scrollToTop = useCallback(() => {
+    scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
 
   return (
     <div className="flex flex-col h-full">
@@ -125,14 +141,26 @@ export function FileViewerPanel({
               onClick={() => onModeChange('diff')}
             />
           </div>
-          <button
-            type="button"
-            onClick={onRefresh}
-            className="rounded p-1 text-muted-foreground hover:text-foreground"
-            aria-label="Refresh file"
-          >
-            <RefreshCw className="h-3.5 w-3.5" />
-          </button>
+          <div className="flex items-center gap-0.5">
+            {scrolledDown && (
+              <button
+                type="button"
+                onClick={scrollToTop}
+                className="rounded p-1 text-muted-foreground hover:text-foreground"
+                aria-label="Scroll to top"
+              >
+                <ArrowUp className="h-3.5 w-3.5" />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onRefresh}
+              className="rounded p-1 text-muted-foreground hover:text-foreground"
+              aria-label="Refresh file"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -144,7 +172,7 @@ export function FileViewerPanel({
       )}
 
       {/* Content area */}
-      <div className="flex-1 overflow-auto">
+      <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-auto">
         <Suspense fallback={<LoadingFallback />}>
           {mode === 'edit' && (
             <div className="h-full">
