@@ -120,25 +120,25 @@ flowchart TD
     classDef blocked fill:#F44336,stroke:#D32F2F,color:#fff
 
     subgraph Infra["Infrastructure (interfaces + constants)"]
-        T001["T001: FileWatcherOptions.ignored"]:::pending
-        T002["T002: SOURCE_WATCHER_IGNORED"]:::pending
-        T003["T003: WorkspaceDomain.FileChanges"]:::pending
+        T001["T001: FileWatcherOptions.ignored ✓"]:::completed
+        T002["T002: SOURCE_WATCHER_IGNORED ✓"]:::completed
+        T003["T003: WorkspaceDomain.FileChanges ✓"]:::completed
     end
 
     subgraph Core["Core Adapters"]
-        T004["T004: FileChangeWatcherAdapter<br/>(debounce + dedup)"]:::pending
-        T005["T005: FileChangeDomainEventAdapter"]:::pending
-        T006["T006: FakeFileChangeWatcherAdapter<br/>+ contract tests"]:::pending
+        T004["T004: FileChangeWatcherAdapter<br/>(debounce + dedup) ✓"]:::completed
+        T005["T005: FileChangeDomainEventAdapter ✓"]:::completed
+        T006["T006: FakeFileChangeWatcherAdapter<br/>+ contract tests ✓"]:::completed
     end
 
     subgraph Service["Service Expansion"]
-        T007["T007: Unit tests for adapter"]:::pending
-        T008["T008: CentralWatcherService<br/>source watchers"]:::pending
-        T009["T009: Refactor existing tests"]:::pending
+        T007["T007: Unit tests for adapter ✓"]:::completed
+        T008["T008: CentralWatcherService<br/>source watchers ✓"]:::completed
+        T009["T009: Refactor existing tests ✓"]:::completed
     end
 
     subgraph Bootstrap["Bootstrap + Integration"]
-        T010["T010: Wire in bootstrap<br/>+ integration test"]:::pending
+        T010["T010: Wire in bootstrap<br/>+ integration test ✓"]:::completed
     end
 
     T001 --> T004
@@ -159,16 +159,16 @@ flowchart TD
 
 | Task | Component(s) | Files | Status | Comment |
 |------|-------------|-------|--------|---------|
-| T001 | FileWatcherOptions + ChokidarAdapter | file-watcher.interface.ts, chokidar-file-watcher.adapter.ts | ⬜ Pending | Add `ignored` field + passthrough |
-| T002 | Source watcher constants | source-watcher.constants.ts | ⬜ Pending | Ignore patterns array |
-| T003 | WorkspaceDomain | workspace-domain.ts | ⬜ Pending | Add FileChanges channel |
-| T004 | FileChangeWatcherAdapter | file-change-watcher.adapter.ts | ⬜ Pending | Core: debounce + dedup + filtering |
-| T005 | FileChangeDomainEventAdapter | file-change-domain-event-adapter.ts | ⬜ Pending | Domain → SSE adapter |
-| T006 | FakeFileChangeWatcherAdapter | fake-file-change-watcher.ts | ⬜ Pending | Test fake + contract tests |
-| T007 | Adapter unit tests | test files | ⬜ Pending | Comprehensive adapter tests |
-| T008 | CentralWatcherService | central-watcher.service.ts | ⬜ Pending | Source watchers expansion |
-| T009 | Existing test refactor | central-watcher.service.test.ts | ⬜ Pending | Fix index-based watcher queries |
-| T010 | Bootstrap wiring | start-central-notifications.ts | ⬜ Pending | Wire + integration test |
+| T001 | FileWatcherOptions + ChokidarAdapter | file-watcher.interface.ts, chokidar-file-watcher.adapter.ts | ✅ Complete | Added `ignored` field + passthrough |
+| T002 | Source watcher constants | source-watcher.constants.ts | ✅ Complete | 23 ignore patterns |
+| T003 | WorkspaceDomain | workspace-domain.ts | ✅ Complete | Added FileChanges channel |
+| T004 | FileChangeWatcherAdapter | file-change-watcher.adapter.ts | ✅ Complete | Core: debounce + dedup + filtering |
+| T005 | FileChangeDomainEventAdapter | file-change-domain-event-adapter.ts | ✅ Complete | Domain → SSE adapter |
+| T006 | FakeFileChangeWatcherAdapter | fake-file-change-watcher.ts | ✅ Complete | Test fake + 16 contract tests |
+| T007 | Adapter unit tests | file-change-watcher.adapter.test.ts | ✅ Complete | 20 comprehensive tests |
+| T008 | CentralWatcherService | central-watcher.service.ts | ✅ Complete | Source watchers expansion |
+| T009 | Existing test refactor | central-watcher.service.test.ts | ✅ Complete | Added findWatcherByPath, 7 new tests |
+| T010 | Bootstrap wiring | start-central-notifications.ts | ✅ Complete | Wired + 5 integration tests |
 
 ---
 
@@ -176,16 +176,16 @@ flowchart TD
 
 | Status | ID | Task | CS | Type | Dependencies | Absolute Path(s) | Validation | Subtasks | Notes |
 |--------|------|------|-----|------|-------------|-------------------|------------|----------|-------|
-| [ ] | T001 | Add `ignored` field to `FileWatcherOptions` interface + ChokidarFileWatcherAdapter passthrough | 1 | Core | – | `/home/jak/substrate/041-file-browser/packages/workflow/src/interfaces/file-watcher.interface.ts`, `/home/jak/substrate/041-file-browser/packages/workflow/src/adapters/chokidar-file-watcher.adapter.ts` | `ignored` field is optional in interface. Chokidar adapter maps it to chokidar options. Unit test passes `ignored: ['node_modules']` and verifies it reaches chokidar. | – | Per finding 01. Non-breaking additive change. Plan task 1.1. |
-| [ ] | T002 | Create `SOURCE_WATCHER_IGNORED` constants | 1 | Core | – | `/home/jak/substrate/041-file-browser/packages/workflow/src/features/023-central-watcher-notifications/source-watcher.constants.ts` | Exports `SOURCE_WATCHER_IGNORED` array with: `.git`, `node_modules`, `vendor`, `.pnpm-store`, `dist`, `build`, `.next`, `.turbo`, `.cache`, `coverage`, `__pycache__`, `.idea`, `.vscode`, `*.swp`, `*.swo`, `*~`, `.DS_Store`, `Thumbs.db`, `.chainglass`, `pnpm-lock.yaml`, `package-lock.json`, `yarn.lock`. | – | Per workshop 02. Plan task 1.2. |
-| [ ] | T003 | Add `FileChanges: 'file-changes'` to `WorkspaceDomain` const | 1 | Core | – | `/home/jak/substrate/041-file-browser/packages/shared/src/features/027-central-notify-events/workspace-domain.ts` | `WorkspaceDomain.FileChanges === 'file-changes'`. `WorkspaceDomainType` union includes the new value. Build compiles. | – | Per finding 02. Plan task 1.3. |
-| [ ] | T004 | Create `FileChangeWatcherAdapter` implementing `IWatcherAdapter` | 3 | Core | T001 | `/home/jak/substrate/041-file-browser/packages/workflow/src/features/023-central-watcher-notifications/file-change-watcher.adapter.ts` | Implements `IWatcherAdapter.handleEvent()`. Filters `.chainglass/` paths. Converts absolute→relative paths. Batches events in 300ms debounce window. Deduplicates: last-event-wins per `worktreePath:path` key. Emits via `onFilesChanged(callback)` callback-set. Error isolation: throwing subscriber doesn't block others. `flushNow()` for testing. `destroy()` cancels pending flush. | – | Core server logic. Plan task 1.4. |
-| [ ] | T005 | Create `FileChangeDomainEventAdapter` extending `DomainEventAdapter<T>` | 1 | Core | T003, T004 | `/home/jak/substrate/041-file-browser/apps/web/src/features/027-central-notify-events/file-change-domain-event-adapter.ts` | Extends `DomainEventAdapter<FileChangeBatchEvent>`. Constructor: `super(notifier, WorkspaceDomain.FileChanges, 'file-changed')`. `extractData()` returns `{ changes: [{path, eventType, worktreePath, timestamp}] }`. Unit test verifies payload shape matches SSE contract. | – | Follows WorkgraphDomainEventAdapter pattern. Plan task 1.5. |
-| [ ] | T006 | Create `FakeFileChangeWatcherAdapter` + contract tests | 2 | Test | T004 | `/home/jak/substrate/041-file-browser/packages/workflow/src/features/023-central-watcher-notifications/fake-file-change-watcher.ts`, `/home/jak/substrate/041-file-browser/test/contracts/file-change-watcher.contract.ts`, `/home/jak/substrate/041-file-browser/test/contracts/file-change-watcher.contract.test.ts` | Fake implements `IWatcherAdapter`. Records events via `handledEvents` array. Exposes `flushNow()` and `subscriberCount`. Contract test suite: both fake and real pass identical tests for handleEvent filtering, callback dispatch, error isolation, deduplication. | – | Follows FakeWatcherAdapter pattern. Plan task 1.4 (fake portion). |
-| [ ] | T007 | Write comprehensive unit tests for FileChangeWatcherAdapter | 2 | Test | T004, T006 | `/home/jak/substrate/041-file-browser/test/unit/workflow/file-change-watcher.adapter.test.ts` | Tests: filters .chainglass/ events, converts abs→rel paths, debounce batches rapid events, dedup last-event-wins, emits to all subscribers, isolates subscriber errors, `flushNow()` works, `destroy()` cancels pending. All pass. | – | Plan task 1.4 (test portion). |
-| [ ] | T008 | Expand `CentralWatcherService` with source watchers | 3 | Core | T001, T002 | `/home/jak/substrate/041-file-browser/packages/workflow/src/features/023-central-watcher-notifications/central-watcher.service.ts` | New `sourceWatchers: Map<string, IFileWatcher>`. `createSourceWatchers()` creates one chokidar watcher per worktree root with `SOURCE_WATCHER_IGNORED`. `start()` calls both `createDataWatchers()` + `createSourceWatchers()` (source wrapped in try/catch — failure doesn't block data). `stop()` closes both maps. `rescan()` handles both. Source watcher events dispatch through same `dispatchEvent()`. | – | Per finding 03 (partial failure). Plan task 1.6. |
-| [ ] | T009 | Refactor existing CentralWatcherService tests for source watcher awareness | 2 | Test | T008 | `/home/jak/substrate/041-file-browser/test/unit/workflow/central-watcher.service.test.ts` | Existing tests still pass. Tests no longer use `factory.getWatcher(0)` by index — refactored to query by path or purpose. New tests verify: source watchers created for each worktree, source watcher uses SOURCE_WATCHER_IGNORED, source watcher failure doesn't block data watchers, rescan handles both watcher types. | – | Per finding 04 (index regression). Plan task 1.6. |
-| [ ] | T010 | Wire file change adapters in `startCentralNotificationSystem()` + integration test | 2 | Integration | T004, T005, T008 | `/home/jak/substrate/041-file-browser/apps/web/src/features/027-central-notify-events/start-central-notifications.ts`, `/home/jak/substrate/041-file-browser/test/integration/045-live-file-events/watcher-to-file-change-notifier.integration.test.ts` | Bootstrap creates `FileChangeWatcherAdapter(300)` + `FileChangeDomainEventAdapter(notifier)`. Wires `onFilesChanged → handleEvent`. Registers adapter with watcher. Integration test: simulate file change → verify notifier.emit called with domain='file-changes', eventType='file-changed', data contains changes array. | – | Follows workgraph wiring pattern. Plan task 1.7. |
+| [x] | T001 | Add `ignored` field to `FileWatcherOptions` interface + ChokidarFileWatcherAdapter passthrough | 1 | Core | – | `/home/jak/substrate/041-file-browser/packages/workflow/src/interfaces/file-watcher.interface.ts`, `/home/jak/substrate/041-file-browser/packages/workflow/src/adapters/chokidar-file-watcher.adapter.ts` | `ignored` field is optional in interface. Chokidar adapter maps it to chokidar options. Unit test passes `ignored: ['node_modules']` and verifies it reaches chokidar. | – | Per finding 01. Non-breaking additive change. Plan task 1.1. |
+| [x] | T002 | Create `SOURCE_WATCHER_IGNORED` constants | 1 | Core | – | `/home/jak/substrate/041-file-browser/packages/workflow/src/features/023-central-watcher-notifications/source-watcher.constants.ts` | Exports `SOURCE_WATCHER_IGNORED` array with: `.git`, `node_modules`, `vendor`, `.pnpm-store`, `dist`, `build`, `.next`, `.turbo`, `.cache`, `coverage`, `__pycache__`, `.idea`, `.vscode`, `*.swp`, `*.swo`, `*~`, `.DS_Store`, `Thumbs.db`, `.chainglass`, `pnpm-lock.yaml`, `package-lock.json`, `yarn.lock`. | – | Per workshop 02. Plan task 1.2. |
+| [x] | T003 | Add `FileChanges: 'file-changes'` to `WorkspaceDomain` const | 1 | Core | – | `/home/jak/substrate/041-file-browser/packages/shared/src/features/027-central-notify-events/workspace-domain.ts` | `WorkspaceDomain.FileChanges === 'file-changes'`. `WorkspaceDomainType` union includes the new value. Build compiles. | – | Per finding 02. Plan task 1.3. |
+| [x] | T004 | Create `FileChangeWatcherAdapter` implementing `IWatcherAdapter` | 3 | Core | T001 | `/home/jak/substrate/041-file-browser/packages/workflow/src/features/023-central-watcher-notifications/file-change-watcher.adapter.ts` | Implements `IWatcherAdapter.handleEvent()`. Filters `.chainglass/` paths. Converts absolute→relative paths. Batches events in 300ms debounce window. Deduplicates: last-event-wins per `worktreePath:path` key. Emits via `onFilesChanged(callback)` callback-set. Error isolation: throwing subscriber doesn't block others. `flushNow()` for testing. `destroy()` cancels pending flush. | – | Core server logic. Plan task 1.4. |
+| [x] | T005 | Create `FileChangeDomainEventAdapter` extending `DomainEventAdapter<T>` | 1 | Core | T003, T004 | `/home/jak/substrate/041-file-browser/apps/web/src/features/027-central-notify-events/file-change-domain-event-adapter.ts` | Extends `DomainEventAdapter<FileChangeBatchEvent>`. Constructor: `super(notifier, WorkspaceDomain.FileChanges, 'file-changed')`. `extractData()` returns `{ changes: [{path, eventType, worktreePath, timestamp}] }`. Unit test verifies payload shape matches SSE contract. | – | Follows WorkgraphDomainEventAdapter pattern. Plan task 1.5. |
+| [x] | T006 | Create `FakeFileChangeWatcherAdapter` + contract tests | 2 | Test | T004 | `/home/jak/substrate/041-file-browser/packages/workflow/src/features/023-central-watcher-notifications/fake-file-change-watcher.ts`, `/home/jak/substrate/041-file-browser/test/contracts/file-change-watcher.contract.ts`, `/home/jak/substrate/041-file-browser/test/contracts/file-change-watcher.contract.test.ts` | Fake implements `IWatcherAdapter`. Records events via `handledEvents` array. Exposes `flushNow()` and `subscriberCount`. Contract test suite: both fake and real pass identical tests for handleEvent filtering, callback dispatch, error isolation, deduplication. | – | Follows FakeWatcherAdapter pattern. Plan task 1.4 (fake portion). |
+| [x] | T007 | Write comprehensive unit tests for FileChangeWatcherAdapter | 2 | Test | T004, T006 | `/home/jak/substrate/041-file-browser/test/unit/workflow/file-change-watcher.adapter.test.ts` | Tests: filters .chainglass/ events, converts abs→rel paths, debounce batches rapid events, dedup last-event-wins, emits to all subscribers, isolates subscriber errors, `flushNow()` works, `destroy()` cancels pending. All pass. | – | Plan task 1.4 (test portion). |
+| [x] | T008 | Expand `CentralWatcherService` with source watchers | 3 | Core | T001, T002 | `/home/jak/substrate/041-file-browser/packages/workflow/src/features/023-central-watcher-notifications/central-watcher.service.ts` | New `sourceWatchers: Map<string, IFileWatcher>`. `createSourceWatchers()` creates one chokidar watcher per worktree root with `SOURCE_WATCHER_IGNORED`. `start()` calls both `createDataWatchers()` + `createSourceWatchers()` (source wrapped in try/catch — failure doesn't block data). `stop()` closes both maps. `rescan()` handles both. Source watcher events dispatch through same `dispatchEvent()`. | – | Per finding 03 (partial failure). Plan task 1.6. |
+| [x] | T009 | Refactor existing CentralWatcherService tests for source watcher awareness | 2 | Test | T008 | `/home/jak/substrate/041-file-browser/test/unit/workflow/central-watcher.service.test.ts` | Existing tests still pass. Tests no longer use `factory.getWatcher(0)` by index — refactored to query by path or purpose. New tests verify: source watchers created for each worktree, source watcher uses SOURCE_WATCHER_IGNORED, source watcher failure doesn't block data watchers, rescan handles both watcher types. | – | Per finding 04 (index regression). Plan task 1.6. |
+| [x] | T010 | Wire file change adapters in `startCentralNotificationSystem()` + integration test | 2 | Integration | T004, T005, T008 | `/home/jak/substrate/041-file-browser/apps/web/src/features/027-central-notify-events/start-central-notifications.ts`, `/home/jak/substrate/041-file-browser/test/integration/045-live-file-events/watcher-to-file-change-notifier.integration.test.ts` | Bootstrap creates `FileChangeWatcherAdapter(300)` + `FileChangeDomainEventAdapter(notifier)`. Wires `onFilesChanged → handleEvent`. Registers adapter with watcher. Integration test: simulate file change → verify notifier.emit called with domain='file-changes', eventType='file-changed', data contains changes array. | – | Follows workgraph wiring pattern. Plan task 1.7. |
 
 ---
 
@@ -315,10 +315,10 @@ just typecheck
 
 ### Ready Check
 
-- [ ] ADR constraints mapped to tasks (ADR-0007→T005, ADR-0008→T002/T004, ADR-0010→T004/T005/T010)
-- [ ] All 7 Phase 1 ACs covered in task table
-- [ ] Pre-implementation audit complete (no reuse-existing findings)
-- [ ] Requirements flow tracing complete (no gaps)
+- [x] ADR constraints mapped to tasks (ADR-0007→T005, ADR-0008→T002/T004, ADR-0010→T004/T005/T010)
+- [x] All 7 Phase 1 ACs covered in task table
+- [x] Pre-implementation audit complete (no reuse-existing findings)
+- [x] Requirements flow tracing complete (no gaps)
 
 ---
 
@@ -345,7 +345,10 @@ _Populated during implementation by plan-6. Log anything of interest to your fut
 
 | Date | Task | Type | Discovery | Resolution | References |
 |------|------|------|-----------|------------|------------|
-| | | | | | |
+| 2026-02-24 | T009 | insight | Source watcher creation order is data→source→registry, not data→registry→source. Factory.create call indices shifted. | Fixed test to throw on call 2 (source) instead of call 3 (registry) | log#task-t009 |
+| 2026-02-24 | T008 | decision | Source watchers use 300ms awaitWriteFinish (vs 200ms for data watchers) to absorb editor write-rename-write sequences | Per Workshop 02 recommendation | log#task-t008 |
+| 2026-02-24 | T008 | insight | Source watchers listen for addDir/unlinkDir in addition to file events (data watchers only listen for add/change/unlink) | Needed for tree directory updates in Phase 3 | log#task-t008 |
+| 2026-02-24 | all | insight | Pre-existing build failure in packages/shared fake-filesystem.ts (Buffer type issue) unrelated to Plan 045 changes | Ignored per instructions — all tests pass, lint clean | N/A |
 
 **Types**: `gotcha` | `research-needed` | `unexpected-behavior` | `workaround` | `decision` | `debt` | `insight`
 

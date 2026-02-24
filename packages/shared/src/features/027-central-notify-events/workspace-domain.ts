@@ -17,6 +17,8 @@ export const WorkspaceDomain = {
   Workgraphs: 'workgraphs',
   /** SSE channel: `'agents'` — matches `/api/events/agents` subscription path */
   Agents: 'agents',
+  /** SSE channel: `'file-changes'` — matches `/api/events/file-changes` subscription path */
+  FileChanges: 'file-changes',
 } as const;
 
 /**

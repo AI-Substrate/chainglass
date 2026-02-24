@@ -3,7 +3,7 @@
 **Plan**: [live-file-events-plan.md](../../live-file-events-plan.md)
 **Phase**: Phase 1: Server-Side Event Pipeline (1 of 3)
 **Generated**: 2026-02-24
-**Status**: Ready for takeoff
+**Status**: All stages complete
 
 ---
 
@@ -41,7 +41,7 @@ stateDiagram-v2
     S5 --> S6
     S6 --> [*]
 
-    class S1,S2,S3,S4,S5,S6 pending
+    class S1,S2,S3,S4,S5,S6 done
 ```
 
 **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -52,13 +52,13 @@ stateDiagram-v2
 
 <!-- Updated by /plan-6 during implementation: [ ] → [~] → [x] -->
 
-- [ ] **Stage 1: Add `ignored` field and ignore constants** — extend `FileWatcherOptions` with an optional `ignored` field, pass it through in the chokidar adapter, and create the `SOURCE_WATCHER_IGNORED` patterns array (`file-watcher.interface.ts`, `chokidar-file-watcher.adapter.ts`, `source-watcher.constants.ts` — new file)
-- [ ] **Stage 2: Add file-changes channel** — add `FileChanges: 'file-changes'` to the `WorkspaceDomain` const so the domain adapter can reference it (`workspace-domain.ts`)
-- [ ] **Stage 3: Build the core FileChangeWatcherAdapter** — implement `IWatcherAdapter` with .chainglass filtering, absolute→relative path conversion, 300ms debounce batching, and last-event-wins deduplication. TDD: write failing tests first (`file-change-watcher.adapter.ts` — new file, `file-change-watcher.adapter.test.ts` — new file)
-- [ ] **Stage 4: Build the fake + contract tests** — create `FakeFileChangeWatcherAdapter` with event recording and `flushNow()`, then write a shared contract test suite that both real and fake pass (`fake-file-change-watcher.ts` — new file, contract test files — new files)
-- [ ] **Stage 5: Build the domain event adapter** — create `FileChangeDomainEventAdapter` extending `DomainEventAdapter<T>` with `extractData()` returning `{ changes: [{path, eventType, worktreePath, timestamp}] }` (`file-change-domain-event-adapter.ts` — new file)
-- [ ] **Stage 6: Expand CentralWatcherService** — add `sourceWatchers` map, `createSourceWatchers()` per worktree root with ignore patterns, wrap in try/catch so source watcher failure doesn't block data watchers. Refactor existing tests to query by path instead of index (`central-watcher.service.ts`, `central-watcher.service.test.ts`)
-- [ ] **Stage 7: Wire everything in bootstrap** — create `FileChangeWatcherAdapter(300)` and `FileChangeDomainEventAdapter(notifier)` in `startCentralNotificationSystem()`, wire `onFilesChanged → handleEvent`, and write an integration test proving file change → notifier.emit (`start-central-notifications.ts`, integration test — new file)
+- [x] **Stage 1: Add `ignored` field and ignore constants** — extend `FileWatcherOptions` with an optional `ignored` field, pass it through in the chokidar adapter, and create the `SOURCE_WATCHER_IGNORED` patterns array (`file-watcher.interface.ts`, `chokidar-file-watcher.adapter.ts`, `source-watcher.constants.ts` — new file)
+- [x] **Stage 2: Add file-changes channel** — add `FileChanges: 'file-changes'` to the `WorkspaceDomain` const so the domain adapter can reference it (`workspace-domain.ts`)
+- [x] **Stage 3: Build the core FileChangeWatcherAdapter** — implement `IWatcherAdapter` with .chainglass filtering, absolute→relative path conversion, 300ms debounce batching, and last-event-wins deduplication. TDD: write failing tests first (`file-change-watcher.adapter.ts` — new file, `file-change-watcher.adapter.test.ts` — new file)
+- [x] **Stage 4: Build the fake + contract tests** — create `FakeFileChangeWatcherAdapter` with event recording and `flushNow()`, then write a shared contract test suite that both real and fake pass (`fake-file-change-watcher.ts` — new file, contract test files — new files)
+- [x] **Stage 5: Build the domain event adapter** — create `FileChangeDomainEventAdapter` extending `DomainEventAdapter<T>` with `extractData()` returning `{ changes: [{path, eventType, worktreePath, timestamp}] }` (`file-change-domain-event-adapter.ts` — new file)
+- [x] **Stage 6: Expand CentralWatcherService** — add `sourceWatchers` map, `createSourceWatchers()` per worktree root with ignore patterns, wrap in try/catch so source watcher failure doesn't block data watchers. Refactor existing tests to query by path instead of index (`central-watcher.service.ts`, `central-watcher.service.test.ts`)
+- [x] **Stage 7: Wire everything in bootstrap** — create `FileChangeWatcherAdapter(300)` and `FileChangeDomainEventAdapter(notifier)` in `startCentralNotificationSystem()`, wire `onFilesChanged → handleEvent`, and write an integration test proving file change → notifier.emit (`start-central-notifications.ts`, integration test — new file)
 
 ---
 
@@ -149,16 +149,16 @@ flowchart LR
 
 ## Checklist
 
-- [ ] T001: Add `ignored` field to FileWatcherOptions + ChokidarAdapter passthrough (CS-1)
-- [ ] T002: Create SOURCE_WATCHER_IGNORED constants (CS-1)
-- [ ] T003: Add FileChanges to WorkspaceDomain (CS-1)
-- [ ] T004: Create FileChangeWatcherAdapter with debounce + dedup (CS-3)
-- [ ] T005: Create FileChangeDomainEventAdapter (CS-1)
-- [ ] T006: Create FakeFileChangeWatcherAdapter + contract tests (CS-2)
-- [ ] T007: Write comprehensive unit tests for adapter (CS-2)
-- [ ] T008: Expand CentralWatcherService with source watchers (CS-3)
-- [ ] T009: Refactor existing CentralWatcherService tests (CS-2)
-- [ ] T010: Wire adapters in bootstrap + integration test (CS-2)
+- [x] T001: Add `ignored` field to FileWatcherOptions + ChokidarAdapter passthrough (CS-1)
+- [x] T002: Create SOURCE_WATCHER_IGNORED constants (CS-1)
+- [x] T003: Add FileChanges to WorkspaceDomain (CS-1)
+- [x] T004: Create FileChangeWatcherAdapter with debounce + dedup (CS-3)
+- [x] T005: Create FileChangeDomainEventAdapter (CS-1)
+- [x] T006: Create FakeFileChangeWatcherAdapter + contract tests (CS-2)
+- [x] T007: Write comprehensive unit tests for adapter (CS-2)
+- [x] T008: Expand CentralWatcherService with source watchers (CS-3)
+- [x] T009: Refactor existing CentralWatcherService tests (CS-2)
+- [x] T010: Wire adapters in bootstrap + integration test (CS-2)
 
 ---
 

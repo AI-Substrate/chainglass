@@ -251,6 +251,26 @@ export class FakeFileWatcherFactory implements IFileWatcherFactory {
   }
 
   /**
+   * Find the first watcher watching a specific path.
+   *
+   * @param path - Path to find in watched paths
+   * @returns Watcher watching that path, or undefined
+   */
+  findWatcherByPath(path: string): FakeFileWatcher | undefined {
+    return this.watchers.find((w) => w.getWatchedPaths().includes(path));
+  }
+
+  /**
+   * Find all watchers watching a specific path.
+   *
+   * @param path - Path to find in watched paths
+   * @returns Array of watchers watching that path
+   */
+  findWatchersByPath(path: string): FakeFileWatcher[] {
+    return this.watchers.filter((w) => w.getWatchedPaths().includes(path));
+  }
+
+  /**
    * Get the total number of watchers created.
    *
    * @returns Number of watchers

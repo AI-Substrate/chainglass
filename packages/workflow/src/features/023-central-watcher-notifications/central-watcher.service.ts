@@ -20,6 +20,7 @@ import type {
 import type { IGitWorktreeResolver } from '../../interfaces/git-worktree-resolver.interface.js';
 import type { IWorkspaceRegistryAdapter } from '../../interfaces/workspace-registry-adapter.interface.js';
 import type { ICentralWatcherService } from './central-watcher.interface.js';
+import { SOURCE_WATCHER_IGNORED } from './source-watcher.constants.js';
 import type { IWatcherAdapter, WatcherEvent } from './watcher-adapter.interface.js';
 
 /** Metadata for a data watcher — maps watcher to its worktree/workspace context */
@@ -45,6 +46,9 @@ export class CentralWatcherService implements ICentralWatcherService {
 
   /** Data watchers keyed by worktree path */
   private readonly dataWatchers = new Map<string, IFileWatcher>();
+
+  /** Source file watchers keyed by worktree path */
+  private readonly sourceWatchers = new Map<string, IFileWatcher>();
 
   /** Metadata for each data watcher — maps worktree path to context */
   private readonly watcherMetadata = new Map<string, WatcherMetadata>();
@@ -82,10 +86,20 @@ export class CentralWatcherService implements ICentralWatcherService {
       throw new Error('Already watching');
     }
 
-    // Discover all worktrees and create watchers
+    // Discover all worktrees and create data watchers
     await this.createDataWatchers();
 
-    this.logInfo('Started', { worktreeCount: this.dataWatchers.size });
+    // Create source watchers (failure must not block data watchers)
+    try {
+      await this.createSourceWatchers();
+    } catch (err) {
+      this.logError('Source watcher creation failed (data watchers still active)', err);
+    }
+
+    this.logInfo('Started', {
+      dataWatcherCount: this.dataWatchers.size,
+      sourceWatcherCount: this.sourceWatchers.size,
+    });
 
     // Create registry watcher
     this.registryWatcher = this.fileWatcherFactory.create({
@@ -108,7 +122,10 @@ export class CentralWatcherService implements ICentralWatcherService {
       return;
     }
 
-    this.logInfo('Stopping', { watcherCount: this.dataWatchers.size });
+    this.logInfo('Stopping', {
+      dataWatcherCount: this.dataWatchers.size,
+      sourceWatcherCount: this.sourceWatchers.size,
+    });
 
     this.watching = false;
     this.rescanQueued = false;
@@ -119,6 +136,12 @@ export class CentralWatcherService implements ICentralWatcherService {
     }
     this.dataWatchers.clear();
     this.watcherMetadata.clear();
+
+    // Close all source watchers
+    for (const [, watcher] of this.sourceWatchers) {
+      await watcher.close();
+    }
+    this.sourceWatchers.clear();
 
     // Close registry watcher
     if (this.registryWatcher) {
@@ -228,6 +251,39 @@ export class CentralWatcherService implements ICentralWatcherService {
     }
   }
 
+  private async createSourceWatchers(): Promise<void> {
+    // Source watchers reuse the same worktree discovery but watch the worktree root
+    // with ignore patterns instead of just .chainglass/data/
+    for (const [worktreePath, metadata] of this.watcherMetadata) {
+      if (this.sourceWatchers.has(worktreePath)) continue;
+
+      try {
+        const watcher = this.fileWatcherFactory.create({
+          ignoreInitial: true,
+          atomic: true,
+          awaitWriteFinish: { stabilityThreshold: 300, pollInterval: 100 },
+          ignored: SOURCE_WATCHER_IGNORED,
+        });
+
+        watcher.add(worktreePath);
+
+        const eventTypes: FileWatcherEvent[] = ['change', 'add', 'unlink', 'addDir', 'unlinkDir'];
+        for (const eventType of eventTypes) {
+          watcher.on(eventType, (pathOrError) => {
+            if (typeof pathOrError === 'string') {
+              this.dispatchEvent(pathOrError, eventType, worktreePath, metadata.workspaceSlug);
+            }
+          });
+        }
+
+        this.sourceWatchers.set(worktreePath, watcher);
+        this.logDebug('Source watcher created', { worktreePath });
+      } catch (err) {
+        this.logError(`Failed to create source watcher for ${worktreePath}`, err);
+      }
+    }
+  }
+
   private dispatchEvent(
     path: string,
     eventType: FileWatcherEvent,
@@ -292,6 +348,13 @@ export class CentralWatcherService implements ICentralWatcherService {
         this.watcherMetadata.delete(wtPath);
       }
     }
+    // Close source watchers for removed worktrees
+    for (const [wtPath, watcher] of this.sourceWatchers) {
+      if (!currentWorktrees.has(wtPath)) {
+        removals.push(watcher.close());
+        this.sourceWatchers.delete(wtPath);
+      }
+    }
     await Promise.all(removals);
 
     // Create watchers for new worktrees in parallel
@@ -299,6 +362,13 @@ export class CentralWatcherService implements ICentralWatcherService {
       .filter(([wtPath]) => !this.dataWatchers.has(wtPath))
       .map(([wtPath, slug]) => this.createWatcherForWorktree(wtPath, slug));
     await Promise.all(additions);
+
+    // Create source watchers for new worktrees (failure doesn't block)
+    try {
+      await this.createSourceWatchers();
+    } catch (err) {
+      this.logError('Source watcher creation failed during rescan', err);
+    }
   }
 
   private logInfo(message: string, data?: Record<string, unknown>): void {

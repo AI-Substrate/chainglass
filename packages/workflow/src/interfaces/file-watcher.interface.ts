@@ -64,6 +64,12 @@ export interface FileWatcherOptions {
    * Polling interval if usePolling is true (ms).
    */
   interval?: number;
+
+  /**
+   * Paths/globs to ignore. Matched against absolute paths.
+   * Supports strings and RegExp patterns (passed to chokidar's `ignored` option).
+   */
+  ignored?: (string | RegExp)[];
 }
 
 /**

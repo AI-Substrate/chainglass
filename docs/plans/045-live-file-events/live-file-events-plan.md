@@ -106,13 +106,13 @@ The file browser currently requires manual refresh to see filesystem changes. Th
 | 1.7 | Wire adapters in `startCentralNotificationSystem()` | events | 2 | Bootstrap creates FileChangeWatcherAdapter(300), FileChangeDomainEventAdapter(notifier). Wires `onFilesChanged → handleEvent`. Registers adapter with watcher service. Integration test: file change → adapter → notifier.emit('file-changes', ...). | Follows existing workgraph wiring pattern. |
 
 ### Acceptance Criteria (Phase 1)
-- [ ] AC-01: File created → `file-changed` SSE event with `add` type within ~700ms
-- [ ] AC-02: File modified → `file-changed` SSE event with `change` type
-- [ ] AC-03: File deleted → `file-changed` SSE event with `unlink` type
-- [ ] AC-04: node_modules/.git/dist/.next/.chainglass changes produce NO SSE events
-- [ ] AC-05: Rapid changes within 300ms batched + deduped
-- [ ] AC-06: WorkspaceDomain.FileChanges === 'file-changes'
-- [ ] AC-28: Server watcher starts at startup via instrumentation.ts
+- [x] AC-01: File created → `file-changed` SSE event with `add` type within ~700ms
+- [x] AC-02: File modified → `file-changed` SSE event with `change` type
+- [x] AC-03: File deleted → `file-changed` SSE event with `unlink` type
+- [x] AC-04: node_modules/.git/dist/.next/.chainglass changes produce NO SSE events
+- [x] AC-05: Rapid changes within 300ms batched + deduped
+- [x] AC-06: WorkspaceDomain.FileChanges === 'file-changes'
+- [x] AC-28: Server watcher starts at startup via instrumentation.ts
 
 ---
 
@@ -194,7 +194,7 @@ The file browser currently requires manual refresh to see filesystem changes. Th
 
 ## Phase Completion Checklist
 
-- [ ] Phase 1: Server-Side Event Pipeline
+- [x] Phase 1: Server-Side Event Pipeline
 - [ ] Phase 2: Browser-Side Event Hub
 - [ ] Phase 3: UI Wiring
 
