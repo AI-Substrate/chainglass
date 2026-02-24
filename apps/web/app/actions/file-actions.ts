@@ -160,3 +160,34 @@ export async function fileExists(
     return false;
   }
 }
+
+// Path type check — returns 'file', 'directory', or false (Plan 043)
+export async function pathExists(
+  slug: string,
+  worktreePath: string,
+  filePath: string
+): Promise<'file' | 'directory' | false> {
+  const nodePath = await import('node:path');
+  const container = getContainer();
+  const workspaceService = container.resolve<IWorkspaceService>(
+    WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE
+  );
+  const fileSystem = container.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
+  const pathResolver = container.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
+
+  const info = await workspaceService.getInfo(slug);
+  if (!info) return false;
+  const trustedRoot = info.worktrees.find((w) => w.path === worktreePath)?.path ?? info.path;
+
+  try {
+    const absolutePath = pathResolver.resolvePath(trustedRoot, filePath);
+    const realPath = await fileSystem.realpath(absolutePath);
+    if (!realPath.startsWith(trustedRoot + nodePath.default.sep) && realPath !== trustedRoot) {
+      return false;
+    }
+    const stat = await fileSystem.stat(realPath);
+    return stat.isDirectory ? 'directory' : 'file';
+  } catch {
+    return false;
+  }
+}

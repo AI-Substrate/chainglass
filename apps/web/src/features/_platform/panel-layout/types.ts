@@ -14,8 +14,12 @@ export interface BarContext {
   worktreePath: string;
   /** Check if a file exists at this relative path (server call) */
   fileExists: (relativePath: string) => Promise<boolean>;
+  /** Check if a path exists (file or directory) */
+  pathExists: (relativePath: string) => Promise<'file' | 'directory' | false>;
   /** Navigate to a file */
   navigateToFile: (relativePath: string) => void;
+  /** Navigate to a directory (expand in tree, scroll into view) */
+  navigateToDirectory: (relativePath: string) => void;
   /** Show an error in the bar */
   showError: (message: string) => void;
 }

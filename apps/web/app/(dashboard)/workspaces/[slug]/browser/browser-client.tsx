@@ -39,6 +39,7 @@ import {
   fetchRecentFiles,
   fetchWorkingChanges,
   fileExists,
+  pathExists,
   readFile,
   saveFile,
 } from '../../../../actions/file-actions';
@@ -93,12 +94,33 @@ export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: Bro
       slug,
       worktreePath,
       fileExists: (relativePath: string) => fileExists(slug, worktreePath, relativePath),
+      pathExists: (relativePath: string) => pathExists(slug, worktreePath, relativePath),
       navigateToFile: (relativePath: string) => fileNav.handleSelect(relativePath),
+      navigateToDirectory: (relativePath: string) => {
+        // Expand all ancestors + the directory itself, then scroll into view
+        const parts = relativePath.split('/');
+        let current = '';
+        for (let i = 0; i < parts.length; i++) {
+          current = current ? `${current}/${parts[i]}` : parts[i];
+          fileNav.handleExpand(current);
+        }
+        // Switch to tree mode if in changes mode
+        if (panelMode !== 'tree') {
+          panelState.handlePanelModeChange('tree');
+        }
+      },
       showError: (message: string) => {
         // toast handled by ExplorerPanel
       },
     }),
-    [slug, worktreePath, fileNav.handleSelect]
+    [
+      slug,
+      worktreePath,
+      fileNav.handleSelect,
+      fileNav.handleExpand,
+      panelMode,
+      panelState.handlePanelModeChange,
+    ]
   );
 
   // --- Ctrl+P / Cmd+P keyboard shortcut (DYK-P3-04) ---

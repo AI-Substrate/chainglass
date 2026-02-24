@@ -26,7 +26,9 @@ const makeContext = (overrides?: Partial<BarContext>): BarContext => ({
   slug: 'test-ws',
   worktreePath: '/tmp/test',
   fileExists: vi.fn().mockResolvedValue(true),
+  pathExists: vi.fn().mockResolvedValue('file' as const),
   navigateToFile: vi.fn(),
+  navigateToDirectory: vi.fn(),
   showError: vi.fn(),
   ...overrides,
 });

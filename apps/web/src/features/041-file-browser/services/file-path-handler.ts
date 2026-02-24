@@ -27,14 +27,22 @@ export function createFilePathHandler(): BarHandler {
     // Strip leading ./ or /
     if (normalized.startsWith('./')) normalized = normalized.slice(2);
     if (normalized.startsWith('/')) normalized = normalized.slice(1);
+    // Strip trailing /
+    if (normalized.endsWith('/')) normalized = normalized.slice(0, -1);
 
     if (!normalized) return false;
 
-    // Verify file exists before navigating
-    const exists = await context.fileExists(normalized);
-    if (!exists) return false;
+    // Check what kind of path it is
+    const pathType = await context.pathExists(normalized);
+    if (pathType === 'file') {
+      context.navigateToFile(normalized);
+      return true;
+    }
+    if (pathType === 'directory') {
+      context.navigateToDirectory(normalized);
+      return true;
+    }
 
-    context.navigateToFile(normalized);
-    return true;
+    return false;
   };
 }
