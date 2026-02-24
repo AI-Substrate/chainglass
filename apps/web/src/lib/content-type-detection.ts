@@ -32,11 +32,17 @@ const EXTENSION_MAP: Record<string, ContentTypeInfo> = {
   // Video
   mp4: { category: 'video', mimeType: 'video/mp4' },
   webm: { category: 'video', mimeType: 'video/webm' },
+  mov: { category: 'video', mimeType: 'video/quicktime' },
+  avi: { category: 'video', mimeType: 'video/x-msvideo' },
+  mkv: { category: 'video', mimeType: 'video/x-matroska' },
 
   // Audio
   mp3: { category: 'audio', mimeType: 'audio/mpeg' },
   wav: { category: 'audio', mimeType: 'audio/wav' },
   ogg: { category: 'audio', mimeType: 'audio/ogg' },
+  flac: { category: 'audio', mimeType: 'audio/flac' },
+  aac: { category: 'audio', mimeType: 'audio/aac' },
+  m4a: { category: 'audio', mimeType: 'audio/mp4' },
 };
 
 const BINARY_FALLBACK: ContentTypeInfo = {

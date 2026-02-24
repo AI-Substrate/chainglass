@@ -83,13 +83,11 @@ export async function readFileAction(options: ReadFileOptions): Promise<ReadFile
     return { ok: false, error: 'not-found' };
   }
 
-  // Size check
+  // Stat for metadata
   const stats = await fileSystem.stat(absolutePath);
-  if (stats.size > MAX_FILE_SIZE) {
-    return { ok: false, error: 'file-too-large' };
-  }
 
   // Binary detection: extension-first (avoids reading binary content as UTF-8)
+  // Must be BEFORE size check — binary files bypass the 5MB text limit
   const filename = path.basename(filePath);
   if (isBinaryExtension(filename)) {
     const { mimeType } = detectContentType(filename);
@@ -100,6 +98,11 @@ export async function readFileAction(options: ReadFileOptions): Promise<ReadFile
       mtime: stats.mtime,
       size: stats.size,
     };
+  }
+
+  // Size check (text files only — binary files served via raw route)
+  if (stats.size > MAX_FILE_SIZE) {
+    return { ok: false, error: 'file-too-large' };
   }
 
   // Read content
