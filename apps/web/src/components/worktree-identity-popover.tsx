@@ -62,7 +62,7 @@ export function WorktreeIdentityPopover({ slug, worktreePath }: Props) {
         <Settings2 className="h-4 w-4" />
       </button>
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-1 w-64 rounded-lg border bg-popover p-4 shadow-lg">
+        <div className="absolute left-0 top-full z-50 mt-1 w-64 rounded-lg border bg-popover p-4 shadow-lg">
           <div className="mb-3 text-xs font-medium text-muted-foreground">Worktree Identity</div>
           <div className="space-y-3">
             <div>
