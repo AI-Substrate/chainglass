@@ -3,6 +3,7 @@
 **Plan**: 046-binary-file-viewers
 **Created**: 2026-02-24
 **Status**: DRAFT
+**Mode**: Simple
 
 > This specification incorporates findings from research-dossier.md
 
@@ -96,6 +97,8 @@ Key research findings:
 - **AC-03**: Raw file endpoint rejects symlink escapes (realpath outside workspace) with 403
 - **AC-04**: Raw file endpoint returns 404 for non-existent files
 - **AC-05**: Raw file endpoint returns 400 when worktree or file parameter is missing
+- **AC-27**: Raw file endpoint supports HTTP Range requests (returns 206 Partial Content with `Content-Range` header)
+- **AC-28**: Range request with invalid range returns 416 Range Not Satisfiable
 
 ### Content Type Detection
 - **AC-06**: `detectContentType('photo.png')` returns `{ category: 'image', mimeType: 'image/png' }`
@@ -151,13 +154,51 @@ Key research findings:
 - Files are on local filesystem with low-latency access
 - Target browsers (Chrome, Firefox, Safari) all support native image, video, audio, and PDF rendering
 - The 5MB text file size limit does NOT apply to binary files served via the raw endpoint
+- No maximum file size for binary viewing — browser handles whatever the filesystem has
+- HTTP Range requests supported for efficient video seeking
 
 ---
 
 ## Open Questions
 
-- [NEEDS CLARIFICATION: Should the raw file endpoint support HTTP Range requests for video seeking, or is full-file download acceptable?]
-- [NEEDS CLARIFICATION: Should there be a maximum file size for binary viewing (e.g., skip rendering 2GB video files)?]
+*All resolved — see Clarifications below.*
+
+---
+
+## Testing Strategy
+
+- **Approach**: Lightweight
+- **Rationale**: Main logic is `detectContentType()` (pure function) and raw file API route (security). Viewer components are thin wrappers around browser-native elements (`<img>`, `<video>`, `<audio>`, `<iframe>`) — not worth component tests.
+- **Focus Areas**: Unit tests for `detectContentType()` extension mapping; unit tests for raw file route (security: traversal, symlink, 404, Content-Type header, Range request handling)
+- **Excluded**: Viewer component rendering tests (browser-native elements don't need testing)
+- **Mock Usage**: Avoid mocks entirely — use FakeFileSystem + FakePathResolver (matches codebase pattern)
+
+---
+
+## Documentation Strategy
+
+- **Location**: No new documentation
+- **Rationale**: Internal extension of existing file browser functionality. Viewer components are thin browser-native wrappers. Existing docs cover the file browser architecture.
+
+---
+
+## Clarifications
+
+### Session 2026-02-24
+
+**Q1: Workflow Mode** — Simple. CS-2 feature, single-phase plan, inline tasks.
+
+**Q2: Testing Strategy** — Lightweight. Unit tests for `detectContentType()` and raw route security. No component tests for viewer wrappers.
+
+**Q3: Mock Usage** — Avoid mocks entirely. Use FakeFileSystem + FakePathResolver per codebase convention.
+
+**Q4: Documentation Strategy** — No new documentation. Internal/trivial extension.
+
+**Q5: Range Requests** — Yes, add HTTP Range request support to the raw file endpoint. Enables video seeking without full download.
+
+**Q6: Max Binary Viewer Size** — No limit. Serve whatever the filesystem has; let the browser handle it.
+
+**Q7: Domain Review** — Confirmed as specified. `_platform/viewer` gets new components, `file-browser` gets raw endpoint and readFileAction evolution. No new domains, no contract-breaking changes.
 
 ---
 
