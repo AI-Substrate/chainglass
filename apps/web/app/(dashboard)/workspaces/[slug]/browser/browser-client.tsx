@@ -278,6 +278,30 @@ export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: Bro
     [slug, worktreePath]
   );
 
+  const handleDownload = useCallback(
+    async (filePath: string) => {
+      try {
+        const result = await readFile(slug, worktreePath, filePath);
+        if (result.ok) {
+          const blob = new Blob([result.content], { type: 'text/plain' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = filePath.split('/').pop() ?? 'file';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        } else {
+          toast.error('Could not download file');
+        }
+      } catch {
+        toast.error('Could not download file');
+      }
+    },
+    [slug, worktreePath]
+  );
+
   return (
     <div className="flex h-[calc(100vh-4rem)] overflow-hidden">
       {/* Left panel: File tree */}
@@ -295,6 +319,7 @@ export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: Bro
           onCopyRelativePath={handleCopyRelativePath}
           onCopyContent={handleCopyContent}
           onCopyTree={handleCopyTree}
+          onDownload={handleDownload}
         />
       </div>
 

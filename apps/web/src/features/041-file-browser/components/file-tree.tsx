@@ -22,6 +22,7 @@ import {
   ChevronDown,
   ChevronRight,
   ClipboardCopy,
+  Download,
   File,
   FileText,
   Folder,
@@ -45,6 +46,7 @@ export interface FileTreeProps {
   onCopyRelativePath?: (path: string) => void;
   onCopyContent?: (filePath: string) => void;
   onCopyTree?: (dirPath: string) => void;
+  onDownload?: (filePath: string) => void;
 }
 
 export function FileTree({
@@ -60,6 +62,7 @@ export function FileTree({
   onCopyRelativePath,
   onCopyContent,
   onCopyTree,
+  onDownload,
 }: FileTreeProps) {
   const [expanded, setExpanded] = useState<Set<string>>(() => {
     // Auto-expand to selected file on initial render
@@ -131,6 +134,7 @@ export function FileTree({
             onCopyRelativePath={onCopyRelativePath}
             onCopyContent={onCopyContent}
             onCopyTree={onCopyTree}
+            onDownload={onDownload}
           />
         ))}
       </div>
@@ -153,6 +157,7 @@ function TreeItem({
   onCopyRelativePath,
   onCopyContent,
   onCopyTree,
+  onDownload,
 }: {
   entry: FileEntry;
   depth: number;
@@ -168,6 +173,7 @@ function TreeItem({
   onCopyRelativePath?: (path: string) => void;
   onCopyContent?: (filePath: string) => void;
   onCopyTree?: (dirPath: string) => void;
+  onDownload?: (filePath: string) => void;
 }) {
   const isExpanded = expanded.has(entry.path);
   const isSelected = selectedFile === entry.path;
@@ -244,6 +250,7 @@ function TreeItem({
                   onCopyRelativePath={onCopyRelativePath}
                   onCopyContent={onCopyContent}
                   onCopyTree={onCopyTree}
+                  onDownload={onDownload}
                 />
               ))}
           </div>
@@ -291,6 +298,10 @@ function TreeItem({
         <ContextMenuItem onSelect={() => onCopyContent?.(entry.path)}>
           <ClipboardCopy className="h-3.5 w-3.5 mr-2" />
           Copy Content
+        </ContextMenuItem>
+        <ContextMenuItem onSelect={() => onDownload?.(entry.path)}>
+          <Download className="h-3.5 w-3.5 mr-2" />
+          Download
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
