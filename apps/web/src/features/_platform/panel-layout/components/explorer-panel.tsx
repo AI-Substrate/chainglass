@@ -12,7 +12,7 @@
  * DYK-04: forwardRef + useImperativeHandle for focusInput()
  */
 
-import { ClipboardCopy } from 'lucide-react';
+import { ArrowRight, ClipboardCopy } from 'lucide-react';
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 
 import type { BarContext, BarHandler, ExplorerPanelHandle } from '../types';
@@ -84,6 +84,25 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
       setInputValue(filePath);
     }, [filePath]);
 
+    const handleSubmit = useCallback(async () => {
+      const value = inputValue.trim();
+      if (!value) return;
+
+      setProcessing(true);
+      try {
+        for (const handler of handlers) {
+          const handled = await handler(value, context);
+          if (handled) {
+            setEditing(false);
+            return;
+          }
+        }
+        context.showError(`Not found: ${value}`);
+      } finally {
+        setProcessing(false);
+      }
+    }, [inputValue, handlers, context]);
+
     const handleKeyDown = useCallback(
       async (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Escape') {
@@ -93,26 +112,10 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
 
         if (e.key === 'Enter') {
           e.preventDefault();
-          const value = inputValue.trim();
-          if (!value) return;
-
-          setProcessing(true);
-          try {
-            for (const handler of handlers) {
-              const handled = await handler(value, context);
-              if (handled) {
-                setEditing(false);
-                return;
-              }
-            }
-            // No handler matched
-            context.showError(`Not found: ${value}`);
-          } finally {
-            setProcessing(false);
-          }
+          handleSubmit();
         }
       },
-      [inputValue, handlers, context, exitEditMode]
+      [exitEditMode, handleSubmit]
     );
 
     const handleBlur = useCallback(() => {
@@ -143,17 +146,33 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
         )}
 
         {showInput ? (
-          <input
-            ref={inputRef}
-            type="text"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onBlur={handleBlur}
-            placeholder={placeholder}
-            className="flex-1 bg-transparent font-mono text-sm text-foreground outline-none placeholder:text-muted-foreground"
-            aria-label="File path"
-          />
+          <>
+            <input
+              ref={inputRef}
+              type="text"
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onBlur={handleBlur}
+              placeholder={placeholder}
+              className="flex-1 bg-transparent font-mono text-sm text-foreground outline-none placeholder:text-muted-foreground"
+              aria-label="File path"
+            />
+            {inputValue.trim() && !processing && (
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault(); // prevent blur before submit
+                  handleSubmit();
+                }}
+                className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground"
+                aria-label="Go"
+                title="Navigate to path"
+              >
+                <ArrowRight className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </>
         ) : (
           <button
             type="button"

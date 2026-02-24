@@ -32,7 +32,6 @@ export function createFilePathHandler(): BarHandler {
 
     if (!normalized) return false;
 
-    // Check what kind of path it is
     const pathType = await context.pathExists(normalized);
     if (pathType === 'file') {
       context.navigateToFile(normalized);
