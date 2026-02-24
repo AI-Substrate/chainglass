@@ -415,7 +415,10 @@ export {
   type RegisterAdapterCall,
 } from './features/023-central-watcher-notifications/index.js';
 export { FileChangeWatcherAdapter } from './features/023-central-watcher-notifications/index.js';
-export type { FileChangeBatchItem } from './features/023-central-watcher-notifications/index.js';
+export type {
+  FileChangeBatchItem,
+  FilesChangedCallback,
+} from './features/023-central-watcher-notifications/index.js';
 export { SOURCE_WATCHER_IGNORED } from './features/023-central-watcher-notifications/index.js';
 export { FakeFileChangeWatcherAdapter } from './features/023-central-watcher-notifications/index.js';
 

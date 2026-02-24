@@ -13,25 +13,10 @@
  * Per Workshop 02: 300ms debounce, last-event-wins dedup
  */
 
+import type { FileChangeBatchItem, FilesChangedCallback } from './file-change.types.js';
 import type { IWatcherAdapter, WatcherEvent } from './watcher-adapter.interface.js';
 
-/**
- * A single file change item within a batch.
- * Minimal payload per ADR-0007 — clients fetch full state via REST.
- */
-export interface FileChangeBatchItem {
-  /** Relative path from worktree root (e.g., 'src/app.tsx') */
-  path: string;
-  /** Type of filesystem event */
-  eventType: 'add' | 'change' | 'unlink' | 'addDir' | 'unlinkDir';
-  /** Absolute path to worktree root */
-  worktreePath: string;
-  /** When the change was detected (Date.now()) */
-  timestamp: number;
-}
-
-/** Callback type for batch subscribers */
-type FilesChangedCallback = (changes: FileChangeBatchItem[]) => void;
+export type { FileChangeBatchItem } from './file-change.types.js';
 
 /**
  * Adapter that filters, batches, and deduplicates source file change events.
@@ -136,8 +121,9 @@ export class FileChangeWatcherAdapter implements IWatcherAdapter {
     for (const subscriber of this.subscribers) {
       try {
         subscriber(changes);
-      } catch {
+      } catch (err) {
         // Error isolation: throwing subscriber must not block others
+        console.warn(`[${this.name}] Subscriber threw during flush`, err);
       }
     }
   }

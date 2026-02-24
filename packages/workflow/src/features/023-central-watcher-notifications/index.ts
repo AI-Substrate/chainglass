@@ -27,7 +27,7 @@ export {
 
 // File change watcher adapter (Plan 045)
 export { FileChangeWatcherAdapter } from './file-change-watcher.adapter.js';
-export type { FileChangeBatchItem } from './file-change-watcher.adapter.js';
+export type { FileChangeBatchItem, FilesChangedCallback } from './file-change.types.js';
 
 // Source watcher constants (Plan 045)
 export { SOURCE_WATCHER_IGNORED } from './source-watcher.constants.js';

@@ -10,11 +10,8 @@
  * Must pass the same contract tests as the real FileChangeWatcherAdapter.
  */
 
-import type { FileChangeBatchItem } from './file-change-watcher.adapter.js';
+import type { FileChangeBatchItem, FilesChangedCallback } from './file-change.types.js';
 import type { IWatcherAdapter, WatcherEvent } from './watcher-adapter.interface.js';
-
-/** Callback type for batch subscribers */
-type FilesChangedCallback = (changes: FileChangeBatchItem[]) => void;
 
 /**
  * Fake file change watcher adapter for unit testing.

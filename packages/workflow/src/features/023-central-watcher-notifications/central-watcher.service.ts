@@ -252,8 +252,8 @@ export class CentralWatcherService implements ICentralWatcherService {
   }
 
   private async createSourceWatchers(): Promise<void> {
-    // Source watchers reuse the same worktree discovery but watch the worktree root
-    // with ignore patterns instead of just .chainglass/data/
+    // Note: iterates watcherMetadata populated by createDataWatchers(), so source
+    // watchers are only created for worktrees that have .chainglass/data/
     for (const [worktreePath, metadata] of this.watcherMetadata) {
       if (this.sourceWatchers.has(worktreePath)) continue;
 

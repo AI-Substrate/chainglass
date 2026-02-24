@@ -125,7 +125,7 @@ Primary: scattered across `packages/shared`, `packages/workflow`, `apps/web` (Pl
 |------|------|-------|
 | `packages/workflow/src/features/023-central-watcher-notifications/file-change-watcher.adapter.ts` | FileChangeWatcherAdapter | Source file watcher with debounce |
 | `packages/workflow/src/features/023-central-watcher-notifications/source-watcher.constants.ts` | SOURCE_WATCHER_IGNORED | Ignore patterns for chokidar |
-| `packages/workflow/src/features/023-central-watcher-notifications/fake-file-change-watcher.adapter.ts` | FakeFileChangeWatcherAdapter | Test fake |
+| `packages/workflow/src/features/023-central-watcher-notifications/fake-file-change-watcher.ts` | FakeFileChangeWatcherAdapter | Test fake |
 | `apps/web/src/features/027-central-notify-events/file-change-domain-event-adapter.ts` | FileChangeDomainEventAdapter | Domain adapter for file changes |
 | `apps/web/src/features/045-live-file-events/file-change-hub.ts` | FileChangeHub class | Client-side pattern-based dispatcher |
 | `apps/web/src/features/045-live-file-events/file-change-provider.tsx` | FileChangeProvider | React context + SSE connection |
