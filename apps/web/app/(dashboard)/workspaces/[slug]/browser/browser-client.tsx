@@ -10,7 +10,7 @@
  */
 
 import { ChangesView } from '@/features/041-file-browser/components/changes-view';
-import { FileTree } from '@/features/041-file-browser/components/file-tree';
+import { FileTree, type FileTreeHandle } from '@/features/041-file-browser/components/file-tree';
 import {
   FileViewerPanel,
   type ViewerMode,
@@ -18,9 +18,11 @@ import {
 import { useClipboard } from '@/features/041-file-browser/hooks/use-clipboard';
 import { useFileNavigation } from '@/features/041-file-browser/hooks/use-file-navigation';
 import { usePanelState } from '@/features/041-file-browser/hooks/use-panel-state';
+import { useTreeDirectoryChanges } from '@/features/041-file-browser/hooks/use-tree-directory-changes';
 import { fileBrowserParams } from '@/features/041-file-browser/params/file-browser.params';
 import type { FileEntry } from '@/features/041-file-browser/services/directory-listing';
 import { createFilePathHandler } from '@/features/041-file-browser/services/file-path-handler';
+import { FileChangeProvider, useFileChanges } from '@/features/045-live-file-events';
 import {
   type BarContext,
   ExplorerPanel,
@@ -53,6 +55,19 @@ export interface BrowserClientProps {
 }
 
 export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: BrowserClientProps) {
+  return (
+    <FileChangeProvider worktreePath={worktreePath}>
+      <BrowserClientInner
+        slug={slug}
+        worktreePath={worktreePath}
+        isGit={isGit}
+        initialEntries={initialEntries}
+      />
+    </FileChangeProvider>
+  );
+}
+
+function BrowserClientInner({ slug, worktreePath, isGit, initialEntries }: BrowserClientProps) {
   const [params, setParams] = useQueryStates(fileBrowserParams);
   const explorerRef = useRef<ExplorerPanelHandle>(null);
   const [expandPaths, setExpandPaths] = useState<string[]>([]);
@@ -86,6 +101,71 @@ export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: Bro
   });
 
   const clipboard = useClipboard({ slug, worktreePath, readFile });
+
+  // --- Live file events (Plan 045) ---
+
+  const treeRef = useRef<FileTreeHandle>(null);
+
+  // T004: Watch current open file for external changes
+  const fileChanges = useFileChanges(selectedFile ?? '', { debounce: 100 });
+
+  // T001: Watch expanded directories for tree updates
+  const expandedDirs = treeRef.current?.getExpandedDirs() ?? [];
+  const treeChanges = useTreeDirectoryChanges(expandedDirs);
+
+  // T005: Watch all files for ChangesView auto-refresh (500ms debounce)
+  const allChanges = useFileChanges('*', { debounce: 500 });
+
+  // T006: Double-event suppression — 2s window after save
+  const suppressedPathsRef = useRef<Set<string>>(new Set());
+
+  const isSuppressed = selectedFile ? suppressedPathsRef.current.has(selectedFile) : false;
+  const isDirty = fileNav.editContent != null;
+
+  // Determine if we should show banner vs auto-refresh (DYK #3)
+  const externallyChanged = selectedFile ? fileChanges.hasChanges && !isSuppressed : false;
+
+  // Auto-refresh in preview mode or clean edit mode
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — only trigger on change detection, not every handler reference
+  useEffect(() => {
+    if (!externallyChanged || !selectedFile) return;
+    if (mode === 'preview' || (mode === 'edit' && !isDirty)) {
+      fileNav.handleRefreshFile();
+      fileChanges.clearChanges();
+    }
+  }, [externallyChanged, selectedFile, mode, isDirty]);
+
+  // T005: Auto-refresh working changes when any file changes
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — only trigger on hasChanges flip
+  useEffect(() => {
+    if (!allChanges.hasChanges) return;
+    panelState.handleRefreshChanges();
+    allChanges.clearChanges();
+  }, [allChanges.hasChanges]);
+
+  // T001: Re-fetch directories that changed in tree
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — only trigger on hasChanges flip
+  useEffect(() => {
+    if (!treeChanges.hasChanges) return;
+    for (const dir of treeChanges.changedDirs) {
+      fileNav.handleExpand(dir);
+    }
+    treeChanges.clearAll();
+  }, [treeChanges.hasChanges]);
+
+  // T006: Wrap save to track recently-saved paths for suppression
+  const handleSaveWithSuppression = useCallback(
+    (content: string) => {
+      if (selectedFile) {
+        suppressedPathsRef.current.add(selectedFile);
+        setTimeout(() => {
+          suppressedPathsRef.current.delete(selectedFile);
+        }, 2000);
+      }
+      fileNav.handleSave(content);
+    },
+    [selectedFile, fileNav.handleSave]
+  );
 
   // --- ExplorerPanel handler chain ---
 
@@ -213,9 +293,11 @@ export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: Bro
             {{
               tree: (
                 <FileTree
+                  ref={treeRef}
                   entries={initialEntries}
                   selectedFile={selectedFile}
                   changedFiles={panelState.changedFiles}
+                  newlyAddedPaths={treeChanges.newPaths}
                   onSelect={fileNav.handleSelect}
                   onExpand={fileNav.handleExpand}
                   childEntries={fileNav.childEntries}
@@ -260,10 +342,11 @@ export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: Bro
                 mtime={fileNav.fileData?.ok ? fileNav.fileData.mtime : ''}
                 mode={mode}
                 onModeChange={fileNav.handleModeChange}
-                onSave={fileNav.handleSave}
+                onSave={handleSaveWithSuppression}
                 onRefresh={fileNav.handleRefreshFile}
                 editContent={fileNav.editContent}
                 onEditChange={fileNav.setEditContent}
+                externallyChanged={externallyChanged && isDirty}
                 highlightedHtml={
                   fileNav.fileData?.ok && !fileNav.fileData.isBinary
                     ? fileNav.fileData.highlightedHtml

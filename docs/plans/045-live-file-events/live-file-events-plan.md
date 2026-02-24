@@ -196,7 +196,7 @@ The file browser currently requires manual refresh to see filesystem changes. Th
 
 - [x] Phase 1: Server-Side Event Pipeline
 - [x] Phase 2: Browser-Side Event Hub
-- [ ] Phase 3: UI Wiring
+- [x] Phase 3: UI Wiring
 
 ---
 

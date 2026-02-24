@@ -30,13 +30,20 @@ import {
   FolderTree,
   RefreshCw,
 } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useState } from 'react';
 import type { FileEntry } from '../services/directory-listing';
+
+/** Handle exposed via ref for external access to tree state */
+export interface FileTreeHandle {
+  getExpandedDirs: () => string[];
+}
 
 export interface FileTreeProps {
   entries: FileEntry[];
   selectedFile?: string;
   changedFiles?: string[];
+  /** Paths of newly added files/dirs — get green fade-in animation */
+  newlyAddedPaths?: Set<string>;
   onSelect: (filePath: string) => void;
   onExpand: (dirPath: string) => void;
   childEntries?: Record<string, FileEntry[]>;
@@ -49,20 +56,24 @@ export interface FileTreeProps {
   onDownload?: (filePath: string) => void;
 }
 
-export function FileTree({
-  entries,
-  selectedFile,
-  changedFiles,
-  onSelect,
-  onExpand,
-  childEntries = {},
-  expandPaths,
-  onCopyFullPath,
-  onCopyRelativePath,
-  onCopyContent,
-  onCopyTree,
-  onDownload,
-}: FileTreeProps) {
+export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileTree(
+  {
+    entries,
+    selectedFile,
+    changedFiles,
+    newlyAddedPaths,
+    onSelect,
+    onExpand,
+    childEntries = {},
+    expandPaths,
+    onCopyFullPath,
+    onCopyRelativePath,
+    onCopyContent,
+    onCopyTree,
+    onDownload,
+  },
+  ref
+) {
   const [expanded, setExpanded] = useState<Set<string>>(() => {
     // Auto-expand to selected file on initial render
     if (!selectedFile) return new Set();
@@ -75,6 +86,15 @@ export function FileTree({
     }
     return paths;
   });
+
+  // Expose expanded dirs to parent via ref (DYK #4)
+  useImperativeHandle(
+    ref,
+    () => ({
+      getExpandedDirs: () => [...expanded],
+    }),
+    [expanded]
+  );
 
   // Merge externally-requested expand paths into internal state
   useEffect(() => {
@@ -119,6 +139,7 @@ export function FileTree({
           expanded={expanded}
           selectedFile={selectedFile}
           changedFiles={changedFiles}
+          newlyAddedPaths={newlyAddedPaths}
           childEntries={childEntries}
           onSelect={onSelect}
           onDirClick={handleDirClick}
@@ -132,7 +153,7 @@ export function FileTree({
       ))}
     </div>
   );
-}
+});
 
 function TreeItem({
   entry,
@@ -140,6 +161,7 @@ function TreeItem({
   expanded,
   selectedFile,
   changedFiles,
+  newlyAddedPaths,
   childEntries,
   onSelect,
   onDirClick,
@@ -155,6 +177,7 @@ function TreeItem({
   expanded: Set<string>;
   selectedFile?: string;
   changedFiles?: string[];
+  newlyAddedPaths?: Set<string>;
   childEntries: Record<string, FileEntry[]>;
   onSelect: (path: string) => void;
   onDirClick: (path: string) => void;
@@ -168,6 +191,7 @@ function TreeItem({
   const isExpanded = expanded.has(entry.path);
   const isSelected = selectedFile === entry.path;
   const isChanged = changedFiles?.includes(entry.path);
+  const isNewlyAdded = newlyAddedPaths?.has(entry.path);
   const children = childEntries[entry.path];
 
   if (entry.type === 'directory') {
@@ -176,7 +200,7 @@ function TreeItem({
         <div
           className={`group relative flex w-full items-center gap-1 px-2 py-1 text-left hover:bg-accent ${
             isSelected ? 'bg-accent' : ''
-          }`}
+          } ${isNewlyAdded ? 'tree-entry-new' : ''}`}
           style={{ paddingLeft: `${depth * 16 + 8}px` }}
         >
           <ContextMenu>
@@ -238,6 +262,7 @@ function TreeItem({
                 expanded={expanded}
                 selectedFile={selectedFile}
                 changedFiles={changedFiles}
+                newlyAddedPaths={newlyAddedPaths}
                 childEntries={childEntries}
                 onSelect={onSelect}
                 onDirClick={onDirClick}
@@ -274,7 +299,7 @@ function TreeItem({
           onClick={() => onSelect(entry.path)}
           className={`relative flex w-full items-center gap-1 px-2 py-1 text-left hover:bg-accent ${
             isSelected ? 'bg-accent font-medium' : ''
-          } ${isChanged ? 'text-amber-600 dark:text-amber-400' : ''}`}
+          } ${isChanged ? 'text-amber-600 dark:text-amber-400' : ''} ${isNewlyAdded ? 'tree-entry-new' : ''}`}
           style={{ paddingLeft: `${depth * 16 + 8 + 14}px` }}
         >
           {isSelected && (

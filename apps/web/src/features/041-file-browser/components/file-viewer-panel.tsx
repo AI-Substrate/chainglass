@@ -43,6 +43,8 @@ export interface FileViewerPanelProps {
   onEditChange?: (content: string) => void;
   conflictError?: string;
   errorType?: 'file-too-large';
+  /** Whether the file was modified outside the editor (shows blue banner when dirty) */
+  externallyChanged?: boolean;
   /** Pre-highlighted HTML from Shiki (for code preview) */
   highlightedHtml?: string;
   /** Pre-rendered markdown HTML (for markdown preview) */
@@ -72,6 +74,7 @@ export function FileViewerPanel({
   onEditChange,
   conflictError,
   errorType,
+  externallyChanged,
   highlightedHtml,
   markdownHtml,
   diffData,
@@ -187,6 +190,32 @@ export function FileViewerPanel({
       {conflictError && (
         <div className="border-b bg-amber-50 dark:bg-amber-950 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
           ⚠️ Conflict: {conflictError}
+        </div>
+      )}
+
+      {/* Externally changed banner — only when user has dirty edits or in diff mode */}
+      {externallyChanged && mode === 'edit' && editContent != null && (
+        <div className="border-b bg-blue-50 dark:bg-blue-950 px-3 py-2 text-sm text-blue-700 dark:text-blue-300 flex items-center justify-between">
+          <span>ℹ️ This file was modified outside the editor</span>
+          <button
+            type="button"
+            onClick={onRefresh}
+            className="rounded px-2 py-0.5 text-xs bg-blue-100 dark:bg-blue-900 hover:bg-blue-200 dark:hover:bg-blue-800"
+          >
+            Refresh
+          </button>
+        </div>
+      )}
+      {externallyChanged && mode === 'diff' && (
+        <div className="border-b bg-blue-50 dark:bg-blue-950 px-3 py-2 text-sm text-blue-700 dark:text-blue-300 flex items-center justify-between">
+          <span>ℹ️ Diff may be outdated — file was modified</span>
+          <button
+            type="button"
+            onClick={onRefresh}
+            className="rounded px-2 py-0.5 text-xs bg-blue-100 dark:bg-blue-900 hover:bg-blue-200 dark:hover:bg-blue-800"
+          >
+            Refresh
+          </button>
         </div>
       )}
 
