@@ -188,15 +188,23 @@ This is a **one-line fix** in `dashboard-sidebar.tsx`. The infrastructure (`work
 │ chainglass-main      │
 │ ▾ 041-file-browser   │  ← worktree picker (click to switch)
 ├─────────────────────┤
-│ 📁 Browser           │  ← all carry ?worktree=
-│ 🤖 Agents            │
+│ 📁 Browser           │  ← tools scoped to current worktree
+│ 🤖 Agents            │     (NOT nested under worktree)
 │ ⚡ Workflows          │
+├─────────────────────┤
+│ Worktrees            │  ← switch worktree list
+│   ★ main             │     selecting one changes ?worktree=
+│   ★ 041-file-browser │     and stays on current sub-page
+│     002-agents       │
+│     ...              │
 ├─────────────────────┤
 │ ← All Workspaces     │
 ├─────────────────────┤
 │ Dev ▸                │
 └─────────────────────┘
 ```
+
+**Key**: Browser/Agents/Workflows are **top-level tools** that operate on whatever worktree is selected. They are NOT children of individual worktrees in the menu. The worktree list below is purely for switching context — clicking a worktree changes `?worktree=` on the current page.
 
 ---
 
