@@ -100,16 +100,16 @@ describe('uploadFileService', () => {
     expect(result.error).toBe('security');
   });
 
-  it('should reject files over 10MB', async () => {
+  it('should reject files over 250MB', async () => {
     /*
     Test Doc:
     - Why: Prevent oversized uploads consuming disk (AC-28)
-    - Contract: Returns { ok: false, error: 'too-large' } for files > 10MB
+    - Contract: Returns { ok: false, error: 'too-large' } for files > 250MB
     - Usage Notes: Pass a buffer larger than limit
     - Quality Contribution: Verifies AC-28 (size limit)
-    - Worked Example: 11MB buffer → too-large error
+    - Worked Example: 251MB buffer → too-large error
     */
-    const bigBuffer = Buffer.alloc(11 * 1024 * 1024); // 11MB
+    const bigBuffer = Buffer.alloc(251 * 1024 * 1024); // 251MB
     const result = await uploadFileService(makeOptions({ content: bigBuffer }));
 
     expect(result.ok).toBe(false);

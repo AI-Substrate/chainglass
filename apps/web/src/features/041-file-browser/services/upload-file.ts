@@ -2,7 +2,7 @@ import type { IFileSystem } from '@chainglass/shared/interfaces';
 import type { IPathResolver } from '@chainglass/shared/interfaces';
 import { PathSecurityError } from '@chainglass/shared/interfaces';
 
-const MAX_UPLOAD_SIZE = 10 * 1024 * 1024; // 10 MB
+const MAX_UPLOAD_SIZE = 250 * 1024 * 1024; // 250 MB
 
 export interface UploadFileOptions {
   worktreePath: string;
