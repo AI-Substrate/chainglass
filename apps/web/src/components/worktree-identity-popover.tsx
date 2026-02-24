@@ -32,6 +32,7 @@ export function WorktreeIdentityPopover({ slug, worktreePath }: Props) {
   const currentColor = wsCtx?.worktreeIdentity?.color || '';
 
   const handleEmojiSelect = async (emoji: string) => {
+    setOpen(false);
     const result = await updateWorktreePreferences(slug, worktreePath, { emoji });
     if (result.success) {
       toast.success('Worktree emoji updated');
@@ -42,6 +43,7 @@ export function WorktreeIdentityPopover({ slug, worktreePath }: Props) {
   };
 
   const handleColorSelect = async (color: string) => {
+    setOpen(false);
     const result = await updateWorktreePreferences(slug, worktreePath, { color });
     if (result.success) {
       toast.success('Worktree color updated');

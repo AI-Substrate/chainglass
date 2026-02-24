@@ -68,24 +68,24 @@ export function WorkspaceProvider({
   const [hasChanges, setHasChangesRaw] = useState(false);
   const setHasChanges = useCallback((value: boolean) => setHasChangesRaw(value), []);
 
-  const [worktreeIdentity, setWorktreeIdentityRaw] = useState<WorktreeIdentity | null>(null);
+  const [worktreeInput, setWorktreeInput] = useState<WorktreeIdentityInput | null>(null);
 
   const setWorktreeIdentity = useCallback(
-    (input: WorktreeIdentityInput | null) => {
-      if (!input) {
-        setWorktreeIdentityRaw(null);
-        return;
-      }
-      const wtPrefs = worktreePreferences[input.worktreePath];
-      setWorktreeIdentityRaw({
-        branch: input.branch,
-        emoji: wtPrefs?.emoji || emoji,
-        color: wtPrefs?.color || color,
-        pageTitle: input.pageTitle ?? null,
-      });
-    },
-    [worktreePreferences, emoji, color]
+    (input: WorktreeIdentityInput | null) => setWorktreeInput(input),
+    []
   );
+
+  // Derive resolved identity from input + preferences (re-resolves when prefs change)
+  const worktreeIdentity = useMemo<WorktreeIdentity | null>(() => {
+    if (!worktreeInput) return null;
+    const wtPrefs = worktreePreferences[worktreeInput.worktreePath];
+    return {
+      branch: worktreeInput.branch,
+      emoji: wtPrefs?.emoji || emoji,
+      color: wtPrefs?.color || color,
+      pageTitle: worktreeInput.pageTitle ?? null,
+    };
+  }, [worktreeInput, worktreePreferences, emoji, color]);
 
   const value = useMemo(
     () => ({
