@@ -16,7 +16,7 @@ import * as fs from 'node:fs';
 import * as fsPromises from 'node:fs/promises';
 import * as path from 'node:path';
 import type { NextRequest } from 'next/server';
-import { detectContentType } from '../../../../../src/lib/content-type-detection';
+import { detectContentType } from '@/lib/content-type-detection';
 
 export const dynamic = 'force-dynamic';
 
