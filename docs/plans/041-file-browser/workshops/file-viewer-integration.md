@@ -128,33 +128,30 @@ The existing `MarkdownViewer` expects a `preview` prop of type `ReactNode` (spec
 - **B) Use the existing MarkdownServer pattern** — but that requires the preview to be a Server Component child passed from the page. This means the page (Server Component) pre-renders the markdown and passes it as a prop.
 - **C) Use `highlightCodeAction` from client** to get highlighted source, and a new `renderMarkdown` server action for preview. Two server roundtrips but clean separation.
 
-**Recommended: Option A** — simplest, single roundtrip. The markdown rendering (react-markdown + rehype) can produce an HTML string server-side. Mermaid diagrams won't work in this mode (they need client-side JS), but that's acceptable for v1. We can upgrade to Option B later if mermaid support in preview is needed.
+**Recommended: Match the demo page pattern.** The browser page (`page.tsx`) IS a Server Component. It can render `<MarkdownServer content={...} />` and pass the ReactNode down through props. The BrowserClient stores it alongside fileData.
 
-Actually, **simpler still**: just use `dangerouslySetInnerHTML` with the `highlightedHtml` for markdown source view, and for preview mode, render the raw markdown content through a client-side markdown library. We already have `react-markdown` installed — it works client-side too.
+For non-initial file loads (clicking files client-side), use a server action that returns rendered markdown HTML string via the same pipeline. This gives us mermaid + syntax-highlighted code blocks in preview — identical to the demo page.
 
-**Simplest correct approach**:
-
+**Pattern**:
 ```tsx
-// Preview mode for markdown:
-import ReactMarkdown from 'react-markdown';
+// In readFile server action — for markdown files:
+import { renderMarkdownToHtml } from '@/lib/server/markdown-renderer';
 
+if (language === 'markdown') {
+  // Use same pipeline as MarkdownServer but return HTML string
+  markdownHtml = await renderMarkdownToHtml(content);
+}
+
+// In FileViewerPanel — preview mode for markdown:
 {mode === 'preview' && language === 'markdown' && (
-  <div className="prose dark:prose-invert max-w-none p-4">
-    <ReactMarkdown>{content}</ReactMarkdown>
-  </div>
-)}
-
-// Preview mode for code:
-{mode === 'preview' && language !== 'markdown' && (
   <div 
-    className="p-4"
-    // biome-ignore lint: highlighted HTML from trusted server action
-    dangerouslySetInnerHTML={{ __html: highlightedHtml }} 
+    className="prose dark:prose-invert max-w-none p-4"
+    dangerouslySetInnerHTML={{ __html: markdownHtml }} 
   />
 )}
 ```
 
-This avoids the Server Component problem entirely. `react-markdown` renders client-side, Shiki HTML renders via `dangerouslySetInnerHTML`. No new server actions needed for markdown.
+This gives us all the features: mermaid diagrams, syntax-highlighted code blocks, GFM tables, task lists — same as the demo page.
 
 ---
 
@@ -202,8 +199,7 @@ sequenceDiagram
 
 ## What We're NOT Doing
 
-- ❌ Mermaid rendering in browser preview (needs client-side mermaid — future enhancement)
-- ❌ MarkdownServer (Server Component) integration — too complex for client-side mode switching
+- ❌ Client-side ReactMarkdown (loses mermaid + syntax highlighting — use server-rendered HTML instead)
 - ❌ Re-highlighting on mode switch — highlighted HTML cached with file data
 - ❌ Syntax highlighting in diff view — DiffViewer handles its own Shiki client-side
 
@@ -213,7 +209,7 @@ sequenceDiagram
 
 ### Q1: Should we use the existing MarkdownViewer component?
 
-**RESOLVED**: No. MarkdownViewer expects a `preview` ReactNode prop (MarkdownServer output), which requires Server Component nesting. Instead, use `react-markdown` directly in FileViewerPanel for markdown preview. Simpler, works client-side, no Server Component dependency.
+**RESOLVED**: No — use the same server-side rendering pipeline as MarkdownServer but return HTML string from the readFile server action. This gives mermaid + syntax-highlighted code blocks. The existing `MarkdownViewer` component itself isn't used (it expects a ReactNode `preview` prop), but we get the same output via `dangerouslySetInnerHTML`.
 
 ### Q2: Should highlighted HTML be cached across file selections?
 
