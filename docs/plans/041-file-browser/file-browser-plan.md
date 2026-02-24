@@ -497,8 +497,6 @@ Acceptance Criteria: [measurable assertions]
 - [x] Documentation exists at specified paths
 - [x] A developer can follow the deep-linking guide to add URL params to a new page
 - [x] Security model for file operations is clearly documented
-- [ ] A developer can follow the deep-linking guide to add URL params to a new page
-- [ ] Security model for file operations is clearly documented
 
 ---
 

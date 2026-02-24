@@ -44,6 +44,10 @@ Workspace-scoped file browsing, editing, and diffing. The core feature that make
 | `FleetStatusBar` | Component | Landing page | Agent status summary (placeholder) |
 | `WorktreePicker` | Component | Sidebar (workspace-nav) | Searchable worktree selection |
 | `useAttentionTitle` | Hook | Workspace pages | Dynamic browser tab title with emoji prefix |
+| `WorkspaceProvider` | Component | [slug]/layout.tsx | React context for workspace + worktree identity |
+| `useWorkspaceContext` | Hook | Any workspace page | Access workspace identity, worktree identity, attention state |
+| `EmojiPicker` | Component | Settings page, worktree popover | Grid of curated workspace emojis |
+| `ColorPicker` | Component | Settings page, worktree popover | Swatch grid of curated workspace colors |
 | `fileBrowserParams` | Param defs | Browser page, any URL-aware component | nuqs param definitions for dir, file, mode, changed |
 | `fileBrowserPageParamsCache` | Server cache | Browser page | Server-side URL param parsing |
 
@@ -70,6 +74,13 @@ Workspace-scoped file browsing, editing, and diffing. The core feature that make
 | VideoViewer | HTML5 video player | Raw file API route, detectContentType |
 | AudioViewer | HTML5 audio player | Raw file API route, detectContentType |
 | BinaryPlaceholder | Fallback for unknown binary types | detectContentType |
+| WorkspaceProvider | React context for workspace prefs + worktree identity | WorktreeVisualPreferences, useAttentionTitle |
+| WorkspaceAttentionWrapper | Client wrapper composing tab title from context | useAttentionTitle, useWorkspaceContext |
+| WorktreeIdentityPopover | Inline gear popover for worktree emoji/color | EmojiPicker, ColorPicker, updateWorktreePreferences |
+| EmojiPicker | Grid of 30 curated emojis from palette | WORKSPACE_EMOJI_PALETTE |
+| ColorPicker | Grid of 10 color swatches from palette | WORKSPACE_COLOR_PALETTE |
+| Settings page | Workspace table with inline pickers | EmojiPicker, ColorPicker, updateWorkspacePreferences |
+| updateWorktreePreferences | Server action: read-modify-write per-worktree prefs | IWorkspaceService.updatePreferences |
 
 ## Source Location
 
@@ -107,6 +118,14 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
 | `apps/web/src/features/041-file-browser/components/video-viewer.tsx` | VideoViewer component | Plan 046 |
 | `apps/web/src/features/041-file-browser/components/audio-viewer.tsx` | AudioViewer component | Plan 046 |
 | `apps/web/src/features/041-file-browser/components/binary-placeholder.tsx` | BinaryPlaceholder component | Plan 046 |
+| `apps/web/src/features/041-file-browser/hooks/use-workspace-context.tsx` | WorkspaceProvider + useWorkspaceContext | Phase 5 |
+| `apps/web/app/(dashboard)/workspaces/[slug]/layout.tsx` | Workspace layout (provides context) | Phase 5 |
+| `apps/web/app/(dashboard)/workspaces/[slug]/workspace-attention-wrapper.tsx` | Tab title composition client wrapper | Phase 5 |
+| `apps/web/src/features/041-file-browser/components/emoji-picker.tsx` | EmojiPicker (palette grid) | Phase 5 |
+| `apps/web/src/features/041-file-browser/components/color-picker.tsx` | ColorPicker (swatch grid) | Phase 5 |
+| `apps/web/src/features/041-file-browser/components/worktree-identity-popover.tsx` | Inline gear popover for per-worktree emoji/color | Phase 5 ST-001 |
+| `apps/web/app/(dashboard)/settings/workspaces/page.tsx` | Settings page (Server Component) | Phase 5 |
+| `apps/web/app/(dashboard)/settings/workspaces/workspace-settings-table.tsx` | Settings table (Client Component) | Phase 5 |
 
 ## Dependencies
 
