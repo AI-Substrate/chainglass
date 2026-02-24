@@ -1,35 +1,44 @@
 'use client';
 
 /**
- * PdfViewer — Inline PDF display via browser embed.
+ * PdfViewer — Inline PDF display via blob URL in iframe.
  *
- * Uses <embed> for desktop browsers and provides an "Open in new tab"
- * fallback for mobile (iOS Safari doesn't scroll iframes/embeds well).
+ * Fetches PDF binary and creates a blob: URL for the iframe src.
+ * This approach works reliably across desktop and iPad Safari —
+ * direct URL iframes don't scroll on iOS.
  *
  * Plan 046: Binary File Viewers (T006)
- * DYK-03: Content-Disposition: inline on raw route.
  */
 
-import { ExternalLink } from 'lucide-react';
 import { AsciiSpinner } from '@/features/_platform/panel-layout';
-import { useEffect, useRef, useState } from 'react';
+import { ExternalLink } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
 export interface PdfViewerProps {
   src: string;
 }
 
 export function PdfViewer({ src }: PdfViewerProps) {
-  const [loading, setLoading] = useState(true);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [error, setError] = useState(false);
 
-  // Mark loaded after a short delay (embed doesn't fire onLoad reliably)
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 1000);
-    return () => clearTimeout(timer);
+    let revoke: string | null = null;
+    fetch(src)
+      .then((res) => res.blob())
+      .then((blob) => {
+        const url = URL.createObjectURL(blob);
+        revoke = url;
+        setBlobUrl(url);
+      })
+      .catch(() => setError(true));
+    return () => {
+      if (revoke) URL.revokeObjectURL(revoke);
+    };
   }, [src]);
 
   return (
-    <div ref={containerRef} className="flex flex-col h-full w-full">
+    <div className="flex flex-col h-full w-full">
       <div className="flex items-center justify-end px-2 py-1 border-b shrink-0">
         <a
           href={src}
@@ -41,19 +50,19 @@ export function PdfViewer({ src }: PdfViewerProps) {
           Open in new tab
         </a>
       </div>
-      {loading && (
+      {!blobUrl && !error && (
         <div className="flex items-center justify-center p-8">
           <AsciiSpinner active={true} />
         </div>
       )}
-      <div className="flex-1 min-h-0 overflow-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
-        <iframe
-          src={src}
-          className="w-full h-full border-0"
-          title="PDF viewer"
-          style={{ minHeight: '100%' }}
-        />
-      </div>
+      {error && (
+        <div className="flex items-center justify-center p-8 text-muted-foreground">
+          Failed to load PDF
+        </div>
+      )}
+      {blobUrl && (
+        <iframe src={blobUrl} className="flex-1 w-full border-0 min-h-0" title="PDF viewer" />
+      )}
     </div>
   );
 }
