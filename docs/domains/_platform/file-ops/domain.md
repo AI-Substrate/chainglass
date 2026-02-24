@@ -85,3 +85,4 @@ Primary: `packages/shared/src/`
 |------|-------------|------|
 | *(extracted)* | Domain extracted. Contracts stable since Plan 006. | 2026-02-24 |
 | Plan 041 Phase 4 | Adding `realpath()` to IFileSystem for symlink escape detection (DYK-P4-02) | 2026-02-24 |
+| Plan 044 | Widened `IFileSystem.writeFile` to accept `string \| Buffer` for binary upload support | 2026-02-24 |

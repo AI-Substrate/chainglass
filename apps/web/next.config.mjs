@@ -20,6 +20,12 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
  */
 const nextConfig = {
   output: 'standalone',
+  experimental: {
+    // Raise server action body size limit for file uploads (default 1MB)
+    serverActions: {
+      bodySizeLimit: '10mb',
+    },
+  },
   // Enable Turbopack (default in Next.js 16) - empty config acknowledges migration
   turbopack: {},
   // Allow cross-origin requests from local network during development

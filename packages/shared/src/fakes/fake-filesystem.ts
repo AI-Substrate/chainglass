@@ -10,7 +10,7 @@ import { FileSystemError } from '../interfaces/filesystem.interface.js';
  */
 export class FakeFileSystem implements IFileSystem {
   /** In-memory file storage: path -> content */
-  private files = new Map<string, string>();
+  private files = new Map<string, string | Buffer>();
   /** In-memory directory storage (directories without files) */
   private dirs = new Set<string>();
   /** File metadata (mtime) */
@@ -26,7 +26,7 @@ export class FakeFileSystem implements IFileSystem {
    * Set a file's content directly (test helper).
    * Automatically creates parent directories.
    */
-  setFile(path: string, content: string): void {
+  setFile(path: string, content: string | Buffer): void {
     this.ensureParentDirs(path);
     this.files.set(path, content);
     this.mtimes.set(path, new Date().toISOString());
@@ -112,10 +112,11 @@ export class FakeFileSystem implements IFileSystem {
         path
       );
     }
-    return content;
+    // Buffer content decoded as utf-8 (matches real adapter: fs.readFile(path, 'utf-8'))
+    return typeof content === 'string' ? content : content.toString('utf-8');
   }
 
-  async writeFile(path: string, content: string): Promise<void> {
+  async writeFile(path: string, content: string | Buffer): Promise<void> {
     this.checkSimulatedError(path);
 
     const parent = pathModule.dirname(path);
@@ -268,7 +269,11 @@ export class FakeFileSystem implements IFileSystem {
     return {
       isFile,
       isDirectory: isDir && !isFile,
-      size: isFile ? (this.files.get(path)?.length ?? 0) : 0,
+      size: isFile ? (() => {
+        const c = this.files.get(path);
+        if (c === undefined) return 0;
+        return Buffer.isBuffer(c) ? c.length : Buffer.byteLength(c, 'utf-8');
+      })() : 0,
       mtime: this.mtimes.get(path) ?? new Date().toISOString(),
     };
   }

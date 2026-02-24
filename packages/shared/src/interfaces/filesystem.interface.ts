@@ -62,10 +62,10 @@ export interface IFileSystem {
    * Write content to a file, creating it if it doesn't exist.
    * Parent directories must exist.
    * @param path Absolute path to file
-   * @param content Content to write (UTF-8)
+   * @param content Content to write — string (UTF-8) or Buffer (binary)
    * @throws FileSystemError with code 'ENOENT' if parent directory doesn't exist
    */
-  writeFile(path: string, content: string): Promise<void>;
+  writeFile(path: string, content: string | Buffer): Promise<void>;
 
   /**
    * Read directory contents (non-recursive).

@@ -15,6 +15,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { WorkspaceNav } from '@/components/workspaces/workspace-nav';
+import { PasteUploadButton } from '@/features/041-file-browser/components/paste-upload-button';
 import { DEV_NAV_ITEMS, WORKSPACE_NAV_ITEMS } from '@/lib/navigation-utils';
 import { cn } from '@/lib/utils';
 import { workspaceHref } from '@/lib/workspace-url';
@@ -68,6 +69,9 @@ export function DashboardSidebar() {
             </div>
           )}
           <div className="flex shrink-0 items-center gap-1">
+            {currentWorktree && workspaceSlug && (
+              <PasteUploadButton slug={workspaceSlug} worktreePath={currentWorktree} />
+            )}
             <Button
               variant="ghost"
               size="icon"

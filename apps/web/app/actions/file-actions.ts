@@ -78,3 +78,35 @@ export async function fetchChangedFiles(worktreePath: string) {
   );
   return getChangedFiles(worktreePath);
 }
+
+// Upload file to scratch/paste/ — Plan 044
+export type { UploadFileResult } from '../../src/features/041-file-browser/services/upload-file';
+
+export async function uploadFile(formData: FormData) {
+  const { uploadFileService } = await import(
+    '../../src/features/041-file-browser/services/upload-file'
+  );
+
+  const file = formData.get('file') as File | null;
+  const worktreePath = formData.get('worktreePath') as string;
+
+  if (!file || file.size === 0) {
+    return { ok: false as const, error: 'no-file' as const };
+  }
+
+  const container = getContainer();
+  const fileSystem = container.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
+  const pathResolver = container.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
+
+  const arrayBuffer = await file.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+
+  return uploadFileService({
+    worktreePath,
+    fileName: file.name,
+    mimeType: file.type,
+    content: buffer,
+    fileSystem,
+    pathResolver,
+  });
+}

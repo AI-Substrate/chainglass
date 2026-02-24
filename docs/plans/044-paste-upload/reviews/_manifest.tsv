@@ -1,0 +1,17 @@
+modified	/home/jak/substrate/041-file-browser/apps/web/next.config.mjs
+modified	/home/jak/substrate/041-file-browser/packages/shared/src/interfaces/filesystem.interface.ts
+modified	/home/jak/substrate/041-file-browser/packages/shared/src/adapters/node-filesystem.adapter.ts
+modified	/home/jak/substrate/041-file-browser/packages/shared/src/fakes/fake-filesystem.ts
+modified	/home/jak/substrate/041-file-browser/test/contracts/filesystem.contract.ts
+created	/home/jak/substrate/041-file-browser/apps/web/src/features/041-file-browser/services/upload-file.ts
+created	/home/jak/substrate/041-file-browser/test/unit/web/features/041-file-browser/upload-file.test.ts
+modified	/home/jak/substrate/041-file-browser/apps/web/app/actions/file-actions.ts
+created	/home/jak/substrate/041-file-browser/apps/web/src/features/041-file-browser/components/paste-upload-button.tsx
+created	/home/jak/substrate/041-file-browser/apps/web/src/features/041-file-browser/components/paste-upload-modal.tsx
+modified	/home/jak/substrate/041-file-browser/apps/web/src/components/dashboard-sidebar.tsx
+modified	/home/jak/substrate/041-file-browser/docs/domains/_platform/file-ops/domain.md
+modified	/home/jak/substrate/041-file-browser/docs/domains/file-browser/domain.md
+modified	/home/jak/substrate/041-file-browser/docs/domains/registry.md
+modified	/home/jak/substrate/041-file-browser/docs/domains/domain-map.md
+modified	/home/jak/substrate/041-file-browser/apps/web/package.json
+modified	/home/jak/substrate/041-file-browser/pnpm-lock.yaml

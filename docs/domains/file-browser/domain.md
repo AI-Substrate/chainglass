@@ -77,11 +77,14 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
 | `apps/web/src/features/041-file-browser/components/code-editor.tsx` | CodeEditor wrapper | Phase 4 |
 | `apps/web/src/features/041-file-browser/components/file-viewer-panel.tsx` | FileViewerPanel | Phase 4, FX001-7 |
 | `apps/web/src/features/041-file-browser/components/markdown-preview.tsx` | MarkdownPreview (mermaid activation) | FX001-7 |
-| `apps/web/app/actions/file-actions.ts` | Server actions (readFile, saveFile, fetchGitDiff, fetchChangedFiles) | Phase 4, FX001 |
+| `apps/web/app/actions/file-actions.ts` | Server actions (readFile, saveFile, fetchGitDiff, fetchChangedFiles, uploadFile) | Phase 4, FX001, Plan 044 |
 | `apps/web/app/api/workspaces/[slug]/files/route.ts` | Files API route | Phase 4 |
 | `apps/web/app/(dashboard)/workspaces/[slug]/browser/page.tsx` | Browser page (Server Component) | Phase 4 |
 | `apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx` | BrowserClient (Client Component shell) | Phase 4, FX001 |
 | `apps/web/src/lib/server/markdown-renderer.ts` | renderMarkdownToHtml (server-side markdown pipeline) | FX001-6 |
+| `apps/web/src/features/041-file-browser/services/upload-file.ts` | uploadFileService (mkdir, timestamp naming, atomic write) | Plan 044 |
+| `apps/web/src/features/041-file-browser/components/paste-upload-button.tsx` | PasteUploadButton (sidebar upload trigger) | Plan 044 |
+| `apps/web/src/features/041-file-browser/components/paste-upload-modal.tsx` | PasteUploadModal (paste/drag/select dialog) | Plan 044 |
 | `apps/web/src/features/041-file-browser/index.ts` | Feature barrel | Phase 1 |
 
 ## Dependencies
@@ -90,6 +93,7 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
 - `_platform/file-ops` — IFileSystem, IPathResolver for all file operations
 - `_platform/viewer` — FileViewer, MarkdownViewer, DiffViewer for rendering
 - `_platform/workspace-url` — workspaceHref, param caches, NuqsAdapter
+- `_platform/panel-layout` — PanelShell, ExplorerPanel, LeftPanel, MainPanel for page layout
 - `@chainglass/workflow` — IWorkspaceService, workspace entity, preferences
 - `@uiw/react-codemirror` — CodeMirror 6 editor (npm)
 - `nuqs` — URL state management (npm)
@@ -107,3 +111,4 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
 | *(extracted)* | Domain formalized from Plan 041 deliverables | 2026-02-24 |
 | Plan 041 Phase 4 | File tree, code editor, viewer panel, browser page, file actions, API route | 2026-02-24 |
 | Plan 041 FX001 | Wired browser E2E: Shiki preview, markdown rendering, CodeEditor, DiffViewer, lazy diff, changed-files filter, tree auto-expand | 2026-02-24 |
+| Plan 044 | Paste/upload to scratch/paste/ — upload button in sidebar, modal with paste/drag/select, uploadFile server action, uploadFileService | 2026-02-24 |
