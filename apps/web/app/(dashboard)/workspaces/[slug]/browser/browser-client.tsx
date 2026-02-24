@@ -201,30 +201,27 @@ export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: Bro
   }, [slug, worktreePath, selectedFile]);
 
   // Clipboard helper — works on non-HTTPS (e.g. http://192.168.x.x)
-  const copyToClipboard = useCallback((text: string) => {
+  // Deferred via setTimeout so Radix menu fully unmounts first.
+  const copyToClipboard = useCallback((text: string): void => {
     if (globalThis.isSecureContext && navigator.clipboard?.writeText) {
       navigator.clipboard.writeText(text);
-      return true;
+      return;
     }
-    // Fallback for non-secure contexts: textarea + execCommand
-    const textarea = document.createElement('textarea');
-    textarea.value = text;
-    textarea.style.position = 'fixed';
-    textarea.style.left = '-9999px';
-    document.body.appendChild(textarea);
-    textarea.focus();
-    textarea.select();
-    let ok = false;
-    try {
-      ok = document.execCommand('copy');
-    } finally {
-      document.body.removeChild(textarea);
-    }
-    // If execCommand failed, show prompt so user can manually copy
-    if (!ok) {
-      window.prompt('Copy this:', text);
-    }
-    return ok;
+    // Defer to next tick — Radix portal unmount interferes with focus/selection
+    setTimeout(() => {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.left = '-9999px';
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      try {
+        document.execCommand('copy');
+      } finally {
+        document.body.removeChild(textarea);
+      }
+    }, 0);
   }, []);
 
   // Clipboard handlers for context menu
