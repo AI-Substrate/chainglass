@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -173,30 +174,30 @@ export function DashboardSidebar() {
                 </Suspense>
               </SidebarGroupContent>
             </SidebarGroup>
-
-            {/* Settings link */}
-            <SidebarGroup>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={pathname === '/settings/workspaces'}>
-                      <Link
-                        href="/settings/workspaces"
-                        className={cn(
-                          'flex items-center gap-3',
-                          pathname === '/settings/workspaces' && 'bg-accent text-accent-foreground'
-                        )}
-                      >
-                        <Settings className="h-5 w-5" />
-                        {!isCollapsed && <span>Settings</span>}
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
           </>
         )}
+
+        {/* Settings link — always visible */}
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={pathname === '/settings/workspaces'}>
+                  <Link
+                    href="/settings/workspaces"
+                    className={cn(
+                      'flex items-center gap-3',
+                      pathname === '/settings/workspaces' && 'bg-accent text-accent-foreground'
+                    )}
+                  >
+                    <Settings className="h-5 w-5" />
+                    {!isCollapsed && <span>Settings</span>}
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
 
         {/* Dev section — collapsed by default */}
         <SidebarGroup>
@@ -237,6 +238,25 @@ export function DashboardSidebar() {
           )}
         </SidebarGroup>
       </SidebarContent>
+
+      <SidebarFooter className="border-t p-2">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild isActive={pathname === '/settings/workspaces'}>
+              <Link
+                href="/settings/workspaces"
+                className={cn(
+                  'flex items-center gap-3',
+                  pathname === '/settings/workspaces' && 'bg-accent text-accent-foreground'
+                )}
+              >
+                <Settings className="h-5 w-5" />
+                {!isCollapsed && <span>Settings</span>}
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
     </Sidebar>
   );
 }
