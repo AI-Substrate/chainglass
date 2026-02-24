@@ -304,7 +304,7 @@ function BinaryFileView({
           </button>
         </div>
       </div>
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 flex flex-col min-h-0">
         {category === 'image' && <ImageViewer src={rawFileUrl} alt={filename} />}
         {category === 'pdf' && <PdfViewer src={rawFileUrl} />}
         {category === 'video' && <VideoViewer src={rawFileUrl} mimeType={contentType} />}
