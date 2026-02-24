@@ -276,12 +276,12 @@ function TreeItem({
           ref={scrollRef}
           type="button"
           onClick={() => onSelect(entry.path)}
-          className={`flex w-full items-center gap-1 px-2 py-1 text-left hover:bg-accent ${
-            isSelected ? 'bg-accent font-medium border-l-2 border-primary' : ''
+          className={`relative flex w-full items-center gap-1 px-2 py-1 text-left hover:bg-accent ${
+            isSelected ? 'bg-accent font-medium' : ''
           } ${isChanged ? 'text-amber-600 dark:text-amber-400' : ''}`}
-          style={{ paddingLeft: `${depth * 16 + 8 + (isSelected ? 12 : 14)}px` }}
+          style={{ paddingLeft: `${depth * 16 + 8 + 14}px` }}
         >
-          {isSelected && <ChevronRight className="h-3 w-3 shrink-0 text-primary" />}
+          {isSelected && <ChevronRight className="absolute left-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />}
           <File className="h-4 w-4 shrink-0 text-muted-foreground" />
           <span className="truncate">{entry.name}</span>
         </button>
