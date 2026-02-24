@@ -49,6 +49,8 @@ export interface FileTreeProps {
   childEntries?: Record<string, FileEntry[]>;
   /** Programmatically expand these paths (merged into internal state) */
   expandPaths?: string[];
+  /** Called when expanded dirs change (for external tracking) */
+  onExpandedDirsChange?: (dirs: string[]) => void;
   onCopyFullPath?: (path: string) => void;
   onCopyRelativePath?: (path: string) => void;
   onCopyContent?: (filePath: string) => void;
@@ -66,6 +68,7 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
     onExpand,
     childEntries = {},
     expandPaths,
+    onExpandedDirsChange,
     onCopyFullPath,
     onCopyRelativePath,
     onCopyContent,
@@ -111,6 +114,11 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
       return changed ? next : prev;
     });
   }, [expandPaths]);
+
+  // Notify parent when expanded dirs change
+  useEffect(() => {
+    onExpandedDirsChange?.([...expanded]);
+  }, [expanded, onExpandedDirsChange]);
 
   const handleDirClick = (dirPath: string) => {
     const next = new Set(expanded);

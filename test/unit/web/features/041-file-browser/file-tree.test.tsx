@@ -66,4 +66,27 @@ describe('FileTree', () => {
     // Changed file should be present (amber styling verified visually)
     expect(screen.getByText('README.md')).toBeInTheDocument();
   });
+
+  describe('newlyAddedPaths animation', () => {
+    it('should apply tree-entry-new class to entries in newlyAddedPaths set', () => {
+      /**
+       * Why: New files should visually fade in with green animation.
+       * Contract: Entry path in newlyAddedPaths → tree-entry-new class on that button.
+       * Usage Notes: Set<string> of relative paths; cleared by BrowserClient after timeout.
+       * Quality Contribution: Ensures animation CSS class is correctly applied.
+       * Worked Example: newlyAddedPaths=Set(['README.md']) → README.md button has tree-entry-new class.
+       */
+      render(
+        <FileTree
+          entries={[{ name: 'README.md', path: 'README.md', type: 'file' as const }]}
+          onSelect={vi.fn()}
+          onExpand={vi.fn()}
+          newlyAddedPaths={new Set(['README.md'])}
+        />
+      );
+
+      const button = screen.getByText('README.md').closest('button');
+      expect(button).toHaveClass('tree-entry-new');
+    });
+  });
 });

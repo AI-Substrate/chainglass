@@ -2,7 +2,7 @@
  * Plan 045: Live File Events — Phase 3 (T001)
  *
  * Hook that watches all file changes and filters to expanded directories.
- * Uses a single useFileChanges('**') subscription to avoid Rules of Hooks
+ * Uses a single useFileChanges('*') subscription to avoid Rules of Hooks
  * violations (DYK #1: cannot call hooks in a loop).
  *
  * Lives in file-browser domain (consumer), imports from events domain (provider).
@@ -36,11 +36,7 @@ export interface UseTreeDirectoryChangesReturn {
  */
 export function useTreeDirectoryChanges(expandedDirs: string[]): UseTreeDirectoryChangesReturn {
   // Single subscription for all file changes (DYK #1)
-  const {
-    changes,
-    hasChanges: rawHasChanges,
-    clearChanges,
-  } = useFileChanges('**', {
+  const { changes, clearChanges } = useFileChanges('*', {
     debounce: 200,
     mode: 'replace',
   });

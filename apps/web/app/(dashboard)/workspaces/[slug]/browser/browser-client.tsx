@@ -105,21 +105,21 @@ function BrowserClientInner({ slug, worktreePath, isGit, initialEntries }: Brows
   // --- Live file events (Plan 045) ---
 
   const treeRef = useRef<FileTreeHandle>(null);
+  const [trackedExpandedDirs, setTrackedExpandedDirs] = useState<string[]>([]);
 
   // T004: Watch current open file for external changes
   const fileChanges = useFileChanges(selectedFile ?? '', { debounce: 100 });
 
   // T001: Watch expanded directories for tree updates
-  const expandedDirs = treeRef.current?.getExpandedDirs() ?? [];
-  const treeChanges = useTreeDirectoryChanges(expandedDirs);
+  const treeChanges = useTreeDirectoryChanges(trackedExpandedDirs);
 
   // T005: Watch all files for ChangesView auto-refresh (500ms debounce)
   const allChanges = useFileChanges('*', { debounce: 500 });
 
   // T006: Double-event suppression — 2s window after save
-  const suppressedPathsRef = useRef<Set<string>>(new Set());
+  const suppressedTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
-  const isSuppressed = selectedFile ? suppressedPathsRef.current.has(selectedFile) : false;
+  const isSuppressed = selectedFile ? suppressedTimersRef.current.has(selectedFile) : false;
   const isDirty = fileNav.editContent != null;
 
   // Determine if we should show banner vs auto-refresh (DYK #3)
@@ -157,10 +157,13 @@ function BrowserClientInner({ slug, worktreePath, isGit, initialEntries }: Brows
   const handleSaveWithSuppression = useCallback(
     (content: string) => {
       if (selectedFile) {
-        suppressedPathsRef.current.add(selectedFile);
-        setTimeout(() => {
-          suppressedPathsRef.current.delete(selectedFile);
+        // Clear previous timer for this path if exists (rapid save overlap fix)
+        const prev = suppressedTimersRef.current.get(selectedFile);
+        if (prev) clearTimeout(prev);
+        const timer = setTimeout(() => {
+          suppressedTimersRef.current.delete(selectedFile);
         }, 2000);
+        suppressedTimersRef.current.set(selectedFile, timer);
       }
       fileNav.handleSave(content);
     },
@@ -302,6 +305,7 @@ function BrowserClientInner({ slug, worktreePath, isGit, initialEntries }: Brows
                   onExpand={fileNav.handleExpand}
                   childEntries={fileNav.childEntries}
                   expandPaths={expandPaths}
+                  onExpandedDirsChange={setTrackedExpandedDirs}
                   onCopyFullPath={clipboard.handleCopyFullPath}
                   onCopyRelativePath={clipboard.handleCopyRelativePath}
                   onCopyContent={clipboard.handleCopyContent}
@@ -346,7 +350,7 @@ function BrowserClientInner({ slug, worktreePath, isGit, initialEntries }: Brows
                 onRefresh={fileNav.handleRefreshFile}
                 editContent={fileNav.editContent}
                 onEditChange={fileNav.setEditContent}
-                externallyChanged={externallyChanged && isDirty}
+                externallyChanged={externallyChanged && (isDirty || mode === 'diff')}
                 highlightedHtml={
                   fileNav.fileData?.ok && !fileNav.fileData.isBinary
                     ? fileNav.fileData.highlightedHtml

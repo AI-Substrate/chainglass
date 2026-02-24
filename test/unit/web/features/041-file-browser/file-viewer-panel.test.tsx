@@ -172,4 +172,49 @@ describe('FileViewerPanel', () => {
       expect(screen.getByText('Preview')).toBeInTheDocument();
     });
   });
+
+  describe('externallyChanged banner', () => {
+    it('renders blue banner with "modified outside" text in edit mode', () => {
+      render(
+        <FileViewerPanel
+          {...baseProps}
+          mode="edit"
+          editContent="some content"
+          externallyChanged={true}
+        />
+      );
+
+      expect(screen.getByText(/modified outside/i)).toBeInTheDocument();
+    });
+
+    it('renders blue banner with "outdated" text in diff mode', () => {
+      render(<FileViewerPanel {...baseProps} mode="diff" externallyChanged={true} />);
+
+      expect(screen.getByText(/outdated/i)).toBeInTheDocument();
+    });
+
+    it('does not render blue banner in preview mode', () => {
+      render(<FileViewerPanel {...baseProps} mode="preview" externallyChanged={true} />);
+
+      expect(screen.queryByText(/modified outside/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/outdated/i)).not.toBeInTheDocument();
+    });
+
+    it('calls onRefresh when Refresh button is clicked', async () => {
+      const user = userEvent.setup();
+      const onRefresh = vi.fn();
+      render(
+        <FileViewerPanel
+          {...baseProps}
+          mode="edit"
+          editContent="some content"
+          externallyChanged={true}
+          onRefresh={onRefresh}
+        />
+      );
+
+      await user.click(screen.getByRole('button', { name: /^refresh$/i }));
+      expect(onRefresh).toHaveBeenCalledOnce();
+    });
+  });
 });
