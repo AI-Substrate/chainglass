@@ -20,10 +20,7 @@ export function createFilePathHandler(): BarHandler {
     if (!normalized) return false;
 
     // Strip worktree prefix if present (user pasted absolute path)
-    if (
-      normalized === context.worktreePath ||
-      normalized.startsWith(`${context.worktreePath}/`)
-    ) {
+    if (normalized === context.worktreePath || normalized.startsWith(`${context.worktreePath}/`)) {
       normalized = normalized.slice(context.worktreePath.length);
     }
 

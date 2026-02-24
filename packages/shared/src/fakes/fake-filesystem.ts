@@ -269,11 +269,13 @@ export class FakeFileSystem implements IFileSystem {
     return {
       isFile,
       isDirectory: isDir && !isFile,
-      size: isFile ? (() => {
-        const c = this.files.get(path);
-        if (c === undefined) return 0;
-        return Buffer.isBuffer(c) ? c.length : Buffer.byteLength(c, 'utf-8');
-      })() : 0,
+      size: isFile
+        ? (() => {
+            const c = this.files.get(path);
+            if (c === undefined) return 0;
+            return Buffer.isBuffer(c) ? c.length : Buffer.byteLength(c, 'utf-8');
+          })()
+        : 0,
       mtime: this.mtimes.get(path) ?? new Date().toISOString(),
     };
   }
