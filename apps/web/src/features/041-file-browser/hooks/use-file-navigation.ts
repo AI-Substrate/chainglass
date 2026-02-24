@@ -76,6 +76,23 @@ export function useFileNavigation(options: UseFileNavigationOptions) {
     [slug, worktreePath]
   );
 
+  /** Re-fetch a directory's contents even if cached (for live file events). */
+  const handleRefreshDir = useCallback(
+    async (dirPath: string) => {
+      try {
+        const url = `/api/workspaces/${slug}/files?worktree=${encodeURIComponent(worktreePath)}&dir=${encodeURIComponent(dirPath)}`;
+        const res = await fetch(url);
+        if (res.ok) {
+          const data = await res.json();
+          setChildEntries((prev) => ({ ...prev, [dirPath]: data.entries }));
+        }
+      } catch (error) {
+        console.error('Failed to refresh directory:', error);
+      }
+    },
+    [slug, worktreePath]
+  );
+
   const handleSelect = useCallback(
     async (filePath: string) => {
       setUrlFile(filePath);
@@ -187,6 +204,7 @@ export function useFileNavigation(options: UseFileNavigationOptions) {
     diffCache,
     diffLoading,
     handleExpand,
+    handleRefreshDir,
     handleSelect,
     handleModeChange,
     handleRefresh,

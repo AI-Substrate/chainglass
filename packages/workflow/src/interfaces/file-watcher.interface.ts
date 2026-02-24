@@ -67,9 +67,9 @@ export interface FileWatcherOptions {
 
   /**
    * Paths/globs to ignore. Matched against absolute paths.
-   * Supports strings and RegExp patterns (passed to chokidar's `ignored` option).
+   * Supports strings, RegExp patterns, and functions (passed to chokidar's `ignored` option).
    */
-  ignored?: (string | RegExp)[];
+  ignored?: (string | RegExp | ((path: string) => boolean))[];
 }
 
 /**

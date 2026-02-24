@@ -148,7 +148,7 @@ function BrowserClientInner({ slug, worktreePath, isGit, initialEntries }: Brows
   useEffect(() => {
     if (!treeChanges.hasChanges) return;
     for (const dir of treeChanges.changedDirs) {
-      fileNav.handleExpand(dir);
+      fileNav.handleRefreshDir(dir);
     }
     treeChanges.clearAll();
   }, [treeChanges.hasChanges]);
