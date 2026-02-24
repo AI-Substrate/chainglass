@@ -120,3 +120,4 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
 | Plan 041 FX001 | Wired browser E2E: Shiki preview, markdown rendering, CodeEditor, DiffViewer, lazy diff, changed-files filter, tree auto-expand | 2026-02-24 |
 | Plan 044 | Paste/upload to scratch/paste/ — upload button in sidebar, modal with paste/drag/select, uploadFile server action, uploadFileService | 2026-02-24 |
 | Plan 043 Phase 2 | Working changes service (git status --porcelain), recent files service (git log), ChangesView component, fileExists server action, directory listing switched to readDir | 2026-02-24 |
+| Plan 043 Phase 3 | Wired PanelShell into BrowserClient — resizable panels, ExplorerPanel path bar, LeftPanel tree/changes toggle, extracted 3 custom hooks (useFileNavigation, usePanelState, useClipboard), removed FileTree header + FileViewerPanel path row, replaced ?changed with ?panel, Ctrl+P shortcut | 2026-02-24 |

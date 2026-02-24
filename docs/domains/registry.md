@@ -5,7 +5,7 @@
 | Workspace URL | _platform/workspace-url | infrastructure | _platform | extracted (Plan 041 Phase 2) | active |
 | File Operations | _platform/file-ops | infrastructure | _platform | extracted (pre-Plan 041) | active |
 | Viewer | _platform/viewer | infrastructure | _platform | extracted (Plan 006-web-extras) | active |
-| Notifications | _platform/notifications | infrastructure | _platform | extracted (Plans 019, 023, 027) | active |
+| Events | _platform/events | infrastructure | _platform | extracted (Plans 019, 023, 027); renamed Plan 045 | active |
 | Panel Layout | _platform/panel-layout | infrastructure | _platform | extracted (Plan 041 workshops) | active |
 | File Browser | file-browser | business | — | Plan 041 | active |
 

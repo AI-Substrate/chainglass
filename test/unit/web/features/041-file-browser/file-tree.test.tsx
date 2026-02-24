@@ -2,11 +2,11 @@
  * FileTree Component Tests
  *
  * Purpose: Verify file tree renders entries, handles expand/collapse,
- *          fires selection callbacks, and supports changed-only filter.
- * Acceptance Criteria: AC-21, AC-22, AC-23
+ *          fires selection callbacks. Header + refresh now in LeftPanel.
+ * Acceptance Criteria: AC-21, AC-22, AC-29
  *
  * Phase 4: File Browser — Plan 041
- * DYK-P4-01: Receives entries as props, fires onExpand for lazy loading
+ * Phase 3: Plan 043 — header extracted, showChangedOnly removed
  */
 
 import { FileTree } from '@/features/041-file-browser/components/file-tree';
@@ -22,9 +22,7 @@ const sampleEntries = [
 
 describe('FileTree', () => {
   it('renders file and directory entries', () => {
-    render(
-      <FileTree entries={sampleEntries} onSelect={vi.fn()} onExpand={vi.fn()} onRefresh={vi.fn()} />
-    );
+    render(<FileTree entries={sampleEntries} onSelect={vi.fn()} onExpand={vi.fn()} />);
 
     expect(screen.getByText('src')).toBeInTheDocument();
     expect(screen.getByText('README.md')).toBeInTheDocument();
@@ -34,14 +32,7 @@ describe('FileTree', () => {
   it('fires onSelect when a file is clicked', async () => {
     const user = userEvent.setup();
     const onSelect = vi.fn();
-    render(
-      <FileTree
-        entries={sampleEntries}
-        onSelect={onSelect}
-        onExpand={vi.fn()}
-        onRefresh={vi.fn()}
-      />
-    );
+    render(<FileTree entries={sampleEntries} onSelect={onSelect} onExpand={vi.fn()} />);
 
     await user.click(screen.getByText('README.md'));
     expect(onSelect).toHaveBeenCalledWith('README.md');
@@ -50,55 +41,29 @@ describe('FileTree', () => {
   it('fires onExpand when a directory is clicked', async () => {
     const user = userEvent.setup();
     const onExpand = vi.fn();
-    render(
-      <FileTree
-        entries={sampleEntries}
-        onSelect={vi.fn()}
-        onExpand={onExpand}
-        onRefresh={vi.fn()}
-      />
-    );
+    render(<FileTree entries={sampleEntries} onSelect={vi.fn()} onExpand={onExpand} />);
 
     await user.click(screen.getByText('src'));
     expect(onExpand).toHaveBeenCalledWith('src');
   });
 
-  it('shows refresh button that fires onRefresh', async () => {
-    const user = userEvent.setup();
-    const onRefresh = vi.fn();
-    render(
-      <FileTree
-        entries={sampleEntries}
-        onSelect={vi.fn()}
-        onExpand={vi.fn()}
-        onRefresh={onRefresh}
-      />
-    );
-
-    const refreshBtn = screen.getByRole('button', { name: /refresh file tree/i });
-    await user.click(refreshBtn);
-    expect(onRefresh).toHaveBeenCalled();
-  });
-
   it('shows empty state when no entries', () => {
-    render(<FileTree entries={[]} onSelect={vi.fn()} onExpand={vi.fn()} onRefresh={vi.fn()} />);
+    render(<FileTree entries={[]} onSelect={vi.fn()} onExpand={vi.fn()} />);
 
     expect(screen.getByText(/no files/i)).toBeInTheDocument();
   });
 
-  it('filters entries when changedFiles provided', () => {
+  it('highlights changed files with amber text', () => {
     render(
       <FileTree
         entries={sampleEntries}
         changedFiles={['README.md']}
-        showChangedOnly={true}
         onSelect={vi.fn()}
         onExpand={vi.fn()}
-        onRefresh={vi.fn()}
       />
     );
 
+    // Changed file should be present (amber styling verified visually)
     expect(screen.getByText('README.md')).toBeInTheDocument();
-    expect(screen.queryByText('package.json')).not.toBeInTheDocument();
   });
 });

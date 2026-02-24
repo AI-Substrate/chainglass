@@ -1,11 +1,11 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { FakeFileSystem } from '@chainglass/shared/fakes';
-import { FakePathResolver } from '@chainglass/shared/fakes';
 import {
-  uploadFileService,
   type UploadFileOptions,
   type UploadFileResult,
+  uploadFileService,
 } from '@/features/041-file-browser/services/upload-file';
+import { FakeFileSystem } from '@chainglass/shared/fakes';
+import { FakePathResolver } from '@chainglass/shared/fakes';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 describe('uploadFileService', () => {
   let fakeFs: FakeFileSystem;

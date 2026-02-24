@@ -3,30 +3,42 @@
 /**
  * BrowserClient — Client-side file browser shell.
  *
- * Manages URL state (file, dir, mode, changed), fetches subdirectories
- * on expand, reads files on selection, and renders FileTree + FileViewerPanel.
+ * Thin render layer composing PanelShell with extracted hooks.
+ * DYK-P3-05: Custom hooks for related state + effects.
  *
- * Phase 4: File Browser — Plan 041
- * Fix FX001-8: Lazy diff loading, wired highlightedHtml/markdownHtml (D3).
- * Fix FX001-10: Changed-files filter wired.
+ * Phase 3: Wire Into BrowserClient — Plan 043
  */
 
+import { ChangesView } from '@/features/041-file-browser/components/changes-view';
 import { FileTree } from '@/features/041-file-browser/components/file-tree';
 import {
   FileViewerPanel,
   type ViewerMode,
 } from '@/features/041-file-browser/components/file-viewer-panel';
+import { useClipboard } from '@/features/041-file-browser/hooks/use-clipboard';
+import { useFileNavigation } from '@/features/041-file-browser/hooks/use-file-navigation';
+import { usePanelState } from '@/features/041-file-browser/hooks/use-panel-state';
 import { fileBrowserParams } from '@/features/041-file-browser/params/file-browser.params';
 import type { FileEntry } from '@/features/041-file-browser/services/directory-listing';
-import type { ReadFileResult } from '@/features/041-file-browser/services/file-actions';
-import { type TreeEntry, formatTree } from '@/features/041-file-browser/services/format-tree';
-import type { DiffResult } from '@chainglass/shared';
+import { createFilePathHandler } from '@/features/041-file-browser/services/file-path-handler';
+import {
+  type BarContext,
+  ExplorerPanel,
+  type ExplorerPanelHandle,
+  LeftPanel,
+  MainPanel,
+  PanelShell,
+} from '@/features/_platform/panel-layout';
+import type { PanelMode } from '@/features/_platform/panel-layout/types';
+import { FileDiff, GitBranch } from 'lucide-react';
 import { useQueryStates } from 'nuqs';
-import { useCallback, useEffect, useState } from 'react';
-import { toast } from 'sonner';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   fetchChangedFiles,
   fetchGitDiff,
+  fetchRecentFiles,
+  fetchWorkingChanges,
+  fileExists,
   readFile,
   saveFile,
 } from '../../../../actions/file-actions';
@@ -40,320 +52,187 @@ export interface BrowserClientProps {
 
 export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: BrowserClientProps) {
   const [params, setParams] = useQueryStates(fileBrowserParams);
-  const [childEntries, setChildEntries] = useState<Record<string, FileEntry[]>>({});
-  const [fileData, setFileData] = useState<ReadFileResult | null>(null);
-  const [changedFiles, setChangedFiles] = useState<string[]>([]);
-  const [editContent, setEditContent] = useState<string>('');
-  // Lazy diff: cached per file path (D3)
-  const [diffCache, setDiffCache] = useState<Record<string, DiffResult>>({});
-  const [diffLoading, setDiffLoading] = useState(false);
+  const explorerRef = useRef<ExplorerPanelHandle>(null);
 
   const mode = (params.mode as ViewerMode) || 'preview';
   const selectedFile = params.file || undefined;
+  const panelMode = (params.panel as PanelMode) || 'tree';
 
-  // Current diff result for the selected file
-  const currentDiff = selectedFile ? diffCache[selectedFile] : undefined;
+  // --- Hooks ---
 
-  // Fetch subdirectory on expand
-  const handleExpand = useCallback(
-    async (dirPath: string) => {
-      try {
-        const url = `/api/workspaces/${slug}/files?worktree=${encodeURIComponent(worktreePath)}&dir=${encodeURIComponent(dirPath)}`;
-        const res = await fetch(url);
-        if (res.ok) {
-          const data = await res.json();
-          setChildEntries((prev) => ({ ...prev, [dirPath]: data.entries }));
-        }
-      } catch (error) {
-        console.error('Failed to expand directory:', error);
-      }
-    },
-    [slug, worktreePath]
+  const fileNav = useFileNavigation({
+    slug,
+    worktreePath,
+    isGit,
+    initialFile: selectedFile,
+    readFile,
+    saveFile,
+    fetchGitDiff,
+    setUrlFile: (file) => setParams({ file }),
+    setUrlMode: (m) => setParams({ mode: m as 'edit' | 'preview' | 'diff' }),
+  });
+
+  const panelState = usePanelState({
+    isGit,
+    worktreePath,
+    panel: panelMode,
+    setUrlPanel: (p) => setParams({ panel: p }),
+    fetchWorkingChanges,
+    fetchRecentFiles,
+    fetchChangedFiles,
+  });
+
+  const clipboard = useClipboard({ slug, worktreePath, readFile });
+
+  // --- ExplorerPanel handler chain ---
+
+  const filePathHandler = useMemo(() => createFilePathHandler(), []);
+
+  const barContext: BarContext = useMemo(
+    () => ({
+      slug,
+      worktreePath,
+      fileExists: (relativePath: string) => fileExists(slug, worktreePath, relativePath),
+      navigateToFile: (relativePath: string) => fileNav.handleSelect(relativePath),
+      showError: (message: string) => {
+        // toast handled by ExplorerPanel
+      },
+    }),
+    [slug, worktreePath, fileNav.handleSelect]
   );
 
-  // Select a file — load its content
-  const handleSelect = useCallback(
-    async (filePath: string) => {
-      // Only update URL if file actually changed (avoids resetting mode on mount)
-      if (filePath !== params.file) {
-        setParams({ file: filePath });
-      }
-      try {
-        const result = await readFile(slug, worktreePath, filePath);
-        setFileData(result);
-        if (result.ok) {
-          setEditContent(result.content);
-        }
-      } catch (error) {
-        console.error('Failed to read file:', error);
-      }
-    },
-    [setParams, slug, worktreePath, params.file]
-  );
+  // --- Ctrl+P / Cmd+P keyboard shortcut (DYK-P3-04) ---
 
-  // Auto-expand tree to show selected file on mount
-  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional mount-only effect
   useEffect(() => {
-    if (params.file) {
-      const parts = params.file.split('/');
-      let current = '';
-      for (let i = 0; i < parts.length - 1; i++) {
-        current = current ? `${current}/${parts[i]}` : parts[i];
-        handleExpand(current);
+    const handler = (e: KeyboardEvent) => {
+      const isMac = navigator.platform.includes('Mac');
+      const modifier = isMac ? e.metaKey : e.ctrlKey;
+      if (modifier && e.key === 'p') {
+        // Don't capture when CodeMirror has focus
+        const active = document.activeElement;
+        if (active?.closest('.cm-editor')) return;
+        e.preventDefault();
+        explorerRef.current?.focusInput();
       }
-      if (!fileData) {
-        handleSelect(params.file);
-      }
-    }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
   }, []);
 
-  // Fetch changed files on mount if git repo
-  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional mount-only effect
-  useEffect(() => {
-    if (isGit) {
-      fetchChangedFiles(worktreePath).then((result) => {
-        if (result.ok) {
-          setChangedFiles(result.files);
-        }
-      });
+  // --- Panel refresh handler ---
+
+  const handlePanelRefresh = useCallback(() => {
+    if (panelMode === 'tree') {
+      fileNav.handleRefresh();
+    } else {
+      panelState.handleRefreshChanges();
     }
-  }, []);
+  }, [panelMode, fileNav.handleRefresh, panelState.handleRefreshChanges]);
 
-  // Change viewer mode — lazy-load diff on first switch (D3)
-  const handleModeChange = useCallback(
-    async (newMode: ViewerMode) => {
-      setParams({ mode: newMode });
+  // --- Current diff ---
 
-      if (newMode === 'diff' && selectedFile && !diffCache[selectedFile]) {
-        setDiffLoading(true);
-        try {
-          const result = await fetchGitDiff(selectedFile, worktreePath);
-          setDiffCache((prev) => ({ ...prev, [selectedFile]: result }));
-        } catch (error) {
-          console.error('Failed to fetch diff:', error);
-        } finally {
-          setDiffLoading(false);
-        }
-      }
-    },
-    [setParams, selectedFile, diffCache, worktreePath]
-  );
+  const currentDiff = selectedFile ? fileNav.diffCache[selectedFile] : undefined;
 
-  // Refresh file tree
-  const handleRefresh = useCallback(() => {
-    setChildEntries({});
-    window.location.reload();
-  }, []);
+  // --- Left panel mode icons ---
 
-  // Save file — DYK-042-01: toast.promise for loading, explicit toast for conflict (AC-09)
-  const handleSave = useCallback(
-    async (content: string) => {
-      if (!selectedFile || !fileData?.ok) return;
+  const panelModes = panelState.panelModes.map((m) => ({
+    ...m,
+    icon:
+      m.key === 'tree' ? (
+        <GitBranch className="h-3.5 w-3.5" />
+      ) : (
+        <FileDiff className="h-3.5 w-3.5" />
+      ),
+  }));
 
-      const toastId = toast.loading('Saving...');
-
-      try {
-        const result = await saveFile(slug, worktreePath, selectedFile, content, fileData.mtime);
-        if (!result.ok) {
-          if (result.error === 'conflict') {
-            toast.error('Save conflict', {
-              id: toastId,
-              description: 'File was modified externally. Refresh to see changes.',
-            });
-            return;
-          }
-          toast.error('Save failed', { id: toastId });
-          return;
-        }
-        // Re-read to get new mtime + highlighted content
-        const refreshed = await readFile(slug, worktreePath, selectedFile);
-        setFileData(refreshed);
-        if (refreshed.ok) setEditContent(refreshed.content);
-        // Invalidate diff cache since content changed
-        setDiffCache((prev) => {
-          const next = { ...prev };
-          delete next[selectedFile];
-          return next;
-        });
-        toast.success('File saved', { id: toastId });
-      } catch {
-        toast.error('Save failed', { id: toastId });
-      }
-    },
-    [slug, worktreePath, selectedFile, fileData]
-  );
-
-  // Refresh current file
-  const handleRefreshFile = useCallback(async () => {
-    if (!selectedFile) return;
-    const result = await readFile(slug, worktreePath, selectedFile);
-    setFileData(result);
-    if (result.ok) {
-      setEditContent(result.content);
-      toast.info('File refreshed');
-    }
-    // Invalidate diff cache too
-    setDiffCache((prev) => {
-      const next = { ...prev };
-      delete next[selectedFile];
-      return next;
-    });
-  }, [slug, worktreePath, selectedFile]);
-
-  // Clipboard helper — works on non-HTTPS (e.g. http://192.168.x.x)
-  // Deferred via setTimeout so Radix menu fully unmounts first.
-  const copyToClipboard = useCallback((text: string): void => {
-    if (globalThis.isSecureContext && navigator.clipboard?.writeText) {
-      navigator.clipboard.writeText(text);
-      return;
-    }
-    // Defer to next tick — Radix portal unmount interferes with focus/selection
-    setTimeout(() => {
-      const textarea = document.createElement('textarea');
-      textarea.value = text;
-      textarea.style.position = 'fixed';
-      textarea.style.left = '-9999px';
-      document.body.appendChild(textarea);
-      textarea.focus();
-      textarea.select();
-      try {
-        document.execCommand('copy');
-      } finally {
-        document.body.removeChild(textarea);
-      }
-    }, 0);
-  }, []);
-
-  // Clipboard handlers for context menu
-  const handleCopyFullPath = useCallback(
-    (relativePath: string) => {
-      copyToClipboard(`${worktreePath}/${relativePath}`);
-      toast.success('Full path copied');
-    },
-    [worktreePath, copyToClipboard]
-  );
-
-  const handleCopyRelativePath = useCallback(
-    (relativePath: string) => {
-      copyToClipboard(relativePath);
-      toast.success('Relative path copied');
-    },
-    [copyToClipboard]
-  );
-
-  const handleCopyContent = useCallback(
-    async (filePath: string) => {
-      try {
-        const result = await readFile(slug, worktreePath, filePath);
-        if (result.ok) {
-          await copyToClipboard(result.content);
-          toast.success('Content copied');
-        } else {
-          toast.error('Could not copy content');
-        }
-      } catch {
-        toast.error('Could not copy content');
-      }
-    },
-    [slug, worktreePath, copyToClipboard]
-  );
-
-  const handleCopyTree = useCallback(
-    async (dirPath: string) => {
-      try {
-        const url = `/api/workspaces/${slug}/files?worktree=${encodeURIComponent(worktreePath)}&dir=${encodeURIComponent(dirPath)}&tree=true`;
-        const res = await fetch(url);
-        if (res.ok) {
-          const data = await res.json();
-          const treeText = formatTree(data.tree as TreeEntry[], dirPath);
-          await copyToClipboard(treeText);
-          toast.success('Tree copied');
-        } else {
-          toast.error('Could not copy tree');
-        }
-      } catch {
-        toast.error('Could not copy tree');
-      }
-    },
-    [slug, worktreePath, copyToClipboard]
-  );
-
-  const handleDownload = useCallback(
-    async (filePath: string) => {
-      try {
-        const result = await readFile(slug, worktreePath, filePath);
-        if (result.ok) {
-          const blob = new Blob([result.content], { type: 'text/plain' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = filePath.split('/').pop() ?? 'file';
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-        } else {
-          toast.error('Could not download file');
-        }
-      } catch {
-        toast.error('Could not download file');
-      }
-    },
-    [slug, worktreePath]
-  );
+  // --- Render ---
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] overflow-hidden">
-      {/* Left panel: File tree */}
-      <div className="w-64 shrink-0 border-r overflow-y-auto lg:w-72">
-        <FileTree
-          entries={initialEntries}
-          selectedFile={selectedFile}
-          changedFiles={changedFiles}
-          showChangedOnly={params.changed || false}
-          onSelect={handleSelect}
-          onExpand={handleExpand}
-          onRefresh={handleRefresh}
-          childEntries={childEntries}
-          onCopyFullPath={handleCopyFullPath}
-          onCopyRelativePath={handleCopyRelativePath}
-          onCopyContent={handleCopyContent}
-          onCopyTree={handleCopyTree}
-          onDownload={handleDownload}
-        />
-      </div>
-
-      {/* Right panel: File viewer */}
-      <div className="flex-1 overflow-hidden">
-        {selectedFile ? (
-          <FileViewerPanel
-            filePath={selectedFile}
-            content={fileData?.ok ? fileData.content : null}
-            language={fileData?.ok ? fileData.language : 'text'}
-            mtime={fileData?.ok ? fileData.mtime : ''}
-            mode={mode}
-            onModeChange={handleModeChange}
-            onSave={handleSave}
-            onRefresh={handleRefreshFile}
-            editContent={editContent}
-            onEditChange={setEditContent}
-            highlightedHtml={fileData?.ok ? fileData.highlightedHtml : undefined}
-            markdownHtml={fileData?.ok ? fileData.markdownHtml : undefined}
-            diffData={currentDiff?.diff}
-            diffError={currentDiff?.error}
-            diffLoading={diffLoading}
-            errorType={
-              fileData && !fileData.ok
-                ? (fileData.error as 'file-too-large' | 'binary-file')
-                : undefined
-            }
+    <div className="h-[calc(100vh-4rem)] overflow-hidden">
+      <PanelShell
+        explorer={
+          <ExplorerPanel
+            ref={explorerRef}
+            filePath={selectedFile ?? ''}
+            handlers={[filePathHandler]}
+            context={barContext}
+            onCopy={() => clipboard.copyToClipboard(selectedFile ?? '')}
+            placeholder="Type or paste a file path... (Ctrl+P)"
           />
-        ) : (
-          <div className="flex items-center justify-center h-full text-muted-foreground">
-            Select a file to view
-          </div>
-        )}
-      </div>
+        }
+        left={
+          <LeftPanel
+            mode={panelMode}
+            onModeChange={panelState.handlePanelModeChange}
+            modes={panelModes}
+            onRefresh={handlePanelRefresh}
+          >
+            {{
+              tree: (
+                <FileTree
+                  entries={initialEntries}
+                  selectedFile={selectedFile}
+                  changedFiles={panelState.changedFiles}
+                  onSelect={fileNav.handleSelect}
+                  onExpand={fileNav.handleExpand}
+                  childEntries={fileNav.childEntries}
+                  onCopyFullPath={clipboard.handleCopyFullPath}
+                  onCopyRelativePath={clipboard.handleCopyRelativePath}
+                  onCopyContent={clipboard.handleCopyContent}
+                  onCopyTree={clipboard.handleCopyTree}
+                  onDownload={clipboard.handleDownload}
+                />
+              ),
+              changes: (
+                <ChangesView
+                  workingChanges={panelState.workingChanges}
+                  recentFiles={panelState.recentFiles}
+                  selectedFile={selectedFile}
+                  onSelect={fileNav.handleSelect}
+                  onCopyFullPath={clipboard.handleCopyFullPath}
+                  onCopyRelativePath={clipboard.handleCopyRelativePath}
+                  onCopyContent={clipboard.handleCopyContent}
+                  onDownload={clipboard.handleDownload}
+                />
+              ),
+            }}
+          </LeftPanel>
+        }
+        main={
+          <MainPanel>
+            {selectedFile ? (
+              <FileViewerPanel
+                filePath={selectedFile}
+                content={fileNav.fileData?.ok ? fileNav.fileData.content : null}
+                language={fileNav.fileData?.ok ? fileNav.fileData.language : 'text'}
+                mtime={fileNav.fileData?.ok ? fileNav.fileData.mtime : ''}
+                mode={mode}
+                onModeChange={fileNav.handleModeChange}
+                onSave={fileNav.handleSave}
+                onRefresh={fileNav.handleRefreshFile}
+                editContent={fileNav.editContent}
+                onEditChange={fileNav.setEditContent}
+                highlightedHtml={
+                  fileNav.fileData?.ok ? fileNav.fileData.highlightedHtml : undefined
+                }
+                markdownHtml={fileNav.fileData?.ok ? fileNav.fileData.markdownHtml : undefined}
+                diffData={currentDiff?.diff}
+                diffError={currentDiff?.error}
+                diffLoading={fileNav.diffLoading}
+                errorType={
+                  fileNav.fileData && !fileNav.fileData.ok
+                    ? (fileNav.fileData.error as 'file-too-large' | 'binary-file')
+                    : undefined
+                }
+              />
+            ) : (
+              <div className="flex items-center justify-center h-full text-muted-foreground">
+                Select a file to view
+              </div>
+            )}
+          </MainPanel>
+        }
+      />
     </div>
   );
 }

@@ -226,7 +226,7 @@ The browser page composes its layout with raw `div+flex` — no reusable panel c
 
 - [x] Phase 1: Panel Infrastructure — COMPLETE (19 tests, 5 components, types, barrel)
 - [ ] Phase 2: Git Services + Changes View — COMPLETE (21 tests, 2 services, 1 component, 3 server actions)
-- [ ] Phase 3: Wire Into BrowserClient + Migration — NOT STARTED
+- [ ] Phase 3: Wire Into BrowserClient + Migration — COMPLETE (10 tasks, 3 hooks extracted, all tests passing)
 
 ---
 

@@ -11,7 +11,7 @@
  */
 
 import type { DiffError } from '@chainglass/shared';
-import { ClipboardCopy, Edit, Eye, GitCompare, Loader2, RefreshCw, Save } from 'lucide-react';
+import { Edit, Eye, GitCompare, Loader2, RefreshCw, Save } from 'lucide-react';
 import { Suspense, lazy } from 'react';
 
 import { MarkdownPreview } from './markdown-preview';
@@ -133,38 +133,6 @@ export function FileViewerPanel({
           >
             <RefreshCw className="h-3.5 w-3.5" />
           </button>
-        </div>
-        <div className="flex items-center gap-1.5 px-3 py-1 bg-muted/30">
-          <button
-            type="button"
-            onClick={() => {
-              if (globalThis.isSecureContext && navigator.clipboard?.writeText) {
-                navigator.clipboard.writeText(filePath);
-              } else {
-                setTimeout(() => {
-                  const ta = document.createElement('textarea');
-                  ta.value = filePath;
-                  ta.style.position = 'fixed';
-                  ta.style.left = '-9999px';
-                  document.body.appendChild(ta);
-                  ta.focus();
-                  ta.select();
-                  try {
-                    document.execCommand('copy');
-                  } finally {
-                    document.body.removeChild(ta);
-                  }
-                }, 0);
-              }
-            }}
-            className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground"
-            aria-label="Copy file path"
-          >
-            <ClipboardCopy className="h-3.5 w-3.5" />
-          </button>
-          <span className="text-sm text-muted-foreground font-mono truncate flex-1">
-            {filePath}
-          </span>
         </div>
       </div>
 

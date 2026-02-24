@@ -2,12 +2,7 @@
  * Tests for fileBrowserParams and fileBrowserPageParamsCache.
  *
  * Purpose: Verify file browser URL param parsing with type-safe defaults.
- * Quality Contribution: Ensures bookmarked URLs restore exact file browser
- *   state — prevents broken deep links and mode confusion.
- * Acceptance Criteria: AC-16, AC-17
- *
- * Domain: Plan-scoped (041-file-browser)
- * Plan: 041-file-browser Phase 2 (T005)
+ * Plan 043 Phase 3: Replaced `changed` boolean with `panel` string literal.
  */
 
 import { fileBrowserPageParamsCache } from '@/features/041-file-browser/params';
@@ -20,7 +15,7 @@ describe('fileBrowserPageParamsCache', () => {
     expect(result.dir).toBe('');
     expect(result.file).toBe('');
     expect(result.mode).toBe('preview');
-    expect(result.changed).toBe(false);
+    expect(result.panel).toBe('tree');
   });
 
   it('parses all params when populated', () => {
@@ -29,13 +24,13 @@ describe('fileBrowserPageParamsCache', () => {
       dir: 'src/lib',
       file: 'utils.ts',
       mode: 'edit',
-      changed: 'true',
+      panel: 'changes',
     });
     expect(result.worktree).toBe('/home/jak/project');
     expect(result.dir).toBe('src/lib');
     expect(result.file).toBe('utils.ts');
     expect(result.mode).toBe('edit');
-    expect(result.changed).toBe(true);
+    expect(result.panel).toBe('changes');
   });
 
   it('falls back to preview for invalid mode', () => {
@@ -43,9 +38,9 @@ describe('fileBrowserPageParamsCache', () => {
     expect(result.mode).toBe('preview');
   });
 
-  it('parses changed boolean correctly from string', () => {
-    expect(fileBrowserPageParamsCache.parse({ changed: 'true' }).changed).toBe(true);
-    expect(fileBrowserPageParamsCache.parse({ changed: 'false' }).changed).toBe(false);
+  it('falls back to tree for invalid panel', () => {
+    const result = fileBrowserPageParamsCache.parse({ panel: 'invalid' });
+    expect(result.panel).toBe('tree');
   });
 
   it('handles diff mode', () => {

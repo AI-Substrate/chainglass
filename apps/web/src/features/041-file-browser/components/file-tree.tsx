@@ -37,10 +37,8 @@ export interface FileTreeProps {
   entries: FileEntry[];
   selectedFile?: string;
   changedFiles?: string[];
-  showChangedOnly?: boolean;
   onSelect: (filePath: string) => void;
   onExpand: (dirPath: string) => void;
-  onRefresh: () => void;
   childEntries?: Record<string, FileEntry[]>;
   onCopyFullPath?: (path: string) => void;
   onCopyRelativePath?: (path: string) => void;
@@ -53,10 +51,8 @@ export function FileTree({
   entries,
   selectedFile,
   changedFiles,
-  showChangedOnly,
   onSelect,
   onExpand,
-  onRefresh,
   childEntries = {},
   onCopyFullPath,
   onCopyRelativePath,
@@ -77,15 +73,6 @@ export function FileTree({
     return paths;
   });
 
-  const filteredEntries =
-    showChangedOnly && changedFiles
-      ? entries.filter(
-          (e) =>
-            e.type === 'directory' ||
-            changedFiles.some((f) => f === e.path || f.startsWith(`${e.path}/`))
-        )
-      : entries;
-
   const handleDirClick = (dirPath: string) => {
     const next = new Set(expanded);
     if (next.has(dirPath)) {
@@ -104,40 +91,26 @@ export function FileTree({
   }
 
   return (
-    <div className="flex flex-col text-sm h-full">
-      <div className="flex items-center justify-between border-b px-3 py-2 shrink-0 sticky top-0 bg-background z-10">
-        <span className="text-xs font-medium text-muted-foreground uppercase">Files</span>
-        <button
-          type="button"
-          onClick={onRefresh}
-          className="rounded p-1 text-muted-foreground hover:text-foreground"
-          aria-label="Refresh file tree"
-        >
-          <RefreshCw className="h-3.5 w-3.5" />
-        </button>
-      </div>
-      <div className="overflow-y-auto">
-        {filteredEntries.map((entry) => (
-          <TreeItem
-            key={entry.path}
-            entry={entry}
-            depth={0}
-            expanded={expanded}
-            selectedFile={selectedFile}
-            changedFiles={changedFiles}
-            showChangedOnly={showChangedOnly}
-            childEntries={childEntries}
-            onSelect={onSelect}
-            onDirClick={handleDirClick}
-            onExpand={onExpand}
-            onCopyFullPath={onCopyFullPath}
-            onCopyRelativePath={onCopyRelativePath}
-            onCopyContent={onCopyContent}
-            onCopyTree={onCopyTree}
-            onDownload={onDownload}
-          />
-        ))}
-      </div>
+    <div className="text-sm h-full overflow-y-auto">
+      {entries.map((entry) => (
+        <TreeItem
+          key={entry.path}
+          entry={entry}
+          depth={0}
+          expanded={expanded}
+          selectedFile={selectedFile}
+          changedFiles={changedFiles}
+          childEntries={childEntries}
+          onSelect={onSelect}
+          onDirClick={handleDirClick}
+          onExpand={onExpand}
+          onCopyFullPath={onCopyFullPath}
+          onCopyRelativePath={onCopyRelativePath}
+          onCopyContent={onCopyContent}
+          onCopyTree={onCopyTree}
+          onDownload={onDownload}
+        />
+      ))}
     </div>
   );
 }
@@ -148,7 +121,6 @@ function TreeItem({
   expanded,
   selectedFile,
   changedFiles,
-  showChangedOnly,
   childEntries,
   onSelect,
   onDirClick,
@@ -164,7 +136,6 @@ function TreeItem({
   expanded: Set<string>;
   selectedFile?: string;
   changedFiles?: string[];
-  showChangedOnly?: boolean;
   childEntries: Record<string, FileEntry[]>;
   onSelect: (path: string) => void;
   onDirClick: (path: string) => void;
@@ -240,34 +211,25 @@ function TreeItem({
         </div>
         {isExpanded && children && (
           <div>
-            {children
-              .filter(
-                (c) =>
-                  !showChangedOnly ||
-                  !changedFiles ||
-                  c.type === 'directory' ||
-                  changedFiles.some((f) => f === c.path || f.startsWith(`${c.path}/`))
-              )
-              .map((child) => (
-                <TreeItem
-                  key={child.path}
-                  entry={child}
-                  depth={depth + 1}
-                  expanded={expanded}
-                  selectedFile={selectedFile}
-                  changedFiles={changedFiles}
-                  showChangedOnly={showChangedOnly}
-                  childEntries={childEntries}
-                  onSelect={onSelect}
-                  onDirClick={onDirClick}
-                  onExpand={onExpand}
-                  onCopyFullPath={onCopyFullPath}
-                  onCopyRelativePath={onCopyRelativePath}
-                  onCopyContent={onCopyContent}
-                  onCopyTree={onCopyTree}
-                  onDownload={onDownload}
-                />
-              ))}
+            {children.map((child) => (
+              <TreeItem
+                key={child.path}
+                entry={child}
+                depth={depth + 1}
+                expanded={expanded}
+                selectedFile={selectedFile}
+                changedFiles={changedFiles}
+                childEntries={childEntries}
+                onSelect={onSelect}
+                onDirClick={onDirClick}
+                onExpand={onExpand}
+                onCopyFullPath={onCopyFullPath}
+                onCopyRelativePath={onCopyRelativePath}
+                onCopyContent={onCopyContent}
+                onCopyTree={onCopyTree}
+                onDownload={onDownload}
+              />
+            ))}
           </div>
         )}
       </div>

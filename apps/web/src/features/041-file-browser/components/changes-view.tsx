@@ -10,7 +10,14 @@
  * Phase 2: Git Services — Plan 043
  */
 
-import { Check, File } from 'lucide-react';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
+import { Check, ClipboardCopy, Download, File, FileText } from 'lucide-react';
 import { useCallback } from 'react';
 import type { ChangedFile } from '../services/working-changes';
 
@@ -19,6 +26,10 @@ export interface ChangesViewProps {
   recentFiles: string[];
   selectedFile?: string;
   onSelect: (filePath: string) => void;
+  onCopyFullPath?: (path: string) => void;
+  onCopyRelativePath?: (path: string) => void;
+  onCopyContent?: (filePath: string) => void;
+  onDownload?: (filePath: string) => void;
 }
 
 const STATUS_BADGE: Record<ChangedFile['status'], { letter: string; className: string }> = {
@@ -34,6 +45,10 @@ export function ChangesView({
   recentFiles,
   selectedFile,
   onSelect,
+  onCopyFullPath,
+  onCopyRelativePath,
+  onCopyContent,
+  onDownload,
 }: ChangesViewProps) {
   // Deduplicate recent against working changes
   const workingPaths = new Set(workingChanges.map((f) => f.path));
@@ -58,6 +73,10 @@ export function ChangesView({
             badge={STATUS_BADGE[file.status]}
             isSelected={selectedFile === file.path}
             onSelect={onSelect}
+            onCopyFullPath={onCopyFullPath}
+            onCopyRelativePath={onCopyRelativePath}
+            onCopyContent={onCopyContent}
+            onDownload={onDownload}
           />
         ))
       )}
@@ -75,6 +94,10 @@ export function ChangesView({
               filePath={filePath}
               isSelected={selectedFile === filePath}
               onSelect={onSelect}
+              onCopyFullPath={onCopyFullPath}
+              onCopyRelativePath={onCopyRelativePath}
+              onCopyContent={onCopyContent}
+              onDownload={onDownload}
               muted
             />
           ))}
@@ -89,12 +112,20 @@ function ChangeFileItem({
   badge,
   isSelected,
   onSelect,
+  onCopyFullPath,
+  onCopyRelativePath,
+  onCopyContent,
+  onDownload,
   muted,
 }: {
   filePath: string;
   badge?: { letter: string; className: string };
   isSelected: boolean;
   onSelect: (path: string) => void;
+  onCopyFullPath?: (path: string) => void;
+  onCopyRelativePath?: (path: string) => void;
+  onCopyContent?: (filePath: string) => void;
+  onDownload?: (filePath: string) => void;
   muted?: boolean;
 }) {
   const dir = filePath.includes('/') ? filePath.slice(0, filePath.lastIndexOf('/') + 1) : '';
@@ -103,25 +134,52 @@ function ChangeFileItem({
   const handleClick = useCallback(() => onSelect(filePath), [onSelect, filePath]);
 
   return (
-    <button
-      type="button"
-      onClick={handleClick}
-      className={`relative flex w-full items-center gap-1.5 px-3 py-1 text-left hover:bg-accent ${
-        isSelected ? 'bg-accent font-medium' : ''
-      } ${muted ? 'opacity-60' : ''}`}
-    >
-      {isSelected && <span className="absolute left-0.5 text-amber-500 font-black text-sm">▶</span>}
-      {badge ? (
-        <span className={`shrink-0 w-4 text-center font-mono text-xs font-bold ${badge.className}`}>
-          {badge.letter}
-        </span>
-      ) : (
-        <File className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-      )}
-      <span className="truncate">
-        <span className="text-muted-foreground">{dir}</span>
-        <span className={isSelected ? 'text-base' : ''}>{name}</span>
-      </span>
-    </button>
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <button
+          type="button"
+          onClick={handleClick}
+          className={`relative flex w-full items-center gap-1.5 px-3 py-1 text-left hover:bg-accent ${
+            isSelected ? 'bg-accent font-medium' : ''
+          } ${muted ? 'opacity-60' : ''}`}
+        >
+          {isSelected && (
+            <span className="absolute left-0.5 text-amber-500 font-black text-sm">▶</span>
+          )}
+          {badge ? (
+            <span
+              className={`shrink-0 w-4 text-center font-mono text-xs font-bold ${badge.className}`}
+            >
+              {badge.letter}
+            </span>
+          ) : (
+            <File className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          )}
+          <span className="truncate">
+            <span className="text-muted-foreground">{dir}</span>
+            <span className={isSelected ? 'text-base' : ''}>{name}</span>
+          </span>
+        </button>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem onSelect={() => onCopyFullPath?.(filePath)}>
+          <ClipboardCopy className="h-3.5 w-3.5 mr-2" />
+          Copy Full Path
+        </ContextMenuItem>
+        <ContextMenuItem onSelect={() => onCopyRelativePath?.(filePath)}>
+          <FileText className="h-3.5 w-3.5 mr-2" />
+          Copy Relative Path
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem onSelect={() => onCopyContent?.(filePath)}>
+          <ClipboardCopy className="h-3.5 w-3.5 mr-2" />
+          Copy Content
+        </ContextMenuItem>
+        <ContextMenuItem onSelect={() => onDownload?.(filePath)}>
+          <Download className="h-3.5 w-3.5 mr-2" />
+          Download
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }

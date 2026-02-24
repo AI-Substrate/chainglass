@@ -9,7 +9,7 @@
  */
 
 import { workspaceParams } from '@/lib/params/workspace.params';
-import { parseAsBoolean, parseAsString, parseAsStringLiteral } from 'nuqs';
+import { parseAsString, parseAsStringLiteral } from 'nuqs';
 import { createSearchParamsCache } from 'nuqs/server';
 
 export const fileBrowserParams = {
@@ -19,8 +19,8 @@ export const fileBrowserParams = {
   file: parseAsString.withDefault(''),
   /** Viewer mode */
   mode: parseAsStringLiteral(['edit', 'preview', 'diff'] as const).withDefault('preview'),
-  /** Show only git-changed files */
-  changed: parseAsBoolean.withDefault(false),
+  /** Left panel mode (Plan 043) */
+  panel: parseAsStringLiteral(['tree', 'changes'] as const).withDefault('tree'),
 };
 
 /** Combined server cache for workspace + file browser params */

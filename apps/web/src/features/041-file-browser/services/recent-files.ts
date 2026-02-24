@@ -42,7 +42,7 @@ export async function getRecentFiles(worktreePath: string, limit = 20): Promise<
         '--no-merges',
         '--pretty=format:',
         '--diff-filter=AMCR',
-        `-n`,
+        '-n',
         String(limit * 3),
       ],
       { cwd: worktreePath }

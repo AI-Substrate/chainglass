@@ -85,3 +85,4 @@ Primary: `apps/web/src/features/_platform/panel-layout/`
 |------|-------------|------|
 | *(extracted)* | Domain formalized from Plan 041 browser layout + workshops (file-path-utility-bar, left-panel-view-modes) | 2026-02-24 |
 | Plan 043 Phase 1 | Created all 5 components (PanelShell, ExplorerPanel, LeftPanel, MainPanel, PanelHeader), types, barrel export. Installed react-resizable-panels. 19 tests. | 2026-02-24 |
+| Plan 043 Phase 3 | Wired into BrowserClient. PanelShell with resizable layout, ExplorerPanel with file path handler, LeftPanel with tree/changes modes. First active consumer. | 2026-02-24 |
