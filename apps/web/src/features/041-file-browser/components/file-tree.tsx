@@ -259,11 +259,11 @@ function TreeItem({
     );
   }
 
-  // Scroll selected file into view on mount
+  // Scroll selected file into view on mount — center so it's not at the edge
   const scrollRef = useCallback(
     (el: HTMLButtonElement | null) => {
       if (el && isSelected) {
-        el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
       }
     },
     [isSelected]
