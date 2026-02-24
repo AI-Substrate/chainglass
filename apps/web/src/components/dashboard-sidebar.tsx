@@ -61,7 +61,7 @@ export function DashboardSidebar() {
       <SidebarHeader className="border-b p-4">
         <div className="flex items-center justify-between gap-2">
           {!isCollapsed && (
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <span className="block truncate font-semibold">
                 {isInWorkspace
                   ? `${wsCtx?.worktreeIdentity?.emoji || wsCtx?.emoji || ''} ${wsCtx?.worktreeIdentity?.branch || wsCtx?.name || decodeURIComponent(workspaceSlug)}`.trim()
@@ -74,33 +74,33 @@ export function DashboardSidebar() {
               )}
             </div>
           )}
-          <div className="flex shrink-0 items-center gap-1">
-            {currentWorktree && workspaceSlug && (
-              <>
-                <WorktreeIdentityPopover slug={workspaceSlug} worktreePath={currentWorktree} />
-                <PasteUploadButton slug={workspaceSlug} worktreePath={currentWorktree} />
-              </>
-            )}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={toggleSidebar}
-              aria-label="Toggle sidebar"
-              className="h-8 w-8"
-            >
-              <PanelLeft className="h-4 w-4" />
-            </Button>
-            <ThemeToggle />
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => window.open(window.location.href, '_blank')}
-              aria-label="Open in new tab"
-              className="h-8 w-8"
-            >
-              <ExternalLink className="h-4 w-4" />
-            </Button>
-          </div>
+        </div>
+        <div className="mt-1 flex items-center gap-1">
+          {currentWorktree && workspaceSlug && (
+            <>
+              <WorktreeIdentityPopover slug={workspaceSlug} worktreePath={currentWorktree} />
+              <PasteUploadButton slug={workspaceSlug} worktreePath={currentWorktree} />
+            </>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleSidebar}
+            aria-label="Toggle sidebar"
+            className="h-7 w-7"
+          >
+            <PanelLeft className="h-3.5 w-3.5" />
+          </Button>
+          <ThemeToggle />
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => window.open(window.location.href, '_blank')}
+            aria-label="Open in new tab"
+            className="h-7 w-7"
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+          </Button>
         </div>
       </SidebarHeader>
 
