@@ -470,3 +470,56 @@ export async function toggleWorktreeStar(formData: FormData): Promise<void> {
     console.error('[toggleWorktreeStar] Error:', error);
   }
 }
+
+// ==================== Update Worktree Visual Preferences ====================
+
+/**
+ * Update emoji + color for a specific worktree within a workspace.
+ *
+ * Read-modify-write: loads existing worktreePreferences map, merges the
+ * single entry, writes the complete map back (DYK-ST-01).
+ */
+export async function updateWorktreePreferences(
+  slug: string,
+  worktreePath: string,
+  prefs: { emoji?: string; color?: string }
+): Promise<ActionState> {
+  if (!slug || !worktreePath) {
+    return { success: false, errors: { _form: ['Workspace slug and worktree path are required'] } };
+  }
+
+  try {
+    const container = getContainer();
+    const workspaceService = container.resolve<IWorkspaceService>(
+      WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE
+    );
+
+    const workspaces = await workspaceService.list();
+    const ws = workspaces.find((w) => w.slug === slug);
+    if (!ws) {
+      return { success: false, errors: { _form: ['Workspace not found'] } };
+    }
+
+    const current = ws.toJSON().preferences.worktreePreferences ?? {};
+    const existing = current[worktreePath] ?? { emoji: '', color: '' };
+    const merged = {
+      ...existing,
+      ...(prefs.emoji !== undefined ? { emoji: prefs.emoji } : {}),
+      ...(prefs.color !== undefined ? { color: prefs.color } : {}),
+    };
+
+    const result = await workspaceService.updatePreferences(slug, {
+      worktreePreferences: { ...current, [worktreePath]: merged },
+    });
+
+    if (!result.success) {
+      return { success: false, errors: { _form: result.errors.map((e) => e.message) } };
+    }
+
+    revalidatePath(`/workspaces/${slug}`);
+    return { success: true, message: 'Worktree preferences updated' };
+  } catch (error) {
+    console.error('[updateWorktreePreferences] Error:', error);
+    return { success: false, errors: { _form: ['Failed to update worktree preferences'] } };
+  }
+}

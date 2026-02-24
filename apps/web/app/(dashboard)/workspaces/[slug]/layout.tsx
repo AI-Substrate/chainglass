@@ -37,9 +37,16 @@ export default async function WorkspaceLayout({ children, params }: LayoutProps)
   const name = ws?.name ?? decodeURIComponent(slug);
   const emoji = prefs?.emoji ?? '';
   const color = prefs?.color ?? '';
+  const worktreePreferences = prefs?.worktreePreferences ?? {};
 
   return (
-    <WorkspaceProvider slug={slug} name={name} emoji={emoji} color={color}>
+    <WorkspaceProvider
+      slug={slug}
+      name={name}
+      emoji={emoji}
+      color={color}
+      worktreePreferences={worktreePreferences}
+    >
       <WorkspaceAttentionWrapper>{children}</WorkspaceAttentionWrapper>
     </WorkspaceProvider>
   );

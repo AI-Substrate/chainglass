@@ -22,6 +22,12 @@ import slugify from 'slugify';
  * Workspace preferences for visual identity and display.
  * Stored in the global registry alongside workspace metadata.
  */
+/** Per-worktree visual identity — emoji + color override workspace defaults */
+export interface WorktreeVisualPreferences {
+  emoji: string;
+  color: string;
+}
+
 export interface WorkspacePreferences {
   /** Workspace emoji for visual identification (empty = not yet assigned) */
   emoji: string;
@@ -33,6 +39,8 @@ export interface WorkspacePreferences {
   sortOrder: number;
   /** Worktree paths that are starred/pinned to top of picker */
   starredWorktrees: string[];
+  /** Per-worktree emoji + color overrides, keyed by absolute worktree path */
+  worktreePreferences: Record<string, WorktreeVisualPreferences>;
 }
 
 /**
@@ -45,6 +53,7 @@ export const DEFAULT_PREFERENCES: WorkspacePreferences = {
   starred: false,
   sortOrder: 0,
   starredWorktrees: [],
+  worktreePreferences: {},
 };
 
 /**

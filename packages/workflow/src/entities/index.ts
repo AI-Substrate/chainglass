@@ -17,7 +17,12 @@ export type {
 } from './phase.js';
 
 export { Workspace, DEFAULT_PREFERENCES } from './workspace.js';
-export type { WorkspaceInput, WorkspaceJSON, WorkspacePreferences } from './workspace.js';
+export type {
+  WorkspaceInput,
+  WorkspaceJSON,
+  WorkspacePreferences,
+  WorktreeVisualPreferences,
+} from './workspace.js';
 
 export { Sample } from './sample.js';
 export type { SampleInput, SampleJSON } from './sample.js';

@@ -49,6 +49,10 @@ export default async function BrowserPage({ params, searchParams }: PageProps) {
   const worktreePath =
     typeof searchParamsResolved.worktree === 'string' ? searchParamsResolved.worktree : info.path;
 
+  // Resolve worktree branch name for tab title
+  const wt = info.worktrees.find((w) => w.path === worktreePath);
+  const worktreeBranch = wt?.branch ?? worktreePath.split('/').pop() ?? '';
+
   // Fetch root directory entries server-side
   const rootEntries = await listDirectory({
     worktreePath,
@@ -62,6 +66,7 @@ export default async function BrowserPage({ params, searchParams }: PageProps) {
       <BrowserClient
         slug={slug}
         worktreePath={worktreePath}
+        worktreeBranch={worktreeBranch}
         isGit={info.hasGit}
         initialEntries={rootEntries.entries}
       />

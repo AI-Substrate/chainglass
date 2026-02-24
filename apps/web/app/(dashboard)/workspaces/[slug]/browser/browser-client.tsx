@@ -51,16 +51,24 @@ import {
 export interface BrowserClientProps {
   slug: string;
   worktreePath: string;
+  worktreeBranch?: string;
   isGit: boolean;
   initialEntries: FileEntry[];
 }
 
-export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: BrowserClientProps) {
+export function BrowserClient({
+  slug,
+  worktreePath,
+  worktreeBranch,
+  isGit,
+  initialEntries,
+}: BrowserClientProps) {
   return (
     <FileChangeProvider worktreePath={worktreePath}>
       <BrowserClientInner
         slug={slug}
         worktreePath={worktreePath}
+        worktreeBranch={worktreeBranch}
         isGit={isGit}
         initialEntries={initialEntries}
       />
@@ -68,7 +76,13 @@ export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: Bro
   );
 }
 
-function BrowserClientInner({ slug, worktreePath, isGit, initialEntries }: BrowserClientProps) {
+function BrowserClientInner({
+  slug,
+  worktreePath,
+  worktreeBranch,
+  isGit,
+  initialEntries,
+}: BrowserClientProps) {
   const [params, setParams] = useQueryStates(fileBrowserParams);
   const explorerRef = useRef<ExplorerPanelHandle>(null);
   const [expandPaths, setExpandPaths] = useState<string[]>([]);
@@ -105,6 +119,19 @@ function BrowserClientInner({ slug, worktreePath, isGit, initialEntries }: Brows
 
   // --- Workspace attention context (Phase 5) ---
   const wsCtx = useWorkspaceContext();
+
+  // Set worktree identity for tab title (Subtask 001)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — only re-run on worktree change, not context ref
+  useEffect(() => {
+    if (worktreeBranch) {
+      wsCtx?.setWorktreeIdentity({
+        worktreePath,
+        branch: worktreeBranch,
+        pageTitle: 'Browser',
+      });
+    }
+    return () => wsCtx?.setWorktreeIdentity(null);
+  }, [worktreePath, worktreeBranch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // --- Live file events (Plan 045) ---
 

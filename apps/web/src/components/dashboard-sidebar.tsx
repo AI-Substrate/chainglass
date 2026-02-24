@@ -25,6 +25,7 @@ import { ChevronLeft, PanelLeft, Settings } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { Suspense, useMemo, useState } from 'react';
+import { WorktreeIdentityPopover } from './worktree-identity-popover';
 
 /**
  * DashboardSidebar
@@ -63,10 +64,10 @@ export function DashboardSidebar() {
             <div className="min-w-0">
               <span className="block truncate font-semibold">
                 {isInWorkspace
-                  ? `${wsCtx?.emoji || ''} ${wsCtx?.name || decodeURIComponent(workspaceSlug)}`.trim()
+                  ? `${wsCtx?.worktreeIdentity?.emoji || wsCtx?.emoji || ''} ${wsCtx?.worktreeIdentity?.branch || wsCtx?.name || decodeURIComponent(workspaceSlug)}`.trim()
                   : 'Chainglass'}
               </span>
-              {isInWorkspace && currentWorktree && (
+              {isInWorkspace && currentWorktree && !wsCtx?.worktreeIdentity && (
                 <span className="block truncate text-xs text-muted-foreground">
                   {currentWorktree.split('/').pop()}
                 </span>
@@ -75,7 +76,10 @@ export function DashboardSidebar() {
           )}
           <div className="flex shrink-0 items-center gap-1">
             {currentWorktree && workspaceSlug && (
-              <PasteUploadButton slug={workspaceSlug} worktreePath={currentWorktree} />
+              <>
+                <WorktreeIdentityPopover slug={workspaceSlug} worktreePath={currentWorktree} />
+                <PasteUploadButton slug={workspaceSlug} worktreePath={currentWorktree} />
+              </>
             )}
             <Button
               variant="ghost"
