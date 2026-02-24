@@ -200,17 +200,33 @@ export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: Bro
     });
   }, [slug, worktreePath, selectedFile]);
 
+  // Clipboard helper — works on non-HTTPS (e.g. http://192.168.x.x)
+  const copyToClipboard = useCallback(async (text: string) => {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+    }
+  }, []);
+
   // Clipboard handlers for context menu
   const handleCopyFullPath = useCallback(
     async (relativePath: string) => {
-      await navigator.clipboard.writeText(`${worktreePath}/${relativePath}`);
+      await copyToClipboard(`${worktreePath}/${relativePath}`);
       toast.success('Full path copied');
     },
     [worktreePath]
   );
 
   const handleCopyRelativePath = useCallback(async (relativePath: string) => {
-    await navigator.clipboard.writeText(relativePath);
+    await copyToClipboard(relativePath);
     toast.success('Relative path copied');
   }, []);
 
@@ -219,7 +235,7 @@ export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: Bro
       try {
         const result = await readFile(slug, worktreePath, filePath);
         if (result.ok) {
-          await navigator.clipboard.writeText(result.content);
+          await copyToClipboard(result.content);
           toast.success('Content copied');
         } else {
           toast.error('Could not copy content');
@@ -239,7 +255,7 @@ export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: Bro
         if (res.ok) {
           const data = await res.json();
           const treeText = formatTree(data.tree as TreeEntry[], dirPath);
-          await navigator.clipboard.writeText(treeText);
+          await copyToClipboard(treeText);
           toast.success('Tree copied');
         } else {
           toast.error('Could not copy tree');
