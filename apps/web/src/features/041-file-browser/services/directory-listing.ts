@@ -63,10 +63,8 @@ export async function listDirectory(options: ListDirectoryOptions): Promise<List
 
   const absoluteDir = dirPath ? path.join(worktreePath, dirPath) : worktreePath;
 
-  if (isGit) {
-    return listFromGit(worktreePath, dirPath);
-  }
-
+  // DYK-P2-02: Always use readDir to show all files (including gitignored).
+  // Git-based listing only used for changes view, not tree view.
   return listFromReadDir(absoluteDir, dirPath, fileSystem);
 }
 

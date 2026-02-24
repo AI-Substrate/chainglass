@@ -53,10 +53,14 @@ Workspace-scoped file browsing, editing, and diffing. The core feature that make
 | FileTree | Directory navigation, lazy expand | Files API route, changed-files service |
 | FileViewerPanel | Mode toggle, viewer integration | CodeEditor, FileViewer, MarkdownViewer, DiffViewer, readFile, saveFile |
 | CodeEditor | CodeMirror 6 wrapper | @uiw/react-codemirror, detectLanguage() |
-| Directory listing service | git ls-files per-dir | IFileSystem, IPathResolver, execFile |
+| ChangesView | Flat file list with status badges + recent section | Working changes service, recent files service |
+| Directory listing service | readDir per-dir (shows all files) | IFileSystem, IPathResolver |
 | Changed-files service | git diff --name-only | execFile |
+| Working changes service | git status --porcelain parser | execFile |
+| Recent files service | git log --name-only parser | execFile |
 | readFile action | Read + security checks | IFileSystem (stat, readFile, realpath), IPathResolver |
 | saveFile action | Atomic write + conflict detection | IFileSystem (stat, writeFile, rename), IPathResolver |
+| fileExists action | Lightweight stat check for ExplorerPanel | IFileSystem, IPathResolver |
 | Files API route | GET handler for client fetch | Directory listing service |
 
 ## Source Location
@@ -77,11 +81,14 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
 | `apps/web/src/features/041-file-browser/components/code-editor.tsx` | CodeEditor wrapper | Phase 4 |
 | `apps/web/src/features/041-file-browser/components/file-viewer-panel.tsx` | FileViewerPanel | Phase 4, FX001-7 |
 | `apps/web/src/features/041-file-browser/components/markdown-preview.tsx` | MarkdownPreview (mermaid activation) | FX001-7 |
-| `apps/web/app/actions/file-actions.ts` | Server actions (readFile, saveFile, fetchGitDiff, fetchChangedFiles, uploadFile) | Phase 4, FX001, Plan 044 |
+| `apps/web/app/actions/file-actions.ts` | Server actions (readFile, saveFile, fetchGitDiff, fetchChangedFiles, fetchWorkingChanges, fetchRecentFiles, fileExists, uploadFile) | Phase 4, FX001, Plan 043, Plan 044 |
 | `apps/web/app/api/workspaces/[slug]/files/route.ts` | Files API route | Phase 4 |
 | `apps/web/app/(dashboard)/workspaces/[slug]/browser/page.tsx` | Browser page (Server Component) | Phase 4 |
 | `apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx` | BrowserClient (Client Component shell) | Phase 4, FX001 |
 | `apps/web/src/lib/server/markdown-renderer.ts` | renderMarkdownToHtml (server-side markdown pipeline) | FX001-6 |
+| `apps/web/src/features/041-file-browser/services/working-changes.ts` | git status --porcelain parser | Plan 043 Phase 2 |
+| `apps/web/src/features/041-file-browser/services/recent-files.ts` | git log --name-only parser | Plan 043 Phase 2 |
+| `apps/web/src/features/041-file-browser/components/changes-view.tsx` | ChangesView (flat file list with badges) | Plan 043 Phase 2 |
 | `apps/web/src/features/041-file-browser/services/upload-file.ts` | uploadFileService (mkdir, timestamp naming, atomic write) | Plan 044 |
 | `apps/web/src/features/041-file-browser/components/paste-upload-button.tsx` | PasteUploadButton (sidebar upload trigger) | Plan 044 |
 | `apps/web/src/features/041-file-browser/components/paste-upload-modal.tsx` | PasteUploadModal (paste/drag/select dialog) | Plan 044 |
@@ -112,3 +119,4 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
 | Plan 041 Phase 4 | File tree, code editor, viewer panel, browser page, file actions, API route | 2026-02-24 |
 | Plan 041 FX001 | Wired browser E2E: Shiki preview, markdown rendering, CodeEditor, DiffViewer, lazy diff, changed-files filter, tree auto-expand | 2026-02-24 |
 | Plan 044 | Paste/upload to scratch/paste/ — upload button in sidebar, modal with paste/drag/select, uploadFile server action, uploadFileService | 2026-02-24 |
+| Plan 043 Phase 2 | Working changes service (git status --porcelain), recent files service (git log), ChangesView component, fileExists server action, directory listing switched to readDir | 2026-02-24 |

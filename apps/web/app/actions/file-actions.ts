@@ -110,3 +110,53 @@ export async function uploadFile(formData: FormData) {
     pathResolver,
   });
 }
+
+// Working changes — git status --porcelain parser (Plan 043 Phase 2)
+export async function fetchWorkingChanges(worktreePath: string) {
+  const { getWorkingChanges } = await import(
+    '../../src/features/041-file-browser/services/working-changes'
+  );
+  return getWorkingChanges(worktreePath);
+}
+
+// Recent files — git log --name-only parser (Plan 043 Phase 2)
+export async function fetchRecentFiles(worktreePath: string, limit = 20) {
+  const { getRecentFiles } = await import(
+    '../../src/features/041-file-browser/services/recent-files'
+  );
+  return getRecentFiles(worktreePath, limit);
+}
+
+// File existence check — lightweight stat for ExplorerPanel (Plan 043 Phase 2)
+// Security: resolves trusted root from slug via IWorkspaceService, not client worktreePath.
+export async function fileExists(
+  slug: string,
+  worktreePath: string,
+  filePath: string
+): Promise<boolean> {
+  const nodePath = await import('node:path');
+  const container = getContainer();
+  const workspaceService = container.resolve<IWorkspaceService>(
+    WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE
+  );
+  const fileSystem = container.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
+  const pathResolver = container.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
+
+  // Resolve trusted root from slug
+  const info = await workspaceService.getInfo(slug);
+  if (!info) return false;
+  // Verify worktreePath is a known worktree for this workspace
+  const trustedRoot = info.worktrees.find((w) => w.path === worktreePath)?.path ?? info.path;
+
+  try {
+    const absolutePath = pathResolver.resolvePath(trustedRoot, filePath);
+    const realPath = await fileSystem.realpath(absolutePath);
+    if (!realPath.startsWith(trustedRoot + nodePath.default.sep) && realPath !== trustedRoot) {
+      return false;
+    }
+    const stat = await fileSystem.stat(realPath);
+    return !stat.isDirectory;
+  } catch {
+    return false;
+  }
+}

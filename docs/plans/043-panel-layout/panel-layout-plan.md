@@ -44,6 +44,7 @@ The browser page composes its layout with raw `div+flex` — no reusable panel c
 | `apps/web/src/features/041-file-browser/services/recent-files.ts` | file-browser | internal | git log --name-only parser |
 | `apps/web/src/features/041-file-browser/components/changes-view.tsx` | file-browser | internal | Changes list UI |
 | `apps/web/app/actions/file-actions.ts` | file-browser | cross-domain | Add fetchWorkingChanges, fetchRecentFiles, fileExists server actions |
+| `apps/web/src/features/041-file-browser/services/directory-listing.ts` | file-browser | internal | DYK-P2-02: tree shows all files via readDir (removed git ls-files branch) |
 | `apps/web/src/features/041-file-browser/params/file-browser.params.ts` | file-browser | internal | Replace `changed` with `panel` param |
 | `apps/web/src/features/041-file-browser/components/file-tree.tsx` | file-browser | internal | Remove header (extracted to PanelHeader) |
 | `apps/web/src/features/041-file-browser/components/file-viewer-panel.tsx` | file-browser | internal | Remove path row (moved to ExplorerPanel) |
@@ -224,7 +225,7 @@ The browser page composes its layout with raw `div+flex` — no reusable panel c
 ## Phase Completion Checklist
 
 - [x] Phase 1: Panel Infrastructure — COMPLETE (19 tests, 5 components, types, barrel)
-- [ ] Phase 2: Git Services + Changes View — NOT STARTED
+- [ ] Phase 2: Git Services + Changes View — COMPLETE (21 tests, 2 services, 1 component, 3 server actions)
 - [ ] Phase 3: Wire Into BrowserClient + Migration — NOT STARTED
 
 ---

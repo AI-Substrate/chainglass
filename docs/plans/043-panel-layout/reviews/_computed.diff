@@ -1,1584 +1,1733 @@
-diff --git a/apps/web/src/components/ui/resizable.tsx b/apps/web/src/components/ui/resizable.tsx
-new file mode 100644
-index 0000000..4677413
---- /dev/null
-+++ b/apps/web/src/components/ui/resizable.tsx
-@@ -0,0 +1,51 @@
-+import { GripVerticalIcon } from "lucide-react"
-+import * as ResizablePrimitive from "react-resizable-panels"
+diff --git a/apps/web/app/actions/file-actions.ts b/apps/web/app/actions/file-actions.ts
+index f2e43cb..5bd0a6b 100644
+--- a/apps/web/app/actions/file-actions.ts
++++ b/apps/web/app/actions/file-actions.ts
+@@ -110,3 +110,43 @@ export async function uploadFile(formData: FormData) {
+     pathResolver,
+   });
+ }
 +
-+import { cn } from "@/lib/utils"
-+
-+function ResizablePanelGroup({
-+  className,
-+  ...props
-+}: ResizablePrimitive.GroupProps) {
-+  return (
-+    <ResizablePrimitive.Group
-+      data-slot="resizable-panel-group"
-+      className={cn(
-+        "flex h-full w-full aria-[orientation=vertical]:flex-col",
-+        className
-+      )}
-+      {...props}
-+    />
-+  )
-+}
-+
-+function ResizablePanel({ ...props }: ResizablePrimitive.PanelProps) {
-+  return <ResizablePrimitive.Panel data-slot="resizable-panel" {...props} />
-+}
-+
-+function ResizableHandle({
-+  withHandle,
-+  className,
-+  ...props
-+}: ResizablePrimitive.SeparatorProps & {
-+  withHandle?: boolean
-+}) {
-+  return (
-+    <ResizablePrimitive.Separator
-+      data-slot="resizable-handle"
-+      className={cn(
-+        "bg-border focus-visible:ring-ring relative flex w-px items-center justify-center after:absolute after:inset-y-0 after:left-1/2 after:w-1 after:-translate-x-1/2 focus-visible:ring-1 focus-visible:ring-offset-1 focus-visible:outline-hidden aria-[orientation=horizontal]:h-px aria-[orientation=horizontal]:w-full aria-[orientation=horizontal]:after:left-0 aria-[orientation=horizontal]:after:h-1 aria-[orientation=horizontal]:after:w-full aria-[orientation=horizontal]:after:translate-x-0 aria-[orientation=horizontal]:after:-translate-y-1/2 [&[aria-orientation=horizontal]>div]:rotate-90",
-+        className
-+      )}
-+      {...props}
-+    >
-+      {withHandle && (
-+        <div className="bg-border z-10 flex h-4 w-3 items-center justify-center rounded-xs border">
-+          <GripVerticalIcon className="size-2.5" />
-+        </div>
-+      )}
-+    </ResizablePrimitive.Separator>
-+  )
-+}
-+
-+export { ResizableHandle, ResizablePanel, ResizablePanelGroup }
-diff --git a/apps/web/src/features/_platform/panel-layout/types.ts b/apps/web/src/features/_platform/panel-layout/types.ts
-new file mode 100644
-index 0000000..ad89023
---- /dev/null
-+++ b/apps/web/src/features/_platform/panel-layout/types.ts
-@@ -0,0 +1,32 @@
-+/**
-+ * Panel Layout Types
-+ *
-+ * Core types for the _platform/panel-layout domain.
-+ * Plan 043: Panel Layout System
-+ */
-+
-+/** Left panel view mode — extensible union for future modes (search, bookmarks, recent) */
-+export type PanelMode = 'tree' | 'changes';
-+
-+/** Context passed to ExplorerPanel input handlers */
-+export interface BarContext {
-+  slug: string;
-+  worktreePath: string;
-+  /** Check if a file exists at this relative path (server call) */
-+  fileExists: (relativePath: string) => Promise<boolean>;
-+  /** Navigate to a file */
-+  navigateToFile: (relativePath: string) => void;
-+  /** Show an error in the bar */
-+  showError: (message: string) => void;
-+}
-+
-+/**
-+ * A handler that tries to process the ExplorerPanel input.
-+ * Returns true if it handled the input (stops the chain).
-+ */
-+export type BarHandler = (input: string, context: BarContext) => Promise<boolean>;
-+
-+/** Imperative handle for ExplorerPanel ref (Ctrl+P integration) */
-+export interface ExplorerPanelHandle {
-+  focusInput: () => void;
-+}
-diff --git a/apps/web/src/features/_platform/panel-layout/index.ts b/apps/web/src/features/_platform/panel-layout/index.ts
-new file mode 100644
-index 0000000..1dce23b
---- /dev/null
-+++ b/apps/web/src/features/_platform/panel-layout/index.ts
-@@ -0,0 +1,22 @@
-+/**
-+ * Panel Layout — Barrel Export
-+ *
-+ * Reusable three-panel layout system for workspace detail pages.
-+ * Domain: _platform/panel-layout
-+ * Plan 043: Panel Layout System
-+ */
-+
-+// Types
-+export type { PanelMode, BarHandler, BarContext, ExplorerPanelHandle } from './types';
-+
-+// Components
-+export { PanelHeader } from './components/panel-header';
-+export type { PanelHeaderProps, PanelHeaderMode, PanelHeaderAction } from './components/panel-header';
-+export { ExplorerPanel } from './components/explorer-panel';
-+export type { ExplorerPanelProps } from './components/explorer-panel';
-+export { LeftPanel } from './components/left-panel';
-+export type { LeftPanelProps, LeftPanelMode } from './components/left-panel';
-+export { MainPanel } from './components/main-panel';
-+export type { MainPanelProps } from './components/main-panel';
-+export { PanelShell } from './components/panel-shell';
-+export type { PanelShellProps } from './components/panel-shell';
-diff --git a/apps/web/src/features/_platform/panel-layout/components/panel-header.tsx b/apps/web/src/features/_platform/panel-layout/components/panel-header.tsx
-new file mode 100644
-index 0000000..0a6b0d7
---- /dev/null
-+++ b/apps/web/src/features/_platform/panel-layout/components/panel-header.tsx
-@@ -0,0 +1,76 @@
-+'use client';
-+
-+/**
-+ * PanelHeader — Shared header for panel sections.
-+ *
-+ * Renders title + optional icon-only mode buttons + optional action buttons.
-+ * Used by LeftPanel for mode switching and refresh.
-+ *
-+ * Phase 1: Panel Infrastructure — Plan 043
-+ * DYK-05: Icon-only with tooltip (title attr) for compact header at min-width.
-+ */
-+
-+import type { ReactNode } from 'react';
-+import type { PanelMode } from '../types';
-+
-+export interface PanelHeaderMode {
-+  key: PanelMode;
-+  icon: ReactNode;
-+  label: string;
-+}
-+
-+export interface PanelHeaderAction {
-+  icon: ReactNode;
-+  label: string;
-+  onClick: () => void;
-+}
-+
-+export interface PanelHeaderProps {
-+  title: string;
-+  modes?: PanelHeaderMode[];
-+  activeMode?: PanelMode;
-+  onModeChange?: (mode: PanelMode) => void;
-+  actions?: PanelHeaderAction[];
-+}
-+
-+export function PanelHeader({ title, modes, activeMode, onModeChange, actions }: PanelHeaderProps) {
-+  return (
-+    <div className="flex items-center justify-between border-b px-3 py-2 shrink-0 sticky top-0 bg-background z-10">
-+      <div className="flex items-center gap-1">
-+        <span className="text-xs font-medium text-muted-foreground uppercase">{title}</span>
-+        {modes?.map((mode) => (
-+          <button
-+            key={mode.key}
-+            type="button"
-+            onClick={() => onModeChange?.(mode.key)}
-+            title={mode.label}
-+            aria-label={mode.label}
-+            className={`rounded p-1 transition-colors ${
-+              activeMode === mode.key
-+                ? 'bg-accent text-accent-foreground'
-+                : 'text-muted-foreground hover:text-foreground'
-+            }`}
-+          >
-+            {mode.icon}
-+          </button>
-+        ))}
-+      </div>
-+      {actions && actions.length > 0 && (
-+        <div className="flex items-center gap-1">
-+          {actions.map((action) => (
-+            <button
-+              key={action.label}
-+              type="button"
-+              onClick={action.onClick}
-+              title={action.label}
-+              aria-label={action.label}
-+              className="rounded p-1 text-muted-foreground hover:text-foreground"
-+            >
-+              {action.icon}
-+            </button>
-+          ))}
-+        </div>
-+      )}
-+    </div>
++// Working changes — git status --porcelain parser (Plan 043 Phase 2)
++export async function fetchWorkingChanges(worktreePath: string) {
++  const { getWorkingChanges } = await import(
++    '../../src/features/041-file-browser/services/working-changes'
 +  );
-+}
-diff --git a/apps/web/src/features/_platform/panel-layout/components/explorer-panel.tsx b/apps/web/src/features/_platform/panel-layout/components/explorer-panel.tsx
-new file mode 100644
-index 0000000..a4f181a
---- /dev/null
-+++ b/apps/web/src/features/_platform/panel-layout/components/explorer-panel.tsx
-@@ -0,0 +1,171 @@
-+'use client';
-+
-+/**
-+ * ExplorerPanel — Top utility bar with composable input handler chain.
-+ *
-+ * Displays the current file path with a copy button. Clicking the path
-+ * enters edit mode where typing a path and pressing Enter triggers a
-+ * handler chain. Supports forwardRef for Ctrl+P integration.
-+ *
-+ * Phase 1: Panel Infrastructure — Plan 043
-+ * DYK-03: ASCII spinner during handler processing
-+ * DYK-04: forwardRef + useImperativeHandle for focusInput()
-+ */
-+
-+import { ClipboardCopy } from 'lucide-react';
-+import {
-+  forwardRef,
-+  useCallback,
-+  useEffect,
-+  useImperativeHandle,
-+  useRef,
-+  useState,
-+} from 'react';
-+
-+import type { BarContext, BarHandler, ExplorerPanelHandle } from '../types';
-+
-+export interface ExplorerPanelProps {
-+  filePath: string;
-+  handlers: BarHandler[];
-+  context: BarContext;
-+  onCopy: () => void;
-+  placeholder?: string;
++  return getWorkingChanges(worktreePath);
 +}
 +
-+const SPINNER_FRAMES = ['|', '/', '—', '\\'];
-+const SPINNER_INTERVAL = 80;
++// Recent files — git log --name-only parser (Plan 043 Phase 2)
++export async function fetchRecentFiles(worktreePath: string, limit = 20) {
++  const { getRecentFiles } = await import(
++    '../../src/features/041-file-browser/services/recent-files'
++  );
++  return getRecentFiles(worktreePath, limit);
++}
 +
-+export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>(
-+  function ExplorerPanel({ filePath, handlers, context, onCopy, placeholder }, ref) {
-+    const [editing, setEditing] = useState(!filePath);
-+    const [inputValue, setInputValue] = useState(filePath);
-+    const [processing, setProcessing] = useState(false);
-+    const [spinnerFrame, setSpinnerFrame] = useState(0);
-+    const inputRef = useRef<HTMLInputElement>(null);
++// File existence check — lightweight stat for ExplorerPanel (Plan 043 Phase 2)
++export async function fileExists(
++  slug: string,
++  worktreePath: string,
++  filePath: string
++): Promise<boolean> {
++  const path = await import('node:path');
++  const container = getContainer();
++  const fileSystem = container.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
++  const pathResolver = container.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
 +
-+    // Sync input value when filePath changes externally
-+    useEffect(() => {
-+      if (!editing) {
-+        setInputValue(filePath);
-+      }
-+    }, [filePath, editing]);
-+
-+    // ASCII spinner animation
-+    useEffect(() => {
-+      if (!processing) return;
-+      const id = setInterval(() => {
-+        setSpinnerFrame((prev) => (prev + 1) % SPINNER_FRAMES.length);
-+      }, SPINNER_INTERVAL);
-+      return () => clearInterval(id);
-+    }, [processing]);
-+
-+    // Expose focusInput for Ctrl+P
-+    useImperativeHandle(ref, () => ({
-+      focusInput: () => {
-+        setEditing(true);
-+        setInputValue(filePath);
-+        // Focus after state update
-+        setTimeout(() => {
-+          inputRef.current?.focus();
-+          inputRef.current?.select();
-+        }, 0);
-+      },
-+    }));
-+
-+    const enterEditMode = useCallback(() => {
-+      setEditing(true);
-+      setInputValue(filePath);
-+      setTimeout(() => {
-+        inputRef.current?.focus();
-+        inputRef.current?.select();
-+      }, 0);
-+    }, [filePath]);
-+
-+    const exitEditMode = useCallback(() => {
-+      setEditing(false);
-+      setInputValue(filePath);
-+    }, [filePath]);
-+
-+    const handleKeyDown = useCallback(
-+      async (e: React.KeyboardEvent<HTMLInputElement>) => {
-+        if (e.key === 'Escape') {
-+          exitEditMode();
-+          return;
-+        }
-+
-+        if (e.key === 'Enter') {
-+          e.preventDefault();
-+          const value = inputValue.trim();
-+          if (!value) return;
-+
-+          setProcessing(true);
-+          try {
-+            for (const handler of handlers) {
-+              const handled = await handler(value, context);
-+              if (handled) {
-+                setEditing(false);
-+                return;
-+              }
-+            }
-+            // No handler matched
-+            context.showError(`Not found: ${value}`);
-+          } finally {
-+            setProcessing(false);
-+          }
-+        }
-+      },
-+      [inputValue, handlers, context, exitEditMode]
-+    );
-+
-+    const handleBlur = useCallback(() => {
-+      if (!processing) {
-+        exitEditMode();
-+      }
-+    }, [processing, exitEditMode]);
-+
-+    // Always show input when no file path (placeholder mode)
-+    const showInput = editing || !filePath;
-+
-+    return (
-+      <div className="flex items-center gap-1.5 border-b px-3 py-1.5 bg-muted/30 shrink-0">
-+        {processing ? (
-+          <span className="shrink-0 w-5 text-center font-mono text-sm text-muted-foreground">
-+            {SPINNER_FRAMES[spinnerFrame]}
-+          </span>
-+        ) : (
-+          <button
-+            type="button"
-+            onClick={onCopy}
-+            className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground"
-+            aria-label="Copy file path"
-+            disabled={!filePath}
-+          >
-+            <ClipboardCopy className="h-3.5 w-3.5" />
-+          </button>
-+        )}
-+
-+        {showInput ? (
-+          <input
-+            ref={inputRef}
-+            type="text"
-+            value={inputValue}
-+            onChange={(e) => setInputValue(e.target.value)}
-+            onKeyDown={handleKeyDown}
-+            onBlur={handleBlur}
-+            placeholder={placeholder}
-+            className="flex-1 bg-transparent font-mono text-sm text-foreground outline-none placeholder:text-muted-foreground"
-+            aria-label="File path"
-+          />
-+        ) : (
-+          <button
-+            type="button"
-+            onClick={enterEditMode}
-+            className="flex-1 text-left font-mono text-sm text-muted-foreground truncate"
-+          >
-+            {filePath}
-+          </button>
-+        )}
-+      </div>
-+    );
++  try {
++    const absolutePath = pathResolver.resolvePath(worktreePath, filePath);
++    const realPath = await fileSystem.realpath(absolutePath);
++    if (!realPath.startsWith(worktreePath + path.default.sep) && realPath !== worktreePath) {
++      return false;
++    }
++    const stat = await fileSystem.stat(realPath);
++    return !stat.isDirectory;
++  } catch {
++    return false;
 +  }
-+);
-diff --git a/apps/web/src/features/_platform/panel-layout/components/left-panel.tsx b/apps/web/src/features/_platform/panel-layout/components/left-panel.tsx
-new file mode 100644
-index 0000000..29f98cc
---- /dev/null
-+++ b/apps/web/src/features/_platform/panel-layout/components/left-panel.tsx
-@@ -0,0 +1,55 @@
-+'use client';
-+
-+/**
-+ * LeftPanel — Mode-switching sidebar wrapper.
-+ *
-+ * Renders PanelHeader for mode toggle + refresh, and the active
-+ * child content based on current mode. Children keyed by PanelMode.
-+ *
-+ * Phase 1: Panel Infrastructure — Plan 043
-+ */
-+
-+import type { ReactNode } from 'react';
-+import { RefreshCw } from 'lucide-react';
-+import type { PanelMode } from '../types';
-+import { PanelHeader } from './panel-header';
-+
-+export interface LeftPanelMode {
-+  key: PanelMode;
-+  icon: ReactNode;
-+  label: string;
 +}
-+
-+export interface LeftPanelProps {
-+  mode: PanelMode;
-+  onModeChange: (mode: PanelMode) => void;
-+  modes: LeftPanelMode[];
-+  onRefresh: () => void;
-+  children: Partial<Record<PanelMode, ReactNode>>;
-+}
-+
-+export function LeftPanel({ mode, onModeChange, modes, onRefresh, children }: LeftPanelProps) {
-+  // Hide mode buttons when only one mode available
-+  const showModes = modes.length > 1 ? modes : undefined;
-+
-+  return (
-+    <div className="flex flex-col h-full text-sm">
-+      <PanelHeader
-+        title="Files"
-+        modes={showModes}
-+        activeMode={mode}
-+        onModeChange={onModeChange}
-+        actions={[
-+          {
-+            icon: <RefreshCw className="h-3.5 w-3.5" />,
-+            label: 'Refresh',
-+            onClick: onRefresh,
-+          },
-+        ]}
-+      />
-+      <div className="flex-1 overflow-y-auto">
-+        {children[mode]}
-+      </div>
-+    </div>
-+  );
-+}
-diff --git a/apps/web/src/features/_platform/panel-layout/components/main-panel.tsx b/apps/web/src/features/_platform/panel-layout/components/main-panel.tsx
-new file mode 100644
-index 0000000..2e3b288
---- /dev/null
-+++ b/apps/web/src/features/_platform/panel-layout/components/main-panel.tsx
-@@ -0,0 +1,19 @@
-+'use client';
-+
-+/**
-+ * MainPanel — Content area wrapper.
-+ *
-+ * Simple flex-1 wrapper with overflow handling for the primary content area.
-+ *
-+ * Phase 1: Panel Infrastructure — Plan 043
-+ */
-+
-+import type { ReactNode } from 'react';
-+
-+export interface MainPanelProps {
-+  children: ReactNode;
-+}
-+
-+export function MainPanel({ children }: MainPanelProps) {
-+  return <div className="flex-1 overflow-hidden">{children}</div>;
-+}
-diff --git a/apps/web/src/features/_platform/panel-layout/components/panel-shell.tsx b/apps/web/src/features/_platform/panel-layout/components/panel-shell.tsx
-new file mode 100644
-index 0000000..6b0ea88
---- /dev/null
-+++ b/apps/web/src/features/_platform/panel-layout/components/panel-shell.tsx
-@@ -0,0 +1,54 @@
-+'use client';
-+
-+/**
-+ * PanelShell — Root layout compositor with resizable panels.
-+ *
-+ * Arranges ExplorerPanel (top, fixed height) + LeftPanel and MainPanel
-+ * in a horizontal ResizablePanelGroup with a drag handle.
-+ *
-+ * Phase 1: Panel Infrastructure — Plan 043
-+ * DYK-02: autoSaveId persists resize state to localStorage.
-+ */
-+
-+import type { ReactNode } from 'react';
-+import {
-+  ResizableHandle,
-+  ResizablePanel,
-+  ResizablePanelGroup,
-+} from '@/components/ui/resizable';
-+
-+export interface PanelShellProps {
-+  /** Top utility bar (ExplorerPanel) — full width, not resizable */
-+  explorer: ReactNode;
-+  /** Left sidebar (LeftPanel) — resizable */
-+  left: ReactNode;
-+  /** Main content area (MainPanel) — fills remaining space */
-+  main: ReactNode;
-+  /** Unique ID for persisting panel sizes (defaults to 'browser-panels') */
-+  autoSaveId?: string;
-+}
-+
-+export function PanelShell({
-+  explorer,
-+  left,
-+  main,
-+  autoSaveId = 'browser-panels',
-+}: PanelShellProps) {
-+  return (
-+    <div className="flex flex-col h-full overflow-hidden">
-+      {/* Explorer bar — fixed height, not resizable */}
-+      {explorer}
-+
-+      {/* Resizable left + main split */}
-+      <ResizablePanelGroup direction="horizontal" autoSaveId={autoSaveId}>
-+        <ResizablePanel defaultSize={20} minSize={15} maxSize={40}>
-+          {left}
-+        </ResizablePanel>
-+        <ResizableHandle withHandle />
-+        <ResizablePanel defaultSize={80}>
-+          {main}
-+        </ResizablePanel>
-+      </ResizablePanelGroup>
-+    </div>
-+  );
-+}
-diff --git a/test/unit/web/features/_platform/panel-layout/panel-header.test.tsx b/test/unit/web/features/_platform/panel-layout/panel-header.test.tsx
-new file mode 100644
-index 0000000..08d0235
---- /dev/null
-+++ b/test/unit/web/features/_platform/panel-layout/panel-header.test.tsx
-@@ -0,0 +1,103 @@
-+/**
-+ * PanelHeader Component Tests
-+ *
-+ * Purpose: Verify the shared header renders title, mode buttons (icon-only with tooltip),
-+ * action buttons, and fires callbacks correctly.
-+ *
-+ * Phase 1: Panel Infrastructure — Plan 043
-+ * DYK-05: Icon-only mode buttons with tooltips
-+ */
-+
-+import { render, screen } from '@testing-library/react';
-+import userEvent from '@testing-library/user-event';
-+import { describe, expect, it, vi } from 'vitest';
-+
-+// We'll import once created
-+import { PanelHeader } from '@/features/_platform/panel-layout/components/panel-header';
-+
-+const TreeIcon = () => <span data-testid="tree-icon">T</span>;
-+const ChangesIcon = () => <span data-testid="changes-icon">C</span>;
-+const RefreshIcon = () => <span data-testid="refresh-icon">R</span>;
-+
-+describe('PanelHeader', () => {
-+  it('renders title text', () => {
-+    render(<PanelHeader title="Files" />);
-+    expect(screen.getByText('Files')).toBeInTheDocument();
-+  });
-+
-+  it('renders mode buttons with aria-labels', () => {
-+    render(
-+      <PanelHeader
-+        title="Files"
-+        modes={[
-+          { key: 'tree', icon: <TreeIcon />, label: 'Tree view' },
-+          { key: 'changes', icon: <ChangesIcon />, label: 'Changes view' },
-+        ]}
-+        activeMode="tree"
-+        onModeChange={vi.fn()}
-+      />
-+    );
-+
-+    expect(screen.getByRole('button', { name: 'Tree view' })).toBeInTheDocument();
-+    expect(screen.getByRole('button', { name: 'Changes view' })).toBeInTheDocument();
-+  });
-+
-+  it('highlights active mode button', () => {
-+    render(
-+      <PanelHeader
-+        title="Files"
-+        modes={[
-+          { key: 'tree', icon: <TreeIcon />, label: 'Tree view' },
-+          { key: 'changes', icon: <ChangesIcon />, label: 'Changes view' },
-+        ]}
-+        activeMode="tree"
-+        onModeChange={vi.fn()}
-+      />
-+    );
-+
-+    const activeBtn = screen.getByRole('button', { name: 'Tree view' });
-+    expect(activeBtn.className).toContain('bg-accent');
-+  });
-+
-+  it('fires onModeChange when mode button clicked', async () => {
-+    const user = userEvent.setup();
-+    const onModeChange = vi.fn();
-+
-+    render(
-+      <PanelHeader
-+        title="Files"
-+        modes={[
-+          { key: 'tree', icon: <TreeIcon />, label: 'Tree view' },
-+          { key: 'changes', icon: <ChangesIcon />, label: 'Changes view' },
-+        ]}
-+        activeMode="tree"
-+        onModeChange={onModeChange}
-+      />
-+    );
-+
-+    await user.click(screen.getByRole('button', { name: 'Changes view' }));
-+    expect(onModeChange).toHaveBeenCalledWith('changes');
-+  });
-+
-+  it('renders action buttons and fires callbacks', async () => {
-+    const user = userEvent.setup();
-+    const onRefresh = vi.fn();
-+
-+    render(
-+      <PanelHeader
-+        title="Files"
-+        actions={[{ icon: <RefreshIcon />, label: 'Refresh', onClick: onRefresh }]}
-+      />
-+    );
-+
-+    const refreshBtn = screen.getByRole('button', { name: 'Refresh' });
-+    await user.click(refreshBtn);
-+    expect(onRefresh).toHaveBeenCalled();
-+  });
-+
-+  it('renders no mode buttons when modes not provided', () => {
-+    render(<PanelHeader title="Files" />);
-+    // Only title visible, no buttons except actions
-+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
-+  });
-+});
-diff --git a/test/unit/web/features/_platform/panel-layout/explorer-panel.test.tsx b/test/unit/web/features/_platform/panel-layout/explorer-panel.test.tsx
-new file mode 100644
-index 0000000..857c750
---- /dev/null
-+++ b/test/unit/web/features/_platform/panel-layout/explorer-panel.test.tsx
-@@ -0,0 +1,142 @@
-+/**
-+ * ExplorerPanel Component Tests
-+ *
-+ * Purpose: Verify the top utility bar renders path, supports edit mode,
-+ * dispatches handler chain on Enter, reverts on Escape, shows spinner,
-+ * and exposes focusInput() ref.
-+ *
-+ * Phase 1: Panel Infrastructure — Plan 043
-+ * DYK-03: ASCII spinner during processing
-+ * DYK-04: forwardRef + useImperativeHandle for focusInput()
-+ */
-+
-+import { render, screen, act } from '@testing-library/react';
-+import userEvent from '@testing-library/user-event';
-+import { createRef } from 'react';
-+import { describe, expect, it, vi } from 'vitest';
-+
-+import { ExplorerPanel } from '@/features/_platform/panel-layout/components/explorer-panel';
-+import type { BarContext, BarHandler, ExplorerPanelHandle } from '@/features/_platform/panel-layout/types';
-+
-+const makeContext = (overrides?: Partial<BarContext>): BarContext => ({
-+  slug: 'test-ws',
-+  worktreePath: '/tmp/test',
-+  fileExists: vi.fn().mockResolvedValue(true),
-+  navigateToFile: vi.fn(),
-+  showError: vi.fn(),
-+  ...overrides,
-+});
-+
-+describe('ExplorerPanel', () => {
-+  it('renders file path text', () => {
-+    render(
-+      <ExplorerPanel filePath="src/lib/utils.ts" handlers={[]} context={makeContext()} onCopy={vi.fn()} />
-+    );
-+    expect(screen.getByText('src/lib/utils.ts')).toBeInTheDocument();
-+  });
-+
-+  it('shows placeholder when no file path', () => {
-+    render(
-+      <ExplorerPanel filePath="" handlers={[]} context={makeContext()} onCopy={vi.fn()} placeholder="Type a path..." />
-+    );
-+    expect(screen.getByPlaceholderText('Type a path...')).toBeInTheDocument();
-+  });
-+
-+  it('fires onCopy when copy button clicked', async () => {
-+    const user = userEvent.setup();
-+    const onCopy = vi.fn();
-+
-+    render(
-+      <ExplorerPanel filePath="src/utils.ts" handlers={[]} context={makeContext()} onCopy={onCopy} />
-+    );
-+
-+    await user.click(screen.getByRole('button', { name: /copy/i }));
-+    expect(onCopy).toHaveBeenCalled();
-+  });
-+
-+  it('enters edit mode on path click', async () => {
-+    const user = userEvent.setup();
-+
-+    render(
-+      <ExplorerPanel filePath="src/utils.ts" handlers={[]} context={makeContext()} onCopy={vi.fn()} />
-+    );
-+
-+    await user.click(screen.getByText('src/utils.ts'));
-+    const input = screen.getByRole('textbox');
-+    expect(input).toHaveFocus();
-+    expect(input).toHaveValue('src/utils.ts');
-+  });
-+
-+  it('runs handler chain on Enter and stops at first true', async () => {
-+    const user = userEvent.setup();
-+    const handler1: BarHandler = vi.fn().mockResolvedValue(false);
-+    const handler2: BarHandler = vi.fn().mockResolvedValue(true);
-+    const handler3: BarHandler = vi.fn().mockResolvedValue(false);
-+    const ctx = makeContext();
-+
-+    render(
-+      <ExplorerPanel filePath="" handlers={[handler1, handler2, handler3]} context={ctx} onCopy={vi.fn()} placeholder="Type..." />
-+    );
-+
-+    const input = screen.getByPlaceholderText('Type...');
-+    await user.clear(input);
-+    await user.type(input, 'src/foo.ts{enter}');
-+
-+    // Wait for async handlers
-+    await vi.waitFor(() => {
-+      expect(handler1).toHaveBeenCalledWith('src/foo.ts', ctx);
-+      expect(handler2).toHaveBeenCalledWith('src/foo.ts', ctx);
-+      expect(handler3).not.toHaveBeenCalled();
-+    });
-+  });
-+
-+  it('reverts on Escape', async () => {
-+    const user = userEvent.setup();
-+
-+    render(
-+      <ExplorerPanel filePath="src/utils.ts" handlers={[]} context={makeContext()} onCopy={vi.fn()} />
-+    );
-+
-+    await user.click(screen.getByText('src/utils.ts'));
-+    const input = screen.getByRole('textbox');
-+    await user.clear(input);
-+    await user.type(input, 'changed');
-+    await user.keyboard('{Escape}');
-+
-+    // Should revert to display mode with original path
-+    expect(screen.getByText('src/utils.ts')).toBeInTheDocument();
-+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
-+  });
-+
-+  it('does nothing on Enter with empty input', async () => {
-+    const user = userEvent.setup();
-+    const handler: BarHandler = vi.fn().mockResolvedValue(true);
-+
-+    render(
-+      <ExplorerPanel filePath="" handlers={[handler]} context={makeContext()} onCopy={vi.fn()} placeholder="Type..." />
-+    );
-+
-+    const input = screen.getByPlaceholderText('Type...');
-+    await user.type(input, '{enter}');
-+    expect(handler).not.toHaveBeenCalled();
-+  });
-+
-+  it('exposes focusInput() via ref', () => {
-+    const ref = createRef<ExplorerPanelHandle>();
-+
-+    render(
-+      <ExplorerPanel ref={ref} filePath="src/utils.ts" handlers={[]} context={makeContext()} onCopy={vi.fn()} />
-+    );
-+
-+    expect(ref.current).toBeTruthy();
-+    expect(typeof ref.current?.focusInput).toBe('function');
-+
-+    // Call focusInput — should enter edit mode
-+    act(() => {
-+      ref.current?.focusInput();
-+    });
-+
-+    const input = screen.getByRole('textbox');
-+    expect(input).toBeInTheDocument();
-+  });
-+});
-diff --git a/test/unit/web/features/_platform/panel-layout/left-panel.test.tsx b/test/unit/web/features/_platform/panel-layout/left-panel.test.tsx
-new file mode 100644
-index 0000000..a5f16d9
---- /dev/null
-+++ b/test/unit/web/features/_platform/panel-layout/left-panel.test.tsx
-@@ -0,0 +1,87 @@
-+/**
-+ * LeftPanel Component Tests
-+ *
-+ * Purpose: Verify the mode-switching sidebar renders the correct child
-+ * based on active mode, and fires onModeChange via PanelHeader.
-+ *
-+ * Phase 1: Panel Infrastructure — Plan 043
-+ */
-+
-+import { render, screen } from '@testing-library/react';
-+import userEvent from '@testing-library/user-event';
-+import { describe, expect, it, vi } from 'vitest';
-+
-+import { LeftPanel } from '@/features/_platform/panel-layout/components/left-panel';
-+
-+const TreeIcon = () => <span>T</span>;
-+const ChangesIcon = () => <span>C</span>;
-+
-+const modes = [
-+  { key: 'tree' as const, icon: <TreeIcon />, label: 'Tree view' },
-+  { key: 'changes' as const, icon: <ChangesIcon />, label: 'Changes view' },
-+];
-+
-+describe('LeftPanel', () => {
-+  it('renders tree child when mode is tree', () => {
-+    render(
-+      <LeftPanel mode="tree" onModeChange={vi.fn()} modes={modes} onRefresh={vi.fn()}>
-+        {{ tree: <div>Tree Content</div>, changes: <div>Changes Content</div> }}
-+      </LeftPanel>
-+    );
-+
-+    expect(screen.getByText('Tree Content')).toBeInTheDocument();
-+    expect(screen.queryByText('Changes Content')).not.toBeInTheDocument();
-+  });
-+
-+  it('renders changes child when mode is changes', () => {
-+    render(
-+      <LeftPanel mode="changes" onModeChange={vi.fn()} modes={modes} onRefresh={vi.fn()}>
-+        {{ tree: <div>Tree Content</div>, changes: <div>Changes Content</div> }}
-+      </LeftPanel>
-+    );
-+
-+    expect(screen.getByText('Changes Content')).toBeInTheDocument();
-+    expect(screen.queryByText('Tree Content')).not.toBeInTheDocument();
-+  });
-+
-+  it('fires onModeChange when mode button clicked', async () => {
-+    const user = userEvent.setup();
-+    const onModeChange = vi.fn();
-+
-+    render(
-+      <LeftPanel mode="tree" onModeChange={onModeChange} modes={modes} onRefresh={vi.fn()}>
-+        {{ tree: <div>Tree</div>, changes: <div>Changes</div> }}
-+      </LeftPanel>
-+    );
-+
-+    await user.click(screen.getByRole('button', { name: 'Changes view' }));
-+    expect(onModeChange).toHaveBeenCalledWith('changes');
-+  });
-+
-+  it('renders refresh action button', async () => {
-+    const user = userEvent.setup();
-+    const onRefresh = vi.fn();
-+
-+    render(
-+      <LeftPanel mode="tree" onModeChange={vi.fn()} modes={modes} onRefresh={onRefresh}>
-+        {{ tree: <div>Tree</div>, changes: <div>Changes</div> }}
-+      </LeftPanel>
-+    );
-+
-+    await user.click(screen.getByRole('button', { name: /refresh/i }));
-+    expect(onRefresh).toHaveBeenCalled();
-+  });
-+
-+  it('renders no mode buttons when single mode', () => {
-+    const singleMode = [{ key: 'tree' as const, icon: <TreeIcon />, label: 'Tree view' }];
-+
-+    render(
-+      <LeftPanel mode="tree" onModeChange={vi.fn()} modes={singleMode} onRefresh={vi.fn()}>
-+        {{ tree: <div>Tree</div> }}
-+      </LeftPanel>
-+    );
-+
-+    // Title visible but no mode toggle (single mode = no point switching)
-+    expect(screen.queryByRole('button', { name: 'Tree view' })).not.toBeInTheDocument();
-+  });
-+});
+diff --git a/apps/web/src/features/041-file-browser/services/directory-listing.ts b/apps/web/src/features/041-file-browser/services/directory-listing.ts
+index 1cab940..765c534 100644
+--- a/apps/web/src/features/041-file-browser/services/directory-listing.ts
++++ b/apps/web/src/features/041-file-browser/services/directory-listing.ts
+@@ -63,10 +63,8 @@ export async function listDirectory(options: ListDirectoryOptions): Promise<List
+ 
+   const absoluteDir = dirPath ? path.join(worktreePath, dirPath) : worktreePath;
+ 
+-  if (isGit) {
+-    return listFromGit(worktreePath, dirPath);
+-  }
+-
++  // DYK-P2-02: Always use readDir to show all files (including gitignored).
++  // Git-based listing only used for changes view, not tree view.
+   return listFromReadDir(absoluteDir, dirPath, fileSystem);
+ }
+ 
+diff --git a/docs/domains/file-browser/domain.md b/docs/domains/file-browser/domain.md
+index b4d72ea..7922012 100644
+--- a/docs/domains/file-browser/domain.md
++++ b/docs/domains/file-browser/domain.md
+@@ -53,10 +53,14 @@ Workspace-scoped file browsing, editing, and diffing. The core feature that make
+ | FileTree | Directory navigation, lazy expand | Files API route, changed-files service |
+ | FileViewerPanel | Mode toggle, viewer integration | CodeEditor, FileViewer, MarkdownViewer, DiffViewer, readFile, saveFile |
+ | CodeEditor | CodeMirror 6 wrapper | @uiw/react-codemirror, detectLanguage() |
+-| Directory listing service | git ls-files per-dir | IFileSystem, IPathResolver, execFile |
++| ChangesView | Flat file list with status badges + recent section | Working changes service, recent files service |
++| Directory listing service | readDir per-dir (shows all files) | IFileSystem, IPathResolver |
+ | Changed-files service | git diff --name-only | execFile |
++| Working changes service | git status --porcelain parser | execFile |
++| Recent files service | git log --name-only parser | execFile |
+ | readFile action | Read + security checks | IFileSystem (stat, readFile, realpath), IPathResolver |
+ | saveFile action | Atomic write + conflict detection | IFileSystem (stat, writeFile, rename), IPathResolver |
++| fileExists action | Lightweight stat check for ExplorerPanel | IFileSystem, IPathResolver |
+ | Files API route | GET handler for client fetch | Directory listing service |
+ 
+ ## Source Location
+@@ -77,11 +81,14 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
+ | `apps/web/src/features/041-file-browser/components/code-editor.tsx` | CodeEditor wrapper | Phase 4 |
+ | `apps/web/src/features/041-file-browser/components/file-viewer-panel.tsx` | FileViewerPanel | Phase 4, FX001-7 |
+ | `apps/web/src/features/041-file-browser/components/markdown-preview.tsx` | MarkdownPreview (mermaid activation) | FX001-7 |
+-| `apps/web/app/actions/file-actions.ts` | Server actions (readFile, saveFile, fetchGitDiff, fetchChangedFiles, uploadFile) | Phase 4, FX001, Plan 044 |
++| `apps/web/app/actions/file-actions.ts` | Server actions (readFile, saveFile, fetchGitDiff, fetchChangedFiles, fetchWorkingChanges, fetchRecentFiles, fileExists, uploadFile) | Phase 4, FX001, Plan 043, Plan 044 |
+ | `apps/web/app/api/workspaces/[slug]/files/route.ts` | Files API route | Phase 4 |
+ | `apps/web/app/(dashboard)/workspaces/[slug]/browser/page.tsx` | Browser page (Server Component) | Phase 4 |
+ | `apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx` | BrowserClient (Client Component shell) | Phase 4, FX001 |
+ | `apps/web/src/lib/server/markdown-renderer.ts` | renderMarkdownToHtml (server-side markdown pipeline) | FX001-6 |
++| `apps/web/src/features/041-file-browser/services/working-changes.ts` | git status --porcelain parser | Plan 043 Phase 2 |
++| `apps/web/src/features/041-file-browser/services/recent-files.ts` | git log --name-only parser | Plan 043 Phase 2 |
++| `apps/web/src/features/041-file-browser/components/changes-view.tsx` | ChangesView (flat file list with badges) | Plan 043 Phase 2 |
+ | `apps/web/src/features/041-file-browser/services/upload-file.ts` | uploadFileService (mkdir, timestamp naming, atomic write) | Plan 044 |
+ | `apps/web/src/features/041-file-browser/components/paste-upload-button.tsx` | PasteUploadButton (sidebar upload trigger) | Plan 044 |
+ | `apps/web/src/features/041-file-browser/components/paste-upload-modal.tsx` | PasteUploadModal (paste/drag/select dialog) | Plan 044 |
+@@ -112,3 +119,4 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
+ | Plan 041 Phase 4 | File tree, code editor, viewer panel, browser page, file actions, API route | 2026-02-24 |
+ | Plan 041 FX001 | Wired browser E2E: Shiki preview, markdown rendering, CodeEditor, DiffViewer, lazy diff, changed-files filter, tree auto-expand | 2026-02-24 |
+ | Plan 044 | Paste/upload to scratch/paste/ — upload button in sidebar, modal with paste/drag/select, uploadFile server action, uploadFileService | 2026-02-24 |
++| Plan 043 Phase 2 | Working changes service (git status --porcelain), recent files service (git log), ChangesView component, fileExists server action, directory listing switched to readDir | 2026-02-24 |
 diff --git a/docs/plans/043-panel-layout/panel-layout-plan.md b/docs/plans/043-panel-layout/panel-layout-plan.md
-new file mode 100644
-index 0000000..852b429
---- /dev/null
+index 1eebd07..321bfda 100644
+--- a/docs/plans/043-panel-layout/panel-layout-plan.md
 +++ b/docs/plans/043-panel-layout/panel-layout-plan.md
-@@ -0,0 +1,270 @@
-+# Panel Layout System Implementation Plan
-+
-+**Plan Version**: 1.0.0
-+**Created**: 2026-02-24
-+**Spec**: [panel-layout-spec.md](./panel-layout-spec.md)
-+**Status**: DRAFT
-+
-+**Workshops**:
-+- [file-path-utility-bar.md](workshops/file-path-utility-bar.md) — ExplorerPanel design, handler chain
-+- [left-panel-view-modes.md](workshops/left-panel-view-modes.md) — LeftPanel modes, ChangesView, git services
-+
-+---
-+
-+## Summary
-+
-+The browser page composes its layout with raw `div+flex` — no reusable panel components exist. This plan creates a three-panel layout system (ExplorerPanel + LeftPanel + MainPanel) in the `_platform/panel-layout` infrastructure domain, adds a git changes view with `git status --porcelain` parsing to the `file-browser` domain, and wires everything into BrowserClient. The result: users can navigate by typing paths, toggle between tree and changes views, and all state is deep-linkable.
-+
-+---
-+
-+## Target Domains
-+
-+| Domain | Status | Relationship | Role |
-+|--------|--------|-------------|------|
-+| _platform/panel-layout | existing (domain doc created, no code yet) | **modify** | Create PanelShell, ExplorerPanel, LeftPanel, MainPanel, PanelHeader, types |
-+| file-browser | existing | **modify** | ChangesView, git services, refactor FileTree/FileViewerPanel, wire panels |
-+| _platform/workspace-url | existing | **consume** | nuqs for `panel` URL param |
-+| _platform/notifications | existing | **consume** | `toast()` for mode switch + path errors |
-+
-+---
-+
-+## Domain Manifest
-+
-+| File | Domain | Classification | Rationale |
-+|------|--------|---------------|-----------|
-+| `apps/web/src/components/ui/resizable.tsx` | panel-layout | contract | shadcn resizable wrapper (react-resizable-panels) |
-+| `apps/web/src/features/_platform/panel-layout/types.ts` | panel-layout | contract | PanelMode, BarHandler, BarContext exported types |
-+| `apps/web/src/features/_platform/panel-layout/components/panel-shell.tsx` | panel-layout | contract | Root compositor |
-+| `apps/web/src/features/_platform/panel-layout/components/explorer-panel.tsx` | panel-layout | contract | Top utility bar |
-+| `apps/web/src/features/_platform/panel-layout/components/left-panel.tsx` | panel-layout | contract | Mode-switching sidebar |
-+| `apps/web/src/features/_platform/panel-layout/components/main-panel.tsx` | panel-layout | contract | Content area wrapper |
-+| `apps/web/src/features/_platform/panel-layout/components/panel-header.tsx` | panel-layout | contract | Shared header component |
-+| `apps/web/src/features/_platform/panel-layout/index.ts` | panel-layout | contract | Barrel export |
-+| `apps/web/src/features/041-file-browser/services/working-changes.ts` | file-browser | internal | git status --porcelain parser |
-+| `apps/web/src/features/041-file-browser/services/recent-files.ts` | file-browser | internal | git log --name-only parser |
-+| `apps/web/src/features/041-file-browser/components/changes-view.tsx` | file-browser | internal | Changes list UI |
-+| `apps/web/app/actions/file-actions.ts` | file-browser | cross-domain | Add fetchWorkingChanges, fetchRecentFiles, fileExists server actions |
-+| `apps/web/src/features/041-file-browser/params/file-browser.params.ts` | file-browser | internal | Replace `changed` with `panel` param |
-+| `apps/web/src/features/041-file-browser/components/file-tree.tsx` | file-browser | internal | Remove header (extracted to PanelHeader) |
-+| `apps/web/src/features/041-file-browser/components/file-viewer-panel.tsx` | file-browser | internal | Remove path row (moved to ExplorerPanel) |
-+| `apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx` | file-browser | internal | Compose PanelShell, wire all panels |
-+
-+---
-+
-+## Key Findings
-+
-+| # | Impact | Finding | Action |
-+|---|--------|---------|--------|
-+| 01 | High | Ctrl+P handler will conflict with CodeMirror when editor is focused — CodeMirror captures keyboard events in its view layer | Check `document.activeElement` is not inside `.cm-editor` before capturing Ctrl+P. Phase 3 task. |
-+| 02 | High | No `_platform` feature folder exists yet — this creates the first infrastructure feature folder, setting the precedent | Create `features/_platform/panel-layout/` in Phase 1. Follow existing barrel export pattern from 041-file-browser. |
-+| 03 | Medium | `git status --porcelain` shows submodules as `MM` which would break file reads if treated as regular files | Filter submodule lines in porcelain parser. Test with real repo output. Phase 2 task. |
-+| 04 | Medium | FileTree header (`"FILES" + refresh`) is tested via `screen.getByRole('button', { name: /refresh file tree/i })` — extraction will break this assertion | Update test to find refresh button in PanelHeader context. Phase 3 task. |
-+| 05 | Medium | `?changed=true` param is defined in `fileBrowserParams` but only consumed by FileTree's `showChangedOnly` prop — removal is clean | Replace with `panel` param. Update any test that references `changed`. Phase 3 task. |
-+| 06 | Low | shadcn `Tabs` component exists and could be used for mode switching buttons in PanelHeader. No ToggleGroup installed. | Use simple icon-only buttons with tooltips (matching existing icon button pattern). Compact enough for narrow panel at min-width. |
-+| DYK-01 | High | FileTree unmounts on mode switch (`children[mode]` keyed lookup). Remount triggers N API calls to re-expand ancestor directories. | Make `handleExpand` cache-aware: skip fetch when `childEntries[dirPath]` already exists. One-line fix in BrowserClient. Phase 3. |
-+| DYK-02 | Medium | `react-resizable-panels` loses panel sizes on page navigation/refresh without persistence. | Add `autoSaveId="browser-panels"` prop to ResizablePanelGroup — library auto-persists to localStorage. Phase 1 T009. |
-+| DYK-03 | Medium | ExplorerPanel Enter → fileExists server round-trip has no loading indicator. User thinks Enter didn't register. | ASCII terminal spinner (`\| / — \\` cycling 80ms) replaces copy button while handler chain processes. Phase 1 T005/T006. |
-+| DYK-04 | Medium | Ctrl+P must be on `document.addEventListener` to beat browser print dialog. Component-level handlers fire too late. | ExplorerPanel exposes `focusInput()` via `useImperativeHandle` + `forwardRef`. Phase 3 calls it from document-level listener. |
-+| DYK-05 | Low | PanelHeader mode buttons with icon+label crowd the 200-256px left panel header. Labels won't fit at min-width (15%). | Icon-only mode buttons with tooltips. Same pattern as existing refresh button (icon + aria-label). |
-+
-+---
-+
-+## Testing Philosophy
-+
-+**Full TDD** — same approach as Plan 041 Phase 4.
-+
-+- Panel components: Render tests, prop callbacks, mode switching
-+- Git services: Unit tests for porcelain parser, recent files parser, dedup logic
-+- Handler chain: Unit tests for file path handler (normalize, strip prefix, exists check)
-+- Integration: Updated tests for FileTree (no header) and FileViewerPanel (no path row)
-+- Mocking: `vi.mock` for git commands (execFile) — same justified pattern as existing tests
-+
-+---
-+
-+## Phase 1: Panel Infrastructure
-+
-+**Objective**: Create the `_platform/panel-layout` feature folder with all structural components and types.
-+**Domain**: _platform/panel-layout
-+**Delivers**:
-+- PanelShell, ExplorerPanel, LeftPanel, MainPanel, PanelHeader components
-+- BarHandler, BarContext, PanelMode types
-+- Feature folder scaffold + barrel export
-+- Unit tests for all components
-+**Depends on**: None
-+**Key risks**: First `_platform` feature folder — sets naming/structure precedent.
-+
-+| # | Task | Domain | CS | Success Criteria | Notes |
-+|---|------|--------|----|-----------------|-------|
-+| 1.1 | Create `_platform/panel-layout` feature folder scaffold: `types.ts`, `index.ts`, `components/` | panel-layout | 1 | Directory exists, barrel exports compile | Per finding 02 |
-+| 1.2 | Install `react-resizable-panels` (shadcn resizable component) | panel-layout | 1 | `npx shadcn@latest add resizable` installs component + dependency. `ResizablePanel`, `ResizablePanelGroup`, `ResizableHandle` available. | shadcn wraps react-resizable-panels (same lib) |
-+| 1.3 | Write tests for PanelHeader — renders title, mode buttons, action buttons, fires callbacks | panel-layout | 1 | Tests: title text, button click fires onModeChange, active button highlighted |  |
-+| 1.4 | Implement PanelHeader component | panel-layout | 1 | All 1.3 tests pass. Accepts title, mode buttons config, action buttons config. | Follow ModeButton pattern from FileViewerPanel (per finding 06) |
-+| 1.5 | Write tests for ExplorerPanel — renders path, copy button, edit mode, Enter navigates, Escape reverts, handler chain dispatch | panel-layout | 2 | Tests: displays path, copy fires onCopy, click enters edit, Enter calls handler chain, Escape reverts, empty input no-op |  |
-+| 1.6 | Implement ExplorerPanel component | panel-layout | 2 | All 1.5 tests pass. Input with display/edit modes. Handler chain runs in sequence. | Per workshop: file-path-utility-bar.md |
-+| 1.7 | Write tests for LeftPanel — renders correct child for mode, mode switch fires callback | panel-layout | 1 | Tests: mode=tree renders children[0], mode=changes renders children[1], mode button fires onModeChange |  |
-+| 1.8 | Implement LeftPanel component — mode header + content slot | panel-layout | 1 | All 1.7 tests pass. Uses PanelHeader for mode buttons. Renders children by mode. |  |
-+| 1.9 | Implement MainPanel + PanelShell — resizable layout wrappers | panel-layout | 2 | PanelShell uses `ResizablePanelGroup` with horizontal direction. LeftPanel in `ResizablePanel` (defaultSize=20, minSize=15, maxSize=40). `ResizableHandle` between panels. MainPanel in `ResizablePanel` (flex-1). ExplorerPanel above the resizable group (not resizable). | Uses shadcn resizable (react-resizable-panels) |
-+
-+### Acceptance Criteria
-+- [ ] AC-26: PanelShell composes ExplorerPanel + LeftPanel + MainPanel in flex layout
-+- [ ] AC-27: PanelHeader provides consistent header with title + mode buttons
-+- [ ] AC-28: MainPanel wraps content with flex-1 overflow
-+- [ ] AC-10: ExplorerPanel handler chain is composable (extensibility point)
-+
-+### Risks
-+| Risk | Likelihood | Impact | Mitigation |
-+|------|------------|--------|------------|
-+| PanelShell height calculation breaks when ExplorerPanel added | Low | Medium | Keep h-[calc(100vh-4rem)] on root, ExplorerPanel is shrink-0 |
-+| react-resizable-panels adds bundle weight | Low | Low | ~5KB gzip, lazy-loaded with PanelShell. Same lib shadcn/ui uses. |
-+| Resize handle hard to grab on touch devices | Low | Low | Set handle width to 4px with hover expand to 8px. Touch targets fine at desktop (not targeting mobile). |
-+
-+---
-+
-+## Phase 2: Git Services + Changes View
-+
-+**Objective**: Add `git status --porcelain` parser, recent files service, and the ChangesView component.
-+**Domain**: file-browser
-+**Delivers**:
-+- `getWorkingChanges` service (porcelain parser)
-+- `getRecentFiles` service (git log parser)
-+- `fetchWorkingChanges` and `fetchRecentFiles` server actions
-+- `fileExists` server action (for ExplorerPanel handler)
-+- ChangesView component with status badges + recent section
-+- Unit tests for parsers and component
-+**Depends on**: None (independent of Phase 1)
-+**Key risks**: git porcelain edge cases (renames, submodules, merge conflicts).
-+
-+| # | Task | Domain | CS | Success Criteria | Notes |
-+|---|------|--------|----|-----------------|-------|
-+| 2.1 | Write tests for `getWorkingChanges` — parse porcelain output for M, A, D, ??, R statuses; staged vs unstaged; handle empty output, submodules | file-browser | 2 | Tests: parse each status code, classify staged/unstaged/untracked, handle rename format, filter submodules, empty repo | Per finding 03 |
-+| 2.2 | Implement `getWorkingChanges` service | file-browser | 2 | All 2.1 tests pass. Uses `git status --porcelain=v1`. Returns `ChangedFile[]`. | Single git command, machine-parseable output |
-+| 2.3 | Write tests for `getRecentFiles` — deduplicated list of recent files from git log | file-browser | 1 | Tests: returns unique paths, most recent first, respects limit, handles empty repo |  |
-+| 2.4 | Implement `getRecentFiles` service | file-browser | 1 | All 2.3 tests pass. Uses `git log --name-only --pretty=format: -n N`. |  |
-+| 2.5 | Add server actions: `fetchWorkingChanges`, `fetchRecentFiles`, `fileExists` | file-browser | 1 | Server actions wrap service functions. `fileExists` does lightweight stat check. | Follow dynamic import pattern from existing file-actions.ts |
-+| 2.6 | Write tests for ChangesView — renders working changes with badges, recent section, dedup, empty state, selection | file-browser | 2 | Tests: renders M/A/D/?/R badges, dedup recent vs working, "clean" state, click fires onSelect, selected file highlighted |  |
-+| 2.7 | Implement ChangesView component | file-browser | 2 | All 2.6 tests pass. Two sections, status badges, context menu, selection indicator. | Per workshop: left-panel-view-modes.md |
-+
-+### Acceptance Criteria
-+- [ ] AC-16: Changes view shows Working Changes + Recent sections
-+- [ ] AC-17: Status badges (M amber, A green, D red, ? muted, R blue)
-+- [ ] AC-18: Flat path display with muted directory, bold filename
-+- [ ] AC-19: Recent deduplicated against working changes
-+- [ ] AC-20: Clean working tree shows "Working tree clean"
-+- [ ] AC-21: Click selects file with ▶ indicator
-+- [ ] AC-22: Context menu matches tree view (Copy Path, Content, Download)
-+- [ ] AC-6: ExplorerPanel verifies file exists before navigating
-+
-+### Risks
-+| Risk | Likelihood | Impact | Mitigation |
-+|------|------------|--------|------------|
-+| Porcelain parsing fails on renames with spaces | Medium | Low | Handle `R  old -> new` format; use new path |
-+| Submodule lines break file reads | Medium | Medium | Filter lines where both X and Y are non-space (submodule indicator) |
-+
-+---
-+
-+## Phase 3: Wire Into BrowserClient + Migration
-+
-+**Objective**: Compose panel components into BrowserClient, refactor FileTree and FileViewerPanel, migrate URL params.
-+**Domain**: file-browser (primary), panel-layout (consume)
-+**Delivers**:
-+- BrowserClient uses PanelShell layout
-+- ExplorerPanel wired with file path handler + Ctrl+P shortcut
-+- LeftPanel switches between FileTree and ChangesView
-+- FileTree header extracted (renders as pure scrollable list)
-+- FileViewerPanel path row removed (single-row toolbar)
-+- `?changed` param replaced with `?panel`
-+- All existing tests updated
-+**Depends on**: Phase 1, Phase 2
-+**Key risks**: Refactoring two established components with existing tests.
-+
-+| # | Task | Domain | CS | Success Criteria | Notes |
-+|---|------|--------|----|-----------------|-------|
-+| 3.1 | Update `fileBrowserParams` — remove `changed`, add `panel` | file-browser | 1 | Param defined. `?panel=tree` is default. Old `?changed=true` silently ignored. | Per finding 05 |
-+| 3.2 | Remove FileTree header — FileTree becomes pure scrollable list | file-browser | 1 | FileTree renders entries only, no sticky header div. Existing tests updated. | Per finding 04 |
-+| 3.3 | Remove FileViewerPanel path row — toolbar is single row only | file-browser | 1 | Path row div removed. `filePath` prop stays (used by DiffViewer). Existing tests updated. |  |
-+| 3.4 | Implement file path BarHandler — normalize, strip worktree prefix, check exists, navigate | file-browser | 2 | Handler: strips `./`, `/`, worktree prefix. Calls fileExists. Returns true on success. Tests: normalize cases, prefix stripping, not-found returns false. |  |
-+| 3.5 | Wire PanelShell into BrowserClient — ExplorerPanel + LeftPanel + MainPanel | file-browser | 3 | Layout renders: ExplorerPanel at top, FileTree/ChangesView in LeftPanel, FileViewerPanel in MainPanel. URL state drives panel mode. Mode switch shows toast. | Core integration task |
-+| 3.6 | Add Ctrl+P / Cmd+P keyboard shortcut — focuses ExplorerPanel input | file-browser | 1 | Shortcut works. Suppresses print dialog. Does NOT fire when CodeMirror is focused. | Per finding 01: check activeElement not in .cm-editor |
-+| 3.7 | Wire ChangesView data — lazy fetch on first switch, refresh button | file-browser | 2 | Changes data fetched on panel=changes. Cached in state. Refresh re-fetches. Non-git hides changes button. |  |
-+| 3.8 | Verify cross-mode selection sync | file-browser | 1 | Select in changes → switch to tree → tree expands to file. Select in tree → switch to changes → file highlighted if present. |  |
-+| 3.9 | Update all affected tests — FileTree, FileViewerPanel, params | file-browser | 2 | All existing tests pass with structural changes. New assertions for panel composition. `just fft` passes. | Per finding 04, 05 |
-+| 3.10 | Update domain docs — panel-layout domain.md history + file-browser domain.md composition | panel-layout, file-browser | 1 | Both domain.md files updated with new components, contracts, history entries. |  |
-+
-+### Acceptance Criteria
-+- [ ] AC-1: Explorer bar always visible above two-panel split
-+- [ ] AC-2: Path displayed in monospace with copy button
-+- [ ] AC-3: Placeholder shown when no file selected
-+- [ ] AC-4: Click path enters edit mode, select all
-+- [ ] AC-5: Enter navigates to typed path
-+- [ ] AC-7: Absolute path auto-strips worktree prefix
-+- [ ] AC-8: Escape/blur reverts without navigating
-+- [ ] AC-9: Ctrl+P focuses explorer bar
-+- [ ] AC-11: Mode toggle buttons in left panel header
-+- [ ] AC-12: Mode switch shows toast
-+- [ ] AC-13: `?panel=tree|changes` in URL
-+- [ ] AC-14: `?changed=true` gracefully ignored
-+- [ ] AC-15: Changes button hidden in non-git
-+- [ ] AC-23: Cross-mode sync: changes → tree expands
-+- [ ] AC-24: Cross-mode sync: tree → changes highlights
-+- [ ] AC-25: Selected file persists in URL across modes
-+- [ ] AC-29: FileTree has no header
-+- [ ] AC-30: FileViewerPanel has no path row
-+- [ ] AC-31: Toolbar is single row: Save, Edit, Preview, Diff, Refresh
-+- [ ] AC-32: Existing tests updated and passing
-+- [ ] AC-33: `just fft` passes
-+
-+### Risks
-+| Risk | Likelihood | Impact | Mitigation |
-+|------|------------|--------|------------|
-+| BrowserClient grows too large with panel wiring | Medium | Low | Panel components handle their own layout; BrowserClient just passes props/callbacks |
-+| Ctrl+P conflicts with CodeMirror in edit mode | Medium | Medium | Check activeElement before capturing; CodeMirror doesn't use Ctrl+P by default |
-+
-+---
-+
-+## Phase Completion Checklist
-+
-+- [x] Phase 1: Panel Infrastructure — COMPLETE (19 tests, 5 components, types, barrel)
-+- [ ] Phase 2: Git Services + Changes View — NOT STARTED
-+- [ ] Phase 3: Wire Into BrowserClient + Migration — NOT STARTED
-+
-+---
-+
-+## Complexity Tracking
-+
-+| Component | CS | Breakdown | Justification |
-+|-----------|-----|-----------|---------------|
-+| Panel components (Phase 1) | 2 | S=1,I=0,D=0,N=1,F=0,T=0 | New domain folder, presentational components |
-+| Git services (Phase 2) | 2 | S=1,I=0,D=0,N=1,F=0,T=0 | New parsers, known git commands |
-+| ChangesView (Phase 2) | 2 | S=1,I=0,D=0,N=0,F=0,T=1 | New component, follows existing patterns |
-+| BrowserClient wiring (Phase 3) | 3 | S=2,I=0,D=0,N=0,F=0,T=1 | Touches many files, refactors two components |
-+| Overall plan | 3 | S=2,I=0,D=0,N=0,F=0,T=1 | Well-specified via workshops |
-+
-+---
-+
-+## ADR Alignment
-+
-+| ADR | Status | Relevance | Notes |
-+|-----|--------|-----------|-------|
-+| ADR-0004: DI Container | Aligned | Phase 2 git services use DI-compatible patterns | Services are pure functions, not DI-registered (no IWorkingChangesService needed — they're thin wrappers around execFile) |
-+| ADR-0007: SSE Single Channel | Aligned | Notifications domain consumed for toast() | Toast on mode switch + path errors per ADR-0007 notification-fetch pattern |
-+| ADR-0009: Module Registration | Aligned (future) | Panel components are React components, not DI services | No module registration needed — components are imported directly |
-+| ADR-0010: Central Notifications | Deferred | Plan explicitly defers SSE live-update of file changes | Manual refresh only; future plan will wire ChangesView refresh into CentralEventNotifier |
-+| ADR-0011: Domain Concepts | Aligned | Git services are simple utility functions (2-3 lines of git + parsing) | Not elevated to full interface+fake — proportional to complexity |
-+
-+---
-+
-+## Deviation Ledger
-+
-+| Deviation | Justification | Risk |
-+|-----------|--------------|------|
-+| Do NOT remove or modify unrecognized code/files | Parallel work may be in progress on other plans (e.g., Plan 041 Phase 5). Only touch files explicitly listed in the Domain Manifest. If you encounter unfamiliar changes, leave them alone. | Low |
-+| `vi.mock` for `execFile` in git service tests | Git services call `execFile` to spawn child processes — there is no injectable DI interface for this (it's a Node.js built-in). Creating a full `IExecService` abstraction would be over-engineering for simple git CLI calls. Same justified pattern as Plan 041's `changed-files.test.ts` and Plan 042's `vi.mock('sonner')`. Constitution R-TEST-007 targets domain service mocks, not child process stubs. | Low — contained to test files, real git commands tested via manual verification |
-+| `_platform` feature folder lives in `apps/web/src/features/` not `packages/shared/` | Panel layout components are React/Next.js-specific (JSX, hooks, Tailwind CSS). They cannot live in `@chainglass/shared` (pure TypeScript, no React dependency). The `_platform/` prefix signals infrastructure-for-web, distinguishing from plan-scoped feature folders (e.g., `041-file-browser/`). | Low — precedent is clear, follows existing feature folder pattern |
-+| `file-actions.ts` classified as cross-domain (server actions) | Server actions are Next.js-specific — they cannot move to `@chainglass/shared`. The "cross-domain" classification means they bridge the file-browser domain's services with Next.js server action runtime, not that they're shared across packages. | Low — web-only by nature |
-+
-+---
-+
-+## Change Footnotes Ledger
-+
-+| ID | Created | Summary | Domain(s) | Status | Source |
-+|----|---------|---------|-----------|--------|--------|
-diff --git a/docs/plans/043-panel-layout/panel-layout-spec.md b/docs/plans/043-panel-layout/panel-layout-spec.md
-new file mode 100644
-index 0000000..adf3849
---- /dev/null
-+++ b/docs/plans/043-panel-layout/panel-layout-spec.md
-@@ -0,0 +1,170 @@
-+# Panel Layout System
-+
-+📚 This specification incorporates findings from [research-dossier.md](./research-dossier.md)
-+
-+---
-+
-+## Research Context
-+
-+The file browser page currently composes its layout with raw `div+flex+Tailwind` — a fixed-width left panel (FileTree) and a flex-1 right panel (FileViewerPanel). The same pattern appears in the agent chat page. No reusable layout components exist. The FileTree owns its own sticky header, and the FileViewerPanel embeds a file path row in its toolbar. Two workshops have designed the replacement: an ExplorerPanel (composable path/command bar) and a LeftPanel with mode switching (tree vs changes view). A `_platform/panel-layout` domain has been extracted to own the structural shell. Two new git services are needed for the changes view: `git status --porcelain` parsing and `git log --name-only` for recent files.
-+
-+---
-+
-+## Summary
-+
-+**WHAT**: A three-panel layout system for the browser page — ExplorerPanel (top utility bar with path navigation), LeftPanel (mode-switching sidebar showing either the file tree or a changes view), and MainPanel (content area for the file viewer). The ExplorerPanel shows the current file path and lets users type/paste a path to navigate directly. The LeftPanel switches between a file tree view and a git changes view (working changes + recent activity). The system is built as reusable infrastructure so future workspace pages can adopt the same layout.
-+
-+**WHY**: The browser page needs richer navigation beyond a file tree — users want to see what changed at a glance, quickly jump to files by path, and have these interactions deep-linkable. The current layout is hardcoded and duplicated across pages. A composable panel system reduces duplication, ensures consistency, and makes it trivial to add new left panel modes (search, bookmarks) or adopt the layout on other workspace pages (agent chat, workflows).
-+
-+---
-+
-+## Goals
-+
-+- Users can see the current file path at all times and navigate to any file by typing or pasting a path (ExplorerPanel)
-+- Users can switch between a full directory tree and a focused changes view in the left panel
-+- The changes view shows working changes (staged, unstaged, untracked) with status badges and a "recent activity" section of the last 20 committed files
-+- Selecting a file in any left panel mode opens it in the editor and syncs across modes (click in changes → tree auto-expands to that file when switching back)
-+- The active left panel mode is preserved in the URL (`?panel=tree|changes`) for deep linking
-+- The panel layout components are domain-owned infrastructure that any workspace page can compose
-+- The `Ctrl+P` / `Cmd+P` keyboard shortcut focuses the explorer bar (VS Code convention)
-+
-+---
-+
-+## Non-Goals
-+
-+- SSE/live-update of changed files (manual refresh only; future central notification system will handle this)
-+- Autocomplete/suggestions in the explorer bar (type and Enter only; future enhancement)
-+- Search mode, bookmarks mode, or recent files mode in the left panel (extensible union type is ready, but only tree + changes built now)
-+- Responsive phone/tablet layout changes (the panel system works at desktop widths; phone layout is separate concern)
-+- Agent chat or workgraph page migration to panel layout (future consumers, not this plan)
-+- Go-to-line (`:123`) or command palette (`>`) in the explorer bar (handler chain is extensible but only file path handler ships)
-+
-+---
-+
-+## Target Domains
-+
-+| Domain | Status | Relationship | Role in This Feature |
-+|--------|--------|-------------|---------------------|
-+| _platform/panel-layout | existing | **modify** | Create all panel components (PanelShell, ExplorerPanel, LeftPanel, MainPanel, PanelHeader) and types (BarHandler, BarContext, PanelMode) |
-+| file-browser | existing | **modify** | Wire panels into BrowserClient, create ChangesView, add git services, extract FileTree header, remove path row from FileViewerPanel, replace `?changed` with `?panel` |
-+| _platform/workspace-url | existing | **consume** | Use nuqs for `panel` URL param (no changes to domain) |
-+| _platform/notifications | existing | **consume** | Use `toast()` for mode switch feedback and path errors (no changes to domain) |
-+
-+---
-+
-+## Complexity
-+
-+- **Score**: CS-3 (medium)
-+- **Breakdown**: S=2, I=0, D=0, N=0, F=0, T=1
-+  - S=2: Touches multiple files across two domains (panel-layout new components + file-browser refactoring)
-+  - I=0: All internal — git CLI is already used extensively
-+  - D=0: No schema/migration changes (URL param swap is additive)
-+  - N=0: Well-specified via two workshops + domain doc + research dossier
-+  - F=0: No new security/perf concerns beyond existing patterns
-+  - T=1: Integration tests needed for handler chain + git porcelain parser
-+- **Confidence**: 0.90
-+- **Assumptions**: Workshops are authoritative; cross-mode sync works via shared selectedFile state; git status porcelain output is stable
-+- **Dependencies**: None external — all git commands are standard
-+- **Risks**: FileTree header extraction may break 6 existing tests; `?changed` param removal affects existing bookmarks (graceful degradation)
-+- **Phases**: (1) Panel infrastructure + ExplorerPanel, (2) LeftPanel + ChangesView + git services, (3) Wire into BrowserClient + migration
-+
-+---
-+
-+## Acceptance Criteria
-+
-+### ExplorerPanel
-+
-+1. A full-width utility bar appears above the two-panel split, always visible regardless of whether a file is selected.
-+2. When a file is selected, the bar displays the relative file path in monospace font with a copy button on the left.
-+3. When no file is selected, the bar shows placeholder text "Type or paste a file path...".
-+4. Clicking the path text enters edit mode — the text becomes an editable input with all text selected.
-+5. Pressing Enter in the input navigates to the typed path: the file loads in the editor, the tree expands to it, and the URL updates.
-+6. The explorer bar verifies the file exists on the server before navigating. If not found, a toast error appears and the input reverts.
-+7. Pasting an absolute path that starts with the worktree prefix auto-strips the prefix and navigates to the relative path.
-+8. Pressing Escape or clicking away from the input reverts to the current file path without navigating.
-+9. `Ctrl+P` / `Cmd+P` focuses the explorer bar and selects all text (suppresses browser print dialog).
-+10. The explorer bar uses a composable handler chain — the file path handler runs first; if it doesn't match, future handlers can try (extensibility point, not visible to users yet).
-+
-+### LeftPanel Mode Switching
-+
-+11. The left panel header contains mode toggle buttons: a tree icon (file tree mode) and a diff icon (changes mode).
-+12. Clicking a mode button switches the left panel content and shows a brief toast ("Tree view" / "Changes view").
-+13. The active mode is reflected in the URL as `?panel=tree` or `?panel=changes`. Bookmarking and reopening restores the mode.
-+14. The old `?changed=true` URL parameter is removed. Existing bookmarks with `?changed=true` gracefully degrade (param is ignored, tree mode shown).
-+15. In non-git workspaces, the changes mode button is hidden (not disabled). Only tree mode is available.
-+
-+### Changes View
-+
-+16. The changes view shows two sections: "Working Changes" at top, "Recent (committed)" below a separator.
-+17. Working Changes lists files from `git status` with status badges: `M` (modified, amber), `A` (added, green), `D` (deleted, red), `?` (untracked, muted), `R` (renamed, blue).
-+18. Files are displayed as flat paths with the directory prefix muted and the filename emphasized.
-+19. Recent section shows the last 20 unique files changed across recent commits, deduplicated against Working Changes (no file appears in both sections).
-+20. When working tree is clean, the Working Changes section shows "Working tree clean" with a green check.
-+21. Clicking a file in either section selects it — the file loads in the editor with the orange ▶ indicator, same as tree view.
-+22. The changes view has the same context menu as tree view files (Copy Full Path, Copy Relative Path, Copy Content, Download).
-+
-+### Cross-Mode Sync
-+
-+23. Selecting a file in changes view, then switching to tree view, auto-expands the tree to that file and scrolls it into view.
-+24. Selecting a file in tree view, then switching to changes view, highlights that file if it appears in either section.
-+25. The selected file persists in the URL (`?file=...`) and is shared across both modes.
-+
-+### Panel Infrastructure
-+
-+26. A `PanelShell` component composes ExplorerPanel + LeftPanel + MainPanel in a flex layout.
-+27. A `PanelHeader` component provides a consistent header with title, mode buttons, and action buttons — used by the LeftPanel.
-+28. The `MainPanel` wraps content with flex-1 overflow handling.
-+29. FileTree no longer renders its own header — the header is provided by PanelHeader via LeftPanel.
-+30. FileViewerPanel no longer renders the path row — path display is provided by ExplorerPanel.
-+
-+### Refactoring
-+
-+31. The file path row is removed from FileViewerPanel. The toolbar simplifies to a single row: Save, Edit, Preview, Diff, Refresh.
-+32. The FileTree sticky header ("FILES" + refresh) is removed from FileTree. FileTree becomes a pure scrollable list.
-+33. Existing tests for FileTree and FileViewerPanel are updated to reflect the structural changes.
-+
-+---
-+
-+## Risks & Assumptions
-+
-+- **Risk**: Extracting the FileTree header breaks 6 existing tests. **Mitigation**: Tests are straightforward — update selectors to match new PanelHeader placement.
-+- **Risk**: `git status --porcelain` output has edge cases (merge conflicts, submodules, renamed files with spaces). **Mitigation**: Parse conservatively; test with real repos; skip lines we can't parse rather than crashing.
-+- **Risk**: `Ctrl+P` shortcut conflicts with browser print dialog. **Mitigation**: `e.preventDefault()` in the keydown handler. Only active when browser page route is mounted.
-+- **Risk**: ExplorerPanel input captures focus when CodeMirror should have it. **Mitigation**: `Ctrl+P` handler checks if `e.target` is inside `.cm-editor` before capturing.
-+- **Assumption**: Cross-mode file selection sync works via shared `selectedFile` URL state — FileTree's existing auto-expand logic handles the tree expansion automatically.
-+- **Assumption**: The panel layout system is scoped to the browser page for now. Other pages can adopt it later without changes to the panel components.
-+- **Assumption**: The `?changed=true` boolean param can be removed without migration — it's a URL bookmark concern, not persisted data.
-+
-+---
-+
-+## Open Questions
-+
-+All questions resolved via workshops — no open questions remain.
-+
-+---
-+
-+## Workshop Opportunities
-+
-+All workshops have been completed:
-+
-+| Topic | Type | Status | Document |
-+|-------|------|--------|----------|
-+| Explorer bar (path utility bar) | UI Component | ✅ Complete | [file-path-utility-bar.md](workshops/file-path-utility-bar.md) |
-+| Left panel view modes | State Machine | ✅ Complete | [left-panel-view-modes.md](workshops/left-panel-view-modes.md) |
-+
-+---
-+
-+## Testing Strategy
-+
-+**Full TDD** — same approach as Plan 041 Phase 4.
-+
-+- Panel components: Unit tests for rendering, mode switching, handler chain dispatch
-+- Git services: Unit tests for porcelain parser, recent files parser, dedup logic
-+- Integration: BrowserClient with panel composition, cross-mode sync
-+- Existing tests: Updated for structural changes (header/path row extraction)
-+
-+---
-+
-+## Documentation Strategy
-+
-+Update `docs/how/file-browser.md` (planned in Plan 041 Phase 6) to document the panel layout system and how to add new left panel modes.
-diff --git a/docs/plans/043-panel-layout/tasks/phase-1-panel-infrastructure/tasks.md b/docs/plans/043-panel-layout/tasks/phase-1-panel-infrastructure/tasks.md
-new file mode 100644
-index 0000000..ec75de7
---- /dev/null
-+++ b/docs/plans/043-panel-layout/tasks/phase-1-panel-infrastructure/tasks.md
-@@ -0,0 +1,199 @@
-+# Phase 1: Panel Infrastructure — Tasks
-+
-+**Plan**: [panel-layout-plan.md](../../panel-layout-plan.md)
-+**Phase**: 1 of 3
-+**Testing Approach**: Full TDD
-+**Created**: 2026-02-24
-+
-+---
-+
-+## Executive Briefing
-+
-+**Purpose**: Create the `_platform/panel-layout` infrastructure domain with all structural panel components. This is the foundation — reusable layout primitives that the file browser (Phase 3) and future workspace pages compose.
-+
-+**What We're Building**:
-+- `PanelShell` — root layout compositor using `react-resizable-panels` for a resizable left/main split with an ExplorerPanel on top
-+- `ExplorerPanel` — top utility bar with composable input handler chain (display path, edit to navigate, copy button)
-+- `LeftPanel` — mode-switching sidebar wrapper with PanelHeader for mode buttons
-+- `MainPanel` — content area wrapper with flex-1 overflow handling
-+- `PanelHeader` — shared header component with title, mode toggle buttons, action buttons
-+- Types: `PanelMode`, `BarHandler`, `BarContext`
-+
-+**Goals**:
-+- ✅ First `_platform` feature folder created with correct structure
-+- ✅ All panel components are standalone, testable, no business logic
-+- ✅ ExplorerPanel handler chain is extensible (file path handler is v1, search/commands are future)
-+- ✅ LeftPanel ↔ MainPanel are resizable via drag handle
-+- ✅ shadcn resizable component installed
-+
-+**Non-Goals**:
-+- ❌ Wiring panels into BrowserClient (Phase 3)
-+- ❌ ChangesView or git services (Phase 2)
-+- ❌ Any file-browser business logic
-+- ❌ Responsive phone/tablet layout
-+
-+---
-+
-+## Pre-Implementation Check
-+
-+| File | Exists? | Domain Check | Notes |
-+|------|---------|-------------|-------|
-+| `apps/web/src/features/_platform/panel-layout/` | No — create | panel-layout | First `_platform` folder |
-+| `apps/web/src/features/_platform/panel-layout/types.ts` | No — create | panel-layout | PanelMode, BarHandler, BarContext |
-+| `apps/web/src/features/_platform/panel-layout/index.ts` | No — create | panel-layout | Barrel export |
-+| `apps/web/src/features/_platform/panel-layout/components/panel-header.tsx` | No — create | panel-layout | Shared header |
-+| `apps/web/src/features/_platform/panel-layout/components/explorer-panel.tsx` | No — create | panel-layout | Path bar + handler chain |
-+| `apps/web/src/features/_platform/panel-layout/components/left-panel.tsx` | No — create | panel-layout | Mode-switching wrapper |
-+| `apps/web/src/features/_platform/panel-layout/components/main-panel.tsx` | No — create | panel-layout | Content wrapper |
-+| `apps/web/src/features/_platform/panel-layout/components/panel-shell.tsx` | No — create | panel-layout | Root compositor with resizable panels |
-+| `apps/web/src/components/ui/resizable.tsx` | No — install | panel-layout | `npx shadcn@latest add resizable` |
-+| `apps/web/package.json` | Yes — modify | panel-layout | `react-resizable-panels` dep added by shadcn |
-+
-+---
-+
-+## Architecture Map
-+
-+```mermaid
-+flowchart TD
-+    classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
-+    classDef completed fill:#4CAF50,stroke:#388E3C,color:#fff
-+
-+    subgraph Phase1["Phase 1: Panel Infrastructure"]
-+        T001["T001: Scaffold<br/>feature folder"]:::pending
-+        T002["T002: Install<br/>resizable"]:::pending
-+        T003["T003: Test<br/>PanelHeader"]:::pending
-+        T004["T004: Impl<br/>PanelHeader"]:::pending
-+        T005["T005: Test<br/>ExplorerPanel"]:::pending
-+        T006["T006: Impl<br/>ExplorerPanel"]:::pending
-+        T007["T007: Test<br/>LeftPanel"]:::pending
-+        T008["T008: Impl<br/>LeftPanel"]:::pending
-+        T009["T009: Impl<br/>PanelShell+MainPanel"]:::pending
-+    end
-+
-+    T001 --> T003
-+    T001 --> T005
-+    T001 --> T007
-+    T002 --> T009
-+    T003 --> T004
-+    T004 --> T008
-+    T004 --> T009
-+    T005 --> T006
-+    T007 --> T008
-+    T008 --> T009
-+    T006 --> T009
-+```
-+
-+---
-+
-+## Tasks
-+
-+| Status | ID | Task | Domain | Path(s) | Done When | Notes |
-+|--------|-----|------|--------|---------|-----------|-------|
-+| [x] | T001 | Create `_platform/panel-layout` feature folder scaffold — `types.ts` with PanelMode, BarHandler, BarContext types; `index.ts` barrel; `components/` directory | panel-layout | `apps/web/src/features/_platform/panel-layout/types.ts`, `apps/web/src/features/_platform/panel-layout/index.ts` | Types compile. Barrel exports types. `PanelMode = 'tree' \| 'changes'`. `BarHandler = (input: string, ctx: BarContext) => Promise<boolean>`. `BarContext = { slug, worktreePath, fileExists, navigateToFile, showError }`. | Per finding 02. Follow barrel pattern from 041-file-browser/index.ts. |
-+| [x] | T002 | Install shadcn resizable component | panel-layout | `apps/web/src/components/ui/resizable.tsx`, `apps/web/package.json` | `npx shadcn@latest add resizable` succeeds. `ResizablePanel`, `ResizablePanelGroup`, `ResizableHandle` importable. `react-resizable-panels` in deps. | shadcn wraps react-resizable-panels. |
-+| [x] | T003 | Write tests for PanelHeader — renders title, mode buttons with icons, active state highlighting, fires onModeChange callback, renders action buttons | panel-layout | `test/unit/web/features/_platform/panel-layout/panel-header.test.tsx` | Tests: renders title text, renders N mode buttons, active button has accent styling, click fires onModeChange(mode), action button fires callback. | Follow ModeButton pattern from FileViewerPanel (icon+label, accent vs muted). |
-+| [x] | T004 | Implement PanelHeader component | panel-layout | `apps/web/src/features/_platform/panel-layout/components/panel-header.tsx` | All T003 tests pass. Props: `title: string`, `modes?: { key: PanelMode; icon: ReactNode; label: string }[]`, `activeMode?: PanelMode`, `onModeChange?: (mode: PanelMode) => void`, `actions?: { icon: ReactNode; label: string; onClick: () => void }[]`. Client component. | Sticky header: `sticky top-0 bg-background z-10 border-b px-3 py-2 shrink-0`. DYK-05: mode buttons icon-only with tooltip (`title` attr or shadcn Tooltip), `aria-label` for accessibility. |
-+| [x] | T005 | Write tests for ExplorerPanel — display mode shows path + copy button; click path enters edit mode with text selected; Enter fires handler chain; first handler returning true stops chain; Escape reverts; empty input no-ops; placeholder when no path; ASCII spinner during processing; exposes focusInput() ref | panel-layout | `test/unit/web/features/_platform/panel-layout/explorer-panel.test.tsx` | Tests: (1) renders filePath text, (2) copy button fires onCopy, (3) click path shows input, (4) Enter runs handlers in order, (5) first true-returning handler stops chain, (6) Escape reverts to filePath, (7) blur reverts, (8) empty string no-ops, (9) placeholder when filePath empty, (10) spinner shows during async handler, (11) focusInput() ref selects all text. | DYK-03: ASCII spinner `\| / — \\` replaces copy button during processing. DYK-04: `forwardRef` + `useImperativeHandle` exposes `focusInput()` for Phase 3 Ctrl+P. |
-+| [x] | T006 | Implement ExplorerPanel component | panel-layout | `apps/web/src/features/_platform/panel-layout/components/explorer-panel.tsx` | All T005 tests pass. Props: `filePath: string`, `handlers: BarHandler[]`, `context: BarContext`, `onCopy: () => void`, `placeholder?: string`. Client component with forwardRef. Display/edit mode via local state. Input with select-all on focus. ASCII spinner: `useEffect` + `setInterval` cycling `['\|', '/', '—', '\\']` at 80ms. `useImperativeHandle` exposes `{ focusInput: () => void }`. | Styling: `bg-muted/30 border-b px-3 py-1.5 shrink-0`, font-mono text-sm. Copy button uses ClipboardCopy icon. Spinner is same size/position as copy button. |
-+| [x] | T007 | Write tests for LeftPanel — renders children based on mode; mode switch via PanelHeader; hides modes when not available | panel-layout | `test/unit/web/features/_platform/panel-layout/left-panel.test.tsx` | Tests: (1) mode=tree renders first child, (2) mode=changes renders second child, (3) PanelHeader mode button fires onModeChange, (4) modes prop controls which buttons render, (5) single mode = no buttons. | LeftPanel is a thin wrapper: PanelHeader + content slot. |
-+| [x] | T008 | Implement LeftPanel component | panel-layout | `apps/web/src/features/_platform/panel-layout/components/left-panel.tsx` | All T007 tests pass. Props: `mode: PanelMode`, `onModeChange: (mode: PanelMode) => void`, `modes: { key: PanelMode; icon: ReactNode; label: string }[]`, `onRefresh: () => void`, `children: Record<PanelMode, ReactNode>`. Uses PanelHeader for mode toggle + refresh action. | Children keyed by mode — `children[mode]` renders active content. |
-+| [x] | T009 | Implement MainPanel + PanelShell with resizable layout | panel-layout | `apps/web/src/features/_platform/panel-layout/components/main-panel.tsx`, `apps/web/src/features/_platform/panel-layout/components/panel-shell.tsx` | MainPanel: `flex-1 overflow-hidden` wrapper. PanelShell: flex-col root, ExplorerPanel (shrink-0) on top, `ResizablePanelGroup direction="horizontal" autoSaveId="browser-panels"` below with LeftPanel in `ResizablePanel` (defaultSize=20, minSize=15, maxSize=40), `ResizableHandle`, MainPanel in `ResizablePanel`. Barrel export updated. | DYK-02: `autoSaveId` persists resize to localStorage. PanelShell props: `explorer: ReactNode`, `left: ReactNode`, `main: ReactNode`. |
-+
-+---
-+
-+## Context Brief
-+
-+### Key findings from plan
-+
-+- **Finding 02 (HIGH)**: No `_platform` feature folder exists. T001 creates the first one, setting the naming/structure precedent. Follow the barrel export pattern from `041-file-browser/index.ts`.
-+- **Finding 06 (LOW)**: Use simple icon buttons for mode switching (matching ModeButton from FileViewerPanel), not new shadcn components like Tabs or ToggleGroup.
-+
-+### Domain dependencies
-+
-+- `_platform/workspace-url`: nuqs — URL param infrastructure. Not consumed directly in Phase 1 (panels are stateless; URL state wired in Phase 3).
-+- `lucide-react`: Icons for buttons (ClipboardCopy, RefreshCw, GitBranch, FileDiff, etc.)
-+- `react-resizable-panels` (via shadcn `resizable`): ResizablePanelGroup, ResizablePanel, ResizableHandle
-+
-+### Domain constraints
-+
-+- All files go in `apps/web/src/features/_platform/panel-layout/`
-+- Tests go in `test/unit/web/features/_platform/panel-layout/`
-+- Components are `'use client'` (they use state, callbacks, DOM)
-+- No business logic — panels are pure structural/presentational
-+- No imports from `file-browser` domain (dependency direction: business → infrastructure, not the reverse)
-+
-+### Reusable patterns
-+
-+- **ModeButton** from `file-viewer-panel.tsx` (lines 232-258): Icon + label, `bg-accent` when active, `text-muted-foreground` otherwise. Copy this pattern for PanelHeader mode buttons.
-+- **Barrel export** from `041-file-browser/index.ts`: Export components + `export type { Props }` for interfaces.
-+- **Clipboard fallback** from `browser-client.tsx` (lines 205-225): `navigator.clipboard.writeText` with textarea fallback for non-HTTPS. ExplorerPanel's copy delegates to parent via `onCopy` prop (doesn't own clipboard logic).
-+
-+### Component composition diagram
-+
-+```mermaid
-+flowchart TD
-+    subgraph PanelShell["PanelShell (flex-col)"]
-+        EP["ExplorerPanel<br/>shrink-0, border-b<br/>path + copy + input"]
-+        subgraph RPG["ResizablePanelGroup (horizontal)"]
-+            LP["LeftPanel<br/>ResizablePanel<br/>default=20%, min=15%"]
-+            RH["ResizableHandle<br/>drag to resize"]
-+            MP["MainPanel<br/>ResizablePanel<br/>flex-1"]
-+        end
-+    end
-+
-+    EP --> RPG
-+    LP --- RH --- MP
-+```
-+
-+### PanelHeader internals
-+
-+```mermaid
-+flowchart LR
-+    subgraph PH["PanelHeader (sticky)"]
-+        Title["title text<br/>(uppercase, muted)"]
-+        MB1["[🌳] mode btn"]
-+        MB2["[📝] mode btn"]
-+        Spacer["flex-1 spacer"]
-+        AB1["[↻] action btn"]
-+    end
-+    Title --- MB1 --- MB2 --- Spacer --- AB1
-+```
-+
-+### ExplorerPanel state machine
-+
-+```mermaid
-+stateDiagram-v2
-+    [*] --> Display: mount
-+    Display --> Edit: click path / Ctrl+P
-+    Edit --> Display: Escape / blur
-+    Edit --> Processing: Enter
-+    Processing --> Display: handler returned true (navigated)
-+    Processing --> Display: no handler matched (show error)
-+```
-+
-+---
-+
-+## Discoveries & Learnings
-+
-+_Populated during implementation by plan-6._
-+
-+| Date | Task | Type | Discovery | Resolution | References |
-+|------|------|------|-----------|------------|------------|
-+
-+---
-+
-+## Directory Layout
-+
-+```
-+docs/plans/043-panel-layout/
-+  ├── panel-layout-plan.md
-+  ├── panel-layout-spec.md
-+  ├── research-dossier.md
-+  ├── workshops/
-+  │   ├── file-path-utility-bar.md → (symlink)
-+  │   └── left-panel-view-modes.md → (symlink)
-+  └── tasks/phase-1-panel-infrastructure/
-+      ├── tasks.md              ← this file
-+      ├── tasks.fltplan.md      ← generated next
-+      └── execution.log.md      # created by plan-6
-+```
-diff --git a/docs/plans/043-panel-layout/tasks/phase-1-panel-infrastructure/execution.log.md b/docs/plans/043-panel-layout/tasks/phase-1-panel-infrastructure/execution.log.md
-new file mode 100644
-index 0000000..2a86703
---- /dev/null
-+++ b/docs/plans/043-panel-layout/tasks/phase-1-panel-infrastructure/execution.log.md
-@@ -0,0 +1,43 @@
-+# Phase 1: Panel Infrastructure — Execution Log
-+
-+**Started**: 2026-02-24
-+**Status**: COMPLETE
-+
-+---
-+
-+## T001: Feature folder scaffold + types
-+- Created `apps/web/src/features/_platform/panel-layout/` (first `_platform` feature folder)
-+- `types.ts`: PanelMode, BarHandler, BarContext, ExplorerPanelHandle
-+- `index.ts`: barrel exports
-+- Types compile cleanly
-+
-+## T002: Install shadcn resizable
-+- `npx shadcn@latest add resizable --yes`
-+- Created `src/components/ui/resizable.tsx`
-+- Added `react-resizable-panels: ^4` to deps
-+
-+## T003-T004: PanelHeader
-+- 6 tests: title, mode buttons, active state, onModeChange callback, action buttons, no modes
-+- Icon-only buttons with `title` tooltip + `aria-label` (DYK-05)
-+- All 6 pass
-+
-+## T005-T006: ExplorerPanel
-+- 8 tests: path display, placeholder, copy, edit mode, handler chain, Escape revert, empty no-op, focusInput ref
-+- forwardRef + useImperativeHandle for Ctrl+P integration (DYK-04)
-+- ASCII spinner `| / — \` at 80ms during processing (DYK-03)
-+- All 8 pass
-+
-+## T007-T008: LeftPanel
-+- 5 tests: tree child, changes child, mode switch, refresh action, single mode hides buttons
-+- Children keyed by PanelMode — `children[mode]` renders active content
-+- All 5 pass
-+
-+## T009: MainPanel + PanelShell
-+- MainPanel: simple flex-1 overflow-hidden wrapper
-+- PanelShell: ResizablePanelGroup with autoSaveId (DYK-02)
-+- Left panel: defaultSize=20, minSize=15, maxSize=40
-+- ResizableHandle withHandle (drag grip visible)
-+
-+## Evidence
-+- 19 new tests across 3 files, all passing
-+- Full suite: 4180 passed, 0 failed (296 test files)
+@@ -224,7 +224,7 @@ The browser page composes its layout with raw `div+flex` — no reusable panel c
+ ## Phase Completion Checklist
+ 
+ - [x] Phase 1: Panel Infrastructure — COMPLETE (19 tests, 5 components, types, barrel)
+-- [ ] Phase 2: Git Services + Changes View — NOT STARTED
++- [ ] Phase 2: Git Services + Changes View — COMPLETE (21 tests, 2 services, 1 component, 3 server actions)
+ - [ ] Phase 3: Wire Into BrowserClient + Migration — NOT STARTED
+ 
+ ---
+diff --git a/docs/plans/043-panel-layout/reviews/_computed.diff b/docs/plans/043-panel-layout/reviews/_computed.diff
+index 40c2114..361dead 100644
+--- a/docs/plans/043-panel-layout/reviews/_computed.diff
++++ b/docs/plans/043-panel-layout/reviews/_computed.diff
+@@ -1,1584 +0,0 @@
+-diff --git a/apps/web/src/components/ui/resizable.tsx b/apps/web/src/components/ui/resizable.tsx
+-new file mode 100644
+-index 0000000..4677413
+---- /dev/null
+-+++ b/apps/web/src/components/ui/resizable.tsx
+-@@ -0,0 +1,51 @@
+-+import { GripVerticalIcon } from "lucide-react"
+-+import * as ResizablePrimitive from "react-resizable-panels"
+-+
+-+import { cn } from "@/lib/utils"
+-+
+-+function ResizablePanelGroup({
+-+  className,
+-+  ...props
+-+}: ResizablePrimitive.GroupProps) {
+-+  return (
+-+    <ResizablePrimitive.Group
+-+      data-slot="resizable-panel-group"
+-+      className={cn(
+-+        "flex h-full w-full aria-[orientation=vertical]:flex-col",
+-+        className
+-+      )}
+-+      {...props}
+-+    />
+-+  )
+-+}
+-+
+-+function ResizablePanel({ ...props }: ResizablePrimitive.PanelProps) {
+-+  return <ResizablePrimitive.Panel data-slot="resizable-panel" {...props} />
+-+}
+-+
+-+function ResizableHandle({
+-+  withHandle,
+-+  className,
+-+  ...props
+-+}: ResizablePrimitive.SeparatorProps & {
+-+  withHandle?: boolean
+-+}) {
+-+  return (
+-+    <ResizablePrimitive.Separator
+-+      data-slot="resizable-handle"
+-+      className={cn(
+-+        "bg-border focus-visible:ring-ring relative flex w-px items-center justify-center after:absolute after:inset-y-0 after:left-1/2 after:w-1 after:-translate-x-1/2 focus-visible:ring-1 focus-visible:ring-offset-1 focus-visible:outline-hidden aria-[orientation=horizontal]:h-px aria-[orientation=horizontal]:w-full aria-[orientation=horizontal]:after:left-0 aria-[orientation=horizontal]:after:h-1 aria-[orientation=horizontal]:after:w-full aria-[orientation=horizontal]:after:translate-x-0 aria-[orientation=horizontal]:after:-translate-y-1/2 [&[aria-orientation=horizontal]>div]:rotate-90",
+-+        className
+-+      )}
+-+      {...props}
+-+    >
+-+      {withHandle && (
+-+        <div className="bg-border z-10 flex h-4 w-3 items-center justify-center rounded-xs border">
+-+          <GripVerticalIcon className="size-2.5" />
+-+        </div>
+-+      )}
+-+    </ResizablePrimitive.Separator>
+-+  )
+-+}
+-+
+-+export { ResizableHandle, ResizablePanel, ResizablePanelGroup }
+-diff --git a/apps/web/src/features/_platform/panel-layout/types.ts b/apps/web/src/features/_platform/panel-layout/types.ts
+-new file mode 100644
+-index 0000000..ad89023
+---- /dev/null
+-+++ b/apps/web/src/features/_platform/panel-layout/types.ts
+-@@ -0,0 +1,32 @@
+-+/**
+-+ * Panel Layout Types
+-+ *
+-+ * Core types for the _platform/panel-layout domain.
+-+ * Plan 043: Panel Layout System
+-+ */
+-+
+-+/** Left panel view mode — extensible union for future modes (search, bookmarks, recent) */
+-+export type PanelMode = 'tree' | 'changes';
+-+
+-+/** Context passed to ExplorerPanel input handlers */
+-+export interface BarContext {
+-+  slug: string;
+-+  worktreePath: string;
+-+  /** Check if a file exists at this relative path (server call) */
+-+  fileExists: (relativePath: string) => Promise<boolean>;
+-+  /** Navigate to a file */
+-+  navigateToFile: (relativePath: string) => void;
+-+  /** Show an error in the bar */
+-+  showError: (message: string) => void;
+-+}
+-+
+-+/**
+-+ * A handler that tries to process the ExplorerPanel input.
+-+ * Returns true if it handled the input (stops the chain).
+-+ */
+-+export type BarHandler = (input: string, context: BarContext) => Promise<boolean>;
+-+
+-+/** Imperative handle for ExplorerPanel ref (Ctrl+P integration) */
+-+export interface ExplorerPanelHandle {
+-+  focusInput: () => void;
+-+}
+-diff --git a/apps/web/src/features/_platform/panel-layout/index.ts b/apps/web/src/features/_platform/panel-layout/index.ts
+-new file mode 100644
+-index 0000000..1dce23b
+---- /dev/null
+-+++ b/apps/web/src/features/_platform/panel-layout/index.ts
+-@@ -0,0 +1,22 @@
+-+/**
+-+ * Panel Layout — Barrel Export
+-+ *
+-+ * Reusable three-panel layout system for workspace detail pages.
+-+ * Domain: _platform/panel-layout
+-+ * Plan 043: Panel Layout System
+-+ */
+-+
+-+// Types
+-+export type { PanelMode, BarHandler, BarContext, ExplorerPanelHandle } from './types';
+-+
+-+// Components
+-+export { PanelHeader } from './components/panel-header';
+-+export type { PanelHeaderProps, PanelHeaderMode, PanelHeaderAction } from './components/panel-header';
+-+export { ExplorerPanel } from './components/explorer-panel';
+-+export type { ExplorerPanelProps } from './components/explorer-panel';
+-+export { LeftPanel } from './components/left-panel';
+-+export type { LeftPanelProps, LeftPanelMode } from './components/left-panel';
+-+export { MainPanel } from './components/main-panel';
+-+export type { MainPanelProps } from './components/main-panel';
+-+export { PanelShell } from './components/panel-shell';
+-+export type { PanelShellProps } from './components/panel-shell';
+-diff --git a/apps/web/src/features/_platform/panel-layout/components/panel-header.tsx b/apps/web/src/features/_platform/panel-layout/components/panel-header.tsx
+-new file mode 100644
+-index 0000000..0a6b0d7
+---- /dev/null
+-+++ b/apps/web/src/features/_platform/panel-layout/components/panel-header.tsx
+-@@ -0,0 +1,76 @@
+-+'use client';
+-+
+-+/**
+-+ * PanelHeader — Shared header for panel sections.
+-+ *
+-+ * Renders title + optional icon-only mode buttons + optional action buttons.
+-+ * Used by LeftPanel for mode switching and refresh.
+-+ *
+-+ * Phase 1: Panel Infrastructure — Plan 043
+-+ * DYK-05: Icon-only with tooltip (title attr) for compact header at min-width.
+-+ */
+-+
+-+import type { ReactNode } from 'react';
+-+import type { PanelMode } from '../types';
+-+
+-+export interface PanelHeaderMode {
+-+  key: PanelMode;
+-+  icon: ReactNode;
+-+  label: string;
+-+}
+-+
+-+export interface PanelHeaderAction {
+-+  icon: ReactNode;
+-+  label: string;
+-+  onClick: () => void;
+-+}
+-+
+-+export interface PanelHeaderProps {
+-+  title: string;
+-+  modes?: PanelHeaderMode[];
+-+  activeMode?: PanelMode;
+-+  onModeChange?: (mode: PanelMode) => void;
+-+  actions?: PanelHeaderAction[];
+-+}
+-+
+-+export function PanelHeader({ title, modes, activeMode, onModeChange, actions }: PanelHeaderProps) {
+-+  return (
+-+    <div className="flex items-center justify-between border-b px-3 py-2 shrink-0 sticky top-0 bg-background z-10">
+-+      <div className="flex items-center gap-1">
+-+        <span className="text-xs font-medium text-muted-foreground uppercase">{title}</span>
+-+        {modes?.map((mode) => (
+-+          <button
+-+            key={mode.key}
+-+            type="button"
+-+            onClick={() => onModeChange?.(mode.key)}
+-+            title={mode.label}
+-+            aria-label={mode.label}
+-+            className={`rounded p-1 transition-colors ${
+-+              activeMode === mode.key
+-+                ? 'bg-accent text-accent-foreground'
+-+                : 'text-muted-foreground hover:text-foreground'
+-+            }`}
+-+          >
+-+            {mode.icon}
+-+          </button>
+-+        ))}
+-+      </div>
+-+      {actions && actions.length > 0 && (
+-+        <div className="flex items-center gap-1">
+-+          {actions.map((action) => (
+-+            <button
+-+              key={action.label}
+-+              type="button"
+-+              onClick={action.onClick}
+-+              title={action.label}
+-+              aria-label={action.label}
+-+              className="rounded p-1 text-muted-foreground hover:text-foreground"
+-+            >
+-+              {action.icon}
+-+            </button>
+-+          ))}
+-+        </div>
+-+      )}
+-+    </div>
+-+  );
+-+}
+-diff --git a/apps/web/src/features/_platform/panel-layout/components/explorer-panel.tsx b/apps/web/src/features/_platform/panel-layout/components/explorer-panel.tsx
+-new file mode 100644
+-index 0000000..a4f181a
+---- /dev/null
+-+++ b/apps/web/src/features/_platform/panel-layout/components/explorer-panel.tsx
+-@@ -0,0 +1,171 @@
+-+'use client';
+-+
+-+/**
+-+ * ExplorerPanel — Top utility bar with composable input handler chain.
+-+ *
+-+ * Displays the current file path with a copy button. Clicking the path
+-+ * enters edit mode where typing a path and pressing Enter triggers a
+-+ * handler chain. Supports forwardRef for Ctrl+P integration.
+-+ *
+-+ * Phase 1: Panel Infrastructure — Plan 043
+-+ * DYK-03: ASCII spinner during handler processing
+-+ * DYK-04: forwardRef + useImperativeHandle for focusInput()
+-+ */
+-+
+-+import { ClipboardCopy } from 'lucide-react';
+-+import {
+-+  forwardRef,
+-+  useCallback,
+-+  useEffect,
+-+  useImperativeHandle,
+-+  useRef,
+-+  useState,
+-+} from 'react';
+-+
+-+import type { BarContext, BarHandler, ExplorerPanelHandle } from '../types';
+-+
+-+export interface ExplorerPanelProps {
+-+  filePath: string;
+-+  handlers: BarHandler[];
+-+  context: BarContext;
+-+  onCopy: () => void;
+-+  placeholder?: string;
+-+}
+-+
+-+const SPINNER_FRAMES = ['|', '/', '—', '\\'];
+-+const SPINNER_INTERVAL = 80;
+-+
+-+export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>(
+-+  function ExplorerPanel({ filePath, handlers, context, onCopy, placeholder }, ref) {
+-+    const [editing, setEditing] = useState(!filePath);
+-+    const [inputValue, setInputValue] = useState(filePath);
+-+    const [processing, setProcessing] = useState(false);
+-+    const [spinnerFrame, setSpinnerFrame] = useState(0);
+-+    const inputRef = useRef<HTMLInputElement>(null);
+-+
+-+    // Sync input value when filePath changes externally
+-+    useEffect(() => {
+-+      if (!editing) {
+-+        setInputValue(filePath);
+-+      }
+-+    }, [filePath, editing]);
+-+
+-+    // ASCII spinner animation
+-+    useEffect(() => {
+-+      if (!processing) return;
+-+      const id = setInterval(() => {
+-+        setSpinnerFrame((prev) => (prev + 1) % SPINNER_FRAMES.length);
+-+      }, SPINNER_INTERVAL);
+-+      return () => clearInterval(id);
+-+    }, [processing]);
+-+
+-+    // Expose focusInput for Ctrl+P
+-+    useImperativeHandle(ref, () => ({
+-+      focusInput: () => {
+-+        setEditing(true);
+-+        setInputValue(filePath);
+-+        // Focus after state update
+-+        setTimeout(() => {
+-+          inputRef.current?.focus();
+-+          inputRef.current?.select();
+-+        }, 0);
+-+      },
+-+    }));
+-+
+-+    const enterEditMode = useCallback(() => {
+-+      setEditing(true);
+-+      setInputValue(filePath);
+-+      setTimeout(() => {
+-+        inputRef.current?.focus();
+-+        inputRef.current?.select();
+-+      }, 0);
+-+    }, [filePath]);
+-+
+-+    const exitEditMode = useCallback(() => {
+-+      setEditing(false);
+-+      setInputValue(filePath);
+-+    }, [filePath]);
+-+
+-+    const handleKeyDown = useCallback(
+-+      async (e: React.KeyboardEvent<HTMLInputElement>) => {
+-+        if (e.key === 'Escape') {
+-+          exitEditMode();
+-+          return;
+-+        }
+-+
+-+        if (e.key === 'Enter') {
+-+          e.preventDefault();
+-+          const value = inputValue.trim();
+-+          if (!value) return;
+-+
+-+          setProcessing(true);
+-+          try {
+-+            for (const handler of handlers) {
+-+              const handled = await handler(value, context);
+-+              if (handled) {
+-+                setEditing(false);
+-+                return;
+-+              }
+-+            }
+-+            // No handler matched
+-+            context.showError(`Not found: ${value}`);
+-+          } finally {
+-+            setProcessing(false);
+-+          }
+-+        }
+-+      },
+-+      [inputValue, handlers, context, exitEditMode]
+-+    );
+-+
+-+    const handleBlur = useCallback(() => {
+-+      if (!processing) {
+-+        exitEditMode();
+-+      }
+-+    }, [processing, exitEditMode]);
+-+
+-+    // Always show input when no file path (placeholder mode)
+-+    const showInput = editing || !filePath;
+-+
+-+    return (
+-+      <div className="flex items-center gap-1.5 border-b px-3 py-1.5 bg-muted/30 shrink-0">
+-+        {processing ? (
+-+          <span className="shrink-0 w-5 text-center font-mono text-sm text-muted-foreground">
+-+            {SPINNER_FRAMES[spinnerFrame]}
+-+          </span>
+-+        ) : (
+-+          <button
+-+            type="button"
+-+            onClick={onCopy}
+-+            className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground"
+-+            aria-label="Copy file path"
+-+            disabled={!filePath}
+-+          >
+-+            <ClipboardCopy className="h-3.5 w-3.5" />
+-+          </button>
+-+        )}
+-+
+-+        {showInput ? (
+-+          <input
+-+            ref={inputRef}
+-+            type="text"
+-+            value={inputValue}
+-+            onChange={(e) => setInputValue(e.target.value)}
+-+            onKeyDown={handleKeyDown}
+-+            onBlur={handleBlur}
+-+            placeholder={placeholder}
+-+            className="flex-1 bg-transparent font-mono text-sm text-foreground outline-none placeholder:text-muted-foreground"
+-+            aria-label="File path"
+-+          />
+-+        ) : (
+-+          <button
+-+            type="button"
+-+            onClick={enterEditMode}
+-+            className="flex-1 text-left font-mono text-sm text-muted-foreground truncate"
+-+          >
+-+            {filePath}
+-+          </button>
+-+        )}
+-+      </div>
+-+    );
+-+  }
+-+);
+-diff --git a/apps/web/src/features/_platform/panel-layout/components/left-panel.tsx b/apps/web/src/features/_platform/panel-layout/components/left-panel.tsx
+-new file mode 100644
+-index 0000000..29f98cc
+---- /dev/null
+-+++ b/apps/web/src/features/_platform/panel-layout/components/left-panel.tsx
+-@@ -0,0 +1,55 @@
+-+'use client';
+-+
+-+/**
+-+ * LeftPanel — Mode-switching sidebar wrapper.
+-+ *
+-+ * Renders PanelHeader for mode toggle + refresh, and the active
+-+ * child content based on current mode. Children keyed by PanelMode.
+-+ *
+-+ * Phase 1: Panel Infrastructure — Plan 043
+-+ */
+-+
+-+import type { ReactNode } from 'react';
+-+import { RefreshCw } from 'lucide-react';
+-+import type { PanelMode } from '../types';
+-+import { PanelHeader } from './panel-header';
+-+
+-+export interface LeftPanelMode {
+-+  key: PanelMode;
+-+  icon: ReactNode;
+-+  label: string;
+-+}
+-+
+-+export interface LeftPanelProps {
+-+  mode: PanelMode;
+-+  onModeChange: (mode: PanelMode) => void;
+-+  modes: LeftPanelMode[];
+-+  onRefresh: () => void;
+-+  children: Partial<Record<PanelMode, ReactNode>>;
+-+}
+-+
+-+export function LeftPanel({ mode, onModeChange, modes, onRefresh, children }: LeftPanelProps) {
+-+  // Hide mode buttons when only one mode available
+-+  const showModes = modes.length > 1 ? modes : undefined;
+-+
+-+  return (
+-+    <div className="flex flex-col h-full text-sm">
+-+      <PanelHeader
+-+        title="Files"
+-+        modes={showModes}
+-+        activeMode={mode}
+-+        onModeChange={onModeChange}
+-+        actions={[
+-+          {
+-+            icon: <RefreshCw className="h-3.5 w-3.5" />,
+-+            label: 'Refresh',
+-+            onClick: onRefresh,
+-+          },
+-+        ]}
+-+      />
+-+      <div className="flex-1 overflow-y-auto">
+-+        {children[mode]}
+-+      </div>
+-+    </div>
+-+  );
+-+}
+-diff --git a/apps/web/src/features/_platform/panel-layout/components/main-panel.tsx b/apps/web/src/features/_platform/panel-layout/components/main-panel.tsx
+-new file mode 100644
+-index 0000000..2e3b288
+---- /dev/null
+-+++ b/apps/web/src/features/_platform/panel-layout/components/main-panel.tsx
+-@@ -0,0 +1,19 @@
+-+'use client';
+-+
+-+/**
+-+ * MainPanel — Content area wrapper.
+-+ *
+-+ * Simple flex-1 wrapper with overflow handling for the primary content area.
+-+ *
+-+ * Phase 1: Panel Infrastructure — Plan 043
+-+ */
+-+
+-+import type { ReactNode } from 'react';
+-+
+-+export interface MainPanelProps {
+-+  children: ReactNode;
+-+}
+-+
+-+export function MainPanel({ children }: MainPanelProps) {
+-+  return <div className="flex-1 overflow-hidden">{children}</div>;
+-+}
+-diff --git a/apps/web/src/features/_platform/panel-layout/components/panel-shell.tsx b/apps/web/src/features/_platform/panel-layout/components/panel-shell.tsx
+-new file mode 100644
+-index 0000000..6b0ea88
+---- /dev/null
+-+++ b/apps/web/src/features/_platform/panel-layout/components/panel-shell.tsx
+-@@ -0,0 +1,54 @@
+-+'use client';
+-+
+-+/**
+-+ * PanelShell — Root layout compositor with resizable panels.
+-+ *
+-+ * Arranges ExplorerPanel (top, fixed height) + LeftPanel and MainPanel
+-+ * in a horizontal ResizablePanelGroup with a drag handle.
+-+ *
+-+ * Phase 1: Panel Infrastructure — Plan 043
+-+ * DYK-02: autoSaveId persists resize state to localStorage.
+-+ */
+-+
+-+import type { ReactNode } from 'react';
+-+import {
+-+  ResizableHandle,
+-+  ResizablePanel,
+-+  ResizablePanelGroup,
+-+} from '@/components/ui/resizable';
+-+
+-+export interface PanelShellProps {
+-+  /** Top utility bar (ExplorerPanel) — full width, not resizable */
+-+  explorer: ReactNode;
+-+  /** Left sidebar (LeftPanel) — resizable */
+-+  left: ReactNode;
+-+  /** Main content area (MainPanel) — fills remaining space */
+-+  main: ReactNode;
+-+  /** Unique ID for persisting panel sizes (defaults to 'browser-panels') */
+-+  autoSaveId?: string;
+-+}
+-+
+-+export function PanelShell({
+-+  explorer,
+-+  left,
+-+  main,
+-+  autoSaveId = 'browser-panels',
+-+}: PanelShellProps) {
+-+  return (
+-+    <div className="flex flex-col h-full overflow-hidden">
+-+      {/* Explorer bar — fixed height, not resizable */}
+-+      {explorer}
+-+
+-+      {/* Resizable left + main split */}
+-+      <ResizablePanelGroup direction="horizontal" autoSaveId={autoSaveId}>
+-+        <ResizablePanel defaultSize={20} minSize={15} maxSize={40}>
+-+          {left}
+-+        </ResizablePanel>
+-+        <ResizableHandle withHandle />
+-+        <ResizablePanel defaultSize={80}>
+-+          {main}
+-+        </ResizablePanel>
+-+      </ResizablePanelGroup>
+-+    </div>
+-+  );
+-+}
+-diff --git a/test/unit/web/features/_platform/panel-layout/panel-header.test.tsx b/test/unit/web/features/_platform/panel-layout/panel-header.test.tsx
+-new file mode 100644
+-index 0000000..08d0235
+---- /dev/null
+-+++ b/test/unit/web/features/_platform/panel-layout/panel-header.test.tsx
+-@@ -0,0 +1,103 @@
+-+/**
+-+ * PanelHeader Component Tests
+-+ *
+-+ * Purpose: Verify the shared header renders title, mode buttons (icon-only with tooltip),
+-+ * action buttons, and fires callbacks correctly.
+-+ *
+-+ * Phase 1: Panel Infrastructure — Plan 043
+-+ * DYK-05: Icon-only mode buttons with tooltips
+-+ */
+-+
+-+import { render, screen } from '@testing-library/react';
+-+import userEvent from '@testing-library/user-event';
+-+import { describe, expect, it, vi } from 'vitest';
+-+
+-+// We'll import once created
+-+import { PanelHeader } from '@/features/_platform/panel-layout/components/panel-header';
+-+
+-+const TreeIcon = () => <span data-testid="tree-icon">T</span>;
+-+const ChangesIcon = () => <span data-testid="changes-icon">C</span>;
+-+const RefreshIcon = () => <span data-testid="refresh-icon">R</span>;
+-+
+-+describe('PanelHeader', () => {
+-+  it('renders title text', () => {
+-+    render(<PanelHeader title="Files" />);
+-+    expect(screen.getByText('Files')).toBeInTheDocument();
+-+  });
+-+
+-+  it('renders mode buttons with aria-labels', () => {
+-+    render(
+-+      <PanelHeader
+-+        title="Files"
+-+        modes={[
+-+          { key: 'tree', icon: <TreeIcon />, label: 'Tree view' },
+-+          { key: 'changes', icon: <ChangesIcon />, label: 'Changes view' },
+-+        ]}
+-+        activeMode="tree"
+-+        onModeChange={vi.fn()}
+-+      />
+-+    );
+-+
+-+    expect(screen.getByRole('button', { name: 'Tree view' })).toBeInTheDocument();
+-+    expect(screen.getByRole('button', { name: 'Changes view' })).toBeInTheDocument();
+-+  });
+-+
+-+  it('highlights active mode button', () => {
+-+    render(
+-+      <PanelHeader
+-+        title="Files"
+-+        modes={[
+-+          { key: 'tree', icon: <TreeIcon />, label: 'Tree view' },
+-+          { key: 'changes', icon: <ChangesIcon />, label: 'Changes view' },
+-+        ]}
+-+        activeMode="tree"
+-+        onModeChange={vi.fn()}
+-+      />
+-+    );
+-+
+-+    const activeBtn = screen.getByRole('button', { name: 'Tree view' });
+-+    expect(activeBtn.className).toContain('bg-accent');
+-+  });
+-+
+-+  it('fires onModeChange when mode button clicked', async () => {
+-+    const user = userEvent.setup();
+-+    const onModeChange = vi.fn();
+-+
+-+    render(
+-+      <PanelHeader
+-+        title="Files"
+-+        modes={[
+-+          { key: 'tree', icon: <TreeIcon />, label: 'Tree view' },
+-+          { key: 'changes', icon: <ChangesIcon />, label: 'Changes view' },
+-+        ]}
+-+        activeMode="tree"
+-+        onModeChange={onModeChange}
+-+      />
+-+    );
+-+
+-+    await user.click(screen.getByRole('button', { name: 'Changes view' }));
+-+    expect(onModeChange).toHaveBeenCalledWith('changes');
+-+  });
+-+
+-+  it('renders action buttons and fires callbacks', async () => {
+-+    const user = userEvent.setup();
+-+    const onRefresh = vi.fn();
+-+
+-+    render(
+-+      <PanelHeader
+-+        title="Files"
+-+        actions={[{ icon: <RefreshIcon />, label: 'Refresh', onClick: onRefresh }]}
+-+      />
+-+    );
+-+
+-+    const refreshBtn = screen.getByRole('button', { name: 'Refresh' });
+-+    await user.click(refreshBtn);
+-+    expect(onRefresh).toHaveBeenCalled();
+-+  });
+-+
+-+  it('renders no mode buttons when modes not provided', () => {
+-+    render(<PanelHeader title="Files" />);
+-+    // Only title visible, no buttons except actions
+-+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+-+  });
+-+});
+-diff --git a/test/unit/web/features/_platform/panel-layout/explorer-panel.test.tsx b/test/unit/web/features/_platform/panel-layout/explorer-panel.test.tsx
+-new file mode 100644
+-index 0000000..857c750
+---- /dev/null
+-+++ b/test/unit/web/features/_platform/panel-layout/explorer-panel.test.tsx
+-@@ -0,0 +1,142 @@
+-+/**
+-+ * ExplorerPanel Component Tests
+-+ *
+-+ * Purpose: Verify the top utility bar renders path, supports edit mode,
+-+ * dispatches handler chain on Enter, reverts on Escape, shows spinner,
+-+ * and exposes focusInput() ref.
+-+ *
+-+ * Phase 1: Panel Infrastructure — Plan 043
+-+ * DYK-03: ASCII spinner during processing
+-+ * DYK-04: forwardRef + useImperativeHandle for focusInput()
+-+ */
+-+
+-+import { render, screen, act } from '@testing-library/react';
+-+import userEvent from '@testing-library/user-event';
+-+import { createRef } from 'react';
+-+import { describe, expect, it, vi } from 'vitest';
+-+
+-+import { ExplorerPanel } from '@/features/_platform/panel-layout/components/explorer-panel';
+-+import type { BarContext, BarHandler, ExplorerPanelHandle } from '@/features/_platform/panel-layout/types';
+-+
+-+const makeContext = (overrides?: Partial<BarContext>): BarContext => ({
+-+  slug: 'test-ws',
+-+  worktreePath: '/tmp/test',
+-+  fileExists: vi.fn().mockResolvedValue(true),
+-+  navigateToFile: vi.fn(),
+-+  showError: vi.fn(),
+-+  ...overrides,
+-+});
+-+
+-+describe('ExplorerPanel', () => {
+-+  it('renders file path text', () => {
+-+    render(
+-+      <ExplorerPanel filePath="src/lib/utils.ts" handlers={[]} context={makeContext()} onCopy={vi.fn()} />
+-+    );
+-+    expect(screen.getByText('src/lib/utils.ts')).toBeInTheDocument();
+-+  });
+-+
+-+  it('shows placeholder when no file path', () => {
+-+    render(
+-+      <ExplorerPanel filePath="" handlers={[]} context={makeContext()} onCopy={vi.fn()} placeholder="Type a path..." />
+-+    );
+-+    expect(screen.getByPlaceholderText('Type a path...')).toBeInTheDocument();
+-+  });
+-+
+-+  it('fires onCopy when copy button clicked', async () => {
+-+    const user = userEvent.setup();
+-+    const onCopy = vi.fn();
+-+
+-+    render(
+-+      <ExplorerPanel filePath="src/utils.ts" handlers={[]} context={makeContext()} onCopy={onCopy} />
+-+    );
+-+
+-+    await user.click(screen.getByRole('button', { name: /copy/i }));
+-+    expect(onCopy).toHaveBeenCalled();
+-+  });
+-+
+-+  it('enters edit mode on path click', async () => {
+-+    const user = userEvent.setup();
+-+
+-+    render(
+-+      <ExplorerPanel filePath="src/utils.ts" handlers={[]} context={makeContext()} onCopy={vi.fn()} />
+-+    );
+-+
+-+    await user.click(screen.getByText('src/utils.ts'));
+-+    const input = screen.getByRole('textbox');
+-+    expect(input).toHaveFocus();
+-+    expect(input).toHaveValue('src/utils.ts');
+-+  });
+-+
+-+  it('runs handler chain on Enter and stops at first true', async () => {
+-+    const user = userEvent.setup();
+-+    const handler1: BarHandler = vi.fn().mockResolvedValue(false);
+-+    const handler2: BarHandler = vi.fn().mockResolvedValue(true);
+-+    const handler3: BarHandler = vi.fn().mockResolvedValue(false);
+-+    const ctx = makeContext();
+-+
+-+    render(
+-+      <ExplorerPanel filePath="" handlers={[handler1, handler2, handler3]} context={ctx} onCopy={vi.fn()} placeholder="Type..." />
+-+    );
+-+
+-+    const input = screen.getByPlaceholderText('Type...');
+-+    await user.clear(input);
+-+    await user.type(input, 'src/foo.ts{enter}');
+-+
+-+    // Wait for async handlers
+-+    await vi.waitFor(() => {
+-+      expect(handler1).toHaveBeenCalledWith('src/foo.ts', ctx);
+-+      expect(handler2).toHaveBeenCalledWith('src/foo.ts', ctx);
+-+      expect(handler3).not.toHaveBeenCalled();
+-+    });
+-+  });
+-+
+-+  it('reverts on Escape', async () => {
+-+    const user = userEvent.setup();
+-+
+-+    render(
+-+      <ExplorerPanel filePath="src/utils.ts" handlers={[]} context={makeContext()} onCopy={vi.fn()} />
+-+    );
+-+
+-+    await user.click(screen.getByText('src/utils.ts'));
+-+    const input = screen.getByRole('textbox');
+-+    await user.clear(input);
+-+    await user.type(input, 'changed');
+-+    await user.keyboard('{Escape}');
+-+
+-+    // Should revert to display mode with original path
+-+    expect(screen.getByText('src/utils.ts')).toBeInTheDocument();
+-+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+-+  });
+-+
+-+  it('does nothing on Enter with empty input', async () => {
+-+    const user = userEvent.setup();
+-+    const handler: BarHandler = vi.fn().mockResolvedValue(true);
+-+
+-+    render(
+-+      <ExplorerPanel filePath="" handlers={[handler]} context={makeContext()} onCopy={vi.fn()} placeholder="Type..." />
+-+    );
+-+
+-+    const input = screen.getByPlaceholderText('Type...');
+-+    await user.type(input, '{enter}');
+-+    expect(handler).not.toHaveBeenCalled();
+-+  });
+-+
+-+  it('exposes focusInput() via ref', () => {
+-+    const ref = createRef<ExplorerPanelHandle>();
+-+
+-+    render(
+-+      <ExplorerPanel ref={ref} filePath="src/utils.ts" handlers={[]} context={makeContext()} onCopy={vi.fn()} />
+-+    );
+-+
+-+    expect(ref.current).toBeTruthy();
+-+    expect(typeof ref.current?.focusInput).toBe('function');
+-+
+-+    // Call focusInput — should enter edit mode
+-+    act(() => {
+-+      ref.current?.focusInput();
+-+    });
+-+
+-+    const input = screen.getByRole('textbox');
+-+    expect(input).toBeInTheDocument();
+-+  });
+-+});
+-diff --git a/test/unit/web/features/_platform/panel-layout/left-panel.test.tsx b/test/unit/web/features/_platform/panel-layout/left-panel.test.tsx
+-new file mode 100644
+-index 0000000..a5f16d9
+---- /dev/null
+-+++ b/test/unit/web/features/_platform/panel-layout/left-panel.test.tsx
+-@@ -0,0 +1,87 @@
+-+/**
+-+ * LeftPanel Component Tests
+-+ *
+-+ * Purpose: Verify the mode-switching sidebar renders the correct child
+-+ * based on active mode, and fires onModeChange via PanelHeader.
+-+ *
+-+ * Phase 1: Panel Infrastructure — Plan 043
+-+ */
+-+
+-+import { render, screen } from '@testing-library/react';
+-+import userEvent from '@testing-library/user-event';
+-+import { describe, expect, it, vi } from 'vitest';
+-+
+-+import { LeftPanel } from '@/features/_platform/panel-layout/components/left-panel';
+-+
+-+const TreeIcon = () => <span>T</span>;
+-+const ChangesIcon = () => <span>C</span>;
+-+
+-+const modes = [
+-+  { key: 'tree' as const, icon: <TreeIcon />, label: 'Tree view' },
+-+  { key: 'changes' as const, icon: <ChangesIcon />, label: 'Changes view' },
+-+];
+-+
+-+describe('LeftPanel', () => {
+-+  it('renders tree child when mode is tree', () => {
+-+    render(
+-+      <LeftPanel mode="tree" onModeChange={vi.fn()} modes={modes} onRefresh={vi.fn()}>
+-+        {{ tree: <div>Tree Content</div>, changes: <div>Changes Content</div> }}
+-+      </LeftPanel>
+-+    );
+-+
+-+    expect(screen.getByText('Tree Content')).toBeInTheDocument();
+-+    expect(screen.queryByText('Changes Content')).not.toBeInTheDocument();
+-+  });
+-+
+-+  it('renders changes child when mode is changes', () => {
+-+    render(
+-+      <LeftPanel mode="changes" onModeChange={vi.fn()} modes={modes} onRefresh={vi.fn()}>
+-+        {{ tree: <div>Tree Content</div>, changes: <div>Changes Content</div> }}
+-+      </LeftPanel>
+-+    );
+-+
+-+    expect(screen.getByText('Changes Content')).toBeInTheDocument();
+-+    expect(screen.queryByText('Tree Content')).not.toBeInTheDocument();
+-+  });
+-+
+-+  it('fires onModeChange when mode button clicked', async () => {
+-+    const user = userEvent.setup();
+-+    const onModeChange = vi.fn();
+-+
+-+    render(
+-+      <LeftPanel mode="tree" onModeChange={onModeChange} modes={modes} onRefresh={vi.fn()}>
+-+        {{ tree: <div>Tree</div>, changes: <div>Changes</div> }}
+-+      </LeftPanel>
+-+    );
+-+
+-+    await user.click(screen.getByRole('button', { name: 'Changes view' }));
+-+    expect(onModeChange).toHaveBeenCalledWith('changes');
+-+  });
+-+
+-+  it('renders refresh action button', async () => {
+-+    const user = userEvent.setup();
+-+    const onRefresh = vi.fn();
+-+
+-+    render(
+-+      <LeftPanel mode="tree" onModeChange={vi.fn()} modes={modes} onRefresh={onRefresh}>
+-+        {{ tree: <div>Tree</div>, changes: <div>Changes</div> }}
+-+      </LeftPanel>
+-+    );
+-+
+-+    await user.click(screen.getByRole('button', { name: /refresh/i }));
+-+    expect(onRefresh).toHaveBeenCalled();
+-+  });
+-+
+-+  it('renders no mode buttons when single mode', () => {
+-+    const singleMode = [{ key: 'tree' as const, icon: <TreeIcon />, label: 'Tree view' }];
+-+
+-+    render(
+-+      <LeftPanel mode="tree" onModeChange={vi.fn()} modes={singleMode} onRefresh={vi.fn()}>
+-+        {{ tree: <div>Tree</div> }}
+-+      </LeftPanel>
+-+    );
+-+
+-+    // Title visible but no mode toggle (single mode = no point switching)
+-+    expect(screen.queryByRole('button', { name: 'Tree view' })).not.toBeInTheDocument();
+-+  });
+-+});
+-diff --git a/docs/plans/043-panel-layout/panel-layout-plan.md b/docs/plans/043-panel-layout/panel-layout-plan.md
+-new file mode 100644
+-index 0000000..852b429
+---- /dev/null
+-+++ b/docs/plans/043-panel-layout/panel-layout-plan.md
+-@@ -0,0 +1,270 @@
+-+# Panel Layout System Implementation Plan
+-+
+-+**Plan Version**: 1.0.0
+-+**Created**: 2026-02-24
+-+**Spec**: [panel-layout-spec.md](./panel-layout-spec.md)
+-+**Status**: DRAFT
+-+
+-+**Workshops**:
+-+- [file-path-utility-bar.md](workshops/file-path-utility-bar.md) — ExplorerPanel design, handler chain
+-+- [left-panel-view-modes.md](workshops/left-panel-view-modes.md) — LeftPanel modes, ChangesView, git services
+-+
+-+---
+-+
+-+## Summary
+-+
+-+The browser page composes its layout with raw `div+flex` — no reusable panel components exist. This plan creates a three-panel layout system (ExplorerPanel + LeftPanel + MainPanel) in the `_platform/panel-layout` infrastructure domain, adds a git changes view with `git status --porcelain` parsing to the `file-browser` domain, and wires everything into BrowserClient. The result: users can navigate by typing paths, toggle between tree and changes views, and all state is deep-linkable.
+-+
+-+---
+-+
+-+## Target Domains
+-+
+-+| Domain | Status | Relationship | Role |
+-+|--------|--------|-------------|------|
+-+| _platform/panel-layout | existing (domain doc created, no code yet) | **modify** | Create PanelShell, ExplorerPanel, LeftPanel, MainPanel, PanelHeader, types |
+-+| file-browser | existing | **modify** | ChangesView, git services, refactor FileTree/FileViewerPanel, wire panels |
+-+| _platform/workspace-url | existing | **consume** | nuqs for `panel` URL param |
+-+| _platform/notifications | existing | **consume** | `toast()` for mode switch + path errors |
+-+
+-+---
+-+
+-+## Domain Manifest
+-+
+-+| File | Domain | Classification | Rationale |
+-+|------|--------|---------------|-----------|
+-+| `apps/web/src/components/ui/resizable.tsx` | panel-layout | contract | shadcn resizable wrapper (react-resizable-panels) |
+-+| `apps/web/src/features/_platform/panel-layout/types.ts` | panel-layout | contract | PanelMode, BarHandler, BarContext exported types |
+-+| `apps/web/src/features/_platform/panel-layout/components/panel-shell.tsx` | panel-layout | contract | Root compositor |
+-+| `apps/web/src/features/_platform/panel-layout/components/explorer-panel.tsx` | panel-layout | contract | Top utility bar |
+-+| `apps/web/src/features/_platform/panel-layout/components/left-panel.tsx` | panel-layout | contract | Mode-switching sidebar |
+-+| `apps/web/src/features/_platform/panel-layout/components/main-panel.tsx` | panel-layout | contract | Content area wrapper |
+-+| `apps/web/src/features/_platform/panel-layout/components/panel-header.tsx` | panel-layout | contract | Shared header component |
+-+| `apps/web/src/features/_platform/panel-layout/index.ts` | panel-layout | contract | Barrel export |
+-+| `apps/web/src/features/041-file-browser/services/working-changes.ts` | file-browser | internal | git status --porcelain parser |
+-+| `apps/web/src/features/041-file-browser/services/recent-files.ts` | file-browser | internal | git log --name-only parser |
+-+| `apps/web/src/features/041-file-browser/components/changes-view.tsx` | file-browser | internal | Changes list UI |
+-+| `apps/web/app/actions/file-actions.ts` | file-browser | cross-domain | Add fetchWorkingChanges, fetchRecentFiles, fileExists server actions |
+-+| `apps/web/src/features/041-file-browser/params/file-browser.params.ts` | file-browser | internal | Replace `changed` with `panel` param |
+-+| `apps/web/src/features/041-file-browser/components/file-tree.tsx` | file-browser | internal | Remove header (extracted to PanelHeader) |
+-+| `apps/web/src/features/041-file-browser/components/file-viewer-panel.tsx` | file-browser | internal | Remove path row (moved to ExplorerPanel) |
+-+| `apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx` | file-browser | internal | Compose PanelShell, wire all panels |
+-+
+-+---
+-+
+-+## Key Findings
+-+
+-+| # | Impact | Finding | Action |
+-+|---|--------|---------|--------|
+-+| 01 | High | Ctrl+P handler will conflict with CodeMirror when editor is focused — CodeMirror captures keyboard events in its view layer | Check `document.activeElement` is not inside `.cm-editor` before capturing Ctrl+P. Phase 3 task. |
+-+| 02 | High | No `_platform` feature folder exists yet — this creates the first infrastructure feature folder, setting the precedent | Create `features/_platform/panel-layout/` in Phase 1. Follow existing barrel export pattern from 041-file-browser. |
+-+| 03 | Medium | `git status --porcelain` shows submodules as `MM` which would break file reads if treated as regular files | Filter submodule lines in porcelain parser. Test with real repo output. Phase 2 task. |
+-+| 04 | Medium | FileTree header (`"FILES" + refresh`) is tested via `screen.getByRole('button', { name: /refresh file tree/i })` — extraction will break this assertion | Update test to find refresh button in PanelHeader context. Phase 3 task. |
+-+| 05 | Medium | `?changed=true` param is defined in `fileBrowserParams` but only consumed by FileTree's `showChangedOnly` prop — removal is clean | Replace with `panel` param. Update any test that references `changed`. Phase 3 task. |
+-+| 06 | Low | shadcn `Tabs` component exists and could be used for mode switching buttons in PanelHeader. No ToggleGroup installed. | Use simple icon-only buttons with tooltips (matching existing icon button pattern). Compact enough for narrow panel at min-width. |
+-+| DYK-01 | High | FileTree unmounts on mode switch (`children[mode]` keyed lookup). Remount triggers N API calls to re-expand ancestor directories. | Make `handleExpand` cache-aware: skip fetch when `childEntries[dirPath]` already exists. One-line fix in BrowserClient. Phase 3. |
+-+| DYK-02 | Medium | `react-resizable-panels` loses panel sizes on page navigation/refresh without persistence. | Add `autoSaveId="browser-panels"` prop to ResizablePanelGroup — library auto-persists to localStorage. Phase 1 T009. |
+-+| DYK-03 | Medium | ExplorerPanel Enter → fileExists server round-trip has no loading indicator. User thinks Enter didn't register. | ASCII terminal spinner (`\| / — \\` cycling 80ms) replaces copy button while handler chain processes. Phase 1 T005/T006. |
+-+| DYK-04 | Medium | Ctrl+P must be on `document.addEventListener` to beat browser print dialog. Component-level handlers fire too late. | ExplorerPanel exposes `focusInput()` via `useImperativeHandle` + `forwardRef`. Phase 3 calls it from document-level listener. |
+-+| DYK-05 | Low | PanelHeader mode buttons with icon+label crowd the 200-256px left panel header. Labels won't fit at min-width (15%). | Icon-only mode buttons with tooltips. Same pattern as existing refresh button (icon + aria-label). |
+-+
+-+---
+-+
+-+## Testing Philosophy
+-+
+-+**Full TDD** — same approach as Plan 041 Phase 4.
+-+
+-+- Panel components: Render tests, prop callbacks, mode switching
+-+- Git services: Unit tests for porcelain parser, recent files parser, dedup logic
+-+- Handler chain: Unit tests for file path handler (normalize, strip prefix, exists check)
+-+- Integration: Updated tests for FileTree (no header) and FileViewerPanel (no path row)
+-+- Mocking: `vi.mock` for git commands (execFile) — same justified pattern as existing tests
+-+
+-+---
+-+
+-+## Phase 1: Panel Infrastructure
+-+
+-+**Objective**: Create the `_platform/panel-layout` feature folder with all structural components and types.
+-+**Domain**: _platform/panel-layout
+-+**Delivers**:
+-+- PanelShell, ExplorerPanel, LeftPanel, MainPanel, PanelHeader components
+-+- BarHandler, BarContext, PanelMode types
+-+- Feature folder scaffold + barrel export
+-+- Unit tests for all components
+-+**Depends on**: None
+-+**Key risks**: First `_platform` feature folder — sets naming/structure precedent.
+-+
+-+| # | Task | Domain | CS | Success Criteria | Notes |
+-+|---|------|--------|----|-----------------|-------|
+-+| 1.1 | Create `_platform/panel-layout` feature folder scaffold: `types.ts`, `index.ts`, `components/` | panel-layout | 1 | Directory exists, barrel exports compile | Per finding 02 |
+-+| 1.2 | Install `react-resizable-panels` (shadcn resizable component) | panel-layout | 1 | `npx shadcn@latest add resizable` installs component + dependency. `ResizablePanel`, `ResizablePanelGroup`, `ResizableHandle` available. | shadcn wraps react-resizable-panels (same lib) |
+-+| 1.3 | Write tests for PanelHeader — renders title, mode buttons, action buttons, fires callbacks | panel-layout | 1 | Tests: title text, button click fires onModeChange, active button highlighted |  |
+-+| 1.4 | Implement PanelHeader component | panel-layout | 1 | All 1.3 tests pass. Accepts title, mode buttons config, action buttons config. | Follow ModeButton pattern from FileViewerPanel (per finding 06) |
+-+| 1.5 | Write tests for ExplorerPanel — renders path, copy button, edit mode, Enter navigates, Escape reverts, handler chain dispatch | panel-layout | 2 | Tests: displays path, copy fires onCopy, click enters edit, Enter calls handler chain, Escape reverts, empty input no-op |  |
+-+| 1.6 | Implement ExplorerPanel component | panel-layout | 2 | All 1.5 tests pass. Input with display/edit modes. Handler chain runs in sequence. | Per workshop: file-path-utility-bar.md |
+-+| 1.7 | Write tests for LeftPanel — renders correct child for mode, mode switch fires callback | panel-layout | 1 | Tests: mode=tree renders children[0], mode=changes renders children[1], mode button fires onModeChange |  |
+-+| 1.8 | Implement LeftPanel component — mode header + content slot | panel-layout | 1 | All 1.7 tests pass. Uses PanelHeader for mode buttons. Renders children by mode. |  |
+-+| 1.9 | Implement MainPanel + PanelShell — resizable layout wrappers | panel-layout | 2 | PanelShell uses `ResizablePanelGroup` with horizontal direction. LeftPanel in `ResizablePanel` (defaultSize=20, minSize=15, maxSize=40). `ResizableHandle` between panels. MainPanel in `ResizablePanel` (flex-1). ExplorerPanel above the resizable group (not resizable). | Uses shadcn resizable (react-resizable-panels) |
+-+
+-+### Acceptance Criteria
+-+- [ ] AC-26: PanelShell composes ExplorerPanel + LeftPanel + MainPanel in flex layout
+-+- [ ] AC-27: PanelHeader provides consistent header with title + mode buttons
+-+- [ ] AC-28: MainPanel wraps content with flex-1 overflow
+-+- [ ] AC-10: ExplorerPanel handler chain is composable (extensibility point)
+-+
+-+### Risks
+-+| Risk | Likelihood | Impact | Mitigation |
+-+|------|------------|--------|------------|
+-+| PanelShell height calculation breaks when ExplorerPanel added | Low | Medium | Keep h-[calc(100vh-4rem)] on root, ExplorerPanel is shrink-0 |
+-+| react-resizable-panels adds bundle weight | Low | Low | ~5KB gzip, lazy-loaded with PanelShell. Same lib shadcn/ui uses. |
+-+| Resize handle hard to grab on touch devices | Low | Low | Set handle width to 4px with hover expand to 8px. Touch targets fine at desktop (not targeting mobile). |
+-+
+-+---
+-+
+-+## Phase 2: Git Services + Changes View
+-+
+-+**Objective**: Add `git status --porcelain` parser, recent files service, and the ChangesView component.
+-+**Domain**: file-browser
+-+**Delivers**:
+-+- `getWorkingChanges` service (porcelain parser)
+-+- `getRecentFiles` service (git log parser)
+-+- `fetchWorkingChanges` and `fetchRecentFiles` server actions
+-+- `fileExists` server action (for ExplorerPanel handler)
+-+- ChangesView component with status badges + recent section
+-+- Unit tests for parsers and component
+-+**Depends on**: None (independent of Phase 1)
+-+**Key risks**: git porcelain edge cases (renames, submodules, merge conflicts).
+-+
+-+| # | Task | Domain | CS | Success Criteria | Notes |
+-+|---|------|--------|----|-----------------|-------|
+-+| 2.1 | Write tests for `getWorkingChanges` — parse porcelain output for M, A, D, ??, R statuses; staged vs unstaged; handle empty output, submodules | file-browser | 2 | Tests: parse each status code, classify staged/unstaged/untracked, handle rename format, filter submodules, empty repo | Per finding 03 |
+-+| 2.2 | Implement `getWorkingChanges` service | file-browser | 2 | All 2.1 tests pass. Uses `git status --porcelain=v1`. Returns `ChangedFile[]`. | Single git command, machine-parseable output |
+-+| 2.3 | Write tests for `getRecentFiles` — deduplicated list of recent files from git log | file-browser | 1 | Tests: returns unique paths, most recent first, respects limit, handles empty repo |  |
+-+| 2.4 | Implement `getRecentFiles` service | file-browser | 1 | All 2.3 tests pass. Uses `git log --name-only --pretty=format: -n N`. |  |
+-+| 2.5 | Add server actions: `fetchWorkingChanges`, `fetchRecentFiles`, `fileExists` | file-browser | 1 | Server actions wrap service functions. `fileExists` does lightweight stat check. | Follow dynamic import pattern from existing file-actions.ts |
+-+| 2.6 | Write tests for ChangesView — renders working changes with badges, recent section, dedup, empty state, selection | file-browser | 2 | Tests: renders M/A/D/?/R badges, dedup recent vs working, "clean" state, click fires onSelect, selected file highlighted |  |
+-+| 2.7 | Implement ChangesView component | file-browser | 2 | All 2.6 tests pass. Two sections, status badges, context menu, selection indicator. | Per workshop: left-panel-view-modes.md |
+-+
+-+### Acceptance Criteria
+-+- [ ] AC-16: Changes view shows Working Changes + Recent sections
+-+- [ ] AC-17: Status badges (M amber, A green, D red, ? muted, R blue)
+-+- [ ] AC-18: Flat path display with muted directory, bold filename
+-+- [ ] AC-19: Recent deduplicated against working changes
+-+- [ ] AC-20: Clean working tree shows "Working tree clean"
+-+- [ ] AC-21: Click selects file with ▶ indicator
+-+- [ ] AC-22: Context menu matches tree view (Copy Path, Content, Download)
+-+- [ ] AC-6: ExplorerPanel verifies file exists before navigating
+-+
+-+### Risks
+-+| Risk | Likelihood | Impact | Mitigation |
+-+|------|------------|--------|------------|
+-+| Porcelain parsing fails on renames with spaces | Medium | Low | Handle `R  old -> new` format; use new path |
+-+| Submodule lines break file reads | Medium | Medium | Filter lines where both X and Y are non-space (submodule indicator) |
+-+
+-+---
+-+
+-+## Phase 3: Wire Into BrowserClient + Migration
+-+
+-+**Objective**: Compose panel components into BrowserClient, refactor FileTree and FileViewerPanel, migrate URL params.
+-+**Domain**: file-browser (primary), panel-layout (consume)
+-+**Delivers**:
+-+- BrowserClient uses PanelShell layout
+-+- ExplorerPanel wired with file path handler + Ctrl+P shortcut
+-+- LeftPanel switches between FileTree and ChangesView
+-+- FileTree header extracted (renders as pure scrollable list)
+-+- FileViewerPanel path row removed (single-row toolbar)
+-+- `?changed` param replaced with `?panel`
+-+- All existing tests updated
+-+**Depends on**: Phase 1, Phase 2
+-+**Key risks**: Refactoring two established components with existing tests.
+-+
+-+| # | Task | Domain | CS | Success Criteria | Notes |
+-+|---|------|--------|----|-----------------|-------|
+-+| 3.1 | Update `fileBrowserParams` — remove `changed`, add `panel` | file-browser | 1 | Param defined. `?panel=tree` is default. Old `?changed=true` silently ignored. | Per finding 05 |
+-+| 3.2 | Remove FileTree header — FileTree becomes pure scrollable list | file-browser | 1 | FileTree renders entries only, no sticky header div. Existing tests updated. | Per finding 04 |
+-+| 3.3 | Remove FileViewerPanel path row — toolbar is single row only | file-browser | 1 | Path row div removed. `filePath` prop stays (used by DiffViewer). Existing tests updated. |  |
+-+| 3.4 | Implement file path BarHandler — normalize, strip worktree prefix, check exists, navigate | file-browser | 2 | Handler: strips `./`, `/`, worktree prefix. Calls fileExists. Returns true on success. Tests: normalize cases, prefix stripping, not-found returns false. |  |
+-+| 3.5 | Wire PanelShell into BrowserClient — ExplorerPanel + LeftPanel + MainPanel | file-browser | 3 | Layout renders: ExplorerPanel at top, FileTree/ChangesView in LeftPanel, FileViewerPanel in MainPanel. URL state drives panel mode. Mode switch shows toast. | Core integration task |
+-+| 3.6 | Add Ctrl+P / Cmd+P keyboard shortcut — focuses ExplorerPanel input | file-browser | 1 | Shortcut works. Suppresses print dialog. Does NOT fire when CodeMirror is focused. | Per finding 01: check activeElement not in .cm-editor |
+-+| 3.7 | Wire ChangesView data — lazy fetch on first switch, refresh button | file-browser | 2 | Changes data fetched on panel=changes. Cached in state. Refresh re-fetches. Non-git hides changes button. |  |
+-+| 3.8 | Verify cross-mode selection sync | file-browser | 1 | Select in changes → switch to tree → tree expands to file. Select in tree → switch to changes → file highlighted if present. |  |
+-+| 3.9 | Update all affected tests — FileTree, FileViewerPanel, params | file-browser | 2 | All existing tests pass with structural changes. New assertions for panel composition. `just fft` passes. | Per finding 04, 05 |
+-+| 3.10 | Update domain docs — panel-layout domain.md history + file-browser domain.md composition | panel-layout, file-browser | 1 | Both domain.md files updated with new components, contracts, history entries. |  |
+-+
+-+### Acceptance Criteria
+-+- [ ] AC-1: Explorer bar always visible above two-panel split
+-+- [ ] AC-2: Path displayed in monospace with copy button
+-+- [ ] AC-3: Placeholder shown when no file selected
+-+- [ ] AC-4: Click path enters edit mode, select all
+-+- [ ] AC-5: Enter navigates to typed path
+-+- [ ] AC-7: Absolute path auto-strips worktree prefix
+-+- [ ] AC-8: Escape/blur reverts without navigating
+-+- [ ] AC-9: Ctrl+P focuses explorer bar
+-+- [ ] AC-11: Mode toggle buttons in left panel header
+-+- [ ] AC-12: Mode switch shows toast
+-+- [ ] AC-13: `?panel=tree|changes` in URL
+-+- [ ] AC-14: `?changed=true` gracefully ignored
+-+- [ ] AC-15: Changes button hidden in non-git
+-+- [ ] AC-23: Cross-mode sync: changes → tree expands
+-+- [ ] AC-24: Cross-mode sync: tree → changes highlights
+-+- [ ] AC-25: Selected file persists in URL across modes
+-+- [ ] AC-29: FileTree has no header
+-+- [ ] AC-30: FileViewerPanel has no path row
+-+- [ ] AC-31: Toolbar is single row: Save, Edit, Preview, Diff, Refresh
+-+- [ ] AC-32: Existing tests updated and passing
+-+- [ ] AC-33: `just fft` passes
+-+
+-+### Risks
+-+| Risk | Likelihood | Impact | Mitigation |
+-+|------|------------|--------|------------|
+-+| BrowserClient grows too large with panel wiring | Medium | Low | Panel components handle their own layout; BrowserClient just passes props/callbacks |
+-+| Ctrl+P conflicts with CodeMirror in edit mode | Medium | Medium | Check activeElement before capturing; CodeMirror doesn't use Ctrl+P by default |
+-+
+-+---
+-+
+-+## Phase Completion Checklist
+-+
+-+- [x] Phase 1: Panel Infrastructure — COMPLETE (19 tests, 5 components, types, barrel)
+-+- [ ] Phase 2: Git Services + Changes View — NOT STARTED
+-+- [ ] Phase 3: Wire Into BrowserClient + Migration — NOT STARTED
+-+
+-+---
+-+
+-+## Complexity Tracking
+-+
+-+| Component | CS | Breakdown | Justification |
+-+|-----------|-----|-----------|---------------|
+-+| Panel components (Phase 1) | 2 | S=1,I=0,D=0,N=1,F=0,T=0 | New domain folder, presentational components |
+-+| Git services (Phase 2) | 2 | S=1,I=0,D=0,N=1,F=0,T=0 | New parsers, known git commands |
+-+| ChangesView (Phase 2) | 2 | S=1,I=0,D=0,N=0,F=0,T=1 | New component, follows existing patterns |
+-+| BrowserClient wiring (Phase 3) | 3 | S=2,I=0,D=0,N=0,F=0,T=1 | Touches many files, refactors two components |
+-+| Overall plan | 3 | S=2,I=0,D=0,N=0,F=0,T=1 | Well-specified via workshops |
+-+
+-+---
+-+
+-+## ADR Alignment
+-+
+-+| ADR | Status | Relevance | Notes |
+-+|-----|--------|-----------|-------|
+-+| ADR-0004: DI Container | Aligned | Phase 2 git services use DI-compatible patterns | Services are pure functions, not DI-registered (no IWorkingChangesService needed — they're thin wrappers around execFile) |
+-+| ADR-0007: SSE Single Channel | Aligned | Notifications domain consumed for toast() | Toast on mode switch + path errors per ADR-0007 notification-fetch pattern |
+-+| ADR-0009: Module Registration | Aligned (future) | Panel components are React components, not DI services | No module registration needed — components are imported directly |
+-+| ADR-0010: Central Notifications | Deferred | Plan explicitly defers SSE live-update of file changes | Manual refresh only; future plan will wire ChangesView refresh into CentralEventNotifier |
+-+| ADR-0011: Domain Concepts | Aligned | Git services are simple utility functions (2-3 lines of git + parsing) | Not elevated to full interface+fake — proportional to complexity |
+-+
+-+---
+-+
+-+## Deviation Ledger
+-+
+-+| Deviation | Justification | Risk |
+-+|-----------|--------------|------|
+-+| Do NOT remove or modify unrecognized code/files | Parallel work may be in progress on other plans (e.g., Plan 041 Phase 5). Only touch files explicitly listed in the Domain Manifest. If you encounter unfamiliar changes, leave them alone. | Low |
+-+| `vi.mock` for `execFile` in git service tests | Git services call `execFile` to spawn child processes — there is no injectable DI interface for this (it's a Node.js built-in). Creating a full `IExecService` abstraction would be over-engineering for simple git CLI calls. Same justified pattern as Plan 041's `changed-files.test.ts` and Plan 042's `vi.mock('sonner')`. Constitution R-TEST-007 targets domain service mocks, not child process stubs. | Low — contained to test files, real git commands tested via manual verification |
+-+| `_platform` feature folder lives in `apps/web/src/features/` not `packages/shared/` | Panel layout components are React/Next.js-specific (JSX, hooks, Tailwind CSS). They cannot live in `@chainglass/shared` (pure TypeScript, no React dependency). The `_platform/` prefix signals infrastructure-for-web, distinguishing from plan-scoped feature folders (e.g., `041-file-browser/`). | Low — precedent is clear, follows existing feature folder pattern |
+-+| `file-actions.ts` classified as cross-domain (server actions) | Server actions are Next.js-specific — they cannot move to `@chainglass/shared`. The "cross-domain" classification means they bridge the file-browser domain's services with Next.js server action runtime, not that they're shared across packages. | Low — web-only by nature |
+-+
+-+---
+-+
+-+## Change Footnotes Ledger
+-+
+-+| ID | Created | Summary | Domain(s) | Status | Source |
+-+|----|---------|---------|-----------|--------|--------|
+-diff --git a/docs/plans/043-panel-layout/panel-layout-spec.md b/docs/plans/043-panel-layout/panel-layout-spec.md
+-new file mode 100644
+-index 0000000..adf3849
+---- /dev/null
+-+++ b/docs/plans/043-panel-layout/panel-layout-spec.md
+-@@ -0,0 +1,170 @@
+-+# Panel Layout System
+-+
+-+📚 This specification incorporates findings from [research-dossier.md](./research-dossier.md)
+-+
+-+---
+-+
+-+## Research Context
+-+
+-+The file browser page currently composes its layout with raw `div+flex+Tailwind` — a fixed-width left panel (FileTree) and a flex-1 right panel (FileViewerPanel). The same pattern appears in the agent chat page. No reusable layout components exist. The FileTree owns its own sticky header, and the FileViewerPanel embeds a file path row in its toolbar. Two workshops have designed the replacement: an ExplorerPanel (composable path/command bar) and a LeftPanel with mode switching (tree vs changes view). A `_platform/panel-layout` domain has been extracted to own the structural shell. Two new git services are needed for the changes view: `git status --porcelain` parsing and `git log --name-only` for recent files.
+-+
+-+---
+-+
+-+## Summary
+-+
+-+**WHAT**: A three-panel layout system for the browser page — ExplorerPanel (top utility bar with path navigation), LeftPanel (mode-switching sidebar showing either the file tree or a changes view), and MainPanel (content area for the file viewer). The ExplorerPanel shows the current file path and lets users type/paste a path to navigate directly. The LeftPanel switches between a file tree view and a git changes view (working changes + recent activity). The system is built as reusable infrastructure so future workspace pages can adopt the same layout.
+-+
+-+**WHY**: The browser page needs richer navigation beyond a file tree — users want to see what changed at a glance, quickly jump to files by path, and have these interactions deep-linkable. The current layout is hardcoded and duplicated across pages. A composable panel system reduces duplication, ensures consistency, and makes it trivial to add new left panel modes (search, bookmarks) or adopt the layout on other workspace pages (agent chat, workflows).
+-+
+-+---
+-+
+-+## Goals
+-+
+-+- Users can see the current file path at all times and navigate to any file by typing or pasting a path (ExplorerPanel)
+-+- Users can switch between a full directory tree and a focused changes view in the left panel
+-+- The changes view shows working changes (staged, unstaged, untracked) with status badges and a "recent activity" section of the last 20 committed files
+-+- Selecting a file in any left panel mode opens it in the editor and syncs across modes (click in changes → tree auto-expands to that file when switching back)
+-+- The active left panel mode is preserved in the URL (`?panel=tree|changes`) for deep linking
+-+- The panel layout components are domain-owned infrastructure that any workspace page can compose
+-+- The `Ctrl+P` / `Cmd+P` keyboard shortcut focuses the explorer bar (VS Code convention)
+-+
+-+---
+-+
+-+## Non-Goals
+-+
+-+- SSE/live-update of changed files (manual refresh only; future central notification system will handle this)
+-+- Autocomplete/suggestions in the explorer bar (type and Enter only; future enhancement)
+-+- Search mode, bookmarks mode, or recent files mode in the left panel (extensible union type is ready, but only tree + changes built now)
+-+- Responsive phone/tablet layout changes (the panel system works at desktop widths; phone layout is separate concern)
+-+- Agent chat or workgraph page migration to panel layout (future consumers, not this plan)
+-+- Go-to-line (`:123`) or command palette (`>`) in the explorer bar (handler chain is extensible but only file path handler ships)
+-+
+-+---
+-+
+-+## Target Domains
+-+
+-+| Domain | Status | Relationship | Role in This Feature |
+-+|--------|--------|-------------|---------------------|
+-+| _platform/panel-layout | existing | **modify** | Create all panel components (PanelShell, ExplorerPanel, LeftPanel, MainPanel, PanelHeader) and types (BarHandler, BarContext, PanelMode) |
+-+| file-browser | existing | **modify** | Wire panels into BrowserClient, create ChangesView, add git services, extract FileTree header, remove path row from FileViewerPanel, replace `?changed` with `?panel` |
+-+| _platform/workspace-url | existing | **consume** | Use nuqs for `panel` URL param (no changes to domain) |
+-+| _platform/notifications | existing | **consume** | Use `toast()` for mode switch feedback and path errors (no changes to domain) |
+-+
+-+---
+-+
+-+## Complexity
+-+
+-+- **Score**: CS-3 (medium)
+-+- **Breakdown**: S=2, I=0, D=0, N=0, F=0, T=1
+-+  - S=2: Touches multiple files across two domains (panel-layout new components + file-browser refactoring)
+-+  - I=0: All internal — git CLI is already used extensively
+-+  - D=0: No schema/migration changes (URL param swap is additive)
+-+  - N=0: Well-specified via two workshops + domain doc + research dossier
+-+  - F=0: No new security/perf concerns beyond existing patterns
+-+  - T=1: Integration tests needed for handler chain + git porcelain parser
+-+- **Confidence**: 0.90
+-+- **Assumptions**: Workshops are authoritative; cross-mode sync works via shared selectedFile state; git status porcelain output is stable
+-+- **Dependencies**: None external — all git commands are standard
+-+- **Risks**: FileTree header extraction may break 6 existing tests; `?changed` param removal affects existing bookmarks (graceful degradation)
+-+- **Phases**: (1) Panel infrastructure + ExplorerPanel, (2) LeftPanel + ChangesView + git services, (3) Wire into BrowserClient + migration
+-+
+-+---
+-+
+-+## Acceptance Criteria
+-+
+-+### ExplorerPanel
+-+
+-+1. A full-width utility bar appears above the two-panel split, always visible regardless of whether a file is selected.
+-+2. When a file is selected, the bar displays the relative file path in monospace font with a copy button on the left.
+-+3. When no file is selected, the bar shows placeholder text "Type or paste a file path...".
+-+4. Clicking the path text enters edit mode — the text becomes an editable input with all text selected.
+-+5. Pressing Enter in the input navigates to the typed path: the file loads in the editor, the tree expands to it, and the URL updates.
+-+6. The explorer bar verifies the file exists on the server before navigating. If not found, a toast error appears and the input reverts.
+-+7. Pasting an absolute path that starts with the worktree prefix auto-strips the prefix and navigates to the relative path.
+-+8. Pressing Escape or clicking away from the input reverts to the current file path without navigating.
+-+9. `Ctrl+P` / `Cmd+P` focuses the explorer bar and selects all text (suppresses browser print dialog).
+-+10. The explorer bar uses a composable handler chain — the file path handler runs first; if it doesn't match, future handlers can try (extensibility point, not visible to users yet).
+-+
+-+### LeftPanel Mode Switching
+-+
+-+11. The left panel header contains mode toggle buttons: a tree icon (file tree mode) and a diff icon (changes mode).
+-+12. Clicking a mode button switches the left panel content and shows a brief toast ("Tree view" / "Changes view").
+-+13. The active mode is reflected in the URL as `?panel=tree` or `?panel=changes`. Bookmarking and reopening restores the mode.
+-+14. The old `?changed=true` URL parameter is removed. Existing bookmarks with `?changed=true` gracefully degrade (param is ignored, tree mode shown).
+-+15. In non-git workspaces, the changes mode button is hidden (not disabled). Only tree mode is available.
+-+
+-+### Changes View
+-+
+-+16. The changes view shows two sections: "Working Changes" at top, "Recent (committed)" below a separator.
+-+17. Working Changes lists files from `git status` with status badges: `M` (modified, amber), `A` (added, green), `D` (deleted, red), `?` (untracked, muted), `R` (renamed, blue).
+-+18. Files are displayed as flat paths with the directory prefix muted and the filename emphasized.
+-+19. Recent section shows the last 20 unique files changed across recent commits, deduplicated against Working Changes (no file appears in both sections).
+-+20. When working tree is clean, the Working Changes section shows "Working tree clean" with a green check.
+-+21. Clicking a file in either section selects it — the file loads in the editor with the orange ▶ indicator, same as tree view.
+-+22. The changes view has the same context menu as tree view files (Copy Full Path, Copy Relative Path, Copy Content, Download).
+-+
+-+### Cross-Mode Sync
+-+
+-+23. Selecting a file in changes view, then switching to tree view, auto-expands the tree to that file and scrolls it into view.
+-+24. Selecting a file in tree view, then switching to changes view, highlights that file if it appears in either section.
+-+25. The selected file persists in the URL (`?file=...`) and is shared across both modes.
+-+
+-+### Panel Infrastructure
+-+
+-+26. A `PanelShell` component composes ExplorerPanel + LeftPanel + MainPanel in a flex layout.
+-+27. A `PanelHeader` component provides a consistent header with title, mode buttons, and action buttons — used by the LeftPanel.
+-+28. The `MainPanel` wraps content with flex-1 overflow handling.
+-+29. FileTree no longer renders its own header — the header is provided by PanelHeader via LeftPanel.
+-+30. FileViewerPanel no longer renders the path row — path display is provided by ExplorerPanel.
+-+
+-+### Refactoring
+-+
+-+31. The file path row is removed from FileViewerPanel. The toolbar simplifies to a single row: Save, Edit, Preview, Diff, Refresh.
+-+32. The FileTree sticky header ("FILES" + refresh) is removed from FileTree. FileTree becomes a pure scrollable list.
+-+33. Existing tests for FileTree and FileViewerPanel are updated to reflect the structural changes.
+-+
+-+---
+-+
+-+## Risks & Assumptions
+-+
+-+- **Risk**: Extracting the FileTree header breaks 6 existing tests. **Mitigation**: Tests are straightforward — update selectors to match new PanelHeader placement.
+-+- **Risk**: `git status --porcelain` output has edge cases (merge conflicts, submodules, renamed files with spaces). **Mitigation**: Parse conservatively; test with real repos; skip lines we can't parse rather than crashing.
+-+- **Risk**: `Ctrl+P` shortcut conflicts with browser print dialog. **Mitigation**: `e.preventDefault()` in the keydown handler. Only active when browser page route is mounted.
+-+- **Risk**: ExplorerPanel input captures focus when CodeMirror should have it. **Mitigation**: `Ctrl+P` handler checks if `e.target` is inside `.cm-editor` before capturing.
+-+- **Assumption**: Cross-mode file selection sync works via shared `selectedFile` URL state — FileTree's existing auto-expand logic handles the tree expansion automatically.
+-+- **Assumption**: The panel layout system is scoped to the browser page for now. Other pages can adopt it later without changes to the panel components.
+-+- **Assumption**: The `?changed=true` boolean param can be removed without migration — it's a URL bookmark concern, not persisted data.
+-+
+-+---
+-+
+-+## Open Questions
+-+
+-+All questions resolved via workshops — no open questions remain.
+-+
+-+---
+-+
+-+## Workshop Opportunities
+-+
+-+All workshops have been completed:
+-+
+-+| Topic | Type | Status | Document |
+-+|-------|------|--------|----------|
+-+| Explorer bar (path utility bar) | UI Component | ✅ Complete | [file-path-utility-bar.md](workshops/file-path-utility-bar.md) |
+-+| Left panel view modes | State Machine | ✅ Complete | [left-panel-view-modes.md](workshops/left-panel-view-modes.md) |
+-+
+-+---
+-+
+-+## Testing Strategy
+-+
+-+**Full TDD** — same approach as Plan 041 Phase 4.
+-+
+-+- Panel components: Unit tests for rendering, mode switching, handler chain dispatch
+-+- Git services: Unit tests for porcelain parser, recent files parser, dedup logic
+-+- Integration: BrowserClient with panel composition, cross-mode sync
+-+- Existing tests: Updated for structural changes (header/path row extraction)
+-+
+-+---
+-+
+-+## Documentation Strategy
+-+
+-+Update `docs/how/file-browser.md` (planned in Plan 041 Phase 6) to document the panel layout system and how to add new left panel modes.
+-diff --git a/docs/plans/043-panel-layout/tasks/phase-1-panel-infrastructure/tasks.md b/docs/plans/043-panel-layout/tasks/phase-1-panel-infrastructure/tasks.md
+-new file mode 100644
+-index 0000000..ec75de7
+---- /dev/null
+-+++ b/docs/plans/043-panel-layout/tasks/phase-1-panel-infrastructure/tasks.md
+-@@ -0,0 +1,199 @@
+-+# Phase 1: Panel Infrastructure — Tasks
+-+
+-+**Plan**: [panel-layout-plan.md](../../panel-layout-plan.md)
+-+**Phase**: 1 of 3
+-+**Testing Approach**: Full TDD
+-+**Created**: 2026-02-24
+-+
+-+---
+-+
+-+## Executive Briefing
+-+
+-+**Purpose**: Create the `_platform/panel-layout` infrastructure domain with all structural panel components. This is the foundation — reusable layout primitives that the file browser (Phase 3) and future workspace pages compose.
+-+
+-+**What We're Building**:
+-+- `PanelShell` — root layout compositor using `react-resizable-panels` for a resizable left/main split with an ExplorerPanel on top
+-+- `ExplorerPanel` — top utility bar with composable input handler chain (display path, edit to navigate, copy button)
+-+- `LeftPanel` — mode-switching sidebar wrapper with PanelHeader for mode buttons
+-+- `MainPanel` — content area wrapper with flex-1 overflow handling
+-+- `PanelHeader` — shared header component with title, mode toggle buttons, action buttons
+-+- Types: `PanelMode`, `BarHandler`, `BarContext`
+-+
+-+**Goals**:
+-+- ✅ First `_platform` feature folder created with correct structure
+-+- ✅ All panel components are standalone, testable, no business logic
+-+- ✅ ExplorerPanel handler chain is extensible (file path handler is v1, search/commands are future)
+-+- ✅ LeftPanel ↔ MainPanel are resizable via drag handle
+-+- ✅ shadcn resizable component installed
+-+
+-+**Non-Goals**:
+-+- ❌ Wiring panels into BrowserClient (Phase 3)
+-+- ❌ ChangesView or git services (Phase 2)
+-+- ❌ Any file-browser business logic
+-+- ❌ Responsive phone/tablet layout
+-+
+-+---
+-+
+-+## Pre-Implementation Check
+-+
+-+| File | Exists? | Domain Check | Notes |
+-+|------|---------|-------------|-------|
+-+| `apps/web/src/features/_platform/panel-layout/` | No — create | panel-layout | First `_platform` folder |
+-+| `apps/web/src/features/_platform/panel-layout/types.ts` | No — create | panel-layout | PanelMode, BarHandler, BarContext |
+-+| `apps/web/src/features/_platform/panel-layout/index.ts` | No — create | panel-layout | Barrel export |
+-+| `apps/web/src/features/_platform/panel-layout/components/panel-header.tsx` | No — create | panel-layout | Shared header |
+-+| `apps/web/src/features/_platform/panel-layout/components/explorer-panel.tsx` | No — create | panel-layout | Path bar + handler chain |
+-+| `apps/web/src/features/_platform/panel-layout/components/left-panel.tsx` | No — create | panel-layout | Mode-switching wrapper |
+-+| `apps/web/src/features/_platform/panel-layout/components/main-panel.tsx` | No — create | panel-layout | Content wrapper |
+-+| `apps/web/src/features/_platform/panel-layout/components/panel-shell.tsx` | No — create | panel-layout | Root compositor with resizable panels |
+-+| `apps/web/src/components/ui/resizable.tsx` | No — install | panel-layout | `npx shadcn@latest add resizable` |
+-+| `apps/web/package.json` | Yes — modify | panel-layout | `react-resizable-panels` dep added by shadcn |
+-+
+-+---
+-+
+-+## Architecture Map
+-+
+-+```mermaid
+-+flowchart TD
+-+    classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
+-+    classDef completed fill:#4CAF50,stroke:#388E3C,color:#fff
+-+
+-+    subgraph Phase1["Phase 1: Panel Infrastructure"]
+-+        T001["T001: Scaffold<br/>feature folder"]:::pending
+-+        T002["T002: Install<br/>resizable"]:::pending
+-+        T003["T003: Test<br/>PanelHeader"]:::pending
+-+        T004["T004: Impl<br/>PanelHeader"]:::pending
+-+        T005["T005: Test<br/>ExplorerPanel"]:::pending
+-+        T006["T006: Impl<br/>ExplorerPanel"]:::pending
+-+        T007["T007: Test<br/>LeftPanel"]:::pending
+-+        T008["T008: Impl<br/>LeftPanel"]:::pending
+-+        T009["T009: Impl<br/>PanelShell+MainPanel"]:::pending
+-+    end
+-+
+-+    T001 --> T003
+-+    T001 --> T005
+-+    T001 --> T007
+-+    T002 --> T009
+-+    T003 --> T004
+-+    T004 --> T008
+-+    T004 --> T009
+-+    T005 --> T006
+-+    T007 --> T008
+-+    T008 --> T009
+-+    T006 --> T009
+-+```
+-+
+-+---
+-+
+-+## Tasks
+-+
+-+| Status | ID | Task | Domain | Path(s) | Done When | Notes |
+-+|--------|-----|------|--------|---------|-----------|-------|
+-+| [x] | T001 | Create `_platform/panel-layout` feature folder scaffold — `types.ts` with PanelMode, BarHandler, BarContext types; `index.ts` barrel; `components/` directory | panel-layout | `apps/web/src/features/_platform/panel-layout/types.ts`, `apps/web/src/features/_platform/panel-layout/index.ts` | Types compile. Barrel exports types. `PanelMode = 'tree' \| 'changes'`. `BarHandler = (input: string, ctx: BarContext) => Promise<boolean>`. `BarContext = { slug, worktreePath, fileExists, navigateToFile, showError }`. | Per finding 02. Follow barrel pattern from 041-file-browser/index.ts. |
+-+| [x] | T002 | Install shadcn resizable component | panel-layout | `apps/web/src/components/ui/resizable.tsx`, `apps/web/package.json` | `npx shadcn@latest add resizable` succeeds. `ResizablePanel`, `ResizablePanelGroup`, `ResizableHandle` importable. `react-resizable-panels` in deps. | shadcn wraps react-resizable-panels. |
+-+| [x] | T003 | Write tests for PanelHeader — renders title, mode buttons with icons, active state highlighting, fires onModeChange callback, renders action buttons | panel-layout | `test/unit/web/features/_platform/panel-layout/panel-header.test.tsx` | Tests: renders title text, renders N mode buttons, active button has accent styling, click fires onModeChange(mode), action button fires callback. | Follow ModeButton pattern from FileViewerPanel (icon+label, accent vs muted). |
+-+| [x] | T004 | Implement PanelHeader component | panel-layout | `apps/web/src/features/_platform/panel-layout/components/panel-header.tsx` | All T003 tests pass. Props: `title: string`, `modes?: { key: PanelMode; icon: ReactNode; label: string }[]`, `activeMode?: PanelMode`, `onModeChange?: (mode: PanelMode) => void`, `actions?: { icon: ReactNode; label: string; onClick: () => void }[]`. Client component. | Sticky header: `sticky top-0 bg-background z-10 border-b px-3 py-2 shrink-0`. DYK-05: mode buttons icon-only with tooltip (`title` attr or shadcn Tooltip), `aria-label` for accessibility. |
+-+| [x] | T005 | Write tests for ExplorerPanel — display mode shows path + copy button; click path enters edit mode with text selected; Enter fires handler chain; first handler returning true stops chain; Escape reverts; empty input no-ops; placeholder when no path; ASCII spinner during processing; exposes focusInput() ref | panel-layout | `test/unit/web/features/_platform/panel-layout/explorer-panel.test.tsx` | Tests: (1) renders filePath text, (2) copy button fires onCopy, (3) click path shows input, (4) Enter runs handlers in order, (5) first true-returning handler stops chain, (6) Escape reverts to filePath, (7) blur reverts, (8) empty string no-ops, (9) placeholder when filePath empty, (10) spinner shows during async handler, (11) focusInput() ref selects all text. | DYK-03: ASCII spinner `\| / — \\` replaces copy button during processing. DYK-04: `forwardRef` + `useImperativeHandle` exposes `focusInput()` for Phase 3 Ctrl+P. |
+-+| [x] | T006 | Implement ExplorerPanel component | panel-layout | `apps/web/src/features/_platform/panel-layout/components/explorer-panel.tsx` | All T005 tests pass. Props: `filePath: string`, `handlers: BarHandler[]`, `context: BarContext`, `onCopy: () => void`, `placeholder?: string`. Client component with forwardRef. Display/edit mode via local state. Input with select-all on focus. ASCII spinner: `useEffect` + `setInterval` cycling `['\|', '/', '—', '\\']` at 80ms. `useImperativeHandle` exposes `{ focusInput: () => void }`. | Styling: `bg-muted/30 border-b px-3 py-1.5 shrink-0`, font-mono text-sm. Copy button uses ClipboardCopy icon. Spinner is same size/position as copy button. |
+-+| [x] | T007 | Write tests for LeftPanel — renders children based on mode; mode switch via PanelHeader; hides modes when not available | panel-layout | `test/unit/web/features/_platform/panel-layout/left-panel.test.tsx` | Tests: (1) mode=tree renders first child, (2) mode=changes renders second child, (3) PanelHeader mode button fires onModeChange, (4) modes prop controls which buttons render, (5) single mode = no buttons. | LeftPanel is a thin wrapper: PanelHeader + content slot. |
+-+| [x] | T008 | Implement LeftPanel component | panel-layout | `apps/web/src/features/_platform/panel-layout/components/left-panel.tsx` | All T007 tests pass. Props: `mode: PanelMode`, `onModeChange: (mode: PanelMode) => void`, `modes: { key: PanelMode; icon: ReactNode; label: string }[]`, `onRefresh: () => void`, `children: Record<PanelMode, ReactNode>`. Uses PanelHeader for mode toggle + refresh action. | Children keyed by mode — `children[mode]` renders active content. |
+-+| [x] | T009 | Implement MainPanel + PanelShell with resizable layout | panel-layout | `apps/web/src/features/_platform/panel-layout/components/main-panel.tsx`, `apps/web/src/features/_platform/panel-layout/components/panel-shell.tsx` | MainPanel: `flex-1 overflow-hidden` wrapper. PanelShell: flex-col root, ExplorerPanel (shrink-0) on top, `ResizablePanelGroup direction="horizontal" autoSaveId="browser-panels"` below with LeftPanel in `ResizablePanel` (defaultSize=20, minSize=15, maxSize=40), `ResizableHandle`, MainPanel in `ResizablePanel`. Barrel export updated. | DYK-02: `autoSaveId` persists resize to localStorage. PanelShell props: `explorer: ReactNode`, `left: ReactNode`, `main: ReactNode`. |
+-+
+-+---
+-+
+-+## Context Brief
+-+
+-+### Key findings from plan
+-+
+-+- **Finding 02 (HIGH)**: No `_platform` feature folder exists. T001 creates the first one, setting the naming/structure precedent. Follow the barrel export pattern from `041-file-browser/index.ts`.
+-+- **Finding 06 (LOW)**: Use simple icon buttons for mode switching (matching ModeButton from FileViewerPanel), not new shadcn components like Tabs or ToggleGroup.
+-+
+-+### Domain dependencies
+-+
+-+- `_platform/workspace-url`: nuqs — URL param infrastructure. Not consumed directly in Phase 1 (panels are stateless; URL state wired in Phase 3).
+-+- `lucide-react`: Icons for buttons (ClipboardCopy, RefreshCw, GitBranch, FileDiff, etc.)
+-+- `react-resizable-panels` (via shadcn `resizable`): ResizablePanelGroup, ResizablePanel, ResizableHandle
+-+
+-+### Domain constraints
+-+
+-+- All files go in `apps/web/src/features/_platform/panel-layout/`
+-+- Tests go in `test/unit/web/features/_platform/panel-layout/`
+-+- Components are `'use client'` (they use state, callbacks, DOM)
+-+- No business logic — panels are pure structural/presentational
+-+- No imports from `file-browser` domain (dependency direction: business → infrastructure, not the reverse)
+-+
+-+### Reusable patterns
+-+
+-+- **ModeButton** from `file-viewer-panel.tsx` (lines 232-258): Icon + label, `bg-accent` when active, `text-muted-foreground` otherwise. Copy this pattern for PanelHeader mode buttons.
+-+- **Barrel export** from `041-file-browser/index.ts`: Export components + `export type { Props }` for interfaces.
+-+- **Clipboard fallback** from `browser-client.tsx` (lines 205-225): `navigator.clipboard.writeText` with textarea fallback for non-HTTPS. ExplorerPanel's copy delegates to parent via `onCopy` prop (doesn't own clipboard logic).
+-+
+-+### Component composition diagram
+-+
+-+```mermaid
+-+flowchart TD
+-+    subgraph PanelShell["PanelShell (flex-col)"]
+-+        EP["ExplorerPanel<br/>shrink-0, border-b<br/>path + copy + input"]
+-+        subgraph RPG["ResizablePanelGroup (horizontal)"]
+-+            LP["LeftPanel<br/>ResizablePanel<br/>default=20%, min=15%"]
+-+            RH["ResizableHandle<br/>drag to resize"]
+-+            MP["MainPanel<br/>ResizablePanel<br/>flex-1"]
+-+        end
+-+    end
+-+
+-+    EP --> RPG
+-+    LP --- RH --- MP
+-+```
+-+
+-+### PanelHeader internals
+-+
+-+```mermaid
+-+flowchart LR
+-+    subgraph PH["PanelHeader (sticky)"]
+-+        Title["title text<br/>(uppercase, muted)"]
+-+        MB1["[🌳] mode btn"]
+-+        MB2["[📝] mode btn"]
+-+        Spacer["flex-1 spacer"]
+-+        AB1["[↻] action btn"]
+-+    end
+-+    Title --- MB1 --- MB2 --- Spacer --- AB1
+-+```
+-+
+-+### ExplorerPanel state machine
+-+
+-+```mermaid
+-+stateDiagram-v2
+-+    [*] --> Display: mount
+-+    Display --> Edit: click path / Ctrl+P
+-+    Edit --> Display: Escape / blur
+-+    Edit --> Processing: Enter
+-+    Processing --> Display: handler returned true (navigated)
+-+    Processing --> Display: no handler matched (show error)
+-+```
+-+
+-+---
+-+
+-+## Discoveries & Learnings
+-+
+-+_Populated during implementation by plan-6._
+-+
+-+| Date | Task | Type | Discovery | Resolution | References |
+-+|------|------|------|-----------|------------|------------|
+-+
+-+---
+-+
+-+## Directory Layout
+-+
+-+```
+-+docs/plans/043-panel-layout/
+-+  ├── panel-layout-plan.md
+-+  ├── panel-layout-spec.md
+-+  ├── research-dossier.md
+-+  ├── workshops/
+-+  │   ├── file-path-utility-bar.md → (symlink)
+-+  │   └── left-panel-view-modes.md → (symlink)
+-+  └── tasks/phase-1-panel-infrastructure/
+-+      ├── tasks.md              ← this file
+-+      ├── tasks.fltplan.md      ← generated next
+-+      └── execution.log.md      # created by plan-6
+-+```
+-diff --git a/docs/plans/043-panel-layout/tasks/phase-1-panel-infrastructure/execution.log.md b/docs/plans/043-panel-layout/tasks/phase-1-panel-infrastructure/execution.log.md
+-new file mode 100644
+-index 0000000..2a86703
+---- /dev/null
+-+++ b/docs/plans/043-panel-layout/tasks/phase-1-panel-infrastructure/execution.log.md
+-@@ -0,0 +1,43 @@
+-+# Phase 1: Panel Infrastructure — Execution Log
+-+
+-+**Started**: 2026-02-24
+-+**Status**: COMPLETE
+-+
+-+---
+-+
+-+## T001: Feature folder scaffold + types
+-+- Created `apps/web/src/features/_platform/panel-layout/` (first `_platform` feature folder)
+-+- `types.ts`: PanelMode, BarHandler, BarContext, ExplorerPanelHandle
+-+- `index.ts`: barrel exports
+-+- Types compile cleanly
+-+
+-+## T002: Install shadcn resizable
+-+- `npx shadcn@latest add resizable --yes`
+-+- Created `src/components/ui/resizable.tsx`
+-+- Added `react-resizable-panels: ^4` to deps
+-+
+-+## T003-T004: PanelHeader
+-+- 6 tests: title, mode buttons, active state, onModeChange callback, action buttons, no modes
+-+- Icon-only buttons with `title` tooltip + `aria-label` (DYK-05)
+-+- All 6 pass
+-+
+-+## T005-T006: ExplorerPanel
+-+- 8 tests: path display, placeholder, copy, edit mode, handler chain, Escape revert, empty no-op, focusInput ref
+-+- forwardRef + useImperativeHandle for Ctrl+P integration (DYK-04)
+-+- ASCII spinner `| / — \` at 80ms during processing (DYK-03)
+-+- All 8 pass
+-+
+-+## T007-T008: LeftPanel
+-+- 5 tests: tree child, changes child, mode switch, refresh action, single mode hides buttons
+-+- Children keyed by PanelMode — `children[mode]` renders active content
+-+- All 5 pass
+-+
+-+## T009: MainPanel + PanelShell
+-+- MainPanel: simple flex-1 overflow-hidden wrapper
+-+- PanelShell: ResizablePanelGroup with autoSaveId (DYK-02)
+-+- Left panel: defaultSize=20, minSize=15, maxSize=40
+-+- ResizableHandle withHandle (drag grip visible)
+-+
+-+## Evidence
+-+- 19 new tests across 3 files, all passing
+-+- Full suite: 4180 passed, 0 failed (296 test files)
+diff --git a/docs/plans/043-panel-layout/tasks/phase-2-git-services-changes-view/tasks.md b/docs/plans/043-panel-layout/tasks/phase-2-git-services-changes-view/tasks.md
+index b2a784e..9539cd8 100644
+--- a/docs/plans/043-panel-layout/tasks/phase-2-git-services-changes-view/tasks.md
++++ b/docs/plans/043-panel-layout/tasks/phase-2-git-services-changes-view/tasks.md
+@@ -97,13 +97,13 @@ flowchart TD
+ 
+ | Status | ID | Task | Domain | Path(s) | Done When | Notes |
+ |--------|-----|------|--------|---------|-----------|-------|
+-| [ ] | T001 | Write tests for `getWorkingChanges` — parse `git status --porcelain=v1 --ignore-submodules` output for all status codes | file-browser | `test/unit/web/features/041-file-browser/working-changes.test.ts` | Tests cover: `M ` (staged modified), ` M` (unstaged modified), `A ` (staged added), ` D` (unstaged deleted), `??` (untracked), `R  old -> new` (rename), `MM` (both → two entries: staged+unstaged), empty output → empty array, non-git → error result | DYK-P2-01: `--ignore-submodules` flag, no manual filtering. `MM` is valid (staged+unstaged same file). |
+-| [ ] | T002 | Implement `getWorkingChanges` service | file-browser | `apps/web/src/features/041-file-browser/services/working-changes.ts` | All T001 tests pass. Runs `git status --porcelain=v1 --ignore-submodules`. Parses XY codes. Returns `WorkingChangesResult`. Exports `ChangedFile` type. | X = staged status, Y = unstaged status. `MM` emits two entries. Parse line format: `XY <path>` or `XY old -> new` for renames. |
+-| [ ] | T003 | Write tests for `getRecentFiles` — deduplicated recent file list from git log | file-browser | `test/unit/web/features/041-file-browser/recent-files.test.ts` | Tests: returns unique paths, most recent first, respects limit param, handles empty repo, handles non-git error | Simple: parse stdout lines, deduplicate with Set, return first N unique. |
+-| [ ] | T004 | Implement `getRecentFiles` service | file-browser | `apps/web/src/features/041-file-browser/services/recent-files.ts` | All T003 tests pass. Runs `git log --name-only --pretty=format: -n <limit>`. Returns `RecentFilesResult`. | May need to scan more commits than limit to get enough unique files. Use `--diff-filter=AMCR` to exclude deletes. |
+-| [ ] | T005 | Add server actions: `fetchWorkingChanges`, `fetchRecentFiles`, `fileExists` | file-browser | `apps/web/app/actions/file-actions.ts` | Three new server actions added. `fileExists` does `stat()` via IFileSystem + IPathResolver security check. All follow dynamic import pattern. | `fileExists` is needed by ExplorerPanel's file path handler (Phase 3). Lightweight — just stat, no read. |
+-| [ ] | T006 | Write tests for ChangesView — renders working changes with status badges, recent section with dedup, empty state, file selection | file-browser | `test/unit/web/features/041-file-browser/changes-view.test.tsx` | Tests: (1) renders M/A/D/?/R badges with correct colors, (2) renders file paths with muted dir + bold filename, (3) deduplicates recent vs working, (4) shows "Working tree clean" when no changes, (5) click fires onSelect, (6) selected file has ▶ indicator, (7) empty recent section hidden | Follow FileTree item pattern for selection indicator (▶ amber, bg-accent). |
+-| [ ] | T007 | Implement ChangesView component | file-browser | `apps/web/src/features/041-file-browser/components/changes-view.tsx` | All T006 tests pass. Two sections: "Working Changes" header + file items with status badges, separator, "Recent (committed)" header + muted file items. Props: `workingChanges: ChangedFile[]`, `recentFiles: string[]`, `selectedFile?: string`, `onSelect: (path) => void`. Client component. | Status badge colors: M=amber-500, A=green-500, D=red-500, ?=muted-foreground, R=blue-500. Path split: dir muted, filename `font-medium`. |
++| [x] | T001 | Write tests for `getWorkingChanges` — parse `git status --porcelain=v1 --ignore-submodules` output for all status codes | file-browser | `test/unit/web/features/041-file-browser/working-changes.test.ts` | Tests cover: `M ` (staged modified), ` M` (unstaged modified), `A ` (staged added), ` D` (unstaged deleted), `??` (untracked), `R  old -> new` (rename), `MM` (both → two entries: staged+unstaged), empty output → empty array, non-git → error result | DYK-P2-01: `--ignore-submodules` flag, no manual filtering. `MM` is valid (staged+unstaged same file). |
++| [x] | T002 | Implement `getWorkingChanges` service | file-browser | `apps/web/src/features/041-file-browser/services/working-changes.ts` | All T001 tests pass. Runs `git status --porcelain=v1 --ignore-submodules`. Parses XY codes. Returns `WorkingChangesResult`. Exports `ChangedFile` type. | X = staged status, Y = unstaged status. `MM` emits two entries. Parse line format: `XY <path>` or `XY old -> new` for renames. |
++| [x] | T003 | Write tests for `getRecentFiles` — deduplicated recent file list from git log | file-browser | `test/unit/web/features/041-file-browser/recent-files.test.ts` | Tests: returns unique paths, most recent first, respects limit param, handles empty repo, handles non-git error | Simple: parse stdout lines, deduplicate with Set, return first N unique. |
++| [x] | T004 | Implement `getRecentFiles` service | file-browser | `apps/web/src/features/041-file-browser/services/recent-files.ts` | All T003 tests pass. Runs `git log --name-only --pretty=format: -n <limit>`. Returns `RecentFilesResult`. | May need to scan more commits than limit to get enough unique files. Use `--diff-filter=AMCR` to exclude deletes. |
++| [x] | T005 | Add server actions: `fetchWorkingChanges`, `fetchRecentFiles`, `fileExists` | file-browser | `apps/web/app/actions/file-actions.ts` | Three new server actions added. `fileExists` does `stat()` via IFileSystem + IPathResolver security check. All follow dynamic import pattern. | `fileExists` is needed by ExplorerPanel's file path handler (Phase 3). Lightweight — just stat, no read. |
++| [x] | T006 | Write tests for ChangesView — renders working changes with status badges, recent section with dedup, empty state, file selection | file-browser | `test/unit/web/features/041-file-browser/changes-view.test.tsx` | Tests: (1) renders M/A/D/?/R badges with correct colors, (2) renders file paths with muted dir + bold filename, (3) deduplicates recent vs working, (4) shows "Working tree clean" when no changes, (5) click fires onSelect, (6) selected file has ▶ indicator, (7) empty recent section hidden | Follow FileTree item pattern for selection indicator (▶ amber, bg-accent). |
++| [x] | T007 | Implement ChangesView component | file-browser | `apps/web/src/features/041-file-browser/components/changes-view.tsx` | All T006 tests pass. Two sections: "Working Changes" header + file items with status badges, separator, "Recent (committed)" header + muted file items. Props: `workingChanges: ChangedFile[]`, `recentFiles: string[]`, `selectedFile?: string`, `onSelect: (path) => void`. Client component. | Status badge colors: M=amber-500, A=green-500, D=red-500, ?=muted-foreground, R=blue-500. Path split: dir muted, filename `font-medium`. |
+ 
+ ---
+ 
