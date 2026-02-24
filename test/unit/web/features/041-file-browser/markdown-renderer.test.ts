@@ -13,7 +13,7 @@ import { describe, expect, it } from 'vitest';
 describe('renderMarkdownToHtml', () => {
   it('renders basic markdown to HTML', async () => {
     const html = await renderMarkdownToHtml('# Hello\n\nWorld');
-    expect(html).toContain('<h1>Hello</h1>');
+    expect(html).toContain('<h1 id="hello">Hello</h1>');
     expect(html).toContain('<p>World</p>');
   });
 

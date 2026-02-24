@@ -10,7 +10,7 @@
  */
 
 import { useTheme } from 'next-themes';
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
 interface MarkdownPreviewProps {
   html: string;
@@ -66,10 +66,42 @@ export function MarkdownPreview({ html }: MarkdownPreviewProps) {
     };
   }, [html, resolvedTheme]);
 
+  // Handle anchor link clicks — scroll within the preview container
+  const handleClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    const anchor = target.closest('a');
+    if (!anchor) return;
+    const href = anchor.getAttribute('href');
+    if (!href?.startsWith('#')) return;
+    e.preventDefault();
+    const id = href.slice(1);
+    const el = containerRef.current?.querySelector(`#${CSS.escape(id)}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, []);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const target = e.target as HTMLElement;
+    const anchor = target.closest('a');
+    if (!anchor) return;
+    const href = anchor.getAttribute('href');
+    if (!href?.startsWith('#')) return;
+    e.preventDefault();
+    const id = href.slice(1);
+    const el = containerRef.current?.querySelector(`#${CSS.escape(id)}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, []);
+
   return (
     <div
       ref={containerRef}
       className="prose dark:prose-invert max-w-none"
+      onClick={handleClick}
+      onKeyDown={handleKeyDown}
       // biome-ignore lint/security/noDangerouslySetInnerHtml: HTML is server-rendered from trusted markdown via renderMarkdownToHtml
       dangerouslySetInnerHTML={{ __html: html }}
     />

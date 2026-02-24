@@ -15,6 +15,7 @@
  */
 
 import rehypeShiki from '@shikijs/rehype';
+import rehypeSlug from 'rehype-slug';
 import rehypeStringify from 'rehype-stringify';
 import remarkGfm from 'remark-gfm';
 import remarkParse from 'remark-parse';
@@ -37,6 +38,7 @@ export async function renderMarkdownToHtml(content: string): Promise<string> {
     .use(remarkGfm)
     .use(remarkMermaid)
     .use(remarkRehype, { allowDangerousHtml: true })
+    .use(rehypeSlug)
     .use(rehypeShiki, {
       themes: { light: 'github-light', dark: 'github-dark' },
       defaultColor: 'light',
