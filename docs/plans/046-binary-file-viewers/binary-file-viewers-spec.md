@@ -2,7 +2,7 @@
 
 **Plan**: 046-binary-file-viewers
 **Created**: 2026-02-24
-**Status**: DRAFT
+**Status**: COMPLETE
 **Mode**: Simple
 
 > This specification incorporates findings from research-dossier.md

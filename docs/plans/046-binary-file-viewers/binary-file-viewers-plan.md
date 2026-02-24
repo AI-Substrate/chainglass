@@ -4,7 +4,7 @@
 **Plan Version**: 1.0.0
 **Created**: 2026-02-24
 **Spec**: [binary-file-viewers-spec.md](./binary-file-viewers-spec.md)
-**Status**: DRAFT
+**Status**: COMPLETE
 
 ## Summary
 
@@ -58,48 +58,48 @@ The file browser rejects binary files with "Binary files cannot be displayed." T
 
 | Status | ID | Task | Domain | Path(s) | Done When | Notes |
 |--------|-----|------|--------|---------|-----------|-------|
-| [ ] | T001 | Create `detectContentType()` utility + tests | viewer | `/home/jak/substrate/041-file-browser/apps/web/src/lib/content-type-detection.ts`, `/home/jak/substrate/041-file-browser/test/unit/web/lib/content-type-detection.test.ts` | Function maps extensions to `{ category, mimeType }` for image (9 exts), pdf, video (2), audio (3), binary fallback. All AC-06 through AC-10 pass. | Per finding 04. Companion to `detectLanguage()`. |
-| [ ] | T002 | Extract `AsciiSpinner` reusable component | _platform/panel-layout | `/home/jak/substrate/041-file-browser/apps/web/src/features/_platform/panel-layout/components/ascii-spinner.tsx` | Reusable component with `SPINNER_FRAMES`, `SPINNER_INTERVAL`, `processing` prop. ExplorerPanel refactored to use it. Binary viewers use it for loading state. | DYK-05: Currently inlined in explorer-panel.tsx. Extract for reuse. |
-| [ ] | T003 | Create raw file API route with Range support + tests | file-browser | `/home/jak/substrate/041-file-browser/apps/web/app/api/workspaces/[slug]/files/raw/route.ts`, `/home/jak/substrate/041-file-browser/test/unit/web/features/041-file-browser/raw-file-route.test.ts` | GET returns binary content with correct Content-Type. Range requests return 206 + Content-Range. Path traversal → 403. Symlink escape → 403. Missing params → 400. Not found → 404. Invalid range → 416. AC-01 through AC-05, AC-27, AC-28 pass. | Per findings 02, 03. Uses Node fs directly for binary read, IPathResolver for security. DYK-01: Must use `fs.createReadStream()` not `fs.readFile()` — buffered reads OOM on large files. Use `{ start, end }` options for Range requests. DYK-03: Set `Content-Disposition: inline` by default; support `?download=true` for `Content-Disposition: attachment; filename="name.ext"`. |
-| [ ] | T004 | Evolve `readFileAction` to return binary metadata + guard all consumers | file-browser | `/home/jak/substrate/041-file-browser/apps/web/src/features/041-file-browser/services/file-actions.ts`, `/home/jak/substrate/041-file-browser/apps/web/app/actions/file-actions.ts`, `/home/jak/substrate/041-file-browser/apps/web/src/features/041-file-browser/hooks/use-file-navigation.ts`, `/home/jak/substrate/041-file-browser/test/unit/web/features/041-file-browser/file-actions.test.ts` | Binary files return `{ ok: true, isBinary: true, contentType: 'image/png', mtime, size }` instead of `error: 'binary-file'`. Text files unchanged. Extension-based detection first, null-byte fallback for unknown. All `.content` access guarded with `!result.isBinary`. AC-11, AC-12 pass. | Per findings 01, 06. DYK-04: Atomic 4-file change — type definition, server action wrapper, useFileNavigation guards, and existing tests must move together. T010 merged into this task. |
-| [ ] | T005 | Create ImageViewer component | viewer | `/home/jak/substrate/041-file-browser/apps/web/src/features/041-file-browser/components/image-viewer.tsx` | Renders `<img>` with `object-fit: contain`, centered in container. Props: `{ src: string, alt: string }`. Works for png, jpg, gif, webp, svg, ico, avif, bmp. AC-13, AC-14, AC-15 pass. | Per finding 05. SVG via img tag only (no inline). |
-| [ ] | T006 | Create PdfViewer component | viewer | `/home/jak/substrate/041-file-browser/apps/web/src/features/041-file-browser/components/pdf-viewer.tsx` | Renders `<iframe>` with `src={rawUrl}`, full-height. Props: `{ src: string }`. Browser native PDF viewer handles scroll/zoom. AC-16, AC-17 pass. | iframe approach — zero deps. |
-| [ ] | T007 | Create VideoViewer + AudioViewer components | viewer | `/home/jak/substrate/041-file-browser/apps/web/src/features/041-file-browser/components/video-viewer.tsx`, `/home/jak/substrate/041-file-browser/apps/web/src/features/041-file-browser/components/audio-viewer.tsx` | Video: `<video>` with controls, centered. Audio: `<audio>` with controls, centered. Props: `{ src: string, mimeType: string }`. AC-18 through AC-21 pass. | Browser-native controls. |
-| [ ] | T008 | Create BinaryPlaceholder component | viewer | `/home/jak/substrate/041-file-browser/apps/web/src/features/041-file-browser/components/binary-placeholder.tsx` | Shows file icon, file size (formatted), detected MIME type, and download `<a>` button. Props: `{ src: string, size: number, mimeType: string, filename: string }`. AC-22, AC-23 pass. | Download via `<a href={src} download>`. |
-| [ ] | T009 | Update FileViewerPanel for binary routing | file-browser | `/home/jak/substrate/041-file-browser/apps/web/src/features/041-file-browser/components/file-viewer-panel.tsx` | Binary files route to correct viewer by content type category. Edit/Diff buttons hidden for binary. Refresh works. AC-24, AC-25 pass. | Per finding 01. Replace `errorType === 'binary-file'` branch. |
-| [ ] | T010 | ~~Merged into T004~~ | — | — | — | DYK-04: Coordinated edit — all consumer guards are part of T004. |
-| [ ] | T011 | Run full test suite | file-browser | — | `just fft` passes. No regressions. | Final validation. |
+| [x] | T001 | Create `detectContentType()` utility + tests | viewer | `/home/jak/substrate/041-file-browser/apps/web/src/lib/content-type-detection.ts`, `/home/jak/substrate/041-file-browser/test/unit/web/lib/content-type-detection.test.ts` | Function maps extensions to `{ category, mimeType }` for image (9 exts), pdf, video (2), audio (3), binary fallback. All AC-06 through AC-10 pass. | Per finding 04. Companion to `detectLanguage()`. |
+| [x] | T002 | Extract `AsciiSpinner` reusable component | _platform/panel-layout | `/home/jak/substrate/041-file-browser/apps/web/src/features/_platform/panel-layout/components/ascii-spinner.tsx` | Reusable component with `SPINNER_FRAMES`, `SPINNER_INTERVAL`, `processing` prop. ExplorerPanel refactored to use it. Binary viewers use it for loading state. | DYK-05: Currently inlined in explorer-panel.tsx. Extract for reuse. |
+| [x] | T003 | Create raw file API route with Range support + tests | file-browser | `/home/jak/substrate/041-file-browser/apps/web/app/api/workspaces/[slug]/files/raw/route.ts`, `/home/jak/substrate/041-file-browser/test/unit/web/features/041-file-browser/raw-file-route.test.ts` | GET returns binary content with correct Content-Type. Range requests return 206 + Content-Range. Path traversal → 403. Symlink escape → 403. Missing params → 400. Not found → 404. Invalid range → 416. AC-01 through AC-05, AC-27, AC-28 pass. | Per findings 02, 03. Uses Node fs directly for binary read, IPathResolver for security. DYK-01: Must use `fs.createReadStream()` not `fs.readFile()` — buffered reads OOM on large files. Use `{ start, end }` options for Range requests. DYK-03: Set `Content-Disposition: inline` by default; support `?download=true` for `Content-Disposition: attachment; filename="name.ext"`. |
+| [x] | T004 | Evolve `readFileAction` to return binary metadata + guard all consumers | file-browser | `/home/jak/substrate/041-file-browser/apps/web/src/features/041-file-browser/services/file-actions.ts`, `/home/jak/substrate/041-file-browser/apps/web/app/actions/file-actions.ts`, `/home/jak/substrate/041-file-browser/apps/web/src/features/041-file-browser/hooks/use-file-navigation.ts`, `/home/jak/substrate/041-file-browser/test/unit/web/features/041-file-browser/file-actions.test.ts` | Binary files return `{ ok: true, isBinary: true, contentType: 'image/png', mtime, size }` instead of `error: 'binary-file'`. Text files unchanged. Extension-based detection first, null-byte fallback for unknown. All `.content` access guarded with `!result.isBinary`. AC-11, AC-12 pass. | Per findings 01, 06. DYK-04: Atomic 4-file change — type definition, server action wrapper, useFileNavigation guards, and existing tests must move together. T010 merged into this task. Post-impl fix: binary extension check moved BEFORE 5MB size check so binary files bypass text limit. |
+| [x] | T005 | Create ImageViewer component | file-browser | `/home/jak/substrate/041-file-browser/apps/web/src/features/041-file-browser/components/image-viewer.tsx` | Renders `<img>` with `object-fit: contain`, centered in container. Props: `{ src: string, alt: string }`. Works for png, jpg, gif, webp, svg, ico, avif, bmp. AC-13, AC-14, AC-15 pass. | Per finding 05. SVG via img tag only (no inline). |
+| [x] | T006 | Create PdfViewer component | file-browser | `/home/jak/substrate/041-file-browser/apps/web/src/features/041-file-browser/components/pdf-viewer.tsx` | Renders iframe with blob URL for cross-platform PDF viewing. Props: `{ src: string }`. Browser native PDF viewer handles scroll/zoom. AC-16, AC-17 pass. | Post-impl fix: changed from direct URL to blob URL approach for iPad Safari scrolling. Added "Open in new tab" fallback link. |
+| [x] | T007 | Create VideoViewer + AudioViewer components | file-browser | `/home/jak/substrate/041-file-browser/apps/web/src/features/041-file-browser/components/video-viewer.tsx`, `/home/jak/substrate/041-file-browser/apps/web/src/features/041-file-browser/components/audio-viewer.tsx` | Video: `<video>` with controls, centered. Audio: `<audio>` with controls, centered. Props: `{ src: string, mimeType: string }`. AC-18 through AC-21 pass. | Browser-native controls. |
+| [x] | T008 | Create BinaryPlaceholder component | file-browser | `/home/jak/substrate/041-file-browser/apps/web/src/features/041-file-browser/components/binary-placeholder.tsx` | Shows file icon, file size (formatted), detected MIME type, and download `<a>` button. Props: `{ src: string, size: number, mimeType: string, filename: string }`. AC-22, AC-23 pass. | Download via `<a href={src}?download=true download>`. |
+| [x] | T009 | Update FileViewerPanel for binary routing | file-browser | `/home/jak/substrate/041-file-browser/apps/web/src/features/041-file-browser/components/file-viewer-panel.tsx` | Binary files route to correct viewer by content type category. Edit/Diff buttons hidden for binary. Refresh works. AC-24, AC-25 pass. | Per finding 01. Replaced `errorType === 'binary-file'` branch with BinaryFileView component. Post-impl fix: MainPanel height propagation for binary viewers. |
+| [x] | T010 | ~~Merged into T004~~ | — | — | — | DYK-04: Coordinated edit — all consumer guards are part of T004. |
+| [x] | T011 | Run full test suite | file-browser | — | `just fft` passes. No regressions. 4342 tests passing. | Final validation. |
 
 ### Acceptance Criteria
 
-- [ ] AC-01: Raw endpoint returns binary with correct Content-Type
-- [ ] AC-02: Path traversal → 403
-- [ ] AC-03: Symlink escape → 403
-- [ ] AC-04: Non-existent file → 404
-- [ ] AC-05: Missing params → 400
-- [ ] AC-06: detectContentType('photo.png') → image/png
-- [ ] AC-07: detectContentType('doc.pdf') → application/pdf
-- [ ] AC-08: detectContentType('clip.mp4') → video/mp4
-- [ ] AC-09: detectContentType('song.mp3') → audio/mpeg
-- [ ] AC-10: detectContentType('program.exe') → application/octet-stream
-- [ ] AC-11: Binary file → metadata (isBinary, contentType, size), not error
-- [ ] AC-12: Text file → no regression
-- [ ] AC-13: PNG renders inline
-- [ ] AC-14: Image scales to fit without distortion
-- [ ] AC-15: All image formats work (png, jpg, gif, webp, svg, ico, avif, bmp)
-- [ ] AC-16: PDF renders inline with scroll/zoom
-- [ ] AC-17: Uploaded PDFs viewable
-- [ ] AC-18: MP4 plays with controls
-- [ ] AC-19: Video works for mp4, webm
-- [ ] AC-20: MP3 plays with controls
-- [ ] AC-21: Audio works for mp3, wav, ogg
-- [ ] AC-22: Unsupported binary shows metadata + download button
-- [ ] AC-23: Download button triggers browser download
-- [ ] AC-24: Binary files → Preview mode only (Edit/Diff hidden)
-- [ ] AC-25: Refresh reloads binary content
-- [ ] AC-26: Deep link to binary file works
-- [ ] AC-27: Range requests → 206 Partial Content
-- [ ] AC-28: Invalid range → 416
+- [x] AC-01: Raw endpoint returns binary with correct Content-Type
+- [x] AC-02: Path traversal → 403
+- [x] AC-03: Symlink escape → 403
+- [x] AC-04: Non-existent file → 404
+- [x] AC-05: Missing params → 400
+- [x] AC-06: detectContentType('photo.png') → image/png
+- [x] AC-07: detectContentType('doc.pdf') → application/pdf
+- [x] AC-08: detectContentType('clip.mp4') → video/mp4
+- [x] AC-09: detectContentType('song.mp3') → audio/mpeg
+- [x] AC-10: detectContentType('program.exe') → application/octet-stream
+- [x] AC-11: Binary file → metadata (isBinary, contentType, size), not error
+- [x] AC-12: Text file → no regression
+- [x] AC-13: PNG renders inline
+- [x] AC-14: Image scales to fit without distortion
+- [x] AC-15: All image formats work (png, jpg, gif, webp, svg, ico, avif, bmp)
+- [x] AC-16: PDF renders inline with scroll/zoom
+- [x] AC-17: Uploaded PDFs viewable
+- [x] AC-18: MP4 plays with controls
+- [x] AC-19: Video works for mp4, webm
+- [x] AC-20: MP3 plays with controls
+- [x] AC-21: Audio works for mp3, wav, ogg
+- [x] AC-22: Unsupported binary shows metadata + download button
+- [x] AC-23: Download button triggers browser download
+- [x] AC-24: Binary files → Preview mode only (Edit/Diff hidden)
+- [x] AC-25: Refresh reloads binary content
+- [x] AC-26: Deep link to binary file works
+- [x] AC-27: Range requests → 206 Partial Content
+- [x] AC-28: Invalid range → 416
 
 ### Risks
 
