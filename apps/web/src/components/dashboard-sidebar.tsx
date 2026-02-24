@@ -45,6 +45,7 @@ export function DashboardSidebar() {
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === 'collapsed';
   const [devOpen, setDevOpen] = useState(false);
+  const [worktreesOpen, setWorktreesOpen] = useState(false);
 
   // Detect workspace context from URL
   const workspaceSlug = useMemo(() => {
@@ -142,18 +143,27 @@ export function DashboardSidebar() {
               </SidebarGroupContent>
             </SidebarGroup>
 
-            {/* 2. Worktree list — for switching context (below tools) */}
+            {/* 2. Worktree list — collapsible, contracted by default */}
             <SidebarGroup>
-              {!isCollapsed && <SidebarGroupLabel>Worktrees</SidebarGroupLabel>}
-              <SidebarGroupContent>
-                <Suspense
-                  fallback={
-                    <div className="px-3 py-2 text-xs text-muted-foreground">Loading...</div>
-                  }
+              {!isCollapsed && (
+                <SidebarGroupLabel
+                  className="cursor-pointer select-none"
+                  onClick={() => setWorktreesOpen((p) => !p)}
                 >
-                  <WorkspaceNav />
-                </Suspense>
-              </SidebarGroupContent>
+                  Worktrees {worktreesOpen ? '▾' : '▸'}
+                </SidebarGroupLabel>
+              )}
+              {(worktreesOpen || isCollapsed) && (
+                <SidebarGroupContent>
+                  <Suspense
+                    fallback={
+                      <div className="px-3 py-2 text-xs text-muted-foreground">Loading...</div>
+                    }
+                  >
+                    <WorkspaceNav />
+                  </Suspense>
+                </SidebarGroupContent>
+              )}
             </SidebarGroup>
 
             {/* 3. Back to all workspaces */}
