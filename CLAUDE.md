@@ -69,6 +69,18 @@ packages/
 
 ## Critical Patterns
 
+### Mermaid Diagrams
+
+Use `<br/>` for newlines in Mermaid node labels and edge labels. `\n` does NOT work.
+
+```mermaid
+%% GOOD
+A["Line 1<br/>Line 2"]
+
+%% BAD - \n renders literally
+A["Line 1\nLine 2"]
+```
+
 ### Shiki Syntax Highlighting
 
 Shiki must stay **server-side only** via `serverExternalPackages` in next.config.mjs.
