@@ -201,13 +201,12 @@ export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: Bro
   }, [slug, worktreePath, selectedFile]);
 
   // Clipboard helper — works on non-HTTPS (e.g. http://192.168.x.x)
-  // Uses textarea.focus() + select() synchronously during user gesture
-  // so execCommand('copy') works before Radix menu dismisses.
   const copyToClipboard = useCallback((text: string) => {
     if (globalThis.isSecureContext && navigator.clipboard?.writeText) {
       navigator.clipboard.writeText(text);
-      return;
+      return true;
     }
+    // Fallback for non-secure contexts: textarea + execCommand
     const textarea = document.createElement('textarea');
     textarea.value = text;
     textarea.style.position = 'fixed';
@@ -215,11 +214,17 @@ export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: Bro
     document.body.appendChild(textarea);
     textarea.focus();
     textarea.select();
+    let ok = false;
     try {
-      document.execCommand('copy');
+      ok = document.execCommand('copy');
     } finally {
       document.body.removeChild(textarea);
     }
+    // If execCommand failed, show prompt so user can manually copy
+    if (!ok) {
+      window.prompt('Copy this:', text);
+    }
+    return ok;
   }, []);
 
   // Clipboard handlers for context menu
