@@ -7,6 +7,8 @@
  * on expand, reads files on selection, and renders FileTree + FileViewerPanel.
  *
  * Phase 4: File Browser — Plan 041
+ * Fix FX001-8: Lazy diff loading, wired highlightedHtml/markdownHtml (D3).
+ * Fix FX001-10: Changed-files filter wired.
  */
 
 import { FileTree } from '@/features/041-file-browser/components/file-tree';
@@ -17,9 +19,15 @@ import {
 import { fileBrowserParams } from '@/features/041-file-browser/params/file-browser.params';
 import type { FileEntry } from '@/features/041-file-browser/services/directory-listing';
 import type { ReadFileResult } from '@/features/041-file-browser/services/file-actions';
+import type { DiffResult } from '@chainglass/shared';
 import { useQueryStates } from 'nuqs';
 import { useCallback, useEffect, useState } from 'react';
-import { readFile, saveFile } from '../../../../actions/file-actions';
+import {
+  fetchChangedFiles,
+  fetchGitDiff,
+  readFile,
+  saveFile,
+} from '../../../../actions/file-actions';
 
 export interface BrowserClientProps {
   slug: string;
@@ -34,9 +42,15 @@ export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: Bro
   const [fileData, setFileData] = useState<ReadFileResult | null>(null);
   const [changedFiles, setChangedFiles] = useState<string[]>([]);
   const [editContent, setEditContent] = useState<string>('');
+  // Lazy diff: cached per file path (D3)
+  const [diffCache, setDiffCache] = useState<Record<string, DiffResult>>({});
+  const [diffLoading, setDiffLoading] = useState(false);
 
   const mode = (params.mode as ViewerMode) || 'preview';
   const selectedFile = params.file || undefined;
+
+  // Current diff result for the selected file
+  const currentDiff = selectedFile ? diffCache[selectedFile] : undefined;
 
   // Fetch subdirectory on expand
   const handleExpand = useCallback(
@@ -76,26 +90,48 @@ export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: Bro
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional mount-only effect
   useEffect(() => {
     if (params.file) {
-      // Expand all parent directories of the selected file
       const parts = params.file.split('/');
       let current = '';
       for (let i = 0; i < parts.length - 1; i++) {
         current = current ? `${current}/${parts[i]}` : parts[i];
         handleExpand(current);
       }
-      // Load the file content
       if (!fileData) {
         handleSelect(params.file);
       }
     }
   }, []);
 
-  // Change viewer mode
+  // Fetch changed files on mount if git repo
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional mount-only effect
+  useEffect(() => {
+    if (isGit) {
+      fetchChangedFiles(worktreePath).then((result) => {
+        if (result.ok) {
+          setChangedFiles(result.files);
+        }
+      });
+    }
+  }, []);
+
+  // Change viewer mode — lazy-load diff on first switch (D3)
   const handleModeChange = useCallback(
-    (newMode: ViewerMode) => {
+    async (newMode: ViewerMode) => {
       setParams({ mode: newMode });
+
+      if (newMode === 'diff' && selectedFile && !diffCache[selectedFile]) {
+        setDiffLoading(true);
+        try {
+          const result = await fetchGitDiff(selectedFile, worktreePath);
+          setDiffCache((prev) => ({ ...prev, [selectedFile]: result }));
+        } catch (error) {
+          console.error('Failed to fetch diff:', error);
+        } finally {
+          setDiffLoading(false);
+        }
+      }
     },
-    [setParams]
+    [setParams, selectedFile, diffCache, worktreePath]
   );
 
   // Refresh file tree
@@ -111,13 +147,17 @@ export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: Bro
       try {
         const result = await saveFile(slug, worktreePath, selectedFile, content, fileData.mtime);
         if (result.ok) {
-          // Re-read to get new mtime
           const refreshed = await readFile(slug, worktreePath, selectedFile);
           setFileData(refreshed);
           if (refreshed.ok) setEditContent(refreshed.content);
+          // Invalidate diff cache for this file since content changed
+          setDiffCache((prev) => {
+            const next = { ...prev };
+            delete next[selectedFile];
+            return next;
+          });
         } else {
-          setFileData({ ...fileData }); // trigger re-render
-          // Conflict handled by FileViewerPanel via conflictError prop
+          setFileData({ ...fileData });
         }
       } catch (error) {
         console.error('Failed to save file:', error);
@@ -132,6 +172,12 @@ export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: Bro
     const result = await readFile(slug, worktreePath, selectedFile);
     setFileData(result);
     if (result.ok) setEditContent(result.content);
+    // Invalidate diff cache too
+    setDiffCache((prev) => {
+      const next = { ...prev };
+      delete next[selectedFile];
+      return next;
+    });
   }, [slug, worktreePath, selectedFile]);
 
   return (
@@ -164,6 +210,11 @@ export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: Bro
             onRefresh={handleRefreshFile}
             editContent={editContent}
             onEditChange={setEditContent}
+            highlightedHtml={fileData?.ok ? fileData.highlightedHtml : undefined}
+            markdownHtml={fileData?.ok ? fileData.markdownHtml : undefined}
+            diffData={currentDiff?.diff}
+            diffError={currentDiff?.error}
+            diffLoading={diffLoading}
             errorType={
               fileData && !fileData.ok
                 ? (fileData.error as 'file-too-large' | 'binary-file')

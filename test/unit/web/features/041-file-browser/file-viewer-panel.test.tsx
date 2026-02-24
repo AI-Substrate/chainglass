@@ -5,6 +5,7 @@
  * Acceptance Criteria: AC-24, AC-25, AC-26, AC-27, AC-28, AC-29, AC-30
  *
  * Phase 4: File Browser — Plan 041
+ * Fix FX001-7: Real viewer integration tests.
  */
 
 import { FileViewerPanel } from '@/features/041-file-browser/components/file-viewer-panel';
@@ -16,6 +17,23 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('@uiw/react-codemirror', () => ({
   __esModule: true,
   default: ({ value }: { value: string }) => <div data-testid="code-editor">{value}</div>,
+}));
+
+// Stub DiffViewer — the real one uses heavy deps that don't work in jsdom
+vi.mock('@/components/viewers/diff-viewer', () => ({
+  DiffViewer: ({
+    diffData,
+    error,
+    isLoading,
+  }: { diffData: string | null; error: string | null; isLoading?: boolean }) => (
+    <div data-testid="diff-viewer">
+      {isLoading
+        ? 'Loading diff...'
+        : diffData
+          ? `Diff: ${diffData.slice(0, 50)}`
+          : (error ?? 'No diff')}
+    </div>
+  ),
 }));
 
 describe('FileViewerPanel', () => {
@@ -74,6 +92,61 @@ describe('FileViewerPanel', () => {
       render(<FileViewerPanel {...baseProps} />);
 
       expect(screen.getByRole('button', { name: /refresh/i })).toBeInTheDocument();
+    });
+  });
+
+  describe('preview mode', () => {
+    it('renders highlighted HTML when provided', () => {
+      render(
+        <FileViewerPanel
+          {...baseProps}
+          mode="preview"
+          highlightedHtml='<pre class="shiki">const x = 1;</pre>'
+        />
+      );
+
+      const wrapper = document.querySelector('.shiki-wrapper');
+      expect(wrapper).not.toBeNull();
+      expect(wrapper?.innerHTML).toContain('shiki');
+    });
+
+    it('renders markdown HTML via MarkdownPreview when provided', () => {
+      render(
+        <FileViewerPanel
+          {...baseProps}
+          mode="preview"
+          language="markdown"
+          markdownHtml="<h1>Hello</h1><p>World</p>"
+        />
+      );
+
+      expect(screen.getByText('Hello')).toBeInTheDocument();
+      expect(screen.getByText('World')).toBeInTheDocument();
+    });
+
+    it('falls back to raw code when no highlightedHtml', () => {
+      render(<FileViewerPanel {...baseProps} mode="preview" />);
+
+      expect(screen.getByText(baseProps.content)).toBeInTheDocument();
+    });
+  });
+
+  describe('edit mode', () => {
+    it('renders CodeEditor with file content', async () => {
+      render(<FileViewerPanel {...baseProps} mode="edit" editContent="edited" />);
+
+      const editor = await screen.findByTestId('code-editor');
+      expect(editor).toBeInTheDocument();
+      expect(editor).toHaveTextContent('edited');
+    });
+  });
+
+  describe('diff mode', () => {
+    it('renders DiffViewer component', async () => {
+      render(<FileViewerPanel {...baseProps} mode="diff" diffData="diff --git a/file" />);
+
+      const viewer = await screen.findByTestId('diff-viewer');
+      expect(viewer).toBeInTheDocument();
     });
   });
 

@@ -12,7 +12,7 @@
  */
 
 import { ChevronDown, ChevronRight, File, Folder, FolderOpen, RefreshCw } from 'lucide-react';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import type { FileEntry } from '../services/directory-listing';
 
 export interface FileTreeProps {
@@ -192,8 +192,19 @@ function TreeItem({
     );
   }
 
+  // Scroll selected file into view on mount
+  const scrollRef = useCallback(
+    (el: HTMLButtonElement | null) => {
+      if (el && isSelected) {
+        el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    },
+    [isSelected]
+  );
+
   return (
     <button
+      ref={scrollRef}
       type="button"
       onClick={() => onSelect(entry.path)}
       className={`flex w-full items-center gap-1 px-2 py-1 text-left hover:bg-accent ${

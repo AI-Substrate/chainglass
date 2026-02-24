@@ -20,7 +20,15 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 // ==================== Read File ====================
 
 export type ReadFileResult =
-  | { ok: true; content: string; mtime: string; size: number; language: string }
+  | {
+      ok: true;
+      content: string;
+      mtime: string;
+      size: number;
+      language: string;
+      highlightedHtml: string;
+      markdownHtml?: string;
+    }
   | { ok: false; error: 'file-too-large' | 'binary-file' | 'not-found' | 'security' };
 
 export interface ReadFileOptions {
@@ -28,10 +36,15 @@ export interface ReadFileOptions {
   filePath: string;
   fileSystem: IFileSystem;
   pathResolver: IPathResolver;
+  /** Server-side syntax highlighter — returns HTML string */
+  highlightFn?: (code: string, lang: string) => Promise<string>;
+  /** Server-side markdown renderer — returns HTML string with mermaid + syntax */
+  renderMarkdownFn?: (content: string) => Promise<string>;
 }
 
 export async function readFileAction(options: ReadFileOptions): Promise<ReadFileResult> {
-  const { worktreePath, filePath, fileSystem, pathResolver } = options;
+  const { worktreePath, filePath, fileSystem, pathResolver, highlightFn, renderMarkdownFn } =
+    options;
 
   // Security: validate path
   let absolutePath: string;
@@ -78,12 +91,34 @@ export async function readFileAction(options: ReadFileOptions): Promise<ReadFile
 
   const language = detectLanguage(path.basename(filePath));
 
+  // Server-side syntax highlighting (D1, D4: cached with file data)
+  let highlightedHtml = '';
+  if (highlightFn) {
+    try {
+      highlightedHtml = await highlightFn(content, language);
+    } catch {
+      // Fall back to empty — preview will show raw text
+    }
+  }
+
+  // Server-side markdown rendering (D2: reuse MarkdownServer pipeline)
+  let markdownHtml: string | undefined;
+  if (renderMarkdownFn && language === 'markdown') {
+    try {
+      markdownHtml = await renderMarkdownFn(content);
+    } catch {
+      // Fall back to undefined — preview will show highlightedHtml
+    }
+  }
+
   return {
     ok: true,
     content,
     mtime: stats.mtime,
     size: stats.size,
     language,
+    highlightedHtml,
+    markdownHtml,
   };
 }
 

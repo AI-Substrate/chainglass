@@ -70,15 +70,18 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
 | `apps/web/src/features/041-file-browser/components/worktree-picker.tsx` | WorktreePicker | Phase 3 |
 | `apps/web/src/features/041-file-browser/hooks/use-attention-title.ts` | useAttentionTitle | Phase 3 |
 | `apps/web/src/features/041-file-browser/params/file-browser.params.ts` | fileBrowserParams | Phase 2 |
-| `apps/web/src/features/041-file-browser/services/directory-listing.ts` | Directory listing | Phase 4 (planned) |
-| `apps/web/src/features/041-file-browser/services/changed-files.ts` | Changed files filter | Phase 4 (planned) |
-| `apps/web/src/features/041-file-browser/components/file-tree.tsx` | FileTree | Phase 4 (planned) |
-| `apps/web/src/features/041-file-browser/components/code-editor.tsx` | CodeEditor wrapper | Phase 4 (planned) |
-| `apps/web/src/features/041-file-browser/components/file-viewer-panel.tsx` | FileViewerPanel | Phase 4 (planned) |
-| `apps/web/app/actions/file-actions.ts` | readFile + saveFile server actions | Phase 4 |
+| `apps/web/src/features/041-file-browser/services/directory-listing.ts` | Directory listing | Phase 4 |
+| `apps/web/src/features/041-file-browser/services/changed-files.ts` | Changed files filter | Phase 4 |
 | `apps/web/src/features/041-file-browser/services/file-actions.ts` | readFile + saveFile service logic | Phase 4 |
-| `apps/web/app/api/workspaces/[slug]/files/route.ts` | Files API route | Phase 4 (planned) |
-| `apps/web/app/(dashboard)/workspaces/[slug]/browser/page.tsx` | Browser page | Phase 4 (planned) |
+| `apps/web/src/features/041-file-browser/components/file-tree.tsx` | FileTree | Phase 4 |
+| `apps/web/src/features/041-file-browser/components/code-editor.tsx` | CodeEditor wrapper | Phase 4 |
+| `apps/web/src/features/041-file-browser/components/file-viewer-panel.tsx` | FileViewerPanel | Phase 4, FX001-7 |
+| `apps/web/src/features/041-file-browser/components/markdown-preview.tsx` | MarkdownPreview (mermaid activation) | FX001-7 |
+| `apps/web/app/actions/file-actions.ts` | Server actions (readFile, saveFile, fetchGitDiff, fetchChangedFiles) | Phase 4, FX001 |
+| `apps/web/app/api/workspaces/[slug]/files/route.ts` | Files API route | Phase 4 |
+| `apps/web/app/(dashboard)/workspaces/[slug]/browser/page.tsx` | Browser page (Server Component) | Phase 4 |
+| `apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx` | BrowserClient (Client Component shell) | Phase 4, FX001 |
+| `apps/web/src/lib/server/markdown-renderer.ts` | renderMarkdownToHtml (server-side markdown pipeline) | FX001-6 |
 | `apps/web/src/features/041-file-browser/index.ts` | Feature barrel | Phase 1 |
 
 ## Dependencies
@@ -103,3 +106,4 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
 | Plan 041 Phase 3 | WorkspaceCard, FleetStatusBar, WorktreePicker, useAttentionTitle, landing page | 2026-02-23 |
 | *(extracted)* | Domain formalized from Plan 041 deliverables | 2026-02-24 |
 | Plan 041 Phase 4 | File tree, code editor, viewer panel, browser page, file actions, API route | 2026-02-24 |
+| Plan 041 FX001 | Wired browser E2E: Shiki preview, markdown rendering, CodeEditor, DiffViewer, lazy diff, changed-files filter, tree auto-expand | 2026-02-24 |

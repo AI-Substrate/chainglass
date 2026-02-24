@@ -3,13 +3,24 @@
 /**
  * FileViewerPanel — Mode-toggling viewer with Edit/Preview/Diff.
  *
- * Integrates CodeEditor, existing FileViewer/MarkdownViewer, and DiffViewer.
+ * Integrates CodeEditor, Shiki-highlighted preview, MarkdownPreview, and DiffViewer.
  * Save button with conflict error display. Refresh button.
  *
  * Phase 4: File Browser — Plan 041
+ * Fix FX001-7: Real viewer component integration (Workshop D1-D4).
  */
 
-import { Edit, Eye, GitCompare, RefreshCw, Save } from 'lucide-react';
+import type { DiffError } from '@chainglass/shared';
+import { Edit, Eye, GitCompare, Loader2, RefreshCw, Save } from 'lucide-react';
+import { Suspense, lazy } from 'react';
+
+import { MarkdownPreview } from './markdown-preview';
+
+// Lazy-load heavy components
+const CodeEditor = lazy(() => import('./code-editor').then((m) => ({ default: m.CodeEditor })));
+const DiffViewer = lazy(() =>
+  import('@/components/viewers/diff-viewer').then((m) => ({ default: m.DiffViewer }))
+);
 
 export type ViewerMode = 'edit' | 'preview' | 'diff';
 
@@ -26,7 +37,16 @@ export interface FileViewerPanelProps {
   onEditChange?: (content: string) => void;
   conflictError?: string;
   errorType?: 'file-too-large' | 'binary-file';
-  diffData?: string;
+  /** Pre-highlighted HTML from Shiki (for code preview) */
+  highlightedHtml?: string;
+  /** Pre-rendered markdown HTML (for markdown preview) */
+  markdownHtml?: string;
+  /** Git diff string (for diff mode) */
+  diffData?: string | null;
+  /** Diff error (for diff mode) */
+  diffError?: DiffError | null;
+  /** Whether diff is loading */
+  diffLoading?: boolean;
 }
 
 export function FileViewerPanel({
@@ -41,7 +61,11 @@ export function FileViewerPanel({
   onEditChange,
   conflictError,
   errorType,
+  highlightedHtml,
+  markdownHtml,
   diffData,
+  diffError,
+  diffLoading,
 }: FileViewerPanelProps) {
   // Error states
   if (errorType === 'file-too-large') {
@@ -122,33 +146,54 @@ export function FileViewerPanel({
 
       {/* Content area */}
       <div className="flex-1 overflow-auto">
-        {mode === 'edit' && (
-          <div className="h-full">
-            {/* CodeEditor integration point — lazy loaded */}
-            <div className="p-4 font-mono text-sm whitespace-pre-wrap">{currentContent}</div>
-          </div>
-        )}
-        {mode === 'preview' && (
-          <div className="p-4">
-            {isMarkdown ? (
-              <div className="prose dark:prose-invert max-w-none">{content}</div>
-            ) : (
-              <pre className="p-4 font-mono text-sm overflow-x-auto">
-                <code>{content}</code>
-              </pre>
-            )}
-          </div>
-        )}
-        {mode === 'diff' && (
-          <div className="p-4">
-            {diffData ? (
-              <pre className="font-mono text-sm overflow-x-auto">{diffData}</pre>
-            ) : (
-              <p className="text-muted-foreground">No uncommitted changes.</p>
-            )}
-          </div>
-        )}
+        <Suspense fallback={<LoadingFallback />}>
+          {mode === 'edit' && (
+            <div className="h-full">
+              <CodeEditor value={currentContent} language={language} onChange={onEditChange} />
+            </div>
+          )}
+          {mode === 'preview' && (
+            <div className="p-4">
+              {isMarkdown && markdownHtml ? (
+                <MarkdownPreview html={markdownHtml} />
+              ) : highlightedHtml ? (
+                <div
+                  className="shiki-wrapper overflow-x-auto"
+                  // biome-ignore lint/security/noDangerouslySetInnerHtml: HTML from trusted Shiki server-side highlighting
+                  dangerouslySetInnerHTML={{ __html: highlightedHtml }}
+                />
+              ) : (
+                <pre className="p-4 font-mono text-sm overflow-x-auto">
+                  <code>{content}</code>
+                </pre>
+              )}
+            </div>
+          )}
+          {mode === 'diff' && (
+            <div className="p-4">
+              <DiffViewer
+                file={
+                  content != null
+                    ? { path: filePath, filename: filePath.split('/').pop() ?? filePath, content }
+                    : undefined
+                }
+                diffData={diffData ?? null}
+                error={diffError ?? null}
+                isLoading={diffLoading}
+              />
+            </div>
+          )}
+        </Suspense>
       </div>
+    </div>
+  );
+}
+
+function LoadingFallback() {
+  return (
+    <div className="flex items-center justify-center p-8 text-muted-foreground">
+      <Loader2 className="h-5 w-5 animate-spin mr-2" />
+      Loading...
     </div>
   );
 }

@@ -40,6 +40,7 @@ describe('readFileAction', () => {
       expect(result.content).toBe('export const x = 1;');
       expect(result.size).toBeGreaterThan(0);
       expect(result.language).toBe('typescript');
+      expect(result.highlightedHtml).toBe('');
     }
   });
 
@@ -122,6 +123,63 @@ describe('readFileAction', () => {
     if (!result.ok) {
       expect(result.error).toBe('security');
     }
+  });
+
+  it('calls highlightFn and includes highlightedHtml in result', async () => {
+    fs.setFile('/workspace/src/app.ts', 'const y = 2;');
+
+    const result = await readFileAction({
+      worktreePath: '/workspace',
+      filePath: 'src/app.ts',
+      fileSystem: fs,
+      pathResolver,
+      highlightFn: async (code, lang) => `<pre class="shiki">${code}</pre>`,
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.highlightedHtml).toBe('<pre class="shiki">const y = 2;</pre>');
+    }
+  });
+
+  it('calls renderMarkdownFn for markdown files', async () => {
+    fs.setFile('/workspace/docs/readme.md', '# Hello');
+
+    const result = await readFileAction({
+      worktreePath: '/workspace',
+      filePath: 'docs/readme.md',
+      fileSystem: fs,
+      pathResolver,
+      renderMarkdownFn: async (content) => '<h1>Hello</h1>',
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.markdownHtml).toBe('<h1>Hello</h1>');
+      expect(result.language).toBe('markdown');
+    }
+  });
+
+  it('does not call renderMarkdownFn for non-markdown files', async () => {
+    fs.setFile('/workspace/src/app.ts', 'const x = 1;');
+    let called = false;
+
+    const result = await readFileAction({
+      worktreePath: '/workspace',
+      filePath: 'src/app.ts',
+      fileSystem: fs,
+      pathResolver,
+      renderMarkdownFn: async () => {
+        called = true;
+        return '<p>should not be called</p>';
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.markdownHtml).toBeUndefined();
+    }
+    expect(called).toBe(false);
   });
 });
 
