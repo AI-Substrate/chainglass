@@ -8,7 +8,7 @@
  */
 
 import { createFilePathHandler } from '@/features/041-file-browser/services/file-path-handler';
-import type { BarContext } from '@/features/_platform/panel-layout/types';
+import type { BarContext } from '@/features/_platform/panel-layout';
 import { describe, expect, it, vi } from 'vitest';
 
 function makeContext(overrides?: Partial<BarContext>): BarContext {
@@ -76,6 +76,16 @@ describe('createFilePathHandler', () => {
     await handler('/home/user/project/src/utils.ts', ctx);
 
     expect(ctx.pathExists).toHaveBeenCalledWith('src/utils.ts');
+  });
+
+  it('does not strip worktree prefix from partial match', async () => {
+    const ctx = makeContext();
+    const handler = createFilePathHandler();
+    // Path shares prefix but is not a child of worktreePath
+    await handler('/home/user/project-other/src/utils.ts', ctx);
+
+    // Should NOT strip — the path starts with worktreePath but not at segment boundary
+    expect(ctx.pathExists).toHaveBeenCalledWith('home/user/project-other/src/utils.ts');
   });
 
   it('returns false when path not found', async () => {

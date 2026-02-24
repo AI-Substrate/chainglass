@@ -10,7 +10,7 @@
  */
 
 import type { ChangedFile } from '@/features/041-file-browser/services/working-changes';
-import type { PanelMode } from '@/features/_platform/panel-layout/types';
+import type { PanelMode } from '@/features/_platform/panel-layout';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 

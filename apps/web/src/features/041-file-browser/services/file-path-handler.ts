@@ -8,7 +8,7 @@
  * Per workshop: file-path-utility-bar.md
  */
 
-import type { BarHandler } from '@/features/_platform/panel-layout/types';
+import type { BarHandler } from '@/features/_platform/panel-layout';
 
 /**
  * Creates a BarHandler that navigates to file paths.
@@ -20,7 +20,10 @@ export function createFilePathHandler(): BarHandler {
     if (!normalized) return false;
 
     // Strip worktree prefix if present (user pasted absolute path)
-    if (normalized.startsWith(context.worktreePath)) {
+    if (
+      normalized === context.worktreePath ||
+      normalized.startsWith(`${context.worktreePath}/`)
+    ) {
       normalized = normalized.slice(context.worktreePath.length);
     }
 

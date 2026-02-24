@@ -29,7 +29,7 @@ import {
   MainPanel,
   PanelShell,
 } from '@/features/_platform/panel-layout';
-import type { PanelMode } from '@/features/_platform/panel-layout/types';
+import type { PanelMode } from '@/features/_platform/panel-layout';
 import { FileDiff, GitBranch } from 'lucide-react';
 import { useQueryStates } from 'nuqs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
