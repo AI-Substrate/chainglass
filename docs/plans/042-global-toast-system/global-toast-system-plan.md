@@ -88,4 +88,4 @@ Install sonner as the global toast library, create a theme-aware `<Toaster />` w
 
 | ID | Phase | Deviation | Justification |
 |----|-------|-----------|---------------|
-| *(empty — populated during implementation)* | | | |
+| DEV-001 | Simple | vi.mock('sonner') in tests | Sonner uses module-level event emitter + DOM portal that doesn't work in jsdom. Same pattern as CodeMirror mock. 3rd-party library, not our code. |

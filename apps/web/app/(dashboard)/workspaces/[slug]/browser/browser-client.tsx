@@ -144,18 +144,25 @@ export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: Bro
     window.location.reload();
   }, []);
 
-  // Save file — DYK-042-01: use toast.promise() for loading→success→error
+  // Save file — DYK-042-01: toast.promise for loading, explicit toast for conflict (AC-09)
   const handleSave = useCallback(
     async (content: string) => {
       if (!selectedFile || !fileData?.ok) return;
 
-      const savePromise = (async () => {
+      const toastId = toast.loading('Saving...');
+
+      try {
         const result = await saveFile(slug, worktreePath, selectedFile, content, fileData.mtime);
         if (!result.ok) {
           if (result.error === 'conflict') {
-            throw new Error('File was modified externally. Refresh to see changes.');
+            toast.error('Save conflict', {
+              id: toastId,
+              description: 'File was modified externally. Refresh to see changes.',
+            });
+            return;
           }
-          throw new Error('Save failed');
+          toast.error('Save failed', { id: toastId });
+          return;
         }
         // Re-read to get new mtime + highlighted content
         const refreshed = await readFile(slug, worktreePath, selectedFile);
@@ -167,14 +174,10 @@ export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: Bro
           delete next[selectedFile];
           return next;
         });
-        return result;
-      })();
-
-      toast.promise(savePromise, {
-        loading: 'Saving...',
-        success: 'File saved',
-        error: (err) => err.message,
-      });
+        toast.success('File saved', { id: toastId });
+      } catch {
+        toast.error('Save failed', { id: toastId });
+      }
     },
     [slug, worktreePath, selectedFile, fileData]
   );
@@ -184,7 +187,10 @@ export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: Bro
     if (!selectedFile) return;
     const result = await readFile(slug, worktreePath, selectedFile);
     setFileData(result);
-    if (result.ok) setEditContent(result.content);
+    if (result.ok) {
+      setEditContent(result.content);
+      toast.info('File refreshed');
+    }
     // Invalidate diff cache too
     setDiffCache((prev) => {
       const next = { ...prev };
