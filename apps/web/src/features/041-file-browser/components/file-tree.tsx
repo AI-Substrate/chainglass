@@ -104,8 +104,8 @@ export function FileTree({
   }
 
   return (
-    <div className="flex flex-col text-sm">
-      <div className="flex items-center justify-between border-b px-3 py-2">
+    <div className="flex flex-col text-sm h-full">
+      <div className="flex items-center justify-between border-b px-3 py-2 shrink-0 sticky top-0 bg-background z-10">
         <span className="text-xs font-medium text-muted-foreground uppercase">Files</span>
         <button
           type="button"
