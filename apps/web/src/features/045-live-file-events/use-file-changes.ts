@@ -50,7 +50,7 @@ export function useFileChanges(
   const { debounce = 100, mode = 'replace' } = options;
   const hub = useFileChangeHub();
   const [changes, setChanges] = useState<FileChange[]>([]);
-  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const bufferRef = useRef<FileChange[]>([]);
 
   useEffect(() => {

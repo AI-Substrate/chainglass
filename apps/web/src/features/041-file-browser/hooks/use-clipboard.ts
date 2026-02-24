@@ -64,7 +64,7 @@ export function useClipboard(options: UseClipboardOptions) {
     async (filePath: string) => {
       try {
         const result = await readFileFn(slug, worktreePath, filePath);
-        if (result.ok) {
+        if (result.ok && !result.isBinary) {
           await copyToClipboard(result.content);
           toast.success('Content copied');
         } else {
@@ -101,7 +101,7 @@ export function useClipboard(options: UseClipboardOptions) {
     async (filePath: string) => {
       try {
         const result = await readFileFn(slug, worktreePath, filePath);
-        if (result.ok) {
+        if (result.ok && !result.isBinary) {
           const blob = new Blob([result.content], { type: 'text/plain' });
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');

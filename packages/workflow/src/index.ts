@@ -135,7 +135,12 @@ export type {
 
 // Workspace entity (Plan 014: Workspaces)
 export { Workspace, DEFAULT_PREFERENCES } from './entities/index.js';
-export type { WorkspaceInput, WorkspaceJSON, WorkspacePreferences } from './entities/index.js';
+export type {
+  WorkspaceInput,
+  WorkspaceJSON,
+  WorkspacePreferences,
+  WorktreeVisualPreferences,
+} from './entities/index.js';
 
 // Sample entity (Plan 014: Phase 3 Exemplar)
 export { Sample } from './entities/index.js';

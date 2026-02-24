@@ -111,7 +111,9 @@ export function FileViewerPanel({
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally reset scroll state when file changes
   useEffect(() => {
     setScrolledDown(false);
-    scrollRef.current?.scrollTo({ top: 0 });
+    if (typeof scrollRef.current?.scrollTo === 'function') {
+      scrollRef.current.scrollTo({ top: 0 });
+    }
   }, [filePath]);
 
   const scrollToTop = useCallback(() => {
