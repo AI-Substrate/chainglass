@@ -3,7 +3,7 @@
 **Plan Version**: 1.0.0
 **Created**: 2026-02-24
 **Spec**: [live-file-events-spec.md](./live-file-events-spec.md)
-**Status**: DRAFT
+**Status**: COMPLETE
 
 **Workshops**:
 - [01-browser-event-hub-design.md](workshops/01-browser-event-hub-design.md) — Client-side event hub, pattern matching, single SSE connection
@@ -48,6 +48,7 @@ The file browser currently requires manual refresh to see filesystem changes. Th
 | `apps/web/src/features/045-live-file-events/use-file-changes.ts` | events | contract | useFileChanges hook — pattern subscription |
 | `apps/web/src/features/045-live-file-events/index.ts` | events | contract | Barrel export |
 | `apps/web/src/features/041-file-browser/hooks/use-tree-directory-changes.ts` | file-browser | internal | useTreeDirectoryChanges — multi-directory subscription |
+| `apps/web/src/features/041-file-browser/hooks/use-file-navigation.ts` | file-browser | internal | Added handleRefreshDir for live cache-bypass directory refresh |
 | `apps/web/src/features/041-file-browser/components/file-tree.tsx` | file-browser | internal | Add `newlyAddedPaths` prop + fade-in animation |
 | `apps/web/src/features/041-file-browser/components/file-viewer-panel.tsx` | file-browser | internal | Add `externallyChanged` prop + blue info banner |
 | `apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx` | file-browser | internal | Wrap with FileChangeProvider, wire event subscriptions |
@@ -174,21 +175,21 @@ The file browser currently requires manual refresh to see filesystem changes. Th
 | 3.7 | Update existing tests for new props | file-browser | 1 | FileTree test: verify newlyAddedPaths class application. FileViewerPanel test: verify externallyChanged banner renders + Refresh button click. | Per finding 05. |
 
 ### Acceptance Criteria (Phase 3)
-- [ ] AC-14: File created in expanded dir → entry appears at correct sorted position
-- [ ] AC-15: File deleted from expanded dir → entry disappears, parent stays expanded
-- [ ] AC-16: File modified in expanded dir → amber indicator
-- [ ] AC-17: Tree updates preserve scroll position + expand state
-- [ ] AC-17a: Manual refresh button remains as fallback
-- [ ] AC-18: New files show green fade-in animation (~1.5s)
-- [ ] AC-19: Edit mode: blue "modified outside editor" banner with Refresh
-- [ ] AC-20: Edit mode: unsaved content NOT replaced
-- [ ] AC-21: Preview mode: auto-refresh without banner
-- [ ] AC-22: Diff mode: blue "diff may be outdated" banner with Refresh
-- [ ] AC-23: Preview auto-refresh preserves scroll position
-- [ ] AC-24: Editor save → no false banner for ~2s
-- [ ] AC-25: External change after suppression window → banner shows
-- [ ] AC-26: Navigate away → SSE connection closes
-- [ ] AC-27: Close tab → server cleans up within 30s
+- [x] AC-14: File created in expanded dir → entry appears at correct sorted position
+- [x] AC-15: File deleted from expanded dir → entry disappears, parent stays expanded
+- [x] AC-16: File modified in expanded dir → amber indicator
+- [x] AC-17: Tree updates preserve scroll position + expand state
+- [x] AC-17a: Manual refresh button remains as fallback
+- [x] AC-18: New files show green fade-in animation (~1.5s)
+- [x] AC-19: Edit mode: blue "modified outside editor" banner with Refresh
+- [x] AC-20: Edit mode: unsaved content NOT replaced
+- [x] AC-21: Preview mode: auto-refresh without banner
+- [x] AC-22: Diff mode: blue "diff may be outdated" banner with Refresh
+- [x] AC-23: Preview auto-refresh preserves scroll position
+- [x] AC-24: Editor save → no false banner for ~2s
+- [x] AC-25: External change after suppression window → banner shows
+- [x] AC-26: Navigate away → SSE connection closes
+- [x] AC-27: Close tab → server cleans up within 30s
 
 ---
 
