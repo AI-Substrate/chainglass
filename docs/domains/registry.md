@@ -3,6 +3,9 @@
 | Domain | Slug | Type | Parent | Created By | Status |
 |--------|------|------|--------|------------|--------|
 | Workspace URL | _platform/workspace-url | infrastructure | _platform | extracted (Plan 041 Phase 2) | active |
+| File Operations | _platform/file-ops | infrastructure | _platform | extracted (pre-Plan 041) | active |
+| Viewer | _platform/viewer | infrastructure | _platform | extracted (Plan 006-web-extras) | active |
+| File Browser | file-browser | business | — | Plan 041 | active |
 
 ## Domain Types
 

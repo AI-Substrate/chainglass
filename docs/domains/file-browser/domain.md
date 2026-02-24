@@ -1,0 +1,104 @@
+# Domain: File Browser
+
+**Slug**: file-browser
+**Type**: business
+**Created**: 2026-02-24
+**Created By**: Plan 041 File Browser & Workspace-Centric UI
+**Status**: active
+
+## Purpose
+
+Workspace-scoped file browsing, editing, and diffing. The core feature that makes workspaces useful — users navigate files in a tree, view code with syntax highlighting, edit with CodeMirror, preview markdown, and see uncommitted git changes. Every state is deep-linkable via URL params.
+
+## Boundary
+
+### Owns
+- Browser page (`/workspaces/[slug]/browser`) — two-panel layout
+- File tree component — lazy per-directory loading, expand/collapse, changed-only filter
+- Code editor wrapper — CodeMirror 6 lazy-loaded, theme-synced
+- File viewer panel — mode toggle (edit/preview/diff), save button, conflict UI
+- Directory listing service — `git ls-files -- <dir>` with readDir fallback
+- Changed-files service — `git diff --name-only` for filter
+- File server actions — readFile (size limit, binary detection, symlink check), saveFile (mtime conflict, atomic write)
+- Files API route — `GET /api/workspaces/[slug]/files` for client-side directory fetching
+- File browser URL params — `fileBrowserParams` (dir, file, mode, changed)
+- Landing page components — WorkspaceCard, FleetStatusBar (Phase 3)
+- Worktree picker component (Phase 3)
+- useAttentionTitle hook (Phase 3)
+
+### Does NOT Own
+- Viewer components (FileViewer, MarkdownViewer, DiffViewer) — consumes from `_platform/viewer`
+- File system abstraction (IFileSystem, IPathResolver) — consumes from `_platform/file-ops`
+- URL infrastructure (workspaceHref, workspaceParamsCache, NuqsAdapter) — consumes from `_platform/workspace-url`
+- Workspace data model (entity, preferences, registry) — consumes from `@chainglass/workflow`
+- Git worktree resolution — consumes from `@chainglass/workflow` (IGitWorktreeResolver)
+- Sidebar/navigation structure — this domain's pages render INSIDE the sidebar, but don't own it
+
+## Contracts (Public Interface)
+
+| Contract | Type | Consumers | Description |
+|----------|------|-----------|-------------|
+| `WorkspaceCard` | Component | Landing page | Card with emoji, name, worktrees, star toggle |
+| `FleetStatusBar` | Component | Landing page | Agent status summary (placeholder) |
+| `WorktreePicker` | Component | Sidebar (workspace-nav) | Searchable worktree selection |
+| `useAttentionTitle` | Hook | Workspace pages | Dynamic browser tab title with emoji prefix |
+| `fileBrowserParams` | Param defs | Browser page, any URL-aware component | nuqs param definitions for dir, file, mode, changed |
+| `fileBrowserPageParamsCache` | Server cache | Browser page | Server-side URL param parsing |
+
+## Composition (Internal)
+
+| Component | Role | Depends On |
+|-----------|------|------------|
+| Browser page | Two-panel layout, URL state | fileBrowserPageParamsCache, FileTree, FileViewerPanel |
+| FileTree | Directory navigation, lazy expand | Files API route, changed-files service |
+| FileViewerPanel | Mode toggle, viewer integration | CodeEditor, FileViewer, MarkdownViewer, DiffViewer, readFile, saveFile |
+| CodeEditor | CodeMirror 6 wrapper | @uiw/react-codemirror, detectLanguage() |
+| Directory listing service | git ls-files per-dir | IFileSystem, IPathResolver, execFile |
+| Changed-files service | git diff --name-only | execFile |
+| readFile action | Read + security checks | IFileSystem (stat, readFile, realpath), IPathResolver |
+| saveFile action | Atomic write + conflict detection | IFileSystem (stat, writeFile, rename), IPathResolver |
+| Files API route | GET handler for client fetch | Directory listing service |
+
+## Source Location
+
+Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
+
+| File | Role | Notes |
+|------|------|-------|
+| `apps/web/src/features/041-file-browser/components/workspace-card.tsx` | WorkspaceCard | Phase 3 |
+| `apps/web/src/features/041-file-browser/components/fleet-status-bar.tsx` | FleetStatusBar | Phase 3 |
+| `apps/web/src/features/041-file-browser/components/worktree-picker.tsx` | WorktreePicker | Phase 3 |
+| `apps/web/src/features/041-file-browser/hooks/use-attention-title.ts` | useAttentionTitle | Phase 3 |
+| `apps/web/src/features/041-file-browser/params/file-browser.params.ts` | fileBrowserParams | Phase 2 |
+| `apps/web/src/features/041-file-browser/services/directory-listing.ts` | Directory listing | Phase 4 (planned) |
+| `apps/web/src/features/041-file-browser/services/changed-files.ts` | Changed files filter | Phase 4 (planned) |
+| `apps/web/src/features/041-file-browser/components/file-tree.tsx` | FileTree | Phase 4 (planned) |
+| `apps/web/src/features/041-file-browser/components/code-editor.tsx` | CodeEditor wrapper | Phase 4 (planned) |
+| `apps/web/src/features/041-file-browser/components/file-viewer-panel.tsx` | FileViewerPanel | Phase 4 (planned) |
+| `apps/web/app/actions/file-actions.ts` | readFile + saveFile | Phase 4 (planned) |
+| `apps/web/app/api/workspaces/[slug]/files/route.ts` | Files API route | Phase 4 (planned) |
+| `apps/web/app/(dashboard)/workspaces/[slug]/browser/page.tsx` | Browser page | Phase 4 (planned) |
+| `apps/web/src/features/041-file-browser/index.ts` | Feature barrel | Phase 1 |
+
+## Dependencies
+
+### This Domain Depends On
+- `_platform/file-ops` — IFileSystem, IPathResolver for all file operations
+- `_platform/viewer` — FileViewer, MarkdownViewer, DiffViewer for rendering
+- `_platform/workspace-url` — workspaceHref, param caches, NuqsAdapter
+- `@chainglass/workflow` — IWorkspaceService, workspace entity, preferences
+- `@uiw/react-codemirror` — CodeMirror 6 editor (npm)
+- `nuqs` — URL state management (npm)
+
+### Domains That Depend On This
+- None currently (this is a leaf business domain)
+
+## History
+
+| Plan | What Changed | Date |
+|------|-------------|------|
+| Plan 041 Phase 1 | Feature folder scaffold, params infrastructure | 2026-02-22 |
+| Plan 041 Phase 2 | fileBrowserParams + cache, workspaceHref | 2026-02-22 |
+| Plan 041 Phase 3 | WorkspaceCard, FleetStatusBar, WorktreePicker, useAttentionTitle, landing page | 2026-02-23 |
+| *(extracted)* | Domain formalized from Plan 041 deliverables | 2026-02-24 |
+| Plan 041 Phase 4 | File tree, code editor, viewer panel, browser page, file actions, API route | 2026-02-24 (planned) |
