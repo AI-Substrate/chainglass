@@ -201,9 +201,12 @@ export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: Bro
   }, [slug, worktreePath, selectedFile]);
 
   // Clipboard helper — works on non-HTTPS (e.g. http://192.168.x.x)
-  const copyToClipboard = useCallback(async (text: string) => {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text);
+  // Always use textarea fallback when not on secure context to avoid
+  // silent failures from clipboard API permission issues.
+  const copyToClipboard = useCallback((text: string) => {
+    const isSecure = globalThis.isSecureContext;
+    if (isSecure && navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text);
     } else {
       const textarea = document.createElement('textarea');
       textarea.value = text;
@@ -218,17 +221,20 @@ export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: Bro
 
   // Clipboard handlers for context menu
   const handleCopyFullPath = useCallback(
-    async (relativePath: string) => {
-      await copyToClipboard(`${worktreePath}/${relativePath}`);
+    (relativePath: string) => {
+      copyToClipboard(`${worktreePath}/${relativePath}`);
       toast.success('Full path copied');
     },
-    [worktreePath]
+    [worktreePath, copyToClipboard]
   );
 
-  const handleCopyRelativePath = useCallback(async (relativePath: string) => {
-    await copyToClipboard(relativePath);
-    toast.success('Relative path copied');
-  }, []);
+  const handleCopyRelativePath = useCallback(
+    (relativePath: string) => {
+      copyToClipboard(relativePath);
+      toast.success('Relative path copied');
+    },
+    [copyToClipboard]
+  );
 
   const handleCopyContent = useCallback(
     async (filePath: string) => {
