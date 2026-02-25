@@ -81,13 +81,13 @@ stateDiagram-v2
 
 ## Stages
 
-- [ ] Create file-browser SDK contribution (3 commands, 2 settings) (T001)
+- [ ] Create file-browser SDK contribution (2 commands, 2 settings) (T001)
 - [ ] Create events/toast SDK contribution (T002)
 - [ ] Implement go-to-line URL param + path parsing (T003)
-- [ ] Expose CodeMirror scroll-to-line via ref (T004)
+- [ ] Expose CodeMirror scroll-to-line via prop (T004)
 - [ ] Wire domain registrations into bootstrap (T005)
+- [x] Create USDK Architecture Decision Record (T007)
 - [ ] Create SDK developer documentation (T006)
-- [ ] Create USDK Architecture Decision Record (T007)
 
 ---
 

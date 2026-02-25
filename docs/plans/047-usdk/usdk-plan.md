@@ -413,3 +413,11 @@ Per R-EST-004 (CS ≥ 4 requires rollback plan):
 ---
 
 *Plan ready for validation. Run `/plan-4-v2-complete-the-plan` to verify readiness.*
+
+---
+
+## ADR Ledger
+
+| ADR | Title | Status | Date | Affects Phases |
+|-----|-------|--------|------|----------------|
+| 0013 | USDK Internal SDK Architecture | Accepted | 2026-02-25 | All (1-6) |

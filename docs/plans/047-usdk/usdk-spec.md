@@ -319,3 +319,9 @@ The two remaining workshops (Keyboard Chord State Machine, Command Palette UX Fl
 
 *All 4 open questions resolved. No `[NEEDS CLARIFICATION]` markers remain. Spec ready for architecture.*
 *Run `/plan-3-v2-architect` to generate the implementation plan.*
+
+---
+
+## ADRs
+
+- ADR-0013: USDK Internal SDK Architecture (2026-02-25) -- status: Accepted
