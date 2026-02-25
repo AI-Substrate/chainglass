@@ -68,6 +68,7 @@ export async function startCentralNotificationSystem(): Promise<void> {
 
     // 5. Start watching
     await watcher.start();
+    console.info('[central-notifications] Started successfully');
   } catch (error) {
     // Per DYK Insight #2: Reset flag on failure so subsequent calls can retry
     globalThis.__centralNotificationsStarted = false;

@@ -113,6 +113,12 @@ export class CentralWatcherService implements ICentralWatcherService {
         this.logError('Rescan triggered by registry watcher failed', err);
       });
     });
+    this.registryWatcher.on('error', (pathOrError) => {
+      this.logError(
+        'Registry watcher error',
+        pathOrError instanceof Error ? pathOrError : new Error(String(pathOrError))
+      );
+    });
 
     this.watching = true;
   }
@@ -243,6 +249,14 @@ export class CentralWatcherService implements ICentralWatcherService {
         });
       }
 
+      // Log watcher errors (e.g., inotify limit, permission denied)
+      watcher.on('error', (pathOrError) => {
+        this.logError(
+          `Data watcher error for ${worktreePath}`,
+          pathOrError instanceof Error ? pathOrError : new Error(String(pathOrError))
+        );
+      });
+
       this.dataWatchers.set(worktreePath, watcher);
       this.watcherMetadata.set(worktreePath, { worktreePath, workspaceSlug });
       this.logDebug('Watcher created', { worktreePath, workspaceSlug });
@@ -275,6 +289,14 @@ export class CentralWatcherService implements ICentralWatcherService {
             }
           });
         }
+
+        // Log source watcher errors
+        watcher.on('error', (pathOrError) => {
+          this.logError(
+            `Source watcher error for ${worktreePath}`,
+            pathOrError instanceof Error ? pathOrError : new Error(String(pathOrError))
+          );
+        });
 
         this.sourceWatchers.set(worktreePath, watcher);
         this.logDebug('Source watcher created', { worktreePath });

@@ -22,6 +22,11 @@ export { FileChangeHub } from './file-change-hub';
 export { FakeFileChangeHub } from './fake-file-change-hub';
 
 // Provider + hooks
-export { FileChangeProvider, useFileChangeHub } from './file-change-provider';
+export {
+  FileChangeProvider,
+  useFileChangeHub,
+  useSSEConnectionState,
+} from './file-change-provider';
+export type { SSEConnectionState } from './file-change-provider';
 export { useFileChanges } from './use-file-changes';
 export type { UseFileChangesOptions, UseFileChangesReturn } from './use-file-changes';

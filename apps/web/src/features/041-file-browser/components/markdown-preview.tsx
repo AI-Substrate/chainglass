@@ -22,7 +22,6 @@ export const MarkdownPreview = memo(function MarkdownPreview({ html }: MarkdownP
   const renderedHtmlRef = useRef<string>('');
 
   // Activate mermaid diagrams after HTML is rendered
-  // biome-ignore lint/correctness/useExhaustiveDependencies: html changes trigger re-render which needs mermaid re-activation
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
