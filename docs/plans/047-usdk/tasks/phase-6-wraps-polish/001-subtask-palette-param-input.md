@@ -134,6 +134,18 @@ sequenceDiagram
 
 ---
 
+## Critical Insights (2026-02-25)
+
+| # | Insight | Decision |
+|---|---------|----------|
+| DYK-ST001-01 | Palette mode is derived from `>` prefix in `inputValue`. Clearing input for param gathering kills palette mode and flips dropdown to 'search' mode. | Pass `paramGathering` to dropdown as a new prop. Add `'param'` mode that takes priority over prefix-derived mode. |
+| DYK-ST001-02 | Zod defaults auto-apply during `cmd.params.parse()`. Sending `{ message: "hello" }` to `toast.show` auto-fills `type: "info"`. | Trust Zod. Only gather required fields — don't manually pre-fill defaults. |
+| DYK-ST001-03 | `openFileAtLine` has one required string field (`path`) — it would show in palette with "Enter path" prompt, redundant with the file path bar. | Accept the duplication for now — it won't crash, just slightly redundant UX. Keep it visible. |
+| DYK-ST001-04 | `paramGathering` state must clear on ALL exit paths: blur, Escape, exitEditMode, exitPaletteMode. Four different close paths converge to two leaf functions. | Clear `paramGathering` in both `exitEditMode()` and `exitPaletteMode()`. |
+| DYK-ST001-05 | VS Code uses two-level Escape: first cancels input → back to list, second closes palette. Current Escape in palette mode closes everything. | In param mode, Escape clears `paramGathering` and restores `>` input (back to commands). Second Escape closes palette. |
+
+---
+
 ## Discoveries & Learnings
 
 _Populated during implementation by plan-6._
