@@ -16,8 +16,9 @@
 import type { IUSDK } from '@chainglass/shared/sdk';
 import { ArrowRight, ClipboardCopy } from 'lucide-react';
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { toast } from 'sonner';
 
-import type { MruTracker } from '@/lib/sdk/mru-tracker';
+import type { MruTracker } from '@/lib/sdk/sdk-provider';
 
 import type { BarContext, BarHandler, ExplorerPanelHandle } from '../types';
 import { AsciiSpinner } from './ascii-spinner';
@@ -73,6 +74,7 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
     // Expose focusInput + openPalette
     useImperativeHandle(ref, () => ({
       focusInput: () => {
+        if (processing) return;
         setEditing(true);
         setInputValue(filePath);
         setTimeout(() => {
@@ -81,7 +83,7 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
         }, 0);
       },
       openPalette: () => {
-        if (!sdk) return;
+        if (!sdk || processing) return;
         setEditing(true);
         setInputValue('>');
         setTimeout(() => {
@@ -112,9 +114,14 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
     const handlePaletteExecute = useCallback(
       async (commandId: string) => {
         if (!sdk) return;
-        await sdk.commands.execute(commandId);
-        onCommandExecute?.(commandId);
-        exitPaletteMode();
+        try {
+          await sdk.commands.execute(commandId);
+          onCommandExecute?.(commandId);
+        } catch (error) {
+          console.error('[CommandPalette] Execute failed:', error);
+        } finally {
+          exitPaletteMode();
+        }
       },
       [sdk, onCommandExecute, exitPaletteMode]
     );
@@ -132,8 +139,8 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
             return;
           }
         }
-        // DYK-P3-04: Search stub as fallback — not "Not found"
-        context.showError('Search coming soon');
+        // DYK-P3-04: Search stub as fallback — informational, not error
+        toast.info('Search coming soon');
       } finally {
         setProcessing(false);
       }
@@ -141,10 +148,12 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
 
     const handleKeyDown = useCallback(
       (e: React.KeyboardEvent<HTMLInputElement>) => {
-        // In command palette mode (> prefix): delegate all keys to dropdown
+        // In command palette mode (> prefix): delegate only palette-specific keys
         if (paletteMode) {
-          dropdownRef.current?.handleKeyDown(e);
-          return;
+          if (['Escape', 'ArrowDown', 'ArrowUp', 'Enter'].includes(e.key)) {
+            dropdownRef.current?.handleKeyDown(e);
+            return;
+          }
         }
 
         // Escape always exits edit mode (closes dropdown if showing)

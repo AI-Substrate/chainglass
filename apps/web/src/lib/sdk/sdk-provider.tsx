@@ -195,3 +195,4 @@ export function useSDKInternal(): SDKContextValue {
 
 // Re-export for consumers
 export { SDKContext };
+export type { MruTracker } from './mru-tracker';

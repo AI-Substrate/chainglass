@@ -39,6 +39,8 @@ Reusable three-panel layout system for workspace detail pages. Provides the stru
 | `PanelHeader` | Component | LeftPanel, MainPanel | Shared header with mode buttons + actions |
 | `BarHandler` | Type | file-browser (path handler), future (search handler) | Handler chain type for ExplorerPanel input |
 | `BarContext` | Type | BarHandler implementations | Context passed to input handlers |
+| `ExplorerPanelHandle` | Type | file-browser | Imperative handle: focusInput(), openPalette() |
+| `createSymbolSearchStub` | Factory | file-browser | Stub BarHandler for `#` prefix (symbol search) |
 | `PanelMode` | Type | LeftPanel consumers | Union type for left panel modes (`'tree' \| 'changes' \| ...`) |
 | `AsciiSpinner` | Component | file-browser | `<AsciiSpinner active={boolean} />` spinning \| / — \ indicator |
 
@@ -47,7 +49,8 @@ Reusable three-panel layout system for workspace detail pages. Provides the stru
 | Component | Role | Depends On |
 |-----------|------|------------|
 | PanelShell | Arranges three panels in flex layout | ExplorerPanel, LeftPanel, MainPanel |
-| ExplorerPanel | Top bar with input + handler chain | BarHandler, BarContext, clipboard utils |
+| ExplorerPanel | Top bar with input + handler chain + command palette | BarHandler, BarContext, CommandPaletteDropdown, IUSDK, MruTracker |
+| CommandPaletteDropdown | Multi-mode dropdown below explorer bar | IUSDK (commands.list), MruTracker |
 | LeftPanel | Mode header + content slot | PanelHeader, PanelMode, URL state |
 | MainPanel | Content wrapper with flex-1 | — (pure layout) |
 | PanelHeader | Title + icon buttons + mode toggle | — (pure presentational) |
@@ -68,6 +71,8 @@ Primary: `apps/web/src/features/_platform/panel-layout/`
 | `apps/web/src/features/_platform/panel-layout/components/panel-shell.tsx` | Root compositor with resizable panels | Created Phase 1 |
 | `apps/web/src/components/ui/resizable.tsx` | shadcn resizable wrapper | Installed Phase 1 |
 | `apps/web/src/features/_platform/panel-layout/components/ascii-spinner.tsx` | AsciiSpinner component | Extracted from ExplorerPanel |
+| `apps/web/src/features/_platform/panel-layout/components/command-palette-dropdown.tsx` | Multi-mode palette dropdown | Created Phase 3 (047) |
+| `apps/web/src/features/_platform/panel-layout/stub-handlers.ts` | Symbol search stub handler | Created Phase 3 (047) |
 
 **Migration note**: The current raw `div+flex` layout in `browser-client.tsx` (lines 305-358) and the sticky header in `file-tree.tsx` (lines 107-118) will be refactored to use these components when implemented. The agent chat page (`agents/[id]/page.tsx`) is a future consumer.
 
@@ -75,8 +80,10 @@ Primary: `apps/web/src/features/_platform/panel-layout/`
 
 ### This Domain Depends On
 - `_platform/workspace-url` — URL state management for `panel` param
+- `_platform/sdk` — IUSDK, MruTracker for command palette
 - `nuqs` — URL param persistence (npm)
 - `lucide-react` — icons for panel headers (npm)
+- `sonner` — toast notifications for stubs (npm)
 
 ### Domains That Depend On This
 - `file-browser` — browser page will compose PanelShell with FileTree, ChangesView, FileViewerPanel
@@ -90,3 +97,4 @@ Primary: `apps/web/src/features/_platform/panel-layout/`
 | Plan 043 Phase 1 | Created all 5 components (PanelShell, ExplorerPanel, LeftPanel, MainPanel, PanelHeader), types, barrel export. Installed react-resizable-panels. 19 tests. | 2026-02-24 |
 | Plan 043 Phase 3 | Wired into BrowserClient. PanelShell with resizable layout, ExplorerPanel with file path handler, LeftPanel with tree/changes modes. First active consumer. | 2026-02-24 |
 | Plan 046 | Extracted AsciiSpinner from ExplorerPanel as reusable component, exported via barrel | 2026-02-24 |
+| Plan 047 Phase 3 | Command palette: ExplorerPanel centered with border/shadow, palette mode (> prefix), CommandPaletteDropdown (multi-mode: commands/symbols/search), keyboard delegation, openPalette() handle, # stub handler, search fallback | 2026-02-25 |

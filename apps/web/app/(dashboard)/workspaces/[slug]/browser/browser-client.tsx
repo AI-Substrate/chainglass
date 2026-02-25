@@ -34,8 +34,7 @@ import {
   createSymbolSearchStub,
 } from '@/features/_platform/panel-layout';
 import type { PanelMode } from '@/features/_platform/panel-layout';
-import { useSDK } from '@/lib/sdk/sdk-provider';
-import { useSDKMru } from '@/lib/sdk/sdk-provider';
+import { useSDK, useSDKMru } from '@/lib/sdk/sdk-provider';
 import { FileDiff, GitBranch } from 'lucide-react';
 import { useQueryStates } from 'nuqs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';

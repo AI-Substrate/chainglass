@@ -14,8 +14,7 @@
  * Per Plan 047 Phase 3, Task T002.
  */
 
-import type { IUSDK } from '@chainglass/shared/sdk';
-import type { SDKCommand } from '@chainglass/shared/sdk';
+import type { IUSDK, SDKCommand } from '@chainglass/shared/sdk';
 import { Command, Hash, Search, Terminal } from 'lucide-react';
 import {
   forwardRef,
@@ -27,7 +26,7 @@ import {
   useState,
 } from 'react';
 
-import type { MruTracker } from '@/lib/sdk/mru-tracker';
+import type { MruTracker } from '@/lib/sdk/sdk-provider';
 
 export type DropdownMode = 'commands' | 'symbols' | 'search';
 
@@ -168,10 +167,13 @@ export const CommandPaletteDropdown = forwardRef<
             {filter ? 'No matching commands' : 'No commands registered'}
           </div>
         ) : (
-          <div ref={listRef} className="py-1">
+          // biome-ignore lint/a11y/useSemanticElements: custom command palette, not a native select
+          <div ref={listRef} role="listbox" tabIndex={-1} className="py-1">
             {commands.map((cmd, index) => (
-              <div
+              <div // biome-ignore lint/a11y/useSemanticElements: custom palette item
                 key={cmd.id}
+                role="option"
+                tabIndex={-1}
                 aria-selected={index === selectedIndex}
                 className={`flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer ${
                   index === selectedIndex
