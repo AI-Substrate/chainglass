@@ -36,9 +36,13 @@ export class NodeFileSystemAdapter implements IFileSystem {
   /**
    * Write content to a file, creating it if it doesn't exist.
    */
-  async writeFile(path: string, content: string): Promise<void> {
+  async writeFile(path: string, content: string | Buffer): Promise<void> {
     try {
-      await fs.writeFile(path, content, 'utf-8');
+      if (typeof content === 'string') {
+        await fs.writeFile(path, content, 'utf-8');
+      } else {
+        await fs.writeFile(path, content);
+      }
     } catch (err) {
       throw this.wrapError(err, path);
     }
@@ -215,6 +219,14 @@ export class NodeFileSystemAdapter implements IFileSystem {
       // Determine which path caused the error
       const errorPath = (await this.exists(oldPath)) ? newPath : oldPath;
       throw this.wrapError(err, errorPath);
+    }
+  }
+
+  async realpath(path: string): Promise<string> {
+    try {
+      return await fs.realpath(path);
+    } catch (err) {
+      throw this.wrapError(err, path);
     }
   }
 

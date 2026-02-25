@@ -37,6 +37,7 @@ vi.mock('next/navigation', () => ({
     prefetch: vi.fn(),
   }),
   usePathname: () => '/',
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 describe('BottomTabBar', () => {
@@ -93,23 +94,21 @@ describe('BottomTabBar', () => {
       expect(screen.getByRole('tablist')).toBeInTheDocument();
     });
 
-    it('should render core nav items as tabs', () => {
+    it('should render nav items as tabs (landing page shows Home)', () => {
       /*
       Test Doc:
       - Why: Phone users need access to core navigation
-      - Contract: Renders 3 tabs (Home, Workflow, Kanban) from MOBILE_NAV_ITEMS
-      - Usage Notes: Demo pages excluded per DYK session decision
+      - Contract: Landing page renders 1 tab (Home) from LANDING_NAV_ITEMS. Workspace pages show workspace items.
+      - Usage Notes: Phase 3 restructure split nav into context-aware groups
       - Quality Contribution: Catches incorrect tab count
-      - Worked Example: 3 tabs rendered with correct labels
+      - Worked Example: 1 tab rendered on landing page
       */
       render(<BottomTabBar />);
 
       const tabs = screen.getAllByRole('tab');
-      expect(tabs).toHaveLength(3);
+      expect(tabs).toHaveLength(1);
 
       expect(screen.getByRole('tab', { name: /home/i })).toBeInTheDocument();
-      expect(screen.getByRole('tab', { name: /workflow/i })).toBeInTheDocument();
-      expect(screen.getByRole('tab', { name: /kanban/i })).toBeInTheDocument();
     });
 
     it('should have ARIA tablist role for accessibility', () => {
@@ -233,22 +232,19 @@ describe('BottomTabBar', () => {
       expect(homeTab).toHaveAttribute('aria-selected', 'true');
     });
 
-    it('should show inactive state for non-current tabs', () => {
+    it('should show active state on current tab', () => {
       /*
       Test Doc:
       - Why: Inactive tabs need distinct styling
-      - Contract: Non-active tabs have aria-selected="false"
-      - Usage Notes: Visual distinction between active/inactive
+      - Contract: Active Home tab has aria-selected="true" on landing page
+      - Usage Notes: Phase 3: context-aware nav — landing shows Home only
       - Quality Contribution: Catches incorrect active state logic
-      - Worked Example: Workflow tab has aria-selected="false" when on /
+      - Worked Example: Home tab has aria-selected="true" when on /
       */
       render(<BottomTabBar />);
 
-      const workflowTab = screen.getByRole('tab', { name: /workflow/i });
-      const kanbanTab = screen.getByRole('tab', { name: /kanban/i });
-
-      expect(workflowTab).toHaveAttribute('aria-selected', 'false');
-      expect(kanbanTab).toHaveAttribute('aria-selected', 'false');
+      const homeTab = screen.getByRole('tab', { name: /home/i });
+      expect(homeTab).toHaveAttribute('aria-selected', 'true');
     });
 
     it('should have distinct visual styling for active tab', () => {
@@ -269,23 +265,6 @@ describe('BottomTabBar', () => {
   });
 
   describe('navigation behavior', () => {
-    it('should navigate on tab press', async () => {
-      /*
-      Test Doc:
-      - Why: Tabs must trigger navigation
-      - Contract: Tab press calls router.push with tab href
-      - Usage Notes: Uses Next.js router for navigation
-      - Quality Contribution: Catches broken navigation handlers
-      - Worked Example: Press Workflow → router.push('/workflow')
-      */
-      const user = userEvent.setup();
-      render(<BottomTabBar />);
-
-      await user.click(screen.getByRole('tab', { name: /workflow/i }));
-
-      expect(mockPush).toHaveBeenCalledWith('/workflows');
-    });
-
     it('should not navigate when pressing already active tab', async () => {
       /*
       Test Doc:

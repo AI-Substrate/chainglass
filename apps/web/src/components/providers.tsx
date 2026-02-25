@@ -5,12 +5,18 @@
  *
  * Includes:
  * - React Query (QueryClientProvider) for server state management
+ * - nuqs (NuqsAdapter) for type-safe URL state management (Plan 041 Phase 2)
+ * - Toaster (sonner) for global toast notifications (Plan 042)
  *
  * Part of Plan 015: Phase 3 notification-fetch architecture
  */
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { NuqsAdapter } from 'nuqs/adapters/next/app';
 import { type ReactNode, useState } from 'react';
+
+import { SDKProvider } from '../lib/sdk/sdk-provider';
+import { Toaster } from './ui/toaster';
 
 interface ProvidersProps {
   children: ReactNode;
@@ -43,5 +49,13 @@ export function Providers({ children }: ProvidersProps) {
       })
   );
 
-  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+  return (
+    <QueryClientProvider client={queryClient}>
+      <NuqsAdapter>
+        <SDKProvider>{children}</SDKProvider>
+      </NuqsAdapter>
+      {/* Toaster must be inside ThemeProvider (in layout.tsx above us) for dark mode — DYK-042-04 */}
+      <Toaster />
+    </QueryClientProvider>
+  );
 }

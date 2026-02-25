@@ -134,8 +134,13 @@ export type {
 } from './entities/index.js';
 
 // Workspace entity (Plan 014: Workspaces)
-export { Workspace } from './entities/index.js';
-export type { WorkspaceInput, WorkspaceJSON } from './entities/index.js';
+export { Workspace, DEFAULT_PREFERENCES } from './entities/index.js';
+export type {
+  WorkspaceInput,
+  WorkspaceJSON,
+  WorkspacePreferences,
+  WorktreeVisualPreferences,
+} from './entities/index.js';
 
 // Sample entity (Plan 014: Phase 3 Exemplar)
 export { Sample } from './entities/index.js';
@@ -414,3 +419,19 @@ export {
   FakeCentralWatcherService,
   type RegisterAdapterCall,
 } from './features/023-central-watcher-notifications/index.js';
+export { FileChangeWatcherAdapter } from './features/023-central-watcher-notifications/index.js';
+export type {
+  FileChangeBatchItem,
+  FilesChangedCallback,
+} from './features/023-central-watcher-notifications/index.js';
+export { SOURCE_WATCHER_IGNORED } from './features/023-central-watcher-notifications/index.js';
+export { FakeFileChangeWatcherAdapter } from './features/023-central-watcher-notifications/index.js';
+
+// Workspace palettes (Plan 041: File Browser)
+export {
+  WORKSPACE_EMOJI_PALETTE,
+  WORKSPACE_COLOR_PALETTE,
+  WORKSPACE_COLOR_NAMES,
+  WORKSPACE_EMOJI_SET,
+} from './constants/workspace-palettes.js';
+export type { WorkspaceEmoji, WorkspaceColorName } from './constants/workspace-palettes.js';

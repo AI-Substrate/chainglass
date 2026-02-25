@@ -18,6 +18,7 @@ Architecture Decision Records (ADRs) document significant architectural decision
 | 0010 | [Central Domain Event Notification Architecture](./adr-0010-central-domain-event-notification-architecture.md) | 2026-02-03 | Accepted | - | - | Core signpost for domain event system (Plan 027) |
 | 0011 | [First-Class Domain Concepts Over Diffuse Functions](./adr-0011-first-class-domain-concepts.md) | 2026-02-08 | Accepted | - | - | Golden example: INodeEventService (Plan 032 WS09) |
 | 0012 | [Workflow System Domain Boundaries](./adr-0012-workflow-domain-boundaries.md) | 2026-02-17 | Accepted | - | - | Six domains, dependency rules, litmus test. **Read before any WF plan.** |
+| 0013 | [USDK Internal SDK Architecture](./adr-0013-usdk-internal-sdk-architecture.md) | 2026-02-25 | Accepted | - | - | SDK vs DI boundary, command palette, keyboard shortcuts, settings. **Read before extending SDK.** |
 
 ## ADR Format
 

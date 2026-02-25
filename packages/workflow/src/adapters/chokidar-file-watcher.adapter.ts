@@ -38,6 +38,7 @@ export class ChokidarFileWatcherAdapter implements IFileWatcher {
       persistent: options.persistent ?? true,
       usePolling: options.usePolling,
       interval: options.interval,
+      ignored: options.ignored,
     });
   }
 

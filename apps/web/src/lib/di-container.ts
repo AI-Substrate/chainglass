@@ -173,7 +173,7 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
   });
 
   // FIX-005: Audit log for config registration
-  console.log('[createProductionContainer] Config registered in DI container', {
+  console.debug('[createProductionContainer] Config registered in DI container', {
     configLoaded: config.isLoaded(),
   });
 
@@ -475,7 +475,7 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
 
   // FIX-010: Performance metrics for container creation
   const durationMs = performance.now() - startTime;
-  console.log(`[createProductionContainer] Container created in ${durationMs.toFixed(2)}ms`);
+  console.debug(`[createProductionContainer] Container created in ${durationMs.toFixed(2)}ms`);
 
   return childContainer;
 }

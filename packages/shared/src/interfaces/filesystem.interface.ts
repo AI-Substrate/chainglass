@@ -62,10 +62,10 @@ export interface IFileSystem {
    * Write content to a file, creating it if it doesn't exist.
    * Parent directories must exist.
    * @param path Absolute path to file
-   * @param content Content to write (UTF-8)
+   * @param content Content to write — string (UTF-8) or Buffer (binary)
    * @throws FileSystemError with code 'ENOENT' if parent directory doesn't exist
    */
-  writeFile(path: string, content: string): Promise<void>;
+  writeFile(path: string, content: string | Buffer): Promise<void>;
 
   /**
    * Read directory contents (non-recursive).
@@ -153,4 +153,15 @@ export interface IFileSystem {
    * @throws FileSystemError with code 'ENOENT' if newPath parent directory doesn't exist
    */
   rename(oldPath: string, newPath: string): Promise<void>;
+
+  /**
+   * Resolve a path to its canonical absolute path, resolving symlinks.
+   *
+   * Per Plan 041 Phase 4 DYK-P4-02: Required for symlink escape detection.
+   *
+   * @param path Absolute path to resolve
+   * @returns Resolved absolute path with symlinks dereferenced
+   * @throws FileSystemError with code 'ENOENT' if path doesn't exist
+   */
+  realpath(path: string): Promise<string>;
 }

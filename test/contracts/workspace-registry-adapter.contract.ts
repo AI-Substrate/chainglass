@@ -200,6 +200,76 @@ export function workspaceRegistryAdapterContractTests(
       });
     });
 
+    describe('update() contract', () => {
+      it('should update an existing workspace and return ok=true', async () => {
+        /*
+        Test Doc:
+        - Why: Contract requires update returns success status
+        - Contract: update(workspace) → { ok: true } on success
+        - Quality Contribution: Ensures consistent return type
+        */
+        await ctx.adapter.save(SAMPLE_WORKSPACE_1);
+        const updated = SAMPLE_WORKSPACE_1.withPreferences({ emoji: '🔮', color: 'purple' });
+        const result = await ctx.adapter.update(updated);
+
+        expect(result.ok).toBe(true);
+      });
+
+      it('should persist updated preferences through load', async () => {
+        /*
+        Test Doc:
+        - Why: Contract requires update persists data
+        - Contract: update() → load() returns updated workspace
+        - Quality Contribution: Ensures data integrity through update cycle
+        */
+        await ctx.adapter.save(SAMPLE_WORKSPACE_1);
+        const updated = SAMPLE_WORKSPACE_1.withPreferences({
+          emoji: '🦊',
+          color: 'orange',
+          starred: true,
+          sortOrder: 7,
+        });
+        await ctx.adapter.update(updated);
+
+        const loaded = await ctx.adapter.load(SAMPLE_WORKSPACE_1.slug);
+        expect(loaded.preferences.emoji).toBe('🦊');
+        expect(loaded.preferences.color).toBe('orange');
+        expect(loaded.preferences.starred).toBe(true);
+        expect(loaded.preferences.sortOrder).toBe(7);
+      });
+
+      it('should return error for non-existent workspace', async () => {
+        /*
+        Test Doc:
+        - Why: Contract requires error for missing workspace
+        - Contract: update(missing) returns { ok: false, errorCode: 'E074' }
+        - Quality Contribution: Consistent error handling
+        */
+        const result = await ctx.adapter.update(SAMPLE_WORKSPACE_1);
+
+        expect(result.ok).toBe(false);
+        expect(result.errorCode).toBe('E074');
+      });
+
+      it('should preserve other workspaces when updating one', async () => {
+        /*
+        Test Doc:
+        - Why: Update must not corrupt other entries
+        - Contract: update(ws1) does not affect ws2
+        - Quality Contribution: Data isolation between workspaces
+        */
+        await ctx.adapter.save(SAMPLE_WORKSPACE_1);
+        await ctx.adapter.save(SAMPLE_WORKSPACE_2);
+
+        const updated = SAMPLE_WORKSPACE_1.withPreferences({ emoji: '🔥' });
+        await ctx.adapter.update(updated);
+
+        const other = await ctx.adapter.load(SAMPLE_WORKSPACE_2.slug);
+        expect(other.slug).toBe(SAMPLE_WORKSPACE_2.slug);
+        expect(other.name).toBe(SAMPLE_WORKSPACE_2.name);
+      });
+    });
+
     describe('exists() contract', () => {
       it('should return true for saved workspace', async () => {
         /*

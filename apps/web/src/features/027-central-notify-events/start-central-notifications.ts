@@ -14,8 +14,9 @@
 import { WORKSPACE_DI_TOKENS } from '@chainglass/shared/di-tokens';
 import type { ICentralEventNotifier } from '@chainglass/shared/features/027-central-notify-events/central-event-notifier.interface';
 import type { ICentralWatcherService } from '@chainglass/workflow';
-import { WorkGraphWatcherAdapter } from '@chainglass/workflow';
+import { FileChangeWatcherAdapter, WorkGraphWatcherAdapter } from '@chainglass/workflow';
 import { getContainer } from '../../lib/bootstrap-singleton';
+import { FileChangeDomainEventAdapter } from './file-change-domain-event-adapter';
 import { WorkgraphDomainEventAdapter } from './workgraph-domain-event-adapter';
 
 declare global {
@@ -48,18 +49,26 @@ export async function startCentralNotificationSystem(): Promise<void> {
       WORKSPACE_DI_TOKENS.CENTRAL_EVENT_NOTIFIER
     );
 
-    // 2. Create domain event adapter
-    const domainAdapter = new WorkgraphDomainEventAdapter(notifier);
+    // 2. Create domain event adapters
+    const workgraphDomainAdapter = new WorkgraphDomainEventAdapter(notifier);
+    const fileChangeDomainAdapter = new FileChangeDomainEventAdapter(notifier);
 
-    // 3. Create and register watcher adapter
-    const watcherAdapter = new WorkGraphWatcherAdapter();
-    watcher.registerAdapter(watcherAdapter);
+    // 3. Create and register watcher adapters
+    const workgraphWatcherAdapter = new WorkGraphWatcherAdapter();
+    watcher.registerAdapter(workgraphWatcherAdapter);
 
-    // 4. Subscribe domain adapter to watcher adapter events
-    watcherAdapter.onGraphChanged((event) => domainAdapter.handleEvent(event));
+    const fileChangeWatcherAdapter = new FileChangeWatcherAdapter(300);
+    watcher.registerAdapter(fileChangeWatcherAdapter);
+
+    // 4. Subscribe domain adapters to watcher adapter events
+    workgraphWatcherAdapter.onGraphChanged((event) => workgraphDomainAdapter.handleEvent(event));
+    fileChangeWatcherAdapter.onFilesChanged((changes) =>
+      fileChangeDomainAdapter.handleEvent({ changes })
+    );
 
     // 5. Start watching
     await watcher.start();
+    console.info('[central-notifications] Started successfully');
   } catch (error) {
     // Per DYK Insight #2: Reset flag on failure so subsequent calls can retry
     globalThis.__centralNotificationsStarted = false;

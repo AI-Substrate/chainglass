@@ -1,0 +1,1307 @@
+diff --git a/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx b/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
+index d68bbcc..a010a19 100644
+--- a/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
++++ b/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
+@@ -247,8 +247,16 @@ export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: Bro
+             {selectedFile ? (
+               <FileViewerPanel
+                 filePath={selectedFile}
+-                content={fileNav.fileData?.ok ? fileNav.fileData.content : null}
+-                language={fileNav.fileData?.ok ? fileNav.fileData.language : 'text'}
++                content={
++                  fileNav.fileData?.ok && !fileNav.fileData.isBinary
++                    ? fileNav.fileData.content
++                    : null
++                }
++                language={
++                  fileNav.fileData?.ok && !fileNav.fileData.isBinary
++                    ? fileNav.fileData.language
++                    : 'text'
++                }
+                 mtime={fileNav.fileData?.ok ? fileNav.fileData.mtime : ''}
+                 mode={mode}
+                 onModeChange={fileNav.handleModeChange}
+@@ -257,15 +265,37 @@ export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: Bro
+                 editContent={fileNav.editContent}
+                 onEditChange={fileNav.setEditContent}
+                 highlightedHtml={
+-                  fileNav.fileData?.ok ? fileNav.fileData.highlightedHtml : undefined
++                  fileNav.fileData?.ok && !fileNav.fileData.isBinary
++                    ? fileNav.fileData.highlightedHtml
++                    : undefined
++                }
++                markdownHtml={
++                  fileNav.fileData?.ok && !fileNav.fileData.isBinary
++                    ? fileNav.fileData.markdownHtml
++                    : undefined
+                 }
+-                markdownHtml={fileNav.fileData?.ok ? fileNav.fileData.markdownHtml : undefined}
+                 diffData={currentDiff?.diff}
+                 diffError={currentDiff?.error}
+                 diffLoading={fileNav.diffLoading}
++                isBinary={fileNav.fileData?.ok ? fileNav.fileData.isBinary : false}
++                binaryContentType={
++                  fileNav.fileData?.ok && fileNav.fileData.isBinary
++                    ? fileNav.fileData.contentType
++                    : undefined
++                }
++                binarySize={
++                  fileNav.fileData?.ok && fileNav.fileData.isBinary
++                    ? fileNav.fileData.size
++                    : undefined
++                }
++                rawFileUrl={
++                  selectedFile
++                    ? `/api/workspaces/${slug}/files/raw?worktree=${encodeURIComponent(worktreePath)}&file=${encodeURIComponent(selectedFile)}`
++                    : undefined
++                }
+                 errorType={
+                   fileNav.fileData && !fileNav.fileData.ok
+-                    ? (fileNav.fileData.error as 'file-too-large' | 'binary-file')
++                    ? (fileNav.fileData.error as 'file-too-large')
+                     : undefined
+                 }
+               />
+diff --git a/apps/web/app/api/workspaces/[slug]/files/raw/route.ts b/apps/web/app/api/workspaces/[slug]/files/raw/route.ts
+new file mode 100644
+index 0000000..d57133a
+--- /dev/null
++++ b/apps/web/app/api/workspaces/[slug]/files/raw/route.ts
+@@ -0,0 +1,148 @@
++/**
++ * Raw File API Route — GET /api/workspaces/[slug]/files/raw
++ *
++ * Streams raw binary file content with correct Content-Type headers.
++ * Supports HTTP Range requests for video seeking.
++ *
++ * Security: Uses IPathResolver for path traversal prevention,
++ * fs.realpath for symlink escape detection.
++ *
++ * Plan 046: Binary File Viewers
++ * DYK-01: Uses fs.createReadStream — never buffers full file.
++ * DYK-03: Content-Disposition: inline by default; ?download=true for attachment.
++ */
++
++import * as fs from 'node:fs';
++import * as fsPromises from 'node:fs/promises';
++import * as path from 'node:path';
++import type { NextRequest } from 'next/server';
++import { detectContentType } from '@/lib/content-type-detection';
++
++export const dynamic = 'force-dynamic';
++
++export async function GET(
++  request: NextRequest,
++  { params }: { params: Promise<{ slug: string }> }
++): Promise<Response> {
++  await params;
++  const { searchParams } = new URL(request.url);
++  const worktree = searchParams.get('worktree');
++  const file = searchParams.get('file');
++  const download = searchParams.get('download') === 'true';
++
++  if (!worktree || !file) {
++    return new Response('Missing worktree or file parameter', { status: 400 });
++  }
++
++  if (!worktree.startsWith('/')) {
++    return new Response('Invalid worktree path', { status: 400 });
++  }
++
++  if (file.includes('..') || file.startsWith('/')) {
++    return new Response('Path traversal not allowed', { status: 403 });
++  }
++
++  const absolutePath = path.join(worktree, file);
++
++  // Symlink escape check via realpath
++  try {
++    const realPath = await fsPromises.realpath(absolutePath);
++    if (
++      !realPath.startsWith(worktree) ||
++      (realPath !== worktree && !realPath.startsWith(`${worktree}/`))
++    ) {
++      return new Response('Path escape not allowed', { status: 403 });
++    }
++  } catch {
++    return new Response('File not found', { status: 404 });
++  }
++
++  // Stat for size + existence
++  let stat: fs.Stats;
++  try {
++    stat = await fsPromises.stat(absolutePath);
++    if (!stat.isFile()) {
++      return new Response('Not a file', { status: 400 });
++    }
++  } catch {
++    return new Response('File not found', { status: 404 });
++  }
++
++  const { mimeType } = detectContentType(file);
++  const filename = path.basename(file);
++  const disposition = download ? `attachment; filename="${filename}"` : 'inline';
++
++  const headers: Record<string, string> = {
++    'Content-Type': mimeType,
++    'Content-Disposition': disposition,
++    'Accept-Ranges': 'bytes',
++    'Cache-Control': 'private, max-age=0',
++  };
++
++  // Handle Range requests
++  const rangeHeader = request.headers.get('range');
++  if (rangeHeader) {
++    const match = rangeHeader.match(/^bytes=(\d+)-(\d*)$/);
++    if (!match) {
++      return new Response('Invalid range', {
++        status: 416,
++        headers: { 'Content-Range': `bytes */${stat.size}` },
++      });
++    }
++
++    const start = Number.parseInt(match[1], 10);
++    const end = match[2] ? Number.parseInt(match[2], 10) : stat.size - 1;
++
++    if (start >= stat.size || end >= stat.size || start > end) {
++      return new Response('Range not satisfiable', {
++        status: 416,
++        headers: { 'Content-Range': `bytes */${stat.size}` },
++      });
++    }
++
++    const chunkSize = end - start + 1;
++    const stream = fs.createReadStream(absolutePath, { start, end });
++    const webStream = readableNodeToWeb(stream);
++
++    return new Response(webStream, {
++      status: 206,
++      headers: {
++        ...headers,
++        'Content-Range': `bytes ${start}-${end}/${stat.size}`,
++        'Content-Length': String(chunkSize),
++      },
++    });
++  }
++
++  // Full file streaming
++  const stream = fs.createReadStream(absolutePath);
++  const webStream = readableNodeToWeb(stream);
++
++  return new Response(webStream, {
++    status: 200,
++    headers: {
++      ...headers,
++      'Content-Length': String(stat.size),
++    },
++  });
++}
++
++/** Convert Node.js Readable to Web ReadableStream */
++function readableNodeToWeb(nodeStream: fs.ReadStream): ReadableStream<Uint8Array> {
++  return new ReadableStream({
++    start(controller) {
++      nodeStream.on('data', (chunk: Buffer) => {
++        controller.enqueue(new Uint8Array(chunk));
++      });
++      nodeStream.on('end', () => {
++        controller.close();
++      });
++      nodeStream.on('error', (err) => {
++        controller.error(err);
++      });
++    },
++    cancel() {
++      nodeStream.destroy();
++    },
++  });
++}
+diff --git a/apps/web/src/features/041-file-browser/components/audio-viewer.tsx b/apps/web/src/features/041-file-browser/components/audio-viewer.tsx
+new file mode 100644
+index 0000000..7b4d8b8
+--- /dev/null
++++ b/apps/web/src/features/041-file-browser/components/audio-viewer.tsx
+@@ -0,0 +1,28 @@
++'use client';
++
++/**
++ * AudioViewer — Inline audio playback with native browser controls.
++ *
++ * Plan 046: Binary File Viewers (T007)
++ */
++
++import { Music } from 'lucide-react';
++
++export interface AudioViewerProps {
++  src: string;
++  mimeType: string;
++  filename: string;
++}
++
++export function AudioViewer({ src, mimeType, filename }: AudioViewerProps) {
++  return (
++    <div className="flex flex-col items-center justify-center gap-4 h-full w-full p-8">
++      <Music className="h-12 w-12 text-muted-foreground" />
++      <p className="text-sm text-muted-foreground font-mono">{filename}</p>
++      {/* biome-ignore lint/a11y/useMediaCaption: local file viewer — no captions available */}
++      <audio controls className="w-full max-w-md">
++        <source src={src} type={mimeType} />
++      </audio>
++    </div>
++  );
++}
+diff --git a/apps/web/src/features/041-file-browser/components/binary-placeholder.tsx b/apps/web/src/features/041-file-browser/components/binary-placeholder.tsx
+new file mode 100644
+index 0000000..8dd02a1
+--- /dev/null
++++ b/apps/web/src/features/041-file-browser/components/binary-placeholder.tsx
+@@ -0,0 +1,48 @@
++'use client';
++
++/**
++ * BinaryPlaceholder — Fallback for unsupported binary file types.
++ *
++ * Shows file metadata and a download button.
++ *
++ * Plan 046: Binary File Viewers (T008)
++ */
++
++import { Download, FileQuestion } from 'lucide-react';
++
++export interface BinaryPlaceholderProps {
++  src: string;
++  size: number;
++  mimeType: string;
++  filename: string;
++}
++
++function formatFileSize(bytes: number): string {
++  if (bytes < 1024) return `${bytes} B`;
++  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
++  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
++  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
++}
++
++export function BinaryPlaceholder({ src, size, mimeType, filename }: BinaryPlaceholderProps) {
++  const downloadUrl = `${src}${src.includes('?') ? '&' : '?'}download=true`;
++
++  return (
++    <div className="flex flex-col items-center justify-center gap-4 h-full w-full p-8 text-muted-foreground">
++      <FileQuestion className="h-16 w-16" />
++      <div className="text-center space-y-1">
++        <p className="text-lg font-medium text-foreground">{filename}</p>
++        <p className="text-sm">{mimeType}</p>
++        <p className="text-sm">{formatFileSize(size)}</p>
++      </div>
++      <a
++        href={downloadUrl}
++        download={filename}
++        className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
++      >
++        <Download className="h-4 w-4" />
++        Download
++      </a>
++    </div>
++  );
++}
+diff --git a/apps/web/src/features/041-file-browser/components/file-viewer-panel.tsx b/apps/web/src/features/041-file-browser/components/file-viewer-panel.tsx
+index 04ae8ff..fece7ba 100644
+--- a/apps/web/src/features/041-file-browser/components/file-viewer-panel.tsx
++++ b/apps/web/src/features/041-file-browser/components/file-viewer-panel.tsx
+@@ -14,7 +14,13 @@ import type { DiffError } from '@chainglass/shared';
+ import { ArrowUp, Edit, Eye, GitCompare, Loader2, RefreshCw, Save } from 'lucide-react';
+ import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
+ 
++import { detectContentType } from '@/lib/content-type-detection';
++import { AudioViewer } from './audio-viewer';
++import { BinaryPlaceholder } from './binary-placeholder';
++import { ImageViewer } from './image-viewer';
+ import { MarkdownPreview } from './markdown-preview';
++import { PdfViewer } from './pdf-viewer';
++import { VideoViewer } from './video-viewer';
+ 
+ // Lazy-load heavy components
+ const CodeEditor = lazy(() => import('./code-editor').then((m) => ({ default: m.CodeEditor })));
+@@ -36,7 +42,7 @@ export interface FileViewerPanelProps {
+   editContent?: string;
+   onEditChange?: (content: string) => void;
+   conflictError?: string;
+-  errorType?: 'file-too-large' | 'binary-file';
++  errorType?: 'file-too-large';
+   /** Pre-highlighted HTML from Shiki (for code preview) */
+   highlightedHtml?: string;
+   /** Pre-rendered markdown HTML (for markdown preview) */
+@@ -47,6 +53,11 @@ export interface FileViewerPanelProps {
+   diffError?: DiffError | null;
+   /** Whether diff is loading */
+   diffLoading?: boolean;
++  /** Binary file metadata (Plan 046) */
++  isBinary?: boolean;
++  binaryContentType?: string;
++  binarySize?: number;
++  rawFileUrl?: string;
+ }
+ 
+ export function FileViewerPanel({
+@@ -66,6 +77,10 @@ export function FileViewerPanel({
+   diffData,
+   diffError,
+   diffLoading,
++  isBinary,
++  binaryContentType,
++  binarySize,
++  rawFileUrl,
+ }: FileViewerPanelProps) {
+   // Error states
+   if (errorType === 'file-too-large') {
+@@ -77,12 +92,16 @@ export function FileViewerPanel({
+     );
+   }
+ 
+-  if (errorType === 'binary-file') {
++  // Binary file viewing (Plan 046)
++  if (isBinary && rawFileUrl) {
+     return (
+-      <div className="flex flex-col items-center justify-center gap-2 p-8 text-muted-foreground">
+-        <p className="text-lg">Binary file</p>
+-        <p className="text-sm">Binary files cannot be displayed.</p>
+-      </div>
++      <BinaryFileView
++        filePath={filePath}
++        contentType={binaryContentType ?? 'application/octet-stream'}
++        size={binarySize ?? 0}
++        rawFileUrl={rawFileUrl}
++        onRefresh={onRefresh}
++      />
+     );
+   }
+ 
+@@ -252,3 +271,55 @@ function ModeButton({
+     </button>
+   );
+ }
++
++/** Binary file viewer — routes to correct viewer by content type category */
++function BinaryFileView({
++  filePath,
++  contentType,
++  size,
++  rawFileUrl,
++  onRefresh,
++}: {
++  filePath: string;
++  contentType: string;
++  size: number;
++  rawFileUrl: string;
++  onRefresh: () => void;
++}) {
++  const filename = filePath.split('/').pop() ?? filePath;
++  const { category } = detectContentType(filename);
++
++  return (
++    <div className="flex flex-col h-full">
++      <div className="border-b shrink-0">
++        <div className="flex items-center justify-between px-3 py-1.5">
++          <span className="text-xs text-muted-foreground">Preview</span>
++          <button
++            type="button"
++            onClick={onRefresh}
++            className="rounded p-1 text-muted-foreground hover:text-foreground"
++            aria-label="Refresh file"
++          >
++            <RefreshCw className="h-3.5 w-3.5" />
++          </button>
++        </div>
++      </div>
++      <div className="flex-1 flex flex-col min-h-0">
++        {category === 'image' && <ImageViewer src={rawFileUrl} alt={filename} />}
++        {category === 'pdf' && <PdfViewer src={rawFileUrl} />}
++        {category === 'video' && <VideoViewer src={rawFileUrl} mimeType={contentType} />}
++        {category === 'audio' && (
++          <AudioViewer src={rawFileUrl} mimeType={contentType} filename={filename} />
++        )}
++        {category === 'binary' && (
++          <BinaryPlaceholder
++            src={rawFileUrl}
++            size={size}
++            mimeType={contentType}
++            filename={filename}
++          />
++        )}
++      </div>
++    </div>
++  );
++}
+diff --git a/apps/web/src/features/041-file-browser/components/image-viewer.tsx b/apps/web/src/features/041-file-browser/components/image-viewer.tsx
+new file mode 100644
+index 0000000..a15098b
+--- /dev/null
++++ b/apps/web/src/features/041-file-browser/components/image-viewer.tsx
+@@ -0,0 +1,36 @@
++'use client';
++
++/**
++ * ImageViewer — Inline image display with fit-to-container scaling.
++ *
++ * Renders images via <img> tag (safe for SVG — no script execution).
++ * Shows AsciiSpinner while loading.
++ *
++ * Plan 046: Binary File Viewers (T005)
++ */
++
++import { AsciiSpinner } from '@/features/_platform/panel-layout';
++import { useState } from 'react';
++
++export interface ImageViewerProps {
++  src: string;
++  alt: string;
++}
++
++export function ImageViewer({ src, alt }: ImageViewerProps) {
++  const [loading, setLoading] = useState(true);
++
++  return (
++    <div className="flex items-center justify-center h-full w-full p-4">
++      {loading && <AsciiSpinner active={true} />}
++      <img
++        src={src}
++        alt={alt}
++        className="max-w-full max-h-full object-contain"
++        style={loading ? { display: 'none' } : undefined}
++        onLoad={() => setLoading(false)}
++        onError={() => setLoading(false)}
++      />
++    </div>
++  );
++}
+diff --git a/apps/web/src/features/041-file-browser/components/pdf-viewer.tsx b/apps/web/src/features/041-file-browser/components/pdf-viewer.tsx
+new file mode 100644
+index 0000000..e6dd507
+--- /dev/null
++++ b/apps/web/src/features/041-file-browser/components/pdf-viewer.tsx
+@@ -0,0 +1,68 @@
++'use client';
++
++/**
++ * PdfViewer — Inline PDF display via blob URL in iframe.
++ *
++ * Fetches PDF binary and creates a blob: URL for the iframe src.
++ * This approach works reliably across desktop and iPad Safari —
++ * direct URL iframes don't scroll on iOS.
++ *
++ * Plan 046: Binary File Viewers (T006)
++ */
++
++import { AsciiSpinner } from '@/features/_platform/panel-layout';
++import { ExternalLink } from 'lucide-react';
++import { useEffect, useState } from 'react';
++
++export interface PdfViewerProps {
++  src: string;
++}
++
++export function PdfViewer({ src }: PdfViewerProps) {
++  const [blobUrl, setBlobUrl] = useState<string | null>(null);
++  const [error, setError] = useState(false);
++
++  useEffect(() => {
++    let revoke: string | null = null;
++    fetch(src)
++      .then((res) => res.blob())
++      .then((blob) => {
++        const url = URL.createObjectURL(blob);
++        revoke = url;
++        setBlobUrl(url);
++      })
++      .catch(() => setError(true));
++    return () => {
++      if (revoke) URL.revokeObjectURL(revoke);
++    };
++  }, [src]);
++
++  return (
++    <div className="flex flex-col h-full w-full">
++      <div className="flex items-center justify-end px-2 py-1 border-b shrink-0">
++        <a
++          href={src}
++          target="_blank"
++          rel="noopener noreferrer"
++          className="flex items-center gap-1 rounded px-2 py-0.5 text-xs text-muted-foreground hover:text-foreground"
++        >
++          <ExternalLink className="h-3 w-3" />
++          Open in new tab
++        </a>
++      </div>
++      {!blobUrl && !error && (
++        <div className="flex items-center justify-center p-8">
++          <AsciiSpinner active={true} />
++        </div>
++      )}
++      {error && (
++        <div className="flex items-center justify-center p-8 text-muted-foreground">
++          Failed to load PDF
++        </div>
++      )}
++      {blobUrl && (
++        <iframe src={blobUrl} className="flex-1 w-full border-0 min-h-0" title="PDF viewer" />
++      )}
++    </div>
++  );
++}
+diff --git a/apps/web/src/features/041-file-browser/components/video-viewer.tsx b/apps/web/src/features/041-file-browser/components/video-viewer.tsx
+new file mode 100644
+index 0000000..12dcabf
+--- /dev/null
++++ b/apps/web/src/features/041-file-browser/components/video-viewer.tsx
+@@ -0,0 +1,34 @@
++'use client';
++
++/**
++ * VideoViewer — Inline video playback with native browser controls.
++ *
++ * Plan 046: Binary File Viewers (T007)
++ */
++
++import { AsciiSpinner } from '@/features/_platform/panel-layout';
++import { useState } from 'react';
++
++export interface VideoViewerProps {
++  src: string;
++  mimeType: string;
++}
++
++export function VideoViewer({ src, mimeType }: VideoViewerProps) {
++  const [loading, setLoading] = useState(true);
++
++  return (
++    <div className="flex items-center justify-center h-full w-full p-4">
++      {loading && <AsciiSpinner active={true} />}
++      {/* biome-ignore lint/a11y/useMediaCaption: local file viewer — no captions available */}
++      <video
++        src={src}
++        controls
++        className="max-w-full max-h-full"
++        style={loading ? { display: 'none' } : undefined}
++        onLoadedData={() => setLoading(false)}
++        onError={() => setLoading(false)}
++      />
++    </div>
++  );
++}
+diff --git a/apps/web/src/features/041-file-browser/hooks/use-file-navigation.ts b/apps/web/src/features/041-file-browser/hooks/use-file-navigation.ts
+index b9b0de2..e974cd8 100644
+--- a/apps/web/src/features/041-file-browser/hooks/use-file-navigation.ts
++++ b/apps/web/src/features/041-file-browser/hooks/use-file-navigation.ts
+@@ -82,7 +82,7 @@ export function useFileNavigation(options: UseFileNavigationOptions) {
+       try {
+         const result = await readFileFn(slug, worktreePath, filePath);
+         setFileData(result);
+-        if (result.ok) {
++        if (result.ok && !result.isBinary) {
+           setEditContent(result.content);
+         }
+       } catch (error) {
+@@ -150,7 +150,7 @@ export function useFileNavigation(options: UseFileNavigationOptions) {
+         }
+         const refreshed = await readFileFn(slug, worktreePath, initialFile);
+         setFileData(refreshed);
+-        if (refreshed.ok) setEditContent(refreshed.content);
++        if (refreshed.ok && !refreshed.isBinary) setEditContent(refreshed.content);
+         setDiffCache((prev) => {
+           const next = { ...prev };
+           delete next[initialFile];
+@@ -168,7 +168,7 @@ export function useFileNavigation(options: UseFileNavigationOptions) {
+     if (!initialFile) return;
+     const result = await readFileFn(slug, worktreePath, initialFile);
+     setFileData(result);
+-    if (result.ok) {
++    if (result.ok && !result.isBinary) {
+       setEditContent(result.content);
+       toast.info('File refreshed');
+     }
+diff --git a/apps/web/src/features/041-file-browser/services/file-actions.ts b/apps/web/src/features/041-file-browser/services/file-actions.ts
+index 85dbd95..e1632db 100644
+--- a/apps/web/src/features/041-file-browser/services/file-actions.ts
++++ b/apps/web/src/features/041-file-browser/services/file-actions.ts
+@@ -11,6 +11,7 @@
+  */
+ 
+ import * as path from 'node:path';
++import { detectContentType, isBinaryExtension } from '@/lib/content-type-detection';
+ import { detectLanguage } from '@/lib/language-detection';
+ import type { IFileSystem, IPathResolver } from '@chainglass/shared';
+ import { PathSecurityError } from '@chainglass/shared';
+@@ -22,6 +23,7 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+ export type ReadFileResult =
+   | {
+       ok: true;
++      isBinary: false;
+       content: string;
+       mtime: string;
+       size: number;
+@@ -29,7 +31,14 @@ export type ReadFileResult =
+       highlightedHtml: string;
+       markdownHtml?: string;
+     }
+-  | { ok: false; error: 'file-too-large' | 'binary-file' | 'not-found' | 'security' };
++  | {
++      ok: true;
++      isBinary: true;
++      contentType: string;
++      mtime: string;
++      size: number;
++    }
++  | { ok: false; error: 'file-too-large' | 'not-found' | 'security' };
+ 
+ export interface ReadFileOptions {
+   worktreePath: string;
+@@ -74,8 +83,24 @@ export async function readFileAction(options: ReadFileOptions): Promise<ReadFile
+     return { ok: false, error: 'not-found' };
+   }
+ 
+-  // Size check
++  // Stat for metadata
+   const stats = await fileSystem.stat(absolutePath);
++
++  // Binary detection: extension-first (avoids reading binary content as UTF-8)
++  // Must be BEFORE size check — binary files bypass the 5MB text limit
++  const filename = path.basename(filePath);
++  if (isBinaryExtension(filename)) {
++    const { mimeType } = detectContentType(filename);
++    return {
++      ok: true,
++      isBinary: true,
++      contentType: mimeType,
++      mtime: stats.mtime,
++      size: stats.size,
++    };
++  }
++
++  // Size check (text files only — binary files served via raw route)
+   if (stats.size > MAX_FILE_SIZE) {
+     return { ok: false, error: 'file-too-large' };
+   }
+@@ -83,10 +108,17 @@ export async function readFileAction(options: ReadFileOptions): Promise<ReadFile
+   // Read content
+   const content = await fileSystem.readFile(absolutePath);
+ 
+-  // Binary detection: null-byte in first 8KB
++  // Binary detection fallback: null-byte in first 8KB (for unknown extensions)
+   const sample = content.slice(0, 8192);
+   if (sample.includes('\x00')) {
+-    return { ok: false, error: 'binary-file' };
++    const { mimeType } = detectContentType(filename);
++    return {
++      ok: true,
++      isBinary: true,
++      contentType: mimeType,
++      mtime: stats.mtime,
++      size: stats.size,
++    };
+   }
+ 
+   const language = detectLanguage(path.basename(filePath));
+@@ -113,6 +145,7 @@ export async function readFileAction(options: ReadFileOptions): Promise<ReadFile
+ 
+   return {
+     ok: true,
++    isBinary: false,
+     content,
+     mtime: stats.mtime,
+     size: stats.size,
+diff --git a/apps/web/src/features/_platform/panel-layout/components/ascii-spinner.tsx b/apps/web/src/features/_platform/panel-layout/components/ascii-spinner.tsx
+new file mode 100644
+index 0000000..a5f96ac
+--- /dev/null
++++ b/apps/web/src/features/_platform/panel-layout/components/ascii-spinner.tsx
+@@ -0,0 +1,42 @@
++'use client';
++
++/**
++ * AsciiSpinner — Reusable ASCII character spinner.
++ *
++ * Cycles through | / — \ at 80ms intervals when active.
++ * Extracted from ExplorerPanel for reuse in binary viewers.
++ *
++ * Plan 046: Binary File Viewers (DYK-05)
++ */
++
++import { useEffect, useState } from 'react';
++
++const SPINNER_FRAMES = ['|', '/', '—', '\\'];
++const SPINNER_INTERVAL = 80;
++
++export interface AsciiSpinnerProps {
++  active: boolean;
++  className?: string;
++}
++
++export function AsciiSpinner({ active, className }: AsciiSpinnerProps) {
++  const [frame, setFrame] = useState(0);
++
++  useEffect(() => {
++    if (!active) return;
++    const id = setInterval(() => {
++      setFrame((prev) => (prev + 1) % SPINNER_FRAMES.length);
++    }, SPINNER_INTERVAL);
++    return () => clearInterval(id);
++  }, [active]);
++
++  if (!active) return null;
++
++  return (
++    <span
++      className={className ?? 'shrink-0 w-5 text-center font-mono text-sm text-muted-foreground'}
++    >
++      {SPINNER_FRAMES[frame]}
++    </span>
++  );
++}
+diff --git a/apps/web/src/features/_platform/panel-layout/components/explorer-panel.tsx b/apps/web/src/features/_platform/panel-layout/components/explorer-panel.tsx
+index 3daa1eb..aee1335 100644
+--- a/apps/web/src/features/_platform/panel-layout/components/explorer-panel.tsx
++++ b/apps/web/src/features/_platform/panel-layout/components/explorer-panel.tsx
+@@ -16,6 +16,7 @@ import { ArrowRight, ClipboardCopy } from 'lucide-react';
+ import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
+ 
+ import type { BarContext, BarHandler, ExplorerPanelHandle } from '../types';
++import { AsciiSpinner } from './ascii-spinner';
+ 
+ export interface ExplorerPanelProps {
+   filePath: string;
+@@ -25,15 +26,11 @@ export interface ExplorerPanelProps {
+   placeholder?: string;
+ }
+ 
+-const SPINNER_FRAMES = ['|', '/', '—', '\\'];
+-const SPINNER_INTERVAL = 80;
+-
+ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>(
+   function ExplorerPanel({ filePath, handlers, context, onCopy, placeholder }, ref) {
+     const [editing, setEditing] = useState(false);
+     const [inputValue, setInputValue] = useState(filePath);
+     const [processing, setProcessing] = useState(false);
+-    const [spinnerFrame, setSpinnerFrame] = useState(0);
+     const inputRef = useRef<HTMLInputElement>(null);
+     const prevFilePathRef = useRef(filePath);
+ 
+@@ -48,15 +45,6 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
+       }
+     }, [filePath, processing]);
+ 
+-    // ASCII spinner animation
+-    useEffect(() => {
+-      if (!processing) return;
+-      const id = setInterval(() => {
+-        setSpinnerFrame((prev) => (prev + 1) % SPINNER_FRAMES.length);
+-      }, SPINNER_INTERVAL);
+-      return () => clearInterval(id);
+-    }, [processing]);
+-
+     // Expose focusInput for Ctrl+P
+     useImperativeHandle(ref, () => ({
+       focusInput: () => {
+@@ -130,9 +118,7 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
+     return (
+       <div className="flex items-center gap-1.5 border-b px-3 py-1.5 bg-muted/30 shrink-0">
+         {processing ? (
+-          <span className="shrink-0 w-5 text-center font-mono text-sm text-muted-foreground">
+-            {SPINNER_FRAMES[spinnerFrame]}
+-          </span>
++          <AsciiSpinner active={processing} />
+         ) : (
+           <button
+             type="button"
+diff --git a/apps/web/src/features/_platform/panel-layout/components/main-panel.tsx b/apps/web/src/features/_platform/panel-layout/components/main-panel.tsx
+index 2e3b288..1192199 100644
+--- a/apps/web/src/features/_platform/panel-layout/components/main-panel.tsx
++++ b/apps/web/src/features/_platform/panel-layout/components/main-panel.tsx
+@@ -15,5 +15,5 @@ export interface MainPanelProps {
+ }
+ 
+ export function MainPanel({ children }: MainPanelProps) {
+-  return <div className="flex-1 overflow-hidden">{children}</div>;
++  return <div className="flex-1 flex flex-col overflow-hidden">{children}</div>;
+ }
+diff --git a/apps/web/src/features/_platform/panel-layout/index.ts b/apps/web/src/features/_platform/panel-layout/index.ts
+index dd614e5..7f31dbe 100644
+--- a/apps/web/src/features/_platform/panel-layout/index.ts
++++ b/apps/web/src/features/_platform/panel-layout/index.ts
+@@ -24,3 +24,5 @@ export { MainPanel } from './components/main-panel';
+ export type { MainPanelProps } from './components/main-panel';
+ export { PanelShell } from './components/panel-shell';
+ export type { PanelShellProps } from './components/panel-shell';
++export { AsciiSpinner } from './components/ascii-spinner';
++export type { AsciiSpinnerProps } from './components/ascii-spinner';
+diff --git a/apps/web/src/lib/content-type-detection.ts b/apps/web/src/lib/content-type-detection.ts
+new file mode 100644
+index 0000000..fd79f87
+--- /dev/null
++++ b/apps/web/src/lib/content-type-detection.ts
+@@ -0,0 +1,74 @@
++/**
++ * Content Type Detection Utility
++ *
++ * Maps file extensions to content type categories and MIME types.
++ * Companion to language-detection.ts — that maps extensions to
++ * Shiki language IDs for syntax highlighting; this maps to MIME
++ * types for binary file rendering.
++ *
++ * Plan 046: Binary File Viewers
++ */
++
++export interface ContentTypeInfo {
++  category: 'image' | 'pdf' | 'video' | 'audio' | 'binary';
++  mimeType: string;
++}
++
++const EXTENSION_MAP: Record<string, ContentTypeInfo> = {
++  // Images
++  png: { category: 'image', mimeType: 'image/png' },
++  jpg: { category: 'image', mimeType: 'image/jpeg' },
++  jpeg: { category: 'image', mimeType: 'image/jpeg' },
++  gif: { category: 'image', mimeType: 'image/gif' },
++  webp: { category: 'image', mimeType: 'image/webp' },
++  svg: { category: 'image', mimeType: 'image/svg+xml' },
++  ico: { category: 'image', mimeType: 'image/x-icon' },
++  avif: { category: 'image', mimeType: 'image/avif' },
++  bmp: { category: 'image', mimeType: 'image/bmp' },
++
++  // PDF
++  pdf: { category: 'pdf', mimeType: 'application/pdf' },
++
++  // Video
++  mp4: { category: 'video', mimeType: 'video/mp4' },
++  webm: { category: 'video', mimeType: 'video/webm' },
++  mov: { category: 'video', mimeType: 'video/quicktime' },
++  avi: { category: 'video', mimeType: 'video/x-msvideo' },
++  mkv: { category: 'video', mimeType: 'video/x-matroska' },
++
++  // Audio
++  mp3: { category: 'audio', mimeType: 'audio/mpeg' },
++  wav: { category: 'audio', mimeType: 'audio/wav' },
++  ogg: { category: 'audio', mimeType: 'audio/ogg' },
++  flac: { category: 'audio', mimeType: 'audio/flac' },
++  aac: { category: 'audio', mimeType: 'audio/aac' },
++  m4a: { category: 'audio', mimeType: 'audio/mp4' },
++};
++
++const BINARY_FALLBACK: ContentTypeInfo = {
++  category: 'binary',
++  mimeType: 'application/octet-stream',
++};
++
++/**
++ * Detect content type from filename extension.
++ *
++ * Returns the category (image, pdf, video, audio) and MIME type
++ * for known binary formats. Unknown extensions return 'binary'
++ * with application/octet-stream.
++ */
++export function detectContentType(filename: string): ContentTypeInfo {
++  const ext = filename.split('.').pop()?.toLowerCase();
++  if (!ext) return BINARY_FALLBACK;
++  return EXTENSION_MAP[ext] ?? BINARY_FALLBACK;
++}
++
++/**
++ * Check if a filename has a known binary content type.
++ * Returns false for unknown extensions (they might be text).
++ */
++export function isBinaryExtension(filename: string): boolean {
++  const ext = filename.split('.').pop()?.toLowerCase();
++  if (!ext) return false;
++  return ext in EXTENSION_MAP;
++}
+diff --git a/test/unit/web/features/041-file-browser/file-actions.test.ts b/test/unit/web/features/041-file-browser/file-actions.test.ts
+index 5a1467e..8011d31 100644
+--- a/test/unit/web/features/041-file-browser/file-actions.test.ts
++++ b/test/unit/web/features/041-file-browser/file-actions.test.ts
+@@ -61,7 +61,7 @@ describe('readFileAction', () => {
+     }
+   });
+ 
+-  it('returns binary-file error for files with null bytes', async () => {
++  it('returns binary metadata for files with null bytes', async () => {
+     fs.setFile('/workspace/image.bin', 'header\x00binary\x00data');
+ 
+     const result = await readFileAction({
+@@ -71,9 +71,31 @@ describe('readFileAction', () => {
+       pathResolver,
+     });
+ 
+-    expect(result.ok).toBe(false);
+-    if (!result.ok) {
+-      expect(result.error).toBe('binary-file');
++    expect(result.ok).toBe(true);
++    if (result.ok) {
++      expect(result.isBinary).toBe(true);
++      if (result.isBinary) {
++        expect(result.contentType).toBe('application/octet-stream');
++      }
++    }
++  });
++
++  it('returns binary metadata for known binary extensions without reading content', async () => {
++    fs.setFile('/workspace/photo.png', 'PNG fake data');
++
++    const result = await readFileAction({
++      worktreePath: '/workspace',
++      filePath: 'photo.png',
++      fileSystem: fs,
++      pathResolver,
++    });
++
++    expect(result.ok).toBe(true);
++    if (result.ok) {
++      expect(result.isBinary).toBe(true);
++      if (result.isBinary) {
++        expect(result.contentType).toBe('image/png');
++      }
+     }
+   });
+ 
+diff --git a/test/unit/web/features/041-file-browser/file-viewer-panel.test.tsx b/test/unit/web/features/041-file-browser/file-viewer-panel.test.tsx
+index 089956c..006c5cf 100644
+--- a/test/unit/web/features/041-file-browser/file-viewer-panel.test.tsx
++++ b/test/unit/web/features/041-file-browser/file-viewer-panel.test.tsx
+@@ -157,10 +157,19 @@ describe('FileViewerPanel', () => {
+       expect(screen.getByText(/too large/i)).toBeInTheDocument();
+     });
+ 
+-    it('shows binary file message', () => {
+-      render(<FileViewerPanel {...baseProps} content={null} errorType="binary-file" />);
++    it('shows binary file viewer when isBinary is true', () => {
++      render(
++        <FileViewerPanel
++          {...baseProps}
++          content={null}
++          isBinary={true}
++          binaryContentType="image/png"
++          binarySize={1024}
++          rawFileUrl="/api/workspaces/test/files/raw?file=image.png"
++        />
++      );
+ 
+-      expect(screen.getByText('Binary file')).toBeInTheDocument();
++      expect(screen.getByText('Preview')).toBeInTheDocument();
+     });
+   });
+ });
+diff --git a/test/unit/web/features/041-file-browser/raw-file-route.test.ts b/test/unit/web/features/041-file-browser/raw-file-route.test.ts
+new file mode 100644
+index 0000000..9aae997
+--- /dev/null
++++ b/test/unit/web/features/041-file-browser/raw-file-route.test.ts
+@@ -0,0 +1,182 @@
++import * as fs from 'node:fs';
++import * as fsPromises from 'node:fs/promises';
++import * as os from 'node:os';
++import * as path from 'node:path';
++import { detectContentType } from '@/lib/content-type-detection';
++import { afterAll, beforeAll, describe, expect, it } from 'vitest';
++
++/**
++ * Test the raw file route logic directly using temp files.
++ * Since the Next.js route handler lives in a [slug] path that
++ * Vite can't import, we test the core behaviors inline.
++ */
++
++let tmpDir: string;
++
++beforeAll(() => {
++  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'raw-file-test-'));
++  fs.writeFileSync(path.join(tmpDir, 'image.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
++  fs.writeFileSync(path.join(tmpDir, 'doc.pdf'), Buffer.alloc(1024, 0x25));
++  fs.writeFileSync(path.join(tmpDir, 'video.mp4'), Buffer.alloc(2048));
++  fs.mkdirSync(path.join(tmpDir, 'subdir'));
++  fs.writeFileSync(path.join(tmpDir, 'subdir', 'nested.txt'), 'hello');
++});
++
++afterAll(() => {
++  fs.rmSync(tmpDir, { recursive: true, force: true });
++});
++
++describe('Raw file route security', () => {
++  it('rejects path traversal in file param', () => {
++    /*
++    Test Doc:
++    - Why: AC-02 — path traversal attacks must be blocked
++    - Contract: .. in file → rejected before filesystem access
++    - Usage Notes: Checked before path.join
++    - Quality Contribution: AC-02
++    - Worked Example: '../../etc/passwd' contains '..' → rejected
++    */
++    const file = '../../etc/passwd';
++    expect(file.includes('..')).toBe(true);
++  });
++
++  it('rejects absolute file paths', () => {
++    const file = '/etc/passwd';
++    expect(file.startsWith('/')).toBe(true);
++  });
++
++  it('detects symlink escape via realpath', async () => {
++    /*
++    Test Doc:
++    - Why: AC-03 — symlink escapes must be blocked
++    - Contract: realpath outside worktree → rejected
++    - Usage Notes: realpath resolves symlinks to canonical path
++    - Quality Contribution: AC-03
++    - Worked Example: symlink → /etc/passwd, realpath does not start with worktree
++    */
++    // Create symlink pointing outside tmpDir
++    const linkPath = path.join(tmpDir, 'escape-link');
++    try {
++      fs.symlinkSync('/etc/hostname', linkPath);
++      const realPath = await fsPromises.realpath(linkPath);
++      expect(realPath.startsWith(tmpDir)).toBe(false);
++    } finally {
++      try {
++        fs.unlinkSync(linkPath);
++      } catch {
++        /* ignore */
++      }
++    }
++  });
++});
++
++describe('Raw file content type', () => {
++  it('returns correct Content-Type for images', () => {
++    /*
++    Test Doc:
++    - Why: AC-01 — correct Content-Type for binary rendering
++    - Contract: detectContentType('image.png') → image/png
++    - Usage Notes: Route uses detectContentType to set header
++    - Quality Contribution: AC-01
++    - Worked Example: image.png → image/png
++    */
++    expect(detectContentType('image.png').mimeType).toBe('image/png');
++    expect(detectContentType('doc.pdf').mimeType).toBe('application/pdf');
++    expect(detectContentType('video.mp4').mimeType).toBe('video/mp4');
++  });
++
++  it('file exists and is readable as stream', async () => {
++    const filePath = path.join(tmpDir, 'image.png');
++    const stat = await fsPromises.stat(filePath);
++    expect(stat.isFile()).toBe(true);
++    expect(stat.size).toBe(4); // PNG header bytes
++
++    // Verify streaming works
++    const chunks: Buffer[] = [];
++    const stream = fs.createReadStream(filePath);
++    for await (const chunk of stream) {
++      chunks.push(chunk as Buffer);
++    }
++    expect(Buffer.concat(chunks).length).toBe(4);
++  });
++});
++
++describe('Range request parsing', () => {
++  it('parses valid single range', () => {
++    /*
++    Test Doc:
++    - Why: AC-27 — Range requests for video seeking
++    - Contract: 'bytes=0-99' parses to start=0, end=99
++    - Usage Notes: Regex match on Range header
++    - Quality Contribution: AC-27
++    - Worked Example: 'bytes=0-99' → { start: 0, end: 99 }
++    */
++    const header = 'bytes=0-99';
++    const match = header.match(/^bytes=(\d+)-(\d*)$/);
++    expect(match).not.toBeNull();
++    expect(Number.parseInt(match?.[1] ?? '', 10)).toBe(0);
++    expect(Number.parseInt(match?.[2] ?? '', 10)).toBe(99);
++  });
++
++  it('parses open-ended range', () => {
++    const header = 'bytes=100-';
++    const match = header.match(/^bytes=(\d+)-(\d*)$/);
++    expect(match).not.toBeNull();
++    expect(Number.parseInt(match?.[1] ?? '', 10)).toBe(100);
++    expect(match?.[2]).toBe('');
++  });
++
++  it('rejects malformed range', () => {
++    /*
++    Test Doc:
++    - Why: AC-28 — invalid range returns 416
++    - Contract: Malformed range header → no regex match
++    - Usage Notes: Multi-range and non-bytes rejected
++    - Quality Contribution: AC-28
++    - Worked Example: 'bytes=abc' → null match
++    */
++    expect('bytes=abc'.match(/^bytes=(\d+)-(\d*)$/)).toBeNull();
++    expect('chars=0-99'.match(/^bytes=(\d+)-(\d*)$/)).toBeNull();
++  });
++
++  it('validates range against file size', async () => {
++    const stat = await fsPromises.stat(path.join(tmpDir, 'video.mp4'));
++    const fileSize = stat.size; // 2048
++
++    // Valid range
++    expect(0 < fileSize && 99 < fileSize).toBe(true);
++
++    // Invalid range (beyond file size)
++    expect(9999 >= fileSize).toBe(true);
++  });
++
++  it('streams partial content with createReadStream', async () => {
++    const filePath = path.join(tmpDir, 'video.mp4');
++    const start = 0;
++    const end = 99;
++
++    const chunks: Buffer[] = [];
++    const stream = fs.createReadStream(filePath, { start, end });
++    for await (const chunk of stream) {
++      chunks.push(chunk as Buffer);
++    }
++    const result = Buffer.concat(chunks);
++    expect(result.length).toBe(100); // end is inclusive in createReadStream
++  });
++});
++
++describe('Content-Disposition', () => {
++  it('defaults to inline', () => {
++    const download = false;
++    const filename = 'image.png';
++    const disposition = download ? `attachment; filename="${filename}"` : 'inline';
++    expect(disposition).toBe('inline');
++  });
++
++  it('switches to attachment with download flag', () => {
++    const download = true;
++    const filename = 'image.png';
++    const disposition = download ? `attachment; filename="${filename}"` : 'inline';
++    expect(disposition).toBe('attachment; filename="image.png"');
++  });
++});
+diff --git a/test/unit/web/lib/content-type-detection.test.ts b/test/unit/web/lib/content-type-detection.test.ts
+new file mode 100644
+index 0000000..685e30b
+--- /dev/null
++++ b/test/unit/web/lib/content-type-detection.test.ts
+@@ -0,0 +1,123 @@
++import {
++  type ContentTypeInfo,
++  detectContentType,
++  isBinaryExtension,
++} from '@/lib/content-type-detection';
++import { describe, expect, it } from 'vitest';
++
++describe('detectContentType', () => {
++  it('detects image types', () => {
++    /*
++    Test Doc:
++    - Why: Core routing logic — images must map to 'image' category
++    - Contract: detectContentType('file.png') → { category: 'image', mimeType: 'image/png' }
++    - Usage Notes: Tests all 9 supported image extensions
++    - Quality Contribution: Verifies AC-06, AC-15
++    - Worked Example: 'photo.png' → image/png, 'photo.jpg' → image/jpeg
++    */
++    const cases: [string, string][] = [
++      ['photo.png', 'image/png'],
++      ['photo.jpg', 'image/jpeg'],
++      ['photo.jpeg', 'image/jpeg'],
++      ['anim.gif', 'image/gif'],
++      ['pic.webp', 'image/webp'],
++      ['icon.svg', 'image/svg+xml'],
++      ['favicon.ico', 'image/x-icon'],
++      ['modern.avif', 'image/avif'],
++      ['legacy.bmp', 'image/bmp'],
++    ];
++    for (const [filename, expectedMime] of cases) {
++      const result = detectContentType(filename);
++      expect(result.category).toBe('image');
++      expect(result.mimeType).toBe(expectedMime);
++    }
++  });
++
++  it('detects PDF', () => {
++    /*
++    Test Doc:
++    - Why: PDF routes to iframe viewer
++    - Contract: detectContentType('doc.pdf') → { category: 'pdf', mimeType: 'application/pdf' }
++    - Usage Notes: Single extension
++    - Quality Contribution: Verifies AC-07
++    - Worked Example: 'doc.pdf' → application/pdf
++    */
++    const result = detectContentType('doc.pdf');
++    expect(result).toEqual({ category: 'pdf', mimeType: 'application/pdf' });
++  });
++
++  it('detects video types', () => {
++    /*
++    Test Doc:
++    - Why: Video routes to <video> player
++    - Contract: detectContentType('clip.mp4') → { category: 'video', mimeType: 'video/mp4' }
++    - Usage Notes: mp4 and webm
++    - Quality Contribution: Verifies AC-08
++    - Worked Example: 'clip.mp4' → video/mp4
++    */
++    expect(detectContentType('clip.mp4')).toEqual({ category: 'video', mimeType: 'video/mp4' });
++    expect(detectContentType('clip.webm')).toEqual({ category: 'video', mimeType: 'video/webm' });
++  });
++
++  it('detects audio types', () => {
++    /*
++    Test Doc:
++    - Why: Audio routes to <audio> player
++    - Contract: detectContentType('song.mp3') → { category: 'audio', mimeType: 'audio/mpeg' }
++    - Usage Notes: mp3, wav, ogg
++    - Quality Contribution: Verifies AC-09
++    - Worked Example: 'song.mp3' → audio/mpeg
++    */
++    expect(detectContentType('song.mp3')).toEqual({ category: 'audio', mimeType: 'audio/mpeg' });
++    expect(detectContentType('sound.wav')).toEqual({ category: 'audio', mimeType: 'audio/wav' });
++    expect(detectContentType('track.ogg')).toEqual({ category: 'audio', mimeType: 'audio/ogg' });
++  });
++
++  it('returns binary fallback for unknown extensions', () => {
++    /*
++    Test Doc:
++    - Why: Unknown binaries show BinaryPlaceholder with download button
++    - Contract: detectContentType('program.exe') → { category: 'binary', mimeType: 'application/octet-stream' }
++    - Usage Notes: Any extension not in the map
++    - Quality Contribution: Verifies AC-10
++    - Worked Example: 'program.exe' → application/octet-stream
++    */
++    expect(detectContentType('program.exe')).toEqual({
++      category: 'binary',
++      mimeType: 'application/octet-stream',
++    });
++    expect(detectContentType('data.bin')).toEqual({
++      category: 'binary',
++      mimeType: 'application/octet-stream',
++    });
++  });
++
++  it('returns binary fallback for no extension', () => {
++    expect(detectContentType('Makefile')).toEqual({
++      category: 'binary',
++      mimeType: 'application/octet-stream',
++    });
++  });
++
++  it('is case-insensitive', () => {
++    expect(detectContentType('Photo.PNG').category).toBe('image');
++    expect(detectContentType('DOC.PDF').category).toBe('pdf');
++  });
++});
++
++describe('isBinaryExtension', () => {
++  it('returns true for known binary extensions', () => {
++    expect(isBinaryExtension('photo.png')).toBe(true);
++    expect(isBinaryExtension('doc.pdf')).toBe(true);
++    expect(isBinaryExtension('clip.mp4')).toBe(true);
++  });
++
++  it('returns false for text extensions', () => {
++    expect(isBinaryExtension('file.ts')).toBe(false);
++    expect(isBinaryExtension('readme.md')).toBe(false);
++  });
++
++  it('returns false for no extension', () => {
++    expect(isBinaryExtension('Makefile')).toBe(false);
++  });
++});

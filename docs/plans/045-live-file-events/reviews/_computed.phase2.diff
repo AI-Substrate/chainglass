@@ -1,0 +1,1152 @@
+diff --git a/apps/web/src/features/045-live-file-events/file-change.types.ts b/apps/web/src/features/045-live-file-events/file-change.types.ts
+new file mode 100644
+index 0000000..143c2e7
+--- /dev/null
++++ b/apps/web/src/features/045-live-file-events/file-change.types.ts
+@@ -0,0 +1,37 @@
++/**
++ * Plan 045: Live File Events — Client-side types
++ *
++ * These types represent file change events as seen by browser components.
++ * Derived from server-side FileChangeBatchItem but scoped to a single worktree
++ * (FileChangeProvider filters by worktreePath before dispatching).
++ *
++ * Per DYK #2: Includes all 5 event types the server sends (add, change, unlink, addDir, unlinkDir).
++ * Per DYK #3: SSEManager injects `type` at top level of the payload object.
++ */
++
++/** A single file change event dispatched to subscribers. */
++export interface FileChange {
++  /** Relative path from worktree root (e.g., 'src/components/Button.tsx') */
++  path: string;
++  /** Type of filesystem event */
++  eventType: 'add' | 'change' | 'unlink' | 'addDir' | 'unlinkDir';
++  /** When the change was detected (Unix ms) */
++  timestamp: number;
++}
++
++/**
++ * SSE message payload shape for file-changed events.
++ * SSEManager merges `type` into the data object at the top level.
++ */
++export interface FileChangeSSEMessage {
++  type: 'file-changed';
++  changes: Array<{
++    path: string;
++    eventType: string;
++    worktreePath: string;
++    timestamp: number;
++  }>;
++}
++
++/** Callback type for FileChangeHub subscribers */
++export type FileChangeCallback = (changes: FileChange[]) => void;
+diff --git a/apps/web/src/features/045-live-file-events/file-change-hub.ts b/apps/web/src/features/045-live-file-events/file-change-hub.ts
+new file mode 100644
+index 0000000..cb95635
+--- /dev/null
++++ b/apps/web/src/features/045-live-file-events/file-change-hub.ts
+@@ -0,0 +1,96 @@
++/**
++ * Plan 045: Live File Events
++ *
++ * Client-side event hub that receives file change events from SSE
++ * and dispatches them to subscribers based on path patterns.
++ *
++ * Per Workshop 01: Single hub per worktree, client-side fan-out.
++ * Per PL-03: Callback-set pattern (subscribe → unsubscribe fn), not EventEmitter.
++ *
++ * Pattern types:
++ * - Exact: 'src/App.tsx' → matches only that path
++ * - Directory: 'src/components/' → direct children only (non-recursive)
++ * - Recursive: 'src/**' → all descendants
++ * - Wildcard: '*' → matches everything
++ */
++
++import type { FileChange, FileChangeCallback } from './file-change.types';
++
++type PathMatcher = (path: string) => boolean;
++
++interface Subscription {
++  id: string;
++  matcher: PathMatcher;
++  callback: FileChangeCallback;
++}
++
++export class FileChangeHub {
++  private readonly subscriptions = new Map<string, Subscription>();
++  private nextId = 0;
++
++  /**
++   * Subscribe to file changes matching a pattern.
++   *
++   * @param pattern - Path pattern to match:
++   *   - `'src/App.tsx'` → exact file match
++   *   - `'src/components/'` → direct children only (trailing slash)
++   *   - `'src/**'` → all descendants recursively
++   *   - `'*'` → all changes
++   * @param callback - Called with matching changes (filtered subset)
++   * @returns Unsubscribe function
++   */
++  subscribe(pattern: string, callback: FileChangeCallback): () => void {
++    const id = `sub_${this.nextId++}`;
++    const matcher = createMatcher(pattern);
++    this.subscriptions.set(id, { id, matcher, callback });
++    return () => {
++      this.subscriptions.delete(id);
++    };
++  }
++
++  /**
++   * Dispatch file change events to matching subscribers.
++   * Each subscriber receives only the subset of changes that match its pattern.
++   */
++  dispatch(changes: FileChange[]): void {
++    if (changes.length === 0) return;
++
++    for (const [, sub] of this.subscriptions) {
++      const matching = changes.filter((c) => sub.matcher(c.path));
++      if (matching.length > 0) {
++        try {
++          sub.callback(matching);
++        } catch (err) {
++          console.warn('[FileChangeHub] Subscriber threw', err);
++        }
++      }
++    }
++  }
++
++  /** Number of active subscriptions (for diagnostics). */
++  get subscriberCount(): number {
++    return this.subscriptions.size;
++  }
++}
++
++function createMatcher(pattern: string): PathMatcher {
++  // Wildcard: match everything
++  if (pattern === '*') {
++    return () => true;
++  }
++  // Recursive: 'src/**' → matches src/ and all descendants
++  if (pattern.endsWith('/**')) {
++    const prefix = pattern.slice(0, -3);
++    return (path) => path.startsWith(`${prefix}/`) || path === prefix;
++  }
++  // Directory: 'src/components/' → direct children only
++  if (pattern.endsWith('/')) {
++    return (path) => {
++      if (!path.startsWith(pattern)) return false;
++      // No further slashes = direct child
++      return !path.slice(pattern.length).includes('/');
++    };
++  }
++  // Exact match (no wildcards, no trailing slash)
++  return (path) => path === pattern;
++}
+diff --git a/apps/web/src/features/045-live-file-events/fake-file-change-hub.ts b/apps/web/src/features/045-live-file-events/fake-file-change-hub.ts
+new file mode 100644
+index 0000000..1c6af89
+--- /dev/null
++++ b/apps/web/src/features/045-live-file-events/fake-file-change-hub.ts
+@@ -0,0 +1,83 @@
++/**
++ * Plan 045: Live File Events
++ *
++ * Fake FileChangeHub for testing components that use useFileChanges.
++ * Records dispatches and provides test hooks for inspection.
++ *
++ * Per Constitution Principle 4: Use fakes over mocks for testing.
++ * Must pass the same contract tests as the real FileChangeHub.
++ */
++
++import type { FileChange, FileChangeCallback } from './file-change.types';
++
++interface Subscription {
++  id: string;
++  pattern: string;
++  callback: FileChangeCallback;
++}
++
++export class FakeFileChangeHub {
++  private readonly subscriptions = new Map<string, Subscription>();
++  private nextId = 0;
++
++  /** All batches dispatched (for test inspection) */
++  public readonly dispatchedBatches: FileChange[][] = [];
++
++  subscribe(pattern: string, callback: FileChangeCallback): () => void {
++    const id = `sub_${this.nextId++}`;
++    this.subscriptions.set(id, { id, pattern, callback });
++    return () => {
++      this.subscriptions.delete(id);
++    };
++  }
++
++  /**
++   * Dispatch changes to subscribers. Uses same pattern matching as real hub.
++   */
++  dispatch(changes: FileChange[]): void {
++    this.dispatchedBatches.push(changes);
++    if (changes.length === 0) return;
++
++    for (const [, sub] of this.subscriptions) {
++      const matcher = createMatcher(sub.pattern);
++      const matching = changes.filter((c) => matcher(c.path));
++      if (matching.length > 0) {
++        try {
++          sub.callback(matching);
++        } catch (err) {
++          console.warn('[FakeFileChangeHub] Subscriber threw', err);
++        }
++      }
++    }
++  }
++
++  get subscriberCount(): number {
++    return this.subscriptions.size;
++  }
++
++  /** Get patterns of all active subscriptions (for test inspection). */
++  get activePatterns(): string[] {
++    return [...this.subscriptions.values()].map((s) => s.pattern);
++  }
++
++  /** Clear recorded dispatches. */
++  reset(): void {
++    this.dispatchedBatches.length = 0;
++  }
++}
++
++// Same pattern matching logic as real hub
++function createMatcher(pattern: string): (path: string) => boolean {
++  if (pattern === '*') return () => true;
++  if (pattern.endsWith('/**')) {
++    const prefix = pattern.slice(0, -3);
++    return (path) => path.startsWith(`${prefix}/`) || path === prefix;
++  }
++  if (pattern.endsWith('/')) {
++    return (path) => {
++      if (!path.startsWith(pattern)) return false;
++      return !path.slice(pattern.length).includes('/');
++    };
++  }
++  return (path) => path === pattern;
++}
+diff --git a/apps/web/src/features/045-live-file-events/file-change-provider.tsx b/apps/web/src/features/045-live-file-events/file-change-provider.tsx
+new file mode 100644
+index 0000000..9a859c0
+--- /dev/null
++++ b/apps/web/src/features/045-live-file-events/file-change-provider.tsx
+@@ -0,0 +1,91 @@
++/**
++ * Plan 045: Live File Events
++ *
++ * React context provider that manages the SSE connection lifecycle
++ * and feeds a FileChangeHub scoped to a single worktree.
++ *
++ * Per Workshop 01: Single SSE connection per worktree, client-side fan-out.
++ * Per DYK #1: MUST filter SSE messages by worktreePath before dispatching.
++ * Per DYK #3: SSEManager injects `type` at top level of payload.
++ *
++ * Uses raw EventSource (browser auto-reconnect per SSE spec).
++ */
++'use client';
++
++import { WorkspaceDomain } from '@chainglass/shared/features/027-central-notify-events/workspace-domain';
++import { createContext, useContext, useEffect, useMemo } from 'react';
++import { FileChangeHub } from './file-change-hub';
++import type { FileChange, FileChangeSSEMessage } from './file-change.types';
++
++const FileChangeHubContext = createContext<FileChangeHub | null>(null);
++
++interface FileChangeProviderProps {
++  worktreePath: string;
++  children: React.ReactNode;
++  /** Override EventSource constructor for testing */
++  eventSourceFactory?: (url: string) => EventSource;
++}
++
++/**
++ * Provides a FileChangeHub scoped to a worktree.
++ * Manages the single SSE connection lifecycle.
++ *
++ * Mount inside BrowserClient — one per worktree view.
++ */
++export function FileChangeProvider({
++  worktreePath,
++  children,
++  eventSourceFactory,
++}: FileChangeProviderProps) {
++  // New hub when worktreePath changes — the `worktreePath` dependency is intentional:
++  // navigating to a different worktree must create a fresh hub with no stale subscriptions.
++  // biome-ignore lint/correctness/useExhaustiveDependencies: worktreePath change = new hub by design
++  const hub = useMemo(() => new FileChangeHub(), [worktreePath]);
++
++  useEffect(() => {
++    const factory = eventSourceFactory ?? ((url: string) => new EventSource(url));
++    const eventSource = factory(`/api/events/${WorkspaceDomain.FileChanges}`);
++
++    eventSource.onmessage = (event: MessageEvent) => {
++      try {
++        const data = JSON.parse(event.data) as FileChangeSSEMessage;
++        if (data.type !== 'file-changed' || !Array.isArray(data.changes)) {
++          return;
++        }
++
++        // DYK #1: Filter to only changes matching this worktree
++        const relevantChanges: FileChange[] = data.changes
++          .filter((c) => c.worktreePath === worktreePath)
++          .map((c) => ({
++            path: c.path,
++            eventType: c.eventType as FileChange['eventType'],
++            timestamp: c.timestamp,
++          }));
++
++        if (relevantChanges.length > 0) {
++          hub.dispatch(relevantChanges);
++        }
++      } catch {
++        // Malformed SSE message — ignore (heartbeats, etc.)
++      }
++    };
++
++    return () => {
++      eventSource.close();
++    };
++  }, [hub, worktreePath, eventSourceFactory]);
++
++  return <FileChangeHubContext.Provider value={hub}>{children}</FileChangeHubContext.Provider>;
++}
++
++/**
++ * Access the FileChangeHub from context.
++ * Throws if used outside a FileChangeProvider.
++ */
++export function useFileChangeHub(): FileChangeHub {
++  const hub = useContext(FileChangeHubContext);
++  if (!hub) {
++    throw new Error('useFileChangeHub must be used within a FileChangeProvider');
++  }
++  return hub;
++}
+diff --git a/apps/web/src/features/045-live-file-events/use-file-changes.ts b/apps/web/src/features/045-live-file-events/use-file-changes.ts
+new file mode 100644
+index 0000000..abff6bf
+--- /dev/null
++++ b/apps/web/src/features/045-live-file-events/use-file-changes.ts
+@@ -0,0 +1,81 @@
++/**
++ * Plan 045: Live File Events
++ *
++ * Hook for subscribing to file changes matching a path pattern.
++ * The "SDK For Us" one-liner API.
++ *
++ * Per Workshop 01: Debounce configurable (100ms default), replace/accumulate modes.
++ * Per DYK #5: Replace mode drops intermediate batches; accumulate grows unbounded.
++ *
++ * @example
++ * // Watch a specific file (for "changed externally" banner)
++ * const { hasChanges } = useFileChanges('src/App.tsx');
++ *
++ * // Watch a directory (for tree view updates)
++ * const { changes } = useFileChanges('src/components/');
++ *
++ * // Watch everything (for changes sidebar)
++ * const { changes } = useFileChanges('*');
++ */
++'use client';
++
++import { useCallback, useEffect, useRef, useState } from 'react';
++import { useFileChangeHub } from './file-change-provider';
++import type { FileChange } from './file-change.types';
++
++export interface UseFileChangesOptions {
++  /** Debounce window in ms (default: 100). Set to 0 for immediate. */
++  debounce?: number;
++  /**
++   * How to handle new changes:
++   * - `'replace'` (default): New batch replaces previous changes
++   * - `'accumulate'`: New changes append to existing (call clearChanges to reset)
++   */
++  mode?: 'accumulate' | 'replace';
++}
++
++export interface UseFileChangesReturn {
++  /** Current changes matching the pattern */
++  changes: FileChange[];
++  /** Whether any changes have occurred since last clear */
++  hasChanges: boolean;
++  /** Clear accumulated changes */
++  clearChanges: () => void;
++}
++
++export function useFileChanges(
++  pattern: string,
++  options: UseFileChangesOptions = {}
++): UseFileChangesReturn {
++  const { debounce = 100, mode = 'replace' } = options;
++  const hub = useFileChangeHub();
++  const [changes, setChanges] = useState<FileChange[]>([]);
++  const timerRef = useRef<ReturnType<typeof setTimeout>>();
++
++  useEffect(() => {
++    const unsubscribe = hub.subscribe(pattern, (incoming) => {
++      if (timerRef.current) clearTimeout(timerRef.current);
++
++      if (debounce === 0) {
++        setChanges((prev) => (mode === 'accumulate' ? [...prev, ...incoming] : incoming));
++      } else {
++        timerRef.current = setTimeout(() => {
++          setChanges((prev) => (mode === 'accumulate' ? [...prev, ...incoming] : incoming));
++        }, debounce);
++      }
++    });
++
++    return () => {
++      unsubscribe();
++      if (timerRef.current) clearTimeout(timerRef.current);
++    };
++  }, [hub, pattern, debounce, mode]);
++
++  const clearChanges = useCallback(() => setChanges([]), []);
++
++  return {
++    changes,
++    hasChanges: changes.length > 0,
++    clearChanges,
++  };
++}
+diff --git a/apps/web/src/features/045-live-file-events/index.ts b/apps/web/src/features/045-live-file-events/index.ts
+new file mode 100644
+index 0000000..316fa12
+--- /dev/null
++++ b/apps/web/src/features/045-live-file-events/index.ts
+@@ -0,0 +1,18 @@
++/**
++ * Plan 045: Live File Events — Public API
++ *
++ * Feature folder barrel export for the browser-side event hub.
++ * All exports are part of the _platform/events domain contract.
++ */
++
++// Types
++export type { FileChange, FileChangeSSEMessage, FileChangeCallback } from './file-change.types';
++
++// Hub
++export { FileChangeHub } from './file-change-hub';
++export { FakeFileChangeHub } from './fake-file-change-hub';
++
++// Provider + hooks
++export { FileChangeProvider, useFileChangeHub } from './file-change-provider';
++export { useFileChanges } from './use-file-changes';
++export type { UseFileChangesOptions, UseFileChangesReturn } from './use-file-changes';
+diff --git a/test/contracts/file-change-hub.contract.ts b/test/contracts/file-change-hub.contract.ts
+new file mode 100644
+index 0000000..f965f1b
+--- /dev/null
++++ b/test/contracts/file-change-hub.contract.ts
+@@ -0,0 +1,117 @@
++/**
++ * Plan 045: Live File Events
++ *
++ * Contract tests for FileChangeHub. Both real and fake must pass.
++ */
++
++import { beforeEach, describe, expect, it } from 'vitest';
++import type {
++  FileChange,
++  FileChangeCallback,
++} from '../../../apps/web/src/features/045-live-file-events/file-change.types';
++
++export interface HubUnderTest {
++  subscribe(pattern: string, callback: FileChangeCallback): () => void;
++  dispatch(changes: FileChange[]): void;
++  readonly subscriberCount: number;
++}
++
++export type HubFactory = () => HubUnderTest;
++
++function makeChange(path: string, eventType: FileChange['eventType'] = 'change'): FileChange {
++  return { path, eventType, timestamp: Date.now() };
++}
++
++export function fileChangeHubContractTests(name: string, factory: HubFactory): void {
++  describe(`FileChangeHub Contract: ${name}`, () => {
++    let hub: HubUnderTest;
++
++    beforeEach(() => {
++      hub = factory();
++    });
++
++    it('C01: exact match dispatches only to matching subscriber', () => {
++      const received: FileChange[][] = [];
++      hub.subscribe('src/app.tsx', (c) => received.push(c));
++
++      hub.dispatch([makeChange('src/app.tsx'), makeChange('src/index.ts')]);
++
++      expect(received).toHaveLength(1);
++      expect(received[0]).toHaveLength(1);
++      expect(received[0][0].path).toBe('src/app.tsx');
++    });
++
++    it('C02: directory match dispatches direct children only', () => {
++      const received: FileChange[][] = [];
++      hub.subscribe('src/', (c) => received.push(c));
++
++      hub.dispatch([makeChange('src/app.tsx'), makeChange('src/lib/utils.ts')]);
++
++      expect(received).toHaveLength(1);
++      expect(received[0]).toHaveLength(1);
++      expect(received[0][0].path).toBe('src/app.tsx');
++    });
++
++    it('C03: recursive match dispatches all descendants', () => {
++      const received: FileChange[][] = [];
++      hub.subscribe('src/**', (c) => received.push(c));
++
++      hub.dispatch([
++        makeChange('src/app.tsx'),
++        makeChange('src/lib/utils.ts'),
++        makeChange('test/other.ts'),
++      ]);
++
++      expect(received).toHaveLength(1);
++      expect(received[0]).toHaveLength(2);
++    });
++
++    it('C04: wildcard dispatches everything', () => {
++      const received: FileChange[][] = [];
++      hub.subscribe('*', (c) => received.push(c));
++
++      hub.dispatch([makeChange('any/path.ts')]);
++
++      expect(received).toHaveLength(1);
++    });
++
++    it('C05: unsubscribe stops dispatch', () => {
++      const received: FileChange[][] = [];
++      const unsub = hub.subscribe('*', (c) => received.push(c));
++      unsub();
++
++      hub.dispatch([makeChange('file.ts')]);
++
++      expect(received).toHaveLength(0);
++    });
++
++    it('C06: error isolation — throwing subscriber does not block others', () => {
++      const received: FileChange[][] = [];
++      hub.subscribe('*', () => {
++        throw new Error('boom');
++      });
++      hub.subscribe('*', (c) => received.push(c));
++
++      hub.dispatch([makeChange('file.ts')]);
++
++      expect(received).toHaveLength(1);
++    });
++
++    it('C07: empty dispatch is no-op', () => {
++      const received: FileChange[][] = [];
++      hub.subscribe('*', (c) => received.push(c));
++
++      hub.dispatch([]);
++
++      expect(received).toHaveLength(0);
++    });
++
++    it('C08: subscriberCount tracks active subscriptions', () => {
++      expect(hub.subscriberCount).toBe(0);
++      const unsub = hub.subscribe('*', () => {});
++      expect(hub.subscriberCount).toBe(1);
++      unsub();
++      expect(hub.subscriberCount).toBe(0);
++    });
++  });
++}
+diff --git a/test/contracts/file-change-hub.contract.test.ts b/test/contracts/file-change-hub.contract.test.ts
+new file mode 100644
+index 0000000..749bc31
+--- /dev/null
++++ b/test/contracts/file-change-hub.contract.test.ts
+@@ -0,0 +1,12 @@
++/**
++ * Plan 045: Live File Events
++ *
++ * Contract test runner for FileChangeHub — both real and fake must pass.
++ */
++
++import { FakeFileChangeHub } from '../../apps/web/src/features/045-live-file-events/fake-file-change-hub';
++import { FileChangeHub } from '../../apps/web/src/features/045-live-file-events/file-change-hub';
++import { fileChangeHubContractTests } from './file-change-hub.contract';
++
++fileChangeHubContractTests('FileChangeHub (Real)', () => new FileChangeHub());
++fileChangeHubContractTests('FakeFileChangeHub (Fake)', () => new FakeFileChangeHub());
+diff --git a/test/unit/web/features/045-live-file-events/file-change-hub.test.ts b/test/unit/web/features/045-live-file-events/file-change-hub.test.ts
+new file mode 100644
+index 0000000..6dabb7d
+--- /dev/null
++++ b/test/unit/web/features/045-live-file-events/file-change-hub.test.ts
+@@ -0,0 +1,259 @@
++/**
++ * Tests for FileChangeHub.
++ *
++ * Per Plan 045: Live File Events - Phase 2 (T002/T004)
++ * Full TDD: tests first, then implementation.
++ */
++
++import { beforeEach, describe, expect, it, vi } from 'vitest';
++import { FileChangeHub } from '../../../../../apps/web/src/features/045-live-file-events/file-change-hub';
++import type { FileChange } from '../../../../../apps/web/src/features/045-live-file-events/file-change.types';
++
++function makeChange(overrides: Partial<FileChange> = {}): FileChange {
++  return {
++    path: 'src/app.tsx',
++    eventType: 'change',
++    timestamp: Date.now(),
++    ...overrides,
++  };
++}
++
++describe('FileChangeHub', () => {
++  let hub: FileChangeHub;
++
++  beforeEach(() => {
++    hub = new FileChangeHub();
++  });
++
++  // ═══════════════════════════════════════════════════════════
++  // Pattern matching
++  // ═══════════════════════════════════════════════════════════
++
++  describe('exact match', () => {
++    it('should match exact file path', () => {
++      const received: FileChange[][] = [];
++      hub.subscribe('src/app.tsx', (changes) => received.push(changes));
++
++      hub.dispatch([makeChange({ path: 'src/app.tsx' })]);
++
++      expect(received).toHaveLength(1);
++      expect(received[0]).toHaveLength(1);
++    });
++
++    it('should not match different file path', () => {
++      const received: FileChange[][] = [];
++      hub.subscribe('src/app.tsx', (changes) => received.push(changes));
++
++      hub.dispatch([makeChange({ path: 'src/index.ts' })]);
++
++      expect(received).toHaveLength(0);
++    });
++
++    it('should not match parent directory', () => {
++      const received: FileChange[][] = [];
++      hub.subscribe('src/app.tsx', (changes) => received.push(changes));
++
++      hub.dispatch([makeChange({ path: 'src' })]);
++
++      expect(received).toHaveLength(0);
++    });
++  });
++
++  describe('directory match (non-recursive)', () => {
++    it('should match direct children of directory', () => {
++      const received: FileChange[][] = [];
++      hub.subscribe('src/components/', (changes) => received.push(changes));
++
++      hub.dispatch([makeChange({ path: 'src/components/Button.tsx' })]);
++
++      expect(received).toHaveLength(1);
++    });
++
++    it('should not match nested children (non-recursive)', () => {
++      const received: FileChange[][] = [];
++      hub.subscribe('src/components/', (changes) => received.push(changes));
++
++      hub.dispatch([makeChange({ path: 'src/components/ui/Input.tsx' })]);
++
++      expect(received).toHaveLength(0);
++    });
++
++    it('should not match the directory itself', () => {
++      const received: FileChange[][] = [];
++      hub.subscribe('src/components/', (changes) => received.push(changes));
++
++      hub.dispatch([makeChange({ path: 'src/components' })]);
++
++      expect(received).toHaveLength(0);
++    });
++
++    it('should match multiple direct children', () => {
++      const received: FileChange[][] = [];
++      hub.subscribe('src/', (changes) => received.push(changes));
++
++      hub.dispatch([
++        makeChange({ path: 'src/app.tsx' }),
++        makeChange({ path: 'src/index.ts' }),
++        makeChange({ path: 'src/lib/utils.ts' }), // nested — should NOT match
++      ]);
++
++      expect(received).toHaveLength(1);
++      expect(received[0]).toHaveLength(2);
++    });
++  });
++
++  describe('recursive match', () => {
++    it('should match all descendants with **', () => {
++      const received: FileChange[][] = [];
++      hub.subscribe('src/**', (changes) => received.push(changes));
++
++      hub.dispatch([
++        makeChange({ path: 'src/app.tsx' }),
++        makeChange({ path: 'src/components/Button.tsx' }),
++        makeChange({ path: 'src/components/ui/Input.tsx' }),
++      ]);
++
++      expect(received).toHaveLength(1);
++      expect(received[0]).toHaveLength(3);
++    });
++
++    it('should not match files outside the prefix', () => {
++      const received: FileChange[][] = [];
++      hub.subscribe('src/**', (changes) => received.push(changes));
++
++      hub.dispatch([makeChange({ path: 'test/app.test.tsx' })]);
++
++      expect(received).toHaveLength(0);
++    });
++
++    it('should match the prefix directory itself', () => {
++      const received: FileChange[][] = [];
++      hub.subscribe('src/**', (changes) => received.push(changes));
++
++      hub.dispatch([makeChange({ path: 'src' })]);
++
++      // src itself matches src/**
++      expect(received).toHaveLength(1);
++    });
++  });
++
++  describe('wildcard match', () => {
++    it('should match everything with *', () => {
++      const received: FileChange[][] = [];
++      hub.subscribe('*', (changes) => received.push(changes));
++
++      hub.dispatch([
++        makeChange({ path: 'src/app.tsx' }),
++        makeChange({ path: 'package.json' }),
++        makeChange({ path: 'deeply/nested/file.ts' }),
++      ]);
++
++      expect(received).toHaveLength(1);
++      expect(received[0]).toHaveLength(3);
++    });
++  });
++
++  // ═══════════════════════════════════════════════════════════
++  // Subscriber management
++  // ═══════════════════════════════════════════════════════════
++
++  describe('subscriber management', () => {
++    it('should dispatch to multiple subscribers', () => {
++      const received1: FileChange[][] = [];
++      const received2: FileChange[][] = [];
++      hub.subscribe('src/app.tsx', (changes) => received1.push(changes));
++      hub.subscribe('*', (changes) => received2.push(changes));
++
++      hub.dispatch([makeChange({ path: 'src/app.tsx' })]);
++
++      expect(received1).toHaveLength(1);
++      expect(received2).toHaveLength(1);
++    });
++
++    it('should unsubscribe when returned function is called', () => {
++      const received: FileChange[][] = [];
++      const unsub = hub.subscribe('*', (changes) => received.push(changes));
++      unsub();
++
++      hub.dispatch([makeChange()]);
++
++      expect(received).toHaveLength(0);
++    });
++
++    it('should track subscriber count', () => {
++      expect(hub.subscriberCount).toBe(0);
++
++      const unsub1 = hub.subscribe('*', () => {});
++      const unsub2 = hub.subscribe('src/', () => {});
++      expect(hub.subscriberCount).toBe(2);
++
++      unsub1();
++      expect(hub.subscriberCount).toBe(1);
++
++      unsub2();
++      expect(hub.subscriberCount).toBe(0);
++    });
++  });
++
++  // ═══════════════════════════════════════════════════════════
++  // Error isolation
++  // ═══════════════════════════════════════════════════════════
++
++  describe('error isolation', () => {
++    it('should isolate subscriber errors (throwing does not block others)', () => {
++      const received: FileChange[][] = [];
++      hub.subscribe('*', () => {
++        throw new Error('boom');
++      });
++      hub.subscribe('*', (changes) => received.push(changes));
++
++      hub.dispatch([makeChange()]);
++
++      expect(received).toHaveLength(1);
++    });
++  });
++
++  // ═══════════════════════════════════════════════════════════
++  // Edge cases
++  // ═══════════════════════════════════════════════════════════
++
++  describe('edge cases', () => {
++    it('should be a no-op when dispatching empty array', () => {
++      const received: FileChange[][] = [];
++      hub.subscribe('*', (changes) => received.push(changes));
++
++      hub.dispatch([]);
++
++      // No callback because no changes matched (empty input)
++      expect(received).toHaveLength(0);
++    });
++
++    it('should handle root-level files with directory pattern', () => {
++      const received: FileChange[][] = [];
++      // Empty string prefix = root directory
++      hub.subscribe('', (changes) => received.push(changes));
++
++      // This is an exact match for empty string, not a directory match
++      hub.dispatch([makeChange({ path: 'package.json' })]);
++
++      expect(received).toHaveLength(0);
++    });
++
++    it('should only dispatch matching subset to each subscriber', () => {
++      const srcChanges: FileChange[][] = [];
++      const testChanges: FileChange[][] = [];
++      hub.subscribe('src/', (changes) => srcChanges.push(changes));
++      hub.subscribe('test/', (changes) => testChanges.push(changes));
++
++      hub.dispatch([
++        makeChange({ path: 'src/app.tsx' }),
++        makeChange({ path: 'test/app.test.tsx' }),
++      ]);
++
++      expect(srcChanges[0]).toHaveLength(1);
++      expect(srcChanges[0][0].path).toBe('src/app.tsx');
++      expect(testChanges[0]).toHaveLength(1);
++      expect(testChanges[0][0].path).toBe('test/app.test.tsx');
++    });
++  });
++});
+diff --git a/test/unit/web/features/045-live-file-events/use-file-changes.test.tsx b/test/unit/web/features/045-live-file-events/use-file-changes.test.tsx
+new file mode 100644
+index 0000000..a4b4199
+--- /dev/null
++++ b/test/unit/web/features/045-live-file-events/use-file-changes.test.tsx
+@@ -0,0 +1,298 @@
++/**
++ * Tests for useFileChanges hook.
++ *
++ * Per Plan 045: Live File Events - Phase 2 (T006/T007)
++ * Uses FakeFileChangeHub injected via context.
++ */
++
++import { act, renderHook } from '@testing-library/react';
++import React from 'react';
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++import { FakeFileChangeHub } from '../../../../../apps/web/src/features/045-live-file-events/fake-file-change-hub';
++import type { FileChange } from '../../../../../apps/web/src/features/045-live-file-events/file-change.types';
++import { useFileChanges } from '../../../../../apps/web/src/features/045-live-file-events/use-file-changes';
++
++// We need to access the context to inject our fake hub.
++// Import the provider's context indirectly by wrapping with the real provider
++// but using a test helper that injects the fake.
++
++// Since FileChangeProvider creates its own hub, we need a way to inject
++// our fake. We'll create a minimal test wrapper using the context directly.
++import { FileChangeProvider } from '../../../../../apps/web/src/features/045-live-file-events/file-change-provider';
++
++// We can't easily inject a FakeFileChangeHub into FileChangeProvider (it creates its own).
++// Instead, test through the real provider with a FakeEventSource to control SSE messages.
++// OR: export the context and use it in tests. Since the context isn't exported,
++// we'll test through the provider with controlled SSE.
++
++// However, for unit testing the hook in isolation, let's create a test wrapper
++// that provides a fake hub directly via the context.
++
++// We need access to the context. Let's use a test-only approach:
++// Create a wrapper component that provides the fake hub via React.createElement.
++
++// Actually, the cleanest approach: test useFileChanges through FileChangeProvider
++// with a fake EventSource. This tests the integration properly.
++
++import {
++  type FakeEventSource,
++  createFakeEventSourceFactory,
++} from '../../../../../test/fakes/fake-event-source';
++
++function makeChange(overrides: Partial<FileChange> = {}): FileChange {
++  return {
++    path: 'src/app.tsx',
++    eventType: 'change',
++    timestamp: Date.now(),
++    ...overrides,
++  };
++}
++
++describe('useFileChanges', () => {
++  let fakeESFactory: ReturnType<typeof createFakeEventSourceFactory>;
++
++  beforeEach(() => {
++    vi.useFakeTimers();
++    fakeESFactory = createFakeEventSourceFactory();
++  });
++
++  afterEach(() => {
++    vi.useRealTimers();
++  });
++
++  function createWrapper(worktreePath = '/repo') {
++    return function Wrapper({ children }: { children: React.ReactNode }) {
++      return React.createElement(
++        FileChangeProvider,
++        {
++          worktreePath,
++          eventSourceFactory: fakeESFactory.create as unknown as (url: string) => EventSource,
++        },
++        children
++      );
++    };
++  }
++
++  function simulateSSEMessage(
++    fakeES: FakeEventSource,
++    changes: Array<{ path: string; eventType: string; worktreePath: string; timestamp: number }>
++  ) {
++    const data = JSON.stringify({ type: 'file-changed', changes });
++    fakeES.simulateMessage(data);
++  }
++
++  function getLastES(): FakeEventSource {
++    const es = fakeESFactory.lastInstance;
++    if (!es) throw new Error('No EventSource created');
++    return es;
++  }
++
++  // ═══════════════════════════════════════════════════════════
++  // Basic subscribe/dispatch
++  // ═══════════════════════════════════════════════════════════
++
++  it('should start with empty changes', () => {
++    const { result } = renderHook(() => useFileChanges('src/app.tsx'), {
++      wrapper: createWrapper(),
++    });
++
++    expect(result.current.changes).toEqual([]);
++    expect(result.current.hasChanges).toBe(false);
++  });
++
++  it('should receive matching changes after debounce', () => {
++    const { result } = renderHook(() => useFileChanges('src/app.tsx', { debounce: 0 }), {
++      wrapper: createWrapper(),
++    });
++
++    const fakeES = getLastES();
++    act(() => {
++      fakeES.simulateOpen();
++      simulateSSEMessage(fakeES, [
++        { path: 'src/app.tsx', eventType: 'change', worktreePath: '/repo', timestamp: 1000 },
++      ]);
++    });
++
++    expect(result.current.hasChanges).toBe(true);
++    expect(result.current.changes).toHaveLength(1);
++    expect(result.current.changes[0].path).toBe('src/app.tsx');
++  });
++
++  it('should debounce changes (default 100ms)', () => {
++    const { result } = renderHook(() => useFileChanges('*'), {
++      wrapper: createWrapper(),
++    });
++
++    const fakeES = getLastES();
++    act(() => {
++      fakeES.simulateOpen();
++      simulateSSEMessage(fakeES, [
++        { path: 'src/a.tsx', eventType: 'change', worktreePath: '/repo', timestamp: 1000 },
++      ]);
++    });
++
++    // Not yet — debounce pending
++    expect(result.current.hasChanges).toBe(false);
++
++    act(() => {
++      vi.advanceTimersByTime(100);
++    });
++
++    // Now it should arrive
++    expect(result.current.hasChanges).toBe(true);
++  });
++
++  // ═══════════════════════════════════════════════════════════
++  // Modes
++  // ═══════════════════════════════════════════════════════════
++
++  it('should replace changes in replace mode (default)', () => {
++    const { result } = renderHook(() => useFileChanges('*', { debounce: 0 }), {
++      wrapper: createWrapper(),
++    });
++
++    const fakeES = getLastES();
++    act(() => {
++      fakeES.simulateOpen();
++      simulateSSEMessage(fakeES, [
++        { path: 'src/a.tsx', eventType: 'add', worktreePath: '/repo', timestamp: 1000 },
++      ]);
++    });
++
++    expect(result.current.changes).toHaveLength(1);
++
++    act(() => {
++      simulateSSEMessage(fakeES, [
++        { path: 'src/b.tsx', eventType: 'change', worktreePath: '/repo', timestamp: 2000 },
++      ]);
++    });
++
++    // Replaced — only the second batch
++    expect(result.current.changes).toHaveLength(1);
++    expect(result.current.changes[0].path).toBe('src/b.tsx');
++  });
++
++  it('should accumulate changes in accumulate mode', () => {
++    const { result } = renderHook(() => useFileChanges('*', { debounce: 0, mode: 'accumulate' }), {
++      wrapper: createWrapper(),
++    });
++
++    const fakeES = getLastES();
++    act(() => {
++      fakeES.simulateOpen();
++      simulateSSEMessage(fakeES, [
++        { path: 'src/a.tsx', eventType: 'add', worktreePath: '/repo', timestamp: 1000 },
++      ]);
++    });
++
++    act(() => {
++      simulateSSEMessage(fakeES, [
++        { path: 'src/b.tsx', eventType: 'change', worktreePath: '/repo', timestamp: 2000 },
++      ]);
++    });
++
++    // Accumulated — both batches
++    expect(result.current.changes).toHaveLength(2);
++  });
++
++  // ═══════════════════════════════════════════════════════════
++  // clearChanges
++  // ═══════════════════════════════════════════════════════════
++
++  it('should clear changes and reset hasChanges', () => {
++    const { result } = renderHook(() => useFileChanges('*', { debounce: 0 }), {
++      wrapper: createWrapper(),
++    });
++
++    const fakeES = getLastES();
++    act(() => {
++      fakeES.simulateOpen();
++      simulateSSEMessage(fakeES, [
++        { path: 'src/a.tsx', eventType: 'change', worktreePath: '/repo', timestamp: 1000 },
++      ]);
++    });
++
++    expect(result.current.hasChanges).toBe(true);
++
++    act(() => {
++      result.current.clearChanges();
++    });
++
++    expect(result.current.hasChanges).toBe(false);
++    expect(result.current.changes).toEqual([]);
++  });
++
++  // ═══════════════════════════════════════════════════════════
++  // worktreePath filtering (DYK #1)
++  // ═══════════════════════════════════════════════════════════
++
++  it('should filter out changes from other worktrees', () => {
++    const { result } = renderHook(() => useFileChanges('*', { debounce: 0 }), {
++      wrapper: createWrapper('/repo'),
++    });
++
++    const fakeES = getLastES();
++    act(() => {
++      fakeES.simulateOpen();
++      simulateSSEMessage(fakeES, [
++        { path: 'src/a.tsx', eventType: 'change', worktreePath: '/repo', timestamp: 1000 },
++        { path: 'src/a.tsx', eventType: 'change', worktreePath: '/other-repo', timestamp: 1001 },
++      ]);
++    });
++
++    // Only /repo changes should arrive
++    expect(result.current.changes).toHaveLength(1);
++    expect(result.current.changes[0].path).toBe('src/a.tsx');
++  });
++
++  // ═══════════════════════════════════════════════════════════
++  // Pattern filtering
++  // ═══════════════════════════════════════════════════════════
++
++  it('should only receive changes matching the pattern', () => {
++    const { result } = renderHook(() => useFileChanges('src/', { debounce: 0 }), {
++      wrapper: createWrapper(),
++    });
++
++    const fakeES = getLastES();
++    act(() => {
++      fakeES.simulateOpen();
++      simulateSSEMessage(fakeES, [
++        { path: 'src/app.tsx', eventType: 'change', worktreePath: '/repo', timestamp: 1000 },
++        { path: 'test/app.test.tsx', eventType: 'change', worktreePath: '/repo', timestamp: 1001 },
++      ]);
++    });
++
++    expect(result.current.changes).toHaveLength(1);
++    expect(result.current.changes[0].path).toBe('src/app.tsx');
++  });
++
++  // ═══════════════════════════════════════════════════════════
++  // Error handling
++  // ═══════════════════════════════════════════════════════════
++
++  it('should throw when used outside FileChangeProvider', () => {
++    expect(() => {
++      renderHook(() => useFileChanges('*'));
++    }).toThrow('useFileChangeHub must be used within a FileChangeProvider');
++  });
++
++  // ═══════════════════════════════════════════════════════════
++  // Cleanup
++  // ═══════════════════════════════════════════════════════════
++
++  it('should close EventSource on unmount', () => {
++    const { unmount } = renderHook(() => useFileChanges('*', { debounce: 0 }), {
++      wrapper: createWrapper(),
++    });
++
++    const fakeES = getLastES();
++    act(() => {
++      fakeES.simulateOpen();
++    });
++
++    unmount();
++
++    expect(fakeES.readyState).toBe(2); // CLOSED
++  });
++});

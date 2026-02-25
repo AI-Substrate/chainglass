@@ -37,6 +37,9 @@ export async function GET(
     start(controller) {
       // Add connection to SSEManager
       sseManager.addConnection(channel, controller);
+      console.debug(
+        `[SSE] Client connected to channel "${channel}" (total: ${sseManager.getConnectionCount(channel)})`
+      );
 
       // Send initial heartbeat to confirm connection
       const encoder = new TextEncoder();
@@ -57,6 +60,9 @@ export async function GET(
       const cleanup = () => {
         clearInterval(heartbeatInterval);
         sseManager.removeConnection(channel, controller);
+        console.debug(
+          `[SSE] Client disconnected from channel "${channel}" (remaining: ${sseManager.getConnectionCount(channel)})`
+        );
         try {
           controller.close();
         } catch {

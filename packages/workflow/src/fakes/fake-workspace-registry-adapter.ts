@@ -62,6 +62,14 @@ export interface WorkspaceExistsCall {
   slug: string;
 }
 
+/**
+ * Recorded update() call for test inspection.
+ */
+export interface WorkspaceUpdateCall {
+  /** Workspace passed to update() */
+  workspace: Workspace;
+}
+
 // ==================== Fake Implementation ====================
 
 /**
@@ -122,6 +130,7 @@ export class FakeWorkspaceRegistryAdapter implements IWorkspaceRegistryAdapter {
   private _listCalls: WorkspaceListCall[] = [];
   private _removeCalls: WorkspaceRemoveCall[] = [];
   private _existsCalls: WorkspaceExistsCall[] = [];
+  private _updateCalls: WorkspaceUpdateCall[] = [];
 
   // ==================== Call Tracking Getters (immutable copies) ====================
 
@@ -158,6 +167,13 @@ export class FakeWorkspaceRegistryAdapter implements IWorkspaceRegistryAdapter {
    */
   get existsCalls(): WorkspaceExistsCall[] {
     return [...this._existsCalls];
+  }
+
+  /**
+   * Get all update() calls (returns a copy to prevent mutation).
+   */
+  get updateCalls(): WorkspaceUpdateCall[] {
+    return [...this._updateCalls];
   }
 
   // ==================== State Setup Helpers ====================
@@ -200,6 +216,7 @@ export class FakeWorkspaceRegistryAdapter implements IWorkspaceRegistryAdapter {
     this._listCalls = [];
     this._removeCalls = [];
     this._existsCalls = [];
+    this._updateCalls = [];
   }
 
   // ==================== IWorkspaceRegistryAdapter Implementation ====================
@@ -313,5 +330,28 @@ export class FakeWorkspaceRegistryAdapter implements IWorkspaceRegistryAdapter {
     this._existsCalls.push({ slug });
 
     return this._workspaces.has(slug);
+  }
+
+  /**
+   * Update a workspace in in-memory storage.
+   *
+   * @param workspace - Workspace with updated data
+   * @returns WorkspaceSaveResult with ok=true on success
+   */
+  async update(workspace: Workspace): Promise<WorkspaceSaveResult> {
+    this._updateCalls.push({ workspace });
+
+    // Check if workspace exists
+    if (!this._workspaces.has(workspace.slug)) {
+      return {
+        ok: false,
+        errorCode: WorkspaceErrorCodes.WORKSPACE_NOT_FOUND,
+        errorMessage: `Workspace '${workspace.slug}' not found`,
+      };
+    }
+
+    // Replace workspace
+    this._workspaces.set(workspace.slug, workspace);
+    return { ok: true };
   }
 }

@@ -18,6 +18,7 @@
  */
 
 import type { Workspace } from '../entities/workspace.js';
+import type { WorkspacePreferences } from '../entities/workspace.js';
 import type { WorkspaceError } from '../errors/workspace-errors.js';
 import type { WorkspaceContext, WorkspaceInfo } from './workspace-context.interface.js';
 
@@ -150,4 +151,19 @@ export interface IWorkspaceService {
    * @returns WorkspaceContext if found, null if workspace not found
    */
   resolveContextFromParams(slug: string, worktreePath?: string): Promise<WorkspaceContext | null>;
+
+  /**
+   * Update workspace preferences (emoji, color, starred, sortOrder).
+   *
+   * Per Plan 041: Partial update — only provided fields are changed.
+   * Validates emoji/color against palette if non-empty.
+   *
+   * @param slug - Workspace slug to update
+   * @param prefs - Partial preferences to merge with existing
+   * @returns WorkspaceOperationResult with success/errors
+   */
+  updatePreferences(
+    slug: string,
+    prefs: Partial<WorkspacePreferences>
+  ): Promise<WorkspaceOperationResult>;
 }

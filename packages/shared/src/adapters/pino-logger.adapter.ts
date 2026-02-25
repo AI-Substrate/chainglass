@@ -14,6 +14,7 @@ export class PinoLoggerAdapter implements ILogger {
     this.logger =
       pinoInstance ??
       pino({
+        level: process.env.LOG_LEVEL ?? 'warn',
         serializers: { err: pino.stdSerializers.err },
       });
   }

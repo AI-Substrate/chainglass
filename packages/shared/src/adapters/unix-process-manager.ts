@@ -161,7 +161,7 @@ export class UnixProcessManager implements IProcessManager {
             waitForExit: () => exitPromise,
           };
 
-          this._logger.info('Process spawned', { pid, command });
+          this._logger.debug('Process spawned', { pid, command });
           resolve(handle);
         }
       });
@@ -177,7 +177,7 @@ export class UnixProcessManager implements IProcessManager {
       return;
     }
 
-    this._logger.info('Terminating process with signal escalation', { pid });
+    this._logger.debug('Terminating process with signal escalation', { pid });
 
     // Signal escalation: SIGINT → SIGTERM → SIGKILL
     const signals: ProcessSignal[] = ['SIGINT', 'SIGTERM', 'SIGKILL'];
@@ -294,7 +294,7 @@ export class UnixProcessManager implements IProcessManager {
     managed.exitResult = result;
     managed.exitResolve(result);
 
-    this._logger.info('Process exited', { pid, exitCode: code, signal });
+    this._logger.debug('Process exited', { pid, exitCode: code, signal });
   }
 
   /**

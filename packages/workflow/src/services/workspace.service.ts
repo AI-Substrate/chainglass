@@ -14,7 +14,10 @@
  * Per ADR-0004: Uses constructor injection for testability.
  */
 
+import { WORKSPACE_COLOR_NAMES, WORKSPACE_EMOJI_SET } from '../constants/workspace-palettes.js';
 import { Workspace } from '../entities/workspace.js';
+import type { WorkspacePreferences } from '../entities/workspace.js';
+import { EntityNotFoundError } from '../errors/entity-not-found.error.js';
 import { type WorkspaceError, WorkspaceErrors } from '../errors/workspace-errors.js';
 import type { IGitWorktreeResolver } from '../interfaces/git-worktree-resolver.interface.js';
 import type {
@@ -28,6 +31,7 @@ import type {
   AddWorkspaceResult,
   IWorkspaceService,
   RemoveWorkspaceResult,
+  WorkspaceOperationResult,
 } from '../interfaces/workspace-service.interface.js';
 
 /**
@@ -192,6 +196,105 @@ export class WorkspaceService implements IWorkspaceService {
       isMainWorktree,
       hasGit: info.hasGit,
     };
+  }
+
+  /**
+   * Update workspace preferences (emoji, color, starred, sortOrder).
+   *
+   * Per Plan 041: Partial update — only provided fields are changed.
+   * Validates emoji/color against palette if non-empty.
+   * Per DYK-P1-05: Empty string is valid (means "unset").
+   */
+  async updatePreferences(
+    slug: string,
+    prefs: Partial<WorkspacePreferences>
+  ): Promise<WorkspaceOperationResult> {
+    // Validate emoji against palette (if provided and non-empty)
+    if (prefs.emoji !== undefined && prefs.emoji !== '' && !WORKSPACE_EMOJI_SET.has(prefs.emoji)) {
+      return {
+        success: false,
+        errors: [
+          {
+            code: 'E076',
+            message: `Invalid emoji '${prefs.emoji}': not in workspace palette`,
+            action: 'Choose an emoji from the workspace palette',
+            path: slug,
+          },
+        ],
+      };
+    }
+
+    // Validate color against palette (if provided and non-empty)
+    if (
+      prefs.color !== undefined &&
+      prefs.color !== '' &&
+      !WORKSPACE_COLOR_NAMES.has(prefs.color)
+    ) {
+      return {
+        success: false,
+        errors: [
+          {
+            code: 'E076',
+            message: `Invalid color '${prefs.color}': not in workspace palette`,
+            action: 'Choose a color from the workspace palette',
+            path: slug,
+          },
+        ],
+      };
+    }
+
+    // Validate sortOrder (if provided) — must be non-negative finite integer
+    if (
+      prefs.sortOrder !== undefined &&
+      (!Number.isFinite(prefs.sortOrder) || prefs.sortOrder < 0)
+    ) {
+      return {
+        success: false,
+        errors: [
+          {
+            code: 'E076',
+            message: `Invalid sortOrder '${prefs.sortOrder}': must be a non-negative integer`,
+            action: 'Provide a non-negative integer for sortOrder',
+            path: slug,
+          },
+        ],
+      };
+    }
+
+    // Load workspace
+    let workspace: Workspace;
+    try {
+      workspace = await this.registryAdapter.load(slug);
+    } catch (error) {
+      if (error instanceof EntityNotFoundError) {
+        return {
+          success: false,
+          errors: [WorkspaceErrors.notFound(slug)],
+        };
+      }
+      throw error;
+    }
+
+    // Apply preference update (immutable)
+    const updated = workspace.withPreferences(prefs);
+
+    // Persist
+    const result = await this.registryAdapter.update(updated);
+    if (!result.ok) {
+      return {
+        success: false,
+        errors: [
+          {
+            code: result.errorCode ?? 'E074',
+            message: result.errorMessage ?? 'Unknown error',
+            action: 'Check the error message',
+            path: slug,
+          },
+        ],
+      };
+    }
+
+    return { success: true, errors: [] };
   }
 
   /**

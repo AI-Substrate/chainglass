@@ -1,6 +1,9 @@
 import { NavigationWrapper } from '@/components/navigation-wrapper';
 import type { ReactNode } from 'react';
 
+// All dashboard pages use useSearchParams (via sidebar/nav) — must be dynamic
+export const dynamic = 'force-dynamic';
+
 /**
  * Dashboard Route Group Layout
  *

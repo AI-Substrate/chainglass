@@ -321,3 +321,205 @@ export async function deleteSample(
     };
   }
 }
+
+// ==================== Update Workspace Preferences ====================
+
+const updatePreferencesSchema = z.object({
+  slug: z.string().min(1, 'Workspace slug is required'),
+  emoji: z.string().optional(),
+  color: z.string().optional(),
+  starred: z.enum(['true', 'false']).optional(),
+  sortOrder: z
+    .string()
+    .optional()
+    .refine((val) => val === undefined || (!Number.isNaN(Number(val)) && Number(val) >= 0), {
+      message: 'sortOrder must be a non-negative number',
+    }),
+});
+
+/**
+ * Update workspace preferences (emoji, color, starred, sortOrder).
+ *
+ * Per Plan 041: File Browser & Workspace-Centric UI — Phase 1.
+ */
+export async function updateWorkspacePreferences(
+  _prevState: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  // 1. Validate form data
+  const parsed = updatePreferencesSchema.safeParse({
+    slug: formData.get('slug'),
+    emoji: formData.get('emoji') ?? undefined,
+    color: formData.get('color') ?? undefined,
+    starred: formData.get('starred') ?? undefined,
+    sortOrder: formData.get('sortOrder') ?? undefined,
+  });
+
+  if (!parsed.success) {
+    const fieldErrors = parsed.error.flatten().fieldErrors;
+    return {
+      success: false,
+      errors: {
+        _form: fieldErrors.slug ?? ['Invalid input'],
+      },
+    };
+  }
+
+  // 2. Build preferences object (only include provided fields)
+  const prefs: Record<string, string | boolean | number> = {};
+  if (parsed.data.emoji !== undefined) prefs.emoji = parsed.data.emoji;
+  if (parsed.data.color !== undefined) prefs.color = parsed.data.color;
+  if (parsed.data.starred !== undefined) prefs.starred = parsed.data.starred === 'true';
+  if (parsed.data.sortOrder !== undefined)
+    prefs.sortOrder = Number.parseInt(parsed.data.sortOrder, 10);
+
+  // 3. Call service
+  try {
+    const container = getContainer();
+    const workspaceService = container.resolve<IWorkspaceService>(
+      WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE
+    );
+    const result = await workspaceService.updatePreferences(parsed.data.slug, prefs);
+
+    if (!result.success) {
+      return {
+        success: false,
+        errors: {
+          _form: result.errors.map((e) => e.message),
+        },
+      };
+    }
+
+    // 4. Invalidate cache (scoped to affected workspace)
+    revalidatePath(`/workspaces/${parsed.data.slug}`);
+
+    return { success: true, message: 'Preferences updated' };
+  } catch (error) {
+    console.error('[updateWorkspacePreferences] Error:', error);
+    return {
+      success: false,
+      errors: {
+        _form: ['Failed to update preferences. Please try again.'],
+      },
+    };
+  }
+}
+
+// ==================== Toggle Star (form action compatible) ====================
+
+/**
+ * Toggle workspace starred status. Single-arg form action for <form action>.
+ *
+ * Per Plan 041 Phase 3: WorkspaceCard uses <form action> (not useActionState).
+ */
+export async function toggleWorkspaceStar(formData: FormData): Promise<void> {
+  const slug = formData.get('slug');
+  const starred = formData.get('starred');
+
+  if (!slug || typeof slug !== 'string') return;
+
+  try {
+    const container = getContainer();
+    const workspaceService = container.resolve<IWorkspaceService>(
+      WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE
+    );
+    await workspaceService.updatePreferences(slug, {
+      starred: starred === 'true',
+    });
+    revalidatePath('/');
+  } catch (error) {
+    console.error('[toggleWorkspaceStar] Error:', error);
+  }
+}
+
+// ==================== Toggle Worktree Star (form action compatible) ====================
+
+/**
+ * Toggle a worktree's starred status within a workspace.
+ * Adds or removes the worktree path from workspace preferences.starredWorktrees.
+ */
+export async function toggleWorktreeStar(formData: FormData): Promise<void> {
+  const slug = formData.get('slug');
+  const worktreePath = formData.get('worktreePath');
+  const action = formData.get('action'); // 'star' or 'unstar'
+
+  if (!slug || typeof slug !== 'string') return;
+  if (!worktreePath || typeof worktreePath !== 'string') return;
+
+  try {
+    const container = getContainer();
+    const workspaceService = container.resolve<IWorkspaceService>(
+      WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE
+    );
+
+    const workspaces = await workspaceService.list();
+    const ws = workspaces.find((w) => w.slug === slug);
+    if (!ws) return;
+
+    const current = ws.toJSON().preferences.starredWorktrees ?? [];
+    const updated =
+      action === 'unstar'
+        ? current.filter((p: string) => p !== worktreePath)
+        : current.includes(worktreePath)
+          ? current
+          : [...current, worktreePath];
+
+    await workspaceService.updatePreferences(slug, { starredWorktrees: updated });
+    revalidatePath(`/workspaces/${slug}`);
+  } catch (error) {
+    console.error('[toggleWorktreeStar] Error:', error);
+  }
+}
+
+// ==================== Update Worktree Visual Preferences ====================
+
+/**
+ * Update emoji + color for a specific worktree within a workspace.
+ *
+ * Read-modify-write: loads existing worktreePreferences map, merges the
+ * single entry, writes the complete map back (DYK-ST-01).
+ */
+export async function updateWorktreePreferences(
+  slug: string,
+  worktreePath: string,
+  prefs: { emoji?: string; color?: string }
+): Promise<ActionState> {
+  if (!slug || !worktreePath) {
+    return { success: false, errors: { _form: ['Workspace slug and worktree path are required'] } };
+  }
+
+  try {
+    const container = getContainer();
+    const workspaceService = container.resolve<IWorkspaceService>(
+      WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE
+    );
+
+    const workspaces = await workspaceService.list();
+    const ws = workspaces.find((w) => w.slug === slug);
+    if (!ws) {
+      return { success: false, errors: { _form: ['Workspace not found'] } };
+    }
+
+    const current = ws.toJSON().preferences.worktreePreferences ?? {};
+    const existing = current[worktreePath] ?? { emoji: '', color: '' };
+    const merged = {
+      ...existing,
+      ...(prefs.emoji !== undefined ? { emoji: prefs.emoji } : {}),
+      ...(prefs.color !== undefined ? { color: prefs.color } : {}),
+    };
+
+    const result = await workspaceService.updatePreferences(slug, {
+      worktreePreferences: { ...current, [worktreePath]: merged },
+    });
+
+    if (!result.success) {
+      return { success: false, errors: { _form: result.errors.map((e) => e.message) } };
+    }
+
+    revalidatePath(`/workspaces/${slug}`);
+    return { success: true, message: 'Worktree preferences updated' };
+  } catch (error) {
+    console.error('[updateWorktreePreferences] Error:', error);
+    return { success: false, errors: { _form: ['Failed to update worktree preferences'] } };
+  }
+}

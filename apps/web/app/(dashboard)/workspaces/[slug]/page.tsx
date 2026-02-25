@@ -8,11 +8,20 @@
 
 import { WORKSPACE_DI_TOKENS } from '@chainglass/shared';
 import type { IWorkspaceService } from '@chainglass/workflow';
-import { ArrowRight, Bot, FileText, FolderOpen, GitBranch, LayoutDashboard } from 'lucide-react';
+import {
+  ArrowRight,
+  Bot,
+  FileText,
+  FolderOpen,
+  GitBranch,
+  LayoutDashboard,
+  Star,
+} from 'lucide-react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { WorkspaceRemoveButton } from '../../../../src/components/workspaces/workspace-remove-button';
 import { getContainer } from '../../../../src/lib/bootstrap-singleton';
+import { toggleWorktreeStar } from '../../../actions/workspace-actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,6 +44,19 @@ export default async function WorkspaceDetailPage({ params }: PageProps) {
   if (!info) {
     notFound();
   }
+
+  // Get preferences for starred worktrees
+  const workspaces = await workspaceService.list();
+  const ws = workspaces.find((w) => w.slug === slug);
+  const starredWorktrees = new Set(ws?.toJSON().preferences.starredWorktrees ?? []);
+
+  // Sort: starred first, then alphabetically by branch
+  const sortedWorktrees = [...info.worktrees].sort((a, b) => {
+    const aStarred = starredWorktrees.has(a.path);
+    const bStarred = starredWorktrees.has(b.path);
+    if (aStarred !== bStarred) return aStarred ? -1 : 1;
+    return (a.branch ?? '').localeCompare(b.branch ?? '');
+  });
 
   return (
     <div className="container mx-auto py-6">
@@ -90,24 +112,41 @@ export default async function WorkspaceDetailPage({ params }: PageProps) {
           </div>
         ) : (
           <div className="divide-y">
-            {info.worktrees.map((worktree) => {
+            {sortedWorktrees.map((worktree) => {
               const label = worktree.branch || (worktree.isDetached ? 'detached HEAD' : 'unknown');
               const landingUrl = `/workspaces/${slug}/worktree?worktree=${encodeURIComponent(worktree.path)}`;
               const samplesUrl = `/workspaces/${slug}/samples?worktree=${encodeURIComponent(worktree.path)}`;
               const agentsUrl = `/workspaces/${slug}/agents?worktree=${encodeURIComponent(worktree.path)}`;
+              const isStarred = starredWorktrees.has(worktree.path);
 
               return (
                 <div
                   key={worktree.path}
                   className="flex items-center justify-between px-4 py-3 hover:bg-muted/50"
                 >
-                  <Link href={landingUrl} className="flex items-center gap-3 hover:underline">
-                    <GitBranch className="h-4 w-4 text-muted-foreground" />
-                    <div>
-                      <div className="font-medium">{label}</div>
-                      <code className="text-xs text-muted-foreground">{worktree.path}</code>
-                    </div>
-                  </Link>
+                  <div className="flex items-center gap-3">
+                    <form action={toggleWorktreeStar}>
+                      <input type="hidden" name="slug" value={slug} />
+                      <input type="hidden" name="worktreePath" value={worktree.path} />
+                      <input type="hidden" name="action" value={isStarred ? 'unstar' : 'star'} />
+                      <button
+                        type="submit"
+                        className="rounded p-1 text-muted-foreground hover:text-yellow-500"
+                        aria-label={isStarred ? `Unstar ${label}` : `Star ${label}`}
+                      >
+                        <Star
+                          className={`h-4 w-4 ${isStarred ? 'fill-yellow-500 text-yellow-500' : ''}`}
+                        />
+                      </button>
+                    </form>
+                    <Link href={landingUrl} className="flex items-center gap-3 hover:underline">
+                      <GitBranch className="h-4 w-4 text-muted-foreground" />
+                      <div>
+                        <div className="font-medium">{label}</div>
+                        <code className="text-xs text-muted-foreground">{worktree.path}</code>
+                      </div>
+                    </Link>
+                  </div>
                   <div className="flex items-center gap-4">
                     <Link
                       href={landingUrl}

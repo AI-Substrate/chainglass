@@ -10,13 +10,15 @@ import { FileSystemError } from '../interfaces/filesystem.interface.js';
  */
 export class FakeFileSystem implements IFileSystem {
   /** In-memory file storage: path -> content */
-  private files = new Map<string, string>();
+  private files = new Map<string, string | Buffer>();
   /** In-memory directory storage (directories without files) */
   private dirs = new Set<string>();
   /** File metadata (mtime) */
   private mtimes = new Map<string, string>();
   /** Simulated errors for specific paths */
   private errors = new Map<string, Error>();
+  /** Simulated symlinks: path -> real target */
+  private symlinks = new Map<string, string>();
 
   // ========== Test Helpers ==========
 
@@ -24,7 +26,7 @@ export class FakeFileSystem implements IFileSystem {
    * Set a file's content directly (test helper).
    * Automatically creates parent directories.
    */
-  setFile(path: string, content: string): void {
+  setFile(path: string, content: string | Buffer): void {
     this.ensureParentDirs(path);
     this.files.set(path, content);
     this.mtimes.set(path, new Date().toISOString());
@@ -33,7 +35,7 @@ export class FakeFileSystem implements IFileSystem {
   /**
    * Get a file's content directly (test helper).
    */
-  getFile(path: string): string | undefined {
+  getFile(path: string): string | Buffer | undefined {
     return this.files.get(path);
   }
 
@@ -60,6 +62,14 @@ export class FakeFileSystem implements IFileSystem {
   }
 
   /**
+   * Register a simulated symlink (test helper).
+   * When realpath() is called on `linkPath`, it returns `targetPath`.
+   */
+  setSymlink(linkPath: string, targetPath: string): void {
+    this.symlinks.set(linkPath, targetPath);
+  }
+
+  /**
    * Reset all state (test helper).
    */
   reset(): void {
@@ -67,6 +77,7 @@ export class FakeFileSystem implements IFileSystem {
     this.dirs.clear();
     this.mtimes.clear();
     this.errors.clear();
+    this.symlinks.clear();
   }
 
   /**
@@ -101,10 +112,11 @@ export class FakeFileSystem implements IFileSystem {
         path
       );
     }
-    return content;
+    // Buffer content decoded as utf-8 (matches real adapter: fs.readFile(path, 'utf-8'))
+    return typeof content === 'string' ? content : content.toString('utf-8');
   }
 
-  async writeFile(path: string, content: string): Promise<void> {
+  async writeFile(path: string, content: string | Buffer): Promise<void> {
     this.checkSimulatedError(path);
 
     const parent = pathModule.dirname(path);
@@ -257,7 +269,13 @@ export class FakeFileSystem implements IFileSystem {
     return {
       isFile,
       isDirectory: isDir && !isFile,
-      size: isFile ? (this.files.get(path)?.length ?? 0) : 0,
+      size: isFile
+        ? (() => {
+            const c = this.files.get(path);
+            if (c === undefined) return 0;
+            return Buffer.isBuffer(c) ? c.length : Buffer.byteLength(c, 'utf-8');
+          })()
+        : 0,
       mtime: this.mtimes.get(path) ?? new Date().toISOString(),
     };
   }
@@ -603,6 +621,27 @@ export class FakeFileSystem implements IFileSystem {
       currentPath = `${currentPath}/${parts[i]}`;
       this.dirs.add(currentPath);
     }
+  }
+
+  async realpath(path: string): Promise<string> {
+    this.checkSimulatedError(path);
+
+    // Check if there's a symlink registered for this path
+    const target = this.symlinks.get(path);
+    if (target) {
+      return target;
+    }
+
+    // Path must exist as file or directory
+    if (!(await this.exists(path))) {
+      throw new FileSystemError(
+        `ENOENT: no such file or directory, realpath '${path}'`,
+        'ENOENT',
+        path
+      );
+    }
+
+    return pathModule.resolve(path);
   }
 
   /**

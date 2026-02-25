@@ -146,6 +146,43 @@ export function fileSystemContractTests(name: string, createContext: () => FileS
       });
     });
 
+    describe('writeFile() with Buffer', () => {
+      it('should write Buffer content and report correct size', async () => {
+        /*
+        Test Doc:
+        - Why: Contract requires identical binary write behavior (DYK-01)
+        - Contract: writeFile(Buffer) creates file with correct byte size in stat()
+        - Usage Notes: Run against both implementations to verify fake/real parity
+        - Quality Contribution: Ensures binary uploads work identically in tests and production
+        - Worked Example: writeFile(Buffer[4 bytes]) → stat() → size: 4
+        */
+        const filePath = `${baseDir}/binary.bin`;
+        const buffer = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+
+        await ctx.fs.writeFile(filePath, buffer);
+        const stat = await ctx.fs.stat(filePath);
+        expect(stat.size).toBe(4);
+        expect(stat.isFile).toBe(true);
+      });
+
+      it('should return string from readFile after Buffer write', async () => {
+        /*
+        Test Doc:
+        - Why: readFile always returns string — even for binary content (DYK-01)
+        - Contract: readFile() returns utf-8 decoded string, never throws on binary
+        - Usage Notes: Real adapter does fs.readFile(path, 'utf-8') which returns garbled string
+        - Quality Contribution: Prevents fake/real divergence in binary file handling
+        - Worked Example: writeFile(Buffer) → readFile() → returns string (not throw)
+        */
+        const filePath = `${baseDir}/binary2.bin`;
+        const buffer = Buffer.from([0x00, 0x01, 0x02, 0x03]);
+
+        await ctx.fs.writeFile(filePath, buffer);
+        const content = await ctx.fs.readFile(filePath);
+        expect(typeof content).toBe('string');
+      });
+    });
+
     describe('mkdir()', () => {
       it('should create directory', async () => {
         /*

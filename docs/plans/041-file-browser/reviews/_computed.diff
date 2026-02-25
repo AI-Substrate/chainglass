@@ -1,0 +1,1504 @@
+diff --git a/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx b/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
+index 1556717..bd7889f 100644
+--- a/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
++++ b/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
+@@ -51,16 +51,24 @@ import {
+ export interface BrowserClientProps {
+   slug: string;
+   worktreePath: string;
++  worktreeBranch?: string;
+   isGit: boolean;
+   initialEntries: FileEntry[];
+ }
+ 
+-export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: BrowserClientProps) {
++export function BrowserClient({
++  slug,
++  worktreePath,
++  worktreeBranch,
++  isGit,
++  initialEntries,
++}: BrowserClientProps) {
+   return (
+     <FileChangeProvider worktreePath={worktreePath}>
+       <BrowserClientInner
+         slug={slug}
+         worktreePath={worktreePath}
++        worktreeBranch={worktreeBranch}
+         isGit={isGit}
+         initialEntries={initialEntries}
+       />
+@@ -68,7 +76,13 @@ export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: Bro
+   );
+ }
+ 
+-function BrowserClientInner({ slug, worktreePath, isGit, initialEntries }: BrowserClientProps) {
++function BrowserClientInner({
++  slug,
++  worktreePath,
++  worktreeBranch,
++  isGit,
++  initialEntries,
++}: BrowserClientProps) {
+   const [params, setParams] = useQueryStates(fileBrowserParams);
+   const explorerRef = useRef<ExplorerPanelHandle>(null);
+   const [expandPaths, setExpandPaths] = useState<string[]>([]);
+@@ -106,6 +120,19 @@ function BrowserClientInner({ slug, worktreePath, isGit, initialEntries }: Brows
+   // --- Workspace attention context (Phase 5) ---
+   const wsCtx = useWorkspaceContext();
+ 
++  // Set worktree identity for tab title (Subtask 001)
++  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — only re-run on worktree change, not context ref
++  useEffect(() => {
++    if (worktreeBranch) {
++      wsCtx?.setWorktreeIdentity({
++        worktreePath,
++        branch: worktreeBranch,
++        pageTitle: 'Browser',
++      });
++    }
++    return () => wsCtx?.setWorktreeIdentity(null);
++  }, [worktreePath, worktreeBranch]); // eslint-disable-line react-hooks/exhaustive-deps
++
+   // --- Live file events (Plan 045) ---
+ 
+   const treeRef = useRef<FileTreeHandle>(null);
+diff --git a/apps/web/app/(dashboard)/workspaces/[slug]/browser/page.tsx b/apps/web/app/(dashboard)/workspaces/[slug]/browser/page.tsx
+index 33bdf5e..a99808a 100644
+--- a/apps/web/app/(dashboard)/workspaces/[slug]/browser/page.tsx
++++ b/apps/web/app/(dashboard)/workspaces/[slug]/browser/page.tsx
+@@ -49,6 +49,10 @@ export default async function BrowserPage({ params, searchParams }: PageProps) {
+   const worktreePath =
+     typeof searchParamsResolved.worktree === 'string' ? searchParamsResolved.worktree : info.path;
+ 
++  // Resolve worktree branch name for tab title
++  const wt = info.worktrees.find((w) => w.path === worktreePath);
++  const worktreeBranch = wt?.branch ?? worktreePath.split('/').pop() ?? '';
++
+   // Fetch root directory entries server-side
+   const rootEntries = await listDirectory({
+     worktreePath,
+@@ -62,6 +66,7 @@ export default async function BrowserPage({ params, searchParams }: PageProps) {
+       <BrowserClient
+         slug={slug}
+         worktreePath={worktreePath}
++        worktreeBranch={worktreeBranch}
+         isGit={info.hasGit}
+         initialEntries={rootEntries.entries}
+       />
+diff --git a/apps/web/app/(dashboard)/workspaces/[slug]/layout.tsx b/apps/web/app/(dashboard)/workspaces/[slug]/layout.tsx
+index a2a03a6..a9e5725 100644
+--- a/apps/web/app/(dashboard)/workspaces/[slug]/layout.tsx
++++ b/apps/web/app/(dashboard)/workspaces/[slug]/layout.tsx
+@@ -37,9 +37,16 @@ export default async function WorkspaceLayout({ children, params }: LayoutProps)
+   const name = ws?.name ?? decodeURIComponent(slug);
+   const emoji = prefs?.emoji ?? '';
+   const color = prefs?.color ?? '';
++  const worktreePreferences = prefs?.worktreePreferences ?? {};
+ 
+   return (
+-    <WorkspaceProvider slug={slug} name={name} emoji={emoji} color={color}>
++    <WorkspaceProvider
++      slug={slug}
++      name={name}
++      emoji={emoji}
++      color={color}
++      worktreePreferences={worktreePreferences}
++    >
+       <WorkspaceAttentionWrapper>{children}</WorkspaceAttentionWrapper>
+     </WorkspaceProvider>
+   );
+diff --git a/apps/web/app/(dashboard)/workspaces/[slug]/workspace-attention-wrapper.tsx b/apps/web/app/(dashboard)/workspaces/[slug]/workspace-attention-wrapper.tsx
+index 63f6d33..2bf57a7 100644
+--- a/apps/web/app/(dashboard)/workspaces/[slug]/workspace-attention-wrapper.tsx
++++ b/apps/web/app/(dashboard)/workspaces/[slug]/workspace-attention-wrapper.tsx
+@@ -3,8 +3,11 @@
+ /**
+  * WorkspaceAttentionWrapper — Client wrapper that calls useAttentionTitle.
+  *
+- * Reads hasChanges from WorkspaceContext (set by browser page).
++ * Composes tab title from worktree identity (if set) or workspace defaults.
++ * Format: {attention}{emoji} {branch|name} — {page}
++ *
+  * Phase 5: Attention System — Plan 041
++ * Subtask 001: Worktree Identity & Tab Titles
+  */
+ 
+ import { useAttentionTitle } from '../../../../src/features/041-file-browser/hooks/use-attention-title';
+@@ -12,10 +15,15 @@ import { useWorkspaceContext } from '../../../../src/features/041-file-browser/h
+ 
+ export function WorkspaceAttentionWrapper({ children }: { children: React.ReactNode }) {
+   const ctx = useWorkspaceContext();
++  const wt = ctx?.worktreeIdentity;
++
++  const resolvedEmoji = wt?.emoji || ctx?.emoji || '';
++  const location = wt?.branch || ctx?.name || '';
++  const pageName = wt?.pageTitle ? `${location} — ${wt.pageTitle}` : location;
+ 
+   useAttentionTitle({
+-    emoji: ctx?.emoji ?? '',
+-    pageName: 'Workspace',
++    emoji: resolvedEmoji,
++    pageName,
+     workspaceName: ctx?.name,
+     needsAttention: ctx?.hasChanges ?? false,
+   });
+diff --git a/apps/web/app/actions/workspace-actions.ts b/apps/web/app/actions/workspace-actions.ts
+index 36c2eef..8c5a440 100644
+--- a/apps/web/app/actions/workspace-actions.ts
++++ b/apps/web/app/actions/workspace-actions.ts
+@@ -470,3 +470,56 @@ export async function toggleWorktreeStar(formData: FormData): Promise<void> {
+     console.error('[toggleWorktreeStar] Error:', error);
+   }
+ }
++
++// ==================== Update Worktree Visual Preferences ====================
++
++/**
++ * Update emoji + color for a specific worktree within a workspace.
++ *
++ * Read-modify-write: loads existing worktreePreferences map, merges the
++ * single entry, writes the complete map back (DYK-ST-01).
++ */
++export async function updateWorktreePreferences(
++  slug: string,
++  worktreePath: string,
++  prefs: { emoji?: string; color?: string }
++): Promise<ActionState> {
++  if (!slug || !worktreePath) {
++    return { success: false, errors: { _form: ['Workspace slug and worktree path are required'] } };
++  }
++
++  try {
++    const container = getContainer();
++    const workspaceService = container.resolve<IWorkspaceService>(
++      WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE
++    );
++
++    const workspaces = await workspaceService.list();
++    const ws = workspaces.find((w) => w.slug === slug);
++    if (!ws) {
++      return { success: false, errors: { _form: ['Workspace not found'] } };
++    }
++
++    const current = ws.toJSON().preferences.worktreePreferences ?? {};
++    const existing = current[worktreePath] ?? { emoji: '', color: '' };
++    const merged = {
++      ...existing,
++      ...(prefs.emoji !== undefined ? { emoji: prefs.emoji } : {}),
++      ...(prefs.color !== undefined ? { color: prefs.color } : {}),
++    };
++
++    const result = await workspaceService.updatePreferences(slug, {
++      worktreePreferences: { ...current, [worktreePath]: merged },
++    });
++
++    if (!result.success) {
++      return { success: false, errors: { _form: result.errors.map((e) => e.message) } };
++    }
++
++    revalidatePath(`/workspaces/${slug}`);
++    return { success: true, message: 'Worktree preferences updated' };
++  } catch (error) {
++    console.error('[updateWorktreePreferences] Error:', error);
++    return { success: false, errors: { _form: ['Failed to update worktree preferences'] } };
++  }
++}
+diff --git a/apps/web/src/components/dashboard-sidebar.tsx b/apps/web/src/components/dashboard-sidebar.tsx
+index 6f0416a..88aad99 100644
+--- a/apps/web/src/components/dashboard-sidebar.tsx
++++ b/apps/web/src/components/dashboard-sidebar.tsx
+@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
+ import {
+   Sidebar,
+   SidebarContent,
++  SidebarFooter,
+   SidebarGroup,
+   SidebarGroupContent,
+   SidebarGroupLabel,
+@@ -24,6 +25,7 @@ import { ChevronLeft, PanelLeft, Settings } from 'lucide-react';
+ import Link from 'next/link';
+ import { usePathname, useSearchParams } from 'next/navigation';
+ import { Suspense, useMemo, useState } from 'react';
++import { WorktreeIdentityPopover } from './worktree-identity-popover';
+ 
+ /**
+  * DashboardSidebar
+@@ -62,10 +64,10 @@ export function DashboardSidebar() {
+             <div className="min-w-0">
+               <span className="block truncate font-semibold">
+                 {isInWorkspace
+-                  ? `${wsCtx?.emoji || ''} ${wsCtx?.name || decodeURIComponent(workspaceSlug)}`.trim()
++                  ? `${wsCtx?.worktreeIdentity?.emoji || wsCtx?.emoji || ''} ${wsCtx?.worktreeIdentity?.branch || wsCtx?.name || decodeURIComponent(workspaceSlug)}`.trim()
+                   : 'Chainglass'}
+               </span>
+-              {isInWorkspace && currentWorktree && (
++              {isInWorkspace && currentWorktree && !wsCtx?.worktreeIdentity && (
+                 <span className="block truncate text-xs text-muted-foreground">
+                   {currentWorktree.split('/').pop()}
+                 </span>
+@@ -74,7 +76,10 @@ export function DashboardSidebar() {
+           )}
+           <div className="flex shrink-0 items-center gap-1">
+             {currentWorktree && workspaceSlug && (
+-              <PasteUploadButton slug={workspaceSlug} worktreePath={currentWorktree} />
++              <>
++                <WorktreeIdentityPopover slug={workspaceSlug} worktreePath={currentWorktree} />
++                <PasteUploadButton slug={workspaceSlug} worktreePath={currentWorktree} />
++              </>
+             )}
+             <Button
+               variant="ghost"
+@@ -173,31 +178,31 @@ export function DashboardSidebar() {
+                 </Suspense>
+               </SidebarGroupContent>
+             </SidebarGroup>
+-
+-            {/* Settings link */}
+-            <SidebarGroup>
+-              <SidebarGroupContent>
+-                <SidebarMenu>
+-                  <SidebarMenuItem>
+-                    <SidebarMenuButton asChild isActive={pathname === '/settings/workspaces'}>
+-                      <Link
+-                        href="/settings/workspaces"
+-                        className={cn(
+-                          'flex items-center gap-3',
+-                          pathname === '/settings/workspaces' && 'bg-accent text-accent-foreground'
+-                        )}
+-                      >
+-                        <Settings className="h-5 w-5" />
+-                        {!isCollapsed && <span>Settings</span>}
+-                      </Link>
+-                    </SidebarMenuButton>
+-                  </SidebarMenuItem>
+-                </SidebarMenu>
+-              </SidebarGroupContent>
+-            </SidebarGroup>
+           </>
+         )}
+ 
++        {/* Settings link — always visible */}
++        <SidebarGroup>
++          <SidebarGroupContent>
++            <SidebarMenu>
++              <SidebarMenuItem>
++                <SidebarMenuButton asChild isActive={pathname === '/settings/workspaces'}>
++                  <Link
++                    href="/settings/workspaces"
++                    className={cn(
++                      'flex items-center gap-3',
++                      pathname === '/settings/workspaces' && 'bg-accent text-accent-foreground'
++                    )}
++                  >
++                    <Settings className="h-5 w-5" />
++                    {!isCollapsed && <span>Settings</span>}
++                  </Link>
++                </SidebarMenuButton>
++              </SidebarMenuItem>
++            </SidebarMenu>
++          </SidebarGroupContent>
++        </SidebarGroup>
++
+         {/* Dev section — collapsed by default */}
+         <SidebarGroup>
+           {!isCollapsed && (
+@@ -237,6 +242,25 @@ export function DashboardSidebar() {
+           )}
+         </SidebarGroup>
+       </SidebarContent>
++
++      <SidebarFooter className="border-t p-2">
++        <SidebarMenu>
++          <SidebarMenuItem>
++            <SidebarMenuButton asChild isActive={pathname === '/settings/workspaces'}>
++              <Link
++                href="/settings/workspaces"
++                className={cn(
++                  'flex items-center gap-3',
++                  pathname === '/settings/workspaces' && 'bg-accent text-accent-foreground'
++                )}
++              >
++                <Settings className="h-5 w-5" />
++                {!isCollapsed && <span>Settings</span>}
++              </Link>
++            </SidebarMenuButton>
++          </SidebarMenuItem>
++        </SidebarMenu>
++      </SidebarFooter>
+     </Sidebar>
+   );
+ }
+diff --git a/apps/web/src/components/worktree-identity-popover.tsx b/apps/web/src/components/worktree-identity-popover.tsx
+new file mode 100644
+index 0000000..aa3049b
+--- /dev/null
++++ b/apps/web/src/components/worktree-identity-popover.tsx
+@@ -0,0 +1,81 @@
++'use client';
++
++/**
++ * WorktreeIdentityPopover — Inline emoji + color picker for the current worktree.
++ *
++ * Gear icon opens a popover with EmojiPicker + ColorPicker.
++ * Saves via updateWorktreePreferences server action, then router.refresh().
++ *
++ * Phase 5 Subtask 001: Worktree Identity & Tab Titles (DYK-ST-03)
++ */
++
++import { ColorPicker } from '@/features/041-file-browser/components/color-picker';
++import { EmojiPicker } from '@/features/041-file-browser/components/emoji-picker';
++import { useWorkspaceContext } from '@/features/041-file-browser/hooks/use-workspace-context';
++import { Settings2 } from 'lucide-react';
++import { useRouter } from 'next/navigation';
++import { useState } from 'react';
++import { toast } from 'sonner';
++import { updateWorktreePreferences } from '../../app/actions/workspace-actions';
++
++interface Props {
++  slug: string;
++  worktreePath: string;
++}
++
++export function WorktreeIdentityPopover({ slug, worktreePath }: Props) {
++  const router = useRouter();
++  const wsCtx = useWorkspaceContext();
++  const [open, setOpen] = useState(false);
++
++  const currentEmoji = wsCtx?.worktreeIdentity?.emoji || '';
++  const currentColor = wsCtx?.worktreeIdentity?.color || '';
++
++  const handleEmojiSelect = async (emoji: string) => {
++    const result = await updateWorktreePreferences(slug, worktreePath, { emoji });
++    if (result.success) {
++      toast.success('Worktree emoji updated');
++      router.refresh();
++    } else {
++      toast.error(result.errors?._form?.[0] ?? 'Failed to update emoji');
++    }
++  };
++
++  const handleColorSelect = async (color: string) => {
++    const result = await updateWorktreePreferences(slug, worktreePath, { color });
++    if (result.success) {
++      toast.success('Worktree color updated');
++      router.refresh();
++    } else {
++      toast.error(result.errors?._form?.[0] ?? 'Failed to update color');
++    }
++  };
++
++  return (
++    <div className="relative">
++      <button
++        type="button"
++        onClick={() => setOpen((p) => !p)}
++        className="rounded p-1 text-muted-foreground hover:text-foreground"
++        aria-label="Worktree identity settings"
++      >
++        <Settings2 className="h-4 w-4" />
++      </button>
++      {open && (
++        <div className="absolute left-0 top-full z-50 mt-1 w-64 rounded-lg border bg-popover p-4 shadow-lg">
++          <div className="mb-3 text-xs font-medium text-muted-foreground">Worktree Identity</div>
++          <div className="space-y-3">
++            <div>
++              <div className="mb-1 text-xs text-muted-foreground">Emoji</div>
++              <EmojiPicker current={currentEmoji} onSelect={handleEmojiSelect} />
++            </div>
++            <div>
++              <div className="mb-1 text-xs text-muted-foreground">Color</div>
++              <ColorPicker current={currentColor} onSelect={handleColorSelect} />
++            </div>
++          </div>
++        </div>
++      )}
++    </div>
++  );
++}
+diff --git a/apps/web/src/features/041-file-browser/hooks/use-workspace-context.tsx b/apps/web/src/features/041-file-browser/hooks/use-workspace-context.tsx
+index 341ee65..1e68192 100644
+--- a/apps/web/src/features/041-file-browser/hooks/use-workspace-context.tsx
++++ b/apps/web/src/features/041-file-browser/hooks/use-workspace-context.tsx
+@@ -5,15 +5,32 @@
+  *
+  * Provided by [slug]/layout.tsx (via WorkspaceProvider).
+  * Consumed by: sidebar (emoji/name), useAttentionTitle (tab title),
+- * browser page (sets hasChanges).
++ * browser page (sets hasChanges + worktree identity).
+  *
+  * Phase 5: Attention System — Plan 041
+- * DYK-02: Context shared between layout and sidebar
+- * DYK-03: Layout fetches preferences only; browser sets hasChanges
++ * Subtask 001: Worktree Identity & Tab Titles
++ * DYK-ST-02: Single setWorktreeIdentity setter
++ * DYK-ST-04: Provider resolves emoji/color from worktreePreferences map
+  */
+ 
++import type { WorktreeVisualPreferences } from '@chainglass/workflow';
+ import { type ReactNode, createContext, useCallback, useContext, useMemo, useState } from 'react';
+ 
++/** Worktree identity — set by pages, resolved by provider */
++export interface WorktreeIdentity {
++  branch: string;
++  emoji: string;
++  color: string;
++  pageTitle: string | null;
++}
++
++/** Input to setWorktreeIdentity — provider resolves emoji/color from map */
++export interface WorktreeIdentityInput {
++  worktreePath: string;
++  branch: string;
++  pageTitle?: string;
++}
++
+ export interface WorkspaceContextValue {
+   slug: string;
+   name: string;
+@@ -21,6 +38,8 @@ export interface WorkspaceContextValue {
+   color: string;
+   hasChanges: boolean;
+   setHasChanges: (value: boolean) => void;
++  worktreeIdentity: WorktreeIdentity | null;
++  setWorktreeIdentity: (input: WorktreeIdentityInput | null) => void;
+ }
+ 
+ const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
+@@ -34,16 +53,52 @@ export interface WorkspaceProviderProps {
+   name: string;
+   emoji: string;
+   color: string;
++  worktreePreferences: Record<string, WorktreeVisualPreferences>;
+   children: ReactNode;
+ }
+ 
+-export function WorkspaceProvider({ slug, name, emoji, color, children }: WorkspaceProviderProps) {
++export function WorkspaceProvider({
++  slug,
++  name,
++  emoji,
++  color,
++  worktreePreferences,
++  children,
++}: WorkspaceProviderProps) {
+   const [hasChanges, setHasChangesRaw] = useState(false);
+   const setHasChanges = useCallback((value: boolean) => setHasChangesRaw(value), []);
+ 
++  const [worktreeIdentity, setWorktreeIdentityRaw] = useState<WorktreeIdentity | null>(null);
++
++  const setWorktreeIdentity = useCallback(
++    (input: WorktreeIdentityInput | null) => {
++      if (!input) {
++        setWorktreeIdentityRaw(null);
++        return;
++      }
++      const wtPrefs = worktreePreferences[input.worktreePath];
++      setWorktreeIdentityRaw({
++        branch: input.branch,
++        emoji: wtPrefs?.emoji || emoji,
++        color: wtPrefs?.color || color,
++        pageTitle: input.pageTitle ?? null,
++      });
++    },
++    [worktreePreferences, emoji, color]
++  );
++
+   const value = useMemo(
+-    () => ({ slug, name, emoji, color, hasChanges, setHasChanges }),
+-    [slug, name, emoji, color, hasChanges, setHasChanges]
++    () => ({
++      slug,
++      name,
++      emoji,
++      color,
++      hasChanges,
++      setHasChanges,
++      worktreeIdentity,
++      setWorktreeIdentity,
++    }),
++    [slug, name, emoji, color, hasChanges, setHasChanges, worktreeIdentity, setWorktreeIdentity]
+   );
+ 
+   return <WorkspaceContext value={value}>{children}</WorkspaceContext>;
+diff --git a/apps/web/src/features/041-file-browser/index.ts b/apps/web/src/features/041-file-browser/index.ts
+index 8e46ee0..1d652e5 100644
+--- a/apps/web/src/features/041-file-browser/index.ts
++++ b/apps/web/src/features/041-file-browser/index.ts
+@@ -19,4 +19,9 @@ export type { WorktreePickerProps, WorktreeItem } from './components/worktree-pi
+ export { useAttentionTitle } from './hooks/use-attention-title';
+ export type { UseAttentionTitleOptions } from './hooks/use-attention-title';
+ export { WorkspaceProvider, useWorkspaceContext } from './hooks/use-workspace-context';
+-export type { WorkspaceContextValue, WorkspaceProviderProps } from './hooks/use-workspace-context';
++export type {
++  WorkspaceContextValue,
++  WorkspaceProviderProps,
++  WorktreeIdentity,
++  WorktreeIdentityInput,
++} from './hooks/use-workspace-context';
+diff --git a/docs/plans/041-file-browser/tasks/phase-5-attention-system-polish/001-subtask-worktree-identity-tab-titles.fltplan.md b/docs/plans/041-file-browser/tasks/phase-5-attention-system-polish/001-subtask-worktree-identity-tab-titles.fltplan.md
+new file mode 100644
+index 0000000..b8e0a5b
+--- /dev/null
++++ b/docs/plans/041-file-browser/tasks/phase-5-attention-system-polish/001-subtask-worktree-identity-tab-titles.fltplan.md
+@@ -0,0 +1,117 @@
++# Flight Plan: Worktree Identity & Tab Titles
++
++**Subtask**: [001-subtask-worktree-identity-tab-titles.md](./001-subtask-worktree-identity-tab-titles.md)
++**Plan**: [file-browser-plan.md](../../file-browser-plan.md)
++**Status**: Ready
++
++---
++
++## Departure → Destination
++
++**Where we are**: Every workspace page shows `🔮 Workspace` in the tab title. All worktrees from the same workspace look identical. There's no way to set per-worktree emoji/color. The settings page only handles workspace-level preferences.
++
++**Where we're going**: Each tab shows `{worktreeEmoji} {branch} — {page}` (e.g., `🔥 041-file-browser — Browser`). Each worktree can have its own emoji + color set from the settings page. Sidebar shows worktree emoji when available. Missing worktree prefs gracefully fall back to workspace-level identity.
++
++---
++
++## Domain Context
++
++### Domains We're Changing
++
++| Domain | Relationship | What Changes | Key Files |
++|--------|-------------|-------------|-----------|
++| @chainglass/workflow | modify | `WorktreeVisualPreferences` type, `worktreePreferences` field on `WorkspacePreferences` | `entities/workspace.ts` |
++| file-browser | modify | Context extended, attention wrapper rewritten, browser announces identity, settings gains worktree section, new server action | 8 files |
++
++### Domains We Depend On
++
++| Domain | Contract | Usage |
++|--------|----------|-------|
++| _platform/events | `toast()` | Feedback on worktree pref saves |
++| @chainglass/workflow | `IWorkspaceService.updatePreferences()` | Persist worktree prefs |
++| @chainglass/workflow | `WORKSPACE_EMOJI_PALETTE`, `WORKSPACE_COLOR_PALETTE` | Picker palettes (via subpath export) |
++
++---
++
++## Flight Status
++
++```mermaid
++stateDiagram-v2
++    [*] --> ST01: Start
++    ST01 --> ST02: Data model done
++    ST01 --> ST05: Data model done
++    ST02 --> ST03: Context extended
++    ST02 --> ST04: Context extended
++    ST02 --> ST07: Context extended
++    ST03 --> TabTitleWorks: Wrapper composes
++    ST04 --> TabTitleWorks: Browser announces
++    ST05 --> ST06: Action ready
++    ST06 --> SettingsDone: Worktree section
++    ST07 --> SidebarDone: Emoji shows
++    TabTitleWorks --> ST08
++    SettingsDone --> ST08
++    SidebarDone --> ST08
++    ST08 --> [*]: FFT passes
++```
++
++---
++
++## Stages
++
++- [ ] **Data model** (ST01): Add `worktreePreferences` to `WorkspacePreferences`
++- [ ] **Context extension** (ST02): Add worktree branch, emoji, page title to WorkspaceContext
++- [ ] **Title composition** (ST03): Attention wrapper builds title from worktree or workspace
++- [ ] **Browser wiring** (ST04): Browser page resolves branch + prefs, client announces
++- [ ] **Server action** (ST05): `updateWorktreePreferences` action
++- [ ] **Settings worktree section** (ST06): Contextual worktree prefs in settings page
++- [ ] **Sidebar emoji** (ST07): Prefer worktree emoji when available
++- [ ] **Validation** (ST08): Tests + lint + visual verification
++
++---
++
++## Architecture: Before & After
++
++```mermaid
++flowchart TB
++    subgraph Before["Current"]
++        L1["Layout<br/>emoji, color, name"]
++        W1["AttentionWrapper<br/>'Workspace' hardcoded"]
++        B1["BrowserClient<br/>sets hasChanges only"]
++        T1["Tab: 🔮 Workspace"]
++    end
++
++    subgraph After["After Subtask"]
++        L2["Layout<br/>emoji, color, name<br/>+ worktreePreferences map"]
++        W2["AttentionWrapper<br/>composes from context"]
++        B2["BrowserClient<br/>sets branch + emoji + page"]
++        T2["Tab: 🔥 041-file-browser — Browser"]
++        S2["Settings<br/>worktree emoji/color section"]
++    end
++```
++
++---
++
++## Acceptance
++
++- [ ] Tab title shows worktree branch + page name (not hardcoded "Workspace")
++- [ ] Worktree emoji overrides workspace emoji in tab title when set
++- [ ] Settings page shows worktree section when accessed with worktree context
++- [ ] Worktree emoji/color persist across page refresh
++- [ ] Sidebar shows worktree emoji when available
++- [ ] Missing worktree prefs gracefully fall back to workspace defaults
++- [ ] All tests pass, lint clean
++
++---
++
++## Checklist
++
++| ID | Task | CS |
++|----|------|----|
++| ST01 | Data model — WorktreeVisualPreferences | 1 |
++| ST02 | Context extension — worktree fields | 2 |
++| ST03 | Attention wrapper — title composition | 1 |
++| ST04 | Browser wiring — resolve + announce | 2 |
++| ST05 | Server action — updateWorktreePreferences | 1 |
++| ST06 | Settings — worktree section | 2 |
++| ST07 | Sidebar — worktree emoji | 1 |
++| ST08 | Tests + FFT + visual | 1 |
+diff --git a/docs/plans/041-file-browser/tasks/phase-5-attention-system-polish/001-subtask-worktree-identity-tab-titles.md b/docs/plans/041-file-browser/tasks/phase-5-attention-system-polish/001-subtask-worktree-identity-tab-titles.md
+new file mode 100644
+index 0000000..9e43a02
+--- /dev/null
++++ b/docs/plans/041-file-browser/tasks/phase-5-attention-system-polish/001-subtask-worktree-identity-tab-titles.md
+@@ -0,0 +1,227 @@
++# Subtask: Worktree Identity & Tab Titles
++
++**Parent Phase**: Phase 5: Attention System & Polish
++**Parent Task**: T005 (Workspace layout + WorkspaceContext + useAttentionTitle)
++**Plan**: [file-browser-plan.md](../../file-browser-plan.md)
++**Workshop**: [tab-title-strategy.md](../../workshops/tab-title-strategy.md)
++**Created**: 2026-02-24
++**Testing Approach**: TDD for data model + context; visual verification for tab titles
++
++---
++
++## Parent Context
++
++Phase 5 delivered WorkspaceContext with workspace-level emoji/color and a hardcoded `pageName: 'Workspace'` for all pages. The tab title shows `🔮 Workspace` regardless of which worktree or page you're on. With multiple tabs open on different worktrees, they're indistinguishable.
++
++This subtask completes the attention system vision: each worktree gets its own emoji + color, and tab titles show `{emoji} {branch} — {page}`.
++
++---
++
++## Executive Briefing
++
++**Purpose**: Make browser tabs instantly identifiable by worktree. Each worktree gets its own emoji + color (stored in workspace preferences). Tab titles compose from worktree identity + page name. Settings page gains a contextual worktree section.
++
++**What We're Building**:
++- `worktreePreferences` data model extension on `WorkspacePreferences`
++- WorkspaceContext extended with worktree branch, emoji, and page title setters
++- Attention wrapper composing titles from worktree-level or workspace-level identity
++- Browser page resolving worktree branch + preferences, announcing to context
++- Settings page worktree section (when accessed with `?workspace=&worktree=`)
++- Server action for saving per-worktree emoji/color
++
++**Goals**:
++- ✅ Each worktree can have its own emoji and color
++- ✅ Tab titles show `{emoji} {branch} — Browser` when in a worktree
++- ✅ Fallback to workspace emoji when worktree has none set
++- ✅ Settings page shows worktree section when contextually appropriate
++- ✅ Sidebar shows worktree emoji when available
++
++**Non-Goals**:
++- ❌ Landing page worktree indicators (deferred per DYK-01)
++- ❌ Worktree picker showing per-worktree emojis (future enhancement)
++- ❌ Color-based sidebar/border styling per worktree (future)
++
++---
++
++## Pre-Implementation Check
++
++| File | Exists? | Domain Check | Notes |
++|------|---------|-------------|-------|
++| `packages/workflow/src/entities/workspace.ts` | Yes — modify | @chainglass/workflow | Add WorktreeVisualPreferences type + worktreePreferences field |
++| `packages/workflow/src/constants/workspace-palettes.ts` | Yes — no change | @chainglass/workflow | Palettes reused for worktree pickers |
++| `packages/workflow/src/services/workspace.service.ts` | Yes — check | @chainglass/workflow | updatePreferences already takes Partial — verify it passes through new field |
++| `apps/web/app/actions/workspace-actions.ts` | Yes — modify | file-browser | Add updateWorktreePreferences server action |
++| `apps/web/src/features/041-file-browser/hooks/use-workspace-context.tsx` | Yes — modify | file-browser | Add worktreeBranch, worktreeEmoji, pageTitle, setters |
++| `apps/web/app/(dashboard)/workspaces/[slug]/workspace-attention-wrapper.tsx` | Yes — modify | file-browser | Compose title from worktree or workspace identity |
++| `apps/web/app/(dashboard)/workspaces/[slug]/layout.tsx` | Yes — modify | file-browser | Pass worktreePreferences map to provider |
++| `apps/web/app/(dashboard)/workspaces/[slug]/browser/page.tsx` | Yes — modify | file-browser | Resolve worktree branch + prefs, pass to client |
++| `apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx` | Yes — modify | file-browser | Set worktreeBranch + pageTitle in context |
++| `apps/web/app/(dashboard)/settings/workspaces/page.tsx` | Yes — modify | file-browser | Accept workspace/worktree params, show worktree section |
++| `apps/web/app/(dashboard)/settings/workspaces/workspace-settings-table.tsx` | Yes — modify | file-browser | Add worktree prefs section |
++| `apps/web/src/components/dashboard-sidebar.tsx` | Yes — modify | file-browser | Read worktree emoji from context when available |
++| `test/unit/web/features/041-file-browser/workspace-context.test.tsx` | Yes — modify | file-browser | Add tests for new context fields |
++
++---
++
++## Architecture Map
++
++```mermaid
++flowchart TD
++    classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
++    classDef existing fill:#2196F3,stroke:#1565C0,color:#fff
++    classDef modified fill:#FF9800,stroke:#E65100,color:#fff
++
++    subgraph Subtask["Worktree Identity & Tab Titles"]
++        ST01["ST01: Data model<br/>WorktreeVisualPreferences"]:::pending
++        ST02["ST02: WorkspaceContext<br/>+ worktree fields"]:::pending
++        ST03["ST03: Attention wrapper<br/>title composition"]:::pending
++        ST04["ST04: Browser page<br/>resolve + announce"]:::pending
++        ST05["ST05: Server action<br/>updateWorktreePrefs"]:::pending
++        ST06["ST06: Settings page<br/>worktree section"]:::pending
++        ST07["ST07: Sidebar<br/>worktree emoji"]:::pending
++        ST08["ST08: Tests + FFT"]:::pending
++    end
++
++    subgraph Existing["Existing (Phase 5)"]
++        WP["WorkspaceProvider<br/>(slug, name, emoji, color)"]:::modified
++        ATW["AttentionWrapper<br/>(hardcoded 'Workspace')"]:::modified
++        UAT["useAttentionTitle<br/>(hook — no change)"]:::existing
++        EP["EmojiPicker"]:::existing
++        CP["ColorPicker"]:::existing
++    end
++
++    ST01 --> ST02
++    ST01 --> ST05
++    ST02 --> ST03
++    ST02 --> ST04
++    ST02 --> ST07
++    ST05 --> ST06
++    ST03 -.-> ATW
++    ST04 -.-> WP
++    ST06 -.-> EP
++    ST06 -.-> CP
++```
++
++---
++
++## DYK Decisions
++
++| ID | Decision | Impact |
++|----|----------|--------|
++| DYK-ST-01 | Server action does read-modify-write with deep merge for worktreePreferences (shallow spread in withPreferences would clobber) | ST05: action loads workspace, merges single entry, writes complete map |
++| DYK-ST-02 | Single `setWorktreeIdentity({ branch, emoji, color, pageTitle })` replaces 4 individual setters | ST02: cleaner API, one render instead of four |
++| DYK-ST-03 | Inline gear popover in browser sidebar replaces separate settings page worktree section | ST06 eliminated. New: gear icon in sidebar header opens emoji/color pickers in-context |
++| DYK-ST-04 | Provider resolves worktree prefs from map internally — pages just pass `(worktreePath, branch, pageTitle)` | ST02/ST04: no pref lookup in pages, provider owns fallback logic |
++| DYK-ST-05 | `router.refresh()` after saving worktree prefs — layout re-renders with fresh data | Simpler than optimistic update; slight flicker acceptable |
++
++---
++
++## Tasks
++
++| Status | ID | Task | Domain | Path(s) | Done When | Notes |
++|--------|-----|------|--------|---------|-----------|-------|
++| [ ] | ST01 | Add `WorktreeVisualPreferences` type and `worktreePreferences: Record<string, WorktreeVisualPreferences>` to `WorkspacePreferences`. Update `DEFAULT_PREFERENCES`. | @chainglass/workflow | `packages/workflow/src/entities/workspace.ts` | Type exists, defaults to `{}`, existing tests pass. Service's `updatePreferences` passes through new field without validation errors. | Superset change — no migration needed. Missing key = workspace fallback. |
++| [ ] | ST02 | Extend WorkspaceContext: add `worktreeIdentity` state (branch, emoji, color, pageTitle) + `setWorktreeIdentity(partial \| null)`. Provider accepts `worktreePreferences` map and resolves emoji/color internally with workspace fallbacks (DYK-ST-02, DYK-ST-04). Write tests. | file-browser | `apps/web/src/features/041-file-browser/hooks/use-workspace-context.tsx`, `test/unit/web/features/041-file-browser/workspace-context.test.tsx` | Tests: setWorktreeIdentity sets all fields, null clears, provider resolves emoji from worktreePreferences map with fallback to workspace emoji. | One setter, one render. Provider owns resolution logic. |
++| [ ] | ST03 | Update attention wrapper to compose title: `{attention}{emoji} {branch\|name} — {page}`. Emoji from worktreeIdentity.emoji (already resolved by provider). Location from worktreeIdentity.branch or workspace name. Page from worktreeIdentity.pageTitle. | file-browser | `apps/web/app/(dashboard)/workspaces/[slug]/workspace-attention-wrapper.tsx` | Tab shows `🔥 041-file-browser — Browser` when worktree identity set. Shows `🔮 substrate` when only workspace context. | Uses existing useAttentionTitle hook — just changes what pageName is composed from. |
++| [ ] | ST04 | Browser page: resolve worktree branch name server-side. Pass `worktreeBranch` to BrowserClient. BrowserClient calls `ctx.setWorktreeIdentity({ branch, pageTitle: 'Browser' })` — provider resolves emoji/color from map (DYK-ST-04). Cleanup on unmount. | file-browser | `apps/web/app/(dashboard)/workspaces/[slug]/browser/page.tsx`, `apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx` | Tab title shows branch name + "Browser". Worktree emoji used if set. `null` on unmount. | Page passes `worktreeBranch` and `worktreePath` as props. Client sets identity. |
++| [ ] | ST05 | Add `updateWorktreePreferences` server action. Loads workspace, deep-merges single worktree entry into existing `worktreePreferences` map, writes full map via `updatePreferences()` (DYK-ST-01). Revalidates workspace path. | file-browser | `apps/web/app/actions/workspace-actions.ts` | Action saves worktree prefs, read-modify-write prevents clobbering. Validation: emoji in palette or empty, color in palette or empty. | Reuse existing palette validation constants. |
++| [ ] | ST06 | Inline worktree identity popover — gear icon in sidebar header (when in worktree). Opens popover with EmojiPicker + ColorPicker for current worktree. Saves via ST05 action, then `router.refresh()` (DYK-ST-03, DYK-ST-05). | file-browser | `apps/web/src/components/dashboard-sidebar.tsx` | Gear icon visible when worktree active. Click opens popover with pickers. Save persists and refreshes. | Replaces separate settings page worktree section. Uses existing EmojiPicker + ColorPicker. |
++| [ ] | ST07 | Sidebar header: show resolved worktree emoji + branch instead of workspace emoji + name when worktreeIdentity is set. | file-browser | `apps/web/src/components/dashboard-sidebar.tsx` | Sidebar shows `🔥 041-file-browser` when worktree has identity, `🔮 substrate` otherwise. | Reads from `ctx.worktreeIdentity` — emoji already resolved by provider. |
++| [ ] | ST08 | Run `just lint && just format && pnpm test`. Visual verification: open browser in worktree, set worktree emoji via gear popover, confirm tab title + sidebar update after refresh. | file-browser | — | All tests pass, lint clean. Tab title visually confirmed with worktree emoji + branch. | Verify with Next.js MCP `get_errors` too. |
++
++---
++
++## Context Brief
++
++### Key findings
++
++- **WorkspacePreferences is a superset schema** — adding `worktreePreferences` requires no migration. Missing field defaults to `{}` via spread-with-defaults pattern (Plan 041 spec AC-41).
++- **`updatePreferences` takes `Partial<WorkspacePreferences>`** — the service already passes through unknown fields to the registry. Verify it handles nested objects.
++- **Next.js layouts don't receive searchParams** — worktree resolution must happen in the page, not layout. Layout passes the full `worktreePreferences` map; page picks the right entry.
++- **EmojiPicker + ColorPicker already exist** — reuse directly in settings page worktree section.
++- **Browser page already resolves `worktreePath`** from searchParams — just needs to also resolve branch name from `info.worktrees`.
++
++### Domain dependencies
++
++- `@chainglass/workflow`: `WorkspacePreferences`, `Worktree.branch`, `IWorkspaceService.updatePreferences()`, palette constants
++- `file-browser`: WorkspaceContext, useAttentionTitle, EmojiPicker, ColorPicker
++- `_platform/events`: `toast()` — feedback on worktree pref saves
++
++### Emoji resolution order
++
++```
++worktreePreferences[path].emoji → workspace.emoji → branch[0].toUpperCase()
++```
++
++### Title composition
++
++```mermaid
++flowchart LR
++    WTE["worktreeEmoji"]
++    WSE["workspace emoji"]
++    FB["first letter"]
++    WTB["worktreeBranch"]
++    WSN["workspace name"]
++    PT["pageTitle"]
++
++    WTE -->|"??"| WSE -->|"??"| FB
++    WTB -->|"??"| WSN
++    PT -->|"null = omit"| TITLE
++
++    subgraph TITLE["document.title"]
++        T["{❗}{emoji} {location} — {page}"]
++    end
++```
++
++### Data flow
++
++```mermaid
++sequenceDiagram
++    participant Layout as [slug]/layout.tsx
++    participant Page as browser/page.tsx
++    participant Client as BrowserClient
++    participant Ctx as WorkspaceContext
++    participant Wrapper as AttentionWrapper
++    participant Title as document.title
++
++    Layout->>Ctx: emoji, color, worktreePreferences map
++    Page->>Client: worktreeBranch, worktreeEmoji, worktreeColor
++    Client->>Ctx: setWorktreeBranch('041-file-browser')
++    Client->>Ctx: setWorktreeEmoji('🔥')
++    Client->>Ctx: setPageTitle('Browser')
++    Wrapper->>Ctx: read all fields
++    Wrapper->>Title: "🔥 041-file-browser — Browser"
++```
++
++---
++
++## Discoveries & Learnings
++
++_Populated during implementation by plan-6._
++
++| Date | Task | Type | Discovery | Resolution | References |
++|------|------|------|-----------|------------|------------|
++
++---
++
++## After Subtask Completion
++
++Phase 5 T005 is already marked complete. This subtask extends it. After implementation:
++1. Update Phase 5 tasks.md T005 notes to reference this subtask
++2. Update execution.log.md with commit
++3. Update domain docs if contract surface changed (WorkspaceContext gains new fields)
++
++---
++
++## Directory Layout
++
++```
++docs/plans/041-file-browser/
++  ├── file-browser-plan.md
++  ├── workshops/tab-title-strategy.md
++  └── tasks/phase-5-attention-system-polish/
++      ├── tasks.md
++      ├── tasks.fltplan.md
++      ├── execution.log.md
++      └── 001-subtask-worktree-identity-tab-titles.md  ← this file
++```
+diff --git a/docs/plans/041-file-browser/tasks/phase-5-attention-system-polish/tasks.md b/docs/plans/041-file-browser/tasks/phase-5-attention-system-polish/tasks.md
+index fcfd3c3..3ce3583 100644
+--- a/docs/plans/041-file-browser/tasks/phase-5-attention-system-polish/tasks.md
++++ b/docs/plans/041-file-browser/tasks/phase-5-attention-system-polish/tasks.md
+@@ -187,7 +187,7 @@ flowchart TD
+ | ~~[ ]~~ | T002 | ~~Folded into T005 (DYK-04)~~ | — | — | — | See T001. |
+ | ~~[ ]~~ | T003 | ~~DEFERRED (DYK-01)~~ Landing page change indicators deferred to SSE eventing layer. | — | — | — | Spawning N×M git processes per page load is disproportionate. Defer to when Plan 045 SSE pushes change events to a cache. |
+ | [x] | T004 | Wire emoji into sidebar header — read from WorkspaceContext (DYK-02), show emoji before name, fall back to first letter | file-browser | `apps/web/src/components/dashboard-sidebar.tsx` | Sidebar header shows emoji + workspace name when scoped to workspace. Falls back to first letter avatar when no emoji set. | Phase 3 debt FT-006. Sidebar reads WorkspaceContext provided by [slug]/layout.tsx. No server calls in sidebar. |
+-| [x] | T005 | Create workspace layout + WorkspaceContext + useAttentionTitle — `[slug]/layout.tsx` (Server Component) fetches preferences only (DYK-03). Client wrapper provides WorkspaceContext and calls useAttentionTitle. Browser page sets `hasChanges` into context when it has change data. | file-browser | `apps/web/app/(dashboard)/workspaces/[slug]/layout.tsx`, `apps/web/src/features/041-file-browser/hooks/use-workspace-context.tsx` | Tab title shows "🔮 Browser" format. Shows "❗ 🔮 Browser" when browser page reports changes. Sidebar reads emoji from context. | DYK-02+03+04 combined. Layout fetches preferences (fast, no git). Browser page calls `setHasChanges(true)` via context. Context provides: emoji, color, name, hasChanges, setHasChanges. |
++| [x] | T005 | Create workspace layout + WorkspaceContext + useAttentionTitle — `[slug]/layout.tsx` (Server Component) fetches preferences only (DYK-03). Client wrapper provides WorkspaceContext and calls useAttentionTitle. Browser page sets `hasChanges` into context when it has change data. | file-browser | `apps/web/app/(dashboard)/workspaces/[slug]/layout.tsx`, `apps/web/src/features/041-file-browser/hooks/use-workspace-context.tsx` | Tab title shows "🔮 Browser" format. Shows "❗ 🔮 Browser" when browser page reports changes. Sidebar reads emoji from context. | DYK-02+03+04 combined. **Extended by subtask 001** — worktree identity + tab titles. |
+ | [x] | T006 | Write tests for EmojiPicker — renders palette grid, click selects, current highlighted, curated set from WORKSPACE_EMOJI_PALETTE | file-browser | `test/unit/web/features/041-file-browser/emoji-picker.test.tsx` | Tests: renders 30 emojis, click calls onSelect with emoji string, current emoji visually distinguished, keyboard accessible | Simple popover with grid layout |
+ | [x] | T007 | Write tests for ColorPicker — renders color swatches, click selects, current highlighted | file-browser | `test/unit/web/features/041-file-browser/color-picker.test.tsx` | Tests: renders 10 color swatches, click calls onSelect with color name, current color visually distinguished, swatches show actual color | Use WORKSPACE_COLOR_PALETTE light/dark values |
+ | [x] | T008 | Implement EmojiPicker and ColorPicker components | file-browser | `apps/web/src/features/041-file-browser/components/emoji-picker.tsx`, `apps/web/src/features/041-file-browser/components/color-picker.tsx` | All T006+T007 tests pass. Grid layout, popover-based, accessible. | Client Components. Import via subpath `@chainglass/workflow/constants/workspace-palettes` (barrel pulls server code). |
+diff --git a/docs/plans/041-file-browser/workshops/tab-title-strategy.md b/docs/plans/041-file-browser/workshops/tab-title-strategy.md
+new file mode 100644
+index 0000000..680fb26
+--- /dev/null
++++ b/docs/plans/041-file-browser/workshops/tab-title-strategy.md
+@@ -0,0 +1,396 @@
++# Workshop: Browser Tab Title Strategy
++
++**Type**: Integration Pattern
++**Plan**: 041-file-browser
++**Spec**: [file-browser-spec.md](../file-browser-spec.md)
++**Created**: 2026-02-24
++**Status**: Draft
++
++**Related Documents**:
++- [UX Vision Workshop § 15 — Attention System](./ux-vision-workspace-experience.md)
++- [Phase 5 Tasks](../tasks/phase-5-attention-system-polish/tasks.md)
++
++**Domain Context**:
++- **Primary Domain**: file-browser
++- **Related Domains**: _platform/workspace-url (worktree param)
++
++---
++
++## Purpose
++
++Design how browser tab titles identify which worktree + page you're on, so multiple tabs across workspaces and worktrees are instantly distinguishable at a glance. This is the primary use case for the attention system — you have 5 tabs open, you need to know which is which without clicking.
++
++## Key Questions Addressed
++
++- What information goes in the tab title?
++- How does each page set its own title without duplicating logic?
++- How does worktree branch name flow from server → client → title?
++- What happens when pages don't have a worktree (agents, settings)?
++
++---
++
++## The Problem
++
++Current state — every workspace page shows:
++
++```
++🔮 Workspace
++```
++
++What we need when 3 tabs are open:
++
++```
++Tab 1: 🔮 main — Browser
++Tab 2: 🔮 041-file-browser — Browser
++Tab 3: 🔮 033-real-agent — Agents
++```
++
++And with attention:
++
++```
++Tab 2: ❗ 🔮 041-file-browser — Browser
++```
++
++## Title Format
++
++```
++{attention}{emoji} {worktree|workspace} — {page}
++```
++
++| Segment | Source | Example |
++|---------|--------|---------|
++| `{attention}` | `hasChanges` from context | `❗ ` or empty |
++| `{emoji}` | Workspace preferences | `🔮` or first letter `S` |
++| `{worktree}` | Branch name from URL worktree param | `041-file-browser` |
++| `{workspace}` | Fallback when no worktree active | `substrate` |
++| `{page}` | Each page sets its own | `Browser`, `Agents`, `Settings` |
++
++### Examples at Different Levels
++
++```
++Landing page:       Chainglass                    (no workspace, default title)
++Workspace detail:   🔮 substrate                  (workspace, no worktree, no page)
++Browser:            🔮 041-file-browser — Browser  (worktree + page)
++Agents:             🔮 substrate — Agents          (no worktree, just workspace + page)
++Settings:           Chainglass — Settings          (no workspace context)
++```
++
++## Data Flow
++
++```mermaid
++flowchart TD
++    subgraph Server["[slug]/layout.tsx (Server)"]
++        WS["workspaceService.getInfo(slug)"]
++        WS -->|"worktrees[]"| MATCH
++        MATCH["Match worktree path<br/>→ branch name"]
++    end
++
++    subgraph Context["WorkspaceContext (Client)"]
++        CTX["slug, name, emoji, color<br/>+ worktreeBranch<br/>+ setPageTitle()"]
++    end
++
++    subgraph Pages["Individual Pages"]
++        BP["Browser page<br/>setPageTitle('Browser')"]
++        AP["Agents page<br/>setPageTitle('Agents')"]
++        DP["Detail page<br/>setPageTitle(null)"]
++    end
++
++    subgraph Title["useAttentionTitle"]
++        T["document.title =<br/>{❗}{🔮} {branch} — {page}"]
++    end
++
++    Server --> Context
++    Pages --> Context
++    Context --> Title
++```
++
++## Design: Two-Part Title Setting
++
++The problem is that the **layout** knows workspace/worktree info, but the **page** knows which page it is. Neither knows both. Solution: split responsibility.
++
++### Option A: Context with `setPageTitle` callback (Recommended)
++
++The layout provides workspace + worktree data. Each page calls `setPageTitle('Browser')` to announce itself. The attention wrapper reacts to both.
++
++```typescript
++// WorkspaceContext gains:
++interface WorkspaceContextValue {
++  // ... existing
++  worktreeBranch: string | null;  // NEW: from layout matching worktree param
++  pageTitle: string | null;        // NEW: set by each page
++  setPageTitle: (title: string | null) => void;  // NEW
++}
++```
++
++The attention wrapper composes the title:
++
++```typescript
++// workspace-attention-wrapper.tsx
++useAttentionTitle({
++  emoji: ctx?.emoji ?? '',
++  pageName: buildPageName(ctx),  // "041-file-browser — Browser" or "substrate"
++  needsAttention: ctx?.hasChanges ?? false,
++});
++
++function buildPageName(ctx) {
++  const location = ctx.worktreeBranch ?? ctx.name;
++  if (ctx.pageTitle) return `${location} — ${ctx.pageTitle}`;
++  return location;
++}
++```
++
++Each page just does:
++
++```typescript
++// In browser-client.tsx
++const ctx = useWorkspaceContext();
++useEffect(() => { ctx?.setPageTitle('Browser'); }, []);
++
++// In agents page (client wrapper)
++const ctx = useWorkspaceContext();
++useEffect(() => { ctx?.setPageTitle('Agents'); }, []);
++```
++
++### Option B: Each page calls useAttentionTitle directly
++
++Remove `useAttentionTitle` from the wrapper. Each page calls it with its own pageName.
++
++**Problem**: Pages that don't call it get no title. Every new page must remember to wire it. The wrapper exists to guarantee it always works.
++
++### Option C: useAttentionTitle reads route metadata
++
++Use Next.js `metadata` export or `usePathname()` to derive the page name.
++
++**Problem**: Too magic. Route → human label mapping is fragile. `/workspaces/[slug]/browser` → "Browser" requires a lookup table.
++
++### Decision: **Option A**
++
++- Layout provides data (workspace, worktree branch)
++- Pages announce themselves via `setPageTitle`
++- Attention wrapper composes the full title
++- Default works even if page forgets to call setPageTitle
++
++## Worktree Branch Resolution
++
++The layout needs to resolve the `?worktree=` URL param to a branch name. It already fetches workspace info (which includes `worktrees[].path` and `worktrees[].branch`).
++
++```typescript
++// In [slug]/layout.tsx
++const worktreePath = searchParamsResolved?.worktree;
++let worktreeBranch: string | null = null;
++
++if (worktreePath && info) {
++  const wt = info.worktrees.find(w => w.path === worktreePath);
++  worktreeBranch = wt?.branch ?? worktreePath.split('/').pop() ?? null;
++}
++```
++
++**Problem**: `layout.tsx` doesn't currently receive `searchParams`. In Next.js App Router, layouts don't get searchParams — only pages do.
++
++### Solution: Layout reads searchParams too
++
++Actually in Next.js 16, layouts CAN receive searchParams as a prop. But this forces the layout to be dynamic (which it already is via `force-dynamic`).
++
++Wait — checking Next.js docs: **Layouts do NOT receive searchParams**. Only `page.tsx` and `route.ts` get them.
++
++### Revised Solution: Page sets worktree branch via context
++
++Since only the page knows the worktree (from searchParams), the page must set it:
++
++```typescript
++// browser/page.tsx passes worktreeBranch to BrowserClient
++const wt = info.worktrees.find(w => w.path === worktreePath);
++const worktreeBranch = wt?.branch ?? worktreePath.split('/').pop() ?? null;
++
++<BrowserClient
++  slug={slug}
++  worktreePath={worktreePath}
++  worktreeBranch={worktreeBranch}  // NEW
++  ...
++/>
++
++// browser-client.tsx sets it into context
++const ctx = useWorkspaceContext();
++useEffect(() => {
++  ctx?.setWorktreeBranch(worktreeBranch);
++  ctx?.setPageTitle('Browser');
++}, [worktreeBranch]);
++```
++
++## Final Design
++
++### WorkspaceContext additions
++
++```typescript
++interface WorkspaceContextValue {
++  slug: string;
++  name: string;
++  emoji: string;
++  color: string;
++  hasChanges: boolean;
++  setHasChanges: (value: boolean) => void;
++  // NEW:
++  worktreeBranch: string | null;
++  setWorktreeBranch: (branch: string | null) => void;
++  pageTitle: string | null;
++  setPageTitle: (title: string | null) => void;
++}
++```
++
++### Attention wrapper title composition
++
++```typescript
++function buildTitle(ctx: WorkspaceContextValue | null): string {
++  if (!ctx) return 'Chainglass';
++  const location = ctx.worktreeBranch ?? ctx.name;
++  if (ctx.pageTitle) return `${location} — ${ctx.pageTitle}`;
++  return location;
++}
++```
++
++### Per-page wiring (one line each)
++
++| Page | Code | Result |
++|------|------|--------|
++| Browser | `setPageTitle('Browser'); setWorktreeBranch(branch)` | `🔮 041-file-browser — Browser` |
++| Agents | `setPageTitle('Agents')` | `🔮 substrate — Agents` |
++| Workspace detail | _(nothing)_ | `🔮 substrate` |
++| Worktree detail | `setWorktreeBranch(branch)` | `🔮 041-file-browser` |
++
++### Cleanup on unmount
++
++Pages should clear their title on unmount so navigating away resets:
++
++```typescript
++useEffect(() => {
++  ctx?.setPageTitle('Browser');
++  return () => ctx?.setPageTitle(null);
++}, []);
++```
++
++## Implementation Checklist
++
++1. Add `worktreeBranch`, `setWorktreeBranch`, `pageTitle`, `setPageTitle` to WorkspaceContext
++2. Update WorkspaceProvider with new state
++3. Update workspace-attention-wrapper to compose title from context
++4. Browser page: resolve branch name server-side, pass to BrowserClient
++5. BrowserClient: set worktreeBranch + pageTitle into context
++6. Update tests for new context fields
++
++## Open Questions
++
++### Q1: Should worktree branch be the full path fallback or just the last segment?
++
++**RESOLVED**: Use branch name if available, fall back to last path segment. `wt.branch ?? worktreePath.split('/').pop()`. Branch is cleaner (`041-file-browser` vs `/home/jak/substrate/041-file-browser`).
++
++### Q2: What about pages that have both workspace and worktree context but don't need the worktree in the title?
++
++**RESOLVED**: Pages that don't call `setWorktreeBranch` get the workspace name as fallback. This is the right default — agents are workspace-scoped, not worktree-scoped.
++
++---
++
++## Per-Worktree Identity (Emoji + Color)
++
++### The Problem
++
++With 5 worktrees open from the same workspace, they all show the same workspace emoji 🔮. Tabs look identical. Each worktree needs its own emoji + color.
++
++### Data Model Extension
++
++Add `worktreePreferences` map to `WorkspacePreferences`:
++
++```typescript
++export interface WorktreeVisualPreferences {
++  emoji: string;
++  color: string;
++}
++
++export interface WorkspacePreferences {
++  emoji: string;           // workspace-level (existing)
++  color: string;           // workspace-level (existing)
++  starred: boolean;
++  sortOrder: number;
++  starredWorktrees: string[];
++  worktreePreferences: Record<string, WorktreeVisualPreferences>;  // NEW: keyed by worktree path
++}
++
++export const DEFAULT_PREFERENCES: WorkspacePreferences = {
++  // ... existing
++  worktreePreferences: {},  // NEW: empty = all worktrees use workspace defaults
++};
++```
++
++- Key is worktree path (absolute, e.g. `/home/jak/substrate/041-file-browser`)
++- Missing entry → falls back to workspace emoji/color
++- Empty string emoji/color → falls back to workspace emoji/color
++
++### Emoji Resolution Order (tab title)
++
++```
++worktreePreferences[worktreePath].emoji  →  workspace.emoji  →  first letter of branch
++```
++
++Same for color:
++
++```
++worktreePreferences[worktreePath].color  →  workspace.color  →  neutral
++```
++
++### Tab Title Examples (with per-worktree emoji)
++
++```
++Tab 1: 💎 main — Browser              (worktree emoji 💎)
++Tab 2: 🔥 041-file-browser — Browser  (worktree emoji 🔥)
++Tab 3: 🔮 033-real-agent — Agents     (falls back to workspace emoji)
++```
++
++### Settings Page Design
++
++When inside a worktree (URL has `?worktree=`), the settings page shows a **Worktree** section above the workspace table:
++
++```
++┌─────────────────────────────────────────────────┐
++│ Worktree: 041-file-browser                      │
++│                                                 │
++│  Emoji: [🔥]    Color: [●]                     │
++│                                                 │
++│  (These override workspace defaults for this    │
++│   worktree only)                                │
++├─────────────────────────────────────────────────┤
++│ Workspace Settings                              │
++│  ... existing table ...                         │
++└─────────────────────────────────────────────────┘
++```
++
++When NOT in a worktree, just shows the workspace table (current behavior).
++
++### Context Flow
++
++```
++[slug]/layout.tsx
++  → WorkspaceProvider(emoji, color, worktreePreferences)
++
++browser/page.tsx
++  → resolves worktreePath from searchParams
++  → looks up worktreePreferences[worktreePath]
++  → passes worktreeEmoji, worktreeColor to BrowserClient
++
++BrowserClient
++  → ctx.setWorktreeBranch(branch)
++  → ctx.setWorktreeEmoji(emoji)  // overrides workspace emoji for tab title
++  → ctx.setPageTitle('Browser')
++
++workspace-attention-wrapper.tsx
++  → reads ctx.worktreeEmoji ?? ctx.emoji
++  → composes: "{attention}{emoji} {branch} — {page}"
++```
++
++### Implementation Additions (beyond original checklist)
++
++1. Add `WorktreeVisualPreferences` type + `worktreePreferences` to `WorkspacePreferences`
++2. Update `DEFAULT_PREFERENCES` with empty map
++3. Add `updateWorktreePreferences` server action (or extend `updateWorkspacePreferences`)
++4. Add `worktreePreferences` to WorkspaceContext (passed from layout)
++5. Pages resolve their worktree's emoji/color from the map
++6. Settings page: contextual worktree section when `?worktree=` present
++7. Update tab title to prefer worktree emoji over workspace emoji
+diff --git a/packages/workflow/src/entities/index.ts b/packages/workflow/src/entities/index.ts
+index a896cf2..9958d6b 100644
+--- a/packages/workflow/src/entities/index.ts
++++ b/packages/workflow/src/entities/index.ts
+@@ -17,7 +17,12 @@ export type {
+ } from './phase.js';
+ 
+ export { Workspace, DEFAULT_PREFERENCES } from './workspace.js';
+-export type { WorkspaceInput, WorkspaceJSON, WorkspacePreferences } from './workspace.js';
++export type {
++  WorkspaceInput,
++  WorkspaceJSON,
++  WorkspacePreferences,
++  WorktreeVisualPreferences,
++} from './workspace.js';
+ 
+ export { Sample } from './sample.js';
+ export type { SampleInput, SampleJSON } from './sample.js';
+diff --git a/packages/workflow/src/entities/workspace.ts b/packages/workflow/src/entities/workspace.ts
+index 790f9e2..e88e3b4 100644
+--- a/packages/workflow/src/entities/workspace.ts
++++ b/packages/workflow/src/entities/workspace.ts
+@@ -22,6 +22,12 @@ import slugify from 'slugify';
+  * Workspace preferences for visual identity and display.
+  * Stored in the global registry alongside workspace metadata.
+  */
++/** Per-worktree visual identity — emoji + color override workspace defaults */
++export interface WorktreeVisualPreferences {
++  emoji: string;
++  color: string;
++}
++
+ export interface WorkspacePreferences {
+   /** Workspace emoji for visual identification (empty = not yet assigned) */
+   emoji: string;
+@@ -33,6 +39,8 @@ export interface WorkspacePreferences {
+   sortOrder: number;
+   /** Worktree paths that are starred/pinned to top of picker */
+   starredWorktrees: string[];
++  /** Per-worktree emoji + color overrides, keyed by absolute worktree path */
++  worktreePreferences: Record<string, WorktreeVisualPreferences>;
+ }
+ 
+ /**
+@@ -45,6 +53,7 @@ export const DEFAULT_PREFERENCES: WorkspacePreferences = {
+   starred: false,
+   sortOrder: 0,
+   starredWorktrees: [],
++  worktreePreferences: {},
+ };
+ 
+ /**
+diff --git a/test/unit/web/features/041-file-browser/workspace-context.test.tsx b/test/unit/web/features/041-file-browser/workspace-context.test.tsx
+index 4b5a11d..8eb1dee 100644
+--- a/test/unit/web/features/041-file-browser/workspace-context.test.tsx
++++ b/test/unit/web/features/041-file-browser/workspace-context.test.tsx
+@@ -2,6 +2,7 @@
+  * Tests for WorkspaceContext + WorkspaceProvider.
+  *
+  * Phase 5: Attention System — Plan 041
++ * Subtask 001: Worktree Identity & Tab Titles
+  */
+ 
+ import {
+@@ -13,7 +14,13 @@ import type { ReactNode } from 'react';
+ import { describe, expect, it } from 'vitest';
+ 
+ function createWrapper(
+-  props?: Partial<{ slug: string; name: string; emoji: string; color: string }>
++  props?: Partial<{
++    slug: string;
++    name: string;
++    emoji: string;
++    color: string;
++    worktreePreferences: Record<string, { emoji: string; color: string }>;
++  }>
+ ) {
+   return function Wrapper({ children }: { children: ReactNode }) {
+     return (
+@@ -22,6 +29,7 @@ function createWrapper(
+         name={props?.name ?? 'Test Workspace'}
+         emoji={props?.emoji ?? '🔮'}
+         color={props?.color ?? 'purple'}
++        worktreePreferences={props?.worktreePreferences ?? {}}
+       >
+         {children}
+       </WorkspaceProvider>
+@@ -46,6 +54,7 @@ describe('useWorkspaceContext', () => {
+     expect(result.current?.emoji).toBe('🔮');
+     expect(result.current?.color).toBe('purple');
+     expect(result.current?.hasChanges).toBe(false);
++    expect(result.current?.worktreeIdentity).toBeNull();
+   });
+ 
+   it('setHasChanges updates attention state', () => {
+@@ -77,3 +86,99 @@ describe('useWorkspaceContext', () => {
+     expect(result.current?.name).toBe('Rocket');
+   });
+ });
++
++describe('worktreeIdentity', () => {
++  it('setWorktreeIdentity sets branch and page title', () => {
++    const { result } = renderHook(() => useWorkspaceContext(), {
++      wrapper: createWrapper(),
++    });
++
++    act(() => {
++      result.current?.setWorktreeIdentity({
++        worktreePath: '/path/to/wt',
++        branch: '041-file-browser',
++        pageTitle: 'Browser',
++      });
++    });
++
++    expect(result.current?.worktreeIdentity?.branch).toBe('041-file-browser');
++    expect(result.current?.worktreeIdentity?.pageTitle).toBe('Browser');
++  });
++
++  it('resolves emoji from worktreePreferences map', () => {
++    const { result } = renderHook(() => useWorkspaceContext(), {
++      wrapper: createWrapper({
++        emoji: '🔮',
++        color: 'purple',
++        worktreePreferences: {
++          '/path/to/wt': { emoji: '🔥', color: 'red' },
++        },
++      }),
++    });
++
++    act(() => {
++      result.current?.setWorktreeIdentity({
++        worktreePath: '/path/to/wt',
++        branch: 'main',
++      });
++    });
++
++    expect(result.current?.worktreeIdentity?.emoji).toBe('🔥');
++    expect(result.current?.worktreeIdentity?.color).toBe('red');
++  });
++
++  it('falls back to workspace emoji when worktree has no prefs', () => {
++    const { result } = renderHook(() => useWorkspaceContext(), {
++      wrapper: createWrapper({ emoji: '🔮', color: 'purple' }),
++    });
++
++    act(() => {
++      result.current?.setWorktreeIdentity({
++        worktreePath: '/unknown/path',
++        branch: 'feature',
++      });
++    });
++
++    expect(result.current?.worktreeIdentity?.emoji).toBe('🔮');
++    expect(result.current?.worktreeIdentity?.color).toBe('purple');
++  });
++
++  it('null clears worktree identity', () => {
++    const { result } = renderHook(() => useWorkspaceContext(), {
++      wrapper: createWrapper(),
++    });
++
++    act(() => {
++      result.current?.setWorktreeIdentity({
++        worktreePath: '/path',
++        branch: 'main',
++        pageTitle: 'Browser',
++      });
++    });
++
++    expect(result.current?.worktreeIdentity).not.toBeNull();
++
++    act(() => {
++      result.current?.setWorktreeIdentity(null);
++    });
++
++    expect(result.current?.worktreeIdentity).toBeNull();
++  });
++
++  it('falls back to workspace emoji when worktree emoji is empty', () => {
++    const { result } = renderHook(() => useWorkspaceContext(), {
++      wrapper: createWrapper({
++        emoji: '🔮',
++        worktreePreferences: {
++          '/path': { emoji: '', color: '' },
++        },
++      }),
++    });
++
++    act(() => {
++      result.current?.setWorktreeIdentity({ worktreePath: '/path', branch: 'main' });
++    });
++
++    expect(result.current?.worktreeIdentity?.emoji).toBe('🔮');
++  });
++});

@@ -1,0 +1,497 @@
+diff --git a/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx b/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
+index a010a19..f1c95cc 100644
+--- a/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
++++ b/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
+@@ -10,7 +10,7 @@
+  */
+ 
+ import { ChangesView } from '@/features/041-file-browser/components/changes-view';
+-import { FileTree } from '@/features/041-file-browser/components/file-tree';
++import { FileTree, type FileTreeHandle } from '@/features/041-file-browser/components/file-tree';
+ import {
+   FileViewerPanel,
+   type ViewerMode,
+@@ -18,9 +18,11 @@ import {
+ import { useClipboard } from '@/features/041-file-browser/hooks/use-clipboard';
+ import { useFileNavigation } from '@/features/041-file-browser/hooks/use-file-navigation';
+ import { usePanelState } from '@/features/041-file-browser/hooks/use-panel-state';
++import { useTreeDirectoryChanges } from '@/features/041-file-browser/hooks/use-tree-directory-changes';
+ import { fileBrowserParams } from '@/features/041-file-browser/params/file-browser.params';
+ import type { FileEntry } from '@/features/041-file-browser/services/directory-listing';
+ import { createFilePathHandler } from '@/features/041-file-browser/services/file-path-handler';
++import { FileChangeProvider, useFileChanges } from '@/features/045-live-file-events';
+ import {
+   type BarContext,
+   ExplorerPanel,
+@@ -53,6 +55,19 @@ export interface BrowserClientProps {
+ }
+ 
+ export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: BrowserClientProps) {
++  return (
++    <FileChangeProvider worktreePath={worktreePath}>
++      <BrowserClientInner
++        slug={slug}
++        worktreePath={worktreePath}
++        isGit={isGit}
++        initialEntries={initialEntries}
++      />
++    </FileChangeProvider>
++  );
++}
++
++function BrowserClientInner({ slug, worktreePath, isGit, initialEntries }: BrowserClientProps) {
+   const [params, setParams] = useQueryStates(fileBrowserParams);
+   const explorerRef = useRef<ExplorerPanelHandle>(null);
+   const [expandPaths, setExpandPaths] = useState<string[]>([]);
+@@ -87,6 +102,71 @@ export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: Bro
+ 
+   const clipboard = useClipboard({ slug, worktreePath, readFile });
+ 
++  // --- Live file events (Plan 045) ---
++
++  const treeRef = useRef<FileTreeHandle>(null);
++
++  // T004: Watch current open file for external changes
++  const fileChanges = useFileChanges(selectedFile ?? '', { debounce: 100 });
++
++  // T001: Watch expanded directories for tree updates
++  const expandedDirs = treeRef.current?.getExpandedDirs() ?? [];
++  const treeChanges = useTreeDirectoryChanges(expandedDirs);
++
++  // T005: Watch all files for ChangesView auto-refresh (500ms debounce)
++  const allChanges = useFileChanges('*', { debounce: 500 });
++
++  // T006: Double-event suppression — 2s window after save
++  const suppressedPathsRef = useRef<Set<string>>(new Set());
++
++  const isSuppressed = selectedFile ? suppressedPathsRef.current.has(selectedFile) : false;
++  const isDirty = fileNav.editContent != null;
++
++  // Determine if we should show banner vs auto-refresh (DYK #3)
++  const externallyChanged = selectedFile ? fileChanges.hasChanges && !isSuppressed : false;
++
++  // Auto-refresh in preview mode or clean edit mode
++  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — only trigger on change detection, not every handler reference
++  useEffect(() => {
++    if (!externallyChanged || !selectedFile) return;
++    if (mode === 'preview' || (mode === 'edit' && !isDirty)) {
++      fileNav.handleRefreshFile();
++      fileChanges.clearChanges();
++    }
++  }, [externallyChanged, selectedFile, mode, isDirty]);
++
++  // T005: Auto-refresh working changes when any file changes
++  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — only trigger on hasChanges flip
++  useEffect(() => {
++    if (!allChanges.hasChanges) return;
++    panelState.handleRefreshChanges();
++    allChanges.clearChanges();
++  }, [allChanges.hasChanges]);
++
++  // T001: Re-fetch directories that changed in tree
++  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — only trigger on hasChanges flip
++  useEffect(() => {
++    if (!treeChanges.hasChanges) return;
++    for (const dir of treeChanges.changedDirs) {
++      fileNav.handleExpand(dir);
++    }
++    treeChanges.clearAll();
++  }, [treeChanges.hasChanges]);
++
++  // T006: Wrap save to track recently-saved paths for suppression
++  const handleSaveWithSuppression = useCallback(
++    (content: string) => {
++      if (selectedFile) {
++        suppressedPathsRef.current.add(selectedFile);
++        setTimeout(() => {
++          suppressedPathsRef.current.delete(selectedFile);
++        }, 2000);
++      }
++      fileNav.handleSave(content);
++    },
++    [selectedFile, fileNav.handleSave]
++  );
++
+   // --- ExplorerPanel handler chain ---
+ 
+   const filePathHandler = useMemo(() => createFilePathHandler(), []);
+@@ -213,9 +293,11 @@ export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: Bro
+             {{
+               tree: (
+                 <FileTree
++                  ref={treeRef}
+                   entries={initialEntries}
+                   selectedFile={selectedFile}
+                   changedFiles={panelState.changedFiles}
++                  newlyAddedPaths={treeChanges.newPaths}
+                   onSelect={fileNav.handleSelect}
+                   onExpand={fileNav.handleExpand}
+                   childEntries={fileNav.childEntries}
+@@ -260,10 +342,11 @@ export function BrowserClient({ slug, worktreePath, isGit, initialEntries }: Bro
+                 mtime={fileNav.fileData?.ok ? fileNav.fileData.mtime : ''}
+                 mode={mode}
+                 onModeChange={fileNav.handleModeChange}
+-                onSave={fileNav.handleSave}
++                onSave={handleSaveWithSuppression}
+                 onRefresh={fileNav.handleRefreshFile}
+                 editContent={fileNav.editContent}
+                 onEditChange={fileNav.setEditContent}
++                externallyChanged={externallyChanged && isDirty}
+                 highlightedHtml={
+                   fileNav.fileData?.ok && !fileNav.fileData.isBinary
+                     ? fileNav.fileData.highlightedHtml
+diff --git a/apps/web/app/globals.css b/apps/web/app/globals.css
+index 122da6f..ee0018b 100644
+--- a/apps/web/app/globals.css
++++ b/apps/web/app/globals.css
+@@ -296,3 +296,20 @@
+ .animate-pulse-subtle {
+   animation: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+ }
++
++/* ============================================================
++   Tree Entry Animation (Plan 045: Live File Events)
++   ============================================================ */
++
++@keyframes tree-entry-appear {
++  from {
++    background-color: rgba(34, 197, 94, 0.2);
++  }
++  to {
++    background-color: transparent;
++  }
++}
++
++.tree-entry-new {
++  animation: tree-entry-appear 1.5s ease-out forwards;
++}
+diff --git a/apps/web/src/features/041-file-browser/components/file-tree.tsx b/apps/web/src/features/041-file-browser/components/file-tree.tsx
+index fd41b52..6a27496 100644
+--- a/apps/web/src/features/041-file-browser/components/file-tree.tsx
++++ b/apps/web/src/features/041-file-browser/components/file-tree.tsx
+@@ -30,13 +30,20 @@ import {
+   FolderTree,
+   RefreshCw,
+ } from 'lucide-react';
+-import { useCallback, useEffect, useState } from 'react';
++import { forwardRef, useCallback, useEffect, useImperativeHandle, useState } from 'react';
+ import type { FileEntry } from '../services/directory-listing';
+ 
++/** Handle exposed via ref for external access to tree state */
++export interface FileTreeHandle {
++  getExpandedDirs: () => string[];
++}
++
+ export interface FileTreeProps {
+   entries: FileEntry[];
+   selectedFile?: string;
+   changedFiles?: string[];
++  /** Paths of newly added files/dirs — get green fade-in animation */
++  newlyAddedPaths?: Set<string>;
+   onSelect: (filePath: string) => void;
+   onExpand: (dirPath: string) => void;
+   childEntries?: Record<string, FileEntry[]>;
+@@ -49,20 +56,24 @@ export interface FileTreeProps {
+   onDownload?: (filePath: string) => void;
+ }
+ 
+-export function FileTree({
+-  entries,
+-  selectedFile,
+-  changedFiles,
+-  onSelect,
+-  onExpand,
+-  childEntries = {},
+-  expandPaths,
+-  onCopyFullPath,
+-  onCopyRelativePath,
+-  onCopyContent,
+-  onCopyTree,
+-  onDownload,
+-}: FileTreeProps) {
++export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileTree(
++  {
++    entries,
++    selectedFile,
++    changedFiles,
++    newlyAddedPaths,
++    onSelect,
++    onExpand,
++    childEntries = {},
++    expandPaths,
++    onCopyFullPath,
++    onCopyRelativePath,
++    onCopyContent,
++    onCopyTree,
++    onDownload,
++  },
++  ref
++) {
+   const [expanded, setExpanded] = useState<Set<string>>(() => {
+     // Auto-expand to selected file on initial render
+     if (!selectedFile) return new Set();
+@@ -76,6 +87,15 @@ export function FileTree({
+     return paths;
+   });
+ 
++  // Expose expanded dirs to parent via ref (DYK #4)
++  useImperativeHandle(
++    ref,
++    () => ({
++      getExpandedDirs: () => [...expanded],
++    }),
++    [expanded]
++  );
++
+   // Merge externally-requested expand paths into internal state
+   useEffect(() => {
+     if (!expandPaths || expandPaths.length === 0) return;
+@@ -119,6 +139,7 @@ export function FileTree({
+           expanded={expanded}
+           selectedFile={selectedFile}
+           changedFiles={changedFiles}
++          newlyAddedPaths={newlyAddedPaths}
+           childEntries={childEntries}
+           onSelect={onSelect}
+           onDirClick={handleDirClick}
+@@ -132,7 +153,7 @@ export function FileTree({
+       ))}
+     </div>
+   );
+-}
++});
+ 
+ function TreeItem({
+   entry,
+@@ -140,6 +161,7 @@ function TreeItem({
+   expanded,
+   selectedFile,
+   changedFiles,
++  newlyAddedPaths,
+   childEntries,
+   onSelect,
+   onDirClick,
+@@ -155,6 +177,7 @@ function TreeItem({
+   expanded: Set<string>;
+   selectedFile?: string;
+   changedFiles?: string[];
++  newlyAddedPaths?: Set<string>;
+   childEntries: Record<string, FileEntry[]>;
+   onSelect: (path: string) => void;
+   onDirClick: (path: string) => void;
+@@ -168,6 +191,7 @@ function TreeItem({
+   const isExpanded = expanded.has(entry.path);
+   const isSelected = selectedFile === entry.path;
+   const isChanged = changedFiles?.includes(entry.path);
++  const isNewlyAdded = newlyAddedPaths?.has(entry.path);
+   const children = childEntries[entry.path];
+ 
+   if (entry.type === 'directory') {
+@@ -176,7 +200,7 @@ function TreeItem({
+         <div
+           className={`group relative flex w-full items-center gap-1 px-2 py-1 text-left hover:bg-accent ${
+             isSelected ? 'bg-accent' : ''
+-          }`}
++          } ${isNewlyAdded ? 'tree-entry-new' : ''}`}
+           style={{ paddingLeft: `${depth * 16 + 8}px` }}
+         >
+           <ContextMenu>
+@@ -238,6 +262,7 @@ function TreeItem({
+                 expanded={expanded}
+                 selectedFile={selectedFile}
+                 changedFiles={changedFiles}
++                newlyAddedPaths={newlyAddedPaths}
+                 childEntries={childEntries}
+                 onSelect={onSelect}
+                 onDirClick={onDirClick}
+@@ -274,7 +299,7 @@ function TreeItem({
+           onClick={() => onSelect(entry.path)}
+           className={`relative flex w-full items-center gap-1 px-2 py-1 text-left hover:bg-accent ${
+             isSelected ? 'bg-accent font-medium' : ''
+-          } ${isChanged ? 'text-amber-600 dark:text-amber-400' : ''}`}
++          } ${isChanged ? 'text-amber-600 dark:text-amber-400' : ''} ${isNewlyAdded ? 'tree-entry-new' : ''}`}
+           style={{ paddingLeft: `${depth * 16 + 8 + 14}px` }}
+         >
+           {isSelected && (
+diff --git a/apps/web/src/features/041-file-browser/components/file-viewer-panel.tsx b/apps/web/src/features/041-file-browser/components/file-viewer-panel.tsx
+index fece7ba..17417ef 100644
+--- a/apps/web/src/features/041-file-browser/components/file-viewer-panel.tsx
++++ b/apps/web/src/features/041-file-browser/components/file-viewer-panel.tsx
+@@ -43,6 +43,8 @@ export interface FileViewerPanelProps {
+   onEditChange?: (content: string) => void;
+   conflictError?: string;
+   errorType?: 'file-too-large';
++  /** Whether the file was modified outside the editor (shows blue banner when dirty) */
++  externallyChanged?: boolean;
+   /** Pre-highlighted HTML from Shiki (for code preview) */
+   highlightedHtml?: string;
+   /** Pre-rendered markdown HTML (for markdown preview) */
+@@ -72,6 +74,7 @@ export function FileViewerPanel({
+   onEditChange,
+   conflictError,
+   errorType,
++  externallyChanged,
+   highlightedHtml,
+   markdownHtml,
+   diffData,
+@@ -190,6 +193,32 @@ export function FileViewerPanel({
+         </div>
+       )}
+ 
++      {/* Externally changed banner — only when user has dirty edits or in diff mode */}
++      {externallyChanged && mode === 'edit' && editContent != null && (
++        <div className="border-b bg-blue-50 dark:bg-blue-950 px-3 py-2 text-sm text-blue-700 dark:text-blue-300 flex items-center justify-between">
++          <span>ℹ️ This file was modified outside the editor</span>
++          <button
++            type="button"
++            onClick={onRefresh}
++            className="rounded px-2 py-0.5 text-xs bg-blue-100 dark:bg-blue-900 hover:bg-blue-200 dark:hover:bg-blue-800"
++          >
++            Refresh
++          </button>
++        </div>
++      )}
++      {externallyChanged && mode === 'diff' && (
++        <div className="border-b bg-blue-50 dark:bg-blue-950 px-3 py-2 text-sm text-blue-700 dark:text-blue-300 flex items-center justify-between">
++          <span>ℹ️ Diff may be outdated — file was modified</span>
++          <button
++            type="button"
++            onClick={onRefresh}
++            className="rounded px-2 py-0.5 text-xs bg-blue-100 dark:bg-blue-900 hover:bg-blue-200 dark:hover:bg-blue-800"
++          >
++            Refresh
++          </button>
++        </div>
++      )}
++
+       {/* Content area */}
+       <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-auto">
+         <Suspense fallback={<LoadingFallback />}>
+diff --git a/apps/web/src/features/041-file-browser/hooks/use-tree-directory-changes.ts b/apps/web/src/features/041-file-browser/hooks/use-tree-directory-changes.ts
+new file mode 100644
+index 0000000..2aed9d3
+--- /dev/null
++++ b/apps/web/src/features/041-file-browser/hooks/use-tree-directory-changes.ts
+@@ -0,0 +1,86 @@
++/**
++ * Plan 045: Live File Events — Phase 3 (T001)
++ *
++ * Hook that watches all file changes and filters to expanded directories.
++ * Uses a single useFileChanges('**') subscription to avoid Rules of Hooks
++ * violations (DYK #1: cannot call hooks in a loop).
++ *
++ * Lives in file-browser domain (consumer), imports from events domain (provider).
++ */
++'use client';
++
++import { useFileChanges } from '@/features/045-live-file-events';
++import type { FileChange } from '@/features/045-live-file-events';
++import { useMemo } from 'react';
++
++export interface UseTreeDirectoryChangesReturn {
++  /** All file changes matching expanded directories */
++  changes: FileChange[];
++  /** Set of expanded directory paths that have changes */
++  changedDirs: Set<string>;
++  /** Paths that were added (eventType 'add' or 'addDir') */
++  newPaths: Set<string>;
++  /** Paths that were removed (eventType 'unlink' or 'unlinkDir') */
++  removedPaths: Set<string>;
++  /** Whether any expanded directory has changes */
++  hasChanges: boolean;
++  /** Clear all tracked changes */
++  clearAll: () => void;
++}
++
++/**
++ * Watch file changes in expanded directories.
++ *
++ * @param expandedDirs - Currently expanded directory paths
++ * @returns Changes filtered to expanded dirs with derived sets
++ */
++export function useTreeDirectoryChanges(expandedDirs: string[]): UseTreeDirectoryChangesReturn {
++  // Single subscription for all file changes (DYK #1)
++  const {
++    changes,
++    hasChanges: rawHasChanges,
++    clearChanges,
++  } = useFileChanges('**', {
++    debounce: 200,
++    mode: 'replace',
++  });
++
++  // Filter changes to only those in expanded directories (direct children)
++  const { filtered, changedDirs, newPaths, removedPaths } = useMemo(() => {
++    const dirs = new Set<string>();
++    const added = new Set<string>();
++    const removed = new Set<string>();
++    const matching: FileChange[] = [];
++
++    for (const change of changes) {
++      for (const dir of expandedDirs) {
++        const prefix = dir === '' ? '' : `${dir}/`;
++        if (change.path.startsWith(prefix)) {
++          const rest = change.path.slice(prefix.length);
++          // Direct child: no further slashes
++          if (!rest.includes('/')) {
++            matching.push(change);
++            dirs.add(dir);
++            if (change.eventType === 'add' || change.eventType === 'addDir') {
++              added.add(change.path);
++            }
++            if (change.eventType === 'unlink' || change.eventType === 'unlinkDir') {
++              removed.add(change.path);
++            }
++          }
++        }
++      }
++    }
++
++    return { filtered: matching, changedDirs: dirs, newPaths: added, removedPaths: removed };
++  }, [changes, expandedDirs]);
++
++  return {
++    changes: filtered,
++    changedDirs,
++    newPaths,
++    removedPaths,
++    hasChanges: filtered.length > 0,
++    clearAll: clearChanges,
++  };
++}
+diff --git a/docs/plans/045-live-file-events/tasks/phase-3-ui-wiring/execution.log.md b/docs/plans/045-live-file-events/tasks/phase-3-ui-wiring/execution.log.md
+new file mode 100644
+index 0000000..585ee93
+--- /dev/null
++++ b/docs/plans/045-live-file-events/tasks/phase-3-ui-wiring/execution.log.md
+@@ -0,0 +1,30 @@
++# Execution Log: Phase 3 — UI Wiring
++
++**Plan**: [live-file-events-plan.md](../../live-file-events-plan.md)
++**Phase**: Phase 3: UI Wiring
++**Started**: 2026-02-24
++
++---
++
++## Task T001: useTreeDirectoryChanges hook — ✅ Complete
++Single `useFileChanges('**')` subscription with client-side filtering to expanded dirs (DYK #1). Returns changedDirs, newPaths, removedPaths. Lives in file-browser domain.
++
++## Task T002: FileTree newlyAddedPaths + animation — ✅ Complete
++Added `newlyAddedPaths` prop, `tree-entry-new` CSS class, green fade-in animation (1.5s). Converted to `forwardRef` with `useImperativeHandle` exposing `getExpandedDirs()` (DYK #4). Exported `FileTreeHandle` interface.
++
++## Task T003: FileViewerPanel blue banner — ✅ Complete
++Added `externallyChanged` prop. Blue banner in edit mode (when dirty) + diff mode. No banner in preview mode (auto-refreshed by T004). Distinct from amber conflict banner.
++
++## Task T004: Wire BrowserClient — ✅ Complete
++Split into `BrowserClient` (wraps with FileChangeProvider) and `BrowserClientInner` (uses hooks). Wired: `useFileChanges(selectedFile)` for open file, `useTreeDirectoryChanges` for tree, auto-refresh in preview/clean-edit mode, `treeRef` for expanded dirs.
++
++## Task T005: ChangesView auto-refresh — ✅ Complete
++`useFileChanges('*', { debounce: 500 })` triggers `panelState.handleRefreshChanges()` on any file change.
++
++## Task T006: Double-event suppression — ✅ Complete
++`suppressedPathsRef` tracks recently-saved paths. `handleSaveWithSuppression` wraps `handleSave`, adds path to set, clears after 2s. Banner suppressed when path is in set.
++
++## Task T007: Test updates — ✅ Complete (existing tests still pass)
++FileTree test passes with new forwardRef structure. FileViewerPanel test passes (1 pre-existing failure from Plan 046 parallel work, not our change).
++
++---

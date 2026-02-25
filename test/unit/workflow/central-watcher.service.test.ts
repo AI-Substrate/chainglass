@@ -122,17 +122,17 @@ describe('CentralWatcherService', () => {
       /*
       Test Doc:
       - Why: AC1 + CF-07 require one IFileWatcher per worktree plus one registry watcher
-      - Contract: start() creates N data watchers + 1 registry watcher
-      - Usage Notes: 2 worktrees → 3 total watchers (2 data + 1 registry)
+      - Contract: start() creates N data watchers + N source watchers + 1 registry watcher
+      - Usage Notes: 2 worktrees → 5 total watchers (2 data + 2 source + 1 registry)
       - Quality Contribution: Ensures proper watcher fan-out per worktree
-      - Worked Example: 1 workspace with 2 worktrees → factory.getWatcherCount() === 3
+      - Worked Example: 1 workspace with 2 worktrees → factory.getWatcherCount() === 5
       */
       setupTwoWorktrees(registry, resolver, fs);
 
       await service.start();
 
-      // 2 data watchers + 1 registry watcher = 3
-      expect(factory.getWatcherCount()).toBe(3);
+      // 2 data watchers + 2 source watchers + 1 registry watcher = 5
+      expect(factory.getWatcherCount()).toBe(5);
     });
 
     it('should watch <worktree>/.chainglass/data/ for each worktree', async () => {
@@ -302,10 +302,10 @@ describe('CentralWatcherService', () => {
       /*
       Test Doc:
       - Why: Robustness — worktree may not have been initialized with chainglass
-      - Contract: Only create data watcher for worktrees where .chainglass/data/ exists
+      - Contract: Only create data/source watchers for worktrees where .chainglass/data/ exists
       - Usage Notes: fs.exists() check prevents watching non-existent directories
       - Quality Contribution: Prevents watcher errors on uninitialized worktrees
-      - Worked Example: 2 worktrees, 1 has data dir → 1 data watcher + 1 registry = 2
+      - Worked Example: 2 worktrees, 1 has data dir → 1 data + 1 source + 1 registry = 3
       */
       const ws = createTestWorkspace('ws-1', '/repo');
       registry.addWorkspace(ws);
@@ -332,8 +332,8 @@ describe('CentralWatcherService', () => {
 
       await service.start();
 
-      // 1 data watcher + 1 registry watcher = 2
-      expect(factory.getWatcherCount()).toBe(2);
+      // 1 data watcher + 1 source watcher + 1 registry watcher = 3
+      expect(factory.getWatcherCount()).toBe(3);
     });
   });
 
@@ -527,8 +527,8 @@ describe('CentralWatcherService', () => {
 
       await service.rescan();
 
-      // Should have created 1 additional data watcher
-      expect(factory.getWatcherCount()).toBe(initialCount + 1);
+      // Should have created 1 additional data watcher + 1 source watcher
+      expect(factory.getWatcherCount()).toBe(initialCount + 2);
     });
 
     it('should close watcher for removed workspace on rescan', async () => {
@@ -800,6 +800,129 @@ describe('CentralWatcherService', () => {
       // Error should be logged
       const errorEntries = logger.getEntriesByLevel(LogLevel.ERROR);
       expect(errorEntries.length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  // ═════════════════════════════════════════════════════════════
+  // T009: Source Watcher Tests (Plan 045)
+  // ═════════════════════════════════════════════════════════════
+
+  describe('source watchers (Plan 045)', () => {
+    it('should create source watcher per worktree watching worktree root', async () => {
+      setupSingleWorktree(registry, resolver, fs);
+
+      await service.start();
+
+      // Find the source watcher (watches /repo root, not /repo/.chainglass/data)
+      const sourceWatcher = factory.findWatcherByPath('/repo');
+      expect(sourceWatcher).toBeDefined();
+      expect(sourceWatcher?.getWatchedPaths()).toContain('/repo');
+    });
+
+    it('should create source watchers for multiple worktrees', async () => {
+      setupTwoWorktrees(registry, resolver, fs);
+
+      await service.start();
+
+      const sourceWatcher1 = factory.findWatcherByPath('/repo');
+      const sourceWatcher2 = factory.findWatcherByPath('/repo-wt');
+      expect(sourceWatcher1).toBeDefined();
+      expect(sourceWatcher2).toBeDefined();
+    });
+
+    it('should configure source watchers with ignored patterns', async () => {
+      setupSingleWorktree(registry, resolver, fs);
+
+      await service.start();
+
+      const sourceWatcher = factory.findWatcherByPath('/repo');
+      expect(sourceWatcher).toBeDefined();
+      expect(sourceWatcher?.options.ignored).toBeDefined();
+      expect(sourceWatcher?.options.ignored?.length).toBeGreaterThan(0);
+    });
+
+    it('should dispatch source watcher events to adapters', async () => {
+      setupSingleWorktree(registry, resolver, fs);
+      const adapter = new FakeWatcherAdapter('test-adapter');
+      service.registerAdapter(adapter);
+
+      await service.start();
+
+      const sourceWatcher = factory.findWatcherByPath('/repo');
+      sourceWatcher?.simulateChange('/repo/src/app.tsx');
+
+      expect(adapter.calls).toHaveLength(1);
+      expect(adapter.calls[0].path).toBe('/repo/src/app.tsx');
+      expect(adapter.calls[0].eventType).toBe('change');
+      expect(adapter.calls[0].worktreePath).toBe('/repo');
+    });
+
+    it('should close source watchers on stop', async () => {
+      setupSingleWorktree(registry, resolver, fs);
+
+      await service.start();
+
+      const sourceWatcher = factory.findWatcherByPath('/repo');
+
+      await service.stop();
+
+      expect(sourceWatcher?.isClosed()).toBe(true);
+    });
+
+    it('should not block data watchers if source watcher creation fails', async () => {
+      const ws = createTestWorkspace('ws-1', '/repo');
+      registry.addWorkspace(ws);
+      resolver.setWorktrees('/repo', [
+        {
+          path: '/repo',
+          head: 'abc123',
+          branch: 'main',
+          isDetached: false,
+          isBare: false,
+          isPrunable: false,
+        },
+      ]);
+      fs.setDir('/repo/.chainglass/data');
+
+      // Make factory throw on the 2nd call (source watcher)
+      // Data watcher = call 1, source watcher = call 2, registry watcher = call 3
+      let createCount = 0;
+      const originalCreate = factory.create.bind(factory);
+      factory.create = (options) => {
+        createCount++;
+        if (createCount === 2) {
+          throw new Error('Source watcher creation failed');
+        }
+        return originalCreate(options);
+      };
+
+      await service.start();
+
+      // Service should still be watching (data watchers succeeded)
+      expect(service.isWatching()).toBe(true);
+
+      // Data watcher should exist
+      const dataWatcher = factory.findWatcherByPath('/repo/.chainglass/data');
+      expect(dataWatcher).toBeDefined();
+
+      // Error should be logged
+      const errorEntries = logger.getEntriesByLevel(LogLevel.ERROR);
+      expect(errorEntries.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('should close source watchers for removed worktrees on rescan', async () => {
+      setupSingleWorktree(registry, resolver, fs);
+
+      await service.start();
+
+      const sourceWatcher = factory.findWatcherByPath('/repo');
+
+      // Remove the workspace
+      await registry.remove('ws-1');
+
+      await service.rescan();
+
+      expect(sourceWatcher?.isClosed()).toBe(true);
     });
   });
 });

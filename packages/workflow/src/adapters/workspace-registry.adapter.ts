@@ -10,7 +10,12 @@
  */
 
 import type { IFileSystem, IPathResolver } from '@chainglass/shared';
-import { Workspace, type WorkspaceJSON } from '../entities/workspace.js';
+import {
+  DEFAULT_PREFERENCES,
+  Workspace,
+  type WorkspaceJSON,
+  type WorkspacePreferences,
+} from '../entities/workspace.js';
 import { EntityNotFoundError } from '../errors/entity-not-found.error.js';
 import { RegistryCorruptError, WorkspaceErrorCodes } from '../errors/workspace-errors.js';
 import type {
@@ -83,13 +88,8 @@ export class WorkspaceRegistryAdapter implements IWorkspaceRegistryAdapter {
       );
     }
 
-    // Reconstruct Workspace entity from JSON
-    return Workspace.create({
-      name: workspaceJson.name,
-      path: workspaceJson.path,
-      slug: workspaceJson.slug,
-      createdAt: new Date(workspaceJson.createdAt),
-    });
+    // Reconstruct Workspace entity from JSON (spread-with-defaults for v1 compatibility)
+    return this.createWorkspaceFromJson(workspaceJson);
   }
 
   /**
@@ -138,14 +138,7 @@ export class WorkspaceRegistryAdapter implements IWorkspaceRegistryAdapter {
   async list(): Promise<Workspace[]> {
     const registry = await this.readRegistry();
 
-    return registry.workspaces.map((json) =>
-      Workspace.create({
-        name: json.name,
-        path: json.path,
-        slug: json.slug,
-        createdAt: new Date(json.createdAt),
-      })
-    );
+    return registry.workspaces.map((json) => this.createWorkspaceFromJson(json));
   }
 
   /**
@@ -187,6 +180,54 @@ export class WorkspaceRegistryAdapter implements IWorkspaceRegistryAdapter {
   }
 
   // ==================== Private Helpers ====================
+
+  /**
+   * Update a workspace in the registry.
+   *
+   * Replaces the workspace entry matching the slug.
+   * Per Plan 041: Used for updating workspace preferences.
+   *
+   * @param workspace - Workspace with updated data
+   * @returns WorkspaceSaveResult with ok=true on success
+   */
+  async update(workspace: Workspace): Promise<WorkspaceSaveResult> {
+    const registry = await this.readRegistry();
+
+    const index = registry.workspaces.findIndex((w) => w.slug === workspace.slug);
+    if (index === -1) {
+      return {
+        ok: false,
+        errorCode: WorkspaceErrorCodes.WORKSPACE_NOT_FOUND,
+        errorMessage: `Workspace '${workspace.slug}' not found`,
+      };
+    }
+
+    // Replace the workspace entry
+    registry.workspaces[index] = workspace.toJSON();
+
+    // Write registry back
+    await this.writeRegistry(registry);
+
+    return { ok: true };
+  }
+
+  /**
+   * Reconstruct a Workspace entity from registry JSON.
+   *
+   * Per DYK-P1-01: Preferences may be missing in v1 registries.
+   * Per DYK-P1-02: Spread-with-defaults handles missing preferences gracefully.
+   */
+  private createWorkspaceFromJson(json: WorkspaceJSON): Workspace {
+    // v1 JSON may lack preferences — cast through unknown to safely access optional field
+    const raw = json as unknown as { preferences?: Partial<WorkspacePreferences> };
+    return Workspace.create({
+      name: json.name,
+      path: json.path,
+      slug: json.slug,
+      createdAt: new Date(json.createdAt),
+      preferences: raw.preferences ? { ...DEFAULT_PREFERENCES, ...raw.preferences } : undefined,
+    });
+  }
 
   /**
    * Validate a workspace path.
@@ -290,9 +331,11 @@ export class WorkspaceRegistryAdapter implements IWorkspaceRegistryAdapter {
         await this.fs.mkdir(this.configDir, { recursive: true });
       }
 
-      // Write registry file
+      // Atomic write: write to .tmp then rename (per Critical Discovery 01)
       const content = JSON.stringify(registry, null, 2);
-      await this.fs.writeFile(this.registryPath, content);
+      const tmpPath = `${this.registryPath}.tmp`;
+      await this.fs.writeFile(tmpPath, content);
+      await this.fs.rename(tmpPath, this.registryPath);
     } catch (error) {
       // Re-throw with workspace-specific error code
       const message = error instanceof Error ? error.message : 'Unknown error';

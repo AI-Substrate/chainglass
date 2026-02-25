@@ -1,0 +1,884 @@
+diff --git a/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx b/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
+index 68e31b7..a5e9235 100644
+--- a/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
++++ b/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
+@@ -21,6 +21,7 @@ import { usePanelState } from '@/features/041-file-browser/hooks/use-panel-state
+ import { useTreeDirectoryChanges } from '@/features/041-file-browser/hooks/use-tree-directory-changes';
+ import { useWorkspaceContext } from '@/features/041-file-browser/hooks/use-workspace-context';
+ import { fileBrowserParams } from '@/features/041-file-browser/params/file-browser.params';
++import { fileBrowserContribution } from '@/features/041-file-browser/sdk/contribution';
+ import type { FileEntry } from '@/features/041-file-browser/services/directory-listing';
+ import { createFilePathHandler } from '@/features/041-file-browser/services/file-path-handler';
+ import { FileChangeProvider, useFileChanges } from '@/features/045-live-file-events';
+@@ -93,6 +94,7 @@ function BrowserClientInner({
+   const mode = (params.mode as ViewerMode) || 'preview';
+   const selectedFile = params.file || undefined;
+   const panelMode = (params.panel as PanelMode) || 'tree';
++  const scrollToLine = params.line ?? null;
+ 
+   // --- Hooks ---
+ 
+@@ -211,7 +213,13 @@ function BrowserClientInner({
+ 
+   // --- ExplorerPanel handler chain ---
+ 
+-  const filePathHandler = useMemo(() => createFilePathHandler(), []);
++  const filePathHandler = useMemo(
++    () =>
++      createFilePathHandler((line) => {
++        setParams({ line }, { history: 'replace' });
++      }),
++    [setParams]
++  );
+   const symbolStub = useMemo(() => createSymbolSearchStub(), []);
+ 
+   // --- SDK + MRU for command palette ---
+@@ -311,11 +319,24 @@ function BrowserClientInner({
+       icon: 'search',
+     });
+ 
++    // T001: openFileAtLine — navigates to file and sets line param
++    const openFileAtLineCmd = fileBrowserContribution.commands.find(
++      (c) => c.id === 'file-browser.openFileAtLine'
++    )!;
++    const openFileAtLineReg = sdk.commands.register({
++      ...openFileAtLineCmd,
++      handler: async (params: unknown) => {
++        const { path, line } = params as { path: string; line?: number };
++        setParams({ file: path, ...(line != null ? { line } : {}) }, { history: 'push' });
++      },
++    });
++
+     return () => {
+       paletteReg.dispose();
+       goToFileReg.dispose();
++      openFileAtLineReg.dispose();
+     };
+-  }, [sdk]);
++  }, [sdk, setParams]);
+ 
+   // --- Panel refresh handler ---
+ 
+@@ -465,6 +486,7 @@ function BrowserClientInner({
+                     ? (fileNav.fileData.error as 'file-too-large')
+                     : undefined
+                 }
++                scrollToLine={scrollToLine}
+               />
+             ) : (
+               <div className="flex items-center justify-center h-full text-muted-foreground">
+diff --git a/apps/web/src/features/041-file-browser/components/code-editor.tsx b/apps/web/src/features/041-file-browser/components/code-editor.tsx
+index e2d0192..8efa9c5 100644
+--- a/apps/web/src/features/041-file-browser/components/code-editor.tsx
++++ b/apps/web/src/features/041-file-browser/components/code-editor.tsx
+@@ -7,6 +7,7 @@
+  * language detection. Loaded via dynamic import to minimize bundle.
+  *
+  * Phase 4: File Browser — Plan 041
++ * Phase 6: scrollToLine prop — Plan 047, DYK-P6-03
+  * DYK-P4-04: Thin wrapper, tests stub CodeMirror
+  * DYK-P4-05: Uses shared detectLanguage()
+  * Finding 10: Lazy load via dynamic import
+@@ -14,7 +15,7 @@
+ 
+ import { useTheme } from 'next-themes';
+ import dynamic from 'next/dynamic';
+-import { useMemo } from 'react';
++import { useEffect, useMemo, useRef } from 'react';
+ 
+ import { cpp } from '@codemirror/lang-cpp';
+ import { css } from '@codemirror/lang-css';
+@@ -28,6 +29,7 @@ import { python } from '@codemirror/lang-python';
+ import { rust } from '@codemirror/lang-rust';
+ import { yaml } from '@codemirror/lang-yaml';
+ import type { Extension } from '@codemirror/state';
++import { EditorView } from '@codemirror/view';
+ 
+ // Lazy-load CodeMirror itself
+ const ReactCodeMirror = dynamic(() => import('@uiw/react-codemirror'), {
+@@ -56,16 +58,34 @@ export interface CodeEditorProps {
+   language: string;
+   onChange?: (value: string) => void;
+   readOnly?: boolean;
++  /** Line number to scroll to (1-based). DYK-P6-03: prop-driven, not ref-driven. */
++  scrollToLine?: number | null;
+ }
+ 
+-export function CodeEditor({ value, language, onChange, readOnly }: CodeEditorProps) {
++export function CodeEditor({ value, language, onChange, readOnly, scrollToLine }: CodeEditorProps) {
+   const { resolvedTheme } = useTheme();
++  const viewRef = useRef<EditorView | null>(null);
+ 
+   const extensions = useMemo(() => {
+     const langExt = LANGUAGE_EXTENSIONS[language];
+     return langExt ? [langExt()] : [];
+   }, [language]);
+ 
++  // DYK-P6-03: Capture EditorView via onCreateEditor callback
++  const handleCreateEditor = (view: EditorView) => {
++    viewRef.current = view;
++    // If scrollToLine is already set when editor mounts, scroll immediately
++    if (scrollToLine != null && scrollToLine > 0) {
++      scrollViewToLine(view, scrollToLine);
++    }
++  };
++
++  // Scroll to line when prop changes after mount
++  useEffect(() => {
++    if (scrollToLine == null || scrollToLine <= 0 || !viewRef.current) return;
++    scrollViewToLine(viewRef.current, scrollToLine);
++  }, [scrollToLine]);
++
+   return (
+     <ReactCodeMirror
+       value={value}
+@@ -73,6 +93,7 @@ export function CodeEditor({ value, language, onChange, readOnly }: CodeEditorPr
+       onChange={onChange}
+       readOnly={readOnly}
+       theme={resolvedTheme === 'dark' ? 'dark' : 'light'}
++      onCreateEditor={handleCreateEditor}
+       basicSetup={{
+         lineNumbers: true,
+         foldGutter: true,
+@@ -83,3 +104,14 @@ export function CodeEditor({ value, language, onChange, readOnly }: CodeEditorPr
+     />
+   );
+ }
++
++/** Scroll a CodeMirror EditorView to a 1-based line number. */
++function scrollViewToLine(view: EditorView, line: number): void {
++  const docLines = view.state.doc.lines;
++  if (line < 1 || line > docLines) return;
++  const lineInfo = view.state.doc.line(line);
++  view.dispatch({
++    selection: { anchor: lineInfo.from },
++    effects: EditorView.scrollIntoView(lineInfo.from, { y: 'center' }),
++  });
++}
+diff --git a/apps/web/src/features/041-file-browser/components/file-viewer-panel.tsx b/apps/web/src/features/041-file-browser/components/file-viewer-panel.tsx
+index bcbd6a1..08e9687 100644
+--- a/apps/web/src/features/041-file-browser/components/file-viewer-panel.tsx
++++ b/apps/web/src/features/041-file-browser/components/file-viewer-panel.tsx
+@@ -71,6 +71,8 @@ export interface FileViewerPanelProps {
+   rawFileUrl?: string;
+   /** URL for pop-out button — opens file in new tab (Phase 5) */
+   popOutUrl?: string;
++  /** Line number to scroll to in code editor (Plan 047 Phase 6) */
++  scrollToLine?: number | null;
+ }
+ 
+ export function FileViewerPanel({
+@@ -96,6 +98,7 @@ export function FileViewerPanel({
+   binarySize,
+   rawFileUrl,
+   popOutUrl,
++  scrollToLine,
+ }: FileViewerPanelProps) {
+   // All hooks must be called before any early returns (Rules of Hooks)
+   const isMarkdown = language === 'markdown';
+@@ -250,7 +253,12 @@ export function FileViewerPanel({
+         <Suspense fallback={<LoadingFallback />}>
+           {mode === 'edit' && (
+             <div className="h-full">
+-              <CodeEditor value={currentContent} language={language} onChange={onEditChange} />
++              <CodeEditor
++                value={currentContent}
++                language={language}
++                onChange={onEditChange}
++                scrollToLine={scrollToLine}
++              />
+             </div>
+           )}
+           {mode === 'preview' && (
+diff --git a/apps/web/src/features/041-file-browser/params/file-browser.params.ts b/apps/web/src/features/041-file-browser/params/file-browser.params.ts
+index c0ae72c..6e7b0c3 100644
+--- a/apps/web/src/features/041-file-browser/params/file-browser.params.ts
++++ b/apps/web/src/features/041-file-browser/params/file-browser.params.ts
+@@ -9,7 +9,7 @@
+  */
+ 
+ import { workspaceParams } from '@/lib/params/workspace.params';
+-import { parseAsString, parseAsStringLiteral } from 'nuqs';
++import { parseAsInteger, parseAsString, parseAsStringLiteral } from 'nuqs';
+ import { createSearchParamsCache } from 'nuqs/server';
+ 
+ export const fileBrowserParams = {
+@@ -21,6 +21,8 @@ export const fileBrowserParams = {
+   mode: parseAsStringLiteral(['edit', 'preview', 'diff'] as const).withDefault('preview'),
+   /** Left panel mode (Plan 043) */
+   panel: parseAsStringLiteral(['tree', 'changes'] as const).withDefault('tree'),
++  /** Line number to scroll to (Plan 047 Phase 6) */
++  line: parseAsInteger,
+ };
+ 
+ /** Combined server cache for workspace + file browser params */
+diff --git a/apps/web/src/features/041-file-browser/services/file-path-handler.ts b/apps/web/src/features/041-file-browser/services/file-path-handler.ts
+index bb32317..be112df 100644
+--- a/apps/web/src/features/041-file-browser/services/file-path-handler.ts
++++ b/apps/web/src/features/041-file-browser/services/file-path-handler.ts
+@@ -3,18 +3,43 @@
+  *
+  * Normalizes user input, strips worktree prefix if present,
+  * verifies the file exists, and navigates on success.
++ * Supports go-to-line syntax: path:42 and path#L42.
+  *
+  * Phase 3: Wire Into BrowserClient — Plan 043
++ * Phase 6: Go-to-line syntax — Plan 047, DYK-P6-04
+  * Per workshop: file-path-utility-bar.md
+  */
+ 
+ import type { BarHandler } from '@/features/_platform/panel-layout';
+ 
++/**
++ * Parse a line suffix from a path string.
++ * Supports :42 and #L42 syntax.
++ * Returns null if no valid line suffix found.
++ */
++function parseLineSuffix(path: string): { cleanPath: string; line: number } | null {
++  // Try #L42 syntax first
++  const hashMatch = path.match(/^(.+)#L(\d+)$/);
++  if (hashMatch) {
++    return { cleanPath: hashMatch[1], line: Number.parseInt(hashMatch[2], 10) };
++  }
++
++  // Try :42 syntax — only if suffix is purely numeric (DYK-P6-04)
++  const colonMatch = path.match(/^(.+):(\d+)$/);
++  if (colonMatch) {
++    return { cleanPath: colonMatch[1], line: Number.parseInt(colonMatch[2], 10) };
++  }
++
++  return null;
++}
++
+ /**
+  * Creates a BarHandler that navigates to file paths.
+  * First handler in the ExplorerPanel chain.
++ *
++ * @param onLineDetected - callback when a line number is parsed from input
+  */
+-export function createFilePathHandler(): BarHandler {
++export function createFilePathHandler(onLineDetected?: (line: number) => void): BarHandler {
+   return async (input, context) => {
+     let normalized = input.trim();
+     if (!normalized) return false;
+@@ -32,6 +57,7 @@ export function createFilePathHandler(): BarHandler {
+ 
+     if (!normalized) return false;
+ 
++    // DYK-P6-04: Path-first resolution — try the full string as-is first
+     const pathType = await context.pathExists(normalized);
+     if (pathType === 'file') {
+       context.navigateToFile(normalized);
+@@ -42,6 +68,17 @@ export function createFilePathHandler(): BarHandler {
+       return true;
+     }
+ 
++    // Full path didn't match — try parsing line suffix
++    const lineParsed = parseLineSuffix(normalized);
++    if (lineParsed) {
++      const cleanPathType = await context.pathExists(lineParsed.cleanPath);
++      if (cleanPathType === 'file') {
++        context.navigateToFile(lineParsed.cleanPath);
++        onLineDetected?.(lineParsed.line);
++        return true;
++      }
++    }
++
+     return false;
+   };
+ }
+diff --git a/apps/web/src/lib/sdk/sdk-bootstrap.ts b/apps/web/src/lib/sdk/sdk-bootstrap.ts
+index a058867..85ea324 100644
+--- a/apps/web/src/lib/sdk/sdk-bootstrap.ts
++++ b/apps/web/src/lib/sdk/sdk-bootstrap.ts
+@@ -4,12 +4,12 @@
+  * bootstrapSDK — Creates and configures an IUSDK instance.
+  *
+  * Instantiates ContextKeyService, CommandRegistry, SettingsStore and wires
+- * them into an IUSDK-shaped object. No domain registrations — Phase 6 adds those.
++ * them into an IUSDK-shaped object. Calls domain registration functions.
+  *
+  * DYK-P2-02: Toast methods import sonner directly. The toast.show command
+  * won't be registered until Phase 6, so routing through execute() would throw.
+  *
+- * Per Plan 047 Phase 2, Task T005.
++ * Per Plan 047 Phase 2, Task T005. Phase 6: domain registrations.
+  */
+ 
+ import { toast } from 'sonner';
+@@ -17,6 +17,9 @@ import { z } from 'zod';
+ 
+ import type { IUSDK } from '@chainglass/shared/sdk';
+ 
++import { registerEventsSDK } from '@/features/027-central-notify-events/sdk/register';
++import { registerFileBrowserSDK } from '@/features/041-file-browser/sdk/register';
++
+ import { CommandRegistry } from './command-registry';
+ import { ContextKeyService } from './context-key-service';
+ import { KeybindingService } from './keybinding-service';
+@@ -50,7 +53,7 @@ export function bootstrapSDK(): IUSDK {
+     },
+   });
+ 
+-  // DYK-P5-01: Demo settings to dogfood the settings page (Phase 6 moves to domain contributions)
++  // Demo setting — appearance.theme stays as platform demo
+   settings.contribute({
+     key: 'appearance.theme',
+     domain: 'appearance',
+@@ -60,39 +63,6 @@ export function bootstrapSDK(): IUSDK {
+     ui: 'toggle',
+     section: 'Appearance',
+   });
+-  settings.contribute({
+-    key: 'editor.fontSize',
+-    domain: 'editor',
+-    label: 'Font Size',
+-    description: 'Editor font size in pixels',
+-    schema: z.number().min(8).max(32).default(14),
+-    ui: 'number',
+-    section: 'Editor',
+-  });
+-  settings.contribute({
+-    key: 'editor.wordWrap',
+-    domain: 'editor',
+-    label: 'Word Wrap',
+-    description: 'How lines should wrap in the editor',
+-    schema: z.string().default('off'),
+-    ui: 'select',
+-    options: [
+-      { value: 'off', label: 'Off' },
+-      { value: 'on', label: 'On' },
+-      { value: 'wordWrapColumn', label: 'At Column' },
+-      { value: 'bounded', label: 'Bounded' },
+-    ],
+-    section: 'Editor',
+-  });
+-  settings.contribute({
+-    key: 'editor.tabSize',
+-    domain: 'editor',
+-    label: 'Tab Size',
+-    description: 'Number of spaces per tab stop',
+-    schema: z.number().min(1).max(8).default(2),
+-    ui: 'number',
+-    section: 'Editor',
+-  });
+ 
+   // DYK-P5-03: openSettings — parse slug from URL at execution time
+   // FT-005: Use custom event for SPA navigation (avoids full page reload)
+@@ -119,7 +89,7 @@ export function bootstrapSDK(): IUSDK {
+   // Ctrl+, opens settings
+   keybindings.register({ key: '$mod+Comma', command: 'sdk.openSettings' });
+ 
+-  return {
++  const sdk: IUSDK = {
+     commands,
+     settings,
+     context,
+@@ -131,4 +101,10 @@ export function bootstrapSDK(): IUSDK {
+       warning: (message: string) => toast.warning(message),
+     },
+   };
++
++  // Phase 6: Domain registrations (ADR-0009 pattern)
++  registerFileBrowserSDK(sdk);
++  registerEventsSDK(sdk);
++
++  return sdk;
+ }
+
+=== UNTRACKED NEW FILES ===
+
+diff --git a/apps/web/src/features/027-central-notify-events/sdk/contribution.ts b/apps/web/src/features/027-central-notify-events/sdk/contribution.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/web/src/features/027-central-notify-events/sdk/contribution.ts
+@@ -0,0 +1,44 @@
++/**
++ * Events/toast SDK contribution manifest.
++ *
++ * Static declaration of toast commands that the events domain
++ * publishes to the USDK surface.
++ *
++ * DYK-P6-01: Keep IUSDK.toast as direct sonner calls (developer API).
++ * toast.show command is for palette discoverability only.
++ * Don't wire them together — chicken-and-egg at bootstrap.
++ *
++ * Per Plan 047, Phase 6, Task T002.
++ */
++
++import { z } from 'zod';
++
++import type { SDKContribution } from '@chainglass/shared/sdk';
++
++export const eventsContribution: SDKContribution = {
++  domain: 'events',
++  domainLabel: 'Events & Notifications',
++  commands: [
++    {
++      id: 'toast.show',
++      title: 'Show Toast Notification',
++      domain: 'events',
++      category: 'Notifications',
++      params: z.object({
++        message: z.string(),
++        type: z.enum(['success', 'error', 'info', 'warning']).default('info'),
++      }),
++      icon: 'bell',
++    },
++    {
++      id: 'toast.dismiss',
++      title: 'Dismiss All Toasts',
++      domain: 'events',
++      category: 'Notifications',
++      params: z.object({}),
++      icon: 'bell-off',
++    },
++  ],
++  settings: [],
++  keybindings: [],
++};
+
+diff --git a/apps/web/src/features/027-central-notify-events/sdk/register.ts b/apps/web/src/features/027-central-notify-events/sdk/register.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/web/src/features/027-central-notify-events/sdk/register.ts
+@@ -0,0 +1,51 @@
++/**
++ * Events/toast SDK registration.
++ *
++ * Binds handlers to the toast contribution manifest.
++ * Both commands are bootstrap-safe (no React refs needed).
++ *
++ * DYK-P6-01: These handlers call sonner directly — same as IUSDK.toast
++ * but discoverable via command palette.
++ *
++ * Per ADR-0009: registerXxxSDK(sdk) pattern.
++ * Per Plan 047, Phase 6, Task T002.
++ */
++
++import { toast } from 'sonner';
++
++import type { IUSDK } from '@chainglass/shared/sdk';
++
++import { eventsContribution } from './contribution';
++
++/**
++ * Register events/toast SDK contributions.
++ * Called from bootstrapSDK().
++ */
++export function registerEventsSDK(sdk: IUSDK): void {
++  // Register toast.show
++  const showCmd = eventsContribution.commands.find((c) => c.id === 'toast.show')!;
++  sdk.commands.register({
++    ...showCmd,
++    handler: async (params: unknown) => {
++      const { message, type } = params as {
++        message: string;
++        type: 'success' | 'error' | 'info' | 'warning';
++      };
++      toast[type](message);
++    },
++  });
++
++  // Register toast.dismiss
++  const dismissCmd = eventsContribution.commands.find((c) => c.id === 'toast.dismiss')!;
++  sdk.commands.register({
++    ...dismissCmd,
++    handler: async () => {
++      toast.dismiss();
++    },
++  });
++
++  // Register keybindings (none for events)
++  for (const binding of eventsContribution.keybindings) {
++    sdk.keybindings.register(binding);
++  }
++}
+
+diff --git a/apps/web/src/features/041-file-browser/sdk/contribution.ts b/apps/web/src/features/041-file-browser/sdk/contribution.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/web/src/features/041-file-browser/sdk/contribution.ts
+@@ -0,0 +1,95 @@
++/**
++ * File-browser SDK contribution manifest.
++ *
++ * Static declaration of commands, settings, and keybindings that the
++ * file-browser domain publishes to the USDK surface.
++ *
++ * DYK-P6-02: No openFile command — goToFile already exists (Ctrl+P).
++ * Only openFileAtLine (programmatic, takes path + line) and copyPath.
++ *
++ * Per Plan 047, Phase 6, Task T001.
++ */
++
++import { z } from 'zod';
++
++import type { SDKContribution } from '@chainglass/shared/sdk';
++
++export const fileBrowserContribution: SDKContribution = {
++  domain: 'file-browser',
++  domainLabel: 'File Browser',
++  commands: [
++    {
++      id: 'file-browser.openFileAtLine',
++      title: 'Open File at Line',
++      domain: 'file-browser',
++      category: 'Navigation',
++      params: z.object({
++        path: z.string(),
++        line: z.number().int().positive().optional(),
++      }),
++      icon: 'file-text',
++    },
++    {
++      id: 'file-browser.copyPath',
++      title: 'Copy Current File Path',
++      domain: 'file-browser',
++      category: 'Clipboard',
++      params: z.object({}),
++      icon: 'copy',
++    },
++  ],
++  settings: [
++    {
++      key: 'file-browser.showHiddenFiles',
++      domain: 'file-browser',
++      label: 'Show Hidden Files',
++      description: 'Show files and directories starting with a dot',
++      schema: z.boolean().default(false),
++      ui: 'toggle',
++      section: 'File Browser',
++    },
++    {
++      key: 'file-browser.previewOnClick',
++      domain: 'file-browser',
++      label: 'Preview on Click',
++      description: 'Automatically preview files when clicking in the tree',
++      schema: z.boolean().default(true),
++      ui: 'toggle',
++      section: 'File Browser',
++    },
++    {
++      key: 'editor.fontSize',
++      domain: 'file-browser',
++      label: 'Font Size',
++      description: 'Editor font size in pixels',
++      schema: z.number().min(8).max(32).default(14),
++      ui: 'number',
++      section: 'Editor',
++    },
++    {
++      key: 'editor.wordWrap',
++      domain: 'file-browser',
++      label: 'Word Wrap',
++      description: 'How lines should wrap in the editor',
++      schema: z.string().default('off'),
++      ui: 'select',
++      options: [
++        { value: 'off', label: 'Off' },
++        { value: 'on', label: 'On' },
++        { value: 'wordWrapColumn', label: 'At Column' },
++        { value: 'bounded', label: 'Bounded' },
++      ],
++      section: 'Editor',
++    },
++    {
++      key: 'editor.tabSize',
++      domain: 'file-browser',
++      label: 'Tab Size',
++      description: 'Number of spaces per tab stop',
++      schema: z.number().min(1).max(8).default(2),
++      ui: 'number',
++      section: 'Editor',
++    },
++  ],
++  keybindings: [],
++};
+
+diff --git a/apps/web/src/features/041-file-browser/sdk/register.ts b/apps/web/src/features/041-file-browser/sdk/register.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/web/src/features/041-file-browser/sdk/register.ts
+@@ -0,0 +1,45 @@
++/**
++ * File-browser SDK registration.
++ *
++ * Binds handlers to the static contribution manifest and registers
++ * bootstrap-safe commands (copyPath). Commands needing React refs
++ * (openFileAtLine) are registered via useEffect in browser-client.tsx.
++ *
++ * Per ADR-0009: registerXxxSDK(sdk) pattern.
++ * Per Plan 047, Phase 6, Task T001.
++ */
++
++import type { IUSDK } from '@chainglass/shared/sdk';
++
++import { fileBrowserContribution } from './contribution';
++
++/**
++ * Register file-browser SDK contributions that don't need component refs.
++ * Called from bootstrapSDK().
++ */
++export function registerFileBrowserSDK(sdk: IUSDK): void {
++  // Contribute settings
++  for (const setting of fileBrowserContribution.settings) {
++    sdk.settings.contribute(setting);
++  }
++
++  // Register copyPath — needs no refs, just reads current URL
++  sdk.commands.register({
++    ...fileBrowserContribution.commands.find((c) => c.id === 'file-browser.copyPath')!,
++    handler: async () => {
++      const url = new URL(window.location.href);
++      const file = url.searchParams.get('file');
++      if (file) {
++        await navigator.clipboard.writeText(file);
++        sdk.toast.success(`Copied: ${file}`);
++      } else {
++        sdk.toast.info('No file selected');
++      }
++    },
++  });
++
++  // Register keybindings
++  for (const binding of fileBrowserContribution.keybindings) {
++    sdk.keybindings.register(binding);
++  }
++}
+
+diff --git a/docs/how/sdk/consuming-sdk.md b/docs/how/sdk/consuming-sdk.md
+new file mode 100644
+--- /dev/null
++++ b/docs/how/sdk/consuming-sdk.md
+@@ -0,0 +1,95 @@
++# Consuming the USDK
++
++How to use SDK features from your React components — executing commands, reading settings, and accessing context.
++
++## Hooks
++
++### `useSDK()` — Access the SDK instance
++
++```typescript
++import { useSDK } from '@/lib/sdk/sdk-provider';
++
++function MyComponent() {
++  const sdk = useSDK();
++
++  const handleClick = () => {
++    sdk.commands.execute('file-browser.openFileAtLine', {
++      path: 'src/index.ts',
++      line: 42,
++    });
++  };
++
++  return <button onClick={handleClick}>Open File</button>;
++}
++```
++
++### `useSDKSetting()` — Reactive setting value
++
++```typescript
++import { useSDKSetting } from '@/lib/sdk/use-sdk-setting';
++
++function MyComponent() {
++  const [fontSize, setFontSize] = useSDKSetting<number>('editor.fontSize');
++
++  return (
++    <div style={{ fontSize }}>
++      <button onClick={() => setFontSize((fontSize ?? 14) + 1)}>
++        Increase Font Size
++      </button>
++    </div>
++  );
++}
++```
++
++The hook returns `[value, setValue]` — similar to `useState`. Changes persist to workspace preferences automatically (300ms debounce).
++
++### `useSDKContext()` — Reactive context key
++
++```typescript
++import { useSDKContext } from '@/lib/sdk/use-sdk-context';
++
++function MyComponent() {
++  const hasOpenFile = useSDKContext('file-browser.hasOpenFile');
++
++  return hasOpenFile ? <FileTools /> : null;
++}
++```
++
++## Command Palette
++
++Users open the command palette with **Ctrl+Shift+P** (or **Cmd+Shift+P** on Mac). Type `>` in the explorer bar to activate palette mode.
++
++All registered commands appear in the palette, sorted by most recently used (MRU).
++
++## Toast
++
++```typescript
++const sdk = useSDK();
++
++// Direct convenience methods
++sdk.toast.success('File saved');
++sdk.toast.error('Permission denied');
++sdk.toast.info('Processing...');
++sdk.toast.warning('Unsaved changes');
++```
++
++## Listing Commands & Shortcuts
++
++```typescript
++const sdk = useSDK();
++
++// List all commands
++const commands = sdk.commands.list();
++
++// List by domain
++const fbCommands = sdk.commands.list({ domain: 'file-browser' });
++
++// List keyboard shortcuts
++const bindings = sdk.keybindings.getBindings();
++```
++
++## ADR & Workshops
++
++- [ADR-0013: USDK Architecture](../../adr/adr-0013-usdk-internal-sdk-architecture.md)
++- [Workshop 003: Settings Data Model](../../plans/047-usdk/workshops/003-settings-domain-data-model.md)
++- [Workshop 004: SDK Events](../../plans/047-usdk/workshops/004-sdk-event-firing-via-events-domain.md)
+
+diff --git a/docs/how/sdk/publishing-to-sdk.md b/docs/how/sdk/publishing-to-sdk.md
+new file mode 100644
+--- /dev/null
++++ b/docs/how/sdk/publishing-to-sdk.md
+@@ -0,0 +1,129 @@
++# Publishing to the USDK
++
++How to make your domain's features discoverable through the SDK — command palette, keyboard shortcuts, and settings page.
++
++## Quick Start
++
++### 1. Create a contribution manifest
++
++```typescript
++// features/my-domain/sdk/contribution.ts
++import { z } from 'zod';
++import type { SDKContribution } from '@chainglass/shared/sdk';
++
++export const myDomainContribution: SDKContribution = {
++  domain: 'my-domain',
++  domainLabel: 'My Domain',
++  commands: [
++    {
++      id: 'my-domain.doSomething',
++      title: 'Do Something',
++      domain: 'my-domain',
++      category: 'Actions',
++      params: z.object({ target: z.string() }),
++      icon: 'play',
++    },
++  ],
++  settings: [
++    {
++      key: 'my-domain.autoRefresh',
++      domain: 'my-domain',
++      label: 'Auto Refresh',
++      description: 'Automatically refresh when files change',
++      schema: z.boolean().default(true),
++      ui: 'toggle',
++      section: 'My Domain',
++    },
++  ],
++  keybindings: [
++    { key: '$mod+Shift+KeyD', command: 'my-domain.doSomething' },
++  ],
++};
++```
++
++### 2. Create a register function
++
++```typescript
++// features/my-domain/sdk/register.ts
++import type { IUSDK } from '@chainglass/shared/sdk';
++import { myDomainContribution } from './contribution';
++
++export function registerMyDomainSDK(sdk: IUSDK): void {
++  // Contribute settings
++  for (const setting of myDomainContribution.settings) {
++    sdk.settings.contribute(setting);
++  }
++
++  // Register commands with handlers
++  const doCmd = myDomainContribution.commands.find(
++    (c) => c.id === 'my-domain.doSomething'
++  )!;
++  sdk.commands.register({
++    ...doCmd,
++    handler: async (params: unknown) => {
++      const { target } = params as { target: string };
++      // Your domain logic here
++      sdk.toast.success(`Done: ${target}`);
++    },
++  });
++
++  // Register keybindings
++  for (const binding of myDomainContribution.keybindings) {
++    sdk.keybindings.register(binding);
++  }
++}
++```
++
++### 3. Wire into bootstrap
++
++```typescript
++// In sdk-bootstrap.ts
++import { registerMyDomainSDK } from '@/features/my-domain/sdk/register';
++
++// After creating the sdk instance:
++registerMyDomainSDK(sdk);
++```
++
++## Key Concepts
++
++### Bootstrap-safe vs ref-dependent commands
++
++**Bootstrap-safe**: Commands that don't need React component refs. Register in `registerXxxSDK()` → called from `bootstrapSDK()`.
++
++**Ref-dependent**: Commands that need React refs (e.g., focus an input, scroll a panel). Register via `useEffect` in the owning component:
++
++```typescript
++useEffect(() => {
++  const reg = sdk.commands.register({
++    id: 'my-domain.focusPanel',
++    title: 'Focus Panel',
++    domain: 'my-domain',
++    params: z.object({}),
++    handler: async () => {
++      panelRef.current?.focus();
++    },
++  });
++  return () => reg.dispose();
++}, [sdk]);
++```
++
++### Settings types
++
++| `ui` value | Schema type | Renders as |
++|-----------|-------------|------------|
++| `toggle` | `z.boolean()` | Switch |
++| `select` | `z.string()` | Dropdown (needs `options`) |
++| `text` | `z.string()` | Text input |
++| `number` | `z.number()` | Number input |
++
++### Keyboard shortcut format
++
++Keys use tinykeys format: `$mod+KeyP`, `$mod+Shift+KeyK`. Chords use space separation: `$mod+KeyK $mod+KeyC`.
++
++`$mod` maps to Ctrl on Windows/Linux, Cmd on Mac.
++
++## ADR & Workshops
++
++- [ADR-0013: USDK Architecture](../../adr/adr-0013-usdk-internal-sdk-architecture.md)
++- [Workshop 001: SDK Surface](../../plans/047-usdk/workshops/001-sdk-surface-consumer-publisher-experience.md)
++- [Workshop 002: SDK Candidates](../../plans/047-usdk/workshops/002-initial-sdk-candidates.md)

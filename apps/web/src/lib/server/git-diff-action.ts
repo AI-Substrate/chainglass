@@ -75,8 +75,8 @@ async function isGitRepository(cwd: string): Promise<boolean> {
  *   console.log('Diff:', result.diff);
  * }
  */
-export async function getGitDiff(filePath: string): Promise<DiffResult> {
-  const projectRoot = getProjectRoot();
+export async function getGitDiff(filePath: string, cwd?: string): Promise<DiffResult> {
+  const projectRoot = cwd ?? getProjectRoot();
 
   // 1. Check if git is available
   if (!(await isGitAvailable())) {
