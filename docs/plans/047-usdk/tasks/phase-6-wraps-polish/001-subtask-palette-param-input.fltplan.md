@@ -3,7 +3,7 @@
 **Subtask**: [001-subtask-palette-param-input.md](./001-subtask-palette-param-input.md)
 **Phase**: Phase 6: SDK Wraps, Go-to-Line & Polish
 **Plan**: [usdk-plan.md](../../usdk-plan.md)
-**Status**: Ready
+**Status**: Landed
 
 ---
 
@@ -52,7 +52,7 @@ stateDiagram-v2
     S3 --> S4
     S4 --> [*]
 
-    class S1,S2,S3,S4 pending
+    class S1,S2,S3,S4 done
 ```
 
 **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -61,10 +61,10 @@ stateDiagram-v2
 
 ## Stages
 
-- [ ] Create `hasRequiredParams` + `extractFirstRequired` helpers (ST001)
-- [ ] Add param gathering state to ExplorerPanel (ST002)
-- [ ] Render param input hint in dropdown (ST003)
-- [ ] Remove safeParse stopgap filter (ST004)
+- [x] Create `hasRequiredParams` + `extractFirstRequired` helpers (ST001)
+- [x] Add param gathering state to ExplorerPanel (ST002)
+- [x] Render param input hint in dropdown (ST003)
+- [x] Remove safeParse stopgap filter (ST004)
 
 ---
 
@@ -92,10 +92,10 @@ flowchart LR
 
 ## Acceptance Criteria
 
-- [ ] `toast.show` visible in palette, prompts for message, executes with typed value
-- [ ] Commands with no required params execute immediately (no prompt)
-- [ ] Escape from param input returns to command list
-- [ ] Enter with empty input does nothing (no crash)
+- [x] `toast.show` visible in palette, prompts for message, executes with typed value
+- [x] Commands with no required params execute immediately (no prompt)
+- [x] Escape from param input returns to command list
+- [x] Enter with empty input does nothing (no crash)
 
 ---
 
