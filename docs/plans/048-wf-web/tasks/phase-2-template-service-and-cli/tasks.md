@@ -127,7 +127,7 @@ flowchart TD
 | [x] | T016 | CLI `cg template instantiate <slug> --id <id>` | _platform/positional-graph | `apps/cli/src/commands/template.command.ts` | Calls service.instantiate(), prints summary (instance path, graph status, units copied). | End-to-end: CLI → service → filesystem + runtime. |
 | [x] | T017 | CLI `cg template refresh <slug>/<id>` | _platform/positional-graph | `apps/cli/src/commands/template.command.ts` | Calls service.refresh(), prints refreshed units. If active run detected, outputs warning and prompts for confirmation (--force to skip). | Per spec AC-16. |
 | [x] | T018 | CLI `cg template instances <slug>` | _platform/positional-graph | `apps/cli/src/commands/template.command.ts` | Lists all instances of a template (instance ID, created_at, graph status). | Instance discovery. |
-| [ ] | T019 | Integration test: script paths after copy | _platform/positional-graph | `test/integration/template-lifecycle.test.ts` | Copy a code unit (with scripts/simulate.sh) from template to instance, verify script is executable, verify script can read its own unit.yaml via relative path from CWD. Test Doc format. | Per finding 01 — critical risk. Scripts use $CG_WORKSPACE_PATH. |
+| [x] | T019 | Integration test: script paths after copy | _platform/positional-graph | `test/integration/template-lifecycle.test.ts` | Copy a code unit (with scripts/simulate.sh) from template to instance, verify script is executable, verify script can read its own unit.yaml via relative path from CWD. Test Doc format. | Per finding 01 — critical risk. Scripts use $CG_WORKSPACE_PATH. |
 
 ## Context Brief
 
@@ -193,6 +193,10 @@ _Populated during implementation by plan-6._
 
 | Date | Task | Type | Discovery | Resolution | References |
 |------|------|------|-----------|------------|------------|
+| 2026-02-25 | T002 | decision | Instance data should be Git-tracked, not gitignored — eliminates dual-path and hydration | Workshop 003: unified storage under `.chainglass/instances/` | Workshop 003 |
+| 2026-02-25 | T011 | decision | InstanceWorkUnitAdapter needs base-path constructor, not (wfSlug, instanceId) tuple | `basePath: string` in constructor — decoupled from instance naming | DYK #2 |
+| 2026-02-25 | T012 | insight | Template created from fixture data (hand-authored topology + copied units) rather than running real graph engine | Equivalent output to saveFrom() on a real graph — validated by T003/T004 unit tests | Workshop 002 |
+| 2026-02-25 | DYK | decision | instance-metadata.schema gains template_commit and refresh_commit fields | Optional fields for Git commit tracking at create/refresh time — backward compatible | DYK #4 |
 
 ---
 

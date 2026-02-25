@@ -3,7 +3,7 @@
 **Plan**: [wf-web-plan.md](../../wf-web-plan.md)
 **Phase**: Phase 2: Template/Instance Service + CLI Commands
 **Generated**: 2026-02-25
-**Status**: Ready for takeoff
+**Status**: Landed
 
 ---
 
@@ -63,9 +63,7 @@ stateDiagram-v2
     S8 --> S9
     S9 --> [*]
 
-    class S1,S2,S3,S4,S5,S6,S7 done
-    class S8 active
-    class S9 pending
+    class S1,S2,S3,S4,S5,S6,S7,S8,S9 done
 ```
 
 **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -81,8 +79,8 @@ stateDiagram-v2
 - [x] **Stage 5: refresh TDD** — Tests then implementation for unit refresh with active-run warning (`template-service.test.ts`, `template.service.ts` — append)
 - [x] **Stage 6: InstanceWorkUnitAdapter** — Unit loader that resolves from instance-local paths (`instance-workunit.adapter.ts` — new file)
 - [x] **Stage 7: Real template** — Build advanced-pipeline graph imperatively, save as template (`.chainglass/templates/workflows/advanced-pipeline/`)
-- [~] **Stage 8: CLI commands** — 6 commands under `cg template` + DI wiring (`template.command.ts`, `container.ts` — new + modify)
-- [ ] **Stage 9: Integration test** — Script path validation after copy (`template-lifecycle.test.ts` — new file)
+- [x] **Stage 8: CLI commands** — 6 commands under `cg template` + DI wiring (`template.command.ts`, `container.ts` — new + modify)
+- [x] **Stage 9: Integration test** — Script path validation after copy (`template-lifecycle.test.ts` — new file)
 
 ---
 
@@ -154,10 +152,10 @@ flowchart LR
 - [x] T010: Implement TemplateService.refresh()
 - [x] T011: Create InstanceWorkUnitAdapter
 - [x] T012: Build and save advanced-pipeline template
-- [~] T013: Register CLI command group + DI wiring
-- [ ] T014: CLI save-from
-- [ ] T015: CLI list + show
-- [ ] T016: CLI instantiate
-- [ ] T017: CLI refresh
-- [ ] T018: CLI instances
-- [ ] T019: Integration test: script paths
+- [x] T013: Register CLI command group + DI wiring
+- [x] T014: CLI save-from
+- [x] T015: CLI list + show
+- [x] T016: CLI instantiate
+- [x] T017: CLI refresh
+- [x] T018: CLI instances
+- [x] T019: Integration test: script paths

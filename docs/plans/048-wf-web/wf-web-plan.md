@@ -166,28 +166,28 @@ CLI commands are the primary interface and are introduced early (Phase 2) so the
 
 ## Acceptance Criteria
 
-- [ ] AC-1: `_platform/positional-graph` domain entry exists in registry (done)
-- [ ] AC-2: `domain.md` exists for positional-graph (done)
-- [ ] AC-3: Domain map updated (done)
-- [ ] AC-4: Workflow templates at `.chainglass/templates/workflows/<slug>/`
-- [ ] AC-5: Workflow template contains graph.yaml + nodes/*/node.yaml + units/ (saved from working graph instance)
-- [ ] AC-6: Instantiation creates independent copy
-- [ ] AC-7: Template modification doesn't affect instances
-- [ ] AC-8: Multiple instances from same template
-- [ ] AC-9: Work unit templates at `.chainglass/templates/units/<slug>/` (standalone library)
-- [ ] AC-10: Work units contain unit.yaml + prompts/ + scripts/
-- [ ] AC-11: Instance creation copies all referenced units
-- [ ] AC-12: Unit template modification doesn't affect instances
-- [ ] AC-13: Refresh overwrites all units at once
-- [ ] AC-14: Refresh records source template metadata
-- [ ] AC-15: Refresh metadata stored per-instance (instance.yaml)
-- [ ] AC-16: Active run warning on refresh
-- [ ] AC-17: All template/instance files Git-tracked
-- [ ] AC-18: Templates merge via standard Git
-- [ ] AC-19: No special tooling for Git sharing
-- [ ] AC-20: Existing fixtures represented as templates
-- [ ] AC-21: E2E test validates full lifecycle
-- [ ] AC-22: Existing e2e tests reconfigured for template system
+- [x] AC-1: `_platform/positional-graph` domain entry exists in registry (Phase 1)
+- [x] AC-2: `domain.md` exists for positional-graph (Phase 1)
+- [x] AC-3: Domain map updated (Phase 1)
+- [x] AC-4: Workflow templates at `.chainglass/templates/workflows/<slug>/` (Phase 2: T012)
+- [x] AC-5: Workflow template contains graph.yaml + nodes/*/node.yaml + units/ (Phase 2: T004, T012)
+- [x] AC-6: Instantiation creates independent copy (Phase 2: T008)
+- [ ] AC-7: Template modification doesn't affect instances (Phase 3: integration test)
+- [ ] AC-8: Multiple instances from same template (Phase 3: integration test)
+- [ ] AC-9: Work unit templates at `.chainglass/templates/units/<slug>/` (standalone library — deferred)
+- [x] AC-10: Work units contain unit.yaml + prompts/ + scripts/ (Phase 2: T012)
+- [x] AC-11: Instance creation copies all referenced units (Phase 2: T008)
+- [ ] AC-12: Unit template modification doesn't affect instances (Phase 3: integration test)
+- [x] AC-13: Refresh overwrites all units at once (Phase 2: T010)
+- [x] AC-14: Refresh records source template metadata (Phase 2: T010 — instance.yaml updated)
+- [x] AC-15: Refresh metadata stored per-instance (Phase 2: instance.yaml with refreshed_at)
+- [x] AC-16: Active run warning on refresh (Phase 2: T010 — ACTIVE_RUN_WARNING in errors[])
+- [x] AC-17: All template/instance files Git-tracked (Phase 2: Workshop 003 unified storage)
+- [x] AC-18: Templates merge via standard Git (Phase 2: files in .chainglass/ tracked by default)
+- [x] AC-19: No special tooling for Git sharing (Phase 2: no hydration needed)
+- [ ] AC-20: Existing fixtures represented as templates (Phase 4)
+- [ ] AC-21: E2E test validates full lifecycle (Phase 4)
+- [ ] AC-22: Existing e2e tests reconfigured for template system (Phase 4)
 
 ## Risks
 
@@ -218,6 +218,6 @@ CLI commands are the primary interface and are introduced early (Phase 2) so the
 | Phase | Status | Completed |
 |-------|--------|-----------|
 | Phase 1: Schema + Interfaces | Complete | 6/6 tasks |
-| Phase 2: Service + CLI | Not Started | — |
+| Phase 2: Service + CLI | Complete | 19/19 tasks |
 | Phase 3: Graph Activation | Not Started | — |
 | Phase 4: E2E + Docs | Not Started | — |
