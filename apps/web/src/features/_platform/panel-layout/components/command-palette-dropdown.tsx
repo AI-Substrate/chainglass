@@ -74,7 +74,10 @@ export const CommandPaletteDropdown = forwardRef<
     const all = sdk.commands.list().filter((c) => {
       // Hide openCommandPalette from the palette itself (circular)
       if (c.id === 'sdk.openCommandPalette') return false;
-      return sdk.commands.isAvailable(c.id);
+      if (!sdk.commands.isAvailable(c.id)) return false;
+      // Hide commands with required params (no param gathering UI yet)
+      if (!c.params.safeParse({}).success) return false;
+      return true;
     });
     return filterAndSort(all, filter, mru.getOrder());
   }, [sdk, filter, mru, mode]);
