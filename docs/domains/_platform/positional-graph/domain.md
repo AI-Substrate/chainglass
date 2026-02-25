@@ -14,6 +14,7 @@ Core graph engine that powers the line-based workflow execution system. Owns the
 
 ### Owns
 
+- Workflow template and instance lifecycle: saveFrom, instantiate, refresh, status queries (via `@chainglass/workflow` package, Plan 048)
 - Graph structure: lines, nodes, topology, metadata, properties
 - Graph state persistence: state.json read/write, atomic file operations
 - Node execution lifecycle: starting → agent-accepted → waiting-question → complete (and error/restart branches)
@@ -30,7 +31,8 @@ Core graph engine that powers the line-based workflow execution system. Owns the
 
 ### Does NOT Own
 
-- Workflow template registry and lifecycle — belongs to `@chainglass/workflow` package (not yet a formalized domain)
+- Legacy workflow system (wf.yaml, phases, checkpoints, runs) — being removed
+- Workspace context resolution — belongs to `@chainglass/workflow` package (shared utility, not template-specific)
 - Workspace context resolution — belongs to `@chainglass/workflow` package
 - Legacy graph CRUD wrapper — belongs to `_platform/workgraph` domain (deprecated)
 - CLI command presentation — Consumer domain per ADR-0012
@@ -50,6 +52,8 @@ Core graph engine that powers the line-based workflow execution system. Owns the
 | `IWorkUnitService` | Interface | CLI (`cg wf` container), tests | Work unit loading, listing, type resolution (positional-graph variant) |
 | `IWorkUnitLoader` | Interface | Internal (graph service), tests | Narrow interface for work unit existence validation during addNode |
 | `IScriptRunner` | Interface | Internal (ODS), tests | Code node execution contract |
+| `ITemplateService` | Interface | CLI (`cg template`), web, tests | Template CRUD — saveFrom, listWorkflows, showWorkflow, instantiate, listInstances, refresh (Plan 048) |
+| `IInstanceService` | Interface | CLI, web, tests | Instance status queries — getStatus (Plan 048) |
 | `registerPositionalGraphServices()` | Function | CLI (`cg wf` container), web (di-container) | DI registration for all positional-graph services |
 | `registerOrchestrationServices()` | Function | CLI (`cg wf` container) | DI registration for orchestration subsystem |
 | `POSITIONAL_GRAPH_DI_TOKENS` | Constants | CLI, web, tests | DI token namespace (defined in @chainglass/shared) |
@@ -73,6 +77,10 @@ Core graph engine that powers the line-based workflow execution system. Owns the
 | `WorkUnitService` (029) | Work unit loading and validation | WorkUnitAdapter, Zod schemas |
 | `WorkUnitAdapter` (029) | Filesystem loading of unit.yaml | IFileSystem, IPathResolver |
 | `InspectService` (040) | Rich graph introspection | PositionalGraphService |
+| `TemplateManifestSchema` | Template directory validation (Plan 048) | Zod, `z.infer<>` |
+| `InstanceMetadataSchema` | Instance.yaml validation (Plan 048) | Zod, `z.infer<>` |
+| `FakeTemplateService` | Test double for ITemplateService (Plan 048) | Call tracking + return builders |
+| `FakeInstanceService` | Test double for IInstanceService (Plan 048) | Call tracking + return builders |
 
 ## Source Location
 
@@ -91,6 +99,12 @@ Primary: `packages/positional-graph/src/`
 | `packages/positional-graph/src/errors/` | Error codes and factories | E150-E189 |
 | `packages/positional-graph/src/container.ts` | DI registration functions | Wires all services |
 | `packages/positional-graph/src/index.ts` | Barrel exports | Public API surface |
+| `packages/workflow/src/schemas/workflow-template.schema.ts` | Template manifest Zod schema | Plan 048 |
+| `packages/workflow/src/schemas/instance-metadata.schema.ts` | Instance metadata Zod schema | Plan 048 |
+| `packages/workflow/src/interfaces/template-service.interface.ts` | ITemplateService contract | Plan 048 |
+| `packages/workflow/src/interfaces/instance-service.interface.ts` | IInstanceService contract | Plan 048 |
+| `packages/workflow/src/fakes/fake-template-service.ts` | Test double | Plan 048 |
+| `packages/workflow/src/fakes/fake-instance-service.ts` | Test double | Plan 048 |
 
 ## Dependencies
 
@@ -122,4 +136,4 @@ Primary: `packages/positional-graph/src/`
 | 034 | Agentic CLI — agent redesign, manager service | 2025 |
 | 036 | CLI orchestration driver — `cg wf run` command, drive loop | 2025-2026 |
 | 040 | Graph inspect CLI — graph introspection commands | 2026 |
-| 048 | Domain extracted from existing codebase | 2026-02-25 |
+| 048 | Workflow templates & instances — template/instance schemas, ITemplateService, IInstanceService, fakes, contract tests (Phase 1) | 2026-02-25 |

@@ -133,5 +133,8 @@ export class FakeTemplateService implements ITemplateService {
     this.refreshCalls.length = 0;
     this.workflows = [];
     this.instances.clear();
+    this.saveFromResult = { data: null, errors: [] };
+    this.instantiateResult = { data: null, errors: [] };
+    this.refreshResult = { data: null, errors: [] };
   }
 }

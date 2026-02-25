@@ -405,6 +405,48 @@ export {
 } from './adapters/index.js';
 export { FakeFileWatcher, FakeFileWatcherFactory } from './fakes/index.js';
 
+// Template/Instance schemas (Plan 048)
+export {
+  TemplateNodeEntrySchema,
+  TemplateUnitEntrySchema,
+  TemplateManifestSchema,
+} from './schemas/workflow-template.schema.js';
+export type {
+  TemplateNodeEntry,
+  TemplateUnitEntry,
+  TemplateManifest,
+} from './schemas/workflow-template.schema.js';
+export {
+  InstanceUnitEntrySchema,
+  InstanceMetadataSchema,
+} from './schemas/instance-metadata.schema.js';
+export type {
+  InstanceUnitEntry,
+  InstanceMetadata,
+} from './schemas/instance-metadata.schema.js';
+
+// Template/Instance interfaces (Plan 048)
+export type {
+  ITemplateService,
+  ListWorkflowsResult,
+  ShowWorkflowResult,
+  SaveFromResult,
+  InstantiateResult,
+  ListInstancesResult,
+  RefreshResult,
+} from './interfaces/index.js';
+export type {
+  IInstanceService,
+  InstanceStatus,
+  GetStatusResult,
+} from './interfaces/index.js';
+
+// Template/Instance fakes (Plan 048)
+export { FakeTemplateService } from './fakes/index.js';
+export type { SaveFromCall, InstantiateCall, RefreshCall } from './fakes/index.js';
+export { FakeInstanceService } from './fakes/index.js';
+export type { GetStatusCall } from './fakes/index.js';
+
 // Central watcher notification system (Plan 023)
 export type {
   WatcherEvent,
