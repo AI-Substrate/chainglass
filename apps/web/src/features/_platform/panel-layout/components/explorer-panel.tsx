@@ -206,6 +206,7 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
                 onBlur={handleBlur}
+                onFocus={() => setEditing(true)}
                 placeholder={placeholder}
                 className="flex-1 bg-transparent font-mono text-sm text-foreground outline-none placeholder:text-muted-foreground"
                 aria-label="File path"
