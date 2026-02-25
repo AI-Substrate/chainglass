@@ -100,3 +100,9 @@ export type {
 
 // File watcher fake (Plan 022 Phase 4 Subtask 001)
 export { FakeFileWatcher, FakeFileWatcherFactory } from './fake-file-watcher.js';
+
+// Template/Instance fakes (Plan 048)
+export { FakeTemplateService } from './fake-template-service.js';
+export type { SaveFromCall, InstantiateCall, RefreshCall } from './fake-template-service.js';
+export { FakeInstanceService } from './fake-instance-service.js';
+export type { GetStatusCall } from './fake-instance-service.js';

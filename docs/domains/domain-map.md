@@ -7,6 +7,7 @@
 flowchart LR
     classDef business fill:#E3F2FD,stroke:#2196F3,color:#000
     classDef infra fill:#F3E5F5,stroke:#9C27B0,color:#000
+    classDef deprecated fill:#FFEBEE,stroke:#F44336,color:#000
 
     %% Infrastructure domains
     fileOps["⚙️ _platform/file-ops<br/>IFileSystem · IPathResolver"]:::infra
@@ -16,6 +17,8 @@ flowchart LR
     panels["🗂️ _platform/panel-layout<br/>PanelShell · ExplorerPanel<br/>LeftPanel · MainPanel<br/>PanelHeader · BarHandler<br/>AsciiSpinner"]:::infra
     sdk["🧩 _platform/sdk<br/>IUSDK · ICommandRegistry<br/>ISDKSettings · IContextKeyService<br/>IKeybindingService<br/>SDKCommand · SDKSetting"]:::infra
     settings["⚙️ _platform/settings<br/>Settings Page<br/>SettingControl · SettingsSearch"]:::infra
+    posGraph["📊 _platform/positional-graph<br/>IPositionalGraphService<br/>IOrchestrationService<br/>IEventHandlerService<br/>IWorkUnitService"]:::infra
+    workgraph["🗄️ _platform/workgraph<br/>IWorkGraphService<br/>IWorkNodeService<br/>IWorkUnitService<br/>(DEPRECATED)"]:::deprecated
 
     %% Business domains
     fileBrowser["📁 file-browser<br/>Browser page · FileTree<br/>CodeEditor · FileViewerPanel<br/>WorkspaceContext · Settings"]:::business
@@ -34,12 +37,19 @@ flowchart LR
     events -->|"IUSDK<br/>(publishes toast)"| sdk
     panels -->|"ICommandRegistry<br/>(hosts palette)"| sdk
     settings -->|"ISDKSettings<br/>useSDKSetting<br/>useSDK"| sdk
+
+    %% Positional graph dependencies
+    posGraph -->|"IFileSystem<br/>IPathResolver"| fileOps
+
+    %% Legacy workgraph dependencies
+    workgraph -->|"IFileSystem<br/>IPathResolver"| fileOps
 ```
 
 ## Legend
 
 - **Blue**: Business domains (user-facing capabilities)
 - **Purple**: Infrastructure domains (cross-cutting technical capabilities)
+- **Red**: Deprecated domains (pending removal)
 - **Solid arrows** (→): Contract dependency (A consumes B's contract)
 - **Labels on arrows**: Contract name being consumed
 
@@ -55,5 +65,7 @@ flowchart LR
 | file-browser | Browser page, FileTree, FileViewerPanel, WorkspaceContext, EmojiPicker, ColorPicker, Settings | — | IFileSystem, workspaceHref, viewers, toast, events, panels | file-ops, workspace-url, viewer, events, panel-layout | ✅ |
 | _platform/sdk | IUSDK, ICommandRegistry, ISDKSettings, IContextKeyService, IKeybindingService, SDKCommand, SDKSetting, FakeUSDK | file-browser, events, panel-layout, settings | — | — | ✅ |
 | _platform/settings | Settings Page, sdk.openSettings | — | ISDKSettings, useSDKSetting, useSDK | sdk | ✅ |
+| _platform/positional-graph | IPositionalGraphService, IOrchestrationService, IEventHandlerService, IWorkUnitService | CLI (`cg wf`), web UI (022)*, dev/test-graphs | IFileSystem, IPathResolver | file-ops | ✅ |
+| _platform/workgraph | IWorkGraphService, IWorkNodeService, IWorkUnitService | CLI (`cg wg`, `cg unit`), web UI (022)*, API routes, event adapters (023, 027) | IFileSystem, IPathResolver | file-ops | ⚠️ Deprecated |
 
-*workgraph-ui and agent-ui are not yet formalized as domains but are known consumers
+*workgraph-ui and agent-ui are not yet formalized as domains but are known consumers of both positional-graph and workgraph

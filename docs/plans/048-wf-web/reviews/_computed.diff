@@ -1,0 +1,1054 @@
+diff --git a/apps/web/next-env.d.ts b/apps/web/next-env.d.ts
+index 9edff1c..c4b7818 100644
+--- a/apps/web/next-env.d.ts
++++ b/apps/web/next-env.d.ts
+@@ -1,6 +1,6 @@
+ /// <reference types="next" />
+ /// <reference types="next/image-types/global" />
+-import "./.next/types/routes.d.ts";
++import "./.next/dev/types/routes.d.ts";
+ 
+ // NOTE: This file should not be edited
+ // see https://nextjs.org/docs/app/api-reference/config/typescript for more information.
+diff --git a/docs/domains/domain-map.md b/docs/domains/domain-map.md
+index 10345fd..9a7cc03 100644
+--- a/docs/domains/domain-map.md
++++ b/docs/domains/domain-map.md
+@@ -7,6 +7,7 @@
+ flowchart LR
+     classDef business fill:#E3F2FD,stroke:#2196F3,color:#000
+     classDef infra fill:#F3E5F5,stroke:#9C27B0,color:#000
++    classDef deprecated fill:#FFEBEE,stroke:#F44336,color:#000
+ 
+     %% Infrastructure domains
+     fileOps["⚙️ _platform/file-ops<br/>IFileSystem · IPathResolver"]:::infra
+@@ -16,6 +17,8 @@ flowchart LR
+     panels["🗂️ _platform/panel-layout<br/>PanelShell · ExplorerPanel<br/>LeftPanel · MainPanel<br/>PanelHeader · BarHandler<br/>AsciiSpinner"]:::infra
+     sdk["🧩 _platform/sdk<br/>IUSDK · ICommandRegistry<br/>ISDKSettings · IContextKeyService<br/>IKeybindingService<br/>SDKCommand · SDKSetting"]:::infra
+     settings["⚙️ _platform/settings<br/>Settings Page<br/>SettingControl · SettingsSearch"]:::infra
++    posGraph["📊 _platform/positional-graph<br/>IPositionalGraphService<br/>IOrchestrationService<br/>IEventHandlerService<br/>IWorkUnitService"]:::infra
++    workgraph["🗄️ _platform/workgraph<br/>IWorkGraphService<br/>IWorkNodeService<br/>IWorkUnitService<br/>(DEPRECATED)"]:::deprecated
+ 
+     %% Business domains
+     fileBrowser["📁 file-browser<br/>Browser page · FileTree<br/>CodeEditor · FileViewerPanel<br/>WorkspaceContext · Settings"]:::business
+@@ -34,12 +37,19 @@ flowchart LR
+     events -->|"IUSDK<br/>(publishes toast)"| sdk
+     panels -->|"ICommandRegistry<br/>(hosts palette)"| sdk
+     settings -->|"ISDKSettings<br/>useSDKSetting<br/>useSDK"| sdk
++
++    %% Positional graph dependencies
++    posGraph -->|"IFileSystem<br/>IPathResolver"| fileOps
++
++    %% Legacy workgraph dependencies
++    workgraph -->|"IFileSystem<br/>IPathResolver"| fileOps
+ ```
+ 
+ ## Legend
+ 
+ - **Blue**: Business domains (user-facing capabilities)
+ - **Purple**: Infrastructure domains (cross-cutting technical capabilities)
++- **Red**: Deprecated domains (pending removal)
+ - **Solid arrows** (→): Contract dependency (A consumes B's contract)
+ - **Labels on arrows**: Contract name being consumed
+ 
+@@ -55,5 +65,7 @@ flowchart LR
+ | file-browser | Browser page, FileTree, FileViewerPanel, WorkspaceContext, EmojiPicker, ColorPicker, Settings | — | IFileSystem, workspaceHref, viewers, toast, events, panels | file-ops, workspace-url, viewer, events, panel-layout | ✅ |
+ | _platform/sdk | IUSDK, ICommandRegistry, ISDKSettings, IContextKeyService, IKeybindingService, SDKCommand, SDKSetting, FakeUSDK | file-browser, events, panel-layout, settings | — | — | ✅ |
+ | _platform/settings | Settings Page, sdk.openSettings | — | ISDKSettings, useSDKSetting, useSDK | sdk | ✅ |
++| _platform/positional-graph | IPositionalGraphService, IOrchestrationService, IEventHandlerService, IWorkUnitService | CLI (`cg wf`), web UI (022)*, dev/test-graphs | IFileSystem, IPathResolver | file-ops | ✅ |
++| _platform/workgraph | IWorkGraphService, IWorkNodeService, IWorkUnitService | CLI (`cg wg`, `cg unit`), web UI (022)*, API routes, event adapters (023, 027) | IFileSystem, IPathResolver | file-ops | ⚠️ Deprecated |
+ 
+-*workgraph-ui and agent-ui are not yet formalized as domains but are known consumers
++*workgraph-ui and agent-ui are not yet formalized as domains but are known consumers of both positional-graph and workgraph
+diff --git a/docs/domains/registry.md b/docs/domains/registry.md
+index 4ba7df3..b00e1b9 100644
+--- a/docs/domains/registry.md
++++ b/docs/domains/registry.md
+@@ -10,6 +10,8 @@
+ | File Browser | file-browser | business | — | Plan 041 | active |
+ | SDK | _platform/sdk | infrastructure | _platform | Plan 047 — USDK | active |
+ | Settings | _platform/settings | infrastructure | _platform | Plan 047 — USDK Phase 5 | active |
++| Positional Graph | _platform/positional-graph | infrastructure | _platform | extracted (Plan 048) | active |
++| Workgraph (Legacy) | _platform/workgraph | infrastructure | _platform | extracted (Plan 048) | deprecated |
+ 
+ ## Domain Types
+ 
+diff --git a/packages/workflow/src/fakes/index.ts b/packages/workflow/src/fakes/index.ts
+index 5bfb573..8234c2d 100644
+--- a/packages/workflow/src/fakes/index.ts
++++ b/packages/workflow/src/fakes/index.ts
+@@ -100,3 +100,9 @@ export type {
+ 
+ // File watcher fake (Plan 022 Phase 4 Subtask 001)
+ export { FakeFileWatcher, FakeFileWatcherFactory } from './fake-file-watcher.js';
++
++// Template/Instance fakes (Plan 048)
++export { FakeTemplateService } from './fake-template-service.js';
++export type { SaveFromCall, InstantiateCall, RefreshCall } from './fake-template-service.js';
++export { FakeInstanceService } from './fake-instance-service.js';
++export type { GetStatusCall } from './fake-instance-service.js';
+diff --git a/packages/workflow/src/interfaces/index.ts b/packages/workflow/src/interfaces/index.ts
+index 51257d2..01d060c 100644
+--- a/packages/workflow/src/interfaces/index.ts
++++ b/packages/workflow/src/interfaces/index.ts
+@@ -137,3 +137,19 @@ export type {
+   IFileWatcher,
+   IFileWatcherFactory,
+ } from './file-watcher.interface.js';
++
++// Template/Instance system (Plan 048)
++export type {
++  ITemplateService,
++  ListWorkflowsResult,
++  ShowWorkflowResult,
++  SaveFromResult,
++  InstantiateResult,
++  ListInstancesResult,
++  RefreshResult,
++} from './template-service.interface.js';
++export type {
++  IInstanceService,
++  InstanceStatus,
++  GetStatusResult,
++} from './instance-service.interface.js';
+diff --git a/docs/domains/_platform/positional-graph/domain.md b/docs/domains/_platform/positional-graph/domain.md
+new file mode 100644
+--- /dev/null
++++ b/docs/domains/_platform/positional-graph/domain.md
+@@ -0,0 +1,125 @@
++# Domain: Positional Graph
++
++**Slug**: `_platform/positional-graph`
++**Type**: infrastructure
++**Created**: 2026-02-25
++**Created By**: extracted from existing codebase (Plan 048)
++**Status**: active
++
++## Purpose
++
++Core graph engine that powers the line-based workflow execution system. Owns the positional graph database (structure, state, persistence), the node execution state machine, the orchestration loop (Reality/ONBAS/ODS/drive), the node event system, and work unit loading. Provides the runtime for all agentic workflow execution — without this domain, no workflows can run.
++
++## Boundary
++
++### Owns
++
++- Graph structure: lines, nodes, topology, metadata, properties
++- Graph state persistence: state.json read/write, atomic file operations
++- Node execution lifecycle: starting → agent-accepted → waiting-question → complete (and error/restart branches)
++- Input resolution algorithm: literal, from-previous, from-data, from-file resolution modes
++- Orchestration subsystem: Reality snapshots, ONBAS (pure decisions), ODS (fire-and-forget launch), `run()` single-pass, `drive()` persistent loop
++- Node event system: raise, handle, stamp events; event type registry; event handler registry; core event types
++- Work unit loading and validation (positional-graph's own IWorkUnitService variant)
++- Pod management: AgentPod, CodePod, PodManager, session lifecycle
++- Agent context: execution context provided to agents during node execution
++- Script runner: code node execution
++- Graph inspection: rich graph structure introspection (Plan 040)
++- ID generation: node IDs, line IDs, event IDs
++- Error codes: E150-E179 (positional graph), E180-E189 (work units)
++
++### Does NOT Own
++
++- Workflow template registry and lifecycle — belongs to `@chainglass/workflow` package (not yet a formalized domain)
++- Workspace context resolution — belongs to `@chainglass/workflow` package
++- Legacy graph CRUD wrapper — belongs to `_platform/workgraph` domain (deprecated)
++- CLI command presentation — Consumer domain per ADR-0012
++- Web UI presentation — Consumer domain per ADR-0012
++- Agent instance management (IAgentInstance, IAgentManagerService) — Agent domain per ADR-0012
++- Filesystem abstraction (IFileSystem, IPathResolver) — `_platform/file-ops` domain
++
++## Contracts (Public Interface)
++
++| Contract | Type | Consumers | Description |
++|----------|------|-----------|-------------|
++| `IPositionalGraphService` | Interface | CLI (`cg wf` commands), dev/test-graphs, tests | Primary graph CRUD, status, state, node/line operations, input wiring, output storage, Q&A protocol |
++| `IOrchestrationService` | Interface | CLI (`cg wf` container), tests | DI-registered factory — returns per-graph `IGraphOrchestration` handles |
++| `IGraphOrchestration` | Interface | CLI (`cg wf drive` handler), tests | Per-graph orchestration handle with `run()` and `drive()` |
++| `IEventHandlerService` | Interface | CLI (`cg wf` container), tests | Node event handling, routing, and settle-phase processing |
++| `INodeEventService` | Interface | Internal (orchestration), tests | Event store — persist, query, stamp node events |
++| `IWorkUnitService` | Interface | CLI (`cg wf` container), tests | Work unit loading, listing, type resolution (positional-graph variant) |
++| `IWorkUnitLoader` | Interface | Internal (graph service), tests | Narrow interface for work unit existence validation during addNode |
++| `IScriptRunner` | Interface | Internal (ODS), tests | Code node execution contract |
++| `registerPositionalGraphServices()` | Function | CLI (`cg wf` container), web (di-container) | DI registration for all positional-graph services |
++| `registerOrchestrationServices()` | Function | CLI (`cg wf` container) | DI registration for orchestration subsystem |
++| `POSITIONAL_GRAPH_DI_TOKENS` | Constants | CLI, web, tests | DI token namespace (defined in @chainglass/shared) |
++| `ORCHESTRATION_DI_TOKENS` | Constants | CLI, tests | DI token namespace for orchestration services |
++
++## Composition (Internal)
++
++| Component | Role | Depends On |
++|-----------|------|------------|
++| `PositionalGraphService` | Core engine — graph CRUD, status, state, lifecycle | PositionalGraphAdapter, IFileSystem, IPathResolver, IYamlParser |
++| `PositionalGraphAdapter` | Filesystem persistence — load/save graph definitions | IFileSystem, IPathResolver |
++| `InputResolution` | Resolve node inputs from various sources | PositionalGraphService (state reads) |
++| `OrchestrationService` | Factory for per-graph orchestration handles | PositionalGraphService, ODS, ONBAS, PodManager |
++| `GraphOrchestration` | Per-graph orchestration loop (settle→decide→act) | PositionalGraphService, EventHandlerService, ONBAS, ODS |
++| `ODS` | Orchestration Dispatch — fire-and-forget launch | PodManager, AgentContext |
++| `ONBAS` | Next-Best-Action decisions — pure, stateless | Reality snapshot (read-only) |
++| `PodManager` | Pod lifecycle management | AgentPod, CodePod, ScriptRunner |
++| `NodeEventService` | Event store — persist, query, stamp | IFileSystem (state.json) |
++| `EventHandlerService` | Event routing and handler invocation | NodeEventService, EventHandlerRegistry |
++| `NodeEventRegistry` | Event type definitions and validation | Core event types |
++| `WorkUnitService` (029) | Work unit loading and validation | WorkUnitAdapter, Zod schemas |
++| `WorkUnitAdapter` (029) | Filesystem loading of unit.yaml | IFileSystem, IPathResolver |
++| `InspectService` (040) | Rich graph introspection | PositionalGraphService |
++
++## Source Location
++
++Primary: `packages/positional-graph/src/`
++
++| File/Area | Role | Notes |
++|-----------|------|-------|
++| `packages/positional-graph/src/services/` | Core services (graph engine, input resolution, ID gen, atomic writes) | 4 files |
++| `packages/positional-graph/src/interfaces/` | Master service interface | IPositionalGraphService (~50 methods) |
++| `packages/positional-graph/src/schemas/` | Graph, node, state, properties, enums, orchestrator-settings | 6 files, Zod source of truth |
++| `packages/positional-graph/src/adapter/` | Filesystem persistence adapter | Reads/writes .chainglass/data/workflows/ |
++| `packages/positional-graph/src/features/029-agentic-work-units/` | WorkUnit types, schema, service, adapter, classes, fakes | 8+ files |
++| `packages/positional-graph/src/features/030-orchestration/` | Orchestration, ODS, ONBAS, Reality, Pods, Agent context, Script runner | ~30 files |
++| `packages/positional-graph/src/features/032-node-event-system/` | Event service, handler, registry, schemas, core types, fakes | ~20 files |
++| `packages/positional-graph/src/features/040-graph-inspect/` | Graph inspection and formatting | 4 files |
++| `packages/positional-graph/src/errors/` | Error codes and factories | E150-E189 |
++| `packages/positional-graph/src/container.ts` | DI registration functions | Wires all services |
++| `packages/positional-graph/src/index.ts` | Barrel exports | Public API surface |
++
++## Dependencies
++
++### This Domain Depends On
++
++| Domain/Package | What It Consumes | Notes |
++|---------------|-----------------|-------|
++| `_platform/file-ops` (via @chainglass/shared) | `IFileSystem`, `IPathResolver` | All disk I/O for graph state, unit loading |
++| `@chainglass/shared` | `IYamlParser`, DI tokens, Result types, logging | Foundation utilities |
++| `@chainglass/workflow` (not yet a domain) | `WorkspaceContext` type | Passed as first param to all service methods |
++
++### Domains That Depend On This
++
++| Consumer | What It Consumes | Notes |
++|----------|-----------------|-------|
++| CLI (`apps/cli/`) | `IPositionalGraphService`, `IOrchestrationService`, `IEventHandlerService`, `IWorkUnitService` | `cg wf` commands + `cg wf drive` handler |
++| Web UI (feature 022) | Via API routes that resolve graph services | workgraph-ui components (not yet a formalized domain) |
++| dev/test-graphs | `IPositionalGraphService` | Test fixture infrastructure |
++| Test suite | All interfaces | 80+ test files across unit/integration/e2e |
++
++## History
++
++| Plan | What Changed | Date |
++|------|-------------|------|
++| 026 | Positional graph model — line-based topology, input resolution, 4-gate algorithm | 2025 |
++| 029 | Agentic work units — discriminated union types, reserved params | 2025 |
++| 030 | Positional orchestrator — Reality, ONBAS, ODS, pod lifecycle | 2025 |
++| 032 | Node event system — event types, handlers, settle phase | 2025 |
++| 034 | Agentic CLI — agent redesign, manager service | 2025 |
++| 036 | CLI orchestration driver — `cg wf run` command, drive loop | 2025-2026 |
++| 040 | Graph inspect CLI — graph introspection commands | 2026 |
++| 048 | Domain extracted from existing codebase | 2026-02-25 |
+diff --git a/docs/domains/_platform/workgraph/domain.md b/docs/domains/_platform/workgraph/domain.md
+new file mode 100644
+--- /dev/null
++++ b/docs/domains/_platform/workgraph/domain.md
+@@ -0,0 +1,110 @@
++# Domain: Workgraph (Legacy)
++
++**Slug**: `_platform/workgraph`
++**Type**: infrastructure
++**Created**: 2026-02-25
++**Created By**: extracted from existing codebase (Plan 048)
++**Status**: deprecated
++
++> **Deprecation Notice**: This domain is the legacy graph CRUD wrapper that predates the positional-graph engine. It is being fully removed in a future plan. The positional-graph domain (`_platform/positional-graph`) is its successor. No new features should be added to this domain.
++
++## Purpose
++
++Legacy workspace-scoped graph CRUD adapter layer. Provides graph creation, node management, work unit enumeration, cycle detection, and layout persistence. Originally built as the primary workflow graph system (Plans 016-023), now superseded by the positional-graph engine which adds line-based topology, orchestration, and node events.
++
++## Boundary
++
++### Owns
++
++- Legacy graph CRUD: create, load, show, status via IWorkGraphService
++- Legacy node operations: can-run, mark-ready, start, end via IWorkNodeService
++- Legacy work unit enumeration and validation via IWorkUnitService (workgraph variant)
++- DAG cycle detection algorithm
++- Node ID generation (unitSlug + hex3 format)
++- Bootstrap prompt generation for node execution
++- Visual layout schema (React Flow positions, viewport state)
++- Atomic file writes for state.json
++- Legacy error codes (E101-E149)
++
++### Does NOT Own
++
++- Positional graph engine (line-based topology, input resolution, 4-gate algorithm) — `_platform/positional-graph`
++- Orchestration (Reality, ONBAS, ODS, drive loop) — `_platform/positional-graph`
++- Node events (raise, handle, stamp) — `_platform/positional-graph`
++- CLI/Web consumer presentation — Consumer domain per ADR-0012
++- Agent instance management — Agent domain per ADR-0012
++- Filesystem abstraction (IFileSystem, IPathResolver) — `_platform/file-ops`
++
++## Contracts (Public Interface)
++
++| Contract | Type | Consumers | Description |
++|----------|------|-----------|-------------|
++| `IWorkGraphService` | Interface | CLI (`cg wg`), Web UI (022), API routes, tests | Graph CRUD — create, load, show, status, edge management |
++| `IWorkNodeService` | Interface | CLI (`cg wg`), Web UI (022), API routes, tests | Node operations — can-run, mark-ready, start, end |
++| `IWorkUnitService` | Interface | CLI (`cg unit`), Web UI (022), API routes, tests | Work unit enumeration, validation, info |
++| `registerWorkgraphServices()` | Function | CLI (container), web (di-container) | DI registration for all workgraph services |
++| `WORKGRAPH_DI_TOKENS` | Constants | CLI, web, tests | DI token namespace (defined in @chainglass/shared) |
++| `FakeWorkGraphService` | Class | Tests (contract, unit) | Test double with call tracking and return builders |
++| `FakeWorkNodeService` | Class | Tests (contract, unit) | Test double for node operations |
++| `FakeWorkUnitService` | Class | Tests (contract, unit) | Test double for unit operations |
++
++## Composition (Internal)
++
++| Component | Role | Depends On |
++|-----------|------|------------|
++| `WorkGraphService` | Graph CRUD — create, load, validate, persist | IFileSystem, IPathResolver, IYamlParser, Zod schemas |
++| `WorkNodeService` | Node lifecycle — readiness, execution state | WorkGraphService (reads graph state) |
++| `WorkUnitService` | Unit discovery and validation | IFileSystem (glob .chainglass/units/), IYamlParser |
++| `CycleDetection` | DAG validation — prevents circular dependencies | Graph adjacency data |
++| `NodeId` | ID generation — unitSlug-hex3 format | Existing node IDs (collision avoidance) |
++| `BootstrapPrompt` | Execution prompt generation | WorkUnit definition, node config |
++| `LayoutSchema` | Visual position/viewport persistence | React Flow position data |
++| `AtomicFile` | Safe state writes — temp-then-rename | IFileSystem |
++
++## Source Location
++
++Primary: `packages/workgraph/src/`
++
++| File/Area | Role | Notes |
++|-----------|------|-------|
++| `packages/workgraph/src/services/` | Core services (7 files) | WorkGraphService, WorkNodeService, WorkUnitService, cycle-detection, node-id, bootstrap-prompt, atomic-file |
++| `packages/workgraph/src/interfaces/` | Service contracts (3 files) | IWorkGraphService, IWorkNodeService, IWorkUnitService |
++| `packages/workgraph/src/schemas/` | Zod schemas (4 files) | workgraph, worknode, workunit, layout |
++| `packages/workgraph/src/fakes/` | Test doubles (3 files) | Fake implementations with call tracking |
++| `packages/workgraph/src/errors/` | Error codes and factories | E101-E149 |
++| `packages/workgraph/src/container.ts` | DI registration | createWorkgraphProductionContainer, createWorkgraphTestContainer |
++| `packages/workgraph/src/index.ts` | Barrel exports | Public API surface |
++
++## Dependencies
++
++### This Domain Depends On
++
++| Domain/Package | What It Consumes | Notes |
++|---------------|-----------------|-------|
++| `_platform/file-ops` (via @chainglass/shared) | `IFileSystem`, `IPathResolver` | All disk I/O for graph state, unit discovery |
++| `@chainglass/shared` | `IYamlParser`, DI tokens, Result types | Foundation utilities |
++
++### Domains That Depend On This
++
++| Consumer | What It Consumes | Notes |
++|----------|-----------------|-------|
++| CLI (`apps/cli/`) | `IWorkGraphService`, `IWorkNodeService`, `IWorkUnitService` | `cg wg` and `cg unit` commands |
++| Web UI (feature 022) | All 3 service interfaces | workgraph-canvas, workgraph-node, workunit-toolbox, API routes |
++| Web API routes | `IWorkGraphService`, `IWorkNodeService`, `IWorkUnitService` | workgraphs/, nodes/, edges/, units/ routes |
++| Event adapters (features 023, 027) | `WorkGraphChangedEvent` | workgraph-watcher.adapter, workgraph-domain-event-adapter |
++| Test suite | All interfaces + fakes | 27+ test files across unit/integration/contract |
++
++## History
++
++| Plan | What Changed | Date |
++|------|-------------|------|
++| 016 | Original workgraph design — agent units | 2025 |
++| 021 | Workspace-scoping refactor — workspace data domain pattern | 2025 |
++| 022 | Web UI implementation — React Flow canvas, SSE integration | 2025 |
++| 023 | Central watcher notifications — event adapter for file changes | 2025 |
++| 027 | Central domain event notifications — domain event adapter | 2025 |
++| 048 | Domain extracted from existing codebase; marked deprecated | 2026-02-25 |
++
++## Successor
++
++**`_platform/positional-graph`** — The positional-graph domain replaces this domain with a line-based topology model that adds orchestration, node events, and input resolution. The two domains have NO cross-imports — they coexist with parallel `IWorkUnitService` interfaces until this domain is fully removed.
+diff --git a/packages/workflow/src/fakes/fake-instance-service.ts b/packages/workflow/src/fakes/fake-instance-service.ts
+new file mode 100644
+--- /dev/null
++++ b/packages/workflow/src/fakes/fake-instance-service.ts
+@@ -0,0 +1,47 @@
++/**
++ * FakeInstanceService — test double for IInstanceService.
++ *
++ * Provides call tracking and preset results for status queries.
++ * Per Constitution P4: full fake implementation, not mocks.
++ */
++
++import type {
++  IInstanceService,
++  InstanceStatus,
++  GetStatusResult,
++} from '../interfaces/instance-service.interface.js';
++import type { WorkspaceContext } from '../interfaces/workspace-context.interface.js';
++
++export interface GetStatusCall {
++  ctx: WorkspaceContext;
++  templateSlug: string;
++  instanceId: string;
++}
++
++export class FakeInstanceService implements IInstanceService {
++  // Call tracking
++  readonly getStatusCalls: GetStatusCall[] = [];
++
++  // Preset results
++  private statuses: Map<string, InstanceStatus> = new Map();
++
++  // Return builders
++  withStatus(templateSlug: string, instanceId: string, status: InstanceStatus): this {
++    this.statuses.set(`${templateSlug}/${instanceId}`, status);
++    return this;
++  }
++
++  // IInstanceService implementation
++  async getStatus(ctx: WorkspaceContext, templateSlug: string, instanceId: string): Promise<GetStatusResult> {
++    this.getStatusCalls.push({ ctx, templateSlug, instanceId });
++    const key = `${templateSlug}/${instanceId}`;
++    const status = this.statuses.get(key) ?? null;
++    return { data: status, errors: [] };
++  }
++
++  // Test helpers
++  reset(): void {
++    this.getStatusCalls.length = 0;
++    this.statuses.clear();
++  }
++}
+diff --git a/packages/workflow/src/fakes/fake-template-service.ts b/packages/workflow/src/fakes/fake-template-service.ts
+new file mode 100644
+--- /dev/null
++++ b/packages/workflow/src/fakes/fake-template-service.ts
+@@ -0,0 +1,125 @@
++/**
++ * FakeTemplateService — test double for ITemplateService.
++ *
++ * Provides call tracking arrays and return builders for all methods.
++ * Per Constitution P4: full fake implementation, not mocks.
++ * Follows FakeWorkflowService pattern.
++ */
++
++import type {
++  ITemplateService,
++  ListWorkflowsResult,
++  ShowWorkflowResult,
++  SaveFromResult,
++  InstantiateResult,
++  ListInstancesResult,
++  RefreshResult,
++} from '../interfaces/template-service.interface.js';
++import type { WorkspaceContext } from '../interfaces/workspace-context.interface.js';
++import type { TemplateManifest } from '../schemas/workflow-template.schema.js';
++import type { InstanceMetadata } from '../schemas/instance-metadata.schema.js';
++
++export interface SaveFromCall {
++  ctx: WorkspaceContext;
++  graphSlug: string;
++  templateSlug: string;
++}
++
++export interface InstantiateCall {
++  ctx: WorkspaceContext;
++  templateSlug: string;
++  instanceId: string;
++}
++
++export interface RefreshCall {
++  ctx: WorkspaceContext;
++  templateSlug: string;
++  instanceId: string;
++}
++
++export class FakeTemplateService implements ITemplateService {
++  // Call tracking
++  readonly saveFromCalls: SaveFromCall[] = [];
++  readonly listWorkflowsCalls: WorkspaceContext[] = [];
++  readonly showWorkflowCalls: Array<{ ctx: WorkspaceContext; slug: string }> = [];
++  readonly instantiateCalls: InstantiateCall[] = [];
++  readonly listInstancesCalls: Array<{ ctx: WorkspaceContext; slug: string }> = [];
++  readonly refreshCalls: RefreshCall[] = [];
++
++  // Preset results
++  private workflows: TemplateManifest[] = [];
++  private instances: Map<string, InstanceMetadata[]> = new Map();
++  private saveFromResult: SaveFromResult = { data: null, errors: [] };
++  private instantiateResult: InstantiateResult = { data: null, errors: [] };
++  private refreshResult: RefreshResult = { data: null, errors: [] };
++
++  // Return builders
++  withWorkflows(workflows: TemplateManifest[]): this {
++    this.workflows = workflows;
++    return this;
++  }
++
++  withInstances(templateSlug: string, instances: InstanceMetadata[]): this {
++    this.instances.set(templateSlug, instances);
++    return this;
++  }
++
++  withSaveFromResult(result: SaveFromResult): this {
++    this.saveFromResult = result;
++    return this;
++  }
++
++  withInstantiateResult(result: InstantiateResult): this {
++    this.instantiateResult = result;
++    return this;
++  }
++
++  withRefreshResult(result: RefreshResult): this {
++    this.refreshResult = result;
++    return this;
++  }
++
++  // ITemplateService implementation
++  async saveFrom(ctx: WorkspaceContext, graphSlug: string, templateSlug: string): Promise<SaveFromResult> {
++    this.saveFromCalls.push({ ctx, graphSlug, templateSlug });
++    return this.saveFromResult;
++  }
++
++  async listWorkflows(ctx: WorkspaceContext): Promise<ListWorkflowsResult> {
++    this.listWorkflowsCalls.push(ctx);
++    return { data: this.workflows, errors: [] };
++  }
++
++  async showWorkflow(ctx: WorkspaceContext, templateSlug: string): Promise<ShowWorkflowResult> {
++    this.showWorkflowCalls.push({ ctx, slug: templateSlug });
++    const found = this.workflows.find((w) => w.slug === templateSlug) ?? null;
++    return { data: found, errors: [] };
++  }
++
++  async instantiate(ctx: WorkspaceContext, templateSlug: string, instanceId: string): Promise<InstantiateResult> {
++    this.instantiateCalls.push({ ctx, templateSlug, instanceId });
++    return this.instantiateResult;
++  }
++
++  async listInstances(ctx: WorkspaceContext, templateSlug: string): Promise<ListInstancesResult> {
++    this.listInstancesCalls.push({ ctx, slug: templateSlug });
++    return { data: this.instances.get(templateSlug) ?? [], errors: [] };
++  }
++
++  async refresh(ctx: WorkspaceContext, templateSlug: string, instanceId: string): Promise<RefreshResult> {
++    this.refreshCalls.push({ ctx, templateSlug, instanceId });
++    return this.refreshResult;
++  }
++
++  // Test helpers
++  reset(): void {
++    this.saveFromCalls.length = 0;
++    this.listWorkflowsCalls.length = 0;
++    this.showWorkflowCalls.length = 0;
++    this.instantiateCalls.length = 0;
++    this.listInstancesCalls.length = 0;
++    this.refreshCalls.length = 0;
++    this.workflows = [];
++    this.instances.clear();
++  }
++}
+diff --git a/packages/workflow/src/interfaces/instance-service.interface.ts b/packages/workflow/src/interfaces/instance-service.interface.ts
+new file mode 100644
+--- /dev/null
++++ b/packages/workflow/src/interfaces/instance-service.interface.ts
+@@ -0,0 +1,37 @@
++/**
++ * IInstanceService — contract for workflow instance lifecycle queries.
++ *
++ * Instances are self-contained copies of templates with their own
++ * runtime state. This service provides status queries.
++ *
++ * Per Constitution P2: Interface defined before implementation.
++ */
++
++import type { WorkspaceContext } from './workspace-context.interface.js';
++import type { ResultError } from '@chainglass/shared';
++import type { InstanceMetadata } from '../schemas/instance-metadata.schema.js';
++
++/** Instance status with runtime information */
++export interface InstanceStatus {
++  metadata: InstanceMetadata;
++  graphStatus: 'pending' | 'in_progress' | 'complete' | 'failed' | 'not_created';
++  hasActiveRun: boolean;
++}
++
++/** Result of getting instance status */
++export interface GetStatusResult {
++  data: InstanceStatus | null;
++  errors: ResultError[];
++}
++
++export interface IInstanceService {
++  /**
++   * Get the status of a workflow instance, including its runtime graph state.
++   * Returns metadata + graph execution status + whether a run is active.
++   */
++  getStatus(
++    ctx: WorkspaceContext,
++    templateSlug: string,
++    instanceId: string,
++  ): Promise<GetStatusResult>;
++}
+diff --git a/packages/workflow/src/interfaces/template-service.interface.ts b/packages/workflow/src/interfaces/template-service.interface.ts
+new file mode 100644
+--- /dev/null
++++ b/packages/workflow/src/interfaces/template-service.interface.ts
+@@ -0,0 +1,104 @@
++/**
++ * ITemplateService — contract for workflow template management.
++ *
++ * Templates are created from working graph instances via saveFrom().
++ * They bundle graph.yaml + nodes/\/node.yaml + units/ into a reusable
++ * directory that can be instantiated multiple times.
++ *
++ * Per Workshop 002: Templates reuse existing positional graph format.
++ * Per Constitution P2: Interface defined before implementation.
++ */
++
++import type { WorkspaceContext } from './workspace-context.interface.js';
++import type { ResultError } from '@chainglass/shared';
++import type { TemplateManifest } from '../schemas/workflow-template.schema.js';
++import type { InstanceMetadata } from '../schemas/instance-metadata.schema.js';
++
++/** Result of listing workflow templates */
++export interface ListWorkflowsResult {
++  data: TemplateManifest[];
++  errors: ResultError[];
++}
++
++/** Result of showing a single workflow template */
++export interface ShowWorkflowResult {
++  data: TemplateManifest | null;
++  errors: ResultError[];
++}
++
++/** Result of saving a graph as a template */
++export interface SaveFromResult {
++  data: TemplateManifest | null;
++  errors: ResultError[];
++}
++
++/** Result of instantiating a template */
++export interface InstantiateResult {
++  data: InstanceMetadata | null;
++  errors: ResultError[];
++}
++
++/** Result of listing instances */
++export interface ListInstancesResult {
++  data: InstanceMetadata[];
++  errors: ResultError[];
++}
++
++/** Result of refreshing instance units */
++export interface RefreshResult {
++  data: {
++    refreshedUnits: string[];
++    instanceMetadata: InstanceMetadata;
++  } | null;
++  errors: ResultError[];
++}
++
++export interface ITemplateService {
++  /**
++   * Save a working graph instance as a reusable template.
++   * Copies graph.yaml + nodes/\/node.yaml, bundles referenced work units.
++   * Strips runtime state (state.json, outputs/, events).
++   */
++  saveFrom(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    templateSlug: string,
++  ): Promise<SaveFromResult>;
++
++  /** List all workflow templates in the workspace */
++  listWorkflows(ctx: WorkspaceContext): Promise<ListWorkflowsResult>;
++
++  /** Show details of a single workflow template */
++  showWorkflow(
++    ctx: WorkspaceContext,
++    templateSlug: string,
++  ): Promise<ShowWorkflowResult>;
++
++  /**
++   * Create an independent instance from a template.
++   * Copies graph definition + units to instance directory.
++   * Initializes fresh runtime state (state.json with pending status).
++   */
++  instantiate(
++    ctx: WorkspaceContext,
++    templateSlug: string,
++    instanceId: string,
++  ): Promise<InstantiateResult>;
++
++  /** List all instances created from a workflow template */
++  listInstances(
++    ctx: WorkspaceContext,
++    templateSlug: string,
++  ): Promise<ListInstancesResult>;
++
++  /**
++   * Refresh all work units in an instance from its source template.
++   * Full directory replacement for each unit.
++   * Warns if an active run is detected.
++   */
++  refresh(
++    ctx: WorkspaceContext,
++    templateSlug: string,
++    instanceId: string,
++  ): Promise<RefreshResult>;
++}
+diff --git a/packages/workflow/src/schemas/instance-metadata.schema.ts b/packages/workflow/src/schemas/instance-metadata.schema.ts
+new file mode 100644
+--- /dev/null
++++ b/packages/workflow/src/schemas/instance-metadata.schema.ts
+@@ -0,0 +1,47 @@
++/**
++ * Instance metadata schema for instance.yaml files.
++ *
++ * Each workflow instance has an instance.yaml that tracks:
++ * - Which template it was created from
++ * - When it was created
++ * - Which work units were copied and when they were last refreshed
++ *
++ * Per ADR-0003: Zod schemas are source of truth; types derived via z.infer<>.
++ * Per Workshop 001 §Instance Schema.
++ */
++
++import { z } from 'zod';
++
++const slugPattern = /^[a-z][a-z0-9-]*$/;
++
++/**
++ * A unit entry within instance metadata — tracks one copied work unit
++ * and its refresh history.
++ */
++export const InstanceUnitEntrySchema = z.object({
++  /** Unit slug (directory name under instance's units/) */
++  slug: z.string().regex(slugPattern),
++  /** Where this unit was sourced from (template = workflow template's bundled units) */
++  source: z.enum(['template']),
++  /** ISO-8601 timestamp of last refresh from template */
++  refreshed_at: z.string().datetime(),
++});
++
++export type InstanceUnitEntry = z.infer<typeof InstanceUnitEntrySchema>;
++
++/**
++ * Instance metadata — written to instance.yaml when an instance is created.
++ * Updated when units are refreshed.
++ */
++export const InstanceMetadataSchema = z.object({
++  /** Instance ID (user-provided kebab-case slug) */
++  slug: z.string().regex(slugPattern),
++  /** Slug of the workflow template this instance was created from */
++  template_source: z.string().regex(slugPattern),
++  /** ISO-8601 timestamp of instance creation */
++  created_at: z.string().datetime(),
++  /** Work units copied into this instance */
++  units: z.array(InstanceUnitEntrySchema),
++});
++
++export type InstanceMetadata = z.infer<typeof InstanceMetadataSchema>;
+diff --git a/packages/workflow/src/schemas/workflow-template.schema.ts b/packages/workflow/src/schemas/workflow-template.schema.ts
+new file mode 100644
+--- /dev/null
++++ b/packages/workflow/src/schemas/workflow-template.schema.ts
+@@ -0,0 +1,68 @@
++/**
++ * Template directory validation schemas.
++ *
++ * A workflow template is saved from a working graph instance.
++ * It contains: graph.yaml (topology), nodes/\/node.yaml (wiring),
++ * and units/ (self-contained work unit directories).
++ *
++ * These schemas validate the manifest structure — NOT the graph content
++ * itself (that's validated by PositionalGraphDefinitionSchema).
++ *
++ * Per ADR-0003: Zod schemas are source of truth; types derived via z.infer<>.
++ * Per Workshop 002: Templates reuse existing graph.yaml + node.yaml format.
++ */
++
++import { z } from 'zod';
++
++const slugPattern = /^[a-z][a-z0-9-]*$/;
++
++/**
++ * A node entry within the template manifest — describes one node's
++ * unit reference as extracted from its node.yaml file.
++ */
++export const TemplateNodeEntrySchema = z.object({
++  /** Node ID (e.g., "spec-writer-c3d") — preserved from original graph */
++  nodeId: z.string().min(1),
++  /** Work unit slug this node references */
++  unitSlug: z.string().regex(slugPattern),
++});
++
++export type TemplateNodeEntry = z.infer<typeof TemplateNodeEntrySchema>;
++
++/**
++ * A unit entry within the template manifest — describes one bundled
++ * work unit directory.
++ */
++export const TemplateUnitEntrySchema = z.object({
++  /** Unit slug (directory name under units/) */
++  slug: z.string().regex(slugPattern),
++  /** Unit type from unit.yaml */
++  type: z.enum(['agent', 'code', 'user-input']),
++});
++
++export type TemplateUnitEntry = z.infer<typeof TemplateUnitEntrySchema>;
++
++/**
++ * Template manifest — the validated summary of a template directory's contents.
++ * Built by scanning the template directory, not authored by hand.
++ */
++export const TemplateManifestSchema = z.object({
++  /** Template slug (directory name) */
++  slug: z.string().regex(slugPattern),
++  /** Graph slug from graph.yaml */
++  graphSlug: z.string().regex(slugPattern),
++  /** Graph version from graph.yaml */
++  graphVersion: z.string().optional(),
++  /** Graph description from graph.yaml */
++  description: z.string().optional(),
++  /** Number of lines in the graph */
++  lineCount: z.number().int().nonnegative(),
++  /** Nodes in the graph, with their unit references */
++  nodes: z.array(TemplateNodeEntrySchema),
++  /** Bundled work units */
++  units: z.array(TemplateUnitEntrySchema),
++  /** Created timestamp (when template was saved) */
++  created_at: z.string().datetime().optional(),
++});
++
++export type TemplateManifest = z.infer<typeof TemplateManifestSchema>;
+diff --git a/test/contracts/instance-service.contract.test.ts b/test/contracts/instance-service.contract.test.ts
+new file mode 100644
+--- /dev/null
++++ b/test/contracts/instance-service.contract.test.ts
+@@ -0,0 +1,13 @@
++/**
++ * Run IInstanceService contract tests against FakeInstanceService.
++ *
++ * Per Constitution P2: Same contract suite runs for Fake (here) and Real (Phase 2+).
++ */
++
++import { FakeInstanceService } from '@chainglass/workflow/fakes';
++import { instanceServiceContractTests } from './instance-service.contract.js';
++
++instanceServiceContractTests(() => ({
++  name: 'FakeInstanceService',
++  service: new FakeInstanceService(),
++}));
+diff --git a/test/contracts/instance-service.contract.ts b/test/contracts/instance-service.contract.ts
+new file mode 100644
+--- /dev/null
++++ b/test/contracts/instance-service.contract.ts
+@@ -0,0 +1,68 @@
++/**
++ * Contract tests for IInstanceService.
++ *
++ * Shared test suite that runs against both FakeInstanceService (Phase 1)
++ * and the real InstanceService (Phase 2+). Ensures fake↔real parity.
++ *
++ * Per Constitution P2: contract tests verify fake-real parity.
++ */
++
++import { describe, it, expect, beforeEach } from 'vitest';
++import type { IInstanceService } from '@chainglass/workflow';
++import type { WorkspaceContext } from '@chainglass/workflow';
++
++export interface InstanceServiceTestContext {
++  service: IInstanceService;
++  name: string;
++}
++
++const TEST_CTX: WorkspaceContext = {
++  workspaceSlug: 'test-ws',
++  workspaceName: 'Test Workspace',
++  workspacePath: '/tmp/test-ws',
++  worktreePath: '/tmp/test-ws',
++  worktreeBranch: 'main',
++  isMainWorktree: true,
++  hasGit: true,
++};
++
++export function instanceServiceContractTests(
++  createContext: () => InstanceServiceTestContext,
++) {
++  describe(`${createContext().name} implements IInstanceService contract`, () => {
++    let service: IInstanceService;
++
++    beforeEach(() => {
++      const ctx = createContext();
++      service = ctx.service;
++    });
++
++    it('should return null for non-existent instance', async () => {
++      /*
++      Test Doc:
++      - Why: Verify graceful handling of missing instances
++      - Contract: getStatus() returns null data with no errors for missing instance
++      - Usage Notes: Does NOT throw — returns Result pattern with null
++      - Quality Contribution: Prevents crashes on invalid instance references
++      - Worked Example: getStatus(ctx, 'tpl', 'no-such') → { data: null, errors: [] }
++      */
++      const result = await service.getStatus(TEST_CTX, 'my-template', 'no-such-instance');
++      expect(result.data).toBeNull();
++      expect(result.errors).toEqual([]);
++    });
++
++    it('should track getStatus calls', async () => {
++      /*
++      Test Doc:
++      - Why: Verify getStatus is callable and returns Result pattern
++      - Contract: getStatus() accepts template slug + instance ID, returns GetStatusResult
++      - Usage Notes: Real implementation deferred to Phase 2+
++      - Quality Contribution: Ensures interface signature is exercisable
++      - Worked Example: getStatus(ctx, 'tpl', 'inst-1') → { data: ..., errors: [] }
++      */
++      const result = await service.getStatus(TEST_CTX, 'my-template', 'inst-1');
++      expect(result).toHaveProperty('data');
++      expect(result).toHaveProperty('errors');
++    });
++  });
++}
+diff --git a/test/contracts/template-service.contract.test.ts b/test/contracts/template-service.contract.test.ts
+new file mode 100644
+--- /dev/null
++++ b/test/contracts/template-service.contract.test.ts
+@@ -0,0 +1,13 @@
++/**
++ * Run ITemplateService contract tests against FakeTemplateService.
++ *
++ * Per Constitution P2: Same contract suite runs for Fake (here) and Real (Phase 2).
++ */
++
++import { FakeTemplateService } from '@chainglass/workflow/fakes';
++import { templateServiceContractTests } from './template-service.contract.js';
++
++templateServiceContractTests(() => ({
++  name: 'FakeTemplateService',
++  service: new FakeTemplateService(),
++}));
+diff --git a/test/contracts/template-service.contract.ts b/test/contracts/template-service.contract.ts
+new file mode 100644
+--- /dev/null
++++ b/test/contracts/template-service.contract.ts
+@@ -0,0 +1,124 @@
++/**
++ * Contract tests for ITemplateService.
++ *
++ * Shared test suite that runs against both FakeTemplateService (Phase 1)
++ * and the real TemplateService (Phase 2). Ensures fake↔real parity.
++ *
++ * Per Constitution P2: contract tests verify fake-real parity.
++ */
++
++import { describe, it, expect, beforeEach } from 'vitest';
++import type { ITemplateService } from '@chainglass/workflow';
++import type { WorkspaceContext } from '@chainglass/workflow';
++
++export interface TemplateServiceTestContext {
++  service: ITemplateService;
++  name: string;
++}
++
++const TEST_CTX: WorkspaceContext = {
++  workspaceSlug: 'test-ws',
++  workspaceName: 'Test Workspace',
++  workspacePath: '/tmp/test-ws',
++  worktreePath: '/tmp/test-ws',
++  worktreeBranch: 'main',
++  isMainWorktree: true,
++  hasGit: true,
++};
++
++export function templateServiceContractTests(
++  createContext: () => TemplateServiceTestContext,
++) {
++  describe(`${createContext().name} implements ITemplateService contract`, () => {
++    let service: ITemplateService;
++
++    beforeEach(() => {
++      const ctx = createContext();
++      service = ctx.service;
++    });
++
++    it('should return empty list on fresh workspace', async () => {
++      /*
++      Test Doc:
++      - Why: Verify baseline behavior — no templates exist yet
++      - Contract: listWorkflows() returns empty data array with no errors
++      - Usage Notes: Uses TEST_CTX fixture for workspace context
++      - Quality Contribution: Prevents null/undefined returns on empty state
++      - Worked Example: listWorkflows(ctx) → { data: [], errors: [] }
++      */
++      const result = await service.listWorkflows(TEST_CTX);
++      expect(result.data).toEqual([]);
++      expect(result.errors).toEqual([]);
++    });
++
++    it('should return null for non-existent template', async () => {
++      /*
++      Test Doc:
++      - Why: Verify graceful handling of missing templates
++      - Contract: showWorkflow() returns null data with no errors for missing slug
++      - Usage Notes: Does NOT throw — returns Result pattern with null
++      - Quality Contribution: Prevents crashes on invalid template references
++      - Worked Example: showWorkflow(ctx, 'no-such') → { data: null, errors: [] }
++      */
++      const result = await service.showWorkflow(TEST_CTX, 'no-such-template');
++      expect(result.data).toBeNull();
++      expect(result.errors).toEqual([]);
++    });
++
++    it('should return empty instances list for template with no instances', async () => {
++      /*
++      Test Doc:
++      - Why: Verify baseline — template exists but has no instances
++      - Contract: listInstances() returns empty array for template with no instances
++      - Usage Notes: Template slug may or may not exist; both cases return empty
++      - Quality Contribution: Prevents errors when querying uninstantiated templates
++      - Worked Example: listInstances(ctx, 'my-template') → { data: [], errors: [] }
++      */
++      const result = await service.listInstances(TEST_CTX, 'my-template');
++      expect(result.data).toEqual([]);
++      expect(result.errors).toEqual([]);
++    });
++
++    it('should track saveFrom calls', async () => {
++      /*
++      Test Doc:
++      - Why: Verify saveFrom is callable and returns Result pattern
++      - Contract: saveFrom() accepts graph slug + template slug, returns SaveFromResult
++      - Usage Notes: Real implementation deferred to Phase 2
++      - Quality Contribution: Ensures interface signature is exercisable
++      - Worked Example: saveFrom(ctx, 'my-graph', 'my-template') → { data: ..., errors: [] }
++      */
++      const result = await service.saveFrom(TEST_CTX, 'my-graph', 'my-template');
++      expect(result).toHaveProperty('data');
++      expect(result).toHaveProperty('errors');
++    });
++
++    it('should track instantiate calls', async () => {
++      /*
++      Test Doc:
++      - Why: Verify instantiate is callable and returns Result pattern
++      - Contract: instantiate() accepts template slug + instance ID, returns InstantiateResult
++      - Usage Notes: Real implementation deferred to Phase 2
++      - Quality Contribution: Ensures interface signature is exercisable
++      - Worked Example: instantiate(ctx, 'tpl', 'inst-1') → { data: ..., errors: [] }
++      */
++      const result = await service.instantiate(TEST_CTX, 'my-template', 'inst-1');
++      expect(result).toHaveProperty('data');
++      expect(result).toHaveProperty('errors');
++    });
++
++    it('should track refresh calls', async () => {
++      /*
++      Test Doc:
++      - Why: Verify refresh is callable and returns Result pattern
++      - Contract: refresh() accepts template slug + instance ID, returns RefreshResult
++      - Usage Notes: Real implementation deferred to Phase 2
++      - Quality Contribution: Ensures interface signature is exercisable
++      - Worked Example: refresh(ctx, 'tpl', 'inst-1') → { data: ..., errors: [] }
++      */
++      const result = await service.refresh(TEST_CTX, 'my-template', 'inst-1');
++      expect(result).toHaveProperty('data');
++      expect(result).toHaveProperty('errors');
++    });
++  });
++}

@@ -10,6 +10,8 @@
 | File Browser | file-browser | business | — | Plan 041 | active |
 | SDK | _platform/sdk | infrastructure | _platform | Plan 047 — USDK | active |
 | Settings | _platform/settings | infrastructure | _platform | Plan 047 — USDK Phase 5 | active |
+| Positional Graph | _platform/positional-graph | infrastructure | _platform | extracted (Plan 048) | active |
+| Workgraph (Legacy) | _platform/workgraph | infrastructure | _platform | extracted (Plan 048) | deprecated |
 
 ## Domain Types
 

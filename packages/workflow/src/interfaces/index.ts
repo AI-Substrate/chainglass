@@ -137,3 +137,19 @@ export type {
   IFileWatcher,
   IFileWatcherFactory,
 } from './file-watcher.interface.js';
+
+// Template/Instance system (Plan 048)
+export type {
+  ITemplateService,
+  ListWorkflowsResult,
+  ShowWorkflowResult,
+  SaveFromResult,
+  InstantiateResult,
+  ListInstancesResult,
+  RefreshResult,
+} from './template-service.interface.js';
+export type {
+  IInstanceService,
+  InstanceStatus,
+  GetStatusResult,
+} from './instance-service.interface.js';
