@@ -21,6 +21,7 @@ import { usePanelState } from '@/features/041-file-browser/hooks/use-panel-state
 import { useTreeDirectoryChanges } from '@/features/041-file-browser/hooks/use-tree-directory-changes';
 import { useWorkspaceContext } from '@/features/041-file-browser/hooks/use-workspace-context';
 import { fileBrowserParams } from '@/features/041-file-browser/params/file-browser.params';
+import { fileBrowserContribution } from '@/features/041-file-browser/sdk/contribution';
 import type { FileEntry } from '@/features/041-file-browser/services/directory-listing';
 import { createFilePathHandler } from '@/features/041-file-browser/services/file-path-handler';
 import { FileChangeProvider, useFileChanges } from '@/features/045-live-file-events';
@@ -93,6 +94,7 @@ function BrowserClientInner({
   const mode = (params.mode as ViewerMode) || 'preview';
   const selectedFile = params.file || undefined;
   const panelMode = (params.panel as PanelMode) || 'tree';
+  const scrollToLine = params.line ?? null;
 
   // --- Hooks ---
 
@@ -211,7 +213,13 @@ function BrowserClientInner({
 
   // --- ExplorerPanel handler chain ---
 
-  const filePathHandler = useMemo(() => createFilePathHandler(), []);
+  const filePathHandler = useMemo(
+    () =>
+      createFilePathHandler((line) => {
+        setParams({ line }, { history: 'replace' });
+      }),
+    [setParams]
+  );
   const symbolStub = useMemo(() => createSymbolSearchStub(), []);
 
   // --- SDK + MRU for command palette ---
@@ -311,11 +319,26 @@ function BrowserClientInner({
       icon: 'search',
     });
 
+    // T001: openFileAtLine — navigates to file and sets line param
+    const openFileAtLineCmd = fileBrowserContribution.commands.find(
+      (c) => c.id === 'file-browser.openFileAtLine'
+    );
+    const openFileAtLineReg = openFileAtLineCmd
+      ? sdk.commands.register({
+          ...openFileAtLineCmd,
+          handler: async (params: unknown) => {
+            const { path, line } = params as { path: string; line?: number };
+            setParams({ file: path, ...(line != null ? { line } : {}) }, { history: 'push' });
+          },
+        })
+      : null;
+
     return () => {
       paletteReg.dispose();
       goToFileReg.dispose();
+      openFileAtLineReg?.dispose();
     };
-  }, [sdk]);
+  }, [sdk, setParams]);
 
   // --- Panel refresh handler ---
 
@@ -465,6 +488,7 @@ function BrowserClientInner({
                     ? (fileNav.fileData.error as 'file-too-large')
                     : undefined
                 }
+                scrollToLine={scrollToLine}
               />
             ) : (
               <div className="flex items-center justify-center h-full text-muted-foreground">

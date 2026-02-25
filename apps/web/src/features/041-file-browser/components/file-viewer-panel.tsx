@@ -71,6 +71,8 @@ export interface FileViewerPanelProps {
   rawFileUrl?: string;
   /** URL for pop-out button — opens file in new tab (Phase 5) */
   popOutUrl?: string;
+  /** Line number to scroll to in code editor (Plan 047 Phase 6) */
+  scrollToLine?: number | null;
 }
 
 export function FileViewerPanel({
@@ -96,6 +98,7 @@ export function FileViewerPanel({
   binarySize,
   rawFileUrl,
   popOutUrl,
+  scrollToLine,
 }: FileViewerPanelProps) {
   // All hooks must be called before any early returns (Rules of Hooks)
   const isMarkdown = language === 'markdown';
@@ -250,7 +253,12 @@ export function FileViewerPanel({
         <Suspense fallback={<LoadingFallback />}>
           {mode === 'edit' && (
             <div className="h-full">
-              <CodeEditor value={currentContent} language={language} onChange={onEditChange} />
+              <CodeEditor
+                value={currentContent}
+                language={language}
+                onChange={onEditChange}
+                scrollToLine={scrollToLine}
+              />
             </div>
           )}
           {mode === 'preview' && (

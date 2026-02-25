@@ -9,7 +9,7 @@
  */
 
 import { workspaceParams } from '@/lib/params/workspace.params';
-import { parseAsString, parseAsStringLiteral } from 'nuqs';
+import { parseAsInteger, parseAsString, parseAsStringLiteral } from 'nuqs';
 import { createSearchParamsCache } from 'nuqs/server';
 
 export const fileBrowserParams = {
@@ -21,6 +21,8 @@ export const fileBrowserParams = {
   mode: parseAsStringLiteral(['edit', 'preview', 'diff'] as const).withDefault('preview'),
   /** Left panel mode (Plan 043) */
   panel: parseAsStringLiteral(['tree', 'changes'] as const).withDefault('tree'),
+  /** Line number to scroll to (Plan 047 Phase 6) */
+  line: parseAsInteger,
 };
 
 /** Combined server cache for workspace + file browser params */

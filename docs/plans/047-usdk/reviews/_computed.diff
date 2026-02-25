@@ -1,846 +1,884 @@
-=== TRACKED FILE DIFFS ===
-diff --git a/apps/web/src/components/dashboard-sidebar.tsx b/apps/web/src/components/dashboard-sidebar.tsx
-index 5c48cb6..6d1bd5d 100644
---- a/apps/web/src/components/dashboard-sidebar.tsx
-+++ b/apps/web/src/components/dashboard-sidebar.tsx
-@@ -243,12 +243,16 @@ export function DashboardSidebar() {
-       <SidebarFooter className="border-t p-2">
-         <SidebarMenu>
-           <SidebarMenuItem>
--            <SidebarMenuButton asChild isActive={pathname === '/settings/workspaces'}>
-+            <SidebarMenuButton
-+              asChild
-+              isActive={pathname === '/settings/workspaces' || pathname.endsWith('/settings')}
-+            >
-               <Link
--                href="/settings/workspaces"
-+                href={wsCtx?.slug ? `/workspaces/${wsCtx.slug}/settings` : '/settings/workspaces'}
-                 className={cn(
-                   'flex items-center gap-3',
--                  pathname === '/settings/workspaces' && 'bg-accent text-accent-foreground'
-+                  (pathname === '/settings/workspaces' || pathname.endsWith('/settings')) &&
-+                    'bg-accent text-accent-foreground'
-                 )}
-               >
-                 <Settings className="h-5 w-5" />
-diff --git a/apps/web/src/components/providers.tsx b/apps/web/src/components/providers.tsx
-index 2f05c61..f82fcda 100644
---- a/apps/web/src/components/providers.tsx
-+++ b/apps/web/src/components/providers.tsx
-@@ -15,6 +15,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
- import { NuqsAdapter } from 'nuqs/adapters/next/app';
- import { type ReactNode, useState } from 'react';
+diff --git a/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx b/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
+index 68e31b7..a5e9235 100644
+--- a/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
++++ b/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
+@@ -21,6 +21,7 @@ import { usePanelState } from '@/features/041-file-browser/hooks/use-panel-state
+ import { useTreeDirectoryChanges } from '@/features/041-file-browser/hooks/use-tree-directory-changes';
+ import { useWorkspaceContext } from '@/features/041-file-browser/hooks/use-workspace-context';
+ import { fileBrowserParams } from '@/features/041-file-browser/params/file-browser.params';
++import { fileBrowserContribution } from '@/features/041-file-browser/sdk/contribution';
+ import type { FileEntry } from '@/features/041-file-browser/services/directory-listing';
+ import { createFilePathHandler } from '@/features/041-file-browser/services/file-path-handler';
+ import { FileChangeProvider, useFileChanges } from '@/features/045-live-file-events';
+@@ -93,6 +94,7 @@ function BrowserClientInner({
+   const mode = (params.mode as ViewerMode) || 'preview';
+   const selectedFile = params.file || undefined;
+   const panelMode = (params.panel as PanelMode) || 'tree';
++  const scrollToLine = params.line ?? null;
  
-+import { SDKProvider } from '../lib/sdk/sdk-provider';
- import { Toaster } from './ui/toaster';
+   // --- Hooks ---
  
- interface ProvidersProps {
-@@ -50,7 +51,9 @@ export function Providers({ children }: ProvidersProps) {
+@@ -211,7 +213,13 @@ function BrowserClientInner({
  
+   // --- ExplorerPanel handler chain ---
+ 
+-  const filePathHandler = useMemo(() => createFilePathHandler(), []);
++  const filePathHandler = useMemo(
++    () =>
++      createFilePathHandler((line) => {
++        setParams({ line }, { history: 'replace' });
++      }),
++    [setParams]
++  );
+   const symbolStub = useMemo(() => createSymbolSearchStub(), []);
+ 
+   // --- SDK + MRU for command palette ---
+@@ -311,11 +319,24 @@ function BrowserClientInner({
+       icon: 'search',
+     });
+ 
++    // T001: openFileAtLine — navigates to file and sets line param
++    const openFileAtLineCmd = fileBrowserContribution.commands.find(
++      (c) => c.id === 'file-browser.openFileAtLine'
++    )!;
++    const openFileAtLineReg = sdk.commands.register({
++      ...openFileAtLineCmd,
++      handler: async (params: unknown) => {
++        const { path, line } = params as { path: string; line?: number };
++        setParams({ file: path, ...(line != null ? { line } : {}) }, { history: 'push' });
++      },
++    });
++
+     return () => {
+       paletteReg.dispose();
+       goToFileReg.dispose();
++      openFileAtLineReg.dispose();
+     };
+-  }, [sdk]);
++  }, [sdk, setParams]);
+ 
+   // --- Panel refresh handler ---
+ 
+@@ -465,6 +486,7 @@ function BrowserClientInner({
+                     ? (fileNav.fileData.error as 'file-too-large')
+                     : undefined
+                 }
++                scrollToLine={scrollToLine}
+               />
+             ) : (
+               <div className="flex items-center justify-center h-full text-muted-foreground">
+diff --git a/apps/web/src/features/041-file-browser/components/code-editor.tsx b/apps/web/src/features/041-file-browser/components/code-editor.tsx
+index e2d0192..8efa9c5 100644
+--- a/apps/web/src/features/041-file-browser/components/code-editor.tsx
++++ b/apps/web/src/features/041-file-browser/components/code-editor.tsx
+@@ -7,6 +7,7 @@
+  * language detection. Loaded via dynamic import to minimize bundle.
+  *
+  * Phase 4: File Browser — Plan 041
++ * Phase 6: scrollToLine prop — Plan 047, DYK-P6-03
+  * DYK-P4-04: Thin wrapper, tests stub CodeMirror
+  * DYK-P4-05: Uses shared detectLanguage()
+  * Finding 10: Lazy load via dynamic import
+@@ -14,7 +15,7 @@
+ 
+ import { useTheme } from 'next-themes';
+ import dynamic from 'next/dynamic';
+-import { useMemo } from 'react';
++import { useEffect, useMemo, useRef } from 'react';
+ 
+ import { cpp } from '@codemirror/lang-cpp';
+ import { css } from '@codemirror/lang-css';
+@@ -28,6 +29,7 @@ import { python } from '@codemirror/lang-python';
+ import { rust } from '@codemirror/lang-rust';
+ import { yaml } from '@codemirror/lang-yaml';
+ import type { Extension } from '@codemirror/state';
++import { EditorView } from '@codemirror/view';
+ 
+ // Lazy-load CodeMirror itself
+ const ReactCodeMirror = dynamic(() => import('@uiw/react-codemirror'), {
+@@ -56,16 +58,34 @@ export interface CodeEditorProps {
+   language: string;
+   onChange?: (value: string) => void;
+   readOnly?: boolean;
++  /** Line number to scroll to (1-based). DYK-P6-03: prop-driven, not ref-driven. */
++  scrollToLine?: number | null;
+ }
+ 
+-export function CodeEditor({ value, language, onChange, readOnly }: CodeEditorProps) {
++export function CodeEditor({ value, language, onChange, readOnly, scrollToLine }: CodeEditorProps) {
+   const { resolvedTheme } = useTheme();
++  const viewRef = useRef<EditorView | null>(null);
+ 
+   const extensions = useMemo(() => {
+     const langExt = LANGUAGE_EXTENSIONS[language];
+     return langExt ? [langExt()] : [];
+   }, [language]);
+ 
++  // DYK-P6-03: Capture EditorView via onCreateEditor callback
++  const handleCreateEditor = (view: EditorView) => {
++    viewRef.current = view;
++    // If scrollToLine is already set when editor mounts, scroll immediately
++    if (scrollToLine != null && scrollToLine > 0) {
++      scrollViewToLine(view, scrollToLine);
++    }
++  };
++
++  // Scroll to line when prop changes after mount
++  useEffect(() => {
++    if (scrollToLine == null || scrollToLine <= 0 || !viewRef.current) return;
++    scrollViewToLine(viewRef.current, scrollToLine);
++  }, [scrollToLine]);
++
    return (
-     <QueryClientProvider client={queryClient}>
--      <NuqsAdapter>{children}</NuqsAdapter>
-+      <NuqsAdapter>
-+        <SDKProvider>{children}</SDKProvider>
-+      </NuqsAdapter>
-       {/* Toaster must be inside ThemeProvider (in layout.tsx above us) for dark mode — DYK-042-04 */}
-       <Toaster />
-     </QueryClientProvider>
+     <ReactCodeMirror
+       value={value}
+@@ -73,6 +93,7 @@ export function CodeEditor({ value, language, onChange, readOnly }: CodeEditorPr
+       onChange={onChange}
+       readOnly={readOnly}
+       theme={resolvedTheme === 'dark' ? 'dark' : 'light'}
++      onCreateEditor={handleCreateEditor}
+       basicSetup={{
+         lineNumbers: true,
+         foldGutter: true,
+@@ -83,3 +104,14 @@ export function CodeEditor({ value, language, onChange, readOnly }: CodeEditorPr
+     />
+   );
+ }
++
++/** Scroll a CodeMirror EditorView to a 1-based line number. */
++function scrollViewToLine(view: EditorView, line: number): void {
++  const docLines = view.state.doc.lines;
++  if (line < 1 || line > docLines) return;
++  const lineInfo = view.state.doc.line(line);
++  view.dispatch({
++    selection: { anchor: lineInfo.from },
++    effects: EditorView.scrollIntoView(lineInfo.from, { y: 'center' }),
++  });
++}
+diff --git a/apps/web/src/features/041-file-browser/components/file-viewer-panel.tsx b/apps/web/src/features/041-file-browser/components/file-viewer-panel.tsx
+index bcbd6a1..08e9687 100644
+--- a/apps/web/src/features/041-file-browser/components/file-viewer-panel.tsx
++++ b/apps/web/src/features/041-file-browser/components/file-viewer-panel.tsx
+@@ -71,6 +71,8 @@ export interface FileViewerPanelProps {
+   rawFileUrl?: string;
+   /** URL for pop-out button — opens file in new tab (Phase 5) */
+   popOutUrl?: string;
++  /** Line number to scroll to in code editor (Plan 047 Phase 6) */
++  scrollToLine?: number | null;
+ }
+ 
+ export function FileViewerPanel({
+@@ -96,6 +98,7 @@ export function FileViewerPanel({
+   binarySize,
+   rawFileUrl,
+   popOutUrl,
++  scrollToLine,
+ }: FileViewerPanelProps) {
+   // All hooks must be called before any early returns (Rules of Hooks)
+   const isMarkdown = language === 'markdown';
+@@ -250,7 +253,12 @@ export function FileViewerPanel({
+         <Suspense fallback={<LoadingFallback />}>
+           {mode === 'edit' && (
+             <div className="h-full">
+-              <CodeEditor value={currentContent} language={language} onChange={onEditChange} />
++              <CodeEditor
++                value={currentContent}
++                language={language}
++                onChange={onEditChange}
++                scrollToLine={scrollToLine}
++              />
+             </div>
+           )}
+           {mode === 'preview' && (
+diff --git a/apps/web/src/features/041-file-browser/params/file-browser.params.ts b/apps/web/src/features/041-file-browser/params/file-browser.params.ts
+index c0ae72c..6e7b0c3 100644
+--- a/apps/web/src/features/041-file-browser/params/file-browser.params.ts
++++ b/apps/web/src/features/041-file-browser/params/file-browser.params.ts
+@@ -9,7 +9,7 @@
+  */
+ 
+ import { workspaceParams } from '@/lib/params/workspace.params';
+-import { parseAsString, parseAsStringLiteral } from 'nuqs';
++import { parseAsInteger, parseAsString, parseAsStringLiteral } from 'nuqs';
+ import { createSearchParamsCache } from 'nuqs/server';
+ 
+ export const fileBrowserParams = {
+@@ -21,6 +21,8 @@ export const fileBrowserParams = {
+   mode: parseAsStringLiteral(['edit', 'preview', 'diff'] as const).withDefault('preview'),
+   /** Left panel mode (Plan 043) */
+   panel: parseAsStringLiteral(['tree', 'changes'] as const).withDefault('tree'),
++  /** Line number to scroll to (Plan 047 Phase 6) */
++  line: parseAsInteger,
+ };
+ 
+ /** Combined server cache for workspace + file browser params */
+diff --git a/apps/web/src/features/041-file-browser/services/file-path-handler.ts b/apps/web/src/features/041-file-browser/services/file-path-handler.ts
+index bb32317..be112df 100644
+--- a/apps/web/src/features/041-file-browser/services/file-path-handler.ts
++++ b/apps/web/src/features/041-file-browser/services/file-path-handler.ts
+@@ -3,18 +3,43 @@
+  *
+  * Normalizes user input, strips worktree prefix if present,
+  * verifies the file exists, and navigates on success.
++ * Supports go-to-line syntax: path:42 and path#L42.
+  *
+  * Phase 3: Wire Into BrowserClient — Plan 043
++ * Phase 6: Go-to-line syntax — Plan 047, DYK-P6-04
+  * Per workshop: file-path-utility-bar.md
+  */
+ 
+ import type { BarHandler } from '@/features/_platform/panel-layout';
+ 
++/**
++ * Parse a line suffix from a path string.
++ * Supports :42 and #L42 syntax.
++ * Returns null if no valid line suffix found.
++ */
++function parseLineSuffix(path: string): { cleanPath: string; line: number } | null {
++  // Try #L42 syntax first
++  const hashMatch = path.match(/^(.+)#L(\d+)$/);
++  if (hashMatch) {
++    return { cleanPath: hashMatch[1], line: Number.parseInt(hashMatch[2], 10) };
++  }
++
++  // Try :42 syntax — only if suffix is purely numeric (DYK-P6-04)
++  const colonMatch = path.match(/^(.+):(\d+)$/);
++  if (colonMatch) {
++    return { cleanPath: colonMatch[1], line: Number.parseInt(colonMatch[2], 10) };
++  }
++
++  return null;
++}
++
+ /**
+  * Creates a BarHandler that navigates to file paths.
+  * First handler in the ExplorerPanel chain.
++ *
++ * @param onLineDetected - callback when a line number is parsed from input
+  */
+-export function createFilePathHandler(): BarHandler {
++export function createFilePathHandler(onLineDetected?: (line: number) => void): BarHandler {
+   return async (input, context) => {
+     let normalized = input.trim();
+     if (!normalized) return false;
+@@ -32,6 +57,7 @@ export function createFilePathHandler(): BarHandler {
+ 
+     if (!normalized) return false;
+ 
++    // DYK-P6-04: Path-first resolution — try the full string as-is first
+     const pathType = await context.pathExists(normalized);
+     if (pathType === 'file') {
+       context.navigateToFile(normalized);
+@@ -42,6 +68,17 @@ export function createFilePathHandler(): BarHandler {
+       return true;
+     }
+ 
++    // Full path didn't match — try parsing line suffix
++    const lineParsed = parseLineSuffix(normalized);
++    if (lineParsed) {
++      const cleanPathType = await context.pathExists(lineParsed.cleanPath);
++      if (cleanPathType === 'file') {
++        context.navigateToFile(lineParsed.cleanPath);
++        onLineDetected?.(lineParsed.line);
++        return true;
++      }
++    }
++
+     return false;
+   };
+ }
 diff --git a/apps/web/src/lib/sdk/sdk-bootstrap.ts b/apps/web/src/lib/sdk/sdk-bootstrap.ts
-index 0bbc780..d0a5b99 100644
+index a058867..85ea324 100644
 --- a/apps/web/src/lib/sdk/sdk-bootstrap.ts
 +++ b/apps/web/src/lib/sdk/sdk-bootstrap.ts
-@@ -50,6 +50,70 @@ export function bootstrapSDK(): IUSDK {
+@@ -4,12 +4,12 @@
+  * bootstrapSDK — Creates and configures an IUSDK instance.
+  *
+  * Instantiates ContextKeyService, CommandRegistry, SettingsStore and wires
+- * them into an IUSDK-shaped object. No domain registrations — Phase 6 adds those.
++ * them into an IUSDK-shaped object. Calls domain registration functions.
+  *
+  * DYK-P2-02: Toast methods import sonner directly. The toast.show command
+  * won't be registered until Phase 6, so routing through execute() would throw.
+  *
+- * Per Plan 047 Phase 2, Task T005.
++ * Per Plan 047 Phase 2, Task T005. Phase 6: domain registrations.
+  */
+ 
+ import { toast } from 'sonner';
+@@ -17,6 +17,9 @@ import { z } from 'zod';
+ 
+ import type { IUSDK } from '@chainglass/shared/sdk';
+ 
++import { registerEventsSDK } from '@/features/027-central-notify-events/sdk/register';
++import { registerFileBrowserSDK } from '@/features/041-file-browser/sdk/register';
++
+ import { CommandRegistry } from './command-registry';
+ import { ContextKeyService } from './context-key-service';
+ import { KeybindingService } from './keybinding-service';
+@@ -50,7 +53,7 @@ export function bootstrapSDK(): IUSDK {
      },
    });
  
-+  // DYK-P5-01: Demo settings to dogfood the settings page (Phase 6 moves to domain contributions)
-+  settings.contribute({
-+    key: 'appearance.theme',
-+    domain: 'appearance',
-+    label: 'Dark Mode',
-+    description: 'Enable dark mode for the application',
-+    schema: z.boolean().default(false),
-+    ui: 'toggle',
-+    section: 'Appearance',
-+  });
-+  settings.contribute({
-+    key: 'editor.fontSize',
-+    domain: 'editor',
-+    label: 'Font Size',
-+    description: 'Editor font size in pixels',
-+    schema: z.number().min(8).max(32).default(14),
-+    ui: 'number',
-+    section: 'Editor',
-+  });
-+  settings.contribute({
-+    key: 'editor.wordWrap',
-+    domain: 'editor',
-+    label: 'Word Wrap',
-+    description: 'How lines should wrap in the editor',
-+    schema: z.string().default('off'),
-+    ui: 'select',
-+    options: [
-+      { value: 'off', label: 'Off' },
-+      { value: 'on', label: 'On' },
-+      { value: 'wordWrapColumn', label: 'At Column' },
-+      { value: 'bounded', label: 'Bounded' },
-+    ],
-+    section: 'Editor',
-+  });
-+  settings.contribute({
-+    key: 'editor.tabSize',
-+    domain: 'editor',
-+    label: 'Tab Size',
-+    description: 'Number of spaces per tab stop',
-+    schema: z.number().min(1).max(8).default(2),
-+    ui: 'number',
-+    section: 'Editor',
-+  });
-+
-+  // DYK-P5-03: openSettings — parse slug from URL at execution time
-+  commands.register({
-+    id: 'sdk.openSettings',
-+    title: 'Open Settings',
-+    domain: 'sdk',
-+    params: z.object({}),
-+    handler: async () => {
-+      const match = window.location.pathname.match(/\/workspaces\/([^/]+)/);
-+      if (match) {
-+        window.location.href = `/workspaces/${match[1]}/settings`;
-+      } else {
-+        toast.info('Open a workspace first');
-+      }
-+    },
-+    icon: 'settings',
-+  });
-+
-+  // Ctrl+, opens settings
-+  keybindings.register({ key: '$mod+Comma', command: 'sdk.openSettings' });
-+
-   return {
+-  // DYK-P5-01: Demo settings to dogfood the settings page (Phase 6 moves to domain contributions)
++  // Demo setting — appearance.theme stays as platform demo
+   settings.contribute({
+     key: 'appearance.theme',
+     domain: 'appearance',
+@@ -60,39 +63,6 @@ export function bootstrapSDK(): IUSDK {
+     ui: 'toggle',
+     section: 'Appearance',
+   });
+-  settings.contribute({
+-    key: 'editor.fontSize',
+-    domain: 'editor',
+-    label: 'Font Size',
+-    description: 'Editor font size in pixels',
+-    schema: z.number().min(8).max(32).default(14),
+-    ui: 'number',
+-    section: 'Editor',
+-  });
+-  settings.contribute({
+-    key: 'editor.wordWrap',
+-    domain: 'editor',
+-    label: 'Word Wrap',
+-    description: 'How lines should wrap in the editor',
+-    schema: z.string().default('off'),
+-    ui: 'select',
+-    options: [
+-      { value: 'off', label: 'Off' },
+-      { value: 'on', label: 'On' },
+-      { value: 'wordWrapColumn', label: 'At Column' },
+-      { value: 'bounded', label: 'Bounded' },
+-    ],
+-    section: 'Editor',
+-  });
+-  settings.contribute({
+-    key: 'editor.tabSize',
+-    domain: 'editor',
+-    label: 'Tab Size',
+-    description: 'Number of spaces per tab stop',
+-    schema: z.number().min(1).max(8).default(2),
+-    ui: 'number',
+-    section: 'Editor',
+-  });
+ 
+   // DYK-P5-03: openSettings — parse slug from URL at execution time
+   // FT-005: Use custom event for SPA navigation (avoids full page reload)
+@@ -119,7 +89,7 @@ export function bootstrapSDK(): IUSDK {
+   // Ctrl+, opens settings
+   keybindings.register({ key: '$mod+Comma', command: 'sdk.openSettings' });
+ 
+-  return {
++  const sdk: IUSDK = {
      commands,
      settings,
-diff --git a/docs/domains/domain-map.md b/docs/domains/domain-map.md
-index 8524ced..62c2c01 100644
---- a/docs/domains/domain-map.md
-+++ b/docs/domains/domain-map.md
-@@ -14,6 +14,7 @@ flowchart LR
-     viewer["🖥️ _platform/viewer<br/>FileViewer · MarkdownViewer<br/>DiffViewer · highlightCode<br/>detectContentType"]:::infra
-     events["🔔 _platform/events<br/>ICentralEventNotifier<br/>ISSEBroadcaster · useSSE<br/>FileChangeHub · useFileChanges<br/>toast() · Toaster"]:::infra
-     panels["🗂️ _platform/panel-layout<br/>PanelShell · ExplorerPanel<br/>LeftPanel · MainPanel<br/>PanelHeader · BarHandler<br/>AsciiSpinner"]:::infra
-+    sdk["🧩 _platform/sdk<br/>IUSDK · ICommandRegistry<br/>ISDKSettings · IContextKeyService<br/>SDKCommand · SDKSetting"]:::infra
- 
-     %% Business domains
-     fileBrowser["📁 file-browser<br/>Browser page · FileTree<br/>CodeEditor · FileViewerPanel<br/>WorkspaceContext · Settings"]:::business
-@@ -26,6 +27,11 @@ flowchart LR
-     fileBrowser -->|"PanelShell<br/>ExplorerPanel<br/>LeftPanel · MainPanel<br/>AsciiSpinner"| panels
-     panels -->|"panel URL param"| wsUrl
-     viewer -->|"IFileSystem (Shiki reads)"| fileOps
+     context,
+@@ -131,4 +101,10 @@ export function bootstrapSDK(): IUSDK {
+       warning: (message: string) => toast.warning(message),
+     },
+   };
 +
-+    %% SDK is consumed by publishing domains (future phases)
-+    fileBrowser -.->|"IUSDK<br/>(publishes commands)"| sdk
-+    events -.->|"IUSDK<br/>(publishes toast)"| sdk
-+    panels -.->|"ICommandRegistry<br/>(hosts palette)"| sdk
- ```
- 
- ## Legend
-@@ -45,5 +51,6 @@ flowchart LR
- | _platform/events | ICentralEventNotifier, ISSEBroadcaster, useSSE, FileChangeHub, useFileChanges, FileChangeProvider, toast() | file-browser, workgraph-ui*, agent-ui* | — | — | ✅ |
- | _platform/panel-layout | PanelShell, ExplorerPanel, LeftPanel, MainPanel, PanelHeader, BarHandler, AsciiSpinner | file-browser, future workspace pages | panel URL param | workspace-url | ✅ |
- | file-browser | Browser page, FileTree, FileViewerPanel, WorkspaceContext, EmojiPicker, ColorPicker, Settings | — | IFileSystem, workspaceHref, viewers, toast, events, panels | file-ops, workspace-url, viewer, events, panel-layout | ✅ |
-+| _platform/sdk | IUSDK, ICommandRegistry, ISDKSettings, IContextKeyService, SDKCommand, SDKSetting, FakeUSDK | file-browser, events, panel-layout, settings (future) | — | — | ✅ |
- 
- *workgraph-ui and agent-ui are not yet formalized as domains but are known consumers
-diff --git a/docs/domains/registry.md b/docs/domains/registry.md
-index b5a7880..4ba7df3 100644
---- a/docs/domains/registry.md
-+++ b/docs/domains/registry.md
-@@ -8,6 +8,8 @@
- | Events | _platform/events | infrastructure | _platform | extracted (Plans 019, 023, 027); renamed Plan 045 | active |
- | Panel Layout | _platform/panel-layout | infrastructure | _platform | extracted (Plan 041 workshops) | active |
- | File Browser | file-browser | business | — | Plan 041 | active |
-+| SDK | _platform/sdk | infrastructure | _platform | Plan 047 — USDK | active |
-+| Settings | _platform/settings | infrastructure | _platform | Plan 047 — USDK Phase 5 | active |
- 
- ## Domain Types
- 
-diff --git a/packages/shared/package.json b/packages/shared/package.json
-index 8cb724c..c657459 100644
---- a/packages/shared/package.json
-+++ b/packages/shared/package.json
-@@ -32,6 +32,10 @@
-     "./features/027-central-notify-events": {
-       "import": "./dist/features/027-central-notify-events/index.js",
-       "types": "./dist/features/027-central-notify-events/index.d.ts"
-+    },
-+    "./sdk": {
-+      "import": "./dist/sdk/index.js",
-+      "types": "./dist/sdk/index.d.ts"
-     }
-   },
-   "scripts": {
-diff --git a/packages/workflow/src/entities/workspace.ts b/packages/workflow/src/entities/workspace.ts
-index e88e3b4..5d8cbda 100644
---- a/packages/workflow/src/entities/workspace.ts
-+++ b/packages/workflow/src/entities/workspace.ts
-@@ -41,6 +41,12 @@ export interface WorkspacePreferences {
-   starredWorktrees: string[];
-   /** Per-worktree emoji + color overrides, keyed by absolute worktree path */
-   worktreePreferences: Record<string, WorktreeVisualPreferences>;
-+  /** SDK settings overrides, keyed by 'domain.settingName'. Only non-default values. */
-+  sdkSettings: Record<string, unknown>;
-+  /** SDK keyboard shortcut overrides, keyed by shortcut string, value is command ID */
-+  sdkShortcuts: Record<string, string>;
-+  /** SDK most-recently-used command IDs for command palette ordering */
-+  sdkMru: string[];
++  // Phase 6: Domain registrations (ADR-0009 pattern)
++  registerFileBrowserSDK(sdk);
++  registerEventsSDK(sdk);
++
++  return sdk;
  }
- 
- /**
-@@ -54,6 +60,9 @@ export const DEFAULT_PREFERENCES: WorkspacePreferences = {
-   sortOrder: 0,
-   starredWorktrees: [],
-   worktreePreferences: {},
-+  sdkSettings: {},
-+  sdkShortcuts: {},
-+  sdkMru: [],
- };
- 
- /**
 
-=== NEW FILES ===
---- /dev/null
-+++ b/docs/domains/_platform/settings/domain.md
-@@ -0,0 +1,69 @@
-+# Domain: Settings (`_platform/settings`)
-+
-+**Type**: infrastructure
-+**Status**: active
-+**Created By**: Plan 047 — USDK Phase 5
-+**Parent**: `_platform`
-+
-+---
-+
-+## Purpose
-+
-+The settings domain provides a user-facing settings page that auto-generates controls from SDK setting contributions. Domains publish `SDKSetting` definitions to the SDK settings store; this domain renders them as a searchable, section-grouped settings UI. First dogfood of the USDK publish/consume pattern.
-+
-+**This is NOT a configuration system** — it's a UI surface for SDK settings. The underlying data lives in `_platform/sdk` (SettingsStore + WorkspacePreferences).
-+
-+---
-+
-+## Contracts (Public API)
-+
-+| Contract | Type | Description |
-+|----------|------|-------------|
-+| Settings Page | route | `/workspaces/[slug]/settings` — workspace-scoped settings UI |
-+| `sdk.openSettings` | SDK command | Navigates to settings page from palette/shortcut |
-+
-+---
-+
-+## Composition (Internal)
-+
-+| Component | Type | Description |
-+|-----------|------|-------------|
-+| SettingsPage | client component | Groups settings by section, renders controls |
-+| SettingControl | client component | Generic control renderer (toggle/select/text/number) |
-+| SettingsSearch | client component | Filter settings by label/description |
-+
-+---
-+
-+## Dependencies
-+
-+### This Domain Depends On
-+
-+| Domain | Contract | Why |
-+|--------|----------|-----|
-+| `_platform/sdk` | `ISDKSettings.list()`, `useSDKSetting()`, `useSDK()` | Read setting definitions, reactive values |
-+| shadcn/ui (npm) | Switch, Select, Input, Label | UI control components |
-+
-+### Domains That Depend On This
-+
-+| Domain | Contract | Why |
-+|--------|----------|-----|
-+| (none yet) | — | Settings page is a leaf consumer |
-+
-+---
-+
-+## Source Location
-+
-+```
-+apps/web/app/(dashboard)/workspaces/[slug]/settings/page.tsx   # Route entry
-+apps/web/src/features/settings/components/settings-page.tsx    # Main page component
-+apps/web/src/features/settings/components/setting-control.tsx  # Generic control renderer
-+apps/web/src/features/settings/components/settings-search.tsx  # Search/filter
-+```
-+
-+---
-+
-+## History
-+
-+| Plan | Change | Date |
-+|------|--------|------|
-+| 047-usdk Phase 5 | Domain created — settings page, setting controls, search, openSettings command | 2026-02-25 |
+=== UNTRACKED NEW FILES ===
 
+diff --git a/apps/web/src/features/027-central-notify-events/sdk/contribution.ts b/apps/web/src/features/027-central-notify-events/sdk/contribution.ts
+new file mode 100644
 --- /dev/null
-+++ b/apps/web/app/(dashboard)/workspaces/[slug]/settings/page.tsx
-@@ -0,0 +1,20 @@
++++ b/apps/web/src/features/027-central-notify-events/sdk/contribution.ts
+@@ -0,0 +1,44 @@
 +/**
-+ * Settings Page — /workspaces/[slug]/settings
++ * Events/toast SDK contribution manifest.
 + *
-+ * Server Component that renders the SDK settings page.
-+ * Per Plan 047 Phase 5, Task T004.
++ * Static declaration of toast commands that the events domain
++ * publishes to the USDK surface.
++ *
++ * DYK-P6-01: Keep IUSDK.toast as direct sonner calls (developer API).
++ * toast.show command is for palette discoverability only.
++ * Don't wire them together — chicken-and-egg at bootstrap.
++ *
++ * Per Plan 047, Phase 6, Task T002.
 + */
 +
-+import { SettingsPage } from '../../../../../src/features/settings/components/settings-page';
++import { z } from 'zod';
 +
-+export const dynamic = 'force-dynamic';
++import type { SDKContribution } from '@chainglass/shared/sdk';
 +
-+interface PageProps {
-+  params: Promise<{ slug: string }>;
-+}
-+
-+export default async function SettingsRoute({ params }: PageProps) {
-+  const { slug } = await params;
-+
-+  return <SettingsPage slug={slug} />;
-+}
++export const eventsContribution: SDKContribution = {
++  domain: 'events',
++  domainLabel: 'Events & Notifications',
++  commands: [
++    {
++      id: 'toast.show',
++      title: 'Show Toast Notification',
++      domain: 'events',
++      category: 'Notifications',
++      params: z.object({
++        message: z.string(),
++        type: z.enum(['success', 'error', 'info', 'warning']).default('info'),
++      }),
++      icon: 'bell',
++    },
++    {
++      id: 'toast.dismiss',
++      title: 'Dismiss All Toasts',
++      domain: 'events',
++      category: 'Notifications',
++      params: z.object({}),
++      icon: 'bell-off',
++    },
++  ],
++  settings: [],
++  keybindings: [],
++};
 
+diff --git a/apps/web/src/features/027-central-notify-events/sdk/register.ts b/apps/web/src/features/027-central-notify-events/sdk/register.ts
+new file mode 100644
 --- /dev/null
-+++ b/apps/web/src/features/settings/components/setting-control.tsx
-@@ -0,0 +1,131 @@
-+'use client';
-+
++++ b/apps/web/src/features/027-central-notify-events/sdk/register.ts
+@@ -0,0 +1,51 @@
 +/**
-+ * SettingControl — Generic renderer for SDK settings.
++ * Events/toast SDK registration.
 + *
-+ * Renders the appropriate UI control based on SDKSetting.ui hint:
-+ * - 'toggle' → Switch
-+ * - 'select' → Select dropdown
-+ * - 'text' → Input
-+ * - 'number' → Input type="number"
++ * Binds handlers to the toast contribution manifest.
++ * Both commands are bootstrap-safe (no React refs needed).
 + *
-+ * DYK-P5-02: No color/emoji controls — pickers live in file-browser domain.
-+ * Per Plan 047 Phase 5, Task T003.
++ * DYK-P6-01: These handlers call sonner directly — same as IUSDK.toast
++ * but discoverable via command palette.
++ *
++ * Per ADR-0009: registerXxxSDK(sdk) pattern.
++ * Per Plan 047, Phase 6, Task T002.
 + */
 +
-+import { Input } from '@/components/ui/input';
-+import { Label } from '@/components/ui/label';
-+import {
-+  Select,
-+  SelectContent,
-+  SelectItem,
-+  SelectTrigger,
-+  SelectValue,
-+} from '@/components/ui/select';
-+import { Switch } from '@/components/ui/switch';
-+import { useSDK } from '@/lib/sdk/sdk-provider';
-+import { useSDKSetting } from '@/lib/sdk/use-sdk-setting';
-+import type { SDKSetting } from '@chainglass/shared/sdk';
-+import { RotateCcw } from 'lucide-react';
++import { toast } from 'sonner';
 +
-+interface SettingControlProps {
-+  setting: SDKSetting;
-+}
++import type { IUSDK } from '@chainglass/shared/sdk';
 +
-+export function SettingControl({ setting }: SettingControlProps) {
-+  const sdk = useSDK();
-+  const [value, setValue] = useSDKSetting(setting.key);
++import { eventsContribution } from './contribution';
 +
-+  const handleReset = () => {
-+    sdk.settings.reset(setting.key);
-+  };
++/**
++ * Register events/toast SDK contributions.
++ * Called from bootstrapSDK().
++ */
++export function registerEventsSDK(sdk: IUSDK): void {
++  // Register toast.show
++  const showCmd = eventsContribution.commands.find((c) => c.id === 'toast.show')!;
++  sdk.commands.register({
++    ...showCmd,
++    handler: async (params: unknown) => {
++      const { message, type } = params as {
++        message: string;
++        type: 'success' | 'error' | 'info' | 'warning';
++      };
++      toast[type](message);
++    },
++  });
 +
-+  return (
-+    <div className="flex items-start justify-between gap-4 py-3">
-+      <div className="flex-1 min-w-0">
-+        <Label className="text-sm font-medium">{setting.label}</Label>
-+        {setting.description && (
-+          <p className="text-xs text-muted-foreground mt-0.5">{setting.description}</p>
-+        )}
-+      </div>
-+      <div className="flex items-center gap-2 shrink-0">
-+        <ControlRenderer setting={setting} value={value} setValue={setValue} />
-+        <button
-+          type="button"
-+          onClick={handleReset}
-+          className="rounded p-1 text-muted-foreground hover:text-foreground"
-+          aria-label={`Reset ${setting.label} to default`}
-+          title="Reset to default"
-+        >
-+          <RotateCcw className="h-3.5 w-3.5" />
-+        </button>
-+      </div>
-+    </div>
-+  );
-+}
++  // Register toast.dismiss
++  const dismissCmd = eventsContribution.commands.find((c) => c.id === 'toast.dismiss')!;
++  sdk.commands.register({
++    ...dismissCmd,
++    handler: async () => {
++      toast.dismiss();
++    },
++  });
 +
-+function ControlRenderer({
-+  setting,
-+  value,
-+  setValue,
-+}: {
-+  setting: SDKSetting;
-+  value: unknown;
-+  setValue: (v: unknown) => Promise<void>;
-+}) {
-+  switch (setting.ui) {
-+    case 'toggle':
-+      return (
-+        <Switch
-+          checked={Boolean(value)}
-+          onCheckedChange={(checked) => setValue(checked)}
-+          aria-label={setting.label}
-+        />
-+      );
-+
-+    case 'select':
-+      return (
-+        <Select value={String(value ?? '')} onValueChange={(v) => setValue(v)}>
-+          <SelectTrigger className="w-40">
-+            <SelectValue placeholder="Select..." />
-+          </SelectTrigger>
-+          <SelectContent>
-+            {(setting.options ?? []).map((opt) => (
-+              <SelectItem key={opt.value} value={opt.value}>
-+                {opt.label}
-+              </SelectItem>
-+            ))}
-+          </SelectContent>
-+        </Select>
-+      );
-+
-+    case 'number':
-+      return (
-+        <Input
-+          type="number"
-+          value={String(value ?? '')}
-+          onChange={(e) => setValue(Number(e.target.value))}
-+          className="w-24"
-+          aria-label={setting.label}
-+        />
-+      );
-+
-+    case 'text':
-+      return (
-+        <Input
-+          type="text"
-+          value={String(value ?? '')}
-+          onChange={(e) => setValue(e.target.value)}
-+          className="w-48"
-+          aria-label={setting.label}
-+        />
-+      );
-+
-+    default:
-+      return (
-+        <span className="text-xs text-muted-foreground italic">
-+          Unsupported control: {setting.ui ?? 'none'}
-+        </span>
-+      );
++  // Register keybindings (none for events)
++  for (const binding of eventsContribution.keybindings) {
++    sdk.keybindings.register(binding);
 +  }
 +}
 
+diff --git a/apps/web/src/features/041-file-browser/sdk/contribution.ts b/apps/web/src/features/041-file-browser/sdk/contribution.ts
+new file mode 100644
 --- /dev/null
-+++ b/apps/web/src/features/settings/components/settings-page.tsx
-@@ -0,0 +1,96 @@
-+'use client';
-+
++++ b/apps/web/src/features/041-file-browser/sdk/contribution.ts
+@@ -0,0 +1,95 @@
 +/**
-+ * SettingsPage — Domain-organised settings UI.
++ * File-browser SDK contribution manifest.
 + *
-+ * Reads sdk.settings.list(), groups by section, renders SettingControl per setting.
-+ * DYK-P5-01: Demo settings registered in bootstrap for dogfooding.
-+ * DYK-P5-05: Conditional worktree section when workspace context available.
++ * Static declaration of commands, settings, and keybindings that the
++ * file-browser domain publishes to the USDK surface.
 + *
-+ * Per Plan 047 Phase 5, Task T004. AC-21, AC-23.
++ * DYK-P6-02: No openFile command — goToFile already exists (Ctrl+P).
++ * Only openFileAtLine (programmatic, takes path + line) and copyPath.
++ *
++ * Per Plan 047, Phase 6, Task T001.
 + */
 +
-+import type { SDKSetting } from '@chainglass/shared/sdk';
-+import { Settings } from 'lucide-react';
-+import { useMemo, useState } from 'react';
++import { z } from 'zod';
 +
-+import { useSDK } from '@/lib/sdk/sdk-provider';
++import type { SDKContribution } from '@chainglass/shared/sdk';
 +
-+import { SettingControl } from './setting-control';
-+import { SettingsSearch } from './settings-search';
-+
-+interface SettingsPageProps {
-+  slug: string;
-+}
-+
-+/** Group settings by section (falls back to domain name). */
-+function groupBySection(settings: SDKSetting[]): Map<string, SDKSetting[]> {
-+  const groups = new Map<string, SDKSetting[]>();
-+  for (const setting of settings) {
-+    const section = setting.section ?? setting.domain;
-+    const group = groups.get(section) ?? [];
-+    group.push(setting);
-+    groups.set(section, group);
-+  }
-+  // Sort sections alphabetically
-+  return new Map([...groups.entries()].sort(([a], [b]) => a.localeCompare(b)));
-+}
-+
-+/** Filter settings by search query (label or description, case-insensitive). */
-+function filterSettings(settings: SDKSetting[], query: string): SDKSetting[] {
-+  if (!query) return settings;
-+  const lower = query.toLowerCase();
-+  return settings.filter(
-+    (s) => s.label.toLowerCase().includes(lower) || s.description.toLowerCase().includes(lower)
-+  );
-+}
-+
-+export function SettingsPage({ slug }: SettingsPageProps) {
-+  const sdk = useSDK();
-+  const [search, setSearch] = useState('');
-+
-+  const allSettings = useMemo(() => sdk.settings.list(), [sdk]);
-+  const filtered = useMemo(() => filterSettings(allSettings, search), [allSettings, search]);
-+  const grouped = useMemo(() => groupBySection(filtered), [filtered]);
-+
-+  return (
-+    <div className="h-[calc(100vh-4rem)] overflow-y-auto">
-+      <div className="mx-auto max-w-2xl px-6 py-8">
-+        <div className="flex items-center gap-2 mb-6">
-+          <Settings className="h-5 w-5 text-muted-foreground" />
-+          <h1 className="text-xl font-semibold">Settings</h1>
-+        </div>
-+
-+        <div className="mb-6">
-+          <SettingsSearch
-+            value={search}
-+            onChange={setSearch}
-+            matchCount={filtered.length}
-+            totalCount={allSettings.length}
-+          />
-+        </div>
-+
-+        {grouped.size === 0 ? (
-+          <div className="py-12 text-center text-muted-foreground">
-+            {search ? 'No settings match your search' : 'No settings available'}
-+          </div>
-+        ) : (
-+          <div className="space-y-8">
-+            {[...grouped.entries()].map(([section, settings]) => (
-+              <div key={section}>
-+                <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-2 border-b pb-2">
-+                  {section}
-+                </h2>
-+                <div className="divide-y">
-+                  {settings.map((setting) => (
-+                    <SettingControl key={setting.key} setting={setting} />
-+                  ))}
-+                </div>
-+              </div>
-+            ))}
-+          </div>
-+        )}
-+      </div>
-+    </div>
-+  );
-+}
++export const fileBrowserContribution: SDKContribution = {
++  domain: 'file-browser',
++  domainLabel: 'File Browser',
++  commands: [
++    {
++      id: 'file-browser.openFileAtLine',
++      title: 'Open File at Line',
++      domain: 'file-browser',
++      category: 'Navigation',
++      params: z.object({
++        path: z.string(),
++        line: z.number().int().positive().optional(),
++      }),
++      icon: 'file-text',
++    },
++    {
++      id: 'file-browser.copyPath',
++      title: 'Copy Current File Path',
++      domain: 'file-browser',
++      category: 'Clipboard',
++      params: z.object({}),
++      icon: 'copy',
++    },
++  ],
++  settings: [
++    {
++      key: 'file-browser.showHiddenFiles',
++      domain: 'file-browser',
++      label: 'Show Hidden Files',
++      description: 'Show files and directories starting with a dot',
++      schema: z.boolean().default(false),
++      ui: 'toggle',
++      section: 'File Browser',
++    },
++    {
++      key: 'file-browser.previewOnClick',
++      domain: 'file-browser',
++      label: 'Preview on Click',
++      description: 'Automatically preview files when clicking in the tree',
++      schema: z.boolean().default(true),
++      ui: 'toggle',
++      section: 'File Browser',
++    },
++    {
++      key: 'editor.fontSize',
++      domain: 'file-browser',
++      label: 'Font Size',
++      description: 'Editor font size in pixels',
++      schema: z.number().min(8).max(32).default(14),
++      ui: 'number',
++      section: 'Editor',
++    },
++    {
++      key: 'editor.wordWrap',
++      domain: 'file-browser',
++      label: 'Word Wrap',
++      description: 'How lines should wrap in the editor',
++      schema: z.string().default('off'),
++      ui: 'select',
++      options: [
++        { value: 'off', label: 'Off' },
++        { value: 'on', label: 'On' },
++        { value: 'wordWrapColumn', label: 'At Column' },
++        { value: 'bounded', label: 'Bounded' },
++      ],
++      section: 'Editor',
++    },
++    {
++      key: 'editor.tabSize',
++      domain: 'file-browser',
++      label: 'Tab Size',
++      description: 'Number of spaces per tab stop',
++      schema: z.number().min(1).max(8).default(2),
++      ui: 'number',
++      section: 'Editor',
++    },
++  ],
++  keybindings: [],
++};
 
+diff --git a/apps/web/src/features/041-file-browser/sdk/register.ts b/apps/web/src/features/041-file-browser/sdk/register.ts
+new file mode 100644
 --- /dev/null
-+++ b/apps/web/src/features/settings/components/settings-search.tsx
-@@ -0,0 +1,68 @@
-+'use client';
-+
++++ b/apps/web/src/features/041-file-browser/sdk/register.ts
+@@ -0,0 +1,45 @@
 +/**
-+ * SettingsSearch — Filter input for the settings page.
++ * File-browser SDK registration.
 + *
-+ * Filters settings by label or description (case-insensitive substring).
-+ * Clears on Escape. Shows match count.
++ * Binds handlers to the static contribution manifest and registers
++ * bootstrap-safe commands (copyPath). Commands needing React refs
++ * (openFileAtLine) are registered via useEffect in browser-client.tsx.
 + *
-+ * Per Plan 047 Phase 5, Task T005. AC-24.
++ * Per ADR-0009: registerXxxSDK(sdk) pattern.
++ * Per Plan 047, Phase 6, Task T001.
 + */
 +
-+import { Input } from '@/components/ui/input';
-+import { Search, X } from 'lucide-react';
-+import { useCallback, useRef } from 'react';
++import type { IUSDK } from '@chainglass/shared/sdk';
 +
-+interface SettingsSearchProps {
-+  value: string;
-+  onChange: (value: string) => void;
-+  matchCount: number;
-+  totalCount: number;
-+}
++import { fileBrowserContribution } from './contribution';
 +
-+export function SettingsSearch({ value, onChange, matchCount, totalCount }: SettingsSearchProps) {
-+  const inputRef = useRef<HTMLInputElement>(null);
++/**
++ * Register file-browser SDK contributions that don't need component refs.
++ * Called from bootstrapSDK().
++ */
++export function registerFileBrowserSDK(sdk: IUSDK): void {
++  // Contribute settings
++  for (const setting of fileBrowserContribution.settings) {
++    sdk.settings.contribute(setting);
++  }
 +
-+  const handleKeyDown = useCallback(
-+    (e: React.KeyboardEvent) => {
-+      if (e.key === 'Escape') {
-+        onChange('');
-+        inputRef.current?.blur();
++  // Register copyPath — needs no refs, just reads current URL
++  sdk.commands.register({
++    ...fileBrowserContribution.commands.find((c) => c.id === 'file-browser.copyPath')!,
++    handler: async () => {
++      const url = new URL(window.location.href);
++      const file = url.searchParams.get('file');
++      if (file) {
++        await navigator.clipboard.writeText(file);
++        sdk.toast.success(`Copied: ${file}`);
++      } else {
++        sdk.toast.info('No file selected');
 +      }
 +    },
-+    [onChange]
-+  );
++  });
++
++  // Register keybindings
++  for (const binding of fileBrowserContribution.keybindings) {
++    sdk.keybindings.register(binding);
++  }
++}
+
+diff --git a/docs/how/sdk/consuming-sdk.md b/docs/how/sdk/consuming-sdk.md
+new file mode 100644
+--- /dev/null
++++ b/docs/how/sdk/consuming-sdk.md
+@@ -0,0 +1,95 @@
++# Consuming the USDK
++
++How to use SDK features from your React components — executing commands, reading settings, and accessing context.
++
++## Hooks
++
++### `useSDK()` — Access the SDK instance
++
++```typescript
++import { useSDK } from '@/lib/sdk/sdk-provider';
++
++function MyComponent() {
++  const sdk = useSDK();
++
++  const handleClick = () => {
++    sdk.commands.execute('file-browser.openFileAtLine', {
++      path: 'src/index.ts',
++      line: 42,
++    });
++  };
++
++  return <button onClick={handleClick}>Open File</button>;
++}
++```
++
++### `useSDKSetting()` — Reactive setting value
++
++```typescript
++import { useSDKSetting } from '@/lib/sdk/use-sdk-setting';
++
++function MyComponent() {
++  const [fontSize, setFontSize] = useSDKSetting<number>('editor.fontSize');
 +
 +  return (
-+    <div className="relative">
-+      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-+      <Input
-+        ref={inputRef}
-+        type="text"
-+        value={value}
-+        onChange={(e) => onChange(e.target.value)}
-+        onKeyDown={handleKeyDown}
-+        placeholder="Search settings..."
-+        className="pl-9 pr-20"
-+        aria-label="Search settings"
-+      />
-+      <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
-+        {value && (
-+          <>
-+            <span className="text-xs text-muted-foreground">
-+              {matchCount}/{totalCount}
-+            </span>
-+            <button
-+              type="button"
-+              onClick={() => onChange('')}
-+              className="rounded p-0.5 text-muted-foreground hover:text-foreground"
-+              aria-label="Clear search"
-+            >
-+              <X className="h-3.5 w-3.5" />
-+            </button>
-+          </>
-+        )}
-+      </div>
++    <div style={{ fontSize }}>
++      <button onClick={() => setFontSize((fontSize ?? 14) + 1)}>
++        Increase Font Size
++      </button>
 +    </div>
 +  );
 +}
++```
++
++The hook returns `[value, setValue]` — similar to `useState`. Changes persist to workspace preferences automatically (300ms debounce).
++
++### `useSDKContext()` — Reactive context key
++
++```typescript
++import { useSDKContext } from '@/lib/sdk/use-sdk-context';
++
++function MyComponent() {
++  const hasOpenFile = useSDKContext('file-browser.hasOpenFile');
++
++  return hasOpenFile ? <FileTools /> : null;
++}
++```
++
++## Command Palette
++
++Users open the command palette with **Ctrl+Shift+P** (or **Cmd+Shift+P** on Mac). Type `>` in the explorer bar to activate palette mode.
++
++All registered commands appear in the palette, sorted by most recently used (MRU).
++
++## Toast
++
++```typescript
++const sdk = useSDK();
++
++// Direct convenience methods
++sdk.toast.success('File saved');
++sdk.toast.error('Permission denied');
++sdk.toast.info('Processing...');
++sdk.toast.warning('Unsaved changes');
++```
++
++## Listing Commands & Shortcuts
++
++```typescript
++const sdk = useSDK();
++
++// List all commands
++const commands = sdk.commands.list();
++
++// List by domain
++const fbCommands = sdk.commands.list({ domain: 'file-browser' });
++
++// List keyboard shortcuts
++const bindings = sdk.keybindings.getBindings();
++```
++
++## ADR & Workshops
++
++- [ADR-0013: USDK Architecture](../../adr/adr-0013-usdk-internal-sdk-architecture.md)
++- [Workshop 003: Settings Data Model](../../plans/047-usdk/workshops/003-settings-domain-data-model.md)
++- [Workshop 004: SDK Events](../../plans/047-usdk/workshops/004-sdk-event-firing-via-events-domain.md)
 
+diff --git a/docs/how/sdk/publishing-to-sdk.md b/docs/how/sdk/publishing-to-sdk.md
+new file mode 100644
 --- /dev/null
-+++ b/apps/web/src/components/ui/switch.tsx
-@@ -0,0 +1,33 @@
-+import * as React from "react"
-+import { Switch as SwitchPrimitive } from "radix-ui"
++++ b/docs/how/sdk/publishing-to-sdk.md
+@@ -0,0 +1,129 @@
++# Publishing to the USDK
 +
-+import { cn } from "@/lib/utils"
++How to make your domain's features discoverable through the SDK — command palette, keyboard shortcuts, and settings page.
 +
-+function Switch({
-+  className,
-+  size = "default",
-+  ...props
-+}: React.ComponentProps<typeof SwitchPrimitive.Root> & {
-+  size?: "sm" | "default"
-+}) {
-+  return (
-+    <SwitchPrimitive.Root
-+      data-slot="switch"
-+      data-size={size}
-+      className={cn(
-+        "peer data-[state=checked]:bg-primary data-[state=unchecked]:bg-input focus-visible:border-ring focus-visible:ring-ring/50 dark:data-[state=unchecked]:bg-input/80 group/switch inline-flex shrink-0 items-center rounded-full border border-transparent shadow-xs transition-all outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 data-[size=default]:h-[1.15rem] data-[size=default]:w-8 data-[size=sm]:h-3.5 data-[size=sm]:w-6",
-+        className
-+      )}
-+      {...props}
-+    >
-+      <SwitchPrimitive.Thumb
-+        data-slot="switch-thumb"
-+        className={cn(
-+          "bg-background dark:data-[state=unchecked]:bg-foreground dark:data-[state=checked]:bg-primary-foreground pointer-events-none block rounded-full ring-0 transition-transform group-data-[size=default]/switch:size-4 group-data-[size=sm]/switch:size-3 data-[state=checked]:translate-x-[calc(100%-2px)] data-[state=unchecked]:translate-x-0"
-+        )}
-+      />
-+    </SwitchPrimitive.Root>
-+  )
++## Quick Start
++
++### 1. Create a contribution manifest
++
++```typescript
++// features/my-domain/sdk/contribution.ts
++import { z } from 'zod';
++import type { SDKContribution } from '@chainglass/shared/sdk';
++
++export const myDomainContribution: SDKContribution = {
++  domain: 'my-domain',
++  domainLabel: 'My Domain',
++  commands: [
++    {
++      id: 'my-domain.doSomething',
++      title: 'Do Something',
++      domain: 'my-domain',
++      category: 'Actions',
++      params: z.object({ target: z.string() }),
++      icon: 'play',
++    },
++  ],
++  settings: [
++    {
++      key: 'my-domain.autoRefresh',
++      domain: 'my-domain',
++      label: 'Auto Refresh',
++      description: 'Automatically refresh when files change',
++      schema: z.boolean().default(true),
++      ui: 'toggle',
++      section: 'My Domain',
++    },
++  ],
++  keybindings: [
++    { key: '$mod+Shift+KeyD', command: 'my-domain.doSomething' },
++  ],
++};
++```
++
++### 2. Create a register function
++
++```typescript
++// features/my-domain/sdk/register.ts
++import type { IUSDK } from '@chainglass/shared/sdk';
++import { myDomainContribution } from './contribution';
++
++export function registerMyDomainSDK(sdk: IUSDK): void {
++  // Contribute settings
++  for (const setting of myDomainContribution.settings) {
++    sdk.settings.contribute(setting);
++  }
++
++  // Register commands with handlers
++  const doCmd = myDomainContribution.commands.find(
++    (c) => c.id === 'my-domain.doSomething'
++  )!;
++  sdk.commands.register({
++    ...doCmd,
++    handler: async (params: unknown) => {
++      const { target } = params as { target: string };
++      // Your domain logic here
++      sdk.toast.success(`Done: ${target}`);
++    },
++  });
++
++  // Register keybindings
++  for (const binding of myDomainContribution.keybindings) {
++    sdk.keybindings.register(binding);
++  }
 +}
++```
 +
-+export { Switch }
-
---- /dev/null
-+++ b/apps/web/src/components/ui/select.tsx
-@@ -0,0 +1,190 @@
-+"use client"
++### 3. Wire into bootstrap
 +
-+import * as React from "react"
-+import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react"
-+import { Select as SelectPrimitive } from "radix-ui"
++```typescript
++// In sdk-bootstrap.ts
++import { registerMyDomainSDK } from '@/features/my-domain/sdk/register';
 +
-+import { cn } from "@/lib/utils"
++// After creating the sdk instance:
++registerMyDomainSDK(sdk);
++```
 +
-+function Select({
-+  ...props
-+}: React.ComponentProps<typeof SelectPrimitive.Root>) {
-+  return <SelectPrimitive.Root data-slot="select" {...props} />
-+}
++## Key Concepts
 +
-+function SelectGroup({
-+  ...props
-+}: React.ComponentProps<typeof SelectPrimitive.Group>) {
-+  return <SelectPrimitive.Group data-slot="select-group" {...props} />
-+}
++### Bootstrap-safe vs ref-dependent commands
 +
-+function SelectValue({
-+  ...props
-+}: React.ComponentProps<typeof SelectPrimitive.Value>) {
-+  return <SelectPrimitive.Value data-slot="select-value" {...props} />
-+}
++**Bootstrap-safe**: Commands that don't need React component refs. Register in `registerXxxSDK()` → called from `bootstrapSDK()`.
 +
-+function SelectTrigger({
-+  className,
-+  size = "default",
-+  children,
-+  ...props
-+}: React.ComponentProps<typeof SelectPrimitive.Trigger> & {
-+  size?: "sm" | "default"
-+}) {
-+  return (
-+    <SelectPrimitive.Trigger
-+      data-slot="select-trigger"
-+      data-size={size}
-+      className={cn(
-+        "border-input data-[placeholder]:text-muted-foreground [&_svg:not([class*='text-'])]:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:bg-input/30 dark:hover:bg-input/50 flex w-fit items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 data-[size=default]:h-9 data-[size=sm]:h-8 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-2 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-+        className
-+      )}
-+      {...props}
-+    >
-+      {children}
-+      <SelectPrimitive.Icon asChild>
-+        <ChevronDownIcon className="size-4 opacity-50" />
-+      </SelectPrimitive.Icon>
-+    </SelectPrimitive.Trigger>
-+  )
-+}
++**Ref-dependent**: Commands that need React refs (e.g., focus an input, scroll a panel). Register via `useEffect` in the owning component:
 +
-+function SelectContent({
-+  className,
-+  children,
-+  position = "item-aligned",
-+  align = "center",
-+  ...props
-+}: React.ComponentProps<typeof SelectPrimitive.Content>) {
-+  return (
-+    <SelectPrimitive.Portal>
-+      <SelectPrimitive.Content
-+        data-slot="select-content"
-+        className={cn(
-+          "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 relative z-50 max-h-(--radix-select-content-available-height) min-w-[8rem] origin-(--radix-select-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-md border shadow-md",
-+          position === "popper" &&
-+            "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
-+          className
-+        )}
-+        position={position}
-+        align={align}
-+        {...props}
-+      >
-+        <SelectScrollUpButton />
-+        <SelectPrimitive.Viewport
-+          className={cn(
-+            "p-1",
-+            position === "popper" &&
-+              "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)] scroll-my-1"
-+          )}
-+        >
-+          {children}
-+        </SelectPrimitive.Viewport>
-+        <SelectScrollDownButton />
-+      </SelectPrimitive.Content>
-+    </SelectPrimitive.Portal>
-+  )
-+}
++```typescript
++useEffect(() => {
++  const reg = sdk.commands.register({
++    id: 'my-domain.focusPanel',
++    title: 'Focus Panel',
++    domain: 'my-domain',
++    params: z.object({}),
++    handler: async () => {
++      panelRef.current?.focus();
++    },
++  });
++  return () => reg.dispose();
++}, [sdk]);
++```
 +
-+function SelectLabel({
-+  className,
-+  ...props
-+}: React.ComponentProps<typeof SelectPrimitive.Label>) {
-+  return (
-+    <SelectPrimitive.Label
-+      data-slot="select-label"
-+      className={cn("text-muted-foreground px-2 py-1.5 text-xs", className)}
-+      {...props}
-+    />
-+  )
-+}
++### Settings types
 +
-+function SelectItem({
-+  className,
-+  children,
-+  ...props
-+}: React.ComponentProps<typeof SelectPrimitive.Item>) {
-+  return (
-+    <SelectPrimitive.Item
-+      data-slot="select-item"
-+      className={cn(
-+        "focus:bg-accent focus:text-accent-foreground [&_svg:not([class*='text-'])]:text-muted-foreground relative flex w-full cursor-default items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
-+        className
-+      )}
-+      {...props}
-+    >
-+      <span
-+        data-slot="select-item-indicator"
-+        className="absolute right-2 flex size-3.5 items-center justify-center"
-+      >
-+        <SelectPrimitive.ItemIndicator>
-+          <CheckIcon className="size-4" />
-+        </SelectPrimitive.ItemIndicator>
-+      </span>
-+      <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
-+    </SelectPrimitive.Item>
-+  )
-+}
++| `ui` value | Schema type | Renders as |
++|-----------|-------------|------------|
++| `toggle` | `z.boolean()` | Switch |
++| `select` | `z.string()` | Dropdown (needs `options`) |
++| `text` | `z.string()` | Text input |
++| `number` | `z.number()` | Number input |
 +
-+function SelectSeparator({
-+  className,
-+  ...props
-+}: React.ComponentProps<typeof SelectPrimitive.Separator>) {
-+  return (
-+    <SelectPrimitive.Separator
-+      data-slot="select-separator"
-+      className={cn("bg-border pointer-events-none -mx-1 my-1 h-px", className)}
-+      {...props}
-+    />
-+  )
-+}
++### Keyboard shortcut format
 +
-+function SelectScrollUpButton({
-+  className,
-+  ...props
-+}: React.ComponentProps<typeof SelectPrimitive.ScrollUpButton>) {
-+  return (
-+    <SelectPrimitive.ScrollUpButton
-+      data-slot="select-scroll-up-button"
-+      className={cn(
-+        "flex cursor-default items-center justify-center py-1",
-+        className
-+      )}
-+      {...props}
-+    >
-+      <ChevronUpIcon className="size-4" />
-+    </SelectPrimitive.ScrollUpButton>
-+  )
-+}
++Keys use tinykeys format: `$mod+KeyP`, `$mod+Shift+KeyK`. Chords use space separation: `$mod+KeyK $mod+KeyC`.
 +
-+function SelectScrollDownButton({
-+  className,
-+  ...props
-+}: React.ComponentProps<typeof SelectPrimitive.ScrollDownButton>) {
-+  return (
-+    <SelectPrimitive.ScrollDownButton
-+      data-slot="select-scroll-down-button"
-+      className={cn(
-+        "flex cursor-default items-center justify-center py-1",
-+        className
-+      )}
-+      {...props}
-+    >
-+      <ChevronDownIcon className="size-4" />
-+    </SelectPrimitive.ScrollDownButton>
-+  )
-+}
++`$mod` maps to Ctrl on Windows/Linux, Cmd on Mac.
 +
-+export {
-+  Select,
-+  SelectContent,
-+  SelectGroup,
-+  SelectItem,
-+  SelectLabel,
-+  SelectScrollDownButton,
-+  SelectScrollUpButton,
-+  SelectSeparator,
-+  SelectTrigger,
-+  SelectValue,
-+}
-
++## ADR & Workshops
++
++- [ADR-0013: USDK Architecture](../../adr/adr-0013-usdk-internal-sdk-architecture.md)
++- [Workshop 001: SDK Surface](../../plans/047-usdk/workshops/001-sdk-surface-consumer-publisher-experience.md)
++- [Workshop 002: SDK Candidates](../../plans/047-usdk/workshops/002-initial-sdk-candidates.md)

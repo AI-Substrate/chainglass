@@ -3,7 +3,7 @@
 **Phase**: Phase 6: SDK Wraps, Go-to-Line & Polish
 **Plan**: [usdk-plan.md](../../usdk-plan.md)
 **Tasks**: [tasks.md](./tasks.md)
-**Status**: Ready
+**Status**: Landed
 
 ---
 
@@ -72,7 +72,7 @@ stateDiagram-v2
     S6 --> [*]
     S7 --> [*]
 
-    class S1,S2,S3,S4,S5,S6,S7 pending
+    class S1,S2,S3,S4,S5,S6,S7 done
 ```
 
 **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -81,13 +81,13 @@ stateDiagram-v2
 
 ## Stages
 
-- [ ] Create file-browser SDK contribution (2 commands, 2 settings) (T001)
-- [ ] Create events/toast SDK contribution (T002)
-- [ ] Implement go-to-line URL param + path parsing (T003)
-- [ ] Expose CodeMirror scroll-to-line via prop (T004)
-- [ ] Wire domain registrations into bootstrap (T005)
+- [x] Create file-browser SDK contribution (2 commands, 2 settings) (T001)
+- [x] Create events/toast SDK contribution (T002)
+- [x] Implement go-to-line URL param + path parsing (T003)
+- [x] Expose CodeMirror scroll-to-line via prop (T004)
+- [x] Wire domain registrations into bootstrap (T005)
 - [x] Create USDK Architecture Decision Record (T007)
-- [ ] Create SDK developer documentation (T006)
+- [x] Create SDK developer documentation (T006)
 
 ---
 
@@ -120,13 +120,13 @@ flowchart TD
 
 ## Acceptance Criteria
 
-- [ ] AC-25: file-browser publishes 3+ commands, 2+ settings
-- [ ] AC-26: events publishes toast.show, toast.dismiss
-- [ ] AC-27: Separate contribution manifest from handler binding
-- [ ] AC-28: toast.show produces same toast as direct toast()
-- [ ] AC-29: file-browser.openFile navigates to file
-- [ ] AC-31: openFileAtLine scrolls to specified line
-- [ ] AC-32: Explorer bar accepts `path:42` / `path#L42` syntax
+- [x] AC-25: file-browser publishes 3+ commands, 2+ settings
+- [x] AC-26: events publishes toast.show, toast.dismiss
+- [x] AC-27: Separate contribution manifest from handler binding
+- [x] AC-28: toast.show produces same toast as direct toast()
+- [x] AC-29: file-browser.openFile navigates to file
+- [x] AC-31: openFileAtLine scrolls to specified line
+- [x] AC-32: Explorer bar accepts `path:42` / `path#L42` syntax
 
 ---
 
@@ -142,10 +142,10 @@ flowchart TD
 
 | ID | Task | CS |
 |----|------|----|
-| T001 | file-browser SDK contribution | CS-3 |
-| T002 | events/toast SDK contribution | CS-2 |
-| T003 | Go-to-line URL param + parsing | CS-2 |
-| T004 | CodeMirror scroll-to-line | CS-3 |
-| T005 | Wire domain registrations | CS-2 |
-| T006 | SDK developer documentation | CS-2 |
-| T007 | USDK ADR | CS-2 |
+| T001 | file-browser SDK contribution | CS-3 | ✅ |
+| T002 | events/toast SDK contribution | CS-2 | ✅ |
+| T003 | Go-to-line URL param + parsing | CS-2 | ✅ |
+| T004 | CodeMirror scroll-to-line | CS-3 | ✅ |
+| T005 | Wire domain registrations | CS-2 | ✅ |
+| T006 | SDK developer documentation | CS-2 | ✅ |
+| T007 | USDK ADR | CS-2 | ✅ |

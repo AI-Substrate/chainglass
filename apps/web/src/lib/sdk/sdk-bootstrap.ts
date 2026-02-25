@@ -4,18 +4,21 @@
  * bootstrapSDK — Creates and configures an IUSDK instance.
  *
  * Instantiates ContextKeyService, CommandRegistry, SettingsStore and wires
- * them into an IUSDK-shaped object. No domain registrations — Phase 6 adds those.
+ * them into an IUSDK-shaped object. Calls domain registration functions.
  *
  * DYK-P2-02: Toast methods import sonner directly. The toast.show command
  * won't be registered until Phase 6, so routing through execute() would throw.
  *
- * Per Plan 047 Phase 2, Task T005.
+ * Per Plan 047 Phase 2, Task T005. Phase 6: domain registrations.
  */
 
 import { toast } from 'sonner';
 import { z } from 'zod';
 
 import type { IUSDK } from '@chainglass/shared/sdk';
+
+import { registerEventsSDK } from '@/features/027-central-notify-events/sdk/register';
+import { registerFileBrowserSDK } from '@/features/041-file-browser/sdk/register';
 
 import { CommandRegistry } from './command-registry';
 import { ContextKeyService } from './context-key-service';
@@ -50,7 +53,7 @@ export function bootstrapSDK(): IUSDK {
     },
   });
 
-  // DYK-P5-01: Demo settings to dogfood the settings page (Phase 6 moves to domain contributions)
+  // Demo setting — appearance.theme stays as platform demo
   settings.contribute({
     key: 'appearance.theme',
     domain: 'appearance',
@@ -59,39 +62,6 @@ export function bootstrapSDK(): IUSDK {
     schema: z.boolean().default(false),
     ui: 'toggle',
     section: 'Appearance',
-  });
-  settings.contribute({
-    key: 'editor.fontSize',
-    domain: 'editor',
-    label: 'Font Size',
-    description: 'Editor font size in pixels',
-    schema: z.number().min(8).max(32).default(14),
-    ui: 'number',
-    section: 'Editor',
-  });
-  settings.contribute({
-    key: 'editor.wordWrap',
-    domain: 'editor',
-    label: 'Word Wrap',
-    description: 'How lines should wrap in the editor',
-    schema: z.string().default('off'),
-    ui: 'select',
-    options: [
-      { value: 'off', label: 'Off' },
-      { value: 'on', label: 'On' },
-      { value: 'wordWrapColumn', label: 'At Column' },
-      { value: 'bounded', label: 'Bounded' },
-    ],
-    section: 'Editor',
-  });
-  settings.contribute({
-    key: 'editor.tabSize',
-    domain: 'editor',
-    label: 'Tab Size',
-    description: 'Number of spaces per tab stop',
-    schema: z.number().min(1).max(8).default(2),
-    ui: 'number',
-    section: 'Editor',
   });
 
   // DYK-P5-03: openSettings — parse slug from URL at execution time
@@ -119,7 +89,7 @@ export function bootstrapSDK(): IUSDK {
   // Ctrl+, opens settings
   keybindings.register({ key: '$mod+Comma', command: 'sdk.openSettings' });
 
-  return {
+  const sdk: IUSDK = {
     commands,
     settings,
     context,
@@ -131,4 +101,10 @@ export function bootstrapSDK(): IUSDK {
       warning: (message: string) => toast.warning(message),
     },
   };
+
+  // Phase 6: Domain registrations (ADR-0009 pattern)
+  registerFileBrowserSDK(sdk);
+  registerEventsSDK(sdk);
+
+  return sdk;
 }

@@ -7,6 +7,7 @@
  * language detection. Loaded via dynamic import to minimize bundle.
  *
  * Phase 4: File Browser — Plan 041
+ * Phase 6: scrollToLine prop — Plan 047, DYK-P6-03
  * DYK-P4-04: Thin wrapper, tests stub CodeMirror
  * DYK-P4-05: Uses shared detectLanguage()
  * Finding 10: Lazy load via dynamic import
@@ -14,7 +15,7 @@
 
 import { useTheme } from 'next-themes';
 import dynamic from 'next/dynamic';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 
 import { cpp } from '@codemirror/lang-cpp';
 import { css } from '@codemirror/lang-css';
@@ -28,6 +29,7 @@ import { python } from '@codemirror/lang-python';
 import { rust } from '@codemirror/lang-rust';
 import { yaml } from '@codemirror/lang-yaml';
 import type { Extension } from '@codemirror/state';
+import { EditorView } from '@codemirror/view';
 
 // Lazy-load CodeMirror itself
 const ReactCodeMirror = dynamic(() => import('@uiw/react-codemirror'), {
@@ -56,15 +58,33 @@ export interface CodeEditorProps {
   language: string;
   onChange?: (value: string) => void;
   readOnly?: boolean;
+  /** Line number to scroll to (1-based). DYK-P6-03: prop-driven, not ref-driven. */
+  scrollToLine?: number | null;
 }
 
-export function CodeEditor({ value, language, onChange, readOnly }: CodeEditorProps) {
+export function CodeEditor({ value, language, onChange, readOnly, scrollToLine }: CodeEditorProps) {
   const { resolvedTheme } = useTheme();
+  const viewRef = useRef<EditorView | null>(null);
 
   const extensions = useMemo(() => {
     const langExt = LANGUAGE_EXTENSIONS[language];
     return langExt ? [langExt()] : [];
   }, [language]);
+
+  // DYK-P6-03: Capture EditorView via onCreateEditor callback
+  const handleCreateEditor = (view: EditorView) => {
+    viewRef.current = view;
+    // If scrollToLine is already set when editor mounts, scroll immediately
+    if (scrollToLine != null && scrollToLine > 0) {
+      scrollViewToLine(view, scrollToLine);
+    }
+  };
+
+  // Scroll to line when prop changes after mount
+  useEffect(() => {
+    if (scrollToLine == null || scrollToLine <= 0 || !viewRef.current) return;
+    scrollViewToLine(viewRef.current, scrollToLine);
+  }, [scrollToLine]);
 
   return (
     <ReactCodeMirror
@@ -73,6 +93,7 @@ export function CodeEditor({ value, language, onChange, readOnly }: CodeEditorPr
       onChange={onChange}
       readOnly={readOnly}
       theme={resolvedTheme === 'dark' ? 'dark' : 'light'}
+      onCreateEditor={handleCreateEditor}
       basicSetup={{
         lineNumbers: true,
         foldGutter: true,
@@ -82,4 +103,15 @@ export function CodeEditor({ value, language, onChange, readOnly }: CodeEditorPr
       className="min-h-[300px] border rounded-md overflow-hidden"
     />
   );
+}
+
+/** Scroll a CodeMirror EditorView to a 1-based line number. */
+function scrollViewToLine(view: EditorView, line: number): void {
+  const docLines = view.state.doc.lines;
+  if (line < 1 || line > docLines) return;
+  const lineInfo = view.state.doc.line(line);
+  view.dispatch({
+    selection: { anchor: lineInfo.from },
+    effects: EditorView.scrollIntoView(lineInfo.from, { y: 'center' }),
+  });
 }
