@@ -282,29 +282,11 @@ function BrowserClientInner({
     setExpandPaths(ancestors);
   }, [selectedFile, fileNav.handleExpand]);
 
-  // --- Ctrl+P / Cmd+P keyboard shortcut (DYK-P3-04) ---
+  // --- DYK-P3-05: Register SDK commands via useEffect ---
+  // Handlers are closures over explorerRef — must live where the ref lives.
 
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      const isMac = navigator.platform.includes('Mac');
-      const modifier = isMac ? e.metaKey : e.ctrlKey;
-      if (modifier && e.key === 'p') {
-        // Don't capture when CodeMirror has focus
-        const active = document.activeElement;
-        if (active?.closest('.cm-editor')) return;
-        e.preventDefault();
-        explorerRef.current?.focusInput();
-      }
-    };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, []);
-
-  // --- DYK-P3-05: Register sdk.openCommandPalette via useEffect ---
-  // Handler is a closure over explorerRef — must live where the ref lives.
-
-  useEffect(() => {
-    const registration = sdk.commands.register({
+    const paletteReg = sdk.commands.register({
       id: 'sdk.openCommandPalette',
       title: 'Open Command Palette',
       domain: 'sdk',
@@ -314,7 +296,25 @@ function BrowserClientInner({
       },
       icon: 'search',
     });
-    return () => registration.dispose();
+
+    // DYK-P4-03: CodeMirror guard is inline in handler, not via context key
+    const goToFileReg = sdk.commands.register({
+      id: 'file-browser.goToFile',
+      title: 'Go to File',
+      domain: 'file-browser',
+      params: z.object({}),
+      handler: async () => {
+        const active = document.activeElement;
+        if (active?.closest('.cm-editor')) return;
+        explorerRef.current?.focusInput();
+      },
+      icon: 'search',
+    });
+
+    return () => {
+      paletteReg.dispose();
+      goToFileReg.dispose();
+    };
   }, [sdk]);
 
   // --- Panel refresh handler ---

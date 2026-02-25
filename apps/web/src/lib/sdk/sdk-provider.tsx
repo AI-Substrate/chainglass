@@ -16,6 +16,7 @@ import { type ReactNode, createContext, useCallback, useContext, useRef, useStat
 
 import type { IUSDK } from '@chainglass/shared/sdk';
 
+import { KeyboardShortcutListener } from './keyboard-shortcut-listener';
 import { MruTracker } from './mru-tracker';
 import { bootstrapSDK } from './sdk-bootstrap';
 
@@ -48,6 +49,11 @@ function createNoOpSDK(): IUSDK {
       get: () => undefined,
       evaluate: () => true,
       onChange: () => ({ dispose: noop }),
+    },
+    keybindings: {
+      register: () => ({ dispose: noop }),
+      getBindings: () => [],
+      buildTinykeysMap: () => ({}),
     },
     toast: {
       success: noop,
@@ -134,7 +140,12 @@ export function SDKProvider({ children }: SDKProviderProps) {
     setPersistMruFn,
   };
 
-  return <SDKContext.Provider value={contextValue}>{children}</SDKContext.Provider>;
+  return (
+    <SDKContext.Provider value={contextValue}>
+      <KeyboardShortcutListener sdk={sdk} />
+      {children}
+    </SDKContext.Provider>
+  );
 }
 
 /**

@@ -28,6 +28,7 @@ The USDK (Us SDK) framework — a client-side internal SDK layer where domains s
 | `SDKKeybinding` | type | Keyboard shortcut bound to a command |
 | `SDKContribution` | type | Domain's complete static SDK manifest |
 | `FakeUSDK` | fake | Test double implementing IUSDK with inspection methods |
+| `IKeybindingService` | interface | Register, getBindings, buildTinykeysMap for keyboard shortcuts |
 
 ---
 
@@ -45,7 +46,8 @@ The USDK (Us SDK) framework — a client-side internal SDK layer where domains s
 | useSDKContext | hook | Set context key on mount, clear on unmount |
 | SDKWorkspaceConnector | React component | Bridges workspace data to global SDKProvider |
 | useSDKMru | hook | Access MRU tracker with auto-persistence |
-| KeyboardShortcutListener | React component | Global tinykeys keyboard listener (Phase 4) |
+| KeybindingService | service | Keybinding registration, when-clause filtering, tinykeys map builder |
+| KeyboardShortcutListener | React component | Global tinykeys keyboard listener |
 
 ---
 
@@ -56,6 +58,7 @@ The USDK (Us SDK) framework — a client-side internal SDK layer where domains s
 | Domain | Contract | Why |
 |--------|----------|-----|
 | (none) | — | SDK framework is self-contained; no domain dependencies |
+| `tinykeys` (npm) | tinykeys | Global keyboard shortcut listener engine |
 
 ### Domains That Depend On This
 
@@ -85,6 +88,8 @@ apps/web/src/lib/sdk/use-sdk-setting.ts            # useSDKSetting hook
 apps/web/src/lib/sdk/use-sdk-context.ts            # useSDKContext hook
 apps/web/src/lib/sdk/sdk-workspace-connector.tsx   # SDKWorkspaceConnector
 apps/web/src/lib/sdk/mru-tracker.ts                # MruTracker
+apps/web/src/lib/sdk/keybinding-service.ts         # KeybindingService
+apps/web/src/lib/sdk/keyboard-shortcut-listener.tsx # KeyboardShortcutListener
 apps/web/app/actions/sdk-settings-actions.ts       # Settings + MRU persistence server actions
 test/contracts/sdk.contract.ts                     # Contract tests
 test/unit/web/sdk/                                 # Unit tests
@@ -99,3 +104,4 @@ test/unit/web/sdk/                                 # Unit tests
 | 047-usdk Phase 1 | Domain created — interfaces, types, fakes, registry, store, context keys | 2026-02-24 |
 | 047-usdk Phase 2 | SDKProvider, bootstrapSDK, React hooks (useSDK, useSDKSetting, useSDKContext), SDKWorkspaceConnector, settings server action | 2026-02-24 |
 | 047-usdk Phase 3 | MruTracker, useSDKMru hook, updateSDKMru server action, MRU lifecycle in SDKProvider/SDKWorkspaceConnector | 2026-02-25 |
+| 047-usdk Phase 4 | IKeybindingService interface, KeybindingService, FakeKeybindingService, KeyboardShortcutListener, tinykeys integration, default shortcuts (Ctrl+Shift+P, Ctrl+P), sdk.listShortcuts command, hardcoded Ctrl+P removed | 2026-02-25 |

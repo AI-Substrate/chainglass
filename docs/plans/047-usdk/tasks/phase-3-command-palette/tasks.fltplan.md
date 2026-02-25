@@ -102,7 +102,7 @@ flowchart TD
 
 ## Acceptance Criteria
 
-- [~] AC-05: Ctrl+Shift+P focuses explorer bar in command mode (via `sdk.openCommandPalette` — shortcut binding in Phase 4)
+- [x] AC-05: Ctrl+Shift+P focuses explorer bar in command mode (via `sdk.openCommandPalette` — shortcut bound in Phase 4)
 - [x] AC-06: Typing with `>` filters commands by title
 - [x] AC-07: Selecting command executes it
 - [x] AC-08: Escape exits command mode

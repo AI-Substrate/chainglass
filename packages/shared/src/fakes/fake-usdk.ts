@@ -15,10 +15,11 @@ import type { z } from 'zod';
 import type {
   ICommandRegistry,
   IContextKeyService,
+  IKeybindingService,
   ISDKSettings,
   IUSDK,
 } from '../interfaces/sdk.interface.js';
-import type { SDKCommand, SDKSetting } from '../sdk/types.js';
+import type { SDKCommand, SDKKeybinding, SDKSetting } from '../sdk/types.js';
 
 // ==================== FakeCommandRegistry ====================
 
@@ -277,6 +278,60 @@ export class FakeContextKeyService implements IContextKeyService {
   }
 }
 
+// ==================== FakeKeybindingService ====================
+
+export class FakeKeybindingService implements IKeybindingService {
+  private readonly bindings = new Map<string, SDKKeybinding>();
+  private readonly contextKeys?: IContextKeyService;
+
+  constructor(contextKeys?: IContextKeyService) {
+    this.contextKeys = contextKeys;
+  }
+
+  register(binding: SDKKeybinding): { dispose: () => void } {
+    if (this.bindings.has(binding.key)) {
+      throw new Error(
+        `SDK keybinding '${binding.key}' is already registered. Each key combination must have a single owner.`
+      );
+    }
+    this.bindings.set(binding.key, binding);
+    return {
+      dispose: () => {
+        this.bindings.delete(binding.key);
+      },
+    };
+  }
+
+  getBindings(): SDKKeybinding[] {
+    return [...this.bindings.values()];
+  }
+
+  buildTinykeysMap(
+    execute: (commandId: string, args?: Record<string, unknown>) => Promise<void>,
+    isAvailable: (commandId: string) => boolean
+  ): Record<string, (event: KeyboardEvent) => void> {
+    const map: Record<string, (event: KeyboardEvent) => void> = {};
+    for (const binding of this.bindings.values()) {
+      map[binding.key] = (event: KeyboardEvent) => {
+        if (binding.when && this.contextKeys && !this.contextKeys.evaluate(binding.when)) return;
+        if (!isAvailable(binding.command)) return;
+        event.preventDefault();
+        execute(binding.command, binding.args);
+      };
+    }
+    return map;
+  }
+
+  /** Inspection: get registered bindings */
+  getRegisteredBindings(): SDKKeybinding[] {
+    return [...this.bindings.values()];
+  }
+
+  clear(): void {
+    this.bindings.clear();
+  }
+}
+
 // ==================== FakeUSDK Factory ====================
 
 export interface FakeUSDKInstance extends IUSDK {
@@ -300,11 +355,13 @@ export function createFakeUSDK(): FakeUSDKInstance {
   const context = new FakeContextKeyService();
   const commands = new FakeCommandRegistry(context);
   const settings = new FakeSettingsStore();
+  const keybindings = new FakeKeybindingService(context);
 
   return {
     commands,
     settings,
     context,
+    keybindings,
     toast: {
       success: (msg) => {
         commands
@@ -335,6 +392,7 @@ export function createFakeUSDK(): FakeUSDKInstance {
       commands.clear();
       settings.clear();
       context.clear();
+      keybindings.clear();
     },
   };
 }
