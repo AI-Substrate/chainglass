@@ -316,7 +316,7 @@ export class FakeKeybindingService implements IKeybindingService {
         if (binding.when && this.contextKeys && !this.contextKeys.evaluate(binding.when)) return;
         if (!isAvailable(binding.command)) return;
         event.preventDefault();
-        execute(binding.command, binding.args);
+        execute(binding.command, binding.args).catch(() => {});
       };
     }
     return map;

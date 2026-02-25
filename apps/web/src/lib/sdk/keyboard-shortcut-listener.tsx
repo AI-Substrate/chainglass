@@ -21,6 +21,10 @@ interface KeyboardShortcutListenerProps {
 
 export function KeyboardShortcutListener({ sdk }: KeyboardShortcutListenerProps) {
   useEffect(() => {
+    // NOTE: Tinykeys map built once at mount. Bindings registered after mount
+    // are not picked up until a re-mount. Currently safe because all bindings
+    // are static (registered in bootstrapSDK). If dynamic bindings are added
+    // later, this effect needs a re-build trigger (e.g., binding count dep).
     const map = sdk.keybindings.buildTinykeysMap(
       (commandId, args) => sdk.commands.execute(commandId, args),
       (commandId) => sdk.commands.isAvailable(commandId)

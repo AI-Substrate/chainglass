@@ -507,7 +507,15 @@ export function sdkKeybindingContractTests(
       kb = createKeybindings();
     });
 
-    it('registers a keybinding and returns it in getBindings()', () => {
+    it('should register a keybinding and return it in getBindings()', () => {
+      /*
+      Test Doc:
+      - Why: Core registration contract
+      - Contract: register() stores binding, getBindings() returns it
+      - Usage Notes: Binding appears in list after registration
+      - Quality Contribution: Catches broken registration
+      - Worked Example: register({key:'$mod+Shift+p'}) → getBindings() includes it
+      */
       kb.register({ key: '$mod+Shift+p', command: 'sdk.openCommandPalette' });
       const bindings = kb.getBindings();
       expect(bindings).toHaveLength(1);
@@ -515,28 +523,60 @@ export function sdkKeybindingContractTests(
       expect(bindings[0].command).toBe('sdk.openCommandPalette');
     });
 
-    it('registers a chord keybinding', () => {
+    it('should register a chord keybinding', () => {
+      /*
+      Test Doc:
+      - Why: Chord sequences are core to VS Code-style shortcuts
+      - Contract: Space-separated key strings store as single binding
+      - Usage Notes: Chord resolution delegated to tinykeys (DYK-P4-01)
+      - Quality Contribution: Verifies chord format accepted
+      - Worked Example: register({key:'$mod+k $mod+c'}) → getBindings()[0].key === '$mod+k $mod+c'
+      */
       kb.register({ key: '$mod+k $mod+c', command: 'editor.commentLine' });
       const bindings = kb.getBindings();
       expect(bindings).toHaveLength(1);
       expect(bindings[0].key).toBe('$mod+k $mod+c');
     });
 
-    it('throws on duplicate key registration', () => {
+    it('should throw on duplicate key registration', () => {
+      /*
+      Test Doc:
+      - Why: Single-owner semantics prevent shortcut conflicts
+      - Contract: Second register() with same key throws
+      - Usage Notes: Mirrors DYK-01 pattern from CommandRegistry
+      - Quality Contribution: Catches duplicate binding bugs at dev time
+      - Worked Example: register($mod+p) twice → throws /already registered/
+      */
       kb.register({ key: '$mod+p', command: 'file.open' });
       expect(() => {
         kb.register({ key: '$mod+p', command: 'other.command' });
       }).toThrow(/already registered/);
     });
 
-    it('dispose removes the keybinding', () => {
+    it('should remove keybinding on dispose', () => {
+      /*
+      Test Doc:
+      - Why: Dispose pattern prevents leaks when components unmount
+      - Contract: dispose() removes binding from getBindings()
+      - Usage Notes: Same dispose pattern as CommandRegistry
+      - Quality Contribution: Catches missing cleanup
+      - Worked Example: register() → dispose() → getBindings() is empty
+      */
       const reg = kb.register({ key: '$mod+g', command: 'file.goToLine' });
       expect(kb.getBindings()).toHaveLength(1);
       reg.dispose();
       expect(kb.getBindings()).toHaveLength(0);
     });
 
-    it('buildTinykeysMap creates entries for each binding', () => {
+    it('should build tinykeys map entries for each binding', () => {
+      /*
+      Test Doc:
+      - Why: buildTinykeysMap is the bridge to tinykeys library
+      - Contract: Returns one handler function per registered key
+      - Usage Notes: Map keys match binding key strings exactly
+      - Quality Contribution: Verifies tinykeys integration contract
+      - Worked Example: 2 bindings → map has 2 function entries
+      */
       kb.register({ key: '$mod+p', command: 'file.open' });
       kb.register({ key: '$mod+Shift+p', command: 'sdk.openPalette' });
       const map = kb.buildTinykeysMap(
@@ -548,7 +588,15 @@ export function sdkKeybindingContractTests(
       expect(map['$mod+Shift+p']).toBeTypeOf('function');
     });
 
-    it('buildTinykeysMap handler skips when when-clause is false', () => {
+    it('should skip execution when when-clause is false', () => {
+      /*
+      Test Doc:
+      - Why: When-clauses conditionally enable shortcuts based on context
+      - Contract: Handler no-ops when when-clause evaluates false
+      - Usage Notes: editorFocus not set → evaluate returns false
+      - Quality Contribution: Verifies context-aware shortcut filtering
+      - Worked Example: when:'editorFocus' + no context set → handler does nothing
+      */
       kb.register({ key: '$mod+p', command: 'file.open', when: 'editorFocus' });
       let executed = false;
       const map = kb.buildTinykeysMap(
@@ -562,7 +610,15 @@ export function sdkKeybindingContractTests(
       expect(executed).toBe(false);
     });
 
-    it('buildTinykeysMap handler skips when command not available', () => {
+    it('should skip execution when command not available', () => {
+      /*
+      Test Doc:
+      - Why: DYK-P4-05 — commands may not be mounted yet
+      - Contract: Handler no-ops when isAvailable returns false
+      - Usage Notes: Graceful no-op if command not mounted
+      - Quality Contribution: Catches premature execution
+      - Worked Example: isAvailable returns false → handler does nothing
+      */
       kb.register({ key: '$mod+p', command: 'file.open' });
       let executed = false;
       const map = kb.buildTinykeysMap(
@@ -576,7 +632,15 @@ export function sdkKeybindingContractTests(
       expect(executed).toBe(false);
     });
 
-    it('buildTinykeysMap handler executes when conditions met', () => {
+    it('should execute command and preventDefault when conditions met', () => {
+      /*
+      Test Doc:
+      - Why: Happy path — shortcut fires command
+      - Contract: Handler calls execute(commandId) and event.preventDefault()
+      - Usage Notes: preventDefault stops browser default (e.g., Ctrl+P = Print)
+      - Quality Contribution: Core shortcut firing behavior
+      - Worked Example: $mod+p → execute('file.open') + preventDefault called
+      */
       kb.register({ key: '$mod+p', command: 'file.open' });
       let executedId = '';
       const map = kb.buildTinykeysMap(
@@ -596,7 +660,15 @@ export function sdkKeybindingContractTests(
       expect(prevented.called).toBe(true);
     });
 
-    it('buildTinykeysMap handler passes args to execute', () => {
+    it('should pass args to execute', () => {
+      /*
+      Test Doc:
+      - Why: Some shortcuts pass arguments to commands
+      - Contract: Handler forwards binding.args to execute()
+      - Usage Notes: Args are optional Record<string, unknown>
+      - Quality Contribution: Verifies argument forwarding
+      - Worked Example: args:{line:42} → execute receives {line:42}
+      */
       kb.register({ key: '$mod+g', command: 'file.goToLine', args: { line: 42 } });
       let receivedArgs: Record<string, unknown> | undefined;
       const map = kb.buildTinykeysMap(

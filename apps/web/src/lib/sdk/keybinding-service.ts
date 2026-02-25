@@ -50,7 +50,7 @@ export class KeybindingService implements IKeybindingService {
         // Command availability check (DYK-P4-05)
         if (!isAvailable(binding.command)) return;
         event.preventDefault();
-        execute(binding.command, binding.args);
+        execute(binding.command, binding.args).catch(() => {});
       };
     }
     return map;

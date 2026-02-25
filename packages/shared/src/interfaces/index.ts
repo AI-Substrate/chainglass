@@ -106,6 +106,15 @@ export type {
   StdioOptions,
 } from './process-manager.interface.js';
 
+// SDK interfaces (Plan 047: USDK)
+export type {
+  IUSDK,
+  ICommandRegistry,
+  ISDKSettings,
+  IContextKeyService,
+  IKeybindingService,
+} from './sdk.interface.js';
+
 // Copilot SDK interfaces and types (local layer isolation per R-ARCH-001)
 export type {
   CopilotAssistantMessageDeltaEvent,
