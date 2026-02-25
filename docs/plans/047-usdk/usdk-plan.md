@@ -3,7 +3,7 @@
 **Plan Version**: 1.0.0
 **Created**: 2026-02-24
 **Spec**: [usdk-spec.md](./usdk-spec.md)
-**Status**: DRAFT
+**Status**: COMPLETE
 **Mode**: Full
 
 ---
@@ -161,16 +161,16 @@ The Chainglass codebase has 6 domains but no unified SDK surface for cross-domai
 | 1.9 | Extend WorkspacePreferences with sdkSettings, sdkShortcuts, sdkMru fields | cross-domain | Existing tests pass, DEFAULT_PREFERENCES includes new empty-object defaults | Per finding 03: additive, non-breaking |
 
 ### Acceptance Criteria
-- [ ] AC-01: Domain registers command, appears in list
-- [ ] AC-02: Command executes with validated params
-- [ ] AC-03: Invalid params throw Zod error before handler
-- [ ] AC-04: When-clause filters command availability
-- [ ] AC-16: Domain contributes setting, appears in list
-- [ ] AC-17: get() returns persisted override or schema default
-- [ ] AC-19a: SettingsStore.onChange fires callback when value changes (in-memory)
-- [ ] AC-20: reset() returns to default, removes override
-- [ ] AC-33: FakeUSDK works without server/persistence
-- [ ] AC-34: Contract tests verify fake/real parity
+- [x] AC-01: Domain registers command, appears in list
+- [x] AC-02: Command executes with validated params
+- [x] AC-03: Invalid params throw Zod error before handler
+- [x] AC-04: When-clause filters command availability
+- [x] AC-16: Domain contributes setting, appears in list
+- [x] AC-17: get() returns persisted override or schema default
+- [x] AC-19a: SettingsStore.onChange fires callback when value changes (in-memory)
+- [x] AC-20: reset() returns to default, removes override
+- [x] AC-33: FakeUSDK works without server/persistence
+- [x] AC-34: Contract tests verify fake/real parity
 
 ---
 
@@ -198,9 +198,9 @@ The Chainglass codebase has 6 domains but no unified SDK surface for cross-domai
 | 2.6 | Wire settings persistence: useSDKSetting setter → SettingsStore.set → server action → disk | `_platform/sdk` + `_platform/settings` | Change a setting → read workspace JSON → value persisted in sdkSettings | |
 
 ### Acceptance Criteria
-- [ ] AC-18: set() validates, updates in-memory, fires onChange, persists
-- [ ] AC-19b: useSDKSetting hook re-renders consuming components on change (via useSyncExternalStore)
-- [ ] AC-23: Settings change persists, consuming components update without page refresh
+- [x] AC-18: set() validates, updates in-memory, fires onChange, persists
+- [x] AC-19b: useSDKSetting hook re-renders consuming components on change (via useSyncExternalStore)
+- [x] AC-23: Settings change persists, consuming components update without page refresh
 
 ---
 
@@ -303,7 +303,7 @@ The Chainglass codebase has 6 domains but no unified SDK surface for cross-domai
 - [x] AC-22: Appropriate control renders per ui hint
 - [x] AC-23: (verified) Settings roundtrip works end-to-end through settings page
 - [x] AC-24: Search filters settings by label/description
-- [~] AC-27: Separate contribution manifest from handler binding (Phase 6 — domains register)
+- [x] AC-27: Separate contribution manifest from handler binding (Phase 6 — domains register)
 
 ---
 
@@ -333,12 +333,12 @@ The Chainglass codebase has 6 domains but no unified SDK surface for cross-domai
 | 6.8 | Create ADR for USDK architecture decision | docs | ADR in docs/adr/ explaining SDK vs DI boundary, why not plugins, storage choices | |
 
 ### Acceptance Criteria
-- [ ] AC-25: file-browser publishes 3+ commands, 2+ settings
-- [ ] AC-26: events publishes toast.show, toast.dismiss
-- [ ] AC-28: toast.show produces same toast as direct toast()
-- [ ] AC-29: file-browser.openFile navigates to file
-- [ ] AC-31: openFileAtLine scrolls to specified line
-- [ ] AC-32: Explorer bar accepts `path:42` / `path#L42` syntax
+- [x] AC-25: file-browser publishes 3+ commands, 2+ settings
+- [x] AC-26: events publishes toast.show, toast.dismiss
+- [x] AC-28: toast.show produces same toast as direct toast()
+- [x] AC-29: file-browser.openFile navigates to file
+- [x] AC-31: openFileAtLine scrolls to specified line
+- [x] AC-32: Explorer bar accepts `path:42` / `path#L42` syntax
 
 ---
 
@@ -413,6 +413,37 @@ Per R-EST-004 (CS ≥ 4 requires rollback plan):
 ---
 
 *Plan ready for validation. Run `/plan-4-v2-complete-the-plan` to verify readiness.*
+
+---
+
+## Progress
+
+| Phase | Status | Tests Added | Commits | Date |
+|-------|--------|------------|---------|------|
+| Phase 1: SDK Foundation | ✅ Complete | 50 contract tests | Phase 1 impl + review fixes | 2026-02-24 |
+| Phase 2: SDK Provider & Bootstrap | ✅ Complete | 0 (hooks wiring) | Phase 2 impl + review fixes | 2026-02-24 |
+| Phase 3: Command Palette | ✅ Complete | 9 tests (MRU + stubs) | Phase 3 impl + review fixes | 2026-02-24 |
+| Phase 4: Keyboard Shortcuts | ✅ Complete | 18 contract tests | Phase 4 impl + review fixes | 2026-02-24 |
+| Phase 5: Settings Domain & Page | ✅ Complete | 0 (UI-only) | Phase 5 impl + review fixes | 2026-02-25 |
+| Phase 6: SDK Wraps & Polish | ✅ Complete | 11 tests (parseLineSuffix + go-to-line) | `c436f40`, `1a9224a` | 2026-02-25 |
+
+**Final test count**: 4461 passing, 72 skipped (4533 total)
+**Total new tests**: 88 tests across all phases
+
+### Domain Changes (Phase 6)
+
+| Domain | Changes | Files Added | Files Modified |
+|--------|---------|-------------|----------------|
+| `file-browser` | SDK contribution (3 commands, 5 settings), go-to-line URL param + path parsing, CodeMirror scroll-to-line | `sdk/contribution.ts`, `sdk/register.ts` | `browser-client.tsx`, `file-browser.params.ts`, `file-path-handler.ts`, `code-editor.tsx`, `file-viewer-panel.tsx` |
+| `_platform/events` | SDK contribution (toast.show, toast.dismiss) | `sdk/contribution.ts`, `sdk/register.ts` | — |
+| `_platform/sdk` | Domain registration wiring extracted to app-level | `sdk-domain-registrations.ts` | `sdk-bootstrap.ts`, `sdk-provider.tsx` |
+| docs | SDK developer guides, ADR-0013 | `publishing-to-sdk.md`, `consuming-sdk.md`, `adr-0013-usdk-internal-sdk-architecture.md` | `domain-map.md`, 3× `domain.md` |
+
+### Contract Changes
+
+- **New contracts**: `fileBrowserContribution` (SDKContribution), `eventsContribution` (SDKContribution)
+- **New exports**: `parseLineSuffix` (file-path-handler.ts), `registerAllDomains` (sdk-domain-registrations.ts)
+- **Domain map**: Updated — file-browser→sdk and events→sdk arrows now solid (was dashed/future)
 
 ---
 
