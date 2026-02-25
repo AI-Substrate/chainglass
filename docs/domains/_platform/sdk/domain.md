@@ -90,6 +90,7 @@ apps/web/src/lib/sdk/sdk-workspace-connector.tsx   # SDKWorkspaceConnector
 apps/web/src/lib/sdk/mru-tracker.ts                # MruTracker
 apps/web/src/lib/sdk/keybinding-service.ts         # KeybindingService
 apps/web/src/lib/sdk/keyboard-shortcut-listener.tsx # KeyboardShortcutListener
+apps/web/src/lib/sdk/sdk-domain-registrations.ts   # Domain SDK contribution wiring
 apps/web/app/actions/sdk-settings-actions.ts       # Settings + MRU persistence server actions
 test/contracts/sdk.contract.ts                     # Contract tests
 test/unit/web/sdk/                                 # Unit tests
@@ -105,3 +106,4 @@ test/unit/web/sdk/                                 # Unit tests
 | 047-usdk Phase 2 | SDKProvider, bootstrapSDK, React hooks (useSDK, useSDKSetting, useSDKContext), SDKWorkspaceConnector, settings server action | 2026-02-24 |
 | 047-usdk Phase 3 | MruTracker, useSDKMru hook, updateSDKMru server action, MRU lifecycle in SDKProvider/SDKWorkspaceConnector | 2026-02-25 |
 | 047-usdk Phase 4 | IKeybindingService interface, KeybindingService, FakeKeybindingService, KeyboardShortcutListener, tinykeys integration, default shortcuts (Ctrl+Shift+P, Ctrl+P), sdk.listShortcuts command, hardcoded Ctrl+P removed | 2026-02-25 |
+| 047-usdk Phase 6 | Domain SDK contributions wired, go-to-line, developer docs | 2026-02-25 |

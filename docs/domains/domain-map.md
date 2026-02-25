@@ -29,9 +29,9 @@ flowchart LR
     panels -->|"panel URL param"| wsUrl
     viewer -->|"IFileSystem (Shiki reads)"| fileOps
 
-    %% SDK is consumed by publishing domains (future phases)
-    fileBrowser -.->|"IUSDK<br/>(publishes commands)"| sdk
-    events -.->|"IUSDK<br/>(publishes toast)"| sdk
+    %% SDK consumed by publishing domains
+    fileBrowser -->|"IUSDK<br/>(publishes commands)"| sdk
+    events -->|"IUSDK<br/>(publishes toast)"| sdk
     panels -->|"ICommandRegistry<br/>(hosts palette)"| sdk
     settings -->|"ISDKSettings<br/>useSDKSetting<br/>useSDK"| sdk
 ```

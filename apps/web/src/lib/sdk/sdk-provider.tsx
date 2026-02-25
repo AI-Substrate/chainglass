@@ -28,6 +28,7 @@ import type { IUSDK } from '@chainglass/shared/sdk';
 import { KeyboardShortcutListener } from './keyboard-shortcut-listener';
 import { MruTracker } from './mru-tracker';
 import { bootstrapSDK } from './sdk-bootstrap';
+import { registerAllDomains } from './sdk-domain-registrations';
 
 type PersistFn = ((sdkSettings: Record<string, unknown>) => Promise<void>) | null;
 type PersistMruFn = ((sdkMru: string[]) => Promise<void>) | null;
@@ -98,7 +99,9 @@ interface SDKProviderProps {
 export function SDKProvider({ children }: SDKProviderProps) {
   const [sdk] = useState<IUSDK>(() => {
     try {
-      return bootstrapSDK();
+      const instance = bootstrapSDK();
+      registerAllDomains(instance);
+      return instance;
     } catch (error) {
       console.error('[SDKProvider] Bootstrap failed, using no-op stub:', error);
       return createNoOpSDK();

@@ -15,7 +15,7 @@
 
 import { useTheme } from 'next-themes';
 import dynamic from 'next/dynamic';
-import { useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 
 import { cpp } from '@codemirror/lang-cpp';
 import { css } from '@codemirror/lang-css';
@@ -72,13 +72,17 @@ export function CodeEditor({ value, language, onChange, readOnly, scrollToLine }
   }, [language]);
 
   // DYK-P6-03: Capture EditorView via onCreateEditor callback
-  const handleCreateEditor = (view: EditorView) => {
+  // FT-009: Use ref for scrollToLine to keep callback stable
+  const scrollToLineRef = useRef(scrollToLine);
+  scrollToLineRef.current = scrollToLine;
+
+  const handleCreateEditor = useCallback((view: EditorView) => {
     viewRef.current = view;
-    // If scrollToLine is already set when editor mounts, scroll immediately
-    if (scrollToLine != null && scrollToLine > 0) {
-      scrollViewToLine(view, scrollToLine);
+    const line = scrollToLineRef.current;
+    if (line != null && line > 0) {
+      scrollViewToLine(view, line);
     }
-  };
+  }, []);
 
   // Scroll to line when prop changes after mount
   useEffect(() => {

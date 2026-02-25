@@ -118,6 +118,8 @@ Primary: scattered across `packages/shared`, `packages/workflow`, `apps/web` (Pl
 | `apps/web/src/hooks/useWorkspaceSSE.ts` | useWorkspaceSSE hook | Workspace-scoped SSE |
 | `apps/web/instrumentation.ts` | Next.js bootstrap hook | Starts notification system |
 | `apps/web/src/components/ui/toaster.tsx` | Toaster wrapper | Plan 042 — theme-aware sonner wrapper |
+| `apps/web/src/features/027-central-notify-events/sdk/contribution.ts` | SDK contribution manifest | 047-usdk Phase 6 |
+| `apps/web/src/features/027-central-notify-events/sdk/register.ts` | SDK registration entry point | 047-usdk Phase 6 |
 
 **Plan 045 additions (to be created):**
 
@@ -140,6 +142,7 @@ Primary: scattered across `packages/shared`, `packages/workflow`, `apps/web` (Pl
 ## Dependencies
 
 ### This Domain Depends On
+- `_platform/sdk` — IUSDK for publishing toast commands to SDK surface
 - `chokidar` — filesystem watching (npm)
 - `sonner` — toast UI (npm)
 - `next-themes` — theme detection for toast (npm)
@@ -165,3 +168,4 @@ Primary: scattered across `packages/shared`, `packages/workflow`, `apps/web` (Pl
 | Plan 042 | Global toast: installed sonner, Toaster wrapper, wired file browser + workgraph | 2026-02-24 |
 | Plan 045 | Renamed _platform/notifications → _platform/events. Added FileChangeWatcherAdapter, FileChangeDomainEventAdapter, FileChangeHub, FileChangeProvider, useFileChanges. Expanded from notification transport to full event platform | 2026-02-24 |
 | Plan 045 (E2E fix) | Fixed SOURCE_WATCHER_IGNORED to use function-based path-segment matching (glob patterns unreliable with chokidar). Added handleRefreshDir for cache-bypass tree refresh. All 3 phases verified working end-to-end | 2026-02-24 |
+| 047-usdk Phase 6 | SDK contribution (toast.show, toast.dismiss commands) | 2026-02-25 |

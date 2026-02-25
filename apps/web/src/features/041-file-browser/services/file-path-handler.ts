@@ -16,8 +16,10 @@ import type { BarHandler } from '@/features/_platform/panel-layout';
  * Parse a line suffix from a path string.
  * Supports :42 and #L42 syntax.
  * Returns null if no valid line suffix found.
+ *
+ * Exported for testing.
  */
-function parseLineSuffix(path: string): { cleanPath: string; line: number } | null {
+export function parseLineSuffix(path: string): { cleanPath: string; line: number } | null {
   // Try #L42 syntax first
   const hashMatch = path.match(/^(.+)#L(\d+)$/);
   if (hashMatch) {

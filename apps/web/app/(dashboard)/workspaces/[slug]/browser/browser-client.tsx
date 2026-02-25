@@ -96,6 +96,13 @@ function BrowserClientInner({
   const panelMode = (params.panel as PanelMode) || 'tree';
   const scrollToLine = params.line ?? null;
 
+  // FT-005: Auto-switch to edit mode when line param is present (preview can't scroll)
+  useEffect(() => {
+    if (scrollToLine != null && scrollToLine > 0 && mode !== 'edit') {
+      setParams({ mode: 'edit' }, { history: 'replace' });
+    }
+  }, [scrollToLine, mode, setParams]);
+
   // --- Hooks ---
 
   const fileNav = useFileNavigation({
@@ -106,7 +113,7 @@ function BrowserClientInner({
     readFile,
     saveFile,
     fetchGitDiff,
-    setUrlFile: (file) => setParams({ file }, { history: 'push' }),
+    setUrlFile: (file) => setParams({ file, line: null }, { history: 'push' }),
     setUrlMode: (m) => setParams({ mode: m as 'edit' | 'preview' | 'diff' }),
   });
 
@@ -328,7 +335,7 @@ function BrowserClientInner({
           ...openFileAtLineCmd,
           handler: async (params: unknown) => {
             const { path, line } = params as { path: string; line?: number };
-            setParams({ file: path, ...(line != null ? { line } : {}) }, { history: 'push' });
+            setParams({ file: path, line: line ?? null }, { history: 'push' });
           },
         })
       : null;

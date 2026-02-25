@@ -17,9 +17,6 @@ import { z } from 'zod';
 
 import type { IUSDK } from '@chainglass/shared/sdk';
 
-import { registerEventsSDK } from '@/features/027-central-notify-events/sdk/register';
-import { registerFileBrowserSDK } from '@/features/041-file-browser/sdk/register';
-
 import { CommandRegistry } from './command-registry';
 import { ContextKeyService } from './context-key-service';
 import { KeybindingService } from './keybinding-service';
@@ -101,10 +98,6 @@ export function bootstrapSDK(): IUSDK {
       warning: (message: string) => toast.warning(message),
     },
   };
-
-  // Phase 6: Domain registrations (ADR-0009 pattern)
-  registerFileBrowserSDK(sdk);
-  registerEventsSDK(sdk);
 
   return sdk;
 }

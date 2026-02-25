@@ -19,6 +19,14 @@ export const fileBrowserContribution: SDKContribution = {
   domainLabel: 'File Browser',
   commands: [
     {
+      id: 'file-browser.goToFile',
+      title: 'Go to File',
+      domain: 'file-browser',
+      category: 'Navigation',
+      params: z.object({}),
+      icon: 'file-search',
+    },
+    {
       id: 'file-browser.openFileAtLine',
       title: 'Open File at Line',
       domain: 'file-browser',

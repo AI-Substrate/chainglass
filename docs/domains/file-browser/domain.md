@@ -111,6 +111,8 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
 | `apps/web/src/features/041-file-browser/services/upload-file.ts` | uploadFileService (mkdir, timestamp naming, atomic write) | Plan 044 |
 | `apps/web/src/features/041-file-browser/components/paste-upload-button.tsx` | PasteUploadButton (sidebar upload trigger) | Plan 044 |
 | `apps/web/src/features/041-file-browser/components/paste-upload-modal.tsx` | PasteUploadModal (paste/drag/select dialog) | Plan 044 |
+| `apps/web/src/features/041-file-browser/sdk/contribution.ts` | SDK contribution manifest | 047-usdk Phase 6 |
+| `apps/web/src/features/041-file-browser/sdk/register.ts` | SDK registration entry point | 047-usdk Phase 6 |
 | `apps/web/src/features/041-file-browser/index.ts` | Feature barrel | Phase 1 |
 | `apps/web/app/api/workspaces/[slug]/files/raw/route.ts` | Raw file streaming API route | Plan 046 |
 | `apps/web/src/features/041-file-browser/components/image-viewer.tsx` | ImageViewer component | Plan 046 |
@@ -130,6 +132,7 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
 ## Dependencies
 
 ### This Domain Depends On
+- `_platform/sdk` — IUSDK for publishing commands and settings to SDK surface
 - `_platform/file-ops` — IFileSystem, IPathResolver for all file operations
 - `_platform/viewer` — FileViewer, MarkdownViewer, DiffViewer for rendering
 - `_platform/workspace-url` — workspaceHref, param caches, NuqsAdapter
@@ -157,3 +160,4 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
 | Plan 046 | Binary file viewers: raw file streaming route, detectContentType-based routing, 5 viewer components (ImageViewer, PdfViewer, VideoViewer, AudioViewer, BinaryPlaceholder), ReadFileResult isBinary variant | 2026-02-24 |
 | Plan 041 Phase 5 | WorkspaceContext, useAttentionTitle wired, EmojiPicker, ColorPicker, settings page (/settings/workspaces), pop-out button, sidebar emoji | 2026-02-24 |
 | Plan 041 P5 ST-001 | Per-worktree emoji/color (WorktreeVisualPreferences), worktreeIdentity in context, tab title composition, inline gear popover, updateWorktreePreferences action, browser history push on file nav, scroll-to-top on file change | 2026-02-24 |
+| 047-usdk Phase 6 | SDK contribution (3 commands, 5 settings), go-to-line URL param + path parsing, CodeMirror scroll-to-line | 2026-02-25 |
