@@ -313,3 +313,19 @@
 .tree-entry-new {
   animation: tree-entry-appear 1.5s ease-out forwards;
 }
+
+.tree-entry-navigated {
+  animation: tree-entry-navigate-flash 15s ease-out forwards;
+}
+
+@keyframes tree-entry-navigate-flash {
+  0% {
+    background-color: rgba(34, 197, 94, 0.5);
+  }
+  5% {
+    background-color: rgba(34, 197, 94, 0.35);
+  }
+  100% {
+    background-color: transparent;
+  }
+}

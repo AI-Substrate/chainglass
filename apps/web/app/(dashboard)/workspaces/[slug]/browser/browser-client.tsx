@@ -31,12 +31,16 @@ import {
   LeftPanel,
   MainPanel,
   PanelShell,
+  createSymbolSearchStub,
 } from '@/features/_platform/panel-layout';
 import type { PanelMode } from '@/features/_platform/panel-layout';
+import { useSDK } from '@/lib/sdk/sdk-provider';
+import { useSDKMru } from '@/lib/sdk/sdk-provider';
 import { FileDiff, GitBranch } from 'lucide-react';
 import { useQueryStates } from 'nuqs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { z } from 'zod';
 import {
   fetchChangedFiles,
   fetchGitDiff,
@@ -209,6 +213,11 @@ function BrowserClientInner({
   // --- ExplorerPanel handler chain ---
 
   const filePathHandler = useMemo(() => createFilePathHandler(), []);
+  const symbolStub = useMemo(() => createSymbolSearchStub(), []);
+
+  // --- SDK + MRU for command palette ---
+  const sdk = useSDK();
+  const { mru, recordExecution } = useSDKMru();
 
   const barContext: BarContext = useMemo(
     () => ({
@@ -233,6 +242,17 @@ function BrowserClientInner({
         if (panelMode !== 'tree') {
           panelState.handlePanelModeChange('tree');
         }
+        // Scroll the target directory into view after React renders expansion
+        setTimeout(() => {
+          const el = document.querySelector(`[data-tree-path="${CSS.escape(relativePath)}"]`);
+          if (el) {
+            el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            el.classList.remove('tree-entry-navigated');
+            // Force reflow so re-adding the class restarts the animation
+            void (el as HTMLElement).offsetWidth;
+            el.classList.add('tree-entry-navigated');
+          }
+        }, 100);
       },
       showError: (message: string) => {
         toast.error(message);
@@ -281,6 +301,23 @@ function BrowserClientInner({
     return () => document.removeEventListener('keydown', handler);
   }, []);
 
+  // --- DYK-P3-05: Register sdk.openCommandPalette via useEffect ---
+  // Handler is a closure over explorerRef — must live where the ref lives.
+
+  useEffect(() => {
+    const registration = sdk.commands.register({
+      id: 'sdk.openCommandPalette',
+      title: 'Open Command Palette',
+      domain: 'sdk',
+      params: z.object({}),
+      handler: async () => {
+        explorerRef.current?.openPalette();
+      },
+      icon: 'search',
+    });
+    return () => registration.dispose();
+  }, [sdk]);
+
   // --- Panel refresh handler ---
 
   const handlePanelRefresh = useCallback(() => {
@@ -316,10 +353,13 @@ function BrowserClientInner({
           <ExplorerPanel
             ref={explorerRef}
             filePath={selectedFile ?? ''}
-            handlers={[filePathHandler]}
+            handlers={[symbolStub, filePathHandler]}
             context={barContext}
             onCopy={() => clipboard.copyToClipboard(selectedFile ?? '')}
-            placeholder="Type or paste a file path... (Ctrl+P)"
+            placeholder="Type a path or > for commands... (Ctrl+P)"
+            sdk={sdk}
+            mru={mru}
+            onCommandExecute={recordExecution}
           />
         }
         left={

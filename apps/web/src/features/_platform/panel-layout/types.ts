@@ -30,7 +30,8 @@ export interface BarContext {
  */
 export type BarHandler = (input: string, context: BarContext) => Promise<boolean>;
 
-/** Imperative handle for ExplorerPanel ref (Ctrl+P integration) */
+/** Imperative handle for ExplorerPanel ref (Ctrl+P integration + command palette) */
 export interface ExplorerPanelHandle {
   focusInput: () => void;
+  openPalette: () => void;
 }

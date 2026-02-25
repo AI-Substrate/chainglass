@@ -26,3 +26,6 @@ export { PanelShell } from './components/panel-shell';
 export type { PanelShellProps } from './components/panel-shell';
 export { AsciiSpinner } from './components/ascii-spinner';
 export type { AsciiSpinnerProps } from './components/ascii-spinner';
+
+// Stub handlers
+export { createSymbolSearchStub } from './stub-handlers';

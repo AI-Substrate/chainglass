@@ -204,7 +204,7 @@ function TreeItem({
 
   if (entry.type === 'directory') {
     return (
-      <div>
+      <div data-tree-path={entry.path}>
         <div
           className={`group relative flex w-full items-center gap-1 px-2 py-1 text-left hover:bg-accent ${
             isSelected ? 'bg-accent' : ''
