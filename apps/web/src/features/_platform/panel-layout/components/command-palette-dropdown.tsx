@@ -7,15 +7,17 @@
  * - 'commands' (> prefix): filtered SDK commands with MRU ordering
  * - 'symbols' (# prefix): stub message for future LSP/Flowspace
  * - 'search' (no prefix): hints + command palette entry point
+ * - 'param' (gathering params): hint label for param input
  *
  * DYK-P3-02: Container uses onMouseDown preventDefault to prevent blur.
  * DYK-P3-03: Exposes handleKeyDown via forwardRef for delegation from ExplorerPanel.
+ * DYK-ST001-01: 'param' mode takes priority over prefix-derived mode.
  *
- * Per Plan 047 Phase 3, Task T002.
+ * Per Plan 047 Phase 3, Task T002. Subtask 001: param gathering.
  */
 
 import type { IUSDK, SDKCommand } from '@chainglass/shared/sdk';
-import { Command, Hash, Search, Terminal } from 'lucide-react';
+import { Command, Hash, Keyboard, Search, Terminal } from 'lucide-react';
 import {
   forwardRef,
   useCallback,
@@ -28,10 +30,17 @@ import {
 
 import type { MruTracker } from '@/lib/sdk/sdk-provider';
 
-export type DropdownMode = 'commands' | 'symbols' | 'search';
+export type DropdownMode = 'commands' | 'symbols' | 'search' | 'param';
 
 export interface CommandPaletteDropdownHandle {
   handleKeyDown: (e: React.KeyboardEvent) => void;
+}
+
+/** Info about a param being gathered. Passed from ExplorerPanel. */
+export interface ParamGatheringInfo {
+  commandId: string;
+  commandTitle: string;
+  fieldKey: string;
 }
 
 interface CommandPaletteDropdownProps {
@@ -41,6 +50,42 @@ interface CommandPaletteDropdownProps {
   mode: DropdownMode;
   onExecute: (commandId: string) => void;
   onClose: () => void;
+  /** When set, dropdown shows param gathering hint. */
+  paramGathering?: ParamGatheringInfo | null;
+}
+
+// --- Schema introspection helpers (ST001) ---
+
+/**
+ * Check if a Zod schema has required fields that aren't satisfied by {}.
+ */
+export function hasRequiredParams(schema: {
+  safeParse: (v: unknown) => { success: boolean };
+}): boolean {
+  return !schema.safeParse({}).success;
+}
+
+/**
+ * Extract the first required string field from a Zod object schema.
+ * Returns null if no required string field found or schema isn't a ZodObject.
+ */
+export function extractFirstRequiredStringField(schema: unknown): { key: string } | null {
+  const s = schema as Record<string, unknown>;
+  if (!s || typeof s !== 'object' || !('shape' in s)) return null;
+  const shape = s.shape as Record<
+    string,
+    { isOptional: () => boolean; safeParse: (v: unknown) => { success: boolean } }
+  >;
+  if (!shape || typeof shape !== 'object') return null;
+  for (const [key, field] of Object.entries(shape)) {
+    if (typeof field?.isOptional !== 'function') continue;
+    if (!field.isOptional()) {
+      if (typeof field.safeParse === 'function' && field.safeParse('test').success) {
+        return { key };
+      }
+    }
+  }
+  return null;
 }
 
 /** Filter and sort commands: MRU first, then alphabetical. Filtered by title substring. */
@@ -65,7 +110,10 @@ function filterAndSort(commands: SDKCommand[], filter: string, mruOrder: string[
 export const CommandPaletteDropdown = forwardRef<
   CommandPaletteDropdownHandle,
   CommandPaletteDropdownProps
->(function CommandPaletteDropdown({ sdk, filter, mru, mode, onExecute, onClose }, ref) {
+>(function CommandPaletteDropdown(
+  { sdk, filter, mru, mode, onExecute, onClose, paramGathering },
+  ref
+) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -75,8 +123,6 @@ export const CommandPaletteDropdown = forwardRef<
       // Hide openCommandPalette from the palette itself (circular)
       if (c.id === 'sdk.openCommandPalette') return false;
       if (!sdk.commands.isAvailable(c.id)) return false;
-      // Hide commands with required params (no param gathering UI yet)
-      if (!c.params.safeParse({}).success) return false;
       return true;
     });
     return filterAndSort(all, filter, mru.getOrder());
@@ -199,6 +245,20 @@ export const CommandPaletteDropdown = forwardRef<
             ))}
           </div>
         ))}
+      {mode === 'param' && paramGathering && (
+        <div className="px-3 py-3 text-sm text-muted-foreground">
+          <div className="flex items-center gap-2">
+            <Keyboard className="h-4 w-4 shrink-0" />
+            <span>
+              Enter <strong className="text-foreground">{paramGathering.fieldKey}</strong> for{' '}
+              <strong className="text-foreground">{paramGathering.commandTitle}</strong>
+            </span>
+          </div>
+          <div className="mt-1.5 text-xs text-muted-foreground/70">
+            Press Enter to execute · Escape to go back
+          </div>
+        </div>
+      )}
     </div>
   );
 });

@@ -25,6 +25,9 @@ import { AsciiSpinner } from './ascii-spinner';
 import {
   CommandPaletteDropdown,
   type CommandPaletteDropdownHandle,
+  type ParamGatheringInfo,
+  extractFirstRequiredStringField,
+  hasRequiredParams,
 } from './command-palette-dropdown';
 
 export interface ExplorerPanelProps {
@@ -49,16 +52,26 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
     const [editing, setEditing] = useState(false);
     const [inputValue, setInputValue] = useState(filePath);
     const [processing, setProcessing] = useState(false);
+    const [paramGathering, setParamGathering] = useState<ParamGatheringInfo | null>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const dropdownRef = useRef<CommandPaletteDropdownHandle>(null);
     const prevFilePathRef = useRef(filePath);
 
     // DYK-P3-01: Palette activates on typing '>', not on Enter
+    // DYK-ST001-01: paramGathering overrides prefix-derived mode
     const paletteMode = editing && inputValue.startsWith('>') && !!sdk;
     const symbolMode = editing && inputValue.startsWith('#');
     const paletteFilter = paletteMode ? inputValue.slice(1).trim() : '';
     // Show dropdown whenever editing is active and SDK available (like VS Code)
     const showDropdown = editing && !!sdk && !processing;
+    // Determine dropdown mode — param gathering takes priority
+    const dropdownMode = paramGathering
+      ? ('param' as const)
+      : paletteMode
+        ? ('commands' as const)
+        : symbolMode
+          ? ('symbols' as const)
+          : ('search' as const);
 
     // Sync: when filePath changes externally, exit edit mode and update input value
     useEffect(() => {
@@ -104,16 +117,32 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
     const exitEditMode = useCallback(() => {
       setEditing(false);
       setInputValue(filePath);
+      setParamGathering(null);
     }, [filePath]);
 
     const exitPaletteMode = useCallback(() => {
       setEditing(false);
       setInputValue(filePath);
+      setParamGathering(null);
     }, [filePath]);
 
     const handlePaletteExecute = useCallback(
       async (commandId: string) => {
         if (!sdk) return;
+
+        // ST002: Check if command needs param gathering
+        const cmd = sdk.commands.list().find((c) => c.id === commandId);
+        if (cmd && hasRequiredParams(cmd.params)) {
+          const field = extractFirstRequiredStringField(cmd.params);
+          if (field) {
+            // Transition to param input mode
+            setParamGathering({ commandId, commandTitle: cmd.title, fieldKey: field.key });
+            setInputValue('');
+            setTimeout(() => inputRef.current?.focus(), 0);
+            return;
+          }
+        }
+
         try {
           await sdk.commands.execute(commandId);
           onCommandExecute?.(commandId);
@@ -125,6 +154,22 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
       },
       [sdk, onCommandExecute, exitPaletteMode]
     );
+
+    // ST002: Execute command with gathered param value
+    const handleParamSubmit = useCallback(async () => {
+      if (!sdk || !paramGathering) return;
+      const value = inputValue.trim();
+      if (!value) return;
+
+      try {
+        await sdk.commands.execute(paramGathering.commandId, { [paramGathering.fieldKey]: value });
+        onCommandExecute?.(paramGathering.commandId);
+      } catch (error) {
+        console.error('[CommandPalette] Execute with params failed:', error);
+      } finally {
+        exitPaletteMode();
+      }
+    }, [sdk, paramGathering, inputValue, onCommandExecute, exitPaletteMode]);
 
     const handleSubmit = useCallback(async () => {
       const value = inputValue.trim();
@@ -148,6 +193,22 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
 
     const handleKeyDown = useCallback(
       (e: React.KeyboardEvent<HTMLInputElement>) => {
+        // DYK-ST001-05: In param gathering mode, Escape goes back to command list
+        if (paramGathering) {
+          if (e.key === 'Escape') {
+            e.preventDefault();
+            setParamGathering(null);
+            setInputValue('>');
+            return;
+          }
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            handleParamSubmit();
+            return;
+          }
+          return; // Don't delegate other keys in param mode
+        }
+
         // In command palette mode (> prefix): delegate only palette-specific keys
         if (paletteMode) {
           if (['Escape', 'ArrowDown', 'ArrowUp', 'Enter'].includes(e.key)) {
@@ -168,7 +229,7 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
           handleSubmit();
         }
       },
-      [paletteMode, exitEditMode, handleSubmit]
+      [paramGathering, paletteMode, exitEditMode, handleSubmit, handleParamSubmit]
     );
 
     const handleBlur = useCallback(() => {
@@ -207,7 +268,7 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
                 onKeyDown={handleKeyDown}
                 onBlur={handleBlur}
                 onFocus={() => setEditing(true)}
-                placeholder={placeholder}
+                placeholder={paramGathering ? `Enter ${paramGathering.fieldKey}...` : placeholder}
                 className="flex-1 bg-transparent font-mono text-sm text-foreground outline-none placeholder:text-muted-foreground"
                 aria-label="File path"
               />
@@ -243,9 +304,10 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
               sdk={sdk}
               filter={paletteFilter}
               mru={mru}
-              mode={paletteMode ? 'commands' : symbolMode ? 'symbols' : 'search'}
+              mode={dropdownMode}
               onExecute={handlePaletteExecute}
               onClose={exitPaletteMode}
+              paramGathering={paramGathering}
             />
           )}
         </div>
