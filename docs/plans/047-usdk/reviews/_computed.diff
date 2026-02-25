@@ -1,0 +1,846 @@
+=== TRACKED FILE DIFFS ===
+diff --git a/apps/web/src/components/dashboard-sidebar.tsx b/apps/web/src/components/dashboard-sidebar.tsx
+index 5c48cb6..6d1bd5d 100644
+--- a/apps/web/src/components/dashboard-sidebar.tsx
++++ b/apps/web/src/components/dashboard-sidebar.tsx
+@@ -243,12 +243,16 @@ export function DashboardSidebar() {
+       <SidebarFooter className="border-t p-2">
+         <SidebarMenu>
+           <SidebarMenuItem>
+-            <SidebarMenuButton asChild isActive={pathname === '/settings/workspaces'}>
++            <SidebarMenuButton
++              asChild
++              isActive={pathname === '/settings/workspaces' || pathname.endsWith('/settings')}
++            >
+               <Link
+-                href="/settings/workspaces"
++                href={wsCtx?.slug ? `/workspaces/${wsCtx.slug}/settings` : '/settings/workspaces'}
+                 className={cn(
+                   'flex items-center gap-3',
+-                  pathname === '/settings/workspaces' && 'bg-accent text-accent-foreground'
++                  (pathname === '/settings/workspaces' || pathname.endsWith('/settings')) &&
++                    'bg-accent text-accent-foreground'
+                 )}
+               >
+                 <Settings className="h-5 w-5" />
+diff --git a/apps/web/src/components/providers.tsx b/apps/web/src/components/providers.tsx
+index 2f05c61..f82fcda 100644
+--- a/apps/web/src/components/providers.tsx
++++ b/apps/web/src/components/providers.tsx
+@@ -15,6 +15,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+ import { NuqsAdapter } from 'nuqs/adapters/next/app';
+ import { type ReactNode, useState } from 'react';
+ 
++import { SDKProvider } from '../lib/sdk/sdk-provider';
+ import { Toaster } from './ui/toaster';
+ 
+ interface ProvidersProps {
+@@ -50,7 +51,9 @@ export function Providers({ children }: ProvidersProps) {
+ 
+   return (
+     <QueryClientProvider client={queryClient}>
+-      <NuqsAdapter>{children}</NuqsAdapter>
++      <NuqsAdapter>
++        <SDKProvider>{children}</SDKProvider>
++      </NuqsAdapter>
+       {/* Toaster must be inside ThemeProvider (in layout.tsx above us) for dark mode — DYK-042-04 */}
+       <Toaster />
+     </QueryClientProvider>
+diff --git a/apps/web/src/lib/sdk/sdk-bootstrap.ts b/apps/web/src/lib/sdk/sdk-bootstrap.ts
+index 0bbc780..d0a5b99 100644
+--- a/apps/web/src/lib/sdk/sdk-bootstrap.ts
++++ b/apps/web/src/lib/sdk/sdk-bootstrap.ts
+@@ -50,6 +50,70 @@ export function bootstrapSDK(): IUSDK {
+     },
+   });
+ 
++  // DYK-P5-01: Demo settings to dogfood the settings page (Phase 6 moves to domain contributions)
++  settings.contribute({
++    key: 'appearance.theme',
++    domain: 'appearance',
++    label: 'Dark Mode',
++    description: 'Enable dark mode for the application',
++    schema: z.boolean().default(false),
++    ui: 'toggle',
++    section: 'Appearance',
++  });
++  settings.contribute({
++    key: 'editor.fontSize',
++    domain: 'editor',
++    label: 'Font Size',
++    description: 'Editor font size in pixels',
++    schema: z.number().min(8).max(32).default(14),
++    ui: 'number',
++    section: 'Editor',
++  });
++  settings.contribute({
++    key: 'editor.wordWrap',
++    domain: 'editor',
++    label: 'Word Wrap',
++    description: 'How lines should wrap in the editor',
++    schema: z.string().default('off'),
++    ui: 'select',
++    options: [
++      { value: 'off', label: 'Off' },
++      { value: 'on', label: 'On' },
++      { value: 'wordWrapColumn', label: 'At Column' },
++      { value: 'bounded', label: 'Bounded' },
++    ],
++    section: 'Editor',
++  });
++  settings.contribute({
++    key: 'editor.tabSize',
++    domain: 'editor',
++    label: 'Tab Size',
++    description: 'Number of spaces per tab stop',
++    schema: z.number().min(1).max(8).default(2),
++    ui: 'number',
++    section: 'Editor',
++  });
++
++  // DYK-P5-03: openSettings — parse slug from URL at execution time
++  commands.register({
++    id: 'sdk.openSettings',
++    title: 'Open Settings',
++    domain: 'sdk',
++    params: z.object({}),
++    handler: async () => {
++      const match = window.location.pathname.match(/\/workspaces\/([^/]+)/);
++      if (match) {
++        window.location.href = `/workspaces/${match[1]}/settings`;
++      } else {
++        toast.info('Open a workspace first');
++      }
++    },
++    icon: 'settings',
++  });
++
++  // Ctrl+, opens settings
++  keybindings.register({ key: '$mod+Comma', command: 'sdk.openSettings' });
++
+   return {
+     commands,
+     settings,
+diff --git a/docs/domains/domain-map.md b/docs/domains/domain-map.md
+index 8524ced..62c2c01 100644
+--- a/docs/domains/domain-map.md
++++ b/docs/domains/domain-map.md
+@@ -14,6 +14,7 @@ flowchart LR
+     viewer["🖥️ _platform/viewer<br/>FileViewer · MarkdownViewer<br/>DiffViewer · highlightCode<br/>detectContentType"]:::infra
+     events["🔔 _platform/events<br/>ICentralEventNotifier<br/>ISSEBroadcaster · useSSE<br/>FileChangeHub · useFileChanges<br/>toast() · Toaster"]:::infra
+     panels["🗂️ _platform/panel-layout<br/>PanelShell · ExplorerPanel<br/>LeftPanel · MainPanel<br/>PanelHeader · BarHandler<br/>AsciiSpinner"]:::infra
++    sdk["🧩 _platform/sdk<br/>IUSDK · ICommandRegistry<br/>ISDKSettings · IContextKeyService<br/>SDKCommand · SDKSetting"]:::infra
+ 
+     %% Business domains
+     fileBrowser["📁 file-browser<br/>Browser page · FileTree<br/>CodeEditor · FileViewerPanel<br/>WorkspaceContext · Settings"]:::business
+@@ -26,6 +27,11 @@ flowchart LR
+     fileBrowser -->|"PanelShell<br/>ExplorerPanel<br/>LeftPanel · MainPanel<br/>AsciiSpinner"| panels
+     panels -->|"panel URL param"| wsUrl
+     viewer -->|"IFileSystem (Shiki reads)"| fileOps
++
++    %% SDK is consumed by publishing domains (future phases)
++    fileBrowser -.->|"IUSDK<br/>(publishes commands)"| sdk
++    events -.->|"IUSDK<br/>(publishes toast)"| sdk
++    panels -.->|"ICommandRegistry<br/>(hosts palette)"| sdk
+ ```
+ 
+ ## Legend
+@@ -45,5 +51,6 @@ flowchart LR
+ | _platform/events | ICentralEventNotifier, ISSEBroadcaster, useSSE, FileChangeHub, useFileChanges, FileChangeProvider, toast() | file-browser, workgraph-ui*, agent-ui* | — | — | ✅ |
+ | _platform/panel-layout | PanelShell, ExplorerPanel, LeftPanel, MainPanel, PanelHeader, BarHandler, AsciiSpinner | file-browser, future workspace pages | panel URL param | workspace-url | ✅ |
+ | file-browser | Browser page, FileTree, FileViewerPanel, WorkspaceContext, EmojiPicker, ColorPicker, Settings | — | IFileSystem, workspaceHref, viewers, toast, events, panels | file-ops, workspace-url, viewer, events, panel-layout | ✅ |
++| _platform/sdk | IUSDK, ICommandRegistry, ISDKSettings, IContextKeyService, SDKCommand, SDKSetting, FakeUSDK | file-browser, events, panel-layout, settings (future) | — | — | ✅ |
+ 
+ *workgraph-ui and agent-ui are not yet formalized as domains but are known consumers
+diff --git a/docs/domains/registry.md b/docs/domains/registry.md
+index b5a7880..4ba7df3 100644
+--- a/docs/domains/registry.md
++++ b/docs/domains/registry.md
+@@ -8,6 +8,8 @@
+ | Events | _platform/events | infrastructure | _platform | extracted (Plans 019, 023, 027); renamed Plan 045 | active |
+ | Panel Layout | _platform/panel-layout | infrastructure | _platform | extracted (Plan 041 workshops) | active |
+ | File Browser | file-browser | business | — | Plan 041 | active |
++| SDK | _platform/sdk | infrastructure | _platform | Plan 047 — USDK | active |
++| Settings | _platform/settings | infrastructure | _platform | Plan 047 — USDK Phase 5 | active |
+ 
+ ## Domain Types
+ 
+diff --git a/packages/shared/package.json b/packages/shared/package.json
+index 8cb724c..c657459 100644
+--- a/packages/shared/package.json
++++ b/packages/shared/package.json
+@@ -32,6 +32,10 @@
+     "./features/027-central-notify-events": {
+       "import": "./dist/features/027-central-notify-events/index.js",
+       "types": "./dist/features/027-central-notify-events/index.d.ts"
++    },
++    "./sdk": {
++      "import": "./dist/sdk/index.js",
++      "types": "./dist/sdk/index.d.ts"
+     }
+   },
+   "scripts": {
+diff --git a/packages/workflow/src/entities/workspace.ts b/packages/workflow/src/entities/workspace.ts
+index e88e3b4..5d8cbda 100644
+--- a/packages/workflow/src/entities/workspace.ts
++++ b/packages/workflow/src/entities/workspace.ts
+@@ -41,6 +41,12 @@ export interface WorkspacePreferences {
+   starredWorktrees: string[];
+   /** Per-worktree emoji + color overrides, keyed by absolute worktree path */
+   worktreePreferences: Record<string, WorktreeVisualPreferences>;
++  /** SDK settings overrides, keyed by 'domain.settingName'. Only non-default values. */
++  sdkSettings: Record<string, unknown>;
++  /** SDK keyboard shortcut overrides, keyed by shortcut string, value is command ID */
++  sdkShortcuts: Record<string, string>;
++  /** SDK most-recently-used command IDs for command palette ordering */
++  sdkMru: string[];
+ }
+ 
+ /**
+@@ -54,6 +60,9 @@ export const DEFAULT_PREFERENCES: WorkspacePreferences = {
+   sortOrder: 0,
+   starredWorktrees: [],
+   worktreePreferences: {},
++  sdkSettings: {},
++  sdkShortcuts: {},
++  sdkMru: [],
+ };
+ 
+ /**
+
+=== NEW FILES ===
+--- /dev/null
++++ b/docs/domains/_platform/settings/domain.md
+@@ -0,0 +1,69 @@
++# Domain: Settings (`_platform/settings`)
++
++**Type**: infrastructure
++**Status**: active
++**Created By**: Plan 047 — USDK Phase 5
++**Parent**: `_platform`
++
++---
++
++## Purpose
++
++The settings domain provides a user-facing settings page that auto-generates controls from SDK setting contributions. Domains publish `SDKSetting` definitions to the SDK settings store; this domain renders them as a searchable, section-grouped settings UI. First dogfood of the USDK publish/consume pattern.
++
++**This is NOT a configuration system** — it's a UI surface for SDK settings. The underlying data lives in `_platform/sdk` (SettingsStore + WorkspacePreferences).
++
++---
++
++## Contracts (Public API)
++
++| Contract | Type | Description |
++|----------|------|-------------|
++| Settings Page | route | `/workspaces/[slug]/settings` — workspace-scoped settings UI |
++| `sdk.openSettings` | SDK command | Navigates to settings page from palette/shortcut |
++
++---
++
++## Composition (Internal)
++
++| Component | Type | Description |
++|-----------|------|-------------|
++| SettingsPage | client component | Groups settings by section, renders controls |
++| SettingControl | client component | Generic control renderer (toggle/select/text/number) |
++| SettingsSearch | client component | Filter settings by label/description |
++
++---
++
++## Dependencies
++
++### This Domain Depends On
++
++| Domain | Contract | Why |
++|--------|----------|-----|
++| `_platform/sdk` | `ISDKSettings.list()`, `useSDKSetting()`, `useSDK()` | Read setting definitions, reactive values |
++| shadcn/ui (npm) | Switch, Select, Input, Label | UI control components |
++
++### Domains That Depend On This
++
++| Domain | Contract | Why |
++|--------|----------|-----|
++| (none yet) | — | Settings page is a leaf consumer |
++
++---
++
++## Source Location
++
++```
++apps/web/app/(dashboard)/workspaces/[slug]/settings/page.tsx   # Route entry
++apps/web/src/features/settings/components/settings-page.tsx    # Main page component
++apps/web/src/features/settings/components/setting-control.tsx  # Generic control renderer
++apps/web/src/features/settings/components/settings-search.tsx  # Search/filter
++```
++
++---
++
++## History
++
++| Plan | Change | Date |
++|------|--------|------|
++| 047-usdk Phase 5 | Domain created — settings page, setting controls, search, openSettings command | 2026-02-25 |
+
+--- /dev/null
++++ b/apps/web/app/(dashboard)/workspaces/[slug]/settings/page.tsx
+@@ -0,0 +1,20 @@
++/**
++ * Settings Page — /workspaces/[slug]/settings
++ *
++ * Server Component that renders the SDK settings page.
++ * Per Plan 047 Phase 5, Task T004.
++ */
++
++import { SettingsPage } from '../../../../../src/features/settings/components/settings-page';
++
++export const dynamic = 'force-dynamic';
++
++interface PageProps {
++  params: Promise<{ slug: string }>;
++}
++
++export default async function SettingsRoute({ params }: PageProps) {
++  const { slug } = await params;
++
++  return <SettingsPage slug={slug} />;
++}
+
+--- /dev/null
++++ b/apps/web/src/features/settings/components/setting-control.tsx
+@@ -0,0 +1,131 @@
++'use client';
++
++/**
++ * SettingControl — Generic renderer for SDK settings.
++ *
++ * Renders the appropriate UI control based on SDKSetting.ui hint:
++ * - 'toggle' → Switch
++ * - 'select' → Select dropdown
++ * - 'text' → Input
++ * - 'number' → Input type="number"
++ *
++ * DYK-P5-02: No color/emoji controls — pickers live in file-browser domain.
++ * Per Plan 047 Phase 5, Task T003.
++ */
++
++import { Input } from '@/components/ui/input';
++import { Label } from '@/components/ui/label';
++import {
++  Select,
++  SelectContent,
++  SelectItem,
++  SelectTrigger,
++  SelectValue,
++} from '@/components/ui/select';
++import { Switch } from '@/components/ui/switch';
++import { useSDK } from '@/lib/sdk/sdk-provider';
++import { useSDKSetting } from '@/lib/sdk/use-sdk-setting';
++import type { SDKSetting } from '@chainglass/shared/sdk';
++import { RotateCcw } from 'lucide-react';
++
++interface SettingControlProps {
++  setting: SDKSetting;
++}
++
++export function SettingControl({ setting }: SettingControlProps) {
++  const sdk = useSDK();
++  const [value, setValue] = useSDKSetting(setting.key);
++
++  const handleReset = () => {
++    sdk.settings.reset(setting.key);
++  };
++
++  return (
++    <div className="flex items-start justify-between gap-4 py-3">
++      <div className="flex-1 min-w-0">
++        <Label className="text-sm font-medium">{setting.label}</Label>
++        {setting.description && (
++          <p className="text-xs text-muted-foreground mt-0.5">{setting.description}</p>
++        )}
++      </div>
++      <div className="flex items-center gap-2 shrink-0">
++        <ControlRenderer setting={setting} value={value} setValue={setValue} />
++        <button
++          type="button"
++          onClick={handleReset}
++          className="rounded p-1 text-muted-foreground hover:text-foreground"
++          aria-label={`Reset ${setting.label} to default`}
++          title="Reset to default"
++        >
++          <RotateCcw className="h-3.5 w-3.5" />
++        </button>
++      </div>
++    </div>
++  );
++}
++
++function ControlRenderer({
++  setting,
++  value,
++  setValue,
++}: {
++  setting: SDKSetting;
++  value: unknown;
++  setValue: (v: unknown) => Promise<void>;
++}) {
++  switch (setting.ui) {
++    case 'toggle':
++      return (
++        <Switch
++          checked={Boolean(value)}
++          onCheckedChange={(checked) => setValue(checked)}
++          aria-label={setting.label}
++        />
++      );
++
++    case 'select':
++      return (
++        <Select value={String(value ?? '')} onValueChange={(v) => setValue(v)}>
++          <SelectTrigger className="w-40">
++            <SelectValue placeholder="Select..." />
++          </SelectTrigger>
++          <SelectContent>
++            {(setting.options ?? []).map((opt) => (
++              <SelectItem key={opt.value} value={opt.value}>
++                {opt.label}
++              </SelectItem>
++            ))}
++          </SelectContent>
++        </Select>
++      );
++
++    case 'number':
++      return (
++        <Input
++          type="number"
++          value={String(value ?? '')}
++          onChange={(e) => setValue(Number(e.target.value))}
++          className="w-24"
++          aria-label={setting.label}
++        />
++      );
++
++    case 'text':
++      return (
++        <Input
++          type="text"
++          value={String(value ?? '')}
++          onChange={(e) => setValue(e.target.value)}
++          className="w-48"
++          aria-label={setting.label}
++        />
++      );
++
++    default:
++      return (
++        <span className="text-xs text-muted-foreground italic">
++          Unsupported control: {setting.ui ?? 'none'}
++        </span>
++      );
++  }
++}
+
+--- /dev/null
++++ b/apps/web/src/features/settings/components/settings-page.tsx
+@@ -0,0 +1,96 @@
++'use client';
++
++/**
++ * SettingsPage — Domain-organised settings UI.
++ *
++ * Reads sdk.settings.list(), groups by section, renders SettingControl per setting.
++ * DYK-P5-01: Demo settings registered in bootstrap for dogfooding.
++ * DYK-P5-05: Conditional worktree section when workspace context available.
++ *
++ * Per Plan 047 Phase 5, Task T004. AC-21, AC-23.
++ */
++
++import type { SDKSetting } from '@chainglass/shared/sdk';
++import { Settings } from 'lucide-react';
++import { useMemo, useState } from 'react';
++
++import { useSDK } from '@/lib/sdk/sdk-provider';
++
++import { SettingControl } from './setting-control';
++import { SettingsSearch } from './settings-search';
++
++interface SettingsPageProps {
++  slug: string;
++}
++
++/** Group settings by section (falls back to domain name). */
++function groupBySection(settings: SDKSetting[]): Map<string, SDKSetting[]> {
++  const groups = new Map<string, SDKSetting[]>();
++  for (const setting of settings) {
++    const section = setting.section ?? setting.domain;
++    const group = groups.get(section) ?? [];
++    group.push(setting);
++    groups.set(section, group);
++  }
++  // Sort sections alphabetically
++  return new Map([...groups.entries()].sort(([a], [b]) => a.localeCompare(b)));
++}
++
++/** Filter settings by search query (label or description, case-insensitive). */
++function filterSettings(settings: SDKSetting[], query: string): SDKSetting[] {
++  if (!query) return settings;
++  const lower = query.toLowerCase();
++  return settings.filter(
++    (s) => s.label.toLowerCase().includes(lower) || s.description.toLowerCase().includes(lower)
++  );
++}
++
++export function SettingsPage({ slug }: SettingsPageProps) {
++  const sdk = useSDK();
++  const [search, setSearch] = useState('');
++
++  const allSettings = useMemo(() => sdk.settings.list(), [sdk]);
++  const filtered = useMemo(() => filterSettings(allSettings, search), [allSettings, search]);
++  const grouped = useMemo(() => groupBySection(filtered), [filtered]);
++
++  return (
++    <div className="h-[calc(100vh-4rem)] overflow-y-auto">
++      <div className="mx-auto max-w-2xl px-6 py-8">
++        <div className="flex items-center gap-2 mb-6">
++          <Settings className="h-5 w-5 text-muted-foreground" />
++          <h1 className="text-xl font-semibold">Settings</h1>
++        </div>
++
++        <div className="mb-6">
++          <SettingsSearch
++            value={search}
++            onChange={setSearch}
++            matchCount={filtered.length}
++            totalCount={allSettings.length}
++          />
++        </div>
++
++        {grouped.size === 0 ? (
++          <div className="py-12 text-center text-muted-foreground">
++            {search ? 'No settings match your search' : 'No settings available'}
++          </div>
++        ) : (
++          <div className="space-y-8">
++            {[...grouped.entries()].map(([section, settings]) => (
++              <div key={section}>
++                <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-2 border-b pb-2">
++                  {section}
++                </h2>
++                <div className="divide-y">
++                  {settings.map((setting) => (
++                    <SettingControl key={setting.key} setting={setting} />
++                  ))}
++                </div>
++              </div>
++            ))}
++          </div>
++        )}
++      </div>
++    </div>
++  );
++}
+
+--- /dev/null
++++ b/apps/web/src/features/settings/components/settings-search.tsx
+@@ -0,0 +1,68 @@
++'use client';
++
++/**
++ * SettingsSearch — Filter input for the settings page.
++ *
++ * Filters settings by label or description (case-insensitive substring).
++ * Clears on Escape. Shows match count.
++ *
++ * Per Plan 047 Phase 5, Task T005. AC-24.
++ */
++
++import { Input } from '@/components/ui/input';
++import { Search, X } from 'lucide-react';
++import { useCallback, useRef } from 'react';
++
++interface SettingsSearchProps {
++  value: string;
++  onChange: (value: string) => void;
++  matchCount: number;
++  totalCount: number;
++}
++
++export function SettingsSearch({ value, onChange, matchCount, totalCount }: SettingsSearchProps) {
++  const inputRef = useRef<HTMLInputElement>(null);
++
++  const handleKeyDown = useCallback(
++    (e: React.KeyboardEvent) => {
++      if (e.key === 'Escape') {
++        onChange('');
++        inputRef.current?.blur();
++      }
++    },
++    [onChange]
++  );
++
++  return (
++    <div className="relative">
++      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
++      <Input
++        ref={inputRef}
++        type="text"
++        value={value}
++        onChange={(e) => onChange(e.target.value)}
++        onKeyDown={handleKeyDown}
++        placeholder="Search settings..."
++        className="pl-9 pr-20"
++        aria-label="Search settings"
++      />
++      <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
++        {value && (
++          <>
++            <span className="text-xs text-muted-foreground">
++              {matchCount}/{totalCount}
++            </span>
++            <button
++              type="button"
++              onClick={() => onChange('')}
++              className="rounded p-0.5 text-muted-foreground hover:text-foreground"
++              aria-label="Clear search"
++            >
++              <X className="h-3.5 w-3.5" />
++            </button>
++          </>
++        )}
++      </div>
++    </div>
++  );
++}
+
+--- /dev/null
++++ b/apps/web/src/components/ui/switch.tsx
+@@ -0,0 +1,33 @@
++import * as React from "react"
++import { Switch as SwitchPrimitive } from "radix-ui"
++
++import { cn } from "@/lib/utils"
++
++function Switch({
++  className,
++  size = "default",
++  ...props
++}: React.ComponentProps<typeof SwitchPrimitive.Root> & {
++  size?: "sm" | "default"
++}) {
++  return (
++    <SwitchPrimitive.Root
++      data-slot="switch"
++      data-size={size}
++      className={cn(
++        "peer data-[state=checked]:bg-primary data-[state=unchecked]:bg-input focus-visible:border-ring focus-visible:ring-ring/50 dark:data-[state=unchecked]:bg-input/80 group/switch inline-flex shrink-0 items-center rounded-full border border-transparent shadow-xs transition-all outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 data-[size=default]:h-[1.15rem] data-[size=default]:w-8 data-[size=sm]:h-3.5 data-[size=sm]:w-6",
++        className
++      )}
++      {...props}
++    >
++      <SwitchPrimitive.Thumb
++        data-slot="switch-thumb"
++        className={cn(
++          "bg-background dark:data-[state=unchecked]:bg-foreground dark:data-[state=checked]:bg-primary-foreground pointer-events-none block rounded-full ring-0 transition-transform group-data-[size=default]/switch:size-4 group-data-[size=sm]/switch:size-3 data-[state=checked]:translate-x-[calc(100%-2px)] data-[state=unchecked]:translate-x-0"
++        )}
++      />
++    </SwitchPrimitive.Root>
++  )
++}
++
++export { Switch }
+
+--- /dev/null
++++ b/apps/web/src/components/ui/select.tsx
+@@ -0,0 +1,190 @@
++"use client"
++
++import * as React from "react"
++import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react"
++import { Select as SelectPrimitive } from "radix-ui"
++
++import { cn } from "@/lib/utils"
++
++function Select({
++  ...props
++}: React.ComponentProps<typeof SelectPrimitive.Root>) {
++  return <SelectPrimitive.Root data-slot="select" {...props} />
++}
++
++function SelectGroup({
++  ...props
++}: React.ComponentProps<typeof SelectPrimitive.Group>) {
++  return <SelectPrimitive.Group data-slot="select-group" {...props} />
++}
++
++function SelectValue({
++  ...props
++}: React.ComponentProps<typeof SelectPrimitive.Value>) {
++  return <SelectPrimitive.Value data-slot="select-value" {...props} />
++}
++
++function SelectTrigger({
++  className,
++  size = "default",
++  children,
++  ...props
++}: React.ComponentProps<typeof SelectPrimitive.Trigger> & {
++  size?: "sm" | "default"
++}) {
++  return (
++    <SelectPrimitive.Trigger
++      data-slot="select-trigger"
++      data-size={size}
++      className={cn(
++        "border-input data-[placeholder]:text-muted-foreground [&_svg:not([class*='text-'])]:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:bg-input/30 dark:hover:bg-input/50 flex w-fit items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 data-[size=default]:h-9 data-[size=sm]:h-8 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-2 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
++        className
++      )}
++      {...props}
++    >
++      {children}
++      <SelectPrimitive.Icon asChild>
++        <ChevronDownIcon className="size-4 opacity-50" />
++      </SelectPrimitive.Icon>
++    </SelectPrimitive.Trigger>
++  )
++}
++
++function SelectContent({
++  className,
++  children,
++  position = "item-aligned",
++  align = "center",
++  ...props
++}: React.ComponentProps<typeof SelectPrimitive.Content>) {
++  return (
++    <SelectPrimitive.Portal>
++      <SelectPrimitive.Content
++        data-slot="select-content"
++        className={cn(
++          "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 relative z-50 max-h-(--radix-select-content-available-height) min-w-[8rem] origin-(--radix-select-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-md border shadow-md",
++          position === "popper" &&
++            "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
++          className
++        )}
++        position={position}
++        align={align}
++        {...props}
++      >
++        <SelectScrollUpButton />
++        <SelectPrimitive.Viewport
++          className={cn(
++            "p-1",
++            position === "popper" &&
++              "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)] scroll-my-1"
++          )}
++        >
++          {children}
++        </SelectPrimitive.Viewport>
++        <SelectScrollDownButton />
++      </SelectPrimitive.Content>
++    </SelectPrimitive.Portal>
++  )
++}
++
++function SelectLabel({
++  className,
++  ...props
++}: React.ComponentProps<typeof SelectPrimitive.Label>) {
++  return (
++    <SelectPrimitive.Label
++      data-slot="select-label"
++      className={cn("text-muted-foreground px-2 py-1.5 text-xs", className)}
++      {...props}
++    />
++  )
++}
++
++function SelectItem({
++  className,
++  children,
++  ...props
++}: React.ComponentProps<typeof SelectPrimitive.Item>) {
++  return (
++    <SelectPrimitive.Item
++      data-slot="select-item"
++      className={cn(
++        "focus:bg-accent focus:text-accent-foreground [&_svg:not([class*='text-'])]:text-muted-foreground relative flex w-full cursor-default items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
++        className
++      )}
++      {...props}
++    >
++      <span
++        data-slot="select-item-indicator"
++        className="absolute right-2 flex size-3.5 items-center justify-center"
++      >
++        <SelectPrimitive.ItemIndicator>
++          <CheckIcon className="size-4" />
++        </SelectPrimitive.ItemIndicator>
++      </span>
++      <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
++    </SelectPrimitive.Item>
++  )
++}
++
++function SelectSeparator({
++  className,
++  ...props
++}: React.ComponentProps<typeof SelectPrimitive.Separator>) {
++  return (
++    <SelectPrimitive.Separator
++      data-slot="select-separator"
++      className={cn("bg-border pointer-events-none -mx-1 my-1 h-px", className)}
++      {...props}
++    />
++  )
++}
++
++function SelectScrollUpButton({
++  className,
++  ...props
++}: React.ComponentProps<typeof SelectPrimitive.ScrollUpButton>) {
++  return (
++    <SelectPrimitive.ScrollUpButton
++      data-slot="select-scroll-up-button"
++      className={cn(
++        "flex cursor-default items-center justify-center py-1",
++        className
++      )}
++      {...props}
++    >
++      <ChevronUpIcon className="size-4" />
++    </SelectPrimitive.ScrollUpButton>
++  )
++}
++
++function SelectScrollDownButton({
++  className,
++  ...props
++}: React.ComponentProps<typeof SelectPrimitive.ScrollDownButton>) {
++  return (
++    <SelectPrimitive.ScrollDownButton
++      data-slot="select-scroll-down-button"
++      className={cn(
++        "flex cursor-default items-center justify-center py-1",
++        className
++      )}
++      {...props}
++    >
++      <ChevronDownIcon className="size-4" />
++    </SelectPrimitive.ScrollDownButton>
++  )
++}
++
++export {
++  Select,
++  SelectContent,
++  SelectGroup,
++  SelectItem,
++  SelectLabel,
++  SelectScrollDownButton,
++  SelectScrollUpButton,
++  SelectSeparator,
++  SelectTrigger,
++  SelectValue,
++}
+

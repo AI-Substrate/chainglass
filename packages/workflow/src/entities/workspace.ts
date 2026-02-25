@@ -41,6 +41,12 @@ export interface WorkspacePreferences {
   starredWorktrees: string[];
   /** Per-worktree emoji + color overrides, keyed by absolute worktree path */
   worktreePreferences: Record<string, WorktreeVisualPreferences>;
+  /** SDK settings overrides, keyed by 'domain.settingName'. Only non-default values. */
+  sdkSettings: Record<string, unknown>;
+  /** SDK keyboard shortcut overrides, keyed by shortcut string, value is command ID */
+  sdkShortcuts: Record<string, string>;
+  /** SDK most-recently-used command IDs for command palette ordering */
+  sdkMru: string[];
 }
 
 /**
@@ -54,6 +60,9 @@ export const DEFAULT_PREFERENCES: WorkspacePreferences = {
   sortOrder: 0,
   starredWorktrees: [],
   worktreePreferences: {},
+  sdkSettings: {},
+  sdkShortcuts: {},
+  sdkMru: [],
 };
 
 /**
