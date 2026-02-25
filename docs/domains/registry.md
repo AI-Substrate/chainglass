@@ -8,6 +8,8 @@
 | Events | _platform/events | infrastructure | _platform | extracted (Plans 019, 023, 027); renamed Plan 045 | active |
 | Panel Layout | _platform/panel-layout | infrastructure | _platform | extracted (Plan 041 workshops) | active |
 | File Browser | file-browser | business | — | Plan 041 | active |
+| SDK | _platform/sdk | infrastructure | _platform | Plan 047 — USDK | active |
+| Settings | _platform/settings | infrastructure | _platform | Plan 047 — USDK Phase 5 | active |
 
 ## Domain Types
 

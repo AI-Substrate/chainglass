@@ -50,6 +50,75 @@ export function bootstrapSDK(): IUSDK {
     },
   });
 
+  // DYK-P5-01: Demo settings to dogfood the settings page (Phase 6 moves to domain contributions)
+  settings.contribute({
+    key: 'appearance.theme',
+    domain: 'appearance',
+    label: 'Dark Mode',
+    description: 'Enable dark mode for the application',
+    schema: z.boolean().default(false),
+    ui: 'toggle',
+    section: 'Appearance',
+  });
+  settings.contribute({
+    key: 'editor.fontSize',
+    domain: 'editor',
+    label: 'Font Size',
+    description: 'Editor font size in pixels',
+    schema: z.number().min(8).max(32).default(14),
+    ui: 'number',
+    section: 'Editor',
+  });
+  settings.contribute({
+    key: 'editor.wordWrap',
+    domain: 'editor',
+    label: 'Word Wrap',
+    description: 'How lines should wrap in the editor',
+    schema: z.string().default('off'),
+    ui: 'select',
+    options: [
+      { value: 'off', label: 'Off' },
+      { value: 'on', label: 'On' },
+      { value: 'wordWrapColumn', label: 'At Column' },
+      { value: 'bounded', label: 'Bounded' },
+    ],
+    section: 'Editor',
+  });
+  settings.contribute({
+    key: 'editor.tabSize',
+    domain: 'editor',
+    label: 'Tab Size',
+    description: 'Number of spaces per tab stop',
+    schema: z.number().min(1).max(8).default(2),
+    ui: 'number',
+    section: 'Editor',
+  });
+
+  // DYK-P5-03: openSettings — parse slug from URL at execution time
+  // FT-005: Use custom event for SPA navigation (avoids full page reload)
+  commands.register({
+    id: 'sdk.openSettings',
+    title: 'Open Settings',
+    domain: 'sdk',
+    params: z.object({}),
+    handler: async () => {
+      const match = window.location.pathname.match(/\/workspaces\/([^/]+)/);
+      if (match) {
+        window.dispatchEvent(
+          new CustomEvent('sdk:navigate', {
+            detail: { path: `/workspaces/${match[1]}/settings` },
+          })
+        );
+      } else {
+        toast.info('Open a workspace first');
+      }
+    },
+    icon: 'settings',
+  });
+
+  // Ctrl+, opens settings
+  keybindings.register({ key: '$mod+Comma', command: 'sdk.openSettings' });
+
   return {
     commands,
     settings,

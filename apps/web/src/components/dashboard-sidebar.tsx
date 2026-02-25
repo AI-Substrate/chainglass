@@ -243,12 +243,20 @@ export function DashboardSidebar() {
       <SidebarFooter className="border-t p-2">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={pathname === '/settings/workspaces'}>
+            <SidebarMenuButton
+              asChild
+              isActive={
+                pathname === '/settings/workspaces' ||
+                /\/workspaces\/[^/]+\/settings$/.test(pathname)
+              }
+            >
               <Link
-                href="/settings/workspaces"
+                href={wsCtx?.slug ? `/workspaces/${wsCtx.slug}/settings` : '/settings/workspaces'}
                 className={cn(
                   'flex items-center gap-3',
-                  pathname === '/settings/workspaces' && 'bg-accent text-accent-foreground'
+                  (pathname === '/settings/workspaces' ||
+                    /\/workspaces\/[^/]+\/settings$/.test(pathname)) &&
+                    'bg-accent text-accent-foreground'
                 )}
               >
                 <Settings className="h-5 w-5" />

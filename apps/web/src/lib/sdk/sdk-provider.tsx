@@ -12,7 +12,16 @@
  * Per Plan 047 Phase 2, Tasks T001 + T002.
  */
 
-import { type ReactNode, createContext, useCallback, useContext, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import {
+  type ReactNode,
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 
 import type { IUSDK } from '@chainglass/shared/sdk';
 
@@ -139,6 +148,17 @@ export function SDKProvider({ children }: SDKProviderProps) {
     persistMruFn,
     setPersistMruFn,
   };
+
+  // FT-005: Listen for sdk:navigate events for SPA navigation
+  const router = useRouter();
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ path: string }>).detail;
+      router.push(detail.path);
+    };
+    window.addEventListener('sdk:navigate', handler);
+    return () => window.removeEventListener('sdk:navigate', handler);
+  }, [router]);
 
   return (
     <SDKContext.Provider value={contextValue}>

@@ -177,7 +177,7 @@ export const CommandPaletteDropdown = forwardRef<
                 aria-selected={index === selectedIndex}
                 className={`flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer ${
                   index === selectedIndex
-                    ? 'bg-accent text-accent-foreground'
+                    ? 'bg-primary/15 text-foreground'
                     : 'text-foreground hover:bg-accent/50'
                 }`}
                 onClick={() => handleSelect(cmd.id)}

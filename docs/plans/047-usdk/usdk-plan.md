@@ -299,11 +299,11 @@ The Chainglass codebase has 6 domains but no unified SDK surface for cross-domai
 | 5.8 | Wire `registerSettingsSDK(sdk)` into bootstrap | `_platform/settings` | Settings commands appear in palette | |
 
 ### Acceptance Criteria
-- [ ] AC-21: Settings page renders all contributed settings grouped by section
-- [ ] AC-22: Appropriate control renders per ui hint
-- [ ] AC-23: (verified) Settings roundtrip works end-to-end through settings page
-- [ ] AC-24: Search filters settings by label/description
-- [ ] AC-27: Separate contribution manifest from handler binding
+- [x] AC-21: Settings page renders all contributed settings grouped by section
+- [x] AC-22: Appropriate control renders per ui hint
+- [x] AC-23: (verified) Settings roundtrip works end-to-end through settings page
+- [x] AC-24: Search filters settings by label/description
+- [~] AC-27: Separate contribution manifest from handler binding (Phase 6 — domains register)
 
 ---
 
