@@ -74,7 +74,7 @@ export class TemplateService implements ITemplateService {
 
       // Read all node directories and copy only node.yaml (exclude outputs, events, data)
       const nodesDir = this.pathResolver.join(graphDir, 'nodes');
-      const nodeIds = await this.fs.readDir(nodesDir);
+      const nodeIds = (await this.fs.exists(nodesDir)) ? await this.fs.readDir(nodesDir) : [];
 
       interface NodeInfo {
         nodeId: string;
@@ -383,15 +383,19 @@ export class TemplateService implements ITemplateService {
       const errors: ResultError[] = [];
       const stateJsonPath = this.pathResolver.join(instanceDir, 'state.json');
       if (await this.fs.exists(stateJsonPath)) {
-        const stateContent = await this.fs.readFile(stateJsonPath);
-        const state = JSON.parse(stateContent) as { graph_status: string };
-        if (state.graph_status === 'in_progress') {
-          errors.push(
-            makeError(
-              'Warning: workflow instance has an active run. Units will be refreshed.',
-              'ACTIVE_RUN_WARNING'
-            )
-          );
+        try {
+          const stateContent = await this.fs.readFile(stateJsonPath);
+          const state = JSON.parse(stateContent) as { graph_status: string };
+          if (state.graph_status === 'in_progress') {
+            errors.push(
+              makeError(
+                'Warning: workflow instance has an active run. Units will be refreshed.',
+                'ACTIVE_RUN_WARNING'
+              )
+            );
+          }
+        } catch {
+          // Corrupt state.json — proceed with refresh, don't block on parse failure
         }
       }
 

@@ -168,7 +168,7 @@ async function handleRefresh(
     process.exit(1);
   }
 
-  const parts = path.split('/');
+  const parts = path.split('/').filter(Boolean);
   if (parts.length !== 2) {
     console.error('Usage: cg template refresh <template-slug>/<instance-id>');
     process.exit(1);
@@ -181,9 +181,9 @@ async function handleRefresh(
   if (options.json) {
     console.log(JSON.stringify(result, null, 2));
   } else if (result.data) {
-    // Show warnings (e.g., active run)
+    // Show warnings (e.g., active run) — skip if --force
     for (const err of result.errors) {
-      if (err.code === 'ACTIVE_RUN_WARNING') {
+      if (err.code === 'ACTIVE_RUN_WARNING' && !options.force) {
         console.log(`Warning: ${err.message}`);
       }
     }

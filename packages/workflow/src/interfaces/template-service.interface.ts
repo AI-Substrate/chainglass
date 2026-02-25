@@ -83,7 +83,10 @@ export interface ITemplateService {
 
   /**
    * Refresh all work units in an instance from its source template.
-   * Full directory replacement for each unit.
+   * Full directory replacement for each unit currently in instance.yaml.
+   * Only refreshes units that existed at instantiation — units added to the
+   * template after this instance was created are NOT included.
+   * Graph topology (graph.yaml, nodes/) is never modified by refresh.
    * Warns if an active run is detected.
    */
   refresh(ctx: WorkspaceContext, templateSlug: string, instanceId: string): Promise<RefreshResult>;

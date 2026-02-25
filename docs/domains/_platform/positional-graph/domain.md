@@ -81,6 +81,10 @@ Core graph engine that powers the line-based workflow execution system. Owns the
 | `InstanceMetadataSchema` | Instance.yaml validation (Plan 048) | Zod, `z.infer<>` |
 | `FakeTemplateService` | Test double for ITemplateService (Plan 048) | Call tracking + return builders |
 | `FakeInstanceService` | Test double for IInstanceService (Plan 048) | Call tracking + return builders |
+| `TemplateService` | Real ITemplateService — saveFrom, list, show, instantiate, listInstances, refresh (Plan 048 Phase 2) | IFileSystem, IPathResolver, IYamlParser, TemplateAdapter, InstanceAdapter |
+| `TemplateAdapter` | Filesystem path resolution for templates at .chainglass/templates/workflows/ (Plan 048 Phase 2) | IFileSystem, IPathResolver |
+| `InstanceAdapter` | Filesystem path resolution for instances at .chainglass/instances/ (Plan 048 Phase 2) | IFileSystem, IPathResolver |
+| `InstanceWorkUnitAdapter` | IWorkUnitLoader for instance-local unit resolution (Plan 048 Phase 2) | IFileSystem, IPathResolver, IYamlParser, basePath |
 
 ## Source Location
 
@@ -105,6 +109,10 @@ Primary: `packages/positional-graph/src/`
 | `packages/workflow/src/interfaces/instance-service.interface.ts` | IInstanceService contract | Plan 048 |
 | `packages/workflow/src/fakes/fake-template-service.ts` | Test double | Plan 048 |
 | `packages/workflow/src/fakes/fake-instance-service.ts` | Test double | Plan 048 |
+| `packages/workflow/src/services/template.service.ts` | TemplateService real implementation | Plan 048 Phase 2 |
+| `packages/workflow/src/adapters/template.adapter.ts` | Template path resolution | Plan 048 Phase 2 |
+| `packages/workflow/src/adapters/instance.adapter.ts` | Instance path resolution | Plan 048 Phase 2 |
+| `packages/positional-graph/src/adapter/instance-workunit.adapter.ts` | Instance-local unit loader | Plan 048 Phase 2 |
 
 ## Dependencies
 
@@ -137,3 +145,4 @@ Primary: `packages/positional-graph/src/`
 | 036 | CLI orchestration driver — `cg wf run` command, drive loop | 2025-2026 |
 | 040 | Graph inspect CLI — graph introspection commands | 2026 |
 | 048 | Workflow templates & instances — template/instance schemas, ITemplateService, IInstanceService, fakes, contract tests (Phase 1) | 2026-02-25 |
+| 048-P2 | Template/Instance service + CLI — TemplateService (6 methods), TemplateAdapter, InstanceAdapter, InstanceWorkUnitAdapter, 6 CLI commands, advanced-pipeline template, Workshop 003 unified storage (Phase 2) | 2026-02-25 |
