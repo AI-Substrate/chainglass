@@ -11,7 +11,8 @@ import { renderMarkdownToHtml } from '@/lib/server/markdown-renderer';
 import { describe, expect, it } from 'vitest';
 
 describe('renderMarkdownToHtml', () => {
-  it('renders basic markdown to HTML', async () => {
+  // Shiki cold-start can be slow in CI — increase timeout for first render
+  it('renders basic markdown to HTML', { timeout: 30_000 }, async () => {
     const html = await renderMarkdownToHtml('# Hello\n\nWorld');
     expect(html).toContain('<h1 id="hello">Hello</h1>');
     expect(html).toContain('<p>World</p>');
