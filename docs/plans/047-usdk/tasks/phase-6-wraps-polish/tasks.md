@@ -212,6 +212,14 @@ _Populated during implementation by plan-6._
 
 ---
 
+## Subtasks
+
+| ID | Created | Summary | Status | Parent Task |
+|----|---------|---------|--------|-------------|
+| 001 | 2026-02-25 | Palette single-parameter input | Pending | T002 |
+
+---
+
 ## Directory Layout
 
 ```
