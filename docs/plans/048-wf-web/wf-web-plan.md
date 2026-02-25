@@ -3,7 +3,7 @@
 **Plan Version**: 1.0.0
 **Created**: 2026-02-25
 **Spec**: [wf-web-spec.md](wf-web-spec.md)
-**Workshop**: [001-template-instance-directory-layout.md](workshops/001-template-instance-directory-layout.md)
+**Workshop**: [001-template-instance-directory-layout.md](workshops/001-template-instance-directory-layout.md), [002-template-creation-flow-and-node-identity.md](workshops/002-template-creation-flow-and-node-identity.md), [003-instance-unified-storage.md](workshops/003-instance-unified-storage.md)
 **Status**: DRAFT
 
 ## Summary
@@ -58,6 +58,7 @@ CLI commands are the primary interface and are introduced early (Phase 2) so the
 | 05 | High | WorkUnitAdapter hardcodes `.chainglass/units/` path — instances need an adapter that resolves to instance-local `units/` | Create InstanceWorkUnitAdapter. Wire via DI context or factory method. Phase 2 task. |
 | 06 | Medium | Test fixtures in dev/test-graphs/ hardcode `.chainglass/units/` in graph-test-runner.ts | Phase 4 migrates fixtures. Existing tests remain functional until then. |
 | 07 | High | **Templates are created FROM working graph instances** — graph.yaml + nodes/*/node.yaml already contain real node IDs and validated wiring. No new declarative format needed. See [Workshop 002](workshops/002-template-creation-flow-and-node-identity.md). | Phase 3 (graph activation) is greatly simplified — becomes file copy + fresh state.json, not a YAML→imperative parser. |
+| 08 | High | **Instance data is fully Git-tracked** — all runtime data (state.json, outputs, events) lives under `.chainglass/instances/`, NOT under gitignored `.chainglass/data/`. Eliminates dual-path complexity, no hydration after clone. See [Workshop 003](workshops/003-instance-unified-storage.md). | InstanceAdapter resolves to single path. No `getInstanceDataDir()`. Instantiate writes to one directory. |
 
 ## Phases
 
@@ -102,13 +103,13 @@ CLI commands are the primary interface and are introduced early (Phase 2) so the
 | # | Task | Domain | Success Criteria | Notes |
 |---|------|--------|-----------------|-------|
 | 2.1 | Create `TemplateAdapter` (filesystem path resolution) | _platform/positional-graph | Resolves template paths: `templates/workflows/<slug>/`, `templates/units/<slug>/` | Uses IFileSystem, IPathResolver |
-| 2.2 | Create `InstanceAdapter` (filesystem path resolution) | _platform/positional-graph | Resolves instance paths: `instances/<wf>/<id>/`, `instances/<wf>/<id>/units/<slug>/`, `data/instances/<wf>/<id>/` | Separate from template adapter |
+| 2.2 | Create `InstanceAdapter` (filesystem path resolution) | _platform/positional-graph | Resolves instance paths: `instances/<wf>/<id>/`, `instances/<wf>/<id>/units/<slug>/`. All instance data (including runtime state) lives here. | Overrides getDomainPath() per WorkUnitAdapter pattern. Per Workshop 003: no data/instances/ path. |
 | 2.3 | TDD: save-from tests (red→green) | _platform/positional-graph | Write tests for saveFrom() — verify graph.yaml + nodes/ copied, state.json excluded, outputs excluded, units bundled. Test Doc format. | TDD per constitution P3. Core of Workshop 002. |
 | 2.4 | Implement `TemplateService.saveFrom()` | _platform/positional-graph | Reads graph definition files from `.chainglass/data/workflows/<slug>/`, strips runtime state, copies graph.yaml + nodes/*/node.yaml + bundles all referenced units → `templates/workflows/<template-slug>/`. Passes tests from 2.3. | Uses IFileSystem.copyDirectory() per finding 02 |
 | 2.5 | TDD: Template list/show tests (red→green) | _platform/positional-graph | Write tests for listWorkflows() and showWorkflow() against FakeTemplateService, then implement real service to pass. Test Doc format. | TDD per constitution P3 |
 | 2.6 | Implement `TemplateService.listWorkflows()` + `showWorkflow()` | _platform/positional-graph | Lists all workflow templates via glob, shows template structure with unit count and node count. Passes tests from 2.5. | Glob discovery per PL-10 |
 | 2.7 | TDD: Instantiate tests (red→green) | _platform/positional-graph | Write tests for instantiate() — verify full directory copy to instance, fresh state.json created in data path, units copied. Test Doc format. | TDD per constitution P3 |
-| 2.8 | Implement `TemplateService.instantiate()` | _platform/positional-graph | Copies graph.yaml + nodes/ + units/ to instance dir, writes instance.yaml, copies graph definition to `data/instances/` path with fresh state.json, chmod +x scripts. Passes tests from 2.7. | Instantiation includes runtime setup — no separate activate step (Workshop 002) |
+| 2.8 | Implement `TemplateService.instantiate()` | _platform/positional-graph | Copies graph.yaml + nodes/ + units/ to instance dir, writes instance.yaml, creates fresh state.json in same dir, chmod +x scripts. Single destination per Workshop 003. Passes tests from 2.7. | No dual-write. All data in instances/ (tracked). |
 | 2.9 | TDD: Refresh tests (red→green) | _platform/positional-graph | Write tests for refresh() — verify unit overwrite, timestamp update, active-run warning. Test Doc format. | TDD per constitution P3 |
 | 2.10 | Implement `TemplateService.refresh()` | _platform/positional-graph | Overwrites all instance units from template, updates refreshed_at timestamps. Passes tests from 2.9. | Warn on active run per spec AC-16 |
 | 2.11 | Create `InstanceWorkUnitAdapter` | _platform/positional-graph | IWorkUnitLoader that resolves units from `instances/<wf>/<id>/units/<slug>/` instead of global path. Registered via `useFactory` per ADR-0004. | Per finding 05 |
@@ -126,7 +127,7 @@ CLI commands are the primary interface and are introduced early (Phase 2) so the
 **Objective**: Prove the full pipeline works end-to-end: save-from → instantiate → drive graph to completion. Test edge cases (refresh during run, multiple instances, script path validation).
 **Domain**: `_platform/positional-graph`
 **Delivers**:
-- Instance-aware PositionalGraphAdapter (resolves graph data to `data/instances/` path)
+- Instance-aware PositionalGraphAdapter (resolves graph data to `.chainglass/instances/<wf>/<id>/` — tracked, per Workshop 003)
 - Integration tests: full lifecycle from graph creation through template save through instance drive
 - Edge case tests: refresh during active run, multiple instances from same template
 **Depends on**: Phase 2 (template/instance service + CLI)
@@ -134,7 +135,7 @@ CLI commands are the primary interface and are introduced early (Phase 2) so the
 
 | # | Task | Domain | Success Criteria | Notes |
 |---|------|--------|-----------------|-------|
-| 3.1 | Instance-aware PositionalGraphAdapter | _platform/positional-graph | Routes graph data to `data/instances/<wf>/<id>/` instead of `data/workflows/<slug>/`. Registered via `useFactory` per ADR-0004. | Per finding 05, context-driven routing |
+| 3.1 | Instance-aware PositionalGraphAdapter | _platform/positional-graph | Routes graph data to `.chainglass/instances/<wf>/<id>/` (tracked). Same directory structure as standalone graphs, different root path. Registered via `useFactory` per ADR-0004. | Per findings 05 and 08 — unified tracked storage. |
 | 3.2 | Integration test: save-from → instantiate → drive | _platform/positional-graph | Build advanced-pipeline imperatively, save as template, instantiate, complete user-input, drive with code units, verify graph completes. Test Doc format. | Full lifecycle proof |
 | 3.3 | Integration test: multiple instances from same template | _platform/positional-graph | Instantiate same template twice with different IDs, verify independent state.json, drive both to completion. Test Doc format. | Proves instance isolation (spec AC-8) |
 | 3.4 | Integration test: refresh during active run | _platform/positional-graph | Start a run, call refresh, verify warning issued and units updated after confirmation. Test Doc format. | Proves spec AC-16 |

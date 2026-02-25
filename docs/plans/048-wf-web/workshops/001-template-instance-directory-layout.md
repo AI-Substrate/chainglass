@@ -4,9 +4,9 @@
 **Plan**: 048-wf-web
 **Spec**: [wf-web-spec.md](../wf-web-spec.md)
 **Created**: 2026-02-25
-**Status**: Superseded — Workshop 002 revised the template creation model
+**Status**: Partially superseded — Workshop 002 revised template creation, Workshop 003 revised instance storage
 
-> **Note**: This workshop's `workflow.yaml` declarative format and separate `cg wf activate` command were **superseded by [Workshop 002](002-template-creation-flow-and-node-identity.md)**. Templates are now saved FROM working graph instances using `cg template save-from`, reusing existing `graph.yaml` + `nodes/*/node.yaml` — no new declarative format or parser needed. The directory layout and instance structure from this workshop remain valid; only the template creation flow and `workflow.yaml` schema sections are superseded.
+> **Note**: This workshop's `workflow.yaml` declarative format and separate `cg wf activate` command were **superseded by [Workshop 002](002-template-creation-flow-and-node-identity.md)**. The dual-path instance storage (tracked defs + gitignored runtime) was **superseded by [Workshop 003](003-instance-unified-storage.md)** — all instance data (including state.json, outputs, events) is now Git-tracked under `.chainglass/instances/`. No `.chainglass/data/instances/` path.
 
 **Related Documents**:
 - [Research Dossier](../research-dossier.md)

@@ -25,6 +25,8 @@ export const InstanceUnitEntrySchema = z.object({
   source: z.enum(['template']),
   /** ISO-8601 timestamp of last refresh from template */
   refreshed_at: z.string().datetime(),
+  /** Git commit SHA of the template at last refresh (via git rev-parse HEAD) */
+  refresh_commit: z.string().optional(),
 });
 
 export type InstanceUnitEntry = z.infer<typeof InstanceUnitEntrySchema>;
@@ -38,6 +40,8 @@ export const InstanceMetadataSchema = z.object({
   slug: z.string().regex(slugPattern),
   /** Slug of the workflow template this instance was created from */
   template_source: z.string().regex(slugPattern),
+  /** Git commit SHA of the template at creation time (via git rev-parse HEAD) */
+  template_commit: z.string().optional(),
   /** ISO-8601 timestamp of instance creation */
   created_at: z.string().datetime(),
   /** Work units copied into this instance */

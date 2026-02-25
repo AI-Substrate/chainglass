@@ -28,3 +28,6 @@ export { SampleService } from './sample.service.js';
 
 // Agent session service (Plan 018)
 export { AgentSessionService } from './agent-session.service.js';
+
+// Template service (Plan 048 Phase 2)
+export { TemplateService } from './template.service.js';

@@ -214,13 +214,19 @@ $ cg template instantiate my-pipeline-template --id sprint-42
 
 ## Revised Instance Directory Structure
 
+> **Updated by [Workshop 003](003-instance-unified-storage.md)**: All instance data is unified under `.chainglass/instances/`. No separate `data/instances/` path.
+
 ```
 .chainglass/instances/<template-slug>/<instance-id>/
 ├── instance.yaml                       ← Metadata (template ref, created_at, units manifest)
 ├── graph.yaml                          ← Copied from template (topology with real node IDs)
+├── state.json                          ← Runtime state (created fresh on instantiate)
 ├── nodes/
 │   ├── human-input-a1b/
-│   │   └── node.yaml                  ← Copied from template (wiring)
+│   │   ├── node.yaml                  ← Copied from template (wiring)
+│   │   ├── outputs/                   ← Agent-produced deliverables (created during execution)
+│   │   ├── data/                      ← Session IDs, input caches
+│   │   └── events.json                ← Node event log
 │   ├── spec-writer-c3d/
 │   │   └── node.yaml
 │   └── ...
@@ -231,19 +237,9 @@ $ cg template instantiate my-pipeline-template --id sprint-42
     │   ├── unit.yaml
     │   └── prompts/main.md
     └── ...
-
-.chainglass/data/instances/<template-slug>/<instance-id>/
-├── graph.yaml                          ← Copied from instance (for engine to read)
-├── state.json                          ← Fresh: { graph_status: "pending", nodes: {} }
-└── nodes/
-    ├── human-input-a1b/
-    │   └── node.yaml                  ← Copied from instance
-    └── ...                            ← outputs/, data/, events created during execution
 ```
 
-**Git tracking**:
-- `.chainglass/instances/` → **tracked** (definitions + units)
-- `.chainglass/data/instances/` → **gitignored** (runtime state, can be regenerated from instance)
+**Git tracking**: Everything under `.chainglass/instances/` is **Git-tracked** — definitions, runtime state, and outputs. Outputs are work product; state.json is an audit record.
 
 ---
 

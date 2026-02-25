@@ -447,6 +447,13 @@ export type { SaveFromCall, InstantiateCall, RefreshCall } from './fakes/index.j
 export { FakeInstanceService } from './fakes/index.js';
 export type { GetStatusCall } from './fakes/index.js';
 
+// Template/Instance adapters (Plan 048 Phase 2)
+export { TemplateAdapter } from './adapters/index.js';
+export { InstanceAdapter } from './adapters/index.js';
+
+// Template service (Plan 048 Phase 2)
+export { TemplateService } from './services/index.js';
+
 // Central watcher notification system (Plan 023)
 export type {
   WatcherEvent,

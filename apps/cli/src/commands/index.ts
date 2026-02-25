@@ -14,3 +14,5 @@ export { registerUnitCommands } from './unit.command.js';
 export { registerWorkGraphCommands } from './workgraph.command.js';
 // Positional Graph commands (Plan 026: Phase 6)
 export { registerPositionalGraphCommands } from './positional-graph.command.js';
+// Template commands (Plan 048: Phase 2)
+export { registerTemplateCommands } from './template.command.js';
