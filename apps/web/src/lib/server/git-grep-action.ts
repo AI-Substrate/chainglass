@@ -162,26 +162,25 @@ export async function gitGrepSearch(
       }
     }
 
-    // Build results — one per file, limited to 20 files
-    const results: GrepSearchResult[] = [];
-    let fileCount = 0;
-    for (const [filePath, data] of fileMap) {
-      if (fileCount >= 20) break;
-      fileCount++;
+    // Build results — one per file, sorted by match count (most matches first)
+    const fileEntries = [...fileMap.entries()]
+      .sort((a, b) => b[1].lines.length - a[1].lines.length)
+      .slice(0, 20);
 
+    const results: GrepSearchResult[] = fileEntries.map(([filePath, data]) => {
       const firstMatch = data.lines[0];
       const parts = filePath.split('/');
       const filename = parts[parts.length - 1];
 
-      results.push({
-        kind: 'grep',
+      return {
+        kind: 'grep' as const,
         filePath,
         filename,
         lineNumber: firstMatch.lineNumber,
         matchContent: firstMatch.content.trim().slice(0, 200),
         matchCount: data.lines.length,
-      });
-    }
+      };
+    });
 
     const elapsedMs = Date.now() - startMs;
     log(`search ← ${results.length} files (${fileMap.size} total) in ${elapsedMs}ms`);

@@ -31,6 +31,22 @@ import { yaml } from '@codemirror/lang-yaml';
 import type { Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 
+// Stronger active line highlight for search navigation (Plan 052)
+const activeLineHighlight = EditorView.theme({
+  '.cm-activeLine': {
+    backgroundColor: 'rgba(250, 204, 21, 0.25) !important', // yellow-400 at 25%
+    borderLeft: '3px solid rgb(234, 179, 8)', // yellow-500
+    boxShadow: 'inset 0 0 0 1px rgba(234, 179, 8, 0.3)',
+  },
+  '&.cm-focused .cm-activeLine': {
+    backgroundColor: 'rgba(250, 204, 21, 0.35) !important',
+  },
+  '.dark .cm-activeLine, &.dark .cm-activeLine': {
+    backgroundColor: 'rgba(250, 204, 21, 0.15) !important',
+    borderLeft: '3px solid rgb(250, 204, 21)',
+  },
+});
+
 // Lazy-load CodeMirror itself
 const ReactCodeMirror = dynamic(() => import('@uiw/react-codemirror'), {
   ssr: false,
@@ -68,7 +84,9 @@ export function CodeEditor({ value, language, onChange, readOnly, scrollToLine }
 
   const extensions = useMemo(() => {
     const langExt = LANGUAGE_EXTENSIONS[language];
-    return langExt ? [langExt()] : [];
+    const exts: Extension[] = [activeLineHighlight];
+    if (langExt) exts.push(langExt());
+    return exts;
   }, [language]);
 
   // DYK-P6-03: Capture EditorView via onCreateEditor callback
