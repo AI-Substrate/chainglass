@@ -16,6 +16,7 @@ import {
   type ViewerMode,
 } from '@/features/041-file-browser/components/file-viewer-panel';
 import { useClipboard } from '@/features/041-file-browser/hooks/use-clipboard';
+import { useFileFilter } from '@/features/041-file-browser/hooks/use-file-filter';
 import { useFileNavigation } from '@/features/041-file-browser/hooks/use-file-navigation';
 import { usePanelState } from '@/features/041-file-browser/hooks/use-panel-state';
 import { useTreeDirectoryChanges } from '@/features/041-file-browser/hooks/use-tree-directory-changes';
@@ -44,6 +45,7 @@ import { z } from 'zod';
 import {
   fetchChangedFiles,
   fetchDiffStats,
+  fetchFileList,
   fetchGitDiff,
   fetchRecentFiles,
   fetchWorkingChanges,
@@ -130,6 +132,9 @@ function BrowserClientInner({
   });
 
   const clipboard = useClipboard({ slug, worktreePath, readFile });
+
+  // --- File search filter (Plan 049 Feature 2) ---
+  const fileFilter = useFileFilter({ worktreePath, fetchFileList });
 
   // --- Workspace attention context (Phase 5) ---
   const wsCtx = useWorkspaceContext();
@@ -405,6 +410,16 @@ function BrowserClientInner({
             sdk={sdk}
             mru={mru}
             onCommandExecute={recordExecution}
+            fileSearchResults={fileFilter.results}
+            fileSearchLoading={fileFilter.loading}
+            fileSearchError={fileFilter.error}
+            sortMode={fileFilter.sortMode}
+            onSortModeChange={fileFilter.cycleSortMode}
+            includeHidden={fileFilter.includeHidden}
+            onIncludeHiddenChange={fileFilter.toggleIncludeHidden}
+            onFileSelect={fileNav.handleSelect}
+            workingChanges={panelState.workingChanges}
+            onSearchQueryChange={fileFilter.setQuery}
           />
         }
         left={

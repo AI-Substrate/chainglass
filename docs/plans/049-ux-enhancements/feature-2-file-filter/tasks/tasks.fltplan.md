@@ -2,7 +2,7 @@
 
 **Plan**: [plan.md](../plan.md) (v2.0.0)
 **Generated**: 2026-02-26
-**Status**: Ready for takeoff
+**Status**: Landed
 
 ---
 
@@ -16,22 +16,22 @@
 
 ## Stages
 
-- [ ] **Stage 1: Services** — Install micromatch, create getFileList + fs.stat, create file-filter utilities, add server action (`T001-T004`)
-- [ ] **Stage 2: Hook** — Create useFileFilter with cache + deltas + debounce + sort (`T005`)
-- [ ] **Stage 3: UI + Wiring** — Extend ExplorerPanel props + keyboard, extend dropdown search mode, wire in BrowserClient (`T006-T008`)
+- [x] **Stage 1: Services** — Install micromatch, create getFileList + fs.stat, create file-filter utilities, add server action (`T001-T004`)
+- [x] **Stage 2: Hook** — Create useFileFilter with cache + deltas + debounce + sort (`T005`)
+- [x] **Stage 3: UI + Wiring** — Extend ExplorerPanel props + keyboard, extend dropdown search mode, wire in BrowserClient (`T006-T008`)
 
 ---
 
 ## Checklist
 
-- [ ] T001: Install micromatch
-- [ ] T002: getFileList service + tests
-- [ ] T003: fetchFileList server action
-- [ ] T004: file-filter utilities + tests
-- [ ] T005: useFileFilter hook
-- [ ] T006: ExplorerPanel extension + tests
-- [ ] T007: CommandPaletteDropdown extension + tests
-- [ ] T008: BrowserClient wiring
+- [x] T001: Install micromatch
+- [x] T002: getFileList service + tests
+- [x] T003: fetchFileList server action
+- [x] T004: file-filter utilities + tests
+- [x] T005: useFileFilter hook
+- [x] T006: ExplorerPanel extension + tests
+- [x] T007: CommandPaletteDropdown extension + tests
+- [x] T008: BrowserClient wiring
 
 ---
 

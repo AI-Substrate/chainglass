@@ -20,6 +20,8 @@ import { toast } from 'sonner';
 
 import type { MruTracker } from '@/lib/sdk/sdk-provider';
 
+import type { CachedFileEntry, SortMode } from '@/features/041-file-browser/hooks/use-file-filter';
+import type { ChangedFile } from '@/features/041-file-browser/services/working-changes';
 import type { BarContext, BarHandler, ExplorerPanelHandle } from '../types';
 import { AsciiSpinner } from './ascii-spinner';
 import {
@@ -42,11 +44,50 @@ export interface ExplorerPanelProps {
   mru?: MruTracker;
   /** Called when a command is executed via palette (for MRU persistence). */
   onCommandExecute?: (commandId: string) => void;
+  /** File search results from useFileFilter (Plan 049 Feature 2) */
+  fileSearchResults?: CachedFileEntry[] | null;
+  /** Whether the file search cache is loading */
+  fileSearchLoading?: boolean;
+  /** File search error message */
+  fileSearchError?: string | null;
+  /** Current sort mode for file search */
+  sortMode?: SortMode;
+  /** Cycle sort mode callback */
+  onSortModeChange?: () => void;
+  /** Whether hidden/ignored files are shown */
+  includeHidden?: boolean;
+  /** Toggle hidden files callback */
+  onIncludeHiddenChange?: () => void;
+  /** Navigate to a file from search results */
+  onFileSelect?: (path: string) => void;
+  /** Working changes for status badge lookup */
+  workingChanges?: ChangedFile[];
+  /** Called when search query changes (for file filter hook) */
+  onSearchQueryChange?: (query: string) => void;
 }
 
 export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>(
   function ExplorerPanel(
-    { filePath, handlers, context, onCopy, placeholder, sdk, mru, onCommandExecute },
+    {
+      filePath,
+      handlers,
+      context,
+      onCopy,
+      placeholder,
+      sdk,
+      mru,
+      onCommandExecute,
+      fileSearchResults,
+      fileSearchLoading,
+      fileSearchError,
+      sortMode,
+      onSortModeChange,
+      includeHidden,
+      onIncludeHiddenChange,
+      onFileSelect,
+      workingChanges,
+      onSearchQueryChange,
+    },
     ref
   ) {
     const [editing, setEditing] = useState(false);
@@ -73,6 +114,15 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
           ? ('symbols' as const)
           : ('search' as const);
 
+    // Plan 049 Feature 2: File search mode has results — delegate keyboard
+    const searchHasResults =
+      dropdownMode === 'search' &&
+      inputValue.trim().length > 0 &&
+      !inputValue.startsWith('>') &&
+      !inputValue.startsWith('#') &&
+      Array.isArray(fileSearchResults) &&
+      fileSearchResults.length > 0;
+
     // Sync: when filePath changes externally, exit edit mode and update input value
     useEffect(() => {
       if (filePath !== prevFilePathRef.current) {
@@ -83,6 +133,15 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
         setInputValue(filePath);
       }
     }, [filePath, processing]);
+
+    // Plan 049 Feature 2: Notify parent of search query changes
+    useEffect(() => {
+      if (dropdownMode === 'search' && editing) {
+        onSearchQueryChange?.(inputValue.trim());
+      } else {
+        onSearchQueryChange?.('');
+      }
+    }, [inputValue, dropdownMode, editing, onSearchQueryChange]);
 
     // Expose focusInput + openPalette
     useImperativeHandle(ref, () => ({
@@ -217,6 +276,14 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
           }
         }
 
+        // Plan 049 Feature 2: In search mode with results, delegate ↑↓ Enter to dropdown
+        if (searchHasResults) {
+          if (['ArrowDown', 'ArrowUp', 'Enter'].includes(e.key)) {
+            dropdownRef.current?.handleKeyDown(e);
+            return;
+          }
+        }
+
         // Escape always exits edit mode (closes dropdown if showing)
         if (e.key === 'Escape') {
           exitEditMode();
@@ -229,7 +296,7 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
           handleSubmit();
         }
       },
-      [paramGathering, paletteMode, exitEditMode, handleSubmit, handleParamSubmit]
+      [paramGathering, paletteMode, searchHasResults, exitEditMode, handleSubmit, handleParamSubmit]
     );
 
     const handleBlur = useCallback(() => {
@@ -308,6 +375,19 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
               onExecute={handlePaletteExecute}
               onClose={exitPaletteMode}
               paramGathering={paramGathering}
+              inputValue={inputValue}
+              fileSearchResults={fileSearchResults}
+              fileSearchLoading={fileSearchLoading}
+              fileSearchError={fileSearchError}
+              sortMode={sortMode}
+              onSortModeChange={onSortModeChange}
+              includeHidden={includeHidden}
+              onIncludeHiddenChange={onIncludeHiddenChange}
+              onFileSelect={(path) => {
+                onFileSelect?.(path);
+                exitEditMode();
+              }}
+              workingChanges={workingChanges}
             />
           )}
         </div>

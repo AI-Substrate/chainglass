@@ -41,14 +41,14 @@
 
 | Status | ID | Task | Domain | Done When | Notes |
 |--------|-----|------|--------|-----------|-------|
-| [ ] | T001 | Install micromatch | — | pnpm add succeeds | Dynamic import in file-filter.ts |
-| [ ] | T002 | getFileList service + TDD tests | file-browser | git ls-files + fs.stat mtime, toggles, fallback, edge cases | FileListEntry = { path, mtime } |
-| [ ] | T003 | fetchFileList server action | file-browser | Lazy-import wrapper | After fetchDiffStats |
-| [ ] | T004 | file-filter.ts utilities + TDD tests | file-browser | substring, glob, sort, dot-filter | Pure functions, dynamic micromatch |
-| [ ] | T005 | useFileFilter hook | file-browser | Cache + delta + debounce + sort + hidden | CachedFileEntry { path, mtime, modified, lastChanged } |
-| [ ] | T006 | Extend ExplorerPanel + tests | _platform/panel-layout | File search props + keyboard delegation | Non-regression for > and # modes |
-| [ ] | T007 | Extend CommandPaletteDropdown + tests | _platform/panel-layout | Search mode renders file results | Badges, sort/hidden toggles, keyboard nav |
-| [ ] | T008 | Wire in BrowserClient | file-browser | useFileFilter → ExplorerPanel props | Minimal surface |
+| [x] | T001 | Install micromatch | — | pnpm add succeeds | Dynamic import in file-filter.ts |
+| [x] | T002 | getFileList service + TDD tests | file-browser | git ls-files + fs.stat mtime, toggles, fallback, edge cases | FileListEntry = { path, mtime } |
+| [x] | T003 | fetchFileList server action | file-browser | Lazy-import wrapper | After fetchDiffStats |
+| [x] | T004 | file-filter.ts utilities + TDD tests | file-browser | substring, glob, sort, dot-filter | Pure functions, dynamic micromatch |
+| [x] | T005 | useFileFilter hook | file-browser | Cache + delta + debounce + sort + hidden | CachedFileEntry { path, mtime, modified, lastChanged } |
+| [x] | T006 | Extend ExplorerPanel + tests | _platform/panel-layout | File search props + keyboard delegation | Non-regression for > and # modes |
+| [x] | T007 | Extend CommandPaletteDropdown + tests | _platform/panel-layout | Search mode renders file results | Badges, sort/hidden toggles, keyboard nav |
+| [x] | T008 | Wire in BrowserClient | file-browser | useFileFilter → ExplorerPanel props | Minimal surface |
 
 ---
 

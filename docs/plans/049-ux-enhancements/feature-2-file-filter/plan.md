@@ -58,14 +58,14 @@ File search integrated into the ExplorerPanel's existing mode system. When the u
 
 | Status | ID | Task | Domain | Done When | Notes |
 |--------|-----|------|--------|-----------|-------|
-| [ ] | T001 | Install micromatch dependency | — | pnpm add succeeds, imports resolve | Dynamic import in file-filter.ts |
-| [ ] | T002 | Create `getFileList()` service + TDD tests | file-browser | Tests pass: git ls-files + fs.stat mtime, --exclude-standard toggle, non-git fallback, empty, deleted-between-list-and-stat | Return `{ok, files: FileListEntry[]}`. Node `fs.stat()` via Promise.all. |
-| [ ] | T003 | Add `fetchFileList` server action wrapper | file-browser | Exports `fetchFileList(worktreePath, includeHidden)` | Lazy-import pattern after fetchDiffStats |
-| [ ] | T004 | Create `file-filter.ts` matching + sort + TDD tests | file-browser | Tests pass: substring, glob, isGlobPattern, sortByRecent (mtime), sortAlpha, hideDotPaths | Pure functions. Dynamic import micromatch. |
-| [ ] | T005 | Create `useFileFilter()` hook | file-browser | Manages Map<CachedFileEntry> with mtime, lazy populate, SSE delta (accumulate), 300ms debounce, sort (sessionStorage), includeHidden | Delta ≤50, full re-fetch >50. |
-| [ ] | T006 | Extend ExplorerPanel with file search props + keyboard delegation | _platform/panel-layout | New props accepted. Search mode delegates ↑↓ Enter. Existing > and # unaffected. Tests pass. | Props: fileSearchResults, loading, sort, hidden callbacks, onFileSelect, workingChanges |
-| [ ] | T007 | Extend CommandPaletteDropdown `search` mode for file results | _platform/panel-layout | Search mode renders file list with badges, sort/hidden toggles, match count, keyboard nav, empty/loading/error. Tests pass. | Reuse STATUS_BADGE from ChangesView |
-| [ ] | T008 | Wire everything in BrowserClient | file-browser | useFileFilter → ExplorerPanel props. Click/Enter → fileNav.handleSelect. workingChanges for badges. | Minimal wiring — one hook + props |
+| [x] | T001 | Install micromatch dependency | — | pnpm add succeeds, imports resolve | Dynamic import in file-filter.ts |
+| [x] | T002 | Create `getFileList()` service + TDD tests | file-browser | Tests pass: git ls-files + fs.stat mtime, --exclude-standard toggle, non-git fallback, empty, deleted-between-list-and-stat | Return `{ok, files: FileListEntry[]}`. Node `fs.stat()` via Promise.all. |
+| [x] | T003 | Add `fetchFileList` server action wrapper | file-browser | Exports `fetchFileList(worktreePath, includeHidden)` | Lazy-import pattern after fetchDiffStats |
+| [x] | T004 | Create `file-filter.ts` matching + sort + TDD tests | file-browser | Tests pass: substring, glob, isGlobPattern, sortByRecent (mtime), sortAlpha, hideDotPaths | Pure functions. Dynamic import micromatch. |
+| [x] | T005 | Create `useFileFilter()` hook | file-browser | Manages Map<CachedFileEntry> with mtime, lazy populate, SSE delta (accumulate), 300ms debounce, sort (sessionStorage), includeHidden | Delta ≤50, full re-fetch >50. |
+| [x] | T006 | Extend ExplorerPanel with file search props + keyboard delegation | _platform/panel-layout | New props accepted. Search mode delegates ↑↓ Enter. Existing > and # unaffected. Tests pass. | Props: fileSearchResults, loading, sort, hidden callbacks, onFileSelect, workingChanges |
+| [x] | T007 | Extend CommandPaletteDropdown `search` mode for file results | _platform/panel-layout | Search mode renders file list with badges, sort/hidden toggles, match count, keyboard nav, empty/loading/error. Tests pass. | Reuse STATUS_BADGE from ChangesView |
+| [x] | T008 | Wire everything in BrowserClient | file-browser | useFileFilter → ExplorerPanel props. Click/Enter → fileNav.handleSelect. workingChanges for badges. | Minimal wiring — one hook + props |
 
 ### Acceptance Criteria
 

@@ -99,3 +99,4 @@ Primary: `apps/web/src/features/_platform/panel-layout/`
 | Plan 046 | Extracted AsciiSpinner from ExplorerPanel as reusable component, exported via barrel | 2026-02-24 |
 | Plan 047 Phase 3 | Command palette: ExplorerPanel centered with border/shadow, palette mode (> prefix), CommandPaletteDropdown (multi-mode: commands/symbols/search), keyboard delegation, openPalette() handle, # stub handler, search fallback | 2026-02-25 |
 | Plan 049 Feature 1 | PanelHeader + LeftPanel gain optional `subtitle?: ReactNode` prop for inline metadata display | 2026-02-26 |
+| Plan 049 Feature 2 | ExplorerPanel extended with file search props + keyboard delegation for search mode. CommandPaletteDropdown search mode replaced "coming soon" stub with live file results (badges, sort/hidden toggles, keyboard nav) | 2026-02-26 |

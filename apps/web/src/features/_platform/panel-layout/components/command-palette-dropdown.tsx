@@ -17,7 +17,19 @@
  */
 
 import type { IUSDK, SDKCommand } from '@chainglass/shared/sdk';
-import { Command, Hash, Keyboard, Search, Terminal } from 'lucide-react';
+import {
+  ArrowDownAZ,
+  ArrowUpZA,
+  Clock,
+  Command,
+  Eye,
+  EyeOff,
+  File,
+  Hash,
+  Keyboard,
+  Search,
+  Terminal,
+} from 'lucide-react';
 import {
   forwardRef,
   useCallback,
@@ -28,7 +40,11 @@ import {
   useState,
 } from 'react';
 
+import type { CachedFileEntry, SortMode } from '@/features/041-file-browser/hooks/use-file-filter';
+import type { ChangedFile } from '@/features/041-file-browser/services/working-changes';
 import type { MruTracker } from '@/lib/sdk/sdk-provider';
+
+import { AsciiSpinner } from './ascii-spinner';
 
 export type DropdownMode = 'commands' | 'symbols' | 'search' | 'param';
 
@@ -52,6 +68,26 @@ interface CommandPaletteDropdownProps {
   onClose: () => void;
   /** When set, dropdown shows param gathering hint. */
   paramGathering?: ParamGatheringInfo | null;
+  /** Current input value for search mode (Plan 049 Feature 2) */
+  inputValue?: string;
+  /** File search results from useFileFilter */
+  fileSearchResults?: CachedFileEntry[] | null;
+  /** Whether the file search cache is loading */
+  fileSearchLoading?: boolean;
+  /** File search error message */
+  fileSearchError?: string | null;
+  /** Current sort mode for file search */
+  sortMode?: SortMode;
+  /** Cycle sort mode callback */
+  onSortModeChange?: () => void;
+  /** Whether hidden/ignored files are shown */
+  includeHidden?: boolean;
+  /** Toggle hidden files callback */
+  onIncludeHiddenChange?: () => void;
+  /** Navigate to a file from search results */
+  onFileSelect?: (path: string) => void;
+  /** Working changes for status badge lookup */
+  workingChanges?: ChangedFile[];
 }
 
 // --- Schema introspection helpers (ST001) ---
@@ -111,7 +147,25 @@ export const CommandPaletteDropdown = forwardRef<
   CommandPaletteDropdownHandle,
   CommandPaletteDropdownProps
 >(function CommandPaletteDropdown(
-  { sdk, filter, mru, mode, onExecute, onClose, paramGathering },
+  {
+    sdk,
+    filter,
+    mru,
+    mode,
+    onExecute,
+    onClose,
+    paramGathering,
+    inputValue,
+    fileSearchResults,
+    fileSearchLoading,
+    fileSearchError,
+    sortMode,
+    onSortModeChange,
+    includeHidden,
+    onIncludeHiddenChange,
+    onFileSelect,
+    workingChanges,
+  },
   ref
 ) {
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -128,11 +182,26 @@ export const CommandPaletteDropdown = forwardRef<
     return filterAndSort(all, filter, mru.getOrder());
   }, [sdk, filter, mru, mode]);
 
-  // Reset selection when filter or mode changes
-  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — reset on filter/mode change
+  // Build working changes lookup for status badges
+  const changesMap = useMemo(() => {
+    if (!workingChanges) return new Map<string, ChangedFile>();
+    return new Map(workingChanges.map((f) => [f.path, f]));
+  }, [workingChanges]);
+
+  // Determine if we're showing file search results
+  const hasSearchText = mode === 'search' && !!inputValue?.trim();
+  const showFileResults =
+    hasSearchText && Array.isArray(fileSearchResults) && fileSearchResults.length > 0;
+
+  // Items count for keyboard nav
+  const navItemCount =
+    mode === 'commands' ? commands.length : showFileResults ? fileSearchResults?.length : 0;
+
+  // Reset selection when filter, mode, or search results change
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — reset on filter/mode/results change
   useEffect(() => {
     setSelectedIndex(0);
-  }, [filter, mode]);
+  }, [filter, mode, fileSearchResults]);
 
   // Scroll selected item into view
   useEffect(() => {
@@ -157,22 +226,38 @@ export const CommandPaletteDropdown = forwardRef<
         onClose();
         return;
       }
-      // Only arrow/enter nav when in commands mode with items
-      if (mode === 'commands' && commands.length > 0) {
+
+      // Navigate items (commands or file search results)
+      if (navItemCount > 0) {
         if (e.key === 'ArrowDown') {
           e.preventDefault();
-          setSelectedIndex((i) => Math.min(i + 1, commands.length - 1));
+          setSelectedIndex((i) => Math.min(i + 1, navItemCount - 1));
         } else if (e.key === 'ArrowUp') {
           e.preventDefault();
           setSelectedIndex((i) => Math.max(i - 1, 0));
         } else if (e.key === 'Enter') {
           e.preventDefault();
-          const cmd = commands[selectedIndex];
-          if (cmd) handleSelect(cmd.id);
+          if (mode === 'commands') {
+            const cmd = commands[selectedIndex];
+            if (cmd) handleSelect(cmd.id);
+          } else if (showFileResults) {
+            const file = fileSearchResults?.[selectedIndex];
+            if (file) onFileSelect?.(file.path);
+          }
         }
       }
     },
-    [mode, commands, selectedIndex, handleSelect, onClose]
+    [
+      mode,
+      commands,
+      navItemCount,
+      selectedIndex,
+      handleSelect,
+      onClose,
+      showFileResults,
+      fileSearchResults,
+      onFileSelect,
+    ]
   );
 
   useImperativeHandle(ref, () => ({ handleKeyDown }), [handleKeyDown]);
@@ -190,25 +275,134 @@ export const CommandPaletteDropdown = forwardRef<
         </div>
       )}
 
-      {mode === 'search' && (
-        <div className="py-2">
-          <div className="px-3 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">
-            Quick Access
+      {mode === 'search' &&
+        (hasSearchText ? (
+          // Live file search results (Plan 049 Feature 2)
+          fileSearchLoading ? (
+            <div className="px-3 py-4 text-center text-sm text-muted-foreground">
+              <AsciiSpinner active /> Scanning files...
+            </div>
+          ) : fileSearchError ? (
+            <div className="px-3 py-4 text-center text-sm text-muted-foreground">
+              {fileSearchError}
+            </div>
+          ) : showFileResults ? (
+            <>
+              <div className="flex items-center justify-between border-b px-3 py-1">
+                <span className="text-xs text-muted-foreground">
+                  {fileSearchResults?.length} files
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={onSortModeChange}
+                    className="rounded p-0.5 text-muted-foreground hover:text-foreground"
+                    title={
+                      sortMode === 'recent'
+                        ? 'Sort: Recently changed'
+                        : sortMode === 'alpha-asc'
+                          ? 'Sort: A → Z'
+                          : 'Sort: Z → A'
+                    }
+                    aria-label={
+                      sortMode === 'recent'
+                        ? 'Sort by recently changed'
+                        : sortMode === 'alpha-asc'
+                          ? 'Sort alphabetically A to Z'
+                          : 'Sort alphabetically Z to A'
+                    }
+                  >
+                    {sortMode === 'recent' ? (
+                      <Clock className="h-3.5 w-3.5" />
+                    ) : sortMode === 'alpha-asc' ? (
+                      <ArrowDownAZ className="h-3.5 w-3.5" />
+                    ) : (
+                      <ArrowUpZA className="h-3.5 w-3.5" />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onIncludeHiddenChange}
+                    className="rounded p-0.5 text-muted-foreground hover:text-foreground"
+                    title={includeHidden ? 'Hidden files: shown' : 'Hidden files: hidden'}
+                    aria-label={includeHidden ? 'Hide hidden files' : 'Show hidden files'}
+                  >
+                    {includeHidden ? (
+                      <Eye className="h-3.5 w-3.5" />
+                    ) : (
+                      <EyeOff className="h-3.5 w-3.5" />
+                    )}
+                  </button>
+                </div>
+              </div>
+              {/* biome-ignore lint/a11y/useSemanticElements: custom file search list */}
+              <div ref={listRef} role="listbox" tabIndex={-1} className="py-1">
+                {fileSearchResults?.map((entry, index) => {
+                  const changed = changesMap.get(entry.path);
+                  const badge = changed ? STATUS_BADGE[changed.status] : null;
+                  const dir = entry.path.includes('/')
+                    ? entry.path.slice(0, entry.path.lastIndexOf('/') + 1)
+                    : '';
+                  const name = entry.path.split('/').pop() ?? entry.path;
+                  return (
+                    <div // biome-ignore lint/a11y/useSemanticElements: custom file result item
+                      key={entry.path}
+                      role="option"
+                      tabIndex={-1}
+                      aria-selected={index === selectedIndex}
+                      className={`flex items-center gap-1.5 px-3 py-1 text-sm cursor-pointer ${
+                        index === selectedIndex
+                          ? 'bg-primary/15 text-foreground'
+                          : 'text-foreground hover:bg-accent/50'
+                      }`}
+                      onClick={() => onFileSelect?.(entry.path)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') onFileSelect?.(entry.path);
+                      }}
+                    >
+                      {badge ? (
+                        <span
+                          className={`shrink-0 w-4 text-center font-mono text-xs font-bold ${badge.className}`}
+                        >
+                          {badge.letter}
+                        </span>
+                      ) : (
+                        <File className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      )}
+                      <span className="flex-1 truncate">
+                        <span className="text-muted-foreground">{dir}</span>
+                        <span>{name}</span>
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          ) : (
+            <div className="px-3 py-4 text-center text-sm text-muted-foreground">
+              No matching files
+            </div>
+          )
+        ) : (
+          // Empty input: Quick Access hints (unchanged)
+          <div className="py-2">
+            <div className="px-3 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+              Quick Access
+            </div>
+            <div className="px-3 py-1.5 text-sm text-muted-foreground flex items-center gap-2">
+              <span className="font-mono text-xs bg-muted px-1 rounded">&gt;</span>
+              <span>Commands</span>
+            </div>
+            <div className="px-3 py-1.5 text-sm text-muted-foreground flex items-center gap-2">
+              <span className="font-mono text-xs bg-muted px-1 rounded">#</span>
+              <span>Symbol search (coming soon)</span>
+            </div>
+            <div className="px-3 py-1.5 text-sm text-muted-foreground flex items-center gap-2">
+              <Search className="h-3.5 w-3.5" />
+              <span>Type to search files</span>
+            </div>
           </div>
-          <div className="px-3 py-1.5 text-sm text-muted-foreground flex items-center gap-2">
-            <span className="font-mono text-xs bg-muted px-1 rounded">&gt;</span>
-            <span>Commands</span>
-          </div>
-          <div className="px-3 py-1.5 text-sm text-muted-foreground flex items-center gap-2">
-            <span className="font-mono text-xs bg-muted px-1 rounded">#</span>
-            <span>Symbol search (coming soon)</span>
-          </div>
-          <div className="px-3 py-1.5 text-sm text-muted-foreground flex items-center gap-2">
-            <Search className="h-3.5 w-3.5" />
-            <span>File search coming soon</span>
-          </div>
-        </div>
-      )}
+        ))}
 
       {mode === 'commands' &&
         (commands.length === 0 ? (
@@ -273,3 +467,12 @@ function CommandIcon({ icon }: { icon?: string }) {
       return <Command className="h-4 w-4 shrink-0 text-muted-foreground" />;
   }
 }
+
+/** Status badge colors matching ChangesView (Plan 043) */
+const STATUS_BADGE: Record<string, { letter: string; className: string }> = {
+  modified: { letter: 'M', className: 'text-amber-500' },
+  added: { letter: 'A', className: 'text-green-500' },
+  deleted: { letter: 'D', className: 'text-red-500' },
+  untracked: { letter: '?', className: 'text-muted-foreground' },
+  renamed: { letter: 'R', className: 'text-blue-500' },
+};
