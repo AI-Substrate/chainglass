@@ -3,7 +3,7 @@
 **Plan**: [workflow-page-ux-plan.md](../../workflow-page-ux-plan.md)
 **Phase**: Phase 4: Context Indicators + Select-to-Reveal
 **Generated**: 2026-02-26
-**Status**: Ready for takeoff
+**Status**: Landed
 
 ---
 
@@ -39,32 +39,32 @@ stateDiagram-v2
 
 ## Stages
 
-- [ ] **Stage 1: Context badge + lock** — Pure computation function + wire into node cards + noContext lock icon (T001, T002, T003)
-- [ ] **Stage 2: Gate chips** — GateChip component + wire into node cards for blocked nodes (T004)
-- [ ] **Stage 3: Select-to-reveal + properties** — Node dimming + properties panel replacing toolbox on select (T005, T006)
-- [ ] **Stage 4: Transition gates + tests** — Interactive manual gates + unit tests for all visual states (T007, T008)
+- [x] **Stage 1: Context badge + lock** — Pure computation function + wire into node cards + noContext lock icon (T001, T002, T003)
+- [x] **Stage 2: Gate chips** — GateChip component + wire into node cards for blocked nodes (T004)
+- [x] **Stage 3: Select-to-reveal + properties** — Node dimming + properties panel replacing toolbox on select (T005, T006)
+- [x] **Stage 4: Transition gates + tests** — Interactive manual gates + unit tests for all visual states (T007, T008)
 
 ---
 
 ## Acceptance Criteria
 
-- [ ] AC-12: Gate chips on blocked nodes (5 gate types)
-- [ ] AC-13: Context badges (green/blue/purple/gray)
-- [ ] AC-14: noContext lock icon
-- [ ] AC-15: Select-to-reveal: upstream traces, downstream muted, unrelated dim, properties panel
-- [ ] AC-17: Line transition gates (auto/manual)
-- [ ] AC-35: Unit tests with fakes (partial — context + gates + properties)
+- [x] AC-12: Gate chips on blocked nodes (5 gate types)
+- [x] AC-13: Context badges (green/blue/purple/gray)
+- [x] AC-14: noContext lock icon
+- [x] AC-15: Select-to-reveal: upstream traces, downstream muted, unrelated dim, properties panel
+- [x] AC-17: Line transition gates (auto/manual)
+- [x] AC-35: Unit tests with fakes (partial — context + gates + properties)
 
 ---
 
 ## Checklist
 
-- [ ] T001: Context badge computation (pure function)
-- [ ] T002: Wire real context badges into node cards
-- [ ] T003: noContext lock icon
-- [ ] T004: GateChip component with expandable gate list
-- [ ] T004b: Context flow indicators between adjacent nodes (arrow/X/dots)
-- [ ] T005: Select-to-reveal dimming (computeRelatedNodes)
-- [ ] T006: Node properties panel
-- [ ] T007: Interactive line transition gates
-- [ ] T008: Unit tests
+- [x] T001: Context badge computation (pure function)
+- [x] T002: Wire real context badges into node cards
+- [x] T003: noContext lock icon
+- [x] T004: GateChip component with expandable gate list
+- [x] T004b: Context flow indicators between adjacent nodes (arrow/X/dots)
+- [x] T005: Select-to-reveal dimming (computeRelatedNodes)
+- [x] T006: Node properties panel
+- [x] T007: Interactive line transition gates
+- [x] T008: Unit tests

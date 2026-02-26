@@ -13,6 +13,7 @@
 | Positional Graph | _platform/positional-graph | infrastructure | _platform | extracted (Plan 048) | active |
 | Workgraph (Legacy) | _platform/workgraph | infrastructure | _platform | extracted (Plan 048) | deprecated |
 | Workflow UI | workflow-ui | business | — | Plan 050 | active |
+| State | _platform/state | infrastructure | _platform | Plan 053 — GlobalStateSystem | active |
 
 ## Domain Types
 

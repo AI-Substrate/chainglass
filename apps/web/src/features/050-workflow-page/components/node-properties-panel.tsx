@@ -9,9 +9,60 @@
  * Phase 4: Context Indicators — Plan 050
  */
 
-import type { NodeStatusResult } from '@chainglass/positional-graph';
+import type { InputEntry, NodeStatusResult } from '@chainglass/positional-graph';
 import type { NodeRelationship } from '../lib/related-nodes';
 import { computeGates } from './gate-chip';
+
+function InputSourceDetail({ entry, inputName }: { entry: InputEntry; inputName: string }) {
+  if (entry.status === 'available') {
+    const sources = entry.detail.sources;
+    if (sources.length === 0) return null;
+    return (
+      <div className="ml-4 mt-0.5 text-muted-foreground/60">
+        {sources.map((s) => (
+          <div key={s.sourceNodeId} className="text-[11px]">
+            ← from <span className="font-medium text-foreground/60">{s.sourceNodeId}</span>
+            {s.sourceOutput !== 'default' && <span className="text-muted-foreground/40">.{s.sourceOutput}</span>}
+          </div>
+        ))}
+      </div>
+    );
+  }
+  if (entry.status === 'waiting') {
+    const waiting = entry.detail.waiting;
+    if (waiting.length === 0) return null;
+    return (
+      <div className="ml-4 mt-0.5 text-muted-foreground/60">
+        {waiting.map((nodeId) => (
+          <div key={nodeId} className="text-[11px]">
+            ⏳ waiting on <span className="font-medium text-foreground/60">{nodeId}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  if (entry.status === 'error') {
+    const isUnwired = entry.detail.code === 'E160';
+    return (
+      <div className="ml-4 mt-1 text-[11px] text-red-500 space-y-0.5">
+        {isUnwired ? (
+          <>
+            <div>
+              Input <span className="font-semibold">"{inputName}"</span> is not wired to any source node.
+            </div>
+            <div className="text-muted-foreground/60">
+              This input expects <span className="font-medium">"{entry.detail.inputName}"</span> data from an upstream node.
+              Wire it in the node config or connect a node that outputs a matching value.
+            </div>
+          </>
+        ) : (
+          <div>{entry.detail.message}</div>
+        )}
+      </div>
+    );
+  }
+  return null;
+}
 
 const TYPE_ICONS: Record<string, string> = {
   agent: '🤖',
@@ -111,14 +162,17 @@ export function NodePropertiesPanel({
         {Object.keys(node.inputPack.inputs).length === 0 ? (
           <div className="text-muted-foreground/40 italic">No inputs declared</div>
         ) : (
-          <div className="space-y-1">
+          <div className="space-y-2">
             {Object.entries(node.inputPack.inputs).map(([name, entry]) => (
-              <div key={name} className="flex items-center gap-2">
-                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                  entry.status === 'available' ? 'bg-emerald-400' : entry.status === 'waiting' ? 'bg-amber-400' : 'bg-red-400'
-                }`} />
-                <span className="font-medium">{name}</span>
-                <span className="text-muted-foreground/40 ml-auto">{entry.status}</span>
+              <div key={name}>
+                <div className="flex items-center gap-2">
+                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                    entry.status === 'available' ? 'bg-emerald-400' : entry.status === 'waiting' ? 'bg-amber-400' : 'bg-red-400'
+                  }`} />
+                  <span className="font-medium">{name}</span>
+                  <span className="text-muted-foreground/40 ml-auto">{entry.status}</span>
+                </div>
+                <InputSourceDetail entry={entry} inputName={name} />
               </div>
             ))}
           </div>

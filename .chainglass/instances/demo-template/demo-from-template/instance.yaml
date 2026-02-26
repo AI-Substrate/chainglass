@@ -1,7 +1,0 @@
-slug: demo-from-template
-template_source: demo-template
-created_at: 2026-02-26T07:49:54.400Z
-units:
-  - slug: demo-agent
-    source: template
-    refreshed_at: 2026-02-26T07:49:54.400Z

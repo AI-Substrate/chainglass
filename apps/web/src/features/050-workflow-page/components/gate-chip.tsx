@@ -84,11 +84,11 @@ export function GateChip({ node }: GateChipProps) {
           e.stopPropagation();
           setExpanded(!expanded);
         }}
-        className="text-xs px-2.5 py-1 rounded-md bg-red-50 dark:bg-red-950/50 border border-red-100 dark:border-red-900/50 flex items-center gap-1.5 hover:bg-red-100/80 dark:hover:bg-red-900/40 transition-colors"
+        className="text-xs px-2.5 py-1.5 rounded-md bg-red-500/15 dark:bg-red-500/20 border border-red-300/50 dark:border-red-700/50 flex items-center gap-2 hover:bg-red-500/25 dark:hover:bg-red-500/30 transition-colors"
       >
-        <span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
-        <span className="text-red-600/80 dark:text-red-400/80 font-medium truncate">{firstBlocking.message}</span>
-        <span className="text-red-400/60 text-[10px]">{expanded ? '▴' : '▾'}</span>
+        <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
+        <span className="text-foreground font-medium truncate">{firstBlocking.message}</span>
+        <span className="text-muted-foreground text-[10px]">{expanded ? '▴' : '▾'}</span>
       </button>
 
       {expanded && (

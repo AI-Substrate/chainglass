@@ -30,7 +30,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
       <div className="flex min-h-screen w-full">
         <DashboardSidebar />
         <SidebarInset>
-          <main className="flex-1 p-6">{children}</main>
+          <main className="flex-1 overflow-hidden min-w-0">{children}</main>
         </SidebarInset>
       </div>
     </SidebarProvider>
