@@ -76,18 +76,21 @@ export interface CodeEditorProps {
   readOnly?: boolean;
   /** Line number to scroll to (1-based). DYK-P6-03: prop-driven, not ref-driven. */
   scrollToLine?: number | null;
+  /** Enable word wrapping (default: true). */
+  wordWrap?: boolean;
 }
 
-export function CodeEditor({ value, language, onChange, readOnly, scrollToLine }: CodeEditorProps) {
+export function CodeEditor({ value, language, onChange, readOnly, scrollToLine, wordWrap = true }: CodeEditorProps) {
   const { resolvedTheme } = useTheme();
   const viewRef = useRef<EditorView | null>(null);
 
   const extensions = useMemo(() => {
     const langExt = LANGUAGE_EXTENSIONS[language];
-    const exts: Extension[] = [activeLineHighlight, EditorView.lineWrapping];
+    const exts: Extension[] = [activeLineHighlight];
+    if (wordWrap) exts.push(EditorView.lineWrapping);
     if (langExt) exts.push(langExt());
     return exts;
-  }, [language]);
+  }, [language, wordWrap]);
 
   // DYK-P6-03: Capture EditorView via onCreateEditor callback
   // FT-009: Use ref for scrollToLine to keep callback stable

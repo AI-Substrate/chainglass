@@ -20,6 +20,7 @@ import {
   Loader2,
   RefreshCw,
   Save,
+  WrapText,
 } from 'lucide-react';
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 
@@ -105,6 +106,7 @@ export function FileViewerPanel({
   const currentContent = editContent ?? content ?? '';
   const scrollRef = useRef<HTMLDivElement>(null);
   const [scrolledDown, setScrolledDown] = useState(false);
+  const [wordWrap, setWordWrap] = useState(true);
 
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
@@ -183,6 +185,17 @@ export function FileViewerPanel({
             />
           </div>
           <div className="flex items-center gap-0.5">
+            {mode === 'edit' && (
+              <button
+                type="button"
+                onClick={() => setWordWrap((w) => !w)}
+                className={`rounded p-1 ${wordWrap ? 'text-foreground bg-muted' : 'text-muted-foreground'} hover:text-foreground`}
+                aria-label={wordWrap ? 'Disable word wrap' : 'Enable word wrap'}
+                title={wordWrap ? 'Word wrap on' : 'Word wrap off'}
+              >
+                <WrapText className="h-3.5 w-3.5" />
+              </button>
+            )}
             {scrolledDown && (
               <button
                 type="button"
@@ -258,6 +271,7 @@ export function FileViewerPanel({
                 language={language}
                 onChange={onEditChange}
                 scrollToLine={scrollToLine}
+                wordWrap={wordWrap}
               />
             </div>
           )}
