@@ -7,7 +7,7 @@
  * Feature 2: File Tree Quick Filter — Plan 049
  */
 
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 // Will be created next
 import { type FileListEntry, getFileList } from '@/features/041-file-browser/services/file-list';

@@ -1,0 +1,14 @@
+slug: demo-template-source
+version: 0.1.0
+created_at: 2026-02-26T07:49:54.395Z
+lines:
+  - id: line-57f
+    nodes:
+      - demo-agent-a77
+    properties: {}
+    orchestratorSettings:
+      transition: auto
+      autoStartLine: true
+properties: {}
+orchestratorSettings:
+  agentType: copilot

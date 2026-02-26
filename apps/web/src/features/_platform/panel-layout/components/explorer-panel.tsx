@@ -20,9 +20,7 @@ import { toast } from 'sonner';
 
 import type { MruTracker } from '@/lib/sdk/sdk-provider';
 
-import type { CachedFileEntry, SortMode } from '@/features/041-file-browser/hooks/use-file-filter';
-import type { ChangedFile } from '@/features/041-file-browser/services/working-changes';
-import type { BarContext, BarHandler, ExplorerPanelHandle } from '../types';
+import type { BarContext, BarHandler, ExplorerPanelHandle, FileChangeInfo, FileSearchEntry, FileSearchSortMode } from '../types';
 import { AsciiSpinner } from './ascii-spinner';
 import {
   CommandPaletteDropdown,
@@ -45,13 +43,13 @@ export interface ExplorerPanelProps {
   /** Called when a command is executed via palette (for MRU persistence). */
   onCommandExecute?: (commandId: string) => void;
   /** File search results from useFileFilter (Plan 049 Feature 2) */
-  fileSearchResults?: CachedFileEntry[] | null;
+  fileSearchResults?: FileSearchEntry[] | null;
   /** Whether the file search cache is loading */
   fileSearchLoading?: boolean;
   /** File search error message */
   fileSearchError?: string | null;
   /** Current sort mode for file search */
-  sortMode?: SortMode;
+  sortMode?: FileSearchSortMode;
   /** Cycle sort mode callback */
   onSortModeChange?: () => void;
   /** Whether hidden/ignored files are shown */
@@ -61,7 +59,7 @@ export interface ExplorerPanelProps {
   /** Navigate to a file from search results */
   onFileSelect?: (path: string) => void;
   /** Working changes for status badge lookup */
-  workingChanges?: ChangedFile[];
+  workingChanges?: FileChangeInfo[];
   /** Called when search query changes (for file filter hook) */
   onSearchQueryChange?: (query: string) => void;
 }

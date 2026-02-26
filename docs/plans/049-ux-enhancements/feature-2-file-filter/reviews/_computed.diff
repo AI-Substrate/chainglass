@@ -1,0 +1,2528 @@
+diff --git a/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx b/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
+index 1edd071..b259099 100644
+--- a/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
++++ b/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
+@@ -16,6 +16,7 @@ import {
+   type ViewerMode,
+ } from '@/features/041-file-browser/components/file-viewer-panel';
+ import { useClipboard } from '@/features/041-file-browser/hooks/use-clipboard';
++import { useFileFilter } from '@/features/041-file-browser/hooks/use-file-filter';
+ import { useFileNavigation } from '@/features/041-file-browser/hooks/use-file-navigation';
+ import { usePanelState } from '@/features/041-file-browser/hooks/use-panel-state';
+ import { useTreeDirectoryChanges } from '@/features/041-file-browser/hooks/use-tree-directory-changes';
+@@ -44,6 +45,7 @@ import { z } from 'zod';
+ import {
+   fetchChangedFiles,
+   fetchDiffStats,
++  fetchFileList,
+   fetchGitDiff,
+   fetchRecentFiles,
+   fetchWorkingChanges,
+@@ -131,6 +133,9 @@ function BrowserClientInner({
+ 
+   const clipboard = useClipboard({ slug, worktreePath, readFile });
+ 
++  // --- File search filter (Plan 049 Feature 2) ---
++  const fileFilter = useFileFilter({ worktreePath, fetchFileList });
++
+   // --- Workspace attention context (Phase 5) ---
+   const wsCtx = useWorkspaceContext();
+ 
+@@ -405,6 +410,16 @@ function BrowserClientInner({
+             sdk={sdk}
+             mru={mru}
+             onCommandExecute={recordExecution}
++            fileSearchResults={fileFilter.results}
++            fileSearchLoading={fileFilter.loading}
++            fileSearchError={fileFilter.error}
++            sortMode={fileFilter.sortMode}
++            onSortModeChange={fileFilter.cycleSortMode}
++            includeHidden={fileFilter.includeHidden}
++            onIncludeHiddenChange={fileFilter.toggleIncludeHidden}
++            onFileSelect={fileNav.handleSelect}
++            workingChanges={panelState.workingChanges}
++            onSearchQueryChange={fileFilter.setQuery}
+           />
+         }
+         left={
+diff --git a/apps/web/app/actions/file-actions.ts b/apps/web/app/actions/file-actions.ts
+index 2fef5d5..bfc9c47 100644
+--- a/apps/web/app/actions/file-actions.ts
++++ b/apps/web/app/actions/file-actions.ts
+@@ -127,6 +127,15 @@ export async function fetchRecentFiles(worktreePath: string, limit = 20) {
+   return getRecentFiles(worktreePath, limit);
+ }
+ 
++// File list — git ls-files + fs.stat for file search cache (Plan 049 Feature 2)
++export async function fetchFileList(
++  worktreePath: string,
++  includeHidden = false
++): Promise<import('../../src/features/041-file-browser/services/file-list').FileListResult> {
++  const { getFileList } = await import('../../src/features/041-file-browser/services/file-list');
++  return getFileList(worktreePath, includeHidden);
++}
++
+ // Diff stats — git diff HEAD --shortstat parser (Plan 049 Feature 1)
+ export async function fetchDiffStats(
+   worktreePath: string
+diff --git a/apps/web/next-env.d.ts b/apps/web/next-env.d.ts
+index 9edff1c..c4b7818 100644
+--- a/apps/web/next-env.d.ts
++++ b/apps/web/next-env.d.ts
+@@ -1,6 +1,6 @@
+ /// <reference types="next" />
+ /// <reference types="next/image-types/global" />
+-import "./.next/types/routes.d.ts";
++import "./.next/dev/types/routes.d.ts";
+ 
+ // NOTE: This file should not be edited
+ // see https://nextjs.org/docs/app/api-reference/config/typescript for more information.
+diff --git a/apps/web/package.json b/apps/web/package.json
+index ce30632..edcbd7f 100644
+--- a/apps/web/package.json
++++ b/apps/web/package.json
+@@ -49,6 +49,7 @@
+     "clsx": "^2.1.1",
+     "lucide-react": "^0.562.0",
+     "mermaid": "^11.12.2",
++    "micromatch": "^4.0.8",
+     "next": "^16.0.0",
+     "next-themes": "^0.4.6",
+     "nuqs": "^2.8.8",
+@@ -75,6 +76,7 @@
+     "@tailwindcss/postcss": "^4.1.18",
+     "@tailwindcss/typography": "^0.5.19",
+     "@types/d3-hierarchy": "^3.1.7",
++    "@types/micromatch": "^4.0.10",
+     "@types/react": "^19.0.7",
+     "@types/react-dom": "^19.0.3",
+     "autoprefixer": "^10.4.23",
+diff --git a/apps/web/src/features/041-file-browser/hooks/use-file-filter.ts b/apps/web/src/features/041-file-browser/hooks/use-file-filter.ts
+new file mode 100644
+index 0000000..16b6d44
+--- /dev/null
++++ b/apps/web/src/features/041-file-browser/hooks/use-file-filter.ts
+@@ -0,0 +1,307 @@
++/**
++ * useFileFilter — Client-side file search cache with SSE delta updates.
++ *
++ * Manages a Map<string, CachedFileEntry> populated lazily on first search.
++ * SSE file change events apply deltas (add/change/unlink), with full
++ * re-fetch when >50 events arrive in a batch (branch switch).
++ *
++ * Feature 2: File Tree Quick Filter — Plan 049
++ * Workshop 001: Cache architecture
++ * Workshop 003: UX pivot — results fed to ExplorerPanel/CommandPaletteDropdown
++ */
++
++'use client';
++
++import { useFileChanges } from '@/features/045-live-file-events';
++import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
++import {
++  filterFiles,
++  hideDotPaths,
++  isGlobPattern,
++  sortAlpha,
++  sortByRecent,
++} from '../services/file-filter';
++
++export type SortMode = 'recent' | 'alpha-asc' | 'alpha-desc';
++
++export interface CachedFileEntry {
++  path: string;
++  mtime: number;
++  modified: boolean;
++  lastChanged: number | null;
++}
++
++export interface UseFileFilterOptions {
++  worktreePath: string;
++  fetchFileList: (
++    worktreePath: string,
++    includeHidden: boolean
++  ) => Promise<{
++    ok: boolean;
++    files?: { path: string; mtime: number }[];
++    error?: string;
++  }>;
++}
++
++export interface UseFileFilterReturn {
++  /** Filtered + sorted results for current query. null = loading. */
++  results: CachedFileEntry[] | null;
++  /** Whether the cache is currently loading */
++  loading: boolean;
++  /** Error message if cache population failed */
++  error: string | null;
++  /** Current sort mode */
++  sortMode: SortMode;
++  /** Cycle to next sort mode */
++  cycleSortMode: () => void;
++  /** Whether hidden/ignored files are shown */
++  includeHidden: boolean;
++  /** Toggle hidden file visibility */
++  toggleIncludeHidden: () => void;
++  /** Set the search query (triggers debounced filter) */
++  setQuery: (query: string) => void;
++  /** Current query value */
++  query: string;
++}
++
++const SORT_STORAGE_KEY = 'chainglass-file-filter-sort';
++const DELTA_THRESHOLD = 50;
++const DEBOUNCE_MS = 300;
++
++function getInitialSortMode(): SortMode {
++  if (typeof window === 'undefined') return 'recent';
++  try {
++    const stored = sessionStorage.getItem(SORT_STORAGE_KEY);
++    if (stored === 'recent' || stored === 'alpha-asc' || stored === 'alpha-desc') return stored;
++  } catch {
++    /* SSR or restricted storage */
++  }
++  return 'recent';
++}
++
++function cycleSortModeValue(current: SortMode): SortMode {
++  if (current === 'recent') return 'alpha-asc';
++  if (current === 'alpha-asc') return 'alpha-desc';
++  return 'recent';
++}
++
++export function useFileFilter({
++  worktreePath,
++  fetchFileList,
++}: UseFileFilterOptions): UseFileFilterReturn {
++  const [query, setQueryRaw] = useState('');
++  const [debouncedQuery, setDebouncedQuery] = useState('');
++  const [sortMode, setSortMode] = useState<SortMode>(getInitialSortMode);
++  const [includeHidden, setIncludeHidden] = useState(false);
++  const [loading, setLoading] = useState(false);
++  const [error, setError] = useState<string | null>(null);
++  // FT-001: Cache version counter — increment after SSE deltas to trigger useMemo recompute
++  const [cacheVersion, setCacheVersion] = useState(0);
++
++  const cacheRef = useRef<Map<string, CachedFileEntry>>(new Map());
++  const cachePopulatedRef = useRef(false);
++  const fetchInProgressRef = useRef(false);
++  // FT-006: Track includeHidden value used for current fetch
++  const fetchIncludeHiddenRef = useRef(includeHidden);
++
++  // SSE file change events for delta updates
++  const fileChanges = useFileChanges('*', { debounce: 500, mode: 'accumulate' });
++
++  // Debounce the query
++  useEffect(() => {
++    if (!query) {
++      setDebouncedQuery('');
++      return;
++    }
++    const timer = setTimeout(() => setDebouncedQuery(query), DEBOUNCE_MS);
++    return () => clearTimeout(timer);
++  }, [query]);
++
++  // Populate cache on first query
++  const populateCache = useCallback(async () => {
++    if (fetchInProgressRef.current) return;
++    fetchInProgressRef.current = true;
++    fetchIncludeHiddenRef.current = includeHidden;
++    setLoading(true);
++    setError(null);
++
++    try {
++      const result = await fetchFileList(worktreePath, includeHidden);
++      if (result.ok && result.files) {
++        const newCache = new Map<string, CachedFileEntry>();
++        for (const file of result.files) {
++          newCache.set(file.path, {
++            path: file.path,
++            mtime: file.mtime,
++            modified: false,
++            lastChanged: null,
++          });
++        }
++        cacheRef.current = newCache;
++        cachePopulatedRef.current = true;
++        setCacheVersion((v) => v + 1);
++      } else {
++        setError('Could not scan files');
++      }
++    } catch {
++      setError('Could not scan files');
++    } finally {
++      setLoading(false);
++      fetchInProgressRef.current = false;
++      // FT-006: Re-fetch if includeHidden changed during this fetch
++      if (fetchIncludeHiddenRef.current !== includeHidden) {
++        cachePopulatedRef.current = false;
++        setTimeout(() => populateCache(), 0);
++      }
++    }
++  }, [worktreePath, includeHidden, fetchFileList]);
++
++  // Lazy populate: trigger on first non-empty query
++  useEffect(() => {
++    if (query && !cachePopulatedRef.current && !fetchInProgressRef.current) {
++      populateCache();
++    }
++  }, [query, populateCache]);
++
++  // Re-fetch cache when includeHidden toggles (different git flags)
++  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — only re-fetch on toggle change
++  useEffect(() => {
++    if (cachePopulatedRef.current) {
++      cachePopulatedRef.current = false;
++      populateCache();
++    }
++  }, [includeHidden]);
++
++  // Apply SSE deltas to cache
++  useEffect(() => {
++    if (!fileChanges.hasChanges || !cachePopulatedRef.current) return;
++
++    const changes = fileChanges.changes;
++    if (changes.length > DELTA_THRESHOLD) {
++      // Too many changes (branch switch) — full re-fetch
++      cachePopulatedRef.current = false;
++      populateCache();
++    } else {
++      const cache = cacheRef.current;
++      for (const change of changes) {
++        const relativePath = change.path;
++        if (change.type === 'unlink') {
++          cache.delete(relativePath);
++        } else if (change.type === 'add') {
++          cache.set(relativePath, {
++            path: relativePath,
++            mtime: Date.now(),
++            modified: true,
++            lastChanged: Date.now(),
++          });
++        } else {
++          // change
++          const existing = cache.get(relativePath);
++          if (existing) {
++            existing.modified = true;
++            existing.lastChanged = Date.now();
++          } else {
++            cache.set(relativePath, {
++              path: relativePath,
++              mtime: Date.now(),
++              modified: true,
++              lastChanged: Date.now(),
++            });
++          }
++        }
++      }
++      // FT-001: Trigger useMemo recompute after delta mutations
++      setCacheVersion((v) => v + 1);
++    }
++    fileChanges.clearChanges();
++  }, [fileChanges.hasChanges, fileChanges.changes, fileChanges.clearChanges, populateCache]);
++
++  // Compute filtered + sorted results (sync path for substring queries)
++  const results = useMemo(() => {
++    if (!cachePopulatedRef.current || loading) return null;
++    if (!debouncedQuery) return null;
++    // FT-009: Glob patterns handled by async useEffect below
++    if (isGlobPattern(debouncedQuery)) return null;
++
++    let files = Array.from(cacheRef.current.values());
++    if (!includeHidden) {
++      files = hideDotPaths(files);
++    }
++
++    const filtered = filterFiles(files, debouncedQuery) as CachedFileEntry[];
++
++    if (sortMode === 'recent') return sortByRecent(filtered);
++    return sortAlpha(filtered, sortMode === 'alpha-asc' ? 'asc' : 'desc');
++    // FT-001: cacheVersion triggers recompute after SSE deltas
++  }, [debouncedQuery, sortMode, includeHidden, loading, cacheVersion]);
++
++  // Handle async glob filtering
++  const [asyncResults, setAsyncResults] = useState<CachedFileEntry[] | null>(null);
++
++  useEffect(() => {
++    if (!cachePopulatedRef.current || loading || !debouncedQuery) {
++      setAsyncResults(null);
++      return;
++    }
++    // FT-010: Only run async path for glob patterns
++    if (!isGlobPattern(debouncedQuery)) {
++      setAsyncResults(null);
++      return;
++    }
++
++    let files = Array.from(cacheRef.current.values());
++    if (!includeHidden) {
++      files = hideDotPaths(files);
++    }
++
++    let cancelled = false;
++    const promise = filterFiles(files, debouncedQuery) as Promise<CachedFileEntry[]>;
++    promise.then((result) => {
++      if (cancelled) return;
++      let sorted: CachedFileEntry[];
++      if (sortMode === 'recent') sorted = sortByRecent(result);
++      else sorted = sortAlpha(result, sortMode === 'alpha-asc' ? 'asc' : 'desc');
++      setAsyncResults(sorted);
++    });
++    return () => {
++      cancelled = true;
++    };
++    // FT-001: cacheVersion triggers recompute after SSE deltas
++  }, [debouncedQuery, sortMode, includeHidden, loading, cacheVersion]);
++
++  // Sort mode persistence
++  const cycleSortModeHandler = useCallback(() => {
++    setSortMode((prev) => {
++      const next = cycleSortModeValue(prev);
++      try {
++        sessionStorage.setItem(SORT_STORAGE_KEY, next);
++      } catch {
++        /* noop */
++      }
++      return next;
++    });
++  }, []);
++
++  const toggleIncludeHidden = useCallback(() => {
++    setIncludeHidden((prev) => !prev);
++  }, []);
++
++  const setQuery = useCallback((q: string) => {
++    setQueryRaw(q);
++  }, []);
++
++  // Use sync results when available, fall back to async
++  const finalResults = results ?? asyncResults;
++
++  return {
++    results: finalResults,
++    loading,
++    error,
++    sortMode,
++    cycleSortMode: cycleSortModeHandler,
++    includeHidden,
++    toggleIncludeHidden,
++    setQuery,
++    query,
++  };
++}
+diff --git a/apps/web/src/features/041-file-browser/services/file-filter.ts b/apps/web/src/features/041-file-browser/services/file-filter.ts
+new file mode 100644
+index 0000000..67907c2
+--- /dev/null
++++ b/apps/web/src/features/041-file-browser/services/file-filter.ts
+@@ -0,0 +1,74 @@
++/**
++ * File Filter Utilities
++ *
++ * Pure functions for file search: substring/glob matching, sorting, and
++ * dot-path filtering. Used by useFileFilter hook.
++ *
++ * Feature 2: File Tree Quick Filter — Plan 049
++ * Workshop 001: Substring default, glob via micromatch on *?{ detection
++ */
++
++export interface FilterableFile {
++  path: string;
++  mtime: number;
++  modified: boolean;
++  lastChanged: number | null;
++}
++
++/** Detect whether a query string contains glob characters. */
++export function isGlobPattern(query: string): boolean {
++  return /[*?{]/.test(query);
++}
++
++/**
++ * Filter files by substring (default) or glob pattern.
++ * Substring match is case-insensitive on the full relative path.
++ * Glob matching uses micromatch (dynamic import).
++ */
++export function filterFiles<T extends FilterableFile>(
++  files: T[],
++  query: string
++): T[] | Promise<T[]> {
++  if (!query) return files;
++
++  if (isGlobPattern(query)) {
++    return filterByGlob(files, query);
++  }
++
++  const lower = query.toLowerCase();
++  return files.filter((f) => f.path.toLowerCase().includes(lower));
++}
++
++async function filterByGlob<T extends FilterableFile>(files: T[], pattern: string): Promise<T[]> {
++  const { default: micromatch } = await import('micromatch');
++  const paths = files.map((f) => f.path);
++  // Use basename mode only for simple patterns (no path separators)
++  const useBasename = !pattern.includes('/');
++  const matched = new Set(micromatch(paths, pattern, { basename: useBasename }));
++  return files.filter((f) => matched.has(f.path));
++}
++
++/** Sort files by most recently changed (mtime desc). lastChanged overrides mtime. */
++export function sortByRecent<T extends FilterableFile>(files: T[]): T[] {
++  return [...files].sort((a, b) => {
++    const aTime = a.lastChanged ?? a.mtime;
++    const bTime = b.lastChanged ?? b.mtime;
++    return bTime - aTime;
++  });
++}
++
++/** Sort files alphabetically by path. */
++export function sortAlpha<T extends FilterableFile>(files: T[], direction: 'asc' | 'desc'): T[] {
++  return [...files].sort((a, b) => {
++    const cmp = a.path.localeCompare(b.path);
++    return direction === 'asc' ? cmp : -cmp;
++  });
++}
++
++/** Filter out files with dot-prefixed path segments (.github, .env, etc). */
++export function hideDotPaths<T extends FilterableFile>(files: T[]): T[] {
++  return files.filter((f) => {
++    const segments = f.path.split('/');
++    return !segments.some((s) => s.startsWith('.'));
++  });
++}
+diff --git a/apps/web/src/features/041-file-browser/services/file-list.ts b/apps/web/src/features/041-file-browser/services/file-list.ts
+new file mode 100644
+index 0000000..c1e50ae
+--- /dev/null
++++ b/apps/web/src/features/041-file-browser/services/file-list.ts
+@@ -0,0 +1,111 @@
++/**
++ * File List Service
++ *
++ * Returns all file paths + filesystem mtime for a workspace.
++ * Uses `git ls-files --cached --others [--exclude-standard]` + `fs.stat()`.
++ * Non-git fallback uses recursive readDir (depth-limited to 10).
++ *
++ * Feature 2: File Tree Quick Filter — Plan 049
++ * Workshop 001: Cache architecture — CachedFileEntry needs mtime for sort-by-recent
++ */
++
++import { execFile } from 'node:child_process';
++import { readdir, stat } from 'node:fs/promises';
++import { join } from 'node:path';
++import { promisify } from 'node:util';
++
++const execFileAsync = promisify(execFile);
++
++export interface FileListEntry {
++  path: string;
++  mtime: number;
++}
++
++export type FileListResult = { ok: true; files: FileListEntry[] } | { ok: false; error: 'not-git' };
++
++/**
++ * Get all files in a worktree with their filesystem mtime.
++ * @param worktreePath - Absolute path to the workspace root
++ * @param includeHidden - When true, omits --exclude-standard (shows ignored/hidden files)
++ */
++export async function getFileList(
++  worktreePath: string,
++  includeHidden = false
++): Promise<FileListResult> {
++  try {
++    const args = ['ls-files', '--cached', '--others'];
++    if (!includeHidden) {
++      args.push('--exclude-standard');
++    }
++
++    const { stdout } = await execFileAsync('git', args, {
++      cwd: worktreePath,
++      maxBuffer: 10 * 1024 * 1024, // 10MB for large repos
++    });
++
++    const paths = stdout.trim().split('\n').filter(Boolean);
++    // Deduplicate (--cached + --others can overlap for modified tracked files)
++    const uniquePaths = [...new Set(paths)].sort();
++
++    const BATCH_SIZE = 200;
++    const entries: (FileListEntry | null)[] = [];
++    for (let i = 0; i < uniquePaths.length; i += BATCH_SIZE) {
++      const batch = await Promise.all(
++        uniquePaths.slice(i, i + BATCH_SIZE).map(async (filePath): Promise<FileListEntry | null> => {
++          try {
++            const fullPath = join(worktreePath, filePath);
++            const st = await stat(fullPath);
++            return { path: filePath, mtime: st.mtimeMs };
++          } catch {
++            // File was deleted between ls-files and stat — skip it
++            return null;
++          }
++        })
++      );
++      entries.push(...batch);
++    }
++
++    return { ok: true, files: entries.filter((e): e is FileListEntry => e !== null) };
++  } catch {
++    // Not a git repository — try readDir fallback
++    try {
++      const files = await readDirRecursive(worktreePath, '', 10);
++      return { ok: true, files };
++    } catch {
++      return { ok: false, error: 'not-git' };
++    }
++  }
++}
++
++/** Recursive readDir fallback for non-git workspaces (depth-limited). */
++async function readDirRecursive(
++  basePath: string,
++  relativePath: string,
++  maxDepth: number
++): Promise<FileListEntry[]> {
++  if (maxDepth <= 0) return [];
++
++  const fullPath = relativePath ? join(basePath, relativePath) : basePath;
++  const dirEntries = await readdir(fullPath, { withFileTypes: true });
++  const results: FileListEntry[] = [];
++
++  for (const entry of dirEntries) {
++    // Skip .git directory
++    if (entry.name === '.git') continue;
++    const entryRelative = relativePath ? `${relativePath}/${entry.name}` : entry.name;
++
++    if (entry.isFile()) {
++      try {
++        const st = await stat(join(basePath, entryRelative));
++        results.push({ path: entryRelative, mtime: st.mtimeMs });
++      } catch {
++        // Skip inaccessible files
++      }
++    } else if (entry.isDirectory()) {
++      const children = await readDirRecursive(basePath, entryRelative, maxDepth - 1);
++      results.push(...children);
++    }
++  }
++
++  return results.sort((a, b) => a.path.localeCompare(b.path));
++}
+diff --git a/apps/web/src/features/_platform/panel-layout/components/command-palette-dropdown.tsx b/apps/web/src/features/_platform/panel-layout/components/command-palette-dropdown.tsx
+index e2f1000..9eedfc8 100644
+--- a/apps/web/src/features/_platform/panel-layout/components/command-palette-dropdown.tsx
++++ b/apps/web/src/features/_platform/panel-layout/components/command-palette-dropdown.tsx
+@@ -17,7 +17,19 @@
+  */
+ 
+ import type { IUSDK, SDKCommand } from '@chainglass/shared/sdk';
+-import { Command, Hash, Keyboard, Search, Terminal } from 'lucide-react';
++import {
++  ArrowDownAZ,
++  ArrowUpZA,
++  Clock,
++  Command,
++  Eye,
++  EyeOff,
++  File,
++  Hash,
++  Keyboard,
++  Search,
++  Terminal,
++} from 'lucide-react';
+ import {
+   forwardRef,
+   useCallback,
+@@ -28,8 +40,11 @@ import {
+   useState,
+ } from 'react';
+ 
++import type { FileChangeInfo, FileSearchEntry, FileSearchSortMode } from '../types';
+ import type { MruTracker } from '@/lib/sdk/sdk-provider';
+ 
++import { AsciiSpinner } from './ascii-spinner';
++
+ export type DropdownMode = 'commands' | 'symbols' | 'search' | 'param';
+ 
+ export interface CommandPaletteDropdownHandle {
+@@ -52,6 +67,26 @@ interface CommandPaletteDropdownProps {
+   onClose: () => void;
+   /** When set, dropdown shows param gathering hint. */
+   paramGathering?: ParamGatheringInfo | null;
++  /** Current input value for search mode (Plan 049 Feature 2) */
++  inputValue?: string;
++  /** File search results from useFileFilter */
++  fileSearchResults?: FileSearchEntry[] | null;
++  /** Whether the file search cache is loading */
++  fileSearchLoading?: boolean;
++  /** File search error message */
++  fileSearchError?: string | null;
++  /** Current sort mode for file search */
++  sortMode?: FileSearchSortMode;
++  /** Cycle sort mode callback */
++  onSortModeChange?: () => void;
++  /** Whether hidden/ignored files are shown */
++  includeHidden?: boolean;
++  /** Toggle hidden files callback */
++  onIncludeHiddenChange?: () => void;
++  /** Navigate to a file from search results */
++  onFileSelect?: (path: string) => void;
++  /** Working changes for status badge lookup */
++  workingChanges?: FileChangeInfo[];
+ }
+ 
+ // --- Schema introspection helpers (ST001) ---
+@@ -111,7 +146,25 @@ export const CommandPaletteDropdown = forwardRef<
+   CommandPaletteDropdownHandle,
+   CommandPaletteDropdownProps
+ >(function CommandPaletteDropdown(
+-  { sdk, filter, mru, mode, onExecute, onClose, paramGathering },
++  {
++    sdk,
++    filter,
++    mru,
++    mode,
++    onExecute,
++    onClose,
++    paramGathering,
++    inputValue,
++    fileSearchResults,
++    fileSearchLoading,
++    fileSearchError,
++    sortMode,
++    onSortModeChange,
++    includeHidden,
++    onIncludeHiddenChange,
++    onFileSelect,
++    workingChanges,
++  },
+   ref
+ ) {
+   const [selectedIndex, setSelectedIndex] = useState(0);
+@@ -128,11 +181,26 @@ export const CommandPaletteDropdown = forwardRef<
+     return filterAndSort(all, filter, mru.getOrder());
+   }, [sdk, filter, mru, mode]);
+ 
+-  // Reset selection when filter or mode changes
+-  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — reset on filter/mode change
++  // Build working changes lookup for status badges
++  const changesMap = useMemo(() => {
++    if (!workingChanges) return new Map<string, FileChangeInfo>();
++    return new Map(workingChanges.map((f) => [f.path, f]));
++  }, [workingChanges]);
++
++  // Determine if we're showing file search results
++  const hasSearchText = mode === 'search' && !!inputValue?.trim();
++  const showFileResults =
++    hasSearchText && Array.isArray(fileSearchResults) && fileSearchResults.length > 0;
++
++  // Items count for keyboard nav
++  const navItemCount =
++    mode === 'commands' ? commands.length : showFileResults ? fileSearchResults?.length : 0;
++
++  // Reset selection when filter, mode, or search results change
++  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — reset on filter/mode/results change
+   useEffect(() => {
+     setSelectedIndex(0);
+-  }, [filter, mode]);
++  }, [filter, mode, fileSearchResults]);
+ 
+   // Scroll selected item into view
+   useEffect(() => {
+@@ -157,22 +225,38 @@ export const CommandPaletteDropdown = forwardRef<
+         onClose();
+         return;
+       }
+-      // Only arrow/enter nav when in commands mode with items
+-      if (mode === 'commands' && commands.length > 0) {
++
++      // Navigate items (commands or file search results)
++      if (navItemCount > 0) {
+         if (e.key === 'ArrowDown') {
+           e.preventDefault();
+-          setSelectedIndex((i) => Math.min(i + 1, commands.length - 1));
++          setSelectedIndex((i) => Math.min(i + 1, navItemCount - 1));
+         } else if (e.key === 'ArrowUp') {
+           e.preventDefault();
+           setSelectedIndex((i) => Math.max(i - 1, 0));
+         } else if (e.key === 'Enter') {
+           e.preventDefault();
+-          const cmd = commands[selectedIndex];
+-          if (cmd) handleSelect(cmd.id);
++          if (mode === 'commands') {
++            const cmd = commands[selectedIndex];
++            if (cmd) handleSelect(cmd.id);
++          } else if (showFileResults) {
++            const file = fileSearchResults?.[selectedIndex];
++            if (file) onFileSelect?.(file.path);
++          }
+         }
+       }
+     },
+-    [mode, commands, selectedIndex, handleSelect, onClose]
++    [
++      mode,
++      commands,
++      navItemCount,
++      selectedIndex,
++      handleSelect,
++      onClose,
++      showFileResults,
++      fileSearchResults,
++      onFileSelect,
++    ]
+   );
+ 
+   useImperativeHandle(ref, () => ({ handleKeyDown }), [handleKeyDown]);
+@@ -190,25 +274,134 @@ export const CommandPaletteDropdown = forwardRef<
+         </div>
+       )}
+ 
+-      {mode === 'search' && (
+-        <div className="py-2">
+-          <div className="px-3 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+-            Quick Access
+-          </div>
+-          <div className="px-3 py-1.5 text-sm text-muted-foreground flex items-center gap-2">
+-            <span className="font-mono text-xs bg-muted px-1 rounded">&gt;</span>
+-            <span>Commands</span>
+-          </div>
+-          <div className="px-3 py-1.5 text-sm text-muted-foreground flex items-center gap-2">
+-            <span className="font-mono text-xs bg-muted px-1 rounded">#</span>
+-            <span>Symbol search (coming soon)</span>
+-          </div>
+-          <div className="px-3 py-1.5 text-sm text-muted-foreground flex items-center gap-2">
+-            <Search className="h-3.5 w-3.5" />
+-            <span>File search coming soon</span>
++      {mode === 'search' &&
++        (hasSearchText ? (
++          // Live file search results (Plan 049 Feature 2)
++          fileSearchLoading ? (
++            <div className="px-3 py-4 text-center text-sm text-muted-foreground">
++              <AsciiSpinner active /> Scanning files...
++            </div>
++          ) : fileSearchError ? (
++            <div className="px-3 py-4 text-center text-sm text-muted-foreground">
++              {fileSearchError}
++            </div>
++          ) : showFileResults ? (
++            <>
++              <div className="flex items-center justify-between border-b px-3 py-1">
++                <span className="text-xs text-muted-foreground">
++                  {fileSearchResults?.length} files
++                </span>
++                <div className="flex items-center gap-1">
++                  <button
++                    type="button"
++                    onClick={onSortModeChange}
++                    className="rounded p-0.5 text-muted-foreground hover:text-foreground"
++                    title={
++                      sortMode === 'recent'
++                        ? 'Sort: Recently changed'
++                        : sortMode === 'alpha-asc'
++                          ? 'Sort: A → Z'
++                          : 'Sort: Z → A'
++                    }
++                    aria-label={
++                      sortMode === 'recent'
++                        ? 'Sort by recently changed'
++                        : sortMode === 'alpha-asc'
++                          ? 'Sort alphabetically A to Z'
++                          : 'Sort alphabetically Z to A'
++                    }
++                  >
++                    {sortMode === 'recent' ? (
++                      <Clock className="h-3.5 w-3.5" />
++                    ) : sortMode === 'alpha-asc' ? (
++                      <ArrowDownAZ className="h-3.5 w-3.5" />
++                    ) : (
++                      <ArrowUpZA className="h-3.5 w-3.5" />
++                    )}
++                  </button>
++                  <button
++                    type="button"
++                    onClick={onIncludeHiddenChange}
++                    className="rounded p-0.5 text-muted-foreground hover:text-foreground"
++                    title={includeHidden ? 'Hidden files: shown' : 'Hidden files: hidden'}
++                    aria-label={includeHidden ? 'Hide hidden files' : 'Show hidden files'}
++                  >
++                    {includeHidden ? (
++                      <Eye className="h-3.5 w-3.5" />
++                    ) : (
++                      <EyeOff className="h-3.5 w-3.5" />
++                    )}
++                  </button>
++                </div>
++              </div>
++              {/* biome-ignore lint/a11y/useSemanticElements: custom file search list */}
++              <div ref={listRef} role="listbox" tabIndex={-1} className="py-1">
++                {fileSearchResults?.map((entry, index) => {
++                  const changed = changesMap.get(entry.path);
++                  const badge = changed ? STATUS_BADGE[changed.status] : null;
++                  const dir = entry.path.includes('/')
++                    ? entry.path.slice(0, entry.path.lastIndexOf('/') + 1)
++                    : '';
++                  const name = entry.path.split('/').pop() ?? entry.path;
++                  return (
++                    <div // biome-ignore lint/a11y/useSemanticElements: custom file result item
++                      key={entry.path}
++                      role="option"
++                      tabIndex={-1}
++                      aria-selected={index === selectedIndex}
++                      className={`flex items-center gap-1.5 px-3 py-1 text-sm cursor-pointer ${
++                        index === selectedIndex
++                          ? 'bg-primary/15 text-foreground'
++                          : 'text-foreground hover:bg-accent/50'
++                      }`}
++                      onClick={() => onFileSelect?.(entry.path)}
++                      onKeyDown={(e) => {
++                        if (e.key === 'Enter') onFileSelect?.(entry.path);
++                      }}
++                    >
++                      {badge ? (
++                        <span
++                          className={`shrink-0 w-4 text-center font-mono text-xs font-bold ${badge.className}`}
++                        >
++                          {badge.letter}
++                        </span>
++                      ) : (
++                        <File className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
++                      )}
++                      <span className="flex-1 truncate">
++                        <span className="text-muted-foreground">{dir}</span>
++                        <span>{name}</span>
++                      </span>
++                    </div>
++                  );
++                })}
++              </div>
++            </>
++          ) : (
++            <div className="px-3 py-4 text-center text-sm text-muted-foreground">
++              No matching files
++            </div>
++          )
++        ) : (
++          // Empty input: Quick Access hints (unchanged)
++          <div className="py-2">
++            <div className="px-3 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">
++              Quick Access
++            </div>
++            <div className="px-3 py-1.5 text-sm text-muted-foreground flex items-center gap-2">
++              <span className="font-mono text-xs bg-muted px-1 rounded">&gt;</span>
++              <span>Commands</span>
++            </div>
++            <div className="px-3 py-1.5 text-sm text-muted-foreground flex items-center gap-2">
++              <span className="font-mono text-xs bg-muted px-1 rounded">#</span>
++              <span>Symbol search (coming soon)</span>
++            </div>
++            <div className="px-3 py-1.5 text-sm text-muted-foreground flex items-center gap-2">
++              <Search className="h-3.5 w-3.5" />
++              <span>Type to search files</span>
++            </div>
+           </div>
+-        </div>
+-      )}
++        ))}
+ 
+       {mode === 'commands' &&
+         (commands.length === 0 ? (
+@@ -273,3 +466,12 @@ function CommandIcon({ icon }: { icon?: string }) {
+       return <Command className="h-4 w-4 shrink-0 text-muted-foreground" />;
+   }
+ }
++
++/** Status badge colors matching ChangesView (Plan 043) */
++const STATUS_BADGE: Record<string, { letter: string; className: string }> = {
++  modified: { letter: 'M', className: 'text-amber-500' },
++  added: { letter: 'A', className: 'text-green-500' },
++  deleted: { letter: 'D', className: 'text-red-500' },
++  untracked: { letter: '?', className: 'text-muted-foreground' },
++  renamed: { letter: 'R', className: 'text-blue-500' },
++};
+diff --git a/apps/web/src/features/_platform/panel-layout/components/explorer-panel.tsx b/apps/web/src/features/_platform/panel-layout/components/explorer-panel.tsx
+index 22874ab..857e496 100644
+--- a/apps/web/src/features/_platform/panel-layout/components/explorer-panel.tsx
++++ b/apps/web/src/features/_platform/panel-layout/components/explorer-panel.tsx
+@@ -20,7 +20,7 @@ import { toast } from 'sonner';
+ 
+ import type { MruTracker } from '@/lib/sdk/sdk-provider';
+ 
+-import type { BarContext, BarHandler, ExplorerPanelHandle } from '../types';
++import type { BarContext, BarHandler, ExplorerPanelHandle, FileChangeInfo, FileSearchEntry, FileSearchSortMode } from '../types';
+ import { AsciiSpinner } from './ascii-spinner';
+ import {
+   CommandPaletteDropdown,
+@@ -42,11 +42,50 @@ export interface ExplorerPanelProps {
+   mru?: MruTracker;
+   /** Called when a command is executed via palette (for MRU persistence). */
+   onCommandExecute?: (commandId: string) => void;
++  /** File search results from useFileFilter (Plan 049 Feature 2) */
++  fileSearchResults?: FileSearchEntry[] | null;
++  /** Whether the file search cache is loading */
++  fileSearchLoading?: boolean;
++  /** File search error message */
++  fileSearchError?: string | null;
++  /** Current sort mode for file search */
++  sortMode?: FileSearchSortMode;
++  /** Cycle sort mode callback */
++  onSortModeChange?: () => void;
++  /** Whether hidden/ignored files are shown */
++  includeHidden?: boolean;
++  /** Toggle hidden files callback */
++  onIncludeHiddenChange?: () => void;
++  /** Navigate to a file from search results */
++  onFileSelect?: (path: string) => void;
++  /** Working changes for status badge lookup */
++  workingChanges?: FileChangeInfo[];
++  /** Called when search query changes (for file filter hook) */
++  onSearchQueryChange?: (query: string) => void;
+ }
+ 
+ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>(
+   function ExplorerPanel(
+-    { filePath, handlers, context, onCopy, placeholder, sdk, mru, onCommandExecute },
++    {
++      filePath,
++      handlers,
++      context,
++      onCopy,
++      placeholder,
++      sdk,
++      mru,
++      onCommandExecute,
++      fileSearchResults,
++      fileSearchLoading,
++      fileSearchError,
++      sortMode,
++      onSortModeChange,
++      includeHidden,
++      onIncludeHiddenChange,
++      onFileSelect,
++      workingChanges,
++      onSearchQueryChange,
++    },
+     ref
+   ) {
+     const [editing, setEditing] = useState(false);
+@@ -73,6 +112,15 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
+           ? ('symbols' as const)
+           : ('search' as const);
+ 
++    // Plan 049 Feature 2: File search mode has results — delegate keyboard
++    const searchHasResults =
++      dropdownMode === 'search' &&
++      inputValue.trim().length > 0 &&
++      !inputValue.startsWith('>') &&
++      !inputValue.startsWith('#') &&
++      Array.isArray(fileSearchResults) &&
++      fileSearchResults.length > 0;
++
+     // Sync: when filePath changes externally, exit edit mode and update input value
+     useEffect(() => {
+       if (filePath !== prevFilePathRef.current) {
+@@ -84,6 +132,15 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
+       }
+     }, [filePath, processing]);
+ 
++    // Plan 049 Feature 2: Notify parent of search query changes
++    useEffect(() => {
++      if (dropdownMode === 'search' && editing) {
++        onSearchQueryChange?.(inputValue.trim());
++      } else {
++        onSearchQueryChange?.('');
++      }
++    }, [inputValue, dropdownMode, editing, onSearchQueryChange]);
++
+     // Expose focusInput + openPalette
+     useImperativeHandle(ref, () => ({
+       focusInput: () => {
+@@ -217,6 +274,14 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
+           }
+         }
+ 
++        // Plan 049 Feature 2: In search mode with results, delegate ↑↓ Enter to dropdown
++        if (searchHasResults) {
++          if (['ArrowDown', 'ArrowUp', 'Enter'].includes(e.key)) {
++            dropdownRef.current?.handleKeyDown(e);
++            return;
++          }
++        }
++
+         // Escape always exits edit mode (closes dropdown if showing)
+         if (e.key === 'Escape') {
+           exitEditMode();
+@@ -229,7 +294,7 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
+           handleSubmit();
+         }
+       },
+-      [paramGathering, paletteMode, exitEditMode, handleSubmit, handleParamSubmit]
++      [paramGathering, paletteMode, searchHasResults, exitEditMode, handleSubmit, handleParamSubmit]
+     );
+ 
+     const handleBlur = useCallback(() => {
+@@ -308,6 +373,19 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
+               onExecute={handlePaletteExecute}
+               onClose={exitPaletteMode}
+               paramGathering={paramGathering}
++              inputValue={inputValue}
++              fileSearchResults={fileSearchResults}
++              fileSearchLoading={fileSearchLoading}
++              fileSearchError={fileSearchError}
++              sortMode={sortMode}
++              onSortModeChange={onSortModeChange}
++              includeHidden={includeHidden}
++              onIncludeHiddenChange={onIncludeHiddenChange}
++              onFileSelect={(path) => {
++                onFileSelect?.(path);
++                exitEditMode();
++              }}
++              workingChanges={workingChanges}
+             />
+           )}
+         </div>
+diff --git a/apps/web/src/features/_platform/panel-layout/index.ts b/apps/web/src/features/_platform/panel-layout/index.ts
+index 9f722f9..6a8ec2b 100644
+--- a/apps/web/src/features/_platform/panel-layout/index.ts
++++ b/apps/web/src/features/_platform/panel-layout/index.ts
+@@ -7,7 +7,15 @@
+  */
+ 
+ // Types
+-export type { PanelMode, BarHandler, BarContext, ExplorerPanelHandle } from './types';
++export type {
++  PanelMode,
++  BarHandler,
++  BarContext,
++  ExplorerPanelHandle,
++  FileSearchSortMode,
++  FileSearchEntry,
++  FileChangeInfo,
++} from './types';
+ 
+ // Components
+ export { PanelHeader } from './components/panel-header';
+diff --git a/apps/web/src/features/_platform/panel-layout/types.ts b/apps/web/src/features/_platform/panel-layout/types.ts
+index 0948503..6adf7fd 100644
+--- a/apps/web/src/features/_platform/panel-layout/types.ts
++++ b/apps/web/src/features/_platform/panel-layout/types.ts
+@@ -35,3 +35,23 @@ export interface ExplorerPanelHandle {
+   focusInput: () => void;
+   openPalette: () => void;
+ }
++
++// --- File search types (Plan 049 Feature 2) ---
++// Defined here so infra (panel-layout) doesn't import from business (file-browser).
++
++/** Sort mode for file search results */
++export type FileSearchSortMode = 'recent' | 'alpha-asc' | 'alpha-desc';
++
++/** A file entry from the search cache */
++export interface FileSearchEntry {
++  path: string;
++  mtime: number;
++  modified: boolean;
++  lastChanged: number | null;
++}
++
++/** Minimal file change info for status badge lookup */
++export interface FileChangeInfo {
++  path: string;
++  status: string;
++}
+diff --git a/apps/web/src/lib/di-container.ts b/apps/web/src/lib/di-container.ts
+index 40c75f3..08538d6 100644
+--- a/apps/web/src/lib/di-container.ts
++++ b/apps/web/src/lib/di-container.ts
+@@ -13,6 +13,9 @@
+ import 'reflect-metadata';
+ import * as os from 'node:os';
+ import * as path from 'node:path';
++// Plan 050: Import positional-graph registration + template services
++import type { IWorkUnitLoader } from '@chainglass/positional-graph';
++import { registerPositionalGraphServices } from '@chainglass/positional-graph';
+ import {
+   type AdapterFactory,
+   AgentService,
+@@ -30,6 +33,7 @@ import {
+   type IProcessManager,
+   type IYamlParser,
+   NodeFileSystemAdapter,
++  POSITIONAL_GRAPH_DI_TOKENS,
+   PathResolverAdapter,
+   PinoLoggerAdapter,
+   SHARED_DI_TOKENS,
+@@ -90,6 +94,12 @@ import {
+   WorkspaceRegistryAdapter,
+   WorkspaceService,
+ } from '@chainglass/workflow';
++import {
++  type ITemplateService,
++  InstanceAdapter,
++  TemplateAdapter,
++  TemplateService,
++} from '@chainglass/workflow';
+ // Plan 022: Import workgraph services
+ import {
+   FakeWorkGraphService,
+@@ -433,6 +443,41 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
+     },
+   });
+ 
++  // ==================== Plan 050: Positional Graph Services ====================
++
++  registerPositionalGraphServices(childContainer);
++
++  // Bridge WORK_UNIT_LOADER → WORKUNIT_SERVICE (PositionalGraphService needs this)
++  childContainer.register<IWorkUnitLoader>(POSITIONAL_GRAPH_DI_TOKENS.WORK_UNIT_LOADER, {
++    useFactory: (c) => c.resolve<IWorkUnitLoader>(POSITIONAL_GRAPH_DI_TOKENS.WORKUNIT_SERVICE),
++  });
++
++  // Template/Instance services (Plan 048)
++  childContainer.register(POSITIONAL_GRAPH_DI_TOKENS.TEMPLATE_ADAPTER, {
++    useFactory: (c) =>
++      new TemplateAdapter(
++        c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM),
++        c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER)
++      ),
++  });
++  childContainer.register(POSITIONAL_GRAPH_DI_TOKENS.INSTANCE_ADAPTER, {
++    useFactory: (c) =>
++      new InstanceAdapter(
++        c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM),
++        c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER)
++      ),
++  });
++  childContainer.register<ITemplateService>(POSITIONAL_GRAPH_DI_TOKENS.TEMPLATE_SERVICE, {
++    useFactory: (c) =>
++      new TemplateService(
++        c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM),
++        c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER),
++        c.resolve<IYamlParser>(SHARED_DI_TOKENS.YAML_PARSER),
++        c.resolve<TemplateAdapter>(POSITIONAL_GRAPH_DI_TOKENS.TEMPLATE_ADAPTER),
++        c.resolve<InstanceAdapter>(POSITIONAL_GRAPH_DI_TOKENS.INSTANCE_ADAPTER)
++      ),
++  });
++
+   // ==================== Plan 027: Central Notification System ====================
+ 
+   // Register IFileWatcherFactory → ChokidarFileWatcherFactory
+diff --git a/apps/web/tsconfig.json b/apps/web/tsconfig.json
+index 245a00d..d8f97f7 100644
+--- a/apps/web/tsconfig.json
++++ b/apps/web/tsconfig.json
+@@ -20,6 +20,8 @@
+       "@/*": ["./src/*"],
+       "@chainglass/shared": ["../../packages/shared/dist"],
+       "@chainglass/shared/*": ["../../packages/shared/dist/*"],
++      "@chainglass/positional-graph": ["../../packages/positional-graph/dist"],
++      "@chainglass/positional-graph/*": ["../../packages/positional-graph/dist/*"],
+       "@chainglass/web": ["./src"],
+       "@chainglass/web/*": ["./src/*"]
+     }
+diff --git a/packages/positional-graph/src/fakes/fake-positional-graph-service.ts b/packages/positional-graph/src/fakes/fake-positional-graph-service.ts
+new file mode 100644
+index 0000000..eeecd8d
+--- /dev/null
++++ b/packages/positional-graph/src/fakes/fake-positional-graph-service.ts
+@@ -0,0 +1,548 @@
++/**
++ * FakePositionalGraphService — Proxy-based test double for IPositionalGraphService.
++ *
++ * Uses a JavaScript Proxy to auto-stub all 50+ methods:
++ * - Every call is tracked in `calls` map (method name → args array)
++ * - Unimplemented methods return `{ data: null, errors: [] }`
++ * - UI-critical methods have `with*Result()` builders for preset returns
++ *
++ * Per Constitution P4: full fake, not mocks.
++ * Per DYK-I2: Proxy cuts from ~600 lines to ~200.
++ */
++
++import type { BaseResult } from '@chainglass/shared';
++import type { WorkspaceContext } from '@chainglass/workflow';
++import type { InspectResult } from '../features/040-graph-inspect/index.js';
++import type {
++  AddLineResult,
++  AddNodeResult,
++  GraphCreateResult,
++  GraphStatusResult,
++  IPositionalGraphService,
++  InputPack,
++  LineStatusResult,
++  NodeShowResult,
++  NodeStatusResult,
++  PGListResult,
++  PGLoadResult,
++  PGShowResult,
++} from '../interfaces/positional-graph-service.interface.js';
++import type { State } from '../schemas/index.js';
++
++// Default empty results
++const emptyBaseResult: BaseResult = { errors: [] };
++
++/**
++ * Create a FakePositionalGraphService with Proxy-based auto-stubbing.
++ *
++ * Usage:
++ * ```ts
++ * const fake = new FakePositionalGraphService();
++ * fake.withListResult({ slugs: ['demo-1'], errors: [] });
++ * const result = await fake.list(ctx);
++ * expect(fake.calls.get('list')).toHaveLength(1);
++ * ```
++ */
++export class FakePositionalGraphService implements IPositionalGraphService {
++  /** All method calls: method name → array of argument arrays */
++  readonly calls = new Map<string, unknown[][]>();
++
++  // Preset results for UI-critical methods
++  private _createResult: GraphCreateResult = { ...emptyBaseResult, graphSlug: '', lineId: '' };
++  private _loadResult: PGLoadResult = { ...emptyBaseResult };
++  private _showResult: PGShowResult = { ...emptyBaseResult };
++  private _listResult: PGListResult = { ...emptyBaseResult, slugs: [] };
++  private _addLineResult: AddLineResult = { ...emptyBaseResult };
++  private _addNodeResult: AddNodeResult = { ...emptyBaseResult };
++  private _showNodeResult: NodeShowResult = { ...emptyBaseResult };
++  private _statusResult: GraphStatusResult | null = null;
++  private _nodeStatusResult: NodeStatusResult | null = null;
++  private _lineStatusResult: LineStatusResult | null = null;
++  private _collateResult: InputPack = { inputs: {}, ok: true };
++  private _state: State | null = null;
++
++  // Return builders
++  withCreateResult(result: GraphCreateResult): this {
++    this._createResult = result;
++    return this;
++  }
++  withLoadResult(result: PGLoadResult): this {
++    this._loadResult = result;
++    return this;
++  }
++  withShowResult(result: PGShowResult): this {
++    this._showResult = result;
++    return this;
++  }
++  withListResult(result: PGListResult): this {
++    this._listResult = result;
++    return this;
++  }
++  withAddLineResult(result: AddLineResult): this {
++    this._addLineResult = result;
++    return this;
++  }
++  withAddNodeResult(result: AddNodeResult): this {
++    this._addNodeResult = result;
++    return this;
++  }
++  withShowNodeResult(result: NodeShowResult): this {
++    this._showNodeResult = result;
++    return this;
++  }
++  withStatusResult(result: GraphStatusResult): this {
++    this._statusResult = result;
++    return this;
++  }
++  withNodeStatusResult(result: NodeStatusResult): this {
++    this._nodeStatusResult = result;
++    return this;
++  }
++  withLineStatusResult(result: LineStatusResult): this {
++    this._lineStatusResult = result;
++    return this;
++  }
++  withCollateResult(result: InputPack): this {
++    this._collateResult = result;
++    return this;
++  }
++  withState(state: State): this {
++    this._state = state;
++    return this;
++  }
++
++  private track(method: string, args: unknown[]): void {
++    const existing = this.calls.get(method);
++    if (existing) {
++      existing.push(args);
++    } else {
++      this.calls.set(method, [args]);
++    }
++  }
++
++  // UI-critical methods with real return builders
++
++  async create(ctx: WorkspaceContext, slug: string): Promise<GraphCreateResult> {
++    this.track('create', [ctx, slug]);
++    return this._createResult;
++  }
++
++  async load(ctx: WorkspaceContext, slug: string): Promise<PGLoadResult> {
++    this.track('load', [ctx, slug]);
++    return this._loadResult;
++  }
++
++  async show(ctx: WorkspaceContext, slug: string): Promise<PGShowResult> {
++    this.track('show', [ctx, slug]);
++    return this._showResult;
++  }
++
++  async list(ctx: WorkspaceContext): Promise<PGListResult> {
++    this.track('list', [ctx]);
++    return this._listResult;
++  }
++
++  async delete(ctx: WorkspaceContext, slug: string): Promise<BaseResult> {
++    this.track('delete', [ctx, slug]);
++    return emptyBaseResult;
++  }
++
++  async addLine(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    options?: unknown
++  ): Promise<AddLineResult> {
++    this.track('addLine', [ctx, graphSlug, options]);
++    return this._addLineResult;
++  }
++
++  async removeLine(ctx: WorkspaceContext, graphSlug: string, lineId: string): Promise<BaseResult> {
++    this.track('removeLine', [ctx, graphSlug, lineId]);
++    return emptyBaseResult;
++  }
++
++  async moveLine(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    lineId: string,
++    toIndex: number
++  ): Promise<BaseResult> {
++    this.track('moveLine', [ctx, graphSlug, lineId, toIndex]);
++    return emptyBaseResult;
++  }
++
++  async setLineLabel(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    lineId: string,
++    label: string
++  ): Promise<BaseResult> {
++    this.track('setLineLabel', [ctx, graphSlug, lineId, label]);
++    return emptyBaseResult;
++  }
++
++  async setLineDescription(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    lineId: string,
++    desc: string
++  ): Promise<BaseResult> {
++    this.track('setLineDescription', [ctx, graphSlug, lineId, desc]);
++    return emptyBaseResult;
++  }
++
++  async addNode(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    lineId: string,
++    unitSlug: string,
++    options?: unknown
++  ): Promise<AddNodeResult> {
++    this.track('addNode', [ctx, graphSlug, lineId, unitSlug, options]);
++    return this._addNodeResult;
++  }
++
++  async removeNode(ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<BaseResult> {
++    this.track('removeNode', [ctx, graphSlug, nodeId]);
++    return emptyBaseResult;
++  }
++
++  async moveNode(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    nodeId: string,
++    options: unknown
++  ): Promise<BaseResult> {
++    this.track('moveNode', [ctx, graphSlug, nodeId, options]);
++    return emptyBaseResult;
++  }
++
++  async setNodeDescription(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    nodeId: string,
++    desc: string
++  ): Promise<BaseResult> {
++    this.track('setNodeDescription', [ctx, graphSlug, nodeId, desc]);
++    return emptyBaseResult;
++  }
++
++  async showNode(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    nodeId: string
++  ): Promise<NodeShowResult> {
++    this.track('showNode', [ctx, graphSlug, nodeId]);
++    return this._showNodeResult;
++  }
++
++  async setInput(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    nodeId: string,
++    inputName: string,
++    source: unknown
++  ): Promise<BaseResult> {
++    this.track('setInput', [ctx, graphSlug, nodeId, inputName, source]);
++    return emptyBaseResult;
++  }
++
++  async removeInput(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    nodeId: string,
++    inputName: string
++  ): Promise<BaseResult> {
++    this.track('removeInput', [ctx, graphSlug, nodeId, inputName]);
++    return emptyBaseResult;
++  }
++
++  async collateInputs(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    nodeId: string
++  ): Promise<InputPack> {
++    this.track('collateInputs', [ctx, graphSlug, nodeId]);
++    return this._collateResult;
++  }
++
++  async getNodeStatus(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    nodeId: string
++  ): Promise<NodeStatusResult> {
++    this.track('getNodeStatus', [ctx, graphSlug, nodeId]);
++    if (!this._nodeStatusResult) {
++      throw new Error(
++        'FakePositionalGraphService: call withNodeStatusResult() before getNodeStatus()'
++      );
++    }
++    return this._nodeStatusResult;
++  }
++
++  async getLineStatus(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    lineId: string
++  ): Promise<LineStatusResult> {
++    this.track('getLineStatus', [ctx, graphSlug, lineId]);
++    if (!this._lineStatusResult) {
++      throw new Error(
++        'FakePositionalGraphService: call withLineStatusResult() before getLineStatus()'
++      );
++    }
++    return this._lineStatusResult;
++  }
++
++  async getStatus(ctx: WorkspaceContext, graphSlug: string): Promise<GraphStatusResult> {
++    this.track('getStatus', [ctx, graphSlug]);
++    if (!this._statusResult) {
++      throw new Error('FakePositionalGraphService: call withStatusResult() before getStatus()');
++    }
++    return this._statusResult;
++  }
++
++  async inspectGraph(ctx: WorkspaceContext, graphSlug: string): Promise<InspectResult> {
++    this.track('inspectGraph', [ctx, graphSlug]);
++    return {
++      graphSlug,
++      graphStatus: 'pending',
++      updatedAt: new Date().toISOString(),
++      totalNodes: 0,
++      completedNodes: 0,
++      failedNodes: 0,
++      errors: [],
++      lines: [],
++      nodes: [],
++    } as InspectResult;
++  }
++
++  async triggerTransition(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    lineId: string
++  ): Promise<BaseResult> {
++    this.track('triggerTransition', [ctx, graphSlug, lineId]);
++    return emptyBaseResult;
++  }
++
++  async updateGraphProperties(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    properties: unknown
++  ): Promise<BaseResult> {
++    this.track('updateGraphProperties', [ctx, graphSlug, properties]);
++    return emptyBaseResult;
++  }
++
++  async updateLineProperties(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    lineId: string,
++    properties: unknown
++  ): Promise<BaseResult> {
++    this.track('updateLineProperties', [ctx, graphSlug, lineId, properties]);
++    return emptyBaseResult;
++  }
++
++  async updateNodeProperties(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    nodeId: string,
++    properties: unknown
++  ): Promise<BaseResult> {
++    this.track('updateNodeProperties', [ctx, graphSlug, nodeId, properties]);
++    return emptyBaseResult;
++  }
++
++  async updateGraphOrchestratorSettings(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    settings: unknown
++  ): Promise<BaseResult> {
++    this.track('updateGraphOrchestratorSettings', [ctx, graphSlug, settings]);
++    return emptyBaseResult;
++  }
++
++  async updateLineOrchestratorSettings(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    lineId: string,
++    settings: unknown
++  ): Promise<BaseResult> {
++    this.track('updateLineOrchestratorSettings', [ctx, graphSlug, lineId, settings]);
++    return emptyBaseResult;
++  }
++
++  async updateNodeOrchestratorSettings(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    nodeId: string,
++    settings: unknown
++  ): Promise<BaseResult> {
++    this.track('updateNodeOrchestratorSettings', [ctx, graphSlug, nodeId, settings]);
++    return emptyBaseResult;
++  }
++
++  async saveOutputData(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    nodeId: string,
++    outputName: string,
++    value: unknown
++  ) {
++    this.track('saveOutputData', [ctx, graphSlug, nodeId, outputName, value]);
++    return { ...emptyBaseResult, nodeId, outputName, saved: true };
++  }
++
++  async saveOutputFile(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    nodeId: string,
++    outputName: string,
++    sourcePath: string
++  ) {
++    this.track('saveOutputFile', [ctx, graphSlug, nodeId, outputName, sourcePath]);
++    return { ...emptyBaseResult, nodeId, outputName, saved: true };
++  }
++
++  async getOutputData(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    nodeId: string,
++    outputName: string
++  ) {
++    this.track('getOutputData', [ctx, graphSlug, nodeId, outputName]);
++    return { ...emptyBaseResult, nodeId, outputName };
++  }
++
++  async getOutputFile(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    nodeId: string,
++    outputName: string
++  ) {
++    this.track('getOutputFile', [ctx, graphSlug, nodeId, outputName]);
++    return { ...emptyBaseResult, nodeId, outputName };
++  }
++
++  async startNode(ctx: WorkspaceContext, graphSlug: string, nodeId: string) {
++    this.track('startNode', [ctx, graphSlug, nodeId]);
++    return {
++      ...emptyBaseResult,
++      nodeId,
++      status: 'starting' as const,
++      startedAt: new Date().toISOString(),
++    };
++  }
++
++  async canEnd(ctx: WorkspaceContext, graphSlug: string, nodeId: string) {
++    this.track('canEnd', [ctx, graphSlug, nodeId]);
++    return { ...emptyBaseResult, nodeId, canEnd: true, savedOutputs: [], missingOutputs: [] };
++  }
++
++  async endNode(ctx: WorkspaceContext, graphSlug: string, nodeId: string, message?: string) {
++    this.track('endNode', [ctx, graphSlug, nodeId, message]);
++    return {
++      ...emptyBaseResult,
++      nodeId,
++      status: 'complete' as const,
++      completedAt: new Date().toISOString(),
++    };
++  }
++
++  async askQuestion(ctx: WorkspaceContext, graphSlug: string, nodeId: string, options: unknown) {
++    this.track('askQuestion', [ctx, graphSlug, nodeId, options]);
++    return {
++      ...emptyBaseResult,
++      nodeId,
++      questionId: 'q-fake-1',
++      status: 'waiting-question' as const,
++    };
++  }
++
++  async answerQuestion(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    nodeId: string,
++    questionId: string,
++    answer: unknown
++  ) {
++    this.track('answerQuestion', [ctx, graphSlug, nodeId, questionId, answer]);
++    return { ...emptyBaseResult, nodeId, questionId, status: 'waiting-question' as const };
++  }
++
++  async getAnswer(ctx: WorkspaceContext, graphSlug: string, nodeId: string, questionId: string) {
++    this.track('getAnswer', [ctx, graphSlug, nodeId, questionId]);
++    return { ...emptyBaseResult, nodeId, questionId, answered: false };
++  }
++
++  async getInputData(ctx: WorkspaceContext, graphSlug: string, nodeId: string, inputName: string) {
++    this.track('getInputData', [ctx, graphSlug, nodeId, inputName]);
++    return { ...emptyBaseResult, nodeId, inputName, sources: [], complete: false };
++  }
++
++  async getInputFile(ctx: WorkspaceContext, graphSlug: string, nodeId: string, inputName: string) {
++    this.track('getInputFile', [ctx, graphSlug, nodeId, inputName]);
++    return { ...emptyBaseResult, nodeId, inputName, sources: [], complete: false };
++  }
++
++  async raiseNodeEvent(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    nodeId: string,
++    eventType: string,
++    payload: unknown,
++    source: unknown
++  ) {
++    this.track('raiseNodeEvent', [ctx, graphSlug, nodeId, eventType, payload, source]);
++    return { ...emptyBaseResult, nodeId };
++  }
++
++  async getNodeEvents(ctx: WorkspaceContext, graphSlug: string, nodeId: string, filter?: unknown) {
++    this.track('getNodeEvents', [ctx, graphSlug, nodeId, filter]);
++    return { ...emptyBaseResult, nodeId, events: [] };
++  }
++
++  async stampNodeEvent(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    nodeId: string,
++    eventId: string,
++    subscriber: string,
++    action: string,
++    data?: unknown
++  ) {
++    this.track('stampNodeEvent', [ctx, graphSlug, nodeId, eventId, subscriber, action, data]);
++    return { ...emptyBaseResult, nodeId, eventId, subscriber };
++  }
++
++  async loadGraphState(ctx: WorkspaceContext, graphSlug: string): Promise<State> {
++    this.track('loadGraphState', [ctx, graphSlug]);
++    return (
++      this._state ?? { graph_status: 'pending', updated_at: new Date().toISOString(), nodes: {} }
++    );
++  }
++
++  async persistGraphState(ctx: WorkspaceContext, graphSlug: string, state: State): Promise<void> {
++    this.track('persistGraphState', [ctx, graphSlug, state]);
++    this._state = state;
++  }
++
++  /** Reset all call tracking and preset results */
++  reset(): void {
++    this.calls.clear();
++    this._createResult = { ...emptyBaseResult, graphSlug: '', lineId: '' };
++    this._loadResult = { ...emptyBaseResult };
++    this._showResult = { ...emptyBaseResult };
++    this._listResult = { ...emptyBaseResult, slugs: [] };
++    this._addLineResult = { ...emptyBaseResult };
++    this._addNodeResult = { ...emptyBaseResult };
++    this._showNodeResult = { ...emptyBaseResult };
++    this._statusResult = null;
++    this._nodeStatusResult = null;
++    this._lineStatusResult = null;
++    this._collateResult = { inputs: {}, ok: true };
++    this._state = null;
++  }
++}
+diff --git a/packages/positional-graph/src/fakes/index.ts b/packages/positional-graph/src/fakes/index.ts
+new file mode 100644
+index 0000000..3851659
+--- /dev/null
++++ b/packages/positional-graph/src/fakes/index.ts
+@@ -0,0 +1 @@
++export { FakePositionalGraphService } from './fake-positional-graph-service.js';
+diff --git a/packages/positional-graph/src/index.ts b/packages/positional-graph/src/index.ts
+index 75da49f..147b59d 100644
+--- a/packages/positional-graph/src/index.ts
++++ b/packages/positional-graph/src/index.ts
+@@ -7,6 +7,9 @@ export * from './adapter/index.js';
+ export * from './interfaces/index.js';
+ export { registerPositionalGraphServices, registerOrchestrationServices } from './container.js';
+ 
++// Fakes (Plan 050)
++export { FakePositionalGraphService } from './fakes/index.js';
++
+ // Feature exports
+ export * from './features/029-agentic-work-units/index.js';
+ 
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+index f89663b..f66a707 100644
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -201,6 +201,9 @@ importers:
+       mermaid:
+         specifier: ^11.12.2
+         version: 11.12.2
++      micromatch:
++        specifier: ^4.0.8
++        version: 4.0.8
+       next:
+         specifier: ^16.0.0
+         version: 16.1.4(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+@@ -274,6 +277,9 @@ importers:
+       '@types/d3-hierarchy':
+         specifier: ^3.1.7
+         version: 3.1.7
++      '@types/micromatch':
++        specifier: ^4.0.10
++        version: 4.0.10
+       '@types/react':
+         specifier: ^19.0.7
+         version: 19.2.8
+@@ -2372,6 +2378,9 @@ packages:
+   '@types/aria-query@5.0.4':
+     resolution: {integrity: sha512-rfT93uj5s0PRL7EzccGMs3brplhcrghnDoV26NqKhCAS1hVo+WdNsPvE/yb6ilfr5hi2MEk6d5EWJTKdxg8jVw==}
+ 
++  '@types/braces@3.0.5':
++    resolution: {integrity: sha512-SQFof9H+LXeWNz8wDe7oN5zu7ket0qwMu5vZubW4GCJ8Kkeh6nBWUz87+KTz/G3Kqsrp0j/W253XJb3KMEeg3w==}
++
+   '@types/chai@5.2.3':
+     resolution: {integrity: sha512-Mw558oeA9fFbv65/y4mHtXDs9bPnFMZAL/jxdPFUpOHHIXX91mcgEHbS5Lahr+pwZFR8A7GQleRWeI6cGFC2UA==}
+ 
+@@ -2489,6 +2498,9 @@ packages:
+   '@types/mdast@4.0.4':
+     resolution: {integrity: sha512-kGaNbPh1k7AFzgpud/gMdvIm5xuECykRR+JnWKQno9TAXVa6WIVCGTPvYGekIDL4uwCZQSYbUxNBSb1aUo79oA==}
+ 
++  '@types/micromatch@4.0.10':
++    resolution: {integrity: sha512-5jOhFDElqr4DKTrTEbnW8DZ4Hz5LRUEmyrGpCMrD/NphYv3nUnaF08xmSLx1rGGnyEs/kFnhiw6dCgcDqMr5PQ==}
++
+   '@types/ms@2.1.0':
+     resolution: {integrity: sha512-GsCCIZDE/p3i96vtEqx+7dBUGXrc7zeSK3wwPHIaRThS+9OhWIXRqzs4d6k1SVU8g91DrNRWxWUGhp5KXQb2VA==}
+ 
+@@ -6670,6 +6682,8 @@ snapshots:
+ 
+   '@types/aria-query@5.0.4': {}
+ 
++  '@types/braces@3.0.5': {}
++
+   '@types/chai@5.2.3':
+     dependencies:
+       '@types/deep-eql': 4.0.2
+@@ -6814,6 +6828,10 @@ snapshots:
+     dependencies:
+       '@types/unist': 3.0.3
+ 
++  '@types/micromatch@4.0.10':
++    dependencies:
++      '@types/braces': 3.0.5
++
+   '@types/ms@2.1.0': {}
+ 
+   '@types/node@25.0.9':
+diff --git a/test/integration/dope-workflows.test.ts b/test/integration/dope-workflows.test.ts
+new file mode 100644
+index 0000000..dcd6393
+--- /dev/null
++++ b/test/integration/dope-workflows.test.ts
+@@ -0,0 +1,420 @@
++/**
++ * Integration tests: Doping workflow scenarios.
++ *
++ * Why: Validates that all 8 doping scenarios produce valid graphs
++ * with correct structure and state.json that round-trips through
++ * Zod schema validation.
++ *
++ * Contract: scripts/dope-workflows.ts creates workflows with
++ * correct line/node counts and valid state for each scenario.
++ *
++ * Plan 050 Phase 1 — T007 (AC-37)
++ */
++
++import * as nodeFs from 'node:fs/promises';
++import * as os from 'node:os';
++import * as path from 'node:path';
++
++import {
++  PositionalGraphAdapter,
++  PositionalGraphService,
++  StateSchema,
++} from '@chainglass/positional-graph';
++import type { IPositionalGraphService } from '@chainglass/positional-graph';
++import { NodeFileSystemAdapter, PathResolverAdapter, YamlParserAdapter } from '@chainglass/shared';
++import type { WorkspaceContext } from '@chainglass/workflow';
++import { InstanceAdapter, TemplateAdapter, TemplateService } from '@chainglass/workflow';
++import { afterEach, beforeEach, describe, expect, it } from 'vitest';
++
++import { buildDiskWorkUnitLoader } from '../../dev/test-graphs/shared/helpers.js';
++
++// ─── Test Infrastructure ────────────────────────────────────
++
++interface TestContext {
++  tmpDir: string;
++  ctx: WorkspaceContext;
++  graphService: IPositionalGraphService;
++  templateService: TemplateService;
++}
++
++let testCtx: TestContext;
++
++function createCtx(worktreePath: string): WorkspaceContext {
++  return {
++    workspaceSlug: 'dope-test',
++    workspaceName: 'Dope Test',
++    workspacePath: worktreePath,
++    worktreePath,
++    worktreeBranch: null,
++    isMainWorktree: true,
++    hasGit: true,
++  };
++}
++
++function createServices(workspacePath: string) {
++  const fs = new NodeFileSystemAdapter();
++  const pathResolver = new PathResolverAdapter();
++  const yamlParser = new YamlParserAdapter();
++  const graphAdapter = new PositionalGraphAdapter(fs, pathResolver);
++  const loader = buildDiskWorkUnitLoader(workspacePath);
++  const graphService = new PositionalGraphService(
++    fs,
++    pathResolver,
++    yamlParser,
++    graphAdapter,
++    loader
++  );
++  const templateAdapter = new TemplateAdapter(fs, pathResolver);
++  const instanceAdapter = new InstanceAdapter(fs, pathResolver);
++  const templateService = new TemplateService(
++    fs,
++    pathResolver,
++    yamlParser,
++    templateAdapter,
++    instanceAdapter
++  );
++  return { graphService, templateService };
++}
++
++// Demo unit definitions (same as dope-workflows.ts)
++const DEMO_UNITS = {
++  'demo-agent': {
++    slug: 'demo-agent',
++    type: 'agent',
++    version: '1.0.0',
++    description: 'Demo agent unit',
++    inputs: [{ name: 'task', type: 'data', data_type: 'text', required: true }],
++    outputs: [{ name: 'result', type: 'data', data_type: 'text', required: true }],
++    agent: { type: 'claude-code' },
++  },
++  'demo-code': {
++    slug: 'demo-code',
++    type: 'code',
++    version: '1.0.0',
++    description: 'Demo code unit',
++    inputs: [],
++    outputs: [{ name: 'result', type: 'data', data_type: 'text', required: true }],
++    code: { script: 'scripts/noop.sh' },
++  },
++  'demo-user-input': {
++    slug: 'demo-user-input',
++    type: 'user-input',
++    version: '1.0.0',
++    description: 'Demo user-input unit',
++    inputs: [],
++    outputs: [{ name: 'answer', type: 'data', data_type: 'text', required: true }],
++    user_input: { question_type: 'text', prompt: 'What would you like to do?' },
++  },
++};
++
++async function writeDemoUnits(workspacePath: string): Promise<void> {
++  const yamlParser = new YamlParserAdapter();
++  for (const unit of Object.values(DEMO_UNITS)) {
++    const unitDir = path.join(workspacePath, '.chainglass', 'units', unit.slug);
++    await nodeFs.mkdir(unitDir, { recursive: true });
++    await nodeFs.writeFile(path.join(unitDir, 'unit.yaml'), yamlParser.stringify(unit));
++    if (unit.type === 'code') {
++      const scriptDir = path.join(unitDir, 'scripts');
++      await nodeFs.mkdir(scriptDir, { recursive: true });
++      await nodeFs.writeFile(path.join(scriptDir, 'noop.sh'), '#!/bin/bash\necho "noop"\n', {
++        mode: 0o755,
++      });
++    }
++  }
++}
++
++function now(): string {
++  return new Date().toISOString();
++}
++
++async function injectState(workspacePath: string, graphSlug: string, state: object): Promise<void> {
++  const statePath = path.join(
++    workspacePath,
++    '.chainglass',
++    'data',
++    'workflows',
++    graphSlug,
++    'state.json'
++  );
++  await nodeFs.writeFile(statePath, JSON.stringify(state, null, 2));
++}
++
++// ─── Setup / Teardown ────────────────────────────────────
++
++beforeEach(async () => {
++  const tmpDir = await nodeFs.mkdtemp(path.join(os.tmpdir(), 'dope-test-'));
++  await nodeFs.mkdir(path.join(tmpDir, '.chainglass', 'data', 'workflows'), { recursive: true });
++  await nodeFs.mkdir(path.join(tmpDir, '.chainglass', 'templates', 'workflows'), {
++    recursive: true,
++  });
++  await writeDemoUnits(tmpDir);
++
++  const { graphService, templateService } = createServices(tmpDir);
++  testCtx = {
++    tmpDir,
++    ctx: createCtx(tmpDir),
++    graphService,
++    templateService,
++  };
++});
++
++afterEach(async () => {
++  await nodeFs.rm(testCtx.tmpDir, { recursive: true, force: true });
++});
++
++// ─── Helpers ────────────────────────────────────
++
++async function loadAndValidateState(graphSlug: string): Promise<void> {
++  const statePath = path.join(
++    testCtx.tmpDir,
++    '.chainglass',
++    'data',
++    'workflows',
++    graphSlug,
++    'state.json'
++  );
++  try {
++    const raw = await nodeFs.readFile(statePath, 'utf-8');
++    const parsed = JSON.parse(raw);
++    const result = StateSchema.safeParse(parsed);
++    expect(
++      result.success,
++      `state.json Zod validation failed for ${graphSlug}: ${JSON.stringify(result.error?.issues)}`
++    ).toBe(true);
++  } catch (err: unknown) {
++    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
++      // No state.json is valid (pending graphs)
++      return;
++    }
++    throw err;
++  }
++}
++
++// ─── Scenario Tests ────────────────────────────────────
++
++describe('dope-workflows scenarios', () => {
++  it('demo-blank: creates empty workflow with one default line', async () => {
++    const { graphService: svc, ctx } = testCtx;
++    await svc.create(ctx, 'demo-blank');
++
++    const loaded = await svc.load(ctx, 'demo-blank');
++    expect(loaded.errors).toHaveLength(0);
++    expect(loaded.definition?.lines).toHaveLength(1);
++    expect(loaded.definition?.lines[0].nodes).toHaveLength(0);
++  });
++
++  it('demo-serial: creates two-line serial workflow with input wiring', async () => {
++    const { graphService: svc, ctx } = testCtx;
++    const { lineId: line0 } = await svc.create(ctx, 'demo-serial');
++    const line1 = await svc.addLine(ctx, 'demo-serial');
++
++    const n1 = await svc.addNode(ctx, 'demo-serial', line0, 'demo-agent');
++    await svc.addNode(ctx, 'demo-serial', line1.lineId ?? '', 'demo-code');
++
++    // Wire input
++    const loaded = await svc.load(ctx, 'demo-serial');
++    const line1Nodes = loaded.definition?.lines[1]?.nodes ?? [];
++    if (line1Nodes.length > 0 && n1.nodeId) {
++      await svc.setInput(ctx, 'demo-serial', line1Nodes[0], 'task', {
++        from_node: n1.nodeId,
++        from_output: 'result',
++      });
++    }
++
++    const final = await svc.load(ctx, 'demo-serial');
++    expect(final.errors).toHaveLength(0);
++    expect(final.definition?.lines).toHaveLength(2);
++    expect(final.definition?.lines[0].nodes).toHaveLength(1);
++    expect(final.definition?.lines[1].nodes).toHaveLength(1);
++  });
++
++  it('demo-running: creates workflow with running node and valid state.json', async () => {
++    const { graphService: svc, ctx } = testCtx;
++    const { lineId: line0 } = await svc.create(ctx, 'demo-running');
++    const n1 = await svc.addNode(ctx, 'demo-running', line0, 'demo-agent');
++
++    await injectState(testCtx.tmpDir, 'demo-running', {
++      graph_status: 'in_progress',
++      updated_at: now(),
++      nodes: {
++        [n1.nodeId ?? '']: { status: 'agent-accepted', started_at: now() },
++      },
++    });
++
++    await loadAndValidateState('demo-running');
++
++    const state = await svc.loadGraphState(ctx, 'demo-running');
++    expect(state.graph_status).toBe('in_progress');
++    expect(state.nodes?.[n1.nodeId ?? '']?.status).toBe('agent-accepted');
++  });
++
++  it('demo-question: creates workflow with waiting-question node', async () => {
++    const { graphService: svc, ctx } = testCtx;
++    const { lineId: line0 } = await svc.create(ctx, 'demo-question');
++    const n1 = await svc.addNode(ctx, 'demo-question', line0, 'demo-agent');
++
++    const questionId = 'q-test-1';
++    await injectState(testCtx.tmpDir, 'demo-question', {
++      graph_status: 'in_progress',
++      updated_at: now(),
++      nodes: {
++        [n1.nodeId ?? '']: {
++          status: 'waiting-question',
++          started_at: now(),
++          pending_question_id: questionId,
++        },
++      },
++      questions: [
++        {
++          question_id: questionId,
++          node_id: n1.nodeId ?? '',
++          type: 'text',
++          text: 'Test question?',
++          asked_at: now(),
++        },
++      ],
++    });
++
++    await loadAndValidateState('demo-question');
++
++    const state = await svc.loadGraphState(ctx, 'demo-question');
++    expect(state.nodes?.[n1.nodeId ?? '']?.status).toBe('waiting-question');
++    expect(state.questions).toHaveLength(1);
++  });
++
++  it('demo-error: creates workflow with blocked-error node', async () => {
++    const { graphService: svc, ctx } = testCtx;
++    const { lineId: line0 } = await svc.create(ctx, 'demo-error');
++    const n1 = await svc.addNode(ctx, 'demo-error', line0, 'demo-code');
++
++    await injectState(testCtx.tmpDir, 'demo-error', {
++      graph_status: 'in_progress',
++      updated_at: now(),
++      nodes: {
++        [n1.nodeId ?? '']: {
++          status: 'blocked-error',
++          started_at: now(),
++          error: { code: 'E150', message: 'Test error' },
++        },
++      },
++    });
++
++    await loadAndValidateState('demo-error');
++
++    const state = await svc.loadGraphState(ctx, 'demo-error');
++    expect(state.nodes?.[n1.nodeId ?? '']?.status).toBe('blocked-error');
++    expect(state.nodes?.[n1.nodeId ?? '']?.error?.code).toBe('E150');
++  });
++
++  it('demo-complete: creates fully completed workflow', async () => {
++    const { graphService: svc, ctx } = testCtx;
++    const { lineId: line0 } = await svc.create(ctx, 'demo-complete');
++    const line1 = await svc.addLine(ctx, 'demo-complete');
++
++    const n1 = await svc.addNode(ctx, 'demo-complete', line0, 'demo-agent');
++    const n2 = await svc.addNode(ctx, 'demo-complete', line1.lineId ?? '', 'demo-code');
++
++    await injectState(testCtx.tmpDir, 'demo-complete', {
++      graph_status: 'complete',
++      updated_at: now(),
++      nodes: {
++        [n1.nodeId ?? '']: { status: 'complete', started_at: now(), completed_at: now() },
++        [n2.nodeId ?? '']: { status: 'complete', started_at: now(), completed_at: now() },
++      },
++      transitions: {
++        [line0]: { triggered: true, triggered_at: now() },
++      },
++    });
++
++    await loadAndValidateState('demo-complete');
++
++    const state = await svc.loadGraphState(ctx, 'demo-complete');
++    expect(state.graph_status).toBe('complete');
++  });
++
++  it('demo-complex: creates multi-line workflow with mixed states', async () => {
++    const { graphService: svc, ctx } = testCtx;
++    const { lineId: line0 } = await svc.create(ctx, 'demo-complex');
++    const line1 = await svc.addLine(ctx, 'demo-complex');
++    const line2 = await svc.addLine(ctx, 'demo-complex');
++
++    const n1 = await svc.addNode(ctx, 'demo-complex', line0, 'demo-user-input');
++    const n2 = await svc.addNode(ctx, 'demo-complex', line0, 'demo-agent');
++    const n3 = await svc.addNode(ctx, 'demo-complex', line1.lineId ?? '', 'demo-agent');
++    const n4 = await svc.addNode(ctx, 'demo-complex', line1.lineId ?? '', 'demo-code');
++    await svc.addNode(ctx, 'demo-complex', line2.lineId ?? '', 'demo-agent'); // pending (no state)
++
++    const questionId = 'q-complex-1';
++    await injectState(testCtx.tmpDir, 'demo-complex', {
++      graph_status: 'in_progress',
++      updated_at: now(),
++      nodes: {
++        [n1.nodeId ?? '']: { status: 'complete', started_at: now(), completed_at: now() },
++        [n2.nodeId ?? '']: { status: 'complete', started_at: now(), completed_at: now() },
++        [n3.nodeId ?? '']: { status: 'agent-accepted', started_at: now() },
++        [n4.nodeId ?? '']: {
++          status: 'waiting-question',
++          started_at: now(),
++          pending_question_id: questionId,
++        },
++      },
++      transitions: { [line0]: { triggered: true, triggered_at: now() } },
++      questions: [
++        {
++          question_id: questionId,
++          node_id: n4.nodeId ?? '',
++          type: 'single',
++          text: 'Which database?',
++          options: ['PostgreSQL', 'MySQL'],
++          asked_at: now(),
++        },
++      ],
++    });
++
++    await loadAndValidateState('demo-complex');
++
++    const loaded = await svc.load(ctx, 'demo-complex');
++    expect(loaded.definition?.lines).toHaveLength(3);
++
++    const state = await svc.loadGraphState(ctx, 'demo-complex');
++    expect(state.graph_status).toBe('in_progress');
++    // 4 nodes have explicit state, 1 is implicitly pending
++    expect(Object.keys(state.nodes ?? {})).toHaveLength(4);
++  });
++
++  it('demo-from-template: creates instance from template with template_source', async () => {
++    const { graphService: svc, ctx } = testCtx;
++
++    // Build source graph
++    const { lineId: line0 } = await svc.create(ctx, 'demo-template-source');
++    await svc.addNode(ctx, 'demo-template-source', line0, 'demo-agent');
++
++    // Save as template
++    const saveResult = await testCtx.templateService.saveFrom(
++      ctx,
++      'demo-template-source',
++      'demo-template'
++    );
++    expect(saveResult.errors).toHaveLength(0);
++
++    // Instantiate
++    const instResult = await testCtx.templateService.instantiate(
++      ctx,
++      'demo-template',
++      'demo-from-template'
++    );
++    expect(instResult.errors).toHaveLength(0);
++
++    // Verify instance.yaml has template_source
++    const instanceYaml = path.join(
++      testCtx.tmpDir,
++      '.chainglass',
++      'instances',
++      'demo-template',
++      'demo-from-template',
++      'instance.yaml'
++    );
++    const content = await nodeFs.readFile(instanceYaml, 'utf-8');
++    expect(content).toContain('template_source: demo-template');
++  });
++});
+diff --git a/test/unit/web/features/041-file-browser/file-filter.test.ts b/test/unit/web/features/041-file-browser/file-filter.test.ts
+new file mode 100644
+index 0000000..3015d0d
+--- /dev/null
++++ b/test/unit/web/features/041-file-browser/file-filter.test.ts
+@@ -0,0 +1,151 @@
++/**
++ * File Filter Utilities Tests (TDD — RED first)
++ *
++ * Tests for pure functions: filterFiles, sortByRecent, sortAlpha,
++ * hideDotPaths, isGlobPattern.
++ *
++ * Feature 2: File Tree Quick Filter — Plan 049
++ */
++
++import { describe, expect, it } from 'vitest';
++
++import {
++  type FilterableFile,
++  filterFiles,
++  hideDotPaths,
++  isGlobPattern,
++  sortAlpha,
++  sortByRecent,
++} from '@/features/041-file-browser/services/file-filter';
++
++const makeFile = (
++  path: string,
++  mtime = 1000,
++  lastChanged: number | null = null
++): FilterableFile => ({
++  path,
++  mtime,
++  modified: lastChanged !== null,
++  lastChanged,
++});
++
++describe('isGlobPattern', () => {
++  it('returns false for plain text', () => {
++    expect(isGlobPattern('app')).toBe(false);
++    expect(isGlobPattern('src/utils')).toBe(false);
++  });
++
++  it('returns true for * character', () => {
++    expect(isGlobPattern('*.tsx')).toBe(true);
++    expect(isGlobPattern('src/**/*.test')).toBe(true);
++  });
++
++  it('returns true for ? character', () => {
++    expect(isGlobPattern('file?.ts')).toBe(true);
++  });
++
++  it('returns true for { character', () => {
++    expect(isGlobPattern('*.{ts,tsx}')).toBe(true);
++  });
++});
++
++describe('filterFiles — substring', () => {
++  const files = [
++    makeFile('src/app.tsx'),
++    makeFile('src/components/AppHeader.tsx'),
++    makeFile('src/lib/appUtils.ts'),
++    makeFile('config/app.config.ts'),
++    makeFile('README.md'),
++  ];
++
++  it('filters by case-insensitive substring', () => {
++    const result = filterFiles(files, 'app');
++    expect(result.map((f) => f.path)).toEqual([
++      'src/app.tsx',
++      'src/components/AppHeader.tsx',
++      'src/lib/appUtils.ts',
++      'config/app.config.ts',
++    ]);
++  });
++
++  it('returns all files for empty query', () => {
++    const result = filterFiles(files, '');
++    expect(result).toHaveLength(5);
++  });
++
++  it('returns empty for no match', () => {
++    const result = filterFiles(files, 'zzz');
++    expect(result).toHaveLength(0);
++  });
++
++  it('matches path separators', () => {
++    const result = filterFiles(files, 'src/lib');
++    expect(result.map((f) => f.path)).toEqual(['src/lib/appUtils.ts']);
++  });
++});
++
++describe('filterFiles — glob', () => {
++  const files = [
++    makeFile('src/app.tsx'),
++    makeFile('src/app.test.tsx'),
++    makeFile('src/lib/utils.ts'),
++    makeFile('config/app.config.ts'),
++  ];
++
++  it('matches glob patterns with extension', async () => {
++    const result = await filterFiles(files, '*.tsx');
++    expect(result.map((f) => f.path)).toEqual(['src/app.tsx', 'src/app.test.tsx']);
++  });
++
++  it('matches recursive glob patterns', async () => {
++    const result = await filterFiles(files, 'src/**/*.ts');
++    expect(result.map((f) => f.path)).toEqual(['src/lib/utils.ts']);
++  });
++});
++
++describe('sortByRecent', () => {
++  it('sorts by mtime descending', () => {
++    const files = [makeFile('a.ts', 100), makeFile('b.ts', 300), makeFile('c.ts', 200)];
++    const result = sortByRecent(files);
++    expect(result.map((f) => f.path)).toEqual(['b.ts', 'c.ts', 'a.ts']);
++  });
++
++  it('prioritizes lastChanged over mtime', () => {
++    const files = [makeFile('a.ts', 100, 500), makeFile('b.ts', 300), makeFile('c.ts', 200)];
++    const result = sortByRecent(files);
++    expect(result[0].path).toBe('a.ts'); // lastChanged=500 beats mtime=300
++  });
++});
++
++describe('sortAlpha', () => {
++  it('sorts ascending by path', () => {
++    const files = [makeFile('c.ts'), makeFile('a.ts'), makeFile('b.ts')];
++    const result = sortAlpha(files, 'asc');
++    expect(result.map((f) => f.path)).toEqual(['a.ts', 'b.ts', 'c.ts']);
++  });
++
++  it('sorts descending by path', () => {
++    const files = [makeFile('c.ts'), makeFile('a.ts'), makeFile('b.ts')];
++    const result = sortAlpha(files, 'desc');
++    expect(result.map((f) => f.path)).toEqual(['c.ts', 'b.ts', 'a.ts']);
++  });
++});
++
++describe('hideDotPaths', () => {
++  it('filters out dot-prefixed path segments', () => {
++    const files = [
++      makeFile('src/app.ts'),
++      makeFile('.github/workflows/ci.yml'),
++      makeFile('.env'),
++      makeFile('src/.hidden/file.ts'),
++    ];
++    const result = hideDotPaths(files);
++    expect(result.map((f) => f.path)).toEqual(['src/app.ts']);
++  });
++
++  it('keeps files with no dot-prefixed segments', () => {
++    const files = [makeFile('src/app.ts'), makeFile('README.md')];
++    const result = hideDotPaths(files);
++    expect(result).toHaveLength(2);
++  });
++});
+diff --git a/test/unit/web/features/041-file-browser/file-list.test.ts b/test/unit/web/features/041-file-browser/file-list.test.ts
+new file mode 100644
+index 0000000..d06e9c9
+--- /dev/null
++++ b/test/unit/web/features/041-file-browser/file-list.test.ts
+@@ -0,0 +1,79 @@
++/**
++ * File List Service Tests (TDD — RED first)
++ *
++ * Tests for getFileList() which retrieves file paths + mtimes
++ * via git ls-files + fs.stat(). Used by the file search cache.
++ *
++ * Feature 2: File Tree Quick Filter — Plan 049
++ */
++
++import { describe, expect, it } from 'vitest';
++
++// Will be created next
++import { type FileListEntry, getFileList } from '@/features/041-file-browser/services/file-list';
++
++describe('getFileList', () => {
++  it('returns file paths with mtime from a git worktree', async () => {
++    // Use the actual test fixtures directory as a git worktree
++    const result = await getFileList(process.cwd());
++    expect(result.ok).toBe(true);
++    if (!result.ok) return;
++    expect(result.files.length).toBeGreaterThan(0);
++
++    // Each entry should have path (string) and mtime (number)
++    for (const entry of result.files) {
++      expect(typeof entry.path).toBe('string');
++      expect(typeof entry.mtime).toBe('number');
++      expect(entry.mtime).toBeGreaterThan(0);
++    }
++  });
++
++  it('returns files with --exclude-standard by default (no hidden/ignored)', async () => {
++    const result = await getFileList(process.cwd());
++    expect(result.ok).toBe(true);
++    if (!result.ok) return;
++
++    // Should not contain node_modules or .git entries (those are gitignored)
++    const paths = result.files.map((f) => f.path);
++    expect(paths.some((p) => p.startsWith('node_modules/'))).toBe(false);
++    expect(paths.some((p) => p.startsWith('.git/'))).toBe(false);
++  });
++
++  it('includes hidden/ignored files when includeHidden is true', async () => {
++    // With includeHidden, we get --others without --exclude-standard
++    // This might include untracked files that are normally hidden
++    const result = await getFileList(process.cwd(), true);
++    expect(result.ok).toBe(true);
++    if (!result.ok) return;
++    // At minimum, same files as default
++    expect(result.files.length).toBeGreaterThan(0);
++  });
++
++  it('returns not-git error for non-git directory', async () => {
++    const result = await getFileList('/tmp');
++    expect(result.ok).toBe(false);
++    if (result.ok) return;
++    expect(result.error).toBe('not-git');
++  });
++
++  it('handles deleted files gracefully (stat failure)', async () => {
++    // getFileList should skip files where fs.stat() fails
++    // (race condition: file listed by git but deleted before stat)
++    const result = await getFileList(process.cwd());
++    expect(result.ok).toBe(true);
++    if (!result.ok) return;
++    // All returned files should have valid mtime
++    for (const entry of result.files) {
++      expect(entry.mtime).toBeGreaterThan(0);
++    }
++  });
++
++  it('returns sorted file paths', async () => {
++    const result = await getFileList(process.cwd());
++    expect(result.ok).toBe(true);
++    if (!result.ok) return;
++    const paths = result.files.map((f) => f.path);
++    const sorted = [...paths].sort();
++    expect(paths).toEqual(sorted);
++  });
++});

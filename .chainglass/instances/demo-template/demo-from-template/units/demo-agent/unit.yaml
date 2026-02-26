@@ -1,0 +1,18 @@
+slug: demo-agent
+type: agent
+version: 1.0.0
+description: Demo agent unit for UI development
+inputs:
+  - name: task
+    type: data
+    data_type: text
+    required: true
+    description: Task input
+outputs:
+  - name: result
+    type: data
+    data_type: text
+    required: true
+    description: Agent result
+agent:
+  type: claude-code

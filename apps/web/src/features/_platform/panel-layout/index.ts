@@ -7,7 +7,15 @@
  */
 
 // Types
-export type { PanelMode, BarHandler, BarContext, ExplorerPanelHandle } from './types';
+export type {
+  PanelMode,
+  BarHandler,
+  BarContext,
+  ExplorerPanelHandle,
+  FileSearchSortMode,
+  FileSearchEntry,
+  FileChangeInfo,
+} from './types';
 
 // Components
 export { PanelHeader } from './components/panel-header';

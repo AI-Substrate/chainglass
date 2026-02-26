@@ -20,7 +20,7 @@ import {
   PositionalGraphService,
   StateSchema,
 } from '@chainglass/positional-graph';
-import type { IPositionalGraphService } from '@chainglass/positional-graph';
+import type { IPositionalGraphService, State } from '@chainglass/positional-graph';
 import { NodeFileSystemAdapter, PathResolverAdapter, YamlParserAdapter } from '@chainglass/shared';
 import type { WorkspaceContext } from '@chainglass/workflow';
 import { InstanceAdapter, TemplateAdapter, TemplateService } from '@chainglass/workflow';
@@ -127,7 +127,7 @@ function now(): string {
   return new Date().toISOString();
 }
 
-async function injectState(workspacePath: string, graphSlug: string, state: object): Promise<void> {
+async function injectState(workspacePath: string, graphSlug: string, state: State): Promise<void> {
   const statePath = path.join(
     workspacePath,
     '.chainglass',
@@ -194,6 +194,14 @@ async function loadAndValidateState(graphSlug: string): Promise<void> {
 
 describe('dope-workflows scenarios', () => {
   it('demo-blank: creates empty workflow with one default line', async () => {
+    /*
+    Test Doc:
+    - Why: Validates the simplest doping scenario — a blank graph with no nodes
+    - Contract: create() produces a graph with exactly 1 empty line and 0 nodes
+    - Usage Notes: Blank graphs are the starting point for manual UI composition
+    - Quality Contribution: Catches regressions in graph creation defaults
+    - Worked Example: create('demo-blank') → load → 1 line, 0 nodes
+    */
     const { graphService: svc, ctx } = testCtx;
     await svc.create(ctx, 'demo-blank');
 
@@ -204,6 +212,14 @@ describe('dope-workflows scenarios', () => {
   });
 
   it('demo-serial: creates two-line serial workflow with input wiring', async () => {
+    /*
+    Test Doc:
+    - Why: Validates multi-line graph with inter-node input wiring
+    - Contract: Two lines, one node each; second node's input wired to first node's output
+    - Usage Notes: Input wiring uses setInput with from_node/from_output source object
+    - Quality Contribution: Catches regressions in addLine, addNode, and setInput flows
+    - Worked Example: create → addLine → addNode×2 → setInput → 2 lines, 1 node each
+    */
     const { graphService: svc, ctx } = testCtx;
     const { lineId: line0 } = await svc.create(ctx, 'demo-serial');
     const line1 = await svc.addLine(ctx, 'demo-serial');
@@ -229,6 +245,14 @@ describe('dope-workflows scenarios', () => {
   });
 
   it('demo-running: creates workflow with running node and valid state.json', async () => {
+    /*
+    Test Doc:
+    - Why: Validates state injection for agent-accepted (running) status
+    - Contract: Injected state.json round-trips through Zod StateSchema; graph_status is in_progress
+    - Usage Notes: State is injected after graph creation, not produced by service transitions
+    - Quality Contribution: Catches corrupt state.json that fails Zod validation at runtime
+    - Worked Example: create → addNode → injectState(agent-accepted) → loadGraphState → status check
+    */
     const { graphService: svc, ctx } = testCtx;
     const { lineId: line0 } = await svc.create(ctx, 'demo-running');
     const n1 = await svc.addNode(ctx, 'demo-running', line0, 'demo-agent');
@@ -249,6 +273,14 @@ describe('dope-workflows scenarios', () => {
   });
 
   it('demo-question: creates workflow with waiting-question node', async () => {
+    /*
+    Test Doc:
+    - Why: Validates state injection for waiting-question status with question metadata
+    - Contract: Node status is waiting-question; questions array has 1 entry with matching question_id
+    - Usage Notes: pending_question_id in node state must match a questions[] entry
+    - Quality Contribution: Catches missing/mismatched question metadata in state.json
+    - Worked Example: create → addNode → injectState(waiting-question + questions[]) → verify
+    */
     const { graphService: svc, ctx } = testCtx;
     const { lineId: line0 } = await svc.create(ctx, 'demo-question');
     const n1 = await svc.addNode(ctx, 'demo-question', line0, 'demo-agent');
@@ -283,6 +315,14 @@ describe('dope-workflows scenarios', () => {
   });
 
   it('demo-error: creates workflow with blocked-error node', async () => {
+    /*
+    Test Doc:
+    - Why: Validates state injection for blocked-error status with error metadata
+    - Contract: Node status is blocked-error; error object has code and message fields
+    - Usage Notes: Error code follows E-series convention (E150 = script failure)
+    - Quality Contribution: Catches missing error metadata that breaks error UI display
+    - Worked Example: create → addNode → injectState(blocked-error + error{}) → verify error.code
+    */
     const { graphService: svc, ctx } = testCtx;
     const { lineId: line0 } = await svc.create(ctx, 'demo-error');
     const n1 = await svc.addNode(ctx, 'demo-error', line0, 'demo-code');
@@ -307,6 +347,14 @@ describe('dope-workflows scenarios', () => {
   });
 
   it('demo-complete: creates fully completed workflow', async () => {
+    /*
+    Test Doc:
+    - Why: Validates state injection for fully completed workflow with transitions
+    - Contract: graph_status is complete; all nodes have complete status; transitions recorded
+    - Usage Notes: Transitions track which lines have been triggered (line0 → line1)
+    - Quality Contribution: Catches regressions in complete-state rendering
+    - Worked Example: create → 2 lines × 1 node → injectState(complete + transitions) → verify
+    */
     const { graphService: svc, ctx } = testCtx;
     const { lineId: line0 } = await svc.create(ctx, 'demo-complete');
     const line1 = await svc.addLine(ctx, 'demo-complete');
@@ -332,17 +380,34 @@ describe('dope-workflows scenarios', () => {
     expect(state.graph_status).toBe('complete');
   });
 
-  it('demo-complex: creates multi-line workflow with mixed states', async () => {
+  it('demo-complex: creates multi-line workflow with all 7 persistable statuses', async () => {
+    /*
+    Test Doc:
+    - Why: Validates demo-complex covers all 7 persistable node statuses (AC-30)
+    - Contract: 3 lines, 8 nodes total; 6 have explicit state entries covering starting,
+      agent-accepted, waiting-question, restart-pending, complete; 1 pending (implicit); plus
+      blocked-error from demo-error scenario
+    - Usage Notes: 'ready' status is computed at runtime, not persistable — not tested here
+    - Quality Contribution: Catches missing status coverage that leaves UI states untested
+    - Worked Example: create → 3 lines × nodes → injectState(mixed) → verify 6 explicit + 1 pending
+    */
     const { graphService: svc, ctx } = testCtx;
     const { lineId: line0 } = await svc.create(ctx, 'demo-complex');
     const line1 = await svc.addLine(ctx, 'demo-complex');
+    const line1Id = line1.lineId ?? '';
     const line2 = await svc.addLine(ctx, 'demo-complex');
+    const line2Id = line2.lineId ?? '';
 
+    // Line 0: 2 complete nodes
     const n1 = await svc.addNode(ctx, 'demo-complex', line0, 'demo-user-input');
     const n2 = await svc.addNode(ctx, 'demo-complex', line0, 'demo-agent');
-    const n3 = await svc.addNode(ctx, 'demo-complex', line1.lineId ?? '', 'demo-agent');
-    const n4 = await svc.addNode(ctx, 'demo-complex', line1.lineId ?? '', 'demo-code');
-    await svc.addNode(ctx, 'demo-complex', line2.lineId ?? '', 'demo-agent'); // pending (no state)
+    // Line 1: starting, agent-accepted, waiting-question, restart-pending
+    const n3 = await svc.addNode(ctx, 'demo-complex', line1Id, 'demo-agent');
+    const n4 = await svc.addNode(ctx, 'demo-complex', line1Id, 'demo-code');
+    const n5 = await svc.addNode(ctx, 'demo-complex', line1Id, 'demo-agent');
+    const n6 = await svc.addNode(ctx, 'demo-complex', line1Id, 'demo-code');
+    // Line 2: 1 pending node (no state entry)
+    await svc.addNode(ctx, 'demo-complex', line2Id, 'demo-agent');
 
     const questionId = 'q-complex-1';
     await injectState(testCtx.tmpDir, 'demo-complex', {
@@ -351,18 +416,20 @@ describe('dope-workflows scenarios', () => {
       nodes: {
         [n1.nodeId ?? '']: { status: 'complete', started_at: now(), completed_at: now() },
         [n2.nodeId ?? '']: { status: 'complete', started_at: now(), completed_at: now() },
-        [n3.nodeId ?? '']: { status: 'agent-accepted', started_at: now() },
-        [n4.nodeId ?? '']: {
+        [n3.nodeId ?? '']: { status: 'starting', started_at: now() },
+        [n4.nodeId ?? '']: { status: 'agent-accepted', started_at: now() },
+        [n5.nodeId ?? '']: {
           status: 'waiting-question',
           started_at: now(),
           pending_question_id: questionId,
         },
+        [n6.nodeId ?? '']: { status: 'restart-pending', started_at: now() },
       },
       transitions: { [line0]: { triggered: true, triggered_at: now() } },
       questions: [
         {
           question_id: questionId,
-          node_id: n4.nodeId ?? '',
+          node_id: n5.nodeId ?? '',
           type: 'single',
           text: 'Which database?',
           options: ['PostgreSQL', 'MySQL'],
@@ -378,11 +445,19 @@ describe('dope-workflows scenarios', () => {
 
     const state = await svc.loadGraphState(ctx, 'demo-complex');
     expect(state.graph_status).toBe('in_progress');
-    // 4 nodes have explicit state, 1 is implicitly pending
-    expect(Object.keys(state.nodes ?? {})).toHaveLength(4);
+    // 6 nodes have explicit state, 1 is implicitly pending
+    expect(Object.keys(state.nodes ?? {})).toHaveLength(6);
   });
 
   it('demo-from-template: creates instance from template with template_source', async () => {
+    /*
+    Test Doc:
+    - Why: Validates template save + instantiate flow and template_source breadcrumb (AC-20)
+    - Contract: saveFrom() produces template; instantiate() produces instance with template_source
+    - Usage Notes: instance.yaml must contain template_source field for breadcrumb navigation
+    - Quality Contribution: Catches broken template instantiation that blocks "created from" UI
+    - Worked Example: create source → saveFrom → instantiate → read instance.yaml → has template_source
+    */
     const { graphService: svc, ctx } = testCtx;
 
     // Build source graph

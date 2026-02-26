@@ -47,6 +47,10 @@ typecheck:
 # Run all quality checks
 check: lint typecheck test
 
+# Clean Next.js server cache (.next directory)
+clean-next:
+    rm -rf apps/web/.next
+
 # Clean build artifacts
 clean:
     rm -rf packages/*/dist apps/*/dist apps/*/.next node_modules/.cache

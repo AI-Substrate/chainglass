@@ -452,7 +452,7 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
     useFactory: (c) => c.resolve<IWorkUnitLoader>(POSITIONAL_GRAPH_DI_TOKENS.WORKUNIT_SERVICE),
   });
 
-  // Template/Instance services (Plan 048)
+  // Template/Instance services (Plan 050)
   childContainer.register(POSITIONAL_GRAPH_DI_TOKENS.TEMPLATE_ADAPTER, {
     useFactory: (c) =>
       new TemplateAdapter(

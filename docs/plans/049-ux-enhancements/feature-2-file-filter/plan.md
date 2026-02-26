@@ -4,7 +4,7 @@
 **Plan Version**: 2.0.0
 **Created**: 2026-02-26
 **Spec**: [spec.md](./spec.md)
-**Status**: DRAFT
+**Status**: IMPLEMENTED
 
 > **v2.0.0**: UX pivoted from LeftPanel filter bar to ExplorerPanel integration per [Workshop 003](./003-ux-pivot-explorer-bar.md). Plan rewritten.
 
@@ -85,7 +85,7 @@ File search integrated into the ExplorerPanel's existing mode system. When the u
 - [ ] AC-14: SSE delta updates, full re-fetch >50
 - [ ] AC-15: Hidden toggle: --exclude-standard + dot-path filter
 - [ ] AC-16: Non-git fallback (readDir depth 10), empty/error/loading states
-- [ ] AC-17: Context menu (Copy Full Path, Relative, Content, Download)
+- [ ] AC-17: Context menu (Copy Full Path, Relative, Content, Download) **[deferred — follow-up plan]**
 - [ ] AC-18: 300ms debounce
 
 ### Risks

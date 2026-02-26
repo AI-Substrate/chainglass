@@ -47,18 +47,23 @@ export async function getFileList(
     // Deduplicate (--cached + --others can overlap for modified tracked files)
     const uniquePaths = [...new Set(paths)].sort();
 
-    const entries = await Promise.all(
-      uniquePaths.map(async (filePath): Promise<FileListEntry | null> => {
-        try {
-          const fullPath = join(worktreePath, filePath);
-          const st = await stat(fullPath);
-          return { path: filePath, mtime: st.mtimeMs };
-        } catch {
-          // File was deleted between ls-files and stat — skip it
-          return null;
-        }
-      })
-    );
+    const BATCH_SIZE = 200;
+    const entries: (FileListEntry | null)[] = [];
+    for (let i = 0; i < uniquePaths.length; i += BATCH_SIZE) {
+      const batch = await Promise.all(
+        uniquePaths.slice(i, i + BATCH_SIZE).map(async (filePath): Promise<FileListEntry | null> => {
+          try {
+            const fullPath = join(worktreePath, filePath);
+            const st = await stat(fullPath);
+            return { path: filePath, mtime: st.mtimeMs };
+          } catch {
+            // File was deleted between ls-files and stat — skip it
+            return null;
+          }
+        })
+      );
+      entries.push(...batch);
+    }
 
     return { ok: true, files: entries.filter((e): e is FileListEntry => e !== null) };
   } catch {

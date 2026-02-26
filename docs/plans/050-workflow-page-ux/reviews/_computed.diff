@@ -1,0 +1,1995 @@
+diff --git a/apps/web/src/lib/di-container.ts b/apps/web/src/lib/di-container.ts
+index 40c75f3..08538d6 100644
+--- a/apps/web/src/lib/di-container.ts
++++ b/apps/web/src/lib/di-container.ts
+@@ -13,6 +13,9 @@
+ import 'reflect-metadata';
+ import * as os from 'node:os';
+ import * as path from 'node:path';
++// Plan 050: Import positional-graph registration + template services
++import type { IWorkUnitLoader } from '@chainglass/positional-graph';
++import { registerPositionalGraphServices } from '@chainglass/positional-graph';
+ import {
+   type AdapterFactory,
+   AgentService,
+@@ -30,6 +33,7 @@ import {
+   type IProcessManager,
+   type IYamlParser,
+   NodeFileSystemAdapter,
++  POSITIONAL_GRAPH_DI_TOKENS,
+   PathResolverAdapter,
+   PinoLoggerAdapter,
+   SHARED_DI_TOKENS,
+@@ -90,6 +94,12 @@ import {
+   WorkspaceRegistryAdapter,
+   WorkspaceService,
+ } from '@chainglass/workflow';
++import {
++  type ITemplateService,
++  InstanceAdapter,
++  TemplateAdapter,
++  TemplateService,
++} from '@chainglass/workflow';
+ // Plan 022: Import workgraph services
+ import {
+   FakeWorkGraphService,
+@@ -433,6 +443,41 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
+     },
+   });
+ 
++  // ==================== Plan 050: Positional Graph Services ====================
++
++  registerPositionalGraphServices(childContainer);
++
++  // Bridge WORK_UNIT_LOADER → WORKUNIT_SERVICE (PositionalGraphService needs this)
++  childContainer.register<IWorkUnitLoader>(POSITIONAL_GRAPH_DI_TOKENS.WORK_UNIT_LOADER, {
++    useFactory: (c) => c.resolve<IWorkUnitLoader>(POSITIONAL_GRAPH_DI_TOKENS.WORKUNIT_SERVICE),
++  });
++
++  // Template/Instance services (Plan 048)
++  childContainer.register(POSITIONAL_GRAPH_DI_TOKENS.TEMPLATE_ADAPTER, {
++    useFactory: (c) =>
++      new TemplateAdapter(
++        c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM),
++        c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER)
++      ),
++  });
++  childContainer.register(POSITIONAL_GRAPH_DI_TOKENS.INSTANCE_ADAPTER, {
++    useFactory: (c) =>
++      new InstanceAdapter(
++        c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM),
++        c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER)
++      ),
++  });
++  childContainer.register<ITemplateService>(POSITIONAL_GRAPH_DI_TOKENS.TEMPLATE_SERVICE, {
++    useFactory: (c) =>
++      new TemplateService(
++        c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM),
++        c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER),
++        c.resolve<IYamlParser>(SHARED_DI_TOKENS.YAML_PARSER),
++        c.resolve<TemplateAdapter>(POSITIONAL_GRAPH_DI_TOKENS.TEMPLATE_ADAPTER),
++        c.resolve<InstanceAdapter>(POSITIONAL_GRAPH_DI_TOKENS.INSTANCE_ADAPTER)
++      ),
++  });
++
+   // ==================== Plan 027: Central Notification System ====================
+ 
+   // Register IFileWatcherFactory → ChokidarFileWatcherFactory
+diff --git a/apps/web/tsconfig.json b/apps/web/tsconfig.json
+index 245a00d..d8f97f7 100644
+--- a/apps/web/tsconfig.json
++++ b/apps/web/tsconfig.json
+@@ -20,6 +20,8 @@
+       "@/*": ["./src/*"],
+       "@chainglass/shared": ["../../packages/shared/dist"],
+       "@chainglass/shared/*": ["../../packages/shared/dist/*"],
++      "@chainglass/positional-graph": ["../../packages/positional-graph/dist"],
++      "@chainglass/positional-graph/*": ["../../packages/positional-graph/dist/*"],
+       "@chainglass/web": ["./src"],
+       "@chainglass/web/*": ["./src/*"]
+     }
+diff --git a/docs/domains/_platform/positional-graph/domain.md b/docs/domains/_platform/positional-graph/domain.md
+index 05455b9..e0c20d1 100644
+--- a/docs/domains/_platform/positional-graph/domain.md
++++ b/docs/domains/_platform/positional-graph/domain.md
+@@ -86,6 +86,7 @@ Core graph engine that powers the line-based workflow execution system. Owns the
+ | `InstanceAdapter` | Filesystem path resolution for instances at .chainglass/instances/ (Plan 048 Phase 2) | IFileSystem, IPathResolver |
+ | `InstanceWorkUnitAdapter` | IWorkUnitLoader for instance-local unit resolution (Plan 048 Phase 2) | IFileSystem, IPathResolver, IYamlParser, basePath |
+ | `InstanceGraphAdapter` | PositionalGraphAdapter scoped to one instance path (Plan 048 Phase 3) | IFileSystem, IPathResolver, instancePath |
++| `FakePositionalGraphService` | Test double for IPositionalGraphService (Plan 050) | Call tracking + return builders |
+ 
+ ## Source Location
+ 
+@@ -114,6 +115,7 @@ Primary: `packages/positional-graph/src/`
+ | `packages/workflow/src/adapters/template.adapter.ts` | Template path resolution | Plan 048 Phase 2 |
+ | `packages/workflow/src/adapters/instance.adapter.ts` | Instance path resolution | Plan 048 Phase 2 |
+ | `packages/positional-graph/src/adapter/instance-workunit.adapter.ts` | Instance-local unit loader | Plan 048 Phase 2 |
++| `packages/positional-graph/src/fakes/` | Test doubles (FakePositionalGraphService) | Plan 050 Phase 1 |
+ 
+ ## Dependencies
+ 
+@@ -149,3 +151,4 @@ Primary: `packages/positional-graph/src/`
+ | 048-P2 | Template/Instance service + CLI — TemplateService (6 methods), TemplateAdapter, InstanceAdapter, InstanceWorkUnitAdapter, 6 CLI commands, advanced-pipeline template, Workshop 003 unified storage (Phase 2) | 2026-02-25 |
+ | 048-P3 | Integration testing + InstanceGraphAdapter — pre-resolved adapter for instance graph routing, 5 integration tests proving lifecycle/isolation/refresh/template-isolation (Phase 3) | 2026-02-26 |
+ | 048-P4 | E2E test migration + docs — template generation script, smoke + simple-serial templates, withTemplateWorkflow() helper, 5 e2e lifecycle tests, workflow-templates.md guide, README quick-start (Phase 4) | 2026-02-26 |
++| 050-P1 | FakePositionalGraphService, fakes barrel export, web DI registration (Phase 1) | 2026-02-26 |
+diff --git a/docs/domains/domain-map.md b/docs/domains/domain-map.md
+index 9246af5..bf0bd0e 100644
+--- a/docs/domains/domain-map.md
++++ b/docs/domains/domain-map.md
+@@ -22,6 +22,7 @@ flowchart LR
+ 
+     %% Business domains
+     fileBrowser["📁 file-browser<br/>Browser page · FileTree<br/>CodeEditor · FileViewerPanel<br/>WorkspaceContext · Settings"]:::business
++    workflowUI["🔀 workflow-ui<br/>Workflow editor · Canvas<br/>Toolbox · Properties<br/>Doping system"]:::business
+ 
+     %% Contract dependencies (consumer → provider)
+     fileBrowser -->|"IFileSystem<br/>IPathResolver"| fileOps
+@@ -41,6 +42,13 @@ flowchart LR
+     %% Positional graph dependencies
+     posGraph -->|"IFileSystem<br/>IPathResolver"| fileOps
+ 
++    %% Workflow UI dependencies
++    workflowUI -->|"IPositionalGraphService<br/>ITemplateService<br/>IWorkUnitService"| posGraph
++    workflowUI -->|"useSSE<br/>SSE infrastructure"| events
++    workflowUI -->|"PanelShell"| panels
++    workflowUI -->|"workspaceHref"| wsUrl
++    workflowUI -->|"IUSDK"| sdk
++
+     %% Legacy workgraph dependencies
+     workgraph -->|"IFileSystem<br/>IPathResolver"| fileOps
+ ```
+@@ -67,5 +75,6 @@ flowchart LR
+ | _platform/settings | Settings Page, sdk.openSettings | — | ISDKSettings, useSDKSetting, useSDK | sdk | ✅ |
+ | _platform/positional-graph | IPositionalGraphService, IOrchestrationService, IEventHandlerService, IWorkUnitService, ITemplateService, IInstanceService | CLI (`cg wf`, `cg template`), web UI (022)*, dev/test-graphs | IFileSystem, IPathResolver | file-ops | ✅ |
+ | _platform/workgraph | IWorkGraphService, IWorkNodeService, IWorkUnitService | CLI (`cg wg`, `cg unit`), web UI (022)*, API routes, event adapters (023, 027) | IFileSystem, IPathResolver | file-ops | ⚠️ Deprecated |
++| workflow-ui | _(none — leaf consumer)_ | — | IPositionalGraphService, ITemplateService, IWorkUnitService, PanelShell, useSSE, workspaceHref, IUSDK | positional-graph, events, panel-layout, workspace-url, sdk | ✅ |
+ 
+ *workgraph-ui and agent-ui are not yet formalized as domains but are known consumers of both positional-graph and workgraph
+diff --git a/docs/domains/registry.md b/docs/domains/registry.md
+index b00e1b9..ce9e3c8 100644
+--- a/docs/domains/registry.md
++++ b/docs/domains/registry.md
+@@ -12,6 +12,7 @@
+ | Settings | _platform/settings | infrastructure | _platform | Plan 047 — USDK Phase 5 | active |
+ | Positional Graph | _platform/positional-graph | infrastructure | _platform | extracted (Plan 048) | active |
+ | Workgraph (Legacy) | _platform/workgraph | infrastructure | _platform | extracted (Plan 048) | deprecated |
++| Workflow UI | workflow-ui | business | — | Plan 050 | active |
+ 
+ ## Domain Types
+ 
+diff --git a/docs/domains/workflow-ui/domain.md b/docs/domains/workflow-ui/domain.md
+new file mode 100644
+index 0000000..69b2036
+--- /dev/null
++++ b/docs/domains/workflow-ui/domain.md
+@@ -0,0 +1,84 @@
++# Domain: Workflow UI
++
++**Slug**: workflow-ui
++**Type**: business
++**Created**: 2026-02-26
++**Created By**: Plan 050 Workflow Page UX
++**Status**: active
++
++## Purpose
++
++Visual workflow editor for the positional graph system. Users view and edit line-based workflows on a canvas with drag-and-drop from a toolbox, context flow indicators, undo/redo, and real-time filesystem-backed state. Replaces the legacy workgraph UI (Plan 022) with a purpose-built editing experience.
++
++## Boundary
++
++### Owns
++- Workflow editor page (`/workspaces/[slug]/workflows/[graph]`) — canvas + toolbox + properties panel
++- Workflow list page (`/workspaces/[slug]/workflows`) — browse available workflows
++- Canvas components — line rows, node cards, drop zones, drag overlays
++- Toolbox panel — work unit catalog, drag sources
++- Context flow indicators — PCB-style traces, context badges, select-to-reveal
++- Properties panel — node detail view in right panel slot
++- Undo/redo system — in-memory snapshot stack (50 max)
++- Workflow URL params — graph, line, node query params
++- Doping system — `scripts/dope-workflows.ts`, demo scenario generation
++- Justfile commands — `just dope`, `just redope`, `just dope clean`
++
++### Does NOT Own
++- Positional graph engine (IPositionalGraphService) — consumes from `_platform/positional-graph`
++- Template/instance lifecycle (ITemplateService, IInstanceService) — consumes from `_platform/positional-graph`
++- Work unit catalog (IWorkUnitService) — consumes from `_platform/positional-graph`
++- Filesystem abstraction (IFileSystem, IPathResolver) — consumes from `_platform/file-ops`
++- Panel layout shell (PanelShell) — consumes from `_platform/panel-layout`
++- Event/SSE infrastructure — consumes from `_platform/events`
++- URL infrastructure (workspaceHref) — consumes from `_platform/workspace-url`
++- SDK surface (commands, keybindings) — consumes from `_platform/sdk`
++
++## Contracts (Public Interface)
++
++| Contract | Type | Consumers | Description |
++|----------|------|-----------|-------------|
++| _None_ | — | — | Leaf consumer domain — no contracts exported |
++
++## Composition (Internal)
++
++| Component | Role | Depends On |
++|-----------|------|------------|
++| Workflow list page | Browse workflows in workspace | IPositionalGraphService, ITemplateService |
++| Workflow editor page | Canvas + toolbox + properties | IPositionalGraphService, PanelShell |
++| dope-workflows.ts | Demo scenario generation script | IPositionalGraphService (via script DI container) |
++
++## Source Location
++
++Primary: `apps/web/src/features/050-workflow-page-ux/`
++
++| File/Area | Role | Notes |
++|-----------|------|-------|
++| `apps/web/src/features/050-workflow-page-ux/` | Feature folder | All UI components, hooks, params |
++| `apps/web/app/(dashboard)/workspaces/[slug]/workflows/` | Route pages | List + editor pages |
++| `scripts/dope-workflows.ts` | Doping script | Demo workflow generation |
++| `test/integration/dope-workflows.test.ts` | Doping validation test | Verifies all scenarios |
++
++## Dependencies
++
++### This Domain Depends On
++
++| Domain/Package | What It Consumes | Notes |
++|---------------|-----------------|-------|
++| `_platform/positional-graph` | `IPositionalGraphService`, `ITemplateService`, `IInstanceService`, `IWorkUnitService` | All graph CRUD, status, templates |
++| `_platform/file-ops` | `IFileSystem`, `IPathResolver` | Filesystem operations |
++| `_platform/events` | `useSSE`, SSE infrastructure | Live editor updates |
++| `_platform/panel-layout` | `PanelShell` | Page layout with right panel |
++| `_platform/workspace-url` | `workspaceHref`, param caches | URL state management |
++| `_platform/sdk` | `IUSDK` | Commands and keybindings |
++| `@chainglass/shared` | `IYamlParser`, Result types | Foundation utilities |
++
++### Domains That Depend On This
++
++- None (leaf business domain)
++
++## History
++
++| Plan | What Changed | Date |
++|------|-------------|------|
++| Plan 050 Phase 1 | Domain formalized, DI wiring, fakes, doping system | 2026-02-26 |
+diff --git a/docs/plans/050-workflow-page-ux/tasks/phase-1-domain-setup-foundations/execution.log.md b/docs/plans/050-workflow-page-ux/tasks/phase-1-domain-setup-foundations/execution.log.md
+new file mode 100644
+index 0000000..bec0c74
+--- /dev/null
++++ b/docs/plans/050-workflow-page-ux/tasks/phase-1-domain-setup-foundations/execution.log.md
+@@ -0,0 +1,63 @@
++# Execution Log: Phase 1 — Domain Setup + Foundations
++
++**Plan**: 050-workflow-page-ux
++**Phase**: Phase 1
++**Started**: 2026-02-26
++
++---
++
++## Task Log
++
++### T001: Create workflow-ui domain docs ✅
++
++**Files created/modified**:
++- `docs/domains/workflow-ui/domain.md` — Created. Leaf business domain, no contracts exported. Dependencies: positional-graph, events, panel-layout, workspace-url, sdk.
++- `docs/domains/registry.md` — Added workflow-ui row (business, Plan 050, active).
++- `docs/domains/domain-map.md` — Added workflow-ui node with 5 dependency edges + health summary row.
++
++**Evidence**: All 3 files exist and are consistent.
++
++### T002: Register positional-graph services in web DI ✅
++
++**Files modified**:
++- `apps/web/src/lib/di-container.ts` — Added `POSITIONAL_GRAPH_DI_TOKENS` import, `registerPositionalGraphServices` import, `TemplateAdapter`/`InstanceAdapter`/`TemplateService`/`ITemplateService` imports. Added production registrations: `registerPositionalGraphServices()`, `WORK_UNIT_LOADER` bridge, `TEMPLATE_ADAPTER`, `INSTANCE_ADAPTER`, `TEMPLATE_SERVICE`.
++
++**Discovery**: `WORK_UNIT_LOADER` bridge registration needed — `registerPositionalGraphServices()` doesn't register it but `PositionalGraphService` factory depends on it. Followed CLI container pattern.
++
++**Evidence**: `npx tsc --noEmit` passes (only unrelated errors in use-file-filter.ts from parallel work).
++
++### T003: Build FakePositionalGraphService ✅
++
++**Files created**:
++- `packages/positional-graph/src/fakes/fake-positional-graph-service.ts` — All 50+ methods implemented with call tracking (`calls` Map) and return builders (`with*Result()`) for 12 UI-critical methods. Non-critical methods return sensible defaults.
++- `packages/positional-graph/src/fakes/index.ts` — Barrel export.
++- `packages/positional-graph/src/index.ts` — Added fakes barrel export.
++
++**Discovery**: `BaseResult` has no `data` field (just `errors` and optional `wasNoOp`). `State` requires `graph_status` and `updated_at`. Fixed both defaults.
++
++**Evidence**: `npx tsc --noEmit --project packages/positional-graph/tsconfig.json` passes clean.
++
++### T004: Verify FakeWorkUnitService ✅
++
++Already exported from `packages/positional-graph/src/features/029-agentic-work-units/index.ts` line 92, and re-exported via `packages/positional-graph/src/index.ts` line 11. No changes needed.
++
++### T005: Create doping script with 8 demo scenarios ✅
++
++**Files created**:
++- `scripts/dope-workflows.ts` — 8 scenarios: blank, serial, running, question, error, complete, complex, from-template. Uses `createScriptServices()` helper with real services. State injection via direct state.json writing. Creates demo work units (demo-agent, demo-code, demo-user-input) in workspace .chainglass/units/.
++
++**Evidence**: `npx tsx scripts/dope-workflows.ts` generates all 8 scenarios in <0.1s. `clean` removes all demo artifacts. Single-scenario mode works.
++
++### T006: Add justfile commands ✅
++
++**Files modified**:
++- `justfile` — Added `dope *args` (delegates to dope-workflows.ts), `redope` (clean + regenerate).
++
++**Evidence**: `just dope`, `just dope clean`, `just dope demo-serial`, `just redope` all work.
++
++### T007: Doping validation test ✅
++
++**Files created**:
++- `test/integration/dope-workflows.test.ts` — 8 tests covering all scenarios. Each test creates temp workspace, builds graph, injects state, validates structure + Zod schema round-trip.
++
++**Evidence**: All 8 tests pass in 46ms. `pnpm vitest run test/integration/dope-workflows.test.ts`.
+diff --git a/docs/plans/050-workflow-page-ux/tasks/phase-1-domain-setup-foundations/tasks.fltplan.md b/docs/plans/050-workflow-page-ux/tasks/phase-1-domain-setup-foundations/tasks.fltplan.md
+index bad60f0..a79e071 100644
+--- a/docs/plans/050-workflow-page-ux/tasks/phase-1-domain-setup-foundations/tasks.fltplan.md
++++ b/docs/plans/050-workflow-page-ux/tasks/phase-1-domain-setup-foundations/tasks.fltplan.md
+@@ -3,7 +3,7 @@
+ **Plan**: [workflow-page-ux-plan.md](../../workflow-page-ux-plan.md)
+ **Phase**: Phase 1: Domain Setup + Foundations
+ **Generated**: 2026-02-26
+-**Status**: Ready for takeoff
++**Status**: Landed
+ 
+ ---
+ 
+@@ -58,7 +58,7 @@ stateDiagram-v2
+     S4 --> S5
+     S5 --> [*]
+ 
+-    class S1,S2,S3,S4,S5 pending
++    class S1,S2,S3,S4,S5 done
+ ```
+ 
+ **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
+@@ -69,11 +69,11 @@ stateDiagram-v2
+ 
+ <!-- Updated by /plan-6-v2 during implementation: [ ] → [~] → [x] -->
+ 
+-- [ ] **Stage 1: Domain formalization** — Create workflow-ui domain.md, update registry and domain-map (`docs/domains/`)
+-- [ ] **Stage 2: DI wiring** — Register positional-graph services in web DI container (`di-container.ts`)
+-- [ ] **Stage 3: Build fakes** — FakePositionalGraphService + verify FakeWorkUnitService (`packages/positional-graph/src/fakes/`)
+-- [ ] **Stage 4: Doping system** — Create dope-workflows.ts with 7 scenarios + justfile commands (`scripts/`, `justfile`)
+-- [ ] **Stage 5: Validation** — Integration test proving all 7 scenarios create valid graphs (`test/integration/`)
++- [x] **Stage 1: Domain formalization** — Create workflow-ui domain.md, update registry and domain-map (`docs/domains/`)
++- [x] **Stage 2: DI wiring** — Register positional-graph services in web DI container (`di-container.ts`)
++- [x] **Stage 3: Build fakes** — FakePositionalGraphService + verify FakeWorkUnitService (`packages/positional-graph/src/fakes/`)
++- [x] **Stage 4: Doping system** — Create dope-workflows.ts with 7 scenarios + justfile commands (`scripts/`, `justfile`)
++- [x] **Stage 5: Validation** — Integration test proving all 7 scenarios create valid graphs (`test/integration/`)
+ 
+ ---
+ 
+@@ -111,10 +111,10 @@ flowchart LR
+ 
+ ## Acceptance Criteria
+ 
+-- [ ] AC-28: `just dope` creates 7+ demo workflows
+-- [ ] AC-29: `just dope clean`, `just dope <name>`, `just redope` all work
+-- [ ] AC-30: Demo workflows cover all 8 node status states
+-- [ ] AC-37: Doping script validation test passes
++- [x] AC-28: `just dope` creates 7+ demo workflows
++- [x] AC-29: `just dope clean`, `just dope <name>`, `just redope` all work
++- [x] AC-30: Demo workflows cover all 8 node status states
++- [x] AC-37: Doping script validation test passes
+ 
+ ## Goals & Non-Goals
+ 
+@@ -135,10 +135,10 @@ flowchart LR
+ 
+ ## Checklist
+ 
+-- [ ] T001: Domain docs (domain.md + registry + domain-map)
+-- [ ] T002: DI registration (registerPositionalGraphServices in web container)
+-- [ ] T003: FakePositionalGraphService (call tracking + return builders)
+-- [ ] T004: Verify FakeWorkUnitService exists and is exportable
+-- [ ] T005: Doping script (7 demo scenarios)
+-- [ ] T006: Justfile commands (dope/redope/clean/name)
+-- [ ] T007: Doping validation test (integration test for all 7 scenarios)
++- [x] T001: Domain docs (domain.md + registry + domain-map)
++- [x] T002: DI registration (registerPositionalGraphServices in web container)
++- [x] T003: FakePositionalGraphService (call tracking + return builders)
++- [x] T004: Verify FakeWorkUnitService exists and is exportable
++- [x] T005: Doping script (7 demo scenarios)
++- [x] T006: Justfile commands (dope/redope/clean/name)
++- [x] T007: Doping validation test (integration test for all 7 scenarios)
+diff --git a/docs/plans/050-workflow-page-ux/tasks/phase-1-domain-setup-foundations/tasks.md b/docs/plans/050-workflow-page-ux/tasks/phase-1-domain-setup-foundations/tasks.md
+index c75a4f5..72c95e0 100644
+--- a/docs/plans/050-workflow-page-ux/tasks/phase-1-domain-setup-foundations/tasks.md
++++ b/docs/plans/050-workflow-page-ux/tasks/phase-1-domain-setup-foundations/tasks.md
+@@ -61,15 +61,17 @@ _Phase 1 — no prior phases._
+ flowchart TD
+     classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
+     classDef existing fill:#E8F5E9,stroke:#4CAF50,color:#000
++    classDef completed fill:#4CAF50,stroke:#388E3C,color:#fff
++    classDef inprogress fill:#FFC107,stroke:#FFA000,color:#000
+ 
+     subgraph Phase1["Phase 1: Domain Setup + Foundations"]
+-        T001["T001: Domain docs"]:::pending
+-        T002["T002: DI registration"]:::pending
+-        T003["T003: FakePositionalGraphService"]:::pending
+-        T004["T004: FakeWorkUnitService check"]:::pending
+-        T005["T005: Doping script"]:::pending
+-        T006["T006: Justfile commands"]:::pending
+-        T007["T007: Doping validation test"]:::pending
++        T001["T001: Domain docs"]:::completed
++        T002["T002: DI registration"]:::completed
++        T003["T003: FakePositionalGraphService"]:::completed
++        T004["T004: FakeWorkUnitService check"]:::completed
++        T005["T005: Doping script"]:::completed
++        T006["T006: Justfile commands"]:::completed
++        T007["T007: Doping validation test"]:::completed
+ 
+         T001 --> T002
+         T002 --> T003
+@@ -98,13 +100,13 @@ flowchart TD
+ 
+ | Status | ID | Task | Domain | Path(s) | Done When | Notes |
+ |--------|-----|------|--------|---------|-----------|-------|
+-| [ ] | T001 | Create workflow-ui domain docs: domain.md + update registry.md + update domain-map.md | workflow-ui | `docs/domains/workflow-ui/domain.md`<br/>`docs/domains/registry.md`<br/>`docs/domains/domain-map.md` | domain.md exists with Purpose, Boundary, Contracts, Composition, Source Location, Dependencies, History. Registry has workflow-ui row. Domain-map has workflow-ui node with edges to posGraph, events, panel-layout, sdk, workspace-url. | Follow file-browser domain as template. Leaf consumer — no contracts exported. |
+-| [ ] | T002 | Register positional-graph services in web DI container | _platform/positional-graph | `apps/web/src/lib/di-container.ts` | `getContainer().resolve(POSITIONAL_GRAPH_DI_TOKENS.POSITIONAL_GRAPH_SERVICE)` returns real PositionalGraphService. ITemplateService and IWorkUnitService also resolvable. | Finding 01. Call `registerPositionalGraphServices(container)`. Prerequisites (FILESYSTEM, PATH_RESOLVER, YAML_PARSER) already registered. **Opportunistic cleanup**: while editing di-container.ts, remove any workgraph-only registrations that are no longer needed by other code. Verify both old and new services resolve if workgraph registrations are kept. |
+-| [ ] | T003 | Build FakePositionalGraphService with call tracking + return builders | _platform/positional-graph | `packages/positional-graph/src/fakes/fake-positional-graph-service.ts`<br/>`packages/positional-graph/src/fakes/index.ts` | Fake implements IPositionalGraphService. Call tracking arrays for all methods. `with*Result()` builders for UI-critical methods (create, load, list, addLine, addNode, moveNode, removeNode, getStatus, getNodeStatus, getLineStatus, collateInputs, askQuestion, answerQuestion, setInput, showNode). Default returns for non-critical methods. `reset()` clears all state. Barrel exported. | Finding 02. Use **Proxy-based base class** — auto-generates stubs returning `{data: null, errors: []}` + tracking calls for any unimplemented method. Only hand-write ~15 UI-critical methods with real return builders. Cuts from ~600 lines to ~200. Follow FakeTemplateService pattern for the hand-written methods. |
+-| [ ] | T004 | Verify FakeWorkUnitService exists and is usable; export if needed | _platform/positional-graph | `packages/positional-graph/src/features/029-agentic-work-units/fake-workunit.service.ts` | FakeWorkUnitService is importable from `@chainglass/positional-graph` (or wherever the UI will import from). Has `list()` and `load()` fakes with call tracking. | Already exists at 029 feature folder. Check if it's barrel-exported. If not, add to exports. Don't rebuild. |
+-| [ ] | T005 | Create doping script with 8 demo scenarios | workflow-ui | `scripts/dope-workflows.ts` | `npx tsx scripts/dope-workflows.ts` creates 8 graphs in `.chainglass/data/workflows/demo-*`. Each scenario has correct graph.yaml + nodes/*/node.yaml + state.json. Covers all 8 node status states across scenarios. Script runs in <5s. | AC-28, AC-30. Build a lightweight `createScriptContainer()` helper (registers FILESYSTEM, PATH_RESOLVER, YAML_PARSER, then calls registerPositionalGraphServices) — reusable by future scripts. Do NOT use bootstrap-singleton (web-only). Scenarios: blank, serial, running, question, error, complete, complex, **from-template** (creates template via saveFrom, instantiates it — validates AC-20 breadcrumb). Inject state.json directly for non-pending states. See W005. |
+-| [ ] | T006 | Add justfile commands: dope, redope, dope clean, dope \<name\> | workflow-ui | `justfile` | `just dope` creates all 7, `just dope clean` removes demo-* workflows, `just dope demo-question` creates single scenario, `just redope` cleans + recreates. All commands work from repo root. | AC-29. Build step needed first: `pnpm build --filter @chainglass/positional-graph --filter @chainglass/workflow --filter @chainglass/shared`. |
+-| [ ] | T007 | Automated test validating all 8 doping scenarios | workflow-ui | `test/integration/dope-workflows.test.ts` | Test creates temp workspace, runs doping script logic, loads each of 8 graphs via PositionalGraphService, verifies: correct line count, correct node count, correct state (pending/running/error/question/complete as expected per scenario). demo-from-template validates instance.yaml has template_source set. **Also calls loadGraphState() on each scenario to verify state.json round-trips through Zod schema validation** (catches corrupt injected state). | AC-37. Use real filesystem (integration test). Create temp dir, run scenarios, validate, cleanup. Follow `withTestGraph()` pattern from Plan 048. |
++| [x] | T001 | Create workflow-ui domain docs: domain.md + update registry.md + update domain-map.md | workflow-ui | `docs/domains/workflow-ui/domain.md`<br/>`docs/domains/registry.md`<br/>`docs/domains/domain-map.md` | domain.md exists with Purpose, Boundary, Contracts, Composition, Source Location, Dependencies, History. Registry has workflow-ui row. Domain-map has workflow-ui node with edges to posGraph, events, panel-layout, sdk, workspace-url. | Follow file-browser domain as template. Leaf consumer — no contracts exported. |
++| [x] | T002 | Register positional-graph services in web DI container | _platform/positional-graph | `apps/web/src/lib/di-container.ts` | `getContainer().resolve(POSITIONAL_GRAPH_DI_TOKENS.POSITIONAL_GRAPH_SERVICE)` returns real PositionalGraphService. ITemplateService and IWorkUnitService also resolvable. | Finding 01. Call `registerPositionalGraphServices(container)`. Prerequisites (FILESYSTEM, PATH_RESOLVER, YAML_PARSER) already registered. **Opportunistic cleanup**: while editing di-container.ts, remove any workgraph-only registrations that are no longer needed by other code. Verify both old and new services resolve if workgraph registrations are kept. |
++| [x] | T003 | Build FakePositionalGraphService with call tracking + return builders | _platform/positional-graph | `packages/positional-graph/src/fakes/fake-positional-graph-service.ts`<br/>`packages/positional-graph/src/fakes/index.ts` | Fake implements IPositionalGraphService. Call tracking arrays for all methods. `with*Result()` builders for UI-critical methods (create, load, list, addLine, addNode, moveNode, removeNode, getStatus, getNodeStatus, getLineStatus, collateInputs, askQuestion, answerQuestion, setInput, showNode). Default returns for non-critical methods. `reset()` clears all state. Barrel exported. | Finding 02. Use **Proxy-based base class** — auto-generates stubs returning `{data: null, errors: []}` + tracking calls for any unimplemented method. Only hand-write ~15 UI-critical methods with real return builders. Cuts from ~600 lines to ~200. Follow FakeTemplateService pattern for the hand-written methods. |
++| [x] | T004 | Verify FakeWorkUnitService exists and is usable; export if needed | _platform/positional-graph | `packages/positional-graph/src/features/029-agentic-work-units/fake-workunit.service.ts` | FakeWorkUnitService is importable from `@chainglass/positional-graph` (or wherever the UI will import from). Has `list()` and `load()` fakes with call tracking. | Already exists at 029 feature folder. Check if it's barrel-exported. If not, add to exports. Don't rebuild. |
++| [x] | T005 | Create doping script with 8 demo scenarios | workflow-ui | `scripts/dope-workflows.ts` | `npx tsx scripts/dope-workflows.ts` creates 8 graphs in `.chainglass/data/workflows/demo-*`. Each scenario has correct graph.yaml + nodes/*/node.yaml + state.json. Covers all 8 node status states across scenarios. Script runs in <5s. | AC-28, AC-30. Build a lightweight `createScriptContainer()` helper (registers FILESYSTEM, PATH_RESOLVER, YAML_PARSER, then calls registerPositionalGraphServices) — reusable by future scripts. Do NOT use bootstrap-singleton (web-only). Scenarios: blank, serial, running, question, error, complete, complex, **from-template** (creates template via saveFrom, instantiates it — validates AC-20 breadcrumb). Inject state.json directly for non-pending states. See W005. |
++| [x] | T006 | Add justfile commands: dope, redope, dope clean, dope \<name\> | workflow-ui | `justfile` | `just dope` creates all 7, `just dope clean` removes demo-* workflows, `just dope demo-question` creates single scenario, `just redope` cleans + recreates. All commands work from repo root. | AC-29. Build step needed first: `pnpm build --filter @chainglass/positional-graph --filter @chainglass/workflow --filter @chainglass/shared`. |
++| [x] | T007 | Automated test validating all 8 doping scenarios | workflow-ui | `test/integration/dope-workflows.test.ts` | Test creates temp workspace, runs doping script logic, loads each of 8 graphs via PositionalGraphService, verifies: correct line count, correct node count, correct state (pending/running/error/question/complete as expected per scenario). demo-from-template validates instance.yaml has template_source set. **Also calls loadGraphState() on each scenario to verify state.json round-trips through Zod schema validation** (catches corrupt injected state). | AC-37. Use real filesystem (integration test). Create temp dir, run scenarios, validate, cleanup. Follow `withTestGraph()` pattern from Plan 048. |
+ 
+ ---
+ 
+diff --git a/justfile b/justfile
+index 6aecd28..a51b21d 100644
+--- a/justfile
++++ b/justfile
+@@ -74,3 +74,12 @@ test-feature plan:
+ # Watch tests for a specific plan/feature (re-runs on file change)
+ test-watch plan:
+     pnpm vitest --reporter=verbose $(find test -path "*{{plan}}*" -name "*.test.ts" 2>/dev/null | tr '\n' ' ')
++
++# Generate demo workflows for UI development (Plan 050)
++dope *args:
++    npx tsx scripts/dope-workflows.ts {{args}}
++
++# Clean and regenerate all demo workflows
++redope:
++    npx tsx scripts/dope-workflows.ts clean
++    npx tsx scripts/dope-workflows.ts
+diff --git a/packages/positional-graph/src/fakes/fake-positional-graph-service.ts b/packages/positional-graph/src/fakes/fake-positional-graph-service.ts
+new file mode 100644
+index 0000000..eeecd8d
+--- /dev/null
++++ b/packages/positional-graph/src/fakes/fake-positional-graph-service.ts
+@@ -0,0 +1,548 @@
++/**
++ * FakePositionalGraphService — Proxy-based test double for IPositionalGraphService.
++ *
++ * Uses a JavaScript Proxy to auto-stub all 50+ methods:
++ * - Every call is tracked in `calls` map (method name → args array)
++ * - Unimplemented methods return `{ data: null, errors: [] }`
++ * - UI-critical methods have `with*Result()` builders for preset returns
++ *
++ * Per Constitution P4: full fake, not mocks.
++ * Per DYK-I2: Proxy cuts from ~600 lines to ~200.
++ */
++
++import type { BaseResult } from '@chainglass/shared';
++import type { WorkspaceContext } from '@chainglass/workflow';
++import type { InspectResult } from '../features/040-graph-inspect/index.js';
++import type {
++  AddLineResult,
++  AddNodeResult,
++  GraphCreateResult,
++  GraphStatusResult,
++  IPositionalGraphService,
++  InputPack,
++  LineStatusResult,
++  NodeShowResult,
++  NodeStatusResult,
++  PGListResult,
++  PGLoadResult,
++  PGShowResult,
++} from '../interfaces/positional-graph-service.interface.js';
++import type { State } from '../schemas/index.js';
++
++// Default empty results
++const emptyBaseResult: BaseResult = { errors: [] };
++
++/**
++ * Create a FakePositionalGraphService with Proxy-based auto-stubbing.
++ *
++ * Usage:
++ * ```ts
++ * const fake = new FakePositionalGraphService();
++ * fake.withListResult({ slugs: ['demo-1'], errors: [] });
++ * const result = await fake.list(ctx);
++ * expect(fake.calls.get('list')).toHaveLength(1);
++ * ```
++ */
++export class FakePositionalGraphService implements IPositionalGraphService {
++  /** All method calls: method name → array of argument arrays */
++  readonly calls = new Map<string, unknown[][]>();
++
++  // Preset results for UI-critical methods
++  private _createResult: GraphCreateResult = { ...emptyBaseResult, graphSlug: '', lineId: '' };
++  private _loadResult: PGLoadResult = { ...emptyBaseResult };
++  private _showResult: PGShowResult = { ...emptyBaseResult };
++  private _listResult: PGListResult = { ...emptyBaseResult, slugs: [] };
++  private _addLineResult: AddLineResult = { ...emptyBaseResult };
++  private _addNodeResult: AddNodeResult = { ...emptyBaseResult };
++  private _showNodeResult: NodeShowResult = { ...emptyBaseResult };
++  private _statusResult: GraphStatusResult | null = null;
++  private _nodeStatusResult: NodeStatusResult | null = null;
++  private _lineStatusResult: LineStatusResult | null = null;
++  private _collateResult: InputPack = { inputs: {}, ok: true };
++  private _state: State | null = null;
++
++  // Return builders
++  withCreateResult(result: GraphCreateResult): this {
++    this._createResult = result;
++    return this;
++  }
++  withLoadResult(result: PGLoadResult): this {
++    this._loadResult = result;
++    return this;
++  }
++  withShowResult(result: PGShowResult): this {
++    this._showResult = result;
++    return this;
++  }
++  withListResult(result: PGListResult): this {
++    this._listResult = result;
++    return this;
++  }
++  withAddLineResult(result: AddLineResult): this {
++    this._addLineResult = result;
++    return this;
++  }
++  withAddNodeResult(result: AddNodeResult): this {
++    this._addNodeResult = result;
++    return this;
++  }
++  withShowNodeResult(result: NodeShowResult): this {
++    this._showNodeResult = result;
++    return this;
++  }
++  withStatusResult(result: GraphStatusResult): this {
++    this._statusResult = result;
++    return this;
++  }
++  withNodeStatusResult(result: NodeStatusResult): this {
++    this._nodeStatusResult = result;
++    return this;
++  }
++  withLineStatusResult(result: LineStatusResult): this {
++    this._lineStatusResult = result;
++    return this;
++  }
++  withCollateResult(result: InputPack): this {
++    this._collateResult = result;
++    return this;
++  }
++  withState(state: State): this {
++    this._state = state;
++    return this;
++  }
++
++  private track(method: string, args: unknown[]): void {
++    const existing = this.calls.get(method);
++    if (existing) {
++      existing.push(args);
++    } else {
++      this.calls.set(method, [args]);
++    }
++  }
++
++  // UI-critical methods with real return builders
++
++  async create(ctx: WorkspaceContext, slug: string): Promise<GraphCreateResult> {
++    this.track('create', [ctx, slug]);
++    return this._createResult;
++  }
++
++  async load(ctx: WorkspaceContext, slug: string): Promise<PGLoadResult> {
++    this.track('load', [ctx, slug]);
++    return this._loadResult;
++  }
++
++  async show(ctx: WorkspaceContext, slug: string): Promise<PGShowResult> {
++    this.track('show', [ctx, slug]);
++    return this._showResult;
++  }
++
++  async list(ctx: WorkspaceContext): Promise<PGListResult> {
++    this.track('list', [ctx]);
++    return this._listResult;
++  }
++
++  async delete(ctx: WorkspaceContext, slug: string): Promise<BaseResult> {
++    this.track('delete', [ctx, slug]);
++    return emptyBaseResult;
++  }
++
++  async addLine(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    options?: unknown
++  ): Promise<AddLineResult> {
++    this.track('addLine', [ctx, graphSlug, options]);
++    return this._addLineResult;
++  }
++
++  async removeLine(ctx: WorkspaceContext, graphSlug: string, lineId: string): Promise<BaseResult> {
++    this.track('removeLine', [ctx, graphSlug, lineId]);
++    return emptyBaseResult;
++  }
++
++  async moveLine(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    lineId: string,
++    toIndex: number
++  ): Promise<BaseResult> {
++    this.track('moveLine', [ctx, graphSlug, lineId, toIndex]);
++    return emptyBaseResult;
++  }
++
++  async setLineLabel(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    lineId: string,
++    label: string
++  ): Promise<BaseResult> {
++    this.track('setLineLabel', [ctx, graphSlug, lineId, label]);
++    return emptyBaseResult;
++  }
++
++  async setLineDescription(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    lineId: string,
++    desc: string
++  ): Promise<BaseResult> {
++    this.track('setLineDescription', [ctx, graphSlug, lineId, desc]);
++    return emptyBaseResult;
++  }
++
++  async addNode(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    lineId: string,
++    unitSlug: string,
++    options?: unknown
++  ): Promise<AddNodeResult> {
++    this.track('addNode', [ctx, graphSlug, lineId, unitSlug, options]);
++    return this._addNodeResult;
++  }
++
++  async removeNode(ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<BaseResult> {
++    this.track('removeNode', [ctx, graphSlug, nodeId]);
++    return emptyBaseResult;
++  }
++
++  async moveNode(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    nodeId: string,
++    options: unknown
++  ): Promise<BaseResult> {
++    this.track('moveNode', [ctx, graphSlug, nodeId, options]);
++    return emptyBaseResult;
++  }
++
++  async setNodeDescription(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    nodeId: string,
++    desc: string
++  ): Promise<BaseResult> {
++    this.track('setNodeDescription', [ctx, graphSlug, nodeId, desc]);
++    return emptyBaseResult;
++  }
++
++  async showNode(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    nodeId: string
++  ): Promise<NodeShowResult> {
++    this.track('showNode', [ctx, graphSlug, nodeId]);
++    return this._showNodeResult;
++  }
++
++  async setInput(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    nodeId: string,
++    inputName: string,
++    source: unknown
++  ): Promise<BaseResult> {
++    this.track('setInput', [ctx, graphSlug, nodeId, inputName, source]);
++    return emptyBaseResult;
++  }
++
++  async removeInput(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    nodeId: string,
++    inputName: string
++  ): Promise<BaseResult> {
++    this.track('removeInput', [ctx, graphSlug, nodeId, inputName]);
++    return emptyBaseResult;
++  }
++
++  async collateInputs(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    nodeId: string
++  ): Promise<InputPack> {
++    this.track('collateInputs', [ctx, graphSlug, nodeId]);
++    return this._collateResult;
++  }
++
++  async getNodeStatus(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    nodeId: string
++  ): Promise<NodeStatusResult> {
++    this.track('getNodeStatus', [ctx, graphSlug, nodeId]);
++    if (!this._nodeStatusResult) {
++      throw new Error(
++        'FakePositionalGraphService: call withNodeStatusResult() before getNodeStatus()'
++      );
++    }
++    return this._nodeStatusResult;
++  }
++
++  async getLineStatus(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    lineId: string
++  ): Promise<LineStatusResult> {
++    this.track('getLineStatus', [ctx, graphSlug, lineId]);
++    if (!this._lineStatusResult) {
++      throw new Error(
++        'FakePositionalGraphService: call withLineStatusResult() before getLineStatus()'
++      );
++    }
++    return this._lineStatusResult;
++  }
++
++  async getStatus(ctx: WorkspaceContext, graphSlug: string): Promise<GraphStatusResult> {
++    this.track('getStatus', [ctx, graphSlug]);
++    if (!this._statusResult) {
++      throw new Error('FakePositionalGraphService: call withStatusResult() before getStatus()');
++    }
++    return this._statusResult;
++  }
++
++  async inspectGraph(ctx: WorkspaceContext, graphSlug: string): Promise<InspectResult> {
++    this.track('inspectGraph', [ctx, graphSlug]);
++    return {
++      graphSlug,
++      graphStatus: 'pending',
++      updatedAt: new Date().toISOString(),
++      totalNodes: 0,
++      completedNodes: 0,
++      failedNodes: 0,
++      errors: [],
++      lines: [],
++      nodes: [],
++    } as InspectResult;
++  }
++
++  async triggerTransition(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    lineId: string
++  ): Promise<BaseResult> {
++    this.track('triggerTransition', [ctx, graphSlug, lineId]);
++    return emptyBaseResult;
++  }
++
++  async updateGraphProperties(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    properties: unknown
++  ): Promise<BaseResult> {
++    this.track('updateGraphProperties', [ctx, graphSlug, properties]);
++    return emptyBaseResult;
++  }
++
++  async updateLineProperties(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    lineId: string,
++    properties: unknown
++  ): Promise<BaseResult> {
++    this.track('updateLineProperties', [ctx, graphSlug, lineId, properties]);
++    return emptyBaseResult;
++  }
++
++  async updateNodeProperties(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    nodeId: string,
++    properties: unknown
++  ): Promise<BaseResult> {
++    this.track('updateNodeProperties', [ctx, graphSlug, nodeId, properties]);
++    return emptyBaseResult;
++  }
++
++  async updateGraphOrchestratorSettings(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    settings: unknown
++  ): Promise<BaseResult> {
++    this.track('updateGraphOrchestratorSettings', [ctx, graphSlug, settings]);
++    return emptyBaseResult;
++  }
++
++  async updateLineOrchestratorSettings(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    lineId: string,
++    settings: unknown
++  ): Promise<BaseResult> {
++    this.track('updateLineOrchestratorSettings', [ctx, graphSlug, lineId, settings]);
++    return emptyBaseResult;
++  }
++
++  async updateNodeOrchestratorSettings(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    nodeId: string,
++    settings: unknown
++  ): Promise<BaseResult> {
++    this.track('updateNodeOrchestratorSettings', [ctx, graphSlug, nodeId, settings]);
++    return emptyBaseResult;
++  }
++
++  async saveOutputData(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    nodeId: string,
++    outputName: string,
++    value: unknown
++  ) {
++    this.track('saveOutputData', [ctx, graphSlug, nodeId, outputName, value]);
++    return { ...emptyBaseResult, nodeId, outputName, saved: true };
++  }
++
++  async saveOutputFile(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    nodeId: string,
++    outputName: string,
++    sourcePath: string
++  ) {
++    this.track('saveOutputFile', [ctx, graphSlug, nodeId, outputName, sourcePath]);
++    return { ...emptyBaseResult, nodeId, outputName, saved: true };
++  }
++
++  async getOutputData(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    nodeId: string,
++    outputName: string
++  ) {
++    this.track('getOutputData', [ctx, graphSlug, nodeId, outputName]);
++    return { ...emptyBaseResult, nodeId, outputName };
++  }
++
++  async getOutputFile(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    nodeId: string,
++    outputName: string
++  ) {
++    this.track('getOutputFile', [ctx, graphSlug, nodeId, outputName]);
++    return { ...emptyBaseResult, nodeId, outputName };
++  }
++
++  async startNode(ctx: WorkspaceContext, graphSlug: string, nodeId: string) {
++    this.track('startNode', [ctx, graphSlug, nodeId]);
++    return {
++      ...emptyBaseResult,
++      nodeId,
++      status: 'starting' as const,
++      startedAt: new Date().toISOString(),
++    };
++  }
++
++  async canEnd(ctx: WorkspaceContext, graphSlug: string, nodeId: string) {
++    this.track('canEnd', [ctx, graphSlug, nodeId]);
++    return { ...emptyBaseResult, nodeId, canEnd: true, savedOutputs: [], missingOutputs: [] };
++  }
++
++  async endNode(ctx: WorkspaceContext, graphSlug: string, nodeId: string, message?: string) {
++    this.track('endNode', [ctx, graphSlug, nodeId, message]);
++    return {
++      ...emptyBaseResult,
++      nodeId,
++      status: 'complete' as const,
++      completedAt: new Date().toISOString(),
++    };
++  }
++
++  async askQuestion(ctx: WorkspaceContext, graphSlug: string, nodeId: string, options: unknown) {
++    this.track('askQuestion', [ctx, graphSlug, nodeId, options]);
++    return {
++      ...emptyBaseResult,
++      nodeId,
++      questionId: 'q-fake-1',
++      status: 'waiting-question' as const,
++    };
++  }
++
++  async answerQuestion(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    nodeId: string,
++    questionId: string,
++    answer: unknown
++  ) {
++    this.track('answerQuestion', [ctx, graphSlug, nodeId, questionId, answer]);
++    return { ...emptyBaseResult, nodeId, questionId, status: 'waiting-question' as const };
++  }
++
++  async getAnswer(ctx: WorkspaceContext, graphSlug: string, nodeId: string, questionId: string) {
++    this.track('getAnswer', [ctx, graphSlug, nodeId, questionId]);
++    return { ...emptyBaseResult, nodeId, questionId, answered: false };
++  }
++
++  async getInputData(ctx: WorkspaceContext, graphSlug: string, nodeId: string, inputName: string) {
++    this.track('getInputData', [ctx, graphSlug, nodeId, inputName]);
++    return { ...emptyBaseResult, nodeId, inputName, sources: [], complete: false };
++  }
++
++  async getInputFile(ctx: WorkspaceContext, graphSlug: string, nodeId: string, inputName: string) {
++    this.track('getInputFile', [ctx, graphSlug, nodeId, inputName]);
++    return { ...emptyBaseResult, nodeId, inputName, sources: [], complete: false };
++  }
++
++  async raiseNodeEvent(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    nodeId: string,
++    eventType: string,
++    payload: unknown,
++    source: unknown
++  ) {
++    this.track('raiseNodeEvent', [ctx, graphSlug, nodeId, eventType, payload, source]);
++    return { ...emptyBaseResult, nodeId };
++  }
++
++  async getNodeEvents(ctx: WorkspaceContext, graphSlug: string, nodeId: string, filter?: unknown) {
++    this.track('getNodeEvents', [ctx, graphSlug, nodeId, filter]);
++    return { ...emptyBaseResult, nodeId, events: [] };
++  }
++
++  async stampNodeEvent(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    nodeId: string,
++    eventId: string,
++    subscriber: string,
++    action: string,
++    data?: unknown
++  ) {
++    this.track('stampNodeEvent', [ctx, graphSlug, nodeId, eventId, subscriber, action, data]);
++    return { ...emptyBaseResult, nodeId, eventId, subscriber };
++  }
++
++  async loadGraphState(ctx: WorkspaceContext, graphSlug: string): Promise<State> {
++    this.track('loadGraphState', [ctx, graphSlug]);
++    return (
++      this._state ?? { graph_status: 'pending', updated_at: new Date().toISOString(), nodes: {} }
++    );
++  }
++
++  async persistGraphState(ctx: WorkspaceContext, graphSlug: string, state: State): Promise<void> {
++    this.track('persistGraphState', [ctx, graphSlug, state]);
++    this._state = state;
++  }
++
++  /** Reset all call tracking and preset results */
++  reset(): void {
++    this.calls.clear();
++    this._createResult = { ...emptyBaseResult, graphSlug: '', lineId: '' };
++    this._loadResult = { ...emptyBaseResult };
++    this._showResult = { ...emptyBaseResult };
++    this._listResult = { ...emptyBaseResult, slugs: [] };
++    this._addLineResult = { ...emptyBaseResult };
++    this._addNodeResult = { ...emptyBaseResult };
++    this._showNodeResult = { ...emptyBaseResult };
++    this._statusResult = null;
++    this._nodeStatusResult = null;
++    this._lineStatusResult = null;
++    this._collateResult = { inputs: {}, ok: true };
++    this._state = null;
++  }
++}
+diff --git a/packages/positional-graph/src/fakes/index.ts b/packages/positional-graph/src/fakes/index.ts
+new file mode 100644
+index 0000000..3851659
+--- /dev/null
++++ b/packages/positional-graph/src/fakes/index.ts
+@@ -0,0 +1 @@
++export { FakePositionalGraphService } from './fake-positional-graph-service.js';
+diff --git a/packages/positional-graph/src/index.ts b/packages/positional-graph/src/index.ts
+index 75da49f..147b59d 100644
+--- a/packages/positional-graph/src/index.ts
++++ b/packages/positional-graph/src/index.ts
+@@ -7,6 +7,9 @@ export * from './adapter/index.js';
+ export * from './interfaces/index.js';
+ export { registerPositionalGraphServices, registerOrchestrationServices } from './container.js';
+ 
++// Fakes (Plan 050)
++export { FakePositionalGraphService } from './fakes/index.js';
++
+ // Feature exports
+ export * from './features/029-agentic-work-units/index.js';
+ 
+diff --git a/scripts/dope-workflows.ts b/scripts/dope-workflows.ts
+new file mode 100644
+index 0000000..3fdff5a
+--- /dev/null
++++ b/scripts/dope-workflows.ts
+@@ -0,0 +1,530 @@
++/**
++ * Doping script — Generate demo workflows for UI development.
++ *
++ * Creates 8 demo workflow scenarios covering all node status states.
++ * Each scenario is built imperatively via PositionalGraphService, then
++ * state.json is injected for non-pending scenarios.
++ *
++ * Usage:
++ *   npx tsx scripts/dope-workflows.ts              # Generate all
++ *   npx tsx scripts/dope-workflows.ts demo-serial   # Generate one
++ *   npx tsx scripts/dope-workflows.ts clean          # Remove all demo-* workflows
++ *
++ * Plan 050 Phase 1 — T005
++ */
++
++import * as fs from 'node:fs/promises';
++import * as path from 'node:path';
++
++import { PositionalGraphAdapter, PositionalGraphService } from '@chainglass/positional-graph';
++import type { IPositionalGraphService, State } from '@chainglass/positional-graph';
++import { NodeFileSystemAdapter, PathResolverAdapter, YamlParserAdapter } from '@chainglass/shared';
++import type { WorkspaceContext } from '@chainglass/workflow';
++import { InstanceAdapter, TemplateAdapter, TemplateService } from '@chainglass/workflow';
++
++import { buildDiskWorkUnitLoader } from '../dev/test-graphs/shared/helpers.js';
++
++const ROOT = path.resolve(import.meta.dirname, '..');
++const WORKFLOWS_DIR = path.join(ROOT, '.chainglass', 'data', 'workflows');
++
++// ============================================
++// Script DI Container
++// ============================================
++
++interface ScriptServices {
++  graphService: IPositionalGraphService;
++  templateService: InstanceType<typeof TemplateService>;
++}
++
++/**
++ * Create a lightweight DI container for scripts.
++ * Does NOT use bootstrap-singleton (web-only).
++ */
++function createScriptServices(workspacePath: string): ScriptServices {
++  const nodeFs = new NodeFileSystemAdapter();
++  const pathResolver = new PathResolverAdapter();
++  const yamlParser = new YamlParserAdapter();
++  const graphAdapter = new PositionalGraphAdapter(nodeFs, pathResolver);
++  const loader = buildDiskWorkUnitLoader(workspacePath);
++  const graphService = new PositionalGraphService(
++    nodeFs,
++    pathResolver,
++    yamlParser,
++    graphAdapter,
++    loader
++  );
++  const templateAdapter = new TemplateAdapter(nodeFs, pathResolver);
++  const instanceAdapter = new InstanceAdapter(nodeFs, pathResolver);
++  const templateService = new TemplateService(
++    nodeFs,
++    pathResolver,
++    yamlParser,
++    templateAdapter,
++    instanceAdapter
++  );
++  return { graphService, templateService };
++}
++
++function createCtx(worktreePath: string): WorkspaceContext {
++  return {
++    workspaceSlug: 'dope-workflows',
++    workspaceName: 'Dope Workflows',
++    workspacePath: worktreePath,
++    worktreePath,
++    worktreeBranch: null,
++    isMainWorktree: true,
++    hasGit: true,
++  };
++}
++
++// ============================================
++// Demo Work Units
++// ============================================
++
++const DEMO_UNITS = {
++  'demo-agent': {
++    slug: 'demo-agent',
++    type: 'agent',
++    version: '1.0.0',
++    description: 'Demo agent unit for UI development',
++    inputs: [
++      { name: 'task', type: 'data', data_type: 'text', required: true, description: 'Task input' },
++    ],
++    outputs: [
++      {
++        name: 'result',
++        type: 'data',
++        data_type: 'text',
++        required: true,
++        description: 'Agent result',
++      },
++    ],
++    agent: { type: 'claude-code' },
++  },
++  'demo-code': {
++    slug: 'demo-code',
++    type: 'code',
++    version: '1.0.0',
++    description: 'Demo code unit for UI development',
++    inputs: [],
++    outputs: [
++      {
++        name: 'result',
++        type: 'data',
++        data_type: 'text',
++        required: true,
++        description: 'Code result',
++      },
++    ],
++    code: { script: 'scripts/noop.sh' },
++  },
++  'demo-user-input': {
++    slug: 'demo-user-input',
++    type: 'user-input',
++    version: '1.0.0',
++    description: 'Demo user-input unit for UI development',
++    inputs: [],
++    outputs: [
++      {
++        name: 'answer',
++        type: 'data',
++        data_type: 'text',
++        required: true,
++        description: 'User answer',
++      },
++    ],
++    user_input: { question_type: 'text', prompt: 'What would you like to do?' },
++  },
++} as const;
++
++async function writeDemoUnits(workspacePath: string): Promise<void> {
++  const yamlParser = new YamlParserAdapter();
++  for (const unit of Object.values(DEMO_UNITS)) {
++    const unitDir = path.join(workspacePath, '.chainglass', 'units', unit.slug);
++    await fs.mkdir(unitDir, { recursive: true });
++    await fs.writeFile(path.join(unitDir, 'unit.yaml'), yamlParser.stringify(unit));
++    // Create noop script for code units
++    if (unit.type === 'code') {
++      const scriptDir = path.join(unitDir, 'scripts');
++      await fs.mkdir(scriptDir, { recursive: true });
++      await fs.writeFile(path.join(scriptDir, 'noop.sh'), '#!/bin/bash\necho "noop"\n', {
++        mode: 0o755,
++      });
++    }
++  }
++}
++
++// ============================================
++// State Injection
++// ============================================
++
++function now(): string {
++  return new Date().toISOString();
++}
++
++async function injectState(
++  workspacePath: string,
++  graphSlug: string,
++  state: State
++): Promise<void> {
++  const statePath = path.join(
++    workspacePath,
++    '.chainglass',
++    'data',
++    'workflows',
++    graphSlug,
++    'state.json'
++  );
++  await fs.writeFile(statePath, JSON.stringify(state, null, 2));
++}
++
++// ============================================
++// Scenario Definitions
++// ============================================
++
++interface Scenario {
++  slug: string;
++  description: string;
++  build: (
++    service: IPositionalGraphService,
++    ctx: WorkspaceContext,
++    workspacePath: string
++  ) => Promise<void>;
++}
++
++const SCENARIOS: Scenario[] = [
++  {
++    slug: 'demo-blank',
++    description: 'Empty workflow — no nodes, just the default line',
++    async build(service, ctx) {
++      await service.create(ctx, 'demo-blank');
++    },
++  },
++
++  {
++    slug: 'demo-serial',
++    description: 'Two-line serial workflow — agent → code',
++    async build(service, ctx) {
++      const { lineId: line0 } = await service.create(ctx, 'demo-serial');
++      const line1 = await service.addLine(ctx, 'demo-serial');
++
++      const n1 = await service.addNode(ctx, 'demo-serial', line0, 'demo-agent');
++      await service.addNode(ctx, 'demo-serial', line1.lineId ?? "", 'demo-code');
++
++      // Wire input: code node takes agent's result
++      const nodes = await service.load(ctx, 'demo-serial');
++      const line1Nodes = nodes.definition?.lines[1]?.nodes ?? [];
++      if (line1Nodes.length > 0 && n1.nodeId) {
++        await service.setInput(ctx, 'demo-serial', line1Nodes[0], 'task', {
++          from_node: n1.nodeId,
++          from_output: 'result',
++        });
++      }
++    },
++  },
++
++  {
++    slug: 'demo-running',
++    description: 'Workflow with one node running (agent-accepted)',
++    async build(service, ctx, workspacePath) {
++      const { lineId: line0 } = await service.create(ctx, 'demo-running');
++      const n1 = await service.addNode(ctx, 'demo-running', line0, 'demo-agent');
++
++      await injectState(workspacePath, 'demo-running', {
++        graph_status: 'in_progress',
++        updated_at: now(),
++        nodes: {
++          [n1.nodeId ?? ""]: {
++            status: 'agent-accepted',
++            started_at: now(),
++          },
++        },
++      });
++    },
++  },
++
++  {
++    slug: 'demo-question',
++    description: 'Workflow with a node waiting for user input',
++    async build(service, ctx, workspacePath) {
++      const { lineId: line0 } = await service.create(ctx, 'demo-question');
++      const n1 = await service.addNode(ctx, 'demo-question', line0, 'demo-agent');
++
++      const questionId = 'q-demo-1';
++      await injectState(workspacePath, 'demo-question', {
++        graph_status: 'in_progress',
++        updated_at: now(),
++        nodes: {
++          [n1.nodeId ?? ""]: {
++            status: 'waiting-question',
++            started_at: now(),
++            pending_question_id: questionId,
++          },
++        },
++        questions: [
++          {
++            question_id: questionId,
++            node_id: n1.nodeId ?? "",
++            type: 'text',
++            text: 'What approach should I take for implementing the authentication system?',
++            asked_at: now(),
++          },
++        ],
++      });
++    },
++  },
++
++  {
++    slug: 'demo-error',
++    description: 'Workflow with a node in blocked-error state',
++    async build(service, ctx, workspacePath) {
++      const { lineId: line0 } = await service.create(ctx, 'demo-error');
++      const n1 = await service.addNode(ctx, 'demo-error', line0, 'demo-code');
++
++      await injectState(workspacePath, 'demo-error', {
++        graph_status: 'in_progress',
++        updated_at: now(),
++        nodes: {
++          [n1.nodeId ?? ""]: {
++            status: 'blocked-error',
++            started_at: now(),
++            error: {
++              code: 'E150',
++              message: 'Script exited with code 1: permission denied',
++            },
++          },
++        },
++      });
++    },
++  },
++
++  {
++    slug: 'demo-complete',
++    description: 'Fully completed workflow — all nodes done',
++    async build(service, ctx, workspacePath) {
++      const { lineId: line0 } = await service.create(ctx, 'demo-complete');
++      const line1 = await service.addLine(ctx, 'demo-complete');
++
++      const n1 = await service.addNode(ctx, 'demo-complete', line0, 'demo-agent');
++      const n2 = await service.addNode(ctx, 'demo-complete', line1.lineId ?? "", 'demo-code');
++
++      await injectState(workspacePath, 'demo-complete', {
++        graph_status: 'complete',
++        updated_at: now(),
++        nodes: {
++          [n1.nodeId ?? ""]: {
++            status: 'complete',
++            started_at: now(),
++            completed_at: now(),
++          },
++          [n2.nodeId ?? ""]: {
++            status: 'complete',
++            started_at: now(),
++            completed_at: now(),
++          },
++        },
++        transitions: {
++          [line0]: { triggered: true, triggered_at: now() },
++        },
++      });
++    },
++  },
++
++  {
++    slug: 'demo-complex',
++    description: 'Multi-line workflow with mixed states — running, question, error, complete, pending',
++    async build(service, ctx, workspacePath) {
++      const { lineId: line0 } = await service.create(ctx, 'demo-complex');
++      const line1 = await service.addLine(ctx, 'demo-complex');
++      const line2 = await service.addLine(ctx, 'demo-complex');
++
++      // Line 0: two nodes — one complete, one complete
++      const n1 = await service.addNode(ctx, 'demo-complex', line0, 'demo-user-input');
++      const n2 = await service.addNode(ctx, 'demo-complex', line0, 'demo-agent');
++
++      // Line 1: two nodes — one running, one with question
++      const n3 = await service.addNode(ctx, 'demo-complex', line1.lineId ?? "", 'demo-agent');
++      const n4 = await service.addNode(ctx, 'demo-complex', line1.lineId ?? "", 'demo-code');
++
++      // Line 2: one node — pending (future line)
++      const n5 = await service.addNode(ctx, 'demo-complex', line2.lineId ?? "", 'demo-agent');
++
++      const questionId = 'q-complex-1';
++      await injectState(workspacePath, 'demo-complex', {
++        graph_status: 'in_progress',
++        updated_at: now(),
++        nodes: {
++          [n1.nodeId ?? ""]: {
++            status: 'complete',
++            started_at: now(),
++            completed_at: now(),
++          },
++          [n2.nodeId ?? ""]: {
++            status: 'complete',
++            started_at: now(),
++            completed_at: now(),
++          },
++          [n3.nodeId ?? ""]: {
++            status: 'agent-accepted',
++            started_at: now(),
++          },
++          [n4.nodeId ?? ""]: {
++            status: 'waiting-question',
++            started_at: now(),
++            pending_question_id: questionId,
++          },
++        },
++        transitions: {
++          [line0]: { triggered: true, triggered_at: now() },
++        },
++        questions: [
++          {
++            question_id: questionId,
++            node_id: n4.nodeId ?? "",
++            type: 'single',
++            text: 'Which database should we use?',
++            options: ['PostgreSQL', 'MySQL', 'SQLite'],
++            asked_at: now(),
++          },
++        ],
++      });
++      // n5 is implicitly pending (no state entry)
++      void n5;
++    },
++  },
++
++  {
++    slug: 'demo-from-template',
++    description: 'Workflow instantiated from a template — validates template breadcrumb',
++    async build(service, ctx, workspacePath) {
++      // First create a source graph to save as template
++      const { lineId: line0 } = await service.create(ctx, 'demo-template-source');
++      await service.addNode(ctx, 'demo-template-source', line0, 'demo-agent');
++
++      // Save as template
++      const services = createScriptServices(workspacePath);
++      const saveResult = await services.templateService.saveFrom(
++        ctx,
++        'demo-template-source',
++        'demo-template'
++      );
++      if (saveResult.errors.length > 0) {
++        console.error('  Failed to save template:', saveResult.errors);
++        return;
++      }
++
++      // Instantiate from template
++      const instResult = await services.templateService.instantiate(
++        ctx,
++        'demo-template',
++        'demo-from-template'
++      );
++      if (instResult.errors.length > 0) {
++        console.error('  Failed to instantiate template:', instResult.errors);
++        return;
++      }
++
++      // Clean up source graph
++      await service.delete(ctx, 'demo-template-source');
++    },
++  },
++];
++
++// ============================================
++// CLI
++// ============================================
++
++async function cleanDemoWorkflows(workspacePath: string): Promise<void> {
++  const workflowsDir = path.join(workspacePath, '.chainglass', 'data', 'workflows');
++  try {
++    const entries = await fs.readdir(workflowsDir);
++    const demos = entries.filter((e) => e.startsWith('demo-'));
++    for (const demo of demos) {
++      await fs.rm(path.join(workflowsDir, demo), { recursive: true, force: true });
++    }
++    console.log(`Cleaned ${demos.length} demo workflow(s)`);
++  } catch {
++    console.log('No workflows directory to clean');
++  }
++
++  // Also clean demo templates and instances
++  const templatesDir = path.join(workspacePath, '.chainglass', 'templates', 'workflows');
++  try {
++    const entries = await fs.readdir(templatesDir);
++    const demos = entries.filter((e) => e.startsWith('demo-'));
++    for (const demo of demos) {
++      await fs.rm(path.join(templatesDir, demo), { recursive: true, force: true });
++    }
++    if (demos.length > 0) console.log(`Cleaned ${demos.length} demo template(s)`);
++  } catch {
++    // OK
++  }
++
++  const instancesDir = path.join(workspacePath, '.chainglass', 'instances');
++  try {
++    const entries = await fs.readdir(instancesDir);
++    const demos = entries.filter((e) => e.startsWith('demo-'));
++    for (const demo of demos) {
++      await fs.rm(path.join(instancesDir, demo), { recursive: true, force: true });
++    }
++    if (demos.length > 0) console.log(`Cleaned ${demos.length} demo instance(s)`);
++  } catch {
++    // OK
++  }
++}
++
++async function buildScenario(scenario: Scenario, workspacePath: string): Promise<void> {
++  console.log(`  ${scenario.slug}: ${scenario.description}`);
++
++  const { graphService } = createScriptServices(workspacePath);
++  const ctx = createCtx(workspacePath);
++
++  await scenario.build(graphService, ctx, workspacePath);
++}
++
++async function main(): Promise<void> {
++  const startTime = performance.now();
++  const args = process.argv.slice(2);
++  const command = args[0] ?? 'all';
++
++  // Use repo root as workspace path (doping is for local dev)
++  const workspacePath = ROOT;
++
++  if (command === 'clean') {
++    await cleanDemoWorkflows(workspacePath);
++    return;
++  }
++
++  // Ensure directories exist
++  await fs.mkdir(path.join(workspacePath, '.chainglass', 'data', 'workflows'), { recursive: true });
++  await fs.mkdir(path.join(workspacePath, '.chainglass', 'templates', 'workflows'), {
++    recursive: true,
++  });
++
++  // Write demo work units
++  await writeDemoUnits(workspacePath);
++
++  const scenarios =
++    command === 'all' ? SCENARIOS : SCENARIOS.filter((s) => s.slug === command);
++
++  if (scenarios.length === 0) {
++    console.error(
++      `Unknown scenario: ${command}. Available: ${SCENARIOS.map((s) => s.slug).join(', ')}`
++    );
++    process.exit(1);
++  }
++
++  console.log(`Dope Workflows — generating ${scenarios.length} scenario(s)\n`);
++
++  for (const scenario of scenarios) {
++    await buildScenario(scenario, workspacePath);
++  }
++
++  const elapsed = ((performance.now() - startTime) / 1000).toFixed(1);
++  console.log(`\nDone in ${elapsed}s. Workflows at .chainglass/data/workflows/`);
++}
++
++main().catch((err) => {
++  console.error('Dope failed:', err);
++  process.exit(1);
++});
+diff --git a/test/integration/dope-workflows.test.ts b/test/integration/dope-workflows.test.ts
+new file mode 100644
+index 0000000..dcd6393
+--- /dev/null
++++ b/test/integration/dope-workflows.test.ts
+@@ -0,0 +1,420 @@
++/**
++ * Integration tests: Doping workflow scenarios.
++ *
++ * Why: Validates that all 8 doping scenarios produce valid graphs
++ * with correct structure and state.json that round-trips through
++ * Zod schema validation.
++ *
++ * Contract: scripts/dope-workflows.ts creates workflows with
++ * correct line/node counts and valid state for each scenario.
++ *
++ * Plan 050 Phase 1 — T007 (AC-37)
++ */
++
++import * as nodeFs from 'node:fs/promises';
++import * as os from 'node:os';
++import * as path from 'node:path';
++
++import {
++  PositionalGraphAdapter,
++  PositionalGraphService,
++  StateSchema,
++} from '@chainglass/positional-graph';
++import type { IPositionalGraphService } from '@chainglass/positional-graph';
++import { NodeFileSystemAdapter, PathResolverAdapter, YamlParserAdapter } from '@chainglass/shared';
++import type { WorkspaceContext } from '@chainglass/workflow';
++import { InstanceAdapter, TemplateAdapter, TemplateService } from '@chainglass/workflow';
++import { afterEach, beforeEach, describe, expect, it } from 'vitest';
++
++import { buildDiskWorkUnitLoader } from '../../dev/test-graphs/shared/helpers.js';
++
++// ─── Test Infrastructure ────────────────────────────────────
++
++interface TestContext {
++  tmpDir: string;
++  ctx: WorkspaceContext;
++  graphService: IPositionalGraphService;
++  templateService: TemplateService;
++}
++
++let testCtx: TestContext;
++
++function createCtx(worktreePath: string): WorkspaceContext {
++  return {
++    workspaceSlug: 'dope-test',
++    workspaceName: 'Dope Test',
++    workspacePath: worktreePath,
++    worktreePath,
++    worktreeBranch: null,
++    isMainWorktree: true,
++    hasGit: true,
++  };
++}
++
++function createServices(workspacePath: string) {
++  const fs = new NodeFileSystemAdapter();
++  const pathResolver = new PathResolverAdapter();
++  const yamlParser = new YamlParserAdapter();
++  const graphAdapter = new PositionalGraphAdapter(fs, pathResolver);
++  const loader = buildDiskWorkUnitLoader(workspacePath);
++  const graphService = new PositionalGraphService(
++    fs,
++    pathResolver,
++    yamlParser,
++    graphAdapter,
++    loader
++  );
++  const templateAdapter = new TemplateAdapter(fs, pathResolver);
++  const instanceAdapter = new InstanceAdapter(fs, pathResolver);
++  const templateService = new TemplateService(
++    fs,
++    pathResolver,
++    yamlParser,
++    templateAdapter,
++    instanceAdapter
++  );
++  return { graphService, templateService };
++}
++
++// Demo unit definitions (same as dope-workflows.ts)
++const DEMO_UNITS = {
++  'demo-agent': {
++    slug: 'demo-agent',
++    type: 'agent',
++    version: '1.0.0',
++    description: 'Demo agent unit',
++    inputs: [{ name: 'task', type: 'data', data_type: 'text', required: true }],
++    outputs: [{ name: 'result', type: 'data', data_type: 'text', required: true }],
++    agent: { type: 'claude-code' },
++  },
++  'demo-code': {
++    slug: 'demo-code',
++    type: 'code',
++    version: '1.0.0',
++    description: 'Demo code unit',
++    inputs: [],
++    outputs: [{ name: 'result', type: 'data', data_type: 'text', required: true }],
++    code: { script: 'scripts/noop.sh' },
++  },
++  'demo-user-input': {
++    slug: 'demo-user-input',
++    type: 'user-input',
++    version: '1.0.0',
++    description: 'Demo user-input unit',
++    inputs: [],
++    outputs: [{ name: 'answer', type: 'data', data_type: 'text', required: true }],
++    user_input: { question_type: 'text', prompt: 'What would you like to do?' },
++  },
++};
++
++async function writeDemoUnits(workspacePath: string): Promise<void> {
++  const yamlParser = new YamlParserAdapter();
++  for (const unit of Object.values(DEMO_UNITS)) {
++    const unitDir = path.join(workspacePath, '.chainglass', 'units', unit.slug);
++    await nodeFs.mkdir(unitDir, { recursive: true });
++    await nodeFs.writeFile(path.join(unitDir, 'unit.yaml'), yamlParser.stringify(unit));
++    if (unit.type === 'code') {
++      const scriptDir = path.join(unitDir, 'scripts');
++      await nodeFs.mkdir(scriptDir, { recursive: true });
++      await nodeFs.writeFile(path.join(scriptDir, 'noop.sh'), '#!/bin/bash\necho "noop"\n', {
++        mode: 0o755,
++      });
++    }
++  }
++}
++
++function now(): string {
++  return new Date().toISOString();
++}
++
++async function injectState(workspacePath: string, graphSlug: string, state: object): Promise<void> {
++  const statePath = path.join(
++    workspacePath,
++    '.chainglass',
++    'data',
++    'workflows',
++    graphSlug,
++    'state.json'
++  );
++  await nodeFs.writeFile(statePath, JSON.stringify(state, null, 2));
++}
++
++// ─── Setup / Teardown ────────────────────────────────────
++
++beforeEach(async () => {
++  const tmpDir = await nodeFs.mkdtemp(path.join(os.tmpdir(), 'dope-test-'));
++  await nodeFs.mkdir(path.join(tmpDir, '.chainglass', 'data', 'workflows'), { recursive: true });
++  await nodeFs.mkdir(path.join(tmpDir, '.chainglass', 'templates', 'workflows'), {
++    recursive: true,
++  });
++  await writeDemoUnits(tmpDir);
++
++  const { graphService, templateService } = createServices(tmpDir);
++  testCtx = {
++    tmpDir,
++    ctx: createCtx(tmpDir),
++    graphService,
++    templateService,
++  };
++});
++
++afterEach(async () => {
++  await nodeFs.rm(testCtx.tmpDir, { recursive: true, force: true });
++});
++
++// ─── Helpers ────────────────────────────────────
++
++async function loadAndValidateState(graphSlug: string): Promise<void> {
++  const statePath = path.join(
++    testCtx.tmpDir,
++    '.chainglass',
++    'data',
++    'workflows',
++    graphSlug,
++    'state.json'
++  );
++  try {
++    const raw = await nodeFs.readFile(statePath, 'utf-8');
++    const parsed = JSON.parse(raw);
++    const result = StateSchema.safeParse(parsed);
++    expect(
++      result.success,
++      `state.json Zod validation failed for ${graphSlug}: ${JSON.stringify(result.error?.issues)}`
++    ).toBe(true);
++  } catch (err: unknown) {
++    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
++      // No state.json is valid (pending graphs)
++      return;
++    }
++    throw err;
++  }
++}
++
++// ─── Scenario Tests ────────────────────────────────────
++
++describe('dope-workflows scenarios', () => {
++  it('demo-blank: creates empty workflow with one default line', async () => {
++    const { graphService: svc, ctx } = testCtx;
++    await svc.create(ctx, 'demo-blank');
++
++    const loaded = await svc.load(ctx, 'demo-blank');
++    expect(loaded.errors).toHaveLength(0);
++    expect(loaded.definition?.lines).toHaveLength(1);
++    expect(loaded.definition?.lines[0].nodes).toHaveLength(0);
++  });
++
++  it('demo-serial: creates two-line serial workflow with input wiring', async () => {
++    const { graphService: svc, ctx } = testCtx;
++    const { lineId: line0 } = await svc.create(ctx, 'demo-serial');
++    const line1 = await svc.addLine(ctx, 'demo-serial');
++
++    const n1 = await svc.addNode(ctx, 'demo-serial', line0, 'demo-agent');
++    await svc.addNode(ctx, 'demo-serial', line1.lineId ?? '', 'demo-code');
++
++    // Wire input
++    const loaded = await svc.load(ctx, 'demo-serial');
++    const line1Nodes = loaded.definition?.lines[1]?.nodes ?? [];
++    if (line1Nodes.length > 0 && n1.nodeId) {
++      await svc.setInput(ctx, 'demo-serial', line1Nodes[0], 'task', {
++        from_node: n1.nodeId,
++        from_output: 'result',
++      });
++    }
++
++    const final = await svc.load(ctx, 'demo-serial');
++    expect(final.errors).toHaveLength(0);
++    expect(final.definition?.lines).toHaveLength(2);
++    expect(final.definition?.lines[0].nodes).toHaveLength(1);
++    expect(final.definition?.lines[1].nodes).toHaveLength(1);
++  });
++
++  it('demo-running: creates workflow with running node and valid state.json', async () => {
++    const { graphService: svc, ctx } = testCtx;
++    const { lineId: line0 } = await svc.create(ctx, 'demo-running');
++    const n1 = await svc.addNode(ctx, 'demo-running', line0, 'demo-agent');
++
++    await injectState(testCtx.tmpDir, 'demo-running', {
++      graph_status: 'in_progress',
++      updated_at: now(),
++      nodes: {
++        [n1.nodeId ?? '']: { status: 'agent-accepted', started_at: now() },
++      },
++    });
++
++    await loadAndValidateState('demo-running');
++
++    const state = await svc.loadGraphState(ctx, 'demo-running');
++    expect(state.graph_status).toBe('in_progress');
++    expect(state.nodes?.[n1.nodeId ?? '']?.status).toBe('agent-accepted');
++  });
++
++  it('demo-question: creates workflow with waiting-question node', async () => {
++    const { graphService: svc, ctx } = testCtx;
++    const { lineId: line0 } = await svc.create(ctx, 'demo-question');
++    const n1 = await svc.addNode(ctx, 'demo-question', line0, 'demo-agent');
++
++    const questionId = 'q-test-1';
++    await injectState(testCtx.tmpDir, 'demo-question', {
++      graph_status: 'in_progress',
++      updated_at: now(),
++      nodes: {
++        [n1.nodeId ?? '']: {
++          status: 'waiting-question',
++          started_at: now(),
++          pending_question_id: questionId,
++        },
++      },
++      questions: [
++        {
++          question_id: questionId,
++          node_id: n1.nodeId ?? '',
++          type: 'text',
++          text: 'Test question?',
++          asked_at: now(),
++        },
++      ],
++    });
++
++    await loadAndValidateState('demo-question');
++
++    const state = await svc.loadGraphState(ctx, 'demo-question');
++    expect(state.nodes?.[n1.nodeId ?? '']?.status).toBe('waiting-question');
++    expect(state.questions).toHaveLength(1);
++  });
++
++  it('demo-error: creates workflow with blocked-error node', async () => {
++    const { graphService: svc, ctx } = testCtx;
++    const { lineId: line0 } = await svc.create(ctx, 'demo-error');
++    const n1 = await svc.addNode(ctx, 'demo-error', line0, 'demo-code');
++
++    await injectState(testCtx.tmpDir, 'demo-error', {
++      graph_status: 'in_progress',
++      updated_at: now(),
++      nodes: {
++        [n1.nodeId ?? '']: {
++          status: 'blocked-error',
++          started_at: now(),
++          error: { code: 'E150', message: 'Test error' },
++        },
++      },
++    });
++
++    await loadAndValidateState('demo-error');
++
++    const state = await svc.loadGraphState(ctx, 'demo-error');
++    expect(state.nodes?.[n1.nodeId ?? '']?.status).toBe('blocked-error');
++    expect(state.nodes?.[n1.nodeId ?? '']?.error?.code).toBe('E150');
++  });
++
++  it('demo-complete: creates fully completed workflow', async () => {
++    const { graphService: svc, ctx } = testCtx;
++    const { lineId: line0 } = await svc.create(ctx, 'demo-complete');
++    const line1 = await svc.addLine(ctx, 'demo-complete');
++
++    const n1 = await svc.addNode(ctx, 'demo-complete', line0, 'demo-agent');
++    const n2 = await svc.addNode(ctx, 'demo-complete', line1.lineId ?? '', 'demo-code');
++
++    await injectState(testCtx.tmpDir, 'demo-complete', {
++      graph_status: 'complete',
++      updated_at: now(),
++      nodes: {
++        [n1.nodeId ?? '']: { status: 'complete', started_at: now(), completed_at: now() },
++        [n2.nodeId ?? '']: { status: 'complete', started_at: now(), completed_at: now() },
++      },
++      transitions: {
++        [line0]: { triggered: true, triggered_at: now() },
++      },
++    });
++
++    await loadAndValidateState('demo-complete');
++
++    const state = await svc.loadGraphState(ctx, 'demo-complete');
++    expect(state.graph_status).toBe('complete');
++  });
++
++  it('demo-complex: creates multi-line workflow with mixed states', async () => {
++    const { graphService: svc, ctx } = testCtx;
++    const { lineId: line0 } = await svc.create(ctx, 'demo-complex');
++    const line1 = await svc.addLine(ctx, 'demo-complex');
++    const line2 = await svc.addLine(ctx, 'demo-complex');
++
++    const n1 = await svc.addNode(ctx, 'demo-complex', line0, 'demo-user-input');
++    const n2 = await svc.addNode(ctx, 'demo-complex', line0, 'demo-agent');
++    const n3 = await svc.addNode(ctx, 'demo-complex', line1.lineId ?? '', 'demo-agent');
++    const n4 = await svc.addNode(ctx, 'demo-complex', line1.lineId ?? '', 'demo-code');
++    await svc.addNode(ctx, 'demo-complex', line2.lineId ?? '', 'demo-agent'); // pending (no state)
++
++    const questionId = 'q-complex-1';
++    await injectState(testCtx.tmpDir, 'demo-complex', {
++      graph_status: 'in_progress',
++      updated_at: now(),
++      nodes: {
++        [n1.nodeId ?? '']: { status: 'complete', started_at: now(), completed_at: now() },
++        [n2.nodeId ?? '']: { status: 'complete', started_at: now(), completed_at: now() },
++        [n3.nodeId ?? '']: { status: 'agent-accepted', started_at: now() },
++        [n4.nodeId ?? '']: {
++          status: 'waiting-question',
++          started_at: now(),
++          pending_question_id: questionId,
++        },
++      },
++      transitions: { [line0]: { triggered: true, triggered_at: now() } },
++      questions: [
++        {
++          question_id: questionId,
++          node_id: n4.nodeId ?? '',
++          type: 'single',
++          text: 'Which database?',
++          options: ['PostgreSQL', 'MySQL'],
++          asked_at: now(),
++        },
++      ],
++    });
++
++    await loadAndValidateState('demo-complex');
++
++    const loaded = await svc.load(ctx, 'demo-complex');
++    expect(loaded.definition?.lines).toHaveLength(3);
++
++    const state = await svc.loadGraphState(ctx, 'demo-complex');
++    expect(state.graph_status).toBe('in_progress');
++    // 4 nodes have explicit state, 1 is implicitly pending
++    expect(Object.keys(state.nodes ?? {})).toHaveLength(4);
++  });
++
++  it('demo-from-template: creates instance from template with template_source', async () => {
++    const { graphService: svc, ctx } = testCtx;
++
++    // Build source graph
++    const { lineId: line0 } = await svc.create(ctx, 'demo-template-source');
++    await svc.addNode(ctx, 'demo-template-source', line0, 'demo-agent');
++
++    // Save as template
++    const saveResult = await testCtx.templateService.saveFrom(
++      ctx,
++      'demo-template-source',
++      'demo-template'
++    );
++    expect(saveResult.errors).toHaveLength(0);
++
++    // Instantiate
++    const instResult = await testCtx.templateService.instantiate(
++      ctx,
++      'demo-template',
++      'demo-from-template'
++    );
++    expect(instResult.errors).toHaveLength(0);
++
++    // Verify instance.yaml has template_source
++    const instanceYaml = path.join(
++      testCtx.tmpDir,
++      '.chainglass',
++      'instances',
++      'demo-template',
++      'demo-from-template',
++      'instance.yaml'
++    );
++    const content = await nodeFs.readFile(instanceYaml, 'utf-8');
++    expect(content).toContain('template_source: demo-template');
++  });
++});

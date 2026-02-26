@@ -25,7 +25,6 @@ import { InstanceAdapter, TemplateAdapter, TemplateService } from '@chainglass/w
 import { buildDiskWorkUnitLoader } from '../dev/test-graphs/shared/helpers.js';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
-const WORKFLOWS_DIR = path.join(ROOT, '.chainglass', 'data', 'workflows');
 
 // ============================================
 // Script DI Container
@@ -63,6 +62,12 @@ function createScriptServices(workspacePath: string): ScriptServices {
     instanceAdapter
   );
   return { graphService, templateService };
+}
+
+/** Assert a service result field is present, throw with context if not. */
+function assertDefined<T>(value: T | undefined | null, label: string): T {
+  if (value == null) throw new Error(`Dope assertion failed: ${label} is ${value}`);
+  return value;
 }
 
 function createCtx(worktreePath: string): WorkspaceContext {
@@ -207,16 +212,18 @@ const SCENARIOS: Scenario[] = [
     async build(service, ctx) {
       const { lineId: line0 } = await service.create(ctx, 'demo-serial');
       const line1 = await service.addLine(ctx, 'demo-serial');
+      const line1Id = assertDefined(line1.lineId, 'demo-serial addLine lineId');
 
       const n1 = await service.addNode(ctx, 'demo-serial', line0, 'demo-agent');
-      await service.addNode(ctx, 'demo-serial', line1.lineId ?? "", 'demo-code');
+      const n1Id = assertDefined(n1.nodeId, 'demo-serial addNode n1 nodeId');
+      await service.addNode(ctx, 'demo-serial', line1Id, 'demo-code');
 
       // Wire input: code node takes agent's result
       const nodes = await service.load(ctx, 'demo-serial');
       const line1Nodes = nodes.definition?.lines[1]?.nodes ?? [];
-      if (line1Nodes.length > 0 && n1.nodeId) {
+      if (line1Nodes.length > 0) {
         await service.setInput(ctx, 'demo-serial', line1Nodes[0], 'task', {
-          from_node: n1.nodeId,
+          from_node: n1Id,
           from_output: 'result',
         });
       }
@@ -229,12 +236,13 @@ const SCENARIOS: Scenario[] = [
     async build(service, ctx, workspacePath) {
       const { lineId: line0 } = await service.create(ctx, 'demo-running');
       const n1 = await service.addNode(ctx, 'demo-running', line0, 'demo-agent');
+      const n1Id = assertDefined(n1.nodeId, 'demo-running addNode nodeId');
 
       await injectState(workspacePath, 'demo-running', {
         graph_status: 'in_progress',
         updated_at: now(),
         nodes: {
-          [n1.nodeId ?? ""]: {
+          [n1Id]: {
             status: 'agent-accepted',
             started_at: now(),
           },
@@ -249,13 +257,14 @@ const SCENARIOS: Scenario[] = [
     async build(service, ctx, workspacePath) {
       const { lineId: line0 } = await service.create(ctx, 'demo-question');
       const n1 = await service.addNode(ctx, 'demo-question', line0, 'demo-agent');
+      const n1Id = assertDefined(n1.nodeId, 'demo-question addNode nodeId');
 
       const questionId = 'q-demo-1';
       await injectState(workspacePath, 'demo-question', {
         graph_status: 'in_progress',
         updated_at: now(),
         nodes: {
-          [n1.nodeId ?? ""]: {
+          [n1Id]: {
             status: 'waiting-question',
             started_at: now(),
             pending_question_id: questionId,
@@ -264,7 +273,7 @@ const SCENARIOS: Scenario[] = [
         questions: [
           {
             question_id: questionId,
-            node_id: n1.nodeId ?? "",
+            node_id: n1Id,
             type: 'text',
             text: 'What approach should I take for implementing the authentication system?',
             asked_at: now(),
@@ -280,12 +289,13 @@ const SCENARIOS: Scenario[] = [
     async build(service, ctx, workspacePath) {
       const { lineId: line0 } = await service.create(ctx, 'demo-error');
       const n1 = await service.addNode(ctx, 'demo-error', line0, 'demo-code');
+      const n1Id = assertDefined(n1.nodeId, 'demo-error addNode nodeId');
 
       await injectState(workspacePath, 'demo-error', {
         graph_status: 'in_progress',
         updated_at: now(),
         nodes: {
-          [n1.nodeId ?? ""]: {
+          [n1Id]: {
             status: 'blocked-error',
             started_at: now(),
             error: {
@@ -304,20 +314,23 @@ const SCENARIOS: Scenario[] = [
     async build(service, ctx, workspacePath) {
       const { lineId: line0 } = await service.create(ctx, 'demo-complete');
       const line1 = await service.addLine(ctx, 'demo-complete');
+      const line1Id = assertDefined(line1.lineId, 'demo-complete addLine lineId');
 
       const n1 = await service.addNode(ctx, 'demo-complete', line0, 'demo-agent');
-      const n2 = await service.addNode(ctx, 'demo-complete', line1.lineId ?? "", 'demo-code');
+      const n1Id = assertDefined(n1.nodeId, 'demo-complete addNode n1 nodeId');
+      const n2 = await service.addNode(ctx, 'demo-complete', line1Id, 'demo-code');
+      const n2Id = assertDefined(n2.nodeId, 'demo-complete addNode n2 nodeId');
 
       await injectState(workspacePath, 'demo-complete', {
         graph_status: 'complete',
         updated_at: now(),
         nodes: {
-          [n1.nodeId ?? ""]: {
+          [n1Id]: {
             status: 'complete',
             started_at: now(),
             completed_at: now(),
           },
-          [n2.nodeId ?? ""]: {
+          [n2Id]: {
             status: 'complete',
             started_at: now(),
             completed_at: now(),
@@ -332,46 +345,64 @@ const SCENARIOS: Scenario[] = [
 
   {
     slug: 'demo-complex',
-    description: 'Multi-line workflow with mixed states — running, question, error, complete, pending',
+    description: 'Multi-line workflow with mixed states — all 7 persistable statuses represented',
     async build(service, ctx, workspacePath) {
       const { lineId: line0 } = await service.create(ctx, 'demo-complex');
       const line1 = await service.addLine(ctx, 'demo-complex');
+      const line1Id = assertDefined(line1.lineId, 'demo-complex addLine line1 lineId');
       const line2 = await service.addLine(ctx, 'demo-complex');
+      const line2Id = assertDefined(line2.lineId, 'demo-complex addLine line2 lineId');
 
-      // Line 0: two nodes — one complete, one complete
+      // Line 0: two nodes — both complete
       const n1 = await service.addNode(ctx, 'demo-complex', line0, 'demo-user-input');
+      const n1Id = assertDefined(n1.nodeId, 'demo-complex n1 nodeId');
       const n2 = await service.addNode(ctx, 'demo-complex', line0, 'demo-agent');
+      const n2Id = assertDefined(n2.nodeId, 'demo-complex n2 nodeId');
 
-      // Line 1: two nodes — one running, one with question
-      const n3 = await service.addNode(ctx, 'demo-complex', line1.lineId ?? "", 'demo-agent');
-      const n4 = await service.addNode(ctx, 'demo-complex', line1.lineId ?? "", 'demo-code');
+      // Line 1: four nodes — starting, agent-accepted, waiting-question, restart-pending
+      const n3 = await service.addNode(ctx, 'demo-complex', line1Id, 'demo-agent');
+      const n3Id = assertDefined(n3.nodeId, 'demo-complex n3 nodeId');
+      const n4 = await service.addNode(ctx, 'demo-complex', line1Id, 'demo-code');
+      const n4Id = assertDefined(n4.nodeId, 'demo-complex n4 nodeId');
+      const n5 = await service.addNode(ctx, 'demo-complex', line1Id, 'demo-agent');
+      const n5Id = assertDefined(n5.nodeId, 'demo-complex n5 nodeId');
+      const n6 = await service.addNode(ctx, 'demo-complex', line1Id, 'demo-code');
+      const n6Id = assertDefined(n6.nodeId, 'demo-complex n6 nodeId');
 
-      // Line 2: one node — pending (future line)
-      const n5 = await service.addNode(ctx, 'demo-complex', line2.lineId ?? "", 'demo-agent');
+      // Line 2: one node — pending (no state entry)
+      await service.addNode(ctx, 'demo-complex', line2Id, 'demo-agent');
 
       const questionId = 'q-complex-1';
       await injectState(workspacePath, 'demo-complex', {
         graph_status: 'in_progress',
         updated_at: now(),
         nodes: {
-          [n1.nodeId ?? ""]: {
+          [n1Id]: {
             status: 'complete',
             started_at: now(),
             completed_at: now(),
           },
-          [n2.nodeId ?? ""]: {
+          [n2Id]: {
             status: 'complete',
             started_at: now(),
             completed_at: now(),
           },
-          [n3.nodeId ?? ""]: {
+          [n3Id]: {
+            status: 'starting',
+            started_at: now(),
+          },
+          [n4Id]: {
             status: 'agent-accepted',
             started_at: now(),
           },
-          [n4.nodeId ?? ""]: {
+          [n5Id]: {
             status: 'waiting-question',
             started_at: now(),
             pending_question_id: questionId,
+          },
+          [n6Id]: {
+            status: 'restart-pending',
+            started_at: now(),
           },
         },
         transitions: {
@@ -380,7 +411,7 @@ const SCENARIOS: Scenario[] = [
         questions: [
           {
             question_id: questionId,
-            node_id: n4.nodeId ?? "",
+            node_id: n5Id,
             type: 'single',
             text: 'Which database should we use?',
             options: ['PostgreSQL', 'MySQL', 'SQLite'],
@@ -388,8 +419,6 @@ const SCENARIOS: Scenario[] = [
           },
         ],
       });
-      // n5 is implicitly pending (no state entry)
-      void n5;
     },
   },
 
@@ -409,8 +438,7 @@ const SCENARIOS: Scenario[] = [
         'demo-template'
       );
       if (saveResult.errors.length > 0) {
-        console.error('  Failed to save template:', saveResult.errors);
-        return;
+        throw new Error(`Failed to save template: ${JSON.stringify(saveResult.errors)}`);
       }
 
       // Instantiate from template
@@ -420,8 +448,7 @@ const SCENARIOS: Scenario[] = [
         'demo-from-template'
       );
       if (instResult.errors.length > 0) {
-        console.error('  Failed to instantiate template:', instResult.errors);
-        return;
+        throw new Error(`Failed to instantiate template: ${JSON.stringify(instResult.errors)}`);
       }
 
       // Clean up source graph

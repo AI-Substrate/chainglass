@@ -1,0 +1,14 @@
+slug: demo-user-input
+type: user-input
+version: 1.0.0
+description: Demo user-input unit for UI development
+inputs: []
+outputs:
+  - name: answer
+    type: data
+    data_type: text
+    required: true
+    description: User answer
+user_input:
+  question_type: text
+  prompt: What would you like to do?

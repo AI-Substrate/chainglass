@@ -40,8 +40,7 @@ import {
   useState,
 } from 'react';
 
-import type { CachedFileEntry, SortMode } from '@/features/041-file-browser/hooks/use-file-filter';
-import type { ChangedFile } from '@/features/041-file-browser/services/working-changes';
+import type { FileChangeInfo, FileSearchEntry, FileSearchSortMode } from '../types';
 import type { MruTracker } from '@/lib/sdk/sdk-provider';
 
 import { AsciiSpinner } from './ascii-spinner';
@@ -71,13 +70,13 @@ interface CommandPaletteDropdownProps {
   /** Current input value for search mode (Plan 049 Feature 2) */
   inputValue?: string;
   /** File search results from useFileFilter */
-  fileSearchResults?: CachedFileEntry[] | null;
+  fileSearchResults?: FileSearchEntry[] | null;
   /** Whether the file search cache is loading */
   fileSearchLoading?: boolean;
   /** File search error message */
   fileSearchError?: string | null;
   /** Current sort mode for file search */
-  sortMode?: SortMode;
+  sortMode?: FileSearchSortMode;
   /** Cycle sort mode callback */
   onSortModeChange?: () => void;
   /** Whether hidden/ignored files are shown */
@@ -87,7 +86,7 @@ interface CommandPaletteDropdownProps {
   /** Navigate to a file from search results */
   onFileSelect?: (path: string) => void;
   /** Working changes for status badge lookup */
-  workingChanges?: ChangedFile[];
+  workingChanges?: FileChangeInfo[];
 }
 
 // --- Schema introspection helpers (ST001) ---
@@ -184,7 +183,7 @@ export const CommandPaletteDropdown = forwardRef<
 
   // Build working changes lookup for status badges
   const changesMap = useMemo(() => {
-    if (!workingChanges) return new Map<string, ChangedFile>();
+    if (!workingChanges) return new Map<string, FileChangeInfo>();
     return new Map(workingChanges.map((f) => [f.path, f]));
   }, [workingChanges]);
 

@@ -35,3 +35,23 @@ export interface ExplorerPanelHandle {
   focusInput: () => void;
   openPalette: () => void;
 }
+
+// --- File search types (Plan 049 Feature 2) ---
+// Defined here so infra (panel-layout) doesn't import from business (file-browser).
+
+/** Sort mode for file search results */
+export type FileSearchSortMode = 'recent' | 'alpha-asc' | 'alpha-desc';
+
+/** A file entry from the search cache */
+export interface FileSearchEntry {
+  path: string;
+  mtime: number;
+  modified: boolean;
+  lastChanged: number | null;
+}
+
+/** Minimal file change info for status badge lookup */
+export interface FileChangeInfo {
+  path: string;
+  status: string;
+}

@@ -14,8 +14,13 @@
 
 import { useFileChanges } from '@/features/045-live-file-events';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { FilterableFile } from '../services/file-filter';
-import { filterFiles, hideDotPaths, sortAlpha, sortByRecent } from '../services/file-filter';
+import {
+  filterFiles,
+  hideDotPaths,
+  isGlobPattern,
+  sortAlpha,
+  sortByRecent,
+} from '../services/file-filter';
 
 export type SortMode = 'recent' | 'alpha-asc' | 'alpha-desc';
 
@@ -90,10 +95,17 @@ export function useFileFilter({
   const [includeHidden, setIncludeHidden] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // FT-001: Cache version counter — increment after SSE deltas to trigger useMemo recompute
+  const [cacheVersion, setCacheVersion] = useState(0);
 
   const cacheRef = useRef<Map<string, CachedFileEntry>>(new Map());
   const cachePopulatedRef = useRef(false);
   const fetchInProgressRef = useRef(false);
+  // Tracks the includeHidden value used for the in-flight fetch
+  const fetchIncludeHiddenRef = useRef(includeHidden);
+  // Always reflects the latest render value (for stale-fetch detection)
+  const latestIncludeHiddenRef = useRef(includeHidden);
+  latestIncludeHiddenRef.current = includeHidden;
 
   // SSE file change events for delta updates
   const fileChanges = useFileChanges('*', { debounce: 500, mode: 'accumulate' });
@@ -112,6 +124,7 @@ export function useFileFilter({
   const populateCache = useCallback(async () => {
     if (fetchInProgressRef.current) return;
     fetchInProgressRef.current = true;
+    fetchIncludeHiddenRef.current = includeHidden;
     setLoading(true);
     setError(null);
 
@@ -129,6 +142,7 @@ export function useFileFilter({
         }
         cacheRef.current = newCache;
         cachePopulatedRef.current = true;
+        setCacheVersion((v) => v + 1);
       } else {
         setError('Could not scan files');
       }
@@ -137,6 +151,11 @@ export function useFileFilter({
     } finally {
       setLoading(false);
       fetchInProgressRef.current = false;
+      // If includeHidden changed during this fetch, invalidate so the
+      // useEffect([includeHidden]) re-fetch picks up the new value.
+      if (fetchIncludeHiddenRef.current !== latestIncludeHiddenRef.current) {
+        cachePopulatedRef.current = false;
+      }
     }
   }, [worktreePath, includeHidden, fetchFileList]);
 
@@ -194,36 +213,30 @@ export function useFileFilter({
           }
         }
       }
+      // FT-001: Trigger useMemo recompute after delta mutations
+      setCacheVersion((v) => v + 1);
     }
     fileChanges.clearChanges();
   }, [fileChanges.hasChanges, fileChanges.changes, fileChanges.clearChanges, populateCache]);
 
-  // Compute filtered + sorted results
+  // Compute filtered + sorted results (sync path for substring queries)
   const results = useMemo(() => {
     if (!cachePopulatedRef.current || loading) return null;
     if (!debouncedQuery) return null;
+    // FT-009: Glob patterns handled by async useEffect below
+    if (isGlobPattern(debouncedQuery)) return null;
 
     let files = Array.from(cacheRef.current.values());
-
-    // Apply dot-path filter when hidden files are excluded
     if (!includeHidden) {
       files = hideDotPaths(files);
     }
 
-    // Filter
-    const filtered = filterFiles(files, debouncedQuery);
+    const filtered = filterFiles(files, debouncedQuery) as CachedFileEntry[];
 
-    // Handle async glob results
-    if (filtered instanceof Promise) {
-      // For glob patterns, we need to wait — return null (loading state)
-      // The promise resolution will trigger a re-render via state update
-      return null;
-    }
-
-    // Sort
     if (sortMode === 'recent') return sortByRecent(filtered);
     return sortAlpha(filtered, sortMode === 'alpha-asc' ? 'asc' : 'desc');
-  }, [debouncedQuery, sortMode, includeHidden, loading]);
+    // FT-001: cacheVersion triggers recompute after SSE deltas
+  }, [debouncedQuery, sortMode, includeHidden, loading, cacheVersion]);
 
   // Handle async glob filtering
   const [asyncResults, setAsyncResults] = useState<CachedFileEntry[] | null>(null);
@@ -233,28 +246,35 @@ export function useFileFilter({
       setAsyncResults(null);
       return;
     }
+    // FT-010: Only run async path for glob patterns
+    if (!isGlobPattern(debouncedQuery)) {
+      setAsyncResults(null);
+      return;
+    }
 
     let files = Array.from(cacheRef.current.values());
     if (!includeHidden) {
       files = hideDotPaths(files);
     }
 
-    const filtered = filterFiles(files, debouncedQuery);
-    if (filtered instanceof Promise) {
-      let cancelled = false;
-      filtered.then((result) => {
+    let cancelled = false;
+    const promise = filterFiles(files, debouncedQuery) as Promise<CachedFileEntry[]>;
+    promise
+      .then((result) => {
         if (cancelled) return;
         let sorted: CachedFileEntry[];
         if (sortMode === 'recent') sorted = sortByRecent(result);
         else sorted = sortAlpha(result, sortMode === 'alpha-asc' ? 'asc' : 'desc');
         setAsyncResults(sorted);
+      })
+      .catch(() => {
+        if (!cancelled) setAsyncResults(null);
       });
-      return () => {
-        cancelled = true;
-      };
-    }
-    setAsyncResults(null);
-  }, [debouncedQuery, sortMode, includeHidden, loading]);
+    return () => {
+      cancelled = true;
+    };
+    // FT-001: cacheVersion triggers recompute after SSE deltas
+  }, [debouncedQuery, sortMode, includeHidden, loading, cacheVersion]);
 
   // Sort mode persistence
   const cycleSortModeHandler = useCallback(() => {

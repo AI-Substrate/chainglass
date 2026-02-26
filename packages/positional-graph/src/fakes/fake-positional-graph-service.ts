@@ -1,13 +1,11 @@
 /**
- * FakePositionalGraphService — Proxy-based test double for IPositionalGraphService.
+ * FakePositionalGraphService — Manual test double for IPositionalGraphService.
  *
- * Uses a JavaScript Proxy to auto-stub all 50+ methods:
  * - Every call is tracked in `calls` map (method name → args array)
- * - Unimplemented methods return `{ data: null, errors: [] }`
  * - UI-critical methods have `with*Result()` builders for preset returns
+ * - Non-critical methods return sensible defaults
  *
- * Per Constitution P4: full fake, not mocks.
- * Per DYK-I2: Proxy cuts from ~600 lines to ~200.
+ * Per Constitution P4: full fake with call tracking, not mocks.
  */
 
 import type { BaseResult } from '@chainglass/shared';
@@ -29,12 +27,12 @@ import type {
 } from '../interfaces/positional-graph-service.interface.js';
 import type { State } from '../schemas/index.js';
 
-// Default empty results
-const emptyBaseResult: BaseResult = { errors: [] };
+/** Fresh empty BaseResult — avoids shared mutable reference across callers. */
+function emptyBaseResult(): BaseResult {
+  return { errors: [] };
+}
 
 /**
- * Create a FakePositionalGraphService with Proxy-based auto-stubbing.
- *
  * Usage:
  * ```ts
  * const fake = new FakePositionalGraphService();
@@ -48,10 +46,10 @@ export class FakePositionalGraphService implements IPositionalGraphService {
   readonly calls = new Map<string, unknown[][]>();
 
   // Preset results for UI-critical methods
-  private _createResult: GraphCreateResult = { ...emptyBaseResult, graphSlug: '', lineId: '' };
+  private _createResult: GraphCreateResult = { ...emptyBaseResult(), graphSlug: '', lineId: '' };
   private _loadResult: PGLoadResult = { ...emptyBaseResult };
   private _showResult: PGShowResult = { ...emptyBaseResult };
-  private _listResult: PGListResult = { ...emptyBaseResult, slugs: [] };
+  private _listResult: PGListResult = { ...emptyBaseResult(), slugs: [] };
   private _addLineResult: AddLineResult = { ...emptyBaseResult };
   private _addNodeResult: AddNodeResult = { ...emptyBaseResult };
   private _showNodeResult: NodeShowResult = { ...emptyBaseResult };
@@ -144,7 +142,7 @@ export class FakePositionalGraphService implements IPositionalGraphService {
 
   async delete(ctx: WorkspaceContext, slug: string): Promise<BaseResult> {
     this.track('delete', [ctx, slug]);
-    return emptyBaseResult;
+    return emptyBaseResult();
   }
 
   async addLine(
@@ -158,7 +156,7 @@ export class FakePositionalGraphService implements IPositionalGraphService {
 
   async removeLine(ctx: WorkspaceContext, graphSlug: string, lineId: string): Promise<BaseResult> {
     this.track('removeLine', [ctx, graphSlug, lineId]);
-    return emptyBaseResult;
+    return emptyBaseResult();
   }
 
   async moveLine(
@@ -168,7 +166,7 @@ export class FakePositionalGraphService implements IPositionalGraphService {
     toIndex: number
   ): Promise<BaseResult> {
     this.track('moveLine', [ctx, graphSlug, lineId, toIndex]);
-    return emptyBaseResult;
+    return emptyBaseResult();
   }
 
   async setLineLabel(
@@ -178,7 +176,7 @@ export class FakePositionalGraphService implements IPositionalGraphService {
     label: string
   ): Promise<BaseResult> {
     this.track('setLineLabel', [ctx, graphSlug, lineId, label]);
-    return emptyBaseResult;
+    return emptyBaseResult();
   }
 
   async setLineDescription(
@@ -188,7 +186,7 @@ export class FakePositionalGraphService implements IPositionalGraphService {
     desc: string
   ): Promise<BaseResult> {
     this.track('setLineDescription', [ctx, graphSlug, lineId, desc]);
-    return emptyBaseResult;
+    return emptyBaseResult();
   }
 
   async addNode(
@@ -204,7 +202,7 @@ export class FakePositionalGraphService implements IPositionalGraphService {
 
   async removeNode(ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<BaseResult> {
     this.track('removeNode', [ctx, graphSlug, nodeId]);
-    return emptyBaseResult;
+    return emptyBaseResult();
   }
 
   async moveNode(
@@ -214,7 +212,7 @@ export class FakePositionalGraphService implements IPositionalGraphService {
     options: unknown
   ): Promise<BaseResult> {
     this.track('moveNode', [ctx, graphSlug, nodeId, options]);
-    return emptyBaseResult;
+    return emptyBaseResult();
   }
 
   async setNodeDescription(
@@ -224,7 +222,7 @@ export class FakePositionalGraphService implements IPositionalGraphService {
     desc: string
   ): Promise<BaseResult> {
     this.track('setNodeDescription', [ctx, graphSlug, nodeId, desc]);
-    return emptyBaseResult;
+    return emptyBaseResult();
   }
 
   async showNode(
@@ -244,7 +242,7 @@ export class FakePositionalGraphService implements IPositionalGraphService {
     source: unknown
   ): Promise<BaseResult> {
     this.track('setInput', [ctx, graphSlug, nodeId, inputName, source]);
-    return emptyBaseResult;
+    return emptyBaseResult();
   }
 
   async removeInput(
@@ -254,7 +252,7 @@ export class FakePositionalGraphService implements IPositionalGraphService {
     inputName: string
   ): Promise<BaseResult> {
     this.track('removeInput', [ctx, graphSlug, nodeId, inputName]);
-    return emptyBaseResult;
+    return emptyBaseResult();
   }
 
   async collateInputs(
@@ -302,8 +300,16 @@ export class FakePositionalGraphService implements IPositionalGraphService {
     return this._statusResult;
   }
 
+  private _inspectResult: InspectResult | null = null;
+
+  withInspectResult(result: InspectResult): this {
+    this._inspectResult = result;
+    return this;
+  }
+
   async inspectGraph(ctx: WorkspaceContext, graphSlug: string): Promise<InspectResult> {
     this.track('inspectGraph', [ctx, graphSlug]);
+    if (this._inspectResult) return this._inspectResult;
     return {
       graphSlug,
       graphStatus: 'pending',
@@ -312,9 +318,8 @@ export class FakePositionalGraphService implements IPositionalGraphService {
       completedNodes: 0,
       failedNodes: 0,
       errors: [],
-      lines: [],
       nodes: [],
-    } as InspectResult;
+    } satisfies InspectResult;
   }
 
   async triggerTransition(
@@ -323,7 +328,7 @@ export class FakePositionalGraphService implements IPositionalGraphService {
     lineId: string
   ): Promise<BaseResult> {
     this.track('triggerTransition', [ctx, graphSlug, lineId]);
-    return emptyBaseResult;
+    return emptyBaseResult();
   }
 
   async updateGraphProperties(
@@ -332,7 +337,7 @@ export class FakePositionalGraphService implements IPositionalGraphService {
     properties: unknown
   ): Promise<BaseResult> {
     this.track('updateGraphProperties', [ctx, graphSlug, properties]);
-    return emptyBaseResult;
+    return emptyBaseResult();
   }
 
   async updateLineProperties(
@@ -342,7 +347,7 @@ export class FakePositionalGraphService implements IPositionalGraphService {
     properties: unknown
   ): Promise<BaseResult> {
     this.track('updateLineProperties', [ctx, graphSlug, lineId, properties]);
-    return emptyBaseResult;
+    return emptyBaseResult();
   }
 
   async updateNodeProperties(
@@ -352,7 +357,7 @@ export class FakePositionalGraphService implements IPositionalGraphService {
     properties: unknown
   ): Promise<BaseResult> {
     this.track('updateNodeProperties', [ctx, graphSlug, nodeId, properties]);
-    return emptyBaseResult;
+    return emptyBaseResult();
   }
 
   async updateGraphOrchestratorSettings(
@@ -361,7 +366,7 @@ export class FakePositionalGraphService implements IPositionalGraphService {
     settings: unknown
   ): Promise<BaseResult> {
     this.track('updateGraphOrchestratorSettings', [ctx, graphSlug, settings]);
-    return emptyBaseResult;
+    return emptyBaseResult();
   }
 
   async updateLineOrchestratorSettings(
@@ -371,7 +376,7 @@ export class FakePositionalGraphService implements IPositionalGraphService {
     settings: unknown
   ): Promise<BaseResult> {
     this.track('updateLineOrchestratorSettings', [ctx, graphSlug, lineId, settings]);
-    return emptyBaseResult;
+    return emptyBaseResult();
   }
 
   async updateNodeOrchestratorSettings(
@@ -381,7 +386,7 @@ export class FakePositionalGraphService implements IPositionalGraphService {
     settings: unknown
   ): Promise<BaseResult> {
     this.track('updateNodeOrchestratorSettings', [ctx, graphSlug, nodeId, settings]);
-    return emptyBaseResult;
+    return emptyBaseResult();
   }
 
   async saveOutputData(
@@ -392,7 +397,7 @@ export class FakePositionalGraphService implements IPositionalGraphService {
     value: unknown
   ) {
     this.track('saveOutputData', [ctx, graphSlug, nodeId, outputName, value]);
-    return { ...emptyBaseResult, nodeId, outputName, saved: true };
+    return { ...emptyBaseResult(), nodeId, outputName, saved: true };
   }
 
   async saveOutputFile(
@@ -403,7 +408,7 @@ export class FakePositionalGraphService implements IPositionalGraphService {
     sourcePath: string
   ) {
     this.track('saveOutputFile', [ctx, graphSlug, nodeId, outputName, sourcePath]);
-    return { ...emptyBaseResult, nodeId, outputName, saved: true };
+    return { ...emptyBaseResult(), nodeId, outputName, saved: true };
   }
 
   async getOutputData(
@@ -413,7 +418,7 @@ export class FakePositionalGraphService implements IPositionalGraphService {
     outputName: string
   ) {
     this.track('getOutputData', [ctx, graphSlug, nodeId, outputName]);
-    return { ...emptyBaseResult, nodeId, outputName };
+    return { ...emptyBaseResult(), nodeId, outputName };
   }
 
   async getOutputFile(
@@ -423,13 +428,13 @@ export class FakePositionalGraphService implements IPositionalGraphService {
     outputName: string
   ) {
     this.track('getOutputFile', [ctx, graphSlug, nodeId, outputName]);
-    return { ...emptyBaseResult, nodeId, outputName };
+    return { ...emptyBaseResult(), nodeId, outputName };
   }
 
   async startNode(ctx: WorkspaceContext, graphSlug: string, nodeId: string) {
     this.track('startNode', [ctx, graphSlug, nodeId]);
     return {
-      ...emptyBaseResult,
+      ...emptyBaseResult(),
       nodeId,
       status: 'starting' as const,
       startedAt: new Date().toISOString(),
@@ -438,13 +443,13 @@ export class FakePositionalGraphService implements IPositionalGraphService {
 
   async canEnd(ctx: WorkspaceContext, graphSlug: string, nodeId: string) {
     this.track('canEnd', [ctx, graphSlug, nodeId]);
-    return { ...emptyBaseResult, nodeId, canEnd: true, savedOutputs: [], missingOutputs: [] };
+    return { ...emptyBaseResult(), nodeId, canEnd: true, savedOutputs: [], missingOutputs: [] };
   }
 
   async endNode(ctx: WorkspaceContext, graphSlug: string, nodeId: string, message?: string) {
     this.track('endNode', [ctx, graphSlug, nodeId, message]);
     return {
-      ...emptyBaseResult,
+      ...emptyBaseResult(),
       nodeId,
       status: 'complete' as const,
       completedAt: new Date().toISOString(),
@@ -454,7 +459,7 @@ export class FakePositionalGraphService implements IPositionalGraphService {
   async askQuestion(ctx: WorkspaceContext, graphSlug: string, nodeId: string, options: unknown) {
     this.track('askQuestion', [ctx, graphSlug, nodeId, options]);
     return {
-      ...emptyBaseResult,
+      ...emptyBaseResult(),
       nodeId,
       questionId: 'q-fake-1',
       status: 'waiting-question' as const,
@@ -469,22 +474,22 @@ export class FakePositionalGraphService implements IPositionalGraphService {
     answer: unknown
   ) {
     this.track('answerQuestion', [ctx, graphSlug, nodeId, questionId, answer]);
-    return { ...emptyBaseResult, nodeId, questionId, status: 'waiting-question' as const };
+    return { ...emptyBaseResult(), nodeId, questionId, status: 'waiting-question' as const };
   }
 
   async getAnswer(ctx: WorkspaceContext, graphSlug: string, nodeId: string, questionId: string) {
     this.track('getAnswer', [ctx, graphSlug, nodeId, questionId]);
-    return { ...emptyBaseResult, nodeId, questionId, answered: false };
+    return { ...emptyBaseResult(), nodeId, questionId, answered: false };
   }
 
   async getInputData(ctx: WorkspaceContext, graphSlug: string, nodeId: string, inputName: string) {
     this.track('getInputData', [ctx, graphSlug, nodeId, inputName]);
-    return { ...emptyBaseResult, nodeId, inputName, sources: [], complete: false };
+    return { ...emptyBaseResult(), nodeId, inputName, sources: [], complete: false };
   }
 
   async getInputFile(ctx: WorkspaceContext, graphSlug: string, nodeId: string, inputName: string) {
     this.track('getInputFile', [ctx, graphSlug, nodeId, inputName]);
-    return { ...emptyBaseResult, nodeId, inputName, sources: [], complete: false };
+    return { ...emptyBaseResult(), nodeId, inputName, sources: [], complete: false };
   }
 
   async raiseNodeEvent(
@@ -496,12 +501,12 @@ export class FakePositionalGraphService implements IPositionalGraphService {
     source: unknown
   ) {
     this.track('raiseNodeEvent', [ctx, graphSlug, nodeId, eventType, payload, source]);
-    return { ...emptyBaseResult, nodeId };
+    return { ...emptyBaseResult(), nodeId };
   }
 
   async getNodeEvents(ctx: WorkspaceContext, graphSlug: string, nodeId: string, filter?: unknown) {
     this.track('getNodeEvents', [ctx, graphSlug, nodeId, filter]);
-    return { ...emptyBaseResult, nodeId, events: [] };
+    return { ...emptyBaseResult(), nodeId, events: [] };
   }
 
   async stampNodeEvent(
@@ -514,7 +519,7 @@ export class FakePositionalGraphService implements IPositionalGraphService {
     data?: unknown
   ) {
     this.track('stampNodeEvent', [ctx, graphSlug, nodeId, eventId, subscriber, action, data]);
-    return { ...emptyBaseResult, nodeId, eventId, subscriber };
+    return { ...emptyBaseResult(), nodeId, eventId, subscriber };
   }
 
   async loadGraphState(ctx: WorkspaceContext, graphSlug: string): Promise<State> {
@@ -532,10 +537,10 @@ export class FakePositionalGraphService implements IPositionalGraphService {
   /** Reset all call tracking and preset results */
   reset(): void {
     this.calls.clear();
-    this._createResult = { ...emptyBaseResult, graphSlug: '', lineId: '' };
+    this._createResult = { ...emptyBaseResult(), graphSlug: '', lineId: '' };
     this._loadResult = { ...emptyBaseResult };
     this._showResult = { ...emptyBaseResult };
-    this._listResult = { ...emptyBaseResult, slugs: [] };
+    this._listResult = { ...emptyBaseResult(), slugs: [] };
     this._addLineResult = { ...emptyBaseResult };
     this._addNodeResult = { ...emptyBaseResult };
     this._showNodeResult = { ...emptyBaseResult };
@@ -543,6 +548,7 @@ export class FakePositionalGraphService implements IPositionalGraphService {
     this._nodeStatusResult = null;
     this._lineStatusResult = null;
     this._collateResult = { inputs: {}, ok: true };
+    this._inspectResult = null;
     this._state = null;
   }
 }
