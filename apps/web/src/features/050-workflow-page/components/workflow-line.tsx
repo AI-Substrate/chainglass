@@ -11,6 +11,7 @@
 
 import type { LineStatusResult } from '@chainglass/positional-graph';
 import { useState } from 'react';
+import { ContextFlowIndicator } from './context-flow-indicator';
 import { DropZone } from './drop-zone';
 import { EmptyLinePlaceholder } from './empty-states';
 import { WorkflowNodeCard, nodeStatusToCardProps } from './workflow-node-card';
@@ -20,6 +21,7 @@ export interface WorkflowLineProps {
   lineIndex: number;
   isDragging?: boolean;
   selectedNodeId?: string | null;
+  relatedNodeIds?: Set<string>;
   onSelectNode?: (nodeId: string | null) => void;
   onDeleteNode?: (nodeId: string) => void;
   onSetLineLabel?: (lineId: string, label: string) => void;
@@ -44,6 +46,7 @@ export function WorkflowLine({
   lineIndex,
   isDragging = false,
   selectedNodeId,
+  relatedNodeIds,
   onSelectNode,
   onDeleteNode,
   onSetLineLabel,
@@ -52,6 +55,7 @@ export function WorkflowLine({
   const borderClass = lineStateBorder(line);
   const editable = isLineEditable(line);
   const showDropZones = isDragging && editable;
+  const hasDimming = selectedNodeId != null && relatedNodeIds != null;
   // Drop zones always rendered (for dnd-kit registration), isActive controls visibility
   const [editingLabel, setEditingLabel] = useState(false);
   const [labelValue, setLabelValue] = useState(line.label ?? '');
@@ -140,17 +144,19 @@ export function WorkflowLine({
           data-testid={`line-nodes-${line.lineId}`}
         >
           {line.nodes.map((node, idx) => (
-            <div key={node.nodeId} className="flex items-stretch gap-1">
+            <div key={node.nodeId} className="flex items-stretch items-center gap-1">
               <DropZone
                 id={`drop-${line.lineId}-${idx}`}
                 lineId={line.lineId}
                 position={idx}
                 isActive={showDropZones}
               />
+              {idx > 0 && <ContextFlowIndicator rightNode={node} />}
               <WorkflowNodeCard
-                {...nodeStatusToCardProps(node)}
+                {...nodeStatusToCardProps(node, lineIndex)}
                 isSelected={selectedNodeId === node.nodeId}
                 isEditable={editable}
+                isDimmed={hasDimming && !relatedNodeIds.has(node.nodeId)}
                 onSelect={() => onSelectNode?.(node.nodeId)}
                 onDelete={() => onDeleteNode?.(node.nodeId)}
               />

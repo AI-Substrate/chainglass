@@ -310,7 +310,7 @@ Build a visual workflow editor for the positional graph system as a new `workflo
 | Phase 1: Domain Setup + Foundations | ✅ Complete | AC-28,29,30,37 |
 | Phase 2: Canvas Core + Layout | ✅ Complete | AC-01,02,03,04,05,06,10,11,20,22b,35 |
 | Phase 3: Drag-and-Drop + Persistence | ✅ Complete | AC-04,07,08,09,21,22b,35 |
-| Phase 4: Context Indicators + Select-to-Reveal | Pending | AC-12,13,14,15,17 |
+| Phase 4: Context Indicators + Select-to-Reveal | ✅ Complete | AC-12,13,14,15,17,35 |
 | Phase 5: Q&A + Node Properties Modal + Undo/Redo | Pending | AC-16,18,19,23,24 |
 | Phase 6: Real-Time SSE Updates | Pending | AC-25,26,27 |
 | Phase 7: Workgraph Deprecation + Cleanup | Pending | AC-31,32,33,34 |

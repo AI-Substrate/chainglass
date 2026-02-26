@@ -118,14 +118,16 @@ describe('WorkflowNodeCard', () => {
         inputsAvailable: true,
         unitFound: true,
       },
-      inputPack: {},
+      inputPack: { inputs: {}, ok: true },
     };
 
-    const props = nodeStatusToCardProps(nodeStatus);
+    const props = nodeStatusToCardProps(nodeStatus, 0);
     expect(props.nodeId).toBe('node-a1b');
     expect(props.unitSlug).toBe('sample-coder');
     expect(props.unitType).toBe('agent');
     expect(props.status).toBe('agent-accepted');
     expect(props.contextColor).toBe('green');
+    expect(props.noContext).toBe(false);
+    expect(props.nodeStatus).toBeDefined();
   });
 });

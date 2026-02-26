@@ -25,9 +25,12 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
-import { useCallback, useId, useState } from 'react';
+import { useCallback, useId, useMemo, useState } from 'react';
 import { useWorkflowMutations } from '../hooks/use-workflow-mutations';
+import { computeContextBadge } from '../lib/context-badge';
+import { computeRelatedNodes } from '../lib/related-nodes';
 import type { WorkflowDragData } from '../types';
+import { NodePropertiesPanel } from './node-properties-panel';
 import { WorkUnitToolbox } from './work-unit-toolbox';
 import { WorkflowCanvas } from './workflow-canvas';
 import { WorkflowEditorLayout } from './workflow-editor-layout';
@@ -64,6 +67,26 @@ export function WorkflowEditor({
     graphStatus,
     onStatusUpdate: setGraphStatus,
   });
+
+  // Compute related nodes for select-to-reveal dimming
+  const relatedNodes = useMemo(
+    () => (selectedNodeId ? computeRelatedNodes(selectedNodeId, graphStatus.lines) : null),
+    [selectedNodeId, graphStatus.lines]
+  );
+
+  // Find selected node for properties panel
+  const selectedNode = useMemo(
+    () =>
+      selectedNodeId
+        ? graphStatus.lines.flatMap((l) => l.nodes).find((n) => n.nodeId === selectedNodeId)
+        : null,
+    [selectedNodeId, graphStatus.lines]
+  );
+
+  const selectedNodeLineIndex = useMemo(() => {
+    if (!selectedNodeId) return 0;
+    return graphStatus.lines.findIndex((l) => l.nodes.some((n) => n.nodeId === selectedNodeId));
+  }, [selectedNodeId, graphStatus.lines]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -143,6 +166,7 @@ export function WorkflowEditor({
               graphStatus={graphStatus}
               isDragging={isDragging}
               selectedNodeId={selectedNodeId}
+              relatedNodeIds={relatedNodes?.relatedNodeIds}
               onSelectNode={setSelectedNodeId}
               onDeleteNode={handleDeleteNode}
               onAddLine={mutations.addLine}
@@ -150,7 +174,18 @@ export function WorkflowEditor({
               onRemoveLine={mutations.removeLine}
             />
           }
-          right={<WorkUnitToolbox units={units} isDragging={isDragging} />}
+          right={
+            selectedNode ? (
+              <NodePropertiesPanel
+                node={selectedNode}
+                contextColor={computeContextBadge(selectedNode, selectedNodeLineIndex)}
+                related={relatedNodes?.related ?? []}
+                onBack={() => setSelectedNodeId(null)}
+              />
+            ) : (
+              <WorkUnitToolbox units={units} isDragging={isDragging} />
+            )
+          }
         />
       </div>
       <DragOverlay dropAnimation={null}>

@@ -18,6 +18,7 @@ export interface WorkflowCanvasProps {
   graphStatus: GraphStatusResult;
   isDragging?: boolean;
   selectedNodeId?: string | null;
+  relatedNodeIds?: Set<string>;
   onSelectNode?: (nodeId: string | null) => void;
   onDeleteNode?: (nodeId: string) => void;
   onAddLine?: (label?: string) => void;
@@ -29,6 +30,7 @@ export function WorkflowCanvas({
   graphStatus,
   isDragging = false,
   selectedNodeId,
+  relatedNodeIds,
   onSelectNode,
   onDeleteNode,
   onAddLine,
@@ -56,6 +58,7 @@ export function WorkflowCanvas({
             lineIndex={index}
             isDragging={isDragging}
             selectedNodeId={selectedNodeId}
+            relatedNodeIds={relatedNodeIds}
             onSelectNode={onSelectNode}
             onDeleteNode={onDeleteNode}
             onSetLineLabel={onSetLineLabel}

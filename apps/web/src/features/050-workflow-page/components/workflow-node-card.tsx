@@ -3,13 +3,15 @@
 /**
  * WorkflowNodeCard — Visual representation of a node in a workflow line.
  *
- * Renders type icon, unit name, description, status indicator, and context badge.
- * All 8 status states supported with correct colors per W001.
+ * Renders type icon, unit name, description, status indicator, context badge,
+ * noContext lock, gate chips, and supports dimming for select-to-reveal.
  *
- * Phase 2: Canvas Core + Layout — Plan 050
+ * Phase 2+4 — Plan 050
  */
 
 import type { NodeStatusResult } from '@chainglass/positional-graph';
+import { computeContextBadge } from '../lib/context-badge';
+import { GateChip } from './gate-chip';
 
 // ─── Status Definitions ──────────────────────────────────────────────
 
@@ -70,8 +72,12 @@ export interface WorkflowNodeCardProps {
   status: NodeStatus;
   description?: string;
   contextColor?: 'green' | 'blue' | 'purple' | 'gray';
+  noContext?: boolean;
+  /** Full node status for gate chip rendering */
+  nodeStatus?: NodeStatusResult;
   isSelected?: boolean;
   isEditable?: boolean;
+  isDimmed?: boolean;
   onSelect?: () => void;
   onDelete?: () => void;
 }
@@ -92,8 +98,11 @@ export function WorkflowNodeCard({
   status,
   description,
   contextColor = 'gray',
+  noContext = false,
+  nodeStatus,
   isSelected = false,
   isEditable = true,
+  isDimmed = false,
   onSelect,
   onDelete,
 }: WorkflowNodeCardProps) {
@@ -111,18 +120,23 @@ export function WorkflowNodeCard({
           onDelete();
         }
       }}
-      className={`relative min-w-[120px] min-h-[100px] rounded-lg border bg-card p-3 shadow-sm hover:shadow-md transition-shadow cursor-pointer ${
+      className={`relative min-w-[120px] min-h-[100px] rounded-lg border bg-card p-3 shadow-sm hover:shadow-md transition-all cursor-pointer ${
         isSelected ? 'ring-2 ring-primary border-primary' : ''
-      }`}
+      } ${isDimmed ? 'opacity-40' : ''}`}
       tabIndex={0}
       // biome-ignore lint/a11y/useSemanticElements: div used for layout + drag handle compatibility
       role="button"
     >
-      {/* Header: type icon + name + delete */}
+      {/* Header: type icon + lock + name + delete */}
       <div className="flex items-center gap-1.5 mb-1">
         <span className="text-sm" aria-label={unitType}>
           {typeIcon}
         </span>
+        {noContext && (
+          <span className="text-xs" title="Isolated — no context" data-testid={`lock-${nodeId}`}>
+            🔒
+          </span>
+        )}
         <span className="text-sm font-medium truncate">{unitSlug}</span>
         {isEditable && onDelete && (
           <button
@@ -162,18 +176,26 @@ export function WorkflowNodeCard({
           title={`Context: ${contextColor}`}
         />
       </div>
+
+      {/* Gate chip for blocked nodes */}
+      {nodeStatus && <GateChip node={nodeStatus} />}
     </div>
   );
 }
 
 // ─── Helper: convert NodeStatusResult to card props ──────────────────
 
-export function nodeStatusToCardProps(node: NodeStatusResult): WorkflowNodeCardProps {
+export function nodeStatusToCardProps(
+  node: NodeStatusResult,
+  lineIndex: number
+): WorkflowNodeCardProps {
   return {
     nodeId: node.nodeId,
     unitSlug: node.unitSlug,
     unitType: node.unitType,
     status: node.status as NodeStatus,
-    contextColor: node.noContext ? 'gray' : 'green',
+    contextColor: computeContextBadge(node, lineIndex),
+    noContext: node.noContext,
+    nodeStatus: node,
   };
 }
