@@ -4,7 +4,7 @@
 **Created**: 2026-02-25
 **Spec**: [wf-web-spec.md](wf-web-spec.md)
 **Workshop**: [001-template-instance-directory-layout.md](workshops/001-template-instance-directory-layout.md), [002-template-creation-flow-and-node-identity.md](workshops/002-template-creation-flow-and-node-identity.md), [003-instance-unified-storage.md](workshops/003-instance-unified-storage.md)
-**Status**: DRAFT
+**Status**: COMPLETE
 
 ## Summary
 
@@ -221,3 +221,23 @@ CLI commands are the primary interface and are introduced early (Phase 2) so the
 | Phase 2: Service + CLI | Complete | 19/19 tasks |
 | Phase 3: Integration Testing & Instance Validation | Complete | 7/7 tasks |
 | Phase 4: E2E + Docs | Complete | 6/6 tasks |
+
+### Completion Summary
+
+**Total**: 38/38 tasks across 4 phases. **20/22 ACs satisfied.**
+
+**Deferred ACs**:
+- AC-9: Standalone work unit template library (`.chainglass/templates/units/`) — not needed for MVP workflow template system
+- AC-22: Bulk e2e test reconfiguration — smoke + simple-serial converted, remaining fixtures deferred
+
+**Test Coverage**: 51 new tests (30 unit, 8 contract, 8 integration, 5 e2e lifecycle)
+
+**Key Commits**:
+- `040f538` — Phase 1: schemas, interfaces, fakes, contract tests
+- `c878d68` — Phase 2: TemplateService, 6 CLI commands, adapters, advanced-pipeline template
+- `af4aa80` — Phase 3: InstanceGraphAdapter, 5 integration tests
+- `056a9b0` — Phase 4: generation script, 2 templates, withTemplateWorkflow(), docs
+
+**Workshops**: 3 design workshops produced (directory layout, template creation flow, unified instance storage)
+
+**Domain Impact**: `_platform/positional-graph` domain updated with 8 new components across 4 phases. Domain map, registry, and domain.md all current.
