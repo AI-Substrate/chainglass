@@ -3,7 +3,7 @@
 **Plan Version**: 1.0.0
 **Created**: 2026-02-26
 **Spec**: [workflow-page-ux-spec.md](workflow-page-ux-spec.md)
-**Status**: DRAFT
+**Status**: IN PROGRESS (Phase 1 complete)
 
 ## Summary
 
@@ -300,10 +300,26 @@ Build a visual workflow editor for the positional graph system as a new `workflo
 
 | Phase | Status | ACs Covered |
 |-------|--------|-------------|
-| Phase 1: Domain Setup + Foundations | Pending | AC-28,29,30,37 |
+| Phase 1: Domain Setup + Foundations | ✅ Complete | AC-28,29,30,37 |
 | Phase 2: Canvas Core + Layout | Pending | AC-01,02,03,04,05,06,10,11,20,22b |
 | Phase 3: Drag-and-Drop + Persistence | Pending | AC-07,08,09,21,22 |
 | Phase 4: Context Indicators + Select-to-Reveal | Pending | AC-12,13,14,15,17 |
 | Phase 5: Q&A + Node Properties Modal + Undo/Redo | Pending | AC-16,18,19,23,24 |
 | Phase 6: Real-Time SSE Updates | Pending | AC-25,26,27 |
 | Phase 7: Workgraph Deprecation + Cleanup | Pending | AC-31,32,33,34 |
+
+### Phase 1 Summary
+
+**Completed**: 2026-02-26 | **Commit**: `96329c8`
+
+| Task | Domain | What Changed |
+|------|--------|-------------|
+| T001 | workflow-ui | Created `docs/domains/workflow-ui/domain.md`, added to registry + domain-map |
+| T002 | _platform/positional-graph | Registered `registerPositionalGraphServices()` + WORK_UNIT_LOADER bridge + TemplateService in web DI; added tsconfig path mapping |
+| T003 | _platform/positional-graph | Created `packages/positional-graph/src/fakes/` — FakePositionalGraphService (50+ methods, call tracking, 12 return builders) |
+| T004 | _platform/positional-graph | Verified FakeWorkUnitService already exported — no changes needed |
+| T005 | workflow-ui | Created `scripts/dope-workflows.ts` — 8 scenarios (blank, serial, running, question, error, complete, complex, from-template) |
+| T006 | workflow-ui | Added `just dope`, `just redope` to justfile |
+| T007 | workflow-ui | Created `test/integration/dope-workflows.test.ts` — 8 tests, all passing |
+
+**Discovery**: Web `tsconfig.json` needed `@chainglass/positional-graph` mapped to `dist/` — Turbopack was resolving from source via root tsconfig paths and couldn't handle `.js` extensions.
