@@ -85,6 +85,7 @@ Core graph engine that powers the line-based workflow execution system. Owns the
 | `TemplateAdapter` | Filesystem path resolution for templates at .chainglass/templates/workflows/ (Plan 048 Phase 2) | IFileSystem, IPathResolver |
 | `InstanceAdapter` | Filesystem path resolution for instances at .chainglass/instances/ (Plan 048 Phase 2) | IFileSystem, IPathResolver |
 | `InstanceWorkUnitAdapter` | IWorkUnitLoader for instance-local unit resolution (Plan 048 Phase 2) | IFileSystem, IPathResolver, IYamlParser, basePath |
+| `InstanceGraphAdapter` | PositionalGraphAdapter scoped to one instance path (Plan 048 Phase 3) | IFileSystem, IPathResolver, instancePath |
 
 ## Source Location
 
@@ -95,7 +96,7 @@ Primary: `packages/positional-graph/src/`
 | `packages/positional-graph/src/services/` | Core services (graph engine, input resolution, ID gen, atomic writes) | 4 files |
 | `packages/positional-graph/src/interfaces/` | Master service interface | IPositionalGraphService (~50 methods) |
 | `packages/positional-graph/src/schemas/` | Graph, node, state, properties, enums, orchestrator-settings | 6 files, Zod source of truth |
-| `packages/positional-graph/src/adapter/` | Filesystem persistence adapter | Reads/writes .chainglass/data/workflows/ |
+| `packages/positional-graph/src/adapter/` | Filesystem persistence adapters | PositionalGraphAdapter, InstanceGraphAdapter, InstanceWorkUnitAdapter |
 | `packages/positional-graph/src/features/029-agentic-work-units/` | WorkUnit types, schema, service, adapter, classes, fakes | 8+ files |
 | `packages/positional-graph/src/features/030-orchestration/` | Orchestration, ODS, ONBAS, Reality, Pods, Agent context, Script runner | ~30 files |
 | `packages/positional-graph/src/features/032-node-event-system/` | Event service, handler, registry, schemas, core types, fakes | ~20 files |
@@ -146,3 +147,4 @@ Primary: `packages/positional-graph/src/`
 | 040 | Graph inspect CLI — graph introspection commands | 2026 |
 | 048 | Workflow templates & instances — template/instance schemas, ITemplateService, IInstanceService, fakes, contract tests (Phase 1) | 2026-02-25 |
 | 048-P2 | Template/Instance service + CLI — TemplateService (6 methods), TemplateAdapter, InstanceAdapter, InstanceWorkUnitAdapter, 6 CLI commands, advanced-pipeline template, Workshop 003 unified storage (Phase 2) | 2026-02-25 |
+| 048-P3 | Integration testing + InstanceGraphAdapter — pre-resolved adapter for instance graph routing, 5 integration tests proving lifecycle/isolation/refresh/template-isolation (Phase 3) | 2026-02-26 |

@@ -3,6 +3,53 @@
 **Phase**: Phase 3: Integration Testing & Instance Validation
 **Plan**: [wf-web-plan.md](../../wf-web-plan.md)
 **Started**: 2026-02-26
+**Completed**: 2026-02-26
+**Commit**: `af4aa80`
+**Branch**: `048-wf-web`
+
+---
+
+## Summary
+
+7/7 tasks completed across 4 stages. All 4507 tests pass (`just fft` green).
+
+**Domain**: `_platform/positional-graph` (all tasks)
+
+### Files Created (3)
+
+| File | Domain | Purpose |
+|------|--------|---------|
+| `packages/positional-graph/src/adapter/instance-graph.adapter.ts` | positional-graph | InstanceGraphAdapter — pre-resolved basePath, Liskov-substitutable for PositionalGraphAdapter |
+| `test/unit/positional-graph/instance-graph-adapter.test.ts` | positional-graph | 6 unit tests for adapter path resolution |
+| `test/integration/template-instance-validation.test.ts` | positional-graph | 5 integration tests with real filesystem (lifecycle, isolation, refresh, template isolation) |
+
+### Files Modified (1)
+
+| File | Domain | Change |
+|------|--------|--------|
+| `packages/positional-graph/src/adapter/index.ts` | positional-graph | Barrel export for InstanceGraphAdapter |
+
+### Domain Impact
+
+| Domain | Relationship | Changes |
+|--------|-------------|---------|
+| _platform/positional-graph | **modify** | +1 adapter (InstanceGraphAdapter), +11 tests |
+| _platform/file-ops | consume | No changes — used NodeFileSystemAdapter for integration tests |
+
+### Contract Changes
+
+- `InstanceGraphAdapter` added to `@chainglass/positional-graph` public API (barrel export)
+- No existing contracts broken
+- `domain-map.md` does NOT need updating — InstanceGraphAdapter is internal composition, not a new contract
+
+### ACs Covered by Phase 3
+
+| AC | Status | Evidence |
+|----|--------|----------|
+| AC-7 | ✅ | T007: template modification doesn't propagate, refresh does |
+| AC-8 | ✅ | T005: two independent instances with separate state |
+| AC-12 | ✅ | T007: unit template edit doesn't affect instance until refresh |
+| AC-16 | ✅ | T006: ACTIVE_RUN_WARNING on in_progress state, refresh proceeds |
 
 ---
 
