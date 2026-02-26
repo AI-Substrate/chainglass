@@ -32,17 +32,17 @@ export function DropZone({ id, lineId, position, isActive, fullWidth }: DropZone
       <div
         ref={setNodeRef}
         data-testid={`drop-zone-${lineId}-${position}`}
-        className={`flex items-center justify-center rounded-lg border-2 border-dashed transition-all ${
+        className={`flex items-center justify-center rounded-xl border-2 border-dashed transition-all duration-200 ${
           !isActive
             ? 'min-h-0 h-1 overflow-hidden border-transparent opacity-0'
             : isOver
-              ? 'min-h-[80px] bg-primary/20 border-primary'
-              : 'min-h-[80px] bg-muted/10 border-muted-foreground/20'
+              ? 'min-h-[70px] bg-primary/10 border-primary/50 shadow-inner'
+              : 'min-h-[70px] bg-muted/20 border-border/25'
         }`}
       >
         {isActive && (
-          <span className="text-xs text-muted-foreground">
-            {isOver ? 'Drop here' : 'Drop work unit here'}
+          <span className="text-[11px] text-muted-foreground/50 font-medium">
+            {isOver ? 'Release to drop' : 'Drop work unit here'}
           </span>
         )}
       </div>
@@ -53,15 +53,15 @@ export function DropZone({ id, lineId, position, isActive, fullWidth }: DropZone
     <div
       ref={setNodeRef}
       data-testid={`drop-zone-${lineId}-${position}`}
-      className={`flex items-center justify-center shrink-0 rounded transition-all self-stretch ${
+      className={`flex items-center justify-center shrink-0 rounded-lg transition-all duration-200 self-stretch ${
         !isActive
           ? 'w-1 opacity-0'
           : isOver
-            ? 'w-14 bg-primary/20 border-2 border-dashed border-primary'
-            : 'w-10 bg-muted/30 border border-dashed border-muted-foreground/20'
+            ? 'w-12 bg-primary/10 border-2 border-dashed border-primary/50'
+            : 'w-8 bg-muted/20 border border-dashed border-border/25'
       }`}
     >
-      {isActive && <span className="text-xs text-muted-foreground">+</span>}
+      {isActive && <span className="text-[10px] text-muted-foreground/40 font-medium">+</span>}
     </div>
   );
 }

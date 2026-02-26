@@ -190,7 +190,7 @@ export function WorkflowEditor({
       </div>
       <DragOverlay dropAnimation={null}>
         {activeDragData?.type === 'toolbox-unit' && (
-          <div className="px-3 py-2 rounded border bg-card shadow-lg text-xs font-medium opacity-90">
+          <div className="px-3.5 py-2.5 rounded-xl border border-primary/20 bg-card shadow-[0_8px_30px_-8px_rgba(0,0,0,0.15)] text-xs font-semibold tracking-tight">
             {activeDragData.unitSlug}
           </div>
         )}

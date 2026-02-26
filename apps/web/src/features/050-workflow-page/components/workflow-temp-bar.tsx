@@ -18,16 +18,16 @@ export function WorkflowTempBar({ graphSlug, templateSource }: WorkflowTempBarPr
   return (
     <div
       data-testid="workflow-temp-bar"
-      className="flex items-center justify-between px-4 py-2 border-b bg-background shrink-0"
+      className="flex items-center justify-between px-6 py-3.5 rounded-t-xl bg-gray-800 dark:bg-gray-950 text-white shrink-0"
     >
       {/* Left: graph name + breadcrumb */}
-      <div className="flex items-center gap-2 text-sm">
-        <span className="font-medium">{graphSlug}</span>
+      <div className="flex items-center gap-2.5">
+        <span className="text-base font-semibold tracking-tight">{graphSlug}</span>
         {templateSource && (
           <>
-            <span className="text-muted-foreground">·</span>
-            <span className="text-muted-foreground text-xs">
-              from template <span className="font-medium">{templateSource}</span>
+            <span className="text-white/30">·</span>
+            <span className="text-white/50 text-sm">
+              from <span className="font-medium text-white/70">{templateSource}</span>
             </span>
           </>
         )}
@@ -37,7 +37,7 @@ export function WorkflowTempBar({ graphSlug, templateSource }: WorkflowTempBarPr
       <button
         type="button"
         disabled
-        className="px-3 py-1 text-xs rounded bg-muted text-muted-foreground cursor-not-allowed"
+        className="px-4 py-1.5 text-xs font-medium rounded-lg bg-white/10 text-white/40 cursor-not-allowed border border-white/10"
         title="Coming in future plan"
       >
         ▶ Run

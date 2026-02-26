@@ -26,11 +26,11 @@ export function ContextFlowIndicator({ rightNode }: ContextFlowIndicatorProps) {
   if (rightNode.noContext) {
     return (
       <span
-        className="text-lg text-muted-foreground/50 px-1 shrink-0 self-center"
+        className="flex items-center justify-center w-6 shrink-0 self-center text-muted-foreground/30"
         title="Isolated — no context"
         data-testid="flow-isolated"
       >
-        ✕
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
       </span>
     );
   }
@@ -39,11 +39,11 @@ export function ContextFlowIndicator({ rightNode }: ContextFlowIndicatorProps) {
   if (rightNode.contextFrom) {
     return (
       <span
-        className="text-lg text-violet-400 px-1 shrink-0 self-center"
+        className="flex items-center justify-center w-6 shrink-0 self-center text-violet-400"
         title={`Context from: ${rightNode.contextFrom}`}
         data-testid="flow-explicit"
       >
-        →
+        <svg width="20" height="12" viewBox="0 0 20 12" fill="none"><path d="M2 6h14M12 2l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
       </span>
     );
   }
@@ -56,11 +56,11 @@ export function ContextFlowIndicator({ rightNode }: ContextFlowIndicatorProps) {
   // Default: serial, context inherited from left
   return (
     <span
-      className="text-lg text-blue-400 px-1 shrink-0 self-center"
+      className="flex items-center justify-center w-6 shrink-0 self-center text-blue-400/70"
       title="Context inherited from left"
       data-testid="flow-inherited"
     >
-      →
+      <svg width="20" height="12" viewBox="0 0 20 12" fill="none"><path d="M2 6h14M12 2l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
     </span>
   );
 }
@@ -68,11 +68,11 @@ export function ContextFlowIndicator({ rightNode }: ContextFlowIndicatorProps) {
 function Dot({ label }: { label: string }) {
   return (
     <span
-      className="text-lg text-muted-foreground/30 px-1 shrink-0 self-center"
+      className="flex items-center justify-center w-6 shrink-0 self-center text-muted-foreground/20"
       title={label}
       data-testid="flow-none"
     >
-      ···
+      <svg width="16" height="4" viewBox="0 0 16 4" fill="none"><circle cx="2" cy="2" r="1.5" fill="currentColor"/><circle cx="8" cy="2" r="1.5" fill="currentColor"/><circle cx="14" cy="2" r="1.5" fill="currentColor"/></svg>
     </span>
   );
 }

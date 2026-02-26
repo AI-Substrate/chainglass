@@ -20,14 +20,15 @@ export interface WorkflowEditorLayoutProps {
 export function WorkflowEditorLayout({ topBar, main, right }: WorkflowEditorLayoutProps) {
   return (
     <div className="flex flex-col h-full w-full overflow-hidden">
-      {/* Top bar */}
-      <div className="shrink-0">{topBar}</div>
-
       {/* Main + Right split */}
       <div className="flex flex-1 overflow-hidden">
-        <div className="flex-1 flex flex-col overflow-hidden">{main}</div>
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Top bar — rounded top corners, flush bottom into canvas */}
+          <div className="shrink-0">{topBar}</div>
+          {main}
+        </div>
         <div
-          className="shrink-0 overflow-y-auto border-l"
+          className="shrink-0 overflow-y-auto border-l border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900"
           style={{ width: 260, minWidth: 180, maxWidth: '35%', resize: 'horizontal' }}
         >
           {right}

@@ -44,59 +44,60 @@ export function NodePropertiesPanel({
   const gates = computeGates(node);
 
   return (
-    <div data-testid="node-properties-panel" className="flex flex-col h-full p-3 gap-3 text-xs">
+    <div data-testid="node-properties-panel" className="flex flex-col h-full p-4 gap-4 text-xs">
       {/* Header */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2.5">
         <button
           type="button"
           onClick={onBack}
-          className="text-muted-foreground hover:text-foreground"
+          className="text-muted-foreground/60 hover:text-foreground transition-colors text-[11px] font-medium"
           data-testid="properties-back"
         >
           ← Back
         </button>
-        <span className="font-semibold">Node Properties</span>
+        <span className="text-[13px] font-semibold tracking-tight">Properties</span>
       </div>
 
       {/* Unit Info */}
-      <section>
-        <h4 className="font-medium text-muted-foreground mb-1">Unit</h4>
-        <div className="flex items-center gap-1.5">
-          <span>{TYPE_ICONS[node.unitType]}</span>
-          <span className="font-medium">{node.unitSlug}</span>
+      <section className="rounded-lg bg-muted/30 p-3">
+        <div className="flex items-center gap-2">
+          <span className="text-base">{TYPE_ICONS[node.unitType]}</span>
+          <div>
+            <div className="font-semibold text-[13px] tracking-tight">{node.unitSlug}</div>
+            <div className="text-muted-foreground/60 text-[11px]">{node.unitType}</div>
+          </div>
         </div>
-        <div className="text-muted-foreground mt-0.5">{node.unitType}</div>
       </section>
 
       {/* Status */}
       <section>
-        <h4 className="font-medium text-muted-foreground mb-1">Status</h4>
-        <div>{node.status}</div>
+        <h4 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50 mb-1.5">Status</h4>
+        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400 capitalize">{node.status}</div>
       </section>
 
       {/* Context Source */}
       <section>
-        <h4 className="font-medium text-muted-foreground mb-1">Context</h4>
-        <div className="flex items-center gap-1.5">
+        <h4 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50 mb-1.5">Context</h4>
+        <div className="flex items-center gap-2">
           <div
-            className={`w-2.5 h-2.5 rounded-sm bg-${contextColor === 'blue' ? 'blue' : contextColor === 'purple' ? 'violet' : contextColor === 'green' ? 'green' : 'gray'}-500`}
+            className={`w-2.5 h-2.5 rounded-full bg-${contextColor === 'blue' ? 'blue' : contextColor === 'purple' ? 'violet' : contextColor === 'green' ? 'green' : 'gray'}-500`}
           />
-          <span>{CONTEXT_LABELS[contextColor]}</span>
-          {node.noContext && <span className="text-muted-foreground">🔒 Isolated</span>}
+          <span className="font-medium">{CONTEXT_LABELS[contextColor]}</span>
+          {node.noContext && <span className="text-muted-foreground/50">🔒 Isolated</span>}
           {node.contextFrom && (
-            <span className="text-muted-foreground">from {node.contextFrom}</span>
+            <span className="text-muted-foreground/50">from {node.contextFrom}</span>
           )}
         </div>
       </section>
 
       {/* Readiness Gates */}
       <section>
-        <h4 className="font-medium text-muted-foreground mb-1">Readiness Gates</h4>
-        <div className="space-y-0.5">
+        <h4 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50 mb-1.5">Gates</h4>
+        <div className="space-y-1">
           {gates.map((gate) => (
-            <div key={gate.name} className="flex items-center gap-1">
-              <span>{gate.passing ? '✅' : '⛔'}</span>
-              <span className={gate.passing ? 'text-muted-foreground' : ''}>{gate.name}</span>
+            <div key={gate.name} className="flex items-center gap-2">
+              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${gate.passing ? 'bg-emerald-400' : 'bg-red-400'}`} />
+              <span className={`${gate.passing ? 'text-muted-foreground/50' : 'font-medium'}`}>{gate.name}</span>
             </div>
           ))}
         </div>
@@ -104,20 +105,20 @@ export function NodePropertiesPanel({
 
       {/* Inputs */}
       <section>
-        <h4 className="font-medium text-muted-foreground mb-1">
+        <h4 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50 mb-1.5">
           Inputs ({Object.keys(node.inputPack.inputs).length})
         </h4>
         {Object.keys(node.inputPack.inputs).length === 0 ? (
-          <div className="text-muted-foreground">No inputs declared</div>
+          <div className="text-muted-foreground/40 italic">No inputs declared</div>
         ) : (
-          <div className="space-y-0.5">
+          <div className="space-y-1">
             {Object.entries(node.inputPack.inputs).map(([name, entry]) => (
-              <div key={name} className="flex items-center gap-1">
-                <span>
-                  {entry.status === 'available' ? '🟢' : entry.status === 'waiting' ? '🟡' : '🔴'}
-                </span>
-                <span>{name}</span>
-                <span className="text-muted-foreground">({entry.status})</span>
+              <div key={name} className="flex items-center gap-2">
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                  entry.status === 'available' ? 'bg-emerald-400' : entry.status === 'waiting' ? 'bg-amber-400' : 'bg-red-400'
+                }`} />
+                <span className="font-medium">{name}</span>
+                <span className="text-muted-foreground/40 ml-auto">{entry.status}</span>
               </div>
             ))}
           </div>
@@ -127,11 +128,12 @@ export function NodePropertiesPanel({
       {/* Upstream */}
       {upstream.length > 0 && (
         <section>
-          <h4 className="font-medium text-muted-foreground mb-1">Upstream ({upstream.length})</h4>
-          <div className="space-y-0.5">
+          <h4 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50 mb-1.5">Upstream ({upstream.length})</h4>
+          <div className="space-y-1">
             {upstream.map((r, i) => (
-              <div key={`${r.nodeId}-${r.inputName}-${i}`} className="text-muted-foreground">
-                ← {r.nodeId} ({r.inputName})
+              <div key={`${r.nodeId}-${r.inputName}-${i}`} className="text-muted-foreground/60 flex items-center gap-1.5">
+                <span className="text-blue-400">←</span> {r.nodeId}
+                <span className="text-muted-foreground/30">({r.inputName})</span>
               </div>
             ))}
           </div>
@@ -141,13 +143,14 @@ export function NodePropertiesPanel({
       {/* Downstream */}
       {downstream.length > 0 && (
         <section>
-          <h4 className="font-medium text-muted-foreground mb-1">
+          <h4 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50 mb-1.5">
             Downstream ({downstream.length})
           </h4>
-          <div className="space-y-0.5">
+          <div className="space-y-1">
             {downstream.map((r, i) => (
-              <div key={`${r.nodeId}-${r.inputName}-${i}`} className="text-muted-foreground">
-                → {r.nodeId} ({r.inputName})
+              <div key={`${r.nodeId}-${r.inputName}-${i}`} className="text-muted-foreground/60 flex items-center gap-1.5">
+                <span className="text-blue-400">→</span> {r.nodeId}
+                <span className="text-muted-foreground/30">({r.inputName})</span>
               </div>
             ))}
           </div>
@@ -155,11 +158,11 @@ export function NodePropertiesPanel({
       )}
 
       {/* Edit button placeholder */}
-      <div className="mt-auto pt-2 border-t">
+      <div className="mt-auto pt-3 border-t border-border/20">
         <button
           type="button"
           disabled
-          className="w-full px-3 py-1.5 text-xs rounded border text-muted-foreground cursor-not-allowed"
+          className="w-full px-3 py-2 text-xs font-medium rounded-lg bg-foreground/5 text-muted-foreground/40 cursor-not-allowed border border-border/20"
           title="Coming in Phase 5"
         >
           Edit Properties...
