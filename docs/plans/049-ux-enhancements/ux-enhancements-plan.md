@@ -52,26 +52,26 @@ The FILES header in the browser page's LeftPanel currently shows a static "FILES
 
 | Status | ID | Task | Domain | Path(s) | Done When | Notes |
 |--------|-----|------|--------|---------|-----------|-------|
-| [x] | T001 | Create `getDiffStats()` service with `git diff HEAD --shortstat` parser | file-browser | `/home/jak/substrate/048-wf-web/apps/web/src/features/041-file-browser/services/diff-stats.ts` | TDD: tests pass for normal output, zero changes, not-git error, no-commits fallback | Follow `changed-files.ts` pattern. Use `git diff HEAD --shortstat` for summary totals (DYK-05). Single regex parse: `/(\d+) files? changed(?:, (\d+) insertions?\(\+\))?(?:, (\d+) deletions?\(-\))?/`. Return `DiffStatsResult = {ok:true, stats:{files:number, insertions:number, deletions:number}} \| {ok:false, error:'not-git'}`. Fallback to `git diff --shortstat` if HEAD doesn't exist (new repo, DYK-03). Keep `getChangedFiles()` separate — clean single-responsibility per service. |
-| [x] | T002 | Write TDD tests for `getDiffStats()` | file-browser | `/home/jak/substrate/048-wf-web/test/unit/web/features/041-file-browser/diff-stats.test.ts` | RED phase: 5+ failing tests covering all edge cases | Write tests FIRST per constitution Principle 3. Cases: normal shortstat output, insertions-only, deletions-only, empty (no changes), not-git error, no-commits fallback |
-| [x] | T003 | Add `fetchDiffStats` server action wrapper | file-browser | `/home/jak/substrate/048-wf-web/apps/web/app/actions/file-actions.ts` | Wrapper exports `fetchDiffStats(worktreePath)` following lazy-import pattern | Add at ~line 129, after `fetchRecentFiles` |
-| [x] | T004 | Extend `PanelHeader` with `subtitle` prop | _platform/panel-layout | `/home/jak/substrate/048-wf-web/apps/web/src/features/_platform/panel-layout/components/panel-header.tsx` | `subtitle?: ReactNode` prop renders after title span in muted text. Existing tests still pass, new tests for subtitle added. | Additive optional prop — no breaking change |
-| [x] | T005 | Update PanelHeader tests for subtitle | _platform/panel-layout | `/home/jak/substrate/048-wf-web/test/unit/web/features/_platform/panel-layout/panel-header.test.tsx` | Tests verify: subtitle renders when provided, hidden when omitted | TDD — write failing tests first |
-| [x] | T006 | Extend `LeftPanel` with `subtitle` prop passthrough | _platform/panel-layout | `/home/jak/substrate/048-wf-web/apps/web/src/features/_platform/panel-layout/components/left-panel.tsx` | `subtitle?: ReactNode` in `LeftPanelProps`, passed to `PanelHeader subtitle` | Additive optional prop |
-| [x] | T007 | Update LeftPanel tests for subtitle passthrough | _platform/panel-layout | `/home/jak/substrate/048-wf-web/test/unit/web/features/_platform/panel-layout/left-panel.test.tsx` | Tests verify subtitle is forwarded to PanelHeader | TDD — write failing tests first |
-| [x] | T008 | Extend `usePanelState` to fetch and expose diff stats | file-browser | `/home/jak/substrate/048-wf-web/apps/web/src/features/041-file-browser/hooks/use-panel-state.ts` | `diffStats` in return object. Fetched on mount (like changedFiles). Refreshed in `handleRefreshChanges` Promise.all. | Add `fetchDiffStats` to options interface, add to Promise.all at line 84, add state + setter |
-| [x] | T009 | Wire `fetchDiffStats` and stats subtitle in BrowserClient | file-browser | `/home/jak/substrate/048-wf-web/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx` | Pass `fetchDiffStats` to `usePanelState`. Compute subtitle JSX from `panelState.diffStats`. Pass subtitle to `LeftPanel`. Stats visible in header, live-update on file changes. | Subtitle format: `· N changed  +X −Y` with green-500/red-500 colors. Hidden when no changes. |
+| [x] | T001 | Create `getDiffStats()` service with `git diff HEAD --shortstat` parser | file-browser | `/home/jak/substrate/048-wf-web/apps/web/src/features/041-file-browser/services/diff-stats.ts` | TDD: tests pass for normal output, zero changes, not-git error, no-commits fallback | Follow `changed-files.ts` pattern. Use `git diff HEAD --shortstat` for summary totals (DYK-05). Single regex parse: `/(\d+) files? changed(?:, (\d+) insertions?\(\+\))?(?:, (\d+) deletions?\(-\))?/`. Return `DiffStatsResult = {ok:true, stats:{files:number, insertions:number, deletions:number}} \| {ok:false, error:'not-git'}`. Fallback to `git diff --shortstat` if HEAD doesn't exist (new repo, DYK-03). Keep `getChangedFiles()` separate — clean single-responsibility per service. · [log](execution.log.md#t002--t001-getdiffstats-service-tdd) [^1] |
+| [x] | T002 | Write TDD tests for `getDiffStats()` | file-browser | `/home/jak/substrate/048-wf-web/test/unit/web/features/041-file-browser/diff-stats.test.ts` | RED phase: 5+ failing tests covering all edge cases | Write tests FIRST per constitution Principle 3. Cases: normal shortstat output, insertions-only, deletions-only, empty (no changes), not-git error, no-commits fallback · [log](execution.log.md#t002--t001-getdiffstats-service-tdd) [^2] |
+| [x] | T003 | Add `fetchDiffStats` server action wrapper | file-browser | `/home/jak/substrate/048-wf-web/apps/web/app/actions/file-actions.ts` | Wrapper exports `fetchDiffStats(worktreePath)` following lazy-import pattern | Add at ~line 129, after `fetchRecentFiles` · [log](execution.log.md#t003-fetchdiffstats-server-action) [^3] |
+| [x] | T004 | Extend `PanelHeader` with `subtitle` prop | _platform/panel-layout | `/home/jak/substrate/048-wf-web/apps/web/src/features/_platform/panel-layout/components/panel-header.tsx` | `subtitle?: ReactNode` prop renders after title span in muted text. Existing tests still pass, new tests for subtitle added. | Additive optional prop — no breaking change · [log](execution.log.md#t004--t005-panelheader-subtitle-prop-tdd) [^4] |
+| [x] | T005 | Update PanelHeader tests for subtitle | _platform/panel-layout | `/home/jak/substrate/048-wf-web/test/unit/web/features/_platform/panel-layout/panel-header.test.tsx` | Tests verify: subtitle renders when provided, hidden when omitted | TDD — write failing tests first · [log](execution.log.md#t004--t005-panelheader-subtitle-prop-tdd) [^4] |
+| [x] | T006 | Extend `LeftPanel` with `subtitle` prop passthrough | _platform/panel-layout | `/home/jak/substrate/048-wf-web/apps/web/src/features/_platform/panel-layout/components/left-panel.tsx` | `subtitle?: ReactNode` in `LeftPanelProps`, passed to `PanelHeader subtitle` | Additive optional prop · [log](execution.log.md#t006--t007-leftpanel-subtitle-passthrough-tdd) [^5] |
+| [x] | T007 | Update LeftPanel tests for subtitle passthrough | _platform/panel-layout | `/home/jak/substrate/048-wf-web/test/unit/web/features/_platform/panel-layout/left-panel.test.tsx` | Tests verify subtitle is forwarded to PanelHeader | TDD — write failing tests first · [log](execution.log.md#t006--t007-leftpanel-subtitle-passthrough-tdd) [^5] |
+| [x] | T008 | Extend `usePanelState` to fetch and expose diff stats | file-browser | `/home/jak/substrate/048-wf-web/apps/web/src/features/041-file-browser/hooks/use-panel-state.ts` | `diffStats` in return object. Fetched on mount (like changedFiles). Refreshed in `handleRefreshChanges` Promise.all. | Add `fetchDiffStats` to options interface, add to Promise.all at line 84, add state + setter · [log](execution.log.md#t008-usepanelstate-extension) [^6] |
+| [x] | T009 | Wire `fetchDiffStats` and stats subtitle in BrowserClient | file-browser | `/home/jak/substrate/048-wf-web/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx` | Pass `fetchDiffStats` to `usePanelState`. Compute subtitle JSX from `panelState.diffStats`. Pass subtitle to `LeftPanel`. Stats visible in header, live-update on file changes. | Subtitle format: `· N changed  +X −Y` with green-500/red-500 colors. Hidden when no changes. · [log](execution.log.md#t009-browserclient-wiring) [^7] |
 
 ### Acceptance Criteria
 
-- [ ] AC-1: Git workspace browser page shows changed file count in FILES header (e.g., `FILES · 3 changed`)
-- [ ] AC-2: Header shows total insertions (green) and deletions (red) alongside count (e.g., `+42 −18`)
-- [ ] AC-3: No stats shown when no files are changed — header shows only "FILES"
-- [ ] AC-4: Stats auto-update within ~1 second when files change (via live file events)
-- [ ] AC-5: Non-git workspaces show no stats
-- [ ] AC-6: Compact display using `text-xs`, muted/green-500/red-500 coloring per badge schema
-- [ ] AC-7: Binary files counted as changed but contribute 0 to insertion/deletion totals
-- [ ] AC-8: Edge cases handled: empty output, binary files, renamed files, repos with no commits
+- [x] AC-1: Git workspace browser page shows changed file count in FILES header (e.g., `FILES · 3 changed`)
+- [x] AC-2: Header shows total insertions (green) and deletions (red) alongside count (e.g., `+42 −18`)
+- [x] AC-3: No stats shown when no files are changed — header shows only "FILES"
+- [x] AC-4: Stats auto-update within ~1 second when files change (via live file events)
+- [x] AC-5: Non-git workspaces show no stats
+- [x] AC-6: Compact display using `text-xs`, muted/green-500/red-500 coloring per badge schema
+- [x] AC-7: Binary files counted as changed but contribute 0 to insertion/deletion totals
+- [x] AC-8: Edge cases handled: empty output, binary files, renamed files, repos with no commits
 
 ### Risks
 
@@ -83,9 +83,47 @@ The FILES header in the browser page's LeftPanel currently shows a static "FILES
 
 ---
 
+## Progress Summary
+
+- **Feature 1**: File Change Statistics — **COMPLETE** (9/9 tasks, 8/8 ACs)
+- **Overall**: 100% of Feature 1. Plan remains open for future UX enhancement features.
+- **Commit**: `b5f7d8a` — feat(049): add live file change statistics to FILES header
+- **Tests**: 4523 passed, 0 failures (326 test files)
+
+---
+
+## Change Footnotes Ledger
+
+[^1]: T001 — getDiffStats service
+  - `function:apps/web/src/features/041-file-browser/services/diff-stats.ts:parseShortstatOutput`
+  - `function:apps/web/src/features/041-file-browser/services/diff-stats.ts:getDiffStats`
+  - `file:apps/web/src/features/041-file-browser/services/diff-stats.ts`
+
+[^2]: T002 — getDiffStats TDD tests
+  - `file:test/unit/web/features/041-file-browser/diff-stats.test.ts`
+
+[^3]: T003 — fetchDiffStats server action wrapper
+  - `function:apps/web/app/actions/file-actions.ts:fetchDiffStats`
+
+[^4]: T004+T005 — PanelHeader subtitle prop + tests
+  - `file:apps/web/src/features/_platform/panel-layout/components/panel-header.tsx`
+  - `file:test/unit/web/features/_platform/panel-layout/panel-header.test.tsx`
+
+[^5]: T006+T007 — LeftPanel subtitle passthrough + tests
+  - `file:apps/web/src/features/_platform/panel-layout/components/left-panel.tsx`
+  - `file:test/unit/web/features/_platform/panel-layout/left-panel.test.tsx`
+
+[^6]: T008 — usePanelState extension
+  - `file:apps/web/src/features/041-file-browser/hooks/use-panel-state.ts`
+
+[^7]: T009 — BrowserClient wiring
+  - `file:apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx`
+
+---
+
 ✅ Plan created:
 - Location: `docs/plans/049-ux-enhancements/ux-enhancements-plan.md`
 - Phases: 1 (Simple mode)
 - Tasks: 9
 - Domains: 2 modified + 1 consumed
-- Next step: `/plan-6-v2-implement-phase --plan "docs/plans/049-ux-enhancements/ux-enhancements-plan.md"`
+- Next step: Add more UX enhancement features or close plan
