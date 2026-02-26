@@ -125,7 +125,8 @@ export async function gitGrepSearch(
     '--untracked', // include untracked files
     '--max-count=5', // limit per-file matches
     '-I', // skip binary files
-    query,
+    '-e',
+    query, // -e ensures query starting with - isn't treated as option
     '--',
     ...SOURCE_GLOBS,
   ];

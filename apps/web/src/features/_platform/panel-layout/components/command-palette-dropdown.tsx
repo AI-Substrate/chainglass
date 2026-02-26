@@ -174,6 +174,152 @@ function filterAndSort(commands: SDKCommand[], filter: string, mruOrder: string[
   });
 }
 
+/** Extracted results list — shared between # (grep) and $ (flowspace) modes */
+function CodeSearchResultsList({
+  results,
+  selectedIndex,
+  mode,
+  codeSearchFolders,
+  codeSearchGraphAge,
+  listRef,
+  onCodeSearchSelect,
+  onCopyFullPath,
+  onCopyRelativePath,
+  onCopyContent,
+  onDownload,
+}: {
+  results: CodeSearchResult[] | null | undefined;
+  selectedIndex: number;
+  mode: string;
+  codeSearchFolders: Record<string, number> | null | undefined;
+  codeSearchGraphAge: string | null | undefined;
+  listRef: React.RefObject<HTMLDivElement | null>;
+  onCodeSearchSelect?: (filePath: string, line: number) => void;
+  onCopyFullPath?: (path: string) => void;
+  onCopyRelativePath?: (path: string) => void;
+  onCopyContent?: (path: string) => void;
+  onDownload?: (path: string) => void;
+}) {
+  return (
+    <>
+      <div className="flex items-center justify-between border-b px-3 py-1">
+        <span className="text-xs text-muted-foreground">
+          {results?.length} results
+          {codeSearchFolders &&
+            Object.keys(codeSearchFolders).length > 0 &&
+            ` · ${Object.entries(codeSearchFolders)
+              .slice(0, 3)
+              .map(([k, v]) => `${k} ${v}`)
+              .join(' · ')}`}
+        </span>
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          {mode === 'semantic' && (
+            <span className="rounded bg-purple-100 px-1.5 py-0.5 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
+              🧠 semantic
+            </span>
+          )}
+          {codeSearchGraphAge && <span>indexed {codeSearchGraphAge}</span>}
+        </div>
+      </div>
+      {/* biome-ignore lint/a11y/useSemanticElements: custom palette item list */}
+      <div ref={listRef} role="listbox" tabIndex={-1} className="py-1">
+        {results?.map((result, index) => (
+          <ContextMenu
+            key={result.kind === 'grep' ? `${result.filePath}:${result.lineNumber}` : result.nodeId}
+          >
+            <ContextMenuTrigger asChild>
+              <div // biome-ignore lint/a11y/useSemanticElements: custom palette item
+                role="option"
+                tabIndex={-1}
+                aria-selected={index === selectedIndex}
+                className={`px-3 py-1.5 cursor-pointer ${
+                  index === selectedIndex
+                    ? 'bg-primary/15 text-foreground'
+                    : 'text-foreground hover:bg-accent/50'
+                }`}
+                onClick={() => {
+                  const line = result.kind === 'grep' ? result.lineNumber : result.startLine;
+                  onCodeSearchSelect?.(result.filePath, line);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const line = result.kind === 'grep' ? result.lineNumber : result.startLine;
+                    onCodeSearchSelect?.(result.filePath, line);
+                  }
+                }}
+              >
+                {result.kind === 'grep' ? (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <Search className="shrink-0 h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="font-medium truncate">{result.filename}</span>
+                      <span className="shrink-0 rounded bg-muted px-1 py-0.5 text-xs text-muted-foreground">
+                        :{result.lineNumber}
+                      </span>
+                      {result.matchCount > 1 && (
+                        <span className="shrink-0 text-xs text-muted-foreground">
+                          +{result.matchCount - 1} more
+                        </span>
+                      )}
+                    </div>
+                    <div className="ml-6 text-xs text-muted-foreground font-mono truncate">
+                      {result.matchContent}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <span className="shrink-0 w-4 text-center text-xs">
+                        {FLOWSPACE_CATEGORY_ICONS[result.category] || '○'}
+                      </span>
+                      <span className="font-medium truncate">{result.name}</span>
+                      <span className="shrink-0 rounded bg-muted px-1 py-0.5 text-xs text-muted-foreground">
+                        L{result.startLine}
+                        {result.endLine !== result.startLine && `-${result.endLine}`}
+                      </span>
+                    </div>
+                    <div className="ml-6 text-xs text-muted-foreground truncate">
+                      {result.filePath}
+                    </div>
+                    {result.smartContent &&
+                      !result.smartContent.startsWith('[Empty content') &&
+                      !result.smartContent.startsWith('[No ') &&
+                      result.smartContent.length > 10 &&
+                      !result.name.startsWith(result.smartContent.slice(0, 30)) && (
+                        <div className="ml-6 text-xs text-muted-foreground/70 truncate">
+                          {result.smartContent.slice(0, 120)}
+                        </div>
+                      )}
+                  </>
+                )}
+              </div>
+            </ContextMenuTrigger>
+            <ContextMenuContent>
+              <ContextMenuItem onClick={() => onCopyFullPath?.(result.filePath)}>
+                <ClipboardCopy className="mr-2 h-3.5 w-3.5" />
+                Copy Full Path
+              </ContextMenuItem>
+              <ContextMenuItem onClick={() => onCopyRelativePath?.(result.filePath)}>
+                <File className="mr-2 h-3.5 w-3.5" />
+                Copy Relative Path
+              </ContextMenuItem>
+              <ContextMenuSeparator />
+              <ContextMenuItem onClick={() => onCopyContent?.(result.filePath)}>
+                <FileText className="mr-2 h-3.5 w-3.5" />
+                Copy Content
+              </ContextMenuItem>
+              <ContextMenuItem onClick={() => onDownload?.(result.filePath)}>
+                <Download className="mr-2 h-3.5 w-3.5" />
+                Download
+              </ContextMenuItem>
+            </ContextMenuContent>
+          </ContextMenu>
+        ))}
+      </div>
+    </>
+  );
+}
+
 export const CommandPaletteDropdown = forwardRef<
   CommandPaletteDropdownHandle,
   CommandPaletteDropdownProps
@@ -332,7 +478,9 @@ export const CommandPaletteDropdown = forwardRef<
       className="absolute left-0 right-0 top-full z-50 mt-1 max-h-[calc(100vh-8rem)] overflow-y-auto rounded-lg border bg-popover shadow-md"
       onMouseDown={(e) => e.preventDefault()}
     >
+      {/* Semantic mode ($) — FlowSpace availability gates apply */}
       {isFlowspaceMode &&
+        mode === 'semantic' &&
         (codeSearchAvailability === 'not-installed' ? (
           <div className="px-3 py-4 text-center text-sm text-muted-foreground">
             <Hash className="inline h-4 w-4 mr-1 -mt-0.5" />
@@ -361,140 +509,66 @@ export const CommandPaletteDropdown = forwardRef<
         ) : !hasFlowspaceQuery ? (
           <div className="px-3 py-4 text-center text-sm text-muted-foreground">
             <Hash className="inline h-4 w-4 mr-1 -mt-0.5" />
-            {mode === 'semantic' ? 'FlowSpace semantic search' : 'Content search (git grep)'}
+            FlowSpace semantic search
           </div>
         ) : codeSearchLoading ? (
           <div className="px-3 py-4 text-center text-sm text-muted-foreground">
-            <AsciiSpinner active /> Searching code...
+            <AsciiSpinner active /> Searching...
           </div>
         ) : codeSearchError ? (
           <div className="px-3 py-4 text-center text-sm text-muted-foreground">
             {codeSearchError}
           </div>
         ) : showFlowspaceResults ? (
-          <>
-            <div className="flex items-center justify-between border-b px-3 py-1">
-              <span className="text-xs text-muted-foreground">
-                {codeSearchResults?.length} results
-                {codeSearchFolders &&
-                  Object.keys(codeSearchFolders).length > 0 &&
-                  ` · ${Object.entries(codeSearchFolders)
-                    .slice(0, 3)
-                    .map(([k, v]) => `${k} ${v}`)
-                    .join(' · ')}`}
-              </span>
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                {mode === 'semantic' && (
-                  <span className="rounded bg-purple-100 px-1.5 py-0.5 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
-                    🧠 semantic
-                  </span>
-                )}
-                {codeSearchGraphAge && <span>indexed {codeSearchGraphAge}</span>}
-              </div>
-            </div>
-            {/* biome-ignore lint/a11y/useSemanticElements: custom palette item list */}
-            <div ref={listRef} role="listbox" tabIndex={-1} className="py-1">
-              {codeSearchResults?.map((result, index) => (
-                <ContextMenu
-                  key={
-                    result.kind === 'grep'
-                      ? `${result.filePath}:${result.lineNumber}`
-                      : result.nodeId
-                  }
-                >
-                  <ContextMenuTrigger asChild>
-                    <div // biome-ignore lint/a11y/useSemanticElements: custom palette item
-                      role="option"
-                      tabIndex={-1}
-                      aria-selected={index === selectedIndex}
-                      className={`px-3 py-1.5 cursor-pointer ${
-                        index === selectedIndex
-                          ? 'bg-primary/15 text-foreground'
-                          : 'text-foreground hover:bg-accent/50'
-                      }`}
-                      onClick={() => {
-                        const line = result.kind === 'grep' ? result.lineNumber : result.startLine;
-                        onCodeSearchSelect?.(result.filePath, line);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          const line =
-                            result.kind === 'grep' ? result.lineNumber : result.startLine;
-                          onCodeSearchSelect?.(result.filePath, line);
-                        }
-                      }}
-                    >
-                      {result.kind === 'grep' ? (
-                        <>
-                          <div className="flex items-center gap-2">
-                            <Search className="shrink-0 h-3.5 w-3.5 text-muted-foreground" />
-                            <span className="font-medium truncate">{result.filename}</span>
-                            <span className="shrink-0 rounded bg-muted px-1 py-0.5 text-xs text-muted-foreground">
-                              :{result.lineNumber}
-                            </span>
-                            {result.matchCount > 1 && (
-                              <span className="shrink-0 text-xs text-muted-foreground">
-                                +{result.matchCount - 1} more
-                              </span>
-                            )}
-                          </div>
-                          <div className="ml-6 text-xs text-muted-foreground font-mono truncate">
-                            {result.matchContent}
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <div className="flex items-center gap-2">
-                            <span className="shrink-0 w-4 text-center text-xs">
-                              {FLOWSPACE_CATEGORY_ICONS[result.category] || '○'}
-                            </span>
-                            <span className="font-medium truncate">{result.name}</span>
-                            <span className="shrink-0 rounded bg-muted px-1 py-0.5 text-xs text-muted-foreground">
-                              L{result.startLine}
-                              {result.endLine !== result.startLine && `-${result.endLine}`}
-                            </span>
-                          </div>
-                          <div className="ml-6 text-xs text-muted-foreground truncate">
-                            {result.filePath}
-                          </div>
-                          {result.smartContent &&
-                            !result.smartContent.startsWith('[Empty content') &&
-                            !result.smartContent.startsWith('[No ') &&
-                            result.smartContent.length > 10 &&
-                            !result.name.startsWith(result.smartContent.slice(0, 30)) && (
-                              <div className="ml-6 text-xs text-muted-foreground/70 truncate">
-                                {result.smartContent.slice(0, 120)}
-                              </div>
-                            )}
-                        </>
-                      )}
-                    </div>
-                  </ContextMenuTrigger>
-                  <ContextMenuContent>
-                    <ContextMenuItem onClick={() => onCopyFullPath?.(result.filePath)}>
-                      <ClipboardCopy className="mr-2 h-3.5 w-3.5" />
-                      Copy Full Path
-                    </ContextMenuItem>
-                    <ContextMenuItem onClick={() => onCopyRelativePath?.(result.filePath)}>
-                      <File className="mr-2 h-3.5 w-3.5" />
-                      Copy Relative Path
-                    </ContextMenuItem>
-                    <ContextMenuSeparator />
-                    <ContextMenuItem onClick={() => onCopyContent?.(result.filePath)}>
-                      <FileText className="mr-2 h-3.5 w-3.5" />
-                      Copy Content
-                    </ContextMenuItem>
-                    <ContextMenuItem onClick={() => onDownload?.(result.filePath)}>
-                      <Download className="mr-2 h-3.5 w-3.5" />
-                      Download
-                    </ContextMenuItem>
-                  </ContextMenuContent>
-                </ContextMenu>
-              ))}
-            </div>
-          </>
+          <CodeSearchResultsList
+            results={codeSearchResults}
+            selectedIndex={selectedIndex}
+            mode={mode}
+            codeSearchFolders={codeSearchFolders}
+            codeSearchGraphAge={codeSearchGraphAge}
+            listRef={listRef}
+            onCodeSearchSelect={onCodeSearchSelect}
+            onCopyFullPath={onCopyFullPath}
+            onCopyRelativePath={onCopyRelativePath}
+            onCopyContent={onCopyContent}
+            onDownload={onDownload}
+          />
         ) : hasFlowspaceQuery ? (
-          <div className="px-3 py-4 text-center text-sm text-muted-foreground">No results</div>
+          <div className="px-3 py-4 text-center text-sm text-muted-foreground">No matches</div>
+        ) : null)}
+
+      {/* Content search (#) — git grep, no FlowSpace gates */}
+      {isFlowspaceMode &&
+        mode === 'symbols' &&
+        (!hasFlowspaceQuery ? (
+          <div className="px-3 py-4 text-center text-sm text-muted-foreground">
+            <Search className="inline h-4 w-4 mr-1 -mt-0.5" />
+            Content search (git grep)
+          </div>
+        ) : codeSearchLoading ? (
+          <div className="px-3 py-4 text-center text-sm text-muted-foreground">
+            <AsciiSpinner active /> Searching...
+          </div>
+        ) : codeSearchError ? (
+          <div className="px-3 py-4 text-center text-sm text-muted-foreground">
+            {codeSearchError}
+          </div>
+        ) : showFlowspaceResults ? (
+          <CodeSearchResultsList
+            results={codeSearchResults}
+            selectedIndex={selectedIndex}
+            mode={mode}
+            codeSearchFolders={null}
+            codeSearchGraphAge={null}
+            listRef={listRef}
+            onCodeSearchSelect={onCodeSearchSelect}
+            onCopyFullPath={onCopyFullPath}
+            onCopyRelativePath={onCopyRelativePath}
+            onCopyContent={onCopyContent}
+            onDownload={onDownload}
+          />
+        ) : hasFlowspaceQuery ? (
+          <div className="px-3 py-4 text-center text-sm text-muted-foreground">No matches</div>
         ) : null)}
 
       {mode === 'search' &&

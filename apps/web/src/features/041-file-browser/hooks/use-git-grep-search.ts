@@ -30,7 +30,7 @@ export function useGitGrepSearch(worktreePath: string): UseGitGrepSearchReturn {
   const [query, setQueryRaw] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
 
-  const fetchInProgressRef = useRef(false);
+  const latestRequestIdRef = useRef(0);
 
   // Debounce the query
   useEffect(() => {
@@ -47,14 +47,14 @@ export function useGitGrepSearch(worktreePath: string): UseGitGrepSearchReturn {
   // Execute search on debounced query change
   useEffect(() => {
     if (!debouncedQuery) return;
-    if (fetchInProgressRef.current) return;
 
-    fetchInProgressRef.current = true;
+    const requestId = ++latestRequestIdRef.current;
     setLoading(true);
     setError(null);
 
     gitGrepSearch(debouncedQuery, worktreePath)
       .then((result) => {
+        if (requestId !== latestRequestIdRef.current) return;
         if ('error' in result) {
           setError(result.error);
           setResults(null);
@@ -64,12 +64,12 @@ export function useGitGrepSearch(worktreePath: string): UseGitGrepSearchReturn {
         }
       })
       .catch(() => {
+        if (requestId !== latestRequestIdRef.current) return;
         setError('Search failed');
         setResults(null);
       })
       .finally(() => {
         setLoading(false);
-        fetchInProgressRef.current = false;
       });
   }, [debouncedQuery, worktreePath]);
 
