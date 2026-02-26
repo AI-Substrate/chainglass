@@ -1,10 +1,10 @@
 slug: smoke
 version: 0.1.0
-created_at: 2026-02-26T03:25:23.583Z
+created_at: 2026-02-26T03:38:30.765Z
 lines:
-  - id: line-ae3
+  - id: line-451
     nodes:
-      - ping-da9
+      - ping-083
     properties: {}
     orchestratorSettings:
       transition: auto

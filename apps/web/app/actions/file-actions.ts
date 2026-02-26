@@ -128,7 +128,9 @@ export async function fetchRecentFiles(worktreePath: string, limit = 20) {
 }
 
 // Diff stats — git diff HEAD --shortstat parser (Plan 049 Feature 1)
-export async function fetchDiffStats(worktreePath: string) {
+export async function fetchDiffStats(
+  worktreePath: string
+): Promise<import('../../src/features/041-file-browser/services/diff-stats').DiffStatsResult> {
   const { getDiffStats } = await import('../../src/features/041-file-browser/services/diff-stats');
   return getDiffStats(worktreePath);
 }

@@ -52,6 +52,24 @@ describe('parseShortstatOutput', () => {
     );
     expect(result).toEqual({ files: 150, insertions: 12345, deletions: 9876 });
   });
+
+  // F005: Binary-only changes produce "files changed" with no insertion/deletion clause
+  it('parses binary-only output (files changed, no lines)', () => {
+    const result = parseShortstatOutput(' 1 file changed');
+    expect(result).toEqual({ files: 1, insertions: 0, deletions: 0 });
+  });
+
+  // F006: Renamed files still produce standard shortstat format
+  it('parses output from renames (standard shortstat format)', () => {
+    const result = parseShortstatOutput(' 1 file changed, 3 insertions(+), 1 deletion(-)');
+    expect(result).toEqual({ files: 1, insertions: 3, deletions: 1 });
+  });
+
+  // F005+: Mixed binary and text changes
+  it('parses mixed binary and text output', () => {
+    const result = parseShortstatOutput(' 4 files changed, 20 insertions(+), 8 deletions(-)');
+    expect(result).toEqual({ files: 4, insertions: 20, deletions: 8 });
+  });
 });
 
 describe('getDiffStats', () => {

@@ -47,10 +47,13 @@ export async function getDiffStats(worktreePath: string): Promise<DiffStatsResul
     });
     return { ok: true, stats: parseShortstatOutput(stdout) };
   } catch (headError: unknown) {
-    // DYK-03: HEAD fails on repos with no commits — fallback to index diff
-    const isHeadError =
-      headError instanceof Error && headError.message.includes('ambiguous argument');
-    if (isHeadError) {
+    // DYK-03: HEAD fails on repos with no commits (exit 128) — fallback to index diff
+    // F003: Check exit code instead of locale-dependent error string
+    const exitCode =
+      headError && typeof headError === 'object' && 'code' in headError
+        ? (headError as { code: number }).code
+        : null;
+    if (exitCode === 128) {
       try {
         const { stdout } = await execFileAsync('git', ['diff', '--shortstat'], {
           cwd: worktreePath,

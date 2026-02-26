@@ -117,17 +117,17 @@ index 0000000..1b0ed86
 +  script: scripts/simulate.sh
 diff --git a/.chainglass/templates/workflows/smoke/graph.yaml b/.chainglass/templates/workflows/smoke/graph.yaml
 new file mode 100644
-index 0000000..66a9fb7
+index 0000000..b34b7e1
 --- /dev/null
 +++ b/.chainglass/templates/workflows/smoke/graph.yaml
 @@ -0,0 +1,14 @@
 +slug: smoke
 +version: 0.1.0
-+created_at: 2026-02-26T02:06:21.169Z
++created_at: 2026-02-26T03:25:23.583Z
 +lines:
-+  - id: line-0b5
++  - id: line-ae3
 +    nodes:
-+      - ping-b18
++      - ping-da9
 +    properties: {}
 +    orchestratorSettings:
 +      transition: auto
@@ -135,15 +135,15 @@ index 0000000..66a9fb7
 +properties: {}
 +orchestratorSettings:
 +  agentType: copilot
-diff --git a/.chainglass/templates/workflows/smoke/nodes/ping-b18/node.yaml b/.chainglass/templates/workflows/smoke/nodes/ping-b18/node.yaml
+diff --git a/.chainglass/templates/workflows/smoke/nodes/ping-da9/node.yaml b/.chainglass/templates/workflows/smoke/nodes/ping-da9/node.yaml
 new file mode 100644
-index 0000000..126b623
+index 0000000..5982d41
 --- /dev/null
-+++ b/.chainglass/templates/workflows/smoke/nodes/ping-b18/node.yaml
++++ b/.chainglass/templates/workflows/smoke/nodes/ping-da9/node.yaml
 @@ -0,0 +1,8 @@
-+id: ping-b18
++id: ping-da9
 +unit_slug: ping
-+created_at: 2026-02-26T02:06:21.176Z
++created_at: 2026-02-26T03:25:23.591Z
 +properties: {}
 +orchestratorSettings:
 +  execution: serial
@@ -209,12 +209,66 @@ index a98196d..87ac2e3 100644
  ## Project Structure
  
  ```
+diff --git a/dev/test-graphs/shared/helpers.ts b/dev/test-graphs/shared/helpers.ts
+index 10a82e7..d6dbf35 100644
+--- a/dev/test-graphs/shared/helpers.ts
++++ b/dev/test-graphs/shared/helpers.ts
+@@ -6,7 +6,11 @@
+ 
+ import * as fs from 'node:fs/promises';
+ import * as path from 'node:path';
+-import type { IPositionalGraphService } from '@chainglass/positional-graph/interfaces';
++import type {
++  IPositionalGraphService,
++  IWorkUnitLoader,
++} from '@chainglass/positional-graph/interfaces';
++import { YamlParserAdapter } from '@chainglass/shared';
+ import type { WorkspaceContext } from '@chainglass/workflow';
+ 
+ /**
+@@ -104,3 +108,36 @@ export async function answerNodeQuestion(
+     'orchestrator'
+   );
+ }
++
++/**
++ * Build an IWorkUnitLoader that reads unit.yaml from a workspace's .chainglass/units/ dir.
++ * Shared across template generation scripts, integration tests, and test helpers.
++ */
++export function buildDiskWorkUnitLoader(workspacePath: string): IWorkUnitLoader {
++  const yamlParser = new YamlParserAdapter();
++  return {
++    async load(_ctx: WorkspaceContext, slug: string) {
++      const unitYamlPath = path.join(workspacePath, '.chainglass', 'units', slug, 'unit.yaml');
++      try {
++        const content = await fs.readFile(unitYamlPath, 'utf-8');
++        const parsed = yamlParser.parse<{
++          slug: string;
++          type: 'agent' | 'code' | 'user-input';
++          inputs?: Array<{ name: string; type: 'data' | 'file'; required: boolean }>;
++          outputs: Array<{ name: string; type: 'data' | 'file'; required: boolean }>;
++        }>(content, unitYamlPath);
++        return {
++          unit: {
++            slug: parsed.slug,
++            type: parsed.type,
++            inputs: parsed.inputs ?? [],
++            outputs: parsed.outputs,
++          },
++          errors: [],
++        };
++      } catch {
++        return { errors: [{ message: `Unit '${slug}' not found`, code: 'NOT_FOUND' }] };
++      }
++    },
++  };
++}
 diff --git a/dev/test-graphs/shared/template-test-runner.ts b/dev/test-graphs/shared/template-test-runner.ts
 new file mode 100644
-index 0000000..be564fb
+index 0000000..0e83229
 --- /dev/null
 +++ b/dev/test-graphs/shared/template-test-runner.ts
-@@ -0,0 +1,201 @@
+@@ -0,0 +1,157 @@
 +/**
 + * Template-based test runner — withTemplateWorkflow().
 + *
@@ -231,12 +285,12 @@ index 0000000..be564fb
 +import * as path from 'node:path';
 +
 +import { PositionalGraphAdapter, PositionalGraphService } from '@chainglass/positional-graph';
-+import type { IWorkUnitLoader } from '@chainglass/positional-graph/interfaces';
 +import { NodeFileSystemAdapter, PathResolverAdapter, YamlParserAdapter } from '@chainglass/shared';
 +import type { WorkspaceContext } from '@chainglass/workflow';
 +import { InstanceAdapter, TemplateAdapter, TemplateService } from '@chainglass/workflow';
 +
 +import type { TestGraphContext } from './graph-test-runner.js';
++import { buildDiskWorkUnitLoader, makeScriptsExecutable } from './helpers.js';
 +
 +/** Root of the repo (three levels up from this file) */
 +const REPO_ROOT = path.resolve(import.meta.dirname, '..', '..', '..');
@@ -308,7 +362,7 @@ index 0000000..be564fb
 +    }
 +
 +    // Make scripts executable
-+    await makeExecutable(globalUnits);
++    await makeScriptsExecutable(globalUnits);
 +
 +    // Create data dir for graph engine
 +    await fs.mkdir(path.join(tmpDir, '.chainglass', 'data', 'workflows'), { recursive: true });
@@ -319,7 +373,7 @@ index 0000000..be564fb
 +    const yamlParser = new YamlParserAdapter();
 +
 +    const graphAdapter = new PositionalGraphAdapter(nodeFs, pathResolver);
-+    const loader = buildLoader(tmpDir, yamlParser);
++    const loader = buildDiskWorkUnitLoader(tmpDir);
 +    const graphService = new PositionalGraphService(
 +      nodeFs,
 +      pathResolver,
@@ -370,50 +424,6 @@ index 0000000..be564fb
 +    if (!options.preserveOnSuccess) {
 +      await fs.rm(tmpDir, { recursive: true, force: true });
 +    }
-+  }
-+}
-+
-+function buildLoader(workspacePath: string, yamlParser: YamlParserAdapter): IWorkUnitLoader {
-+  return {
-+    async load(_ctx: WorkspaceContext, slug: string) {
-+      const unitYamlPath = path.join(workspacePath, '.chainglass', 'units', slug, 'unit.yaml');
-+      try {
-+        const content = await fs.readFile(unitYamlPath, 'utf-8');
-+        const parsed = yamlParser.parse<{
-+          slug: string;
-+          type: 'agent' | 'code' | 'user-input';
-+          inputs?: Array<{ name: string; type: 'data' | 'file'; required: boolean }>;
-+          outputs: Array<{ name: string; type: 'data' | 'file'; required: boolean }>;
-+        }>(content, unitYamlPath);
-+        return {
-+          unit: {
-+            slug: parsed.slug,
-+            type: parsed.type,
-+            inputs: parsed.inputs ?? [],
-+            outputs: parsed.outputs,
-+          },
-+          errors: [],
-+        };
-+      } catch {
-+        return { errors: [{ message: `Unit '${slug}' not found`, code: 'NOT_FOUND' }] };
-+      }
-+    },
-+  };
-+}
-+
-+async function makeExecutable(dir: string): Promise<void> {
-+  try {
-+    const entries = await fs.readdir(dir, { withFileTypes: true });
-+    for (const entry of entries) {
-+      const full = path.join(dir, entry.name);
-+      if (entry.isDirectory()) {
-+        await makeExecutable(full);
-+      } else if (entry.name.endsWith('.sh')) {
-+        await fs.chmod(full, 0o755);
-+      }
-+    }
-+  } catch {
-+    // Dir may not exist
 +  }
 +}
 diff --git a/docs/domains/_platform/positional-graph/domain.md b/docs/domains/_platform/positional-graph/domain.md
@@ -584,6 +594,2420 @@ index 12bd3bd..8d44585 100644
  This guide explains how to create custom workflow templates.
  
  ## Template Structure
+diff --git a/docs/plans/048-wf-web/reviews/_computed.diff b/docs/plans/048-wf-web/reviews/_computed.diff
+index 3af7b47..5981504 100644
+--- a/docs/plans/048-wf-web/reviews/_computed.diff
++++ b/docs/plans/048-wf-web/reviews/_computed.diff
+@@ -1,12 +1,598 @@
+-diff --git a/docs/plans/048-wf-web/tasks/phase-3-integration-and-validation/execution.log.md b/docs/plans/048-wf-web/tasks/phase-3-integration-and-validation/execution.log.md
++diff --git a/.chainglass/templates/workflows/simple-serial/graph.yaml b/.chainglass/templates/workflows/simple-serial/graph.yaml
+ new file mode 100644
+-index 0000000..bb1e5a2
++index 0000000..00863cb
+ --- /dev/null
+-+++ b/docs/plans/048-wf-web/tasks/phase-3-integration-and-validation/execution.log.md
+-@@ -0,0 +1,39 @@
+-+# Execution Log: Phase 3 — Integration Testing & Instance Validation
+++++ b/.chainglass/templates/workflows/simple-serial/graph.yaml
++@@ -0,0 +1,21 @@
+++slug: simple-serial
+++version: 0.1.0
+++created_at: 2026-02-26T02:06:21.181Z
+++lines:
+++  - id: line-d2f
+++    nodes:
+++      - setup-b90
+++    properties: {}
+++    orchestratorSettings:
+++      transition: auto
+++      autoStartLine: true
+++  - id: line-5c1
+++    nodes:
+++      - worker-ba1
+++    properties: {}
+++    orchestratorSettings:
+++      transition: auto
+++      autoStartLine: true
+++properties: {}
+++orchestratorSettings:
+++  agentType: copilot
++diff --git a/.chainglass/templates/workflows/simple-serial/nodes/setup-b90/node.yaml b/.chainglass/templates/workflows/simple-serial/nodes/setup-b90/node.yaml
++new file mode 100644
++index 0000000..ee2e351
++--- /dev/null
+++++ b/.chainglass/templates/workflows/simple-serial/nodes/setup-b90/node.yaml
++@@ -0,0 +1,8 @@
+++id: setup-b90
+++unit_slug: setup
+++created_at: 2026-02-26T02:06:21.183Z
+++properties: {}
+++orchestratorSettings:
+++  execution: serial
+++  waitForPrevious: true
+++  noContext: false
++diff --git a/.chainglass/templates/workflows/simple-serial/nodes/worker-ba1/node.yaml b/.chainglass/templates/workflows/simple-serial/nodes/worker-ba1/node.yaml
++new file mode 100644
++index 0000000..e2d0507
++--- /dev/null
+++++ b/.chainglass/templates/workflows/simple-serial/nodes/worker-ba1/node.yaml
++@@ -0,0 +1,12 @@
+++id: worker-ba1
+++unit_slug: worker
+++created_at: 2026-02-26T02:06:21.185Z
+++properties: {}
+++orchestratorSettings:
+++  execution: serial
+++  waitForPrevious: true
+++  noContext: false
+++inputs:
+++  task:
+++    from_node: setup-b90
+++    from_output: instructions
++diff --git a/.chainglass/templates/workflows/simple-serial/units/setup/unit.yaml b/.chainglass/templates/workflows/simple-serial/units/setup/unit.yaml
++new file mode 100644
++index 0000000..9a3042b
++--- /dev/null
+++++ b/.chainglass/templates/workflows/simple-serial/units/setup/unit.yaml
++@@ -0,0 +1,14 @@
+++slug: setup
+++type: user-input
+++version: 1.0.0
+++description: User provides task instructions for the worker node
+++inputs: []
+++outputs:
+++  - name: instructions
+++    type: data
+++    data_type: text
+++    required: true
+++    description: Task instructions for worker
+++user_input:
+++  question_type: text
+++  prompt: "What should the worker do?"
++diff --git a/.chainglass/templates/workflows/simple-serial/units/worker/scripts/simulate.sh b/.chainglass/templates/workflows/simple-serial/units/worker/scripts/simulate.sh
++new file mode 100755
++index 0000000..c6ecc8a
++--- /dev/null
+++++ b/.chainglass/templates/workflows/simple-serial/units/worker/scripts/simulate.sh
++@@ -0,0 +1,8 @@
+++#!/bin/bash
+++# simple-serial worker simulation script
+++# Accepts the node, saves output, and completes via CLI commands
+++set -e
+++
+++cg wf node accept "$CG_GRAPH_SLUG" "$CG_NODE_ID" --workspace-path "$CG_WORKSPACE_PATH"
+++cg wf node save-output-data "$CG_GRAPH_SLUG" "$CG_NODE_ID" result '{"done":true}' --workspace-path "$CG_WORKSPACE_PATH"
+++cg wf node end "$CG_GRAPH_SLUG" "$CG_NODE_ID" --workspace-path "$CG_WORKSPACE_PATH"
++diff --git a/.chainglass/templates/workflows/simple-serial/units/worker/unit.yaml b/.chainglass/templates/workflows/simple-serial/units/worker/unit.yaml
++new file mode 100644
++index 0000000..1b0ed86
++--- /dev/null
+++++ b/.chainglass/templates/workflows/simple-serial/units/worker/unit.yaml
++@@ -0,0 +1,18 @@
+++slug: worker
+++type: code
+++version: 1.0.0
+++description: Code worker that accepts, saves output, and completes via CLI
+++inputs:
+++  - name: task
+++    type: data
+++    data_type: text
+++    required: true
+++    description: Task from setup node
+++outputs:
+++  - name: result
+++    type: data
+++    data_type: text
+++    required: true
+++    description: Worker result
+++code:
+++  script: scripts/simulate.sh
++diff --git a/.chainglass/templates/workflows/smoke/graph.yaml b/.chainglass/templates/workflows/smoke/graph.yaml
++new file mode 100644
++index 0000000..66a9fb7
++--- /dev/null
+++++ b/.chainglass/templates/workflows/smoke/graph.yaml
++@@ -0,0 +1,14 @@
+++slug: smoke
+++version: 0.1.0
+++created_at: 2026-02-26T02:06:21.169Z
+++lines:
+++  - id: line-0b5
+++    nodes:
+++      - ping-b18
+++    properties: {}
+++    orchestratorSettings:
+++      transition: auto
+++      autoStartLine: true
+++properties: {}
+++orchestratorSettings:
+++  agentType: copilot
++diff --git a/.chainglass/templates/workflows/smoke/nodes/ping-b18/node.yaml b/.chainglass/templates/workflows/smoke/nodes/ping-b18/node.yaml
++new file mode 100644
++index 0000000..126b623
++--- /dev/null
+++++ b/.chainglass/templates/workflows/smoke/nodes/ping-b18/node.yaml
++@@ -0,0 +1,8 @@
+++id: ping-b18
+++unit_slug: ping
+++created_at: 2026-02-26T02:06:21.176Z
+++properties: {}
+++orchestratorSettings:
+++  execution: serial
+++  waitForPrevious: true
+++  noContext: false
++diff --git a/.chainglass/templates/workflows/smoke/units/ping/scripts/ping.sh b/.chainglass/templates/workflows/smoke/units/ping/scripts/ping.sh
++new file mode 100755
++index 0000000..df01565
++--- /dev/null
+++++ b/.chainglass/templates/workflows/smoke/units/ping/scripts/ping.sh
++@@ -0,0 +1,2 @@
+++#!/bin/bash
+++echo "pong"
++diff --git a/.chainglass/templates/workflows/smoke/units/ping/unit.yaml b/.chainglass/templates/workflows/smoke/units/ping/unit.yaml
++new file mode 100644
++index 0000000..4d5b2a3
++--- /dev/null
+++++ b/.chainglass/templates/workflows/smoke/units/ping/unit.yaml
++@@ -0,0 +1,11 @@
+++slug: ping
+++type: code
+++version: 1.0.0
+++description: Minimal smoke test unit that echoes pong
+++outputs:
+++  - name: result
+++    type: data
+++    data_type: text
+++    required: true
+++code:
+++  script: scripts/ping.sh
++diff --git a/README.md b/README.md
++index a98196d..87ac2e3 100644
++--- a/README.md
+++++ b/README.md
++@@ -144,6 +144,30 @@ cg phase finalize gather --run-dir $RUN_DIR --json
++ 
++ For detailed documentation, see [Workflows Guide](docs/how/workflows/1-overview.md) and [Workflow Management](docs/how/workflows/5-workflow-management.md).
++ 
+++### Template Commands
+++
+++Save working graphs as reusable templates, create independent instances, and refresh units.
+++
+++```bash
+++# Save a working graph as a template
+++cg template save-from my-graph --as my-template
+++
+++# Browse templates
+++cg template list
+++cg template show my-template
+++
+++# Create an independent instance
+++cg template instantiate my-template --id sprint-42
+++
+++# List instances
+++cg template instances my-template
+++
+++# Refresh instance units from template
+++cg template refresh my-template/sprint-42
+++```
+++
+++For detailed documentation, see [Workflow Templates Guide](docs/how/workflow-templates.md).
+ +
+-+**Phase**: Phase 3: Integration Testing & Instance Validation
++ ## Project Structure
++ 
++ ```
++diff --git a/dev/test-graphs/shared/template-test-runner.ts b/dev/test-graphs/shared/template-test-runner.ts
++new file mode 100644
++index 0000000..be564fb
++--- /dev/null
+++++ b/dev/test-graphs/shared/template-test-runner.ts
++@@ -0,0 +1,201 @@
+++/**
+++ * Template-based test runner — withTemplateWorkflow().
+++ *
+++ * Creates a temp workspace, copies a committed template from the repo's
+++ * .chainglass/templates/workflows/ into it, instantiates via TemplateService,
+++ * and returns a TestGraphContext for assertions.
+++ *
+++ * Coexists with withTestGraph() — use this for template-based tests,
+++ * use withTestGraph() for imperative graph building tests.
+++ */
+++
+++import * as fs from 'node:fs/promises';
+++import * as os from 'node:os';
+++import * as path from 'node:path';
+++
+++import { PositionalGraphAdapter, PositionalGraphService } from '@chainglass/positional-graph';
+++import type { IWorkUnitLoader } from '@chainglass/positional-graph/interfaces';
+++import { NodeFileSystemAdapter, PathResolverAdapter, YamlParserAdapter } from '@chainglass/shared';
+++import type { WorkspaceContext } from '@chainglass/workflow';
+++import { InstanceAdapter, TemplateAdapter, TemplateService } from '@chainglass/workflow';
+++
+++import type { TestGraphContext } from './graph-test-runner.js';
+++
+++/** Root of the repo (three levels up from this file) */
+++const REPO_ROOT = path.resolve(import.meta.dirname, '..', '..', '..');
+++const REPO_TEMPLATES = path.join(REPO_ROOT, '.chainglass', 'templates', 'workflows');
+++
+++export interface TemplateTestContext extends TestGraphContext {
+++  /** The TemplateService wired to the temp workspace */
+++  templateService: TemplateService;
+++  /** The template slug used */
+++  templateSlug: string;
+++  /** The instance ID created */
+++  instanceId: string;
+++}
+++
+++export interface WithTemplateWorkflowOptions {
+++  preserveOnSuccess?: boolean;
+++}
+++
+++/**
+++ * Test helper that instantiates a committed template into a temp workspace.
+++ *
+++ * 1. Creates temp dir
+++ * 2. Copies template from repo .chainglass/templates/workflows/<slug>/
+++ * 3. Copies units from template to .chainglass/units/ (for IWorkUnitLoader)
+++ * 4. Wires TemplateService + PositionalGraphService with real FS
+++ * 5. Calls instantiate()
+++ * 6. Returns TemplateTestContext
+++ * 7. Cleans up temp dir on completion
+++ */
+++export async function withTemplateWorkflow(
+++  templateSlug: string,
+++  testFnOrOptions: ((ctx: TemplateTestContext) => Promise<void>) | WithTemplateWorkflowOptions,
+++  maybeTestFn?: (ctx: TemplateTestContext) => Promise<void>
+++): Promise<void> {
+++  const testFn =
+++    typeof testFnOrOptions === 'function'
+++      ? testFnOrOptions
+++      : (maybeTestFn as (ctx: TemplateTestContext) => Promise<void>);
+++  const options = typeof testFnOrOptions === 'object' ? testFnOrOptions : {};
+++
+++  if (!/^[a-z0-9_-]+$/.test(templateSlug)) {
+++    throw new Error(`Invalid templateSlug: "${templateSlug}"`);
+++  }
+++
+++  const srcTemplate = path.join(REPO_TEMPLATES, templateSlug);
+++  try {
+++    await fs.stat(srcTemplate);
+++  } catch {
+++    throw new Error(`Template '${templateSlug}' not found at ${srcTemplate}`);
+++  }
+++
+++  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), `tpl-${templateSlug}-`));
+++  const instanceId = `test-${Date.now()}`;
+++
+++  try {
+++    // Copy template into temp workspace
+++    const destTemplates = path.join(tmpDir, '.chainglass', 'templates', 'workflows', templateSlug);
+++    await fs.mkdir(path.dirname(destTemplates), { recursive: true });
+++    await fs.cp(srcTemplate, destTemplates, { recursive: true });
+++
+++    // Copy units from template to global units path (for IWorkUnitLoader validation)
+++    const templateUnits = path.join(destTemplates, 'units');
+++    const globalUnits = path.join(tmpDir, '.chainglass', 'units');
+++    await fs.mkdir(globalUnits, { recursive: true });
+++    try {
+++      await fs.cp(templateUnits, globalUnits, { recursive: true });
+++    } catch {
+++      // Template may not have units
+++    }
+++
+++    // Make scripts executable
+++    await makeExecutable(globalUnits);
+++
+++    // Create data dir for graph engine
+++    await fs.mkdir(path.join(tmpDir, '.chainglass', 'data', 'workflows'), { recursive: true });
+++
+++    // Wire real services
+++    const nodeFs = new NodeFileSystemAdapter();
+++    const pathResolver = new PathResolverAdapter();
+++    const yamlParser = new YamlParserAdapter();
+++
+++    const graphAdapter = new PositionalGraphAdapter(nodeFs, pathResolver);
+++    const loader = buildLoader(tmpDir, yamlParser);
+++    const graphService = new PositionalGraphService(
+++      nodeFs,
+++      pathResolver,
+++      yamlParser,
+++      graphAdapter,
+++      loader
+++    );
+++
+++    const templateAdapter = new TemplateAdapter(nodeFs, pathResolver);
+++    const instanceAdapter = new InstanceAdapter(nodeFs, pathResolver);
+++    const templateService = new TemplateService(
+++      nodeFs,
+++      pathResolver,
+++      yamlParser,
+++      templateAdapter,
+++      instanceAdapter
+++    );
+++
+++    const ctx: WorkspaceContext = {
+++      workspaceSlug: `tpl-${templateSlug}`,
+++      workspaceName: `Template Test: ${templateSlug}`,
+++      workspacePath: tmpDir,
+++      worktreePath: tmpDir,
+++      worktreeBranch: null,
+++      isMainWorktree: true,
+++      hasGit: false,
+++    };
+++
+++    // Instantiate template
+++    const result = await templateService.instantiate(ctx, templateSlug, instanceId);
+++    if (result.errors.length > 0) {
+++      throw new Error(
+++        `Failed to instantiate template: ${result.errors.map((e) => e.message).join(', ')}`
+++      );
+++    }
+++
+++    const ttc: TemplateTestContext = {
+++      ctx,
+++      service: graphService,
+++      workspacePath: tmpDir,
+++      templateService,
+++      templateSlug,
+++      instanceId,
+++    };
+++
+++    await testFn(ttc);
+++  } finally {
+++    if (!options.preserveOnSuccess) {
+++      await fs.rm(tmpDir, { recursive: true, force: true });
+++    }
+++  }
+++}
+++
+++function buildLoader(workspacePath: string, yamlParser: YamlParserAdapter): IWorkUnitLoader {
+++  return {
+++    async load(_ctx: WorkspaceContext, slug: string) {
+++      const unitYamlPath = path.join(workspacePath, '.chainglass', 'units', slug, 'unit.yaml');
+++      try {
+++        const content = await fs.readFile(unitYamlPath, 'utf-8');
+++        const parsed = yamlParser.parse<{
+++          slug: string;
+++          type: 'agent' | 'code' | 'user-input';
+++          inputs?: Array<{ name: string; type: 'data' | 'file'; required: boolean }>;
+++          outputs: Array<{ name: string; type: 'data' | 'file'; required: boolean }>;
+++        }>(content, unitYamlPath);
+++        return {
+++          unit: {
+++            slug: parsed.slug,
+++            type: parsed.type,
+++            inputs: parsed.inputs ?? [],
+++            outputs: parsed.outputs,
+++          },
+++          errors: [],
+++        };
+++      } catch {
+++        return { errors: [{ message: `Unit '${slug}' not found`, code: 'NOT_FOUND' }] };
+++      }
+++    },
+++  };
+++}
+++
+++async function makeExecutable(dir: string): Promise<void> {
+++  try {
+++    const entries = await fs.readdir(dir, { withFileTypes: true });
+++    for (const entry of entries) {
+++      const full = path.join(dir, entry.name);
+++      if (entry.isDirectory()) {
+++        await makeExecutable(full);
+++      } else if (entry.name.endsWith('.sh')) {
+++        await fs.chmod(full, 0o755);
+++      }
+++    }
+++  } catch {
+++    // Dir may not exist
+++  }
+++}
++diff --git a/docs/domains/_platform/positional-graph/domain.md b/docs/domains/_platform/positional-graph/domain.md
++index df4e363..05455b9 100644
++--- a/docs/domains/_platform/positional-graph/domain.md
+++++ b/docs/domains/_platform/positional-graph/domain.md
++@@ -148,3 +148,4 @@ Primary: `packages/positional-graph/src/`
++ | 048 | Workflow templates & instances — template/instance schemas, ITemplateService, IInstanceService, fakes, contract tests (Phase 1) | 2026-02-25 |
++ | 048-P2 | Template/Instance service + CLI — TemplateService (6 methods), TemplateAdapter, InstanceAdapter, InstanceWorkUnitAdapter, 6 CLI commands, advanced-pipeline template, Workshop 003 unified storage (Phase 2) | 2026-02-25 |
++ | 048-P3 | Integration testing + InstanceGraphAdapter — pre-resolved adapter for instance graph routing, 5 integration tests proving lifecycle/isolation/refresh/template-isolation (Phase 3) | 2026-02-26 |
+++| 048-P4 | E2E test migration + docs — template generation script, smoke + simple-serial templates, withTemplateWorkflow() helper, 5 e2e lifecycle tests, workflow-templates.md guide, README quick-start (Phase 4) | 2026-02-26 |
++diff --git a/docs/how/workflow-templates.md b/docs/how/workflow-templates.md
++new file mode 100644
++index 0000000..86adc5b
++--- /dev/null
+++++ b/docs/how/workflow-templates.md
++@@ -0,0 +1,141 @@
+++# Workflow Templates
+++
+++Workflow templates let you save a working graph as a reusable blueprint, create independent instances from it, and refresh instance work units when the template is updated.
+++
+++## Concepts
+++
+++| Term | What it is |
+++|------|-----------|
+++| **Template** | A saved graph topology + bundled work units. Stored at `.chainglass/templates/workflows/<slug>/`. Git-tracked. |
+++| **Instance** | An independent copy of a template with its own runtime state. Stored at `.chainglass/instances/<template>/<id>/`. Git-tracked. |
+++| **Refresh** | Overwrite an instance's work units from its source template. Graph topology is unchanged — only unit content (prompts, scripts) is updated. |
+++
+++## How It Works
+++
+++```
+++Working Graph                    Template                         Instance
+++(build + iterate)                (save as reusable)               (independent copy)
+++
+++.chainglass/data/workflows/      .chainglass/templates/workflows/ .chainglass/instances/
+++  my-graph/                        my-template/                     my-template/sprint-42/
+++    graph.yaml            ──save──▶  graph.yaml            ──inst──▶  graph.yaml
+++    nodes/*/node.yaml     from       nodes/*/node.yaml     anti      nodes/*/node.yaml
+++    state.json (runtime)             units/ (bundled)       ate       units/ (copied)
+++                                                                      state.json (fresh)
+++                                                                      instance.yaml (metadata)
+++```
+++
+++1. **Build a graph** using `cg wf create`, `cg wf node add`, `cg wf node set-input`
+++2. **Save as template** — captures graph topology + bundles all referenced work units
+++3. **Instantiate** — creates an independent copy with fresh runtime state
+++4. **Refresh** (optional) — updates instance units when the template changes
+++
+++## Directory Layout
+++
+++```
+++.chainglass/
+++├── templates/workflows/<slug>/       ← Git-tracked templates
+++│   ├── graph.yaml                    ← Graph topology (lines, nodes)
+++│   ├── nodes/<id>/node.yaml          ← Node config (unit ref, input wiring)
+++│   └── units/<slug>/                 ← Bundled work units
+++│       ├── unit.yaml
+++│       ├── prompts/main.md
+++│       └── scripts/main.sh
+++│
+++├── instances/<template>/<id>/        ← Git-tracked instances (all data)
+++│   ├── instance.yaml                 ← Metadata (template source, units)
+++│   ├── graph.yaml                    ← Copied from template
+++│   ├── state.json                    ← Runtime state (pending → complete)
+++│   ├── nodes/<id>/                   ← Node config + outputs
+++│   │   ├── node.yaml
+++│   │   ├── outputs/                  ← Agent-produced deliverables
+++│   │   └── events.json               ← Node event log
+++│   └── units/<slug>/                 ← Copied work units
+++│
+++└── data/workflows/<slug>/            ← Gitignored scratch graphs
+++    ├── graph.yaml
+++    ├── state.json
+++    └── nodes/
+++```
+++
+++**Key distinction**: Templates and instances are Git-tracked. Working graphs under `data/` are gitignored scratch work.
+++
+++## CLI Commands
+++
+++### Save a working graph as a template
+++
+++```bash
+++cg template save-from <graph-slug> --as <template-slug>
+++```
+++
+++Copies graph.yaml + nodes/*/node.yaml, strips runtime state (state.json, outputs, events), bundles all referenced work units.
+++
+++### List templates
+++
+++```bash
+++cg template list
+++```
+++
+++### Show template details
+++
+++```bash
+++cg template show <template-slug>
+++```
+++
+++Shows graph structure, node-to-unit mapping, and bundled units.
+++
+++### Create an instance
+++
+++```bash
+++cg template instantiate <template-slug> --id <instance-id>
+++```
+++
+++Creates an independent copy with fresh `state.json` (pending status). The instance is immediately ready for orchestration.
+++
+++### List instances
+++
+++```bash
+++cg template instances <template-slug>
+++```
+++
+++### Refresh instance units
+++
+++```bash
+++cg template refresh <template-slug>/<instance-id>
+++```
+++
+++Overwrites all work units in the instance from the template. Graph topology is not changed — only unit content (prompts, scripts) is updated.
+++
+++If the instance has an active run (`in_progress` state), a warning is shown. Use `--force` to suppress the warning.
+++
+++## Refresh Workflow
+++
+++Refresh is useful when you update a template's prompts or scripts and want existing instances to pick up the change:
+++
+++1. Edit the template's unit files (e.g., update a prompt in `templates/workflows/my-tpl/units/spec-writer/prompts/main.md`)
+++2. Run `cg template refresh my-tpl/sprint-42`
+++3. The instance's `units/spec-writer/` is replaced with the template's version
+++4. `instance.yaml` timestamps are updated
+++
+++**What refresh does NOT do**: It does not change graph topology (lines, nodes, wiring). If you add a new node to the template after instantiation, existing instances won't get it via refresh. Create a new instance instead.
+++
+++## Git Integration
+++
+++Everything is Git-tracked by default:
+++
+++- **Templates** at `.chainglass/templates/workflows/` — share across branches via normal merge
+++- **Instances** at `.chainglass/instances/` — including runtime state and outputs
+++- **No special tooling** — standard `git add`, `git commit`, `git merge`
+++
+++Templates created on one branch are available on other branches after merge. Instance outputs (specs, code, reviews) are work product that belongs in the repo alongside the code.
+++
+++## Generating Templates from Fixtures
+++
+++For repeatable template generation from test fixtures:
+++
+++```bash
+++npx tsx scripts/generate-templates.ts                    # Generate all
+++npx tsx scripts/generate-templates.ts --fixture=smoke    # Generate one
+++```
+++
+++This builds graphs imperatively, saves them as templates, and copies the result to `.chainglass/templates/workflows/`.
++diff --git a/docs/how/workflows/2-template-authoring.md b/docs/how/workflows/2-template-authoring.md
++index 12bd3bd..8d44585 100644
++--- a/docs/how/workflows/2-template-authoring.md
+++++ b/docs/how/workflows/2-template-authoring.md
++@@ -1,5 +1,7 @@
++ # Template Authoring Guide
++ 
+++> **Deprecated**: This document describes the legacy `wf.yaml` + phases workflow system which is being replaced by the positional graph template system. For the current template system, see [Workflow Templates](../workflow-templates.md).
+++
++ This guide explains how to create custom workflow templates.
++ 
++ ## Template Structure
++diff --git a/docs/plans/048-wf-web/tasks/phase-4-e2e-and-docs/execution.log.md b/docs/plans/048-wf-web/tasks/phase-4-e2e-and-docs/execution.log.md
++new file mode 100644
++index 0000000..0d361dd
++--- /dev/null
+++++ b/docs/plans/048-wf-web/tasks/phase-4-e2e-and-docs/execution.log.md
++@@ -0,0 +1,10 @@
+++# Execution Log: Phase 4 — E2E Test Migration & Documentation
+++
+++**Phase**: Phase 4: E2E Test Migration & Documentation
+ +**Plan**: [wf-web-plan.md](../../wf-web-plan.md)
+ +**Started**: 2026-02-26
+ +
+@@ -14,55 +600,26 @@ index 0000000..bb1e5a2
+ +
+ +## Task Log
+ +
+-+### T001-T002: InstanceGraphAdapter — COMPLETE
+-+- Created `packages/positional-graph/src/adapter/instance-graph.adapter.ts`
+-+- Extends PositionalGraphAdapter, overrides getGraphDir() → pre-resolved instancePath (slug ignored)
+-+- Constructor: `(fs, pathResolver, instancePath: string)` — scoped to one instance
+-+- 6 unit tests pass (path resolution, slug ignored, graphExists, ensureGraphDir)
+-+- Barrel export added
+-+
+-+### T003: Integration test helper — COMPLETE
+-+- Created `test/integration/template-instance-validation.test.ts`
+-+- `setupTestWorkspace()`: creates temp dir, copies smoke fixture units, wires real PositionalGraphService + TemplateService with NodeFileSystemAdapter
+-+- `buildSimpleGraph()`: creates 1-node graph via real service calls
+-+- `buildLoader()`: real IWorkUnitLoader reading unit.yaml from disk
+-+- Cleanup in afterEach (rm -rf temp dir)
+-+
+-+### T004: Full lifecycle test — COMPLETE
+-+- 2 tests: instance structure verified (graph.yaml, state.json pending, units), state.json excluded from template
+-+- Real YAML parsing validates graph.yaml content
+-+
+-+### T005: Multi-instance isolation — COMPLETE
+-+- 1 test: two instances created, state modified in one, other unaffected
+-+- Proves AC-8
+-+
+-+### T006: Refresh safety — COMPLETE
+-+- 1 test: state.json set to in_progress, refresh returns ACTIVE_RUN_WARNING, units still refreshed, state unchanged
+-+- Proves AC-16
+-+
+-+### T007: Template isolation — COMPLETE
+-+- 1 test: template unit modified after instantiation, instance unchanged, then refresh propagates change
+-+- Proves AC-7 and AC-12
+-diff --git a/docs/plans/048-wf-web/tasks/phase-3-integration-and-validation/tasks.fltplan.md b/docs/plans/048-wf-web/tasks/phase-3-integration-and-validation/tasks.fltplan.md
++diff --git a/docs/plans/048-wf-web/tasks/phase-4-e2e-and-docs/tasks.fltplan.md b/docs/plans/048-wf-web/tasks/phase-4-e2e-and-docs/tasks.fltplan.md
+ new file mode 100644
+-index 0000000..49309cc
++index 0000000..76ef3d0
+ --- /dev/null
+-+++ b/docs/plans/048-wf-web/tasks/phase-3-integration-and-validation/tasks.fltplan.md
+-@@ -0,0 +1,123 @@
+-+# Flight Plan: Phase 3 — Integration Testing & Instance Validation
+++++ b/docs/plans/048-wf-web/tasks/phase-4-e2e-and-docs/tasks.fltplan.md
++@@ -0,0 +1,120 @@
+++# Flight Plan: Phase 4 — E2E Test Migration & Documentation
+ +
+ +**Plan**: [wf-web-plan.md](../../wf-web-plan.md)
+-+**Phase**: Phase 3: Integration Testing & Instance Validation
+-+**Generated**: 2026-02-25
+++**Phase**: Phase 4: E2E Test Migration & Documentation
+++**Generated**: 2026-02-26
+ +**Status**: Landed
+ +
+ +---
+ +
+ +## Departure → Destination
+ +
+-+**Where we are**: Phases 1-2 delivered schemas, interfaces, fakes, a real TemplateService (6 methods), 6 CLI commands, an InstanceWorkUnitAdapter, and 27 passing tests — all validated with FakeFileSystem. The advanced-pipeline template exists on disk. No integration with the real graph engine yet.
+++**Where we are**: Phases 1-3 delivered schemas, interfaces, a real TemplateService with 6 CLI commands, an InstanceGraphAdapter, and 46 passing tests (unit + integration) proving the template lifecycle works. One committed template (advanced-pipeline) exists. No fixture migration, no test helper, no docs yet.
+ +
+-+**Where we're going**: A developer can build a graph, save it as a template, instantiate it, and verify the instance is runnable — all proven by integration tests using real filesystem I/O and real YAML parsing. Edge cases (multi-instance isolation, refresh safety, template isolation) are verified.
+++**Where we're going**: Two more fixtures (smoke, simple-serial) exist as committed templates. A `withTemplateWorkflow()` helper lets any test instantiate a template into a temp workspace. An e2e test proves the full lifecycle. User documentation teaches `cg template` usage.
+ +
+ +---
+ +
+@@ -72,15 +629,15 @@ index 0000000..49309cc
+ +
+ +| Domain | What Changes | Key Files |
+ +|--------|-------------|-----------|
+-+| _platform/positional-graph | New InstanceGraphAdapter for instance path routing | `packages/positional-graph/src/adapter/instance-graph.adapter.ts` |
+++| _platform/positional-graph | 2 new templates, test helper, e2e test | `.chainglass/templates/workflows/smoke/`, `simple-serial/`, `dev/test-graphs/shared/template-test-runner.ts`, `test/e2e/` |
+++| consumer (docs) | User documentation | `docs/how/workflow-templates.md`, `README.md` |
+ +
+ +### Domains We Depend On (no changes)
+ +
+ +| Domain | What We Consume | Contract |
+ +|--------|----------------|----------|
+-+| _platform/positional-graph | IPositionalGraphService (graph CRUD) | Build graphs for test setup |
+-+| _platform/positional-graph | TemplateService (saveFrom, instantiate, refresh) | Phase 2 implementation |
+-+| _platform/file-ops | NodeFileSystemAdapter, PathResolverAdapter | Real filesystem for integration tests |
+++| _platform/positional-graph | TemplateService, PositionalGraphService | saveFrom, instantiate, refresh, create, addNode |
+++| _platform/file-ops | NodeFileSystemAdapter | Real filesystem for template generation + e2e |
+ +
+ +---
+ +
+@@ -93,10 +650,10 @@ index 0000000..49309cc
+ +    classDef done fill:#4CAF50,stroke:#388E3C,color:#fff
+ +    classDef blocked fill:#F44336,stroke:#D32F2F,color:#fff
+ +
+-+    state "1: InstanceGraphAdapter" as S1
+++    state "1: Fixture templates" as S1
+ +    state "2: Test helper" as S2
+-+    state "3: Lifecycle test" as S3
+-+    state "4: Edge case tests" as S4
+++    state "3: E2E test" as S3
+++    state "4: Documentation" as S4
+ +
+ +    [*] --> S1
+ +    S1 --> S2
+@@ -113,10 +670,10 @@ index 0000000..49309cc
+ +
+ +## Stages
+ +
+-+- [x] **Stage 1: InstanceGraphAdapter** — TDD adapter that routes graph engine to instance directories (`instance-graph.adapter.ts` — new file)
+-+- [x] **Stage 2: Test helper setup** — Shared integration test infrastructure with real filesystem (`template-instance-validation.test.ts` — new file)
+-+- [x] **Stage 3: Full lifecycle test** — save-from → instantiate → verify runnable (AC-6)
+-+- [x] **Stage 4: Edge case tests** — Multi-instance isolation (AC-8), refresh safety (AC-16), template isolation (AC-7, AC-12)
+++- [x] **Stage 1: Fixture templates** — Generate smoke + simple-serial templates from fixtures (committed artifacts)
+++- [x] **Stage 2: Test helper** — Create `withTemplateWorkflow()` in `dev/test-graphs/shared/template-test-runner.ts`
+++- [x] **Stage 3: E2E test** — Full lifecycle test using withTemplateWorkflow (AC-21)
+++- [x] **Stage 4: Documentation** — User guide + README quick-start
+ +
+ +---
+ +
+@@ -127,207 +684,200 @@ index 0000000..49309cc
+ +    classDef existing fill:#E8F5E9,stroke:#4CAF50,color:#000
+ +    classDef new fill:#E3F2FD,stroke:#2196F3,color:#000
+ +
+-+    subgraph Before["Before Phase 3"]
+-+        B1["TemplateService<br/>(FakeFS tests only)"]:::existing
+-+        B2["PositionalGraphAdapter<br/>(.chainglass/data/workflows/)"]:::existing
+++    subgraph Before["Before Phase 4"]
+++        B1["1 template<br/>(advanced-pipeline)"]:::existing
+++        B2["withTestGraph()<br/>(raw copy)"]:::existing
+++        B3["No template docs"]:::existing
+ +    end
+ +
+-+    subgraph After["After Phase 3"]
+-+        A1["TemplateService<br/>(real FS integration tests)"]:::existing
+-+        A2["PositionalGraphAdapter"]:::existing
+-+        A3["InstanceGraphAdapter<br/>(.chainglass/instances/)"]:::new
+-+        A4["4 integration tests<br/>(real filesystem)"]:::new
+-+
+-+        A2 --> A1
+-+        A3 --> A1
+-+        A1 --> A4
+++    subgraph After["After Phase 4"]
+++        A1["3 templates<br/>(advanced-pipeline, smoke, simple-serial)"]:::new
+++        A2["withTemplateWorkflow()<br/>(template instantiation)"]:::new
+++        A3["E2E lifecycle test"]:::new
+++        A4["docs/how/workflow-templates.md"]:::new
+++        A5["README quick-start"]:::new
+ +    end
+ +```
+ +
+-+**Legend**: existing (green, from Phase 1-2) | new (blue, created in Phase 3)
+++**Legend**: existing (green, from Phase 1-3) | new (blue, created in Phase 4)
+ +
+ +---
+ +
+ +## Acceptance Criteria
+ +
+-+- [ ] InstanceGraphAdapter routes to `.chainglass/instances/<wf>/<id>/`
+-+- [ ] Integration test proves save-from → instantiate → instance is runnable (AC-6)
+-+- [ ] Integration test proves multiple instances are independent (AC-8)
+-+- [ ] Integration test proves refresh warns on active run (AC-16)
+-+- [ ] Integration test proves template edits don't affect instances (AC-7, AC-12)
+++- [ ] smoke and simple-serial fixtures exist as committed templates (AC-20 partial)
+++- [ ] withTemplateWorkflow() helper creates temp instance from template
+++- [ ] E2E test validates full lifecycle: instantiate → verify → refresh → verify (AC-21)
+++- [ ] docs/how/workflow-templates.md covers concepts, layout, CLI, refresh, Git
+++- [ ] README has cg template quick-start
+ +
+ +## Goals & Non-Goals
+ +
+-+**Goals**: InstanceGraphAdapter, 4 integration tests with real filesystem, edge case coverage
+-+**Non-Goals**: No actual agent execution, no orchestration loop changes, no CLI changes
+++**Goals**: 2 fixture templates, test helper, e2e test, user docs, README update
+++**Non-Goals**: No bulk fixture conversion (only smoke + simple-serial), no old test removal, no code changes
+ +
+ +---
+ +
+ +## Checklist
+ +
+-+- [x] T001: TDD InstanceGraphAdapter tests
+-+- [x] T002: Implement InstanceGraphAdapter
+-+- [x] T003: Integration test helper setup
+-+- [x] T004: Full lifecycle test (save-from → instantiate → verify)
+-+- [x] T005: Multi-instance isolation test
+-+- [x] T006: Refresh safety test
+-+- [x] T007: Template isolation test
+-diff --git a/docs/plans/048-wf-web/tasks/phase-3-integration-and-validation/tasks.md b/docs/plans/048-wf-web/tasks/phase-3-integration-and-validation/tasks.md
+++- [x] T001: Create generation script + smoke template
+++- [x] T002: Generate simple-serial template
+++- [x] T003: Create withTemplateWorkflow() helper
+++- [x] T004: E2E lifecycle test (simple-serial)
+++- [x] T005: Write workflow-templates.md + deprecate old doc
+++- [x] T006: Update README
++diff --git a/docs/plans/048-wf-web/tasks/phase-4-e2e-and-docs/tasks.md b/docs/plans/048-wf-web/tasks/phase-4-e2e-and-docs/tasks.md
+ new file mode 100644
+-index 0000000..4556942
++index 0000000..d3d27f8
+ --- /dev/null
+-+++ b/docs/plans/048-wf-web/tasks/phase-3-integration-and-validation/tasks.md
+-@@ -0,0 +1,178 @@
+-+# Phase 3: Integration Testing & Instance Validation
+++++ b/docs/plans/048-wf-web/tasks/phase-4-e2e-and-docs/tasks.md
++@@ -0,0 +1,175 @@
+++# Phase 4: E2E Test Migration & Documentation
+ +
+ +## Executive Briefing
+ +
+-+- **Purpose**: Prove the template/instance system works end-to-end with real filesystem operations and the real graph engine. Phase 2 validated with FakeFileSystem; Phase 3 validates with real disk I/O, real YAML parsing, and real graph state management.
+-+- **What We're Building**: An instance-aware graph adapter that lets the orchestration engine read/write to instance directories, plus 4 integration tests proving isolation, refresh safety, and full lifecycle correctness.
+++- **Purpose**: Port existing e2e test fixtures to the template system and write user documentation. This closes the loop — fixtures become templates, tests prove the template lifecycle end-to-end, and docs teach users how to use it.
+++- **What We're Building**: Workflow templates generated from existing fixtures (smoke, simple-serial), a `withTemplateWorkflow()` test helper that instantiates templates instead of copying raw dirs, a lifecycle e2e test, and user-facing documentation.
+ +- **Goals**:
+-+  - ✅ `InstanceGraphAdapter` — graph engine reads/writes to `.chainglass/instances/<wf>/<id>/`
+-+  - ✅ Full lifecycle proof: save-from → instantiate → verify graph runnable
+-+  - ✅ Instance isolation: multiple instances, independent state
+-+  - ✅ Refresh safety: warning on active run, content updated correctly
+-+  - ✅ Template isolation: template edits don't affect existing instances
+++  - ✅ Smoke and simple-serial fixtures converted to workflow templates
+++  - ✅ `withTemplateWorkflow()` helper for template-based test setup
+++  - ✅ E2E test validating full template lifecycle (AC-21)
+++  - ✅ `docs/how/workflow-templates.md` user guide
+++  - ✅ README quick-start for `cg template` commands
+ +- **Non-Goals**:
+-+  - ❌ No actual agent execution (drive to completion with real LLM agents)
+-+  - ❌ No orchestration loop changes (ONBAS, ODS, Reality untouched)
+-+  - ❌ No CLI changes
+-+  - ❌ No web UI
+++  - ❌ Converting ALL 8 fixtures (only smoke + simple-serial — others deferred)
+++  - ❌ Removing old `withTestGraph()` helper (parallel paths during migration)
+++  - ❌ Removing old `dev/test-graphs/` fixtures (they stay as source material)
+++  - ❌ Changes to CLI, service, or adapter code
+ +
+ +## Prior Phase Context
+ +
+-+### Phase 1: Domain Finalization & Template Schema (Complete — 6/6 tasks)
+-+
+-+**A. Deliverables**: Zod schemas (TemplateManifestSchema, InstanceMetadataSchema), interfaces (ITemplateService, IInstanceService), fakes, 8 contract tests.
+-+
+-+**B. Dependencies Exported**: All types via `z.infer<>`, interfaces with Result pattern `{data, errors}`, fakes with call tracking + return builders.
+-+
+-+**C. Gotchas & Debt**: None. Templates reuse existing graph.yaml + node.yaml format (Workshop 002).
+-+
+-+**D. Incomplete Items**: None.
+++### Phase 1: Domain Finalization & Template Schema (Complete — 6/6)
+ +
+-+**E. Patterns to Follow**: Interface-first, fakes over mocks, contract test parity, Zod schema source of truth, Result pattern.
+++**A. Deliverables**: Zod schemas, interfaces (ITemplateService, IInstanceService), fakes, 8 contract tests.
+++**B. Dependencies**: TemplateManifest, InstanceMetadata types, Result pattern, fakes with return builders.
+++**C. Gotchas**: Templates reuse graph.yaml + node.yaml format (Workshop 002). No new YAML parser.
+++**D. Incomplete**: None.
+++**E. Patterns**: Zod-first, interface-first, fakes over mocks, contract parity, Result pattern.
+ +
+-+### Phase 2: Template/Instance Service + CLI (Complete — 19/19 tasks)
+++### Phase 2: Template/Instance Service + CLI (Complete — 19/19)
+ +
+-+**A. Deliverables**: TemplateService (6 methods), TemplateAdapter, InstanceAdapter, InstanceWorkUnitAdapter, 6 CLI commands, advanced-pipeline template, 24 unit tests + 3 integration tests.
+++**A. Deliverables**: TemplateService (6 methods), TemplateAdapter, InstanceAdapter, InstanceWorkUnitAdapter, 6 CLI commands, advanced-pipeline template, 24 unit + 3 integration tests.
+++**B. Dependencies**: Real TemplateService, path adapters, DI tokens, InstanceWorkUnitAdapter(basePath).
+++**C. Gotchas**: Unified instance storage (Workshop 003). Script chmod no-op with FakeFS. InstanceWorkUnitAdapter DI factory deferred.
+++**D. Incomplete**: None.
+++**E. Patterns**: TDD, useFactory DI, WorkspaceDataAdapterBase override, single-destination instances, glob discovery.
+ +
+-+**B. Dependencies Exported**: Real TemplateService implementation, path adapters, DI tokens (TEMPLATE_SERVICE, TEMPLATE_ADAPTER, INSTANCE_ADAPTER), InstanceWorkUnitAdapter with basePath constructor.
+++### Phase 3: Integration Testing & Instance Validation (Complete — 7/7)
+ +
+-+**C. Gotchas & Debt**: InstanceWorkUnitAdapter DI factory wiring deferred to Phase 3. TemplateService uses concrete adapter types (F003 noted but deferred). Script chmod is no-op with FakeFileSystem.
+-+
+-+**D. Incomplete Items**: None. Instance execution context (DI adapter selection) carries forward.
+-+
+-+**E. Patterns to Follow**: TDD red→green, Result pattern, useFactory DI, WorkspaceDataAdapterBase override for tracked storage, FakeFileSystem pre-population for unit tests. For integration tests: use real NodeFileSystemAdapter + temp dirs.
+++**A. Deliverables**: InstanceGraphAdapter, 6 unit tests, 5 integration tests (real filesystem).
+++**B. Dependencies**: InstanceGraphAdapter (pre-resolved basePath, Liskov-substitutable).
+++**C. Gotchas**: listGraphSlugs() overridden to return [] (single-instance scope). State.json shape differs between engine and template service.
+++**D. Incomplete**: None.
+++**E. Patterns**: Adapter substitution via DI child container, real filesystem for integration tests, three-stage verification.
+ +
+ +## Pre-Implementation Check
+ +
+ +| File | Exists? | Domain Check | Notes |
+ +|------|---------|-------------|-------|
+-+| `packages/positional-graph/src/adapter/instance-graph.adapter.ts` | ❌ | ✅ Correct dir | New — follows PositionalGraphAdapter pattern |
+-+| `test/integration/template-instance-orchestration.test.ts` | ❌ | ✅ | New — integration tests with real filesystem |
+-+| `test/helpers/positional-graph-e2e-helpers.ts` | ✅ | N/A | Has `createTestServiceStack()` — reuse for Phase 3 |
+-+| `dev/test-graphs/shared/graph-test-runner.ts` | ✅ | N/A | Has `withTestGraph()` — reuse for graph creation |
+-+| `packages/positional-graph/src/adapter/index.ts` | ✅ | N/A | Modify — add InstanceGraphAdapter export |
+++| `.chainglass/templates/workflows/smoke/` | ❌ | ✅ | New — generated from dev/test-graphs/smoke/ |
+++| `.chainglass/templates/workflows/simple-serial/` | ❌ | ✅ | New — generated from dev/test-graphs/simple-serial/ |
+++| `dev/test-graphs/shared/template-test-runner.ts` | ❌ | ✅ | New — withTemplateWorkflow() helper |
+++| `test/e2e/template-lifecycle.e2e.test.ts` | ❌ | ✅ | New — e2e lifecycle test |
+++| `docs/how/workflow-templates.md` | ❌ | ✅ | New — user guide |
+++| `docs/how/workflows/2-template-authoring.md` | ✅ | N/A | Existing — documents OLD wf.yaml system, needs update or replacement |
+++| `.chainglass/templates/workflows/advanced-pipeline/` | ✅ | N/A | Already exists from Phase 2 T012 |
+ +
+ +## Architecture Map
+ +
+ +```mermaid
+ +flowchart TD
+ +    classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
+-+    classDef phase2 fill:#4CAF50,stroke:#388E3C,color:#fff
+++    classDef phase3 fill:#4CAF50,stroke:#388E3C,color:#fff
+ +
+-+    subgraph Phase2["Phase 2 (Complete)"]
+-+        P2_Service["TemplateService<br/>(saveFrom, instantiate, refresh)"]:::phase2
+-+        P2_Adapters["TemplateAdapter<br/>InstanceAdapter"]:::phase2
+-+        P2_WUA["InstanceWorkUnitAdapter"]:::phase2
+++    subgraph Phase3["Phase 1-3 (Complete)"]
+++        P3_Service["TemplateService<br/>(6 methods)"]:::phase3
+++        P3_CLI["cg template CLI<br/>(6 commands)"]:::phase3
+++        P3_Tpl["advanced-pipeline<br/>template"]:::phase3
+++        P3_Tests["46 tests passing"]:::phase3
+ +    end
+ +
+-+    subgraph Phase3["Phase 3: Integration + Validation"]
+-+        T001["T001-T002: InstanceGraphAdapter"]:::pending
+-+        T003["T003: Test helper"]:::pending
+-+        T004["T004: Full lifecycle test"]:::pending
+-+        T005["T005: Multi-instance test"]:::pending
+-+        T006["T006: Refresh safety test"]:::pending
+-+        T007["T007: Template isolation test"]:::pending
+++    subgraph Phase4["Phase 4: E2E + Docs"]
+++        T001["T001: smoke template"]:::pending
+++        T002["T002: simple-serial template"]:::pending
+++        T003["T003: withTemplateWorkflow()"]:::pending
+++        T004["T004: E2E lifecycle test"]:::pending
+++        T005["T005: workflow-templates.md"]:::pending
+++        T006["T006: README quick-start"]:::pending
+ +
+ +        T001 --> T003
+++        T002 --> T003
+ +        T003 --> T004
+-+        T003 --> T005
+-+        T003 --> T006
+-+        T003 --> T007
+++        T004 --> T005
+++        T005 --> T006
+ +    end
+ +
+-+    P2_Service --> T003
+-+    P2_Adapters --> T001
+++    P3_Service --> T003
+++    P3_Tpl --> T003
+ +```
+ +
+ +## Tasks
+ +
+ +| Status | ID | Task | Domain | Path(s) | Done When | Notes |
+ +|--------|-----|------|--------|---------|-----------|-------|
+-+| [x] | T001 | TDD: InstanceGraphAdapter tests | _platform/positional-graph | `test/unit/positional-graph/instance-graph-adapter.test.ts` | Tests verify: getGraphDir() returns `.chainglass/instances/<wf>/<id>/`, overrides getDomainPath(), validates slug pattern. Uses FakeFileSystem. Test Doc format. | TDD per constitution P3. Follows PositionalGraphAdapter pattern. |
+-+| [x] | T002 | Implement `InstanceGraphAdapter` | _platform/positional-graph | `packages/positional-graph/src/adapter/instance-graph.adapter.ts` | Extends PositionalGraphAdapter, overrides getGraphDir() to return pre-resolved instance path (slug arg ignored — adapter is scoped to one instance). Constructor: `(fs, pathResolver, instancePath: string)`. Clean Architecture: same interface as PositionalGraphAdapter, swapped via child container per execution context using useFactory. Barrel export added. Passes T001 tests. | Idiomatic DI pattern: child container + factory selects adapter. Follows InstanceWorkUnitAdapter precedent (basePath constructor). PositionalGraphService unchanged — depends on adapter interface, not concrete class. |
+-+| [x] | T003 | Create integration test helper for template lifecycle | _platform/positional-graph | `test/integration/template-instance-orchestration.test.ts` | Shared `beforeEach` that: creates temp dir, copies units from dev/test-graphs/advanced-pipeline, wires real TemplateService + PositionalGraphService with NodeFileSystemAdapter, builds graph via service calls, saves as template. Cleanup in afterEach. | Reuse patterns from `test/helpers/positional-graph-e2e-helpers.ts` and `dev/test-graphs/shared/graph-test-runner.ts`. |
+-+| [x] | T004 | Integration test: save-from → instantiate → verify runnable | _platform/positional-graph | `test/integration/template-instance-orchestration.test.ts` | Build graph with real service, save as template, instantiate, verify: instance dir has graph.yaml + nodes/ + units/ + state.json (pending), graph.yaml parseable by real YAML parser, node count matches. Test Doc format. | Full lifecycle proof — plan task 3.2. AC-6. |
+-+| [x] | T005 | Integration test: multiple instances from same template | _platform/positional-graph | `test/integration/template-instance-orchestration.test.ts` | Instantiate same template twice with different IDs, verify: both instance dirs exist independently, each has its own state.json, modifying state in one doesn't affect the other. Test Doc format. | Proves instance isolation — plan task 3.3. AC-8. |
+-+| [x] | T006 | Integration test: refresh during active run | _platform/positional-graph | `test/integration/template-instance-orchestration.test.ts` | Instantiate, manually set state.json to `in_progress`, call refresh, verify: ACTIVE_RUN_WARNING in errors, units still refreshed, state.json unchanged by refresh. Test Doc format. | Proves refresh safety — plan task 3.4. AC-16. |
+-+| [x] | T007 | Integration test: template modification doesn't affect instance | _platform/positional-graph | `test/integration/template-instance-orchestration.test.ts` | Instantiate, then modify a template unit's prompt file, verify: instance unit prompt unchanged. Then refresh and verify: instance unit now matches updated template. Test Doc format. | Proves template isolation + refresh correctness — plan task 3.5. AC-7, AC-12. |
+++| [x] | T001 | Create template generation script + generate `smoke` template | _platform/positional-graph | `scripts/generate-template.ts`, `.chainglass/templates/workflows/smoke/` | Repeatable script: builds graph imperatively via PositionalGraphService, calls saveFrom(), outputs to .chainglass/templates/. Run via `npx tsx`. Smoke template: 1 line, 1 node (ping), units/ping/. No state.json. | Repeatable over hand-authored. Fast feedback loops. Plan task 4.1. |
+++| [x] | T002 | Generate `simple-serial` template using generation script | _platform/positional-graph | `.chainglass/templates/workflows/simple-serial/` | Template: 2 lines, 2 nodes (setup → worker), input wiring (worker.task ← setup.instructions), units/setup/ + units/worker/. Generated by same script. | Tests input wiring preservation. Plan task 4.2. |
+++| [x] | T003 | Create `withTemplateWorkflow()` test helper | _platform/positional-graph | `dev/test-graphs/shared/template-test-runner.ts` | Helper that: takes template slug, creates temp dir, copies template from repo .chainglass/templates/ to temp dir's .chainglass/templates/, wires TemplateService with real FS, calls instantiate(), returns TestGraphContext. Cleanup in finally block. Coexists with existing withTestGraph(). | DYK #1: template must be copied to temp dir for ctx.worktreePath resolution. Plan task 4.4. |
+++| [x] | T004 | E2E test: template lifecycle | _platform/positional-graph | `test/e2e/template-lifecycle.e2e.test.ts` | Test flow: use withTemplateWorkflow('simple-serial') to instantiate, verify graph ready (pending state, 2 nodes present, input wiring intact), modify template unit, verify instance unchanged, refresh, verify instance updated, create second instance, verify independent. Test Doc format. | DYK #5: use simple-serial (has wiring) not just smoke. Plan task 4.5. Proves AC-21. |
+++| [x] | T005 | Write `docs/how/workflow-templates.md` + deprecate old doc | _platform/positional-graph | `docs/how/workflow-templates.md`, `docs/how/workflows/2-template-authoring.md` | New doc covers: template/instance concepts, directory layout, CLI commands, refresh workflow, Git integration. Old 2-template-authoring.md gets deprecation banner pointing to new doc. | DYK #3: old doc causes confusion. Plan task 4.6. |
+++| [x] | T006 | Update README with template CLI quick-start | consumer | `README.md` | Add section with 6 `cg template` commands. Brief usage examples. Link to docs/how/ guide. | Plan task 4.7. |
+ +
+ +## Context Brief
+ +
+ +**Key findings from plan**:
+-+- Finding 01 (Critical): Script paths validated in Phase 2 T019 — Phase 3 builds on this with real filesystem
+-+- Finding 05 (High): InstanceWorkUnitAdapter created in Phase 2, DI factory wiring for Phase 3
+-+- Finding 08 (High): Unified storage — all instance data at `.chainglass/instances/` (Workshop 003)
+++- Finding 06 (Medium): Test fixtures in dev/test-graphs/ hardcode `.chainglass/units/` in graph-test-runner.ts — withTemplateWorkflow() sidesteps this by using template instantiation
+++- Finding 01 (Critical, mitigated): Script paths validated in Phase 2 T019 and Phase 3 integration tests
+ +
+ +**Domain dependencies** (contracts this phase consumes):
+-+- `_platform/positional-graph`: `IPositionalGraphService` — build graphs imperatively for test setup
+-+- `_platform/positional-graph`: `PositionalGraphAdapter` — pattern reference for InstanceGraphAdapter
+-+- `_platform/positional-graph`: `PositionalGraphService` constructor — accepts adapter via DI
+-+- `_platform/file-ops`: `NodeFileSystemAdapter`, `PathResolverAdapter` — real filesystem for integration tests
+-+- `_platform/positional-graph`: `ITemplateService` (via TemplateService) — saveFrom, instantiate, refresh
+++- `_platform/positional-graph`: `IPositionalGraphService` — build graphs for fixture conversion
+++- `_platform/positional-graph`: `TemplateService` (saveFrom, instantiate) — template operations
+++- `_platform/file-ops`: `NodeFileSystemAdapter` — real filesystem for template generation and e2e tests
+ +
+ +**Domain constraints**:
+-+- ADR-0004: InstanceGraphAdapter registered via useFactory
+-+- Workshop 003: Instance data at `.chainglass/instances/` (tracked), not `.chainglass/data/`
+-+- No changes to orchestration internals (ONBAS, ODS, Reality)
+++- Templates are committed artifacts — generated files go into `.chainglass/templates/workflows/`
+++- Old fixtures in `dev/test-graphs/` are NOT removed — parallel paths during migration
+++- Documentation covers the NEW positional graph template system, not the old wf.yaml/phases system
+ +
+ +**Reusable from prior phases**:
+-+- `TemplateService` (Phase 2) — saveFrom, instantiate, refresh
+-+- `TemplateAdapter`, `InstanceAdapter` (Phase 2) — path resolution
+-+- `createTestServiceStack()` from `test/helpers/positional-graph-e2e-helpers.ts`
+-+- `withTestGraph()` from `dev/test-graphs/shared/graph-test-runner.ts`
+-+- `advanced-pipeline` template at `.chainglass/templates/workflows/advanced-pipeline/`
+-+- `dev/test-graphs/advanced-pipeline/units/` — real unit fixtures
+-+
+-+**Mermaid flow diagram** (integration test lifecycle):
+++- `TemplateService` (Phase 2) — saveFrom, instantiate
+++- `withTestGraph()` from `dev/test-graphs/shared/graph-test-runner.ts` — pattern reference for withTemplateWorkflow()
+++- `advanced-pipeline` template at `.chainglass/templates/workflows/advanced-pipeline/` — existing committed template
+++- Integration test infrastructure from Phase 3 (`setupTestWorkspace()` pattern)
+++
+++**Mermaid flow diagram** (fixture → template → test):
+ +```mermaid
+ +flowchart LR
+-+    A["Build graph<br/>(real service)"] -->|"saveFrom()"| B["Template<br/>(real filesystem)"]
+-+    B -->|"instantiate()"| C["Instance<br/>(real filesystem)"]
+-+    C -->|"verify"| D["Assert graph.yaml<br/>state.json<br/>units/ present"]
+-+    B -.->|"refresh()"| C
+++    A["dev/test-graphs/<fixture>/units/"] -->|"build graph + saveFrom()"| B["Template<br/>(.chainglass/templates/workflows/)"]
+++    B -->|"withTemplateWorkflow()"| C["Temp Instance<br/>(temp dir)"]
+++    C -->|"assertions"| D["E2E Test Pass"]
+ +```
+ +
+-+**Mermaid sequence diagram** (full lifecycle test):
+++**Mermaid sequence diagram** (withTemplateWorkflow helper):
+ +```mermaid
+ +sequenceDiagram
+ +    participant Test
+-+    participant PGService as PositionalGraphService
+-+    participant TplService as TemplateService
+++    participant Helper as withTemplateWorkflow
+++    participant TS as TemplateService
+ +    participant FS as Real Filesystem
+ +
+-+    Test->>PGService: create + addNode + setInput
+-+    PGService->>FS: write graph.yaml, nodes/
+-+    Test->>TplService: saveFrom(ctx, graphSlug, tplSlug)
+-+    TplService->>FS: copy to templates/
+-+    Test->>TplService: instantiate(ctx, tplSlug, instId)
+-+    TplService->>FS: copy to instances/
+-+    Test->>FS: verify instance files exist
+-+    Test->>FS: verify state.json = pending
+++    Test->>Helper: withTemplateWorkflow('smoke', testFn)
+++    Helper->>FS: mkdtemp + copy template
+++    Helper->>TS: instantiate(ctx, 'smoke', tempId)
+++    TS->>FS: copy to temp instance dir
+++    Helper->>Test: TestGraphContext {service, ctx}
+++    Test->>Test: assertions
+++    Test-->>Helper: return
+++    Helper->>FS: rm -rf temp dir
+ +```
+ +
+ +## Discoveries & Learnings
+@@ -351,230 +901,323 @@ index 0000000..4556942
+ +  └── tasks/
+ +      ├── phase-1-schema-and-interfaces/ (complete)
+ +      ├── phase-2-template-service-and-cli/ (complete)
+-+      └── phase-3-integration-and-validation/
+++      ├── phase-3-integration-and-validation/ (complete)
+++      └── phase-4-e2e-and-docs/
+ +          ├── tasks.md                    ← this file
+ +          ├── tasks.fltplan.md            ← flight plan
+ +          └── execution.log.md           # created by plan-6
+ +```
+ diff --git a/docs/plans/048-wf-web/wf-web-plan.md b/docs/plans/048-wf-web/wf-web-plan.md
+-index 4e3cadb..791c90e 100644
++index 791c90e..9d2dddb 100644
+ --- a/docs/plans/048-wf-web/wf-web-plan.md
+ +++ b/docs/plans/048-wf-web/wf-web-plan.md
+-@@ -122,7 +122,7 @@ CLI commands are the primary interface and are introduced early (Phase 2) so the
+- | 2.18 | CLI `cg template instances <slug>` | _platform/positional-graph | Lists all instances of a workflow template | Instance discovery |
+- | 2.19 | Integration test: script paths work after copy | _platform/positional-graph | Copy a code unit with scripts/ to instance, verify script can find its own prompts. Test Doc format. | Per finding 01 — critical risk |
++@@ -185,9 +185,9 @@ CLI commands are the primary interface and are introduced early (Phase 2) so the
++ - [x] AC-17: All template/instance files Git-tracked (Phase 2: Workshop 003 unified storage)
++ - [x] AC-18: Templates merge via standard Git (Phase 2: files in .chainglass/ tracked by default)
++ - [x] AC-19: No special tooling for Git sharing (Phase 2: no hydration needed)
++-- [ ] AC-20: Existing fixtures represented as templates (Phase 4)
++-- [ ] AC-21: E2E test validates full lifecycle (Phase 4)
++-- [ ] AC-22: Existing e2e tests reconfigured for template system (Phase 4)
+++- [x] AC-20: Existing fixtures represented as templates (Phase 4: T001-T002 — smoke + simple-serial)
+++- [x] AC-21: E2E test validates full lifecycle (Phase 4: T004 — 5 tests)
+++- [ ] AC-22: Existing e2e tests reconfigured for template system (deferred — bulk fixture conversion OOS for Phase 4)
+  
+--### Phase 3: Integration Testing & Instance Orchestration
+-+### Phase 3: Integration Testing & Instance Validation
++ ## Risks
+  
+- **Objective**: Prove the full pipeline works end-to-end: save-from → instantiate → drive graph to completion. Test edge cases (refresh during run, multiple instances, script path validation).
+- **Domain**: `_platform/positional-graph`
+-@@ -172,12 +172,12 @@ CLI commands are the primary interface and are introduced early (Phase 2) so the
+- - [x] AC-4: Workflow templates at `.chainglass/templates/workflows/<slug>/` (Phase 2: T012)
+- - [x] AC-5: Workflow template contains graph.yaml + nodes/*/node.yaml + units/ (Phase 2: T004, T012)
+- - [x] AC-6: Instantiation creates independent copy (Phase 2: T008)
+--- [ ] AC-7: Template modification doesn't affect instances (Phase 3: integration test)
+--- [ ] AC-8: Multiple instances from same template (Phase 3: integration test)
+-+- [x] AC-7: Template modification doesn't affect instances (Phase 3: T007)
+-+- [x] AC-8: Multiple instances from same template (Phase 3: T005)
+- - [ ] AC-9: Work unit templates at `.chainglass/templates/units/<slug>/` (standalone library — deferred)
+- - [x] AC-10: Work units contain unit.yaml + prompts/ + scripts/ (Phase 2: T012)
+- - [x] AC-11: Instance creation copies all referenced units (Phase 2: T008)
+--- [ ] AC-12: Unit template modification doesn't affect instances (Phase 3: integration test)
+-+- [x] AC-12: Unit template modification doesn't affect instances (Phase 3: T007)
+- - [x] AC-13: Refresh overwrites all units at once (Phase 2: T010)
+- - [x] AC-14: Refresh records source template metadata (Phase 2: T010 — instance.yaml updated)
+- - [x] AC-15: Refresh metadata stored per-instance (Phase 2: instance.yaml with refreshed_at)
+-@@ -219,5 +219,5 @@ CLI commands are the primary interface and are introduced early (Phase 2) so the
+- |-------|--------|-----------|
++@@ -220,4 +220,4 @@ CLI commands are the primary interface and are introduced early (Phase 2) so the
+  | Phase 1: Schema + Interfaces | Complete | 6/6 tasks |
+  | Phase 2: Service + CLI | Complete | 19/19 tasks |
+--| Phase 3: Graph Activation | Not Started | — |
+-+| Phase 3: Integration Testing & Instance Validation | Complete | 7/7 tasks |
+- | Phase 4: E2E + Docs | Not Started | — |
+-diff --git a/packages/positional-graph/src/adapter/index.ts b/packages/positional-graph/src/adapter/index.ts
+-index 5f109dc..6c4390b 100644
+---- a/packages/positional-graph/src/adapter/index.ts
+-+++ b/packages/positional-graph/src/adapter/index.ts
+-@@ -1,2 +1,3 @@
+- export { PositionalGraphAdapter } from './positional-graph.adapter.js';
+- export { InstanceWorkUnitAdapter } from './instance-workunit.adapter.js';
+-+export { InstanceGraphAdapter } from './instance-graph.adapter.js';
+-diff --git a/packages/positional-graph/src/adapter/instance-graph.adapter.ts b/packages/positional-graph/src/adapter/instance-graph.adapter.ts
++ | Phase 3: Integration Testing & Instance Validation | Complete | 7/7 tasks |
++-| Phase 4: E2E + Docs | Not Started | — |
+++| Phase 4: E2E + Docs | Complete | 6/6 tasks |
++diff --git a/docs/plans/049-ux-enhancements/ux-enhancements-plan.md b/docs/plans/049-ux-enhancements/ux-enhancements-plan.md
+ new file mode 100644
+-index 0000000..ba10f62
++index 0000000..e2b43eb
+ --- /dev/null
+-+++ b/packages/positional-graph/src/adapter/instance-graph.adapter.ts
+-@@ -0,0 +1,53 @@
+-+/**
+-+ * InstanceGraphAdapter — routes graph engine to an instance directory.
+-+ *
+-+ * Extends PositionalGraphAdapter with a pre-resolved instance path.
+-+ * getGraphDir() returns the fixed path regardless of slug argument —
+-+ * the adapter is scoped to one instance at construction time.
+-+ *
+-+ * Clean Architecture: same interface as PositionalGraphAdapter, swapped
+-+ * via child container per execution context using useFactory.
+-+ *
+-+ * Per DYK #1 (Phase 3): Composite slugs fail validation regex.
+-+ * Per InstanceWorkUnitAdapter precedent: basePath in constructor.
+-+ * Per Workshop 003: Instance data at .chainglass/instances/ (tracked).
+-+ */
+++++ b/docs/plans/049-ux-enhancements/ux-enhancements-plan.md
++@@ -0,0 +1,92 @@
+++# UX Enhancements Implementation Plan
+ +
+-+import type { IFileSystem, IPathResolver } from '@chainglass/shared';
+++**Mode**: Simple
+++**Plan Version**: 1.0.0
+++**Created**: 2026-02-26
+++**Spec**: [ux-enhancements-spec.md](./ux-enhancements-spec.md)
+++**Status**: DRAFT
+ +
+-+import type { WorkspaceContext } from '@chainglass/workflow';
+-+import { PositionalGraphAdapter } from './positional-graph.adapter.js';
+-+
+-+export class InstanceGraphAdapter extends PositionalGraphAdapter {
+-+  constructor(
+-+    fs: IFileSystem,
+-+    pathResolver: IPathResolver,
+-+    private readonly instancePath: string
+-+  ) {
+-+    super(fs, pathResolver);
+-+  }
+++## Summary
+ +
+-+  /**
+-+   * Returns the pre-resolved instance path.
+-+   * Slug argument is ignored — this adapter is scoped to one instance.
+-+   */
+-+  override getGraphDir(_ctx: WorkspaceContext, _slug: string): string {
+-+    return this.instancePath;
+-+  }
+++The FILES header in the browser page's LeftPanel currently shows a static "FILES" label. This plan adds live-updating file change statistics — count of changed files plus total inserted/deleted lines — to the header. A new `getDiffStats()` service parses `git diff --numstat` output, the `PanelHeader` gains an optional `subtitle` prop, and the existing live file event wiring (`useFileChanges('*')` → `handleRefreshChanges()`) triggers stats refresh automatically.
+ +
+-+  /**
+-+   * Ensure the instance graph directory and nodes/ subdirectory exist.
+-+   */
+-+  override async ensureGraphDir(_ctx: WorkspaceContext, _slug: string): Promise<void> {
+-+    await this.fs.mkdir(this.instancePath, { recursive: true });
+-+    await this.fs.mkdir(this.pathResolver.join(this.instancePath, 'nodes'), { recursive: true });
+-+  }
+++## Target Domains
+ +
+-+  /**
+-+   * Check if the instance graph exists (graph.yaml present).
+-+   */
+-+  override async graphExists(_ctx: WorkspaceContext, _slug: string): Promise<boolean> {
+-+    const graphYamlPath = this.pathResolver.join(this.instancePath, 'graph.yaml');
+-+    return this.fs.exists(graphYamlPath);
+-+  }
+-+}
+-diff --git a/test/integration/template-instance-validation.test.ts b/test/integration/template-instance-validation.test.ts
+++| Domain | Status | Relationship | Role |
+++|--------|--------|-------------|------|
+++| `file-browser` | existing | **modify** | New diff stats service, extend `usePanelState` to fetch/expose stats, wire in BrowserClient |
+++| `_platform/panel-layout` | existing | **modify** | Extend `PanelHeader` with optional `subtitle` prop, extend `LeftPanel` to pass it through |
+++| `_platform/events` | existing | **consume** | Existing `useFileChanges('*')` → `handleRefreshChanges()` triggers stats refresh (no changes) |
+++
+++## Domain Manifest
+++
+++| File | Domain | Classification | Rationale |
+++|------|--------|---------------|-----------|
+++| `apps/web/src/features/041-file-browser/services/diff-stats.ts` | file-browser | internal | New service — parses `git diff --numstat` |
+++| `test/unit/web/features/041-file-browser/diff-stats.test.ts` | file-browser | internal | TDD tests for numstat parser |
+++| `apps/web/app/actions/file-actions.ts` | file-browser | internal | Add `fetchDiffStats` server action wrapper |
+++| `apps/web/src/features/041-file-browser/hooks/use-panel-state.ts` | file-browser | internal | Add diffStats state + fetch to `handleRefreshChanges` |
+++| `apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx` | file-browser | internal | Pass `fetchDiffStats` to `usePanelState`, compute subtitle JSX |
+++| `apps/web/src/features/_platform/panel-layout/components/panel-header.tsx` | _platform/panel-layout | contract | Add optional `subtitle?: ReactNode` prop |
+++| `apps/web/src/features/_platform/panel-layout/components/left-panel.tsx` | _platform/panel-layout | contract | Add optional `subtitle?: ReactNode` prop, pass to PanelHeader |
+++| `test/unit/web/features/_platform/panel-layout/panel-header.test.tsx` | _platform/panel-layout | internal | Update tests for subtitle rendering |
+++| `test/unit/web/features/_platform/panel-layout/left-panel.test.tsx` | _platform/panel-layout | internal | Update tests for subtitle passthrough |
+++
+++## Key Findings
+++
+++| # | Impact | Finding | Action |
+++|---|--------|---------|--------|
+++| 01 | Critical | Git service pattern proven: `changed-files.ts` uses `execFileAsync` → parse → return `{ok, files}` union. Server action wraps with lazy import. Hook composes in `Promise.all`. | Follow identical pattern for `getDiffStats`. |
+++| 02 | Critical | `fetchDiffStats` slots directly into `file-actions.ts` (lines ~129) as 4th server action wrapper, and into `handleRefreshChanges` `Promise.all` (line 84) as 4th entry. | Zero new infrastructure — additive changes only. |
+++| 03 | High | Binary files in `git diff --numstat` output show `-\t-\tpath` instead of numbers. Renamed files use `{old => new}/file.ts` brace syntax. | Parser must handle both: treat `-` as 0 for line counts, extract new path from rename syntax. TDD covers these edge cases. |
+++| 04 | High | `PanelHeader` has no slot for metadata — only `title: string`. LeftPanel hardcodes `title="Files"`. | Add additive `subtitle?: ReactNode` prop to both. Subtitle renders inline after title in muted style. |
+++| 05 | Medium | Race condition concern from overlapping refresh requests. | Non-issue: existing 500ms debounce on `useFileChanges('*')` + React state batching (last-write-wins) already handles this — same as the 3 existing services. |
+++| 06 | Medium | `git diff --numstat` only counts tracked files — gitignored files (node_modules, dist) are excluded automatically. | No filtering needed — git handles this inherently. |
+++
+++## Implementation
+++
+++**Objective**: Show live-updating file change statistics (count + insertions + deletions) in the LeftPanel's FILES header.
+++**Testing Approach**: Full TDD — red-green-refactor for parser service and component contracts. Fakes only, no mocks.
+++
+++### Tasks
+++
+++| Status | ID | Task | Domain | Path(s) | Done When | Notes |
+++|--------|-----|------|--------|---------|-----------|-------|
+++| [ ] | T001 | Create `getDiffStats()` service with `git diff HEAD --numstat` parser | file-browser | `/home/jak/substrate/048-wf-web/apps/web/src/features/041-file-browser/services/diff-stats.ts` | TDD: tests pass for normal output, binary (`-`), renames (`{old=>new}`), empty output, not-git error, no-commits fallback | Follow `changed-files.ts` pattern. Use `git diff HEAD --numstat` to capture staged+unstaged (DYK-01). Return `DiffStatsResult = {ok:true, stats:{files:number, insertions:number, deletions:number}} \| {ok:false, error:'not-git'}`. Fallback to `git diff --numstat` if HEAD doesn't exist (new repo). |
+++| [ ] | T002 | Write TDD tests for `getDiffStats()` | file-browser | `/home/jak/substrate/048-wf-web/test/unit/web/features/041-file-browser/diff-stats.test.ts` | RED phase: 6+ failing tests covering all edge cases | Write tests FIRST per constitution Principle 3. Cases: normal, binary, rename, empty, mixed, not-git |
+++| [ ] | T003 | Add `fetchDiffStats` server action wrapper | file-browser | `/home/jak/substrate/048-wf-web/apps/web/app/actions/file-actions.ts` | Wrapper exports `fetchDiffStats(worktreePath)` following lazy-import pattern | Add at ~line 129, after `fetchRecentFiles` |
+++| [ ] | T004 | Extend `PanelHeader` with `subtitle` prop | _platform/panel-layout | `/home/jak/substrate/048-wf-web/apps/web/src/features/_platform/panel-layout/components/panel-header.tsx` | `subtitle?: ReactNode` prop renders after title span in muted text. Existing tests still pass, new tests for subtitle added. | Additive optional prop — no breaking change |
+++| [ ] | T005 | Update PanelHeader tests for subtitle | _platform/panel-layout | `/home/jak/substrate/048-wf-web/test/unit/web/features/_platform/panel-layout/panel-header.test.tsx` | Tests verify: subtitle renders when provided, hidden when omitted | TDD — write failing tests first |
+++| [ ] | T006 | Extend `LeftPanel` with `subtitle` prop passthrough | _platform/panel-layout | `/home/jak/substrate/048-wf-web/apps/web/src/features/_platform/panel-layout/components/left-panel.tsx` | `subtitle?: ReactNode` in `LeftPanelProps`, passed to `PanelHeader subtitle` | Additive optional prop |
+++| [ ] | T007 | Update LeftPanel tests for subtitle passthrough | _platform/panel-layout | `/home/jak/substrate/048-wf-web/test/unit/web/features/_platform/panel-layout/left-panel.test.tsx` | Tests verify subtitle is forwarded to PanelHeader | TDD — write failing tests first |
+++| [ ] | T008 | Extend `usePanelState` to fetch and expose diff stats | file-browser | `/home/jak/substrate/048-wf-web/apps/web/src/features/041-file-browser/hooks/use-panel-state.ts` | `diffStats` in return object. Fetched on mount (like changedFiles). Refreshed in `handleRefreshChanges` Promise.all. | Add `fetchDiffStats` to options interface, add to Promise.all at line 84, add state + setter |
+++| [ ] | T009 | Wire `fetchDiffStats` and stats subtitle in BrowserClient | file-browser | `/home/jak/substrate/048-wf-web/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx` | Pass `fetchDiffStats` to `usePanelState`. Compute subtitle JSX from `panelState.diffStats`. Pass subtitle to `LeftPanel`. Stats visible in header, live-update on file changes. | Subtitle format: `· N changed  +X −Y` with green-500/red-500 colors. Hidden when no changes. |
+++
+++### Acceptance Criteria
+++
+++- [ ] AC-1: Git workspace browser page shows changed file count in FILES header (e.g., `FILES · 3 changed`)
+++- [ ] AC-2: Header shows total insertions (green) and deletions (red) alongside count (e.g., `+42 −18`)
+++- [ ] AC-3: No stats shown when no files are changed — header shows only "FILES"
+++- [ ] AC-4: Stats auto-update within ~1 second when files change (via live file events)
+++- [ ] AC-5: Non-git workspaces show no stats
+++- [ ] AC-6: Compact display using `text-xs`, muted/green-500/red-500 coloring per badge schema
+++- [ ] AC-7: Binary files counted as changed but contribute 0 to insertion/deletion totals
+++- [ ] AC-8: Edge cases handled: empty output, binary files, renamed files, repos with no commits
+++
+++### Risks
+++
+++| Risk | Likelihood | Impact | Mitigation |
+++|------|------------|--------|------------|
+++| `git diff --numstat` slow on large repos | Low | Low | 500ms debounce prevents rapid-fire; async state update keeps UI responsive |
+++| Binary file `-` in numstat breaks parser | Medium | Medium | Explicit parser handling + TDD edge case tests |
+++| Renamed file `{old=>new}` syntax unexpected | Low | Low | Explicit parser handling + TDD test case |
+++| PanelHeader subtitle prop breaks existing consumers | Very Low | Low | Prop is optional — additive change, no callers affected |
+++
+++---
+++
+++✅ Plan created:
+++- Location: `docs/plans/049-ux-enhancements/ux-enhancements-plan.md`
+++- Phases: 1 (Simple mode)
+++- Tasks: 9
+++- Domains: 2 modified + 1 consumed
+++- Next step: `/plan-6-v2-implement-phase --plan "docs/plans/049-ux-enhancements/ux-enhancements-plan.md"`
++diff --git a/docs/plans/049-ux-enhancements/ux-enhancements-spec.md b/docs/plans/049-ux-enhancements/ux-enhancements-spec.md
+ new file mode 100644
+-index 0000000..a1cbfaa
++index 0000000..1db8493
+ --- /dev/null
+-+++ b/test/integration/template-instance-validation.test.ts
+-@@ -0,0 +1,393 @@
+++++ b/docs/plans/049-ux-enhancements/ux-enhancements-spec.md
++@@ -0,0 +1,134 @@
+++# UX Enhancements
+++
+++**Mode**: Simple
+++
+++📚 This specification incorporates findings from [research-dossier.md](./research-dossier.md)
+++
+++> This is a multi-feature spec. Each section below is an independent, low-hanging-fruit UX improvement that can be implemented and shipped separately.
+++
+++---
+++
+++## Feature 1: File Change Statistics in FILES Header
+++
+++### Summary
+++
+++**WHAT**: Show the number of changed files and total inserted/deleted lines in the LeftPanel header ("FILES") at all times, so users have at-a-glance awareness of workspace modification state without switching to the changes view.
+++
+++**WHY**: The FILES header is permanently visible but currently displays only a static label. Users managing AI agent fleets need instant awareness of how much has changed in the workspace — "3 files changed, +42 −18 lines" tells them at a glance whether an agent made a small tweak or a large refactor. This reduces context-switching cost and supports the "calm over busy" UX philosophy.
+++
+++### Goals
+++
+++- Users see the count of uncommitted changed files in the FILES header at all times (when in a git workspace)
+++- Users see the total inserted and deleted line counts alongside the file count
+++- Statistics update immediately when files change in the worktree (via live file events, no manual refresh required)
+++- Statistics are compact and unobtrusive — they complement the "FILES" title without cluttering the header
+++- Non-git workspaces show no statistics (graceful degradation)
+++
+++### Non-Goals
+++
+++- Per-file line counts in the header (that level of detail belongs in the changes view)
+++- Staged vs unstaged breakdown in the header (too granular for a glance)
+++- Statistics for committed changes or git log history
+++- Clickable stats that navigate somewhere (the stats are informational only)
+++- Statistics in the ExplorerPanel top bar (only in the LeftPanel header)
+++
+++### Target Domains
+++
+++| Domain | Status | Relationship | Role in This Feature |
+++|--------|--------|-------------|---------------------|
+++| `file-browser` | existing | **modify** | Add diff stats service, extend `usePanelState` to compute and expose stats |
+++| `_platform/panel-layout` | existing | **modify** | Extend `PanelHeader` to accept and render optional stats metadata |
+++| `_platform/events` | existing | **consume** | Existing `useFileChanges('*')` → `handleRefreshChanges()` wiring triggers stats refresh (no changes to domain) |
+++
+++### Complexity
+++
+++- **Score**: CS-2 (small)
+++- **Breakdown**: S=1, I=0, D=0, N=0, F=0, T=1
+++  - Surface Area (S=1): Touches PanelHeader, LeftPanel, usePanelState, new diff-stats service, BrowserClient wiring — multiple files but within two known domains
+++  - Integration (I=0): Internal only — git CLI already used extensively
+++  - Data/State (D=0): No schema changes, no migrations. New state is ephemeral (derived from git output)
+++  - Novelty (N=0): Well-specified from research. Patterns established in plans 041, 043, 045
+++  - Non-Functional (F=0): Standard — no new security, performance, or compliance concerns
+++  - Testing/Rollout (T=1): New diff-stats service needs unit tests. PanelHeader extension needs test updates.
+++- **Confidence**: 0.95
+++- **Assumptions**:
+++  - `git diff --numstat` output is stable and machine-parseable
+++  - `changedFiles` count from existing `git diff --name-only` is sufficient for file count (no need for `git status` count)
+++  - The existing `handleRefreshChanges()` call in the `allChanges` effect (browser-client.tsx:184) is the right place to also refresh diff stats
+++- **Dependencies**: None external — all git commands are standard
+++- **Risks**: 
+++  - `git diff --numstat` on a large repo with many changes could be slow — mitigated by debounced event trigger (500ms) and async state update
+++  - Binary files show `-` in numstat output — parser must handle gracefully
+++- **Phases**: Single phase — this is a small, self-contained enhancement
+++
+++### Acceptance Criteria
+++
+++1. When a git workspace is open in the browser page, the FILES header displays the count of uncommitted changed files (e.g., `FILES · 3 changed`).
+++2. Alongside the changed file count, the header displays total inserted and deleted line counts using green/red coloring (e.g., `+42 −18`).
+++3. When no files are changed, the stats area is hidden — the header shows only "FILES" with no additional text.
+++4. When files change in the worktree (detected by the live file events system via `useFileChanges`), the statistics update automatically within ~1 second without any manual action.
+++5. In non-git workspaces, no statistics are shown (same as current behavior — just "FILES" title).
+++6. The stats display is compact — uses `text-xs` sizing, muted foreground for "changed", green-500 for insertions, red-500 for deletions — consistent with established badge color schema (PL-08).
+++7. Binary files in `git diff --numstat` output (which show `-` for lines) are counted as changed files but contribute 0 to insertion/deletion totals.
+++8. The diff stats service handles edge cases gracefully: empty output (no changes), binary files, renamed files, and repos with no commits.
+++
+++### Risks & Assumptions
+++
+++- **Risk**: `git diff --numstat` adds a git subprocess call per refresh cycle. **Mitigation**: It piggybacks on the existing refresh triggered by `handleRefreshChanges()` — no additional event subscriptions needed. The 500ms debounce on `useFileChanges('*')` prevents rapid-fire calls.
+++- **Assumption**: The existing `allChanges` → `handleRefreshChanges()` wiring (browser-client.tsx:184) is sufficient — diff stats refresh alongside changed files.
+++- **Assumption**: Total insertions/deletions (summed across all files) is the right granularity for the header.
+++
+++### Open Questions
+++
+++None — all resolved in clarification session.
+++
+++### Workshop Opportunities
+++
+++None needed — the design is simple and well-constrained by existing patterns.
+++
+++### Documentation Strategy
+++
+++- **Location**: No new documentation
+++- **Rationale**: CS-2 internal UX tweak. The new `getDiffStats()` service follows established git service patterns (`getChangedFiles()`, `getWorkingChanges()`). PanelHeader prop extension is self-documenting via TypeScript interfaces.
+++
+++---
+++
+++## Clarifications
+++
+++### Session 2026-02-26
+++
+++**Pre-declared by user**: Simple mode, Full TDD.
+++
+++| # | Question | Answer | Spec Impact |
+++|---|----------|--------|-------------|
+++| Q1 | Workflow Mode? | **Simple** — CS-2 task, single phase, quick path. | Header already set. |
+++| Q2 | Testing Strategy? | **Full TDD** — red-green-refactor for parser service + component contracts. | Testing Strategy section updated from Lightweight to Full TDD. |
+++| Q3 | Mock Usage? | **No mocks — fakes only** (per codebase convention QT-08). | Added to Testing Strategy. |
+++| Q4 | Domain Review? | **Confirmed correct.** `file-browser` owns data + computation, `panel-layout` owns display, `events` consumed unchanged. No breaking changes. | No changes needed. |
+++| Q5 | Documentation Strategy? | **No new documentation.** Service follows established patterns; TypeScript interfaces are self-documenting. | Documentation Strategy section added. |
+++
+++### Coverage Summary
+++
+++| Status | Count | Items |
+++|--------|-------|-------|
+++| Resolved | 5 | Mode (Simple), Testing (Full TDD), Mocks (Fakes only), Domains (Confirmed), Docs (None) |
+++| Deferred | 0 | — |
+++| Outstanding | 0 | — |
+++
+++### Testing Strategy
+++
+++- **Approach**: Full TDD
+++- **Rationale**: New git parser service has clear inputs/outputs ideal for red-green-refactor. PanelHeader extension is a contract change that benefits from test-first.
+++- **Mock Usage**: No mocks — fakes only (per codebase convention QT-08). Use existing `FakeFileSystem` patterns where applicable.
+++- **Focus Areas**:
+++  - `getDiffStats()` service — numstat parser: normal output, binary files (`-`), renames, empty output, no commits
+++  - PanelHeader — stats rendering: with stats, without stats, zero changes hidden
+++  - LeftPanel — stats passthrough from props to PanelHeader
+++- **Excluded**:
+++  - BrowserClient wiring (existing integration coverage via plan 045)
+++  - Event system refresh (already tested in plan 045)
+++  - Visual styling verification (manual via browser)
+++
+++---
+++
+++*Additional UX enhancement features will be added below as they are defined.*
++diff --git a/scripts/generate-templates.ts b/scripts/generate-templates.ts
++new file mode 100644
++index 0000000..8210f9f
++--- /dev/null
+++++ b/scripts/generate-templates.ts
++@@ -0,0 +1,199 @@
+ +/**
+-+ * Integration tests: Template/Instance lifecycle with real filesystem.
+++ * Generate workflow templates from test fixtures.
+ + *
+-+ * Why: Validates the full template lifecycle against real disk I/O and
+-+ * real YAML parsing — Phase 2 only used FakeFileSystem.
+++ * Builds graphs imperatively via PositionalGraphService, then saves
+++ * them as templates via TemplateService.saveFrom(). Outputs committed
+++ * template artifacts to .chainglass/templates/workflows/.
+ + *
+-+ * Contract: TemplateService (saveFrom, instantiate, refresh) produces
+-+ * correct filesystem structures when backed by NodeFileSystemAdapter.
+++ * Usage:
+++ *   npx tsx scripts/generate-templates.ts [--fixture smoke|simple-serial|all]
+ + *
+-+ * Usage Notes: Each test creates a temp workspace, copies units, builds
+-+ * a graph imperatively via PositionalGraphService, then exercises
+-+ * template operations. Cleanup in afterEach.
+-+ *
+-+ * Quality Contribution: Proves AC-6 (independent instances), AC-7/AC-12
+-+ * (template isolation), AC-8 (multi-instance), AC-16 (refresh safety).
+-+ *
+-+ * Worked Example: Build a 1-node graph → saveFrom → instantiate →
+-+ * verify instance has graph.yaml + state.json + units/.
+++ * Default: generates all fixtures.
+ + */
+ +
+-+import * as nodeFs from 'node:fs/promises';
+-+import * as os from 'node:os';
+++import * as fs from 'node:fs/promises';
+ +import * as path from 'node:path';
+ +
+ +import { PositionalGraphAdapter, PositionalGraphService } from '@chainglass/positional-graph';
+-+import type { IWorkUnitLoader } from '@chainglass/positional-graph';
+++import type { IPositionalGraphService, IWorkUnitLoader } from '@chainglass/positional-graph/interfaces';
+ +import { NodeFileSystemAdapter, PathResolverAdapter, YamlParserAdapter } from '@chainglass/shared';
+ +import type { WorkspaceContext } from '@chainglass/workflow';
+ +import { InstanceAdapter, TemplateAdapter, TemplateService } from '@chainglass/workflow';
+-+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+-+
+-+// ─── Test Infrastructure (T003) ────────────────────────────────────
+ +
+-+const FIXTURES_ROOT = path.resolve(import.meta.dirname, '../../dev/test-graphs');
+-+
+-+interface TestContext {
+-+  tmpDir: string;
+-+  ctx: WorkspaceContext;
+-+  graphService: PositionalGraphService;
+-+  templateService: TemplateService;
+-+}
+-+
+-+let testCtx: TestContext;
+++const ROOT = path.resolve(import.meta.dirname, '..');
+++const FIXTURES_DIR = path.join(ROOT, 'dev', 'test-graphs');
+++const TEMPLATES_DIR = path.join(ROOT, '.chainglass', 'templates', 'workflows');
+ +
+ +function createCtx(worktreePath: string): WorkspaceContext {
+ +  return {
+-+    workspaceSlug: 'integration-test',
+-+    workspaceName: 'Integration Test',
+++    workspaceSlug: 'generate-templates',
+++    workspaceName: 'Template Generator',
+ +    workspacePath: worktreePath,
+ +    worktreePath,
+ +    worktreeBranch: null,
+ +    isMainWorktree: true,
+-+    hasGit: false,
+++    hasGit: true,
+ +  };
+ +}
+ +
+-+async function setupTestWorkspace(): Promise<TestContext> {
+-+  const tmpDir = await nodeFs.mkdtemp(path.join(os.tmpdir(), 'tpl-integ-'));
+-+  const ctx = createCtx(tmpDir);
+-+
+-+  // Create directory structure
+-+  const unitsDir = path.join(tmpDir, '.chainglass', 'units');
+-+  const workflowsDir = path.join(tmpDir, '.chainglass', 'data', 'workflows');
+-+  await nodeFs.mkdir(unitsDir, { recursive: true });
+-+  await nodeFs.mkdir(workflowsDir, { recursive: true });
+-+
+-+  // Copy smoke fixture units
+-+  const fixtureUnits = path.join(FIXTURES_ROOT, 'smoke', 'units');
+-+  await nodeFs.cp(fixtureUnits, unitsDir, { recursive: true });
+-+
+-+  // Make scripts executable
+-+  const scripts = await findScripts(unitsDir);
+-+  for (const script of scripts) {
+-+    await nodeFs.chmod(script, 0o755);
+-+  }
+-+
+-+  // Wire real services
+-+  const fs = new NodeFileSystemAdapter();
+-+  const pathResolver = new PathResolverAdapter();
+-+  const yamlParser = new YamlParserAdapter();
+-+
+-+  const graphAdapter = new PositionalGraphAdapter(fs, pathResolver);
+-+  const loader: IWorkUnitLoader = buildLoader(tmpDir, yamlParser);
+-+  const graphService = new PositionalGraphService(
+-+    fs,
+-+    pathResolver,
+-+    yamlParser,
+-+    graphAdapter,
+-+    loader
+-+  );
+-+
+-+  const templateAdapter = new TemplateAdapter(fs, pathResolver);
+-+  const instanceAdapter = new InstanceAdapter(fs, pathResolver);
+-+  const templateService = new TemplateService(
+-+    fs,
+-+    pathResolver,
+-+    yamlParser,
+-+    templateAdapter,
+-+    instanceAdapter
+-+  );
+-+
+-+  return { tmpDir, ctx, graphService, templateService };
+-+}
+-+
+ +function buildLoader(workspacePath: string, yamlParser: YamlParserAdapter): IWorkUnitLoader {
+ +  return {
+ +    async load(_ctx: WorkspaceContext, slug: string) {
+ +      const unitYamlPath = path.join(workspacePath, '.chainglass', 'units', slug, 'unit.yaml');
+ +      try {
+-+        const content = await nodeFs.readFile(unitYamlPath, 'utf-8');
+++        const content = await fs.readFile(unitYamlPath, 'utf-8');
+ +        const parsed = yamlParser.parse<{
+ +          slug: string;
+ +          type: 'agent' | 'code' | 'user-input';
+@@ -582,274 +1225,374 @@ index 0000000..a1cbfaa
+ +          outputs: Array<{ name: string; type: 'data' | 'file'; required: boolean }>;
+ +        }>(content, unitYamlPath);
+ +        return {
+-+          unit: {
+-+            slug: parsed.slug,
+-+            type: parsed.type,
+-+            inputs: parsed.inputs ?? [],
+-+            outputs: parsed.outputs,
+-+          },
+++          unit: { slug: parsed.slug, type: parsed.type, inputs: parsed.inputs ?? [], outputs: parsed.outputs },
+ +          errors: [],
+ +        };
+ +      } catch {
+-+        return { errors: [{ message: `Unit '${slug}' not found`, code: 'UNIT_NOT_FOUND' }] };
+++        return { errors: [{ message: `Unit '${slug}' not found`, code: 'NOT_FOUND' }] };
+ +      }
+ +    },
+ +  };
+ +}
+ +
+-+async function findScripts(dir: string): Promise<string[]> {
+-+  const results: string[] = [];
+-+  const entries = await nodeFs.readdir(dir, { withFileTypes: true });
+-+  for (const entry of entries) {
+-+    const fullPath = path.join(dir, entry.name);
+-+    if (entry.isDirectory()) {
+-+      results.push(...(await findScripts(fullPath)));
+-+    } else if (entry.name.endsWith('.sh')) {
+-+      results.push(fullPath);
+-+    }
+-+  }
+-+  return results;
+++interface FixtureConfig {
+++  slug: string;
+++  build: (service: IPositionalGraphService, ctx: WorkspaceContext) => Promise<void>;
+ +}
+ +
+-+async function buildSimpleGraph(
+-+  ctx: WorkspaceContext,
+-+  service: PositionalGraphService,
+-+  slug: string
+-+) {
+-+  const createResult = await service.create(ctx, slug);
+-+  const line0 = createResult.lineId ?? '';
+-+  const addResult = await service.addNode(ctx, slug, line0, 'ping');
+-+  const nodeId = addResult.nodeId ?? '';
+-+  return { line0, nodeId };
+++async function buildSmoke(service: IPositionalGraphService, ctx: WorkspaceContext) {
+++  const { lineId } = await service.create(ctx, 'smoke');
+++  await service.addNode(ctx, 'smoke', lineId ?? '', 'ping');
+ +}
+ +
+-+// ─── Test Suite ────────────────────────────────────────────────────
+++async function buildSimpleSerial(service: IPositionalGraphService, ctx: WorkspaceContext) {
+++  const { lineId: line0 } = await service.create(ctx, 'simple-serial');
+++  const line1Result = await service.addLine(ctx, 'simple-serial');
+++  const line1 = line1Result.lineId ?? '';
+++
+++  const setupResult = await service.addNode(ctx, 'simple-serial', line0 ?? '', 'setup');
+++  const setupId = setupResult.nodeId ?? '';
+ +
+-+describe('Template/Instance integration (real filesystem)', () => {
+-+  beforeEach(async () => {
+-+    testCtx = await setupTestWorkspace();
+++  const workerResult = await service.addNode(ctx, 'simple-serial', line1, 'worker');
+++  const workerId = workerResult.nodeId ?? '';
+++
+++  await service.setInput(ctx, 'simple-serial', workerId, 'task', {
+++    from_node: setupId,
+++    from_output: 'instructions',
+ +  });
+++}
+ +
+-+  afterEach(async () => {
+-+    if (testCtx?.tmpDir) {
+-+      await nodeFs.rm(testCtx.tmpDir, { recursive: true, force: true });
+++const FIXTURES: FixtureConfig[] = [
+++  { slug: 'smoke', build: buildSmoke },
+++  { slug: 'simple-serial', build: buildSimpleSerial },
+++];
+++
+++async function generateTemplate(config: FixtureConfig): Promise<void> {
+++  console.log(`\nGenerating template: ${config.slug}`);
+++  console.log('─'.repeat(50));
+++
+++  // Create temp workspace
+++  const tmpDir = await fs.mkdtemp(path.join(path.resolve('/tmp'), `gen-tpl-${config.slug}-`));
+++
+++  try {
+++    // Set up workspace structure
+++    const unitsDir = path.join(tmpDir, '.chainglass', 'units');
+++    await fs.mkdir(path.join(tmpDir, '.chainglass', 'data', 'workflows'), { recursive: true });
+++    await fs.mkdir(unitsDir, { recursive: true });
+++    await fs.mkdir(path.join(tmpDir, '.chainglass', 'templates', 'workflows'), { recursive: true });
+++
+++    // Copy fixture units
+++    const fixtureUnits = path.join(FIXTURES_DIR, config.slug, 'units');
+++    await fs.cp(fixtureUnits, unitsDir, { recursive: true });
+++
+++    // Make scripts executable
+++    await makeExecutable(unitsDir);
+++
+++    // Wire real services
+++    const nodeFs = new NodeFileSystemAdapter();
+++    const pathResolver = new PathResolverAdapter();
+++    const yamlParser = new YamlParserAdapter();
+++    const graphAdapter = new PositionalGraphAdapter(nodeFs, pathResolver);
+++    const loader = buildLoader(tmpDir, yamlParser);
+++    const graphService = new PositionalGraphService(nodeFs, pathResolver, yamlParser, graphAdapter, loader);
+++    const templateAdapter = new TemplateAdapter(nodeFs, pathResolver);
+++    const instanceAdapter = new InstanceAdapter(nodeFs, pathResolver);
+++    const templateService = new TemplateService(nodeFs, pathResolver, yamlParser, templateAdapter, instanceAdapter);
+++
+++    const ctx = createCtx(tmpDir);
+++
+++    // Build graph imperatively
+++    console.log(`  Building graph: ${config.slug}`);
+++    await config.build(graphService, ctx);
+++
+++    // Save as template
+++    console.log(`  Saving as template...`);
+++    const result = await templateService.saveFrom(ctx, config.slug, config.slug);
+++    if (result.errors.length > 0) {
+++      console.error(`  FAILED:`, result.errors);
+++      process.exit(1);
+ +    }
+-+  });
+ +
+-+  // ─── T004: Full lifecycle ───────────────────────────────────────
+++    console.log(`  Template saved: ${result.data?.slug}`);
+++    console.log(`    Lines: ${result.data?.lineCount}`);
+++    console.log(`    Nodes: ${result.data?.nodes.length} (${result.data?.nodes.map((n) => n.unitSlug).join(', ')})`);
+++    console.log(`    Units: ${result.data?.units.length} (${result.data?.units.map((u) => u.slug).join(', ')})`);
+++
+++    // Copy template from temp to repo
+++    const srcTemplate = path.join(tmpDir, '.chainglass', 'templates', 'workflows', config.slug);
+++    const destTemplate = path.join(TEMPLATES_DIR, config.slug);
+++
+++    // Remove existing template if present
+++    try {
+++      await fs.rm(destTemplate, { recursive: true, force: true });
+++    } catch {
+++      // OK if doesn't exist
+++    }
+++    await fs.cp(srcTemplate, destTemplate, { recursive: true });
+++
+++    // Make scripts executable in final location
+++    await makeExecutable(path.join(destTemplate, 'units'));
+++
+++    console.log(`  Copied to: .chainglass/templates/workflows/${config.slug}/`);
+++  } finally {
+++    await fs.rm(tmpDir, { recursive: true, force: true });
+++  }
+++}
+++
+++async function makeExecutable(dir: string): Promise<void> {
+++  try {
+++    const entries = await fs.readdir(dir, { withFileTypes: true });
+++    for (const entry of entries) {
+++      const full = path.join(dir, entry.name);
+++      if (entry.isDirectory()) {
+++        await makeExecutable(full);
+++      } else if (entry.name.endsWith('.sh')) {
+++        await fs.chmod(full, 0o755);
+++      }
+++    }
+++  } catch {
+++    // Dir may not exist
+++  }
+++}
+++
+++// CLI
+++const args = process.argv.slice(2);
+++const fixtureArg = args.find((a) => a.startsWith('--fixture='))?.split('=')[1] ?? args[1] ?? 'all';
+ +
+-+  describe('save-from → instantiate → verify', () => {
+-+    /**
+-+     * Why: Proves the full lifecycle works with real filesystem I/O.
+-+     * Contract: saveFrom + instantiate produce correct directory structures.
+-+     * Usage Notes: Builds graph imperatively, saves as template, instantiates.
+-+     * Quality Contribution: AC-6 — instantiation creates independent copy.
+-+     * Worked Example: 1-node graph → template → instance with pending state.
+-+     */
+++const toGenerate = fixtureArg === 'all' ? FIXTURES : FIXTURES.filter((f) => f.slug === fixtureArg);
+ +
+-+    it('should create instance with graph.yaml, state.json, and units', async () => {
+-+      const { ctx, graphService, templateService } = testCtx;
+++if (toGenerate.length === 0) {
+++  console.error(`Unknown fixture: ${fixtureArg}. Available: ${FIXTURES.map((f) => f.slug).join(', ')}`);
+++  process.exit(1);
+++}
+ +
+-+      // Build graph
+-+      await buildSimpleGraph(ctx, graphService, 'my-graph');
+++console.log(`Template Generator — generating ${toGenerate.length} template(s)`);
+ +
+-+      // Save as template
+-+      const saveResult = await templateService.saveFrom(ctx, 'my-graph', 'my-tpl');
+-+      expect(saveResult.errors).toHaveLength(0);
+-+      expect(saveResult.data).not.toBeNull();
+++for (const config of toGenerate) {
+++  await generateTemplate(config);
+++}
+++
+++console.log('\nDone. Templates at .chainglass/templates/workflows/');
++diff --git a/test/integration/template-lifecycle-e2e.test.ts b/test/integration/template-lifecycle-e2e.test.ts
++new file mode 100644
++index 0000000..55ccfa8
++--- /dev/null
+++++ b/test/integration/template-lifecycle-e2e.test.ts
++@@ -0,0 +1,222 @@
+++/**
+++ * E2E test: Template lifecycle.
+++ *
+++ * Why: Proves the full template lifecycle works end-to-end with committed
+++ * templates, real filesystem, and real YAML parsing.
+++ *
+++ * Contract: withTemplateWorkflow() + TemplateService produce correct,
+++ * isolated, refreshable instances from committed template artifacts.
+++ *
+++ * Usage Notes: Uses withTemplateWorkflow('simple-serial') which copies
+++ * the committed template to a temp workspace and instantiates.
+++ *
+++ * Quality Contribution: AC-21 — full lifecycle validation. Also covers
+++ * isolation and refresh with input wiring preservation.
+++ *
+++ * Worked Example: Instantiate simple-serial (2 nodes, wiring) → verify
+++ * structure → modify template → verify isolation → refresh → verify update.
+++ */
+++
+++import * as nodeFs from 'node:fs/promises';
+++import * as path from 'node:path';
+++
+++import { YamlParserAdapter } from '@chainglass/shared';
+++import { afterEach, describe, expect, it } from 'vitest';
+++
+++import {
+++  type TemplateTestContext,
+++  withTemplateWorkflow,
+++} from '../../dev/test-graphs/shared/template-test-runner.js';
+++
+++describe('Template lifecycle E2E', () => {
+++  let cleanupFn: (() => Promise<void>) | null = null;
+++
+++  afterEach(async () => {
+++    if (cleanupFn) {
+++      await cleanupFn();
+++      cleanupFn = null;
+++    }
+++  });
+ +
+-+      // Instantiate
+-+      const instResult = await templateService.instantiate(ctx, 'my-tpl', 'run-1');
+-+      expect(instResult.errors).toHaveLength(0);
+++  it('should instantiate simple-serial with correct structure', async () => {
+++    await withTemplateWorkflow('simple-serial', async (ttc: TemplateTestContext) => {
+++      const instanceDir = path.join(
+++        ttc.workspacePath,
+++        '.chainglass',
+++        'instances',
+++        'simple-serial',
+++        ttc.instanceId
+++      );
+ +
+ +      // Verify instance structure
+-+      const instanceDir = path.join(testCtx.tmpDir, '.chainglass', 'instances', 'my-tpl', 'run-1');
+ +      expect(await fileExists(path.join(instanceDir, 'graph.yaml'))).toBe(true);
+ +      expect(await fileExists(path.join(instanceDir, 'state.json'))).toBe(true);
+ +      expect(await fileExists(path.join(instanceDir, 'instance.yaml'))).toBe(true);
+-+      expect(await fileExists(path.join(instanceDir, 'units', 'ping', 'unit.yaml'))).toBe(true);
+ +
+-+      // Verify state.json is pending
+-+      const stateContent = await nodeFs.readFile(path.join(instanceDir, 'state.json'), 'utf-8');
+-+      const state = JSON.parse(stateContent);
+++      // Verify state is pending
+++      const state = JSON.parse(
+++        await nodeFs.readFile(path.join(instanceDir, 'state.json'), 'utf-8')
+++      );
+ +      expect(state.graph_status).toBe('pending');
+ +
+-+      // Verify graph.yaml is parseable
+-+      const graphContent = await nodeFs.readFile(path.join(instanceDir, 'graph.yaml'), 'utf-8');
+++      // Verify graph has 2 lines
+ +      const yamlParser = new YamlParserAdapter();
+-+      const graphDef = yamlParser.parse<{ slug: string; lines: unknown[] }>(
+-+        graphContent,
+-+        'graph.yaml'
+-+      );
+-+      expect(graphDef.slug).toBe('my-graph');
+-+      expect(graphDef.lines).toHaveLength(1);
+++      const graphContent = await nodeFs.readFile(path.join(instanceDir, 'graph.yaml'), 'utf-8');
+++      const graph = yamlParser.parse<{ lines: unknown[] }>(graphContent, 'graph.yaml');
+++      expect(graph.lines).toHaveLength(2);
+++
+++      // Verify both units present
+++      expect(await fileExists(path.join(instanceDir, 'units', 'setup', 'unit.yaml'))).toBe(true);
+++      expect(await fileExists(path.join(instanceDir, 'units', 'worker', 'unit.yaml'))).toBe(true);
+ +    });
+++  });
+ +
+-+    it('should not include state.json in template', async () => {
+-+      const { ctx, graphService, templateService } = testCtx;
+-+      await buildSimpleGraph(ctx, graphService, 'my-graph');
+-+      await templateService.saveFrom(ctx, 'my-graph', 'my-tpl');
+++  it('should preserve input wiring in instance nodes', async () => {
+++    await withTemplateWorkflow('simple-serial', async (ttc: TemplateTestContext) => {
+++      const instanceDir = path.join(
+++        ttc.workspacePath,
+++        '.chainglass',
+++        'instances',
+++        'simple-serial',
+++        ttc.instanceId
+++      );
+++
+++      // Find the worker node (has input wiring)
+++      const nodesDir = path.join(instanceDir, 'nodes');
+++      const nodeIds = await nodeFs.readdir(nodesDir);
+++      const yamlParser = new YamlParserAdapter();
+++
+++      let foundWiring = false;
+++      for (const nodeId of nodeIds) {
+++        const nodeYaml = path.join(nodesDir, nodeId, 'node.yaml');
+++        const content = await nodeFs.readFile(nodeYaml, 'utf-8');
+++        const node = yamlParser.parse<{ unit_slug: string; inputs?: Record<string, unknown> }>(
+++          content,
+++          nodeYaml
+++        );
+++        if (node.unit_slug === 'worker' && node.inputs?.task) {
+++          foundWiring = true;
+++          const taskInput = node.inputs.task as { from_node: string; from_output: string };
+++          expect(taskInput.from_output).toBe('instructions');
+++        }
+++      }
+++      expect(foundWiring).toBe(true);
+++    });
+++  });
+ +
+++  it('should not propagate template changes to instance', async () => {
+++    await withTemplateWorkflow('simple-serial', async (ttc: TemplateTestContext) => {
+++      const instanceDir = path.join(
+++        ttc.workspacePath,
+++        '.chainglass',
+++        'instances',
+++        'simple-serial',
+++        ttc.instanceId
+++      );
+ +      const templateDir = path.join(
+-+        testCtx.tmpDir,
+++        ttc.workspacePath,
+ +        '.chainglass',
+ +        'templates',
+ +        'workflows',
+-+        'my-tpl'
+++        'simple-serial'
+ +      );
+-+      expect(await fileExists(path.join(templateDir, 'state.json'))).toBe(false);
+-+      expect(await fileExists(path.join(templateDir, 'graph.yaml'))).toBe(true);
+-+    });
+-+  });
+-+
+-+  // ─── T005: Multiple instances ───────────────────────────────────
+-+
+-+  describe('multiple instances from same template', () => {
+-+    /**
+-+     * Why: Proves instances are independent — separate state, separate data.
+-+     * Contract: Two instantiate() calls produce isolated directories.
+-+     * Usage Notes: Modifies state in one instance, verifies the other is unaffected.
+-+     * Quality Contribution: AC-8 — multiple independent instances.
+-+     * Worked Example: Instantiate twice → modify state in run-1 → run-2 unchanged.
+-+     */
+-+
+-+    it('should create independent instances with separate state', async () => {
+-+      const { ctx, graphService, templateService } = testCtx;
+-+      await buildSimpleGraph(ctx, graphService, 'my-graph');
+-+      await templateService.saveFrom(ctx, 'my-graph', 'my-tpl');
+ +
+-+      // Create two instances
+-+      await templateService.instantiate(ctx, 'my-tpl', 'run-1');
+-+      await templateService.instantiate(ctx, 'my-tpl', 'run-2');
+++      // Read original instance unit
+++      const instanceUnit = path.join(instanceDir, 'units', 'setup', 'unit.yaml');
+++      const originalContent = await nodeFs.readFile(instanceUnit, 'utf-8');
+ +
+-+      const inst1Dir = path.join(testCtx.tmpDir, '.chainglass', 'instances', 'my-tpl', 'run-1');
+-+      const inst2Dir = path.join(testCtx.tmpDir, '.chainglass', 'instances', 'my-tpl', 'run-2');
+-+
+-+      // Both exist
+-+      expect(await fileExists(path.join(inst1Dir, 'state.json'))).toBe(true);
+-+      expect(await fileExists(path.join(inst2Dir, 'state.json'))).toBe(true);
+-+
+-+      // Modify state in run-1
+++      // Modify template unit
+++      const templateUnit = path.join(templateDir, 'units', 'setup', 'unit.yaml');
+ +      await nodeFs.writeFile(
+-+        path.join(inst1Dir, 'state.json'),
+-+        JSON.stringify({ graph_status: 'complete', nodes: {} })
+++        templateUnit,
+++        'slug: setup\ntype: user-input\nversion: 99.0.0\nMODIFIED: true\n'
+ +      );
+ +
+-+      // Verify run-2 is unaffected
+-+      const state2 = JSON.parse(await nodeFs.readFile(path.join(inst2Dir, 'state.json'), 'utf-8'));
+-+      expect(state2.graph_status).toBe('pending');
+++      // Instance should be unchanged
+++      const afterModify = await nodeFs.readFile(instanceUnit, 'utf-8');
+++      expect(afterModify).toBe(originalContent);
+ +    });
+ +  });
+ +
+-+  // ─── T006: Refresh safety ──────────────────────────────────────
+-+
+-+  describe('refresh during active run', () => {
+-+    /**
+-+     * Why: Proves refresh warns on active run but still updates units.
+-+     * Contract: refresh() returns ACTIVE_RUN_WARNING when state is in_progress.
+-+     * Usage Notes: Manually sets state.json to in_progress before refresh.
+-+     * Quality Contribution: AC-16 — active run warning on refresh.
+-+     * Worked Example: Set in_progress → refresh → warning + units updated.
+-+     */
+-+
+-+    it('should warn on active run and still refresh units', async () => {
+-+      const { ctx, graphService, templateService } = testCtx;
+-+      await buildSimpleGraph(ctx, graphService, 'my-graph');
+-+      await templateService.saveFrom(ctx, 'my-graph', 'my-tpl');
+-+      await templateService.instantiate(ctx, 'my-tpl', 'run-1');
+-+
+-+      // Set state to in_progress
+-+      const instanceDir = path.join(testCtx.tmpDir, '.chainglass', 'instances', 'my-tpl', 'run-1');
+++  it('should refresh instance units from template', async () => {
+++    await withTemplateWorkflow('simple-serial', async (ttc: TemplateTestContext) => {
+++      const instanceDir = path.join(
+++        ttc.workspacePath,
+++        '.chainglass',
+++        'instances',
+++        'simple-serial',
+++        ttc.instanceId
+++      );
+++      const templateDir = path.join(
+++        ttc.workspacePath,
+++        '.chainglass',
+++        'templates',
+++        'workflows',
+++        'simple-serial'
+++      );
+++
+++      // Modify template unit
+++      const templateUnit = path.join(templateDir, 'units', 'setup', 'unit.yaml');
+ +      await nodeFs.writeFile(
+-+        path.join(instanceDir, 'state.json'),
+-+        JSON.stringify({
+-+          graph_status: 'in_progress',
+-+          updated_at: new Date().toISOString(),
+-+          nodes: {},
+-+        })
+++        templateUnit,
+++        'slug: setup\ntype: user-input\nversion: 99.0.0\nREFRESHED: true\n'
+ +      );
+ +
+ +      // Refresh
+-+      const result = await templateService.refresh(ctx, 'my-tpl', 'run-1');
+++      const result = await ttc.templateService.refresh(ttc.ctx, 'simple-serial', ttc.instanceId);
+ +      expect(result.data).not.toBeNull();
+-+      expect(result.data?.refreshedUnits).toContain('ping');
+++      expect(result.data?.refreshedUnits).toContain('setup');
+ +
+-+      // Should have warning
+-+      const warnings = result.errors.filter((e) => e.code === 'ACTIVE_RUN_WARNING');
+-+      expect(warnings).toHaveLength(1);
+-+
+-+      // state.json should NOT be changed by refresh (refresh only touches units)
+-+      const stateAfter = JSON.parse(
+-+        await nodeFs.readFile(path.join(instanceDir, 'state.json'), 'utf-8')
+-+      );
+-+      expect(stateAfter.graph_status).toBe('in_progress');
+++      // Instance should now have updated content
+++      const instanceUnit = path.join(instanceDir, 'units', 'setup', 'unit.yaml');
+++      const afterRefresh = await nodeFs.readFile(instanceUnit, 'utf-8');
+++      expect(afterRefresh).toContain('REFRESHED: true');
+ +    });
+ +  });
+ +
+-+  // ─── T007: Template isolation ──────────────────────────────────
+-+
+-+  describe('template modification does not affect instance', () => {
+-+    /**
+-+     * Why: Proves instances are independent from templates after creation.
+-+     * Contract: Modifying template files does not change instance files.
+-+     * Usage Notes: Modify template prompt, verify instance unchanged, then
+-+     * refresh to verify instance picks up the change.
+-+     * Quality Contribution: AC-7 (template isolation), AC-12 (unit isolation).
+-+     * Worked Example: Change template prompt → instance unchanged → refresh → updated.
+-+     */
+-+
+-+    it('should not propagate template changes to existing instance', async () => {
+-+      const { ctx, graphService, templateService } = testCtx;
+-+      await buildSimpleGraph(ctx, graphService, 'my-graph');
+-+      await templateService.saveFrom(ctx, 'my-graph', 'my-tpl');
+-+      await templateService.instantiate(ctx, 'my-tpl', 'run-1');
+-+
+-+      // Read original instance unit content
+-+      const instanceUnitYaml = path.join(
+-+        testCtx.tmpDir,
+++  it('should create independent second instance', async () => {
+++    await withTemplateWorkflow('simple-serial', async (ttc: TemplateTestContext) => {
+++      // Create a second instance
+++      const result2 = await ttc.templateService.instantiate(ttc.ctx, 'simple-serial', 'second-run');
+++      expect(result2.errors).toHaveLength(0);
+++
+++      const inst1Dir = path.join(
+++        ttc.workspacePath,
+ +        '.chainglass',
+ +        'instances',
+-+        'my-tpl',
+-+        'run-1',
+-+        'units',
+-+        'ping',
+-+        'unit.yaml'
+++        'simple-serial',
+++        ttc.instanceId
+ +      );
+-+      const originalContent = await nodeFs.readFile(instanceUnitYaml, 'utf-8');
+-+
+-+      // Modify template unit
+-+      const templateUnitYaml = path.join(
+-+        testCtx.tmpDir,
+++      const inst2Dir = path.join(
+++        ttc.workspacePath,
+ +        '.chainglass',
+-+        'templates',
+-+        'workflows',
+-+        'my-tpl',
+-+        'units',
+-+        'ping',
+-+        'unit.yaml'
+-+      );
+-+      await nodeFs.writeFile(
+-+        templateUnitYaml,
+-+        'slug: ping\ntype: code\nversion: 2.0.0\nMODIFIED: true\n'
+++        'instances',
+++        'simple-serial',
+++        'second-run'
+ +      );
+ +
+-+      // Instance should be unchanged
+-+      const afterModify = await nodeFs.readFile(instanceUnitYaml, 'utf-8');
+-+      expect(afterModify).toBe(originalContent);
+++      // Both exist independently
+++      expect(await fileExists(path.join(inst1Dir, 'state.json'))).toBe(true);
+++      expect(await fileExists(path.join(inst2Dir, 'state.json'))).toBe(true);
+ +
+-+      // Now refresh — instance should pick up the change
+-+      const result = await templateService.refresh(ctx, 'my-tpl', 'run-1');
+-+      expect(result.data?.refreshedUnits).toContain('ping');
+++      // Modify state in first
+++      await nodeFs.writeFile(
+++        path.join(inst1Dir, 'state.json'),
+++        JSON.stringify({ graph_status: 'complete', nodes: {} })
+++      );
+ +
+-+      const afterRefresh = await nodeFs.readFile(instanceUnitYaml, 'utf-8');
+-+      expect(afterRefresh).toContain('MODIFIED: true');
+-+      expect(afterRefresh).not.toBe(originalContent);
+++      // Second is unaffected
+++      const state2 = JSON.parse(await nodeFs.readFile(path.join(inst2Dir, 'state.json'), 'utf-8'));
+++      expect(state2.graph_status).toBe('pending');
+ +    });
+ +  });
+ +});
+ +
+-+// ─── Helpers ─────────────────────────────────────────────────────
+-+
+ +async function fileExists(filePath: string): Promise<boolean> {
+ +  try {
+ +    await nodeFs.stat(filePath);
+@@ -858,81 +1601,3 @@ index 0000000..a1cbfaa
+ +    return false;
+ +  }
+ +}
+-diff --git a/test/unit/positional-graph/instance-graph-adapter.test.ts b/test/unit/positional-graph/instance-graph-adapter.test.ts
+-new file mode 100644
+-index 0000000..9caf2fa
+---- /dev/null
+-+++ b/test/unit/positional-graph/instance-graph-adapter.test.ts
+-@@ -0,0 +1,72 @@
+-+/**
+-+ * InstanceGraphAdapter unit tests.
+-+ *
+-+ * Why: Validates that the adapter returns pre-resolved instance paths
+-+ * and ignores slug arguments — scoped to one instance at construction.
+-+ *
+-+ * Contract: InstanceGraphAdapter extends PositionalGraphAdapter, overrides
+-+ * getGraphDir() to return fixed instancePath.
+-+ *
+-+ * Usage Notes: Uses FakeFileSystem. Adapter constructed with absolute
+-+ * instance path. All method calls return paths relative to that root.
+-+ *
+-+ * Quality Contribution: Ensures the DI-swappable adapter correctly routes
+-+ * the graph engine to instance directories instead of data/workflows/.
+-+ *
+-+ * Worked Example: Adapter at /workspace/.chainglass/instances/tpl/run-1
+-+ * → getGraphDir() returns that path regardless of slug.
+-+ */
+-+
+-+import { FakeFileSystem, FakePathResolver } from '@chainglass/shared';
+-+import { beforeEach, describe, expect, it } from 'vitest';
+-+
+-+import { InstanceGraphAdapter } from '../../../packages/positional-graph/src/adapter/instance-graph.adapter.js';
+-+import { createTestWorkspaceContext } from '../../helpers/workspace-context.js';
+-+
+-+const WORKTREE = '/test-workspace';
+-+const INSTANCE_PATH = '/test-workspace/.chainglass/instances/my-template/sprint-42';
+-+
+-+describe('InstanceGraphAdapter', () => {
+-+  let fs: FakeFileSystem;
+-+  let pathResolver: FakePathResolver;
+-+  let adapter: InstanceGraphAdapter;
+-+  const ctx = createTestWorkspaceContext(WORKTREE);
+-+
+-+  beforeEach(() => {
+-+    fs = new FakeFileSystem();
+-+    pathResolver = new FakePathResolver();
+-+    adapter = new InstanceGraphAdapter(fs, pathResolver, INSTANCE_PATH);
+-+  });
+-+
+-+  it('should return pre-resolved instance path from getGraphDir', () => {
+-+    const result = adapter.getGraphDir(ctx, 'any-slug');
+-+    expect(result).toBe(INSTANCE_PATH);
+-+  });
+-+
+-+  it('should ignore slug argument', () => {
+-+    const result1 = adapter.getGraphDir(ctx, 'foo');
+-+    const result2 = adapter.getGraphDir(ctx, 'bar');
+-+    expect(result1).toBe(result2);
+-+    expect(result1).toBe(INSTANCE_PATH);
+-+  });
+-+
+-+  it('should not validate slug pattern (slug is ignored)', () => {
+-+    // Normally PositionalGraphAdapter would throw on invalid slug
+-+    // InstanceGraphAdapter ignores slug entirely
+-+    expect(() => adapter.getGraphDir(ctx, 'INVALID/SLUG')).not.toThrow();
+-+  });
+-+
+-+  it('should check graphExists at instance path', async () => {
+-+    fs.setFile(`${INSTANCE_PATH}/graph.yaml`, 'content');
+-+    expect(await adapter.graphExists(ctx, 'ignored')).toBe(true);
+-+  });
+-+
+-+  it('should return false for graphExists when no graph.yaml', async () => {
+-+    expect(await adapter.graphExists(ctx, 'ignored')).toBe(false);
+-+  });
+-+
+-+  it('should create dirs in ensureGraphDir at instance path', async () => {
+-+    await adapter.ensureGraphDir(ctx, 'ignored');
+-+    expect(await fs.exists(INSTANCE_PATH)).toBe(true);
+-+  });
+-+});
+diff --git a/docs/plans/048-wf-web/reviews/review.phase-4-e2e-and-docs.md b/docs/plans/048-wf-web/reviews/review.phase-4-e2e-and-docs.md
+new file mode 100644
+index 0000000..60121b5
+--- /dev/null
++++ b/docs/plans/048-wf-web/reviews/review.phase-4-e2e-and-docs.md
+@@ -0,0 +1,203 @@
++# Code Review: Phase 4 — E2E Test Migration & Documentation
++
++**Plan**: /home/jak/substrate/048-wf-web/docs/plans/048-wf-web/wf-web-plan.md
++**Spec**: /home/jak/substrate/048-wf-web/docs/plans/048-wf-web/wf-web-spec.md
++**Phase**: Phase 4: E2E Test Migration & Documentation
++**Date**: 2026-02-26
++**Reviewer**: Automated (plan-7-v2)
++**Testing Approach**: Hybrid (lightweight for Phase 4 E2E migration)
++
++## A) Verdict
++
++**APPROVE WITH NOTES**
++
++Three HIGH findings — all in test infrastructure with clear mitigations. No correctness, security, or production code issues.
++
++**Key failure areas**:
++- **Reinvention**: `buildLoader()` duplicated in 3 files; `makeExecutable()` duplicated when `makeScriptsExecutable()` already exists in helpers.ts
++- **Doctrine**: Missing per-test Test Doc comments (R-TEST-002/003) in e2e test file
++- **Scope**: Plan 049 artifacts (ux-enhancements spec+plan) included in Phase 4 commit
++
++## B) Summary
++
++Phase 4 delivers all 6 tasks: template generation script, smoke + simple-serial templates, `withTemplateWorkflow()` helper, 5 passing e2e lifecycle tests, workflow-templates.md guide, and README quick-start. Code quality is solid — real filesystem, real YAML parsing, zero mocks, proper cleanup. Domain compliance is clean (all imports via barrel exports, no cross-domain violations, domain.md history updated). The main issues are duplicated utility functions (`buildLoader` × 3, `makeExecutable` × 2 when existing helper available) and missing per-test Test Doc format. The 049 plan files in the commit are out-of-scope scope creep but don't affect Phase 4 correctness.
++
++## C) Checklist
++
++**Testing Approach: Lightweight (E2E migration)**
++
++- [x] Core validation tests present (5 e2e tests covering lifecycle)
++- [x] Critical paths covered (instantiate, wiring, isolation, refresh, multi-instance)
++- [x] Key verification points documented (file-level Test Doc header present)
++- [x] Only in-scope files changed (except 049 plan files — see F004)
++- [x] Domain compliance checks pass (0 HIGH domain findings)
++- [ ] Per-test Test Doc format (R-TEST-002) — missing individual test doc blocks
++
++## D) Findings Table
++
++| ID | Severity | File:Lines | Category | Summary | Recommendation |
++|----|----------|------------|----------|---------|----------------|
++| F001 | HIGH | Multiple files | reinvention | `buildLoader()` duplicated in 3 files + 1 variant | Extract to shared module |
++| F002 | HIGH | Multiple files | reinvention | `makeExecutable()` duplicated; existing `makeScriptsExecutable()` in helpers.ts | Import existing helper |
++| F003 | HIGH | template-lifecycle-e2e.test.ts | doctrine | Missing per-test Test Doc comments (R-TEST-002) | Add 5-field Test Doc to each `it()` |
++| F004 | MEDIUM | docs/plans/049-ux-enhancements/ | scope | Plan 049 artifacts in Phase 4 commit | Move to separate commit |
++| F005 | MEDIUM | generate-templates.ts:67-87 | error-handling | No error checks on intermediate create/addNode results | Add early-exit on failure |
++| F006 | MEDIUM | template-lifecycle-e2e.test.ts:32-39 | correctness | Dead `cleanupFn`/`afterEach` code never assigned | Remove dead code |
++| F007 | LOW | generate-templates.ts:184 | correctness | CLI arg parsing uses `args[1]` instead of `args[0]` | Use `args[0]` for positional |
++| F008 | LOW | template-test-runner.ts:57-61 | correctness | Missing runtime guard on `testFn` type assertion | Add `typeof testFn !== 'function'` check |
++| F009 | LOW | template-lifecycle-e2e.test.ts:99 | correctness | Wiring test only checks `from_output`, not `from_node` | Assert `from_node` is non-empty |
++| F010 | LOW | scripts/generate-templates.ts | domain | Not in plan's domain manifest | Add manifest row for dev scripts |
++| F011 | LOW | execution.log.md | evidence | Execution log is empty (header only) | Backfill with task evidence |
++| F012 | LOW | template-lifecycle-e2e.test.ts:24 | doctrine | Import order: vitest after @chainglass/shared | Reorder: external → internal |
++| F013 | LOW | tasks.md vs actual | documentation | Test file path diverges (tasks.md says `test/e2e/`, actual is `test/integration/`) | Update tasks.md path |
++
++## E) Detailed Findings
++
++### E.1) Implementation Quality
++
++**F005 (MEDIUM)**: `buildSmoke()` and `buildSimpleSerial()` in `generate-templates.ts` use `?? ''` on return values without checking for errors. If `service.create()` or `service.addNode()` fails, execution continues with empty strings, producing confusing downstream errors.
++```diff
++- const { lineId } = await service.create(ctx, 'smoke');
++- await service.addNode(ctx, 'smoke', lineId ?? '', 'ping');
+++ const { lineId } = await service.create(ctx, 'smoke');
+++ if (!lineId) throw new Error('create() returned no lineId');
+++ await service.addNode(ctx, 'smoke', lineId, 'ping');
++```
++
++**F006 (MEDIUM)**: `cleanupFn` variable and `afterEach` block in `template-lifecycle-e2e.test.ts` are dead code — no test ever assigns `cleanupFn`. `withTemplateWorkflow()` handles cleanup in its own `finally` block.
++
++**F007 (LOW)**: CLI arg parsing `args[1]` as positional fallback doesn't match usage. `npx tsx scripts/generate-templates.ts smoke` passes `smoke` as `args[0]`, not `args[1]`.
++
++**F008 (LOW)**: `withTemplateWorkflow('slug', { preserveOnSuccess: true })` without a third argument compiles but crashes at runtime because `testFn` is cast via `as` without validation.
++
++**F009 (LOW)**: Input wiring test asserts `from_output` is `'instructions'` but doesn't verify `from_node` references the correct setup node ID.
++
++### E.2) Domain Compliance
++
++| Check | Status | Details |
++|-------|--------|---------|
++| File placement | ✅ | All files in appropriate locations. `scripts/` is consumer territory. |
++| Contract-only imports | ✅ | All imports use barrel exports (`@chainglass/positional-graph`, `@chainglass/workflow`, `@chainglass/shared`) |
++| Dependency direction | ✅ | No infrastructure→business imports |
++| Domain.md updated | ✅ | `048-P4` history row added with accurate description |
++| Registry current | ✅ | No new domains in Phase 4 |
++| No orphan files | ✅ (1 LOW) | `scripts/generate-templates.ts` not in manifest (acceptable as consumer) |
++| Map nodes current | ✅ | No new nodes needed |
++| Map edges current | ✅ | No new cross-domain dependencies |
++| No circular business deps | ✅ | No cycles |
++
++### E.3) Anti-Reinvention
++
++| New Component | Existing Match? | Domain | Status |
++|--------------|----------------|--------|--------|
++| `withTemplateWorkflow()` | `withTestGraph()` (coexist by design) | _platform/positional-graph | ✅ Proceed |
++| `buildLoader()` × 3 files | `buildDiskLoader()` in graph-test-runner.ts | _platform/positional-graph | ❌ **F001**: Extract to shared module |
++| `makeExecutable()` × 2 files | `makeScriptsExecutable()` in helpers.ts | _platform/positional-graph | ❌ **F002**: Import existing |
++| `generate-templates.ts` script | None | N/A | ✅ Proceed |
++
++**F001 (HIGH)**: `buildLoader()` appears identically in:
++- `scripts/generate-templates.ts:39`
++- `dev/test-graphs/shared/template-test-runner.ts:159`
++- `test/integration/template-instance-validation.test.ts:105` (from Phase 3)
++- Near-identical `buildDiskLoader()` in `dev/test-graphs/shared/graph-test-runner.ts:75`
++
++All should be consolidated into a single shared export.
++
++**F002 (HIGH)**: `makeExecutable()` appears in both new files but `makeScriptsExecutable()` already exists in `dev/test-graphs/shared/helpers.ts:24` and does the same thing. Both new files should import the existing helper.
++
++### E.4) Testing & Evidence
++
++**Coverage confidence**: 88%
++
++| AC | Confidence | Evidence |
++|----|------------|----------|
++| AC-20 | 95% | Both `smoke/` and `simple-serial/` templates exist at `.chainglass/templates/workflows/` with correct structure. Generation script at `scripts/generate-templates.ts`. |
++| AC-21 | 90% | 5/5 e2e tests pass (37ms). Full lifecycle: instantiate → verify structure → wiring → isolation → refresh → multi-instance. Real FS, real YAML, zero mocks. Docked 10% for empty execution log. |
++
++**Testing approach**: Lightweight — appropriate for Phase 4 E2E migration per spec.
++**Violations**: Empty execution log (LOW), test file path divergence from tasks.md (INFO).
++
++### E.5) Doctrine Compliance
++
++**F003 (HIGH)**: Per R-TEST-002/R-TEST-003, each `it()` block requires a 5-field Test Doc comment (Why, Contract, Usage Notes, Quality Contribution, Worked Example). The e2e test file has a file-level header but individual tests lack per-test doc blocks.
++
++**F012 (LOW)**: Import ordering in e2e test puts `vitest` after `@chainglass/shared`. Convention: external → internal → relative.
++
++## F) Coverage Map
++
++| AC | Description | Evidence | Confidence |
++|----|-------------|----------|------------|
++| AC-20 | Existing fixtures represented as templates | smoke + simple-serial templates at `.chainglass/templates/workflows/`, generation script at `scripts/generate-templates.ts` | 95% |
++| AC-21 | E2E test validates full lifecycle | 5 tests: instantiate, wiring, isolation, refresh, multi-instance — all pass | 90% |
++
++**Overall coverage confidence**: 88%
++
++## G) Commands Executed
++
++```bash
++git --no-pager log --oneline -20
++git --no-pager diff --stat
++git --no-pager diff --staged --stat
++git --no-pager diff 6daac81..056a9b0 --stat
++git --no-pager diff 6daac81..056a9b0 > docs/plans/048-wf-web/reviews/_computed.diff
++npx vitest run test/integration/template-lifecycle-e2e.test.ts --reporter=verbose
++grep -rn "function buildLoader" --include="*.ts" .
++grep -rn "function makeExecutable" --include="*.ts" .
++ls -la .chainglass/templates/workflows/smoke/ .chainglass/templates/workflows/simple-serial/
++```
++
++## H) Handover Brief
++
++> Copy this section to the implementing agent. It has no context on the review —
++> only context on the work that was done before the review.
++
++**Review result**: APPROVE WITH NOTES
++
++**Plan**: /home/jak/substrate/048-wf-web/docs/plans/048-wf-web/wf-web-plan.md
++**Spec**: /home/jak/substrate/048-wf-web/docs/plans/048-wf-web/wf-web-spec.md
++**Phase**: Phase 4: E2E Test Migration & Documentation
++**Tasks dossier**: /home/jak/substrate/048-wf-web/docs/plans/048-wf-web/tasks/phase-4-e2e-and-docs/tasks.md
++**Execution log**: /home/jak/substrate/048-wf-web/docs/plans/048-wf-web/tasks/phase-4-e2e-and-docs/execution.log.md
++**Review file**: /home/jak/substrate/048-wf-web/docs/plans/048-wf-web/reviews/review.phase-4-e2e-and-docs.md
++
++### Files Reviewed
++
++| File (absolute path) | Status | Domain | Action Needed |
++|---------------------|--------|--------|---------------|
++| /home/jak/substrate/048-wf-web/scripts/generate-templates.ts | Created | cross-domain | F001, F002, F005, F007 |
++| /home/jak/substrate/048-wf-web/dev/test-graphs/shared/template-test-runner.ts | Created | _platform/positional-graph | F001, F002, F008 |
++| /home/jak/substrate/048-wf-web/test/integration/template-lifecycle-e2e.test.ts | Created | _platform/positional-graph | F003, F006, F009, F012 |
++| /home/jak/substrate/048-wf-web/docs/how/workflow-templates.md | Created | _platform/positional-graph | None |
++| /home/jak/substrate/048-wf-web/.chainglass/templates/workflows/smoke/ | Created | _platform/positional-graph | None |
++| /home/jak/substrate/048-wf-web/.chainglass/templates/workflows/simple-serial/ | Created | _platform/positional-graph | None |
++| /home/jak/substrate/048-wf-web/README.md | Modified | consumer | None |
++| /home/jak/substrate/048-wf-web/docs/how/workflows/2-template-authoring.md | Modified | _platform/positional-graph | None |
++| /home/jak/substrate/048-wf-web/docs/domains/_platform/positional-graph/domain.md | Modified | _platform/positional-graph | None |
++| /home/jak/substrate/048-wf-web/docs/plans/048-wf-web/wf-web-plan.md | Modified | N/A | None |
++| /home/jak/substrate/048-wf-web/docs/plans/049-ux-enhancements/ux-enhancements-plan.md | Created | N/A | F004: Out of scope |
++| /home/jak/substrate/048-wf-web/docs/plans/049-ux-enhancements/ux-enhancements-spec.md | Created | N/A | F004: Out of scope |
++
++### Recommended Fixes (APPROVE WITH NOTES — optional but recommended)
++
++| # | File (absolute path) | What To Fix | Why |
++|---|---------------------|-------------|-----|
++| 1 | Multiple files | Extract `buildLoader()` to shared module, import everywhere | F001: 3 identical copies |
++| 2 | Multiple files | Replace `makeExecutable()` with import of `makeScriptsExecutable` from helpers.ts | F002: Existing helper available |
++| 3 | /home/jak/substrate/048-wf-web/test/integration/template-lifecycle-e2e.test.ts | Add per-test Test Doc comments to all 5 `it()` blocks | F003: R-TEST-002 compliance |
++| 4 | /home/jak/substrate/048-wf-web/test/integration/template-lifecycle-e2e.test.ts | Remove dead `cleanupFn` variable and `afterEach` block | F006: Dead code |
++| 5 | /home/jak/substrate/048-wf-web/scripts/generate-templates.ts:67-87 | Add error checks on intermediate service call results | F005: Silent failures |
++
++### Domain Artifacts to Update (if any)
++
++| File (absolute path) | What's Missing |
++|---------------------|----------------|
++| /home/jak/substrate/048-wf-web/docs/plans/048-wf-web/wf-web-plan.md | Domain manifest row for `scripts/generate-templates.ts` (F010, LOW) |
++| /home/jak/substrate/048-wf-web/docs/plans/048-wf-web/tasks/phase-4-e2e-and-docs/execution.log.md | Task completion evidence (F011, LOW) |
++
++### Next Step
++
++Plan 048 is complete (4/4 phases). The review is APPROVE WITH NOTES — the 3 HIGH findings are all maintainability/process issues in test infrastructure, not production bugs. Options:
++
++1. **Fix the notes now** (recommended): Address F001-F003 (extract shared helpers, add Test Doc blocks), then re-run `just fft` and commit. No re-review needed since these are additive fixes.
++2. **Ship as-is**: All tests pass, all ACs are met, domain compliance is clean. The duplicated helpers and missing test doc blocks are tech debt, not blockers.
++3. **If fixing**: Run the fixes, then update progress with `/plan-6a-v2-update-progress --plan "/home/jak/substrate/048-wf-web/docs/plans/048-wf-web/wf-web-plan.md" --phase "Phase 4: E2E Test Migration & Documentation"`
 diff --git a/docs/plans/048-wf-web/tasks/phase-4-e2e-and-docs/execution.log.md b/docs/plans/048-wf-web/tasks/phase-4-e2e-and-docs/execution.log.md
 new file mode 100644
 index 0000000..0d361dd
@@ -601,125 +3025,52 @@ index 0000000..0d361dd
 +## Task Log
 +
 diff --git a/docs/plans/048-wf-web/tasks/phase-4-e2e-and-docs/tasks.fltplan.md b/docs/plans/048-wf-web/tasks/phase-4-e2e-and-docs/tasks.fltplan.md
-new file mode 100644
-index 0000000..76ef3d0
---- /dev/null
+index 63324e0..76ef3d0 100644
+--- a/docs/plans/048-wf-web/tasks/phase-4-e2e-and-docs/tasks.fltplan.md
 +++ b/docs/plans/048-wf-web/tasks/phase-4-e2e-and-docs/tasks.fltplan.md
-@@ -0,0 +1,120 @@
-+# Flight Plan: Phase 4 — E2E Test Migration & Documentation
-+
-+**Plan**: [wf-web-plan.md](../../wf-web-plan.md)
-+**Phase**: Phase 4: E2E Test Migration & Documentation
-+**Generated**: 2026-02-26
+@@ -3,7 +3,7 @@
+ **Plan**: [wf-web-plan.md](../../wf-web-plan.md)
+ **Phase**: Phase 4: E2E Test Migration & Documentation
+ **Generated**: 2026-02-26
+-**Status**: Ready for takeoff
 +**Status**: Landed
-+
-+---
-+
-+## Departure → Destination
-+
-+**Where we are**: Phases 1-3 delivered schemas, interfaces, a real TemplateService with 6 CLI commands, an InstanceGraphAdapter, and 46 passing tests (unit + integration) proving the template lifecycle works. One committed template (advanced-pipeline) exists. No fixture migration, no test helper, no docs yet.
-+
-+**Where we're going**: Two more fixtures (smoke, simple-serial) exist as committed templates. A `withTemplateWorkflow()` helper lets any test instantiate a template into a temp workspace. An e2e test proves the full lifecycle. User documentation teaches `cg template` usage.
-+
-+---
-+
-+## Domain Context
-+
-+### Domains We're Changing
-+
-+| Domain | What Changes | Key Files |
-+|--------|-------------|-----------|
-+| _platform/positional-graph | 2 new templates, test helper, e2e test | `.chainglass/templates/workflows/smoke/`, `simple-serial/`, `dev/test-graphs/shared/template-test-runner.ts`, `test/e2e/` |
-+| consumer (docs) | User documentation | `docs/how/workflow-templates.md`, `README.md` |
-+
-+### Domains We Depend On (no changes)
-+
-+| Domain | What We Consume | Contract |
-+|--------|----------------|----------|
-+| _platform/positional-graph | TemplateService, PositionalGraphService | saveFrom, instantiate, refresh, create, addNode |
-+| _platform/file-ops | NodeFileSystemAdapter | Real filesystem for template generation + e2e |
-+
-+---
-+
-+## Flight Status
-+
-+```mermaid
-+stateDiagram-v2
-+    classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
-+    classDef active fill:#FFC107,stroke:#FFA000,color:#000
-+    classDef done fill:#4CAF50,stroke:#388E3C,color:#fff
-+    classDef blocked fill:#F44336,stroke:#D32F2F,color:#fff
-+
-+    state "1: Fixture templates" as S1
-+    state "2: Test helper" as S2
-+    state "3: E2E test" as S3
-+    state "4: Documentation" as S4
-+
-+    [*] --> S1
-+    S1 --> S2
-+    S2 --> S3
-+    S3 --> S4
-+    S4 --> [*]
-+
+ 
+ ---
+ 
+@@ -53,7 +53,7 @@ stateDiagram-v2
+     S3 --> S4
+     S4 --> [*]
+ 
+-    class S1,S2,S3,S4 pending
 +    class S1,S2,S3,S4 done
-+```
-+
-+**Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
-+
-+---
-+
-+## Stages
-+
+ ```
+ 
+ **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
+@@ -62,10 +62,10 @@ stateDiagram-v2
+ 
+ ## Stages
+ 
+-- [ ] **Stage 1: Fixture templates** — Generate smoke + simple-serial templates from fixtures (committed artifacts)
+-- [ ] **Stage 2: Test helper** — Create `withTemplateWorkflow()` in `dev/test-graphs/shared/template-test-runner.ts`
+-- [ ] **Stage 3: E2E test** — Full lifecycle test using withTemplateWorkflow (AC-21)
+-- [ ] **Stage 4: Documentation** — User guide + README quick-start
 +- [x] **Stage 1: Fixture templates** — Generate smoke + simple-serial templates from fixtures (committed artifacts)
 +- [x] **Stage 2: Test helper** — Create `withTemplateWorkflow()` in `dev/test-graphs/shared/template-test-runner.ts`
 +- [x] **Stage 3: E2E test** — Full lifecycle test using withTemplateWorkflow (AC-21)
 +- [x] **Stage 4: Documentation** — User guide + README quick-start
-+
-+---
-+
-+## Architecture: Before & After
-+
-+```mermaid
-+flowchart LR
-+    classDef existing fill:#E8F5E9,stroke:#4CAF50,color:#000
-+    classDef new fill:#E3F2FD,stroke:#2196F3,color:#000
-+
-+    subgraph Before["Before Phase 4"]
-+        B1["1 template<br/>(advanced-pipeline)"]:::existing
-+        B2["withTestGraph()<br/>(raw copy)"]:::existing
-+        B3["No template docs"]:::existing
-+    end
-+
-+    subgraph After["After Phase 4"]
-+        A1["3 templates<br/>(advanced-pipeline, smoke, simple-serial)"]:::new
-+        A2["withTemplateWorkflow()<br/>(template instantiation)"]:::new
-+        A3["E2E lifecycle test"]:::new
-+        A4["docs/how/workflow-templates.md"]:::new
-+        A5["README quick-start"]:::new
-+    end
-+```
-+
-+**Legend**: existing (green, from Phase 1-3) | new (blue, created in Phase 4)
-+
-+---
-+
-+## Acceptance Criteria
-+
-+- [ ] smoke and simple-serial fixtures exist as committed templates (AC-20 partial)
-+- [ ] withTemplateWorkflow() helper creates temp instance from template
-+- [ ] E2E test validates full lifecycle: instantiate → verify → refresh → verify (AC-21)
-+- [ ] docs/how/workflow-templates.md covers concepts, layout, CLI, refresh, Git
-+- [ ] README has cg template quick-start
-+
-+## Goals & Non-Goals
-+
-+**Goals**: 2 fixture templates, test helper, e2e test, user docs, README update
-+**Non-Goals**: No bulk fixture conversion (only smoke + simple-serial), no old test removal, no code changes
-+
-+---
-+
-+## Checklist
-+
+ 
+ ---
+ 
+@@ -112,9 +112,9 @@ flowchart LR
+ 
+ ## Checklist
+ 
+-- [ ] T001: Create generation script + smoke template
+-- [ ] T002: Generate simple-serial template
+-- [ ] T003: Create withTemplateWorkflow() helper
+-- [ ] T004: E2E lifecycle test (simple-serial)
+-- [ ] T005: Write workflow-templates.md + deprecate old doc
+-- [ ] T006: Update README
 +- [x] T001: Create generation script + smoke template
 +- [x] T002: Generate simple-serial template
 +- [x] T003: Create withTemplateWorkflow() helper
@@ -727,453 +3078,55 @@ index 0000000..76ef3d0
 +- [x] T005: Write workflow-templates.md + deprecate old doc
 +- [x] T006: Update README
 diff --git a/docs/plans/048-wf-web/tasks/phase-4-e2e-and-docs/tasks.md b/docs/plans/048-wf-web/tasks/phase-4-e2e-and-docs/tasks.md
-new file mode 100644
-index 0000000..d3d27f8
---- /dev/null
+index ab24585..d3d27f8 100644
+--- a/docs/plans/048-wf-web/tasks/phase-4-e2e-and-docs/tasks.md
 +++ b/docs/plans/048-wf-web/tasks/phase-4-e2e-and-docs/tasks.md
-@@ -0,0 +1,175 @@
-+# Phase 4: E2E Test Migration & Documentation
-+
-+## Executive Briefing
-+
-+- **Purpose**: Port existing e2e test fixtures to the template system and write user documentation. This closes the loop — fixtures become templates, tests prove the template lifecycle end-to-end, and docs teach users how to use it.
-+- **What We're Building**: Workflow templates generated from existing fixtures (smoke, simple-serial), a `withTemplateWorkflow()` test helper that instantiates templates instead of copying raw dirs, a lifecycle e2e test, and user-facing documentation.
-+- **Goals**:
-+  - ✅ Smoke and simple-serial fixtures converted to workflow templates
-+  - ✅ `withTemplateWorkflow()` helper for template-based test setup
-+  - ✅ E2E test validating full template lifecycle (AC-21)
-+  - ✅ `docs/how/workflow-templates.md` user guide
-+  - ✅ README quick-start for `cg template` commands
-+- **Non-Goals**:
-+  - ❌ Converting ALL 8 fixtures (only smoke + simple-serial — others deferred)
-+  - ❌ Removing old `withTestGraph()` helper (parallel paths during migration)
-+  - ❌ Removing old `dev/test-graphs/` fixtures (they stay as source material)
-+  - ❌ Changes to CLI, service, or adapter code
-+
-+## Prior Phase Context
-+
-+### Phase 1: Domain Finalization & Template Schema (Complete — 6/6)
-+
-+**A. Deliverables**: Zod schemas, interfaces (ITemplateService, IInstanceService), fakes, 8 contract tests.
-+**B. Dependencies**: TemplateManifest, InstanceMetadata types, Result pattern, fakes with return builders.
-+**C. Gotchas**: Templates reuse graph.yaml + node.yaml format (Workshop 002). No new YAML parser.
-+**D. Incomplete**: None.
-+**E. Patterns**: Zod-first, interface-first, fakes over mocks, contract parity, Result pattern.
-+
-+### Phase 2: Template/Instance Service + CLI (Complete — 19/19)
-+
-+**A. Deliverables**: TemplateService (6 methods), TemplateAdapter, InstanceAdapter, InstanceWorkUnitAdapter, 6 CLI commands, advanced-pipeline template, 24 unit + 3 integration tests.
-+**B. Dependencies**: Real TemplateService, path adapters, DI tokens, InstanceWorkUnitAdapter(basePath).
-+**C. Gotchas**: Unified instance storage (Workshop 003). Script chmod no-op with FakeFS. InstanceWorkUnitAdapter DI factory deferred.
-+**D. Incomplete**: None.
-+**E. Patterns**: TDD, useFactory DI, WorkspaceDataAdapterBase override, single-destination instances, glob discovery.
-+
-+### Phase 3: Integration Testing & Instance Validation (Complete — 7/7)
-+
-+**A. Deliverables**: InstanceGraphAdapter, 6 unit tests, 5 integration tests (real filesystem).
-+**B. Dependencies**: InstanceGraphAdapter (pre-resolved basePath, Liskov-substitutable).
-+**C. Gotchas**: listGraphSlugs() overridden to return [] (single-instance scope). State.json shape differs between engine and template service.
-+**D. Incomplete**: None.
-+**E. Patterns**: Adapter substitution via DI child container, real filesystem for integration tests, three-stage verification.
-+
-+## Pre-Implementation Check
-+
-+| File | Exists? | Domain Check | Notes |
-+|------|---------|-------------|-------|
-+| `.chainglass/templates/workflows/smoke/` | ❌ | ✅ | New — generated from dev/test-graphs/smoke/ |
-+| `.chainglass/templates/workflows/simple-serial/` | ❌ | ✅ | New — generated from dev/test-graphs/simple-serial/ |
-+| `dev/test-graphs/shared/template-test-runner.ts` | ❌ | ✅ | New — withTemplateWorkflow() helper |
-+| `test/e2e/template-lifecycle.e2e.test.ts` | ❌ | ✅ | New — e2e lifecycle test |
-+| `docs/how/workflow-templates.md` | ❌ | ✅ | New — user guide |
-+| `docs/how/workflows/2-template-authoring.md` | ✅ | N/A | Existing — documents OLD wf.yaml system, needs update or replacement |
-+| `.chainglass/templates/workflows/advanced-pipeline/` | ✅ | N/A | Already exists from Phase 2 T012 |
-+
-+## Architecture Map
-+
-+```mermaid
-+flowchart TD
-+    classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
-+    classDef phase3 fill:#4CAF50,stroke:#388E3C,color:#fff
-+
-+    subgraph Phase3["Phase 1-3 (Complete)"]
-+        P3_Service["TemplateService<br/>(6 methods)"]:::phase3
-+        P3_CLI["cg template CLI<br/>(6 commands)"]:::phase3
-+        P3_Tpl["advanced-pipeline<br/>template"]:::phase3
-+        P3_Tests["46 tests passing"]:::phase3
-+    end
-+
-+    subgraph Phase4["Phase 4: E2E + Docs"]
-+        T001["T001: smoke template"]:::pending
-+        T002["T002: simple-serial template"]:::pending
-+        T003["T003: withTemplateWorkflow()"]:::pending
-+        T004["T004: E2E lifecycle test"]:::pending
-+        T005["T005: workflow-templates.md"]:::pending
-+        T006["T006: README quick-start"]:::pending
-+
-+        T001 --> T003
-+        T002 --> T003
-+        T003 --> T004
-+        T004 --> T005
-+        T005 --> T006
-+    end
-+
-+    P3_Service --> T003
-+    P3_Tpl --> T003
-+```
-+
-+## Tasks
-+
-+| Status | ID | Task | Domain | Path(s) | Done When | Notes |
-+|--------|-----|------|--------|---------|-----------|-------|
+@@ -91,12 +91,12 @@ flowchart TD
+ 
+ | Status | ID | Task | Domain | Path(s) | Done When | Notes |
+ |--------|-----|------|--------|---------|-----------|-------|
+-| [ ] | T001 | Create template generation script + generate `smoke` template | _platform/positional-graph | `scripts/generate-template.ts`, `.chainglass/templates/workflows/smoke/` | Repeatable script: builds graph imperatively via PositionalGraphService, calls saveFrom(), outputs to .chainglass/templates/. Run via `npx tsx`. Smoke template: 1 line, 1 node (ping), units/ping/. No state.json. | Repeatable over hand-authored. Fast feedback loops. Plan task 4.1. |
+-| [ ] | T002 | Generate `simple-serial` template using generation script | _platform/positional-graph | `.chainglass/templates/workflows/simple-serial/` | Template: 2 lines, 2 nodes (setup → worker), input wiring (worker.task ← setup.instructions), units/setup/ + units/worker/. Generated by same script. | Tests input wiring preservation. Plan task 4.2. |
+-| [ ] | T003 | Create `withTemplateWorkflow()` test helper | _platform/positional-graph | `dev/test-graphs/shared/template-test-runner.ts` | Helper that: takes template slug, creates temp dir, copies template from repo .chainglass/templates/ to temp dir's .chainglass/templates/, wires TemplateService with real FS, calls instantiate(), returns TestGraphContext. Cleanup in finally block. Coexists with existing withTestGraph(). | DYK #1: template must be copied to temp dir for ctx.worktreePath resolution. Plan task 4.4. |
+-| [ ] | T004 | E2E test: template lifecycle | _platform/positional-graph | `test/e2e/template-lifecycle.e2e.test.ts` | Test flow: use withTemplateWorkflow('simple-serial') to instantiate, verify graph ready (pending state, 2 nodes present, input wiring intact), modify template unit, verify instance unchanged, refresh, verify instance updated, create second instance, verify independent. Test Doc format. | DYK #5: use simple-serial (has wiring) not just smoke. Plan task 4.5. Proves AC-21. |
+-| [ ] | T005 | Write `docs/how/workflow-templates.md` + deprecate old doc | _platform/positional-graph | `docs/how/workflow-templates.md`, `docs/how/workflows/2-template-authoring.md` | New doc covers: template/instance concepts, directory layout, CLI commands, refresh workflow, Git integration. Old 2-template-authoring.md gets deprecation banner pointing to new doc. | DYK #3: old doc causes confusion. Plan task 4.6. |
+-| [ ] | T006 | Update README with template CLI quick-start | consumer | `README.md` | Add section with 6 `cg template` commands. Brief usage examples. Link to docs/how/ guide. | Plan task 4.7. |
 +| [x] | T001 | Create template generation script + generate `smoke` template | _platform/positional-graph | `scripts/generate-template.ts`, `.chainglass/templates/workflows/smoke/` | Repeatable script: builds graph imperatively via PositionalGraphService, calls saveFrom(), outputs to .chainglass/templates/. Run via `npx tsx`. Smoke template: 1 line, 1 node (ping), units/ping/. No state.json. | Repeatable over hand-authored. Fast feedback loops. Plan task 4.1. |
 +| [x] | T002 | Generate `simple-serial` template using generation script | _platform/positional-graph | `.chainglass/templates/workflows/simple-serial/` | Template: 2 lines, 2 nodes (setup → worker), input wiring (worker.task ← setup.instructions), units/setup/ + units/worker/. Generated by same script. | Tests input wiring preservation. Plan task 4.2. |
 +| [x] | T003 | Create `withTemplateWorkflow()` test helper | _platform/positional-graph | `dev/test-graphs/shared/template-test-runner.ts` | Helper that: takes template slug, creates temp dir, copies template from repo .chainglass/templates/ to temp dir's .chainglass/templates/, wires TemplateService with real FS, calls instantiate(), returns TestGraphContext. Cleanup in finally block. Coexists with existing withTestGraph(). | DYK #1: template must be copied to temp dir for ctx.worktreePath resolution. Plan task 4.4. |
 +| [x] | T004 | E2E test: template lifecycle | _platform/positional-graph | `test/e2e/template-lifecycle.e2e.test.ts` | Test flow: use withTemplateWorkflow('simple-serial') to instantiate, verify graph ready (pending state, 2 nodes present, input wiring intact), modify template unit, verify instance unchanged, refresh, verify instance updated, create second instance, verify independent. Test Doc format. | DYK #5: use simple-serial (has wiring) not just smoke. Plan task 4.5. Proves AC-21. |
 +| [x] | T005 | Write `docs/how/workflow-templates.md` + deprecate old doc | _platform/positional-graph | `docs/how/workflow-templates.md`, `docs/how/workflows/2-template-authoring.md` | New doc covers: template/instance concepts, directory layout, CLI commands, refresh workflow, Git integration. Old 2-template-authoring.md gets deprecation banner pointing to new doc. | DYK #3: old doc causes confusion. Plan task 4.6. |
 +| [x] | T006 | Update README with template CLI quick-start | consumer | `README.md` | Add section with 6 `cg template` commands. Brief usage examples. Link to docs/how/ guide. | Plan task 4.7. |
-+
-+## Context Brief
-+
-+**Key findings from plan**:
-+- Finding 06 (Medium): Test fixtures in dev/test-graphs/ hardcode `.chainglass/units/` in graph-test-runner.ts — withTemplateWorkflow() sidesteps this by using template instantiation
-+- Finding 01 (Critical, mitigated): Script paths validated in Phase 2 T019 and Phase 3 integration tests
-+
-+**Domain dependencies** (contracts this phase consumes):
-+- `_platform/positional-graph`: `IPositionalGraphService` — build graphs for fixture conversion
-+- `_platform/positional-graph`: `TemplateService` (saveFrom, instantiate) — template operations
-+- `_platform/file-ops`: `NodeFileSystemAdapter` — real filesystem for template generation and e2e tests
-+
-+**Domain constraints**:
-+- Templates are committed artifacts — generated files go into `.chainglass/templates/workflows/`
-+- Old fixtures in `dev/test-graphs/` are NOT removed — parallel paths during migration
-+- Documentation covers the NEW positional graph template system, not the old wf.yaml/phases system
-+
-+**Reusable from prior phases**:
-+- `TemplateService` (Phase 2) — saveFrom, instantiate
-+- `withTestGraph()` from `dev/test-graphs/shared/graph-test-runner.ts` — pattern reference for withTemplateWorkflow()
-+- `advanced-pipeline` template at `.chainglass/templates/workflows/advanced-pipeline/` — existing committed template
-+- Integration test infrastructure from Phase 3 (`setupTestWorkspace()` pattern)
-+
-+**Mermaid flow diagram** (fixture → template → test):
-+```mermaid
-+flowchart LR
-+    A["dev/test-graphs/<fixture>/units/"] -->|"build graph + saveFrom()"| B["Template<br/>(.chainglass/templates/workflows/)"]
-+    B -->|"withTemplateWorkflow()"| C["Temp Instance<br/>(temp dir)"]
-+    C -->|"assertions"| D["E2E Test Pass"]
-+```
-+
-+**Mermaid sequence diagram** (withTemplateWorkflow helper):
-+```mermaid
-+sequenceDiagram
-+    participant Test
-+    participant Helper as withTemplateWorkflow
-+    participant TS as TemplateService
-+    participant FS as Real Filesystem
-+
-+    Test->>Helper: withTemplateWorkflow('smoke', testFn)
-+    Helper->>FS: mkdtemp + copy template
-+    Helper->>TS: instantiate(ctx, 'smoke', tempId)
-+    TS->>FS: copy to temp instance dir
-+    Helper->>Test: TestGraphContext {service, ctx}
-+    Test->>Test: assertions
-+    Test-->>Helper: return
-+    Helper->>FS: rm -rf temp dir
-+```
-+
-+## Discoveries & Learnings
-+
-+_Populated during implementation by plan-6._
-+
-+| Date | Task | Type | Discovery | Resolution | References |
-+|------|------|------|-----------|------------|------------|
-+
-+---
-+
-+```
-+docs/plans/048-wf-web/
-+  ├── wf-web-plan.md
-+  ├── wf-web-spec.md
-+  ├── research-dossier.md
-+  ├── workshops/
-+  │   ├── 001-template-instance-directory-layout.md
-+  │   ├── 002-template-creation-flow-and-node-identity.md
-+  │   └── 003-instance-unified-storage.md
-+  └── tasks/
-+      ├── phase-1-schema-and-interfaces/ (complete)
-+      ├── phase-2-template-service-and-cli/ (complete)
-+      ├── phase-3-integration-and-validation/ (complete)
-+      └── phase-4-e2e-and-docs/
-+          ├── tasks.md                    ← this file
-+          ├── tasks.fltplan.md            ← flight plan
-+          └── execution.log.md           # created by plan-6
-+```
+ 
+ ## Context Brief
+ 
 diff --git a/docs/plans/048-wf-web/wf-web-plan.md b/docs/plans/048-wf-web/wf-web-plan.md
-index 791c90e..9d2dddb 100644
+index b222223..9d2dddb 100644
 --- a/docs/plans/048-wf-web/wf-web-plan.md
 +++ b/docs/plans/048-wf-web/wf-web-plan.md
-@@ -185,9 +185,9 @@ CLI commands are the primary interface and are introduced early (Phase 2) so the
+@@ -185,8 +185,8 @@ CLI commands are the primary interface and are introduced early (Phase 2) so the
  - [x] AC-17: All template/instance files Git-tracked (Phase 2: Workshop 003 unified storage)
  - [x] AC-18: Templates merge via standard Git (Phase 2: files in .chainglass/ tracked by default)
  - [x] AC-19: No special tooling for Git sharing (Phase 2: no hydration needed)
 -- [ ] AC-20: Existing fixtures represented as templates (Phase 4)
 -- [ ] AC-21: E2E test validates full lifecycle (Phase 4)
--- [ ] AC-22: Existing e2e tests reconfigured for template system (Phase 4)
 +- [x] AC-20: Existing fixtures represented as templates (Phase 4: T001-T002 — smoke + simple-serial)
 +- [x] AC-21: E2E test validates full lifecycle (Phase 4: T004 — 5 tests)
-+- [ ] AC-22: Existing e2e tests reconfigured for template system (deferred — bulk fixture conversion OOS for Phase 4)
+ - [ ] AC-22: Existing e2e tests reconfigured for template system (deferred — bulk fixture conversion OOS for Phase 4)
  
  ## Risks
- 
 @@ -220,4 +220,4 @@ CLI commands are the primary interface and are introduced early (Phase 2) so the
  | Phase 1: Schema + Interfaces | Complete | 6/6 tasks |
  | Phase 2: Service + CLI | Complete | 19/19 tasks |
  | Phase 3: Integration Testing & Instance Validation | Complete | 7/7 tasks |
 -| Phase 4: E2E + Docs | Not Started | — |
 +| Phase 4: E2E + Docs | Complete | 6/6 tasks |
-diff --git a/docs/plans/049-ux-enhancements/ux-enhancements-plan.md b/docs/plans/049-ux-enhancements/ux-enhancements-plan.md
-new file mode 100644
-index 0000000..e2b43eb
---- /dev/null
-+++ b/docs/plans/049-ux-enhancements/ux-enhancements-plan.md
-@@ -0,0 +1,92 @@
-+# UX Enhancements Implementation Plan
-+
-+**Mode**: Simple
-+**Plan Version**: 1.0.0
-+**Created**: 2026-02-26
-+**Spec**: [ux-enhancements-spec.md](./ux-enhancements-spec.md)
-+**Status**: DRAFT
-+
-+## Summary
-+
-+The FILES header in the browser page's LeftPanel currently shows a static "FILES" label. This plan adds live-updating file change statistics — count of changed files plus total inserted/deleted lines — to the header. A new `getDiffStats()` service parses `git diff --numstat` output, the `PanelHeader` gains an optional `subtitle` prop, and the existing live file event wiring (`useFileChanges('*')` → `handleRefreshChanges()`) triggers stats refresh automatically.
-+
-+## Target Domains
-+
-+| Domain | Status | Relationship | Role |
-+|--------|--------|-------------|------|
-+| `file-browser` | existing | **modify** | New diff stats service, extend `usePanelState` to fetch/expose stats, wire in BrowserClient |
-+| `_platform/panel-layout` | existing | **modify** | Extend `PanelHeader` with optional `subtitle` prop, extend `LeftPanel` to pass it through |
-+| `_platform/events` | existing | **consume** | Existing `useFileChanges('*')` → `handleRefreshChanges()` triggers stats refresh (no changes) |
-+
-+## Domain Manifest
-+
-+| File | Domain | Classification | Rationale |
-+|------|--------|---------------|-----------|
-+| `apps/web/src/features/041-file-browser/services/diff-stats.ts` | file-browser | internal | New service — parses `git diff --numstat` |
-+| `test/unit/web/features/041-file-browser/diff-stats.test.ts` | file-browser | internal | TDD tests for numstat parser |
-+| `apps/web/app/actions/file-actions.ts` | file-browser | internal | Add `fetchDiffStats` server action wrapper |
-+| `apps/web/src/features/041-file-browser/hooks/use-panel-state.ts` | file-browser | internal | Add diffStats state + fetch to `handleRefreshChanges` |
-+| `apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx` | file-browser | internal | Pass `fetchDiffStats` to `usePanelState`, compute subtitle JSX |
-+| `apps/web/src/features/_platform/panel-layout/components/panel-header.tsx` | _platform/panel-layout | contract | Add optional `subtitle?: ReactNode` prop |
-+| `apps/web/src/features/_platform/panel-layout/components/left-panel.tsx` | _platform/panel-layout | contract | Add optional `subtitle?: ReactNode` prop, pass to PanelHeader |
-+| `test/unit/web/features/_platform/panel-layout/panel-header.test.tsx` | _platform/panel-layout | internal | Update tests for subtitle rendering |
-+| `test/unit/web/features/_platform/panel-layout/left-panel.test.tsx` | _platform/panel-layout | internal | Update tests for subtitle passthrough |
-+
-+## Key Findings
-+
-+| # | Impact | Finding | Action |
-+|---|--------|---------|--------|
-+| 01 | Critical | Git service pattern proven: `changed-files.ts` uses `execFileAsync` → parse → return `{ok, files}` union. Server action wraps with lazy import. Hook composes in `Promise.all`. | Follow identical pattern for `getDiffStats`. |
-+| 02 | Critical | `fetchDiffStats` slots directly into `file-actions.ts` (lines ~129) as 4th server action wrapper, and into `handleRefreshChanges` `Promise.all` (line 84) as 4th entry. | Zero new infrastructure — additive changes only. |
-+| 03 | High | Binary files in `git diff --numstat` output show `-\t-\tpath` instead of numbers. Renamed files use `{old => new}/file.ts` brace syntax. | Parser must handle both: treat `-` as 0 for line counts, extract new path from rename syntax. TDD covers these edge cases. |
-+| 04 | High | `PanelHeader` has no slot for metadata — only `title: string`. LeftPanel hardcodes `title="Files"`. | Add additive `subtitle?: ReactNode` prop to both. Subtitle renders inline after title in muted style. |
-+| 05 | Medium | Race condition concern from overlapping refresh requests. | Non-issue: existing 500ms debounce on `useFileChanges('*')` + React state batching (last-write-wins) already handles this — same as the 3 existing services. |
-+| 06 | Medium | `git diff --numstat` only counts tracked files — gitignored files (node_modules, dist) are excluded automatically. | No filtering needed — git handles this inherently. |
-+
-+## Implementation
-+
-+**Objective**: Show live-updating file change statistics (count + insertions + deletions) in the LeftPanel's FILES header.
-+**Testing Approach**: Full TDD — red-green-refactor for parser service and component contracts. Fakes only, no mocks.
-+
-+### Tasks
-+
-+| Status | ID | Task | Domain | Path(s) | Done When | Notes |
-+|--------|-----|------|--------|---------|-----------|-------|
-+| [ ] | T001 | Create `getDiffStats()` service with `git diff HEAD --numstat` parser | file-browser | `/home/jak/substrate/048-wf-web/apps/web/src/features/041-file-browser/services/diff-stats.ts` | TDD: tests pass for normal output, binary (`-`), renames (`{old=>new}`), empty output, not-git error, no-commits fallback | Follow `changed-files.ts` pattern. Use `git diff HEAD --numstat` to capture staged+unstaged (DYK-01). Return `DiffStatsResult = {ok:true, stats:{files:number, insertions:number, deletions:number}} \| {ok:false, error:'not-git'}`. Fallback to `git diff --numstat` if HEAD doesn't exist (new repo). |
-+| [ ] | T002 | Write TDD tests for `getDiffStats()` | file-browser | `/home/jak/substrate/048-wf-web/test/unit/web/features/041-file-browser/diff-stats.test.ts` | RED phase: 6+ failing tests covering all edge cases | Write tests FIRST per constitution Principle 3. Cases: normal, binary, rename, empty, mixed, not-git |
-+| [ ] | T003 | Add `fetchDiffStats` server action wrapper | file-browser | `/home/jak/substrate/048-wf-web/apps/web/app/actions/file-actions.ts` | Wrapper exports `fetchDiffStats(worktreePath)` following lazy-import pattern | Add at ~line 129, after `fetchRecentFiles` |
-+| [ ] | T004 | Extend `PanelHeader` with `subtitle` prop | _platform/panel-layout | `/home/jak/substrate/048-wf-web/apps/web/src/features/_platform/panel-layout/components/panel-header.tsx` | `subtitle?: ReactNode` prop renders after title span in muted text. Existing tests still pass, new tests for subtitle added. | Additive optional prop — no breaking change |
-+| [ ] | T005 | Update PanelHeader tests for subtitle | _platform/panel-layout | `/home/jak/substrate/048-wf-web/test/unit/web/features/_platform/panel-layout/panel-header.test.tsx` | Tests verify: subtitle renders when provided, hidden when omitted | TDD — write failing tests first |
-+| [ ] | T006 | Extend `LeftPanel` with `subtitle` prop passthrough | _platform/panel-layout | `/home/jak/substrate/048-wf-web/apps/web/src/features/_platform/panel-layout/components/left-panel.tsx` | `subtitle?: ReactNode` in `LeftPanelProps`, passed to `PanelHeader subtitle` | Additive optional prop |
-+| [ ] | T007 | Update LeftPanel tests for subtitle passthrough | _platform/panel-layout | `/home/jak/substrate/048-wf-web/test/unit/web/features/_platform/panel-layout/left-panel.test.tsx` | Tests verify subtitle is forwarded to PanelHeader | TDD — write failing tests first |
-+| [ ] | T008 | Extend `usePanelState` to fetch and expose diff stats | file-browser | `/home/jak/substrate/048-wf-web/apps/web/src/features/041-file-browser/hooks/use-panel-state.ts` | `diffStats` in return object. Fetched on mount (like changedFiles). Refreshed in `handleRefreshChanges` Promise.all. | Add `fetchDiffStats` to options interface, add to Promise.all at line 84, add state + setter |
-+| [ ] | T009 | Wire `fetchDiffStats` and stats subtitle in BrowserClient | file-browser | `/home/jak/substrate/048-wf-web/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx` | Pass `fetchDiffStats` to `usePanelState`. Compute subtitle JSX from `panelState.diffStats`. Pass subtitle to `LeftPanel`. Stats visible in header, live-update on file changes. | Subtitle format: `· N changed  +X −Y` with green-500/red-500 colors. Hidden when no changes. |
-+
-+### Acceptance Criteria
-+
-+- [ ] AC-1: Git workspace browser page shows changed file count in FILES header (e.g., `FILES · 3 changed`)
-+- [ ] AC-2: Header shows total insertions (green) and deletions (red) alongside count (e.g., `+42 −18`)
-+- [ ] AC-3: No stats shown when no files are changed — header shows only "FILES"
-+- [ ] AC-4: Stats auto-update within ~1 second when files change (via live file events)
-+- [ ] AC-5: Non-git workspaces show no stats
-+- [ ] AC-6: Compact display using `text-xs`, muted/green-500/red-500 coloring per badge schema
-+- [ ] AC-7: Binary files counted as changed but contribute 0 to insertion/deletion totals
-+- [ ] AC-8: Edge cases handled: empty output, binary files, renamed files, repos with no commits
-+
-+### Risks
-+
-+| Risk | Likelihood | Impact | Mitigation |
-+|------|------------|--------|------------|
-+| `git diff --numstat` slow on large repos | Low | Low | 500ms debounce prevents rapid-fire; async state update keeps UI responsive |
-+| Binary file `-` in numstat breaks parser | Medium | Medium | Explicit parser handling + TDD edge case tests |
-+| Renamed file `{old=>new}` syntax unexpected | Low | Low | Explicit parser handling + TDD test case |
-+| PanelHeader subtitle prop breaks existing consumers | Very Low | Low | Prop is optional — additive change, no callers affected |
-+
-+---
-+
-+✅ Plan created:
-+- Location: `docs/plans/049-ux-enhancements/ux-enhancements-plan.md`
-+- Phases: 1 (Simple mode)
-+- Tasks: 9
-+- Domains: 2 modified + 1 consumed
-+- Next step: `/plan-6-v2-implement-phase --plan "docs/plans/049-ux-enhancements/ux-enhancements-plan.md"`
-diff --git a/docs/plans/049-ux-enhancements/ux-enhancements-spec.md b/docs/plans/049-ux-enhancements/ux-enhancements-spec.md
-new file mode 100644
-index 0000000..1db8493
---- /dev/null
-+++ b/docs/plans/049-ux-enhancements/ux-enhancements-spec.md
-@@ -0,0 +1,134 @@
-+# UX Enhancements
-+
-+**Mode**: Simple
-+
-+📚 This specification incorporates findings from [research-dossier.md](./research-dossier.md)
-+
-+> This is a multi-feature spec. Each section below is an independent, low-hanging-fruit UX improvement that can be implemented and shipped separately.
-+
-+---
-+
-+## Feature 1: File Change Statistics in FILES Header
-+
-+### Summary
-+
-+**WHAT**: Show the number of changed files and total inserted/deleted lines in the LeftPanel header ("FILES") at all times, so users have at-a-glance awareness of workspace modification state without switching to the changes view.
-+
-+**WHY**: The FILES header is permanently visible but currently displays only a static label. Users managing AI agent fleets need instant awareness of how much has changed in the workspace — "3 files changed, +42 −18 lines" tells them at a glance whether an agent made a small tweak or a large refactor. This reduces context-switching cost and supports the "calm over busy" UX philosophy.
-+
-+### Goals
-+
-+- Users see the count of uncommitted changed files in the FILES header at all times (when in a git workspace)
-+- Users see the total inserted and deleted line counts alongside the file count
-+- Statistics update immediately when files change in the worktree (via live file events, no manual refresh required)
-+- Statistics are compact and unobtrusive — they complement the "FILES" title without cluttering the header
-+- Non-git workspaces show no statistics (graceful degradation)
-+
-+### Non-Goals
-+
-+- Per-file line counts in the header (that level of detail belongs in the changes view)
-+- Staged vs unstaged breakdown in the header (too granular for a glance)
-+- Statistics for committed changes or git log history
-+- Clickable stats that navigate somewhere (the stats are informational only)
-+- Statistics in the ExplorerPanel top bar (only in the LeftPanel header)
-+
-+### Target Domains
-+
-+| Domain | Status | Relationship | Role in This Feature |
-+|--------|--------|-------------|---------------------|
-+| `file-browser` | existing | **modify** | Add diff stats service, extend `usePanelState` to compute and expose stats |
-+| `_platform/panel-layout` | existing | **modify** | Extend `PanelHeader` to accept and render optional stats metadata |
-+| `_platform/events` | existing | **consume** | Existing `useFileChanges('*')` → `handleRefreshChanges()` wiring triggers stats refresh (no changes to domain) |
-+
-+### Complexity
-+
-+- **Score**: CS-2 (small)
-+- **Breakdown**: S=1, I=0, D=0, N=0, F=0, T=1
-+  - Surface Area (S=1): Touches PanelHeader, LeftPanel, usePanelState, new diff-stats service, BrowserClient wiring — multiple files but within two known domains
-+  - Integration (I=0): Internal only — git CLI already used extensively
-+  - Data/State (D=0): No schema changes, no migrations. New state is ephemeral (derived from git output)
-+  - Novelty (N=0): Well-specified from research. Patterns established in plans 041, 043, 045
-+  - Non-Functional (F=0): Standard — no new security, performance, or compliance concerns
-+  - Testing/Rollout (T=1): New diff-stats service needs unit tests. PanelHeader extension needs test updates.
-+- **Confidence**: 0.95
-+- **Assumptions**:
-+  - `git diff --numstat` output is stable and machine-parseable
-+  - `changedFiles` count from existing `git diff --name-only` is sufficient for file count (no need for `git status` count)
-+  - The existing `handleRefreshChanges()` call in the `allChanges` effect (browser-client.tsx:184) is the right place to also refresh diff stats
-+- **Dependencies**: None external — all git commands are standard
-+- **Risks**: 
-+  - `git diff --numstat` on a large repo with many changes could be slow — mitigated by debounced event trigger (500ms) and async state update
-+  - Binary files show `-` in numstat output — parser must handle gracefully
-+- **Phases**: Single phase — this is a small, self-contained enhancement
-+
-+### Acceptance Criteria
-+
-+1. When a git workspace is open in the browser page, the FILES header displays the count of uncommitted changed files (e.g., `FILES · 3 changed`).
-+2. Alongside the changed file count, the header displays total inserted and deleted line counts using green/red coloring (e.g., `+42 −18`).
-+3. When no files are changed, the stats area is hidden — the header shows only "FILES" with no additional text.
-+4. When files change in the worktree (detected by the live file events system via `useFileChanges`), the statistics update automatically within ~1 second without any manual action.
-+5. In non-git workspaces, no statistics are shown (same as current behavior — just "FILES" title).
-+6. The stats display is compact — uses `text-xs` sizing, muted foreground for "changed", green-500 for insertions, red-500 for deletions — consistent with established badge color schema (PL-08).
-+7. Binary files in `git diff --numstat` output (which show `-` for lines) are counted as changed files but contribute 0 to insertion/deletion totals.
-+8. The diff stats service handles edge cases gracefully: empty output (no changes), binary files, renamed files, and repos with no commits.
-+
-+### Risks & Assumptions
-+
-+- **Risk**: `git diff --numstat` adds a git subprocess call per refresh cycle. **Mitigation**: It piggybacks on the existing refresh triggered by `handleRefreshChanges()` — no additional event subscriptions needed. The 500ms debounce on `useFileChanges('*')` prevents rapid-fire calls.
-+- **Assumption**: The existing `allChanges` → `handleRefreshChanges()` wiring (browser-client.tsx:184) is sufficient — diff stats refresh alongside changed files.
-+- **Assumption**: Total insertions/deletions (summed across all files) is the right granularity for the header.
-+
-+### Open Questions
-+
-+None — all resolved in clarification session.
-+
-+### Workshop Opportunities
-+
-+None needed — the design is simple and well-constrained by existing patterns.
-+
-+### Documentation Strategy
-+
-+- **Location**: No new documentation
-+- **Rationale**: CS-2 internal UX tweak. The new `getDiffStats()` service follows established git service patterns (`getChangedFiles()`, `getWorkingChanges()`). PanelHeader prop extension is self-documenting via TypeScript interfaces.
-+
-+---
-+
-+## Clarifications
-+
-+### Session 2026-02-26
-+
-+**Pre-declared by user**: Simple mode, Full TDD.
-+
-+| # | Question | Answer | Spec Impact |
-+|---|----------|--------|-------------|
-+| Q1 | Workflow Mode? | **Simple** — CS-2 task, single phase, quick path. | Header already set. |
-+| Q2 | Testing Strategy? | **Full TDD** — red-green-refactor for parser service + component contracts. | Testing Strategy section updated from Lightweight to Full TDD. |
-+| Q3 | Mock Usage? | **No mocks — fakes only** (per codebase convention QT-08). | Added to Testing Strategy. |
-+| Q4 | Domain Review? | **Confirmed correct.** `file-browser` owns data + computation, `panel-layout` owns display, `events` consumed unchanged. No breaking changes. | No changes needed. |
-+| Q5 | Documentation Strategy? | **No new documentation.** Service follows established patterns; TypeScript interfaces are self-documenting. | Documentation Strategy section added. |
-+
-+### Coverage Summary
-+
-+| Status | Count | Items |
-+|--------|-------|-------|
-+| Resolved | 5 | Mode (Simple), Testing (Full TDD), Mocks (Fakes only), Domains (Confirmed), Docs (None) |
-+| Deferred | 0 | — |
-+| Outstanding | 0 | — |
-+
-+### Testing Strategy
-+
-+- **Approach**: Full TDD
-+- **Rationale**: New git parser service has clear inputs/outputs ideal for red-green-refactor. PanelHeader extension is a contract change that benefits from test-first.
-+- **Mock Usage**: No mocks — fakes only (per codebase convention QT-08). Use existing `FakeFileSystem` patterns where applicable.
-+- **Focus Areas**:
-+  - `getDiffStats()` service — numstat parser: normal output, binary files (`-`), renames, empty output, no commits
-+  - PanelHeader — stats rendering: with stats, without stats, zero changes hidden
-+  - LeftPanel — stats passthrough from props to PanelHeader
-+- **Excluded**:
-+  - BrowserClient wiring (existing integration coverage via plan 045)
-+  - Event system refresh (already tested in plan 045)
-+  - Visual styling verification (manual via browser)
-+
-+---
-+
-+*Additional UX enhancement features will be added below as they are defined.*
 diff --git a/scripts/generate-templates.ts b/scripts/generate-templates.ts
 new file mode 100644
-index 0000000..8210f9f
+index 0000000..b5c1770
 --- /dev/null
 +++ b/scripts/generate-templates.ts
-@@ -0,0 +1,199 @@
+@@ -0,0 +1,163 @@
 +/**
 + * Generate workflow templates from test fixtures.
 + *
@@ -1191,10 +3144,12 @@ index 0000000..8210f9f
 +import * as path from 'node:path';
 +
 +import { PositionalGraphAdapter, PositionalGraphService } from '@chainglass/positional-graph';
-+import type { IPositionalGraphService, IWorkUnitLoader } from '@chainglass/positional-graph/interfaces';
++import type { IPositionalGraphService } from '@chainglass/positional-graph/interfaces';
 +import { NodeFileSystemAdapter, PathResolverAdapter, YamlParserAdapter } from '@chainglass/shared';
 +import type { WorkspaceContext } from '@chainglass/workflow';
 +import { InstanceAdapter, TemplateAdapter, TemplateService } from '@chainglass/workflow';
++
++import { buildDiskWorkUnitLoader, makeScriptsExecutable } from '../dev/test-graphs/shared/helpers.js';
 +
 +const ROOT = path.resolve(import.meta.dirname, '..');
 +const FIXTURES_DIR = path.join(ROOT, 'dev', 'test-graphs');
@@ -1209,29 +3164,6 @@ index 0000000..8210f9f
 +    worktreeBranch: null,
 +    isMainWorktree: true,
 +    hasGit: true,
-+  };
-+}
-+
-+function buildLoader(workspacePath: string, yamlParser: YamlParserAdapter): IWorkUnitLoader {
-+  return {
-+    async load(_ctx: WorkspaceContext, slug: string) {
-+      const unitYamlPath = path.join(workspacePath, '.chainglass', 'units', slug, 'unit.yaml');
-+      try {
-+        const content = await fs.readFile(unitYamlPath, 'utf-8');
-+        const parsed = yamlParser.parse<{
-+          slug: string;
-+          type: 'agent' | 'code' | 'user-input';
-+          inputs?: Array<{ name: string; type: 'data' | 'file'; required: boolean }>;
-+          outputs: Array<{ name: string; type: 'data' | 'file'; required: boolean }>;
-+        }>(content, unitYamlPath);
-+        return {
-+          unit: { slug: parsed.slug, type: parsed.type, inputs: parsed.inputs ?? [], outputs: parsed.outputs },
-+          errors: [],
-+        };
-+      } catch {
-+        return { errors: [{ message: `Unit '${slug}' not found`, code: 'NOT_FOUND' }] };
-+      }
-+    },
 +  };
 +}
 +
@@ -1286,14 +3218,14 @@ index 0000000..8210f9f
 +    await fs.cp(fixtureUnits, unitsDir, { recursive: true });
 +
 +    // Make scripts executable
-+    await makeExecutable(unitsDir);
++    await makeScriptsExecutable(unitsDir);
 +
 +    // Wire real services
 +    const nodeFs = new NodeFileSystemAdapter();
 +    const pathResolver = new PathResolverAdapter();
 +    const yamlParser = new YamlParserAdapter();
 +    const graphAdapter = new PositionalGraphAdapter(nodeFs, pathResolver);
-+    const loader = buildLoader(tmpDir, yamlParser);
++    const loader = buildDiskWorkUnitLoader(tmpDir);
 +    const graphService = new PositionalGraphService(nodeFs, pathResolver, yamlParser, graphAdapter, loader);
 +    const templateAdapter = new TemplateAdapter(nodeFs, pathResolver);
 +    const instanceAdapter = new InstanceAdapter(nodeFs, pathResolver);
@@ -1331,7 +3263,7 @@ index 0000000..8210f9f
 +    await fs.cp(srcTemplate, destTemplate, { recursive: true });
 +
 +    // Make scripts executable in final location
-+    await makeExecutable(path.join(destTemplate, 'units'));
++    await makeScriptsExecutable(path.join(destTemplate, 'units'));
 +
 +    console.log(`  Copied to: .chainglass/templates/workflows/${config.slug}/`);
 +  } finally {
@@ -1339,21 +3271,6 @@ index 0000000..8210f9f
 +  }
 +}
 +
-+async function makeExecutable(dir: string): Promise<void> {
-+  try {
-+    const entries = await fs.readdir(dir, { withFileTypes: true });
-+    for (const entry of entries) {
-+      const full = path.join(dir, entry.name);
-+      if (entry.isDirectory()) {
-+        await makeExecutable(full);
-+      } else if (entry.name.endsWith('.sh')) {
-+        await fs.chmod(full, 0o755);
-+      }
-+    }
-+  } catch {
-+    // Dir may not exist
-+  }
-+}
 +
 +// CLI
 +const args = process.argv.slice(2);
@@ -1373,12 +3290,104 @@ index 0000000..8210f9f
 +}
 +
 +console.log('\nDone. Templates at .chainglass/templates/workflows/');
+diff --git a/test/integration/template-instance-validation.test.ts b/test/integration/template-instance-validation.test.ts
+index a1cbfaa..cca51fd 100644
+--- a/test/integration/template-instance-validation.test.ts
++++ b/test/integration/template-instance-validation.test.ts
+@@ -23,12 +23,16 @@ import * as os from 'node:os';
+ import * as path from 'node:path';
+ 
+ import { PositionalGraphAdapter, PositionalGraphService } from '@chainglass/positional-graph';
+-import type { IWorkUnitLoader } from '@chainglass/positional-graph';
+ import { NodeFileSystemAdapter, PathResolverAdapter, YamlParserAdapter } from '@chainglass/shared';
+ import type { WorkspaceContext } from '@chainglass/workflow';
+ import { InstanceAdapter, TemplateAdapter, TemplateService } from '@chainglass/workflow';
+ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+ 
++import {
++  buildDiskWorkUnitLoader,
++  makeScriptsExecutable,
++} from '../../dev/test-graphs/shared/helpers.js';
++
+ // ─── Test Infrastructure (T003) ────────────────────────────────────
+ 
+ const FIXTURES_ROOT = path.resolve(import.meta.dirname, '../../dev/test-graphs');
+@@ -69,10 +73,7 @@ async function setupTestWorkspace(): Promise<TestContext> {
+   await nodeFs.cp(fixtureUnits, unitsDir, { recursive: true });
+ 
+   // Make scripts executable
+-  const scripts = await findScripts(unitsDir);
+-  for (const script of scripts) {
+-    await nodeFs.chmod(script, 0o755);
+-  }
++  await makeScriptsExecutable(unitsDir);
+ 
+   // Wire real services
+   const fs = new NodeFileSystemAdapter();
+@@ -80,7 +81,7 @@ async function setupTestWorkspace(): Promise<TestContext> {
+   const yamlParser = new YamlParserAdapter();
+ 
+   const graphAdapter = new PositionalGraphAdapter(fs, pathResolver);
+-  const loader: IWorkUnitLoader = buildLoader(tmpDir, yamlParser);
++  const loader = buildDiskWorkUnitLoader(tmpDir);
+   const graphService = new PositionalGraphService(
+     fs,
+     pathResolver,
+@@ -102,48 +103,6 @@ async function setupTestWorkspace(): Promise<TestContext> {
+   return { tmpDir, ctx, graphService, templateService };
+ }
+ 
+-function buildLoader(workspacePath: string, yamlParser: YamlParserAdapter): IWorkUnitLoader {
+-  return {
+-    async load(_ctx: WorkspaceContext, slug: string) {
+-      const unitYamlPath = path.join(workspacePath, '.chainglass', 'units', slug, 'unit.yaml');
+-      try {
+-        const content = await nodeFs.readFile(unitYamlPath, 'utf-8');
+-        const parsed = yamlParser.parse<{
+-          slug: string;
+-          type: 'agent' | 'code' | 'user-input';
+-          inputs?: Array<{ name: string; type: 'data' | 'file'; required: boolean }>;
+-          outputs: Array<{ name: string; type: 'data' | 'file'; required: boolean }>;
+-        }>(content, unitYamlPath);
+-        return {
+-          unit: {
+-            slug: parsed.slug,
+-            type: parsed.type,
+-            inputs: parsed.inputs ?? [],
+-            outputs: parsed.outputs,
+-          },
+-          errors: [],
+-        };
+-      } catch {
+-        return { errors: [{ message: `Unit '${slug}' not found`, code: 'UNIT_NOT_FOUND' }] };
+-      }
+-    },
+-  };
+-}
+-
+-async function findScripts(dir: string): Promise<string[]> {
+-  const results: string[] = [];
+-  const entries = await nodeFs.readdir(dir, { withFileTypes: true });
+-  for (const entry of entries) {
+-    const fullPath = path.join(dir, entry.name);
+-    if (entry.isDirectory()) {
+-      results.push(...(await findScripts(fullPath)));
+-    } else if (entry.name.endsWith('.sh')) {
+-      results.push(fullPath);
+-    }
+-  }
+-  return results;
+-}
+-
+ async function buildSimpleGraph(
+   ctx: WorkspaceContext,
+   service: PositionalGraphService,
 diff --git a/test/integration/template-lifecycle-e2e.test.ts b/test/integration/template-lifecycle-e2e.test.ts
 new file mode 100644
-index 0000000..55ccfa8
+index 0000000..c5766ed
 --- /dev/null
 +++ b/test/integration/template-lifecycle-e2e.test.ts
-@@ -0,0 +1,222 @@
+@@ -0,0 +1,213 @@
 +/**
 + * E2E test: Template lifecycle.
 + *
@@ -1402,7 +3411,7 @@ index 0000000..55ccfa8
 +import * as path from 'node:path';
 +
 +import { YamlParserAdapter } from '@chainglass/shared';
-+import { afterEach, describe, expect, it } from 'vitest';
++import { describe, expect, it } from 'vitest';
 +
 +import {
 +  type TemplateTestContext,
@@ -1410,15 +3419,6 @@ index 0000000..55ccfa8
 +} from '../../dev/test-graphs/shared/template-test-runner.js';
 +
 +describe('Template lifecycle E2E', () => {
-+  let cleanupFn: (() => Promise<void>) | null = null;
-+
-+  afterEach(async () => {
-+    if (cleanupFn) {
-+      await cleanupFn();
-+      cleanupFn = null;
-+    }
-+  });
-+
 +  it('should instantiate simple-serial with correct structure', async () => {
 +    await withTemplateWorkflow('simple-serial', async (ttc: TemplateTestContext) => {
 +      const instanceDir = path.join(

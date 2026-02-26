@@ -1,17 +1,17 @@
 slug: simple-serial
 version: 0.1.0
-created_at: 2026-02-26T02:06:21.181Z
+created_at: 2026-02-26T03:38:30.783Z
 lines:
-  - id: line-d2f
+  - id: line-e74
     nodes:
-      - setup-b90
+      - setup-83b
     properties: {}
     orchestratorSettings:
       transition: auto
       autoStartLine: true
-  - id: line-5c1
+  - id: line-0d8
     nodes:
-      - worker-ba1
+      - worker-27c
     properties: {}
     orchestratorSettings:
       transition: auto
