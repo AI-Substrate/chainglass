@@ -9,6 +9,8 @@
 
 Build a visual workflow editor for the positional graph system as a new `workflow-ui` business domain. The editor uses a custom HTML/CSS + dnd-kit canvas (not ReactFlow) to render lines as horizontal rows with draggable node cards. Context flow indicators, readiness gates, Q&A modals, and in-memory snapshot undo/redo provide a rich editing experience. A doping system (`just dope`) populates demo workflows for UI development. Real-time SSE updates keep the active workflow in sync with CLI/agent changes. The deprecated workgraph UI (Plan 022) and associated legacy pages/routes are fully removed.
 
+**Cross-cutting principle: Opportunistic workgraph removal** — when touching any file that contains workgraph code, clean it out at that time rather than leaving it for Phase 7. Phase 7 handles whatever remains after all other phases.
+
 ## Target Domains
 
 | Domain | Status | Relationship | Role |
