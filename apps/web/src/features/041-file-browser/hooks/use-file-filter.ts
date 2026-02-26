@@ -169,9 +169,9 @@ export function useFileFilter({
       const cache = cacheRef.current;
       for (const change of changes) {
         const relativePath = change.path;
-        if (change.type === 'unlink') {
+        if (change.eventType === 'unlink') {
           cache.delete(relativePath);
-        } else if (change.type === 'add') {
+        } else if (change.eventType === 'add') {
           cache.set(relativePath, {
             path: relativePath,
             mtime: Date.now(),

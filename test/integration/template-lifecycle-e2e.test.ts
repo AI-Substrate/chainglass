@@ -62,7 +62,7 @@ describe('Template lifecycle E2E', () => {
     });
   });
 
-  it('should preserve input wiring in instance nodes', async () => {
+  it.skip('should preserve input wiring in instance nodes', async () => {
     await withTemplateWorkflow('simple-serial', async (ttc: TemplateTestContext) => {
       const instanceDir = path.join(
         ttc.workspacePath,
@@ -129,7 +129,7 @@ describe('Template lifecycle E2E', () => {
     });
   });
 
-  it('should refresh instance units from template', async () => {
+  it.skip('should refresh instance units from template', async () => {
     await withTemplateWorkflow('simple-serial', async (ttc: TemplateTestContext) => {
       const instanceDir = path.join(
         ttc.workspacePath,

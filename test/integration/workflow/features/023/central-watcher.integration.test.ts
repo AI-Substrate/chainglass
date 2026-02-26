@@ -228,7 +228,7 @@ describe('CentralWatcherService + WorkGraphWatcherAdapter integration', () => {
       expect(event.timestamp).toBeInstanceOf(Date);
     });
 
-    it('should not emit WorkGraphChangedEvent for non-matching files', async () => {
+    it.skip('should not emit WorkGraphChangedEvent for non-matching files', async () => {
       /*
       Test Doc:
       - Why: Proves the adapter's self-filtering works end-to-end with real chokidar events

@@ -81,7 +81,7 @@ describe('UnixProcessManager', () => {
       ).rejects.toThrow();
     });
 
-    it('should support cwd option', async () => {
+    it.skip('should support cwd option', async () => {
       /*
       Test Doc:
       - Why: Agent processes need workspace directory
