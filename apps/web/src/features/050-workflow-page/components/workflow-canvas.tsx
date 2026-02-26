@@ -48,7 +48,11 @@ export function WorkflowCanvas({
       data-testid="workflow-canvas"
       className="flex flex-col gap-1 p-4 overflow-y-auto h-full"
       onClick={(e) => {
-        if (e.target === e.currentTarget) onSelectNode?.(null);
+        // Deselect unless clicking a node card
+        const target = e.target as HTMLElement;
+        if (!target.closest('[data-testid^="node-card-"]')) {
+          onSelectNode?.(null);
+        }
       }}
       onKeyDown={(e) => {
         if (e.key === 'Escape') onSelectNode?.(null);
