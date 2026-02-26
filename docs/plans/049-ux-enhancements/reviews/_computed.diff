@@ -1,0 +1,548 @@
+diff --git a/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx b/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
+index 5ad9bc8..1edd071 100644
+--- a/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
++++ b/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
+@@ -43,6 +43,7 @@ import { toast } from 'sonner';
+ import { z } from 'zod';
+ import {
+   fetchChangedFiles,
++  fetchDiffStats,
+   fetchGitDiff,
+   fetchRecentFiles,
+   fetchWorkingChanges,
+@@ -125,6 +126,7 @@ function BrowserClientInner({
+     fetchWorkingChanges,
+     fetchRecentFiles,
+     fetchChangedFiles,
++    fetchDiffStats,
+   });
+ 
+   const clipboard = useClipboard({ slug, worktreePath, readFile });
+@@ -375,6 +377,20 @@ function BrowserClientInner({
+ 
+   // --- Render ---
+ 
++  // Compute diff stats subtitle for FILES header (Plan 049 Feature 1)
++  const diffStatsSubtitle = useMemo(() => {
++    const stats = panelState.diffStats;
++    if (!stats || stats.files === 0) return undefined;
++    return (
++      <span className="text-xs flex items-center gap-1.5">
++        <span className="text-muted-foreground">·</span>
++        <span className="text-muted-foreground">{stats.files} changed</span>
++        {stats.insertions > 0 && <span className="text-green-500">+{stats.insertions}</span>}
++        {stats.deletions > 0 && <span className="text-red-500">−{stats.deletions}</span>}
++      </span>
++    );
++  }, [panelState.diffStats]);
++
+   return (
+     <div className="h-[calc(100vh-4rem)] overflow-hidden">
+       <PanelShell
+@@ -397,6 +413,7 @@ function BrowserClientInner({
+             onModeChange={panelState.handlePanelModeChange}
+             modes={panelModes}
+             onRefresh={handlePanelRefresh}
++            subtitle={diffStatsSubtitle}
+           >
+             {{
+               tree: (
+diff --git a/apps/web/app/actions/file-actions.ts b/apps/web/app/actions/file-actions.ts
+index bc304fa..cf78295 100644
+--- a/apps/web/app/actions/file-actions.ts
++++ b/apps/web/app/actions/file-actions.ts
+@@ -127,6 +127,12 @@ export async function fetchRecentFiles(worktreePath: string, limit = 20) {
+   return getRecentFiles(worktreePath, limit);
+ }
+ 
++// Diff stats — git diff HEAD --shortstat parser (Plan 049 Feature 1)
++export async function fetchDiffStats(worktreePath: string) {
++  const { getDiffStats } = await import('../../src/features/041-file-browser/services/diff-stats');
++  return getDiffStats(worktreePath);
++}
++
+ // File existence check — lightweight stat for ExplorerPanel (Plan 043 Phase 2)
+ // Security: resolves trusted root from slug via IWorkspaceService, not client worktreePath.
+ export async function fileExists(
+diff --git a/apps/web/src/features/041-file-browser/hooks/use-panel-state.ts b/apps/web/src/features/041-file-browser/hooks/use-panel-state.ts
+index 4bf7c96..6819b91 100644
+--- a/apps/web/src/features/041-file-browser/hooks/use-panel-state.ts
++++ b/apps/web/src/features/041-file-browser/hooks/use-panel-state.ts
+@@ -9,6 +9,7 @@
+  * Phase 3: Wire Into BrowserClient — Plan 043
+  */
+ 
++import type { DiffStats } from '@/features/041-file-browser/services/diff-stats';
+ import type { ChangedFile } from '@/features/041-file-browser/services/working-changes';
+ import type { PanelMode } from '@/features/_platform/panel-layout';
+ import { useCallback, useEffect, useState } from 'react';
+@@ -29,6 +30,9 @@ interface UsePanelStateOptions {
+   fetchChangedFiles: (
+     worktreePath: string
+   ) => Promise<{ ok: true; files: string[] } | { ok: false; error: string }>;
++  fetchDiffStats: (
++    worktreePath: string
++  ) => Promise<{ ok: true; stats: DiffStats } | { ok: false; error: string }>;
+ }
+ 
+ export function usePanelState(options: UsePanelStateOptions) {
+@@ -40,20 +44,25 @@ export function usePanelState(options: UsePanelStateOptions) {
+     fetchWorkingChanges: fetchWorkingChangesFn,
+     fetchRecentFiles: fetchRecentFilesFn,
+     fetchChangedFiles: fetchChangedFilesFn,
++    fetchDiffStats: fetchDiffStatsFn,
+   } = options;
+ 
+   const [workingChanges, setWorkingChanges] = useState<ChangedFile[]>([]);
+   const [recentFiles, setRecentFiles] = useState<string[]>([]);
+   const [changedFiles, setChangedFiles] = useState<string[]>([]);
++  const [diffStats, setDiffStats] = useState<DiffStats | null>(null);
+   const [changesLoaded, setChangesLoaded] = useState(false);
+ 
+-  // Fetch changed files on mount for amber highlighting in tree view
++  // Fetch changed files + diff stats on mount for tree view + header stats
+   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional mount-only effect
+   useEffect(() => {
+     if (isGit) {
+       fetchChangedFilesFn(worktreePath).then((result) => {
+         if (result.ok) setChangedFiles(result.files);
+       });
++      fetchDiffStatsFn(worktreePath).then((result) => {
++        if (result.ok) setDiffStats(result.stats);
++      });
+     }
+   }, []);
+ 
+@@ -84,12 +93,21 @@ export function usePanelState(options: UsePanelStateOptions) {
+       fetchWorkingChangesFn(worktreePath),
+       fetchRecentFilesFn(worktreePath),
+       fetchChangedFilesFn(worktreePath),
+-    ]).then(([wcResult, rfResult, cfResult]) => {
++      fetchDiffStatsFn(worktreePath),
++    ]).then(([wcResult, rfResult, cfResult, dsResult]) => {
+       if (wcResult.ok) setWorkingChanges(wcResult.files);
+       if (rfResult.ok) setRecentFiles(rfResult.files);
+       if (cfResult.ok) setChangedFiles(cfResult.files);
++      if (dsResult.ok) setDiffStats(dsResult.stats);
+     });
+-  }, [isGit, worktreePath, fetchWorkingChangesFn, fetchRecentFilesFn, fetchChangedFilesFn]);
++  }, [
++    isGit,
++    worktreePath,
++    fetchWorkingChangesFn,
++    fetchRecentFilesFn,
++    fetchChangedFilesFn,
++    fetchDiffStatsFn,
++  ]);
+ 
+   // Available modes for LeftPanel
+   const panelModes = isGit
+@@ -104,6 +122,7 @@ export function usePanelState(options: UsePanelStateOptions) {
+     workingChanges,
+     recentFiles,
+     changedFiles,
++    diffStats,
+     panelModes,
+     handlePanelModeChange,
+     handleRefreshChanges,
+diff --git a/apps/web/src/features/041-file-browser/services/diff-stats.ts b/apps/web/src/features/041-file-browser/services/diff-stats.ts
+new file mode 100644
+index 0000000..e9488d6
+--- /dev/null
++++ b/apps/web/src/features/041-file-browser/services/diff-stats.ts
+@@ -0,0 +1,65 @@
++/**
++ * Diff Stats Service
++ *
++ * Returns aggregate diff statistics (files changed, insertions, deletions)
++ * for a workspace using `git diff HEAD --shortstat`.
++ *
++ * Feature 1: File Change Statistics — Plan 049
++ * DYK-01: Use HEAD to capture staged+unstaged changes
++ * DYK-03: Fallback to `git diff --shortstat` if HEAD doesn't exist (new repo)
++ * DYK-05: --shortstat gives single-line summary, simpler than --numstat
++ */
++
++import { execFile } from 'node:child_process';
++import { promisify } from 'node:util';
++
++const execFileAsync = promisify(execFile);
++
++export interface DiffStats {
++  files: number;
++  insertions: number;
++  deletions: number;
++}
++
++export type DiffStatsResult = { ok: true; stats: DiffStats } | { ok: false; error: 'not-git' };
++
++/** Parse `git diff --shortstat` output into structured stats. */
++export function parseShortstatOutput(output: string): DiffStats {
++  const trimmed = output.trim();
++  if (!trimmed) return { files: 0, insertions: 0, deletions: 0 };
++
++  const filesMatch = trimmed.match(/(\d+) files? changed/);
++  const insertionsMatch = trimmed.match(/(\d+) insertions?\(\+\)/);
++  const deletionsMatch = trimmed.match(/(\d+) deletions?\(-\)/);
++
++  return {
++    files: filesMatch ? Number.parseInt(filesMatch[1], 10) : 0,
++    insertions: insertionsMatch ? Number.parseInt(insertionsMatch[1], 10) : 0,
++    deletions: deletionsMatch ? Number.parseInt(deletionsMatch[1], 10) : 0,
++  };
++}
++
++export async function getDiffStats(worktreePath: string): Promise<DiffStatsResult> {
++  try {
++    // Try HEAD first (captures staged+unstaged)
++    const { stdout } = await execFileAsync('git', ['diff', 'HEAD', '--shortstat'], {
++      cwd: worktreePath,
++    });
++    return { ok: true, stats: parseShortstatOutput(stdout) };
++  } catch (headError: unknown) {
++    // DYK-03: HEAD fails on repos with no commits — fallback to index diff
++    const isHeadError =
++      headError instanceof Error && headError.message.includes('ambiguous argument');
++    if (isHeadError) {
++      try {
++        const { stdout } = await execFileAsync('git', ['diff', '--shortstat'], {
++          cwd: worktreePath,
++        });
++        return { ok: true, stats: parseShortstatOutput(stdout) };
++      } catch {
++        return { ok: false, error: 'not-git' };
++      }
++    }
++    return { ok: false, error: 'not-git' };
++  }
++}
+diff --git a/apps/web/src/features/_platform/panel-layout/components/left-panel.tsx b/apps/web/src/features/_platform/panel-layout/components/left-panel.tsx
+index f6993ac..0682914 100644
+--- a/apps/web/src/features/_platform/panel-layout/components/left-panel.tsx
++++ b/apps/web/src/features/_platform/panel-layout/components/left-panel.tsx
+@@ -25,10 +25,18 @@ export interface LeftPanelProps {
+   onModeChange: (mode: PanelMode) => void;
+   modes: LeftPanelMode[];
+   onRefresh: () => void;
++  subtitle?: ReactNode;
+   children: Partial<Record<PanelMode, ReactNode>>;
+ }
+ 
+-export function LeftPanel({ mode, onModeChange, modes, onRefresh, children }: LeftPanelProps) {
++export function LeftPanel({
++  mode,
++  onModeChange,
++  modes,
++  onRefresh,
++  subtitle,
++  children,
++}: LeftPanelProps) {
+   // Hide mode buttons when only one mode available
+   const showModes = modes.length > 1 ? modes : undefined;
+ 
+@@ -36,6 +44,7 @@ export function LeftPanel({ mode, onModeChange, modes, onRefresh, children }: Le
+     <div className="flex flex-col h-full text-sm">
+       <PanelHeader
+         title="Files"
++        subtitle={subtitle}
+         modes={showModes}
+         activeMode={mode}
+         onModeChange={onModeChange}
+diff --git a/apps/web/src/features/_platform/panel-layout/components/panel-header.tsx b/apps/web/src/features/_platform/panel-layout/components/panel-header.tsx
+index 0a6b0d7..1ddc0a5 100644
+--- a/apps/web/src/features/_platform/panel-layout/components/panel-header.tsx
++++ b/apps/web/src/features/_platform/panel-layout/components/panel-header.tsx
+@@ -27,17 +27,26 @@ export interface PanelHeaderAction {
+ 
+ export interface PanelHeaderProps {
+   title: string;
++  subtitle?: ReactNode;
+   modes?: PanelHeaderMode[];
+   activeMode?: PanelMode;
+   onModeChange?: (mode: PanelMode) => void;
+   actions?: PanelHeaderAction[];
+ }
+ 
+-export function PanelHeader({ title, modes, activeMode, onModeChange, actions }: PanelHeaderProps) {
++export function PanelHeader({
++  title,
++  subtitle,
++  modes,
++  activeMode,
++  onModeChange,
++  actions,
++}: PanelHeaderProps) {
+   return (
+     <div className="flex items-center justify-between border-b px-3 py-2 shrink-0 sticky top-0 bg-background z-10">
+       <div className="flex items-center gap-1">
+         <span className="text-xs font-medium text-muted-foreground uppercase">{title}</span>
++        {subtitle && <span data-testid="panel-header-subtitle">{subtitle}</span>}
+         {modes?.map((mode) => (
+           <button
+             key={mode.key}
+diff --git a/docs/domains/_platform/panel-layout/domain.md b/docs/domains/_platform/panel-layout/domain.md
+index 381f46c..791d443 100644
+--- a/docs/domains/_platform/panel-layout/domain.md
++++ b/docs/domains/_platform/panel-layout/domain.md
+@@ -98,3 +98,4 @@ Primary: `apps/web/src/features/_platform/panel-layout/`
+ | Plan 043 Phase 3 | Wired into BrowserClient. PanelShell with resizable layout, ExplorerPanel with file path handler, LeftPanel with tree/changes modes. First active consumer. | 2026-02-24 |
+ | Plan 046 | Extracted AsciiSpinner from ExplorerPanel as reusable component, exported via barrel | 2026-02-24 |
+ | Plan 047 Phase 3 | Command palette: ExplorerPanel centered with border/shadow, palette mode (> prefix), CommandPaletteDropdown (multi-mode: commands/symbols/search), keyboard delegation, openPalette() handle, # stub handler, search fallback | 2026-02-25 |
++| Plan 049 Feature 1 | PanelHeader + LeftPanel gain optional `subtitle?: ReactNode` prop for inline metadata display | 2026-02-26 |
+diff --git a/docs/domains/file-browser/domain.md b/docs/domains/file-browser/domain.md
+index efc11bf..21bc110 100644
+--- a/docs/domains/file-browser/domain.md
++++ b/docs/domains/file-browser/domain.md
+@@ -161,3 +161,4 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
+ | Plan 041 Phase 5 | WorkspaceContext, useAttentionTitle wired, EmojiPicker, ColorPicker, settings page (/settings/workspaces), pop-out button, sidebar emoji | 2026-02-24 |
+ | Plan 041 P5 ST-001 | Per-worktree emoji/color (WorktreeVisualPreferences), worktreeIdentity in context, tab title composition, inline gear popover, updateWorktreePreferences action, browser history push on file nav, scroll-to-top on file change | 2026-02-24 |
+ | 047-usdk Phase 6 | SDK contribution (3 commands, 5 settings), go-to-line URL param + path parsing, CodeMirror scroll-to-line | 2026-02-25 |
++| Plan 049 Feature 1 | Diff stats service (git diff HEAD --shortstat), usePanelState extension, live-updating file change stats in FILES header | 2026-02-26 |
+diff --git a/docs/plans/049-ux-enhancements/execution.log.md b/docs/plans/049-ux-enhancements/execution.log.md
+new file mode 100644
+index 0000000..8cef1c3
+--- /dev/null
++++ b/docs/plans/049-ux-enhancements/execution.log.md
+@@ -0,0 +1,61 @@
++# Execution Log — 049 UX Enhancements (Feature 1: File Change Statistics)
++
++## T002 + T001: getDiffStats Service (TDD)
++
++**Started**: 2026-02-26T03:20Z
++**Completed**: 2026-02-26T03:25Z
++
++- RED: Created 8 tests (7 parser + 1 integration) — all failed (module missing)
++- GREEN: Created `diff-stats.ts` with `parseShortstatOutput()` + `getDiffStats()` — all 8 pass
++- Pattern: Follows `changed-files.ts` exactly — `execFileAsync` → parse → `{ok, stats}` union
++- DYK-01 applied: Uses `git diff HEAD --shortstat` for staged+unstaged
++- DYK-03 applied: Fallback to `git diff --shortstat` on HEAD error (new repos)
++- DYK-05 applied: Single regex parse, no per-file handling
++
++## T003: fetchDiffStats Server Action
++
++**Completed**: 2026-02-26T03:25Z
++
++- Added lazy-import wrapper at line 129 in `file-actions.ts`, after `fetchRecentFiles`
++- Identical pattern to `fetchChangedFiles`, `fetchWorkingChanges`, `fetchRecentFiles`
++
++## T004 + T005: PanelHeader subtitle Prop (TDD)
++
++**Completed**: 2026-02-26T03:25Z
++
++- RED: Added 2 subtitle tests to `panel-header.test.tsx` — 1 failed
++- GREEN: Added `subtitle?: ReactNode` prop + `data-testid="panel-header-subtitle"` wrapper — all 8 pass
++- Additive optional prop — no breaking changes
++
++## T006 + T007: LeftPanel subtitle Passthrough (TDD)
++
++**Completed**: 2026-02-26T03:25Z
++
++- RED: Added subtitle passthrough test — failed
++- GREEN: Added `subtitle?: ReactNode` to `LeftPanelProps`, passed to `PanelHeader` — all 6 pass
++
++## T008: usePanelState Extension
++
++**Completed**: 2026-02-26T03:25Z
++
++- Added `fetchDiffStats` to options interface
++- Added `diffStats` state with `DiffStats | null` type
++- Fetches on mount alongside `changedFiles`
++- Added as 4th entry in `handleRefreshChanges` `Promise.all`
++- Returns `diffStats` in hook output
++
++## T009: BrowserClient Wiring
++
++**Completed**: 2026-02-26T03:25Z
++
++- Imported `fetchDiffStats` from file-actions
++- Passed to `usePanelState` options
++- Computed `diffStatsSubtitle` via `useMemo` — compact JSX with green-500/red-500 colors
++- Passed subtitle to `LeftPanel`
++- Format: `· N changed +X −Y` — hidden when no changes
++
++## Verification
++
++- **All 22 new/modified tests pass** (8 diff-stats + 8 panel-header + 6 left-panel)
++- **Full suite: 4523 tests passed, 0 failures** (326 test files)
++- **Lint: All 9 modified files clean** (biome check passes)
+diff --git a/docs/plans/049-ux-enhancements/ux-enhancements-plan.md b/docs/plans/049-ux-enhancements/ux-enhancements-plan.md
+index e2b43eb..4d5ae84 100644
+--- a/docs/plans/049-ux-enhancements/ux-enhancements-plan.md
++++ b/docs/plans/049-ux-enhancements/ux-enhancements-plan.md
+@@ -4,7 +4,7 @@
+ **Plan Version**: 1.0.0
+ **Created**: 2026-02-26
+ **Spec**: [ux-enhancements-spec.md](./ux-enhancements-spec.md)
+-**Status**: DRAFT
++**Status**: COMPLETE
+ 
+ ## Summary
+ 
+@@ -38,10 +38,10 @@ The FILES header in the browser page's LeftPanel currently shows a static "FILES
+ |---|--------|---------|--------|
+ | 01 | Critical | Git service pattern proven: `changed-files.ts` uses `execFileAsync` → parse → return `{ok, files}` union. Server action wraps with lazy import. Hook composes in `Promise.all`. | Follow identical pattern for `getDiffStats`. |
+ | 02 | Critical | `fetchDiffStats` slots directly into `file-actions.ts` (lines ~129) as 4th server action wrapper, and into `handleRefreshChanges` `Promise.all` (line 84) as 4th entry. | Zero new infrastructure — additive changes only. |
+-| 03 | High | Binary files in `git diff --numstat` output show `-\t-\tpath` instead of numbers. Renamed files use `{old => new}/file.ts` brace syntax. | Parser must handle both: treat `-` as 0 for line counts, extract new path from rename syntax. TDD covers these edge cases. |
++| 03 | High | `git diff HEAD --shortstat` gives pre-formatted summary (`1 file changed, 1 insertion(+), 1 deletion(-)`) — single regex parse, no per-file handling, no binary/rename edge cases (DYK-05). Keep `getChangedFiles()` separate for tree highlighting — clean single-responsibility. | Use `--shortstat` instead of `--numstat`. Simpler parser, no refactoring. |
+ | 04 | High | `PanelHeader` has no slot for metadata — only `title: string`. LeftPanel hardcodes `title="Files"`. | Add additive `subtitle?: ReactNode` prop to both. Subtitle renders inline after title in muted style. |
+-| 05 | Medium | Race condition concern from overlapping refresh requests. | Non-issue: existing 500ms debounce on `useFileChanges('*')` + React state batching (last-write-wins) already handles this — same as the 3 existing services. |
+-| 06 | Medium | `git diff --numstat` only counts tracked files — gitignored files (node_modules, dist) are excluded automatically. | No filtering needed — git handles this inherently. |
++| 05 | High | `git diff HEAD` captures staged+unstaged changes (DYK-01). Plain `git diff` misses staged files. `git diff HEAD` fails on repos with no commits (exit 128) — fallback to `git diff --shortstat` (DYK-03). | Use `HEAD` flag with try/catch fallback. |
++| 06 | Medium | Race condition concern from overlapping refresh requests. | Non-issue: existing 500ms debounce on `useFileChanges('*')` + React state batching (last-write-wins) already handles this — same as the 3 existing services. |
+ 
+ ## Implementation
+ 
+@@ -52,15 +52,15 @@ The FILES header in the browser page's LeftPanel currently shows a static "FILES
+ 
+ | Status | ID | Task | Domain | Path(s) | Done When | Notes |
+ |--------|-----|------|--------|---------|-----------|-------|
+-| [ ] | T001 | Create `getDiffStats()` service with `git diff HEAD --numstat` parser | file-browser | `/home/jak/substrate/048-wf-web/apps/web/src/features/041-file-browser/services/diff-stats.ts` | TDD: tests pass for normal output, binary (`-`), renames (`{old=>new}`), empty output, not-git error, no-commits fallback | Follow `changed-files.ts` pattern. Use `git diff HEAD --numstat` to capture staged+unstaged (DYK-01). Return `DiffStatsResult = {ok:true, stats:{files:number, insertions:number, deletions:number}} \| {ok:false, error:'not-git'}`. Fallback to `git diff --numstat` if HEAD doesn't exist (new repo). |
+-| [ ] | T002 | Write TDD tests for `getDiffStats()` | file-browser | `/home/jak/substrate/048-wf-web/test/unit/web/features/041-file-browser/diff-stats.test.ts` | RED phase: 6+ failing tests covering all edge cases | Write tests FIRST per constitution Principle 3. Cases: normal, binary, rename, empty, mixed, not-git |
+-| [ ] | T003 | Add `fetchDiffStats` server action wrapper | file-browser | `/home/jak/substrate/048-wf-web/apps/web/app/actions/file-actions.ts` | Wrapper exports `fetchDiffStats(worktreePath)` following lazy-import pattern | Add at ~line 129, after `fetchRecentFiles` |
+-| [ ] | T004 | Extend `PanelHeader` with `subtitle` prop | _platform/panel-layout | `/home/jak/substrate/048-wf-web/apps/web/src/features/_platform/panel-layout/components/panel-header.tsx` | `subtitle?: ReactNode` prop renders after title span in muted text. Existing tests still pass, new tests for subtitle added. | Additive optional prop — no breaking change |
+-| [ ] | T005 | Update PanelHeader tests for subtitle | _platform/panel-layout | `/home/jak/substrate/048-wf-web/test/unit/web/features/_platform/panel-layout/panel-header.test.tsx` | Tests verify: subtitle renders when provided, hidden when omitted | TDD — write failing tests first |
+-| [ ] | T006 | Extend `LeftPanel` with `subtitle` prop passthrough | _platform/panel-layout | `/home/jak/substrate/048-wf-web/apps/web/src/features/_platform/panel-layout/components/left-panel.tsx` | `subtitle?: ReactNode` in `LeftPanelProps`, passed to `PanelHeader subtitle` | Additive optional prop |
+-| [ ] | T007 | Update LeftPanel tests for subtitle passthrough | _platform/panel-layout | `/home/jak/substrate/048-wf-web/test/unit/web/features/_platform/panel-layout/left-panel.test.tsx` | Tests verify subtitle is forwarded to PanelHeader | TDD — write failing tests first |
+-| [ ] | T008 | Extend `usePanelState` to fetch and expose diff stats | file-browser | `/home/jak/substrate/048-wf-web/apps/web/src/features/041-file-browser/hooks/use-panel-state.ts` | `diffStats` in return object. Fetched on mount (like changedFiles). Refreshed in `handleRefreshChanges` Promise.all. | Add `fetchDiffStats` to options interface, add to Promise.all at line 84, add state + setter |
+-| [ ] | T009 | Wire `fetchDiffStats` and stats subtitle in BrowserClient | file-browser | `/home/jak/substrate/048-wf-web/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx` | Pass `fetchDiffStats` to `usePanelState`. Compute subtitle JSX from `panelState.diffStats`. Pass subtitle to `LeftPanel`. Stats visible in header, live-update on file changes. | Subtitle format: `· N changed  +X −Y` with green-500/red-500 colors. Hidden when no changes. |
++| [x] | T001 | Create `getDiffStats()` service with `git diff HEAD --shortstat` parser | file-browser | `/home/jak/substrate/048-wf-web/apps/web/src/features/041-file-browser/services/diff-stats.ts` | TDD: tests pass for normal output, zero changes, not-git error, no-commits fallback | Follow `changed-files.ts` pattern. Use `git diff HEAD --shortstat` for summary totals (DYK-05). Single regex parse: `/(\d+) files? changed(?:, (\d+) insertions?\(\+\))?(?:, (\d+) deletions?\(-\))?/`. Return `DiffStatsResult = {ok:true, stats:{files:number, insertions:number, deletions:number}} \| {ok:false, error:'not-git'}`. Fallback to `git diff --shortstat` if HEAD doesn't exist (new repo, DYK-03). Keep `getChangedFiles()` separate — clean single-responsibility per service. |
++| [x] | T002 | Write TDD tests for `getDiffStats()` | file-browser | `/home/jak/substrate/048-wf-web/test/unit/web/features/041-file-browser/diff-stats.test.ts` | RED phase: 5+ failing tests covering all edge cases | Write tests FIRST per constitution Principle 3. Cases: normal shortstat output, insertions-only, deletions-only, empty (no changes), not-git error, no-commits fallback |
++| [x] | T003 | Add `fetchDiffStats` server action wrapper | file-browser | `/home/jak/substrate/048-wf-web/apps/web/app/actions/file-actions.ts` | Wrapper exports `fetchDiffStats(worktreePath)` following lazy-import pattern | Add at ~line 129, after `fetchRecentFiles` |
++| [x] | T004 | Extend `PanelHeader` with `subtitle` prop | _platform/panel-layout | `/home/jak/substrate/048-wf-web/apps/web/src/features/_platform/panel-layout/components/panel-header.tsx` | `subtitle?: ReactNode` prop renders after title span in muted text. Existing tests still pass, new tests for subtitle added. | Additive optional prop — no breaking change |
++| [x] | T005 | Update PanelHeader tests for subtitle | _platform/panel-layout | `/home/jak/substrate/048-wf-web/test/unit/web/features/_platform/panel-layout/panel-header.test.tsx` | Tests verify: subtitle renders when provided, hidden when omitted | TDD — write failing tests first |
++| [x] | T006 | Extend `LeftPanel` with `subtitle` prop passthrough | _platform/panel-layout | `/home/jak/substrate/048-wf-web/apps/web/src/features/_platform/panel-layout/components/left-panel.tsx` | `subtitle?: ReactNode` in `LeftPanelProps`, passed to `PanelHeader subtitle` | Additive optional prop |
++| [x] | T007 | Update LeftPanel tests for subtitle passthrough | _platform/panel-layout | `/home/jak/substrate/048-wf-web/test/unit/web/features/_platform/panel-layout/left-panel.test.tsx` | Tests verify subtitle is forwarded to PanelHeader | TDD — write failing tests first |
++| [x] | T008 | Extend `usePanelState` to fetch and expose diff stats | file-browser | `/home/jak/substrate/048-wf-web/apps/web/src/features/041-file-browser/hooks/use-panel-state.ts` | `diffStats` in return object. Fetched on mount (like changedFiles). Refreshed in `handleRefreshChanges` Promise.all. | Add `fetchDiffStats` to options interface, add to Promise.all at line 84, add state + setter |
++| [x] | T009 | Wire `fetchDiffStats` and stats subtitle in BrowserClient | file-browser | `/home/jak/substrate/048-wf-web/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx` | Pass `fetchDiffStats` to `usePanelState`. Compute subtitle JSX from `panelState.diffStats`. Pass subtitle to `LeftPanel`. Stats visible in header, live-update on file changes. | Subtitle format: `· N changed  +X −Y` with green-500/red-500 colors. Hidden when no changes. |
+ 
+ ### Acceptance Criteria
+ 
+@@ -77,9 +77,8 @@ The FILES header in the browser page's LeftPanel currently shows a static "FILES
+ 
+ | Risk | Likelihood | Impact | Mitigation |
+ |------|------------|--------|------------|
+-| `git diff --numstat` slow on large repos | Low | Low | 500ms debounce prevents rapid-fire; async state update keeps UI responsive |
+-| Binary file `-` in numstat breaks parser | Medium | Medium | Explicit parser handling + TDD edge case tests |
+-| Renamed file `{old=>new}` syntax unexpected | Low | Low | Explicit parser handling + TDD test case |
++| `git diff HEAD --shortstat` slow on large repos | Low | Low | 500ms debounce prevents rapid-fire; async state update keeps UI responsive |
++| `git diff HEAD` fails on repos with no commits | Low | Medium | Try/catch fallback to `git diff --shortstat` (DYK-03) |
+ | PanelHeader subtitle prop breaks existing consumers | Very Low | Low | Prop is optional — additive change, no callers affected |
+ 
+ ---
+diff --git a/test/unit/web/features/041-file-browser/diff-stats.test.ts b/test/unit/web/features/041-file-browser/diff-stats.test.ts
+new file mode 100644
+index 0000000..f5b1c0b
+--- /dev/null
++++ b/test/unit/web/features/041-file-browser/diff-stats.test.ts
+@@ -0,0 +1,66 @@
++/**
++ * Diff Stats Service Tests
++ *
++ * Purpose: Verify git diff HEAD --shortstat parsing for file count,
++ * insertions, and deletions. Tests the parser logic with known output strings.
++ *
++ * Feature 1: File Change Statistics — Plan 049
++ * DYK-01: Use HEAD to capture staged+unstaged
++ * DYK-05: Use --shortstat for simpler parsing
++ */
++
++import {
++  type DiffStatsResult,
++  parseShortstatOutput,
++} from '@/features/041-file-browser/services/diff-stats';
++import { describe, expect, it } from 'vitest';
++
++describe('parseShortstatOutput', () => {
++  it('parses normal output with files, insertions, and deletions', () => {
++    const result = parseShortstatOutput(' 3 files changed, 42 insertions(+), 18 deletions(-)');
++    expect(result).toEqual({ files: 3, insertions: 42, deletions: 18 });
++  });
++
++  it('parses output with insertions only (no deletions)', () => {
++    const result = parseShortstatOutput(' 1 file changed, 10 insertions(+)');
++    expect(result).toEqual({ files: 1, insertions: 10, deletions: 0 });
++  });
++
++  it('parses output with deletions only (no insertions)', () => {
++    const result = parseShortstatOutput(' 2 files changed, 5 deletions(-)');
++    expect(result).toEqual({ files: 2, insertions: 0, deletions: 5 });
++  });
++
++  it('parses singular "file changed"', () => {
++    const result = parseShortstatOutput(' 1 file changed, 1 insertion(+), 1 deletion(-)');
++    expect(result).toEqual({ files: 1, insertions: 1, deletions: 1 });
++  });
++
++  it('returns zeros for empty output (no changes)', () => {
++    const result = parseShortstatOutput('');
++    expect(result).toEqual({ files: 0, insertions: 0, deletions: 0 });
++  });
++
++  it('returns zeros for whitespace-only output', () => {
++    const result = parseShortstatOutput('  \n');
++    expect(result).toEqual({ files: 0, insertions: 0, deletions: 0 });
++  });
++
++  it('handles large numbers', () => {
++    const result = parseShortstatOutput(
++      ' 150 files changed, 12345 insertions(+), 9876 deletions(-)'
++    );
++    expect(result).toEqual({ files: 150, insertions: 12345, deletions: 9876 });
++  });
++});
++
++describe('getDiffStats', () => {
++  it('returns not-git error for non-git workspaces', async () => {
++    const { getDiffStats } = await import('@/features/041-file-browser/services/diff-stats');
++    const result = await getDiffStats(`/tmp/definitely-not-a-git-repo-${Date.now()}`);
++    expect(result.ok).toBe(false);
++    if (!result.ok) {
++      expect(result.error).toBe('not-git');
++    }
++  });
++});
+diff --git a/test/unit/web/features/_platform/panel-layout/left-panel.test.tsx b/test/unit/web/features/_platform/panel-layout/left-panel.test.tsx
+index a5f16d9..7d7f163 100644
+--- a/test/unit/web/features/_platform/panel-layout/left-panel.test.tsx
++++ b/test/unit/web/features/_platform/panel-layout/left-panel.test.tsx
+@@ -84,4 +84,20 @@ describe('LeftPanel', () => {
+     // Title visible but no mode toggle (single mode = no point switching)
+     expect(screen.queryByRole('button', { name: 'Tree view' })).not.toBeInTheDocument();
+   });
++
++  it('passes subtitle to PanelHeader', () => {
++    render(
++      <LeftPanel
++        mode="tree"
++        onModeChange={vi.fn()}
++        modes={modes}
++        onRefresh={vi.fn()}
++        subtitle={<span>3 changed +10 −5</span>}
++      >
++        {{ tree: <div>Tree</div>, changes: <div>Changes</div> }}
++      </LeftPanel>
++    );
++
++    expect(screen.getByText('3 changed +10 −5')).toBeInTheDocument();
++  });
+ });
+diff --git a/test/unit/web/features/_platform/panel-layout/panel-header.test.tsx b/test/unit/web/features/_platform/panel-layout/panel-header.test.tsx
+index 08d0235..63b59aa 100644
+--- a/test/unit/web/features/_platform/panel-layout/panel-header.test.tsx
++++ b/test/unit/web/features/_platform/panel-layout/panel-header.test.tsx
+@@ -100,4 +100,14 @@ describe('PanelHeader', () => {
+     // Only title visible, no buttons except actions
+     expect(screen.queryByRole('button')).not.toBeInTheDocument();
+   });
++
++  it('renders subtitle when provided', () => {
++    render(<PanelHeader title="Files" subtitle={<span>3 changed</span>} />);
++    expect(screen.getByText('3 changed')).toBeInTheDocument();
++  });
++
++  it('renders no subtitle when not provided', () => {
++    render(<PanelHeader title="Files" />);
++    expect(screen.queryByTestId('panel-header-subtitle')).not.toBeInTheDocument();
++  });
+ });
+___BEGIN___COMMAND_DONE_MARKER___0
