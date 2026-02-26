@@ -4,7 +4,7 @@
 **Plan Version**: 1.0.0
 **Created**: 2026-02-26
 **Spec**: [built-in-text-search-spec.md](./built-in-text-search-spec.md)
-**Status**: DRAFT
+**Status**: IN PROGRESS
 
 ## Summary
 
@@ -55,31 +55,31 @@ Replace the `#` prefix FlowSpace text search with a zero-dependency `git grep` c
 
 | Status | ID | Task | Domain | Path(s) | Done When | Notes |
 |--------|-----|------|--------|---------|-----------|-------|
-| [ ] | T001 | Refactor code search types with discriminated union | _platform/panel-layout | `apps/web/src/features/_platform/panel-layout/types.ts` | Replace `FlowSpaceSearchResult` with discriminated union: `CodeSearchResult = GrepSearchResult \| FlowSpaceSearchResult`. Both extend a `kind` discriminant (`'grep' \| 'flowspace'`). `GrepSearchResult`: `{ kind: 'grep', filePath, filename, lineNumber, matchContent, matchCount }`. `FlowSpaceSearchResult` gains `kind: 'flowspace'`. Rename all `symbolSearch*` props across ExplorerPanel and CommandPaletteDropdown to `codeSearch*` (e.g., `codeSearchResults`, `codeSearchLoading`, `codeSearchError`). Update barrel exports. | Discriminated union lets the dropdown `switch(result.kind)` for rendering. Props are source-agnostic — dropdown doesn't know or care if data came from git grep or FlowSpace. |
-| [ ] | T002 | Create git grep server action | file-browser | `apps/web/src/lib/server/git-grep-action.ts` | `'use server'` exports `gitGrepSearch(query, cwd)` → `{ results: GrepSearchResult[] } \| { error: string }`. Uses `--fixed-strings` (`-F`) by default for safe literal matching. Auto-upgrades to regex mode only if query contains intentional regex patterns (`.*`, `^`, `$`, `\b`). Uses `execFileAsync('git', ['grep', '-n', '-i', '-F', '--untracked', '--max-count=5', '-I', query, '--', '*.ts', '*.tsx', '*.js', '*.jsx', '*.json', '*.md', '*.yaml', '*.yml', '*.css'], { cwd, timeout: 3000 })`. Parses `filepath:line:content` format. Truncates match content to 200 chars server-side. Groups by file, limits to 20 files. Duplicates the 10-line git availability pattern (module-private, not worth extracting). | Per DYK-02: `-F` prevents `console.log(` from crashing as invalid regex. Per DYK-05: truncate minified lines. `--max-count=5` limits per-file. `-I` skips binary. |
-| [ ] | T003 | Create `useGitGrepSearch` hook | file-browser | `apps/web/src/features/041-file-browser/hooks/use-git-grep-search.ts` | Hook exports: `results: GitGrepResult[] \| null`, `loading`, `error`, `setQuery(q)`. 300ms debounce. `fetchInProgressRef` guard. Calls `gitGrepSearch` server action. | Follow `use-flowspace-search.ts` pattern exactly but simpler (no availability/graphAge/folders). |
-| [ ] | T004 | Update `#` mode to use git grep instead of FlowSpace | file-browser | `apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx` | `onFlowspaceQueryChange` dispatch: when mode is `'text'` (from `#` prefix), call `gitGrep.setQuery()` instead of `flowspace.setQuery()`. When mode is `'semantic'` (from `$` prefix), call `flowspace.setQuery()` as before. Pass `gitGrep.results` to `symbolSearchResults` prop when in `#` mode, `flowspace.results` when in `$` mode. | Per finding 02. The dispatch point is browser-client — ExplorerPanel/Dropdown don't need to know the source. |
-| [ ] | T005 | Update dropdown rendering with `result.kind` discriminant | _platform/panel-layout | `apps/web/src/features/_platform/panel-layout/components/command-palette-dropdown.tsx` | Rendering `switch(result.kind)`: **`'grep'`**: filename (bold), `:lineNumber` badge, match content (monospace, truncated to 120 chars). No category icon. **`'flowspace'`**: category icon, name, file path, line range, smart_content. Both share: keyboard nav, context menu, selected highlight. | Clean separation — each kind owns its rendering, shared interaction. |
-| [ ] | T006 | Update Quick Access hints | _platform/panel-layout | `apps/web/src/features/_platform/panel-layout/components/command-palette-dropdown.tsx` | `#` hint → "Content search" (was "Code search (FlowSpace)"). `$` hint → "Semantic search (FlowSpace)" (unchanged). | AC-11. |
+| [x] | T001 | Refactor code search types with discriminated union | _platform/panel-layout | `apps/web/src/features/_platform/panel-layout/types.ts` | Replace `FlowSpaceSearchResult` with discriminated union: `CodeSearchResult = GrepSearchResult \| FlowSpaceSearchResult`. Both extend a `kind` discriminant (`'grep' \| 'flowspace'`). `GrepSearchResult`: `{ kind: 'grep', filePath, filename, lineNumber, matchContent, matchCount }`. `FlowSpaceSearchResult` gains `kind: 'flowspace'`. Rename all `symbolSearch*` props across ExplorerPanel and CommandPaletteDropdown to `codeSearch*` (e.g., `codeSearchResults`, `codeSearchLoading`, `codeSearchError`). Update barrel exports. | Discriminated union lets the dropdown `switch(result.kind)` for rendering. Props are source-agnostic — dropdown doesn't know or care if data came from git grep or FlowSpace. |
+| [x] | T002 | Create git grep server action | file-browser | `apps/web/src/lib/server/git-grep-action.ts` | `'use server'` exports `gitGrepSearch(query, cwd)` → `{ results: GrepSearchResult[] } \| { error: string }`. Uses `--fixed-strings` (`-F`) by default for safe literal matching. Auto-upgrades to regex mode only if query contains intentional regex patterns (`.*`, `^`, `$`, `\b`). Uses `execFileAsync('git', ['grep', '-n', '-i', '-F', '--untracked', '--max-count=5', '-I', query, '--', '*.ts', '*.tsx', '*.js', '*.jsx', '*.json', '*.md', '*.yaml', '*.yml', '*.css'], { cwd, timeout: 3000 })`. Parses `filepath:line:content` format. Truncates match content to 200 chars server-side. Groups by file, limits to 20 files. Duplicates the 10-line git availability pattern (module-private, not worth extracting). | Per DYK-02: `-F` prevents `console.log(` from crashing as invalid regex. Per DYK-05: truncate minified lines. `--max-count=5` limits per-file. `-I` skips binary. |
+| [x] | T003 | Create `useGitGrepSearch` hook | file-browser | `apps/web/src/features/041-file-browser/hooks/use-git-grep-search.ts` | Hook exports: `results: GitGrepResult[] \| null`, `loading`, `error`, `setQuery(q)`. 300ms debounce. `fetchInProgressRef` guard. Calls `gitGrepSearch` server action. | Follow `use-flowspace-search.ts` pattern exactly but simpler (no availability/graphAge/folders). |
+| [x] | T004 | Update `#` mode to use git grep instead of FlowSpace | file-browser | `apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx` | `onFlowspaceQueryChange` dispatch: when mode is `'text'` (from `#` prefix), call `gitGrep.setQuery()` instead of `flowspace.setQuery()`. When mode is `'semantic'` (from `$` prefix), call `flowspace.setQuery()` as before. Pass `gitGrep.results` to `symbolSearchResults` prop when in `#` mode, `flowspace.results` when in `$` mode. | Per finding 02. The dispatch point is browser-client — ExplorerPanel/Dropdown don't need to know the source. |
+| [x] | T005 | Update dropdown rendering with `result.kind` discriminant | _platform/panel-layout | `apps/web/src/features/_platform/panel-layout/components/command-palette-dropdown.tsx` | Rendering `switch(result.kind)`: **`'grep'`**: filename (bold), `:lineNumber` badge, match content (monospace, truncated to 120 chars). No category icon. **`'flowspace'`**: category icon, name, file path, line range, smart_content. Both share: keyboard nav, context menu, selected highlight. | Clean separation — each kind owns its rendering, shared interaction. |
+| [x] | T006 | Update Quick Access hints | _platform/panel-layout | `apps/web/src/features/_platform/panel-layout/components/command-palette-dropdown.tsx` | `#` hint → "Content search" (was "Code search (FlowSpace)"). `$` hint → "Semantic search (FlowSpace)" (unchanged). | AC-11. |
 | [ ] | T007 | Write tests for git grep output parsing | file-browser | `test/unit/web/features/041-file-browser/git-grep-action.test.ts` | Tests: (a) parse standard `filepath:line:content` output, (b) group by file with match counts, (c) handle empty results, (d) handle git not available, (e) handle not a git repo. Captured output fixtures. | Lightweight. |
-| [ ] | T008 | Verify `just fft` passes | cross-domain | — | Build passes, our files lint clean, tests pass. | Quality gate. Pre-existing lint issues in other plans are acceptable. |
+| [x] | T008 | Verify `just fft` passes | cross-domain | — | Build passes, our files lint clean, tests pass. | Quality gate. Pre-existing lint issues in other plans are acceptable. |
 
 ### Acceptance Criteria
 
-- [ ] AC-01: `# useFileFilter` shows content matches within 500ms
-- [ ] AC-02: Results show filename, line number, matching line content
+- [x] AC-01: `# useFileFilter` shows content matches within 500ms
+- [x] AC-02: Results show filename, line number, matching line content
 - [ ] AC-03: Multiple matches per file grouped with count
-- [ ] AC-04: Arrow keys navigate, Enter selects (file at line), Escape exits
-- [ ] AC-05: 300ms debounce
-- [ ] AC-06: Only source files searched (ts/tsx/js/jsx/json/md/yaml/css)
-- [ ] AC-07: Regex works (`# function.*search`)
-- [ ] AC-08: Case-insensitive by default
+- [x] AC-04: Arrow keys navigate, Enter selects (file at line), Escape exits
+- [x] AC-05: 300ms debounce
+- [x] AC-06: Only source files searched (ts/tsx/js/jsx/json/md/yaml/css)
+- [x] AC-07: Regex works (`# function.*search`)
+- [x] AC-08: Case-insensitive by default
 - [ ] AC-09: "Git repository required" when not in git repo
-- [ ] AC-10: Loading spinner during search
-- [ ] AC-11: Quick Access hints: `#` = "Content search"
-- [ ] AC-12: "No matches" when empty results
-- [ ] AC-13: Context menu on results
-- [ ] AC-14: Limited to 20 files
+- [x] AC-10: Loading spinner during search
+- [x] AC-11: Quick Access hints: `#` = "Content search"
+- [x] AC-12: "No matches" when empty results
+- [x] AC-13: Context menu on results
+- [x] AC-14: Limited to 20 files
 
 ### Risks
 

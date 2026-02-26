@@ -4,7 +4,7 @@
 **Plan Version**: 1.0.0
 **Created**: 2026-02-26
 **Spec**: [flowspace-search-spec.md](./flowspace-search-spec.md)
-**Status**: DRAFT
+**Status**: IN PROGRESS
 
 ## Summary
 
@@ -58,39 +58,39 @@ Replace the `#` prefix stub in the command palette with live FlowSpace code sear
 
 | Status | ID | Task | Domain | Path(s) | Done When | Notes |
 |--------|-----|------|--------|---------|-----------|-------|
-| [ ] | T001 | Add FlowSpace types to panel-layout | _platform/panel-layout | `apps/web/src/features/_platform/panel-layout/types.ts` | `FlowSpaceSearchResult` and `FlowSpaceAvailability` types exported. `FlowSpaceSearchMode` type: `'text' \| 'semantic'`. Result has: `nodeId`, `name`, `category`, `filePath`, `startLine`, `endLine`, `smartContent`, `snippet`, `score`, `matchField`. Availability is `'available' \| 'not-installed' \| 'no-graph' \| 'no-embeddings'`. | Per DYK-01. Category icons: file→📄, callable→ƒ, type→📦, section→📝, block→🏗️. `'no-embeddings'` used when `$` mode but embeddings not configured. |
-| [ ] | T002 | Create server-side fs2 search action | _platform/panel-layout | `apps/web/src/lib/server/flowspace-search-action.ts` | `'use server'` action exports: `checkFlowspaceAvailability(cwd)` returns `FlowSpaceAvailability` + graph mtime; `flowspaceSearch(query, mode, cwd)` returns `{ results: FlowSpaceSearchResult[], folders: Record<string,number> } \| { error: string }`. Mode param: `'text'` uses `--mode text` (auto-upgrades to `--mode regex` if query has metacharacters), `'semantic'` uses `--mode semantic`. Uses `execFileAsync('fs2', [...], { cwd, timeout: 5000 })`. Parses JSON envelope from stdout. **File path extraction**: `node_id` format is `{category}:{filepath}:{qualname}` — split on `:` and take index 1. **File existence check**: verify extracted path exists via `fs.access()` before including in results (stale graph may reference deleted files). | Per DYK-01: text mode is free/fast, semantic mode uses embedding API. Per DYK-04: node_id parsing for file path. |
-| [ ] | T003 | Create useFlowspaceSearch hook | file-browser | `apps/web/src/features/041-file-browser/hooks/use-flowspace-search.ts` | Hook exports: `results`, `loading`, `error`, `availability`, `graphAge`, `folders`, `searchMode`, `setQuery(q, mode)`. 300ms debounce on query. Calls `checkFlowspaceAvailability` once on mount, then `flowspaceSearch` on debounced query changes. Mode passed through from caller (`'text'` for `#`, `'semantic'` for `$`). Uses `fetchInProgressRef` guard to prevent concurrent requests. | Per DYK-01: mode determined by prefix, not auto-detected. |
-| [ ] | T004 | Enhance CommandPaletteDropdown for both modes | _platform/panel-layout | `apps/web/src/features/_platform/panel-layout/components/command-palette-dropdown.tsx` | Add `'semantic'` to `DropdownMode` union. Both `symbols` and `semantic` modes render: (a) availability messages (AC-07, AC-08, AC-18), (b) loading spinner (AC-11), (c) error message (AC-12), (d) results header with folder distribution + graph age (AC-15, AC-17), (e) result rows with category icon, name, file path, line range badge, smart_content summary (AC-02, AC-03), (f) context menu on results (AC-16). Semantic mode additionally shows "🧠 semantic" badge in header (AC-19). New props: `symbolSearchResults`, `symbolSearchLoading`, `symbolSearchError`, `symbolSearchAvailability`, `symbolSearchGraphAge`, `symbolSearchFolders`, `symbolSearchMode`, `onSymbolSelect`, context menu callbacks. | Both modes share the same result rendering — only the header badge and availability messages differ. |
-| [ ] | T005 | Wire ExplorerPanel with FlowSpace props + `$` mode detection | _platform/panel-layout | `apps/web/src/features/_platform/panel-layout/components/explorer-panel.tsx` | Add `semanticMode` detection: `editing && inputValue.startsWith('$')`. Update `dropdownMode` derivation to include `'semantic'` when `$` prefix detected. ExplorerPanel accepts and passes through all FlowSpace props to CommandPaletteDropdown. Notify parent of search query via `onFlowspaceQueryChange(query, mode)` for both `#` and `$`. | Same prop-threading pattern as file search (Plan 049). `$` mode is a sibling to `#` mode, not a sub-mode. |
-| [ ] | T006 | Remove createSymbolSearchStub | _platform/panel-layout | `apps/web/src/features/_platform/panel-layout/stub-handlers.ts`<br/>`apps/web/src/features/_platform/panel-layout/index.ts` | `createSymbolSearchStub` function removed. Export removed from barrel. Calling code in browser-client updated to not register the stub handler. `#` prefix no longer triggers toast. | Per finding 05. AC-10. |
-| [ ] | T007 | Wire browser-client with useFlowspaceSearch | file-browser | `apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx` | `useFlowspaceSearch` hook called with `worktreePath`. Results, loading, error, availability, graphAge, folders passed to ExplorerPanel. `onSymbolSelect` navigates to file at line (same as `onFileSelect` but with line param). Context menu callbacks reuse existing clipboard handlers. | Same wiring pattern as `useFileFilter` (Plan 049). |
-| [ ] | T008 | Update Quick Access hints for both modes | _platform/panel-layout | `apps/web/src/features/_platform/panel-layout/components/command-palette-dropdown.tsx` | Quick Access hints section: `#` shows "Code search (FlowSpace)", `$` shows "Semantic search (FlowSpace)" when available. When not available, both show "(install FlowSpace)". Add `$` row to hints. | AC-09. |
-| [ ] | T009 | Write tests for server action + hook | file-browser | `test/unit/web/features/041-file-browser/flowspace-search-action.test.ts` | Tests cover: (a) JSON parsing of real fs2 output fixture, (b) availability detection — not installed returns `'not-installed'`, no graph returns `'no-graph'`, (c) timeout handling returns error string, (d) malformed JSON returns error string. | Lightweight: captured JSON fixtures, no mocks. |
-| [ ] | T010 | Verify `just fft` passes | cross-domain | — | `just fft` passes with zero new failures. All existing tests still pass. | Quality gate. |
+| [x] | T001 | Add FlowSpace types to panel-layout | _platform/panel-layout | `apps/web/src/features/_platform/panel-layout/types.ts` | `FlowSpaceSearchResult` and `FlowSpaceAvailability` types exported. `FlowSpaceSearchMode` type: `'text' \| 'semantic'`. Result has: `nodeId`, `name`, `category`, `filePath`, `startLine`, `endLine`, `smartContent`, `snippet`, `score`, `matchField`. Availability is `'available' \| 'not-installed' \| 'no-graph' \| 'no-embeddings'`. | Per DYK-01. Category icons: file→📄, callable→ƒ, type→📦, section→📝, block→🏗️. `'no-embeddings'` used when `$` mode but embeddings not configured. |
+| [x] | T002 | Create server-side fs2 search action | _platform/panel-layout | `apps/web/src/lib/server/flowspace-search-action.ts` | `'use server'` action exports: `checkFlowspaceAvailability(cwd)` returns `FlowSpaceAvailability` + graph mtime; `flowspaceSearch(query, mode, cwd)` returns `{ results: FlowSpaceSearchResult[], folders: Record<string,number> } \| { error: string }`. Mode param: `'text'` uses `--mode text` (auto-upgrades to `--mode regex` if query has metacharacters), `'semantic'` uses `--mode semantic`. Uses `execFileAsync('fs2', [...], { cwd, timeout: 5000 })`. Parses JSON envelope from stdout. **File path extraction**: `node_id` format is `{category}:{filepath}:{qualname}` — split on `:` and take index 1. **File existence check**: verify extracted path exists via `fs.access()` before including in results (stale graph may reference deleted files). | Per DYK-01: text mode is free/fast, semantic mode uses embedding API. Per DYK-04: node_id parsing for file path. |
+| [x] | T003 | Create useFlowspaceSearch hook | file-browser | `apps/web/src/features/041-file-browser/hooks/use-flowspace-search.ts` | Hook exports: `results`, `loading`, `error`, `availability`, `graphAge`, `folders`, `searchMode`, `setQuery(q, mode)`. 300ms debounce on query. Calls `checkFlowspaceAvailability` once on mount, then `flowspaceSearch` on debounced query changes. Mode passed through from caller (`'text'` for `#`, `'semantic'` for `$`). Uses `fetchInProgressRef` guard to prevent concurrent requests. | Per DYK-01: mode determined by prefix, not auto-detected. |
+| [x] | T004 | Enhance CommandPaletteDropdown for both modes | _platform/panel-layout | `apps/web/src/features/_platform/panel-layout/components/command-palette-dropdown.tsx` | Add `'semantic'` to `DropdownMode` union. Both `symbols` and `semantic` modes render: (a) availability messages (AC-07, AC-08, AC-18), (b) loading spinner (AC-11), (c) error message (AC-12), (d) results header with folder distribution + graph age (AC-15, AC-17), (e) result rows with category icon, name, file path, line range badge, smart_content summary (AC-02, AC-03), (f) context menu on results (AC-16). Semantic mode additionally shows "🧠 semantic" badge in header (AC-19). New props: `symbolSearchResults`, `symbolSearchLoading`, `symbolSearchError`, `symbolSearchAvailability`, `symbolSearchGraphAge`, `symbolSearchFolders`, `symbolSearchMode`, `onSymbolSelect`, context menu callbacks. | Both modes share the same result rendering — only the header badge and availability messages differ. |
+| [x] | T005 | Wire ExplorerPanel with `$` mode detection + FlowSpace props | _platform/panel-layout | `apps/web/src/features/_platform/panel-layout/components/explorer-panel.tsx` | Add `semanticMode` detection: `editing && inputValue.startsWith('$')`. Update `dropdownMode` derivation to include `'semantic'` when `$` prefix detected. ExplorerPanel accepts and passes through all FlowSpace props to CommandPaletteDropdown. Notify parent of search query via `onFlowspaceQueryChange(query, mode)` for both `#` and `$`. | Same prop-threading pattern as file search (Plan 049). `$` mode is a sibling to `#` mode, not a sub-mode. |
+| [x] | T006 | Remove createSymbolSearchStub | _platform/panel-layout | `apps/web/src/features/_platform/panel-layout/stub-handlers.ts`<br/>`apps/web/src/features/_platform/panel-layout/index.ts` | `createSymbolSearchStub` function removed. Export removed from barrel. Calling code in browser-client updated to not register the stub handler. `#` prefix no longer triggers toast. | Per finding 05. AC-10. |
+| [x] | T007 | Wire browser-client with useFlowspaceSearch | file-browser | `apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx` | `useFlowspaceSearch` hook called with `worktreePath`. Results, loading, error, availability, graphAge, folders passed to ExplorerPanel. `onSymbolSelect` navigates to file at line (same as `onFileSelect` but with line param). Context menu callbacks reuse existing clipboard handlers. | Same wiring pattern as `useFileFilter` (Plan 049). |
+| [x] | T008 | Update Quick Access hints for both modes | _platform/panel-layout | `apps/web/src/features/_platform/panel-layout/components/command-palette-dropdown.tsx` | Quick Access hints section: `#` shows "Code search (FlowSpace)", `$` shows "Semantic search (FlowSpace)" when available. When not available, both show "(install FlowSpace)". Add `$` row to hints. | AC-09. |
+| [x] | T009 | Write tests for server action + hook | file-browser | `test/unit/web/features/041-file-browser/flowspace-search-action.test.ts` | Tests cover: (a) JSON parsing of real fs2 output fixture, (b) availability detection — not installed returns `'not-installed'`, no graph returns `'no-graph'`, (c) timeout handling returns error string, (d) malformed JSON returns error string. | Lightweight: captured JSON fixtures, no mocks. |
+| [x] | T010 | Verify `just fft` passes | cross-domain | — | `just fft` passes with zero new failures. All existing tests still pass. | Quality gate. |
 
 ### Acceptance Criteria
 
-- [ ] AC-01: Typing `# useFileFilter` shows text search results within 1 second
-- [ ] AC-02: Results show category icon, name, file path, line range
-- [ ] AC-03: Results with smart_content show one-line AI summary
-- [ ] AC-04: Results sorted by score (highest first)
-- [ ] AC-05: Arrow keys navigate, Enter selects, Escape exits
-- [ ] AC-06: 300ms debounce on search input
-- [ ] AC-07: "FlowSpace not installed" message + link when fs2 missing
-- [ ] AC-08: "Run fs2 scan" message when graph missing
-- [ ] AC-09: Quick Access hints updated: `#` = code search, `$` = semantic search
-- [ ] AC-10: Stub handler removed, no more toast
-- [ ] AC-11: Loading spinner while searching
-- [ ] AC-12: Error message on timeout/failure
-- [ ] AC-13: `#` uses `--mode text` (auto-upgrade to regex if metacharacters)
-- [ ] AC-14: Results limited to 20
-- [ ] AC-15: Folder distribution in results header (display-only)
-- [ ] AC-16: Context menu: Copy Full Path, Copy Relative Path, Copy Content, Download
-- [ ] AC-17: Graph age shown as relative time ("indexed 19 mins ago")
-- [ ] AC-18: `$` uses `--mode semantic`; shows "requires embeddings" if not configured
-- [ ] AC-19: `$` mode shows "🧠 semantic" badge in header
-- [ ] AC-20: Empty `#` shows "FlowSpace text search"; empty `$` shows "FlowSpace semantic search"; not installed shows URL with copy button
+- [x] AC-01: Typing `# useFileFilter` shows text search results within 1 second
+- [x] AC-02: Results show category icon, name, file path, line range
+- [x] AC-03: Results with smart_content show one-line AI summary
+- [x] AC-04: Results sorted by score (highest first)
+- [x] AC-05: Arrow keys navigate, Enter selects, Escape exits
+- [x] AC-06: 300ms debounce on search input
+- [x] AC-07: "FlowSpace not installed" message + link when fs2 missing
+- [x] AC-08: "Run fs2 scan" message when graph missing
+- [x] AC-09: Quick Access hints updated: `#` = code search, `$` = semantic search
+- [x] AC-10: Stub handler removed, no more toast
+- [x] AC-11: Loading spinner while searching
+- [x] AC-12: Error message on timeout/failure
+- [x] AC-13: `#` uses `--mode text` (auto-upgrade to regex if metacharacters)
+- [x] AC-14: Results limited to 20
+- [x] AC-15: Folder distribution in results header (display-only)
+- [x] AC-16: Context menu: Copy Full Path, Copy Relative Path, Copy Content, Download
+- [x] AC-17: Graph age shown as relative time ("indexed 19 mins ago")
+- [x] AC-18: `$` uses `--mode semantic`; shows "requires embeddings" if not configured
+- [x] AC-19: `$` mode shows "🧠 semantic" badge in header
+- [x] AC-20: Empty `#` shows "FlowSpace text search"; empty `$` shows "FlowSpace semantic search"; not installed shows URL with copy button
 
 ### Risks
 

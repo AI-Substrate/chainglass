@@ -44,7 +44,16 @@ export function WorkflowCanvas({
   }
 
   return (
-    <div data-testid="workflow-canvas" className="flex flex-col gap-1 p-4 overflow-y-auto h-full">
+    <div
+      data-testid="workflow-canvas"
+      className="flex flex-col gap-1 p-4 overflow-y-auto h-full"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onSelectNode?.(null);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') onSelectNode?.(null);
+      }}
+    >
       {lines.map((line, index) => (
         <div key={line.lineId}>
           {index > 0 && (

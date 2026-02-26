@@ -1,0 +1,938 @@
+diff --git a/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx b/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
+index 5868f91..799ee54 100644
+--- a/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
++++ b/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
+@@ -19,6 +19,7 @@ import { useClipboard } from '@/features/041-file-browser/hooks/use-clipboard';
+ import { useFileFilter } from '@/features/041-file-browser/hooks/use-file-filter';
+ import { useFileNavigation } from '@/features/041-file-browser/hooks/use-file-navigation';
+ import { useFlowspaceSearch } from '@/features/041-file-browser/hooks/use-flowspace-search';
++import { useGitGrepSearch } from '@/features/041-file-browser/hooks/use-git-grep-search';
+ import { usePanelState } from '@/features/041-file-browser/hooks/use-panel-state';
+ import { useTreeDirectoryChanges } from '@/features/041-file-browser/hooks/use-tree-directory-changes';
+ import { useWorkspaceContext } from '@/features/041-file-browser/hooks/use-workspace-context';
+@@ -136,9 +137,15 @@ function BrowserClientInner({
+   // --- File search filter (Plan 049 Feature 2) ---
+   const fileFilter = useFileFilter({ worktreePath, fetchFileList });
+ 
+-  // --- FlowSpace code search (Plan 051) ---
++  // --- FlowSpace semantic search (Plan 051) ---
+   const flowspace = useFlowspaceSearch(worktreePath);
+ 
++  // --- Git grep content search (Plan 052) ---
++  const gitGrep = useGitGrepSearch(worktreePath);
++
++  // Track which code search engine is active: # → grep, $ → semantic
++  const [activeCodeSearchMode, setActiveCodeSearchMode] = useState<'grep' | 'semantic'>('grep');
++
+   // --- Workspace attention context (Phase 5) ---
+   const wsCtx = useWorkspaceContext();
+ 
+@@ -427,19 +434,27 @@ function BrowserClientInner({
+             onDownload={clipboard.handleDownload}
+             workingChanges={panelState.workingChanges}
+             onSearchQueryChange={fileFilter.setQuery}
+-            symbolSearchResults={flowspace.results}
+-            symbolSearchLoading={flowspace.loading}
+-            symbolSearchError={flowspace.error}
+-            symbolSearchAvailability={flowspace.availability}
+-            symbolSearchGraphAge={flowspace.graphAge}
+-            symbolSearchFolders={flowspace.folders}
+-            onSymbolSelect={(filePath, startLine) => {
++            codeSearchResults={
++              activeCodeSearchMode === 'grep' ? gitGrep.results : flowspace.results
++            }
++            codeSearchLoading={
++              activeCodeSearchMode === 'grep' ? gitGrep.loading : flowspace.loading
++            }
++            codeSearchError={activeCodeSearchMode === 'grep' ? gitGrep.error : flowspace.error}
++            codeSearchAvailability={flowspace.availability}
++            codeSearchGraphAge={flowspace.graphAge}
++            codeSearchFolders={flowspace.folders}
++            onCodeSearchSelect={(filePath, startLine) => {
+               fileNav.handleSelect(filePath);
+-              // Navigate to line via URL param
+               setParams({ line: startLine }, { history: 'replace' });
+             }}
+             onFlowspaceQueryChange={(query, mode) => {
+-              flowspace.setQuery(query, mode);
++              setActiveCodeSearchMode(mode);
++              if (mode === 'grep') {
++                gitGrep.setQuery(query);
++              } else {
++                flowspace.setQuery(query, mode);
++              }
+             }}
+           />
+         }
+diff --git a/apps/web/src/features/041-file-browser/hooks/use-flowspace-search.ts b/apps/web/src/features/041-file-browser/hooks/use-flowspace-search.ts
+index 5576669..46144cb 100644
+--- a/apps/web/src/features/041-file-browser/hooks/use-flowspace-search.ts
++++ b/apps/web/src/features/041-file-browser/hooks/use-flowspace-search.ts
+@@ -12,8 +12,8 @@
+ import { useCallback, useEffect, useRef, useState } from 'react';
+ 
+ import type {
+-  FlowSpaceAvailability,
+-  FlowSpaceSearchMode,
++  CodeSearchAvailability,
++  CodeSearchMode,
+   FlowSpaceSearchResult,
+ } from '@/features/_platform/panel-layout/types';
+ import { checkFlowspaceAvailability, flowspaceSearch } from '@/lib/server/flowspace-search-action';
+@@ -37,21 +37,21 @@ export interface UseFlowspaceSearchReturn {
+   results: FlowSpaceSearchResult[] | null;
+   loading: boolean;
+   error: string | null;
+-  availability: FlowSpaceAvailability;
++  availability: CodeSearchAvailability;
+   graphAge: string | null;
+   folders: Record<string, number> | null;
+-  setQuery: (query: string, mode: FlowSpaceSearchMode) => void;
++  setQuery: (query: string, mode: CodeSearchMode) => void;
+ }
+ 
+ export function useFlowspaceSearch(worktreePath: string): UseFlowspaceSearchReturn {
+   const [results, setResults] = useState<FlowSpaceSearchResult[] | null>(null);
+   const [loading, setLoading] = useState(false);
+   const [error, setError] = useState<string | null>(null);
+-  const [availability, setAvailability] = useState<FlowSpaceAvailability>('available');
++  const [availability, setAvailability] = useState<CodeSearchAvailability>('available');
+   const [graphAge, setGraphAge] = useState<string | null>(null);
+   const [folders, setFolders] = useState<Record<string, number> | null>(null);
+   const [query, setQueryRaw] = useState('');
+-  const [mode, setMode] = useState<FlowSpaceSearchMode>('text');
++  const [mode, setMode] = useState<CodeSearchMode>('grep');
+   const [debouncedQuery, setDebouncedQuery] = useState('');
+ 
+   const fetchInProgressRef = useRef(false);
+@@ -115,7 +115,7 @@ export function useFlowspaceSearch(worktreePath: string): UseFlowspaceSearchRetu
+       });
+   }, [debouncedQuery, mode, availability, worktreePath]);
+ 
+-  const setQuery = useCallback((q: string, m: FlowSpaceSearchMode) => {
++  const setQuery = useCallback((q: string, m: CodeSearchMode) => {
+     setQueryRaw(q);
+     setMode(m);
+   }, []);
+diff --git a/apps/web/src/features/041-file-browser/hooks/use-git-grep-search.ts b/apps/web/src/features/041-file-browser/hooks/use-git-grep-search.ts
+new file mode 100644
+index 0000000..af4ca0d
+--- /dev/null
++++ b/apps/web/src/features/041-file-browser/hooks/use-git-grep-search.ts
+@@ -0,0 +1,81 @@
++'use client';
++
++/**
++ * useGitGrepSearch — React hook for git grep content search.
++ *
++ * Debounces queries and calls the git grep server action.
++ * Zero dependencies beyond git.
++ *
++ * Plan 052: Built-in Content Search
++ */
++
++import { useCallback, useEffect, useRef, useState } from 'react';
++
++import type { GrepSearchResult } from '@/features/_platform/panel-layout/types';
++import { gitGrepSearch } from '@/lib/server/git-grep-action';
++
++const DEBOUNCE_MS = 300;
++
++export interface UseGitGrepSearchReturn {
++  results: GrepSearchResult[] | null;
++  loading: boolean;
++  error: string | null;
++  setQuery: (query: string) => void;
++}
++
++export function useGitGrepSearch(worktreePath: string): UseGitGrepSearchReturn {
++  const [results, setResults] = useState<GrepSearchResult[] | null>(null);
++  const [loading, setLoading] = useState(false);
++  const [error, setError] = useState<string | null>(null);
++  const [query, setQueryRaw] = useState('');
++  const [debouncedQuery, setDebouncedQuery] = useState('');
++
++  const fetchInProgressRef = useRef(false);
++
++  // Debounce the query
++  useEffect(() => {
++    if (!query) {
++      setDebouncedQuery('');
++      setResults(null);
++      setError(null);
++      return;
++    }
++    const timer = setTimeout(() => setDebouncedQuery(query), DEBOUNCE_MS);
++    return () => clearTimeout(timer);
++  }, [query]);
++
++  // Execute search on debounced query change
++  useEffect(() => {
++    if (!debouncedQuery) return;
++    if (fetchInProgressRef.current) return;
++
++    fetchInProgressRef.current = true;
++    setLoading(true);
++    setError(null);
++
++    gitGrepSearch(debouncedQuery, worktreePath)
++      .then((result) => {
++        if ('error' in result) {
++          setError(result.error);
++          setResults(null);
++        } else {
++          setResults(result.results);
++          setError(null);
++        }
++      })
++      .catch(() => {
++        setError('Search failed');
++        setResults(null);
++      })
++      .finally(() => {
++        setLoading(false);
++        fetchInProgressRef.current = false;
++      });
++  }, [debouncedQuery, worktreePath]);
++
++  const setQuery = useCallback((q: string) => {
++    setQueryRaw(q);
++  }, []);
++
++  return { results, loading, error, setQuery };
++}
+diff --git a/apps/web/src/features/_platform/panel-layout/components/command-palette-dropdown.tsx b/apps/web/src/features/_platform/panel-layout/components/command-palette-dropdown.tsx
+index 58f3a43..3d8fbbf 100644
+--- a/apps/web/src/features/_platform/panel-layout/components/command-palette-dropdown.tsx
++++ b/apps/web/src/features/_platform/panel-layout/components/command-palette-dropdown.tsx
+@@ -53,9 +53,9 @@ import {
+ import type { MruTracker } from '@/lib/sdk/sdk-provider';
+ import type { FileChangeInfo, FileSearchEntry, FileSearchSortMode } from '../types';
+ import {
++  type CodeSearchAvailability,
++  type CodeSearchResult,
+   FLOWSPACE_CATEGORY_ICONS,
+-  type FlowSpaceAvailability,
+-  type FlowSpaceSearchResult,
+ } from '../types';
+ 
+ import { AsciiSpinner } from './ascii-spinner';
+@@ -111,14 +111,14 @@ interface CommandPaletteDropdownProps {
+   /** Working changes for status badge lookup */
+   workingChanges?: FileChangeInfo[];
+   /** FlowSpace search results (Plan 051) */
+-  symbolSearchResults?: FlowSpaceSearchResult[] | null;
+-  symbolSearchLoading?: boolean;
+-  symbolSearchError?: string | null;
+-  symbolSearchAvailability?: FlowSpaceAvailability;
+-  symbolSearchGraphAge?: string | null;
+-  symbolSearchFolders?: Record<string, number> | null;
++  codeSearchResults?: CodeSearchResult[] | null;
++  codeSearchLoading?: boolean;
++  codeSearchError?: string | null;
++  codeSearchAvailability?: CodeSearchAvailability;
++  codeSearchGraphAge?: string | null;
++  codeSearchFolders?: Record<string, number> | null;
+   /** Navigate to a code symbol from FlowSpace results */
+-  onSymbolSelect?: (filePath: string, startLine: number) => void;
++  onCodeSearchSelect?: (filePath: string, startLine: number) => void;
+ }
+ 
+ // --- Schema introspection helpers (ST001) ---
+@@ -200,13 +200,13 @@ export const CommandPaletteDropdown = forwardRef<
+     onCopyContent,
+     onDownload,
+     workingChanges,
+-    symbolSearchResults,
+-    symbolSearchLoading,
+-    symbolSearchError,
+-    symbolSearchAvailability,
+-    symbolSearchGraphAge,
+-    symbolSearchFolders,
+-    onSymbolSelect,
++    codeSearchResults,
++    codeSearchLoading,
++    codeSearchError,
++    codeSearchAvailability,
++    codeSearchGraphAge,
++    codeSearchFolders,
++    onCodeSearchSelect,
+   },
+   ref
+ ) {
+@@ -240,14 +240,14 @@ export const CommandPaletteDropdown = forwardRef<
+   const hasFlowspaceQuery =
+     isFlowspaceMode && !!inputValue && inputValue.replace(/^[#$]\s*/, '').trim().length > 0;
+   const showFlowspaceResults =
+-    hasFlowspaceQuery && Array.isArray(symbolSearchResults) && symbolSearchResults.length > 0;
++    hasFlowspaceQuery && Array.isArray(codeSearchResults) && codeSearchResults.length > 0;
+ 
+   // Items count for keyboard nav
+   const navItemCount =
+     mode === 'commands'
+       ? commands.length
+       : showFlowspaceResults
+-        ? symbolSearchResults?.length
++        ? codeSearchResults?.length
+         : showFileResults
+           ? fileSearchResults?.length
+           : 0;
+@@ -256,7 +256,7 @@ export const CommandPaletteDropdown = forwardRef<
+   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — reset on filter/mode/results change
+   useEffect(() => {
+     setSelectedIndex(0);
+-  }, [filter, mode, fileSearchResults, symbolSearchResults]);
++  }, [filter, mode, fileSearchResults, codeSearchResults]);
+ 
+   // Scroll selected item into view
+   useEffect(() => {
+@@ -296,8 +296,11 @@ export const CommandPaletteDropdown = forwardRef<
+             const cmd = commands[selectedIndex];
+             if (cmd) handleSelect(cmd.id);
+           } else if (showFlowspaceResults) {
+-            const result = symbolSearchResults?.[selectedIndex];
+-            if (result) onSymbolSelect?.(result.filePath, result.startLine);
++            const result = codeSearchResults?.[selectedIndex];
++            if (result) {
++              const line = result.kind === 'grep' ? result.lineNumber : result.startLine;
++              onCodeSearchSelect?.(result.filePath, line);
++            }
+           } else if (showFileResults) {
+             const file = fileSearchResults?.[selectedIndex];
+             if (file) onFileSelect?.(file.path);
+@@ -316,8 +319,8 @@ export const CommandPaletteDropdown = forwardRef<
+       fileSearchResults,
+       onFileSelect,
+       showFlowspaceResults,
+-      symbolSearchResults,
+-      onSymbolSelect,
++      codeSearchResults,
++      onCodeSearchSelect,
+     ]
+   );
+ 
+@@ -330,7 +333,7 @@ export const CommandPaletteDropdown = forwardRef<
+       onMouseDown={(e) => e.preventDefault()}
+     >
+       {isFlowspaceMode &&
+-        (symbolSearchAvailability === 'not-installed' ? (
++        (codeSearchAvailability === 'not-installed' ? (
+           <div className="px-3 py-4 text-center text-sm text-muted-foreground">
+             <Hash className="inline h-4 w-4 mr-1 -mt-0.5" />
+             FlowSpace not installed
+@@ -349,7 +352,7 @@ export const CommandPaletteDropdown = forwardRef<
+               </button>
+             </div>
+           </div>
+-        ) : symbolSearchAvailability === 'no-graph' ? (
++        ) : codeSearchAvailability === 'no-graph' ? (
+           <div className="px-3 py-4 text-center text-sm text-muted-foreground">
+             <Hash className="inline h-4 w-4 mr-1 -mt-0.5" />
+             Run <code className="rounded bg-muted px-1.5 py-0.5 text-xs">fs2 scan</code> to index
+@@ -358,24 +361,24 @@ export const CommandPaletteDropdown = forwardRef<
+         ) : !hasFlowspaceQuery ? (
+           <div className="px-3 py-4 text-center text-sm text-muted-foreground">
+             <Hash className="inline h-4 w-4 mr-1 -mt-0.5" />
+-            {mode === 'semantic' ? 'FlowSpace semantic search' : 'FlowSpace text search'}
++            {mode === 'semantic' ? 'FlowSpace semantic search' : 'Content search (git grep)'}
+           </div>
+-        ) : symbolSearchLoading ? (
++        ) : codeSearchLoading ? (
+           <div className="px-3 py-4 text-center text-sm text-muted-foreground">
+             <AsciiSpinner active /> Searching code...
+           </div>
+-        ) : symbolSearchError ? (
++        ) : codeSearchError ? (
+           <div className="px-3 py-4 text-center text-sm text-muted-foreground">
+-            {symbolSearchError}
++            {codeSearchError}
+           </div>
+         ) : showFlowspaceResults ? (
+           <>
+             <div className="flex items-center justify-between border-b px-3 py-1">
+               <span className="text-xs text-muted-foreground">
+-                {symbolSearchResults?.length} results
+-                {symbolSearchFolders &&
+-                  Object.keys(symbolSearchFolders).length > 0 &&
+-                  ` · ${Object.entries(symbolSearchFolders)
++                {codeSearchResults?.length} results
++                {codeSearchFolders &&
++                  Object.keys(codeSearchFolders).length > 0 &&
++                  ` · ${Object.entries(codeSearchFolders)
+                     .slice(0, 3)
+                     .map(([k, v]) => `${k} ${v}`)
+                     .join(' · ')}`}
+@@ -386,13 +389,19 @@ export const CommandPaletteDropdown = forwardRef<
+                     🧠 semantic
+                   </span>
+                 )}
+-                {symbolSearchGraphAge && <span>indexed {symbolSearchGraphAge}</span>}
++                {codeSearchGraphAge && <span>indexed {codeSearchGraphAge}</span>}
+               </div>
+             </div>
+             {/* biome-ignore lint/a11y/useSemanticElements: custom palette item list */}
+             <div ref={listRef} role="listbox" tabIndex={-1} className="py-1">
+-              {symbolSearchResults?.map((result, index) => (
+-                <ContextMenu key={result.nodeId}>
++              {codeSearchResults?.map((result, index) => (
++                <ContextMenu
++                  key={
++                    result.kind === 'grep'
++                      ? `${result.filePath}:${result.lineNumber}`
++                      : result.nodeId
++                  }
++                >
+                   <ContextMenuTrigger asChild>
+                     <div // biome-ignore lint/a11y/useSemanticElements: custom palette item
+                       role="option"
+@@ -403,33 +412,62 @@ export const CommandPaletteDropdown = forwardRef<
+                           ? 'bg-primary/15 text-foreground'
+                           : 'text-foreground hover:bg-accent/50'
+                       }`}
+-                      onClick={() => onSymbolSelect?.(result.filePath, result.startLine)}
++                      onClick={() => {
++                        const line = result.kind === 'grep' ? result.lineNumber : result.startLine;
++                        onCodeSearchSelect?.(result.filePath, line);
++                      }}
+                       onKeyDown={(e) => {
+-                        if (e.key === 'Enter') onSymbolSelect?.(result.filePath, result.startLine);
++                        if (e.key === 'Enter') {
++                          const line =
++                            result.kind === 'grep' ? result.lineNumber : result.startLine;
++                          onCodeSearchSelect?.(result.filePath, line);
++                        }
+                       }}
+                     >
+-                      <div className="flex items-center gap-2">
+-                        <span className="shrink-0 w-4 text-center text-xs">
+-                          {FLOWSPACE_CATEGORY_ICONS[result.category] || '○'}
+-                        </span>
+-                        <span className="font-medium truncate">{result.name}</span>
+-                        <span className="shrink-0 rounded bg-muted px-1 py-0.5 text-xs text-muted-foreground">
+-                          L{result.startLine}
+-                          {result.endLine !== result.startLine && `-${result.endLine}`}
+-                        </span>
+-                      </div>
+-                      <div className="ml-6 text-xs text-muted-foreground truncate">
+-                        {result.filePath}
+-                      </div>
+-                      {result.smartContent &&
+-                        !result.smartContent.startsWith('[Empty content') &&
+-                        !result.smartContent.startsWith('[No ') &&
+-                        result.smartContent.length > 10 &&
+-                        !result.name.startsWith(result.smartContent.slice(0, 30)) && (
+-                          <div className="ml-6 text-xs text-muted-foreground/70 truncate">
+-                            {result.smartContent.slice(0, 120)}
++                      {result.kind === 'grep' ? (
++                        <>
++                          <div className="flex items-center gap-2">
++                            <Search className="shrink-0 h-3.5 w-3.5 text-muted-foreground" />
++                            <span className="font-medium truncate">{result.filename}</span>
++                            <span className="shrink-0 rounded bg-muted px-1 py-0.5 text-xs text-muted-foreground">
++                              :{result.lineNumber}
++                            </span>
++                            {result.matchCount > 1 && (
++                              <span className="shrink-0 text-xs text-muted-foreground">
++                                +{result.matchCount - 1} more
++                              </span>
++                            )}
++                          </div>
++                          <div className="ml-6 text-xs text-muted-foreground font-mono truncate">
++                            {result.matchContent}
++                          </div>
++                        </>
++                      ) : (
++                        <>
++                          <div className="flex items-center gap-2">
++                            <span className="shrink-0 w-4 text-center text-xs">
++                              {FLOWSPACE_CATEGORY_ICONS[result.category] || '○'}
++                            </span>
++                            <span className="font-medium truncate">{result.name}</span>
++                            <span className="shrink-0 rounded bg-muted px-1 py-0.5 text-xs text-muted-foreground">
++                              L{result.startLine}
++                              {result.endLine !== result.startLine && `-${result.endLine}`}
++                            </span>
+                           </div>
+-                        )}
++                          <div className="ml-6 text-xs text-muted-foreground truncate">
++                            {result.filePath}
++                          </div>
++                          {result.smartContent &&
++                            !result.smartContent.startsWith('[Empty content') &&
++                            !result.smartContent.startsWith('[No ') &&
++                            result.smartContent.length > 10 &&
++                            !result.name.startsWith(result.smartContent.slice(0, 30)) && (
++                              <div className="ml-6 text-xs text-muted-foreground/70 truncate">
++                                {result.smartContent.slice(0, 120)}
++                              </div>
++                            )}
++                        </>
++                      )}
+                     </div>
+                   </ContextMenuTrigger>
+                   <ContextMenuContent>
+@@ -601,18 +639,13 @@ export const CommandPaletteDropdown = forwardRef<
+             </div>
+             <div className="px-3 py-1.5 text-sm text-muted-foreground flex items-center gap-2">
+               <span className="font-mono text-xs bg-muted px-1 rounded">#</span>
+-              <span>
+-                Code search
+-                {symbolSearchAvailability === 'not-installed'
+-                  ? ' (install FlowSpace)'
+-                  : ' (FlowSpace)'}
+-              </span>
++              <span>Content search</span>
+             </div>
+             <div className="px-3 py-1.5 text-sm text-muted-foreground flex items-center gap-2">
+               <span className="font-mono text-xs bg-muted px-1 rounded">$</span>
+               <span>
+                 Semantic search
+-                {symbolSearchAvailability === 'not-installed'
++                {codeSearchAvailability === 'not-installed'
+                   ? ' (install FlowSpace)'
+                   : ' (FlowSpace)'}
+               </span>
+diff --git a/apps/web/src/features/_platform/panel-layout/components/explorer-panel.tsx b/apps/web/src/features/_platform/panel-layout/components/explorer-panel.tsx
+index 65e337f..58831cd 100644
+--- a/apps/web/src/features/_platform/panel-layout/components/explorer-panel.tsx
++++ b/apps/web/src/features/_platform/panel-layout/components/explorer-panel.tsx
+@@ -23,12 +23,12 @@ import type { MruTracker } from '@/lib/sdk/sdk-provider';
+ import type {
+   BarContext,
+   BarHandler,
++  CodeSearchAvailability,
++  CodeSearchResult,
+   ExplorerPanelHandle,
+   FileChangeInfo,
+   FileSearchEntry,
+   FileSearchSortMode,
+-  FlowSpaceAvailability,
+-  FlowSpaceSearchResult,
+ } from '../types';
+ import { AsciiSpinner } from './ascii-spinner';
+ import {
+@@ -80,16 +80,16 @@ export interface ExplorerPanelProps {
+   /** Called when search query changes (for file filter hook) */
+   onSearchQueryChange?: (query: string) => void;
+   /** FlowSpace search results (Plan 051) */
+-  symbolSearchResults?: FlowSpaceSearchResult[] | null;
+-  symbolSearchLoading?: boolean;
+-  symbolSearchError?: string | null;
+-  symbolSearchAvailability?: FlowSpaceAvailability;
+-  symbolSearchGraphAge?: string | null;
+-  symbolSearchFolders?: Record<string, number> | null;
++  codeSearchResults?: CodeSearchResult[] | null;
++  codeSearchLoading?: boolean;
++  codeSearchError?: string | null;
++  codeSearchAvailability?: CodeSearchAvailability;
++  codeSearchGraphAge?: string | null;
++  codeSearchFolders?: Record<string, number> | null;
+   /** Navigate to a code symbol from FlowSpace results */
+-  onSymbolSelect?: (filePath: string, startLine: number) => void;
++  onCodeSearchSelect?: (filePath: string, startLine: number) => void;
+   /** Called when FlowSpace search query changes */
+-  onFlowspaceQueryChange?: (query: string, mode: 'text' | 'semantic') => void;
++  onFlowspaceQueryChange?: (query: string, mode: 'grep' | 'semantic') => void;
+ }
+ 
+ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>(
+@@ -117,13 +117,13 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
+       onDownload,
+       workingChanges,
+       onSearchQueryChange,
+-      symbolSearchResults,
+-      symbolSearchLoading,
+-      symbolSearchError,
+-      symbolSearchAvailability,
+-      symbolSearchGraphAge,
+-      symbolSearchFolders,
+-      onSymbolSelect,
++      codeSearchResults,
++      codeSearchLoading,
++      codeSearchError,
++      codeSearchAvailability,
++      codeSearchGraphAge,
++      codeSearchFolders,
++      onCodeSearchSelect,
+       onFlowspaceQueryChange,
+     },
+     ref
+@@ -168,8 +168,8 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
+     // Plan 051: FlowSpace result modes — delegate keyboard
+     const flowspaceHasResults =
+       (dropdownMode === 'symbols' || dropdownMode === 'semantic') &&
+-      Array.isArray(symbolSearchResults) &&
+-      symbolSearchResults.length > 0;
++      Array.isArray(codeSearchResults) &&
++      codeSearchResults.length > 0;
+ 
+     // Sync: when filePath changes externally, exit edit mode and update input value
+     useEffect(() => {
+@@ -196,10 +196,10 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
+       if ((dropdownMode === 'symbols' || dropdownMode === 'semantic') && editing) {
+         const prefix = inputValue.startsWith('$') ? '$' : '#';
+         const query = inputValue.slice(1).trim();
+-        const mode = prefix === '$' ? 'semantic' : 'text';
++        const mode = prefix === '$' ? 'semantic' : 'grep';
+         onFlowspaceQueryChange?.(query, mode);
+       } else {
+-        onFlowspaceQueryChange?.('', 'text');
++        onFlowspaceQueryChange?.('', 'grep');
+       }
+     }, [inputValue, dropdownMode, editing, onFlowspaceQueryChange]);
+ 
+@@ -468,14 +468,14 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
+               onCopyContent={onCopyContent}
+               onDownload={onDownload}
+               workingChanges={workingChanges}
+-              symbolSearchResults={symbolSearchResults}
+-              symbolSearchLoading={symbolSearchLoading}
+-              symbolSearchError={symbolSearchError}
+-              symbolSearchAvailability={symbolSearchAvailability}
+-              symbolSearchGraphAge={symbolSearchGraphAge}
+-              symbolSearchFolders={symbolSearchFolders}
+-              onSymbolSelect={(filePath, startLine) => {
+-                onSymbolSelect?.(filePath, startLine);
++              codeSearchResults={codeSearchResults}
++              codeSearchLoading={codeSearchLoading}
++              codeSearchError={codeSearchError}
++              codeSearchAvailability={codeSearchAvailability}
++              codeSearchGraphAge={codeSearchGraphAge}
++              codeSearchFolders={codeSearchFolders}
++              onCodeSearchSelect={(filePath, startLine) => {
++                onCodeSearchSelect?.(filePath, startLine);
+                 exitEditMode();
+               }}
+             />
+diff --git a/apps/web/src/features/_platform/panel-layout/index.ts b/apps/web/src/features/_platform/panel-layout/index.ts
+index 3a947f0..051a3e1 100644
+--- a/apps/web/src/features/_platform/panel-layout/index.ts
++++ b/apps/web/src/features/_platform/panel-layout/index.ts
+@@ -15,8 +15,10 @@ export type {
+   FileSearchSortMode,
+   FileSearchEntry,
+   FileChangeInfo,
+-  FlowSpaceSearchMode,
+-  FlowSpaceAvailability,
++  CodeSearchMode,
++  CodeSearchAvailability,
++  CodeSearchResult,
++  GrepSearchResult,
+   FlowSpaceSearchResult,
+ } from './types';
+ export { FLOWSPACE_CATEGORY_ICONS } from './types';
+diff --git a/apps/web/src/features/_platform/panel-layout/types.ts b/apps/web/src/features/_platform/panel-layout/types.ts
+index 6414bee..fd2815b 100644
+--- a/apps/web/src/features/_platform/panel-layout/types.ts
++++ b/apps/web/src/features/_platform/panel-layout/types.ts
+@@ -56,17 +56,29 @@ export interface FileChangeInfo {
+   status: string;
+ }
+ 
+-// --- FlowSpace search types (Plan 051) ---
++// --- Code search types (Plan 051 FlowSpace + Plan 052 git grep) ---
+ // Defined here so infra (panel-layout) doesn't import from business (file-browser).
++// Uses discriminated union so dropdown renders via result.kind.
+ 
+-/** FlowSpace search mode — text is fast/free, semantic uses embedding API */
+-export type FlowSpaceSearchMode = 'text' | 'semantic';
++/** Code search mode — determines which engine to use */
++export type CodeSearchMode = 'grep' | 'semantic';
+ 
+-/** FlowSpace availability status */
+-export type FlowSpaceAvailability = 'available' | 'not-installed' | 'no-graph' | 'no-embeddings';
++/** Availability status for code search features */
++export type CodeSearchAvailability = 'available' | 'not-installed' | 'no-graph' | 'no-embeddings';
+ 
+-/** A code node result from FlowSpace search */
++/** Git grep content search result (Plan 052) */
++export interface GrepSearchResult {
++  kind: 'grep';
++  filePath: string;
++  filename: string;
++  lineNumber: number;
++  matchContent: string;
++  matchCount: number;
++}
++
++/** FlowSpace semantic search result (Plan 051) */
+ export interface FlowSpaceSearchResult {
++  kind: 'flowspace';
+   nodeId: string;
+   name: string;
+   category: string;
+@@ -79,6 +91,9 @@ export interface FlowSpaceSearchResult {
+   matchField: string;
+ }
+ 
++/** Discriminated union — dropdown switches on result.kind for rendering */
++export type CodeSearchResult = GrepSearchResult | FlowSpaceSearchResult;
++
+ /** Category icon mapping for FlowSpace node categories */
+ export const FLOWSPACE_CATEGORY_ICONS: Record<string, string> = {
+   file: '📄',
+diff --git a/apps/web/src/lib/server/flowspace-search-action.ts b/apps/web/src/lib/server/flowspace-search-action.ts
+index fd5da14..75204c1 100644
+--- a/apps/web/src/lib/server/flowspace-search-action.ts
++++ b/apps/web/src/lib/server/flowspace-search-action.ts
+@@ -16,8 +16,8 @@ import { join } from 'node:path';
+ import { promisify } from 'node:util';
+ 
+ import type {
+-  FlowSpaceAvailability,
+-  FlowSpaceSearchMode,
++  CodeSearchAvailability,
++  CodeSearchMode,
+   FlowSpaceSearchResult,
+ } from '@/features/_platform/panel-layout/types';
+ 
+@@ -38,7 +38,7 @@ let fs2AvailableCache: boolean | null = null;
+  */
+ export async function checkFlowspaceAvailability(
+   cwd: string
+-): Promise<{ availability: FlowSpaceAvailability; graphMtime?: number }> {
++): Promise<{ availability: CodeSearchAvailability; graphMtime?: number }> {
+   log('availability check', { cwd });
+ 
+   // Check fs2 binary
+@@ -143,7 +143,7 @@ function sanitizeSmartContent(raw: string | null | undefined): string | null {
+  */
+ export async function flowspaceSearch(
+   query: string,
+-  mode: FlowSpaceSearchMode,
++  mode: CodeSearchMode,
+   cwd: string
+ ): Promise<
+   { results: FlowSpaceSearchResult[]; folders: Record<string, number> } | { error: string }
+@@ -194,6 +194,7 @@ export async function flowspaceSearch(
+       const category = r.node_id.split(':')[0] || 'other';
+ 
+       results.push({
++        kind: 'flowspace',
+         nodeId: r.node_id,
+         name: extractName(r.node_id, r.smart_content),
+         category,
+diff --git a/apps/web/src/lib/server/git-grep-action.ts b/apps/web/src/lib/server/git-grep-action.ts
+new file mode 100644
+index 0000000..45cfc12
+--- /dev/null
++++ b/apps/web/src/lib/server/git-grep-action.ts
+@@ -0,0 +1,218 @@
++'use server';
++
++/**
++ * Git Grep Content Search Server Action
++ *
++ * Calls `git grep` via execFile for file content search.
++ * Uses --fixed-strings by default, auto-upgrades to regex when intentional.
++ *
++ * Plan 052: Built-in Content Search
++ */
++
++import { execFile } from 'node:child_process';
++import { promisify } from 'node:util';
++
++import type { GrepSearchResult } from '@/features/_platform/panel-layout/types';
++
++const execFileAsync = promisify(execFile);
++
++const LOG_PREFIX = '[git-grep]';
++function log(...args: unknown[]) {
++  console.log(LOG_PREFIX, ...args);
++}
++
++// Intentional regex patterns — if query contains these, use regex mode
++const REGEX_INTENT = /\.\*|\\\b|\^|\$|\\d|\\w|\[.*\]|\(.*\)/;
++
++// Source file extensions to search
++const SOURCE_GLOBS = [
++  '*.ts',
++  '*.tsx',
++  '*.js',
++  '*.jsx',
++  '*.json',
++  '*.md',
++  '*.yaml',
++  '*.yml',
++  '*.css',
++];
++
++let gitAvailableCache: boolean | null = null;
++
++/**
++ * Check if git is available. Cached after first check.
++ */
++async function isGitAvailable(): Promise<boolean> {
++  if (gitAvailableCache !== null) return gitAvailableCache;
++  try {
++    await execFileAsync('git', ['--version'], { timeout: 3000 });
++    gitAvailableCache = true;
++    return true;
++  } catch {
++    gitAvailableCache = false;
++    return false;
++  }
++}
++
++/**
++ * Check if directory is a git repository.
++ */
++async function isGitRepo(cwd: string): Promise<boolean> {
++  try {
++    await execFileAsync('git', ['rev-parse', '--git-dir'], { cwd, timeout: 3000 });
++    return true;
++  } catch {
++    return false;
++  }
++}
++
++/**
++ * Detect if query is an intentional regex pattern.
++ */
++function isRegexIntent(query: string): boolean {
++  return REGEX_INTENT.test(query);
++}
++
++/**
++ * Parse git grep output line: "filepath:lineNumber:content"
++ */
++function parseGrepLine(
++  line: string
++): { filePath: string; lineNumber: number; content: string } | null {
++  // Format: filepath:lineNo:content
++  // filepath can contain colons on Windows but not on Unix
++  const firstColon = line.indexOf(':');
++  if (firstColon === -1) return null;
++
++  const rest = line.slice(firstColon + 1);
++  const secondColon = rest.indexOf(':');
++  if (secondColon === -1) return null;
++
++  const filePath = line.slice(0, firstColon);
++  const lineNumber = Number.parseInt(rest.slice(0, secondColon), 10);
++  const content = rest.slice(secondColon + 1);
++
++  if (Number.isNaN(lineNumber)) return null;
++
++  return { filePath, lineNumber, content };
++}
++
++/**
++ * Search file content using git grep.
++ */
++export async function gitGrepSearch(
++  query: string,
++  cwd: string
++): Promise<{ results: GrepSearchResult[] } | { error: string }> {
++  if (!query.trim()) {
++    return { results: [] };
++  }
++
++  if (!(await isGitAvailable())) {
++    return { error: 'Git is not installed' };
++  }
++
++  if (!(await isGitRepo(cwd))) {
++    return { error: 'Git repository required for content search' };
++  }
++
++  const useRegex = isRegexIntent(query);
++  const args = [
++    'grep',
++    '-n', // line numbers
++    '-i', // case insensitive
++    ...(useRegex ? [] : ['-F']), // fixed strings unless intentional regex
++    '--untracked', // include untracked files
++    '--max-count=5', // limit per-file matches
++    '-I', // skip binary files
++    query,
++    '--',
++    ...SOURCE_GLOBS,
++  ];
++
++  log('search →', { query, useRegex, cwd });
++
++  try {
++    const startMs = Date.now();
++    const { stdout, stderr } = await execFileAsync('git', args, {
++      cwd,
++      timeout: 3000,
++      maxBuffer: 5 * 1024 * 1024,
++    });
++
++    if (stderr) {
++      log('stderr:', stderr.trim());
++    }
++
++    // Parse output and group by file
++    const fileMap = new Map<string, { lines: { lineNumber: number; content: string }[] }>();
++
++    for (const line of stdout.split('\n')) {
++      if (!line.trim()) continue;
++      const parsed = parseGrepLine(line);
++      if (!parsed) continue;
++
++      const existing = fileMap.get(parsed.filePath);
++      if (existing) {
++        existing.lines.push({ lineNumber: parsed.lineNumber, content: parsed.content });
++      } else {
++        fileMap.set(parsed.filePath, {
++          lines: [{ lineNumber: parsed.lineNumber, content: parsed.content }],
++        });
++      }
++    }
++
++    // Build results — one per file, limited to 20 files
++    const results: GrepSearchResult[] = [];
++    let fileCount = 0;
++    for (const [filePath, data] of fileMap) {
++      if (fileCount >= 20) break;
++      fileCount++;
++
++      const firstMatch = data.lines[0];
++      const parts = filePath.split('/');
++      const filename = parts[parts.length - 1];
++
++      results.push({
++        kind: 'grep',
++        filePath,
++        filename,
++        lineNumber: firstMatch.lineNumber,
++        matchContent: firstMatch.content.trim().slice(0, 200),
++        matchCount: data.lines.length,
++      });
++    }
++
++    const elapsedMs = Date.now() - startMs;
++    log(`search ← ${results.length} files (${fileMap.size} total) in ${elapsedMs}ms`);
++
++    return { results };
++  } catch (err: unknown) {
++    const error = err as { code?: number; stderr?: string; message?: string; killed?: boolean };
++
++    log('search ERROR:', {
++      code: error.code,
++      killed: error.killed,
++      stderr: error.stderr?.slice(0, 200),
++    });
++
++    // git grep exits 1 when no matches — this is normal
++    if (error.code === 1 && !error.stderr?.trim()) {
++      return { results: [] };
++    }
++
++    if (error.killed) {
++      return { error: 'Search timed out. Try a more specific query.' };
++    }
++
++    if (error.stderr?.includes('invalid regexp')) {
++      return { error: 'Invalid search pattern' };
++    }
++
++    const firstLine = error.stderr
++      ?.split('\n')
++      .find((l) => l.trim())
++      ?.trim();
++    return { error: firstLine || 'Search failed' };
++  }
++}

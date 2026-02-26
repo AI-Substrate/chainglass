@@ -26,7 +26,7 @@ export function ContextFlowIndicator({ rightNode }: ContextFlowIndicatorProps) {
   if (rightNode.noContext) {
     return (
       <span
-        className="text-xs text-muted-foreground/50 px-0.5 shrink-0"
+        className="text-lg text-muted-foreground/50 px-1 shrink-0 self-center"
         title="Isolated — no context"
         data-testid="flow-isolated"
       >
@@ -39,7 +39,7 @@ export function ContextFlowIndicator({ rightNode }: ContextFlowIndicatorProps) {
   if (rightNode.contextFrom) {
     return (
       <span
-        className="text-xs text-violet-400 px-0.5 shrink-0"
+        className="text-lg text-violet-400 px-1 shrink-0 self-center"
         title={`Context from: ${rightNode.contextFrom}`}
         data-testid="flow-explicit"
       >
@@ -56,7 +56,7 @@ export function ContextFlowIndicator({ rightNode }: ContextFlowIndicatorProps) {
   // Default: serial, context inherited from left
   return (
     <span
-      className="text-xs text-blue-400 px-0.5 shrink-0"
+      className="text-lg text-blue-400 px-1 shrink-0 self-center"
       title="Context inherited from left"
       data-testid="flow-inherited"
     >
@@ -68,7 +68,7 @@ export function ContextFlowIndicator({ rightNode }: ContextFlowIndicatorProps) {
 function Dot({ label }: { label: string }) {
   return (
     <span
-      className="text-xs text-muted-foreground/30 px-0.5 shrink-0"
+      className="text-lg text-muted-foreground/30 px-1 shrink-0 self-center"
       title={label}
       data-testid="flow-none"
     >
