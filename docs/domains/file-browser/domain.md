@@ -161,3 +161,4 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
 | Plan 041 Phase 5 | WorkspaceContext, useAttentionTitle wired, EmojiPicker, ColorPicker, settings page (/settings/workspaces), pop-out button, sidebar emoji | 2026-02-24 |
 | Plan 041 P5 ST-001 | Per-worktree emoji/color (WorktreeVisualPreferences), worktreeIdentity in context, tab title composition, inline gear popover, updateWorktreePreferences action, browser history push on file nav, scroll-to-top on file change | 2026-02-24 |
 | 047-usdk Phase 6 | SDK contribution (3 commands, 5 settings), go-to-line URL param + path parsing, CodeMirror scroll-to-line | 2026-02-25 |
+| Plan 049 Feature 1 | Diff stats service (git diff HEAD --shortstat), usePanelState extension, live-updating file change stats in FILES header | 2026-02-26 |

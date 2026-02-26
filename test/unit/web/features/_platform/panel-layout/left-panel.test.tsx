@@ -84,4 +84,20 @@ describe('LeftPanel', () => {
     // Title visible but no mode toggle (single mode = no point switching)
     expect(screen.queryByRole('button', { name: 'Tree view' })).not.toBeInTheDocument();
   });
+
+  it('passes subtitle to PanelHeader', () => {
+    render(
+      <LeftPanel
+        mode="tree"
+        onModeChange={vi.fn()}
+        modes={modes}
+        onRefresh={vi.fn()}
+        subtitle={<span>3 changed +10 −5</span>}
+      >
+        {{ tree: <div>Tree</div>, changes: <div>Changes</div> }}
+      </LeftPanel>
+    );
+
+    expect(screen.getByText('3 changed +10 −5')).toBeInTheDocument();
+  });
 });

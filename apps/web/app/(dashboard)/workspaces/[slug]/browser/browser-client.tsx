@@ -43,6 +43,7 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 import {
   fetchChangedFiles,
+  fetchDiffStats,
   fetchGitDiff,
   fetchRecentFiles,
   fetchWorkingChanges,
@@ -125,6 +126,7 @@ function BrowserClientInner({
     fetchWorkingChanges,
     fetchRecentFiles,
     fetchChangedFiles,
+    fetchDiffStats,
   });
 
   const clipboard = useClipboard({ slug, worktreePath, readFile });
@@ -375,6 +377,20 @@ function BrowserClientInner({
 
   // --- Render ---
 
+  // Compute diff stats subtitle for FILES header (Plan 049 Feature 1)
+  const diffStatsSubtitle = useMemo(() => {
+    const stats = panelState.diffStats;
+    if (!stats || stats.files === 0) return undefined;
+    return (
+      <span className="text-xs flex items-center gap-1.5">
+        <span className="text-muted-foreground">·</span>
+        <span className="text-muted-foreground">{stats.files} changed</span>
+        {stats.insertions > 0 && <span className="text-green-500">+{stats.insertions}</span>}
+        {stats.deletions > 0 && <span className="text-red-500">−{stats.deletions}</span>}
+      </span>
+    );
+  }, [panelState.diffStats]);
+
   return (
     <div className="h-[calc(100vh-4rem)] overflow-hidden">
       <PanelShell
@@ -397,6 +413,7 @@ function BrowserClientInner({
             onModeChange={panelState.handlePanelModeChange}
             modes={panelModes}
             onRefresh={handlePanelRefresh}
+            subtitle={diffStatsSubtitle}
           >
             {{
               tree: (

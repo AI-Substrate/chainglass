@@ -25,10 +25,18 @@ export interface LeftPanelProps {
   onModeChange: (mode: PanelMode) => void;
   modes: LeftPanelMode[];
   onRefresh: () => void;
+  subtitle?: ReactNode;
   children: Partial<Record<PanelMode, ReactNode>>;
 }
 
-export function LeftPanel({ mode, onModeChange, modes, onRefresh, children }: LeftPanelProps) {
+export function LeftPanel({
+  mode,
+  onModeChange,
+  modes,
+  onRefresh,
+  subtitle,
+  children,
+}: LeftPanelProps) {
   // Hide mode buttons when only one mode available
   const showModes = modes.length > 1 ? modes : undefined;
 
@@ -36,6 +44,7 @@ export function LeftPanel({ mode, onModeChange, modes, onRefresh, children }: Le
     <div className="flex flex-col h-full text-sm">
       <PanelHeader
         title="Files"
+        subtitle={subtitle}
         modes={showModes}
         activeMode={mode}
         onModeChange={onModeChange}

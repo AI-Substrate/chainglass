@@ -127,6 +127,12 @@ export async function fetchRecentFiles(worktreePath: string, limit = 20) {
   return getRecentFiles(worktreePath, limit);
 }
 
+// Diff stats — git diff HEAD --shortstat parser (Plan 049 Feature 1)
+export async function fetchDiffStats(worktreePath: string) {
+  const { getDiffStats } = await import('../../src/features/041-file-browser/services/diff-stats');
+  return getDiffStats(worktreePath);
+}
+
 // File existence check — lightweight stat for ExplorerPanel (Plan 043 Phase 2)
 // Security: resolves trusted root from slug via IWorkspaceService, not client worktreePath.
 export async function fileExists(
