@@ -35,7 +35,10 @@ async function resolveWorkspaceContext(
   const info = await workspaceService.getInfo(slug);
   if (!info) return null;
 
-  const resolvedWorktreePath = worktreePath ?? info.path;
+  // Resolve worktree from known workspace worktrees only (trusted root)
+  const resolvedWorktreePath = worktreePath
+    ? info.worktrees.find((w) => w.path === worktreePath)?.path ?? info.path
+    : info.path;
   const wt = info.worktrees.find((w) => w.path === resolvedWorktreePath);
 
   return {
@@ -82,14 +85,24 @@ export async function listWorkflows(
 
   const workflows: WorkflowSummary[] = [];
   for (const slug of listResult.slugs) {
-    const status = await service.getStatus(ctx, slug);
-    workflows.push({
-      slug,
-      description: status.description,
-      lineCount: status.lines.length,
-      nodeCount: status.totalNodes,
-      status: status.status,
-    });
+    try {
+      const status = await service.getStatus(ctx, slug);
+      workflows.push({
+        slug,
+        description: status.description,
+        lineCount: status.lines.length,
+        nodeCount: status.totalNodes,
+        status: status.status,
+      });
+    } catch {
+      // Skip graphs that fail to load status (e.g., corrupt state)
+      workflows.push({
+        slug,
+        lineCount: 0,
+        nodeCount: 0,
+        status: 'pending',
+      });
+    }
   }
 
   return { workflows, errors: [] };
@@ -105,14 +118,12 @@ export async function loadWorkflow(
 
   const service = resolveGraphService();
 
-  const [loadResult, graphStatus] = await Promise.all([
-    service.load(ctx, graphSlug),
-    service.getStatus(ctx, graphSlug),
-  ]);
-
+  const loadResult = await service.load(ctx, graphSlug);
   if (loadResult.errors.length > 0) {
     return { errors: loadResult.errors };
   }
+
+  const graphStatus = await service.getStatus(ctx, graphSlug);
 
   return {
     definition: loadResult.definition,

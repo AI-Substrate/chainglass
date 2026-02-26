@@ -38,7 +38,7 @@ Build a visual workflow editor for the positional graph system as a new `workflo
 | `scripts/dope-workflows.ts` | workflow-ui | internal | Demo workflow generator |
 | `justfile` | workflow-ui | cross-domain | Add dope/redope commands |
 | `apps/web/src/lib/di-container.ts` | workflow-ui | cross-domain | Register positional-graph services |
-| `apps/web/src/features/_platform/panel-layout/components/panel-shell.tsx` | _platform/panel-layout | cross-domain | Add right panel prop |
+| `apps/web/src/features/_platform/panel-layout/components/panel-shell.tsx` | _platform/panel-layout | cross-domain | ~~Add right panel prop~~ Not modified — standalone layout used instead |
 | `packages/workflow/src/features/023-central-watcher-notifications/workflow-watcher.adapter.ts` | _platform/events | cross-domain | New watcher adapter for workflow files |
 | `apps/web/src/features/027-central-notify-events/workflow-domain-event-adapter.ts` | _platform/events | cross-domain | New domain event adapter for workflow SSE |
 | `packages/positional-graph/src/fakes/fake-positional-graph-service.ts` | _platform/positional-graph | cross-domain | Fake for UI testing |
@@ -47,6 +47,8 @@ Build a visual workflow editor for the positional graph system as a new `workflo
 | `apps/web/tsconfig.json` | workflow-ui | cross-domain | Path mapping for positional-graph DI imports |
 | `docs/domains/_platform/positional-graph/domain.md` | _platform/positional-graph | contract | Add workflow-ui as consumer |
 | `test/integration/dope-workflows.test.ts` | workflow-ui | test | Doping script validation |
+| `test/unit/web/features/050-workflow-page/*.test.tsx` | workflow-ui | test | Phase 2 rendering/state unit tests |
+| `apps/web/src/features/050-workflow-page/types.ts` | workflow-ui | internal | Shared types for server actions and client components |
 | `apps/web/src/lib/navigation-utils.ts` | workflow-ui | cross-domain | Update workflow nav href |
 
 ## Key Findings

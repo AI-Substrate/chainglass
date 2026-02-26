@@ -38,9 +38,27 @@ export function WorkflowLine({ line, lineIndex }: WorkflowLineProps) {
           {lineIndex + 1}
         </span>
         <span className="text-sm font-medium">{line.label ?? `Line ${lineIndex + 1}`}</span>
-        <span className="text-xs text-muted-foreground ml-auto">
-          {line.transition === 'auto' ? '↓ auto' : '🔒 manual'}
-        </span>
+        <div className="flex items-center gap-1.5 ml-auto">
+          <button
+            type="button"
+            disabled
+            className="text-xs text-muted-foreground opacity-50 cursor-not-allowed"
+            title="Settings (Phase 3)"
+          >
+            ⚙️
+          </button>
+          <span className="text-xs text-muted-foreground">
+            {line.transition === 'auto' ? '↓ auto' : '🔒 manual'}
+          </span>
+          <button
+            type="button"
+            disabled
+            className="text-xs text-muted-foreground opacity-50 cursor-not-allowed"
+            title="Delete line (Phase 3)"
+          >
+            ✕
+          </button>
+        </div>
       </div>
 
       {/* Nodes */}

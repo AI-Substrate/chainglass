@@ -44,20 +44,24 @@ Visual workflow editor for the positional graph system. Users view and edit line
 
 | Component | Role | Depends On |
 |-----------|------|------------|
-| Workflow list page | Browse workflows in workspace | IPositionalGraphService, ITemplateService |
-| Workflow editor page | Canvas + toolbox + properties | IPositionalGraphService, PanelShell |
+| Workflow list page | Browse workflows in workspace | IPositionalGraphService (list, getStatus) |
+| Workflow editor page | Standalone layout: canvas + toolbox | IPositionalGraphService (load, getStatus), IWorkUnitService (list) |
+| WorkflowCanvas | Line/node rendering from GraphStatusResult | WorkflowLine, WorkflowNodeCard, EmptyStates |
+| WorkUnitToolbox | Right sidebar: grouped units with search | IWorkUnitService (list) via server action |
 | dope-workflows.ts | Demo scenario generation script | IPositionalGraphService (via script DI container) |
 
 ## Source Location
 
-Primary: `apps/web/src/features/050-workflow-page-ux/`
+Primary: `apps/web/src/features/050-workflow-page/`
 
 | File/Area | Role | Notes |
 |-----------|------|-------|
-| `apps/web/src/features/050-workflow-page-ux/` | Feature folder | All UI components, hooks, params |
-| `apps/web/app/(dashboard)/workspaces/[slug]/workflows/` | Route pages | List + editor pages |
+| `apps/web/src/features/050-workflow-page/` | Feature folder | All UI components, hooks, types |
+| `apps/web/app/(dashboard)/workspaces/[slug]/workflows/` | Route pages | List + editor server components |
+| `apps/web/app/actions/workflow-actions.ts` | Server actions | loadWorkflow, listWorkflows, createWorkflow, listWorkUnits |
 | `scripts/dope-workflows.ts` | Doping script | Demo workflow generation |
 | `test/integration/dope-workflows.test.ts` | Doping validation test | Verifies all scenarios |
+| `test/unit/web/features/050-workflow-page/` | Unit tests | Canvas, node card, toolbox, list rendering |
 
 ## Dependencies
 
@@ -68,7 +72,7 @@ Primary: `apps/web/src/features/050-workflow-page-ux/`
 | `_platform/positional-graph` | `IPositionalGraphService`, `ITemplateService`, `IInstanceService`, `IWorkUnitService` | All graph CRUD, status, templates |
 | `_platform/file-ops` | `IFileSystem`, `IPathResolver` | Filesystem operations |
 | `_platform/events` | `useSSE`, SSE infrastructure | Live editor updates |
-| `_platform/panel-layout` | `PanelShell` | Page layout with right panel |
+| `_platform/panel-layout` | ~~`PanelShell`~~ Not used — standalone layout | DYK Phase 2: dropped PanelShell |
 | `_platform/workspace-url` | `workspaceHref`, param caches | URL state management |
 | `_platform/sdk` | `IUSDK` | Commands and keybindings |
 | `@chainglass/shared` | `IYamlParser`, Result types | Foundation utilities |
@@ -82,3 +86,4 @@ Primary: `apps/web/src/features/050-workflow-page-ux/`
 | Plan | What Changed | Date |
 |------|-------------|------|
 | Plan 050 Phase 1 | Domain formalized, DI wiring, fakes, doping system | 2026-02-26 |
+| Plan 050 Phase 2 | Workflow list + editor pages, canvas/line/node components, server actions, toolbox, nav update | 2026-02-26 |
