@@ -14,12 +14,12 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 
 import { PositionalGraphAdapter, PositionalGraphService } from '@chainglass/positional-graph';
-import type { IWorkUnitLoader } from '@chainglass/positional-graph/interfaces';
 import { NodeFileSystemAdapter, PathResolverAdapter, YamlParserAdapter } from '@chainglass/shared';
 import type { WorkspaceContext } from '@chainglass/workflow';
 import { InstanceAdapter, TemplateAdapter, TemplateService } from '@chainglass/workflow';
 
 import type { TestGraphContext } from './graph-test-runner.js';
+import { buildDiskWorkUnitLoader, makeScriptsExecutable } from './helpers.js';
 
 /** Root of the repo (three levels up from this file) */
 const REPO_ROOT = path.resolve(import.meta.dirname, '..', '..', '..');
@@ -91,7 +91,7 @@ export async function withTemplateWorkflow(
     }
 
     // Make scripts executable
-    await makeExecutable(globalUnits);
+    await makeScriptsExecutable(globalUnits);
 
     // Create data dir for graph engine
     await fs.mkdir(path.join(tmpDir, '.chainglass', 'data', 'workflows'), { recursive: true });
@@ -102,7 +102,7 @@ export async function withTemplateWorkflow(
     const yamlParser = new YamlParserAdapter();
 
     const graphAdapter = new PositionalGraphAdapter(nodeFs, pathResolver);
-    const loader = buildLoader(tmpDir, yamlParser);
+    const loader = buildDiskWorkUnitLoader(tmpDir);
     const graphService = new PositionalGraphService(
       nodeFs,
       pathResolver,
@@ -153,49 +153,5 @@ export async function withTemplateWorkflow(
     if (!options.preserveOnSuccess) {
       await fs.rm(tmpDir, { recursive: true, force: true });
     }
-  }
-}
-
-function buildLoader(workspacePath: string, yamlParser: YamlParserAdapter): IWorkUnitLoader {
-  return {
-    async load(_ctx: WorkspaceContext, slug: string) {
-      const unitYamlPath = path.join(workspacePath, '.chainglass', 'units', slug, 'unit.yaml');
-      try {
-        const content = await fs.readFile(unitYamlPath, 'utf-8');
-        const parsed = yamlParser.parse<{
-          slug: string;
-          type: 'agent' | 'code' | 'user-input';
-          inputs?: Array<{ name: string; type: 'data' | 'file'; required: boolean }>;
-          outputs: Array<{ name: string; type: 'data' | 'file'; required: boolean }>;
-        }>(content, unitYamlPath);
-        return {
-          unit: {
-            slug: parsed.slug,
-            type: parsed.type,
-            inputs: parsed.inputs ?? [],
-            outputs: parsed.outputs,
-          },
-          errors: [],
-        };
-      } catch {
-        return { errors: [{ message: `Unit '${slug}' not found`, code: 'NOT_FOUND' }] };
-      }
-    },
-  };
-}
-
-async function makeExecutable(dir: string): Promise<void> {
-  try {
-    const entries = await fs.readdir(dir, { withFileTypes: true });
-    for (const entry of entries) {
-      const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        await makeExecutable(full);
-      } else if (entry.name.endsWith('.sh')) {
-        await fs.chmod(full, 0o755);
-      }
-    }
-  } catch {
-    // Dir may not exist
   }
 }

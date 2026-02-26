@@ -15,10 +15,12 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
 import { PositionalGraphAdapter, PositionalGraphService } from '@chainglass/positional-graph';
-import type { IPositionalGraphService, IWorkUnitLoader } from '@chainglass/positional-graph/interfaces';
+import type { IPositionalGraphService } from '@chainglass/positional-graph/interfaces';
 import { NodeFileSystemAdapter, PathResolverAdapter, YamlParserAdapter } from '@chainglass/shared';
 import type { WorkspaceContext } from '@chainglass/workflow';
 import { InstanceAdapter, TemplateAdapter, TemplateService } from '@chainglass/workflow';
+
+import { buildDiskWorkUnitLoader, makeScriptsExecutable } from '../dev/test-graphs/shared/helpers.js';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const FIXTURES_DIR = path.join(ROOT, 'dev', 'test-graphs');
@@ -33,29 +35,6 @@ function createCtx(worktreePath: string): WorkspaceContext {
     worktreeBranch: null,
     isMainWorktree: true,
     hasGit: true,
-  };
-}
-
-function buildLoader(workspacePath: string, yamlParser: YamlParserAdapter): IWorkUnitLoader {
-  return {
-    async load(_ctx: WorkspaceContext, slug: string) {
-      const unitYamlPath = path.join(workspacePath, '.chainglass', 'units', slug, 'unit.yaml');
-      try {
-        const content = await fs.readFile(unitYamlPath, 'utf-8');
-        const parsed = yamlParser.parse<{
-          slug: string;
-          type: 'agent' | 'code' | 'user-input';
-          inputs?: Array<{ name: string; type: 'data' | 'file'; required: boolean }>;
-          outputs: Array<{ name: string; type: 'data' | 'file'; required: boolean }>;
-        }>(content, unitYamlPath);
-        return {
-          unit: { slug: parsed.slug, type: parsed.type, inputs: parsed.inputs ?? [], outputs: parsed.outputs },
-          errors: [],
-        };
-      } catch {
-        return { errors: [{ message: `Unit '${slug}' not found`, code: 'NOT_FOUND' }] };
-      }
-    },
   };
 }
 
@@ -110,14 +89,14 @@ async function generateTemplate(config: FixtureConfig): Promise<void> {
     await fs.cp(fixtureUnits, unitsDir, { recursive: true });
 
     // Make scripts executable
-    await makeExecutable(unitsDir);
+    await makeScriptsExecutable(unitsDir);
 
     // Wire real services
     const nodeFs = new NodeFileSystemAdapter();
     const pathResolver = new PathResolverAdapter();
     const yamlParser = new YamlParserAdapter();
     const graphAdapter = new PositionalGraphAdapter(nodeFs, pathResolver);
-    const loader = buildLoader(tmpDir, yamlParser);
+    const loader = buildDiskWorkUnitLoader(tmpDir);
     const graphService = new PositionalGraphService(nodeFs, pathResolver, yamlParser, graphAdapter, loader);
     const templateAdapter = new TemplateAdapter(nodeFs, pathResolver);
     const instanceAdapter = new InstanceAdapter(nodeFs, pathResolver);
@@ -155,7 +134,7 @@ async function generateTemplate(config: FixtureConfig): Promise<void> {
     await fs.cp(srcTemplate, destTemplate, { recursive: true });
 
     // Make scripts executable in final location
-    await makeExecutable(path.join(destTemplate, 'units'));
+    await makeScriptsExecutable(path.join(destTemplate, 'units'));
 
     console.log(`  Copied to: .chainglass/templates/workflows/${config.slug}/`);
   } finally {
@@ -163,21 +142,6 @@ async function generateTemplate(config: FixtureConfig): Promise<void> {
   }
 }
 
-async function makeExecutable(dir: string): Promise<void> {
-  try {
-    const entries = await fs.readdir(dir, { withFileTypes: true });
-    for (const entry of entries) {
-      const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        await makeExecutable(full);
-      } else if (entry.name.endsWith('.sh')) {
-        await fs.chmod(full, 0o755);
-      }
-    }
-  } catch {
-    // Dir may not exist
-  }
-}
 
 // CLI
 const args = process.argv.slice(2);

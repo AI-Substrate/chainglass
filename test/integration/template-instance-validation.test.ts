@@ -23,11 +23,15 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 
 import { PositionalGraphAdapter, PositionalGraphService } from '@chainglass/positional-graph';
-import type { IWorkUnitLoader } from '@chainglass/positional-graph';
 import { NodeFileSystemAdapter, PathResolverAdapter, YamlParserAdapter } from '@chainglass/shared';
 import type { WorkspaceContext } from '@chainglass/workflow';
 import { InstanceAdapter, TemplateAdapter, TemplateService } from '@chainglass/workflow';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+
+import {
+  buildDiskWorkUnitLoader,
+  makeScriptsExecutable,
+} from '../../dev/test-graphs/shared/helpers.js';
 
 // ─── Test Infrastructure (T003) ────────────────────────────────────
 
@@ -69,10 +73,7 @@ async function setupTestWorkspace(): Promise<TestContext> {
   await nodeFs.cp(fixtureUnits, unitsDir, { recursive: true });
 
   // Make scripts executable
-  const scripts = await findScripts(unitsDir);
-  for (const script of scripts) {
-    await nodeFs.chmod(script, 0o755);
-  }
+  await makeScriptsExecutable(unitsDir);
 
   // Wire real services
   const fs = new NodeFileSystemAdapter();
@@ -80,7 +81,7 @@ async function setupTestWorkspace(): Promise<TestContext> {
   const yamlParser = new YamlParserAdapter();
 
   const graphAdapter = new PositionalGraphAdapter(fs, pathResolver);
-  const loader: IWorkUnitLoader = buildLoader(tmpDir, yamlParser);
+  const loader = buildDiskWorkUnitLoader(tmpDir);
   const graphService = new PositionalGraphService(
     fs,
     pathResolver,
@@ -100,48 +101,6 @@ async function setupTestWorkspace(): Promise<TestContext> {
   );
 
   return { tmpDir, ctx, graphService, templateService };
-}
-
-function buildLoader(workspacePath: string, yamlParser: YamlParserAdapter): IWorkUnitLoader {
-  return {
-    async load(_ctx: WorkspaceContext, slug: string) {
-      const unitYamlPath = path.join(workspacePath, '.chainglass', 'units', slug, 'unit.yaml');
-      try {
-        const content = await nodeFs.readFile(unitYamlPath, 'utf-8');
-        const parsed = yamlParser.parse<{
-          slug: string;
-          type: 'agent' | 'code' | 'user-input';
-          inputs?: Array<{ name: string; type: 'data' | 'file'; required: boolean }>;
-          outputs: Array<{ name: string; type: 'data' | 'file'; required: boolean }>;
-        }>(content, unitYamlPath);
-        return {
-          unit: {
-            slug: parsed.slug,
-            type: parsed.type,
-            inputs: parsed.inputs ?? [],
-            outputs: parsed.outputs,
-          },
-          errors: [],
-        };
-      } catch {
-        return { errors: [{ message: `Unit '${slug}' not found`, code: 'UNIT_NOT_FOUND' }] };
-      }
-    },
-  };
-}
-
-async function findScripts(dir: string): Promise<string[]> {
-  const results: string[] = [];
-  const entries = await nodeFs.readdir(dir, { withFileTypes: true });
-  for (const entry of entries) {
-    const fullPath = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      results.push(...(await findScripts(fullPath)));
-    } else if (entry.name.endsWith('.sh')) {
-      results.push(fullPath);
-    }
-  }
-  return results;
 }
 
 async function buildSimpleGraph(

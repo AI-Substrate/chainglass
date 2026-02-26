@@ -6,7 +6,11 @@
 
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import type { IPositionalGraphService } from '@chainglass/positional-graph/interfaces';
+import type {
+  IPositionalGraphService,
+  IWorkUnitLoader,
+} from '@chainglass/positional-graph/interfaces';
+import { YamlParserAdapter } from '@chainglass/shared';
 import type { WorkspaceContext } from '@chainglass/workflow';
 
 /**
@@ -103,4 +107,37 @@ export async function answerNodeQuestion(
     { reason: 'Question answered' },
     'orchestrator'
   );
+}
+
+/**
+ * Build an IWorkUnitLoader that reads unit.yaml from a workspace's .chainglass/units/ dir.
+ * Shared across template generation scripts, integration tests, and test helpers.
+ */
+export function buildDiskWorkUnitLoader(workspacePath: string): IWorkUnitLoader {
+  const yamlParser = new YamlParserAdapter();
+  return {
+    async load(_ctx: WorkspaceContext, slug: string) {
+      const unitYamlPath = path.join(workspacePath, '.chainglass', 'units', slug, 'unit.yaml');
+      try {
+        const content = await fs.readFile(unitYamlPath, 'utf-8');
+        const parsed = yamlParser.parse<{
+          slug: string;
+          type: 'agent' | 'code' | 'user-input';
+          inputs?: Array<{ name: string; type: 'data' | 'file'; required: boolean }>;
+          outputs: Array<{ name: string; type: 'data' | 'file'; required: boolean }>;
+        }>(content, unitYamlPath);
+        return {
+          unit: {
+            slug: parsed.slug,
+            type: parsed.type,
+            inputs: parsed.inputs ?? [],
+            outputs: parsed.outputs,
+          },
+          errors: [],
+        };
+      } catch {
+        return { errors: [{ message: `Unit '${slug}' not found`, code: 'NOT_FOUND' }] };
+      }
+    },
+  };
 }

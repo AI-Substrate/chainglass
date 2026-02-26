@@ -21,7 +21,7 @@ import * as nodeFs from 'node:fs/promises';
 import * as path from 'node:path';
 
 import { YamlParserAdapter } from '@chainglass/shared';
-import { afterEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import {
   type TemplateTestContext,
@@ -29,15 +29,6 @@ import {
 } from '../../dev/test-graphs/shared/template-test-runner.js';
 
 describe('Template lifecycle E2E', () => {
-  let cleanupFn: (() => Promise<void>) | null = null;
-
-  afterEach(async () => {
-    if (cleanupFn) {
-      await cleanupFn();
-      cleanupFn = null;
-    }
-  });
-
   it('should instantiate simple-serial with correct structure', async () => {
     await withTemplateWorkflow('simple-serial', async (ttc: TemplateTestContext) => {
       const instanceDir = path.join(
