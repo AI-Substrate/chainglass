@@ -42,6 +42,11 @@ Build a visual workflow editor for the positional graph system as a new `workflo
 | `packages/workflow/src/features/023-central-watcher-notifications/workflow-watcher.adapter.ts` | _platform/events | cross-domain | New watcher adapter for workflow files |
 | `apps/web/src/features/027-central-notify-events/workflow-domain-event-adapter.ts` | _platform/events | cross-domain | New domain event adapter for workflow SSE |
 | `packages/positional-graph/src/fakes/fake-positional-graph-service.ts` | _platform/positional-graph | cross-domain | Fake for UI testing |
+| `packages/positional-graph/src/fakes/index.ts` | _platform/positional-graph | cross-domain | Fake barrel export |
+| `packages/positional-graph/src/index.ts` | _platform/positional-graph | cross-domain | Re-export fakes for consumers |
+| `apps/web/tsconfig.json` | workflow-ui | cross-domain | Path mapping for positional-graph DI imports |
+| `docs/domains/_platform/positional-graph/domain.md` | _platform/positional-graph | contract | Add workflow-ui as consumer |
+| `test/integration/dope-workflows.test.ts` | workflow-ui | test | Doping script validation |
 | `apps/web/src/lib/navigation-utils.ts` | workflow-ui | cross-domain | Update workflow nav href |
 
 ## Key Findings

@@ -83,81 +83,13 @@ function createCtx(worktreePath: string): WorkspaceContext {
 }
 
 // ============================================
-// Demo Work Units
+// Sample Work Unit Slugs (committed in .chainglass/units/)
 // ============================================
 
-const DEMO_UNITS = {
-  'demo-agent': {
-    slug: 'demo-agent',
-    type: 'agent',
-    version: '1.0.0',
-    description: 'Demo agent unit for UI development',
-    inputs: [
-      { name: 'task', type: 'data', data_type: 'text', required: true, description: 'Task input' },
-    ],
-    outputs: [
-      {
-        name: 'result',
-        type: 'data',
-        data_type: 'text',
-        required: true,
-        description: 'Agent result',
-      },
-    ],
-    agent: { type: 'claude-code' },
-  },
-  'demo-code': {
-    slug: 'demo-code',
-    type: 'code',
-    version: '1.0.0',
-    description: 'Demo code unit for UI development',
-    inputs: [],
-    outputs: [
-      {
-        name: 'result',
-        type: 'data',
-        data_type: 'text',
-        required: true,
-        description: 'Code result',
-      },
-    ],
-    code: { script: 'scripts/noop.sh' },
-  },
-  'demo-user-input': {
-    slug: 'demo-user-input',
-    type: 'user-input',
-    version: '1.0.0',
-    description: 'Demo user-input unit for UI development',
-    inputs: [],
-    outputs: [
-      {
-        name: 'answer',
-        type: 'data',
-        data_type: 'text',
-        required: true,
-        description: 'User answer',
-      },
-    ],
-    user_input: { question_type: 'text', prompt: 'What would you like to do?' },
-  },
-} as const;
-
-async function writeDemoUnits(workspacePath: string): Promise<void> {
-  const yamlParser = new YamlParserAdapter();
-  for (const unit of Object.values(DEMO_UNITS)) {
-    const unitDir = path.join(workspacePath, '.chainglass', 'units', unit.slug);
-    await fs.mkdir(unitDir, { recursive: true });
-    await fs.writeFile(path.join(unitDir, 'unit.yaml'), yamlParser.stringify(unit));
-    // Create noop script for code units
-    if (unit.type === 'code') {
-      const scriptDir = path.join(unitDir, 'scripts');
-      await fs.mkdir(scriptDir, { recursive: true });
-      await fs.writeFile(path.join(scriptDir, 'noop.sh'), '#!/bin/bash\necho "noop"\n', {
-        mode: 0o755,
-      });
-    }
-  }
-}
+// AC-30: Use committed sample-* work units, not generated demo-* units
+const UNIT_AGENT = 'sample-coder';
+const UNIT_CODE = 'sample-pr-creator';
+const UNIT_USER_INPUT = 'sample-input';
 
 // ============================================
 // State Injection
@@ -208,23 +140,23 @@ const SCENARIOS: Scenario[] = [
 
   {
     slug: 'demo-serial',
-    description: 'Two-line serial workflow — agent → code',
+    description: 'Two-line serial workflow — user-input → coder',
     async build(service, ctx) {
       const { lineId: line0 } = await service.create(ctx, 'demo-serial');
       const line1 = await service.addLine(ctx, 'demo-serial');
       const line1Id = assertDefined(line1.lineId, 'demo-serial addLine lineId');
 
-      const n1 = await service.addNode(ctx, 'demo-serial', line0, 'demo-agent');
+      const n1 = await service.addNode(ctx, 'demo-serial', line0, UNIT_USER_INPUT);
       const n1Id = assertDefined(n1.nodeId, 'demo-serial addNode n1 nodeId');
-      await service.addNode(ctx, 'demo-serial', line1Id, 'demo-code');
+      await service.addNode(ctx, 'demo-serial', line1Id, UNIT_AGENT);
 
-      // Wire input: code node takes agent's result
+      // Wire input: coder takes user-input's spec output
       const nodes = await service.load(ctx, 'demo-serial');
       const line1Nodes = nodes.definition?.lines[1]?.nodes ?? [];
       if (line1Nodes.length > 0) {
-        await service.setInput(ctx, 'demo-serial', line1Nodes[0], 'task', {
+        await service.setInput(ctx, 'demo-serial', line1Nodes[0], 'spec', {
           from_node: n1Id,
-          from_output: 'result',
+          from_output: 'spec',
         });
       }
     },
@@ -235,7 +167,7 @@ const SCENARIOS: Scenario[] = [
     description: 'Workflow with one node running (agent-accepted)',
     async build(service, ctx, workspacePath) {
       const { lineId: line0 } = await service.create(ctx, 'demo-running');
-      const n1 = await service.addNode(ctx, 'demo-running', line0, 'demo-agent');
+      const n1 = await service.addNode(ctx, 'demo-running', line0, UNIT_AGENT);
       const n1Id = assertDefined(n1.nodeId, 'demo-running addNode nodeId');
 
       await injectState(workspacePath, 'demo-running', {
@@ -256,7 +188,7 @@ const SCENARIOS: Scenario[] = [
     description: 'Workflow with a node waiting for user input',
     async build(service, ctx, workspacePath) {
       const { lineId: line0 } = await service.create(ctx, 'demo-question');
-      const n1 = await service.addNode(ctx, 'demo-question', line0, 'demo-agent');
+      const n1 = await service.addNode(ctx, 'demo-question', line0, UNIT_AGENT);
       const n1Id = assertDefined(n1.nodeId, 'demo-question addNode nodeId');
 
       const questionId = 'q-demo-1';
@@ -288,7 +220,7 @@ const SCENARIOS: Scenario[] = [
     description: 'Workflow with a node in blocked-error state',
     async build(service, ctx, workspacePath) {
       const { lineId: line0 } = await service.create(ctx, 'demo-error');
-      const n1 = await service.addNode(ctx, 'demo-error', line0, 'demo-code');
+      const n1 = await service.addNode(ctx, 'demo-error', line0, UNIT_CODE);
       const n1Id = assertDefined(n1.nodeId, 'demo-error addNode nodeId');
 
       await injectState(workspacePath, 'demo-error', {
@@ -316,9 +248,9 @@ const SCENARIOS: Scenario[] = [
       const line1 = await service.addLine(ctx, 'demo-complete');
       const line1Id = assertDefined(line1.lineId, 'demo-complete addLine lineId');
 
-      const n1 = await service.addNode(ctx, 'demo-complete', line0, 'demo-agent');
+      const n1 = await service.addNode(ctx, 'demo-complete', line0, UNIT_USER_INPUT);
       const n1Id = assertDefined(n1.nodeId, 'demo-complete addNode n1 nodeId');
-      const n2 = await service.addNode(ctx, 'demo-complete', line1Id, 'demo-code');
+      const n2 = await service.addNode(ctx, 'demo-complete', line1Id, UNIT_AGENT);
       const n2Id = assertDefined(n2.nodeId, 'demo-complete addNode n2 nodeId');
 
       await injectState(workspacePath, 'demo-complete', {
@@ -345,7 +277,7 @@ const SCENARIOS: Scenario[] = [
 
   {
     slug: 'demo-complex',
-    description: 'Multi-line workflow with mixed states — all 7 persistable statuses represented',
+    description: 'Multi-line workflow with mixed states — all 8 UI statuses represented',
     async build(service, ctx, workspacePath) {
       const { lineId: line0 } = await service.create(ctx, 'demo-complex');
       const line1 = await service.addLine(ctx, 'demo-complex');
@@ -354,23 +286,26 @@ const SCENARIOS: Scenario[] = [
       const line2Id = assertDefined(line2.lineId, 'demo-complex addLine line2 lineId');
 
       // Line 0: two nodes — both complete
-      const n1 = await service.addNode(ctx, 'demo-complex', line0, 'demo-user-input');
+      const n1 = await service.addNode(ctx, 'demo-complex', line0, UNIT_USER_INPUT);
       const n1Id = assertDefined(n1.nodeId, 'demo-complex n1 nodeId');
-      const n2 = await service.addNode(ctx, 'demo-complex', line0, 'demo-agent');
+      const n2 = await service.addNode(ctx, 'demo-complex', line0, UNIT_AGENT);
       const n2Id = assertDefined(n2.nodeId, 'demo-complex n2 nodeId');
 
       // Line 1: four nodes — starting, agent-accepted, waiting-question, restart-pending
-      const n3 = await service.addNode(ctx, 'demo-complex', line1Id, 'demo-agent');
+      const n3 = await service.addNode(ctx, 'demo-complex', line1Id, UNIT_AGENT);
       const n3Id = assertDefined(n3.nodeId, 'demo-complex n3 nodeId');
-      const n4 = await service.addNode(ctx, 'demo-complex', line1Id, 'demo-code');
+      const n4 = await service.addNode(ctx, 'demo-complex', line1Id, UNIT_CODE);
       const n4Id = assertDefined(n4.nodeId, 'demo-complex n4 nodeId');
-      const n5 = await service.addNode(ctx, 'demo-complex', line1Id, 'demo-agent');
+      const n5 = await service.addNode(ctx, 'demo-complex', line1Id, UNIT_AGENT);
       const n5Id = assertDefined(n5.nodeId, 'demo-complex n5 nodeId');
-      const n6 = await service.addNode(ctx, 'demo-complex', line1Id, 'demo-code');
+      const n6 = await service.addNode(ctx, 'demo-complex', line1Id, UNIT_CODE);
       const n6Id = assertDefined(n6.nodeId, 'demo-complex n6 nodeId');
 
-      // Line 2: one node — pending (no state entry)
-      await service.addNode(ctx, 'demo-complex', line2Id, 'demo-agent');
+      // Line 2: one node — pending (no state entry = 'pending' status)
+      // Note: 'ready' is the 8th status, computed at runtime by getNodeStatus()
+      // when a node's prerequisites are met. Line 0 nodes in demo-serial demonstrate
+      // this (first node on line 0 with no preceding lines = ready).
+      await service.addNode(ctx, 'demo-complex', line2Id, UNIT_AGENT);
 
       const questionId = 'q-complex-1';
       await injectState(workspacePath, 'demo-complex', {
@@ -428,7 +363,7 @@ const SCENARIOS: Scenario[] = [
     async build(service, ctx, workspacePath) {
       // First create a source graph to save as template
       const { lineId: line0 } = await service.create(ctx, 'demo-template-source');
-      await service.addNode(ctx, 'demo-template-source', line0, 'demo-agent');
+      await service.addNode(ctx, 'demo-template-source', line0, UNIT_AGENT);
 
       // Save as template
       const services = createScriptServices(workspacePath);
@@ -527,9 +462,6 @@ async function main(): Promise<void> {
   await fs.mkdir(path.join(workspacePath, '.chainglass', 'templates', 'workflows'), {
     recursive: true,
   });
-
-  // Write demo work units
-  await writeDemoUnits(workspacePath);
 
   const scenarios =
     command === 'all' ? SCENARIOS : SCENARIOS.filter((s) => s.slug === command);

@@ -44,6 +44,7 @@ flowchart LR
 
     %% Workflow UI dependencies
     workflowUI -->|"IPositionalGraphService<br/>ITemplateService<br/>IWorkUnitService"| posGraph
+    workflowUI -->|"IFileSystem<br/>IPathResolver"| fileOps
     workflowUI -->|"useSSE<br/>SSE infrastructure"| events
     workflowUI -->|"PanelShell"| panels
     workflowUI -->|"workspaceHref"| wsUrl
@@ -65,16 +66,16 @@ flowchart LR
 
 | Domain | Contracts Out | Consumers | Contracts In | Providers | Status |
 |--------|--------------|-----------|-------------|-----------|--------|
-| _platform/file-ops | IFileSystem, IPathResolver | file-browser, viewer | — | — | ✅ |
+| _platform/file-ops | IFileSystem, IPathResolver | file-browser, viewer, workflow-ui | — | — | ✅ |
 | _platform/workspace-url | workspaceHref, paramsCaches | file-browser, panel-layout | — | — | ✅ |
 | _platform/viewer | FileViewer, MarkdownViewer, DiffViewer, highlightCode, detectContentType, isBinaryExtension | file-browser | IFileSystem | file-ops | ✅ |
-| _platform/events | ICentralEventNotifier, ISSEBroadcaster, useSSE, FileChangeHub, useFileChanges, FileChangeProvider, toast() | file-browser, workgraph-ui*, agent-ui* | — | — | ✅ |
-| _platform/panel-layout | PanelShell, ExplorerPanel, LeftPanel, MainPanel, PanelHeader, BarHandler, AsciiSpinner | file-browser, future workspace pages | panel URL param | workspace-url | ✅ |
+| _platform/events | ICentralEventNotifier, ISSEBroadcaster, useSSE, FileChangeHub, useFileChanges, FileChangeProvider, toast() | file-browser, workflow-ui, workgraph-ui*, agent-ui* | — | — | ✅ |
+| _platform/panel-layout | PanelShell, ExplorerPanel, LeftPanel, MainPanel, PanelHeader, BarHandler, AsciiSpinner | file-browser, workflow-ui, future workspace pages | panel URL param | workspace-url | ✅ |
 | file-browser | Browser page, FileTree, FileViewerPanel, WorkspaceContext, EmojiPicker, ColorPicker, Settings | — | IFileSystem, workspaceHref, viewers, toast, events, panels | file-ops, workspace-url, viewer, events, panel-layout | ✅ |
-| _platform/sdk | IUSDK, ICommandRegistry, ISDKSettings, IContextKeyService, IKeybindingService, SDKCommand, SDKSetting, FakeUSDK | file-browser, events, panel-layout, settings | — | — | ✅ |
+| _platform/sdk | IUSDK, ICommandRegistry, ISDKSettings, IContextKeyService, IKeybindingService, SDKCommand, SDKSetting, FakeUSDK | file-browser, workflow-ui, events, panel-layout, settings | — | — | ✅ |
 | _platform/settings | Settings Page, sdk.openSettings | — | ISDKSettings, useSDKSetting, useSDK | sdk | ✅ |
-| _platform/positional-graph | IPositionalGraphService, IOrchestrationService, IEventHandlerService, IWorkUnitService, ITemplateService, IInstanceService | CLI (`cg wf`, `cg template`), web UI (022)*, dev/test-graphs | IFileSystem, IPathResolver | file-ops | ✅ |
+| _platform/positional-graph | IPositionalGraphService, IOrchestrationService, IEventHandlerService, IWorkUnitService, ITemplateService, IInstanceService | CLI (`cg wf`, `cg template`), workflow-ui, web UI (022)*, dev/test-graphs | IFileSystem, IPathResolver | file-ops | ✅ |
 | _platform/workgraph | IWorkGraphService, IWorkNodeService, IWorkUnitService | CLI (`cg wg`, `cg unit`), web UI (022)*, API routes, event adapters (023, 027) | IFileSystem, IPathResolver | file-ops | ⚠️ Deprecated |
-| workflow-ui | _(none — leaf consumer)_ | — | IPositionalGraphService, ITemplateService, IWorkUnitService, PanelShell, useSSE, workspaceHref, IUSDK | positional-graph, events, panel-layout, workspace-url, sdk | ✅ |
+| workflow-ui | _(none — leaf consumer)_ | — | IPositionalGraphService, ITemplateService, IWorkUnitService, IFileSystem, IPathResolver, PanelShell, useSSE, workspaceHref, IUSDK | positional-graph, file-ops, events, panel-layout, workspace-url, sdk | ✅ |
 
 *workgraph-ui and agent-ui are not yet formalized as domains but are known consumers of both positional-graph and workgraph

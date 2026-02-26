@@ -76,50 +76,20 @@ function createServices(workspacePath: string) {
   return { graphService, templateService };
 }
 
-// Demo unit definitions (same as dope-workflows.ts)
-const DEMO_UNITS = {
-  'demo-agent': {
-    slug: 'demo-agent',
-    type: 'agent',
-    version: '1.0.0',
-    description: 'Demo agent unit',
-    inputs: [{ name: 'task', type: 'data', data_type: 'text', required: true }],
-    outputs: [{ name: 'result', type: 'data', data_type: 'text', required: true }],
-    agent: { type: 'claude-code' },
-  },
-  'demo-code': {
-    slug: 'demo-code',
-    type: 'code',
-    version: '1.0.0',
-    description: 'Demo code unit',
-    inputs: [],
-    outputs: [{ name: 'result', type: 'data', data_type: 'text', required: true }],
-    code: { script: 'scripts/noop.sh' },
-  },
-  'demo-user-input': {
-    slug: 'demo-user-input',
-    type: 'user-input',
-    version: '1.0.0',
-    description: 'Demo user-input unit',
-    inputs: [],
-    outputs: [{ name: 'answer', type: 'data', data_type: 'text', required: true }],
-    user_input: { question_type: 'text', prompt: 'What would you like to do?' },
-  },
-};
+// Sample unit slugs (AC-30: use committed sample-* units)
+const UNIT_AGENT = 'sample-coder';
+const UNIT_CODE = 'sample-pr-creator';
+const UNIT_USER_INPUT = 'sample-input';
 
-async function writeDemoUnits(workspacePath: string): Promise<void> {
-  const yamlParser = new YamlParserAdapter();
-  for (const unit of Object.values(DEMO_UNITS)) {
-    const unitDir = path.join(workspacePath, '.chainglass', 'units', unit.slug);
-    await nodeFs.mkdir(unitDir, { recursive: true });
-    await nodeFs.writeFile(path.join(unitDir, 'unit.yaml'), yamlParser.stringify(unit));
-    if (unit.type === 'code') {
-      const scriptDir = path.join(unitDir, 'scripts');
-      await nodeFs.mkdir(scriptDir, { recursive: true });
-      await nodeFs.writeFile(path.join(scriptDir, 'noop.sh'), '#!/bin/bash\necho "noop"\n', {
-        mode: 0o755,
-      });
-    }
+// Repo root for copying sample units
+const REPO_ROOT = path.resolve(import.meta.dirname, '../..');
+
+async function copySampleUnits(workspacePath: string): Promise<void> {
+  const sampleSlugs = [UNIT_AGENT, UNIT_CODE, UNIT_USER_INPUT];
+  for (const slug of sampleSlugs) {
+    const src = path.join(REPO_ROOT, '.chainglass', 'units', slug);
+    const dst = path.join(workspacePath, '.chainglass', 'units', slug);
+    await nodeFs.cp(src, dst, { recursive: true });
   }
 }
 
@@ -147,7 +117,7 @@ beforeEach(async () => {
   await nodeFs.mkdir(path.join(tmpDir, '.chainglass', 'templates', 'workflows'), {
     recursive: true,
   });
-  await writeDemoUnits(tmpDir);
+  await copySampleUnits(tmpDir);
 
   const { graphService, templateService } = createServices(tmpDir);
   testCtx = {
@@ -224,16 +194,16 @@ describe('dope-workflows scenarios', () => {
     const { lineId: line0 } = await svc.create(ctx, 'demo-serial');
     const line1 = await svc.addLine(ctx, 'demo-serial');
 
-    const n1 = await svc.addNode(ctx, 'demo-serial', line0, 'demo-agent');
-    await svc.addNode(ctx, 'demo-serial', line1.lineId ?? '', 'demo-code');
+    const n1 = await svc.addNode(ctx, 'demo-serial', line0, UNIT_USER_INPUT);
+    await svc.addNode(ctx, 'demo-serial', line1.lineId ?? '', UNIT_AGENT);
 
-    // Wire input
+    // Wire input: coder takes user-input's spec output
     const loaded = await svc.load(ctx, 'demo-serial');
     const line1Nodes = loaded.definition?.lines[1]?.nodes ?? [];
     if (line1Nodes.length > 0 && n1.nodeId) {
-      await svc.setInput(ctx, 'demo-serial', line1Nodes[0], 'task', {
+      await svc.setInput(ctx, 'demo-serial', line1Nodes[0], 'spec', {
         from_node: n1.nodeId,
-        from_output: 'result',
+        from_output: 'spec',
       });
     }
 
@@ -255,7 +225,7 @@ describe('dope-workflows scenarios', () => {
     */
     const { graphService: svc, ctx } = testCtx;
     const { lineId: line0 } = await svc.create(ctx, 'demo-running');
-    const n1 = await svc.addNode(ctx, 'demo-running', line0, 'demo-agent');
+    const n1 = await svc.addNode(ctx, 'demo-running', line0, UNIT_AGENT);
 
     await injectState(testCtx.tmpDir, 'demo-running', {
       graph_status: 'in_progress',
@@ -283,7 +253,7 @@ describe('dope-workflows scenarios', () => {
     */
     const { graphService: svc, ctx } = testCtx;
     const { lineId: line0 } = await svc.create(ctx, 'demo-question');
-    const n1 = await svc.addNode(ctx, 'demo-question', line0, 'demo-agent');
+    const n1 = await svc.addNode(ctx, 'demo-question', line0, UNIT_AGENT);
 
     const questionId = 'q-test-1';
     await injectState(testCtx.tmpDir, 'demo-question', {
@@ -325,7 +295,7 @@ describe('dope-workflows scenarios', () => {
     */
     const { graphService: svc, ctx } = testCtx;
     const { lineId: line0 } = await svc.create(ctx, 'demo-error');
-    const n1 = await svc.addNode(ctx, 'demo-error', line0, 'demo-code');
+    const n1 = await svc.addNode(ctx, 'demo-error', line0, UNIT_CODE);
 
     await injectState(testCtx.tmpDir, 'demo-error', {
       graph_status: 'in_progress',
@@ -359,8 +329,8 @@ describe('dope-workflows scenarios', () => {
     const { lineId: line0 } = await svc.create(ctx, 'demo-complete');
     const line1 = await svc.addLine(ctx, 'demo-complete');
 
-    const n1 = await svc.addNode(ctx, 'demo-complete', line0, 'demo-agent');
-    const n2 = await svc.addNode(ctx, 'demo-complete', line1.lineId ?? '', 'demo-code');
+    const n1 = await svc.addNode(ctx, 'demo-complete', line0, UNIT_USER_INPUT);
+    const n2 = await svc.addNode(ctx, 'demo-complete', line1.lineId ?? '', UNIT_AGENT);
 
     await injectState(testCtx.tmpDir, 'demo-complete', {
       graph_status: 'complete',
@@ -380,14 +350,13 @@ describe('dope-workflows scenarios', () => {
     expect(state.graph_status).toBe('complete');
   });
 
-  it('demo-complex: creates multi-line workflow with all 7 persistable statuses', async () => {
+  it('demo-complex: creates multi-line workflow with all 8 UI statuses covered', async () => {
     /*
     Test Doc:
-    - Why: Validates demo-complex covers all 7 persistable node statuses (AC-30)
+    - Why: Validates demo-complex covers all 8 UI statuses (AC-30)
     - Contract: 3 lines, 8 nodes total; 6 have explicit state entries covering starting,
-      agent-accepted, waiting-question, restart-pending, complete; 1 pending (implicit); plus
-      blocked-error from demo-error scenario
-    - Usage Notes: 'ready' status is computed at runtime, not persistable — not tested here
+      agent-accepted, waiting-question, restart-pending, complete; 1 pending (implicit);
+      blocked-error from demo-error scenario; 'ready' verified via getNodeStatus() below
     - Quality Contribution: Catches missing status coverage that leaves UI states untested
     - Worked Example: create → 3 lines × nodes → injectState(mixed) → verify 6 explicit + 1 pending
     */
@@ -399,15 +368,15 @@ describe('dope-workflows scenarios', () => {
     const line2Id = line2.lineId ?? '';
 
     // Line 0: 2 complete nodes
-    const n1 = await svc.addNode(ctx, 'demo-complex', line0, 'demo-user-input');
-    const n2 = await svc.addNode(ctx, 'demo-complex', line0, 'demo-agent');
+    const n1 = await svc.addNode(ctx, 'demo-complex', line0, UNIT_USER_INPUT);
+    const n2 = await svc.addNode(ctx, 'demo-complex', line0, UNIT_AGENT);
     // Line 1: starting, agent-accepted, waiting-question, restart-pending
-    const n3 = await svc.addNode(ctx, 'demo-complex', line1Id, 'demo-agent');
-    const n4 = await svc.addNode(ctx, 'demo-complex', line1Id, 'demo-code');
-    const n5 = await svc.addNode(ctx, 'demo-complex', line1Id, 'demo-agent');
-    const n6 = await svc.addNode(ctx, 'demo-complex', line1Id, 'demo-code');
+    const n3 = await svc.addNode(ctx, 'demo-complex', line1Id, UNIT_AGENT);
+    const n4 = await svc.addNode(ctx, 'demo-complex', line1Id, UNIT_CODE);
+    const n5 = await svc.addNode(ctx, 'demo-complex', line1Id, UNIT_AGENT);
+    const n6 = await svc.addNode(ctx, 'demo-complex', line1Id, UNIT_CODE);
     // Line 2: 1 pending node (no state entry)
-    await svc.addNode(ctx, 'demo-complex', line2Id, 'demo-agent');
+    await svc.addNode(ctx, 'demo-complex', line2Id, UNIT_AGENT);
 
     const questionId = 'q-complex-1';
     await injectState(testCtx.tmpDir, 'demo-complex', {
@@ -462,7 +431,7 @@ describe('dope-workflows scenarios', () => {
 
     // Build source graph
     const { lineId: line0 } = await svc.create(ctx, 'demo-template-source');
-    await svc.addNode(ctx, 'demo-template-source', line0, 'demo-agent');
+    await svc.addNode(ctx, 'demo-template-source', line0, UNIT_AGENT);
 
     // Save as template
     const saveResult = await testCtx.templateService.saveFrom(
@@ -491,5 +460,82 @@ describe('dope-workflows scenarios', () => {
     );
     const content = await nodeFs.readFile(instanceYaml, 'utf-8');
     expect(content).toContain('template_source: demo-template');
+  });
+
+  it('demo-serial: first node on line 0 computes as ready via getNodeStatus (AC-30 8th status)', async () => {
+    /*
+    Test Doc:
+    - Why: Validates the 'ready' computed status — the 8th UI status not persistable in state.json
+    - Contract: A node on line 0 with no state entry and loadable unit returns status='ready'
+    - Usage Notes: 'ready' is computed by getNodeStatus() when all prerequisites are met
+    - Quality Contribution: Completes AC-30's 8-state coverage requirement
+    */
+    const { graphService: svc, ctx } = testCtx;
+    const { lineId: line0 } = await svc.create(ctx, 'demo-serial-ready');
+    const n1 = await svc.addNode(ctx, 'demo-serial-ready', line0, UNIT_USER_INPUT);
+
+    // Node on line 0 with no state entry → should compute as 'ready'
+    const nodeStatus = await svc.getNodeStatus(ctx, 'demo-serial-ready', n1.nodeId ?? '');
+    expect(nodeStatus.status).toBe('ready');
+  });
+});
+
+// ─── Script-Path Test (FT-003) ────────────────────────────────────
+
+describe('dope-workflows script execution (AC-37)', () => {
+  it('script path: npx tsx scripts/dope-workflows.ts generates expected artifacts', async () => {
+    /*
+    Test Doc:
+    - Why: Validates the actual script command path produces valid workflow artifacts
+    - Contract: Running the script creates demo-* workflow directories with graph.yaml files
+    - Quality Contribution: Catches script-level errors (imports, CLI arg parsing) not caught by in-process tests
+    */
+    const { execFile } = await import('node:child_process');
+    const { promisify } = await import('node:util');
+    const exec = promisify(execFile);
+
+    // Clean any stale demo workflows first, then run the actual script
+    await exec('npx', ['tsx', 'scripts/dope-workflows.ts', 'clean'], {
+      cwd: REPO_ROOT,
+      timeout: 15_000,
+    });
+
+    const result = await exec('npx', ['tsx', 'scripts/dope-workflows.ts'], {
+      cwd: REPO_ROOT,
+      timeout: 30_000,
+    });
+
+    // Ignore npm warnings (e.g., "Unknown project config" from pnpm config)
+    const meaningfulStderr = result.stderr
+      .split('\n')
+      .filter((l) => !l.startsWith('npm warn'))
+      .join('\n')
+      .trim();
+    expect(meaningfulStderr).toBe('');
+    expect(result.stdout).toContain('Dope Workflows');
+    expect(result.stdout).toContain('Done in');
+
+    // Verify at least some demo workflows were created
+    const workflowsDir = path.join(REPO_ROOT, '.chainglass', 'data', 'workflows');
+    const entries = await nodeFs.readdir(workflowsDir);
+    const demos = entries.filter((e) => e.startsWith('demo-'));
+    // 7 scenarios create workflows in data/workflows/ (demo-from-template creates in instances/)
+    expect(demos.length).toBeGreaterThanOrEqual(7);
+
+    // Verify each demo has a graph.yaml
+    for (const demo of demos) {
+      const graphYaml = path.join(workflowsDir, demo, 'graph.yaml');
+      const exists = await nodeFs
+        .access(graphYaml)
+        .then(() => true)
+        .catch(() => false);
+      expect(exists, `${demo}/graph.yaml should exist`).toBe(true);
+    }
+
+    // Clean up
+    await exec('npx', ['tsx', 'scripts/dope-workflows.ts', 'clean'], {
+      cwd: REPO_ROOT,
+      timeout: 15_000,
+    });
   });
 });

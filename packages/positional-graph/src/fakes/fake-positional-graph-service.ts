@@ -10,22 +10,52 @@
 
 import type { BaseResult } from '@chainglass/shared';
 import type { WorkspaceContext } from '@chainglass/workflow';
+import type { EventSource } from '../features/032-node-event-system/index.js';
 import type { InspectResult } from '../features/040-graph-inspect/index.js';
 import type {
+  AddLineOptions,
   AddLineResult,
+  AddNodeOptions,
   AddNodeResult,
+  AnswerQuestionResult,
+  AskQuestionOptions,
+  AskQuestionResult,
+  CanEndResult,
+  EndNodeResult,
+  GetAnswerResult,
+  GetInputDataResult,
+  GetInputFileResult,
+  GetNodeEventsFilter,
+  GetNodeEventsResult,
+  GetOutputDataResult,
+  GetOutputFileResult,
   GraphCreateResult,
   GraphStatusResult,
   IPositionalGraphService,
   InputPack,
   LineStatusResult,
+  MoveNodeOptions,
   NodeShowResult,
   NodeStatusResult,
   PGListResult,
   PGLoadResult,
   PGShowResult,
+  RaiseNodeEventResult,
+  SaveOutputDataResult,
+  SaveOutputFileResult,
+  StampNodeEventResult,
+  StartNodeResult,
 } from '../interfaces/positional-graph-service.interface.js';
-import type { State } from '../schemas/index.js';
+import type {
+  GraphOrchestratorSettings,
+  GraphProperties,
+  InputResolution,
+  LineOrchestratorSettings,
+  LineProperties,
+  NodeOrchestratorSettings,
+  NodeProperties,
+  State,
+} from '../schemas/index.js';
 
 /** Fresh empty BaseResult — avoids shared mutable reference across callers. */
 function emptyBaseResult(): BaseResult {
@@ -148,7 +178,7 @@ export class FakePositionalGraphService implements IPositionalGraphService {
   async addLine(
     ctx: WorkspaceContext,
     graphSlug: string,
-    options?: unknown
+    options?: AddLineOptions
   ): Promise<AddLineResult> {
     this.track('addLine', [ctx, graphSlug, options]);
     return this._addLineResult;
@@ -194,7 +224,7 @@ export class FakePositionalGraphService implements IPositionalGraphService {
     graphSlug: string,
     lineId: string,
     unitSlug: string,
-    options?: unknown
+    options?: AddNodeOptions
   ): Promise<AddNodeResult> {
     this.track('addNode', [ctx, graphSlug, lineId, unitSlug, options]);
     return this._addNodeResult;
@@ -209,7 +239,7 @@ export class FakePositionalGraphService implements IPositionalGraphService {
     ctx: WorkspaceContext,
     graphSlug: string,
     nodeId: string,
-    options: unknown
+    options: MoveNodeOptions
   ): Promise<BaseResult> {
     this.track('moveNode', [ctx, graphSlug, nodeId, options]);
     return emptyBaseResult();
@@ -239,7 +269,7 @@ export class FakePositionalGraphService implements IPositionalGraphService {
     graphSlug: string,
     nodeId: string,
     inputName: string,
-    source: unknown
+    source: InputResolution
   ): Promise<BaseResult> {
     this.track('setInput', [ctx, graphSlug, nodeId, inputName, source]);
     return emptyBaseResult();
@@ -334,9 +364,8 @@ export class FakePositionalGraphService implements IPositionalGraphService {
   async updateGraphProperties(
     ctx: WorkspaceContext,
     graphSlug: string,
-    properties: unknown
+    properties: Partial<GraphProperties>
   ): Promise<BaseResult> {
-    this.track('updateGraphProperties', [ctx, graphSlug, properties]);
     return emptyBaseResult();
   }
 
@@ -344,9 +373,8 @@ export class FakePositionalGraphService implements IPositionalGraphService {
     ctx: WorkspaceContext,
     graphSlug: string,
     lineId: string,
-    properties: unknown
+    properties: Partial<LineProperties>
   ): Promise<BaseResult> {
-    this.track('updateLineProperties', [ctx, graphSlug, lineId, properties]);
     return emptyBaseResult();
   }
 
@@ -354,7 +382,7 @@ export class FakePositionalGraphService implements IPositionalGraphService {
     ctx: WorkspaceContext,
     graphSlug: string,
     nodeId: string,
-    properties: unknown
+    properties: Partial<NodeProperties>
   ): Promise<BaseResult> {
     this.track('updateNodeProperties', [ctx, graphSlug, nodeId, properties]);
     return emptyBaseResult();
@@ -363,9 +391,8 @@ export class FakePositionalGraphService implements IPositionalGraphService {
   async updateGraphOrchestratorSettings(
     ctx: WorkspaceContext,
     graphSlug: string,
-    settings: unknown
+    settings: Partial<GraphOrchestratorSettings>
   ): Promise<BaseResult> {
-    this.track('updateGraphOrchestratorSettings', [ctx, graphSlug, settings]);
     return emptyBaseResult();
   }
 
@@ -373,7 +400,7 @@ export class FakePositionalGraphService implements IPositionalGraphService {
     ctx: WorkspaceContext,
     graphSlug: string,
     lineId: string,
-    settings: unknown
+    settings: Partial<LineOrchestratorSettings>
   ): Promise<BaseResult> {
     this.track('updateLineOrchestratorSettings', [ctx, graphSlug, lineId, settings]);
     return emptyBaseResult();
@@ -383,7 +410,7 @@ export class FakePositionalGraphService implements IPositionalGraphService {
     ctx: WorkspaceContext,
     graphSlug: string,
     nodeId: string,
-    settings: unknown
+    settings: Partial<NodeOrchestratorSettings>
   ): Promise<BaseResult> {
     this.track('updateNodeOrchestratorSettings', [ctx, graphSlug, nodeId, settings]);
     return emptyBaseResult();
@@ -395,7 +422,7 @@ export class FakePositionalGraphService implements IPositionalGraphService {
     nodeId: string,
     outputName: string,
     value: unknown
-  ) {
+  ): Promise<SaveOutputDataResult> {
     this.track('saveOutputData', [ctx, graphSlug, nodeId, outputName, value]);
     return { ...emptyBaseResult(), nodeId, outputName, saved: true };
   }
@@ -406,7 +433,7 @@ export class FakePositionalGraphService implements IPositionalGraphService {
     nodeId: string,
     outputName: string,
     sourcePath: string
-  ) {
+  ): Promise<SaveOutputFileResult> {
     this.track('saveOutputFile', [ctx, graphSlug, nodeId, outputName, sourcePath]);
     return { ...emptyBaseResult(), nodeId, outputName, saved: true };
   }
@@ -416,7 +443,7 @@ export class FakePositionalGraphService implements IPositionalGraphService {
     graphSlug: string,
     nodeId: string,
     outputName: string
-  ) {
+  ): Promise<GetOutputDataResult> {
     this.track('getOutputData', [ctx, graphSlug, nodeId, outputName]);
     return { ...emptyBaseResult(), nodeId, outputName };
   }
@@ -426,12 +453,16 @@ export class FakePositionalGraphService implements IPositionalGraphService {
     graphSlug: string,
     nodeId: string,
     outputName: string
-  ) {
+  ): Promise<GetOutputFileResult> {
     this.track('getOutputFile', [ctx, graphSlug, nodeId, outputName]);
     return { ...emptyBaseResult(), nodeId, outputName };
   }
 
-  async startNode(ctx: WorkspaceContext, graphSlug: string, nodeId: string) {
+  async startNode(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string
+  ): Promise<StartNodeResult> {
     this.track('startNode', [ctx, graphSlug, nodeId]);
     return {
       ...emptyBaseResult(),
@@ -441,12 +472,17 @@ export class FakePositionalGraphService implements IPositionalGraphService {
     };
   }
 
-  async canEnd(ctx: WorkspaceContext, graphSlug: string, nodeId: string) {
+  async canEnd(ctx: WorkspaceContext, graphSlug: string, nodeId: string): Promise<CanEndResult> {
     this.track('canEnd', [ctx, graphSlug, nodeId]);
     return { ...emptyBaseResult(), nodeId, canEnd: true, savedOutputs: [], missingOutputs: [] };
   }
 
-  async endNode(ctx: WorkspaceContext, graphSlug: string, nodeId: string, message?: string) {
+  async endNode(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    message?: string
+  ): Promise<EndNodeResult> {
     this.track('endNode', [ctx, graphSlug, nodeId, message]);
     return {
       ...emptyBaseResult(),
@@ -456,7 +492,12 @@ export class FakePositionalGraphService implements IPositionalGraphService {
     };
   }
 
-  async askQuestion(ctx: WorkspaceContext, graphSlug: string, nodeId: string, options: unknown) {
+  async askQuestion(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    options: AskQuestionOptions
+  ): Promise<AskQuestionResult> {
     this.track('askQuestion', [ctx, graphSlug, nodeId, options]);
     return {
       ...emptyBaseResult(),
@@ -472,22 +513,37 @@ export class FakePositionalGraphService implements IPositionalGraphService {
     nodeId: string,
     questionId: string,
     answer: unknown
-  ) {
+  ): Promise<AnswerQuestionResult> {
     this.track('answerQuestion', [ctx, graphSlug, nodeId, questionId, answer]);
     return { ...emptyBaseResult(), nodeId, questionId, status: 'waiting-question' as const };
   }
 
-  async getAnswer(ctx: WorkspaceContext, graphSlug: string, nodeId: string, questionId: string) {
+  async getAnswer(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    questionId: string
+  ): Promise<GetAnswerResult> {
     this.track('getAnswer', [ctx, graphSlug, nodeId, questionId]);
     return { ...emptyBaseResult(), nodeId, questionId, answered: false };
   }
 
-  async getInputData(ctx: WorkspaceContext, graphSlug: string, nodeId: string, inputName: string) {
+  async getInputData(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    inputName: string
+  ): Promise<GetInputDataResult> {
     this.track('getInputData', [ctx, graphSlug, nodeId, inputName]);
     return { ...emptyBaseResult(), nodeId, inputName, sources: [], complete: false };
   }
 
-  async getInputFile(ctx: WorkspaceContext, graphSlug: string, nodeId: string, inputName: string) {
+  async getInputFile(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    inputName: string
+  ): Promise<GetInputFileResult> {
     this.track('getInputFile', [ctx, graphSlug, nodeId, inputName]);
     return { ...emptyBaseResult(), nodeId, inputName, sources: [], complete: false };
   }
@@ -497,14 +553,19 @@ export class FakePositionalGraphService implements IPositionalGraphService {
     graphSlug: string,
     nodeId: string,
     eventType: string,
-    payload: unknown,
-    source: unknown
-  ) {
+    payload: Record<string, unknown>,
+    source: EventSource
+  ): Promise<RaiseNodeEventResult> {
     this.track('raiseNodeEvent', [ctx, graphSlug, nodeId, eventType, payload, source]);
     return { ...emptyBaseResult(), nodeId };
   }
 
-  async getNodeEvents(ctx: WorkspaceContext, graphSlug: string, nodeId: string, filter?: unknown) {
+  async getNodeEvents(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeId: string,
+    filter?: GetNodeEventsFilter
+  ): Promise<GetNodeEventsResult> {
     this.track('getNodeEvents', [ctx, graphSlug, nodeId, filter]);
     return { ...emptyBaseResult(), nodeId, events: [] };
   }
@@ -516,8 +577,8 @@ export class FakePositionalGraphService implements IPositionalGraphService {
     eventId: string,
     subscriber: string,
     action: string,
-    data?: unknown
-  ) {
+    data?: Record<string, unknown>
+  ): Promise<StampNodeEventResult> {
     this.track('stampNodeEvent', [ctx, graphSlug, nodeId, eventId, subscriber, action, data]);
     return { ...emptyBaseResult(), nodeId, eventId, subscriber };
   }
