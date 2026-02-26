@@ -185,8 +185,8 @@ CLI commands are the primary interface and are introduced early (Phase 2) so the
 - [x] AC-17: All template/instance files Git-tracked (Phase 2: Workshop 003 unified storage)
 - [x] AC-18: Templates merge via standard Git (Phase 2: files in .chainglass/ tracked by default)
 - [x] AC-19: No special tooling for Git sharing (Phase 2: no hydration needed)
-- [ ] AC-20: Existing fixtures represented as templates (Phase 4)
-- [ ] AC-21: E2E test validates full lifecycle (Phase 4)
+- [x] AC-20: Existing fixtures represented as templates (Phase 4: T001-T002 — smoke + simple-serial)
+- [x] AC-21: E2E test validates full lifecycle (Phase 4: T004 — 5 tests)
 - [ ] AC-22: Existing e2e tests reconfigured for template system (deferred — bulk fixture conversion OOS for Phase 4)
 
 ## Risks
@@ -220,4 +220,4 @@ CLI commands are the primary interface and are introduced early (Phase 2) so the
 | Phase 1: Schema + Interfaces | Complete | 6/6 tasks |
 | Phase 2: Service + CLI | Complete | 19/19 tasks |
 | Phase 3: Integration Testing & Instance Validation | Complete | 7/7 tasks |
-| Phase 4: E2E + Docs | Not Started | — |
+| Phase 4: E2E + Docs | Complete | 6/6 tasks |

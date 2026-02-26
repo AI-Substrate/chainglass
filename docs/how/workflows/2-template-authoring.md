@@ -1,5 +1,7 @@
 # Template Authoring Guide
 
+> **Deprecated**: This document describes the legacy `wf.yaml` + phases workflow system which is being replaced by the positional graph template system. For the current template system, see [Workflow Templates](../workflow-templates.md).
+
 This guide explains how to create custom workflow templates.
 
 ## Template Structure

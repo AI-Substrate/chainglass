@@ -144,6 +144,30 @@ cg phase finalize gather --run-dir $RUN_DIR --json
 
 For detailed documentation, see [Workflows Guide](docs/how/workflows/1-overview.md) and [Workflow Management](docs/how/workflows/5-workflow-management.md).
 
+### Template Commands
+
+Save working graphs as reusable templates, create independent instances, and refresh units.
+
+```bash
+# Save a working graph as a template
+cg template save-from my-graph --as my-template
+
+# Browse templates
+cg template list
+cg template show my-template
+
+# Create an independent instance
+cg template instantiate my-template --id sprint-42
+
+# List instances
+cg template instances my-template
+
+# Refresh instance units from template
+cg template refresh my-template/sprint-42
+```
+
+For detailed documentation, see [Workflow Templates Guide](docs/how/workflow-templates.md).
+
 ## Project Structure
 
 ```

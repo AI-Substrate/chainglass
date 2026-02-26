@@ -3,7 +3,7 @@
 **Plan**: [wf-web-plan.md](../../wf-web-plan.md)
 **Phase**: Phase 4: E2E Test Migration & Documentation
 **Generated**: 2026-02-26
-**Status**: Ready for takeoff
+**Status**: Landed
 
 ---
 
@@ -53,7 +53,7 @@ stateDiagram-v2
     S3 --> S4
     S4 --> [*]
 
-    class S1,S2,S3,S4 pending
+    class S1,S2,S3,S4 done
 ```
 
 **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -62,10 +62,10 @@ stateDiagram-v2
 
 ## Stages
 
-- [ ] **Stage 1: Fixture templates** — Generate smoke + simple-serial templates from fixtures (committed artifacts)
-- [ ] **Stage 2: Test helper** — Create `withTemplateWorkflow()` in `dev/test-graphs/shared/template-test-runner.ts`
-- [ ] **Stage 3: E2E test** — Full lifecycle test using withTemplateWorkflow (AC-21)
-- [ ] **Stage 4: Documentation** — User guide + README quick-start
+- [x] **Stage 1: Fixture templates** — Generate smoke + simple-serial templates from fixtures (committed artifacts)
+- [x] **Stage 2: Test helper** — Create `withTemplateWorkflow()` in `dev/test-graphs/shared/template-test-runner.ts`
+- [x] **Stage 3: E2E test** — Full lifecycle test using withTemplateWorkflow (AC-21)
+- [x] **Stage 4: Documentation** — User guide + README quick-start
 
 ---
 
@@ -112,9 +112,9 @@ flowchart LR
 
 ## Checklist
 
-- [ ] T001: Create generation script + smoke template
-- [ ] T002: Generate simple-serial template
-- [ ] T003: Create withTemplateWorkflow() helper
-- [ ] T004: E2E lifecycle test (simple-serial)
-- [ ] T005: Write workflow-templates.md + deprecate old doc
-- [ ] T006: Update README
+- [x] T001: Create generation script + smoke template
+- [x] T002: Generate simple-serial template
+- [x] T003: Create withTemplateWorkflow() helper
+- [x] T004: E2E lifecycle test (simple-serial)
+- [x] T005: Write workflow-templates.md + deprecate old doc
+- [x] T006: Update README

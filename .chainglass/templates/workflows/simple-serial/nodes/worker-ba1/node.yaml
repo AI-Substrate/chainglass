@@ -1,0 +1,12 @@
+id: worker-ba1
+unit_slug: worker
+created_at: 2026-02-26T02:06:21.185Z
+properties: {}
+orchestratorSettings:
+  execution: serial
+  waitForPrevious: true
+  noContext: false
+inputs:
+  task:
+    from_node: setup-b90
+    from_output: instructions
