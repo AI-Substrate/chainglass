@@ -418,6 +418,10 @@ function BrowserClientInner({
             includeHidden={fileFilter.includeHidden}
             onIncludeHiddenChange={fileFilter.toggleIncludeHidden}
             onFileSelect={fileNav.handleSelect}
+            onCopyFullPath={clipboard.handleCopyFullPath}
+            onCopyRelativePath={clipboard.handleCopyRelativePath}
+            onCopyContent={clipboard.handleCopyContent}
+            onDownload={clipboard.handleDownload}
             workingChanges={panelState.workingChanges}
             onSearchQueryChange={fileFilter.setQuery}
           />

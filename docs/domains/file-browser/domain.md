@@ -17,7 +17,8 @@ Workspace-scoped file browsing, editing, and diffing. The core feature that make
 - File tree component — lazy per-directory loading, expand/collapse, changed-only filter
 - Code editor wrapper — CodeMirror 6 lazy-loaded, theme-synced
 - File viewer panel — mode toggle (edit/preview/diff), save button, conflict UI
-- Directory listing service — `git ls-files -- <dir>` with readDir fallback
+- Directory listing service — `git ls-files -- <dir>` with readDir fallback (per-directory lazy, `FileEntry{name, type, path}`)
+- File list service — `git ls-files --cached --others` + `fs.stat` for full-tree flat listing (`FileListEntry{path, mtime}`). Distinct from directory-listing: returns all files in one call with mtimes for sort-by-recent in file search cache. Directory-listing is scoped to a single directory for tree expansion.
 - Changed-files service — `git diff --name-only` for filter
 - File server actions — readFile (size limit, binary detection, symlink check), saveFile (mtime conflict, atomic write)
 - Files API route — `GET /api/workspaces/[slug]/files` for client-side directory fetching

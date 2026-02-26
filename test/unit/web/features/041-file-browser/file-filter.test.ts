@@ -31,6 +31,14 @@ const makeFile = (
 
 describe('isGlobPattern', () => {
   it('returns false for plain text', () => {
+    /*
+    Test Doc:
+    - Why: Substring vs glob mode selection depends on pattern detection
+    - Contract: isGlobPattern('plain') → false
+    - Usage Notes: Drives sync (substring) vs async (glob/micromatch) filter path
+    - Quality Contribution: AC-14, AC-15
+    - Worked Example: 'app' → false, '*.tsx' → true
+    */
     expect(isGlobPattern('app')).toBe(false);
     expect(isGlobPattern('src/utils')).toBe(false);
   });
@@ -59,6 +67,14 @@ describe('filterFiles — substring', () => {
   ];
 
   it('filters by case-insensitive substring', () => {
+    /*
+    Test Doc:
+    - Why: Core search contract — case-insensitive substring matching
+    - Contract: filterFiles(files, 'app') returns all files with 'app' in path (any case)
+    - Usage Notes: Most common search mode — no glob characters in query
+    - Quality Contribution: AC-14
+    - Worked Example: filterFiles([...], 'app') → ['src/app.tsx', '.../AppHeader.tsx', '.../appUtils.ts', '.../app.config.ts']
+    */
     const result = filterFiles(files, 'app');
     expect(result.map((f) => f.path)).toEqual([
       'src/app.tsx',
@@ -93,6 +109,14 @@ describe('filterFiles — glob', () => {
   ];
 
   it('matches glob patterns with extension', async () => {
+    /*
+    Test Doc:
+    - Why: Glob mode enables power-user patterns like *.tsx
+    - Contract: filterFiles(files, '*.tsx') returns files matching glob
+    - Usage Notes: Uses micromatch with basename:true for simple globs
+    - Quality Contribution: AC-15, AC-16
+    - Worked Example: filterFiles([...], '*.tsx') → ['src/app.tsx', 'src/app.test.tsx']
+    */
     const result = await filterFiles(files, '*.tsx');
     expect(result.map((f) => f.path)).toEqual(['src/app.tsx', 'src/app.test.tsx']);
   });
@@ -105,6 +129,14 @@ describe('filterFiles — glob', () => {
 
 describe('sortByRecent', () => {
   it('sorts by mtime descending', () => {
+    /*
+    Test Doc:
+    - Why: Recent sort shows most recently modified files first
+    - Contract: sortByRecent(files) → sorted by mtime desc, lastChanged takes priority
+    - Usage Notes: Default sort mode for file search results
+    - Quality Contribution: AC-18
+    - Worked Example: [mtime:100, mtime:300, mtime:200] → [300, 200, 100]
+    */
     const files = [makeFile('a.ts', 100), makeFile('b.ts', 300), makeFile('c.ts', 200)];
     const result = sortByRecent(files);
     expect(result.map((f) => f.path)).toEqual(['b.ts', 'c.ts', 'a.ts']);
@@ -133,6 +165,14 @@ describe('sortAlpha', () => {
 
 describe('hideDotPaths', () => {
   it('filters out dot-prefixed path segments', () => {
+    /*
+    Test Doc:
+    - Why: Hidden files must be excluded when includeHidden is false
+    - Contract: hideDotPaths(files) removes files with any dot-prefixed segment
+    - Usage Notes: Applies client-side after cache populate (supplements git --exclude-standard)
+    - Quality Contribution: AC-26
+    - Worked Example: ['.github/ci.yml', 'src/app.ts'] → ['src/app.ts']
+    */
     const files = [
       makeFile('src/app.ts'),
       makeFile('.github/workflows/ci.yml'),

@@ -19,7 +19,7 @@ import type { UseFileChangesReturn } from '@/features/045-live-file-events/use-f
 const mockFileChanges: UseFileChangesReturn = {
   changes: [],
   hasChanges: false,
-  clearChanges: vi.fn(),
+  clearChanges: () => {},
 };
 
 vi.mock('@/features/045-live-file-events', () => ({
@@ -40,8 +40,34 @@ function makeFakeFetch(
     { path: 'src/lib/utils.ts', mtime: 2000 },
     { path: 'README.md', mtime: 1000 },
   ]
-) {
-  return vi.fn().mockResolvedValue({ ok: true, files });
+): UseFileFilterOptions['fetchFileList'] & { calls: unknown[][] } {
+  const calls: unknown[][] = [];
+  const fn = async (worktreePath: string, includeHidden: boolean) => {
+    calls.push([worktreePath, includeHidden]);
+    return { ok: true as const, files };
+  };
+  (fn as { calls: unknown[][] }).calls = calls;
+  return fn as UseFileFilterOptions['fetchFileList'] & { calls: unknown[][] };
+}
+
+function makeFakeFetchError(): UseFileFilterOptions['fetchFileList'] & { calls: unknown[][] } {
+  const calls: unknown[][] = [];
+  const fn = async (worktreePath: string, includeHidden: boolean) => {
+    calls.push([worktreePath, includeHidden]);
+    return { ok: false as const, error: 'fail' };
+  };
+  (fn as { calls: unknown[][] }).calls = calls;
+  return fn as UseFileFilterOptions['fetchFileList'] & { calls: unknown[][] };
+}
+
+function makeFakeFetchThrows(): UseFileFilterOptions['fetchFileList'] & { calls: unknown[][] } {
+  const calls: unknown[][] = [];
+  const fn = async (worktreePath: string, includeHidden: boolean) => {
+    calls.push([worktreePath, includeHidden]);
+    throw new Error('network');
+  };
+  (fn as { calls: unknown[][] }).calls = calls;
+  return fn as UseFileFilterOptions['fetchFileList'] & { calls: unknown[][] };
 }
 
 function makeOptions(overrides?: Partial<UseFileFilterOptions>): UseFileFilterOptions {
@@ -53,10 +79,9 @@ function makeOptions(overrides?: Partial<UseFileFilterOptions>): UseFileFilterOp
 }
 
 beforeEach(() => {
-  vi.restoreAllMocks();
   mockFileChanges.changes = [];
   mockFileChanges.hasChanges = false;
-  mockFileChanges.clearChanges = vi.fn();
+  mockFileChanges.clearChanges = () => {};
   // Clear sessionStorage for sort persistence tests
   try {
     sessionStorage.removeItem('chainglass-file-filter-sort');
@@ -71,7 +96,7 @@ describe('useFileFilter', () => {
     const { result } = renderHook(() => useFileFilter(makeOptions({ fetchFileList })));
 
     // No query yet — should not have fetched
-    expect(fetchFileList).not.toHaveBeenCalled();
+    expect(fetchFileList.calls).toHaveLength(0);
     expect(result.current.results).toBeNull();
 
     // Set a query
@@ -81,7 +106,7 @@ describe('useFileFilter', () => {
 
     // After debounce, fetch should have been called
     await vi.waitFor(() => {
-      expect(fetchFileList).toHaveBeenCalledTimes(1);
+      expect(fetchFileList.calls).toHaveLength(1);
     });
   });
 
@@ -125,8 +150,8 @@ describe('useFileFilter', () => {
     // Simulate SSE: unlink src/b.ts, add src/c.ts
     await act(async () => {
       mockFileChanges.changes = [
-        { type: 'unlink', path: 'src/b.ts' },
-        { type: 'add', path: 'src/c.ts' },
+        { eventType: 'unlink', path: 'src/b.ts', timestamp: Date.now() },
+        { eventType: 'add', path: 'src/c.ts', timestamp: Date.now() },
       ];
       mockFileChanges.hasChanges = true;
     });
@@ -152,13 +177,14 @@ describe('useFileFilter', () => {
       result.current.setQuery('src');
     });
     await vi.waitFor(() => {
-      expect(fetchFileList).toHaveBeenCalledTimes(1);
+      expect(fetchFileList.calls).toHaveLength(1);
     });
 
     // Simulate >50 SSE changes (branch switch scenario)
     const manyChanges = Array.from({ length: 51 }, (_, i) => ({
-      type: 'change' as const,
+      eventType: 'change' as const,
       path: `src/file-${i}.ts`,
+      timestamp: Date.now(),
     }));
 
     await act(async () => {
@@ -168,7 +194,7 @@ describe('useFileFilter', () => {
 
     // Should trigger another full fetch
     await vi.waitFor(() => {
-      expect(fetchFileList).toHaveBeenCalledTimes(2);
+      expect(fetchFileList.calls).toHaveLength(2);
     });
   });
 
@@ -214,7 +240,7 @@ describe('useFileFilter', () => {
       result.current.setQuery('app');
     });
     await vi.waitFor(() => {
-      expect(fetchFileList).toHaveBeenCalledTimes(1);
+      expect(fetchFileList.calls).toHaveLength(1);
     });
 
     // Toggle includeHidden
@@ -226,15 +252,18 @@ describe('useFileFilter', () => {
 
     // Should trigger re-fetch with new includeHidden value
     await vi.waitFor(() => {
-      expect(fetchFileList).toHaveBeenCalledTimes(2);
+      expect(fetchFileList.calls).toHaveLength(2);
     });
 
     // Second call should have includeHidden=true
-    expect(fetchFileList).toHaveBeenLastCalledWith('/tmp/test-workspace', true);
+    expect(fetchFileList.calls[fetchFileList.calls.length - 1]).toEqual([
+      '/tmp/test-workspace',
+      true,
+    ]);
   });
 
   it('sets error state when fetchFileList returns { ok: false }', async () => {
-    const fetchFileList = vi.fn().mockResolvedValue({ ok: false, error: 'fail' });
+    const fetchFileList = makeFakeFetchError();
     const { result } = renderHook(() => useFileFilter(makeOptions({ fetchFileList })));
 
     await act(async () => {
@@ -249,7 +278,7 @@ describe('useFileFilter', () => {
   });
 
   it('sets error state when fetchFileList throws', async () => {
-    const fetchFileList = vi.fn().mockRejectedValue(new Error('network'));
+    const fetchFileList = makeFakeFetchThrows();
     const { result } = renderHook(() => useFileFilter(makeOptions({ fetchFileList })));
 
     await act(async () => {
@@ -277,7 +306,7 @@ describe('useFileFilter', () => {
     });
 
     // Cache populate fires on first non-empty query (not debounced)
-    expect(fetchFileList).toHaveBeenCalledTimes(1);
+    expect(fetchFileList.calls).toHaveLength(1);
 
     // Change query — debounce timer resets for filtering
     act(() => {
@@ -298,7 +327,7 @@ describe('useFileFilter', () => {
     });
 
     // Now the debounced query resolves — no extra fetch needed (cache populated)
-    expect(fetchFileList).toHaveBeenCalledTimes(1);
+    expect(fetchFileList.calls).toHaveLength(1);
 
     vi.useRealTimers();
   });

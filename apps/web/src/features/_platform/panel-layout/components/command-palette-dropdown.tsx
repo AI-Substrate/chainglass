@@ -20,11 +20,14 @@ import type { IUSDK, SDKCommand } from '@chainglass/shared/sdk';
 import {
   ArrowDownAZ,
   ArrowUpZA,
+  ClipboardCopy,
   Clock,
   Command,
+  Download,
   Eye,
   EyeOff,
   File,
+  FileText,
   Hash,
   Keyboard,
   Search,
@@ -40,6 +43,13 @@ import {
   useState,
 } from 'react';
 
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
 import type { MruTracker } from '@/lib/sdk/sdk-provider';
 import type { FileChangeInfo, FileSearchEntry, FileSearchSortMode } from '../types';
 
@@ -85,6 +95,14 @@ interface CommandPaletteDropdownProps {
   onIncludeHiddenChange?: () => void;
   /** Navigate to a file from search results */
   onFileSelect?: (path: string) => void;
+  /** Context menu: copy full (absolute) path */
+  onCopyFullPath?: (path: string) => void;
+  /** Context menu: copy relative path */
+  onCopyRelativePath?: (path: string) => void;
+  /** Context menu: copy file content */
+  onCopyContent?: (path: string) => void;
+  /** Context menu: download file */
+  onDownload?: (path: string) => void;
   /** Working changes for status badge lookup */
   workingChanges?: FileChangeInfo[];
 }
@@ -163,6 +181,10 @@ export const CommandPaletteDropdown = forwardRef<
     includeHidden,
     onIncludeHiddenChange,
     onFileSelect,
+    onCopyFullPath,
+    onCopyRelativePath,
+    onCopyContent,
+    onDownload,
     workingChanges,
   },
   ref
@@ -344,35 +366,57 @@ export const CommandPaletteDropdown = forwardRef<
                     : '';
                   const name = entry.path.split('/').pop() ?? entry.path;
                   return (
-                    <div // biome-ignore lint/a11y/useSemanticElements: custom file result item
-                      key={entry.path}
-                      role="option"
-                      tabIndex={-1}
-                      aria-selected={index === selectedIndex}
-                      className={`flex items-center gap-1.5 px-3 py-1 text-sm cursor-pointer ${
-                        index === selectedIndex
-                          ? 'bg-primary/15 text-foreground'
-                          : 'text-foreground hover:bg-accent/50'
-                      }`}
-                      onClick={() => onFileSelect?.(entry.path)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') onFileSelect?.(entry.path);
-                      }}
-                    >
-                      {badge ? (
-                        <span
-                          className={`shrink-0 w-4 text-center font-mono text-xs font-bold ${badge.className}`}
+                    <ContextMenu key={entry.path}>
+                      <ContextMenuTrigger asChild>
+                        <div // biome-ignore lint/a11y/useSemanticElements: custom file result item
+                          role="option"
+                          tabIndex={-1}
+                          aria-selected={index === selectedIndex}
+                          className={`flex items-center gap-1.5 px-3 py-1 text-sm cursor-pointer ${
+                            index === selectedIndex
+                              ? 'bg-primary/15 text-foreground'
+                              : 'text-foreground hover:bg-accent/50'
+                          }`}
+                          onClick={() => onFileSelect?.(entry.path)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') onFileSelect?.(entry.path);
+                          }}
                         >
-                          {badge.letter}
-                        </span>
-                      ) : (
-                        <File className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                      )}
-                      <span className="flex-1 truncate">
-                        <span className="text-muted-foreground">{dir}</span>
-                        <span>{name}</span>
-                      </span>
-                    </div>
+                          {badge ? (
+                            <span
+                              className={`shrink-0 w-4 text-center font-mono text-xs font-bold ${badge.className}`}
+                            >
+                              {badge.letter}
+                            </span>
+                          ) : (
+                            <File className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                          )}
+                          <span className="flex-1 truncate">
+                            <span className="text-muted-foreground">{dir}</span>
+                            <span>{name}</span>
+                          </span>
+                        </div>
+                      </ContextMenuTrigger>
+                      <ContextMenuContent>
+                        <ContextMenuItem onSelect={() => onCopyFullPath?.(entry.path)}>
+                          <ClipboardCopy className="h-3.5 w-3.5 mr-2" />
+                          Copy Full Path
+                        </ContextMenuItem>
+                        <ContextMenuItem onSelect={() => onCopyRelativePath?.(entry.path)}>
+                          <FileText className="h-3.5 w-3.5 mr-2" />
+                          Copy Relative Path
+                        </ContextMenuItem>
+                        <ContextMenuSeparator />
+                        <ContextMenuItem onSelect={() => onCopyContent?.(entry.path)}>
+                          <ClipboardCopy className="h-3.5 w-3.5 mr-2" />
+                          Copy Content
+                        </ContextMenuItem>
+                        <ContextMenuItem onSelect={() => onDownload?.(entry.path)}>
+                          <Download className="h-3.5 w-3.5 mr-2" />
+                          Download
+                        </ContextMenuItem>
+                      </ContextMenuContent>
+                    </ContextMenu>
                   );
                 })}
               </div>

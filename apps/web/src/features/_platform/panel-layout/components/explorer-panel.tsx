@@ -65,6 +65,14 @@ export interface ExplorerPanelProps {
   onIncludeHiddenChange?: () => void;
   /** Navigate to a file from search results */
   onFileSelect?: (path: string) => void;
+  /** Context menu: copy full (absolute) path */
+  onCopyFullPath?: (path: string) => void;
+  /** Context menu: copy relative path */
+  onCopyRelativePath?: (path: string) => void;
+  /** Context menu: copy file content */
+  onCopyContent?: (path: string) => void;
+  /** Context menu: download file */
+  onDownload?: (path: string) => void;
   /** Working changes for status badge lookup */
   workingChanges?: FileChangeInfo[];
   /** Called when search query changes (for file filter hook) */
@@ -90,6 +98,10 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
       includeHidden,
       onIncludeHiddenChange,
       onFileSelect,
+      onCopyFullPath,
+      onCopyRelativePath,
+      onCopyContent,
+      onDownload,
       workingChanges,
       onSearchQueryChange,
     },
@@ -392,6 +404,10 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
                 onFileSelect?.(path);
                 exitEditMode();
               }}
+              onCopyFullPath={onCopyFullPath}
+              onCopyRelativePath={onCopyRelativePath}
+              onCopyContent={onCopyContent}
+              onDownload={onDownload}
               workingChanges={workingChanges}
             />
           )}

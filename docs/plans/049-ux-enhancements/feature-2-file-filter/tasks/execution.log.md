@@ -14,6 +14,9 @@
 ### T002: getFileList service + TDD tests
 - **Status**: Done
 - **Files**: `services/file-list.ts` (new), `test/.../file-list.test.ts` (new)
+- **RED**: `pnpm vitest run test/unit/web/features/041-file-browser/file-list.test.ts` → 6 failing (module not found)
+- **GREEN**: Created `file-list.ts` with git ls-files + fs.stat + readDir fallback → 6 passed
+- **REFACTOR**: Added Set dedup for --cached --others overlap, batched stat calls (200/batch)
 - **Evidence**: 6 tests pass — git ls-files + fs.stat, exclude-standard toggle, non-git error, deleted-file skip, sorted output
 - **Discovery**: `--cached --others` can produce duplicates for modified tracked files — added `new Set()` dedup
 
@@ -25,13 +28,19 @@
 ### T004: file-filter utilities + TDD tests
 - **Status**: Done
 - **Files**: `services/file-filter.ts` (new), `test/.../file-filter.test.ts` (new)
+- **RED**: `pnpm vitest run test/unit/web/features/041-file-browser/file-filter.test.ts` → 16 failing (module not found)
+- **GREEN**: Created `file-filter.ts` with filterFiles, sortByRecent, sortAlpha, hideDotPaths, isGlobPattern → 16 passed
+- **REFACTOR**: Extracted `isGlobPattern` as standalone export, added `basename: false` for path-containing globs
 - **Evidence**: 16 tests pass — isGlobPattern, substring filter, glob filter, sortByRecent, sortAlpha, hideDotPaths
 - **Discovery**: Glob patterns with `/` need `basename: false` in micromatch; simple patterns use `basename: true`
 
 ### T005: useFileFilter hook
 - **Status**: Done
-- **Files**: `hooks/use-file-filter.ts` (new)
-- **Evidence**: Compiles clean. Cache lifecycle, SSE delta (>50 threshold), 300ms debounce, 3-state sort (sessionStorage), includeHidden toggle, async glob handling
+- **Files**: `hooks/use-file-filter.ts` (new), `test/.../use-file-filter.test.ts` (new)
+- **RED**: `pnpm vitest run test/unit/web/features/041-file-browser/use-file-filter.test.ts` → 11 failing (module not found)
+- **GREEN**: Created `use-file-filter.ts` with cache Map, SSE deltas, debounce, sort cycling → 11 passed
+- **REFACTOR**: Split sync/async filter paths (substring sync, glob async via useEffect), added cacheVersion counter for delta reactivity
+- **Evidence**: 11 tests pass — lazy load, debounce, SSE deltas (add/change/unlink), >50 refetch, sort cycling, sessionStorage persistence, includeHidden toggle, error states
 
 ### T006: Extend ExplorerPanel
 - **Status**: Done
@@ -41,8 +50,11 @@
 
 ### T007: Extend CommandPaletteDropdown
 - **Status**: Done
-- **Files**: `command-palette-dropdown.tsx` (modified)
-- **Evidence**: Compiles clean, existing tests pass. Search mode: live file results with badges, sort/hidden toggles, match count, loading/error/empty states. STATUS_BADGE mapping duplicated from ChangesView (cross-domain import avoided).
+- **Files**: `command-palette-dropdown.tsx` (modified), `test/.../command-palette-dropdown.test.tsx` (new)
+- **RED**: `pnpm vitest run test/unit/.../command-palette-dropdown.test.tsx` → 15 failing (search mode props undefined)
+- **GREEN**: Added search mode rendering, status badges, sort/hidden toggles, context menu (AC-13) → 15 passed
+- **REFACTOR**: Replaced vi.fn() spies with explicit fake callbacks per R-TEST-007; added Test Doc blocks
+- **Evidence**: 15 tests pass — file results, badges (M/A), sort toggle, hidden toggle, match count, loading/error/empty states, click selection, keyboard nav (ArrowDown/ArrowUp/Enter), context menu rendering
 
 ### T008: Wire in BrowserClient
 - **Status**: Done

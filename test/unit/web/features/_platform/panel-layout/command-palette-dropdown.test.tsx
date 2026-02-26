@@ -7,7 +7,7 @@
 
 import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import {
   CommandPaletteDropdown,
@@ -37,24 +37,56 @@ const makeEntry = (
   lastChanged: number | null = null
 ): FileSearchEntry => ({ path, mtime, modified, lastChanged });
 
+/** Fake callback that captures calls in a local array for assertion. */
+function fakeCallback<T extends unknown[]>(): { fn: (...args: T) => void; calls: T[] } {
+  const calls: T[] = [];
+  return {
+    fn: (...args: T) => {
+      calls.push(args);
+    },
+    calls,
+  };
+}
+
+/** Fake preventDefault for keyboard events */
+function fakePreventDefault(): { fn: () => void; called: boolean } {
+  let called = false;
+  return {
+    fn: () => {
+      called = true;
+    },
+    get called() {
+      return called;
+    },
+  };
+}
+
 const defaultSearchProps = {
   sdk: fakeSdk,
   filter: '',
   mru: fakeMru,
   mode: 'search' as const,
-  onExecute: vi.fn(),
-  onClose: vi.fn(),
+  onExecute: (() => {}) as (id: string) => void,
+  onClose: () => {},
   inputValue: 'app',
   sortMode: 'recent' as FileSearchSortMode,
-  onSortModeChange: vi.fn(),
+  onSortModeChange: () => {},
   includeHidden: false,
-  onIncludeHiddenChange: vi.fn(),
-  onFileSelect: vi.fn(),
+  onIncludeHiddenChange: () => {},
+  onFileSelect: (() => {}) as (path: string) => void,
   workingChanges: [] as FileChangeInfo[],
 };
 
 describe('CommandPaletteDropdown — search mode', () => {
   it('renders file results when search text and results are provided', () => {
+    /*
+    Test Doc:
+    - Why: Core rendering contract — search results must display in dropdown
+    - Contract: Results array + non-empty input → file rows visible
+    - Usage Notes: FileSearchEntry {path, mtime, modified, lastChanged}
+    - Quality Contribution: AC-1, AC-5
+    - Worked Example: [{path:'src/app.tsx'}] → 'app.tsx' visible in dropdown
+    */
     const results: FileSearchEntry[] = [makeEntry('src/app.tsx'), makeEntry('src/app.test.tsx')];
 
     render(<CommandPaletteDropdown {...defaultSearchProps} fileSearchResults={results} />);
@@ -188,25 +220,41 @@ describe('CommandPaletteDropdown — search mode', () => {
   });
 
   it('calls onFileSelect when a file result is clicked', async () => {
+    /*
+    Test Doc:
+    - Why: Click selection must navigate to file
+    - Contract: Click on result row → onFileSelect called with path
+    - Usage Notes: Click delegates to fileNav.handleSelect in BrowserClient
+    - Quality Contribution: AC-8
+    - Worked Example: Click 'utils.ts' → onFileSelect('src/lib/utils.ts')
+    */
     const user = userEvent.setup();
-    const onFileSelect = vi.fn();
+    const fileSelect = fakeCallback<[string]>();
     const results = [makeEntry('src/app.tsx'), makeEntry('src/lib/utils.ts')];
 
     render(
       <CommandPaletteDropdown
         {...defaultSearchProps}
         fileSearchResults={results}
-        onFileSelect={onFileSelect}
+        onFileSelect={fileSelect.fn}
       />
     );
 
     await user.click(screen.getByText('utils.ts'));
-    expect(onFileSelect).toHaveBeenCalledWith('src/lib/utils.ts');
+    expect(fileSelect.calls).toEqual([['src/lib/utils.ts']]);
   });
 
   it('navigates with ArrowDown/ArrowUp and selects with Enter', async () => {
+    /*
+    Test Doc:
+    - Why: Keyboard navigation must work for accessibility and power users
+    - Contract: ArrowDown moves selection, Enter triggers onFileSelect
+    - Usage Notes: Selection wraps via handleKeyDown imperative ref
+    - Quality Contribution: AC-9, AC-10
+    - Worked Example: ArrowDown → second item selected, Enter → onFileSelect('src/lib/utils.ts')
+    */
     const ref = createRef<CommandPaletteDropdownHandle>();
-    const onFileSelect = vi.fn();
+    const fileSelect = fakeCallback<[string]>();
     const results = [
       makeEntry('src/app.tsx'),
       makeEntry('src/lib/utils.ts'),
@@ -218,7 +266,7 @@ describe('CommandPaletteDropdown — search mode', () => {
         ref={ref}
         {...defaultSearchProps}
         fileSearchResults={results}
-        onFileSelect={onFileSelect}
+        onFileSelect={fileSelect.fn}
       />
     );
 
@@ -229,10 +277,11 @@ describe('CommandPaletteDropdown — search mode', () => {
     expect(options[0]).toHaveAttribute('aria-selected', 'true');
 
     // ArrowDown → second item (wrap in act to flush state)
+    const pd1 = fakePreventDefault();
     await act(async () => {
       ref.current?.handleKeyDown({
         key: 'ArrowDown',
-        preventDefault: vi.fn(),
+        preventDefault: pd1.fn,
       } as unknown as React.KeyboardEvent);
     });
 
@@ -241,14 +290,15 @@ describe('CommandPaletteDropdown — search mode', () => {
     expect(updatedOptions[1]).toHaveAttribute('aria-selected', 'true');
 
     // Enter selects the file
+    const pd2 = fakePreventDefault();
     await act(async () => {
       ref.current?.handleKeyDown({
         key: 'Enter',
-        preventDefault: vi.fn(),
+        preventDefault: pd2.fn,
       } as unknown as React.KeyboardEvent);
     });
 
-    expect(onFileSelect).toHaveBeenCalledWith('src/lib/utils.ts');
+    expect(fileSelect.calls).toEqual([['src/lib/utils.ts']]);
   });
 
   it('renders directory path muted and filename emphasized', () => {
@@ -269,5 +319,43 @@ describe('CommandPaletteDropdown — search mode', () => {
 
     expect(screen.getByText('Quick Access')).toBeInTheDocument();
     expect(screen.getByText('Type to search files')).toBeInTheDocument();
+  });
+
+  it('renders context menu with file actions on right-click', async () => {
+    /*
+    Test Doc:
+    - Why: AC-13 — context menu must expose file actions
+    - Contract: Right-click on result → menu with Copy Full Path, Copy Relative Path, Copy Content, Download
+    - Usage Notes: Uses Radix ContextMenu components consistent with file-tree pattern
+    - Quality Contribution: AC-13
+    - Worked Example: Right-click result → 4 menu items visible
+    */
+    const user = userEvent.setup();
+    const copyFullPath = fakeCallback<[string]>();
+    const copyRelativePath = fakeCallback<[string]>();
+    const copyContent = fakeCallback<[string]>();
+    const download = fakeCallback<[string]>();
+    const results = [makeEntry('src/lib/utils.ts')];
+
+    render(
+      <CommandPaletteDropdown
+        {...defaultSearchProps}
+        fileSearchResults={results}
+        onCopyFullPath={copyFullPath.fn}
+        onCopyRelativePath={copyRelativePath.fn}
+        onCopyContent={copyContent.fn}
+        onDownload={download.fn}
+      />
+    );
+
+    // Right-click the file result to open context menu
+    const fileRow = screen.getByRole('option');
+    await user.pointer({ target: fileRow, keys: '[MouseRight]' });
+
+    // All four actions should be visible
+    expect(screen.getByText('Copy Full Path')).toBeInTheDocument();
+    expect(screen.getByText('Copy Relative Path')).toBeInTheDocument();
+    expect(screen.getByText('Copy Content')).toBeInTheDocument();
+    expect(screen.getByText('Download')).toBeInTheDocument();
   });
 });
