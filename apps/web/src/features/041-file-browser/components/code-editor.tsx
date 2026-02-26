@@ -84,7 +84,7 @@ export function CodeEditor({ value, language, onChange, readOnly, scrollToLine }
 
   const extensions = useMemo(() => {
     const langExt = LANGUAGE_EXTENSIONS[language];
-    const exts: Extension[] = [activeLineHighlight];
+    const exts: Extension[] = [activeLineHighlight, EditorView.lineWrapping];
     if (langExt) exts.push(langExt());
     return exts;
   }, [language]);
