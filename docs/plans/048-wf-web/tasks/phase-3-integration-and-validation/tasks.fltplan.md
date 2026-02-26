@@ -3,7 +3,7 @@
 **Plan**: [wf-web-plan.md](../../wf-web-plan.md)
 **Phase**: Phase 3: Integration Testing & Instance Validation
 **Generated**: 2026-02-25
-**Status**: Ready for takeoff
+**Status**: Landed
 
 ---
 
@@ -53,7 +53,7 @@ stateDiagram-v2
     S3 --> S4
     S4 --> [*]
 
-    class S1,S2,S3,S4 pending
+    class S1,S2,S3,S4 done
 ```
 
 **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -62,10 +62,10 @@ stateDiagram-v2
 
 ## Stages
 
-- [ ] **Stage 1: InstanceGraphAdapter** — TDD adapter that routes graph engine to instance directories (`instance-graph.adapter.ts` — new file)
-- [ ] **Stage 2: Test helper setup** — Shared integration test infrastructure with real filesystem (`template-instance-orchestration.test.ts` — new file)
-- [ ] **Stage 3: Full lifecycle test** — save-from → instantiate → verify runnable (AC-6)
-- [ ] **Stage 4: Edge case tests** — Multi-instance isolation (AC-8), refresh safety (AC-16), template isolation (AC-7, AC-12)
+- [x] **Stage 1: InstanceGraphAdapter** — TDD adapter that routes graph engine to instance directories (`instance-graph.adapter.ts` — new file)
+- [x] **Stage 2: Test helper setup** — Shared integration test infrastructure with real filesystem (`template-instance-validation.test.ts` — new file)
+- [x] **Stage 3: Full lifecycle test** — save-from → instantiate → verify runnable (AC-6)
+- [x] **Stage 4: Edge case tests** — Multi-instance isolation (AC-8), refresh safety (AC-16), template isolation (AC-7, AC-12)
 
 ---
 
@@ -114,10 +114,10 @@ flowchart LR
 
 ## Checklist
 
-- [ ] T001: TDD InstanceGraphAdapter tests
-- [ ] T002: Implement InstanceGraphAdapter
-- [ ] T003: Integration test helper setup
-- [ ] T004: Full lifecycle test (save-from → instantiate → verify)
-- [ ] T005: Multi-instance isolation test
-- [ ] T006: Refresh safety test
-- [ ] T007: Template isolation test
+- [x] T001: TDD InstanceGraphAdapter tests
+- [x] T002: Implement InstanceGraphAdapter
+- [x] T003: Integration test helper setup
+- [x] T004: Full lifecycle test (save-from → instantiate → verify)
+- [x] T005: Multi-instance isolation test
+- [x] T006: Refresh safety test
+- [x] T007: Template isolation test

@@ -172,12 +172,12 @@ CLI commands are the primary interface and are introduced early (Phase 2) so the
 - [x] AC-4: Workflow templates at `.chainglass/templates/workflows/<slug>/` (Phase 2: T012)
 - [x] AC-5: Workflow template contains graph.yaml + nodes/*/node.yaml + units/ (Phase 2: T004, T012)
 - [x] AC-6: Instantiation creates independent copy (Phase 2: T008)
-- [ ] AC-7: Template modification doesn't affect instances (Phase 3: integration test)
-- [ ] AC-8: Multiple instances from same template (Phase 3: integration test)
+- [x] AC-7: Template modification doesn't affect instances (Phase 3: T007)
+- [x] AC-8: Multiple instances from same template (Phase 3: T005)
 - [ ] AC-9: Work unit templates at `.chainglass/templates/units/<slug>/` (standalone library — deferred)
 - [x] AC-10: Work units contain unit.yaml + prompts/ + scripts/ (Phase 2: T012)
 - [x] AC-11: Instance creation copies all referenced units (Phase 2: T008)
-- [ ] AC-12: Unit template modification doesn't affect instances (Phase 3: integration test)
+- [x] AC-12: Unit template modification doesn't affect instances (Phase 3: T007)
 - [x] AC-13: Refresh overwrites all units at once (Phase 2: T010)
 - [x] AC-14: Refresh records source template metadata (Phase 2: T010 — instance.yaml updated)
 - [x] AC-15: Refresh metadata stored per-instance (Phase 2: instance.yaml with refreshed_at)
@@ -219,5 +219,5 @@ CLI commands are the primary interface and are introduced early (Phase 2) so the
 |-------|--------|-----------|
 | Phase 1: Schema + Interfaces | Complete | 6/6 tasks |
 | Phase 2: Service + CLI | Complete | 19/19 tasks |
-| Phase 3: Integration Testing & Instance Validation | Not Started | — |
+| Phase 3: Integration Testing & Instance Validation | Complete | 7/7 tasks |
 | Phase 4: E2E + Docs | Not Started | — |
