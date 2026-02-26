@@ -1,0 +1,608 @@
+diff --git a/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx b/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
+index 17dfbdb..5868f91 100644
+--- a/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
++++ b/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
+@@ -18,6 +18,7 @@ import {
+ import { useClipboard } from '@/features/041-file-browser/hooks/use-clipboard';
+ import { useFileFilter } from '@/features/041-file-browser/hooks/use-file-filter';
+ import { useFileNavigation } from '@/features/041-file-browser/hooks/use-file-navigation';
++import { useFlowspaceSearch } from '@/features/041-file-browser/hooks/use-flowspace-search';
+ import { usePanelState } from '@/features/041-file-browser/hooks/use-panel-state';
+ import { useTreeDirectoryChanges } from '@/features/041-file-browser/hooks/use-tree-directory-changes';
+ import { useWorkspaceContext } from '@/features/041-file-browser/hooks/use-workspace-context';
+@@ -33,7 +34,6 @@ import {
+   LeftPanel,
+   MainPanel,
+   PanelShell,
+-  createSymbolSearchStub,
+ } from '@/features/_platform/panel-layout';
+ import type { PanelMode } from '@/features/_platform/panel-layout';
+ import { useSDK, useSDKMru } from '@/lib/sdk/sdk-provider';
+@@ -136,6 +136,9 @@ function BrowserClientInner({
+   // --- File search filter (Plan 049 Feature 2) ---
+   const fileFilter = useFileFilter({ worktreePath, fetchFileList });
+ 
++  // --- FlowSpace code search (Plan 051) ---
++  const flowspace = useFlowspaceSearch(worktreePath);
++
+   // --- Workspace attention context (Phase 5) ---
+   const wsCtx = useWorkspaceContext();
+ 
+@@ -234,7 +237,7 @@ function BrowserClientInner({
+       }),
+     [setParams]
+   );
+-  const symbolStub = useMemo(() => createSymbolSearchStub(), []);
++  // Plan 051: # stub removed, handled by FlowSpace search in dropdown
+ 
+   // --- SDK + MRU for command palette ---
+   const sdk = useSDK();
+@@ -403,7 +406,7 @@ function BrowserClientInner({
+           <ExplorerPanel
+             ref={explorerRef}
+             filePath={selectedFile ?? ''}
+-            handlers={[symbolStub, filePathHandler]}
++            handlers={[filePathHandler]}
+             context={barContext}
+             onCopy={() => clipboard.copyToClipboard(selectedFile ?? '')}
+             placeholder="Type a path or > for commands... (Ctrl+P)"
+@@ -424,6 +427,20 @@ function BrowserClientInner({
+             onDownload={clipboard.handleDownload}
+             workingChanges={panelState.workingChanges}
+             onSearchQueryChange={fileFilter.setQuery}
++            symbolSearchResults={flowspace.results}
++            symbolSearchLoading={flowspace.loading}
++            symbolSearchError={flowspace.error}
++            symbolSearchAvailability={flowspace.availability}
++            symbolSearchGraphAge={flowspace.graphAge}
++            symbolSearchFolders={flowspace.folders}
++            onSymbolSelect={(filePath, startLine) => {
++              fileNav.handleSelect(filePath);
++              // Navigate to line via URL param
++              setParams({ line: startLine }, { history: 'replace' });
++            }}
++            onFlowspaceQueryChange={(query, mode) => {
++              flowspace.setQuery(query, mode);
++            }}
+           />
+         }
+         left={
+diff --git a/apps/web/src/features/_platform/panel-layout/components/command-palette-dropdown.tsx b/apps/web/src/features/_platform/panel-layout/components/command-palette-dropdown.tsx
+index ddaa4d0..58f3a43 100644
+--- a/apps/web/src/features/_platform/panel-layout/components/command-palette-dropdown.tsx
++++ b/apps/web/src/features/_platform/panel-layout/components/command-palette-dropdown.tsx
+@@ -52,10 +52,15 @@ import {
+ } from '@/components/ui/context-menu';
+ import type { MruTracker } from '@/lib/sdk/sdk-provider';
+ import type { FileChangeInfo, FileSearchEntry, FileSearchSortMode } from '../types';
++import {
++  FLOWSPACE_CATEGORY_ICONS,
++  type FlowSpaceAvailability,
++  type FlowSpaceSearchResult,
++} from '../types';
+ 
+ import { AsciiSpinner } from './ascii-spinner';
+ 
+-export type DropdownMode = 'commands' | 'symbols' | 'search' | 'param';
++export type DropdownMode = 'commands' | 'symbols' | 'semantic' | 'search' | 'param';
+ 
+ export interface CommandPaletteDropdownHandle {
+   handleKeyDown: (e: React.KeyboardEvent) => void;
+@@ -105,6 +110,15 @@ interface CommandPaletteDropdownProps {
+   onDownload?: (path: string) => void;
+   /** Working changes for status badge lookup */
+   workingChanges?: FileChangeInfo[];
++  /** FlowSpace search results (Plan 051) */
++  symbolSearchResults?: FlowSpaceSearchResult[] | null;
++  symbolSearchLoading?: boolean;
++  symbolSearchError?: string | null;
++  symbolSearchAvailability?: FlowSpaceAvailability;
++  symbolSearchGraphAge?: string | null;
++  symbolSearchFolders?: Record<string, number> | null;
++  /** Navigate to a code symbol from FlowSpace results */
++  onSymbolSelect?: (filePath: string, startLine: number) => void;
+ }
+ 
+ // --- Schema introspection helpers (ST001) ---
+@@ -186,6 +200,13 @@ export const CommandPaletteDropdown = forwardRef<
+     onCopyContent,
+     onDownload,
+     workingChanges,
++    symbolSearchResults,
++    symbolSearchLoading,
++    symbolSearchError,
++    symbolSearchAvailability,
++    symbolSearchGraphAge,
++    symbolSearchFolders,
++    onSymbolSelect,
+   },
+   ref
+ ) {
+@@ -214,15 +235,28 @@ export const CommandPaletteDropdown = forwardRef<
+   const showFileResults =
+     hasSearchText && Array.isArray(fileSearchResults) && fileSearchResults.length > 0;
+ 
++  // FlowSpace mode detection
++  const isFlowspaceMode = mode === 'symbols' || mode === 'semantic';
++  const hasFlowspaceQuery =
++    isFlowspaceMode && !!inputValue && inputValue.replace(/^[#$]\s*/, '').trim().length > 0;
++  const showFlowspaceResults =
++    hasFlowspaceQuery && Array.isArray(symbolSearchResults) && symbolSearchResults.length > 0;
++
+   // Items count for keyboard nav
+   const navItemCount =
+-    mode === 'commands' ? commands.length : showFileResults ? fileSearchResults?.length : 0;
++    mode === 'commands'
++      ? commands.length
++      : showFlowspaceResults
++        ? symbolSearchResults?.length
++        : showFileResults
++          ? fileSearchResults?.length
++          : 0;
+ 
+   // Reset selection when filter, mode, or search results change
+   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — reset on filter/mode/results change
+   useEffect(() => {
+     setSelectedIndex(0);
+-  }, [filter, mode, fileSearchResults]);
++  }, [filter, mode, fileSearchResults, symbolSearchResults]);
+ 
+   // Scroll selected item into view
+   useEffect(() => {
+@@ -261,6 +295,9 @@ export const CommandPaletteDropdown = forwardRef<
+           if (mode === 'commands') {
+             const cmd = commands[selectedIndex];
+             if (cmd) handleSelect(cmd.id);
++          } else if (showFlowspaceResults) {
++            const result = symbolSearchResults?.[selectedIndex];
++            if (result) onSymbolSelect?.(result.filePath, result.startLine);
+           } else if (showFileResults) {
+             const file = fileSearchResults?.[selectedIndex];
+             if (file) onFileSelect?.(file.path);
+@@ -278,6 +315,9 @@ export const CommandPaletteDropdown = forwardRef<
+       showFileResults,
+       fileSearchResults,
+       onFileSelect,
++      showFlowspaceResults,
++      symbolSearchResults,
++      onSymbolSelect,
+     ]
+   );
+ 
+@@ -286,15 +326,138 @@ export const CommandPaletteDropdown = forwardRef<
+   return (
+     // DYK-P3-02: onMouseDown preventDefault keeps input focused
+     <div
+-      className="absolute left-0 right-0 top-full z-50 mt-1 max-h-64 overflow-y-auto rounded-lg border bg-popover shadow-md"
++      className="absolute left-0 right-0 top-full z-50 mt-1 max-h-[calc(100vh-8rem)] overflow-y-auto rounded-lg border bg-popover shadow-md"
+       onMouseDown={(e) => e.preventDefault()}
+     >
+-      {mode === 'symbols' && (
+-        <div className="px-3 py-4 text-center text-sm text-muted-foreground">
+-          <Hash className="inline h-4 w-4 mr-1 -mt-0.5" />
+-          Symbol search (LSP/Flowspace) coming later
+-        </div>
+-      )}
++      {isFlowspaceMode &&
++        (symbolSearchAvailability === 'not-installed' ? (
++          <div className="px-3 py-4 text-center text-sm text-muted-foreground">
++            <Hash className="inline h-4 w-4 mr-1 -mt-0.5" />
++            FlowSpace not installed
++            <div className="mt-2 flex items-center justify-center gap-2">
++              <code className="rounded bg-muted px-2 py-0.5 text-xs select-all">
++                https://github.com/AI-Substrate/flow_squared
++              </code>
++              <button
++                type="button"
++                className="rounded bg-muted px-1.5 py-0.5 text-xs hover:bg-accent"
++                onClick={() =>
++                  navigator.clipboard.writeText('https://github.com/AI-Substrate/flow_squared')
++                }
++              >
++                <ClipboardCopy className="h-3 w-3" />
++              </button>
++            </div>
++          </div>
++        ) : symbolSearchAvailability === 'no-graph' ? (
++          <div className="px-3 py-4 text-center text-sm text-muted-foreground">
++            <Hash className="inline h-4 w-4 mr-1 -mt-0.5" />
++            Run <code className="rounded bg-muted px-1.5 py-0.5 text-xs">fs2 scan</code> to index
++            your codebase
++          </div>
++        ) : !hasFlowspaceQuery ? (
++          <div className="px-3 py-4 text-center text-sm text-muted-foreground">
++            <Hash className="inline h-4 w-4 mr-1 -mt-0.5" />
++            {mode === 'semantic' ? 'FlowSpace semantic search' : 'FlowSpace text search'}
++          </div>
++        ) : symbolSearchLoading ? (
++          <div className="px-3 py-4 text-center text-sm text-muted-foreground">
++            <AsciiSpinner active /> Searching code...
++          </div>
++        ) : symbolSearchError ? (
++          <div className="px-3 py-4 text-center text-sm text-muted-foreground">
++            {symbolSearchError}
++          </div>
++        ) : showFlowspaceResults ? (
++          <>
++            <div className="flex items-center justify-between border-b px-3 py-1">
++              <span className="text-xs text-muted-foreground">
++                {symbolSearchResults?.length} results
++                {symbolSearchFolders &&
++                  Object.keys(symbolSearchFolders).length > 0 &&
++                  ` · ${Object.entries(symbolSearchFolders)
++                    .slice(0, 3)
++                    .map(([k, v]) => `${k} ${v}`)
++                    .join(' · ')}`}
++              </span>
++              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
++                {mode === 'semantic' && (
++                  <span className="rounded bg-purple-100 px-1.5 py-0.5 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
++                    🧠 semantic
++                  </span>
++                )}
++                {symbolSearchGraphAge && <span>indexed {symbolSearchGraphAge}</span>}
++              </div>
++            </div>
++            {/* biome-ignore lint/a11y/useSemanticElements: custom palette item list */}
++            <div ref={listRef} role="listbox" tabIndex={-1} className="py-1">
++              {symbolSearchResults?.map((result, index) => (
++                <ContextMenu key={result.nodeId}>
++                  <ContextMenuTrigger asChild>
++                    <div // biome-ignore lint/a11y/useSemanticElements: custom palette item
++                      role="option"
++                      tabIndex={-1}
++                      aria-selected={index === selectedIndex}
++                      className={`px-3 py-1.5 cursor-pointer ${
++                        index === selectedIndex
++                          ? 'bg-primary/15 text-foreground'
++                          : 'text-foreground hover:bg-accent/50'
++                      }`}
++                      onClick={() => onSymbolSelect?.(result.filePath, result.startLine)}
++                      onKeyDown={(e) => {
++                        if (e.key === 'Enter') onSymbolSelect?.(result.filePath, result.startLine);
++                      }}
++                    >
++                      <div className="flex items-center gap-2">
++                        <span className="shrink-0 w-4 text-center text-xs">
++                          {FLOWSPACE_CATEGORY_ICONS[result.category] || '○'}
++                        </span>
++                        <span className="font-medium truncate">{result.name}</span>
++                        <span className="shrink-0 rounded bg-muted px-1 py-0.5 text-xs text-muted-foreground">
++                          L{result.startLine}
++                          {result.endLine !== result.startLine && `-${result.endLine}`}
++                        </span>
++                      </div>
++                      <div className="ml-6 text-xs text-muted-foreground truncate">
++                        {result.filePath}
++                      </div>
++                      {result.smartContent &&
++                        !result.smartContent.startsWith('[Empty content') &&
++                        !result.smartContent.startsWith('[No ') &&
++                        result.smartContent.length > 10 &&
++                        !result.name.startsWith(result.smartContent.slice(0, 30)) && (
++                          <div className="ml-6 text-xs text-muted-foreground/70 truncate">
++                            {result.smartContent.slice(0, 120)}
++                          </div>
++                        )}
++                    </div>
++                  </ContextMenuTrigger>
++                  <ContextMenuContent>
++                    <ContextMenuItem onClick={() => onCopyFullPath?.(result.filePath)}>
++                      <ClipboardCopy className="mr-2 h-3.5 w-3.5" />
++                      Copy Full Path
++                    </ContextMenuItem>
++                    <ContextMenuItem onClick={() => onCopyRelativePath?.(result.filePath)}>
++                      <File className="mr-2 h-3.5 w-3.5" />
++                      Copy Relative Path
++                    </ContextMenuItem>
++                    <ContextMenuSeparator />
++                    <ContextMenuItem onClick={() => onCopyContent?.(result.filePath)}>
++                      <FileText className="mr-2 h-3.5 w-3.5" />
++                      Copy Content
++                    </ContextMenuItem>
++                    <ContextMenuItem onClick={() => onDownload?.(result.filePath)}>
++                      <Download className="mr-2 h-3.5 w-3.5" />
++                      Download
++                    </ContextMenuItem>
++                  </ContextMenuContent>
++                </ContextMenu>
++              ))}
++            </div>
++          </>
++        ) : hasFlowspaceQuery ? (
++          <div className="px-3 py-4 text-center text-sm text-muted-foreground">No results</div>
++        ) : null)}
+ 
+       {mode === 'search' &&
+         (hasSearchText ? (
+@@ -427,7 +590,7 @@ export const CommandPaletteDropdown = forwardRef<
+             </div>
+           )
+         ) : (
+-          // Empty input: Quick Access hints (unchanged)
++          // Empty input: Quick Access hints
+           <div className="py-2">
+             <div className="px-3 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+               Quick Access
+@@ -438,7 +601,21 @@ export const CommandPaletteDropdown = forwardRef<
+             </div>
+             <div className="px-3 py-1.5 text-sm text-muted-foreground flex items-center gap-2">
+               <span className="font-mono text-xs bg-muted px-1 rounded">#</span>
+-              <span>Symbol search (coming soon)</span>
++              <span>
++                Code search
++                {symbolSearchAvailability === 'not-installed'
++                  ? ' (install FlowSpace)'
++                  : ' (FlowSpace)'}
++              </span>
++            </div>
++            <div className="px-3 py-1.5 text-sm text-muted-foreground flex items-center gap-2">
++              <span className="font-mono text-xs bg-muted px-1 rounded">$</span>
++              <span>
++                Semantic search
++                {symbolSearchAvailability === 'not-installed'
++                  ? ' (install FlowSpace)'
++                  : ' (FlowSpace)'}
++              </span>
+             </div>
+             <div className="px-3 py-1.5 text-sm text-muted-foreground flex items-center gap-2">
+               <Search className="h-3.5 w-3.5" />
+diff --git a/apps/web/src/features/_platform/panel-layout/components/explorer-panel.tsx b/apps/web/src/features/_platform/panel-layout/components/explorer-panel.tsx
+index 43a4c47..38407ba 100644
+--- a/apps/web/src/features/_platform/panel-layout/components/explorer-panel.tsx
++++ b/apps/web/src/features/_platform/panel-layout/components/explorer-panel.tsx
+@@ -27,6 +27,8 @@ import type {
+   FileChangeInfo,
+   FileSearchEntry,
+   FileSearchSortMode,
++  FlowSpaceAvailability,
++  FlowSpaceSearchResult,
+ } from '../types';
+ import { AsciiSpinner } from './ascii-spinner';
+ import {
+@@ -77,6 +79,17 @@ export interface ExplorerPanelProps {
+   workingChanges?: FileChangeInfo[];
+   /** Called when search query changes (for file filter hook) */
+   onSearchQueryChange?: (query: string) => void;
++  /** FlowSpace search results (Plan 051) */
++  symbolSearchResults?: FlowSpaceSearchResult[] | null;
++  symbolSearchLoading?: boolean;
++  symbolSearchError?: string | null;
++  symbolSearchAvailability?: FlowSpaceAvailability;
++  symbolSearchGraphAge?: string | null;
++  symbolSearchFolders?: Record<string, number> | null;
++  /** Navigate to a code symbol from FlowSpace results */
++  onSymbolSelect?: (filePath: string, startLine: number) => void;
++  /** Called when FlowSpace search query changes */
++  onFlowspaceQueryChange?: (query: string, mode: 'text' | 'semantic') => void;
+ }
+ 
+ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>(
+@@ -104,6 +117,14 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
+       onDownload,
+       workingChanges,
+       onSearchQueryChange,
++      symbolSearchResults,
++      symbolSearchLoading,
++      symbolSearchError,
++      symbolSearchAvailability,
++      symbolSearchGraphAge,
++      symbolSearchFolders,
++      onSymbolSelect,
++      onFlowspaceQueryChange,
+     },
+     ref
+   ) {
+@@ -119,6 +140,7 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
+     // DYK-ST001-01: paramGathering overrides prefix-derived mode
+     const paletteMode = editing && inputValue.startsWith('>') && !!sdk;
+     const symbolMode = editing && inputValue.startsWith('#');
++    const semanticMode = editing && inputValue.startsWith('$');
+     const paletteFilter = paletteMode ? inputValue.slice(1).trim() : '';
+     // Show dropdown whenever editing is active and SDK available (like VS Code)
+     const showDropdown = editing && !!sdk && !processing;
+@@ -127,9 +149,11 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
+       ? ('param' as const)
+       : paletteMode
+         ? ('commands' as const)
+-        : symbolMode
+-          ? ('symbols' as const)
+-          : ('search' as const);
++        : semanticMode
++          ? ('semantic' as const)
++          : symbolMode
++            ? ('symbols' as const)
++            : ('search' as const);
+ 
+     // Plan 049 Feature 2: File search mode has results — delegate keyboard
+     const searchHasResults =
+@@ -137,6 +161,7 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
+       inputValue.trim().length > 0 &&
+       !inputValue.startsWith('>') &&
+       !inputValue.startsWith('#') &&
++      !inputValue.startsWith('$') &&
+       Array.isArray(fileSearchResults) &&
+       fileSearchResults.length > 0;
+ 
+@@ -160,6 +185,18 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
+       }
+     }, [inputValue, dropdownMode, editing, onSearchQueryChange]);
+ 
++    // Plan 051: Notify parent of FlowSpace query changes
++    useEffect(() => {
++      if ((dropdownMode === 'symbols' || dropdownMode === 'semantic') && editing) {
++        const prefix = inputValue.startsWith('$') ? '$' : '#';
++        const query = inputValue.slice(1).trim();
++        const mode = prefix === '$' ? 'semantic' : 'text';
++        onFlowspaceQueryChange?.(query, mode);
++      } else {
++        onFlowspaceQueryChange?.('', 'text');
++      }
++    }, [inputValue, dropdownMode, editing, onFlowspaceQueryChange]);
++
+     // Expose focusInput + openPalette
+     useImperativeHandle(ref, () => ({
+       focusInput: () => {
+@@ -409,6 +446,16 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
+               onCopyContent={onCopyContent}
+               onDownload={onDownload}
+               workingChanges={workingChanges}
++              symbolSearchResults={symbolSearchResults}
++              symbolSearchLoading={symbolSearchLoading}
++              symbolSearchError={symbolSearchError}
++              symbolSearchAvailability={symbolSearchAvailability}
++              symbolSearchGraphAge={symbolSearchGraphAge}
++              symbolSearchFolders={symbolSearchFolders}
++              onSymbolSelect={(filePath, startLine) => {
++                onSymbolSelect?.(filePath, startLine);
++                exitEditMode();
++              }}
+             />
+           )}
+         </div>
+diff --git a/apps/web/src/features/_platform/panel-layout/index.ts b/apps/web/src/features/_platform/panel-layout/index.ts
+index 6a8ec2b..3a947f0 100644
+--- a/apps/web/src/features/_platform/panel-layout/index.ts
++++ b/apps/web/src/features/_platform/panel-layout/index.ts
+@@ -15,7 +15,11 @@ export type {
+   FileSearchSortMode,
+   FileSearchEntry,
+   FileChangeInfo,
++  FlowSpaceSearchMode,
++  FlowSpaceAvailability,
++  FlowSpaceSearchResult,
+ } from './types';
++export { FLOWSPACE_CATEGORY_ICONS } from './types';
+ 
+ // Components
+ export { PanelHeader } from './components/panel-header';
+@@ -34,6 +38,3 @@ export { PanelShell } from './components/panel-shell';
+ export type { PanelShellProps } from './components/panel-shell';
+ export { AsciiSpinner } from './components/ascii-spinner';
+ export type { AsciiSpinnerProps } from './components/ascii-spinner';
+-
+-// Stub handlers
+-export { createSymbolSearchStub } from './stub-handlers';
+diff --git a/apps/web/src/features/_platform/panel-layout/stub-handlers.ts b/apps/web/src/features/_platform/panel-layout/stub-handlers.ts
+index 8122c07..30ac65b 100644
+--- a/apps/web/src/features/_platform/panel-layout/stub-handlers.ts
++++ b/apps/web/src/features/_platform/panel-layout/stub-handlers.ts
+@@ -1,21 +1,11 @@
+ /**
+  * Stub Handlers — Placeholder BarHandlers for unimplemented features.
+  *
+- * DYK-P3-04: Only `#` prefix is a stub handler. Search fallback is
+- * ExplorerPanel's "all handlers returned false" path, not a handler.
++ * DYK-P3-04: Search fallback is ExplorerPanel's "all handlers returned false" path.
+  *
+  * Per Plan 047 Phase 3, Task T005.
++ * Plan 051: createSymbolSearchStub removed — # prefix now handled by FlowSpace search.
+  */
+ 
+-import { toast } from 'sonner';
+-
+-import type { BarHandler } from './types';
+-
+-/** Creates a BarHandler that intercepts `#` prefix (symbol search stub). */
+-export function createSymbolSearchStub(): BarHandler {
+-  return async (input) => {
+-    if (!input.startsWith('#')) return false;
+-    toast.info('Symbol search (LSP/Flowspace) coming later');
+-    return true;
+-  };
+-}
++// No active stubs — all previous stubs have been implemented.
++// File retained for future stub handlers.
+diff --git a/apps/web/src/features/_platform/panel-layout/types.ts b/apps/web/src/features/_platform/panel-layout/types.ts
+index 6adf7fd..6414bee 100644
+--- a/apps/web/src/features/_platform/panel-layout/types.ts
++++ b/apps/web/src/features/_platform/panel-layout/types.ts
+@@ -55,3 +55,37 @@ export interface FileChangeInfo {
+   path: string;
+   status: string;
+ }
++
++// --- FlowSpace search types (Plan 051) ---
++// Defined here so infra (panel-layout) doesn't import from business (file-browser).
++
++/** FlowSpace search mode — text is fast/free, semantic uses embedding API */
++export type FlowSpaceSearchMode = 'text' | 'semantic';
++
++/** FlowSpace availability status */
++export type FlowSpaceAvailability = 'available' | 'not-installed' | 'no-graph' | 'no-embeddings';
++
++/** A code node result from FlowSpace search */
++export interface FlowSpaceSearchResult {
++  nodeId: string;
++  name: string;
++  category: string;
++  filePath: string;
++  startLine: number;
++  endLine: number;
++  smartContent: string | null;
++  snippet: string;
++  score: number;
++  matchField: string;
++}
++
++/** Category icon mapping for FlowSpace node categories */
++export const FLOWSPACE_CATEGORY_ICONS: Record<string, string> = {
++  file: '📄',
++  callable: 'ƒ',
++  type: '📦',
++  section: '📝',
++  block: '🏗️',
++  definition: '🔹',
++  other: '○',
++};
+diff --git a/test/unit/web/features/panel-layout/stub-handlers.test.ts b/test/unit/web/features/panel-layout/stub-handlers.test.ts
+index 18f10c7..de64c0b 100644
+--- a/test/unit/web/features/panel-layout/stub-handlers.test.ts
++++ b/test/unit/web/features/panel-layout/stub-handlers.test.ts
+@@ -1,38 +1,17 @@
+ /**
+  * Stub Handlers Tests
+  *
+- * Tests for the symbol search stub BarHandler.
+- * Per Plan 047 Phase 3, FT-009.
++ * Plan 047 Phase 3: Original tests for createSymbolSearchStub.
++ * Plan 051: Stub removed — # prefix now handled by FlowSpace search.
++ * Tests retained as documentation of the change.
+  */
+ 
+ import { describe, expect, it } from 'vitest';
+ 
+-import { createSymbolSearchStub } from '../../../../../apps/web/src/features/_platform/panel-layout/stub-handlers';
+-import type { BarContext } from '../../../../../apps/web/src/features/_platform/panel-layout/types';
+-
+-function makeContext(overrides: Partial<BarContext> = {}): BarContext {
+-  return {
+-    slug: 'test',
+-    worktreePath: '/tmp/test',
+-    fileExists: async () => false,
+-    pathExists: async () => false,
+-    navigateToFile: () => {},
+-    navigateToDirectory: () => {},
+-    showError: () => {},
+-    ...overrides,
+-  };
+-}
+-
+-describe('createSymbolSearchStub', () => {
+-  it('returns true for # prefix input', async () => {
+-    const handler = createSymbolSearchStub();
+-    const result = await handler('#MyClass', makeContext());
+-    expect(result).toBe(true);
+-  });
+-
+-  it('returns false for non-# input', async () => {
+-    const handler = createSymbolSearchStub();
+-    const result = await handler('src/index.ts', makeContext());
+-    expect(result).toBe(false);
++describe('stub-handlers (Plan 051: stub removed)', () => {
++  it('createSymbolSearchStub was removed in Plan 051', () => {
++    // The # prefix is now handled by FlowSpace search in CommandPaletteDropdown,
++    // not by a BarHandler stub. This test documents the removal.
++    expect(true).toBe(true);
+   });
+ });
