@@ -122,7 +122,7 @@ CLI commands are the primary interface and are introduced early (Phase 2) so the
 | 2.18 | CLI `cg template instances <slug>` | _platform/positional-graph | Lists all instances of a workflow template | Instance discovery |
 | 2.19 | Integration test: script paths work after copy | _platform/positional-graph | Copy a code unit with scripts/ to instance, verify script can find its own prompts. Test Doc format. | Per finding 01 — critical risk |
 
-### Phase 3: Integration Testing & Instance Orchestration
+### Phase 3: Integration Testing & Instance Validation
 
 **Objective**: Prove the full pipeline works end-to-end: save-from → instantiate → drive graph to completion. Test edge cases (refresh during run, multiple instances, script path validation).
 **Domain**: `_platform/positional-graph`
@@ -219,5 +219,5 @@ CLI commands are the primary interface and are introduced early (Phase 2) so the
 |-------|--------|-----------|
 | Phase 1: Schema + Interfaces | Complete | 6/6 tasks |
 | Phase 2: Service + CLI | Complete | 19/19 tasks |
-| Phase 3: Graph Activation | Not Started | — |
+| Phase 3: Integration Testing & Instance Validation | Not Started | — |
 | Phase 4: E2E + Docs | Not Started | — |

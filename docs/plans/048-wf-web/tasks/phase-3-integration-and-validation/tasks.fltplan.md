@@ -1,7 +1,7 @@
-# Flight Plan: Phase 3 — Integration Testing & Instance Orchestration
+# Flight Plan: Phase 3 — Integration Testing & Instance Validation
 
 **Plan**: [wf-web-plan.md](../../wf-web-plan.md)
-**Phase**: Phase 3: Integration Testing & Instance Orchestration
+**Phase**: Phase 3: Integration Testing & Instance Validation
 **Generated**: 2026-02-25
 **Status**: Ready for takeoff
 

@@ -1,4 +1,4 @@
-# Phase 3: Integration Testing & Instance Orchestration
+# Phase 3: Integration Testing & Instance Validation
 
 ## Executive Briefing
 
@@ -65,7 +65,7 @@ flowchart TD
         P2_WUA["InstanceWorkUnitAdapter"]:::phase2
     end
 
-    subgraph Phase3["Phase 3: Integration + Orchestration"]
+    subgraph Phase3["Phase 3: Integration + Validation"]
         T001["T001-T002: InstanceGraphAdapter"]:::pending
         T003["T003: Test helper"]:::pending
         T004["T004: Full lifecycle test"]:::pending
@@ -89,7 +89,7 @@ flowchart TD
 | Status | ID | Task | Domain | Path(s) | Done When | Notes |
 |--------|-----|------|--------|---------|-----------|-------|
 | [ ] | T001 | TDD: InstanceGraphAdapter tests | _platform/positional-graph | `test/unit/positional-graph/instance-graph-adapter.test.ts` | Tests verify: getGraphDir() returns `.chainglass/instances/<wf>/<id>/`, overrides getDomainPath(), validates slug pattern. Uses FakeFileSystem. Test Doc format. | TDD per constitution P3. Follows PositionalGraphAdapter pattern. |
-| [ ] | T002 | Implement `InstanceGraphAdapter` | _platform/positional-graph | `packages/positional-graph/src/adapter/instance-graph.adapter.ts` | Extends WorkspaceDataAdapterBase, overrides getDomainPath() → `.chainglass/instances/`. getGraphDir(ctx, compositeSlug) resolves `<wf>/<id>` from composite slug. Barrel export added. Passes T001 tests. | Per findings 05 and 08. Same structure as standalone graph dir, different root. |
+| [ ] | T002 | Implement `InstanceGraphAdapter` | _platform/positional-graph | `packages/positional-graph/src/adapter/instance-graph.adapter.ts` | Extends PositionalGraphAdapter, overrides getGraphDir() to return pre-resolved instance path (slug arg ignored — adapter is scoped to one instance). Constructor: `(fs, pathResolver, instancePath: string)`. Clean Architecture: same interface as PositionalGraphAdapter, swapped via child container per execution context using useFactory. Barrel export added. Passes T001 tests. | Idiomatic DI pattern: child container + factory selects adapter. Follows InstanceWorkUnitAdapter precedent (basePath constructor). PositionalGraphService unchanged — depends on adapter interface, not concrete class. |
 | [ ] | T003 | Create integration test helper for template lifecycle | _platform/positional-graph | `test/integration/template-instance-orchestration.test.ts` | Shared `beforeEach` that: creates temp dir, copies units from dev/test-graphs/advanced-pipeline, wires real TemplateService + PositionalGraphService with NodeFileSystemAdapter, builds graph via service calls, saves as template. Cleanup in afterEach. | Reuse patterns from `test/helpers/positional-graph-e2e-helpers.ts` and `dev/test-graphs/shared/graph-test-runner.ts`. |
 | [ ] | T004 | Integration test: save-from → instantiate → verify runnable | _platform/positional-graph | `test/integration/template-instance-orchestration.test.ts` | Build graph with real service, save as template, instantiate, verify: instance dir has graph.yaml + nodes/ + units/ + state.json (pending), graph.yaml parseable by real YAML parser, node count matches. Test Doc format. | Full lifecycle proof — plan task 3.2. AC-6. |
 | [ ] | T005 | Integration test: multiple instances from same template | _platform/positional-graph | `test/integration/template-instance-orchestration.test.ts` | Instantiate same template twice with different IDs, verify: both instance dirs exist independently, each has its own state.json, modifying state in one doesn't affect the other. Test Doc format. | Proves instance isolation — plan task 3.3. AC-8. |
@@ -171,7 +171,7 @@ docs/plans/048-wf-web/
   └── tasks/
       ├── phase-1-schema-and-interfaces/ (complete)
       ├── phase-2-template-service-and-cli/ (complete)
-      └── phase-3-integration-and-orchestration/
+      └── phase-3-integration-and-validation/
           ├── tasks.md                    ← this file
           ├── tasks.fltplan.md            ← flight plan
           └── execution.log.md           # created by plan-6
