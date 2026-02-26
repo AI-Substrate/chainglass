@@ -298,14 +298,14 @@ describe('CentralWatcherService', () => {
       expect(registryWatcher.getWatchedPaths()).toContain(REGISTRY_PATH);
     });
 
-    it('should skip worktrees without .chainglass/data/ directory', async () => {
+    it('should skip data watchers for worktrees without .chainglass/data/ but still create source watchers', async () => {
       /*
       Test Doc:
       - Why: Robustness — worktree may not have been initialized with chainglass
-      - Contract: Only create data/source watchers for worktrees where .chainglass/data/ exists
-      - Usage Notes: fs.exists() check prevents watching non-existent directories
-      - Quality Contribution: Prevents watcher errors on uninitialized worktrees
-      - Worked Example: 2 worktrees, 1 has data dir → 1 data + 1 source + 1 registry = 3
+      - Contract: Only data watchers gate on .chainglass/data/; source watchers created for all worktrees
+      - Usage Notes: fs.exists() check prevents data-watching non-existent directories
+      - Quality Contribution: Ensures file browser live events work for uninitialized workspaces (FX001)
+      - Worked Example: 2 worktrees, 1 has data dir → 1 data + 2 source + 1 registry = 4
       */
       const ws = createTestWorkspace('ws-1', '/repo');
       registry.addWorkspace(ws);
@@ -332,8 +332,18 @@ describe('CentralWatcherService', () => {
 
       await service.start();
 
-      // 1 data watcher + 1 source watcher + 1 registry watcher = 3
-      expect(factory.getWatcherCount()).toBe(3);
+      // 1 data watcher + 2 source watchers + 1 registry watcher = 4
+      expect(factory.getWatcherCount()).toBe(4);
+
+      // Data watcher only for /repo (has .chainglass/data)
+      const dataWatcher = factory.findWatcherByPath('/repo/.chainglass/data');
+      expect(dataWatcher).toBeDefined();
+
+      // Source watchers for BOTH worktrees (FX001: no data dir gate)
+      const sourceWatcher1 = factory.findWatcherByPath('/repo');
+      const sourceWatcher2 = factory.findWatcherByPath('/repo-wt');
+      expect(sourceWatcher1).toBeDefined();
+      expect(sourceWatcher2).toBeDefined();
     });
   });
 
@@ -923,6 +933,116 @@ describe('CentralWatcherService', () => {
       await service.rescan();
 
       expect(sourceWatcher?.isClosed()).toBe(true);
+    });
+
+    it('should create source watchers for workspaces without .chainglass/data/ (FX001)', async () => {
+      /*
+      Test Doc:
+      - Why: FX001 bug — workspaces without .chainglass/data/ got no source watchers
+      - Contract: Source watchers are created for ALL registered worktrees regardless of data dir
+      - Usage Notes: Directly tests the bug scenario — workspace added but never initialized
+      - Quality Contribution: Prevents regression of cross-workspace file watching
+      - Worked Example: 1 workspace, no data dir → 0 data + 1 source + 1 registry = 2
+      */
+      const ws = createTestWorkspace('ws-1', '/repo');
+      registry.addWorkspace(ws);
+      resolver.setWorktrees('/repo', [
+        {
+          path: '/repo',
+          head: 'abc123',
+          branch: 'main',
+          isDetached: false,
+          isBare: false,
+          isPrunable: false,
+        },
+      ]);
+      // Deliberately do NOT set fs.setDir('/repo/.chainglass/data')
+
+      await service.start();
+
+      // 0 data watchers + 1 source watcher + 1 registry watcher = 2
+      expect(factory.getWatcherCount()).toBe(2);
+
+      // Source watcher exists and watches worktree root
+      const sourceWatcher = factory.findWatcherByPath('/repo');
+      expect(sourceWatcher).toBeDefined();
+      expect(sourceWatcher?.getWatchedPaths()).toContain('/repo');
+
+      // No data watcher (no .chainglass/data/)
+      const dataWatcher = factory.findWatcherByPath('/repo/.chainglass/data');
+      expect(dataWatcher).toBeUndefined();
+    });
+
+    it('should dispatch events from source watchers on workspaces without data dir (FX001)', async () => {
+      /*
+      Test Doc:
+      - Why: FX001 — verify the full pipeline works for uninitialized workspaces
+      - Contract: Source watcher events dispatch to adapters even without .chainglass/data/
+      */
+      const ws = createTestWorkspace('ws-1', '/repo');
+      registry.addWorkspace(ws);
+      resolver.setWorktrees('/repo', [
+        {
+          path: '/repo',
+          head: 'abc123',
+          branch: 'main',
+          isDetached: false,
+          isBare: false,
+          isPrunable: false,
+        },
+      ]);
+      // No .chainglass/data/ directory
+
+      const adapter = new FakeWatcherAdapter('test-adapter');
+      service.registerAdapter(adapter);
+
+      await service.start();
+
+      const sourceWatcher = factory.findWatcherByPath('/repo');
+      sourceWatcher?.simulateChange('/repo/src/app.tsx');
+
+      expect(adapter.calls).toHaveLength(1);
+      expect(adapter.calls[0].path).toBe('/repo/src/app.tsx');
+      expect(adapter.calls[0].eventType).toBe('change');
+      expect(adapter.calls[0].worktreePath).toBe('/repo');
+      expect(adapter.calls[0].workspaceSlug).toBe('ws-1');
+    });
+
+    it('should create source watchers for new workspaces without data dir on rescan (FX001)', async () => {
+      /*
+      Test Doc:
+      - Why: FX001 — rescan path must also create source watchers for uninitialized workspaces
+      - Contract: rescan() discovers new workspaces and creates source watchers regardless of data dir
+      - Worked Example: start with ws-1 (has data), add ws-2 (no data) → rescan → source watcher for ws-2
+      */
+      setupSingleWorktree(registry, resolver, fs);
+
+      await service.start();
+      const initialCount = factory.getWatcherCount();
+
+      // Add a new workspace WITHOUT .chainglass/data/
+      const ws2 = createTestWorkspace('ws-2', '/repo2');
+      registry.addWorkspace(ws2);
+      resolver.setWorktrees('/repo2', [
+        {
+          path: '/repo2',
+          head: 'ghi789',
+          branch: 'main',
+          isDetached: false,
+          isBare: false,
+          isPrunable: false,
+        },
+      ]);
+      // Deliberately do NOT set fs.setDir('/repo2/.chainglass/data')
+
+      await service.rescan();
+
+      // Should have created 1 source watcher (no data watcher — no data dir)
+      expect(factory.getWatcherCount()).toBe(initialCount + 1);
+
+      // Source watcher exists for the new workspace
+      const sourceWatcher = factory.findWatcherByPath('/repo2');
+      expect(sourceWatcher).toBeDefined();
     });
   });
 });
