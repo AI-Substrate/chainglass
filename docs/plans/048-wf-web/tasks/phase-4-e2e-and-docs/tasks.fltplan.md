@@ -112,9 +112,9 @@ flowchart LR
 
 ## Checklist
 
-- [ ] T001: Generate smoke template
+- [ ] T001: Create generation script + smoke template
 - [ ] T002: Generate simple-serial template
 - [ ] T003: Create withTemplateWorkflow() helper
-- [ ] T004: E2E lifecycle test
-- [ ] T005: Write workflow-templates.md
+- [ ] T004: E2E lifecycle test (simple-serial)
+- [ ] T005: Write workflow-templates.md + deprecate old doc
 - [ ] T006: Update README

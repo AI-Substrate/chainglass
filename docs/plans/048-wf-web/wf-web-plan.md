@@ -187,7 +187,7 @@ CLI commands are the primary interface and are introduced early (Phase 2) so the
 - [x] AC-19: No special tooling for Git sharing (Phase 2: no hydration needed)
 - [ ] AC-20: Existing fixtures represented as templates (Phase 4)
 - [ ] AC-21: E2E test validates full lifecycle (Phase 4)
-- [ ] AC-22: Existing e2e tests reconfigured for template system (Phase 4)
+- [ ] AC-22: Existing e2e tests reconfigured for template system (deferred — bulk fixture conversion OOS for Phase 4)
 
 ## Risks
 
