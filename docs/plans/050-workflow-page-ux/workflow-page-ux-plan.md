@@ -77,8 +77,8 @@ Build a visual workflow editor for the positional graph system as a new `workflo
 | 1.2 | Register positional-graph services in web DI container (`registerPositionalGraphServices()`) | _platform/positional-graph | `getContainer().resolve(IPositionalGraphService)` returns service in web context | Per finding 01 |
 | 1.3 | Build FakePositionalGraphService with call tracking + return builders | _platform/positional-graph | Fake implements IPositionalGraphService, tests pass | Per finding 02. Cover: create, load, addLine, addNode, moveNode, removeNode, getStatus, setInput |
 | 1.4 | Build FakeWorkUnitService with call tracking (if not exists) | _platform/positional-graph | Fake implements IWorkUnitService, tests pass | Check if already exists first |
-| 1.5 | Create `scripts/dope-workflows.ts` with 7 demo scenarios | workflow-ui | `npx tsx scripts/dope-workflows.ts` creates 7 graphs in `.chainglass/data/workflows/` | W005 scenarios: blank, serial, running, question, error, complete, complex |
-| 1.6 | Add `just dope` / `just redope` / `just dope clean` to justfile | workflow-ui | Commands work, `just dope clean` removes all demo-* workflows | |
+| 1.5 | Create `scripts/dope-workflows.ts` with 7 demo scenarios | workflow-ui | `npx tsx scripts/dope-workflows.ts` creates 7 graphs in `.chainglass/data/workflows/`; covers all 8 node status states | AC-28, AC-30. W005 scenarios: blank, serial, running, question, error, complete, complex |
+| 1.6 | Add `just dope` / `just redope` / `just dope clean` / `just dope <name>` to justfile | workflow-ui | All 4 commands work; clean removes all demo-* workflows; specific name creates single scenario | AC-29 |
 | 1.7 | Automated test for doping script (validates all 7 scenarios create valid graph structures) | workflow-ui | Test loads each demo graph via IPositionalGraphService, verifies structure | AC-37 |
 
 ### Phase 2: Canvas Core + Layout
@@ -103,7 +103,7 @@ Build a visual workflow editor for the positional graph system as a new `workflo
 | 2.2 | Create workflow list page at `/workspaces/[slug]/workflows/page.tsx` | workflow-ui | Page renders list of workflows from `IPositionalGraphService.list()` | AC-01 (list), AC-22b (new blank + new from template buttons) |
 | 2.3 | Create workflow editor page at `/workspaces/[slug]/workflows/[graphSlug]/page.tsx` | workflow-ui | Page loads graph and renders PanelShell with main (canvas) + right (toolbox) | AC-01 (editor) |
 | 2.4 | Create server actions: `loadWorkflow`, `listWorkflows`, `createWorkflow` | workflow-ui | Server actions resolve DI, call IPositionalGraphService, return Result types | Follow file-actions.ts pattern |
-| 2.5 | Build WorkflowTempBar with placeholder Run button | workflow-ui | Temp bar renders breadcrumb + disabled Run button with tooltip | AC-01, Q7 |
+| 2.5 | Build WorkflowTempBar with placeholder Run button + template/instance breadcrumb | workflow-ui | Temp bar renders breadcrumb + disabled Run button with tooltip; shows "Template > Instance" when viewing instance | AC-01, AC-20, Q7 |
 | 2.6 | Build WorkflowCanvas — renders lines as horizontal rows with numbered headers | workflow-ui | Lines render top-to-bottom, numbered, with label, settings gear, transition badge, delete button | AC-02, AC-05 |
 | 2.7 | Build WorkflowNodeCard — renders node with type icon, name, status dot, context badge | workflow-ui | Cards render all 8 status states correctly with proper colors | AC-10, AC-11 |
 | 2.8 | Build WorkUnitToolbox (right panel) — grouped by type with search | workflow-ui | Toolbox loads units from IWorkUnitService.list(), groups by type, search filters | AC-06 |
@@ -299,7 +299,7 @@ Build a visual workflow editor for the positional graph system as a new `workflo
 | Phase | Status | ACs Covered |
 |-------|--------|-------------|
 | Phase 1: Domain Setup + Foundations | Pending | AC-28,29,30,37 |
-| Phase 2: Canvas Core + Layout | Pending | AC-01,02,03,04,05,06,10,11,22b |
+| Phase 2: Canvas Core + Layout | Pending | AC-01,02,03,04,05,06,10,11,20,22b |
 | Phase 3: Drag-and-Drop + Persistence | Pending | AC-07,08,09,21,22 |
 | Phase 4: Context Indicators + Select-to-Reveal | Pending | AC-12,13,14,15,17 |
 | Phase 5: Q&A + Node Properties Modal + Undo/Redo | Pending | AC-16,18,19,23,24 |
