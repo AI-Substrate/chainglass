@@ -40,8 +40,8 @@ import {
   useState,
 } from 'react';
 
-import type { FileChangeInfo, FileSearchEntry, FileSearchSortMode } from '../types';
 import type { MruTracker } from '@/lib/sdk/sdk-provider';
+import type { FileChangeInfo, FileSearchEntry, FileSearchSortMode } from '../types';
 
 import { AsciiSpinner } from './ascii-spinner';
 

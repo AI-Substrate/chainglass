@@ -51,16 +51,18 @@ export async function getFileList(
     const entries: (FileListEntry | null)[] = [];
     for (let i = 0; i < uniquePaths.length; i += BATCH_SIZE) {
       const batch = await Promise.all(
-        uniquePaths.slice(i, i + BATCH_SIZE).map(async (filePath): Promise<FileListEntry | null> => {
-          try {
-            const fullPath = join(worktreePath, filePath);
-            const st = await stat(fullPath);
-            return { path: filePath, mtime: st.mtimeMs };
-          } catch {
-            // File was deleted between ls-files and stat — skip it
-            return null;
-          }
-        })
+        uniquePaths
+          .slice(i, i + BATCH_SIZE)
+          .map(async (filePath): Promise<FileListEntry | null> => {
+            try {
+              const fullPath = join(worktreePath, filePath);
+              const st = await stat(fullPath);
+              return { path: filePath, mtime: st.mtimeMs };
+            } catch {
+              // File was deleted between ls-files and stat — skip it
+              return null;
+            }
+          })
       );
       entries.push(...batch);
     }

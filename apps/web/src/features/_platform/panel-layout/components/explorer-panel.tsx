@@ -20,7 +20,14 @@ import { toast } from 'sonner';
 
 import type { MruTracker } from '@/lib/sdk/sdk-provider';
 
-import type { BarContext, BarHandler, ExplorerPanelHandle, FileChangeInfo, FileSearchEntry, FileSearchSortMode } from '../types';
+import type {
+  BarContext,
+  BarHandler,
+  ExplorerPanelHandle,
+  FileChangeInfo,
+  FileSearchEntry,
+  FileSearchSortMode,
+} from '../types';
 import { AsciiSpinner } from './ascii-spinner';
 import {
   CommandPaletteDropdown,

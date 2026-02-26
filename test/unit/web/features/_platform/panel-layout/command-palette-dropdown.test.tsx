@@ -18,8 +18,8 @@ import type {
   FileSearchEntry,
   FileSearchSortMode,
 } from '@/features/_platform/panel-layout/types';
-import type { IUSDK } from '@chainglass/shared/sdk';
 import type { MruTracker } from '@/lib/sdk/sdk-provider';
+import type { IUSDK } from '@chainglass/shared/sdk';
 import { createRef } from 'react';
 
 // --- Fakes ---
@@ -55,17 +55,9 @@ const defaultSearchProps = {
 
 describe('CommandPaletteDropdown — search mode', () => {
   it('renders file results when search text and results are provided', () => {
-    const results: FileSearchEntry[] = [
-      makeEntry('src/app.tsx'),
-      makeEntry('src/app.test.tsx'),
-    ];
+    const results: FileSearchEntry[] = [makeEntry('src/app.tsx'), makeEntry('src/app.test.tsx')];
 
-    render(
-      <CommandPaletteDropdown
-        {...defaultSearchProps}
-        fileSearchResults={results}
-      />
-    );
+    render(<CommandPaletteDropdown {...defaultSearchProps} fileSearchResults={results} />);
 
     expect(screen.getByText('app.tsx')).toBeInTheDocument();
     expect(screen.getByText('app.test.tsx')).toBeInTheDocument();
@@ -73,9 +65,7 @@ describe('CommandPaletteDropdown — search mode', () => {
 
   it('renders status badge M for modified file', () => {
     const results = [makeEntry('src/app.tsx')];
-    const workingChanges: FileChangeInfo[] = [
-      { path: 'src/app.tsx', status: 'modified' },
-    ];
+    const workingChanges: FileChangeInfo[] = [{ path: 'src/app.tsx', status: 'modified' }];
 
     render(
       <CommandPaletteDropdown
@@ -90,9 +80,7 @@ describe('CommandPaletteDropdown — search mode', () => {
 
   it('renders status badge A for added file', () => {
     const results = [makeEntry('src/new.tsx')];
-    const workingChanges: FileChangeInfo[] = [
-      { path: 'src/new.tsx', status: 'added' },
-    ];
+    const workingChanges: FileChangeInfo[] = [{ path: 'src/new.tsx', status: 'added' }];
 
     render(
       <CommandPaletteDropdown
@@ -116,9 +104,7 @@ describe('CommandPaletteDropdown — search mode', () => {
       />
     );
 
-    expect(
-      screen.getByRole('button', { name: /sort by recently changed/i })
-    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /sort by recently changed/i })).toBeInTheDocument();
   });
 
   it('renders sort toggle with correct label for alpha-asc mode', () => {
@@ -132,9 +118,7 @@ describe('CommandPaletteDropdown — search mode', () => {
       />
     );
 
-    expect(
-      screen.getByRole('button', { name: /sort alphabetically a to z/i })
-    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /sort alphabetically a to z/i })).toBeInTheDocument();
   });
 
   it('renders hidden toggle with correct label per includeHidden', () => {
@@ -148,9 +132,7 @@ describe('CommandPaletteDropdown — search mode', () => {
       />
     );
 
-    expect(
-      screen.getByRole('button', { name: /show hidden files/i })
-    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /show hidden files/i })).toBeInTheDocument();
 
     rerender(
       <CommandPaletteDropdown
@@ -160,9 +142,7 @@ describe('CommandPaletteDropdown — search mode', () => {
       />
     );
 
-    expect(
-      screen.getByRole('button', { name: /hide hidden files/i })
-    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /hide hidden files/i })).toBeInTheDocument();
   });
 
   it('displays match count in header', () => {
@@ -172,12 +152,7 @@ describe('CommandPaletteDropdown — search mode', () => {
       makeEntry('config/app.config.ts'),
     ];
 
-    render(
-      <CommandPaletteDropdown
-        {...defaultSearchProps}
-        fileSearchResults={results}
-      />
-    );
+    render(<CommandPaletteDropdown {...defaultSearchProps} fileSearchResults={results} />);
 
     expect(screen.getByText('3 files')).toBeInTheDocument();
   });
@@ -207,12 +182,7 @@ describe('CommandPaletteDropdown — search mode', () => {
   });
 
   it('shows "No matching files" for empty results', () => {
-    render(
-      <CommandPaletteDropdown
-        {...defaultSearchProps}
-        fileSearchResults={[]}
-      />
-    );
+    render(<CommandPaletteDropdown {...defaultSearchProps} fileSearchResults={[]} />);
 
     expect(screen.getByText('No matching files')).toBeInTheDocument();
   });
@@ -260,7 +230,7 @@ describe('CommandPaletteDropdown — search mode', () => {
 
     // ArrowDown → second item (wrap in act to flush state)
     await act(async () => {
-      ref.current!.handleKeyDown({
+      ref.current?.handleKeyDown({
         key: 'ArrowDown',
         preventDefault: vi.fn(),
       } as unknown as React.KeyboardEvent);
@@ -272,7 +242,7 @@ describe('CommandPaletteDropdown — search mode', () => {
 
     // Enter selects the file
     await act(async () => {
-      ref.current!.handleKeyDown({
+      ref.current?.handleKeyDown({
         key: 'Enter',
         preventDefault: vi.fn(),
       } as unknown as React.KeyboardEvent);
@@ -284,12 +254,7 @@ describe('CommandPaletteDropdown — search mode', () => {
   it('renders directory path muted and filename emphasized', () => {
     const results = [makeEntry('src/components/AppHeader.tsx')];
 
-    render(
-      <CommandPaletteDropdown
-        {...defaultSearchProps}
-        fileSearchResults={results}
-      />
-    );
+    render(<CommandPaletteDropdown {...defaultSearchProps} fileSearchResults={results} />);
 
     // Directory portion
     expect(screen.getByText('src/components/')).toBeInTheDocument();
@@ -299,11 +264,7 @@ describe('CommandPaletteDropdown — search mode', () => {
 
   it('shows Quick Access hints when input is empty', () => {
     render(
-      <CommandPaletteDropdown
-        {...defaultSearchProps}
-        inputValue=""
-        fileSearchResults={null}
-      />
+      <CommandPaletteDropdown {...defaultSearchProps} inputValue="" fileSearchResults={null} />
     );
 
     expect(screen.getByText('Quick Access')).toBeInTheDocument();

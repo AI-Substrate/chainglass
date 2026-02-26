@@ -220,6 +220,7 @@ export function useFileFilter({
   }, [fileChanges.hasChanges, fileChanges.changes, fileChanges.clearChanges, populateCache]);
 
   // Compute filtered + sorted results (sync path for substring queries)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: cacheVersion intentionally triggers recompute after SSE deltas
   const results = useMemo(() => {
     if (!cachePopulatedRef.current || loading) return null;
     if (!debouncedQuery) return null;
@@ -241,6 +242,7 @@ export function useFileFilter({
   // Handle async glob filtering
   const [asyncResults, setAsyncResults] = useState<CachedFileEntry[] | null>(null);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: cacheVersion intentionally triggers recompute after SSE deltas
   useEffect(() => {
     if (!cachePopulatedRef.current || loading || !debouncedQuery) {
       setAsyncResults(null);

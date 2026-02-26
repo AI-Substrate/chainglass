@@ -27,7 +27,10 @@ vi.mock('@/features/045-live-file-events', () => ({
 }));
 
 // Import after mock setup
-import { useFileFilter, type UseFileFilterOptions } from '@/features/041-file-browser/hooks/use-file-filter';
+import {
+  type UseFileFilterOptions,
+  useFileFilter,
+} from '@/features/041-file-browser/hooks/use-file-filter';
 
 // --- Fake fetch ---
 
@@ -65,9 +68,7 @@ beforeEach(() => {
 describe('useFileFilter', () => {
   it('does not fetch until a non-empty query is set', async () => {
     const fetchFileList = makeFakeFetch();
-    const { result } = renderHook(() =>
-      useFileFilter(makeOptions({ fetchFileList }))
-    );
+    const { result } = renderHook(() => useFileFilter(makeOptions({ fetchFileList })));
 
     // No query yet — should not have fetched
     expect(fetchFileList).not.toHaveBeenCalled();
@@ -86,9 +87,7 @@ describe('useFileFilter', () => {
 
   it('returns filtered results after cache populate and debounce', async () => {
     const fetchFileList = makeFakeFetch();
-    const { result } = renderHook(() =>
-      useFileFilter(makeOptions({ fetchFileList }))
-    );
+    const { result } = renderHook(() => useFileFilter(makeOptions({ fetchFileList })));
 
     await act(async () => {
       result.current.setQuery('app');
@@ -100,7 +99,7 @@ describe('useFileFilter', () => {
     });
 
     // Should find src/app.tsx (contains 'app')
-    const paths = result.current.results!.map((r) => r.path);
+    const paths = result.current.results?.map((r) => r.path) ?? [];
     expect(paths).toContain('src/app.tsx');
     // README.md should not match 'app'
     expect(paths).not.toContain('README.md');
@@ -111,9 +110,7 @@ describe('useFileFilter', () => {
       { path: 'src/a.ts', mtime: 1000 },
       { path: 'src/b.ts', mtime: 2000 },
     ]);
-    const { result } = renderHook(() =>
-      useFileFilter(makeOptions({ fetchFileList }))
-    );
+    const { result } = renderHook(() => useFileFilter(makeOptions({ fetchFileList })));
 
     // Populate cache
     await act(async () => {
@@ -123,7 +120,7 @@ describe('useFileFilter', () => {
       expect(result.current.results).not.toBeNull();
     });
 
-    expect(result.current.results!.map((r) => r.path)).toContain('src/b.ts');
+    expect(result.current.results?.map((r) => r.path) ?? []).toContain('src/b.ts');
 
     // Simulate SSE: unlink src/b.ts, add src/c.ts
     await act(async () => {
@@ -135,9 +132,7 @@ describe('useFileFilter', () => {
     });
 
     // Trigger the SSE effect by re-rendering
-    const { rerender } = renderHook(() =>
-      useFileFilter(makeOptions({ fetchFileList }))
-    );
+    const { rerender } = renderHook(() => useFileFilter(makeOptions({ fetchFileList })));
     rerender();
 
     // Give effects time to run
@@ -149,12 +144,8 @@ describe('useFileFilter', () => {
   });
 
   it('triggers full re-fetch when delta count exceeds threshold (>50)', async () => {
-    const fetchFileList = makeFakeFetch([
-      { path: 'src/a.ts', mtime: 1000 },
-    ]);
-    const { result } = renderHook(() =>
-      useFileFilter(makeOptions({ fetchFileList }))
-    );
+    const fetchFileList = makeFakeFetch([{ path: 'src/a.ts', mtime: 1000 }]);
+    const { result } = renderHook(() => useFileFilter(makeOptions({ fetchFileList })));
 
     // Populate cache
     await act(async () => {
@@ -182,9 +173,7 @@ describe('useFileFilter', () => {
   });
 
   it('cycles sort mode: recent -> alpha-asc -> alpha-desc -> recent', async () => {
-    const { result } = renderHook(() =>
-      useFileFilter(makeOptions())
-    );
+    const { result } = renderHook(() => useFileFilter(makeOptions()));
 
     expect(result.current.sortMode).toBe('recent');
 
@@ -199,9 +188,7 @@ describe('useFileFilter', () => {
   });
 
   it('persists sort mode to sessionStorage', () => {
-    const { result } = renderHook(() =>
-      useFileFilter(makeOptions())
-    );
+    const { result } = renderHook(() => useFileFilter(makeOptions()));
 
     act(() => result.current.cycleSortMode());
     expect(result.current.sortMode).toBe('alpha-asc');
@@ -213,18 +200,14 @@ describe('useFileFilter', () => {
   it('restores sort mode from sessionStorage on mount', () => {
     sessionStorage.setItem('chainglass-file-filter-sort', 'alpha-desc');
 
-    const { result } = renderHook(() =>
-      useFileFilter(makeOptions())
-    );
+    const { result } = renderHook(() => useFileFilter(makeOptions()));
 
     expect(result.current.sortMode).toBe('alpha-desc');
   });
 
   it('toggles includeHidden and triggers re-fetch', async () => {
     const fetchFileList = makeFakeFetch();
-    const { result } = renderHook(() =>
-      useFileFilter(makeOptions({ fetchFileList }))
-    );
+    const { result } = renderHook(() => useFileFilter(makeOptions({ fetchFileList })));
 
     // Populate cache first
     await act(async () => {
@@ -252,9 +235,7 @@ describe('useFileFilter', () => {
 
   it('sets error state when fetchFileList returns { ok: false }', async () => {
     const fetchFileList = vi.fn().mockResolvedValue({ ok: false, error: 'fail' });
-    const { result } = renderHook(() =>
-      useFileFilter(makeOptions({ fetchFileList }))
-    );
+    const { result } = renderHook(() => useFileFilter(makeOptions({ fetchFileList })));
 
     await act(async () => {
       result.current.setQuery('app');
@@ -269,9 +250,7 @@ describe('useFileFilter', () => {
 
   it('sets error state when fetchFileList throws', async () => {
     const fetchFileList = vi.fn().mockRejectedValue(new Error('network'));
-    const { result } = renderHook(() =>
-      useFileFilter(makeOptions({ fetchFileList }))
-    );
+    const { result } = renderHook(() => useFileFilter(makeOptions({ fetchFileList })));
 
     await act(async () => {
       result.current.setQuery('app');
@@ -285,42 +264,41 @@ describe('useFileFilter', () => {
   it('debounces query changes (300ms)', async () => {
     vi.useFakeTimers();
     const fetchFileList = makeFakeFetch();
-    const { result } = renderHook(() =>
-      useFileFilter(makeOptions({ fetchFileList }))
-    );
+    const { result } = renderHook(() => useFileFilter(makeOptions({ fetchFileList })));
 
-    // Set query — should not immediately trigger fetch
+    // Set query — triggers lazy cache populate immediately (first query)
     act(() => {
       result.current.setQuery('app');
     });
 
-    // Advance less than debounce window
+    // Wait for lazy populate to fire
     await act(async () => {
-      vi.advanceTimersByTime(200);
+      vi.advanceTimersByTime(50);
     });
 
-    // Change query again — timer resets
+    // Cache populate fires on first non-empty query (not debounced)
+    expect(fetchFileList).toHaveBeenCalledTimes(1);
+
+    // Change query — debounce timer resets for filtering
     act(() => {
       result.current.setQuery('utils');
     });
 
-    // Advance past original debounce but not new one
+    // Advance less than debounce
     await act(async () => {
       vi.advanceTimersByTime(200);
     });
 
-    // fetch should not have been called yet (debounce reset)
-    expect(fetchFileList).not.toHaveBeenCalled();
+    // Debounced query hasn't fired yet — results still null
+    expect(result.current.results).toBeNull();
 
-    // Advance past second debounce
+    // Advance past debounce
     await act(async () => {
       vi.advanceTimersByTime(150);
     });
 
-    // Now the debounced query triggers populate
-    await vi.waitFor(() => {
-      expect(fetchFileList).toHaveBeenCalled();
-    });
+    // Now the debounced query resolves — no extra fetch needed (cache populated)
+    expect(fetchFileList).toHaveBeenCalledTimes(1);
 
     vi.useRealTimers();
   });
