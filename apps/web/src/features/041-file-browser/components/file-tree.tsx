@@ -138,7 +138,7 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
   }
 
   return (
-    <div className="text-sm h-full overflow-y-auto">
+    <div className="text-sm">
       {entries.map((entry) => (
         <TreeItem
           key={entry.path}

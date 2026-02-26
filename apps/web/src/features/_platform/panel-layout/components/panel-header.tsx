@@ -43,7 +43,7 @@ export function PanelHeader({
   actions,
 }: PanelHeaderProps) {
   return (
-    <div className="flex items-center justify-between border-b px-3 py-2 shrink-0 sticky top-0 bg-background z-10">
+    <div className="flex items-center justify-between border-b px-3 py-2 shrink-0 bg-background z-10">
       <div className="flex items-center gap-1">
         <span className="text-xs font-medium text-muted-foreground uppercase">{title}</span>
         {subtitle && <span data-testid="panel-header-subtitle">{subtitle}</span>}
