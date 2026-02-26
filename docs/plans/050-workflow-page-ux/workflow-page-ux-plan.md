@@ -306,7 +306,7 @@ Build a visual workflow editor for the positional graph system as a new `workflo
 | Phase | Status | ACs Covered |
 |-------|--------|-------------|
 | Phase 1: Domain Setup + Foundations | ✅ Complete | AC-28,29,30,37 |
-| Phase 2: Canvas Core + Layout | Pending | AC-01,02,03,04,05,06,10,11,20,22b |
+| Phase 2: Canvas Core + Layout | ✅ Complete | AC-01,02,03,04,05,06,10,11,20,22b,35 |
 | Phase 3: Drag-and-Drop + Persistence | Pending | AC-07,08,09,21,22 |
 | Phase 4: Context Indicators + Select-to-Reveal | Pending | AC-12,13,14,15,17 |
 | Phase 5: Q&A + Node Properties Modal + Undo/Redo | Pending | AC-16,18,19,23,24 |
@@ -328,3 +328,26 @@ Build a visual workflow editor for the positional graph system as a new `workflo
 | T007 | workflow-ui | Created `test/integration/dope-workflows.test.ts` — 8 tests, all passing |
 
 **Discovery**: Web `tsconfig.json` needed `@chainglass/positional-graph` mapped to `dist/` — Turbopack was resolving from source via root tsconfig paths and couldn't handle `.js` extensions.
+
+### Phase 2 Summary
+
+**Completed**: 2026-02-26 | **Commit**: `f94024c`
+
+| Task | Domain | What Changed |
+|------|--------|-------------|
+| T001 | workflow-ui | Created workflow list page at `/workspaces/[slug]/workflows` with server component + WorkflowList client |
+| T002 | workflow-ui | Created workflow editor page at `/workspaces/[slug]/workflows/[graphSlug]` with standalone flexbox layout (no PanelShell) |
+| T003 | workflow-ui | Created `workflow-actions.ts` — 4 server actions (listWorkflows, loadWorkflow, createWorkflow, listWorkUnits) with worktree-aware WorkspaceContext |
+| T004 | workflow-ui | Created WorkflowTempBar — graph name, template breadcrumb, disabled Run button |
+| T005 | workflow-ui | Created WorkflowCanvas + WorkflowLine + LineTransitionGate — lines as horizontal rows with numbered headers, state borders, transition gates |
+| T006 | workflow-ui | Created WorkflowNodeCard — all 8 status states with correct colors, type icons, context badge |
+| T007 | workflow-ui | Created WorkUnitToolbox — grouped by type (Agent/Code/Human Input), collapsible, search filter |
+| T008 | workflow-ui | Created EmptyCanvasPlaceholder + EmptyLinePlaceholder |
+| T009 | workflow-ui | Created 4 test files, 32 unit tests — canvas, node card (all 8 states), toolbox, list |
+| T010 | cross-domain | Updated navigation sidebar href from `/workgraphs` to `/workflows` |
+
+**Decisions**:
+- Standalone layout instead of PanelShell — workflow editor has different panel needs (no left panel, right sidebar instead)
+- `getStatus()` returns all node statuses in one call — no N+1 `getNodeStatus()` needed
+- Worktree param flows through list → links → editor via searchParams
+- Shared types in `050-workflow-page/types.ts` — importable from both server actions and client components

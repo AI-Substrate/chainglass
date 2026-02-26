@@ -3,7 +3,7 @@
 **Plan**: [workflow-page-ux-plan.md](../../workflow-page-ux-plan.md)
 **Phase**: Phase 2: Canvas Core + Layout
 **Generated**: 2026-02-26
-**Status**: Ready for takeoff
+**Status**: Landed
 
 ---
 
@@ -59,7 +59,7 @@ stateDiagram-v2
     S3 --> S4
     S4 --> [*]
 
-    class S1,S2,S3,S4 pending
+    class S1,S2,S3,S4 done
 ```
 
 **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -70,10 +70,10 @@ stateDiagram-v2
 
 <!-- Updated by /plan-6-v2 during implementation: [ ] → [~] → [x] -->
 
-- [ ] **Stage 1: Server actions** — Create `workflow-actions.ts` with loadWorkflow, listWorkflows, createWorkflow, listWorkUnits (`workflow-actions.ts` — new file)
-- [ ] **Stage 2: Build components** — WorkflowEditorLayout, WorkflowCanvas, WorkflowLine, WorkflowNodeCard, WorkUnitToolbox, WorkflowTempBar, empty states (`050-workflow-page/components/` — new files)
-- [ ] **Stage 3: Wire routes** — Create list page + editor page, compose with standalone layout + components (`workflows/page.tsx`, `workflows/[graphSlug]/page.tsx` — new files)
-- [ ] **Stage 4: Tests + nav update** — Unit tests for all components + rendering states, update sidebar href (`test/unit/web/features/050-workflow-page/`, `navigation-utils.ts`)
+- [x] **Stage 1: Server actions** — Create `workflow-actions.ts` with loadWorkflow, listWorkflows, createWorkflow, listWorkUnits (`workflow-actions.ts` — new file)
+- [x] **Stage 2: Build components** — WorkflowEditorLayout, WorkflowCanvas, WorkflowLine, WorkflowNodeCard, WorkUnitToolbox, WorkflowTempBar, empty states (`050-workflow-page/components/` — new files)
+- [x] **Stage 3: Wire routes** — Create list page + editor page, compose with standalone layout + components (`workflows/page.tsx`, `workflows/[graphSlug]/page.tsx` — new files)
+- [x] **Stage 4: Tests + nav update** — Unit tests for all components + rendering states, update sidebar href (`test/unit/web/features/050-workflow-page/`, `navigation-utils.ts`)
 
 ---
 
@@ -151,13 +151,13 @@ flowchart LR
 
 ## Checklist
 
-- [ ] T001: Create workflow list page + WorkflowListClient
-- [ ] T002: Create workflow editor page with standalone layout
-- [ ] T003: Create server actions (loadWorkflow, listWorkflows, createWorkflow, listWorkUnits)
-- [ ] T004: Build WorkflowTempBar
-- [ ] T005: Build WorkflowCanvas + WorkflowLine + LineTransitionGate
-- [ ] T006: Build WorkflowNodeCard (all 8 status states)
-- [ ] T007: Build WorkUnitToolbox (grouped by type, search)
-- [ ] T008: Build empty states
-- [ ] T009: Unit tests for all components
-- [ ] T010: Update navigation sidebar href
+- [x] T001: Create workflow list page + WorkflowListClient
+- [x] T002: Create workflow editor page with standalone layout
+- [x] T003: Create server actions (loadWorkflow, listWorkflows, createWorkflow, listWorkUnits)
+- [x] T004: Build WorkflowTempBar
+- [x] T005: Build WorkflowCanvas + WorkflowLine + LineTransitionGate
+- [x] T006: Build WorkflowNodeCard (all 8 status states)
+- [x] T007: Build WorkUnitToolbox (grouped by type, search)
+- [x] T008: Build empty states
+- [x] T009: Unit tests for all components
+- [x] T010: Update navigation sidebar href
