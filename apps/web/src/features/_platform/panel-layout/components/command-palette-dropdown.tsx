@@ -53,9 +53,9 @@ import {
 import type { MruTracker } from '@/lib/sdk/sdk-provider';
 import type { FileChangeInfo, FileSearchEntry, FileSearchSortMode } from '../types';
 import {
+  type CodeSearchAvailability,
+  type CodeSearchResult,
   FLOWSPACE_CATEGORY_ICONS,
-  type FlowSpaceAvailability,
-  type FlowSpaceSearchResult,
 } from '../types';
 
 import { AsciiSpinner } from './ascii-spinner';
@@ -111,14 +111,14 @@ interface CommandPaletteDropdownProps {
   /** Working changes for status badge lookup */
   workingChanges?: FileChangeInfo[];
   /** FlowSpace search results (Plan 051) */
-  symbolSearchResults?: FlowSpaceSearchResult[] | null;
-  symbolSearchLoading?: boolean;
-  symbolSearchError?: string | null;
-  symbolSearchAvailability?: FlowSpaceAvailability;
-  symbolSearchGraphAge?: string | null;
-  symbolSearchFolders?: Record<string, number> | null;
+  codeSearchResults?: CodeSearchResult[] | null;
+  codeSearchLoading?: boolean;
+  codeSearchError?: string | null;
+  codeSearchAvailability?: CodeSearchAvailability;
+  codeSearchGraphAge?: string | null;
+  codeSearchFolders?: Record<string, number> | null;
   /** Navigate to a code symbol from FlowSpace results */
-  onSymbolSelect?: (filePath: string, startLine: number) => void;
+  onCodeSearchSelect?: (filePath: string, startLine: number) => void;
 }
 
 // --- Schema introspection helpers (ST001) ---
@@ -200,13 +200,13 @@ export const CommandPaletteDropdown = forwardRef<
     onCopyContent,
     onDownload,
     workingChanges,
-    symbolSearchResults,
-    symbolSearchLoading,
-    symbolSearchError,
-    symbolSearchAvailability,
-    symbolSearchGraphAge,
-    symbolSearchFolders,
-    onSymbolSelect,
+    codeSearchResults,
+    codeSearchLoading,
+    codeSearchError,
+    codeSearchAvailability,
+    codeSearchGraphAge,
+    codeSearchFolders,
+    onCodeSearchSelect,
   },
   ref
 ) {
@@ -240,14 +240,14 @@ export const CommandPaletteDropdown = forwardRef<
   const hasFlowspaceQuery =
     isFlowspaceMode && !!inputValue && inputValue.replace(/^[#$]\s*/, '').trim().length > 0;
   const showFlowspaceResults =
-    hasFlowspaceQuery && Array.isArray(symbolSearchResults) && symbolSearchResults.length > 0;
+    hasFlowspaceQuery && Array.isArray(codeSearchResults) && codeSearchResults.length > 0;
 
   // Items count for keyboard nav
   const navItemCount =
     mode === 'commands'
       ? commands.length
       : showFlowspaceResults
-        ? symbolSearchResults?.length
+        ? codeSearchResults?.length
         : showFileResults
           ? fileSearchResults?.length
           : 0;
@@ -256,7 +256,7 @@ export const CommandPaletteDropdown = forwardRef<
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — reset on filter/mode/results change
   useEffect(() => {
     setSelectedIndex(0);
-  }, [filter, mode, fileSearchResults, symbolSearchResults]);
+  }, [filter, mode, fileSearchResults, codeSearchResults]);
 
   // Scroll selected item into view
   useEffect(() => {
@@ -296,8 +296,11 @@ export const CommandPaletteDropdown = forwardRef<
             const cmd = commands[selectedIndex];
             if (cmd) handleSelect(cmd.id);
           } else if (showFlowspaceResults) {
-            const result = symbolSearchResults?.[selectedIndex];
-            if (result) onSymbolSelect?.(result.filePath, result.startLine);
+            const result = codeSearchResults?.[selectedIndex];
+            if (result) {
+              const line = result.kind === 'grep' ? result.lineNumber : result.startLine;
+              onCodeSearchSelect?.(result.filePath, line);
+            }
           } else if (showFileResults) {
             const file = fileSearchResults?.[selectedIndex];
             if (file) onFileSelect?.(file.path);
@@ -316,8 +319,8 @@ export const CommandPaletteDropdown = forwardRef<
       fileSearchResults,
       onFileSelect,
       showFlowspaceResults,
-      symbolSearchResults,
-      onSymbolSelect,
+      codeSearchResults,
+      onCodeSearchSelect,
     ]
   );
 
@@ -330,7 +333,7 @@ export const CommandPaletteDropdown = forwardRef<
       onMouseDown={(e) => e.preventDefault()}
     >
       {isFlowspaceMode &&
-        (symbolSearchAvailability === 'not-installed' ? (
+        (codeSearchAvailability === 'not-installed' ? (
           <div className="px-3 py-4 text-center text-sm text-muted-foreground">
             <Hash className="inline h-4 w-4 mr-1 -mt-0.5" />
             FlowSpace not installed
@@ -349,7 +352,7 @@ export const CommandPaletteDropdown = forwardRef<
               </button>
             </div>
           </div>
-        ) : symbolSearchAvailability === 'no-graph' ? (
+        ) : codeSearchAvailability === 'no-graph' ? (
           <div className="px-3 py-4 text-center text-sm text-muted-foreground">
             <Hash className="inline h-4 w-4 mr-1 -mt-0.5" />
             Run <code className="rounded bg-muted px-1.5 py-0.5 text-xs">fs2 scan</code> to index
@@ -358,24 +361,24 @@ export const CommandPaletteDropdown = forwardRef<
         ) : !hasFlowspaceQuery ? (
           <div className="px-3 py-4 text-center text-sm text-muted-foreground">
             <Hash className="inline h-4 w-4 mr-1 -mt-0.5" />
-            {mode === 'semantic' ? 'FlowSpace semantic search' : 'FlowSpace text search'}
+            {mode === 'semantic' ? 'FlowSpace semantic search' : 'Content search (git grep)'}
           </div>
-        ) : symbolSearchLoading ? (
+        ) : codeSearchLoading ? (
           <div className="px-3 py-4 text-center text-sm text-muted-foreground">
             <AsciiSpinner active /> Searching code...
           </div>
-        ) : symbolSearchError ? (
+        ) : codeSearchError ? (
           <div className="px-3 py-4 text-center text-sm text-muted-foreground">
-            {symbolSearchError}
+            {codeSearchError}
           </div>
         ) : showFlowspaceResults ? (
           <>
             <div className="flex items-center justify-between border-b px-3 py-1">
               <span className="text-xs text-muted-foreground">
-                {symbolSearchResults?.length} results
-                {symbolSearchFolders &&
-                  Object.keys(symbolSearchFolders).length > 0 &&
-                  ` · ${Object.entries(symbolSearchFolders)
+                {codeSearchResults?.length} results
+                {codeSearchFolders &&
+                  Object.keys(codeSearchFolders).length > 0 &&
+                  ` · ${Object.entries(codeSearchFolders)
                     .slice(0, 3)
                     .map(([k, v]) => `${k} ${v}`)
                     .join(' · ')}`}
@@ -386,13 +389,19 @@ export const CommandPaletteDropdown = forwardRef<
                     🧠 semantic
                   </span>
                 )}
-                {symbolSearchGraphAge && <span>indexed {symbolSearchGraphAge}</span>}
+                {codeSearchGraphAge && <span>indexed {codeSearchGraphAge}</span>}
               </div>
             </div>
             {/* biome-ignore lint/a11y/useSemanticElements: custom palette item list */}
             <div ref={listRef} role="listbox" tabIndex={-1} className="py-1">
-              {symbolSearchResults?.map((result, index) => (
-                <ContextMenu key={result.nodeId}>
+              {codeSearchResults?.map((result, index) => (
+                <ContextMenu
+                  key={
+                    result.kind === 'grep'
+                      ? `${result.filePath}:${result.lineNumber}`
+                      : result.nodeId
+                  }
+                >
                   <ContextMenuTrigger asChild>
                     <div // biome-ignore lint/a11y/useSemanticElements: custom palette item
                       role="option"
@@ -403,33 +412,62 @@ export const CommandPaletteDropdown = forwardRef<
                           ? 'bg-primary/15 text-foreground'
                           : 'text-foreground hover:bg-accent/50'
                       }`}
-                      onClick={() => onSymbolSelect?.(result.filePath, result.startLine)}
+                      onClick={() => {
+                        const line = result.kind === 'grep' ? result.lineNumber : result.startLine;
+                        onCodeSearchSelect?.(result.filePath, line);
+                      }}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') onSymbolSelect?.(result.filePath, result.startLine);
+                        if (e.key === 'Enter') {
+                          const line =
+                            result.kind === 'grep' ? result.lineNumber : result.startLine;
+                          onCodeSearchSelect?.(result.filePath, line);
+                        }
                       }}
                     >
-                      <div className="flex items-center gap-2">
-                        <span className="shrink-0 w-4 text-center text-xs">
-                          {FLOWSPACE_CATEGORY_ICONS[result.category] || '○'}
-                        </span>
-                        <span className="font-medium truncate">{result.name}</span>
-                        <span className="shrink-0 rounded bg-muted px-1 py-0.5 text-xs text-muted-foreground">
-                          L{result.startLine}
-                          {result.endLine !== result.startLine && `-${result.endLine}`}
-                        </span>
-                      </div>
-                      <div className="ml-6 text-xs text-muted-foreground truncate">
-                        {result.filePath}
-                      </div>
-                      {result.smartContent &&
-                        !result.smartContent.startsWith('[Empty content') &&
-                        !result.smartContent.startsWith('[No ') &&
-                        result.smartContent.length > 10 &&
-                        !result.name.startsWith(result.smartContent.slice(0, 30)) && (
-                          <div className="ml-6 text-xs text-muted-foreground/70 truncate">
-                            {result.smartContent.slice(0, 120)}
+                      {result.kind === 'grep' ? (
+                        <>
+                          <div className="flex items-center gap-2">
+                            <Search className="shrink-0 h-3.5 w-3.5 text-muted-foreground" />
+                            <span className="font-medium truncate">{result.filename}</span>
+                            <span className="shrink-0 rounded bg-muted px-1 py-0.5 text-xs text-muted-foreground">
+                              :{result.lineNumber}
+                            </span>
+                            {result.matchCount > 1 && (
+                              <span className="shrink-0 text-xs text-muted-foreground">
+                                +{result.matchCount - 1} more
+                              </span>
+                            )}
                           </div>
-                        )}
+                          <div className="ml-6 text-xs text-muted-foreground font-mono truncate">
+                            {result.matchContent}
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-2">
+                            <span className="shrink-0 w-4 text-center text-xs">
+                              {FLOWSPACE_CATEGORY_ICONS[result.category] || '○'}
+                            </span>
+                            <span className="font-medium truncate">{result.name}</span>
+                            <span className="shrink-0 rounded bg-muted px-1 py-0.5 text-xs text-muted-foreground">
+                              L{result.startLine}
+                              {result.endLine !== result.startLine && `-${result.endLine}`}
+                            </span>
+                          </div>
+                          <div className="ml-6 text-xs text-muted-foreground truncate">
+                            {result.filePath}
+                          </div>
+                          {result.smartContent &&
+                            !result.smartContent.startsWith('[Empty content') &&
+                            !result.smartContent.startsWith('[No ') &&
+                            result.smartContent.length > 10 &&
+                            !result.name.startsWith(result.smartContent.slice(0, 30)) && (
+                              <div className="ml-6 text-xs text-muted-foreground/70 truncate">
+                                {result.smartContent.slice(0, 120)}
+                              </div>
+                            )}
+                        </>
+                      )}
                     </div>
                   </ContextMenuTrigger>
                   <ContextMenuContent>
@@ -601,18 +639,13 @@ export const CommandPaletteDropdown = forwardRef<
             </div>
             <div className="px-3 py-1.5 text-sm text-muted-foreground flex items-center gap-2">
               <span className="font-mono text-xs bg-muted px-1 rounded">#</span>
-              <span>
-                Code search
-                {symbolSearchAvailability === 'not-installed'
-                  ? ' (install FlowSpace)'
-                  : ' (FlowSpace)'}
-              </span>
+              <span>Content search</span>
             </div>
             <div className="px-3 py-1.5 text-sm text-muted-foreground flex items-center gap-2">
               <span className="font-mono text-xs bg-muted px-1 rounded">$</span>
               <span>
                 Semantic search
-                {symbolSearchAvailability === 'not-installed'
+                {codeSearchAvailability === 'not-installed'
                   ? ' (install FlowSpace)'
                   : ' (FlowSpace)'}
               </span>

@@ -19,6 +19,7 @@ import { useClipboard } from '@/features/041-file-browser/hooks/use-clipboard';
 import { useFileFilter } from '@/features/041-file-browser/hooks/use-file-filter';
 import { useFileNavigation } from '@/features/041-file-browser/hooks/use-file-navigation';
 import { useFlowspaceSearch } from '@/features/041-file-browser/hooks/use-flowspace-search';
+import { useGitGrepSearch } from '@/features/041-file-browser/hooks/use-git-grep-search';
 import { usePanelState } from '@/features/041-file-browser/hooks/use-panel-state';
 import { useTreeDirectoryChanges } from '@/features/041-file-browser/hooks/use-tree-directory-changes';
 import { useWorkspaceContext } from '@/features/041-file-browser/hooks/use-workspace-context';
@@ -136,8 +137,14 @@ function BrowserClientInner({
   // --- File search filter (Plan 049 Feature 2) ---
   const fileFilter = useFileFilter({ worktreePath, fetchFileList });
 
-  // --- FlowSpace code search (Plan 051) ---
+  // --- FlowSpace semantic search (Plan 051) ---
   const flowspace = useFlowspaceSearch(worktreePath);
+
+  // --- Git grep content search (Plan 052) ---
+  const gitGrep = useGitGrepSearch(worktreePath);
+
+  // Track which code search engine is active: # → grep, $ → semantic
+  const [activeCodeSearchMode, setActiveCodeSearchMode] = useState<'grep' | 'semantic'>('grep');
 
   // --- Workspace attention context (Phase 5) ---
   const wsCtx = useWorkspaceContext();
@@ -427,19 +434,27 @@ function BrowserClientInner({
             onDownload={clipboard.handleDownload}
             workingChanges={panelState.workingChanges}
             onSearchQueryChange={fileFilter.setQuery}
-            symbolSearchResults={flowspace.results}
-            symbolSearchLoading={flowspace.loading}
-            symbolSearchError={flowspace.error}
-            symbolSearchAvailability={flowspace.availability}
-            symbolSearchGraphAge={flowspace.graphAge}
-            symbolSearchFolders={flowspace.folders}
-            onSymbolSelect={(filePath, startLine) => {
+            codeSearchResults={
+              activeCodeSearchMode === 'grep' ? gitGrep.results : flowspace.results
+            }
+            codeSearchLoading={
+              activeCodeSearchMode === 'grep' ? gitGrep.loading : flowspace.loading
+            }
+            codeSearchError={activeCodeSearchMode === 'grep' ? gitGrep.error : flowspace.error}
+            codeSearchAvailability={flowspace.availability}
+            codeSearchGraphAge={flowspace.graphAge}
+            codeSearchFolders={flowspace.folders}
+            onCodeSearchSelect={(filePath, startLine) => {
               fileNav.handleSelect(filePath);
-              // Navigate to line via URL param
               setParams({ line: startLine }, { history: 'replace' });
             }}
             onFlowspaceQueryChange={(query, mode) => {
-              flowspace.setQuery(query, mode);
+              setActiveCodeSearchMode(mode);
+              if (mode === 'grep') {
+                gitGrep.setQuery(query);
+              } else {
+                flowspace.setQuery(query, mode);
+              }
             }}
           />
         }

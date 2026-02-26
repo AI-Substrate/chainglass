@@ -12,8 +12,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type {
-  FlowSpaceAvailability,
-  FlowSpaceSearchMode,
+  CodeSearchAvailability,
+  CodeSearchMode,
   FlowSpaceSearchResult,
 } from '@/features/_platform/panel-layout/types';
 import { checkFlowspaceAvailability, flowspaceSearch } from '@/lib/server/flowspace-search-action';
@@ -37,21 +37,21 @@ export interface UseFlowspaceSearchReturn {
   results: FlowSpaceSearchResult[] | null;
   loading: boolean;
   error: string | null;
-  availability: FlowSpaceAvailability;
+  availability: CodeSearchAvailability;
   graphAge: string | null;
   folders: Record<string, number> | null;
-  setQuery: (query: string, mode: FlowSpaceSearchMode) => void;
+  setQuery: (query: string, mode: CodeSearchMode) => void;
 }
 
 export function useFlowspaceSearch(worktreePath: string): UseFlowspaceSearchReturn {
   const [results, setResults] = useState<FlowSpaceSearchResult[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [availability, setAvailability] = useState<FlowSpaceAvailability>('available');
+  const [availability, setAvailability] = useState<CodeSearchAvailability>('available');
   const [graphAge, setGraphAge] = useState<string | null>(null);
   const [folders, setFolders] = useState<Record<string, number> | null>(null);
   const [query, setQueryRaw] = useState('');
-  const [mode, setMode] = useState<FlowSpaceSearchMode>('text');
+  const [mode, setMode] = useState<CodeSearchMode>('grep');
   const [debouncedQuery, setDebouncedQuery] = useState('');
 
   const fetchInProgressRef = useRef(false);
@@ -115,7 +115,7 @@ export function useFlowspaceSearch(worktreePath: string): UseFlowspaceSearchRetu
       });
   }, [debouncedQuery, mode, availability, worktreePath]);
 
-  const setQuery = useCallback((q: string, m: FlowSpaceSearchMode) => {
+  const setQuery = useCallback((q: string, m: CodeSearchMode) => {
     setQueryRaw(q);
     setMode(m);
   }, []);

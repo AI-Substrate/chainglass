@@ -23,12 +23,12 @@ import type { MruTracker } from '@/lib/sdk/sdk-provider';
 import type {
   BarContext,
   BarHandler,
+  CodeSearchAvailability,
+  CodeSearchResult,
   ExplorerPanelHandle,
   FileChangeInfo,
   FileSearchEntry,
   FileSearchSortMode,
-  FlowSpaceAvailability,
-  FlowSpaceSearchResult,
 } from '../types';
 import { AsciiSpinner } from './ascii-spinner';
 import {
@@ -80,16 +80,16 @@ export interface ExplorerPanelProps {
   /** Called when search query changes (for file filter hook) */
   onSearchQueryChange?: (query: string) => void;
   /** FlowSpace search results (Plan 051) */
-  symbolSearchResults?: FlowSpaceSearchResult[] | null;
-  symbolSearchLoading?: boolean;
-  symbolSearchError?: string | null;
-  symbolSearchAvailability?: FlowSpaceAvailability;
-  symbolSearchGraphAge?: string | null;
-  symbolSearchFolders?: Record<string, number> | null;
+  codeSearchResults?: CodeSearchResult[] | null;
+  codeSearchLoading?: boolean;
+  codeSearchError?: string | null;
+  codeSearchAvailability?: CodeSearchAvailability;
+  codeSearchGraphAge?: string | null;
+  codeSearchFolders?: Record<string, number> | null;
   /** Navigate to a code symbol from FlowSpace results */
-  onSymbolSelect?: (filePath: string, startLine: number) => void;
+  onCodeSearchSelect?: (filePath: string, startLine: number) => void;
   /** Called when FlowSpace search query changes */
-  onFlowspaceQueryChange?: (query: string, mode: 'text' | 'semantic') => void;
+  onFlowspaceQueryChange?: (query: string, mode: 'grep' | 'semantic') => void;
 }
 
 export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>(
@@ -117,13 +117,13 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
       onDownload,
       workingChanges,
       onSearchQueryChange,
-      symbolSearchResults,
-      symbolSearchLoading,
-      symbolSearchError,
-      symbolSearchAvailability,
-      symbolSearchGraphAge,
-      symbolSearchFolders,
-      onSymbolSelect,
+      codeSearchResults,
+      codeSearchLoading,
+      codeSearchError,
+      codeSearchAvailability,
+      codeSearchGraphAge,
+      codeSearchFolders,
+      onCodeSearchSelect,
       onFlowspaceQueryChange,
     },
     ref
@@ -168,8 +168,8 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
     // Plan 051: FlowSpace result modes — delegate keyboard
     const flowspaceHasResults =
       (dropdownMode === 'symbols' || dropdownMode === 'semantic') &&
-      Array.isArray(symbolSearchResults) &&
-      symbolSearchResults.length > 0;
+      Array.isArray(codeSearchResults) &&
+      codeSearchResults.length > 0;
 
     // Sync: when filePath changes externally, exit edit mode and update input value
     useEffect(() => {
@@ -196,10 +196,10 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
       if ((dropdownMode === 'symbols' || dropdownMode === 'semantic') && editing) {
         const prefix = inputValue.startsWith('$') ? '$' : '#';
         const query = inputValue.slice(1).trim();
-        const mode = prefix === '$' ? 'semantic' : 'text';
+        const mode = prefix === '$' ? 'semantic' : 'grep';
         onFlowspaceQueryChange?.(query, mode);
       } else {
-        onFlowspaceQueryChange?.('', 'text');
+        onFlowspaceQueryChange?.('', 'grep');
       }
     }, [inputValue, dropdownMode, editing, onFlowspaceQueryChange]);
 
@@ -468,14 +468,14 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
               onCopyContent={onCopyContent}
               onDownload={onDownload}
               workingChanges={workingChanges}
-              symbolSearchResults={symbolSearchResults}
-              symbolSearchLoading={symbolSearchLoading}
-              symbolSearchError={symbolSearchError}
-              symbolSearchAvailability={symbolSearchAvailability}
-              symbolSearchGraphAge={symbolSearchGraphAge}
-              symbolSearchFolders={symbolSearchFolders}
-              onSymbolSelect={(filePath, startLine) => {
-                onSymbolSelect?.(filePath, startLine);
+              codeSearchResults={codeSearchResults}
+              codeSearchLoading={codeSearchLoading}
+              codeSearchError={codeSearchError}
+              codeSearchAvailability={codeSearchAvailability}
+              codeSearchGraphAge={codeSearchGraphAge}
+              codeSearchFolders={codeSearchFolders}
+              onCodeSearchSelect={(filePath, startLine) => {
+                onCodeSearchSelect?.(filePath, startLine);
                 exitEditMode();
               }}
             />

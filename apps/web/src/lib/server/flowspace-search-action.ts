@@ -16,8 +16,8 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 
 import type {
-  FlowSpaceAvailability,
-  FlowSpaceSearchMode,
+  CodeSearchAvailability,
+  CodeSearchMode,
   FlowSpaceSearchResult,
 } from '@/features/_platform/panel-layout/types';
 
@@ -38,7 +38,7 @@ let fs2AvailableCache: boolean | null = null;
  */
 export async function checkFlowspaceAvailability(
   cwd: string
-): Promise<{ availability: FlowSpaceAvailability; graphMtime?: number }> {
+): Promise<{ availability: CodeSearchAvailability; graphMtime?: number }> {
   log('availability check', { cwd });
 
   // Check fs2 binary
@@ -143,7 +143,7 @@ function sanitizeSmartContent(raw: string | null | undefined): string | null {
  */
 export async function flowspaceSearch(
   query: string,
-  mode: FlowSpaceSearchMode,
+  mode: CodeSearchMode,
   cwd: string
 ): Promise<
   { results: FlowSpaceSearchResult[]; folders: Record<string, number> } | { error: string }
@@ -194,6 +194,7 @@ export async function flowspaceSearch(
       const category = r.node_id.split(':')[0] || 'other';
 
       results.push({
+        kind: 'flowspace',
         nodeId: r.node_id,
         name: extractName(r.node_id, r.smart_content),
         category,

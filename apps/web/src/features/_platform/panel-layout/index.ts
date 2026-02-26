@@ -15,8 +15,10 @@ export type {
   FileSearchSortMode,
   FileSearchEntry,
   FileChangeInfo,
-  FlowSpaceSearchMode,
-  FlowSpaceAvailability,
+  CodeSearchMode,
+  CodeSearchAvailability,
+  CodeSearchResult,
+  GrepSearchResult,
   FlowSpaceSearchResult,
 } from './types';
 export { FLOWSPACE_CATEGORY_ICONS } from './types';

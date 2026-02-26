@@ -56,17 +56,29 @@ export interface FileChangeInfo {
   status: string;
 }
 
-// --- FlowSpace search types (Plan 051) ---
+// --- Code search types (Plan 051 FlowSpace + Plan 052 git grep) ---
 // Defined here so infra (panel-layout) doesn't import from business (file-browser).
+// Uses discriminated union so dropdown renders via result.kind.
 
-/** FlowSpace search mode — text is fast/free, semantic uses embedding API */
-export type FlowSpaceSearchMode = 'text' | 'semantic';
+/** Code search mode — determines which engine to use */
+export type CodeSearchMode = 'grep' | 'semantic';
 
-/** FlowSpace availability status */
-export type FlowSpaceAvailability = 'available' | 'not-installed' | 'no-graph' | 'no-embeddings';
+/** Availability status for code search features */
+export type CodeSearchAvailability = 'available' | 'not-installed' | 'no-graph' | 'no-embeddings';
 
-/** A code node result from FlowSpace search */
+/** Git grep content search result (Plan 052) */
+export interface GrepSearchResult {
+  kind: 'grep';
+  filePath: string;
+  filename: string;
+  lineNumber: number;
+  matchContent: string;
+  matchCount: number;
+}
+
+/** FlowSpace semantic search result (Plan 051) */
 export interface FlowSpaceSearchResult {
+  kind: 'flowspace';
   nodeId: string;
   name: string;
   category: string;
@@ -78,6 +90,9 @@ export interface FlowSpaceSearchResult {
   score: number;
   matchField: string;
 }
+
+/** Discriminated union — dropdown switches on result.kind for rendering */
+export type CodeSearchResult = GrepSearchResult | FlowSpaceSearchResult;
 
 /** Category icon mapping for FlowSpace node categories */
 export const FLOWSPACE_CATEGORY_ICONS: Record<string, string> = {
