@@ -13,6 +13,9 @@
 import 'reflect-metadata';
 import * as os from 'node:os';
 import * as path from 'node:path';
+// Plan 050: Import positional-graph registration + template services
+import type { IWorkUnitLoader } from '@chainglass/positional-graph';
+import { registerPositionalGraphServices } from '@chainglass/positional-graph';
 import {
   type AdapterFactory,
   AgentService,
@@ -30,6 +33,7 @@ import {
   type IProcessManager,
   type IYamlParser,
   NodeFileSystemAdapter,
+  POSITIONAL_GRAPH_DI_TOKENS,
   PathResolverAdapter,
   PinoLoggerAdapter,
   SHARED_DI_TOKENS,
@@ -89,6 +93,12 @@ import {
   WorkspaceContextResolver,
   WorkspaceRegistryAdapter,
   WorkspaceService,
+} from '@chainglass/workflow';
+import {
+  type ITemplateService,
+  InstanceAdapter,
+  TemplateAdapter,
+  TemplateService,
 } from '@chainglass/workflow';
 // Plan 022: Import workgraph services
 import {
@@ -431,6 +441,41 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
       const pathResolver = c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
       return new WorkGraphUIService(workGraphService, fs, pathResolver);
     },
+  });
+
+  // ==================== Plan 050: Positional Graph Services ====================
+
+  registerPositionalGraphServices(childContainer);
+
+  // Bridge WORK_UNIT_LOADER → WORKUNIT_SERVICE (PositionalGraphService needs this)
+  childContainer.register<IWorkUnitLoader>(POSITIONAL_GRAPH_DI_TOKENS.WORK_UNIT_LOADER, {
+    useFactory: (c) => c.resolve<IWorkUnitLoader>(POSITIONAL_GRAPH_DI_TOKENS.WORKUNIT_SERVICE),
+  });
+
+  // Template/Instance services (Plan 048)
+  childContainer.register(POSITIONAL_GRAPH_DI_TOKENS.TEMPLATE_ADAPTER, {
+    useFactory: (c) =>
+      new TemplateAdapter(
+        c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM),
+        c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER)
+      ),
+  });
+  childContainer.register(POSITIONAL_GRAPH_DI_TOKENS.INSTANCE_ADAPTER, {
+    useFactory: (c) =>
+      new InstanceAdapter(
+        c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM),
+        c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER)
+      ),
+  });
+  childContainer.register<ITemplateService>(POSITIONAL_GRAPH_DI_TOKENS.TEMPLATE_SERVICE, {
+    useFactory: (c) =>
+      new TemplateService(
+        c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM),
+        c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER),
+        c.resolve<IYamlParser>(SHARED_DI_TOKENS.YAML_PARSER),
+        c.resolve<TemplateAdapter>(POSITIONAL_GRAPH_DI_TOKENS.TEMPLATE_ADAPTER),
+        c.resolve<InstanceAdapter>(POSITIONAL_GRAPH_DI_TOKENS.INSTANCE_ADAPTER)
+      ),
   });
 
   // ==================== Plan 027: Central Notification System ====================

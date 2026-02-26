@@ -22,6 +22,7 @@ flowchart LR
 
     %% Business domains
     fileBrowser["📁 file-browser<br/>Browser page · FileTree<br/>CodeEditor · FileViewerPanel<br/>WorkspaceContext · Settings"]:::business
+    workflowUI["🔀 workflow-ui<br/>Workflow editor · Canvas<br/>Toolbox · Properties<br/>Doping system"]:::business
 
     %% Contract dependencies (consumer → provider)
     fileBrowser -->|"IFileSystem<br/>IPathResolver"| fileOps
@@ -40,6 +41,13 @@ flowchart LR
 
     %% Positional graph dependencies
     posGraph -->|"IFileSystem<br/>IPathResolver"| fileOps
+
+    %% Workflow UI dependencies
+    workflowUI -->|"IPositionalGraphService<br/>ITemplateService<br/>IWorkUnitService"| posGraph
+    workflowUI -->|"useSSE<br/>SSE infrastructure"| events
+    workflowUI -->|"PanelShell"| panels
+    workflowUI -->|"workspaceHref"| wsUrl
+    workflowUI -->|"IUSDK"| sdk
 
     %% Legacy workgraph dependencies
     workgraph -->|"IFileSystem<br/>IPathResolver"| fileOps
@@ -67,5 +75,6 @@ flowchart LR
 | _platform/settings | Settings Page, sdk.openSettings | — | ISDKSettings, useSDKSetting, useSDK | sdk | ✅ |
 | _platform/positional-graph | IPositionalGraphService, IOrchestrationService, IEventHandlerService, IWorkUnitService, ITemplateService, IInstanceService | CLI (`cg wf`, `cg template`), web UI (022)*, dev/test-graphs | IFileSystem, IPathResolver | file-ops | ✅ |
 | _platform/workgraph | IWorkGraphService, IWorkNodeService, IWorkUnitService | CLI (`cg wg`, `cg unit`), web UI (022)*, API routes, event adapters (023, 027) | IFileSystem, IPathResolver | file-ops | ⚠️ Deprecated |
+| workflow-ui | _(none — leaf consumer)_ | — | IPositionalGraphService, ITemplateService, IWorkUnitService, PanelShell, useSSE, workspaceHref, IUSDK | positional-graph, events, panel-layout, workspace-url, sdk | ✅ |
 
 *workgraph-ui and agent-ui are not yet formalized as domains but are known consumers of both positional-graph and workgraph

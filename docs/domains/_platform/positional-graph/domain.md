@@ -86,6 +86,7 @@ Core graph engine that powers the line-based workflow execution system. Owns the
 | `InstanceAdapter` | Filesystem path resolution for instances at .chainglass/instances/ (Plan 048 Phase 2) | IFileSystem, IPathResolver |
 | `InstanceWorkUnitAdapter` | IWorkUnitLoader for instance-local unit resolution (Plan 048 Phase 2) | IFileSystem, IPathResolver, IYamlParser, basePath |
 | `InstanceGraphAdapter` | PositionalGraphAdapter scoped to one instance path (Plan 048 Phase 3) | IFileSystem, IPathResolver, instancePath |
+| `FakePositionalGraphService` | Test double for IPositionalGraphService (Plan 050) | Call tracking + return builders |
 
 ## Source Location
 
@@ -114,6 +115,7 @@ Primary: `packages/positional-graph/src/`
 | `packages/workflow/src/adapters/template.adapter.ts` | Template path resolution | Plan 048 Phase 2 |
 | `packages/workflow/src/adapters/instance.adapter.ts` | Instance path resolution | Plan 048 Phase 2 |
 | `packages/positional-graph/src/adapter/instance-workunit.adapter.ts` | Instance-local unit loader | Plan 048 Phase 2 |
+| `packages/positional-graph/src/fakes/` | Test doubles (FakePositionalGraphService) | Plan 050 Phase 1 |
 
 ## Dependencies
 
@@ -149,3 +151,4 @@ Primary: `packages/positional-graph/src/`
 | 048-P2 | Template/Instance service + CLI — TemplateService (6 methods), TemplateAdapter, InstanceAdapter, InstanceWorkUnitAdapter, 6 CLI commands, advanced-pipeline template, Workshop 003 unified storage (Phase 2) | 2026-02-25 |
 | 048-P3 | Integration testing + InstanceGraphAdapter — pre-resolved adapter for instance graph routing, 5 integration tests proving lifecycle/isolation/refresh/template-isolation (Phase 3) | 2026-02-26 |
 | 048-P4 | E2E test migration + docs — template generation script, smoke + simple-serial templates, withTemplateWorkflow() helper, 5 e2e lifecycle tests, workflow-templates.md guide, README quick-start (Phase 4) | 2026-02-26 |
+| 050-P1 | FakePositionalGraphService, fakes barrel export, web DI registration (Phase 1) | 2026-02-26 |

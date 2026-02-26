@@ -3,7 +3,7 @@
 **Plan**: [workflow-page-ux-plan.md](../../workflow-page-ux-plan.md)
 **Phase**: Phase 1: Domain Setup + Foundations
 **Generated**: 2026-02-26
-**Status**: Ready for takeoff
+**Status**: Landed
 
 ---
 
@@ -58,7 +58,7 @@ stateDiagram-v2
     S4 --> S5
     S5 --> [*]
 
-    class S1,S2,S3,S4,S5 pending
+    class S1,S2,S3,S4,S5 done
 ```
 
 **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -69,11 +69,11 @@ stateDiagram-v2
 
 <!-- Updated by /plan-6-v2 during implementation: [ ] → [~] → [x] -->
 
-- [ ] **Stage 1: Domain formalization** — Create workflow-ui domain.md, update registry and domain-map (`docs/domains/`)
-- [ ] **Stage 2: DI wiring** — Register positional-graph services in web DI container (`di-container.ts`)
-- [ ] **Stage 3: Build fakes** — FakePositionalGraphService + verify FakeWorkUnitService (`packages/positional-graph/src/fakes/`)
-- [ ] **Stage 4: Doping system** — Create dope-workflows.ts with 7 scenarios + justfile commands (`scripts/`, `justfile`)
-- [ ] **Stage 5: Validation** — Integration test proving all 7 scenarios create valid graphs (`test/integration/`)
+- [x] **Stage 1: Domain formalization** — Create workflow-ui domain.md, update registry and domain-map (`docs/domains/`)
+- [x] **Stage 2: DI wiring** — Register positional-graph services in web DI container (`di-container.ts`)
+- [x] **Stage 3: Build fakes** — FakePositionalGraphService + verify FakeWorkUnitService (`packages/positional-graph/src/fakes/`)
+- [x] **Stage 4: Doping system** — Create dope-workflows.ts with 7 scenarios + justfile commands (`scripts/`, `justfile`)
+- [x] **Stage 5: Validation** — Integration test proving all 7 scenarios create valid graphs (`test/integration/`)
 
 ---
 
@@ -111,10 +111,10 @@ flowchart LR
 
 ## Acceptance Criteria
 
-- [ ] AC-28: `just dope` creates 7+ demo workflows
-- [ ] AC-29: `just dope clean`, `just dope <name>`, `just redope` all work
-- [ ] AC-30: Demo workflows cover all 8 node status states
-- [ ] AC-37: Doping script validation test passes
+- [x] AC-28: `just dope` creates 7+ demo workflows
+- [x] AC-29: `just dope clean`, `just dope <name>`, `just redope` all work
+- [x] AC-30: Demo workflows cover all 8 node status states
+- [x] AC-37: Doping script validation test passes
 
 ## Goals & Non-Goals
 
@@ -135,10 +135,10 @@ flowchart LR
 
 ## Checklist
 
-- [ ] T001: Domain docs (domain.md + registry + domain-map)
-- [ ] T002: DI registration (registerPositionalGraphServices in web container)
-- [ ] T003: FakePositionalGraphService (call tracking + return builders)
-- [ ] T004: Verify FakeWorkUnitService exists and is exportable
-- [ ] T005: Doping script (7 demo scenarios)
-- [ ] T006: Justfile commands (dope/redope/clean/name)
-- [ ] T007: Doping validation test (integration test for all 7 scenarios)
+- [x] T001: Domain docs (domain.md + registry + domain-map)
+- [x] T002: DI registration (registerPositionalGraphServices in web container)
+- [x] T003: FakePositionalGraphService (call tracking + return builders)
+- [x] T004: Verify FakeWorkUnitService exists and is exportable
+- [x] T005: Doping script (7 demo scenarios)
+- [x] T006: Justfile commands (dope/redope/clean/name)
+- [x] T007: Doping validation test (integration test for all 7 scenarios)

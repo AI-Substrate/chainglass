@@ -20,6 +20,8 @@
       "@/*": ["./src/*"],
       "@chainglass/shared": ["../../packages/shared/dist"],
       "@chainglass/shared/*": ["../../packages/shared/dist/*"],
+      "@chainglass/positional-graph": ["../../packages/positional-graph/dist"],
+      "@chainglass/positional-graph/*": ["../../packages/positional-graph/dist/*"],
       "@chainglass/web": ["./src"],
       "@chainglass/web/*": ["./src/*"]
     }

@@ -74,3 +74,12 @@ test-feature plan:
 # Watch tests for a specific plan/feature (re-runs on file change)
 test-watch plan:
     pnpm vitest --reporter=verbose $(find test -path "*{{plan}}*" -name "*.test.ts" 2>/dev/null | tr '\n' ' ')
+
+# Generate demo workflows for UI development (Plan 050)
+dope *args:
+    npx tsx scripts/dope-workflows.ts {{args}}
+
+# Clean and regenerate all demo workflows
+redope:
+    npx tsx scripts/dope-workflows.ts clean
+    npx tsx scripts/dope-workflows.ts

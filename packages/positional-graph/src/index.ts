@@ -7,6 +7,9 @@ export * from './adapter/index.js';
 export * from './interfaces/index.js';
 export { registerPositionalGraphServices, registerOrchestrationServices } from './container.js';
 
+// Fakes (Plan 050)
+export { FakePositionalGraphService } from './fakes/index.js';
+
 // Feature exports
 export * from './features/029-agentic-work-units/index.js';
 
