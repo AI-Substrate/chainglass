@@ -15,7 +15,11 @@ export type {
   FileSearchSortMode,
   FileSearchEntry,
   FileChangeInfo,
+  FlowSpaceSearchMode,
+  FlowSpaceAvailability,
+  FlowSpaceSearchResult,
 } from './types';
+export { FLOWSPACE_CATEGORY_ICONS } from './types';
 
 // Components
 export { PanelHeader } from './components/panel-header';
@@ -34,6 +38,3 @@ export { PanelShell } from './components/panel-shell';
 export type { PanelShellProps } from './components/panel-shell';
 export { AsciiSpinner } from './components/ascii-spinner';
 export type { AsciiSpinnerProps } from './components/ascii-spinner';
-
-// Stub handlers
-export { createSymbolSearchStub } from './stub-handlers';

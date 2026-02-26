@@ -52,10 +52,15 @@ import {
 } from '@/components/ui/context-menu';
 import type { MruTracker } from '@/lib/sdk/sdk-provider';
 import type { FileChangeInfo, FileSearchEntry, FileSearchSortMode } from '../types';
+import {
+  FLOWSPACE_CATEGORY_ICONS,
+  type FlowSpaceAvailability,
+  type FlowSpaceSearchResult,
+} from '../types';
 
 import { AsciiSpinner } from './ascii-spinner';
 
-export type DropdownMode = 'commands' | 'symbols' | 'search' | 'param';
+export type DropdownMode = 'commands' | 'symbols' | 'semantic' | 'search' | 'param';
 
 export interface CommandPaletteDropdownHandle {
   handleKeyDown: (e: React.KeyboardEvent) => void;
@@ -105,6 +110,15 @@ interface CommandPaletteDropdownProps {
   onDownload?: (path: string) => void;
   /** Working changes for status badge lookup */
   workingChanges?: FileChangeInfo[];
+  /** FlowSpace search results (Plan 051) */
+  symbolSearchResults?: FlowSpaceSearchResult[] | null;
+  symbolSearchLoading?: boolean;
+  symbolSearchError?: string | null;
+  symbolSearchAvailability?: FlowSpaceAvailability;
+  symbolSearchGraphAge?: string | null;
+  symbolSearchFolders?: Record<string, number> | null;
+  /** Navigate to a code symbol from FlowSpace results */
+  onSymbolSelect?: (filePath: string, startLine: number) => void;
 }
 
 // --- Schema introspection helpers (ST001) ---
@@ -186,6 +200,13 @@ export const CommandPaletteDropdown = forwardRef<
     onCopyContent,
     onDownload,
     workingChanges,
+    symbolSearchResults,
+    symbolSearchLoading,
+    symbolSearchError,
+    symbolSearchAvailability,
+    symbolSearchGraphAge,
+    symbolSearchFolders,
+    onSymbolSelect,
   },
   ref
 ) {
@@ -214,15 +235,28 @@ export const CommandPaletteDropdown = forwardRef<
   const showFileResults =
     hasSearchText && Array.isArray(fileSearchResults) && fileSearchResults.length > 0;
 
+  // FlowSpace mode detection
+  const isFlowspaceMode = mode === 'symbols' || mode === 'semantic';
+  const hasFlowspaceQuery =
+    isFlowspaceMode && !!inputValue && inputValue.replace(/^[#$]\s*/, '').trim().length > 0;
+  const showFlowspaceResults =
+    hasFlowspaceQuery && Array.isArray(symbolSearchResults) && symbolSearchResults.length > 0;
+
   // Items count for keyboard nav
   const navItemCount =
-    mode === 'commands' ? commands.length : showFileResults ? fileSearchResults?.length : 0;
+    mode === 'commands'
+      ? commands.length
+      : showFlowspaceResults
+        ? symbolSearchResults?.length
+        : showFileResults
+          ? fileSearchResults?.length
+          : 0;
 
   // Reset selection when filter, mode, or search results change
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — reset on filter/mode/results change
   useEffect(() => {
     setSelectedIndex(0);
-  }, [filter, mode, fileSearchResults]);
+  }, [filter, mode, fileSearchResults, symbolSearchResults]);
 
   // Scroll selected item into view
   useEffect(() => {
@@ -261,6 +295,9 @@ export const CommandPaletteDropdown = forwardRef<
           if (mode === 'commands') {
             const cmd = commands[selectedIndex];
             if (cmd) handleSelect(cmd.id);
+          } else if (showFlowspaceResults) {
+            const result = symbolSearchResults?.[selectedIndex];
+            if (result) onSymbolSelect?.(result.filePath, result.startLine);
           } else if (showFileResults) {
             const file = fileSearchResults?.[selectedIndex];
             if (file) onFileSelect?.(file.path);
@@ -278,6 +315,9 @@ export const CommandPaletteDropdown = forwardRef<
       showFileResults,
       fileSearchResults,
       onFileSelect,
+      showFlowspaceResults,
+      symbolSearchResults,
+      onSymbolSelect,
     ]
   );
 
@@ -286,15 +326,138 @@ export const CommandPaletteDropdown = forwardRef<
   return (
     // DYK-P3-02: onMouseDown preventDefault keeps input focused
     <div
-      className="absolute left-0 right-0 top-full z-50 mt-1 max-h-64 overflow-y-auto rounded-lg border bg-popover shadow-md"
+      className="absolute left-0 right-0 top-full z-50 mt-1 max-h-[calc(100vh-8rem)] overflow-y-auto rounded-lg border bg-popover shadow-md"
       onMouseDown={(e) => e.preventDefault()}
     >
-      {mode === 'symbols' && (
-        <div className="px-3 py-4 text-center text-sm text-muted-foreground">
-          <Hash className="inline h-4 w-4 mr-1 -mt-0.5" />
-          Symbol search (LSP/Flowspace) coming later
-        </div>
-      )}
+      {isFlowspaceMode &&
+        (symbolSearchAvailability === 'not-installed' ? (
+          <div className="px-3 py-4 text-center text-sm text-muted-foreground">
+            <Hash className="inline h-4 w-4 mr-1 -mt-0.5" />
+            FlowSpace not installed
+            <div className="mt-2 flex items-center justify-center gap-2">
+              <code className="rounded bg-muted px-2 py-0.5 text-xs select-all">
+                https://github.com/AI-Substrate/flow_squared
+              </code>
+              <button
+                type="button"
+                className="rounded bg-muted px-1.5 py-0.5 text-xs hover:bg-accent"
+                onClick={() =>
+                  navigator.clipboard.writeText('https://github.com/AI-Substrate/flow_squared')
+                }
+              >
+                <ClipboardCopy className="h-3 w-3" />
+              </button>
+            </div>
+          </div>
+        ) : symbolSearchAvailability === 'no-graph' ? (
+          <div className="px-3 py-4 text-center text-sm text-muted-foreground">
+            <Hash className="inline h-4 w-4 mr-1 -mt-0.5" />
+            Run <code className="rounded bg-muted px-1.5 py-0.5 text-xs">fs2 scan</code> to index
+            your codebase
+          </div>
+        ) : !hasFlowspaceQuery ? (
+          <div className="px-3 py-4 text-center text-sm text-muted-foreground">
+            <Hash className="inline h-4 w-4 mr-1 -mt-0.5" />
+            {mode === 'semantic' ? 'FlowSpace semantic search' : 'FlowSpace text search'}
+          </div>
+        ) : symbolSearchLoading ? (
+          <div className="px-3 py-4 text-center text-sm text-muted-foreground">
+            <AsciiSpinner active /> Searching code...
+          </div>
+        ) : symbolSearchError ? (
+          <div className="px-3 py-4 text-center text-sm text-muted-foreground">
+            {symbolSearchError}
+          </div>
+        ) : showFlowspaceResults ? (
+          <>
+            <div className="flex items-center justify-between border-b px-3 py-1">
+              <span className="text-xs text-muted-foreground">
+                {symbolSearchResults?.length} results
+                {symbolSearchFolders &&
+                  Object.keys(symbolSearchFolders).length > 0 &&
+                  ` · ${Object.entries(symbolSearchFolders)
+                    .slice(0, 3)
+                    .map(([k, v]) => `${k} ${v}`)
+                    .join(' · ')}`}
+              </span>
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                {mode === 'semantic' && (
+                  <span className="rounded bg-purple-100 px-1.5 py-0.5 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
+                    🧠 semantic
+                  </span>
+                )}
+                {symbolSearchGraphAge && <span>indexed {symbolSearchGraphAge}</span>}
+              </div>
+            </div>
+            {/* biome-ignore lint/a11y/useSemanticElements: custom palette item list */}
+            <div ref={listRef} role="listbox" tabIndex={-1} className="py-1">
+              {symbolSearchResults?.map((result, index) => (
+                <ContextMenu key={result.nodeId}>
+                  <ContextMenuTrigger asChild>
+                    <div // biome-ignore lint/a11y/useSemanticElements: custom palette item
+                      role="option"
+                      tabIndex={-1}
+                      aria-selected={index === selectedIndex}
+                      className={`px-3 py-1.5 cursor-pointer ${
+                        index === selectedIndex
+                          ? 'bg-primary/15 text-foreground'
+                          : 'text-foreground hover:bg-accent/50'
+                      }`}
+                      onClick={() => onSymbolSelect?.(result.filePath, result.startLine)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') onSymbolSelect?.(result.filePath, result.startLine);
+                      }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="shrink-0 w-4 text-center text-xs">
+                          {FLOWSPACE_CATEGORY_ICONS[result.category] || '○'}
+                        </span>
+                        <span className="font-medium truncate">{result.name}</span>
+                        <span className="shrink-0 rounded bg-muted px-1 py-0.5 text-xs text-muted-foreground">
+                          L{result.startLine}
+                          {result.endLine !== result.startLine && `-${result.endLine}`}
+                        </span>
+                      </div>
+                      <div className="ml-6 text-xs text-muted-foreground truncate">
+                        {result.filePath}
+                      </div>
+                      {result.smartContent &&
+                        !result.smartContent.startsWith('[Empty content') &&
+                        !result.smartContent.startsWith('[No ') &&
+                        result.smartContent.length > 10 &&
+                        !result.name.startsWith(result.smartContent.slice(0, 30)) && (
+                          <div className="ml-6 text-xs text-muted-foreground/70 truncate">
+                            {result.smartContent.slice(0, 120)}
+                          </div>
+                        )}
+                    </div>
+                  </ContextMenuTrigger>
+                  <ContextMenuContent>
+                    <ContextMenuItem onClick={() => onCopyFullPath?.(result.filePath)}>
+                      <ClipboardCopy className="mr-2 h-3.5 w-3.5" />
+                      Copy Full Path
+                    </ContextMenuItem>
+                    <ContextMenuItem onClick={() => onCopyRelativePath?.(result.filePath)}>
+                      <File className="mr-2 h-3.5 w-3.5" />
+                      Copy Relative Path
+                    </ContextMenuItem>
+                    <ContextMenuSeparator />
+                    <ContextMenuItem onClick={() => onCopyContent?.(result.filePath)}>
+                      <FileText className="mr-2 h-3.5 w-3.5" />
+                      Copy Content
+                    </ContextMenuItem>
+                    <ContextMenuItem onClick={() => onDownload?.(result.filePath)}>
+                      <Download className="mr-2 h-3.5 w-3.5" />
+                      Download
+                    </ContextMenuItem>
+                  </ContextMenuContent>
+                </ContextMenu>
+              ))}
+            </div>
+          </>
+        ) : hasFlowspaceQuery ? (
+          <div className="px-3 py-4 text-center text-sm text-muted-foreground">No results</div>
+        ) : null)}
 
       {mode === 'search' &&
         (hasSearchText ? (
@@ -427,7 +590,7 @@ export const CommandPaletteDropdown = forwardRef<
             </div>
           )
         ) : (
-          // Empty input: Quick Access hints (unchanged)
+          // Empty input: Quick Access hints
           <div className="py-2">
             <div className="px-3 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">
               Quick Access
@@ -438,7 +601,21 @@ export const CommandPaletteDropdown = forwardRef<
             </div>
             <div className="px-3 py-1.5 text-sm text-muted-foreground flex items-center gap-2">
               <span className="font-mono text-xs bg-muted px-1 rounded">#</span>
-              <span>Symbol search (coming soon)</span>
+              <span>
+                Code search
+                {symbolSearchAvailability === 'not-installed'
+                  ? ' (install FlowSpace)'
+                  : ' (FlowSpace)'}
+              </span>
+            </div>
+            <div className="px-3 py-1.5 text-sm text-muted-foreground flex items-center gap-2">
+              <span className="font-mono text-xs bg-muted px-1 rounded">$</span>
+              <span>
+                Semantic search
+                {symbolSearchAvailability === 'not-installed'
+                  ? ' (install FlowSpace)'
+                  : ' (FlowSpace)'}
+              </span>
             </div>
             <div className="px-3 py-1.5 text-sm text-muted-foreground flex items-center gap-2">
               <Search className="h-3.5 w-3.5" />

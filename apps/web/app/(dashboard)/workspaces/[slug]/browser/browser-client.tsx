@@ -18,6 +18,7 @@ import {
 import { useClipboard } from '@/features/041-file-browser/hooks/use-clipboard';
 import { useFileFilter } from '@/features/041-file-browser/hooks/use-file-filter';
 import { useFileNavigation } from '@/features/041-file-browser/hooks/use-file-navigation';
+import { useFlowspaceSearch } from '@/features/041-file-browser/hooks/use-flowspace-search';
 import { usePanelState } from '@/features/041-file-browser/hooks/use-panel-state';
 import { useTreeDirectoryChanges } from '@/features/041-file-browser/hooks/use-tree-directory-changes';
 import { useWorkspaceContext } from '@/features/041-file-browser/hooks/use-workspace-context';
@@ -33,7 +34,6 @@ import {
   LeftPanel,
   MainPanel,
   PanelShell,
-  createSymbolSearchStub,
 } from '@/features/_platform/panel-layout';
 import type { PanelMode } from '@/features/_platform/panel-layout';
 import { useSDK, useSDKMru } from '@/lib/sdk/sdk-provider';
@@ -136,6 +136,9 @@ function BrowserClientInner({
   // --- File search filter (Plan 049 Feature 2) ---
   const fileFilter = useFileFilter({ worktreePath, fetchFileList });
 
+  // --- FlowSpace code search (Plan 051) ---
+  const flowspace = useFlowspaceSearch(worktreePath);
+
   // --- Workspace attention context (Phase 5) ---
   const wsCtx = useWorkspaceContext();
 
@@ -234,7 +237,7 @@ function BrowserClientInner({
       }),
     [setParams]
   );
-  const symbolStub = useMemo(() => createSymbolSearchStub(), []);
+  // Plan 051: # stub removed, handled by FlowSpace search in dropdown
 
   // --- SDK + MRU for command palette ---
   const sdk = useSDK();
@@ -403,7 +406,7 @@ function BrowserClientInner({
           <ExplorerPanel
             ref={explorerRef}
             filePath={selectedFile ?? ''}
-            handlers={[symbolStub, filePathHandler]}
+            handlers={[filePathHandler]}
             context={barContext}
             onCopy={() => clipboard.copyToClipboard(selectedFile ?? '')}
             placeholder="Type a path or > for commands... (Ctrl+P)"
@@ -424,6 +427,20 @@ function BrowserClientInner({
             onDownload={clipboard.handleDownload}
             workingChanges={panelState.workingChanges}
             onSearchQueryChange={fileFilter.setQuery}
+            symbolSearchResults={flowspace.results}
+            symbolSearchLoading={flowspace.loading}
+            symbolSearchError={flowspace.error}
+            symbolSearchAvailability={flowspace.availability}
+            symbolSearchGraphAge={flowspace.graphAge}
+            symbolSearchFolders={flowspace.folders}
+            onSymbolSelect={(filePath, startLine) => {
+              fileNav.handleSelect(filePath);
+              // Navigate to line via URL param
+              setParams({ line: startLine }, { history: 'replace' });
+            }}
+            onFlowspaceQueryChange={(query, mode) => {
+              flowspace.setQuery(query, mode);
+            }}
           />
         }
         left={

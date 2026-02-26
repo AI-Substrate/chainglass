@@ -55,3 +55,37 @@ export interface FileChangeInfo {
   path: string;
   status: string;
 }
+
+// --- FlowSpace search types (Plan 051) ---
+// Defined here so infra (panel-layout) doesn't import from business (file-browser).
+
+/** FlowSpace search mode — text is fast/free, semantic uses embedding API */
+export type FlowSpaceSearchMode = 'text' | 'semantic';
+
+/** FlowSpace availability status */
+export type FlowSpaceAvailability = 'available' | 'not-installed' | 'no-graph' | 'no-embeddings';
+
+/** A code node result from FlowSpace search */
+export interface FlowSpaceSearchResult {
+  nodeId: string;
+  name: string;
+  category: string;
+  filePath: string;
+  startLine: number;
+  endLine: number;
+  smartContent: string | null;
+  snippet: string;
+  score: number;
+  matchField: string;
+}
+
+/** Category icon mapping for FlowSpace node categories */
+export const FLOWSPACE_CATEGORY_ICONS: Record<string, string> = {
+  file: '📄',
+  callable: 'ƒ',
+  type: '📦',
+  section: '📝',
+  block: '🏗️',
+  definition: '🔹',
+  other: '○',
+};

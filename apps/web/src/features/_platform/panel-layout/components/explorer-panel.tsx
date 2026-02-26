@@ -27,6 +27,8 @@ import type {
   FileChangeInfo,
   FileSearchEntry,
   FileSearchSortMode,
+  FlowSpaceAvailability,
+  FlowSpaceSearchResult,
 } from '../types';
 import { AsciiSpinner } from './ascii-spinner';
 import {
@@ -77,6 +79,17 @@ export interface ExplorerPanelProps {
   workingChanges?: FileChangeInfo[];
   /** Called when search query changes (for file filter hook) */
   onSearchQueryChange?: (query: string) => void;
+  /** FlowSpace search results (Plan 051) */
+  symbolSearchResults?: FlowSpaceSearchResult[] | null;
+  symbolSearchLoading?: boolean;
+  symbolSearchError?: string | null;
+  symbolSearchAvailability?: FlowSpaceAvailability;
+  symbolSearchGraphAge?: string | null;
+  symbolSearchFolders?: Record<string, number> | null;
+  /** Navigate to a code symbol from FlowSpace results */
+  onSymbolSelect?: (filePath: string, startLine: number) => void;
+  /** Called when FlowSpace search query changes */
+  onFlowspaceQueryChange?: (query: string, mode: 'text' | 'semantic') => void;
 }
 
 export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>(
@@ -104,6 +117,14 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
       onDownload,
       workingChanges,
       onSearchQueryChange,
+      symbolSearchResults,
+      symbolSearchLoading,
+      symbolSearchError,
+      symbolSearchAvailability,
+      symbolSearchGraphAge,
+      symbolSearchFolders,
+      onSymbolSelect,
+      onFlowspaceQueryChange,
     },
     ref
   ) {
@@ -119,6 +140,7 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
     // DYK-ST001-01: paramGathering overrides prefix-derived mode
     const paletteMode = editing && inputValue.startsWith('>') && !!sdk;
     const symbolMode = editing && inputValue.startsWith('#');
+    const semanticMode = editing && inputValue.startsWith('$');
     const paletteFilter = paletteMode ? inputValue.slice(1).trim() : '';
     // Show dropdown whenever editing is active and SDK available (like VS Code)
     const showDropdown = editing && !!sdk && !processing;
@@ -127,9 +149,11 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
       ? ('param' as const)
       : paletteMode
         ? ('commands' as const)
-        : symbolMode
-          ? ('symbols' as const)
-          : ('search' as const);
+        : semanticMode
+          ? ('semantic' as const)
+          : symbolMode
+            ? ('symbols' as const)
+            : ('search' as const);
 
     // Plan 049 Feature 2: File search mode has results — delegate keyboard
     const searchHasResults =
@@ -137,8 +161,15 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
       inputValue.trim().length > 0 &&
       !inputValue.startsWith('>') &&
       !inputValue.startsWith('#') &&
+      !inputValue.startsWith('$') &&
       Array.isArray(fileSearchResults) &&
       fileSearchResults.length > 0;
+
+    // Plan 051: FlowSpace result modes — delegate keyboard
+    const flowspaceHasResults =
+      (dropdownMode === 'symbols' || dropdownMode === 'semantic') &&
+      Array.isArray(symbolSearchResults) &&
+      symbolSearchResults.length > 0;
 
     // Sync: when filePath changes externally, exit edit mode and update input value
     useEffect(() => {
@@ -159,6 +190,18 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
         onSearchQueryChange?.('');
       }
     }, [inputValue, dropdownMode, editing, onSearchQueryChange]);
+
+    // Plan 051: Notify parent of FlowSpace query changes
+    useEffect(() => {
+      if ((dropdownMode === 'symbols' || dropdownMode === 'semantic') && editing) {
+        const prefix = inputValue.startsWith('$') ? '$' : '#';
+        const query = inputValue.slice(1).trim();
+        const mode = prefix === '$' ? 'semantic' : 'text';
+        onFlowspaceQueryChange?.(query, mode);
+      } else {
+        onFlowspaceQueryChange?.('', 'text');
+      }
+    }, [inputValue, dropdownMode, editing, onFlowspaceQueryChange]);
 
     // Expose focusInput + openPalette
     useImperativeHandle(ref, () => ({
@@ -294,7 +337,7 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
         }
 
         // Plan 049 Feature 2: In search mode with results, delegate ↑↓ Enter to dropdown
-        if (searchHasResults) {
+        if (searchHasResults || flowspaceHasResults) {
           if (['ArrowDown', 'ArrowUp', 'Enter'].includes(e.key)) {
             dropdownRef.current?.handleKeyDown(e);
             return;
@@ -307,13 +350,29 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
           return;
         }
 
+        // Plan 051: Block Enter fallback for FlowSpace prefixed modes
+        if ((symbolMode || semanticMode) && e.key === 'Enter') {
+          e.preventDefault();
+          return;
+        }
+
         // Enter runs handler chain (file path nav) even when dropdown hint is showing
         if (e.key === 'Enter') {
           e.preventDefault();
           handleSubmit();
         }
       },
-      [paramGathering, paletteMode, searchHasResults, exitEditMode, handleSubmit, handleParamSubmit]
+      [
+        paramGathering,
+        paletteMode,
+        searchHasResults,
+        flowspaceHasResults,
+        symbolMode,
+        semanticMode,
+        exitEditMode,
+        handleSubmit,
+        handleParamSubmit,
+      ]
     );
 
     const handleBlur = useCallback(() => {
@@ -409,6 +468,16 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
               onCopyContent={onCopyContent}
               onDownload={onDownload}
               workingChanges={workingChanges}
+              symbolSearchResults={symbolSearchResults}
+              symbolSearchLoading={symbolSearchLoading}
+              symbolSearchError={symbolSearchError}
+              symbolSearchAvailability={symbolSearchAvailability}
+              symbolSearchGraphAge={symbolSearchGraphAge}
+              symbolSearchFolders={symbolSearchFolders}
+              onSymbolSelect={(filePath, startLine) => {
+                onSymbolSelect?.(filePath, startLine);
+                exitEditMode();
+              }}
             />
           )}
         </div>

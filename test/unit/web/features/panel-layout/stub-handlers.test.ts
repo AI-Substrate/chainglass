@@ -1,38 +1,25 @@
 /**
  * Stub Handlers Tests
  *
- * Tests for the symbol search stub BarHandler.
- * Per Plan 047 Phase 3, FT-009.
+ * Plan 047 Phase 3: Original tests for createSymbolSearchStub.
+ * Plan 051: Stub removed — # prefix now handled by FlowSpace search.
  */
 
 import { describe, expect, it } from 'vitest';
 
-import { createSymbolSearchStub } from '../../../../../apps/web/src/features/_platform/panel-layout/stub-handlers';
-import type { BarContext } from '../../../../../apps/web/src/features/_platform/panel-layout/types';
-
-function makeContext(overrides: Partial<BarContext> = {}): BarContext {
-  return {
-    slug: 'test',
-    worktreePath: '/tmp/test',
-    fileExists: async () => false,
-    pathExists: async () => false,
-    navigateToFile: () => {},
-    navigateToDirectory: () => {},
-    showError: () => {},
-    ...overrides,
-  };
-}
-
-describe('createSymbolSearchStub', () => {
-  it('returns true for # prefix input', async () => {
-    const handler = createSymbolSearchStub();
-    const result = await handler('#MyClass', makeContext());
-    expect(result).toBe(true);
-  });
-
-  it('returns false for non-# input', async () => {
-    const handler = createSymbolSearchStub();
-    const result = await handler('src/index.ts', makeContext());
-    expect(result).toBe(false);
+describe('stub-handlers (Plan 051: stub removed)', () => {
+  it('does not export createSymbolSearchStub from panel-layout barrel', async () => {
+    /*
+    Test Doc:
+    - Why: Verify stub was fully removed and no consumer can accidentally import it
+    - Contract: Panel-layout barrel no longer exports createSymbolSearchStub
+    - Usage Notes: Dynamic import to test export surface
+    - Quality Contribution: Prevents regression of removed stub handler
+    - Worked Example: import panel-layout → 'createSymbolSearchStub' not in exports
+    */
+    const panelLayout = await import(
+      '../../../../../apps/web/src/features/_platform/panel-layout/index'
+    );
+    expect('createSymbolSearchStub' in panelLayout).toBe(false);
   });
 });

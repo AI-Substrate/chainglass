@@ -40,7 +40,10 @@ Reusable three-panel layout system for workspace detail pages. Provides the stru
 | `BarHandler` | Type | file-browser (path handler), future (search handler) | Handler chain type for ExplorerPanel input |
 | `BarContext` | Type | BarHandler implementations | Context passed to input handlers |
 | `ExplorerPanelHandle` | Type | file-browser | Imperative handle: focusInput(), openPalette() |
-| `createSymbolSearchStub` | Factory | file-browser | Stub BarHandler for `#` prefix (symbol search) |
+| `FlowSpaceSearchResult` | Type | file-browser | Code search result from FlowSpace |
+| `FlowSpaceAvailability` | Type | file-browser | FlowSpace availability states (`available`, `not-installed`, `no-graph`, `no-embeddings`) |
+| `FlowSpaceSearchMode` | Type | file-browser | Search mode: `text` or `semantic` |
+| `FLOWSPACE_CATEGORY_ICONS` | Constant | file-browser | Icon map for code node categories |
 | `PanelMode` | Type | LeftPanel consumers | Union type for left panel modes (`'tree' \| 'changes' \| ...`) |
 | `AsciiSpinner` | Component | file-browser | `<AsciiSpinner active={boolean} />` spinning \| / — \ indicator |
 
@@ -100,3 +103,4 @@ Primary: `apps/web/src/features/_platform/panel-layout/`
 | Plan 047 Phase 3 | Command palette: ExplorerPanel centered with border/shadow, palette mode (> prefix), CommandPaletteDropdown (multi-mode: commands/symbols/search), keyboard delegation, openPalette() handle, # stub handler, search fallback | 2026-02-25 |
 | Plan 049 Feature 1 | PanelHeader + LeftPanel gain optional `subtitle?: ReactNode` prop for inline metadata display | 2026-02-26 |
 | Plan 049 Feature 2 | ExplorerPanel extended with file search props + keyboard delegation for search mode. CommandPaletteDropdown search mode replaced "coming soon" stub with live file results (badges, sort/hidden toggles, keyboard nav) | 2026-02-26 |
+| Plan 051 | FlowSpace code search: removed createSymbolSearchStub, added `#` (text) and `$` (semantic) search modes to CommandPaletteDropdown, added FlowSpace types (FlowSpaceSearchResult, FlowSpaceAvailability, FlowSpaceSearchMode), ExplorerPanel `$` mode detection + keyboard delegation for FlowSpace result modes, Quick Access hints updated | 2026-02-26 |
