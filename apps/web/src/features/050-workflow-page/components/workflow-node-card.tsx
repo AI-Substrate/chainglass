@@ -69,8 +69,11 @@ export interface WorkflowNodeCardProps {
   unitType: 'agent' | 'code' | 'user-input';
   status: NodeStatus;
   description?: string;
-  /** Context badge color — placeholder, full logic in Phase 4 */
   contextColor?: 'green' | 'blue' | 'purple' | 'gray';
+  isSelected?: boolean;
+  isEditable?: boolean;
+  onSelect?: () => void;
+  onDelete?: () => void;
 }
 
 // ─── Component ───────────────────────────────────────────────────────
@@ -89,6 +92,10 @@ export function WorkflowNodeCard({
   status,
   description,
   contextColor = 'gray',
+  isSelected = false,
+  isEditable = true,
+  onSelect,
+  onDelete,
 }: WorkflowNodeCardProps) {
   const statusConfig = STATUS_MAP[status] ?? STATUS_MAP.pending;
   const typeIcon = TYPE_ICONS[unitType] ?? '📦';
@@ -97,14 +104,40 @@ export function WorkflowNodeCard({
     <div
       data-testid={`node-card-${nodeId}`}
       data-status={status}
-      className="relative min-w-[120px] min-h-[100px] rounded-lg border bg-card p-3 shadow-sm hover:shadow-md transition-shadow"
+      onClick={onSelect}
+      onKeyDown={(e) => {
+        if (e.key === 'Backspace' && isEditable && onDelete) {
+          e.stopPropagation();
+          onDelete();
+        }
+      }}
+      className={`relative min-w-[120px] min-h-[100px] rounded-lg border bg-card p-3 shadow-sm hover:shadow-md transition-shadow cursor-pointer ${
+        isSelected ? 'ring-2 ring-primary border-primary' : ''
+      }`}
+      tabIndex={0}
+      // biome-ignore lint/a11y/useSemanticElements: div used for layout + drag handle compatibility
+      role="button"
     >
-      {/* Header: type icon + name */}
+      {/* Header: type icon + name + delete */}
       <div className="flex items-center gap-1.5 mb-1">
         <span className="text-sm" aria-label={unitType}>
           {typeIcon}
         </span>
         <span className="text-sm font-medium truncate">{unitSlug}</span>
+        {isEditable && onDelete && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            className="ml-auto text-xs text-muted-foreground hover:text-destructive"
+            title="Delete node"
+            data-testid={`node-delete-${nodeId}`}
+          >
+            ✕
+          </button>
+        )}
       </div>
 
       {/* Description */}

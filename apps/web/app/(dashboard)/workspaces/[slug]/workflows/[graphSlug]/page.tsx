@@ -42,10 +42,12 @@ export default async function WorkflowEditorPage({ params, searchParams }: PageP
   return (
     <Suspense fallback={<div className="p-4">Loading workflow...</div>}>
       <WorkflowEditor
+        workspaceSlug={slug}
         graphSlug={graphSlug}
         graphStatus={workflowResult.graphStatus}
         definition={workflowResult.definition}
         units={unitsResult.units}
+        worktreePath={worktreePath}
       />
     </Suspense>
   );

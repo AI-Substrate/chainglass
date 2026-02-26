@@ -2,12 +2,15 @@
 
 /**
  * WorkUnitToolbox — Right sidebar showing available work units grouped by type.
+ * Items are draggable into the workflow canvas via dnd-kit.
  *
- * Phase 2: Canvas Core + Layout — Plan 050
+ * Phase 2+3 — Plan 050
  */
 
 import type { WorkUnitSummary } from '@chainglass/positional-graph';
+import { useDraggable } from '@dnd-kit/core';
 import { useState } from 'react';
+import type { ToolboxDragData } from '../types';
 
 const TYPE_ICONS: Record<string, string> = {
   agent: '🤖',
@@ -23,8 +26,37 @@ const TYPE_LABELS: Record<string, string> = {
 
 const TYPE_ORDER = ['agent', 'code', 'user-input'] as const;
 
+function DraggableUnit({ unit }: { unit: WorkUnitSummary }) {
+  const dragData: ToolboxDragData = {
+    type: 'toolbox-unit',
+    unitSlug: unit.slug,
+    unitType: unit.type,
+  };
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `toolbox-${unit.slug}`,
+    data: dragData,
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      data-testid={`toolbox-unit-${unit.slug}`}
+      style={{ touchAction: 'none' }}
+      className={`flex items-center gap-2 px-2 py-1.5 rounded border text-xs bg-card hover:bg-accent transition-colors cursor-grab active:cursor-grabbing ${
+        isDragging ? 'opacity-50' : ''
+      }`}
+    >
+      <span>{TYPE_ICONS[unit.type]}</span>
+      <span className="truncate">{unit.slug}</span>
+    </div>
+  );
+}
+
 export interface WorkUnitToolboxProps {
   units: WorkUnitSummary[];
+  isDragging?: boolean;
 }
 
 export function WorkUnitToolbox({ units }: WorkUnitToolboxProps) {
@@ -46,7 +78,6 @@ export function WorkUnitToolbox({ units }: WorkUnitToolboxProps) {
     <div data-testid="work-unit-toolbox" className="flex flex-col h-full p-3 gap-3">
       <h3 className="text-sm font-semibold">Work Units</h3>
 
-      {/* Search */}
       <input
         type="text"
         placeholder="Search..."
@@ -56,7 +87,6 @@ export function WorkUnitToolbox({ units }: WorkUnitToolboxProps) {
         data-testid="toolbox-search"
       />
 
-      {/* Groups */}
       {units.length === 0 ? (
         <div className="text-xs text-muted-foreground text-center py-4" data-testid="toolbox-empty">
           No work units found.
@@ -86,14 +116,7 @@ export function WorkUnitToolbox({ units }: WorkUnitToolboxProps) {
               {!collapsed[group.type] && (
                 <div className="flex flex-col gap-1 ml-3">
                   {group.items.map((unit) => (
-                    <div
-                      key={unit.slug}
-                      data-testid={`toolbox-unit-${unit.slug}`}
-                      className="flex items-center gap-2 px-2 py-1.5 rounded border text-xs bg-card hover:bg-accent transition-colors cursor-default"
-                    >
-                      <span>{TYPE_ICONS[unit.type]}</span>
-                      <span className="truncate">{unit.slug}</span>
-                    </div>
+                    <DraggableUnit key={unit.slug} unit={unit} />
                   ))}
                 </div>
               )}

@@ -1,23 +1,29 @@
 'use server';
 
 /**
- * Workflow Server Actions — load, list, create workflows + list work units
+ * Workflow Server Actions — query + mutation actions for workflow-ui domain.
  *
- * Server actions callable from client components.
- * Resolve services from DI container and delegate to IPositionalGraphService.
+ * Phase 2: load, list, create, listWorkUnits
+ * Phase 3: addNode, removeNode, moveNode, addLine, removeLine,
+ *          setLineLabel, setLineDescription, updateLineOrchestratorSettings,
+ *          saveAsTemplate, instantiateTemplate, listTemplates
  *
- * Phase 2: Canvas Core + Layout — Plan 050
+ * Plan 050
  */
 
 import type { IPositionalGraphService } from '@chainglass/positional-graph';
 import type { IWorkUnitService } from '@chainglass/positional-graph';
 import { POSITIONAL_GRAPH_DI_TOKENS, WORKSPACE_DI_TOKENS } from '@chainglass/shared';
-import type { IWorkspaceService, WorkspaceContext } from '@chainglass/workflow';
+import type { ITemplateService, IWorkspaceService, WorkspaceContext } from '@chainglass/workflow';
 import type {
+  AddNodeMutationResult,
   CreateWorkflowResult,
+  InstantiateTemplateResult,
+  ListTemplatesResult,
   ListWorkUnitsResult,
   ListWorkflowsResult,
   LoadWorkflowResult,
+  MutationResult,
   WorkflowSummary,
 } from '../../src/features/050-workflow-page/types';
 import { getContainer } from '../../src/lib/bootstrap-singleton';
@@ -26,7 +32,7 @@ import { getContainer } from '../../src/lib/bootstrap-singleton';
 
 async function resolveWorkspaceContext(
   slug: string,
-  worktreePath?: string,
+  worktreePath?: string
 ): Promise<WorkspaceContext | null> {
   const container = getContainer();
   const workspaceService = container.resolve<IWorkspaceService>(
@@ -37,7 +43,7 @@ async function resolveWorkspaceContext(
 
   // Resolve worktree from known workspace worktrees only (trusted root)
   const resolvedWorktreePath = worktreePath
-    ? info.worktrees.find((w) => w.path === worktreePath)?.path ?? info.path
+    ? (info.worktrees.find((w) => w.path === worktreePath)?.path ?? info.path)
     : info.path;
   const wt = info.worktrees.find((w) => w.path === resolvedWorktreePath);
 
@@ -64,11 +70,18 @@ function resolveWorkUnitService(): IWorkUnitService {
   return container.resolve<IWorkUnitService>(POSITIONAL_GRAPH_DI_TOKENS.WORKUNIT_SERVICE);
 }
 
+function resolveTemplateService(): ITemplateService {
+  const container = getContainer();
+  return container.resolve<ITemplateService>(POSITIONAL_GRAPH_DI_TOKENS.TEMPLATE_SERVICE);
+}
+
+const NOT_FOUND_ERROR = { code: 'E000', message: 'Workspace not found', action: '' } as const;
+
 // ─── Actions ─────────────────────────────────────────────────────────
 
 export async function listWorkflows(
   workspaceSlug: string,
-  worktreePath?: string,
+  worktreePath?: string
 ): Promise<ListWorkflowsResult> {
   const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
   if (!ctx)
@@ -111,7 +124,7 @@ export async function listWorkflows(
 export async function loadWorkflow(
   workspaceSlug: string,
   graphSlug: string,
-  worktreePath?: string,
+  worktreePath?: string
 ): Promise<LoadWorkflowResult> {
   const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
   if (!ctx) return { errors: [{ code: 'E000', message: 'Workspace not found', action: '' }] };
@@ -135,7 +148,7 @@ export async function loadWorkflow(
 export async function createWorkflow(
   workspaceSlug: string,
   graphSlug: string,
-  worktreePath?: string,
+  worktreePath?: string
 ): Promise<CreateWorkflowResult> {
   const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
   if (!ctx) return { errors: [{ code: 'E000', message: 'Workspace not found', action: '' }] };
@@ -152,7 +165,7 @@ export async function createWorkflow(
 
 export async function listWorkUnits(
   workspaceSlug: string,
-  worktreePath?: string,
+  worktreePath?: string
 ): Promise<ListWorkUnitsResult> {
   const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
   if (!ctx)
@@ -162,4 +175,208 @@ export async function listWorkUnits(
   const result = await service.list(ctx);
 
   return { units: result.units, errors: result.errors };
+}
+
+// ─── Phase 3: Mutation Actions ───────────────────────────────────────
+
+async function reloadStatus(ctx: WorkspaceContext, graphSlug: string): Promise<MutationResult> {
+  try {
+    const graphStatus = await resolveGraphService().getStatus(ctx, graphSlug);
+    return { graphStatus, errors: [] };
+  } catch {
+    return { errors: [{ code: 'E001', message: 'Failed to reload graph status', action: '' }] };
+  }
+}
+
+export async function addNode(
+  workspaceSlug: string,
+  graphSlug: string,
+  lineId: string,
+  unitSlug: string,
+  atPosition?: number,
+  worktreePath?: string
+): Promise<AddNodeMutationResult> {
+  const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
+  if (!ctx) return { errors: [NOT_FOUND_ERROR] };
+
+  const result = await resolveGraphService().addNode(ctx, graphSlug, lineId, unitSlug, {
+    atPosition,
+  });
+  if (result.errors.length > 0) return { errors: result.errors };
+
+  const status = await reloadStatus(ctx, graphSlug);
+  return { nodeId: result.nodeId, ...status };
+}
+
+export async function removeNode(
+  workspaceSlug: string,
+  graphSlug: string,
+  nodeId: string,
+  worktreePath?: string
+): Promise<MutationResult> {
+  const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
+  if (!ctx) return { errors: [NOT_FOUND_ERROR] };
+
+  const result = await resolveGraphService().removeNode(ctx, graphSlug, nodeId);
+  if (result.errors.length > 0) return { errors: result.errors };
+
+  return reloadStatus(ctx, graphSlug);
+}
+
+export async function moveNode(
+  workspaceSlug: string,
+  graphSlug: string,
+  nodeId: string,
+  toPosition?: number,
+  toLineId?: string,
+  worktreePath?: string
+): Promise<MutationResult> {
+  const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
+  if (!ctx) return { errors: [NOT_FOUND_ERROR] };
+
+  const result = await resolveGraphService().moveNode(ctx, graphSlug, nodeId, {
+    toPosition,
+    toLineId,
+  });
+  if (result.errors.length > 0) return { errors: result.errors };
+
+  return reloadStatus(ctx, graphSlug);
+}
+
+export async function addLine(
+  workspaceSlug: string,
+  graphSlug: string,
+  label?: string,
+  worktreePath?: string
+): Promise<MutationResult> {
+  const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
+  if (!ctx) return { errors: [NOT_FOUND_ERROR] };
+
+  const result = await resolveGraphService().addLine(ctx, graphSlug, { label });
+  if (result.errors.length > 0) return { errors: result.errors };
+
+  return reloadStatus(ctx, graphSlug);
+}
+
+export async function removeLine(
+  workspaceSlug: string,
+  graphSlug: string,
+  lineId: string,
+  worktreePath?: string
+): Promise<MutationResult> {
+  const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
+  if (!ctx) return { errors: [NOT_FOUND_ERROR] };
+
+  const result = await resolveGraphService().removeLine(ctx, graphSlug, lineId);
+  if (result.errors.length > 0) return { errors: result.errors };
+
+  return reloadStatus(ctx, graphSlug);
+}
+
+export async function setLineLabel(
+  workspaceSlug: string,
+  graphSlug: string,
+  lineId: string,
+  label: string,
+  worktreePath?: string
+): Promise<MutationResult> {
+  const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
+  if (!ctx) return { errors: [NOT_FOUND_ERROR] };
+
+  const result = await resolveGraphService().setLineLabel(ctx, graphSlug, lineId, label);
+  if (result.errors.length > 0) return { errors: result.errors };
+
+  return reloadStatus(ctx, graphSlug);
+}
+
+export async function setLineDescription(
+  workspaceSlug: string,
+  graphSlug: string,
+  lineId: string,
+  description: string,
+  worktreePath?: string
+): Promise<MutationResult> {
+  const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
+  if (!ctx) return { errors: [NOT_FOUND_ERROR] };
+
+  const result = await resolveGraphService().setLineDescription(
+    ctx,
+    graphSlug,
+    lineId,
+    description
+  );
+  if (result.errors.length > 0) return { errors: result.errors };
+
+  return reloadStatus(ctx, graphSlug);
+}
+
+export async function updateLineSettings(
+  workspaceSlug: string,
+  graphSlug: string,
+  lineId: string,
+  settings: { transition?: 'auto' | 'manual'; autoStartLine?: boolean },
+  worktreePath?: string
+): Promise<MutationResult> {
+  const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
+  if (!ctx) return { errors: [NOT_FOUND_ERROR] };
+
+  const result = await resolveGraphService().updateLineOrchestratorSettings(
+    ctx,
+    graphSlug,
+    lineId,
+    settings
+  );
+  if (result.errors.length > 0) return { errors: result.errors };
+
+  return reloadStatus(ctx, graphSlug);
+}
+
+export async function saveAsTemplate(
+  workspaceSlug: string,
+  graphSlug: string,
+  templateSlug: string,
+  worktreePath?: string
+): Promise<MutationResult> {
+  const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
+  if (!ctx) return { errors: [NOT_FOUND_ERROR] };
+
+  const result = await resolveTemplateService().saveFrom(ctx, graphSlug, templateSlug);
+  if (result.errors.length > 0) return { errors: result.errors };
+
+  return { errors: [] };
+}
+
+export async function instantiateTemplate(
+  workspaceSlug: string,
+  templateSlug: string,
+  instanceId: string,
+  worktreePath?: string
+): Promise<InstantiateTemplateResult> {
+  const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
+  if (!ctx) return { errors: [NOT_FOUND_ERROR] };
+
+  const result = await resolveTemplateService().instantiate(ctx, templateSlug, instanceId);
+  if (result.errors.length > 0) return { errors: result.errors };
+
+  return {
+    instanceId: result.data?.slug,
+    graphSlug: result.data?.slug,
+    errors: [],
+  };
+}
+
+export async function listTemplates(
+  workspaceSlug: string,
+  worktreePath?: string
+): Promise<ListTemplatesResult> {
+  const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
+  if (!ctx) return { templates: [], errors: [NOT_FOUND_ERROR] };
+
+  const result = await resolveTemplateService().listWorkflows(ctx);
+  if (result.errors.length > 0) return { templates: [], errors: result.errors };
+
+  return {
+    templates: result.data.map((t) => ({ slug: t.slug, description: t.description })),
+    errors: [],
+  };
 }
