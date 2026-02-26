@@ -47,12 +47,12 @@ export class FakePositionalGraphService implements IPositionalGraphService {
 
   // Preset results for UI-critical methods
   private _createResult: GraphCreateResult = { ...emptyBaseResult(), graphSlug: '', lineId: '' };
-  private _loadResult: PGLoadResult = { ...emptyBaseResult };
-  private _showResult: PGShowResult = { ...emptyBaseResult };
+  private _loadResult: PGLoadResult = { ...emptyBaseResult() };
+  private _showResult: PGShowResult = { ...emptyBaseResult() };
   private _listResult: PGListResult = { ...emptyBaseResult(), slugs: [] };
-  private _addLineResult: AddLineResult = { ...emptyBaseResult };
-  private _addNodeResult: AddNodeResult = { ...emptyBaseResult };
-  private _showNodeResult: NodeShowResult = { ...emptyBaseResult };
+  private _addLineResult: AddLineResult = { ...emptyBaseResult() };
+  private _addNodeResult: AddNodeResult = { ...emptyBaseResult() };
+  private _showNodeResult: NodeShowResult = { ...emptyBaseResult() };
   private _statusResult: GraphStatusResult | null = null;
   private _nodeStatusResult: NodeStatusResult | null = null;
   private _lineStatusResult: LineStatusResult | null = null;
@@ -538,12 +538,12 @@ export class FakePositionalGraphService implements IPositionalGraphService {
   reset(): void {
     this.calls.clear();
     this._createResult = { ...emptyBaseResult(), graphSlug: '', lineId: '' };
-    this._loadResult = { ...emptyBaseResult };
-    this._showResult = { ...emptyBaseResult };
+    this._loadResult = { ...emptyBaseResult() };
+    this._showResult = { ...emptyBaseResult() };
     this._listResult = { ...emptyBaseResult(), slugs: [] };
-    this._addLineResult = { ...emptyBaseResult };
-    this._addNodeResult = { ...emptyBaseResult };
-    this._showNodeResult = { ...emptyBaseResult };
+    this._addLineResult = { ...emptyBaseResult() };
+    this._addNodeResult = { ...emptyBaseResult() };
+    this._showNodeResult = { ...emptyBaseResult() };
     this._statusResult = null;
     this._nodeStatusResult = null;
     this._lineStatusResult = null;
