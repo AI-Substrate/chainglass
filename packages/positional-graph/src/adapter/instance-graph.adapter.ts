@@ -50,4 +50,18 @@ export class InstanceGraphAdapter extends PositionalGraphAdapter {
     const graphYamlPath = this.pathResolver.join(this.instancePath, 'graph.yaml');
     return this.fs.exists(graphYamlPath);
   }
+
+  /**
+   * Not supported for instance adapter — scoped to a single instance.
+   */
+  override async listGraphSlugs(_ctx: WorkspaceContext): Promise<string[]> {
+    return [];
+  }
+
+  /**
+   * Not supported for instance adapter — instances are not removed via the graph adapter.
+   */
+  override async removeGraph(_ctx: WorkspaceContext, _slug: string): Promise<void> {
+    // No-op: instance removal is handled via InstanceAdapter, not the graph adapter
+  }
 }

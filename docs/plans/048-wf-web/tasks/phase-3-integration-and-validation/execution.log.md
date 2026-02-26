@@ -46,6 +46,7 @@
 
 | AC | Status | Evidence |
 |----|--------|----------|
+| AC-6 | ✅ | T004: instantiation creates independent instance with graph.yaml + state.json + units |
 | AC-7 | ✅ | T007: template modification doesn't propagate, refresh does |
 | AC-8 | ✅ | T005: two independent instances with separate state |
 | AC-12 | ✅ | T007: unit template edit doesn't affect instance until refresh |
