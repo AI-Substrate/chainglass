@@ -761,4 +761,10 @@ export interface IPositionalGraphService {
     definition: PositionalGraphDefinition,
     nodeConfigs: Record<string, NodeConfig>
   ): Promise<BaseResult>;
+
+  /** Load all node configs for snapshot capture. */
+  loadAllNodeConfigs(
+    ctx: WorkspaceContext,
+    graphSlug: string
+  ): Promise<{ nodeConfigs: Record<string, NodeConfig>; errors: import('@chainglass/shared').ResultError[] }>;
 }

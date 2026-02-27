@@ -399,31 +399,18 @@ export async function loadSnapshotData(
     return { errors: loadResult.errors };
   }
 
-  const definition = loadResult.definition;
-  const nodeConfigs: Record<string, import('@chainglass/positional-graph').NodeConfig> = {};
-
-  // Load all node configs from all lines
-  for (const line of definition.lines) {
-    for (const nodeId of line.nodes) {
-      const showResult = await svc.showNode(ctx, graphSlug, nodeId);
-      if (showResult.errors.length === 0 && showResult.nodeId) {
-        // Reconstruct minimal NodeConfig from showNode data
-        nodeConfigs[nodeId] = {
-          id: showResult.nodeId,
-          unit_slug: showResult.unitSlug ?? '',
-          created_at: new Date().toISOString(),
-          description: showResult.description,
-          inputs: showResult.inputs,
-          properties: {},
-          orchestratorSettings: {
-            execution: showResult.execution ?? 'serial',
-          },
-        } as import('@chainglass/positional-graph').NodeConfig;
-      }
-    }
+  const configsResult = await svc.loadAllNodeConfigs(ctx, graphSlug);
+  if (configsResult.errors.length > 0) {
+    return { errors: configsResult.errors };
   }
 
-  return { snapshot: { definition, nodeConfigs }, errors: [] };
+  return {
+    snapshot: {
+      definition: loadResult.definition,
+      nodeConfigs: configsResult.nodeConfigs,
+    },
+    errors: [],
+  };
 }
 
 export async function answerQuestion(

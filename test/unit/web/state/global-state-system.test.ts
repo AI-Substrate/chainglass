@@ -77,6 +77,13 @@ describe('GlobalStateSystem', () => {
 
   describe('publish/get', () => {
     it('stores and retrieves value (AC-01)', () => {
+      /**
+       * Why: Foundational contract — publish/get round-trip is the core state operation.
+       * Contract: publish(path, value) followed by get(path) returns the value.
+       * Usage Notes: Domain must be registered before publish.
+       * Quality Contribution: Anchor test all other tests build upon.
+       * Worked Example: publish('test-domain:wf-1:status', 'running') → get() → 'running'
+       */
       registerMultiDomain(svc);
       svc.publish('test-domain:wf-1:status', 'running');
       expect(svc.get('test-domain:wf-1:status')).toBe('running');
@@ -95,6 +102,13 @@ describe('GlobalStateSystem', () => {
     });
 
     it('returns stable object reference (AC-03)', () => {
+      /**
+       * Why: useSyncExternalStore requires Object.is stability to avoid re-renders.
+       * Contract: Consecutive get() calls without intervening publish return same reference.
+       * Usage Notes: Implementation must not clone/copy values in get().
+       * Quality Contribution: Prevents subtle React render loops from defensive copies.
+       * Worked Example: publish(obj) → get() === get() via Object.is
+       */
       registerMultiDomain(svc);
       const obj = { nested: true };
       svc.publish('test-domain:wf-1:status', obj);
@@ -104,6 +118,13 @@ describe('GlobalStateSystem', () => {
     });
 
     it('throws on unregistered domain (AC-08)', () => {
+      /**
+       * Why: Fail-fast prevents silent publishing to typo'd domain names.
+       * Contract: publish to unregistered domain throws with descriptive message.
+       * Usage Notes: registerDomain() must be called before any publish.
+       * Quality Contribution: Catches wiring errors at dev time rather than silently dropping state.
+       * Worked Example: publish('unknown:wf-1:status', val) → throws /unregistered/i
+       */
       expect(() => svc.publish('unknown:wf-1:status', 'val')).toThrow(/unknown|unregistered/i);
     });
   });
@@ -114,6 +135,13 @@ describe('GlobalStateSystem', () => {
 
   describe('singleton/multi-instance validation', () => {
     it('singleton rejects path with instance ID (AC-13)', () => {
+      /**
+       * Why: Singleton domains must not accept instance IDs — enforces domain model.
+       * Contract: publish('singleton:inst:prop') throws for singleton domain.
+       * Usage Notes: Singletons use 2-segment paths (domain:property).
+       * Quality Contribution: Prevents accidental multi-instance usage of singleton domains.
+       * Worked Example: registerDomain({multiInstance:false}) + publish('s:id:prop') → throws
+       */
       registerSingletonDomain(svc);
       expect(() => svc.publish('singleton:inst-1:active-file', 'x')).toThrow();
     });
@@ -125,6 +153,13 @@ describe('GlobalStateSystem', () => {
     });
 
     it('multi-instance rejects 2-segment path (AC-14)', () => {
+      /**
+       * Why: Multi-instance domains require instance IDs to disambiguate entries.
+       * Contract: publish('domain:property') throws for multi-instance domain.
+       * Usage Notes: Multi-instance domains use 3-segment paths (domain:id:property).
+       * Quality Contribution: Catches missing instance ID at publish time.
+       * Worked Example: registerDomain({multiInstance:true}) + publish('d:prop') → throws
+       */
       registerMultiDomain(svc);
       expect(() => svc.publish('test-domain:status', 'val')).toThrow();
     });
@@ -239,6 +274,13 @@ describe('GlobalStateSystem', () => {
 
   describe('error isolation', () => {
     it('throwing subscriber does not block other subscribers (AC-22)', () => {
+      /**
+       * Why: Per PL-07, error isolation prevents one bad subscriber from silencing others.
+       * Contract: Throwing subscriber is called, non-throwing subscriber still receives.
+       * Usage Notes: Implementation must wrap each callback in try/catch.
+       * Quality Contribution: Prevents cascading failures in production.
+       * Worked Example: subscriber1 throws → subscriber2 still receives 'running'
+       */
       registerMultiDomain(svc);
       const received: string[] = [];
       let throwerCalled = false;
@@ -263,6 +305,13 @@ describe('GlobalStateSystem', () => {
 
   describe('store-first ordering', () => {
     it('value is readable in subscriber callback (AC-24)', () => {
+      /**
+       * Why: Per PL-01, store-first ordering prevents stale reads inside callbacks.
+       * Contract: get() inside subscriber callback returns the just-published value.
+       * Usage Notes: If implementation notifies before storing, this test catches it.
+       * Quality Contribution: Validates the most critical ordering invariant.
+       * Worked Example: subscribe → publish('running') → get() in callback → 'running'
+       */
       registerMultiDomain(svc);
       let readInCallback: unknown;
 
@@ -281,6 +330,13 @@ describe('GlobalStateSystem', () => {
 
   describe('remove', () => {
     it('notifies with removed flag (AC-04)', () => {
+      /**
+       * Why: Consumers must know when state is removed vs updated.
+       * Contract: remove() notifies with removed:true and previousValue.
+       * Usage Notes: After remove, get() returns undefined.
+       * Quality Contribution: Ensures cleanup signals propagate correctly.
+       * Worked Example: publish then remove → subscriber gets {removed:true, previousValue}
+       */
       registerMultiDomain(svc);
       svc.publish('test-domain:wf-1:status', 'running');
 
@@ -306,6 +362,13 @@ describe('GlobalStateSystem', () => {
 
   describe('removeInstance', () => {
     it('removes all instance entries and notifies (AC-05)', () => {
+      /**
+       * Why: Instance cleanup must remove all properties and notify subscribers.
+       * Contract: removeInstance removes all entries for domain:instanceId:* and notifies each.
+       * Usage Notes: Used when a workflow instance is disposed.
+       * Quality Contribution: Prevents orphaned state entries after instance teardown.
+       * Worked Example: removeInstance('test-domain','wf-1') → all wf-1 entries gone, subscribers notified
+       */
       registerMultiDomain(svc);
       svc.publish('test-domain:wf-1:status', 'running');
       svc.publish('test-domain:wf-1:progress', 50);
@@ -365,6 +428,13 @@ describe('GlobalStateSystem', () => {
     });
 
     it('returns stable array reference when unchanged (AC-26)', () => {
+      /**
+       * Why: useSyncExternalStore requires stable references to avoid infinite re-renders.
+       * Contract: Consecutive list() calls with no intervening publish return same array ref.
+       * Usage Notes: Critical for React integration — unstable refs cause render loops.
+       * Quality Contribution: Pins the caching contract that AC-26 specifies.
+       * Worked Example: list('test-domain:**') twice → Object.is(a, b) === true
+       */
       registerMultiDomain(svc);
       svc.publish('test-domain:wf-1:status', 'running');
 
@@ -373,7 +443,7 @@ describe('GlobalStateSystem', () => {
       expect(a).toBe(b); // Same reference
     });
 
-    it('returns new array after publish invalidates cache', () => {
+    it('returns new array after matching publish invalidates cache', () => {
       registerMultiDomain(svc);
       svc.publish('test-domain:wf-1:status', 'running');
 
@@ -383,6 +453,24 @@ describe('GlobalStateSystem', () => {
 
       expect(before).not.toBe(after);
       expect(after).toHaveLength(2);
+    });
+
+    it('preserves stable ref when non-matching publish occurs (AC-26)', () => {
+      /**
+       * Why: Pattern-scoped invalidation ensures unrelated publishes don't break caches.
+       * Contract: list() for pattern A is unaffected by publish to path not matching A.
+       * Usage Notes: Without this, every publish would invalidate all list() caches globally.
+       * Quality Contribution: Validates pattern-scoped cache invalidation per AC-26.
+       * Worked Example: list('test-domain:wf-1:*') stable after publish to wf-2
+       */
+      registerMultiDomain(svc);
+      svc.publish('test-domain:wf-1:status', 'running');
+
+      const before = svc.list('test-domain:wf-1:*');
+      svc.publish('test-domain:wf-2:status', 'pending'); // non-matching pattern
+      const after = svc.list('test-domain:wf-1:*');
+
+      expect(before).toBe(after); // Same ref — wf-2 publish doesn't affect wf-1 cache
     });
   });
 

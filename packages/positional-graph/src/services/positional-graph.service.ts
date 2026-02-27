@@ -2743,6 +2743,26 @@ export class PositionalGraphService implements IPositionalGraphService {
       };
     }
   }
+
+  async loadAllNodeConfigs(
+    ctx: WorkspaceContext,
+    graphSlug: string
+  ): Promise<{ nodeConfigs: Record<string, NodeConfig>; errors: import('@chainglass/shared').ResultError[] }> {
+    const loaded = await this.loadGraphDefinition(ctx, graphSlug);
+    if (!loaded.ok) return { nodeConfigs: {}, errors: loaded.errors };
+
+    const nodeConfigs: Record<string, NodeConfig> = {};
+    const allNodeIds = this.getAllNodeIds(loaded.definition);
+
+    for (const nodeId of allNodeIds) {
+      const result = await this.loadNodeConfig(ctx, graphSlug, nodeId);
+      if (result.ok) {
+        nodeConfigs[nodeId] = result.config;
+      }
+    }
+
+    return { nodeConfigs, errors: [] };
+  }
 }
 
 /** Detect binary content by checking for control characters (avoids regex control char lint). */

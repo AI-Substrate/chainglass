@@ -67,7 +67,7 @@ export class GlobalStateSystem implements IStateService {
     const entry: StateEntry = { path, value, updatedAt: now };
     this.store.set(path, entry);
     this.storeVersion++;
-    this.listCache.clear();
+    this.invalidateMatchingCaches(path);
 
     const change: StateChange = {
       path,
@@ -129,7 +129,7 @@ export class GlobalStateSystem implements IStateService {
 
     this.store.delete(path);
     this.storeVersion++;
-    this.listCache.clear();
+    this.invalidateMatchingCaches(path);
 
     const change: StateChange = {
       path,
@@ -196,6 +196,15 @@ export class GlobalStateSystem implements IStateService {
       throw new Error(
         `Domain "${domain}" is a singleton but path has instance ID "${instanceId}". Use domain:property format.`
       );
+    }
+  }
+
+  private invalidateMatchingCaches(changedPath: string): void {
+    for (const [pattern] of this.listCache) {
+      const matcher = createStateMatcher(pattern);
+      if (matcher(changedPath)) {
+        this.listCache.delete(pattern);
+      }
     }
   }
 

@@ -605,6 +605,14 @@ export class FakePositionalGraphService implements IPositionalGraphService {
     return { errors: [] };
   }
 
+  async loadAllNodeConfigs(
+    ctx: WorkspaceContext,
+    graphSlug: string
+  ): Promise<{ nodeConfigs: Record<string, import('../schemas/node.schema.js').NodeConfig>; errors: import('@chainglass/shared').ResultError[] }> {
+    this.track('loadAllNodeConfigs', [ctx, graphSlug]);
+    return { nodeConfigs: {}, errors: [] };
+  }
+
   /** Reset all call tracking and preset results */
   reset(): void {
     this.calls.clear();
