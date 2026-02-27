@@ -29,13 +29,18 @@ export interface ActionState {
     description?: string[];
     _form?: string[];
   };
+  /** Preserve submitted field values so form inputs aren't cleared on error */
+  fields?: {
+    name?: string;
+    path?: string;
+  };
 }
 
 // ==================== Validation Schemas ====================
 
 const AddWorkspaceSchema = z.object({
-  name: z.string().min(1, 'Name is required').max(100, 'Name must be 100 characters or less'),
-  path: z.string().min(1, 'Path is required').startsWith('/', 'Path must be absolute'),
+  name: z.string().transform((s) => s.trim()).pipe(z.string().min(1, 'Name is required').max(100, 'Name must be 100 characters or less')),
+  path: z.string().transform((s) => s.trim()).pipe(z.string().min(1, 'Path is required').startsWith('/', 'Path must be absolute')),
 });
 
 const AddSampleSchema = z.object({
@@ -58,16 +63,20 @@ export async function addWorkspace(
   _prevState: ActionState,
   formData: FormData
 ): Promise<ActionState> {
-  // Validate input
+  const rawName = (formData.get('name') as string) ?? '';
+  const rawPath = (formData.get('path') as string) ?? '';
+
+  // Validate input (schema trims whitespace before validation)
   const validatedFields = AddWorkspaceSchema.safeParse({
-    name: formData.get('name'),
-    path: formData.get('path'),
+    name: rawName,
+    path: rawPath,
   });
 
   if (!validatedFields.success) {
     return {
       success: false,
       errors: validatedFields.error.flatten().fieldErrors,
+      fields: { name: rawName, path: rawPath },
     };
   }
 
@@ -87,6 +96,7 @@ export async function addWorkspace(
         errors: {
           _form: result.errors.map((e) => e.message),
         },
+        fields: { name, path },
       };
     }
 
