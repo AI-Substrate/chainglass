@@ -182,3 +182,23 @@ Audit completed during dossier preparation. Full blast radius documented in task
 - Commit: `a42e27f`
 
 ---
+
+## Testing Strategy Exception: Deletion Phase
+
+Phase 7 is a **pure deletion and cleanup phase** — no new production code was written. The standard RED→GREEN→REFACTOR TDD cycle does not apply because:
+
+1. **No new behavior to test**: Every change is a file deletion or removal of imports/registrations
+2. **Existing tests are the quality gate**: Removing code that existing tests depend on surfaces breakage immediately
+3. **Validation approach**: Run full test suite after each deletion cluster to catch cascading failures
+
+**Validation evidence chain:**
+- After T002-T003 (deletions): DI container build error surfaced → fixed in T005
+- After T004-T005 (adapter + DI cleanup): 7 test files failed → 4 orphaned test files deleted, 1 integration test updated, 2 cross-referencing tests updated
+- After T006-T007 (test cleanup + refs): `pnpm test` → 323 passed, 2 failed (pre-existing), 9 skipped
+- After T008-T009 (docs + validation): Next.js MCP confirms zero errors, zero workgraph routes
+- Browser automation: workflow editor page and worktree page both render correctly
+- `grep -ri workgraph apps/web/src/ apps/web/app/` → exit code 1 (zero results)
+
+**Pre-existing failures (not caused by Phase 7):**
+- `test/unit/web/features/050-workflow-page/workflow-canvas.test.tsx` — `border-l-blue-500` / `border-l-green-500` CSS class expectations (Phase 4 UI redesign)
+- `test/unit/web/features/050-workflow-page/gate-chip.test.tsx` — gate chip expand test (Phase 4 UI redesign)

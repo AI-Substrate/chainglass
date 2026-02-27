@@ -47,10 +47,10 @@ Central event platform for the entire application. Owns the full pipeline from f
 - `FakeFileChangeWatcherAdapter` (Plan 045)
 
 ### Does NOT Own
-- **Business-domain watcher adapters** (e.g., `WorkGraphWatcherAdapter`) — owned by their respective business domains
-- **Business-domain SSE consumer hooks** (e.g., `useWorkGraphSSE`) — owned by workgraph UI domain
+- **Business-domain watcher adapters** (e.g., `WorkflowWatcherAdapter`) — owned by their respective business domains
+- **Business-domain SSE consumer hooks** (e.g., `useWorkflowSSE`) — owned by workflow UI domain
 - **Agent notifier service** (`AgentNotifierService`) — owned by agent domain, consumes `ISSEBroadcaster`
-- **Business-domain event types** (e.g., `WorkGraphChangedEvent`) — owned by respective domains
+- **Business-domain event types** (e.g., `WorkflowStructureChangedEvent`) — owned by respective domains
 - **UI components that consume events** (e.g., file tree animations, "externally changed" banner) — owned by consuming features
 - **Feature-specific subscription hooks** (e.g., `useTreeDirectoryChanges`) — owned by consuming features, built on `useFileChanges`
 
@@ -63,7 +63,7 @@ Central event platform for the entire application. Owns the full pipeline from f
 | `ISSEBroadcaster` | Interface | Agent notifier, central event notifier | `broadcast(channel, eventType, data)` |
 | `ICentralWatcherService` | Interface | Bootstrap, DI container | `start()`, `registerAdapter()` |
 | `IWatcherAdapter` | Interface | Concrete watcher adapters | `handleEvent(WatcherEvent)` callback contract |
-| `WorkspaceDomain` | Const object | Adapters, hooks, routes | Channel name registry (`Workgraphs`, `Agents`, `FileChanges`) |
+| `WorkspaceDomain` | Const object | Adapters, hooks, routes | Channel name registry (`Workflows`, `Agents`, `FileChanges`; `Workgraphs` deprecated) |
 | `useSSE` | Hook | Feature-specific SSE hooks | Generic SSE connection with reconnection |
 | `useWorkspaceSSE` | Hook | Workflow content, kanban | Workspace-scoped SSE subscription |
 | `FileChangeHub` | Class | FileChangeProvider, testing | Client-side pattern-based event dispatcher |
@@ -151,9 +151,8 @@ Primary: scattered across `packages/shared`, `packages/workflow`, `apps/web` (Pl
 
 ### Domains That Depend On This
 - `file-browser` — uses `toast()`, `useFileChanges`, `FileChangeProvider` for live file updates
-- Workgraph UI (022) — `useWorkGraphSSE` consumes `useSSE`; `toast.info()` for external changes
+- Workflow UI (050) — `useWorkflowSSE` consumes `useSSE`; `toast.info()` for external changes
 - Agent UI (019) — `AgentNotifierService` consumes `ISSEBroadcaster`
-- Workflow content — consumes `useWorkspaceSSE`
 
 ## History
 
@@ -165,7 +164,8 @@ Primary: scattered across `packages/shared`, `packages/workflow`, `apps/web` (Pl
 | ADR-0010 | Architecture decision: three-layer notification pattern | 2026-02-03 |
 | Plan 041 FX001 | Toast system workshop (sonner), domain extraction | 2026-02-24 |
 | *(extracted)* | Domain formalized as _platform/notifications from Plans 019, 023, 027 | 2026-02-24 |
-| Plan 042 | Global toast: installed sonner, Toaster wrapper, wired file browser + workgraph | 2026-02-24 |
+| Plan 042 | Global toast: installed sonner, Toaster wrapper, wired file browser | 2026-02-24 |
 | Plan 045 | Renamed _platform/notifications → _platform/events. Added FileChangeWatcherAdapter, FileChangeDomainEventAdapter, FileChangeHub, FileChangeProvider, useFileChanges. Expanded from notification transport to full event platform | 2026-02-24 |
 | Plan 045 (E2E fix) | Fixed SOURCE_WATCHER_IGNORED to use function-based path-segment matching (glob patterns unreliable with chokidar). Added handleRefreshDir for cache-bypass tree refresh. All 3 phases verified working end-to-end | 2026-02-24 |
 | 047-usdk Phase 6 | SDK contribution (toast.show, toast.dismiss commands) | 2026-02-25 |
+| 050 Phase 6-7 | Added WorkflowWatcherAdapter + WorkflowDomainEventAdapter; removed WorkGraphWatcherAdapter + WorkGraphDomainEventAdapter; added Workflows channel; deprecated Workgraphs channel | 2026-02-27 |

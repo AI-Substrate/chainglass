@@ -39,10 +39,10 @@ Legacy workspace-scoped graph CRUD adapter layer. Provides graph creation, node 
 
 | Contract | Type | Consumers | Description |
 |----------|------|-----------|-------------|
-| `IWorkGraphService` | Interface | CLI (`cg wg`), Web UI (022), API routes, tests | Graph CRUD — create, load, show, status, edge management |
-| `IWorkNodeService` | Interface | CLI (`cg wg`), Web UI (022), API routes, tests | Node operations — can-run, mark-ready, start, end |
-| `IWorkUnitService` | Interface | CLI (`cg unit`), Web UI (022), API routes, tests | Work unit enumeration, validation, info |
-| `registerWorkgraphServices()` | Function | CLI (container), web (di-container) | DI registration for all workgraph services |
+| `IWorkGraphService` | Interface | CLI (`cg wg`), tests | Graph CRUD — create, load, show, status, edge management |
+| `IWorkNodeService` | Interface | CLI (`cg wg`), tests | Node operations — can-run, mark-ready, start, end |
+| `IWorkUnitService` | Interface | CLI (`cg unit`), tests | Work unit enumeration, validation, info |
+| `registerWorkgraphServices()` | Function | CLI (container) | DI registration for all workgraph services |
 | `WORKGRAPH_DI_TOKENS` | Constants | CLI, web, tests | DI token namespace (defined in @chainglass/shared) |
 | `FakeWorkGraphService` | Class | Tests (contract, unit) | Test double with call tracking and return builders |
 | `FakeWorkNodeService` | Class | Tests (contract, unit) | Test double for node operations |
@@ -89,10 +89,7 @@ Primary: `packages/workgraph/src/`
 | Consumer | What It Consumes | Notes |
 |----------|-----------------|-------|
 | CLI (`apps/cli/`) | `IWorkGraphService`, `IWorkNodeService`, `IWorkUnitService` | `cg wg` and `cg unit` commands |
-| Web UI (feature 022) | All 3 service interfaces | workgraph-canvas, workgraph-node, workunit-toolbox, API routes |
-| Web API routes | `IWorkGraphService`, `IWorkNodeService`, `IWorkUnitService` | workgraphs/, nodes/, edges/, units/ routes |
-| Event adapters (features 023, 027) | `WorkGraphChangedEvent` | workgraph-watcher.adapter, workgraph-domain-event-adapter |
-| Test suite | All interfaces + fakes | 27+ test files across unit/integration/contract |
+| Test suite | All interfaces + fakes | Unit/integration/contract tests for the package |
 
 ## History
 
@@ -104,6 +101,7 @@ Primary: `packages/workgraph/src/`
 | 023 | Central watcher notifications — event adapter for file changes | 2025 |
 | 027 | Central domain event notifications — domain event adapter | 2025 |
 | 048 | Domain extracted from existing codebase; marked deprecated | 2026-02-25 |
+| 050 Phase 7 | Web consumers removed (pages, API routes, feature 022, event adapters, DI registrations). Domain is now CLI-only. | 2026-02-27 |
 
 ## Successor
 
