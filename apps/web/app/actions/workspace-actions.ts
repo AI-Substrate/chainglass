@@ -9,9 +9,9 @@
  * Uses revalidatePath for cache invalidation after successful operations.
  */
 
+import { existsSync, statSync } from 'node:fs';
 import { WORKSPACE_DI_TOKENS } from '@chainglass/shared';
 import type { ISampleService, IWorkspaceService } from '@chainglass/workflow';
-import { existsSync, statSync } from 'node:fs';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { getContainer } from '../../src/lib/bootstrap-singleton';
@@ -40,8 +40,14 @@ export interface ActionState {
 // ==================== Validation Schemas ====================
 
 const AddWorkspaceSchema = z.object({
-  name: z.string().transform((s) => s.trim()).pipe(z.string().min(1, 'Name is required').max(100, 'Name must be 100 characters or less')),
-  path: z.string().transform((s) => s.trim()).pipe(z.string().min(1, 'Path is required').startsWith('/', 'Path must be absolute')),
+  name: z
+    .string()
+    .transform((s) => s.trim())
+    .pipe(z.string().min(1, 'Name is required').max(100, 'Name must be 100 characters or less')),
+  path: z
+    .string()
+    .transform((s) => s.trim())
+    .pipe(z.string().min(1, 'Path is required').startsWith('/', 'Path must be absolute')),
 });
 
 const AddSampleSchema = z.object({

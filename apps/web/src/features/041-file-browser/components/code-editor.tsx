@@ -80,7 +80,14 @@ export interface CodeEditorProps {
   wordWrap?: boolean;
 }
 
-export function CodeEditor({ value, language, onChange, readOnly, scrollToLine, wordWrap = true }: CodeEditorProps) {
+export function CodeEditor({
+  value,
+  language,
+  onChange,
+  readOnly,
+  scrollToLine,
+  wordWrap = true,
+}: CodeEditorProps) {
   const { resolvedTheme } = useTheme();
   const viewRef = useRef<EditorView | null>(null);
 
@@ -92,7 +99,11 @@ export function CodeEditor({ value, language, onChange, readOnly, scrollToLine, 
     // After geometry changes, re-scroll to target line if needed
     exts.push(
       EditorView.updateListener.of((update) => {
-        if (update.geometryChanged && scrollToLineRef.current != null && scrollToLineRef.current > 0) {
+        if (
+          update.geometryChanged &&
+          scrollToLineRef.current != null &&
+          scrollToLineRef.current > 0
+        ) {
           const line = scrollToLineRef.current;
           const view = update.view;
           const docLines = view.state.doc.lines;

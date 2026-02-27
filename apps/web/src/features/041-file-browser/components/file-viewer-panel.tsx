@@ -269,14 +269,14 @@ export function FileViewerPanel({
       >
         <Suspense fallback={<LoadingFallback />}>
           {mode === 'edit' && (
-              <CodeEditor
-                key={filePath}
-                value={currentContent}
-                language={language}
-                onChange={onEditChange}
-                scrollToLine={scrollToLine}
-                wordWrap={wordWrap}
-              />
+            <CodeEditor
+              key={filePath}
+              value={currentContent}
+              language={language}
+              onChange={onEditChange}
+              scrollToLine={scrollToLine}
+              wordWrap={wordWrap}
+            />
           )}
           {mode === 'preview' && (
             <div className="p-4">
