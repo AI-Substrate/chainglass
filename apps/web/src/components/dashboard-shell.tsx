@@ -27,7 +27,7 @@ import type { ReactNode } from 'react';
 export function DashboardShell({ children }: { children: ReactNode }) {
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen w-full">
+      <div className="flex h-screen w-full">
         <DashboardSidebar />
         <SidebarInset>
           <main className="flex-1 overflow-hidden min-w-0">{children}</main>

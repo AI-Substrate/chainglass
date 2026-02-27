@@ -445,8 +445,7 @@ function BrowserClientInner({
             codeSearchGraphAge={flowspace.graphAge}
             codeSearchFolders={flowspace.folders}
             onCodeSearchSelect={(filePath, startLine) => {
-              fileNav.handleSelect(filePath);
-              setParams({ line: startLine }, { history: 'replace' });
+              setParams({ file: filePath, line: startLine, mode: 'edit' }, { history: 'push' });
             }}
             onFlowspaceQueryChange={(query, mode) => {
               setActiveCodeSearchMode(mode);

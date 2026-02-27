@@ -89,6 +89,29 @@ export function CodeEditor({ value, language, onChange, readOnly, scrollToLine, 
     const exts: Extension[] = [activeLineHighlight];
     if (wordWrap) exts.push(EditorView.lineWrapping);
     if (langExt) exts.push(langExt());
+    // After geometry changes, re-scroll to target line if needed
+    exts.push(
+      EditorView.updateListener.of((update) => {
+        if (update.geometryChanged && scrollToLineRef.current != null && scrollToLineRef.current > 0) {
+          const line = scrollToLineRef.current;
+          const view = update.view;
+          const docLines = view.state.doc.lines;
+          if (line >= 1 && line <= docLines) {
+            const lineInfo = view.state.doc.line(line);
+            const lineBlock = view.lineBlockAt(lineInfo.from);
+            const { top, bottom } = view.viewport;
+            // Only re-scroll if the target line is outside the visible viewport
+            if (lineBlock.top < top || lineBlock.bottom > bottom) {
+              setTimeout(() => {
+                view.dispatch({
+                  effects: EditorView.scrollIntoView(lineInfo.from, { y: 'center' }),
+                });
+              }, 0);
+            }
+          }
+        }
+      })
+    );
     return exts;
   }, [language, wordWrap]);
 
@@ -105,11 +128,13 @@ export function CodeEditor({ value, language, onChange, readOnly, scrollToLine, 
     }
   }, []);
 
-  // Scroll to line when prop changes after mount
+  // Scroll to line when prop changes or content loads — the updateListener
+  // extension handles retries as CM renders virtualized content
+  // biome-ignore lint/correctness/useExhaustiveDependencies: need to re-scroll when value changes (content loaded async)
   useEffect(() => {
     if (scrollToLine == null || scrollToLine <= 0 || !viewRef.current) return;
     scrollViewToLine(viewRef.current, scrollToLine);
-  }, [scrollToLine]);
+  }, [scrollToLine, value]);
 
   return (
     <ReactCodeMirror
@@ -125,7 +150,7 @@ export function CodeEditor({ value, language, onChange, readOnly, scrollToLine, 
         highlightActiveLine: true,
         bracketMatching: true,
       }}
-      className="min-h-[300px] border rounded-md overflow-hidden"
+      className="flex-1 min-h-0 [&_.cm-editor]:h-full [&_.cm-scroller]:!overflow-auto"
     />
   );
 }
@@ -138,5 +163,6 @@ function scrollViewToLine(view: EditorView, line: number): void {
   view.dispatch({
     selection: { anchor: lineInfo.from },
     effects: EditorView.scrollIntoView(lineInfo.from, { y: 'center' }),
+    scrollIntoView: true,
   });
 }

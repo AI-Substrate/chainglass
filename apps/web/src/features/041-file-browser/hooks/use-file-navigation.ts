@@ -120,10 +120,34 @@ export function useFileNavigation(options: UseFileNavigationOptions) {
         handleExpand(current);
       }
       if (!fileData) {
-        handleSelect(initialFile);
+        // Load content only — don't call handleSelect which rewrites URL and clears line param
+        readFileFn(slug, worktreePath, initialFile)
+          .then((result) => {
+            setFileData(result);
+            if (result.ok && !result.isBinary) {
+              setEditContent(result.content);
+            }
+          })
+          .catch((error) => console.error('Failed to read file:', error));
       }
     }
   }, []);
+
+  // Load file when initialFile changes via URL params (e.g. code search navigation)
+  const prevFileRef = useRef(initialFile);
+  useEffect(() => {
+    if (initialFile && initialFile !== prevFileRef.current) {
+      prevFileRef.current = initialFile;
+      readFileFn(slug, worktreePath, initialFile)
+        .then((result) => {
+          setFileData(result);
+          if (result.ok && !result.isBinary) {
+            setEditContent(result.content);
+          }
+        })
+        .catch((error) => console.error('Failed to read file:', error));
+    }
+  }, [initialFile, slug, worktreePath, readFileFn]);
 
   const handleModeChange = useCallback(
     async (newMode: ViewerMode) => {

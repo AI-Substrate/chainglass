@@ -116,7 +116,7 @@ export function FileViewerPanel({
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally reset scroll state when file changes
   useEffect(() => {
     setScrolledDown(false);
-    if (typeof scrollRef.current?.scrollTo === 'function') {
+    if (!scrollToLine && typeof scrollRef.current?.scrollTo === 'function') {
       scrollRef.current.scrollTo({ top: 0 });
     }
   }, [filePath]);
@@ -261,19 +261,22 @@ export function FileViewerPanel({
         </div>
       )}
 
-      {/* Content area */}
-      <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-auto">
+      {/* Content area — in edit mode, CodeEditor fills this entirely via flex */}
+      <div
+        ref={mode !== 'edit' ? scrollRef : undefined}
+        onScroll={mode !== 'edit' ? handleScroll : undefined}
+        className={mode === 'edit' ? 'flex-1 min-h-0 flex flex-col' : 'flex-1 overflow-auto'}
+      >
         <Suspense fallback={<LoadingFallback />}>
           {mode === 'edit' && (
-            <div className="h-full">
               <CodeEditor
+                key={filePath}
                 value={currentContent}
                 language={language}
                 onChange={onEditChange}
                 scrollToLine={scrollToLine}
                 wordWrap={wordWrap}
               />
-            </div>
           )}
           {mode === 'preview' && (
             <div className="p-4">
