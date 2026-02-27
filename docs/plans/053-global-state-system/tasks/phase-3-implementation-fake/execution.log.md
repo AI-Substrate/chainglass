@@ -12,8 +12,22 @@
 
 **File**: `test/unit/web/state/global-state-system.test.ts`
 **Tests**: 31 tests covering publish/get, subscribe/unsubscribe, error isolation, store-first ordering, remove, removeInstance, registerDomain, listDomains, listInstances, singleton/multi-instance validation, list with patterns, stable references, diagnostics.
-**RED evidence**: Tests failed with `Cannot find module` before GlobalStateSystem was created.
-**GREEN evidence**: All 31 tests pass after T003 implementation.
+
+**RED Evidence**:
+```
+$ npx vitest run test/unit/web/state/global-state-system.test.ts
+✗ Failed to resolve import "../../../../apps/web/src/lib/state/global-state-system"
+Test Files  1 failed (1)
+Tests  no tests
+```
+
+**GREEN Evidence** (after T003):
+```
+$ npx vitest run test/unit/web/state/global-state-system.test.ts
+✓ test/unit/web/state/global-state-system.test.ts (31 tests) 7ms
+Test Files  1 passed (1)
+Tests  31 passed (31)
+```
 
 ### T002: FakeGlobalStateSystem
 

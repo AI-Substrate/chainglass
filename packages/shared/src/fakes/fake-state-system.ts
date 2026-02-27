@@ -27,7 +27,6 @@ interface Subscription {
 }
 
 interface ListCacheEntry {
-  version: number;
   result: StateEntry[];
 }
 
@@ -37,7 +36,6 @@ export class FakeGlobalStateSystem implements IStateService {
   private readonly subscriptions = new Map<number, Subscription>();
   private readonly listCache = new Map<string, ListCacheEntry>();
   private nextSubId = 0;
-  private storeVersion = 0;
 
   // ── Domain Registration ──
 
@@ -65,7 +63,6 @@ export class FakeGlobalStateSystem implements IStateService {
     // Store-first (PL-01): update Map before notifying
     const entry: StateEntry = { path, value, updatedAt: now };
     this.store.set(path, entry);
-    this.storeVersion++;
     this.invalidateMatchingCaches(path);
 
     const change: StateChange = {
@@ -90,7 +87,7 @@ export class FakeGlobalStateSystem implements IStateService {
 
   list(pattern: string): StateEntry[] {
     const cached = this.listCache.get(pattern);
-    if (cached && cached.version === this.storeVersion) {
+    if (cached) {
       return cached.result;
     }
 
@@ -102,7 +99,7 @@ export class FakeGlobalStateSystem implements IStateService {
       }
     }
 
-    this.listCache.set(pattern, { version: this.storeVersion, result });
+    this.listCache.set(pattern, { result });
     return result;
   }
 
@@ -127,7 +124,6 @@ export class FakeGlobalStateSystem implements IStateService {
     const previousValue = entry.value;
 
     this.store.delete(path);
-    this.storeVersion++;
     this.invalidateMatchingCaches(path);
 
     const change: StateChange = {
@@ -204,7 +200,6 @@ export class FakeGlobalStateSystem implements IStateService {
     this.subscriptions.clear();
     this.listCache.clear();
     this.nextSubId = 0;
-    this.storeVersion = 0;
   }
 
   // ── Private ──

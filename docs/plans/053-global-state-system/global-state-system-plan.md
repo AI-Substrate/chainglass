@@ -56,6 +56,7 @@ Runtime state in Chainglass is scattered across ad-hoc React hooks, SSE connecti
 | `packages/shared/src/state/tokens.ts` | `_platform/state` | contract | STATE_DI_TOKENS |
 | `packages/shared/src/state/index.ts` | `_platform/state` | contract | Barrel exports |
 | `packages/shared/src/fakes/fake-state-system.ts` | `_platform/state` | contract | FakeGlobalStateSystem test double |
+| `packages/shared/src/fakes/index.ts` | `_platform/state` | contract | Export FakeGlobalStateSystem from fakes barrel |
 | `packages/shared/package.json` | `_platform/state` | internal | Add `./state` export entry |
 | `apps/web/src/lib/state/global-state-system.ts` | `_platform/state` | internal | GlobalStateSystem implementation |
 | `apps/web/src/lib/state/state-provider.tsx` | `_platform/state` | contract | GlobalStateProvider + useStateSystem |

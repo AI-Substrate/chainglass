@@ -13,6 +13,7 @@
 import type { StateChange } from '@chainglass/shared/state';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { GlobalStateSystem } from '../../../../apps/web/src/lib/state/global-state-system';
+import { FakeGlobalStateSystem } from '../../../../packages/shared/src/fakes/fake-state-system';
 
 function registerMultiDomain(svc: GlobalStateSystem): void {
   svc.registerDomain({
@@ -509,5 +510,109 @@ describe('GlobalStateSystem', () => {
       svc.remove('test-domain:wf-1:status');
       expect(svc.entryCount).toBe(1);
     });
+  });
+
+  // ═══════════════════════════════════════════════
+  // Synchronous Notification (FT-007)
+  // ═══════════════════════════════════════════════
+
+  describe('synchronous notification', () => {
+    it('publish notifies subscribers synchronously', () => {
+      /**
+       * Why: Synchronous dispatch is architecturally required — no microtask deferral.
+       * Contract: Subscriber side effect is visible immediately after publish() returns.
+       * Usage Notes: Ensures predictable ordering for imperative publisher code.
+       * Quality Contribution: Pins synchronous dispatch guarantee explicitly.
+       * Worked Example: subscribe → publish → called===true immediately (no await)
+       */
+      registerMultiDomain(svc);
+      let called = false;
+      svc.subscribe('test-domain:wf-1:status', () => {
+        called = true;
+      });
+      svc.publish('test-domain:wf-1:status', 'running');
+      expect(called).toBe(true);
+    });
+  });
+});
+
+// ═══════════════════════════════════════════════
+// FakeGlobalStateSystem Inspection Methods (AC-33)
+// ═══════════════════════════════════════════════
+
+describe('FakeGlobalStateSystem inspection methods (AC-33)', () => {
+  let fake: FakeGlobalStateSystem;
+
+  beforeEach(() => {
+    fake = new FakeGlobalStateSystem();
+    fake.registerDomain({
+      domain: 'test-domain',
+      description: 'Test domain',
+      multiInstance: true,
+      properties: [{ key: 'status', description: 'Status', typeHint: 'string' }],
+    });
+  });
+
+  it('getPublished returns stored entry', () => {
+    /**
+     * Why: Test harnesses need to inspect what was published without subscribing.
+     * Contract: getPublished(path) returns StateEntry after publish, undefined before.
+     * Usage Notes: Used in integration tests to verify domain publishers.
+     * Quality Contribution: Validates the primary fake inspection method.
+     * Worked Example: publish('test-domain:wf-1:status','ok') → getPublished(...).value === 'ok'
+     */
+    expect(fake.getPublished('test-domain:wf-1:status')).toBeUndefined();
+    fake.publish('test-domain:wf-1:status', 'running');
+    const entry = fake.getPublished('test-domain:wf-1:status');
+    expect(entry).toBeDefined();
+    expect(entry?.value).toBe('running');
+  });
+
+  it('getSubscribers returns active patterns', () => {
+    /**
+     * Why: Tests need to verify subscription wiring without triggering publishes.
+     * Contract: getSubscribers() returns array of active subscription patterns.
+     * Usage Notes: Useful for asserting that component setup wired correct patterns.
+     * Quality Contribution: Validates subscription tracking inspection.
+     * Worked Example: subscribe('test-domain:**') → getSubscribers() includes 'test-domain:**'
+     */
+    expect(fake.getSubscribers()).toEqual([]);
+    fake.subscribe('test-domain:**', () => {});
+    fake.subscribe('test-domain:wf-1:status', () => {});
+    expect(fake.getSubscribers()).toEqual(['test-domain:**', 'test-domain:wf-1:status']);
+  });
+
+  it('wasPublishedWith checks value match', () => {
+    /**
+     * Why: Shorthand assertion for verifying publish calls in integration tests.
+     * Contract: wasPublishedWith(path, value) returns true iff current value matches.
+     * Usage Notes: Uses Object.is equality — works for primitives and reference checks.
+     * Quality Contribution: Validates the convenience assertion method.
+     * Worked Example: publish(path, 'ok') → wasPublishedWith(path, 'ok') === true
+     */
+    expect(fake.wasPublishedWith('test-domain:wf-1:status', 'running')).toBe(false);
+    fake.publish('test-domain:wf-1:status', 'running');
+    expect(fake.wasPublishedWith('test-domain:wf-1:status', 'running')).toBe(true);
+    expect(fake.wasPublishedWith('test-domain:wf-1:status', 'wrong')).toBe(false);
+  });
+
+  it('reset clears all state', () => {
+    /**
+     * Why: Test isolation requires full reset between tests.
+     * Contract: reset() clears store, domains, subscriptions — returns to pristine state.
+     * Usage Notes: Called in beforeEach or between test scenarios.
+     * Quality Contribution: Validates reset lifecycle for test double.
+     * Worked Example: publish → subscribe → reset() → entryCount===0, subscriberCount===0
+     */
+    fake.publish('test-domain:wf-1:status', 'running');
+    fake.subscribe('test-domain:**', () => {});
+    expect(fake.entryCount).toBe(1);
+    expect(fake.subscriberCount).toBe(1);
+
+    fake.reset();
+    expect(fake.entryCount).toBe(0);
+    expect(fake.subscriberCount).toBe(0);
+    expect(fake.getPublished('test-domain:wf-1:status')).toBeUndefined();
+    expect(fake.getSubscribers()).toEqual([]);
   });
 });
