@@ -63,13 +63,37 @@ export class InstanceWorkUnitAdapter implements IWorkUnitLoader {
           required: boolean;
           description?: string;
         }>;
+        user_input?: {
+          question_type: 'text' | 'single' | 'multi' | 'confirm';
+          prompt: string;
+          options?: Array<{ key: string; label: string; description?: string }>;
+          default?: string | boolean;
+        };
       }>(content, unitYamlPath);
 
-      const unit: NarrowWorkUnit = {
+      const base = {
         slug: unitDef.slug,
-        type: unitDef.type,
         inputs: unitDef.inputs ?? [],
         outputs: unitDef.outputs,
+      };
+
+      if (unitDef.type === 'user-input' && unitDef.user_input) {
+        const unit: NarrowWorkUnit = {
+          ...base,
+          type: 'user-input' as const,
+          userInput: {
+            prompt: unitDef.user_input.prompt,
+            questionType: unitDef.user_input.question_type,
+            options: unitDef.user_input.options,
+            default: unitDef.user_input.default,
+          },
+        };
+        return { unit, errors: [] };
+      }
+
+      const unit: NarrowWorkUnit = {
+        ...base,
+        type: unitDef.type === 'code' ? ('code' as const) : ('agent' as const),
       };
 
       return { unit, errors: [] };

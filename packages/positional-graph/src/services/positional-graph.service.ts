@@ -1112,10 +1112,9 @@ export class PositionalGraphService implements IPositionalGraphService {
       return leftState?.status === 'complete';
     })();
 
-    return {
+    const base = {
       nodeId,
       unitSlug: nodeConfig.unit_slug,
-      unitType: unitResult.unit?.type ?? 'agent',
       execution: nodeConfig.orchestratorSettings.execution,
       noContext: nodeConfig.orchestratorSettings.noContext ?? false,
       contextFrom: nodeConfig.orchestratorSettings.contextFrom,
@@ -1139,6 +1138,20 @@ export class PositionalGraphService implements IPositionalGraphService {
       startedAt: storedState?.started_at,
       completedAt: storedState?.completed_at,
     };
+
+    const unitType = unitResult.unit?.type ?? 'agent';
+    if (unitType === 'user-input' && unitResult.unit && 'userInput' in unitResult.unit) {
+      return {
+        ...base,
+        unitType: 'user-input' as const,
+        userInput: (unitResult.unit as import('../interfaces/index.js').NarrowUserInputWorkUnit)
+          .userInput,
+      };
+    }
+    if (unitType === 'code') {
+      return { ...base, unitType: 'code' as const };
+    }
+    return { ...base, unitType: 'agent' as const };
   }
 
   /**

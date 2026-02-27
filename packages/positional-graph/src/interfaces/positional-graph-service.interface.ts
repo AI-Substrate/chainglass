@@ -45,12 +45,37 @@ export interface NarrowWorkUnitOutput {
 
 /**
  * Narrow representation of a loaded WorkUnit — just the fields collateInputs needs.
+ * Discriminated union on `type` — each variant carries its own config.
+ * Per Workshop 011: base stays config-free, type-specific data on variants only.
  */
-export interface NarrowWorkUnit {
+export interface NarrowWorkUnitBase {
   slug: string;
-  type: 'agent' | 'code' | 'user-input';
   inputs: NarrowWorkUnitInput[];
   outputs: NarrowWorkUnitOutput[];
+}
+
+export interface NarrowAgentWorkUnit extends NarrowWorkUnitBase {
+  type: 'agent';
+}
+
+export interface NarrowCodeWorkUnit extends NarrowWorkUnitBase {
+  type: 'code';
+}
+
+export interface NarrowUserInputWorkUnit extends NarrowWorkUnitBase {
+  type: 'user-input';
+  userInput: {
+    prompt: string;
+    questionType: 'text' | 'single' | 'multi' | 'confirm';
+    options?: { key: string; label: string; description?: string }[];
+    default?: string | boolean;
+  };
+}
+
+export type NarrowWorkUnit = NarrowAgentWorkUnit | NarrowCodeWorkUnit | NarrowUserInputWorkUnit;
+
+export function isNarrowUserInputUnit(unit: NarrowWorkUnit): unit is NarrowUserInputWorkUnit {
+  return unit.type === 'user-input';
 }
 
 /**
@@ -240,11 +265,12 @@ export type ExecutionStatus = 'pending' | 'ready' | NodeExecutionStatus; // 'sta
 
 /**
  * DYK-I3: execution stays flat for display formatting compatibility.
+ * Discriminated union on `unitType` — type-specific config on variants only.
+ * Per Workshop 011: base carries common fields, UserInputNodeStatus carries userInput.
  */
-export interface NodeStatusResult {
+export interface NodeStatusResultBase {
   nodeId: string;
   unitSlug: string;
-  unitType: 'agent' | 'code' | 'user-input';
   execution: Execution;
   noContext?: boolean;
   contextFrom?: string;
@@ -294,6 +320,30 @@ export interface NodeStatusResult {
 
   startedAt?: string;
   completedAt?: string;
+}
+
+export interface AgentNodeStatus extends NodeStatusResultBase {
+  unitType: 'agent';
+}
+
+export interface CodeNodeStatus extends NodeStatusResultBase {
+  unitType: 'code';
+}
+
+export interface UserInputNodeStatus extends NodeStatusResultBase {
+  unitType: 'user-input';
+  userInput: {
+    prompt: string;
+    questionType: 'text' | 'single' | 'multi' | 'confirm';
+    options?: { key: string; label: string; description?: string }[];
+    default?: string | boolean;
+  };
+}
+
+export type NodeStatusResult = AgentNodeStatus | CodeNodeStatus | UserInputNodeStatus;
+
+export function isUserInputNodeStatus(node: NodeStatusResult): node is UserInputNodeStatus {
+  return node.unitType === 'user-input';
 }
 
 /** A chain-starter is position 0, or any parallel node that breaks a serial chain. */

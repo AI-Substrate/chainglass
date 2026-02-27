@@ -125,13 +125,37 @@ export function buildDiskWorkUnitLoader(workspacePath: string): IWorkUnitLoader 
           type: 'agent' | 'code' | 'user-input';
           inputs?: Array<{ name: string; type: 'data' | 'file'; required: boolean }>;
           outputs: Array<{ name: string; type: 'data' | 'file'; required: boolean }>;
+          user_input?: {
+            question_type: 'text' | 'single' | 'multi' | 'confirm';
+            prompt: string;
+            options?: Array<{ key: string; label: string; description?: string }>;
+            default?: string | boolean;
+          };
         }>(content, unitYamlPath);
+        const base = {
+          slug: parsed.slug,
+          inputs: parsed.inputs ?? [],
+          outputs: parsed.outputs,
+        };
+        if (parsed.type === 'user-input' && parsed.user_input) {
+          return {
+            unit: {
+              ...base,
+              type: 'user-input' as const,
+              userInput: {
+                prompt: parsed.user_input.prompt,
+                questionType: parsed.user_input.question_type,
+                options: parsed.user_input.options,
+                default: parsed.user_input.default,
+              },
+            },
+            errors: [],
+          };
+        }
         return {
           unit: {
-            slug: parsed.slug,
-            type: parsed.type,
-            inputs: parsed.inputs ?? [],
-            outputs: parsed.outputs,
+            ...base,
+            type: parsed.type === 'code' ? ('code' as const) : ('agent' as const),
           },
           errors: [],
         };

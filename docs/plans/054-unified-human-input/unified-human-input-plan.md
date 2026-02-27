@@ -151,7 +151,7 @@ User-input nodes in the workflow editor currently have no input mechanism — th
 
 | Phase | Status | Tasks | Notes |
 |-------|--------|-------|-------|
-| Phase 1: NodeStatusResult + Display Status | Not started | 0/13 | Per [Workshop 011](./workshops/011-discriminated-type-architecture.md) — discriminated unions |
+| Phase 1: NodeStatusResult + Display Status | Complete | 13/13 | Per [Workshop 011](./workshops/011-discriminated-type-architecture.md) — discriminated unions |
 | Phase 2: Human Input Modal + Server Action | Not started | 0/8 | |
 | Phase 3: Demo + Integration + Cleanup | Not started | 0/5 | |
 

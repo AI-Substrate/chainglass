@@ -96,25 +96,49 @@ function buildDiskLoader(workspacePath: string) {
             required: boolean;
             description?: string;
           }>;
+          user_input?: {
+            question_type: 'text' | 'single' | 'multi' | 'confirm';
+            prompt: string;
+            options?: Array<{ key: string; label: string; description?: string }>;
+            default?: string | boolean;
+          };
         };
+        const base = {
+          slug: parsed.slug,
+          inputs: (parsed.inputs ?? []).map((i) => ({
+            name: i.name,
+            type: i.type,
+            required: i.required,
+            description: i.description,
+          })),
+          outputs: (parsed.outputs ?? []).map((o) => ({
+            name: o.name,
+            type: o.type,
+            required: o.required,
+            description: o.description,
+          })),
+        };
+        if (parsed.type === 'user-input' && parsed.user_input) {
+          return {
+            unit: {
+              ...base,
+              type: 'user-input' as const,
+              userInput: {
+                prompt: parsed.user_input.prompt,
+                questionType: parsed.user_input.question_type,
+                options: parsed.user_input.options,
+                default: parsed.user_input.default,
+              },
+            },
+            errors: [] as { code: string; message: string }[],
+          };
+        }
         return {
           unit: {
-            slug: parsed.slug,
-            type: parsed.type,
-            inputs: (parsed.inputs ?? []).map((i) => ({
-              name: i.name,
-              type: i.type,
-              required: i.required,
-              description: i.description,
-            })),
-            outputs: (parsed.outputs ?? []).map((o) => ({
-              name: o.name,
-              type: o.type,
-              required: o.required,
-              description: o.description,
-            })),
+            ...base,
+            type: parsed.type === 'code' ? ('code' as const) : ('agent' as const),
           },
-          errors: [],
+          errors: [] as { code: string; message: string }[],
         };
       } catch {
         return {

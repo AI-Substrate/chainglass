@@ -20,6 +20,7 @@ export type NodeStatus =
   | 'ready'
   | 'starting'
   | 'agent-accepted'
+  | 'awaiting-input'
   | 'waiting-question'
   | 'blocked-error'
   | 'restart-pending'
@@ -65,6 +66,12 @@ const STATUS_MAP: Record<NodeStatus, StatusConfig> = {
     color: '#8B5CF6',
     bgColor: 'bg-violet-50 text-violet-600 dark:bg-violet-950 dark:text-violet-400',
     label: 'Question',
+    icon: '?',
+  },
+  'awaiting-input': {
+    color: '#8B5CF6',
+    bgColor: 'bg-violet-50 text-violet-600 dark:bg-violet-950 dark:text-violet-400',
+    label: 'Awaiting Input',
     icon: '?',
   },
   'blocked-error': {

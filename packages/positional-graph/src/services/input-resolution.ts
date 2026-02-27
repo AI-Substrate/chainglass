@@ -346,10 +346,12 @@ async function resolveInput(
     if (nodeState?.status === 'complete') {
       // Load data
       const data = await loadNodeData(fs, pathResolver, adapter, ctx, graphSlug, srcId);
+      const dataRecord = data as Record<string, unknown> | undefined;
+      const outputs = (dataRecord?.outputs ?? {}) as Record<string, unknown>;
       available.push({
         sourceNodeId: srcId,
         sourceOutput: fromOutput,
-        data: data?.[fromOutput],
+        data: outputs[fromOutput] ?? dataRecord?.[fromOutput],
       });
     } else {
       waiting.push(srcId);
