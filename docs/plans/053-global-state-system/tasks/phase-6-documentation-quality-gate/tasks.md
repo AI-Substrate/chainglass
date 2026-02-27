@@ -23,6 +23,16 @@
 - ❌ No API changes
 - ❌ No new tests (existing 145 must pass)
 
+### DYK Resolutions (Phase 6)
+
+| ID | Insight | Resolution |
+|----|---------|------------|
+| **DYK-26** | Idempotent registration is the #1 gotcha — useState + listDomains guard | Add prominent callout box in publisher quick-start showing wrong way (useEffect) vs right way (useState initializer) |
+| **DYK-27** | Guide is THE copy-paste template for future domains | Structure worktree exemplar as numbered recipe with full file paths and complete code blocks |
+| **DYK-28** | Consumer/publisher examples must be strictly separated | Separate quick-start sections — consumers import hooks, publishers import useStateSystem(). Never mix. |
+| **DYK-29** | `just fft` fails due to pre-existing Plan 050 lint errors | Gate defined as: our Plan 053 files lint-clean + `pnpm test` passes. Document pre-existing failures. |
+| **DYK-30** | file-browser domain.md also needs Phase 5 source updates | Add to T002 scope — update file-browser domain.md history + source locations |
+
 ---
 
 ## Prior Phase Context
@@ -102,8 +112,8 @@ flowchart TD
 | Status | ID | Task | Domain | Path(s) | Done When | Notes |
 |--------|-----|------|--------|---------|-----------|-------|
 | [ ] | T001 | Create developer guide `docs/how/global-state-system.md` | `_platform/state` | `/Users/jordanknight/substrate/chainglass-048/docs/how/global-state-system.md` | Guide covers: (1) vibe/philosophy, (2) consumer quick-start with useGlobalState, (3) publisher quick-start with domain registration + publish, (4) pattern cheatsheet (path syntax, 5 pattern types, hooks), (5) worktree exemplar walkthrough, (6) testing with FakeGlobalStateSystem. Follows `file-browser.md` doc style. | AC-42. Reference Workshop 002 for DX vibe. Include mermaid architecture diagram. |
-| [ ] | T002 | Update domain docs — verify completeness | `_platform/state` | `/Users/jordanknight/substrate/chainglass-048/docs/domains/_platform/state/domain.md` | All Phase 5 files listed in Source Location. History entries for P1-P5 present. Composition table current. file-browser domain files added if missing. | Domain.md already has P1-P5 history. Verify Phase 5 file-browser files are listed. |
-| [ ] | T003 | Quality gate: `just fft` passes | all | — | `just fft` completes with zero regressions. All 145 state tests pass. Our files lint-clean. Pre-existing Plan 050 lint failures are acceptable. | Final gate before plan completion. |
+| [ ] | T002 | Update domain docs — verify completeness | `_platform/state` + `file-browser` | `/Users/jordanknight/substrate/chainglass-048/docs/domains/_platform/state/domain.md`, `/Users/jordanknight/substrate/chainglass-048/docs/domains/file-browser/domain.md` | All Phase 5 files listed in Source Location. History entries for P1-P5 present. file-browser domain.md updated with Phase 5 state files (register.ts, worktree-publisher.tsx, worktree-state-subtitle.tsx). | DYK-30: file-browser domain also needs updating. |
+| [ ] | T003 | Quality gate: Plan 053 files lint-clean + tests pass | all | — | Our Plan 053 files pass `npx biome check`. `pnpm test` passes with all 145 state tests. Pre-existing Plan 050 lint failures documented as out-of-scope. | DYK-29: `just fft` fails due to pre-existing issues. Gate is scoped to our files. |
 
 ---
 

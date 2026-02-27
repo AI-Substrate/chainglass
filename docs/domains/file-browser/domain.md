@@ -129,6 +129,9 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
 | `apps/web/src/features/041-file-browser/components/worktree-identity-popover.tsx` | Inline gear popover for per-worktree emoji/color | Phase 5 ST-001 |
 | `apps/web/app/(dashboard)/settings/workspaces/page.tsx` | Settings page (Server Component) | Phase 5 |
 | `apps/web/app/(dashboard)/settings/workspaces/workspace-settings-table.tsx` | Settings table (Client Component) | Phase 5 |
+| `apps/web/src/features/041-file-browser/state/register.ts` | registerWorktreeState — multi-instance domain registration | Plan 053 P5 |
+| `apps/web/src/features/041-file-browser/state/worktree-publisher.tsx` | WorktreeStatePublisher — FileChangeHub → state bridge | Plan 053 P5 |
+| `apps/web/src/features/041-file-browser/components/worktree-state-subtitle.tsx` | WorktreeStateSubtitle — sidebar consumer component | Plan 053 P5 |
 
 ## Dependencies
 
@@ -136,6 +139,7 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
 - `_platform/sdk` — IUSDK for publishing commands and settings to SDK surface
 - `_platform/file-ops` — IFileSystem, IPathResolver for all file operations
 - `_platform/viewer` — FileViewer, MarkdownViewer, DiffViewer for rendering
+- `_platform/state` — IStateService, useGlobalState, GlobalStateConnector for worktree state publishing/consumption
 - `_platform/workspace-url` — workspaceHref, param caches, NuqsAdapter
 - `_platform/panel-layout` — PanelShell, ExplorerPanel, LeftPanel, MainPanel for page layout
 - `@chainglass/workflow` — IWorkspaceService, workspace entity, preferences
@@ -165,3 +169,4 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
 | Plan 049 Feature 1 | Diff stats service (git diff HEAD --shortstat), usePanelState extension, live-updating file change stats in FILES header | 2026-02-26 |
 | Plan 049 Feature 2 | File search via ExplorerPanel: getFileList service (git ls-files + fs.stat), file-filter utilities (substring/glob/sort), useFileFilter hook (Map cache + SSE deltas + debounce), fetchFileList server action, BrowserClient wiring | 2026-02-26 |
 | Plan 051 | FlowSpace code search: useFlowspaceSearch hook (debounce, availability, graph age), BrowserClient wiring for `#` text and `$` semantic search modes, context menu on FlowSpace results | 2026-02-26 |
+| Plan 053 P5 | GlobalStateSystem worktree exemplar: registerWorktreeState (multi-instance domain), WorktreeStatePublisher (useFileChanges → state), WorktreeStateSubtitle (sidebar consumer), GlobalStateConnector wiring in browser-client.tsx | 2026-02-27 |

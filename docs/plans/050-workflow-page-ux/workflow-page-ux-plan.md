@@ -3,7 +3,7 @@
 **Plan Version**: 1.0.0
 **Created**: 2026-02-26
 **Spec**: [workflow-page-ux-spec.md](workflow-page-ux-spec.md)
-**Status**: IN PROGRESS (Phase 1 complete)
+**Status**: ✅ COMPLETE
 
 ## Summary
 
@@ -253,44 +253,44 @@ Build a visual workflow editor for the positional graph system as a new `workflo
 
 ## Acceptance Criteria
 
-- [ ] AC-01: Workflow page at workspace-scoped routes with PanelShell + temp bar
-- [ ] AC-02: Lines as horizontal rows, numbered, left-to-right nodes
-- [ ] AC-03: Empty states (no lines, empty line)
-- [ ] AC-04: Add Line button with immediate persistence
-- [ ] AC-05: Line header (label, settings, transition, delete)
-- [ ] AC-06: Right panel toolbox grouped by type with search
-- [ ] AC-07: Drag toolbox → line with in-place drop zones
-- [ ] AC-08: Drag reorder within/between lines, running-line restriction
-- [ ] AC-09: Node deletion via context menu/Backspace
-- [ ] AC-10: Node cards with type icon, name, status, context badge
-- [ ] AC-11: 8 node status colors
-- [ ] AC-12: Gate chips on blocked nodes (5 gate types)
-- [ ] AC-13: Context badges (green/blue/purple/gray)
-- [ ] AC-14: noContext lock icon
-- [ ] AC-15: Select-to-reveal: upstream traces, downstream muted, unrelated dim, properties panel
-- [ ] AC-16: Node properties edit modal
-- [ ] AC-17: Line transition gates (auto/manual)
-- [ ] AC-18: Q&A modal (4 question types)
-- [ ] AC-19: Always-on freeform text alongside structured input
-- [ ] AC-20: Template/instance breadcrumb in temp bar
-- [ ] AC-21: New from Template with composite slug modal
-- [ ] AC-22: Save as Template with pre-filled slug modal
-- [ ] AC-22b: New Blank + New from Template buttons side by side
-- [ ] AC-23: In-memory snapshot undo/redo (toolbar buttons — keyboard shortcuts deferred to avoid conflicts with text inputs in modals)
-- [ ] AC-24: Undo/redo toolbar buttons with stack depth
-- [ ] AC-25: External changes invalidate undo stack + toast
-- [ ] AC-26: SSE live updates for active workflow editor
-- [ ] AC-27: WorkflowWatcherAdapter for graph file changes
-- [ ] AC-28: `just dope` creates 7+ demo workflows
-- [ ] AC-29: `just dope clean`, `just dope <name>`, `just redope`
-- [ ] AC-30: Demo workflows cover all 8 node status states
-- [ ] AC-31: Remove workgraph UI pages
-- [ ] AC-32: Remove legacy API routes
-- [ ] AC-33: Remove legacy workflow/workflows pages
-- [ ] AC-34: Remove workgraph event adapters
-- [ ] AC-35: Unit tests with fakes
-- [ ] AC-36: Integration tests with real filesystem
-- [ ] AC-37: Doping script validation test
+- [x] AC-01: Workflow page at workspace-scoped routes with PanelShell + temp bar
+- [x] AC-02: Lines as horizontal rows, numbered, left-to-right nodes
+- [x] AC-03: Empty states (no lines, empty line)
+- [x] AC-04: Add Line button with immediate persistence
+- [x] AC-05: Line header (label, settings, transition, delete)
+- [x] AC-06: Right panel toolbox grouped by type with search
+- [x] AC-07: Drag toolbox → line with in-place drop zones
+- [x] AC-08: Drag reorder within/between lines, running-line restriction
+- [x] AC-09: Node deletion via context menu/Backspace
+- [x] AC-10: Node cards with type icon, name, status, context badge
+- [x] AC-11: 8 node status colors
+- [x] AC-12: Gate chips on blocked nodes (5 gate types)
+- [x] AC-13: Context badges (green/blue/purple/gray)
+- [x] AC-14: noContext lock icon
+- [x] AC-15: Select-to-reveal: upstream traces, downstream muted, unrelated dim, properties panel
+- [x] AC-16: Node properties edit modal
+- [x] AC-17: Line transition gates (auto/manual)
+- [x] AC-18: Q&A modal (4 question types)
+- [x] AC-19: Always-on freeform text alongside structured input
+- [x] AC-20: Template/instance breadcrumb in temp bar
+- [x] AC-21: New from Template with composite slug modal
+- [x] AC-22: Save as Template with pre-filled slug modal
+- [x] AC-22b: New Blank + New from Template buttons side by side
+- [x] AC-23: In-memory snapshot undo/redo (toolbar buttons — keyboard shortcuts deferred to avoid conflicts with text inputs in modals)
+- [x] AC-24: Undo/redo toolbar buttons with stack depth
+- [x] AC-25: External changes invalidate undo stack + toast
+- [x] AC-26: SSE live updates for active workflow editor
+- [x] AC-27: WorkflowWatcherAdapter for graph file changes
+- [x] AC-28: `just dope` creates 7+ demo workflows
+- [x] AC-29: `just dope clean`, `just dope <name>`, `just redope`
+- [x] AC-30: Demo workflows cover all 8 node status states
+- [x] AC-31: Remove workgraph UI pages
+- [x] AC-32: Remove legacy API routes
+- [x] AC-33: Remove legacy workflow/workflows pages
+- [x] AC-34: Remove workgraph event adapters
+- [x] AC-35: Unit tests with fakes
+- [x] AC-36: Integration tests with real filesystem
+- [x] AC-37: Doping script validation test
 
 ## Risks
 
