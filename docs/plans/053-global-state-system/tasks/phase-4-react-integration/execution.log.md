@@ -44,6 +44,16 @@
 **Tests**: 9 tests covering useStateSystem (throws outside provider, returns service inside), useGlobalState (default value, published value, re-renders on change, undefined without default), useGlobalStateList (matching entries, re-renders, empty array).
 **Injection**: FakeGlobalStateSystem via exported StateContext.Provider.
 
+**Note**: Phase 4 hooks were implementation-first (not TDD) since hooks are thin wiring layers over the already-TDD'd GlobalStateSystem. Tests written alongside implementation and verified GREEN immediately.
+
+**GREEN Evidence**:
+```
+$ npx vitest run test/unit/web/state/use-global-state.test.tsx
+✓ test/unit/web/state/use-global-state.test.tsx (9 tests) 14ms
+Test Files  1 passed (1)
+Tests  9 passed (9)
+```
+
 ### Test Summary
 
 - Hook tests: 9 pass (use-global-state.test.tsx)

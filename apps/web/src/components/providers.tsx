@@ -16,7 +16,7 @@ import { NuqsAdapter } from 'nuqs/adapters/next/app';
 import { type ReactNode, useState } from 'react';
 
 import { SDKProvider } from '../lib/sdk/sdk-provider';
-import { GlobalStateProvider } from '../lib/state/state-provider';
+import { GlobalStateProvider } from '../lib/state';
 import { Toaster } from './ui/toaster';
 
 interface ProvidersProps {

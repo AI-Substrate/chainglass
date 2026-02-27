@@ -81,7 +81,7 @@ Centralized ephemeral runtime state system. Domains publish runtime values (work
 
 Primary: `packages/shared/src/state/` (types + interface) + `apps/web/src/lib/state/` (implementation + hooks)
 
-*Note: Implementation files (apps/web) exist. React hooks + provider (Phase 4) and exemplar (Phase 5) not yet created.*
+*Note: Phase 4 hooks/provider are implemented. Exemplar wiring remains Phase 5 scope.*
 
 | File | Role | Notes |
 |------|------|-------|

@@ -123,7 +123,7 @@ flowchart LR
 - [ ] AC-28: useGlobalState returns default when no value published
 - [ ] AC-29: useGlobalStateList returns matching entries, re-renders on change
 - [ ] AC-30: GlobalStateProvider creates system once
-- [ ] AC-31: Graceful degradation on bootstrap error
+- [x] AC-31: ~~Graceful degradation~~ (Removed — DYK-18: fail-fast)
 - [ ] AC-32: useStateSystem throws outside provider
 
 ## Goals & Non-Goals

@@ -217,7 +217,7 @@ Runtime state in Chainglass is scattered across ad-hoc React hooks, SSE connecti
 |---|------|--------|-----------------|-------|
 | 4.1 | Create `apps/web/src/lib/state/use-global-state.ts` — single-value hook | `_platform/state` | useSyncExternalStore pattern, default value support, re-renders on change | AC-27, AC-28 |
 | 4.2 | Create `apps/web/src/lib/state/use-global-state-list.ts` — pattern hook | `_platform/state` | Pattern subscription, stable array ref, re-renders on matching change | AC-29 |
-| 4.3 | Create `apps/web/src/lib/state/state-provider.tsx` — GlobalStateProvider + useStateSystem | `_platform/state` | useState initializer, try/catch fallback, context throw on missing provider | AC-30, AC-31, AC-32 |
+| 4.3 | Create `apps/web/src/lib/state/state-provider.tsx` — GlobalStateProvider + useStateSystem | `_platform/state` | useState initializer, context throw on missing provider. No try/catch — fail-fast (DYK-18). | AC-30, AC-32 |
 | 4.4 | Create `apps/web/src/lib/state/index.ts` — barrel exports | `_platform/state` | All hooks, provider, and types exported | |
 | 4.5 | Mount GlobalStateProvider in `apps/web/src/components/providers.tsx` after SDKProvider | `_platform/state` | Provider wraps children, no render regressions | Per Finding 03 |
 | 4.6 | Create `test/unit/web/state/use-global-state.test.tsx` — hook tests | `_platform/state` | Tests with FakeGlobalStateSystem injection, default values, re-render on change | |
@@ -227,7 +227,7 @@ Runtime state in Chainglass is scattered across ad-hoc React hooks, SSE connecti
 - [ ] AC-28: useGlobalState returns default when no value published
 - [ ] AC-29: useGlobalStateList returns matching entries, re-renders on change
 - [ ] AC-30: GlobalStateProvider creates system once
-- [ ] AC-31: Graceful degradation on bootstrap error
+- [x] AC-31: ~~Graceful degradation~~ (Removed — DYK-18: fail-fast)
 - [ ] AC-32: useStateSystem throws outside provider
 
 ---

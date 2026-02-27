@@ -163,7 +163,7 @@ This plan implements the `_platform/state` domain infrastructure plus a worktree
 - **AC-28**: `useGlobalState` returns the default value when the path has no published value
 - **AC-29**: `useGlobalStateList(pattern)` returns all matching `StateEntry[]` and re-renders when any matching value changes
 - **AC-30**: `GlobalStateProvider` creates the state system once (via `useState` initializer) and provides it via React context
-- **AC-31**: `GlobalStateProvider` gracefully degrades on bootstrap error — returns a no-op state system instead of crashing the component tree
+- **AC-31**: ~~`GlobalStateProvider` gracefully degrades on bootstrap error~~ (Removed by Phase 4 decision DYK-18; provider is fail-fast on bootstrap errors)
 - **AC-32**: `useStateSystem()` hook returns `IStateService` from context; throws if used outside `GlobalStateProvider`
 
 ### Testability

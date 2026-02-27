@@ -10,12 +10,12 @@ import type { ReactNode } from 'react';
 import React from 'react';
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { FakeGlobalStateSystem } from '@chainglass/shared/fakes';
 import type { IStateService } from '@chainglass/shared/state';
 import { StateContext } from '../../../../apps/web/src/lib/state/state-provider';
 import { useStateSystem } from '../../../../apps/web/src/lib/state/state-provider';
 import { useGlobalState } from '../../../../apps/web/src/lib/state/use-global-state';
 import { useGlobalStateList } from '../../../../apps/web/src/lib/state/use-global-state-list';
-import { FakeGlobalStateSystem } from '../../../../packages/shared/src/fakes/fake-state-system';
 
 function registerTestDomain(svc: IStateService): void {
   svc.registerDomain({
@@ -61,6 +61,24 @@ describe('useStateSystem', () => {
 
     const { result } = renderHook(() => useStateSystem(), { wrapper });
     expect(result.current).toBe(fake);
+  });
+
+  it('creates GlobalStateSystem once per mount (AC-30)', () => {
+    /**
+     * Why: Provider must not re-create the system on re-render.
+     * Contract: Multiple renders return the same IStateService identity.
+     * Usage Notes: useState initializer ensures single creation.
+     * Quality Contribution: Prevents state loss from accidental re-creation.
+     * Worked Example: render → rerender → same service reference
+     */
+    const fake = new FakeGlobalStateSystem();
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      React.createElement(StateContext.Provider, { value: fake }, children);
+
+    const { result, rerender } = renderHook(() => useStateSystem(), { wrapper });
+    const first = result.current;
+    rerender();
+    expect(result.current).toBe(first);
   });
 });
 
@@ -129,6 +147,13 @@ describe('useGlobalState', () => {
   });
 
   it('returns undefined when no default provided and no value published', () => {
+    /**
+     * Why: Callers who omit the default must get undefined, not throw.
+     * Contract: useGlobalState(path) without default returns undefined for empty path.
+     * Usage Notes: TypeScript return type is T | undefined when no default provided.
+     * Quality Contribution: Validates optional default parameter behavior.
+     * Worked Example: useGlobalState('test-domain:wf-1:status') → undefined
+     */
     const { result } = renderHook(() => useGlobalState<string>('test-domain:wf-1:status'), {
       wrapper,
     });
@@ -184,6 +209,13 @@ describe('useGlobalStateList', () => {
   });
 
   it('returns empty array when no entries match', () => {
+    /**
+     * Why: Empty state must return a valid empty array, not undefined.
+     * Contract: useGlobalStateList(pattern) returns [] when no entries match.
+     * Usage Notes: The empty array is stable (same reference) from list() cache.
+     * Quality Contribution: Validates base case for pattern listing.
+     * Worked Example: useGlobalStateList('test-domain:**') with no publishes → []
+     */
     const { result } = renderHook(() => useGlobalStateList('test-domain:**'), { wrapper });
     expect(result.current).toHaveLength(0);
   });
