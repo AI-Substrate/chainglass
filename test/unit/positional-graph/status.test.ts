@@ -73,6 +73,7 @@ const userInputUnit: NarrowWorkUnit = {
   userInput: {
     prompt: 'Describe your requirements',
     questionType: 'text',
+    outputName: 'requirements',
   },
 };
 

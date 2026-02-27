@@ -67,6 +67,7 @@ export interface NarrowUserInputWorkUnit extends NarrowWorkUnitBase {
   userInput: {
     prompt: string;
     questionType: 'text' | 'single' | 'multi' | 'confirm';
+    outputName: string;
     options?: { key: string; label: string; description?: string }[];
     default?: string | boolean;
   };
@@ -335,6 +336,7 @@ export interface UserInputNodeStatus extends NodeStatusResultBase {
   userInput: {
     prompt: string;
     questionType: 'text' | 'single' | 'multi' | 'confirm';
+    outputName: string;
     options?: { key: string; label: string; description?: string }[];
     default?: string | boolean;
   };

@@ -94,6 +94,7 @@ export class InstanceWorkUnitAdapter implements IWorkUnitLoader {
           userInput: {
             prompt: unitDef.user_input.prompt,
             questionType: unitDef.user_input.question_type,
+            outputName: base.outputs[0]?.name ?? 'output',
             options: unitDef.user_input.options,
             default: unitDef.user_input.default,
           },
