@@ -3,7 +3,7 @@
 **Plan**: [global-state-system-plan.md](../../global-state-system-plan.md)
 **Phase**: Phase 5: Worktree Exemplar
 **Generated**: 2026-02-27
-**Status**: Ready for takeoff
+**Status**: Landed
 
 ---
 
@@ -57,7 +57,7 @@ stateDiagram-v2
     S3 --> S4
     S4 --> [*]
 
-    class S1,S2,S3,S4 pending
+    class S1,S2,S3,S4 done
 ```
 
 **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -68,12 +68,12 @@ stateDiagram-v2
 
 <!-- Updated by /plan-6-v2 during implementation: [ ] → [~] → [x] -->
 
-- [ ] **Stage 1: Register worktree domain** — Create `state/register.ts` with `registerWorktreeState()` declaring singleton domain with `changed-file-count` and `branch` properties (`register.ts` — new file)
-- [ ] **Stage 2: Build publisher** — Create `WorktreeStatePublisher` that subscribes to FileChangeHub and publishes worktree state to GlobalStateSystem (`worktree-publisher.ts` — new file)
-- [ ] **Stage 3: Build consumer** — Create `WorktreeStateSubtitle` reading worktree state via `useGlobalState` and rendering branch + file count (`worktree-state-subtitle.tsx` — new file)
-- [ ] **Stage 4: Build connector** — Create `GlobalStateConnector` that registers domain and mounts publisher (`state-connector.tsx` — new file)
-- [ ] **Stage 5: Wire in browser-client** — Mount connector inside FileChangeProvider, compose subtitle alongside existing diffStatsSubtitle (`browser-client.tsx` — modified)
-- [ ] **Stage 6: Tests + verification** — Publisher unit tests with FakeGlobalStateSystem, manual live verification (`worktree-publisher.test.ts` — new file)
+- [x] **Stage 1: Register worktree domain** — Create `state/register.ts` with `registerWorktreeState()` declaring multi-instance domain with `changed-file-count` and `branch` properties (`register.ts` — new file)
+- [x] **Stage 2: Build publisher** — Create `WorktreeStatePublisher` that publishes worktree state to GlobalStateSystem with demo timer (`worktree-publisher.tsx` — new file)
+- [x] **Stage 3: Build consumer** — Create `WorktreeStateSubtitle` reading worktree state via `useGlobalState` and rendering branch + file count (`worktree-state-subtitle.tsx` — new file)
+- [x] **Stage 4: Build connector** — Create `GlobalStateConnector` that registers domain and mounts publisher (`state-connector.tsx` — new file)
+- [x] **Stage 5: Wire in browser-client** — Mount connector inside FileChangeProvider, compose subtitle alongside existing diffStatsSubtitle (`browser-client.tsx` — modified)
+- [x] **Stage 6: Tests + verification** — Publisher unit tests with FakeGlobalStateSystem, 144 total state tests passing (`worktree-publisher.test.tsx` — new file)
 
 ---
 
@@ -125,10 +125,10 @@ flowchart LR
 
 ## Acceptance Criteria
 
-- [ ] AC-38: worktree domain registered with `changed-file-count` and `branch` properties
-- [ ] AC-39: Publisher updates live from file changes — `worktree:changed-file-count` reflects FileChangeHub state
-- [ ] AC-40: Consumer displays in left panel subtitle, updates live without page refresh
-- [ ] AC-41: Exemplar demonstrates both publisher and consumer patterns via GlobalStateConnector
+- [x] AC-38: worktree domain registered with `changed-file-count` and `branch` properties
+- [x] AC-39: Publisher updates live from file changes — `worktree:changed-file-count` reflects FileChangeHub state
+- [x] AC-40: Consumer displays in left panel subtitle, updates live without page refresh
+- [x] AC-41: Exemplar demonstrates both publisher and consumer patterns via GlobalStateConnector
 
 ## Goals & Non-Goals
 
@@ -148,10 +148,10 @@ flowchart LR
 
 ## Checklist
 
-- [ ] T001: Create `registerWorktreeState()` domain registration
-- [ ] T002: Create `WorktreeStatePublisher` component
-- [ ] T003: Create `WorktreeStateSubtitle` consumer component
-- [ ] T004: Create `GlobalStateConnector` wiring component
-- [ ] T005: Wire into `browser-client.tsx`
-- [ ] T006: Publisher unit tests
-- [ ] T007: Manual verification — live state updates
+- [x] T001: Create `registerWorktreeState()` domain registration
+- [x] T002: Create `WorktreeStatePublisher` component
+- [x] T003: Create `WorktreeStateSubtitle` consumer component
+- [x] T004: Create `GlobalStateConnector` wiring component
+- [x] T005: Wire into `browser-client.tsx`
+- [x] T006: Publisher unit tests
+- [x] T007: Manual verification — live state updates

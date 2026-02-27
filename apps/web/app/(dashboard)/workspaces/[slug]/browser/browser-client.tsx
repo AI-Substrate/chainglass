@@ -15,6 +15,7 @@ import {
   FileViewerPanel,
   type ViewerMode,
 } from '@/features/041-file-browser/components/file-viewer-panel';
+import { WorktreeStateSubtitle } from '@/features/041-file-browser/components/worktree-state-subtitle';
 import { useClipboard } from '@/features/041-file-browser/hooks/use-clipboard';
 import { useFileFilter } from '@/features/041-file-browser/hooks/use-file-filter';
 import { useFileNavigation } from '@/features/041-file-browser/hooks/use-file-navigation';
@@ -38,6 +39,7 @@ import {
 } from '@/features/_platform/panel-layout';
 import type { PanelMode } from '@/features/_platform/panel-layout';
 import { useSDK, useSDKMru } from '@/lib/sdk/sdk-provider';
+import { GlobalStateConnector } from '@/lib/state';
 import { FileDiff, GitBranch } from 'lucide-react';
 import { useQueryStates } from 'nuqs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -73,6 +75,7 @@ export function BrowserClient({
 }: BrowserClientProps) {
   return (
     <FileChangeProvider worktreePath={worktreePath}>
+      <GlobalStateConnector slug={slug} worktreeBranch={worktreeBranch} />
       <BrowserClientInner
         slug={slug}
         worktreePath={worktreePath}
@@ -406,6 +409,17 @@ function BrowserClientInner({
     );
   }, [panelState.diffStats]);
 
+  // Compose subtitles: existing diff stats + worktree state (Plan 053 DYK-23)
+  const composedSubtitle = useMemo(
+    () => (
+      <>
+        {diffStatsSubtitle}
+        <WorktreeStateSubtitle slug={slug} />
+      </>
+    ),
+    [diffStatsSubtitle, slug]
+  );
+
   return (
     <div className="h-full overflow-hidden">
       <PanelShell
@@ -463,7 +477,7 @@ function BrowserClientInner({
             onModeChange={panelState.handlePanelModeChange}
             modes={panelModes}
             onRefresh={handlePanelRefresh}
-            subtitle={diffStatsSubtitle}
+            subtitle={composedSubtitle}
           >
             {{
               tree: (

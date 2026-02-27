@@ -12,5 +12,8 @@ export { GlobalStateProvider, StateContext, useStateSystem } from './state-provi
 export { useGlobalState } from './use-global-state';
 export { useGlobalStateList } from './use-global-state-list';
 
+// Connectors
+export { GlobalStateConnector } from './state-connector';
+
 // System class (for direct instantiation if needed)
 export { GlobalStateSystem } from './global-state-system';

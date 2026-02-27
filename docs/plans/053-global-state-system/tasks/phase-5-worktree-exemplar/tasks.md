@@ -14,18 +14,25 @@
 **What We're Building**: A `worktree` singleton state domain with a publisher component (wired to FileChangeHub + WorkspaceContext), a consumer subtitle component (wired to useGlobalState), and a GlobalStateConnector that bridges domain registration and publisher mounting in the workspace layout.
 
 **Goals**:
-- ✅ Register `worktree` as a singleton state domain with `changed-file-count` and `branch` properties
-- ✅ Publish live worktree state from FileChangeHub events and WorkspaceContext
-- ✅ Display live worktree state in the left panel subtitle
-- ✅ Wire via GlobalStateConnector in browser-client.tsx
-- ✅ Demonstrate the GlobalStateSystem producer/consumer pattern for future domain adoption
+- ✅ Register `worktree` as a **multi-instance** state domain keyed by workspace `slug`, with `changed-file-count` (number) and `branch` (string) properties
+- ✅ Publish live worktree state from FileChangeHub events and `worktreeBranch` prop using 3-segment paths: `worktree:{slug}:changed-file-count`, `worktree:{slug}:branch`
+- ✅ Display live worktree state in the left panel subtitle, **composed alongside** existing `diffStatsSubtitle`
+- ✅ Wire via GlobalStateConnector in browser-client.tsx, passing `slug` for instance scoping
+- ✅ Demonstrate the GlobalStateSystem multi-instance producer/consumer pattern for future domain adoption
 
 **Non-Goals**:
-- ❌ Multi-instance worktree support (one worktree per browser session — singleton)
 - ❌ Persisting worktree state (ephemeral only)
-- ❌ Replacing the existing `diffStatsSubtitle` — compose alongside it
 - ❌ Server-side state or SSE integration (purely client-side file change subscription)
-- ❌ Tests for publisher (Task 5.6 is manual verification; publisher test deferred to Phase 6 if needed)
+
+### DYK Resolutions (Phase 5)
+
+| ID | Insight | Resolution |
+|----|---------|------------|
+| **DYK-21** | Singleton paths leak across workspaces/tabs | Use **multi-instance** 3-segment paths: `worktree:{slug}:changed-file-count`. Each consumer subscribes only to its own workspace's instance. |
+| **DYK-22** | worktreePath contains `/` (illegal in instance IDs) | Use BrowserClient's `slug` prop directly as instance ID — already valid `[a-zA-Z0-9_-]+` format. |
+| **DYK-23** | LeftPanel subtitle slot already occupied by diffStatsSubtitle | **Compose both** in a flex container: `<>{diffStatsSubtitle}{worktreeSubtitle}</>`. Do NOT replace existing. |
+| **DYK-24** | Branch info not available from FileChangeHub | Branch comes from `worktreeBranch` prop on BrowserClient, not the hub. Publisher receives it as a prop and publishes on mount + prop change. |
+| **DYK-25** | Changed file count derived from hub subscription | Use `useFileChanges('*')` to get changes, publish `changes.length` to state each time the change set updates. |
 
 ---
 
@@ -43,7 +50,7 @@
 - Import via `@chainglass/shared/state`
 
 **C. Gotchas**:
-- DYK-01: Flat path model only (2-3 segments). Worktree paths: `worktree:changed-file-count` and `worktree:branch` (both 2-segment singleton).
+- DYK-01: Flat path model only (2-3 segments). Worktree paths: `worktree:{slug}:changed-file-count` and `worktree:{slug}:branch` (both 3-segment multi-instance, keyed by workspace slug — per DYK-21/22).
 - DYK-03: Parser is domain-unaware — domain existence checked at publish/subscribe time.
 
 **D. Incomplete Items**: None.
@@ -175,13 +182,13 @@ flowchart TD
 
 | Status | ID | Task | Domain | Path(s) | Done When | Notes |
 |--------|-----|------|--------|---------|-----------|-------|
-| [ ] | T001 | Create `registerWorktreeState()` — domain registration function | `file-browser` | `/Users/jordanknight/substrate/chainglass-048/apps/web/src/features/041-file-browser/state/register.ts` | Exports `registerWorktreeState(state: IStateService)` that registers `worktree` as singleton domain with `changed-file-count` (number) and `branch` (string) properties | Finding 03; Workshop 001 registration pattern. Create `state/` directory. |
-| [ ] | T002 | Create `WorktreeStatePublisher` — React component publishing worktree state | `file-browser` | `/Users/jordanknight/substrate/chainglass-048/apps/web/src/features/041-file-browser/state/worktree-publisher.ts` | Invisible component that: (1) subscribes to FileChangeHub via `useFileChanges('*', {mode:'accumulate'})` and publishes `worktree:changed-file-count` with count, (2) reads `useWorkspaceContext().worktreeIdentity.branch` and publishes `worktree:branch`. Cleans up on unmount. | Finding 03 — must mount inside FileChangeProvider scope. Use `useStateSystem()` to get IStateService. DYK-16 — pin defaults with useRef. |
-| [ ] | T003 | Create `WorktreeStateSubtitle` — consumer component for left panel | `file-browser` | `/Users/jordanknight/substrate/chainglass-048/apps/web/src/features/041-file-browser/components/worktree-state-subtitle.tsx` | Component using `useGlobalState<number>('worktree:changed-file-count', 0)` and `useGlobalState<string>('worktree:branch', '')` to render branch name and file count. Returns `ReactNode` compatible with LeftPanel subtitle prop. Tailwind-styled matching existing `diffStatsSubtitle` pattern. | Finding 05 — subtitle is `ReactNode`. Follow `diffStatsSubtitle` styling pattern (text-xs, text-muted-foreground). |
-| [ ] | T004 | Create `GlobalStateConnector` — invisible wiring component | `_platform/state` | `/Users/jordanknight/substrate/chainglass-048/apps/web/src/lib/state/state-connector.tsx` | Component that: (1) calls `useStateSystem()` to get IStateService, (2) calls `registerWorktreeState(state)` once via `useEffect`, (3) renders `<WorktreeStatePublisher />` as child. Returns no visible UI. Export from `apps/web/src/lib/state/index.ts`. | Mirrors SDKWorkspaceConnector pattern. Registration in useEffect to avoid render-phase side effects. |
-| [ ] | T005 | Wire into `browser-client.tsx` — mount connector + compose subtitle | `file-browser` | `/Users/jordanknight/substrate/chainglass-048/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx` | (1) Mount `<GlobalStateConnector />` inside `<FileChangeProvider>` in BrowserClientInner. (2) Compose `<WorktreeStateSubtitle />` alongside existing `diffStatsSubtitle` in the LeftPanel subtitle prop — render both in a flex container. No regressions to existing diff stats display. | ⚠️ Subtitle slot occupied — must compose, not replace. Keep `diffStatsSubtitle` as-is, add worktree state alongside. |
-| [ ] | T006 | Create publisher unit tests | `file-browser` | `/Users/jordanknight/substrate/chainglass-048/test/unit/web/state/worktree-publisher.test.ts` | Tests with FakeGlobalStateSystem: (1) publishes changed-file-count from file changes, (2) publishes branch from workspace context, (3) updates on new file changes, (4) cleans up on unmount | Use StateContext.Provider for fake injection (DYK-20). Mock useFileChanges and useWorkspaceContext. |
-| [ ] | T007 | Manual verification — live state updates | `file-browser` | — | File save in browser → `worktree:changed-file-count` updates in left panel subtitle without page refresh. Branch name displays correctly. Existing diff stats subtitle still works. | CS 1 — verify in dev environment. |
+| [x] | T001 | Create `registerWorktreeState()` — domain registration function | `file-browser` | `/Users/jordanknight/substrate/chainglass-048/apps/web/src/features/041-file-browser/state/register.ts` | Exports `registerWorktreeState(state: IStateService)` that registers `worktree` as **multi-instance** domain with `changed-file-count` (number) and `branch` (string) properties | DYK-21: multi-instance keyed by slug. Create `state/` directory. |
+| [x] | T002 | Create `WorktreeStatePublisher` — React component publishing worktree state | `file-browser` | `/Users/jordanknight/substrate/chainglass-048/apps/web/src/features/041-file-browser/state/worktree-publisher.tsx` | Invisible component accepting `slug` and `worktreeBranch` props. (1) Subscribes to FileChangeHub via `useFileChanges('*')` and publishes `worktree:{slug}:changed-file-count` with count, (2) publishes `worktree:{slug}:branch` from `worktreeBranch` prop. Cleans up on unmount. | DYK-24: Branch from prop, not hub. DYK-22: slug as instance ID. Must mount inside FileChangeProvider scope. |
+| [x] | T003 | Create `WorktreeStateSubtitle` — consumer component for left panel | `file-browser` | `/Users/jordanknight/substrate/chainglass-048/apps/web/src/features/041-file-browser/components/worktree-state-subtitle.tsx` | Component accepting `slug` prop. Uses `useGlobalState<number>('worktree:${slug}:changed-file-count', 0)` and `useGlobalState<string>('worktree:${slug}:branch', '')` to render branch name and file count. Tailwind-styled matching `diffStatsSubtitle` pattern (text-xs, text-muted-foreground). | DYK-21: 3-segment paths with slug instance. |
+| [x] | T004 | Create `GlobalStateConnector` — invisible wiring component | `_platform/state` | `/Users/jordanknight/substrate/chainglass-048/apps/web/src/lib/state/state-connector.tsx` | Component accepting `slug` and `worktreeBranch` props. (1) calls `useStateSystem()` to get IStateService, (2) calls `registerWorktreeState(state)` once via `useEffect`, (3) renders `<WorktreeStatePublisher slug={slug} worktreeBranch={worktreeBranch} />` as child. Returns no visible UI. Export from barrel. | Registration in useEffect to avoid render-phase side effects. |
+| [x] | T005 | Wire into `browser-client.tsx` — mount connector + compose subtitle | `file-browser` | `/Users/jordanknight/substrate/chainglass-048/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx` | (1) Mount `<GlobalStateConnector slug={slug} worktreeBranch={worktreeBranch} />` inside `<FileChangeProvider>`. (2) Compose `<WorktreeStateSubtitle slug={slug} />` alongside existing `diffStatsSubtitle` in LeftPanel subtitle — render both in a flex container. No regressions to existing diff stats display. | DYK-23: compose, not replace. ⚠️ Subtitle slot occupied. |
+| [x] | T006 | Create publisher unit tests | `file-browser` | `/Users/jordanknight/substrate/chainglass-048/test/unit/web/state/worktree-publisher.test.ts` | Tests with FakeGlobalStateSystem: (1) publishes `worktree:{slug}:changed-file-count` from file changes, (2) publishes `worktree:{slug}:branch` from prop, (3) updates on new file changes, (4) cleans up on unmount | Use StateContext.Provider for fake injection (DYK-20). Mock useFileChanges. |
+| [x] | T007 | Manual verification — live state updates | `file-browser` | — | File save in browser → `worktree:{slug}:changed-file-count` updates in left panel subtitle without page refresh. Branch name displays correctly. Existing diff stats subtitle still works. | CS 1 — verify in dev environment. |
 
 ---
 
@@ -198,7 +205,7 @@ flowchart TD
 - `_platform/state`: `IStateService.registerDomain()`, `IStateService.publish()`, `useStateSystem()`, `useGlobalState<T>()` — core state system contracts for registration, publishing, and consumption
 - `_platform/events`: `useFileChanges(pattern, options)` from `FileChangeProvider` — file change events that drive worktree publisher
 - `_platform/panel-layout`: `LeftPanel` component with `subtitle?: ReactNode` prop — render target for consumer component
-- `file-browser`: `useWorkspaceContext().worktreeIdentity.branch` — git branch info for worktree state
+- `file-browser`: BrowserClient props `slug` (instance key per DYK-22) and `worktreeBranch` (branch source per DYK-24)
 
 ### Domain Constraints
 
@@ -222,14 +229,14 @@ flowchart LR
     A["File Change<br/>(FS event)"] --> B["FileChangeHub<br/>(045-live-file-events)"]
     B --> C["useFileChanges('*')"]
     C --> D["WorktreeStatePublisher"]
-    D -->|"publish('worktree:changed-file-count', n)"| E["GlobalStateSystem"]
-    F["WorkspaceContext"] -->|"worktreeIdentity.branch"| D
-    D -->|"publish('worktree:branch', str)"| E
-    E -->|"subscribe"| G["useGlobalState('worktree:changed-file-count')"]
-    E -->|"subscribe"| H["useGlobalState('worktree:branch')"]
+    D -->|"publish('worktree:{slug}:changed-file-count', n)"| E["GlobalStateSystem"]
+    F["worktreeBranch prop"] -->|"branch string"| D
+    D -->|"publish('worktree:{slug}:branch', str)"| E
+    E -->|"subscribe"| G["useGlobalState('worktree:{slug}:changed-file-count')"]
+    E -->|"subscribe"| H["useGlobalState('worktree:{slug}:branch')"]
     G --> I["WorktreeStateSubtitle"]
     H --> I
-    I -->|"ReactNode"| J["LeftPanel subtitle"]
+    I -->|"ReactNode"| J["LeftPanel subtitle<br/>(composed with diffStatsSubtitle)"]
 ```
 
 ### Sequence Diagram (actor interactions)
@@ -243,14 +250,14 @@ sequenceDiagram
     participant Sub as WorktreeStateSubtitle
     participant LP as LeftPanel
 
-    Note over Pub,GSS: Bootstrap (once)
+    Note over Pub,GSS: Bootstrap (once per workspace)
     Pub->>GSS: registerWorktreeState(state)
-    Pub->>GSS: publish('worktree:branch', 'main')
+    Pub->>GSS: publish('worktree:{slug}:branch', 'main')
 
     Note over FS,LP: Runtime (on file change)
     FS->>Hub: file changed event
     Hub->>Pub: useFileChanges callback
-    Pub->>GSS: publish('worktree:changed-file-count', 3)
+    Pub->>GSS: publish('worktree:{slug}:changed-file-count', 3)
     GSS->>Sub: subscriber notification
     Sub->>Sub: useGlobalState re-render
     Sub->>LP: updated subtitle ReactNode
@@ -264,6 +271,8 @@ _Populated during implementation by plan-6._
 
 | Date | Task | Type | Discovery | Resolution | References |
 |------|------|------|-----------|------------|------------|
+| 2026-02-27 | T004 | gotcha | `useEffect` registration fires after child effects — "domain not registered" error | Switched to `useState` initializer for synchronous registration before children render | DYK-18 (fail-fast) |
+| 2026-02-27 | T001 | gotcha | React Strict Mode + HMR re-run `useState` initializers — "already registered" error | Made `registerWorktreeState()` idempotent with `listDomains().some()` guard | React 19 Strict Mode |
 
 **Types**: `gotcha` | `research-needed` | `unexpected-behavior` | `workaround` | `decision` | `debt` | `insight`
 

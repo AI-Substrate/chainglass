@@ -81,7 +81,7 @@ Centralized ephemeral runtime state system. Domains publish runtime values (work
 
 Primary: `packages/shared/src/state/` (types + interface) + `apps/web/src/lib/state/` (implementation + hooks)
 
-*Note: Phase 4 hooks/provider are implemented. Exemplar wiring remains Phase 5 scope.*
+*Note: Phase 5 added GlobalStateConnector (wiring component) to this domain.*
 
 | File | Role | Notes |
 |------|------|-------|
@@ -94,7 +94,7 @@ Primary: `packages/shared/src/state/` (types + interface) + `apps/web/src/lib/st
 | `packages/shared/src/fakes/fake-state-system.ts` | FakeGlobalStateSystem | ✅ Created Phase 3 |
 | `apps/web/src/lib/state/global-state-system.ts` | GlobalStateSystem class | ✅ Created Phase 3 |
 | `apps/web/src/lib/state/state-provider.tsx` | GlobalStateProvider + useStateSystem + StateContext | ✅ Created Phase 4 |
-| `apps/web/src/lib/state/state-connector.tsx` | GlobalStateConnector | Workspace wiring |
+| `apps/web/src/lib/state/state-connector.tsx` | GlobalStateConnector | ✅ Created Phase 5 |
 | `apps/web/src/lib/state/use-global-state.ts` | useGlobalState<T> hook | ✅ Created Phase 4 |
 | `apps/web/src/lib/state/use-global-state-list.ts` | useGlobalStateList hook | ✅ Created Phase 4 |
 | `apps/web/src/lib/state/index.ts` | Barrel exports | ✅ Created Phase 4 |
@@ -147,3 +147,4 @@ Primary: `packages/shared/src/state/` (types + interface) + `apps/web/src/lib/st
 | 053-P2 | Phase 2 implemented: path parser tests (25), path matcher tests (22), contract test factory (19 cases C01-C19). All imports via `@chainglass/shared/state`. | 2026-02-27 |
 | 053-P3 | Phase 3 implemented: GlobalStateSystem (real, Map-based store + dispatch), FakeGlobalStateSystem (full behavioral fake + inspection methods), contract test runner (44 tests pass — 22 real + 22 fake), unit tests (31). Total: 122 state tests. | 2026-02-27 |
 | 053-P4 | Phase 4 implemented: React hooks (useGlobalState, useGlobalStateList via useSyncExternalStore), GlobalStateProvider + useStateSystem + exported StateContext, barrel exports, mounted in providers.tsx. AC-31 dropped (fail-fast, no no-op fallback). 9 hook tests. Total: 137 state tests. | 2026-02-27 |
+| 053-P5 | Phase 5 implemented: Worktree exemplar. registerWorktreeState() multi-instance domain, WorktreeStatePublisher (demo timer), WorktreeStateSubtitle consumer, GlobalStateConnector wiring. Wired into browser-client.tsx. Idempotent registration for StrictMode. 6 publisher tests. Total: 144 state tests. | 2026-02-27 |
