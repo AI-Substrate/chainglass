@@ -1,5 +1,7 @@
 # Workshop: Human Input UI & User Experience
 
+> **Note**: This workshop was written before the engine Q&A protocol was confirmed as deprecated. References to "agent question mode" and "dual mode" are superseded — the `HumanInputModal` is a standalone component for user-input nodes only. The deprecated `QAModal` continues to service legacy dope demo questions separately. All node card states, modal layouts for user-input, multi-output forms, and interaction flows remain valid.
+
 **Type**: UI Design / Interaction Pattern
 **Plan**: 054-unified-human-input
 **Spec**: [unified-human-input-spec.md](../unified-human-input-spec.md)

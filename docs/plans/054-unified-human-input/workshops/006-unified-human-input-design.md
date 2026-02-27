@@ -1,10 +1,12 @@
 # Workshop: Unified Human Input Design
 
+> **Superseded in part**: This workshop was written assuming the engine Q&A protocol (`askQuestion`/`answerQuestion`) was a live system. It has since been confirmed as deprecated scaffolding. The "unified" design (sharing a modal between agent questions and user-input nodes) is **not** the approach. Instead, Plan 054 builds a standalone `HumanInputModal` for user-input nodes that does NOT use the engine Q&A protocol. See [Workshop 008](./008-save-persistence-strategy.md) for the corrected save strategy. The data model analysis (data.json format, lifecycle walkthrough, display status computation) remains valid.
+
 **Type**: Data Model / Integration Pattern / UI Design
-**Plan**: 050-workflow-page-ux
-**Spec**: [workflow-page-ux-spec.md](../workflow-page-ux-spec.md)
+**Plan**: 054-unified-human-input
+**Spec**: [unified-human-input-spec.md](../unified-human-input-spec.md)
 **Created**: 2026-02-27
-**Status**: Draft
+**Status**: Partially superseded
 
 **Related Documents**:
 - [Workshop 003: Per-Instance Work Unit Configuration](./003-per-instance-work-unit-configuration.md)

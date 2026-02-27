@@ -9,7 +9,9 @@
 
 ## Summary
 
-User-input nodes in the workflow editor currently have no input mechanism — they sit at `pending` status forever. This plan makes them functional by: (1) extending `NodeStatusResult` to surface unit config and output save state, (2) adding computed display statuses (`awaiting-input`, `partially-filled`) to the node card, (3) extending the QA modal into a unified "Human Input" modal that handles both agent questions and user-input nodes, and (4) creating server actions that walk the existing positional-graph lifecycle (`startNode` → `node:accepted` → `saveOutputData` → `endNode`) to submit user-input data. Multi-output nodes support per-field partial saves with persistence between modal sessions.
+User-input nodes in the workflow editor currently have no input mechanism — they sit at `pending` status forever. This plan makes them functional by: (1) extending `NodeStatusResult` to surface unit config and output save state, (2) adding computed display statuses (`awaiting-input`, `partially-filled`) to the node card, (3) building a Human Input modal for user-input nodes (replacing the deprecated engine Q&A protocol with a pure web-layer approach), and (4) creating server actions that walk the existing positional-graph lifecycle (`startNode` → `node:accepted` → `endNode`) to submit user-input data. Multi-output nodes support per-field partial saves with persistence between modal sessions.
+
+> **Architectural note**: The engine's Q&A protocol (`askQuestion`/`answerQuestion`/`getAnswer` on `IPositionalGraphService`) is deprecated scaffolding — never integrated into real agent execution. Human input collection is a **web-layer concern**. Plan 054 does NOT use the engine Q&A methods. Instead, server actions write directly to `data.json` via `IFileSystem` and walk the node lifecycle. The existing `answerQuestion` server action in `workflow-actions.ts` only services pre-baked dope demo questions and is also deprecated territory.
 
 ## Target Domains
 
@@ -26,7 +28,7 @@ User-input nodes in the workflow editor currently have no input mechanism — th
 | `packages/positional-graph/src/interfaces/positional-graph-service.interface.ts` | _platform/positional-graph | contract | Extend `NodeStatusResult` with `userInput` and `savedOutputCount` fields |
 | `packages/positional-graph/src/services/positional-graph.service.ts` | _platform/positional-graph | internal | Populate new `NodeStatusResult` fields from unit.yaml + data.json |
 | `packages/positional-graph/src/services/input-resolution.ts` | _platform/positional-graph | internal | Fix `collateInputs` to read wrapped data.json format (Format A). See Workshop 008. |
-| `apps/web/src/features/050-workflow-page/components/qa-modal.tsx` | workflow-ui | internal | Refactor into `HumanInputModal` with dual mode support |
+| `apps/web/src/features/050-workflow-page/components/qa-modal.tsx` | workflow-ui | internal | Refactor into `HumanInputModal` — user-input mode only. Agent question mode (`pendingQuestion`) is deprecated scaffolding and NOT extended. |
 | `apps/web/src/features/050-workflow-page/components/workflow-node-card.tsx` | workflow-ui | internal | Add `awaiting-input` + `partially-filled` to STATUS_MAP, click routing |
 | `apps/web/src/features/050-workflow-page/components/node-properties-panel.tsx` | workflow-ui | internal | Add Outputs section, "Provide Input..." button |
 | `apps/web/src/features/050-workflow-page/components/workflow-editor.tsx` | workflow-ui | internal | Wire modal routing for user-input nodes |
@@ -79,27 +81,26 @@ User-input nodes in the workflow editor currently have no input mechanism — th
 
 ### Phase 2: Human Input Modal — Single Output
 
-**Objective**: Extend the QA modal into a unified Human Input modal that handles both agent questions and single-output user-input nodes.
+**Objective**: Build a Human Input modal for user-input nodes. This is a new modal, not a refactor of the deprecated QA modal.
 **Domain**: `workflow-ui` (modify)
 **Delivers**:
-- Refactored modal component with `mode` prop (`agent-question` | `user-input`)
+- New `HumanInputModal` component for user-input nodes
 - "Human Input" header, unit slug + icon, output name + type badge
 - Single-output layout with prompt from unit.yaml config
-- Agent question regression (unchanged behaviour, rebadged header)
 - Properties panel "Provide Input..." button
 **Depends on**: Phase 1 (display status + NodeStatusResult extension)
-**Key risks**: Refactoring QA modal must not break existing agent question flow (AC-13).
+**Key risks**: None significant — new component, no refactoring of deprecated code.
+
+> **Note**: The existing `QAModal` + `answerQuestion` server action are deprecated scaffolding for pre-baked dope demo questions. Plan 054 does NOT extend or refactor them. The `HumanInputModal` is a separate component with its own server actions.
 
 | # | Task | Domain | Success Criteria | Notes |
 |---|------|--------|-----------------|-------|
-| 2.1 | Refactor `qa-modal.tsx` → add `mode` prop and unified interface | workflow-ui | Modal accepts both `pendingQuestion` (agent) and `userInput` config (user-input) as data source | Keep backward compat — existing QA props still work |
-| 2.2 | Rebadge modal header: "Question" → "Human Input" | workflow-ui | Header reads "Human Input" for both modes; shows unit slug + type icon below | Per Workshop 007 |
+| 2.1 | Create `HumanInputModal` component | workflow-ui | Modal renders prompt from `userInput` config, input field matching question type, freeform textarea | New file, does not modify qa-modal.tsx |
+| 2.2 | Modal header: "Human Input" with unit slug + icon | workflow-ui | Header shows "Human Input", unit slug, 👤 icon | Per Workshop 007 |
 | 2.3 | Single-output layout: output name + type badge above prompt | workflow-ui | Output name shown in uppercase with type pill (e.g., `SPEC  text`); prompt below | Per Workshop 007 |
-| 2.4 | Button text: "Submit Answer" → "Submit" | workflow-ui | Submit button reads "Submit" for both modes | Per Workshop 007 |
-| 2.5 | Wire modal routing in `workflow-editor.tsx` | workflow-ui | `awaiting-input` nodes open modal in `user-input` mode; `waiting-question` nodes open in `agent-question` mode | Per Workshop 007 routing logic |
-| 2.6 | Update properties panel: Outputs section + "Provide Input..." button | workflow-ui | User-input nodes show output save state and "Provide Input..." button instead of "Edit Properties..." | Per Workshop 007 panel layout |
-| 2.7 | Agent question regression test | workflow-ui | Existing `waiting-question` → QA modal → answer → restart flow works unchanged | AC-13 |
-| 2.8 | Modal rendering tests for single-output user-input mode | workflow-ui | Modal renders prompt, input field, freeform textarea for user-input mode | |
+| 2.4 | Wire modal routing in `workflow-editor.tsx` | workflow-ui | `awaiting-input`/`partially-filled` nodes open `HumanInputModal`; deprecated `waiting-question` nodes continue to open legacy `QAModal` | Separate code paths, no shared modal |
+| 2.5 | Update properties panel: Outputs section + "Provide Input..." button | workflow-ui | User-input nodes show output save state and "Provide Input..." button instead of "Edit Properties..." | Per Workshop 007 panel layout |
+| 2.6 | Modal rendering tests for single-output | workflow-ui | Modal renders prompt, input field, freeform textarea | |
 
 ### Phase 3: Server Actions + Single-Output Lifecycle
 
@@ -156,12 +157,12 @@ User-input nodes in the workflow editor currently have no input mechanism — th
 - [ ] **AC-01**: `user-input` + `pending` + `ready` → violet `?` badge, "Awaiting Input" label
 - [ ] **AC-02**: `user-input` + `pending` + NOT `ready` → gray `pending` treatment
 - [ ] **AC-03**: Click `awaiting-input` node → Human Input modal with unit.yaml config
-- [ ] **AC-04**: Modal header: "Human Input" for both agent questions and user-input
+- [ ] **AC-04**: Modal header: "Human Input" with unit slug + type icon
 - [ ] **AC-05**: All 4 question types render from unit.yaml: text, single, multi, confirm
 - [ ] **AC-06**: Freeform textarea appears for user-input nodes
 
 ### Data Submission & Storage
-- [ ] **AC-07**: Submit writes to `nodes/{id}/data/data.json` via `saveOutputData()`
+- [ ] **AC-07**: Submit writes to `nodes/{id}/data/data.json` via `IFileSystem` (Format A)
 - [ ] **AC-08**: After all required outputs filled, node → `complete` via full lifecycle
 - [ ] **AC-09**: Downstream `from_node` input resolution sees `inputsAvailable: true`
 - [ ] **AC-10**: Freeform notes preserved in output data
@@ -169,7 +170,6 @@ User-input nodes in the workflow editor currently have no input mechanism — th
 ### Robustness
 - [ ] **AC-11**: Missing `user_input` config → error state in modal
 - [ ] **AC-12**: Cancel/Escape → no data change, no status change
-- [ ] **AC-13**: Agent question flow unchanged (regression)
 
 ### Demo & Testing
 - [ ] **AC-14**: `just dope` creates user-input demo workflow
@@ -187,7 +187,7 @@ User-input nodes in the workflow editor currently have no input mechanism — th
 | Phase | Status | Tasks | Notes |
 |-------|--------|-------|-------|
 | Phase 1: NodeStatusResult + Display Status | Not started | 0/11 | |
-| Phase 2: Human Input Modal — Single Output | Not started | 0/8 | |
+| Phase 2: Human Input Modal — Single Output | Not started | 0/6 | |
 | Phase 3: Server Actions + Single-Output Lifecycle | Not started | 0/7 | |
 | Phase 4: Multi-Output Support + Final Integration | Not started | 0/9 | |
 

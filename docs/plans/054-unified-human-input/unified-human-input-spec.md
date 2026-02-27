@@ -5,16 +5,18 @@
 
 ## Summary
 
-Enable user-input nodes in the workflow editor to actually collect data from humans. Today, agent-initiated questions work through the QA modal, but dedicated `user-input` type nodes have no input mechanism — they sit at `pending` status with no way to provide data. This feature unifies both interaction patterns under a single "Human Input" UI: the same modal, the same visual treatment, but with storage and lifecycle paths appropriate to each case. After submission, user-input node outputs become available to downstream nodes through the existing input resolution system.
+Enable user-input nodes in the workflow editor to actually collect data from humans. Today, dedicated `user-input` type nodes have no input mechanism — they sit at `pending` status with no way to provide data. This feature builds a "Human Input" modal that reads configuration from `unit.yaml` and writes output data directly to `data.json` via the web layer, then walks the existing node lifecycle to complete the node. After submission, user-input node outputs become available to downstream nodes through the existing input resolution system.
+
+> **Architectural note**: The engine's Q&A protocol (`askQuestion`/`answerQuestion`/`getAnswer` on `IPositionalGraphService`) is deprecated scaffolding from Plan 028 — never integrated into real agent execution. Human input collection is a **web-layer concern**. This feature does NOT use the engine Q&A methods. The existing `QAModal` and `answerQuestion` server action are also deprecated territory (they service pre-baked dope demo questions only).
 
 ## Goals
 
 - **User-input nodes are usable**: Clicking a ready user-input node opens a modal pre-populated from its `unit.yaml → user_input` config (prompt, question type, options), allowing the human to provide data
-- **Unified visual language**: Both agent questions and user-input nodes present with the same violet badge, "Human Input" header, and always-on freeform text area — users don't need to understand the internal distinction
+- **Unified visual language**: User-input nodes present with a violet badge, "Human Input" header, and always-on freeform text area
 - **Data flows downstream**: After submission, user-input outputs are written to the node's data store and become available to downstream nodes through `collateInputs()` / the existing input resolution system
 - **Immediate completion**: User-input nodes transition directly to `complete` after submission (no agent to resume), unblocking downstream gates
 - **Standard question types supported**: All 4 question types (text, single-choice, multi-choice, confirm) work for user-input nodes, with configuration sourced from `unit.yaml`
-- **Always-on freeform**: Every human input interaction (whether question or user-input) always shows the freeform text area alongside structured input, consistent with the existing QA modal design
+- **Always-on freeform**: Every human input interaction shows the freeform text area alongside structured input
 
 ## Non-Goals
 
@@ -54,12 +56,12 @@ No new domains required. Positional-graph changes are lighter than originally es
 
 ### Node Display & Interaction
 
-- **AC-01**: A `user-input` node that is `pending` and `ready` (all gates pass) displays with the violet `?` badge and "Awaiting Input" label, matching the visual treatment of `waiting-question` nodes
+- **AC-01**: A `user-input` node that is `pending` and `ready` (all gates pass) displays with the violet `?` badge and "Awaiting Input" label
 - **AC-02**: A `user-input` node that is `pending` but NOT `ready` (gates blocking) displays with standard gray `pending` treatment — no input badge shown
 - **AC-03**: Clicking a `user-input` node in `awaiting-input` state opens the Human Input modal pre-populated with the node's `unit.yaml → user_input` config (prompt text, question type, options)
-- **AC-04**: The modal header reads "Human Input" for both agent questions and user-input nodes (unified language)
+- **AC-04**: The modal header reads "Human Input" and shows the unit slug + type icon
 - **AC-05**: All 4 question types render correctly in the modal when sourced from unit.yaml: text input, single-choice radio buttons, multi-choice checkboxes, confirm yes/no buttons
-- **AC-06**: The always-on freeform text area appears below the structured input for user-input nodes, consistent with existing agent question behavior
+- **AC-06**: The always-on freeform text area appears below the structured input for user-input nodes
 
 ### Data Submission & Storage
 
@@ -79,7 +81,6 @@ No new domains required. Positional-graph changes are lighter than originally es
 
 - **AC-11**: If a user-input node's unit.yaml has no `user_input` config (malformed), the node shows an error state rather than a broken modal
 - **AC-12**: Cancelling the modal (Cancel button or Escape key) does not change node status or write any data
-- **AC-13**: The existing agent question flow (`waiting-question` → QA modal → answer → restart) continues to work unchanged
 
 ### Demo & Testing
 
