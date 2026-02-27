@@ -2720,8 +2720,13 @@ export class PositionalGraphService implements IPositionalGraphService {
       // Write graph.yaml
       await this.persistGraph(ctx, graphSlug, definition);
 
-      // Write all node configs
+      // Write all node configs (ensure directories exist for deleted nodes)
       for (const [nodeId, config] of Object.entries(nodeConfigs)) {
+        const nodeDir = this.getNodeDir(ctx, graphSlug, nodeId);
+        const exists = await this.fs.exists(nodeDir);
+        if (!exists) {
+          await this.fs.mkdir(nodeDir, { recursive: true });
+        }
         await this.persistNodeConfig(ctx, graphSlug, nodeId, config);
       }
 
