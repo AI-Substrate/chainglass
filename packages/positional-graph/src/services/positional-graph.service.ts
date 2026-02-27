@@ -1007,7 +1007,32 @@ export class PositionalGraphService implements IPositionalGraphService {
     // Load node config
     const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
     if (!nodeResult.ok) {
-      throw new Error(`Node config for '${nodeId}' could not be loaded`);
+      // Return a degraded status for orphaned nodes (config deleted but still in definition)
+      return {
+        nodeId,
+        unitSlug: 'unknown',
+        unitType: 'agent' as const,
+        execution: 'serial' as const,
+        noContext: false,
+        lineId: nodeLocation.line.id,
+        position: nodeLocation.nodePositionInLine,
+        status: 'blocked-error' as import('../interfaces/index.js').ExecutionStatus,
+        ready: false,
+        readyDetail: {
+          precedingLinesComplete: false,
+          transitionOpen: false,
+          serialNeighborComplete: false,
+          inputsAvailable: false,
+          unitFound: false,
+          reason: `Node config missing — node '${nodeId}' may need to be removed or recreated`,
+        },
+        inputPack: { inputs: {}, ok: false },
+        error: {
+          code: 'E404',
+          message: `Node config for '${nodeId}' could not be loaded`,
+          occurredAt: new Date().toISOString(),
+        },
+      };
     }
 
     const nodeConfig = nodeResult.config;
