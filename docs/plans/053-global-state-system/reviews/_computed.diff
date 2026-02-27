@@ -1,1294 +1,607 @@
-diff --git a/apps/web/src/lib/state/global-state-system.ts b/apps/web/src/lib/state/global-state-system.ts
+diff --git a/apps/web/src/components/providers.tsx b/apps/web/src/components/providers.tsx
+index f82fcda..eb37ec0 100644
+--- a/apps/web/src/components/providers.tsx
++++ b/apps/web/src/components/providers.tsx
+@@ -16,6 +16,7 @@ import { NuqsAdapter } from 'nuqs/adapters/next/app';
+ import { type ReactNode, useState } from 'react';
+ 
+ import { SDKProvider } from '../lib/sdk/sdk-provider';
++import { GlobalStateProvider } from '../lib/state/state-provider';
+ import { Toaster } from './ui/toaster';
+ 
+ interface ProvidersProps {
+@@ -52,7 +53,9 @@ export function Providers({ children }: ProvidersProps) {
+   return (
+     <QueryClientProvider client={queryClient}>
+       <NuqsAdapter>
+-        <SDKProvider>{children}</SDKProvider>
++        <SDKProvider>
++          <GlobalStateProvider>{children}</GlobalStateProvider>
++        </SDKProvider>
+       </NuqsAdapter>
+       {/* Toaster must be inside ThemeProvider (in layout.tsx above us) for dark mode — DYK-042-04 */}
+       <Toaster />
+diff --git a/apps/web/src/lib/state/index.ts b/apps/web/src/lib/state/index.ts
 new file mode 100644
-index 0000000..34673a5
+index 0000000..929aabe
 --- /dev/null
-+++ b/apps/web/src/lib/state/global-state-system.ts
-@@ -0,0 +1,214 @@
++++ b/apps/web/src/lib/state/index.ts
+@@ -0,0 +1,16 @@
 +/**
-+ * Plan 053: GlobalStateSystem — Real Implementation
++ * Plan 053: GlobalStateSystem — App-Side Barrel Exports
 + *
-+ * Centralized ephemeral runtime state registry. Domains publish runtime values
-+ * to colon-delimited state paths; consumers subscribe by path or pattern.
-+ *
-+ * Key invariants:
-+ * - PL-01: Store-first — Map updated BEFORE subscribers notified
-+ * - PL-07: Error isolation — try/catch per subscriber callback
-+ * - AC-03: Stable get() references — no defensive copies
-+ * - AC-26: Stable list() arrays — version-counter caching
++ * Public API surface for apps/web consumers.
++ * Re-exports hooks, provider, context, and the system class.
 + */
 +
++// Provider + context
++export { GlobalStateProvider, StateContext, useStateSystem } from './state-provider';
++
++// Hooks
++export { useGlobalState } from './use-global-state';
++export { useGlobalStateList } from './use-global-state-list';
++
++// System class (for direct instantiation if needed)
++export { GlobalStateSystem } from './global-state-system';
+diff --git a/apps/web/src/lib/state/state-provider.tsx b/apps/web/src/lib/state/state-provider.tsx
+new file mode 100644
+index 0000000..3173a6b
+--- /dev/null
++++ b/apps/web/src/lib/state/state-provider.tsx
+@@ -0,0 +1,52 @@
++'use client';
++
++/**
++ * Plan 053: GlobalStateSystem — React Provider
++ *
++ * Creates GlobalStateSystem once per app mount and provides it via context.
++ * Follows SDKProvider pattern (createContext → useState initializer → useContext with throw).
++ *
++ * Per DYK-18: No try/catch — let errors propagate (AC-31 dropped).
++ * Per DYK-20: StateContext exported for test injection.
++ */
++
++import { type ReactNode, createContext, useContext, useState } from 'react';
++
 +import type { IStateService } from '@chainglass/shared/state';
-+import type {
-+  StateChange,
-+  StateChangeCallback,
-+  StateDomainDescriptor,
-+  StateEntry,
-+  StateMatcher,
-+} from '@chainglass/shared/state';
-+import { createStateMatcher, parsePath } from '@chainglass/shared/state';
++import { GlobalStateSystem } from './global-state-system';
 +
-+interface Subscription {
-+  pattern: string;
-+  matcher: StateMatcher;
-+  callback: StateChangeCallback;
++/**
++ * Exported for test injection — wrap tests with
++ * `<StateContext.Provider value={fake}>` to inject FakeGlobalStateSystem.
++ */
++export const StateContext = createContext<IStateService | null>(null);
++
++interface GlobalStateProviderProps {
++  children: ReactNode;
 +}
 +
-+interface ListCacheEntry {
-+  version: number;
-+  result: StateEntry[];
++/**
++ * App-level provider that creates a single GlobalStateSystem instance.
++ * Mount in providers.tsx after SDKProvider.
++ *
++ * Per AC-30: System created once via useState initializer.
++ */
++export function GlobalStateProvider({ children }: GlobalStateProviderProps) {
++  const [system] = useState(() => new GlobalStateSystem());
++
++  return <StateContext.Provider value={system}>{children}</StateContext.Provider>;
 +}
 +
-+export class GlobalStateSystem implements IStateService {
-+  private readonly store = new Map<string, StateEntry>();
-+  private readonly domains = new Map<string, StateDomainDescriptor>();
-+  private readonly subscriptions = new Map<number, Subscription>();
-+  private readonly listCache = new Map<string, ListCacheEntry>();
-+  private nextSubId = 0;
-+  private storeVersion = 0;
-+
-+  // ── Domain Registration ──
-+
-+  registerDomain(descriptor: StateDomainDescriptor): void {
-+    if (this.domains.has(descriptor.domain)) {
-+      throw new Error(`Domain "${descriptor.domain}" is already registered`);
-+    }
-+    this.domains.set(descriptor.domain, descriptor);
++/**
++ * Access the IStateService from context.
++ * Throws if used outside GlobalStateProvider (AC-32).
++ */
++export function useStateSystem(): IStateService {
++  const ctx = useContext(StateContext);
++  if (!ctx) {
++    throw new Error(
++      'useStateSystem must be used within <GlobalStateProvider>. Ensure GlobalStateProvider wraps your app.'
++    );
 +  }
++  return ctx;
++}
+diff --git a/apps/web/src/lib/state/use-global-state-list.ts b/apps/web/src/lib/state/use-global-state-list.ts
+new file mode 100644
+index 0000000..c481589
+--- /dev/null
++++ b/apps/web/src/lib/state/use-global-state-list.ts
+@@ -0,0 +1,41 @@
++'use client';
 +
-+  listDomains(): StateDomainDescriptor[] {
-+    return [...this.domains.values()];
-+  }
++/**
++ * Plan 053: GlobalStateSystem — useGlobalStateList Hook
++ *
++ * Multi-value pattern subscription hook for reading state entries.
++ * Uses useSyncExternalStore for concurrent-safe subscriptions.
++ *
++ * Per DYK-17: Subscribe with the actual pattern, not '*'.
++ * Per DYK-19: subscribe and getSnapshot wrapped in useCallback.
++ * list() already returns stable array refs (Phase 3 cache).
++ */
 +
-+  // ── Publishing ──
++import { useCallback, useSyncExternalStore } from 'react';
 +
-+  publish<T>(path: string, value: T): void {
-+    const parsed = parsePath(path);
-+    this.validateDomain(parsed.domain, parsed.instanceId);
++import type { StateEntry } from '@chainglass/shared/state';
++import { useStateSystem } from './state-provider';
 +
-+    const now = Date.now();
-+    const existing = this.store.get(path);
-+    const previousValue = existing?.value;
++const EMPTY: StateEntry[] = [];
 +
-+    // PL-01: Store-first — update Map before notifying
-+    const entry: StateEntry = { path, value, updatedAt: now };
-+    this.store.set(path, entry);
-+    this.storeVersion++;
-+    this.listCache.clear();
++/**
++ * Read all state entries matching a pattern. Re-renders when any matching value changes.
++ *
++ * @param pattern - Pattern to match (e.g., 'workflow:**', 'workflow:*:status')
++ * @returns Array of matching StateEntry objects (stable ref when unchanged)
++ *
++ * @example
++ * const entries = useGlobalStateList('workflow:*:status');
++ */
++export function useGlobalStateList(pattern: string): StateEntry[] {
++  const system = useStateSystem();
 +
-+    const change: StateChange = {
-+      path,
-+      domain: parsed.domain,
-+      instanceId: parsed.instanceId,
-+      property: parsed.property,
-+      value,
-+      previousValue,
-+      timestamp: now,
-+    };
++  const subscribe = useCallback(
++    (onStoreChange: () => void) => system.subscribe(pattern, onStoreChange),
++    [system, pattern]
++  );
 +
-+    this.dispatch(change);
-+  }
++  const getSnapshot = useCallback(() => system.list(pattern) ?? EMPTY, [system, pattern]);
 +
-+  // ── Reading ──
++  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
++}
+diff --git a/apps/web/src/lib/state/use-global-state.ts b/apps/web/src/lib/state/use-global-state.ts
+new file mode 100644
+index 0000000..723a3fd
+--- /dev/null
++++ b/apps/web/src/lib/state/use-global-state.ts
+@@ -0,0 +1,43 @@
++'use client';
 +
-+  get<T>(path: string): T | undefined {
-+    const entry = this.store.get(path);
-+    return entry?.value as T | undefined;
-+  }
++/**
++ * Plan 053: GlobalStateSystem — useGlobalState Hook
++ *
++ * Single-value subscription hook for reading state from GlobalStateSystem.
++ * Uses useSyncExternalStore for concurrent-safe subscriptions.
++ *
++ * Per DYK-16: Default value pinned with useRef to prevent infinite re-renders.
++ * Per DYK-19: subscribe and getSnapshot wrapped in useCallback for stable identity.
++ * Per Workshop 002: Returns T (read-only), not a tuple. Consumers never write.
++ */
 +
-+  list(pattern: string): StateEntry[] {
-+    const cached = this.listCache.get(pattern);
-+    if (cached && cached.version === this.storeVersion) {
-+      return cached.result;
-+    }
++import { useCallback, useRef, useSyncExternalStore } from 'react';
 +
-+    const matcher = createStateMatcher(pattern);
-+    const result: StateEntry[] = [];
-+    for (const [path, entry] of this.store) {
-+      if (matcher(path)) {
-+        result.push(entry);
-+      }
-+    }
++import { useStateSystem } from './state-provider';
 +
-+    this.listCache.set(pattern, { version: this.storeVersion, result });
-+    return result;
-+  }
++/**
++ * Read a single state value by path. Re-renders when the value changes.
++ *
++ * @param path - State path (e.g., 'workflow:wf-1:status')
++ * @param defaultValue - Value returned when no state is published at the path
++ * @returns Current value at path, or defaultValue if not published
++ *
++ * @example
++ * const status = useGlobalState<string>('workflow:wf-1:status', 'idle');
++ */
++export function useGlobalState<T>(path: string, defaultValue?: T): T | undefined {
++  const system = useStateSystem();
++  const pinnedDefault = useRef(defaultValue).current;
 +
-+  listInstances(domain: string): string[] {
-+    const ids = new Set<string>();
-+    for (const path of this.store.keys()) {
-+      const parsed = parsePath(path);
-+      if (parsed.domain === domain && parsed.instanceId !== null) {
-+        ids.add(parsed.instanceId);
-+      }
-+    }
-+    return [...ids];
-+  }
++  const subscribe = useCallback(
++    (onStoreChange: () => void) => system.subscribe(path, onStoreChange),
++    [system, path]
++  );
 +
-+  // ── Removal ──
++  const getSnapshot = useCallback(
++    () => system.get<T>(path) ?? pinnedDefault,
++    [system, path, pinnedDefault]
++  );
 +
-+  remove(path: string): void {
-+    const entry = this.store.get(path);
-+    if (!entry) return;
-+
-+    const parsed = parsePath(path);
-+    const previousValue = entry.value;
-+
-+    this.store.delete(path);
-+    this.storeVersion++;
-+    this.listCache.clear();
-+
-+    const change: StateChange = {
-+      path,
-+      domain: parsed.domain,
-+      instanceId: parsed.instanceId,
-+      property: parsed.property,
-+      value: undefined,
-+      previousValue,
-+      timestamp: Date.now(),
-+      removed: true,
-+    };
-+
-+    this.dispatch(change);
-+  }
-+
-+  removeInstance(domain: string, instanceId: string): void {
-+    const prefix = `${domain}:${instanceId}:`;
-+    const toRemove: string[] = [];
-+    for (const path of this.store.keys()) {
-+      if (path.startsWith(prefix)) {
-+        toRemove.push(path);
-+      }
-+    }
-+    for (const path of toRemove) {
-+      this.remove(path);
-+    }
-+  }
-+
-+  // ── Subscriptions ──
-+
-+  subscribe(pattern: string, callback: StateChangeCallback): () => void {
-+    const id = this.nextSubId++;
-+    const matcher = createStateMatcher(pattern);
-+    this.subscriptions.set(id, { pattern, matcher, callback });
-+
-+    return () => {
-+      this.subscriptions.delete(id);
-+    };
-+  }
-+
-+  // ── Diagnostics ──
-+
-+  get subscriberCount(): number {
-+    return this.subscriptions.size;
-+  }
-+
-+  get entryCount(): number {
-+    return this.store.size;
-+  }
-+
-+  // ── Private ──
-+
-+  private validateDomain(domain: string, instanceId: string | null): void {
-+    const descriptor = this.domains.get(domain);
-+    if (!descriptor) {
-+      throw new Error(`Domain "${domain}" is not registered. Call registerDomain() first.`);
-+    }
-+    if (descriptor.multiInstance && instanceId === null) {
-+      throw new Error(
-+        `Domain "${domain}" is multi-instance but path has no instance ID. Use domain:instanceId:property format.`
-+      );
-+    }
-+    if (!descriptor.multiInstance && instanceId !== null) {
-+      throw new Error(
-+        `Domain "${domain}" is a singleton but path has instance ID "${instanceId}". Use domain:property format.`
-+      );
-+    }
-+  }
-+
-+  private dispatch(change: StateChange): void {
-+    for (const sub of this.subscriptions.values()) {
-+      if (sub.matcher(change.path)) {
-+        // PL-07: Error isolation — one subscriber error must not block others
-+        try {
-+          sub.callback(change);
-+        } catch (err) {
-+          console.warn(`[GlobalStateSystem] Subscriber error for pattern "${sub.pattern}":`, err);
-+        }
-+      }
-+    }
-+  }
++  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 +}
 diff --git a/docs/domains/_platform/state/domain.md b/docs/domains/_platform/state/domain.md
-index a1910e6..d67712a 100644
+index d67712a..4a62bac 100644
 --- a/docs/domains/_platform/state/domain.md
 +++ b/docs/domains/_platform/state/domain.md
-@@ -81,7 +81,7 @@ Centralized ephemeral runtime state system. Domains publish runtime values (work
- 
- Primary: `packages/shared/src/state/` (types + interface) + `apps/web/src/lib/state/` (implementation + hooks)
- 
--*Note: Implementation files (apps/web) do not exist yet — created by Plan 053 Phase 3+.*
-+*Note: Implementation files (apps/web) exist. React hooks + provider (Phase 4) and exemplar (Phase 5) not yet created.*
- 
- | File | Role | Notes |
- |------|------|-------|
-@@ -91,15 +91,16 @@ Primary: `packages/shared/src/state/` (types + interface) + `apps/web/src/lib/st
- | `packages/shared/src/state/path-matcher.ts` | createStateMatcher() | ✅ Created Phase 1 |
- | `packages/shared/src/state/tokens.ts` | STATE_DI_TOKENS | ✅ Created Phase 1 |
+@@ -93,14 +93,15 @@ Primary: `packages/shared/src/state/` (types + interface) + `apps/web/src/lib/st
  | `packages/shared/src/state/index.ts` | Barrel exports | ✅ Created Phase 1 |
--| `packages/shared/src/fakes/fake-state-system.ts` | FakeGlobalStateSystem | Test double |
--| `apps/web/src/lib/state/global-state-system.ts` | GlobalStateSystem class | IStateService implementation |
-+| `packages/shared/src/fakes/fake-state-system.ts` | FakeGlobalStateSystem | ✅ Created Phase 3 |
-+| `apps/web/src/lib/state/global-state-system.ts` | GlobalStateSystem class | ✅ Created Phase 3 |
- | `apps/web/src/lib/state/state-provider.tsx` | GlobalStateProvider + useStateSystem | React context |
+ | `packages/shared/src/fakes/fake-state-system.ts` | FakeGlobalStateSystem | ✅ Created Phase 3 |
+ | `apps/web/src/lib/state/global-state-system.ts` | GlobalStateSystem class | ✅ Created Phase 3 |
+-| `apps/web/src/lib/state/state-provider.tsx` | GlobalStateProvider + useStateSystem | React context |
++| `apps/web/src/lib/state/state-provider.tsx` | GlobalStateProvider + useStateSystem + StateContext | ✅ Created Phase 4 |
  | `apps/web/src/lib/state/state-connector.tsx` | GlobalStateConnector | Workspace wiring |
- | `apps/web/src/lib/state/use-global-state.ts` | useGlobalState<T> hook | useSyncExternalStore |
- | `apps/web/src/lib/state/use-global-state-list.ts` | useGlobalStateList hook | Pattern subscriptions |
- | `apps/web/src/lib/state/index.ts` | Barrel exports | App-side |
--| `test/contracts/state-system.contract.ts` | Contract test factory | Runs against real + fake |
--| `test/unit/web/state/global-state-system.test.ts` | Unit tests | Store, dispatch, pattern matching |
-+| `test/contracts/state-system.contract.ts` | Contract test factory | ✅ Created Phase 2 |
-+| `test/contracts/state-system.contract.test.ts` | Contract test runner | ✅ Created Phase 3 |
-+| `test/unit/web/state/global-state-system.test.ts` | Unit tests | ✅ Created Phase 3 |
+-| `apps/web/src/lib/state/use-global-state.ts` | useGlobalState<T> hook | useSyncExternalStore |
+-| `apps/web/src/lib/state/use-global-state-list.ts` | useGlobalStateList hook | Pattern subscriptions |
+-| `apps/web/src/lib/state/index.ts` | Barrel exports | App-side |
++| `apps/web/src/lib/state/use-global-state.ts` | useGlobalState<T> hook | ✅ Created Phase 4 |
++| `apps/web/src/lib/state/use-global-state-list.ts` | useGlobalStateList hook | ✅ Created Phase 4 |
++| `apps/web/src/lib/state/index.ts` | Barrel exports | ✅ Created Phase 4 |
+ | `test/contracts/state-system.contract.ts` | Contract test factory | ✅ Created Phase 2 |
+ | `test/contracts/state-system.contract.test.ts` | Contract test runner | ✅ Created Phase 3 |
+ | `test/unit/web/state/global-state-system.test.ts` | Unit tests | ✅ Created Phase 3 |
++| `test/unit/web/state/use-global-state.test.tsx` | Hook tests | ✅ Created Phase 4 |
  
  ---
  
-@@ -143,3 +144,4 @@ Primary: `packages/shared/src/state/` (types + interface) + `apps/web/src/lib/st
- | 053 | Domain extracted and designed from workshops. Research dossier + 2 workshops (hierarchical addressing, developer experience). | 2026-02-26 |
+@@ -145,3 +146,4 @@ Primary: `packages/shared/src/state/` (types + interface) + `apps/web/src/lib/st
  | 053-P1 | Phase 1 implemented: types, IStateService interface, path parser (2/3 segments), path matcher (5 patterns), DI tokens, barrel exports + package.json `./state` entry. | 2026-02-26 |
  | 053-P2 | Phase 2 implemented: path parser tests (25), path matcher tests (22), contract test factory (19 cases C01-C19). All imports via `@chainglass/shared/state`. | 2026-02-27 |
-+| 053-P3 | Phase 3 implemented: GlobalStateSystem (real, Map-based store + dispatch), FakeGlobalStateSystem (full behavioral fake + inspection methods), contract test runner (44 tests pass — 22 real + 22 fake), unit tests (31). Total: 122 state tests. | 2026-02-27 |
+ | 053-P3 | Phase 3 implemented: GlobalStateSystem (real, Map-based store + dispatch), FakeGlobalStateSystem (full behavioral fake + inspection methods), contract test runner (44 tests pass — 22 real + 22 fake), unit tests (31). Total: 122 state tests. | 2026-02-27 |
++| 053-P4 | Phase 4 implemented: React hooks (useGlobalState, useGlobalStateList via useSyncExternalStore), GlobalStateProvider + useStateSystem + exported StateContext, barrel exports, mounted in providers.tsx. AC-31 dropped (fail-fast, no no-op fallback). 9 hook tests. Total: 137 state tests. | 2026-02-27 |
 diff --git a/docs/plans/053-global-state-system/global-state-system-plan.md b/docs/plans/053-global-state-system/global-state-system-plan.md
-index 7a43556..83aa4a0 100644
+index f70c593..f84fd2e 100644
 --- a/docs/plans/053-global-state-system/global-state-system-plan.md
 +++ b/docs/plans/053-global-state-system/global-state-system-plan.md
-@@ -12,7 +12,7 @@
- |-------|--------|-------|-----|
+@@ -13,7 +13,7 @@
  | Phase 1: Types, Interface & Path Engine | ✅ Complete | 6/6 | 8/8 |
  | Phase 2: TDD — Path Engine & Contract Tests | ✅ Complete | 3/3 | 2/2 |
--| Phase 3: Implementation + Fake | ⬜ Not Started | 0/4 | 0/23 |
-+| Phase 3: Implementation + Fake | ✅ Complete | 4/4 | 23/23 |
- | Phase 4: React Integration | ⬜ Not Started | 0/6 | 0/6 |
+ | Phase 3: Implementation + Fake | ✅ Complete | 4/4 | 23/23 |
+-| Phase 4: React Integration | ⬜ Not Started | 0/6 | 0/6 |
++| Phase 4: React Integration | ✅ Complete | 6/6 | 5/5 |
  | Phase 5: Worktree Exemplar | ⬜ Not Started | 0/6 | 0/4 |
  | Phase 6: Documentation & Quality Gate | ⬜ Not Started | 0/3 | 0/1 |
-@@ -23,6 +23,7 @@
- |------|-------|--------|---------|
+ 
+@@ -24,6 +24,7 @@
  | 2026-02-26 | Phase 1 | `_platform/state` | Created: types.ts, state.interface.ts, path-parser.ts, path-matcher.ts, tokens.ts, index.ts. Modified: packages/shared/package.json (added ./state export). Domain docs updated (source locations + history). |
  | 2026-02-27 | Phase 2 | `_platform/state` | Created: path-parser.test.ts (25 tests), path-matcher.test.ts (22 tests), state-system.contract.ts (19 contract cases). |
-+| 2026-02-27 | Phase 3 | `_platform/state` | Created: global-state-system.test.ts (31 unit tests), fake-state-system.ts (FakeGlobalStateSystem + inspection methods), global-state-system.ts (GlobalStateSystem real impl), state-system.contract.test.ts (runner, 44 contract tests pass). Modified: fakes/index.ts (added FakeGlobalStateSystem export). |
+ | 2026-02-27 | Phase 3 | `_platform/state` | Created: global-state-system.test.ts (31 unit tests), fake-state-system.ts (FakeGlobalStateSystem + inspection methods), global-state-system.ts (GlobalStateSystem real impl), state-system.contract.test.ts (runner, 44 contract tests pass). Modified: fakes/index.ts (added FakeGlobalStateSystem export). |
++| 2026-02-27 | Phase 4 | `_platform/state` | Created: state-provider.tsx (GlobalStateProvider + useStateSystem + StateContext), use-global-state.ts (useGlobalState hook), use-global-state-list.ts (useGlobalStateList hook), index.ts (barrel), use-global-state.test.tsx (9 hook tests). Modified: providers.tsx (mounted GlobalStateProvider). AC-31 dropped (DYK-18). |
  
  ### Domain Impact
  
-diff --git a/docs/plans/053-global-state-system/tasks/phase-3-implementation-fake/execution.log.md b/docs/plans/053-global-state-system/tasks/phase-3-implementation-fake/execution.log.md
+diff --git a/docs/plans/053-global-state-system/tasks/phase-4-react-integration/execution.log.md b/docs/plans/053-global-state-system/tasks/phase-4-react-integration/execution.log.md
 new file mode 100644
-index 0000000..a708806
+index 0000000..0d6a2b9
 --- /dev/null
-+++ b/docs/plans/053-global-state-system/tasks/phase-3-implementation-fake/execution.log.md
-@@ -0,0 +1,41 @@
-+# Execution Log: Phase 3 — Implementation + Fake
++++ b/docs/plans/053-global-state-system/tasks/phase-4-react-integration/execution.log.md
+@@ -0,0 +1,53 @@
++# Execution Log: Phase 4 — React Integration
 +
 +**Plan**: 053-global-state-system
-+**Phase**: Phase 3: Implementation + Fake
++**Phase**: Phase 4: React Integration
 +**Started**: 2026-02-27
 +
 +---
 +
 +## Task Log
 +
-+### T001: TDD Unit Tests (RED → GREEN)
++### T003: GlobalStateProvider + useStateSystem
 +
-+**File**: `test/unit/web/state/global-state-system.test.ts`
-+**Tests**: 31 tests covering publish/get, subscribe/unsubscribe, error isolation, store-first ordering, remove, removeInstance, registerDomain, listDomains, listInstances, singleton/multi-instance validation, list with patterns, stable references, diagnostics.
-+**RED evidence**: Tests failed with `Cannot find module` before GlobalStateSystem was created.
-+**GREEN evidence**: All 31 tests pass after T003 implementation.
++**File**: `apps/web/src/lib/state/state-provider.tsx`
++**Pattern**: createContext<IStateService | null>(null) → useState(() => new GlobalStateSystem()) → useContext with throw.
++**Exports**: GlobalStateProvider, useStateSystem, StateContext (for test injection per DYK-20).
++**DYK-18 applied**: No try/catch — errors propagate (AC-31 dropped per user decision).
 +
-+### T002: FakeGlobalStateSystem
++### T001: useGlobalState<T> Hook
 +
-+**File**: `packages/shared/src/fakes/fake-state-system.ts`
-+**Exported from**: `packages/shared/src/fakes/index.ts`
-+**Build**: `pnpm build` passes in packages/shared
-+**Pattern**: Full behavioral implementation (not a stub), same logic as real but with inspection methods (getPublished, getSubscribers, wasPublishedWith, reset).
++**File**: `apps/web/src/lib/state/use-global-state.ts`
++**Pattern**: useSyncExternalStore with useCallback-wrapped subscribe + getSnapshot.
++**DYK-16 applied**: Default value pinned with `useRef(defaultValue).current`.
++**DYK-19 applied**: subscribe and getSnapshot wrapped in useCallback with [system, path] deps.
 +
-+### T003: GlobalStateSystem Implementation
++### T002: useGlobalStateList Hook
 +
-+**File**: `apps/web/src/lib/state/global-state-system.ts`
-+**Key invariants**: Store-first (PL-01), error isolation (PL-07), stable get() refs (AC-03), version-counter list() caching (AC-26).
-+**Evidence**: 31 unit tests pass GREEN.
++**File**: `apps/web/src/lib/state/use-global-state-list.ts`
++**Pattern**: useSyncExternalStore with pattern-scoped subscription.
++**DYK-17 applied**: subscribe(pattern, cb) not subscribe('*', cb).
 +
-+### T004: Contract Test Runner
++### T004: Barrel Exports
 +
-+**File**: `test/contracts/state-system.contract.test.ts`
-+**Evidence**: 44 contract tests pass (22 Real + 22 Fake). All 19 contracts (C01-C19) pass for both implementations.
++**File**: `apps/web/src/lib/state/index.ts`
++**Exports**: GlobalStateProvider, StateContext, useStateSystem, useGlobalState, useGlobalStateList, GlobalStateSystem.
++
++### T005: Mount in providers.tsx
++
++**File**: `apps/web/src/components/providers.tsx`
++**Change**: Wrapped children with `<GlobalStateProvider>` inside SDKProvider.
++
++### T006: Hook Tests
++
++**File**: `test/unit/web/state/use-global-state.test.tsx`
++**Tests**: 9 tests covering useStateSystem (throws outside provider, returns service inside), useGlobalState (default value, published value, re-renders on change, undefined without default), useGlobalStateList (matching entries, re-renders, empty array).
++**Injection**: FakeGlobalStateSystem via exported StateContext.Provider.
 +
 +### Test Summary
 +
-+- Unit tests: 31 pass (global-state-system.test.ts)
-+- Contract tests: 44 pass (22 Real + 22 Fake)
++- Hook tests: 9 pass (use-global-state.test.tsx)
++- Unit tests: 37 pass (global-state-system.test.ts)
++- Contract tests: 44 pass (state-system.contract.test.ts)
 +- Phase 2 tests: 47 pass (path-parser + path-matcher)
-+- **Total state tests: 122 pass**
-diff --git a/docs/plans/053-global-state-system/tasks/phase-3-implementation-fake/tasks.fltplan.md b/docs/plans/053-global-state-system/tasks/phase-3-implementation-fake/tasks.fltplan.md
-new file mode 100644
-index 0000000..d71bcf4
---- /dev/null
-+++ b/docs/plans/053-global-state-system/tasks/phase-3-implementation-fake/tasks.fltplan.md
-@@ -0,0 +1,132 @@
-+# Flight Plan: Phase 3 — Implementation + Fake
-+
-+**Plan**: 053-global-state-system
-+**Phase**: Phase 3: Implementation + Fake
-+**Generated**: 2026-02-27
++- **Total state tests: 137 pass**
+diff --git a/docs/plans/053-global-state-system/tasks/phase-4-react-integration/tasks.fltplan.md b/docs/plans/053-global-state-system/tasks/phase-4-react-integration/tasks.fltplan.md
+index e498822..18a6447 100644
+--- a/docs/plans/053-global-state-system/tasks/phase-4-react-integration/tasks.fltplan.md
++++ b/docs/plans/053-global-state-system/tasks/phase-4-react-integration/tasks.fltplan.md
+@@ -3,7 +3,7 @@
+ **Plan**: 053-global-state-system
+ **Phase**: Phase 4: React Integration
+ **Generated**: 2026-02-27
+-**Status**: Ready for takeoff
 +**Status**: Landed
-+
-+---
-+
-+## Departure → Destination
-+
-+**Where we are**: IStateService interface defined. 47 unit tests pass (parser + matcher). 19 contract cases defined but have no implementations to run against. No GlobalStateSystem class. No FakeGlobalStateSystem.
-+
-+**Where we're going**: Both `GlobalStateSystem` (real) and `FakeGlobalStateSystem` (fake) pass all 19 contract tests. All store operations are unit-tested. The state system is fully functional — just not wired into React yet.
-+
-+---
-+
-+## Domain Context
-+
-+### Domains We're Changing
-+
-+| Domain | What Changes | Key Files |
-+|--------|-------------|-----------|
-+| `_platform/state` | Create real implementation + fake test double | `apps/web/src/lib/state/global-state-system.ts`, `packages/shared/src/fakes/fake-state-system.ts` |
-+
-+### Domains We Depend On (no changes)
-+
-+| Domain | What We Consume | Contract |
-+|--------|----------------|----------|
-+| `_platform/state` (Phase 1) | IStateService, types, parsePath, createStateMatcher | Shared contract layer |
-+
-+---
-+
-+## Flight Status
-+
-+```mermaid
-+stateDiagram-v2
-+    classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
-+
-+    state "1: Unit tests (RED)" as S1
-+    state "2: FakeGlobalStateSystem" as S2
-+    state "3: GlobalStateSystem" as S3
-+    state "4: Contract runner" as S4
-+
-+    [*] --> S1
-+    S1 --> S2
-+    S1 --> S3
-+    S2 --> S4
-+    S3 --> S4
-+    S4 --> [*]
-+
-+    classDef done fill:#4CAF50,stroke:#388E3C,color:#fff
-+    classDef active fill:#FF9800,stroke:#F57C00,color:#fff
-+    class S1,S2,S3,S4 done
-+```
-+
-+---
-+
-+## Architecture: Before & After
-+
-+```mermaid
-+flowchart LR
-+    classDef existing fill:#E8F5E9,stroke:#4CAF50,color:#000
-+    classDef new fill:#E3F2FD,stroke:#2196F3,color:#000
-+
-+    subgraph Before["Before Phase 3"]
-+        B1["packages/shared/src/state/<br/>types · parser · matcher · tokens"]:::existing
-+        B2["packages/shared/src/interfaces/<br/>state.interface.ts"]:::existing
-+        B3["test/contracts/<br/>state-system.contract.ts<br/>(factory only — no runner)"]:::existing
-+    end
-+
-+    subgraph After["After Phase 3"]
-+        A1["packages/shared/src/state/<br/>types · parser · matcher · tokens"]:::existing
-+        A2["packages/shared/src/interfaces/<br/>state.interface.ts"]:::existing
-+        A3["packages/shared/src/fakes/<br/>fake-state-system.ts"]:::new
-+        A4["apps/web/src/lib/state/<br/>global-state-system.ts"]:::new
-+        A5["test/contracts/<br/>state-system.contract.test.ts<br/>(runner — real + fake)"]:::new
-+        A6["test/unit/web/state/<br/>global-state-system.test.ts"]:::new
-+    end
-+```
-+
-+---
-+
-+## Stages
-+
-+- [x] **Stage 1: TDD unit tests** — Write RED tests for GlobalStateSystem store operations (T001)
-+- [x] **Stage 2: FakeGlobalStateSystem** — Build fake with inspection methods, must pass contracts (T002)
-+- [x] **Stage 3: GlobalStateSystem** — Build real implementation, all tests GREEN (T003)
-+- [x] **Stage 4: Contract runner** — Wire runner against both, all 19 contracts pass for both (T004)
-+
-+## Acceptance Criteria
-+
-+- [ ] AC-01: publish stores + notifies
-+- [ ] AC-02: get returns value or undefined
-+- [ ] AC-03: get returns stable references
-+- [ ] AC-04: remove notifies with removed flag
-+- [ ] AC-05: removeInstance removes all entries
-+- [ ] AC-06: registerDomain registers descriptor
-+- [ ] AC-07: Duplicate registerDomain throws
-+- [ ] AC-08: publish to unregistered domain throws
-+- [ ] AC-09: listDomains returns descriptors
-+- [ ] AC-10: listInstances returns IDs
-+- [ ] AC-13: Singleton with instance ID throws
-+- [ ] AC-14: Multi-instance without instance ID throws
-+- [ ] AC-21: subscribe returns unsubscribe fn
-+- [ ] AC-22: Error isolation
-+- [ ] AC-23: StateChange shape
-+- [ ] AC-24: Store-first ordering
-+- [ ] AC-25: list returns matching entries
-+- [ ] AC-26: list returns stable array ref
-+- [ ] AC-33: FakeGlobalStateSystem with inspection methods
-+- [ ] AC-34: Contract tests pass for both real and fake
-+- [ ] AC-35: Unit tests for all core operations
-+- [ ] AC-36: subscriberCount
-+- [ ] AC-37: entryCount
-+
-+## DYK Items
-+
-+| ID | What | Impact |
-+|----|------|--------|
-+| DYK-11 | Fake must implement list() caching to pass C15 | Use dirty-flag cache |
-+| DYK-12 | Fake is a full behavioral implementation, not a stub | Standalone class with parsePath/createStateMatcher |
-+| DYK-13 | listCache.clear() on every publish is correct at scale | Simple invalidation |
-+| DYK-14 | Contract runner imports real impl via relative path | Follow file-change-hub pattern |
-+| DYK-15 | Fake must be exported from fakes barrel | Add to fakes/index.ts |
-+
-+## Checklist
-+
-+- [x] T001: TDD unit tests for store operations
-+- [x] T002: FakeGlobalStateSystem
-+- [x] T003: GlobalStateSystem implementation
-+- [x] T004: Contract test runner (real + fake)
-diff --git a/docs/plans/053-global-state-system/tasks/phase-3-implementation-fake/tasks.md b/docs/plans/053-global-state-system/tasks/phase-3-implementation-fake/tasks.md
-new file mode 100644
-index 0000000..90fd1e5
---- /dev/null
-+++ b/docs/plans/053-global-state-system/tasks/phase-3-implementation-fake/tasks.md
-@@ -0,0 +1,108 @@
-+# Phase 3: Implementation + Fake — Tasks & Brief
-+
-+**Plan**: [global-state-system-plan.md](../../global-state-system-plan.md)
-+**Phase**: Phase 3: Implementation + Fake
-+**Generated**: 2026-02-27
+ 
+ ---
+ 
+@@ -60,7 +60,9 @@ stateDiagram-v2
+     S5 --> [*]
+     S6 --> [*]
+ 
+-    class S1,S2,S3,S4,S5,S6 pending
++    class S1,S2 done
++    class S3,S4 active
++    class S5,S6 pending
+ ```
+ 
+ **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
+@@ -69,10 +71,10 @@ stateDiagram-v2
+ 
+ ## Stages
+ 
+-- [ ] **Stage 1: Provider** — GlobalStateProvider + useStateSystem + no-op fallback (`state-provider.tsx` — new file)
+-- [ ] **Stage 2: Hooks** — useGlobalState + useGlobalStateList (`use-global-state.ts`, `use-global-state-list.ts` — new files)
+-- [ ] **Stage 3: Barrel + Mount** — App-side barrel exports + mount in providers.tsx (`index.ts` — new, `providers.tsx` — modify)
+-- [ ] **Stage 4: Tests** — Hook tests with FakeGlobalStateSystem injection (`use-global-state.test.tsx` — new file)
++- [x] **Stage 1: Provider** — GlobalStateProvider + useStateSystem (`state-provider.tsx` — new file)
++- [x] **Stage 2: Hooks** — useGlobalState + useGlobalStateList (`use-global-state.ts`, `use-global-state-list.ts` — new files)
++- [x] **Stage 3: Barrel + Mount** — App-side barrel exports + mount in providers.tsx (`index.ts` — new, `providers.tsx` — modify)
++- [x] **Stage 4: Tests** — Hook tests with FakeGlobalStateSystem injection (`use-global-state.test.tsx` — new file)
+ 
+ ---
+ 
+@@ -150,9 +152,9 @@ flowchart LR
+ 
+ ## Checklist
+ 
+-- [ ] T001: useGlobalState<T> hook
+-- [ ] T002: useGlobalStateList hook
+-- [ ] T003: GlobalStateProvider + useStateSystem
+-- [ ] T004: Barrel exports
+-- [ ] T005: Mount in providers.tsx
+-- [ ] T006: Hook tests
++- [x] T001: useGlobalState<T> hook
++- [x] T002: useGlobalStateList hook
++- [x] T003: GlobalStateProvider + useStateSystem
++- [x] T004: Barrel exports
++- [x] T005: Mount in providers.tsx
++- [x] T006: Hook tests
+diff --git a/docs/plans/053-global-state-system/tasks/phase-4-react-integration/tasks.md b/docs/plans/053-global-state-system/tasks/phase-4-react-integration/tasks.md
+index 3c8754e..d8af81c 100644
+--- a/docs/plans/053-global-state-system/tasks/phase-4-react-integration/tasks.md
++++ b/docs/plans/053-global-state-system/tasks/phase-4-react-integration/tasks.md
+@@ -3,7 +3,7 @@
+ **Plan**: [global-state-system-plan.md](../../global-state-system-plan.md)
+ **Phase**: Phase 4: React Integration
+ **Generated**: 2026-02-27
+-**Status**: Ready
 +**Status**: Complete
-+
-+---
-+
-+## Executive Briefing
-+
-+**Purpose**: Build GlobalStateSystem (real implementation) and FakeGlobalStateSystem (test double), both passing all 19 contract tests from Phase 2. This is the core engineering phase — everything else (hooks, provider, exemplar) depends on this.
-+
-+**What We're Building**:
-+- `GlobalStateSystem` class in `apps/web/src/lib/state/` — the real IStateService implementation with Map-based store, pattern-matched subscriber dispatch, error isolation, stable references
-+- `FakeGlobalStateSystem` in `packages/shared/src/fakes/` — test double with inspection methods (getPublished, getSubscribers, wasPublishedWith, reset)
-+- Contract test runner that executes `globalStateContractTests()` against both
-+
-+**Key Technical Challenges**:
-+- **Stable get() references** (AC-03): Return same object identity from Map — no defensive copies
-+- **Stable list() arrays** (AC-26): Version-counter caching — rebuild array only when matching entries change
-+- **Error isolation** (AC-22/PL-07): try/catch per subscriber callback in dispatch loop
-+- **Store-first ordering** (AC-24/PL-01): Update Map before notifying subscribers
-+- **Domain validation on publish** (AC-08/13/14): Check registration, singleton vs multi-instance
-+
-+---
-+
-+## Prior Phase Context
-+
-+**Phase 1** created types, interface, path parser, path matcher, DI tokens, barrel exports.
-+**Phase 2** created 47 unit tests (parser + matcher) and 19 contract cases (C01–C19).
-+
-+All Phase 2 tests pass GREEN against Phase 1 pure functions. Contract factory is defined but has no runner yet — that's T004 in this phase.
-+
-+---
-+
-+## Pre-Implementation Check
-+
-+| File | Exists? | Domain Check | Notes |
-+|------|---------|-------------|-------|
-+| `test/unit/web/state/global-state-system.test.ts` | ❌ Create | `_platform/state` ✅ | TDD unit tests |
-+| `packages/shared/src/fakes/fake-state-system.ts` | ❌ Create | `_platform/state` ✅ | 14 existing fakes in dir |
-+| `apps/web/src/lib/state/global-state-system.ts` | ❌ Create | `_platform/state` ✅ | New directory needed |
-+| `test/contracts/state-system.contract.test.ts` | ❌ Create | `_platform/state` ✅ | Runner for existing factory |
-+
-+---
-+
-+## Tasks
-+
-+| Status | ID | Task | Domain | Path(s) | Done When | Notes |
-+|--------|-----|------|--------|---------|-----------|-------|
-+| [x] | T001 | Create TDD unit tests for GlobalStateSystem store operations | `_platform/state` | `test/unit/web/state/global-state-system.test.ts` | RED tests covering: publish/get, subscribe/unsubscribe, error isolation, store-first ordering, remove, removeInstance, registerDomain (duplicate throws), listDomains, listInstances, singleton/multi-instance validation, list with patterns, stable get reference, stable list reference, subscriberCount, entryCount, previousValue tracking | AC-01 through AC-10, AC-13/14, AC-21 through AC-26, AC-36/37. Write RED first. |
-+| [x] | T002 | Create FakeGlobalStateSystem | `_platform/state` | `packages/shared/src/fakes/fake-state-system.ts` | Implements IStateService. Inspection methods: getPublished(path), getSubscribers(), wasPublishedWith(path, value), reset(). Follows FakeUSDK pattern (class with inspection). Export from fakes barrel. | AC-33. Per Finding 06. |
-+| [x] | T003 | Create GlobalStateSystem implementation | `_platform/state` | `apps/web/src/lib/state/global-state-system.ts` | Map-based store. Pattern-matched dispatch via createStateMatcher. Error isolation (try/catch per callback). Store-first ordering. Stable get() refs (no copies). Version-counter list() caching. Domain registration with singleton/multi-instance validation. All T001 tests pass GREEN. | Per Finding 04, PL-01, PL-07. |
-+| [x] | T004 | Create contract test runner | `_platform/state` | `test/contracts/state-system.contract.test.ts` | Imports globalStateContractTests from factory. Runs against both GlobalStateSystem and FakeGlobalStateSystem. All 19 contracts pass for both. | AC-34. Depends on T002 + T003. |
-+
-+---
-+
-+## Context Brief
-+
-+### Key Patterns
-+
-+| Source | Pattern | Usage |
-+|--------|---------|-------|
-+| `apps/web/src/lib/sdk/settings-store.ts` | `Map<key, entry>`, `Map<key, Set<callback>>`, no defensive copies in get(), dispatch with `for (const cb of cbs) cb(value)` | Model for store + listener dispatch |
-+| `apps/web/src/features/045-live-file-events/file-change-hub.ts` | Subscription Map with auto-incrementing IDs, `try/catch` per subscriber in dispatch | Model for error isolation |
-+| `packages/shared/src/fakes/fake-usdk.ts` | Fake class with inspection methods, implements interface | Model for FakeGlobalStateSystem |
-+
-+### Prior Learnings
-+
-+| PL | What | Impact |
-+|----|------|--------|
-+| PL-01 | Store-first, then broadcast | Update Map BEFORE iterating subscribers |
-+| PL-07 | Error isolation per subscriber | try/catch in dispatch loop, console.warn on error |
-+| PL-03 | Stateful services = useValue singleton in DI | GlobalStateSystem will use useValue registration in Phase 5 |
-+
-+### DYK Items
-+
-+| DYK | Impact |
-+|-----|--------|
-+| DYK-04 | StateEntry.updatedAt is `number` (Unix ms) — used for list() version tracking |
-+| DYK-07 | C06 store-first test calls get() inside subscriber callback |
-+| DYK-08 | Every contract test calls registerTestDomain() before publish() |
-+| DYK-09 | C15 tests list() stable array reference |
-+
-+### Implementation Strategy for list() Stable References
-+
-+```
-+list(pattern) flow:
-+1. Create StateMatcher for pattern
-+2. Check listCache for this pattern
-+3. If cache exists and maxUpdatedAt hasn't changed → return cached array
-+4. Iterate values Map, filter by matcher, build new StateEntry[]
-+5. Store in listCache: { maxUpdatedAt, result }
-+6. Return result
-+
-+Invalidation: on publish/remove, delete all listCache entries
-+(simple but correct; O(patterns) per publish — acceptable at expected scale)
-+```
-+
-+---
-+
-+## Discoveries & Learnings
-+
-+_Populated during implementation._
-+
-+| Date | Task | Type | Discovery | Resolution | References |
-+|------|------|------|-----------|------------|------------|
-diff --git a/packages/shared/src/fakes/fake-state-system.ts b/packages/shared/src/fakes/fake-state-system.ts
+ 
+ ---
+ 
+@@ -113,12 +113,12 @@ flowchart TD
+ 
+ | Status | ID | Task | Domain | Path(s) | Done When | Notes |
+ |--------|-----|------|--------|---------|-----------|-------|
+-| [ ] | T001 | Create useGlobalState<T> hook | `_platform/state` | `apps/web/src/lib/state/use-global-state.ts` | Hook uses useSyncExternalStore. subscribe(path, cb) → unsubscribe. getSnapshot returns get<T>(path) ?? default. Re-renders on change. Returns T (read-only, not tuple). | AC-27, AC-28. Follow useSDKSetting pattern. Same fn for client+server snapshot. |
+-| [ ] | T002 | Create useGlobalStateList hook | `_platform/state` | `apps/web/src/lib/state/use-global-state-list.ts` | Hook uses useSyncExternalStore. subscribe('*', cb) for broad notification. getSnapshot calls list(pattern). Returns StateEntry[]. Stable ref when no matching changes. | AC-29. list() already provides stable refs (Phase 3). |
+-| [ ] | T003 | Create GlobalStateProvider + useStateSystem | `_platform/state` | `apps/web/src/lib/state/state-provider.tsx` | Provider creates GlobalStateSystem once via useState initializer. try/catch with no-op fallback on error. useStateSystem() returns IStateService from context, throws outside provider. 'use client' directive. | AC-30, AC-31, AC-32. Follow SDKProvider pattern exactly. |
+-| [ ] | T004 | Create barrel exports | `_platform/state` | `apps/web/src/lib/state/index.ts` | Exports: useGlobalState, useGlobalStateList, useStateSystem, GlobalStateProvider, GlobalStateSystem class. | App-side barrel for Phase 5+ consumers. |
+-| [ ] | T005 | Mount GlobalStateProvider in providers.tsx | `_platform/state` | `apps/web/src/components/providers.tsx` | GlobalStateProvider wraps children, placed after SDKProvider (inside it). No render regressions. App boots normally. | Per Finding 03. Cross-domain file. |
+-| [ ] | T006 | Create hook tests | `_platform/state` | `test/unit/web/state/use-global-state.test.tsx` | Tests useGlobalState: returns default when no value, returns published value, re-renders on change. Tests useGlobalStateList: returns matching entries, re-renders on matching change. Tests useStateSystem: throws outside provider. Uses FakeGlobalStateSystem for injection. | AC-27-32 coverage. Needs renderHook from @testing-library/react. |
++| [x] | T001 | Create useGlobalState<T> hook | `_platform/state` | `apps/web/src/lib/state/use-global-state.ts` | Hook uses useSyncExternalStore. subscribe(path, cb) → unsubscribe. getSnapshot returns get<T>(path) ?? pinnedDefault. Pin default with useRef (DYK-16). Wrap subscribe+getSnapshot in useCallback (DYK-19). Re-renders on change. Returns T (read-only, not tuple). | AC-27, AC-28. Follow useSDKSetting pattern. Same fn for client+server snapshot. |
++| [x] | T002 | Create useGlobalStateList hook | `_platform/state` | `apps/web/src/lib/state/use-global-state-list.ts` | Hook uses useSyncExternalStore. subscribe(pattern, cb) for pattern-scoped notification (NOT '*' — per DYK-17). getSnapshot calls list(pattern). Returns StateEntry[]. Stable ref when no matching changes. | AC-29. list() already provides stable refs (Phase 3). Per DYK-17: subscribe with actual pattern. |
++| [x] | T003 | Create GlobalStateProvider + useStateSystem | `_platform/state` | `apps/web/src/lib/state/state-provider.tsx` | Provider creates GlobalStateSystem once via useState initializer. No try/catch — let errors propagate (DYK-18: AC-31 dropped). useStateSystem() returns IStateService from context, throws outside provider. Export StateContext for test injection (DYK-20). 'use client' directive. | AC-30, AC-32. Follow SDKProvider pattern. |
++| [x] | T004 | Create barrel exports | `_platform/state` | `apps/web/src/lib/state/index.ts` | Exports: useGlobalState, useGlobalStateList, useStateSystem, GlobalStateProvider, GlobalStateSystem class. | App-side barrel for Phase 5+ consumers. |
++| [x] | T005 | Mount GlobalStateProvider in providers.tsx | `_platform/state` | `apps/web/src/components/providers.tsx` | GlobalStateProvider wraps children, placed after SDKProvider (inside it). No render regressions. App boots normally. | Per Finding 03. Cross-domain file. |
++| [x] | T006 | Create hook tests | `_platform/state` | `test/unit/web/state/use-global-state.test.tsx` | Tests useGlobalState: returns default when no value, returns published value, re-renders on change. Tests useGlobalStateList: returns matching entries, re-renders on matching change. Tests useStateSystem: throws outside provider. Uses FakeGlobalStateSystem injected via exported StateContext (DYK-20). | AC-27-30, AC-32 coverage. Needs renderHook from @testing-library/react. |
+ 
+ ---
+ 
+@@ -209,10 +209,13 @@ For graceful degradation, the provider needs a `createNoOpStateSystem()` that re
+ 
+ ## Discoveries & Learnings
+ 
+-_Populated during implementation._
+-
+ | Date | Task | Type | Discovery | Resolution | References |
+ |------|------|------|-----------|------------|------------|
++| 2026-02-27 | T001 | DYK-16 | Inline default values (e.g. `useGlobalState('path', { count: 0 })`) create new object identity each render → useCallback deps change → useSyncExternalStore detects "change" → infinite re-render loop | Pin default with `useRef(defaultValue).current` inside the hook | AC-27, AC-28 |
++| 2026-02-27 | T002 | DYK-17 | Dossier said `subscribe('*', cb)` for useGlobalStateList — wrong. Global subscribe causes unnecessary getSnapshot calls on every publish across all domains/workspaces. Pattern matcher already handles new instances. | Subscribe with the actual pattern: `subscribe(pattern, onStoreChange)` | AC-29, T002 |
++| 2026-02-27 | T003 | DYK-18 (SPEC CHANGE) | AC-31 (graceful degradation with no-op fallback) dropped. Silent failure obscures errors during development. Fail-fast is better. | No `createNoOpStateSystem()`. Provider does `new GlobalStateSystem()` directly — errors propagate. AC-31 removed. | AC-31 dropped |
++| 2026-02-27 | T001/T002 | DYK-19 | subscribe and getSnapshot passed to useSyncExternalStore must be wrapped in useCallback with stable deps. Otherwise React unsubscribes/resubscribes every render, risking missed updates in the gap. | Both hooks wrap subscribe and getSnapshot in useCallback with `[system, path]` or `[system, pattern]` deps. Follow useSDKSetting pattern. | AC-27, AC-29 |
++| 2026-02-27 | T006 | DYK-20 | Provider creates system internally via useState — tests can't inject FakeGlobalStateSystem. | Export StateContext from state-provider.tsx. Tests wrap with `<StateContext.Provider value={fake}>`. Follows SDKContext export pattern. | AC-33, T006 |
+ 
+ ---
+ 
+diff --git a/test/unit/web/state/use-global-state.test.tsx b/test/unit/web/state/use-global-state.test.tsx
 new file mode 100644
-index 0000000..3800330
+index 0000000..475de61
 --- /dev/null
-+++ b/packages/shared/src/fakes/fake-state-system.ts
-@@ -0,0 +1,243 @@
++++ b/test/unit/web/state/use-global-state.test.tsx
+@@ -0,0 +1,190 @@
 +/**
-+ * Plan 053: GlobalStateSystem — FakeGlobalStateSystem
++ * Plan 053: GlobalStateSystem — Hook Tests
 + *
-+ * Full behavioral implementation of IStateService for testing.
-+ * Per DYK-12: Not a stub — implements all store logic using parsePath/createStateMatcher
-+ * from shared (pure functions) with independent store logic.
-+ *
-+ * Inspection methods: getPublished, getSubscribers, wasPublishedWith, reset.
-+ * Per DYK-15: Exported from packages/shared/src/fakes/ barrel.
++ * Tests for useGlobalState, useGlobalStateList, and useStateSystem hooks.
++ * Uses FakeGlobalStateSystem injected via exported StateContext (DYK-20).
 + */
 +
-+import type { IStateService } from '../interfaces/state.interface.js';
-+import { createStateMatcher } from '../state/path-matcher.js';
-+import { parsePath } from '../state/path-parser.js';
-+import type {
-+  StateChange,
-+  StateChangeCallback,
-+  StateDomainDescriptor,
-+  StateEntry,
-+  StateMatcher,
-+} from '../state/types.js';
-+
-+interface Subscription {
-+  pattern: string;
-+  matcher: StateMatcher;
-+  callback: StateChangeCallback;
-+}
-+
-+interface ListCacheEntry {
-+  version: number;
-+  result: StateEntry[];
-+}
-+
-+export class FakeGlobalStateSystem implements IStateService {
-+  private readonly store = new Map<string, StateEntry>();
-+  private readonly domains = new Map<string, StateDomainDescriptor>();
-+  private readonly subscriptions = new Map<number, Subscription>();
-+  private readonly listCache = new Map<string, ListCacheEntry>();
-+  private nextSubId = 0;
-+  private storeVersion = 0;
-+
-+  // ── Domain Registration ──
-+
-+  registerDomain(descriptor: StateDomainDescriptor): void {
-+    if (this.domains.has(descriptor.domain)) {
-+      throw new Error(`Domain "${descriptor.domain}" is already registered`);
-+    }
-+    this.domains.set(descriptor.domain, descriptor);
-+  }
-+
-+  listDomains(): StateDomainDescriptor[] {
-+    return [...this.domains.values()];
-+  }
-+
-+  // ── Publishing ──
-+
-+  publish<T>(path: string, value: T): void {
-+    const parsed = parsePath(path);
-+    this.validateDomain(parsed.domain, parsed.instanceId);
-+
-+    const now = Date.now();
-+    const existing = this.store.get(path);
-+    const previousValue = existing?.value;
-+
-+    // Store-first (PL-01): update Map before notifying
-+    const entry: StateEntry = { path, value, updatedAt: now };
-+    this.store.set(path, entry);
-+    this.storeVersion++;
-+    this.listCache.clear();
-+
-+    const change: StateChange = {
-+      path,
-+      domain: parsed.domain,
-+      instanceId: parsed.instanceId,
-+      property: parsed.property,
-+      value,
-+      previousValue,
-+      timestamp: now,
-+    };
-+
-+    this.dispatch(change);
-+  }
-+
-+  // ── Reading ──
-+
-+  get<T>(path: string): T | undefined {
-+    const entry = this.store.get(path);
-+    return entry?.value as T | undefined;
-+  }
-+
-+  list(pattern: string): StateEntry[] {
-+    const cached = this.listCache.get(pattern);
-+    if (cached && cached.version === this.storeVersion) {
-+      return cached.result;
-+    }
-+
-+    const matcher = createStateMatcher(pattern);
-+    const result: StateEntry[] = [];
-+    for (const [path, entry] of this.store) {
-+      if (matcher(path)) {
-+        result.push(entry);
-+      }
-+    }
-+
-+    this.listCache.set(pattern, { version: this.storeVersion, result });
-+    return result;
-+  }
-+
-+  listInstances(domain: string): string[] {
-+    const ids = new Set<string>();
-+    for (const path of this.store.keys()) {
-+      const parsed = parsePath(path);
-+      if (parsed.domain === domain && parsed.instanceId !== null) {
-+        ids.add(parsed.instanceId);
-+      }
-+    }
-+    return [...ids];
-+  }
-+
-+  // ── Removal ──
-+
-+  remove(path: string): void {
-+    const entry = this.store.get(path);
-+    if (!entry) return;
-+
-+    const parsed = parsePath(path);
-+    const previousValue = entry.value;
-+
-+    this.store.delete(path);
-+    this.storeVersion++;
-+    this.listCache.clear();
-+
-+    const change: StateChange = {
-+      path,
-+      domain: parsed.domain,
-+      instanceId: parsed.instanceId,
-+      property: parsed.property,
-+      value: undefined,
-+      previousValue,
-+      timestamp: Date.now(),
-+      removed: true,
-+    };
-+
-+    this.dispatch(change);
-+  }
-+
-+  removeInstance(domain: string, instanceId: string): void {
-+    const prefix = `${domain}:${instanceId}:`;
-+    const toRemove: string[] = [];
-+    for (const path of this.store.keys()) {
-+      if (path.startsWith(prefix)) {
-+        toRemove.push(path);
-+      }
-+    }
-+    for (const path of toRemove) {
-+      this.remove(path);
-+    }
-+  }
-+
-+  // ── Subscriptions ──
-+
-+  subscribe(pattern: string, callback: StateChangeCallback): () => void {
-+    const id = this.nextSubId++;
-+    const matcher = createStateMatcher(pattern);
-+    this.subscriptions.set(id, { pattern, matcher, callback });
-+
-+    return () => {
-+      this.subscriptions.delete(id);
-+    };
-+  }
-+
-+  // ── Diagnostics ──
-+
-+  get subscriberCount(): number {
-+    return this.subscriptions.size;
-+  }
-+
-+  get entryCount(): number {
-+    return this.store.size;
-+  }
-+
-+  // ── Inspection Methods (test-only) ──
-+
-+  /** Get the current StateEntry for a path, or undefined. */
-+  getPublished(path: string): StateEntry | undefined {
-+    return this.store.get(path);
-+  }
-+
-+  /** Get all active subscriber patterns. */
-+  getSubscribers(): string[] {
-+    return [...this.subscriptions.values()].map((s) => s.pattern);
-+  }
-+
-+  /** Check if a path was published with a specific value. */
-+  wasPublishedWith(path: string, value: unknown): boolean {
-+    const entry = this.store.get(path);
-+    return entry !== undefined && entry.value === value;
-+  }
-+
-+  /** Reset all state — for test isolation between tests. */
-+  reset(): void {
-+    this.store.clear();
-+    this.domains.clear();
-+    this.subscriptions.clear();
-+    this.listCache.clear();
-+    this.nextSubId = 0;
-+    this.storeVersion = 0;
-+  }
-+
-+  // ── Private ──
-+
-+  private validateDomain(domain: string, instanceId: string | null): void {
-+    const descriptor = this.domains.get(domain);
-+    if (!descriptor) {
-+      throw new Error(`Domain "${domain}" is not registered. Call registerDomain() first.`);
-+    }
-+    if (descriptor.multiInstance && instanceId === null) {
-+      throw new Error(
-+        `Domain "${domain}" is multi-instance but path has no instance ID. Use domain:instanceId:property format.`
-+      );
-+    }
-+    if (!descriptor.multiInstance && instanceId !== null) {
-+      throw new Error(
-+        `Domain "${domain}" is a singleton but path has instance ID "${instanceId}". Use domain:property format.`
-+      );
-+    }
-+  }
-+
-+  private dispatch(change: StateChange): void {
-+    for (const sub of this.subscriptions.values()) {
-+      if (sub.matcher(change.path)) {
-+        try {
-+          sub.callback(change);
-+        } catch (err) {
-+          console.warn(
-+            `[FakeGlobalStateSystem] Subscriber error for pattern "${sub.pattern}":`,
-+            err
-+          );
-+        }
-+      }
-+    }
-+  }
-+}
-diff --git a/packages/shared/src/fakes/index.ts b/packages/shared/src/fakes/index.ts
-index 9d46ac6..e288598 100644
---- a/packages/shared/src/fakes/index.ts
-+++ b/packages/shared/src/fakes/index.ts
-@@ -15,6 +15,8 @@ export { FakeHashGenerator } from './fake-hash-generator.js';
- export { FakeProcessManager } from './fake-process-manager.js';
- // YAML parser fake (Phase 2: extracted from workflow for shared use)
- export { FakeYamlParser } from './fake-yaml-parser.js';
-+// State system fake (Plan 053: GlobalStateSystem)
-+export { FakeGlobalStateSystem } from './fake-state-system.js';
- // SDK fake (Plan 047: USDK)
- export {
-   createFakeUSDK,
-diff --git a/test/contracts/state-system.contract.test.ts b/test/contracts/state-system.contract.test.ts
-new file mode 100644
-index 0000000..f2fed6b
---- /dev/null
-+++ b/test/contracts/state-system.contract.test.ts
-@@ -0,0 +1,16 @@
-+/**
-+ * Plan 053: GlobalStateSystem — Contract Test Runner
-+ *
-+ * Runs globalStateContractTests against both real (GlobalStateSystem)
-+ * and fake (FakeGlobalStateSystem) implementations.
-+ *
-+ * Per DYK-14: Real impl imported via relative path from test/contracts/.
-+ * Per DYK-15: Fake imported from @chainglass/shared fakes barrel.
-+ */
-+
-+import { FakeGlobalStateSystem } from '@chainglass/shared/fakes';
-+import { GlobalStateSystem } from '../../apps/web/src/lib/state/global-state-system';
-+import { globalStateContractTests } from './state-system.contract';
-+
-+globalStateContractTests('GlobalStateSystem (Real)', () => new GlobalStateSystem());
-+globalStateContractTests('FakeGlobalStateSystem (Fake)', () => new FakeGlobalStateSystem());
-diff --git a/test/unit/web/state/global-state-system.test.ts b/test/unit/web/state/global-state-system.test.ts
-new file mode 100644
-index 0000000..c594916
---- /dev/null
-+++ b/test/unit/web/state/global-state-system.test.ts
-@@ -0,0 +1,425 @@
-+/**
-+ * Plan 053: GlobalStateSystem — Unit Tests
-+ *
-+ * TDD RED tests for GlobalStateSystem store operations.
-+ * Written before the implementation exists.
-+ *
-+ * Tests cover: publish/get, subscribe/unsubscribe, error isolation,
-+ * store-first ordering, remove, removeInstance, registerDomain,
-+ * listDomains, listInstances, singleton/multi-instance validation,
-+ * list with patterns, stable references, diagnostics.
-+ */
-+
-+import type { StateChange } from '@chainglass/shared/state';
++import { act, renderHook } from '@testing-library/react';
++import type { ReactNode } from 'react';
++import React from 'react';
 +import { beforeEach, describe, expect, it } from 'vitest';
-+import { GlobalStateSystem } from '../../../../apps/web/src/lib/state/global-state-system';
 +
-+function registerMultiDomain(svc: GlobalStateSystem): void {
++import type { IStateService } from '@chainglass/shared/state';
++import { StateContext } from '../../../../apps/web/src/lib/state/state-provider';
++import { useStateSystem } from '../../../../apps/web/src/lib/state/state-provider';
++import { useGlobalState } from '../../../../apps/web/src/lib/state/use-global-state';
++import { useGlobalStateList } from '../../../../apps/web/src/lib/state/use-global-state-list';
++import { FakeGlobalStateSystem } from '../../../../packages/shared/src/fakes/fake-state-system';
++
++function registerTestDomain(svc: IStateService): void {
 +  svc.registerDomain({
 +    domain: 'test-domain',
-+    description: 'Multi-instance test domain',
++    description: 'Test domain',
 +    multiInstance: true,
 +    properties: [
 +      { key: 'status', description: 'Status', typeHint: 'string' },
 +      { key: 'progress', description: 'Progress', typeHint: 'number' },
-+      { key: 'label', description: 'Label', typeHint: 'string' },
 +    ],
 +  });
 +}
 +
-+function registerSingletonDomain(svc: GlobalStateSystem): void {
-+  svc.registerDomain({
-+    domain: 'singleton',
-+    description: 'Singleton test domain',
-+    multiInstance: false,
-+    properties: [
-+      { key: 'active-file', description: 'Active file', typeHint: 'string' },
-+      { key: 'count', description: 'Count', typeHint: 'number' },
-+    ],
-+  });
-+}
++// ═══════════════════════════════════════════════
++// useStateSystem
++// ═══════════════════════════════════════════════
 +
-+describe('GlobalStateSystem', () => {
-+  let svc: GlobalStateSystem;
++describe('useStateSystem', () => {
++  it('throws outside GlobalStateProvider (AC-32)', () => {
++    /**
++     * Why: Fail-fast when hooks are used without the provider.
++     * Contract: useStateSystem() throws descriptive error outside provider.
++     * Usage Notes: Catches wiring errors at dev time.
++     * Quality Contribution: Prevents silent undefined access.
++     * Worked Example: renderHook(useStateSystem) without wrapper → throws
++     */
++    expect(() => {
++      renderHook(() => useStateSystem());
++    }).toThrow(/GlobalStateProvider/);
++  });
++
++  it('returns IStateService inside provider (AC-30)', () => {
++    /**
++     * Why: Provider must supply the state system to the entire subtree.
++     * Contract: useStateSystem() returns a valid IStateService inside provider.
++     * Usage Notes: Verifies context wiring works.
++     * Quality Contribution: Validates the core provider contract.
++     * Worked Example: renderHook(useStateSystem, { wrapper }) → IStateService
++     */
++    const fake = new FakeGlobalStateSystem();
++    const wrapper = ({ children }: { children: ReactNode }) =>
++      React.createElement(StateContext.Provider, { value: fake }, children);
++
++    const { result } = renderHook(() => useStateSystem(), { wrapper });
++    expect(result.current).toBe(fake);
++  });
++});
++
++// ═══════════════════════════════════════════════
++// useGlobalState
++// ═══════════════════════════════════════════════
++
++describe('useGlobalState', () => {
++  let fake: FakeGlobalStateSystem;
++  let wrapper: ({ children }: { children: ReactNode }) => React.ReactElement;
 +
 +  beforeEach(() => {
-+    svc = new GlobalStateSystem();
++    fake = new FakeGlobalStateSystem();
++    registerTestDomain(fake);
++    wrapper = ({ children }: { children: ReactNode }) =>
++      React.createElement(StateContext.Provider, { value: fake }, children);
 +  });
 +
-+  // ═══════════════════════════════════════════════
-+  // Domain Registration
-+  // ═══════════════════════════════════════════════
-+
-+  describe('registerDomain', () => {
-+    it('registers a domain descriptor (AC-06)', () => {
-+      registerMultiDomain(svc);
-+      const domains = svc.listDomains();
-+      expect(domains).toHaveLength(1);
-+      expect(domains[0].domain).toBe('test-domain');
++  it('returns default when no value published (AC-28)', () => {
++    /**
++     * Why: Components must render sensibly before any state is published.
++     * Contract: useGlobalState(path, default) returns default when path is empty.
++     * Usage Notes: Default is pinned via useRef (DYK-16).
++     * Quality Contribution: Prevents undefined rendering on initial mount.
++     * Worked Example: useGlobalState('test-domain:wf-1:status', 'idle') → 'idle'
++     */
++    const { result } = renderHook(() => useGlobalState<string>('test-domain:wf-1:status', 'idle'), {
++      wrapper,
 +    });
-+
-+    it('throws on duplicate registration (AC-07)', () => {
-+      registerMultiDomain(svc);
-+      expect(() => registerMultiDomain(svc)).toThrow();
-+    });
-+
-+    it('lists multiple registered domains (AC-09)', () => {
-+      registerMultiDomain(svc);
-+      registerSingletonDomain(svc);
-+      const domains = svc.listDomains();
-+      expect(domains).toHaveLength(2);
-+    });
++    expect(result.current).toBe('idle');
 +  });
 +
-+  // ═══════════════════════════════════════════════
-+  // Publish / Get
-+  // ═══════════════════════════════════════════════
++  it('returns published value (AC-27)', () => {
++    /**
++     * Why: Core hook contract — must reflect current state.
++     * Contract: After publish, useGlobalState returns the published value.
++     * Usage Notes: Value is available immediately via store-first ordering.
++     * Quality Contribution: Validates publish → hook read path.
++     * Worked Example: publish('running') → useGlobalState() → 'running'
++     */
++    fake.publish('test-domain:wf-1:status', 'running');
 +
-+  describe('publish/get', () => {
-+    it('stores and retrieves value (AC-01)', () => {
-+      registerMultiDomain(svc);
-+      svc.publish('test-domain:wf-1:status', 'running');
-+      expect(svc.get('test-domain:wf-1:status')).toBe('running');
++    const { result } = renderHook(() => useGlobalState<string>('test-domain:wf-1:status', 'idle'), {
++      wrapper,
 +    });
-+
-+    it('returns undefined for unpublished path (AC-02)', () => {
-+      registerMultiDomain(svc);
-+      expect(svc.get('test-domain:wf-1:status')).toBeUndefined();
-+    });
-+
-+    it('overwrites existing value', () => {
-+      registerMultiDomain(svc);
-+      svc.publish('test-domain:wf-1:status', 'pending');
-+      svc.publish('test-domain:wf-1:status', 'running');
-+      expect(svc.get('test-domain:wf-1:status')).toBe('running');
-+    });
-+
-+    it('returns stable object reference (AC-03)', () => {
-+      registerMultiDomain(svc);
-+      const obj = { nested: true };
-+      svc.publish('test-domain:wf-1:status', obj);
-+      const a = svc.get('test-domain:wf-1:status');
-+      const b = svc.get('test-domain:wf-1:status');
-+      expect(a).toBe(b); // Object.is equality
-+    });
-+
-+    it('throws on unregistered domain (AC-08)', () => {
-+      expect(() => svc.publish('unknown:wf-1:status', 'val')).toThrow(/unknown|unregistered/i);
-+    });
++    expect(result.current).toBe('running');
 +  });
 +
-+  // ═══════════════════════════════════════════════
-+  // Singleton / Multi-instance Validation
-+  // ═══════════════════════════════════════════════
-+
-+  describe('singleton/multi-instance validation', () => {
-+    it('singleton rejects path with instance ID (AC-13)', () => {
-+      registerSingletonDomain(svc);
-+      expect(() => svc.publish('singleton:inst-1:active-file', 'x')).toThrow();
++  it('re-renders on change (AC-27)', () => {
++    /**
++     * Why: Reactive updates are the core value proposition of the hook.
++     * Contract: Publishing a new value triggers re-render with updated value.
++     * Usage Notes: useSyncExternalStore handles the subscription internally.
++     * Quality Contribution: Validates end-to-end reactivity.
++     * Worked Example: render → publish('running') → result changes to 'running'
++     */
++    const { result } = renderHook(() => useGlobalState<string>('test-domain:wf-1:status', 'idle'), {
++      wrapper,
 +    });
++    expect(result.current).toBe('idle');
 +
-+    it('singleton accepts 2-segment path', () => {
-+      registerSingletonDomain(svc);
-+      svc.publish('singleton:active-file', '/src/app.tsx');
-+      expect(svc.get('singleton:active-file')).toBe('/src/app.tsx');
++    act(() => {
++      fake.publish('test-domain:wf-1:status', 'running');
 +    });
-+
-+    it('multi-instance rejects 2-segment path (AC-14)', () => {
-+      registerMultiDomain(svc);
-+      expect(() => svc.publish('test-domain:status', 'val')).toThrow();
-+    });
-+
-+    it('multi-instance accepts 3-segment path', () => {
-+      registerMultiDomain(svc);
-+      svc.publish('test-domain:wf-1:status', 'running');
-+      expect(svc.get('test-domain:wf-1:status')).toBe('running');
-+    });
++    expect(result.current).toBe('running');
 +  });
 +
-+  // ═══════════════════════════════════════════════
-+  // Subscribe / Unsubscribe
-+  // ═══════════════════════════════════════════════
-+
-+  describe('subscribe', () => {
-+    it('receives notification on publish (AC-21)', () => {
-+      registerMultiDomain(svc);
-+      const changes: StateChange[] = [];
-+      svc.subscribe('test-domain:wf-1:status', (c) => changes.push(c));
-+      svc.publish('test-domain:wf-1:status', 'running');
-+
-+      expect(changes).toHaveLength(1);
-+      expect(changes[0].path).toBe('test-domain:wf-1:status');
-+      expect(changes[0].value).toBe('running');
-+      expect(changes[0].domain).toBe('test-domain');
-+      expect(changes[0].instanceId).toBe('wf-1');
-+      expect(changes[0].property).toBe('status');
++  it('returns undefined when no default provided and no value published', () => {
++    const { result } = renderHook(() => useGlobalState<string>('test-domain:wf-1:status'), {
++      wrapper,
 +    });
++    expect(result.current).toBeUndefined();
++  });
++});
 +
-+    it('returns unsubscribe function (AC-21)', () => {
-+      registerMultiDomain(svc);
-+      const changes: StateChange[] = [];
-+      const unsub = svc.subscribe('test-domain:wf-1:status', (c) => changes.push(c));
++// ═══════════════════════════════════════════════
++// useGlobalStateList
++// ═══════════════════════════════════════════════
 +
-+      svc.publish('test-domain:wf-1:status', 'running');
-+      expect(changes).toHaveLength(1);
++describe('useGlobalStateList', () => {
++  let fake: FakeGlobalStateSystem;
++  let wrapper: ({ children }: { children: ReactNode }) => React.ReactElement;
 +
-+      unsub();
-+      svc.publish('test-domain:wf-1:status', 'done');
-+      expect(changes).toHaveLength(1);
-+    });
-+
-+    it('provides StateChange shape (AC-23)', () => {
-+      registerMultiDomain(svc);
-+      const changes: StateChange[] = [];
-+      svc.subscribe('test-domain:wf-1:status', (c) => changes.push(c));
-+      svc.publish('test-domain:wf-1:status', 'running');
-+
-+      const change = changes[0];
-+      expect(change.path).toBe('test-domain:wf-1:status');
-+      expect(change.domain).toBe('test-domain');
-+      expect(change.instanceId).toBe('wf-1');
-+      expect(change.property).toBe('status');
-+      expect(change.value).toBe('running');
-+      expect(change.previousValue).toBeUndefined();
-+      expect(change.timestamp).toBeTypeOf('number');
-+      expect(change.removed).toBeUndefined();
-+    });
-+
-+    it('tracks previousValue (AC-23)', () => {
-+      registerMultiDomain(svc);
-+      svc.publish('test-domain:wf-1:status', 'pending');
-+
-+      const changes: StateChange[] = [];
-+      svc.subscribe('test-domain:wf-1:status', (c) => changes.push(c));
-+      svc.publish('test-domain:wf-1:status', 'running');
-+
-+      expect(changes[0].previousValue).toBe('pending');
-+      expect(changes[0].value).toBe('running');
-+    });
-+
-+    it('pattern subscription receives matching changes (AC-21)', () => {
-+      registerMultiDomain(svc);
-+      const changes: StateChange[] = [];
-+      svc.subscribe('test-domain:*:status', (c) => changes.push(c));
-+
-+      svc.publish('test-domain:wf-1:status', 'running');
-+      svc.publish('test-domain:wf-2:status', 'pending');
-+      svc.publish('test-domain:wf-1:progress', 50); // should NOT match
-+
-+      expect(changes).toHaveLength(2);
-+    });
-+
-+    it('domain-all subscription receives all domain changes', () => {
-+      registerMultiDomain(svc);
-+      const changes: StateChange[] = [];
-+      svc.subscribe('test-domain:**', (c) => changes.push(c));
-+
-+      svc.publish('test-domain:wf-1:status', 'running');
-+      svc.publish('test-domain:wf-1:progress', 50);
-+
-+      expect(changes).toHaveLength(2);
-+    });
-+
-+    it('global subscription receives everything', () => {
-+      registerMultiDomain(svc);
-+      registerSingletonDomain(svc);
-+      const changes: StateChange[] = [];
-+      svc.subscribe('*', (c) => changes.push(c));
-+
-+      svc.publish('test-domain:wf-1:status', 'running');
-+      svc.publish('singleton:active-file', '/src/app.tsx');
-+
-+      expect(changes).toHaveLength(2);
-+    });
++  beforeEach(() => {
++    fake = new FakeGlobalStateSystem();
++    registerTestDomain(fake);
++    wrapper = ({ children }: { children: ReactNode }) =>
++      React.createElement(StateContext.Provider, { value: fake }, children);
 +  });
 +
-+  // ═══════════════════════════════════════════════
-+  // Error Isolation (PL-07, AC-22)
-+  // ═══════════════════════════════════════════════
++  it('returns matching entries (AC-29)', () => {
++    /**
++     * Why: Pattern-based listing is the multi-value consumption primitive.
++     * Contract: useGlobalStateList(pattern) returns all matching StateEntry[].
++     * Usage Notes: list() provides stable refs from Phase 3 cache.
++     * Quality Contribution: Validates pattern → entries pipeline.
++     * Worked Example: publish two entries → useGlobalStateList('test-domain:**') → length 2
++     */
++    fake.publish('test-domain:wf-1:status', 'running');
++    fake.publish('test-domain:wf-2:status', 'pending');
 +
-+  describe('error isolation', () => {
-+    it('throwing subscriber does not block other subscribers (AC-22)', () => {
-+      registerMultiDomain(svc);
-+      const received: string[] = [];
-+      let throwerCalled = false;
-+
-+      svc.subscribe('test-domain:wf-1:status', () => {
-+        throwerCalled = true;
-+        throw new Error('subscriber explosion');
-+      });
-+      svc.subscribe('test-domain:wf-1:status', (c) => {
-+        received.push(c.value as string);
-+      });
-+
-+      svc.publish('test-domain:wf-1:status', 'running');
-+      expect(throwerCalled).toBe(true);
-+      expect(received).toEqual(['running']);
-+    });
++    const { result } = renderHook(() => useGlobalStateList('test-domain:*:status'), { wrapper });
++    expect(result.current).toHaveLength(2);
 +  });
 +
-+  // ═══════════════════════════════════════════════
-+  // Store-First Ordering (PL-01, AC-24)
-+  // ═══════════════════════════════════════════════
++  it('re-renders on matching change (AC-29)', () => {
++    /**
++     * Why: List must react to new entries matching the pattern.
++     * Contract: Publishing a new matching entry triggers re-render with updated array.
++     * Usage Notes: Subscribe uses actual pattern (DYK-17), not '*'.
++     * Quality Contribution: Validates reactive list updates.
++     * Worked Example: render empty → publish matching → result length increases
++     */
++    const { result } = renderHook(() => useGlobalStateList('test-domain:**'), { wrapper });
++    expect(result.current).toHaveLength(0);
 +
-+  describe('store-first ordering', () => {
-+    it('value is readable in subscriber callback (AC-24)', () => {
-+      registerMultiDomain(svc);
-+      let readInCallback: unknown;
-+
-+      svc.subscribe('test-domain:wf-1:status', () => {
-+        readInCallback = svc.get('test-domain:wf-1:status');
-+      });
-+
-+      svc.publish('test-domain:wf-1:status', 'running');
-+      expect(readInCallback).toBe('running');
++    act(() => {
++      fake.publish('test-domain:wf-1:status', 'running');
 +    });
++    expect(result.current).toHaveLength(1);
 +  });
 +
-+  // ═══════════════════════════════════════════════
-+  // Remove
-+  // ═══════════════════════════════════════════════
-+
-+  describe('remove', () => {
-+    it('notifies with removed flag (AC-04)', () => {
-+      registerMultiDomain(svc);
-+      svc.publish('test-domain:wf-1:status', 'running');
-+
-+      const changes: StateChange[] = [];
-+      svc.subscribe('test-domain:wf-1:status', (c) => changes.push(c));
-+      svc.remove('test-domain:wf-1:status');
-+
-+      expect(changes).toHaveLength(1);
-+      expect(changes[0].removed).toBe(true);
-+      expect(changes[0].previousValue).toBe('running');
-+      expect(svc.get('test-domain:wf-1:status')).toBeUndefined();
-+    });
-+
-+    it('is a no-op for non-existent path', () => {
-+      registerMultiDomain(svc);
-+      expect(() => svc.remove('test-domain:wf-1:status')).not.toThrow();
-+    });
-+  });
-+
-+  // ═══════════════════════════════════════════════
-+  // RemoveInstance
-+  // ═══════════════════════════════════════════════
-+
-+  describe('removeInstance', () => {
-+    it('removes all instance entries and notifies (AC-05)', () => {
-+      registerMultiDomain(svc);
-+      svc.publish('test-domain:wf-1:status', 'running');
-+      svc.publish('test-domain:wf-1:progress', 50);
-+
-+      const removals: StateChange[] = [];
-+      svc.subscribe('test-domain:wf-1:*', (c) => removals.push(c));
-+      svc.removeInstance('test-domain', 'wf-1');
-+
-+      expect(removals).toHaveLength(2);
-+      expect(removals.every((c) => c.removed === true)).toBe(true);
-+      expect(svc.get('test-domain:wf-1:status')).toBeUndefined();
-+      expect(svc.get('test-domain:wf-1:progress')).toBeUndefined();
-+    });
-+  });
-+
-+  // ═══════════════════════════════════════════════
-+  // listInstances
-+  // ═══════════════════════════════════════════════
-+
-+  describe('listInstances', () => {
-+    it('returns known instance IDs (AC-10)', () => {
-+      registerMultiDomain(svc);
-+      svc.publish('test-domain:wf-1:status', 'running');
-+      svc.publish('test-domain:wf-2:status', 'pending');
-+
-+      const instances = svc.listInstances('test-domain');
-+      expect(instances).toContain('wf-1');
-+      expect(instances).toContain('wf-2');
-+      expect(instances).toHaveLength(2);
-+    });
-+
-+    it('returns empty array for domain with no state', () => {
-+      registerMultiDomain(svc);
-+      expect(svc.listInstances('test-domain')).toEqual([]);
-+    });
-+  });
-+
-+  // ═══════════════════════════════════════════════
-+  // list
-+  // ═══════════════════════════════════════════════
-+
-+  describe('list', () => {
-+    it('returns matching entries (AC-25)', () => {
-+      registerMultiDomain(svc);
-+      svc.publish('test-domain:wf-1:status', 'running');
-+      svc.publish('test-domain:wf-1:progress', 50);
-+      svc.publish('test-domain:wf-2:status', 'pending');
-+
-+      const wf1 = svc.list('test-domain:wf-1:*');
-+      expect(wf1).toHaveLength(2);
-+
-+      const statuses = svc.list('test-domain:*:status');
-+      expect(statuses).toHaveLength(2);
-+
-+      const all = svc.list('test-domain:**');
-+      expect(all).toHaveLength(3);
-+    });
-+
-+    it('returns stable array reference when unchanged (AC-26)', () => {
-+      registerMultiDomain(svc);
-+      svc.publish('test-domain:wf-1:status', 'running');
-+
-+      const a = svc.list('test-domain:**');
-+      const b = svc.list('test-domain:**');
-+      expect(a).toBe(b); // Same reference
-+    });
-+
-+    it('returns new array after publish invalidates cache', () => {
-+      registerMultiDomain(svc);
-+      svc.publish('test-domain:wf-1:status', 'running');
-+
-+      const before = svc.list('test-domain:**');
-+      svc.publish('test-domain:wf-1:progress', 50);
-+      const after = svc.list('test-domain:**');
-+
-+      expect(before).not.toBe(after);
-+      expect(after).toHaveLength(2);
-+    });
-+  });
-+
-+  // ═══════════════════════════════════════════════
-+  // Diagnostics
-+  // ═══════════════════════════════════════════════
-+
-+  describe('diagnostics', () => {
-+    it('subscriberCount tracks active subscriptions (AC-36)', () => {
-+      registerMultiDomain(svc);
-+      expect(svc.subscriberCount).toBe(0);
-+
-+      const unsub1 = svc.subscribe('test-domain:**', () => {});
-+      expect(svc.subscriberCount).toBe(1);
-+
-+      const unsub2 = svc.subscribe('test-domain:wf-1:status', () => {});
-+      expect(svc.subscriberCount).toBe(2);
-+
-+      unsub1();
-+      expect(svc.subscriberCount).toBe(1);
-+
-+      unsub2();
-+      expect(svc.subscriberCount).toBe(0);
-+    });
-+
-+    it('entryCount tracks stored entries (AC-37)', () => {
-+      registerMultiDomain(svc);
-+      expect(svc.entryCount).toBe(0);
-+
-+      svc.publish('test-domain:wf-1:status', 'running');
-+      expect(svc.entryCount).toBe(1);
-+
-+      svc.publish('test-domain:wf-1:progress', 50);
-+      expect(svc.entryCount).toBe(2);
-+
-+      svc.remove('test-domain:wf-1:status');
-+      expect(svc.entryCount).toBe(1);
-+    });
++  it('returns empty array when no entries match', () => {
++    const { result } = renderHook(() => useGlobalStateList('test-domain:**'), { wrapper });
++    expect(result.current).toHaveLength(0);
 +  });
 +});
