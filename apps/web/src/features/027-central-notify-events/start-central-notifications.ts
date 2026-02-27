@@ -14,9 +14,14 @@
 import { WORKSPACE_DI_TOKENS } from '@chainglass/shared/di-tokens';
 import type { ICentralEventNotifier } from '@chainglass/shared/features/027-central-notify-events/central-event-notifier.interface';
 import type { ICentralWatcherService } from '@chainglass/workflow';
-import { FileChangeWatcherAdapter, WorkGraphWatcherAdapter } from '@chainglass/workflow';
+import {
+  FileChangeWatcherAdapter,
+  WorkGraphWatcherAdapter,
+  WorkflowWatcherAdapter,
+} from '@chainglass/workflow';
 import { getContainer } from '../../lib/bootstrap-singleton';
 import { FileChangeDomainEventAdapter } from './file-change-domain-event-adapter';
+import { WorkflowDomainEventAdapter } from './workflow-domain-event-adapter';
 import { WorkgraphDomainEventAdapter } from './workgraph-domain-event-adapter';
 
 declare global {
@@ -52,6 +57,7 @@ export async function startCentralNotificationSystem(): Promise<void> {
     // 2. Create domain event adapters
     const workgraphDomainAdapter = new WorkgraphDomainEventAdapter(notifier);
     const fileChangeDomainAdapter = new FileChangeDomainEventAdapter(notifier);
+    const workflowDomainAdapter = new WorkflowDomainEventAdapter(notifier);
 
     // 3. Create and register watcher adapters
     const workgraphWatcherAdapter = new WorkGraphWatcherAdapter();
@@ -60,11 +66,16 @@ export async function startCentralNotificationSystem(): Promise<void> {
     const fileChangeWatcherAdapter = new FileChangeWatcherAdapter(300);
     watcher.registerAdapter(fileChangeWatcherAdapter);
 
+    const workflowWatcherAdapter = new WorkflowWatcherAdapter();
+    watcher.registerAdapter(workflowWatcherAdapter);
+
     // 4. Subscribe domain adapters to watcher adapter events
     workgraphWatcherAdapter.onGraphChanged((event) => workgraphDomainAdapter.handleEvent(event));
     fileChangeWatcherAdapter.onFilesChanged((changes) =>
       fileChangeDomainAdapter.handleEvent({ changes })
     );
+    workflowWatcherAdapter.onStructureChanged((event) => workflowDomainAdapter.handleEvent(event));
+    workflowWatcherAdapter.onStatusChanged((event) => workflowDomainAdapter.handleEvent(event));
 
     // 5. Start watching
     await watcher.start();

@@ -34,3 +34,7 @@ export { SOURCE_WATCHER_IGNORED } from './source-watcher.constants.js';
 
 // Fake file change watcher (Plan 045)
 export { FakeFileChangeWatcherAdapter } from './fake-file-change-watcher.js';
+
+// Workflow watcher adapter (Plan 050 Phase 6)
+export { WorkflowWatcherAdapter } from './workflow-watcher.adapter.js';
+export type { WorkflowChangedEvent } from './workflow-watcher.adapter.js';

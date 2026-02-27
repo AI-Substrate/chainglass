@@ -19,6 +19,8 @@ export const WorkspaceDomain = {
   Agents: 'agents',
   /** SSE channel: `'file-changes'` — matches `/api/events/file-changes` subscription path */
   FileChanges: 'file-changes',
+  /** SSE channel: `'workflows'` — matches `/api/events/workflows` subscription path (Plan 050) */
+  Workflows: 'workflows',
 } as const;
 
 /**

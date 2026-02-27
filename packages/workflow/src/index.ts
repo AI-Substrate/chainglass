@@ -475,6 +475,8 @@ export type {
 } from './features/023-central-watcher-notifications/index.js';
 export { SOURCE_WATCHER_IGNORED } from './features/023-central-watcher-notifications/index.js';
 export { FakeFileChangeWatcherAdapter } from './features/023-central-watcher-notifications/index.js';
+export { WorkflowWatcherAdapter } from './features/023-central-watcher-notifications/index.js';
+export type { WorkflowChangedEvent } from './features/023-central-watcher-notifications/index.js';
 
 // Workspace palettes (Plan 041: File Browser)
 export {

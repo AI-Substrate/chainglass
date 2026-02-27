@@ -31,15 +31,18 @@ import {
   useSensors,
 } from '@dnd-kit/core';
 import { useCallback, useId, useMemo, useState } from 'react';
+import { toast } from 'sonner';
 import {
   answerQuestion as answerQuestionAction,
   loadSnapshotData as loadSnapshotDataAction,
+  loadWorkflow as loadWorkflowAction,
   restoreSnapshot as restoreSnapshotAction,
   setNodeInput as setNodeInputAction,
   updateNodeConfig as updateNodeConfigAction,
 } from '../../../../app/actions/workflow-actions';
 import { useUndoRedo } from '../hooks/use-undo-redo';
 import { useWorkflowMutations } from '../hooks/use-workflow-mutations';
+import { useWorkflowSSE } from '../hooks/use-workflow-sse';
 import { computeContextBadge } from '../lib/context-badge';
 import { computeRelatedNodes } from '../lib/related-nodes';
 import type { WorkflowDragData } from '../types';
@@ -121,6 +124,24 @@ export function WorkflowEditor({
     [loadCurrentSnapshot, undoRedo]
   );
 
+  // SSE: re-fetch graph status on external changes
+  const refreshFromDisk = useCallback(async () => {
+    const result = await loadWorkflowAction(workspaceSlug, graphSlug, worktreePath);
+    if (result.graphStatus) setGraphStatus(result.graphStatus);
+  }, [workspaceSlug, graphSlug, worktreePath]);
+
+  const { startMutation, endMutation } = useWorkflowSSE({
+    graphSlug,
+    onStructureChange: useCallback(() => {
+      undoRedo.invalidate();
+      toast.info('Workflow changed externally');
+      refreshFromDisk();
+    }, [undoRedo, refreshFromDisk]),
+    onStatusChange: useCallback(() => {
+      refreshFromDisk();
+    }, [refreshFromDisk]),
+  });
+
   // Compute related nodes for select-to-reveal dimming
   const relatedNodes = useMemo(
     () => (selectedNodeId ? computeRelatedNodes(selectedNodeId, graphStatus.lines) : null),
@@ -175,27 +196,31 @@ export function WorkflowEditor({
         | undefined;
       if (!overData) return;
 
-      // Capture snapshot before mutation
+      // Capture snapshot before mutation + suppress self-events
       const snap = await loadCurrentSnapshot();
       undoRedo.snapshot(snap);
+      startMutation();
 
       if (dragData.type === 'toolbox-unit' && overData.type === 'drop-zone' && overData.lineId) {
         await mutations.addNode(overData.lineId, dragData.unitSlug, overData.position);
       } else if (dragData.type === 'canvas-node' && overData.type === 'drop-zone') {
         await mutations.moveNode(dragData.nodeId, overData.position, overData.lineId);
       }
+      endMutation();
     },
-    [mutations, loadCurrentSnapshot, undoRedo]
+    [mutations, loadCurrentSnapshot, undoRedo, startMutation, endMutation]
   );
 
   const handleDeleteNode = useCallback(
     async (nodeId: string) => {
       const snap = await loadCurrentSnapshot();
       undoRedo.snapshot(snap);
+      startMutation();
       await mutations.removeNode(nodeId);
+      endMutation();
       if (selectedNodeId === nodeId) setSelectedNodeId(null);
     },
-    [mutations, selectedNodeId, loadCurrentSnapshot, undoRedo]
+    [mutations, selectedNodeId, loadCurrentSnapshot, undoRedo, startMutation, endMutation]
   );
 
   const handleKeyDown = useCallback(
@@ -248,13 +273,17 @@ export function WorkflowEditor({
               onAddLine={async (label?: string) => {
                 const snap = await loadCurrentSnapshot();
                 undoRedo.snapshot(snap);
+                startMutation();
                 await mutations.addLine(label);
+                endMutation();
               }}
               onSetLineLabel={mutations.setLineLabel}
               onRemoveLine={async (lineId: string) => {
                 const snap = await loadCurrentSnapshot();
                 undoRedo.snapshot(snap);
+                startMutation();
                 await mutations.removeLine(lineId);
+                endMutation();
               }}
               onQuestionClick={(nodeId) => setQaModalNodeId(nodeId)}
             />

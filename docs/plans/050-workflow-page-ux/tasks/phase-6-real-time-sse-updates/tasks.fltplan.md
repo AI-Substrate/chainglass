@@ -3,7 +3,7 @@
 **Plan**: [workflow-page-ux-plan.md](../../workflow-page-ux-plan.md)
 **Phase**: Phase 6: Real-Time SSE Updates
 **Generated**: 2026-02-27
-**Status**: Ready for takeoff
+**Status**: Landed
 
 ---
 
@@ -61,9 +61,9 @@ stateDiagram-v2
 
 ## Stages
 
-- [ ] **Stage 1: Watcher + Domain Adapters + Registration** — Create `WorkflowWatcherAdapter` (self-filter, 200ms debounce), `WorkflowDomainEventAdapter` (SSE routing), register in `startCentralNotificationSystem()` (`workflow-watcher.adapter.ts`, `workflow-domain-event-adapter.ts`, `start-central-notifications.ts`)
-- [ ] **Stage 2: Client Hook + Editor Wiring** — Build `useWorkflowSSE` hook (SSE subscription, graphSlug filter, self-event suppression), wire into editor with undo invalidation + sonner toast + auto re-fetch (`use-workflow-sse.ts`, `workflow-editor.tsx`)
-- [ ] **Stage 3: Tests** — Watcher adapter unit test (path filtering, debounce), hook unit test (SSE handling, self-suppression) (`workflow-watcher-adapter.test.ts`, `use-workflow-sse.test.ts`)
+- [x] **Stage 1: Watcher + Domain Adapters + Registration** — Create `WorkflowWatcherAdapter` (self-filter, 200ms debounce), `WorkflowDomainEventAdapter` (SSE routing), register in `startCentralNotificationSystem()` (`workflow-watcher.adapter.ts`, `workflow-domain-event-adapter.ts`, `start-central-notifications.ts`)
+- [x] **Stage 2: Client Hook + Editor Wiring** — Build `useWorkflowSSE` hook (SSE subscription, graphSlug filter, self-event suppression), wire into editor with undo invalidation + sonner toast + auto re-fetch (`use-workflow-sse.ts`, `workflow-editor.tsx`)
+- [x] **Stage 3: Tests** — Watcher adapter unit test (path filtering, debounce), hook unit test (SSE handling, self-suppression) (`workflow-watcher-adapter.test.ts`, `use-workflow-sse.test.ts`)
 
 ---
 
@@ -105,9 +105,9 @@ flowchart LR
 
 ## Acceptance Criteria
 
-- [ ] AC-25: External changes invalidate undo stack + toast
-- [ ] AC-26: SSE live updates for active workflow editor
-- [ ] AC-27: WorkflowWatcherAdapter for graph file changes
+- [x] AC-25: External changes invalidate undo stack + toast
+- [x] AC-26: SSE live updates for active workflow editor
+- [x] AC-27: WorkflowWatcherAdapter for graph file changes
 
 ## Goals & Non-Goals
 
@@ -125,10 +125,10 @@ flowchart LR
 
 ## Checklist
 
-- [ ] T001: WorkflowWatcherAdapter (self-filter, debounce)
-- [ ] T002: WorkflowDomainEventAdapter (SSE routing)
-- [ ] T003: Register adapters in bootstrap
-- [ ] T004: useWorkflowSSE hook
-- [ ] T005: Undo invalidation + toast
-- [ ] T006: Self-event suppression
-- [ ] T007: Unit + integration tests
+- [x] T001: WorkflowWatcherAdapter (self-filter, debounce)
+- [x] T002: WorkflowDomainEventAdapter (SSE routing)
+- [x] T003: Register adapters in bootstrap
+- [x] T004: useWorkflowSSE hook
+- [x] T005: Undo invalidation + toast
+- [x] T006: Self-event suppression
+- [x] T007: Unit + integration tests
