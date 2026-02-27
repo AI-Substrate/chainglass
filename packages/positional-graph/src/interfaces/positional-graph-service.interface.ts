@@ -766,5 +766,8 @@ export interface IPositionalGraphService {
   loadAllNodeConfigs(
     ctx: WorkspaceContext,
     graphSlug: string
-  ): Promise<{ nodeConfigs: Record<string, NodeConfig>; errors: import('@chainglass/shared').ResultError[] }>;
+  ): Promise<{
+    nodeConfigs: Record<string, NodeConfig>;
+    errors: import('@chainglass/shared').ResultError[];
+  }>;
 }

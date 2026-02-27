@@ -101,6 +101,6 @@ describe('GateChip', () => {
     expect(screen.getByText(/Transition/)).toBeDefined();
     expect(screen.getByText(/Serial Neighbor/)).toBeDefined();
     expect(screen.getByText(/Context Source/)).toBeDefined();
-    expect(screen.getByText(/Inputs/)).toBeDefined();
+    expect(screen.getByText(/^Inputs$/)).toBeDefined();
   });
 });

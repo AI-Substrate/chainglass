@@ -11,14 +11,10 @@
  * Per Discovery 11: Async params pattern (await params, await searchParams).
  */
 
+import type { IPositionalGraphService } from '@chainglass/positional-graph';
 import { WORKSPACE_DI_TOKENS } from '@chainglass/shared';
 import { POSITIONAL_GRAPH_DI_TOKENS } from '@chainglass/shared';
-import type {
-  IAgentSessionService,
-  IPositionalGraphService,
-  ISampleService,
-  IWorkspaceService,
-} from '@chainglass/workflow';
+import type { IAgentSessionService, ISampleService, IWorkspaceService } from '@chainglass/workflow';
 import { Bot, FileText, GitBranch, LayoutDashboard, Network } from 'lucide-react';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
@@ -73,7 +69,7 @@ export default async function WorktreeLandingPage({ params, searchParams }: Page
     sessionService.listSessions(context),
     positionalGraphService.list(context),
   ]);
-  const workflowCount = workflowsResult.ok ? workflowsResult.graphs.length : 0;
+  const workflowCount = workflowsResult.errors.length === 0 ? workflowsResult.slugs.length : 0;
 
   // Build URLs with worktree param
   const agentsUrl = `/workspaces/${slug}/agents?worktree=${encodeURIComponent(worktreePath)}`;

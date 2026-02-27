@@ -109,10 +109,9 @@ export function CodeEditor({
           const docLines = view.state.doc.lines;
           if (line >= 1 && line <= docLines) {
             const lineInfo = view.state.doc.line(line);
-            const lineBlock = view.lineBlockAt(lineInfo.from);
-            const { top, bottom } = view.viewport;
+            const { from, to } = view.viewport;
             // Only re-scroll if the target line is outside the visible viewport
-            if (lineBlock.top < top || lineBlock.bottom > bottom) {
+            if (lineInfo.from < from || lineInfo.from > to) {
               setTimeout(() => {
                 view.dispatch({
                   effects: EditorView.scrollIntoView(lineInfo.from, { y: 'center' }),

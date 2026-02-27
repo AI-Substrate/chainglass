@@ -274,12 +274,10 @@ export class CentralWatcherService implements ICentralWatcherService {
     });
 
     for (const workspace of workspaces) {
-      const worktrees = await this.worktreeResolver
-        .detectWorktrees(workspace.path)
-        .catch((err) => {
-          this.logError(`Failed to detect worktrees for ${workspace.slug} (source watchers)`, err);
-          return [];
-        });
+      const worktrees = await this.worktreeResolver.detectWorktrees(workspace.path).catch((err) => {
+        this.logError(`Failed to detect worktrees for ${workspace.slug} (source watchers)`, err);
+        return [];
+      });
 
       for (const wt of worktrees) {
         if (this.sourceWatchers.has(wt.path)) continue;
@@ -294,13 +292,7 @@ export class CentralWatcherService implements ICentralWatcherService {
 
           watcher.add(wt.path);
 
-          const eventTypes: FileWatcherEvent[] = [
-            'change',
-            'add',
-            'unlink',
-            'addDir',
-            'unlinkDir',
-          ];
+          const eventTypes: FileWatcherEvent[] = ['change', 'add', 'unlink', 'addDir', 'unlinkDir'];
           for (const eventType of eventTypes) {
             watcher.on(eventType, (pathOrError) => {
               if (typeof pathOrError === 'string') {

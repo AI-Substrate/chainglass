@@ -2772,7 +2772,10 @@ export class PositionalGraphService implements IPositionalGraphService {
   async loadAllNodeConfigs(
     ctx: WorkspaceContext,
     graphSlug: string
-  ): Promise<{ nodeConfigs: Record<string, NodeConfig>; errors: import('@chainglass/shared').ResultError[] }> {
+  ): Promise<{
+    nodeConfigs: Record<string, NodeConfig>;
+    errors: import('@chainglass/shared').ResultError[];
+  }> {
     const loaded = await this.loadGraphDefinition(ctx, graphSlug);
     if (!loaded.ok) return { nodeConfigs: {}, errors: loaded.errors };
 

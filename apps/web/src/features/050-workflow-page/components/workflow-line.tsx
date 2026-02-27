@@ -74,7 +74,7 @@ export function WorkflowLine({
   return (
     <div
       data-testid={`workflow-line-${line.lineId}`}
-      className={`rounded-xl border border-gray-300 dark:border-gray-600 bg-gray-200 dark:bg-gray-800/80 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.12)] dark:shadow-[0_2px_8px_-2px_rgba(0,0,0,0.3)] overflow-visible transition-all duration-200 ${
+      className={`rounded-xl border ${borderClass} border-gray-300 dark:border-gray-600 bg-gray-200 dark:bg-gray-800/80 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.12)] dark:shadow-[0_2px_8px_-2px_rgba(0,0,0,0.3)] overflow-visible transition-all duration-200 ${
         isDragging && editable ? 'ring-2 ring-blue-300/50 bg-blue-200/50 dark:ring-blue-500/30' : ''
       }`}
     >
