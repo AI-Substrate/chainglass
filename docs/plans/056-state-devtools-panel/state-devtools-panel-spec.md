@@ -1,5 +1,7 @@
 # State DevTools Panel — Live State Inspector
 
+**Mode**: Simple
+
 📚 This specification incorporates findings from `research-dossier.md`
 
 ---
@@ -31,23 +33,22 @@ Research (76 findings, 8 subagents) established:
 
 ## Non-Goals
 
-- ❌ State history / time-travel replay (current state only — no changelog accumulator)
+- ❌ Time-travel replay / undo (log is append-only, not reversible)
 - ❌ Write capability (no publishing from devtools — read-only inspector)
 - ❌ Production monitoring dashboard (this is a dev tool, not ops tooling)
 - ❌ SSE/network-level event inspection (focus on state system, not transport)
 - ❌ Subscription graph visualization (future enhancement)
 - ❌ Virtual scrolling for massive event lists (defer until volume demands it)
-- ❌ State system API changes (existing `IStateService` is sufficient)
 
 ## Target Domains
 
 | Domain | Status | Relationship | Role in This Feature |
 |--------|--------|-------------|---------------------|
+| `_platform/dev-tools` | **NEW** | **own** | Feature home — `apps/web/src/features/_platform/dev-tools/`. Extensible for future devtools panels. |
 | `_platform/state` | existing | **consume** | Primary data source — `IStateService` for introspection, hooks for live data |
-| `_platform/panel-layout` | existing | **consume** | May use `PanelShell`/`Card`/`Table` UI components (no changes to domain) |
-| `file-browser` | existing | **consume** | Sidebar integration via `DEV_NAV_ITEMS` in navigation-utils.ts |
+| `_platform/panel-layout` | existing | **consume** | May use `Card`/`Table` UI components (no changes to domain) |
 
-No new domains required. The devtools panel is a pure consumer implemented as a feature folder (`apps/web/src/features/056-state-devtools/`). If more devtools panels emerge later, they can be extracted into a `_platform/dev-tools` domain.
+File placement: `apps/web/src/features/_platform/dev-tools/` with route at `apps/web/app/(dashboard)/dev/state-inspector/page.tsx`.
 
 ## Complexity
 
@@ -85,8 +86,15 @@ No new domains required. The devtools panel is a pure consumer implemented as a 
 - **AC-08**: Panel shows real-time state changes as they occur via `subscribe()`
 - **AC-09**: Each change event shows timestamp, domain, property, new value summary, and change type (update/remove)
 - **AC-10**: Stream can be filtered by domain
-- **AC-11**: Stream can be paused and resumed; paused state shows count of buffered events
+- **AC-11**: Stream can be paused and resumed; paused state shows count of buffered events; "Clear" button wipes the buffer
 - **AC-12**: Stream auto-scrolls to newest events (when not paused and not manually scrolled up)
+
+### StateChangeLog (History from Boot)
+
+- **AC-23**: A `StateChangeLog` subscribes to `'*'` at app boot and accumulates `StateChange` entries in a capped ring buffer (default 500)
+- **AC-24**: The event stream in the inspector shows historical entries from the log, not just events since panel open
+- **AC-25**: Log entries are accessible via a `useStateChangeLog(pattern?, limit?)` hook
+- **AC-26**: Log is mounted in `GlobalStateProvider` so it starts accumulating from first render
 
 ### Navigation & Integration
 
@@ -127,12 +135,38 @@ No new domains required. The devtools panel is a pure consumer implemented as a 
 
 ## Open Questions
 
-- [NEEDS CLARIFICATION: Should the inspector be gated behind an environment variable (`NEXT_PUBLIC_ENABLE_STATE_DEVTOOLS`), or always available in dev mode?]
-- [NEEDS CLARIFICATION: Should we show a "clear" button to wipe the event stream buffer, or only pause/resume?]
-- [NEEDS CLARIFICATION: Should event stream entries show the full previousValue inline, or only in the detail panel?]
+_All resolved — see Clarifications below._
+
+## Testing Strategy
+
+- **Approach**: Full TDD
+- **Rationale**: User preference — tests first, verified against fakes
+- **Mock Usage**: Avoid mocks entirely — fakes only (FakeGlobalStateSystem via StateContext injection)
+- **Focus Areas**: Hook behavior (domain listing, entry listing, event stream accumulation), component rendering (table rows, detail panel, pause/resume)
+- **Excluded**: E2E browser tests, visual regression
+
+## Documentation Strategy
+
+- **Location**: No new documentation
+- **Rationale**: User preference — the dev guide at `docs/how/global-state-system.md` already covers the state system. The devtools panel is self-explanatory UI.
 
 ## Workshop Opportunities
 
 | Topic | Type | Why Workshop | Key Questions |
 |-------|------|--------------|---------------|
 | Event Stream UX | UI Pattern | High-frequency event rendering requires careful batching, scroll behavior, and pause/resume mechanics. Getting this wrong causes jank or missed events. | How to batch? What scroll anchor behavior? Pause buffer cap? |
+
+## Clarifications
+
+### Session 2026-02-27
+
+| # | Question | Answer | Spec Update |
+|---|----------|--------|-------------|
+| Q1 | Workflow Mode | **Simple** — single phase, CS-2 | Added `**Mode**: Simple` to header |
+| Q2 | Env gating for inspector | **Always available** — it's just a dev page, no env var needed | Removed env gating from risks; updated non-goals |
+| Q3 | Clear button for event stream | **Yes** — show clear button alongside pause/resume | Implicit in AC-11 area |
+| Q4 | previousValue display | **Detail panel only** — keep stream compact | Updated AC-19 scope |
+| Q5 | File placement | **`_platform/dev-tools`** platform domain — extensible for future devtools | Updated Target Domains |
+| — | Testing | **Full TDD, fakes only** (user pre-stated) | Added Testing Strategy section |
+| — | Documentation | **No new docs** (user pre-stated) | Added Documentation Strategy section |
+| Q6 | Historical events | **Add StateChangeLog** — ring buffer (500 cap) accumulating from boot, mounted in GlobalStateProvider | Added AC-23..AC-26; removed "no history" from non-goals |

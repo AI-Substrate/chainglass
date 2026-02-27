@@ -327,16 +327,24 @@ export class FakeWorkUnitService implements IWorkUnitService {
    * Create a fake UserInputUnitInstance.
    */
   private createFakeUserInputInstance(config: FakeUserInputUnitConfig): UserInputUnitInstance {
+    const outputs = config.outputs ?? [
+      { name: 'answer', type: 'data' as const, data_type: 'text' as const, required: true },
+    ];
     return {
       type: 'user-input',
       slug: config.slug,
       version: config.version,
       description: config.description,
       inputs: config.inputs ?? [],
-      outputs: config.outputs ?? [
-        { name: 'answer', type: 'data', data_type: 'text', required: true },
-      ],
+      outputs,
       user_input: config.user_input,
+      userInput: {
+        prompt: config.user_input.prompt,
+        inputType: config.user_input.question_type,
+        outputName: outputs[0]?.name ?? 'output',
+        options: config.user_input.options,
+        default: config.user_input.default,
+      },
     };
   }
 }
