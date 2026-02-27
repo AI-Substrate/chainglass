@@ -174,7 +174,7 @@ export function WorkflowLine({
                   onSelect={() => onSelectNode?.(node.nodeId)}
                   onDelete={() => onDeleteNode?.(node.nodeId)}
                   onQuestionClick={
-                    node.status === 'waiting-question'
+                    node.status === 'waiting-question' || node.unitType === 'user-input'
                       ? () => onQuestionClick?.(node.nodeId)
                       : undefined
                   }

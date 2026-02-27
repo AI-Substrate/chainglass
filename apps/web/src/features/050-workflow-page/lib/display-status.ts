@@ -6,7 +6,7 @@
  * (unitType + status + ready) and used solely for rendering the node badge.
  */
 export function getDisplayStatus(unitType: string, status: string, ready: boolean): string {
-  if (unitType === 'user-input' && status === 'pending' && ready) {
+  if (unitType === 'user-input' && (status === 'pending' || status === 'ready') && ready) {
     return 'awaiting-input';
   }
   return status;

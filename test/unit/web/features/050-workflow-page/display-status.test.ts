@@ -14,6 +14,18 @@ describe('getDisplayStatus', () => {
     expect(getDisplayStatus('user-input', 'pending', true)).toBe('awaiting-input');
   });
 
+  it('returns awaiting-input for user-input + ready status + ready flag', () => {
+    /*
+    Test Doc:
+    - Why: Engine returns status='ready' (not 'pending') when canRun is true. Must also trigger awaiting-input.
+    - Contract: getDisplayStatus('user-input', 'ready', true) → 'awaiting-input'.
+    - Usage Notes: The engine computes status as 'ready' when canRun=true and no stored state exists.
+    - Quality Contribution: Catches the real-world scenario — nodes show 'ready' in the engine, not 'pending'.
+    - Worked Example: A fresh user-input node on line 0 gets status='ready' from getNodeStatus().
+    */
+    expect(getDisplayStatus('user-input', 'ready', true)).toBe('awaiting-input');
+  });
+
   it('returns pending for user-input + pending + NOT ready', () => {
     /*
     Test Doc:
