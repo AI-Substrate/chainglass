@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
 import { UndoRedoManager } from '@/features/050-workflow-page/lib/undo-redo-manager';
 import type { WorkflowSnapshot } from '@/features/050-workflow-page/types';
+import { describe, expect, it } from 'vitest';
 
 function makeSnapshot(id: string): WorkflowSnapshot {
   return {

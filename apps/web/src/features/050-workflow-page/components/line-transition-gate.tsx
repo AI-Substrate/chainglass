@@ -19,6 +19,7 @@ export function LineTransitionGate({ transition, precedingComplete }: LineTransi
           <div className="w-px h-3 bg-border/40" />
           <div className="w-5 h-5 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex items-center justify-center shadow-sm">
             <svg
+              aria-hidden="true"
               width="10"
               height="10"
               viewBox="0 0 10 10"

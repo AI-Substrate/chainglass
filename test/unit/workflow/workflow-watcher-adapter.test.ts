@@ -1,7 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WorkflowWatcherAdapter } from '@chainglass/workflow';
 import type { WatcherEvent } from '@chainglass/workflow';
 import type { WorkflowChangedEvent } from '@chainglass/workflow';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 function makeEvent(path: string, overrides: Partial<WatcherEvent> = {}): WatcherEvent {
   return {
@@ -14,8 +14,12 @@ function makeEvent(path: string, overrides: Partial<WatcherEvent> = {}): Watcher
 }
 
 describe('WorkflowWatcherAdapter', () => {
-  beforeEach(() => { vi.useFakeTimers(); });
-  afterEach(() => { vi.useRealTimers(); });
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
   it('has correct name', () => {
     const adapter = new WorkflowWatcherAdapter(0, 0);
@@ -101,7 +105,9 @@ describe('WorkflowWatcherAdapter', () => {
   it('isolates errors between subscribers', async () => {
     const adapter = new WorkflowWatcherAdapter(0, 0);
     const workingCalls: WorkflowChangedEvent[] = [];
-    adapter.onStructureChanged(() => { throw new Error('boom'); });
+    adapter.onStructureChanged(() => {
+      throw new Error('boom');
+    });
     adapter.onStructureChanged((e) => workingCalls.push(e));
 
     adapter.handleEvent(makeEvent('/data/workflows/my-graph/graph.yaml'));

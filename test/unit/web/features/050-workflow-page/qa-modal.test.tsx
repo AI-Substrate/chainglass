@@ -1,7 +1,7 @@
-import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
 import { QAModal } from '@/features/050-workflow-page/components/qa-modal';
 import type { NodeStatusResult } from '@chainglass/positional-graph';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 
 type PendingQuestion = NonNullable<NodeStatusResult['pendingQuestion']>;
 
@@ -113,12 +113,7 @@ describe('QAModal', () => {
   it('calls onClose on cancel', () => {
     const onClose = vi.fn();
     render(
-      <QAModal
-        question={makeQuestion()}
-        nodeId="n-001"
-        onAnswer={vi.fn()}
-        onClose={onClose}
-      />
+      <QAModal question={makeQuestion()} nodeId="n-001" onAnswer={vi.fn()} onClose={onClose} />
     );
 
     fireEvent.click(screen.getByText('Cancel'));

@@ -51,7 +51,7 @@ export class WorkflowWatcherAdapter implements IWatcherAdapter {
     const graphMatch = event.path.match(GRAPH_YAML_REGEX);
     const nodeMatch = event.path.match(NODE_YAML_REGEX);
     if (graphMatch || nodeMatch) {
-      const graphSlug = (graphMatch?.[1] ?? nodeMatch?.[1])!;
+      const graphSlug = graphMatch?.[1] ?? nodeMatch?.[1] ?? '';
       this.debounceStructure({
         graphSlug,
         workspaceSlug: event.workspaceSlug,
