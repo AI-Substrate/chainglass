@@ -108,7 +108,8 @@ export function DashboardSidebar() {
       <SidebarContent>
         {isInWorkspace ? (
           <>
-            {/* 1. Tools — scoped to active worktree (top) */}
+            {/* 1. Tools — scoped to active worktree (only shown when worktree selected) */}
+            {currentWorktree && (
             <SidebarGroup>
               {!isCollapsed && <SidebarGroupLabel>Tools</SidebarGroupLabel>}
               <SidebarGroupContent>
@@ -142,6 +143,7 @@ export function DashboardSidebar() {
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
+            )}
 
             {/* 2. Worktree list — collapsible, contracted by default */}
             <SidebarGroup>

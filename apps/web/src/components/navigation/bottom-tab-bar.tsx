@@ -39,12 +39,14 @@ export function BottomTabBar() {
   const currentWorktree = searchParams.get('worktree');
 
   const navItems = isInWorkspace
-    ? WORKSPACE_NAV_ITEMS.map((item) => ({
-        ...item,
-        href: workspaceHref(workspaceSlug, item.href, {
-          worktree: currentWorktree ?? undefined,
-        }),
-      }))
+    ? currentWorktree
+      ? WORKSPACE_NAV_ITEMS.map((item) => ({
+          ...item,
+          href: workspaceHref(workspaceSlug, item.href, {
+            worktree: currentWorktree,
+          }),
+        }))
+      : LANDING_NAV_ITEMS
     : LANDING_NAV_ITEMS;
 
   const handleTabClick = (href: string) => {
