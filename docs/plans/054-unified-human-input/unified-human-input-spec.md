@@ -131,3 +131,4 @@ No new domains required.
 | Save & Persistence Strategy | Data Model | Valid | [008](./workshops/008-save-persistence-strategy.md) — single-output path is the only path now |
 | Question Definition Schema | Schema Design | **Superseded** | [009](./workshops/009-question-definition-schema.md) — fields[] not needed, existing schema is sufficient |
 | Single-Question Simplification | Architecture | **Authoritative** | [010](./workshops/010-single-question-simplification.md) — the governing design decision |
+| Discriminated Type Architecture | Architecture | **Authoritative** | [011](./workshops/011-discriminated-type-architecture.md) — NarrowWorkUnit + NodeStatusResult as discriminated unions |

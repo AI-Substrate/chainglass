@@ -8,6 +8,7 @@
 **Complexity**: CS-2 (small-medium) — S=1, I=0, D=0, N=0, F=0, T=1
 
 > **Governing design decision**: One node = one question = one output. Multiple questions = multiple nodes on a line. See [Workshop 010](./workshops/010-single-question-simplification.md).
+> **Type architecture**: `NarrowWorkUnit` and `NodeStatusResult` are discriminated unions — `userInput` config lives on the `user-input` variant only. See [Workshop 011](./workshops/011-discriminated-type-architecture.md).
 
 ## Summary
 
@@ -63,15 +64,19 @@ User-input nodes in the workflow editor currently have no input mechanism — th
 
 | # | Task | Domain | Success Criteria | Notes |
 |---|------|--------|-----------------|-------|
-| 1.1 | TDD: Write collateInputs Format A test | _platform/positional-graph | Test: writeNodeData with `{ outputs: { spec: "hello" } }`, collateInputs resolves `spec` output correctly | Test-first per Hybrid TDD |
-| 1.2 | Fix `collateInputs` to read Format A | _platform/positional-graph | `data?.outputs?.[fromOutput] ?? data?.[fromOutput]` — backward compat fallback. Test from 1.1 passes. | One-line fix in input-resolution.ts line 352 |
+| 1.1 | TDD: Write collateInputs Format A test | _platform/positional-graph | Test: writeNodeData with Format A, collateInputs resolves output correctly | Test-first per Hybrid TDD |
+| 1.2 | Fix `collateInputs` to read Format A | _platform/positional-graph | `data?.outputs?.[fromOutput] ?? data?.[fromOutput]` — backward compat fallback. Test from 1.1 passes. | One-line fix in input-resolution.ts |
 | 1.3 | Update remaining `collate-inputs.test.ts` fixtures to Format A | _platform/positional-graph | All existing tests pass with wrapped format | Update writeNodeData helper |
-| 1.4 | TDD: Write NodeStatusResult userInput config test | _platform/positional-graph | Test: user-input node returns `userInput` config; agent/code return undefined | Test-first |
-| 1.5 | Extend `NodeStatusResult` with `userInput` config | _platform/positional-graph | Optional `userInput?: { prompt, questionType, options?, defaultValue? }`. Test from 1.4 passes. | Per F03 |
-| 1.6 | Populate `userInput` in `getNodeStatus()` from loaded WorkUnit | _platform/positional-graph | Test from 1.4 passes end-to-end | Service already loads unit |
-| 1.7 | Create `display-status.ts` helper | workflow-ui | `getDisplayStatus()` maps `user-input` + `pending` + `ready` → `awaiting-input` | |
-| 1.8 | Add `awaiting-input` to STATUS_MAP + click routing | workflow-ui | Violet badge, clickable, fires input handler | |
-| 1.9 | Lightweight tests for 1.7–1.8 | workflow-ui | Display status computation correct for all unitType × status × ready combinations | |
+| 1.4 | TDD: Write discriminated NodeStatusResult userInput test | _platform/positional-graph | Test: user-input node returns `UserInputNodeStatus` with `userInput` config via narrowing; agent/code return other variants | Test-first |
+| 1.5 | Refactor `NarrowWorkUnit` into discriminated union | _platform/positional-graph | `NarrowWorkUnitBase` + 3 variants. `NarrowUserInputWorkUnit` carries `userInput`. Build passes. | Per [Workshop 011](./workshops/011-discriminated-type-architecture.md) |
+| 1.6 | Refactor `NodeStatusResult` into discriminated union | _platform/positional-graph | `NodeStatusResultBase` + 3 variants. `UserInputNodeStatus` carries `userInput`. Build passes. | Per [Workshop 011](./workshops/011-discriminated-type-architecture.md) |
+| 1.7 | Add type guard functions | _platform/positional-graph | `isNarrowUserInputUnit()`, `isUserInputNodeStatus()` exported | |
+| 1.8 | Update `InstanceWorkUnitAdapter` to construct correct variant | _platform/positional-graph | user-input → `NarrowUserInputWorkUnit`; others → agent/code variant | Per [Workshop 011](./workshops/011-discriminated-type-architecture.md) |
+| 1.9 | Populate `userInput` in `getNodeStatus()` — build correct variant | _platform/positional-graph | Return `UserInputNodeStatus` when unit is user-input. Test from 1.4 passes. | |
+| 1.10 | Update test helpers + inline literals for discriminated variants | _platform/positional-graph + test | `createWorkUnit()`, `stubWorkUnitLoader()`, `makeNode()`, `makeNodeStatus()`, inline literals all satisfy union types. All tests pass. | ~15 test sites |
+| 1.11 | Create `display-status.ts` helper | workflow-ui | `getDisplayStatus()` maps `user-input` + `pending` + `ready` → `awaiting-input` | |
+| 1.12 | Add `awaiting-input` to STATUS_MAP + NodeStatus type | workflow-ui | Violet badge, "Awaiting Input" label | |
+| 1.13 | Lightweight tests for display status | workflow-ui | Display status computation correct for all unitType × status × ready combinations | |
 
 ### Phase 2: Human Input Modal + Server Action
 
@@ -146,7 +151,7 @@ User-input nodes in the workflow editor currently have no input mechanism — th
 
 | Phase | Status | Tasks | Notes |
 |-------|--------|-------|-------|
-| Phase 1: NodeStatusResult + Display Status | Not started | 0/9 | |
+| Phase 1: NodeStatusResult + Display Status | Not started | 0/13 | Per [Workshop 011](./workshops/011-discriminated-type-architecture.md) — discriminated unions |
 | Phase 2: Human Input Modal + Server Action | Not started | 0/8 | |
 | Phase 3: Demo + Integration + Cleanup | Not started | 0/5 | |
 

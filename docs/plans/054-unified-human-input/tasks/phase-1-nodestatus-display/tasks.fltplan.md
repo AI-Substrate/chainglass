@@ -21,7 +21,7 @@
 
 | Domain | What Changes | Key Files |
 |--------|-------------|-----------|
-| _platform/positional-graph | Fix collateInputs Format A, extend NarrowWorkUnit + NodeStatusResult with userInput, update adapter | `input-resolution.ts`, `positional-graph-service.interface.ts`, `positional-graph.service.ts`, `instance-workunit.adapter.ts` |
+| _platform/positional-graph | Fix collateInputs Format A, refactor NarrowWorkUnit + NodeStatusResult into discriminated unions, add type guards, update adapter + getNodeStatus | `input-resolution.ts`, `positional-graph-service.interface.ts`, `positional-graph.service.ts`, `instance-workunit.adapter.ts` |
 | workflow-ui | New display-status helper, add awaiting-input to node card | `display-status.ts` (new), `workflow-node-card.tsx` |
 
 ### Domains We Depend On (no changes)
@@ -64,7 +64,7 @@ stateDiagram-v2
 <!-- Updated by /plan-6-v2 during implementation: [ ] → [~] → [x] -->
 
 - [ ] **Stage 1: Fix collateInputs Format A** — TDD test + one-line fix + update fixtures (`input-resolution.ts`, `collate-inputs.test.ts`)
-- [ ] **Stage 2: Surface userInput config** — Extend NarrowWorkUnit + NodeStatusResult, update adapter, populate in getNodeStatus (`positional-graph-service.interface.ts`, `instance-workunit.adapter.ts`, `positional-graph.service.ts`)
+- [ ] **Stage 2: Discriminated type unions** — Refactor `NarrowWorkUnit` + `NodeStatusResult` into discriminated unions, add type guards, update adapter + getNodeStatus, update all test helpers/fixtures (`positional-graph-service.interface.ts`, `instance-workunit.adapter.ts`, `positional-graph.service.ts`, test files)
 - [ ] **Stage 3: Add awaiting-input display status** — Create display-status helper, add to STATUS_MAP + NodeStatus type, lightweight tests (`display-status.ts` — new, `workflow-node-card.tsx`)
 
 ---
@@ -124,11 +124,15 @@ flowchart LR
 - [ ] T001: TDD: Write collateInputs Format A test
 - [ ] T002: Fix collateInputs to read Format A
 - [ ] T003: Update writeNodeData test helper to use Format A
-- [ ] T004: TDD: Write NodeStatusResult userInput config test
-- [ ] T005: Extend NarrowWorkUnit with optional userInput
-- [ ] T006: Extend NodeStatusResult with optional userInput
-- [ ] T007: Populate userInput in getNodeStatus() from loaded WorkUnit
-- [ ] T008: Update InstanceWorkUnitAdapter to surface user_input config
-- [ ] T009: Create display-status.ts helper
-- [ ] T010: Add awaiting-input to NodeStatus type + STATUS_MAP
-- [ ] T011: Lightweight tests for display status + STATUS_MAP
+- [ ] T004: TDD: Write discriminated NodeStatusResult userInput test
+- [ ] T005: Refactor NarrowWorkUnit into discriminated union
+- [ ] T006: Refactor NodeStatusResult into discriminated union
+- [ ] T007: Add type guard functions
+- [ ] T008: Update InstanceWorkUnitAdapter to construct correct variant
+- [ ] T009: Populate userInput in getNodeStatus() — build correct variant
+- [ ] T010: Update test helpers for discriminated variants
+- [ ] T011: Update inline NarrowWorkUnit literals in test files
+- [ ] T012: Update web test helpers (makeNode, makeNodeStatus)
+- [ ] T013: Create display-status.ts helper
+- [ ] T014: Add awaiting-input to NodeStatus type + STATUS_MAP
+- [ ] T015: Lightweight tests for display status + STATUS_MAP
