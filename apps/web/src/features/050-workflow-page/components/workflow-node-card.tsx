@@ -35,8 +35,18 @@ interface StatusConfig {
 }
 
 const STATUS_MAP: Record<NodeStatus, StatusConfig> = {
-  pending: { color: '#9CA3AF', bgColor: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400', label: 'Pending', icon: '○' },
-  ready: { color: '#3B82F6', bgColor: 'bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-400', label: 'Ready', icon: '●' },
+  pending: {
+    color: '#9CA3AF',
+    bgColor: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400',
+    label: 'Pending',
+    icon: '○',
+  },
+  ready: {
+    color: '#3B82F6',
+    bgColor: 'bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-400',
+    label: 'Ready',
+    icon: '●',
+  },
   starting: {
     color: '#3B82F6',
     bgColor: 'bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-400',
@@ -51,10 +61,30 @@ const STATUS_MAP: Record<NodeStatus, StatusConfig> = {
     icon: '⟳',
     animate: true,
   },
-  'waiting-question': { color: '#8B5CF6', bgColor: 'bg-violet-50 text-violet-600 dark:bg-violet-950 dark:text-violet-400', label: 'Question', icon: '?' },
-  'blocked-error': { color: '#EF4444', bgColor: 'bg-red-50 text-red-600 dark:bg-red-950 dark:text-red-400', label: 'Error', icon: '✕' },
-  'restart-pending': { color: '#F59E0B', bgColor: 'bg-amber-50 text-amber-600 dark:bg-amber-950 dark:text-amber-400', label: 'Restarting', icon: '↻' },
-  complete: { color: '#22C55E', bgColor: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400', label: 'Complete', icon: '✓' },
+  'waiting-question': {
+    color: '#8B5CF6',
+    bgColor: 'bg-violet-50 text-violet-600 dark:bg-violet-950 dark:text-violet-400',
+    label: 'Question',
+    icon: '?',
+  },
+  'blocked-error': {
+    color: '#EF4444',
+    bgColor: 'bg-red-50 text-red-600 dark:bg-red-950 dark:text-red-400',
+    label: 'Error',
+    icon: '✕',
+  },
+  'restart-pending': {
+    color: '#F59E0B',
+    bgColor: 'bg-amber-50 text-amber-600 dark:bg-amber-950 dark:text-amber-400',
+    label: 'Restarting',
+    icon: '↻',
+  },
+  complete: {
+    color: '#22C55E',
+    bgColor: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400',
+    label: 'Complete',
+    icon: '✓',
+  },
 };
 
 const TYPE_ICONS: Record<string, string> = {
@@ -80,6 +110,7 @@ export interface WorkflowNodeCardProps {
   isDimmed?: boolean;
   onSelect?: () => void;
   onDelete?: () => void;
+  onQuestionClick?: () => void;
 }
 
 // ─── Component ───────────────────────────────────────────────────────
@@ -112,6 +143,7 @@ export function WorkflowNodeCard({
   isDimmed = false,
   onSelect,
   onDelete,
+  onQuestionClick,
 }: WorkflowNodeCardProps) {
   const statusConfig = STATUS_MAP[status] ?? STATUS_MAP.pending;
   const typeIcon = TYPE_ICONS[unitType] ?? '📦';
@@ -170,7 +202,29 @@ export function WorkflowNodeCard({
 
       {/* Status row — bottom indicator style */}
       <div className="flex items-center justify-between mt-2">
-        <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${statusConfig.bgColor}`}>
+        <div
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${statusConfig.bgColor} ${
+            status === 'waiting-question' && onQuestionClick
+              ? 'cursor-pointer hover:ring-2 hover:ring-violet-300 transition-all'
+              : ''
+          }`}
+          onClick={(e) => {
+            if (status === 'waiting-question' && onQuestionClick) {
+              e.stopPropagation();
+              onQuestionClick();
+            }
+          }}
+          onKeyDown={(e) => {
+            if (status === 'waiting-question' && onQuestionClick && e.key === 'Enter') {
+              e.stopPropagation();
+              onQuestionClick();
+            }
+          }}
+          role={status === 'waiting-question' && onQuestionClick ? 'button' : undefined}
+          tabIndex={status === 'waiting-question' && onQuestionClick ? 0 : undefined}
+          title={status === 'waiting-question' ? 'Click to answer question' : undefined}
+          data-testid={status === 'waiting-question' ? `qa-badge-${nodeId}` : undefined}
+        >
           <span
             className={`inline-block w-2 h-2 rounded-full bg-current ${statusConfig.pulse ? 'animate-pulse' : ''} ${statusConfig.animate ? 'animate-spin' : ''}`}
             data-testid={`status-dot-${nodeId}`}

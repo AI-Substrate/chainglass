@@ -7,6 +7,7 @@
  * Phase 3: addNode, removeNode, moveNode, addLine, removeLine,
  *          setLineLabel, setLineDescription, updateLineOrchestratorSettings,
  *          saveAsTemplate, instantiateTemplate, listTemplates
+ * Phase 5: answerQuestion, restoreSnapshot, updateNodeConfig, setInput
  *
  * Plan 050
  */
@@ -24,6 +25,7 @@ import type {
   ListWorkflowsResult,
   LoadWorkflowResult,
   MutationResult,
+  WorkflowSnapshot,
   WorkflowSummary,
 } from '../../src/features/050-workflow-page/types';
 import { getContainer } from '../../src/lib/bootstrap-singleton';
@@ -379,4 +381,168 @@ export async function listTemplates(
     templates: result.data.map((t) => ({ slug: t.slug, description: t.description })),
     errors: [],
   };
+}
+
+// ─── Phase 5: Q&A + Node Properties + Undo/Redo ─────────────────────
+
+export async function loadSnapshotData(
+  workspaceSlug: string,
+  graphSlug: string,
+  worktreePath?: string
+): Promise<{ snapshot?: WorkflowSnapshot; errors: import('@chainglass/shared').ResultError[] }> {
+  const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
+  if (!ctx) return { errors: [NOT_FOUND_ERROR] };
+
+  const svc = resolveGraphService();
+  const loadResult = await svc.load(ctx, graphSlug);
+  if (loadResult.errors.length > 0 || !loadResult.definition) {
+    return { errors: loadResult.errors };
+  }
+
+  const definition = loadResult.definition;
+  const nodeConfigs: Record<string, import('@chainglass/positional-graph').NodeConfig> = {};
+
+  // Load all node configs from all lines
+  for (const line of definition.lines) {
+    for (const nodeId of line.nodes) {
+      const showResult = await svc.showNode(ctx, graphSlug, nodeId);
+      if (showResult.errors.length === 0 && showResult.nodeId) {
+        // Reconstruct minimal NodeConfig from showNode data
+        nodeConfigs[nodeId] = {
+          id: showResult.nodeId,
+          unit_slug: showResult.unitSlug ?? '',
+          created_at: new Date().toISOString(),
+          description: showResult.description,
+          inputs: showResult.inputs,
+          properties: {},
+          orchestratorSettings: {
+            execution: showResult.execution ?? 'serial',
+          },
+        } as import('@chainglass/positional-graph').NodeConfig;
+      }
+    }
+  }
+
+  return { snapshot: { definition, nodeConfigs }, errors: [] };
+}
+
+export async function answerQuestion(
+  workspaceSlug: string,
+  graphSlug: string,
+  nodeId: string,
+  questionId: string,
+  answer: unknown,
+  worktreePath?: string
+): Promise<MutationResult> {
+  const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
+  if (!ctx) return { errors: [NOT_FOUND_ERROR] };
+
+  const svc = resolveGraphService();
+
+  // Step 1: Record the answer (node stays waiting-question)
+  const answerResult = await svc.answerQuestion(ctx, graphSlug, nodeId, questionId, answer);
+  if (answerResult.errors.length > 0) return { errors: answerResult.errors };
+
+  // Step 2: Raise node:restart to resume execution
+  const restartResult = await svc.raiseNodeEvent(
+    ctx,
+    graphSlug,
+    nodeId,
+    'node:restart',
+    { reason: 'question-answered' },
+    'human'
+  );
+  if (restartResult.errors.length > 0) return { errors: restartResult.errors };
+
+  return reloadStatus(ctx, graphSlug);
+}
+
+export async function restoreSnapshot(
+  workspaceSlug: string,
+  graphSlug: string,
+  definition: import('@chainglass/positional-graph').PositionalGraphDefinition,
+  nodeConfigs: Record<string, import('@chainglass/positional-graph').NodeConfig>,
+  worktreePath?: string
+): Promise<MutationResult> {
+  const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
+  if (!ctx) return { errors: [NOT_FOUND_ERROR] };
+
+  const svc = resolveGraphService();
+
+  // Guard: block undo while any line is running/active
+  const currentStatus = await svc.getStatus(ctx, graphSlug);
+  const hasRunningLines = currentStatus.lines.some((line) =>
+    line.nodes.some((n) => ['starting', 'agent-accepted', 'waiting-question'].includes(n.status))
+  );
+  if (hasRunningLines) {
+    return {
+      errors: [
+        {
+          code: 'E998',
+          message: 'Cannot undo while workflow is running',
+          action: 'Wait for all nodes to finish or stop them first',
+        },
+      ],
+    };
+  }
+
+  const result = await svc.restoreSnapshot(ctx, graphSlug, definition, nodeConfigs);
+  if (result.errors.length > 0) return { errors: result.errors };
+
+  return reloadStatus(ctx, graphSlug);
+}
+
+export async function updateNodeConfig(
+  workspaceSlug: string,
+  graphSlug: string,
+  nodeId: string,
+  updates: {
+    description?: string;
+    orchestratorSettings?: Partial<{
+      execution: 'serial' | 'parallel';
+      waitForPrevious: boolean;
+      noContext: boolean;
+      contextFrom: string | undefined;
+    }>;
+  },
+  worktreePath?: string
+): Promise<MutationResult> {
+  const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
+  if (!ctx) return { errors: [NOT_FOUND_ERROR] };
+
+  const svc = resolveGraphService();
+
+  if (updates.description !== undefined) {
+    const descResult = await svc.setNodeDescription(ctx, graphSlug, nodeId, updates.description);
+    if (descResult.errors.length > 0) return { errors: descResult.errors };
+  }
+
+  if (updates.orchestratorSettings) {
+    const settingsResult = await svc.updateNodeOrchestratorSettings(
+      ctx,
+      graphSlug,
+      nodeId,
+      updates.orchestratorSettings
+    );
+    if (settingsResult.errors.length > 0) return { errors: settingsResult.errors };
+  }
+
+  return reloadStatus(ctx, graphSlug);
+}
+
+export async function setNodeInput(
+  workspaceSlug: string,
+  graphSlug: string,
+  nodeId: string,
+  inputName: string,
+  source: import('@chainglass/positional-graph').InputResolution,
+  worktreePath?: string
+): Promise<MutationResult> {
+  const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
+  if (!ctx) return { errors: [NOT_FOUND_ERROR] };
+
+  const result = await resolveGraphService().setInput(ctx, graphSlug, nodeId, inputName, source);
+  if (result.errors.length > 0) return { errors: result.errors };
+
+  return reloadStatus(ctx, graphSlug);
 }

@@ -5,11 +5,16 @@
  *
  * Wraps everything in DndContext for drag-and-drop.
  * Manages local GraphStatusResult state with optimistic mutations.
+ * Integrates Q&A modal, node edit modal, and undo/redo.
  *
- * Phase 2+3: Canvas Core + Layout, Drag-and-Drop + Persistence — Plan 050
+ * Phase 2+3+5: Canvas Core + Layout, Drag-and-Drop, Q&A/Edit/Undo — Plan 050
  */
 
-import type { GraphStatusResult, PGLoadResult } from '@chainglass/positional-graph';
+import type {
+  GraphStatusResult,
+  InputResolution,
+  PGLoadResult,
+} from '@chainglass/positional-graph';
 import type { WorkUnitSummary } from '@chainglass/positional-graph';
 import {
   type CollisionDetection,
@@ -26,11 +31,21 @@ import {
   useSensors,
 } from '@dnd-kit/core';
 import { useCallback, useId, useMemo, useState } from 'react';
+import {
+  answerQuestion as answerQuestionAction,
+  loadSnapshotData as loadSnapshotDataAction,
+  restoreSnapshot as restoreSnapshotAction,
+  setNodeInput as setNodeInputAction,
+  updateNodeConfig as updateNodeConfigAction,
+} from '../../../../app/actions/workflow-actions';
+import { useUndoRedo } from '../hooks/use-undo-redo';
 import { useWorkflowMutations } from '../hooks/use-workflow-mutations';
 import { computeContextBadge } from '../lib/context-badge';
 import { computeRelatedNodes } from '../lib/related-nodes';
 import type { WorkflowDragData } from '../types';
+import { NodeEditModal } from './node-edit-modal';
 import { NodePropertiesPanel } from './node-properties-panel';
+import { QAModal } from './qa-modal';
 import { WorkUnitToolbox } from './work-unit-toolbox';
 import { WorkflowCanvas } from './workflow-canvas';
 import { WorkflowEditorLayout } from './workflow-editor-layout';
@@ -50,6 +65,7 @@ export function WorkflowEditor({
   workspaceSlug,
   graphSlug,
   graphStatus: initialStatus,
+  definition,
   units,
   worktreePath,
   templateSource,
@@ -59,6 +75,8 @@ export function WorkflowEditor({
   const [isDragging, setIsDragging] = useState(false);
   const [activeDragData, setActiveDragData] = useState<WorkflowDragData | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [qaModalNodeId, setQaModalNodeId] = useState<string | null>(null);
+  const [editModalNodeId, setEditModalNodeId] = useState<string | null>(null);
 
   const mutations = useWorkflowMutations({
     workspaceSlug,
@@ -67,6 +85,41 @@ export function WorkflowEditor({
     graphStatus,
     onStatusUpdate: setGraphStatus,
   });
+
+  // Undo/redo
+  const undoRedo = useUndoRedo({
+    onRestore: async (snapshot) => {
+      const result = await restoreSnapshotAction(
+        workspaceSlug,
+        graphSlug,
+        snapshot.definition,
+        snapshot.nodeConfigs,
+        worktreePath
+      );
+      if (result.errors.length > 0) {
+        throw new Error(result.errors[0]?.message ?? 'Restore failed');
+      }
+      if (result.graphStatus) setGraphStatus(result.graphStatus);
+    },
+  });
+
+  // Helper: load current state as a snapshot for undo/redo
+  const loadCurrentSnapshot = useCallback(async () => {
+    const result = await loadSnapshotDataAction(workspaceSlug, graphSlug, worktreePath);
+    return result.snapshot ?? { definition, nodeConfigs: {} };
+  }, [workspaceSlug, graphSlug, worktreePath, definition]);
+
+  // Wrap a mutation to capture snapshot before executing
+  const withSnapshot = useCallback(
+    <T,>(fn: () => Promise<T>) => {
+      return async () => {
+        const snap = await loadCurrentSnapshot();
+        undoRedo.snapshot(snap);
+        return fn();
+      };
+    },
+    [loadCurrentSnapshot, undoRedo]
+  );
 
   // Compute related nodes for select-to-reveal dimming
   const relatedNodes = useMemo(
@@ -122,21 +175,27 @@ export function WorkflowEditor({
         | undefined;
       if (!overData) return;
 
+      // Capture snapshot before mutation
+      const snap = await loadCurrentSnapshot();
+      undoRedo.snapshot(snap);
+
       if (dragData.type === 'toolbox-unit' && overData.type === 'drop-zone' && overData.lineId) {
         await mutations.addNode(overData.lineId, dragData.unitSlug, overData.position);
       } else if (dragData.type === 'canvas-node' && overData.type === 'drop-zone') {
         await mutations.moveNode(dragData.nodeId, overData.position, overData.lineId);
       }
     },
-    [mutations]
+    [mutations, loadCurrentSnapshot, undoRedo]
   );
 
   const handleDeleteNode = useCallback(
     async (nodeId: string) => {
+      const snap = await loadCurrentSnapshot();
+      undoRedo.snapshot(snap);
       await mutations.removeNode(nodeId);
       if (selectedNodeId === nodeId) setSelectedNodeId(null);
     },
-    [mutations, selectedNodeId]
+    [mutations, selectedNodeId, loadCurrentSnapshot, undoRedo]
   );
 
   const handleKeyDown = useCallback(
@@ -160,7 +219,24 @@ export function WorkflowEditor({
       {/* biome-ignore lint/a11y/noNoninteractiveTabindex: keyboard delete needs focus */}
       <div onKeyDown={handleKeyDown} tabIndex={0} className="h-full outline-none">
         <WorkflowEditorLayout
-          topBar={<WorkflowTempBar graphSlug={graphSlug} templateSource={templateSource} />}
+          topBar={
+            <WorkflowTempBar
+              graphSlug={graphSlug}
+              templateSource={templateSource}
+              undoDepth={undoRedo.undoDepth}
+              redoDepth={undoRedo.redoDepth}
+              canUndo={undoRedo.canUndo}
+              canRedo={undoRedo.canRedo}
+              onUndo={async () => {
+                const current = await loadCurrentSnapshot();
+                await undoRedo.undo(current);
+              }}
+              onRedo={async () => {
+                const current = await loadCurrentSnapshot();
+                await undoRedo.redo(current);
+              }}
+            />
+          }
           main={
             <WorkflowCanvas
               graphStatus={graphStatus}
@@ -169,9 +245,18 @@ export function WorkflowEditor({
               relatedNodeIds={relatedNodes?.relatedNodeIds}
               onSelectNode={setSelectedNodeId}
               onDeleteNode={handleDeleteNode}
-              onAddLine={mutations.addLine}
+              onAddLine={async (label?: string) => {
+                const snap = await loadCurrentSnapshot();
+                undoRedo.snapshot(snap);
+                await mutations.addLine(label);
+              }}
               onSetLineLabel={mutations.setLineLabel}
-              onRemoveLine={mutations.removeLine}
+              onRemoveLine={async (lineId: string) => {
+                const snap = await loadCurrentSnapshot();
+                undoRedo.snapshot(snap);
+                await mutations.removeLine(lineId);
+              }}
+              onQuestionClick={(nodeId) => setQaModalNodeId(nodeId)}
             />
           }
           right={
@@ -181,6 +266,7 @@ export function WorkflowEditor({
                 contextColor={computeContextBadge(selectedNode, selectedNodeLineIndex)}
                 related={relatedNodes?.related ?? []}
                 onBack={() => setSelectedNodeId(null)}
+                onEditProperties={() => setEditModalNodeId(selectedNodeId)}
               />
             ) : (
               <WorkUnitToolbox units={units} isDragging={isDragging} />
@@ -195,6 +281,80 @@ export function WorkflowEditor({
           </div>
         )}
       </DragOverlay>
+
+      {/* Q&A Modal */}
+      {qaModalNodeId &&
+        (() => {
+          const node = graphStatus.lines
+            .flatMap((l) => l.nodes)
+            .find((n) => n.nodeId === qaModalNodeId);
+          if (!node?.pendingQuestion) return null;
+          return (
+            <QAModal
+              question={node.pendingQuestion}
+              nodeId={qaModalNodeId}
+              onAnswer={async ({ structured, freeform }) => {
+                const answer = freeform ? { value: structured, notes: freeform } : structured;
+                const result = await answerQuestionAction(
+                  workspaceSlug,
+                  graphSlug,
+                  qaModalNodeId,
+                  node.pendingQuestion?.questionId ?? '',
+                  answer,
+                  worktreePath
+                );
+                if (result.graphStatus) setGraphStatus(result.graphStatus);
+                setQaModalNodeId(null);
+              }}
+              onClose={() => setQaModalNodeId(null)}
+            />
+          );
+        })()}
+
+      {/* Node Edit Modal */}
+      {editModalNodeId &&
+        (() => {
+          const node = graphStatus.lines
+            .flatMap((l) => l.nodes)
+            .find((n) => n.nodeId === editModalNodeId);
+          if (!node) return null;
+          return (
+            <NodeEditModal
+              node={node}
+              graphStatus={graphStatus}
+              onSave={async (updates) => {
+                if (updates.description !== undefined || updates.orchestratorSettings) {
+                  const configResult = await updateNodeConfigAction(
+                    workspaceSlug,
+                    graphSlug,
+                    editModalNodeId,
+                    {
+                      description: updates.description,
+                      orchestratorSettings: updates.orchestratorSettings,
+                    },
+                    worktreePath
+                  );
+                  if (configResult.graphStatus) setGraphStatus(configResult.graphStatus);
+                }
+                if (updates.inputs) {
+                  for (const [inputName, source] of Object.entries(updates.inputs)) {
+                    const inputResult = await setNodeInputAction(
+                      workspaceSlug,
+                      graphSlug,
+                      editModalNodeId,
+                      inputName,
+                      source,
+                      worktreePath
+                    );
+                    if (inputResult.graphStatus) setGraphStatus(inputResult.graphStatus);
+                  }
+                }
+                setEditModalNodeId(null);
+              }}
+              onClose={() => setEditModalNodeId(null)}
+            />
+          );
+        })()}
     </DndContext>
   );
 }

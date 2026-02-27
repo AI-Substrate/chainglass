@@ -1110,8 +1110,32 @@ export class PositionalGraphService implements IPositionalGraphService {
         reason: canRunResult.reason,
       },
       inputPack,
+      pendingQuestion: this.resolvePendingQuestion(storedState, state),
       startedAt: storedState?.started_at,
       completedAt: storedState?.completed_at,
+    };
+  }
+
+  /**
+   * Resolve pending question details from node state + state.questions[].
+   * Returns the pendingQuestion shape expected by NodeStatusResult, or undefined.
+   */
+  private resolvePendingQuestion(
+    storedState: NodeStateEntry | undefined,
+    state: State
+  ): NodeStatusResult['pendingQuestion'] {
+    const questionId = storedState?.pending_question_id;
+    if (!questionId) return undefined;
+
+    const question = state.questions?.find((q) => q.question_id === questionId);
+    if (!question) return undefined;
+
+    return {
+      questionId: question.question_id,
+      text: question.text,
+      questionType: question.type,
+      options: question.options?.map((opt) => ({ key: opt, label: opt })),
+      askedAt: question.asked_at,
     };
   }
 
@@ -2684,6 +2708,35 @@ export class PositionalGraphService implements IPositionalGraphService {
 
   async persistGraphState(ctx: WorkspaceContext, graphSlug: string, state: State): Promise<void> {
     return this.persistState(ctx, graphSlug, state);
+  }
+
+  async restoreSnapshot(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    definition: PositionalGraphDefinition,
+    nodeConfigs: Record<string, NodeConfig>
+  ): Promise<import('@chainglass/shared').BaseResult> {
+    try {
+      // Write graph.yaml
+      await this.persistGraph(ctx, graphSlug, definition);
+
+      // Write all node configs
+      for (const [nodeId, config] of Object.entries(nodeConfigs)) {
+        await this.persistNodeConfig(ctx, graphSlug, nodeId, config);
+      }
+
+      return { errors: [] };
+    } catch (err) {
+      return {
+        errors: [
+          {
+            code: 'E999',
+            message: `Snapshot restore failed: ${err instanceof Error ? err.message : 'unknown error'}`,
+            action: 'Check file permissions and disk space',
+          },
+        ],
+      };
+    }
   }
 }
 

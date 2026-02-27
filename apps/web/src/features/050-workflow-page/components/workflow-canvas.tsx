@@ -24,6 +24,7 @@ export interface WorkflowCanvasProps {
   onAddLine?: (label?: string) => void;
   onSetLineLabel?: (lineId: string, label: string) => void;
   onRemoveLine?: (lineId: string) => void;
+  onQuestionClick?: (nodeId: string) => void;
 }
 
 export function WorkflowCanvas({
@@ -36,6 +37,7 @@ export function WorkflowCanvas({
   onAddLine,
   onSetLineLabel,
   onRemoveLine,
+  onQuestionClick,
 }: WorkflowCanvasProps) {
   const { lines } = graphStatus;
 
@@ -81,6 +83,7 @@ export function WorkflowCanvas({
             onDeleteNode={onDeleteNode}
             onSetLineLabel={onSetLineLabel}
             onRemoveLine={onRemoveLine}
+            onQuestionClick={onQuestionClick}
           />
         </div>
       ))}

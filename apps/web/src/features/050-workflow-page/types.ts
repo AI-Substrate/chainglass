@@ -6,10 +6,20 @@
 
 import type {
   GraphStatusResult,
+  NodeConfig,
   PGLoadResult,
+  PositionalGraphDefinition,
   WorkUnitSummary,
 } from '@chainglass/positional-graph';
 import type { ResultError } from '@chainglass/shared';
+
+// ─── Snapshot Types (Phase 5) ────────────────────────────────────────
+
+export interface WorkflowSnapshot {
+  definition: PositionalGraphDefinition;
+  nodeConfigs: Record<string, NodeConfig>;
+  description?: string;
+}
 
 // ─── Query Results ───────────────────────────────────────────────────
 

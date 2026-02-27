@@ -24,7 +24,9 @@ export function EmptyCanvasPlaceholder({ onAddLine }: EmptyCanvasPlaceholderProp
       </button>
       <div className="text-center">
         <p className="text-sm font-medium text-foreground/60">Create your first line</p>
-        <p className="text-xs mt-1 text-muted-foreground/40">Drag work units from the right panel</p>
+        <p className="text-xs mt-1 text-muted-foreground/40">
+          Drag work units from the right panel
+        </p>
       </div>
     </div>
   );

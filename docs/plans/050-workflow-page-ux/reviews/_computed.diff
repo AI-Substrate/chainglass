@@ -1,1032 +1,749 @@
-diff --git a/apps/web/src/features/050-workflow-page/components/context-flow-indicator.tsx b/apps/web/src/features/050-workflow-page/components/context-flow-indicator.tsx
-new file mode 100644
-index 0000000..6600c35
---- /dev/null
-+++ b/apps/web/src/features/050-workflow-page/components/context-flow-indicator.tsx
-@@ -0,0 +1,78 @@
-+/**
-+ * ContextFlowIndicator — Small inline indicator between adjacent nodes.
-+ *
-+ * Shows context flow direction:
-+ * - Blue arrow (→): context flows left to right (serial, inherited)
-+ * - Gray X (✕): right node has noContext (isolated)
-+ * - Gray dots (···): parallel nodes (no context inheritance)
-+ * - Purple arrow (→): explicit contextFrom
-+ *
-+ * Phase 4: Context Indicators — Plan 050
-+ */
+# git diff (excluding review artifacts)
+diff --git a/apps/web/app/actions/workflow-actions.ts b/apps/web/app/actions/workflow-actions.ts
+index d780590..0461645 100644
+--- a/apps/web/app/actions/workflow-actions.ts
++++ b/apps/web/app/actions/workflow-actions.ts
+@@ -7,6 +7,7 @@
+  * Phase 3: addNode, removeNode, moveNode, addLine, removeLine,
+  *          setLineLabel, setLineDescription, updateLineOrchestratorSettings,
+  *          saveAsTemplate, instantiateTemplate, listTemplates
++ * Phase 5: answerQuestion, restoreSnapshot, updateNodeConfig, setInput
+  *
+  * Plan 050
+  */
+@@ -380,3 +381,128 @@ export async function listTemplates(
+     errors: [],
+   };
+ }
 +
-+import type { NodeStatusResult } from '@chainglass/positional-graph';
++// ─── Phase 5: Q&A + Node Properties + Undo/Redo ─────────────────────
 +
-+export interface ContextFlowIndicatorProps {
-+  rightNode: NodeStatusResult;
++export async function answerQuestion(
++  workspaceSlug: string,
++  graphSlug: string,
++  nodeId: string,
++  questionId: string,
++  answer: unknown,
++  worktreePath?: string
++): Promise<MutationResult> {
++  const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
++  if (!ctx) return { errors: [NOT_FOUND_ERROR] };
++
++  const svc = resolveGraphService();
++
++  // Step 1: Record the answer (node stays waiting-question)
++  const answerResult = await svc.answerQuestion(ctx, graphSlug, nodeId, questionId, answer);
++  if (answerResult.errors.length > 0) return { errors: answerResult.errors };
++
++  // Step 2: Raise node:restart to resume execution
++  const restartResult = await svc.raiseNodeEvent(
++    ctx,
++    graphSlug,
++    nodeId,
++    'node:restart',
++    { reason: 'question-answered' },
++    'human'
++  );
++  if (restartResult.errors.length > 0) return { errors: restartResult.errors };
++
++  return reloadStatus(ctx, graphSlug);
 +}
 +
-+export function ContextFlowIndicator({ rightNode }: ContextFlowIndicatorProps) {
-+  // Non-agent nodes don't participate in context flow
-+  if (rightNode.unitType !== 'agent') {
-+    return <Dot label="no context" />;
++export async function restoreSnapshot(
++  workspaceSlug: string,
++  graphSlug: string,
++  definition: import('@chainglass/positional-graph').PositionalGraphDefinition,
++  nodeConfigs: Record<string, import('@chainglass/positional-graph').NodeConfig>,
++  worktreePath?: string
++): Promise<MutationResult> {
++  const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
++  if (!ctx) return { errors: [NOT_FOUND_ERROR] };
++
++  const svc = resolveGraphService();
++
++  // Guard: block undo while any line is running/active
++  const currentStatus = await svc.getStatus(ctx, graphSlug);
++  const hasRunningLines = currentStatus.lines.some((line) =>
++    line.nodes.some((n) =>
++      ['starting', 'agent-accepted', 'waiting-question'].includes(n.status)
++    )
++  );
++  if (hasRunningLines) {
++    return {
++      errors: [
++        {
++          code: 'E998',
++          message: 'Cannot undo while workflow is running',
++          action: 'Wait for all nodes to finish or stop them first',
++        },
++      ],
++    };
 +  }
 +
-+  // Isolated node
-+  if (rightNode.noContext) {
-+    return (
-+      <span
-+        className="text-xs text-muted-foreground/50 px-0.5 shrink-0"
-+        title="Isolated — no context"
-+        data-testid="flow-isolated"
-+      >
-+        ✕
-+      </span>
++  const result = await svc.restoreSnapshot(ctx, graphSlug, definition, nodeConfigs);
++  if (result.errors.length > 0) return { errors: result.errors };
++
++  return reloadStatus(ctx, graphSlug);
++}
++
++export async function updateNodeConfig(
++  workspaceSlug: string,
++  graphSlug: string,
++  nodeId: string,
++  updates: {
++    description?: string;
++    orchestratorSettings?: Partial<{
++      execution: 'serial' | 'parallel';
++      waitForPrevious: boolean;
++      noContext: boolean;
++      contextFrom: string | undefined;
++    }>;
++  },
++  worktreePath?: string
++): Promise<MutationResult> {
++  const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
++  if (!ctx) return { errors: [NOT_FOUND_ERROR] };
++
++  const svc = resolveGraphService();
++
++  if (updates.description !== undefined) {
++    const descResult = await svc.setNodeDescription(ctx, graphSlug, nodeId, updates.description);
++    if (descResult.errors.length > 0) return { errors: descResult.errors };
++  }
++
++  if (updates.orchestratorSettings) {
++    const settingsResult = await svc.updateNodeOrchestratorSettings(
++      ctx,
++      graphSlug,
++      nodeId,
++      updates.orchestratorSettings
 +    );
++    if (settingsResult.errors.length > 0) return { errors: settingsResult.errors };
 +  }
 +
-+  // Explicit contextFrom (not from left neighbor)
-+  if (rightNode.contextFrom) {
-+    return (
-+      <span
-+        className="text-xs text-violet-400 px-0.5 shrink-0"
-+        title={`Context from: ${rightNode.contextFrom}`}
-+        data-testid="flow-explicit"
-+      >
-+        →
-+      </span>
-+    );
-+  }
-+
-+  // Parallel execution — no context inheritance
-+  if (rightNode.execution === 'parallel') {
-+    return <Dot label="parallel" />;
-+  }
-+
-+  // Default: serial, context inherited from left
-+  return (
-+    <span
-+      className="text-xs text-blue-400 px-0.5 shrink-0"
-+      title="Context inherited from left"
-+      data-testid="flow-inherited"
-+    >
-+      →
-+    </span>
-+  );
++  return reloadStatus(ctx, graphSlug);
 +}
 +
-+function Dot({ label }: { label: string }) {
-+  return (
-+    <span
-+      className="text-xs text-muted-foreground/30 px-0.5 shrink-0"
-+      title={label}
-+      data-testid="flow-none"
-+    >
-+      ···
-+    </span>
-+  );
++export async function setNodeInput(
++  workspaceSlug: string,
++  graphSlug: string,
++  nodeId: string,
++  inputName: string,
++  source: import('@chainglass/positional-graph').InputResolution,
++  worktreePath?: string
++): Promise<MutationResult> {
++  const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
++  if (!ctx) return { errors: [NOT_FOUND_ERROR] };
++
++  const result = await resolveGraphService().setInput(ctx, graphSlug, nodeId, inputName, source);
++  if (result.errors.length > 0) return { errors: result.errors };
++
++  return reloadStatus(ctx, graphSlug);
 +}
-diff --git a/apps/web/src/features/050-workflow-page/components/gate-chip.tsx b/apps/web/src/features/050-workflow-page/components/gate-chip.tsx
-new file mode 100644
-index 0000000..6b0e471
---- /dev/null
-+++ b/apps/web/src/features/050-workflow-page/components/gate-chip.tsx
-@@ -0,0 +1,113 @@
-+'use client';
-+
-+/**
-+ * GateChip — Shows which readiness gate is blocking a node.
-+ *
-+ * Single chip on the card showing first blocking gate.
-+ * Click to expand inline list of all 5 gates with pass/fail status.
-+ *
-+ * Phase 4: Context Indicators — Plan 050
-+ */
-+
-+import type { NodeStatusResult } from '@chainglass/positional-graph';
-+import { useState } from 'react';
-+
-+interface GateStatus {
-+  name: string;
-+  passing: boolean;
-+  color: string;
-+  message: string;
-+}
-+
-+function computeGates(node: NodeStatusResult): GateStatus[] {
-+  const d = node.readyDetail;
-+  return [
-+    {
-+      name: 'Preceding Lines',
-+      passing: d.precedingLinesComplete,
-+      color: 'text-red-500',
-+      message: d.precedingLinesComplete ? 'Complete' : 'Earlier lines incomplete',
-+    },
-+    {
-+      name: 'Transition',
-+      passing: d.transitionOpen,
-+      color: 'text-amber-500',
-+      message: d.transitionOpen ? 'Open' : 'Awaiting manual transition',
-+    },
-+    {
-+      name: 'Serial Neighbor',
-+      passing: d.serialNeighborComplete,
-+      color: 'text-orange-500',
-+      message: d.serialNeighborComplete ? 'Complete' : 'Left neighbor not done',
-+    },
-+    {
-+      name: 'Context Source',
-+      passing: d.contextFromReady !== false,
-+      color: 'text-blue-500',
-+      message: d.contextFromReady !== false ? 'Ready' : 'Context source not ready',
-+    },
-+    {
-+      name: 'Inputs',
-+      passing: d.inputsAvailable,
-+      color: 'text-violet-500',
-+      message: d.inputsAvailable ? 'Available' : 'Inputs not resolved',
-+    },
-+  ];
-+}
-+
-+export interface GateChipProps {
-+  node: NodeStatusResult;
-+}
-+
-+export function GateChip({ node }: GateChipProps) {
-+  const [expanded, setExpanded] = useState(false);
-+
-+  // Only show for pending/blocked nodes (not running or complete)
-+  if (
-+    node.ready ||
-+    node.status === 'complete' ||
-+    node.status === 'agent-accepted' ||
-+    node.status === 'starting'
-+  ) {
-+    return null;
-+  }
-+
-+  const gates = computeGates(node);
-+  const firstBlocking = gates.find((g) => !g.passing);
-+  if (!firstBlocking) return null;
-+
-+  return (
-+    <div data-testid={`gate-chip-${node.nodeId}`}>
-+      <button
-+        type="button"
-+        onClick={(e) => {
-+          e.stopPropagation();
-+          setExpanded(!expanded);
-+        }}
-+        className={`text-xs px-1.5 py-0.5 rounded ${firstBlocking.color} bg-current/10 flex items-center gap-1`}
-+      >
-+        <span className={firstBlocking.color}>⛔</span>
-+        <span className="text-foreground">{firstBlocking.message}</span>
-+        <span className="text-muted-foreground">{expanded ? '▴' : '▾'}</span>
-+      </button>
-+
-+      {expanded && (
-+        <div
-+          className="mt-1 text-xs border rounded p-2 space-y-1 bg-background"
-+          data-testid={`gate-list-${node.nodeId}`}
-+        >
-+          {gates.map((gate) => (
-+            <div key={gate.name} className="flex items-center gap-1.5">
-+              <span>{gate.passing ? '✅' : '⛔'}</span>
-+              <span className={gate.passing ? 'text-muted-foreground' : gate.color}>
-+                {gate.name}: {gate.message}
-+              </span>
-+            </div>
-+          ))}
-+        </div>
-+      )}
-+    </div>
-+  );
-+}
-+
-+export { computeGates };
 diff --git a/apps/web/src/features/050-workflow-page/components/node-properties-panel.tsx b/apps/web/src/features/050-workflow-page/components/node-properties-panel.tsx
-new file mode 100644
-index 0000000..a3c1fe0
---- /dev/null
+index 78b5bdd..c8b5797 100644
+--- a/apps/web/src/features/050-workflow-page/components/node-properties-panel.tsx
 +++ b/apps/web/src/features/050-workflow-page/components/node-properties-panel.tsx
-@@ -0,0 +1,170 @@
-+'use client';
-+
-+/**
-+ * NodePropertiesPanel — Right panel showing selected node detail.
-+ *
-+ * Replaces toolbox when a node is selected. Shows unit info, status,
-+ * context source, inputs, outputs, downstream consumers.
-+ *
-+ * Phase 4: Context Indicators — Plan 050
-+ */
-+
-+import type { NodeStatusResult } from '@chainglass/positional-graph';
-+import type { NodeRelationship } from '../lib/related-nodes';
-+import { computeGates } from './gate-chip';
-+
-+const TYPE_ICONS: Record<string, string> = {
-+  agent: '🤖',
-+  code: '⚙️',
-+  'user-input': '👤',
-+};
-+
-+const CONTEXT_LABELS: Record<string, string> = {
-+  green: 'New/Global',
-+  blue: 'Inherited (left)',
-+  purple: 'Explicit',
-+  gray: 'N/A',
-+};
-+
-+export interface NodePropertiesPanelProps {
-+  node: NodeStatusResult;
-+  contextColor: 'green' | 'blue' | 'purple' | 'gray';
-+  related: NodeRelationship[];
-+  onBack: () => void;
-+}
-+
-+export function NodePropertiesPanel({
-+  node,
-+  contextColor,
-+  related,
-+  onBack,
-+}: NodePropertiesPanelProps) {
-+  const upstream = related.filter((r) => r.relation === 'upstream');
-+  const downstream = related.filter((r) => r.relation === 'downstream');
-+  const gates = computeGates(node);
-+
-+  return (
-+    <div data-testid="node-properties-panel" className="flex flex-col h-full p-3 gap-3 text-xs">
-+      {/* Header */}
-+      <div className="flex items-center gap-2">
-+        <button
-+          type="button"
-+          onClick={onBack}
-+          className="text-muted-foreground hover:text-foreground"
-+          data-testid="properties-back"
-+        >
-+          ← Back
-+        </button>
-+        <span className="font-semibold">Node Properties</span>
-+      </div>
-+
-+      {/* Unit Info */}
-+      <section>
-+        <h4 className="font-medium text-muted-foreground mb-1">Unit</h4>
-+        <div className="flex items-center gap-1.5">
-+          <span>{TYPE_ICONS[node.unitType]}</span>
-+          <span className="font-medium">{node.unitSlug}</span>
-+        </div>
-+        <div className="text-muted-foreground mt-0.5">{node.unitType}</div>
-+      </section>
-+
-+      {/* Status */}
-+      <section>
-+        <h4 className="font-medium text-muted-foreground mb-1">Status</h4>
-+        <div>{node.status}</div>
-+      </section>
-+
-+      {/* Context Source */}
-+      <section>
-+        <h4 className="font-medium text-muted-foreground mb-1">Context</h4>
-+        <div className="flex items-center gap-1.5">
-+          <div
-+            className={`w-2.5 h-2.5 rounded-sm bg-${contextColor === 'blue' ? 'blue' : contextColor === 'purple' ? 'violet' : contextColor === 'green' ? 'green' : 'gray'}-500`}
-+          />
-+          <span>{CONTEXT_LABELS[contextColor]}</span>
-+          {node.noContext && <span className="text-muted-foreground">🔒 Isolated</span>}
-+          {node.contextFrom && (
-+            <span className="text-muted-foreground">from {node.contextFrom}</span>
-+          )}
-+        </div>
-+      </section>
-+
-+      {/* Readiness Gates */}
-+      <section>
-+        <h4 className="font-medium text-muted-foreground mb-1">Readiness Gates</h4>
-+        <div className="space-y-0.5">
-+          {gates.map((gate) => (
-+            <div key={gate.name} className="flex items-center gap-1">
-+              <span>{gate.passing ? '✅' : '⛔'}</span>
-+              <span className={gate.passing ? 'text-muted-foreground' : ''}>{gate.name}</span>
-+            </div>
-+          ))}
-+        </div>
-+      </section>
-+
-+      {/* Inputs */}
-+      <section>
-+        <h4 className="font-medium text-muted-foreground mb-1">
-+          Inputs ({Object.keys(node.inputPack.inputs).length})
-+        </h4>
-+        {Object.keys(node.inputPack.inputs).length === 0 ? (
-+          <div className="text-muted-foreground">No inputs declared</div>
-+        ) : (
-+          <div className="space-y-0.5">
-+            {Object.entries(node.inputPack.inputs).map(([name, entry]) => (
-+              <div key={name} className="flex items-center gap-1">
-+                <span>
-+                  {entry.status === 'available' ? '🟢' : entry.status === 'waiting' ? '🟡' : '🔴'}
-+                </span>
-+                <span>{name}</span>
-+                <span className="text-muted-foreground">({entry.status})</span>
-+              </div>
-+            ))}
-+          </div>
-+        )}
-+      </section>
-+
-+      {/* Upstream */}
-+      {upstream.length > 0 && (
-+        <section>
-+          <h4 className="font-medium text-muted-foreground mb-1">Upstream ({upstream.length})</h4>
-+          <div className="space-y-0.5">
-+            {upstream.map((r, i) => (
-+              <div key={`${r.nodeId}-${r.inputName}-${i}`} className="text-muted-foreground">
-+                ← {r.nodeId} ({r.inputName})
-+              </div>
-+            ))}
-+          </div>
-+        </section>
-+      )}
-+
-+      {/* Downstream */}
-+      {downstream.length > 0 && (
-+        <section>
-+          <h4 className="font-medium text-muted-foreground mb-1">
-+            Downstream ({downstream.length})
-+          </h4>
-+          <div className="space-y-0.5">
-+            {downstream.map((r, i) => (
-+              <div key={`${r.nodeId}-${r.inputName}-${i}`} className="text-muted-foreground">
-+                → {r.nodeId} ({r.inputName})
-+              </div>
-+            ))}
-+          </div>
-+        </section>
-+      )}
-+
-+      {/* Edit button placeholder */}
-+      <div className="mt-auto pt-2 border-t">
-+        <button
-+          type="button"
-+          disabled
-+          className="w-full px-3 py-1.5 text-xs rounded border text-muted-foreground cursor-not-allowed"
-+          title="Coming in Phase 5"
-+        >
-+          Edit Properties...
-+        </button>
-+      </div>
-+    </div>
-+  );
-+}
+@@ -82,6 +82,7 @@ export interface NodePropertiesPanelProps {
+   contextColor: 'green' | 'blue' | 'purple' | 'gray';
+   related: NodeRelationship[];
+   onBack: () => void;
++  onEditProperties?: () => void;
+ }
+ 
+ export function NodePropertiesPanel({
+@@ -89,6 +90,7 @@ export function NodePropertiesPanel({
+   contextColor,
+   related,
+   onBack,
++  onEditProperties,
+ }: NodePropertiesPanelProps) {
+   const upstream = related.filter((r) => r.relation === 'upstream');
+   const downstream = related.filter((r) => r.relation === 'downstream');
+@@ -211,13 +213,19 @@ export function NodePropertiesPanel({
+         </section>
+       )}
+ 
+-      {/* Edit button placeholder */}
++      {/* Edit button */}
+       <div className="mt-auto pt-3 border-t border-border/20">
+         <button
+           type="button"
+-          disabled
+-          className="w-full px-3 py-2 text-xs font-medium rounded-lg bg-foreground/5 text-muted-foreground/40 cursor-not-allowed border border-border/20"
+-          title="Coming in Phase 5"
++          disabled={!onEditProperties}
++          onClick={onEditProperties}
++          className={`w-full px-3 py-2 text-xs font-medium rounded-lg border border-border/20 transition-colors ${
++            onEditProperties
++              ? 'bg-foreground/5 text-foreground hover:bg-foreground/10 cursor-pointer'
++              : 'bg-foreground/5 text-muted-foreground/40 cursor-not-allowed'
++          }`}
++          title={onEditProperties ? 'Edit node properties' : 'Not available'}
++          data-testid="edit-properties-button"
+         >
+           Edit Properties...
+         </button>
 diff --git a/apps/web/src/features/050-workflow-page/components/workflow-canvas.tsx b/apps/web/src/features/050-workflow-page/components/workflow-canvas.tsx
-index 28003ba..f2246b7 100644
+index a60c1fe..d370bea 100644
 --- a/apps/web/src/features/050-workflow-page/components/workflow-canvas.tsx
 +++ b/apps/web/src/features/050-workflow-page/components/workflow-canvas.tsx
-@@ -18,6 +18,7 @@ export interface WorkflowCanvasProps {
-   graphStatus: GraphStatusResult;
-   isDragging?: boolean;
-   selectedNodeId?: string | null;
-+  relatedNodeIds?: Set<string>;
-   onSelectNode?: (nodeId: string | null) => void;
-   onDeleteNode?: (nodeId: string) => void;
+@@ -24,6 +24,7 @@ export interface WorkflowCanvasProps {
    onAddLine?: (label?: string) => void;
-@@ -29,6 +30,7 @@ export function WorkflowCanvas({
-   graphStatus,
-   isDragging = false,
-   selectedNodeId,
-+  relatedNodeIds,
-   onSelectNode,
-   onDeleteNode,
+   onSetLineLabel?: (lineId: string, label: string) => void;
+   onRemoveLine?: (lineId: string) => void;
++  onQuestionClick?: (nodeId: string) => void;
+ }
+ 
+ export function WorkflowCanvas({
+@@ -36,6 +37,7 @@ export function WorkflowCanvas({
    onAddLine,
-@@ -56,6 +58,7 @@ export function WorkflowCanvas({
-             lineIndex={index}
-             isDragging={isDragging}
-             selectedNodeId={selectedNodeId}
-+            relatedNodeIds={relatedNodeIds}
-             onSelectNode={onSelectNode}
+   onSetLineLabel,
+   onRemoveLine,
++  onQuestionClick,
+ }: WorkflowCanvasProps) {
+   const { lines } = graphStatus;
+ 
+@@ -81,6 +83,7 @@ export function WorkflowCanvas({
              onDeleteNode={onDeleteNode}
              onSetLineLabel={onSetLineLabel}
+             onRemoveLine={onRemoveLine}
++            onQuestionClick={onQuestionClick}
+           />
+         </div>
+       ))}
 diff --git a/apps/web/src/features/050-workflow-page/components/workflow-editor.tsx b/apps/web/src/features/050-workflow-page/components/workflow-editor.tsx
-index 9bdb5ca..412fe5f 100644
+index 3da7f79..7bee0df 100644
 --- a/apps/web/src/features/050-workflow-page/components/workflow-editor.tsx
 +++ b/apps/web/src/features/050-workflow-page/components/workflow-editor.tsx
-@@ -25,9 +25,12 @@ import {
-   useSensor,
+@@ -5,11 +5,12 @@
+  *
+  * Wraps everything in DndContext for drag-and-drop.
+  * Manages local GraphStatusResult state with optimistic mutations.
++ * Integrates Q&A modal, node edit modal, and undo/redo.
+  *
+- * Phase 2+3: Canvas Core + Layout, Drag-and-Drop + Persistence — Plan 050
++ * Phase 2+3+5: Canvas Core + Layout, Drag-and-Drop, Q&A/Edit/Undo — Plan 050
+  */
+ 
+-import type { GraphStatusResult, PGLoadResult } from '@chainglass/positional-graph';
++import type { GraphStatusResult, InputResolution, PGLoadResult } from '@chainglass/positional-graph';
+ import type { WorkUnitSummary } from '@chainglass/positional-graph';
+ import {
+   type CollisionDetection,
+@@ -26,15 +27,24 @@ import {
    useSensors,
  } from '@dnd-kit/core';
--import { useCallback, useId, useState } from 'react';
-+import { useCallback, useId, useMemo, useState } from 'react';
+ import { useCallback, useId, useMemo, useState } from 'react';
++import { useUndoRedo } from '../hooks/use-undo-redo';
  import { useWorkflowMutations } from '../hooks/use-workflow-mutations';
-+import { computeContextBadge } from '../lib/context-badge';
-+import { computeRelatedNodes } from '../lib/related-nodes';
+ import { computeContextBadge } from '../lib/context-badge';
+ import { computeRelatedNodes } from '../lib/related-nodes';
  import type { WorkflowDragData } from '../types';
-+import { NodePropertiesPanel } from './node-properties-panel';
++import { NodeEditModal } from './node-edit-modal';
+ import { NodePropertiesPanel } from './node-properties-panel';
++import { QAModal } from './qa-modal';
  import { WorkUnitToolbox } from './work-unit-toolbox';
  import { WorkflowCanvas } from './workflow-canvas';
  import { WorkflowEditorLayout } from './workflow-editor-layout';
-@@ -65,6 +68,26 @@ export function WorkflowEditor({
+ import { WorkflowTempBar } from './workflow-temp-bar';
++import {
++  answerQuestion as answerQuestionAction,
++  restoreSnapshot as restoreSnapshotAction,
++  updateNodeConfig as updateNodeConfigAction,
++  setNodeInput as setNodeInputAction,
++} from '../../../../app/actions/workflow-actions';
+ 
+ export interface WorkflowEditorProps {
+   workspaceSlug: string;
+@@ -50,6 +60,7 @@ export function WorkflowEditor({
+   workspaceSlug,
+   graphSlug,
+   graphStatus: initialStatus,
++  definition,
+   units,
+   worktreePath,
+   templateSource,
+@@ -59,6 +70,8 @@ export function WorkflowEditor({
+   const [isDragging, setIsDragging] = useState(false);
+   const [activeDragData, setActiveDragData] = useState<WorkflowDragData | null>(null);
+   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
++  const [qaModalNodeId, setQaModalNodeId] = useState<string | null>(null);
++  const [editModalNodeId, setEditModalNodeId] = useState<string | null>(null);
+ 
+   const mutations = useWorkflowMutations({
+     workspaceSlug,
+@@ -68,6 +81,20 @@ export function WorkflowEditor({
      onStatusUpdate: setGraphStatus,
    });
  
-+  // Compute related nodes for select-to-reveal dimming
-+  const relatedNodes = useMemo(
-+    () => (selectedNodeId ? computeRelatedNodes(selectedNodeId, graphStatus.lines) : null),
-+    [selectedNodeId, graphStatus.lines]
-+  );
++  // Undo/redo
++  const undoRedo = useUndoRedo({
++    onRestore: async (snapshot) => {
++      const result = await restoreSnapshotAction(
++        workspaceSlug,
++        graphSlug,
++        snapshot.definition,
++        snapshot.nodeConfigs,
++        worktreePath
++      );
++      if (result.graphStatus) setGraphStatus(result.graphStatus);
++    },
++  });
 +
-+  // Find selected node for properties panel
-+  const selectedNode = useMemo(
-+    () =>
-+      selectedNodeId
-+        ? graphStatus.lines.flatMap((l) => l.nodes).find((n) => n.nodeId === selectedNodeId)
-+        : null,
-+    [selectedNodeId, graphStatus.lines]
-+  );
-+
-+  const selectedNodeLineIndex = useMemo(() => {
-+    if (!selectedNodeId) return 0;
-+    return graphStatus.lines.findIndex((l) => l.nodes.some((n) => n.nodeId === selectedNodeId));
-+  }, [selectedNodeId, graphStatus.lines]);
-+
-   const sensors = useSensors(
-     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-     useSensor(KeyboardSensor)
-@@ -143,6 +166,7 @@ export function WorkflowEditor({
+   // Compute related nodes for select-to-reveal dimming
+   const relatedNodes = useMemo(
+     () => (selectedNodeId ? computeRelatedNodes(selectedNodeId, graphStatus.lines) : null),
+@@ -160,7 +187,18 @@ export function WorkflowEditor({
+       {/* biome-ignore lint/a11y/noNoninteractiveTabindex: keyboard delete needs focus */}
+       <div onKeyDown={handleKeyDown} tabIndex={0} className="h-full outline-none">
+         <WorkflowEditorLayout
+-          topBar={<WorkflowTempBar graphSlug={graphSlug} templateSource={templateSource} />}
++          topBar={
++            <WorkflowTempBar
++              graphSlug={graphSlug}
++              templateSource={templateSource}
++              undoDepth={undoRedo.undoDepth}
++              redoDepth={undoRedo.redoDepth}
++              canUndo={undoRedo.canUndo}
++              canRedo={undoRedo.canRedo}
++              onUndo={() => undoRedo.undo({ definition, nodeConfigs: {} })}
++              onRedo={() => undoRedo.redo({ definition, nodeConfigs: {} })}
++            />
++          }
+           main={
+             <WorkflowCanvas
                graphStatus={graphStatus}
-               isDragging={isDragging}
-               selectedNodeId={selectedNodeId}
-+              relatedNodeIds={relatedNodes?.relatedNodeIds}
-               onSelectNode={setSelectedNodeId}
-               onDeleteNode={handleDeleteNode}
+@@ -172,6 +210,7 @@ export function WorkflowEditor({
                onAddLine={mutations.addLine}
-@@ -150,7 +174,18 @@ export function WorkflowEditor({
+               onSetLineLabel={mutations.setLineLabel}
                onRemoveLine={mutations.removeLine}
++              onQuestionClick={(nodeId) => setQaModalNodeId(nodeId)}
              />
            }
--          right={<WorkUnitToolbox units={units} isDragging={isDragging} />}
-+          right={
-+            selectedNode ? (
-+              <NodePropertiesPanel
-+                node={selectedNode}
-+                contextColor={computeContextBadge(selectedNode, selectedNodeLineIndex)}
-+                related={relatedNodes?.related ?? []}
-+                onBack={() => setSelectedNodeId(null)}
-+              />
-+            ) : (
-+              <WorkUnitToolbox units={units} isDragging={isDragging} />
-+            )
-+          }
-         />
-       </div>
-       <DragOverlay dropAnimation={null}>
+           right={
+@@ -181,6 +220,7 @@ export function WorkflowEditor({
+                 contextColor={computeContextBadge(selectedNode, selectedNodeLineIndex)}
+                 related={relatedNodes?.related ?? []}
+                 onBack={() => setSelectedNodeId(null)}
++                onEditProperties={() => setEditModalNodeId(selectedNodeId)}
+               />
+             ) : (
+               <WorkUnitToolbox units={units} isDragging={isDragging} />
+@@ -195,6 +235,70 @@ export function WorkflowEditor({
+           </div>
+         )}
+       </DragOverlay>
++
++      {/* Q&A Modal */}
++      {qaModalNodeId && (() => {
++        const node = graphStatus.lines.flatMap((l) => l.nodes).find((n) => n.nodeId === qaModalNodeId);
++        if (!node?.pendingQuestion) return null;
++        return (
++          <QAModal
++            question={node.pendingQuestion}
++            nodeId={qaModalNodeId}
++            onAnswer={async ({ structured }) => {
++              const result = await answerQuestionAction(
++                workspaceSlug,
++                graphSlug,
++                qaModalNodeId,
++                node.pendingQuestion!.questionId,
++                structured,
++                worktreePath
++              );
++              if (result.graphStatus) setGraphStatus(result.graphStatus);
++              setQaModalNodeId(null);
++            }}
++            onClose={() => setQaModalNodeId(null)}
++          />
++        );
++      })()}
++
++      {/* Node Edit Modal */}
++      {editModalNodeId && (() => {
++        const node = graphStatus.lines.flatMap((l) => l.nodes).find((n) => n.nodeId === editModalNodeId);
++        if (!node) return null;
++        return (
++          <NodeEditModal
++            node={node}
++            graphStatus={graphStatus}
++            onSave={async (updates) => {
++              if (updates.description !== undefined || updates.orchestratorSettings) {
++                const configResult = await updateNodeConfigAction(
++                  workspaceSlug,
++                  graphSlug,
++                  editModalNodeId,
++                  { description: updates.description, orchestratorSettings: updates.orchestratorSettings },
++                  worktreePath
++                );
++                if (configResult.graphStatus) setGraphStatus(configResult.graphStatus);
++              }
++              if (updates.inputs) {
++                for (const [inputName, source] of Object.entries(updates.inputs)) {
++                  const inputResult = await setNodeInputAction(
++                    workspaceSlug,
++                    graphSlug,
++                    editModalNodeId,
++                    inputName,
++                    source,
++                    worktreePath
++                  );
++                  if (inputResult.graphStatus) setGraphStatus(inputResult.graphStatus);
++                }
++              }
++              setEditModalNodeId(null);
++            }}
++            onClose={() => setEditModalNodeId(null)}
++          />
++        );
++      })()}
+     </DndContext>
+   );
+ }
 diff --git a/apps/web/src/features/050-workflow-page/components/workflow-line.tsx b/apps/web/src/features/050-workflow-page/components/workflow-line.tsx
-index f58f4eb..1489059 100644
+index 7f92195..f9c52e5 100644
 --- a/apps/web/src/features/050-workflow-page/components/workflow-line.tsx
 +++ b/apps/web/src/features/050-workflow-page/components/workflow-line.tsx
-@@ -11,6 +11,7 @@
- 
- import type { LineStatusResult } from '@chainglass/positional-graph';
- import { useState } from 'react';
-+import { ContextFlowIndicator } from './context-flow-indicator';
- import { DropZone } from './drop-zone';
- import { EmptyLinePlaceholder } from './empty-states';
- import { WorkflowNodeCard, nodeStatusToCardProps } from './workflow-node-card';
-@@ -20,6 +21,7 @@ export interface WorkflowLineProps {
-   lineIndex: number;
-   isDragging?: boolean;
-   selectedNodeId?: string | null;
-+  relatedNodeIds?: Set<string>;
-   onSelectNode?: (nodeId: string | null) => void;
+@@ -26,6 +26,7 @@ export interface WorkflowLineProps {
    onDeleteNode?: (nodeId: string) => void;
    onSetLineLabel?: (lineId: string, label: string) => void;
-@@ -44,6 +46,7 @@ export function WorkflowLine({
-   lineIndex,
-   isDragging = false,
-   selectedNodeId,
-+  relatedNodeIds,
-   onSelectNode,
+   onRemoveLine?: (lineId: string) => void;
++  onQuestionClick?: (nodeId: string) => void;
+ }
+ 
+ function lineStateBorder(line: LineStatusResult): string {
+@@ -51,6 +52,7 @@ export function WorkflowLine({
    onDeleteNode,
    onSetLineLabel,
-@@ -52,6 +55,7 @@ export function WorkflowLine({
+   onRemoveLine,
++  onQuestionClick,
+ }: WorkflowLineProps) {
    const borderClass = lineStateBorder(line);
    const editable = isLineEditable(line);
-   const showDropZones = isDragging && editable;
-+  const hasDimming = selectedNodeId != null && relatedNodeIds != null;
-   // Drop zones always rendered (for dnd-kit registration), isActive controls visibility
-   const [editingLabel, setEditingLabel] = useState(false);
-   const [labelValue, setLabelValue] = useState(line.label ?? '');
-@@ -140,17 +144,19 @@ export function WorkflowLine({
-           data-testid={`line-nodes-${line.lineId}`}
-         >
-           {line.nodes.map((node, idx) => (
--            <div key={node.nodeId} className="flex items-stretch gap-1">
-+            <div key={node.nodeId} className="flex items-stretch items-center gap-1">
-               <DropZone
-                 id={`drop-${line.lineId}-${idx}`}
-                 lineId={line.lineId}
-                 position={idx}
-                 isActive={showDropZones}
-               />
-+              {idx > 0 && <ContextFlowIndicator rightNode={node} />}
-               <WorkflowNodeCard
--                {...nodeStatusToCardProps(node)}
-+                {...nodeStatusToCardProps(node, lineIndex)}
-                 isSelected={selectedNodeId === node.nodeId}
-                 isEditable={editable}
-+                isDimmed={hasDimming && !relatedNodeIds.has(node.nodeId)}
+@@ -166,6 +168,7 @@ export function WorkflowLine({
+                 isDimmed={hasDimming && !relatedNodeIds.has(node.nodeId)}
                  onSelect={() => onSelectNode?.(node.nodeId)}
                  onDelete={() => onDeleteNode?.(node.nodeId)}
++                onQuestionClick={node.status === 'waiting-question' ? () => onQuestionClick?.(node.nodeId) : undefined}
                />
+             </div>
+           ))}
 diff --git a/apps/web/src/features/050-workflow-page/components/workflow-node-card.tsx b/apps/web/src/features/050-workflow-page/components/workflow-node-card.tsx
-index cc92f5d..f823a8d 100644
+index 0a6c737..4bbcd2d 100644
 --- a/apps/web/src/features/050-workflow-page/components/workflow-node-card.tsx
 +++ b/apps/web/src/features/050-workflow-page/components/workflow-node-card.tsx
-@@ -3,13 +3,15 @@
- /**
-  * WorkflowNodeCard — Visual representation of a node in a workflow line.
-  *
-- * Renders type icon, unit name, description, status indicator, and context badge.
-- * All 8 status states supported with correct colors per W001.
-+ * Renders type icon, unit name, description, status indicator, context badge,
-+ * noContext lock, gate chips, and supports dimming for select-to-reveal.
-  *
-- * Phase 2: Canvas Core + Layout — Plan 050
-+ * Phase 2+4 — Plan 050
-  */
- 
- import type { NodeStatusResult } from '@chainglass/positional-graph';
-+import { computeContextBadge } from '../lib/context-badge';
-+import { GateChip } from './gate-chip';
- 
- // ─── Status Definitions ──────────────────────────────────────────────
- 
-@@ -70,8 +72,12 @@ export interface WorkflowNodeCardProps {
-   status: NodeStatus;
-   description?: string;
-   contextColor?: 'green' | 'blue' | 'purple' | 'gray';
-+  noContext?: boolean;
-+  /** Full node status for gate chip rendering */
-+  nodeStatus?: NodeStatusResult;
-   isSelected?: boolean;
-   isEditable?: boolean;
-+  isDimmed?: boolean;
+@@ -80,6 +80,7 @@ export interface WorkflowNodeCardProps {
+   isDimmed?: boolean;
    onSelect?: () => void;
    onDelete?: () => void;
++  onQuestionClick?: () => void;
  }
-@@ -92,8 +98,11 @@ export function WorkflowNodeCard({
-   status,
-   description,
-   contextColor = 'gray',
-+  noContext = false,
-+  nodeStatus,
-   isSelected = false,
-   isEditable = true,
-+  isDimmed = false,
+ 
+ // ─── Component ───────────────────────────────────────────────────────
+@@ -112,6 +113,7 @@ export function WorkflowNodeCard({
+   isDimmed = false,
    onSelect,
    onDelete,
++  onQuestionClick,
  }: WorkflowNodeCardProps) {
-@@ -111,18 +120,23 @@ export function WorkflowNodeCard({
-           onDelete();
-         }
-       }}
--      className={`relative min-w-[120px] min-h-[100px] rounded-lg border bg-card p-3 shadow-sm hover:shadow-md transition-shadow cursor-pointer ${
-+      className={`relative min-w-[120px] min-h-[100px] rounded-lg border bg-card p-3 shadow-sm hover:shadow-md transition-all cursor-pointer ${
-         isSelected ? 'ring-2 ring-primary border-primary' : ''
--      }`}
-+      } ${isDimmed ? 'opacity-40' : ''}`}
-       tabIndex={0}
-       // biome-ignore lint/a11y/useSemanticElements: div used for layout + drag handle compatibility
-       role="button"
-     >
--      {/* Header: type icon + name + delete */}
-+      {/* Header: type icon + lock + name + delete */}
-       <div className="flex items-center gap-1.5 mb-1">
-         <span className="text-sm" aria-label={unitType}>
-           {typeIcon}
-         </span>
-+        {noContext && (
-+          <span className="text-xs" title="Isolated — no context" data-testid={`lock-${nodeId}`}>
-+            🔒
-+          </span>
-+        )}
-         <span className="text-sm font-medium truncate">{unitSlug}</span>
-         {isEditable && onDelete && (
-           <button
-@@ -162,18 +176,26 @@ export function WorkflowNodeCard({
-           title={`Context: ${contextColor}`}
-         />
+   const statusConfig = STATUS_MAP[status] ?? STATUS_MAP.pending;
+   const typeIcon = TYPE_ICONS[unitType] ?? '📦';
+@@ -170,7 +172,27 @@ export function WorkflowNodeCard({
+ 
+       {/* Status row — bottom indicator style */}
+       <div className="flex items-center justify-between mt-2">
+-        <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${statusConfig.bgColor}`}>
++        <div
++          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${statusConfig.bgColor} ${
++            status === 'waiting-question' && onQuestionClick ? 'cursor-pointer hover:ring-2 hover:ring-violet-300 transition-all' : ''
++          }`}
++          onClick={(e) => {
++            if (status === 'waiting-question' && onQuestionClick) {
++              e.stopPropagation();
++              onQuestionClick();
++            }
++          }}
++          onKeyDown={(e) => {
++            if (status === 'waiting-question' && onQuestionClick && e.key === 'Enter') {
++              e.stopPropagation();
++              onQuestionClick();
++            }
++          }}
++          role={status === 'waiting-question' && onQuestionClick ? 'button' : undefined}
++          tabIndex={status === 'waiting-question' && onQuestionClick ? 0 : undefined}
++          title={status === 'waiting-question' ? 'Click to answer question' : undefined}
++          data-testid={status === 'waiting-question' ? `qa-badge-${nodeId}` : undefined}
++        >
+           <span
+             className={`inline-block w-2 h-2 rounded-full bg-current ${statusConfig.pulse ? 'animate-pulse' : ''} ${statusConfig.animate ? 'animate-spin' : ''}`}
+             data-testid={`status-dot-${nodeId}`}
+diff --git a/apps/web/src/features/050-workflow-page/components/workflow-temp-bar.tsx b/apps/web/src/features/050-workflow-page/components/workflow-temp-bar.tsx
+index d8194c1..b48adff 100644
+--- a/apps/web/src/features/050-workflow-page/components/workflow-temp-bar.tsx
++++ b/apps/web/src/features/050-workflow-page/components/workflow-temp-bar.tsx
+@@ -1,20 +1,35 @@
+ 'use client';
+ 
+ /**
+- * WorkflowTempBar — Temporary top bar for the workflow editor.
++ * WorkflowTempBar — Top bar for the workflow editor.
+  *
+- * Shows graph name, template/instance breadcrumb, and placeholder Run button.
++ * Shows graph name, template/instance breadcrumb, undo/redo buttons, and placeholder Run button.
+  * Will be replaced by shared ExplorerBar domain in a future plan.
+  *
+- * Phase 2: Canvas Core + Layout — Plan 050
++ * Phase 2+5: Canvas Core + Layout, Undo/Redo — Plan 050
+  */
+ 
+ export interface WorkflowTempBarProps {
+   graphSlug: string;
+   templateSource?: string;
++  undoDepth?: number;
++  redoDepth?: number;
++  canUndo?: boolean;
++  canRedo?: boolean;
++  onUndo?: () => void;
++  onRedo?: () => void;
+ }
+ 
+-export function WorkflowTempBar({ graphSlug, templateSource }: WorkflowTempBarProps) {
++export function WorkflowTempBar({
++  graphSlug,
++  templateSource,
++  undoDepth = 0,
++  redoDepth = 0,
++  canUndo = false,
++  canRedo = false,
++  onUndo,
++  onRedo,
++}: WorkflowTempBarProps) {
+   return (
+     <div
+       data-testid="workflow-temp-bar"
+@@ -33,15 +48,52 @@ export function WorkflowTempBar({ graphSlug, templateSource }: WorkflowTempBarPr
+         )}
        </div>
+ 
+-      {/* Right: placeholder Run button */}
+-      <button
+-        type="button"
+-        disabled
+-        className="px-4 py-1.5 text-xs font-medium rounded-lg bg-white/10 text-white/40 cursor-not-allowed border border-white/10"
+-        title="Coming in future plan"
+-      >
+-        ▶ Run
+-      </button>
++      {/* Right: undo/redo + Run */}
++      <div className="flex items-center gap-2">
++        {/* Undo button */}
++        <button
++          type="button"
++          disabled={!canUndo}
++          onClick={onUndo}
++          data-testid="undo-button"
++          className="relative px-2.5 py-1.5 text-sm rounded-lg bg-white/10 hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed border border-white/10 transition-colors"
++          title="Undo"
++        >
++          ↶
++          {undoDepth > 0 && (
++            <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] flex items-center justify-center text-[10px] font-bold bg-violet-500 text-white rounded-full px-1">
++              {undoDepth}
++            </span>
++          )}
++        </button>
 +
-+      {/* Gate chip for blocked nodes */}
-+      {nodeStatus && <GateChip node={nodeStatus} />}
++        {/* Redo button */}
++        <button
++          type="button"
++          disabled={!canRedo}
++          onClick={onRedo}
++          data-testid="redo-button"
++          className="relative px-2.5 py-1.5 text-sm rounded-lg bg-white/10 hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed border border-white/10 transition-colors"
++          title="Redo"
++        >
++          ↷
++          {redoDepth > 0 && (
++            <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] flex items-center justify-center text-[10px] font-bold bg-violet-500 text-white rounded-full px-1">
++              {redoDepth}
++            </span>
++          )}
++        </button>
++
++        {/* Placeholder Run button */}
++        <button
++          type="button"
++          disabled
++          className="px-4 py-1.5 text-xs font-medium rounded-lg bg-white/10 text-white/40 cursor-not-allowed border border-white/10"
++          title="Coming in future plan"
++        >
++          ▶ Run
++        </button>
++      </div>
      </div>
    );
  }
+diff --git a/apps/web/src/features/050-workflow-page/types.ts b/apps/web/src/features/050-workflow-page/types.ts
+index 40b172c..c180ba2 100644
+--- a/apps/web/src/features/050-workflow-page/types.ts
++++ b/apps/web/src/features/050-workflow-page/types.ts
+@@ -6,11 +6,21 @@
  
- // ─── Helper: convert NodeStatusResult to card props ──────────────────
+ import type {
+   GraphStatusResult,
++  NodeConfig,
+   PGLoadResult,
++  PositionalGraphDefinition,
+   WorkUnitSummary,
+ } from '@chainglass/positional-graph';
+ import type { ResultError } from '@chainglass/shared';
  
--export function nodeStatusToCardProps(node: NodeStatusResult): WorkflowNodeCardProps {
-+export function nodeStatusToCardProps(
-+  node: NodeStatusResult,
-+  lineIndex: number
-+): WorkflowNodeCardProps {
-   return {
-     nodeId: node.nodeId,
-     unitSlug: node.unitSlug,
-     unitType: node.unitType,
-     status: node.status as NodeStatus,
--    contextColor: node.noContext ? 'gray' : 'green',
-+    contextColor: computeContextBadge(node, lineIndex),
-+    noContext: node.noContext,
-+    nodeStatus: node,
-   };
- }
-diff --git a/apps/web/src/features/050-workflow-page/lib/context-badge.ts b/apps/web/src/features/050-workflow-page/lib/context-badge.ts
-new file mode 100644
-index 0000000..cf5e43d
---- /dev/null
-+++ b/apps/web/src/features/050-workflow-page/lib/context-badge.ts
-@@ -0,0 +1,35 @@
-+/**
-+ * Context badge computation — pure function from NodeStatusResult + lineIndex.
-+ *
-+ * Rules (from W002):
-+ * - Gray: non-agent node (code, user-input)
-+ * - Green: noContext=true, or position 0 on line 0 (global/new), or parallel execution
-+ * - Purple: explicit contextFrom set
-+ * - Blue: default serial agent (inherited from left neighbor)
-+ *
-+ * Phase 4: Context Indicators — Plan 050
-+ */
++// ─── Snapshot Types (Phase 5) ────────────────────────────────────────
 +
-+import type { NodeStatusResult } from '@chainglass/positional-graph';
-+
-+export type ContextBadgeColor = 'green' | 'blue' | 'purple' | 'gray';
-+
-+export function computeContextBadge(node: NodeStatusResult, lineIndex: number): ContextBadgeColor {
-+  // Non-agent nodes don't have context
-+  if (node.unitType !== 'agent') return 'gray';
-+
-+  // Isolated nodes get fresh context
-+  if (node.noContext) return 'green';
-+
-+  // Explicit contextFrom override
-+  if (node.contextFrom) return 'purple';
-+
-+  // First agent on first line = global/new context
-+  if (lineIndex === 0 && node.position === 0) return 'green';
-+
-+  // Parallel execution = independent context
-+  if (node.execution === 'parallel') return 'green';
-+
-+  // Default: serial agent inherits from left
-+  return 'blue';
-+}
-diff --git a/apps/web/src/features/050-workflow-page/lib/related-nodes.ts b/apps/web/src/features/050-workflow-page/lib/related-nodes.ts
-new file mode 100644
-index 0000000..d3f47fa
---- /dev/null
-+++ b/apps/web/src/features/050-workflow-page/lib/related-nodes.ts
-@@ -0,0 +1,102 @@
-+/**
-+ * Related nodes computation — pure function for select-to-reveal.
-+ *
-+ * Given a selected node, computes upstream (input sources) and downstream
-+ * (nodes consuming this node's outputs) relationships from GraphStatusResult.
-+ *
-+ * Phase 4: Context Indicators — Plan 050
-+ */
-+
-+import type { LineStatusResult, NodeStatusResult } from '@chainglass/positional-graph';
-+
-+export interface NodeRelationship {
-+  nodeId: string;
-+  relation: 'upstream' | 'downstream';
-+  inputName: string;
-+  status: 'available' | 'waiting' | 'error';
++export interface WorkflowSnapshot {
++  definition: PositionalGraphDefinition;
++  nodeConfigs: Record<string, NodeConfig>;
++  description?: string;
 +}
 +
-+export interface RelatedNodesResult {
-+  selected: string;
-+  related: NodeRelationship[];
-+  relatedNodeIds: Set<string>;
-+}
-+
-+function extractUpstreamFromNode(node: NodeStatusResult): NodeRelationship[] {
-+  const relationships: NodeRelationship[] = [];
-+  for (const [inputName, entry] of Object.entries(node.inputPack.inputs)) {
-+    if (entry.status === 'available') {
-+      for (const src of entry.detail.sources) {
-+        relationships.push({
-+          nodeId: src.sourceNodeId,
-+          relation: 'upstream',
-+          inputName,
-+          status: 'available',
-+        });
-+      }
-+    } else if (entry.status === 'waiting') {
-+      for (const src of entry.detail.available) {
-+        relationships.push({
-+          nodeId: src.sourceNodeId,
-+          relation: 'upstream',
-+          inputName,
-+          status: 'available',
-+        });
-+      }
-+      for (const waitingNodeId of entry.detail.waiting) {
-+        relationships.push({
-+          nodeId: waitingNodeId,
-+          relation: 'upstream',
-+          inputName,
-+          status: 'waiting',
-+        });
-+      }
-+    }
-+    // error entries don't have source node references
-+  }
-+  return relationships;
-+}
-+
-+export function computeRelatedNodes(
-+  selectedNodeId: string,
-+  lines: LineStatusResult[]
-+): RelatedNodesResult {
-+  const allNodes = lines.flatMap((l) => l.nodes);
-+  const selectedNode = allNodes.find((n) => n.nodeId === selectedNodeId);
-+  if (!selectedNode) {
-+    return { selected: selectedNodeId, related: [], relatedNodeIds: new Set() };
-+  }
-+
-+  const related: NodeRelationship[] = [];
-+
-+  // Upstream: nodes that feed into the selected node's inputs
-+  related.push(...extractUpstreamFromNode(selectedNode));
-+
-+  // Downstream: nodes whose inputs reference the selected node
-+  for (const node of allNodes) {
-+    if (node.nodeId === selectedNodeId) continue;
-+    for (const [inputName, entry] of Object.entries(node.inputPack.inputs)) {
-+      let referencesSelected = false;
-+      if (entry.status === 'available') {
-+        referencesSelected = entry.detail.sources.some((s) => s.sourceNodeId === selectedNodeId);
-+      } else if (entry.status === 'waiting') {
-+        referencesSelected =
-+          entry.detail.available.some((s) => s.sourceNodeId === selectedNodeId) ||
-+          entry.detail.waiting.includes(selectedNodeId);
-+      }
-+      if (referencesSelected) {
-+        related.push({
-+          nodeId: node.nodeId,
-+          relation: 'downstream',
-+          inputName,
-+          status: entry.status,
-+        });
-+      }
-+    }
-+  }
-+
-+  const relatedNodeIds = new Set(related.map((r) => r.nodeId));
-+  relatedNodeIds.add(selectedNodeId);
-+
-+  return { selected: selectedNodeId, related, relatedNodeIds };
-+}
-diff --git a/docs/plans/050-workflow-page-ux/tasks/phase-4-context-indicators/execution.log.md b/docs/plans/050-workflow-page-ux/tasks/phase-4-context-indicators/execution.log.md
-new file mode 100644
-index 0000000..4c10574
---- /dev/null
-+++ b/docs/plans/050-workflow-page-ux/tasks/phase-4-context-indicators/execution.log.md
-@@ -0,0 +1,11 @@
-+# Execution Log: Phase 4 — Context Indicators + Select-to-Reveal
-+
-+**Plan**: 050-workflow-page-ux
-+**Phase**: Phase 4
-+**Started**: 2026-02-26
-+
-+---
-+
-+## Task Log
-+
-+_Tasks logged as completed._
+ // ─── Query Results ───────────────────────────────────────────────────
+ 
+ export interface WorkflowSummary {
 diff --git a/docs/plans/050-workflow-page-ux/workflow-page-ux-plan.md b/docs/plans/050-workflow-page-ux/workflow-page-ux-plan.md
-index faaa1e4..5d67ba1 100644
+index 5d67ba1..b7b66e6 100644
 --- a/docs/plans/050-workflow-page-ux/workflow-page-ux-plan.md
 +++ b/docs/plans/050-workflow-page-ux/workflow-page-ux-plan.md
-@@ -310,7 +310,7 @@ Build a visual workflow editor for the positional graph system as a new `workflo
- | Phase 1: Domain Setup + Foundations | ✅ Complete | AC-28,29,30,37 |
+@@ -311,7 +311,7 @@ Build a visual workflow editor for the positional graph system as a new `workflo
  | Phase 2: Canvas Core + Layout | ✅ Complete | AC-01,02,03,04,05,06,10,11,20,22b,35 |
  | Phase 3: Drag-and-Drop + Persistence | ✅ Complete | AC-04,07,08,09,21,22b,35 |
--| Phase 4: Context Indicators + Select-to-Reveal | Pending | AC-12,13,14,15,17 |
-+| Phase 4: Context Indicators + Select-to-Reveal | ✅ Complete | AC-12,13,14,15,17,35 |
- | Phase 5: Q&A + Node Properties Modal + Undo/Redo | Pending | AC-16,18,19,23,24 |
+ | Phase 4: Context Indicators + Select-to-Reveal | ✅ Complete | AC-12,13,14,15,17,35 |
+-| Phase 5: Q&A + Node Properties Modal + Undo/Redo | Pending | AC-16,18,19,23,24 |
++| Phase 5: Q&A + Node Properties Modal + Undo/Redo | ✅ Complete | AC-16,18,19,23,24 |
  | Phase 6: Real-Time SSE Updates | Pending | AC-25,26,27 |
  | Phase 7: Workgraph Deprecation + Cleanup | Pending | AC-31,32,33,34 |
-diff --git a/test/unit/web/features/050-workflow-page/context-badge.test.ts b/test/unit/web/features/050-workflow-page/context-badge.test.ts
-new file mode 100644
-index 0000000..c846896
---- /dev/null
-+++ b/test/unit/web/features/050-workflow-page/context-badge.test.ts
-@@ -0,0 +1,70 @@
-+/**
-+ * Context badge computation tests — all 4 color rules.
-+ *
-+ * Phase 4: Context Indicators — Plan 050
-+ * AC-13
-+ */
-+
-+import { computeContextBadge } from '@/features/050-workflow-page/lib/context-badge';
-+import type { NodeStatusResult } from '@chainglass/positional-graph';
-+import { describe, expect, it } from 'vitest';
-+
-+function makeNode(overrides: Partial<NodeStatusResult> = {}): NodeStatusResult {
-+  return {
-+    nodeId: 'n1',
-+    unitSlug: 'test',
-+    unitType: 'agent',
-+    execution: 'serial',
-+    lineId: 'line-001',
-+    position: 0,
-+    status: 'pending',
-+    ready: false,
-+    readyDetail: {
-+      precedingLinesComplete: true,
-+      transitionOpen: true,
-+      serialNeighborComplete: true,
-+      inputsAvailable: true,
-+      unitFound: true,
-+    },
-+    inputPack: { inputs: {}, ok: true },
-+    ...overrides,
-+  };
-+}
-+
-+describe('computeContextBadge', () => {
-+  it('returns gray for code nodes', () => {
-+    expect(computeContextBadge(makeNode({ unitType: 'code' }), 0)).toBe('gray');
-+  });
-+
-+  it('returns gray for user-input nodes', () => {
-+    expect(computeContextBadge(makeNode({ unitType: 'user-input' }), 0)).toBe('gray');
-+  });
-+
-+  it('returns green for noContext agents', () => {
-+    expect(computeContextBadge(makeNode({ noContext: true }), 1)).toBe('green');
-+  });
-+
-+  it('returns purple for explicit contextFrom', () => {
-+    expect(computeContextBadge(makeNode({ contextFrom: 'other-node' }), 0)).toBe('purple');
-+  });
-+
-+  it('returns green for first agent on line 0', () => {
-+    expect(computeContextBadge(makeNode({ position: 0 }), 0)).toBe('green');
-+  });
-+
-+  it('returns blue for serial agent on line 0 position > 0', () => {
-+    expect(computeContextBadge(makeNode({ position: 1 }), 0)).toBe('blue');
-+  });
-+
-+  it('returns blue for serial agent on line > 0', () => {
-+    expect(computeContextBadge(makeNode({ position: 0 }), 1)).toBe('blue');
-+  });
-+
-+  it('returns green for parallel agent', () => {
-+    expect(computeContextBadge(makeNode({ execution: 'parallel', position: 1 }), 0)).toBe('green');
-+  });
-+
-+  it('noContext takes priority over contextFrom', () => {
-+    expect(computeContextBadge(makeNode({ noContext: true, contextFrom: 'x' }), 0)).toBe('green');
-+  });
-+});
-diff --git a/test/unit/web/features/050-workflow-page/gate-chip.test.tsx b/test/unit/web/features/050-workflow-page/gate-chip.test.tsx
-new file mode 100644
-index 0000000..7455ed6
---- /dev/null
-+++ b/test/unit/web/features/050-workflow-page/gate-chip.test.tsx
-@@ -0,0 +1,106 @@
-+/**
-+ * GateChip tests — renders blocking gates with correct colors.
-+ *
-+ * Phase 4: Context Indicators — Plan 050
-+ * AC-12
-+ */
-+
-+import { GateChip, computeGates } from '@/features/050-workflow-page/components/gate-chip';
-+import type { NodeStatusResult } from '@chainglass/positional-graph';
-+import { fireEvent, render, screen } from '@testing-library/react';
-+import { describe, expect, it } from 'vitest';
-+
-+function makeNode(overrides: Partial<NodeStatusResult> = {}): NodeStatusResult {
-+  return {
-+    nodeId: 'n1',
-+    unitSlug: 'test',
-+    unitType: 'agent',
-+    execution: 'serial',
-+    lineId: 'line-001',
-+    position: 0,
-+    status: 'pending',
-+    ready: false,
-+    readyDetail: {
-+      precedingLinesComplete: true,
-+      transitionOpen: true,
-+      serialNeighborComplete: true,
-+      inputsAvailable: true,
-+      unitFound: true,
-+    },
-+    inputPack: { inputs: {}, ok: true },
-+    ...overrides,
-+  };
-+}
-+
-+describe('computeGates', () => {
-+  it('returns 5 gates all passing when node is ready', () => {
-+    const gates = computeGates(makeNode({ ready: true }));
-+    expect(gates).toHaveLength(5);
-+    expect(gates.every((g) => g.passing)).toBe(true);
-+  });
-+
-+  it('marks preceding lines gate as failing', () => {
-+    const gates = computeGates(
-+      makeNode({ readyDetail: { ...makeNode().readyDetail, precedingLinesComplete: false } })
-+    );
-+    expect(gates[0].passing).toBe(false);
-+    expect(gates[0].name).toBe('Preceding Lines');
-+  });
-+
-+  it('marks inputs gate as failing', () => {
-+    const gates = computeGates(
-+      makeNode({ readyDetail: { ...makeNode().readyDetail, inputsAvailable: false } })
-+    );
-+    expect(gates[4].passing).toBe(false);
-+    expect(gates[4].name).toBe('Inputs');
-+  });
-+});
-+
-+describe('GateChip', () => {
-+  it('renders nothing for ready nodes', () => {
-+    const { container } = render(<GateChip node={makeNode({ ready: true })} />);
-+    expect(container.innerHTML).toBe('');
-+  });
-+
-+  it('renders nothing for complete nodes', () => {
-+    const { container } = render(<GateChip node={makeNode({ status: 'complete' })} />);
-+    expect(container.innerHTML).toBe('');
-+  });
-+
-+  it('renders chip for blocked node', () => {
-+    render(
-+      <GateChip
-+        node={makeNode({
-+          readyDetail: { ...makeNode().readyDetail, precedingLinesComplete: false },
-+        })}
-+      />
-+    );
-+    expect(screen.getByTestId('gate-chip-n1')).toBeDefined();
-+    expect(screen.getByText('Earlier lines incomplete')).toBeDefined();
-+  });
-+
-+  it('expands to show all gates on click', () => {
-+    render(
-+      <GateChip
-+        node={makeNode({
-+          readyDetail: {
-+            ...makeNode().readyDetail,
-+            precedingLinesComplete: false,
-+            inputsAvailable: false,
-+          },
-+        })}
-+      />
-+    );
-+
-+    // Click to expand
-+    fireEvent.click(screen.getByText('Earlier lines incomplete'));
-+    expect(screen.getByTestId('gate-list-n1')).toBeDefined();
-+
-+    // All 5 gates visible
-+    expect(screen.getByText(/Preceding Lines/)).toBeDefined();
-+    expect(screen.getByText(/Transition/)).toBeDefined();
-+    expect(screen.getByText(/Serial Neighbor/)).toBeDefined();
-+    expect(screen.getByText(/Context Source/)).toBeDefined();
-+    expect(screen.getByText(/Inputs/)).toBeDefined();
-+  });
-+});
-diff --git a/test/unit/web/features/050-workflow-page/workflow-node-card.test.tsx b/test/unit/web/features/050-workflow-page/workflow-node-card.test.tsx
-index 750bc80..1499637 100644
---- a/test/unit/web/features/050-workflow-page/workflow-node-card.test.tsx
-+++ b/test/unit/web/features/050-workflow-page/workflow-node-card.test.tsx
-@@ -118,14 +118,16 @@ describe('WorkflowNodeCard', () => {
-         inputsAvailable: true,
-         unitFound: true,
-       },
--      inputPack: {},
-+      inputPack: { inputs: {}, ok: true },
-     };
  
--    const props = nodeStatusToCardProps(nodeStatus);
-+    const props = nodeStatusToCardProps(nodeStatus, 0);
-     expect(props.nodeId).toBe('node-a1b');
-     expect(props.unitSlug).toBe('sample-coder');
-     expect(props.unitType).toBe('agent');
-     expect(props.status).toBe('agent-accepted');
-     expect(props.contextColor).toBe('green');
-+    expect(props.noContext).toBe(false);
-+    expect(props.nodeStatus).toBeDefined();
-   });
- });
+diff --git a/packages/positional-graph/src/fakes/fake-positional-graph-service.ts b/packages/positional-graph/src/fakes/fake-positional-graph-service.ts
+index e66d723..b008b32 100644
+--- a/packages/positional-graph/src/fakes/fake-positional-graph-service.ts
++++ b/packages/positional-graph/src/fakes/fake-positional-graph-service.ts
+@@ -595,6 +595,16 @@ export class FakePositionalGraphService implements IPositionalGraphService {
+     this._state = state;
+   }
+ 
++  async restoreSnapshot(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    definition: import('../schemas/graph.schema.js').PositionalGraphDefinition,
++    nodeConfigs: Record<string, import('../schemas/node.schema.js').NodeConfig>
++  ): Promise<import('@chainglass/shared').BaseResult> {
++    this.track('restoreSnapshot', [ctx, graphSlug, definition, nodeConfigs]);
++    return { errors: [] };
++  }
++
+   /** Reset all call tracking and preset results */
+   reset(): void {
+     this.calls.clear();
+diff --git a/packages/positional-graph/src/interfaces/positional-graph-service.interface.ts b/packages/positional-graph/src/interfaces/positional-graph-service.interface.ts
+index 2df9d62..e1f7d89 100644
+--- a/packages/positional-graph/src/interfaces/positional-graph-service.interface.ts
++++ b/packages/positional-graph/src/interfaces/positional-graph-service.interface.ts
+@@ -9,6 +9,7 @@ import type {
+   InputResolution,
+   LineOrchestratorSettings,
+   LineProperties,
++  NodeConfig,
+   NodeExecutionStatus,
+   NodeOrchestratorSettings,
+   NodeProperties,
+@@ -752,4 +753,12 @@ export interface IPositionalGraphService {
+   // State Access (Phase 8, Plan 032 — E2E support)
+   loadGraphState(ctx: WorkspaceContext, graphSlug: string): Promise<State>;
+   persistGraphState(ctx: WorkspaceContext, graphSlug: string, state: State): Promise<void>;
++
++  // Snapshot Restore (Phase 5, Plan 050 — undo/redo support)
++  restoreSnapshot(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    definition: PositionalGraphDefinition,
++    nodeConfigs: Record<string, NodeConfig>
++  ): Promise<BaseResult>;
+ }
+diff --git a/packages/positional-graph/src/services/positional-graph.service.ts b/packages/positional-graph/src/services/positional-graph.service.ts
+index 34f3a4d..a130acf 100644
+--- a/packages/positional-graph/src/services/positional-graph.service.ts
++++ b/packages/positional-graph/src/services/positional-graph.service.ts
+@@ -1110,11 +1110,35 @@ export class PositionalGraphService implements IPositionalGraphService {
+         reason: canRunResult.reason,
+       },
+       inputPack,
++      pendingQuestion: this.resolvePendingQuestion(storedState, state),
+       startedAt: storedState?.started_at,
+       completedAt: storedState?.completed_at,
+     };
+   }
+ 
++  /**
++   * Resolve pending question details from node state + state.questions[].
++   * Returns the pendingQuestion shape expected by NodeStatusResult, or undefined.
++   */
++  private resolvePendingQuestion(
++    storedState: NodeStateEntry | undefined,
++    state: State
++  ): NodeStatusResult['pendingQuestion'] {
++    const questionId = storedState?.pending_question_id;
++    if (!questionId) return undefined;
++
++    const question = state.questions?.find((q) => q.question_id === questionId);
++    if (!question) return undefined;
++
++    return {
++      questionId: question.question_id,
++      text: question.text,
++      questionType: question.type,
++      options: question.options?.map((opt) => ({ key: opt, label: opt })),
++      askedAt: question.asked_at,
++    };
++  }
++
+   async getLineStatus(
+     ctx: WorkspaceContext,
+     graphSlug: string,
+@@ -2685,6 +2709,35 @@ export class PositionalGraphService implements IPositionalGraphService {
+   async persistGraphState(ctx: WorkspaceContext, graphSlug: string, state: State): Promise<void> {
+     return this.persistState(ctx, graphSlug, state);
+   }
++
++  async restoreSnapshot(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    definition: PositionalGraphDefinition,
++    nodeConfigs: Record<string, NodeConfig>
++  ): Promise<import('@chainglass/shared').BaseResult> {
++    try {
++      // Write graph.yaml
++      await this.persistGraph(ctx, graphSlug, definition);
++
++      // Write all node configs
++      for (const [nodeId, config] of Object.entries(nodeConfigs)) {
++        await this.persistNodeConfig(ctx, graphSlug, nodeId, config);
++      }
++
++      return { errors: [] };
++    } catch (err) {
++      return {
++        errors: [
++          {
++            code: 'E999',
++            message: `Snapshot restore failed: ${err instanceof Error ? err.message : 'unknown error'}`,
++            action: 'Check file permissions and disk space',
++          },
++        ],
++      };
++    }
++  }
+ }
+ 
+ /** Detect binary content by checking for control characters (avoids regex control char lint). */
+
+# git diff --staged (excluding review artifacts)

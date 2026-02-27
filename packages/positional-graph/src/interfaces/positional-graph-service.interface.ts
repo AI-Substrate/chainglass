@@ -9,6 +9,7 @@ import type {
   InputResolution,
   LineOrchestratorSettings,
   LineProperties,
+  NodeConfig,
   NodeExecutionStatus,
   NodeOrchestratorSettings,
   NodeProperties,
@@ -752,4 +753,12 @@ export interface IPositionalGraphService {
   // State Access (Phase 8, Plan 032 — E2E support)
   loadGraphState(ctx: WorkspaceContext, graphSlug: string): Promise<State>;
   persistGraphState(ctx: WorkspaceContext, graphSlug: string, state: State): Promise<void>;
+
+  // Snapshot Restore (Phase 5, Plan 050 — undo/redo support)
+  restoreSnapshot(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    definition: PositionalGraphDefinition,
+    nodeConfigs: Record<string, NodeConfig>
+  ): Promise<BaseResult>;
 }

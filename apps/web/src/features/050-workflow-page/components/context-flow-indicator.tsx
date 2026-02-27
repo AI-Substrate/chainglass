@@ -30,7 +30,14 @@ export function ContextFlowIndicator({ rightNode }: ContextFlowIndicatorProps) {
         title="Isolated — no context"
         data-testid="flow-isolated"
       >
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <path
+            d="M4 4l8 8M12 4l-8 8"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+          />
+        </svg>
       </span>
     );
   }
@@ -43,7 +50,15 @@ export function ContextFlowIndicator({ rightNode }: ContextFlowIndicatorProps) {
         title={`Context from: ${rightNode.contextFrom}`}
         data-testid="flow-explicit"
       >
-        <svg width="20" height="12" viewBox="0 0 20 12" fill="none"><path d="M2 6h14M12 2l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        <svg width="20" height="12" viewBox="0 0 20 12" fill="none">
+          <path
+            d="M2 6h14M12 2l4 4-4 4"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
       </span>
     );
   }
@@ -60,7 +75,15 @@ export function ContextFlowIndicator({ rightNode }: ContextFlowIndicatorProps) {
       title="Context inherited from left"
       data-testid="flow-inherited"
     >
-      <svg width="20" height="12" viewBox="0 0 20 12" fill="none"><path d="M2 6h14M12 2l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+      <svg width="20" height="12" viewBox="0 0 20 12" fill="none">
+        <path
+          d="M2 6h14M12 2l4 4-4 4"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
     </span>
   );
 }
@@ -72,7 +95,11 @@ function Dot({ label }: { label: string }) {
       title={label}
       data-testid="flow-none"
     >
-      <svg width="16" height="4" viewBox="0 0 16 4" fill="none"><circle cx="2" cy="2" r="1.5" fill="currentColor"/><circle cx="8" cy="2" r="1.5" fill="currentColor"/><circle cx="14" cy="2" r="1.5" fill="currentColor"/></svg>
+      <svg width="16" height="4" viewBox="0 0 16 4" fill="none">
+        <circle cx="2" cy="2" r="1.5" fill="currentColor" />
+        <circle cx="8" cy="2" r="1.5" fill="currentColor" />
+        <circle cx="14" cy="2" r="1.5" fill="currentColor" />
+      </svg>
     </span>
   );
 }

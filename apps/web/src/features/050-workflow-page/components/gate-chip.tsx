@@ -98,8 +98,12 @@ export function GateChip({ node }: GateChipProps) {
         >
           {gates.map((gate) => (
             <div key={gate.name} className="flex items-center gap-2">
-              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${gate.passing ? 'bg-emerald-400' : 'bg-red-400'}`} />
-              <span className={`${gate.passing ? 'text-muted-foreground/60' : 'text-foreground/80'} font-medium`}>
+              <span
+                className={`w-1.5 h-1.5 rounded-full shrink-0 ${gate.passing ? 'bg-emerald-400' : 'bg-red-400'}`}
+              />
+              <span
+                className={`${gate.passing ? 'text-muted-foreground/60' : 'text-foreground/80'} font-medium`}
+              >
                 {gate.name}
               </span>
               <span className="text-muted-foreground/50 ml-auto">{gate.message}</span>

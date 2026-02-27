@@ -595,6 +595,16 @@ export class FakePositionalGraphService implements IPositionalGraphService {
     this._state = state;
   }
 
+  async restoreSnapshot(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    definition: import('../schemas/graph.schema.js').PositionalGraphDefinition,
+    nodeConfigs: Record<string, import('../schemas/node.schema.js').NodeConfig>
+  ): Promise<import('@chainglass/shared').BaseResult> {
+    this.track('restoreSnapshot', [ctx, graphSlug, definition, nodeConfigs]);
+    return { errors: [] };
+  }
+
   /** Reset all call tracking and preset results */
   reset(): void {
     this.calls.clear();

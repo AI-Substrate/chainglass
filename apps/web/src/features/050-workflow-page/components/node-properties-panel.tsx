@@ -22,7 +22,9 @@ function InputSourceDetail({ entry, inputName }: { entry: InputEntry; inputName:
         {sources.map((s) => (
           <div key={s.sourceNodeId} className="text-[11px]">
             ← from <span className="font-medium text-foreground/60">{s.sourceNodeId}</span>
-            {s.sourceOutput !== 'default' && <span className="text-muted-foreground/40">.{s.sourceOutput}</span>}
+            {s.sourceOutput !== 'default' && (
+              <span className="text-muted-foreground/40">.{s.sourceOutput}</span>
+            )}
           </div>
         ))}
       </div>
@@ -48,11 +50,13 @@ function InputSourceDetail({ entry, inputName }: { entry: InputEntry; inputName:
         {isUnwired ? (
           <>
             <div>
-              Input <span className="font-semibold">"{inputName}"</span> is not wired to any source node.
+              Input <span className="font-semibold">"{inputName}"</span> is not wired to any source
+              node.
             </div>
             <div className="text-muted-foreground/60">
-              This input expects <span className="font-medium">"{entry.detail.inputName}"</span> data from an upstream node.
-              Wire it in the node config or connect a node that outputs a matching value.
+              This input expects <span className="font-medium">"{entry.detail.inputName}"</span>{' '}
+              data from an upstream node. Wire it in the node config or connect a node that outputs
+              a matching value.
             </div>
           </>
         ) : (
@@ -82,6 +86,7 @@ export interface NodePropertiesPanelProps {
   contextColor: 'green' | 'blue' | 'purple' | 'gray';
   related: NodeRelationship[];
   onBack: () => void;
+  onEditProperties?: () => void;
 }
 
 export function NodePropertiesPanel({
@@ -89,6 +94,7 @@ export function NodePropertiesPanel({
   contextColor,
   related,
   onBack,
+  onEditProperties,
 }: NodePropertiesPanelProps) {
   const upstream = related.filter((r) => r.relation === 'upstream');
   const downstream = related.filter((r) => r.relation === 'downstream');
@@ -122,13 +128,19 @@ export function NodePropertiesPanel({
 
       {/* Status */}
       <section>
-        <h4 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50 mb-1.5">Status</h4>
-        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400 capitalize">{node.status}</div>
+        <h4 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50 mb-1.5">
+          Status
+        </h4>
+        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400 capitalize">
+          {node.status}
+        </div>
       </section>
 
       {/* Context Source */}
       <section>
-        <h4 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50 mb-1.5">Context</h4>
+        <h4 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50 mb-1.5">
+          Context
+        </h4>
         <div className="flex items-center gap-2">
           <div
             className={`w-2.5 h-2.5 rounded-full bg-${contextColor === 'blue' ? 'blue' : contextColor === 'purple' ? 'violet' : contextColor === 'green' ? 'green' : 'gray'}-500`}
@@ -143,12 +155,18 @@ export function NodePropertiesPanel({
 
       {/* Readiness Gates */}
       <section>
-        <h4 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50 mb-1.5">Gates</h4>
+        <h4 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50 mb-1.5">
+          Gates
+        </h4>
         <div className="space-y-1">
           {gates.map((gate) => (
             <div key={gate.name} className="flex items-center gap-2">
-              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${gate.passing ? 'bg-emerald-400' : 'bg-red-400'}`} />
-              <span className={`${gate.passing ? 'text-muted-foreground/50' : 'font-medium'}`}>{gate.name}</span>
+              <span
+                className={`w-1.5 h-1.5 rounded-full shrink-0 ${gate.passing ? 'bg-emerald-400' : 'bg-red-400'}`}
+              />
+              <span className={`${gate.passing ? 'text-muted-foreground/50' : 'font-medium'}`}>
+                {gate.name}
+              </span>
             </div>
           ))}
         </div>
@@ -166,9 +184,15 @@ export function NodePropertiesPanel({
             {Object.entries(node.inputPack.inputs).map(([name, entry]) => (
               <div key={name}>
                 <div className="flex items-center gap-2">
-                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                    entry.status === 'available' ? 'bg-emerald-400' : entry.status === 'waiting' ? 'bg-amber-400' : 'bg-red-400'
-                  }`} />
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                      entry.status === 'available'
+                        ? 'bg-emerald-400'
+                        : entry.status === 'waiting'
+                          ? 'bg-amber-400'
+                          : 'bg-red-400'
+                    }`}
+                  />
                   <span className="font-medium">{name}</span>
                   <span className="text-muted-foreground/40 ml-auto">{entry.status}</span>
                 </div>
@@ -182,10 +206,15 @@ export function NodePropertiesPanel({
       {/* Upstream */}
       {upstream.length > 0 && (
         <section>
-          <h4 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50 mb-1.5">Upstream ({upstream.length})</h4>
+          <h4 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50 mb-1.5">
+            Upstream ({upstream.length})
+          </h4>
           <div className="space-y-1">
             {upstream.map((r, i) => (
-              <div key={`${r.nodeId}-${r.inputName}-${i}`} className="text-muted-foreground/60 flex items-center gap-1.5">
+              <div
+                key={`${r.nodeId}-${r.inputName}-${i}`}
+                className="text-muted-foreground/60 flex items-center gap-1.5"
+              >
                 <span className="text-blue-400">←</span> {r.nodeId}
                 <span className="text-muted-foreground/30">({r.inputName})</span>
               </div>
@@ -202,7 +231,10 @@ export function NodePropertiesPanel({
           </h4>
           <div className="space-y-1">
             {downstream.map((r, i) => (
-              <div key={`${r.nodeId}-${r.inputName}-${i}`} className="text-muted-foreground/60 flex items-center gap-1.5">
+              <div
+                key={`${r.nodeId}-${r.inputName}-${i}`}
+                className="text-muted-foreground/60 flex items-center gap-1.5"
+              >
                 <span className="text-blue-400">→</span> {r.nodeId}
                 <span className="text-muted-foreground/30">({r.inputName})</span>
               </div>
@@ -211,13 +243,19 @@ export function NodePropertiesPanel({
         </section>
       )}
 
-      {/* Edit button placeholder */}
+      {/* Edit button */}
       <div className="mt-auto pt-3 border-t border-border/20">
         <button
           type="button"
-          disabled
-          className="w-full px-3 py-2 text-xs font-medium rounded-lg bg-foreground/5 text-muted-foreground/40 cursor-not-allowed border border-border/20"
-          title="Coming in Phase 5"
+          disabled={!onEditProperties}
+          onClick={onEditProperties}
+          className={`w-full px-3 py-2 text-xs font-medium rounded-lg border border-border/20 transition-colors ${
+            onEditProperties
+              ? 'bg-foreground/5 text-foreground hover:bg-foreground/10 cursor-pointer'
+              : 'bg-foreground/5 text-muted-foreground/40 cursor-not-allowed'
+          }`}
+          title={onEditProperties ? 'Edit node properties' : 'Not available'}
+          data-testid="edit-properties-button"
         >
           Edit Properties...
         </button>

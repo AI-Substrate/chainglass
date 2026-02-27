@@ -1,416 +1,893 @@
-diff --git a/test/unit/web/state/path-parser.test.ts b/test/unit/web/state/path-parser.test.ts
+diff --git a/apps/web/src/lib/state/global-state-system.ts b/apps/web/src/lib/state/global-state-system.ts
 new file mode 100644
-index 0000000..7f3eb3c
+index 0000000..34673a5
 --- /dev/null
-+++ b/test/unit/web/state/path-parser.test.ts
-@@ -0,0 +1,187 @@
++++ b/apps/web/src/lib/state/global-state-system.ts
+@@ -0,0 +1,214 @@
 +/**
-+ * Plan 053: GlobalStateSystem — Path Parser Tests
++ * Plan 053: GlobalStateSystem — Real Implementation
 + *
-+ * Full TDD: Tests for parsePath() covering all segment counts,
-+ * validation rules, and error cases.
++ * Centralized ephemeral runtime state registry. Domains publish runtime values
++ * to colon-delimited state paths; consumers subscribe by path or pattern.
 + *
-+ * Per DYK-03: Tests are syntax-only — no domain registration semantics.
-+ * Per DYK-10: Domain names are strict kebab-case; instance IDs are permissive.
++ * Key invariants:
++ * - PL-01: Store-first — Map updated BEFORE subscribers notified
++ * - PL-07: Error isolation — try/catch per subscriber callback
++ * - AC-03: Stable get() references — no defensive copies
++ * - AC-26: Stable list() arrays — version-counter caching
 + */
 +
-+import { describe, expect, it } from 'vitest';
-+import { parsePath } from '../../../../packages/shared/src/state/path-parser';
++import type { IStateService } from '@chainglass/shared/state';
++import type {
++  StateChange,
++  StateChangeCallback,
++  StateDomainDescriptor,
++  StateEntry,
++  StateMatcher,
++} from '@chainglass/shared/state';
++import { createStateMatcher, parsePath } from '@chainglass/shared/state';
 +
-+describe('parsePath', () => {
-+  // ═══════════════════════════════════════════════════════════
-+  // 2-segment paths (singleton domains)
-+  // ═══════════════════════════════════════════════════════════
++interface Subscription {
++  pattern: string;
++  matcher: StateMatcher;
++  callback: StateChangeCallback;
++}
 +
-+  describe('2-segment singleton paths', () => {
-+    it('parses domain:property', () => {
-+      const result = parsePath('worktree:active-file');
-+      expect(result.domain).toBe('worktree');
-+      expect(result.instanceId).toBeNull();
-+      expect(result.property).toBe('active-file');
-+      expect(result.raw).toBe('worktree:active-file');
-+    });
++interface ListCacheEntry {
++  version: number;
++  result: StateEntry[];
++}
 +
-+    it('parses single-char domain and property', () => {
-+      const result = parsePath('a:b');
-+      expect(result.domain).toBe('a');
-+      expect(result.property).toBe('b');
-+    });
++export class GlobalStateSystem implements IStateService {
++  private readonly store = new Map<string, StateEntry>();
++  private readonly domains = new Map<string, StateDomainDescriptor>();
++  private readonly subscriptions = new Map<number, Subscription>();
++  private readonly listCache = new Map<string, ListCacheEntry>();
++  private nextSubId = 0;
++  private storeVersion = 0;
 +
-+    it('parses kebab-case with numbers', () => {
-+      const result = parsePath('workflow-summary:active-count');
-+      expect(result.domain).toBe('workflow-summary');
-+      expect(result.property).toBe('active-count');
-+    });
-+  });
++  // ── Domain Registration ──
 +
-+  // ═══════════════════════════════════════════════════════════
-+  // 3-segment paths (multi-instance domains)
-+  // ═══════════════════════════════════════════════════════════
++  registerDomain(descriptor: StateDomainDescriptor): void {
++    if (this.domains.has(descriptor.domain)) {
++      throw new Error(`Domain "${descriptor.domain}" is already registered`);
++    }
++    this.domains.set(descriptor.domain, descriptor);
++  }
 +
-+  describe('3-segment multi-instance paths', () => {
-+    it('parses domain:instanceId:property', () => {
-+      const result = parsePath('workflow:wf-build-pipeline:status');
-+      expect(result.domain).toBe('workflow');
-+      expect(result.instanceId).toBe('wf-build-pipeline');
-+      expect(result.property).toBe('status');
-+      expect(result.raw).toBe('workflow:wf-build-pipeline:status');
-+    });
++  listDomains(): StateDomainDescriptor[] {
++    return [...this.domains.values()];
++  }
 +
-+    it('allows uppercase and underscore in instance IDs', () => {
-+      // DYK-10: Instance IDs are permissive [a-zA-Z0-9_-]+
-+      // while domains/properties are strict kebab [a-z][a-z0-9-]*
-+      const result = parsePath('workflow:WF-123_abc:status');
-+      expect(result.instanceId).toBe('WF-123_abc');
-+    });
++  // ── Publishing ──
 +
-+    it('allows numeric-starting instance IDs', () => {
-+      const result = parsePath('agent:123-abc:status');
-+      expect(result.instanceId).toBe('123-abc');
-+    });
-+  });
++  publish<T>(path: string, value: T): void {
++    const parsed = parsePath(path);
++    this.validateDomain(parsed.domain, parsed.instanceId);
 +
-+  // ═══════════════════════════════════════════════════════════
-+  // raw field preservation
-+  // ═══════════════════════════════════════════════════════════
++    const now = Date.now();
++    const existing = this.store.get(path);
++    const previousValue = existing?.value;
 +
-+  describe('raw field', () => {
-+    it('preserves original path string for 2 segments', () => {
-+      expect(parsePath('worktree:branch').raw).toBe('worktree:branch');
-+    });
++    // PL-01: Store-first — update Map before notifying
++    const entry: StateEntry = { path, value, updatedAt: now };
++    this.store.set(path, entry);
++    this.storeVersion++;
++    this.listCache.clear();
 +
-+    it('preserves original path string for 3 segments', () => {
-+      expect(parsePath('workflow:wf-1:status').raw).toBe('workflow:wf-1:status');
-+    });
-+  });
-+
-+  // ═══════════════════════════════════════════════════════════
-+  // Invalid segment counts
-+  // ═══════════════════════════════════════════════════════════
-+
-+  describe('invalid segment counts', () => {
-+    it('rejects 1 segment', () => {
-+      expect(() => parsePath('workflow')).toThrow('expected 2 segments');
-+    });
-+
-+    it('rejects 4 segments with descriptive error', () => {
-+      expect(() => parsePath('workflow:wf-1:config:timeout')).toThrow(
-+        'expected 2 segments (domain:property) or 3 segments (domain:instanceId:property), got 4',
-+      );
-+    });
-+
-+    it('rejects 5 segments', () => {
-+      expect(() => parsePath('a:b:c:d:e')).toThrow('got 5');
-+    });
-+  });
-+
-+  // ═══════════════════════════════════════════════════════════
-+  // Empty segments
-+  // ═══════════════════════════════════════════════════════════
-+
-+  describe('empty segments', () => {
-+    it('rejects empty segment (leading colon)', () => {
-+      expect(() => parsePath(':property')).toThrow('contains empty segment');
-+    });
-+
-+    it('rejects empty segment (trailing colon)', () => {
-+      expect(() => parsePath('domain:')).toThrow('contains empty segment');
-+    });
-+
-+    it('rejects empty segment (middle)', () => {
-+      expect(() => parsePath('domain::property')).toThrow('contains empty segment');
-+    });
-+  });
-+
-+  // ═══════════════════════════════════════════════════════════
-+  // Invalid input types
-+  // ═══════════════════════════════════════════════════════════
-+
-+  describe('invalid input', () => {
-+    it('rejects empty string', () => {
-+      expect(() => parsePath('')).toThrow('expected non-empty string');
-+    });
-+
-+    it('rejects non-string input', () => {
-+      // @ts-expect-error — testing runtime guard
-+      expect(() => parsePath(null)).toThrow('expected non-empty string');
-+      // @ts-expect-error — testing runtime guard
-+      expect(() => parsePath(undefined)).toThrow('expected non-empty string');
-+    });
-+  });
-+
-+  // ═══════════════════════════════════════════════════════════
-+  // Segment format validation
-+  // ═══════════════════════════════════════════════════════════
-+
-+  describe('domain format validation', () => {
-+    it('rejects uppercase domain', () => {
-+      // DYK-10: Domains must be strict kebab-case [a-z][a-z0-9-]*
-+      expect(() => parsePath('Workflow:status')).toThrow('domain "Workflow" must match');
-+    });
-+
-+    it('rejects leading-dash domain', () => {
-+      expect(() => parsePath('-workflow:status')).toThrow('domain "-workflow" must match');
-+    });
-+
-+    it('rejects underscore in domain', () => {
-+      // Domains are kebab-case only — underscores are NOT allowed
-+      expect(() => parsePath('workflow_ui:status')).toThrow('domain "workflow_ui" must match');
-+    });
-+
-+    it('rejects numeric-starting domain', () => {
-+      expect(() => parsePath('123:status')).toThrow('domain "123" must match');
-+    });
-+  });
-+
-+  describe('property format validation', () => {
-+    it('rejects uppercase property', () => {
-+      expect(() => parsePath('worktree:Status')).toThrow('property "Status" must match');
-+    });
-+
-+    it('rejects underscore in property', () => {
-+      expect(() => parsePath('worktree:active_file')).toThrow(
-+        'property "active_file" must match',
-+      );
-+    });
-+  });
-+
-+  describe('instance ID format validation', () => {
-+    it('rejects space in instance ID', () => {
-+      expect(() => parsePath('workflow:wf 1:status')).toThrow('instanceId "wf 1" must match');
-+    });
-+
-+    it('rejects empty-like instance ID (caught by empty segment check)', () => {
-+      expect(() => parsePath('workflow::status')).toThrow('contains empty segment');
-+    });
-+
-+    it('accepts all valid instance ID characters', () => {
-+      // [a-zA-Z0-9_-]+ — uppercase, lowercase, digits, underscore, dash
-+      const result = parsePath('workflow:aZ09_-test:status');
-+      expect(result.instanceId).toBe('aZ09_-test');
-+    });
-+  });
-+});
-diff --git a/test/unit/web/state/path-matcher.test.ts b/test/unit/web/state/path-matcher.test.ts
-new file mode 100644
-index 0000000..2325691
---- /dev/null
-+++ b/test/unit/web/state/path-matcher.test.ts
-@@ -0,0 +1,186 @@
-+/**
-+ * Plan 053: GlobalStateSystem — Path Matcher Tests
-+ *
-+ * Full TDD: Tests for createStateMatcher() covering all 5 pattern types
-+ * plus decision table from Workshop 001.
-+ *
-+ * Per DYK-02: Matchers split on ':' and check segment count (not prefix matching).
-+ * Per DYK-06: Domain wildcard on singleton paths silently returns no matches.
-+ */
-+
-+import { describe, expect, it } from 'vitest';
-+import { createStateMatcher } from '../../../../packages/shared/src/state/path-matcher';
-+
-+describe('createStateMatcher', () => {
-+  // ═══════════════════════════════════════════════════════════
-+  // Exact match
-+  // ═══════════════════════════════════════════════════════════
-+
-+  describe('exact match', () => {
-+    it('matches the exact path', () => {
-+      const matcher = createStateMatcher('workflow:wf-1:status');
-+      expect(matcher('workflow:wf-1:status')).toBe(true);
-+    });
-+
-+    it('does not match a different path', () => {
-+      const matcher = createStateMatcher('workflow:wf-1:status');
-+      expect(matcher('workflow:wf-1:progress')).toBe(false);
-+      expect(matcher('workflow:wf-2:status')).toBe(false);
-+      expect(matcher('worktree:active-file')).toBe(false);
-+    });
-+
-+    it('matches exact 2-segment path', () => {
-+      const matcher = createStateMatcher('worktree:active-file');
-+      expect(matcher('worktree:active-file')).toBe(true);
-+      expect(matcher('worktree:branch')).toBe(false);
-+    });
-+  });
-+
-+  // ═══════════════════════════════════════════════════════════
-+  // Domain wildcard: workflow:*:status
-+  // ═══════════════════════════════════════════════════════════
-+
-+  describe('domain wildcard (workflow:*:status)', () => {
-+    const matcher = createStateMatcher('workflow:*:status');
-+
-+    it('matches any instance with target property', () => {
-+      expect(matcher('workflow:wf-1:status')).toBe(true);
-+      expect(matcher('workflow:wf-2:status')).toBe(true);
-+      expect(matcher('workflow:abc-123:status')).toBe(true);
-+    });
-+
-+    it('does not match a different property', () => {
-+      expect(matcher('workflow:wf-1:progress')).toBe(false);
-+    });
-+
-+    it('does not match a different domain', () => {
-+      expect(matcher('agent:wf-1:status')).toBe(false);
-+    });
-+
-+    it('does not match a 2-segment path', () => {
-+      // DYK-06: Domain wildcard on singleton paths returns no match
-+      expect(matcher('workflow:status')).toBe(false);
-+    });
-+
-+    it('checks segment count — does not match via prefix (DYK-02)', () => {
-+      // A malformed or extended path should not match
-+      expect(matcher('workflow:wf-1:sub:id:status')).toBe(false);
-+    });
-+  });
-+
-+  // ═══════════════════════════════════════════════════════════
-+  // Instance wildcard: workflow:wf-1:*
-+  // ═══════════════════════════════════════════════════════════
-+
-+  describe('instance wildcard (workflow:wf-1:*)', () => {
-+    const matcher = createStateMatcher('workflow:wf-1:*');
-+
-+    it('matches all properties of the instance', () => {
-+      expect(matcher('workflow:wf-1:status')).toBe(true);
-+      expect(matcher('workflow:wf-1:progress')).toBe(true);
-+      expect(matcher('workflow:wf-1:current-phase')).toBe(true);
-+    });
-+
-+    it('does not match a different instance', () => {
-+      expect(matcher('workflow:wf-2:status')).toBe(false);
-+    });
-+
-+    it('does not match a different domain', () => {
-+      expect(matcher('agent:wf-1:status')).toBe(false);
-+    });
-+
-+    it('does not match a 2-segment path', () => {
-+      expect(matcher('workflow:wf-1')).toBe(false);
-+    });
-+
-+    it('does not match similar-prefix instance (DYK-02)', () => {
-+      // wf-1-extended starts with wf-1 but is a different instance
-+      expect(matcher('workflow:wf-1-extended:status')).toBe(false);
-+    });
-+  });
-+
-+  // ═══════════════════════════════════════════════════════════
-+  // Domain-all: workflow:**
-+  // ═══════════════════════════════════════════════════════════
-+
-+  describe('domain-all (workflow:**)', () => {
-+    const matcher = createStateMatcher('workflow:**');
-+
-+    it('matches any path in the domain (3 segments)', () => {
-+      expect(matcher('workflow:wf-1:status')).toBe(true);
-+      expect(matcher('workflow:wf-2:progress')).toBe(true);
-+    });
-+
-+    it('matches 2-segment paths in the domain', () => {
-+      // Singleton-style path where domain happens to be 'workflow'
-+      expect(matcher('workflow:global-count')).toBe(true);
-+    });
-+
-+    it('does not match other domains', () => {
-+      expect(matcher('worktree:active-file')).toBe(false);
-+      expect(matcher('agent:a1:status')).toBe(false);
-+    });
-+  });
-+
-+  // ═══════════════════════════════════════════════════════════
-+  // Global wildcard: *
-+  // ═══════════════════════════════════════════════════════════
-+
-+  describe('global wildcard (*)', () => {
-+    const matcher = createStateMatcher('*');
-+
-+    it('matches everything', () => {
-+      expect(matcher('workflow:wf-1:status')).toBe(true);
-+      expect(matcher('worktree:active-file')).toBe(true);
-+      expect(matcher('agent:a1:intent')).toBe(true);
-+      expect(matcher('anything')).toBe(true);
-+    });
-+  });
-+
-+  // ═══════════════════════════════════════════════════════════
-+  // Decision table from Workshop 001
-+  // ═══════════════════════════════════════════════════════════
-+
-+  describe('decision table (Workshop 001)', () => {
-+    const paths = {
-+      a: 'workflow:wf-1:status',
-+      b: 'workflow:wf-2:progress',
-+      c: 'worktree:active-file',
++    const change: StateChange = {
++      path,
++      domain: parsed.domain,
++      instanceId: parsed.instanceId,
++      property: parsed.property,
++      value,
++      previousValue,
++      timestamp: now,
 +    };
 +
-+    it('exact: workflow:wf-1:status', () => {
-+      const m = createStateMatcher('workflow:wf-1:status');
-+      expect(m(paths.a)).toBe(true);
-+      expect(m(paths.b)).toBe(false);
-+      expect(m(paths.c)).toBe(false);
-+    });
++    this.dispatch(change);
++  }
 +
-+    it('domain wildcard: workflow:*:status', () => {
-+      const m = createStateMatcher('workflow:*:status');
-+      expect(m(paths.a)).toBe(true);
-+      expect(m(paths.b)).toBe(false);
-+      expect(m(paths.c)).toBe(false);
-+    });
++  // ── Reading ──
 +
-+    it('instance wildcard: workflow:wf-1:*', () => {
-+      const m = createStateMatcher('workflow:wf-1:*');
-+      expect(m(paths.a)).toBe(true);
-+      expect(m(paths.b)).toBe(false);
-+      expect(m(paths.c)).toBe(false);
-+    });
++  get<T>(path: string): T | undefined {
++    const entry = this.store.get(path);
++    return entry?.value as T | undefined;
++  }
 +
-+    it('domain-all: workflow:**', () => {
-+      const m = createStateMatcher('workflow:**');
-+      expect(m(paths.a)).toBe(true);
-+      expect(m(paths.b)).toBe(true);
-+      expect(m(paths.c)).toBe(false);
-+    });
++  list(pattern: string): StateEntry[] {
++    const cached = this.listCache.get(pattern);
++    if (cached && cached.version === this.storeVersion) {
++      return cached.result;
++    }
 +
-+    it('global: *', () => {
-+      const m = createStateMatcher('*');
-+      expect(m(paths.a)).toBe(true);
-+      expect(m(paths.b)).toBe(true);
-+      expect(m(paths.c)).toBe(true);
-+    });
-+  });
-+});
-diff --git a/test/contracts/state-system.contract.ts b/test/contracts/state-system.contract.ts
++    const matcher = createStateMatcher(pattern);
++    const result: StateEntry[] = [];
++    for (const [path, entry] of this.store) {
++      if (matcher(path)) {
++        result.push(entry);
++      }
++    }
++
++    this.listCache.set(pattern, { version: this.storeVersion, result });
++    return result;
++  }
++
++  listInstances(domain: string): string[] {
++    const ids = new Set<string>();
++    for (const path of this.store.keys()) {
++      const parsed = parsePath(path);
++      if (parsed.domain === domain && parsed.instanceId !== null) {
++        ids.add(parsed.instanceId);
++      }
++    }
++    return [...ids];
++  }
++
++  // ── Removal ──
++
++  remove(path: string): void {
++    const entry = this.store.get(path);
++    if (!entry) return;
++
++    const parsed = parsePath(path);
++    const previousValue = entry.value;
++
++    this.store.delete(path);
++    this.storeVersion++;
++    this.listCache.clear();
++
++    const change: StateChange = {
++      path,
++      domain: parsed.domain,
++      instanceId: parsed.instanceId,
++      property: parsed.property,
++      value: undefined,
++      previousValue,
++      timestamp: Date.now(),
++      removed: true,
++    };
++
++    this.dispatch(change);
++  }
++
++  removeInstance(domain: string, instanceId: string): void {
++    const prefix = `${domain}:${instanceId}:`;
++    const toRemove: string[] = [];
++    for (const path of this.store.keys()) {
++      if (path.startsWith(prefix)) {
++        toRemove.push(path);
++      }
++    }
++    for (const path of toRemove) {
++      this.remove(path);
++    }
++  }
++
++  // ── Subscriptions ──
++
++  subscribe(pattern: string, callback: StateChangeCallback): () => void {
++    const id = this.nextSubId++;
++    const matcher = createStateMatcher(pattern);
++    this.subscriptions.set(id, { pattern, matcher, callback });
++
++    return () => {
++      this.subscriptions.delete(id);
++    };
++  }
++
++  // ── Diagnostics ──
++
++  get subscriberCount(): number {
++    return this.subscriptions.size;
++  }
++
++  get entryCount(): number {
++    return this.store.size;
++  }
++
++  // ── Private ──
++
++  private validateDomain(domain: string, instanceId: string | null): void {
++    const descriptor = this.domains.get(domain);
++    if (!descriptor) {
++      throw new Error(`Domain "${domain}" is not registered. Call registerDomain() first.`);
++    }
++    if (descriptor.multiInstance && instanceId === null) {
++      throw new Error(
++        `Domain "${domain}" is multi-instance but path has no instance ID. Use domain:instanceId:property format.`
++      );
++    }
++    if (!descriptor.multiInstance && instanceId !== null) {
++      throw new Error(
++        `Domain "${domain}" is a singleton but path has instance ID "${instanceId}". Use domain:property format.`
++      );
++    }
++  }
++
++  private dispatch(change: StateChange): void {
++    for (const sub of this.subscriptions.values()) {
++      if (sub.matcher(change.path)) {
++        // PL-07: Error isolation — one subscriber error must not block others
++        try {
++          sub.callback(change);
++        } catch (err) {
++          console.warn(`[GlobalStateSystem] Subscriber error for pattern "${sub.pattern}":`, err);
++        }
++      }
++    }
++  }
++}
+diff --git a/docs/domains/_platform/state/domain.md b/docs/domains/_platform/state/domain.md
+index a1910e6..d67712a 100644
+--- a/docs/domains/_platform/state/domain.md
++++ b/docs/domains/_platform/state/domain.md
+@@ -81,7 +81,7 @@ Centralized ephemeral runtime state system. Domains publish runtime values (work
+ 
+ Primary: `packages/shared/src/state/` (types + interface) + `apps/web/src/lib/state/` (implementation + hooks)
+ 
+-*Note: Implementation files (apps/web) do not exist yet — created by Plan 053 Phase 3+.*
++*Note: Implementation files (apps/web) exist. React hooks + provider (Phase 4) and exemplar (Phase 5) not yet created.*
+ 
+ | File | Role | Notes |
+ |------|------|-------|
+@@ -91,15 +91,16 @@ Primary: `packages/shared/src/state/` (types + interface) + `apps/web/src/lib/st
+ | `packages/shared/src/state/path-matcher.ts` | createStateMatcher() | ✅ Created Phase 1 |
+ | `packages/shared/src/state/tokens.ts` | STATE_DI_TOKENS | ✅ Created Phase 1 |
+ | `packages/shared/src/state/index.ts` | Barrel exports | ✅ Created Phase 1 |
+-| `packages/shared/src/fakes/fake-state-system.ts` | FakeGlobalStateSystem | Test double |
+-| `apps/web/src/lib/state/global-state-system.ts` | GlobalStateSystem class | IStateService implementation |
++| `packages/shared/src/fakes/fake-state-system.ts` | FakeGlobalStateSystem | ✅ Created Phase 3 |
++| `apps/web/src/lib/state/global-state-system.ts` | GlobalStateSystem class | ✅ Created Phase 3 |
+ | `apps/web/src/lib/state/state-provider.tsx` | GlobalStateProvider + useStateSystem | React context |
+ | `apps/web/src/lib/state/state-connector.tsx` | GlobalStateConnector | Workspace wiring |
+ | `apps/web/src/lib/state/use-global-state.ts` | useGlobalState<T> hook | useSyncExternalStore |
+ | `apps/web/src/lib/state/use-global-state-list.ts` | useGlobalStateList hook | Pattern subscriptions |
+ | `apps/web/src/lib/state/index.ts` | Barrel exports | App-side |
+-| `test/contracts/state-system.contract.ts` | Contract test factory | Runs against real + fake |
+-| `test/unit/web/state/global-state-system.test.ts` | Unit tests | Store, dispatch, pattern matching |
++| `test/contracts/state-system.contract.ts` | Contract test factory | ✅ Created Phase 2 |
++| `test/contracts/state-system.contract.test.ts` | Contract test runner | ✅ Created Phase 3 |
++| `test/unit/web/state/global-state-system.test.ts` | Unit tests | ✅ Created Phase 3 |
+ 
+ ---
+ 
+@@ -143,3 +144,4 @@ Primary: `packages/shared/src/state/` (types + interface) + `apps/web/src/lib/st
+ | 053 | Domain extracted and designed from workshops. Research dossier + 2 workshops (hierarchical addressing, developer experience). | 2026-02-26 |
+ | 053-P1 | Phase 1 implemented: types, IStateService interface, path parser (2/3 segments), path matcher (5 patterns), DI tokens, barrel exports + package.json `./state` entry. | 2026-02-26 |
+ | 053-P2 | Phase 2 implemented: path parser tests (25), path matcher tests (22), contract test factory (19 cases C01-C19). All imports via `@chainglass/shared/state`. | 2026-02-27 |
++| 053-P3 | Phase 3 implemented: GlobalStateSystem (real, Map-based store + dispatch), FakeGlobalStateSystem (full behavioral fake + inspection methods), contract test runner (44 tests pass — 22 real + 22 fake), unit tests (31). Total: 122 state tests. | 2026-02-27 |
+diff --git a/docs/plans/053-global-state-system/global-state-system-plan.md b/docs/plans/053-global-state-system/global-state-system-plan.md
+index 7a43556..83aa4a0 100644
+--- a/docs/plans/053-global-state-system/global-state-system-plan.md
++++ b/docs/plans/053-global-state-system/global-state-system-plan.md
+@@ -12,7 +12,7 @@
+ |-------|--------|-------|-----|
+ | Phase 1: Types, Interface & Path Engine | ✅ Complete | 6/6 | 8/8 |
+ | Phase 2: TDD — Path Engine & Contract Tests | ✅ Complete | 3/3 | 2/2 |
+-| Phase 3: Implementation + Fake | ⬜ Not Started | 0/4 | 0/23 |
++| Phase 3: Implementation + Fake | ✅ Complete | 4/4 | 23/23 |
+ | Phase 4: React Integration | ⬜ Not Started | 0/6 | 0/6 |
+ | Phase 5: Worktree Exemplar | ⬜ Not Started | 0/6 | 0/4 |
+ | Phase 6: Documentation & Quality Gate | ⬜ Not Started | 0/3 | 0/1 |
+@@ -23,6 +23,7 @@
+ |------|-------|--------|---------|
+ | 2026-02-26 | Phase 1 | `_platform/state` | Created: types.ts, state.interface.ts, path-parser.ts, path-matcher.ts, tokens.ts, index.ts. Modified: packages/shared/package.json (added ./state export). Domain docs updated (source locations + history). |
+ | 2026-02-27 | Phase 2 | `_platform/state` | Created: path-parser.test.ts (25 tests), path-matcher.test.ts (22 tests), state-system.contract.ts (19 contract cases). |
++| 2026-02-27 | Phase 3 | `_platform/state` | Created: global-state-system.test.ts (31 unit tests), fake-state-system.ts (FakeGlobalStateSystem + inspection methods), global-state-system.ts (GlobalStateSystem real impl), state-system.contract.test.ts (runner, 44 contract tests pass). Modified: fakes/index.ts (added FakeGlobalStateSystem export). |
+ 
+ ### Domain Impact
+ 
+diff --git a/docs/plans/053-global-state-system/tasks/phase-3-implementation-fake/execution.log.md b/docs/plans/053-global-state-system/tasks/phase-3-implementation-fake/execution.log.md
 new file mode 100644
-index 0000000..34bea40
+index 0000000..a708806
 --- /dev/null
-+++ b/test/contracts/state-system.contract.ts
-@@ -0,0 +1,363 @@
++++ b/docs/plans/053-global-state-system/tasks/phase-3-implementation-fake/execution.log.md
+@@ -0,0 +1,41 @@
++# Execution Log: Phase 3 — Implementation + Fake
++
++**Plan**: 053-global-state-system
++**Phase**: Phase 3: Implementation + Fake
++**Started**: 2026-02-27
++
++---
++
++## Task Log
++
++### T001: TDD Unit Tests (RED → GREEN)
++
++**File**: `test/unit/web/state/global-state-system.test.ts`
++**Tests**: 31 tests covering publish/get, subscribe/unsubscribe, error isolation, store-first ordering, remove, removeInstance, registerDomain, listDomains, listInstances, singleton/multi-instance validation, list with patterns, stable references, diagnostics.
++**RED evidence**: Tests failed with `Cannot find module` before GlobalStateSystem was created.
++**GREEN evidence**: All 31 tests pass after T003 implementation.
++
++### T002: FakeGlobalStateSystem
++
++**File**: `packages/shared/src/fakes/fake-state-system.ts`
++**Exported from**: `packages/shared/src/fakes/index.ts`
++**Build**: `pnpm build` passes in packages/shared
++**Pattern**: Full behavioral implementation (not a stub), same logic as real but with inspection methods (getPublished, getSubscribers, wasPublishedWith, reset).
++
++### T003: GlobalStateSystem Implementation
++
++**File**: `apps/web/src/lib/state/global-state-system.ts`
++**Key invariants**: Store-first (PL-01), error isolation (PL-07), stable get() refs (AC-03), version-counter list() caching (AC-26).
++**Evidence**: 31 unit tests pass GREEN.
++
++### T004: Contract Test Runner
++
++**File**: `test/contracts/state-system.contract.test.ts`
++**Evidence**: 44 contract tests pass (22 Real + 22 Fake). All 19 contracts (C01-C19) pass for both implementations.
++
++### Test Summary
++
++- Unit tests: 31 pass (global-state-system.test.ts)
++- Contract tests: 44 pass (22 Real + 22 Fake)
++- Phase 2 tests: 47 pass (path-parser + path-matcher)
++- **Total state tests: 122 pass**
+diff --git a/docs/plans/053-global-state-system/tasks/phase-3-implementation-fake/tasks.fltplan.md b/docs/plans/053-global-state-system/tasks/phase-3-implementation-fake/tasks.fltplan.md
+new file mode 100644
+index 0000000..d71bcf4
+--- /dev/null
++++ b/docs/plans/053-global-state-system/tasks/phase-3-implementation-fake/tasks.fltplan.md
+@@ -0,0 +1,132 @@
++# Flight Plan: Phase 3 — Implementation + Fake
++
++**Plan**: 053-global-state-system
++**Phase**: Phase 3: Implementation + Fake
++**Generated**: 2026-02-27
++**Status**: Landed
++
++---
++
++## Departure → Destination
++
++**Where we are**: IStateService interface defined. 47 unit tests pass (parser + matcher). 19 contract cases defined but have no implementations to run against. No GlobalStateSystem class. No FakeGlobalStateSystem.
++
++**Where we're going**: Both `GlobalStateSystem` (real) and `FakeGlobalStateSystem` (fake) pass all 19 contract tests. All store operations are unit-tested. The state system is fully functional — just not wired into React yet.
++
++---
++
++## Domain Context
++
++### Domains We're Changing
++
++| Domain | What Changes | Key Files |
++|--------|-------------|-----------|
++| `_platform/state` | Create real implementation + fake test double | `apps/web/src/lib/state/global-state-system.ts`, `packages/shared/src/fakes/fake-state-system.ts` |
++
++### Domains We Depend On (no changes)
++
++| Domain | What We Consume | Contract |
++|--------|----------------|----------|
++| `_platform/state` (Phase 1) | IStateService, types, parsePath, createStateMatcher | Shared contract layer |
++
++---
++
++## Flight Status
++
++```mermaid
++stateDiagram-v2
++    classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
++
++    state "1: Unit tests (RED)" as S1
++    state "2: FakeGlobalStateSystem" as S2
++    state "3: GlobalStateSystem" as S3
++    state "4: Contract runner" as S4
++
++    [*] --> S1
++    S1 --> S2
++    S1 --> S3
++    S2 --> S4
++    S3 --> S4
++    S4 --> [*]
++
++    classDef done fill:#4CAF50,stroke:#388E3C,color:#fff
++    classDef active fill:#FF9800,stroke:#F57C00,color:#fff
++    class S1,S2,S3,S4 done
++```
++
++---
++
++## Architecture: Before & After
++
++```mermaid
++flowchart LR
++    classDef existing fill:#E8F5E9,stroke:#4CAF50,color:#000
++    classDef new fill:#E3F2FD,stroke:#2196F3,color:#000
++
++    subgraph Before["Before Phase 3"]
++        B1["packages/shared/src/state/<br/>types · parser · matcher · tokens"]:::existing
++        B2["packages/shared/src/interfaces/<br/>state.interface.ts"]:::existing
++        B3["test/contracts/<br/>state-system.contract.ts<br/>(factory only — no runner)"]:::existing
++    end
++
++    subgraph After["After Phase 3"]
++        A1["packages/shared/src/state/<br/>types · parser · matcher · tokens"]:::existing
++        A2["packages/shared/src/interfaces/<br/>state.interface.ts"]:::existing
++        A3["packages/shared/src/fakes/<br/>fake-state-system.ts"]:::new
++        A4["apps/web/src/lib/state/<br/>global-state-system.ts"]:::new
++        A5["test/contracts/<br/>state-system.contract.test.ts<br/>(runner — real + fake)"]:::new
++        A6["test/unit/web/state/<br/>global-state-system.test.ts"]:::new
++    end
++```
++
++---
++
++## Stages
++
++- [x] **Stage 1: TDD unit tests** — Write RED tests for GlobalStateSystem store operations (T001)
++- [x] **Stage 2: FakeGlobalStateSystem** — Build fake with inspection methods, must pass contracts (T002)
++- [x] **Stage 3: GlobalStateSystem** — Build real implementation, all tests GREEN (T003)
++- [x] **Stage 4: Contract runner** — Wire runner against both, all 19 contracts pass for both (T004)
++
++## Acceptance Criteria
++
++- [ ] AC-01: publish stores + notifies
++- [ ] AC-02: get returns value or undefined
++- [ ] AC-03: get returns stable references
++- [ ] AC-04: remove notifies with removed flag
++- [ ] AC-05: removeInstance removes all entries
++- [ ] AC-06: registerDomain registers descriptor
++- [ ] AC-07: Duplicate registerDomain throws
++- [ ] AC-08: publish to unregistered domain throws
++- [ ] AC-09: listDomains returns descriptors
++- [ ] AC-10: listInstances returns IDs
++- [ ] AC-13: Singleton with instance ID throws
++- [ ] AC-14: Multi-instance without instance ID throws
++- [ ] AC-21: subscribe returns unsubscribe fn
++- [ ] AC-22: Error isolation
++- [ ] AC-23: StateChange shape
++- [ ] AC-24: Store-first ordering
++- [ ] AC-25: list returns matching entries
++- [ ] AC-26: list returns stable array ref
++- [ ] AC-33: FakeGlobalStateSystem with inspection methods
++- [ ] AC-34: Contract tests pass for both real and fake
++- [ ] AC-35: Unit tests for all core operations
++- [ ] AC-36: subscriberCount
++- [ ] AC-37: entryCount
++
++## DYK Items
++
++| ID | What | Impact |
++|----|------|--------|
++| DYK-11 | Fake must implement list() caching to pass C15 | Use dirty-flag cache |
++| DYK-12 | Fake is a full behavioral implementation, not a stub | Standalone class with parsePath/createStateMatcher |
++| DYK-13 | listCache.clear() on every publish is correct at scale | Simple invalidation |
++| DYK-14 | Contract runner imports real impl via relative path | Follow file-change-hub pattern |
++| DYK-15 | Fake must be exported from fakes barrel | Add to fakes/index.ts |
++
++## Checklist
++
++- [x] T001: TDD unit tests for store operations
++- [x] T002: FakeGlobalStateSystem
++- [x] T003: GlobalStateSystem implementation
++- [x] T004: Contract test runner (real + fake)
+diff --git a/docs/plans/053-global-state-system/tasks/phase-3-implementation-fake/tasks.md b/docs/plans/053-global-state-system/tasks/phase-3-implementation-fake/tasks.md
+new file mode 100644
+index 0000000..90fd1e5
+--- /dev/null
++++ b/docs/plans/053-global-state-system/tasks/phase-3-implementation-fake/tasks.md
+@@ -0,0 +1,108 @@
++# Phase 3: Implementation + Fake — Tasks & Brief
++
++**Plan**: [global-state-system-plan.md](../../global-state-system-plan.md)
++**Phase**: Phase 3: Implementation + Fake
++**Generated**: 2026-02-27
++**Status**: Complete
++
++---
++
++## Executive Briefing
++
++**Purpose**: Build GlobalStateSystem (real implementation) and FakeGlobalStateSystem (test double), both passing all 19 contract tests from Phase 2. This is the core engineering phase — everything else (hooks, provider, exemplar) depends on this.
++
++**What We're Building**:
++- `GlobalStateSystem` class in `apps/web/src/lib/state/` — the real IStateService implementation with Map-based store, pattern-matched subscriber dispatch, error isolation, stable references
++- `FakeGlobalStateSystem` in `packages/shared/src/fakes/` — test double with inspection methods (getPublished, getSubscribers, wasPublishedWith, reset)
++- Contract test runner that executes `globalStateContractTests()` against both
++
++**Key Technical Challenges**:
++- **Stable get() references** (AC-03): Return same object identity from Map — no defensive copies
++- **Stable list() arrays** (AC-26): Version-counter caching — rebuild array only when matching entries change
++- **Error isolation** (AC-22/PL-07): try/catch per subscriber callback in dispatch loop
++- **Store-first ordering** (AC-24/PL-01): Update Map before notifying subscribers
++- **Domain validation on publish** (AC-08/13/14): Check registration, singleton vs multi-instance
++
++---
++
++## Prior Phase Context
++
++**Phase 1** created types, interface, path parser, path matcher, DI tokens, barrel exports.
++**Phase 2** created 47 unit tests (parser + matcher) and 19 contract cases (C01–C19).
++
++All Phase 2 tests pass GREEN against Phase 1 pure functions. Contract factory is defined but has no runner yet — that's T004 in this phase.
++
++---
++
++## Pre-Implementation Check
++
++| File | Exists? | Domain Check | Notes |
++|------|---------|-------------|-------|
++| `test/unit/web/state/global-state-system.test.ts` | ❌ Create | `_platform/state` ✅ | TDD unit tests |
++| `packages/shared/src/fakes/fake-state-system.ts` | ❌ Create | `_platform/state` ✅ | 14 existing fakes in dir |
++| `apps/web/src/lib/state/global-state-system.ts` | ❌ Create | `_platform/state` ✅ | New directory needed |
++| `test/contracts/state-system.contract.test.ts` | ❌ Create | `_platform/state` ✅ | Runner for existing factory |
++
++---
++
++## Tasks
++
++| Status | ID | Task | Domain | Path(s) | Done When | Notes |
++|--------|-----|------|--------|---------|-----------|-------|
++| [x] | T001 | Create TDD unit tests for GlobalStateSystem store operations | `_platform/state` | `test/unit/web/state/global-state-system.test.ts` | RED tests covering: publish/get, subscribe/unsubscribe, error isolation, store-first ordering, remove, removeInstance, registerDomain (duplicate throws), listDomains, listInstances, singleton/multi-instance validation, list with patterns, stable get reference, stable list reference, subscriberCount, entryCount, previousValue tracking | AC-01 through AC-10, AC-13/14, AC-21 through AC-26, AC-36/37. Write RED first. |
++| [x] | T002 | Create FakeGlobalStateSystem | `_platform/state` | `packages/shared/src/fakes/fake-state-system.ts` | Implements IStateService. Inspection methods: getPublished(path), getSubscribers(), wasPublishedWith(path, value), reset(). Follows FakeUSDK pattern (class with inspection). Export from fakes barrel. | AC-33. Per Finding 06. |
++| [x] | T003 | Create GlobalStateSystem implementation | `_platform/state` | `apps/web/src/lib/state/global-state-system.ts` | Map-based store. Pattern-matched dispatch via createStateMatcher. Error isolation (try/catch per callback). Store-first ordering. Stable get() refs (no copies). Version-counter list() caching. Domain registration with singleton/multi-instance validation. All T001 tests pass GREEN. | Per Finding 04, PL-01, PL-07. |
++| [x] | T004 | Create contract test runner | `_platform/state` | `test/contracts/state-system.contract.test.ts` | Imports globalStateContractTests from factory. Runs against both GlobalStateSystem and FakeGlobalStateSystem. All 19 contracts pass for both. | AC-34. Depends on T002 + T003. |
++
++---
++
++## Context Brief
++
++### Key Patterns
++
++| Source | Pattern | Usage |
++|--------|---------|-------|
++| `apps/web/src/lib/sdk/settings-store.ts` | `Map<key, entry>`, `Map<key, Set<callback>>`, no defensive copies in get(), dispatch with `for (const cb of cbs) cb(value)` | Model for store + listener dispatch |
++| `apps/web/src/features/045-live-file-events/file-change-hub.ts` | Subscription Map with auto-incrementing IDs, `try/catch` per subscriber in dispatch | Model for error isolation |
++| `packages/shared/src/fakes/fake-usdk.ts` | Fake class with inspection methods, implements interface | Model for FakeGlobalStateSystem |
++
++### Prior Learnings
++
++| PL | What | Impact |
++|----|------|--------|
++| PL-01 | Store-first, then broadcast | Update Map BEFORE iterating subscribers |
++| PL-07 | Error isolation per subscriber | try/catch in dispatch loop, console.warn on error |
++| PL-03 | Stateful services = useValue singleton in DI | GlobalStateSystem will use useValue registration in Phase 5 |
++
++### DYK Items
++
++| DYK | Impact |
++|-----|--------|
++| DYK-04 | StateEntry.updatedAt is `number` (Unix ms) — used for list() version tracking |
++| DYK-07 | C06 store-first test calls get() inside subscriber callback |
++| DYK-08 | Every contract test calls registerTestDomain() before publish() |
++| DYK-09 | C15 tests list() stable array reference |
++
++### Implementation Strategy for list() Stable References
++
++```
++list(pattern) flow:
++1. Create StateMatcher for pattern
++2. Check listCache for this pattern
++3. If cache exists and maxUpdatedAt hasn't changed → return cached array
++4. Iterate values Map, filter by matcher, build new StateEntry[]
++5. Store in listCache: { maxUpdatedAt, result }
++6. Return result
++
++Invalidation: on publish/remove, delete all listCache entries
++(simple but correct; O(patterns) per publish — acceptable at expected scale)
++```
++
++---
++
++## Discoveries & Learnings
++
++_Populated during implementation._
++
++| Date | Task | Type | Discovery | Resolution | References |
++|------|------|------|-----------|------------|------------|
+diff --git a/packages/shared/src/fakes/fake-state-system.ts b/packages/shared/src/fakes/fake-state-system.ts
+new file mode 100644
+index 0000000..3800330
+--- /dev/null
++++ b/packages/shared/src/fakes/fake-state-system.ts
+@@ -0,0 +1,243 @@
 +/**
-+ * Plan 053: GlobalStateSystem — Contract Tests
++ * Plan 053: GlobalStateSystem — FakeGlobalStateSystem
 + *
-+ * Contract test factory for IStateService. Both GlobalStateSystem (real)
-+ * and FakeGlobalStateSystem (fake) must pass this suite.
++ * Full behavioral implementation of IStateService for testing.
++ * Per DYK-12: Not a stub — implements all store logic using parsePath/createStateMatcher
++ * from shared (pure functions) with independent store logic.
 + *
-+ * Per DYK-07: C06 must call get() inside subscriber callback.
-+ * Per DYK-08: Every test that calls publish() must first registerDomain().
-+ * Per DYK-09: C15 tests list() stable array reference.
++ * Inspection methods: getPublished, getSubscribers, wasPublishedWith, reset.
++ * Per DYK-15: Exported from packages/shared/src/fakes/ barrel.
 + */
 +
++import type { IStateService } from '../interfaces/state.interface.js';
++import { createStateMatcher } from '../state/path-matcher.js';
++import { parsePath } from '../state/path-parser.js';
++import type {
++  StateChange,
++  StateChangeCallback,
++  StateDomainDescriptor,
++  StateEntry,
++  StateMatcher,
++} from '../state/types.js';
++
++interface Subscription {
++  pattern: string;
++  matcher: StateMatcher;
++  callback: StateChangeCallback;
++}
++
++interface ListCacheEntry {
++  version: number;
++  result: StateEntry[];
++}
++
++export class FakeGlobalStateSystem implements IStateService {
++  private readonly store = new Map<string, StateEntry>();
++  private readonly domains = new Map<string, StateDomainDescriptor>();
++  private readonly subscriptions = new Map<number, Subscription>();
++  private readonly listCache = new Map<string, ListCacheEntry>();
++  private nextSubId = 0;
++  private storeVersion = 0;
++
++  // ── Domain Registration ──
++
++  registerDomain(descriptor: StateDomainDescriptor): void {
++    if (this.domains.has(descriptor.domain)) {
++      throw new Error(`Domain "${descriptor.domain}" is already registered`);
++    }
++    this.domains.set(descriptor.domain, descriptor);
++  }
++
++  listDomains(): StateDomainDescriptor[] {
++    return [...this.domains.values()];
++  }
++
++  // ── Publishing ──
++
++  publish<T>(path: string, value: T): void {
++    const parsed = parsePath(path);
++    this.validateDomain(parsed.domain, parsed.instanceId);
++
++    const now = Date.now();
++    const existing = this.store.get(path);
++    const previousValue = existing?.value;
++
++    // Store-first (PL-01): update Map before notifying
++    const entry: StateEntry = { path, value, updatedAt: now };
++    this.store.set(path, entry);
++    this.storeVersion++;
++    this.listCache.clear();
++
++    const change: StateChange = {
++      path,
++      domain: parsed.domain,
++      instanceId: parsed.instanceId,
++      property: parsed.property,
++      value,
++      previousValue,
++      timestamp: now,
++    };
++
++    this.dispatch(change);
++  }
++
++  // ── Reading ──
++
++  get<T>(path: string): T | undefined {
++    const entry = this.store.get(path);
++    return entry?.value as T | undefined;
++  }
++
++  list(pattern: string): StateEntry[] {
++    const cached = this.listCache.get(pattern);
++    if (cached && cached.version === this.storeVersion) {
++      return cached.result;
++    }
++
++    const matcher = createStateMatcher(pattern);
++    const result: StateEntry[] = [];
++    for (const [path, entry] of this.store) {
++      if (matcher(path)) {
++        result.push(entry);
++      }
++    }
++
++    this.listCache.set(pattern, { version: this.storeVersion, result });
++    return result;
++  }
++
++  listInstances(domain: string): string[] {
++    const ids = new Set<string>();
++    for (const path of this.store.keys()) {
++      const parsed = parsePath(path);
++      if (parsed.domain === domain && parsed.instanceId !== null) {
++        ids.add(parsed.instanceId);
++      }
++    }
++    return [...ids];
++  }
++
++  // ── Removal ──
++
++  remove(path: string): void {
++    const entry = this.store.get(path);
++    if (!entry) return;
++
++    const parsed = parsePath(path);
++    const previousValue = entry.value;
++
++    this.store.delete(path);
++    this.storeVersion++;
++    this.listCache.clear();
++
++    const change: StateChange = {
++      path,
++      domain: parsed.domain,
++      instanceId: parsed.instanceId,
++      property: parsed.property,
++      value: undefined,
++      previousValue,
++      timestamp: Date.now(),
++      removed: true,
++    };
++
++    this.dispatch(change);
++  }
++
++  removeInstance(domain: string, instanceId: string): void {
++    const prefix = `${domain}:${instanceId}:`;
++    const toRemove: string[] = [];
++    for (const path of this.store.keys()) {
++      if (path.startsWith(prefix)) {
++        toRemove.push(path);
++      }
++    }
++    for (const path of toRemove) {
++      this.remove(path);
++    }
++  }
++
++  // ── Subscriptions ──
++
++  subscribe(pattern: string, callback: StateChangeCallback): () => void {
++    const id = this.nextSubId++;
++    const matcher = createStateMatcher(pattern);
++    this.subscriptions.set(id, { pattern, matcher, callback });
++
++    return () => {
++      this.subscriptions.delete(id);
++    };
++  }
++
++  // ── Diagnostics ──
++
++  get subscriberCount(): number {
++    return this.subscriptions.size;
++  }
++
++  get entryCount(): number {
++    return this.store.size;
++  }
++
++  // ── Inspection Methods (test-only) ──
++
++  /** Get the current StateEntry for a path, or undefined. */
++  getPublished(path: string): StateEntry | undefined {
++    return this.store.get(path);
++  }
++
++  /** Get all active subscriber patterns. */
++  getSubscribers(): string[] {
++    return [...this.subscriptions.values()].map((s) => s.pattern);
++  }
++
++  /** Check if a path was published with a specific value. */
++  wasPublishedWith(path: string, value: unknown): boolean {
++    const entry = this.store.get(path);
++    return entry !== undefined && entry.value === value;
++  }
++
++  /** Reset all state — for test isolation between tests. */
++  reset(): void {
++    this.store.clear();
++    this.domains.clear();
++    this.subscriptions.clear();
++    this.listCache.clear();
++    this.nextSubId = 0;
++    this.storeVersion = 0;
++  }
++
++  // ── Private ──
++
++  private validateDomain(domain: string, instanceId: string | null): void {
++    const descriptor = this.domains.get(domain);
++    if (!descriptor) {
++      throw new Error(`Domain "${domain}" is not registered. Call registerDomain() first.`);
++    }
++    if (descriptor.multiInstance && instanceId === null) {
++      throw new Error(
++        `Domain "${domain}" is multi-instance but path has no instance ID. Use domain:instanceId:property format.`
++      );
++    }
++    if (!descriptor.multiInstance && instanceId !== null) {
++      throw new Error(
++        `Domain "${domain}" is a singleton but path has instance ID "${instanceId}". Use domain:property format.`
++      );
++    }
++  }
++
++  private dispatch(change: StateChange): void {
++    for (const sub of this.subscriptions.values()) {
++      if (sub.matcher(change.path)) {
++        try {
++          sub.callback(change);
++        } catch (err) {
++          console.warn(
++            `[FakeGlobalStateSystem] Subscriber error for pattern "${sub.pattern}":`,
++            err
++          );
++        }
++      }
++    }
++  }
++}
+diff --git a/packages/shared/src/fakes/index.ts b/packages/shared/src/fakes/index.ts
+index 9d46ac6..e288598 100644
+--- a/packages/shared/src/fakes/index.ts
++++ b/packages/shared/src/fakes/index.ts
+@@ -15,6 +15,8 @@ export { FakeHashGenerator } from './fake-hash-generator.js';
+ export { FakeProcessManager } from './fake-process-manager.js';
+ // YAML parser fake (Phase 2: extracted from workflow for shared use)
+ export { FakeYamlParser } from './fake-yaml-parser.js';
++// State system fake (Plan 053: GlobalStateSystem)
++export { FakeGlobalStateSystem } from './fake-state-system.js';
+ // SDK fake (Plan 047: USDK)
+ export {
+   createFakeUSDK,
+diff --git a/test/contracts/state-system.contract.test.ts b/test/contracts/state-system.contract.test.ts
+new file mode 100644
+index 0000000..f2fed6b
+--- /dev/null
++++ b/test/contracts/state-system.contract.test.ts
+@@ -0,0 +1,16 @@
++/**
++ * Plan 053: GlobalStateSystem — Contract Test Runner
++ *
++ * Runs globalStateContractTests against both real (GlobalStateSystem)
++ * and fake (FakeGlobalStateSystem) implementations.
++ *
++ * Per DYK-14: Real impl imported via relative path from test/contracts/.
++ * Per DYK-15: Fake imported from @chainglass/shared fakes barrel.
++ */
++
++import { FakeGlobalStateSystem } from '@chainglass/shared/fakes';
++import { GlobalStateSystem } from '../../apps/web/src/lib/state/global-state-system';
++import { globalStateContractTests } from './state-system.contract';
++
++globalStateContractTests('GlobalStateSystem (Real)', () => new GlobalStateSystem());
++globalStateContractTests('FakeGlobalStateSystem (Fake)', () => new FakeGlobalStateSystem());
+diff --git a/test/unit/web/state/global-state-system.test.ts b/test/unit/web/state/global-state-system.test.ts
+new file mode 100644
+index 0000000..c594916
+--- /dev/null
++++ b/test/unit/web/state/global-state-system.test.ts
+@@ -0,0 +1,425 @@
++/**
++ * Plan 053: GlobalStateSystem — Unit Tests
++ *
++ * TDD RED tests for GlobalStateSystem store operations.
++ * Written before the implementation exists.
++ *
++ * Tests cover: publish/get, subscribe/unsubscribe, error isolation,
++ * store-first ordering, remove, removeInstance, registerDomain,
++ * listDomains, listInstances, singleton/multi-instance validation,
++ * list with patterns, stable references, diagnostics.
++ */
++
++import type { StateChange } from '@chainglass/shared/state';
 +import { beforeEach, describe, expect, it } from 'vitest';
-+import type { IStateService } from '../../packages/shared/src/interfaces/state.interface';
-+import type { StateChange } from '../../packages/shared/src/state/types';
++import { GlobalStateSystem } from '../../../../apps/web/src/lib/state/global-state-system';
 +
-+export type StateServiceFactory = () => IStateService;
-+
-+function registerTestDomain(service: IStateService, multi = true): void {
-+  service.registerDomain({
++function registerMultiDomain(svc: GlobalStateSystem): void {
++  svc.registerDomain({
 +    domain: 'test-domain',
-+    description: 'Test domain for contract tests',
-+    multiInstance: multi,
++    description: 'Multi-instance test domain',
++    multiInstance: true,
 +    properties: [
 +      { key: 'status', description: 'Status', typeHint: 'string' },
 +      { key: 'progress', description: 'Progress', typeHint: 'number' },
@@ -419,9 +896,9 @@ index 0000000..34bea40
 +  });
 +}
 +
-+function registerSingletonDomain(service: IStateService): void {
-+  service.registerDomain({
-+    domain: 'singleton-domain',
++function registerSingletonDomain(svc: GlobalStateSystem): void {
++  svc.registerDomain({
++    domain: 'singleton',
 +    description: 'Singleton test domain',
 +    multiInstance: false,
 +    properties: [
@@ -431,42 +908,113 @@ index 0000000..34bea40
 +  });
 +}
 +
-+export function globalStateContractTests(name: string, factory: StateServiceFactory): void {
-+  describe(`IStateService Contract: ${name}`, () => {
-+    let service: IStateService;
++describe('GlobalStateSystem', () => {
++  let svc: GlobalStateSystem;
 +
-+    beforeEach(() => {
-+      service = factory();
++  beforeEach(() => {
++    svc = new GlobalStateSystem();
++  });
++
++  // ═══════════════════════════════════════════════
++  // Domain Registration
++  // ═══════════════════════════════════════════════
++
++  describe('registerDomain', () => {
++    it('registers a domain descriptor (AC-06)', () => {
++      registerMultiDomain(svc);
++      const domains = svc.listDomains();
++      expect(domains).toHaveLength(1);
++      expect(domains[0].domain).toBe('test-domain');
 +    });
 +
-+    // ═══════════════════════════════════════════════
-+    // C01: publish/get round-trip
-+    // ═══════════════════════════════════════════════
-+
-+    it('C01: publish stores value retrievable via get', () => {
-+      registerTestDomain(service);
-+      service.publish('test-domain:wf-1:status', 'running');
-+      expect(service.get('test-domain:wf-1:status')).toBe('running');
++    it('throws on duplicate registration (AC-07)', () => {
++      registerMultiDomain(svc);
++      expect(() => registerMultiDomain(svc)).toThrow();
 +    });
 +
-+    // ═══════════════════════════════════════════════
-+    // C02: get returns undefined for unpublished
-+    // ═══════════════════════════════════════════════
++    it('lists multiple registered domains (AC-09)', () => {
++      registerMultiDomain(svc);
++      registerSingletonDomain(svc);
++      const domains = svc.listDomains();
++      expect(domains).toHaveLength(2);
++    });
++  });
 +
-+    it('C02: get returns undefined for unpublished path', () => {
-+      registerTestDomain(service);
-+      expect(service.get('test-domain:wf-1:status')).toBeUndefined();
++  // ═══════════════════════════════════════════════
++  // Publish / Get
++  // ═══════════════════════════════════════════════
++
++  describe('publish/get', () => {
++    it('stores and retrieves value (AC-01)', () => {
++      registerMultiDomain(svc);
++      svc.publish('test-domain:wf-1:status', 'running');
++      expect(svc.get('test-domain:wf-1:status')).toBe('running');
 +    });
 +
-+    // ═══════════════════════════════════════════════
-+    // C03: subscribe notified on publish
-+    // ═══════════════════════════════════════════════
++    it('returns undefined for unpublished path (AC-02)', () => {
++      registerMultiDomain(svc);
++      expect(svc.get('test-domain:wf-1:status')).toBeUndefined();
++    });
 +
-+    it('C03: subscribe receives notification on publish', () => {
-+      registerTestDomain(service);
++    it('overwrites existing value', () => {
++      registerMultiDomain(svc);
++      svc.publish('test-domain:wf-1:status', 'pending');
++      svc.publish('test-domain:wf-1:status', 'running');
++      expect(svc.get('test-domain:wf-1:status')).toBe('running');
++    });
++
++    it('returns stable object reference (AC-03)', () => {
++      registerMultiDomain(svc);
++      const obj = { nested: true };
++      svc.publish('test-domain:wf-1:status', obj);
++      const a = svc.get('test-domain:wf-1:status');
++      const b = svc.get('test-domain:wf-1:status');
++      expect(a).toBe(b); // Object.is equality
++    });
++
++    it('throws on unregistered domain (AC-08)', () => {
++      expect(() => svc.publish('unknown:wf-1:status', 'val')).toThrow(/unknown|unregistered/i);
++    });
++  });
++
++  // ═══════════════════════════════════════════════
++  // Singleton / Multi-instance Validation
++  // ═══════════════════════════════════════════════
++
++  describe('singleton/multi-instance validation', () => {
++    it('singleton rejects path with instance ID (AC-13)', () => {
++      registerSingletonDomain(svc);
++      expect(() => svc.publish('singleton:inst-1:active-file', 'x')).toThrow();
++    });
++
++    it('singleton accepts 2-segment path', () => {
++      registerSingletonDomain(svc);
++      svc.publish('singleton:active-file', '/src/app.tsx');
++      expect(svc.get('singleton:active-file')).toBe('/src/app.tsx');
++    });
++
++    it('multi-instance rejects 2-segment path (AC-14)', () => {
++      registerMultiDomain(svc);
++      expect(() => svc.publish('test-domain:status', 'val')).toThrow();
++    });
++
++    it('multi-instance accepts 3-segment path', () => {
++      registerMultiDomain(svc);
++      svc.publish('test-domain:wf-1:status', 'running');
++      expect(svc.get('test-domain:wf-1:status')).toBe('running');
++    });
++  });
++
++  // ═══════════════════════════════════════════════
++  // Subscribe / Unsubscribe
++  // ═══════════════════════════════════════════════
++
++  describe('subscribe', () => {
++    it('receives notification on publish (AC-21)', () => {
++      registerMultiDomain(svc);
 +      const changes: StateChange[] = [];
-+      service.subscribe('test-domain:wf-1:status', (change) => changes.push(change));
-+      service.publish('test-domain:wf-1:status', 'running');
++      svc.subscribe('test-domain:wf-1:status', (c) => changes.push(c));
++      svc.publish('test-domain:wf-1:status', 'running');
 +
 +      expect(changes).toHaveLength(1);
 +      expect(changes[0].path).toBe('test-domain:wf-1:status');
@@ -474,281 +1022,273 @@ index 0000000..34bea40
 +      expect(changes[0].domain).toBe('test-domain');
 +      expect(changes[0].instanceId).toBe('wf-1');
 +      expect(changes[0].property).toBe('status');
-+      expect(changes[0].previousValue).toBeUndefined();
-+      expect(changes[0].timestamp).toBeTypeOf('number');
 +    });
 +
-+    // ═══════════════════════════════════════════════
-+    // C04: unsubscribe stops notifications
-+    // ═══════════════════════════════════════════════
-+
-+    it('C04: unsubscribe prevents further notifications', () => {
-+      registerTestDomain(service);
++    it('returns unsubscribe function (AC-21)', () => {
++      registerMultiDomain(svc);
 +      const changes: StateChange[] = [];
-+      const unsubscribe = service.subscribe('test-domain:wf-1:status', (change) =>
-+        changes.push(change),
-+      );
++      const unsub = svc.subscribe('test-domain:wf-1:status', (c) => changes.push(c));
 +
-+      service.publish('test-domain:wf-1:status', 'running');
++      svc.publish('test-domain:wf-1:status', 'running');
 +      expect(changes).toHaveLength(1);
 +
-+      unsubscribe();
-+      service.publish('test-domain:wf-1:status', 'complete');
-+      expect(changes).toHaveLength(1); // no new notification
-+    });
-+
-+    // ═══════════════════════════════════════════════
-+    // C05: error isolation
-+    // ═══════════════════════════════════════════════
-+
-+    it('C05: throwing subscriber does not block other subscribers', () => {
-+      registerTestDomain(service);
-+      const received: string[] = [];
-+
-+      service.subscribe('test-domain:wf-1:status', () => {
-+        throw new Error('subscriber explosion');
-+      });
-+      service.subscribe('test-domain:wf-1:status', (change) => {
-+        received.push(change.value as string);
-+      });
-+
-+      service.publish('test-domain:wf-1:status', 'running');
-+      expect(received).toEqual(['running']);
-+    });
-+
-+    // ═══════════════════════════════════════════════
-+    // C06: store-first ordering (DYK-07)
-+    // ═══════════════════════════════════════════════
-+
-+    it('C06: value is readable in subscriber callback (store-first)', () => {
-+      registerTestDomain(service);
-+      let readInCallback: unknown;
-+
-+      service.subscribe('test-domain:wf-1:status', () => {
-+        readInCallback = service.get('test-domain:wf-1:status');
-+      });
-+
-+      service.publish('test-domain:wf-1:status', 'running');
-+      expect(readInCallback).toBe('running');
-+    });
-+
-+    // ═══════════════════════════════════════════════
-+    // C07: remove notifies with removed flag
-+    // ═══════════════════════════════════════════════
-+
-+    it('C07: remove notifies subscribers with removed flag', () => {
-+      registerTestDomain(service);
-+      service.publish('test-domain:wf-1:status', 'running');
-+
-+      const changes: StateChange[] = [];
-+      service.subscribe('test-domain:wf-1:status', (change) => changes.push(change));
-+
-+      service.remove('test-domain:wf-1:status');
-+
++      unsub();
++      svc.publish('test-domain:wf-1:status', 'done');
 +      expect(changes).toHaveLength(1);
-+      expect(changes[0].removed).toBe(true);
-+      expect(changes[0].previousValue).toBe('running');
-+      expect(service.get('test-domain:wf-1:status')).toBeUndefined();
 +    });
 +
-+    // ═══════════════════════════════════════════════
-+    // C08: removeInstance removes all entries
-+    // ═══════════════════════════════════════════════
++    it('provides StateChange shape (AC-23)', () => {
++      registerMultiDomain(svc);
++      const changes: StateChange[] = [];
++      svc.subscribe('test-domain:wf-1:status', (c) => changes.push(c));
++      svc.publish('test-domain:wf-1:status', 'running');
 +
-+    it('C08: removeInstance removes all instance entries and notifies', () => {
-+      registerTestDomain(service);
-+      service.publish('test-domain:wf-1:status', 'running');
-+      service.publish('test-domain:wf-1:progress', 50);
-+
-+      const removals: StateChange[] = [];
-+      service.subscribe('test-domain:wf-1:*', (change) => removals.push(change));
-+
-+      service.removeInstance('test-domain', 'wf-1');
-+
-+      expect(removals).toHaveLength(2);
-+      expect(removals.every((c) => c.removed === true)).toBe(true);
-+      expect(service.get('test-domain:wf-1:status')).toBeUndefined();
-+      expect(service.get('test-domain:wf-1:progress')).toBeUndefined();
++      const change = changes[0];
++      expect(change.path).toBe('test-domain:wf-1:status');
++      expect(change.domain).toBe('test-domain');
++      expect(change.instanceId).toBe('wf-1');
++      expect(change.property).toBe('status');
++      expect(change.value).toBe('running');
++      expect(change.previousValue).toBeUndefined();
++      expect(change.timestamp).toBeTypeOf('number');
++      expect(change.removed).toBeUndefined();
 +    });
 +
-+    // ═══════════════════════════════════════════════
-+    // C09: registerDomain + listDomains
-+    // ═══════════════════════════════════════════════
-+
-+    it('C09: registerDomain is retrievable via listDomains', () => {
-+      registerTestDomain(service);
-+      const domains = service.listDomains();
-+      expect(domains).toHaveLength(1);
-+      expect(domains[0].domain).toBe('test-domain');
-+      expect(domains[0].multiInstance).toBe(true);
-+    });
-+
-+    it('C09b: duplicate registerDomain throws', () => {
-+      registerTestDomain(service);
-+      expect(() => registerTestDomain(service)).toThrow();
-+    });
-+
-+    // ═══════════════════════════════════════════════
-+    // C10: listInstances returns IDs
-+    // ═══════════════════════════════════════════════
-+
-+    it('C10: listInstances returns known instance IDs', () => {
-+      registerTestDomain(service);
-+      service.publish('test-domain:wf-1:status', 'running');
-+      service.publish('test-domain:wf-2:status', 'pending');
-+
-+      const instances = service.listInstances('test-domain');
-+      expect(instances).toContain('wf-1');
-+      expect(instances).toContain('wf-2');
-+      expect(instances).toHaveLength(2);
-+    });
-+
-+    // ═══════════════════════════════════════════════
-+    // C11: publish to unregistered domain throws
-+    // ═══════════════════════════════════════════════
-+
-+    it('C11: publish to unregistered domain throws', () => {
-+      expect(() => service.publish('unknown:wf-1:status', 'val')).toThrow();
-+    });
-+
-+    // ═══════════════════════════════════════════════
-+    // C12: subscriberCount / entryCount diagnostics
-+    // ═══════════════════════════════════════════════
-+
-+    it('C12: subscriberCount tracks active subscriptions', () => {
-+      registerTestDomain(service);
-+      expect(service.subscriberCount).toBe(0);
-+
-+      const unsub1 = service.subscribe('test-domain:**', () => {});
-+      expect(service.subscriberCount).toBe(1);
-+
-+      const unsub2 = service.subscribe('test-domain:wf-1:status', () => {});
-+      expect(service.subscriberCount).toBe(2);
-+
-+      unsub1();
-+      expect(service.subscriberCount).toBe(1);
-+
-+      unsub2();
-+      expect(service.subscriberCount).toBe(0);
-+    });
-+
-+    it('C12b: entryCount tracks stored entries', () => {
-+      registerTestDomain(service);
-+      expect(service.entryCount).toBe(0);
-+
-+      service.publish('test-domain:wf-1:status', 'running');
-+      expect(service.entryCount).toBe(1);
-+
-+      service.publish('test-domain:wf-1:progress', 50);
-+      expect(service.entryCount).toBe(2);
-+
-+      service.remove('test-domain:wf-1:status');
-+      expect(service.entryCount).toBe(1);
-+    });
-+
-+    // ═══════════════════════════════════════════════
-+    // C13: list returns matching entries
-+    // ═══════════════════════════════════════════════
-+
-+    it('C13: list returns entries matching pattern', () => {
-+      registerTestDomain(service);
-+      service.publish('test-domain:wf-1:status', 'running');
-+      service.publish('test-domain:wf-1:progress', 50);
-+      service.publish('test-domain:wf-2:status', 'pending');
-+
-+      const allWf1 = service.list('test-domain:wf-1:*');
-+      expect(allWf1).toHaveLength(2);
-+
-+      const allStatuses = service.list('test-domain:*:status');
-+      expect(allStatuses).toHaveLength(2);
-+
-+      const everything = service.list('test-domain:**');
-+      expect(everything).toHaveLength(3);
-+    });
-+
-+    // ═══════════════════════════════════════════════
-+    // C14: stable get reference (Object.is)
-+    // ═══════════════════════════════════════════════
-+
-+    it('C14: consecutive get() returns Object.is-equal reference', () => {
-+      registerTestDomain(service);
-+      const obj = { nested: true };
-+      service.publish('test-domain:wf-1:status', obj);
-+
-+      const first = service.get('test-domain:wf-1:status');
-+      const second = service.get('test-domain:wf-1:status');
-+      expect(first).toBe(second); // Object.is equality
-+    });
-+
-+    // ═══════════════════════════════════════════════
-+    // C15: stable list reference (DYK-09)
-+    // ═══════════════════════════════════════════════
-+
-+    it('C15: list returns same array reference when values unchanged', () => {
-+      registerTestDomain(service);
-+      service.publish('test-domain:wf-1:status', 'running');
-+
-+      const first = service.list('test-domain:**');
-+      const second = service.list('test-domain:**');
-+      expect(first).toBe(second); // Same array reference
-+    });
-+
-+    // ═══════════════════════════════════════════════
-+    // C16: singleton domain path validation
-+    // ═══════════════════════════════════════════════
-+
-+    it('C16: singleton domain rejects path with instance ID', () => {
-+      registerSingletonDomain(service);
-+      expect(() => service.publish('singleton-domain:inst-1:active-file', 'x')).toThrow();
-+    });
-+
-+    it('C16b: singleton domain accepts 2-segment path', () => {
-+      registerSingletonDomain(service);
-+      service.publish('singleton-domain:active-file', '/src/app.tsx');
-+      expect(service.get('singleton-domain:active-file')).toBe('/src/app.tsx');
-+    });
-+
-+    // ═══════════════════════════════════════════════
-+    // C17: multi-instance domain rejects 2-segment path
-+    // ═══════════════════════════════════════════════
-+
-+    it('C17: multi-instance domain rejects path without instance ID', () => {
-+      registerTestDomain(service);
-+      expect(() => service.publish('test-domain:status', 'val')).toThrow();
-+    });
-+
-+    // ═══════════════════════════════════════════════
-+    // C18: previousValue tracking
-+    // ═══════════════════════════════════════════════
-+
-+    it('C18: publish includes previousValue in change notification', () => {
-+      registerTestDomain(service);
-+      service.publish('test-domain:wf-1:status', 'pending');
++    it('tracks previousValue (AC-23)', () => {
++      registerMultiDomain(svc);
++      svc.publish('test-domain:wf-1:status', 'pending');
 +
 +      const changes: StateChange[] = [];
-+      service.subscribe('test-domain:wf-1:status', (change) => changes.push(change));
-+      service.publish('test-domain:wf-1:status', 'running');
++      svc.subscribe('test-domain:wf-1:status', (c) => changes.push(c));
++      svc.publish('test-domain:wf-1:status', 'running');
 +
 +      expect(changes[0].previousValue).toBe('pending');
 +      expect(changes[0].value).toBe('running');
 +    });
 +
-+    // ═══════════════════════════════════════════════
-+    // C19: pattern subscriptions work
-+    // ═══════════════════════════════════════════════
-+
-+    it('C19: domain wildcard subscription receives matching changes', () => {
-+      registerTestDomain(service);
++    it('pattern subscription receives matching changes (AC-21)', () => {
++      registerMultiDomain(svc);
 +      const changes: StateChange[] = [];
-+      service.subscribe('test-domain:*:status', (change) => changes.push(change));
++      svc.subscribe('test-domain:*:status', (c) => changes.push(c));
 +
-+      service.publish('test-domain:wf-1:status', 'running');
-+      service.publish('test-domain:wf-2:status', 'pending');
-+      service.publish('test-domain:wf-1:progress', 50); // should NOT match
++      svc.publish('test-domain:wf-1:status', 'running');
++      svc.publish('test-domain:wf-2:status', 'pending');
++      svc.publish('test-domain:wf-1:progress', 50); // should NOT match
 +
 +      expect(changes).toHaveLength(2);
-+      expect(changes[0].instanceId).toBe('wf-1');
-+      expect(changes[1].instanceId).toBe('wf-2');
++    });
++
++    it('domain-all subscription receives all domain changes', () => {
++      registerMultiDomain(svc);
++      const changes: StateChange[] = [];
++      svc.subscribe('test-domain:**', (c) => changes.push(c));
++
++      svc.publish('test-domain:wf-1:status', 'running');
++      svc.publish('test-domain:wf-1:progress', 50);
++
++      expect(changes).toHaveLength(2);
++    });
++
++    it('global subscription receives everything', () => {
++      registerMultiDomain(svc);
++      registerSingletonDomain(svc);
++      const changes: StateChange[] = [];
++      svc.subscribe('*', (c) => changes.push(c));
++
++      svc.publish('test-domain:wf-1:status', 'running');
++      svc.publish('singleton:active-file', '/src/app.tsx');
++
++      expect(changes).toHaveLength(2);
 +    });
 +  });
-+}
++
++  // ═══════════════════════════════════════════════
++  // Error Isolation (PL-07, AC-22)
++  // ═══════════════════════════════════════════════
++
++  describe('error isolation', () => {
++    it('throwing subscriber does not block other subscribers (AC-22)', () => {
++      registerMultiDomain(svc);
++      const received: string[] = [];
++      let throwerCalled = false;
++
++      svc.subscribe('test-domain:wf-1:status', () => {
++        throwerCalled = true;
++        throw new Error('subscriber explosion');
++      });
++      svc.subscribe('test-domain:wf-1:status', (c) => {
++        received.push(c.value as string);
++      });
++
++      svc.publish('test-domain:wf-1:status', 'running');
++      expect(throwerCalled).toBe(true);
++      expect(received).toEqual(['running']);
++    });
++  });
++
++  // ═══════════════════════════════════════════════
++  // Store-First Ordering (PL-01, AC-24)
++  // ═══════════════════════════════════════════════
++
++  describe('store-first ordering', () => {
++    it('value is readable in subscriber callback (AC-24)', () => {
++      registerMultiDomain(svc);
++      let readInCallback: unknown;
++
++      svc.subscribe('test-domain:wf-1:status', () => {
++        readInCallback = svc.get('test-domain:wf-1:status');
++      });
++
++      svc.publish('test-domain:wf-1:status', 'running');
++      expect(readInCallback).toBe('running');
++    });
++  });
++
++  // ═══════════════════════════════════════════════
++  // Remove
++  // ═══════════════════════════════════════════════
++
++  describe('remove', () => {
++    it('notifies with removed flag (AC-04)', () => {
++      registerMultiDomain(svc);
++      svc.publish('test-domain:wf-1:status', 'running');
++
++      const changes: StateChange[] = [];
++      svc.subscribe('test-domain:wf-1:status', (c) => changes.push(c));
++      svc.remove('test-domain:wf-1:status');
++
++      expect(changes).toHaveLength(1);
++      expect(changes[0].removed).toBe(true);
++      expect(changes[0].previousValue).toBe('running');
++      expect(svc.get('test-domain:wf-1:status')).toBeUndefined();
++    });
++
++    it('is a no-op for non-existent path', () => {
++      registerMultiDomain(svc);
++      expect(() => svc.remove('test-domain:wf-1:status')).not.toThrow();
++    });
++  });
++
++  // ═══════════════════════════════════════════════
++  // RemoveInstance
++  // ═══════════════════════════════════════════════
++
++  describe('removeInstance', () => {
++    it('removes all instance entries and notifies (AC-05)', () => {
++      registerMultiDomain(svc);
++      svc.publish('test-domain:wf-1:status', 'running');
++      svc.publish('test-domain:wf-1:progress', 50);
++
++      const removals: StateChange[] = [];
++      svc.subscribe('test-domain:wf-1:*', (c) => removals.push(c));
++      svc.removeInstance('test-domain', 'wf-1');
++
++      expect(removals).toHaveLength(2);
++      expect(removals.every((c) => c.removed === true)).toBe(true);
++      expect(svc.get('test-domain:wf-1:status')).toBeUndefined();
++      expect(svc.get('test-domain:wf-1:progress')).toBeUndefined();
++    });
++  });
++
++  // ═══════════════════════════════════════════════
++  // listInstances
++  // ═══════════════════════════════════════════════
++
++  describe('listInstances', () => {
++    it('returns known instance IDs (AC-10)', () => {
++      registerMultiDomain(svc);
++      svc.publish('test-domain:wf-1:status', 'running');
++      svc.publish('test-domain:wf-2:status', 'pending');
++
++      const instances = svc.listInstances('test-domain');
++      expect(instances).toContain('wf-1');
++      expect(instances).toContain('wf-2');
++      expect(instances).toHaveLength(2);
++    });
++
++    it('returns empty array for domain with no state', () => {
++      registerMultiDomain(svc);
++      expect(svc.listInstances('test-domain')).toEqual([]);
++    });
++  });
++
++  // ═══════════════════════════════════════════════
++  // list
++  // ═══════════════════════════════════════════════
++
++  describe('list', () => {
++    it('returns matching entries (AC-25)', () => {
++      registerMultiDomain(svc);
++      svc.publish('test-domain:wf-1:status', 'running');
++      svc.publish('test-domain:wf-1:progress', 50);
++      svc.publish('test-domain:wf-2:status', 'pending');
++
++      const wf1 = svc.list('test-domain:wf-1:*');
++      expect(wf1).toHaveLength(2);
++
++      const statuses = svc.list('test-domain:*:status');
++      expect(statuses).toHaveLength(2);
++
++      const all = svc.list('test-domain:**');
++      expect(all).toHaveLength(3);
++    });
++
++    it('returns stable array reference when unchanged (AC-26)', () => {
++      registerMultiDomain(svc);
++      svc.publish('test-domain:wf-1:status', 'running');
++
++      const a = svc.list('test-domain:**');
++      const b = svc.list('test-domain:**');
++      expect(a).toBe(b); // Same reference
++    });
++
++    it('returns new array after publish invalidates cache', () => {
++      registerMultiDomain(svc);
++      svc.publish('test-domain:wf-1:status', 'running');
++
++      const before = svc.list('test-domain:**');
++      svc.publish('test-domain:wf-1:progress', 50);
++      const after = svc.list('test-domain:**');
++
++      expect(before).not.toBe(after);
++      expect(after).toHaveLength(2);
++    });
++  });
++
++  // ═══════════════════════════════════════════════
++  // Diagnostics
++  // ═══════════════════════════════════════════════
++
++  describe('diagnostics', () => {
++    it('subscriberCount tracks active subscriptions (AC-36)', () => {
++      registerMultiDomain(svc);
++      expect(svc.subscriberCount).toBe(0);
++
++      const unsub1 = svc.subscribe('test-domain:**', () => {});
++      expect(svc.subscriberCount).toBe(1);
++
++      const unsub2 = svc.subscribe('test-domain:wf-1:status', () => {});
++      expect(svc.subscriberCount).toBe(2);
++
++      unsub1();
++      expect(svc.subscriberCount).toBe(1);
++
++      unsub2();
++      expect(svc.subscriberCount).toBe(0);
++    });
++
++    it('entryCount tracks stored entries (AC-37)', () => {
++      registerMultiDomain(svc);
++      expect(svc.entryCount).toBe(0);
++
++      svc.publish('test-domain:wf-1:status', 'running');
++      expect(svc.entryCount).toBe(1);
++
++      svc.publish('test-domain:wf-1:progress', 50);
++      expect(svc.entryCount).toBe(2);
++
++      svc.remove('test-domain:wf-1:status');
++      expect(svc.entryCount).toBe(1);
++    });
++  });
++});
