@@ -4,16 +4,29 @@
  * Tests the publisher component using FakeGlobalStateSystem injected
  * via StateContext (DYK-20). Verifies state publishing for worktree
  * domain with multi-instance paths (DYK-21).
+ *
+ * useFileChanges is mocked to control the changes array.
  */
 
 import { act, render } from '@testing-library/react';
 import React from 'react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FakeGlobalStateSystem } from '@chainglass/shared/fakes';
 import type { IStateService } from '@chainglass/shared/state';
 import { WorktreeStatePublisher } from '../../../../apps/web/src/features/041-file-browser/state/worktree-publisher';
 import { StateContext } from '../../../../apps/web/src/lib/state/state-provider';
+
+// Mock useFileChanges to control the changes array
+const mockChanges: { changes: unknown[]; hasChanges: boolean; clearChanges: () => void } = {
+  changes: [],
+  hasChanges: false,
+  clearChanges: vi.fn(),
+};
+
+vi.mock('@/features/045-live-file-events', () => ({
+  useFileChanges: () => mockChanges,
+}));
 
 function registerWorktreeDomain(svc: IStateService): void {
   svc.registerDomain({
@@ -33,11 +46,8 @@ describe('WorktreeStatePublisher', () => {
   beforeEach(() => {
     fake = new FakeGlobalStateSystem();
     registerWorktreeDomain(fake);
-    vi.useFakeTimers();
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
+    mockChanges.changes = [];
+    mockChanges.hasChanges = false;
   });
 
   function renderPublisher(slug: string, worktreeBranch?: string) {
@@ -76,37 +86,31 @@ describe('WorktreeStatePublisher', () => {
     expect(fake.get<string>('worktree:my-workspace:branch')).toBe('');
   });
 
-  it('publishes initial changed-file-count of 0 on mount (AC-39)', () => {
+  it('publishes changed-file-count of 0 when no changes (AC-39)', () => {
     /**
-     * Why: Count must be initialized before timer ticks.
-     * Contract: On mount, publishes worktree:{slug}:changed-file-count = 0.
+     * Why: Count reflects actual file changes from hub.
+     * Contract: On mount with empty changes, publishes 0.
      * Usage Notes: Consumer sees 0 immediately, not undefined.
      * Quality Contribution: No flash of undefined state.
-     * Worked Example: render publisher → state has 0
+     * Worked Example: render publisher with no changes → state has 0
      */
     renderPublisher('my-workspace', 'main');
 
     expect(fake.get<number>('worktree:my-workspace:changed-file-count')).toBe(0);
   });
 
-  it('increments changed-file-count on timer tick (TEMPORARY demo)', () => {
+  it('publishes changed-file-count matching changes array length (DYK-25)', () => {
     /**
-     * Why: Temporary demo timer verifies live state updates.
-     * Contract: Every 2s, changed-file-count increments by 1.
-     * Usage Notes: This test validates the demo mechanism — will change
-     *   when real useFileChanges integration replaces the timer.
-     * Quality Contribution: Ensures the publish loop works end-to-end.
-     * Worked Example: advance 4s → count is 2
+     * Why: File count derives from useFileChanges changes array.
+     * Contract: changed-file-count equals changes.length.
+     * Usage Notes: Reacts to real file change events from hub.
+     * Quality Contribution: Proves the hub → state bridge works.
+     * Worked Example: 3 changes → count is 3
      */
+    mockChanges.changes = [{ path: 'a.ts' }, { path: 'b.ts' }, { path: 'c.ts' }];
     renderPublisher('my-workspace', 'main');
 
-    expect(fake.get<number>('worktree:my-workspace:changed-file-count')).toBe(0);
-
-    act(() => vi.advanceTimersByTime(2000));
-    expect(fake.get<number>('worktree:my-workspace:changed-file-count')).toBe(1);
-
-    act(() => vi.advanceTimersByTime(2000));
-    expect(fake.get<number>('worktree:my-workspace:changed-file-count')).toBe(2);
+    expect(fake.get<number>('worktree:my-workspace:changed-file-count')).toBe(3);
   });
 
   it('uses slug as instance ID in state paths (DYK-22)', () => {
@@ -124,25 +128,5 @@ describe('WorktreeStatePublisher', () => {
     expect(fake.get<string>('worktree:workspace-b:branch')).toBe('develop');
     expect(fake.get<number>('worktree:workspace-a:changed-file-count')).toBe(0);
     expect(fake.get<number>('worktree:workspace-b:changed-file-count')).toBe(0);
-  });
-
-  it('cleans up timer on unmount', () => {
-    /**
-     * Why: No leaked intervals after component unmount.
-     * Contract: Timer stops and no further publishes occur.
-     * Usage Notes: Prevents memory leaks and stale state writes.
-     * Quality Contribution: Cleanup discipline.
-     * Worked Example: unmount → advance time → count unchanged
-     */
-    const { unmount } = renderPublisher('my-workspace', 'main');
-
-    act(() => vi.advanceTimersByTime(2000));
-    expect(fake.get<number>('worktree:my-workspace:changed-file-count')).toBe(1);
-
-    unmount();
-
-    act(() => vi.advanceTimersByTime(4000));
-    // Count should still be 1 — timer was cleaned up
-    expect(fake.get<number>('worktree:my-workspace:changed-file-count')).toBe(1);
   });
 });
