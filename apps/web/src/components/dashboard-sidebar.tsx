@@ -18,6 +18,7 @@ import {
 import { WorkspaceNav } from '@/components/workspaces/workspace-nav';
 import { PasteUploadButton } from '@/features/041-file-browser/components/paste-upload-button';
 import { WorktreeIdentityPopover } from '@/features/041-file-browser/components/worktree-identity-popover';
+import { WorktreeStateSubtitle } from '@/features/041-file-browser/components/worktree-state-subtitle';
 import { useWorkspaceContext } from '@/features/041-file-browser/hooks/use-workspace-context';
 import { DEV_NAV_ITEMS, WORKSPACE_NAV_ITEMS } from '@/lib/navigation-utils';
 import { cn } from '@/lib/utils';
@@ -73,6 +74,7 @@ export function DashboardSidebar() {
                   {currentWorktree.split('/').pop()}
                 </span>
               )}
+              {isInWorkspace && workspaceSlug && <WorktreeStateSubtitle slug={workspaceSlug} />}
             </div>
           )}
         </div>

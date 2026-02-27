@@ -15,7 +15,6 @@ import {
   FileViewerPanel,
   type ViewerMode,
 } from '@/features/041-file-browser/components/file-viewer-panel';
-import { WorktreeStateSubtitle } from '@/features/041-file-browser/components/worktree-state-subtitle';
 import { useClipboard } from '@/features/041-file-browser/hooks/use-clipboard';
 import { useFileFilter } from '@/features/041-file-browser/hooks/use-file-filter';
 import { useFileNavigation } from '@/features/041-file-browser/hooks/use-file-navigation';
@@ -409,17 +408,6 @@ function BrowserClientInner({
     );
   }, [panelState.diffStats]);
 
-  // Compose subtitles: existing diff stats + worktree state (Plan 053 DYK-23)
-  const composedSubtitle = useMemo(
-    () => (
-      <>
-        {diffStatsSubtitle}
-        <WorktreeStateSubtitle slug={slug} />
-      </>
-    ),
-    [diffStatsSubtitle, slug]
-  );
-
   return (
     <div className="h-full overflow-hidden">
       <PanelShell
@@ -477,7 +465,7 @@ function BrowserClientInner({
             onModeChange={panelState.handlePanelModeChange}
             modes={panelModes}
             onRefresh={handlePanelRefresh}
-            subtitle={composedSubtitle}
+            subtitle={diffStatsSubtitle}
           >
             {{
               tree: (
