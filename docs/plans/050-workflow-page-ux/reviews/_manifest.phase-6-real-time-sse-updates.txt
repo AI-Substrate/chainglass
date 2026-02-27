@@ -1,0 +1,14 @@
+M	apps/web/src/features/027-central-notify-events/start-central-notifications.ts
+A	apps/web/src/features/027-central-notify-events/workflow-domain-event-adapter.ts
+M	apps/web/src/features/050-workflow-page/components/workflow-editor.tsx
+A	apps/web/src/features/050-workflow-page/hooks/use-workflow-sse.ts
+A	docs/plans/050-workflow-page-ux/tasks/phase-6-real-time-sse-updates/execution.log.md
+M	docs/plans/050-workflow-page-ux/tasks/phase-6-real-time-sse-updates/tasks.fltplan.md
+M	docs/plans/050-workflow-page-ux/workflow-page-ux-plan.md
+A	docs/plans/053-global-state-system/reviews/fix-tasks.phase-4-react-integration.md
+A	docs/plans/053-global-state-system/reviews/review.phase-4-react-integration.md
+M	packages/shared/src/features/027-central-notify-events/workspace-domain.ts
+M	packages/workflow/src/features/023-central-watcher-notifications/index.ts
+A	packages/workflow/src/features/023-central-watcher-notifications/workflow-watcher.adapter.ts
+M	packages/workflow/src/index.ts
+A	test/unit/workflow/workflow-watcher-adapter.test.ts

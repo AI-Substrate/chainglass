@@ -200,13 +200,15 @@ export function WorkflowEditor({
       const snap = await loadCurrentSnapshot();
       undoRedo.snapshot(snap);
       startMutation();
-
-      if (dragData.type === 'toolbox-unit' && overData.type === 'drop-zone' && overData.lineId) {
-        await mutations.addNode(overData.lineId, dragData.unitSlug, overData.position);
-      } else if (dragData.type === 'canvas-node' && overData.type === 'drop-zone') {
-        await mutations.moveNode(dragData.nodeId, overData.position, overData.lineId);
+      try {
+        if (dragData.type === 'toolbox-unit' && overData.type === 'drop-zone' && overData.lineId) {
+          await mutations.addNode(overData.lineId, dragData.unitSlug, overData.position);
+        } else if (dragData.type === 'canvas-node' && overData.type === 'drop-zone') {
+          await mutations.moveNode(dragData.nodeId, overData.position, overData.lineId);
+        }
+      } finally {
+        endMutation();
       }
-      endMutation();
     },
     [mutations, loadCurrentSnapshot, undoRedo, startMutation, endMutation]
   );
@@ -216,8 +218,11 @@ export function WorkflowEditor({
       const snap = await loadCurrentSnapshot();
       undoRedo.snapshot(snap);
       startMutation();
-      await mutations.removeNode(nodeId);
-      endMutation();
+      try {
+        await mutations.removeNode(nodeId);
+      } finally {
+        endMutation();
+      }
       if (selectedNodeId === nodeId) setSelectedNodeId(null);
     },
     [mutations, selectedNodeId, loadCurrentSnapshot, undoRedo, startMutation, endMutation]
@@ -274,16 +279,22 @@ export function WorkflowEditor({
                 const snap = await loadCurrentSnapshot();
                 undoRedo.snapshot(snap);
                 startMutation();
-                await mutations.addLine(label);
-                endMutation();
+                try {
+                  await mutations.addLine(label);
+                } finally {
+                  endMutation();
+                }
               }}
               onSetLineLabel={mutations.setLineLabel}
               onRemoveLine={async (lineId: string) => {
                 const snap = await loadCurrentSnapshot();
                 undoRedo.snapshot(snap);
                 startMutation();
-                await mutations.removeLine(lineId);
-                endMutation();
+                try {
+                  await mutations.removeLine(lineId);
+                } finally {
+                  endMutation();
+                }
               }}
               onQuestionClick={(nodeId) => setQaModalNodeId(nodeId)}
             />

@@ -1,749 +1,990 @@
-# git diff (excluding review artifacts)
-diff --git a/apps/web/app/actions/workflow-actions.ts b/apps/web/app/actions/workflow-actions.ts
-index d780590..0461645 100644
---- a/apps/web/app/actions/workflow-actions.ts
-+++ b/apps/web/app/actions/workflow-actions.ts
-@@ -7,6 +7,7 @@
-  * Phase 3: addNode, removeNode, moveNode, addLine, removeLine,
-  *          setLineLabel, setLineDescription, updateLineOrchestratorSettings,
-  *          saveAsTemplate, instantiateTemplate, listTemplates
-+ * Phase 5: answerQuestion, restoreSnapshot, updateNodeConfig, setInput
-  *
-  * Plan 050
-  */
-@@ -380,3 +381,128 @@ export async function listTemplates(
-     errors: [],
-   };
- }
+diff --git a/apps/web/src/features/027-central-notify-events/start-central-notifications.ts b/apps/web/src/features/027-central-notify-events/start-central-notifications.ts
+index e5ca823..92381ef 100644
+--- a/apps/web/src/features/027-central-notify-events/start-central-notifications.ts
++++ b/apps/web/src/features/027-central-notify-events/start-central-notifications.ts
+@@ -14,9 +14,14 @@
+ import { WORKSPACE_DI_TOKENS } from '@chainglass/shared/di-tokens';
+ import type { ICentralEventNotifier } from '@chainglass/shared/features/027-central-notify-events/central-event-notifier.interface';
+ import type { ICentralWatcherService } from '@chainglass/workflow';
+-import { FileChangeWatcherAdapter, WorkGraphWatcherAdapter } from '@chainglass/workflow';
++import {
++  FileChangeWatcherAdapter,
++  WorkGraphWatcherAdapter,
++  WorkflowWatcherAdapter,
++} from '@chainglass/workflow';
+ import { getContainer } from '../../lib/bootstrap-singleton';
+ import { FileChangeDomainEventAdapter } from './file-change-domain-event-adapter';
++import { WorkflowDomainEventAdapter } from './workflow-domain-event-adapter';
+ import { WorkgraphDomainEventAdapter } from './workgraph-domain-event-adapter';
+ 
+ declare global {
+@@ -52,6 +57,7 @@ export async function startCentralNotificationSystem(): Promise<void> {
+     // 2. Create domain event adapters
+     const workgraphDomainAdapter = new WorkgraphDomainEventAdapter(notifier);
+     const fileChangeDomainAdapter = new FileChangeDomainEventAdapter(notifier);
++    const workflowDomainAdapter = new WorkflowDomainEventAdapter(notifier);
+ 
+     // 3. Create and register watcher adapters
+     const workgraphWatcherAdapter = new WorkGraphWatcherAdapter();
+@@ -60,11 +66,16 @@ export async function startCentralNotificationSystem(): Promise<void> {
+     const fileChangeWatcherAdapter = new FileChangeWatcherAdapter(300);
+     watcher.registerAdapter(fileChangeWatcherAdapter);
+ 
++    const workflowWatcherAdapter = new WorkflowWatcherAdapter();
++    watcher.registerAdapter(workflowWatcherAdapter);
 +
-+// ─── Phase 5: Q&A + Node Properties + Undo/Redo ─────────────────────
+     // 4. Subscribe domain adapters to watcher adapter events
+     workgraphWatcherAdapter.onGraphChanged((event) => workgraphDomainAdapter.handleEvent(event));
+     fileChangeWatcherAdapter.onFilesChanged((changes) =>
+       fileChangeDomainAdapter.handleEvent({ changes })
+     );
++    workflowWatcherAdapter.onStructureChanged((event) => workflowDomainAdapter.handleEvent(event));
++    workflowWatcherAdapter.onStatusChanged((event) => workflowDomainAdapter.handleEvent(event));
+ 
+     // 5. Start watching
+     await watcher.start();
+diff --git a/apps/web/src/features/027-central-notify-events/workflow-domain-event-adapter.ts b/apps/web/src/features/027-central-notify-events/workflow-domain-event-adapter.ts
+new file mode 100644
+index 0000000..7332384
+--- /dev/null
++++ b/apps/web/src/features/027-central-notify-events/workflow-domain-event-adapter.ts
+@@ -0,0 +1,25 @@
++/**
++ * Plan 050 Phase 6: Real-Time SSE Updates
++ *
++ * Concrete domain event adapter for workflow changes (positional graph).
++ *
++ * Extends DomainEventAdapter<WorkflowChangedEvent> — transforms watcher events
++ * into `notifier.emit('workflows', 'workflow-updated', { graphSlug, changeType })` calls.
++ *
++ * Per ADR-0007: Only identifiers emitted — client fetches full state via REST.
++ */
 +
-+export async function answerQuestion(
-+  workspaceSlug: string,
-+  graphSlug: string,
-+  nodeId: string,
-+  questionId: string,
-+  answer: unknown,
-+  worktreePath?: string
-+): Promise<MutationResult> {
-+  const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
-+  if (!ctx) return { errors: [NOT_FOUND_ERROR] };
++import type { ICentralEventNotifier } from '@chainglass/shared/features/027-central-notify-events/central-event-notifier.interface';
++import { DomainEventAdapter } from '@chainglass/shared/features/027-central-notify-events/domain-event-adapter';
++import { WorkspaceDomain } from '@chainglass/shared/features/027-central-notify-events/workspace-domain';
++import type { WorkflowChangedEvent } from '@chainglass/workflow';
 +
-+  const svc = resolveGraphService();
-+
-+  // Step 1: Record the answer (node stays waiting-question)
-+  const answerResult = await svc.answerQuestion(ctx, graphSlug, nodeId, questionId, answer);
-+  if (answerResult.errors.length > 0) return { errors: answerResult.errors };
-+
-+  // Step 2: Raise node:restart to resume execution
-+  const restartResult = await svc.raiseNodeEvent(
-+    ctx,
-+    graphSlug,
-+    nodeId,
-+    'node:restart',
-+    { reason: 'question-answered' },
-+    'human'
-+  );
-+  if (restartResult.errors.length > 0) return { errors: restartResult.errors };
-+
-+  return reloadStatus(ctx, graphSlug);
-+}
-+
-+export async function restoreSnapshot(
-+  workspaceSlug: string,
-+  graphSlug: string,
-+  definition: import('@chainglass/positional-graph').PositionalGraphDefinition,
-+  nodeConfigs: Record<string, import('@chainglass/positional-graph').NodeConfig>,
-+  worktreePath?: string
-+): Promise<MutationResult> {
-+  const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
-+  if (!ctx) return { errors: [NOT_FOUND_ERROR] };
-+
-+  const svc = resolveGraphService();
-+
-+  // Guard: block undo while any line is running/active
-+  const currentStatus = await svc.getStatus(ctx, graphSlug);
-+  const hasRunningLines = currentStatus.lines.some((line) =>
-+    line.nodes.some((n) =>
-+      ['starting', 'agent-accepted', 'waiting-question'].includes(n.status)
-+    )
-+  );
-+  if (hasRunningLines) {
-+    return {
-+      errors: [
-+        {
-+          code: 'E998',
-+          message: 'Cannot undo while workflow is running',
-+          action: 'Wait for all nodes to finish or stop them first',
-+        },
-+      ],
-+    };
++export class WorkflowDomainEventAdapter extends DomainEventAdapter<WorkflowChangedEvent> {
++  constructor(notifier: ICentralEventNotifier) {
++    super(notifier, WorkspaceDomain.Workflows, 'workflow-updated');
 +  }
 +
-+  const result = await svc.restoreSnapshot(ctx, graphSlug, definition, nodeConfigs);
-+  if (result.errors.length > 0) return { errors: result.errors };
-+
-+  return reloadStatus(ctx, graphSlug);
-+}
-+
-+export async function updateNodeConfig(
-+  workspaceSlug: string,
-+  graphSlug: string,
-+  nodeId: string,
-+  updates: {
-+    description?: string;
-+    orchestratorSettings?: Partial<{
-+      execution: 'serial' | 'parallel';
-+      waitForPrevious: boolean;
-+      noContext: boolean;
-+      contextFrom: string | undefined;
-+    }>;
-+  },
-+  worktreePath?: string
-+): Promise<MutationResult> {
-+  const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
-+  if (!ctx) return { errors: [NOT_FOUND_ERROR] };
-+
-+  const svc = resolveGraphService();
-+
-+  if (updates.description !== undefined) {
-+    const descResult = await svc.setNodeDescription(ctx, graphSlug, nodeId, updates.description);
-+    if (descResult.errors.length > 0) return { errors: descResult.errors };
++  extractData(event: WorkflowChangedEvent): Record<string, unknown> {
++    return { graphSlug: event.graphSlug, changeType: event.changeType };
 +  }
-+
-+  if (updates.orchestratorSettings) {
-+    const settingsResult = await svc.updateNodeOrchestratorSettings(
-+      ctx,
-+      graphSlug,
-+      nodeId,
-+      updates.orchestratorSettings
-+    );
-+    if (settingsResult.errors.length > 0) return { errors: settingsResult.errors };
-+  }
-+
-+  return reloadStatus(ctx, graphSlug);
 +}
-+
-+export async function setNodeInput(
-+  workspaceSlug: string,
-+  graphSlug: string,
-+  nodeId: string,
-+  inputName: string,
-+  source: import('@chainglass/positional-graph').InputResolution,
-+  worktreePath?: string
-+): Promise<MutationResult> {
-+  const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
-+  if (!ctx) return { errors: [NOT_FOUND_ERROR] };
-+
-+  const result = await resolveGraphService().setInput(ctx, graphSlug, nodeId, inputName, source);
-+  if (result.errors.length > 0) return { errors: result.errors };
-+
-+  return reloadStatus(ctx, graphSlug);
-+}
-diff --git a/apps/web/src/features/050-workflow-page/components/node-properties-panel.tsx b/apps/web/src/features/050-workflow-page/components/node-properties-panel.tsx
-index 78b5bdd..c8b5797 100644
---- a/apps/web/src/features/050-workflow-page/components/node-properties-panel.tsx
-+++ b/apps/web/src/features/050-workflow-page/components/node-properties-panel.tsx
-@@ -82,6 +82,7 @@ export interface NodePropertiesPanelProps {
-   contextColor: 'green' | 'blue' | 'purple' | 'gray';
-   related: NodeRelationship[];
-   onBack: () => void;
-+  onEditProperties?: () => void;
- }
- 
- export function NodePropertiesPanel({
-@@ -89,6 +90,7 @@ export function NodePropertiesPanel({
-   contextColor,
-   related,
-   onBack,
-+  onEditProperties,
- }: NodePropertiesPanelProps) {
-   const upstream = related.filter((r) => r.relation === 'upstream');
-   const downstream = related.filter((r) => r.relation === 'downstream');
-@@ -211,13 +213,19 @@ export function NodePropertiesPanel({
-         </section>
-       )}
- 
--      {/* Edit button placeholder */}
-+      {/* Edit button */}
-       <div className="mt-auto pt-3 border-t border-border/20">
-         <button
-           type="button"
--          disabled
--          className="w-full px-3 py-2 text-xs font-medium rounded-lg bg-foreground/5 text-muted-foreground/40 cursor-not-allowed border border-border/20"
--          title="Coming in Phase 5"
-+          disabled={!onEditProperties}
-+          onClick={onEditProperties}
-+          className={`w-full px-3 py-2 text-xs font-medium rounded-lg border border-border/20 transition-colors ${
-+            onEditProperties
-+              ? 'bg-foreground/5 text-foreground hover:bg-foreground/10 cursor-pointer'
-+              : 'bg-foreground/5 text-muted-foreground/40 cursor-not-allowed'
-+          }`}
-+          title={onEditProperties ? 'Edit node properties' : 'Not available'}
-+          data-testid="edit-properties-button"
-         >
-           Edit Properties...
-         </button>
-diff --git a/apps/web/src/features/050-workflow-page/components/workflow-canvas.tsx b/apps/web/src/features/050-workflow-page/components/workflow-canvas.tsx
-index a60c1fe..d370bea 100644
---- a/apps/web/src/features/050-workflow-page/components/workflow-canvas.tsx
-+++ b/apps/web/src/features/050-workflow-page/components/workflow-canvas.tsx
-@@ -24,6 +24,7 @@ export interface WorkflowCanvasProps {
-   onAddLine?: (label?: string) => void;
-   onSetLineLabel?: (lineId: string, label: string) => void;
-   onRemoveLine?: (lineId: string) => void;
-+  onQuestionClick?: (nodeId: string) => void;
- }
- 
- export function WorkflowCanvas({
-@@ -36,6 +37,7 @@ export function WorkflowCanvas({
-   onAddLine,
-   onSetLineLabel,
-   onRemoveLine,
-+  onQuestionClick,
- }: WorkflowCanvasProps) {
-   const { lines } = graphStatus;
- 
-@@ -81,6 +83,7 @@ export function WorkflowCanvas({
-             onDeleteNode={onDeleteNode}
-             onSetLineLabel={onSetLineLabel}
-             onRemoveLine={onRemoveLine}
-+            onQuestionClick={onQuestionClick}
-           />
-         </div>
-       ))}
 diff --git a/apps/web/src/features/050-workflow-page/components/workflow-editor.tsx b/apps/web/src/features/050-workflow-page/components/workflow-editor.tsx
-index 3da7f79..7bee0df 100644
+index ef244ae..c08aa28 100644
 --- a/apps/web/src/features/050-workflow-page/components/workflow-editor.tsx
 +++ b/apps/web/src/features/050-workflow-page/components/workflow-editor.tsx
-@@ -5,11 +5,12 @@
-  *
-  * Wraps everything in DndContext for drag-and-drop.
-  * Manages local GraphStatusResult state with optimistic mutations.
-+ * Integrates Q&A modal, node edit modal, and undo/redo.
-  *
-- * Phase 2+3: Canvas Core + Layout, Drag-and-Drop + Persistence — Plan 050
-+ * Phase 2+3+5: Canvas Core + Layout, Drag-and-Drop, Q&A/Edit/Undo — Plan 050
-  */
- 
--import type { GraphStatusResult, PGLoadResult } from '@chainglass/positional-graph';
-+import type { GraphStatusResult, InputResolution, PGLoadResult } from '@chainglass/positional-graph';
- import type { WorkUnitSummary } from '@chainglass/positional-graph';
- import {
-   type CollisionDetection,
-@@ -26,15 +27,24 @@ import {
+@@ -31,15 +31,18 @@ import {
    useSensors,
  } from '@dnd-kit/core';
  import { useCallback, useId, useMemo, useState } from 'react';
-+import { useUndoRedo } from '../hooks/use-undo-redo';
++import { toast } from 'sonner';
+ import {
+   answerQuestion as answerQuestionAction,
+   loadSnapshotData as loadSnapshotDataAction,
++  loadWorkflow as loadWorkflowAction,
+   restoreSnapshot as restoreSnapshotAction,
+   setNodeInput as setNodeInputAction,
+   updateNodeConfig as updateNodeConfigAction,
+ } from '../../../../app/actions/workflow-actions';
+ import { useUndoRedo } from '../hooks/use-undo-redo';
  import { useWorkflowMutations } from '../hooks/use-workflow-mutations';
++import { useWorkflowSSE } from '../hooks/use-workflow-sse';
  import { computeContextBadge } from '../lib/context-badge';
  import { computeRelatedNodes } from '../lib/related-nodes';
  import type { WorkflowDragData } from '../types';
-+import { NodeEditModal } from './node-edit-modal';
- import { NodePropertiesPanel } from './node-properties-panel';
-+import { QAModal } from './qa-modal';
- import { WorkUnitToolbox } from './work-unit-toolbox';
- import { WorkflowCanvas } from './workflow-canvas';
- import { WorkflowEditorLayout } from './workflow-editor-layout';
- import { WorkflowTempBar } from './workflow-temp-bar';
-+import {
-+  answerQuestion as answerQuestionAction,
-+  restoreSnapshot as restoreSnapshotAction,
-+  updateNodeConfig as updateNodeConfigAction,
-+  setNodeInput as setNodeInputAction,
-+} from '../../../../app/actions/workflow-actions';
+@@ -121,6 +124,24 @@ export function WorkflowEditor({
+     [loadCurrentSnapshot, undoRedo]
+   );
  
- export interface WorkflowEditorProps {
-   workspaceSlug: string;
-@@ -50,6 +60,7 @@ export function WorkflowEditor({
-   workspaceSlug,
-   graphSlug,
-   graphStatus: initialStatus,
-+  definition,
-   units,
-   worktreePath,
-   templateSource,
-@@ -59,6 +70,8 @@ export function WorkflowEditor({
-   const [isDragging, setIsDragging] = useState(false);
-   const [activeDragData, setActiveDragData] = useState<WorkflowDragData | null>(null);
-   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-+  const [qaModalNodeId, setQaModalNodeId] = useState<string | null>(null);
-+  const [editModalNodeId, setEditModalNodeId] = useState<string | null>(null);
- 
-   const mutations = useWorkflowMutations({
-     workspaceSlug,
-@@ -68,6 +81,20 @@ export function WorkflowEditor({
-     onStatusUpdate: setGraphStatus,
-   });
- 
-+  // Undo/redo
-+  const undoRedo = useUndoRedo({
-+    onRestore: async (snapshot) => {
-+      const result = await restoreSnapshotAction(
-+        workspaceSlug,
-+        graphSlug,
-+        snapshot.definition,
-+        snapshot.nodeConfigs,
-+        worktreePath
-+      );
-+      if (result.graphStatus) setGraphStatus(result.graphStatus);
-+    },
++  // SSE: re-fetch graph status on external changes
++  const refreshFromDisk = useCallback(async () => {
++    const result = await loadWorkflowAction(workspaceSlug, graphSlug, worktreePath);
++    if (result.graphStatus) setGraphStatus(result.graphStatus);
++  }, [workspaceSlug, graphSlug, worktreePath]);
++
++  const { startMutation, endMutation } = useWorkflowSSE({
++    graphSlug,
++    onStructureChange: useCallback(() => {
++      undoRedo.invalidate();
++      toast.info('Workflow changed externally');
++      refreshFromDisk();
++    }, [undoRedo, refreshFromDisk]),
++    onStatusChange: useCallback(() => {
++      refreshFromDisk();
++    }, [refreshFromDisk]),
 +  });
 +
    // Compute related nodes for select-to-reveal dimming
    const relatedNodes = useMemo(
      () => (selectedNodeId ? computeRelatedNodes(selectedNodeId, graphStatus.lines) : null),
-@@ -160,7 +187,18 @@ export function WorkflowEditor({
-       {/* biome-ignore lint/a11y/noNoninteractiveTabindex: keyboard delete needs focus */}
-       <div onKeyDown={handleKeyDown} tabIndex={0} className="h-full outline-none">
-         <WorkflowEditorLayout
--          topBar={<WorkflowTempBar graphSlug={graphSlug} templateSource={templateSource} />}
-+          topBar={
-+            <WorkflowTempBar
-+              graphSlug={graphSlug}
-+              templateSource={templateSource}
-+              undoDepth={undoRedo.undoDepth}
-+              redoDepth={undoRedo.redoDepth}
-+              canUndo={undoRedo.canUndo}
-+              canRedo={undoRedo.canRedo}
-+              onUndo={() => undoRedo.undo({ definition, nodeConfigs: {} })}
-+              onRedo={() => undoRedo.redo({ definition, nodeConfigs: {} })}
-+            />
-+          }
-           main={
-             <WorkflowCanvas
-               graphStatus={graphStatus}
-@@ -172,6 +210,7 @@ export function WorkflowEditor({
-               onAddLine={mutations.addLine}
+@@ -175,27 +196,31 @@ export function WorkflowEditor({
+         | undefined;
+       if (!overData) return;
+ 
+-      // Capture snapshot before mutation
++      // Capture snapshot before mutation + suppress self-events
+       const snap = await loadCurrentSnapshot();
+       undoRedo.snapshot(snap);
++      startMutation();
+ 
+       if (dragData.type === 'toolbox-unit' && overData.type === 'drop-zone' && overData.lineId) {
+         await mutations.addNode(overData.lineId, dragData.unitSlug, overData.position);
+       } else if (dragData.type === 'canvas-node' && overData.type === 'drop-zone') {
+         await mutations.moveNode(dragData.nodeId, overData.position, overData.lineId);
+       }
++      endMutation();
+     },
+-    [mutations, loadCurrentSnapshot, undoRedo]
++    [mutations, loadCurrentSnapshot, undoRedo, startMutation, endMutation]
+   );
+ 
+   const handleDeleteNode = useCallback(
+     async (nodeId: string) => {
+       const snap = await loadCurrentSnapshot();
+       undoRedo.snapshot(snap);
++      startMutation();
+       await mutations.removeNode(nodeId);
++      endMutation();
+       if (selectedNodeId === nodeId) setSelectedNodeId(null);
+     },
+-    [mutations, selectedNodeId, loadCurrentSnapshot, undoRedo]
++    [mutations, selectedNodeId, loadCurrentSnapshot, undoRedo, startMutation, endMutation]
+   );
+ 
+   const handleKeyDown = useCallback(
+@@ -248,13 +273,17 @@ export function WorkflowEditor({
+               onAddLine={async (label?: string) => {
+                 const snap = await loadCurrentSnapshot();
+                 undoRedo.snapshot(snap);
++                startMutation();
+                 await mutations.addLine(label);
++                endMutation();
+               }}
                onSetLineLabel={mutations.setLineLabel}
-               onRemoveLine={mutations.removeLine}
-+              onQuestionClick={(nodeId) => setQaModalNodeId(nodeId)}
+               onRemoveLine={async (lineId: string) => {
+                 const snap = await loadCurrentSnapshot();
+                 undoRedo.snapshot(snap);
++                startMutation();
+                 await mutations.removeLine(lineId);
++                endMutation();
+               }}
+               onQuestionClick={(nodeId) => setQaModalNodeId(nodeId)}
              />
-           }
-           right={
-@@ -181,6 +220,7 @@ export function WorkflowEditor({
-                 contextColor={computeContextBadge(selectedNode, selectedNodeLineIndex)}
-                 related={relatedNodes?.related ?? []}
-                 onBack={() => setSelectedNodeId(null)}
-+                onEditProperties={() => setEditModalNodeId(selectedNodeId)}
-               />
-             ) : (
-               <WorkUnitToolbox units={units} isDragging={isDragging} />
-@@ -195,6 +235,70 @@ export function WorkflowEditor({
-           </div>
-         )}
-       </DragOverlay>
+diff --git a/apps/web/src/features/050-workflow-page/hooks/use-workflow-sse.ts b/apps/web/src/features/050-workflow-page/hooks/use-workflow-sse.ts
+new file mode 100644
+index 0000000..a439b29
+--- /dev/null
++++ b/apps/web/src/features/050-workflow-page/hooks/use-workflow-sse.ts
+@@ -0,0 +1,90 @@
++'use client';
 +
-+      {/* Q&A Modal */}
-+      {qaModalNodeId && (() => {
-+        const node = graphStatus.lines.flatMap((l) => l.nodes).find((n) => n.nodeId === qaModalNodeId);
-+        if (!node?.pendingQuestion) return null;
-+        return (
-+          <QAModal
-+            question={node.pendingQuestion}
-+            nodeId={qaModalNodeId}
-+            onAnswer={async ({ structured }) => {
-+              const result = await answerQuestionAction(
-+                workspaceSlug,
-+                graphSlug,
-+                qaModalNodeId,
-+                node.pendingQuestion!.questionId,
-+                structured,
-+                worktreePath
-+              );
-+              if (result.graphStatus) setGraphStatus(result.graphStatus);
-+              setQaModalNodeId(null);
-+            }}
-+            onClose={() => setQaModalNodeId(null)}
-+          />
-+        );
-+      })()}
++/**
++ * useWorkflowSSE — Subscribe to workflow SSE events for the active graph.
++ *
++ * Filters by graphSlug, distinguishes structural vs status changes,
++ * and supports mutation lock for self-event suppression.
++ *
++ * Phase 6: Real-Time SSE Updates — Plan 050
++ */
 +
-+      {/* Node Edit Modal */}
-+      {editModalNodeId && (() => {
-+        const node = graphStatus.lines.flatMap((l) => l.nodes).find((n) => n.nodeId === editModalNodeId);
-+        if (!node) return null;
-+        return (
-+          <NodeEditModal
-+            node={node}
-+            graphStatus={graphStatus}
-+            onSave={async (updates) => {
-+              if (updates.description !== undefined || updates.orchestratorSettings) {
-+                const configResult = await updateNodeConfigAction(
-+                  workspaceSlug,
-+                  graphSlug,
-+                  editModalNodeId,
-+                  { description: updates.description, orchestratorSettings: updates.orchestratorSettings },
-+                  worktreePath
-+                );
-+                if (configResult.graphStatus) setGraphStatus(configResult.graphStatus);
-+              }
-+              if (updates.inputs) {
-+                for (const [inputName, source] of Object.entries(updates.inputs)) {
-+                  const inputResult = await setNodeInputAction(
-+                    workspaceSlug,
-+                    graphSlug,
-+                    editModalNodeId,
-+                    inputName,
-+                    source,
-+                    worktreePath
-+                  );
-+                  if (inputResult.graphStatus) setGraphStatus(inputResult.graphStatus);
-+                }
-+              }
-+              setEditModalNodeId(null);
-+            }}
-+            onClose={() => setEditModalNodeId(null)}
-+          />
-+        );
-+      })()}
-     </DndContext>
-   );
- }
-diff --git a/apps/web/src/features/050-workflow-page/components/workflow-line.tsx b/apps/web/src/features/050-workflow-page/components/workflow-line.tsx
-index 7f92195..f9c52e5 100644
---- a/apps/web/src/features/050-workflow-page/components/workflow-line.tsx
-+++ b/apps/web/src/features/050-workflow-page/components/workflow-line.tsx
-@@ -26,6 +26,7 @@ export interface WorkflowLineProps {
-   onDeleteNode?: (nodeId: string) => void;
-   onSetLineLabel?: (lineId: string, label: string) => void;
-   onRemoveLine?: (lineId: string) => void;
-+  onQuestionClick?: (nodeId: string) => void;
- }
- 
- function lineStateBorder(line: LineStatusResult): string {
-@@ -51,6 +52,7 @@ export function WorkflowLine({
-   onDeleteNode,
-   onSetLineLabel,
-   onRemoveLine,
-+  onQuestionClick,
- }: WorkflowLineProps) {
-   const borderClass = lineStateBorder(line);
-   const editable = isLineEditable(line);
-@@ -166,6 +168,7 @@ export function WorkflowLine({
-                 isDimmed={hasDimming && !relatedNodeIds.has(node.nodeId)}
-                 onSelect={() => onSelectNode?.(node.nodeId)}
-                 onDelete={() => onDeleteNode?.(node.nodeId)}
-+                onQuestionClick={node.status === 'waiting-question' ? () => onQuestionClick?.(node.nodeId) : undefined}
-               />
-             </div>
-           ))}
-diff --git a/apps/web/src/features/050-workflow-page/components/workflow-node-card.tsx b/apps/web/src/features/050-workflow-page/components/workflow-node-card.tsx
-index 0a6c737..4bbcd2d 100644
---- a/apps/web/src/features/050-workflow-page/components/workflow-node-card.tsx
-+++ b/apps/web/src/features/050-workflow-page/components/workflow-node-card.tsx
-@@ -80,6 +80,7 @@ export interface WorkflowNodeCardProps {
-   isDimmed?: boolean;
-   onSelect?: () => void;
-   onDelete?: () => void;
-+  onQuestionClick?: () => void;
- }
- 
- // ─── Component ───────────────────────────────────────────────────────
-@@ -112,6 +113,7 @@ export function WorkflowNodeCard({
-   isDimmed = false,
-   onSelect,
-   onDelete,
-+  onQuestionClick,
- }: WorkflowNodeCardProps) {
-   const statusConfig = STATUS_MAP[status] ?? STATUS_MAP.pending;
-   const typeIcon = TYPE_ICONS[unitType] ?? '📦';
-@@ -170,7 +172,27 @@ export function WorkflowNodeCard({
- 
-       {/* Status row — bottom indicator style */}
-       <div className="flex items-center justify-between mt-2">
--        <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${statusConfig.bgColor}`}>
-+        <div
-+          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${statusConfig.bgColor} ${
-+            status === 'waiting-question' && onQuestionClick ? 'cursor-pointer hover:ring-2 hover:ring-violet-300 transition-all' : ''
-+          }`}
-+          onClick={(e) => {
-+            if (status === 'waiting-question' && onQuestionClick) {
-+              e.stopPropagation();
-+              onQuestionClick();
-+            }
-+          }}
-+          onKeyDown={(e) => {
-+            if (status === 'waiting-question' && onQuestionClick && e.key === 'Enter') {
-+              e.stopPropagation();
-+              onQuestionClick();
-+            }
-+          }}
-+          role={status === 'waiting-question' && onQuestionClick ? 'button' : undefined}
-+          tabIndex={status === 'waiting-question' && onQuestionClick ? 0 : undefined}
-+          title={status === 'waiting-question' ? 'Click to answer question' : undefined}
-+          data-testid={status === 'waiting-question' ? `qa-badge-${nodeId}` : undefined}
-+        >
-           <span
-             className={`inline-block w-2 h-2 rounded-full bg-current ${statusConfig.pulse ? 'animate-pulse' : ''} ${statusConfig.animate ? 'animate-spin' : ''}`}
-             data-testid={`status-dot-${nodeId}`}
-diff --git a/apps/web/src/features/050-workflow-page/components/workflow-temp-bar.tsx b/apps/web/src/features/050-workflow-page/components/workflow-temp-bar.tsx
-index d8194c1..b48adff 100644
---- a/apps/web/src/features/050-workflow-page/components/workflow-temp-bar.tsx
-+++ b/apps/web/src/features/050-workflow-page/components/workflow-temp-bar.tsx
-@@ -1,20 +1,35 @@
- 'use client';
- 
- /**
-- * WorkflowTempBar — Temporary top bar for the workflow editor.
-+ * WorkflowTempBar — Top bar for the workflow editor.
-  *
-- * Shows graph name, template/instance breadcrumb, and placeholder Run button.
-+ * Shows graph name, template/instance breadcrumb, undo/redo buttons, and placeholder Run button.
-  * Will be replaced by shared ExplorerBar domain in a future plan.
-  *
-- * Phase 2: Canvas Core + Layout — Plan 050
-+ * Phase 2+5: Canvas Core + Layout, Undo/Redo — Plan 050
-  */
- 
- export interface WorkflowTempBarProps {
-   graphSlug: string;
-   templateSource?: string;
-+  undoDepth?: number;
-+  redoDepth?: number;
-+  canUndo?: boolean;
-+  canRedo?: boolean;
-+  onUndo?: () => void;
-+  onRedo?: () => void;
- }
- 
--export function WorkflowTempBar({ graphSlug, templateSource }: WorkflowTempBarProps) {
-+export function WorkflowTempBar({
-+  graphSlug,
-+  templateSource,
-+  undoDepth = 0,
-+  redoDepth = 0,
-+  canUndo = false,
-+  canRedo = false,
-+  onUndo,
-+  onRedo,
-+}: WorkflowTempBarProps) {
-   return (
-     <div
-       data-testid="workflow-temp-bar"
-@@ -33,15 +48,52 @@ export function WorkflowTempBar({ graphSlug, templateSource }: WorkflowTempBarPr
-         )}
-       </div>
- 
--      {/* Right: placeholder Run button */}
--      <button
--        type="button"
--        disabled
--        className="px-4 py-1.5 text-xs font-medium rounded-lg bg-white/10 text-white/40 cursor-not-allowed border border-white/10"
--        title="Coming in future plan"
--      >
--        ▶ Run
--      </button>
-+      {/* Right: undo/redo + Run */}
-+      <div className="flex items-center gap-2">
-+        {/* Undo button */}
-+        <button
-+          type="button"
-+          disabled={!canUndo}
-+          onClick={onUndo}
-+          data-testid="undo-button"
-+          className="relative px-2.5 py-1.5 text-sm rounded-lg bg-white/10 hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed border border-white/10 transition-colors"
-+          title="Undo"
-+        >
-+          ↶
-+          {undoDepth > 0 && (
-+            <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] flex items-center justify-center text-[10px] font-bold bg-violet-500 text-white rounded-full px-1">
-+              {undoDepth}
-+            </span>
-+          )}
-+        </button>
++import { useCallback, useEffect, useRef } from 'react';
++import { useSSE } from '../../../hooks/useSSE';
 +
-+        {/* Redo button */}
-+        <button
-+          type="button"
-+          disabled={!canRedo}
-+          onClick={onRedo}
-+          data-testid="redo-button"
-+          className="relative px-2.5 py-1.5 text-sm rounded-lg bg-white/10 hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed border border-white/10 transition-colors"
-+          title="Redo"
-+        >
-+          ↷
-+          {redoDepth > 0 && (
-+            <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] flex items-center justify-center text-[10px] font-bold bg-violet-500 text-white rounded-full px-1">
-+              {redoDepth}
-+            </span>
-+          )}
-+        </button>
-+
-+        {/* Placeholder Run button */}
-+        <button
-+          type="button"
-+          disabled
-+          className="px-4 py-1.5 text-xs font-medium rounded-lg bg-white/10 text-white/40 cursor-not-allowed border border-white/10"
-+          title="Coming in future plan"
-+        >
-+          ▶ Run
-+        </button>
-+      </div>
-     </div>
-   );
- }
-diff --git a/apps/web/src/features/050-workflow-page/types.ts b/apps/web/src/features/050-workflow-page/types.ts
-index 40b172c..c180ba2 100644
---- a/apps/web/src/features/050-workflow-page/types.ts
-+++ b/apps/web/src/features/050-workflow-page/types.ts
-@@ -6,11 +6,21 @@
- 
- import type {
-   GraphStatusResult,
-+  NodeConfig,
-   PGLoadResult,
-+  PositionalGraphDefinition,
-   WorkUnitSummary,
- } from '@chainglass/positional-graph';
- import type { ResultError } from '@chainglass/shared';
- 
-+// ─── Snapshot Types (Phase 5) ────────────────────────────────────────
-+
-+export interface WorkflowSnapshot {
-+  definition: PositionalGraphDefinition;
-+  nodeConfigs: Record<string, NodeConfig>;
-+  description?: string;
++interface WorkflowSSEMessage {
++  graphSlug: string;
++  changeType: 'structure' | 'status';
 +}
 +
- // ─── Query Results ───────────────────────────────────────────────────
++export interface UseWorkflowSSEOptions {
++  graphSlug: string;
++  enabled?: boolean;
++  onStructureChange: () => void;
++  onStatusChange: () => void;
++}
++
++export function useWorkflowSSE({
++  graphSlug,
++  enabled = true,
++  onStructureChange,
++  onStatusChange,
++}: UseWorkflowSSEOptions) {
++  const isMutatingRef = useRef(false);
++  const structureTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
++  const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
++
++  const { messages, isConnected, clearMessages } = useSSE<WorkflowSSEMessage>(
++    '/api/events/workflows',
++    undefined,
++    { autoConnect: enabled, maxMessages: 50 }
++  );
++
++  // Process new messages
++  useEffect(() => {
++    if (messages.length === 0) return;
++
++    const latest = messages[messages.length - 1];
++    if (!latest || latest.graphSlug !== graphSlug) return;
++    if (isMutatingRef.current) return;
++
++    if (latest.changeType === 'structure') {
++      // Debounce structural changes at 300ms
++      if (structureTimerRef.current) clearTimeout(structureTimerRef.current);
++      structureTimerRef.current = setTimeout(() => {
++        onStructureChange();
++      }, 300);
++    } else {
++      // Debounce status changes at 1500ms (orchestrator writes frequently)
++      if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
++      statusTimerRef.current = setTimeout(() => {
++        onStatusChange();
++      }, 1500);
++    }
++
++    clearMessages();
++  }, [messages, graphSlug, onStructureChange, onStatusChange, clearMessages]);
++
++  // Cleanup timers
++  useEffect(() => {
++    return () => {
++      if (structureTimerRef.current) clearTimeout(structureTimerRef.current);
++      if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
++    };
++  }, []);
++
++  /** Call before starting a mutation to suppress self-events */
++  const startMutation = useCallback(() => {
++    isMutatingRef.current = true;
++  }, []);
++
++  /** Call after mutation completes to re-enable SSE processing */
++  const endMutation = useCallback(() => {
++    // Small delay to let filesystem events from our write pass through
++    setTimeout(() => {
++      isMutatingRef.current = false;
++    }, 300);
++  }, []);
++
++  return { isConnected, startMutation, endMutation };
++}
+diff --git a/docs/plans/050-workflow-page-ux/tasks/phase-6-real-time-sse-updates/execution.log.md b/docs/plans/050-workflow-page-ux/tasks/phase-6-real-time-sse-updates/execution.log.md
+new file mode 100644
+index 0000000..43a757c
+--- /dev/null
++++ b/docs/plans/050-workflow-page-ux/tasks/phase-6-real-time-sse-updates/execution.log.md
+@@ -0,0 +1,7 @@
++# Execution Log — Phase 6: Real-Time SSE Updates
++
++**Plan**: 050-workflow-page-ux
++**Phase**: Phase 6
++**Started**: 2026-02-27
++
++---
+diff --git a/docs/plans/050-workflow-page-ux/tasks/phase-6-real-time-sse-updates/tasks.fltplan.md b/docs/plans/050-workflow-page-ux/tasks/phase-6-real-time-sse-updates/tasks.fltplan.md
+index c421211..5a58e19 100644
+--- a/docs/plans/050-workflow-page-ux/tasks/phase-6-real-time-sse-updates/tasks.fltplan.md
++++ b/docs/plans/050-workflow-page-ux/tasks/phase-6-real-time-sse-updates/tasks.fltplan.md
+@@ -3,7 +3,7 @@
+ **Plan**: [workflow-page-ux-plan.md](../../workflow-page-ux-plan.md)
+ **Phase**: Phase 6: Real-Time SSE Updates
+ **Generated**: 2026-02-27
+-**Status**: Ready for takeoff
++**Status**: Landed
  
- export interface WorkflowSummary {
+ ---
+ 
+@@ -61,9 +61,9 @@ stateDiagram-v2
+ 
+ ## Stages
+ 
+-- [ ] **Stage 1: Watcher + Domain Adapters + Registration** — Create `WorkflowWatcherAdapter` (self-filter, 200ms debounce), `WorkflowDomainEventAdapter` (SSE routing), register in `startCentralNotificationSystem()` (`workflow-watcher.adapter.ts`, `workflow-domain-event-adapter.ts`, `start-central-notifications.ts`)
+-- [ ] **Stage 2: Client Hook + Editor Wiring** — Build `useWorkflowSSE` hook (SSE subscription, graphSlug filter, self-event suppression), wire into editor with undo invalidation + sonner toast + auto re-fetch (`use-workflow-sse.ts`, `workflow-editor.tsx`)
+-- [ ] **Stage 3: Tests** — Watcher adapter unit test (path filtering, debounce), hook unit test (SSE handling, self-suppression) (`workflow-watcher-adapter.test.ts`, `use-workflow-sse.test.ts`)
++- [x] **Stage 1: Watcher + Domain Adapters + Registration** — Create `WorkflowWatcherAdapter` (self-filter, 200ms debounce), `WorkflowDomainEventAdapter` (SSE routing), register in `startCentralNotificationSystem()` (`workflow-watcher.adapter.ts`, `workflow-domain-event-adapter.ts`, `start-central-notifications.ts`)
++- [x] **Stage 2: Client Hook + Editor Wiring** — Build `useWorkflowSSE` hook (SSE subscription, graphSlug filter, self-event suppression), wire into editor with undo invalidation + sonner toast + auto re-fetch (`use-workflow-sse.ts`, `workflow-editor.tsx`)
++- [x] **Stage 3: Tests** — Watcher adapter unit test (path filtering, debounce), hook unit test (SSE handling, self-suppression) (`workflow-watcher-adapter.test.ts`, `use-workflow-sse.test.ts`)
+ 
+ ---
+ 
+@@ -105,9 +105,9 @@ flowchart LR
+ 
+ ## Acceptance Criteria
+ 
+-- [ ] AC-25: External changes invalidate undo stack + toast
+-- [ ] AC-26: SSE live updates for active workflow editor
+-- [ ] AC-27: WorkflowWatcherAdapter for graph file changes
++- [x] AC-25: External changes invalidate undo stack + toast
++- [x] AC-26: SSE live updates for active workflow editor
++- [x] AC-27: WorkflowWatcherAdapter for graph file changes
+ 
+ ## Goals & Non-Goals
+ 
+@@ -125,10 +125,10 @@ flowchart LR
+ 
+ ## Checklist
+ 
+-- [ ] T001: WorkflowWatcherAdapter (self-filter, debounce)
+-- [ ] T002: WorkflowDomainEventAdapter (SSE routing)
+-- [ ] T003: Register adapters in bootstrap
+-- [ ] T004: useWorkflowSSE hook
+-- [ ] T005: Undo invalidation + toast
+-- [ ] T006: Self-event suppression
+-- [ ] T007: Unit + integration tests
++- [x] T001: WorkflowWatcherAdapter (self-filter, debounce)
++- [x] T002: WorkflowDomainEventAdapter (SSE routing)
++- [x] T003: Register adapters in bootstrap
++- [x] T004: useWorkflowSSE hook
++- [x] T005: Undo invalidation + toast
++- [x] T006: Self-event suppression
++- [x] T007: Unit + integration tests
 diff --git a/docs/plans/050-workflow-page-ux/workflow-page-ux-plan.md b/docs/plans/050-workflow-page-ux/workflow-page-ux-plan.md
-index 5d67ba1..b7b66e6 100644
+index 556e883..af79dfd 100644
 --- a/docs/plans/050-workflow-page-ux/workflow-page-ux-plan.md
 +++ b/docs/plans/050-workflow-page-ux/workflow-page-ux-plan.md
-@@ -311,7 +311,7 @@ Build a visual workflow editor for the positional graph system as a new `workflo
- | Phase 2: Canvas Core + Layout | ✅ Complete | AC-01,02,03,04,05,06,10,11,20,22b,35 |
+@@ -312,7 +312,7 @@ Build a visual workflow editor for the positional graph system as a new `workflo
  | Phase 3: Drag-and-Drop + Persistence | ✅ Complete | AC-04,07,08,09,21,22b,35 |
  | Phase 4: Context Indicators + Select-to-Reveal | ✅ Complete | AC-12,13,14,15,17,35 |
--| Phase 5: Q&A + Node Properties Modal + Undo/Redo | Pending | AC-16,18,19,23,24 |
-+| Phase 5: Q&A + Node Properties Modal + Undo/Redo | ✅ Complete | AC-16,18,19,23,24 |
- | Phase 6: Real-Time SSE Updates | Pending | AC-25,26,27 |
+ | Phase 5: Q&A + Node Properties Modal + Undo/Redo | ✅ Complete | AC-16,18,19,23,24 |
+-| Phase 6: Real-Time SSE Updates | 📋 Dossier Ready | AC-25,26,27 |
++| Phase 6: Real-Time SSE Updates | ✅ Complete | AC-25,26,27 |
  | Phase 7: Workgraph Deprecation + Cleanup | Pending | AC-31,32,33,34 |
  
-diff --git a/packages/positional-graph/src/fakes/fake-positional-graph-service.ts b/packages/positional-graph/src/fakes/fake-positional-graph-service.ts
-index e66d723..b008b32 100644
---- a/packages/positional-graph/src/fakes/fake-positional-graph-service.ts
-+++ b/packages/positional-graph/src/fakes/fake-positional-graph-service.ts
-@@ -595,6 +595,16 @@ export class FakePositionalGraphService implements IPositionalGraphService {
-     this._state = state;
-   }
+ ### Phase 1 Summary
+diff --git a/docs/plans/053-global-state-system/reviews/fix-tasks.phase-4-react-integration.md b/docs/plans/053-global-state-system/reviews/fix-tasks.phase-4-react-integration.md
+new file mode 100644
+index 0000000..859860a
+--- /dev/null
++++ b/docs/plans/053-global-state-system/reviews/fix-tasks.phase-4-react-integration.md
+@@ -0,0 +1,127 @@
++# Fix Tasks: Phase 4: React Integration
++
++Apply in order. Re-run review after fixes.
++
++## Critical / High Fixes
++
++### FT-001: Reconcile AC-31 across implementation and authoritative artifacts
++- **Severity**: HIGH
++- **File(s)**:
++  - /Users/jordanknight/substrate/chainglass-048/apps/web/src/lib/state/state-provider.tsx
++  - /Users/jordanknight/substrate/chainglass-048/docs/plans/053-global-state-system/global-state-system-spec.md
++  - /Users/jordanknight/substrate/chainglass-048/docs/plans/053-global-state-system/global-state-system-plan.md
++  - /Users/jordanknight/substrate/chainglass-048/docs/plans/053-global-state-system/tasks/phase-4-react-integration/tasks.md
++  - /Users/jordanknight/substrate/chainglass-048/docs/plans/053-global-state-system/tasks/phase-4-react-integration/tasks.fltplan.md
++- **Issue**: AC-31 is still mandatory in spec/plan, but implementation and phase artifacts explicitly drop it.
++- **Fix**: Choose one canonical behavior and align all artifacts:
++  1) keep AC-31 and implement fallback + tests, or
++  2) formally remove AC-31 from authoritative criteria and progress tracking.
++- **Patch hint**:
++  ```diff
++  - - **AC-31**: `GlobalStateProvider` gracefully degrades on bootstrap error — returns a no-op state system instead of crashing the component tree
++  + - **AC-31**: (Removed by Phase 4 decision DYK-18; provider is fail-fast on bootstrap errors)
++  ```
++
++## Medium / Low Fixes
++
++### FT-002: Use state barrel import from providers.tsx
++- **Severity**: MEDIUM
++- **File(s)**: /Users/jordanknight/substrate/chainglass-048/apps/web/src/components/providers.tsx
++- **Issue**: Cross-domain consumer imports provider from internal file path.
++- **Fix**: Import from `../lib/state` contract barrel.
++- **Patch hint**:
++  ```diff
++  -import { GlobalStateProvider } from '../lib/state/state-provider';
++  +import { GlobalStateProvider } from '../lib/state';
++  ```
++
++### FT-003: Replace deep fake import with package contract export
++- **Severity**: MEDIUM
++- **File(s)**: /Users/jordanknight/substrate/chainglass-048/test/unit/web/state/use-global-state.test.tsx
++- **Issue**: Test bypasses package boundary by importing fake from `packages/shared/src/...`.
++- **Fix**: Import from `@chainglass/shared/fakes`.
++- **Patch hint**:
++  ```diff
++  -import { FakeGlobalStateSystem } from '../../../../packages/shared/src/fakes/fake-state-system';
++  +import { FakeGlobalStateSystem } from '@chainglass/shared/fakes';
++  ```
++
++### FT-004: Remove stale Phase 4 note from state domain doc
++- **Severity**: MEDIUM
++- **File(s)**: /Users/jordanknight/substrate/chainglass-048/docs/domains/_platform/state/domain.md
++- **Issue**: Source Location section still states hooks/provider are "not yet created."
++- **Fix**: Delete/update stale note so Source Location, Contracts, and History sections are internally consistent.
++- **Patch hint**:
++  ```diff
++  -*Note: Implementation files (apps/web) exist. React hooks + provider (Phase 4) and exemplar (Phase 5) not yet created.*
++  +*Note: Phase 4 hooks/provider are implemented. Exemplar wiring remains Phase 5 scope.*
++  ```
++
++### FT-005: Add provider singleton test coverage for AC-30
++- **Severity**: MEDIUM
++- **File(s)**: /Users/jordanknight/substrate/chainglass-048/test/unit/web/state/use-global-state.test.tsx
++- **Issue**: Current tests do not directly prove one-time provider initialization across re-renders.
++- **Fix**: Add a provider-level test that re-renders and confirms the same instance is retained.
++- **Patch hint**:
++  ```diff
++  +it('creates GlobalStateSystem once per mount (AC-30)', () => {
++  +  // render provider + consumer, trigger rerender, assert service identity is stable
++  +});
++  ```
++
++### FT-006: Add RED→GREEN evidence to phase execution log
++- **Severity**: MEDIUM
++- **File(s)**: /Users/jordanknight/substrate/chainglass-048/docs/plans/053-global-state-system/tasks/phase-4-react-integration/execution.log.md
++- **Issue**: Full-TDD process is asserted but not evidenced with concrete failing-first and passing outputs.
++- **Fix**: Add per-task command outputs (or CI links/IDs) showing RED then GREEN.
++- **Patch hint**:
++  ```diff
++  +**RED Evidence**:
++  +```
++  +$ pnpm vitest run test/unit/web/state/use-global-state.test.tsx
++  +... failing output before implementation ...
++  +```
++  +
++  +**GREEN Evidence**:
++  +```
++  +$ pnpm vitest run test/unit/web/state/use-global-state.test.tsx
++  +✓ 9 passed
++  +```
++  ```
++
++### FT-007: Add required Test Doc blocks to two hook tests
++- **Severity**: MEDIUM
++- **File(s)**: /Users/jordanknight/substrate/chainglass-048/test/unit/web/state/use-global-state.test.tsx
++- **Issue**: Two tests are missing required 5-field Test Doc comments (R-TEST-002).
++- **Fix**: Add complete Test Doc blocks for:
++  - `returns undefined when no default provided and no value published`
++  - `returns empty array when no entries match`
++- **Patch hint**:
++  ```diff
++   it('returns undefined when no default provided and no value published', () => {
++  +  /**
++  +   * Why: ...
++  +   * Contract: ...
++  +   * Usage Notes: ...
++  +   * Quality Contribution: ...
++  +   * Worked Example: ...
++  +   */
++      const { result } = renderHook(() => useGlobalState<string>('test-domain:wf-1:status'), {
++        wrapper,
++      });
++   ```
++
++### FT-008: Clarify docs/plans artifact handling in domain manifest checks
++- **Severity**: LOW
++- **File(s)**: /Users/jordanknight/substrate/chainglass-048/docs/plans/053-global-state-system/global-state-system-plan.md
++- **Issue**: Orphan-file validation is ambiguous for changed `docs/plans/**` artifacts.
++- **Fix**: Add explicit exemption policy for plan artifacts or include them in manifest with a docs classification.
++- **Patch hint**:
++  ```diff
++  +| `docs/plans/053-global-state-system/tasks/phase-4-react-integration/tasks.md` | `_platform/state` | docs-artifact | Phase dossier tracking for domain-owned implementation |
++  ```
++
++## Re-Review Checklist
++
++- [ ] All critical/high fixes applied
++- [ ] Re-run `/plan-7-v2-code-review` and achieve zero HIGH/CRITICAL
+diff --git a/docs/plans/053-global-state-system/reviews/review.phase-4-react-integration.md b/docs/plans/053-global-state-system/reviews/review.phase-4-react-integration.md
+new file mode 100644
+index 0000000..3fc3bdb
+--- /dev/null
++++ b/docs/plans/053-global-state-system/reviews/review.phase-4-react-integration.md
+@@ -0,0 +1,195 @@
++# Code Review: Phase 4: React Integration
++
++**Plan**: /Users/jordanknight/substrate/chainglass-048/docs/plans/053-global-state-system/global-state-system-plan.md
++**Spec**: /Users/jordanknight/substrate/chainglass-048/docs/plans/053-global-state-system/global-state-system-spec.md
++**Phase**: Phase 4: React Integration
++**Date**: 2026-02-27
++**Reviewer**: Automated (plan-7-v2)
++**Testing Approach**: Full TDD (declared in spec; observed evidence is Hybrid)
++
++## A) Verdict
++
++**REQUEST_CHANGES**
++
++High-severity AC drift remains unresolved: AC-31 is still required by spec/plan, but Phase 4 implementation and phase docs mark it as dropped.
++
++**Key failure areas**:
++- **Implementation**: Provider bootstrap behavior conflicts with the authoritative AC set (AC-31).
++- **Domain compliance**: Cross-domain consumption bypasses contract barrels in two places.
++- **Reinvention**: No major duplication, but one new test helper overlaps existing contract helper.
++- **Testing**: Full-TDD RED→GREEN evidence is not captured; AC-30 singleton behavior is only partially evidenced.
++- **Doctrine**: Two new tests miss required Test Doc blocks.
++
++## B) Summary
++
++Phase 4 delivered the expected React integration artifacts (hooks, provider, barrel, provider mount, and hook tests), and no material correctness/security/performance defects were found in the runtime hook logic itself. Domain map and registry are current for `_platform/state`, but contract-boundary imports and domain doc currency need correction. The primary blocker is AC-31 inconsistency across implementation vs spec/plan artifacts, which makes completion status non-deterministic. Testing evidence is substantial for AC-27/28/29/32, but TDD process evidence and AC-30 singleton proof need tightening.
++
++## C) Checklist
++
++**Testing Approach: Full TDD (declared)**
++
++- [ ] RED→GREEN evidence captured per task with concrete command output
++- [x] Core validation tests present for hook behavior (AC-27/28/29/32)
++- [ ] Provider singleton behavior (AC-30) explicitly validated with re-render proof
++
++Universal (all approaches):
++- [x] Only in-scope files changed
++- [ ] Linters/type checks clean (not evidenced in phase artifacts)
++- [ ] Domain compliance checks pass
++
++## D) Findings Table
++
++| ID | Severity | File:Lines | Category | Summary | Recommendation |
++|----|----------|------------|----------|---------|----------------|
++| F001 | HIGH | /Users/jordanknight/substrate/chainglass-048/apps/web/src/lib/state/state-provider.tsx:9,34-37; /Users/jordanknight/substrate/chainglass-048/docs/plans/053-global-state-system/global-state-system-spec.md:166; /Users/jordanknight/substrate/chainglass-048/docs/plans/053-global-state-system/global-state-system-plan.md:220,230 | scope/error-handling | AC-31 is implemented as dropped/fail-fast in code and phase docs, but still required in authoritative spec/plan acceptance criteria. | Reconcile AC source of truth: either implement AC-31 fallback + tests, or remove AC-31 from authoritative spec/plan artifacts. |
++| F002 | MEDIUM | /Users/jordanknight/substrate/chainglass-048/apps/web/src/components/providers.tsx:19 | domain/contract-imports | Cross-domain consumer imports provider from internal file (`../lib/state/state-provider`) instead of public barrel. | Import from `../lib/state` contract barrel. |
++| F003 | MEDIUM | /Users/jordanknight/substrate/chainglass-048/test/unit/web/state/use-global-state.test.tsx:18 | domain/contract-imports | Test imports fake via deep package source path (`../../../../packages/shared/src/fakes/fake-state-system`). | Import `FakeGlobalStateSystem` from `@chainglass/shared/fakes`. |
++| F004 | MEDIUM | /Users/jordanknight/substrate/chainglass-048/docs/domains/_platform/state/domain.md:84 | domain/domain-md | Domain doc still contains stale note that Phase 4 hooks/provider are not yet created. | Remove stale note and keep Source Location/Contracts fully current. |
++| F005 | MEDIUM | /Users/jordanknight/substrate/chainglass-048/docs/plans/053-global-state-system/tasks/phase-4-react-integration/execution.log.md:9-54 | testing/process | Full-TDD is declared, but execution log records summary outcomes without auditable RED→GREEN command evidence. | Add concrete failing-first and passing command output (or CI evidence) per task. |
++| F006 | MEDIUM | /Users/jordanknight/substrate/chainglass-048/test/unit/web/state/use-global-state.test.tsx:50-64 | testing/coverage | AC-30 “creates system once per mount/re-render” is not directly asserted in tests. | Add provider-level singleton initialization test with re-render assertions. |
++| F007 | MEDIUM | /Users/jordanknight/substrate/chainglass-048/test/unit/web/state/use-global-state.test.tsx:131-136,186-189 | doctrine | Two tests omit required 5-field Test Doc blocks (R-TEST-002). | Add complete Test Doc comments for both tests. |
++| F008 | LOW | /Users/jordanknight/substrate/chainglass-048/docs/plans/053-global-state-system/global-state-system-plan.md:49-83 | scope/traceability | Changed plan/task artifacts are not explicitly represented in Domain Manifest or an exemption rule. | Add explicit docs/plans artifact exemption or map these files for deterministic orphan checks. |
++| F009 | LOW | /Users/jordanknight/substrate/chainglass-048/test/unit/web/state/use-global-state.test.tsx:20-30; /Users/jordanknight/substrate/chainglass-048/test/contracts/state-system.contract.ts:18 | reinvention | New `registerTestDomain` helper duplicates existing contract helper concept. | Reuse/extract shared helper to reduce drift across test suites. |
++
++## E) Detailed Findings
++
++### E.1) Implementation Quality
++
++- **F001 (HIGH)**: Phase behavior and authoritative acceptance criteria diverge on bootstrap fallback semantics (AC-31).
++- Runtime hook/provider logic otherwise follows expected patterns (`useSyncExternalStore`, stable callbacks, provider context guard).
++- No material security or unbounded performance concerns were identified in changed runtime code.
++
++### E.2) Domain Compliance
++
++| Check | Status | Details |
++|-------|--------|---------|
++| File placement | ✅ | New source files are under expected `_platform/state` paths (`apps/web/src/lib/state/*`, `test/unit/web/state/*`). |
++| Contract-only imports | ❌ | **F002, F003**: internal-file and deep-source imports bypass public contract surfaces. |
++| Dependency direction | ✅ | No infrastructure → business reversal introduced by phase files. |
++| Domain.md updated | ❌ | **F004**: stale Source Location note conflicts with Phase 4 reality. |
++| Registry current | ✅ | `/Users/jordanknight/substrate/chainglass-048/docs/domains/registry.md` includes `_platform/state`. |
++| No orphan files | ❌ | **F008**: docs/plans artifacts in phase diff are not explicitly mapped/exempted. |
++| Map nodes current | ✅ | Domain map includes `_platform/state` node and current contract list. |
++| Map edges current | ✅ | State-related edges are present and labeled with contracts (no unlabeled edges found). |
++| No circular business deps | ✅ | No business→business cycle introduced by this phase. |
++
++### E.3) Anti-Reinvention
++
++| New Component | Existing Match? | Domain | Status |
++|--------------|----------------|--------|--------|
++| GlobalStateProvider + useStateSystem | SDKProvider context/provider pattern | `_platform/sdk` | ✅ Proceed (pattern reuse, not duplication) |
++| useGlobalState | useSDKSetting subscription pattern | `_platform/sdk` | ✅ Proceed (intentional composition) |
++| useGlobalStateList | useSDKSetting + existing hook subscription idioms | `_platform/sdk` | ✅ Proceed |
++| state barrel exports | Existing feature barrel pattern | file-browser | ✅ Proceed |
++| registerTestDomain helper (hook tests) | `registerTestDomain()` in state contract tests | `_platform/state` | ⚠️ Extend/reuse recommended (F009) |
++
++### E.4) Testing & Evidence
++
++**Coverage confidence**: 71%
++
++| AC | Confidence | Evidence |
++|----|------------|----------|
++| AC-27 | 90% | `/Users/jordanknight/substrate/chainglass-048/apps/web/src/lib/state/use-global-state.ts` + tests at `/Users/jordanknight/substrate/chainglass-048/test/unit/web/state/use-global-state.test.tsx:96-129` |
++| AC-28 | 93% | Dedicated default-value test at `/Users/jordanknight/substrate/chainglass-048/test/unit/web/state/use-global-state.test.tsx:82-94` |
++| AC-29 | 89% | Pattern-list hook implementation + tests at `/Users/jordanknight/substrate/chainglass-048/test/unit/web/state/use-global-state.test.tsx:154-189` |
++| AC-30 | 61% | Provider uses `useState(() => new GlobalStateSystem())`, but no explicit re-render singleton assertion in tests (`F006`). |
++| AC-31 | 5% | Spec/plan still require graceful no-op fallback; implementation/phase artifacts record AC drop (`F001`). |
++| AC-32 | 96% | Outside-provider throw is directly asserted at `/Users/jordanknight/substrate/chainglass-048/test/unit/web/state/use-global-state.test.tsx:37-48` |
++
++### E.5) Doctrine Compliance
++
++- **F007 (MEDIUM)**: Missing Test Doc blocks violate `R-TEST-002` in `/Users/jordanknight/substrate/chainglass-048/docs/project-rules/rules.md`.
++- No additional architecture-boundary violations beyond the contract-import issues captured in **F002/F003**.
++
++## F) Coverage Map
++
++| AC | Description | Evidence | Confidence |
++|----|-------------|----------|------------|
++| AC-27 | `useGlobalState` returns value and re-renders on change | `/Users/jordanknight/substrate/chainglass-048/test/unit/web/state/use-global-state.test.tsx:96-129` | 90% |
++| AC-28 | `useGlobalState` default when unpublished | `/Users/jordanknight/substrate/chainglass-048/test/unit/web/state/use-global-state.test.tsx:82-94` | 93% |
++| AC-29 | `useGlobalStateList` returns matches and re-renders | `/Users/jordanknight/substrate/chainglass-048/test/unit/web/state/use-global-state.test.tsx:154-189` | 89% |
++| AC-30 | Provider creates system once | Implementation intent at `/Users/jordanknight/substrate/chainglass-048/apps/web/src/lib/state/state-provider.tsx:35`; no explicit singleton test (`F006`) | 61% |
++| AC-31 | Graceful bootstrap fallback | Spec requires fallback at `/Users/jordanknight/substrate/chainglass-048/docs/plans/053-global-state-system/global-state-system-spec.md:166`; implementation drops it (`F001`) | 5% |
++| AC-32 | `useStateSystem` throws outside provider | `/Users/jordanknight/substrate/chainglass-048/test/unit/web/state/use-global-state.test.tsx:37-48` | 96% |
++
++**Overall coverage confidence**: **71%**
++
++## G) Commands Executed
++
++```bash
++git --no-pager status --short
++git --no-pager diff --stat
++git --no-pager diff --staged --stat
++git --no-pager log --oneline -20
++git --no-pager log --oneline -5 -- apps/web/src/lib/state/use-global-state.ts
++git --no-pager log --oneline -5 -- apps/web/src/lib/state/use-global-state-list.ts
++git --no-pager log --oneline -5 -- apps/web/src/lib/state/state-provider.tsx
++git --no-pager log --oneline -5 -- apps/web/src/lib/state/index.ts
++git --no-pager log --oneline -5 -- apps/web/src/components/providers.tsx
++git --no-pager log --oneline -5 -- test/unit/web/state/use-global-state.test.tsx
++git --no-pager diff e8aaaa6..556b9e4 > /Users/jordanknight/substrate/chainglass-048/docs/plans/053-global-state-system/reviews/_computed.diff
++git --no-pager diff --name-status e8aaaa6..556b9e4
++
++# Subagent reviews (Task tool, parallel x5):
++# - implementation quality
++# - domain compliance
++# - anti-reinvention
++# - testing/evidence
++# - doctrine/rules
++```
++
++## H) Handover Brief
++
++> Copy this section to the implementing agent. It has no context on the review —
++> only context on the work that was done before the review.
++
++**Review result**: REQUEST_CHANGES
++
++**Plan**: /Users/jordanknight/substrate/chainglass-048/docs/plans/053-global-state-system/global-state-system-plan.md
++**Spec**: /Users/jordanknight/substrate/chainglass-048/docs/plans/053-global-state-system/global-state-system-spec.md
++**Phase**: Phase 4: React Integration
++**Tasks dossier**: /Users/jordanknight/substrate/chainglass-048/docs/plans/053-global-state-system/tasks/phase-4-react-integration/tasks.md
++**Execution log**: /Users/jordanknight/substrate/chainglass-048/docs/plans/053-global-state-system/tasks/phase-4-react-integration/execution.log.md
++**Review file**: /Users/jordanknight/substrate/chainglass-048/docs/plans/053-global-state-system/reviews/review.phase-4-react-integration.md
++
++### Files Reviewed
++
++| File (absolute path) | Status | Domain | Action Needed |
++|---------------------|--------|--------|---------------|
++| /Users/jordanknight/substrate/chainglass-048/apps/web/src/components/providers.tsx | Modified | `_platform/state` (cross-domain mount) | Yes (F002) |
++| /Users/jordanknight/substrate/chainglass-048/apps/web/src/lib/state/index.ts | Created | `_platform/state` | No |
++| /Users/jordanknight/substrate/chainglass-048/apps/web/src/lib/state/state-provider.tsx | Created | `_platform/state` | Yes (F001) |
++| /Users/jordanknight/substrate/chainglass-048/apps/web/src/lib/state/use-global-state-list.ts | Created | `_platform/state` | No |
++| /Users/jordanknight/substrate/chainglass-048/apps/web/src/lib/state/use-global-state.ts | Created | `_platform/state` | No |
++| /Users/jordanknight/substrate/chainglass-048/docs/domains/_platform/state/domain.md | Modified | `_platform/state` | Yes (F004) |
++| /Users/jordanknight/substrate/chainglass-048/docs/plans/053-global-state-system/global-state-system-plan.md | Modified | plan artifact | Yes (F001, F008) |
++| /Users/jordanknight/substrate/chainglass-048/docs/plans/053-global-state-system/tasks/phase-4-react-integration/execution.log.md | Created | plan artifact | Yes (F005) |
++| /Users/jordanknight/substrate/chainglass-048/docs/plans/053-global-state-system/tasks/phase-4-react-integration/tasks.fltplan.md | Modified | plan artifact | Yes (F001) |
++| /Users/jordanknight/substrate/chainglass-048/docs/plans/053-global-state-system/tasks/phase-4-react-integration/tasks.md | Modified | plan artifact | Yes (F001) |
++| /Users/jordanknight/substrate/chainglass-048/test/unit/web/state/use-global-state.test.tsx | Created | `_platform/state` | Yes (F003, F006, F007, F009) |
++
++### Required Fixes (if REQUEST_CHANGES)
++
++| # | File (absolute path) | What To Fix | Why |
++|---|---------------------|-------------|-----|
++| 1 | /Users/jordanknight/substrate/chainglass-048/apps/web/src/lib/state/state-provider.tsx; /Users/jordanknight/substrate/chainglass-048/docs/plans/053-global-state-system/global-state-system-spec.md; /Users/jordanknight/substrate/chainglass-048/docs/plans/053-global-state-system/global-state-system-plan.md; /Users/jordanknight/substrate/chainglass-048/docs/plans/053-global-state-system/tasks/phase-4-react-integration/tasks.md; /Users/jordanknight/substrate/chainglass-048/docs/plans/053-global-state-system/tasks/phase-4-react-integration/tasks.fltplan.md | Reconcile AC-31 requirement vs implementation behavior | Resolve blocking acceptance-criteria drift (F001) |
++| 2 | /Users/jordanknight/substrate/chainglass-048/apps/web/src/components/providers.tsx | Import provider via state contract barrel | Enforce contract-only import boundary (F002) |
++| 3 | /Users/jordanknight/substrate/chainglass-048/test/unit/web/state/use-global-state.test.tsx | Replace deep fake import with `@chainglass/shared/fakes` | Enforce package boundary contract (F003) |
++| 4 | /Users/jordanknight/substrate/chainglass-048/docs/domains/_platform/state/domain.md | Remove stale Phase 4 “not yet created” note | Keep domain docs current and unambiguous (F004) |
++| 5 | /Users/jordanknight/substrate/chainglass-048/docs/plans/053-global-state-system/tasks/phase-4-react-integration/execution.log.md | Add concrete RED/GREEN evidence output | Align with Full TDD evidence expectations (F005) |
++| 6 | /Users/jordanknight/substrate/chainglass-048/test/unit/web/state/use-global-state.test.tsx | Add AC-30 singleton initialization assertion | Raise AC-30 confidence and close evidence gap (F006) |
++| 7 | /Users/jordanknight/substrate/chainglass-048/test/unit/web/state/use-global-state.test.tsx | Add Test Doc blocks to two tests | Satisfy doctrine rule R-TEST-002 (F007) |
++
++### Domain Artifacts to Update (if any)
++
++| File (absolute path) | What's Missing |
++|---------------------|----------------|
++| /Users/jordanknight/substrate/chainglass-048/docs/plans/053-global-state-system/global-state-system-spec.md | AC-31 alignment with implemented behavior (or implement AC-31 in code/tests) |
++| /Users/jordanknight/substrate/chainglass-048/docs/plans/053-global-state-system/global-state-system-plan.md | Phase 4 AC list/progress alignment with AC-31 decision; optional docs/plans artifact-mapping policy |
++| /Users/jordanknight/substrate/chainglass-048/docs/plans/053-global-state-system/tasks/phase-4-react-integration/tasks.md | Remove internal contradiction where no-op fallback is simultaneously goal and dropped |
++| /Users/jordanknight/substrate/chainglass-048/docs/plans/053-global-state-system/tasks/phase-4-react-integration/tasks.fltplan.md | Align acceptance checklist with final AC decision for provider bootstrap behavior |
++| /Users/jordanknight/substrate/chainglass-048/docs/domains/_platform/state/domain.md | Remove stale source-location note and keep source narrative internally consistent |
++
++### Next Step
++
++/plan-6-v2-implement-phase --plan /Users/jordanknight/substrate/chainglass-048/docs/plans/053-global-state-system/global-state-system-plan.md --phase 'Phase 4: React Integration'
+diff --git a/packages/shared/src/features/027-central-notify-events/workspace-domain.ts b/packages/shared/src/features/027-central-notify-events/workspace-domain.ts
+index 6bf602a..a8cfa17 100644
+--- a/packages/shared/src/features/027-central-notify-events/workspace-domain.ts
++++ b/packages/shared/src/features/027-central-notify-events/workspace-domain.ts
+@@ -19,6 +19,8 @@ export const WorkspaceDomain = {
+   Agents: 'agents',
+   /** SSE channel: `'file-changes'` — matches `/api/events/file-changes` subscription path */
+   FileChanges: 'file-changes',
++  /** SSE channel: `'workflows'` — matches `/api/events/workflows` subscription path (Plan 050) */
++  Workflows: 'workflows',
+ } as const;
  
-+  async restoreSnapshot(
-+    ctx: WorkspaceContext,
-+    graphSlug: string,
-+    definition: import('../schemas/graph.schema.js').PositionalGraphDefinition,
-+    nodeConfigs: Record<string, import('../schemas/node.schema.js').NodeConfig>
-+  ): Promise<import('@chainglass/shared').BaseResult> {
-+    this.track('restoreSnapshot', [ctx, graphSlug, definition, nodeConfigs]);
-+    return { errors: [] };
+ /**
+diff --git a/packages/workflow/src/features/023-central-watcher-notifications/index.ts b/packages/workflow/src/features/023-central-watcher-notifications/index.ts
+index 839507b..fb63dda 100644
+--- a/packages/workflow/src/features/023-central-watcher-notifications/index.ts
++++ b/packages/workflow/src/features/023-central-watcher-notifications/index.ts
+@@ -34,3 +34,7 @@ export { SOURCE_WATCHER_IGNORED } from './source-watcher.constants.js';
+ 
+ // Fake file change watcher (Plan 045)
+ export { FakeFileChangeWatcherAdapter } from './fake-file-change-watcher.js';
++
++// Workflow watcher adapter (Plan 050 Phase 6)
++export { WorkflowWatcherAdapter } from './workflow-watcher.adapter.js';
++export type { WorkflowChangedEvent } from './workflow-watcher.adapter.js';
+diff --git a/packages/workflow/src/features/023-central-watcher-notifications/workflow-watcher.adapter.ts b/packages/workflow/src/features/023-central-watcher-notifications/workflow-watcher.adapter.ts
+new file mode 100644
+index 0000000..9f5d83c
+--- /dev/null
++++ b/packages/workflow/src/features/023-central-watcher-notifications/workflow-watcher.adapter.ts
+@@ -0,0 +1,129 @@
++/**
++ * Workflow watcher adapter — filters filesystem events for positional graph changes.
++ *
++ * Emits two event types:
++ * - WorkflowStructureChangedEvent: graph.yaml or node.yaml changed (structural)
++ * - WorkflowStatusChangedEvent: state.json changed (runtime status)
++ *
++ * Per Plan 050 Phase 6: Real-Time SSE Updates
++ * Per ADR-02: Self-filtering adapter — receives all events, filters internally
++ * Per DYK #1: Structural vs runtime distinction — different handling downstream
++ */
++
++import type { IWatcherAdapter, WatcherEvent } from './watcher-adapter.interface.js';
++
++export interface WorkflowChangedEvent {
++  graphSlug: string;
++  workspaceSlug: string;
++  worktreePath: string;
++  filePath: string;
++  changeType: 'structure' | 'status';
++  timestamp: Date;
++}
++
++type WorkflowChangedCallback = (event: WorkflowChangedEvent) => void;
++
++/** Match graph.yaml in workflows/{slug}/ */
++const GRAPH_YAML_REGEX = /workflows\/([^/]+)\/graph\.yaml$/;
++/** Match node.yaml in workflows/{slug}/nodes/{nodeId}/ */
++const NODE_YAML_REGEX = /workflows\/([^/]+)\/nodes\/[^/]+\/node\.yaml$/;
++/** Match state.json in workflows/{slug}/ */
++const STATE_JSON_REGEX = /workflows\/([^/]+)\/state\.json$/;
++
++export class WorkflowWatcherAdapter implements IWatcherAdapter {
++  readonly name = 'workflow-watcher';
++
++  private readonly structureSubscribers = new Set<WorkflowChangedCallback>();
++  private readonly statusSubscribers = new Set<WorkflowChangedCallback>();
++
++  private structureTimer: ReturnType<typeof setTimeout> | null = null;
++  private statusTimer: ReturnType<typeof setTimeout> | null = null;
++  private pendingStructure: WorkflowChangedEvent | null = null;
++  private pendingStatus: WorkflowChangedEvent | null = null;
++
++  constructor(
++    private readonly structureDebounceMs = 200,
++    private readonly statusDebounceMs = 200
++  ) {}
++
++  handleEvent(event: WatcherEvent): void {
++    // Check structural changes first (graph.yaml, node.yaml)
++    const graphMatch = event.path.match(GRAPH_YAML_REGEX);
++    const nodeMatch = event.path.match(NODE_YAML_REGEX);
++    if (graphMatch || nodeMatch) {
++      const graphSlug = (graphMatch?.[1] ?? nodeMatch?.[1])!;
++      this.debounceStructure({
++        graphSlug,
++        workspaceSlug: event.workspaceSlug,
++        worktreePath: event.worktreePath,
++        filePath: event.path,
++        changeType: 'structure',
++        timestamp: new Date(),
++      });
++      return;
++    }
++
++    // Check runtime status changes (state.json)
++    const stateMatch = event.path.match(STATE_JSON_REGEX);
++    if (stateMatch) {
++      this.debounceStatus({
++        graphSlug: stateMatch[1],
++        workspaceSlug: event.workspaceSlug,
++        worktreePath: event.worktreePath,
++        filePath: event.path,
++        changeType: 'status',
++        timestamp: new Date(),
++      });
++    }
 +  }
 +
-   /** Reset all call tracking and preset results */
-   reset(): void {
-     this.calls.clear();
-diff --git a/packages/positional-graph/src/interfaces/positional-graph-service.interface.ts b/packages/positional-graph/src/interfaces/positional-graph-service.interface.ts
-index 2df9d62..e1f7d89 100644
---- a/packages/positional-graph/src/interfaces/positional-graph-service.interface.ts
-+++ b/packages/positional-graph/src/interfaces/positional-graph-service.interface.ts
-@@ -9,6 +9,7 @@ import type {
-   InputResolution,
-   LineOrchestratorSettings,
-   LineProperties,
-+  NodeConfig,
-   NodeExecutionStatus,
-   NodeOrchestratorSettings,
-   NodeProperties,
-@@ -752,4 +753,12 @@ export interface IPositionalGraphService {
-   // State Access (Phase 8, Plan 032 — E2E support)
-   loadGraphState(ctx: WorkspaceContext, graphSlug: string): Promise<State>;
-   persistGraphState(ctx: WorkspaceContext, graphSlug: string, state: State): Promise<void>;
-+
-+  // Snapshot Restore (Phase 5, Plan 050 — undo/redo support)
-+  restoreSnapshot(
-+    ctx: WorkspaceContext,
-+    graphSlug: string,
-+    definition: PositionalGraphDefinition,
-+    nodeConfigs: Record<string, NodeConfig>
-+  ): Promise<BaseResult>;
- }
-diff --git a/packages/positional-graph/src/services/positional-graph.service.ts b/packages/positional-graph/src/services/positional-graph.service.ts
-index 34f3a4d..a130acf 100644
---- a/packages/positional-graph/src/services/positional-graph.service.ts
-+++ b/packages/positional-graph/src/services/positional-graph.service.ts
-@@ -1110,11 +1110,35 @@ export class PositionalGraphService implements IPositionalGraphService {
-         reason: canRunResult.reason,
-       },
-       inputPack,
-+      pendingQuestion: this.resolvePendingQuestion(storedState, state),
-       startedAt: storedState?.started_at,
-       completedAt: storedState?.completed_at,
-     };
-   }
- 
-+  /**
-+   * Resolve pending question details from node state + state.questions[].
-+   * Returns the pendingQuestion shape expected by NodeStatusResult, or undefined.
-+   */
-+  private resolvePendingQuestion(
-+    storedState: NodeStateEntry | undefined,
-+    state: State
-+  ): NodeStatusResult['pendingQuestion'] {
-+    const questionId = storedState?.pending_question_id;
-+    if (!questionId) return undefined;
-+
-+    const question = state.questions?.find((q) => q.question_id === questionId);
-+    if (!question) return undefined;
-+
-+    return {
-+      questionId: question.question_id,
-+      text: question.text,
-+      questionType: question.type,
-+      options: question.options?.map((opt) => ({ key: opt, label: opt })),
-+      askedAt: question.asked_at,
++  onStructureChanged(callback: WorkflowChangedCallback): () => void {
++    this.structureSubscribers.add(callback);
++    return () => {
++      this.structureSubscribers.delete(callback);
 +    };
 +  }
 +
-   async getLineStatus(
-     ctx: WorkspaceContext,
-     graphSlug: string,
-@@ -2685,6 +2709,35 @@ export class PositionalGraphService implements IPositionalGraphService {
-   async persistGraphState(ctx: WorkspaceContext, graphSlug: string, state: State): Promise<void> {
-     return this.persistState(ctx, graphSlug, state);
-   }
++  onStatusChanged(callback: WorkflowChangedCallback): () => void {
++    this.statusSubscribers.add(callback);
++    return () => {
++      this.statusSubscribers.delete(callback);
++    };
++  }
 +
-+  async restoreSnapshot(
-+    ctx: WorkspaceContext,
-+    graphSlug: string,
-+    definition: PositionalGraphDefinition,
-+    nodeConfigs: Record<string, NodeConfig>
-+  ): Promise<import('@chainglass/shared').BaseResult> {
-+    try {
-+      // Write graph.yaml
-+      await this.persistGraph(ctx, graphSlug, definition);
-+
-+      // Write all node configs
-+      for (const [nodeId, config] of Object.entries(nodeConfigs)) {
-+        await this.persistNodeConfig(ctx, graphSlug, nodeId, config);
++  private debounceStructure(event: WorkflowChangedEvent): void {
++    this.pendingStructure = event;
++    if (this.structureTimer) clearTimeout(this.structureTimer);
++    this.structureTimer = setTimeout(() => {
++      if (this.pendingStructure) {
++        this.dispatch(this.structureSubscribers, this.pendingStructure);
++        this.pendingStructure = null;
 +      }
++    }, this.structureDebounceMs);
++  }
 +
-+      return { errors: [] };
-+    } catch (err) {
-+      return {
-+        errors: [
-+          {
-+            code: 'E999',
-+            message: `Snapshot restore failed: ${err instanceof Error ? err.message : 'unknown error'}`,
-+            action: 'Check file permissions and disk space',
-+          },
-+        ],
-+      };
++  private debounceStatus(event: WorkflowChangedEvent): void {
++    this.pendingStatus = event;
++    if (this.statusTimer) clearTimeout(this.statusTimer);
++    this.statusTimer = setTimeout(() => {
++      if (this.pendingStatus) {
++        this.dispatch(this.statusSubscribers, this.pendingStatus);
++        this.pendingStatus = null;
++      }
++    }, this.statusDebounceMs);
++  }
++
++  private dispatch(subscribers: Set<WorkflowChangedCallback>, event: WorkflowChangedEvent): void {
++    for (const callback of subscribers) {
++      try {
++        callback(event);
++      } catch (error) {
++        console.warn(`[${this.name}] Subscriber callback threw`, {
++          graphSlug: event.graphSlug,
++          changeType: event.changeType,
++          error,
++        });
++      }
 +    }
 +  }
- }
++}
+diff --git a/packages/workflow/src/index.ts b/packages/workflow/src/index.ts
+index c7c6060..6a1504d 100644
+--- a/packages/workflow/src/index.ts
++++ b/packages/workflow/src/index.ts
+@@ -475,6 +475,8 @@ export type {
+ } from './features/023-central-watcher-notifications/index.js';
+ export { SOURCE_WATCHER_IGNORED } from './features/023-central-watcher-notifications/index.js';
+ export { FakeFileChangeWatcherAdapter } from './features/023-central-watcher-notifications/index.js';
++export { WorkflowWatcherAdapter } from './features/023-central-watcher-notifications/index.js';
++export type { WorkflowChangedEvent } from './features/023-central-watcher-notifications/index.js';
  
- /** Detect binary content by checking for control characters (avoids regex control char lint). */
-
-# git diff --staged (excluding review artifacts)
+ // Workspace palettes (Plan 041: File Browser)
+ export {
+diff --git a/test/unit/workflow/workflow-watcher-adapter.test.ts b/test/unit/workflow/workflow-watcher-adapter.test.ts
+new file mode 100644
+index 0000000..0597954
+--- /dev/null
++++ b/test/unit/workflow/workflow-watcher-adapter.test.ts
+@@ -0,0 +1,121 @@
++import { describe, expect, it, vi } from 'vitest';
++import { WorkflowWatcherAdapter } from '@chainglass/workflow';
++import type { WatcherEvent } from '@chainglass/workflow';
++
++function makeEvent(path: string, overrides: Partial<WatcherEvent> = {}): WatcherEvent {
++  return {
++    path,
++    workspaceSlug: 'test-ws',
++    worktreePath: '/tmp/test',
++    eventType: 'change',
++    ...overrides,
++  } as WatcherEvent;
++}
++
++describe('WorkflowWatcherAdapter', () => {
++  it('has correct name', () => {
++    const adapter = new WorkflowWatcherAdapter(0, 0);
++    expect(adapter.name).toBe('workflow-watcher');
++  });
++
++  it('emits structure event for graph.yaml changes', async () => {
++    const adapter = new WorkflowWatcherAdapter(0, 0);
++    const callback = vi.fn();
++    adapter.onStructureChanged(callback);
++
++    adapter.handleEvent(makeEvent('/data/workflows/my-graph/graph.yaml'));
++
++    // Zero debounce — fires on next tick
++    await new Promise((r) => setTimeout(r, 10));
++    expect(callback).toHaveBeenCalledTimes(1);
++    expect(callback.mock.calls[0][0]).toMatchObject({
++      graphSlug: 'my-graph',
++      changeType: 'structure',
++    });
++  });
++
++  it('emits structure event for node.yaml changes', async () => {
++    const adapter = new WorkflowWatcherAdapter(0, 0);
++    const callback = vi.fn();
++    adapter.onStructureChanged(callback);
++
++    adapter.handleEvent(makeEvent('/data/workflows/my-graph/nodes/node-abc/node.yaml'));
++
++    await new Promise((r) => setTimeout(r, 10));
++    expect(callback).toHaveBeenCalledTimes(1);
++    expect(callback.mock.calls[0][0]).toMatchObject({
++      graphSlug: 'my-graph',
++      changeType: 'structure',
++    });
++  });
++
++  it('emits status event for state.json changes', async () => {
++    const adapter = new WorkflowWatcherAdapter(0, 0);
++    const callback = vi.fn();
++    adapter.onStatusChanged(callback);
++
++    adapter.handleEvent(makeEvent('/data/workflows/my-graph/state.json'));
++
++    await new Promise((r) => setTimeout(r, 10));
++    expect(callback).toHaveBeenCalledTimes(1);
++    expect(callback.mock.calls[0][0]).toMatchObject({
++      graphSlug: 'my-graph',
++      changeType: 'status',
++    });
++  });
++
++  it('ignores unrelated paths', async () => {
++    const adapter = new WorkflowWatcherAdapter(0, 0);
++    const structCb = vi.fn();
++    const statusCb = vi.fn();
++    adapter.onStructureChanged(structCb);
++    adapter.onStatusChanged(statusCb);
++
++    adapter.handleEvent(makeEvent('/data/work-graphs/old-graph/state.json'));
++    adapter.handleEvent(makeEvent('/data/workflows/my-graph/output.txt'));
++
++    await new Promise((r) => setTimeout(r, 10));
++    expect(structCb).not.toHaveBeenCalled();
++    expect(statusCb).not.toHaveBeenCalled();
++  });
++
++  it('debounces rapid events', async () => {
++    const adapter = new WorkflowWatcherAdapter(50, 50);
++    const callback = vi.fn();
++    adapter.onStructureChanged(callback);
++
++    // Fire 5 rapid events
++    for (let i = 0; i < 5; i++) {
++      adapter.handleEvent(makeEvent('/data/workflows/my-graph/graph.yaml'));
++    }
++
++    await new Promise((r) => setTimeout(r, 100));
++    expect(callback).toHaveBeenCalledTimes(1);
++  });
++
++  it('unsubscribe removes callback', async () => {
++    const adapter = new WorkflowWatcherAdapter(0, 0);
++    const callback = vi.fn();
++    const unsub = adapter.onStructureChanged(callback);
++    unsub();
++
++    adapter.handleEvent(makeEvent('/data/workflows/my-graph/graph.yaml'));
++
++    await new Promise((r) => setTimeout(r, 10));
++    expect(callback).not.toHaveBeenCalled();
++  });
++
++  it('isolates errors between subscribers', async () => {
++    const adapter = new WorkflowWatcherAdapter(0, 0);
++    const throwing = vi.fn(() => { throw new Error('boom'); });
++    const working = vi.fn();
++    adapter.onStructureChanged(throwing);
++    adapter.onStructureChanged(working);
++
++    adapter.handleEvent(makeEvent('/data/workflows/my-graph/graph.yaml'));
++
++    await new Promise((r) => setTimeout(r, 10));
++    expect(throwing).toHaveBeenCalled();
++    expect(working).toHaveBeenCalled();
++  });
++});

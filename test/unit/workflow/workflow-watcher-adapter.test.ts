@@ -1,6 +1,7 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WorkflowWatcherAdapter } from '@chainglass/workflow';
 import type { WatcherEvent } from '@chainglass/workflow';
+import type { WorkflowChangedEvent } from '@chainglass/workflow';
 
 function makeEvent(path: string, overrides: Partial<WatcherEvent> = {}): WatcherEvent {
   return {
@@ -13,6 +14,9 @@ function makeEvent(path: string, overrides: Partial<WatcherEvent> = {}): Watcher
 }
 
 describe('WorkflowWatcherAdapter', () => {
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => { vi.useRealTimers(); });
+
   it('has correct name', () => {
     const adapter = new WorkflowWatcherAdapter(0, 0);
     expect(adapter.name).toBe('workflow-watcher');
@@ -20,102 +24,89 @@ describe('WorkflowWatcherAdapter', () => {
 
   it('emits structure event for graph.yaml changes', async () => {
     const adapter = new WorkflowWatcherAdapter(0, 0);
-    const callback = vi.fn();
-    adapter.onStructureChanged(callback);
+    const calls: WorkflowChangedEvent[] = [];
+    adapter.onStructureChanged((e) => calls.push(e));
 
     adapter.handleEvent(makeEvent('/data/workflows/my-graph/graph.yaml'));
+    await vi.advanceTimersByTimeAsync(10);
 
-    // Zero debounce — fires on next tick
-    await new Promise((r) => setTimeout(r, 10));
-    expect(callback).toHaveBeenCalledTimes(1);
-    expect(callback.mock.calls[0][0]).toMatchObject({
-      graphSlug: 'my-graph',
-      changeType: 'structure',
-    });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({ graphSlug: 'my-graph', changeType: 'structure' });
   });
 
   it('emits structure event for node.yaml changes', async () => {
     const adapter = new WorkflowWatcherAdapter(0, 0);
-    const callback = vi.fn();
-    adapter.onStructureChanged(callback);
+    const calls: WorkflowChangedEvent[] = [];
+    adapter.onStructureChanged((e) => calls.push(e));
 
     adapter.handleEvent(makeEvent('/data/workflows/my-graph/nodes/node-abc/node.yaml'));
+    await vi.advanceTimersByTimeAsync(10);
 
-    await new Promise((r) => setTimeout(r, 10));
-    expect(callback).toHaveBeenCalledTimes(1);
-    expect(callback.mock.calls[0][0]).toMatchObject({
-      graphSlug: 'my-graph',
-      changeType: 'structure',
-    });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({ graphSlug: 'my-graph', changeType: 'structure' });
   });
 
   it('emits status event for state.json changes', async () => {
     const adapter = new WorkflowWatcherAdapter(0, 0);
-    const callback = vi.fn();
-    adapter.onStatusChanged(callback);
+    const calls: WorkflowChangedEvent[] = [];
+    adapter.onStatusChanged((e) => calls.push(e));
 
     adapter.handleEvent(makeEvent('/data/workflows/my-graph/state.json'));
+    await vi.advanceTimersByTimeAsync(10);
 
-    await new Promise((r) => setTimeout(r, 10));
-    expect(callback).toHaveBeenCalledTimes(1);
-    expect(callback.mock.calls[0][0]).toMatchObject({
-      graphSlug: 'my-graph',
-      changeType: 'status',
-    });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({ graphSlug: 'my-graph', changeType: 'status' });
   });
 
   it('ignores unrelated paths', async () => {
     const adapter = new WorkflowWatcherAdapter(0, 0);
-    const structCb = vi.fn();
-    const statusCb = vi.fn();
-    adapter.onStructureChanged(structCb);
-    adapter.onStatusChanged(statusCb);
+    const structCalls: WorkflowChangedEvent[] = [];
+    const statusCalls: WorkflowChangedEvent[] = [];
+    adapter.onStructureChanged((e) => structCalls.push(e));
+    adapter.onStatusChanged((e) => statusCalls.push(e));
 
     adapter.handleEvent(makeEvent('/data/work-graphs/old-graph/state.json'));
     adapter.handleEvent(makeEvent('/data/workflows/my-graph/output.txt'));
+    await vi.advanceTimersByTimeAsync(10);
 
-    await new Promise((r) => setTimeout(r, 10));
-    expect(structCb).not.toHaveBeenCalled();
-    expect(statusCb).not.toHaveBeenCalled();
+    expect(structCalls).toHaveLength(0);
+    expect(statusCalls).toHaveLength(0);
   });
 
   it('debounces rapid events', async () => {
     const adapter = new WorkflowWatcherAdapter(50, 50);
-    const callback = vi.fn();
-    adapter.onStructureChanged(callback);
+    const calls: WorkflowChangedEvent[] = [];
+    adapter.onStructureChanged((e) => calls.push(e));
 
-    // Fire 5 rapid events
     for (let i = 0; i < 5; i++) {
       adapter.handleEvent(makeEvent('/data/workflows/my-graph/graph.yaml'));
     }
 
-    await new Promise((r) => setTimeout(r, 100));
-    expect(callback).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(calls).toHaveLength(1);
   });
 
   it('unsubscribe removes callback', async () => {
     const adapter = new WorkflowWatcherAdapter(0, 0);
-    const callback = vi.fn();
-    const unsub = adapter.onStructureChanged(callback);
+    const calls: WorkflowChangedEvent[] = [];
+    const unsub = adapter.onStructureChanged((e) => calls.push(e));
     unsub();
 
     adapter.handleEvent(makeEvent('/data/workflows/my-graph/graph.yaml'));
+    await vi.advanceTimersByTimeAsync(10);
 
-    await new Promise((r) => setTimeout(r, 10));
-    expect(callback).not.toHaveBeenCalled();
+    expect(calls).toHaveLength(0);
   });
 
   it('isolates errors between subscribers', async () => {
     const adapter = new WorkflowWatcherAdapter(0, 0);
-    const throwing = vi.fn(() => { throw new Error('boom'); });
-    const working = vi.fn();
-    adapter.onStructureChanged(throwing);
-    adapter.onStructureChanged(working);
+    const workingCalls: WorkflowChangedEvent[] = [];
+    adapter.onStructureChanged(() => { throw new Error('boom'); });
+    adapter.onStructureChanged((e) => workingCalls.push(e));
 
     adapter.handleEvent(makeEvent('/data/workflows/my-graph/graph.yaml'));
+    await vi.advanceTimersByTimeAsync(10);
 
-    await new Promise((r) => setTimeout(r, 10));
-    expect(throwing).toHaveBeenCalled();
-    expect(working).toHaveBeenCalled();
+    expect(workingCalls).toHaveLength(1);
   });
 });

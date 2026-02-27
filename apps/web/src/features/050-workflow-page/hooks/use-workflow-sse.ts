@@ -40,22 +40,30 @@ export function useWorkflowSSE({
     { autoConnect: enabled, maxMessages: 50 }
   );
 
-  // Process new messages
+  // Process new messages — scan all queued messages for active graph
   useEffect(() => {
     if (messages.length === 0) return;
+    if (isMutatingRef.current) {
+      clearMessages();
+      return;
+    }
 
-    const latest = messages[messages.length - 1];
-    if (!latest || latest.graphSlug !== graphSlug) return;
-    if (isMutatingRef.current) return;
+    const relevant = messages.filter((m) => m.graphSlug === graphSlug);
+    if (relevant.length === 0) {
+      clearMessages();
+      return;
+    }
 
-    if (latest.changeType === 'structure') {
-      // Debounce structural changes at 300ms
+    const hasStructure = relevant.some((m) => m.changeType === 'structure');
+    const hasStatus = relevant.some((m) => m.changeType === 'status');
+
+    if (hasStructure) {
       if (structureTimerRef.current) clearTimeout(structureTimerRef.current);
       structureTimerRef.current = setTimeout(() => {
         onStructureChange();
       }, 300);
-    } else {
-      // Debounce status changes at 1500ms (orchestrator writes frequently)
+    }
+    if (hasStatus) {
       if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
       statusTimerRef.current = setTimeout(() => {
         onStatusChange();
