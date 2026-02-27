@@ -118,7 +118,18 @@ function buildDiskLoader(workspacePath: string) {
             description: o.description,
           })),
         };
-        if (parsed.type === 'user-input' && parsed.user_input) {
+        if (parsed.type === 'user-input') {
+          if (!parsed.user_input) {
+            return {
+              unit: undefined,
+              errors: [
+                {
+                  code: 'UNIT_LOAD_ERROR',
+                  message: `Unit '${parsed.slug}' has type 'user-input' but is missing user_input config`,
+                },
+              ],
+            };
+          }
           return {
             unit: {
               ...base,

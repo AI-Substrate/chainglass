@@ -65,6 +65,17 @@ const simpleUnit: NarrowWorkUnit = {
   outputs: [{ name: 'result', type: 'data', required: true }],
 };
 
+const userInputUnit: NarrowWorkUnit = {
+  slug: 'get-requirements',
+  type: 'user-input',
+  inputs: [],
+  outputs: [{ name: 'requirements', type: 'data', required: true }],
+  userInput: {
+    prompt: 'Describe your requirements',
+    questionType: 'text',
+  },
+};
+
 describe('PositionalGraphService — Status API', () => {
   let fs: FakeFileSystem;
   let pathResolver: FakePathResolver;
@@ -295,6 +306,41 @@ describe('PositionalGraphService — Status API', () => {
       // node1 should be ready (transition triggered)
       expect(status.readyNodes).toContain(node1.nodeId);
       expect(status.lines[1].transitionTriggered).toBe(true);
+    });
+  });
+
+  // ============================================
+  // Discriminated NodeStatusResult (Plan 054)
+  // ============================================
+
+  describe('discriminated NodeStatusResult', () => {
+    it('returns UserInputNodeStatus with userInput config for user-input units', async () => {
+      const loader = createFakeUnitLoader([userInputUnit]);
+      const svc = createTestService(fs, pathResolver, loader);
+
+      const { lineId } = await svc.create(ctx, 'test-graph');
+      const node = await svc.addNode(ctx, 'test-graph', lineId, 'get-requirements');
+      const nodeId = node.nodeId as string;
+
+      const status = await svc.getNodeStatus(ctx, 'test-graph', nodeId);
+
+      expect(status.unitType).toBe('user-input');
+      if (status.unitType === 'user-input') {
+        expect(status.userInput).toBeDefined();
+        expect(status.userInput.prompt).toBe('Describe your requirements');
+        expect(status.userInput.questionType).toBe('text');
+      }
+    });
+
+    it('returns AgentNodeStatus without userInput for agent units', async () => {
+      const { lineId } = await service.create(ctx, 'test-graph');
+      const node = await service.addNode(ctx, 'test-graph', lineId, 'simple-task');
+      const nodeId = node.nodeId as string;
+
+      const status = await service.getNodeStatus(ctx, 'test-graph', nodeId);
+
+      expect(status.unitType).toBe('agent');
+      expect('userInput' in status).toBe(false);
     });
   });
 });

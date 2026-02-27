@@ -77,7 +77,17 @@ export class InstanceWorkUnitAdapter implements IWorkUnitLoader {
         outputs: unitDef.outputs,
       };
 
-      if (unitDef.type === 'user-input' && unitDef.user_input) {
+      if (unitDef.type === 'user-input') {
+        if (!unitDef.user_input) {
+          return {
+            errors: [
+              {
+                message: `Unit '${slug}' has type 'user-input' but is missing user_input config`,
+                code: 'UNIT_LOAD_ERROR',
+              },
+            ],
+          };
+        }
         const unit: NarrowWorkUnit = {
           ...base,
           type: 'user-input' as const,

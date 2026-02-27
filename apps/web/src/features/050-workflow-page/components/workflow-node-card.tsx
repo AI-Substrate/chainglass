@@ -11,6 +11,7 @@
 
 import type { NodeStatusResult } from '@chainglass/positional-graph';
 import { computeContextBadge } from '../lib/context-badge';
+import { getDisplayStatus } from '../lib/display-status';
 import { GateChip } from './gate-chip';
 
 // ─── Status Definitions ──────────────────────────────────────────────
@@ -263,7 +264,7 @@ export function nodeStatusToCardProps(
     nodeId: node.nodeId,
     unitSlug: node.unitSlug,
     unitType: node.unitType,
-    status: node.status as NodeStatus,
+    status: getDisplayStatus(node.unitType, node.status, node.ready) as NodeStatus,
     contextColor: computeContextBadge(node, lineIndex),
     noContext: node.noContext,
     nodeStatus: node,

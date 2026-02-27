@@ -137,7 +137,17 @@ export function buildDiskWorkUnitLoader(workspacePath: string): IWorkUnitLoader 
           inputs: parsed.inputs ?? [],
           outputs: parsed.outputs,
         };
-        if (parsed.type === 'user-input' && parsed.user_input) {
+        if (parsed.type === 'user-input') {
+          if (!parsed.user_input) {
+            return {
+              errors: [
+                {
+                  message: `Unit '${slug}' has type 'user-input' but is missing user_input config`,
+                  code: 'UNIT_LOAD_ERROR',
+                },
+              ],
+            };
+          }
           return {
             unit: {
               ...base,
