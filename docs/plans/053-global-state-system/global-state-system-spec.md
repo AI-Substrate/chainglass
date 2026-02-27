@@ -71,7 +71,7 @@ GlobalStateSystem provides a centralized, ephemeral runtime state registry. Doma
 
 `_platform/state` was extracted in Plan 053 pre-work. Full domain definition exists at `docs/domains/_platform/state/domain.md`. Domain map and registry already updated.
 
-This plan implements the `_platform/state` domain infrastructure only. Wiring specific publishers (workflow, worktree) and consumers (workflow-ui, panel-layout) will be done in subsequent plans.
+This plan implements the `_platform/state` domain infrastructure plus a worktree publisher/consumer exemplar (AC-38..41) as a reference implementation.
 
 ---
 
@@ -109,7 +109,8 @@ This plan implements the `_platform/state` domain infrastructure only. Wiring sp
 2. Implementation + fake (packages/shared + apps/web)
 3. React integration (provider, hooks)
 4. Contract + unit tests
-5. Domain documentation + quality gate
+5. Worktree exemplar — real publisher (file change count, git data) + real consumer (left panel)
+6. Developer guide + domain documentation + quality gate
 
 ---
 
@@ -137,7 +138,7 @@ This plan implements the `_platform/state` domain infrastructure only. Wiring sp
 - **AC-12**: Path segments are validated: domains and properties match `[a-z][a-z0-9-]*`, instance IDs match `[a-zA-Z0-9_-]+`
 - **AC-13**: Publishing to a singleton domain with an instance ID in the path throws
 - **AC-14**: Publishing to a multi-instance domain without an instance ID in the path throws
-- **AC-15**: Maximum path depth is 5 segments (domain:id:subdomain:subid:property)
+- **AC-15**: Paths have 2 or 3 segments only — 4+ segments are rejected with a descriptive error
 
 ### Pattern Subscriptions
 
@@ -176,6 +177,17 @@ This plan implements the `_platform/state` domain infrastructure only. Wiring sp
 - **AC-36**: `IStateService.subscriberCount` returns the total number of active subscriptions
 - **AC-37**: `IStateService.entryCount` returns the total number of stored state entries
 
+### Worktree Exemplar (End-to-End)
+
+- **AC-38**: A `worktree` state domain is registered at bootstrap with properties including changed file count and git branch info
+- **AC-39**: A publisher wires into the existing file change events (FileChangeHub or SSE) and publishes worktree state (e.g., `worktree:changed-file-count`, `worktree:branch`) that updates live as files change
+- **AC-40**: A consumer in the left panel top area (near worktree/workspace name) reads worktree state via `useGlobalState` and displays it, updating live without page refresh
+- **AC-41**: The exemplar demonstrates both the publisher pattern and the consumer pattern as reference implementations for other domains
+
+### Developer Guide
+
+- **AC-42**: A developer guide exists at `docs/how/global-state-system.md` covering consumer quick-start, publisher quick-start, pattern cheatsheet, and the worktree exemplar walkthrough
+
 ---
 
 ## Risks & Assumptions
@@ -202,8 +214,10 @@ This plan implements the `_platform/state` domain infrastructure only. Wiring sp
 
 ## Open Questions
 
-- **OQ-01**: Should `publish()` skip notification if the new value is `Object.is`-equal to the previous value? Workshop 002 resolved "no" — always notify. But this could be revisited if performance requires it.
-- **OQ-02**: Should `GlobalStateConnector` be part of this plan or a follow-up? Currently scoped as part of this plan (AC-30/31) for the provider only; the actual SSE→state wiring for specific domains is deferred.
+All open questions have been resolved:
+
+- **OQ-01**: ~~Should `publish()` skip notification if value unchanged?~~ **RESOLVED**: No — always notify (Workshop 002). Consumers can check `previousValue` if needed.
+- **OQ-02**: ~~Should GlobalStateConnector be part of this plan?~~ **RESOLVED**: Yes — build a real worktree exemplar with publisher + consumer as reference implementation (Clarification Q6/Q7).
 
 ---
 
@@ -217,3 +231,57 @@ Both workshop opportunities identified during research have been **completed**:
 | Developer Experience — Consuming & Publishing State | API Contract | ✅ Complete | `workshops/002-developer-experience.md` |
 
 No additional workshops needed — design decisions are resolved.
+
+---
+
+## Testing Strategy
+
+**Approach**: Full TDD
+**Rationale**: Core logic (path parsing, pattern matching, store dispatch, error isolation) is pure functions — ideal for test-first. Contract tests ensure real/fake parity. Hook tests mirror proven useSDKSetting test patterns.
+
+**Focus Areas**:
+- Contract tests: `globalStateContractTests(factory)` runs against both real and fake
+- Path matcher: all 5 pattern types (exact, domain wildcard, instance wildcard, domain-all, global)
+- Store operations: publish, get, remove, removeInstance, list, listInstances
+- Error isolation: throwing subscriber doesn't block others
+- Store-first ordering: values updated before subscribers notified
+- Stable references: get() and list() return Object.is-equal refs when unchanged
+- React hooks: useGlobalState, useGlobalStateList with FakeGlobalStateSystem injection
+
+**Mock Usage**: Avoid mocks entirely — real data/fixtures only. Use FakeGlobalStateSystem (implements IStateService) as the test double. No vi.mock or vi.spyOn.
+
+**Excluded**: No E2E browser tests. No SSE integration tests (SSE transport is existing, not modified).
+
+---
+
+## Documentation Strategy
+
+**Location**: `docs/how/`
+**Rationale**: Workshop 002 has comprehensive DX documentation but lives in the plan folder. A permanent developer guide in `docs/how/` provides ongoing reference for engineers consuming and publishing state.
+
+**Deliverable**: `docs/how/global-state-system.md` — developer guide covering:
+- The vibe (one-liner, mental model, when to use vs alternatives)
+- Consumer quick-start (useGlobalState, useGlobalStateList, subscribe)
+- Publisher quick-start (registerDomain, publish, removeInstance)
+- Pattern cheatsheet
+- Worktree exemplar walkthrough
+
+---
+
+## Clarifications
+
+### Session 2026-02-26
+
+**Q1: Workflow Mode** → **Full**. CS-3 with 37 ACs across packages/shared + apps/web. Multi-phase plan with dossiers and all gates.
+
+**Q2: Testing Strategy** → **Full TDD**. Core logic is pure functions, ideal for test-first. Contract tests for real/fake parity.
+
+**Q3: Mock Usage** → **Avoid mocks entirely**. FakeGlobalStateSystem is the test double. No vi.mock — matches codebase convention (FakeUSDK, FakeFileChangeHub pattern).
+
+**Q4: Documentation Strategy** → **docs/how/ guide**. Permanent developer guide at `docs/how/global-state-system.md` for consuming and publishing state.
+
+**Q5: Domain Review** → **Confirmed as-is**. Only `_platform/state` is created. All other domains noted for future integration but not modified in this plan.
+
+**Q6: GlobalStateConnector Scope (OQ-02)** → **Provider + real exemplar**. Build a real worktree state domain as an end-to-end example with both publisher and consumer.
+
+**Q7: Exemplar Location** → **Real worktree domain**. Register a `worktree` state domain with real properties (changed file count, git data). Wire a publisher from file change events. Wire a consumer into the left panel top area (where worktree/workspace name is). Must update live. Serves as exemplar of both a publisher and a consumer.

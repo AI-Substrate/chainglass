@@ -81,15 +81,16 @@ Centralized ephemeral runtime state system. Domains publish runtime values (work
 
 Primary: `packages/shared/src/state/` (types + interface) + `apps/web/src/lib/state/` (implementation + hooks)
 
-*Note: These files do not exist yet — they will be created by Plan 053 implementation.*
+*Note: Implementation files (apps/web) do not exist yet — created by Plan 053 Phase 3+.*
 
 | File | Role | Notes |
 |------|------|-------|
-| `packages/shared/src/interfaces/state.interface.ts` | IStateService interface | Shared — consumed by all packages |
-| `packages/shared/src/state/types.ts` | StateChange, StateEntry, StateDomainDescriptor, StateChangeCallback | Value types |
-| `packages/shared/src/state/path-matcher.ts` | createStateMatcher() | Pattern matching for colon-delimited paths |
-| `packages/shared/src/state/tokens.ts` | STATE_DI_TOKENS | DI token constants |
-| `packages/shared/src/state/index.ts` | Barrel exports | — |
+| `packages/shared/src/interfaces/state.interface.ts` | IStateService interface | ✅ Created Phase 1 |
+| `packages/shared/src/state/types.ts` | StateChange, StateEntry, StateDomainDescriptor, StateChangeCallback, ParsedPath, StateMatcher | ✅ Created Phase 1 |
+| `packages/shared/src/state/path-parser.ts` | parsePath() | ✅ Created Phase 1 |
+| `packages/shared/src/state/path-matcher.ts` | createStateMatcher() | ✅ Created Phase 1 |
+| `packages/shared/src/state/tokens.ts` | STATE_DI_TOKENS | ✅ Created Phase 1 |
+| `packages/shared/src/state/index.ts` | Barrel exports | ✅ Created Phase 1 |
 | `packages/shared/src/fakes/fake-state-system.ts` | FakeGlobalStateSystem | Test double |
 | `apps/web/src/lib/state/global-state-system.ts` | GlobalStateSystem class | IStateService implementation |
 | `apps/web/src/lib/state/state-provider.tsx` | GlobalStateProvider + useStateSystem | React context |
@@ -140,3 +141,5 @@ Primary: `packages/shared/src/state/` (types + interface) + `apps/web/src/lib/st
 | Plan | What Changed | Date |
 |------|-------------|------|
 | 053 | Domain extracted and designed from workshops. Research dossier + 2 workshops (hierarchical addressing, developer experience). | 2026-02-26 |
+| 053-P1 | Phase 1 implemented: types, IStateService interface, path parser (2/3 segments), path matcher (5 patterns), DI tokens, barrel exports + package.json `./state` entry. | 2026-02-26 |
+| 053-P2 | Phase 2 implemented: path parser tests (25), path matcher tests (22), contract test factory (19 cases C01-C19). All imports via `@chainglass/shared/state`. | 2026-02-27 |

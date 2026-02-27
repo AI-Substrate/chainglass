@@ -1,0 +1,754 @@
+diff --git a/test/unit/web/state/path-parser.test.ts b/test/unit/web/state/path-parser.test.ts
+new file mode 100644
+index 0000000..7f3eb3c
+--- /dev/null
++++ b/test/unit/web/state/path-parser.test.ts
+@@ -0,0 +1,187 @@
++/**
++ * Plan 053: GlobalStateSystem — Path Parser Tests
++ *
++ * Full TDD: Tests for parsePath() covering all segment counts,
++ * validation rules, and error cases.
++ *
++ * Per DYK-03: Tests are syntax-only — no domain registration semantics.
++ * Per DYK-10: Domain names are strict kebab-case; instance IDs are permissive.
++ */
++
++import { describe, expect, it } from 'vitest';
++import { parsePath } from '../../../../packages/shared/src/state/path-parser';
++
++describe('parsePath', () => {
++  // ═══════════════════════════════════════════════════════════
++  // 2-segment paths (singleton domains)
++  // ═══════════════════════════════════════════════════════════
++
++  describe('2-segment singleton paths', () => {
++    it('parses domain:property', () => {
++      const result = parsePath('worktree:active-file');
++      expect(result.domain).toBe('worktree');
++      expect(result.instanceId).toBeNull();
++      expect(result.property).toBe('active-file');
++      expect(result.raw).toBe('worktree:active-file');
++    });
++
++    it('parses single-char domain and property', () => {
++      const result = parsePath('a:b');
++      expect(result.domain).toBe('a');
++      expect(result.property).toBe('b');
++    });
++
++    it('parses kebab-case with numbers', () => {
++      const result = parsePath('workflow-summary:active-count');
++      expect(result.domain).toBe('workflow-summary');
++      expect(result.property).toBe('active-count');
++    });
++  });
++
++  // ═══════════════════════════════════════════════════════════
++  // 3-segment paths (multi-instance domains)
++  // ═══════════════════════════════════════════════════════════
++
++  describe('3-segment multi-instance paths', () => {
++    it('parses domain:instanceId:property', () => {
++      const result = parsePath('workflow:wf-build-pipeline:status');
++      expect(result.domain).toBe('workflow');
++      expect(result.instanceId).toBe('wf-build-pipeline');
++      expect(result.property).toBe('status');
++      expect(result.raw).toBe('workflow:wf-build-pipeline:status');
++    });
++
++    it('allows uppercase and underscore in instance IDs', () => {
++      // DYK-10: Instance IDs are permissive [a-zA-Z0-9_-]+
++      // while domains/properties are strict kebab [a-z][a-z0-9-]*
++      const result = parsePath('workflow:WF-123_abc:status');
++      expect(result.instanceId).toBe('WF-123_abc');
++    });
++
++    it('allows numeric-starting instance IDs', () => {
++      const result = parsePath('agent:123-abc:status');
++      expect(result.instanceId).toBe('123-abc');
++    });
++  });
++
++  // ═══════════════════════════════════════════════════════════
++  // raw field preservation
++  // ═══════════════════════════════════════════════════════════
++
++  describe('raw field', () => {
++    it('preserves original path string for 2 segments', () => {
++      expect(parsePath('worktree:branch').raw).toBe('worktree:branch');
++    });
++
++    it('preserves original path string for 3 segments', () => {
++      expect(parsePath('workflow:wf-1:status').raw).toBe('workflow:wf-1:status');
++    });
++  });
++
++  // ═══════════════════════════════════════════════════════════
++  // Invalid segment counts
++  // ═══════════════════════════════════════════════════════════
++
++  describe('invalid segment counts', () => {
++    it('rejects 1 segment', () => {
++      expect(() => parsePath('workflow')).toThrow('expected 2 segments');
++    });
++
++    it('rejects 4 segments with descriptive error', () => {
++      expect(() => parsePath('workflow:wf-1:config:timeout')).toThrow(
++        'expected 2 segments (domain:property) or 3 segments (domain:instanceId:property), got 4',
++      );
++    });
++
++    it('rejects 5 segments', () => {
++      expect(() => parsePath('a:b:c:d:e')).toThrow('got 5');
++    });
++  });
++
++  // ═══════════════════════════════════════════════════════════
++  // Empty segments
++  // ═══════════════════════════════════════════════════════════
++
++  describe('empty segments', () => {
++    it('rejects empty segment (leading colon)', () => {
++      expect(() => parsePath(':property')).toThrow('contains empty segment');
++    });
++
++    it('rejects empty segment (trailing colon)', () => {
++      expect(() => parsePath('domain:')).toThrow('contains empty segment');
++    });
++
++    it('rejects empty segment (middle)', () => {
++      expect(() => parsePath('domain::property')).toThrow('contains empty segment');
++    });
++  });
++
++  // ═══════════════════════════════════════════════════════════
++  // Invalid input types
++  // ═══════════════════════════════════════════════════════════
++
++  describe('invalid input', () => {
++    it('rejects empty string', () => {
++      expect(() => parsePath('')).toThrow('expected non-empty string');
++    });
++
++    it('rejects non-string input', () => {
++      // @ts-expect-error — testing runtime guard
++      expect(() => parsePath(null)).toThrow('expected non-empty string');
++      // @ts-expect-error — testing runtime guard
++      expect(() => parsePath(undefined)).toThrow('expected non-empty string');
++    });
++  });
++
++  // ═══════════════════════════════════════════════════════════
++  // Segment format validation
++  // ═══════════════════════════════════════════════════════════
++
++  describe('domain format validation', () => {
++    it('rejects uppercase domain', () => {
++      // DYK-10: Domains must be strict kebab-case [a-z][a-z0-9-]*
++      expect(() => parsePath('Workflow:status')).toThrow('domain "Workflow" must match');
++    });
++
++    it('rejects leading-dash domain', () => {
++      expect(() => parsePath('-workflow:status')).toThrow('domain "-workflow" must match');
++    });
++
++    it('rejects underscore in domain', () => {
++      // Domains are kebab-case only — underscores are NOT allowed
++      expect(() => parsePath('workflow_ui:status')).toThrow('domain "workflow_ui" must match');
++    });
++
++    it('rejects numeric-starting domain', () => {
++      expect(() => parsePath('123:status')).toThrow('domain "123" must match');
++    });
++  });
++
++  describe('property format validation', () => {
++    it('rejects uppercase property', () => {
++      expect(() => parsePath('worktree:Status')).toThrow('property "Status" must match');
++    });
++
++    it('rejects underscore in property', () => {
++      expect(() => parsePath('worktree:active_file')).toThrow(
++        'property "active_file" must match',
++      );
++    });
++  });
++
++  describe('instance ID format validation', () => {
++    it('rejects space in instance ID', () => {
++      expect(() => parsePath('workflow:wf 1:status')).toThrow('instanceId "wf 1" must match');
++    });
++
++    it('rejects empty-like instance ID (caught by empty segment check)', () => {
++      expect(() => parsePath('workflow::status')).toThrow('contains empty segment');
++    });
++
++    it('accepts all valid instance ID characters', () => {
++      // [a-zA-Z0-9_-]+ — uppercase, lowercase, digits, underscore, dash
++      const result = parsePath('workflow:aZ09_-test:status');
++      expect(result.instanceId).toBe('aZ09_-test');
++    });
++  });
++});
+diff --git a/test/unit/web/state/path-matcher.test.ts b/test/unit/web/state/path-matcher.test.ts
+new file mode 100644
+index 0000000..2325691
+--- /dev/null
++++ b/test/unit/web/state/path-matcher.test.ts
+@@ -0,0 +1,186 @@
++/**
++ * Plan 053: GlobalStateSystem — Path Matcher Tests
++ *
++ * Full TDD: Tests for createStateMatcher() covering all 5 pattern types
++ * plus decision table from Workshop 001.
++ *
++ * Per DYK-02: Matchers split on ':' and check segment count (not prefix matching).
++ * Per DYK-06: Domain wildcard on singleton paths silently returns no matches.
++ */
++
++import { describe, expect, it } from 'vitest';
++import { createStateMatcher } from '../../../../packages/shared/src/state/path-matcher';
++
++describe('createStateMatcher', () => {
++  // ═══════════════════════════════════════════════════════════
++  // Exact match
++  // ═══════════════════════════════════════════════════════════
++
++  describe('exact match', () => {
++    it('matches the exact path', () => {
++      const matcher = createStateMatcher('workflow:wf-1:status');
++      expect(matcher('workflow:wf-1:status')).toBe(true);
++    });
++
++    it('does not match a different path', () => {
++      const matcher = createStateMatcher('workflow:wf-1:status');
++      expect(matcher('workflow:wf-1:progress')).toBe(false);
++      expect(matcher('workflow:wf-2:status')).toBe(false);
++      expect(matcher('worktree:active-file')).toBe(false);
++    });
++
++    it('matches exact 2-segment path', () => {
++      const matcher = createStateMatcher('worktree:active-file');
++      expect(matcher('worktree:active-file')).toBe(true);
++      expect(matcher('worktree:branch')).toBe(false);
++    });
++  });
++
++  // ═══════════════════════════════════════════════════════════
++  // Domain wildcard: workflow:*:status
++  // ═══════════════════════════════════════════════════════════
++
++  describe('domain wildcard (workflow:*:status)', () => {
++    const matcher = createStateMatcher('workflow:*:status');
++
++    it('matches any instance with target property', () => {
++      expect(matcher('workflow:wf-1:status')).toBe(true);
++      expect(matcher('workflow:wf-2:status')).toBe(true);
++      expect(matcher('workflow:abc-123:status')).toBe(true);
++    });
++
++    it('does not match a different property', () => {
++      expect(matcher('workflow:wf-1:progress')).toBe(false);
++    });
++
++    it('does not match a different domain', () => {
++      expect(matcher('agent:wf-1:status')).toBe(false);
++    });
++
++    it('does not match a 2-segment path', () => {
++      // DYK-06: Domain wildcard on singleton paths returns no match
++      expect(matcher('workflow:status')).toBe(false);
++    });
++
++    it('checks segment count — does not match via prefix (DYK-02)', () => {
++      // A malformed or extended path should not match
++      expect(matcher('workflow:wf-1:sub:id:status')).toBe(false);
++    });
++  });
++
++  // ═══════════════════════════════════════════════════════════
++  // Instance wildcard: workflow:wf-1:*
++  // ═══════════════════════════════════════════════════════════
++
++  describe('instance wildcard (workflow:wf-1:*)', () => {
++    const matcher = createStateMatcher('workflow:wf-1:*');
++
++    it('matches all properties of the instance', () => {
++      expect(matcher('workflow:wf-1:status')).toBe(true);
++      expect(matcher('workflow:wf-1:progress')).toBe(true);
++      expect(matcher('workflow:wf-1:current-phase')).toBe(true);
++    });
++
++    it('does not match a different instance', () => {
++      expect(matcher('workflow:wf-2:status')).toBe(false);
++    });
++
++    it('does not match a different domain', () => {
++      expect(matcher('agent:wf-1:status')).toBe(false);
++    });
++
++    it('does not match a 2-segment path', () => {
++      expect(matcher('workflow:wf-1')).toBe(false);
++    });
++
++    it('does not match similar-prefix instance (DYK-02)', () => {
++      // wf-1-extended starts with wf-1 but is a different instance
++      expect(matcher('workflow:wf-1-extended:status')).toBe(false);
++    });
++  });
++
++  // ═══════════════════════════════════════════════════════════
++  // Domain-all: workflow:**
++  // ═══════════════════════════════════════════════════════════
++
++  describe('domain-all (workflow:**)', () => {
++    const matcher = createStateMatcher('workflow:**');
++
++    it('matches any path in the domain (3 segments)', () => {
++      expect(matcher('workflow:wf-1:status')).toBe(true);
++      expect(matcher('workflow:wf-2:progress')).toBe(true);
++    });
++
++    it('matches 2-segment paths in the domain', () => {
++      // Singleton-style path where domain happens to be 'workflow'
++      expect(matcher('workflow:global-count')).toBe(true);
++    });
++
++    it('does not match other domains', () => {
++      expect(matcher('worktree:active-file')).toBe(false);
++      expect(matcher('agent:a1:status')).toBe(false);
++    });
++  });
++
++  // ═══════════════════════════════════════════════════════════
++  // Global wildcard: *
++  // ═══════════════════════════════════════════════════════════
++
++  describe('global wildcard (*)', () => {
++    const matcher = createStateMatcher('*');
++
++    it('matches everything', () => {
++      expect(matcher('workflow:wf-1:status')).toBe(true);
++      expect(matcher('worktree:active-file')).toBe(true);
++      expect(matcher('agent:a1:intent')).toBe(true);
++      expect(matcher('anything')).toBe(true);
++    });
++  });
++
++  // ═══════════════════════════════════════════════════════════
++  // Decision table from Workshop 001
++  // ═══════════════════════════════════════════════════════════
++
++  describe('decision table (Workshop 001)', () => {
++    const paths = {
++      a: 'workflow:wf-1:status',
++      b: 'workflow:wf-2:progress',
++      c: 'worktree:active-file',
++    };
++
++    it('exact: workflow:wf-1:status', () => {
++      const m = createStateMatcher('workflow:wf-1:status');
++      expect(m(paths.a)).toBe(true);
++      expect(m(paths.b)).toBe(false);
++      expect(m(paths.c)).toBe(false);
++    });
++
++    it('domain wildcard: workflow:*:status', () => {
++      const m = createStateMatcher('workflow:*:status');
++      expect(m(paths.a)).toBe(true);
++      expect(m(paths.b)).toBe(false);
++      expect(m(paths.c)).toBe(false);
++    });
++
++    it('instance wildcard: workflow:wf-1:*', () => {
++      const m = createStateMatcher('workflow:wf-1:*');
++      expect(m(paths.a)).toBe(true);
++      expect(m(paths.b)).toBe(false);
++      expect(m(paths.c)).toBe(false);
++    });
++
++    it('domain-all: workflow:**', () => {
++      const m = createStateMatcher('workflow:**');
++      expect(m(paths.a)).toBe(true);
++      expect(m(paths.b)).toBe(true);
++      expect(m(paths.c)).toBe(false);
++    });
++
++    it('global: *', () => {
++      const m = createStateMatcher('*');
++      expect(m(paths.a)).toBe(true);
++      expect(m(paths.b)).toBe(true);
++      expect(m(paths.c)).toBe(true);
++    });
++  });
++});
+diff --git a/test/contracts/state-system.contract.ts b/test/contracts/state-system.contract.ts
+new file mode 100644
+index 0000000..34bea40
+--- /dev/null
++++ b/test/contracts/state-system.contract.ts
+@@ -0,0 +1,363 @@
++/**
++ * Plan 053: GlobalStateSystem — Contract Tests
++ *
++ * Contract test factory for IStateService. Both GlobalStateSystem (real)
++ * and FakeGlobalStateSystem (fake) must pass this suite.
++ *
++ * Per DYK-07: C06 must call get() inside subscriber callback.
++ * Per DYK-08: Every test that calls publish() must first registerDomain().
++ * Per DYK-09: C15 tests list() stable array reference.
++ */
++
++import { beforeEach, describe, expect, it } from 'vitest';
++import type { IStateService } from '../../packages/shared/src/interfaces/state.interface';
++import type { StateChange } from '../../packages/shared/src/state/types';
++
++export type StateServiceFactory = () => IStateService;
++
++function registerTestDomain(service: IStateService, multi = true): void {
++  service.registerDomain({
++    domain: 'test-domain',
++    description: 'Test domain for contract tests',
++    multiInstance: multi,
++    properties: [
++      { key: 'status', description: 'Status', typeHint: 'string' },
++      { key: 'progress', description: 'Progress', typeHint: 'number' },
++      { key: 'label', description: 'Label', typeHint: 'string' },
++    ],
++  });
++}
++
++function registerSingletonDomain(service: IStateService): void {
++  service.registerDomain({
++    domain: 'singleton-domain',
++    description: 'Singleton test domain',
++    multiInstance: false,
++    properties: [
++      { key: 'active-file', description: 'Active file', typeHint: 'string' },
++      { key: 'count', description: 'Count', typeHint: 'number' },
++    ],
++  });
++}
++
++export function globalStateContractTests(name: string, factory: StateServiceFactory): void {
++  describe(`IStateService Contract: ${name}`, () => {
++    let service: IStateService;
++
++    beforeEach(() => {
++      service = factory();
++    });
++
++    // ═══════════════════════════════════════════════
++    // C01: publish/get round-trip
++    // ═══════════════════════════════════════════════
++
++    it('C01: publish stores value retrievable via get', () => {
++      registerTestDomain(service);
++      service.publish('test-domain:wf-1:status', 'running');
++      expect(service.get('test-domain:wf-1:status')).toBe('running');
++    });
++
++    // ═══════════════════════════════════════════════
++    // C02: get returns undefined for unpublished
++    // ═══════════════════════════════════════════════
++
++    it('C02: get returns undefined for unpublished path', () => {
++      registerTestDomain(service);
++      expect(service.get('test-domain:wf-1:status')).toBeUndefined();
++    });
++
++    // ═══════════════════════════════════════════════
++    // C03: subscribe notified on publish
++    // ═══════════════════════════════════════════════
++
++    it('C03: subscribe receives notification on publish', () => {
++      registerTestDomain(service);
++      const changes: StateChange[] = [];
++      service.subscribe('test-domain:wf-1:status', (change) => changes.push(change));
++      service.publish('test-domain:wf-1:status', 'running');
++
++      expect(changes).toHaveLength(1);
++      expect(changes[0].path).toBe('test-domain:wf-1:status');
++      expect(changes[0].value).toBe('running');
++      expect(changes[0].domain).toBe('test-domain');
++      expect(changes[0].instanceId).toBe('wf-1');
++      expect(changes[0].property).toBe('status');
++      expect(changes[0].previousValue).toBeUndefined();
++      expect(changes[0].timestamp).toBeTypeOf('number');
++    });
++
++    // ═══════════════════════════════════════════════
++    // C04: unsubscribe stops notifications
++    // ═══════════════════════════════════════════════
++
++    it('C04: unsubscribe prevents further notifications', () => {
++      registerTestDomain(service);
++      const changes: StateChange[] = [];
++      const unsubscribe = service.subscribe('test-domain:wf-1:status', (change) =>
++        changes.push(change),
++      );
++
++      service.publish('test-domain:wf-1:status', 'running');
++      expect(changes).toHaveLength(1);
++
++      unsubscribe();
++      service.publish('test-domain:wf-1:status', 'complete');
++      expect(changes).toHaveLength(1); // no new notification
++    });
++
++    // ═══════════════════════════════════════════════
++    // C05: error isolation
++    // ═══════════════════════════════════════════════
++
++    it('C05: throwing subscriber does not block other subscribers', () => {
++      registerTestDomain(service);
++      const received: string[] = [];
++
++      service.subscribe('test-domain:wf-1:status', () => {
++        throw new Error('subscriber explosion');
++      });
++      service.subscribe('test-domain:wf-1:status', (change) => {
++        received.push(change.value as string);
++      });
++
++      service.publish('test-domain:wf-1:status', 'running');
++      expect(received).toEqual(['running']);
++    });
++
++    // ═══════════════════════════════════════════════
++    // C06: store-first ordering (DYK-07)
++    // ═══════════════════════════════════════════════
++
++    it('C06: value is readable in subscriber callback (store-first)', () => {
++      registerTestDomain(service);
++      let readInCallback: unknown;
++
++      service.subscribe('test-domain:wf-1:status', () => {
++        readInCallback = service.get('test-domain:wf-1:status');
++      });
++
++      service.publish('test-domain:wf-1:status', 'running');
++      expect(readInCallback).toBe('running');
++    });
++
++    // ═══════════════════════════════════════════════
++    // C07: remove notifies with removed flag
++    // ═══════════════════════════════════════════════
++
++    it('C07: remove notifies subscribers with removed flag', () => {
++      registerTestDomain(service);
++      service.publish('test-domain:wf-1:status', 'running');
++
++      const changes: StateChange[] = [];
++      service.subscribe('test-domain:wf-1:status', (change) => changes.push(change));
++
++      service.remove('test-domain:wf-1:status');
++
++      expect(changes).toHaveLength(1);
++      expect(changes[0].removed).toBe(true);
++      expect(changes[0].previousValue).toBe('running');
++      expect(service.get('test-domain:wf-1:status')).toBeUndefined();
++    });
++
++    // ═══════════════════════════════════════════════
++    // C08: removeInstance removes all entries
++    // ═══════════════════════════════════════════════
++
++    it('C08: removeInstance removes all instance entries and notifies', () => {
++      registerTestDomain(service);
++      service.publish('test-domain:wf-1:status', 'running');
++      service.publish('test-domain:wf-1:progress', 50);
++
++      const removals: StateChange[] = [];
++      service.subscribe('test-domain:wf-1:*', (change) => removals.push(change));
++
++      service.removeInstance('test-domain', 'wf-1');
++
++      expect(removals).toHaveLength(2);
++      expect(removals.every((c) => c.removed === true)).toBe(true);
++      expect(service.get('test-domain:wf-1:status')).toBeUndefined();
++      expect(service.get('test-domain:wf-1:progress')).toBeUndefined();
++    });
++
++    // ═══════════════════════════════════════════════
++    // C09: registerDomain + listDomains
++    // ═══════════════════════════════════════════════
++
++    it('C09: registerDomain is retrievable via listDomains', () => {
++      registerTestDomain(service);
++      const domains = service.listDomains();
++      expect(domains).toHaveLength(1);
++      expect(domains[0].domain).toBe('test-domain');
++      expect(domains[0].multiInstance).toBe(true);
++    });
++
++    it('C09b: duplicate registerDomain throws', () => {
++      registerTestDomain(service);
++      expect(() => registerTestDomain(service)).toThrow();
++    });
++
++    // ═══════════════════════════════════════════════
++    // C10: listInstances returns IDs
++    // ═══════════════════════════════════════════════
++
++    it('C10: listInstances returns known instance IDs', () => {
++      registerTestDomain(service);
++      service.publish('test-domain:wf-1:status', 'running');
++      service.publish('test-domain:wf-2:status', 'pending');
++
++      const instances = service.listInstances('test-domain');
++      expect(instances).toContain('wf-1');
++      expect(instances).toContain('wf-2');
++      expect(instances).toHaveLength(2);
++    });
++
++    // ═══════════════════════════════════════════════
++    // C11: publish to unregistered domain throws
++    // ═══════════════════════════════════════════════
++
++    it('C11: publish to unregistered domain throws', () => {
++      expect(() => service.publish('unknown:wf-1:status', 'val')).toThrow();
++    });
++
++    // ═══════════════════════════════════════════════
++    // C12: subscriberCount / entryCount diagnostics
++    // ═══════════════════════════════════════════════
++
++    it('C12: subscriberCount tracks active subscriptions', () => {
++      registerTestDomain(service);
++      expect(service.subscriberCount).toBe(0);
++
++      const unsub1 = service.subscribe('test-domain:**', () => {});
++      expect(service.subscriberCount).toBe(1);
++
++      const unsub2 = service.subscribe('test-domain:wf-1:status', () => {});
++      expect(service.subscriberCount).toBe(2);
++
++      unsub1();
++      expect(service.subscriberCount).toBe(1);
++
++      unsub2();
++      expect(service.subscriberCount).toBe(0);
++    });
++
++    it('C12b: entryCount tracks stored entries', () => {
++      registerTestDomain(service);
++      expect(service.entryCount).toBe(0);
++
++      service.publish('test-domain:wf-1:status', 'running');
++      expect(service.entryCount).toBe(1);
++
++      service.publish('test-domain:wf-1:progress', 50);
++      expect(service.entryCount).toBe(2);
++
++      service.remove('test-domain:wf-1:status');
++      expect(service.entryCount).toBe(1);
++    });
++
++    // ═══════════════════════════════════════════════
++    // C13: list returns matching entries
++    // ═══════════════════════════════════════════════
++
++    it('C13: list returns entries matching pattern', () => {
++      registerTestDomain(service);
++      service.publish('test-domain:wf-1:status', 'running');
++      service.publish('test-domain:wf-1:progress', 50);
++      service.publish('test-domain:wf-2:status', 'pending');
++
++      const allWf1 = service.list('test-domain:wf-1:*');
++      expect(allWf1).toHaveLength(2);
++
++      const allStatuses = service.list('test-domain:*:status');
++      expect(allStatuses).toHaveLength(2);
++
++      const everything = service.list('test-domain:**');
++      expect(everything).toHaveLength(3);
++    });
++
++    // ═══════════════════════════════════════════════
++    // C14: stable get reference (Object.is)
++    // ═══════════════════════════════════════════════
++
++    it('C14: consecutive get() returns Object.is-equal reference', () => {
++      registerTestDomain(service);
++      const obj = { nested: true };
++      service.publish('test-domain:wf-1:status', obj);
++
++      const first = service.get('test-domain:wf-1:status');
++      const second = service.get('test-domain:wf-1:status');
++      expect(first).toBe(second); // Object.is equality
++    });
++
++    // ═══════════════════════════════════════════════
++    // C15: stable list reference (DYK-09)
++    // ═══════════════════════════════════════════════
++
++    it('C15: list returns same array reference when values unchanged', () => {
++      registerTestDomain(service);
++      service.publish('test-domain:wf-1:status', 'running');
++
++      const first = service.list('test-domain:**');
++      const second = service.list('test-domain:**');
++      expect(first).toBe(second); // Same array reference
++    });
++
++    // ═══════════════════════════════════════════════
++    // C16: singleton domain path validation
++    // ═══════════════════════════════════════════════
++
++    it('C16: singleton domain rejects path with instance ID', () => {
++      registerSingletonDomain(service);
++      expect(() => service.publish('singleton-domain:inst-1:active-file', 'x')).toThrow();
++    });
++
++    it('C16b: singleton domain accepts 2-segment path', () => {
++      registerSingletonDomain(service);
++      service.publish('singleton-domain:active-file', '/src/app.tsx');
++      expect(service.get('singleton-domain:active-file')).toBe('/src/app.tsx');
++    });
++
++    // ═══════════════════════════════════════════════
++    // C17: multi-instance domain rejects 2-segment path
++    // ═══════════════════════════════════════════════
++
++    it('C17: multi-instance domain rejects path without instance ID', () => {
++      registerTestDomain(service);
++      expect(() => service.publish('test-domain:status', 'val')).toThrow();
++    });
++
++    // ═══════════════════════════════════════════════
++    // C18: previousValue tracking
++    // ═══════════════════════════════════════════════
++
++    it('C18: publish includes previousValue in change notification', () => {
++      registerTestDomain(service);
++      service.publish('test-domain:wf-1:status', 'pending');
++
++      const changes: StateChange[] = [];
++      service.subscribe('test-domain:wf-1:status', (change) => changes.push(change));
++      service.publish('test-domain:wf-1:status', 'running');
++
++      expect(changes[0].previousValue).toBe('pending');
++      expect(changes[0].value).toBe('running');
++    });
++
++    // ═══════════════════════════════════════════════
++    // C19: pattern subscriptions work
++    // ═══════════════════════════════════════════════
++
++    it('C19: domain wildcard subscription receives matching changes', () => {
++      registerTestDomain(service);
++      const changes: StateChange[] = [];
++      service.subscribe('test-domain:*:status', (change) => changes.push(change));
++
++      service.publish('test-domain:wf-1:status', 'running');
++      service.publish('test-domain:wf-2:status', 'pending');
++      service.publish('test-domain:wf-1:progress', 50); // should NOT match
++
++      expect(changes).toHaveLength(2);
++      expect(changes[0].instanceId).toBe('wf-1');
++      expect(changes[1].instanceId).toBe('wf-2');
++    });
++  });
++}
