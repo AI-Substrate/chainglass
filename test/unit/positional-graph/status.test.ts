@@ -72,7 +72,7 @@ const userInputUnit: NarrowWorkUnit = {
   outputs: [{ name: 'requirements', type: 'data', required: true }],
   userInput: {
     prompt: 'Describe your requirements',
-    questionType: 'text',
+    inputType: 'text',
     outputName: 'requirements',
   },
 };
@@ -319,7 +319,7 @@ describe('PositionalGraphService — Status API', () => {
       /*
       Test Doc:
       - Why: Validates discriminated union — user-input nodes must carry userInput config in status result.
-      - Contract: getNodeStatus() for user-input unit returns UserInputNodeStatus with prompt/questionType.
+      - Contract: getNodeStatus() for user-input unit returns UserInputNodeStatus with prompt/inputType.
       - Usage Notes: Type narrowing via unitType === 'user-input' gives compiler-safe access to userInput.
       - Quality Contribution: Prevents regression if getNodeStatus construction changes.
       - Worked Example: get-requirements unit → status.userInput.prompt === 'Describe your requirements'.
@@ -337,7 +337,7 @@ describe('PositionalGraphService — Status API', () => {
       if (status.unitType === 'user-input') {
         expect(status.userInput).toBeDefined();
         expect(status.userInput.prompt).toBe('Describe your requirements');
-        expect(status.userInput.questionType).toBe('text');
+        expect(status.userInput.inputType).toBe('text');
       }
     });
 

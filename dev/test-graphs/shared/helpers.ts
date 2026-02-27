@@ -154,7 +154,7 @@ export function buildDiskWorkUnitLoader(workspacePath: string): IWorkUnitLoader 
               type: 'user-input' as const,
               userInput: {
                 prompt: parsed.user_input.prompt,
-                questionType: parsed.user_input.question_type,
+                inputType: parsed.user_input.question_type,
                 outputName: base.outputs[0]?.name ?? 'output',
                 options: parsed.user_input.options,
                 default: parsed.user_input.default,
