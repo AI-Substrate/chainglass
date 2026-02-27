@@ -38,6 +38,7 @@ import {
   loadWorkflow as loadWorkflowAction,
   restoreSnapshot as restoreSnapshotAction,
   setNodeInput as setNodeInputAction,
+  submitUserInput as submitUserInputAction,
   updateNodeConfig as updateNodeConfigAction,
 } from '../../../../app/actions/workflow-actions';
 import { useUndoRedo } from '../hooks/use-undo-redo';
@@ -46,6 +47,7 @@ import { useWorkflowSSE } from '../hooks/use-workflow-sse';
 import { computeContextBadge } from '../lib/context-badge';
 import { computeRelatedNodes } from '../lib/related-nodes';
 import type { WorkflowDragData } from '../types';
+import { HumanInputModal } from './human-input-modal';
 import { NodeEditModal } from './node-edit-modal';
 import { NodePropertiesPanel } from './node-properties-panel';
 import { QAModal } from './qa-modal';
@@ -79,6 +81,7 @@ export function WorkflowEditor({
   const [activeDragData, setActiveDragData] = useState<WorkflowDragData | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [qaModalNodeId, setQaModalNodeId] = useState<string | null>(null);
+  const [humanInputModalNodeId, setHumanInputModalNodeId] = useState<string | null>(null);
   const [editModalNodeId, setEditModalNodeId] = useState<string | null>(null);
 
   const mutations = useWorkflowMutations({
@@ -296,7 +299,16 @@ export function WorkflowEditor({
                   endMutation();
                 }
               }}
-              onQuestionClick={(nodeId) => setQaModalNodeId(nodeId)}
+              onQuestionClick={(nodeId) => {
+                const node = graphStatus.lines
+                  .flatMap((l) => l.nodes)
+                  .find((n) => n.nodeId === nodeId);
+                if (node?.unitType === 'user-input') {
+                  setHumanInputModalNodeId(nodeId);
+                } else {
+                  setQaModalNodeId(nodeId);
+                }
+              }}
             />
           }
           right={
@@ -307,6 +319,11 @@ export function WorkflowEditor({
                 related={relatedNodes?.related ?? []}
                 onBack={() => setSelectedNodeId(null)}
                 onEditProperties={() => setEditModalNodeId(selectedNodeId)}
+                onProvideInput={
+                  selectedNode.unitType === 'user-input' && selectedNode.ready
+                    ? () => setHumanInputModalNodeId(selectedNodeId)
+                    : undefined
+                }
               />
             ) : (
               <WorkUnitToolbox units={units} isDragging={isDragging} />
@@ -347,6 +364,39 @@ export function WorkflowEditor({
                 setQaModalNodeId(null);
               }}
               onClose={() => setQaModalNodeId(null)}
+            />
+          );
+        })()}
+
+      {/* Human Input Modal (Plan 054) */}
+      {humanInputModalNodeId &&
+        (() => {
+          const node = graphStatus.lines
+            .flatMap((l) => l.nodes)
+            .find((n) => n.nodeId === humanInputModalNodeId);
+          if (!node || node.unitType !== 'user-input') return null;
+          return (
+            <HumanInputModal
+              userInput={node.userInput}
+              unitSlug={node.unitSlug}
+              nodeId={humanInputModalNodeId}
+              onSubmit={async ({ structured, freeform, outputName }) => {
+                const result = await submitUserInputAction(
+                  workspaceSlug,
+                  graphSlug,
+                  humanInputModalNodeId,
+                  outputName,
+                  structured,
+                  freeform || undefined,
+                  worktreePath
+                );
+                if (result.graphStatus) setGraphStatus(result.graphStatus);
+                if (result.errors.length > 0) {
+                  toast.error(`Failed to submit input: ${result.errors[0].message}`);
+                }
+                setHumanInputModalNodeId(null);
+              }}
+              onClose={() => setHumanInputModalNodeId(null)}
             />
           );
         })()}

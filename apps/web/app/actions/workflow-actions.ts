@@ -533,3 +533,46 @@ export async function setNodeInput(
 
   return reloadStatus(ctx, graphSlug);
 }
+
+// ─── Plan 054: Human Input Actions ───────────────────────────────────
+
+export async function submitUserInput(
+  workspaceSlug: string,
+  graphSlug: string,
+  nodeId: string,
+  outputName: string,
+  value: unknown,
+  freeformNotes?: string,
+  worktreePath?: string
+): Promise<MutationResult> {
+  const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
+  if (!ctx) return { errors: [NOT_FOUND_ERROR] };
+
+  const svc = resolveGraphService();
+
+  // Step 1: Start the node (pending → starting)
+  const startResult = await svc.startNode(ctx, graphSlug, nodeId);
+  if (startResult.errors.length > 0) return { errors: startResult.errors };
+
+  // Step 2: Accept (starting → agent-accepted, so saveOutputData guard passes)
+  const acceptResult = await svc.raiseNodeEvent(
+    ctx,
+    graphSlug,
+    nodeId,
+    'node:accepted',
+    {},
+    'executor'
+  );
+  if (acceptResult.errors.length > 0) return { errors: acceptResult.errors };
+
+  // Step 3: Save the output data (Format A: { outputs: { name: value } })
+  const outputValue = freeformNotes ? { value, freeform_notes: freeformNotes } : value;
+  const saveResult = await svc.saveOutputData(ctx, graphSlug, nodeId, outputName, outputValue);
+  if (saveResult.errors.length > 0) return { errors: saveResult.errors };
+
+  // Step 4: Complete the node (agent-accepted → complete, canEnd validates output)
+  const endResult = await svc.endNode(ctx, graphSlug, nodeId);
+  if (endResult.errors.length > 0) return { errors: endResult.errors };
+
+  return reloadStatus(ctx, graphSlug);
+}

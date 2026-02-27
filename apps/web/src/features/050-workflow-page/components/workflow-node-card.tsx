@@ -212,26 +212,50 @@ export function WorkflowNodeCard({
       <div className="flex items-center justify-between mt-2">
         <div
           className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${statusConfig.bgColor} ${
-            status === 'waiting-question' && onQuestionClick
+            (status === 'waiting-question' || status === 'awaiting-input') && onQuestionClick
               ? 'cursor-pointer hover:ring-2 hover:ring-violet-300 transition-all'
               : ''
           }`}
           onClick={(e) => {
-            if (status === 'waiting-question' && onQuestionClick) {
+            if ((status === 'waiting-question' || status === 'awaiting-input') && onQuestionClick) {
               e.stopPropagation();
               onQuestionClick();
             }
           }}
           onKeyDown={(e) => {
-            if (status === 'waiting-question' && onQuestionClick && e.key === 'Enter') {
+            if (
+              (status === 'waiting-question' || status === 'awaiting-input') &&
+              onQuestionClick &&
+              e.key === 'Enter'
+            ) {
               e.stopPropagation();
               onQuestionClick();
             }
           }}
-          role={status === 'waiting-question' && onQuestionClick ? 'button' : undefined}
-          tabIndex={status === 'waiting-question' && onQuestionClick ? 0 : undefined}
-          title={status === 'waiting-question' ? 'Click to answer question' : undefined}
-          data-testid={status === 'waiting-question' ? `qa-badge-${nodeId}` : undefined}
+          role={
+            (status === 'waiting-question' || status === 'awaiting-input') && onQuestionClick
+              ? 'button'
+              : undefined
+          }
+          tabIndex={
+            (status === 'waiting-question' || status === 'awaiting-input') && onQuestionClick
+              ? 0
+              : undefined
+          }
+          title={
+            status === 'waiting-question'
+              ? 'Click to answer question'
+              : status === 'awaiting-input'
+                ? 'Click to provide input'
+                : undefined
+          }
+          data-testid={
+            status === 'waiting-question'
+              ? `qa-badge-${nodeId}`
+              : status === 'awaiting-input'
+                ? `input-badge-${nodeId}`
+                : undefined
+          }
         >
           <span
             className={`inline-block w-2 h-2 rounded-full bg-current ${statusConfig.pulse ? 'animate-pulse' : ''} ${statusConfig.animate ? 'animate-spin' : ''}`}

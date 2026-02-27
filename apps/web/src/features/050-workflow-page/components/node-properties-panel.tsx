@@ -87,6 +87,7 @@ export interface NodePropertiesPanelProps {
   related: NodeRelationship[];
   onBack: () => void;
   onEditProperties?: () => void;
+  onProvideInput?: () => void;
 }
 
 export function NodePropertiesPanel({
@@ -95,6 +96,7 @@ export function NodePropertiesPanel({
   related,
   onBack,
   onEditProperties,
+  onProvideInput,
 }: NodePropertiesPanelProps) {
   const upstream = related.filter((r) => r.relation === 'upstream');
   const downstream = related.filter((r) => r.relation === 'downstream');
@@ -243,8 +245,18 @@ export function NodePropertiesPanel({
         </section>
       )}
 
-      {/* Edit button */}
-      <div className="mt-auto pt-3 border-t border-border/20">
+      {/* Action buttons */}
+      <div className="mt-auto pt-3 border-t border-border/20 flex flex-col gap-2">
+        {node.unitType === 'user-input' && onProvideInput && (
+          <button
+            type="button"
+            onClick={onProvideInput}
+            className="w-full px-3 py-2 text-xs font-medium rounded-lg border border-violet-300 dark:border-violet-700 bg-violet-50 dark:bg-violet-950 text-violet-700 dark:text-violet-300 hover:bg-violet-100 dark:hover:bg-violet-900 cursor-pointer transition-colors"
+            data-testid="provide-input-button"
+          >
+            Provide Input...
+          </button>
+        )}
         <button
           type="button"
           disabled={!onEditProperties}

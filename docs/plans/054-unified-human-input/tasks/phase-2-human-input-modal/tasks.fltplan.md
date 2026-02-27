@@ -3,15 +3,13 @@
 **Plan**: [unified-human-input-plan.md](../../unified-human-input-plan.md)
 **Phase**: Phase 2: Human Input Modal + Server Action
 **Generated**: 2026-02-27
-**Status**: Ready for takeoff
+**Status**: Landed
 
 ---
 
 ## Departure → Destination
 
-**Where we are**: Phase 1 delivered the plumbing — `awaiting-input` badge renders on ready user-input nodes, `NodeStatusResult` carries `userInput` config via discriminated union, `collateInputs` reads Format A data. But clicking the badge does nothing — there's no modal and no way to submit data.
-
-**Where we're going**: After Phase 2, clicking an `awaiting-input` node opens a Human Input modal showing the question from unit.yaml. The user types their answer, clicks Submit, and the node walks the full lifecycle (startNode → accept → saveOutputData → endNode) to `complete`. Downstream nodes see the output as available.
+**Where we are**: ~~Phase 1 plumbing only~~ **DONE**: Clicking an `awaiting-input` node opens the Human Input modal. User types answer, clicks Submit, node walks the full lifecycle to `complete`. Properties panel shows "Provide Input..." button for user-input nodes.
 
 ---
 
@@ -51,7 +49,7 @@ stateDiagram-v2
     S2 --> S3
     S3 --> [*]
 
-    class S1,S2,S3 pending
+    class S1,S2,S3 done
 ```
 
 **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -60,9 +58,9 @@ stateDiagram-v2
 
 ## Stages
 
-- [ ] **Stage 1: Build HumanInputModal** — 4 question types + freeform + header (`human-input-modal.tsx` — new)
-- [ ] **Stage 2: TDD lifecycle + server action** — Test lifecycle walkthrough, create `submitUserInput` (`workflow-actions.ts`)
-- [ ] **Stage 3: Wire editor + properties panel** — Modal routing, onSubmit, properties panel button (`workflow-editor.tsx`, `node-properties-panel.tsx`)
+- [x] **Stage 1: Build HumanInputModal** — 4 question types + freeform + header (`human-input-modal.tsx` — new)
+- [x] **Stage 2: TDD lifecycle + server action** — Test lifecycle walkthrough, create `submitUserInput` (`workflow-actions.ts`)
+- [x] **Stage 3: Wire editor + properties panel** — Modal routing, onSubmit, properties panel button (`workflow-editor.tsx`, `node-properties-panel.tsx`)
 
 ---
 
@@ -95,14 +93,14 @@ flowchart LR
 
 ## Acceptance Criteria
 
-- [ ] AC-03: Click awaiting-input node → Human Input modal with unit.yaml config
-- [ ] AC-04: Modal header: "Human Input" with unit slug + type icon
-- [ ] AC-05: All 4 question types render from unit.yaml
-- [ ] AC-06: Freeform textarea appears for user-input nodes
-- [ ] AC-07: Submit writes via saveOutputData through IPositionalGraphService
-- [ ] AC-08: After submission, node → complete via full lifecycle
-- [ ] AC-10: Freeform notes preserved in _metadata.freeform_notes
-- [ ] AC-12: Cancel/Escape → no data change, no status change
+- [x] AC-03: Click awaiting-input node → Human Input modal with unit.yaml config
+- [x] AC-04: Modal header: "Human Input" with unit slug + type icon
+- [x] AC-05: All 4 question types render from unit.yaml
+- [x] AC-06: Freeform textarea appears for user-input nodes
+- [x] AC-07: Submit writes via saveOutputData through IPositionalGraphService
+- [x] AC-08: After submission, node → complete via full lifecycle
+- [x] AC-10: Freeform notes preserved in _metadata.freeform_notes
+- [x] AC-12: Cancel/Escape → no data change, no status change
 
 ---
 
@@ -115,11 +113,11 @@ flowchart LR
 
 ## Checklist
 
-- [ ] T001: Create HumanInputModal with 4 question types
-- [ ] T002: Modal header with slug + icon
-- [ ] T003: TDD: Write submitUserInput lifecycle test
-- [ ] T004: Create submitUserInput server action
-- [ ] T005: Wire modal to workflow-editor.tsx
-- [ ] T006: Wire onSubmit to server action + refresh
-- [ ] T007: Properties panel "Provide Input..." button
-- [ ] T008: Lightweight rendering tests
+- [x] T001: Create HumanInputModal with 4 question types
+- [x] T002: Modal header with slug + icon
+- [x] T003: TDD: Write submitUserInput lifecycle test
+- [x] T004: Create submitUserInput server action
+- [x] T005: Wire modal to workflow-editor.tsx
+- [x] T006: Wire onSubmit to server action + refresh
+- [x] T007: Properties panel "Provide Input..." button
+- [x] T008: Lightweight rendering tests
