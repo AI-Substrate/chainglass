@@ -12,6 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@chainglass/positional-graph": "workspace:*",
     "@chainglass/shared": "workspace:*",
     "@chainglass/workflow": "workspace:^",
     "@codemirror/lang-cpp": "^6.0.3",
