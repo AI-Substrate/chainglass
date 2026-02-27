@@ -78,15 +78,15 @@ flowchart TD
     classDef delete fill:#F44336,stroke:#D32F2F,color:#fff
 
     subgraph Phase7["Phase 7: Workgraph Deprecation + Cleanup"]
-        T001["T001: Reference audit"]:::completed
-        T002["T002: Delete pages<br/>& API routes"]:::pending
-        T003["T003: Delete feature 022<br/>+ Plan 011 components"]:::pending
-        T004["T004: Remove adapters<br/>& wiring"]:::pending
-        T005["T005: Clean DI container<br/>+ worktree page"]:::pending
-        T006["T006: Delete test files<br/>+ update cross-refs"]:::pending
-        T007["T007: Clean remaining<br/>workgraph refs"]:::pending
-        T008["T008: Update domain docs"]:::pending
-        T009["T009: Final validation"]:::pending
+        T001["T001: Reference audit ✓"]:::completed
+        T002["T002: Delete pages<br/>& API routes ✓"]:::completed
+        T003["T003: Delete feature 022<br/>+ Plan 011 components ✓"]:::completed
+        T004["T004: Remove adapters<br/>& wiring ✓"]:::completed
+        T005["T005: Clean DI container<br/>+ worktree page ✓"]:::completed
+        T006["T006: Delete test files<br/>+ update cross-refs ✓"]:::completed
+        T007["T007: Clean remaining<br/>workgraph refs ✓"]:::completed
+        T008["T008: Update domain docs ✓"]:::completed
+        T009["T009: Final validation ✓"]:::completed
 
         T001 --> T002
         T002 --> T003
@@ -98,22 +98,22 @@ flowchart TD
         T008 --> T009
     end
 
-    subgraph Delete["Files to DELETE"]
-        F1["022-workgraph-ui/<br/>(17 files)"]:::delete
-        F2["workgraphs/ pages<br/>(3 files)"]:::delete
-        F3["workgraphs/ API<br/>(4 files)"]:::delete
-        F4["/workflow + /workflows<br/>(5+ files)"]:::delete
-        F5["WorkGraph*Adapter<br/>(2 files)"]:::delete
-        F6["022 tests<br/>(18 files)"]:::delete
-        F7["Plan 011 components<br/>(12+ files)"]:::delete
+    subgraph Delete["Files DELETED"]
+        F1["022-workgraph-ui/<br/>(17 files) ✓"]:::completed
+        F2["workgraphs/ pages<br/>(3 files) ✓"]:::completed
+        F3["workgraphs/ API<br/>(4 files) ✓"]:::completed
+        F4["/workflow + /workflows<br/>(5+ files) ✓"]:::completed
+        F5["WorkGraph*Adapter<br/>(2 files) ✓"]:::completed
+        F6["022 tests<br/>(18 files) ✓"]:::completed
+        F7["Plan 011 components<br/>(12+ files) ✓"]:::completed
     end
 
-    subgraph Modify["Files to MODIFY"]
-        M1["di-container.ts"]:::pending
-        M2["worktree/page.tsx"]:::pending
-        M3["start-central-notifications.ts"]:::pending
-        M4["workspace-domain.ts"]:::pending
-        M5["domain-map.md"]:::pending
+    subgraph Modify["Files MODIFIED"]
+        M1["di-container.ts ✓"]:::completed
+        M2["worktree/page.tsx ✓"]:::completed
+        M3["start-central-notifications.ts ✓"]:::completed
+        M4["workspace-domain.ts ✓"]:::completed
+        M5["domain-map.md ✓"]:::completed
     end
 
     T002 -.-> F2
@@ -139,12 +139,12 @@ flowchart TD
 | [x] | T001 | Execute workgraph reference audit — produce per-file disposition map (DELETE vs MODIFY) | _platform/workgraph | `apps/web/`, `packages/workflow/`, `packages/shared/`, `test/` | Printed reference map with action per file; no orphan imports remain undiscovered | Per finding 03. Validates blast radius before deletion. |
 | [x] | T002 | Delete workgraph dashboard pages, workgraph API routes, legacy Plan 011 workflow pages | _platform/workgraph + workflow-ui | `apps/web/app/(dashboard)/workspaces/[slug]/workgraphs/` (DELETE dir), `apps/web/app/api/workspaces/[slug]/workgraphs/` (DELETE dir), `apps/web/app/(dashboard)/workflow/` (DELETE dir), `apps/web/app/(dashboard)/workflows/` (DELETE dir) | All 4 directories deleted; no remaining route handlers for workgraph or legacy workflow | AC-31, AC-33. Removes 12+ files. |
 | [x] | T003 | Delete Plan 022 feature folder + orphaned Plan 011 components and fixtures | _platform/workgraph + workflow-ui | `apps/web/src/features/022-workgraph-ui/` (DELETE dir), `apps/web/src/components/workflow/` (DELETE if orphaned), `apps/web/src/components/workflows/` (DELETE if orphaned), `apps/web/src/components/ui/workflow-breadcrumb.tsx` (DELETE if orphaned), `apps/web/src/data/fixtures/workflows.fixture.ts` (DELETE if orphaned), `apps/web/src/data/fixtures/runs.fixture.ts` (DELETE if orphaned) | Feature 022 folder deleted; orphaned Plan 011 components removed; no dangling imports | AC-31. Check each component for remaining importers before deletion. |
-| [~] | T004 | Remove WorkGraphWatcherAdapter + WorkGraphDomainEventAdapter + unregister from central notifications | _platform/events | `packages/workflow/src/features/023-central-watcher-notifications/workgraph-watcher.adapter.ts` (DELETE), `apps/web/src/features/027-central-notify-events/workgraph-domain-event-adapter.ts` (DELETE), `packages/workflow/src/features/023-central-watcher-notifications/index.ts` (MODIFY), `packages/workflow/src/index.ts` (MODIFY), `apps/web/src/features/027-central-notify-events/start-central-notifications.ts` (MODIFY), `apps/web/src/features/027-central-notify-events/index.ts` (MODIFY) | Both adapters deleted; exports removed; central notification startup no longer references workgraph | AC-34. Workflow adapters (Phase 6) remain operational. |
-| [ ] | T005 | Remove workgraph DI registrations + update worktree page | cross-domain | `apps/web/src/lib/di-container.ts` (MODIFY — remove WORKGRAPH_DI_TOKENS, registerWorkgraphServices, WorkGraphUIService registrations), `apps/web/app/(dashboard)/workspaces/[slug]/worktree/page.tsx` (MODIFY — remove workgraph card/imports) | DI container has zero workgraph imports; worktree page renders without workgraph section | Remove ~20 lines of workgraph DI. Worktree page loses the "WorkGraphs" card. |
-| [ ] | T006 | Delete Plan 022 test files + update cross-referencing tests | test | `test/unit/web/features/022-workgraph-ui/` (DELETE dir, 18 files), `test/unit/web/027-central-notify-events/workgraph-domain-event-adapter.test.ts` (DELETE), `test/unit/web/features/042-global-toast/toast-integration.test.ts` (MODIFY — remove workgraph toast test), `test/unit/web/027-central-notify-events/central-event-notifier.service.test.ts` (MODIFY — remove workgraph channel assertions) | All Plan 022 test files deleted; cross-referencing tests updated; no test references to deleted features | 18+ test files deleted. Modify 2 tests. |
-| [ ] | T007 | Clean up remaining workgraph references (comments, domain channel, stale imports) | cross-domain | `packages/shared/src/features/027-central-notify-events/workspace-domain.ts` (MODIFY — deprecate or remove `Workgraphs`), `apps/web/src/lib/params/workspace.params.ts` (MODIFY — update comment), `apps/web/src/features/027-central-notify-events/file-change-domain-event-adapter.ts` (MODIFY — update comment) | `grep -ri workgraph apps/web/src/` returns zero hits; shared package channel marked deprecated | Conservative: deprecate `WorkspaceDomain.Workgraphs` rather than delete (shared package). |
-| [ ] | T008 | Update domain-map.md + registry.md + workflow-ui/domain.md | docs | `docs/domains/domain-map.md` (MODIFY — remove workgraph node + edges), `docs/domains/registry.md` (MODIFY — mark workgraph removed), `docs/domains/workflow-ui/domain.md` (MODIFY — update history) | Domain map shows no workgraph node; registry marks workgraph as removed; workflow-ui history updated | |
-| [ ] | T009 | Final validation: `just fft` passes + zero workgraph references in `apps/web/` | cross-domain | Entire repo | `just fft` passes (lint + format + test); `grep -ri workgraph apps/web/src/` returns 0 results; build succeeds | AC-31, AC-32, AC-33, AC-34. May need to fix cascading import errors. |
+| [x] | T004 | Remove WorkGraphWatcherAdapter + WorkGraphDomainEventAdapter + unregister from central notifications | _platform/events | `packages/workflow/src/features/023-central-watcher-notifications/workgraph-watcher.adapter.ts` (DELETE), `apps/web/src/features/027-central-notify-events/workgraph-domain-event-adapter.ts` (DELETE), `packages/workflow/src/features/023-central-watcher-notifications/index.ts` (MODIFY), `packages/workflow/src/index.ts` (MODIFY), `apps/web/src/features/027-central-notify-events/start-central-notifications.ts` (MODIFY), `apps/web/src/features/027-central-notify-events/index.ts` (MODIFY) | Both adapters deleted; exports removed; central notification startup no longer references workgraph | AC-34 · log#t004-remove-adapters |
+| [x] | T005 | Remove workgraph DI registrations + update worktree page | cross-domain | `apps/web/src/lib/di-container.ts` (MODIFY — remove WORKGRAPH_DI_TOKENS, registerWorkgraphServices, WorkGraphUIService registrations), `apps/web/app/(dashboard)/workspaces/[slug]/worktree/page.tsx` (MODIFY — remove workgraph card/imports) | DI container has zero workgraph imports; worktree page renders without workgraph section | log#t005-clean-di-worktree |
+| [x] | T006 | Delete Plan 022 test files + update cross-referencing tests | test | `test/unit/web/features/022-workgraph-ui/` (DELETE dir, 18 files), `test/unit/web/027-central-notify-events/workgraph-domain-event-adapter.test.ts` (DELETE), `test/unit/web/features/042-global-toast/toast-integration.test.ts` (MODIFY — remove workgraph toast test), `test/unit/web/027-central-notify-events/central-event-notifier.service.test.ts` (MODIFY — remove workgraph channel assertions) | All Plan 022 test files deleted; cross-referencing tests updated; no test references to deleted features | log#t006-delete-tests |
+| [x] | T007 | Clean up remaining workgraph references (comments, domain channel, stale imports) | cross-domain | `packages/shared/src/features/027-central-notify-events/workspace-domain.ts` (MODIFY — deprecate or remove `Workgraphs`), `apps/web/src/lib/params/workspace.params.ts` (MODIFY — update comment), `apps/web/src/features/027-central-notify-events/file-change-domain-event-adapter.ts` (MODIFY — update comment) | `grep -ri workgraph apps/web/src/` returns zero hits; shared package channel marked deprecated | log#t007-clean-refs |
+| [x] | T008 | Update domain-map.md + registry.md + workflow-ui/domain.md | docs | `docs/domains/domain-map.md` (MODIFY — remove workgraph node + edges), `docs/domains/registry.md` (MODIFY — mark workgraph removed), `docs/domains/workflow-ui/domain.md` (MODIFY — update history) | Domain map shows no workgraph node; registry marks workgraph as removed; workflow-ui history updated | log#t008-update-domain-docs |
+| [x] | T009 | Final validation: `just fft` passes + zero workgraph references in `apps/web/` | cross-domain | Entire repo | `just fft` passes (lint + format + test); `grep -ri workgraph apps/web/src/` returns 0 results; build succeeds | AC-31, AC-32, AC-33, AC-34 · log#t009-final-validation |
 
 ---
 

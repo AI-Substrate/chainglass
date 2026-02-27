@@ -353,3 +353,26 @@ Build a visual workflow editor for the positional graph system as a new `workflo
 - `getStatus()` returns all node statuses in one call — no N+1 `getNodeStatus()` needed
 - Worktree param flows through list → links → editor via searchParams
 - Shared types in `050-workflow-page/types.ts` — importable from both server actions and client components
+
+### Phase 7 Summary
+
+**Completed**: 2026-02-27 | **Commit**: `a42e27f`
+
+| Task | Domain | What Changed |
+|------|--------|-------------|
+| T001 | _platform/workgraph | Blast radius audit: 42 files mapped, per-file disposition (DELETE vs MODIFY) |
+| T002 | _platform/workgraph + workflow-ui | Deleted workgraph pages (3), API routes (5), legacy /workflow + /workflows pages (5), orphaned units API |
+| T003 | _platform/workgraph + workflow-ui | Deleted 022-workgraph-ui/ (17 files), components/workflow/ (11), components/workflows/ (1), breadcrumb, orphaned hooks |
+| T004 | _platform/events | Deleted WorkGraphWatcherAdapter + WorkGraphDomainEventAdapter; removed exports + unregistered from central notifications |
+| T005 | cross-domain | Removed workgraph DI registrations (~20 lines); worktree page WorkGraphs → Workflows card (uses IPositionalGraphService) |
+| T006 | test | Deleted 022 tests (18), watcher adapter test, 4 orphaned test files; updated toast + notifier + central-watcher tests |
+| T007 | cross-domain | Deprecated WorkspaceDomain.Workgraphs; removed @chainglass/workgraph from web package.json; cleaned comments |
+| T008 | docs | Removed workgraph from domain-map mermaid; marked removed in registry; added Phase 7 history to workflow-ui domain |
+| T009 | cross-domain | Final validation: 323 tests passed, 0 new failures, zero workgraph grep in apps/web/, MCP + browser confirmation |
+
+**Decisions**:
+- `@chainglass/workgraph` package kept (CLI still uses it) — only removed from web app
+- `WorkspaceDomain.Workgraphs` deprecated with `@deprecated` JSDoc rather than deleted (shared package, may have other consumers)
+- `@xyflow/react` dependency kept (other Plan 011 components may still use it outside web)
+- Data fixtures (workflows.fixture.ts, runs.fixture.ts) kept — shared by non-deleted components
+- 2 pre-existing test failures (CSS class mismatches from Phase 4) not addressed — separate cleanup task
