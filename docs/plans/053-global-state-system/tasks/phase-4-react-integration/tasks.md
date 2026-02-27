@@ -3,7 +3,7 @@
 **Plan**: [global-state-system-plan.md](../../global-state-system-plan.md)
 **Phase**: Phase 4: React Integration
 **Generated**: 2026-02-27
-**Status**: Ready
+**Status**: Complete
 
 ---
 
@@ -113,12 +113,12 @@ flowchart TD
 
 | Status | ID | Task | Domain | Path(s) | Done When | Notes |
 |--------|-----|------|--------|---------|-----------|-------|
-| [ ] | T001 | Create useGlobalState<T> hook | `_platform/state` | `apps/web/src/lib/state/use-global-state.ts` | Hook uses useSyncExternalStore. subscribe(path, cb) → unsubscribe. getSnapshot returns get<T>(path) ?? default. Re-renders on change. Returns T (read-only, not tuple). | AC-27, AC-28. Follow useSDKSetting pattern. Same fn for client+server snapshot. |
-| [ ] | T002 | Create useGlobalStateList hook | `_platform/state` | `apps/web/src/lib/state/use-global-state-list.ts` | Hook uses useSyncExternalStore. subscribe('*', cb) for broad notification. getSnapshot calls list(pattern). Returns StateEntry[]. Stable ref when no matching changes. | AC-29. list() already provides stable refs (Phase 3). |
-| [ ] | T003 | Create GlobalStateProvider + useStateSystem | `_platform/state` | `apps/web/src/lib/state/state-provider.tsx` | Provider creates GlobalStateSystem once via useState initializer. try/catch with no-op fallback on error. useStateSystem() returns IStateService from context, throws outside provider. 'use client' directive. | AC-30, AC-31, AC-32. Follow SDKProvider pattern exactly. |
-| [ ] | T004 | Create barrel exports | `_platform/state` | `apps/web/src/lib/state/index.ts` | Exports: useGlobalState, useGlobalStateList, useStateSystem, GlobalStateProvider, GlobalStateSystem class. | App-side barrel for Phase 5+ consumers. |
-| [ ] | T005 | Mount GlobalStateProvider in providers.tsx | `_platform/state` | `apps/web/src/components/providers.tsx` | GlobalStateProvider wraps children, placed after SDKProvider (inside it). No render regressions. App boots normally. | Per Finding 03. Cross-domain file. |
-| [ ] | T006 | Create hook tests | `_platform/state` | `test/unit/web/state/use-global-state.test.tsx` | Tests useGlobalState: returns default when no value, returns published value, re-renders on change. Tests useGlobalStateList: returns matching entries, re-renders on matching change. Tests useStateSystem: throws outside provider. Uses FakeGlobalStateSystem for injection. | AC-27-32 coverage. Needs renderHook from @testing-library/react. |
+| [x] | T001 | Create useGlobalState<T> hook | `_platform/state` | `apps/web/src/lib/state/use-global-state.ts` | Hook uses useSyncExternalStore. subscribe(path, cb) → unsubscribe. getSnapshot returns get<T>(path) ?? pinnedDefault. Pin default with useRef (DYK-16). Wrap subscribe+getSnapshot in useCallback (DYK-19). Re-renders on change. Returns T (read-only, not tuple). | AC-27, AC-28. Follow useSDKSetting pattern. Same fn for client+server snapshot. |
+| [x] | T002 | Create useGlobalStateList hook | `_platform/state` | `apps/web/src/lib/state/use-global-state-list.ts` | Hook uses useSyncExternalStore. subscribe(pattern, cb) for pattern-scoped notification (NOT '*' — per DYK-17). getSnapshot calls list(pattern). Returns StateEntry[]. Stable ref when no matching changes. | AC-29. list() already provides stable refs (Phase 3). Per DYK-17: subscribe with actual pattern. |
+| [x] | T003 | Create GlobalStateProvider + useStateSystem | `_platform/state` | `apps/web/src/lib/state/state-provider.tsx` | Provider creates GlobalStateSystem once via useState initializer. No try/catch — let errors propagate (DYK-18: AC-31 dropped). useStateSystem() returns IStateService from context, throws outside provider. Export StateContext for test injection (DYK-20). 'use client' directive. | AC-30, AC-32. Follow SDKProvider pattern. |
+| [x] | T004 | Create barrel exports | `_platform/state` | `apps/web/src/lib/state/index.ts` | Exports: useGlobalState, useGlobalStateList, useStateSystem, GlobalStateProvider, GlobalStateSystem class. | App-side barrel for Phase 5+ consumers. |
+| [x] | T005 | Mount GlobalStateProvider in providers.tsx | `_platform/state` | `apps/web/src/components/providers.tsx` | GlobalStateProvider wraps children, placed after SDKProvider (inside it). No render regressions. App boots normally. | Per Finding 03. Cross-domain file. |
+| [x] | T006 | Create hook tests | `_platform/state` | `test/unit/web/state/use-global-state.test.tsx` | Tests useGlobalState: returns default when no value, returns published value, re-renders on change. Tests useGlobalStateList: returns matching entries, re-renders on matching change. Tests useStateSystem: throws outside provider. Uses FakeGlobalStateSystem injected via exported StateContext (DYK-20). | AC-27-30, AC-32 coverage. Needs renderHook from @testing-library/react. |
 
 ---
 
@@ -209,10 +209,13 @@ For graceful degradation, the provider needs a `createNoOpStateSystem()` that re
 
 ## Discoveries & Learnings
 
-_Populated during implementation._
-
 | Date | Task | Type | Discovery | Resolution | References |
 |------|------|------|-----------|------------|------------|
+| 2026-02-27 | T001 | DYK-16 | Inline default values (e.g. `useGlobalState('path', { count: 0 })`) create new object identity each render → useCallback deps change → useSyncExternalStore detects "change" → infinite re-render loop | Pin default with `useRef(defaultValue).current` inside the hook | AC-27, AC-28 |
+| 2026-02-27 | T002 | DYK-17 | Dossier said `subscribe('*', cb)` for useGlobalStateList — wrong. Global subscribe causes unnecessary getSnapshot calls on every publish across all domains/workspaces. Pattern matcher already handles new instances. | Subscribe with the actual pattern: `subscribe(pattern, onStoreChange)` | AC-29, T002 |
+| 2026-02-27 | T003 | DYK-18 (SPEC CHANGE) | AC-31 (graceful degradation with no-op fallback) dropped. Silent failure obscures errors during development. Fail-fast is better. | No `createNoOpStateSystem()`. Provider does `new GlobalStateSystem()` directly — errors propagate. AC-31 removed. | AC-31 dropped |
+| 2026-02-27 | T001/T002 | DYK-19 | subscribe and getSnapshot passed to useSyncExternalStore must be wrapped in useCallback with stable deps. Otherwise React unsubscribes/resubscribes every render, risking missed updates in the gap. | Both hooks wrap subscribe and getSnapshot in useCallback with `[system, path]` or `[system, pattern]` deps. Follow useSDKSetting pattern. | AC-27, AC-29 |
+| 2026-02-27 | T006 | DYK-20 | Provider creates system internally via useState — tests can't inject FakeGlobalStateSystem. | Export StateContext from state-provider.tsx. Tests wrap with `<StateContext.Provider value={fake}>`. Follows SDKContext export pattern. | AC-33, T006 |
 
 ---
 

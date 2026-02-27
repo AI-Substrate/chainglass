@@ -13,7 +13,7 @@
 | Phase 1: Types, Interface & Path Engine | ✅ Complete | 6/6 | 8/8 |
 | Phase 2: TDD — Path Engine & Contract Tests | ✅ Complete | 3/3 | 2/2 |
 | Phase 3: Implementation + Fake | ✅ Complete | 4/4 | 23/23 |
-| Phase 4: React Integration | ⬜ Not Started | 0/6 | 0/6 |
+| Phase 4: React Integration | ✅ Complete | 6/6 | 5/5 |
 | Phase 5: Worktree Exemplar | ⬜ Not Started | 0/6 | 0/4 |
 | Phase 6: Documentation & Quality Gate | ⬜ Not Started | 0/3 | 0/1 |
 
@@ -24,6 +24,7 @@
 | 2026-02-26 | Phase 1 | `_platform/state` | Created: types.ts, state.interface.ts, path-parser.ts, path-matcher.ts, tokens.ts, index.ts. Modified: packages/shared/package.json (added ./state export). Domain docs updated (source locations + history). |
 | 2026-02-27 | Phase 2 | `_platform/state` | Created: path-parser.test.ts (25 tests), path-matcher.test.ts (22 tests), state-system.contract.ts (19 contract cases). |
 | 2026-02-27 | Phase 3 | `_platform/state` | Created: global-state-system.test.ts (31 unit tests), fake-state-system.ts (FakeGlobalStateSystem + inspection methods), global-state-system.ts (GlobalStateSystem real impl), state-system.contract.test.ts (runner, 44 contract tests pass). Modified: fakes/index.ts (added FakeGlobalStateSystem export). |
+| 2026-02-27 | Phase 4 | `_platform/state` | Created: state-provider.tsx (GlobalStateProvider + useStateSystem + StateContext), use-global-state.ts (useGlobalState hook), use-global-state-list.ts (useGlobalStateList hook), index.ts (barrel), use-global-state.test.tsx (9 hook tests). Modified: providers.tsx (mounted GlobalStateProvider). AC-31 dropped (DYK-18). |
 
 ### Domain Impact
 

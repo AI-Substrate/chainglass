@@ -16,6 +16,7 @@ import { NuqsAdapter } from 'nuqs/adapters/next/app';
 import { type ReactNode, useState } from 'react';
 
 import { SDKProvider } from '../lib/sdk/sdk-provider';
+import { GlobalStateProvider } from '../lib/state/state-provider';
 import { Toaster } from './ui/toaster';
 
 interface ProvidersProps {
@@ -52,7 +53,9 @@ export function Providers({ children }: ProvidersProps) {
   return (
     <QueryClientProvider client={queryClient}>
       <NuqsAdapter>
-        <SDKProvider>{children}</SDKProvider>
+        <SDKProvider>
+          <GlobalStateProvider>{children}</GlobalStateProvider>
+        </SDKProvider>
       </NuqsAdapter>
       {/* Toaster must be inside ThemeProvider (in layout.tsx above us) for dark mode — DYK-042-04 */}
       <Toaster />
