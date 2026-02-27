@@ -1,5 +1,7 @@
 # Workshop: User-Input Save & Persistence Strategy
 
+> **Partially superseded by [Workshop 010](./010-single-question-simplification.md)**: Multi-output sequence diagram, `saveUserInputField`, `completeUserInput`, `loadUserInputState` server actions, and edge cases E1-E2 are superseded. Only the single-output `submitUserInput` path applies. The Format A analysis, collateInputs fix, orchestration safety verification, and `_metadata` convention remain valid.
+
 **Type**: Integration Pattern / Data Model
 **Plan**: 054-unified-human-input
 **Spec**: [unified-human-input-spec.md](../unified-human-input-spec.md)

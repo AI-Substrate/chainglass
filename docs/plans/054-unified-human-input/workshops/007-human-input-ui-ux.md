@@ -1,6 +1,10 @@
 # Workshop: Human Input UI & User Experience
 
-> **Note**: This workshop was written before the engine Q&A protocol was confirmed as deprecated. References to "agent question mode" and "dual mode" are superseded — the `HumanInputModal` is a standalone component for user-input nodes only. The deprecated `QAModal` continues to service legacy dope demo questions separately. All node card states, modal layouts for user-input, multi-output forms, and interaction flows remain valid.
+> **Partially superseded**: This workshop was written before two simplifications:
+> 1. The engine Q&A protocol was confirmed as deprecated — "agent question mode" and "dual mode" references are superseded. The `HumanInputModal` is standalone.
+> 2. Multi-output support was dropped per [Workshop 010](./010-single-question-simplification.md) — one node = one question = one output. Multi-output modal layouts, "partially filled" state, per-field save buttons, and Flow 2 (partial save) are all superseded.
+>
+> **What remains valid**: Single-output node card states (States 1, 2, 4), single-output modal layout, Flow 1 (single-output happy path), properties panel layout, error states, responsive behaviour.
 
 **Type**: UI Design / Interaction Pattern
 **Plan**: 054-unified-human-input

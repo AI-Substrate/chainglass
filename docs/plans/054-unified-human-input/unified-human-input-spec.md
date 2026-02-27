@@ -1,56 +1,57 @@
 # Unified Human Input
 
 **Mode**: Full
-📚 This specification incorporates findings from workshop [006-unified-human-input-design.md](./workshops/006-unified-human-input-design.md), produced during Plan 050 Phase 5 analysis.
+📚 This specification incorporates findings from workshops [006](./workshops/006-unified-human-input-design.md), [007](./workshops/007-human-input-ui-ux.md), [008](./workshops/008-save-persistence-strategy.md), and [010](./workshops/010-single-question-simplification.md).
 
 ## Summary
 
-Enable user-input nodes in the workflow editor to actually collect data from humans. Today, dedicated `user-input` type nodes have no input mechanism — they sit at `pending` status with no way to provide data. This feature builds a "Human Input" modal that reads configuration from `unit.yaml` and writes output data directly to `data.json` via the web layer, then walks the existing node lifecycle to complete the node. After submission, user-input node outputs become available to downstream nodes through the existing input resolution system.
+Enable user-input nodes in the workflow editor to collect data from humans. Each user-input node asks **one question** and produces **one output**. Need multiple pieces of data? Place multiple user-input nodes on a line — composability through the graph, not through complex modal forms. The feature builds a "Human Input" modal that reads configuration from `unit.yaml`, writes output data to `data.json`, and walks the existing node lifecycle to complete the node. After submission, the output becomes available to downstream nodes through the existing input resolution system.
 
 > **Architectural note**: The engine's Q&A protocol (`askQuestion`/`answerQuestion`/`getAnswer` on `IPositionalGraphService`) is deprecated scaffolding from Plan 028 — never integrated into real agent execution. Human input collection is a **web-layer concern**. This feature does NOT use the engine Q&A methods. The existing `QAModal` and `answerQuestion` server action are also deprecated territory (they service pre-baked dope demo questions only).
 
 ## Goals
 
 - **User-input nodes are usable**: Clicking a ready user-input node opens a modal pre-populated from its `unit.yaml → user_input` config (prompt, question type, options), allowing the human to provide data
-- **Unified visual language**: User-input nodes present with a violet badge, "Human Input" header, and always-on freeform text area
-- **Data flows downstream**: After submission, user-input outputs are written to the node's data store and become available to downstream nodes through `collateInputs()` / the existing input resolution system
-- **Immediate completion**: User-input nodes transition directly to `complete` after submission (no agent to resume), unblocking downstream gates
+- **One node = one question = one output**: Each user-input unit asks a single question and writes to a single output. Multiple questions are composed by placing multiple nodes on a line.
+- **Data flows downstream**: After submission, the output is written to the node's data store and becomes available to downstream nodes through `collateInputs()` / the existing input resolution system
+- **Immediate completion**: User-input nodes transition to `complete` after submission, unblocking downstream gates
 - **Standard question types supported**: All 4 question types (text, single-choice, multi-choice, confirm) work for user-input nodes, with configuration sourced from `unit.yaml`
-- **Always-on freeform**: Every human input interaction shows the freeform text area alongside structured input
+- **Always-on freeform**: Every human input modal shows a freeform text area alongside the structured input
 
 ## Non-Goals
 
 - **Re-submission / edit after complete**: Once a user-input node completes, re-editing requires undo (Ctrl+Z). In-place re-submission is deferred
-- **Multi-step form wizards**: Complex multi-page form flows are deferred. Multi-output nodes show all fields in one modal view
+- **Multi-output user-input nodes**: Each node asks one question and produces one output. Multiple pieces of data = multiple nodes. No multi-field forms, no partial save state, no per-field save buttons.
 - **Auto-open modal**: The modal does not auto-open when a user-input node becomes ready. Users click the badge to engage. Auto-open/toast notifications are a future enhancement
 - **New node types**: This feature does not introduce new node types (e.g., "form", "approval"). It makes the existing `user-input` type functional
-- **Orchestration changes**: No changes to the orchestration loop, ONBAS decisions, or drive cycle. The positional-graph service may need minor additions (output writing, status transition), but the orchestration architecture is untouched
+- **Orchestration changes**: No changes to the orchestration loop, ONBAS decisions, or drive cycle
+- **Schema changes**: The existing `user_input` config in unit.yaml (question_type + prompt + options) is already sufficient. No schema extensions needed.
 
 ## Target Domains
 
 | Domain | Status | Relationship | Role in This Feature |
 |--------|--------|-------------|---------------------|
-| workflow-ui | existing | **modify** | Extend modal to handle user-input nodes (including multi-output forms), add `awaiting-input` display status, wire submit server action |
-| _platform/positional-graph | existing | **consume** | Use existing lifecycle methods (`startNode`, `saveOutputData`, `endNode`) — no new service methods needed. `collateInputs()` already reads `data.json` outputs via `from_node` resolution |
+| workflow-ui | existing | **modify** | Build HumanInputModal, add `awaiting-input` display status, wire submit server action |
+| _platform/positional-graph | existing | **modify** (minor) | Extend `NodeStatusResult` with `userInput` config field. Fix `collateInputs` to read Format A. |
 | _platform/events | existing | **consume** | SSE broadcasts status changes after user-input submission (no changes needed) |
 
-No new domains required. Positional-graph changes are lighter than originally estimated — we consume existing methods in sequence rather than adding new ones.
+No new domains required.
 
 ## Complexity
 
-- **Score**: CS-3 (medium)
-- **Breakdown**: S=1, I=0, D=1, N=1, F=0, T=1
+- **Score**: CS-2 (small-medium)
+- **Breakdown**: S=1, I=0, D=0, N=0, F=0, T=1
   - Surface Area (S=1): Multiple files across workflow-ui feature and positional-graph service, but focused changes
-  - Integration (I=0): Purely internal — extends existing question protocol and node status system
-  - Data/State (D=1): Minor additions — node output data writing (data.json), potential NodeStatusResult extension with `userInput` field
-  - Novelty (N=1): Some ambiguity around output writing mechanism and multi-output mapping, but workshop resolved the core design
-  - Non-Functional (F=0): Standard — no perf/security/compliance concerns beyond existing patterns
-  - Testing/Rollout (T=1): Integration tests needed to verify data flows downstream; unit tests for modal modes and display status computation
-- **Confidence**: 0.90
-- **Assumptions**: `collateInputs()` reads `nodes/{id}/data/data.json` → `data[outputName]` for `from_node` resolution (confirmed via code inspection). `startNode()` + `saveOutputData()` + `endNode()` walks the full lifecycle for user-input nodes (confirmed: no service changes needed).
-- **Dependencies**: Plan 050 complete (workflow editor and QA modal exist), positional-graph service stable
-- **Risks**: Multi-output modal UX may need iteration; partial save state adds UI complexity
-- **Phases**: ~3 phases (UI display status + modal extension → server action + lifecycle → demo workflows + integration tests)
+  - Integration (I=0): Purely internal — extends existing node status system
+  - Data/State (D=0): Single atomic write to data.json per submission — no partial state, no new schemas
+  - Novelty (N=0): All ambiguities resolved by workshops. Single-question design matches all 9 existing units exactly.
+  - Non-Functional (F=0): Standard — no perf/security/compliance concerns
+  - Testing/Rollout (T=1): Integration tests needed to verify data flows downstream
+- **Confidence**: 0.95
+- **Assumptions**: `collateInputs()` reads data.json (confirmed, needs one-line fix for Format A). `startNode` + `accept` + `endNode` walks the lifecycle (confirmed).
+- **Dependencies**: Plan 050 complete (workflow editor exists), positional-graph service stable
+- **Risks**: Low — single-question design is simple and matches all existing units
+- **Phases**: 3 phases (NodeStatusResult + display status → modal + server action → demo + integration tests)
 
 ## Acceptance Criteria
 
@@ -61,21 +62,14 @@ No new domains required. Positional-graph changes are lighter than originally es
 - **AC-03**: Clicking a `user-input` node in `awaiting-input` state opens the Human Input modal pre-populated with the node's `unit.yaml → user_input` config (prompt text, question type, options)
 - **AC-04**: The modal header reads "Human Input" and shows the unit slug + type icon
 - **AC-05**: All 4 question types render correctly in the modal when sourced from unit.yaml: text input, single-choice radio buttons, multi-choice checkboxes, confirm yes/no buttons
-- **AC-06**: The always-on freeform text area appears below the structured input for user-input nodes
+- **AC-06**: The always-on freeform text area appears below the structured input
 
 ### Data Submission & Storage
 
-- **AC-07**: Submitting the modal for a user-input node writes the structured answer to the node's output data via `saveOutputData()` (data stored at `nodes/{id}/data/data.json`, readable by downstream `collateInputs()`)
-- **AC-08**: After all required outputs are filled, the user-input node transitions to `complete` status via the full lifecycle (`startNode()` → `saveOutputData()` per output → `endNode()`)
-- **AC-09**: Downstream nodes that reference the user-input node's outputs via `from_node` input resolution see `inputsAvailable: true` after submission
-- **AC-10**: The freeform notes field content is preserved alongside the structured answer in the node's output data
-
-### Multi-Output Nodes
-
-- **AC-17**: For user-input units with multiple declared outputs, the modal shows one input field per output — each output becomes a question/field in the form
-- **AC-18**: Each output field can be saved independently within the modal (partial completion supported)
-- **AC-19**: If the modal is closed before all required outputs are filled, the node remains in `awaiting-input` state. Re-opening the modal shows previously saved values.
-- **AC-20**: The primary output uses the `user_input.prompt` and `user_input.question_type` from unit.yaml. Additional outputs infer their prompt from the output's `description` field and default to `text` type
+- **AC-07**: Submitting the modal writes the structured answer to `nodes/{id}/data/data.json` in Format A (`{ outputs: { name: value } }`)
+- **AC-08**: After submission, the user-input node transitions to `complete` status via the full lifecycle (`startNode` → `node:accepted` → `endNode`)
+- **AC-09**: Downstream nodes that reference the user-input node's output via `from_node` input resolution see `inputsAvailable: true` after submission
+- **AC-10**: The freeform notes field content is preserved in `_metadata.freeform_notes` in data.json
 
 ### Robustness
 
@@ -84,7 +78,7 @@ No new domains required. Positional-graph changes are lighter than originally es
 
 ### Demo & Testing
 
-- **AC-14**: `just dope` generates at least one demo workflow with a user-input node in ready/awaiting-input state for development testing
+- **AC-14**: `just dope` generates at least one demo workflow with a user-input node in ready/awaiting-input state
 - **AC-15**: Unit tests verify the display status computation: `user-input` + `pending` + `ready` → `awaiting-input`
 - **AC-16**: Integration test verifies end-to-end: submit user input → node completes → downstream node gates open
 
@@ -92,49 +86,48 @@ No new domains required. Positional-graph changes are lighter than originally es
 
 ### Assumptions
 
-1. **`collateInputs()` reads data.json** — CONFIRMED: `loadNodeData()` reads `nodes/{id}/data/data.json`, returns `Record<string, unknown>`. `collateInputs()` accesses `data?.[fromOutput]`. The existing `saveOutputData()` writes to `{ outputs: { outputName: value } }` format.
-2. **Full lifecycle available** — CONFIRMED: `startNode()` accepts `pending` → `starting`, then `node:accept` event → `agent-accepted`, then `saveOutputData()` (requires `agent-accepted`), then `endNode()` → `complete`. All existing methods, no new code needed in positional-graph.
-3. **Unit config accessible from graph status**: `NodeStatusResult` can be extended to include `userInput` config, or the UI can resolve it from the `WorkUnitSummary` data already loaded for the toolbox.
+1. **`collateInputs()` reads data.json** — CONFIRMED but needs one-line fix: currently reads `data[name]` (flat), needs `data?.outputs?.[name] ?? data?.[name]` to support Format A (wrapped). See Workshop 008.
+2. **Full lifecycle available** — CONFIRMED: `startNode()` → `raiseNodeEvent('node:accepted')` → `endNode()`. Output written to data.json before lifecycle start. `canEnd()` validates outputs exist.
+3. **Unit config accessible from graph status**: `NodeStatusResult` extended with optional `userInput` field populated from unit.yaml during `getNodeStatus()`.
+4. **Orchestration safe** — CONFIRMED: 4 layers prevent interference (ONBAS skips user-input type + agent-accepted status, ODS skips user-input, PodManager has no user-input pod). All tested.
 
 ### Risks
 
-1. **Output format mismatch** — RESOLVED (low): Confirmed data.json schema via code inspection. `saveOutputData()` writes the correct format that `collateInputs()` reads.
-2. **Node status transition** — RESOLVED (none): Full lifecycle walkthrough confirmed. Server action calls `startNode()` + `saveOutputData()` + `endNode()` in sequence — no guards bypassed, no new methods needed.
-3. **Multi-output partial save UX** (medium): Saving outputs independently while the node hasn't been "started" yet requires careful sequencing. May need to `startNode()` on first field save, then `endNode()` only when all required outputs are filled. Mitigation: design the server action to handle partial saves correctly.
-4. **UserInput config not in NodeStatusResult** (low): The current `NodeStatusResult` doesn't include unit config for user-input nodes. This requires a service-level change to include it. Mitigation: could alternatively fetch unit config via a separate call, but co-location is cleaner.
+1. **Output format mismatch** — RESOLVED: Workshop 008 identified collateInputs reads flat format while saveOutputData writes wrapped. Fix: one-line change in input-resolution.ts.
+2. **UserInput config not in NodeStatusResult** (low): Requires service-level change to include it. Mitigation: small, backward-compatible optional field.
 
 ## Clarifications
 
 ### Session 2026-02-27
 
-**Q1: Workflow Mode** → **Full** — CS-3 with cross-domain changes warrants full gates.
+**Q1: Workflow Mode** → **Full** — CS-2 with cross-domain changes warrants full gates.
 
-**Q2: Testing Strategy** → **Hybrid** — TDD for service-layer output writing + status transitions (positional-graph lifecycle walkthrough), lightweight for UI display logic (display status computation, modal prop mapping).
+**Q2: Testing Strategy** → **Hybrid** — TDD for service-layer lifecycle walkthrough, lightweight for UI display logic.
 
-**Q3: Mock Usage** → **Avoid mocks** — Real data/fixtures only. Follow existing patterns: FakePositionalGraphService for UI tests, real filesystem fixtures for service-layer tests.
+**Q3: Mock Usage** → **Avoid mocks** — Real data/fixtures only.
 
-**Q4: Documentation Strategy** → **No new documentation** — Existing `workflow-ui/domain.md` How to Use section + workshop 006 is sufficient.
+**Q4: Documentation Strategy** → **No new documentation** — Existing domain.md sufficient.
 
-**Q5: Domain Review** → **Confirmed** — Both domains modified, no new domains, no contract-breaking changes. Positional-graph changes lighter than expected (consume existing `startNode` + `saveOutputData` + `endNode` methods).
+**Q5: Domain Review** → **Confirmed** — Both domains modified (minor), no new domains.
 
-**Q6: User-Input Lifecycle** → **Walk existing lifecycle in server action** — `submitUserInput` action calls `startNode()`, `saveOutputData()`, `endNode()` sequentially. No new positional-graph service methods. The `starting` → `agent-accepted` transition is instant and invisible to the user.
+**Q6: User-Input Lifecycle** → **Walk existing lifecycle in server action** — `submitUserInput` writes output to data.json, then calls `startNode` → `accept` → `endNode`.
 
-**Q7: Multi-Output Mapping** → **One field per output in the modal** — Each declared output becomes a question/field. Save individually, partial completion supported. Node stays `awaiting-input` until all required outputs filled. Re-open shows previously saved values.
-
-**Q8: Multi-Output Confirmation** → **Confirmed** — Modal extended to show N questions (one per output). Primary output uses `user_input` config, additional outputs use their `description` field as prompt and default to `text` type.
+**Q7–Q8: Multi-Output** → **Superseded by Workshop 010** — Single question per node. Multiple questions = multiple nodes on a line. No multi-output forms, no partial saves, no fields schema.
 
 ## Testing Strategy
 
 - **Approach**: Hybrid
-- **Rationale**: Service-layer lifecycle (startNode → saveOutputData → endNode) and input resolution have complex contracts with downstream effects — TDD these paths. UI display status computation and modal prop mapping are simpler wiring — lightweight tests.
-- **Focus Areas**: Output data format compatibility with `collateInputs()`, full lifecycle walkthrough for user-input nodes, partial save state management for multi-output nodes
-- **Mock Usage**: Avoid mocks — real data/fixtures only. FakePositionalGraphService for UI component tests, real filesystem for service integration tests.
-- **Excluded**: Visual regression testing, browser-based E2E tests
+- **Rationale**: Service-layer lifecycle (write output → startNode → accept → endNode) and input resolution have complex contracts — TDD these. UI display status and modal rendering are simpler — lightweight tests.
+- **Focus Areas**: Output data format compatibility with `collateInputs()` (Format A), full lifecycle walkthrough
+- **Mock Usage**: Avoid mocks — FakePositionalGraphService for UI tests, real filesystem for service tests.
+- **Excluded**: Visual regression, browser-based E2E
 
 ## Workshop Opportunities
 
 | Topic | Type | Status | Reference |
 |-------|------|--------|-----------|
-| Unified Human Input Design | Integration Pattern | ✅ Done | [006-unified-human-input-design.md](./workshops/006-unified-human-input-design.md) |
-| ~~Output Data Contract~~ | ~~Data Model~~ | ✅ Resolved via code inspection | `saveOutputData()` writes `{ outputs: { name: value } }`, `collateInputs()` reads `data?.[outputName]` |
-| ~~User-Input State Transitions~~ | ~~State Machine~~ | ✅ Resolved via code inspection | Full lifecycle walkthrough: `startNode()` → `saveOutputData()` → `endNode()`. No new methods needed. |
+| Unified Human Input Design | Integration Pattern | Partially superseded | [006](./workshops/006-unified-human-input-design.md) — data model valid, dual-mode modal superseded |
+| Human Input UI/UX | UI Design | Partially superseded | [007](./workshops/007-human-input-ui-ux.md) — single-output layouts valid, multi-output sections superseded |
+| Save & Persistence Strategy | Data Model | Valid | [008](./workshops/008-save-persistence-strategy.md) — single-output path is the only path now |
+| Question Definition Schema | Schema Design | **Superseded** | [009](./workshops/009-question-definition-schema.md) — fields[] not needed, existing schema is sufficient |
+| Single-Question Simplification | Architecture | **Authoritative** | [010](./workshops/010-single-question-simplification.md) — the governing design decision |

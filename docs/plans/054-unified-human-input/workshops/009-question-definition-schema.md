@@ -1,10 +1,12 @@
 # Workshop: Work Unit Question Definition Schema
 
+> **SUPERSEDED by [Workshop 010: Single-Question Simplification](./010-single-question-simplification.md)**. The `fields[]` schema designed here is not needed. Each user-input node asks one question and produces one output. Multiple questions = multiple nodes on a line. The existing `user_input` config (question_type + prompt + options) is sufficient. No schema changes required.
+
 **Type**: Data Model / Schema Design
 **Plan**: 054-unified-human-input
 **Spec**: [unified-human-input-spec.md](../unified-human-input-spec.md)
 **Created**: 2026-02-27
-**Status**: Draft
+**Status**: Superseded
 
 **Related Documents**:
 - [Workshop 008: Save & Persistence Strategy](./008-save-persistence-strategy.md)
