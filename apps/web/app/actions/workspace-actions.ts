@@ -11,6 +11,7 @@
 
 import { WORKSPACE_DI_TOKENS } from '@chainglass/shared';
 import type { ISampleService, IWorkspaceService } from '@chainglass/workflow';
+import { existsSync, statSync } from 'node:fs';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { getContainer } from '../../src/lib/bootstrap-singleton';
@@ -81,6 +82,31 @@ export async function addWorkspace(
   }
 
   const { name, path } = validatedFields.data;
+
+  // Validate path exists and is a directory
+  if (!existsSync(path)) {
+    return {
+      success: false,
+      errors: { path: ['Path does not exist'] },
+      fields: { name, path },
+    };
+  }
+  try {
+    const stats = statSync(path);
+    if (!stats.isDirectory()) {
+      return {
+        success: false,
+        errors: { path: ['Path must be a directory'] },
+        fields: { name, path },
+      };
+    }
+  } catch {
+    return {
+      success: false,
+      errors: { path: ['Unable to access path'] },
+      fields: { name, path },
+    };
+  }
 
   try {
     const container = getContainer();
