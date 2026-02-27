@@ -15,6 +15,8 @@ export { FakeHashGenerator } from './fake-hash-generator.js';
 export { FakeProcessManager } from './fake-process-manager.js';
 // YAML parser fake (Phase 2: extracted from workflow for shared use)
 export { FakeYamlParser } from './fake-yaml-parser.js';
+// State system fake (Plan 053: GlobalStateSystem)
+export { FakeGlobalStateSystem } from './fake-state-system.js';
 // SDK fake (Plan 047: USDK)
 export {
   createFakeUSDK,
