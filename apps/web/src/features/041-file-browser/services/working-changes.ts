@@ -82,7 +82,7 @@ export async function getWorkingChanges(worktreePath: string): Promise<WorkingCh
   try {
     const { stdout } = await execFileAsync(
       'git',
-      ['status', '--porcelain=v1', '--ignore-submodules'],
+      ['status', '--porcelain=v1', '--ignore-submodules', '-uall'],
       { cwd: worktreePath }
     );
     return { ok: true, files: parsePorcelainOutput(stdout) };
