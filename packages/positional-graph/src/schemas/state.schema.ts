@@ -38,6 +38,7 @@ export type QuestionType = z.infer<typeof QuestionTypeSchema>;
 /**
  * Question schema for question/answer protocol.
  * Stored in state.json `questions` array.
+ * @deprecated Q&A protocol is scaffolding — not integrated into real agent execution. Human input is a web-layer concern (Plan 054).
  */
 export const QuestionSchema = z.object({
   question_id: z.string().min(1),

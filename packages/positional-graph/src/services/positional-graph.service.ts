@@ -1144,6 +1144,7 @@ export class PositionalGraphService implements IPositionalGraphService {
   /**
    * Resolve pending question details from node state + state.questions[].
    * Returns the pendingQuestion shape expected by NodeStatusResult, or undefined.
+   * @deprecated Q&A protocol is scaffolding — not integrated into real agent execution.
    */
   private resolvePendingQuestion(
     storedState: NodeStateEntry | undefined,
@@ -2165,6 +2166,7 @@ export class PositionalGraphService implements IPositionalGraphService {
    * State transition delegated to eventService.raise() + handleEvents().
    *
    * Per AC-5: Transitions node to waiting-question and returns question ID.
+   * @deprecated Q&A protocol is scaffolding — not integrated into real agent execution. Human input is a web-layer concern (Plan 054).
    */
   async askQuestion(
     ctx: WorkspaceContext,
@@ -2256,6 +2258,7 @@ export class PositionalGraphService implements IPositionalGraphService {
    * Node stays waiting-question; restart via node:restart event.
    *
    * Per AC-18: Returns E173 for invalid question ID.
+   * @deprecated Q&A protocol is scaffolding — not integrated into real agent execution. Human input is a web-layer concern (Plan 054).
    */
   async answerQuestion(
     ctx: WorkspaceContext,
@@ -2345,6 +2348,7 @@ export class PositionalGraphService implements IPositionalGraphService {
    *
    * Per AC-7: Returns stored answer.
    * Per Critical Insight #5: Returns {answered: false} for unanswered, not E173.
+   * @deprecated Q&A protocol is scaffolding — not integrated into real agent execution. Human input is a web-layer concern (Plan 054).
    */
   async getAnswer(
     ctx: WorkspaceContext,

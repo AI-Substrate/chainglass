@@ -25,6 +25,7 @@ User-input nodes in the workflow editor currently have no input mechanism — th
 |------|--------|---------------|-----------|
 | `packages/positional-graph/src/interfaces/positional-graph-service.interface.ts` | _platform/positional-graph | contract | Extend `NodeStatusResult` with `userInput` and `savedOutputCount` fields |
 | `packages/positional-graph/src/services/positional-graph.service.ts` | _platform/positional-graph | internal | Populate new `NodeStatusResult` fields from unit.yaml + data.json |
+| `packages/positional-graph/src/services/input-resolution.ts` | _platform/positional-graph | internal | Fix `collateInputs` to read wrapped data.json format (Format A). See Workshop 008. |
 | `apps/web/src/features/050-workflow-page/components/qa-modal.tsx` | workflow-ui | internal | Refactor into `HumanInputModal` with dual mode support |
 | `apps/web/src/features/050-workflow-page/components/workflow-node-card.tsx` | workflow-ui | internal | Add `awaiting-input` + `partially-filled` to STATUS_MAP, click routing |
 | `apps/web/src/features/050-workflow-page/components/node-properties-panel.tsx` | workflow-ui | internal | Add Outputs section, "Provide Input..." button |
@@ -40,12 +41,12 @@ User-input nodes in the workflow editor currently have no input mechanism — th
 
 | # | Impact | Finding | Action |
 |---|--------|---------|--------|
-| F01 | Critical | `saveOutputData()` requires `agent-accepted` status (guard at line 1655). Cannot save partial outputs before walking the lifecycle. | Multi-output partial saves write directly to `data.json` via `IFileSystem` (filesystem is a consumed contract). The `Complete` action then walks full lifecycle: `startNode` → `node:accepted` → `endNode` (which validates outputs via `canEnd`). |
-| F02 | High | Node lifecycle requires explicit `raiseNodeEvent('node:accepted')` to transition `starting` → `agent-accepted`. No auto-accept. | Server action must call `startNode()` then `raiseNodeEvent('node:accepted', {}, 'human')` before `saveOutputData()`. For single-output nodes, all 4 calls happen in one atomic action. |
-| F03 | High | `NodeStatusResult` has no `userInput` config — only `unitType`. UI cannot read prompt/options without extending the interface. | Phase 1 extends the interface and populates from unit.yaml during `getNodeStatus()`. The service already loads WorkUnit at line 1041 — just surface the config. |
-| F04 | Medium | `endNode()` calls `canEnd()` which validates all required outputs exist in `data.json`. This is the guard for multi-output completion. | Multi-output flow: save all fields to data.json (partial saves), then `startNode` + `accept` + `endNode`. The `canEnd` check finds all outputs already present. |
-| F05 | Medium | `WorkUnitSummary` (toolbox) only has `slug/type/version/description`. Not enriched with `userInput` config. | Not needed for Phase 1 — modal reads config from `NodeStatusResult` (after extension). Toolbox enrichment deferred. |
-| F06 | Low | FakePositionalGraphService needs extension for user-input test scenarios (startNode results, saveOutputData tracking). | Phase 4 extends the fake with user-input helpers. |
+| F01 | Critical | **data.json format mismatch**: `saveOutputData()` writes Format A (`{ outputs: { name: value } }`), but `collateInputs()` reads flat (`data[name]`). Production write→read path is broken. See [Workshop 008](./workshops/008-save-persistence-strategy.md). | Phase 1 fixes `collateInputs` with one-line fallback: `data?.outputs?.[name] ?? data?.[name]`. All Plan 054 writes use Format A. |
+| F02 | Critical | `saveOutputData()` requires `agent-accepted` status (guard at line 1655). Cannot save partial outputs before walking the lifecycle. | All writes go directly to data.json via `IFileSystem`. Node stays `pending` during partial saves. `Complete` walks lifecycle: `startNode` → `accept` → `endNode` (`canEnd` validates outputs on disk). |
+| F03 | High | Node lifecycle requires explicit `raiseNodeEvent('node:accepted')` to transition `starting` → `agent-accepted`. | Server action calls `startNode()` then `raiseNodeEvent('node:accepted', {}, 'human')` then `endNode()`. Outputs already on disk before lifecycle. |
+| F04 | High | `NodeStatusResult` has no `userInput` config — only `unitType`. | Phase 1 extends the interface and populates from unit.yaml during `getNodeStatus()`. |
+| F05 | Medium | Orchestration safety: ONBAS skips user-input type (line 95) + skips agent-accepted (line 84). ODS skips user-input (line 80). 4 layers, all tested. | No risk. No changes needed. |
+| F06 | Low | FakePositionalGraphService needs extension for user-input test scenarios. | Phase 4 extends the fake. |
 
 ## Phases
 
@@ -64,15 +65,17 @@ User-input nodes in the workflow editor currently have no input mechanism — th
 
 | # | Task | Domain | Success Criteria | Notes |
 |---|------|--------|-----------------|-------|
-| 1.1 | Extend `NodeStatusResult` interface with `userInput` config | _platform/positional-graph | Interface has optional `userInput?: { prompt, questionType, options?, defaultValue? }` field | Per F03 |
-| 1.2 | Extend `NodeStatusResult` with `savedOutputCount` + `requiredOutputCount` | _platform/positional-graph | Interface has optional `savedOutputCount?: number`, `requiredOutputCount?: number` fields | For multi-output progress |
-| 1.3 | Populate `userInput` in `getNodeStatus()` from loaded WorkUnit | _platform/positional-graph | Unit test: user-input node returns config; agent/code nodes return undefined | Service already loads unit at line 1041 |
-| 1.4 | Populate `savedOutputCount` from data.json scan | _platform/positional-graph | Unit test: node with 2/3 outputs saved returns `{ savedOutputCount: 2, requiredOutputCount: 3 }` | Read data.json outputs keys, compare to unit required outputs |
-| 1.5 | Create `display-status.ts` helper | workflow-ui | `getDisplayStatus()` maps `user-input` + `pending` + `ready` → `awaiting-input`; with partial saves → `partially-filled` | Per Workshop 007 |
-| 1.6 | Add `awaiting-input` + `partially-filled` to `STATUS_MAP` | workflow-ui | Node card renders violet badge with correct label for both statuses | Per Workshop 007 status config |
-| 1.7 | Update node card click routing for `awaiting-input` | workflow-ui | Clicking `awaiting-input` or `partially-filled` node fires `onQuestionClick` handler | Whole card is click target for user-input nodes |
-| 1.8 | TDD tests for 1.1–1.4 | _platform/positional-graph | Tests pass: user-input config surfaced, output counts computed | New test file |
-| 1.9 | Lightweight tests for 1.5–1.7 | workflow-ui | Display status computation returns correct values for all combinations | New test file |
+| 1.1 | Fix `collateInputs` to read wrapped format (Format A) | _platform/positional-graph | `data?.outputs?.[fromOutput] ?? data?.[fromOutput]` — reads Format A, falls back to flat for backward compat | One-line fix in input-resolution.ts line 352. Per Workshop 008 F01. |
+| 1.2 | Update `collate-inputs.test.ts` to use Format A fixtures | _platform/positional-graph | Existing tests pass with wrapped format; backward compat verified via fallback | Update writeNodeData to write `{ outputs: { name: value } }` |
+| 1.3 | Extend `NodeStatusResult` interface with `userInput` config | _platform/positional-graph | Interface has optional `userInput?: { prompt, questionType, options?, defaultValue? }` field | Per F04 |
+| 1.4 | Extend `NodeStatusResult` with `savedOutputCount` + `requiredOutputCount` | _platform/positional-graph | Interface has optional `savedOutputCount?: number`, `requiredOutputCount?: number` fields | For multi-output progress |
+| 1.5 | Populate `userInput` in `getNodeStatus()` from loaded WorkUnit | _platform/positional-graph | Unit test: user-input node returns config; agent/code nodes return undefined | Service already loads unit at line 1041 |
+| 1.6 | Populate `savedOutputCount` from data.json scan | _platform/positional-graph | Unit test: node with 2/3 outputs saved returns `{ savedOutputCount: 2, requiredOutputCount: 3 }` | Read data.json outputs keys, compare to unit required outputs |
+| 1.7 | Create `display-status.ts` helper | workflow-ui | `getDisplayStatus()` maps `user-input` + `pending` + `ready` → `awaiting-input`; with partial saves → `partially-filled` | Per Workshop 007 |
+| 1.8 | Add `awaiting-input` + `partially-filled` to `STATUS_MAP` | workflow-ui | Node card renders violet badge with correct label for both statuses | Per Workshop 007 status config |
+| 1.9 | Update node card click routing for `awaiting-input` | workflow-ui | Clicking `awaiting-input` or `partially-filled` node fires `onQuestionClick` handler | Whole card is click target for user-input nodes |
+| 1.10 | TDD tests for 1.1–1.6 | _platform/positional-graph | Tests pass: collateInputs reads Format A, user-input config surfaced, output counts computed | New test file + updated existing |
+| 1.11 | Lightweight tests for 1.7–1.9 | workflow-ui | Display status computation returns correct values for all combinations | New test file |
 
 ### Phase 2: Human Input Modal — Single Output
 
@@ -113,7 +116,7 @@ User-input nodes in the workflow editor currently have no input mechanism — th
 
 | # | Task | Domain | Success Criteria | Notes |
 |---|------|--------|-----------------|-------|
-| 3.1 | Create `submitUserInput` server action | workflow-ui | Action calls `startNode` → `raiseNodeEvent('node:accepted')` → `saveOutputData` → `endNode`; returns updated `GraphStatusResult` | Per F01, F02 |
+| 3.1 | Create `submitUserInput` server action | workflow-ui | Action writes output to data.json via `IFileSystem` (Format A), then calls `startNode` → `raiseNodeEvent('node:accepted')` → `endNode`; returns updated `GraphStatusResult` | Per Workshop 008 sequence diagram |
 | 3.2 | Wire modal `onSubmit` to `submitUserInput` for single-output | workflow-ui | Clicking Submit in user-input mode calls action; node transitions to complete; modal closes | |
 | 3.3 | Error handling: lifecycle rollback on failure | workflow-ui | If `endNode` fails, node stays in `agent-accepted` with data saved; error displayed in toast | Per F04 |
 | 3.4 | Verify downstream gates open after submission | workflow-ui | After user-input completes, downstream node's `inputsAvailable` gate passes | AC-09; collateInputs reads data.json |
@@ -183,7 +186,7 @@ User-input nodes in the workflow editor currently have no input mechanism — th
 
 | Phase | Status | Tasks | Notes |
 |-------|--------|-------|-------|
-| Phase 1: NodeStatusResult + Display Status | Not started | 0/9 | |
+| Phase 1: NodeStatusResult + Display Status | Not started | 0/11 | |
 | Phase 2: Human Input Modal — Single Output | Not started | 0/8 | |
 | Phase 3: Server Actions + Single-Output Lifecycle | Not started | 0/7 | |
 | Phase 4: Multi-Output Support + Final Integration | Not started | 0/9 | |
