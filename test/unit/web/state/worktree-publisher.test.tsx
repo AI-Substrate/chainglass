@@ -129,4 +129,52 @@ describe('WorktreeStatePublisher', () => {
     expect(fake.get<number>('worktree:workspace-a:changed-file-count')).toBe(0);
     expect(fake.get<number>('worktree:workspace-b:changed-file-count')).toBe(0);
   });
+
+  it('updates count when changes array changes (rerender)', () => {
+    /**
+     * Why: Publisher must react to new file changes.
+     * Contract: Rerender with updated changes → new count published.
+     * Usage Notes: useFileChanges triggers rerender on new events.
+     * Quality Contribution: Proves reactive publish loop.
+     * Worked Example: 0 changes → rerender with 2 → count is 2
+     */
+    const { rerender } = renderPublisher('my-workspace', 'main');
+
+    expect(fake.get<number>('worktree:my-workspace:changed-file-count')).toBe(0);
+
+    mockChanges.changes = [{ path: 'a.ts' }, { path: 'b.ts' }];
+    rerender(
+      React.createElement(
+        StateContext.Provider,
+        { value: fake },
+        React.createElement(WorktreeStatePublisher, {
+          slug: 'my-workspace',
+          worktreeBranch: 'main',
+        })
+      )
+    );
+
+    expect(fake.get<number>('worktree:my-workspace:changed-file-count')).toBe(2);
+  });
+
+  it('state persists after unmount (no cleanup needed for published values)', () => {
+    /**
+     * Why: Published state is owned by GlobalStateSystem, not the publisher.
+     * Contract: After unmount, previously published values remain readable.
+     * Usage Notes: Consumers may still read last-known state after publisher unmounts.
+     * Quality Contribution: Verifies no accidental state cleanup on unmount.
+     * Worked Example: publish → unmount → get() still returns last value
+     */
+    mockChanges.changes = [{ path: 'a.ts' }];
+    const { unmount } = renderPublisher('my-workspace', 'main');
+
+    expect(fake.get<number>('worktree:my-workspace:changed-file-count')).toBe(1);
+    expect(fake.get<string>('worktree:my-workspace:branch')).toBe('main');
+
+    unmount();
+
+    // State persists — GlobalStateSystem retains values
+    expect(fake.get<number>('worktree:my-workspace:changed-file-count')).toBe(1);
+    expect(fake.get<string>('worktree:my-workspace:branch')).toBe('main');
+  });
 });
