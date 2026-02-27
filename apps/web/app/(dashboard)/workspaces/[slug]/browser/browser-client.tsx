@@ -560,9 +560,7 @@ function BrowserClientInner({
                     : undefined
                 }
                 errorType={
-                  fileNav.fileData && !fileNav.fileData.ok
-                    ? (fileNav.fileData.error as 'file-too-large')
-                    : undefined
+                  fileNav.fileData && !fileNav.fileData.ok ? fileNav.fileData.error : undefined
                 }
                 scrollToLine={scrollToLine}
               />

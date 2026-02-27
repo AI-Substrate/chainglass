@@ -52,7 +52,7 @@ export interface FileViewerPanelProps {
   editContent?: string;
   onEditChange?: (content: string) => void;
   conflictError?: string;
-  errorType?: 'file-too-large';
+  errorType?: 'file-too-large' | 'not-found' | 'security';
   /** Whether the file was modified outside the editor (shows blue banner when dirty) */
   externallyChanged?: boolean;
   /** Pre-highlighted HTML from Shiki (for code preview) */
@@ -131,6 +131,24 @@ export function FileViewerPanel({
       <div className="flex flex-col items-center justify-center gap-2 p-8 text-muted-foreground">
         <p className="text-lg">File too large to display</p>
         <p className="text-sm">Files over 5MB cannot be viewed in the browser.</p>
+      </div>
+    );
+  }
+
+  if (errorType === 'not-found') {
+    return (
+      <div className="flex flex-col items-center justify-center gap-2 p-8 text-muted-foreground">
+        <p className="text-lg">File not found</p>
+        <p className="text-sm">This file may have been moved or deleted.</p>
+      </div>
+    );
+  }
+
+  if (errorType === 'security') {
+    return (
+      <div className="flex flex-col items-center justify-center gap-2 p-8 text-muted-foreground">
+        <p className="text-lg">Access denied</p>
+        <p className="text-sm">This file is outside the workspace boundary.</p>
       </div>
     );
   }
