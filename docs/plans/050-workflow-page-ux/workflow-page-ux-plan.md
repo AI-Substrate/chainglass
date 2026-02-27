@@ -313,7 +313,7 @@ Build a visual workflow editor for the positional graph system as a new `workflo
 | Phase 4: Context Indicators + Select-to-Reveal | ✅ Complete | AC-12,13,14,15,17,35 |
 | Phase 5: Q&A + Node Properties Modal + Undo/Redo | ✅ Complete | AC-16,18,19,23,24 |
 | Phase 6: Real-Time SSE Updates | ✅ Complete | AC-25,26,27 |
-| Phase 7: Workgraph Deprecation + Cleanup | Pending | AC-31,32,33,34 |
+| Phase 7: Workgraph Deprecation + Cleanup | ✅ Complete | AC-31,32,33,34 |
 
 ### Phase 1 Summary
 

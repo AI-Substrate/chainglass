@@ -6,7 +6,7 @@
  *
  * The workspace slug comes from the route path [slug], not search params.
  * The worktree path is the one universal search param shared across
- * all workspace pages (agents, samples, browser, workgraphs, etc).
+ * all workspace pages (agents, samples, browser, workflows, etc).
  */
 
 import { parseAsString } from 'nuqs';

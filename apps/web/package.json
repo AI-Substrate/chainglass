@@ -14,7 +14,6 @@
   "dependencies": {
     "@chainglass/shared": "workspace:*",
     "@chainglass/workflow": "workspace:^",
-    "@chainglass/workgraph": "workspace:^",
     "@codemirror/lang-cpp": "^6.0.3",
     "@codemirror/lang-css": "^6.3.1",
     "@codemirror/lang-go": "^6.0.1",

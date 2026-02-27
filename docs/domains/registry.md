@@ -11,7 +11,7 @@
 | SDK | _platform/sdk | infrastructure | _platform | Plan 047 — USDK | active |
 | Settings | _platform/settings | infrastructure | _platform | Plan 047 — USDK Phase 5 | active |
 | Positional Graph | _platform/positional-graph | infrastructure | _platform | extracted (Plan 048) | active |
-| Workgraph (Legacy) | _platform/workgraph | infrastructure | _platform | extracted (Plan 048) | deprecated |
+| Workgraph (Legacy) | _platform/workgraph | infrastructure | _platform | extracted (Plan 048) | removed from web (Plan 050 Phase 7); CLI-only |
 | Workflow UI | workflow-ui | business | — | Plan 050 | active |
 | State | _platform/state | infrastructure | _platform | Plan 053 — GlobalStateSystem | active |
 

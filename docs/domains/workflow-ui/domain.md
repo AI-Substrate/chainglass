@@ -88,3 +88,4 @@ Primary: `apps/web/src/features/050-workflow-page/`
 | Plan 050 Phase 1 | Domain formalized, DI wiring, fakes, doping system | 2026-02-26 |
 | Plan 050 Phase 2 | Workflow list + editor pages, canvas/line/node components, server actions, toolbox, nav update | 2026-02-26 |
 | Plan 050 Phase 3 | DnD toolbox→canvas, drop zones, node deletion, line management, naming modals, 11 mutation server actions | 2026-02-26 |
+| Plan 050 Phase 7 | Removed all Plan 022 workgraph UI (pages, API routes, feature folder, DI registrations, event adapters, tests). Workflows card replaces WorkGraphs on worktree page. | 2026-02-27 |

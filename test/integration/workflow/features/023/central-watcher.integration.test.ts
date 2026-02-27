@@ -1,5 +1,5 @@
 /**
- * CentralWatcherService + WorkGraphWatcherAdapter integration tests.
+ * CentralWatcherService integration tests.
  *
  * Per Plan 023: Central Watcher Notifications - Phase 4
  * Tests the full event pipeline with real chokidar file watchers
@@ -19,8 +19,6 @@ import {
   FakeGitWorktreeResolver,
   FakeWatcherAdapter,
   FakeWorkspaceRegistryAdapter,
-  type WorkGraphChangedEvent,
-  WorkGraphWatcherAdapter,
   Workspace,
 } from '@chainglass/workflow';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -30,7 +28,7 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-describe('CentralWatcherService + WorkGraphWatcherAdapter integration', () => {
+describe('CentralWatcherService integration', () => {
   let tempDir: string;
   let registryPath: string;
   let workspacePath: string;
@@ -177,87 +175,6 @@ describe('CentralWatcherService + WorkGraphWatcherAdapter integration', () => {
       await sleep(500);
 
       expect(fakeAdapter.calls).toHaveLength(0);
-    });
-  });
-
-  describe('WorkGraphWatcherAdapter end-to-end', () => {
-    it('should detect state.json write via workgraph adapter end-to-end', async () => {
-      /*
-      Test Doc:
-      - Why: Proves the full pipeline from file write to domain event callback
-      - Contract: writeFile(state.json) → chokidar → CentralWatcherService → WorkGraphWatcherAdapter → onGraphChanged callback with all 5 WorkGraphChangedEvent fields correct (CF-09)
-      - Usage Notes: Uses promise-resolve-from-callback bridge (adapter has no promise API). 5s Promise.race timeout.
-      - Quality Contribution: Catches event field mapping, regex extraction, or dispatch chain integration issues
-      - Worked Example: writeFile(state.json) → callback fires with { graphSlug: 'demo-graph', workspaceSlug: 'ws1', filePath: stateFile, timestamp: Date }
-      */
-      let resolveEvent: (event: WorkGraphChangedEvent) => void;
-      const eventPromise = new Promise<WorkGraphChangedEvent>((resolve) => {
-        resolveEvent = resolve;
-      });
-
-      const adapter = new WorkGraphWatcherAdapter();
-      adapter.onGraphChanged((event) => {
-        resolveEvent(event);
-      });
-
-      service.registerAdapter(adapter);
-      await service.start();
-      await sleep(200); // chokidar init
-
-      const stateFile = join(
-        workspacePath,
-        '.chainglass',
-        'data',
-        'work-graphs',
-        'demo-graph',
-        'state.json'
-      );
-      await writeFile(stateFile, JSON.stringify({ nodes: [{ id: 'pipeline' }] }));
-
-      const event = await Promise.race([
-        eventPromise,
-        sleep(5000).then(() => {
-          throw new Error('Timeout: No WorkGraphChangedEvent received within 5 seconds');
-        }),
-      ]);
-
-      expect(event.graphSlug).toBe('demo-graph');
-      expect(event.workspaceSlug).toBe('ws1');
-      expect(event.worktreePath).toBe(workspacePath);
-      expect(event.filePath).toBe(stateFile);
-      expect(event.timestamp).toBeInstanceOf(Date);
-    });
-
-    it.skip('should not emit WorkGraphChangedEvent for non-matching files', async () => {
-      /*
-      Test Doc:
-      - Why: Proves the adapter's self-filtering works end-to-end with real chokidar events
-      - Contract: writeFile(layout.json) → chokidar → service → adapter filters it out → zero WorkGraphChangedEvent
-      - Usage Notes: 500ms "no event" wait is safe — layout.json should NEVER match the state.json regex
-      - Quality Contribution: Catches regex filter bugs that unit tests with synthetic events might miss
-      - Worked Example: writeFile(layout.json) → sleep(500) → events.length === 0
-      */
-      const events: WorkGraphChangedEvent[] = [];
-      const adapter = new WorkGraphWatcherAdapter();
-      adapter.onGraphChanged((event) => events.push(event));
-
-      service.registerAdapter(adapter);
-      await service.start();
-      await sleep(200); // chokidar init
-
-      const layoutFile = join(
-        workspacePath,
-        '.chainglass',
-        'data',
-        'work-graphs',
-        'demo-graph',
-        'layout.json'
-      );
-      await writeFile(layoutFile, JSON.stringify({ layout: {} }));
-
-      await sleep(500);
-
-      expect(events).toHaveLength(0);
     });
   });
 });

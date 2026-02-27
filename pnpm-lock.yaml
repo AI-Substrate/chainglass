@@ -96,9 +96,6 @@ importers:
       '@chainglass/workflow':
         specifier: workspace:^
         version: link:../../packages/workflow
-      '@chainglass/workgraph':
-        specifier: workspace:^
-        version: link:../../packages/workgraph
       '@codemirror/lang-cpp':
         specifier: ^6.0.3
         version: 6.0.3

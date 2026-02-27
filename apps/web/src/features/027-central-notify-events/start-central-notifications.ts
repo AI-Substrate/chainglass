@@ -3,8 +3,8 @@
  *
  * Bootstrap helper for the central notification system.
  *
- * Resolves services from DI, creates the workgraph domain event adapter,
- * registers it with the filesystem watcher, and starts watching.
+ * Resolves services from DI, creates domain event adapters,
+ * registers them with the filesystem watcher, and starts watching.
  *
  * Per Discovery 02: globalThis gating prevents double-start across HMR.
  * Per DYK Insight #2: Flag resets on failure for retry capability.
@@ -14,15 +14,10 @@
 import { WORKSPACE_DI_TOKENS } from '@chainglass/shared/di-tokens';
 import type { ICentralEventNotifier } from '@chainglass/shared/features/027-central-notify-events/central-event-notifier.interface';
 import type { ICentralWatcherService } from '@chainglass/workflow';
-import {
-  FileChangeWatcherAdapter,
-  WorkGraphWatcherAdapter,
-  WorkflowWatcherAdapter,
-} from '@chainglass/workflow';
+import { FileChangeWatcherAdapter, WorkflowWatcherAdapter } from '@chainglass/workflow';
 import { getContainer } from '../../lib/bootstrap-singleton';
 import { FileChangeDomainEventAdapter } from './file-change-domain-event-adapter';
 import { WorkflowDomainEventAdapter } from './workflow-domain-event-adapter';
-import { WorkgraphDomainEventAdapter } from './workgraph-domain-event-adapter';
 
 declare global {
   var __centralNotificationsStarted: boolean | undefined;
@@ -35,8 +30,8 @@ declare global {
  * Uses globalThis flag to survive Next.js HMR reloads.
  *
  * Resolves CentralWatcherService and CentralEventNotifier from DI,
- * creates the WorkgraphDomainEventAdapter, registers the watcher adapter,
- * subscribes the domain adapter to watcher events, and starts watching.
+ * creates domain event adapters, registers watcher adapters,
+ * subscribes domain adapters to watcher events, and starts watching.
  */
 export async function startCentralNotificationSystem(): Promise<void> {
   if (globalThis.__centralNotificationsStarted) {
@@ -55,14 +50,10 @@ export async function startCentralNotificationSystem(): Promise<void> {
     );
 
     // 2. Create domain event adapters
-    const workgraphDomainAdapter = new WorkgraphDomainEventAdapter(notifier);
     const fileChangeDomainAdapter = new FileChangeDomainEventAdapter(notifier);
     const workflowDomainAdapter = new WorkflowDomainEventAdapter(notifier);
 
     // 3. Create and register watcher adapters
-    const workgraphWatcherAdapter = new WorkGraphWatcherAdapter();
-    watcher.registerAdapter(workgraphWatcherAdapter);
-
     const fileChangeWatcherAdapter = new FileChangeWatcherAdapter(300);
     watcher.registerAdapter(fileChangeWatcherAdapter);
 
@@ -70,7 +61,6 @@ export async function startCentralNotificationSystem(): Promise<void> {
     watcher.registerAdapter(workflowWatcherAdapter);
 
     // 4. Subscribe domain adapters to watcher adapter events
-    workgraphWatcherAdapter.onGraphChanged((event) => workgraphDomainAdapter.handleEvent(event));
     fileChangeWatcherAdapter.onFilesChanged((changes) =>
       fileChangeDomainAdapter.handleEvent({ changes })
     );

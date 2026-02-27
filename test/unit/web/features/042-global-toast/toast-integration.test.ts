@@ -126,18 +126,4 @@ describe('Global Toast System', () => {
       });
     });
   });
-
-  /**
-   * @purpose Verify workgraph migration uses toast.info (AC-10)
-   * @domain (workgraph-ui)
-   * @acceptance AC-10
-   * @approach Call toast.info with expected workgraph message
-   * @evidence vi.fn() call recording
-   */
-  describe('workgraph external change toast (AC-10)', () => {
-    it('uses toast.info for external change notification', () => {
-      toast.info('Graph updated from external change');
-      expect(toast.info).toHaveBeenCalledWith('Graph updated from external change');
-    });
-  });
 });

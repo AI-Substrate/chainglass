@@ -462,8 +462,6 @@ export type {
 } from './features/023-central-watcher-notifications/index.js';
 export { CentralWatcherService } from './features/023-central-watcher-notifications/index.js';
 export { FakeWatcherAdapter } from './features/023-central-watcher-notifications/index.js';
-export { WorkGraphWatcherAdapter } from './features/023-central-watcher-notifications/index.js';
-export type { WorkGraphChangedEvent } from './features/023-central-watcher-notifications/index.js';
 export {
   FakeCentralWatcherService,
   type RegisterAdapterCall,
