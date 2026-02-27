@@ -121,6 +121,14 @@ describe('PositionalGraphService — collateInputs', () => {
 
   describe('Format A (wrapped outputs) resolution', () => {
     it('resolves available when data.json uses Format A wrapper', async () => {
+      /*
+      Test Doc:
+      - Why: Prevent regression on F01 — saveOutputData writes { outputs: { name: value } } but collateInputs originally read flat.
+      - Contract: collateInputs resolves data?.outputs?.[name] ?? data?.[name] with backward-compatible fallback.
+      - Usage Notes: writeNodeData helper wraps in Format A automatically; this test verifies the read path.
+      - Quality Contribution: Catches data-shape mismatch between saveOutputData writer and collateInputs reader.
+      - Worked Example: { outputs: { spec: { value: 'The spec content' } } } → available with correct data.
+      */
       // Setup: sample-input → sample-coder, data written in Format A
       const { lineId: line0 } = await service.create(ctx, 'test-graph');
       const addLine1 = await service.addLine(ctx, 'test-graph');

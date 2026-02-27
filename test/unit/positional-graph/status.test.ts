@@ -315,6 +315,14 @@ describe('PositionalGraphService — Status API', () => {
 
   describe('discriminated NodeStatusResult', () => {
     it('returns UserInputNodeStatus with userInput config for user-input units', async () => {
+      /*
+      Test Doc:
+      - Why: Validates discriminated union — user-input nodes must carry userInput config in status result.
+      - Contract: getNodeStatus() for user-input unit returns UserInputNodeStatus with prompt/questionType.
+      - Usage Notes: Type narrowing via unitType === 'user-input' gives compiler-safe access to userInput.
+      - Quality Contribution: Prevents regression if getNodeStatus construction changes.
+      - Worked Example: get-requirements unit → status.userInput.prompt === 'Describe your requirements'.
+      */
       const loader = createFakeUnitLoader([userInputUnit]);
       const svc = createTestService(fs, pathResolver, loader);
 
@@ -333,6 +341,14 @@ describe('PositionalGraphService — Status API', () => {
     });
 
     it('returns AgentNodeStatus without userInput for agent units', async () => {
+      /*
+      Test Doc:
+      - Why: Agent nodes must NOT carry userInput — only user-input variant has it.
+      - Contract: getNodeStatus() for agent unit returns AgentNodeStatus; 'userInput' not in result.
+      - Usage Notes: Discriminated union ensures type safety — accessing userInput on agent would be a compile error.
+      - Quality Contribution: Verifies the discriminated union doesn't leak type-specific fields.
+      - Worked Example: simple-task agent → status has no userInput property.
+      */
       const { lineId } = await service.create(ctx, 'test-graph');
       const node = await service.addNode(ctx, 'test-graph', lineId, 'simple-task');
       const nodeId = node.nodeId as string;

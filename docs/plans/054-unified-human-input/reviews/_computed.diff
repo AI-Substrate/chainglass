@@ -1,8 +1,16 @@
 diff --git a/apps/web/src/features/050-workflow-page/components/workflow-node-card.tsx b/apps/web/src/features/050-workflow-page/components/workflow-node-card.tsx
-index c3558c0..c4c9c52 100644
+index c3558c0..8a64b8b 100644
 --- a/apps/web/src/features/050-workflow-page/components/workflow-node-card.tsx
 +++ b/apps/web/src/features/050-workflow-page/components/workflow-node-card.tsx
-@@ -20,6 +20,7 @@ export type NodeStatus =
+@@ -11,6 +11,7 @@
+ 
+ import type { NodeStatusResult } from '@chainglass/positional-graph';
+ import { computeContextBadge } from '../lib/context-badge';
++import { getDisplayStatus } from '../lib/display-status';
+ import { GateChip } from './gate-chip';
+ 
+ // ─── Status Definitions ──────────────────────────────────────────────
+@@ -20,6 +21,7 @@ export type NodeStatus =
    | 'ready'
    | 'starting'
    | 'agent-accepted'
@@ -10,7 +18,7 @@ index c3558c0..c4c9c52 100644
    | 'waiting-question'
    | 'blocked-error'
    | 'restart-pending'
-@@ -67,6 +68,12 @@ const STATUS_MAP: Record<NodeStatus, StatusConfig> = {
+@@ -67,6 +69,12 @@ const STATUS_MAP: Record<NodeStatus, StatusConfig> = {
      label: 'Question',
      icon: '?',
    },
@@ -23,6 +31,15 @@ index c3558c0..c4c9c52 100644
    'blocked-error': {
      color: '#EF4444',
      bgColor: 'bg-red-50 text-red-600 dark:bg-red-950 dark:text-red-400',
+@@ -256,7 +264,7 @@ export function nodeStatusToCardProps(
+     nodeId: node.nodeId,
+     unitSlug: node.unitSlug,
+     unitType: node.unitType,
+-    status: node.status as NodeStatus,
++    status: getDisplayStatus(node.unitType, node.status, node.ready) as NodeStatus,
+     contextColor: computeContextBadge(node, lineIndex),
+     noContext: node.noContext,
+     nodeStatus: node,
 diff --git a/apps/web/src/features/050-workflow-page/lib/display-status.ts b/apps/web/src/features/050-workflow-page/lib/display-status.ts
 new file mode 100644
 index 0000000..f5ed714
@@ -43,10 +60,10 @@ index 0000000..f5ed714
 +  return status;
 +}
 diff --git a/dev/test-graphs/shared/graph-test-runner.ts b/dev/test-graphs/shared/graph-test-runner.ts
-index abb0c07..e5b56ac 100644
+index abb0c07..294858f 100644
 --- a/dev/test-graphs/shared/graph-test-runner.ts
 +++ b/dev/test-graphs/shared/graph-test-runner.ts
-@@ -96,25 +96,49 @@ function buildDiskLoader(workspacePath: string) {
+@@ -96,25 +96,60 @@ function buildDiskLoader(workspacePath: string) {
              required: boolean;
              description?: string;
            }>;
@@ -72,7 +89,18 @@ index abb0c07..e5b56ac 100644
 +            description: o.description,
 +          })),
 +        };
-+        if (parsed.type === 'user-input' && parsed.user_input) {
++        if (parsed.type === 'user-input') {
++          if (!parsed.user_input) {
++            return {
++              unit: undefined,
++              errors: [
++                {
++                  code: 'UNIT_LOAD_ERROR',
++                  message: `Unit '${parsed.slug}' has type 'user-input' but is missing user_input config`,
++                },
++              ],
++            };
++          }
 +          return {
 +            unit: {
 +              ...base,
@@ -112,10 +140,10 @@ index abb0c07..e5b56ac 100644
        } catch {
          return {
 diff --git a/dev/test-graphs/shared/helpers.ts b/dev/test-graphs/shared/helpers.ts
-index d6dbf35..93f8c43 100644
+index d6dbf35..98b676c 100644
 --- a/dev/test-graphs/shared/helpers.ts
 +++ b/dev/test-graphs/shared/helpers.ts
-@@ -125,13 +125,37 @@ export function buildDiskWorkUnitLoader(workspacePath: string): IWorkUnitLoader
+@@ -125,13 +125,47 @@ export function buildDiskWorkUnitLoader(workspacePath: string): IWorkUnitLoader
            type: 'agent' | 'code' | 'user-input';
            inputs?: Array<{ name: string; type: 'data' | 'file'; required: boolean }>;
            outputs: Array<{ name: string; type: 'data' | 'file'; required: boolean }>;
@@ -131,7 +159,17 @@ index d6dbf35..93f8c43 100644
 +          inputs: parsed.inputs ?? [],
 +          outputs: parsed.outputs,
 +        };
-+        if (parsed.type === 'user-input' && parsed.user_input) {
++        if (parsed.type === 'user-input') {
++          if (!parsed.user_input) {
++            return {
++              errors: [
++                {
++                  message: `Unit '${slug}' has type 'user-input' but is missing user_input config`,
++                  code: 'UNIT_LOAD_ERROR',
++                },
++              ],
++            };
++          }
 +          return {
 +            unit: {
 +              ...base,
@@ -157,6 +195,1571 @@ index d6dbf35..93f8c43 100644
            },
            errors: [],
          };
+diff --git a/docs/plans/054-unified-human-input/reviews/_computed.diff b/docs/plans/054-unified-human-input/reviews/_computed.diff
+new file mode 100644
+index 0000000..73aea94
+--- /dev/null
++++ b/docs/plans/054-unified-human-input/reviews/_computed.diff
+@@ -0,0 +1,1196 @@
++diff --git a/apps/web/src/features/050-workflow-page/components/workflow-node-card.tsx b/apps/web/src/features/050-workflow-page/components/workflow-node-card.tsx
++index c3558c0..c4c9c52 100644
++--- a/apps/web/src/features/050-workflow-page/components/workflow-node-card.tsx
+++++ b/apps/web/src/features/050-workflow-page/components/workflow-node-card.tsx
++@@ -20,6 +20,7 @@ export type NodeStatus =
++   | 'ready'
++   | 'starting'
++   | 'agent-accepted'
+++  | 'awaiting-input'
++   | 'waiting-question'
++   | 'blocked-error'
++   | 'restart-pending'
++@@ -67,6 +68,12 @@ const STATUS_MAP: Record<NodeStatus, StatusConfig> = {
++     label: 'Question',
++     icon: '?',
++   },
+++  'awaiting-input': {
+++    color: '#8B5CF6',
+++    bgColor: 'bg-violet-50 text-violet-600 dark:bg-violet-950 dark:text-violet-400',
+++    label: 'Awaiting Input',
+++    icon: '?',
+++  },
++   'blocked-error': {
++     color: '#EF4444',
++     bgColor: 'bg-red-50 text-red-600 dark:bg-red-950 dark:text-red-400',
++diff --git a/apps/web/src/features/050-workflow-page/lib/display-status.ts b/apps/web/src/features/050-workflow-page/lib/display-status.ts
++new file mode 100644
++index 0000000..f5ed714
++--- /dev/null
+++++ b/apps/web/src/features/050-workflow-page/lib/display-status.ts
++@@ -0,0 +1,13 @@
+++/**
+++ * Compute a display-only status for workflow node cards.
+++ *
+++ * `awaiting-input` is a UI-only concept — it NEVER appears in state.json,
+++ * CLI output, or the engine. It is computed here from three primitives
+++ * (unitType + status + ready) and used solely for rendering the node badge.
+++ */
+++export function getDisplayStatus(unitType: string, status: string, ready: boolean): string {
+++  if (unitType === 'user-input' && status === 'pending' && ready) {
+++    return 'awaiting-input';
+++  }
+++  return status;
+++}
++diff --git a/dev/test-graphs/shared/graph-test-runner.ts b/dev/test-graphs/shared/graph-test-runner.ts
++index abb0c07..e5b56ac 100644
++--- a/dev/test-graphs/shared/graph-test-runner.ts
+++++ b/dev/test-graphs/shared/graph-test-runner.ts
++@@ -96,25 +96,49 @@ function buildDiskLoader(workspacePath: string) {
++             required: boolean;
++             description?: string;
++           }>;
+++          user_input?: {
+++            question_type: 'text' | 'single' | 'multi' | 'confirm';
+++            prompt: string;
+++            options?: Array<{ key: string; label: string; description?: string }>;
+++            default?: string | boolean;
+++          };
++         };
+++        const base = {
+++          slug: parsed.slug,
+++          inputs: (parsed.inputs ?? []).map((i) => ({
+++            name: i.name,
+++            type: i.type,
+++            required: i.required,
+++            description: i.description,
+++          })),
+++          outputs: (parsed.outputs ?? []).map((o) => ({
+++            name: o.name,
+++            type: o.type,
+++            required: o.required,
+++            description: o.description,
+++          })),
+++        };
+++        if (parsed.type === 'user-input' && parsed.user_input) {
+++          return {
+++            unit: {
+++              ...base,
+++              type: 'user-input' as const,
+++              userInput: {
+++                prompt: parsed.user_input.prompt,
+++                questionType: parsed.user_input.question_type,
+++                options: parsed.user_input.options,
+++                default: parsed.user_input.default,
+++              },
+++            },
+++            errors: [] as { code: string; message: string }[],
+++          };
+++        }
++         return {
++           unit: {
++-            slug: parsed.slug,
++-            type: parsed.type,
++-            inputs: (parsed.inputs ?? []).map((i) => ({
++-              name: i.name,
++-              type: i.type,
++-              required: i.required,
++-              description: i.description,
++-            })),
++-            outputs: (parsed.outputs ?? []).map((o) => ({
++-              name: o.name,
++-              type: o.type,
++-              required: o.required,
++-              description: o.description,
++-            })),
+++            ...base,
+++            type: parsed.type === 'code' ? ('code' as const) : ('agent' as const),
++           },
++-          errors: [],
+++          errors: [] as { code: string; message: string }[],
++         };
++       } catch {
++         return {
++diff --git a/dev/test-graphs/shared/helpers.ts b/dev/test-graphs/shared/helpers.ts
++index d6dbf35..93f8c43 100644
++--- a/dev/test-graphs/shared/helpers.ts
+++++ b/dev/test-graphs/shared/helpers.ts
++@@ -125,13 +125,37 @@ export function buildDiskWorkUnitLoader(workspacePath: string): IWorkUnitLoader
++           type: 'agent' | 'code' | 'user-input';
++           inputs?: Array<{ name: string; type: 'data' | 'file'; required: boolean }>;
++           outputs: Array<{ name: string; type: 'data' | 'file'; required: boolean }>;
+++          user_input?: {
+++            question_type: 'text' | 'single' | 'multi' | 'confirm';
+++            prompt: string;
+++            options?: Array<{ key: string; label: string; description?: string }>;
+++            default?: string | boolean;
+++          };
++         }>(content, unitYamlPath);
+++        const base = {
+++          slug: parsed.slug,
+++          inputs: parsed.inputs ?? [],
+++          outputs: parsed.outputs,
+++        };
+++        if (parsed.type === 'user-input' && parsed.user_input) {
+++          return {
+++            unit: {
+++              ...base,
+++              type: 'user-input' as const,
+++              userInput: {
+++                prompt: parsed.user_input.prompt,
+++                questionType: parsed.user_input.question_type,
+++                options: parsed.user_input.options,
+++                default: parsed.user_input.default,
+++              },
+++            },
+++            errors: [],
+++          };
+++        }
++         return {
++           unit: {
++-            slug: parsed.slug,
++-            type: parsed.type,
++-            inputs: parsed.inputs ?? [],
++-            outputs: parsed.outputs,
+++            ...base,
+++            type: parsed.type === 'code' ? ('code' as const) : ('agent' as const),
++           },
++           errors: [],
++         };
++diff --git a/docs/plans/054-unified-human-input/tasks/phase-1-nodestatus-display/execution.log.md b/docs/plans/054-unified-human-input/tasks/phase-1-nodestatus-display/execution.log.md
++new file mode 100644
++index 0000000..9b447c5
++--- /dev/null
+++++ b/docs/plans/054-unified-human-input/tasks/phase-1-nodestatus-display/execution.log.md
++@@ -0,0 +1,46 @@
+++# Execution Log: Phase 1 — NodeStatusResult + Display Status
+++
+++**Plan**: 054-unified-human-input
+++**Phase**: Phase 1
+++**Started**: 2026-02-27
+++**Completed**: 2026-02-27
+++
+++---
+++
+++## Stage 1: Format A Fix (T001–T003)
+++
+++**T001**: Added Format A test to `collate-inputs.test.ts` — writes `{ outputs: { spec: {...} } }` via writeNodeData, verifies collateInputs resolves it. Test FAILED as expected (RED).
+++
+++**T002**: One-line fix in `input-resolution.ts` line 352: `data?.outputs?.[fromOutput] ?? data?.[fromOutput]`. Required type annotations (`dataRecord as Record<string, unknown>`) due to discriminated union strictness. Test passes (GREEN).
+++
+++**T003**: Updated `writeNodeData` helper to wrap data in `{ outputs: { ...data } }`. All 16 collateInputs tests pass. All 1052 positional-graph tests pass.
+++
+++## Stage 2: Discriminated Type Unions (T005–T012)
+++
+++**T005**: Refactored `NarrowWorkUnit` from single interface to discriminated union: `NarrowWorkUnitBase` + `NarrowAgentWorkUnit` + `NarrowCodeWorkUnit` + `NarrowUserInputWorkUnit`. The user-input variant carries `userInput` config.
+++
+++**T006**: Refactored `NodeStatusResult` from single interface to discriminated union: `NodeStatusResultBase` + `AgentNodeStatus` + `CodeNodeStatus` + `UserInputNodeStatus`. The user-input variant carries `userInput` config.
+++
+++**T007**: Added type guard functions `isNarrowUserInputUnit()` and `isUserInputNodeStatus()`. Exported from index.ts.
+++
+++**T008**: Updated `InstanceWorkUnitAdapter` to construct correct variant. Extended YAML parse type to include `user_input?`. When `type === 'user-input'`, constructs `NarrowUserInputWorkUnit` with mapped config.
+++
+++**T009**: Updated `getNodeStatus()` in positional-graph.service.ts. Builds base object, then conditionally returns `UserInputNodeStatus`, `CodeNodeStatus`, or `AgentNodeStatus` based on loaded unit type.
+++
+++**T010–T012**: **Not needed** — existing test helpers compile and pass without changes. TypeScript structural typing means objects without `userInput` satisfy `NarrowAgentWorkUnit` when `type: 'agent'`. All 4610 tests pass.
+++
+++**Build**: `pnpm --filter @chainglass/positional-graph build` passes with 0 errors.
+++
+++## Stage 3: Display Status (T013–T015)
+++
+++**T013**: Created `display-status.ts` in `apps/web/src/features/050-workflow-page/lib/`. Pure function `getDisplayStatus(unitType, status, ready)` returns `'awaiting-input'` for user-input + pending + ready. JSDoc explains this is a UI-only concept.
+++
+++**T014**: Added `'awaiting-input'` to `NodeStatus` type and `STATUS_MAP` in `workflow-node-card.tsx`. Violet treatment matching `waiting-question`: `#8B5CF6`, violet Tailwind classes, `?` icon, "Awaiting Input" label.
+++
+++**T015**: Created `display-status.test.ts` with 6 test cases covering all combinations. All pass.
+++
+++## Evidence
+++
+++- 4610 tests pass, 76 skipped (all pre-existing skips)
+++- positional-graph build: 0 errors
+++- No test helpers needed updating (structural typing backward compat)
++diff --git a/docs/plans/054-unified-human-input/tasks/phase-1-nodestatus-display/tasks.fltplan.md b/docs/plans/054-unified-human-input/tasks/phase-1-nodestatus-display/tasks.fltplan.md
++index a03df4f..3e8e2e4 100644
++--- a/docs/plans/054-unified-human-input/tasks/phase-1-nodestatus-display/tasks.fltplan.md
+++++ b/docs/plans/054-unified-human-input/tasks/phase-1-nodestatus-display/tasks.fltplan.md
++@@ -3,7 +3,7 @@
++ **Plan**: [unified-human-input-plan.md](../../unified-human-input-plan.md)
++ **Phase**: Phase 1: NodeStatusResult + Display Status
++ **Generated**: 2026-02-27
++-**Status**: Ready for takeoff
+++**Status**: Landed
++ 
++ ---
++ 
++@@ -11,7 +11,7 @@
++ 
++ **Where we are**: User-input nodes exist in the workflow editor but are inert — they show as `pending` with no visual distinction and no way to interact. The `collateInputs` function silently fails to read data written by `saveOutputData` due to a Format A mismatch. `NodeStatusResult` exposes `unitType` but not the `user_input` configuration from unit.yaml.
++ 
++-**Where we're going**: After Phase 1, user-input nodes that are ready display with a violet "Awaiting Input" badge (matching the question treatment). The `NodeStatusResult` API includes the full `userInput` config (prompt, question type, options). `collateInputs` correctly reads both Format A and flat data. Phase 2 can build the modal and server action on this foundation.
+++**Where we're going**: ~~After Phase 1~~ **DONE**: user-input nodes that are ready display with a violet "Awaiting Input" badge. `NodeStatusResult` API includes the full `userInput` config via discriminated union. `collateInputs` correctly reads both Format A and flat data.
++ 
++ ---
++ 
++@@ -21,7 +21,7 @@
++ 
++ | Domain | What Changes | Key Files |
++ |--------|-------------|-----------|
++-| _platform/positional-graph | Fix collateInputs Format A, extend NarrowWorkUnit + NodeStatusResult with userInput, update adapter | `input-resolution.ts`, `positional-graph-service.interface.ts`, `positional-graph.service.ts`, `instance-workunit.adapter.ts` |
+++| _platform/positional-graph | Fix collateInputs Format A, refactor NarrowWorkUnit + NodeStatusResult into discriminated unions, add type guards, update adapter + getNodeStatus | `input-resolution.ts`, `positional-graph-service.interface.ts`, `positional-graph.service.ts`, `instance-workunit.adapter.ts` |
++ | workflow-ui | New display-status helper, add awaiting-input to node card | `display-status.ts` (new), `workflow-node-card.tsx` |
++ 
++ ### Domains We Depend On (no changes)
++@@ -52,7 +52,7 @@ stateDiagram-v2
++     S2 --> S3
++     S3 --> [*]
++ 
++-    class S1,S2,S3 pending
+++    class S1,S2,S3 done
++ ```
++ 
++ **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
++@@ -63,9 +63,9 @@ stateDiagram-v2
++ 
++ <!-- Updated by /plan-6-v2 during implementation: [ ] → [~] → [x] -->
++ 
++-- [ ] **Stage 1: Fix collateInputs Format A** — TDD test + one-line fix + update fixtures (`input-resolution.ts`, `collate-inputs.test.ts`)
++-- [ ] **Stage 2: Surface userInput config** — Extend NarrowWorkUnit + NodeStatusResult, update adapter, populate in getNodeStatus (`positional-graph-service.interface.ts`, `instance-workunit.adapter.ts`, `positional-graph.service.ts`)
++-- [ ] **Stage 3: Add awaiting-input display status** — Create display-status helper, add to STATUS_MAP + NodeStatus type, lightweight tests (`display-status.ts` — new, `workflow-node-card.tsx`)
+++- [x] **Stage 1: Fix collateInputs Format A** — TDD test + one-line fix + update fixtures (`input-resolution.ts`, `collate-inputs.test.ts`)
+++- [x] **Stage 2: Discriminated type unions** — Refactor `NarrowWorkUnit` + `NodeStatusResult` into discriminated unions, add type guards, update adapter + getNodeStatus, update all test helpers/fixtures (`positional-graph-service.interface.ts`, `instance-workunit.adapter.ts`, `positional-graph.service.ts`, test files)
+++- [x] **Stage 3: Add awaiting-input display status** — Create display-status helper, add to STATUS_MAP + NodeStatus type, lightweight tests (`display-status.ts` — new, `workflow-node-card.tsx`)
++ 
++ ---
++ 
++@@ -105,10 +105,10 @@ flowchart LR
++ 
++ ## Acceptance Criteria
++ 
++-- [ ] AC-01: `user-input` + `pending` + `ready` → violet `?` badge, "Awaiting Input" label
++-- [ ] AC-02: `user-input` + `pending` + NOT `ready` → gray `pending` treatment
++-- [ ] AC-09: Downstream `from_node` input resolution sees data after Format A fix
++-- [ ] AC-15: Unit tests verify display status computation
+++- [x] AC-01: `user-input` + `pending` + `ready` → violet `?` badge, "Awaiting Input" label
+++- [x] AC-02: `user-input` + `pending` + NOT `ready` → gray `pending` treatment
+++- [x] AC-09: Downstream `from_node` input resolution sees data after Format A fix
+++- [x] AC-15: Unit tests verify display status computation
++ 
++ ---
++ 
++@@ -121,14 +121,18 @@ flowchart LR
++ 
++ ## Checklist
++ 
++-- [ ] T001: TDD: Write collateInputs Format A test
++-- [ ] T002: Fix collateInputs to read Format A
++-- [ ] T003: Update writeNodeData test helper to use Format A
++-- [ ] T004: TDD: Write NodeStatusResult userInput config test
++-- [ ] T005: Extend NarrowWorkUnit with optional userInput
++-- [ ] T006: Extend NodeStatusResult with optional userInput
++-- [ ] T007: Populate userInput in getNodeStatus() from loaded WorkUnit
++-- [ ] T008: Update InstanceWorkUnitAdapter to surface user_input config
++-- [ ] T009: Create display-status.ts helper
++-- [ ] T010: Add awaiting-input to NodeStatus type + STATUS_MAP
++-- [ ] T011: Lightweight tests for display status + STATUS_MAP
+++- [x] T001: TDD: Write collateInputs Format A test
+++- [x] T002: Fix collateInputs to read Format A
+++- [x] T003: Update writeNodeData test helper to use Format A
+++- [x] T004: TDD: Write discriminated NodeStatusResult userInput test
+++- [x] T005: Refactor NarrowWorkUnit into discriminated union
+++- [x] T006: Refactor NodeStatusResult into discriminated union
+++- [x] T007: Add type guard functions
+++- [x] T008: Update InstanceWorkUnitAdapter to construct correct variant
+++- [x] T009: Populate userInput in getNodeStatus() — build correct variant
+++- [x] T010: Update test helpers for discriminated variants
+++- [x] T011: Update inline NarrowWorkUnit literals in test files
+++- [x] T012: Update web test helpers (makeNode, makeNodeStatus)
+++- [x] T013: Create display-status.ts helper
+++- [x] T014: Add awaiting-input to NodeStatus type + STATUS_MAP
+++- [x] T015: Lightweight tests for display status + STATUS_MAP
++diff --git a/docs/plans/054-unified-human-input/tasks/phase-1-nodestatus-display/tasks.md b/docs/plans/054-unified-human-input/tasks/phase-1-nodestatus-display/tasks.md
++index a8059d7..a216b73 100644
++--- a/docs/plans/054-unified-human-input/tasks/phase-1-nodestatus-display/tasks.md
+++++ b/docs/plans/054-unified-human-input/tasks/phase-1-nodestatus-display/tasks.md
++@@ -11,11 +11,11 @@
++ 
++ **Purpose**: Make user-input node configuration visible to the UI and fix the critical data format mismatch that prevents downstream input resolution. This phase is entirely foundational — no modals, no server actions, just plumbing.
++ 
++-**What We're Building**: Three things: (1) fix `collateInputs` to read Format A data written by `saveOutputData`, (2) extend `NodeStatusResult` + `NarrowWorkUnit` to surface `user_input` config from unit.yaml, and (3) add an `awaiting-input` computed display status to the node card so users can see which nodes need human input.
+++**What We're Building**: Three things: (1) fix `collateInputs` to read Format A data written by `saveOutputData`, (2) refactor `NarrowWorkUnit` and `NodeStatusResult` into discriminated unions so `user_input` config lives on the correct variant type (not the base), and (3) add an `awaiting-input` computed display status to the node card so users can see which nodes need human input. See [Workshop 011](../../workshops/011-discriminated-type-architecture.md) for the type architecture.
++ 
++ **Goals**:
++ - ✅ `collateInputs` reads both Format A (`{ outputs: { name: value } }`) and flat (`{ name: value }`) — backward compatible
++-- ✅ `NodeStatusResult.userInput` surfaces prompt, questionType, options, default from unit.yaml
+++- ✅ `NarrowWorkUnit` and `NodeStatusResult` are proper discriminated unions — `userInput` config lives on the `user-input` variant only (per [Workshop 011](../../workshops/011-discriminated-type-architecture.md))
++ - ✅ `awaiting-input` display status computed when `unitType === 'user-input'` + `pending` + `ready`
++ - ✅ Node card shows violet `?` badge for `awaiting-input` nodes
++ - ✅ TDD for service-layer changes, lightweight tests for UI helpers
++@@ -39,13 +39,14 @@ _Phase 1 — no prior phases to review._
++ | File | Exists? | Domain Check | Notes |
++ |------|---------|-------------|-------|
++ | `packages/positional-graph/src/services/input-resolution.ts` | ✅ Yes | _platform/positional-graph ✅ | Modify line 352: `data?.[fromOutput]` → `data?.outputs?.[fromOutput] ?? data?.[fromOutput]` |
++-| `packages/positional-graph/src/interfaces/positional-graph-service.interface.ts` | ✅ Yes | _platform/positional-graph ✅ | Extend `NarrowWorkUnit` (line 49) + `NodeStatusResult` (line 244) |
++-| `packages/positional-graph/src/services/positional-graph.service.ts` | ✅ Yes | _platform/positional-graph ✅ | Populate `userInput` in `getNodeStatus()` at ~line 1115 |
++-| `packages/positional-graph/src/adapter/instance-workunit.adapter.ts` | ✅ Yes | _platform/positional-graph ✅ | Extend YAML parse type + map `user_input` → `userInput` (line 68) |
+++| `packages/positional-graph/src/interfaces/positional-graph-service.interface.ts` | ✅ Yes | _platform/positional-graph ✅ | Refactor `NarrowWorkUnit` (line 49) into discriminated union + refactor `NodeStatusResult` (line 244) into discriminated union. Per [Workshop 011](../../workshops/011-discriminated-type-architecture.md). |
+++| `packages/positional-graph/src/services/positional-graph.service.ts` | ✅ Yes | _platform/positional-graph ✅ | Build correct `NodeStatusResult` variant in `getNodeStatus()` at ~line 1115 |
+++| `packages/positional-graph/src/adapter/instance-workunit.adapter.ts` | ✅ Yes | _platform/positional-graph ✅ | Construct correct `NarrowWorkUnit` variant (line 68) + extend YAML parse type |
++ | `apps/web/src/features/050-workflow-page/lib/display-status.ts` | ❌ NEW | workflow-ui ✅ | Create in existing `lib/` dir (has 4 files already) |
++ | `apps/web/src/features/050-workflow-page/components/workflow-node-card.tsx` | ✅ Yes | workflow-ui ✅ | Add `awaiting-input` to `NodeStatus` type (line 18) + `STATUS_MAP` (line 37) |
++-| `test/unit/positional-graph/collate-inputs.test.ts` | ✅ Yes | test ✅ | Add Format A test, update `writeNodeData` fixtures |
++-| `test/unit/positional-graph/input-retrieval.test.ts` | ✅ Yes | test ✅ | Already uses Format A in some tests — verify compatibility |
+++| `test/unit/positional-graph/test-helpers.ts` | ✅ Yes | test ✅ | Update `createWorkUnit()` + `stubWorkUnitLoader()` for discriminated variants |
+++| `test/unit/positional-graph/collate-inputs.test.ts` | ✅ Yes | test ✅ | Add Format A test, update fixtures + inline `NarrowWorkUnit` literals |
+++| `test/unit/web/features/050-workflow-page/*.test.*` | ✅ Yes | test ✅ | Update `makeNode()` helpers for discriminated `NodeStatusResult` variants |
++ 
++ **Concept duplication check**: `awaiting-input` display status is a new concept not present anywhere in the codebase except Plan 054 docs. `display-status.ts` helper pattern matches existing `lib/` utilities (`compute-available-sources.ts`, `context-badge.ts`). No duplication risk.
++ 
++@@ -64,16 +65,23 @@ flowchart TD
++         T002["T002: Fix collateInputs"]:::pending
++         T003["T003: Update test fixtures"]:::pending
++         T004["T004: userInput config test"]:::pending
++-        T005["T005: Extend NarrowWorkUnit"]:::pending
++-        T006["T006: Extend NodeStatusResult"]:::pending
++-        T007["T007: Populate in getNodeStatus"]:::pending
++-        T008["T008: Update adapter"]:::pending
+++        T005["T005: NarrowWorkUnit union"]:::pending
+++        T006["T006: NodeStatusResult union"]:::pending
+++        T007["T007: Type guards"]:::pending
+++        T008["T008: Adapter variants"]:::pending
+++        T009["T009: Populate getNodeStatus"]:::pending
+++    end
+++
+++    subgraph Test["Test infrastructure"]
+++        T010["T010: Test helpers"]:::pending
+++        T011["T011: Inline literals"]:::pending
+++        T012["T012: Web test helpers"]:::pending
++     end
++ 
++     subgraph UI["workflow-ui"]
++-        T009["T009: display-status.ts"]:::pending
++-        T010["T010: STATUS_MAP + type"]:::pending
++-        T011["T011: Display status tests"]:::pending
+++        T013["T013: display-status.ts"]:::pending
+++        T014["T014: STATUS_MAP + type"]:::pending
+++        T015["T015: Display status tests"]:::pending
++     end
++ 
++     T001 --> T002
++@@ -82,9 +90,15 @@ flowchart TD
++     T005 --> T006
++     T006 --> T007
++     T005 --> T008
++-    T007 --> T009
++-    T009 --> T010
+++    T008 --> T009
+++    T006 --> T009
+++    T005 --> T010
+++    T006 --> T010
++     T010 --> T011
+++    T006 --> T012
+++    T009 --> T013
+++    T013 --> T014
+++    T014 --> T015
++ ```
++ 
++ ---
++@@ -93,17 +107,21 @@ flowchart TD
++ 
++ | Status | ID | Task | Domain | Path(s) | Done When | Notes |
++ |--------|-----|------|--------|---------|-----------|-------|
++-| [ ] | T001 | TDD: Write collateInputs Format A test | _platform/positional-graph | `/test/unit/positional-graph/collate-inputs.test.ts` | Test: `writeNodeData` with `{ outputs: { spec: { type: 'data', dataType: 'text', value: 'hello' } } }` (Format A), `collateInputs` resolves `spec` output with correct data. Test FAILS before fix. | Per F01. Use existing `writeNodeData` helper. Add test in T004/T006 describe block. |
+++| [ ] | T001 | TDD: Write collateInputs Format A test | _platform/positional-graph | `/test/unit/positional-graph/collate-inputs.test.ts` | Test: `writeNodeData` with `{ outputs: { spec: { type: 'data', dataType: 'text', value: 'hello' } } }` (Format A), `collateInputs` resolves `spec` output with correct data. Test FAILS before fix. | Per F01. Use existing `writeNodeData` helper. |
++ | [ ] | T002 | Fix `collateInputs` to read Format A | _platform/positional-graph | `/packages/positional-graph/src/services/input-resolution.ts` | Line 352: `data?.[fromOutput]` → `data?.outputs?.[fromOutput] ?? data?.[fromOutput]`. Test from T001 passes. All existing tests still pass. | One-line fix. Fallback preserves flat format backward compat. |
++-| [ ] | T003 | Update `writeNodeData` test helper to use Format A | _platform/positional-graph | `/test/unit/positional-graph/collate-inputs.test.ts` | `writeNodeData` wraps data as `{ outputs: { ...data } }`. All existing tests pass with wrapped format. | Standardize on Format A going forward. Flat fallback in T002 means no breakage. |
++-| [ ] | T004 | TDD: Write NodeStatusResult userInput config test | _platform/positional-graph | `/test/unit/positional-graph/` (new or existing node-status test file) | Test: `getNodeStatus()` for a `user-input` unit returns `userInput: { prompt, questionType, options?, defaultValue? }`. Agent/code units return `userInput: undefined`. Test FAILS before implementation. | Test-first per Hybrid TDD. Needs a user-input unit.yaml fixture. |
++-| [ ] | T005 | Extend `NarrowWorkUnit` with optional `userInput` | _platform/positional-graph | `/packages/positional-graph/src/interfaces/positional-graph-service.interface.ts` | `NarrowWorkUnit` gains `userInput?: { prompt: string; questionType: 'text' \| 'single' \| 'multi' \| 'confirm'; options?: { key: string; label: string; description?: string }[]; default?: string \| boolean }`. Existing code compiles (field is optional). | Interface-only change. Line 49. |
++-| [ ] | T006 | Extend `NodeStatusResult` with optional `userInput` | _platform/positional-graph | `/packages/positional-graph/src/interfaces/positional-graph-service.interface.ts` | `NodeStatusResult` gains `userInput?: NarrowWorkUnit['userInput']`. Existing code compiles. | Uses same type from T005 via lookup. Line 244. |
++-| [ ] | T007 | Populate `userInput` in `getNodeStatus()` from loaded WorkUnit | _platform/positional-graph | `/packages/positional-graph/src/services/positional-graph.service.ts` | When `unitResult.unit?.userInput` exists, include in returned `NodeStatusResult`. Test from T004 passes end-to-end. | ~Line 1115 in the return object. Only populated for user-input units. |
++-| [ ] | T008 | Update `InstanceWorkUnitAdapter` to surface `user_input` config | _platform/positional-graph | `/packages/positional-graph/src/adapter/instance-workunit.adapter.ts` | Adapter YAML parse type includes `user_input?`. When `type === 'user-input'`, maps `unitDef.user_input` → `unit.userInput`. Build passes. | Line 46-73. Extend generic type param + add conditional mapping. |
++-| [ ] | T009 | Create `display-status.ts` helper | workflow-ui | `/apps/web/src/features/050-workflow-page/lib/display-status.ts` | `getDisplayStatus(unitType, status, ready)` returns `'awaiting-input'` when `unitType === 'user-input' && status === 'pending' && ready === true`. Returns original status otherwise. Exported function. | New file in existing `lib/` dir. Pure function, no side effects. |
++-| [ ] | T010 | Add `awaiting-input` to `NodeStatus` type + `STATUS_MAP` | workflow-ui | `/apps/web/src/features/050-workflow-page/components/workflow-node-card.tsx` | `NodeStatus` union type includes `'awaiting-input'`. `STATUS_MAP['awaiting-input']` = violet treatment matching `waiting-question` (`#8B5CF6`, violet tailwind classes, `?` icon, "Awaiting Input" label). Build passes. | Lines 18-26 (type) + lines 37-88 (map). |
++-| [ ] | T011 | Lightweight tests for display status + STATUS_MAP | workflow-ui | `/test/unit/` (new display-status test file) | Tests: (1) `user-input` + `pending` + `ready` → `awaiting-input`. (2) `user-input` + `pending` + NOT ready → `pending`. (3) `agent` + `pending` + `ready` → unchanged. (4) `STATUS_MAP` has `awaiting-input` entry. All pass. | AC-15. Pure function tests — no mocks needed. |
+++| [ ] | T003 | Update `writeNodeData` test helper to use Format A | _platform/positional-graph | `/test/unit/positional-graph/collate-inputs.test.ts` | `writeNodeData` wraps data as `{ outputs: { ...data } }`. All existing tests pass with wrapped format. | Standardize on Format A going forward. |
+++| [ ] | T004 | TDD: Write discriminated NodeStatusResult userInput test | _platform/positional-graph | `/test/unit/positional-graph/` (new or existing node-status test file) | Test: `getNodeStatus()` for `user-input` unit returns `UserInputNodeStatus` with `userInput` config. Narrow with `node.unitType === 'user-input'` to access `node.userInput.prompt`. Agent/code units return `AgentNodeStatus`/`CodeNodeStatus` (no `userInput` field). Test FAILS before implementation. | Test-first per Hybrid TDD. |
+++| [ ] | T005 | Refactor `NarrowWorkUnit` into discriminated union | _platform/positional-graph | `/packages/positional-graph/src/interfaces/positional-graph-service.interface.ts` | Create `NarrowWorkUnitBase` (slug, inputs, outputs) + `NarrowAgentWorkUnit` (type: 'agent') + `NarrowCodeWorkUnit` (type: 'code') + `NarrowUserInputWorkUnit` (type: 'user-input', userInput config). `NarrowWorkUnit` = union of 3. Build passes. | Per [Workshop 011](../../workshops/011-discriminated-type-architecture.md). Export all types. |
+++| [ ] | T006 | Refactor `NodeStatusResult` into discriminated union | _platform/positional-graph | `/packages/positional-graph/src/interfaces/positional-graph-service.interface.ts` | Create `NodeStatusResultBase` (all existing common fields + `pendingQuestion?` + `error?`) + `AgentNodeStatus` (unitType: 'agent') + `CodeNodeStatus` (unitType: 'code') + `UserInputNodeStatus` (unitType: 'user-input', userInput config). `NodeStatusResult` = union of 3. Build passes. | Per [Workshop 011](../../workshops/011-discriminated-type-architecture.md). |
+++| [ ] | T007 | Add type guard functions | _platform/positional-graph | `/packages/positional-graph/src/interfaces/positional-graph-service.interface.ts` | `isNarrowUserInputUnit(unit): unit is NarrowUserInputWorkUnit` and `isUserInputNodeStatus(node): node is UserInputNodeStatus`. Exported. Build passes. | Alongside existing `isUserInputUnit()` guards in workunit types. |
+++| [ ] | T008 | Update `InstanceWorkUnitAdapter` to construct correct variant | _platform/positional-graph | `/packages/positional-graph/src/adapter/instance-workunit.adapter.ts` | When `type === 'user-input'`, construct `NarrowUserInputWorkUnit` with `userInput` mapped from `unitDef.user_input`. Other types construct `NarrowAgentWorkUnit`/`NarrowCodeWorkUnit`. Extend YAML parse generic type to include `user_input?`. Build passes. | Per [Workshop 011](../../workshops/011-discriminated-type-architecture.md). |
+++| [ ] | T009 | Populate `userInput` in `getNodeStatus()` — build correct variant | _platform/positional-graph | `/packages/positional-graph/src/services/positional-graph.service.ts` | When loaded unit is `NarrowUserInputWorkUnit`, return `UserInputNodeStatus` with `userInput`. Otherwise return `AgentNodeStatus`/`CodeNodeStatus`. Test from T004 passes end-to-end. | ~Line 1115 return object. Conditional construction. |
+++| [ ] | T010 | Update test helpers for discriminated variants | _platform/positional-graph + test | `/test/unit/positional-graph/test-helpers.ts`, `/test/e2e/positional-graph-e2e.ts`, `/test/integration/positional-graph/graph-lifecycle.test.ts` | `createWorkUnit()` accepts optional `userInput` config and constructs correct variant. `stubWorkUnitLoader()` supports user-input units. `createTestUnit()` helpers accept `type` param. All existing tests pass. | ~10 test sites. See [Workshop 011](../../workshops/011-discriminated-type-architecture.md) impact table. |
+++| [ ] | T011 | Update inline `NarrowWorkUnit` literals in test files | test | `/test/unit/positional-graph/collate-inputs.test.ts`, `input-wiring.test.ts`, `status.test.ts`, `can-run.test.ts`, `input-retrieval.test.ts` | All inline `NarrowWorkUnit` object literals satisfy the correct union variant type. `user-input` type literals include `userInput` config. Build passes, all tests pass. | Mechanical — add `userInput` where `type: 'user-input'`. |
+++| [ ] | T012 | Update web test helpers (`makeNode`, `makeNodeStatus`) | test | `/test/unit/web/features/050-workflow-page/*.test.*`, `/test/unit/positional-graph/features/030-orchestration/*.test.ts` | `makeNode()` and `makeNodeStatus()` helpers produce correct `NodeStatusResult` variant based on `unitType` override. All existing tests pass. | ~6 test files. |
+++| [ ] | T013 | Create `display-status.ts` helper | workflow-ui | `/apps/web/src/features/050-workflow-page/lib/display-status.ts` | `getDisplayStatus(unitType, status, ready)` returns `'awaiting-input'` when `unitType === 'user-input' && status === 'pending' && ready === true`. Returns original status otherwise. Exported function. | New file in existing `lib/` dir. Pure function. |
+++| [ ] | T014 | Add `awaiting-input` to `NodeStatus` type + `STATUS_MAP` | workflow-ui | `/apps/web/src/features/050-workflow-page/components/workflow-node-card.tsx` | `NodeStatus` union type includes `'awaiting-input'`. `STATUS_MAP['awaiting-input']` = violet treatment matching `waiting-question` (`#8B5CF6`, violet tailwind classes, `?` icon, "Awaiting Input" label). Build passes. | Lines 18-26 (type) + lines 37-88 (map). |
+++| [ ] | T015 | Lightweight tests for display status + STATUS_MAP | workflow-ui | `/test/unit/` (new display-status test file) | Tests: (1) `user-input` + `pending` + `ready` → `awaiting-input`. (2) `user-input` + `pending` + NOT ready → `pending`. (3) `agent` + `pending` + `ready` → unchanged. (4) `STATUS_MAP` has `awaiting-input` entry. All pass. | AC-15. Pure function tests — no mocks needed. |
++ 
++ ---
++ 
++@@ -125,7 +143,8 @@ flowchart TD
++ 
++ ### Domain constraints
++ 
++-- `NarrowWorkUnit` is a narrow interface to avoid cross-package dependency on `@chainglass/workgraph` (per DYK-P4-I2). Extension must keep it narrow — add optional `userInput` field only, not the full `WorkUnit` type.
+++- `NarrowWorkUnit` is refactored from a single interface into a discriminated union (`NarrowAgentWorkUnit | NarrowCodeWorkUnit | NarrowUserInputWorkUnit`). Base type `NarrowWorkUnitBase` stays lean — no type-specific config. Per [Workshop 011](../../workshops/011-discriminated-type-architecture.md).
+++- `NodeStatusResult` is refactored similarly — `NodeStatusResultBase` has all common fields, `UserInputNodeStatus` carries `userInput`. Per [Workshop 011](../../workshops/011-discriminated-type-architecture.md).
++ - `display-status.ts` is a pure function — no server imports, no service dependencies. It computes display status from primitive inputs.
++ - `workflow-node-card.tsx` `NodeStatus` type and `STATUS_MAP` must stay in sync.
++ 
++@@ -140,10 +159,10 @@ flowchart TD
++ 
++ ```mermaid
++ flowchart LR
++-    A["unit.yaml<br/>(user_input config)"] --> B["InstanceWorkUnitAdapter<br/>(parse + map)"]
++-    B --> C["NarrowWorkUnit<br/>(+userInput field)"]
++-    C --> D["getNodeStatus()<br/>(populate result)"]
++-    D --> E["NodeStatusResult<br/>(+userInput field)"]
+++    A["unit.yaml<br/>(user_input config)"] --> B["InstanceWorkUnitAdapter<br/>(parse + construct variant)"]
+++    B --> C["NarrowUserInputWorkUnit<br/>(discriminated union variant)"]
+++    C --> D["getNodeStatus()<br/>(build correct status variant)"]
+++    D --> E["UserInputNodeStatus<br/>(discriminated union variant)"]
++     E --> F["getDisplayStatus()<br/>(compute awaiting-input)"]
++     F --> G["workflow-node-card<br/>(violet badge)"]
++ ```
++diff --git a/docs/plans/054-unified-human-input/unified-human-input-plan.md b/docs/plans/054-unified-human-input/unified-human-input-plan.md
++index ef076fb..7bd9dea 100644
++--- a/docs/plans/054-unified-human-input/unified-human-input-plan.md
+++++ b/docs/plans/054-unified-human-input/unified-human-input-plan.md
++@@ -8,6 +8,7 @@
++ **Complexity**: CS-2 (small-medium) — S=1, I=0, D=0, N=0, F=0, T=1
++ 
++ > **Governing design decision**: One node = one question = one output. Multiple questions = multiple nodes on a line. See [Workshop 010](./workshops/010-single-question-simplification.md).
+++> **Type architecture**: `NarrowWorkUnit` and `NodeStatusResult` are discriminated unions — `userInput` config lives on the `user-input` variant only. See [Workshop 011](./workshops/011-discriminated-type-architecture.md).
++ 
++ ## Summary
++ 
++@@ -63,15 +64,19 @@ User-input nodes in the workflow editor currently have no input mechanism — th
++ 
++ | # | Task | Domain | Success Criteria | Notes |
++ |---|------|--------|-----------------|-------|
++-| 1.1 | TDD: Write collateInputs Format A test | _platform/positional-graph | Test: writeNodeData with `{ outputs: { spec: "hello" } }`, collateInputs resolves `spec` output correctly | Test-first per Hybrid TDD |
++-| 1.2 | Fix `collateInputs` to read Format A | _platform/positional-graph | `data?.outputs?.[fromOutput] ?? data?.[fromOutput]` — backward compat fallback. Test from 1.1 passes. | One-line fix in input-resolution.ts line 352 |
+++| 1.1 | TDD: Write collateInputs Format A test | _platform/positional-graph | Test: writeNodeData with Format A, collateInputs resolves output correctly | Test-first per Hybrid TDD |
+++| 1.2 | Fix `collateInputs` to read Format A | _platform/positional-graph | `data?.outputs?.[fromOutput] ?? data?.[fromOutput]` — backward compat fallback. Test from 1.1 passes. | One-line fix in input-resolution.ts |
++ | 1.3 | Update remaining `collate-inputs.test.ts` fixtures to Format A | _platform/positional-graph | All existing tests pass with wrapped format | Update writeNodeData helper |
++-| 1.4 | TDD: Write NodeStatusResult userInput config test | _platform/positional-graph | Test: user-input node returns `userInput` config; agent/code return undefined | Test-first |
++-| 1.5 | Extend `NodeStatusResult` with `userInput` config | _platform/positional-graph | Optional `userInput?: { prompt, questionType, options?, defaultValue? }`. Test from 1.4 passes. | Per F03 |
++-| 1.6 | Populate `userInput` in `getNodeStatus()` from loaded WorkUnit | _platform/positional-graph | Test from 1.4 passes end-to-end | Service already loads unit |
++-| 1.7 | Create `display-status.ts` helper | workflow-ui | `getDisplayStatus()` maps `user-input` + `pending` + `ready` → `awaiting-input` | |
++-| 1.8 | Add `awaiting-input` to STATUS_MAP + click routing | workflow-ui | Violet badge, clickable, fires input handler | |
++-| 1.9 | Lightweight tests for 1.7–1.8 | workflow-ui | Display status computation correct for all unitType × status × ready combinations | |
+++| 1.4 | TDD: Write discriminated NodeStatusResult userInput test | _platform/positional-graph | Test: user-input node returns `UserInputNodeStatus` with `userInput` config via narrowing; agent/code return other variants | Test-first |
+++| 1.5 | Refactor `NarrowWorkUnit` into discriminated union | _platform/positional-graph | `NarrowWorkUnitBase` + 3 variants. `NarrowUserInputWorkUnit` carries `userInput`. Build passes. | Per [Workshop 011](./workshops/011-discriminated-type-architecture.md) |
+++| 1.6 | Refactor `NodeStatusResult` into discriminated union | _platform/positional-graph | `NodeStatusResultBase` + 3 variants. `UserInputNodeStatus` carries `userInput`. Build passes. | Per [Workshop 011](./workshops/011-discriminated-type-architecture.md) |
+++| 1.7 | Add type guard functions | _platform/positional-graph | `isNarrowUserInputUnit()`, `isUserInputNodeStatus()` exported | |
+++| 1.8 | Update `InstanceWorkUnitAdapter` to construct correct variant | _platform/positional-graph | user-input → `NarrowUserInputWorkUnit`; others → agent/code variant | Per [Workshop 011](./workshops/011-discriminated-type-architecture.md) |
+++| 1.9 | Populate `userInput` in `getNodeStatus()` — build correct variant | _platform/positional-graph | Return `UserInputNodeStatus` when unit is user-input. Test from 1.4 passes. | |
+++| 1.10 | Update test helpers + inline literals for discriminated variants | _platform/positional-graph + test | `createWorkUnit()`, `stubWorkUnitLoader()`, `makeNode()`, `makeNodeStatus()`, inline literals all satisfy union types. All tests pass. | ~15 test sites |
+++| 1.11 | Create `display-status.ts` helper | workflow-ui | `getDisplayStatus()` maps `user-input` + `pending` + `ready` → `awaiting-input` | |
+++| 1.12 | Add `awaiting-input` to STATUS_MAP + NodeStatus type | workflow-ui | Violet badge, "Awaiting Input" label | |
+++| 1.13 | Lightweight tests for display status | workflow-ui | Display status computation correct for all unitType × status × ready combinations | |
++ 
++ ### Phase 2: Human Input Modal + Server Action
++ 
++@@ -146,7 +151,7 @@ User-input nodes in the workflow editor currently have no input mechanism — th
++ 
++ | Phase | Status | Tasks | Notes |
++ |-------|--------|-------|-------|
++-| Phase 1: NodeStatusResult + Display Status | Not started | 0/9 | |
+++| Phase 1: NodeStatusResult + Display Status | Complete | 13/13 | Per [Workshop 011](./workshops/011-discriminated-type-architecture.md) — discriminated unions |
++ | Phase 2: Human Input Modal + Server Action | Not started | 0/8 | |
++ | Phase 3: Demo + Integration + Cleanup | Not started | 0/5 | |
++ 
++diff --git a/docs/plans/054-unified-human-input/unified-human-input-spec.md b/docs/plans/054-unified-human-input/unified-human-input-spec.md
++index 138ad11..8844d00 100644
++--- a/docs/plans/054-unified-human-input/unified-human-input-spec.md
+++++ b/docs/plans/054-unified-human-input/unified-human-input-spec.md
++@@ -131,3 +131,4 @@ No new domains required.
++ | Save & Persistence Strategy | Data Model | Valid | [008](./workshops/008-save-persistence-strategy.md) — single-output path is the only path now |
++ | Question Definition Schema | Schema Design | **Superseded** | [009](./workshops/009-question-definition-schema.md) — fields[] not needed, existing schema is sufficient |
++ | Single-Question Simplification | Architecture | **Authoritative** | [010](./workshops/010-single-question-simplification.md) — the governing design decision |
+++| Discriminated Type Architecture | Architecture | **Authoritative** | [011](./workshops/011-discriminated-type-architecture.md) — NarrowWorkUnit + NodeStatusResult as discriminated unions |
++diff --git a/docs/plans/054-unified-human-input/workshops/011-discriminated-type-architecture.md b/docs/plans/054-unified-human-input/workshops/011-discriminated-type-architecture.md
++new file mode 100644
++index 0000000..36cfe4c
++--- /dev/null
+++++ b/docs/plans/054-unified-human-input/workshops/011-discriminated-type-architecture.md
++@@ -0,0 +1,326 @@
+++# Workshop: Discriminated Type Architecture for Human Input
+++
+++**Type**: Architecture
+++**Plan**: 054-unified-human-input
+++**Created**: 2026-02-27
+++**Status**: Authoritative
+++
+++---
+++
+++## Purpose
+++
+++Define the type architecture for surfacing `user_input` config through the system: from unit.yaml → NarrowWorkUnit → NodeStatusResult → UI. The design uses idiomatic TypeScript discriminated unions on both `NarrowWorkUnit` and `NodeStatusResult`, keeping base types config-free and placing type-specific data on the correct variant.
+++
+++---
+++
+++## Problem
+++
+++`NarrowWorkUnit` was designed as a 4-field interface (`slug`, `type`, `inputs`, `outputs`) to avoid cross-package dependency on `@chainglass/workgraph` (per DYK-P4-I2). The interface deliberately strips type-specific config (`agent`, `code`, `user_input`) at the adapter boundary.
+++
+++Now the UI needs `user_input` config (prompt, questionType, options) to render the Human Input modal. Adding it as an optional field on the base `NarrowWorkUnit` or `NodeStatusResult` would violate the narrow principle and set a precedent for bloating these types with `agentConfig`, `codeConfig`, etc.
+++
+++---
+++
+++## Design: Discriminated Unions
+++
+++### NarrowWorkUnit — Discriminated on `type`
+++
+++The full `WorkUnit` schema is already a discriminated union (`AgenticWorkUnit | CodeUnit | UserInputUnit`). `NarrowWorkUnit` should mirror this pattern.
+++
+++```typescript
+++// ─── Base (shared fields, no type-specific config) ───
+++
+++interface NarrowWorkUnitBase {
+++  slug: string;
+++  inputs: NarrowWorkUnitInput[];
+++  outputs: NarrowWorkUnitOutput[];
+++}
+++
+++// ─── Variants (discriminated on 'type') ───
+++
+++interface NarrowAgentWorkUnit extends NarrowWorkUnitBase {
+++  type: 'agent';
+++}
+++
+++interface NarrowCodeWorkUnit extends NarrowWorkUnitBase {
+++  type: 'code';
+++}
+++
+++interface NarrowUserInputWorkUnit extends NarrowWorkUnitBase {
+++  type: 'user-input';
+++  userInput: {
+++    prompt: string;
+++    questionType: 'text' | 'single' | 'multi' | 'confirm';
+++    options?: { key: string; label: string; description?: string }[];
+++    default?: string | boolean;
+++  };
+++}
+++
+++// ─── Union ───
+++
+++type NarrowWorkUnit = NarrowAgentWorkUnit | NarrowCodeWorkUnit | NarrowUserInputWorkUnit;
+++```
+++
+++**Why**: Each variant carries only its own config. The base stays lean. Existing code that reads `slug`, `type`, `inputs`, `outputs` compiles unchanged against the union. Type narrowing is automatic:
+++
+++```typescript
+++if (unit.type === 'user-input') {
+++  unit.userInput.prompt; // ← TypeScript narrows to NarrowUserInputWorkUnit
+++}
+++```
+++
+++### NodeStatusResult — Discriminated on `unitType`
+++
+++```typescript
+++// ─── Base (all existing fields, no type-specific config) ───
+++
+++interface NodeStatusResultBase {
+++  nodeId: string;
+++  unitSlug: string;
+++  execution: Execution;
+++  noContext?: boolean;
+++  contextFrom?: string;
+++  lineId: string;
+++  position: number;
+++
+++  status: ExecutionStatus;
+++
+++  ready: boolean;
+++  readyDetail: {
+++    precedingLinesComplete: boolean;
+++    transitionOpen: boolean;
+++    serialNeighborComplete: boolean;
+++    contextFromReady?: boolean;
+++    inputsAvailable: boolean;
+++    unitFound: boolean;
+++    reason?: string;
+++  };
+++
+++  inputPack: InputPack;
+++
+++  // State-conditional fields (stay on base — not type-specific)
+++  /** @deprecated Q&A protocol is scaffolding. */
+++  pendingQuestion?: {
+++    questionId: string;
+++    text: string;
+++    questionType: 'text' | 'single' | 'multi' | 'confirm';
+++    options?: { key: string; label: string }[];
+++    askedAt: string;
+++  };
+++
+++  error?: {
+++    code: string;
+++    message: string;
+++    occurredAt: string;
+++  };
+++
+++  startedAt?: string;
+++  completedAt?: string;
+++}
+++
+++// ─── Variants (discriminated on 'unitType') ───
+++
+++interface AgentNodeStatus extends NodeStatusResultBase {
+++  unitType: 'agent';
+++}
+++
+++interface CodeNodeStatus extends NodeStatusResultBase {
+++  unitType: 'code';
+++}
+++
+++interface UserInputNodeStatus extends NodeStatusResultBase {
+++  unitType: 'user-input';
+++  userInput: {
+++    prompt: string;
+++    questionType: 'text' | 'single' | 'multi' | 'confirm';
+++    options?: { key: string; label: string; description?: string }[];
+++    default?: string | boolean;
+++  };
+++}
+++
+++// ─── Union ───
+++
+++type NodeStatusResult = AgentNodeStatus | CodeNodeStatus | UserInputNodeStatus;
+++```
+++
+++**Why**: The discriminator `unitType` is already checked throughout the codebase (ONBAS, ODS, context-badge, pod-manager). Making it a formal discriminated union adds compiler-enforced narrowing for free. Existing consumers that access common fields compile unchanged.
+++
+++---
+++
+++## Backward Compatibility Analysis
+++
+++### Consumers that compile unchanged
+++
+++| Consumer | Accesses | Why safe |
+++|----------|----------|----------|
+++| ONBAS (`onbas.ts`) | `node.unitType === 'user-input'` guard | `unitType` on all variants ✓ |
+++| ODS (`ods.ts`) | `node.unitType`, `node.ready`, `node.status` | Common fields ✓ |
+++| Agent context (`agent-context.ts`) | `node.unitType !== 'agent'` guard | ✓ |
+++| Pod manager (`pod-manager.ts`) | `switch(unit.type)` | Discriminator ✓ |
+++| Context badge (`context-badge.ts`) | `node.unitType !== 'agent'` | ✓ |
+++| QA modal (`qa-modal.tsx`) | `node.pendingQuestion` | On base ✓ |
+++| Workflow editor (`workflow-editor.tsx`) | `node.status`, `node.nodeId`, etc. | Common fields ✓ |
+++| Node card (`workflow-node-card.tsx`) | `status`, `unitType` for icons | ✓ |
+++| Properties panel | `node.unitType`, `node.status` | ✓ |
+++
+++### Sites that need updating
+++
+++| Site | File | Change |
+++|------|------|--------|
+++| `InstanceWorkUnitAdapter` | `instance-workunit.adapter.ts` | Construct `NarrowUserInputWorkUnit` when `type === 'user-input'`; others get `NarrowAgentWorkUnit` or `NarrowCodeWorkUnit` |
+++| `getNodeStatus()` | `positional-graph.service.ts` | Build `UserInputNodeStatus` (with `userInput`) or `AgentNodeStatus`/`CodeNodeStatus` based on loaded unit type |
+++| `createWorkUnit()` helper | `test/unit/positional-graph/test-helpers.ts` | Accept optional `userInput` config; construct correct variant |
+++| `stubWorkUnitLoader()` | `test/unit/positional-graph/test-helpers.ts` | Support `user-input` units with `userInput` in stub map |
+++| `createTestUnit()` | `test/e2e/positional-graph-e2e.ts` | Add `type` param (if missing) and optional `userInput` |
+++| `createTestUnit()` | `test/integration/positional-graph/graph-lifecycle.test.ts` | Same |
+++| `makeNode()` helpers | `test/unit/web/features/050-workflow-page/*.test.*` | Accept `unitType` override; construct correct variant |
+++| `makeNodeStatus()` | `test/unit/positional-graph/features/030-orchestration/reality.test.ts` | Same pattern |
+++| Inline `NarrowWorkUnit` literals | Various test files (`collate-inputs.test.ts`, `input-wiring.test.ts`, `status.test.ts`, `can-run.test.ts`, `input-retrieval.test.ts`) | Add explicit `type` to satisfy variant; `user-input` literals add `userInput` |
+++
+++**Total**: ~1 production adapter + ~1 production service + ~8-10 test helpers/fixtures.
+++
+++---
+++
+++## Construction Patterns
+++
+++### Adapter (production)
+++
+++```typescript
+++// InstanceWorkUnitAdapter.load()
+++if (unitDef.type === 'user-input') {
+++  const unit: NarrowUserInputWorkUnit = {
+++    slug: unitDef.slug,
+++    type: 'user-input',
+++    inputs: unitDef.inputs ?? [],
+++    outputs: unitDef.outputs,
+++    userInput: {
+++      prompt: unitDef.user_input.prompt,
+++      questionType: unitDef.user_input.question_type,
+++      options: unitDef.user_input.options,
+++      default: unitDef.user_input.default,
+++    },
+++  };
+++  return { unit, errors: [] };
+++} else {
+++  const unit: NarrowWorkUnit = {
+++    slug: unitDef.slug,
+++    type: unitDef.type,
+++    inputs: unitDef.inputs ?? [],
+++    outputs: unitDef.outputs,
+++  };
+++  return { unit, errors: [] };
+++}
+++```
+++
+++### getNodeStatus() (production)
+++
+++```typescript
+++// Build base fields
+++const base: NodeStatusResultBase = { nodeId, unitSlug, ... };
+++
+++// Return discriminated variant
+++if (unitResult.unit?.type === 'user-input') {
+++  return {
+++    ...base,
+++    unitType: 'user-input' as const,
+++    userInput: (unitResult.unit as NarrowUserInputWorkUnit).userInput,
+++  } satisfies UserInputNodeStatus;
+++}
+++
+++return {
+++  ...base,
+++  unitType: unitResult.unit?.type ?? 'agent',
+++} as NodeStatusResult;
+++```
+++
+++### Test helper
+++
+++```typescript
+++// Updated createWorkUnit()
+++export function createWorkUnit(config: WorkUnitConfig): NarrowWorkUnit {
+++  const base = { slug: config.slug, inputs, outputs };
+++
+++  if (config.unitType === 'user-input' && config.userInput) {
+++    return { ...base, type: 'user-input', userInput: config.userInput };
+++  }
+++  return { ...base, type: config.unitType ?? 'agent' };
+++}
+++```
+++
+++---
+++
+++## UI Consumption Pattern
+++
+++```typescript
+++// In HumanInputModal or workflow-editor:
+++function handleNodeClick(node: NodeStatusResult) {
+++  if (node.unitType === 'user-input') {
+++    // TypeScript narrows to UserInputNodeStatus
+++    openHumanInputModal({
+++      prompt: node.userInput.prompt,
+++      questionType: node.userInput.questionType,
+++      options: node.userInput.options,
+++    });
+++  }
+++}
+++```
+++
+++No type assertions needed. Compiler-enforced safety.
+++
+++---
+++
+++## Type Guard Functions
+++
+++For convenience, add type guards alongside the existing WorkUnit guards:
+++
+++```typescript
+++// NarrowWorkUnit guards
+++export function isNarrowUserInputUnit(unit: NarrowWorkUnit): unit is NarrowUserInputWorkUnit {
+++  return unit.type === 'user-input';
+++}
+++
+++// NodeStatusResult guards
+++export function isUserInputNodeStatus(node: NodeStatusResult): node is UserInputNodeStatus {
+++  return node.unitType === 'user-input';
+++}
+++```
+++
+++---
+++
+++## Impact on Tasks Dossier
+++
+++### Replaced tasks
+++
+++| Old Task | New Task(s) | Change |
+++|----------|-------------|--------|
+++| T005: Extend NarrowWorkUnit with optional userInput | T005a: Create NarrowWorkUnit discriminated union (base + 3 variants) | Not an optional field — a proper union |
+++| T006: Extend NodeStatusResult with optional userInput | T006a: Create NodeStatusResult discriminated union (base + 3 variants) | Not an optional field — a proper union |
+++| T008: Update InstanceWorkUnitAdapter | T008a: Adapter constructs correct NarrowWorkUnit variant | Conditional construction, not field mapping |
+++
+++### New tasks
+++
+++| Task | Description |
+++|------|-------------|
+++| T005b | Add type guard functions (`isNarrowUserInputUnit`, `isUserInputNodeStatus`) |
+++| T012 | Update test helpers (`createWorkUnit`, `stubWorkUnitLoader`, `makeNode`, `makeNodeStatus`) to support discriminated variants |
+++| T013 | Update inline NarrowWorkUnit literals in test files to satisfy variant types |
+++
+++### Unchanged tasks
+++
+++| Task | Why unchanged |
+++|------|--------------|
+++| T001-T003 | Format A fix — unrelated to type architecture |
+++| T004 | TDD test for userInput config — still valid, just tests narrowing |
+++| T007 | Populate userInput in getNodeStatus() — same goal, different construction pattern |
+++| T009-T011 | Display status — downstream of type changes, same behavior |
+++
+++---
+++
+++## Summary
+++
+++1. **NarrowWorkUnit** becomes a discriminated union mirroring `WorkUnit` — each variant carries its own config
+++2. **NodeStatusResult** becomes a discriminated union on `unitType` — `UserInputNodeStatus` carries `userInput`
+++3. **Base types stay clean** — no type-specific config on `NarrowWorkUnitBase` or `NodeStatusResultBase`
+++4. **Existing consumers compile unchanged** — all common fields on the base, discriminator on every variant
+++5. **Compiler-enforced narrowing** — `if (node.unitType === 'user-input') { node.userInput.prompt }` just works
+++6. **~12 sites need updates** — 2 production + ~10 test helpers/fixtures
++diff --git a/packages/positional-graph/src/adapter/instance-workunit.adapter.ts b/packages/positional-graph/src/adapter/instance-workunit.adapter.ts
++index d6da3a0..ac8dfa1 100644
++--- a/packages/positional-graph/src/adapter/instance-workunit.adapter.ts
+++++ b/packages/positional-graph/src/adapter/instance-workunit.adapter.ts
++@@ -63,15 +63,39 @@ export class InstanceWorkUnitAdapter implements IWorkUnitLoader {
++           required: boolean;
++           description?: string;
++         }>;
+++        user_input?: {
+++          question_type: 'text' | 'single' | 'multi' | 'confirm';
+++          prompt: string;
+++          options?: Array<{ key: string; label: string; description?: string }>;
+++          default?: string | boolean;
+++        };
++       }>(content, unitYamlPath);
++ 
++-      const unit: NarrowWorkUnit = {
+++      const base = {
++         slug: unitDef.slug,
++-        type: unitDef.type,
++         inputs: unitDef.inputs ?? [],
++         outputs: unitDef.outputs,
++       };
++ 
+++      if (unitDef.type === 'user-input' && unitDef.user_input) {
+++        const unit: NarrowWorkUnit = {
+++          ...base,
+++          type: 'user-input' as const,
+++          userInput: {
+++            prompt: unitDef.user_input.prompt,
+++            questionType: unitDef.user_input.question_type,
+++            options: unitDef.user_input.options,
+++            default: unitDef.user_input.default,
+++          },
+++        };
+++        return { unit, errors: [] };
+++      }
+++
+++      const unit: NarrowWorkUnit = {
+++        ...base,
+++        type: unitDef.type === 'code' ? ('code' as const) : ('agent' as const),
+++      };
+++
++       return { unit, errors: [] };
++     } catch (err) {
++       return {
++diff --git a/packages/positional-graph/src/interfaces/index.ts b/packages/positional-graph/src/interfaces/index.ts
++index 3b168f4..a5ef34d 100644
++--- a/packages/positional-graph/src/interfaces/index.ts
+++++ b/packages/positional-graph/src/interfaces/index.ts
++@@ -3,6 +3,7 @@ export type {
++   AddLineResult,
++   AddNodeOptions,
++   AddNodeResult,
+++  AgentNodeStatus,
++   AnswerQuestionResult,
++   AskQuestionOptions,
++   AskQuestionResult,
++@@ -10,6 +11,7 @@ export type {
++   AvailableSource,
++   CanEndResult,
++   CanRunResult,
+++  CodeNodeStatus,
++   EndNodeResult,
++   ErrorInput,
++   ExecutionStatus,
++@@ -30,11 +32,16 @@ export type {
++   IWorkUnitLoader,
++   LineStatusResult,
++   MoveNodeOptions,
+++  NarrowAgentWorkUnit,
+++  NarrowCodeWorkUnit,
+++  NarrowUserInputWorkUnit,
++   NarrowWorkUnit,
+++  NarrowWorkUnitBase,
++   NarrowWorkUnitInput,
++   NarrowWorkUnitOutput,
++   NodeShowResult,
++   NodeStatusResult,
+++  NodeStatusResultBase,
++   PGListResult,
++   PGLoadResult,
++   PGShowResult,
++@@ -44,5 +51,11 @@ export type {
++   StampNodeEventResult,
++   StarterReadiness,
++   StartNodeResult,
+++  UserInputNodeStatus,
++   WaitingInput,
++ } from './positional-graph-service.interface.js';
+++
+++export {
+++  isNarrowUserInputUnit,
+++  isUserInputNodeStatus,
+++} from './positional-graph-service.interface.js';
++diff --git a/packages/positional-graph/src/interfaces/positional-graph-service.interface.ts b/packages/positional-graph/src/interfaces/positional-graph-service.interface.ts
++index 0994802..28939e7 100644
++--- a/packages/positional-graph/src/interfaces/positional-graph-service.interface.ts
+++++ b/packages/positional-graph/src/interfaces/positional-graph-service.interface.ts
++@@ -45,14 +45,39 @@ export interface NarrowWorkUnitOutput {
++ 
++ /**
++  * Narrow representation of a loaded WorkUnit — just the fields collateInputs needs.
+++ * Discriminated union on `type` — each variant carries its own config.
+++ * Per Workshop 011: base stays config-free, type-specific data on variants only.
++  */
++-export interface NarrowWorkUnit {
+++export interface NarrowWorkUnitBase {
++   slug: string;
++-  type: 'agent' | 'code' | 'user-input';
++   inputs: NarrowWorkUnitInput[];
++   outputs: NarrowWorkUnitOutput[];
++ }
++ 
+++export interface NarrowAgentWorkUnit extends NarrowWorkUnitBase {
+++  type: 'agent';
+++}
+++
+++export interface NarrowCodeWorkUnit extends NarrowWorkUnitBase {
+++  type: 'code';
+++}
+++
+++export interface NarrowUserInputWorkUnit extends NarrowWorkUnitBase {
+++  type: 'user-input';
+++  userInput: {
+++    prompt: string;
+++    questionType: 'text' | 'single' | 'multi' | 'confirm';
+++    options?: { key: string; label: string; description?: string }[];
+++    default?: string | boolean;
+++  };
+++}
+++
+++export type NarrowWorkUnit = NarrowAgentWorkUnit | NarrowCodeWorkUnit | NarrowUserInputWorkUnit;
+++
+++export function isNarrowUserInputUnit(unit: NarrowWorkUnit): unit is NarrowUserInputWorkUnit {
+++  return unit.type === 'user-input';
+++}
+++
++ /**
++  * Narrow interface for WorkUnit loading.
++  * Per DYK-P4-I2: avoids cross-package dependency on @chainglass/workgraph.
++@@ -240,11 +265,12 @@ export type ExecutionStatus = 'pending' | 'ready' | NodeExecutionStatus; // 'sta
++ 
++ /**
++  * DYK-I3: execution stays flat for display formatting compatibility.
+++ * Discriminated union on `unitType` — type-specific config on variants only.
+++ * Per Workshop 011: base carries common fields, UserInputNodeStatus carries userInput.
++  */
++-export interface NodeStatusResult {
+++export interface NodeStatusResultBase {
++   nodeId: string;
++   unitSlug: string;
++-  unitType: 'agent' | 'code' | 'user-input';
++   execution: Execution;
++   noContext?: boolean;
++   contextFrom?: string;
++@@ -296,6 +322,30 @@ export interface NodeStatusResult {
++   completedAt?: string;
++ }
++ 
+++export interface AgentNodeStatus extends NodeStatusResultBase {
+++  unitType: 'agent';
+++}
+++
+++export interface CodeNodeStatus extends NodeStatusResultBase {
+++  unitType: 'code';
+++}
+++
+++export interface UserInputNodeStatus extends NodeStatusResultBase {
+++  unitType: 'user-input';
+++  userInput: {
+++    prompt: string;
+++    questionType: 'text' | 'single' | 'multi' | 'confirm';
+++    options?: { key: string; label: string; description?: string }[];
+++    default?: string | boolean;
+++  };
+++}
+++
+++export type NodeStatusResult = AgentNodeStatus | CodeNodeStatus | UserInputNodeStatus;
+++
+++export function isUserInputNodeStatus(node: NodeStatusResult): node is UserInputNodeStatus {
+++  return node.unitType === 'user-input';
+++}
+++
++ /** A chain-starter is position 0, or any parallel node that breaks a serial chain. */
++ export interface StarterReadiness {
++   nodeId: string;
++diff --git a/packages/positional-graph/src/services/input-resolution.ts b/packages/positional-graph/src/services/input-resolution.ts
++index b389f2b..ba9197d 100644
++--- a/packages/positional-graph/src/services/input-resolution.ts
+++++ b/packages/positional-graph/src/services/input-resolution.ts
++@@ -346,10 +346,12 @@ async function resolveInput(
++     if (nodeState?.status === 'complete') {
++       // Load data
++       const data = await loadNodeData(fs, pathResolver, adapter, ctx, graphSlug, srcId);
+++      const dataRecord = data as Record<string, unknown> | undefined;
+++      const outputs = (dataRecord?.outputs ?? {}) as Record<string, unknown>;
++       available.push({
++         sourceNodeId: srcId,
++         sourceOutput: fromOutput,
++-        data: data?.[fromOutput],
+++        data: outputs[fromOutput] ?? dataRecord?.[fromOutput],
++       });
++     } else {
++       waiting.push(srcId);
++diff --git a/packages/positional-graph/src/services/positional-graph.service.ts b/packages/positional-graph/src/services/positional-graph.service.ts
++index 813861d..a997cfb 100644
++--- a/packages/positional-graph/src/services/positional-graph.service.ts
+++++ b/packages/positional-graph/src/services/positional-graph.service.ts
++@@ -1112,10 +1112,9 @@ export class PositionalGraphService implements IPositionalGraphService {
++       return leftState?.status === 'complete';
++     })();
++ 
++-    return {
+++    const base = {
++       nodeId,
++       unitSlug: nodeConfig.unit_slug,
++-      unitType: unitResult.unit?.type ?? 'agent',
++       execution: nodeConfig.orchestratorSettings.execution,
++       noContext: nodeConfig.orchestratorSettings.noContext ?? false,
++       contextFrom: nodeConfig.orchestratorSettings.contextFrom,
++@@ -1139,6 +1138,20 @@ export class PositionalGraphService implements IPositionalGraphService {
++       startedAt: storedState?.started_at,
++       completedAt: storedState?.completed_at,
++     };
+++
+++    const unitType = unitResult.unit?.type ?? 'agent';
+++    if (unitType === 'user-input' && unitResult.unit && 'userInput' in unitResult.unit) {
+++      return {
+++        ...base,
+++        unitType: 'user-input' as const,
+++        userInput: (unitResult.unit as import('../interfaces/index.js').NarrowUserInputWorkUnit)
+++          .userInput,
+++      };
+++    }
+++    if (unitType === 'code') {
+++      return { ...base, unitType: 'code' as const };
+++    }
+++    return { ...base, unitType: 'agent' as const };
++   }
++ 
++   /**
++diff --git a/test/unit/positional-graph/collate-inputs.test.ts b/test/unit/positional-graph/collate-inputs.test.ts
++index af61570..4153f58 100644
++--- a/test/unit/positional-graph/collate-inputs.test.ts
+++++ b/test/unit/positional-graph/collate-inputs.test.ts
++@@ -48,7 +48,7 @@ function createTestService(
++   return new PositionalGraphService(fs, pathResolver, yamlParser, adapter, loader);
++ }
++ 
++-/** Write data.json for a completed node. */
+++/** Write data.json for a completed node (Format A: wrapped in { outputs: { ... } }). */
++ async function writeNodeData(
++   fs: FakeFileSystem,
++   pathResolver: FakePathResolver,
++@@ -59,7 +59,7 @@ async function writeNodeData(
++   const nodeDir = `/workspace/my-project/.chainglass/data/workflows/${graphSlug}/nodes/${nodeId}`;
++   const dataDir = pathResolver.join(nodeDir, 'data');
++   await fs.mkdir(dataDir, { recursive: true });
++-  await fs.writeFile(pathResolver.join(dataDir, 'data.json'), JSON.stringify(data));
+++  await fs.writeFile(pathResolver.join(dataDir, 'data.json'), JSON.stringify({ outputs: data }));
++ }
++ 
++ /** Write state.json for a graph. */
++@@ -115,6 +115,54 @@ describe('PositionalGraphService — collateInputs', () => {
++     ctx = createTestContext();
++   });
++ 
+++  // ============================================
+++  // Format A resolution (data.json wrapped in { outputs: { ... } })
+++  // ============================================
+++
+++  describe('Format A (wrapped outputs) resolution', () => {
+++    it('resolves available when data.json uses Format A wrapper', async () => {
+++      // Setup: sample-input → sample-coder, data written in Format A
+++      const { lineId: line0 } = await service.create(ctx, 'test-graph');
+++      const addLine1 = await service.addLine(ctx, 'test-graph');
+++      const line1 = addLine1.lineId as string;
+++
+++      const inputNode = await service.addNode(ctx, 'test-graph', line0, 'sample-input');
+++      const coderNode = await service.addNode(ctx, 'test-graph', line1, 'sample-coder');
+++      const inputNodeId = inputNode.nodeId as string;
+++      const coderNodeId = coderNode.nodeId as string;
+++
+++      await service.setInput(ctx, 'test-graph', coderNodeId, 'spec', {
+++        from_unit: 'sample-input',
+++        from_output: 'spec',
+++      });
+++
+++      // Mark input node as complete
+++      await writeState(fs, pathResolver, 'test-graph', {
+++        graph_status: 'in_progress',
+++        updated_at: new Date().toISOString(),
+++        nodes: { [inputNodeId]: { status: 'complete', completed_at: new Date().toISOString() } },
+++        transitions: {},
+++      });
+++
+++      // Write data — writeNodeData wraps in Format A automatically
+++      await writeNodeData(fs, pathResolver, 'test-graph', inputNodeId, {
+++        spec: { type: 'data', dataType: 'text', value: 'The spec content' },
+++      });
+++
+++      const result = await service.collateInputs(ctx, 'test-graph', coderNodeId);
+++
+++      expect(result.ok).toBe(true);
+++      expect(result.inputs.spec.status).toBe('available');
+++      if (result.inputs.spec.status === 'available') {
+++        expect(result.inputs.spec.detail.sources[0].data).toEqual({
+++          type: 'data',
+++          dataType: 'text',
+++          value: 'The spec content',
+++        });
+++      }
+++    });
+++  });
+++
++   // ============================================
++   // T004: Single source resolution
++   // ============================================
++diff --git a/test/unit/web/features/050-workflow-page/display-status.test.ts b/test/unit/web/features/050-workflow-page/display-status.test.ts
++new file mode 100644
++index 0000000..99f1d97
++--- /dev/null
+++++ b/test/unit/web/features/050-workflow-page/display-status.test.ts
++@@ -0,0 +1,28 @@
+++import { getDisplayStatus } from '@/features/050-workflow-page/lib/display-status';
+++import { describe, expect, it } from 'vitest';
+++
+++describe('getDisplayStatus', () => {
+++  it('returns awaiting-input for user-input + pending + ready', () => {
+++    expect(getDisplayStatus('user-input', 'pending', true)).toBe('awaiting-input');
+++  });
+++
+++  it('returns pending for user-input + pending + NOT ready', () => {
+++    expect(getDisplayStatus('user-input', 'pending', false)).toBe('pending');
+++  });
+++
+++  it('returns original status for agent + pending + ready', () => {
+++    expect(getDisplayStatus('agent', 'pending', true)).toBe('pending');
+++  });
+++
+++  it('returns original status for code + pending + ready', () => {
+++    expect(getDisplayStatus('code', 'pending', true)).toBe('pending');
+++  });
+++
+++  it('returns complete for user-input + complete + ready', () => {
+++    expect(getDisplayStatus('user-input', 'complete', true)).toBe('complete');
+++  });
+++
+++  it('returns original status when not pending', () => {
+++    expect(getDisplayStatus('user-input', 'agent-accepted', true)).toBe('agent-accepted');
+++  });
+++});
+diff --git a/docs/plans/054-unified-human-input/reviews/fix-tasks.phase-1-nodestatus-display.md b/docs/plans/054-unified-human-input/reviews/fix-tasks.phase-1-nodestatus-display.md
+new file mode 100644
+index 0000000..68427c9
+--- /dev/null
++++ b/docs/plans/054-unified-human-input/reviews/fix-tasks.phase-1-nodestatus-display.md
+@@ -0,0 +1,148 @@
++# Fix Tasks: Phase 1: NodeStatusResult + Display Status
++
++Apply in order. Re-run review after fixes.
++
++## Critical / High Fixes
++
++### FT-001: Wire `awaiting-input` into runtime card status
++- **Severity**: HIGH
++- **File(s)**: /Users/jordanknight/substrate/chainglass-048/apps/web/src/features/050-workflow-page/components/workflow-node-card.tsx
++- **Issue**: Runtime mapping returns raw `node.status`, so `awaiting-input` is never surfaced even though helper/map exist.
++- **Fix**: Import/use `getDisplayStatus(node.unitType, node.status, node.ready)` in `nodeStatusToCardProps`, then add a test asserting user-input + pending + ready renders `Awaiting Input`.
++- **Patch hint**:
++  ```diff
++  - export function nodeStatusToCardProps(node: NodeStatusResult, lineIndex: number): WorkflowNodeCardProps {
++  + export function nodeStatusToCardProps(node: NodeStatusResult, lineIndex: number): WorkflowNodeCardProps {
++      return {
++        nodeId: node.nodeId,
++        unitSlug: node.unitSlug,
++        unitType: node.unitType,
++  -     status: node.status as NodeStatus,
++  +     status: getDisplayStatus(node.unitType, node.status, node.ready) as NodeStatus,
++        contextColor: computeContextBadge(node, lineIndex),
++        noContext: node.noContext,
++        nodeStatus: node,
++      };
++    }
++  ```
++
++### FT-002: Fail fast on malformed `user-input` unit definitions
++- **Severity**: HIGH
++- **File(s)**: /Users/jordanknight/substrate/chainglass-048/packages/positional-graph/src/adapter/instance-workunit.adapter.ts
++- **Issue**: `type: 'user-input'` without `user_input` silently degrades to `agent`, masking configuration errors.
++- **Fix**: Add explicit validation branch for `user-input` type and return a structured `UNIT_LOAD_ERROR` when `user_input` is absent.
++- **Patch hint**:
++  ```diff
++  - if (unitDef.type === 'user-input' && unitDef.user_input) {
++  + if (unitDef.type === 'user-input') {
++  +   if (!unitDef.user_input) {
++  +     return {
++  +       errors: [{ message: `Unit '${slug}' has type 'user-input' but is missing user_input config`, code: 'UNIT_LOAD_ERROR' }],
++  +     };
++  +   }
++        const unit: NarrowWorkUnit = {
++          ...base,
++          type: 'user-input' as const,
++          userInput: {
++            prompt: unitDef.user_input.prompt,
++            questionType: unitDef.user_input.question_type,
++            options: unitDef.user_input.options,
++            default: unitDef.user_input.default,
++          },
++        };
++        return { unit, errors: [] };
++      }
++  ```
++
++## Medium / Low Fixes
++
++### FT-003: Add missing discriminated status test evidence (T004)
++- **Severity**: MEDIUM
++- **File(s)**: /Users/jordanknight/substrate/chainglass-048/test/unit/positional-graph/ (appropriate node-status test file)
++- **Issue**: No concrete test change proving `getNodeStatus()` returns `UserInputNodeStatus` with `userInput` config via narrowing.
++- **Fix**: Add the test and record command output in execution log.
++- **Patch hint**:
++  ```diff
++  + it('returns UserInputNodeStatus with userInput config for user-input units', async () => {
++  +   // arrange user-input fixture
++  +   // act getNodeStatus()
++  +   // assert narrowed userInput.prompt/questionType/options/default
++  + });
++  ```
++
++### FT-004: Align dev/test graph helpers with strict user-input validation
++- **Severity**: MEDIUM
++- **File(s)**:
++  - /Users/jordanknight/substrate/chainglass-048/dev/test-graphs/shared/helpers.ts
++  - /Users/jordanknight/substrate/chainglass-048/dev/test-graphs/shared/graph-test-runner.ts
++- **Issue**: Helpers mirror silent `user-input`→`agent` coercion, hiding malformed fixtures.
++- **Fix**: Apply same validation semantics as runtime adapter (error on missing `user_input`).
++- **Patch hint**:
++  ```diff
++  - const type = unit.type === 'code' ? 'code' : unit.type === 'user-input' && unit.user_input ? 'user-input' : 'agent';
++  + if (unit.type === 'user-input' && !unit.user_input) {
++  +   throw new Error(`Malformed user-input unit '${unit.slug}': missing user_input`);
++  + }
++  + const type = unit.type === 'code' ? 'code' : unit.type === 'user-input' ? 'user-input' : 'agent';
++  ```
++
++### FT-005: Update domain artifacts for Plan 054 Phase 1
++- **Severity**: MEDIUM
++- **File(s)**:
++  - /Users/jordanknight/substrate/chainglass-048/docs/domains/_platform/positional-graph/domain.md
++  - /Users/jordanknight/substrate/chainglass-048/docs/domains/workflow-ui/domain.md
++  - /Users/jordanknight/substrate/chainglass-048/docs/domains/domain-map.md
++  - /Users/jordanknight/substrate/chainglass-048/docs/plans/054-unified-human-input/unified-human-input-plan.md
++- **Issue**: Domain history/contracts/composition/concepts/manifest/map metadata lag behind actual changed files/contracts.
++- **Fix**: Add Plan 054 history entries, concepts table updates, map refresh, and complete domain manifest coverage.
++- **Patch hint**:
++  ```diff
++  + ## History
++  + | Plan | Change | Date |
++  + |------|--------|------|
++  + | 054 P1 | Discriminated NodeStatusResult/NarrowWorkUnit; awaiting-input display status plumbing | 2026-02-27 |
++  +
++  + ## Concepts
++  + | Concept | Entry Point | What It Does |
++  + |--------|-------------|--------------|
++  + | UserInputNodeStatus | .../positional-graph-service.interface.ts | Carries user-input config in discriminated status variant |
++  ```
++
++### FT-006: Add required Test Doc comments per R-TEST-002
++- **Severity**: MEDIUM
++- **File(s)**:
++  - /Users/jordanknight/substrate/chainglass-048/test/unit/web/features/050-workflow-page/display-status.test.ts
++  - /Users/jordanknight/substrate/chainglass-048/test/unit/positional-graph/collate-inputs.test.ts
++- **Issue**: New/changed tests lack mandatory 5-field Test Doc blocks.
++- **Fix**: Add Why / Contract / Usage Notes / Quality Contribution / Worked Example in each affected `it(...)`.
++- **Patch hint**:
++  ```diff
++    it('resolves available when data.json uses Format A wrapper', async () => {
++  +   /*
++  +   Test Doc:
++  +   - Why: ...
++  +   - Contract: ...
++  +   - Usage Notes: ...
++  +   - Quality Contribution: ...
++  +   - Worked Example: ...
++  +   */
++      // Arrange...
++    });
++  ```
++
++### FT-007: Add concrete execution evidence
++- **Severity**: LOW
++- **File(s)**: /Users/jordanknight/substrate/chainglass-048/docs/plans/054-unified-human-input/tasks/phase-1-nodestatus-display/execution.log.md
++- **Issue**: Broad pass-count claims are narrative without command transcript snippets.
++- **Fix**: Append exact commands and condensed pass/fail outputs (or CI links).
++- **Patch hint**:
++  ```diff
++  + ### Command Evidence
++  + - `pnpm --filter @chainglass/positional-graph test` → PASS (1052 passed)
++  + - `pnpm --filter @chainglass/positional-graph build` → PASS (0 errors)
++  ```
++
++## Re-Review Checklist
++
++- [ ] All critical/high fixes applied
++- [ ] Re-run `/plan-7-v2-code-review` and achieve zero HIGH/CRITICAL
+diff --git a/docs/plans/054-unified-human-input/reviews/review.phase-1-nodestatus-display.md b/docs/plans/054-unified-human-input/reviews/review.phase-1-nodestatus-display.md
+new file mode 100644
+index 0000000..6a60df3
+--- /dev/null
++++ b/docs/plans/054-unified-human-input/reviews/review.phase-1-nodestatus-display.md
+@@ -0,0 +1,203 @@
++# Code Review: Phase 1: NodeStatusResult + Display Status
++
++**Plan**: /Users/jordanknight/substrate/chainglass-048/docs/plans/054-unified-human-input/unified-human-input-plan.md
++**Spec**: /Users/jordanknight/substrate/chainglass-048/docs/plans/054-unified-human-input/unified-human-input-spec.md
++**Phase**: Phase 1: NodeStatusResult + Display Status
++**Date**: 2026-02-27
++**Reviewer**: Automated (plan-7-v2)
++**Testing Approach**: Hybrid
++
++## A) Verdict
++
++**REQUEST_CHANGES**
++
++Two unmitigated HIGH findings block acceptance: `awaiting-input` display status is not wired into card props (AC-01 gap), and malformed `user-input` unit configs are silently coerced to `agent` instead of surfaced as errors.
++
++**Key failure areas**:
++- **Implementation**: `nodeStatusToCardProps()` forwards raw status and never calls `getDisplayStatus()`, so `Awaiting Input` is never rendered for ready user-input nodes.
++- **Domain compliance**: Domain artifacts are stale for this phase (`domain.md` updates missing; domain manifest does not cover all changed files).
++- **Testing**: No proof that T004 discriminated `getNodeStatus()` behavior was validated; AC-01 remains only helper-tested, not integration-wired.
++- **Doctrine**: New/changed tests do not include required 5-field Test Doc comments from `R-TEST-002`.
++
++## B) Summary
++
++The phase introduces the intended type-level and helper-level building blocks, but one core UI behavior is not connected in production code. Domain governance artifacts are incomplete for the final file set, reducing traceability and ownership clarity. Reinvention risk is low: the only major new helper (`getDisplayStatus`) is a focused UI concern with no direct duplicate that should be reused. Testing evidence is mixed: helper tests and format compatibility are present, but end-to-end proof for AC-01 is missing and execution evidence is mostly narrative.
++
++## C) Checklist
++
++**Testing Approach: Hybrid**
++
++Hybrid-specific:
++- [x] Lightweight helper tests present (`display-status.test.ts`)
++- [ ] Service-level TDD evidence complete for all planned tasks (T004 proof missing)
++- [ ] Critical UI behavior validated end-to-end (`awaiting-input` wiring missing)
++
++Universal (all approaches):
++- [ ] Only in-scope files changed
++- [ ] Linters/type checks clean (verifiable command output attached)
++- [ ] Domain compliance checks pass
++
++## D) Findings Table
++
++| ID | Severity | File:Lines | Category | Summary | Recommendation |
++|----|----------|------------|----------|---------|----------------|
++| F001 | HIGH | /Users/jordanknight/substrate/chainglass-048/apps/web/src/features/050-workflow-page/components/workflow-node-card.tsx:258-267 | correctness | Card props use raw `node.status`; `awaiting-input` display status is never computed. | Apply `getDisplayStatus(node.unitType, node.status, node.ready)` in card-prop mapping and add integration assertion. |
++| F002 | HIGH | /Users/jordanknight/substrate/chainglass-048/packages/positional-graph/src/adapter/instance-workunit.adapter.ts:80-97 | error-handling | `type: user-input` without `user_input` silently degrades to `agent`, hiding malformed config. | Fail fast for malformed user-input config with explicit `UNIT_LOAD_ERROR`. |
++| F003 | MEDIUM | /Users/jordanknight/substrate/chainglass-048/docs/domains/_platform/positional-graph/domain.md | domain-md | Domain history/contracts/composition not updated for discriminated union changes and type-guard exports. | Add Plan 054 Phase 1 updates to History, Contracts, Composition. |
++| F004 | MEDIUM | /Users/jordanknight/substrate/chainglass-048/docs/domains/workflow-ui/domain.md | domain-md | Domain doc missing Plan 054 Phase 1 update for `display-status.ts` and node-card behavior changes. | Add History + Composition updates for `awaiting-input` display flow. |
++| F005 | MEDIUM | /Users/jordanknight/substrate/chainglass-048/docs/plans/054-unified-human-input/unified-human-input-plan.md | orphan | Domain Manifest omits several changed files (adapter index export, dev test-graph helpers, test files). | Add explicit manifest entries or documented exemptions for every changed file. |
++| F006 | MEDIUM | /Users/jordanknight/substrate/chainglass-048/docs/domains/_platform/positional-graph/domain.md | concepts-docs | Domain has contracts but no `## Concepts` table including new contract concepts. | Add Concepts section with `Concept | Entry Point | What It Does`. |
++| F007 | MEDIUM | /Users/jordanknight/substrate/chainglass-048/test/unit/positional-graph/ | testing | T004 evidence missing: no changed test showing discriminated `UserInputNodeStatus` assertions from `getNodeStatus()`. | Add dedicated discriminated status test and log concrete pass evidence. |
++| F008 | MEDIUM | /Users/jordanknight/substrate/chainglass-048/dev/test-graphs/shared/helpers.ts:140-159 | pattern | Dev graph helpers mirror silent `user-input`→`agent` coercion, masking malformed fixtures. | Align dev/test loader behavior to fail fast on malformed user-input config. |
++| F009 | MEDIUM | /Users/jordanknight/substrate/chainglass-048/test/unit/web/features/050-workflow-page/display-status.test.ts | doctrine | Required 5-field Test Doc comments are missing (R-TEST-002). | Add Test Doc block to each new test case. |
++| F010 | MEDIUM | /Users/jordanknight/substrate/chainglass-048/test/unit/positional-graph/collate-inputs.test.ts | doctrine | Newly added Format A test lacks required 5-field Test Doc comment (R-TEST-002). | Add complete Test Doc block for the new test. |
++| F011 | LOW | /Users/jordanknight/substrate/chainglass-048/docs/domains/domain-map.md | map-nodes | Domain map contract labels/health summary not refreshed for new exported discriminated contract surface. | Update map node contract labels and health summary (or explicitly scope exclusions). |
++| F012 | LOW | /Users/jordanknight/substrate/chainglass-048/packages/positional-graph/src/interfaces/positional-graph-service.interface.ts | doctrine | New interface names do not follow `I`-prefix rule in `R-CODE-002`. | Rename to `I*` or convert to type aliases with documented rationale. |
++| F013 | LOW | /Users/jordanknight/substrate/chainglass-048/docs/plans/054-unified-human-input/tasks/phase-1-nodestatus-display/execution.log.md | testing | Evidence claims are mostly narrative (missing command transcript snippets/CI links). | Attach concrete command outputs for claimed build/test runs. |
++
++## E) Detailed Findings
++
++### E.1) Implementation Quality
++
++- **F001 (HIGH)**: `nodeStatusToCardProps()` currently sets `status: node.status as NodeStatus` and does not call the new `getDisplayStatus()` helper, so AC-01 behavior is not reachable in runtime rendering.
++- **F002 (HIGH)**: `InstanceWorkUnitAdapter.load()` treats malformed user-input config as non-user-input and returns an `agent` variant, suppressing configuration errors.
++- **F008 (MEDIUM)**: Dev test-graph helpers follow the same coercion pattern, allowing bad fixtures to appear valid.
++
++### E.2) Domain Compliance
++
++| Check | Status | Details |
++|-------|--------|---------|
++| File placement | ✅ | New runtime code files are under expected domain trees (`workflow-ui`, `_platform/positional-graph`). |
++| Contract-only imports | ✅ | No cross-domain internal import violation found in changed runtime code. |
++| Dependency direction | ✅ | No infrastructure→business reversal detected in changed runtime files. |
++| Domain.md updated | ❌ | `docs/domains/_platform/positional-graph/domain.md` and `docs/domains/workflow-ui/domain.md` were not updated for Plan 054 Phase 1 changes. |
++| Registry current | ✅ | No new domains introduced; registry remains valid for current topology. |
++| No orphan files | ❌ | Domain Manifest does not account for all changed files (notably adapter index export, dev test-graph files, and changed tests). |
++| Map nodes current | ❌ | `docs/domains/domain-map.md` not refreshed for changed contract surface. |
++| Map edges current | ✅ | No new dependency edges requiring label updates were observed. |
++| No circular business deps | ✅ | No new business-domain cycles identified in changed files. |
++| Concepts documented | ⚠️ | Contracts changed, but touched domain docs do not include a `## Concepts` section with required concept mapping. |
++
++Domain findings:
++- **F003/F006**: /Users/jordanknight/substrate/chainglass-048/docs/domains/_platform/positional-graph/domain.md
++- **F004**: /Users/jordanknight/substrate/chainglass-048/docs/domains/workflow-ui/domain.md
++- **F005**: /Users/jordanknight/substrate/chainglass-048/docs/plans/054-unified-human-input/unified-human-input-plan.md
++- **F011**: /Users/jordanknight/substrate/chainglass-048/docs/domains/domain-map.md
++
++### E.3) Anti-Reinvention
++
++| New Component | Existing Match? | Domain | Status |
++|--------------|----------------|--------|--------|
++| `getDisplayStatus` (`/Users/jordanknight/substrate/chainglass-048/apps/web/src/features/050-workflow-page/lib/display-status.ts`) | Partial conceptual overlap with `getGlyph` in `/Users/jordanknight/substrate/chainglass-048/packages/positional-graph/src/features/030-orchestration/reality.format.ts` | `_platform/positional-graph` | Proceed (no genuine duplication requiring reuse) |
++
++### E.4) Testing & Evidence
++
++**Coverage confidence**: 63%
++
++| AC | Confidence | Evidence |
++|----|------------|----------|
++| AC-01 | 28% | Helper and badge map exist, but production wiring does not compute `awaiting-input` in card props. |
++| AC-02 | 74% | `display-status.test.ts` covers pending/not-ready case and current card mapping preserves pending. |
++| AC-09 | 82% | `input-resolution.ts` supports Format A + fallback and corresponding unit test was added. |
++| AC-15 | 90% | Dedicated `display-status.test.ts` validates expected display-status outcomes. |
++
++Additional testing findings:
++- **F007 (MEDIUM)**: Missing explicit discriminated `getNodeStatus()` test evidence for T004.
++- **F013 (LOW)**: Execution log does not include concrete command output artifacts for full claims.
++
++### E.5) Doctrine Compliance
++
++- **F009 (MEDIUM)**: /Users/jordanknight/substrate/chainglass-048/test/unit/web/features/050-workflow-page/display-status.test.ts lacks required Test Doc comments.
++- **F010 (MEDIUM)**: /Users/jordanknight/substrate/chainglass-048/test/unit/positional-graph/collate-inputs.test.ts new test lacks required Test Doc comments.
++- **F012 (LOW)**: /Users/jordanknight/substrate/chainglass-048/packages/positional-graph/src/interfaces/positional-graph-service.interface.ts interface naming diverges from `R-CODE-002`.
++
++## F) Coverage Map
++
++| AC | Description | Evidence | Confidence |
++|----|-------------|----------|------------|
++| AC-01 | User-input + pending + ready shows `Awaiting Input` badge | `display-status.ts` + `display-status.test.ts` added, but no runtime wiring in `workflow-node-card.tsx` | 28% |
++| AC-02 | User-input + pending + not-ready remains normal pending | Helper tests cover this branch; current mapping preserves pending | 74% |
++| AC-09 | Downstream input resolution sees available inputs after output save format | Format A fallback in `input-resolution.ts` plus new unit coverage in `collate-inputs.test.ts` | 82% |
++| AC-15 | Unit tests verify display status computation | New `display-status.test.ts` with 6 cases | 90% |
++
++**Overall coverage confidence**: 63%
++
++## G) Commands Executed
++
++```bash
++git --no-pager diff --stat
++git --no-pager diff --staged --stat
++git --no-pager status --short
++git --no-pager log --oneline -20
++git --no-pager diff ab4283a..HEAD > /Users/jordanknight/substrate/chainglass-048/docs/plans/054-unified-human-input/reviews/_computed.diff
++git --no-pager diff --name-status ab4283a..HEAD
++rg "getDisplayStatus\(" /Users/jordanknight/substrate/chainglass-048 -n
++
++# Parallel subagent reviews launched:
++# - Implementation Quality Reviewer
++# - Domain Compliance Validator
++# - Anti-Reinvention Check
++# - Testing & Evidence Validator
++# - Doctrine & Rules Validator
++```
++
++## H) Handover Brief
++
++> Copy this section to the implementing agent. It has no context on the review —
++> only context on the work that was done before the review.
++
++**Review result**: REQUEST_CHANGES
++
++**Plan**: /Users/jordanknight/substrate/chainglass-048/docs/plans/054-unified-human-input/unified-human-input-plan.md
++**Spec**: /Users/jordanknight/substrate/chainglass-048/docs/plans/054-unified-human-input/unified-human-input-spec.md
++**Phase**: Phase 1: NodeStatusResult + Display Status
++**Tasks dossier**: /Users/jordanknight/substrate/chainglass-048/docs/plans/054-unified-human-input/tasks/phase-1-nodestatus-display/tasks.md
++**Execution log**: /Users/jordanknight/substrate/chainglass-048/docs/plans/054-unified-human-input/tasks/phase-1-nodestatus-display/execution.log.md
++**Review file**: /Users/jordanknight/substrate/chainglass-048/docs/plans/054-unified-human-input/reviews/review.phase-1-nodestatus-display.md
++
++### Files Reviewed
++
++| File (absolute path) | Status | Domain | Action Needed |
++|---------------------|--------|--------|---------------|
++| /Users/jordanknight/substrate/chainglass-048/apps/web/src/features/050-workflow-page/components/workflow-node-card.tsx | Modified | workflow-ui | Yes (F001) |
++| /Users/jordanknight/substrate/chainglass-048/apps/web/src/features/050-workflow-page/lib/display-status.ts | Added | workflow-ui | No |
++| /Users/jordanknight/substrate/chainglass-048/dev/test-graphs/shared/graph-test-runner.ts | Modified | dev-support (unmapped) | Yes (F008/F005) |
++| /Users/jordanknight/substrate/chainglass-048/dev/test-graphs/shared/helpers.ts | Modified | dev-support (unmapped) | Yes (F008/F005) |
++| /Users/jordanknight/substrate/chainglass-048/docs/plans/054-unified-human-input/tasks/phase-1-nodestatus-display/execution.log.md | Added | plan-docs | Yes (F013) |
++| /Users/jordanknight/substrate/chainglass-048/docs/plans/054-unified-human-input/tasks/phase-1-nodestatus-display/tasks.fltplan.md | Modified | plan-docs | No |
++| /Users/jordanknight/substrate/chainglass-048/docs/plans/054-unified-human-input/tasks/phase-1-nodestatus-display/tasks.md | Modified | plan-docs | No |
++| /Users/jordanknight/substrate/chainglass-048/docs/plans/054-unified-human-input/unified-human-input-plan.md | Modified | plan-docs | Yes (F005) |
++| /Users/jordanknight/substrate/chainglass-048/docs/plans/054-unified-human-input/unified-human-input-spec.md | Modified | plan-docs | No |
++| /Users/jordanknight/substrate/chainglass-048/docs/plans/054-unified-human-input/workshops/011-discriminated-type-architecture.md | Added | plan-docs | No |
++| /Users/jordanknight/substrate/chainglass-048/packages/positional-graph/src/adapter/instance-workunit.adapter.ts | Modified | _platform/positional-graph | Yes (F002) |
++| /Users/jordanknight/substrate/chainglass-048/packages/positional-graph/src/interfaces/index.ts | Modified | _platform/positional-graph | No |
++| /Users/jordanknight/substrate/chainglass-048/packages/positional-graph/src/interfaces/positional-graph-service.interface.ts | Modified | _platform/positional-graph | Yes (F012) |
++| /Users/jordanknight/substrate/chainglass-048/packages/positional-graph/src/services/input-resolution.ts | Modified | _platform/positional-graph | No |
++| /Users/jordanknight/substrate/chainglass-048/packages/positional-graph/src/services/positional-graph.service.ts | Modified | _platform/positional-graph | No |
++| /Users/jordanknight/substrate/chainglass-048/test/unit/positional-graph/collate-inputs.test.ts | Modified | test | Yes (F010/F007) |
++| /Users/jordanknight/substrate/chainglass-048/test/unit/web/features/050-workflow-page/display-status.test.ts | Added | test | Yes (F009) |
++
++### Required Fixes (if REQUEST_CHANGES)
++
++| # | File (absolute path) | What To Fix | Why |
++|---|---------------------|-------------|-----|
++| 1 | /Users/jordanknight/substrate/chainglass-048/apps/web/src/features/050-workflow-page/components/workflow-node-card.tsx | Compute display status with `getDisplayStatus(...)` in card mapping and add integration assertion | AC-01 currently not satisfied (F001 HIGH) |
++| 2 | /Users/jordanknight/substrate/chainglass-048/packages/positional-graph/src/adapter/instance-workunit.adapter.ts | Surface explicit error when `type: user-input` is missing `user_input` config | Prevent silent type coercion and malformed config masking (F002 HIGH) |
++| 3 | /Users/jordanknight/substrate/chainglass-048/dev/test-graphs/shared/helpers.ts; /Users/jordanknight/substrate/chainglass-048/dev/test-graphs/shared/graph-test-runner.ts | Align fixture loaders to fail fast for malformed user-input config | Keep dev/test behavior consistent with runtime contract (F008 MEDIUM) |
++| 4 | /Users/jordanknight/substrate/chainglass-048/docs/domains/_platform/positional-graph/domain.md; /Users/jordanknight/substrate/chainglass-048/docs/domains/workflow-ui/domain.md; /Users/jordanknight/substrate/chainglass-048/docs/domains/domain-map.md | Update domain history/contracts/composition/concepts/map metadata for Plan 054 Phase 1 | Domain compliance gaps (F003/F004/F006/F011) |
++| 5 | /Users/jordanknight/substrate/chainglass-048/docs/plans/054-unified-human-input/unified-human-input-plan.md | Expand Domain Manifest to include all changed files or explicit exemptions | Remove orphan file gap (F005) |
++| 6 | /Users/jordanknight/substrate/chainglass-048/test/unit/positional-graph/ (add/adjust test) | Add explicit discriminated `getNodeStatus()` test for user-input config (T004) and log evidence | Missing coverage/evidence for planned task (F007) |
++| 7 | /Users/jordanknight/substrate/chainglass-048/test/unit/web/features/050-workflow-page/display-status.test.ts; /Users/jordanknight/substrate/chainglass-048/test/unit/positional-graph/collate-inputs.test.ts | Add required 5-field Test Doc blocks | Required by `R-TEST-002` (F009/F010) |
++
++### Domain Artifacts to Update (if any)
++
++| File (absolute path) | What's Missing |
++|---------------------|----------------|
++| /Users/jordanknight/substrate/chainglass-048/docs/domains/_platform/positional-graph/domain.md | Plan 054 Phase 1 history entry; contracts/composition refresh; `## Concepts` table |
++| /Users/jordanknight/substrate/chainglass-048/docs/domains/workflow-ui/domain.md | Plan 054 Phase 1 history/composition updates for awaiting-input display path |
++| /Users/jordanknight/substrate/chainglass-048/docs/domains/domain-map.md | Contract label/health summary refresh for changed _platform contract surface |
++| /Users/jordanknight/substrate/chainglass-048/docs/plans/054-unified-human-input/unified-human-input-plan.md | Domain Manifest rows for all changed files |
++
++### Next Step
++
++/plan-6-v2-implement-phase --plan /Users/jordanknight/substrate/chainglass-048/docs/plans/054-unified-human-input/unified-human-input-plan.md --phase 'Phase 1: NodeStatusResult + Display Status'
 diff --git a/docs/plans/054-unified-human-input/tasks/phase-1-nodestatus-display/execution.log.md b/docs/plans/054-unified-human-input/tasks/phase-1-nodestatus-display/execution.log.md
 new file mode 100644
 index 0000000..9b447c5
@@ -210,7 +1813,7 @@ index 0000000..9b447c5
 +- positional-graph build: 0 errors
 +- No test helpers needed updating (structural typing backward compat)
 diff --git a/docs/plans/054-unified-human-input/tasks/phase-1-nodestatus-display/tasks.fltplan.md b/docs/plans/054-unified-human-input/tasks/phase-1-nodestatus-display/tasks.fltplan.md
-index a03df4f..3e8e2e4 100644
+index e1a9e2e..3e8e2e4 100644
 --- a/docs/plans/054-unified-human-input/tasks/phase-1-nodestatus-display/tasks.fltplan.md
 +++ b/docs/plans/054-unified-human-input/tasks/phase-1-nodestatus-display/tasks.fltplan.md
 @@ -3,7 +3,7 @@
@@ -231,15 +1834,6 @@ index a03df4f..3e8e2e4 100644
  
  ---
  
-@@ -21,7 +21,7 @@
- 
- | Domain | What Changes | Key Files |
- |--------|-------------|-----------|
--| _platform/positional-graph | Fix collateInputs Format A, extend NarrowWorkUnit + NodeStatusResult with userInput, update adapter | `input-resolution.ts`, `positional-graph-service.interface.ts`, `positional-graph.service.ts`, `instance-workunit.adapter.ts` |
-+| _platform/positional-graph | Fix collateInputs Format A, refactor NarrowWorkUnit + NodeStatusResult into discriminated unions, add type guards, update adapter + getNodeStatus | `input-resolution.ts`, `positional-graph-service.interface.ts`, `positional-graph.service.ts`, `instance-workunit.adapter.ts` |
- | workflow-ui | New display-status helper, add awaiting-input to node card | `display-status.ts` (new), `workflow-node-card.tsx` |
- 
- ### Domains We Depend On (no changes)
 @@ -52,7 +52,7 @@ stateDiagram-v2
      S2 --> S3
      S3 --> [*]
@@ -254,7 +1848,7 @@ index a03df4f..3e8e2e4 100644
  <!-- Updated by /plan-6-v2 during implementation: [ ] → [~] → [x] -->
  
 -- [ ] **Stage 1: Fix collateInputs Format A** — TDD test + one-line fix + update fixtures (`input-resolution.ts`, `collate-inputs.test.ts`)
--- [ ] **Stage 2: Surface userInput config** — Extend NarrowWorkUnit + NodeStatusResult, update adapter, populate in getNodeStatus (`positional-graph-service.interface.ts`, `instance-workunit.adapter.ts`, `positional-graph.service.ts`)
+-- [ ] **Stage 2: Discriminated type unions** — Refactor `NarrowWorkUnit` + `NodeStatusResult` into discriminated unions, add type guards, update adapter + getNodeStatus, update all test helpers/fixtures (`positional-graph-service.interface.ts`, `instance-workunit.adapter.ts`, `positional-graph.service.ts`, test files)
 -- [ ] **Stage 3: Add awaiting-input display status** — Create display-status helper, add to STATUS_MAP + NodeStatus type, lightweight tests (`display-status.ts` — new, `workflow-node-card.tsx`)
 +- [x] **Stage 1: Fix collateInputs Format A** — TDD test + one-line fix + update fixtures (`input-resolution.ts`, `collate-inputs.test.ts`)
 +- [x] **Stage 2: Discriminated type unions** — Refactor `NarrowWorkUnit` + `NodeStatusResult` into discriminated unions, add type guards, update adapter + getNodeStatus, update all test helpers/fixtures (`positional-graph-service.interface.ts`, `instance-workunit.adapter.ts`, `positional-graph.service.ts`, test files)
@@ -277,21 +1871,25 @@ index a03df4f..3e8e2e4 100644
  
  ---
  
-@@ -121,14 +121,18 @@ flowchart LR
+@@ -121,18 +121,18 @@ flowchart LR
  
  ## Checklist
  
 -- [ ] T001: TDD: Write collateInputs Format A test
 -- [ ] T002: Fix collateInputs to read Format A
 -- [ ] T003: Update writeNodeData test helper to use Format A
--- [ ] T004: TDD: Write NodeStatusResult userInput config test
--- [ ] T005: Extend NarrowWorkUnit with optional userInput
--- [ ] T006: Extend NodeStatusResult with optional userInput
--- [ ] T007: Populate userInput in getNodeStatus() from loaded WorkUnit
--- [ ] T008: Update InstanceWorkUnitAdapter to surface user_input config
--- [ ] T009: Create display-status.ts helper
--- [ ] T010: Add awaiting-input to NodeStatus type + STATUS_MAP
--- [ ] T011: Lightweight tests for display status + STATUS_MAP
+-- [ ] T004: TDD: Write discriminated NodeStatusResult userInput test
+-- [ ] T005: Refactor NarrowWorkUnit into discriminated union
+-- [ ] T006: Refactor NodeStatusResult into discriminated union
+-- [ ] T007: Add type guard functions
+-- [ ] T008: Update InstanceWorkUnitAdapter to construct correct variant
+-- [ ] T009: Populate userInput in getNodeStatus() — build correct variant
+-- [ ] T010: Update test helpers for discriminated variants
+-- [ ] T011: Update inline NarrowWorkUnit literals in test files
+-- [ ] T012: Update web test helpers (makeNode, makeNodeStatus)
+-- [ ] T013: Create display-status.ts helper
+-- [ ] T014: Add awaiting-input to NodeStatus type + STATUS_MAP
+-- [ ] T015: Lightweight tests for display status + STATUS_MAP
 +- [x] T001: TDD: Write collateInputs Format A test
 +- [x] T002: Fix collateInputs to read Format A
 +- [x] T003: Update writeNodeData test helper to use Format A
@@ -307,545 +1905,24 @@ index a03df4f..3e8e2e4 100644
 +- [x] T013: Create display-status.ts helper
 +- [x] T014: Add awaiting-input to NodeStatus type + STATUS_MAP
 +- [x] T015: Lightweight tests for display status + STATUS_MAP
-diff --git a/docs/plans/054-unified-human-input/tasks/phase-1-nodestatus-display/tasks.md b/docs/plans/054-unified-human-input/tasks/phase-1-nodestatus-display/tasks.md
-index a8059d7..a216b73 100644
---- a/docs/plans/054-unified-human-input/tasks/phase-1-nodestatus-display/tasks.md
-+++ b/docs/plans/054-unified-human-input/tasks/phase-1-nodestatus-display/tasks.md
-@@ -11,11 +11,11 @@
- 
- **Purpose**: Make user-input node configuration visible to the UI and fix the critical data format mismatch that prevents downstream input resolution. This phase is entirely foundational — no modals, no server actions, just plumbing.
- 
--**What We're Building**: Three things: (1) fix `collateInputs` to read Format A data written by `saveOutputData`, (2) extend `NodeStatusResult` + `NarrowWorkUnit` to surface `user_input` config from unit.yaml, and (3) add an `awaiting-input` computed display status to the node card so users can see which nodes need human input.
-+**What We're Building**: Three things: (1) fix `collateInputs` to read Format A data written by `saveOutputData`, (2) refactor `NarrowWorkUnit` and `NodeStatusResult` into discriminated unions so `user_input` config lives on the correct variant type (not the base), and (3) add an `awaiting-input` computed display status to the node card so users can see which nodes need human input. See [Workshop 011](../../workshops/011-discriminated-type-architecture.md) for the type architecture.
- 
- **Goals**:
- - ✅ `collateInputs` reads both Format A (`{ outputs: { name: value } }`) and flat (`{ name: value }`) — backward compatible
--- ✅ `NodeStatusResult.userInput` surfaces prompt, questionType, options, default from unit.yaml
-+- ✅ `NarrowWorkUnit` and `NodeStatusResult` are proper discriminated unions — `userInput` config lives on the `user-input` variant only (per [Workshop 011](../../workshops/011-discriminated-type-architecture.md))
- - ✅ `awaiting-input` display status computed when `unitType === 'user-input'` + `pending` + `ready`
- - ✅ Node card shows violet `?` badge for `awaiting-input` nodes
- - ✅ TDD for service-layer changes, lightweight tests for UI helpers
-@@ -39,13 +39,14 @@ _Phase 1 — no prior phases to review._
- | File | Exists? | Domain Check | Notes |
- |------|---------|-------------|-------|
- | `packages/positional-graph/src/services/input-resolution.ts` | ✅ Yes | _platform/positional-graph ✅ | Modify line 352: `data?.[fromOutput]` → `data?.outputs?.[fromOutput] ?? data?.[fromOutput]` |
--| `packages/positional-graph/src/interfaces/positional-graph-service.interface.ts` | ✅ Yes | _platform/positional-graph ✅ | Extend `NarrowWorkUnit` (line 49) + `NodeStatusResult` (line 244) |
--| `packages/positional-graph/src/services/positional-graph.service.ts` | ✅ Yes | _platform/positional-graph ✅ | Populate `userInput` in `getNodeStatus()` at ~line 1115 |
--| `packages/positional-graph/src/adapter/instance-workunit.adapter.ts` | ✅ Yes | _platform/positional-graph ✅ | Extend YAML parse type + map `user_input` → `userInput` (line 68) |
-+| `packages/positional-graph/src/interfaces/positional-graph-service.interface.ts` | ✅ Yes | _platform/positional-graph ✅ | Refactor `NarrowWorkUnit` (line 49) into discriminated union + refactor `NodeStatusResult` (line 244) into discriminated union. Per [Workshop 011](../../workshops/011-discriminated-type-architecture.md). |
-+| `packages/positional-graph/src/services/positional-graph.service.ts` | ✅ Yes | _platform/positional-graph ✅ | Build correct `NodeStatusResult` variant in `getNodeStatus()` at ~line 1115 |
-+| `packages/positional-graph/src/adapter/instance-workunit.adapter.ts` | ✅ Yes | _platform/positional-graph ✅ | Construct correct `NarrowWorkUnit` variant (line 68) + extend YAML parse type |
- | `apps/web/src/features/050-workflow-page/lib/display-status.ts` | ❌ NEW | workflow-ui ✅ | Create in existing `lib/` dir (has 4 files already) |
- | `apps/web/src/features/050-workflow-page/components/workflow-node-card.tsx` | ✅ Yes | workflow-ui ✅ | Add `awaiting-input` to `NodeStatus` type (line 18) + `STATUS_MAP` (line 37) |
--| `test/unit/positional-graph/collate-inputs.test.ts` | ✅ Yes | test ✅ | Add Format A test, update `writeNodeData` fixtures |
--| `test/unit/positional-graph/input-retrieval.test.ts` | ✅ Yes | test ✅ | Already uses Format A in some tests — verify compatibility |
-+| `test/unit/positional-graph/test-helpers.ts` | ✅ Yes | test ✅ | Update `createWorkUnit()` + `stubWorkUnitLoader()` for discriminated variants |
-+| `test/unit/positional-graph/collate-inputs.test.ts` | ✅ Yes | test ✅ | Add Format A test, update fixtures + inline `NarrowWorkUnit` literals |
-+| `test/unit/web/features/050-workflow-page/*.test.*` | ✅ Yes | test ✅ | Update `makeNode()` helpers for discriminated `NodeStatusResult` variants |
- 
- **Concept duplication check**: `awaiting-input` display status is a new concept not present anywhere in the codebase except Plan 054 docs. `display-status.ts` helper pattern matches existing `lib/` utilities (`compute-available-sources.ts`, `context-badge.ts`). No duplication risk.
- 
-@@ -64,16 +65,23 @@ flowchart TD
-         T002["T002: Fix collateInputs"]:::pending
-         T003["T003: Update test fixtures"]:::pending
-         T004["T004: userInput config test"]:::pending
--        T005["T005: Extend NarrowWorkUnit"]:::pending
--        T006["T006: Extend NodeStatusResult"]:::pending
--        T007["T007: Populate in getNodeStatus"]:::pending
--        T008["T008: Update adapter"]:::pending
-+        T005["T005: NarrowWorkUnit union"]:::pending
-+        T006["T006: NodeStatusResult union"]:::pending
-+        T007["T007: Type guards"]:::pending
-+        T008["T008: Adapter variants"]:::pending
-+        T009["T009: Populate getNodeStatus"]:::pending
-+    end
-+
-+    subgraph Test["Test infrastructure"]
-+        T010["T010: Test helpers"]:::pending
-+        T011["T011: Inline literals"]:::pending
-+        T012["T012: Web test helpers"]:::pending
-     end
- 
-     subgraph UI["workflow-ui"]
--        T009["T009: display-status.ts"]:::pending
--        T010["T010: STATUS_MAP + type"]:::pending
--        T011["T011: Display status tests"]:::pending
-+        T013["T013: display-status.ts"]:::pending
-+        T014["T014: STATUS_MAP + type"]:::pending
-+        T015["T015: Display status tests"]:::pending
-     end
- 
-     T001 --> T002
-@@ -82,9 +90,15 @@ flowchart TD
-     T005 --> T006
-     T006 --> T007
-     T005 --> T008
--    T007 --> T009
--    T009 --> T010
-+    T008 --> T009
-+    T006 --> T009
-+    T005 --> T010
-+    T006 --> T010
-     T010 --> T011
-+    T006 --> T012
-+    T009 --> T013
-+    T013 --> T014
-+    T014 --> T015
- ```
- 
- ---
-@@ -93,17 +107,21 @@ flowchart TD
- 
- | Status | ID | Task | Domain | Path(s) | Done When | Notes |
- |--------|-----|------|--------|---------|-----------|-------|
--| [ ] | T001 | TDD: Write collateInputs Format A test | _platform/positional-graph | `/test/unit/positional-graph/collate-inputs.test.ts` | Test: `writeNodeData` with `{ outputs: { spec: { type: 'data', dataType: 'text', value: 'hello' } } }` (Format A), `collateInputs` resolves `spec` output with correct data. Test FAILS before fix. | Per F01. Use existing `writeNodeData` helper. Add test in T004/T006 describe block. |
-+| [ ] | T001 | TDD: Write collateInputs Format A test | _platform/positional-graph | `/test/unit/positional-graph/collate-inputs.test.ts` | Test: `writeNodeData` with `{ outputs: { spec: { type: 'data', dataType: 'text', value: 'hello' } } }` (Format A), `collateInputs` resolves `spec` output with correct data. Test FAILS before fix. | Per F01. Use existing `writeNodeData` helper. |
- | [ ] | T002 | Fix `collateInputs` to read Format A | _platform/positional-graph | `/packages/positional-graph/src/services/input-resolution.ts` | Line 352: `data?.[fromOutput]` → `data?.outputs?.[fromOutput] ?? data?.[fromOutput]`. Test from T001 passes. All existing tests still pass. | One-line fix. Fallback preserves flat format backward compat. |
--| [ ] | T003 | Update `writeNodeData` test helper to use Format A | _platform/positional-graph | `/test/unit/positional-graph/collate-inputs.test.ts` | `writeNodeData` wraps data as `{ outputs: { ...data } }`. All existing tests pass with wrapped format. | Standardize on Format A going forward. Flat fallback in T002 means no breakage. |
--| [ ] | T004 | TDD: Write NodeStatusResult userInput config test | _platform/positional-graph | `/test/unit/positional-graph/` (new or existing node-status test file) | Test: `getNodeStatus()` for a `user-input` unit returns `userInput: { prompt, questionType, options?, defaultValue? }`. Agent/code units return `userInput: undefined`. Test FAILS before implementation. | Test-first per Hybrid TDD. Needs a user-input unit.yaml fixture. |
--| [ ] | T005 | Extend `NarrowWorkUnit` with optional `userInput` | _platform/positional-graph | `/packages/positional-graph/src/interfaces/positional-graph-service.interface.ts` | `NarrowWorkUnit` gains `userInput?: { prompt: string; questionType: 'text' \| 'single' \| 'multi' \| 'confirm'; options?: { key: string; label: string; description?: string }[]; default?: string \| boolean }`. Existing code compiles (field is optional). | Interface-only change. Line 49. |
--| [ ] | T006 | Extend `NodeStatusResult` with optional `userInput` | _platform/positional-graph | `/packages/positional-graph/src/interfaces/positional-graph-service.interface.ts` | `NodeStatusResult` gains `userInput?: NarrowWorkUnit['userInput']`. Existing code compiles. | Uses same type from T005 via lookup. Line 244. |
--| [ ] | T007 | Populate `userInput` in `getNodeStatus()` from loaded WorkUnit | _platform/positional-graph | `/packages/positional-graph/src/services/positional-graph.service.ts` | When `unitResult.unit?.userInput` exists, include in returned `NodeStatusResult`. Test from T004 passes end-to-end. | ~Line 1115 in the return object. Only populated for user-input units. |
--| [ ] | T008 | Update `InstanceWorkUnitAdapter` to surface `user_input` config | _platform/positional-graph | `/packages/positional-graph/src/adapter/instance-workunit.adapter.ts` | Adapter YAML parse type includes `user_input?`. When `type === 'user-input'`, maps `unitDef.user_input` → `unit.userInput`. Build passes. | Line 46-73. Extend generic type param + add conditional mapping. |
--| [ ] | T009 | Create `display-status.ts` helper | workflow-ui | `/apps/web/src/features/050-workflow-page/lib/display-status.ts` | `getDisplayStatus(unitType, status, ready)` returns `'awaiting-input'` when `unitType === 'user-input' && status === 'pending' && ready === true`. Returns original status otherwise. Exported function. | New file in existing `lib/` dir. Pure function, no side effects. |
--| [ ] | T010 | Add `awaiting-input` to `NodeStatus` type + `STATUS_MAP` | workflow-ui | `/apps/web/src/features/050-workflow-page/components/workflow-node-card.tsx` | `NodeStatus` union type includes `'awaiting-input'`. `STATUS_MAP['awaiting-input']` = violet treatment matching `waiting-question` (`#8B5CF6`, violet tailwind classes, `?` icon, "Awaiting Input" label). Build passes. | Lines 18-26 (type) + lines 37-88 (map). |
--| [ ] | T011 | Lightweight tests for display status + STATUS_MAP | workflow-ui | `/test/unit/` (new display-status test file) | Tests: (1) `user-input` + `pending` + `ready` → `awaiting-input`. (2) `user-input` + `pending` + NOT ready → `pending`. (3) `agent` + `pending` + `ready` → unchanged. (4) `STATUS_MAP` has `awaiting-input` entry. All pass. | AC-15. Pure function tests — no mocks needed. |
-+| [ ] | T003 | Update `writeNodeData` test helper to use Format A | _platform/positional-graph | `/test/unit/positional-graph/collate-inputs.test.ts` | `writeNodeData` wraps data as `{ outputs: { ...data } }`. All existing tests pass with wrapped format. | Standardize on Format A going forward. |
-+| [ ] | T004 | TDD: Write discriminated NodeStatusResult userInput test | _platform/positional-graph | `/test/unit/positional-graph/` (new or existing node-status test file) | Test: `getNodeStatus()` for `user-input` unit returns `UserInputNodeStatus` with `userInput` config. Narrow with `node.unitType === 'user-input'` to access `node.userInput.prompt`. Agent/code units return `AgentNodeStatus`/`CodeNodeStatus` (no `userInput` field). Test FAILS before implementation. | Test-first per Hybrid TDD. |
-+| [ ] | T005 | Refactor `NarrowWorkUnit` into discriminated union | _platform/positional-graph | `/packages/positional-graph/src/interfaces/positional-graph-service.interface.ts` | Create `NarrowWorkUnitBase` (slug, inputs, outputs) + `NarrowAgentWorkUnit` (type: 'agent') + `NarrowCodeWorkUnit` (type: 'code') + `NarrowUserInputWorkUnit` (type: 'user-input', userInput config). `NarrowWorkUnit` = union of 3. Build passes. | Per [Workshop 011](../../workshops/011-discriminated-type-architecture.md). Export all types. |
-+| [ ] | T006 | Refactor `NodeStatusResult` into discriminated union | _platform/positional-graph | `/packages/positional-graph/src/interfaces/positional-graph-service.interface.ts` | Create `NodeStatusResultBase` (all existing common fields + `pendingQuestion?` + `error?`) + `AgentNodeStatus` (unitType: 'agent') + `CodeNodeStatus` (unitType: 'code') + `UserInputNodeStatus` (unitType: 'user-input', userInput config). `NodeStatusResult` = union of 3. Build passes. | Per [Workshop 011](../../workshops/011-discriminated-type-architecture.md). |
-+| [ ] | T007 | Add type guard functions | _platform/positional-graph | `/packages/positional-graph/src/interfaces/positional-graph-service.interface.ts` | `isNarrowUserInputUnit(unit): unit is NarrowUserInputWorkUnit` and `isUserInputNodeStatus(node): node is UserInputNodeStatus`. Exported. Build passes. | Alongside existing `isUserInputUnit()` guards in workunit types. |
-+| [ ] | T008 | Update `InstanceWorkUnitAdapter` to construct correct variant | _platform/positional-graph | `/packages/positional-graph/src/adapter/instance-workunit.adapter.ts` | When `type === 'user-input'`, construct `NarrowUserInputWorkUnit` with `userInput` mapped from `unitDef.user_input`. Other types construct `NarrowAgentWorkUnit`/`NarrowCodeWorkUnit`. Extend YAML parse generic type to include `user_input?`. Build passes. | Per [Workshop 011](../../workshops/011-discriminated-type-architecture.md). |
-+| [ ] | T009 | Populate `userInput` in `getNodeStatus()` — build correct variant | _platform/positional-graph | `/packages/positional-graph/src/services/positional-graph.service.ts` | When loaded unit is `NarrowUserInputWorkUnit`, return `UserInputNodeStatus` with `userInput`. Otherwise return `AgentNodeStatus`/`CodeNodeStatus`. Test from T004 passes end-to-end. | ~Line 1115 return object. Conditional construction. |
-+| [ ] | T010 | Update test helpers for discriminated variants | _platform/positional-graph + test | `/test/unit/positional-graph/test-helpers.ts`, `/test/e2e/positional-graph-e2e.ts`, `/test/integration/positional-graph/graph-lifecycle.test.ts` | `createWorkUnit()` accepts optional `userInput` config and constructs correct variant. `stubWorkUnitLoader()` supports user-input units. `createTestUnit()` helpers accept `type` param. All existing tests pass. | ~10 test sites. See [Workshop 011](../../workshops/011-discriminated-type-architecture.md) impact table. |
-+| [ ] | T011 | Update inline `NarrowWorkUnit` literals in test files | test | `/test/unit/positional-graph/collate-inputs.test.ts`, `input-wiring.test.ts`, `status.test.ts`, `can-run.test.ts`, `input-retrieval.test.ts` | All inline `NarrowWorkUnit` object literals satisfy the correct union variant type. `user-input` type literals include `userInput` config. Build passes, all tests pass. | Mechanical — add `userInput` where `type: 'user-input'`. |
-+| [ ] | T012 | Update web test helpers (`makeNode`, `makeNodeStatus`) | test | `/test/unit/web/features/050-workflow-page/*.test.*`, `/test/unit/positional-graph/features/030-orchestration/*.test.ts` | `makeNode()` and `makeNodeStatus()` helpers produce correct `NodeStatusResult` variant based on `unitType` override. All existing tests pass. | ~6 test files. |
-+| [ ] | T013 | Create `display-status.ts` helper | workflow-ui | `/apps/web/src/features/050-workflow-page/lib/display-status.ts` | `getDisplayStatus(unitType, status, ready)` returns `'awaiting-input'` when `unitType === 'user-input' && status === 'pending' && ready === true`. Returns original status otherwise. Exported function. | New file in existing `lib/` dir. Pure function. |
-+| [ ] | T014 | Add `awaiting-input` to `NodeStatus` type + `STATUS_MAP` | workflow-ui | `/apps/web/src/features/050-workflow-page/components/workflow-node-card.tsx` | `NodeStatus` union type includes `'awaiting-input'`. `STATUS_MAP['awaiting-input']` = violet treatment matching `waiting-question` (`#8B5CF6`, violet tailwind classes, `?` icon, "Awaiting Input" label). Build passes. | Lines 18-26 (type) + lines 37-88 (map). |
-+| [ ] | T015 | Lightweight tests for display status + STATUS_MAP | workflow-ui | `/test/unit/` (new display-status test file) | Tests: (1) `user-input` + `pending` + `ready` → `awaiting-input`. (2) `user-input` + `pending` + NOT ready → `pending`. (3) `agent` + `pending` + `ready` → unchanged. (4) `STATUS_MAP` has `awaiting-input` entry. All pass. | AC-15. Pure function tests — no mocks needed. |
- 
- ---
- 
-@@ -125,7 +143,8 @@ flowchart TD
- 
- ### Domain constraints
- 
--- `NarrowWorkUnit` is a narrow interface to avoid cross-package dependency on `@chainglass/workgraph` (per DYK-P4-I2). Extension must keep it narrow — add optional `userInput` field only, not the full `WorkUnit` type.
-+- `NarrowWorkUnit` is refactored from a single interface into a discriminated union (`NarrowAgentWorkUnit | NarrowCodeWorkUnit | NarrowUserInputWorkUnit`). Base type `NarrowWorkUnitBase` stays lean — no type-specific config. Per [Workshop 011](../../workshops/011-discriminated-type-architecture.md).
-+- `NodeStatusResult` is refactored similarly — `NodeStatusResultBase` has all common fields, `UserInputNodeStatus` carries `userInput`. Per [Workshop 011](../../workshops/011-discriminated-type-architecture.md).
- - `display-status.ts` is a pure function — no server imports, no service dependencies. It computes display status from primitive inputs.
- - `workflow-node-card.tsx` `NodeStatus` type and `STATUS_MAP` must stay in sync.
- 
-@@ -140,10 +159,10 @@ flowchart TD
- 
- ```mermaid
- flowchart LR
--    A["unit.yaml<br/>(user_input config)"] --> B["InstanceWorkUnitAdapter<br/>(parse + map)"]
--    B --> C["NarrowWorkUnit<br/>(+userInput field)"]
--    C --> D["getNodeStatus()<br/>(populate result)"]
--    D --> E["NodeStatusResult<br/>(+userInput field)"]
-+    A["unit.yaml<br/>(user_input config)"] --> B["InstanceWorkUnitAdapter<br/>(parse + construct variant)"]
-+    B --> C["NarrowUserInputWorkUnit<br/>(discriminated union variant)"]
-+    C --> D["getNodeStatus()<br/>(build correct status variant)"]
-+    D --> E["UserInputNodeStatus<br/>(discriminated union variant)"]
-     E --> F["getDisplayStatus()<br/>(compute awaiting-input)"]
-     F --> G["workflow-node-card<br/>(violet badge)"]
- ```
 diff --git a/docs/plans/054-unified-human-input/unified-human-input-plan.md b/docs/plans/054-unified-human-input/unified-human-input-plan.md
-index ef076fb..7bd9dea 100644
+index fc44c6e..7bd9dea 100644
 --- a/docs/plans/054-unified-human-input/unified-human-input-plan.md
 +++ b/docs/plans/054-unified-human-input/unified-human-input-plan.md
-@@ -8,6 +8,7 @@
- **Complexity**: CS-2 (small-medium) — S=1, I=0, D=0, N=0, F=0, T=1
- 
- > **Governing design decision**: One node = one question = one output. Multiple questions = multiple nodes on a line. See [Workshop 010](./workshops/010-single-question-simplification.md).
-+> **Type architecture**: `NarrowWorkUnit` and `NodeStatusResult` are discriminated unions — `userInput` config lives on the `user-input` variant only. See [Workshop 011](./workshops/011-discriminated-type-architecture.md).
- 
- ## Summary
- 
-@@ -63,15 +64,19 @@ User-input nodes in the workflow editor currently have no input mechanism — th
- 
- | # | Task | Domain | Success Criteria | Notes |
- |---|------|--------|-----------------|-------|
--| 1.1 | TDD: Write collateInputs Format A test | _platform/positional-graph | Test: writeNodeData with `{ outputs: { spec: "hello" } }`, collateInputs resolves `spec` output correctly | Test-first per Hybrid TDD |
--| 1.2 | Fix `collateInputs` to read Format A | _platform/positional-graph | `data?.outputs?.[fromOutput] ?? data?.[fromOutput]` — backward compat fallback. Test from 1.1 passes. | One-line fix in input-resolution.ts line 352 |
-+| 1.1 | TDD: Write collateInputs Format A test | _platform/positional-graph | Test: writeNodeData with Format A, collateInputs resolves output correctly | Test-first per Hybrid TDD |
-+| 1.2 | Fix `collateInputs` to read Format A | _platform/positional-graph | `data?.outputs?.[fromOutput] ?? data?.[fromOutput]` — backward compat fallback. Test from 1.1 passes. | One-line fix in input-resolution.ts |
- | 1.3 | Update remaining `collate-inputs.test.ts` fixtures to Format A | _platform/positional-graph | All existing tests pass with wrapped format | Update writeNodeData helper |
--| 1.4 | TDD: Write NodeStatusResult userInput config test | _platform/positional-graph | Test: user-input node returns `userInput` config; agent/code return undefined | Test-first |
--| 1.5 | Extend `NodeStatusResult` with `userInput` config | _platform/positional-graph | Optional `userInput?: { prompt, questionType, options?, defaultValue? }`. Test from 1.4 passes. | Per F03 |
--| 1.6 | Populate `userInput` in `getNodeStatus()` from loaded WorkUnit | _platform/positional-graph | Test from 1.4 passes end-to-end | Service already loads unit |
--| 1.7 | Create `display-status.ts` helper | workflow-ui | `getDisplayStatus()` maps `user-input` + `pending` + `ready` → `awaiting-input` | |
--| 1.8 | Add `awaiting-input` to STATUS_MAP + click routing | workflow-ui | Violet badge, clickable, fires input handler | |
--| 1.9 | Lightweight tests for 1.7–1.8 | workflow-ui | Display status computation correct for all unitType × status × ready combinations | |
-+| 1.4 | TDD: Write discriminated NodeStatusResult userInput test | _platform/positional-graph | Test: user-input node returns `UserInputNodeStatus` with `userInput` config via narrowing; agent/code return other variants | Test-first |
-+| 1.5 | Refactor `NarrowWorkUnit` into discriminated union | _platform/positional-graph | `NarrowWorkUnitBase` + 3 variants. `NarrowUserInputWorkUnit` carries `userInput`. Build passes. | Per [Workshop 011](./workshops/011-discriminated-type-architecture.md) |
-+| 1.6 | Refactor `NodeStatusResult` into discriminated union | _platform/positional-graph | `NodeStatusResultBase` + 3 variants. `UserInputNodeStatus` carries `userInput`. Build passes. | Per [Workshop 011](./workshops/011-discriminated-type-architecture.md) |
-+| 1.7 | Add type guard functions | _platform/positional-graph | `isNarrowUserInputUnit()`, `isUserInputNodeStatus()` exported | |
-+| 1.8 | Update `InstanceWorkUnitAdapter` to construct correct variant | _platform/positional-graph | user-input → `NarrowUserInputWorkUnit`; others → agent/code variant | Per [Workshop 011](./workshops/011-discriminated-type-architecture.md) |
-+| 1.9 | Populate `userInput` in `getNodeStatus()` — build correct variant | _platform/positional-graph | Return `UserInputNodeStatus` when unit is user-input. Test from 1.4 passes. | |
-+| 1.10 | Update test helpers + inline literals for discriminated variants | _platform/positional-graph + test | `createWorkUnit()`, `stubWorkUnitLoader()`, `makeNode()`, `makeNodeStatus()`, inline literals all satisfy union types. All tests pass. | ~15 test sites |
-+| 1.11 | Create `display-status.ts` helper | workflow-ui | `getDisplayStatus()` maps `user-input` + `pending` + `ready` → `awaiting-input` | |
-+| 1.12 | Add `awaiting-input` to STATUS_MAP + NodeStatus type | workflow-ui | Violet badge, "Awaiting Input" label | |
-+| 1.13 | Lightweight tests for display status | workflow-ui | Display status computation correct for all unitType × status × ready combinations | |
- 
- ### Phase 2: Human Input Modal + Server Action
- 
-@@ -146,7 +151,7 @@ User-input nodes in the workflow editor currently have no input mechanism — th
+@@ -151,7 +151,7 @@ User-input nodes in the workflow editor currently have no input mechanism — th
  
  | Phase | Status | Tasks | Notes |
  |-------|--------|-------|-------|
--| Phase 1: NodeStatusResult + Display Status | Not started | 0/9 | |
+-| Phase 1: NodeStatusResult + Display Status | Not started | 0/13 | Per [Workshop 011](./workshops/011-discriminated-type-architecture.md) — discriminated unions |
 +| Phase 1: NodeStatusResult + Display Status | Complete | 13/13 | Per [Workshop 011](./workshops/011-discriminated-type-architecture.md) — discriminated unions |
  | Phase 2: Human Input Modal + Server Action | Not started | 0/8 | |
  | Phase 3: Demo + Integration + Cleanup | Not started | 0/5 | |
  
-diff --git a/docs/plans/054-unified-human-input/unified-human-input-spec.md b/docs/plans/054-unified-human-input/unified-human-input-spec.md
-index 138ad11..8844d00 100644
---- a/docs/plans/054-unified-human-input/unified-human-input-spec.md
-+++ b/docs/plans/054-unified-human-input/unified-human-input-spec.md
-@@ -131,3 +131,4 @@ No new domains required.
- | Save & Persistence Strategy | Data Model | Valid | [008](./workshops/008-save-persistence-strategy.md) — single-output path is the only path now |
- | Question Definition Schema | Schema Design | **Superseded** | [009](./workshops/009-question-definition-schema.md) — fields[] not needed, existing schema is sufficient |
- | Single-Question Simplification | Architecture | **Authoritative** | [010](./workshops/010-single-question-simplification.md) — the governing design decision |
-+| Discriminated Type Architecture | Architecture | **Authoritative** | [011](./workshops/011-discriminated-type-architecture.md) — NarrowWorkUnit + NodeStatusResult as discriminated unions |
-diff --git a/docs/plans/054-unified-human-input/workshops/011-discriminated-type-architecture.md b/docs/plans/054-unified-human-input/workshops/011-discriminated-type-architecture.md
-new file mode 100644
-index 0000000..36cfe4c
---- /dev/null
-+++ b/docs/plans/054-unified-human-input/workshops/011-discriminated-type-architecture.md
-@@ -0,0 +1,326 @@
-+# Workshop: Discriminated Type Architecture for Human Input
-+
-+**Type**: Architecture
-+**Plan**: 054-unified-human-input
-+**Created**: 2026-02-27
-+**Status**: Authoritative
-+
-+---
-+
-+## Purpose
-+
-+Define the type architecture for surfacing `user_input` config through the system: from unit.yaml → NarrowWorkUnit → NodeStatusResult → UI. The design uses idiomatic TypeScript discriminated unions on both `NarrowWorkUnit` and `NodeStatusResult`, keeping base types config-free and placing type-specific data on the correct variant.
-+
-+---
-+
-+## Problem
-+
-+`NarrowWorkUnit` was designed as a 4-field interface (`slug`, `type`, `inputs`, `outputs`) to avoid cross-package dependency on `@chainglass/workgraph` (per DYK-P4-I2). The interface deliberately strips type-specific config (`agent`, `code`, `user_input`) at the adapter boundary.
-+
-+Now the UI needs `user_input` config (prompt, questionType, options) to render the Human Input modal. Adding it as an optional field on the base `NarrowWorkUnit` or `NodeStatusResult` would violate the narrow principle and set a precedent for bloating these types with `agentConfig`, `codeConfig`, etc.
-+
-+---
-+
-+## Design: Discriminated Unions
-+
-+### NarrowWorkUnit — Discriminated on `type`
-+
-+The full `WorkUnit` schema is already a discriminated union (`AgenticWorkUnit | CodeUnit | UserInputUnit`). `NarrowWorkUnit` should mirror this pattern.
-+
-+```typescript
-+// ─── Base (shared fields, no type-specific config) ───
-+
-+interface NarrowWorkUnitBase {
-+  slug: string;
-+  inputs: NarrowWorkUnitInput[];
-+  outputs: NarrowWorkUnitOutput[];
-+}
-+
-+// ─── Variants (discriminated on 'type') ───
-+
-+interface NarrowAgentWorkUnit extends NarrowWorkUnitBase {
-+  type: 'agent';
-+}
-+
-+interface NarrowCodeWorkUnit extends NarrowWorkUnitBase {
-+  type: 'code';
-+}
-+
-+interface NarrowUserInputWorkUnit extends NarrowWorkUnitBase {
-+  type: 'user-input';
-+  userInput: {
-+    prompt: string;
-+    questionType: 'text' | 'single' | 'multi' | 'confirm';
-+    options?: { key: string; label: string; description?: string }[];
-+    default?: string | boolean;
-+  };
-+}
-+
-+// ─── Union ───
-+
-+type NarrowWorkUnit = NarrowAgentWorkUnit | NarrowCodeWorkUnit | NarrowUserInputWorkUnit;
-+```
-+
-+**Why**: Each variant carries only its own config. The base stays lean. Existing code that reads `slug`, `type`, `inputs`, `outputs` compiles unchanged against the union. Type narrowing is automatic:
-+
-+```typescript
-+if (unit.type === 'user-input') {
-+  unit.userInput.prompt; // ← TypeScript narrows to NarrowUserInputWorkUnit
-+}
-+```
-+
-+### NodeStatusResult — Discriminated on `unitType`
-+
-+```typescript
-+// ─── Base (all existing fields, no type-specific config) ───
-+
-+interface NodeStatusResultBase {
-+  nodeId: string;
-+  unitSlug: string;
-+  execution: Execution;
-+  noContext?: boolean;
-+  contextFrom?: string;
-+  lineId: string;
-+  position: number;
-+
-+  status: ExecutionStatus;
-+
-+  ready: boolean;
-+  readyDetail: {
-+    precedingLinesComplete: boolean;
-+    transitionOpen: boolean;
-+    serialNeighborComplete: boolean;
-+    contextFromReady?: boolean;
-+    inputsAvailable: boolean;
-+    unitFound: boolean;
-+    reason?: string;
-+  };
-+
-+  inputPack: InputPack;
-+
-+  // State-conditional fields (stay on base — not type-specific)
-+  /** @deprecated Q&A protocol is scaffolding. */
-+  pendingQuestion?: {
-+    questionId: string;
-+    text: string;
-+    questionType: 'text' | 'single' | 'multi' | 'confirm';
-+    options?: { key: string; label: string }[];
-+    askedAt: string;
-+  };
-+
-+  error?: {
-+    code: string;
-+    message: string;
-+    occurredAt: string;
-+  };
-+
-+  startedAt?: string;
-+  completedAt?: string;
-+}
-+
-+// ─── Variants (discriminated on 'unitType') ───
-+
-+interface AgentNodeStatus extends NodeStatusResultBase {
-+  unitType: 'agent';
-+}
-+
-+interface CodeNodeStatus extends NodeStatusResultBase {
-+  unitType: 'code';
-+}
-+
-+interface UserInputNodeStatus extends NodeStatusResultBase {
-+  unitType: 'user-input';
-+  userInput: {
-+    prompt: string;
-+    questionType: 'text' | 'single' | 'multi' | 'confirm';
-+    options?: { key: string; label: string; description?: string }[];
-+    default?: string | boolean;
-+  };
-+}
-+
-+// ─── Union ───
-+
-+type NodeStatusResult = AgentNodeStatus | CodeNodeStatus | UserInputNodeStatus;
-+```
-+
-+**Why**: The discriminator `unitType` is already checked throughout the codebase (ONBAS, ODS, context-badge, pod-manager). Making it a formal discriminated union adds compiler-enforced narrowing for free. Existing consumers that access common fields compile unchanged.
-+
-+---
-+
-+## Backward Compatibility Analysis
-+
-+### Consumers that compile unchanged
-+
-+| Consumer | Accesses | Why safe |
-+|----------|----------|----------|
-+| ONBAS (`onbas.ts`) | `node.unitType === 'user-input'` guard | `unitType` on all variants ✓ |
-+| ODS (`ods.ts`) | `node.unitType`, `node.ready`, `node.status` | Common fields ✓ |
-+| Agent context (`agent-context.ts`) | `node.unitType !== 'agent'` guard | ✓ |
-+| Pod manager (`pod-manager.ts`) | `switch(unit.type)` | Discriminator ✓ |
-+| Context badge (`context-badge.ts`) | `node.unitType !== 'agent'` | ✓ |
-+| QA modal (`qa-modal.tsx`) | `node.pendingQuestion` | On base ✓ |
-+| Workflow editor (`workflow-editor.tsx`) | `node.status`, `node.nodeId`, etc. | Common fields ✓ |
-+| Node card (`workflow-node-card.tsx`) | `status`, `unitType` for icons | ✓ |
-+| Properties panel | `node.unitType`, `node.status` | ✓ |
-+
-+### Sites that need updating
-+
-+| Site | File | Change |
-+|------|------|--------|
-+| `InstanceWorkUnitAdapter` | `instance-workunit.adapter.ts` | Construct `NarrowUserInputWorkUnit` when `type === 'user-input'`; others get `NarrowAgentWorkUnit` or `NarrowCodeWorkUnit` |
-+| `getNodeStatus()` | `positional-graph.service.ts` | Build `UserInputNodeStatus` (with `userInput`) or `AgentNodeStatus`/`CodeNodeStatus` based on loaded unit type |
-+| `createWorkUnit()` helper | `test/unit/positional-graph/test-helpers.ts` | Accept optional `userInput` config; construct correct variant |
-+| `stubWorkUnitLoader()` | `test/unit/positional-graph/test-helpers.ts` | Support `user-input` units with `userInput` in stub map |
-+| `createTestUnit()` | `test/e2e/positional-graph-e2e.ts` | Add `type` param (if missing) and optional `userInput` |
-+| `createTestUnit()` | `test/integration/positional-graph/graph-lifecycle.test.ts` | Same |
-+| `makeNode()` helpers | `test/unit/web/features/050-workflow-page/*.test.*` | Accept `unitType` override; construct correct variant |
-+| `makeNodeStatus()` | `test/unit/positional-graph/features/030-orchestration/reality.test.ts` | Same pattern |
-+| Inline `NarrowWorkUnit` literals | Various test files (`collate-inputs.test.ts`, `input-wiring.test.ts`, `status.test.ts`, `can-run.test.ts`, `input-retrieval.test.ts`) | Add explicit `type` to satisfy variant; `user-input` literals add `userInput` |
-+
-+**Total**: ~1 production adapter + ~1 production service + ~8-10 test helpers/fixtures.
-+
-+---
-+
-+## Construction Patterns
-+
-+### Adapter (production)
-+
-+```typescript
-+// InstanceWorkUnitAdapter.load()
-+if (unitDef.type === 'user-input') {
-+  const unit: NarrowUserInputWorkUnit = {
-+    slug: unitDef.slug,
-+    type: 'user-input',
-+    inputs: unitDef.inputs ?? [],
-+    outputs: unitDef.outputs,
-+    userInput: {
-+      prompt: unitDef.user_input.prompt,
-+      questionType: unitDef.user_input.question_type,
-+      options: unitDef.user_input.options,
-+      default: unitDef.user_input.default,
-+    },
-+  };
-+  return { unit, errors: [] };
-+} else {
-+  const unit: NarrowWorkUnit = {
-+    slug: unitDef.slug,
-+    type: unitDef.type,
-+    inputs: unitDef.inputs ?? [],
-+    outputs: unitDef.outputs,
-+  };
-+  return { unit, errors: [] };
-+}
-+```
-+
-+### getNodeStatus() (production)
-+
-+```typescript
-+// Build base fields
-+const base: NodeStatusResultBase = { nodeId, unitSlug, ... };
-+
-+// Return discriminated variant
-+if (unitResult.unit?.type === 'user-input') {
-+  return {
-+    ...base,
-+    unitType: 'user-input' as const,
-+    userInput: (unitResult.unit as NarrowUserInputWorkUnit).userInput,
-+  } satisfies UserInputNodeStatus;
-+}
-+
-+return {
-+  ...base,
-+  unitType: unitResult.unit?.type ?? 'agent',
-+} as NodeStatusResult;
-+```
-+
-+### Test helper
-+
-+```typescript
-+// Updated createWorkUnit()
-+export function createWorkUnit(config: WorkUnitConfig): NarrowWorkUnit {
-+  const base = { slug: config.slug, inputs, outputs };
-+
-+  if (config.unitType === 'user-input' && config.userInput) {
-+    return { ...base, type: 'user-input', userInput: config.userInput };
-+  }
-+  return { ...base, type: config.unitType ?? 'agent' };
-+}
-+```
-+
-+---
-+
-+## UI Consumption Pattern
-+
-+```typescript
-+// In HumanInputModal or workflow-editor:
-+function handleNodeClick(node: NodeStatusResult) {
-+  if (node.unitType === 'user-input') {
-+    // TypeScript narrows to UserInputNodeStatus
-+    openHumanInputModal({
-+      prompt: node.userInput.prompt,
-+      questionType: node.userInput.questionType,
-+      options: node.userInput.options,
-+    });
-+  }
-+}
-+```
-+
-+No type assertions needed. Compiler-enforced safety.
-+
-+---
-+
-+## Type Guard Functions
-+
-+For convenience, add type guards alongside the existing WorkUnit guards:
-+
-+```typescript
-+// NarrowWorkUnit guards
-+export function isNarrowUserInputUnit(unit: NarrowWorkUnit): unit is NarrowUserInputWorkUnit {
-+  return unit.type === 'user-input';
-+}
-+
-+// NodeStatusResult guards
-+export function isUserInputNodeStatus(node: NodeStatusResult): node is UserInputNodeStatus {
-+  return node.unitType === 'user-input';
-+}
-+```
-+
-+---
-+
-+## Impact on Tasks Dossier
-+
-+### Replaced tasks
-+
-+| Old Task | New Task(s) | Change |
-+|----------|-------------|--------|
-+| T005: Extend NarrowWorkUnit with optional userInput | T005a: Create NarrowWorkUnit discriminated union (base + 3 variants) | Not an optional field — a proper union |
-+| T006: Extend NodeStatusResult with optional userInput | T006a: Create NodeStatusResult discriminated union (base + 3 variants) | Not an optional field — a proper union |
-+| T008: Update InstanceWorkUnitAdapter | T008a: Adapter constructs correct NarrowWorkUnit variant | Conditional construction, not field mapping |
-+
-+### New tasks
-+
-+| Task | Description |
-+|------|-------------|
-+| T005b | Add type guard functions (`isNarrowUserInputUnit`, `isUserInputNodeStatus`) |
-+| T012 | Update test helpers (`createWorkUnit`, `stubWorkUnitLoader`, `makeNode`, `makeNodeStatus`) to support discriminated variants |
-+| T013 | Update inline NarrowWorkUnit literals in test files to satisfy variant types |
-+
-+### Unchanged tasks
-+
-+| Task | Why unchanged |
-+|------|--------------|
-+| T001-T003 | Format A fix — unrelated to type architecture |
-+| T004 | TDD test for userInput config — still valid, just tests narrowing |
-+| T007 | Populate userInput in getNodeStatus() — same goal, different construction pattern |
-+| T009-T011 | Display status — downstream of type changes, same behavior |
-+
-+---
-+
-+## Summary
-+
-+1. **NarrowWorkUnit** becomes a discriminated union mirroring `WorkUnit` — each variant carries its own config
-+2. **NodeStatusResult** becomes a discriminated union on `unitType` — `UserInputNodeStatus` carries `userInput`
-+3. **Base types stay clean** — no type-specific config on `NarrowWorkUnitBase` or `NodeStatusResultBase`
-+4. **Existing consumers compile unchanged** — all common fields on the base, discriminator on every variant
-+5. **Compiler-enforced narrowing** — `if (node.unitType === 'user-input') { node.userInput.prompt }` just works
-+6. **~12 sites need updates** — 2 production + ~10 test helpers/fixtures
 diff --git a/packages/positional-graph/src/adapter/instance-workunit.adapter.ts b/packages/positional-graph/src/adapter/instance-workunit.adapter.ts
-index d6da3a0..ac8dfa1 100644
+index d6da3a0..99d88fe 100644
 --- a/packages/positional-graph/src/adapter/instance-workunit.adapter.ts
 +++ b/packages/positional-graph/src/adapter/instance-workunit.adapter.ts
-@@ -63,15 +63,39 @@ export class InstanceWorkUnitAdapter implements IWorkUnitLoader {
+@@ -63,15 +63,49 @@ export class InstanceWorkUnitAdapter implements IWorkUnitLoader {
            required: boolean;
            description?: string;
          }>;
@@ -865,7 +1942,17 @@ index d6da3a0..ac8dfa1 100644
          outputs: unitDef.outputs,
        };
  
-+      if (unitDef.type === 'user-input' && unitDef.user_input) {
++      if (unitDef.type === 'user-input') {
++        if (!unitDef.user_input) {
++          return {
++            errors: [
++              {
++                message: `Unit '${slug}' has type 'user-input' but is missing user_input config`,
++                code: 'UNIT_LOAD_ERROR',
++              },
++            ],
++          };
++        }
 +        const unit: NarrowWorkUnit = {
 +          ...base,
 +          type: 'user-input' as const,
@@ -1160,6 +2247,68 @@ index af61570..4153f58 100644
    // ============================================
    // T004: Single source resolution
    // ============================================
+diff --git a/test/unit/positional-graph/status.test.ts b/test/unit/positional-graph/status.test.ts
+index fc746c0..a19704f 100644
+--- a/test/unit/positional-graph/status.test.ts
++++ b/test/unit/positional-graph/status.test.ts
+@@ -65,6 +65,17 @@ const simpleUnit: NarrowWorkUnit = {
+   outputs: [{ name: 'result', type: 'data', required: true }],
+ };
+ 
++const userInputUnit: NarrowWorkUnit = {
++  slug: 'get-requirements',
++  type: 'user-input',
++  inputs: [],
++  outputs: [{ name: 'requirements', type: 'data', required: true }],
++  userInput: {
++    prompt: 'Describe your requirements',
++    questionType: 'text',
++  },
++};
++
+ describe('PositionalGraphService — Status API', () => {
+   let fs: FakeFileSystem;
+   let pathResolver: FakePathResolver;
+@@ -297,4 +308,39 @@ describe('PositionalGraphService — Status API', () => {
+       expect(status.lines[1].transitionTriggered).toBe(true);
+     });
+   });
++
++  // ============================================
++  // Discriminated NodeStatusResult (Plan 054)
++  // ============================================
++
++  describe('discriminated NodeStatusResult', () => {
++    it('returns UserInputNodeStatus with userInput config for user-input units', async () => {
++      const loader = createFakeUnitLoader([userInputUnit]);
++      const svc = createTestService(fs, pathResolver, loader);
++
++      const { lineId } = await svc.create(ctx, 'test-graph');
++      const node = await svc.addNode(ctx, 'test-graph', lineId, 'get-requirements');
++      const nodeId = node.nodeId as string;
++
++      const status = await svc.getNodeStatus(ctx, 'test-graph', nodeId);
++
++      expect(status.unitType).toBe('user-input');
++      if (status.unitType === 'user-input') {
++        expect(status.userInput).toBeDefined();
++        expect(status.userInput.prompt).toBe('Describe your requirements');
++        expect(status.userInput.questionType).toBe('text');
++      }
++    });
++
++    it('returns AgentNodeStatus without userInput for agent units', async () => {
++      const { lineId } = await service.create(ctx, 'test-graph');
++      const node = await service.addNode(ctx, 'test-graph', lineId, 'simple-task');
++      const nodeId = node.nodeId as string;
++
++      const status = await service.getNodeStatus(ctx, 'test-graph', nodeId);
++
++      expect(status.unitType).toBe('agent');
++      expect('userInput' in status).toBe(false);
++    });
++  });
+ });
 diff --git a/test/unit/web/features/050-workflow-page/display-status.test.ts b/test/unit/web/features/050-workflow-page/display-status.test.ts
 new file mode 100644
 index 0000000..99f1d97
