@@ -66,8 +66,8 @@ No new domains required.
 
 ### Data Submission & Storage
 
-- **AC-07**: Submitting the modal writes the structured answer to `nodes/{id}/data/data.json` in Format A (`{ outputs: { name: value } }`)
-- **AC-08**: After submission, the user-input node transitions to `complete` status via the full lifecycle (`startNode` → `node:accepted` → `endNode`)
+- **AC-07**: Submitting the modal writes the structured answer via `saveOutputData()` through `IPositionalGraphService` (data stored at `nodes/{id}/data/data.json` in Format A)
+- **AC-08**: After submission, the user-input node transitions to `complete` status via the full lifecycle (`startNode` → `node:accepted` → `saveOutputData` → `endNode`)
 - **AC-09**: Downstream nodes that reference the user-input node's output via `from_node` input resolution see `inputsAvailable: true` after submission
 - **AC-10**: The freeform notes field content is preserved in `_metadata.freeform_notes` in data.json
 

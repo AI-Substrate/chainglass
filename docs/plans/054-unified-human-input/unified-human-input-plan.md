@@ -35,7 +35,7 @@ User-input nodes in the workflow editor currently have no input mechanism — th
 | `apps/web/src/features/050-workflow-page/components/node-properties-panel.tsx` | workflow-ui | internal | "Provide Input..." button for user-input nodes |
 | `apps/web/src/features/050-workflow-page/components/workflow-editor.tsx` | workflow-ui | internal | Wire modal routing for user-input nodes |
 | `apps/web/src/features/050-workflow-page/lib/display-status.ts` | workflow-ui | internal | NEW — display status computation helper |
-| `apps/web/app/actions/workflow-actions.ts` | workflow-ui | internal | Add `submitUserInput` server action |
+| `apps/web/app/actions/workflow-actions.ts` | workflow-ui | internal | Add `submitUserInput` server action (uses IPositionalGraphService only) |
 | `scripts/dope-workflows.ts` | workflow-ui | internal | Add user-input demo scenarios |
 
 ## Key Findings
@@ -43,7 +43,7 @@ User-input nodes in the workflow editor currently have no input mechanism — th
 | # | Impact | Finding | Action |
 |---|--------|---------|--------|
 | F01 | Critical | **data.json format mismatch**: `saveOutputData()` writes Format A (`{ outputs: { name: value } }`), but `collateInputs()` reads flat (`data[name]`). See [Workshop 008](./workshops/008-save-persistence-strategy.md). | Phase 1 fixes `collateInputs` with one-line fallback: `data?.outputs?.[name] ?? data?.[name]`. |
-| F02 | High | Node lifecycle requires explicit `raiseNodeEvent('node:accepted')` to transition `starting` → `agent-accepted`. | Server action calls `startNode()` then `raiseNodeEvent('node:accepted', {}, 'human')` then `endNode()`. Output written to data.json before lifecycle. |
+| F02 | High | Node lifecycle requires explicit `raiseNodeEvent('node:accepted')` to transition `starting` → `agent-accepted`. | Server action calls `startNode()` → `accept` → `saveOutputData()` (guard now passes) → `endNode()`. All through `IPositionalGraphService` — no direct filesystem writes. Clean architecture preserved. |
 | F03 | High | `NodeStatusResult` has no `userInput` config — only `unitType`. | Phase 1 extends the interface and populates from unit.yaml. |
 | F04 | Medium | Orchestration safety: ONBAS skips user-input type + agent-accepted status. ODS skips user-input. 4 layers, all tested. | No risk. No changes needed. |
 
@@ -63,13 +63,15 @@ User-input nodes in the workflow editor currently have no input mechanism — th
 
 | # | Task | Domain | Success Criteria | Notes |
 |---|------|--------|-----------------|-------|
-| 1.1 | Fix `collateInputs` to read Format A | _platform/positional-graph | `data?.outputs?.[fromOutput] ?? data?.[fromOutput]` — backward compat fallback | One-line fix in input-resolution.ts line 352 |
-| 1.2 | Update `collate-inputs.test.ts` to use Format A fixtures | _platform/positional-graph | Existing tests pass with wrapped format | Update writeNodeData helper |
-| 1.3 | Extend `NodeStatusResult` with `userInput` config | _platform/positional-graph | Optional `userInput?: { prompt, questionType, options?, defaultValue? }` | Per F03 |
-| 1.4 | Populate `userInput` in `getNodeStatus()` from loaded WorkUnit | _platform/positional-graph | Unit test: user-input node returns config; agent/code return undefined | Service already loads unit |
-| 1.5 | Create `display-status.ts` helper | workflow-ui | `getDisplayStatus()` maps `user-input` + `pending` + `ready` → `awaiting-input` | |
-| 1.6 | Add `awaiting-input` to STATUS_MAP + click routing | workflow-ui | Violet badge, clickable, fires input handler | |
-| 1.7 | TDD tests for 1.1–1.4, lightweight for 1.5–1.6 | both | All tests pass | |
+| 1.1 | TDD: Write collateInputs Format A test | _platform/positional-graph | Test: writeNodeData with `{ outputs: { spec: "hello" } }`, collateInputs resolves `spec` output correctly | Test-first per Hybrid TDD |
+| 1.2 | Fix `collateInputs` to read Format A | _platform/positional-graph | `data?.outputs?.[fromOutput] ?? data?.[fromOutput]` — backward compat fallback. Test from 1.1 passes. | One-line fix in input-resolution.ts line 352 |
+| 1.3 | Update remaining `collate-inputs.test.ts` fixtures to Format A | _platform/positional-graph | All existing tests pass with wrapped format | Update writeNodeData helper |
+| 1.4 | TDD: Write NodeStatusResult userInput config test | _platform/positional-graph | Test: user-input node returns `userInput` config; agent/code return undefined | Test-first |
+| 1.5 | Extend `NodeStatusResult` with `userInput` config | _platform/positional-graph | Optional `userInput?: { prompt, questionType, options?, defaultValue? }`. Test from 1.4 passes. | Per F03 |
+| 1.6 | Populate `userInput` in `getNodeStatus()` from loaded WorkUnit | _platform/positional-graph | Test from 1.4 passes end-to-end | Service already loads unit |
+| 1.7 | Create `display-status.ts` helper | workflow-ui | `getDisplayStatus()` maps `user-input` + `pending` + `ready` → `awaiting-input` | |
+| 1.8 | Add `awaiting-input` to STATUS_MAP + click routing | workflow-ui | Violet badge, clickable, fires input handler | |
+| 1.9 | Lightweight tests for 1.7–1.8 | workflow-ui | Display status computation correct for all unitType × status × ready combinations | |
 
 ### Phase 2: Human Input Modal + Server Action
 
@@ -77,20 +79,23 @@ User-input nodes in the workflow editor currently have no input mechanism — th
 **Domain**: `workflow-ui` (modify) + `_platform/positional-graph` (consume)
 **Delivers**:
 - `HumanInputModal` component (standalone, does not modify qa-modal.tsx)
-- `submitUserInput` server action (write output → startNode → accept → endNode)
+- `submitUserInput` server action (startNode → accept → saveOutputData → endNode)
 - Modal wired to editor via display status routing
 - Properties panel "Provide Input..." button
 **Depends on**: Phase 1
+
+> **Architecture note**: The server action calls `startNode` → `accept` first, putting the node in `agent-accepted` state. Then `saveOutputData()` succeeds (guard passes). Then `endNode()` completes the node. No direct `IFileSystem` writes needed — all operations go through `IPositionalGraphService`. Clean architecture preserved.
 
 | # | Task | Domain | Success Criteria | Notes |
 |---|------|--------|-----------------|-------|
 | 2.1 | Create `HumanInputModal` component | workflow-ui | Renders prompt, 4 question types, freeform textarea, Submit button | New file |
 | 2.2 | Modal header: "Human Input" + unit slug + icon | workflow-ui | Per Workshop 007 | |
-| 2.3 | Create `submitUserInput` server action | workflow-ui | Writes output to data.json (Format A), calls startNode → accept → endNode | Per Workshop 008 |
-| 2.4 | Wire modal to `workflow-editor.tsx` | workflow-ui | `awaiting-input` nodes open HumanInputModal; `waiting-question` continues to open legacy QAModal | Separate code paths |
-| 2.5 | Wire modal onSubmit to server action | workflow-ui | Submit → node completes → modal closes → status updates | |
-| 2.6 | Update properties panel: "Provide Input..." button | workflow-ui | User-input nodes show button instead of "Edit Properties..." | |
-| 2.7 | Modal + action tests | workflow-ui | Rendering tests + server action lifecycle test | |
+| 2.3 | TDD: Write submitUserInput lifecycle test | _platform/positional-graph | Test: startNode → accept → saveOutputData → endNode succeeds for user-input unit. Real filesystem fixture. | Test-first per Hybrid TDD |
+| 2.4 | Create `submitUserInput` server action | workflow-ui | Calls `startNode` → `raiseNodeEvent('node:accepted')` → `saveOutputData` → `endNode`. Test from 2.3 passes. | Uses IPositionalGraphService only — no IFileSystem |
+| 2.5 | Wire modal to `workflow-editor.tsx` | workflow-ui | `awaiting-input` nodes open HumanInputModal; `waiting-question` continues to open legacy QAModal | Separate code paths |
+| 2.6 | Wire modal onSubmit to server action | workflow-ui | Submit → node completes → modal closes → status updates | |
+| 2.7 | Update `node-properties-panel.tsx`: "Provide Input..." button | workflow-ui | User-input nodes show button instead of "Edit Properties..." | Explicit file: node-properties-panel.tsx |
+| 2.8 | Modal + action rendering tests | workflow-ui | Rendering tests for all 4 question types + freeform | Lightweight |
 
 ### Phase 3: Demo + Integration + Cleanup
 
@@ -123,8 +128,8 @@ User-input nodes in the workflow editor currently have no input mechanism — th
 - [ ] **AC-06**: Freeform textarea appears for user-input nodes
 
 ### Data Submission & Storage
-- [ ] **AC-07**: Submit writes to `nodes/{id}/data/data.json` in Format A
-- [ ] **AC-08**: After submission, node → `complete` via full lifecycle
+- [ ] **AC-07**: Submit writes via `saveOutputData()` through `IPositionalGraphService`
+- [ ] **AC-08**: After submission, node → `complete` via `startNode` → `accept` → `saveOutputData` → `endNode`
 - [ ] **AC-09**: Downstream `from_node` input resolution sees `inputsAvailable: true`
 - [ ] **AC-10**: Freeform notes preserved in `_metadata.freeform_notes`
 
@@ -141,8 +146,8 @@ User-input nodes in the workflow editor currently have no input mechanism — th
 
 | Phase | Status | Tasks | Notes |
 |-------|--------|-------|-------|
-| Phase 1: NodeStatusResult + Display Status | Not started | 0/7 | |
-| Phase 2: Human Input Modal + Server Action | Not started | 0/7 | |
+| Phase 1: NodeStatusResult + Display Status | Not started | 0/9 | |
+| Phase 2: Human Input Modal + Server Action | Not started | 0/8 | |
 | Phase 3: Demo + Integration + Cleanup | Not started | 0/5 | |
 
 ## Risks
