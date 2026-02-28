@@ -98,6 +98,12 @@ export function StateInspector() {
   const inspector = useStateInspector();
   const demo = useDemoGenerator();
   const [selectedItem, setSelectedItem] = useState<DetailItem | null>(null);
+  const [activeTab, setActiveTab] = useState('stream');
+
+  const handleDomainSelect = (domain: string) => {
+    inspector.setDomainFilter(domain);
+    setActiveTab('stream');
+  };
 
   return (
     <div className="flex flex-col h-full bg-background">
@@ -183,7 +189,11 @@ export function StateInspector() {
       <div className="flex flex-1 min-h-0 divide-x divide-border">
         {/* Left: tabs */}
         <div className="w-1/2 flex flex-col min-h-0">
-          <Tabs defaultValue="stream" className="flex flex-col flex-1 min-h-0">
+          <Tabs
+            value={activeTab}
+            onValueChange={setActiveTab}
+            className="flex flex-col flex-1 min-h-0"
+          >
             <TabsList variant="line" className="px-3 shrink-0">
               <TabsTrigger value="domains">Domains</TabsTrigger>
               <TabsTrigger value="snapshot">Snapshot</TabsTrigger>
@@ -196,7 +206,7 @@ export function StateInspector() {
             </TabsList>
 
             <TabsContent value="domains" className="flex-1 overflow-y-auto mt-0">
-              <DomainOverview domains={inspector.domains} />
+              <DomainOverview domains={inspector.domains} onSelectDomain={handleDomainSelect} />
             </TabsContent>
 
             <TabsContent value="snapshot" className="flex-1 overflow-y-auto mt-0">

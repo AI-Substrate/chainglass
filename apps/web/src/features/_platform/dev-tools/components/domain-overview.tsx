@@ -84,6 +84,19 @@ export function DomainOverview({ domains, onSelectDomain }: DomainOverviewProps)
                     <span className="text-xs font-mono">{instances.join(', ')}</span>
                   </div>
                 )}
+
+                {onSelectDomain && (
+                  <button
+                    type="button"
+                    className="mt-2 text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelectDomain(d.domain);
+                    }}
+                  >
+                    View stream →
+                  </button>
+                )}
               </div>
             )}
           </div>

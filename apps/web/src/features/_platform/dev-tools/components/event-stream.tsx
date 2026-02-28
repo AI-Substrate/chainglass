@@ -25,6 +25,15 @@ function formatRelativeTime(timestamp: number, prevTimestamp?: number): string {
   return `+${m}m${s}s`;
 }
 
+function formatWallClock(timestamp: number): string {
+  const d = new Date(timestamp);
+  const h = String(d.getHours()).padStart(2, '0');
+  const m = String(d.getMinutes()).padStart(2, '0');
+  const s = String(d.getSeconds()).padStart(2, '0');
+  const ms = String(d.getMilliseconds()).padStart(3, '0');
+  return `${h}:${m}:${s}.${ms}`;
+}
+
 function formatValue(value: unknown): string {
   if (value === undefined) return '—';
   if (typeof value === 'string') return `"${value.length > 20 ? `${value.slice(0, 20)}…` : value}"`;
@@ -102,7 +111,10 @@ export function EventStream({
               }`}
               onClick={() => onSelect?.({ kind: 'event', data: event })}
             >
-              <span className="text-[10px] text-muted-foreground tabular-nums w-14 shrink-0">
+              <span className="text-[10px] text-muted-foreground tabular-nums w-20 shrink-0">
+                {formatWallClock(event.timestamp)}
+              </span>
+              <span className="text-[10px] text-muted-foreground/60 tabular-nums w-14 shrink-0">
                 {formatRelativeTime(event.timestamp, prevTimestamp)}
               </span>
               <span className="w-3 shrink-0">
