@@ -315,6 +315,18 @@ export function buildDiskWorkUnitService(workspacePath: string) {
     async validate() {
       return { valid: true, errors: [] as Array<{ code: string; message: string }> };
     },
+    async create(_ctx: WorkspaceContext, spec: { slug: string; type: string }) {
+      return { slug: spec.slug, type: spec.type as 'agent' | 'code' | 'user-input', errors: [] };
+    },
+    async update(_ctx: WorkspaceContext, slug: string) {
+      return { slug, errors: [] };
+    },
+    async delete() {
+      return { deleted: true, errors: [] };
+    },
+    async rename(_ctx: WorkspaceContext, _old: string, newSlug: string) {
+      return { newSlug, updatedFiles: [], errors: [] };
+    },
   } satisfies IWorkUnitService;
 }
 

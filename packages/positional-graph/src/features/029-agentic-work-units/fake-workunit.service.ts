@@ -14,9 +14,15 @@ import type { WorkspaceContext } from '@chainglass/workflow';
 
 import { workunitNotFoundError } from './workunit-errors.js';
 import type {
+  CreateUnitResult,
+  CreateUnitSpec,
+  DeleteUnitResult,
   IWorkUnitService,
   ListUnitsResult,
   LoadUnitResult,
+  RenameUnitResult,
+  UpdateUnitPatch,
+  UpdateUnitResult,
   ValidateUnitResult,
   WorkUnitSummary,
 } from './workunit-service.interface.js';
@@ -177,6 +183,10 @@ export class FakeWorkUnitService implements IWorkUnitService {
     this.listCalls = [];
     this.loadCalls = [];
     this.validateCalls = [];
+    this.createCalls = [];
+    this.updateCalls = [];
+    this.deleteCalls = [];
+    this.renameCalls = [];
   }
 
   // ========== IWorkUnitService Implementation ==========
@@ -247,6 +257,139 @@ export class FakeWorkUnitService implements IWorkUnitService {
     }
 
     return { valid: true, errors: [] };
+  }
+
+  // ========== Write Operations (Plan 058 — fleshed out in T003) ==========
+
+  /** Track create() calls */
+  private createCalls: Array<{ ctx: WorkspaceContext; spec: CreateUnitSpec }> = [];
+  /** Track update() calls */
+  private updateCalls: Array<{ ctx: WorkspaceContext; slug: string; patch: UpdateUnitPatch }> = [];
+  /** Track delete() calls */
+  private deleteCalls: Array<{ ctx: WorkspaceContext; slug: string }> = [];
+  /** Track rename() calls */
+  private renameCalls: Array<{ ctx: WorkspaceContext; oldSlug: string; newSlug: string }> = [];
+
+  async create(ctx: WorkspaceContext, spec: CreateUnitSpec): Promise<CreateUnitResult> {
+    this.createCalls.push({ ctx, spec });
+    if (this.units.has(spec.slug)) {
+      return {
+        slug: spec.slug,
+        type: spec.type,
+        errors: [
+          {
+            code: 'E188',
+            message: `Unit '${spec.slug}' already exists`,
+            action: 'Choose a different slug',
+          },
+        ],
+      };
+    }
+    const defaultOutputs = [
+      { name: 'result', type: 'data' as const, data_type: 'text' as const, required: true },
+    ];
+    const config: FakeUnitConfig =
+      spec.type === 'agent'
+        ? {
+            type: 'agent',
+            slug: spec.slug,
+            version: spec.version ?? '1.0.0',
+            description: spec.description,
+            promptContent: '',
+            agent: { prompt_template: 'prompts/main.md' },
+            outputs: defaultOutputs,
+          }
+        : spec.type === 'code'
+          ? {
+              type: 'code',
+              slug: spec.slug,
+              version: spec.version ?? '1.0.0',
+              description: spec.description,
+              scriptContent: '',
+              code: { script: 'scripts/main.sh' },
+              outputs: defaultOutputs,
+            }
+          : {
+              type: 'user-input',
+              slug: spec.slug,
+              version: spec.version ?? '1.0.0',
+              description: spec.description,
+              user_input: { question_type: 'text', prompt: 'Enter value' },
+              outputs: defaultOutputs,
+            };
+    this.units.set(spec.slug, config);
+    return { slug: spec.slug, type: spec.type, errors: [] };
+  }
+
+  async update(
+    ctx: WorkspaceContext,
+    slug: string,
+    patch: UpdateUnitPatch
+  ): Promise<UpdateUnitResult> {
+    this.updateCalls.push({ ctx, slug, patch });
+    const config = this.units.get(slug);
+    if (!config) {
+      return { slug, errors: [workunitNotFoundError(slug)] };
+    }
+    if (patch.description !== undefined) config.description = patch.description;
+    if (patch.version !== undefined) config.version = patch.version;
+    if (patch.inputs !== undefined) config.inputs = patch.inputs;
+    if (patch.outputs !== undefined) config.outputs = patch.outputs;
+    return { slug, errors: [] };
+  }
+
+  async delete(ctx: WorkspaceContext, slug: string): Promise<DeleteUnitResult> {
+    this.deleteCalls.push({ ctx, slug });
+    this.units.delete(slug);
+    this.templateContent.delete(slug);
+    return { deleted: true, errors: [] };
+  }
+
+  async rename(ctx: WorkspaceContext, oldSlug: string, newSlug: string): Promise<RenameUnitResult> {
+    this.renameCalls.push({ ctx, oldSlug, newSlug });
+    const config = this.units.get(oldSlug);
+    if (!config) {
+      return { newSlug, updatedFiles: [], errors: [workunitNotFoundError(oldSlug)] };
+    }
+    if (this.units.has(newSlug)) {
+      return {
+        newSlug,
+        updatedFiles: [],
+        errors: [
+          {
+            code: 'E188',
+            message: `Unit '${newSlug}' already exists`,
+            action: 'Choose a different slug',
+          },
+        ],
+      };
+    }
+    this.units.delete(oldSlug);
+    config.slug = newSlug;
+    this.units.set(newSlug, config);
+    const oldContent = this.templateContent.get(oldSlug);
+    if (oldContent) {
+      this.templateContent.delete(oldSlug);
+      this.templateContent.set(newSlug, oldContent);
+    }
+    return { newSlug, updatedFiles: [], errors: [] };
+  }
+
+  /** Get create() call history */
+  getCreateCalls(): Array<{ ctx: WorkspaceContext; spec: CreateUnitSpec }> {
+    return [...this.createCalls];
+  }
+  /** Get update() call history */
+  getUpdateCalls(): Array<{ ctx: WorkspaceContext; slug: string; patch: UpdateUnitPatch }> {
+    return [...this.updateCalls];
+  }
+  /** Get delete() call history */
+  getDeleteCalls(): Array<{ ctx: WorkspaceContext; slug: string }> {
+    return [...this.deleteCalls];
+  }
+  /** Get rename() call history */
+  getRenameCalls(): Array<{ ctx: WorkspaceContext; oldSlug: string; newSlug: string }> {
+    return [...this.renameCalls];
   }
 
   // ========== Private Helpers ==========
