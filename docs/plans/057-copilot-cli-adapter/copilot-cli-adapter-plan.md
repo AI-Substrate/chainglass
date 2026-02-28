@@ -4,7 +4,7 @@
 **Plan Version**: 1.0.0
 **Created**: 2026-02-28
 **Spec**: [copilot-cli-adapter-spec.md](copilot-cli-adapter-spec.md)
-**Status**: DRAFT
+**Status**: COMPLETE
 
 ## Summary
 
@@ -49,34 +49,34 @@ Add a new `IAgentAdapter` implementation (`CopilotCLIAdapter`) that attaches to 
 
 | Status | ID | Task | Domain | Path(s) | Done When | Notes |
 |--------|-----|------|--------|---------|-----------|-------|
-| [ ] | T001 | Create `CopilotCLIAdapter` with injectable `sendKeys` | shared | `/Users/jordanknight/substrate/chainglass-048/packages/shared/src/adapters/copilot-cli.adapter.ts` | Adapter constructor accepts optional `sendKeys` function in options (defaults to real `execSync` tmux calls). Tests inject fake function. No separate interface/fake/real files | Option B: function injection, not class hierarchy |
-| [ ] | T001t | Write adapter unit tests | test | `/Users/jordanknight/substrate/chainglass-048/test/unit/shared/adapters/copilot-cli-adapter.test.ts` | Tests: run() happy path, sessionId required, tmux unreachable → failed, timeout → failed, events emitted via onEvent, terminate() disconnects cleanly. Uses injected fake `sendKeys` | TDD: write tests FIRST |
-| [ ] | T002 | Create `EventsJsonlParser` | shared | `/Users/jordanknight/substrate/chainglass-048/packages/shared/src/adapters/events-jsonl-parser.ts` | Translates all 10+ events.jsonl types to AgentEvent union. Pure function — no I/O | Per finding 05. Extract as pure function |
-| [ ] | T002t | Write parser unit tests | test | `/Users/jordanknight/substrate/chainglass-048/test/unit/shared/adapters/events-jsonl-parser.test.ts` | Tests cover: each event type mapping, malformed line skipping (PL-07), unknown type passthrough | TDD: write tests FIRST |
-| [ ] | T003 | Implement `compact()` and `terminate()` | shared | `/Users/jordanknight/substrate/chainglass-048/packages/shared/src/adapters/copilot-cli.adapter.ts` | `compact()` sends "/compact" via sendKeys. `terminate()` stops watcher, returns `{status:'killed', exitCode:0}`. Neither kills CLI process | Per workshop Q7: disconnect only |
-| [ ] | T004 | Register in contract tests | test | `/Users/jordanknight/substrate/chainglass-048/test/contracts/agent-adapter.contract.test.ts` | `agentAdapterContractTests('CopilotCLIAdapter', ...)` passes all 9 contract tests | Per finding 03 |
-| [ ] | T005 | Extend `AgentType` union | shared | `/Users/jordanknight/substrate/chainglass-048/packages/shared/src/features/034-agentic-cli/types.ts` | Add `'copilot-cli'` to AgentType. Update any mirror definitions | Per finding 02 |
-| [ ] | T006 | Register in adapter factory | cli | `/Users/jordanknight/substrate/chainglass-048/apps/cli/src/lib/container.ts` | Add `if (agentType === 'copilot-cli') return new CopilotCLIAdapter(...)` in factory | Per finding 01 |
-| [ ] | T007 | Create E2E test script | scripts | `/Users/jordanknight/substrate/chainglass-048/scripts/test-copilot-cli-adapter.ts` | Script takes `<sessionId> <tmuxSession> <pane>`, runs 5 tests against real CLI, reports pass/fail. See workshop 002 | Part-human, part-automatic per CL-05 |
-| [ ] | T008 | Export from barrel | shared | `/Users/jordanknight/substrate/chainglass-048/packages/shared/src/index.ts` | `CopilotCLIAdapter`, `EventsJsonlParser` exported | Standard barrel pattern |
+| [x] | T001 | Create `CopilotCLIAdapter` with injectable `sendKeys` | shared | `/Users/jordanknight/substrate/chainglass-048/packages/shared/src/adapters/copilot-cli.adapter.ts` | Adapter constructor accepts optional `sendKeys` function in options (defaults to real `execSync` tmux calls). Tests inject fake function. No separate interface/fake/real files | Option B: function injection, not class hierarchy |
+| [x] | T001t | Write adapter unit tests | test | `/Users/jordanknight/substrate/chainglass-048/test/unit/shared/adapters/copilot-cli-adapter.test.ts` | Tests: run() happy path, sessionId required, tmux unreachable → failed, timeout → failed, events emitted via onEvent, terminate() disconnects cleanly. Uses injected fake `sendKeys` | TDD: write tests FIRST |
+| [x] | T002 | Create `EventsJsonlParser` | shared | `/Users/jordanknight/substrate/chainglass-048/packages/shared/src/adapters/events-jsonl-parser.ts` | Translates all 10+ events.jsonl types to AgentEvent union. Pure function — no I/O | Per finding 05. Extract as pure function |
+| [x] | T002t | Write parser unit tests | test | `/Users/jordanknight/substrate/chainglass-048/test/unit/shared/adapters/events-jsonl-parser.test.ts` | Tests cover: each event type mapping, malformed line skipping (PL-07), unknown type passthrough | TDD: write tests FIRST |
+| [x] | T003 | Implement `compact()` and `terminate()` | shared | `/Users/jordanknight/substrate/chainglass-048/packages/shared/src/adapters/copilot-cli.adapter.ts` | `compact()` sends "/compact" via sendKeys. `terminate()` stops watcher, returns `{status:'killed', exitCode:0}`. Neither kills CLI process | Per workshop Q7: disconnect only |
+| [x] | T004 | Register in contract tests | test | `/Users/jordanknight/substrate/chainglass-048/test/contracts/agent-adapter.contract.test.ts` | `agentAdapterContractTests('CopilotCLIAdapter', ...)` passes all 9 contract tests | Per finding 03 |
+| [x] | T005 | Extend `AgentType` union | shared | `/Users/jordanknight/substrate/chainglass-048/packages/shared/src/features/034-agentic-cli/types.ts` | Add `'copilot-cli'` to AgentType. Update any mirror definitions | Per finding 02 |
+| [x] | T006 | Register in adapter factory | cli | `/Users/jordanknight/substrate/chainglass-048/apps/cli/src/lib/container.ts` | Add `if (agentType === 'copilot-cli') return new CopilotCLIAdapter(...)` in factory | Per finding 01 |
+| [x] | T007 | Create E2E test script | scripts | `/Users/jordanknight/substrate/chainglass-048/scripts/test-copilot-cli-adapter.ts` | Script takes `<sessionId> <tmuxSession> <pane>`, runs 5 tests against real CLI, reports pass/fail. See workshop 002 | Part-human, part-automatic per CL-05 |
+| [x] | T008 | Export from barrel | shared | `/Users/jordanknight/substrate/chainglass-048/packages/shared/src/index.ts` | `CopilotCLIAdapter`, `EventsJsonlParser` exported | Standard barrel pattern |
 
 ### Acceptance Criteria
 
-- [ ] AC-01: `CopilotCLIAdapter` implements `IAgentAdapter` with `run()`, `compact()`, and `terminate()`
-- [ ] AC-02: `run()` sends prompt via tmux, returns `AgentResult` after `session.idle`
-- [ ] AC-03: `run()` emits `AgentEvent` objects via `onEvent` callback
-- [ ] AC-04: Event translation maps all specified events.jsonl types correctly
-- [ ] AC-05: `run()` returns `status: 'failed'` if tmux unreachable or events.jsonl missing
-- [ ] AC-06: `run()` returns `status: 'failed'` on timeout
-- [ ] AC-07: `compact()` sends "/compact" via tmux
-- [ ] AC-08: `terminate()` disconnects without killing CLI
-- [ ] AC-09: `terminate()` returns `{status: 'killed', exitCode: 0}`
-- [ ] AC-10: Passes `agentAdapterContractTests` suite
-- [ ] AC-11: File watcher starts before prompt sent
-- [ ] AC-12: Malformed NDJSON lines silently skipped
-- [ ] AC-13: Session IDs validated against path traversal
-- [ ] AC-14: Registered in factory as `'copilot-cli'`
-- [ ] AC-15: tmux execution is injectable (FakeTmuxExecutor used in tests)
+- [x] AC-01: `CopilotCLIAdapter` implements `IAgentAdapter` with `run()`, `compact()`, and `terminate()`
+- [x] AC-02: `run()` sends prompt via tmux, returns `AgentResult` after `session.idle`
+- [x] AC-03: `run()` emits `AgentEvent` objects via `onEvent` callback
+- [x] AC-04: Event translation maps all specified events.jsonl types correctly
+- [x] AC-05: `run()` returns `status: 'failed'` if tmux unreachable or events.jsonl missing
+- [x] AC-06: `run()` returns `status: 'failed'` on timeout
+- [x] AC-07: `compact()` sends "/compact" via tmux
+- [x] AC-08: `terminate()` disconnects without killing CLI
+- [x] AC-09: `terminate()` returns `{status: 'killed', exitCode: 0}`
+- [x] AC-10: Passes `agentAdapterContractTests` suite
+- [x] AC-11: File watcher starts before prompt sent
+- [x] AC-12: Malformed NDJSON lines silently skipped
+- [x] AC-13: Session IDs validated against path traversal
+- [x] AC-14: Registered in factory as `'copilot-cli'`
+- [x] AC-15: tmux execution is injectable (FakeTmuxExecutor used in tests)
 
 ### Risks
 

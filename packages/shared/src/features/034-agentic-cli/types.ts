@@ -14,7 +14,7 @@ export type { AgentEvent, AgentResult };
 export type { AgentEventHandler } from '../../interfaces/agent-types.js';
 
 /** Supported agent runtime types. */
-export type AgentType = 'claude-code' | 'copilot';
+export type AgentType = 'claude-code' | 'copilot' | 'copilot-cli';
 
 /** Three-state status model for AgentInstance. */
 export type AgentInstanceStatus = 'working' | 'stopped' | 'error';

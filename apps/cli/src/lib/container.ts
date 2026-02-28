@@ -7,6 +7,7 @@
  */
 
 import 'reflect-metadata';
+import { execSync } from 'node:child_process';
 import {
   FakeWorkUnitService,
   registerOrchestrationServices,
@@ -28,6 +29,7 @@ import {
   ChainglassConfigService,
   ClaudeCodeAdapter,
   ConsoleOutputAdapter,
+  CopilotCLIAdapter,
   FakeFileSystem,
   FakeHashGenerator,
   FakeLogger,
@@ -348,6 +350,12 @@ export function createCliProductionContainer(): DependencyContainer {
         }
         if (agentType === 'copilot') {
           return new SdkCopilotAdapter(copilotClient, { logger });
+        }
+        if (agentType === 'copilot-cli') {
+          const sendKeys = (target: string, text: string): void => {
+            execSync(`tmux send-keys -t ${target} ${JSON.stringify(text)}`, { stdio: 'ignore' });
+          };
+          return new CopilotCLIAdapter({ sendKeys });
         }
         throw new Error(`Unknown agent type: ${agentType}`);
       };

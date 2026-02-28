@@ -1,5 +1,9 @@
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import {
   ClaudeCodeAdapter,
+  CopilotCLIAdapter,
   FakeAgentAdapter,
   FakeCopilotClient,
   FakeProcessManager,
@@ -82,4 +86,52 @@ agentAdapterContractTests('SdkCopilotAdapter', () => {
   });
 
   return new SdkCopilotAdapter(fakeClient);
+});
+
+// Run contract tests for CopilotCLIAdapter (Plan 057)
+// Uses temp events.jsonl file and injectable sendKeys to simulate CLI interaction
+agentAdapterContractTests('CopilotCLIAdapter', () => {
+  const sessionId = `contract-test-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const sessionStateDir = path.join(os.tmpdir(), '.copilot-contract-test', 'session-state');
+  const sessionDir = path.join(sessionStateDir, sessionId);
+  fs.mkdirSync(sessionDir, { recursive: true });
+  const eventsPath = path.join(sessionDir, 'events.jsonl');
+  fs.writeFileSync(eventsPath, '');
+
+  // When sendKeys is called (Enter key), append response events after a short delay
+  const sendKeys = (_target: string, text: string): void => {
+    if (text === 'Enter') {
+      setTimeout(() => {
+        const events = [
+          JSON.stringify({
+            type: 'assistant.message',
+            data: { content: 'Contract test output', messageId: 'contract-msg' },
+            timestamp: new Date().toISOString(),
+            id: `evt-${Date.now()}`,
+          }),
+          JSON.stringify({
+            type: 'session.idle',
+            data: { sessionId },
+            timestamp: new Date().toISOString(),
+            id: `evt-${Date.now() + 1}`,
+          }),
+        ];
+        fs.appendFileSync(eventsPath, `${events.join('\n')}\n`);
+      }, 50);
+    }
+  };
+
+  // Clean up temp dir after a delay (contract tests finish quickly)
+  setTimeout(() => {
+    fs.rmSync(path.join(os.tmpdir(), '.copilot-contract-test'), { recursive: true, force: true });
+  }, 10000);
+
+  return new CopilotCLIAdapter({
+    sendKeys,
+    sessionStateDir,
+    tmuxTarget: 'contract:0.0',
+    pollIntervalMs: 25,
+    timeoutMs: 5000,
+    defaultSessionId: sessionId,
+  });
 });

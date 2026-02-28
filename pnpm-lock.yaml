@@ -367,6 +367,9 @@ importers:
         specifier: ^4.3.5
         version: 4.3.5
     devDependencies:
+      tail-file:
+        specifier: ^1.4.16
+        version: 1.4.16
       typescript:
         specifier: ^5.7.3
         version: 5.9.3
@@ -4392,6 +4395,10 @@ packages:
 
   symbol-tree@3.2.4:
     resolution: {integrity: sha512-9QNk5KwDF+Bvz+PyObkmSYjI5ksVUYtjW7AU22r2NKcfLJcXp96hkDWU3+XndOsUb+AQ9QhfzfCT2O+CNWT5Tw==}
+
+  tail-file@1.4.16:
+    resolution: {integrity: sha512-K1SAxKcAhJU1aJytAbA/jSRxL4PsYuDWNCGSsVcTG1SLKFW9FRGj7K3f6F/Leb9XLR7UIe7EfFza3sH12ztPBw==}
+    engines: {node: '>=10.0'}
 
   tailwind-merge@3.4.0:
     resolution: {integrity: sha512-uSaO4gnW+b3Y2aWoWfFpX62vn2sR3skfhbjsEnaBI81WD1wBLlHZe5sWf0AqjksNdYTbGBEd0UasQMT3SNV15g==}
@@ -9177,6 +9184,12 @@ snapshots:
       has-flag: 4.0.0
 
   symbol-tree@3.2.4: {}
+
+  tail-file@1.4.16:
+    dependencies:
+      debug: 4.4.3
+    transitivePeerDependencies:
+      - supports-color
 
   tailwind-merge@3.4.0: {}
 

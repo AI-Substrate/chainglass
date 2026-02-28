@@ -14,6 +14,9 @@ export type { ClaudeCodeAdapterOptions } from './claude-code.adapter.js';
 // SdkCopilotAdapter is now exported as both 'SdkCopilotAdapter' and 'CopilotAdapter' for backward compatibility
 export { SdkCopilotAdapter, SdkCopilotAdapter as CopilotAdapter } from './sdk-copilot-adapter.js';
 export type { SdkCopilotAdapterOptions } from './sdk-copilot-adapter.js';
+export { parseEventsJsonlLine } from './events-jsonl-parser.js';
+export { CopilotCLIAdapter } from './copilot-cli.adapter.js';
+export type { CopilotCLIAdapterOptions } from './copilot-cli.adapter.js';
 export { UnixProcessManager } from './unix-process-manager.js';
 export { WindowsProcessManager } from './windows-process-manager.js';
 export { createProcessManager, ProcessManagerAdapter } from './process-manager.adapter.js';
