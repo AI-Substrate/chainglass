@@ -6,6 +6,17 @@
 
 Extensive prototyping proved that the Copilot CLI's `~/.copilot/session-state/{id}/events.jsonl` file contains full structured events (30+ types) appended in real-time, and that `tmux send-keys` can reliably inject prompts into a running Copilot TUI. The SDK adapter (`SdkCopilotAdapter`) cannot share sessions with a user's running CLI — events don't fan out to multiple SDK clients, and the CLI has no public `--connect-to` flag. This adapter bridges that gap by using file watching and tmux as side-channels.
 
+## Product Context
+
+Chainglass is a **workflow orchestration system** where agent nodes execute in a graph (lines of serial/parallel nodes with gates and transitions). Today, each node runs via the SDK adapter — fully programmatic, fully background. But real-world usage demands more flexibility:
+
+- **Background-only**: The orchestrator drives `sample-spec-builder` → `sample-spec-reviewer` → `sample-pr-preparer` entirely in the background. No human in the loop. SDK adapter is perfect here.
+- **Human-in-the-loop**: A node is running and the user wants to jump into that session in their terminal, see what the agent is doing, and type alongside it. The agent is still executing the workflow prompt, but the user is co-piloting in real-time.
+- **Terminal-first**: The user starts working in `copilot` in their terminal. Later, the workflow system attaches to that session to inject follow-up prompts (e.g., "now run the tests" or "submit the PR") as part of the graph progression.
+- **Hybrid switching**: A session starts via SDK adapter in the web UI. User switches to the CLI adapter mid-workflow to get the full terminal experience, then switches back.
+
+The CopilotCLI adapter enables all of these by treating the Copilot CLI as the execution surface and the adapter as an **observer and participant** rather than an owner. The workflow system can inject prompts into a session the user is actively working in, or observe a session that's running autonomously — same adapter, same events, same interface.
+
 ## Summary
 
 A new `IAgentAdapter` implementation (`CopilotCLIAdapter`) that **attaches to an already-running Copilot CLI instance** rather than owning or spawning one. It reads agent events by tailing `events.jsonl` and sends prompts by injecting keystrokes via `tmux send-keys`. This enables a **dual-view** where users work in their terminal while the Chainglass web UI observes and participates in the same agent session.
@@ -99,9 +110,19 @@ No new domains are created. Agent adapters are infrastructure leaf nodes in the 
 - The `events.jsonl` file is append-only (never truncated or rotated during a session)
 - `session.idle` is a reliable completion signal
 
-## Open Questions
+## Clarifications
 
-None — all 10 questions from the workshop have been resolved.
+**CL-01 (Workflow Mode)**: Simple — CS-2 small feature, well-specified.
+
+**CL-02 (Testing)**: Full TDD. Write tests first, implement to pass them.
+
+**CL-03 (Test Doubles)**: Fakes only — no vi.mock(). Injectable tmux executor with FakeTmuxExecutor for unit tests. Fixture events.jsonl files for parser tests.
+
+**CL-04 (Documentation)**: No new documentation beyond what already exists in this plan folder.
+
+**CL-05 (E2E Test Script)**: Create `scripts/test-copilot-cli-adapter.ts` that takes 3 CLI args: `<sessionId> <tmuxSession> <paneIndex>`. User starts copilot in the tmux pane first, then runs the script. Script creates the adapter, sends a real prompt, verifies events stream back, checks AgentResult, reports pass/fail. Usage: `npx tsx scripts/test-copilot-cli-adapter.ts cee9a7ba-... studio 1.0`
+
+**CL-06 (Domain)**: No domain changes. Infrastructure adapter in `packages/shared/src/adapters/`.
 
 ## Workshop Opportunities
 
