@@ -227,3 +227,9 @@ pnpm test                   # Run test suite
 # From apps/web
 ANALYZE=true pnpm build     # Bundle analysis (requires --webpack flag with Turbopack)
 ```
+
+### Scripts
+
+The `scripts/` directory contains demo, test, and utility scripts. See `scripts/scripts.md` for the full index.
+
+**When adding, removing, or renaming scripts, update `scripts/scripts.md` to keep the index current.**

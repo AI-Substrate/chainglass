@@ -15,10 +15,10 @@ import { join } from 'node:path';
 import { NodeFileSystemAdapter } from '@chainglass/shared';
 import {
   CentralWatcherService,
-  ChokidarFileWatcherFactory,
   FakeGitWorktreeResolver,
   FakeWatcherAdapter,
   FakeWorkspaceRegistryAdapter,
+  NativeFileWatcherFactory,
   Workspace,
 } from '@chainglass/workflow';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -36,7 +36,7 @@ describe('CentralWatcherService integration', () => {
 
   // Real implementations
   let realFilesystem: NodeFileSystemAdapter;
-  let realWatcherFactory: ChokidarFileWatcherFactory;
+  let realWatcherFactory: NativeFileWatcherFactory;
 
   // Controlled fakes
   let fakeRegistry: FakeWorkspaceRegistryAdapter;
@@ -65,7 +65,7 @@ describe('CentralWatcherService integration', () => {
 
     // Real infrastructure
     realFilesystem = new NodeFileSystemAdapter();
-    realWatcherFactory = new ChokidarFileWatcherFactory();
+    realWatcherFactory = new NativeFileWatcherFactory();
 
     // Controlled fakes
     fakeRegistry = new FakeWorkspaceRegistryAdapter();
@@ -141,7 +141,9 @@ describe('CentralWatcherService integration', () => {
 
       expect(fakeAdapter.calls.length).toBeGreaterThanOrEqual(1);
       expect(fakeAdapter.calls[0].path).toBe(stateFile);
-      expect(fakeAdapter.calls[0].eventType).toBe('change');
+      // Native fs.watch emits 'rename' for modifications (macOS FSEvents),
+      // which resolves to 'add' (file exists). The 'change' event follows.
+      expect(['add', 'change']).toContain(fakeAdapter.calls[0].eventType);
       expect(fakeAdapter.calls[0].worktreePath).toBe(workspacePath);
       expect(fakeAdapter.calls[0].workspaceSlug).toBe('ws1');
     });
@@ -158,9 +160,12 @@ describe('CentralWatcherService integration', () => {
       const fakeAdapter = new FakeWatcherAdapter('test-adapter');
       service.registerAdapter(fakeAdapter);
       await service.start();
-      await sleep(200); // chokidar init
+      await sleep(200);
 
       await service.stop();
+      // Allow any in-flight async events (stat() calls) to drain
+      await sleep(100);
+      fakeAdapter.calls.length = 0;
 
       const stateFile = join(
         workspacePath,

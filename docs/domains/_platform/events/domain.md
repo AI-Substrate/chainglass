@@ -79,7 +79,7 @@ Central event platform for the entire application. Owns the full pipeline from f
 | SSEManager | Server-side connection registry + broadcast | Node.js streams |
 | SSEManagerBroadcaster | Adapts SSEManager to ISSEBroadcaster | SSEManager |
 | CentralEventNotifierService | Routes domain events to SSE channels | ISSEBroadcaster |
-| CentralWatcherService | Chokidar filesystem watcher, dispatches to adapters | IFileWatcherFactory, IWatcherAdapter[] |
+| CentralWatcherService | Native fs.watch filesystem watcher, dispatches to adapters | IFileWatcherFactory, IWatcherAdapter[] |
 | FileChangeWatcherAdapter | Filters source file events, batches with debounce | IWatcherAdapter (self-filter pattern) |
 | FileChangeDomainEventAdapter | Transforms batched file events → SSE payload | DomainEventAdapter, ICentralEventNotifier |
 | startCentralNotificationSystem | Bootstrap — resolves DI, wires adapters, starts watcher | DI container |
@@ -143,7 +143,7 @@ Primary: scattered across `packages/shared`, `packages/workflow`, `apps/web` (Pl
 
 ### This Domain Depends On
 - `_platform/sdk` — IUSDK for publishing toast commands to SDK surface
-- `chokidar` — filesystem watching (npm)
+- Node.js `fs.watch` — native filesystem watching (built-in, replaces chokidar per Plan 060)
 - `sonner` — toast UI (npm)
 - `next-themes` — theme detection for toast (npm)
 - `zod` — SSE event schema validation (npm)
@@ -169,3 +169,4 @@ Primary: scattered across `packages/shared`, `packages/workflow`, `apps/web` (Pl
 | Plan 045 (E2E fix) | Fixed SOURCE_WATCHER_IGNORED to use function-based path-segment matching (glob patterns unreliable with chokidar). Added handleRefreshDir for cache-bypass tree refresh. All 3 phases verified working end-to-end | 2026-02-24 |
 | 047-usdk Phase 6 | SDK contribution (toast.show, toast.dismiss commands) | 2026-02-25 |
 | 050 Phase 6-7 | Added WorkflowWatcherAdapter + WorkflowDomainEventAdapter; removed WorkGraphWatcherAdapter + WorkGraphDomainEventAdapter; added Workflows channel; deprecated Workgraphs channel | 2026-02-27 |
+| Plan 060 | Replaced ChokidarFileWatcherAdapter with NativeFileWatcherAdapter (Node.js fs.watch recursive). Eliminated FD exhaustion (12,700 → ~20 FDs). Removed chokidar dependency. | 2026-02-28 |

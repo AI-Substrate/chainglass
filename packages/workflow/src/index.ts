@@ -400,8 +400,8 @@ export type {
   IFileWatcherFactory,
 } from './interfaces/index.js';
 export {
-  ChokidarFileWatcherAdapter,
-  ChokidarFileWatcherFactory,
+  NativeFileWatcherAdapter,
+  NativeFileWatcherFactory,
 } from './adapters/index.js';
 export { FakeFileWatcher, FakeFileWatcherFactory } from './fakes/index.js';
 
