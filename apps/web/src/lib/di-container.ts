@@ -66,7 +66,6 @@ import {
   AgentSessionAdapter,
   AgentSessionService,
   CentralWatcherService,
-  ChokidarFileWatcherFactory,
   FakeAgentEventAdapter,
   FakeAgentSessionAdapter,
   FakeCentralWatcherService,
@@ -87,6 +86,7 @@ import {
   type IWorkspaceContextResolver,
   type IWorkspaceRegistryAdapter,
   type IWorkspaceService,
+  NativeFileWatcherFactory,
   SampleAdapter,
   SampleService as WorkflowSampleService,
   WorkspaceContextResolver,
@@ -451,9 +451,9 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
 
   // ==================== Plan 027: Central Notification System ====================
 
-  // Register IFileWatcherFactory → ChokidarFileWatcherFactory
+  // Register IFileWatcherFactory → NativeFileWatcherFactory (Plan 060: replaces chokidar)
   childContainer.register<IFileWatcherFactory>(WORKSPACE_DI_TOKENS.FILE_WATCHER_FACTORY, {
-    useFactory: () => new ChokidarFileWatcherFactory(),
+    useFactory: () => new NativeFileWatcherFactory(),
   });
 
   // Register CentralWatcherService with all 6 constructor dependencies
