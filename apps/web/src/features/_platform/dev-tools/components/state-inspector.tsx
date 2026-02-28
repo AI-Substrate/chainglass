@@ -34,7 +34,7 @@ function useDemoGenerator() {
   const system = useStateSystem();
   const [active, setActive] = useState(false);
   const registeredRef = useRef(false);
-  const intervalRef = useRef<ReturnType<typeof setInterval>>();
+  const intervalRef = useRef<ReturnType<typeof setInterval>>(undefined);
 
   const register = useCallback(() => {
     if (registeredRef.current) return;
