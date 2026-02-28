@@ -143,22 +143,23 @@ export function StateInspector() {
               </div>
               <div className="max-h-48 overflow-y-auto py-1">
                 {inspector.domains.length === 0 ? (
-                  <div className="px-3 py-2 text-xs text-muted-foreground">No domains registered</div>
+                  <div className="px-3 py-2 text-xs text-muted-foreground">
+                    No domains registered
+                  </div>
                 ) : (
                   inspector.domains.map((d) => (
-                    <label
+                    <button
+                      type="button"
                       key={d.domain}
-                      className="flex items-center gap-2 px-3 py-1.5 hover:bg-accent/50 cursor-pointer text-xs"
+                      className="flex items-center gap-2 px-3 py-1.5 hover:bg-accent/50 cursor-pointer text-xs w-full text-left"
+                      onClick={() => inspector.toggleDomainFilter(d.domain)}
                     >
-                      <Checkbox
-                        checked={inspector.domainFilters.has(d.domain)}
-                        onCheckedChange={() => inspector.toggleDomainFilter(d.domain)}
-                      />
+                      <Checkbox checked={inspector.domainFilters.has(d.domain)} tabIndex={-1} />
                       <span className="truncate">{d.domain}</span>
                       <span className="ml-auto text-muted-foreground text-[10px]">
                         {d.multiInstance ? 'multi' : 'single'}
                       </span>
-                    </label>
+                    </button>
                   ))
                 )}
               </div>

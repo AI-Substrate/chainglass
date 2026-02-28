@@ -64,8 +64,15 @@ export function useStateInspector(): StateInspectorData {
       setEntryCount(system.entryCount);
     };
     const unsub = system.subscribe('*', refresh);
+    // Also poll domains since registerDomain() doesn't notify subscribers
+    const domainPoll = setInterval(() => {
+      setDomains(system.listDomains());
+    }, 1000);
     refresh();
-    return unsub;
+    return () => {
+      unsub();
+      clearInterval(domainPoll);
+    };
   }, [system]);
 
   // Log entries — no pattern filter at hook level, filter in-memory for multi-select
