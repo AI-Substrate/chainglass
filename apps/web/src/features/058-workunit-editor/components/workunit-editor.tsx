@@ -20,6 +20,14 @@ interface WorkUnitEditorProps {
   allUnits: WorkUnitSummary[];
 }
 
+function safeParseUserInputConfig(content: string) {
+  try {
+    return JSON.parse(content);
+  } catch {
+    return { question_type: 'text' as const, prompt: '', options: [] };
+  }
+}
+
 /**
  * Main work unit editor — 3-panel layout with type-dispatched content editor.
  * Server Component loads data, this Client Component renders the full editor.
@@ -54,7 +62,7 @@ export function WorkUnitEditor({
           <UserInputEditor
             workspaceSlug={workspaceSlug}
             unitSlug={unitSlug}
-            initialConfig={JSON.parse(content)}
+            initialConfig={safeParseUserInputConfig(content)}
           />
         );
     }

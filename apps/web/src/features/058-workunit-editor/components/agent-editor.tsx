@@ -1,7 +1,7 @@
 'use client';
 
 import { useAutoSave } from '@/features/_platform/hooks/use-auto-save';
-import { CodeEditor } from '@/features/_platform/viewer/components/code-editor';
+import { CodeEditor } from '@/features/_platform/viewer';
 import { useCallback, useState } from 'react';
 import { saveUnitContent } from '../../../../app/actions/workunit-actions';
 import { SaveIndicator } from './save-indicator';

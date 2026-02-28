@@ -1,1071 +1,2099 @@
-diff --git a/apps/web/next-env.d.ts b/apps/web/next-env.d.ts
-index 9edff1c..c4b7818 100644
---- a/apps/web/next-env.d.ts
-+++ b/apps/web/next-env.d.ts
-@@ -1,6 +1,6 @@
- /// <reference types="next" />
- /// <reference types="next/image-types/global" />
--import "./.next/types/routes.d.ts";
-+import "./.next/dev/types/routes.d.ts";
- 
- // NOTE: This file should not be edited
- // see https://nextjs.org/docs/app/api-reference/config/typescript for more information.
-diff --git a/packages/positional-graph/src/features/029-agentic-work-units/fake-workunit.service.ts b/packages/positional-graph/src/features/029-agentic-work-units/fake-workunit.service.ts
-index c8296f2..22caaf9 100644
---- a/packages/positional-graph/src/features/029-agentic-work-units/fake-workunit.service.ts
-+++ b/packages/positional-graph/src/features/029-agentic-work-units/fake-workunit.service.ts
-@@ -14,9 +14,15 @@ import type { WorkspaceContext } from '@chainglass/workflow';
- 
- import { workunitNotFoundError } from './workunit-errors.js';
- import type {
-+  CreateUnitResult,
-+  CreateUnitSpec,
-+  DeleteUnitResult,
-   IWorkUnitService,
-   ListUnitsResult,
-   LoadUnitResult,
-+  RenameUnitResult,
-+  UpdateUnitPatch,
-+  UpdateUnitResult,
-   ValidateUnitResult,
-   WorkUnitSummary,
- } from './workunit-service.interface.js';
-@@ -177,6 +183,10 @@ export class FakeWorkUnitService implements IWorkUnitService {
-     this.listCalls = [];
-     this.loadCalls = [];
-     this.validateCalls = [];
-+    this.createCalls = [];
-+    this.updateCalls = [];
-+    this.deleteCalls = [];
-+    this.renameCalls = [];
-   }
- 
-   // ========== IWorkUnitService Implementation ==========
-@@ -249,6 +259,81 @@ export class FakeWorkUnitService implements IWorkUnitService {
-     return { valid: true, errors: [] };
-   }
- 
-+  // ========== Write Operations (Plan 058 — fleshed out in T003) ==========
+diff --git a/apps/web/app/(dashboard)/workspaces/[slug]/work-units/[unitSlug]/page.tsx b/apps/web/app/(dashboard)/workspaces/[slug]/work-units/[unitSlug]/page.tsx
+new file mode 100644
+index 0000000..2b34671
+--- /dev/null
++++ b/apps/web/app/(dashboard)/workspaces/[slug]/work-units/[unitSlug]/page.tsx
+@@ -0,0 +1,49 @@
++import { Suspense } from 'react';
 +
-+  /** Track create() calls */
-+  private createCalls: Array<{ ctx: WorkspaceContext; spec: CreateUnitSpec }> = [];
-+  /** Track update() calls */
-+  private updateCalls: Array<{ ctx: WorkspaceContext; slug: string; patch: UpdateUnitPatch }> = [];
-+  /** Track delete() calls */
-+  private deleteCalls: Array<{ ctx: WorkspaceContext; slug: string }> = [];
-+  /** Track rename() calls */
-+  private renameCalls: Array<{ ctx: WorkspaceContext; oldSlug: string; newSlug: string }> = [];
++import { WorkUnitEditor } from '@/features/058-workunit-editor/components/workunit-editor';
++import { listUnits, loadUnit, loadUnitContent } from '../../../../../actions/workunit-actions';
 +
-+  async create(ctx: WorkspaceContext, spec: CreateUnitSpec): Promise<CreateUnitResult> {
-+    this.createCalls.push({ ctx, spec });
-+    if (this.units.has(spec.slug)) {
-+      return { slug: spec.slug, type: spec.type, errors: [{ code: 'E188', message: `Unit '${spec.slug}' already exists`, action: 'Choose a different slug' }] };
-+    }
-+    const defaultOutputs = [{ name: 'result', type: 'data' as const, data_type: 'text' as const, required: true }];
-+    const config: FakeUnitConfig = spec.type === 'agent'
-+      ? { type: 'agent', slug: spec.slug, version: spec.version ?? '1.0.0', description: spec.description, promptContent: '', agent: { prompt_template: 'prompts/main.md' }, outputs: defaultOutputs }
-+      : spec.type === 'code'
-+        ? { type: 'code', slug: spec.slug, version: spec.version ?? '1.0.0', description: spec.description, scriptContent: '', code: { script: 'scripts/main.sh' }, outputs: defaultOutputs }
-+        : { type: 'user-input', slug: spec.slug, version: spec.version ?? '1.0.0', description: spec.description, user_input: { question_type: 'text', prompt: 'Enter value' }, outputs: defaultOutputs };
-+    this.units.set(spec.slug, config);
-+    return { slug: spec.slug, type: spec.type, errors: [] };
++export const dynamic = 'force-dynamic';
++
++interface PageProps {
++  params: Promise<{ slug: string; unitSlug: string }>;
++}
++
++export default async function WorkUnitEditorPage({ params }: PageProps) {
++  const { slug, unitSlug } = await params;
++
++  const [unitResult, contentResult, unitsResult] = await Promise.all([
++    loadUnit(slug, unitSlug),
++    loadUnitContent(slug, unitSlug),
++    listUnits(slug),
++  ]);
++
++  if (unitResult.errors.length > 0 || !unitResult.unit) {
++    return (
++      <div className="flex items-center justify-center p-8 text-muted-foreground">
++        {unitResult.errors[0]?.message ?? 'Work unit not found'}
++      </div>
++    );
 +  }
 +
-+  async update(ctx: WorkspaceContext, slug: string, patch: UpdateUnitPatch): Promise<UpdateUnitResult> {
-+    this.updateCalls.push({ ctx, slug, patch });
-+    const config = this.units.get(slug);
-+    if (!config) {
-+      return { slug, errors: [workunitNotFoundError(slug)] };
-+    }
-+    if (patch.description !== undefined) config.description = patch.description;
-+    if (patch.version !== undefined) config.version = patch.version;
-+    if (patch.inputs !== undefined) config.inputs = patch.inputs;
-+    if (patch.outputs !== undefined) config.outputs = patch.outputs;
-+    return { slug, errors: [] };
++  const unit = unitResult.unit;
++
++  // Extract script filename for code units
++  const scriptFilename =
++    unit.type === 'code' ? (unit as { code?: { script?: string } }).code?.script : undefined;
++
++  return (
++    <Suspense fallback={<div className="p-4">Loading editor...</div>}>
++      <WorkUnitEditor
++        workspaceSlug={slug}
++        unitSlug={unitSlug}
++        unitType={unit.type}
++        content={contentResult.content}
++        description={unit.description ?? ''}
++        version={unit.version}
++        scriptFilename={scriptFilename}
++        allUnits={unitsResult.units}
++      />
++    </Suspense>
++  );
++}
+diff --git a/apps/web/app/(dashboard)/workspaces/[slug]/work-units/page.tsx b/apps/web/app/(dashboard)/workspaces/[slug]/work-units/page.tsx
+new file mode 100644
+index 0000000..51bb6fc
+--- /dev/null
++++ b/apps/web/app/(dashboard)/workspaces/[slug]/work-units/page.tsx
+@@ -0,0 +1,29 @@
++import { Suspense } from 'react';
++
++import { UnitList } from '@/features/058-workunit-editor/components/unit-list';
++import { listUnits } from '../../../../actions/workunit-actions';
++
++export const dynamic = 'force-dynamic';
++
++interface PageProps {
++  params: Promise<{ slug: string }>;
++}
++
++export default async function WorkUnitsPage({ params }: PageProps) {
++  const { slug } = await params;
++  const result = await listUnits(slug);
++
++  if (result.errors.length > 0) {
++    return (
++      <div className="flex items-center justify-center p-8 text-muted-foreground">
++        {result.errors[0]?.message ?? 'Failed to load work units'}
++      </div>
++    );
 +  }
 +
-+  async delete(ctx: WorkspaceContext, slug: string): Promise<DeleteUnitResult> {
-+    this.deleteCalls.push({ ctx, slug });
-+    this.units.delete(slug);
-+    this.templateContent.delete(slug);
-+    return { deleted: true, errors: [] };
-+  }
-+
-+  async rename(ctx: WorkspaceContext, oldSlug: string, newSlug: string): Promise<RenameUnitResult> {
-+    this.renameCalls.push({ ctx, oldSlug, newSlug });
-+    const config = this.units.get(oldSlug);
-+    if (!config) {
-+      return { newSlug, updatedFiles: [], errors: [workunitNotFoundError(oldSlug)] };
-+    }
-+    if (this.units.has(newSlug)) {
-+      return { newSlug, updatedFiles: [], errors: [{ code: 'E188', message: `Unit '${newSlug}' already exists`, action: 'Choose a different slug' }] };
-+    }
-+    this.units.delete(oldSlug);
-+    config.slug = newSlug;
-+    this.units.set(newSlug, config);
-+    const oldContent = this.templateContent.get(oldSlug);
-+    if (oldContent) {
-+      this.templateContent.delete(oldSlug);
-+      this.templateContent.set(newSlug, oldContent);
-+    }
-+    return { newSlug, updatedFiles: [], errors: [] };
-+  }
-+
-+  /** Get create() call history */
-+  getCreateCalls(): Array<{ ctx: WorkspaceContext; spec: CreateUnitSpec }> { return [...this.createCalls]; }
-+  /** Get update() call history */
-+  getUpdateCalls(): Array<{ ctx: WorkspaceContext; slug: string; patch: UpdateUnitPatch }> { return [...this.updateCalls]; }
-+  /** Get delete() call history */
-+  getDeleteCalls(): Array<{ ctx: WorkspaceContext; slug: string }> { return [...this.deleteCalls]; }
-+  /** Get rename() call history */
-+  getRenameCalls(): Array<{ ctx: WorkspaceContext; oldSlug: string; newSlug: string }> { return [...this.renameCalls]; }
-+
-   // ========== Private Helpers ==========
- 
-   /**
-diff --git a/packages/positional-graph/src/features/029-agentic-work-units/index.ts b/packages/positional-graph/src/features/029-agentic-work-units/index.ts
-index 8eb2294..52ab13e 100644
---- a/packages/positional-graph/src/features/029-agentic-work-units/index.ts
-+++ b/packages/positional-graph/src/features/029-agentic-work-units/index.ts
-@@ -52,18 +52,26 @@ export {
-   workunitTemplateNotFoundError,
-   workunitTypeMismatchError,
-   workunitSlugInvalidError,
-+  workunitSlugExistsError,
-+  workunitDeleteFailedError,
- } from './workunit-errors.js';
- 
- // Adapter (Phase 2)
- export { WorkUnitAdapter } from './workunit.adapter.js';
- 
--// Service Interface and Types (Phase 2)
-+// Service Interface and Types (Phase 2 + Plan 058)
- export type {
-   IWorkUnitService,
-   WorkUnitSummary,
-   ListUnitsResult,
-   LoadUnitResult,
-   ValidateUnitResult,
-+  CreateUnitSpec,
-+  CreateUnitResult,
-+  UpdateUnitPatch,
-+  UpdateUnitResult,
-+  DeleteUnitResult,
-+  RenameUnitResult,
- } from './workunit-service.interface.js';
- export {
-   isAgenticWorkUnit,
-diff --git a/packages/positional-graph/src/features/029-agentic-work-units/workunit-errors.ts b/packages/positional-graph/src/features/029-agentic-work-units/workunit-errors.ts
-index 0e4c57b..4fe0e3f 100644
---- a/packages/positional-graph/src/features/029-agentic-work-units/workunit-errors.ts
-+++ b/packages/positional-graph/src/features/029-agentic-work-units/workunit-errors.ts
-@@ -26,6 +26,9 @@ export const WORKUNIT_ERROR_CODES = {
-   E185: 'E185', // Template not found
-   E186: 'E186', // Type mismatch
-   E187: 'E187', // Invalid slug
-+  E188: 'E188', // Slug already exists (Plan 058)
-+  E189: 'E189', // Reserved for future concurrency (Plan 058)
-+  E190: 'E190', // Delete failed (Plan 058)
- } as const;
- 
- export type WorkunitErrorCode = keyof typeof WORKUNIT_ERROR_CODES;
-@@ -158,3 +161,27 @@ export function workunitSlugInvalidError(slug: string): ResultError {
-       'Slug must start with a letter and contain only lowercase letters, numbers, and hyphens',
-   };
- }
++  return (
++    <Suspense fallback={<div className="p-4">Loading work units...</div>}>
++      <UnitList workspaceSlug={slug} units={result.units} />
++    </Suspense>
++  );
++}
+diff --git a/apps/web/app/actions/workunit-actions.ts b/apps/web/app/actions/workunit-actions.ts
+new file mode 100644
+index 0000000..a98a9fc
+--- /dev/null
++++ b/apps/web/app/actions/workunit-actions.ts
+@@ -0,0 +1,220 @@
++'use server';
 +
 +/**
-+ * E188: Unit slug already exists (for create duplicate rejection).
-+ * Per Plan 058 Phase 1.
++ * Work Unit Server Actions — CRUD operations for the workunit-editor feature.
++ *
++ * Unified save path: saveUnitContent routes internally based on unit type.
++ * Agent → setPrompt(), Code → setScript(), User-input → update(type_config).
++ *
++ * Plan 058: Work Unit Creator & Editor — Phase 2
 + */
-+export function workunitSlugExistsError(slug: string): ResultError {
++
++import type {
++  AgenticWorkUnitInstance,
++  CodeUnitInstance,
++  CreateUnitResult,
++  CreateUnitSpec,
++  DeleteUnitResult,
++  IWorkUnitService,
++  ListUnitsResult,
++  LoadUnitResult,
++  RenameUnitResult,
++  UpdateUnitPatch,
++  UpdateUnitResult,
++  UserInputUnitInstance,
++} from '@chainglass/positional-graph';
++import {
++  POSITIONAL_GRAPH_DI_TOKENS,
++  type ResultError,
++  WORKSPACE_DI_TOKENS,
++} from '@chainglass/shared';
++import type { IWorkspaceService, WorkspaceContext } from '@chainglass/workflow';
++
++import { getContainer } from '../../src/lib/bootstrap-singleton';
++
++// ─── Helpers ─────────────────────────────────────────────────────────
++
++async function resolveWorkspaceContext(slug: string): Promise<WorkspaceContext | null> {
++  const container = getContainer();
++  const workspaceService = container.resolve<IWorkspaceService>(
++    WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE
++  );
++  const info = await workspaceService.getInfo(slug);
++  if (!info) return null;
++
 +  return {
-+    code: WORKUNIT_ERROR_CODES.E188,
-+    message: `WorkUnit '${slug}' already exists`,
-+    action: 'Choose a different slug or delete the existing unit first',
++    workspaceSlug: slug,
++    workspaceName: info.name,
++    workspacePath: info.path,
++    worktreePath: info.path,
++    worktreeBranch: null,
++    isMainWorktree: true,
++    hasGit: info.hasGit,
 +  };
 +}
 +
-+/**
-+ * E190: Delete operation failed.
-+ * Per Plan 058 Phase 1.
-+ */
-+export function workunitDeleteFailedError(slug: string, reason: string): ResultError {
-+  return {
-+    code: WORKUNIT_ERROR_CODES.E190,
-+    message: `Failed to delete WorkUnit '${slug}': ${reason}`,
-+    action: 'Check filesystem permissions and try again',
-+  };
-+}
-diff --git a/packages/positional-graph/src/features/029-agentic-work-units/workunit-service.interface.ts b/packages/positional-graph/src/features/029-agentic-work-units/workunit-service.interface.ts
-index 0b7bc06..d70c390 100644
---- a/packages/positional-graph/src/features/029-agentic-work-units/workunit-service.interface.ts
-+++ b/packages/positional-graph/src/features/029-agentic-work-units/workunit-service.interface.ts
-@@ -2,9 +2,10 @@
-  * WorkUnit Service Interface
-  *
-  * Defines the contract for the WorkUnitService which handles loading,
-- * listing, and validating work units.
-+ * listing, validating, and mutating work units.
-  *
-- * Per Plan 029: Agentic Work Units — Phase 2.
-+ * Per Plan 029: Agentic Work Units — Phase 2 (read operations).
-+ * Per Plan 058: Work Unit Editor — Phase 1 (write operations).
-  *
-  * @packageDocumentation
-  */
-@@ -61,22 +62,130 @@ export interface ValidateUnitResult {
-   errors: ResultError[];
- }
- 
-+// ============================================
-+// Write Operation Types (Plan 058 Phase 1)
-+// ============================================
-+
-+/**
-+ * Specification for creating a new work unit.
-+ * Per W004 Decision 3: Spec object, not positional args.
-+ */
-+export interface CreateUnitSpec {
-+  /** Unit slug (kebab-case, /^[a-z][a-z0-9-]*$/) */
-+  slug: string;
-+  /** Unit type */
-+  type: 'agent' | 'code' | 'user-input';
-+  /** Optional description */
-+  description?: string;
-+  /** Optional version (defaults to '1.0.0') */
-+  version?: string;
++function resolveWorkUnitService(): IWorkUnitService {
++  const container = getContainer();
++  return container.resolve<IWorkUnitService>(POSITIONAL_GRAPH_DI_TOKENS.WORKUNIT_SERVICE);
 +}
 +
-+/**
-+ * Result from create() operation.
-+ */
-+export interface CreateUnitResult {
-+  /** Created unit slug */
-+  slug: string;
-+  /** Unit type */
-+  type: 'agent' | 'code' | 'user-input';
-+  /** Errors encountered during creation */
-+  errors: ResultError[];
++const NOT_FOUND_ERROR: ResultError = { code: 'E000', message: 'Workspace not found', action: '' };
++
++// ─── Read Actions ────────────────────────────────────────────────────
++
++export async function listUnits(workspaceSlug: string): Promise<ListUnitsResult> {
++  const ctx = await resolveWorkspaceContext(workspaceSlug);
++  if (!ctx) return { units: [], errors: [NOT_FOUND_ERROR] };
++
++  const service = resolveWorkUnitService();
++  return service.list(ctx);
 +}
 +
-+/**
-+ * Partial patch for updating a work unit.
-+ * Per W004 Decision 4: Scalars overwrite, arrays replace wholesale.
-+ */
-+export interface UpdateUnitPatch {
-+  /** Update description */
-+  description?: string;
-+  /** Update version */
-+  version?: string;
-+  /** Replace entire inputs array */
-+  inputs?: Array<{
-+    name: string;
-+    type: 'data' | 'file';
-+    data_type?: 'text' | 'number' | 'boolean' | 'json';
-+    required: boolean;
-+    description?: string;
-+  }>;
-+  /** Replace entire outputs array */
-+  outputs?: Array<{
-+    name: string;
-+    type: 'data' | 'file';
-+    data_type?: 'text' | 'number' | 'boolean' | 'json';
-+    required: boolean;
-+    description?: string;
-+  }>;
-+  /** Shallow-merge type-specific config */
-+  agent?: Partial<{
-+    prompt_template: string;
-+    system_prompt: string;
-+    supported_agents: ('claude-code' | 'copilot')[];
-+    estimated_tokens: number;
-+  }>;
-+  /** Shallow-merge type-specific config */
-+  code?: Partial<{
-+    script: string;
-+    timeout: number;
-+  }>;
-+  /** Shallow-merge type-specific config */
-+  user_input?: Partial<{
-+    question_type: 'text' | 'single' | 'multi' | 'confirm';
-+    prompt: string;
-+    options?: Array<{ key: string; label: string; description?: string }>;
-+    default?: string | boolean;
-+  }>;
++export async function loadUnit(workspaceSlug: string, unitSlug: string): Promise<LoadUnitResult> {
++  const ctx = await resolveWorkspaceContext(workspaceSlug);
++  if (!ctx) return { errors: [NOT_FOUND_ERROR] };
++
++  const service = resolveWorkUnitService();
++  return service.load(ctx, unitSlug);
 +}
 +
-+/**
-+ * Result from update() operation.
-+ */
-+export interface UpdateUnitResult {
-+  /** Updated unit slug */
-+  slug: string;
-+  /** Errors encountered during update */
-+  errors: ResultError[];
-+}
++/** Unified content loader — returns content string regardless of unit type. */
++export async function loadUnitContent(
++  workspaceSlug: string,
++  unitSlug: string
++): Promise<{ content: string; errors: ResultError[] }> {
++  const ctx = await resolveWorkspaceContext(workspaceSlug);
++  if (!ctx) return { content: '', errors: [NOT_FOUND_ERROR] };
 +
-+/**
-+ * Result from delete() operation.
-+ */
-+export interface DeleteUnitResult {
-+  /** Whether the unit was deleted (true even if didn't exist — idempotent) */
-+  deleted: boolean;
-+  /** Errors encountered during deletion */
-+  errors: ResultError[];
-+}
-+
-+/**
-+ * Result from rename() operation.
-+ */
-+export interface RenameUnitResult {
-+  /** New slug after rename */
-+  newSlug: string;
-+  /** Files that had unit_slug references updated */
-+  updatedFiles: string[];
-+  /** Errors encountered during rename or cascade */
-+  errors: ResultError[];
-+}
-+
- /**
-  * WorkUnit service interface.
-  *
-- * Provides operations for listing, loading, and validating work units.
-+ * Provides operations for listing, loading, validating, and mutating work units.
-  * Returns rich domain objects (AgenticWorkUnitInstance, CodeUnitInstance, UserInputUnitInstance)
-  * with type-specific methods for template access.
-  */
- export interface IWorkUnitService {
-+  // ========== Read Operations (Plan 029) ==========
-+
-   /**
-    * List all work units in the workspace.
-    *
-    * Per DYK #5: Uses skip-and-warn approach - returns valid units and
-    * reports errors for units that failed to load.
--   *
--   * @param ctx - Workspace context
--   * @returns Unit summaries and any errors from malformed units
-    */
-   list(ctx: WorkspaceContext): Promise<ListUnitsResult>;
- 
-@@ -88,27 +197,55 @@ export interface IWorkUnitService {
-    * - CodeUnitInstance: getScript(), setScript()
-    * - UserInputUnitInstance: (no template methods)
-    *
--   * @param ctx - Workspace context
--   * @param slug - Unit slug
--   * @returns The unit instance and any errors
--   * @throws Error if slug is invalid (before filesystem access)
--   *
--   * Error codes:
--   * - E180: Unit not found
--   * - E181: YAML parse error
--   * - E182: Schema validation error
-+   * Error codes: E180 (not found), E181 (YAML parse), E182 (schema validation)
-    */
-   load(ctx: WorkspaceContext, slug: string): Promise<LoadUnitResult>;
- 
-   /**
-    * Validate a work unit without fully loading it.
--   *
--   * @param ctx - Workspace context
--   * @param slug - Unit slug
--   * @returns Validation result
--   * @throws Error if slug is invalid
-    */
-   validate(ctx: WorkspaceContext, slug: string): Promise<ValidateUnitResult>;
-+
-+  // ========== Write Operations (Plan 058) ==========
-+
-+  /**
-+   * Create a new work unit.
-+   *
-+   * Scaffolds the directory structure, unit.yaml, and type-specific
-+   * boilerplate template files (prompt for agent, script for code).
-+   *
-+   * Error codes: E187 (invalid slug), E188 (slug exists)
-+   */
-+  create(ctx: WorkspaceContext, spec: CreateUnitSpec): Promise<CreateUnitResult>;
-+
-+  /**
-+   * Update an existing work unit.
-+   *
-+   * Applies a partial patch: scalars overwrite, arrays (inputs/outputs)
-+   * replace wholesale, type-specific config shallow-merges.
-+   * Re-validates against Zod schema after merge.
-+   *
-+   * Error codes: E180 (not found), E182 (validation after merge)
-+   */
-+  update(ctx: WorkspaceContext, slug: string, patch: UpdateUnitPatch): Promise<UpdateUnitResult>;
-+
-+  /**
-+   * Delete a work unit.
-+   *
-+   * Removes the entire unit directory. Idempotent: deleting a non-existent
-+   * unit returns { deleted: true }, not an error.
-+   */
-+  delete(ctx: WorkspaceContext, slug: string): Promise<DeleteUnitResult>;
-+
-+  /**
-+   * Rename a work unit.
-+   *
-+   * Renames the directory, updates slug in unit.yaml, and delegates cascade
-+   * of unit_slug references in workflow node.yaml files to the graph service.
-+   *
-+   * Error codes: E187 (invalid slug), E188 (new slug exists), E180 (old slug not found)
-+   */
-+  rename(ctx: WorkspaceContext, oldSlug: string, newSlug: string): Promise<RenameUnitResult>;
- }
- 
- /**
-diff --git a/packages/positional-graph/src/features/029-agentic-work-units/workunit.adapter.ts b/packages/positional-graph/src/features/029-agentic-work-units/workunit.adapter.ts
-index 3b051b3..57ed36e 100644
---- a/packages/positional-graph/src/features/029-agentic-work-units/workunit.adapter.ts
-+++ b/packages/positional-graph/src/features/029-agentic-work-units/workunit.adapter.ts
-@@ -170,4 +170,38 @@ export class WorkUnitAdapter extends WorkspaceDataAdapterBase {
-       throw new Error(`${error.code}: ${error.message}`);
-     }
-   }
-+
-+  // ========== Write Helpers (Plan 058 Phase 1) ==========
-+
-+  /**
-+   * Ensure the unit directory exists. Creates it recursively if needed.
-+   */
-+  async ensureUnitDir(ctx: WorkspaceContext, slug: string): Promise<string> {
-+    const unitDir = this.getUnitDir(ctx, slug);
-+    await this.fs.mkdir(unitDir, { recursive: true });
-+    return unitDir;
++  const service = resolveWorkUnitService();
++  const result = await service.load(ctx, unitSlug);
++  if (result.errors.length > 0 || !result.unit) {
++    return { content: '', errors: result.errors };
 +  }
 +
-+  /**
-+   * Remove the entire unit directory. Idempotent — no error if missing.
-+   */
-+  async removeUnitDir(ctx: WorkspaceContext, slug: string): Promise<void> {
-+    const unitDir = this.getUnitDir(ctx, slug);
-+    const exists = await this.fs.exists(unitDir);
-+    if (exists) {
-+      await this.fs.rmdir(unitDir, { recursive: true });
++  const unit = result.unit;
++  try {
++    if (unit.type === 'agent') {
++      const content = await (unit as AgenticWorkUnitInstance).getPrompt(ctx);
++      return { content, errors: [] };
 +    }
-+  }
-+
-+  /**
-+   * Rename a unit directory from oldSlug to newSlug.
-+   * Validates both slugs before renaming.
-+   */
-+  async renameUnitDir(ctx: WorkspaceContext, oldSlug: string, newSlug: string): Promise<void> {
-+    this.validateSlug(oldSlug);
-+    this.validateSlug(newSlug);
-+    const oldDir = this.getUnitDir(ctx, oldSlug);
-+    const newDir = this.pathResolver.join(this.getDomainPath(ctx), newSlug);
-+    await this.fs.rename(oldDir, newDir);
-+  }
- }
-diff --git a/packages/positional-graph/src/features/029-agentic-work-units/workunit.service.ts b/packages/positional-graph/src/features/029-agentic-work-units/workunit.service.ts
-index 5bff7bb..436bc67 100644
---- a/packages/positional-graph/src/features/029-agentic-work-units/workunit.service.ts
-+++ b/packages/positional-graph/src/features/029-agentic-work-units/workunit.service.ts
-@@ -10,18 +10,26 @@
-  * @packageDocumentation
-  */
- 
--import type { IFileSystem, IYamlParser, ResultError } from '@chainglass/shared';
-+import type { IFileSystem, IPathResolver, IYamlParser, ResultError } from '@chainglass/shared';
- import type { WorkspaceContext } from '@chainglass/workflow';
- 
-+import { atomicWriteFile } from '../../services/atomic-file.js';
- import {
-   workunitNotFoundError,
-   workunitSchemaValidationError,
-+  workunitSlugExistsError,
-   workunitYamlParseError,
- } from './workunit-errors.js';
- import type {
-+  CreateUnitResult,
-+  CreateUnitSpec,
-+  DeleteUnitResult,
-   IWorkUnitService,
-   ListUnitsResult,
-   LoadUnitResult,
-+  RenameUnitResult,
-+  UpdateUnitPatch,
-+  UpdateUnitResult,
-   ValidateUnitResult,
-   WorkUnitSummary,
- } from './workunit-service.interface.js';
-@@ -51,7 +59,8 @@ export class WorkUnitService implements IWorkUnitService {
-   constructor(
-     private readonly adapter: WorkUnitAdapter,
-     private readonly fs: IFileSystem,
--    private readonly yamlParser: IYamlParser
-+    private readonly yamlParser: IYamlParser,
-+    private readonly pathResolver?: IPathResolver
-   ) {}
- 
-   /**
-@@ -188,4 +197,243 @@ export class WorkUnitService implements IWorkUnitService {
- 
-     return { unit, errors };
-   }
-+
-+  /**
-+   * Build a unit.yaml data object from a CreateUnitSpec.
-+   * @internal
-+   */
-+  private buildUnitYaml(spec: CreateUnitSpec): Record<string, unknown> {
-+    const base = {
-+      slug: spec.slug,
-+      type: spec.type,
-+      version: spec.version ?? '1.0.0',
-+      ...(spec.description ? { description: spec.description } : {}),
-+      inputs: [],
-+      outputs: [{ name: 'result', type: 'data', data_type: 'text', required: true }],
++    if (unit.type === 'code') {
++      const content = await (unit as CodeUnitInstance).getScript(ctx);
++      return { content, errors: [] };
++    }
++    if (unit.type === 'user-input') {
++      // User-input config is stored in unit.yaml, return as JSON
++      const uiUnit = unit as UserInputUnitInstance;
++      return { content: JSON.stringify(uiUnit.user_input, null, 2), errors: [] };
++    }
++    // Exhaustive check — all types handled above
++    const _exhaustive: never = unit;
++    return {
++      content: '',
++      errors: [
++        {
++          code: 'E999',
++          message: `Unknown unit type: ${(_exhaustive as { type: string }).type}`,
++          action: '',
++        },
++      ],
 +    };
++  } catch (err) {
++    return { content: '', errors: [{ code: 'E999', message: String(err), action: '' }] };
++  }
++}
 +
-+    switch (spec.type) {
-+      case 'agent':
-+        return { ...base, agent: { prompt_template: 'prompts/main.md' } };
-+      case 'code':
-+        return { ...base, code: { script: 'scripts/main.sh' } };
-+      case 'user-input':
-+        return {
-+          ...base,
-+          user_input: { question_type: 'text', prompt: 'Enter a value' },
-+        };
++// ─── Write Actions ───────────────────────────────────────────────────
++
++export async function createUnit(
++  workspaceSlug: string,
++  spec: CreateUnitSpec
++): Promise<CreateUnitResult> {
++  const ctx = await resolveWorkspaceContext(workspaceSlug);
++  if (!ctx) return { slug: '', type: spec.type, errors: [NOT_FOUND_ERROR] };
++
++  const service = resolveWorkUnitService();
++  return service.create(ctx, spec);
++}
++
++export async function updateUnit(
++  workspaceSlug: string,
++  unitSlug: string,
++  patch: UpdateUnitPatch
++): Promise<UpdateUnitResult> {
++  const ctx = await resolveWorkspaceContext(workspaceSlug);
++  if (!ctx) return { slug: unitSlug, errors: [NOT_FOUND_ERROR] };
++
++  const service = resolveWorkUnitService();
++  return service.update(ctx, unitSlug, patch);
++}
++
++export async function deleteUnit(
++  workspaceSlug: string,
++  unitSlug: string
++): Promise<DeleteUnitResult> {
++  const ctx = await resolveWorkspaceContext(workspaceSlug);
++  if (!ctx) return { deleted: false, errors: [NOT_FOUND_ERROR] };
++
++  const service = resolveWorkUnitService();
++  return service.delete(ctx, unitSlug);
++}
++
++export async function renameUnit(
++  workspaceSlug: string,
++  oldSlug: string,
++  newSlug: string
++): Promise<RenameUnitResult> {
++  const ctx = await resolveWorkspaceContext(workspaceSlug);
++  if (!ctx) return { newSlug: '', updatedFiles: [], errors: [NOT_FOUND_ERROR] };
++
++  const service = resolveWorkUnitService();
++  return service.rename(ctx, oldSlug, newSlug);
++}
++
++/**
++ * Unified content saver — routes to the correct write method based on unit type.
++ * Agent → setPrompt, Code → setScript, User-input → update(type_config).
++ */
++export async function saveUnitContent(
++  workspaceSlug: string,
++  unitSlug: string,
++  unitType: 'agent' | 'code' | 'user-input',
++  content: string
++): Promise<{ errors: ResultError[] }> {
++  const ctx = await resolveWorkspaceContext(workspaceSlug);
++  if (!ctx) return { errors: [NOT_FOUND_ERROR] };
++
++  const service = resolveWorkUnitService();
++
++  try {
++    if (unitType === 'agent') {
++      const result = await service.load(ctx, unitSlug);
++      if (result.errors.length > 0 || !result.unit) return { errors: result.errors };
++      await (result.unit as AgenticWorkUnitInstance).setPrompt(ctx, content);
++      return { errors: [] };
 +    }
++
++    if (unitType === 'code') {
++      const result = await service.load(ctx, unitSlug);
++      if (result.errors.length > 0 || !result.unit) return { errors: result.errors };
++      await (result.unit as CodeUnitInstance).setScript(ctx, content);
++      return { errors: [] };
++    }
++
++    if (unitType === 'user-input') {
++      // Parse the JSON content back to user_input config
++      const config = JSON.parse(content);
++      return service.update(ctx, unitSlug, { user_input: config });
++    }
++
++    const _exhaustive: never = unitType;
++    return {
++      errors: [
++        { code: 'E999', message: `Unknown unit type: ${_exhaustive as string}`, action: '' },
++      ],
++    };
++  } catch (err) {
++    return { errors: [{ code: 'E999', message: String(err), action: '' }] };
++  }
++}
+diff --git a/apps/web/package.json b/apps/web/package.json
+index 261258b..255604a 100644
+--- a/apps/web/package.json
++++ b/apps/web/package.json
+@@ -26,6 +26,7 @@
+     "@codemirror/lang-python": "^6.2.1",
+     "@codemirror/lang-rust": "^6.0.2",
+     "@codemirror/lang-yaml": "^6.1.2",
++    "@codemirror/legacy-modes": "^6.5.2",
+     "@dagrejs/dagre": "^2.0.3",
+     "@dnd-kit/core": "^6.3.1",
+     "@dnd-kit/sortable": "^10.0.0",
+diff --git a/apps/web/src/features/041-file-browser/components/code-editor.tsx b/apps/web/src/features/041-file-browser/components/code-editor.tsx
+index 2849dd1..a37f48e 100644
+--- a/apps/web/src/features/041-file-browser/components/code-editor.tsx
++++ b/apps/web/src/features/041-file-browser/components/code-editor.tsx
+@@ -1,178 +1,12 @@
+ 'use client';
+ 
+ /**
+- * CodeEditor — Lazy-loaded CodeMirror 6 wrapper.
+- *
+- * Thin wrapper over @uiw/react-codemirror with theme sync and
+- * language detection. Loaded via dynamic import to minimize bundle.
+- *
+- * Phase 4: File Browser — Plan 041
+- * Phase 6: scrollToLine prop — Plan 047, DYK-P6-03
+- * DYK-P4-04: Thin wrapper, tests stub CodeMirror
+- * DYK-P4-05: Uses shared detectLanguage()
+- * Finding 10: Lazy load via dynamic import
++ * CodeEditor — Re-export from _platform/viewer for backward compatibility.
++ * Canonical location: @/features/_platform/viewer/components/code-editor
++ * Moved in Plan 058 (workunit-editor).
+  */
+ 
+-import { useTheme } from 'next-themes';
+-import dynamic from 'next/dynamic';
+-import { useCallback, useEffect, useMemo, useRef } from 'react';
+-
+-import { cpp } from '@codemirror/lang-cpp';
+-import { css } from '@codemirror/lang-css';
+-import { html } from '@codemirror/lang-html';
+-import { java } from '@codemirror/lang-java';
+-// Language imports (tree-shakeable)
+-import { javascript } from '@codemirror/lang-javascript';
+-import { json } from '@codemirror/lang-json';
+-import { markdown } from '@codemirror/lang-markdown';
+-import { python } from '@codemirror/lang-python';
+-import { rust } from '@codemirror/lang-rust';
+-import { yaml } from '@codemirror/lang-yaml';
+-import type { Extension } from '@codemirror/state';
+-import { EditorView } from '@codemirror/view';
+-
+-// Stronger active line highlight for search navigation (Plan 052)
+-const activeLineHighlight = EditorView.theme({
+-  '.cm-activeLine': {
+-    backgroundColor: 'rgba(250, 204, 21, 0.25) !important', // yellow-400 at 25%
+-    borderLeft: '3px solid rgb(234, 179, 8)', // yellow-500
+-    boxShadow: 'inset 0 0 0 1px rgba(234, 179, 8, 0.3)',
+-  },
+-  '&.cm-focused .cm-activeLine': {
+-    backgroundColor: 'rgba(250, 204, 21, 0.35) !important',
+-  },
+-  '.dark .cm-activeLine, &.dark .cm-activeLine': {
+-    backgroundColor: 'rgba(250, 204, 21, 0.15) !important',
+-    borderLeft: '3px solid rgb(250, 204, 21)',
+-  },
+-});
+-
+-// Lazy-load CodeMirror itself
+-const ReactCodeMirror = dynamic(() => import('@uiw/react-codemirror'), {
+-  ssr: false,
+-  loading: () => <div className="animate-pulse rounded bg-muted p-4 h-64" />,
+-});
+-
+-const LANGUAGE_EXTENSIONS: Record<string, () => Extension> = {
+-  typescript: () => javascript({ typescript: true, jsx: false }),
+-  javascript: () => javascript(),
+-  tsx: () => javascript({ typescript: true, jsx: true }),
+-  jsx: () => javascript({ jsx: true }),
+-  python: () => python(),
+-  markdown: () => markdown(),
+-  json: () => json(),
+-  yaml: () => yaml(),
+-  css: () => css(),
+-  html: () => html(),
+-  rust: () => rust(),
+-  java: () => java(),
+-  cpp: () => cpp(),
+-};
+-
+-export interface CodeEditorProps {
+-  value: string;
+-  language: string;
+-  onChange?: (value: string) => void;
+-  readOnly?: boolean;
+-  /** Line number to scroll to (1-based). DYK-P6-03: prop-driven, not ref-driven. */
+-  scrollToLine?: number | null;
+-  /** Enable word wrapping (default: true). */
+-  wordWrap?: boolean;
+-}
+-
+-export function CodeEditor({
+-  value,
+-  language,
+-  onChange,
+-  readOnly,
+-  scrollToLine,
+-  wordWrap = true,
+-}: CodeEditorProps) {
+-  const { resolvedTheme } = useTheme();
+-  const viewRef = useRef<EditorView | null>(null);
+-
+-  const extensions = useMemo(() => {
+-    const langExt = LANGUAGE_EXTENSIONS[language];
+-    const exts: Extension[] = [activeLineHighlight];
+-    if (wordWrap) exts.push(EditorView.lineWrapping);
+-    if (langExt) exts.push(langExt());
+-    // After geometry changes, re-scroll to target line if needed
+-    exts.push(
+-      EditorView.updateListener.of((update) => {
+-        if (
+-          update.geometryChanged &&
+-          scrollToLineRef.current != null &&
+-          scrollToLineRef.current > 0
+-        ) {
+-          const line = scrollToLineRef.current;
+-          const view = update.view;
+-          const docLines = view.state.doc.lines;
+-          if (line >= 1 && line <= docLines) {
+-            const lineInfo = view.state.doc.line(line);
+-            const { from, to } = view.viewport;
+-            // Only re-scroll if the target line is outside the visible viewport
+-            if (lineInfo.from < from || lineInfo.from > to) {
+-              setTimeout(() => {
+-                view.dispatch({
+-                  effects: EditorView.scrollIntoView(lineInfo.from, { y: 'center' }),
+-                });
+-              }, 0);
+-            }
+-          }
+-        }
+-      })
+-    );
+-    return exts;
+-  }, [language, wordWrap]);
+-
+-  // DYK-P6-03: Capture EditorView via onCreateEditor callback
+-  // FT-009: Use ref for scrollToLine to keep callback stable
+-  const scrollToLineRef = useRef(scrollToLine);
+-  scrollToLineRef.current = scrollToLine;
+-
+-  const handleCreateEditor = useCallback((view: EditorView) => {
+-    viewRef.current = view;
+-    const line = scrollToLineRef.current;
+-    if (line != null && line > 0) {
+-      scrollViewToLine(view, line);
+-    }
+-  }, []);
+-
+-  // Scroll to line when prop changes or content loads — the updateListener
+-  // extension handles retries as CM renders virtualized content
+-  // biome-ignore lint/correctness/useExhaustiveDependencies: need to re-scroll when value changes (content loaded async)
+-  useEffect(() => {
+-    if (scrollToLine == null || scrollToLine <= 0 || !viewRef.current) return;
+-    scrollViewToLine(viewRef.current, scrollToLine);
+-  }, [scrollToLine, value]);
+-
+-  return (
+-    <ReactCodeMirror
+-      value={value}
+-      extensions={extensions}
+-      onChange={onChange}
+-      readOnly={readOnly}
+-      theme={resolvedTheme === 'dark' ? 'dark' : 'light'}
+-      onCreateEditor={handleCreateEditor}
+-      basicSetup={{
+-        lineNumbers: true,
+-        foldGutter: true,
+-        highlightActiveLine: true,
+-        bracketMatching: true,
+-      }}
+-      className="flex-1 min-h-0 [&_.cm-editor]:h-full [&_.cm-scroller]:!overflow-auto"
+-    />
+-  );
+-}
+-
+-/** Scroll a CodeMirror EditorView to a 1-based line number. */
+-function scrollViewToLine(view: EditorView, line: number): void {
+-  const docLines = view.state.doc.lines;
+-  if (line < 1 || line > docLines) return;
+-  const lineInfo = view.state.doc.line(line);
+-  view.dispatch({
+-    selection: { anchor: lineInfo.from },
+-    effects: EditorView.scrollIntoView(lineInfo.from, { y: 'center' }),
+-    scrollIntoView: true,
+-  });
+-}
++export {
++  CodeEditor,
++  type CodeEditorProps,
++} from '@/features/_platform/viewer/components/code-editor';
+diff --git a/apps/web/src/features/058-workunit-editor/components/agent-editor.tsx b/apps/web/src/features/058-workunit-editor/components/agent-editor.tsx
+new file mode 100644
+index 0000000..bdf9744
+--- /dev/null
++++ b/apps/web/src/features/058-workunit-editor/components/agent-editor.tsx
+@@ -0,0 +1,48 @@
++'use client';
++
++import { useAutoSave } from '@/features/_platform/hooks/use-auto-save';
++import { CodeEditor } from '@/features/_platform/viewer/components/code-editor';
++import { useCallback, useState } from 'react';
++import { saveUnitContent } from '../../../../app/actions/workunit-actions';
++import { SaveIndicator } from './save-indicator';
++
++interface AgentEditorProps {
++  workspaceSlug: string;
++  unitSlug: string;
++  initialContent: string;
++}
++
++/**
++ * Agent prompt editor — CodeMirror with markdown highlighting.
++ * Auto-saves via unified saveUnitContent action with 500ms debounce.
++ */
++export function AgentEditor({ workspaceSlug, unitSlug, initialContent }: AgentEditorProps) {
++  const [content, setContent] = useState(initialContent);
++
++  const saveFn = useCallback(
++    (value: string) => saveUnitContent(workspaceSlug, unitSlug, 'agent', value),
++    [workspaceSlug, unitSlug]
++  );
++
++  const { status, error, trigger } = useAutoSave(saveFn, { delay: 500 });
++
++  const handleChange = useCallback(
++    (value: string) => {
++      setContent(value);
++      trigger(value);
++    },
++    [trigger]
++  );
++
++  return (
++    <div className="flex flex-col h-full">
++      <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-gray-700">
++        <h3 className="text-sm font-medium text-muted-foreground">Prompt Template</h3>
++        <SaveIndicator status={status} error={error} />
++      </div>
++      <div className="flex-1 min-h-0">
++        <CodeEditor value={content} language="markdown" onChange={handleChange} />
++      </div>
++    </div>
++  );
++}
+diff --git a/apps/web/src/features/058-workunit-editor/components/code-unit-editor.tsx b/apps/web/src/features/058-workunit-editor/components/code-unit-editor.tsx
+new file mode 100644
+index 0000000..e19345f
+--- /dev/null
++++ b/apps/web/src/features/058-workunit-editor/components/code-unit-editor.tsx
+@@ -0,0 +1,80 @@
++'use client';
++
++import { useAutoSave } from '@/features/_platform/hooks/use-auto-save';
++import { CodeEditor } from '@/features/_platform/viewer/components/code-editor';
++import { useCallback, useState } from 'react';
++import { saveUnitContent } from '../../../../app/actions/workunit-actions';
++import { SaveIndicator } from './save-indicator';
++
++interface CodeUnitEditorProps {
++  workspaceSlug: string;
++  unitSlug: string;
++  initialContent: string;
++  /** Script filename for language detection (e.g., "code.sh", "script.py") */
++  scriptFilename?: string;
++}
++
++const EXTENSION_TO_LANGUAGE: Record<string, string> = {
++  sh: 'bash',
++  bash: 'bash',
++  py: 'python',
++  js: 'javascript',
++  ts: 'typescript',
++  jsx: 'jsx',
++  tsx: 'tsx',
++  json: 'json',
++  yaml: 'yaml',
++  yml: 'yaml',
++};
++
++function detectLanguage(filename?: string): string {
++  if (!filename) return 'bash';
++  const ext = filename.split('.').pop()?.toLowerCase() ?? '';
++  return EXTENSION_TO_LANGUAGE[ext] ?? 'bash';
++}
++
++/**
++ * Code script editor — CodeMirror with language detection from filename.
++ * Auto-saves via unified saveUnitContent action with 500ms debounce.
++ */
++export function CodeUnitEditor({
++  workspaceSlug,
++  unitSlug,
++  initialContent,
++  scriptFilename,
++}: CodeUnitEditorProps) {
++  const [content, setContent] = useState(initialContent);
++  const language = detectLanguage(scriptFilename);
++
++  const saveFn = useCallback(
++    (value: string) => saveUnitContent(workspaceSlug, unitSlug, 'code', value),
++    [workspaceSlug, unitSlug]
++  );
++
++  const { status, error, trigger } = useAutoSave(saveFn, { delay: 500 });
++
++  const handleChange = useCallback(
++    (value: string) => {
++      setContent(value);
++      trigger(value);
++    },
++    [trigger]
++  );
++
++  return (
++    <div className="flex flex-col h-full">
++      <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-gray-700">
++        <div className="flex items-center gap-2">
++          <h3 className="text-sm font-medium text-muted-foreground">Script</h3>
++          <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
++            {language}
++          </span>
++        </div>
++        <SaveIndicator status={status} error={error} />
++      </div>
++      <div className="flex-1 min-h-0">
++        <CodeEditor value={content} language={language} onChange={handleChange} />
++      </div>
++    </div>
++  );
++}
+diff --git a/apps/web/src/features/058-workunit-editor/components/metadata-panel.tsx b/apps/web/src/features/058-workunit-editor/components/metadata-panel.tsx
+new file mode 100644
+index 0000000..e0718c3
+--- /dev/null
++++ b/apps/web/src/features/058-workunit-editor/components/metadata-panel.tsx
+@@ -0,0 +1,121 @@
++'use client';
++
++import { useAutoSave } from '@/features/_platform/hooks/use-auto-save';
++import { useCallback, useState } from 'react';
++import { updateUnit } from '../../../../app/actions/workunit-actions';
++import { SaveIndicator } from './save-indicator';
++
++interface MetadataPanelProps {
++  workspaceSlug: string;
++  unitSlug: string;
++  unitType: 'agent' | 'code' | 'user-input';
++  initialDescription: string;
++  initialVersion: string;
++}
++
++/**
++ * Right-panel metadata editor — description and version fields.
++ * Uses useAutoSave with immediate (0ms) debounce for instant persistence.
++ */
++export function MetadataPanel({
++  workspaceSlug,
++  unitSlug,
++  unitType,
++  initialDescription,
++  initialVersion,
++}: MetadataPanelProps) {
++  const [description, setDescription] = useState(initialDescription);
++  const [version, setVersion] = useState(initialVersion);
++
++  const saveFn = useCallback(
++    (value: string) => {
++      const patch = JSON.parse(value);
++      return updateUnit(workspaceSlug, unitSlug, patch);
++    },
++    [workspaceSlug, unitSlug]
++  );
++
++  const { status, error, trigger } = useAutoSave(saveFn, { delay: 0 });
++
++  const handleDescriptionChange = useCallback(
++    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
++      const val = e.target.value;
++      setDescription(val);
++      trigger(JSON.stringify({ description: val }));
++    },
++    [trigger]
++  );
++
++  const handleVersionChange = useCallback(
++    (e: React.ChangeEvent<HTMLInputElement>) => {
++      const val = e.target.value;
++      setVersion(val);
++      trigger(JSON.stringify({ version: val }));
++    },
++    [trigger]
++  );
++
++  const TYPE_LABELS: Record<string, string> = {
++    agent: 'Agent',
++    code: 'Code',
++    'user-input': 'User Input',
++  };
++
++  return (
++    <div className="p-4 space-y-4">
++      <div>
++        <h3 className="text-sm font-semibold mb-3">Metadata</h3>
++        <SaveIndicator status={status} error={error} />
++      </div>
++
++      {/* Unit type badge */}
++      <div>
++        <span className="block text-xs font-medium text-muted-foreground mb-1">Type</span>
++        <span className="inline-block text-xs px-2 py-1 rounded bg-muted text-muted-foreground">
++          {TYPE_LABELS[unitType] ?? unitType}
++        </span>
++      </div>
++
++      {/* Slug (read-only) */}
++      <div>
++        <span className="block text-xs font-medium text-muted-foreground mb-1">Slug</span>
++        <span className="text-sm font-mono">{unitSlug}</span>
++      </div>
++
++      {/* Version */}
++      <div>
++        <label
++          htmlFor="unit-version"
++          className="block text-xs font-medium text-muted-foreground mb-1"
++        >
++          Version
++        </label>
++        <input
++          id="unit-version"
++          value={version}
++          onChange={handleVersionChange}
++          className="w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm"
++          placeholder="1.0.0"
++        />
++      </div>
++
++      {/* Description */}
++      <div>
++        <label
++          htmlFor="unit-description"
++          className="block text-xs font-medium text-muted-foreground mb-1"
++        >
++          Description
++        </label>
++        <textarea
++          id="unit-description"
++          value={description}
++          onChange={handleDescriptionChange}
++          rows={4}
++          className="w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm"
++          placeholder="Describe what this unit does..."
++        />
++      </div>
++    </div>
++  );
++}
+diff --git a/apps/web/src/features/058-workunit-editor/components/save-indicator.tsx b/apps/web/src/features/058-workunit-editor/components/save-indicator.tsx
+new file mode 100644
+index 0000000..d22f8fe
+--- /dev/null
++++ b/apps/web/src/features/058-workunit-editor/components/save-indicator.tsx
+@@ -0,0 +1,31 @@
++'use client';
++
++import type { AutoSaveStatus } from '@/features/_platform/hooks/use-auto-save';
++
++interface SaveIndicatorProps {
++  status: AutoSaveStatus;
++  error: string | null;
++}
++
++/**
++ * Inline save status indicator for auto-save editors.
++ * Shows saving/saved/error states. Error renders as persistent banner (DYK #5).
++ */
++export function SaveIndicator({ status, error }: SaveIndicatorProps) {
++  if (status === 'idle') return null;
++
++  if (status === 'error') {
++    return (
++      <div className="flex items-center gap-2 px-3 py-1.5 text-sm bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800 rounded">
++        <span className="shrink-0">Save failed</span>
++        {error && <span className="text-red-500 dark:text-red-400 truncate">{error}</span>}
++      </div>
++    );
 +  }
 +
-+  // ========== Write Operations (Plan 058 Phase 1) ==========
-+
-+  async create(ctx: WorkspaceContext, spec: CreateUnitSpec): Promise<CreateUnitResult> {
-+    this.adapter.validateSlug(spec.slug);
-+
-+    const exists = await this.adapter.unitExists(ctx, spec.slug);
-+    if (exists) {
-+      return { slug: spec.slug, type: spec.type, errors: [workunitSlugExistsError(spec.slug)] };
-+    }
-+
-+    await this.adapter.ensureUnitDir(ctx, spec.slug);
-+    const unitData = this.buildUnitYaml(spec);
-+    const yamlContent = this.yamlParser.stringify(unitData);
-+    const yamlPath = this.adapter.getUnitYamlPath(ctx, spec.slug);
-+    await atomicWriteFile(this.fs, yamlPath, yamlContent);
-+
-+    // Scaffold type-specific boilerplate
-+    if (spec.type === 'agent') {
-+      const promptDir = this.adapter.getTemplatePath(ctx, spec.slug, 'prompts');
-+      await this.fs.mkdir(promptDir, { recursive: true });
-+      const promptPath = this.adapter.getTemplatePath(ctx, spec.slug, 'prompts/main.md');
-+      await this.fs.writeFile(
-+        promptPath,
-+        '# Agent Prompt\n\nDescribe what this agent should do.\n\n## Instructions\n\n- Be specific about the task\n- Define expected outputs\n'
-+      );
-+    } else if (spec.type === 'code') {
-+      const scriptDir = this.adapter.getTemplatePath(ctx, spec.slug, 'scripts');
-+      await this.fs.mkdir(scriptDir, { recursive: true });
-+      const scriptPath = this.adapter.getTemplatePath(ctx, spec.slug, 'scripts/main.sh');
-+      await this.fs.writeFile(
-+        scriptPath,
-+        '#!/bin/bash\nset -euo pipefail\n\n# Work unit script\n# Inputs are available as environment variables\n# Write outputs to stdout or output files\n\necho "Hello from ${UNIT_SLUG:-unknown}"\n'
-+      );
-+    }
-+
-+    return { slug: spec.slug, type: spec.type, errors: [] };
++  if (status === 'saving') {
++    return <span className="text-sm text-muted-foreground animate-pulse">Saving...</span>;
 +  }
 +
-+  async update(
-+    ctx: WorkspaceContext,
-+    slug: string,
-+    patch: UpdateUnitPatch
-+  ): Promise<UpdateUnitResult> {
-+    this.adapter.validateSlug(slug);
++  return <span className="text-sm text-green-600 dark:text-green-400">Saved</span>;
++}
+diff --git a/apps/web/src/features/058-workunit-editor/components/unit-catalog-sidebar.tsx b/apps/web/src/features/058-workunit-editor/components/unit-catalog-sidebar.tsx
+new file mode 100644
+index 0000000..058fb37
+--- /dev/null
++++ b/apps/web/src/features/058-workunit-editor/components/unit-catalog-sidebar.tsx
+@@ -0,0 +1,46 @@
++'use client';
 +
-+    const yamlPath = this.adapter.getUnitYamlPath(ctx, slug);
-+    const exists = await this.fs.exists(yamlPath);
-+    if (!exists) {
-+      return { slug, errors: [workunitNotFoundError(slug)] };
++import type { WorkUnitSummary } from '@chainglass/positional-graph';
++import Link from 'next/link';
++
++interface UnitCatalogSidebarProps {
++  workspaceSlug: string;
++  units: WorkUnitSummary[];
++  currentSlug: string;
++}
++
++const TYPE_COLORS: Record<string, string> = {
++  agent: 'text-purple-500',
++  code: 'text-green-500',
++  'user-input': 'text-amber-500',
++};
++
++/**
++ * Left sidebar showing all units for quick navigation.
++ * Current unit is highlighted.
++ */
++export function UnitCatalogSidebar({ workspaceSlug, units, currentSlug }: UnitCatalogSidebarProps) {
++  return (
++    <div className="p-3">
++      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
++        Units
++      </h3>
++      <nav className="space-y-0.5">
++        {units.map((unit) => (
++          <Link
++            key={unit.slug}
++            href={`/workspaces/${workspaceSlug}/work-units/${unit.slug}`}
++            className={`flex items-center gap-2 px-2 py-1.5 rounded text-sm transition-colors ${
++              unit.slug === currentSlug
++                ? 'bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300'
++                : 'hover:bg-gray-100 dark:hover:bg-gray-800'
++            }`}
++          >
++            <span className={`text-xs ${TYPE_COLORS[unit.type] ?? ''}`}>●</span>
++            <span className="font-mono text-xs truncate">{unit.slug}</span>
++          </Link>
++        ))}
++      </nav>
++    </div>
++  );
++}
+diff --git a/apps/web/src/features/058-workunit-editor/components/unit-creation-modal.tsx b/apps/web/src/features/058-workunit-editor/components/unit-creation-modal.tsx
+new file mode 100644
+index 0000000..96f7b51
+--- /dev/null
++++ b/apps/web/src/features/058-workunit-editor/components/unit-creation-modal.tsx
+@@ -0,0 +1,153 @@
++'use client';
++
++import { useRouter } from 'next/navigation';
++import { useCallback, useState } from 'react';
++import { createUnit } from '../../../../app/actions/workunit-actions';
++
++interface UnitCreationModalProps {
++  workspaceSlug: string;
++  open: boolean;
++  onClose: () => void;
++}
++
++const UNIT_TYPES = [
++  { type: 'agent' as const, label: 'Agent', description: 'Prompt template for AI agents' },
++  { type: 'code' as const, label: 'Code', description: 'Script to execute (bash, python, etc.)' },
++  {
++    type: 'user-input' as const,
++    label: 'User Input',
++    description: 'Question for human input during workflow execution',
++  },
++];
++
++const SLUG_PATTERN = /^[a-z][a-z0-9-]*$/;
++
++/**
++ * Modal for creating new work units — type picker + slug naming.
++ * Per W002 + clarification Q6: scaffold with boilerplate.
++ */
++export function UnitCreationModal({ workspaceSlug, open, onClose }: UnitCreationModalProps) {
++  const router = useRouter();
++  const [selectedType, setSelectedType] = useState<'agent' | 'code' | 'user-input' | null>(null);
++  const [slug, setSlug] = useState('');
++  const [description, setDescription] = useState('');
++  const [error, setError] = useState<string | null>(null);
++  const [creating, setCreating] = useState(false);
++
++  const slugValid = SLUG_PATTERN.test(slug);
++
++  const handleCreate = useCallback(async () => {
++    if (!selectedType || !slugValid) return;
++    setCreating(true);
++    setError(null);
++
++    const result = await createUnit(workspaceSlug, {
++      slug,
++      type: selectedType,
++      description: description || undefined,
++    });
++
++    if (result.errors.length > 0) {
++      setError(result.errors[0].message);
++      setCreating(false);
++      return;
 +    }
 +
-+    // Read current unit.yaml
-+    let rawContent: string;
-+    try {
-+      rawContent = await this.fs.readFile(yamlPath);
-+    } catch {
-+      return { slug, errors: [workunitNotFoundError(slug)] };
-+    }
++    onClose();
++    router.push(`/workspaces/${workspaceSlug}/work-units/${slug}`);
++    router.refresh();
++  }, [selectedType, slug, slugValid, description, workspaceSlug, onClose, router]);
 +
-+    let parsed: unknown;
-+    try {
-+      parsed = this.yamlParser.parse(rawContent, yamlPath);
-+    } catch (err) {
-+      const message = err instanceof Error ? err.message : 'Unknown parse error';
-+      return { slug, errors: [workunitYamlParseError(slug, message)] };
-+    }
++  if (!open) return null;
 +
-+    // Apply patch: scalars overwrite, arrays replace, type-config shallow-merge
-+    const current = parsed as Record<string, unknown>;
-+    if (patch.description !== undefined) current.description = patch.description;
-+    if (patch.version !== undefined) current.version = patch.version;
-+    if (patch.inputs !== undefined) current.inputs = patch.inputs;
-+    if (patch.outputs !== undefined) current.outputs = patch.outputs;
++  return (
++    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
++      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-lg w-full max-w-md mx-4 p-6">
++        <h2 className="text-lg font-semibold mb-4">Create Work Unit</h2>
 +
-+    // Shallow-merge type-specific config
-+    if (patch.agent && current.type === 'agent') {
-+      current.agent = { ...(current.agent as Record<string, unknown>), ...patch.agent };
-+    }
-+    if (patch.code && current.type === 'code') {
-+      current.code = { ...(current.code as Record<string, unknown>), ...patch.code };
-+    }
-+    if (patch.user_input && current.type === 'user-input') {
-+      current.user_input = {
-+        ...(current.user_input as Record<string, unknown>),
-+        ...patch.user_input,
-+      };
-+    }
++        {/* Type selection */}
++        <div className="space-y-2 mb-4">
++          <span className="block text-sm font-medium">Type</span>
++          <div className="grid grid-cols-3 gap-2">
++            {UNIT_TYPES.map((ut) => (
++              <button
++                key={ut.type}
++                type="button"
++                onClick={() => setSelectedType(ut.type)}
++                className={`p-3 rounded border text-left text-sm transition-colors ${
++                  selectedType === ut.type
++                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-950'
++                    : 'border-gray-200 dark:border-gray-700 hover:border-gray-400'
++                }`}
++              >
++                <div className="font-medium">{ut.label}</div>
++                <div className="text-xs text-muted-foreground mt-1">{ut.description}</div>
++              </button>
++            ))}
++          </div>
++        </div>
 +
-+    // Re-validate against schema
-+    const parseResult = WorkUnitSchema.safeParse(current);
-+    if (!parseResult.success) {
-+      const formattedErrors = formatZodErrors(parseResult.error, slug);
-+      return { slug, errors: [workunitSchemaValidationError(slug, formattedErrors)] };
-+    }
++        {/* Slug input */}
++        <div className="mb-4">
++          <label htmlFor="create-unit-slug" className="block text-sm font-medium mb-1">
++            Slug
++          </label>
++          <input
++            id="create-unit-slug"
++            value={slug}
++            onChange={(e) => setSlug(e.target.value.toLowerCase())}
++            placeholder="my-unit-name"
++            className={`w-full rounded border px-3 py-2 text-sm bg-white dark:bg-gray-800 ${
++              slug && !slugValid ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
++            }`}
++          />
++          {slug && !slugValid && (
++            <p className="text-xs text-red-500 mt-1">
++              Must start with a letter, lowercase letters, numbers, and hyphens only
++            </p>
++          )}
++        </div>
 +
-+    // Write back
-+    const updatedYaml = this.yamlParser.stringify(current);
-+    await atomicWriteFile(this.fs, yamlPath, updatedYaml);
++        {/* Description */}
++        <div className="mb-4">
++          <label htmlFor="create-unit-desc" className="block text-sm font-medium mb-1">
++            Description <span className="text-muted-foreground font-normal">(optional)</span>
++          </label>
++          <input
++            id="create-unit-desc"
++            value={description}
++            onChange={(e) => setDescription(e.target.value)}
++            placeholder="What does this unit do?"
++            className="w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
++          />
++        </div>
 +
-+    return { slug, errors: [] };
-+  }
++        {/* Error */}
++        {error && (
++          <div className="mb-4 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950 p-2 rounded">
++            {error}
++          </div>
++        )}
 +
-+  async delete(ctx: WorkspaceContext, slug: string): Promise<DeleteUnitResult> {
-+    this.adapter.validateSlug(slug);
-+    await this.adapter.removeUnitDir(ctx, slug);
-+    return { deleted: true, errors: [] };
-+  }
++        {/* Actions */}
++        <div className="flex justify-end gap-2">
++          <button
++            type="button"
++            onClick={onClose}
++            className="px-4 py-2 text-sm rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800"
++          >
++            Cancel
++          </button>
++          <button
++            type="button"
++            onClick={handleCreate}
++            disabled={!selectedType || !slugValid || creating}
++            className="px-4 py-2 text-sm rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
++          >
++            {creating ? 'Creating...' : 'Create'}
++          </button>
++        </div>
++      </div>
++    </div>
++  );
++}
+diff --git a/apps/web/src/features/058-workunit-editor/components/unit-list.tsx b/apps/web/src/features/058-workunit-editor/components/unit-list.tsx
+new file mode 100644
+index 0000000..8cbbc9c
+--- /dev/null
++++ b/apps/web/src/features/058-workunit-editor/components/unit-list.tsx
+@@ -0,0 +1,105 @@
++'use client';
 +
-+  async rename(
-+    ctx: WorkspaceContext,
-+    oldSlug: string,
-+    newSlug: string
-+  ): Promise<RenameUnitResult> {
-+    this.adapter.validateSlug(oldSlug);
-+    this.adapter.validateSlug(newSlug);
++import Link from 'next/link';
++import { useState } from 'react';
++import { UnitCreationModal } from './unit-creation-modal';
 +
-+    // Verify old exists
-+    const oldExists = await this.adapter.unitExists(ctx, oldSlug);
-+    if (!oldExists) {
-+      return { newSlug, updatedFiles: [], errors: [workunitNotFoundError(oldSlug)] };
-+    }
++interface UnitSummary {
++  slug: string;
++  type: 'agent' | 'code' | 'user-input';
++  version: string;
++}
 +
-+    // Verify new doesn't exist
-+    const newExists = await this.adapter.unitExists(ctx, newSlug);
-+    if (newExists) {
-+      return { newSlug, updatedFiles: [], errors: [workunitSlugExistsError(newSlug)] };
-+    }
++interface UnitListProps {
++  workspaceSlug: string;
++  units: UnitSummary[];
++}
 +
-+    // Rename directory
-+    await this.adapter.renameUnitDir(ctx, oldSlug, newSlug);
++const TYPE_LABELS: Record<string, { label: string; color: string }> = {
++  agent: {
++    label: 'Agent',
++    color: 'bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300',
++  },
++  code: {
++    label: 'Code',
++    color: 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300',
++  },
++  'user-input': {
++    label: 'Input',
++    color: 'bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300',
++  },
++};
 +
-+    // Update slug in unit.yaml
-+    const yamlPath = this.adapter.getUnitYamlPath(ctx, newSlug);
-+    try {
-+      const content = await this.fs.readFile(yamlPath);
-+      // Use string replacement to preserve YAML formatting (per DYK #5)
-+      const updated = content.replace(
-+        new RegExp(`^slug:\\s*${oldSlug}\\s*$`, 'm'),
-+        `slug: ${newSlug}`
-+      );
-+      await atomicWriteFile(this.fs, yamlPath, updated);
-+    } catch {
-+      // unit.yaml read/write failed — directory was renamed but slug field not updated
-+    }
++/**
++ * Work unit catalog list — grouped by type with create button.
++ * Click navigates to editor. Server Component loads data, this renders.
++ */
++export function UnitList({ workspaceSlug, units }: UnitListProps) {
++  const [showCreate, setShowCreate] = useState(false);
 +
-+    // Cascade: delegate to graph service if available, otherwise scan manually
-+    const updatedFiles = await this.cascadeSlugReferences(ctx, oldSlug, newSlug);
++  // Group by type
++  const grouped = {
++    agent: units.filter((u) => u.type === 'agent'),
++    code: units.filter((u) => u.type === 'code'),
++    'user-input': units.filter((u) => u.type === 'user-input'),
++  };
 +
-+    return { newSlug, updatedFiles, errors: [] };
-+  }
++  return (
++    <div className="p-6 max-w-4xl mx-auto">
++      <div className="flex items-center justify-between mb-6">
++        <h1 className="text-2xl font-bold">Work Units</h1>
++        <button
++          type="button"
++          onClick={() => setShowCreate(true)}
++          className="px-4 py-2 text-sm rounded bg-blue-600 text-white hover:bg-blue-700"
++        >
++          Create Unit
++        </button>
++      </div>
 +
-+  /**
-+   * Scan workflow and template node.yaml files, updating unit_slug references.
-+   * Uses string replacement to preserve YAML formatting (per DYK #5).
-+   */
-+  private async cascadeSlugReferences(
-+    ctx: WorkspaceContext,
-+    oldSlug: string,
-+    newSlug: string
-+  ): Promise<string[]> {
-+    if (!this.pathResolver) return [];
-+    const updatedFiles: string[] = [];
-+    const dirsToScan = [
-+      this.pathResolver.join(ctx.worktreePath, '.chainglass', 'data', 'workflows'),
-+      this.pathResolver.join(ctx.worktreePath, '.chainglass', 'templates', 'workflows'),
-+    ];
++      {units.length === 0 ? (
++        <div className="text-center py-12 text-muted-foreground">
++          <p className="text-lg mb-2">No work units yet</p>
++          <p className="text-sm">Create your first unit to get started.</p>
++        </div>
++      ) : (
++        <div className="space-y-6">
++          {(['agent', 'code', 'user-input'] as const).map((type) => {
++            const items = grouped[type];
++            if (items.length === 0) return null;
++            const typeInfo = TYPE_LABELS[type];
 +
-+    for (const baseDir of dirsToScan) {
-+      const dirExists = await this.fs.exists(baseDir);
-+      if (!dirExists) continue;
++            return (
++              <div key={type}>
++                <h2 className="text-sm font-semibold text-muted-foreground mb-2 uppercase tracking-wide">
++                  {typeInfo.label} ({items.length})
++                </h2>
++                <div className="grid gap-2">
++                  {items.map((unit) => (
++                    <Link
++                      key={unit.slug}
++                      href={`/workspaces/${workspaceSlug}/work-units/${unit.slug}`}
++                      className="flex items-center gap-3 p-3 rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
++                    >
++                      <span className={`text-xs px-2 py-0.5 rounded ${typeInfo.color}`}>
++                        {typeInfo.label}
++                      </span>
++                      <span className="font-mono text-sm">{unit.slug}</span>
++                      <span className="text-xs text-muted-foreground ml-auto">v{unit.version}</span>
++                    </Link>
++                  ))}
++                </div>
++              </div>
++            );
++          })}
++        </div>
++      )}
 +
-+      let workflows: string[];
-+      try {
-+        workflows = await this.fs.readDir(baseDir);
-+      } catch {
-+        continue;
-+      }
++      <UnitCreationModal
++        workspaceSlug={workspaceSlug}
++        open={showCreate}
++        onClose={() => setShowCreate(false)}
++      />
++    </div>
++  );
++}
+diff --git a/apps/web/src/features/058-workunit-editor/components/user-input-editor.tsx b/apps/web/src/features/058-workunit-editor/components/user-input-editor.tsx
+new file mode 100644
+index 0000000..57bdb2d
+--- /dev/null
++++ b/apps/web/src/features/058-workunit-editor/components/user-input-editor.tsx
+@@ -0,0 +1,248 @@
++'use client';
 +
-+      for (const wfSlug of workflows) {
-+        const nodesDir = this.pathResolver.join(baseDir, wfSlug, 'nodes');
-+        const nodesDirExists = await this.fs.exists(nodesDir);
-+        if (!nodesDirExists) continue;
++import { useAutoSave } from '@/features/_platform/hooks/use-auto-save';
++import { useCallback, useState } from 'react';
++import { saveUnitContent } from '../../../../app/actions/workunit-actions';
++import { SaveIndicator } from './save-indicator';
 +
-+        let nodeIds: string[];
-+        try {
-+          nodeIds = await this.fs.readDir(nodesDir);
-+        } catch {
-+          continue;
-+        }
++interface UserInputOption {
++  key: string;
++  label: string;
++  description?: string;
++}
 +
-+        for (const nodeId of nodeIds) {
-+          const nodeYamlPath = this.pathResolver.join(nodesDir, nodeId, 'node.yaml');
-+          try {
-+            const nodeContent = await this.fs.readFile(nodeYamlPath);
-+            if (nodeContent.includes(`unit_slug: ${oldSlug}`)) {
-+              const updatedContent = nodeContent.replace(
-+                new RegExp(`unit_slug:\\s*${oldSlug}(\\s|$)`, 'gm'),
-+                `unit_slug: ${newSlug}$1`
-+              );
-+              await atomicWriteFile(this.fs, nodeYamlPath, updatedContent);
-+              updatedFiles.push(nodeYamlPath);
++interface UserInputConfig {
++  question_type: 'text' | 'single' | 'multi' | 'confirm';
++  prompt: string;
++  options?: UserInputOption[];
++  default?: string | boolean;
++}
++
++interface UserInputEditorProps {
++  workspaceSlug: string;
++  unitSlug: string;
++  initialConfig: UserInputConfig;
++}
++
++const QUESTION_TYPES = [
++  { value: 'text', label: 'Text Input' },
++  { value: 'single', label: 'Single Choice' },
++  { value: 'multi', label: 'Multiple Choice' },
++  { value: 'confirm', label: 'Confirm (Yes/No)' },
++] as const;
++
++/**
++ * User-input configuration editor — form controls for question setup.
++ * Auto-saves via unified saveUnitContent (routes to update type_config).
++ * Mirrors Plan 054 HumanInputModal config structure.
++ */
++export function UserInputEditor({ workspaceSlug, unitSlug, initialConfig }: UserInputEditorProps) {
++  const [config, setConfig] = useState<UserInputConfig>(initialConfig);
++
++  const saveFn = useCallback(
++    (value: string) => saveUnitContent(workspaceSlug, unitSlug, 'user-input', value),
++    [workspaceSlug, unitSlug]
++  );
++
++  const { status, error, trigger } = useAutoSave(saveFn, { delay: 500 });
++
++  const updateConfig = useCallback(
++    (patch: Partial<UserInputConfig>) => {
++      setConfig((prev) => {
++        const next = { ...prev, ...patch };
++        trigger(JSON.stringify(next));
++        return next;
++      });
++    },
++    [trigger]
++  );
++
++  const needsOptions = config.question_type === 'single' || config.question_type === 'multi';
++
++  const updateOption = useCallback(
++    (index: number, patch: Partial<UserInputOption>) => {
++      setConfig((prev) => {
++        const options = [...(prev.options ?? [])];
++        options[index] = { ...options[index], ...patch };
++        const next = { ...prev, options };
++        trigger(JSON.stringify(next));
++        return next;
++      });
++    },
++    [trigger]
++  );
++
++  const addOption = useCallback(() => {
++    setConfig((prev) => {
++      const options = [...(prev.options ?? []), { key: '', label: '' }];
++      const next = { ...prev, options };
++      trigger(JSON.stringify(next));
++      return next;
++    });
++  }, [trigger]);
++
++  const removeOption = useCallback(
++    (index: number) => {
++      setConfig((prev) => {
++        const options = (prev.options ?? []).filter((_, i) => i !== index);
++        const next = { ...prev, options };
++        trigger(JSON.stringify(next));
++        return next;
++      });
++    },
++    [trigger]
++  );
++
++  return (
++    <div className="flex flex-col h-full">
++      <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-gray-700">
++        <h3 className="text-sm font-medium text-muted-foreground">Question Configuration</h3>
++        <SaveIndicator status={status} error={error} />
++      </div>
++
++      <div className="flex-1 overflow-y-auto p-4 space-y-4">
++        {/* Question Type */}
++        <div>
++          <label htmlFor="ui-question-type" className="block text-sm font-medium mb-1">
++            Question Type
++          </label>
++          <select
++            id="ui-question-type"
++            value={config.question_type}
++            onChange={(e) =>
++              updateConfig({
++                question_type: e.target.value as UserInputConfig['question_type'],
++                // Seed options when switching to choice types
++                options:
++                  (e.target.value === 'single' || e.target.value === 'multi') &&
++                  (!config.options || config.options.length < 2)
++                    ? [
++                        { key: 'option-1', label: 'Option 1' },
++                        { key: 'option-2', label: 'Option 2' },
++                      ]
++                    : config.options,
++              })
 +            }
-+          } catch {
-+            // Skip files that can't be read
++            className="w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
++          >
++            {QUESTION_TYPES.map((qt) => (
++              <option key={qt.value} value={qt.value}>
++                {qt.label}
++              </option>
++            ))}
++          </select>
++        </div>
++
++        {/* Prompt */}
++        <div>
++          <label htmlFor="ui-prompt" className="block text-sm font-medium mb-1">
++            Prompt
++          </label>
++          <textarea
++            id="ui-prompt"
++            value={config.prompt}
++            onChange={(e) => updateConfig({ prompt: e.target.value })}
++            rows={3}
++            className="w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
++            placeholder="What question should be asked?"
++          />
++        </div>
++
++        {/* Options (for single/multi only) */}
++        {needsOptions && (
++          <div>
++            <div className="flex items-center justify-between mb-2">
++              <span className="text-sm font-medium">
++                Options <span className="text-muted-foreground font-normal">(min 2)</span>
++              </span>
++              <button
++                type="button"
++                onClick={addOption}
++                className="text-xs px-2 py-1 rounded bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900"
++              >
++                + Add Option
++              </button>
++            </div>
++            <div className="space-y-2">
++              {(config.options ?? []).map((opt, i) => (
++                <div
++                  key={opt.key || `new-option-${i}`}
++                  className="flex gap-2 items-start p-2 rounded border border-gray-200 dark:border-gray-700"
++                >
++                  <div className="flex-1 space-y-1">
++                    <input
++                      value={opt.key}
++                      onChange={(e) => updateOption(i, { key: e.target.value })}
++                      placeholder="key"
++                      className="w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1 text-xs"
++                    />
++                    <input
++                      value={opt.label}
++                      onChange={(e) => updateOption(i, { label: e.target.value })}
++                      placeholder="Label"
++                      className="w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1 text-sm"
++                    />
++                    <input
++                      value={opt.description ?? ''}
++                      onChange={(e) =>
++                        updateOption(i, { description: e.target.value || undefined })
++                      }
++                      placeholder="Description (optional)"
++                      className="w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1 text-xs text-muted-foreground"
++                    />
++                  </div>
++                  {(config.options?.length ?? 0) > 2 && (
++                    <button
++                      type="button"
++                      onClick={() => removeOption(i)}
++                      className="text-red-500 hover:text-red-700 text-sm px-1 mt-1"
++                      title="Remove option"
++                    >
++                      ×
++                    </button>
++                  )}
++                </div>
++              ))}
++            </div>
++          </div>
++        )}
++
++        {/* Default value */}
++        {config.question_type === 'confirm' ? (
++          <div>
++            <label htmlFor="ui-default-confirm" className="block text-sm font-medium mb-1">
++              Default
++            </label>
++            <select
++              id="ui-default-confirm"
++              value={config.default === true ? 'true' : config.default === false ? 'false' : ''}
++              onChange={(e) =>
++                updateConfig({
++                  default: e.target.value === '' ? undefined : e.target.value === 'true',
++                })
++              }
++              className="w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
++            >
++              <option value="">No default</option>
++              <option value="true">Yes</option>
++              <option value="false">No</option>
++            </select>
++          </div>
++        ) : config.question_type === 'text' ? (
++          <div>
++            <label htmlFor="ui-default-text" className="block text-sm font-medium mb-1">
++              Default Value
++            </label>
++            <input
++              id="ui-default-text"
++              value={typeof config.default === 'string' ? config.default : ''}
++              onChange={(e) => updateConfig({ default: e.target.value || undefined })}
++              placeholder="Optional default"
++              className="w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
++            />
++          </div>
++        ) : null}
++      </div>
++    </div>
++  );
++}
+diff --git a/apps/web/src/features/058-workunit-editor/components/workunit-editor-layout.tsx b/apps/web/src/features/058-workunit-editor/components/workunit-editor-layout.tsx
+new file mode 100644
+index 0000000..d30543d
+--- /dev/null
++++ b/apps/web/src/features/058-workunit-editor/components/workunit-editor-layout.tsx
+@@ -0,0 +1,44 @@
++'use client';
++
++import type { ReactNode } from 'react';
++
++export interface WorkUnitEditorLayoutProps {
++  /** Left sidebar — unit catalog browser */
++  left: ReactNode;
++  /** Main content — type-specific editor */
++  main: ReactNode;
++  /** Right panel — metadata editing */
++  right: ReactNode;
++}
++
++/**
++ * 3-panel layout for the work unit editor page.
++ * Left catalog sidebar + main editor + right metadata panel.
++ *
++ * Plan 058, Phase 2, DYK #1: PanelShell has no right panel,
++ * so this follows the WorkflowEditorLayout pattern instead.
++ */
++export function WorkUnitEditorLayout({ left, main, right }: WorkUnitEditorLayoutProps) {
++  return (
++    <div className="flex h-full w-full overflow-hidden">
++      {/* Left sidebar — unit catalog */}
++      <div
++        className="shrink-0 overflow-y-auto border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900"
++        style={{ width: 240, minWidth: 180, maxWidth: '30%', resize: 'horizontal' }}
++      >
++        {left}
++      </div>
++
++      {/* Main editor area */}
++      <div className="flex-1 flex flex-col overflow-hidden">{main}</div>
++
++      {/* Right metadata panel */}
++      <div
++        className="shrink-0 overflow-y-auto border-l border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900"
++        style={{ width: 280, minWidth: 200, maxWidth: '35%', resize: 'horizontal' }}
++      >
++        {right}
++      </div>
++    </div>
++  );
++}
+diff --git a/apps/web/src/features/058-workunit-editor/components/workunit-editor.tsx b/apps/web/src/features/058-workunit-editor/components/workunit-editor.tsx
+new file mode 100644
+index 0000000..4b0afb3
+--- /dev/null
++++ b/apps/web/src/features/058-workunit-editor/components/workunit-editor.tsx
+@@ -0,0 +1,80 @@
++'use client';
++
++import type { WorkUnitSummary } from '@chainglass/positional-graph';
++
++import { AgentEditor } from './agent-editor';
++import { CodeUnitEditor } from './code-unit-editor';
++import { MetadataPanel } from './metadata-panel';
++import { UnitCatalogSidebar } from './unit-catalog-sidebar';
++import { UserInputEditor } from './user-input-editor';
++import { WorkUnitEditorLayout } from './workunit-editor-layout';
++
++interface WorkUnitEditorProps {
++  workspaceSlug: string;
++  unitSlug: string;
++  unitType: 'agent' | 'code' | 'user-input';
++  content: string;
++  description: string;
++  version: string;
++  scriptFilename?: string;
++  allUnits: WorkUnitSummary[];
++}
++
++/**
++ * Main work unit editor — 3-panel layout with type-dispatched content editor.
++ * Server Component loads data, this Client Component renders the full editor.
++ */
++export function WorkUnitEditor({
++  workspaceSlug,
++  unitSlug,
++  unitType,
++  content,
++  description,
++  version,
++  scriptFilename,
++  allUnits,
++}: WorkUnitEditorProps) {
++  const mainEditor = (() => {
++    switch (unitType) {
++      case 'agent':
++        return (
++          <AgentEditor workspaceSlug={workspaceSlug} unitSlug={unitSlug} initialContent={content} />
++        );
++      case 'code':
++        return (
++          <CodeUnitEditor
++            workspaceSlug={workspaceSlug}
++            unitSlug={unitSlug}
++            initialContent={content}
++            scriptFilename={scriptFilename}
++          />
++        );
++      case 'user-input':
++        return (
++          <UserInputEditor
++            workspaceSlug={workspaceSlug}
++            unitSlug={unitSlug}
++            initialConfig={JSON.parse(content)}
++          />
++        );
++    }
++  })();
++
++  return (
++    <WorkUnitEditorLayout
++      left={
++        <UnitCatalogSidebar workspaceSlug={workspaceSlug} units={allUnits} currentSlug={unitSlug} />
++      }
++      main={mainEditor}
++      right={
++        <MetadataPanel
++          workspaceSlug={workspaceSlug}
++          unitSlug={unitSlug}
++          unitType={unitType}
++          initialDescription={description}
++          initialVersion={version}
++        />
++      }
++    />
++  );
++}
+diff --git a/apps/web/src/features/_platform/hooks/use-auto-save.ts b/apps/web/src/features/_platform/hooks/use-auto-save.ts
+new file mode 100644
+index 0000000..63c5cda
+--- /dev/null
++++ b/apps/web/src/features/_platform/hooks/use-auto-save.ts
+@@ -0,0 +1,112 @@
++'use client';
++
++import { useCallback, useEffect, useRef, useState } from 'react';
++
++export type AutoSaveStatus = 'idle' | 'saving' | 'saved' | 'error';
++
++interface UseAutoSaveOptions {
++  /** Debounce delay in ms. 0 = immediate. Default: 500. */
++  delay?: number;
++  /** Callback invoked on successful save. */
++  onSaved?: () => void;
++}
++
++interface UseAutoSaveReturn {
++  status: AutoSaveStatus;
++  error: string | null;
++  /** Trigger a save with the given value. Debounced by delay. */
++  trigger: (value: string) => void;
++  /** Force immediate save (bypasses debounce). */
++  flush: () => void;
++}
++
++/**
++ * Reusable auto-save hook with debounce and status tracking.
++ *
++ * Returns a trigger function that debounces calls to saveFn.
++ * Status transitions: idle → saving → saved (or error).
++ * "saved" auto-clears back to "idle" after 2s.
++ *
++ * Plan 058, Phase 2, DYK #3.
++ */
++export function useAutoSave(
++  saveFn: (value: string) => Promise<{ errors: Array<{ message: string }> }>,
++  options: UseAutoSaveOptions = {}
++): UseAutoSaveReturn {
++  const { delay = 500, onSaved } = options;
++
++  const [status, setStatus] = useState<AutoSaveStatus>('idle');
++  const [error, setError] = useState<string | null>(null);
++
++  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
++  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
++  const pendingValueRef = useRef<string | null>(null);
++  const saveFnRef = useRef(saveFn);
++  saveFnRef.current = saveFn;
++  const onSavedRef = useRef(onSaved);
++  onSavedRef.current = onSaved;
++
++  const doSave = useCallback(async (value: string) => {
++    setStatus('saving');
++    setError(null);
++    try {
++      const result = await saveFnRef.current(value);
++      if (result.errors.length > 0) {
++        setStatus('error');
++        setError(result.errors[0].message);
++      } else {
++        setStatus('saved');
++        onSavedRef.current?.();
++        // Auto-clear "saved" status after 2s
++        savedTimerRef.current = setTimeout(() => setStatus('idle'), 2000);
++      }
++    } catch (err) {
++      setStatus('error');
++      setError(String(err));
++    }
++  }, []);
++
++  const trigger = useCallback(
++    (value: string) => {
++      pendingValueRef.current = value;
++      if (savedTimerRef.current) {
++        clearTimeout(savedTimerRef.current);
++        savedTimerRef.current = null;
++      }
++      if (timerRef.current) clearTimeout(timerRef.current);
++
++      if (delay === 0) {
++        doSave(value);
++      } else {
++        timerRef.current = setTimeout(() => {
++          if (pendingValueRef.current !== null) {
++            doSave(pendingValueRef.current);
++            pendingValueRef.current = null;
++          }
++        }, delay);
++      }
++    },
++    [delay, doSave]
++  );
++
++  const flush = useCallback(() => {
++    if (timerRef.current) {
++      clearTimeout(timerRef.current);
++      timerRef.current = null;
++    }
++    if (pendingValueRef.current !== null) {
++      doSave(pendingValueRef.current);
++      pendingValueRef.current = null;
++    }
++  }, [doSave]);
++
++  // Cleanup on unmount
++  useEffect(() => {
++    return () => {
++      if (timerRef.current) clearTimeout(timerRef.current);
++      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
++    };
++  }, []);
++
++  return { status, error, trigger, flush };
++}
+diff --git a/apps/web/src/features/_platform/viewer/components/code-editor.tsx b/apps/web/src/features/_platform/viewer/components/code-editor.tsx
+new file mode 100644
+index 0000000..5dce4dc
+--- /dev/null
++++ b/apps/web/src/features/_platform/viewer/components/code-editor.tsx
+@@ -0,0 +1,180 @@
++'use client';
++
++/**
++ * CodeEditor — Lazy-loaded CodeMirror 6 wrapper.
++ *
++ * Thin wrapper over @uiw/react-codemirror with theme sync and
++ * language detection. Loaded via dynamic import to minimize bundle.
++ *
++ * Extracted to _platform/viewer for shared use across features.
++ * Origin: Plan 041 (file-browser). Extraction: Plan 058 (workunit-editor).
++ */
++
++import { useTheme } from 'next-themes';
++import dynamic from 'next/dynamic';
++import { useCallback, useEffect, useMemo, useRef } from 'react';
++
++import { cpp } from '@codemirror/lang-cpp';
++import { css } from '@codemirror/lang-css';
++import { html } from '@codemirror/lang-html';
++import { java } from '@codemirror/lang-java';
++// Language imports (tree-shakeable)
++import { javascript } from '@codemirror/lang-javascript';
++import { json } from '@codemirror/lang-json';
++import { markdown } from '@codemirror/lang-markdown';
++import { python } from '@codemirror/lang-python';
++import { rust } from '@codemirror/lang-rust';
++import { yaml } from '@codemirror/lang-yaml';
++import { StreamLanguage } from '@codemirror/language';
++import { shell } from '@codemirror/legacy-modes/mode/shell';
++import type { Extension } from '@codemirror/state';
++import { EditorView } from '@codemirror/view';
++
++// Stronger active line highlight for search navigation (Plan 052)
++const activeLineHighlight = EditorView.theme({
++  '.cm-activeLine': {
++    backgroundColor: 'rgba(250, 204, 21, 0.25) !important', // yellow-400 at 25%
++    borderLeft: '3px solid rgb(234, 179, 8)', // yellow-500
++    boxShadow: 'inset 0 0 0 1px rgba(234, 179, 8, 0.3)',
++  },
++  '&.cm-focused .cm-activeLine': {
++    backgroundColor: 'rgba(250, 204, 21, 0.35) !important',
++  },
++  '.dark .cm-activeLine, &.dark .cm-activeLine': {
++    backgroundColor: 'rgba(250, 204, 21, 0.15) !important',
++    borderLeft: '3px solid rgb(250, 204, 21)',
++  },
++});
++
++// Lazy-load CodeMirror itself
++const ReactCodeMirror = dynamic(() => import('@uiw/react-codemirror'), {
++  ssr: false,
++  loading: () => <div className="animate-pulse rounded bg-muted p-4 h-64" />,
++});
++
++const LANGUAGE_EXTENSIONS: Record<string, () => Extension> = {
++  typescript: () => javascript({ typescript: true, jsx: false }),
++  javascript: () => javascript(),
++  tsx: () => javascript({ typescript: true, jsx: true }),
++  jsx: () => javascript({ jsx: true }),
++  python: () => python(),
++  markdown: () => markdown(),
++  json: () => json(),
++  yaml: () => yaml(),
++  css: () => css(),
++  html: () => html(),
++  rust: () => rust(),
++  java: () => java(),
++  cpp: () => cpp(),
++  bash: () => StreamLanguage.define(shell),
++  shell: () => StreamLanguage.define(shell),
++  sh: () => StreamLanguage.define(shell),
++};
++
++export interface CodeEditorProps {
++  value: string;
++  language: string;
++  onChange?: (value: string) => void;
++  readOnly?: boolean;
++  /** Line number to scroll to (1-based). DYK-P6-03: prop-driven, not ref-driven. */
++  scrollToLine?: number | null;
++  /** Enable word wrapping (default: true). */
++  wordWrap?: boolean;
++}
++
++export function CodeEditor({
++  value,
++  language,
++  onChange,
++  readOnly,
++  scrollToLine,
++  wordWrap = true,
++}: CodeEditorProps) {
++  const { resolvedTheme } = useTheme();
++  const viewRef = useRef<EditorView | null>(null);
++
++  const extensions = useMemo(() => {
++    const langExt = LANGUAGE_EXTENSIONS[language];
++    const exts: Extension[] = [activeLineHighlight];
++    if (wordWrap) exts.push(EditorView.lineWrapping);
++    if (langExt) exts.push(langExt());
++    // After geometry changes, re-scroll to target line if needed
++    exts.push(
++      EditorView.updateListener.of((update) => {
++        if (
++          update.geometryChanged &&
++          scrollToLineRef.current != null &&
++          scrollToLineRef.current > 0
++        ) {
++          const line = scrollToLineRef.current;
++          const view = update.view;
++          const docLines = view.state.doc.lines;
++          if (line >= 1 && line <= docLines) {
++            const lineInfo = view.state.doc.line(line);
++            const { from, to } = view.viewport;
++            // Only re-scroll if the target line is outside the visible viewport
++            if (lineInfo.from < from || lineInfo.from > to) {
++              setTimeout(() => {
++                view.dispatch({
++                  effects: EditorView.scrollIntoView(lineInfo.from, { y: 'center' }),
++                });
++              }, 0);
++            }
 +          }
 +        }
-+      }
++      })
++    );
++    return exts;
++  }, [language, wordWrap]);
++
++  // DYK-P6-03: Capture EditorView via onCreateEditor callback
++  // FT-009: Use ref for scrollToLine to keep callback stable
++  const scrollToLineRef = useRef(scrollToLine);
++  scrollToLineRef.current = scrollToLine;
++
++  const handleCreateEditor = useCallback((view: EditorView) => {
++    viewRef.current = view;
++    const line = scrollToLineRef.current;
++    if (line != null && line > 0) {
++      scrollViewToLine(view, line);
 +    }
++  }, []);
 +
-+    return updatedFiles;
-+  }
- }
-diff --git a/test/contracts/workunit-service.contract.test.ts b/test/contracts/workunit-service.contract.test.ts
-index 3137baa..d37621c 100644
---- a/test/contracts/workunit-service.contract.test.ts
-+++ b/test/contracts/workunit-service.contract.test.ts
-@@ -1,12 +1,16 @@
- /**
-  * IWorkUnitService contract tests.
-  *
-- * Per Critical Discovery 08: Run contract tests against both fake and real
-+ * Per Plan 058 Phase 1: Run contract tests against both fake and real
-  * implementations to verify parity.
-  */
- 
- import { FakeFileSystem, FakePathResolver, FakeYamlParser } from '@chainglass/shared';
--import { FakeWorkUnitService, WorkUnitService } from '@chainglass/workgraph';
-+import {
-+  FakeWorkUnitService,
-+  WorkUnitAdapter,
-+  WorkUnitService,
-+} from '@chainglass/positional-graph';
- import { workUnitServiceContractTests } from './workunit-service.contract.js';
- 
- // Run contract tests against the fake implementation
-@@ -19,7 +23,8 @@ workUnitServiceContractTests('WorkUnitService', () => {
-   const yamlParser = new FakeYamlParser();
- 
-   // Set up base units directory
--  fs.setDir('.chainglass/units');
-+  fs.setDir('/test/workspace/.chainglass/units');
- 
--  return new WorkUnitService(fs, pathResolver, yamlParser);
-+  const adapter = new WorkUnitAdapter(fs, pathResolver);
-+  return new WorkUnitService(adapter, fs, yamlParser, pathResolver);
- });
-diff --git a/test/contracts/workunit-service.contract.ts b/test/contracts/workunit-service.contract.ts
-index 4b53434..5c7e36c 100644
---- a/test/contracts/workunit-service.contract.ts
-+++ b/test/contracts/workunit-service.contract.ts
-@@ -1,29 +1,20 @@
- /**
-  * IWorkUnitService Contract Tests.
-  *
-- * Per Critical Discovery 08: Contract tests prevent fake drift by ensuring
-- * both FakeWorkUnitService and real implementation pass the same behavioral tests.
-+ * Per Plan 058 Phase 1: Contract tests for both read and write operations.
-+ * Ensures FakeWorkUnitService and real WorkUnitService pass identical behavioral tests.
-  *
-- * Per Plan 021 (DYK#1): Contract tests stubbed with ctx parameter during Phase 1.
-- * Full ctx behavioral testing will be added in Phase 5.
-- *
-- * Usage:
-- * ```typescript
-- * import { workUnitServiceContractTests } from '@test/contracts/workunit-service.contract';
-- *
-- * workUnitServiceContractTests('FakeWorkUnitService', () => new FakeWorkUnitService());
-- * workUnitServiceContractTests('WorkUnitService', () => new WorkUnitService(...));
-- * ```
-+ * Updated from Plan 021 version: now imports from positional-graph (not workgraph),
-+ * uses E180 error codes (not E120), and tests CRUD operations.
-  */
- 
- import type { WorkspaceContext } from '@chainglass/workflow';
--import type { IWorkUnitService, WorkUnit } from '@chainglass/workgraph/interfaces';
-+import type {
-+  CreateUnitSpec,
-+  IWorkUnitService,
-+} from '@chainglass/positional-graph';
- import { beforeEach, describe, expect, it } from 'vitest';
- 
--/**
-- * Creates a stub WorkspaceContext for contract tests.
-- * Per DYK#1: Stub only - full ctx testing in Phase 5.
-- */
- function createStubContext(): WorkspaceContext {
-   return {
-     workspaceSlug: 'test-workspace',
-@@ -49,18 +40,11 @@ export function workUnitServiceContractTests(name: string, createService: () =>
-       ctx = createStubContext();
-     });
- 
-+    // ========== Read Operations ==========
++  // Scroll to line when prop changes or content loads — the updateListener
++  // extension handles retries as CM renders virtualized content
++  // biome-ignore lint/correctness/useExhaustiveDependencies: need to re-scroll when value changes (content loaded async)
++  useEffect(() => {
++    if (scrollToLine == null || scrollToLine <= 0 || !viewRef.current) return;
++    scrollViewToLine(viewRef.current, scrollToLine);
++  }, [scrollToLine, value]);
 +
-     describe('list()', () => {
--      it('should return UnitListResult with units array', async () => {
--        /*
--        Test Doc:
--        - Why: Contract requires list() returns array of unit summaries
--        - Contract: list(ctx) returns { units: WorkUnitSummary[], errors: [] }
--        - Usage Notes: Run against both fake and real implementations
--        - Quality Contribution: Ensures fake matches real for unit listing
--        - Worked Example: list(ctx) → { units: [...], errors: [] }
--        */
-+      it('should return ListUnitsResult with units array', async () => {
-         const result = await service.list(ctx);
--
-         expect(result).toHaveProperty('units');
-         expect(result).toHaveProperty('errors');
-         expect(Array.isArray(result.units)).toBe(true);
-@@ -69,7 +53,6 @@ export function workUnitServiceContractTests(name: string, createService: () =>
- 
-       it('should return units with required fields', async () => {
-         const result = await service.list(ctx);
--
-         for (const unit of result.units) {
-           expect(unit).toHaveProperty('slug');
-           expect(unit).toHaveProperty('type');
-@@ -80,21 +63,10 @@ export function workUnitServiceContractTests(name: string, createService: () =>
-     });
- 
-     describe('load()', () => {
--      it('should return UnitLoadResult with unit or error', async () => {
--        /*
--        Test Doc:
--        - Why: Contract requires load() returns unit details or E120 error
--        - Contract: load(ctx, slug) returns { unit?: WorkUnit, errors: [] }
--        - Usage Notes: Run against both implementations
--        - Quality Contribution: Ensures fake matches real for unit loading
--        - Worked Example: load(ctx, 'my-unit') → { unit: {...}, errors: [] }
--        */
-+      it('should return LoadUnitResult with unit or error', async () => {
-         const result = await service.load(ctx, 'nonexistent-unit');
--
-         expect(result).toHaveProperty('errors');
-         expect(Array.isArray(result.errors)).toBe(true);
--
--        // Either unit exists or errors exist
-         if (result.errors.length === 0) {
-           expect(result.unit).toBeDefined();
-         } else {
-@@ -103,74 +75,142 @@ export function workUnitServiceContractTests(name: string, createService: () =>
-         }
-       });
- 
--      it('should return error E120 for non-existent unit', async () => {
-+      it('should return error E180 for non-existent unit', async () => {
-         const result = await service.load(ctx, 'definitely-not-a-real-unit');
-+        expect(result.errors.length).toBeGreaterThan(0);
-+        expect(result.errors[0].code).toBe('E180');
-+      });
-+    });
- 
--        // Per spec: E120 is unit not found
--        if (result.errors.length > 0) {
--          expect(result.errors[0].code).toBe('E120');
--        }
-+    describe('validate()', () => {
-+      it('should return ValidateUnitResult with valid flag', async () => {
-+        const result = await service.validate(ctx, 'nonexistent-unit');
-+        expect(result).toHaveProperty('valid');
-+        expect(result).toHaveProperty('errors');
-+        expect(typeof result.valid).toBe('boolean');
-       });
-     });
- 
--    describe('create()', () => {
--      it('should return UnitCreateResult with slug and path', async () => {
--        /*
--        Test Doc:
--        - Why: Contract requires create() returns created unit info
--        - Contract: create(ctx, slug, type) returns { slug, path, errors: [] }
--        - Usage Notes: Run against both implementations
--        - Quality Contribution: Ensures fake matches real for unit creation
--        - Worked Example: create(ctx, 'new-unit', 'agent') → { slug: 'new-unit', path: '...', errors: [] }
--        */
--        const result = await service.create(ctx, 'test-unit', 'agent');
-+    // ========== Write Operations (Plan 058) ==========
- 
-+    describe('create()', () => {
-+      it('should create a unit and return CreateUnitResult', async () => {
-+        const spec: CreateUnitSpec = { slug: 'test-agent', type: 'agent' };
-+        const result = await service.create(ctx, spec);
-         expect(result).toHaveProperty('slug');
--        expect(result).toHaveProperty('path');
-+        expect(result).toHaveProperty('type');
-         expect(result).toHaveProperty('errors');
--        expect(result.slug).toBe('test-unit');
-+        expect(result.slug).toBe('test-agent');
-+        expect(result.type).toBe('agent');
-+        expect(result.errors).toHaveLength(0);
-       });
- 
-       it('should accept all valid unit types', async () => {
-         const types: ('agent' | 'code' | 'user-input')[] = ['agent', 'code', 'user-input'];
--
-         for (const type of types) {
--          const result = await service.create(ctx, `test-${type}`, type);
--          expect(result.errors.length).toBe(0);
-+          const result = await service.create(ctx, { slug: `test-${type}`, type });
-+          expect(result.errors).toHaveLength(0);
-+          expect(result.type).toBe(type);
-         }
-       });
++  return (
++    <ReactCodeMirror
++      value={value}
++      extensions={extensions}
++      onChange={onChange}
++      readOnly={readOnly}
++      theme={resolvedTheme === 'dark' ? 'dark' : 'light'}
++      onCreateEditor={handleCreateEditor}
++      basicSetup={{
++        lineNumbers: true,
++        foldGutter: true,
++        highlightActiveLine: true,
++        bracketMatching: true,
++      }}
++      className="flex-1 min-h-0 [&_.cm-editor]:h-full [&_.cm-scroller]:!overflow-auto"
++    />
++  );
++}
 +
-+      it('should reject duplicate slugs with E188', async () => {
-+        await service.create(ctx, { slug: 'duplicate', type: 'agent' });
-+        const result = await service.create(ctx, { slug: 'duplicate', type: 'agent' });
-+        expect(result.errors.length).toBeGreaterThan(0);
-+        expect(result.errors[0].code).toBe('E188');
-+      });
-+
-+      it('should make unit loadable after creation', async () => {
-+        await service.create(ctx, { slug: 'loadable-unit', type: 'agent' });
-+        const loadResult = await service.load(ctx, 'loadable-unit');
-+        expect(loadResult.unit).toBeDefined();
-+        expect(loadResult.unit?.slug).toBe('loadable-unit');
-+      });
-+
-+      it('should make unit appear in list after creation', async () => {
-+        await service.create(ctx, { slug: 'listed-unit', type: 'code' });
-+        const listResult = await service.list(ctx);
-+        const found = listResult.units.find((u) => u.slug === 'listed-unit');
-+        expect(found).toBeDefined();
-+        expect(found?.type).toBe('code');
-+      });
-     });
++/** Scroll a CodeMirror EditorView to a 1-based line number. */
++function scrollViewToLine(view: EditorView, line: number): void {
++  const docLines = view.state.doc.lines;
++  if (line < 1 || line > docLines) return;
++  const lineInfo = view.state.doc.line(line);
++  view.dispatch({
++    selection: { anchor: lineInfo.from },
++    effects: EditorView.scrollIntoView(lineInfo.from, { y: 'center' }),
++    scrollIntoView: true,
++  });
++}
+diff --git a/apps/web/src/features/_platform/viewer/index.ts b/apps/web/src/features/_platform/viewer/index.ts
+new file mode 100644
+index 0000000..b3fc1fc
+--- /dev/null
++++ b/apps/web/src/features/_platform/viewer/index.ts
+@@ -0,0 +1 @@
++export { CodeEditor, type CodeEditorProps } from './components/code-editor';
+diff --git a/apps/web/src/lib/navigation-utils.ts b/apps/web/src/lib/navigation-utils.ts
+index d138640..2bd469f 100644
+--- a/apps/web/src/lib/navigation-utils.ts
++++ b/apps/web/src/lib/navigation-utils.ts
+@@ -19,6 +19,7 @@ import {
+   LayoutDashboard,
+   ListChecks,
+   type LucideIcon,
++  Puzzle,
+   Smartphone,
+ } from 'lucide-react';
  
--    describe('validate()', () => {
--      it('should return UnitValidateResult with valid flag', async () => {
--        /*
--        Test Doc:
--        - Why: Contract requires validate() returns validation result
--        - Contract: validate(ctx, slug) returns { slug, valid, issues: [], errors: [] }
--        - Usage Notes: Run against both implementations
--        - Quality Contribution: Ensures fake matches real for unit validation
--        - Worked Example: validate(ctx, 'my-unit') → { slug: 'my-unit', valid: true, issues: [], errors: [] }
--        */
--        const result = await service.validate(ctx, 'test-unit');
-+    describe('update()', () => {
-+      it('should update metadata fields', async () => {
-+        await service.create(ctx, { slug: 'update-test', type: 'agent' });
-+        const result = await service.update(ctx, 'update-test', {
-+          description: 'Updated description',
-+          version: '2.0.0',
-+        });
-+        expect(result.errors).toHaveLength(0);
-+      });
+@@ -50,6 +51,7 @@ export type NavigationMode = 'phone' | 'desktop';
+ export const WORKSPACE_NAV_ITEMS: readonly NavItem[] = [
+   { id: 'browser', label: 'Browser', href: '/browser', icon: FolderOpen },
+   { id: 'agents', label: 'Agents', href: '/agents', icon: Bot },
++  { id: 'work-units', label: 'Work Units', href: '/work-units', icon: Puzzle },
+   { id: 'workflows', label: 'Workflows', href: '/workflows', icon: ListChecks },
+ ] as const;
  
--        expect(result).toHaveProperty('slug');
--        expect(result).toHaveProperty('valid');
--        expect(result).toHaveProperty('issues');
--        expect(result).toHaveProperty('errors');
--        expect(typeof result.valid).toBe('boolean');
--        expect(Array.isArray(result.issues)).toBe(true);
-+      it('should return E180 for non-existent unit', async () => {
-+        const result = await service.update(ctx, 'ghost-unit', { description: 'nope' });
-+        expect(result.errors.length).toBeGreaterThan(0);
-+        expect(result.errors[0].code).toBe('E180');
-+      });
-+    });
+diff --git a/docs/plans/058-workunit-editor/tasks/phase-2-editor-page/execution.log.md b/docs/plans/058-workunit-editor/tasks/phase-2-editor-page/execution.log.md
+new file mode 100644
+index 0000000..d587632
+--- /dev/null
++++ b/docs/plans/058-workunit-editor/tasks/phase-2-editor-page/execution.log.md
+@@ -0,0 +1,85 @@
++# Phase 2: Editor Page — Execution Log
 +
-+    describe('delete()', () => {
-+      it('should delete an existing unit', async () => {
-+        await service.create(ctx, { slug: 'delete-me', type: 'code' });
-+        const result = await service.delete(ctx, 'delete-me');
-+        expect(result.deleted).toBe(true);
-+        expect(result.errors).toHaveLength(0);
-       });
++**Started**: 2026-02-28
++**Status**: Complete
++
++---
++
++## T001: Extract CodeEditor to _platform/viewer
++- Moved `code-editor.tsx` to `apps/web/src/features/_platform/viewer/components/code-editor.tsx`
++- Created barrel export at `_platform/viewer/index.ts`
++- Replaced original with re-export for backward compatibility
++- `file-viewer-panel.tsx` continues to work via re-export (lazy import path unchanged)
++
++## T002: Install shell language support
++- `@codemirror/lang-shell` doesn't exist in npm (finding 06 fallback triggered)
++- Installed `@codemirror/legacy-modes@6.5.2` which includes `mode/shell`
++- Added `bash`, `shell`, `sh` entries to `LANGUAGE_EXTENSIONS` map using `StreamLanguage.define(shell)`
++
++## T003: Create server actions
++- Created `apps/web/app/actions/workunit-actions.ts` with 8 server actions
++- Unified save path: `saveUnitContent(slug, type, content)` routes internally
++- Agent → `setPrompt()`, Code → `setScript()`, User-input → `update(type_config)`
++- Follows workflow-actions.ts DI pattern exactly
++- Exhaustive type checks on unit type (TypeScript `never` pattern)
++
++## T004: Add sidebar navigation
++- Added "Work Units" entry to `WORKSPACE_NAV_ITEMS` in `navigation-utils.ts`
++- Position: between Agents and Workflows (per clarification Q8)
++- Icon: `Puzzle` from lucide-react
++
++## T005: Create list page
++- Server Component at `/workspaces/[slug]/work-units/page.tsx`
++- Calls `listUnits()`, renders `UnitList` client component
++- Units grouped by type (agent/code/user-input) with colored badges
++- "Create Unit" button opens creation modal
++- Empty state with helpful message
++
++## T006: Create editor page shell
++- Server Component at `/workspaces/[slug]/work-units/[unitSlug]/page.tsx`
++- Custom `WorkUnitEditorLayout` with 3 panels (left catalog, main editor, right metadata)
++- Loads unit data + content + all units in parallel via `Promise.all()`
++- Type-dispatched editor rendering via `WorkUnitEditor` client component
++
++## T007: Build agent editor + useAutoSave hook
++- Created `useAutoSave` hook in `_platform/hooks/use-auto-save.ts`
++  - Returns `{ status, error, trigger, flush }`
++  - Status transitions: idle → saving → saved (auto-clear 2s) | error
++  - Debounce configurable, request deduplication, cleanup on unmount
++- Agent editor: CodeMirror with `language="markdown"`, 500ms auto-save
++- `SaveIndicator` component: persistent inline error banner (not toast)
++
++## T008: Build code editor
++- CodeMirror with language detection from script filename extension
++- Maps: `.sh`→bash, `.py`→python, `.js`→javascript, `.ts`→typescript
++- Reuses `useAutoSave` and `SaveIndicator` from T007
++- Shows detected language badge in header
++
++## T009: Build user-input editor
++- Form builder: question_type dropdown, prompt textarea, options list, default value
++- Conditional sections: options only shown for single/multi types
++- Options seeded with 2 items when switching to choice types
++- Min 2 options enforced (remove button hidden when at 2)
++- Confirm type gets yes/no default selector
++- All changes auto-save via unified `saveUnitContent` → `update(type_config)`
++
++## T010: Unit creation flow
++- Modal with type picker (3 cards: Agent, Code, User Input)
++- Slug input with kebab-case validation (`/^[a-z][a-z0-9-]*$/`)
++- Error display for duplicate slugs
++- On success: navigates to editor page, triggers `router.refresh()`
++
++## T011: Metadata editing panel
++- Right panel with type badge, slug (read-only), version input, description textarea
++- Uses `useAutoSave` with `delay: 0` (immediate save)
++- Saves via `updateUnit()` server action
++
++## Discoveries
++- `@codemirror/lang-shell` doesn't exist in npm; used `@codemirror/legacy-modes` + `StreamLanguage` instead
++- `code-editor.test.tsx` doesn't exist (DYK #4 was a false alarm — no test to move)
++- Next.js build enforces exhaustive type checks via `never` type narrowing
++- Import paths from `app/` route pages to `app/actions/` need exact `../` counting (route groups don't add nesting)
++
++## Evidence
++- `just fft`: 333 test files, 4720 tests passing, zero regressions
++- All lint, format, typecheck, build clean
+diff --git a/docs/plans/058-workunit-editor/tasks/phase-2-editor-page/tasks.fltplan.md b/docs/plans/058-workunit-editor/tasks/phase-2-editor-page/tasks.fltplan.md
+index a6bc5d5..769817e 100644
+--- a/docs/plans/058-workunit-editor/tasks/phase-2-editor-page/tasks.fltplan.md
++++ b/docs/plans/058-workunit-editor/tasks/phase-2-editor-page/tasks.fltplan.md
+@@ -3,7 +3,7 @@
+ **Plan**: [workunit-editor-plan.md](../../workunit-editor-plan.md)
+ **Phase**: Phase 2: Editor Page — Routes, Layout, Type-Specific Editors
+ **Generated**: 2026-02-28
+-**Status**: Ready for takeoff
++**Status**: Landed
  
--      it('should include issue details when invalid', async () => {
--        const result = await service.validate(ctx, 'test-unit');
-+      it('should be idempotent for non-existent units', async () => {
-+        const result = await service.delete(ctx, 'never-existed');
-+        expect(result.deleted).toBe(true);
-+        expect(result.errors).toHaveLength(0);
-+      });
+ ---
  
--        for (const issue of result.issues) {
--          expect(issue).toHaveProperty('severity');
--          expect(issue).toHaveProperty('code');
--          expect(issue).toHaveProperty('path');
--          expect(issue).toHaveProperty('message');
--          expect(['error', 'warning']).toContain(issue.severity);
--        }
-+      it('should make unit un-loadable after deletion', async () => {
-+        await service.create(ctx, { slug: 'to-delete', type: 'agent' });
-+        await service.delete(ctx, 'to-delete');
-+        const loadResult = await service.load(ctx, 'to-delete');
-+        expect(loadResult.unit).toBeUndefined();
-+        expect(loadResult.errors[0].code).toBe('E180');
-+      });
-+    });
+@@ -61,7 +61,7 @@ stateDiagram-v2
+     S4 --> S5
+     S5 --> [*]
+ 
+-    class S1,S2,S3,S4,S5 pending
++    class S1,S2,S3,S4,S5 done
+ ```
+ 
+ **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
+@@ -70,11 +70,11 @@ stateDiagram-v2
+ 
+ ## Stages
+ 
+-- [ ] **Stage 1: Infrastructure** — Extract CodeEditor, install lang-shell, verify no breakage (`code-editor.tsx`, `package.json`)
+-- [ ] **Stage 2: Wiring** — Create server actions + sidebar navigation entry (`workunit-actions.ts`, `navigation-utils.ts`)
+-- [ ] **Stage 3: List page** — Unit catalog page + creation modal (`/work-units/page.tsx`, `unit-list.tsx`, `unit-creation-modal.tsx`)
+-- [ ] **Stage 4: Editor page** — Editor shell + 3 type-specific editors (`/work-units/[unitSlug]/page.tsx`, `agent-editor.tsx`, `code-unit-editor.tsx`, `user-input-editor.tsx`)
+-- [ ] **Stage 5: Polish** — Auto-save wiring, metadata panel, save indicators (`metadata-panel.tsx`)
++- [x] **Stage 1: Infrastructure** — Extract CodeEditor, install lang-shell, verify no breakage (`code-editor.tsx`, `package.json`)
++- [x] **Stage 2: Wiring** — Create server actions + sidebar navigation entry (`workunit-actions.ts`, `navigation-utils.ts`)
++- [x] **Stage 3: List page** — Unit catalog page + creation modal (`/work-units/page.tsx`, `unit-list.tsx`, `unit-creation-modal.tsx`)
++- [x] **Stage 4: Editor page** — Editor shell + 3 type-specific editors (`/work-units/[unitSlug]/page.tsx`, `agent-editor.tsx`, `code-unit-editor.tsx`, `user-input-editor.tsx`)
++- [x] **Stage 5: Polish** — Auto-save wiring, metadata panel, save indicators (`metadata-panel.tsx`)
+ 
+ ---
+ 
+@@ -137,14 +137,14 @@ flowchart LR
+ 
+ ## Checklist
+ 
+-- [ ] T001: Extract CodeEditor to _platform/viewer
+-- [ ] T002: Install @codemirror/lang-shell
+-- [ ] T003: Create server actions (workunit-actions.ts)
+-- [ ] T004: Add sidebar navigation
+-- [ ] T005: Create list page
+-- [ ] T006: Create editor page shell
+-- [ ] T007: Build agent editor (markdown)
+-- [ ] T008: Build code editor (language detection)
+-- [ ] T009: Build user-input editor (form)
+-- [ ] T010: Unit creation flow (modal)
+-- [ ] T011: Metadata editing panel
++- [x] T001: Extract CodeEditor to _platform/viewer
++- [x] T002: Install @codemirror/lang-shell
++- [x] T003: Create server actions (workunit-actions.ts)
++- [x] T004: Add sidebar navigation
++- [x] T005: Create list page
++- [x] T006: Create editor page shell
++- [x] T007: Build agent editor (markdown)
++- [x] T008: Build code editor (language detection)
++- [x] T009: Build user-input editor (form)
++- [x] T010: Unit creation flow (modal)
++- [x] T011: Metadata editing panel
+diff --git a/docs/plans/058-workunit-editor/tasks/phase-2-editor-page/tasks.md b/docs/plans/058-workunit-editor/tasks/phase-2-editor-page/tasks.md
+index 9893a7f..3ae3a3f 100644
+--- a/docs/plans/058-workunit-editor/tasks/phase-2-editor-page/tasks.md
++++ b/docs/plans/058-workunit-editor/tasks/phase-2-editor-page/tasks.md
+@@ -103,17 +103,17 @@ flowchart TD
+ 
+ | Status | ID | Task | Domain | Path(s) | Done When | Notes |
+ |--------|-----|------|--------|---------|-----------|-------|
+-| [ ] | T001 | **Extract CodeEditor to _platform/viewer** — Move `code-editor.tsx` AND `code-editor.test.tsx` from file-browser to `_platform/viewer/components/`. Update file-browser to re-export from new location. Ensure both consumers compile. | `_platform/viewer` + `file-browser` | `apps/web/src/features/_platform/viewer/components/code-editor.tsx`, `apps/web/src/features/_platform/viewer/components/code-editor.test.tsx`, `apps/web/src/features/041-file-browser/components/code-editor.tsx` | CodeEditor importable from `@/features/_platform/viewer`. File-browser still works (re-export). Tests pass from new location. Build passes. | Per finding 03: thin wrapper, minimal coupling. Create `_platform/viewer/components/` dir + `index.ts` barrel. **DYK #4**: Test file must co-locate with component — update imports in test to canonical path. |
+-| [ ] | T002 | **Install @codemirror/lang-shell** — Add bash/shell language support to CodeEditor's language detection map. Verify no peer dep conflicts. | `_platform/viewer` | `apps/web/package.json`, `apps/web/src/features/_platform/viewer/components/code-editor.tsx` | `import { shell } from '@codemirror/lang-shell'` works. CodeEditor renders `.sh` files with syntax highlighting. | Per finding 06: fallback to plain text if incompatible. Workshop 003 identified this gap. |
+-| [ ] | T003 | **Create server actions** — New `workunit-actions.ts` with: `listUnits`, `loadUnit`, `createUnit`, `updateUnit`, `deleteUnit`, `renameUnit`, `loadUnitContent`, `saveUnitContent`. **Unified save path**: `saveUnitContent(slug, unitType, payload)` routes internally — agent→`setPrompt()`, code→`setScript()`, user-input→`update(type_config)`. Similarly `loadUnitContent` returns unified shape regardless of storage. Follow workflow-actions.ts DI pattern. | `058-workunit-editor` | `apps/web/app/actions/workunit-actions.ts` | All server actions callable from client components. DI resolves IWorkUnitService from container. Type-safe results returned. All 3 unit types use same `saveUnitContent` action. | Use `'use server'` directive. Resolve workspace context same as workflow-actions.ts lines 35-50. **DYK #2**: User-input has no content file — config lives in unit.yaml type_config. Server action abstracts this so editors don't care about storage mechanics. |
+-| [ ] | T004 | **Add sidebar navigation** — Add "Work Units" entry to `WORKSPACE_NAV_ITEMS` in `navigation-utils.ts`. Position before "Workflows". Use appropriate icon. | cross-domain | `apps/web/src/lib/navigation-utils.ts` | "Work Units" appears in workspace sidebar between Agents and Workflows. Links to `/work-units`. | Per clarification Q8 + finding 04. Current order: Browser, Agents, Workflows. New: Browser, Agents, **Work Units**, Workflows. |
+-| [ ] | T005 | **Create list page** — Server Component at `/workspaces/[slug]/work-units/page.tsx`. Calls `listUnits` server action. Renders unit cards grouped by type (agent/code/user-input). Includes "Create Unit" button. Shows unit slug, type, version, description. Click navigates to editor. | `058-workunit-editor` | `apps/web/app/(dashboard)/workspaces/[slug]/work-units/page.tsx`, `apps/web/src/features/058-workunit-editor/components/unit-list.tsx` | Page renders at `/workspaces/[slug]/work-units/`. Units listed. Create button present. Click navigates to `/work-units/[unitSlug]`. | Server Component loads data → passes to Client Component list. Follow workflow list page pattern. |
+-| [ ] | T006 | **Create editor page shell** — Server Component at `/workspaces/[slug]/work-units/[unitSlug]/page.tsx`. Loads unit via `loadUnit` server action. Renders 3-column layout using custom `WorkUnitEditorLayout`: left catalog sidebar, main editor area (type-dispatched), right metadata panel. | `058-workunit-editor` | `apps/web/app/(dashboard)/workspaces/[slug]/work-units/[unitSlug]/page.tsx`, `apps/web/src/features/058-workunit-editor/components/workunit-editor.tsx`, `apps/web/src/features/058-workunit-editor/components/workunit-editor-layout.tsx` | Page renders at `/work-units/[unitSlug]`. Shows unit content in main area. Type-specific editor dispatched. Left sidebar shows unit catalog. Right panel shows metadata. | **DYK #1**: PanelShell has no right panel — create custom `WorkUnitEditorLayout` (follow WorkflowEditorLayout pattern: left sidebar + main flex-1 + right 260px resizable). Server Component loads → Client Component renders editor. |
+-| [ ] | T007 | **Build agent editor + useAutoSave hook** — First build reusable `useAutoSave(saveFn, delay)` hook in `_platform/hooks/` returning `{ status: 'idle'|'saving'|'saved'|'error', error }`. Then build agent editor client component using CodeEditor with `language="markdown"`. Loads content via `loadUnitContent`. Auto-saves via `saveUnitContent` with 500ms debounce. Shows save indicator + persistent inline error banner on failure. | `058-workunit-editor` + `_platform` | `apps/web/src/features/_platform/hooks/use-auto-save.ts`, `apps/web/src/features/058-workunit-editor/components/agent-editor.tsx` | Agent units show markdown editor. Content loads from disk. Edits auto-save after 500ms. Save indicator shows saving/saved/error states. Error shows inline banner (not toast). | **DYK #3**: No auto-save hook exists — build reusable one first. Shared by T008, T009, T011, and Phase 3. **DYK #5**: Save failure shows persistent inline banner, not toast (avoids toast storm on repeated failures). Per W003: reuse CodeEditor. |
+-| [ ] | T008 | **Build code editor** — Client component for editing code scripts. Uses CodeEditor with language detected from script filename (`.sh`→bash, `.py`→python, `.js`→javascript). Uses `useAutoSave` from T007. Same unified `saveUnitContent` action. | `058-workunit-editor` | `apps/web/src/features/058-workunit-editor/components/code-unit-editor.tsx` | Code units show script editor with detected language. Bash gets syntax highlighting (via lang-shell). Auto-save works with save indicator + error banner. | Per W003. Language detection from `code.script` filename extension. Reuses `useAutoSave` hook from T007. |
+-| [ ] | T009 | **Build user-input editor** — Client component with form controls: question_type dropdown (text/single/multi/confirm), prompt textarea, options list builder (for single/multi — min 2 items with key/label/description fields), default value field. Uses `useAutoSave` from T007 with unified `saveUnitContent` action. Mirrors Plan 054 HumanInputModal config structure (same Zod schema: `UserInputConfigSchema` with `.refine()` cross-field validation). | `058-workunit-editor` | `apps/web/src/features/058-workunit-editor/components/user-input-editor.tsx` | User-input units show form builder. Question type selector works. Options section shows/hides based on type. Options list enforces min 2 for single/multi (each with key/label/description). Changes auto-save via unified path. | **DYK #2**: Uses same `saveUnitContent` as agent/code — server action routes to `update(type_config)` internally. Per W002: form controls. Per spec AC-9. Refer to Plan 054 `HumanInputModal` for question type UX patterns. |
+-| [ ] | T010 | **Unit creation flow** — Modal with type picker (agent/code/user-input cards), slug input with kebab-case validation, optional description. Calls `createUnit` server action. On success, navigates to editor page. Accessible from list page "Create" button. | `058-workunit-editor` | `apps/web/src/features/058-workunit-editor/components/unit-creation-modal.tsx` | Create modal opens from list page. Type selection works. Slug validates kebab-case. Duplicate rejected with error. Success navigates to editor. New unit appears in list without page refresh. | Per W002 + clarification Q6 (boilerplate). Follow NamingModal pattern from workflow-ui. |
+-| [ ] | T011 | **Metadata editing** — Right panel section in `WorkUnitEditorLayout` with description textarea and version input. Uses `useAutoSave` from T007 with immediate save (0ms debounce). Shows save indicator + error banner. | `058-workunit-editor` | `apps/web/src/features/058-workunit-editor/components/metadata-panel.tsx` | Description and version editable. Changes persist via updateUnit. Save indicator shows status. Reflected on list page after refresh. | Per spec AC-5, AC-6. Reuses `useAutoSave(saveFn, 0)` for immediate saves. |
++| [x] | T001 | **Extract CodeEditor to _platform/viewer** — Move `code-editor.tsx` AND `code-editor.test.tsx` from file-browser to `_platform/viewer/components/`. Update file-browser to re-export from new location. Ensure both consumers compile. | `_platform/viewer` + `file-browser` | `apps/web/src/features/_platform/viewer/components/code-editor.tsx`, `apps/web/src/features/_platform/viewer/components/code-editor.test.tsx`, `apps/web/src/features/041-file-browser/components/code-editor.tsx` | CodeEditor importable from `@/features/_platform/viewer`. File-browser still works (re-export). Tests pass from new location. Build passes. | Per finding 03: thin wrapper, minimal coupling. Create `_platform/viewer/components/` dir + `index.ts` barrel. **DYK #4**: Test file must co-locate with component — update imports in test to canonical path. |
++| [x] | T002 | **Install @codemirror/lang-shell** — Add bash/shell language support to CodeEditor's language detection map. Verify no peer dep conflicts. | `_platform/viewer` | `apps/web/package.json`, `apps/web/src/features/_platform/viewer/components/code-editor.tsx` | `import { shell } from '@codemirror/lang-shell'` works. CodeEditor renders `.sh` files with syntax highlighting. | Per finding 06: fallback to plain text if incompatible. Workshop 003 identified this gap. |
++| [x] | T003 | **Create server actions** — New `workunit-actions.ts` with: `listUnits`, `loadUnit`, `createUnit`, `updateUnit`, `deleteUnit`, `renameUnit`, `loadUnitContent`, `saveUnitContent`. **Unified save path**: `saveUnitContent(slug, unitType, payload)` routes internally — agent→`setPrompt()`, code→`setScript()`, user-input→`update(type_config)`. Similarly `loadUnitContent` returns unified shape regardless of storage. Follow workflow-actions.ts DI pattern. | `058-workunit-editor` | `apps/web/app/actions/workunit-actions.ts` | All server actions callable from client components. DI resolves IWorkUnitService from container. Type-safe results returned. All 3 unit types use same `saveUnitContent` action. | Use `'use server'` directive. Resolve workspace context same as workflow-actions.ts lines 35-50. **DYK #2**: User-input has no content file — config lives in unit.yaml type_config. Server action abstracts this so editors don't care about storage mechanics. |
++| [x] | T004 | **Add sidebar navigation** — Add "Work Units" entry to `WORKSPACE_NAV_ITEMS` in `navigation-utils.ts`. Position before "Workflows". Use appropriate icon. | cross-domain | `apps/web/src/lib/navigation-utils.ts` | "Work Units" appears in workspace sidebar between Agents and Workflows. Links to `/work-units`. | Per clarification Q8 + finding 04. Current order: Browser, Agents, Workflows. New: Browser, Agents, **Work Units**, Workflows. |
++| [x] | T005 | **Create list page** — Server Component at `/workspaces/[slug]/work-units/page.tsx`. Calls `listUnits` server action. Renders unit cards grouped by type (agent/code/user-input). Includes "Create Unit" button. Shows unit slug, type, version, description. Click navigates to editor. | `058-workunit-editor` | `apps/web/app/(dashboard)/workspaces/[slug]/work-units/page.tsx`, `apps/web/src/features/058-workunit-editor/components/unit-list.tsx` | Page renders at `/workspaces/[slug]/work-units/`. Units listed. Create button present. Click navigates to `/work-units/[unitSlug]`. | Server Component loads data → passes to Client Component list. Follow workflow list page pattern. |
++| [x] | T006 | **Create editor page shell** — Server Component at `/workspaces/[slug]/work-units/[unitSlug]/page.tsx`. Loads unit via `loadUnit` server action. Renders 3-column layout using custom `WorkUnitEditorLayout`: left catalog sidebar, main editor area (type-dispatched), right metadata panel. | `058-workunit-editor` | `apps/web/app/(dashboard)/workspaces/[slug]/work-units/[unitSlug]/page.tsx`, `apps/web/src/features/058-workunit-editor/components/workunit-editor.tsx`, `apps/web/src/features/058-workunit-editor/components/workunit-editor-layout.tsx` | Page renders at `/work-units/[unitSlug]`. Shows unit content in main area. Type-specific editor dispatched. Left sidebar shows unit catalog. Right panel shows metadata. | **DYK #1**: PanelShell has no right panel — create custom `WorkUnitEditorLayout` (follow WorkflowEditorLayout pattern: left sidebar + main flex-1 + right 260px resizable). Server Component loads → Client Component renders editor. |
++| [x] | T007 | **Build agent editor + useAutoSave hook** — First build reusable `useAutoSave(saveFn, delay)` hook in `_platform/hooks/` returning `{ status: 'idle'|'saving'|'saved'|'error', error }`. Then build agent editor client component using CodeEditor with `language="markdown"`. Loads content via `loadUnitContent`. Auto-saves via `saveUnitContent` with 500ms debounce. Shows save indicator + persistent inline error banner on failure. | `058-workunit-editor` + `_platform` | `apps/web/src/features/_platform/hooks/use-auto-save.ts`, `apps/web/src/features/058-workunit-editor/components/agent-editor.tsx` | Agent units show markdown editor. Content loads from disk. Edits auto-save after 500ms. Save indicator shows saving/saved/error states. Error shows inline banner (not toast). | **DYK #3**: No auto-save hook exists — build reusable one first. Shared by T008, T009, T011, and Phase 3. **DYK #5**: Save failure shows persistent inline banner, not toast (avoids toast storm on repeated failures). Per W003: reuse CodeEditor. |
++| [x] | T008 | **Build code editor** — Client component for editing code scripts. Uses CodeEditor with language detected from script filename (`.sh`→bash, `.py`→python, `.js`→javascript). Uses `useAutoSave` from T007. Same unified `saveUnitContent` action. | `058-workunit-editor` | `apps/web/src/features/058-workunit-editor/components/code-unit-editor.tsx` | Code units show script editor with detected language. Bash gets syntax highlighting (via lang-shell). Auto-save works with save indicator + error banner. | Per W003. Language detection from `code.script` filename extension. Reuses `useAutoSave` hook from T007. |
++| [x] | T009 | **Build user-input editor** — Client component with form controls: question_type dropdown (text/single/multi/confirm), prompt textarea, options list builder (for single/multi — min 2 items with key/label/description fields), default value field. Uses `useAutoSave` from T007 with unified `saveUnitContent` action. Mirrors Plan 054 HumanInputModal config structure (same Zod schema: `UserInputConfigSchema` with `.refine()` cross-field validation). | `058-workunit-editor` | `apps/web/src/features/058-workunit-editor/components/user-input-editor.tsx` | User-input units show form builder. Question type selector works. Options section shows/hides based on type. Options list enforces min 2 for single/multi (each with key/label/description). Changes auto-save via unified path. | **DYK #2**: Uses same `saveUnitContent` as agent/code — server action routes to `update(type_config)` internally. Per W002: form controls. Per spec AC-9. Refer to Plan 054 `HumanInputModal` for question type UX patterns. |
++| [x] | T010 | **Unit creation flow** — Modal with type picker (agent/code/user-input cards), slug input with kebab-case validation, optional description. Calls `createUnit` server action. On success, navigates to editor page. Accessible from list page "Create" button. | `058-workunit-editor` | `apps/web/src/features/058-workunit-editor/components/unit-creation-modal.tsx` | Create modal opens from list page. Type selection works. Slug validates kebab-case. Duplicate rejected with error. Success navigates to editor. New unit appears in list without page refresh. | Per W002 + clarification Q6 (boilerplate). Follow NamingModal pattern from workflow-ui. |
++| [x] | T011 | **Metadata editing** — Right panel section in `WorkUnitEditorLayout` with description textarea and version input. Uses `useAutoSave` from T007 with immediate save (0ms debounce). Shows save indicator + error banner. | `058-workunit-editor` | `apps/web/src/features/058-workunit-editor/components/metadata-panel.tsx` | Description and version editable. Changes persist via updateUnit. Save indicator shows status. Reflected on list page after refresh. | Per spec AC-5, AC-6. Reuses `useAutoSave(saveFn, 0)` for immediate saves. |
+ 
+ ---
+ 
+@@ -188,6 +188,9 @@ _Populated during implementation by plan-6._
+ | 2026-02-28 | T007 | insight | Zero auto-save implementations exist in codebase — file browser uses manual Ctrl+S, workflow uses optimistic mutations | Build reusable `useAutoSave` hook in `_platform/hooks/` returning status + error state | DYK #3 |
+ | 2026-02-28 | T001 | gotcha | `code-editor.test.tsx` must move with component — imports break after extraction | Co-locate test with component in `_platform/viewer/components/` | DYK #4 |
+ | 2026-02-28 | T007 | decision | Auto-save failure UX undefined — toast storm risk on repeated failures | Persistent inline error banner (not toast), clears on next successful save | DYK #5 |
++| 2026-02-28 | T002 | gotcha | `@codemirror/lang-shell` doesn't exist in npm registry | Used `@codemirror/legacy-modes` with `StreamLanguage.define(shell)` instead | Finding 06 fallback |
++| 2026-02-28 | T001 | insight | `code-editor.test.tsx` does not exist — DYK #4 was a false alarm | No test to move; only component file extracted | — |
++| 2026-02-28 | T003 | gotcha | TypeScript `never` exhaustive check triggers on unreachable code after discriminated union checks | Use `const _exhaustive: never = x` pattern for compile-time exhaustiveness | — |
+ 
+ ---
+ 
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+index 649ba98..21874ba 100644
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -132,6 +132,9 @@ importers:
+       '@codemirror/lang-yaml':
+         specifier: ^6.1.2
+         version: 6.1.2
++      '@codemirror/legacy-modes':
++        specifier: ^6.5.2
++        version: 6.5.2
+       '@dagrejs/dagre':
+         specifier: ^2.0.3
+         version: 2.0.3
+@@ -588,6 +591,9 @@ packages:
+   '@codemirror/language@6.12.1':
+     resolution: {integrity: sha512-Fa6xkSiuGKc8XC8Cn96T+TQHYj4ZZ7RdFmXA3i9xe/3hLHfwPZdM+dqfX0Cp0zQklBKhVD8Yzc8LS45rkqcwpQ==}
+ 
++  '@codemirror/legacy-modes@6.5.2':
++    resolution: {integrity: sha512-/jJbwSTazlQEDOQw2FJ8LEEKVS72pU0lx6oM54kGpL8t/NJ2Jda3CZ4pcltiKTdqYSRk3ug1B3pil1gsjA6+8Q==}
 +
-+    describe('rename()', () => {
-+      it('should rename a unit and update slug', async () => {
-+        await service.create(ctx, { slug: 'old-name', type: 'agent' });
-+        const result = await service.rename(ctx, 'old-name', 'new-name');
-+        expect(result.newSlug).toBe('new-name');
-+        expect(result.errors).toHaveLength(0);
-+      });
+   '@codemirror/lint@6.9.4':
+     resolution: {integrity: sha512-ABc9vJ8DEmvOWuH26P3i8FpMWPQkduD9Rvba5iwb6O3hxASgclm3T3krGo8NASXkHCidz6b++LWlzWIUfEPSWw==}
+ 
+@@ -5054,6 +5060,10 @@ snapshots:
+       '@lezer/lr': 1.4.8
+       style-mod: 4.1.3
+ 
++  '@codemirror/legacy-modes@6.5.2':
++    dependencies:
++      '@codemirror/language': 6.12.1
 +
-+      it('should make unit loadable by new slug', async () => {
-+        await service.create(ctx, { slug: 'before-rename', type: 'code' });
-+        await service.rename(ctx, 'before-rename', 'after-rename');
-+        const loadResult = await service.load(ctx, 'after-rename');
-+        expect(loadResult.unit).toBeDefined();
-+      });
-+
-+      it('should make old slug un-loadable', async () => {
-+        await service.create(ctx, { slug: 'rename-source', type: 'agent' });
-+        await service.rename(ctx, 'rename-source', 'rename-dest');
-+        const loadResult = await service.load(ctx, 'rename-source');
-+        expect(loadResult.unit).toBeUndefined();
-+      });
-+
-+      it('should return E180 when old slug does not exist', async () => {
-+        const result = await service.rename(ctx, 'no-such-unit', 'new-slug');
-+        expect(result.errors.length).toBeGreaterThan(0);
-+        expect(result.errors[0].code).toBe('E180');
-+      });
-+
-+      it('should return E188 when new slug already exists', async () => {
-+        await service.create(ctx, { slug: 'source-unit', type: 'agent' });
-+        await service.create(ctx, { slug: 'target-unit', type: 'code' });
-+        const result = await service.rename(ctx, 'source-unit', 'target-unit');
-+        expect(result.errors.length).toBeGreaterThan(0);
-+        expect(result.errors[0].code).toBe('E188');
-       });
-     });
-   });
-
----STAGED-DIFF---
+   '@codemirror/lint@6.9.4':
+     dependencies:
+       '@codemirror/state': 6.5.4

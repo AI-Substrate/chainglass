@@ -15,6 +15,7 @@
 | Workflow UI | workflow-ui | business | — | Plan 050 | active |
 | State | _platform/state | infrastructure | _platform | Plan 053 — GlobalStateSystem | active |
 | Dev Tools | _platform/dev-tools | infrastructure | _platform | Plan 056 — State DevTools Panel | active |
+| Work Unit Editor | 058-workunit-editor | business | — | Plan 058 | active |
 
 ## Domain Types
 

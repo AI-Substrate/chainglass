@@ -22,8 +22,9 @@ flowchart LR
     devTools["🛠️ _platform/dev-tools<br/>StateInspector<br/>useStateInspector<br/>useStateChangeLog"]:::infra
 
     %% Business domains
-    fileBrowser["📁 file-browser<br/>Browser page · FileTree<br/>CodeEditor · FileViewerPanel<br/>WorkspaceContext · Settings"]:::business
+    fileBrowser["📁 file-browser<br/>Browser page · FileTree<br/>CodeEditor re-export<br/>FileViewerPanel<br/>WorkspaceContext · Settings"]:::business
     workflowUI["🔀 workflow-ui<br/>Workflow editor · Canvas<br/>Toolbox · Properties<br/>Doping system"]:::business
+    workunitEditor["✏️ 058-workunit-editor<br/>Unit list page · Editor page<br/>Agent/Code/Input editors<br/>Creation modal · Auto-save"]:::business
 
     %% Contract dependencies (consumer → provider)
     fileBrowser -->|"IFileSystem<br/>IPathResolver"| fileOps
@@ -59,6 +60,11 @@ flowchart LR
 
     %% Dev tools dependencies
     devTools -->|"IStateService<br/>StateChangeLog<br/>useStateSystem"| state
+
+    %% Work Unit Editor dependencies
+    workunitEditor -->|"IWorkUnitService<br/>(CRUD)"| posGraph
+    workunitEditor -->|"CodeEditor"| viewer
+    workunitEditor -->|"workspaceHref"| wsUrl
 ```
 
 ## Legend
@@ -86,3 +92,4 @@ flowchart LR
 | _platform/state | IStateService, useGlobalState, useGlobalStateList, GlobalStateProvider, StateChangeLog, FakeGlobalStateSystem | positional-graph (publish), workflow-ui, panel-layout, file-browser (subscribe), dev-tools | useSSE | events | ✅ |
 | workflow-ui | _(none — leaf consumer)_ | — | IPositionalGraphService, ITemplateService, IWorkUnitService, IFileSystem, IPathResolver, useSSE, workspaceHref, IUSDK, useGlobalState | positional-graph, file-ops, events, workspace-url, sdk, state | ✅ |
 | _platform/dev-tools | StateInspector, useStateChangeLog, useStateInspector | — | IStateService, StateChangeLog, useStateSystem | state | ✅ |
+| 058-workunit-editor | _(none — leaf consumer)_ | — | IWorkUnitService, CodeEditor, workspaceHref | positional-graph, viewer, workspace-url | ✅ |

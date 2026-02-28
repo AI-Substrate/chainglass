@@ -26,6 +26,14 @@ export default async function WorkUnitEditorPage({ params }: PageProps) {
     );
   }
 
+  if (contentResult.errors.length > 0) {
+    return (
+      <div className="flex items-center justify-center p-8 text-muted-foreground">
+        {contentResult.errors[0]?.message ?? 'Failed to load unit content'}
+      </div>
+    );
+  }
+
   const unit = unitResult.unit;
 
   // Extract script filename for code units

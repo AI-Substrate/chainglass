@@ -1,7 +1,8 @@
 'use client';
 
 import { useAutoSave } from '@/features/_platform/hooks/use-auto-save';
-import { CodeEditor } from '@/features/_platform/viewer/components/code-editor';
+import { CodeEditor } from '@/features/_platform/viewer';
+import { detectLanguage } from '@/lib/language-detection';
 import { useCallback, useState } from 'react';
 import { saveUnitContent } from '../../../../app/actions/workunit-actions';
 import { SaveIndicator } from './save-indicator';
@@ -12,25 +13,6 @@ interface CodeUnitEditorProps {
   initialContent: string;
   /** Script filename for language detection (e.g., "code.sh", "script.py") */
   scriptFilename?: string;
-}
-
-const EXTENSION_TO_LANGUAGE: Record<string, string> = {
-  sh: 'bash',
-  bash: 'bash',
-  py: 'python',
-  js: 'javascript',
-  ts: 'typescript',
-  jsx: 'jsx',
-  tsx: 'tsx',
-  json: 'json',
-  yaml: 'yaml',
-  yml: 'yaml',
-};
-
-function detectLanguage(filename?: string): string {
-  if (!filename) return 'bash';
-  const ext = filename.split('.').pop()?.toLowerCase() ?? '';
-  return EXTENSION_TO_LANGUAGE[ext] ?? 'bash';
 }
 
 /**
@@ -44,7 +26,7 @@ export function CodeUnitEditor({
   scriptFilename,
 }: CodeUnitEditorProps) {
   const [content, setContent] = useState(initialContent);
-  const language = detectLanguage(scriptFilename);
+  const language = detectLanguage(scriptFilename ?? 'script.sh');
 
   const saveFn = useCallback(
     (value: string) => saveUnitContent(workspaceSlug, unitSlug, 'code', value),
