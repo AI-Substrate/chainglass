@@ -95,7 +95,7 @@ export function WorkflowEditor({
       const node = graphStatus.lines.flatMap((l) => l.nodes).find((n) => n.nodeId === nodeId);
       if (!node || node.unitType !== 'user-input') return;
 
-      // If completed, reset first and try to load previous data
+      // Load previous data for pre-fill (if completed)
       if (node.status === 'complete') {
         const dataResult = await loadUserInputDataAction(
           workspaceSlug,
@@ -106,18 +106,6 @@ export function WorkflowEditor({
         );
         if (dataResult.errors.length === 0) {
           setHumanInputPreload({ value: dataResult.value, freeform: dataResult.freeformNotes });
-        }
-
-        const resetResult = await resetUserInputAction(
-          workspaceSlug,
-          graphSlug,
-          nodeId,
-          worktreePath
-        );
-        if (resetResult.graphStatus) setGraphStatus(resetResult.graphStatus);
-        if (resetResult.errors.length > 0) {
-          toast.error(`Failed to reset input: ${resetResult.errors[0].message}`);
-          return;
         }
       } else {
         setHumanInputPreload(null);
@@ -426,6 +414,21 @@ export function WorkflowEditor({
               initialValue={humanInputPreload?.value}
               initialFreeform={humanInputPreload?.freeform}
               onSubmit={async ({ structured, freeform, outputName }) => {
+                // If node was complete, reset it first so lifecycle can run
+                if (node.status === 'complete') {
+                  const resetResult = await resetUserInputAction(
+                    workspaceSlug,
+                    graphSlug,
+                    humanInputModalNodeId,
+                    worktreePath
+                  );
+                  if (resetResult.errors.length > 0) {
+                    toast.error(`Failed to reset input: ${resetResult.errors[0].message}`);
+                    setHumanInputModalNodeId(null);
+                    return;
+                  }
+                  if (resetResult.graphStatus) setGraphStatus(resetResult.graphStatus);
+                }
                 const result = await submitUserInputAction(
                   workspaceSlug,
                   graphSlug,
