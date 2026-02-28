@@ -19,6 +19,7 @@ import {
   LayoutDashboard,
   ListChecks,
   type LucideIcon,
+  Puzzle,
   Smartphone,
 } from 'lucide-react';
 
@@ -50,6 +51,7 @@ export type NavigationMode = 'phone' | 'desktop';
 export const WORKSPACE_NAV_ITEMS: readonly NavItem[] = [
   { id: 'browser', label: 'Browser', href: '/browser', icon: FolderOpen },
   { id: 'agents', label: 'Agents', href: '/agents', icon: Bot },
+  { id: 'work-units', label: 'Work Units', href: '/work-units', icon: Puzzle },
   { id: 'workflows', label: 'Workflows', href: '/workflows', icon: ListChecks },
 ] as const;
 

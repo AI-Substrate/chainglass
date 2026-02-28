@@ -3,7 +3,7 @@
 **Plan**: [workunit-editor-plan.md](../../workunit-editor-plan.md)
 **Phase**: Phase 2: Editor Page — Routes, Layout, Type-Specific Editors
 **Generated**: 2026-02-28
-**Status**: Ready for takeoff
+**Status**: Landed
 
 ---
 
@@ -61,7 +61,7 @@ stateDiagram-v2
     S4 --> S5
     S5 --> [*]
 
-    class S1,S2,S3,S4,S5 pending
+    class S1,S2,S3,S4,S5 done
 ```
 
 **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -70,11 +70,11 @@ stateDiagram-v2
 
 ## Stages
 
-- [ ] **Stage 1: Infrastructure** — Extract CodeEditor, install lang-shell, verify no breakage (`code-editor.tsx`, `package.json`)
-- [ ] **Stage 2: Wiring** — Create server actions + sidebar navigation entry (`workunit-actions.ts`, `navigation-utils.ts`)
-- [ ] **Stage 3: List page** — Unit catalog page + creation modal (`/work-units/page.tsx`, `unit-list.tsx`, `unit-creation-modal.tsx`)
-- [ ] **Stage 4: Editor page** — Editor shell + 3 type-specific editors (`/work-units/[unitSlug]/page.tsx`, `agent-editor.tsx`, `code-unit-editor.tsx`, `user-input-editor.tsx`)
-- [ ] **Stage 5: Polish** — Auto-save wiring, metadata panel, save indicators (`metadata-panel.tsx`)
+- [x] **Stage 1: Infrastructure** — Extract CodeEditor, install lang-shell, verify no breakage (`code-editor.tsx`, `package.json`)
+- [x] **Stage 2: Wiring** — Create server actions + sidebar navigation entry (`workunit-actions.ts`, `navigation-utils.ts`)
+- [x] **Stage 3: List page** — Unit catalog page + creation modal (`/work-units/page.tsx`, `unit-list.tsx`, `unit-creation-modal.tsx`)
+- [x] **Stage 4: Editor page** — Editor shell + 3 type-specific editors (`/work-units/[unitSlug]/page.tsx`, `agent-editor.tsx`, `code-unit-editor.tsx`, `user-input-editor.tsx`)
+- [x] **Stage 5: Polish** — Auto-save wiring, metadata panel, save indicators (`metadata-panel.tsx`)
 
 ---
 
@@ -137,14 +137,14 @@ flowchart LR
 
 ## Checklist
 
-- [ ] T001: Extract CodeEditor to _platform/viewer
-- [ ] T002: Install @codemirror/lang-shell
-- [ ] T003: Create server actions (workunit-actions.ts)
-- [ ] T004: Add sidebar navigation
-- [ ] T005: Create list page
-- [ ] T006: Create editor page shell
-- [ ] T007: Build agent editor (markdown)
-- [ ] T008: Build code editor (language detection)
-- [ ] T009: Build user-input editor (form)
-- [ ] T010: Unit creation flow (modal)
-- [ ] T011: Metadata editing panel
+- [x] T001: Extract CodeEditor to _platform/viewer
+- [x] T002: Install @codemirror/lang-shell
+- [x] T003: Create server actions (workunit-actions.ts)
+- [x] T004: Add sidebar navigation
+- [x] T005: Create list page
+- [x] T006: Create editor page shell
+- [x] T007: Build agent editor (markdown)
+- [x] T008: Build code editor (language detection)
+- [x] T009: Build user-input editor (form)
+- [x] T010: Unit creation flow (modal)
+- [x] T011: Metadata editing panel
