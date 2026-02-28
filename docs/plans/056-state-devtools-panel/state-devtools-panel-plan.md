@@ -21,7 +21,7 @@ Build a live state inspector panel accessible from the Dev sidebar. Shows regist
 
 | File | Domain | Classification | Rationale |
 |------|--------|---------------|-----------|
-| `apps/web/src/features/_platform/dev-tools/state-change-log.ts` | `_platform/dev-tools` | internal | Ring buffer accumulating StateChange entries from boot |
+| `apps/web/src/lib/state/state-change-log.ts` | `_platform/state` | internal | Ring buffer accumulating StateChange entries from boot, with own subscribe/version |
 | `apps/web/src/features/_platform/dev-tools/hooks/use-state-change-log.ts` | `_platform/dev-tools` | contract | Hook exposing log entries with optional pattern/limit filter |
 | `apps/web/src/features/_platform/dev-tools/hooks/use-state-inspector.ts` | `_platform/dev-tools` | internal | Hook composing domains, entries, diagnostics for the panel |
 | `apps/web/src/features/_platform/dev-tools/components/state-inspector.tsx` | `_platform/dev-tools` | internal | Main panel — tabs for domains/state/stream, detail panel |
@@ -55,8 +55,8 @@ Build a live state inspector panel accessible from the Dev sidebar. Shows regist
 
 | Status | ID | Task | Domain | Path(s) | Done When | Notes |
 |--------|-----|------|--------|---------|-----------|-------|
-| [ ] | T001 | Create `StateChangeLog` — ring buffer class | `_platform/dev-tools` | `/Users/jordanknight/substrate/chainglass-048/apps/web/src/features/_platform/dev-tools/state-change-log.ts` | Class with `append(change)`, `getEntries(pattern?, limit?)`, `clear()`, `size`, configurable cap (default 500). FIFO eviction when full. | AC-23. ~40 LOC. Pure TypeScript, no React. |
-| [ ] | T002 | Create `StateChangeLog` unit tests | `_platform/dev-tools` | `/Users/jordanknight/substrate/chainglass-048/test/unit/web/dev-tools/state-change-log.test.ts` | Tests: append entries, FIFO eviction at cap, getEntries with pattern filter, getEntries with limit, clear resets buffer, size property. RED first. | AC-23. Use plain StateChange objects, no fakes needed. |
+| [ ] | T001 | Create `StateChangeLog` — ring buffer class | `_platform/state` | `/Users/jordanknight/substrate/chainglass-048/apps/web/src/lib/state/state-change-log.ts` | Class with `append(change)`, `getEntries(pattern?, limit?)`, `clear()`, `size`, `subscribe(cb) → unsubscribe`, `version` counter. Configurable cap (default 500). FIFO eviction. | AC-23. DYK-31: in state domain. DYK-32: own subscribe + version. |
+| [ ] | T002 | Create `StateChangeLog` unit tests | `_platform/state` | `/Users/jordanknight/substrate/chainglass-048/test/unit/web/dev-tools/state-change-log.test.ts` | Tests: append, FIFO eviction, pattern filter, limit, clear, size, subscribe, version. RED first. | AC-23. |
 | [ ] | T003 | Mount StateChangeLog in GlobalStateProvider | `_platform/state` | `/Users/jordanknight/substrate/chainglass-048/apps/web/src/lib/state/state-provider.tsx` | Provider creates StateChangeLog alongside GlobalStateSystem, subscribes to `'*'`, provides log via context. | AC-26. Cross-domain edit. Add StateChangeLogContext export for test injection. |
 | [ ] | T004 | Create `useStateChangeLog` hook | `_platform/dev-tools` | `/Users/jordanknight/substrate/chainglass-048/apps/web/src/features/_platform/dev-tools/hooks/use-state-change-log.ts` | Hook: `useStateChangeLog(pattern?, limit?) → StateChange[]`. Reads from StateChangeLogContext. Subscribes to system for live updates to trigger re-render. | AC-25. |
 | [ ] | T005 | Create `useStateInspector` hook | `_platform/dev-tools` | `/Users/jordanknight/substrate/chainglass-048/apps/web/src/features/_platform/dev-tools/hooks/use-state-inspector.ts` | Hook composing: domains via `listDomains()`, entries via `list('*')`, diagnostics via `subscriberCount`/`entryCount`. Provides pause/resume/clear for event stream. | AC-01, AC-04, AC-16. |

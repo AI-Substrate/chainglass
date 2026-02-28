@@ -8,6 +8,7 @@
  */
 
 import {
+  Activity,
   Bot,
   Code,
   FileText,
@@ -57,6 +58,7 @@ export const WORKSPACE_NAV_ITEMS: readonly NavItem[] = [
  * Demos and internal tools that aren't core product.
  */
 export const DEV_NAV_ITEMS: readonly NavItem[] = [
+  { id: 'state-inspector', label: 'State Inspector', href: '/dev/state-inspector', icon: Activity },
   { id: 'workflow-viz', label: 'Workflow Visualization', href: '/workflow', icon: GitBranch },
   { id: 'kanban', label: 'Kanban Board', href: '/kanban', icon: LayoutDashboard },
   { id: 'agents-global', label: 'Agents (Global)', href: '/agents', icon: Bot },
