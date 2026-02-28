@@ -65,8 +65,13 @@ const sendKeys = (target: string, text: string): void => {
   execSync(`tmux send-keys -t ${target} ${JSON.stringify(text)}`, { stdio: 'ignore' });
 };
 
+const sendEnter = (target: string): void => {
+  execSync(`tmux send-keys -t ${target} Enter`, { stdio: 'ignore' });
+};
+
 const adapter = new CopilotCLIAdapter({
   sendKeys,
+  sendEnter,
   sessionStateDir,
   tmuxTarget,
   pollIntervalMs: 200,

@@ -355,7 +355,10 @@ export function createCliProductionContainer(): DependencyContainer {
           const sendKeys = (target: string, text: string): void => {
             execSync(`tmux send-keys -t ${target} ${JSON.stringify(text)}`, { stdio: 'ignore' });
           };
-          return new CopilotCLIAdapter({ sendKeys });
+          const sendEnter = (target: string): void => {
+            execSync(`tmux send-keys -t ${target} Enter`, { stdio: 'ignore' });
+          };
+          return new CopilotCLIAdapter({ sendKeys, sendEnter });
         }
         throw new Error(`Unknown agent type: ${agentType}`);
       };

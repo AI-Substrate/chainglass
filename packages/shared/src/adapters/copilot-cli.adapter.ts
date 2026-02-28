@@ -19,8 +19,10 @@ const SEND_KEYS_DELAY_MS = 100;
  * Options for CopilotCLIAdapter.
  */
 export interface CopilotCLIAdapterOptions {
-  /** Injectable function for sending keystrokes via tmux. */
+  /** Injectable function for sending text keystrokes via tmux. */
   sendKeys: (target: string, text: string) => void;
+  /** Injectable function for sending Enter key via tmux. Separate because tmux needs Enter as an unquoted key name. */
+  sendEnter?: (target: string) => void;
   /** Base directory containing session-state folders (default: ~/.copilot/session-state). */
   sessionStateDir?: string;
   /** tmux target pane (e.g., "studio:1.0"). */
@@ -44,6 +46,7 @@ type TailResult = 'idle' | 'timeout' | 'terminated';
  */
 export class CopilotCLIAdapter implements IAgentAdapter {
   private readonly sendKeysFn: (target: string, text: string) => void;
+  private readonly sendEnterFn: (target: string) => void;
   private readonly sessionStateDir: string;
   private readonly tmuxTarget: string;
   private readonly pollIntervalMs: number;
@@ -55,6 +58,7 @@ export class CopilotCLIAdapter implements IAgentAdapter {
 
   constructor(options: CopilotCLIAdapterOptions) {
     this.sendKeysFn = options.sendKeys;
+    this.sendEnterFn = options.sendEnter ?? ((target: string) => options.sendKeys(target, 'Enter'));
     this.sessionStateDir =
       options.sessionStateDir ?? path.join(process.env.HOME ?? '~', '.copilot', 'session-state');
     this.tmuxTarget = options.tmuxTarget ?? '';
@@ -89,7 +93,7 @@ export class CopilotCLIAdapter implements IAgentAdapter {
     try {
       this.sendKeysFn(this.tmuxTarget, options.prompt);
       await this.sleep(SEND_KEYS_DELAY_MS);
-      this.sendKeysFn(this.tmuxTarget, 'Enter');
+      this.sendEnterFn(this.tmuxTarget);
     } catch (err) {
       this.stopPolling();
       const message = err instanceof Error ? err.message : String(err);
@@ -132,7 +136,7 @@ export class CopilotCLIAdapter implements IAgentAdapter {
     try {
       this.sendKeysFn(this.tmuxTarget, '/compact');
       await this.sleep(SEND_KEYS_DELAY_MS);
-      this.sendKeysFn(this.tmuxTarget, 'Enter');
+      this.sendEnterFn(this.tmuxTarget);
     } catch (err) {
       this.stopPolling();
       const message = err instanceof Error ? err.message : String(err);
