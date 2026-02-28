@@ -576,3 +576,27 @@ export async function submitUserInput(
 
   return reloadStatus(ctx, graphSlug);
 }
+
+export async function resetUserInput(
+  workspaceSlug: string,
+  graphSlug: string,
+  nodeId: string,
+  worktreePath?: string
+): Promise<MutationResult> {
+  const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
+  if (!ctx) return { errors: [NOT_FOUND_ERROR] };
+
+  const svc = resolveGraphService();
+
+  const restartResult = await svc.raiseNodeEvent(
+    ctx,
+    graphSlug,
+    nodeId,
+    'node:restart',
+    { reason: 're-edit' },
+    'human'
+  );
+  if (restartResult.errors.length > 0) return { errors: restartResult.errors };
+
+  return reloadStatus(ctx, graphSlug);
+}

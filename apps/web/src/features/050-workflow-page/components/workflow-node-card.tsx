@@ -212,19 +212,19 @@ export function WorkflowNodeCard({
       <div className="flex items-center justify-between mt-2">
         <div
           className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${statusConfig.bgColor} ${
-            (status === 'waiting-question' || status === 'awaiting-input') && onQuestionClick
+            (status === 'waiting-question' || unitType === 'user-input') && onQuestionClick
               ? 'cursor-pointer hover:ring-2 hover:ring-violet-300 transition-all'
               : ''
           }`}
           onClick={(e) => {
-            if ((status === 'waiting-question' || status === 'awaiting-input') && onQuestionClick) {
+            if ((status === 'waiting-question' || unitType === 'user-input') && onQuestionClick) {
               e.stopPropagation();
               onQuestionClick();
             }
           }}
           onKeyDown={(e) => {
             if (
-              (status === 'waiting-question' || status === 'awaiting-input') &&
+              (status === 'waiting-question' || unitType === 'user-input') &&
               onQuestionClick &&
               e.key === 'Enter'
             ) {
@@ -233,26 +233,26 @@ export function WorkflowNodeCard({
             }
           }}
           role={
-            (status === 'waiting-question' || status === 'awaiting-input') && onQuestionClick
+            (status === 'waiting-question' || unitType === 'user-input') && onQuestionClick
               ? 'button'
               : undefined
           }
           tabIndex={
-            (status === 'waiting-question' || status === 'awaiting-input') && onQuestionClick
+            (status === 'waiting-question' || unitType === 'user-input') && onQuestionClick
               ? 0
               : undefined
           }
           title={
             status === 'waiting-question'
               ? 'Click to answer question'
-              : status === 'awaiting-input'
+              : unitType === 'user-input'
                 ? 'Click to provide input'
                 : undefined
           }
           data-testid={
             status === 'waiting-question'
               ? `qa-badge-${nodeId}`
-              : status === 'awaiting-input'
+              : unitType === 'user-input'
                 ? `input-badge-${nodeId}`
                 : undefined
           }

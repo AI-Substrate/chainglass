@@ -36,6 +36,7 @@ import {
   answerQuestion as answerQuestionAction,
   loadSnapshotData as loadSnapshotDataAction,
   loadWorkflow as loadWorkflowAction,
+  resetUserInput as resetUserInputAction,
   restoreSnapshot as restoreSnapshotAction,
   setNodeInput as setNodeInputAction,
   submitUserInput as submitUserInputAction,
@@ -299,11 +300,24 @@ export function WorkflowEditor({
                   endMutation();
                 }
               }}
-              onQuestionClick={(nodeId) => {
+              onQuestionClick={async (nodeId) => {
                 const node = graphStatus.lines
                   .flatMap((l) => l.nodes)
                   .find((n) => n.nodeId === nodeId);
                 if (node?.unitType === 'user-input') {
+                  if (node.status === 'complete') {
+                    const result = await resetUserInputAction(
+                      workspaceSlug,
+                      graphSlug,
+                      nodeId,
+                      worktreePath
+                    );
+                    if (result.graphStatus) setGraphStatus(result.graphStatus);
+                    if (result.errors.length > 0) {
+                      toast.error(`Failed to reset input: ${result.errors[0].message}`);
+                      return;
+                    }
+                  }
                   setHumanInputModalNodeId(nodeId);
                 } else {
                   setQaModalNodeId(nodeId);
@@ -320,8 +334,23 @@ export function WorkflowEditor({
                 onBack={() => setSelectedNodeId(null)}
                 onEditProperties={() => setEditModalNodeId(selectedNodeId)}
                 onProvideInput={
-                  selectedNode.unitType === 'user-input' && selectedNode.ready
-                    ? () => setHumanInputModalNodeId(selectedNodeId)
+                  selectedNode.unitType === 'user-input' && selectedNodeId
+                    ? async () => {
+                        if (selectedNode.status === 'complete') {
+                          const result = await resetUserInputAction(
+                            workspaceSlug,
+                            graphSlug,
+                            selectedNodeId,
+                            worktreePath
+                          );
+                          if (result.graphStatus) setGraphStatus(result.graphStatus);
+                          if (result.errors.length > 0) {
+                            toast.error(`Failed to reset input: ${result.errors[0].message}`);
+                            return;
+                          }
+                        }
+                        setHumanInputModalNodeId(selectedNodeId);
+                      }
                     : undefined
                 }
               />
