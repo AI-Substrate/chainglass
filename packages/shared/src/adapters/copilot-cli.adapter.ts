@@ -145,7 +145,15 @@ export class CopilotCLIAdapter implements IAgentAdapter {
       return this.failedResult(sessionId, `tmux send-keys failed: ${message}`);
     }
 
-    await promise;
+    const result = await promise;
+
+    if (result === 'terminated') {
+      return { output: '', sessionId, status: 'killed', exitCode: 0, tokens: null };
+    }
+    if (result === 'timeout') {
+      return this.failedResult(sessionId, 'timeout: session.compaction_complete not received');
+    }
+
     return { output: '', sessionId, status: 'completed', exitCode: 0, tokens: null };
   }
 

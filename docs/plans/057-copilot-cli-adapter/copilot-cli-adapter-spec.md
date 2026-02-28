@@ -86,7 +86,7 @@ No new domains are created. Agent adapters are infrastructure leaf nodes in the 
 4. **AC-04**: Event translation correctly maps at least these events.jsonl types to AgentEvent types: `assistant.message` → `message`, `assistant.message_delta` → `text_delta`, `tool.execution_start` → `tool_call`, `tool.execution_complete` → `tool_result`, `assistant.reasoning` → `thinking`, `assistant.usage` → `usage`, `session.idle` → `session_idle`
 5. **AC-05**: `run()` returns `status: 'failed'` if the tmux pane is unreachable or `events.jsonl` doesn't exist
 6. **AC-06**: `run()` returns `status: 'failed'` with appropriate error if execution times out (configurable, default 5 minutes)
-7. **AC-07**: `compact()` sends `/compact` as a prompt through tmux and waits for `session.idle`
+7. **AC-07**: `compact()` sends `/compact` as a prompt through tmux and waits for `session.compaction_complete`
 8. **AC-08**: `terminate()` stops the file watcher, cleans up internal state, and returns — it does NOT kill the user's CLI process
 9. **AC-09**: `terminate()` returns `AgentResult` with `status: 'killed'` and `exitCode: 0`
 10. **AC-10**: The adapter passes the existing `agentAdapterContractTests` suite
