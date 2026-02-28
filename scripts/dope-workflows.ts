@@ -90,6 +90,8 @@ function createCtx(worktreePath: string): WorkspaceContext {
 const UNIT_AGENT = 'sample-coder';
 const UNIT_CODE = 'sample-pr-creator';
 const UNIT_USER_INPUT = 'sample-input';
+const UNIT_CHALLENGE = 'sample-challenge';
+const UNIT_LANGUAGE = 'sample-language';
 
 // ============================================
 // State Injection
@@ -388,6 +390,38 @@ const SCENARIOS: Scenario[] = [
 
       // Clean up source graph
       await service.delete(ctx, 'demo-template-source');
+    },
+  },
+
+  {
+    slug: 'demo-multi-input',
+    description: 'Two user-input nodes feeding a coder — multi-input composition',
+    async build(service, ctx) {
+      const { lineId: line0 } = await service.create(ctx, 'demo-multi-input');
+      const line1 = await service.addLine(ctx, 'demo-multi-input');
+      const line1Id = assertDefined(line1.lineId, 'demo-multi-input addLine lineId');
+
+      // Line 0: two user-input nodes (challenge + language)
+      const n1 = await service.addNode(ctx, 'demo-multi-input', line0, UNIT_CHALLENGE);
+      const n1Id = assertDefined(n1.nodeId, 'demo-multi-input n1 nodeId');
+      const n2 = await service.addNode(ctx, 'demo-multi-input', line0, UNIT_LANGUAGE);
+      const n2Id = assertDefined(n2.nodeId, 'demo-multi-input n2 nodeId');
+
+      // Line 1: coder wired to both user-input outputs
+      const n3 = await service.addNode(ctx, 'demo-multi-input', line1Id, UNIT_AGENT);
+      const n3Id = assertDefined(n3.nodeId, 'demo-multi-input n3 nodeId');
+
+      // Wire: coder.challenge ← sample-challenge.challenge
+      await service.setInput(ctx, 'demo-multi-input', n3Id, 'challenge', {
+        from_node: n1Id,
+        from_output: 'challenge',
+      });
+
+      // Wire: coder.language ← sample-language.language
+      await service.setInput(ctx, 'demo-multi-input', n3Id, 'language', {
+        from_node: n2Id,
+        from_output: 'language',
+      });
     },
   },
 ];

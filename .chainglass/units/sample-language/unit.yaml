@@ -1,0 +1,27 @@
+slug: sample-language
+type: user-input
+version: 1.0.0
+description: Collects the programming language choice from the user
+
+inputs: []
+
+outputs:
+  - name: language
+    type: data
+    data_type: text
+    required: true
+    description: The chosen programming language
+
+user_input:
+  question_type: single
+  prompt: "Which programming language should we use?"
+  options:
+    - key: typescript
+      label: TypeScript
+      description: Modern typed JavaScript
+    - key: python
+      label: Python
+      description: General-purpose scripting
+    - key: go
+      label: Go
+      description: Systems and cloud-native

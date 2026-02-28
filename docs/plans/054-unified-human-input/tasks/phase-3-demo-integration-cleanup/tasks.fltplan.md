@@ -3,7 +3,7 @@
 **Plan**: [unified-human-input-plan.md](../../unified-human-input-plan.md)
 **Phase**: Phase 3: Demo + Integration + Cleanup
 **Generated**: 2026-02-28
-**Status**: Ready for takeoff
+**Status**: Landed
 
 ---
 
@@ -113,8 +113,8 @@ flowchart LR
 
 ## Checklist
 
-- [ ] T002: Rename/create sample units + update sample-coder
-- [ ] T003: Update demo-serial + add demo-multi-input
-- [ ] T004: Multi-node integration test
-- [ ] T005: Error state guard (minimal)
-- [ ] T006: Next.js MCP validation
+- [x] T002: Rename/create sample units + update sample-coder
+- [x] T003: Update demo-serial + add demo-multi-input
+- [x] T004: Multi-node integration test
+- [x] T005: Error state guard (minimal)
+- [x] T006: Next.js MCP validation

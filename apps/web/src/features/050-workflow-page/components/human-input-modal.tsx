@@ -36,6 +36,26 @@ export function HumanInputModal({
   onSubmit,
   onClose,
 }: HumanInputModalProps) {
+  if (!userInput) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl dark:bg-zinc-900">
+          <p className="text-red-600 dark:text-red-400">
+            This node is not configured for user input. Check unit.yaml for a valid user_input
+            section.
+          </p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="mt-4 rounded bg-zinc-200 px-4 py-2 dark:bg-zinc-700"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const [freeform, setFreeform] = useState(initialFreeform ?? '');
   const [textValue, setTextValue] = useState(
     typeof initialValue === 'string'

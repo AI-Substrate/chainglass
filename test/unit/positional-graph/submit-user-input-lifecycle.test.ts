@@ -61,6 +61,45 @@ const coderUnit: NarrowWorkUnit = {
   outputs: [{ name: 'code', type: 'data', required: true }],
 };
 
+const challengeUnit: NarrowWorkUnit = {
+  slug: 'sample-challenge',
+  type: 'user-input',
+  inputs: [],
+  outputs: [{ name: 'challenge', type: 'data', required: true }],
+  userInput: {
+    prompt: 'What coding challenge should we solve?',
+    inputType: 'text',
+    outputName: 'challenge',
+  },
+};
+
+const languageUnit: NarrowWorkUnit = {
+  slug: 'sample-language',
+  type: 'user-input',
+  inputs: [],
+  outputs: [{ name: 'language', type: 'data', required: true }],
+  userInput: {
+    prompt: 'Which programming language?',
+    inputType: 'single',
+    outputName: 'language',
+    options: [
+      { key: 'typescript', label: 'TypeScript' },
+      { key: 'python', label: 'Python' },
+      { key: 'go', label: 'Go' },
+    ],
+  },
+};
+
+const multiInputCoderUnit: NarrowWorkUnit = {
+  slug: 'multi-coder',
+  type: 'agent',
+  inputs: [
+    { name: 'challenge', type: 'data', required: true },
+    { name: 'language', type: 'data', required: true },
+  ],
+  outputs: [{ name: 'code', type: 'data', required: true }],
+};
+
 describe('submitUserInput lifecycle', () => {
   let fs: FakeFileSystem;
   let pathResolver: FakePathResolver;
@@ -70,7 +109,13 @@ describe('submitUserInput lifecycle', () => {
   beforeEach(() => {
     fs = new FakeFileSystem();
     pathResolver = new FakePathResolver();
-    const loader = createFakeUnitLoader([userInputUnit, coderUnit]);
+    const loader = createFakeUnitLoader([
+      userInputUnit,
+      coderUnit,
+      challengeUnit,
+      languageUnit,
+      multiInputCoderUnit,
+    ]);
     service = createTestService(fs, pathResolver, loader);
     ctx = createTestContext();
   });
@@ -162,5 +207,65 @@ describe('submitUserInput lifecycle', () => {
     const coderStatus = await service.getNodeStatus(ctx, 'test-graph', coderNodeId);
     expect(coderStatus.readyDetail.inputsAvailable).toBe(true);
     expect(coderStatus.ready).toBe(true);
+  });
+
+  it('multi-node composition: 2 user-input nodes → downstream gates open', async () => {
+    /*
+    Test Doc:
+    - Why: Validates the multi-question composition pattern (multiple nodes on a line).
+    - Contract: 2 user-input nodes complete → downstream node with 2 wired inputs sees ready: true.
+    - Usage Notes: Proves the "one node = one question" design works at scale.
+    - Quality Contribution: Catches gate resolution bugs when multiple inputs must all be available.
+    - Worked Example: challenge + language complete → multi-coder sees both inputs, ready to run.
+    */
+    const { lineId: line0 } = await service.create(ctx, 'test-graph');
+    const addLine1 = await service.addLine(ctx, 'test-graph');
+    const line1 = addLine1.lineId as string;
+
+    // Line 0: two user-input nodes
+    const challengeNode = await service.addNode(ctx, 'test-graph', line0, 'sample-challenge');
+    const languageNode = await service.addNode(ctx, 'test-graph', line0, 'sample-language');
+    const challengeId = challengeNode.nodeId as string;
+    const languageId = languageNode.nodeId as string;
+
+    // Line 1: downstream coder wired to both
+    const coderNode = await service.addNode(ctx, 'test-graph', line1, 'multi-coder');
+    const coderId = coderNode.nodeId as string;
+
+    await service.setInput(ctx, 'test-graph', coderId, 'challenge', {
+      from_node: challengeId,
+      from_output: 'challenge',
+    });
+    await service.setInput(ctx, 'test-graph', coderId, 'language', {
+      from_node: languageId,
+      from_output: 'language',
+    });
+
+    // Before submission: downstream not ready (inputs missing)
+    const beforeStatus = await service.getNodeStatus(ctx, 'test-graph', coderId);
+    expect(beforeStatus.readyDetail.inputsAvailable).toBe(false);
+    expect(beforeStatus.ready).toBe(false);
+
+    // Submit challenge (text input)
+    await service.startNode(ctx, 'test-graph', challengeId);
+    await service.raiseNodeEvent(ctx, 'test-graph', challengeId, 'node:accepted', {}, 'executor');
+    await service.saveOutputData(ctx, 'test-graph', challengeId, 'challenge', 'Build a CLI tool');
+    await service.endNode(ctx, 'test-graph', challengeId);
+
+    // After first submission: still not ready (language missing)
+    const midStatus = await service.getNodeStatus(ctx, 'test-graph', coderId);
+    expect(midStatus.readyDetail.inputsAvailable).toBe(false);
+
+    // Submit language (single-choice input)
+    await service.startNode(ctx, 'test-graph', languageId);
+    await service.raiseNodeEvent(ctx, 'test-graph', languageId, 'node:accepted', {}, 'executor');
+    await service.saveOutputData(ctx, 'test-graph', languageId, 'language', 'typescript');
+    await service.endNode(ctx, 'test-graph', languageId);
+
+    // After both submissions: downstream ready
+    const afterStatus = await service.getNodeStatus(ctx, 'test-graph', coderId);
+    expect(afterStatus.readyDetail.inputsAvailable).toBe(true);
+    expect(afterStatus.ready).toBe(true);
+    expect(afterStatus.status).toBe('ready');
   });
 });

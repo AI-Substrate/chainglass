@@ -1,0 +1,17 @@
+slug: sample-challenge
+type: user-input
+version: 1.0.0
+description: Collects a coding challenge description from the user
+
+inputs: []
+
+outputs:
+  - name: challenge
+    type: data
+    data_type: text
+    required: true
+    description: The coding challenge to solve
+
+user_input:
+  question_type: text
+  prompt: "What coding challenge should we solve?"

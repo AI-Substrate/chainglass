@@ -139,13 +139,13 @@ User-input nodes in the workflow editor currently have no input mechanism — th
 - [x] **AC-10**: Freeform notes preserved in `_metadata.freeform_notes`
 
 ### Robustness
-- [ ] **AC-11**: Missing `user_input` config → error state in modal
+- [x] **AC-11**: Missing `user_input` config → error state in modal
 - [x] **AC-12**: Cancel/Escape → no data change, no status change
 
 ### Demo & Testing
-- [ ] **AC-14**: `just dope` creates user-input demo workflow
+- [x] **AC-14**: `just dope` creates user-input demo workflow
 - [x] **AC-15**: Unit tests for display status computation
-- [ ] **AC-16**: Integration test: submit → complete → downstream gates
+- [x] **AC-16**: Integration test: submit → complete → downstream gates
 
 ## Progress
 
@@ -153,7 +153,7 @@ User-input nodes in the workflow editor currently have no input mechanism — th
 |-------|--------|-------|-------|
 | Phase 1: NodeStatusResult + Display Status | Complete | 13/13 | Per [Workshop 011](./workshops/011-discriminated-type-architecture.md) — discriminated unions |
 | Phase 2: Human Input Modal + Server Action | Complete | 8/8 + extras | Re-edit (Workshop 013), pre-fill, "Provide Input" button on card |
-| Phase 3: Demo + Integration + Cleanup | Not started | 0/5 | AC-11, AC-14, AC-16 remaining |
+| Phase 3: Demo + Integration + Cleanup | Complete | 5/5 | DYK: T001 dropped (demo-serial covers AC-14). Multi-input demo + composition test + error guard. |
 
 ## Risks
 

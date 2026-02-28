@@ -94,6 +94,10 @@ export function WorkflowEditor({
     async (nodeId: string) => {
       const node = graphStatus.lines.flatMap((l) => l.nodes).find((n) => n.nodeId === nodeId);
       if (!node || node.unitType !== 'user-input') return;
+      if (!node.userInput) {
+        toast.error('Node is not configured for user input');
+        return;
+      }
 
       // Load previous data for pre-fill (if completed)
       if (node.status === 'complete') {
