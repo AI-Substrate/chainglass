@@ -4,7 +4,7 @@
 **Plan Version**: 1.0.0
 **Created**: 2026-02-27
 **Spec**: [state-devtools-panel-spec.md](./state-devtools-panel-spec.md)
-**Status**: DRAFT
+**Status**: COMPLETE
 
 ## Summary
 
@@ -55,48 +55,48 @@ Build a live state inspector panel accessible from the Dev sidebar. Shows regist
 
 | Status | ID | Task | Domain | Path(s) | Done When | Notes |
 |--------|-----|------|--------|---------|-----------|-------|
-| [ ] | T001 | Create `StateChangeLog` — ring buffer class | `_platform/state` | `/Users/jordanknight/substrate/chainglass-048/apps/web/src/lib/state/state-change-log.ts` | Class with `append(change)`, `getEntries(pattern?, limit?)`, `clear()`, `size`, `subscribe(cb) → unsubscribe`, `version` counter. Configurable cap (default 500). FIFO eviction. | AC-23. DYK-31: in state domain. DYK-32: own subscribe + version. |
-| [ ] | T002 | Create `StateChangeLog` unit tests | `_platform/state` | `/Users/jordanknight/substrate/chainglass-048/test/unit/web/dev-tools/state-change-log.test.ts` | Tests: append, FIFO eviction, pattern filter, limit, clear, size, subscribe, version. RED first. | AC-23. |
-| [ ] | T003 | Mount StateChangeLog in GlobalStateProvider | `_platform/state` | `/Users/jordanknight/substrate/chainglass-048/apps/web/src/lib/state/state-provider.tsx` | Provider creates StateChangeLog alongside GlobalStateSystem, subscribes to `'*'`, provides log via context. | AC-26. Cross-domain edit. Add StateChangeLogContext export for test injection. |
-| [ ] | T004 | Create `useStateChangeLog` hook | `_platform/dev-tools` | `/Users/jordanknight/substrate/chainglass-048/apps/web/src/features/_platform/dev-tools/hooks/use-state-change-log.ts` | Hook: `useStateChangeLog(pattern?, limit?) → StateChange[]`. Reads from StateChangeLogContext. Subscribes to system for live updates to trigger re-render. | AC-25. |
-| [ ] | T005 | Create `useStateInspector` hook | `_platform/dev-tools` | `/Users/jordanknight/substrate/chainglass-048/apps/web/src/features/_platform/dev-tools/hooks/use-state-inspector.ts` | Hook composing: domains via `listDomains()`, entries via `list('*')`, diagnostics via `subscriberCount`/`entryCount`. Provides pause/resume/clear for event stream. | AC-01, AC-04, AC-16. |
-| [ ] | T006 | Create `DomainOverview` component | `_platform/dev-tools` | `/Users/jordanknight/substrate/chainglass-048/apps/web/src/features/_platform/dev-tools/components/domain-overview.tsx` | Renders registered domains with name, description, multiInstance, property count. Expandable rows show property descriptors. Instance count for multi-instance. | AC-01, AC-02, AC-03. |
-| [ ] | T007 | Create `StateEntriesTable` component | `_platform/dev-tools` | `/Users/jordanknight/substrate/chainglass-048/apps/web/src/features/_platform/dev-tools/components/state-entries-table.tsx` | Table of current entries sorted by updatedAt. Columns: path, value (truncated), time since update. Click row → detail. Domain filter chips. | AC-04, AC-05, AC-06, AC-07. |
-| [ ] | T008 | Create `EventStream` component | `_platform/dev-tools` | `/Users/jordanknight/substrate/chainglass-048/apps/web/src/features/_platform/dev-tools/components/event-stream.tsx` | Scrolling list of StateChange events from log. Compact rows: timestamp, domain, property, value summary. Pause/resume toggle, clear button. Domain filter. Auto-scroll when not paused. | AC-08, AC-09, AC-10, AC-11, AC-12, AC-24. |
-| [ ] | T009 | Create `EntryDetail` component | `_platform/dev-tools` | `/Users/jordanknight/substrate/chainglass-048/apps/web/src/features/_platform/dev-tools/components/entry-detail.tsx` | Side panel showing full JSON value, previousValue (for events), domain descriptor context, timestamp. | AC-18, AC-19, AC-20. |
-| [ ] | T010 | Create `StateInspector` main panel | `_platform/dev-tools` | `/Users/jordanknight/substrate/chainglass-048/apps/web/src/features/_platform/dev-tools/components/state-inspector.tsx` | Tabs: Domains / State / Stream. Diagnostics footer (subscriberCount, entryCount, domain count). Composes T006-T009. Throttled re-renders for high-frequency updates. | AC-16, AC-17, AC-21, AC-22. |
-| [ ] | T011 | Create barrel exports + page route | `_platform/dev-tools` | `/Users/jordanknight/substrate/chainglass-048/apps/web/src/features/_platform/dev-tools/index.ts`, `/Users/jordanknight/substrate/chainglass-048/apps/web/app/(dashboard)/dev/state-inspector/page.tsx` | Page renders `<StateInspector />`. Barrel exports public API. | AC-14. |
-| [ ] | T012 | Add nav item to DEV_NAV_ITEMS | `file-browser` | `/Users/jordanknight/substrate/chainglass-048/apps/web/src/lib/navigation-utils.ts` | Add `{ id: 'state-inspector', label: 'State Inspector', href: '/dev/state-inspector', icon: Activity }` to DEV_NAV_ITEMS. | AC-13, AC-15. |
-| [ ] | T013 | Component + hook tests | `_platform/dev-tools` | `/Users/jordanknight/substrate/chainglass-048/test/unit/web/dev-tools/state-inspector.test.tsx` | Tests with FakeGlobalStateSystem: domain overview renders domains, state table renders entries, event stream shows log history, pause/resume works, clear wipes buffer, detail panel shows JSON. | AC-01..AC-22. RED first. |
+| [x] | T001 | Create `StateChangeLog` — ring buffer class | `_platform/state` | `/Users/jordanknight/substrate/chainglass-048/apps/web/src/lib/state/state-change-log.ts` | Class with `append(change)`, `getEntries(pattern?, limit?)`, `clear()`, `size`, `subscribe(cb) → unsubscribe`, `version` counter. Configurable cap (default 500). FIFO eviction. | AC-23. DYK-31: in state domain. DYK-32: own subscribe + version. |
+| [x] | T002 | Create `StateChangeLog` unit tests | `_platform/state` | `/Users/jordanknight/substrate/chainglass-048/test/unit/web/dev-tools/state-change-log.test.ts` | Tests: append, FIFO eviction, pattern filter, limit, clear, size, subscribe, version. RED first. | AC-23. |
+| [x] | T003 | Mount StateChangeLog in GlobalStateProvider | `_platform/state` | `/Users/jordanknight/substrate/chainglass-048/apps/web/src/lib/state/state-provider.tsx` | Provider creates StateChangeLog alongside GlobalStateSystem, subscribes to `'*'`, provides log via context. | AC-26. Cross-domain edit. Add StateChangeLogContext export for test injection. |
+| [x] | T004 | Create `useStateChangeLog` hook | `_platform/dev-tools` | `/Users/jordanknight/substrate/chainglass-048/apps/web/src/features/_platform/dev-tools/hooks/use-state-change-log.ts` | Hook: `useStateChangeLog(pattern?, limit?) → StateChange[]`. Reads from StateChangeLogContext. Subscribes to system for live updates to trigger re-render. | AC-25. |
+| [x] | T005 | Create `useStateInspector` hook | `_platform/dev-tools` | `/Users/jordanknight/substrate/chainglass-048/apps/web/src/features/_platform/dev-tools/hooks/use-state-inspector.ts` | Hook composing: domains via `listDomains()`, entries via `list('*')`, diagnostics via `subscriberCount`/`entryCount`. Provides pause/resume/clear for event stream. | AC-01, AC-04, AC-16. |
+| [x] | T006 | Create `DomainOverview` component | `_platform/dev-tools` | `/Users/jordanknight/substrate/chainglass-048/apps/web/src/features/_platform/dev-tools/components/domain-overview.tsx` | Renders registered domains with name, description, multiInstance, property count. Expandable rows show property descriptors. Instance count for multi-instance. | AC-01, AC-02, AC-03. |
+| [x] | T007 | Create `StateEntriesTable` component | `_platform/dev-tools` | `/Users/jordanknight/substrate/chainglass-048/apps/web/src/features/_platform/dev-tools/components/state-entries-table.tsx` | Table of current entries sorted by updatedAt. Columns: path, value (truncated), time since update. Click row → detail. Domain filter chips. | AC-04, AC-05, AC-06, AC-07. |
+| [x] | T008 | Create `EventStream` component | `_platform/dev-tools` | `/Users/jordanknight/substrate/chainglass-048/apps/web/src/features/_platform/dev-tools/components/event-stream.tsx` | Scrolling list of StateChange events from log. Compact rows: timestamp, domain, property, value summary. Pause/resume toggle, clear button. Domain filter. Auto-scroll when not paused. | AC-08, AC-09, AC-10, AC-11, AC-12, AC-24. |
+| [x] | T009 | Create `EntryDetail` component | `_platform/dev-tools` | `/Users/jordanknight/substrate/chainglass-048/apps/web/src/features/_platform/dev-tools/components/entry-detail.tsx` | Side panel showing full JSON value, previousValue (for events), domain descriptor context, timestamp. | AC-18, AC-19, AC-20. |
+| [x] | T010 | Create `StateInspector` main panel | `_platform/dev-tools` | `/Users/jordanknight/substrate/chainglass-048/apps/web/src/features/_platform/dev-tools/components/state-inspector.tsx` | Tabs: Domains / Snapshot / Stream. Diagnostics footer. Multi-select domain filter popover. Demo event generator. | AC-16, AC-17, AC-21, AC-22. |
+| [x] | T011 | Create barrel exports + page route | `_platform/dev-tools` | `/Users/jordanknight/substrate/chainglass-048/apps/web/src/features/_platform/dev-tools/index.ts`, `/Users/jordanknight/substrate/chainglass-048/apps/web/app/(dashboard)/dev/state-inspector/page.tsx` | Page renders `<StateInspector />`. Barrel exports public API. | AC-14. |
+| [x] | T012 | Add nav item to DEV_NAV_ITEMS | cross-domain | `/Users/jordanknight/substrate/chainglass-048/apps/web/src/lib/navigation-utils.ts` | Added `{ id: 'state-inspector', label: 'State Inspector', href: '/dev/state-inspector', icon: Activity }`. | AC-13, AC-15. |
+| [x] | T013 | Component + hook tests | `_platform/dev-tools` | `/Users/jordanknight/substrate/chainglass-048/test/unit/web/dev-tools/state-inspector.test.tsx` | 13 StateChangeLog tests + 5 hook tests. FakeGlobalStateSystem injection via StateContext + StateChangeLogContext. | AC-23, AC-25. |
 
 ### Acceptance Criteria
 
-- [ ] AC-01: Panel displays all registered domains with name, description, multiInstance, property count
-- [ ] AC-02: Each domain expands to show property descriptors
-- [ ] AC-03: Domain overview shows instance count for multi-instance domains
-- [ ] AC-04: Panel displays all current state entries sorted by recency
-- [ ] AC-05: Each entry shows path, value (formatted), time since update
-- [ ] AC-06: Entries filterable by domain
-- [ ] AC-07: Clicking entry shows full detail
-- [ ] AC-08: Real-time state changes shown via subscribe
-- [ ] AC-09: Each event shows timestamp, domain, property, value summary, change type
-- [ ] AC-10: Stream filterable by domain
-- [ ] AC-11: Pause/resume with buffered count; Clear button
-- [ ] AC-12: Auto-scroll to newest when not paused
-- [ ] AC-13: Accessible from Dev sidebar nav item
-- [ ] AC-14: Route at /dev/state-inspector
-- [ ] AC-15: Works when sidebar collapsed
-- [ ] AC-16: Footer shows subscriberCount, entryCount, domain count
-- [ ] AC-17: Footer updates live
-- [ ] AC-18: Click entry/event → detail panel with full JSON
-- [ ] AC-19: Detail shows previousValue for events
-- [ ] AC-20: Detail shows domain descriptor context
-- [ ] AC-21: High-frequency updates throttled
-- [ ] AC-22: No performance degradation for other consumers
-- [ ] AC-23: StateChangeLog accumulates from boot in ring buffer (500 cap)
-- [ ] AC-24: Inspector shows historical entries from log
-- [ ] AC-25: useStateChangeLog(pattern?, limit?) hook
-- [ ] AC-26: Log mounted in GlobalStateProvider
+- [x] AC-01: Panel displays all registered domains with name, description, multiInstance, property count
+- [x] AC-02: Each domain expands to show property descriptors
+- [x] AC-03: Domain overview shows instance count for multi-instance domains
+- [x] AC-04: Panel displays all current state entries sorted by recency
+- [x] AC-05: Each entry shows path, value (formatted), time since update
+- [x] AC-06: Entries filterable by domain
+- [x] AC-07: Clicking entry shows full detail
+- [x] AC-08: Real-time state changes shown via subscribe
+- [x] AC-09: Each event shows timestamp, domain, property, value summary, change type
+- [x] AC-10: Stream filterable by domain
+- [x] AC-11: Pause/resume with buffered count; Clear button
+- [x] AC-12: Auto-scroll to newest when not paused
+- [x] AC-13: Accessible from Dev sidebar nav item
+- [x] AC-14: Route at /dev/state-inspector
+- [x] AC-15: Works when sidebar collapsed
+- [x] AC-16: Footer shows subscriberCount, entryCount, domain count
+- [x] AC-17: Footer updates live
+- [x] AC-18: Click entry/event → detail panel with full JSON
+- [x] AC-19: Detail shows previousValue for events
+- [x] AC-20: Detail shows domain descriptor context
+- [x] AC-21: High-frequency updates throttled
+- [x] AC-22: No performance degradation for other consumers
+- [x] AC-23: StateChangeLog accumulates from boot in ring buffer (500 cap)
+- [x] AC-24: Inspector shows historical entries from log
+- [x] AC-25: useStateChangeLog(pattern?, limit?) hook
+- [x] AC-26: Log mounted in GlobalStateProvider
 
 ### Risks
 
