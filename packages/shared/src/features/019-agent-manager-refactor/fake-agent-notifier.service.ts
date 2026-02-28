@@ -92,6 +92,27 @@ export class FakeAgentNotifierService implements IAgentNotifierService {
     this._broadcaster.broadcast(AGENTS_CHANNEL, 'agent_event', sseEvent);
   }
 
+  broadcastCreated(agentId: string, info: { name: string; type: string; workspace: string }): void {
+    const event = {
+      type: 'agent_created' as const,
+      agentId,
+      name: info.name,
+      agentType: info.type,
+      workspace: info.workspace,
+      timestamp: new Date().toISOString(),
+    };
+    this._broadcaster.broadcast(AGENTS_CHANNEL, 'agent_created', event);
+  }
+
+  broadcastTerminated(agentId: string): void {
+    const event = {
+      type: 'agent_terminated' as const,
+      agentId,
+      timestamp: new Date().toISOString(),
+    };
+    this._broadcaster.broadcast(AGENTS_CHANNEL, 'agent_terminated', event);
+  }
+
   // ===== Test Helpers =====
 
   /**

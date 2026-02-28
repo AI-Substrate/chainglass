@@ -17,6 +17,7 @@ export type {
   AgentType,
   AgentInstanceStatus,
   AdapterFactory,
+  AdapterFactoryConfig,
   AgentRunOptions,
   GetEventsOptions,
   AgentStoredEvent,

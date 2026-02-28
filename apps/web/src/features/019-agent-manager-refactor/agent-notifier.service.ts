@@ -98,4 +98,33 @@ export class AgentNotifierService implements IAgentNotifierService {
     };
     this.broadcaster.broadcast(AGENTS_CHANNEL, 'agent_event', sseEvent);
   }
+
+  /**
+   * Broadcast agent creation lifecycle event.
+   * Hooks subscribe to 'agent_created' to invalidate query cache.
+   */
+  broadcastCreated(agentId: string, info: { name: string; type: string; workspace: string }): void {
+    const event = {
+      type: 'agent_created' as const,
+      agentId,
+      name: info.name,
+      agentType: info.type,
+      workspace: info.workspace,
+      timestamp: new Date().toISOString(),
+    };
+    this.broadcaster.broadcast(AGENTS_CHANNEL, 'agent_created', event);
+  }
+
+  /**
+   * Broadcast agent termination lifecycle event.
+   * Hooks subscribe to 'agent_terminated' to invalidate query cache.
+   */
+  broadcastTerminated(agentId: string): void {
+    const event = {
+      type: 'agent_terminated' as const,
+      agentId,
+      timestamp: new Date().toISOString(),
+    };
+    this.broadcaster.broadcast(AGENTS_CHANNEL, 'agent_terminated', event);
+  }
 }

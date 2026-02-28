@@ -1,0 +1,2911 @@
+diff --git a/apps/web/app/api/agents/route.ts b/apps/web/app/api/agents/route.ts
+index b9d9436..801606d 100644
+--- a/apps/web/app/api/agents/route.ts
++++ b/apps/web/app/api/agents/route.ts
+@@ -3,6 +3,7 @@ import type {
+   CreateAgentParams,
+   IAgentManagerService,
+ } from '@chainglass/shared/features/019-agent-manager-refactor/agent-manager.interface';
++import type { IAgentNotifierService } from '@chainglass/shared/features/019-agent-manager-refactor';
+ /**
+  * Agent API Routes - /api/agents
+  *
+@@ -119,9 +120,9 @@ export async function POST(request: NextRequest): Promise<Response> {
+     }
+ 
+     // Validate agent type
+-    if (body.type !== 'claude-code' && body.type !== 'copilot') {
++    if (body.type !== 'claude-code' && body.type !== 'copilot' && body.type !== 'copilot-cli') {
+       return NextResponse.json(
+-        { error: 'Invalid agent type', validTypes: ['claude-code', 'copilot'] },
++        { error: 'Invalid agent type', validTypes: ['claude-code', 'copilot', 'copilot-cli'] },
+         { status: 400 }
+       );
+     }
+@@ -133,6 +134,12 @@ export async function POST(request: NextRequest): Promise<Response> {
+       workspace: body.workspace,
+     });
+ 
++    // Broadcast agent_created via SSE so connected clients update their lists
++    const notifier = container.resolve<IAgentNotifierService>(
++      SHARED_DI_TOKENS.AGENT_NOTIFIER_SERVICE
++    );
++    notifier.broadcastStatus(agent.id, agent.status);
++
+     // Serialize agent instance to JSON
+     const response = {
+       id: agent.id,
+diff --git a/apps/web/next-env.d.ts b/apps/web/next-env.d.ts
+index 9edff1c..c4b7818 100644
+--- a/apps/web/next-env.d.ts
++++ b/apps/web/next-env.d.ts
+@@ -1,6 +1,6 @@
+ /// <reference types="next" />
+ /// <reference types="next/image-types/global" />
+-import "./.next/types/routes.d.ts";
++import "./.next/dev/types/routes.d.ts";
+ 
+ // NOTE: This file should not be edited
+ // see https://nextjs.org/docs/app/api-reference/config/typescript for more information.
+diff --git a/apps/web/next.config.mjs b/apps/web/next.config.mjs
+index dc50e4e..f63d4c2 100644
+--- a/apps/web/next.config.mjs
++++ b/apps/web/next.config.mjs
+@@ -38,6 +38,8 @@ const nextConfig = {
+     'vscode-oniguruma',
+     '@shikijs/core',
+     '@shikijs/engine-oniguruma',
++    '@github/copilot-sdk',
++    '@github/copilot',
+   ],
+   // Webpack config to handle Shiki's node: protocol imports on client side
+   webpack: (config, { isServer }) => {
+diff --git a/apps/web/src/components/agents/create-session-form.tsx b/apps/web/src/components/agents/create-session-form.tsx
+index d658252..87182f2 100644
+--- a/apps/web/src/components/agents/create-session-form.tsx
++++ b/apps/web/src/components/agents/create-session-form.tsx
+@@ -25,11 +25,12 @@ export interface CreateSessionFormProps {
+   className?: string;
+ }
+ 
+-type AgentType = 'claude-code' | 'copilot';
++type AgentType = 'claude-code' | 'copilot' | 'copilot-cli';
+ 
+ const AGENT_TYPE_OPTIONS: Array<{ value: AgentType; label: string }> = [
+-  { value: 'claude-code', label: 'Claude Code' },
+   { value: 'copilot', label: 'GitHub Copilot' },
++  { value: 'claude-code', label: 'Claude Code' },
++  { value: 'copilot-cli', label: 'Copilot CLI (tmux)' },
+ ];
+ 
+ export function CreateSessionForm({
+@@ -40,8 +41,11 @@ export function CreateSessionForm({
+   const router = useRouter();
+   const [isPending, startTransition] = useTransition();
+   const [name, setName] = useState('');
+-  const [agentType, setAgentType] = useState<AgentType>('claude-code');
++  const [agentType, setAgentType] = useState<AgentType>('copilot');
+   const [error, setError] = useState<string | null>(null);
++  const [sessionId, setSessionId] = useState('');
++  const [tmuxWindow, setTmuxWindow] = useState('');
++  const [tmuxPane, setTmuxPane] = useState('');
+ 
+   const handleSubmit = useCallback(
+     (e: FormEvent) => {
+@@ -60,6 +64,11 @@ export function CreateSessionForm({
+               name: finalName,
+               type: agentType,
+               workspace: workspaceSlug,
++              ...(agentType === 'copilot-cli' && {
++                sessionId: sessionId.trim() || undefined,
++                tmuxWindow: tmuxWindow.trim() || undefined,
++                tmuxPane: tmuxPane.trim() || undefined,
++              }),
+             }),
+           });
+ 
+@@ -77,7 +86,7 @@ export function CreateSessionForm({
+         }
+       });
+     },
+-    [name, agentType, workspaceSlug, sessionCount, router]
++    [name, agentType, workspaceSlug, sessionCount, router, sessionId, tmuxWindow, tmuxPane]
+   );
+ 
+   return (
+@@ -126,6 +135,68 @@ export function CreateSessionForm({
+         </select>
+       </div>
+ 
++      {agentType === 'copilot-cli' && (
++        <div className="space-y-2 rounded-md border p-3">
++          <div className="space-y-1">
++            <label htmlFor="session-id" className="text-sm font-medium text-foreground">
++              Session ID <span className="text-muted-foreground">(required)</span>
++            </label>
++            <input
++              id="session-id"
++              type="text"
++              value={sessionId}
++              onChange={(e) => setSessionId(e.target.value)}
++              placeholder="e.g. abc123-def456"
++              disabled={isPending}
++              className={cn(
++                'w-full px-3 py-2 text-sm rounded-md border',
++                'bg-background',
++                'focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500',
++                'disabled:opacity-50 disabled:cursor-not-allowed'
++              )}
++            />
++          </div>
++          <div className="space-y-1">
++            <label htmlFor="tmux-window" className="text-sm font-medium text-foreground">
++              tmux Window <span className="text-muted-foreground">(optional)</span>
++            </label>
++            <input
++              id="tmux-window"
++              type="text"
++              value={tmuxWindow}
++              onChange={(e) => setTmuxWindow(e.target.value)}
++              placeholder="e.g. studio"
++              disabled={isPending}
++              className={cn(
++                'w-full px-3 py-2 text-sm rounded-md border',
++                'bg-background',
++                'focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500',
++                'disabled:opacity-50 disabled:cursor-not-allowed'
++              )}
++            />
++          </div>
++          <div className="space-y-1">
++            <label htmlFor="tmux-pane" className="text-sm font-medium text-foreground">
++              tmux Pane <span className="text-muted-foreground">(optional)</span>
++            </label>
++            <input
++              id="tmux-pane"
++              type="text"
++              value={tmuxPane}
++              onChange={(e) => setTmuxPane(e.target.value)}
++              placeholder="e.g. 1.0"
++              disabled={isPending}
++              className={cn(
++                'w-full px-3 py-2 text-sm rounded-md border',
++                'bg-background',
++                'focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500',
++                'disabled:opacity-50 disabled:cursor-not-allowed'
++              )}
++            />
++          </div>
++        </div>
++      )}
++
+       {error && (
+         <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-md px-3 py-2">
+           {error}
+diff --git a/apps/web/src/lib/di-container.ts b/apps/web/src/lib/di-container.ts
+index 98a5efd..9fb4dea 100644
+--- a/apps/web/src/lib/di-container.ts
++++ b/apps/web/src/lib/di-container.ts
+@@ -38,6 +38,7 @@ import {
+   PinoLoggerAdapter,
+   SHARED_DI_TOKENS,
+   SdkCopilotAdapter,
++  CopilotCLIAdapter,
+   UnixProcessManager,
+   WORKSPACE_DI_TOKENS,
+   WindowsProcessManager,
+@@ -249,6 +250,14 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
+           // Reuse singleton CopilotClient to avoid repeated SDK client construction
+           return new SdkCopilotAdapter(copilotClient, { logger });
+         }
++        if (agentType === 'copilot-cli') {
++          return new CopilotCLIAdapter({
++            sendKeys: (target, text) => {
++              const { execSync } = require('node:child_process');
++              execSync(`tmux send-keys -t ${target} ${JSON.stringify(text)}`, { stdio: 'ignore' });
++            },
++          });
++        }
+         throw new Error(`Unknown agent type: ${agentType}`);
+       };
+ 
+@@ -406,6 +415,14 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
+           const copilotClient = c.resolve<CopilotClient>(DI_TOKENS.COPILOT_CLIENT);
+           return new SdkCopilotAdapter(copilotClient, { logger });
+         }
++        if (agentType === 'copilot-cli') {
++          return new CopilotCLIAdapter({
++            sendKeys: (target, text) => {
++              const { execSync } = require('node:child_process');
++              execSync(`tmux send-keys -t ${target} ${JSON.stringify(text)}`, { stdio: 'ignore' });
++            },
++          });
++        }
+         throw new Error(`Unknown agent type: ${agentType}`);
+       };
+ 
+diff --git a/docs/domains/domain-map.md b/docs/domains/domain-map.md
+index c043974..60878e4 100644
+--- a/docs/domains/domain-map.md
++++ b/docs/domains/domain-map.md
+@@ -8,6 +8,7 @@ flowchart LR
+     classDef business fill:#E3F2FD,stroke:#2196F3,color:#000
+     classDef infra fill:#F3E5F5,stroke:#9C27B0,color:#000
+     classDef deprecated fill:#FFEBEE,stroke:#F44336,color:#000
++    classDef new fill:#FFF3E0,stroke:#FF9800,color:#000
+ 
+     %% Infrastructure domains
+     fileOps["⚙️ _platform/file-ops<br/>IFileSystem · IPathResolver"]:::infra
+@@ -25,6 +26,10 @@ flowchart LR
+     fileBrowser["📁 file-browser<br/>Browser page · FileTree<br/>CodeEditor · FileViewerPanel<br/>WorkspaceContext · Settings"]:::business
+     workflowUI["🔀 workflow-ui<br/>Workflow editor · Canvas<br/>Toolbox · Properties<br/>Doping system"]:::business
+ 
++    %% NEW business domains (Plan 059)
++    agents["🤖 agents<br/>IAgentManagerService<br/>IAgentAdapter · IAgentInstance<br/>useAgentManager<br/>useAgentInstance<br/>AgentWorkUnitBridge"]:::new
++    workUnitState["📋 work-unit-state<br/>IWorkUnitStateService<br/>WorkUnitEntry<br/>WorkUnitQuestion<br/>FakeWorkUnitStateService"]:::new
++
+     %% Contract dependencies (consumer → provider)
+     fileBrowser -->|"IFileSystem<br/>IPathResolver"| fileOps
+     fileBrowser -->|"workspaceHref<br/>fileBrowserParams"| wsUrl
+@@ -59,12 +64,27 @@ flowchart LR
+ 
+     %% Dev tools dependencies
+     devTools -->|"IStateService<br/>StateChangeLog<br/>useStateSystem"| state
++
++    %% NEW: Agents domain dependencies
++    agents -->|"ISSEBroadcaster<br/>useSSE · toast()"| events
++    agents -->|"CopilotClient"| sdk
++    agents -->|"IStateService<br/>useGlobalState"| state
++    agents -->|"IWorkUnitStateService<br/>(publish status)"| workUnitState
++    agents -->|"DashboardShell<br/>(top bar slot)"| panels
++    posGraph -->|"IAgentManagerService<br/>IAgentInstance<br/>(orchestration)"| agents
++
++    %% NEW: Work Unit State dependencies
++    workUnitState -->|"IStateService<br/>(publish paths)"| state
++
++    %% NEW: Workflow UI → agents (future overlay)
++    workflowUI -->|"useAgentOverlay<br/>(future)"| agents
+ ```
+ 
+ ## Legend
+ 
+ - **Blue**: Business domains (user-facing capabilities)
+ - **Purple**: Infrastructure domains (cross-cutting technical capabilities)
++- **Orange**: Newly added domains (Plan 059 — change to blue after first implementation)
+ - **Red**: Deprecated domains (pending removal)
+ - **Solid arrows** (→): Contract dependency (A consumes B's contract)
+ - **Labels on arrows**: Contract name being consumed
+@@ -76,13 +96,15 @@ flowchart LR
+ | _platform/file-ops | IFileSystem, IPathResolver | file-browser, viewer, workflow-ui | — | — | ✅ |
+ | _platform/workspace-url | workspaceHref, paramsCaches | file-browser, panel-layout | — | — | ✅ |
+ | _platform/viewer | FileViewer, MarkdownViewer, DiffViewer, highlightCode, detectContentType, isBinaryExtension | file-browser | IFileSystem | file-ops | ✅ |
+-| _platform/events | ICentralEventNotifier, ISSEBroadcaster, useSSE, FileChangeHub, useFileChanges, FileChangeProvider, toast() | file-browser, workflow-ui, agent-ui*, state | — | — | ✅ |
++| _platform/events | ICentralEventNotifier, ISSEBroadcaster, useSSE, FileChangeHub, useFileChanges, FileChangeProvider, toast() | file-browser, workflow-ui, agents, state | — | — | ✅ |
+ | _platform/panel-layout | PanelShell, ExplorerPanel, LeftPanel, MainPanel, PanelHeader, BarHandler, AsciiSpinner, FlowSpaceSearchResult, FlowSpaceAvailability, FlowSpaceSearchMode | file-browser, future workspace pages | panel URL param | workspace-url | ✅ |
+ | file-browser | Browser page, FileTree, FileViewerPanel, WorkspaceContext, EmojiPicker, ColorPicker, Settings | — | IFileSystem, workspaceHref, viewers, toast, events, panels | file-ops, workspace-url, viewer, events, panel-layout | ✅ |
+ | _platform/sdk | IUSDK, ICommandRegistry, ISDKSettings, IContextKeyService, IKeybindingService, SDKCommand, SDKSetting, FakeUSDK | file-browser, workflow-ui, events, panel-layout, settings | — | — | ✅ |
+ | _platform/settings | Settings Page, sdk.openSettings | — | ISDKSettings, useSDKSetting, useSDK | sdk | ✅ |
+ | _platform/positional-graph | IPositionalGraphService, IOrchestrationService, IEventHandlerService, IWorkUnitService, ITemplateService, IInstanceService | CLI (`cg wf`, `cg template`), workflow-ui, dev/test-graphs | IFileSystem, IPathResolver, IStateService | file-ops, state | ✅ |
+ | _platform/workgraph | IWorkGraphService, IWorkNodeService, IWorkUnitService | CLI (`cg wg`, `cg unit`) | IFileSystem, IPathResolver | file-ops | ❌ Removed from web (Plan 050 Phase 7) |
+-| _platform/state | IStateService, useGlobalState, useGlobalStateList, GlobalStateProvider, StateChangeLog, FakeGlobalStateSystem | positional-graph (publish), workflow-ui, panel-layout, file-browser (subscribe), dev-tools | useSSE | events | ✅ |
+-| workflow-ui | _(none — leaf consumer)_ | — | IPositionalGraphService, ITemplateService, IWorkUnitService, IFileSystem, IPathResolver, useSSE, workspaceHref, IUSDK, useGlobalState | positional-graph, file-ops, events, workspace-url, sdk, state | ✅ |
++| _platform/state | IStateService, useGlobalState, useGlobalStateList, GlobalStateProvider, StateChangeLog, FakeGlobalStateSystem | positional-graph (publish), workflow-ui, panel-layout, file-browser, agents, work-unit-state (subscribe), dev-tools | useSSE | events | ✅ |
++| workflow-ui | _(none — leaf consumer)_ | — | IPositionalGraphService, ITemplateService, IWorkUnitService, IFileSystem, IPathResolver, useSSE, workspaceHref, IUSDK, useGlobalState, useAgentOverlay (future) | positional-graph, file-ops, events, workspace-url, sdk, state, agents (future) | ✅ |
+ | _platform/dev-tools | StateInspector, useStateChangeLog, useStateInspector | — | IStateService, StateChangeLog, useStateSystem | state | ✅ |
++| agents | IAgentManagerService, IAgentAdapter, IAgentInstance, IAgentNotifierService, useAgentManager, useAgentInstance, AgentWorkUnitBridge | positional-graph (orchestration), workflow-ui (future overlay) | ISSEBroadcaster, useSSE, toast(), CopilotClient, IStateService, IWorkUnitStateService, DashboardShell | events, sdk, state, work-unit-state, panel-layout | 🟠 New |
++| work-unit-state | IWorkUnitStateService, WorkUnitEntry, WorkUnitQuestion, FakeWorkUnitStateService | agents (AgentWorkUnitBridge), workflow-ui (future) | IStateService | state | 🟠 New |
+diff --git a/docs/domains/registry.md b/docs/domains/registry.md
+index 67b417b..aaa5253 100644
+--- a/docs/domains/registry.md
++++ b/docs/domains/registry.md
+@@ -15,6 +15,8 @@
+ | Workflow UI | workflow-ui | business | — | Plan 050 | active |
+ | State | _platform/state | infrastructure | _platform | Plan 053 — GlobalStateSystem | active |
+ | Dev Tools | _platform/dev-tools | infrastructure | _platform | Plan 056 — State DevTools Panel | active |
++| Agents | agents | business | — | Plan 059 — Fix Agents (extracted) | active |
++| Work Unit State | work-unit-state | business | — | Plan 059 — Fix Agents (new) | active |
+ 
+ ## Domain Types
+ 
+diff --git a/docs/plans/059-fix-agents/workshops/001-top-bar-agent-ux.md b/docs/plans/059-fix-agents/workshops/001-top-bar-agent-ux.md
+index 51e8ce6..1cc66af 100644
+--- a/docs/plans/059-fix-agents/workshops/001-top-bar-agent-ux.md
++++ b/docs/plans/059-fix-agents/workshops/001-top-bar-agent-ux.md
+@@ -76,40 +76,59 @@ The backend has 3 statuses: `working`, `stopped`, `error`. But "stopped" is ambi
+ | `archived` | — | User dismissed / old | ❌ No | No |
+ | `terminated` | — | Hard-killed, gone | ❌ No | No |
+ 
+-**Top bar rule**: Show agents in states `working`, `waiting_input`, `idle`, `error`, `completed`. Hide `archived` and `terminated`.
++**Top bar rule — REVISED (Recency Model)**:
+ 
+-### Status Derivation
++The top bar does NOT show all agents by status. Instead, it renders a **recent agents list** — a persisted, per-worktree data structure that tracks which agents should be visible.
+ 
+-The backend publishes raw `working` / `stopped` / `error`. The client derives the richer status:
++**Auto-populate**: Any agent that runs gets added to the recent list with a timestamp. If already present, the timestamp refreshes.
++
++**Auto-depopulate**: On page load (or periodic tidy), sweep the list and remove anything older than 24h that isn't currently `working`. Agents that ARE `working` never get swept regardless of age.
++
++**Manual dismiss**: User can ✕ an agent off the recent list without killing it. The agent keeps running, just not visible in the bar. Reopening it (from agent page, workflow node, etc.) re-adds it.
++
++**First-class questions override recency**: If an agent raises a typed question via MessageService, it gets flash/badge/attention treatment regardless of whether it's in the recent list. Questions always surface.
++
++**Storage**: Persisted as `<worktree>/.chainglass/data/agent-recent-list.json`, published to state system on load:
++```json
++{
++  "agents": [
++    { "agentId": "abc-123", "addedAt": "2026-02-28T06:00:00Z", "order": 0 },
++    { "agentId": "def-456", "addedAt": "2026-02-28T07:30:00Z", "order": 1 }
++  ]
++}
++```
++
++On page load: read file → filter out expired (>24h AND not working) → write back → publish to state system → top bar renders.
++
++**"Waiting for input" detection**: We do NOT try to infer whether an idle agent is "waiting" from heuristics. Only first-class questions (MessageService) trigger `waiting_input` status. An agent that goes `stopped` after a run is simply `idle` in the recent list — available to reconnect but not attention-seeking.
++
++### Status Derivation (Simplified)
++
++The backend publishes raw `working` / `stopped` / `error`. The client derives display status. `waiting_input` is ONLY triggered by a first-class question via MessageService — never inferred from agent idle state.
+ 
+ ```typescript
+ type BackendAgentStatus = 'working' | 'stopped' | 'error';
+ 
+ type DerivedAgentStatus =
+   | 'working'
+-  | 'waiting_input'
+-  | 'idle'
+-  | 'error'
+-  | 'completed'
+-  | 'archived'
+-  | 'terminated';
++  | 'waiting_input'   // ONLY when hasQuestion === true
++  | 'idle'            // Default for stopped agents in recent list
++  | 'error';
+ 
+ function deriveDisplayStatus(
+   backendStatus: BackendAgentStatus,
+   hasQuestion: boolean,
+-  hasEverRun: boolean,
+-  lastRunSucceeded: boolean | null,
+ ): DerivedAgentStatus {
+   if (backendStatus === 'working') return 'working';
+   if (backendStatus === 'error') return 'error';
+   // backendStatus === 'stopped'
+   if (hasQuestion) return 'waiting_input';
+-  if (!hasEverRun) return 'idle';
+-  if (lastRunSucceeded) return 'completed';
+-  return 'idle'; // stopped but no question, ran before, didn't succeed — back to idle
++  return 'idle';
+ }
+ ```
+ 
++**Removed states**: `completed` and `archived` are no longer derived statuses. The recency model handles visibility — agents auto-depopulate after 24h of inactivity, no need for "completed" or "archived" semantics in the top bar.
++
+ ### State Paths (Plan 053 Pattern)
+ 
+ ```
+@@ -118,15 +137,15 @@ agent:{agentId}:intent          → string (e.g., "Refactoring auth module")
+ agent:{agentId}:type            → 'claude-code' | 'copilot' | 'copilot-cli'
+ agent:{agentId}:name            → string
+ agent:{agentId}:workspace       → string (worktree slug)
+-agent:{agentId}:has-question    → boolean
++agent:{agentId}:has-question    → boolean (ONLY true when MessageService question raised)
+ agent:{agentId}:question-text   → string (the actual question, for popover preview)
+ agent:{agentId}:creator         → 'user' | 'workflow' | 'pod'
+-agent:{agentId}:has-ever-run    → boolean
+-agent:{agentId}:last-run-ok     → boolean | null
+ ```
+ 
+ **Why this granularity**: Each field updates independently. `intent` changes frequently during `working` state; `status` changes rarely. Fine-grained paths prevent unnecessary re-renders via `useGlobalState`.
+ 
++**Removed**: `has-ever-run` and `last-run-ok` — no longer needed since we use recency model instead of status derivation for visibility.
++
+ ---
+ 
+ ## Q2: Agent Ordering Strategy
+diff --git a/packages/shared/src/features/019-agent-manager-refactor/agent-instance.interface.ts b/packages/shared/src/features/019-agent-manager-refactor/agent-instance.interface.ts
+index f2a0bd2..4455a18 100644
+--- a/packages/shared/src/features/019-agent-manager-refactor/agent-instance.interface.ts
++++ b/packages/shared/src/features/019-agent-manager-refactor/agent-instance.interface.ts
+@@ -14,9 +14,9 @@ import type { AgentEvent, AgentResult, IAgentAdapter } from '../../interfaces/in
+ /**
+  * Agent type determines which adapter to use.
+  *
+- * Per Invariant #4: Only these two types are supported.
++ * Per Invariant #4: These three types are supported.
+  */
+-export type AgentType = 'claude-code' | 'copilot';
++export type AgentType = 'claude-code' | 'copilot' | 'copilot-cli';
+ 
+ /**
+  * Agent instance status values.
+diff --git a/docs/domains/agents/domain.md b/docs/domains/agents/domain.md
+new file mode 100644
+index 0000000..856b71e
+--- /dev/null
++++ b/docs/domains/agents/domain.md
+@@ -0,0 +1,255 @@
++# Domain: Agents
++
++**Slug**: agents
++**Type**: business
++**Created**: 2026-02-28
++**Created By**: Plan 059 — Fix Agents (extracted from existing codebase)
++**Status**: active
++
++## Purpose
++
++Multi-adapter AI agent lifecycle management. Creates, runs, streams, and persists agent sessions across three runtime backends (Claude Code CLI, GitHub Copilot SDK, Copilot CLI via tmux). The web UI provides chat, status monitoring, and seamless connect/disconnect to background agents. Agents are the primary work executors in Chainglass — workflow nodes spawn them, users observe them, and the system tracks their status for cross-component visibility.
++
++## Concepts
++
++| Concept | Entry Point | What It Does |
++|---------|-------------|-------------|
++| Create and manage agents | `IAgentManagerService` | CRUD operations for agent lifecycle — create, list, get, terminate |
++| Run agent sessions | `IAgentInstance.run()` | Execute prompts against an adapter, stream events, store as NDJSON |
++| Stream agent events | `IAgentNotifierService` | Broadcast real-time status/intent/event changes via SSE |
++| Persist agent sessions | `IAgentStorageAdapter` | Store and retrieve agent events as NDJSON files per session |
++| Swap agent runtimes | `IAgentAdapter` | Pluggable adapter interface — ClaudeCode, CopilotSDK, CopilotCLI |
++| View agent chat | `useAgentInstance` hook | React hook for fetching agent data + subscribing to SSE stream |
++| List agents | `useAgentManager` hook | React hook for agent list with real-time updates |
++
++### Create and Manage Agents
++
++Central registry for agent CRUD. `AgentManagerService` is a singleton (via `globalThis` to survive HMR) managing an in-memory `Map<agentId, IAgentInstance>`. Agents are created per-workspace, persisted to `~/.config/chainglass/agents/`, and restored on server restart.
++
++```typescript
++import { IAgentManagerService } from '@chainglass/shared';
++const agent = await agentManager.createAgent({ name: 'Fix auth', type: 'copilot', workspace: 'main' });
++const agents = agentManager.getAgents({ workspace: 'main' });
++```
++
++### Run Agent Sessions
++
++Execute a prompt against any adapter. The adapter streams `AgentEvent` objects (text_delta, tool_call, thinking, etc.) which are stored as NDJSON and broadcast via SSE. 409 guard prevents double-runs.
++
++```typescript
++const result = await agent.run({ prompt: 'Fix the auth module', onEvent: (e) => console.log(e) });
++```
++
++### Stream Agent Events
++
++`AgentNotifierService` bridges agent lifecycle events to SSE. Single 'agents' channel per ADR-0007; clients filter by `agentId`. Three event types: `agent_status`, `agent_intent`, `agent_event`.
++
++### Persist Agent Sessions
++
++Events stored as NDJSON at `<worktree>/.chainglass/data/agents/{sessionId}/events.ndjson`. Malformed lines are silently skipped (PL-07). Storage happens BEFORE SSE broadcast (PL-01).
++
++### Swap Agent Runtimes
++
++Three adapters implement `IAgentAdapter`:
++- **ClaudeCodeAdapter**: Spawns `claude` CLI process via ProcessManager
++- **SdkCopilotAdapter**: Wraps `@github/copilot-sdk` (default agent type)
++- **CopilotCLIAdapter**: Attaches to running tmux session, tails `events.jsonl` (Plan 057)
++
++### View Agent Chat / List Agents
++
++React Query for data fetching + SSE for real-time deltas. `useAgentInstance(agentId)` returns agent data + event stream. `useAgentManager()` returns agent list with SSE-driven cache invalidation. Follows notification-fetch pattern (PL-10).
++
++## Boundary
++
++### Owns
++
++**Core interfaces and types:**
++- IAgentAdapter, IAgentInstance, IAgentManagerService, IAgentNotifierService, IAgentStorageAdapter
++- AgentEvent, AgentResult, AgentType (`'claude-code' | 'copilot' | 'copilot-cli'`), AgentInstanceStatus
++- AgentSession entity, agent error types
++- Agent ID validation utility
++- Agent Zod schemas (agent-event, agent-session)
++- DI tokens (SHARED_DI_TOKENS.AGENT_*, WORKSPACE_DI_TOKENS.AGENT_*)
++
++**Adapters:**
++- ClaudeCodeAdapter (Claude Code CLI spawn)
++- SdkCopilotAdapter (@github/copilot-sdk wrapper)
++- CopilotCLIAdapter (tmux + events.jsonl tailing)
++- EventsJsonlParser (NDJSON parsing)
++
++**Services:**
++- AgentManagerService (singleton, CRUD + adapter factory)
++- AgentInstance (per-agent lifecycle + event accumulation)
++- AgentNotifierService (SSE broadcast bridge)
++- AgentStorageAdapter (NDJSON file persistence)
++
++**Web hooks:**
++- useAgentManager — agent list with SSE subscription
++- useAgentInstance — single agent with SSE + event stream
++
++**Web UI components:**
++- AgentChatView, AgentChatInput — chat conversation UI
++- AgentListLive — real-time agent list table
++- CreateSessionForm — agent creation form (default: copilot)
++- AgentSessionDialog — dialog wrapper for sessions
++- AgentStatusIndicator — status badge component
++- ContextWindowDisplay, LogEntry, ThinkingBlock, ToolCallCard — chat renderers
++- SessionDeleteButton, DeleteSessionDialog — deletion with confirmation
++
++**API routes:**
++- GET/POST /api/agents — list and create
++- GET/PUT/DELETE /api/agents/[id] — single agent CRUD
++- POST /api/agents/[id]/run — execute prompt
++- GET /api/agents/events — SSE event stream
++
++**Pages:**
++- /workspaces/[slug]/agents — agent list page
++- /workspaces/[slug]/agents/[id] — agent detail/chat page
++
++**Transformers:**
++- agent-events-to-log-entries — AgentEvent → LogEntry conversion for chat rendering
++
++**Fakes:**
++- FakeAgentAdapter, FakeAgentInstance, FakeAgentManagerService, FakeAgentNotifierService, FakeAgentStorageAdapter, FakeSSEBroadcaster
++
++**Future (Plan 059):**
++- AgentWorkUnitBridge — publishes agent status to WorkUnitStateService
++- AgentChipBar, AgentChip — top bar UI components
++- AgentOverlayPanel — fixed-position overlay with chat
++- useAgentOverlay — { openAgent, closeAgent, activeAgentId }
++- useRecentAgents — recency-based agent list with 24h expiry
++- AttentionFlash — screen border flash + ❓ badge
++
++### Subdomain: Session Persistence (packages/workflow)
++
++Agent session and event persistence infrastructure that lives in the workflow package. Agent-specific but serves workflow orchestration contexts.
++
++- IAgentSessionAdapter, IAgentSessionService, IAgentEventAdapter (interfaces)
++- AgentSessionAdapter, AgentEventAdapter (adapters)
++- AgentSessionService (service)
++- AgentSession entity
++- FakeAgentSessionAdapter, FakeAgentEventAdapter (fakes)
++
++### Does NOT Own
++
++- **Orchestration execution** (AgentPod, AgentContext, ODS) — owned by `_platform/positional-graph`. Orchestration creates agents but lifecycle management is separate.
++- **CLI agent commands** (cg agent run, cg agent compact) — owned by CLI app. Uses shared interfaces.
++- **SSE transport infrastructure** (SSEManager, SSE API route) — owned by `_platform/events`. Agents consume `ISSEBroadcaster`.
++- **Copilot SDK client management** — owned by `_platform/sdk`. CopilotClient singleton.
++- **WorkspaceDomain.Agents channel name** — owned by `_platform/events`. Channel registry.
++- **Generic work unit state registry** — owned by `work-unit-state`. Agents publish TO it via AgentWorkUnitBridge.
++- **State system infrastructure** (GlobalStateSystem, useGlobalState) — owned by `_platform/state`.
++
++## Contracts (Public Interface)
++
++| Contract | Type | Consumers | Description |
++|----------|------|-----------|-------------|
++| `IAgentAdapter` | Interface | AgentInstance, contract tests | `run(prompt, onEvent)`, `compact()`, `terminate()` |
++| `IAgentInstance` | Interface | API routes, orchestration (AgentPod), hooks | Agent lifecycle: `run()`, `terminate()`, `getEvents()`, status/intent |
++| `IAgentManagerService` | Interface | API routes, orchestration (ODS), CLI, DI | `createAgent()`, `getAgents()`, `getAgent()`, `terminateAgent()` |
++| `IAgentNotifierService` | Interface | AgentManagerService, DI | `broadcastStatus()`, `broadcastIntent()`, `broadcastEvent()` |
++| `IAgentStorageAdapter` | Interface | AgentInstance | `append()`, `getAll()`, `getSince()` — NDJSON persistence |
++| `IAgentSessionAdapter` | Interface | AgentSessionService | Session CRUD in workflow package |
++| `IAgentSessionService` | Interface | Workflow orchestration | `createSession()`, `deleteSession()`, `updateSessionStatus()` |
++| `IAgentEventAdapter` | Interface | AgentSessionService | `appendEvent()`, `getAllEvents()`, `getEventsSince()` |
++| `useAgentManager` | Hook | Agent list page | React Query + SSE agent list |
++| `useAgentInstance` | Hook | Agent detail page, future overlay | React Query + SSE single agent |
++| `AgentType` | Type | API routes, forms, DI factory | `'claude-code' \| 'copilot' \| 'copilot-cli'` |
++| `AgentInstanceStatus` | Type | UI components, state publishing | `'working' \| 'stopped' \| 'error'` |
++| `AgentEvent` | Type | Hooks, transformers, storage | Discriminated union of all agent event types |
++| `SHARED_DI_TOKENS.AGENT_*` | Tokens | DI container | Service resolution tokens |
++
++## Composition (Internal)
++
++| Component | Role | Depends On |
++|-----------|------|------------|
++| AgentManagerService | Singleton registry, CRUD, adapter factory coordination | IAgentAdapter (factory), IAgentStorageAdapter, IAgentNotifierService |
++| AgentInstance | Per-agent lifecycle + event accumulation + status machine | IAgentAdapter, IAgentStorageAdapter |
++| ClaudeCodeAdapter | Claude Code CLI spawn + output parsing | ProcessManager (child_process) |
++| SdkCopilotAdapter | @github/copilot-sdk wrapper | CopilotClient (_platform/sdk) |
++| CopilotCLIAdapter | tmux send-keys + events.jsonl tailing | tmux (system), EventsJsonlParser |
++| AgentNotifierService | SSE broadcast bridge — translates lifecycle to SSE | ISSEBroadcaster (_platform/events) |
++| AgentStorageAdapter | NDJSON file read/write per session | Node.js fs (filesystem) |
++| useAgentManager | React Query list + SSE cache invalidation | /api/agents, /api/agents/events |
++| useAgentInstance | React Query detail + SSE event streaming | /api/agents/[id], /api/agents/events |
++| AgentChatView | Renders event stream as chat conversation | useAgentInstance, transformers |
++| CreateSessionForm | Agent creation form with type selector | /api/agents POST |
++
++## Source Location
++
++Primary: scattered across `packages/shared/src/`, `packages/workflow/src/`, `apps/web/src/`, `apps/web/app/`
++
++| File | Role | Notes |
++|------|------|-------|
++| `packages/shared/src/interfaces/agent-adapter.interface.ts` | IAgentAdapter interface | Core adapter contract |
++| `packages/shared/src/interfaces/agent-types.ts` | Agent type definitions | AgentEvent, AgentResult, AgentStatus |
++| `packages/shared/src/features/019-agent-manager-refactor/` | Core agent management | Interfaces, services, fakes (14 files) |
++| `packages/shared/src/features/034-agentic-cli/` | CLI agent management | CLI-specific interfaces + service (9 files) |
++| `packages/shared/src/adapters/claude-code.adapter.ts` | ClaudeCodeAdapter | CLI spawn adapter |
++| `packages/shared/src/adapters/sdk-copilot-adapter.ts` | SdkCopilotAdapter | SDK wrapper adapter |
++| `packages/shared/src/adapters/copilot-cli.adapter.ts` | CopilotCLIAdapter | tmux adapter (Plan 057) |
++| `packages/shared/src/adapters/events-jsonl-parser.ts` | EventsJsonlParser | NDJSON parsing |
++| `packages/shared/src/fakes/fake-agent-adapter.ts` | FakeAgentAdapter | Test double |
++| `packages/shared/src/schemas/agent-event.schema.ts` | AgentEvent Zod schema | Validation |
++| `packages/shared/src/schemas/agent-session.schema.ts` | AgentSession Zod schema | Validation |
++| `packages/shared/src/utils/validate-agent-id.ts` | Agent ID validation | Path traversal prevention (PL-09) |
++| `packages/workflow/src/interfaces/agent-session-adapter.interface.ts` | IAgentSessionAdapter | Session persistence (subdomain) |
++| `packages/workflow/src/interfaces/agent-session-service.interface.ts` | IAgentSessionService | Session lifecycle (subdomain) |
++| `packages/workflow/src/interfaces/agent-event-adapter.interface.ts` | IAgentEventAdapter | Event persistence (subdomain) |
++| `packages/workflow/src/adapters/agent-session.adapter.ts` | AgentSessionAdapter | Filesystem session adapter (subdomain) |
++| `packages/workflow/src/adapters/agent-event.adapter.ts` | AgentEventAdapter | Filesystem event adapter (subdomain) |
++| `packages/workflow/src/services/agent-session.service.ts` | AgentSessionService | Session service (subdomain) |
++| `packages/workflow/src/entities/agent-session.ts` | AgentSession entity | Domain entity (subdomain) |
++| `packages/workflow/src/errors/agent-errors.ts` | Agent error types | (subdomain) |
++| `apps/web/src/features/019-agent-manager-refactor/agent-notifier.service.ts` | AgentNotifierService | SSE broadcast |
++| `apps/web/src/features/019-agent-manager-refactor/sse-manager-broadcaster.ts` | SSEManagerBroadcaster | SSE adapter |
++| `apps/web/src/features/019-agent-manager-refactor/useAgentManager.ts` | useAgentManager hook | React Query + SSE |
++| `apps/web/src/features/019-agent-manager-refactor/useAgentInstance.ts` | useAgentInstance hook | React Query + SSE |
++| `apps/web/src/features/019-agent-manager-refactor/transformers/` | Event transformers | AgentEvent → LogEntry |
++| `apps/web/src/components/agents/` | Agent UI components | 12+ components |
++| `apps/web/app/api/agents/route.ts` | GET/POST /api/agents | List + create |
++| `apps/web/app/api/agents/[id]/route.ts` | Single agent CRUD | GET/PUT/DELETE |
++| `apps/web/app/api/agents/[id]/run/route.ts` | Execute agent | POST with 409 guard |
++| `apps/web/app/api/agents/events/route.ts` | SSE stream | Agent events |
++| `apps/web/app/(dashboard)/workspaces/[slug]/agents/page.tsx` | Agent list page | Server component |
++| `apps/web/app/(dashboard)/workspaces/[slug]/agents/[id]/page.tsx` | Agent detail page | Server component |
++| `apps/web/src/data/fixtures/agent-sessions.fixture.ts` | Fixture data | Test fixtures |
++| `test/contracts/agent-*.contract.ts` | Contract tests | 8 contract test files |
++| `test/unit/shared/claude-code-adapter.test.ts` | Adapter unit test | |
++| `test/unit/shared/sdk-copilot-adapter.test.ts` | Adapter unit test | |
++| `test/unit/shared/adapters/copilot-cli-adapter.test.ts` | Adapter unit test | |
++| `test/unit/web/components/agents/*.test.tsx` | Component tests | 4+ test files |
++| `test/integration/agent-*.test.ts` | Integration tests | 9 integration test files |
++
++## Dependencies
++
++### This Domain Depends On
++
++| Domain | Contract | Why |
++|--------|----------|-----|
++| `_platform/events` | ISSEBroadcaster, useSSE | SSE transport for real-time agent events |
++| `_platform/events` | toast() | Toast notifications for agent status changes |
++| `_platform/sdk` | CopilotClient | SdkCopilotAdapter uses Copilot SDK client singleton |
++| `_platform/state` | IStateService, useGlobalState | Future: publish agent state paths |
++| `work-unit-state` | IWorkUnitStateService | Future: AgentWorkUnitBridge publishes status/questions |
++| `_platform/panel-layout` | DashboardShell | Future: top bar slot for agent chip bar |
++
++### Domains That Depend On This
++
++| Domain | Contract | Why |
++|--------|----------|-----|
++| `_platform/positional-graph` | IAgentManagerService, IAgentInstance | Orchestration creates/runs agents via AgentPod |
++| `workflow-ui` | _(future: useAgentOverlay)_ | Future: workflow nodes trigger agent overlay |
++
++## History
++
++| Plan | What Changed | Date |
++|------|-------------|------|
++| Plan 012 | Initial agent system — ClaudeCodeAdapter, basic CRUD | 2026-01 |
++| Plan 015 | Better agents — NDJSON storage, SSE broadcasting, storage-first pattern | 2026-01 |
++| Plan 018 | Workspace data model — per-worktree session storage | 2026-01 |
++| Plan 019 | Agent manager refactor — DI, interfaces, fakes, contract tests, singleton | 2026-01 |
++| Plan 030 | Orchestration — AgentPod, ODS agent execution | 2026-02 |
++| Plan 034 | Agentic CLI — CLI agent commands, compact handler | 2026-02 |
++| Plan 057 | CopilotCLI adapter — tmux + events.jsonl tailing | 2026-02 |
++| *(extracted)* | Domain formalized from existing codebase | 2026-02-28 |
+diff --git a/docs/domains/work-unit-state/domain.md b/docs/domains/work-unit-state/domain.md
+new file mode 100644
+index 0000000..5187ad3
+--- /dev/null
++++ b/docs/domains/work-unit-state/domain.md
+@@ -0,0 +1,180 @@
++# Domain: Work Unit State
++
++**Slug**: work-unit-state
++**Type**: business
++**Created**: 2026-02-28
++**Created By**: Plan 059 — Fix Agents (new domain)
++**Status**: active
++
++## Purpose
++
++Centralized first-class registry where any work unit — agents, code units, user-input nodes, pods — reports execution state and asks typed questions. Provides a single query surface for "who's running, who needs help, who's done" across all work unit types and worktrees. Enables the top bar, cross-worktree badges, and attention layers without each consumer polling each source directly.
++
++## Concepts
++
++| Concept | Entry Point | What It Does |
++|---------|-------------|-------------|
++| Register a work unit | `IWorkUnitStateService.register()` | Add a work unit to the registry with source type, name, workspace |
++| Track execution status | `IWorkUnitStateService.updateStatus()` | Publish status changes (working, idle, waiting_input, error) to state paths |
++| Ask first-class questions | `IWorkUnitStateService.askQuestion()` | Register a typed question (free_text, single_choice, multi_choice, confirm) for any work unit |
++| Answer questions | `IWorkUnitStateService.answerQuestion()` | Route an answer to the source's registered callback and clear question state |
++| Query work units | `IWorkUnitStateService.getUnits()` | List all work units, filterable by workspace, status, has-question |
++| Auto-expire stale entries | `IWorkUnitStateService.tidyUp()` | Remove entries > 24h old that aren't working or waiting_input |
++
++### Register a Work Unit
++
++Any source — agent, workflow node, pod, code unit — registers itself when it starts. The registry assigns a state path prefix (`work-unit:{id}:*`) and begins publishing to GlobalStateSystem.
++
++```typescript
++import { IWorkUnitStateService } from '@chainglass/shared';
++stateService.register({
++  id: agentId,
++  sourceType: 'agent',
++  name: 'Fix auth module',
++  workspace: 'main',
++});
++```
++
++### Track Execution Status
++
++Status changes publish to state paths. Consumers subscribe via `useGlobalState('work-unit:{id}:status')` — no direct coupling to the source.
++
++```typescript
++stateService.updateStatus(agentId, 'working', { intent: 'Refactoring auth' });
++// Publishes: work-unit:{id}:status = 'working', work-unit:{id}:intent = 'Refactoring auth'
++```
++
++### Ask First-Class Questions
++
++When a work unit needs user input, it asks a typed question. This sets `work-unit:{id}:has-question = true` which triggers attention layers (chip pulse, toast, screen flash).
++
++```typescript
++stateService.askQuestion(agentId, {
++  type: 'single_choice',
++  prompt: 'Which database should I use?',
++  options: ['PostgreSQL', 'MySQL', 'SQLite'],
++});
++```
++
++### Answer Questions
++
++UI calls `answerQuestion()` which routes the answer to the source's registered `onAnswer` callback and clears the question state path.
++
++```typescript
++stateService.answerQuestion(agentId, { value: 'PostgreSQL' });
++// Calls registered callback, sets work-unit:{id}:has-question = false
++```
++
++### Query Work Units
++
++List all active work units with optional filters. Used by top bar (current worktree), left menu (cross-worktree), and dashboards.
++
++```typescript
++const units = stateService.getUnits({ workspace: 'main', hasQuestion: true });
++const questioned = stateService.getQuestioned(); // All units with pending questions
++```
++
++### Auto-Expire Stale Entries
++
++On page load, `tidyUp()` removes entries older than 24h that are not in `working` or `waiting_input` status. Working entries and entries with pending questions never expire regardless of age.
++
++## Boundary
++
++### Owns
++
++- **IWorkUnitStateService interface** — register, unregister, updateStatus, askQuestion, answerQuestion, onAnswer, getUnit, getUnits, getQuestioned, tidyUp
++- **WorkUnitEntry type** — id, sourceType, name, workspace, status, intent, question, createdAt, updatedAt
++- **WorkUnitQuestion type** — type (free_text/single_choice/multi_choice/confirm), prompt, options, required
++- **QuestionAnswer type** — value, freeformNotes
++- **WorkUnitStatus type** — `'working' | 'idle' | 'waiting_input' | 'error'`
++- **Answer routing callbacks** — `onAnswer(unitId, callback)` registration + dispatch
++- **Tidy-up rules** — 24h expiry for non-working/non-waiting entries
++- **Persistence** — `<worktree>/.chainglass/data/work-unit-state.json` (per ADR-0008 Layer 2)
++- **State path publishing** — `work-unit:{id}:status`, `work-unit:{id}:intent`, `work-unit:{id}:has-question`, `work-unit:{id}:source-type`
++- **Domain registration** — registerWorkUnitStateDomain() with GlobalStateSystem
++- **DI tokens** — WORK_UNIT_STATE_DI_TOKENS
++- **FakeWorkUnitStateService** — test double with getPublished(), getQuestions(), getAnswers()
++- **Contract tests** — factory + runner verifying real/fake parity
++
++### Does NOT Own
++
++- **Generic state pub/sub mechanism** — owned by `_platform/state`. Work-unit-state publishes TO GlobalStateSystem, doesn't implement it.
++- **SSE transport** — owned by `_platform/events`. State changes are consumed via useGlobalState hooks, not raw SSE.
++- **Domain-specific question storage** — MessageService stays in `_platform/positional-graph`, agent events stay in agent NDJSON. Work-unit-state is a notification aggregator, not a replacement for domain-internal persistence.
++- **Domain-specific status types** — `AgentInstanceStatus` stays in `agents`, `NodeStatus` stays in `_platform/positional-graph`. Work-unit-state normalizes to its own `WorkUnitStatus`.
++- **UI components** — top bar chips/overlay owned by `agents`, workflow node badges owned by `workflow-ui`. Work-unit-state provides the data; consumers own the rendering.
++- **Question type definitions** — the 4 question types (free_text, single_choice, multi_choice, confirm) originate from Plan 054 unified human input in positional-graph. Work-unit-state reuses these types.
++
++## Contracts (Public Interface)
++
++| Contract | Type | Consumers | Description |
++|----------|------|-----------|-------------|
++| `IWorkUnitStateService` | Interface | agents (AgentWorkUnitBridge), workflow-ui (future), top bar hooks | Full registry facade |
++| `WorkUnitEntry` | Type | Any consumer reading unit state | Status entry with metadata |
++| `WorkUnitQuestion` | Type | UI components rendering questions | Typed question with prompt/options |
++| `QuestionAnswer` | Type | UI components submitting answers | Answer value + optional notes |
++| `WorkUnitStatus` | Type | Status indicators, badges | `'working' \| 'idle' \| 'waiting_input' \| 'error'` |
++| `FakeWorkUnitStateService` | Fake | All tests needing work unit state | Test double with inspection methods |
++| `WORK_UNIT_STATE_DI_TOKENS` | Tokens | DI container | Service resolution tokens |
++
++## Composition (Internal)
++
++| Component | Role | Depends On |
++|-----------|------|------------|
++| WorkUnitStateService | Registry implementation — in-memory Map + persistence + state publishing | IStateService (_platform/state), filesystem |
++| WorkUnitStore (internal) | In-memory Map<id, WorkUnitEntry> + answer callback registry | — |
++| Persistence layer (internal) | JSON file read/write at `<worktree>/.chainglass/data/work-unit-state.json` | Node.js fs |
++| State publisher (internal) | Publishes to GlobalStateSystem on every status/question change | IStateService |
++| TidyUp logic (internal) | Scans entries, removes stale, preserves working/waiting | WorkUnitStore |
++| FakeWorkUnitStateService | Full behavioral fake with inspection helpers | IWorkUnitStateService interface |
++
++## Source Location
++
++Primary: `packages/shared/src/work-unit-state/` (types + interface) + `apps/web/src/lib/work-unit-state/` (implementation)
++
++*Note: This is a new domain — files will be created during Plan 059 Phase B implementation.*
++
++| File | Role | Notes |
++|------|------|-------|
++| `packages/shared/src/interfaces/work-unit-state.interface.ts` | IWorkUnitStateService interface | Phase B.2 |
++| `packages/shared/src/work-unit-state/types.ts` | WorkUnitEntry, WorkUnitQuestion, QuestionAnswer, WorkUnitStatus | Phase B.2 |
++| `packages/shared/src/work-unit-state/tokens.ts` | WORK_UNIT_STATE_DI_TOKENS | Phase B.2 |
++| `packages/shared/src/work-unit-state/index.ts` | Barrel exports | Phase B.2 |
++| `packages/shared/src/fakes/fake-work-unit-state.ts` | FakeWorkUnitStateService | Phase B.3 |
++| `apps/web/src/lib/work-unit-state/work-unit-state.service.ts` | WorkUnitStateService implementation | Phase B.5 |
++| `apps/web/src/lib/work-unit-state/index.ts` | Barrel exports | Phase B.5 |
++| `test/contracts/work-unit-state.contract.ts` | Contract test factory | Phase B.4 |
++| `test/contracts/work-unit-state.contract.test.ts` | Contract test runner | Phase B.4 |
++| `docs/how/work-unit-state-integration.md` | Integration guide | Phase B.10 |
++
++## Dependencies
++
++### This Domain Depends On
++
++| Domain | Contract | Why |
++|--------|----------|-----|
++| `_platform/state` | IStateService | Publish work unit state paths to GlobalStateSystem |
++| `_platform/events` | _(indirect)_ | State changes propagate to UI via state system's SSE integration |
++
++### Domains That Depend On This
++
++| Domain | Contract | Why |
++|--------|----------|-----|
++| `agents` | IWorkUnitStateService | AgentWorkUnitBridge registers agents and publishes status/questions |
++| `workflow-ui` | _(future)_ | Workflow node cards could consume work unit state for unified status display |
++| `_platform/panel-layout` | _(future)_ | Top bar and left menu consume work unit data for badges |
++
++## Design Principles
++
++1. **Notification aggregator, not a replacement** — Each source keeps its own internal state (agent NDJSON, MessageService messages). Work-unit-state is a cross-component notification layer.
++2. **First-class questions only** — Only typed questions (via `askQuestion()`) trigger `waiting_input`. No heuristic detection from natural language or idle time.
++3. **Recency-based visibility** — Working entries never expire; idle entries expire after 24h; manual dismiss available.
++4. **State-first, event-second** — Current state is always readable via `getUnit()`; state changes propagate to UI via GlobalStateSystem subscriptions.
++5. **Source-agnostic** — The registry doesn't know or care whether a work unit is an agent, a code unit, or a user-input node. `sourceType` is metadata, not behavior.
++
++## History
++
++| Plan | What Changed | Date |
++|------|-------------|------|
++| Plan 059 Workshop 003 | System designed — data model, interfaces, question flow, state paths | 2026-02-28 |
++| *(extracted)* | Domain formalized | 2026-02-28 |
+diff --git a/docs/plans/059-fix-agents/fix-agents-plan.md b/docs/plans/059-fix-agents/fix-agents-plan.md
+new file mode 100644
+index 0000000..24c6b74
+--- /dev/null
++++ b/docs/plans/059-fix-agents/fix-agents-plan.md
+@@ -0,0 +1,288 @@
++# Fix Agents — Implementation Plan
++
++**Plan Version**: 1.0.0
++**Created**: 2026-02-28
++**Spec**: [fix-agents-spec.md](./fix-agents-spec.md)
++**Status**: DRAFT
++**Mode**: Full
++
++## Summary
++
++The web agent system is structurally sound (3 adapters, DI container, SSE transport, 45+ test files) but has critical data flow gaps: API serialization omits data hooks expect, SSE broadcasting isn't wired into agent creation, and the CopilotCLI adapter isn't registered in the web DI factory. This plan first fixes the broken foundation (Phase A), then builds a centralized WorkUnit State system for cross-component visibility (Phase B), adds a persistent top bar with overlay for seamless agent connect/disconnect (Phase C), and wires cross-worktree alerts into the left menu (Phase D). Four phases, two new business domains (`work-unit-state`, `agents`), touching 5 existing domains.
++
++## Target Domains
++
++| Domain | Status | Relationship | Role |
++|--------|--------|-------------|------|
++| agents | **NEW** | **create** | Formalize agent boundary: adapters, manager, session lifecycle, state publishing, overlay UI |
++| work-unit-state | **NEW** | **create** | Centralized status + question registry for all work unit types |
++| _platform/state | existing | **consume** | Publish work unit state paths via GlobalStateSystem |
++| _platform/events | existing | **consume** | Broadcast SSE events via ISSEBroadcaster, toast notifications |
++| _platform/panel-layout | existing | **modify** | Add agent top bar slot in DashboardShell layout |
++| workflow-ui | existing | **modify** | Add agent session overlay trigger to workflow nodes |
++| _platform/positional-graph | existing | **consume** | Read node→agent session mapping from orchestrator |
++
++## Domain Manifest
++
++| File | Domain | Classification | Rationale |
++|------|--------|---------------|-----------|
++| `apps/web/app/api/agents/route.ts` | agents | internal | Fix serialization + wire SSE broadcast |
++| `apps/web/app/api/agents/[id]/route.ts` | agents | internal | Verify event inclusion in GET response |
++| `apps/web/app/api/agents/[id]/run/route.ts` | agents | internal | Verify 409 guard + NDJSON storage |
++| `apps/web/src/lib/di-container.ts` | agents | cross-domain | Add copilot-cli adapter factory case |
++| `apps/web/src/features/019-agent-manager-refactor/useAgentManager.ts` | agents | internal | Fix type alignment with API response |
++| `apps/web/src/features/019-agent-manager-refactor/useAgentInstance.ts` | agents | internal | Verify/fix SSE subscription wiring |
++| `apps/web/src/components/agents/create-session-form.tsx` | agents | internal | Default to copilot, add copilot-cli fields |
++| `apps/web/app/(dashboard)/workspaces/[slug]/agents/page.tsx` | agents | internal | Verify agent list rendering |
++| `apps/web/app/(dashboard)/workspaces/[slug]/agents/[id]/page.tsx` | agents | internal | Verify agent detail/chat rendering |
++| `packages/shared/src/interfaces/work-unit-state.interface.ts` | work-unit-state | contract | IWorkUnitStateService interface |
++| `packages/shared/src/work-unit-state/types.ts` | work-unit-state | contract | WorkUnitEntry, WorkUnitQuestion, QuestionAnswer types |
++| `packages/shared/src/work-unit-state/index.ts` | work-unit-state | contract | Barrel exports |
++| `packages/shared/src/fakes/fake-work-unit-state.ts` | work-unit-state | contract | FakeWorkUnitStateService test double |
++| `apps/web/src/lib/work-unit-state/work-unit-state.service.ts` | work-unit-state | internal | Real implementation with persistence + state publishing |
++| `apps/web/src/lib/work-unit-state/index.ts` | work-unit-state | internal | Barrel exports |
++| `test/contracts/work-unit-state.contract.ts` | work-unit-state | contract | Contract test factory |
++| `test/contracts/work-unit-state.contract.test.ts` | work-unit-state | contract | Contract test runner |
++| `apps/web/src/features/059-fix-agents/agent-work-unit-bridge.ts` | agents | internal | Publishes agent status/questions to WorkUnitStateService |
++| `apps/web/src/components/agents/agent-chip-bar.tsx` | agents | internal | Persistent top bar with draggable chips |
++| `apps/web/src/components/agents/agent-chip.tsx` | agents | internal | Individual agent chip with status indicator |
++| `apps/web/src/components/agents/agent-overlay-panel.tsx` | agents | internal | Fixed-position overlay with full chat UI |
++| `apps/web/src/hooks/useAgentOverlay.ts` | agents | contract | { openAgent, closeAgent, activeAgentId } — callable from anywhere |
++| `apps/web/src/hooks/useRecentAgents.ts` | agents | internal | Recency-based agent list with 24h expiry |
++| `apps/web/src/components/dashboard-shell.tsx` | _platform/panel-layout | cross-domain | Add top bar slot above main content |
++| `apps/web/src/lib/state/state-connector.tsx` | _platform/state | cross-domain | Register work-unit-state + agent domains |
++| `apps/web/src/components/agents/attention-flash.tsx` | agents | internal | Screen border flash + ❓ badge for questions |
++| `apps/web/src/components/dashboard-sidebar.tsx` | _platform/panel-layout | cross-domain | Add cross-worktree activity badges |
++| `apps/web/src/hooks/useWorktreeActivity.ts` | agents | internal | Cross-worktree work unit query |
++| `docs/domains/work-unit-state/domain.md` | work-unit-state | contract | Domain definition document |
++| `docs/domains/agents/domain.md` | agents | contract | Domain definition document |
++| `docs/domains/registry.md` | — | cross-domain | Register 2 new domains |
++| `docs/domains/domain-map.md` | — | cross-domain | Add agents + work-unit-state nodes |
++| `docs/how/work-unit-state-integration.md` | work-unit-state | contract | Integration guide |
++
++## Key Findings
++
++| # | Impact | Finding | Action |
++|---|--------|---------|--------|
++| 01 | Critical | Agent POST route never calls SSE broadcast after creation — `agent_created` event never fires (confirmed in source) | Wire AgentNotifierService call in POST handler (Phase A) |
++| 02 | Critical | API POST validation hardcodes `'claude-code' \| 'copilot'` — rejects `copilot-cli`. DI factory also missing case. | Add copilot-cli to both validation + factory (Phase A) |
++| 03 | High | API GET serialization may omit fields hooks expect — type mismatch between route response and useAgentManager expectations | Audit response shape vs hook type, align (Phase A) |
++| 04 | High | DI singleton bootstrap ordering — adding WorkUnitStateService as second singleton risks initialization order issues | Use shared initialization guard; document dependency order (Phase B) |
++| 05 | High | State system list cache invalidation iterates ALL patterns per publish — 200 paths with broad patterns could spike CPU | Keep agent streaming events (text_delta) out of state system; only publish status-level changes (Phase B) |
++| 06 | High | All UI overlays use z-50 — no layering precedence defined. Agent overlay panel needs dedicated z-index layer. | Define z-index hierarchy constant; overlay at z-45, below modals (Phase C) |
++| 07 | High | No localStorage pattern exists — chip order persistence needs namespaced keys, error handling, version migration | Create storage-keys.ts with namespaced conventions (Phase C) |
++| 08 | Low | IWorkUnitService already exists in positional-graph (workflow orchestration) — name similarity with IWorkUnitStateService could confuse | Distinct naming already in spec; add clarifying JSDoc to IWorkUnitStateService (Phase B) |
++
++## Constitution Compliance
++
++| Principle | Status | Notes |
++|-----------|--------|-------|
++| P1: Clean Architecture | ✅ Compliant | Interfaces in shared, adapters implement, DI wiring |
++| P2: Interface-First | ✅ Compliant | IWorkUnitStateService defined before implementation |
++| P3: TDD | ⚠️ Deviation | Hybrid testing — TDD for Phase B contracts, lightweight for A/C/D |
++| P4: Fakes Over Mocks | ✅ Compliant | FakeWorkUnitStateService planned; no mocking libraries |
++| P5: Fast Feedback | ✅ Compliant | Contract tests < 2s; UI tests lightweight |
++| P6: Developer Experience | ✅ Compliant | No new setup steps; DI auto-wires new services |
++| P7: Shared by Default | ✅ Compliant | Interfaces + types in packages/shared |
++
++### Constitution Deviation: P3 TDD
++
++| Principle Violated | Why Needed | Simpler Alternative Rejected | Risk Mitigation |
++|-------------------|------------|------------------------------|-----------------|
++| P3: TDD for ALL work | Phase A fixes existing wiring bugs (serialization, SSE broadcast) — these are better validated by running the app end-to-end than unit tests. Phase C/D are UI components where TDD adds friction without proportional value. | Full TDD for all 4 phases — rejected because Phase A bugs are integration wiring, not logic, and Phase C/D chips/overlay are visual. | Phase B (contract-heavy logic) gets full TDD. Phase A validates via existing test suite + manual verification. Phase C/D gets targeted hook tests. |
++
++---
++
++## Phases
++
++### Phase A: Fix Agent Foundation
++
++**Objective**: Make the existing agent system work — list, create, chat, and stream agents in the web UI.
++**Domain**: agents (existing code, formalize boundary)
++**Complexity**: CS-2
++**Delivers**:
++- Fixed GET /api/agents serialization aligned with hook expectations
++- SSE `agent_created` broadcast wired into POST /api/agents
++- CopilotCLI adapter registered in DI factory with `copilot-cli` type
++- Default agent type changed to `copilot`
++- Agent creation form supports copilot-cli with sessionId/tmux fields
++- Agent list page renders agents
++- Agent detail page renders chat with stored + streaming events
++- `docs/domains/agents/domain.md` created, registered in registry + domain map
++
++**Depends on**: None
++**Key risks**: Singleton DI initialization order; type mismatches may be deeper than serialization.
++
++| # | Task | Domain | Success Criteria | Notes |
++|---|------|--------|-----------------|-------|
++| A.1 | Create `docs/domains/agents/domain.md` + register in registry.md + update domain-map.md | agents | Domain doc exists with § Purpose, § Boundary (Owns/Excludes), § Contracts (IAgentAdapter, IAgentInstance, useAgentOverlay hook, AgentWorkUnitBridge), § Concepts (AgentType, AgentInstanceStatus, session rehydration), § Composition; registry has new row; domain map has new node with edges to _platform/state, _platform/events, work-unit-state | Domain creation first |
++| A.2 | Fix GET /api/agents serialization — audit response shape vs useAgentManager hook type, align | agents | GET returns data shape matching hook's expected type; agent list page renders | Per finding 03 |
++| A.3 | Wire SSE broadcast into POST /api/agents — call AgentNotifierService after createAgent() | agents | POST triggers `agent_created` SSE event; useAgentManager hook receives it. SSE broadcast follows ADR-0010 three-layer pattern via ICentralEventNotifier | Per finding 01 |
++| A.4 | Add `copilot-cli` to API POST validation + DI adapter factory | agents | POST accepts type `copilot-cli`; DI factory returns CopilotCLIAdapter | Per finding 02 |
++| A.5 | Update create-session-form to default to `copilot`, add copilot-cli option with sessionId/tmux fields | agents | Form defaults to copilot; selecting copilot-cli shows sessionId, tmuxWindow, tmuxPane fields | AC-02, AC-03 |
++| A.6 | Verify agent detail page renders chat — fix if needed (stored events + SSE streaming) | agents | Navigating to agent detail shows chat history; running agent streams events in real-time | AC-06, AC-07 |
++| A.7 | Verify agent persistence across server restart | agents | Stop dev server, restart, navigate to agent — stored events visible | AC-08 |
++| A.8 | Run existing agent test suite + add targeted regression tests for wiring fixes | agents | `pnpm test` passes for agent-related test files. Targeted tests added: (1) GET serialization returns all fields hooks expect, (2) POST triggers SSE broadcast, (3) DI factory resolves all 3 adapter types. Test files at `test/unit/web/agents/` | Quality gate |
++
++#### Acceptance Criteria
++
++- [ ] AC-01: GET /api/agents returns data useAgentManager can consume — list page renders
++- [ ] AC-02: POST /api/agents creates with `copilot` default; `copilot-cli` and `claude-code` supported
++- [ ] AC-03: copilot-cli agent accepts sessionId, tmuxWindow, tmuxPane
++- [ ] AC-04: DI factory handles all three agent types
++- [ ] AC-05: SSE broadcasts agent_created, agent_status, agent_terminated
++- [ ] AC-06: Agent detail page renders chat history + streams new events
++- [ ] AC-07: POST /api/agents/[id]/run returns 409 if working, streams via SSE, stores NDJSON
++- [ ] AC-08: Sessions persist across server restarts
++
++#### Risks
++
++| Risk | Likelihood | Impact | Mitigation |
++|------|------------|--------|------------|
++| Type mismatches deeper than surface serialization | Medium | Medium | Trace full data flow: API → hook → component |
++| CopilotCLI adapter has unresolved dependencies in web context | Low | Medium | Adapter already in shared; verify imports compile |
++
++---
++
++### Phase B: WorkUnit State System
++
++**Objective**: Create the centralized status + question registry and wire agents into it.
++**Domain**: work-unit-state (NEW) + agents (bridge)
++**Complexity**: CS-3
++**Delivers**:
++- `IWorkUnitStateService` interface in packages/shared
++- `WorkUnitStateService` implementation with persistence + state path publishing
++- `FakeWorkUnitStateService` test double with inspection methods
++- Contract tests verifying real/fake parity
++- `AgentWorkUnitBridge` that auto-registers agents and publishes status/questions
++- `docs/domains/work-unit-state/domain.md` created, registered
++- `docs/how/work-unit-state-integration.md` guide
++
++**Depends on**: Phase A (agents must work before bridging)
++**Key risks**: DI singleton ordering (Finding 04); state path volume (Finding 05); name confusion with IWorkUnitService (Finding 08).
++
++| # | Task | Domain | Success Criteria | Notes |
++|---|------|--------|-----------------|-------|
++| B.1 | Create `docs/domains/work-unit-state/domain.md` + register + update domain map | work-unit-state | Domain doc exists with § Purpose, § Boundary (Owns/Excludes), § Contracts (IWorkUnitStateService, WorkUnitEntry, WorkUnitQuestion, QuestionAnswer), § Concepts (work unit types, question lifecycle, tidy-up rules, state path schema), § Composition; registry updated; map shows node with edges to _platform/state (IStateService), _platform/events (ISSEBroadcaster). Cross-ref spec § New Domain Sketches (lines 58-67) | Domain creation first |
++| B.2 | Define IWorkUnitStateService interface + types in packages/shared | work-unit-state | Interface exported from `@chainglass/shared`; types: WorkUnitEntry, WorkUnitQuestion, QuestionAnswer | AC-09; interface-first per P2 |
++| B.3 | Create FakeWorkUnitStateService with inspection methods | work-unit-state | Fake implements IWorkUnitStateService; has getPublished(), getQuestions(), getAnswers() | AC-13; fakes before real per P2 |
++| B.4 | Write contract test factory + runner | work-unit-state | Contract tests cover: register, unregister, updateStatus, askQuestion, answerQuestion, onAnswer, getUnit, getUnits, getQuestioned, tidyUp | AC-14; TDD red phase |
++| B.5 | Implement WorkUnitStateService — persistence to JSON + GlobalStateSystem publishing | work-unit-state | Real implementation passes all contract tests; persists to `<worktree>/.chainglass/data/work-unit-state.json` per ADR-0008 Layer 2; publishes `work-unit:{id}:*` paths | AC-10; TDD green phase |
++| B.6 | Implement tidyUp rules — 24h expiry, working/waiting never expire | work-unit-state | tidyUp() removes stale entries; working + questioned entries preserved regardless of age | AC-11, AC-12 |
++| B.7 | Register WorkUnitStateService in DI container | work-unit-state | Container resolves IWorkUnitStateService; uses lazy initialization guard (closure-captured flag + factory function per ADR-0004 IMP-003). Singleton dependency order documented in di-container.ts: GlobalStateSystem → WorkUnitStateService → AgentWorkUnitBridge. Guard ensures idempotent initialization across HMR reloads | Per finding 04; ADR-0004 |
++| B.8 | Create AgentWorkUnitBridge — auto-register agents + publish status/questions | agents | Bridge registers agents on create, publishes status changes, calls askQuestion() on first-class question events | AC-15, AC-16 |
++| B.9 | Implement answer routing — answerQuestion() routes to registered callback | work-unit-state | Callback receives answer; question state cleared; state path `has-question` set to false | AC-17 |
++| B.10 | Write docs/how/work-unit-state-integration.md | work-unit-state | Guide covers: registering a source, publishing status, asking questions, answering | Documentation deliverable |
++
++#### Acceptance Criteria
++
++- [ ] AC-09: IWorkUnitStateService interface in packages/shared with all methods
++- [ ] AC-10: Implementation persists to JSON + publishes state paths
++- [ ] AC-11: tidyUp() removes entries > 24h that aren't working/waiting
++- [ ] AC-12: Working entries + questioned entries never expire
++- [ ] AC-13: FakeWorkUnitStateService with inspection methods
++- [ ] AC-14: Contract tests pass for both real and fake
++- [ ] AC-15: AgentWorkUnitBridge auto-registers agents on creation
++- [ ] AC-16: First-class question events → askQuestion() → has-question state path
++- [ ] AC-17: answerQuestion() routes to callback + clears question state
++
++#### Risks
++
++| Risk | Likelihood | Impact | Mitigation |
++|------|------------|--------|------------|
++| DI singleton ordering with AgentManagerService | Medium | High | Shared initialization guard; explicit dependency documentation |
++| State path volume causing cache invalidation overhead | Low | Medium | Only publish status-level changes; streaming events stay on SSE |
++| Name confusion: IWorkUnitService vs IWorkUnitStateService | Low | Low | JSDoc clarification on IWorkUnitStateService |
++
++---
++
++### Phase C: Top Bar + Agent Overlay
++
++**Objective**: Build the always-visible agent chip bar and seamless overlay for connect/disconnect.
++**Domain**: agents (UI) + _platform/panel-layout (layout slot)
++**Complexity**: CS-3
++**Delivers**:
++- Persistent agent chip bar above all page content in DashboardShell
++- Agent chips with status indicators, type icons, intent snippets
++- Drag-to-reorder with @dnd-kit, order persisted in localStorage
++- Fixed-position overlay panel (480px × 70vh) with full chat UI
++- `useAgentOverlay()` hook callable from anywhere
++- Workflow node → agent overlay integration
++- Session rehydration from stored NDJSON events
++- Attention layers: chip pulse, toast, screen border flash
++
++**Depends on**: Phase B (needs WorkUnitStateService for status data)
++**Key risks**: Z-index conflicts (Finding 06); localStorage patterns (Finding 07); overlay performance with long chat histories.
++
++| # | Task | Domain | Success Criteria | Notes |
++|---|------|--------|-----------------|-------|
++| C.1 | Define z-index hierarchy constant + storage-keys.ts convention | agents | Z-index layers documented in constants file (backdrop:40, overlay:45, modal:50, tooltip:60, toast:70). Storage keys namespaced with version (e.g., `chainglass:agents:chip-order:v1`). Note: chip order uses localStorage (not filesystem) — this is a documented deviation from ADR-0008's filesystem-first pattern because chip order is machine-local UI preference, not collaborative data. Include QuotaExceededError handling. | Per findings 06, 07; ADR-0008 deviation |
++| C.2 | Add top bar slot in DashboardShell — insert above `{children}` in `<main>` | _platform/panel-layout | DashboardShell renders optional top bar area; no visual change when empty | AC-18 |
++| C.3 | Create useRecentAgents hook — recency-based list with 24h expiry, working never expire | agents | Hook returns recent agents for current worktree; auto-adds on activity; auto-removes stale | Workshop 001 recency model |
++| C.4 | Create AgentChip component — type icon, name, status indicator, intent snippet | agents | Chip renders all 4 display states: working (🔵), idle (⚪), waiting_input (🟡), error (🔴) | AC-19 |
++| C.5 | Create AgentChipBar — renders chips, drag-to-reorder with @dnd-kit, wraps on overflow | agents | Chips draggable; order persists in localStorage per worktree; chips wrap to multiple rows | AC-18, AC-20 |
++| C.6 | Wire AgentChipBar into DashboardShell top bar slot | _platform/panel-layout | Chip bar visible on all dashboard pages; scoped to current worktree | AC-18 |
++| C.7 | Create useAgentOverlay hook — { openAgent, closeAgent, activeAgentId } via context | agents | Hook callable from any component; opens/closes overlay without navigation | AC-23 |
++| C.8 | Create AgentOverlayPanel — fixed-position (480px × 70vh), full chat UI, close via ✕/Escape/chip toggle | agents | Overlay renders chat history + streaming; closing keeps agent running; one overlay at a time | AC-21, AC-22 |
++| C.9 | Wire chip click → openAgent; implement session rehydration from stored NDJSON | agents | Clicking chip opens overlay; old sessions load events from storage; invalid sessions show error | AC-25, AC-26 |
++| C.10 | Wire workflow node → openAgent via agentSessionId property | workflow-ui | Clicking workflow node with agentSessionId opens agent overlay | AC-24 |
++| C.11 | Implement attention layers — chip pulse, toast notification, screen border flash (30s cooldown) + ❓ badge | agents | waiting_input → chip pulses yellow + toast; question while not viewing → green border flash + badge | AC-27, AC-28 |
++| C.12 | Register agent + work-unit-state domains in GlobalStateConnector | _platform/state | State connector mounts agent publishers; useGlobalState works for agent state paths | Integration wiring |
++
++#### Acceptance Criteria
++
++- [ ] AC-18: Persistent chip bar above all page content, showing current worktree's recent agents
++- [ ] AC-19: Chips show type icon, name, status indicator, intent snippet
++- [ ] AC-20: Drag-to-reorder with @dnd-kit; order persists in localStorage
++- [ ] AC-21: Overlay panel 480px × 70vh with full chat UI
++- [ ] AC-22: Overlay doesn't navigate away; closing keeps agent running
++- [ ] AC-23: useAgentOverlay() provides { openAgent, closeAgent, activeAgentId }
++- [ ] AC-24: Workflow node with agentSessionId → openAgent()
++- [ ] AC-25: Old sessions rehydrate from stored NDJSON; resume if host has session
++- [ ] AC-26: Invalid session ID shows clear error
++- [ ] AC-27: waiting_input → chip pulse + toast
++- [ ] AC-28: Question while not viewing → green border flash (30s cooldown) + ❓ badge
++
++#### Risks
++
++| Risk | Likelihood | Impact | Mitigation |
++|------|------------|--------|------------|
++| Z-index conflicts with existing modals/dialogs | Medium | Medium | Dedicated z-index constant; overlay at z-45, below z-50 modals |
++| Overlay performance with thousands of stored events | Low | Medium | Virtualize chat list if > 500 events; lazy-load old events |
++| @dnd-kit bundle size impact | Low | Low | Already in project dependencies |
++
++---
++
++### Phase D: Cross-Worktree & Left Menu
++
++**Objective**: Wire cross-worktree activity awareness into the left sidebar menu.
++**Domain**: agents + _platform/panel-layout
++**Complexity**: CS-2
++**Delivers**:
++- Activity badges on left menu worktree entries (🟡 questions, 🔴 errors, 🔵 working)
++- Badges only for OTHER worktrees (current worktree visible in top bar)
++- Click badge → navigate to that worktree's agent page
++
++**Depends on**: Phase C (needs top bar + overlay for contrast; needs WorkUnitStateService cross-worktree query)
++**Key risks**: Cross-worktree data access — WorkUnitStateService is per-worktree; need a way to query other worktrees' state files.
++
++| # | Task | Domain | Success Criteria | Notes |
++|---|------|--------|-----------------|-------|
++| D.1 | Add cross-worktree query to WorkUnitStateService — read other worktrees' state files | work-unit-state | `getUnitsAcrossWorktrees()` reads work-unit-state.json from all known worktrees | AC-29 prerequisite |
++| D.2 | Create useWorktreeActivity hook — queries cross-worktree state, returns badge data per worktree | agents | Hook returns { worktreeId, hasQuestions, hasErrors, hasWorking } for each other worktree | AC-29, AC-30 |
++| D.3 | Add activity badges to DashboardSidebar worktree entries | _platform/panel-layout | Badges render next to worktree names; only for OTHER worktrees | AC-29, AC-30 |
++| D.4 | Wire badge click → navigate to worktree's agent page | agents | Clicking badge navigates to `/workspaces/[slug]/agents` for that worktree | AC-31 |
++| D.5 | End-to-end verification — all 4 phases working together | agents | Full workflow: create agent → appears in top bar → stream events → question triggers flash → cross-worktree badge appears | Integration gate |
++
++#### Acceptance Criteria
++
++- [ ] AC-29: Left menu shows activity badges (🟡 questions, 🔴 errors, 🔵 working) from WorkUnitStateService
++- [ ] AC-30: Badges only for OTHER worktrees
++- [ ] AC-31: Click badge → navigate to that worktree's agent page
++
++#### Risks
++
++| Risk | Likelihood | Impact | Mitigation |
++|------|------------|--------|------------|
++| Cross-worktree file access — reading other worktrees' data files | Medium | Medium | Enumerate worktrees from workspace config; handle missing/corrupt files gracefully |
++| Polling frequency for cross-worktree state | Low | Low | Poll every 30s or use SSE cross-worktree channel |
+diff --git a/docs/plans/059-fix-agents/fix-agents-spec.md b/docs/plans/059-fix-agents/fix-agents-spec.md
+new file mode 100644
+index 0000000..e272968
+--- /dev/null
++++ b/docs/plans/059-fix-agents/fix-agents-spec.md
+@@ -0,0 +1,209 @@
++# Fix Agents — Web Agent System Overhaul
++
++📚 This specification incorporates findings from research-dossier.md and workshops/001-top-bar-agent-ux.md, workshops/002-agent-connect-disconnect-ux.md, workshops/003-work-unit-state-system.md
++
++## Research Context
++
++The research dossier (68 findings across 8 subagents) revealed that the web agent system is structurally sound but has critical data flow gaps preventing it from functioning. The GET /api/agents endpoint doesn't return data in the format hooks expect, SSE broadcasting isn't wired into creation routes, and the CopilotCLI adapter (Plan 057) isn't registered in the web DI factory. The system has 45+ test files, 3 adapter implementations, and a well-designed DI/SSE/React Query architecture — the bones are good, the wiring is broken.
++
++Three workshops produced authoritative design decisions: (1) a recency-based top bar with 4 display states and drag-to-reorder, (2) a fixed-position overlay panel with `useAgentOverlay()` hook for seamless connect/disconnect from any trigger point, and (3) a centralized WorkUnit State system (`work-unit-state` business domain) that unifies question/status reporting across agents, code units, workflow nodes, and pods.
++
++## Summary
++
++The web agent system is broken — nothing shows up, sessions can't be created, and real-time updates don't flow. This plan fixes the foundation and then builds the agent experience Chainglass was designed around: managing teams of background agents with effortless visibility, connection, and interaction.
++
++The work breaks into four phases:
++- **Phase A** fixes the broken agent chat so agents work as they did before
++- **Phase B** introduces the WorkUnit State system as a centralized "who needs help" registry
++- **Phase C** builds the always-visible agent top bar with popover for seamless connect/disconnect
++- **Phase D** wires cross-worktree alerts and left menu activity indicators
++
++The vibe: "The whole reason this system exists is to manage teams of agents. We need to see our agents always."
++
++## Goals
++
++- **Fix broken agent chat**: Agent list page shows agents, agent detail page shows chat, creating agents works, running agents streams events
++- **Default to Copilot agents**: Copilot (SDK) is the default agent type; Copilot CLI (Plan 057) is supported with session ID and tmux fields
++- **Centralize work unit status**: Any source (agent, code unit, workflow node, pod) can report status and ask first-class questions through a single registry
++- **Always-visible agents**: Running and recent agents appear in a persistent top bar across all pages, scoped to current worktree
++- **Seamless connect/disconnect**: Click any agent chip, workflow node, or notification to pop over the agent's chat without navigating away. Close it and the agent keeps running.
++- **Persistent sessions**: Sessions are rehydratable artifacts — even months later, opening a session loads its stored events. If the underlying agent host still has the session, the user can resume.
++- **Cross-worktree awareness**: When an agent in another worktree asks a question or errors, the left menu shows activity badges
++- **First-class questions**: When any work unit asks a typed question (free_text, single_choice, multi_choice, confirm), the system surfaces it through attention layers: chip pulse, toast, and screen flash
++
++## Non-Goals
++
++- Spawning or managing the Copilot CLI process (adapter requires it to already be running)
++- Replacing the SDK adapter for workflow orchestration use cases
++- Auto-detecting "waiting for input" from natural language — only first-class typed questions trigger waiting_input status
++- Working outside tmux for the CopilotCLI adapter (tmux is a hard dependency for input injection)
++- Mobile-first design (desktop-first; mobile adaptation is future work)
++- Agent-to-agent communication (agents don't talk to each other through this system)
++- Replacing existing MessageService or NodeStatusResult systems — WorkUnit State is a notification aggregator, not a replacement for domain-internal storage
++
++## Target Domains
++
++| Domain | Status | Relationship | Role in This Feature |
++|--------|--------|-------------|---------------------|
++| work-unit-state | **NEW** | **create** | Centralized status + question registry for all work unit types |
++| agents | **NEW** | **create** | Formalize agent boundary: adapters, manager, session lifecycle, state publishing |
++| _platform/state | existing | **consume** | Publish work unit state paths via GlobalStateSystem |
++| _platform/events | existing | **consume** | Broadcast SSE events via ISSEBroadcaster |
++| _platform/panel-layout | existing | **modify** | Add agent top bar slot in DashboardShell layout |
++| workflow-ui | existing | **modify** | Add agent session overlay trigger to workflow nodes |
++| _platform/positional-graph | existing | **consume** | Read node→agent session mapping from orchestrator |
++
++### New Domain Sketches
++
++#### work-unit-state [NEW]
++- **Purpose**: Centralized first-class registry where any work unit — agents, code units, user-input nodes, pods — reports execution state and asks typed questions. Enables cross-component, cross-worktree visibility through a single query surface.
++- **Boundary Owns**: IWorkUnitStateService interface, WorkUnitEntry/WorkUnitQuestion/QuestionAnswer types, answer routing callbacks, tidy-up rules, persistence at `<worktree>/.chainglass/data/work-unit-state.json`, state path publishing (`work-unit:{id}:*`), domain registration with GlobalStateSystem, FakeWorkUnitStateService test double
++- **Boundary Excludes**: Generic state pub/sub mechanism (owned by `_platform/state`), SSE transport (owned by `_platform/events`), domain-specific question storage (MessageService stays in workflow, agent events stay in agent NDJSON), UI components that consume work unit state (owned by agents domain and workflow-ui)
++
++#### agents [NEW]
++- **Purpose**: Formalize the existing agent system boundary: agent adapters (ClaudeCode, SdkCopilot, CopilotCLI), AgentManagerService, session lifecycle, event streaming, and the bridge that publishes agent status to the WorkUnit State system.
++- **Boundary Owns**: IAgentAdapter implementations, AgentManagerService (singleton), IAgentInstance lifecycle, agent API routes (/api/agents/*), agent SSE events (text_delta, tool_call, etc.), AgentWorkUnitBridge (publishes agent status/questions to WorkUnitStateService), agent overlay components (chips, popover), agent creation forms, useAgentInstance/useAgentManager hooks
++- **Boundary Excludes**: Generic work unit status registry (owned by work-unit-state), SSE transport infrastructure (owned by _platform/events), Copilot SDK client management (owned by _platform/sdk), workflow orchestration that creates agents (owned by _platform/positional-graph)
++
++## Mode
++
++**Full** — CS-4 feature, 4 phases, all gates required.
++
++## Complexity
++
++- **Score**: CS-4 (large)
++- **Breakdown**: S=2, I=1, D=2, N=1, F=1, T=2
++  - **Surface Area (S=2)**: Cross-cutting — touches API routes, DI container, state system, UI components, new domain, workflow integration, panel layout
++  - **Integration (I=1)**: Existing adapters (copilot SDK, claude CLI, tmux); integrates with Plan 053 state system and Plan 054 human input
++  - **Data/State (D=2)**: New WorkUnit State persistence model, agent recent list, state path publishing, question/answer routing
++  - **Novelty (N=1)**: Workshop decisions are clear but overlay UX and cross-worktree alerts have some remaining design questions
++  - **Non-Functional (F=1)**: Performance matters for 20+ agents in top bar; SSE connection management; virtual scrolling for long chat sessions
++  - **Testing/Rollout (T=2)**: Contract tests for WorkUnitStateService, integration tests for agent bridge, component tests for overlay, cross-worktree scenarios
++- **Confidence**: 0.80
++- **Assumptions**:
++  - Plan 053 GlobalStateSystem is stable and can handle ~200 state paths (20 agents × 10 paths each)
++  - Copilot CLI adapter (Plan 057) is complete and passes contract tests
++  - DI container singleton pattern (AgentManagerService) is sound
++  - SSE single-channel architecture (ADR-0007) scales to combined agent events + work unit notifications
++- **Dependencies**:
++  - Plan 053 (GlobalStateSystem) — must be implemented and stable
++  - Plan 057 (CopilotCLI adapter) — must be complete for copilot-cli agent type
++  - Plan 054 (Unified Human Input) — question types reused
++  - @dnd-kit/core — for drag-to-reorder in top bar (already in project)
++- **Risks**:
++  - SSE channel congestion if many agents stream events simultaneously
++  - WorkUnitStateService persistence file contention across worktrees
++  - Overlay panel z-index conflicts with existing modal/dialog layers
++- **Phases**: 4 suggested (A: fix foundation, B: work-unit-state domain, C: top bar + overlay, D: cross-worktree + left menu)
++
++## Acceptance Criteria
++
++### Phase A — Fix Agent Foundation
++
++1. **AC-01**: GET /api/agents returns agent data that `useAgentManager` hook can consume — agent list page renders agents for the current workspace
++2. **AC-02**: POST /api/agents creates an agent with type `copilot` as default; `copilot-cli` and `claude-code` also supported
++3. **AC-03**: Creating a copilot-cli agent accepts `sessionId`, `tmuxWindow`, and `tmuxPane` as additional parameters
++4. **AC-04**: The DI container adapter factory handles all three agent types: `claude-code`, `copilot`, `copilot-cli`
++5. **AC-05**: SSE broadcasts `agent_created` when an agent is created, `agent_status` on status change, `agent_terminated` on deletion
++6. **AC-06**: Agent detail page (/workspaces/[slug]/agents/[id]) renders chat history from stored events and streams new events in real-time
++7. **AC-07**: Running an agent (POST /api/agents/[id]/run) returns 409 if already working, streams events via SSE, and stores events as NDJSON
++8. **AC-08**: Agent sessions persist across server restarts — restarting the dev server and navigating to an agent shows its stored events
++
++### Phase B — WorkUnit State System
++
++9. **AC-09**: `IWorkUnitStateService` interface exists in `packages/shared` with methods: `register`, `unregister`, `updateStatus`, `askQuestion`, `answerQuestion`, `onAnswer`, `getUnit`, `getUnits`, `getQuestioned`, `tidyUp`
++10. **AC-10**: `WorkUnitStateService` implementation persists entries to `<worktree>/.chainglass/data/work-unit-state.json` and publishes to GlobalStateSystem at `work-unit:{id}:*` paths
++11. **AC-11**: On page load, `tidyUp()` removes entries older than 24h that are not `working` or `waiting_input`
++12. **AC-12**: Working entries never expire regardless of age; entries with pending questions never expire
++13. **AC-13**: `FakeWorkUnitStateService` test double exists with inspection methods (`getPublished`, `getQuestions`, `getAnswers`)
++14. **AC-14**: Contract tests verify real and fake implementations behave identically (following Plan 053 pattern)
++15. **AC-15**: `AgentWorkUnitBridge` automatically registers agents with WorkUnitStateService when created and publishes status changes
++16. **AC-16**: When an agent emits a first-class question event, the bridge calls `askQuestion()` which sets `work-unit:{id}:has-question = true`
++17. **AC-17**: Answering a question via `answerQuestion()` routes the answer to the registered callback and clears the question state
++
++### Phase C — Top Bar + Agent Overlay
++
++18. **AC-18**: A persistent agent chip bar renders above all page content in the DashboardShell, showing work units from the current worktree's recent list
++19. **AC-19**: Each chip shows: type icon, name, status indicator (🔵 working, ⚪ idle, 🟡 waiting_input, 🔴 error), and intent snippet
++20. **AC-20**: Chips are ordered by creation time (stable); user can drag-to-reorder using @dnd-kit; order persists in localStorage per worktree
++21. **AC-21**: Clicking a chip opens a fixed-position overlay panel (480px wide, 70vh tall) with full chat UI — the user can read history, see streaming content, and send prompts
++22. **AC-22**: The overlay does NOT navigate away from the current page; closing it (✕, Escape, or clicking the active chip again) keeps the agent running
++23. **AC-23**: `useAgentOverlay()` hook provides `{ openAgent, closeAgent, activeAgentId }` callable from anywhere in the component tree
++24. **AC-24**: Clicking a workflow node that has an `agentSessionId` in its properties calls `openAgent(sessionId)` to open the overlay
++25. **AC-25**: Opening a months-old stopped session rehydrates it from stored NDJSON events. If the underlying agent host still has the session, the user can send new prompts to resume.
++26. **AC-26**: Opening a session with an invalid/missing session ID shows a clear error message
++27. **AC-27**: When a work unit enters `waiting_input`, the chip pulses yellow and a toast notification appears if the overlay is closed
++28. **AC-28**: When the user is not viewing the agent context and a question is raised, the screen border flashes green for 10s and a ❓ badge appears in the top-left (clickable to open that agent)
++
++### Phase D — Cross-Worktree & Left Menu
++
++29. **AC-29**: Left menu worktree entries show activity badges: 🟡 for pending questions, 🔴 for errors, 🔵 for working agents — sourced from WorkUnitStateService cross-worktree query
++30. **AC-30**: Activity badges only appear for OTHER worktrees (current worktree's agents are visible in the top bar)
++31. **AC-31**: Clicking a cross-worktree activity badge navigates to that worktree's agent page (does not open overlay for other worktree's agents)
++
++## Risks & Assumptions
++
++| Risk | Likelihood | Impact | Mitigation |
++|------|-----------|--------|------------|
++| SSE channel congestion with many simultaneous agents | Medium | Medium | Throttle status broadcasts; streaming events (text_delta) are already lightweight |
++| WorkUnit State file contention across concurrent writes | Low | Medium | Single-writer per server process (JS event loop atomicity); per-worktree files reduce contention |
++| Overlay z-index conflicts with existing modals/dialogs | Low | Low | Use dedicated z-index layer above content, below system modals |
++| Agent host sessions expire after long periods | Medium | Low | Graceful error on rehydration failure; user can create new session |
++| 20+ agents cause top bar performance issues | Low | Medium | Responsive chip sizing (compact mode); virtual scroll not needed for chips |
++
++**Assumptions**:
++- Plan 053 GlobalStateSystem is stable and deployed
++- Plan 057 CopilotCLI adapter passes contract tests and is ready for web integration
++- tmux is available in development environments (for copilot-cli agent type)
++- Agent sessions stored as NDJSON are not truncated or rotated
++- `events.jsonl` format (Copilot CLI) is stable across versions
++
++## Open Questions
++
++All resolved — see Clarifications below.
++
++1. ~~**Screen flash cooldown**~~: ✅ 30s cooldown confirmed. First question triggers flash; subsequent within 30s get toast + chip pulse only.
++2. ~~**Expanded overlay mode**~~: ✅ Deferred to future — not in scope.
++3. ~~**Pin/dock mode**~~: ✅ Deferred to future — not in scope.
++
++## Workshop Opportunities
++
++All major design questions have been resolved through 3 completed workshops. No additional workshops are needed before architecture.
++
++| Topic | Type | Status | Workshop |
++|-------|------|--------|----------|
++| Top bar agent UX | State Machine / CLI Flow | ✅ Resolved | workshops/001-top-bar-agent-ux.md |
++| Agent connect/disconnect | Integration Pattern | ✅ Resolved | workshops/002-agent-connect-disconnect-ux.md |
++| WorkUnit State system | Data Model / Integration | ✅ Resolved | workshops/003-work-unit-state-system.md |
++
++## Testing Strategy
++
++- **Approach**: Hybrid
++- **Rationale**: Mixed complexity across phases — Phase B has contract-heavy logic; Phases A, C, D are integration/UI wiring
++- **Focus Areas**:
++  - **TDD**: WorkUnitStateService contracts (real + fake parity), AgentWorkUnitBridge integration, question routing callbacks
++  - **Lightweight**: Phase A API/SSE wiring fixes (verify existing tests pass, targeted regression tests), Phase C/D UI components (spot-check rendering, hook behavior)
++- **Mock Policy**: Avoid mocks entirely — use real implementations + Fake test doubles (FakeWorkUnitStateService, FakeSSEBroadcaster) following Plan 053 patterns
++- **Excluded**: Visual regression testing, E2E browser tests, performance benchmarks
++
++## Documentation Strategy
++
++- **Location**: docs/how/ only
++- **Rationale**: Agent system has domain docs at docs/domains/; new guide needed for work unit state integration
++- **Deliverables**:
++  - docs/how/work-unit-state-integration.md — How to register sources with IWorkUnitStateService
++  - docs/domains/work-unit-state/domain.md — Domain definition
++  - docs/domains/agents/domain.md — Domain definition
++
++## Clarifications
++
++### Session 2025-07-21
++
++| # | Question | Answer |
++|---|----------|--------|
++| Q1 | Workflow Mode | **Full** — CS-4, 4 phases, all gates required |
++| Q2 | Testing Strategy | **Hybrid** — TDD for WorkUnitStateService contracts, lightweight for API/UI wiring |
++| Q3 | Mock Policy | **No mocks** — real implementations + Fake test doubles only |
++| Q4 | Documentation Strategy | **docs/how/ only** — domain docs + integration guide |
++| Q5 | Domain Review | **Confirmed** — 2 NEW (work-unit-state, agents) as top-level business domains; 5 existing consumed/modified as specified |
++| Q6 | Open Questions | All 3 resolved — flash cooldown 30s confirmed, expanded overlay deferred, pin/dock deferred |
+diff --git a/docs/plans/059-fix-agents/tasks/phase-1-fix-agent-foundation/tasks.fltplan.md b/docs/plans/059-fix-agents/tasks/phase-1-fix-agent-foundation/tasks.fltplan.md
+new file mode 100644
+index 0000000..cf663fd
+--- /dev/null
++++ b/docs/plans/059-fix-agents/tasks/phase-1-fix-agent-foundation/tasks.fltplan.md
+@@ -0,0 +1,142 @@
++# Flight Plan: Phase 1 — Fix Agent Foundation
++
++**Plan**: [fix-agents-plan.md](../../fix-agents-plan.md) (Phase A)
++**Phase**: Phase 1: Fix Agent Foundation
++**Generated**: 2026-02-28
++**Status**: Ready for takeoff
++
++---
++
++## Departure → Destination
++
++**Where we are**: The web agent system exists structurally (3 adapters, DI container, SSE transport, 45+ tests, React Query hooks) but has critical wiring bugs: POST doesn't broadcast SSE, `copilot-cli` type is rejected everywhere in the web app, and the creation form defaults to `claude-code` instead of `copilot`. The agent list and detail pages may or may not render depending on serialization alignment.
++
++**Where we're going**: A developer can create agents of all three types (copilot default, claude-code, copilot-cli), see them in the agent list, open their chat, see streaming events, and return after a server restart to find sessions intact. Three targeted regression tests guard the wiring fixes.
++
++---
++
++## Domain Context
++
++### Domains We're Changing
++
++| Domain | What Changes | Key Files |
++|--------|-------------|-----------|
++| agents | Add copilot-cli to AgentType union, DI factory, POST validation; wire SSE broadcast; update form default | `agent-instance.interface.ts`, `di-container.ts`, `route.ts`, `create-session-form.tsx` |
++
++### Domains We Depend On (no changes)
++
++| Domain | What We Consume | Contract |
++|--------|----------------|----------|
++| _platform/events | SSE broadcasting | ISSEBroadcaster via AgentNotifierService |
++| _platform/sdk | Copilot client singleton | CopilotClient for SdkCopilotAdapter |
++
++---
++
++## Flight Status
++
++<!-- Updated by /plan-6-v2: pending → active → done. Use blocked for problems/input needed. -->
++
++```mermaid
++stateDiagram-v2
++    classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
++    classDef active fill:#FFC107,stroke:#FFA000,color:#000
++    classDef done fill:#4CAF50,stroke:#388E3C,color:#fff
++    classDef blocked fill:#F44336,stroke:#D32F2F,color:#fff
++
++    state "1: Type + DI wiring" as S1
++    state "2: API + SSE fix" as S2
++    state "3: Form update" as S3
++    state "4: Page verification" as S4
++    state "5: Regression tests" as S5
++
++    [*] --> S1
++    S1 --> S2
++    S2 --> S3
++    S3 --> S4
++    S4 --> S5
++    S5 --> [*]
++
++    class S1,S2,S3,S4,S5 pending
++```
++
++**Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
++
++---
++
++## Stages
++
++<!-- Updated by /plan-6-v2 during implementation: [ ] → [~] → [x] -->
++
++- [ ] **Stage 1: Type + DI wiring** — Add copilot-cli to AgentType union and DI adapter factory (`agent-instance.interface.ts`, `di-container.ts`)
++- [ ] **Stage 2: API + SSE fix** — Accept copilot-cli in POST validation and wire SSE broadcast after creation (`route.ts`)
++- [ ] **Stage 3: Form update** — Default to copilot, add copilot-cli option with sessionId/tmux fields (`create-session-form.tsx`)
++- [ ] **Stage 4: Page verification** — Verify list page, detail page, streaming, and persistence work end-to-end
++- [ ] **Stage 5: Regression tests** — Add 3 targeted test files for serialization, SSE broadcast, DI factory
++
++---
++
++## Architecture: Before & After
++
++```mermaid
++flowchart LR
++    classDef existing fill:#E8F5E9,stroke:#4CAF50,color:#000
++    classDef changed fill:#FFF3E0,stroke:#FF9800,color:#000
++    classDef new fill:#E3F2FD,stroke:#2196F3,color:#000
++
++    subgraph Before["Before Phase 1"]
++        B_Type["AgentType<br/>claude-code | copilot"]:::existing
++        B_DI["DI Factory<br/>2 adapters"]:::existing
++        B_POST["POST /api/agents<br/>no SSE broadcast"]:::existing
++        B_Form["CreateSessionForm<br/>default: claude-code"]:::existing
++        B_Pages["List + Detail Pages<br/>may not render"]:::existing
++    end
++
++    subgraph After["After Phase 1"]
++        A_Type["AgentType<br/>+ copilot-cli"]:::changed
++        A_DI["DI Factory<br/>3 adapters"]:::changed
++        A_POST["POST /api/agents<br/>+ SSE broadcast"]:::changed
++        A_Form["CreateSessionForm<br/>default: copilot<br/>+ copilot-cli fields"]:::changed
++        A_Pages["List + Detail Pages<br/>verified working"]:::changed
++        A_Tests["3 regression tests"]:::new
++
++        A_Type --> A_DI
++        A_DI --> A_POST
++        A_POST --> A_Form
++        A_Form --> A_Pages
++        A_Pages --> A_Tests
++    end
++```
++
++**Legend**: existing (green, unchanged) | changed (orange, modified) | new (blue, created)
++
++---
++
++## Acceptance Criteria
++
++- [ ] AC-01: GET /api/agents returns data useAgentManager can consume — list page renders
++- [ ] AC-02: POST /api/agents creates with `copilot` default; `copilot-cli` and `claude-code` supported
++- [ ] AC-03: copilot-cli agent accepts sessionId, tmuxWindow, tmuxPane
++- [ ] AC-04: DI factory handles all three agent types
++- [ ] AC-05: SSE broadcasts agent_created, agent_status, agent_terminated
++- [ ] AC-06: Agent detail page renders chat history + streams new events
++- [ ] AC-07: POST /api/agents/[id]/run returns 409 if working, streams via SSE, stores NDJSON
++- [ ] AC-08: Sessions persist across server restarts
++
++## Goals & Non-Goals
++
++**Goals**: Fix all wiring bugs so agents work end-to-end; default to copilot; support copilot-cli; verify pages render; guard fixes with tests.
++
++**Non-Goals**: WorkUnit State integration; top bar UI; overlay panel; cross-worktree alerts; refactoring architecture.
++
++---
++
++## Checklist
++
++- [ ] T001: Add copilot-cli to AgentType union in 019 interface
++- [ ] T002: Add copilot-cli case to DI adapter factory
++- [ ] T003: Fix POST validation + wire SSE broadcast
++- [ ] T004: Update create-session-form default + copilot-cli fields
++- [ ] T005: Verify GET serialization + list page rendering
++- [ ] T006: Verify detail page chat + streaming
++- [ ] T007: Verify session persistence across restart
++- [ ] T008: Add targeted regression tests
+diff --git a/docs/plans/059-fix-agents/tasks/phase-1-fix-agent-foundation/tasks.md b/docs/plans/059-fix-agents/tasks/phase-1-fix-agent-foundation/tasks.md
+new file mode 100644
+index 0000000..3ed992c
+--- /dev/null
++++ b/docs/plans/059-fix-agents/tasks/phase-1-fix-agent-foundation/tasks.md
+@@ -0,0 +1,343 @@
++# Phase 1: Fix Agent Foundation — Tasks
++
++**Plan**: [fix-agents-plan.md](../../fix-agents-plan.md) (Phase A)
++**Created**: 2026-02-28
++**Status**: Pending
++**Complexity**: CS-2
++
++---
++
++## Executive Briefing
++
++**Purpose**: Make the broken web agent system functional — agents can be listed, created, chatted with, and streamed in the web UI. This phase fixes data flow wiring issues; the architecture is sound.
++
++**What We're Building**: Four targeted fixes: (1) POST route broadcasts SSE on agent creation, (2) `AgentType` union and DI factory include `copilot-cli`, (3) API POST validation accepts all three agent types, (4) creation form defaults to `copilot` with `copilot-cli` fields. Plus verification that list/detail pages render correctly and sessions persist.
++
++**Goals**:
++- ✅ Agent list page renders agents for current workspace
++- ✅ Agent creation works for all 3 types (copilot default, claude-code, copilot-cli)
++- ✅ SSE broadcasts agent_created on POST
++- ✅ Agent detail page shows chat history + streaming
++- ✅ Sessions survive server restart
++- ✅ Targeted regression tests for the wiring fixes
++
++**Non-Goals**:
++- ❌ WorkUnit State integration (Phase 2)
++- ❌ Top bar, overlay, attention system (Phase 3)
++- ❌ Cross-worktree badges (Phase 4)
++- ❌ Refactoring agent architecture — fix wiring only
++
++---
++
++## Prior Phase Context
++
++_Phase 1 — no prior phases._
++
++---
++
++## Pre-Implementation Check
++
++| File | Exists? | Domain Check | Notes |
++|------|---------|-------------|-------|
++| `apps/web/app/api/agents/route.ts` | ✅ | agents ✅ | POST validates only claude-code/copilot (line 122); no SSE broadcast |
++| `apps/web/app/api/agents/[id]/route.ts` | ✅ | agents ✅ | GET returns agent + events; looks correct |
++| `apps/web/app/api/agents/[id]/run/route.ts` | ✅ | agents ✅ | 409 guard works; verify NDJSON storage |
++| `apps/web/src/lib/di-container.ts` | ✅ | cross-domain ✅ | Adapter factory handles only claude-code + copilot; no copilot-cli case |
++| `apps/web/src/features/019-agent-manager-refactor/useAgentManager.ts` | ✅ | agents ✅ | Expects: id, name, type, workspace, status, intent, sessionId, createdAt, updatedAt |
++| `apps/web/src/features/019-agent-manager-refactor/useAgentInstance.ts` | ✅ | agents ✅ | Expects same + events array; SSE subscription works |
++| `apps/web/src/components/agents/create-session-form.tsx` | ✅ | agents ✅ | Only claude-code + copilot; default is claude-code |
++| `apps/web/app/(dashboard)/workspaces/[slug]/agents/page.tsx` | ✅ | agents ✅ | Server component → AgentListLive client |
++| `apps/web/app/(dashboard)/workspaces/[slug]/agents/[id]/page.tsx` | ✅ | agents ✅ | Server component → AgentChatView client |
++| `packages/shared/src/features/019-agent-manager-refactor/agent-instance.interface.ts` | ✅ | agents ✅ | `AgentType = 'claude-code' \| 'copilot'` — missing copilot-cli! |
++| `packages/shared/src/features/034-agentic-cli/types.ts` | ✅ | agents ✅ | `AgentType = 'claude-code' \| 'copilot' \| 'copilot-cli'` — has it |
++| `packages/shared/src/adapters/copilot-cli.adapter.ts` | ✅ | agents ✅ | CopilotCLIAdapter implementation exists and is complete |
++| `apps/web/src/features/019-agent-manager-refactor/agent-notifier.service.ts` | ✅ | agents ✅ | broadcastStatus, broadcastIntent, broadcastEvent — ready to use |
++| `test/unit/web/agents/` | ❌ | — | Will create for regression tests |
++
++**Critical discovery**: Two `AgentType` definitions exist in packages/shared:
++- `019-agent-manager-refactor/agent-instance.interface.ts:19` → `'claude-code' | 'copilot'` (used by web)
++- `034-agentic-cli/types.ts:17` → `'claude-code' | 'copilot' | 'copilot-cli'` (used by CLI)
++
++The web app imports from 019, which is why `copilot-cli` is rejected. Fix must update the 019 definition.
++
++---
++
++## Architecture Map
++
++```mermaid
++flowchart TD
++    classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
++    classDef fix fill:#FFF3E0,stroke:#FF9800,color:#000
++
++    subgraph Phase1["Phase 1: Fix Agent Foundation"]
++        T001["T001: Add copilot-cli<br/>to AgentType union"]:::fix
++        T002["T002: Add copilot-cli<br/>to DI factory"]:::fix
++        T003["T003: Fix POST validation<br/>+ wire SSE broadcast"]:::fix
++        T004["T004: Update create form<br/>default=copilot + cli fields"]:::fix
++        T005["T005: Verify GET serialization<br/>+ list page"]:::fix
++        T006["T006: Verify detail page<br/>chat + streaming"]:::fix
++        T007["T007: Verify persistence<br/>across restart"]:::pending
++        T008["T008: Targeted regression tests"]:::pending
++
++        T001 --> T002
++        T001 --> T003
++        T002 --> T004
++        T003 --> T005
++        T005 --> T006
++        T006 --> T007
++        T007 --> T008
++    end
++
++    subgraph Files["Key Files"]
++        F1["019/.../agent-instance.interface.ts"]:::fix
++        F2["di-container.ts"]:::fix
++        F3["api/agents/route.ts"]:::fix
++        F4["create-session-form.tsx"]:::fix
++        F5["agents/page.tsx"]
++        F6["agents/[id]/page.tsx"]
++    end
++
++    T001 -.-> F1
++    T002 -.-> F2
++    T003 -.-> F3
++    T004 -.-> F4
++    T005 -.-> F5
++    T006 -.-> F6
++```
++
++---
++
++## Tasks
++
++**Updated 2026-02-28** — Reordered after Workshop 004 root cause analysis. RC1 (serverExternalPackages) is the true critical blocker.
++
++| Status | ID | Task | Domain | Path(s) | Done When | Notes |
++|--------|-----|------|--------|---------|-----------|-------|
++| [ ] | T000 | Add `@github/copilot-sdk` + `@github/copilot` to `serverExternalPackages` in next.config.mjs | agents | `/apps/web/next.config.mjs` | copilot agent creation succeeds via curl; no `__TURBOPACK__import$2e$meta__` error | Workshop 004 RC1; CRITICAL blocker |
++| [ ] | T001 | Add `copilot-cli` to AgentType union in 019 agent-instance.interface.ts | agents | `/packages/shared/src/features/019-agent-manager-refactor/agent-instance.interface.ts` | AgentType is `'claude-code' \| 'copilot' \| 'copilot-cli'` — matches 034 definition; tsc compiles | Finding 02; unify type defs |
++| [ ] | T002 | Add `copilot-cli` case to DI adapter factory in di-container.ts | agents | `/apps/web/src/lib/di-container.ts` | Factory returns CopilotCLIAdapter for type `'copilot-cli'`; import CopilotCLIAdapter from shared | Finding 02; AC-04 |
++| [ ] | T003 | Fix POST /api/agents — accept copilot-cli in validation + wire SSE broadcast after createAgent() | agents | `/apps/web/app/api/agents/route.ts` | POST accepts all 3 types; after createAgent(), calls notifier.broadcastStatus(agentId, 'created') or equivalent; SSE event fires | Finding 01, 02; AC-02, AC-05 |
++| [ ] | T004 | Update create-session-form — default to `copilot`, add `copilot-cli` option with sessionId/tmux fields | agents | `/apps/web/src/components/agents/create-session-form.tsx` | Form default is 'copilot'; 'copilot-cli' option shows sessionId, tmuxWindow, tmuxPane fields; submit sends correct payload | AC-02, AC-03 |
++| [ ] | T005 | Verify GET /api/agents + agent list page rendering | agents | `/apps/web/app/api/agents/route.ts`, `/apps/web/app/(dashboard)/workspaces/[slug]/agents/page.tsx` | GET returns all fields useAgentManager expects; AgentListLive renders agent rows | Workshop 004 confirmed GET is NOT broken — verification only |
++| [ ] | T006 | Verify agent detail page — chat history + SSE streaming | agents | `/apps/web/app/(dashboard)/workspaces/[slug]/agents/[id]/page.tsx`, `/apps/web/src/features/019-agent-manager-refactor/useAgentInstance.ts` | Navigating to agent detail shows chat history from stored events; running agent streams events in real-time; fix if needed | AC-06, AC-07 |
++| [ ] | T007 | Verify session persistence across server restart | agents | — (manual verification) | Stop dev server, restart, navigate to agent page — stored agents visible with their events | AC-08 |
++| [ ] | T008 | Add targeted regression tests for wiring fixes | agents | `/test/unit/web/agents/api-serialization.test.ts`, `/test/unit/web/agents/sse-broadcast.test.ts`, `/test/unit/web/agents/di-factory.test.ts` | 3 test files: (1) GET serialization returns all fields hooks expect, (2) POST triggers SSE broadcast, (3) DI factory resolves all 3 adapter types. `pnpm test` passes (baseline: 333 passed, 4694 tests) | Quality gate |
++
++### Task Details
++
++#### T000: Add @github/copilot-sdk to serverExternalPackages
++
++**This is the critical blocker.** `@github/copilot-sdk` uses `import.meta.resolve()` (a Node.js API) to locate the bundled CLI. Turbopack rewrites this to `__TURBOPACK__import$2e$meta__.resolve` which doesn't exist, crashing CopilotClient construction.
++
++**Action**: Add 2 packages to `serverExternalPackages` in `apps/web/next.config.mjs`:
++```javascript
++serverExternalPackages: [
++    'shiki',
++    'vscode-oniguruma',
++    '@shikijs/core',
++    '@shikijs/engine-oniguruma',
++    '@github/copilot-sdk',   // uses import.meta.resolve
++    '@github/copilot',       // resolved by copilot-sdk
++],
++```
++
++**Verify**: `curl -s -X POST http://localhost:3000/api/agents -H 'Content-Type: application/json' -d '{"name":"Test","type":"copilot","workspace":"chainglass"}'` returns 201 (not 500).
++
++See [Workshop 004](../../workshops/004-agent-creation-failure-root-cause.md) for full root cause chain.
++
++#### T001: Add copilot-cli to AgentType
++
++The 019 module's `AgentType = 'claude-code' | 'copilot'` is the root cause — web imports this, so `copilot-cli` is unknown at the type level. The 034 module already has the correct 3-member union. Update 019 to match.
++
++**Action**: Change line 19 in `agent-instance.interface.ts` from:
++```typescript
++export type AgentType = 'claude-code' | 'copilot';
++```
++to:
++```typescript
++export type AgentType = 'claude-code' | 'copilot' | 'copilot-cli';
++```
++
++Verify no type errors cascade (e.g., exhaustive switches).
++
++#### T002: Add copilot-cli to DI adapter factory
++
++The DI container's adapter factory (in `di-container.ts`) has a switch/if-else for agent type that only handles `claude-code` and `copilot`. Add a `copilot-cli` case that returns `CopilotCLIAdapter`.
++
++**Important**: CopilotCLIAdapter is already implemented in `packages/shared/src/adapters/copilot-cli.adapter.ts`. It takes constructor args for tmux configuration. Check what the constructor expects and wire appropriately.
++
++#### T003: Fix POST route — validation + SSE broadcast
++
++Two issues in `apps/web/app/api/agents/route.ts`:
++1. **Line 122**: Hardcodes `body.type !== 'claude-code' && body.type !== 'copilot'` — add `copilot-cli` to the validation
++2. **After createAgent()**: No SSE broadcast call. The `AgentNotifierService` has `broadcastStatus(agentId, status)` — call it after successful creation with the new agent's ID
++
++The notifier is already available through DI (SHARED_DI_TOKENS.AGENT_NOTIFIER). The SSE event type should be `agent_created` per the events route which already handles it.
++
++#### T004: Update creation form
++
++`create-session-form.tsx` defaults to `claude-code`. Change default to `copilot`. Add `copilot-cli` as a third option. When `copilot-cli` is selected, show:
++- `sessionId` (text input, required)
++- `tmuxWindow` (text input, optional — defaults)
++- `tmuxPane` (text input, optional — defaults)
++
++These additional fields should be sent in the POST payload. The `CreateAgentParams` type in shared may need extending to include these optional fields.
++
++#### T005: Verify GET serialization + list page
++
++The hook `useAgentManager` expects: `id, name, type, workspace, status, intent, sessionId, createdAt, updatedAt`. The GET route already returns these fields. Verify by:
++1. Reading GET response shape carefully
++2. Comparing with hook's type expectation
++3. If mismatch found, fix the API response to include all expected fields
++4. Navigate to agents page in browser to verify rendering
++
++#### T006: Verify detail page + streaming
++
++1. Navigate to `/workspaces/[slug]/agents/[id]` for an existing agent
++2. Verify chat history renders from stored events
++3. Run an agent and verify SSE streaming works (events appear in real-time)
++4. Fix any issues found
++
++#### T007: Verify persistence
++
++1. Create an agent, run a prompt
++2. Stop dev server (`Ctrl+C`)
++3. Restart dev server (`pnpm dev`)
++4. Navigate to agent page — agent should still be there with events
++
++#### T008: Regression tests
++
++Three targeted test files in `test/unit/web/agents/`:
++
++1. **api-serialization.test.ts**: Test GET /api/agents returns the exact shape useAgentManager expects. Use FakeAgentManagerService.
++2. **sse-broadcast.test.ts**: Test POST /api/agents calls the notifier after creation. Use FakeSSEBroadcaster.
++3. **di-factory.test.ts**: Test DI factory resolves all 3 adapter types. Verify no throw for copilot-cli.
++
++---
++
++## Context Brief
++
++### Key findings from plan
++
++- **Finding 01** (Critical): Agent POST route never calls SSE broadcast after creation — `agent_created` event never fires → T003
++- **Finding 02** (Critical): API POST validation hardcodes `'claude-code' | 'copilot'` — rejects `copilot-cli`. DI factory also missing case → T001, T002, T003
++- **Finding 03** (High): API GET serialization may omit fields hooks expect — type mismatch → T005
++
++### Domain dependencies
++
++- `agents`: All tasks operate within the agents domain boundary
++- `_platform/events`: ISSEBroadcaster consumed by AgentNotifierService (already wired) — T003 just needs to call the notifier
++
++### Domain constraints
++
++- Agent interfaces live in `packages/shared/src/features/019-agent-manager-refactor/` — the web imports from here
++- CopilotCLIAdapter lives in `packages/shared/src/adapters/` — already cross-package accessible
++- DI container at `apps/web/src/lib/di-container.ts` is cross-domain (bridges shared interfaces to web implementations)
++- No new domain contracts are created in Phase 1 — we only fix existing wiring
++
++### Reusable from prior phases
++
++_None — Phase 1 is the first phase._
++
++### Existing test infrastructure
++
++- 42 agent-related test files exist (8 contract, 4 adapter unit, 11 service/feature unit, 7 web component, 7 integration, 5 special)
++- Baseline: 333 files passed, 4694 tests passed, 0 failures
++- FakeAgentAdapter, FakeAgentManagerService, FakeSSEBroadcaster all available
++- Contract test pattern established at `test/contracts/agent-*.contract.ts`
++
++### Data flow diagram
++
++```mermaid
++flowchart LR
++    subgraph Client["Browser"]
++        Form["CreateSessionForm"]
++        List["AgentListLive"]
++        Chat["AgentChatView"]
++        Hook1["useAgentManager"]
++        Hook2["useAgentInstance"]
++    end
++
++    subgraph API["Next.js API"]
++        POST["POST /api/agents"]
++        GET["GET /api/agents"]
++        RUN["POST /api/agents/[id]/run"]
++        SSE["GET /api/agents/events"]
++    end
++
++    subgraph Services["Server Services"]
++        MGR["AgentManagerService"]
++        NOT["AgentNotifierService"]
++        SSEMgr["SSEManager"]
++    end
++
++    Form -->|"create"| POST
++    POST -->|"createAgent()"| MGR
++    POST -.->|"❌ MISSING"| NOT
++    NOT -->|"broadcast"| SSEMgr
++    SSEMgr -->|"events"| SSE
++    SSE -->|"stream"| Hook1
++    SSE -->|"stream"| Hook2
++    GET -->|"list"| Hook1
++    Hook1 -->|"data"| List
++    Hook2 -->|"data"| Chat
++    RUN -->|"run()"| MGR
++
++    style POST fill:#FFF3E0,stroke:#FF9800
++    style NOT fill:#FFF3E0,stroke:#FF9800
++```
++
++### Sequence diagram — agent creation (fixed)
++
++```mermaid
++sequenceDiagram
++    participant U as User
++    participant F as CreateSessionForm
++    participant API as POST /api/agents
++    participant MGR as AgentManagerService
++    participant NOT as AgentNotifierService
++    participant SSE as SSE Channel
++    participant H as useAgentManager
++
++    U->>F: Fill form (name, type=copilot)
++    F->>API: POST { name, type, workspace }
++    API->>API: Validate type ∈ [claude-code, copilot, copilot-cli]
++    API->>MGR: createAgent(params)
++    MGR-->>API: IAgentInstance
++    API->>NOT: broadcastStatus(agentId, 'created')
++    NOT->>SSE: agent_created event
++    SSE-->>H: SSE event → invalidate query
++    H->>API: GET /api/agents (refetch)
++    API-->>H: Updated agent list
++    API-->>F: 201 { agent data }
++```
++
++---
++
++## Discoveries & Learnings
++
++_Populated during implementation by plan-6._
++
++| Date | Task | Type | Discovery | Resolution | References |
++|------|------|------|-----------|------------|------------|
++
++**Types**: `gotcha` | `research-needed` | `unexpected-behavior` | `workaround` | `decision` | `debt` | `insight`
++
++---
++
++## Directory Layout
++
++```
++docs/plans/059-fix-agents/
++  ├── fix-agents-plan.md
++  ├── fix-agents-spec.md
++  ├── research-dossier.md
++  ├── workshops/
++  │   ├── 001-top-bar-agent-ux.md
++  │   ├── 002-agent-connect-disconnect-ux.md
++  │   └── 003-work-unit-state-system.md
++  └── tasks/phase-1-fix-agent-foundation/
++      ├── tasks.md               ← this file
++      ├── tasks.fltplan.md       ← flight plan (generated next)
++      └── execution.log.md       ← created by plan-6
++```
+diff --git a/docs/plans/059-fix-agents/workshops/003-work-unit-state-system.md b/docs/plans/059-fix-agents/workshops/003-work-unit-state-system.md
+new file mode 100644
+index 0000000..886712e
+--- /dev/null
++++ b/docs/plans/059-fix-agents/workshops/003-work-unit-state-system.md
+@@ -0,0 +1,701 @@
++# Workshop: WorkUnit State System — Centralized First-Class Status & Question Reporting
++
++**Type**: Integration Pattern / Data Model / State Machine
++**Plan**: 059-fix-agents
++**Spec**: docs/plans/059-fix-agents/ (in progress)
++**Created**: 2026-02-28
++**Status**: Draft
++
++**Related Documents**:
++- [001-top-bar-agent-ux.md](./001-top-bar-agent-ux.md) — consumes WorkUnit state for top bar chips
++- [002-agent-connect-disconnect-ux.md](./002-agent-connect-disconnect-ux.md) — overlay uses WorkUnit state
++- [Plan 053 — GlobalStateSystem](../../../domains/_platform/state/domain.md) — underlying pub/sub mechanism
++- [Plan 054 — Unified Human Input](../../054-unified-human-input/) — existing question types
++- [_platform/events domain](../../../domains/_platform/events/domain.md) — parent domain for this system
++
++**Domain Context**:
++- **Primary Domain**: `work-unit-state` (new — top-level business domain, no parent)
++- **Related Domains**: `_platform/state` (underlying pub/sub mechanism), `_platform/events` (SSE transport), `_platform/positional-graph` (node execution status), `workflow-ui` (consumer), agents (publisher)
++
++---
++
++## Purpose
++
++Design a centralized system where **any work unit** — agents, code units, user-input nodes, future pod types — can report its execution state and questions to a single place. This enables the top bar, left menu, workflow canvas, and any future consumer to detect questions, status changes, and attention-needs from a single source, regardless of what produced them or which worktree they're running in.
++
++**The one-liner**: A universal "who's doing what and who needs help" registry.
++
++## The Problem Today
++
++Questions and status are reported through **three separate, disconnected channels**:
++
++```
++┌─────────────────────────────────────────────────────────────────┐
++│ Today: Three Separate Status Channels                           │
++│                                                                 │
++│  1. AgentNotifierService (Plan 019)                             │
++│     agent_status, agent_intent, agent_event → SSE 'agents'      │
++│     ❌ Agent-only. No code units, no workflow nodes.            │
++│                                                                 │
++│  2. MessageService (Plan 054)                                   │
++│     create() → wf-phase.json file append                        │
++│     ❌ File-based. No real-time event. Scoped to workflow.      │
++│                                                                 │
++│  3. NodeStatusResult (Plan 032)                                 │
++│     status in node state files                                  │
++│     ❌ Not published to GlobalStateSystem. Read-only from disk. │
++│                                                                 │
++│  Result: No single place to ask "who needs attention?"          │
++└─────────────────────────────────────────────────────────────────┘
++```
++
++## Key Questions Addressed
++
++- Q1: What is a "work unit" and what types report to this system?
++- Q2: What does the data model look like?
++- Q3: How do questions flow from source to central registry to UI?
++- Q4: How does this relate to GlobalStateSystem (Plan 053)?
++- Q5: How do agents report to this even when NOT orchestrated by workflow pods?
++- Q6: What about cross-worktree visibility?
++- Q7: Where does this live in the domain hierarchy?
++
++---
++
++## Q1: What Is a Work Unit?
++
++A **work unit** is anything that executes work and might need attention. The system is intentionally broader than "agents":
++
++| Source Type | Example | Reports Status? | Can Ask Questions? |
++|-------------|---------|----------------|-------------------|
++| `agent` | Claude Code session, Copilot CLI session | ✅ | ✅ (first-class questions) |
++| `code-unit` | Script execution node in workflow | ✅ | ❌ (today — could add later) |
++| `user-input` | Human input node in workflow | ✅ | ✅ (the node IS a question) |
++| `pod` | Workflow pod running agent work | ✅ | ✅ (via contained agent) |
++| `workflow` | Entire workflow run | ✅ | ❌ (but contains units that do) |
++
++### RESOLVED: Source Type Is Open-Ended
++
++Use a string discriminator, not a closed enum. New source types can register without modifying the core system. The system doesn't need to understand what a "code-unit" does — it just stores and publishes its state.
++
++---
++
++## Q2: Data Model
++
++### WorkUnitEntry — The Core Record
++
++```typescript
++interface WorkUnitEntry {
++  // Identity
++  id: string;                    // Globally unique (UUID or composite)
++  sourceType: string;            // 'agent' | 'code-unit' | 'user-input' | 'pod' | string
++  name: string;                  // Human-readable: "Auth Refactor Agent", "Build Script"
++  
++  // Location
++  workspace: string;             // Worktree slug
++  
++  // Status
++  status: WorkUnitStatus;        // See state machine below
++  intent?: string;               // What it's doing: "Refactoring auth module"
++  
++  // Question (first-class)
++  question?: WorkUnitQuestion;   // Non-null when status === 'waiting_input'
++  
++  // Provenance
++  creator: WorkUnitCreator;      // What created this unit
++  
++  // Timing
++  lastActivityAt: string;        // ISO-8601 — updated on every status change
++  createdAt: string;             // ISO-8601
++  
++  // Adapter-specific (opaque to the system)
++  sourceRef?: Record<string, unknown>;  // e.g., { sessionId, tmuxPane, nodeId }
++}
++
++type WorkUnitStatus = 'working' | 'idle' | 'waiting_input' | 'error';
++
++interface WorkUnitQuestion {
++  questionId: string;            // Unique per question
++  type: QuestionType;            // 'free_text' | 'single_choice' | 'multi_choice' | 'confirm'
++  prompt: string;                // The question text
++  choices?: string[];            // For choice types
++  defaultValue?: unknown;        // Optional default
++  askedAt: string;              // ISO-8601
++}
++
++type QuestionType = 'free_text' | 'single_choice' | 'multi_choice' | 'confirm';
++
++interface WorkUnitCreator {
++  type: 'user' | 'workflow' | 'pod' | 'system';
++  ref?: string;                  // workflow slug, pod ID, etc.
++}
++```
++
++### Why This Shape
++
++- **`sourceType` is a string, not enum**: Open for extension. A future "review-unit" or "test-runner" can register without touching the core.
++- **`question` is inline, not a separate entity**: A work unit has at most one pending question. When answered, the field clears. History lives in the work unit's own event log (NDJSON), not here.
++- **`sourceRef` is opaque**: The central system doesn't care that an agent has a sessionId or a tmux pane. That's the agent domain's concern. But it stores the ref so consumers like the overlay can pass it through.
++- **`lastActivityAt` drives recency**: The top bar's 24h auto-depopulate rule uses this field. No separate "recent list" needed — just query `lastActivityAt > 24h ago OR status === 'working'`.
++
++### State Machine
++
++```
++                    ┌─────────────┐
++     register()     │             │
++    ────────────►   │    idle     │ ◄──── run completes (no question)
++                    │             │
++                    └──────┬──────┘
++                           │
++                    run()  │
++                           ▼
++                    ┌─────────────┐
++                    │             │
++                    │   working   │ ◄──── question answered
++                    │             │
++                    └──┬──────┬───┘
++                       │      │
++          ask()        │      │  error
++                       ▼      ▼
++              ┌──────────┐  ┌─────────┐
++              │ waiting   │  │  error  │
++              │  _input   │  │         │
++              └──────────┘  └─────────┘
++```
++
++4 states. Simple. The `idle` state means "exists, not currently doing anything." An idle unit in the registry is like a parked car — it's there, you can see it, but it's not moving.
++
++---
++
++## Q3: Question Flow — Source to UI
++
++```
++┌──────────────────────────────────────────────────────────────────────────┐
++│ Question Flow                                                            │
++│                                                                          │
++│  SOURCE (agent, workflow node, pod)                                      │
++│    │                                                                     │
++│    │  workUnitState.askQuestion(unitId, question)                        │
++│    ▼                                                                     │
++│  WorkUnitStateService                                                    │
++│    │  1. Update entry: status = 'waiting_input', question = {...}        │
++│    │  2. Persist to disk: agent-recent-list.json (or work-unit-state)    │
++│    │  3. Publish to GlobalStateSystem:                                   │
++│    │       work-unit:{id}:status = 'waiting_input'                       │
++│    │       work-unit:{id}:has-question = true                            │
++│    │       work-unit:{id}:question-text = "What auth strategy?"          │
++│    │  4. Broadcast SSE event: work_unit_question_asked                   │
++│    ▼                                                                     │
++│  CONSUMERS (all subscribe via GlobalStateSystem, not direct coupling)    │
++│    • Top bar chip: pulsing 🟡, shows question preview                   │
++│    • Overlay: shows question UI with answer form                         │
++│    • Left menu: badge count on worktree entry                            │
++│    • Workflow canvas: node badge shows ❓                                │
++│    • Screen flash: green border + ❓ icon (if attention rules met)       │
++│                                                                          │
++│  USER ANSWERS                                                            │
++│    │                                                                     │
++│    │  workUnitState.answerQuestion(unitId, answer)                       │
++│    ▼                                                                     │
++│  WorkUnitStateService                                                    │
++│    │  1. Clear question field                                            │
++│    │  2. Update status = 'working' (agent resumes) or 'idle'             │
++│    │  3. Publish updated state paths                                     │
++│    │  4. Route answer to source (agent adapter, workflow engine, etc.)   │
++│    ▼                                                                     │
++│  SOURCE receives answer and continues                                    │
++└──────────────────────────────────────────────────────────────────────────┘
++```
++
++### Key Design: Answer Routing
++
++The WorkUnitStateService doesn't know HOW to deliver an answer to the source. It uses a **callback registry**:
++
++```typescript
++interface IWorkUnitStateService {
++  // Registration
++  register(entry: WorkUnitEntry): void;
++  unregister(unitId: string): void;
++  
++  // Status updates (called by sources)
++  updateStatus(unitId: string, status: WorkUnitStatus, intent?: string): void;
++  
++  // Questions (called by sources to ask, by UI to answer)
++  askQuestion(unitId: string, question: WorkUnitQuestion): void;
++  answerQuestion(unitId: string, answer: QuestionAnswer): void;
++  
++  // Answer routing (called by sources at registration)
++  onAnswer(unitId: string, handler: (answer: QuestionAnswer) => void): void;
++  
++  // Queries
++  getUnit(unitId: string): WorkUnitEntry | null;
++  getUnits(filter?: WorkUnitFilter): WorkUnitEntry[];
++  getQuestioned(): WorkUnitEntry[];  // All units with pending questions
++  
++  // Lifecycle
++  tidyUp(maxAge?: number): void;  // Remove expired entries (default 24h)
++}
++
++interface QuestionAnswer {
++  questionId: string;
++  type: QuestionType;
++  selected?: string[];     // for choice types
++  text?: string;           // for free_text
++  confirmed?: boolean;     // for confirm
++  answeredAt: string;      // ISO-8601
++}
++
++interface WorkUnitFilter {
++  workspace?: string;
++  sourceType?: string;
++  status?: WorkUnitStatus;
++  hasQuestion?: boolean;
++}
++```
++
++### Example: Agent Asks a Question
++
++```typescript
++// In agent adapter or agent manager, when agent emits a question event:
++const workUnitState = container.resolve<IWorkUnitStateService>(WORK_UNIT_STATE_TOKEN);
++
++// At agent creation, register and set up answer routing
++workUnitState.register({
++  id: agent.id,
++  sourceType: 'agent',
++  name: agent.name,
++  workspace: agent.workspace,
++  status: 'idle',
++  creator: { type: 'user' },
++  sourceRef: { sessionId: agent.sessionId },
++  lastActivityAt: new Date().toISOString(),
++  createdAt: new Date().toISOString(),
++});
++
++workUnitState.onAnswer(agent.id, (answer) => {
++  // Route answer back to agent — e.g., send as prompt via adapter
++  agentInstance.run({ prompt: answer.text ?? answer.selected?.join(', ') ?? 'confirmed' });
++});
++
++// Later, when agent asks a question:
++workUnitState.askQuestion(agent.id, {
++  questionId: 'q-001',
++  type: 'single_choice',
++  prompt: 'Which authentication strategy should I use?',
++  choices: ['JWT', 'Session-based', 'OAuth2'],
++  askedAt: new Date().toISOString(),
++});
++```
++
++### Example: Workflow Node User-Input
++
++```typescript
++// In positional-graph orchestrator, when a user-input node becomes ready:
++workUnitState.register({
++  id: `node-${nodeId}`,
++  sourceType: 'user-input',
++  name: node.userInput.prompt.slice(0, 50),
++  workspace: workspaceSlug,
++  status: 'waiting_input',
++  question: {
++    questionId: `node-${nodeId}-input`,
++    type: node.userInput.inputType,
++    prompt: node.userInput.prompt,
++    choices: node.userInput.options?.map(o => o.label),
++    askedAt: new Date().toISOString(),
++  },
++  creator: { type: 'workflow', ref: workflowSlug },
++  sourceRef: { nodeId, graphSlug },
++  lastActivityAt: new Date().toISOString(),
++  createdAt: new Date().toISOString(),
++});
++
++workUnitState.onAnswer(`node-${nodeId}`, (answer) => {
++  // Route to positional-graph service to save output data
++  pgService.saveOutputData(graphSlug, nodeId, answer);
++});
++```
++
++---
++
++## Q4: Relationship to GlobalStateSystem (Plan 053)
++
++**WorkUnitStateService publishes TO GlobalStateSystem. It does not replace it.**
++
++```
++┌───────────────────────────────────────────────────────────────┐
++│ Architecture                                                   │
++│                                                                │
++│  WorkUnitStateService                                          │
++│    ├── Internal: Map<unitId, WorkUnitEntry> (in-memory)        │
++│    ├── Persistence: work-unit-state.json per worktree          │
++│    ├── Publishes: GlobalStateSystem paths (work-unit:*)        │
++│    └── Broadcasts: SSE events via ISSEBroadcaster              │
++│                                                                │
++│  GlobalStateSystem (Plan 053)                                  │
++│    ├── Receives: work-unit:{id}:status, :intent, etc.          │
++│    ├── Subscribers: useGlobalState, useGlobalStateList          │
++│    └── Pattern: work-unit:*:has-question (all questions)        │
++│                                                                │
++│  UI Components                                                 │
++│    ├── Top bar: useGlobalStateList('work-unit:*:status')        │
++│    ├── Overlay: useGlobalState('work-unit:{id}:question-text')  │
++│    └── Left menu: useGlobalStateList('work-unit:*:has-question')│
++└───────────────────────────────────────────────────────────────┘
++```
++
++### State Paths Published
++
++Following Plan 053's `domain:instanceId:property` pattern:
++
++```
++work-unit:{id}:status           → 'working' | 'idle' | 'waiting_input' | 'error'
++work-unit:{id}:name             → string
++work-unit:{id}:source-type      → 'agent' | 'code-unit' | 'user-input' | 'pod' | string
++work-unit:{id}:intent           → string
++work-unit:{id}:workspace        → string (worktree slug)
++work-unit:{id}:has-question     → boolean
++work-unit:{id}:question-text    → string (preview of question prompt)
++work-unit:{id}:question-type    → QuestionType
++work-unit:{id}:creator-type     → 'user' | 'workflow' | 'pod' | 'system'
++work-unit:{id}:last-activity-at → ISO-8601 string
++```
++
++### Domain Registration
++
++```typescript
++function registerWorkUnitStateDomain(state: IStateService): void {
++  const already = state.listDomains?.().some(d => d.domain === 'work-unit');
++  if (already) return;
++  
++  state.registerDomain({
++    domain: 'work-unit',
++    description: 'Centralized work unit execution state — agents, code units, workflow nodes, pods',
++    multiInstance: true,
++    properties: [
++      { key: 'status', description: 'Execution status', typeHint: 'string' },
++      { key: 'name', description: 'Human-readable name', typeHint: 'string' },
++      { key: 'source-type', description: 'What kind of work unit', typeHint: 'string' },
++      { key: 'intent', description: 'Current task description', typeHint: 'string' },
++      { key: 'workspace', description: 'Worktree slug', typeHint: 'string' },
++      { key: 'has-question', description: 'Whether unit has pending question', typeHint: 'boolean' },
++      { key: 'question-text', description: 'Question prompt preview', typeHint: 'string' },
++      { key: 'question-type', description: 'Question input type', typeHint: 'string' },
++      { key: 'creator-type', description: 'What created this unit', typeHint: 'string' },
++      { key: 'last-activity-at', description: 'Last status change timestamp', typeHint: 'string' },
++    ],
++  });
++}
++```
++
++---
++
++## Q5: Agents Reporting Without Workflow Orchestration
++
++This is critical — agents must report even when running standalone (user clicks "new agent" in web UI, no workflow involved).
++
++### The Bridge Pattern
++
++The agent manager service wraps each agent operation with WorkUnitStateService calls:
++
++```typescript
++// In AgentManagerService or a thin wrapper
++class AgentWorkUnitBridge {
++  constructor(
++    private workUnitState: IWorkUnitStateService,
++    private agentManager: IAgentManagerService,
++  ) {}
++  
++  createAgent(params: CreateAgentParams): IAgentInstance {
++    const agent = this.agentManager.createAgent(params);
++    
++    // Register with central state
++    this.workUnitState.register({
++      id: agent.id,
++      sourceType: 'agent',
++      name: agent.name,
++      workspace: agent.workspace,
++      status: 'idle',
++      creator: { type: params.creator ?? 'user' },
++      sourceRef: { sessionId: agent.sessionId, agentType: agent.type },
++      lastActivityAt: new Date().toISOString(),
++      createdAt: new Date().toISOString(),
++    });
++    
++    // Wire answer routing
++    this.workUnitState.onAnswer(agent.id, (answer) => {
++      // Send answer as next prompt to agent
++      agent.run({ prompt: this.formatAnswer(answer) });
++    });
++    
++    return agent;
++  }
++  
++  async runAgent(agentId: string, options: AgentRunOptions): Promise<AgentResult> {
++    this.workUnitState.updateStatus(agentId, 'working', options.prompt.slice(0, 80));
++    
++    try {
++      const result = await this.agentManager.getAgent(agentId)!.run({
++        ...options,
++        onEvent: (event) => {
++          // Detect first-class questions from agent events
++          if (this.isQuestionEvent(event)) {
++            this.workUnitState.askQuestion(agentId, this.extractQuestion(event));
++          }
++          options.onEvent?.(event);
++        },
++      });
++      
++      this.workUnitState.updateStatus(agentId, 'idle');
++      return result;
++    } catch (error) {
++      this.workUnitState.updateStatus(agentId, 'error');
++      throw error;
++    }
++  }
++}
++```
++
++### How Agents Raise Questions
++
++Today, agents can ask questions through:
++1. **Copilot CLI**: `session.question` event in events.jsonl (structured question with choices)
++2. **Claude Code**: Tool use requesting user input (less structured)
++3. **MessageService**: Orchestrator creates question via `messageService.create()`
++
++The bridge detects question events from the adapter event stream and translates them to `workUnitState.askQuestion()`. This is the single funnel point — regardless of how the underlying agent asks, it flows through the same path.
++
++---
++
++## Q6: Cross-Worktree Visibility
++
++The WorkUnitStateService is **per-server-process** (singleton), not per-worktree. It holds entries from ALL worktrees.
++
++```typescript
++// Get all questions across all worktrees
++const allQuestions = workUnitState.getQuestioned();
++
++// Get questions for current worktree only
++const myQuestions = workUnitState.getUnits({ 
++  workspace: currentSlug, 
++  hasQuestion: true 
++});
++
++// Get questions from OTHER worktrees (for left menu alerts)
++const otherQuestions = workUnitState.getUnits({ hasQuestion: true })
++  .filter(u => u.workspace !== currentSlug);
++```
++
++### State System Supports This Natively
++
++GlobalStateSystem is also per-server-process. Subscribers can use patterns:
++
++```typescript
++// Top bar: current worktree's units
++// (filtered in component, not in state system — state publishes all)
++const allUnits = useGlobalStateList('work-unit:*:status');
++const myUnits = allUnits.filter(e => {
++  const workspace = stateSystem.get(`work-unit:${e.instanceId}:workspace`);
++  return workspace === currentSlug;
++});
++
++// Left menu: other worktree questions
++const allQuestions = useGlobalStateList('work-unit:*:has-question');
++const otherQuestions = allQuestions.filter(e => {
++  const workspace = stateSystem.get(`work-unit:${e.instanceId}:workspace`);
++  return workspace !== currentSlug && e.value === true;
++});
++```
++
++---
++
++## Q7: Domain Placement
++
++### RESOLVED: `work-unit-state` — Top-Level Business Domain
++
++**Slug**: `work-unit-state`
++**Type**: business
++**Parent**: — (none)
++**Peers**: `file-browser`, `workflow-ui`
++
++**Why top-level business, not `_platform`**: Every `_platform` domain is a generic mechanism that doesn't know about business concepts — `_platform/state` is pub/sub, `_platform/events` is transport. WorkUnit State has business semantics baked in: it knows what questions are, what "working" means, what tidy-up rules are, what creators are. It's content, not mechanism. The state domain doc itself says: "Domains provide the content; state system provides the mechanism."
++
++**Why not under `_platform/positional-graph`**: Standalone agents (no workflow) publish here too. Making it depend on the orchestration domain would invert the dependency.
++
++**Why top-level**: It's consumed across multiple business contexts — agents, workflows, pods — and doesn't belong to any one of them. It's a cross-cutting business concern: the "who needs help" registry.
++
++### Dependency Direction
++
++```
++work-unit-state (business domain)
++  ├── DEPENDS ON: _platform/state (publishes to GlobalStateSystem)
++  ├── DEPENDS ON: _platform/events (broadcasts via ISSEBroadcaster)
++  └── CONSUMED BY: agents, workflow-ui, _platform/panel-layout (top bar)
++```
++
++### Proposed Domain Entry (registry.md)
++
++```
++| WorkUnit State | work-unit-state | business | — | Plan 059 | active |
++```
++
++---
++
++## Persistence
++
++### File: `<worktree>/.chainglass/data/work-unit-state.json`
++
++```json
++{
++  "version": 1,
++  "units": [
++    {
++      "id": "abc-123",
++      "sourceType": "agent",
++      "name": "Auth Refactor Agent",
++      "workspace": "main",
++      "status": "idle",
++      "creator": { "type": "user" },
++      "sourceRef": { "sessionId": "sess-789", "agentType": "copilot" },
++      "lastActivityAt": "2026-02-28T08:00:00Z",
++      "createdAt": "2026-02-28T06:00:00Z"
++    },
++    {
++      "id": "node-n3",
++      "sourceType": "user-input",
++      "name": "Choose database strategy",
++      "workspace": "main",
++      "status": "waiting_input",
++      "question": {
++        "questionId": "node-n3-input",
++        "type": "single_choice",
++        "prompt": "Which database should we use?",
++        "choices": ["PostgreSQL", "MySQL", "SQLite"],
++        "askedAt": "2026-02-28T08:10:00Z"
++      },
++      "creator": { "type": "workflow", "ref": "deploy-pipeline" },
++      "sourceRef": { "nodeId": "n3", "graphSlug": "deploy-pipeline" },
++      "lastActivityAt": "2026-02-28T08:10:00Z",
++      "createdAt": "2026-02-28T08:05:00Z"
++    }
++  ]
++}
++```
++
++### Tidy-Up Rules
++
++On page load (or server bootstrap):
++1. Read `work-unit-state.json`
++2. Remove entries where `lastActivityAt` > 24h AND `status` !== `'working'`
++3. Write back cleaned file
++4. Publish surviving entries to GlobalStateSystem
++
++Working units NEVER expire. Questions NEVER expire (even if old — user must dismiss or answer).
++
++---
++
++## Contracts (Public Interface)
++
++| Contract | Type | Consumers | Description |
++|----------|------|-----------|-------------|
++| `IWorkUnitStateService` | Interface | Agents, workflow orchestrator, pods, UI | Central registration, status updates, questions |
++| `WorkUnitEntry` | Type | All consumers | Core data record |
++| `WorkUnitQuestion` | Type | UI question renderers | Structured question with type/choices |
++| `QuestionAnswer` | Type | UI answer submission | Typed answer matching question type |
++| `WorkUnitStatus` | Type | All consumers | `'working' \| 'idle' \| 'waiting_input' \| 'error'` |
++| `WorkUnitCreator` | Type | Top bar chips, provenance display | `{ type, ref? }` |
++| `WORK_UNIT_STATE_TOKEN` | DI Token | DI container | Service resolution |
++| `FakeWorkUnitStateService` | Fake | All tests | Test double with inspection methods |
++
++---
++
++## Component Architecture
++
++```
++packages/shared/src/work-unit-state/
++├── types.ts                         # WorkUnitEntry, WorkUnitQuestion, etc.
++├── work-unit-state.interface.ts     # IWorkUnitStateService
++├── tokens.ts                        # WORK_UNIT_STATE_TOKEN
++└── index.ts                         # Barrel exports
++
++apps/web/src/lib/work-unit-state/
++├── work-unit-state.service.ts       # Implementation (Map + persist + publish)
++├── work-unit-state-publisher.tsx     # React component that publishes to GlobalState
++├── work-unit-state-connector.tsx    # Mounts in DashboardShell, registers domain
++└── index.ts
++
++apps/web/src/features/059-fix-agents/
++├── agent-work-unit-bridge.ts        # Bridges AgentManagerService → WorkUnitStateService
++└── index.ts
++
++test/contracts/
++├── work-unit-state.contract.ts      # Contract test factory
++└── work-unit-state.contract.test.ts # Runs against real + fake
++```
++
++---
++
++## Open Questions
++
++### Q1: Should tidy-up be on page load only, or periodic?
++
++**Leaning**: Page load is sufficient. The 24h window is generous. If a user has the page open for 48h straight, a few stale idle entries in the top bar are acceptable. Adding a periodic timer adds complexity for minimal gain.
++
++### Q2: Should the recent list file be per-worktree or global?
++
++**RESOLVED**: Per-worktree at `<worktree>/.chainglass/data/work-unit-state.json`. The WorkUnitStateService aggregates across all worktrees in memory at runtime (server process sees all), but each worktree persists its own entries. Cross-worktree visibility is a runtime concern, not a storage concern.
++
++### Q3: What happens when an answer can't be routed (source crashed)?
++
++**Leaning**: The service stores the answer and updates state (clears question, marks idle). If the source re-registers later, it can check for pending answers. If it never comes back, the answered question is just history. No retry mechanism needed — the user can always re-run the agent.
++
++### Q4: Should we namespace state paths as `work-unit:` or something shorter?
++
++**RESOLVED**: `work-unit:` — matches the domain slug. Clarity over brevity. The paths are machine-consumed, not typed by humans.
++
++---
++
++## Quick Reference
++
++```typescript
++// Register a work unit (any source)
++workUnitState.register({ id, sourceType, name, workspace, status: 'idle', ... });
++
++// Update status
++workUnitState.updateStatus(unitId, 'working', 'Building auth module');
++workUnitState.updateStatus(unitId, 'idle');
++workUnitState.updateStatus(unitId, 'error');
++
++// Ask a question
++workUnitState.askQuestion(unitId, { 
++  questionId: 'q1', type: 'single_choice', 
++  prompt: 'Which strategy?', choices: ['A', 'B'] 
++});
++
++// Answer a question (from UI)
++workUnitState.answerQuestion(unitId, { 
++  questionId: 'q1', type: 'single_choice', selected: ['A'] 
++});
++
++// Query from React components
++const status = useGlobalState<string>(`work-unit:${id}:status`);
++const hasQ = useGlobalState<boolean>(`work-unit:${id}:has-question`);
++const allWorking = useGlobalStateList('work-unit:*:status')
++  .filter(e => e.value === 'working');
++const allQuestions = useGlobalStateList('work-unit:*:has-question')
++  .filter(e => e.value === true);
++
++// Tidy up stale entries
++workUnitState.tidyUp(24 * 60 * 60 * 1000); // 24h
++```
++
++---
++
++## Replaces / Subsumes
++
++| Existing System | What Happens | Migration |
++|-----------------|-------------|-----------|
++| AgentNotifierService SSE events (Plan 019) | **Kept** for raw event streaming (text_delta, tool_call). WorkUnitState handles STATUS only. | Agent bridge publishes status to WorkUnitState AND continues SSE for streaming. |
++| MessageService questions (Plan 054) | **Kept** for workflow-internal Q&A storage. WorkUnitState is the NOTIFICATION layer. | Workflow orchestrator calls both: `messageService.create()` for persistence + `workUnitState.askQuestion()` for notification. |
++| NodeStatusResult.pendingQuestion (Plan 032) | **Superseded** by WorkUnitState question. | Orchestrator registers user-input nodes with WorkUnitState instead of embedding question in NodeStatusResult. |
++
++This system doesn't replace existing systems — it **unifies the notification surface**. Each source system keeps its own storage and logic. WorkUnitState is the "who needs attention?" aggregator.
+diff --git a/docs/plans/059-fix-agents/workshops/004-agent-creation-failure-root-cause.md b/docs/plans/059-fix-agents/workshops/004-agent-creation-failure-root-cause.md
+new file mode 100644
+index 0000000..8197694
+--- /dev/null
++++ b/docs/plans/059-fix-agents/workshops/004-agent-creation-failure-root-cause.md
+@@ -0,0 +1,323 @@
++# Workshop: Agent Creation Failure Root Cause Analysis
++
++**Type**: Integration Pattern
++**Plan**: 059-fix-agents
++**Spec**: [fix-agents-spec.md](../fix-agents-spec.md)
++**Created**: 2026-02-28
++**Status**: Approved
++
++**Related Documents**:
++- [Research Dossier](../research-dossier.md) — Findings 01-03
++- [Phase 1 Tasks](../tasks/phase-1-fix-agent-foundation/tasks.md)
++
++**Domain Context**:
++- **Primary Domain**: agents
++- **Related Domains**: _platform/sdk (CopilotClient), _platform/events (SSE)
++
++---
++
++## Purpose
++
++Eliminate assumptions about why agents are broken. The research dossier identified 4 issues (serialization, SSE wiring, copilot-cli type, DI factory), but live testing reveals a different primary root cause. This workshop traces the actual failure and documents all confirmed issues with evidence.
++
++## Key Questions Addressed
++
++- Why does "Failed to create agent" appear for GitHub Copilot type?
++- Why does claude-code agent creation work but copilot doesn't?
++- Is the GET serialization actually broken, or is the list empty because creation fails?
++- What's the correct fix order — what unblocks the most?
++- Are there secondary issues hidden behind the primary failure?
++
++---
++
++## Root Cause 1: Turbopack Bundles `@github/copilot-sdk` (CRITICAL)
++
++### Evidence
++
++```bash
++$ curl -s -X POST http://localhost:3000/api/agents \
++  -H 'Content-Type: application/json' \
++  -d '{"name":"Test","type":"copilot","workspace":"chainglass"}'
++
++{"error":"Failed to create agent","message":"__TURBOPACK__import$2e$meta__.resolve is not a function"}
++```
++
++Compared to:
++```bash
++$ curl -s -X POST http://localhost:3000/api/agents \
++  -H 'Content-Type: application/json' \
++  -d '{"name":"Test","type":"claude-code","workspace":"chainglass"}'
++
++{"id":"agent-mm655vd4-f509hg","name":"Test","type":"claude-code",...}  # ← SUCCESS
++```
++
++### Call Chain
++
++```
++POST /api/agents { type: 'copilot' }
++  └→ ensureInitialized()  ← OK (no stored copilot agents)
++  └→ agentManager.createAgent({ type: 'copilot' })
++       └→ new AgentInstance(config, adapterFactory, notifier, storage)
++            └→ this._adapter = adapterFactory('copilot')        // line 128
++                 └→ c.resolve<CopilotClient>(DI_TOKENS.COPILOT_CLIENT)  // first-time singleton
++                      └→ new CopilotClient()                             // SDK constructor
++                           └→ getBundledCliPath()                         // line 105
++                                └→ import.meta.resolve("@github/copilot/sdk")  // line 31
++                                     └→ __TURBOPACK__import$2e$meta__.resolve   // ❌ CRASH
++                                          TypeError: not a function
++```
++
++### Why It Happens
++
++`@github/copilot-sdk` (v0.x) uses Node.js `import.meta.resolve()` at line 31 of `dist/client.js`:
++
++```javascript
++function getBundledCliPath() {
++  const sdkUrl = import.meta.resolve("@github/copilot/sdk");  // Node.js API
++  const sdkPath = fileURLToPath(sdkUrl);
++  return join(dirname(dirname(sdkPath)), "index.js");
++}
++```
++
++This is called from the `CopilotClient` constructor (line 105):
++```javascript
++constructor(options = {}) {
++    ...
++    cliPath: options.cliPath || getBundledCliPath(),  // ← triggers import.meta.resolve
++```
++
++Turbopack bundles the module and rewrites `import.meta.resolve` to `__TURBOPACK__import$2e$meta__.resolve`, which doesn't exist. Native Node.js `import.meta.resolve()` works fine:
++
++```bash
++$ node -e "console.log(import.meta.resolve('@github/copilot/sdk'))"
++file:///.../@github/copilot/sdk/index.js  # ← works in Node.js
++```
++
++### Why claude-code Works
++
++The `adapterFactory` only constructs the adapter for the requested type. For `claude-code`, it creates `ClaudeCodeAdapter` (which uses `ProcessManager`, no SDK dependency). `CopilotClient` is never instantiated, so the broken code path is never hit.
++
++### Why the adapter is created at construction time
++
++`AgentInstance` constructor (line 128):
++```typescript
++constructor(config, adapterFactory, notifier, storage?) {
++    ...
++    this._adapter = adapterFactory(config.type);  // ← eagerly created
++}
++```
++
++This means the failure happens during `createAgent()`, not during `run()`.
++
++### Fix
++
++Add `@github/copilot-sdk` and `@github/copilot` to `serverExternalPackages` in `apps/web/next.config.mjs`:
++
++```javascript
++serverExternalPackages: [
++    'shiki',
++    'vscode-oniguruma',
++    '@shikijs/core',
++    '@shikijs/engine-oniguruma',
++    '@github/copilot-sdk',   // ← NEW: uses import.meta.resolve
++    '@github/copilot',       // ← NEW: resolved by copilot-sdk
++],
++```
++
++This follows the exact same pattern as shiki (already documented in the codebase). `serverExternalPackages` tells Next.js/Turbopack to NOT bundle these packages, leaving them as native Node.js imports where `import.meta.resolve` works correctly.
++
++### Secondary Impact: Hydration
++
++The same crash would occur during `AgentManagerService.initialize()` if any stored copilot agent exists:
++```
++initialize() → hydrate(storedAgent) → new AgentInstance() → adapterFactory('copilot') → CRASH
++```
++
++The `initialize()` loop (line 105-117 in `agent-manager.service.ts`) has NO try/catch around individual agent hydration. If ANY stored copilot agent exists, ALL agents fail to load. And since the route's `ensureInitialized()` flag never gets set, every subsequent request retries and fails.
++
++---
++
++## Root Cause 2: POST Does Not Broadcast SSE Event (HIGH)
++
++### Evidence
++
++POST handler (`apps/web/app/api/agents/route.ts` lines 130-149):
++```typescript
++const agent = agentManager.createAgent({
++    name: body.name,
++    type: body.type,
++    workspace: body.workspace,
++});
++
++// ← NO broadcast call here
++
++return NextResponse.json(response, { status: 201 });
++```
++
++The `AgentNotifierService` exists and has `broadcastStatus()`, but it's never called from the POST handler.
++
++### Impact
++
++When a client creates an agent, other connected clients (or the same client's `useAgentManager` hook listening on SSE) never receive the `agent_created` event. The agent list only updates on manual page refresh.
++
++### Fix
++
++After `createAgent()`, resolve the notifier and broadcast:
++```typescript
++const notifier = container.resolve<IAgentNotifierService>(
++    SHARED_DI_TOKENS.AGENT_NOTIFIER_SERVICE
++);
++notifier.broadcastStatus(agent.id, agent.status);
++```
++
++---
++
++## Root Cause 3: `copilot-cli` Type Not Supported (MEDIUM)
++
++### Evidence
++
++Three locations reject `copilot-cli`:
++
++1. **AgentType union** (`019/agent-instance.interface.ts:19`):
++   ```typescript
++   export type AgentType = 'claude-code' | 'copilot';  // ← missing copilot-cli
++   ```
++   (The 034 module already has it: `'claude-code' | 'copilot' | 'copilot-cli'`)
++
++2. **POST validation** (`route.ts:122`):
++   ```typescript
++   if (body.type !== 'claude-code' && body.type !== 'copilot') {
++       return NextResponse.json({ error: 'Invalid agent type' }, { status: 400 });
++   }
++   ```
++
++3. **DI adapter factory** (`di-container.ts:399-410`):
++   ```typescript
++   if (agentType === 'claude-code') { ... }
++   if (agentType === 'copilot') { ... }
++   throw new Error(`Unknown agent type: ${agentType}`);
++   ```
++
++### Impact
++
++Users cannot create copilot-cli agents from the web UI. The adapter implementation exists (`packages/shared/src/adapters/copilot-cli.adapter.ts`) but is unreachable from the web.
++
++### Fix
++
++Update all three locations + add `copilot-cli` to the creation form.
++
++---
++
++## Root Cause 4: Form Defaults to claude-code (LOW)
++
++### Evidence
++
++`create-session-form.tsx:43`:
++```typescript
++const [agentType, setAgentType] = useState<AgentType>('claude-code');
++```
++
++### Impact
++
++Users must manually switch to GitHub Copilot. The spec says copilot should be the default.
++
++### Fix
++
++Change default to `'copilot'`.
++
++---
++
++## Confirmed Non-Issues
++
++| Suspected Issue | Status | Evidence |
++|----------------|--------|----------|
++| GET /api/agents serialization broken | **Not broken** | `curl GET /api/agents` returns correct shape with all fields hooks expect (id, name, type, workspace, status, intent, sessionId, createdAt, updatedAt) |
++| DI container bootstrap fails | **Works fine** | claude-code agent created successfully through full DI stack |
++| AgentManagerService initialization fails | **Works fine** | No stored copilot agents → initialize() succeeds |
++| Agent list page broken | **Works, just empty** | Page renders "No agents" correctly; agents appear after successful creation |
++| SSE event stream broken | **Works** | SSE endpoint functional; issue is that events aren't published on creation |
++
++---
++
++## Revised Fix Order
++
++```mermaid
++flowchart TD
++    classDef critical fill:#FFCDD2,stroke:#D32F2F,color:#000
++    classDef high fill:#FFF3E0,stroke:#FF9800,color:#000
++    classDef medium fill:#E3F2FD,stroke:#2196F3,color:#000
++    classDef low fill:#E8F5E9,stroke:#4CAF50,color:#000
++
++    RC1["RC1: Add copilot SDK<br/>to serverExternalPackages"]:::critical
++    RC2["RC2: Wire SSE broadcast<br/>into POST handler"]:::high
++    RC3a["RC3a: Add copilot-cli<br/>to AgentType union"]:::medium
++    RC3b["RC3b: Add copilot-cli<br/>to POST validation"]:::medium
++    RC3c["RC3c: Add copilot-cli<br/>to DI adapter factory"]:::medium
++    RC4["RC4: Change form default<br/>to copilot + add cli fields"]:::low
++    V1["Verify: List page renders"]:::low
++    V2["Verify: Detail page + chat"]:::low
++    V3["Verify: Persistence"]:::low
++    T1["Tests: Regression suite"]:::low
++
++    RC1 --> RC2
++    RC1 --> RC3a
++    RC3a --> RC3b
++    RC3a --> RC3c
++    RC3b --> RC4
++    RC3c --> RC4
++    RC2 --> V1
++    RC4 --> V1
++    V1 --> V2
++    V2 --> V3
++    V3 --> T1
++```
++
++**Critical path**: RC1 (serverExternalPackages) unblocks EVERYTHING. Without this, copilot agents can't be created or hydrated. This is a 1-line config change.
++
++### Priority ranking
++
++| # | Fix | Severity | Effort | Unblocks |
++|---|-----|----------|--------|----------|
++| 1 | Add `@github/copilot-sdk` + `@github/copilot` to serverExternalPackages | Critical | 1 line | All copilot agent functionality |
++| 2 | Wire SSE broadcast into POST handler | High | ~5 lines | Real-time agent list updates |
++| 3 | Add copilot-cli to AgentType + validation + DI factory | Medium | ~10 lines across 3 files | copilot-cli agent creation |
++| 4 | Change form default + add copilot-cli fields | Low | ~40 lines | Better UX + copilot-cli support |
++| 5 | Verify pages + persistence | Low | 0 (verification only) | Confidence |
++| 6 | Regression tests | Low | ~60 lines | Future safety |
++
++---
++
++## Impact on Phase 1 Task Order
++
++The original Phase 1 tasks (T001-T008) assumed serialization and type issues were primary. This workshop reveals:
++
++1. **T001 (AgentType union)** stays but is NOT the first fix
++2. **T002 (DI factory)** stays
++3. **T003 (POST validation + SSE)** stays but should be split: SSE broadcast is separate from validation
++4. **T004 (form)** stays
++5. **T005 (GET serialization)** → **downgraded to verification only** — GET is not broken
++6. **T006 (detail page)** stays as verification
++7. **T007 (persistence)** stays as verification
++8. **T008 (tests)** stays
++
++**NEW task needed**: Add `@github/copilot-sdk` to serverExternalPackages — this must be FIRST.
++
++---
++
++## Open Questions
++
++### Q1: Should we also externalize `reflect-metadata`?
++
++**RESOLVED**: No. `reflect-metadata` is imported in di-container.ts and works with Turbopack. Only packages using `import.meta.resolve` need externalization.
++
++### Q2: Could stored copilot agents break initialize()?
++
++**RESOLVED**: Yes, confirmed. If a copilot agent was previously stored (before this bug appeared), `initialize()` would crash on hydration. However, current state shows no stored copilot agents (only the test claude-code agent we created). The initialize loop should still get a try/catch around individual agent hydration as a defensive measure.
++
++### Q3: Why didn't the existing 42 agent test files catch this?
++
++**RESOLVED**: Tests use `FakeAgentAdapter` and `FakeCopilotClient` — they never import from `@github/copilot-sdk`. The real CopilotClient is only used in the DI container's production wiring, which is never exercised in unit tests. This is a Turbopack-specific runtime issue that only manifests in the dev server.
++
++### Q4: Should we pass `cliPath` explicitly instead of externalizing?
++
++**RESOLVED**: No. Externalization is the cleaner fix — it follows the existing shiki pattern, requires 1 line, and ensures the entire SDK works as Node.js expects. Passing `cliPath` would require knowing the pnpm-resolved path at build time, which is fragile.

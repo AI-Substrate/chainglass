@@ -1,0 +1,17 @@
+modified	/Users/jordanknight/substrate/059-fix-agents/apps/web/app/api/agents/route.ts
+modified	/Users/jordanknight/substrate/059-fix-agents/apps/web/next-env.d.ts
+modified	/Users/jordanknight/substrate/059-fix-agents/apps/web/next.config.mjs
+modified	/Users/jordanknight/substrate/059-fix-agents/apps/web/src/components/agents/create-session-form.tsx
+modified	/Users/jordanknight/substrate/059-fix-agents/apps/web/src/lib/di-container.ts
+created	/Users/jordanknight/substrate/059-fix-agents/docs/domains/agents/domain.md
+modified	/Users/jordanknight/substrate/059-fix-agents/docs/domains/domain-map.md
+modified	/Users/jordanknight/substrate/059-fix-agents/docs/domains/registry.md
+created	/Users/jordanknight/substrate/059-fix-agents/docs/domains/work-unit-state/domain.md
+created	/Users/jordanknight/substrate/059-fix-agents/docs/plans/059-fix-agents/fix-agents-plan.md
+created	/Users/jordanknight/substrate/059-fix-agents/docs/plans/059-fix-agents/fix-agents-spec.md
+created	/Users/jordanknight/substrate/059-fix-agents/docs/plans/059-fix-agents/tasks/phase-1-fix-agent-foundation/tasks.fltplan.md
+created	/Users/jordanknight/substrate/059-fix-agents/docs/plans/059-fix-agents/tasks/phase-1-fix-agent-foundation/tasks.md
+modified	/Users/jordanknight/substrate/059-fix-agents/docs/plans/059-fix-agents/workshops/001-top-bar-agent-ux.md
+created	/Users/jordanknight/substrate/059-fix-agents/docs/plans/059-fix-agents/workshops/003-work-unit-state-system.md
+created	/Users/jordanknight/substrate/059-fix-agents/docs/plans/059-fix-agents/workshops/004-agent-creation-failure-root-cause.md
+modified	/Users/jordanknight/substrate/059-fix-agents/packages/shared/src/features/019-agent-manager-refactor/agent-instance.interface.ts

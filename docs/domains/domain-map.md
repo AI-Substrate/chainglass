@@ -8,6 +8,7 @@ flowchart LR
     classDef business fill:#E3F2FD,stroke:#2196F3,color:#000
     classDef infra fill:#F3E5F5,stroke:#9C27B0,color:#000
     classDef deprecated fill:#FFEBEE,stroke:#F44336,color:#000
+    classDef new fill:#FFF3E0,stroke:#FF9800,color:#000
 
     %% Infrastructure domains
     fileOps["⚙️ _platform/file-ops<br/>IFileSystem · IPathResolver"]:::infra
@@ -24,6 +25,10 @@ flowchart LR
     %% Business domains
     fileBrowser["📁 file-browser<br/>Browser page · FileTree<br/>CodeEditor · FileViewerPanel<br/>WorkspaceContext · Settings"]:::business
     workflowUI["🔀 workflow-ui<br/>Workflow editor · Canvas<br/>Toolbox · Properties<br/>Doping system"]:::business
+
+    %% NEW business domains (Plan 059)
+    agents["🤖 agents<br/>IAgentManagerService<br/>IAgentAdapter · IAgentInstance<br/>useAgentManager<br/>useAgentInstance<br/>AgentWorkUnitBridge"]:::new
+    workUnitState["📋 work-unit-state<br/>IWorkUnitStateService<br/>WorkUnitEntry<br/>WorkUnitQuestion<br/>FakeWorkUnitStateService"]:::new
 
     %% Contract dependencies (consumer → provider)
     fileBrowser -->|"IFileSystem<br/>IPathResolver"| fileOps
@@ -59,12 +64,27 @@ flowchart LR
 
     %% Dev tools dependencies
     devTools -->|"IStateService<br/>StateChangeLog<br/>useStateSystem"| state
+
+    %% NEW: Agents domain dependencies
+    agents -->|"ISSEBroadcaster<br/>useSSE · toast()"| events
+    agents -->|"CopilotClient"| sdk
+    agents -->|"IStateService<br/>useGlobalState"| state
+    agents -->|"IWorkUnitStateService<br/>(publish status)"| workUnitState
+    agents -->|"DashboardShell<br/>(top bar slot)"| panels
+    posGraph -->|"IAgentManagerService<br/>IAgentInstance<br/>(orchestration)"| agents
+
+    %% NEW: Work Unit State dependencies
+    workUnitState -->|"IStateService<br/>(publish paths)"| state
+
+    %% NEW: Workflow UI → agents (future overlay)
+    workflowUI -->|"useAgentOverlay<br/>(future)"| agents
 ```
 
 ## Legend
 
 - **Blue**: Business domains (user-facing capabilities)
 - **Purple**: Infrastructure domains (cross-cutting technical capabilities)
+- **Orange**: Newly added domains (Plan 059 — change to blue after first implementation)
 - **Red**: Deprecated domains (pending removal)
 - **Solid arrows** (→): Contract dependency (A consumes B's contract)
 - **Labels on arrows**: Contract name being consumed
@@ -76,13 +96,15 @@ flowchart LR
 | _platform/file-ops | IFileSystem, IPathResolver | file-browser, viewer, workflow-ui | — | — | ✅ |
 | _platform/workspace-url | workspaceHref, paramsCaches | file-browser, panel-layout | — | — | ✅ |
 | _platform/viewer | FileViewer, MarkdownViewer, DiffViewer, highlightCode, detectContentType, isBinaryExtension | file-browser | IFileSystem | file-ops | ✅ |
-| _platform/events | ICentralEventNotifier, ISSEBroadcaster, useSSE, FileChangeHub, useFileChanges, FileChangeProvider, toast() | file-browser, workflow-ui, agent-ui*, state | — | — | ✅ |
+| _platform/events | ICentralEventNotifier, ISSEBroadcaster, useSSE, FileChangeHub, useFileChanges, FileChangeProvider, toast() | file-browser, workflow-ui, agents, state | — | — | ✅ |
 | _platform/panel-layout | PanelShell, ExplorerPanel, LeftPanel, MainPanel, PanelHeader, BarHandler, AsciiSpinner, FlowSpaceSearchResult, FlowSpaceAvailability, FlowSpaceSearchMode | file-browser, future workspace pages | panel URL param | workspace-url | ✅ |
 | file-browser | Browser page, FileTree, FileViewerPanel, WorkspaceContext, EmojiPicker, ColorPicker, Settings | — | IFileSystem, workspaceHref, viewers, toast, events, panels | file-ops, workspace-url, viewer, events, panel-layout | ✅ |
 | _platform/sdk | IUSDK, ICommandRegistry, ISDKSettings, IContextKeyService, IKeybindingService, SDKCommand, SDKSetting, FakeUSDK | file-browser, workflow-ui, events, panel-layout, settings | — | — | ✅ |
 | _platform/settings | Settings Page, sdk.openSettings | — | ISDKSettings, useSDKSetting, useSDK | sdk | ✅ |
 | _platform/positional-graph | IPositionalGraphService, IOrchestrationService, IEventHandlerService, IWorkUnitService, ITemplateService, IInstanceService | CLI (`cg wf`, `cg template`), workflow-ui, dev/test-graphs | IFileSystem, IPathResolver, IStateService | file-ops, state | ✅ |
 | _platform/workgraph | IWorkGraphService, IWorkNodeService, IWorkUnitService | CLI (`cg wg`, `cg unit`) | IFileSystem, IPathResolver | file-ops | ❌ Removed from web (Plan 050 Phase 7) |
-| _platform/state | IStateService, useGlobalState, useGlobalStateList, GlobalStateProvider, StateChangeLog, FakeGlobalStateSystem | positional-graph (publish), workflow-ui, panel-layout, file-browser (subscribe), dev-tools | useSSE | events | ✅ |
-| workflow-ui | _(none — leaf consumer)_ | — | IPositionalGraphService, ITemplateService, IWorkUnitService, IFileSystem, IPathResolver, useSSE, workspaceHref, IUSDK, useGlobalState | positional-graph, file-ops, events, workspace-url, sdk, state | ✅ |
+| _platform/state | IStateService, useGlobalState, useGlobalStateList, GlobalStateProvider, StateChangeLog, FakeGlobalStateSystem | positional-graph (publish), workflow-ui, panel-layout, file-browser, agents, work-unit-state (subscribe), dev-tools | useSSE | events | ✅ |
+| workflow-ui | _(none — leaf consumer)_ | — | IPositionalGraphService, ITemplateService, IWorkUnitService, IFileSystem, IPathResolver, useSSE, workspaceHref, IUSDK, useGlobalState, useAgentOverlay (future) | positional-graph, file-ops, events, workspace-url, sdk, state, agents (future) | ✅ |
 | _platform/dev-tools | StateInspector, useStateChangeLog, useStateInspector | — | IStateService, StateChangeLog, useStateSystem | state | ✅ |
+| agents | IAgentManagerService, IAgentAdapter, IAgentInstance, IAgentNotifierService, useAgentManager, useAgentInstance, AgentWorkUnitBridge | positional-graph (orchestration), workflow-ui (future overlay) | ISSEBroadcaster, useSSE, toast(), CopilotClient, IStateService, IWorkUnitStateService, DashboardShell | events, sdk, state, work-unit-state, panel-layout | 🟠 New |
+| work-unit-state | IWorkUnitStateService, WorkUnitEntry, WorkUnitQuestion, FakeWorkUnitStateService | agents (AgentWorkUnitBridge), workflow-ui (future) | IStateService | state | 🟠 New |

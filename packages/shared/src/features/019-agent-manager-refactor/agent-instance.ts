@@ -41,6 +41,12 @@ export interface AgentInstanceConfig {
   type: AgentType;
   /** Workspace path this agent is associated with */
   workspace: string;
+  /** Session ID for copilot-cli agents */
+  sessionId?: string;
+  /** tmux window name for copilot-cli agents */
+  tmuxWindow?: string;
+  /** tmux pane index for copilot-cli agents */
+  tmuxPane?: string;
 }
 
 /**
@@ -124,8 +130,20 @@ export class AgentInstance implements IAgentInstance {
     this._notifier = notifier;
     this._storage = storage ?? null;
 
-    // Create adapter via factory
-    this._adapter = adapterFactory(config.type);
+    // Set initial sessionId from config (for copilot-cli agents)
+    if (config.sessionId) {
+      this._sessionId = config.sessionId;
+    }
+
+    // Create adapter via factory, passing copilot-cli config if relevant
+    const tmuxTarget =
+      config.tmuxWindow && config.tmuxPane
+        ? `${config.tmuxWindow}:${config.tmuxPane}`
+        : config.tmuxWindow || undefined;
+    this._adapter = adapterFactory(config.type, {
+      tmuxTarget,
+      defaultSessionId: config.sessionId,
+    });
   }
 
   /**

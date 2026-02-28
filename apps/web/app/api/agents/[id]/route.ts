@@ -1,4 +1,5 @@
 import { SHARED_DI_TOKENS } from '@chainglass/shared';
+import type { IAgentNotifierService } from '@chainglass/shared/features/019-agent-manager-refactor';
 import type { IAgentManagerService } from '@chainglass/shared/features/019-agent-manager-refactor/agent-manager.interface';
 /**
  * Agent API Route - /api/agents/[id]
@@ -128,6 +129,12 @@ export async function DELETE(
     if (!deleted) {
       return NextResponse.json({ error: 'Agent not found', agentId: id }, { status: 404 });
     }
+
+    // Broadcast agent_terminated via SSE so connected clients update their lists
+    const notifier = container.resolve<IAgentNotifierService>(
+      SHARED_DI_TOKENS.AGENT_NOTIFIER_SERVICE
+    );
+    notifier.broadcastTerminated(id);
 
     return NextResponse.json({ success: true, agentId: id });
   } catch (error) {

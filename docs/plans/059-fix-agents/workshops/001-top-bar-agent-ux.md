@@ -76,39 +76,58 @@ The backend has 3 statuses: `working`, `stopped`, `error`. But "stopped" is ambi
 | `archived` | — | User dismissed / old | ❌ No | No |
 | `terminated` | — | Hard-killed, gone | ❌ No | No |
 
-**Top bar rule**: Show agents in states `working`, `waiting_input`, `idle`, `error`, `completed`. Hide `archived` and `terminated`.
+**Top bar rule — REVISED (Recency Model)**:
 
-### Status Derivation
+The top bar does NOT show all agents by status. Instead, it renders a **recent agents list** — a persisted, per-worktree data structure that tracks which agents should be visible.
 
-The backend publishes raw `working` / `stopped` / `error`. The client derives the richer status:
+**Auto-populate**: Any agent that runs gets added to the recent list with a timestamp. If already present, the timestamp refreshes.
+
+**Auto-depopulate**: On page load (or periodic tidy), sweep the list and remove anything older than 24h that isn't currently `working`. Agents that ARE `working` never get swept regardless of age.
+
+**Manual dismiss**: User can ✕ an agent off the recent list without killing it. The agent keeps running, just not visible in the bar. Reopening it (from agent page, workflow node, etc.) re-adds it.
+
+**First-class questions override recency**: If an agent raises a typed question via MessageService, it gets flash/badge/attention treatment regardless of whether it's in the recent list. Questions always surface.
+
+**Storage**: Persisted as `<worktree>/.chainglass/data/agent-recent-list.json`, published to state system on load:
+```json
+{
+  "agents": [
+    { "agentId": "abc-123", "addedAt": "2026-02-28T06:00:00Z", "order": 0 },
+    { "agentId": "def-456", "addedAt": "2026-02-28T07:30:00Z", "order": 1 }
+  ]
+}
+```
+
+On page load: read file → filter out expired (>24h AND not working) → write back → publish to state system → top bar renders.
+
+**"Waiting for input" detection**: We do NOT try to infer whether an idle agent is "waiting" from heuristics. Only first-class questions (MessageService) trigger `waiting_input` status. An agent that goes `stopped` after a run is simply `idle` in the recent list — available to reconnect but not attention-seeking.
+
+### Status Derivation (Simplified)
+
+The backend publishes raw `working` / `stopped` / `error`. The client derives display status. `waiting_input` is ONLY triggered by a first-class question via MessageService — never inferred from agent idle state.
 
 ```typescript
 type BackendAgentStatus = 'working' | 'stopped' | 'error';
 
 type DerivedAgentStatus =
   | 'working'
-  | 'waiting_input'
-  | 'idle'
-  | 'error'
-  | 'completed'
-  | 'archived'
-  | 'terminated';
+  | 'waiting_input'   // ONLY when hasQuestion === true
+  | 'idle'            // Default for stopped agents in recent list
+  | 'error';
 
 function deriveDisplayStatus(
   backendStatus: BackendAgentStatus,
   hasQuestion: boolean,
-  hasEverRun: boolean,
-  lastRunSucceeded: boolean | null,
 ): DerivedAgentStatus {
   if (backendStatus === 'working') return 'working';
   if (backendStatus === 'error') return 'error';
   // backendStatus === 'stopped'
   if (hasQuestion) return 'waiting_input';
-  if (!hasEverRun) return 'idle';
-  if (lastRunSucceeded) return 'completed';
-  return 'idle'; // stopped but no question, ran before, didn't succeed — back to idle
+  return 'idle';
 }
 ```
+
+**Removed states**: `completed` and `archived` are no longer derived statuses. The recency model handles visibility — agents auto-depopulate after 24h of inactivity, no need for "completed" or "archived" semantics in the top bar.
 
 ### State Paths (Plan 053 Pattern)
 
@@ -118,14 +137,14 @@ agent:{agentId}:intent          → string (e.g., "Refactoring auth module")
 agent:{agentId}:type            → 'claude-code' | 'copilot' | 'copilot-cli'
 agent:{agentId}:name            → string
 agent:{agentId}:workspace       → string (worktree slug)
-agent:{agentId}:has-question    → boolean
+agent:{agentId}:has-question    → boolean (ONLY true when MessageService question raised)
 agent:{agentId}:question-text   → string (the actual question, for popover preview)
 agent:{agentId}:creator         → 'user' | 'workflow' | 'pod'
-agent:{agentId}:has-ever-run    → boolean
-agent:{agentId}:last-run-ok     → boolean | null
 ```
 
 **Why this granularity**: Each field updates independently. `intent` changes frequently during `working` state; `status` changes rarely. Fine-grained paths prevent unnecessary re-renders via `useGlobalState`.
+
+**Removed**: `has-ever-run` and `last-run-ok` — no longer needed since we use recency model instead of status derivation for visibility.
 
 ---
 

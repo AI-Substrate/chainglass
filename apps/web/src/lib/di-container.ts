@@ -20,6 +20,7 @@ import {
   type AdapterFactory,
   AgentService,
   ClaudeCodeAdapter,
+  CopilotCLIAdapter,
   FakeAgentAdapter,
   FakeConfigService,
   FakeLogger,
@@ -249,6 +250,18 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
           // Reuse singleton CopilotClient to avoid repeated SDK client construction
           return new SdkCopilotAdapter(copilotClient, { logger });
         }
+        if (agentType === 'copilot-cli') {
+          return new CopilotCLIAdapter({
+            sendKeys: (target: string, text: string) => {
+              const { execSync } = require('node:child_process');
+              execSync(`tmux send-keys -t ${target} ${JSON.stringify(text)}`, { stdio: 'ignore' });
+            },
+            sendEnter: (target: string) => {
+              const { execSync } = require('node:child_process');
+              execSync(`tmux send-keys -t ${target} Enter`, { stdio: 'ignore' });
+            },
+          });
+        }
         throw new Error(`Unknown agent type: ${agentType}`);
       };
 
@@ -396,7 +409,7 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
 
       // Per DYK-01: Factory function for adapter selection
       // Resolve dependencies inside the factory (not outside) so they survive HMR reloads.
-      const agentAdapterFactory: AgentAdapterFactory = (agentType) => {
+      const agentAdapterFactory: AgentAdapterFactory = (agentType, config?) => {
         const logger = c.resolve<ILogger>(DI_TOKENS.LOGGER);
         if (agentType === 'claude-code') {
           const processManager = c.resolve<IProcessManager>(DI_TOKENS.PROCESS_MANAGER);
@@ -405,6 +418,21 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
         if (agentType === 'copilot') {
           const copilotClient = c.resolve<CopilotClient>(DI_TOKENS.COPILOT_CLIENT);
           return new SdkCopilotAdapter(copilotClient, { logger });
+        }
+        if (agentType === 'copilot-cli') {
+          const sendKeys = (target: string, text: string) => {
+            const { execSync } = require('node:child_process');
+            execSync(`tmux send-keys -t ${target} ${JSON.stringify(text)}`, { stdio: 'ignore' });
+          };
+          return new CopilotCLIAdapter({
+            sendKeys,
+            sendEnter: (target: string) => {
+              const { execSync } = require('node:child_process');
+              execSync(`tmux send-keys -t ${target} Enter`, { stdio: 'ignore' });
+            },
+            tmuxTarget: config?.tmuxTarget,
+            defaultSessionId: config?.defaultSessionId,
+          });
         }
         throw new Error(`Unknown agent type: ${agentType}`);
       };
