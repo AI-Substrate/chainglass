@@ -120,22 +120,33 @@ flowchart TD
     end
 
     subgraph Phase3["Phase 3: Demo + Integration + Cleanup"]
-        T001["T001: demo-user-input scenario"]:::pending
-        T002["T002: Multi-input demo units"]:::pending
-        T003["T003: demo-multi-input scenario"]:::pending
-        T004["T004: Integration test"]:::pending
+        T002["T002: Rename/create sample units<br/>+ update sample-coder"]:::pending
+        T003["T003: Update demo-serial<br/>+ add demo-multi-input"]:::pending
+        T004["T004: Multi-node integration test"]:::pending
         T005["T005: Error state guard"]:::pending
         T006["T006: Next.js MCP validation"]:::pending
     end
 
-    P4 -->|"lifecycle pattern"| T001
+    P4 -->|"lifecycle pattern"| T003
     P5 -->|"wiring pattern"| T003
     P4 -->|"lifecycle test"| T004
     P3 -->|"error handling"| T005
     T002 --> T003
-    T001 --> T006
+    T002 --> T004
     T003 --> T006
 ```
+
+---
+
+## DYK Decisions (2026-02-28)
+
+| # | Decision | Impact |
+|---|----------|--------|
+| DYK-1 | Drop T001 — `demo-serial` already creates a user-input → coder workflow, satisfying AC-14 | Removed task |
+| DYK-2 | Rename `sample-input` → `sample-challenge`. Create `sample-language` (single-choice). Update `sample-coder` to 2 inputs (`challenge` + `language`). Update `demo-serial` wiring. | Redesigned T002/T003 |
+| DYK-3 | YAML options must use `{key, label}` object format per Zod schema, not plain strings | T002 note |
+| DYK-4 | AC-16 already covered by existing lifecycle test #2, but multi-node composition test still valuable | T004 note |
+| DYK-5 | Error guard (T005) is defense-in-depth — adapter already prevents malformed units reaching UI. Keep minimal (3-line conditional). | T005 scope |
 
 ---
 
@@ -143,11 +154,10 @@ flowchart TD
 
 | Status | ID | Task | Domain | Path(s) | Done When | Notes |
 |--------|-----|------|--------|---------|-----------|-------|
-| [ ] | T001 | Add `demo-user-input` dope scenario | workflow-ui | `/scripts/dope-workflows.ts` | `just dope demo-user-input` creates a 2-line workflow: Line 0 has a `sample-input` (user-input) node, Line 1 has a `sample-coder` (agent) node wired to the user-input's output. No state injection — node starts at `pending`, becomes `ready`/`awaiting-input` at runtime because it's first on Line 0 with no gates. | AC-14. Follow `demo-serial` pattern. `UNIT_USER_INPUT` constant already exists. |
-| [ ] | T002 | Create sample user-input units for multi-input demo | workflow-ui | `/.chainglass/units/sample-choice/unit.yaml`, `/.chainglass/units/sample-confirm/unit.yaml` | Two new committed units: `sample-choice` (question_type: single, with options) and `sample-confirm` (question_type: confirm). Both follow `sample-input` pattern. | Needed by T003. Minimal unit.yaml files — type, prompt, outputs, user_input config. |
-| [ ] | T003 | Add `demo-multi-input` dope scenario | workflow-ui | `/scripts/dope-workflows.ts` | `just dope demo-multi-input` creates a workflow with Line 0 having 3 user-input nodes (`sample-input` text, `sample-choice` single, `sample-confirm` confirm), and Line 1 with a `sample-coder` wired to all 3 outputs. Demonstrates composition pattern (multiple questions = multiple nodes). | Multi-node composition. Depends on T002 for units. |
-| [ ] | T004 | Integration test: submit → complete → downstream gates open | test | `/test/unit/positional-graph/submit-user-input-lifecycle.test.ts` | New test in existing file: 3 user-input nodes on Line 0 (different types), 1 downstream node on Line 1 wired to all 3 outputs. Submit all 3 → all complete → downstream `ready: true, inputsAvailable: true`. Proves multi-node composition works. | AC-16. Extend existing `describe('submitUserInput lifecycle')` block. Real filesystem fixture (no mocks). |
-| [ ] | T005 | Error state for missing `user_input` config | workflow-ui | `/apps/web/src/features/050-workflow-page/components/human-input-modal.tsx`, `/apps/web/src/features/050-workflow-page/components/workflow-editor.tsx` | If `userInput` is falsy/missing in modal props → render error message ("This node is not configured for user input") instead of broken form. Editor `openHumanInputModal` guard: if `node.userInput` undefined, show toast error and don't open modal. | AC-11. Defensive guard — malformed units already fail-fast in adapter (Phase 1), but guard the UI layer too. |
+| [ ] | T002 | Rename `sample-input` → `sample-challenge`, create `sample-language`, update `sample-coder` | workflow-ui | `/.chainglass/units/sample-challenge/unit.yaml`, `/.chainglass/units/sample-language/unit.yaml`, `/.chainglass/units/sample-coder/unit.yaml` | `sample-input` renamed to `sample-challenge` (text: "What coding challenge should we solve?", output: `challenge`). New `sample-language` unit (question_type: single, options with `{key, label}` objects: TypeScript/Python/Go, output: `language`). `sample-coder` updated: inputs changed from `[spec]` to `[challenge, language]`. | DYK-2, DYK-3. Options MUST use `{key, label}` format per Zod schema. |
+| [ ] | T003 | Update `demo-serial` + add `demo-multi-input` dope scenario | workflow-ui | `/scripts/dope-workflows.ts` | `demo-serial` updated: uses `sample-challenge` + wires to `challenge` input. New `demo-multi-input`: Line 0 has `sample-challenge` + `sample-language`, Line 1 has `sample-coder` wired to both outputs (`challenge` → `challenge`, `language` → `language`). `UNIT_USER_INPUT` constant renamed to match. | DYK-1 (T001 dropped), DYK-2. |
+| [ ] | T004 | Integration test: multi-node submit → complete → downstream gates open | test | `/test/unit/positional-graph/submit-user-input-lifecycle.test.ts` | New test: 2 user-input nodes (text + single-choice) on Line 0, 1 downstream agent on Line 1 wired to both outputs. Submit both → both complete → downstream `ready: true, inputsAvailable: true`. | AC-16 (already green via test #2, this adds multi-node coverage). |
+| [ ] | T005 | Error state for missing `user_input` config | workflow-ui | `/apps/web/src/features/050-workflow-page/components/human-input-modal.tsx`, `/apps/web/src/features/050-workflow-page/components/workflow-editor.tsx` | Modal: if `userInput` falsy → render inline error message. Editor: if `node.userInput` undefined → toast + don't open modal. Minimal — 3-line conditional each. | AC-11. DYK-5: defense-in-depth, adapter already prevents this. |
 | [ ] | T006 | Verify via Next.js MCP: zero errors, routes work | workflow-ui | N/A | Start dev server, query Next.js MCP `get_errors` → 0 errors. Navigate to workflow page with doped user-input workflows → renders correctly. | Final validation. Non-blocking if MCP not available — fallback to `pnpm build` clean. |
 
 ---

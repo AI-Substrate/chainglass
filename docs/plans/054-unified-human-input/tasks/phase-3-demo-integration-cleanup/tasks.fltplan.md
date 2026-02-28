@@ -65,9 +65,9 @@ stateDiagram-v2
 
 <!-- Updated by /plan-6-v2 during implementation: [ ] → [~] → [x] -->
 
-- [ ] **Stage 1: Dope demo scenarios** — Create sample units + 2 dope scenarios for user-input nodes (`dope-workflows.ts`, `sample-choice/unit.yaml`, `sample-confirm/unit.yaml`)
-- [ ] **Stage 2: Integration test** — Multi-node composition lifecycle test proving downstream gates open (`submit-user-input-lifecycle.test.ts`)
-- [ ] **Stage 3: Error guard + validation** — Malformed config error state in modal/editor + Next.js MCP validation (`human-input-modal.tsx`, `workflow-editor.tsx`)
+- [ ] **Stage 1: Sample units + dope scenarios** — Rename `sample-input` → `sample-challenge`, create `sample-language`, update `sample-coder` to 2 inputs, update `demo-serial` wiring, add `demo-multi-input` scenario
+- [ ] **Stage 2: Integration test** — Multi-node composition lifecycle test proving downstream gates open
+- [ ] **Stage 3: Error guard + validation** — Minimal error guard in modal/editor + Next.js MCP validation
 
 ---
 
@@ -113,9 +113,8 @@ flowchart LR
 
 ## Checklist
 
-- [ ] T001: Add `demo-user-input` dope scenario
-- [ ] T002: Create sample user-input units for multi-input demo
-- [ ] T003: Add `demo-multi-input` dope scenario
-- [ ] T004: Integration test: submit → complete → downstream gates open
-- [ ] T005: Error state for missing `user_input` config
-- [ ] T006: Verify via Next.js MCP: zero errors, routes work
+- [ ] T002: Rename/create sample units + update sample-coder
+- [ ] T003: Update demo-serial + add demo-multi-input
+- [ ] T004: Multi-node integration test
+- [ ] T005: Error state guard (minimal)
+- [ ] T006: Next.js MCP validation
