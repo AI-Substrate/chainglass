@@ -71,6 +71,7 @@ No new domains are created. Agent adapters are infrastructure leaf nodes in the 
 - **Dependencies**:
   - `copilot` binary installed
   - `tmux` available
+  - `tail-file` npm package (byte-offset file tailing — handles partial lines, no re-read)
   - Existing `IAgentAdapter` interface and contract tests
 - **Risks**:
   - Copilot CLI may change `events.jsonl` format without notice (no public API guarantee)

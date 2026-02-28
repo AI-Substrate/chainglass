@@ -274,6 +274,21 @@ export function WorkflowNodeCard({
 
       {/* Gate chip for blocked nodes */}
       {nodeStatus && <GateChip node={nodeStatus} />}
+
+      {/* Provide Input button for user-input nodes */}
+      {unitType === 'user-input' && onQuestionClick && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onQuestionClick();
+          }}
+          className="mt-2 w-full px-3 py-1.5 text-xs font-medium rounded-lg border border-violet-300 dark:border-violet-700 bg-violet-50 dark:bg-violet-950 text-violet-700 dark:text-violet-300 hover:bg-violet-100 dark:hover:bg-violet-900 cursor-pointer transition-colors"
+          data-testid={`provide-input-btn-${nodeId}`}
+        >
+          Provide Input
+        </button>
+      )}
     </div>
   );
 }
