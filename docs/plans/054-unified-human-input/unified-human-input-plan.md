@@ -3,7 +3,7 @@
 **Plan Version**: 2.0.0
 **Created**: 2026-02-27
 **Spec**: [unified-human-input-spec.md](./unified-human-input-spec.md)
-**Status**: DRAFT
+**Status**: COMPLETE
 **Mode**: Full
 **Complexity**: CS-2 (small-medium) — S=1, I=0, D=0, N=0, F=0, T=1
 
@@ -154,6 +154,47 @@ User-input nodes in the workflow editor currently have no input mechanism — th
 | Phase 1: NodeStatusResult + Display Status | Complete | 13/13 | Per [Workshop 011](./workshops/011-discriminated-type-architecture.md) — discriminated unions |
 | Phase 2: Human Input Modal + Server Action | Complete | 8/8 + extras | Re-edit (Workshop 013), pre-fill, "Provide Input" button on card |
 | Phase 3: Demo + Integration + Cleanup | Complete | 5/5 | DYK: T001 dropped (demo-serial covers AC-14). Multi-input demo + composition test + error guard. |
+
+### Completion Summary
+
+**All 15 ACs green. All 3 phases complete. Code review: APPROVE (no HIGH/CRITICAL).**
+
+| Metric | Value |
+|--------|-------|
+| Total tasks completed | 26 (13 + 8 + 5) + extras (re-edit, pre-fill, card button) |
+| Tests added | 17 (6 display-status + 7 modal + 2 lifecycle + 1 multi-node + 1 discriminated) |
+| Test suite | 4679 pass, 0 fail |
+| Workshops produced | 4 (011 discriminated types, 012 output name flow, 013 re-edit UX, DYK notes) |
+| Commits | 7438920, 95b7c5c, be8d005 (Phase 3 only) |
+| Review verdict | APPROVE — 0 HIGH, 7 MEDIUM (doc cleanup), 3 LOW |
+
+### Domain Changes
+
+| Domain | What Changed |
+|--------|-------------|
+| workflow-ui | HumanInputModal, display-status, server actions (submit/reset/load), node card button, editor wiring, dope scenarios, error guard |
+| _platform/positional-graph | Discriminated unions (NarrowWorkUnit, NodeStatusResult), Format A fix, userInput camelCase mapping, node:restart from complete |
+| test | 17 new tests across 4 files |
+
+### Files Created
+- `apps/web/src/features/050-workflow-page/components/human-input-modal.tsx`
+- `apps/web/src/features/050-workflow-page/lib/display-status.ts`
+- `.chainglass/units/sample-challenge/unit.yaml`
+- `.chainglass/units/sample-language/unit.yaml`
+- `test/unit/positional-graph/submit-user-input-lifecycle.test.ts`
+- `test/unit/web/features/050-workflow-page/display-status.test.ts`
+- `test/unit/web/features/050-workflow-page/human-input-modal.test.tsx`
+
+### Files Modified (key)
+- `packages/positional-graph/src/interfaces/positional-graph-service.interface.ts` — discriminated unions
+- `packages/positional-graph/src/services/input-resolution.ts` — Format A fix
+- `packages/positional-graph/src/features/029-agentic-work-units/workunit.classes.ts` — userInput mapping
+- `packages/positional-graph/src/features/032-node-event-system/raise-event.ts` — node:restart from complete
+- `apps/web/app/actions/workflow-actions.ts` — 3 server actions
+- `apps/web/src/features/050-workflow-page/components/workflow-editor.tsx` — modal wiring
+- `apps/web/src/features/050-workflow-page/components/workflow-node-card.tsx` — badge + button
+- `.chainglass/units/sample-coder/unit.yaml` — added challenge + language inputs
+- `scripts/dope-workflows.ts` — demo-multi-input scenario
 
 ## Risks
 
