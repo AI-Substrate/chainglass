@@ -35,6 +35,7 @@ import { toast } from 'sonner';
 import {
   answerQuestion as answerQuestionAction,
   loadSnapshotData as loadSnapshotDataAction,
+  loadUserInputData as loadUserInputDataAction,
   loadWorkflow as loadWorkflowAction,
   resetUserInput as resetUserInputAction,
   restoreSnapshot as restoreSnapshotAction,
@@ -83,7 +84,48 @@ export function WorkflowEditor({
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [qaModalNodeId, setQaModalNodeId] = useState<string | null>(null);
   const [humanInputModalNodeId, setHumanInputModalNodeId] = useState<string | null>(null);
+  const [humanInputPreload, setHumanInputPreload] = useState<{
+    value?: unknown;
+    freeform?: string;
+  } | null>(null);
   const [editModalNodeId, setEditModalNodeId] = useState<string | null>(null);
+
+  const openHumanInputModal = useCallback(
+    async (nodeId: string) => {
+      const node = graphStatus.lines.flatMap((l) => l.nodes).find((n) => n.nodeId === nodeId);
+      if (!node || node.unitType !== 'user-input') return;
+
+      // If completed, reset first and try to load previous data
+      if (node.status === 'complete') {
+        const dataResult = await loadUserInputDataAction(
+          workspaceSlug,
+          graphSlug,
+          nodeId,
+          node.userInput.outputName,
+          worktreePath
+        );
+        if (dataResult.errors.length === 0) {
+          setHumanInputPreload({ value: dataResult.value, freeform: dataResult.freeformNotes });
+        }
+
+        const resetResult = await resetUserInputAction(
+          workspaceSlug,
+          graphSlug,
+          nodeId,
+          worktreePath
+        );
+        if (resetResult.graphStatus) setGraphStatus(resetResult.graphStatus);
+        if (resetResult.errors.length > 0) {
+          toast.error(`Failed to reset input: ${resetResult.errors[0].message}`);
+          return;
+        }
+      } else {
+        setHumanInputPreload(null);
+      }
+      setHumanInputModalNodeId(nodeId);
+    },
+    [graphStatus, workspaceSlug, graphSlug, worktreePath]
+  );
 
   const mutations = useWorkflowMutations({
     workspaceSlug,
@@ -305,20 +347,7 @@ export function WorkflowEditor({
                   .flatMap((l) => l.nodes)
                   .find((n) => n.nodeId === nodeId);
                 if (node?.unitType === 'user-input') {
-                  if (node.status === 'complete') {
-                    const result = await resetUserInputAction(
-                      workspaceSlug,
-                      graphSlug,
-                      nodeId,
-                      worktreePath
-                    );
-                    if (result.graphStatus) setGraphStatus(result.graphStatus);
-                    if (result.errors.length > 0) {
-                      toast.error(`Failed to reset input: ${result.errors[0].message}`);
-                      return;
-                    }
-                  }
-                  setHumanInputModalNodeId(nodeId);
+                  await openHumanInputModal(nodeId);
                 } else {
                   setQaModalNodeId(nodeId);
                 }
@@ -335,22 +364,7 @@ export function WorkflowEditor({
                 onEditProperties={() => setEditModalNodeId(selectedNodeId)}
                 onProvideInput={
                   selectedNode.unitType === 'user-input' && selectedNodeId
-                    ? async () => {
-                        if (selectedNode.status === 'complete') {
-                          const result = await resetUserInputAction(
-                            workspaceSlug,
-                            graphSlug,
-                            selectedNodeId,
-                            worktreePath
-                          );
-                          if (result.graphStatus) setGraphStatus(result.graphStatus);
-                          if (result.errors.length > 0) {
-                            toast.error(`Failed to reset input: ${result.errors[0].message}`);
-                            return;
-                          }
-                        }
-                        setHumanInputModalNodeId(selectedNodeId);
-                      }
+                    ? () => openHumanInputModal(selectedNodeId)
                     : undefined
                 }
               />
@@ -409,6 +423,8 @@ export function WorkflowEditor({
               userInput={node.userInput}
               unitSlug={node.unitSlug}
               nodeId={humanInputModalNodeId}
+              initialValue={humanInputPreload?.value}
+              initialFreeform={humanInputPreload?.freeform}
               onSubmit={async ({ structured, freeform, outputName }) => {
                 const result = await submitUserInputAction(
                   workspaceSlug,

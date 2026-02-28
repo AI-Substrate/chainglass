@@ -21,6 +21,8 @@ export interface HumanInputModalProps {
   userInput: UserInputConfig;
   unitSlug: string;
   nodeId: string;
+  initialValue?: unknown;
+  initialFreeform?: string;
   onSubmit: (answer: { structured: unknown; freeform: string; outputName: string }) => void;
   onClose: () => void;
 }
@@ -29,17 +31,29 @@ export function HumanInputModal({
   userInput,
   unitSlug,
   nodeId,
+  initialValue,
+  initialFreeform,
   onSubmit,
   onClose,
 }: HumanInputModalProps) {
-  const [freeform, setFreeform] = useState('');
+  const [freeform, setFreeform] = useState(initialFreeform ?? '');
   const [textValue, setTextValue] = useState(
-    (typeof userInput.default === 'string' ? userInput.default : '') ?? ''
+    typeof initialValue === 'string'
+      ? initialValue
+      : ((typeof userInput.default === 'string' ? userInput.default : '') ?? '')
   );
-  const [singleValue, setSingleValue] = useState<string>(userInput.options?.[0]?.key ?? '');
-  const [multiValues, setMultiValues] = useState<Set<string>>(new Set());
+  const [singleValue, setSingleValue] = useState<string>(
+    typeof initialValue === 'string' ? initialValue : (userInput.options?.[0]?.key ?? '')
+  );
+  const [multiValues, setMultiValues] = useState<Set<string>>(
+    Array.isArray(initialValue) ? new Set(initialValue as string[]) : new Set()
+  );
   const [confirmValue, setConfirmValue] = useState<boolean | null>(
-    typeof userInput.default === 'boolean' ? userInput.default : null
+    typeof initialValue === 'boolean'
+      ? initialValue
+      : typeof userInput.default === 'boolean'
+        ? userInput.default
+        : null
   );
 
   const canSubmit = (() => {

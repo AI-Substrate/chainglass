@@ -600,3 +600,32 @@ export async function resetUserInput(
 
   return reloadStatus(ctx, graphSlug);
 }
+
+export async function loadUserInputData(
+  workspaceSlug: string,
+  graphSlug: string,
+  nodeId: string,
+  outputName: string,
+  worktreePath?: string
+): Promise<{
+  value?: unknown;
+  freeformNotes?: string;
+  errors: Array<{ code: string; message: string; action?: string }>;
+}> {
+  const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
+  if (!ctx) return { errors: [NOT_FOUND_ERROR] };
+
+  const svc = resolveGraphService();
+  const result = await svc.getOutputData(ctx, graphSlug, nodeId, outputName);
+  if (result.errors.length > 0) return { errors: result.errors };
+
+  const data = result.data;
+  if (data && typeof data === 'object' && 'value' in data && 'freeform_notes' in data) {
+    return {
+      value: (data as { value: unknown }).value,
+      freeformNotes: (data as { freeform_notes: string }).freeform_notes,
+      errors: [],
+    };
+  }
+  return { value: data, errors: [] };
+}
