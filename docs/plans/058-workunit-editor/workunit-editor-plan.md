@@ -3,7 +3,7 @@
 **Plan Version**: 1.0.0
 **Created**: 2026-02-28
 **Spec**: [workunit-editor-spec.md](./workunit-editor-spec.md)
-**Status**: IN PROGRESS (Phase 1 complete)
+**Status**: IN PROGRESS (Phase 1 + Phase 2 complete)
 **Mode**: Full
 **Complexity**: CS-4 (large)
 
@@ -128,20 +128,25 @@ Graph nodes store only a `unit_slug` reference and always load the latest unit f
 
 ---
 
-### Phase 2: Editor Page — Routes, Layout, Type-Specific Editors
+### Phase 2: Editor Page — Routes, Layout, Type-Specific Editors ✅ COMPLETE
 
 **Objective**: Build the work unit editor UI with list page, editor page, and type-specific editing experiences.
 **Domain**: `058-workunit-editor` (new feature folder) + `_platform/viewer` + `file-browser`
+**Status**: ✅ Complete (2026-02-28)
+**Evidence**: 334 test files, 4727 tests passing (+9 from Phase 1). 7 useAutoSave hook tests. Code review fixes applied.
 **Delivers**:
 - Work unit list page at `/workspaces/[slug]/work-units/`
 - Work unit editor page at `/workspaces/[slug]/work-units/[unitSlug]/`
-- CodeEditor extracted to `_platform/viewer` (shared)
+- CodeEditor extracted to `_platform/viewer` (shared, backward-compat re-export)
 - Type-specific editors: prompt (agent), script (code), form builder (user-input)
-- Server actions for CRUD operations
-- Sidebar navigation entry
-- `@codemirror/lang-shell` for bash syntax highlighting
+- Server actions for CRUD (unified saveUnitContent routing)
+- Sidebar navigation entry ("Work Units" before Workflows)
+- `@codemirror/legacy-modes` for bash syntax highlighting (lang-shell doesn't exist in npm)
+- Reusable `useAutoSave` hook in `_platform/hooks`
+- `SaveIndicator` component (persistent inline error banner)
+- Domain registered: `058-workunit-editor` in registry, domain.md, domain-map
 **Depends on**: Phase 1
-**Key risks**: CodeEditor extraction (finding 03); lang-shell compatibility (finding 06).
+**Key risks**: CodeEditor extraction (finding 03) — resolved; lang-shell compatibility (finding 06) — fallback to legacy-modes.
 
 | # | Task | Domain | Success Criteria | Notes |
 |---|------|--------|-----------------|-------|
@@ -158,12 +163,12 @@ Graph nodes store only a `unit_slug` reference and always load the latest unit f
 | 2.11 | Metadata editing — description, version fields with auto-save | `058-workunit-editor` | Fields save on change; reflected in list page | |
 
 #### Acceptance Criteria (Phase 2)
-- [ ] AC-4: New unit appears in catalog without page refresh
-- [ ] AC-6: Metadata auto-save to disk
-- [ ] AC-7: Agent prompt editing with markdown highlighting
-- [ ] AC-8: Code script editing with language detection
-- [ ] AC-9: User-input configuration (question type, options)
-- [ ] AC-21: Sidebar navigation entry (before Workflows)
+- [x] AC-4: New unit appears in catalog without page refresh
+- [x] AC-6: Metadata auto-save to disk
+- [x] AC-7: Agent prompt editing with markdown highlighting
+- [x] AC-8: Code script editing with language detection
+- [x] AC-9: User-input configuration (question type, options)
+- [x] AC-21: Sidebar navigation entry (before Workflows)
 
 ---
 
@@ -263,12 +268,12 @@ Graph nodes store only a `unit_slug` reference and always load the latest unit f
 - [x] AC-1: Create unit with type/slug/description _(Phase 1)_
 - [x] AC-2: Scaffold with boilerplate content _(Phase 1)_
 - [x] AC-3: Duplicate slug rejected _(Phase 1)_
-- [ ] AC-4: New unit appears in catalog without refresh
+- [x] AC-4: New unit appears in catalog without refresh _(Phase 2)_
 - [x] AC-5: Edit description and version _(Phase 1)_
-- [ ] AC-6: Auto-save to disk (debounced)
-- [ ] AC-7: Agent prompt editing (markdown highlighting)
-- [ ] AC-8: Code script editing (language detection)
-- [ ] AC-9: User-input configuration
+- [x] AC-6: Auto-save to disk (debounced) _(Phase 2)_
+- [x] AC-7: Agent prompt editing (markdown highlighting) _(Phase 2)_
+- [x] AC-8: Code script editing (language detection) _(Phase 2)_
+- [x] AC-9: User-input configuration _(Phase 2)_
 - [x] AC-10: Add/edit/reorder/remove inputs _(Phase 1 — service layer)_
 - [x] AC-11: Add/edit/reorder/remove outputs _(Phase 1 — service layer)_
 - [x] AC-12: Input name validation _(Phase 1 — service layer)_
@@ -280,7 +285,7 @@ Graph nodes store only a `unit_slug` reference and always load the latest unit f
 - [x] AC-18: Rename unit _(Phase 1)_
 - [x] AC-19: Rename auto-updates node.yaml references _(Phase 1)_
 - [x] AC-20: Rename shows affected workflows summary _(Phase 1)_
-- [ ] AC-21: Sidebar navigation (before Workflows)
+- [x] AC-21: Sidebar navigation (before Workflows) _(Phase 2)_
 - [ ] AC-22: "Edit Template" from workflow node
 - [ ] AC-23: Return context preserved
 - [ ] AC-24: Banner on unit file change
@@ -306,8 +311,8 @@ Graph nodes store only a `unit_slug` reference and always load the latest unit f
 | Phase | Status | Date | Tests | Notes |
 |-------|--------|------|-------|-------|
 | Phase 1: Service Layer | ✅ Complete | 2026-02-28 | +37 tests (4718 total) | 10/10 tasks done. Interface extended, fake updated, contract tests passing, all CRUD implemented. |
-| Phase 2: Editor Page | ⬜ Not started | — | — | Next up. Routes, layout, CodeEditor extraction, type-specific editors. |
-| Phase 3: Inputs/Outputs | ⬜ Not started | — | — | Depends on Phase 2. |
+| Phase 2: Editor Page | ✅ Complete | 2026-02-28 | +9 tests (4727 total) | 11/11 tasks done. Pages, editors, server actions, useAutoSave, domain registered. Code review fixes applied. |
+| Phase 3: Inputs/Outputs | ⬜ Not started | — | — | Task dossier ready with 5 DYK findings applied. Next to implement. |
 | Phase 4: Notifications | ⬜ Not started | — | — | Depends on Phase 2. File watcher uses new native watcher (Plan 060). |
 | Phase 5: Polish | ⬜ Not started | — | — | Depends on Phases 1-4. |
 
@@ -319,6 +324,13 @@ Graph nodes store only a `unit_slug` reference and always load the latest unit f
 | 2026-02-28 | Phase 1 | `_platform/positional-graph` | internal | Updated `FakeWorkUnitService` with write ops, call tracking, assertion helpers |
 | 2026-02-28 | Phase 1 | `_platform/positional-graph` | internal | Added `WorkUnitAdapter` write helpers: `ensureUnitDir`, `removeUnitDir`, `renameUnitDir` |
 | 2026-02-28 | Phase 1 | test | internal | Rewrote contract tests from workgraph→positional-graph (fixed E120→E180 drift) |
+| 2026-02-28 | Phase 2 | `_platform/viewer` | contract | Extracted CodeEditor from file-browser; barrel export at `_platform/viewer/index.ts` |
+| 2026-02-28 | Phase 2 | `_platform/viewer` | internal | Added bash/shell/sh language support via `@codemirror/legacy-modes` + `StreamLanguage` |
+| 2026-02-28 | Phase 2 | `_platform/hooks` | contract | Created `useAutoSave` hook (debounce, status tracking, error handling, flush) |
+| 2026-02-28 | Phase 2 | `058-workunit-editor` | new domain | Created domain: server actions, list page, editor page, type-specific editors, creation modal |
+| 2026-02-28 | Phase 2 | `058-workunit-editor` | internal | Unified `saveUnitContent` routing: agent→setPrompt, code→setScript, user-input→update(type_config) |
+| 2026-02-28 | Phase 2 | `file-browser` | internal | CodeEditor replaced with re-export from `_platform/viewer` (backward compat) |
+| 2026-02-28 | Phase 2 | cross-domain | internal | Added "Work Units" to `WORKSPACE_NAV_ITEMS` before Workflows (Puzzle icon) |
 
 ### Deviation Notes
 
