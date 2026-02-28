@@ -23,7 +23,11 @@ function valueColor(value: unknown): string {
 function renderValue(value: unknown): string {
   if (value === undefined) return 'undefined';
   if (value === null) return 'null';
-  if (typeof value === 'object') return JSON.stringify(value, null, 2);
+  try {
+    if (typeof value === 'object') return JSON.stringify(value, null, 2);
+  } catch {
+    return '[unserializable]';
+  }
   return String(value);
 }
 

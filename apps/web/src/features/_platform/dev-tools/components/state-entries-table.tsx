@@ -22,7 +22,11 @@ function formatValue(value: unknown): string {
   if (value === null) return 'null';
   if (value === undefined) return 'undefined';
   if (typeof value === 'string') return `"${value.length > 30 ? `${value.slice(0, 30)}…` : value}"`;
-  if (typeof value === 'object') return JSON.stringify(value).slice(0, 40);
+  try {
+    if (typeof value === 'object') return JSON.stringify(value).slice(0, 40);
+  } catch {
+    return '[unserializable]';
+  }
   return String(value);
 }
 

@@ -57,6 +57,8 @@ Centralized ephemeral runtime state system. Domains publish runtime values (work
 | `GlobalStateProvider` | Component | App root (mounted once) | React context provider for state system |
 | `GlobalStateConnector` | Component | Workspace layout | Invisible component that wires domain registrations and SSE→state publishers |
 | `FakeGlobalStateSystem` | Fake | All tests | Test double implementing IStateService with inspection methods |
+| `StateChangeLog` | Class | `_platform/dev-tools`, any observer | Ring buffer accumulating StateChange entries from boot (500 cap, own subscribe/version) |
+| `StateChangeLogContext` | Context | `_platform/dev-tools` hooks | React context providing StateChangeLog instance |
 | `STATE_DI_TOKENS` | Const | DI container | Token constants for service resolution |
 
 ---
@@ -95,6 +97,7 @@ Primary: `packages/shared/src/state/` (types + interface) + `apps/web/src/lib/st
 | `apps/web/src/lib/state/global-state-system.ts` | GlobalStateSystem class | ✅ Created Phase 3 |
 | `apps/web/src/lib/state/state-provider.tsx` | GlobalStateProvider + useStateSystem + StateContext | ✅ Created Phase 4 |
 | `apps/web/src/lib/state/state-connector.tsx` | GlobalStateConnector | ✅ Created Phase 5 |
+| `apps/web/src/lib/state/state-change-log.ts` | StateChangeLog ring buffer | ✅ Created Plan 056 |
 | `apps/web/src/lib/state/use-global-state.ts` | useGlobalState<T> hook | ✅ Created Phase 4 |
 | `apps/web/src/lib/state/use-global-state-list.ts` | useGlobalStateList hook | ✅ Created Phase 4 |
 | `apps/web/src/lib/state/index.ts` | Barrel exports | ✅ Created Phase 4 |

@@ -13,7 +13,7 @@
 
 import { useCallback, useContext, useRef, useSyncExternalStore } from 'react';
 
-import { StateChangeLogContext } from '@/lib/state/state-provider';
+import { StateChangeLogContext } from '@/lib/state';
 import type { StateChange } from '@chainglass/shared/state';
 
 const EMPTY: StateChange[] = [];

@@ -14,6 +14,7 @@
 | Workgraph (Legacy) | _platform/workgraph | infrastructure | _platform | extracted (Plan 048) | deprecated |
 | Workflow UI | workflow-ui | business | — | Plan 050 | active |
 | State | _platform/state | infrastructure | _platform | Plan 053 — GlobalStateSystem | active |
+| Dev Tools | _platform/dev-tools | infrastructure | _platform | Plan 056 — State DevTools Panel | active |
 
 ## Domain Types
 

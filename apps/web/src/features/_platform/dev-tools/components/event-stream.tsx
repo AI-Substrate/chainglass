@@ -37,7 +37,11 @@ function formatWallClock(timestamp: number): string {
 function formatValue(value: unknown): string {
   if (value === undefined) return '—';
   if (typeof value === 'string') return `"${value.length > 20 ? `${value.slice(0, 20)}…` : value}"`;
-  if (typeof value === 'object' && value !== null) return JSON.stringify(value).slice(0, 30);
+  try {
+    if (typeof value === 'object' && value !== null) return JSON.stringify(value).slice(0, 30);
+  } catch {
+    return '[unserializable]';
+  }
   return String(value);
 }
 

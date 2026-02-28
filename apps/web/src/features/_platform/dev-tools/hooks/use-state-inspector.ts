@@ -10,6 +10,8 @@
  * because listDomains() and list('*') return new arrays on every call.
  *
  * Domain filtering supports multi-select (Set of domain names).
+ * FT-001: Clear uses timestamp marker, pause keeps pre-pause history visible.
+ * FT-002: Refresh throttled via RAF to batch high-frequency updates.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -46,24 +48,36 @@ export function useStateInspector(): StateInspectorData {
   const system = useStateSystem();
   const [paused, setPaused] = useState(false);
   const [domainFilters, setDomainFilters] = useState<Set<string>>(new Set());
-  const [cleared, setCleared] = useState(false);
-  const clearedAtVersionRef = useRef(0);
+  const [clearTimestamp, setClearTimestamp] = useState<number | null>(null);
+  const pausedAtCountRef = useRef(0);
 
-  // Snapshot state — updated via subscribe callback
+  // Snapshot state — updated via throttled subscribe callback
   const [domains, setDomains] = useState<StateDomainDescriptor[]>(() => system.listDomains());
   const [entries, setEntries] = useState<StateEntry[]>(() => system.list('*'));
   const [subscriberCount, setSubscriberCount] = useState(() => system.subscriberCount);
   const [entryCount, setEntryCount] = useState(() => system.entryCount);
 
-  // Subscribe to all state changes and refresh snapshots
+  // FT-002: Throttle refresh via RAF to batch high-frequency updates
   useEffect(() => {
+    let rafId: number | null = null;
+    let pending = false;
+
     const refresh = () => {
       setDomains(system.listDomains());
       setEntries(system.list('*'));
       setSubscriberCount(system.subscriberCount);
       setEntryCount(system.entryCount);
+      pending = false;
     };
-    const unsub = system.subscribe('*', refresh);
+
+    const onStateChange = () => {
+      if (!pending) {
+        pending = true;
+        rafId = requestAnimationFrame(refresh);
+      }
+    };
+
+    const unsub = system.subscribe('*', onStateChange);
     // Also poll domains since registerDomain() doesn't notify subscribers
     const domainPoll = setInterval(() => {
       setDomains(system.listDomains());
@@ -72,20 +86,34 @@ export function useStateInspector(): StateInspectorData {
     return () => {
       unsub();
       clearInterval(domainPoll);
+      if (rafId !== null) cancelAnimationFrame(rafId);
     };
   }, [system]);
 
   // Log entries — no pattern filter at hook level, filter in-memory for multi-select
   const allLogEntries = useStateChangeLog();
 
-  // Apply domain + clear filters
+  // FT-001: Apply clear (timestamp-based) + domain filters
   let logEntries = allLogEntries;
-  if (cleared) {
-    logEntries = logEntries.filter((_, i) => i >= clearedAtVersionRef.current);
+  if (clearTimestamp !== null) {
+    logEntries = logEntries.filter((e) => e.timestamp > clearTimestamp);
   }
   if (domainFilters.size > 0) {
     logEntries = logEntries.filter((e) => domainFilters.has(e.domain));
   }
+
+  // Track pause snapshot count
+  const handlePause = useCallback(
+    (value: boolean) => {
+      if (value) {
+        pausedAtCountRef.current = logEntries.length;
+      }
+      setPaused(value);
+    },
+    [logEntries.length]
+  );
+
+  const bufferedCount = paused ? Math.max(0, logEntries.length - pausedAtCountRef.current) : 0;
 
   const toggleDomainFilter = useCallback((domain: string) => {
     setDomainFilters((prev) => {
@@ -101,9 +129,8 @@ export function useStateInspector(): StateInspectorData {
   }, []);
 
   const clearStream = useCallback(() => {
-    clearedAtVersionRef.current = allLogEntries.length;
-    setCleared(true);
-  }, [allLogEntries.length]);
+    setClearTimestamp(Date.now());
+  }, []);
 
   return {
     domains,
@@ -111,18 +138,18 @@ export function useStateInspector(): StateInspectorData {
       domainFilters.size > 0
         ? entries.filter((e) => matchesDomainFilters(e.path, domainFilters))
         : entries,
-    logEntries: paused ? [] : logEntries,
+    logEntries,
     subscriberCount,
     entryCount,
     domainCount: domains.length,
     logSize: allLogEntries.length,
     logCapacity: 500,
     paused,
-    bufferedCount: paused ? logEntries.length : 0,
+    bufferedCount,
     domainFilters,
     toggleDomainFilter,
     clearDomainFilters,
-    setPaused,
+    setPaused: handlePause,
     clearStream,
   };
 }
