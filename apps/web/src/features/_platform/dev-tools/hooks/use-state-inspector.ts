@@ -5,9 +5,12 @@
  *
  * Composes domain listing, current entries, diagnostics, and event stream
  * controls (pause/resume/clear) into a single hook for the inspector panel.
+ *
+ * Uses useState + subscribe for state system data instead of useSyncExternalStore,
+ * because listDomains() and list('*') return new arrays on every call.
  */
 
-import { useCallback, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useStateSystem } from '@/lib/state';
 import type { StateChange, StateDomainDescriptor, StateEntry } from '@chainglass/shared/state';
@@ -37,20 +40,25 @@ export function useStateInspector(): StateInspectorData {
   const [cleared, setCleared] = useState(false);
   const clearedAtVersionRef = useRef(0);
 
-  // Subscribe to system changes for re-rendering diagnostics
-  const subscribe = useCallback(
-    (onStoreChange: () => void) => system.subscribe('*', onStoreChange),
-    [system]
-  );
-  const getDomains = useCallback(() => system.listDomains(), [system]);
-  const getEntries = useCallback(() => system.list('*'), [system]);
-  const getSubCount = useCallback(() => system.subscriberCount, [system]);
-  const getEntryCount = useCallback(() => system.entryCount, [system]);
+  // Snapshot state — updated via subscribe callback
+  const [domains, setDomains] = useState<StateDomainDescriptor[]>(() => system.listDomains());
+  const [entries, setEntries] = useState<StateEntry[]>(() => system.list('*'));
+  const [subscriberCount, setSubscriberCount] = useState(() => system.subscriberCount);
+  const [entryCount, setEntryCount] = useState(() => system.entryCount);
 
-  const domains = useSyncExternalStore(subscribe, getDomains, getDomains);
-  const entries = useSyncExternalStore(subscribe, getEntries, getEntries);
-  const subscriberCount = useSyncExternalStore(subscribe, getSubCount, getSubCount);
-  const entryCount = useSyncExternalStore(subscribe, getEntryCount, getEntryCount);
+  // Subscribe to all state changes and refresh snapshots
+  useEffect(() => {
+    const refresh = () => {
+      setDomains(system.listDomains());
+      setEntries(system.list('*'));
+      setSubscriberCount(system.subscriberCount);
+      setEntryCount(system.entryCount);
+    };
+    const unsub = system.subscribe('*', refresh);
+    // Refresh on mount in case state changed between render and effect
+    refresh();
+    return unsub;
+  }, [system]);
 
   // Log entries — filtered by domain if set
   const logPattern = domainFilter ? `${domainFilter}:**` : undefined;
