@@ -154,7 +154,11 @@ export function StateInspector() {
                       className="flex items-center gap-2 px-3 py-1.5 hover:bg-accent/50 cursor-pointer text-xs w-full text-left"
                       onClick={() => inspector.toggleDomainFilter(d.domain)}
                     >
-                      <Checkbox checked={inspector.domainFilters.has(d.domain)} tabIndex={-1} />
+                      <Checkbox
+                        checked={inspector.domainFilters.has(d.domain)}
+                        tabIndex={-1}
+                        className="pointer-events-none"
+                      />
                       <span className="truncate">{d.domain}</span>
                       <span className="ml-auto text-muted-foreground text-[10px]">
                         {d.multiInstance ? 'multi' : 'single'}

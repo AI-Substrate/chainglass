@@ -125,26 +125,26 @@ User-input nodes in the workflow editor currently have no input mechanism — th
 ## Acceptance Criteria
 
 ### Node Display & Interaction
-- [ ] **AC-01**: `user-input` + `pending` + `ready` → violet `?` badge, "Awaiting Input" label
-- [ ] **AC-02**: `user-input` + `pending` + NOT `ready` → gray `pending` treatment
-- [ ] **AC-03**: Click `awaiting-input` node → Human Input modal with unit.yaml config
-- [ ] **AC-04**: Modal header: "Human Input" with unit slug + type icon
-- [ ] **AC-05**: All 4 question types render from unit.yaml: text, single, multi, confirm
-- [ ] **AC-06**: Freeform textarea appears for user-input nodes
+- [x] **AC-01**: `user-input` + `pending` + `ready` → violet `?` badge, "Awaiting Input" label
+- [x] **AC-02**: `user-input` + `pending` + NOT `ready` → gray `pending` treatment
+- [x] **AC-03**: Click `awaiting-input` node → Human Input modal with unit.yaml config
+- [x] **AC-04**: Modal header: "Human Input" with unit slug + type icon
+- [x] **AC-05**: All 4 question types render from unit.yaml: text, single, multi, confirm
+- [x] **AC-06**: Freeform textarea appears for user-input nodes
 
 ### Data Submission & Storage
-- [ ] **AC-07**: Submit writes via `saveOutputData()` through `IPositionalGraphService`
-- [ ] **AC-08**: After submission, node → `complete` via `startNode` → `accept` → `saveOutputData` → `endNode`
-- [ ] **AC-09**: Downstream `from_node` input resolution sees `inputsAvailable: true`
-- [ ] **AC-10**: Freeform notes preserved in `_metadata.freeform_notes`
+- [x] **AC-07**: Submit writes via `saveOutputData()` through `IPositionalGraphService`
+- [x] **AC-08**: After submission, node → `complete` via `startNode` → `accept` → `saveOutputData` → `endNode`
+- [x] **AC-09**: Downstream `from_node` input resolution sees `inputsAvailable: true`
+- [x] **AC-10**: Freeform notes preserved in `_metadata.freeform_notes`
 
 ### Robustness
 - [ ] **AC-11**: Missing `user_input` config → error state in modal
-- [ ] **AC-12**: Cancel/Escape → no data change, no status change
+- [x] **AC-12**: Cancel/Escape → no data change, no status change
 
 ### Demo & Testing
 - [ ] **AC-14**: `just dope` creates user-input demo workflow
-- [ ] **AC-15**: Unit tests for display status computation
+- [x] **AC-15**: Unit tests for display status computation
 - [ ] **AC-16**: Integration test: submit → complete → downstream gates
 
 ## Progress
@@ -152,8 +152,8 @@ User-input nodes in the workflow editor currently have no input mechanism — th
 | Phase | Status | Tasks | Notes |
 |-------|--------|-------|-------|
 | Phase 1: NodeStatusResult + Display Status | Complete | 13/13 | Per [Workshop 011](./workshops/011-discriminated-type-architecture.md) — discriminated unions |
-| Phase 2: Human Input Modal + Server Action | Complete | 8/8 | |
-| Phase 3: Demo + Integration + Cleanup | Not started | 0/5 | |
+| Phase 2: Human Input Modal + Server Action | Complete | 8/8 + extras | Re-edit (Workshop 013), pre-fill, "Provide Input" button on card |
+| Phase 3: Demo + Integration + Cleanup | Not started | 0/5 | AC-11, AC-14, AC-16 remaining |
 
 ## Risks
 

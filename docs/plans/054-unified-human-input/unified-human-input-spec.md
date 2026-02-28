@@ -132,3 +132,5 @@ No new domains required.
 | Question Definition Schema | Schema Design | **Superseded** | [009](./workshops/009-question-definition-schema.md) — fields[] not needed, existing schema is sufficient |
 | Single-Question Simplification | Architecture | **Authoritative** | [010](./workshops/010-single-question-simplification.md) — the governing design decision |
 | Discriminated Type Architecture | Architecture | **Authoritative** | [011](./workshops/011-discriminated-type-architecture.md) — NarrowWorkUnit + NodeStatusResult as discriminated unions |
+| Output Name Flow | Architecture | **Authoritative** | [012](./workshops/012-output-name-flow.md) — outputName on userInput config |
+| Re-Edit UX | UX / State Machine | **Authoritative** | [013](./workshops/013-re-edit-ux.md) — node:restart from complete, atomic reset+submit |
