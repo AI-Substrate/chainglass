@@ -83,7 +83,10 @@ const adapter = new CopilotCLIAdapter({
 let passed = 0;
 let failed = 0;
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 async function test(name: string, fn: () => Promise<void>): Promise<void> {
+  await sleep(2000);
   process.stdout.write(`\n🧪 ${name}...`);
   try {
     await fn();

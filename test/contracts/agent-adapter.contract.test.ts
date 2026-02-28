@@ -98,10 +98,33 @@ agentAdapterContractTests('CopilotCLIAdapter', () => {
   const eventsPath = path.join(sessionDir, 'events.jsonl');
   fs.writeFileSync(eventsPath, '');
 
-  // When sendKeys is called (Enter key), append response events after a short delay
+  // When sendKeys is called, track what was sent. When sendEnter fires, produce events.
+  let lastText = '';
   const sendKeys = (_target: string, text: string): void => {
-    if (text === 'Enter') {
-      setTimeout(() => {
+    lastText = text;
+  };
+
+  const sendEnter = (_target: string): void => {
+    setTimeout(() => {
+      if (lastText === '/compact') {
+        // compact produces compaction events, not turn events
+        const events = [
+          JSON.stringify({
+            type: 'session.compaction_start',
+            data: {},
+            timestamp: new Date().toISOString(),
+            id: `evt-${Date.now()}`,
+          }),
+          JSON.stringify({
+            type: 'session.compaction_complete',
+            data: { success: true },
+            timestamp: new Date().toISOString(),
+            id: `evt-${Date.now() + 1}`,
+          }),
+        ];
+        fs.appendFileSync(eventsPath, `${events.join('\n')}\n`);
+      } else {
+        // Regular prompt produces message + turn_end
         const events = [
           JSON.stringify({
             type: 'assistant.message',
@@ -110,15 +133,16 @@ agentAdapterContractTests('CopilotCLIAdapter', () => {
             id: `evt-${Date.now()}`,
           }),
           JSON.stringify({
-            type: 'session.idle',
-            data: { sessionId },
+            type: 'assistant.turn_end',
+            data: { turnId: '0' },
             timestamp: new Date().toISOString(),
             id: `evt-${Date.now() + 1}`,
           }),
         ];
         fs.appendFileSync(eventsPath, `${events.join('\n')}\n`);
-      }, 50);
-    }
+      }
+      lastText = '';
+    }, 50);
   };
 
   // Clean up temp dir after a delay (contract tests finish quickly)
@@ -128,6 +152,7 @@ agentAdapterContractTests('CopilotCLIAdapter', () => {
 
   return new CopilotCLIAdapter({
     sendKeys,
+    sendEnter,
     sessionStateDir,
     tmuxTarget: 'contract:0.0',
     pollIntervalMs: 25,

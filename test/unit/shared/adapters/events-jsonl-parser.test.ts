@@ -154,6 +154,34 @@ describe('parseEventsJsonlLine', () => {
     }
   });
 
+  it('should parse assistant.turn_end into AgentEvent session_idle', () => {
+    const line = JSON.stringify({
+      type: 'assistant.turn_end',
+      data: { turnId: '0' },
+      timestamp: '2026-02-28T01:00:06.500Z',
+      id: 'evt-007b',
+    });
+
+    const event = parseEventsJsonlLine(line);
+
+    expect(event).not.toBeNull();
+    expect(event?.type).toBe('session_idle');
+  });
+
+  it('should parse assistant.turn_start into AgentEvent session_start', () => {
+    const line = JSON.stringify({
+      type: 'assistant.turn_start',
+      data: { turnId: '0', interactionId: 'abc' },
+      timestamp: '2026-02-28T01:00:06.600Z',
+      id: 'evt-007c',
+    });
+
+    const event = parseEventsJsonlLine(line);
+
+    expect(event).not.toBeNull();
+    expect(event?.type).toBe('session_start');
+  });
+
   it('should parse session.start into AgentEvent session_start', () => {
     const line = JSON.stringify({
       type: 'session.start',

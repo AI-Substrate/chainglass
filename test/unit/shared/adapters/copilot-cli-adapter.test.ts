@@ -294,7 +294,9 @@ describe('CopilotCLIAdapter', () => {
         pollIntervalMs: 50,
       });
 
-      appendEventDelayed(eventsPath, 'session.idle', {}, 100);
+      // compact waits for session.compaction_complete (not turn_end)
+      appendEventDelayed(eventsPath, 'session.compaction_start', {}, 80);
+      appendEventDelayed(eventsPath, 'session.compaction_complete', { success: true }, 150);
 
       const result = await adapter.compact(sessionId);
 

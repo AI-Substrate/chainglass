@@ -13,7 +13,7 @@ import { parseEventsJsonlLine } from './events-jsonl-parser.js';
 const SESSION_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
 const DEFAULT_POLL_INTERVAL_MS = 500;
 const DEFAULT_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
-const SEND_KEYS_DELAY_MS = 100;
+const SEND_KEYS_DELAY_MS = 500;
 
 /**
  * Options for CopilotCLIAdapter.
@@ -131,7 +131,9 @@ export class CopilotCLIAdapter implements IAgentAdapter {
     }
 
     this.terminated = false;
-    const { promise } = this.tailUntilIdle(eventsPath);
+
+    // Tail for session.compaction_complete (not turn_end — slash commands don't produce turns)
+    const { promise } = this.tailUntilEvent(eventsPath, 'session.compaction_complete');
 
     try {
       this.sendKeysFn(this.tmuxTarget, '/compact');
@@ -226,6 +228,75 @@ export class CopilotCLIAdapter implements IAgentAdapter {
     });
 
     return { promise, events };
+  }
+
+  /**
+   * Tail events.jsonl until a specific raw event type appears.
+   * Used for slash commands like /compact that produce their own completion events.
+   */
+  private tailUntilEvent(
+    eventsPath: string,
+    rawEventType: string
+  ): { promise: Promise<TailResult> } {
+    let bytesRead = 0;
+
+    try {
+      const stat = fs.statSync(eventsPath);
+      bytesRead = stat.size;
+    } catch {
+      // start from 0
+    }
+
+    const promise = new Promise<TailResult>((resolve) => {
+      this.activeResolve = resolve;
+      const startTime = Date.now();
+
+      const poll = (): void => {
+        if (this.terminated) {
+          resolve('terminated');
+          return;
+        }
+
+        if (Date.now() - startTime > this.timeoutMs) {
+          resolve('timeout');
+          return;
+        }
+
+        try {
+          const stat = fs.statSync(eventsPath);
+          if (stat.size > bytesRead) {
+            const fd = fs.openSync(eventsPath, 'r');
+            const buffer = Buffer.alloc(stat.size - bytesRead);
+            fs.readSync(fd, buffer, 0, buffer.length, bytesRead);
+            fs.closeSync(fd);
+            bytesRead = stat.size;
+
+            const lines = buffer.toString('utf8').split('\n');
+
+            for (const line of lines) {
+              if (!line.trim()) continue;
+              try {
+                const parsed = JSON.parse(line);
+                if (parsed.type === rawEventType) {
+                  resolve('idle');
+                  return;
+                }
+              } catch {
+                // skip malformed
+              }
+            }
+          }
+        } catch {
+          // File read error — continue polling
+        }
+
+        this.activePollTimer = setTimeout(poll, this.pollIntervalMs);
+      };
+
+      poll();
+    });
+
+    return { promise };
   }
 
   private stopPolling(): void {

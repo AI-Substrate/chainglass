@@ -103,6 +103,7 @@ export function parseEventsJsonlLine(line: string): AgentEvent | null {
       };
 
     case 'session.idle':
+    case 'assistant.turn_end':
       return {
         ...base,
         type: 'session_idle',
@@ -112,6 +113,7 @@ export function parseEventsJsonlLine(line: string): AgentEvent | null {
       };
 
     case 'session.start':
+    case 'assistant.turn_start':
       return {
         ...base,
         type: 'session_start',
