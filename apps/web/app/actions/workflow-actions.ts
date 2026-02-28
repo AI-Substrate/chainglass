@@ -619,7 +619,7 @@ export async function loadUserInputData(
   const result = await svc.getOutputData(ctx, graphSlug, nodeId, outputName);
   if (result.errors.length > 0) return { errors: result.errors };
 
-  const data = result.data;
+  const data = result.value;
   if (data && typeof data === 'object' && 'value' in data && 'freeform_notes' in data) {
     return {
       value: (data as { value: unknown }).value,
