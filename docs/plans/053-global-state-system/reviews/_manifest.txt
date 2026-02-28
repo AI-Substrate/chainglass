@@ -1,0 +1,12 @@
+M	apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
+M	apps/web/src/components/dashboard-sidebar.tsx
+A	apps/web/src/features/041-file-browser/components/worktree-state-subtitle.tsx
+A	apps/web/src/features/041-file-browser/state/register.ts
+A	apps/web/src/features/041-file-browser/state/worktree-publisher.tsx
+M	apps/web/src/lib/state/index.ts
+A	apps/web/src/lib/state/state-connector.tsx
+M	docs/domains/_platform/state/domain.md
+A	docs/plans/053-global-state-system/tasks/phase-5-worktree-exemplar/execution.log.md
+A	docs/plans/053-global-state-system/tasks/phase-5-worktree-exemplar/tasks.fltplan.md
+A	docs/plans/053-global-state-system/tasks/phase-5-worktree-exemplar/tasks.md
+A	test/unit/web/state/worktree-publisher.test.tsx

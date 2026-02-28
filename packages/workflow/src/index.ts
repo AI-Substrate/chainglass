@@ -405,6 +405,55 @@ export {
 } from './adapters/index.js';
 export { FakeFileWatcher, FakeFileWatcherFactory } from './fakes/index.js';
 
+// Template/Instance schemas (Plan 048)
+export {
+  TemplateNodeEntrySchema,
+  TemplateUnitEntrySchema,
+  TemplateManifestSchema,
+} from './schemas/workflow-template.schema.js';
+export type {
+  TemplateNodeEntry,
+  TemplateUnitEntry,
+  TemplateManifest,
+} from './schemas/workflow-template.schema.js';
+export {
+  InstanceUnitEntrySchema,
+  InstanceMetadataSchema,
+} from './schemas/instance-metadata.schema.js';
+export type {
+  InstanceUnitEntry,
+  InstanceMetadata,
+} from './schemas/instance-metadata.schema.js';
+
+// Template/Instance interfaces (Plan 048)
+export type {
+  ITemplateService,
+  ListWorkflowsResult,
+  ShowWorkflowResult,
+  SaveFromResult,
+  InstantiateResult,
+  ListInstancesResult,
+  RefreshResult,
+} from './interfaces/index.js';
+export type {
+  IInstanceService,
+  InstanceStatus,
+  GetStatusResult,
+} from './interfaces/index.js';
+
+// Template/Instance fakes (Plan 048)
+export { FakeTemplateService } from './fakes/index.js';
+export type { SaveFromCall, InstantiateCall, RefreshCall } from './fakes/index.js';
+export { FakeInstanceService } from './fakes/index.js';
+export type { GetStatusCall } from './fakes/index.js';
+
+// Template/Instance adapters (Plan 048 Phase 2)
+export { TemplateAdapter } from './adapters/index.js';
+export { InstanceAdapter } from './adapters/index.js';
+
+// Template service (Plan 048 Phase 2)
+export { TemplateService } from './services/index.js';
+
 // Central watcher notification system (Plan 023)
 export type {
   WatcherEvent,
@@ -413,8 +462,6 @@ export type {
 } from './features/023-central-watcher-notifications/index.js';
 export { CentralWatcherService } from './features/023-central-watcher-notifications/index.js';
 export { FakeWatcherAdapter } from './features/023-central-watcher-notifications/index.js';
-export { WorkGraphWatcherAdapter } from './features/023-central-watcher-notifications/index.js';
-export type { WorkGraphChangedEvent } from './features/023-central-watcher-notifications/index.js';
 export {
   FakeCentralWatcherService,
   type RegisterAdapterCall,
@@ -426,6 +473,8 @@ export type {
 } from './features/023-central-watcher-notifications/index.js';
 export { SOURCE_WATCHER_IGNORED } from './features/023-central-watcher-notifications/index.js';
 export { FakeFileChangeWatcherAdapter } from './features/023-central-watcher-notifications/index.js';
+export { WorkflowWatcherAdapter } from './features/023-central-watcher-notifications/index.js';
+export type { WorkflowChangedEvent } from './features/023-central-watcher-notifications/index.js';
 
 // Workspace palettes (Plan 041: File Browser)
 export {

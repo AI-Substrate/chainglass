@@ -103,8 +103,16 @@ export interface CodeUnitInstance extends BaseUnitInstance {
  */
 export interface UserInputUnitInstance extends BaseUnitInstance {
   readonly type: 'user-input';
-  /** User input configuration */
+  /** User input configuration (snake_case from schema) */
   readonly user_input: UserInputUnit['user_input'];
+  /** Mapped config for NarrowWorkUnit compatibility (Plan 054) */
+  readonly userInput: {
+    prompt: string;
+    inputType: 'text' | 'single' | 'multi' | 'confirm';
+    outputName: string;
+    options?: { key: string; label: string; description?: string }[];
+    default?: string | boolean;
+  };
 }
 
 /**
@@ -220,6 +228,13 @@ export function createUserInputUnitInstance(data: UserInputUnit): UserInputUnitI
     inputs: data.inputs,
     outputs: data.outputs,
     user_input: data.user_input,
+    userInput: {
+      prompt: data.user_input.prompt,
+      inputType: data.user_input.question_type,
+      outputName: data.outputs[0]?.name ?? 'output',
+      options: data.user_input.options,
+      default: data.user_input.default,
+    },
   };
 }
 

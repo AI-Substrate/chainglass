@@ -18,6 +18,7 @@ import {
 import { WorkspaceNav } from '@/components/workspaces/workspace-nav';
 import { PasteUploadButton } from '@/features/041-file-browser/components/paste-upload-button';
 import { WorktreeIdentityPopover } from '@/features/041-file-browser/components/worktree-identity-popover';
+import { WorktreeStateSubtitle } from '@/features/041-file-browser/components/worktree-state-subtitle';
 import { useWorkspaceContext } from '@/features/041-file-browser/hooks/use-workspace-context';
 import { DEV_NAV_ITEMS, WORKSPACE_NAV_ITEMS } from '@/lib/navigation-utils';
 import { cn } from '@/lib/utils';
@@ -73,6 +74,7 @@ export function DashboardSidebar() {
                   {currentWorktree.split('/').pop()}
                 </span>
               )}
+              {isInWorkspace && workspaceSlug && <WorktreeStateSubtitle slug={workspaceSlug} />}
             </div>
           )}
         </div>
@@ -108,40 +110,42 @@ export function DashboardSidebar() {
       <SidebarContent>
         {isInWorkspace ? (
           <>
-            {/* 1. Tools — scoped to active worktree (top) */}
-            <SidebarGroup>
-              {!isCollapsed && <SidebarGroupLabel>Tools</SidebarGroupLabel>}
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {WORKSPACE_NAV_ITEMS.map((item) => {
-                    const href = workspaceHref(workspaceSlug, item.href, {
-                      worktree: currentWorktree ?? undefined,
-                    });
-                    const isActive = pathname.startsWith(
-                      `/workspaces/${workspaceSlug}${item.href}`
-                    );
-                    const Icon = item.icon;
+            {/* 1. Tools — scoped to active worktree (only shown when worktree selected) */}
+            {currentWorktree && (
+              <SidebarGroup>
+                {!isCollapsed && <SidebarGroupLabel>Tools</SidebarGroupLabel>}
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    {WORKSPACE_NAV_ITEMS.map((item) => {
+                      const href = workspaceHref(workspaceSlug, item.href, {
+                        worktree: currentWorktree ?? undefined,
+                      });
+                      const isActive = pathname.startsWith(
+                        `/workspaces/${workspaceSlug}${item.href}`
+                      );
+                      const Icon = item.icon;
 
-                    return (
-                      <SidebarMenuItem key={item.id}>
-                        <SidebarMenuButton asChild isActive={isActive}>
-                          <Link
-                            href={href}
-                            className={cn(
-                              'flex items-center gap-3',
-                              isActive && 'bg-accent text-accent-foreground'
-                            )}
-                          >
-                            <Icon className="h-5 w-5" />
-                            {!isCollapsed && <span>{item.label}</span>}
-                          </Link>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    );
-                  })}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
+                      return (
+                        <SidebarMenuItem key={item.id}>
+                          <SidebarMenuButton asChild isActive={isActive}>
+                            <Link
+                              href={href}
+                              className={cn(
+                                'flex items-center gap-3',
+                                isActive && 'bg-accent text-accent-foreground'
+                              )}
+                            >
+                              <Icon className="h-5 w-5" />
+                              {!isCollapsed && <span>{item.label}</span>}
+                            </Link>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      );
+                    })}
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </SidebarGroup>
+            )}
 
             {/* 2. Worktree list — collapsible, contracted by default */}
             <SidebarGroup>

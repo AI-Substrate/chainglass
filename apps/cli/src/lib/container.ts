@@ -7,6 +7,7 @@
  */
 
 import 'reflect-metadata';
+import { execSync } from 'node:child_process';
 import {
   FakeWorkUnitService,
   registerOrchestrationServices,
@@ -28,6 +29,7 @@ import {
   ChainglassConfigService,
   ClaudeCodeAdapter,
   ConsoleOutputAdapter,
+  CopilotCLIAdapter,
   FakeFileSystem,
   FakeHashGenerator,
   FakeLogger,
@@ -84,11 +86,14 @@ import {
   type IWorkspaceRegistryAdapter,
   type IWorkspaceService,
   type IYamlParser,
+  InstanceAdapter,
   PhaseAdapter,
   PhaseService,
   SampleAdapter,
   SampleService,
   SchemaValidatorAdapter,
+  TemplateAdapter,
+  TemplateService,
   WorkflowAdapter,
   WorkflowRegistryService,
   WorkflowService,
@@ -97,6 +102,7 @@ import {
   WorkspaceService,
   YamlParserAdapter,
 } from '@chainglass/workflow';
+import type { ITemplateService } from '@chainglass/workflow';
 import { registerWorkgraphServices, registerWorkgraphTestServices } from '@chainglass/workgraph';
 import { CopilotClient } from '@github/copilot-sdk';
 import { type DependencyContainer, container } from 'tsyringe';
@@ -230,6 +236,32 @@ export function createCliProductionContainer(): DependencyContainer {
     useFactory: (c) => c.resolve<IWorkUnitLoader>(POSITIONAL_GRAPH_DI_TOKENS.WORKUNIT_SERVICE),
   });
 
+  // Template/Instance service (Plan 048 Phase 2)
+  childContainer.register(POSITIONAL_GRAPH_DI_TOKENS.TEMPLATE_ADAPTER, {
+    useFactory: (c) =>
+      new TemplateAdapter(
+        c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM),
+        c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER)
+      ),
+  });
+  childContainer.register(POSITIONAL_GRAPH_DI_TOKENS.INSTANCE_ADAPTER, {
+    useFactory: (c) =>
+      new InstanceAdapter(
+        c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM),
+        c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER)
+      ),
+  });
+  childContainer.register<ITemplateService>(POSITIONAL_GRAPH_DI_TOKENS.TEMPLATE_SERVICE, {
+    useFactory: (c) =>
+      new TemplateService(
+        c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM),
+        c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER),
+        c.resolve<IYamlParser>(WORKFLOW_DI_TOKENS.YAML_PARSER),
+        c.resolve<TemplateAdapter>(POSITIONAL_GRAPH_DI_TOKENS.TEMPLATE_ADAPTER),
+        c.resolve<InstanceAdapter>(POSITIONAL_GRAPH_DI_TOKENS.INSTANCE_ADAPTER)
+      ),
+  });
+
   // Register orchestration prerequisites (Plan 036 Phase 5)
   // ScriptRunner: real subprocess executor for code work units (Plan 037)
   childContainer.register<IScriptRunner>(ORCHESTRATION_DI_TOKENS.SCRIPT_RUNNER, {
@@ -318,6 +350,15 @@ export function createCliProductionContainer(): DependencyContainer {
         }
         if (agentType === 'copilot') {
           return new SdkCopilotAdapter(copilotClient, { logger });
+        }
+        if (agentType === 'copilot-cli') {
+          const sendKeys = (target: string, text: string): void => {
+            execSync(`tmux send-keys -t ${target} ${JSON.stringify(text)}`, { stdio: 'ignore' });
+          };
+          const sendEnter = (target: string): void => {
+            execSync(`tmux send-keys -t ${target} Enter`, { stdio: 'ignore' });
+          };
+          return new CopilotCLIAdapter({ sendKeys, sendEnter });
         }
         throw new Error(`Unknown agent type: ${agentType}`);
       };

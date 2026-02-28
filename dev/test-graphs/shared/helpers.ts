@@ -6,7 +6,11 @@
 
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import type { IPositionalGraphService } from '@chainglass/positional-graph/interfaces';
+import type {
+  IPositionalGraphService,
+  IWorkUnitLoader,
+} from '@chainglass/positional-graph/interfaces';
+import { YamlParserAdapter } from '@chainglass/shared';
 import type { WorkspaceContext } from '@chainglass/workflow';
 
 /**
@@ -103,4 +107,72 @@ export async function answerNodeQuestion(
     { reason: 'Question answered' },
     'orchestrator'
   );
+}
+
+/**
+ * Build an IWorkUnitLoader that reads unit.yaml from a workspace's .chainglass/units/ dir.
+ * Shared across template generation scripts, integration tests, and test helpers.
+ */
+export function buildDiskWorkUnitLoader(workspacePath: string): IWorkUnitLoader {
+  const yamlParser = new YamlParserAdapter();
+  return {
+    async load(_ctx: WorkspaceContext, slug: string) {
+      const unitYamlPath = path.join(workspacePath, '.chainglass', 'units', slug, 'unit.yaml');
+      try {
+        const content = await fs.readFile(unitYamlPath, 'utf-8');
+        const parsed = yamlParser.parse<{
+          slug: string;
+          type: 'agent' | 'code' | 'user-input';
+          inputs?: Array<{ name: string; type: 'data' | 'file'; required: boolean }>;
+          outputs: Array<{ name: string; type: 'data' | 'file'; required: boolean }>;
+          user_input?: {
+            question_type: 'text' | 'single' | 'multi' | 'confirm';
+            prompt: string;
+            options?: Array<{ key: string; label: string; description?: string }>;
+            default?: string | boolean;
+          };
+        }>(content, unitYamlPath);
+        const base = {
+          slug: parsed.slug,
+          inputs: parsed.inputs ?? [],
+          outputs: parsed.outputs,
+        };
+        if (parsed.type === 'user-input') {
+          if (!parsed.user_input) {
+            return {
+              errors: [
+                {
+                  message: `Unit '${slug}' has type 'user-input' but is missing user_input config`,
+                  code: 'UNIT_LOAD_ERROR',
+                },
+              ],
+            };
+          }
+          return {
+            unit: {
+              ...base,
+              type: 'user-input' as const,
+              userInput: {
+                prompt: parsed.user_input.prompt,
+                inputType: parsed.user_input.question_type,
+                outputName: base.outputs[0]?.name ?? 'output',
+                options: parsed.user_input.options,
+                default: parsed.user_input.default,
+              },
+            },
+            errors: [],
+          };
+        }
+        return {
+          unit: {
+            ...base,
+            type: parsed.type === 'code' ? ('code' as const) : ('agent' as const),
+          },
+          errors: [],
+        };
+      } catch {
+        return { errors: [{ message: `Unit '${slug}' not found`, code: 'NOT_FOUND' }] };
+      }
+    },
+  };
 }

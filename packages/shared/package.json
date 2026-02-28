@@ -36,6 +36,10 @@
     "./sdk": {
       "import": "./dist/sdk/index.js",
       "types": "./dist/sdk/index.d.ts"
+    },
+    "./state": {
+      "import": "./dist/state/index.js",
+      "types": "./dist/state/index.d.ts"
     }
   },
   "scripts": {
@@ -43,7 +47,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@github/copilot-sdk": "^0.1.16",
+    "@github/copilot-sdk": "^0.1.26",
     "dotenv": "^17.2.3",
     "dotenv-expand": "^12.0.3",
     "fast-glob": "^3.3.3",
@@ -52,6 +56,7 @@
     "zod": "^4.3.5"
   },
   "devDependencies": {
+    "tail-file": "^1.4.16",
     "typescript": "^5.7.3"
   }
 }

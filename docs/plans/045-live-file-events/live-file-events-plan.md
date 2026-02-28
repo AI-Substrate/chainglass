@@ -236,3 +236,11 @@ The file browser currently requires manual refresh to see filesystem changes. Th
 | FileWatcherOptions change breaks existing watchers | Low | High | Additive optional field; existing callers unaffected |
 | Source watcher partial failure on start | Low | Medium | Separate try/catch; data watchers continue |
 | Test index regression from source watchers | High | Medium | Refactor tests to query by path, not index |
+
+---
+
+## Fixes
+
+| ID | Created | Summary | Domain(s) | Status | Source |
+|----|---------|---------|-----------|--------|--------|
+| [FX001](fixes/FX001-source-watcher-data-dir-coupling.md) | 2026-02-26 | Source watchers gated on `.chainglass/data/` existence — workspaces without data dir get no live file events | _platform/events | Complete | User report |

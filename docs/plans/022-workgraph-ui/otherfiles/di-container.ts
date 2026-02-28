@@ -1,1 +1,0 @@
-/home/jak/substrate/022-workgraph-ui/apps/web/src/lib/di-container.ts

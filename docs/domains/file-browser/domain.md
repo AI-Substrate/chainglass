@@ -17,7 +17,8 @@ Workspace-scoped file browsing, editing, and diffing. The core feature that make
 - File tree component — lazy per-directory loading, expand/collapse, changed-only filter
 - Code editor wrapper — CodeMirror 6 lazy-loaded, theme-synced
 - File viewer panel — mode toggle (edit/preview/diff), save button, conflict UI
-- Directory listing service — `git ls-files -- <dir>` with readDir fallback
+- Directory listing service — `git ls-files -- <dir>` with readDir fallback (per-directory lazy, `FileEntry{name, type, path}`)
+- File list service — `git ls-files --cached --others` + `fs.stat` for full-tree flat listing (`FileListEntry{path, mtime}`). Distinct from directory-listing: returns all files in one call with mtimes for sort-by-recent in file search cache. Directory-listing is scoped to a single directory for tree expansion.
 - Changed-files service — `git diff --name-only` for filter
 - File server actions — readFile (size limit, binary detection, symlink check), saveFile (mtime conflict, atomic write)
 - Files API route — `GET /api/workspaces/[slug]/files` for client-side directory fetching
@@ -128,6 +129,9 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
 | `apps/web/src/features/041-file-browser/components/worktree-identity-popover.tsx` | Inline gear popover for per-worktree emoji/color | Phase 5 ST-001 |
 | `apps/web/app/(dashboard)/settings/workspaces/page.tsx` | Settings page (Server Component) | Phase 5 |
 | `apps/web/app/(dashboard)/settings/workspaces/workspace-settings-table.tsx` | Settings table (Client Component) | Phase 5 |
+| `apps/web/src/features/041-file-browser/state/register.ts` | registerWorktreeState — multi-instance domain registration | Plan 053 P5 |
+| `apps/web/src/features/041-file-browser/state/worktree-publisher.tsx` | WorktreeStatePublisher — FileChangeHub → state bridge | Plan 053 P5 |
+| `apps/web/src/features/041-file-browser/components/worktree-state-subtitle.tsx` | WorktreeStateSubtitle — sidebar consumer component | Plan 053 P5 |
 
 ## Dependencies
 
@@ -135,6 +139,7 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
 - `_platform/sdk` — IUSDK for publishing commands and settings to SDK surface
 - `_platform/file-ops` — IFileSystem, IPathResolver for all file operations
 - `_platform/viewer` — FileViewer, MarkdownViewer, DiffViewer for rendering
+- `_platform/state` — IStateService, useGlobalState, GlobalStateConnector for worktree state publishing/consumption
 - `_platform/workspace-url` — workspaceHref, param caches, NuqsAdapter
 - `_platform/panel-layout` — PanelShell, ExplorerPanel, LeftPanel, MainPanel for page layout
 - `@chainglass/workflow` — IWorkspaceService, workspace entity, preferences
@@ -161,3 +166,7 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
 | Plan 041 Phase 5 | WorkspaceContext, useAttentionTitle wired, EmojiPicker, ColorPicker, settings page (/settings/workspaces), pop-out button, sidebar emoji | 2026-02-24 |
 | Plan 041 P5 ST-001 | Per-worktree emoji/color (WorktreeVisualPreferences), worktreeIdentity in context, tab title composition, inline gear popover, updateWorktreePreferences action, browser history push on file nav, scroll-to-top on file change | 2026-02-24 |
 | 047-usdk Phase 6 | SDK contribution (3 commands, 5 settings), go-to-line URL param + path parsing, CodeMirror scroll-to-line | 2026-02-25 |
+| Plan 049 Feature 1 | Diff stats service (git diff HEAD --shortstat), usePanelState extension, live-updating file change stats in FILES header | 2026-02-26 |
+| Plan 049 Feature 2 | File search via ExplorerPanel: getFileList service (git ls-files + fs.stat), file-filter utilities (substring/glob/sort), useFileFilter hook (Map cache + SSE deltas + debounce), fetchFileList server action, BrowserClient wiring | 2026-02-26 |
+| Plan 051 | FlowSpace code search: useFlowspaceSearch hook (debounce, availability, graph age), BrowserClient wiring for `#` text and `$` semantic search modes, context menu on FlowSpace results | 2026-02-26 |
+| Plan 053 P5 | GlobalStateSystem worktree exemplar: registerWorktreeState (multi-instance domain), WorktreeStatePublisher (useFileChanges → state), WorktreeStateSubtitle (sidebar consumer), GlobalStateConnector wiring in browser-client.tsx | 2026-02-27 |

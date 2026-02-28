@@ -127,6 +127,23 @@ export async function fetchRecentFiles(worktreePath: string, limit = 20) {
   return getRecentFiles(worktreePath, limit);
 }
 
+// File list — git ls-files + fs.stat for file search cache (Plan 049 Feature 2)
+export async function fetchFileList(
+  worktreePath: string,
+  includeHidden = false
+): Promise<import('../../src/features/041-file-browser/services/file-list').FileListResult> {
+  const { getFileList } = await import('../../src/features/041-file-browser/services/file-list');
+  return getFileList(worktreePath, includeHidden);
+}
+
+// Diff stats — git diff HEAD --shortstat parser (Plan 049 Feature 1)
+export async function fetchDiffStats(
+  worktreePath: string
+): Promise<import('../../src/features/041-file-browser/services/diff-stats').DiffStatsResult> {
+  const { getDiffStats } = await import('../../src/features/041-file-browser/services/diff-stats');
+  return getDiffStats(worktreePath);
+}
+
 // File existence check — lightweight stat for ExplorerPanel (Plan 043 Phase 2)
 // Security: resolves trusted root from slug via IWorkspaceService, not client worktreePath.
 export async function fileExists(

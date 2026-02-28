@@ -11,12 +11,13 @@
  * Per Discovery 11: Async params pattern (await params, await searchParams).
  */
 
+import type { IPositionalGraphService } from '@chainglass/positional-graph';
 import { WORKSPACE_DI_TOKENS } from '@chainglass/shared';
+import { POSITIONAL_GRAPH_DI_TOKENS } from '@chainglass/shared';
 import type { IAgentSessionService, ISampleService, IWorkspaceService } from '@chainglass/workflow';
 import { Bot, FileText, GitBranch, LayoutDashboard, Network } from 'lucide-react';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import type { IWorkGraphUIService } from '../../../../../src/features/022-workgraph-ui';
 import { getContainer } from '../../../../../src/lib/bootstrap-singleton';
 import { DI_TOKENS } from '../../../../../src/lib/di-container';
 
@@ -48,7 +49,9 @@ export default async function WorktreeLandingPage({ params, searchParams }: Page
   const sessionService = container.resolve<IAgentSessionService>(
     WORKSPACE_DI_TOKENS.AGENT_SESSION_SERVICE
   );
-  const workgraphService = container.resolve<IWorkGraphUIService>(DI_TOKENS.WORKGRAPH_UI_SERVICE);
+  const positionalGraphService = container.resolve<IPositionalGraphService>(
+    POSITIONAL_GRAPH_DI_TOKENS.POSITIONAL_GRAPH_SERVICE
+  );
 
   // Resolve context
   const context = await workspaceService.resolveContextFromParams(slug, worktreePath);
@@ -61,17 +64,17 @@ export default async function WorktreeLandingPage({ params, searchParams }: Page
   const info = await workspaceService.getInfo(slug);
 
   // Get counts for feature cards
-  const [samples, sessions, graphsResult] = await Promise.all([
+  const [samples, sessions, workflowsResult] = await Promise.all([
     sampleService.list(context),
     sessionService.listSessions(context),
-    workgraphService.listGraphs(context),
+    positionalGraphService.list(context),
   ]);
-  const graphSlugs = graphsResult.errors.length === 0 ? graphsResult.graphSlugs : [];
+  const workflowCount = workflowsResult.errors.length === 0 ? workflowsResult.slugs.length : 0;
 
   // Build URLs with worktree param
   const agentsUrl = `/workspaces/${slug}/agents?worktree=${encodeURIComponent(worktreePath)}`;
   const samplesUrl = `/workspaces/${slug}/samples?worktree=${encodeURIComponent(worktreePath)}`;
-  const workgraphsUrl = `/workspaces/${slug}/workgraphs?worktree=${encodeURIComponent(worktreePath)}`;
+  const workflowsUrl = `/workspaces/${slug}/workflows?worktree=${encodeURIComponent(worktreePath)}`;
 
   return (
     <div className="container mx-auto py-6">
@@ -131,9 +134,9 @@ export default async function WorktreeLandingPage({ params, searchParams }: Page
           </p>
         </Link>
 
-        {/* WorkGraphs Card */}
+        {/* Workflows Card */}
         <Link
-          href={workgraphsUrl}
+          href={workflowsUrl}
           className="group rounded-lg border p-6 transition-colors hover:bg-muted/50"
         >
           <div className="mb-4 flex items-center gap-3">
@@ -141,14 +144,14 @@ export default async function WorktreeLandingPage({ params, searchParams }: Page
               <Network className="h-6 w-6 text-primary" />
             </div>
             <div>
-              <h2 className="text-xl font-semibold group-hover:text-primary">WorkGraphs</h2>
+              <h2 className="text-xl font-semibold group-hover:text-primary">Workflows</h2>
               <p className="text-sm text-muted-foreground">
-                {graphSlugs.length} {graphSlugs.length === 1 ? 'graph' : 'graphs'}
+                {workflowCount} {workflowCount === 1 ? 'workflow' : 'workflows'}
               </p>
             </div>
           </div>
           <p className="text-sm text-muted-foreground">
-            View and edit workflow graphs for this worktree.
+            View and edit workflows for this worktree.
           </p>
         </Link>
 

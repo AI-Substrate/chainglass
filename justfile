@@ -47,6 +47,10 @@ typecheck:
 # Run all quality checks
 check: lint typecheck test
 
+# Clean Next.js server cache (.next directory)
+clean-next:
+    rm -rf apps/web/.next
+
 # Clean build artifacts
 clean:
     rm -rf packages/*/dist apps/*/dist apps/*/.next node_modules/.cache
@@ -74,3 +78,12 @@ test-feature plan:
 # Watch tests for a specific plan/feature (re-runs on file change)
 test-watch plan:
     pnpm vitest --reporter=verbose $(find test -path "*{{plan}}*" -name "*.test.ts" 2>/dev/null | tr '\n' ' ')
+
+# Generate demo workflows for UI development (Plan 050)
+dope *args:
+    npx tsx scripts/dope-workflows.ts {{args}}
+
+# Clean and regenerate all demo workflows
+redope:
+    npx tsx scripts/dope-workflows.ts clean
+    npx tsx scripts/dope-workflows.ts

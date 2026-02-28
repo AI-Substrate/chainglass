@@ -35,3 +35,72 @@ export interface ExplorerPanelHandle {
   focusInput: () => void;
   openPalette: () => void;
 }
+
+// --- File search types (Plan 049 Feature 2) ---
+// Defined here so infra (panel-layout) doesn't import from business (file-browser).
+
+/** Sort mode for file search results */
+export type FileSearchSortMode = 'recent' | 'alpha-asc' | 'alpha-desc';
+
+/** A file entry from the search cache */
+export interface FileSearchEntry {
+  path: string;
+  mtime: number;
+  modified: boolean;
+  lastChanged: number | null;
+}
+
+/** Minimal file change info for status badge lookup */
+export interface FileChangeInfo {
+  path: string;
+  status: string;
+}
+
+// --- Code search types (Plan 051 FlowSpace + Plan 052 git grep) ---
+// Defined here so infra (panel-layout) doesn't import from business (file-browser).
+// Uses discriminated union so dropdown renders via result.kind.
+
+/** Code search mode — determines which engine to use */
+export type CodeSearchMode = 'grep' | 'semantic';
+
+/** Availability status for code search features */
+export type CodeSearchAvailability = 'available' | 'not-installed' | 'no-graph' | 'no-embeddings';
+
+/** Git grep content search result (Plan 052) */
+export interface GrepSearchResult {
+  kind: 'grep';
+  filePath: string;
+  filename: string;
+  lineNumber: number;
+  matchContent: string;
+  matchCount: number;
+}
+
+/** FlowSpace semantic search result (Plan 051) */
+export interface FlowSpaceSearchResult {
+  kind: 'flowspace';
+  nodeId: string;
+  name: string;
+  category: string;
+  filePath: string;
+  startLine: number;
+  endLine: number;
+  smartContent: string | null;
+  snippet: string;
+  score: number;
+  matchField: string;
+}
+
+/** Discriminated union — dropdown switches on result.kind for rendering */
+export type CodeSearchResult = GrepSearchResult | FlowSpaceSearchResult;
+
+/** Category icon mapping for FlowSpace node categories */
+export const FLOWSPACE_CATEGORY_ICONS: Record<string, string> = {
+  file: '📄',
+  callable: 'ƒ',
+  type: '📦',
+  section: '📝',
+  block: '🏗️',
+  definition: '🔹',
+  other: '○',
+};

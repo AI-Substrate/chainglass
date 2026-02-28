@@ -1,0 +1,9 @@
+id: spec-writer-c3d
+unit_slug: spec-writer
+created_at: "2026-02-25T00:00:00Z"
+inputs:
+  requirements:
+    from_node: human-input-a1b
+    from_output: requirements
+properties: {}
+orchestratorSettings: {}

@@ -10,6 +10,11 @@
 | File Browser | file-browser | business | — | Plan 041 | active |
 | SDK | _platform/sdk | infrastructure | _platform | Plan 047 — USDK | active |
 | Settings | _platform/settings | infrastructure | _platform | Plan 047 — USDK Phase 5 | active |
+| Positional Graph | _platform/positional-graph | infrastructure | _platform | extracted (Plan 048) | active |
+| Workgraph (Legacy) | _platform/workgraph | infrastructure | _platform | extracted (Plan 048) | deprecated |
+| Workflow UI | workflow-ui | business | — | Plan 050 | active |
+| State | _platform/state | infrastructure | _platform | Plan 053 — GlobalStateSystem | active |
+| Dev Tools | _platform/dev-tools | infrastructure | _platform | Plan 056 — State DevTools Panel | active |
 
 ## Domain Types
 
@@ -21,3 +26,7 @@
 - **active**: In use and accepting changes
 - **deprecated**: Being phased out (note successor domain)
 - **archived**: Code remains but is no longer modified
+
+## Notes
+
+- **_platform/workgraph**: Removed from web app in Plan 050 Phase 7. Package remains for CLI consumers (`cg wg`, `cg unit`). Successor: `_platform/positional-graph`.

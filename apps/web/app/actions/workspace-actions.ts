@@ -9,6 +9,7 @@
  * Uses revalidatePath for cache invalidation after successful operations.
  */
 
+import { existsSync, statSync } from 'node:fs';
 import { WORKSPACE_DI_TOKENS } from '@chainglass/shared';
 import type { ISampleService, IWorkspaceService } from '@chainglass/workflow';
 import { revalidatePath } from 'next/cache';
@@ -29,13 +30,24 @@ export interface ActionState {
     description?: string[];
     _form?: string[];
   };
+  /** Preserve submitted field values so form inputs aren't cleared on error */
+  fields?: {
+    name?: string;
+    path?: string;
+  };
 }
 
 // ==================== Validation Schemas ====================
 
 const AddWorkspaceSchema = z.object({
-  name: z.string().min(1, 'Name is required').max(100, 'Name must be 100 characters or less'),
-  path: z.string().min(1, 'Path is required').startsWith('/', 'Path must be absolute'),
+  name: z
+    .string()
+    .transform((s) => s.trim())
+    .pipe(z.string().min(1, 'Name is required').max(100, 'Name must be 100 characters or less')),
+  path: z
+    .string()
+    .transform((s) => s.trim())
+    .pipe(z.string().min(1, 'Path is required').startsWith('/', 'Path must be absolute')),
 });
 
 const AddSampleSchema = z.object({
@@ -58,20 +70,49 @@ export async function addWorkspace(
   _prevState: ActionState,
   formData: FormData
 ): Promise<ActionState> {
-  // Validate input
+  const rawName = (formData.get('name') as string) ?? '';
+  const rawPath = (formData.get('path') as string) ?? '';
+
+  // Validate input (schema trims whitespace before validation)
   const validatedFields = AddWorkspaceSchema.safeParse({
-    name: formData.get('name'),
-    path: formData.get('path'),
+    name: rawName,
+    path: rawPath,
   });
 
   if (!validatedFields.success) {
     return {
       success: false,
       errors: validatedFields.error.flatten().fieldErrors,
+      fields: { name: rawName, path: rawPath },
     };
   }
 
   const { name, path } = validatedFields.data;
+
+  // Validate path exists and is a directory
+  if (!existsSync(path)) {
+    return {
+      success: false,
+      errors: { path: ['Path does not exist'] },
+      fields: { name, path },
+    };
+  }
+  try {
+    const stats = statSync(path);
+    if (!stats.isDirectory()) {
+      return {
+        success: false,
+        errors: { path: ['Path must be a directory'] },
+        fields: { name, path },
+      };
+    }
+  } catch {
+    return {
+      success: false,
+      errors: { path: ['Unable to access path'] },
+      fields: { name, path },
+    };
+  }
 
   try {
     const container = getContainer();
@@ -87,6 +128,7 @@ export async function addWorkspace(
         errors: {
           _form: result.errors.map((e) => e.message),
         },
+        fields: { name, path },
       };
     }
 

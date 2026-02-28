@@ -90,15 +90,15 @@ importers:
 
   apps/web:
     dependencies:
+      '@chainglass/positional-graph':
+        specifier: workspace:*
+        version: link:../../packages/positional-graph
       '@chainglass/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       '@chainglass/workflow':
         specifier: workspace:^
         version: link:../../packages/workflow
-      '@chainglass/workgraph':
-        specifier: workspace:^
-        version: link:../../packages/workgraph
       '@codemirror/lang-cpp':
         specifier: ^6.0.3
         version: 6.0.3
@@ -201,6 +201,12 @@ importers:
       mermaid:
         specifier: ^11.12.2
         version: 11.12.2
+      micromatch:
+        specifier: ^4.0.8
+        version: 4.0.8
+      minisearch:
+        specifier: ^7.2.0
+        version: 7.2.0
       next:
         specifier: ^16.0.0
         version: 16.1.4(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -274,6 +280,9 @@ importers:
       '@types/d3-hierarchy':
         specifier: ^3.1.7
         version: 3.1.7
+      '@types/micromatch':
+        specifier: ^4.0.10
+        version: 4.0.10
       '@types/react':
         specifier: ^19.0.7
         version: 19.2.8
@@ -337,8 +346,8 @@ importers:
   packages/shared:
     dependencies:
       '@github/copilot-sdk':
-        specifier: ^0.1.16
-        version: 0.1.16
+        specifier: ^0.1.26
+        version: 0.1.26
       dotenv:
         specifier: ^17.2.3
         version: 17.2.3
@@ -358,6 +367,9 @@ importers:
         specifier: ^4.3.5
         version: 4.3.5
     devDependencies:
+      tail-file:
+        specifier: ^1.4.16
+        version: 1.4.16
       typescript:
         specifier: ^5.7.3
         version: 5.9.3
@@ -995,48 +1007,48 @@ packages:
   '@git-diff-view/shiki@0.0.36':
     resolution: {integrity: sha512-t6LGKISEvE0q7u2AR1rq2RLgCcccRttuKE617D1MiHecO0Xd/xvsMhqxW4PgDMkMadhbzWnt6IhBbrdgqBKPwQ==}
 
-  '@github/copilot-darwin-arm64@0.0.389':
-    resolution: {integrity: sha512-4Crm/C9//ZPsK+NP5E5BEjltAGuij9XkvRILvZ/mqlaiDXRncFvUtdOoV+/Of+i4Zva/1sWnc7CrS7PHGJDyFg==}
+  '@github/copilot-darwin-arm64@0.0.414':
+    resolution: {integrity: sha512-PW4v89v41i4Mg/NYl4+gEhwnDaVz+olNL+RbqtiQI3IV89gZdS+RZQbUEJfOwMaFcT2GfiUK1OuB+YDv5GrkBg==}
     cpu: [arm64]
     os: [darwin]
     hasBin: true
 
-  '@github/copilot-darwin-x64@0.0.389':
-    resolution: {integrity: sha512-w0LB+lw29UmRS9oW8ENyZhrf3S5LQ3Pz796dQY8LZybp7WxEGtQhvXN48mye9gGzOHNoHxQ2+10+OzsjC/mLUQ==}
+  '@github/copilot-darwin-x64@0.0.414':
+    resolution: {integrity: sha512-NyPYm0NovQTwtuI42WJIi4cjYd2z0wBHEvWlUSczRsSuYEyImAClmZmBPegUU63e5JdZd1PdQkQ7FqrrfL2fZQ==}
     cpu: [x64]
     os: [darwin]
     hasBin: true
 
-  '@github/copilot-linux-arm64@0.0.389':
-    resolution: {integrity: sha512-8QNvfs4r6nrbQrT4llu0CbJHcCJosyj+ZgLSpA+lqIiO/TiTQ48kV41uNjzTz1RmR6/qBKcz81FB7HcHXpT3xw==}
+  '@github/copilot-linux-arm64@0.0.414':
+    resolution: {integrity: sha512-VgdRsvA1FiZ1lcU/AscSvyJWEUWZzoXv2tSZ6WV3NE0uUTuO1Qoq4xuqbKZ/+vKJmn1b8afe7sxAAOtCoWPBHQ==}
     cpu: [arm64]
     os: [linux]
     hasBin: true
 
-  '@github/copilot-linux-x64@0.0.389':
-    resolution: {integrity: sha512-ls42wSzspC7sLiweoqu2zT75mqMsLWs+IZBfCqcuH1BV+C/j/XSEHsSrJxAI3TPtIsOTolPbTAa8jye1nGDxeg==}
+  '@github/copilot-linux-x64@0.0.414':
+    resolution: {integrity: sha512-3HyZsbZqYTF5jcT7/e+nDIYBCQXo8UCVWjBI3raOE4lzAw9b2ucL290IhtA23s1+EiquMxJ4m3FnjwFmwlQ12A==}
     cpu: [x64]
     os: [linux]
     hasBin: true
 
-  '@github/copilot-sdk@0.1.16':
-    resolution: {integrity: sha512-yEZrrUl9w6rvKmjJpzpqovL39GzFrHxnIXOSK/bQfFwk7Ak/drmBk2gOwJqDVJcbhUm2dsoeLIfok7vtyjAxTw==}
-    engines: {node: '>=18.0.0'}
+  '@github/copilot-sdk@0.1.26':
+    resolution: {integrity: sha512-5YsApwYa/k2VqaNGvB+ngvWIRxyBR+AY17wCX3ceo+0UcwR7RbW0Ld8l8c5wFOh8Qa/UN4/kXb10HRUTYelGUA==}
+    engines: {node: '>=20.0.0'}
 
-  '@github/copilot-win32-arm64@0.0.389':
-    resolution: {integrity: sha512-loniaCnrty9okQMl3EhxeeyDhnrJ/lJK0Q0r7wkLf1d/TM2swp3tsGZyIRlhDKx5lgcnCPm1m0BqauMo8Vs34g==}
+  '@github/copilot-win32-arm64@0.0.414':
+    resolution: {integrity: sha512-8gdaoF4MPpeV0h8UnCZ8TKI5l274EP0fvAaV9BGjsdyEydDcEb+DHqQiXgitWVKKiHAAaPi12aH8P5OsEDUneQ==}
     cpu: [arm64]
     os: [win32]
     hasBin: true
 
-  '@github/copilot-win32-x64@0.0.389':
-    resolution: {integrity: sha512-L1ZzwV/vsxnrz0WO4qLDUlXXFQQ9fOFuBGKWy6TXS7aniaxI/7mdRQR1YjIEqy+AzRw9BaXR2UUUUDk0gb1+kw==}
+  '@github/copilot-win32-x64@0.0.414':
+    resolution: {integrity: sha512-E1Oq1jXHaL1oWNsmmiCd4G30/CfgVdswg/T5oDFUxx3Ri+6uBekciIzdyCDelsP1kn2+fC1EYz2AerQ6F+huzg==}
     cpu: [x64]
     os: [win32]
     hasBin: true
 
-  '@github/copilot@0.0.389':
-    resolution: {integrity: sha512-XCHMCd8fu7g9WAp+ZepXBF1ud8vdfxDG4ajstGJqHfbdz0RxQktB35R5s/vKizpYXSZogFqwjxl41qX8DypY6g==}
+  '@github/copilot@0.0.414':
+    resolution: {integrity: sha512-jseJ2S02CLWrFks5QK22zzq7as2ErY5m1wMCFBOE6sro1uACq1kvqqM1LwM4qy58YSZFrM1ZAn1s7UOVd9zhIA==}
     hasBin: true
 
   '@hono/node-server@1.19.9':
@@ -2372,6 +2384,9 @@ packages:
   '@types/aria-query@5.0.4':
     resolution: {integrity: sha512-rfT93uj5s0PRL7EzccGMs3brplhcrghnDoV26NqKhCAS1hVo+WdNsPvE/yb6ilfr5hi2MEk6d5EWJTKdxg8jVw==}
 
+  '@types/braces@3.0.5':
+    resolution: {integrity: sha512-SQFof9H+LXeWNz8wDe7oN5zu7ket0qwMu5vZubW4GCJ8Kkeh6nBWUz87+KTz/G3Kqsrp0j/W253XJb3KMEeg3w==}
+
   '@types/chai@5.2.3':
     resolution: {integrity: sha512-Mw558oeA9fFbv65/y4mHtXDs9bPnFMZAL/jxdPFUpOHHIXX91mcgEHbS5Lahr+pwZFR8A7GQleRWeI6cGFC2UA==}
 
@@ -2488,6 +2503,9 @@ packages:
 
   '@types/mdast@4.0.4':
     resolution: {integrity: sha512-kGaNbPh1k7AFzgpud/gMdvIm5xuECykRR+JnWKQno9TAXVa6WIVCGTPvYGekIDL4uwCZQSYbUxNBSb1aUo79oA==}
+
+  '@types/micromatch@4.0.10':
+    resolution: {integrity: sha512-5jOhFDElqr4DKTrTEbnW8DZ4Hz5LRUEmyrGpCMrD/NphYv3nUnaF08xmSLx1rGGnyEs/kFnhiw6dCgcDqMr5PQ==}
 
   '@types/ms@2.1.0':
     resolution: {integrity: sha512-GsCCIZDE/p3i96vtEqx+7dBUGXrc7zeSK3wwPHIaRThS+9OhWIXRqzs4d6k1SVU8g91DrNRWxWUGhp5KXQb2VA==}
@@ -3296,11 +3314,12 @@ packages:
 
   glob@10.5.0:
     resolution: {integrity: sha512-DfXN8DfhJ7NH3Oe7cFmu3NCu1wKbkReJ8TorzSAFbSKrlNaQSKfIzqYqVY8zlbs2NLBbWpRiU52GX2PbaBVNkg==}
+    deprecated: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
     hasBin: true
 
   glob@7.2.3:
     resolution: {integrity: sha512-nFR0zLpU2YCaRxwoCJvL6UvCH2JFyFVIvwTLsIf21AuHlMskA1hhTdk+LlYJtOlYt9v6dvszD2BGRqBL+iQK9Q==}
-    deprecated: Glob versions prior to v9 are no longer supported
+    deprecated: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
 
   globrex@0.1.2:
     resolution: {integrity: sha512-uHJgbwAMwNFf5mLst7IWLNg14x1CkeqglJb/K3doi4dw6q2IvAAmM/Y81kevy83wP+Sst+nutFTYOGg3d1lsxg==}
@@ -3832,6 +3851,9 @@ packages:
   minipass@7.1.2:
     resolution: {integrity: sha512-qOOzS1cBTWYF4BH8fVePDBOO9iptMnGUEZwNc/cMWnTV2nVLZ7VoNWEPHkYczZA0pdoA7dl6e7FL659nX9S2aw==}
     engines: {node: '>=16 || 14 >=14.17'}
+
+  minisearch@7.2.0:
+    resolution: {integrity: sha512-dqT2XBYUOZOiC5t2HRnwADjhNS2cecp9u+TJRiJ1Qp/f5qjkeT5APcGPjHw+bz89Ms8Jp+cG4AlE+QZ/QnDglg==}
 
   mlly@1.8.0:
     resolution: {integrity: sha512-l8D9ODSRWLe2KHJSifWGwBqpTZXIXTeo8mlKjY+E2HAakaTeNpqAyBZ8GSqLzHgw4XmHmC8whvpjJNMbFZN7/g==}
@@ -4374,6 +4396,10 @@ packages:
   symbol-tree@3.2.4:
     resolution: {integrity: sha512-9QNk5KwDF+Bvz+PyObkmSYjI5ksVUYtjW7AU22r2NKcfLJcXp96hkDWU3+XndOsUb+AQ9QhfzfCT2O+CNWT5Tw==}
 
+  tail-file@1.4.16:
+    resolution: {integrity: sha512-K1SAxKcAhJU1aJytAbA/jSRxL4PsYuDWNCGSsVcTG1SLKFW9FRGj7K3f6F/Leb9XLR7UIe7EfFza3sH12ztPBw==}
+    engines: {node: '>=10.0'}
+
   tailwind-merge@3.4.0:
     resolution: {integrity: sha512-uSaO4gnW+b3Y2aWoWfFpX62vn2sR3skfhbjsEnaBI81WD1wBLlHZe5sWf0AqjksNdYTbGBEd0UasQMT3SNV15g==}
 
@@ -4795,6 +4821,9 @@ packages:
 
   zod@4.3.5:
     resolution: {integrity: sha512-k7Nwx6vuWx1IJ9Bjuf4Zt1PEllcwe7cls3VNzm4CQ1/hgtFUK2bRNG3rvnpPUhFjmqJKAKtjV576KnUkHocg/g==}
+
+  zod@4.3.6:
+    resolution: {integrity: sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg==}
 
   zustand@4.5.7:
     resolution: {integrity: sha512-CHOUy7mu3lbD6o6LJLfllpjkzhHXSBlX8B9+qPddUsIfeF5S/UZ5q0kmCsnRqT1UHFQZchNFDDzMbQsuesHWlw==}
@@ -5322,38 +5351,38 @@ snapshots:
       '@types/hast': 3.0.4
       shiki: 3.21.0
 
-  '@github/copilot-darwin-arm64@0.0.389':
+  '@github/copilot-darwin-arm64@0.0.414':
     optional: true
 
-  '@github/copilot-darwin-x64@0.0.389':
+  '@github/copilot-darwin-x64@0.0.414':
     optional: true
 
-  '@github/copilot-linux-arm64@0.0.389':
+  '@github/copilot-linux-arm64@0.0.414':
     optional: true
 
-  '@github/copilot-linux-x64@0.0.389':
+  '@github/copilot-linux-x64@0.0.414':
     optional: true
 
-  '@github/copilot-sdk@0.1.16':
+  '@github/copilot-sdk@0.1.26':
     dependencies:
-      '@github/copilot': 0.0.389
+      '@github/copilot': 0.0.414
       vscode-jsonrpc: 8.2.1
-      zod: 4.3.5
+      zod: 4.3.6
 
-  '@github/copilot-win32-arm64@0.0.389':
+  '@github/copilot-win32-arm64@0.0.414':
     optional: true
 
-  '@github/copilot-win32-x64@0.0.389':
+  '@github/copilot-win32-x64@0.0.414':
     optional: true
 
-  '@github/copilot@0.0.389':
+  '@github/copilot@0.0.414':
     optionalDependencies:
-      '@github/copilot-darwin-arm64': 0.0.389
-      '@github/copilot-darwin-x64': 0.0.389
-      '@github/copilot-linux-arm64': 0.0.389
-      '@github/copilot-linux-x64': 0.0.389
-      '@github/copilot-win32-arm64': 0.0.389
-      '@github/copilot-win32-x64': 0.0.389
+      '@github/copilot-darwin-arm64': 0.0.414
+      '@github/copilot-darwin-x64': 0.0.414
+      '@github/copilot-linux-arm64': 0.0.414
+      '@github/copilot-linux-x64': 0.0.414
+      '@github/copilot-win32-arm64': 0.0.414
+      '@github/copilot-win32-x64': 0.0.414
 
   '@hono/node-server@1.19.9(hono@4.11.4)':
     dependencies:
@@ -6670,6 +6699,8 @@ snapshots:
 
   '@types/aria-query@5.0.4': {}
 
+  '@types/braces@3.0.5': {}
+
   '@types/chai@5.2.3':
     dependencies:
       '@types/deep-eql': 4.0.2
@@ -6813,6 +6844,10 @@ snapshots:
   '@types/mdast@4.0.4':
     dependencies:
       '@types/unist': 3.0.3
+
+  '@types/micromatch@4.0.10':
+    dependencies:
+      '@types/braces': 3.0.5
 
   '@types/ms@2.1.0': {}
 
@@ -8471,6 +8506,8 @@ snapshots:
 
   minipass@7.1.2: {}
 
+  minisearch@7.2.0: {}
+
   mlly@1.8.0:
     dependencies:
       acorn: 8.15.0
@@ -9148,6 +9185,12 @@ snapshots:
 
   symbol-tree@3.2.4: {}
 
+  tail-file@1.4.16:
+    dependencies:
+      debug: 4.4.3
+    transitivePeerDependencies:
+      - supports-color
+
   tailwind-merge@3.4.0: {}
 
   tailwindcss@4.1.18: {}
@@ -9525,6 +9568,8 @@ snapshots:
   zod@3.25.76: {}
 
   zod@4.3.5: {}
+
+  zod@4.3.6: {}
 
   zustand@4.5.7(@types/react@19.2.8)(react@19.2.3):
     dependencies:

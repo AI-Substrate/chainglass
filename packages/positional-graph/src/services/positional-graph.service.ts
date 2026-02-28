@@ -1007,7 +1007,32 @@ export class PositionalGraphService implements IPositionalGraphService {
     // Load node config
     const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
     if (!nodeResult.ok) {
-      throw new Error(`Node config for '${nodeId}' could not be loaded`);
+      // Return a degraded status for orphaned nodes (config deleted but still in definition)
+      return {
+        nodeId,
+        unitSlug: 'unknown',
+        unitType: 'agent' as const,
+        execution: 'serial' as const,
+        noContext: false,
+        lineId: nodeLocation.line.id,
+        position: nodeLocation.nodePositionInLine,
+        status: 'blocked-error' as import('../interfaces/index.js').ExecutionStatus,
+        ready: false,
+        readyDetail: {
+          precedingLinesComplete: false,
+          transitionOpen: false,
+          serialNeighborComplete: false,
+          inputsAvailable: false,
+          unitFound: false,
+          reason: `Node config missing — node '${nodeId}' may need to be removed or recreated`,
+        },
+        inputPack: { inputs: {}, ok: false },
+        error: {
+          code: 'E404',
+          message: `Node config for '${nodeId}' could not be loaded`,
+          occurredAt: new Date().toISOString(),
+        },
+      };
     }
 
     const nodeConfig = nodeResult.config;
@@ -1087,10 +1112,9 @@ export class PositionalGraphService implements IPositionalGraphService {
       return leftState?.status === 'complete';
     })();
 
-    return {
+    const base = {
       nodeId,
       unitSlug: nodeConfig.unit_slug,
-      unitType: unitResult.unit?.type ?? 'agent',
       execution: nodeConfig.orchestratorSettings.execution,
       noContext: nodeConfig.orchestratorSettings.noContext ?? false,
       contextFrom: nodeConfig.orchestratorSettings.contextFrom,
@@ -1110,8 +1134,47 @@ export class PositionalGraphService implements IPositionalGraphService {
         reason: canRunResult.reason,
       },
       inputPack,
+      pendingQuestion: this.resolvePendingQuestion(storedState, state),
       startedAt: storedState?.started_at,
       completedAt: storedState?.completed_at,
+    };
+
+    const unitType = unitResult.unit?.type ?? 'agent';
+    if (unitType === 'user-input' && unitResult.unit && 'userInput' in unitResult.unit) {
+      return {
+        ...base,
+        unitType: 'user-input' as const,
+        userInput: (unitResult.unit as import('../interfaces/index.js').NarrowUserInputWorkUnit)
+          .userInput,
+      };
+    }
+    if (unitType === 'code') {
+      return { ...base, unitType: 'code' as const };
+    }
+    return { ...base, unitType: 'agent' as const };
+  }
+
+  /**
+   * Resolve pending question details from node state + state.questions[].
+   * Returns the pendingQuestion shape expected by NodeStatusResult, or undefined.
+   * @deprecated Q&A protocol is scaffolding — not integrated into real agent execution.
+   */
+  private resolvePendingQuestion(
+    storedState: NodeStateEntry | undefined,
+    state: State
+  ): NodeStatusResult['pendingQuestion'] {
+    const questionId = storedState?.pending_question_id;
+    if (!questionId) return undefined;
+
+    const question = state.questions?.find((q) => q.question_id === questionId);
+    if (!question) return undefined;
+
+    return {
+      questionId: question.question_id,
+      text: question.text,
+      questionType: question.type,
+      options: question.options?.map((opt) => ({ key: opt, label: opt })),
+      askedAt: question.asked_at,
     };
   }
 
@@ -2116,6 +2179,7 @@ export class PositionalGraphService implements IPositionalGraphService {
    * State transition delegated to eventService.raise() + handleEvents().
    *
    * Per AC-5: Transitions node to waiting-question and returns question ID.
+   * @deprecated Q&A protocol is scaffolding — not integrated into real agent execution. Human input is a web-layer concern (Plan 054).
    */
   async askQuestion(
     ctx: WorkspaceContext,
@@ -2207,6 +2271,7 @@ export class PositionalGraphService implements IPositionalGraphService {
    * Node stays waiting-question; restart via node:restart event.
    *
    * Per AC-18: Returns E173 for invalid question ID.
+   * @deprecated Q&A protocol is scaffolding — not integrated into real agent execution. Human input is a web-layer concern (Plan 054).
    */
   async answerQuestion(
     ctx: WorkspaceContext,
@@ -2296,6 +2361,7 @@ export class PositionalGraphService implements IPositionalGraphService {
    *
    * Per AC-7: Returns stored answer.
    * Per Critical Insight #5: Returns {answered: false} for unanswered, not E173.
+   * @deprecated Q&A protocol is scaffolding — not integrated into real agent execution. Human input is a web-layer concern (Plan 054).
    */
   async getAnswer(
     ctx: WorkspaceContext,
@@ -2684,6 +2750,63 @@ export class PositionalGraphService implements IPositionalGraphService {
 
   async persistGraphState(ctx: WorkspaceContext, graphSlug: string, state: State): Promise<void> {
     return this.persistState(ctx, graphSlug, state);
+  }
+
+  async restoreSnapshot(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    definition: PositionalGraphDefinition,
+    nodeConfigs: Record<string, NodeConfig>
+  ): Promise<import('@chainglass/shared').BaseResult> {
+    try {
+      // Write graph.yaml
+      await this.persistGraph(ctx, graphSlug, definition);
+
+      // Write all node configs (ensure directories exist for deleted nodes)
+      for (const [nodeId, config] of Object.entries(nodeConfigs)) {
+        const nodeDir = this.getNodeDir(ctx, graphSlug, nodeId);
+        const exists = await this.fs.exists(nodeDir);
+        if (!exists) {
+          await this.fs.mkdir(nodeDir, { recursive: true });
+        }
+        await this.persistNodeConfig(ctx, graphSlug, nodeId, config);
+      }
+
+      return { errors: [] };
+    } catch (err) {
+      return {
+        errors: [
+          {
+            code: 'E999',
+            message: `Snapshot restore failed: ${err instanceof Error ? err.message : 'unknown error'}`,
+            action: 'Check file permissions and disk space',
+          },
+        ],
+      };
+    }
+  }
+
+  async loadAllNodeConfigs(
+    ctx: WorkspaceContext,
+    graphSlug: string
+  ): Promise<{
+    nodeConfigs: Record<string, NodeConfig>;
+    errors: import('@chainglass/shared').ResultError[];
+  }> {
+    const loaded = await this.loadGraphDefinition(ctx, graphSlug);
+    if (!loaded.ok) return { nodeConfigs: {}, errors: loaded.errors };
+
+    const nodeConfigs: Record<string, NodeConfig> = {};
+    const allNodeIds = this.getAllNodeIds(loaded.definition);
+
+    for (const nodeId of allNodeIds) {
+      const result = await this.loadNodeConfig(ctx, graphSlug, nodeId);
+      if (result.ok) {
+        nodeConfigs[nodeId] = result.config;
+      }
+    }
+
+    return { nodeConfigs, errors: [] };
   }
 }
 

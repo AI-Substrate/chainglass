@@ -1,0 +1,12 @@
+M	apps/web/src/lib/di-container.ts
+M	apps/web/tsconfig.json
+M	docs/domains/_platform/positional-graph/domain.md
+M	docs/domains/domain-map.md
+M	docs/domains/registry.md
+A	docs/domains/workflow-ui/domain.md
+M	justfile
+A	packages/positional-graph/src/fakes/fake-positional-graph-service.ts
+A	packages/positional-graph/src/fakes/index.ts
+M	packages/positional-graph/src/index.ts
+A	scripts/dope-workflows.ts
+A	test/integration/dope-workflows.test.ts

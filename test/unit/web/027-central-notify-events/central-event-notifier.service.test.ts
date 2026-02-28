@@ -31,16 +31,16 @@ describe('CentralEventNotifierService', () => {
     /*
     Test Doc:
     - Why: Core contract — domain value must map to SSE channel name
-    - Contract: emit(WorkspaceDomain.Workgraphs, ...) → broadcast channel is 'workgraphs'
+    - Contract: emit(WorkspaceDomain.Workflows, ...) → broadcast channel is 'workflows'
     - Usage Notes: Domain value IS the channel name per ADR-0007
     - Quality Contribution: Catches channel mapping errors
-    - Worked Example: emit('workgraphs', 'graph-updated', {}) → getBroadcasts()[0].channel === 'workgraphs'
+    - Worked Example: emit('workflows', 'workflow-changed', {}) → getBroadcasts()[0].channel === 'workflows'
     */
-    service.emit(WorkspaceDomain.Workgraphs, 'graph-updated', { graphSlug: 'g1' });
+    service.emit(WorkspaceDomain.Workflows, 'workflow-changed', { graphSlug: 'g1' });
 
     const broadcasts = broadcaster.getBroadcasts();
     expect(broadcasts).toHaveLength(1);
-    expect(broadcasts[0]?.channel).toBe('workgraphs');
+    expect(broadcasts[0]?.channel).toBe('workflows');
   });
 
   it('U02: emit() passes eventType and data through', () => {
@@ -50,12 +50,12 @@ describe('CentralEventNotifierService', () => {
     - Contract: emit(domain, eventType, data) → broadcast(domain, eventType, data)
     - Usage Notes: Data is Record<string, unknown> per ADR-0007
     - Quality Contribution: Catches data transformation bugs
-    - Worked Example: emit('workgraphs', 'graph-updated', {graphSlug:'g1'}) → broadcast has same eventType and data
+    - Worked Example: emit('workflows', 'workflow-changed', {graphSlug:'g1'}) → broadcast has same eventType and data
     */
-    service.emit(WorkspaceDomain.Workgraphs, 'graph-updated', { graphSlug: 'g1' });
+    service.emit(WorkspaceDomain.Workflows, 'workflow-changed', { graphSlug: 'g1' });
 
     const broadcast = broadcaster.getLastBroadcast();
-    expect(broadcast?.eventType).toBe('graph-updated');
+    expect(broadcast?.eventType).toBe('workflow-changed');
     expect(broadcast?.data).toEqual({ graphSlug: 'g1' });
   });
 
@@ -82,9 +82,9 @@ describe('CentralEventNotifierService', () => {
     - Contract: emit() with {} as data still broadcasts
     - Usage Notes: Events with no payload are valid
     - Quality Contribution: Catches data validation that rejects empty objects
-    - Worked Example: emit('workgraphs', 'sync', {}) → 1 broadcast with data {}
+    - Worked Example: emit('workflows', 'sync', {}) → 1 broadcast with data {}
     */
-    service.emit(WorkspaceDomain.Workgraphs, 'sync', {});
+    service.emit(WorkspaceDomain.Workflows, 'sync', {});
 
     expect(broadcaster.getBroadcasts()).toHaveLength(1);
     expect(broadcaster.getLastBroadcast()?.data).toEqual({});

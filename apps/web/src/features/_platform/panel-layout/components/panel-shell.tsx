@@ -30,7 +30,7 @@ export function PanelShell({ explorer, left, main }: PanelShellProps) {
       {/* Left + Main split */}
       <div className="flex flex-1 overflow-hidden">
         <div
-          className="shrink-0 overflow-y-auto border-r"
+          className="shrink-0 overflow-hidden border-r"
           style={{ width: 280, minWidth: 150, maxWidth: '50%', resize: 'horizontal' }}
         >
           {left}

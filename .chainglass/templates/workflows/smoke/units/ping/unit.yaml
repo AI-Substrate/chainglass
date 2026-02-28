@@ -1,0 +1,11 @@
+slug: ping
+type: code
+version: 1.0.0
+description: Minimal smoke test unit that echoes pong
+outputs:
+  - name: result
+    type: data
+    data_type: text
+    required: true
+code:
+  script: scripts/ping.sh

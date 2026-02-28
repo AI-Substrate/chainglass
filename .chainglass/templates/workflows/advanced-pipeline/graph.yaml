@@ -1,0 +1,33 @@
+slug: advanced-pipeline
+version: 1.0.0
+description: "6-node, 4-line pipeline: human-input → spec-writer → parallel programmers → reviewer + summariser"
+created_at: "2026-02-25T00:00:00Z"
+lines:
+  - id: line-0
+    label: Input
+    nodes:
+      - human-input-a1b
+    properties: {}
+    orchestratorSettings: {}
+  - id: line-1
+    label: Specification
+    nodes:
+      - spec-writer-c3d
+    properties: {}
+    orchestratorSettings: {}
+  - id: line-2
+    label: Implementation
+    nodes:
+      - programmer-a-e5f
+      - programmer-b-17a
+    properties: {}
+    orchestratorSettings: {}
+  - id: line-3
+    label: Review
+    nodes:
+      - reviewer-29b
+      - summariser-3dc
+    properties: {}
+    orchestratorSettings: {}
+properties: {}
+orchestratorSettings: {}

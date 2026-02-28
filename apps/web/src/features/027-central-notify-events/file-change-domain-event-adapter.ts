@@ -7,7 +7,7 @@
  *
  * Per ADR-0007: SSE carries only identifiers — path + eventType per change.
  * Per ADR-0010: Three-layer notification pipeline — adapter → notifier → SSE.
- * Follows WorkgraphDomainEventAdapter pattern.
+ * Follows domain event adapter pattern (ADR-0010 three-layer pipeline).
  */
 
 import type { ICentralEventNotifier } from '@chainglass/shared/features/027-central-notify-events/central-event-notifier.interface';

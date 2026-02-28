@@ -8,6 +8,7 @@
  */
 
 import {
+  Activity,
   Bot,
   Code,
   FileText,
@@ -49,7 +50,7 @@ export type NavigationMode = 'phone' | 'desktop';
 export const WORKSPACE_NAV_ITEMS: readonly NavItem[] = [
   { id: 'browser', label: 'Browser', href: '/browser', icon: FolderOpen },
   { id: 'agents', label: 'Agents', href: '/agents', icon: Bot },
-  { id: 'workflows', label: 'Workflows', href: '/workgraphs', icon: ListChecks },
+  { id: 'workflows', label: 'Workflows', href: '/workflows', icon: ListChecks },
 ] as const;
 
 /**
@@ -57,6 +58,7 @@ export const WORKSPACE_NAV_ITEMS: readonly NavItem[] = [
  * Demos and internal tools that aren't core product.
  */
 export const DEV_NAV_ITEMS: readonly NavItem[] = [
+  { id: 'state-inspector', label: 'State Inspector', href: '/dev/state-inspector', icon: Activity },
   { id: 'workflow-viz', label: 'Workflow Visualization', href: '/workflow', icon: GitBranch },
   { id: 'kanban', label: 'Kanban Board', href: '/kanban', icon: LayoutDashboard },
   { id: 'agents-global', label: 'Agents (Global)', href: '/agents', icon: Bot },

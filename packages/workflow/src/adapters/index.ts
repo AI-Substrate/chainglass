@@ -31,3 +31,7 @@ export {
   ChokidarFileWatcherAdapter,
   ChokidarFileWatcherFactory,
 } from './chokidar-file-watcher.adapter.js';
+
+// Template and instance adapters (Plan 048 Phase 2)
+export { TemplateAdapter } from './template.adapter.js';
+export { InstanceAdapter } from './instance.adapter.js';

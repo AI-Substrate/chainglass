@@ -86,6 +86,11 @@ export async function readFileAction(options: ReadFileOptions): Promise<ReadFile
   // Stat for metadata
   const stats = await fileSystem.stat(absolutePath);
 
+  // Guard: reject directory paths (e.g., trailing slash in URL ?file=dir/)
+  if (stats.isDirectory) {
+    return { ok: false, error: 'not-found' as const };
+  }
+
   // Binary detection: extension-first (avoids reading binary content as UTF-8)
   // Must be BEFORE size check — binary files bypass the 5MB text limit
   const filename = path.basename(filePath);

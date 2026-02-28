@@ -42,6 +42,8 @@ export function WorkspaceAddForm() {
             name="name"
             placeholder="My Project"
             required
+            defaultValue={state.fields?.name ?? ''}
+            key={`name-${state.success}`}
             aria-describedby={state.errors?.name ? 'name-error' : undefined}
           />
           {state.errors?.name && (
@@ -58,6 +60,8 @@ export function WorkspaceAddForm() {
             name="path"
             placeholder="/home/user/project"
             required
+            defaultValue={state.fields?.path ?? ''}
+            key={`path-${state.success}`}
             aria-describedby={state.errors?.path ? 'path-error' : undefined}
           />
           {state.errors?.path && (

@@ -9,6 +9,7 @@ import type {
   InputResolution,
   LineOrchestratorSettings,
   LineProperties,
+  NodeConfig,
   NodeExecutionStatus,
   NodeOrchestratorSettings,
   NodeProperties,
@@ -44,12 +45,38 @@ export interface NarrowWorkUnitOutput {
 
 /**
  * Narrow representation of a loaded WorkUnit — just the fields collateInputs needs.
+ * Discriminated union on `type` — each variant carries its own config.
+ * Per Workshop 011: base stays config-free, type-specific data on variants only.
  */
-export interface NarrowWorkUnit {
+export interface NarrowWorkUnitBase {
   slug: string;
-  type: 'agent' | 'code' | 'user-input';
   inputs: NarrowWorkUnitInput[];
   outputs: NarrowWorkUnitOutput[];
+}
+
+export interface NarrowAgentWorkUnit extends NarrowWorkUnitBase {
+  type: 'agent';
+}
+
+export interface NarrowCodeWorkUnit extends NarrowWorkUnitBase {
+  type: 'code';
+}
+
+export interface NarrowUserInputWorkUnit extends NarrowWorkUnitBase {
+  type: 'user-input';
+  userInput: {
+    prompt: string;
+    inputType: 'text' | 'single' | 'multi' | 'confirm';
+    outputName: string;
+    options?: { key: string; label: string; description?: string }[];
+    default?: string | boolean;
+  };
+}
+
+export type NarrowWorkUnit = NarrowAgentWorkUnit | NarrowCodeWorkUnit | NarrowUserInputWorkUnit;
+
+export function isNarrowUserInputUnit(unit: NarrowWorkUnit): unit is NarrowUserInputWorkUnit {
+  return unit.type === 'user-input';
 }
 
 /**
@@ -239,11 +266,12 @@ export type ExecutionStatus = 'pending' | 'ready' | NodeExecutionStatus; // 'sta
 
 /**
  * DYK-I3: execution stays flat for display formatting compatibility.
+ * Discriminated union on `unitType` — type-specific config on variants only.
+ * Per Workshop 011: base carries common fields, UserInputNodeStatus carries userInput.
  */
-export interface NodeStatusResult {
+export interface NodeStatusResultBase {
   nodeId: string;
   unitSlug: string;
-  unitType: 'agent' | 'code' | 'user-input';
   execution: Execution;
   noContext?: boolean;
   contextFrom?: string;
@@ -271,6 +299,7 @@ export interface NodeStatusResult {
   /**
    * Present when status is 'waiting-question'.
    * Populated by execution lifecycle (Phase 6+).
+   * @deprecated Q&A protocol is scaffolding — not integrated into real agent execution. Human input is a web-layer concern (Plan 054).
    */
   pendingQuestion?: {
     questionId: string;
@@ -292,6 +321,31 @@ export interface NodeStatusResult {
 
   startedAt?: string;
   completedAt?: string;
+}
+
+export interface AgentNodeStatus extends NodeStatusResultBase {
+  unitType: 'agent';
+}
+
+export interface CodeNodeStatus extends NodeStatusResultBase {
+  unitType: 'code';
+}
+
+export interface UserInputNodeStatus extends NodeStatusResultBase {
+  unitType: 'user-input';
+  userInput: {
+    prompt: string;
+    inputType: 'text' | 'single' | 'multi' | 'confirm';
+    outputName: string;
+    options?: { key: string; label: string; description?: string }[];
+    default?: string | boolean;
+  };
+}
+
+export type NodeStatusResult = AgentNodeStatus | CodeNodeStatus | UserInputNodeStatus;
+
+export function isUserInputNodeStatus(node: NodeStatusResult): node is UserInputNodeStatus {
+  return node.unitType === 'user-input';
 }
 
 /** A chain-starter is position 0, or any parallel node that breaks a serial chain. */
@@ -412,7 +466,7 @@ export interface EndNodeResult extends BaseResult {
 // Result Types — Question/Answer Protocol (Phase 4, Plan 028)
 // ============================================
 
-/** Input options for askQuestion */
+/** Input options for askQuestion @deprecated Q&A protocol is scaffolding — not integrated into real agent execution. Human input collection is a web-layer concern. */
 export interface AskQuestionOptions {
   type: 'text' | 'single' | 'multi' | 'confirm';
   text: string;
@@ -420,21 +474,21 @@ export interface AskQuestionOptions {
   default?: string | boolean;
 }
 
-/** Result from askQuestion */
+/** Result from askQuestion @deprecated Q&A protocol is scaffolding — not integrated into real agent execution. */
 export interface AskQuestionResult extends BaseResult {
   nodeId?: string;
   questionId?: string;
   status?: 'waiting-question';
 }
 
-/** Result from answerQuestion — node stays waiting-question, restart via node:restart event */
+/** Result from answerQuestion @deprecated Q&A protocol is scaffolding — not integrated into real agent execution. */
 export interface AnswerQuestionResult extends BaseResult {
   nodeId?: string;
   questionId?: string;
   status?: 'waiting-question';
 }
 
-/** Result from getAnswer */
+/** Result from getAnswer @deprecated Q&A protocol is scaffolding — not integrated into real agent execution. */
 export interface GetAnswerResult extends BaseResult {
   nodeId?: string;
   questionId?: string;
@@ -690,12 +744,18 @@ export interface IPositionalGraphService {
   ): Promise<EndNodeResult>;
 
   // Question/Answer Protocol (Phase 4, Plan 028)
+  // @deprecated Q&A protocol is scaffolding — not integrated into real agent execution.
+  // Human input collection is a web-layer concern (Plan 054). These methods are only
+  // called by CLI `cg wf node ask/answer` and the web's answerQuestion server action
+  // (which answers pre-baked dope questions). No real agent calls askQuestion.
+  /** @deprecated Use web-layer human input submission instead. */
   askQuestion(
     ctx: WorkspaceContext,
     graphSlug: string,
     nodeId: string,
     options: AskQuestionOptions
   ): Promise<AskQuestionResult>;
+  /** @deprecated Use web-layer human input submission instead. */
   answerQuestion(
     ctx: WorkspaceContext,
     graphSlug: string,
@@ -703,6 +763,7 @@ export interface IPositionalGraphService {
     questionId: string,
     answer: unknown
   ): Promise<AnswerQuestionResult>;
+  /** @deprecated Use web-layer human input submission instead. */
   getAnswer(
     ctx: WorkspaceContext,
     graphSlug: string,
@@ -752,4 +813,21 @@ export interface IPositionalGraphService {
   // State Access (Phase 8, Plan 032 — E2E support)
   loadGraphState(ctx: WorkspaceContext, graphSlug: string): Promise<State>;
   persistGraphState(ctx: WorkspaceContext, graphSlug: string, state: State): Promise<void>;
+
+  // Snapshot Restore (Phase 5, Plan 050 — undo/redo support)
+  restoreSnapshot(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    definition: PositionalGraphDefinition,
+    nodeConfigs: Record<string, NodeConfig>
+  ): Promise<BaseResult>;
+
+  /** Load all node configs for snapshot capture. */
+  loadAllNodeConfigs(
+    ctx: WorkspaceContext,
+    graphSlug: string
+  ): Promise<{
+    nodeConfigs: Record<string, NodeConfig>;
+    errors: import('@chainglass/shared').ResultError[];
+  }>;
 }

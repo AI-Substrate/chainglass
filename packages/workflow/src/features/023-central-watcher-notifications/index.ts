@@ -12,10 +12,6 @@ export type { ICentralWatcherService } from './central-watcher.interface.js';
 // Service implementation
 export { CentralWatcherService } from './central-watcher.service.js';
 
-// WorkGraph watcher adapter (Phase 3)
-export { WorkGraphWatcherAdapter } from './workgraph-watcher.adapter.js';
-export type { WorkGraphChangedEvent } from './workgraph-watcher.adapter.js';
-
 // Fakes
 export { FakeWatcherAdapter } from './fake-watcher-adapter.js';
 export {
@@ -34,3 +30,7 @@ export { SOURCE_WATCHER_IGNORED } from './source-watcher.constants.js';
 
 // Fake file change watcher (Plan 045)
 export { FakeFileChangeWatcherAdapter } from './fake-file-change-watcher.js';
+
+// Workflow watcher adapter (Plan 050 Phase 6)
+export { WorkflowWatcherAdapter } from './workflow-watcher.adapter.js';
+export type { WorkflowChangedEvent } from './workflow-watcher.adapter.js';

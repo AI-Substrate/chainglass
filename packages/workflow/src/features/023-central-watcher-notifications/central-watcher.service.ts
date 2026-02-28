@@ -266,42 +266,54 @@ export class CentralWatcherService implements ICentralWatcherService {
   }
 
   private async createSourceWatchers(): Promise<void> {
-    // Note: iterates watcherMetadata populated by createDataWatchers(), so source
-    // watchers are only created for worktrees that have .chainglass/data/
-    for (const [worktreePath, metadata] of this.watcherMetadata) {
-      if (this.sourceWatchers.has(worktreePath)) continue;
+    // FX001: Discover worktrees independently — source watchers must not gate
+    // on .chainglass/data/ existence. All registered worktrees get source watchers.
+    const workspaces = await this.registry.list().catch((err) => {
+      this.logError('Failed to list workspaces for source watchers', err);
+      return [];
+    });
 
-      try {
-        const watcher = this.fileWatcherFactory.create({
-          ignoreInitial: true,
-          atomic: true,
-          awaitWriteFinish: { stabilityThreshold: 300, pollInterval: 100 },
-          ignored: SOURCE_WATCHER_IGNORED,
-        });
+    for (const workspace of workspaces) {
+      const worktrees = await this.worktreeResolver.detectWorktrees(workspace.path).catch((err) => {
+        this.logError(`Failed to detect worktrees for ${workspace.slug} (source watchers)`, err);
+        return [];
+      });
 
-        watcher.add(worktreePath);
+      for (const wt of worktrees) {
+        if (this.sourceWatchers.has(wt.path)) continue;
 
-        const eventTypes: FileWatcherEvent[] = ['change', 'add', 'unlink', 'addDir', 'unlinkDir'];
-        for (const eventType of eventTypes) {
-          watcher.on(eventType, (pathOrError) => {
-            if (typeof pathOrError === 'string') {
-              this.dispatchEvent(pathOrError, eventType, worktreePath, metadata.workspaceSlug);
-            }
+        try {
+          const watcher = this.fileWatcherFactory.create({
+            ignoreInitial: true,
+            atomic: true,
+            awaitWriteFinish: { stabilityThreshold: 300, pollInterval: 100 },
+            ignored: SOURCE_WATCHER_IGNORED,
           });
+
+          watcher.add(wt.path);
+
+          const eventTypes: FileWatcherEvent[] = ['change', 'add', 'unlink', 'addDir', 'unlinkDir'];
+          for (const eventType of eventTypes) {
+            watcher.on(eventType, (pathOrError) => {
+              if (typeof pathOrError === 'string') {
+                this.dispatchEvent(pathOrError, eventType, wt.path, workspace.slug);
+              }
+            });
+          }
+
+          // Log source watcher errors
+          watcher.on('error', (pathOrError) => {
+            this.logError(
+              `Source watcher error for ${wt.path}`,
+              pathOrError instanceof Error ? pathOrError : new Error(String(pathOrError))
+            );
+          });
+
+          this.sourceWatchers.set(wt.path, watcher);
+          this.logDebug('Source watcher created', { worktreePath: wt.path });
+        } catch (err) {
+          this.logError(`Failed to create source watcher for ${wt.path}`, err);
         }
-
-        // Log source watcher errors
-        watcher.on('error', (pathOrError) => {
-          this.logError(
-            `Source watcher error for ${worktreePath}`,
-            pathOrError instanceof Error ? pathOrError : new Error(String(pathOrError))
-          );
-        });
-
-        this.sourceWatchers.set(worktreePath, watcher);
-        this.logDebug('Source watcher created', { worktreePath });
-      } catch (err) {
-        this.logError(`Failed to create source watcher for ${worktreePath}`, err);
       }
     }
   }
@@ -330,57 +342,66 @@ export class CentralWatcherService implements ICentralWatcherService {
     });
     if (!workspaces) return;
 
-    // Discover current worktrees in parallel
-    const currentWorktrees = new Map<string, string>(); // worktreePath → workspaceSlug
+    // Discover current worktrees with data dirs (for data watchers)
+    const currentDataWorktrees = new Map<string, string>(); // worktreePath → workspaceSlug
+    // Discover ALL worktrees (for source watchers — no data dir gate)
+    const currentAllWorktrees = new Map<string, string>();
 
     const worktreeResults = await Promise.all(
       workspaces.map(async (workspace) => {
         try {
           const worktrees = await this.worktreeResolver.detectWorktrees(workspace.path);
-          const entries: Array<{ path: string; slug: string }> = [];
+          const dataEntries: Array<{ path: string; slug: string }> = [];
+          const allEntries: Array<{ path: string; slug: string }> = [];
           for (const wt of worktrees) {
+            allEntries.push({ path: wt.path, slug: workspace.slug });
             const dataPath = `${wt.path}/.chainglass/data`;
             try {
               const exists = await this.fs.exists(dataPath);
               if (exists) {
-                entries.push({ path: wt.path, slug: workspace.slug });
+                dataEntries.push({ path: wt.path, slug: workspace.slug });
               }
             } catch {
               // Skip worktrees where we can't check data dir
             }
           }
-          return entries;
+          return { dataEntries, allEntries };
         } catch (err) {
           this.logError(`Failed to detect worktrees for ${workspace.slug} during rescan`, err);
-          return [];
+          return { dataEntries: [], allEntries: [] };
         }
       })
     );
 
-    for (const entry of worktreeResults.flat()) {
-      currentWorktrees.set(entry.path, entry.slug);
+    for (const result of worktreeResults) {
+      for (const entry of result.dataEntries) {
+        currentDataWorktrees.set(entry.path, entry.slug);
+      }
+      for (const entry of result.allEntries) {
+        currentAllWorktrees.set(entry.path, entry.slug);
+      }
     }
 
-    // Close watchers for removed worktrees
+    // Close data watchers for removed worktrees
     const removals: Promise<void>[] = [];
     for (const [wtPath, watcher] of this.dataWatchers) {
-      if (!currentWorktrees.has(wtPath)) {
+      if (!currentDataWorktrees.has(wtPath)) {
         removals.push(watcher.close());
         this.dataWatchers.delete(wtPath);
         this.watcherMetadata.delete(wtPath);
       }
     }
-    // Close source watchers for removed worktrees
+    // Close source watchers for removed worktrees (uses allWorktrees, not just data)
     for (const [wtPath, watcher] of this.sourceWatchers) {
-      if (!currentWorktrees.has(wtPath)) {
+      if (!currentAllWorktrees.has(wtPath)) {
         removals.push(watcher.close());
         this.sourceWatchers.delete(wtPath);
       }
     }
     await Promise.all(removals);
 
-    // Create watchers for new worktrees in parallel
-    const additions = [...currentWorktrees.entries()]
+    // Create data watchers for new worktrees in parallel
+    const additions = [...currentDataWorktrees.entries()]
       .filter(([wtPath]) => !this.dataWatchers.has(wtPath))
       .map(([wtPath, slug]) => this.createWatcherForWorktree(wtPath, slug));
     await Promise.all(additions);

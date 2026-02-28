@@ -7,8 +7,18 @@ inputs:
   - name: spec
     type: data
     data_type: text
-    required: true
-    description: The specification for what code to generate
+    required: false
+    description: The specification for what code to generate (legacy)
+  - name: challenge
+    type: data
+    data_type: text
+    required: false
+    description: The coding challenge to solve
+  - name: language
+    type: data
+    data_type: text
+    required: false
+    description: The programming language to use
 
 outputs:
   - name: language

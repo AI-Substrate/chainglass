@@ -114,6 +114,12 @@ export const POSITIONAL_GRAPH_DI_TOKENS = {
   WORKUNIT_ADAPTER: 'WorkUnitAdapter',
   /** IWorkUnitService — service for loading/listing/validating work units (Plan 029: Phase 2) */
   WORKUNIT_SERVICE: 'IWorkUnitService',
+  /** ITemplateService — workflow template lifecycle (Plan 048: Phase 2) */
+  TEMPLATE_SERVICE: 'ITemplateService',
+  /** TemplateAdapter — filesystem path resolution for templates (Plan 048) */
+  TEMPLATE_ADAPTER: 'TemplateAdapter',
+  /** InstanceAdapter — filesystem path resolution for instances (Plan 048) */
+  INSTANCE_ADAPTER: 'InstanceAdapter',
 } as const;
 
 /**

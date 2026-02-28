@@ -20,7 +20,16 @@ import { toast } from 'sonner';
 
 import type { MruTracker } from '@/lib/sdk/sdk-provider';
 
-import type { BarContext, BarHandler, ExplorerPanelHandle } from '../types';
+import type {
+  BarContext,
+  BarHandler,
+  CodeSearchAvailability,
+  CodeSearchResult,
+  ExplorerPanelHandle,
+  FileChangeInfo,
+  FileSearchEntry,
+  FileSearchSortMode,
+} from '../types';
 import { AsciiSpinner } from './ascii-spinner';
 import {
   CommandPaletteDropdown,
@@ -42,11 +51,81 @@ export interface ExplorerPanelProps {
   mru?: MruTracker;
   /** Called when a command is executed via palette (for MRU persistence). */
   onCommandExecute?: (commandId: string) => void;
+  /** File search results from useFileFilter (Plan 049 Feature 2) */
+  fileSearchResults?: FileSearchEntry[] | null;
+  /** Whether the file search cache is loading */
+  fileSearchLoading?: boolean;
+  /** File search error message */
+  fileSearchError?: string | null;
+  /** Current sort mode for file search */
+  sortMode?: FileSearchSortMode;
+  /** Cycle sort mode callback */
+  onSortModeChange?: () => void;
+  /** Whether hidden/ignored files are shown */
+  includeHidden?: boolean;
+  /** Toggle hidden files callback */
+  onIncludeHiddenChange?: () => void;
+  /** Navigate to a file from search results */
+  onFileSelect?: (path: string) => void;
+  /** Context menu: copy full (absolute) path */
+  onCopyFullPath?: (path: string) => void;
+  /** Context menu: copy relative path */
+  onCopyRelativePath?: (path: string) => void;
+  /** Context menu: copy file content */
+  onCopyContent?: (path: string) => void;
+  /** Context menu: download file */
+  onDownload?: (path: string) => void;
+  /** Working changes for status badge lookup */
+  workingChanges?: FileChangeInfo[];
+  /** Called when search query changes (for file filter hook) */
+  onSearchQueryChange?: (query: string) => void;
+  /** FlowSpace search results (Plan 051) */
+  codeSearchResults?: CodeSearchResult[] | null;
+  codeSearchLoading?: boolean;
+  codeSearchError?: string | null;
+  codeSearchAvailability?: CodeSearchAvailability;
+  codeSearchGraphAge?: string | null;
+  codeSearchFolders?: Record<string, number> | null;
+  /** Navigate to a code symbol from FlowSpace results */
+  onCodeSearchSelect?: (filePath: string, startLine: number) => void;
+  /** Called when FlowSpace search query changes */
+  onFlowspaceQueryChange?: (query: string, mode: 'grep' | 'semantic') => void;
 }
 
 export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>(
   function ExplorerPanel(
-    { filePath, handlers, context, onCopy, placeholder, sdk, mru, onCommandExecute },
+    {
+      filePath,
+      handlers,
+      context,
+      onCopy,
+      placeholder,
+      sdk,
+      mru,
+      onCommandExecute,
+      fileSearchResults,
+      fileSearchLoading,
+      fileSearchError,
+      sortMode,
+      onSortModeChange,
+      includeHidden,
+      onIncludeHiddenChange,
+      onFileSelect,
+      onCopyFullPath,
+      onCopyRelativePath,
+      onCopyContent,
+      onDownload,
+      workingChanges,
+      onSearchQueryChange,
+      codeSearchResults,
+      codeSearchLoading,
+      codeSearchError,
+      codeSearchAvailability,
+      codeSearchGraphAge,
+      codeSearchFolders,
+      onCodeSearchSelect,
+      onFlowspaceQueryChange,
+    },
     ref
   ) {
     const [editing, setEditing] = useState(false);
@@ -61,6 +140,7 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
     // DYK-ST001-01: paramGathering overrides prefix-derived mode
     const paletteMode = editing && inputValue.startsWith('>') && !!sdk;
     const symbolMode = editing && inputValue.startsWith('#');
+    const semanticMode = editing && inputValue.startsWith('$');
     const paletteFilter = paletteMode ? inputValue.slice(1).trim() : '';
     // Show dropdown whenever editing is active and SDK available (like VS Code)
     const showDropdown = editing && !!sdk && !processing;
@@ -69,9 +149,27 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
       ? ('param' as const)
       : paletteMode
         ? ('commands' as const)
-        : symbolMode
-          ? ('symbols' as const)
-          : ('search' as const);
+        : semanticMode
+          ? ('semantic' as const)
+          : symbolMode
+            ? ('symbols' as const)
+            : ('search' as const);
+
+    // Plan 049 Feature 2: File search mode has results — delegate keyboard
+    const searchHasResults =
+      dropdownMode === 'search' &&
+      inputValue.trim().length > 0 &&
+      !inputValue.startsWith('>') &&
+      !inputValue.startsWith('#') &&
+      !inputValue.startsWith('$') &&
+      Array.isArray(fileSearchResults) &&
+      fileSearchResults.length > 0;
+
+    // Plan 051: FlowSpace result modes — delegate keyboard
+    const flowspaceHasResults =
+      (dropdownMode === 'symbols' || dropdownMode === 'semantic') &&
+      Array.isArray(codeSearchResults) &&
+      codeSearchResults.length > 0;
 
     // Sync: when filePath changes externally, exit edit mode and update input value
     useEffect(() => {
@@ -83,6 +181,27 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
         setInputValue(filePath);
       }
     }, [filePath, processing]);
+
+    // Plan 049 Feature 2: Notify parent of search query changes
+    useEffect(() => {
+      if (dropdownMode === 'search' && editing) {
+        onSearchQueryChange?.(inputValue.trim());
+      } else {
+        onSearchQueryChange?.('');
+      }
+    }, [inputValue, dropdownMode, editing, onSearchQueryChange]);
+
+    // Plan 051: Notify parent of FlowSpace query changes
+    useEffect(() => {
+      if ((dropdownMode === 'symbols' || dropdownMode === 'semantic') && editing) {
+        const prefix = inputValue.startsWith('$') ? '$' : '#';
+        const query = inputValue.slice(1).trim();
+        const mode = prefix === '$' ? 'semantic' : 'grep';
+        onFlowspaceQueryChange?.(query, mode);
+      } else {
+        onFlowspaceQueryChange?.('', 'grep');
+      }
+    }, [inputValue, dropdownMode, editing, onFlowspaceQueryChange]);
 
     // Expose focusInput + openPalette
     useImperativeHandle(ref, () => ({
@@ -217,9 +336,23 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
           }
         }
 
+        // Plan 049 Feature 2: In search mode with results, delegate ↑↓ Enter to dropdown
+        if (searchHasResults || flowspaceHasResults) {
+          if (['ArrowDown', 'ArrowUp', 'Enter'].includes(e.key)) {
+            dropdownRef.current?.handleKeyDown(e);
+            return;
+          }
+        }
+
         // Escape always exits edit mode (closes dropdown if showing)
         if (e.key === 'Escape') {
           exitEditMode();
+          return;
+        }
+
+        // Plan 051: Block Enter fallback for FlowSpace prefixed modes
+        if ((symbolMode || semanticMode) && e.key === 'Enter') {
+          e.preventDefault();
           return;
         }
 
@@ -229,7 +362,17 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
           handleSubmit();
         }
       },
-      [paramGathering, paletteMode, exitEditMode, handleSubmit, handleParamSubmit]
+      [
+        paramGathering,
+        paletteMode,
+        searchHasResults,
+        flowspaceHasResults,
+        symbolMode,
+        semanticMode,
+        exitEditMode,
+        handleSubmit,
+        handleParamSubmit,
+      ]
     );
 
     const handleBlur = useCallback(() => {
@@ -308,6 +451,33 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
               onExecute={handlePaletteExecute}
               onClose={exitPaletteMode}
               paramGathering={paramGathering}
+              inputValue={inputValue}
+              fileSearchResults={fileSearchResults}
+              fileSearchLoading={fileSearchLoading}
+              fileSearchError={fileSearchError}
+              sortMode={sortMode}
+              onSortModeChange={onSortModeChange}
+              includeHidden={includeHidden}
+              onIncludeHiddenChange={onIncludeHiddenChange}
+              onFileSelect={(path) => {
+                onFileSelect?.(path);
+                exitEditMode();
+              }}
+              onCopyFullPath={onCopyFullPath}
+              onCopyRelativePath={onCopyRelativePath}
+              onCopyContent={onCopyContent}
+              onDownload={onDownload}
+              workingChanges={workingChanges}
+              codeSearchResults={codeSearchResults}
+              codeSearchLoading={codeSearchLoading}
+              codeSearchError={codeSearchError}
+              codeSearchAvailability={codeSearchAvailability}
+              codeSearchGraphAge={codeSearchGraphAge}
+              codeSearchFolders={codeSearchFolders}
+              onCodeSearchSelect={(filePath, startLine) => {
+                onCodeSearchSelect?.(filePath, startLine);
+                exitEditMode();
+              }}
             />
           )}
         </div>

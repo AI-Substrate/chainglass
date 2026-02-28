@@ -21,6 +21,7 @@ import { registerPhaseCommands } from '../commands/phase.command.js';
 import { registerPositionalGraphCommands } from '../commands/positional-graph.command.js';
 import { registerRunsCommands } from '../commands/runs.command.js';
 import { registerSampleCommands } from '../commands/sample.command.js';
+import { registerTemplateCommands } from '../commands/template.command.js';
 import { registerUnitCommands } from '../commands/unit.command.js';
 import { registerWebCommand } from '../commands/web.command.js';
 import { registerWorkflowCommands } from '../commands/workflow.command.js';
@@ -236,6 +237,8 @@ export function createProgram(options: CreateProgramOptions = {}): Command {
   registerWorkGraphCommands(program);
   // Positional Graph commands (Plan 026: Phase 6)
   registerPositionalGraphCommands(program);
+  // Template commands (Plan 048: Phase 2)
+  registerTemplateCommands(program);
 
   // Default behavior: show help when no command provided
   if (!options.testMode) {

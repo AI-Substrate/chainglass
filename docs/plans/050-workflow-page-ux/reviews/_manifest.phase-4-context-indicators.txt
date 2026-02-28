@@ -1,0 +1,14 @@
+A	apps/web/src/features/050-workflow-page/components/context-flow-indicator.tsx
+A	apps/web/src/features/050-workflow-page/components/gate-chip.tsx
+A	apps/web/src/features/050-workflow-page/components/node-properties-panel.tsx
+M	apps/web/src/features/050-workflow-page/components/workflow-canvas.tsx
+M	apps/web/src/features/050-workflow-page/components/workflow-editor.tsx
+M	apps/web/src/features/050-workflow-page/components/workflow-line.tsx
+M	apps/web/src/features/050-workflow-page/components/workflow-node-card.tsx
+A	apps/web/src/features/050-workflow-page/lib/context-badge.ts
+A	apps/web/src/features/050-workflow-page/lib/related-nodes.ts
+A	docs/plans/050-workflow-page-ux/tasks/phase-4-context-indicators/execution.log.md
+M	docs/plans/050-workflow-page-ux/workflow-page-ux-plan.md
+A	test/unit/web/features/050-workflow-page/context-badge.test.ts
+A	test/unit/web/features/050-workflow-page/gate-chip.test.tsx
+M	test/unit/web/features/050-workflow-page/workflow-node-card.test.tsx

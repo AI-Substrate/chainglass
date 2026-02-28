@@ -1,0 +1,15 @@
+# unstaged
+M	apps/web/app/actions/workflow-actions.ts
+M	apps/web/src/features/050-workflow-page/components/node-properties-panel.tsx
+M	apps/web/src/features/050-workflow-page/components/workflow-canvas.tsx
+M	apps/web/src/features/050-workflow-page/components/workflow-editor.tsx
+M	apps/web/src/features/050-workflow-page/components/workflow-line.tsx
+M	apps/web/src/features/050-workflow-page/components/workflow-node-card.tsx
+M	apps/web/src/features/050-workflow-page/components/workflow-temp-bar.tsx
+M	apps/web/src/features/050-workflow-page/types.ts
+M	docs/plans/050-workflow-page-ux/workflow-page-ux-plan.md
+M	packages/positional-graph/src/fakes/fake-positional-graph-service.ts
+M	packages/positional-graph/src/interfaces/positional-graph-service.interface.ts
+M	packages/positional-graph/src/services/positional-graph.service.ts
+
+# staged

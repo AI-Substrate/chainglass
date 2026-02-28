@@ -48,7 +48,7 @@ function createTestService(
   return new PositionalGraphService(fs, pathResolver, yamlParser, adapter, loader);
 }
 
-/** Write data.json for a completed node. */
+/** Write data.json for a completed node (Format A: wrapped in { outputs: { ... } }). */
 async function writeNodeData(
   fs: FakeFileSystem,
   pathResolver: FakePathResolver,
@@ -59,7 +59,7 @@ async function writeNodeData(
   const nodeDir = `/workspace/my-project/.chainglass/data/workflows/${graphSlug}/nodes/${nodeId}`;
   const dataDir = pathResolver.join(nodeDir, 'data');
   await fs.mkdir(dataDir, { recursive: true });
-  await fs.writeFile(pathResolver.join(dataDir, 'data.json'), JSON.stringify(data));
+  await fs.writeFile(pathResolver.join(dataDir, 'data.json'), JSON.stringify({ outputs: data }));
 }
 
 /** Write state.json for a graph. */
@@ -113,6 +113,62 @@ describe('PositionalGraphService — collateInputs', () => {
     const loader = createFakeUnitLoader([sampleInput, sampleCoder, researchConcept]);
     service = createTestService(fs, pathResolver, loader);
     ctx = createTestContext();
+  });
+
+  // ============================================
+  // Format A resolution (data.json wrapped in { outputs: { ... } })
+  // ============================================
+
+  describe('Format A (wrapped outputs) resolution', () => {
+    it('resolves available when data.json uses Format A wrapper', async () => {
+      /*
+      Test Doc:
+      - Why: Prevent regression on F01 — saveOutputData writes { outputs: { name: value } } but collateInputs originally read flat.
+      - Contract: collateInputs resolves data?.outputs?.[name] ?? data?.[name] with backward-compatible fallback.
+      - Usage Notes: writeNodeData helper wraps in Format A automatically; this test verifies the read path.
+      - Quality Contribution: Catches data-shape mismatch between saveOutputData writer and collateInputs reader.
+      - Worked Example: { outputs: { spec: { value: 'The spec content' } } } → available with correct data.
+      */
+      // Setup: sample-input → sample-coder, data written in Format A
+      const { lineId: line0 } = await service.create(ctx, 'test-graph');
+      const addLine1 = await service.addLine(ctx, 'test-graph');
+      const line1 = addLine1.lineId as string;
+
+      const inputNode = await service.addNode(ctx, 'test-graph', line0, 'sample-input');
+      const coderNode = await service.addNode(ctx, 'test-graph', line1, 'sample-coder');
+      const inputNodeId = inputNode.nodeId as string;
+      const coderNodeId = coderNode.nodeId as string;
+
+      await service.setInput(ctx, 'test-graph', coderNodeId, 'spec', {
+        from_unit: 'sample-input',
+        from_output: 'spec',
+      });
+
+      // Mark input node as complete
+      await writeState(fs, pathResolver, 'test-graph', {
+        graph_status: 'in_progress',
+        updated_at: new Date().toISOString(),
+        nodes: { [inputNodeId]: { status: 'complete', completed_at: new Date().toISOString() } },
+        transitions: {},
+      });
+
+      // Write data — writeNodeData wraps in Format A automatically
+      await writeNodeData(fs, pathResolver, 'test-graph', inputNodeId, {
+        spec: { type: 'data', dataType: 'text', value: 'The spec content' },
+      });
+
+      const result = await service.collateInputs(ctx, 'test-graph', coderNodeId);
+
+      expect(result.ok).toBe(true);
+      expect(result.inputs.spec.status).toBe('available');
+      if (result.inputs.spec.status === 'available') {
+        expect(result.inputs.spec.detail.sources[0].data).toEqual({
+          type: 'data',
+          dataType: 'text',
+          value: 'The spec content',
+        });
+      }
+    });
   });
 
   // ============================================

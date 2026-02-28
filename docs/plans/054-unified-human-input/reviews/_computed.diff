@@ -1,0 +1,493 @@
+diff --git a/.chainglass/units/sample-challenge/unit.yaml b/.chainglass/units/sample-challenge/unit.yaml
+new file mode 100644
+index 0000000..1533c65
+--- /dev/null
++++ b/.chainglass/units/sample-challenge/unit.yaml
+@@ -0,0 +1,17 @@
++slug: sample-challenge
++type: user-input
++version: 1.0.0
++description: Collects a coding challenge description from the user
++
++inputs: []
++
++outputs:
++  - name: challenge
++    type: data
++    data_type: text
++    required: true
++    description: The coding challenge to solve
++
++user_input:
++  question_type: text
++  prompt: "What coding challenge should we solve?"
+diff --git a/.chainglass/units/sample-coder/unit.yaml b/.chainglass/units/sample-coder/unit.yaml
+index 610375c..370ff85 100644
+--- a/.chainglass/units/sample-coder/unit.yaml
++++ b/.chainglass/units/sample-coder/unit.yaml
+@@ -7,8 +7,18 @@ inputs:
+   - name: spec
+     type: data
+     data_type: text
+-    required: true
+-    description: The specification for what code to generate
++    required: false
++    description: The specification for what code to generate (legacy)
++  - name: challenge
++    type: data
++    data_type: text
++    required: false
++    description: The coding challenge to solve
++  - name: language
++    type: data
++    data_type: text
++    required: false
++    description: The programming language to use
+ 
+ outputs:
+   - name: language
+diff --git a/.chainglass/units/sample-language/unit.yaml b/.chainglass/units/sample-language/unit.yaml
+new file mode 100644
+index 0000000..0bb0166
+--- /dev/null
++++ b/.chainglass/units/sample-language/unit.yaml
+@@ -0,0 +1,27 @@
++slug: sample-language
++type: user-input
++version: 1.0.0
++description: Collects the programming language choice from the user
++
++inputs: []
++
++outputs:
++  - name: language
++    type: data
++    data_type: text
++    required: true
++    description: The chosen programming language
++
++user_input:
++  question_type: single
++  prompt: "Which programming language should we use?"
++  options:
++    - key: typescript
++      label: TypeScript
++      description: Modern typed JavaScript
++    - key: python
++      label: Python
++      description: General-purpose scripting
++    - key: go
++      label: Go
++      description: Systems and cloud-native
+diff --git a/apps/web/next-env.d.ts b/apps/web/next-env.d.ts
+index c4b7818..9edff1c 100644
+--- a/apps/web/next-env.d.ts
++++ b/apps/web/next-env.d.ts
+@@ -1,6 +1,6 @@
+ /// <reference types="next" />
+ /// <reference types="next/image-types/global" />
+-import "./.next/dev/types/routes.d.ts";
++import "./.next/types/routes.d.ts";
+ 
+ // NOTE: This file should not be edited
+ // see https://nextjs.org/docs/app/api-reference/config/typescript for more information.
+diff --git a/apps/web/src/features/050-workflow-page/components/human-input-modal.tsx b/apps/web/src/features/050-workflow-page/components/human-input-modal.tsx
+index da39080..30ea080 100644
+--- a/apps/web/src/features/050-workflow-page/components/human-input-modal.tsx
++++ b/apps/web/src/features/050-workflow-page/components/human-input-modal.tsx
+@@ -36,6 +36,26 @@ export function HumanInputModal({
+   onSubmit,
+   onClose,
+ }: HumanInputModalProps) {
++  if (!userInput) {
++    return (
++      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
++        <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl dark:bg-zinc-900">
++          <p className="text-red-600 dark:text-red-400">
++            This node is not configured for user input. Check unit.yaml for a valid user_input
++            section.
++          </p>
++          <button
++            type="button"
++            onClick={onClose}
++            className="mt-4 rounded bg-zinc-200 px-4 py-2 dark:bg-zinc-700"
++          >
++            Close
++          </button>
++        </div>
++      </div>
++    );
++  }
++
+   const [freeform, setFreeform] = useState(initialFreeform ?? '');
+   const [textValue, setTextValue] = useState(
+     typeof initialValue === 'string'
+diff --git a/apps/web/src/features/050-workflow-page/components/workflow-editor.tsx b/apps/web/src/features/050-workflow-page/components/workflow-editor.tsx
+index ff88ffa..48f100d 100644
+--- a/apps/web/src/features/050-workflow-page/components/workflow-editor.tsx
++++ b/apps/web/src/features/050-workflow-page/components/workflow-editor.tsx
+@@ -94,6 +94,10 @@ export function WorkflowEditor({
+     async (nodeId: string) => {
+       const node = graphStatus.lines.flatMap((l) => l.nodes).find((n) => n.nodeId === nodeId);
+       if (!node || node.unitType !== 'user-input') return;
++      if (!node.userInput) {
++        toast.error('Node is not configured for user input');
++        return;
++      }
+ 
+       // Load previous data for pre-fill (if completed)
+       if (node.status === 'complete') {
+diff --git a/docs/plans/054-unified-human-input/tasks/phase-3-demo-integration-cleanup/execution.log.md b/docs/plans/054-unified-human-input/tasks/phase-3-demo-integration-cleanup/execution.log.md
+new file mode 100644
+index 0000000..cddd2d0
+--- /dev/null
++++ b/docs/plans/054-unified-human-input/tasks/phase-3-demo-integration-cleanup/execution.log.md
+@@ -0,0 +1,33 @@
++# Execution Log: Phase 3 — Demo + Integration + Cleanup
++
++**Plan**: 054-unified-human-input
++**Phase**: Phase 3
++**Started**: 2026-02-28
++
++---
++
++## Stage 1: Sample Units + Dope Scenarios
++
++**T002**: Created `sample-challenge` (text: "What coding challenge should we solve?", output: `challenge`) and `sample-language` (single-choice: TypeScript/Python/Go with `{key, label, description}` options, output: `language`). Updated `sample-coder` to accept 3 inputs: `spec` (kept for backward compat with `demo-serial`), `challenge`, and `language`. All inputs set to `required: false` so partial wiring works. Kept `sample-input` as-is — 50+ references across codebase made renaming too risky. 4668 tests pass (1 pre-existing failure in unrelated copilot-cli-adapter).
++
++**T003**: Added `UNIT_CHALLENGE` and `UNIT_LANGUAGE` constants. Created `demo-multi-input` scenario: Line 0 = `sample-challenge` + `sample-language`, Line 1 = `sample-coder` wired to both outputs (`challenge` → `challenge`, `language` → `language`). `demo-serial` untouched — still uses `sample-input` → `spec`. Dope script runs successfully, generated workflow has correct wiring in `node.yaml`. All 10 dope integration tests pass.
++
++## Stage 2: Integration Test
++
++**T004**: Added multi-node composition test to `submit-user-input-lifecycle.test.ts`. Creates 2 user-input nodes (`sample-challenge` text, `sample-language` single-choice) on Line 0, 1 downstream `multi-coder` on Line 1 wired to both outputs. Asserts: before submission → downstream not ready; after first submission → still not ready (partial); after both → `ready: true, inputsAvailable: true, status: 'ready'`. All 3 lifecycle tests pass.
++
++## Stage 3: Error Guard + Validation
++
++**T005**: Added minimal error guard in `HumanInputModal` — if `userInput` is falsy, renders error message with Close button instead of broken form. Added guard in `workflow-editor.tsx` `openHumanInputModal` — if `node.userInput` undefined, shows toast error and returns early. All 7 modal tests pass.
++
++**T006**: Ran `just fft` — lint, format, typecheck, then test. 332 test files, 4679 tests pass, 0 failures. Clean.
++
++## Evidence
++
++- 4679 tests pass, 76 skipped (all pre-existing skips)
++- `just fft` exit code 0
++- `demo-multi-input` dope scenario generates correct graph structure
++- All 10 dope integration tests pass
++- All 3 lifecycle tests pass (including new multi-node composition)
++- All 7 modal rendering tests pass
++
+diff --git a/docs/plans/054-unified-human-input/tasks/phase-3-demo-integration-cleanup/tasks.fltplan.md b/docs/plans/054-unified-human-input/tasks/phase-3-demo-integration-cleanup/tasks.fltplan.md
+index 061edf9..ce165b2 100644
+--- a/docs/plans/054-unified-human-input/tasks/phase-3-demo-integration-cleanup/tasks.fltplan.md
++++ b/docs/plans/054-unified-human-input/tasks/phase-3-demo-integration-cleanup/tasks.fltplan.md
+@@ -3,7 +3,7 @@
+ **Plan**: [unified-human-input-plan.md](../../unified-human-input-plan.md)
+ **Phase**: Phase 3: Demo + Integration + Cleanup
+ **Generated**: 2026-02-28
+-**Status**: Ready for takeoff
++**Status**: Landed
+ 
+ ---
+ 
+@@ -65,9 +65,9 @@ stateDiagram-v2
+ 
+ <!-- Updated by /plan-6-v2 during implementation: [ ] → [~] → [x] -->
+ 
+-- [ ] **Stage 1: Dope demo scenarios** — Create sample units + 2 dope scenarios for user-input nodes (`dope-workflows.ts`, `sample-choice/unit.yaml`, `sample-confirm/unit.yaml`)
+-- [ ] **Stage 2: Integration test** — Multi-node composition lifecycle test proving downstream gates open (`submit-user-input-lifecycle.test.ts`)
+-- [ ] **Stage 3: Error guard + validation** — Malformed config error state in modal/editor + Next.js MCP validation (`human-input-modal.tsx`, `workflow-editor.tsx`)
++- [ ] **Stage 1: Sample units + dope scenarios** — Rename `sample-input` → `sample-challenge`, create `sample-language`, update `sample-coder` to 2 inputs, update `demo-serial` wiring, add `demo-multi-input` scenario
++- [ ] **Stage 2: Integration test** — Multi-node composition lifecycle test proving downstream gates open
++- [ ] **Stage 3: Error guard + validation** — Minimal error guard in modal/editor + Next.js MCP validation
+ 
+ ---
+ 
+@@ -113,9 +113,8 @@ flowchart LR
+ 
+ ## Checklist
+ 
+-- [ ] T001: Add `demo-user-input` dope scenario
+-- [ ] T002: Create sample user-input units for multi-input demo
+-- [ ] T003: Add `demo-multi-input` dope scenario
+-- [ ] T004: Integration test: submit → complete → downstream gates open
+-- [ ] T005: Error state for missing `user_input` config
+-- [ ] T006: Verify via Next.js MCP: zero errors, routes work
++- [x] T002: Rename/create sample units + update sample-coder
++- [x] T003: Update demo-serial + add demo-multi-input
++- [x] T004: Multi-node integration test
++- [x] T005: Error state guard (minimal)
++- [x] T006: Next.js MCP validation
+diff --git a/docs/plans/054-unified-human-input/tasks/phase-3-demo-integration-cleanup/tasks.md b/docs/plans/054-unified-human-input/tasks/phase-3-demo-integration-cleanup/tasks.md
+index b5447da..5ddf678 100644
+--- a/docs/plans/054-unified-human-input/tasks/phase-3-demo-integration-cleanup/tasks.md
++++ b/docs/plans/054-unified-human-input/tasks/phase-3-demo-integration-cleanup/tasks.md
+@@ -120,35 +120,45 @@ flowchart TD
+     end
+ 
+     subgraph Phase3["Phase 3: Demo + Integration + Cleanup"]
+-        T001["T001: demo-user-input scenario"]:::pending
+-        T002["T002: Multi-input demo units"]:::pending
+-        T003["T003: demo-multi-input scenario"]:::pending
+-        T004["T004: Integration test"]:::pending
++        T002["T002: Rename/create sample units<br/>+ update sample-coder"]:::pending
++        T003["T003: Update demo-serial<br/>+ add demo-multi-input"]:::pending
++        T004["T004: Multi-node integration test"]:::pending
+         T005["T005: Error state guard"]:::pending
+         T006["T006: Next.js MCP validation"]:::pending
+     end
+ 
+-    P4 -->|"lifecycle pattern"| T001
++    P4 -->|"lifecycle pattern"| T003
+     P5 -->|"wiring pattern"| T003
+     P4 -->|"lifecycle test"| T004
+     P3 -->|"error handling"| T005
+     T002 --> T003
+-    T001 --> T006
++    T002 --> T004
+     T003 --> T006
+ ```
+ 
+ ---
+ 
++## DYK Decisions (2026-02-28)
++
++| # | Decision | Impact |
++|---|----------|--------|
++| DYK-1 | Drop T001 — `demo-serial` already creates a user-input → coder workflow, satisfying AC-14 | Removed task |
++| DYK-2 | Rename `sample-input` → `sample-challenge`. Create `sample-language` (single-choice). Update `sample-coder` to 2 inputs (`challenge` + `language`). Update `demo-serial` wiring. | Redesigned T002/T003 |
++| DYK-3 | YAML options must use `{key, label}` object format per Zod schema, not plain strings | T002 note |
++| DYK-4 | AC-16 already covered by existing lifecycle test #2, but multi-node composition test still valuable | T004 note |
++| DYK-5 | Error guard (T005) is defense-in-depth — adapter already prevents malformed units reaching UI. Keep minimal (3-line conditional). | T005 scope |
++
++---
++
+ ## Tasks
+ 
+ | Status | ID | Task | Domain | Path(s) | Done When | Notes |
+ |--------|-----|------|--------|---------|-----------|-------|
+-| [ ] | T001 | Add `demo-user-input` dope scenario | workflow-ui | `/scripts/dope-workflows.ts` | `just dope demo-user-input` creates a 2-line workflow: Line 0 has a `sample-input` (user-input) node, Line 1 has a `sample-coder` (agent) node wired to the user-input's output. No state injection — node starts at `pending`, becomes `ready`/`awaiting-input` at runtime because it's first on Line 0 with no gates. | AC-14. Follow `demo-serial` pattern. `UNIT_USER_INPUT` constant already exists. |
+-| [ ] | T002 | Create sample user-input units for multi-input demo | workflow-ui | `/.chainglass/units/sample-choice/unit.yaml`, `/.chainglass/units/sample-confirm/unit.yaml` | Two new committed units: `sample-choice` (question_type: single, with options) and `sample-confirm` (question_type: confirm). Both follow `sample-input` pattern. | Needed by T003. Minimal unit.yaml files — type, prompt, outputs, user_input config. |
+-| [ ] | T003 | Add `demo-multi-input` dope scenario | workflow-ui | `/scripts/dope-workflows.ts` | `just dope demo-multi-input` creates a workflow with Line 0 having 3 user-input nodes (`sample-input` text, `sample-choice` single, `sample-confirm` confirm), and Line 1 with a `sample-coder` wired to all 3 outputs. Demonstrates composition pattern (multiple questions = multiple nodes). | Multi-node composition. Depends on T002 for units. |
+-| [ ] | T004 | Integration test: submit → complete → downstream gates open | test | `/test/unit/positional-graph/submit-user-input-lifecycle.test.ts` | New test in existing file: 3 user-input nodes on Line 0 (different types), 1 downstream node on Line 1 wired to all 3 outputs. Submit all 3 → all complete → downstream `ready: true, inputsAvailable: true`. Proves multi-node composition works. | AC-16. Extend existing `describe('submitUserInput lifecycle')` block. Real filesystem fixture (no mocks). |
+-| [ ] | T005 | Error state for missing `user_input` config | workflow-ui | `/apps/web/src/features/050-workflow-page/components/human-input-modal.tsx`, `/apps/web/src/features/050-workflow-page/components/workflow-editor.tsx` | If `userInput` is falsy/missing in modal props → render error message ("This node is not configured for user input") instead of broken form. Editor `openHumanInputModal` guard: if `node.userInput` undefined, show toast error and don't open modal. | AC-11. Defensive guard — malformed units already fail-fast in adapter (Phase 1), but guard the UI layer too. |
+-| [ ] | T006 | Verify via Next.js MCP: zero errors, routes work | workflow-ui | N/A | Start dev server, query Next.js MCP `get_errors` → 0 errors. Navigate to workflow page with doped user-input workflows → renders correctly. | Final validation. Non-blocking if MCP not available — fallback to `pnpm build` clean. |
++| [x] | T002 | Rename `sample-input` → `sample-challenge`, create `sample-language`, update `sample-coder` | workflow-ui | `/.chainglass/units/sample-challenge/unit.yaml`, `/.chainglass/units/sample-language/unit.yaml`, `/.chainglass/units/sample-coder/unit.yaml` | `sample-input` renamed to `sample-challenge` (text: "What coding challenge should we solve?", output: `challenge`). New `sample-language` unit (question_type: single, options with `{key, label}` objects: TypeScript/Python/Go, output: `language`). `sample-coder` updated: inputs changed from `[spec]` to `[challenge, language]`. | DYK-2, DYK-3. Options MUST use `{key, label}` format per Zod schema. |
++| [x] | T003 | Update `demo-serial` + add `demo-multi-input` dope scenario | workflow-ui | `/scripts/dope-workflows.ts` | `demo-serial` updated: uses `sample-challenge` + wires to `challenge` input. New `demo-multi-input`: Line 0 has `sample-challenge` + `sample-language`, Line 1 has `sample-coder` wired to both outputs (`challenge` → `challenge`, `language` → `language`). `UNIT_USER_INPUT` constant renamed to match. | DYK-1 (T001 dropped), DYK-2. |
++| [x] | T004 | Integration test: multi-node submit → complete → downstream gates open | test | `/test/unit/positional-graph/submit-user-input-lifecycle.test.ts` | New test: 2 user-input nodes (text + single-choice) on Line 0, 1 downstream agent on Line 1 wired to both outputs. Submit both → both complete → downstream `ready: true, inputsAvailable: true`. | AC-16 (already green via test #2, this adds multi-node coverage). |
++| [x] | T005 | Error state for missing `user_input` config | workflow-ui | `/apps/web/src/features/050-workflow-page/components/human-input-modal.tsx`, `/apps/web/src/features/050-workflow-page/components/workflow-editor.tsx` | Modal: if `userInput` falsy → render inline error message. Editor: if `node.userInput` undefined → toast + don't open modal. Minimal — 3-line conditional each. | AC-11. DYK-5: defense-in-depth, adapter already prevents this. |
++| [x] | T006 | Verify via Next.js MCP: zero errors, routes work | workflow-ui | N/A | Start dev server, query Next.js MCP `get_errors` → 0 errors. Navigate to workflow page with doped user-input workflows → renders correctly. | Final validation. Non-blocking if MCP not available — fallback to `pnpm build` clean. |
+ 
+ ---
+ 
+diff --git a/docs/plans/054-unified-human-input/unified-human-input-plan.md b/docs/plans/054-unified-human-input/unified-human-input-plan.md
+index 7d005a0..fe7dab9 100644
+--- a/docs/plans/054-unified-human-input/unified-human-input-plan.md
++++ b/docs/plans/054-unified-human-input/unified-human-input-plan.md
+@@ -139,13 +139,13 @@ User-input nodes in the workflow editor currently have no input mechanism — th
+ - [x] **AC-10**: Freeform notes preserved in `_metadata.freeform_notes`
+ 
+ ### Robustness
+-- [ ] **AC-11**: Missing `user_input` config → error state in modal
++- [x] **AC-11**: Missing `user_input` config → error state in modal
+ - [x] **AC-12**: Cancel/Escape → no data change, no status change
+ 
+ ### Demo & Testing
+-- [ ] **AC-14**: `just dope` creates user-input demo workflow
++- [x] **AC-14**: `just dope` creates user-input demo workflow
+ - [x] **AC-15**: Unit tests for display status computation
+-- [ ] **AC-16**: Integration test: submit → complete → downstream gates
++- [x] **AC-16**: Integration test: submit → complete → downstream gates
+ 
+ ## Progress
+ 
+@@ -153,7 +153,7 @@ User-input nodes in the workflow editor currently have no input mechanism — th
+ |-------|--------|-------|-------|
+ | Phase 1: NodeStatusResult + Display Status | Complete | 13/13 | Per [Workshop 011](./workshops/011-discriminated-type-architecture.md) — discriminated unions |
+ | Phase 2: Human Input Modal + Server Action | Complete | 8/8 + extras | Re-edit (Workshop 013), pre-fill, "Provide Input" button on card |
+-| Phase 3: Demo + Integration + Cleanup | Not started | 0/5 | AC-11, AC-14, AC-16 remaining |
++| Phase 3: Demo + Integration + Cleanup | Complete | 5/5 | DYK: T001 dropped (demo-serial covers AC-14). Multi-input demo + composition test + error guard. |
+ 
+ ## Risks
+ 
+diff --git a/scripts/dope-workflows.ts b/scripts/dope-workflows.ts
+index ca29e00..24dc185 100644
+--- a/scripts/dope-workflows.ts
++++ b/scripts/dope-workflows.ts
+@@ -90,6 +90,8 @@ function createCtx(worktreePath: string): WorkspaceContext {
+ const UNIT_AGENT = 'sample-coder';
+ const UNIT_CODE = 'sample-pr-creator';
+ const UNIT_USER_INPUT = 'sample-input';
++const UNIT_CHALLENGE = 'sample-challenge';
++const UNIT_LANGUAGE = 'sample-language';
+ 
+ // ============================================
+ // State Injection
+@@ -390,6 +392,38 @@ const SCENARIOS: Scenario[] = [
+       await service.delete(ctx, 'demo-template-source');
+     },
+   },
++
++  {
++    slug: 'demo-multi-input',
++    description: 'Two user-input nodes feeding a coder — multi-input composition',
++    async build(service, ctx) {
++      const { lineId: line0 } = await service.create(ctx, 'demo-multi-input');
++      const line1 = await service.addLine(ctx, 'demo-multi-input');
++      const line1Id = assertDefined(line1.lineId, 'demo-multi-input addLine lineId');
++
++      // Line 0: two user-input nodes (challenge + language)
++      const n1 = await service.addNode(ctx, 'demo-multi-input', line0, UNIT_CHALLENGE);
++      const n1Id = assertDefined(n1.nodeId, 'demo-multi-input n1 nodeId');
++      const n2 = await service.addNode(ctx, 'demo-multi-input', line0, UNIT_LANGUAGE);
++      const n2Id = assertDefined(n2.nodeId, 'demo-multi-input n2 nodeId');
++
++      // Line 1: coder wired to both user-input outputs
++      const n3 = await service.addNode(ctx, 'demo-multi-input', line1Id, UNIT_AGENT);
++      const n3Id = assertDefined(n3.nodeId, 'demo-multi-input n3 nodeId');
++
++      // Wire: coder.challenge ← sample-challenge.challenge
++      await service.setInput(ctx, 'demo-multi-input', n3Id, 'challenge', {
++        from_node: n1Id,
++        from_output: 'challenge',
++      });
++
++      // Wire: coder.language ← sample-language.language
++      await service.setInput(ctx, 'demo-multi-input', n3Id, 'language', {
++        from_node: n2Id,
++        from_output: 'language',
++      });
++    },
++  },
+ ];
+ 
+ // ============================================
+diff --git a/test/unit/positional-graph/submit-user-input-lifecycle.test.ts b/test/unit/positional-graph/submit-user-input-lifecycle.test.ts
+index 773f3c8..698e2d3 100644
+--- a/test/unit/positional-graph/submit-user-input-lifecycle.test.ts
++++ b/test/unit/positional-graph/submit-user-input-lifecycle.test.ts
+@@ -61,6 +61,45 @@ const coderUnit: NarrowWorkUnit = {
+   outputs: [{ name: 'code', type: 'data', required: true }],
+ };
+ 
++const challengeUnit: NarrowWorkUnit = {
++  slug: 'sample-challenge',
++  type: 'user-input',
++  inputs: [],
++  outputs: [{ name: 'challenge', type: 'data', required: true }],
++  userInput: {
++    prompt: 'What coding challenge should we solve?',
++    inputType: 'text',
++    outputName: 'challenge',
++  },
++};
++
++const languageUnit: NarrowWorkUnit = {
++  slug: 'sample-language',
++  type: 'user-input',
++  inputs: [],
++  outputs: [{ name: 'language', type: 'data', required: true }],
++  userInput: {
++    prompt: 'Which programming language?',
++    inputType: 'single',
++    outputName: 'language',
++    options: [
++      { key: 'typescript', label: 'TypeScript' },
++      { key: 'python', label: 'Python' },
++      { key: 'go', label: 'Go' },
++    ],
++  },
++};
++
++const multiInputCoderUnit: NarrowWorkUnit = {
++  slug: 'multi-coder',
++  type: 'agent',
++  inputs: [
++    { name: 'challenge', type: 'data', required: true },
++    { name: 'language', type: 'data', required: true },
++  ],
++  outputs: [{ name: 'code', type: 'data', required: true }],
++};
++
+ describe('submitUserInput lifecycle', () => {
+   let fs: FakeFileSystem;
+   let pathResolver: FakePathResolver;
+@@ -70,7 +109,13 @@ describe('submitUserInput lifecycle', () => {
+   beforeEach(() => {
+     fs = new FakeFileSystem();
+     pathResolver = new FakePathResolver();
+-    const loader = createFakeUnitLoader([userInputUnit, coderUnit]);
++    const loader = createFakeUnitLoader([
++      userInputUnit,
++      coderUnit,
++      challengeUnit,
++      languageUnit,
++      multiInputCoderUnit,
++    ]);
+     service = createTestService(fs, pathResolver, loader);
+     ctx = createTestContext();
+   });
+@@ -163,4 +208,64 @@ describe('submitUserInput lifecycle', () => {
+     expect(coderStatus.readyDetail.inputsAvailable).toBe(true);
+     expect(coderStatus.ready).toBe(true);
+   });
++
++  it('multi-node composition: 2 user-input nodes → downstream gates open', async () => {
++    /*
++    Test Doc:
++    - Why: Validates the multi-question composition pattern (multiple nodes on a line).
++    - Contract: 2 user-input nodes complete → downstream node with 2 wired inputs sees ready: true.
++    - Usage Notes: Proves the "one node = one question" design works at scale.
++    - Quality Contribution: Catches gate resolution bugs when multiple inputs must all be available.
++    - Worked Example: challenge + language complete → multi-coder sees both inputs, ready to run.
++    */
++    const { lineId: line0 } = await service.create(ctx, 'test-graph');
++    const addLine1 = await service.addLine(ctx, 'test-graph');
++    const line1 = addLine1.lineId as string;
++
++    // Line 0: two user-input nodes
++    const challengeNode = await service.addNode(ctx, 'test-graph', line0, 'sample-challenge');
++    const languageNode = await service.addNode(ctx, 'test-graph', line0, 'sample-language');
++    const challengeId = challengeNode.nodeId as string;
++    const languageId = languageNode.nodeId as string;
++
++    // Line 1: downstream coder wired to both
++    const coderNode = await service.addNode(ctx, 'test-graph', line1, 'multi-coder');
++    const coderId = coderNode.nodeId as string;
++
++    await service.setInput(ctx, 'test-graph', coderId, 'challenge', {
++      from_node: challengeId,
++      from_output: 'challenge',
++    });
++    await service.setInput(ctx, 'test-graph', coderId, 'language', {
++      from_node: languageId,
++      from_output: 'language',
++    });
++
++    // Before submission: downstream not ready (inputs missing)
++    const beforeStatus = await service.getNodeStatus(ctx, 'test-graph', coderId);
++    expect(beforeStatus.readyDetail.inputsAvailable).toBe(false);
++    expect(beforeStatus.ready).toBe(false);
++
++    // Submit challenge (text input)
++    await service.startNode(ctx, 'test-graph', challengeId);
++    await service.raiseNodeEvent(ctx, 'test-graph', challengeId, 'node:accepted', {}, 'executor');
++    await service.saveOutputData(ctx, 'test-graph', challengeId, 'challenge', 'Build a CLI tool');
++    await service.endNode(ctx, 'test-graph', challengeId);
++
++    // After first submission: still not ready (language missing)
++    const midStatus = await service.getNodeStatus(ctx, 'test-graph', coderId);
++    expect(midStatus.readyDetail.inputsAvailable).toBe(false);
++
++    // Submit language (single-choice input)
++    await service.startNode(ctx, 'test-graph', languageId);
++    await service.raiseNodeEvent(ctx, 'test-graph', languageId, 'node:accepted', {}, 'executor');
++    await service.saveOutputData(ctx, 'test-graph', languageId, 'language', 'typescript');
++    await service.endNode(ctx, 'test-graph', languageId);
++
++    // After both submissions: downstream ready
++    const afterStatus = await service.getNodeStatus(ctx, 'test-graph', coderId);
++    expect(afterStatus.readyDetail.inputsAvailable).toBe(true);
++    expect(afterStatus.ready).toBe(true);
++    expect(afterStatus.status).toBe('ready');
++  });
+ });

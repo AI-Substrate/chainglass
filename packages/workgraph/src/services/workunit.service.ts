@@ -213,8 +213,9 @@ export class WorkUnitService implements IWorkUnitService {
     }
     if (zodUnit.type === 'user-input' && zodUnit.user_input) {
       unit.userInput = {
-        questionType: zodUnit.user_input.question_type,
+        inputType: zodUnit.user_input.question_type,
         prompt: zodUnit.user_input.prompt,
+        outputName: zodUnit.outputs[0]?.name ?? 'output',
         options: zodUnit.user_input.options,
       };
     }

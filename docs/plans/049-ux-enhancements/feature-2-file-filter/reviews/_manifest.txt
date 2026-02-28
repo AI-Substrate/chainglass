@@ -1,0 +1,11 @@
+M	apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
+M	apps/web/app/actions/file-actions.ts
+M	apps/web/package.json
+A	apps/web/src/features/041-file-browser/hooks/use-file-filter.ts
+A	apps/web/src/features/041-file-browser/services/file-filter.ts
+A	apps/web/src/features/041-file-browser/services/file-list.ts
+M	apps/web/src/features/_platform/panel-layout/components/command-palette-dropdown.tsx
+M	apps/web/src/features/_platform/panel-layout/components/explorer-panel.tsx
+A	test/unit/web/features/041-file-browser/file-filter.test.ts
+A	test/unit/web/features/041-file-browser/file-list.test.ts
+A	test/unit/web/features/_platform/panel-layout/command-palette-dropdown.test.tsx

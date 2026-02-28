@@ -614,3 +614,4 @@ Acceptance Criteria: [measurable assertions]
 | ID | Created | Summary | Domain(s) | Status | Source |
 |----|---------|---------|-----------|--------|--------|
 | FX001 | 2026-02-24 | Wire file browser end-to-end (viewer integration, tree expand, diff, changed filter) | file-browser | Proposed | Phase 4 review + viewer workshop |
+| FX002 | 2026-02-27 | Panel scroll separation and sticky headers — fix triple nested scroll contexts | _platform, file-browser | Complete | User report |

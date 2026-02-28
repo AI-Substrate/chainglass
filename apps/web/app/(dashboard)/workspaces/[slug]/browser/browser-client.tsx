@@ -16,7 +16,10 @@ import {
   type ViewerMode,
 } from '@/features/041-file-browser/components/file-viewer-panel';
 import { useClipboard } from '@/features/041-file-browser/hooks/use-clipboard';
+import { useFileFilter } from '@/features/041-file-browser/hooks/use-file-filter';
 import { useFileNavigation } from '@/features/041-file-browser/hooks/use-file-navigation';
+import { useFlowspaceSearch } from '@/features/041-file-browser/hooks/use-flowspace-search';
+import { useGitGrepSearch } from '@/features/041-file-browser/hooks/use-git-grep-search';
 import { usePanelState } from '@/features/041-file-browser/hooks/use-panel-state';
 import { useTreeDirectoryChanges } from '@/features/041-file-browser/hooks/use-tree-directory-changes';
 import { useWorkspaceContext } from '@/features/041-file-browser/hooks/use-workspace-context';
@@ -32,10 +35,10 @@ import {
   LeftPanel,
   MainPanel,
   PanelShell,
-  createSymbolSearchStub,
 } from '@/features/_platform/panel-layout';
 import type { PanelMode } from '@/features/_platform/panel-layout';
 import { useSDK, useSDKMru } from '@/lib/sdk/sdk-provider';
+import { GlobalStateConnector } from '@/lib/state';
 import { FileDiff, GitBranch } from 'lucide-react';
 import { useQueryStates } from 'nuqs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -43,6 +46,8 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 import {
   fetchChangedFiles,
+  fetchDiffStats,
+  fetchFileList,
   fetchGitDiff,
   fetchRecentFiles,
   fetchWorkingChanges,
@@ -69,6 +74,7 @@ export function BrowserClient({
 }: BrowserClientProps) {
   return (
     <FileChangeProvider worktreePath={worktreePath}>
+      <GlobalStateConnector slug={slug} worktreeBranch={worktreeBranch} />
       <BrowserClientInner
         slug={slug}
         worktreePath={worktreePath}
@@ -125,9 +131,22 @@ function BrowserClientInner({
     fetchWorkingChanges,
     fetchRecentFiles,
     fetchChangedFiles,
+    fetchDiffStats,
   });
 
   const clipboard = useClipboard({ slug, worktreePath, readFile });
+
+  // --- File search filter (Plan 049 Feature 2) ---
+  const fileFilter = useFileFilter({ worktreePath, fetchFileList });
+
+  // --- FlowSpace semantic search (Plan 051) ---
+  const flowspace = useFlowspaceSearch(worktreePath);
+
+  // --- Git grep content search (Plan 052) ---
+  const gitGrep = useGitGrepSearch(worktreePath);
+
+  // Track which code search engine is active: # → grep, $ → semantic
+  const [activeCodeSearchMode, setActiveCodeSearchMode] = useState<'grep' | 'semantic'>('grep');
 
   // --- Workspace attention context (Phase 5) ---
   const wsCtx = useWorkspaceContext();
@@ -227,7 +246,7 @@ function BrowserClientInner({
       }),
     [setParams]
   );
-  const symbolStub = useMemo(() => createSymbolSearchStub(), []);
+  // Plan 051: # stub removed, handled by FlowSpace search in dropdown
 
   // --- SDK + MRU for command palette ---
   const sdk = useSDK();
@@ -375,20 +394,69 @@ function BrowserClientInner({
 
   // --- Render ---
 
+  // Compute diff stats subtitle for FILES header (Plan 049 Feature 1)
+  const diffStatsSubtitle = useMemo(() => {
+    const stats = panelState.diffStats;
+    if (!stats || stats.files === 0) return undefined;
+    return (
+      <span className="text-xs flex items-center gap-1.5">
+        <span className="text-muted-foreground">·</span>
+        <span className="text-muted-foreground">{stats.files} changed</span>
+        {stats.insertions > 0 && <span className="text-green-500">+{stats.insertions}</span>}
+        {stats.deletions > 0 && <span className="text-red-500">−{stats.deletions}</span>}
+      </span>
+    );
+  }, [panelState.diffStats]);
+
   return (
-    <div className="h-[calc(100vh-4rem)] overflow-hidden">
+    <div className="h-full overflow-hidden">
       <PanelShell
         explorer={
           <ExplorerPanel
             ref={explorerRef}
             filePath={selectedFile ?? ''}
-            handlers={[symbolStub, filePathHandler]}
+            handlers={[filePathHandler]}
             context={barContext}
             onCopy={() => clipboard.copyToClipboard(selectedFile ?? '')}
             placeholder="Type a path or > for commands... (Ctrl+P)"
             sdk={sdk}
             mru={mru}
             onCommandExecute={recordExecution}
+            fileSearchResults={fileFilter.results}
+            fileSearchLoading={fileFilter.loading}
+            fileSearchError={fileFilter.error}
+            sortMode={fileFilter.sortMode}
+            onSortModeChange={fileFilter.cycleSortMode}
+            includeHidden={fileFilter.includeHidden}
+            onIncludeHiddenChange={fileFilter.toggleIncludeHidden}
+            onFileSelect={fileNav.handleSelect}
+            onCopyFullPath={clipboard.handleCopyFullPath}
+            onCopyRelativePath={clipboard.handleCopyRelativePath}
+            onCopyContent={clipboard.handleCopyContent}
+            onDownload={clipboard.handleDownload}
+            workingChanges={panelState.workingChanges}
+            onSearchQueryChange={fileFilter.setQuery}
+            codeSearchResults={
+              activeCodeSearchMode === 'grep' ? gitGrep.results : flowspace.results
+            }
+            codeSearchLoading={
+              activeCodeSearchMode === 'grep' ? gitGrep.loading : flowspace.loading
+            }
+            codeSearchError={activeCodeSearchMode === 'grep' ? gitGrep.error : flowspace.error}
+            codeSearchAvailability={flowspace.availability}
+            codeSearchGraphAge={flowspace.graphAge}
+            codeSearchFolders={flowspace.folders}
+            onCodeSearchSelect={(filePath, startLine) => {
+              setParams({ file: filePath, line: startLine, mode: 'edit' }, { history: 'push' });
+            }}
+            onFlowspaceQueryChange={(query, mode) => {
+              setActiveCodeSearchMode(mode);
+              if (mode === 'grep') {
+                gitGrep.setQuery(query);
+              } else {
+                flowspace.setQuery(query, mode);
+              }
+            }}
           />
         }
         left={
@@ -397,6 +465,7 @@ function BrowserClientInner({
             onModeChange={panelState.handlePanelModeChange}
             modes={panelModes}
             onRefresh={handlePanelRefresh}
+            subtitle={diffStatsSubtitle}
           >
             {{
               tree: (
@@ -491,9 +560,7 @@ function BrowserClientInner({
                     : undefined
                 }
                 errorType={
-                  fileNav.fileData && !fileNav.fileData.ok
-                    ? (fileNav.fileData.error as 'file-too-large')
-                    : undefined
+                  fileNav.fileData && !fileNav.fileData.ok ? fileNav.fileData.error : undefined
                 }
                 scrollToLine={scrollToLine}
               />

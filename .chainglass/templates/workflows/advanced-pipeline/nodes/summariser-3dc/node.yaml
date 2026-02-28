@@ -1,0 +1,18 @@
+id: summariser-3dc
+unit_slug: summariser
+created_at: "2026-02-25T00:00:00Z"
+inputs:
+  review_a:
+    from_node: reviewer-29b
+    from_output: review_a
+  review_b:
+    from_node: reviewer-29b
+    from_output: review_b
+  metrics_a:
+    from_node: reviewer-29b
+    from_output: metrics_a
+  metrics_b:
+    from_node: reviewer-29b
+    from_output: metrics_b
+properties: {}
+orchestratorSettings: {}

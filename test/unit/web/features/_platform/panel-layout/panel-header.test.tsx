@@ -100,4 +100,14 @@ describe('PanelHeader', () => {
     // Only title visible, no buttons except actions
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
+
+  it('renders subtitle when provided', () => {
+    render(<PanelHeader title="Files" subtitle={<span>3 changed</span>} />);
+    expect(screen.getByText('3 changed')).toBeInTheDocument();
+  });
+
+  it('renders no subtitle when not provided', () => {
+    render(<PanelHeader title="Files" />);
+    expect(screen.queryByTestId('panel-header-subtitle')).not.toBeInTheDocument();
+  });
 });

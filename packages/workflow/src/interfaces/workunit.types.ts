@@ -90,10 +90,12 @@ export interface UserInputOption {
  * User input configuration for UserInputUnit.
  */
 export interface UserInputConfig {
-  /** Question type */
-  questionType: 'text' | 'single' | 'multi' | 'confirm';
+  /** Input type — describes what kind of input to collect */
+  inputType: 'text' | 'single' | 'multi' | 'confirm';
   /** Prompt text (may contain {{config.X}} placeholders) */
   prompt: string;
+  /** Output name — which output receives the user's input */
+  outputName: string;
   /** Options for single/multi choice */
   options?: UserInputOption[] | string;
 }

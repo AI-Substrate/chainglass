@@ -9,6 +9,7 @@
  * Phase 3: Wire Into BrowserClient — Plan 043
  */
 
+import type { DiffStats } from '@/features/041-file-browser/services/diff-stats';
 import type { ChangedFile } from '@/features/041-file-browser/services/working-changes';
 import type { PanelMode } from '@/features/_platform/panel-layout';
 import { useCallback, useEffect, useState } from 'react';
@@ -29,6 +30,9 @@ interface UsePanelStateOptions {
   fetchChangedFiles: (
     worktreePath: string
   ) => Promise<{ ok: true; files: string[] } | { ok: false; error: string }>;
+  fetchDiffStats: (
+    worktreePath: string
+  ) => Promise<{ ok: true; stats: DiffStats } | { ok: false; error: string }>;
 }
 
 export function usePanelState(options: UsePanelStateOptions) {
@@ -40,19 +44,24 @@ export function usePanelState(options: UsePanelStateOptions) {
     fetchWorkingChanges: fetchWorkingChangesFn,
     fetchRecentFiles: fetchRecentFilesFn,
     fetchChangedFiles: fetchChangedFilesFn,
+    fetchDiffStats: fetchDiffStatsFn,
   } = options;
 
   const [workingChanges, setWorkingChanges] = useState<ChangedFile[]>([]);
   const [recentFiles, setRecentFiles] = useState<string[]>([]);
   const [changedFiles, setChangedFiles] = useState<string[]>([]);
+  const [diffStats, setDiffStats] = useState<DiffStats | null>(null);
   const [changesLoaded, setChangesLoaded] = useState(false);
 
-  // Fetch changed files on mount for amber highlighting in tree view
+  // Fetch changed files + diff stats on mount for tree view + header stats
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional mount-only effect
   useEffect(() => {
     if (isGit) {
       fetchChangedFilesFn(worktreePath).then((result) => {
         if (result.ok) setChangedFiles(result.files);
+      });
+      fetchDiffStatsFn(worktreePath).then((result) => {
+        if (result.ok) setDiffStats(result.stats);
       });
     }
   }, []);
@@ -84,12 +93,21 @@ export function usePanelState(options: UsePanelStateOptions) {
       fetchWorkingChangesFn(worktreePath),
       fetchRecentFilesFn(worktreePath),
       fetchChangedFilesFn(worktreePath),
-    ]).then(([wcResult, rfResult, cfResult]) => {
+      fetchDiffStatsFn(worktreePath),
+    ]).then(([wcResult, rfResult, cfResult, dsResult]) => {
       if (wcResult.ok) setWorkingChanges(wcResult.files);
       if (rfResult.ok) setRecentFiles(rfResult.files);
       if (cfResult.ok) setChangedFiles(cfResult.files);
+      if (dsResult.ok) setDiffStats(dsResult.stats);
     });
-  }, [isGit, worktreePath, fetchWorkingChangesFn, fetchRecentFilesFn, fetchChangedFilesFn]);
+  }, [
+    isGit,
+    worktreePath,
+    fetchWorkingChangesFn,
+    fetchRecentFilesFn,
+    fetchChangedFilesFn,
+    fetchDiffStatsFn,
+  ]);
 
   // Available modes for LeftPanel
   const panelModes = isGit
@@ -104,6 +122,7 @@ export function usePanelState(options: UsePanelStateOptions) {
     workingChanges,
     recentFiles,
     changedFiles,
+    diffStats,
     panelModes,
     handlePanelModeChange,
     handleRefreshChanges,
