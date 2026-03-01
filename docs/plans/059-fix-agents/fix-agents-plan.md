@@ -16,8 +16,8 @@ The web agent system is structurally sound (3 adapters, DI container, SSE transp
 |--------|--------|-------------|------|
 | agents | **NEW** | **create** | Formalize agent boundary: adapters, manager, session lifecycle, state publishing, overlay UI |
 | work-unit-state | **NEW** | **create** | Centralized status + question registry for all work unit types |
-| _platform/state | existing | **consume** | Publish work unit state paths via GlobalStateSystem |
-| _platform/events | existing | **consume** | Broadcast SSE events via ISSEBroadcaster, toast notifications |
+| _platform/state | existing | **modify** | Extend publish() with source metadata, add ServerEventRoute bridge, extend GlobalStateConnector |
+| _platform/events | existing | **modify** | Add WorkUnitState channel to WorkspaceDomain, SSE route contracts |
 | _platform/panel-layout | existing | **modify** | Add agent top bar slot in DashboardShell layout |
 | workflow-ui | existing | **modify** | Add agent session overlay trigger to workflow nodes |
 | _platform/positional-graph | existing | **consume** | Read node→agent session mapping from orchestrator |

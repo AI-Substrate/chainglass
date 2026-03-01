@@ -23,12 +23,13 @@
 |--------|-------------|-----------|
 | work-unit-state | NEW — interface, types, implementation, fake, contract tests, DI registration | `packages/shared/src/interfaces/work-unit-state.interface.ts`, `apps/web/src/lib/work-unit-state/work-unit-state.service.ts` |
 | agents | Add AgentWorkUnitBridge to publish agent lifecycle to work-unit-state | `apps/web/src/features/059-fix-agents/agent-work-unit-bridge.ts` |
+| _platform/state | Extend publish() with source metadata, add ServerEventRoute bridge, extend GlobalStateConnector | `apps/web/src/lib/state/server-event-route.tsx`, `apps/web/src/lib/state/server-event-router.ts`, `apps/web/src/lib/state/state-connector.tsx` |
+| _platform/events | Add WorkUnitState channel to WorkspaceDomain | `packages/shared/src/features/027-central-notify-events/workspace-domain.ts` |
 
 ### Domains We Depend On (no changes)
 
 | Domain | What We Consume | Contract |
 |--------|----------------|----------|
-| _platform/state | Publish state paths, register domain | GlobalStateSystem.publish(), registerDomain() |
 | agents | Agent lifecycle events | IAgentNotifierService (broadcastCreated, broadcastStatus) |
 
 ---

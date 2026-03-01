@@ -63,7 +63,7 @@ Central event platform for the entire application. Owns the full pipeline from f
 | `ISSEBroadcaster` | Interface | Agent notifier, central event notifier | `broadcast(channel, eventType, data)` |
 | `ICentralWatcherService` | Interface | Bootstrap, DI container | `start()`, `registerAdapter()` |
 | `IWatcherAdapter` | Interface | Concrete watcher adapters | `handleEvent(WatcherEvent)` callback contract |
-| `WorkspaceDomain` | Const object | Adapters, hooks, routes | Channel name registry (`Workflows`, `Agents`, `FileChanges`; `Workgraphs` deprecated) |
+| `WorkspaceDomain` | Const object | Adapters, hooks, routes | Channel name registry (`Workflows`, `Agents`, `FileChanges`, `WorkUnitState`; `Workgraphs` deprecated) |
 | `useSSE` | Hook | Feature-specific SSE hooks | Generic SSE connection with reconnection |
 | `useWorkspaceSSE` | Hook | Workflow content, kanban | Workspace-scoped SSE subscription |
 | `FileChangeHub` | Class | FileChangeProvider, testing | Client-side pattern-based event dispatcher |
@@ -137,6 +137,7 @@ Primary: scattered across `packages/shared`, `packages/workflow`, `apps/web` (Pl
 
 - **toast() is client-only**: Calling `import { toast } from 'sonner'` in a Server Component or server action is a silent no-op — no error, no feedback. The pattern is: server returns result → client reads result → client calls toast().
 - **Domain value IS the SSE channel name**: `WorkspaceDomain.FileChanges === 'file-changes'` — a mismatch causes silent event loss.
+- **WorkUnitState channel** (`work-unit-state`): Carries status-level events for all work units (agents, workflow pods). Consumed by `ServerEventRoute` in `_platform/state` to publish into GlobalStateSystem. Events are small (status strings, booleans) and go inline per ADR-0007 extension — full entity data still uses REST fetch.
 - **Double-event suppression needed**: When the UI saves a file, the watcher also detects the change. Consumers must suppress self-triggered events (2s window after save).
 
 ## Dependencies

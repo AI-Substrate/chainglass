@@ -32,6 +32,7 @@
  * changes to both the SSE API route and the useSSE hook.
  */
 
+import type React from 'react';
 import { useState } from 'react';
 
 import { registerWorktreeState } from '@/features/041-file-browser/state/register';
@@ -57,14 +58,19 @@ interface GlobalStateConnectorProps {
   worktreeBranch?: string;
 }
 
-export function GlobalStateConnector({ slug, worktreeBranch }: GlobalStateConnectorProps) {
+export function GlobalStateConnector({
+  slug,
+  worktreeBranch,
+}: GlobalStateConnectorProps): React.JSX.Element {
   const state = useStateSystem();
 
   // Register domains synchronously on first render via useState initializer.
   // Must complete before children's useEffect calls publish().
   useState(() => {
     registerWorktreeState(state);
+    const registered = new Set(state.listDomains().map((d) => d.domain));
     for (const route of SERVER_EVENT_ROUTES) {
+      if (registered.has(route.stateDomain)) continue;
       state.registerDomain({
         domain: route.stateDomain,
         description: `Server-routed domain: ${route.stateDomain} (SSE channel: ${route.channel})`,

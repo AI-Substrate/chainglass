@@ -10,6 +10,7 @@
  * still uses notification-fetch via REST.
  */
 
+import type { WorkspaceDomainType } from '@chainglass/shared/features/027-central-notify-events';
 import type { StatePropertyDescriptor } from '@chainglass/shared/state';
 
 /**
@@ -48,7 +49,7 @@ export interface StateUpdate {
  */
 export interface ServerEventRouteDescriptor {
   /** SSE channel to subscribe to (matches a WorkspaceDomain value) */
-  channel: string;
+  channel: WorkspaceDomainType;
   /** Domain name in GlobalStateSystem for state path prefixes */
   stateDomain: string;
   /** Whether this domain supports multiple concurrent instances (most do) */

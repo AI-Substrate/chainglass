@@ -27,9 +27,16 @@ interface ServerEventRouteProps {
   route: ServerEventRouteDescriptor;
 }
 
-export function ServerEventRoute({ route }: ServerEventRouteProps) {
+export function ServerEventRoute({ route }: ServerEventRouteProps): null {
   const state = useStateSystem();
-  const { messages } = useSSE<ServerEvent>(`/api/events/${route.channel}`);
+  const { messages } = useSSE<ServerEvent>(
+    `/api/events/${route.channel}`,
+    undefined,
+    // Disable message pruning — index-based cursor breaks when useSSE
+    // truncates the array at maxMessages (F001 review finding).
+    // Memory is bounded by session lifetime (dashboard use case).
+    { maxMessages: 0 }
+  );
   const lastProcessedIndexRef = useRef(-1);
 
   useEffect(() => {
@@ -37,27 +44,37 @@ export function ServerEventRoute({ route }: ServerEventRouteProps) {
     if (startIndex >= messages.length) return;
 
     for (let i = startIndex; i < messages.length; i++) {
-      const event = messages[i];
-      const updates = route.mapEvent(event);
-      if (!updates) continue;
+      // Per-event error isolation (F003): one malformed event must not
+      // abort processing of remaining queued events.
+      try {
+        const event = messages[i];
+        const updates = route.mapEvent(event);
+        if (!updates) continue;
 
-      const source: StateEntrySource = {
-        origin: 'server',
-        channel: route.channel,
-        eventType: event.type,
-      };
+        const source: StateEntrySource = {
+          origin: 'server',
+          channel: route.channel,
+          eventType: event.type,
+        };
 
-      for (const update of updates) {
-        if (update.remove && update.instanceId) {
-          state.removeInstance(route.stateDomain, update.instanceId);
-          continue;
+        for (const update of updates) {
+          if (update.remove && update.instanceId) {
+            state.removeInstance(route.stateDomain, update.instanceId);
+            continue;
+          }
+
+          const path = update.instanceId
+            ? `${route.stateDomain}:${update.instanceId}:${update.property}`
+            : `${route.stateDomain}:${update.property}`;
+
+          state.publish(path, update.value, source);
         }
-
-        const path = update.instanceId
-          ? `${route.stateDomain}:${update.instanceId}:${update.property}`
-          : `${route.stateDomain}:${update.property}`;
-
-        state.publish(path, update.value, source);
+      } catch (error) {
+        console.warn('[ServerEventRoute] Failed to process event', {
+          channel: route.channel,
+          index: i,
+          error,
+        });
       }
     }
 
