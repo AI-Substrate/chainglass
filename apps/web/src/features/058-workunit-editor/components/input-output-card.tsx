@@ -3,7 +3,7 @@
 import { cn } from '@/lib/utils';
 import type { WorkUnitInput } from '@chainglass/positional-graph';
 import { ChevronRight, GripVertical, Lock, Trash2 } from 'lucide-react';
-import { useId } from 'react';
+import { useId, useState } from 'react';
 
 /** Card item with synthetic client ID for SortableContext. */
 export interface InputOutputItem extends WorkUnitInput {
@@ -82,6 +82,7 @@ export function InputOutputCard({
 }: InputOutputCardProps) {
   const generatedId = useId();
   const panelId = `io-panel-${generatedId}`;
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const nameError = getFieldError(errors, 'name');
   const dataTypeError = getFieldError(errors, 'data_type');
@@ -163,11 +164,11 @@ export function InputOutputCard({
           )}
         </button>
 
-        {/* Delete button — hover-reveal, not for locked or delete-blocked */}
-        {!locked && onDelete && (
+        {/* Delete button with confirmation */}
+        {!locked && onDelete && !confirmingDelete && (
           <button
             type="button"
-            onClick={onDelete}
+            onClick={() => setConfirmingDelete(true)}
             disabled={deleteBlocked}
             className={cn(
               'opacity-0 group-hover/card:opacity-100 focus:opacity-100 transition-opacity',
@@ -179,6 +180,27 @@ export function InputOutputCard({
           >
             <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
           </button>
+        )}
+        {!locked && onDelete && confirmingDelete && (
+          <span className="flex items-center gap-1 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                onDelete();
+                setConfirmingDelete(false);
+              }}
+              className="text-xs px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-800"
+            >
+              Confirm
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmingDelete(false)}
+              className="text-xs px-1.5 py-0.5 rounded text-muted-foreground hover:bg-muted"
+            >
+              Cancel
+            </button>
+          </span>
         )}
       </div>
 
@@ -193,8 +215,11 @@ export function InputOutputCard({
             <input
               id={`${generatedId}-name`}
               value={item.name}
-              onChange={(e) => onChange({ ...item, name: e.target.value })}
+              onChange={(e) => onChange({ ...item, name: e.target.value.toLowerCase() })}
               placeholder="parameter_name"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
               className={cn(
                 'w-full rounded border px-2 py-1 text-sm bg-white dark:bg-gray-800',
                 nameError

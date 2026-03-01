@@ -48,9 +48,14 @@ Visual editor for creating, editing, and managing work unit templates. Work unit
 | Unified Save Path | All unit types save through `saveUnitContent` which routes internally by type | `workunit-actions.ts` |
 | Type-Dispatched Editor | Editor page renders different UI based on unit type (agent/code/user-input) | `workunit-editor.tsx` |
 | Auto-Save | Content changes debounce-save via `useAutoSave` hook with status tracking | `use-auto-save.ts` |
+| InputOutputCardList | Expandable card list with DnD reorder for configuring unit inputs/outputs | `input-output-card-list.tsx` |
+| InputOutputCard | Individual expandable card with form fields, ARIA, validation, delete confirmation | `input-output-card.tsx` |
+| Reserved Params | Virtual inputs (main-prompt, main-script) shown as locked display-only cards, not persisted | `workunit-editor.tsx` |
+| Structural vs Field Save | Structural changes (add/remove/reorder) save immediately; field edits debounce 500ms | `workunit-editor.tsx` |
 
 ## History
 
 | Date | Phase | Change |
 |------|-------|--------|
 | 2026-02-28 | Phase 2 | Domain created: pages, server actions, type-specific editors, creation modal |
+| 2026-03-01 | Phase 3 | Added inputs/outputs configuration: InputOutputCard, InputOutputCardList, DnD reorder, reserved params, validation, dual auto-save |

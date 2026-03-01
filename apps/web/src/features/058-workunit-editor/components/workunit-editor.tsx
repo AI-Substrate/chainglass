@@ -44,16 +44,19 @@ function safeParseUserInputConfig(content: string) {
   }
 }
 
-/** Get reserved params for the given unit type. */
+/**
+ * Reserved input param names per unit type.
+ * Mirrors RESERVED_INPUT_PARAMS from positional-graph but defined inline
+ * because client components can't import the server-only package (pulls in Node.js fs).
+ */
+const RESERVED_PARAMS_BY_TYPE: Record<string, ReservedParam[]> = {
+  agent: [{ name: 'main-prompt', description: 'Routes to prompt template content' }],
+  code: [{ name: 'main-script', description: 'Routes to script file content' }],
+  'user-input': [],
+};
+
 function getReservedParams(unitType: 'agent' | 'code' | 'user-input'): ReservedParam[] {
-  switch (unitType) {
-    case 'agent':
-      return [{ name: 'main-prompt', description: 'Routes to prompt template content' }];
-    case 'code':
-      return [{ name: 'main-script', description: 'Routes to script file content' }];
-    case 'user-input':
-      return [];
-  }
+  return RESERVED_PARAMS_BY_TYPE[unitType] ?? [];
 }
 
 /**
@@ -143,15 +146,15 @@ export function WorkUnitEditor({
     [triggerOutputSave]
   );
 
-  // Handle input structural changes (add/remove/reorder) — flush + trigger + flush for immediate save
+  // Handle input structural changes (add/remove/reorder) — trigger supersedes pending, flush saves immediately
   const handleInputStructuralChange = useCallback(
     (items: InputOutputItem[]) => {
-      flushInputs();
       setInputItems(items);
       const errors = validateItems(items);
       setInputErrors(errors);
       if (Object.keys(errors).length === 0) {
         const stripped = stripClientIds(items);
+        // trigger() overwrites any stale pending field-edit value, then flush() saves immediately
         triggerInputSave(JSON.stringify(stripped));
         flushInputs();
       }
@@ -159,10 +162,9 @@ export function WorkUnitEditor({
     [flushInputs, triggerInputSave]
   );
 
-  // Handle output structural changes — flush + trigger + flush for immediate save
+  // Handle output structural changes — trigger supersedes pending, flush saves immediately
   const handleOutputStructuralChange = useCallback(
     (items: InputOutputItem[]) => {
-      flushOutputs();
       setOutputItems(items);
       const errors = validateItems(items);
       setOutputErrors(errors);

@@ -55,10 +55,18 @@ interface InputOutputCardListProps {
   validationErrors?: ListValidationErrors;
 }
 
+/** Generate a stable unique ID (crypto.randomUUID requires secure context, so fallback). */
+function generateClientId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+}
+
 /** Create a new item with sensible defaults and a fresh _clientId. */
 function createDefaultItem(): InputOutputItem {
   return {
-    _clientId: crypto.randomUUID(),
+    _clientId: generateClientId(),
     name: '',
     type: 'data',
     data_type: 'text',
@@ -71,7 +79,7 @@ function createDefaultItem(): InputOutputItem {
 export function hydrateClientIds(items: WorkUnitInput[]): InputOutputItem[] {
   return items.map((item) => ({
     ...item,
-    _clientId: crypto.randomUUID(),
+    _clientId: generateClientId(),
   }));
 }
 
