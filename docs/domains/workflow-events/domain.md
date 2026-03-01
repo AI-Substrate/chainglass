@@ -51,7 +51,9 @@
 | `WorkflowEventType` | constants | `packages/shared/src/workflow-events/` | Typed event type constants |
 | convenience types | types | `packages/shared/src/workflow-events/` | Input/output/observer event types |
 | `FakeWorkflowEventsService` | fake | `packages/shared/src/fakes/` | Test double with inspection methods |
-| `WorkflowEventsService` | service | `packages/positional-graph/src/workflow-events/` | Implementation (Phase 2) |
+| `WorkflowEventsService` | service | `packages/positional-graph/src/workflow-events/` | Real implementation wrapping PGService.raiseNodeEvent() |
+| `WorkflowEventObserverRegistry` | registry | `packages/positional-graph/src/workflow-events/` | globalThis-backed observer registry with HMR survival |
+| `registerWorkflowEventsServices` | DI setup | `packages/positional-graph/src/container.ts` | Registers WorkflowEventsService in DI container |
 
 ---
 
@@ -87,9 +89,11 @@ packages/shared/src/
   di-tokens.ts                               # WORKFLOW_EVENTS_SERVICE token
 
 packages/positional-graph/src/
-  workflow-events/                            # Phase 2: implementation
-    workflow-events.service.ts
-    index.ts
+  workflow-events/
+    workflow-events.service.ts                # WorkflowEventsService implementation
+    observer-registry.ts                      # globalThis-backed observer registry
+    index.ts                                  # Barrel exports
+  container.ts                                # registerWorkflowEventsServices()
 
 docs/domains/workflow-events/
   domain.md                                   # This file
@@ -158,3 +162,4 @@ import { WorkflowEventType } from '@chainglass/shared/workflow-events';
 | Plan | Change | Date |
 |------|--------|------|
 | Plan 061 Phase 1 | Created domain: IWorkflowEvents, WorkflowEventType, convenience types, FakeWorkflowEventsService, DI token | 2026-03-01 |
+| Plan 061 Phase 2 | WorkflowEventsService implementation, ObserverRegistry (globalThis), contract tests, DI registration | 2026-03-01 |

@@ -5,7 +5,12 @@ export * from './services/index.js';
 export * from './errors/index.js';
 export * from './adapter/index.js';
 export * from './interfaces/index.js';
-export { registerPositionalGraphServices, registerOrchestrationServices } from './container.js';
+export { registerPositionalGraphServices, registerOrchestrationServices, registerWorkflowEventsServices } from './container.js';
+
+// Plan 061: WorkflowEvents
+export { WorkflowEventsService } from './workflow-events/index.js';
+export type { WorkspaceContextResolver } from './workflow-events/index.js';
+export { WorkflowEventObserverRegistry } from './workflow-events/index.js';
 
 // Fakes (Plan 050)
 export { FakePositionalGraphService } from './fakes/index.js';
