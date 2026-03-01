@@ -64,7 +64,8 @@ export interface ProgressInput {
 export interface ErrorInput {
   code: string;
   message: string;
-  details?: string;
+  /** Structured error details (aligns with Zod z.unknown().optional()) */
+  details?: unknown;
   recoverable?: boolean;
 }
 

@@ -99,6 +99,16 @@ docs/domains/workflow-events/
 
 ## Concepts
 
+| Concept | Entry Point | What It Does |
+|---------|-------------|-------------|
+| Asking Questions | `IWorkflowEvents.askQuestion()` | Encapsulates raising question:ask event + handler execution. Node transitions to waiting-question. |
+| Answering Questions | `IWorkflowEvents.answerQuestion()` | 3-event handshake (question:answer + node:restart) in single call. |
+| Getting Answers | `IWorkflowEvents.getAnswer()` | Retrieve answer for a previously asked question. Returns null if unanswered. |
+| Reporting Progress | `IWorkflowEvents.reportProgress()` | Informational progress:update event. No state change. |
+| Reporting Errors | `IWorkflowEvents.reportError()` | Raises node:error event. Node transitions to blocked-error. |
+| Observing Events | `IWorkflowEvents.onQuestionAsked()` etc. | Server-side observer hooks with unsubscribe. Cross-domain event consumption. |
+| Typed Constants | `WorkflowEventType.QuestionAsk` etc. | Replace magic strings for 7 core event types. |
+
 ### Asking Questions
 
 Agents ask questions when they need human input. The `askQuestion` method encapsulates raising a `question:ask` event, running handlers (node transitions to `waiting-question`), and persisting.

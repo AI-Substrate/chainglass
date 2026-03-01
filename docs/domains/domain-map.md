@@ -85,8 +85,8 @@ flowchart LR
     %% NEW: Workflow Events dependencies (Plan 061)
     wfEvents -->|"IPositionalGraphService<br/>raiseNodeEvent"| posGraph
     wfEvents -->|"ICentralEventNotifier<br/>SSE broadcast"| events
-    agents -->|"IWorkflowEvents<br/>onQuestionAsked"| wfEvents
-    workflowUI -->|"IWorkflowEvents<br/>answerQuestion"| wfEvents
+    agents -->|"IWorkflowEvents<br/>onQuestionAsked<br/>(Phase 3)"| wfEvents
+    workflowUI -->|"IWorkflowEvents<br/>answerQuestion<br/>(Phase 3)"| wfEvents
 ```
 
 ## Legend
