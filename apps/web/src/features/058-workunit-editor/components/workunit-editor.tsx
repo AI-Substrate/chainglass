@@ -36,6 +36,8 @@ interface WorkUnitEditorProps {
   outputs: WorkUnitOutput[];
   /** Graph slug to return to when navigated from workflow (AC-23). */
   returnToWorkflow?: string;
+  /** Worktree path to preserve in return navigation. */
+  returnWorktree?: string;
 }
 
 function safeParseUserInputConfig(content: string) {
@@ -77,6 +79,7 @@ export function WorkUnitEditor({
   inputs: initialInputs,
   outputs: initialOutputs,
   returnToWorkflow,
+  returnWorktree,
 }: WorkUnitEditorProps) {
   const [inputItems, setInputItems] = useState<InputOutputItem[]>(() =>
     hydrateClientIds(initialInputs)
@@ -219,7 +222,7 @@ export function WorkUnitEditor({
           {returnToWorkflow && (
             <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-muted/30">
               <a
-                href={`/workspaces/${workspaceSlug}/workflows/${returnToWorkflow}`}
+                href={`/workspaces/${workspaceSlug}/workflows/${returnToWorkflow}${returnWorktree ? `?worktree=${encodeURIComponent(returnWorktree)}` : ''}`}
                 className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
               >
                 ← Back to Workflow

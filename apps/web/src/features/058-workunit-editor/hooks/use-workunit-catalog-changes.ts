@@ -3,13 +3,20 @@
 /**
  * Hook for tracking work unit catalog changes via SSE events.
  *
- * Subscribes to `/api/events/unit-catalog` SSE channel.
+ * Subscribes to `/api/events/unit-catalog` SSE channel using shared useSSE hook.
  * Returns whether changes have occurred since last dismiss, with dismiss function.
  *
  * Plan 058, Phase 4, T003.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+
+import { useSSE } from '@/hooks/useSSE';
+
+interface UnitCatalogSSEMessage {
+  unitSlug?: string;
+  workspaceSlug?: string;
+}
 
 interface UseWorkunitCatalogChangesResult {
   /** Whether unit catalog has changed since last dismiss. */
@@ -27,27 +34,22 @@ interface UseWorkunitCatalogChangesResult {
  * Calling `dismiss()` hides until the next change.
  */
 export function useWorkunitCatalogChanges(): UseWorkunitCatalogChangesResult {
+  const { messages, clearMessages } = useSSE<UnitCatalogSSEMessage>(
+    '/api/events/unit-catalog',
+    undefined,
+    { autoConnect: true, maxMessages: 10 }
+  );
   const [lastChanged, setLastChanged] = useState(0);
   const [dismissedAt, setDismissedAt] = useState(0);
-  const eventSourceRef = useRef<EventSource | null>(null);
+  const prevCountRef = useRef(0);
 
   useEffect(() => {
-    const es = new EventSource('/api/events/unit-catalog');
-    eventSourceRef.current = es;
-
-    es.onmessage = () => {
+    if (messages.length > prevCountRef.current) {
       setLastChanged(Date.now());
-    };
-
-    es.onerror = () => {
-      // SSE reconnects automatically; no action needed
-    };
-
-    return () => {
-      es.close();
-      eventSourceRef.current = null;
-    };
-  }, []);
+      clearMessages();
+    }
+    prevCountRef.current = messages.length;
+  }, [messages, clearMessages]);
 
   const changed = lastChanged > 0 && lastChanged > dismissedAt;
 

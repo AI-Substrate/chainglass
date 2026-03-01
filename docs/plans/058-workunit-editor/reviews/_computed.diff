@@ -1,1017 +1,422 @@
 diff --git a/apps/web/app/(dashboard)/workspaces/[slug]/work-units/[unitSlug]/page.tsx b/apps/web/app/(dashboard)/workspaces/[slug]/work-units/[unitSlug]/page.tsx
-index 8cb4c05..b6d347a 100644
+index b6d347a..6e32730 100644
 --- a/apps/web/app/(dashboard)/workspaces/[slug]/work-units/[unitSlug]/page.tsx
 +++ b/apps/web/app/(dashboard)/workspaces/[slug]/work-units/[unitSlug]/page.tsx
-@@ -51,6 +51,8 @@ export default async function WorkUnitEditorPage({ params }: PageProps) {
-         version={unit.version}
-         scriptFilename={scriptFilename}
+@@ -7,10 +7,14 @@ export const dynamic = 'force-dynamic';
+ 
+ interface PageProps {
+   params: Promise<{ slug: string; unitSlug: string }>;
++  searchParams: Promise<Record<string, string | string[] | undefined>>;
+ }
+ 
+-export default async function WorkUnitEditorPage({ params }: PageProps) {
++export default async function WorkUnitEditorPage({ params, searchParams }: PageProps) {
+   const { slug, unitSlug } = await params;
++  const sp = await searchParams;
++  const returnToWorkflow =
++    sp.from === 'workflow' && typeof sp.graph === 'string' ? sp.graph : undefined;
+ 
+   const [unitResult, contentResult, unitsResult] = await Promise.all([
+     loadUnit(slug, unitSlug),
+@@ -53,6 +57,7 @@ export default async function WorkUnitEditorPage({ params }: PageProps) {
          allUnits={unitsResult.units}
-+        inputs={unit.inputs ?? []}
-+        outputs={unit.outputs ?? []}
+         inputs={unit.inputs ?? []}
+         outputs={unit.outputs ?? []}
++        returnToWorkflow={returnToWorkflow}
        />
      </Suspense>
    );
-diff --git a/apps/web/src/features/058-workunit-editor/components/agent-editor.tsx b/apps/web/src/features/058-workunit-editor/components/agent-editor.tsx
-index 9ea81c0..bf3525d 100644
---- a/apps/web/src/features/058-workunit-editor/components/agent-editor.tsx
-+++ b/apps/web/src/features/058-workunit-editor/components/agent-editor.tsx
-@@ -35,12 +35,12 @@ export function AgentEditor({ workspaceSlug, unitSlug, initialContent }: AgentEd
-   );
+diff --git a/apps/web/app/(dashboard)/workspaces/[slug]/workflows/[graphSlug]/page.tsx b/apps/web/app/(dashboard)/workspaces/[slug]/workflows/[graphSlug]/page.tsx
+index 1194fe5..a258e7a 100644
+--- a/apps/web/app/(dashboard)/workspaces/[slug]/workflows/[graphSlug]/page.tsx
++++ b/apps/web/app/(dashboard)/workspaces/[slug]/workflows/[graphSlug]/page.tsx
+@@ -7,6 +7,7 @@
+  */
+ 
+ import { WorkflowEditor } from '@/features/050-workflow-page/components/workflow-editor';
++import { WorkUnitUpdatedBanner } from '@/features/058-workunit-editor/components/workunit-updated-banner';
+ import { Suspense } from 'react';
+ import { listWorkUnits, loadWorkflow } from '../../../../../actions/workflow-actions';
+ 
+@@ -41,6 +42,7 @@ export default async function WorkflowEditorPage({ params, searchParams }: PageP
  
    return (
--    <div className="flex flex-col h-full">
-+    <div className="flex flex-col">
-       <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-gray-700">
-         <h3 className="text-sm font-medium text-muted-foreground">Prompt Template</h3>
-         <SaveIndicator status={status} error={error} />
-       </div>
--      <div className="flex-1 min-h-0">
-+      <div className="min-h-[400px]">
-         <CodeEditor value={content} language="markdown" onChange={handleChange} />
-       </div>
-     </div>
-diff --git a/apps/web/src/features/058-workunit-editor/components/code-unit-editor.tsx b/apps/web/src/features/058-workunit-editor/components/code-unit-editor.tsx
-index 48367de..221d888 100644
---- a/apps/web/src/features/058-workunit-editor/components/code-unit-editor.tsx
-+++ b/apps/web/src/features/058-workunit-editor/components/code-unit-editor.tsx
-@@ -44,7 +44,7 @@ export function CodeUnitEditor({
-   );
+     <Suspense fallback={<div className="p-4">Loading workflow...</div>}>
++      <WorkUnitUpdatedBanner />
+       <WorkflowEditor
+         workspaceSlug={slug}
+         graphSlug={graphSlug}
+diff --git a/apps/web/src/features/027-central-notify-events/start-central-notifications.ts b/apps/web/src/features/027-central-notify-events/start-central-notifications.ts
+index 92783b8..4dbc186 100644
+--- a/apps/web/src/features/027-central-notify-events/start-central-notifications.ts
++++ b/apps/web/src/features/027-central-notify-events/start-central-notifications.ts
+@@ -14,9 +14,14 @@
+ import { WORKSPACE_DI_TOKENS } from '@chainglass/shared/di-tokens';
+ import type { ICentralEventNotifier } from '@chainglass/shared/features/027-central-notify-events/central-event-notifier.interface';
+ import type { ICentralWatcherService } from '@chainglass/workflow';
+-import { FileChangeWatcherAdapter, WorkflowWatcherAdapter } from '@chainglass/workflow';
++import {
++  FileChangeWatcherAdapter,
++  WorkUnitCatalogWatcherAdapter,
++  WorkflowWatcherAdapter,
++} from '@chainglass/workflow';
+ import { getContainer } from '../../lib/bootstrap-singleton';
+ import { FileChangeDomainEventAdapter } from './file-change-domain-event-adapter';
++import { UnitCatalogDomainEventAdapter } from './unit-catalog-domain-event-adapter';
+ import { WorkflowDomainEventAdapter } from './workflow-domain-event-adapter';
  
-   return (
--    <div className="flex flex-col h-full">
-+    <div className="flex flex-col">
-       <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-gray-700">
-         <div className="flex items-center gap-2">
-           <h3 className="text-sm font-medium text-muted-foreground">Script</h3>
-@@ -54,7 +54,7 @@ export function CodeUnitEditor({
-         </div>
-         <SaveIndicator status={status} error={error} />
-       </div>
--      <div className="flex-1 min-h-0">
-+      <div className="min-h-[400px]">
-         <CodeEditor value={content} language={language} onChange={handleChange} />
-       </div>
-     </div>
-diff --git a/apps/web/src/features/058-workunit-editor/components/input-output-card-list.tsx b/apps/web/src/features/058-workunit-editor/components/input-output-card-list.tsx
+ declare global {
+@@ -52,6 +57,7 @@ export async function startCentralNotificationSystem(): Promise<void> {
+     // 2. Create domain event adapters
+     const fileChangeDomainAdapter = new FileChangeDomainEventAdapter(notifier);
+     const workflowDomainAdapter = new WorkflowDomainEventAdapter(notifier);
++    const unitCatalogDomainAdapter = new UnitCatalogDomainEventAdapter(notifier);
+ 
+     // 3. Create and register watcher adapters
+     const fileChangeWatcherAdapter = new FileChangeWatcherAdapter(300);
+@@ -60,12 +66,16 @@ export async function startCentralNotificationSystem(): Promise<void> {
+     const workflowWatcherAdapter = new WorkflowWatcherAdapter();
+     watcher.registerAdapter(workflowWatcherAdapter);
+ 
++    const unitCatalogWatcherAdapter = new WorkUnitCatalogWatcherAdapter();
++    watcher.registerAdapter(unitCatalogWatcherAdapter);
++
+     // 4. Subscribe domain adapters to watcher adapter events
+     fileChangeWatcherAdapter.onFilesChanged((changes) =>
+       fileChangeDomainAdapter.handleEvent({ changes })
+     );
+     workflowWatcherAdapter.onStructureChanged((event) => workflowDomainAdapter.handleEvent(event));
+     workflowWatcherAdapter.onStatusChanged((event) => workflowDomainAdapter.handleEvent(event));
++    unitCatalogWatcherAdapter.onUnitChanged((event) => unitCatalogDomainAdapter.handleEvent(event));
+ 
+     // 5. Start watching
+     await watcher.start();
+diff --git a/apps/web/src/features/027-central-notify-events/unit-catalog-domain-event-adapter.ts b/apps/web/src/features/027-central-notify-events/unit-catalog-domain-event-adapter.ts
 new file mode 100644
-index 0000000..1038015
+index 0000000..8c0cefb
 --- /dev/null
-+++ b/apps/web/src/features/058-workunit-editor/components/input-output-card-list.tsx
-@@ -0,0 +1,333 @@
-+'use client';
++++ b/apps/web/src/features/027-central-notify-events/unit-catalog-domain-event-adapter.ts
+@@ -0,0 +1,23 @@
++/**
++ * Plan 058 Phase 4: Unit Catalog Domain Event Adapter
++ *
++ * Transforms WorkUnitCatalogWatcherAdapter events into domain events
++ * emitted via CentralEventNotifier → SSE → client.
++ *
++ * Per ADR-0007: Only identifiers emitted — client fetches full state via REST.
++ */
 +
-+import type { WorkUnitInput } from '@chainglass/positional-graph';
-+import {
-+  DndContext,
-+  type DragEndEvent,
-+  KeyboardSensor,
-+  PointerSensor,
-+  closestCenter,
-+  useSensor,
-+  useSensors,
-+} from '@dnd-kit/core';
-+import {
-+  SortableContext,
-+  arrayMove,
-+  sortableKeyboardCoordinates,
-+  useSortable,
-+  verticalListSortingStrategy,
-+} from '@dnd-kit/sortable';
-+import { CSS } from '@dnd-kit/utilities';
-+import { Plus } from 'lucide-react';
-+import { useCallback, useState } from 'react';
++import type { ICentralEventNotifier } from '@chainglass/shared/features/027-central-notify-events/central-event-notifier.interface';
++import { DomainEventAdapter } from '@chainglass/shared/features/027-central-notify-events/domain-event-adapter';
++import { WorkspaceDomain } from '@chainglass/shared/features/027-central-notify-events/workspace-domain';
++import type { UnitCatalogChangedEvent } from '@chainglass/workflow';
 +
-+import {
-+  type FieldValidationError,
-+  InputOutputCard,
-+  type InputOutputItem,
-+} from './input-output-card';
-+
-+/** Validation result for the entire list. */
-+export interface ListValidationErrors {
-+  [clientId: string]: FieldValidationError[];
-+}
-+
-+/** Reserved param displayed as a locked card. */
-+export interface ReservedParam {
-+  name: string;
-+  description: string;
-+}
-+
-+interface InputOutputCardListProps {
-+  /** Section label: "Inputs" or "Outputs". */
-+  label: string;
-+  /** Current items (with _clientId assigned). */
-+  items: InputOutputItem[];
-+  /** Called on structural changes (add, remove, reorder) — saves immediately. */
-+  onStructuralChange: (items: InputOutputItem[]) => void;
-+  /** Called on individual field edits — saves debounced. */
-+  onFieldChange: (items: InputOutputItem[]) => void;
-+  /** Reserved params to show as locked cards above user cards. */
-+  reservedParams?: ReservedParam[];
-+  /** Whether to block deletion of the last item (for outputs). */
-+  requireMinOne?: boolean;
-+  /** Per-card validation errors. */
-+  validationErrors?: ListValidationErrors;
-+}
-+
-+/** Create a new item with sensible defaults and a fresh _clientId. */
-+function createDefaultItem(): InputOutputItem {
-+  return {
-+    _clientId: crypto.randomUUID(),
-+    name: '',
-+    type: 'data',
-+    data_type: 'text',
-+    required: true,
-+    description: undefined,
-+  };
-+}
-+
-+/** Assign _clientId to items loaded from server (which don't have them). */
-+export function hydrateClientIds(items: WorkUnitInput[]): InputOutputItem[] {
-+  return items.map((item) => ({
-+    ...item,
-+    _clientId: crypto.randomUUID(),
-+  }));
-+}
-+
-+/** Strip _clientId before sending to server. */
-+export function stripClientIds(items: InputOutputItem[]): WorkUnitInput[] {
-+  return items.map(({ _clientId, ...rest }) => rest);
-+}
-+
-+const INPUT_NAME_REGEX = /^[a-z][a-z0-9_]*$/;
-+
-+/** Validate all items in the list. Returns per-card errors. */
-+export function validateItems(items: InputOutputItem[]): ListValidationErrors {
-+  const errors: ListValidationErrors = {};
-+  const namesSeen = new Map<string, string>(); // name → first _clientId
-+
-+  for (const item of items) {
-+    const cardErrors: FieldValidationError[] = [];
-+
-+    // Name: required
-+    if (!item.name) {
-+      cardErrors.push({ field: 'name', message: 'Name is required' });
-+    } else if (!INPUT_NAME_REGEX.test(item.name)) {
-+      cardErrors.push({
-+        field: 'name',
-+        message: 'Must start with a-z, then a-z, 0-9, or underscore',
-+      });
-+    } else {
-+      // Uniqueness check
-+      const existing = namesSeen.get(item.name);
-+      if (existing) {
-+        cardErrors.push({ field: 'name', message: 'Duplicate name' });
-+        // Also mark the first occurrence
-+        if (!errors[existing]?.some((e) => e.field === 'name' && e.message === 'Duplicate name')) {
-+          errors[existing] = [
-+            ...(errors[existing] ?? []),
-+            { field: 'name', message: 'Duplicate name' },
-+          ];
-+        }
-+      } else {
-+        namesSeen.set(item.name, item._clientId);
-+      }
-+    }
-+
-+    // data_type required when type='data'
-+    if (item.type === 'data' && !item.data_type) {
-+      cardErrors.push({ field: 'data_type', message: 'Data type is required for data inputs' });
-+    }
-+
-+    if (cardErrors.length > 0) {
-+      errors[item._clientId] = [...(errors[item._clientId] ?? []), ...cardErrors];
-+    }
++export class UnitCatalogDomainEventAdapter extends DomainEventAdapter<UnitCatalogChangedEvent> {
++  constructor(notifier: ICentralEventNotifier) {
++    super(notifier, WorkspaceDomain.UnitCatalog, 'unit-changed');
 +  }
 +
-+  return errors;
++  extractData(event: UnitCatalogChangedEvent): Record<string, unknown> {
++    return { unitSlug: event.unitSlug };
++  }
 +}
-+
-+/** Sortable wrapper for InputOutputCard. */
-+function SortableCard({
-+  item,
-+  expanded,
-+  onToggleExpand,
-+  onChange,
-+  onDelete,
-+  deleteBlocked,
-+  errors,
-+}: {
-+  item: InputOutputItem;
-+  expanded: boolean;
-+  onToggleExpand: () => void;
-+  onChange: (updated: InputOutputItem) => void;
-+  onDelete: () => void;
-+  deleteBlocked: boolean;
-+  errors?: FieldValidationError[];
-+}) {
-+  const {
-+    attributes,
-+    listeners,
-+    setNodeRef,
-+    setActivatorNodeRef,
-+    transform,
-+    transition,
-+    isDragging,
-+  } = useSortable({ id: item._clientId });
-+
-+  const style = {
-+    transform: CSS.Transform.toString(transform),
-+    transition,
-+  };
-+
-+  return (
-+    <div className="group/card" {...attributes}>
-+      <InputOutputCard
-+        item={item}
-+        expanded={expanded}
-+        onToggleExpand={onToggleExpand}
-+        onChange={onChange}
-+        onDelete={onDelete}
-+        deleteBlocked={deleteBlocked}
-+        errors={errors}
-+        sortableRef={setNodeRef}
-+        activatorRef={setActivatorNodeRef}
-+        sortableStyle={style}
-+        dragListeners={listeners}
-+        isDragging={isDragging}
-+      />
-+    </div>
-+  );
-+}
-+
-+/**
-+ * Container for a list of InputOutputCards with DnD reorder, add/delete, and reserved params.
-+ *
-+ * DndContext + SortableContext with verticalListSortingStrategy.
-+ * Sensors: PointerSensor (distance: 8) + KeyboardSensor (sortableKeyboardCoordinates).
-+ * Per DYK R2-#5: Uses synthetic _clientId for SortableContext items.
-+ * Per DYK R1-#5: Each list manages its own expandedId independently.
-+ *
-+ * Plan 058, Phase 3, T002.
-+ */
-+export function InputOutputCardList({
-+  label,
-+  items,
-+  onStructuralChange,
-+  onFieldChange,
-+  reservedParams = [],
-+  requireMinOne = false,
-+  validationErrors = {},
-+}: InputOutputCardListProps) {
-+  const [expandedId, setExpandedId] = useState<string | null>(null);
-+
-+  const sensors = useSensors(
-+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-+  );
-+
-+  const handleDragEnd = useCallback(
-+    (event: DragEndEvent) => {
-+      const { active, over } = event;
-+      if (over && active.id !== over.id) {
-+        const oldIndex = items.findIndex((i) => i._clientId === active.id);
-+        const newIndex = items.findIndex((i) => i._clientId === over.id);
-+        if (oldIndex !== -1 && newIndex !== -1) {
-+          onStructuralChange(arrayMove(items, oldIndex, newIndex));
-+        }
-+      }
-+    },
-+    [items, onStructuralChange]
-+  );
-+
-+  const handleAdd = useCallback(() => {
-+    const newItem = createDefaultItem();
-+    onStructuralChange([...items, newItem]);
-+    setExpandedId(newItem._clientId);
-+  }, [items, onStructuralChange]);
-+
-+  const handleDelete = useCallback(
-+    (clientId: string) => {
-+      onStructuralChange(items.filter((i) => i._clientId !== clientId));
-+      if (expandedId === clientId) setExpandedId(null);
-+    },
-+    [items, onStructuralChange, expandedId]
-+  );
-+
-+  const handleChange = useCallback(
-+    (updated: InputOutputItem) => {
-+      onFieldChange(items.map((i) => (i._clientId === updated._clientId ? updated : i)));
-+    },
-+    [items, onFieldChange]
-+  );
-+
-+  const handleToggleExpand = useCallback((clientId: string) => {
-+    setExpandedId((prev) => (prev === clientId ? null : clientId));
-+  }, []);
-+
-+  // Auto-collapse on drag start
-+  const handleDragStart = useCallback(() => {
-+    setExpandedId(null);
-+  }, []);
-+
-+  const isDeleteBlocked = requireMinOne && items.length <= 1;
-+
-+  return (
-+    <div className="space-y-2">
-+      {/* Section header */}
-+      <div className="flex items-center justify-between">
-+        <div className="flex items-center gap-2">
-+          <h4 className="text-sm font-medium">{label}</h4>
-+          <span className="text-xs px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">
-+            {items.length}
-+          </span>
-+        </div>
-+        <button
-+          type="button"
-+          onClick={handleAdd}
-+          className="flex items-center gap-1 text-xs px-2 py-1 rounded bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900 transition-colors"
-+          aria-label={`Add ${label.toLowerCase().replace(/s$/, '')}`}
-+        >
-+          <Plus className="h-3 w-3" aria-hidden="true" />
-+          Add
-+        </button>
-+      </div>
-+
-+      {/* Reserved params (locked, non-draggable, above user cards) */}
-+      {reservedParams.map((rp) => (
-+        <div key={rp.name} className="group/card">
-+          <InputOutputCard
-+            item={{
-+              _clientId: `reserved-${rp.name}`,
-+              name: rp.name,
-+              type: 'data',
-+              data_type: 'text',
-+              required: true,
-+              description: rp.description,
-+            }}
-+            expanded={false}
-+            onToggleExpand={() => {}}
-+            onChange={() => {}}
-+            locked
-+          />
-+        </div>
-+      ))}
-+
-+      {/* User cards with DnD */}
-+      {items.length === 0 ? (
-+        <p className="text-sm text-muted-foreground italic py-4 text-center">
-+          No {label.toLowerCase()} defined. Click + to add{' '}
-+          {label.toLowerCase() === 'inputs' ? 'an input' : 'an output'}.
-+        </p>
-+      ) : (
-+        <DndContext
-+          sensors={sensors}
-+          collisionDetection={closestCenter}
-+          onDragStart={handleDragStart}
-+          onDragEnd={handleDragEnd}
-+        >
-+          <SortableContext
-+            items={items.map((i) => i._clientId)}
-+            strategy={verticalListSortingStrategy}
-+          >
-+            <div className="space-y-1.5">
-+              {items.map((item) => (
-+                <SortableCard
-+                  key={item._clientId}
-+                  item={item}
-+                  expanded={expandedId === item._clientId}
-+                  onToggleExpand={() => handleToggleExpand(item._clientId)}
-+                  onChange={handleChange}
-+                  onDelete={() => handleDelete(item._clientId)}
-+                  deleteBlocked={isDeleteBlocked}
-+                  errors={validationErrors[item._clientId]}
-+                />
-+              ))}
-+            </div>
-+          </SortableContext>
-+        </DndContext>
-+      )}
-+    </div>
-+  );
-+}
-diff --git a/apps/web/src/features/058-workunit-editor/components/input-output-card.tsx b/apps/web/src/features/058-workunit-editor/components/input-output-card.tsx
-new file mode 100644
-index 0000000..8de888c
---- /dev/null
-+++ b/apps/web/src/features/058-workunit-editor/components/input-output-card.tsx
-@@ -0,0 +1,303 @@
-+'use client';
-+
-+import { cn } from '@/lib/utils';
-+import type { WorkUnitInput } from '@chainglass/positional-graph';
-+import { ChevronRight, GripVertical, Lock, Trash2 } from 'lucide-react';
-+import { useId } from 'react';
-+
-+/** Card item with synthetic client ID for SortableContext. */
-+export interface InputOutputItem extends WorkUnitInput {
-+  _clientId: string;
-+}
-+
-+/** Validation error for a specific field. */
-+export interface FieldValidationError {
-+  field: string;
-+  message: string;
-+}
-+
-+interface InputOutputCardProps {
-+  item: InputOutputItem;
-+  expanded: boolean;
-+  onToggleExpand: () => void;
-+  onChange: (updated: InputOutputItem) => void;
-+  onDelete?: () => void;
-+  /** Whether this is a reserved/locked param (display-only). */
-+  locked?: boolean;
-+  /** Whether delete is blocked (e.g. last output). */
-+  deleteBlocked?: boolean;
-+  /** Validation errors for this card's fields. */
-+  errors?: FieldValidationError[];
-+  /** Ref callback for dnd-kit sortable node. */
-+  sortableRef?: (node: HTMLElement | null) => void;
-+  /** Ref callback for drag handle activator (dnd-kit v10). */
-+  activatorRef?: (node: HTMLElement | null) => void;
-+  /** dnd-kit sortable style. */
-+  sortableStyle?: React.CSSProperties;
-+  /** dnd-kit listeners for the drag handle. */
-+  dragListeners?: Record<string, unknown>;
-+  /** Whether the card is currently being dragged. */
-+  isDragging?: boolean;
-+}
-+
-+const TYPE_OPTIONS = [
-+  { value: 'data', label: 'Data' },
-+  { value: 'file', label: 'File' },
-+] as const;
-+
-+const DATA_TYPE_OPTIONS = [
-+  { value: 'text', label: 'Text' },
-+  { value: 'number', label: 'Number' },
-+  { value: 'boolean', label: 'Boolean' },
-+  { value: 'json', label: 'JSON' },
-+] as const;
-+
-+function getFieldError(errors: FieldValidationError[] | undefined, field: string) {
-+  return errors?.find((e) => e.field === field);
-+}
-+
-+/**
-+ * Expandable card for a single input/output definition.
-+ *
-+ * Collapsed: shows name, type badge, required indicator, drag handle, delete.
-+ * Expanded: form with name, type, data_type (conditional), required, description.
-+ *
-+ * ARIA: adapt from ToolCallCard pattern (aria-expanded, aria-controls, ChevronRight rotate-90).
-+ * Plan 058, Phase 3, T001.
-+ */
-+export function InputOutputCard({
-+  item,
-+  expanded,
-+  onToggleExpand,
-+  onChange,
-+  onDelete,
-+  locked = false,
-+  deleteBlocked = false,
-+  errors,
-+  sortableRef,
-+  activatorRef,
-+  sortableStyle,
-+  dragListeners,
-+  isDragging = false,
-+}: InputOutputCardProps) {
-+  const generatedId = useId();
-+  const panelId = `io-panel-${generatedId}`;
-+
-+  const nameError = getFieldError(errors, 'name');
-+  const dataTypeError = getFieldError(errors, 'data_type');
-+
-+  return (
-+    <div
-+      ref={sortableRef}
-+      style={sortableStyle}
-+      data-sortable="true"
-+      data-dragging={isDragging}
-+      className={cn(
-+        'border rounded-md bg-white dark:bg-gray-900 transition-shadow',
-+        isDragging && 'opacity-50 shadow-lg',
-+        locked && 'opacity-60 bg-gray-50 dark:bg-gray-800/50'
-+      )}
-+    >
-+      {/* Collapsed header — click to expand */}
-+      <div className="flex items-center gap-1.5 px-2 py-1.5">
-+        {/* Drag handle — only for non-locked cards */}
-+        {!locked ? (
+diff --git a/apps/web/src/features/050-workflow-page/components/node-properties-panel.tsx b/apps/web/src/features/050-workflow-page/components/node-properties-panel.tsx
+index f1528fc..800d836 100644
+--- a/apps/web/src/features/050-workflow-page/components/node-properties-panel.tsx
++++ b/apps/web/src/features/050-workflow-page/components/node-properties-panel.tsx
+@@ -88,6 +88,7 @@ export interface NodePropertiesPanelProps {
+   onBack: () => void;
+   onEditProperties?: () => void;
+   onProvideInput?: () => void;
++  onEditTemplate?: () => void;
+ }
+ 
+ export function NodePropertiesPanel({
+@@ -97,6 +98,7 @@ export function NodePropertiesPanel({
+   onBack,
+   onEditProperties,
+   onProvideInput,
++  onEditTemplate,
+ }: NodePropertiesPanelProps) {
+   const upstream = related.filter((r) => r.relation === 'upstream');
+   const downstream = related.filter((r) => r.relation === 'downstream');
+@@ -257,6 +259,16 @@ export function NodePropertiesPanel({
+             Provide Input...
+           </button>
+         )}
++        {node.unitSlug && onEditTemplate && (
 +          <button
 +            type="button"
-+            ref={activatorRef}
-+            className="cursor-grab text-muted-foreground hover:text-foreground shrink-0 p-0.5"
-+            aria-label="Drag to reorder"
-+            tabIndex={-1}
-+            {...(dragListeners as React.HTMLAttributes<HTMLButtonElement>)}
++            onClick={onEditTemplate}
++            className="w-full px-3 py-2 text-xs font-medium rounded-lg border border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900 cursor-pointer transition-colors"
++            data-testid="edit-template-button"
 +          >
-+            <GripVertical className="h-3.5 w-3.5" aria-hidden="true" />
-+          </button>
-+        ) : (
-+          <span className="shrink-0 p-0.5 text-muted-foreground">
-+            <Lock className="h-3.5 w-3.5" aria-hidden="true" />
-+          </span>
-+        )}
-+
-+        {/* Expand/collapse toggle */}
-+        <button
-+          type="button"
-+          onClick={onToggleExpand}
-+          aria-expanded={expanded}
-+          aria-controls={panelId}
-+          disabled={locked}
-+          className={cn(
-+            'flex-1 flex items-center gap-2 text-left min-w-0',
-+            'hover:bg-muted/30 rounded px-1 py-0.5 transition-colors',
-+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-+            locked && 'cursor-default hover:bg-transparent'
-+          )}
-+        >
-+          {!locked && (
-+            <ChevronRight
-+              className={cn(
-+                'h-3.5 w-3.5 text-muted-foreground transition-transform shrink-0',
-+                expanded && 'rotate-90'
-+              )}
-+              aria-hidden="true"
-+            />
-+          )}
-+
-+          {/* Name */}
-+          <span
-+            className={cn(
-+              'text-sm font-medium truncate',
-+              !item.name && 'text-muted-foreground italic'
-+            )}
-+          >
-+            {item.name || 'unnamed'}
-+          </span>
-+
-+          {/* Type badge */}
-+          <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
-+            {item.type}
-+          </span>
-+
-+          {/* Required indicator */}
-+          {item.required && (
-+            <span className="text-xs text-amber-600 dark:text-amber-400 shrink-0">req</span>
-+          )}
-+        </button>
-+
-+        {/* Delete button — hover-reveal, not for locked or delete-blocked */}
-+        {!locked && onDelete && (
-+          <button
-+            type="button"
-+            onClick={onDelete}
-+            disabled={deleteBlocked}
-+            className={cn(
-+              'opacity-0 group-hover/card:opacity-100 focus:opacity-100 transition-opacity',
-+              'text-muted-foreground hover:text-red-500 p-0.5 shrink-0',
-+              deleteBlocked && 'cursor-not-allowed opacity-30'
-+            )}
-+            aria-label={deleteBlocked ? 'Cannot delete last output' : 'Delete'}
-+            title={deleteBlocked ? 'At least one output is required' : 'Delete'}
-+          >
-+            <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
++            Edit Template...
 +          </button>
 +        )}
-+      </div>
-+
-+      {/* Expandable form panel */}
-+      {expanded && !locked && (
-+        <div id={panelId} className="px-3 pb-3 pt-1 border-t border-border/50 space-y-3">
-+          {/* Name field */}
-+          <div>
-+            <label htmlFor={`${generatedId}-name`} className="block text-xs font-medium mb-1">
-+              Name
-+            </label>
-+            <input
-+              id={`${generatedId}-name`}
-+              value={item.name}
-+              onChange={(e) => onChange({ ...item, name: e.target.value })}
-+              placeholder="parameter_name"
-+              className={cn(
-+                'w-full rounded border px-2 py-1 text-sm bg-white dark:bg-gray-800',
-+                nameError
-+                  ? 'border-red-500 focus:ring-red-500'
-+                  : 'border-gray-300 dark:border-gray-600'
-+              )}
-+            />
-+            {nameError && <p className="text-xs text-red-500 mt-0.5">{nameError.message}</p>}
-+          </div>
-+
-+          {/* Type select */}
-+          <div>
-+            <label htmlFor={`${generatedId}-type`} className="block text-xs font-medium mb-1">
-+              Type
-+            </label>
-+            <select
-+              id={`${generatedId}-type`}
-+              value={item.type}
-+              onChange={(e) => {
-+                const newType = e.target.value as 'data' | 'file';
-+                onChange({
-+                  ...item,
-+                  type: newType,
-+                  // Clear data_type when switching to file
-+                  data_type: newType === 'file' ? undefined : (item.data_type ?? 'text'),
-+                });
-+              }}
-+              className="w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1 text-sm"
-+            >
-+              {TYPE_OPTIONS.map((opt) => (
-+                <option key={opt.value} value={opt.value}>
-+                  {opt.label}
-+                </option>
-+              ))}
-+            </select>
-+          </div>
-+
-+          {/* Data type select — shown only when type='data' */}
-+          {item.type === 'data' && (
-+            <div>
-+              <label htmlFor={`${generatedId}-datatype`} className="block text-xs font-medium mb-1">
-+                Data Type
-+              </label>
-+              <select
-+                id={`${generatedId}-datatype`}
-+                value={item.data_type ?? 'text'}
-+                onChange={(e) =>
-+                  onChange({
-+                    ...item,
-+                    data_type: e.target.value as 'text' | 'number' | 'boolean' | 'json',
-+                  })
+         <button
+           type="button"
+           disabled={!onEditProperties}
+diff --git a/apps/web/src/features/050-workflow-page/components/workflow-editor.tsx b/apps/web/src/features/050-workflow-page/components/workflow-editor.tsx
+index 48f100d..0e57fe7 100644
+--- a/apps/web/src/features/050-workflow-page/components/workflow-editor.tsx
++++ b/apps/web/src/features/050-workflow-page/components/workflow-editor.tsx
+@@ -354,6 +354,13 @@ export function WorkflowEditor({
+                 related={relatedNodes?.related ?? []}
+                 onBack={() => setSelectedNodeId(null)}
+                 onEditProperties={() => setEditModalNodeId(selectedNodeId)}
++                onEditTemplate={
++                  selectedNode.unitSlug
++                    ? () => {
++                        window.location.href = `/workspaces/${workspaceSlug}/work-units/${selectedNode.unitSlug}?from=workflow&graph=${graphSlug}`;
++                      }
++                    : undefined
 +                }
-+                className={cn(
-+                  'w-full rounded border px-2 py-1 text-sm bg-white dark:bg-gray-800',
-+                  dataTypeError
-+                    ? 'border-red-500 focus:ring-red-500'
-+                    : 'border-gray-300 dark:border-gray-600'
-+                )}
-+              >
-+                {DATA_TYPE_OPTIONS.map((opt) => (
-+                  <option key={opt.value} value={opt.value}>
-+                    {opt.label}
-+                  </option>
-+                ))}
-+              </select>
-+              {dataTypeError && (
-+                <p className="text-xs text-red-500 mt-0.5">{dataTypeError.message}</p>
-+              )}
-+            </div>
-+          )}
-+
-+          {/* Required checkbox */}
-+          <div className="flex items-center gap-2">
-+            <input
-+              id={`${generatedId}-required`}
-+              type="checkbox"
-+              checked={item.required}
-+              onChange={(e) => onChange({ ...item, required: e.target.checked })}
-+              className="rounded border-gray-300 dark:border-gray-600"
-+            />
-+            <label htmlFor={`${generatedId}-required`} className="text-xs font-medium">
-+              Required
-+            </label>
-+          </div>
-+
-+          {/* Description */}
-+          <div>
-+            <label htmlFor={`${generatedId}-desc`} className="block text-xs font-medium mb-1">
-+              Description
-+            </label>
-+            <input
-+              id={`${generatedId}-desc`}
-+              value={item.description ?? ''}
-+              onChange={(e) => onChange({ ...item, description: e.target.value || undefined })}
-+              placeholder="Optional description"
-+              className="w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1 text-sm"
-+            />
-+          </div>
-+        </div>
-+      )}
-+
-+      {/* Hidden panel target for aria-controls when collapsed */}
-+      {(!expanded || locked) && <div id={panelId} className="hidden" aria-hidden="true" />}
-+    </div>
-+  );
-+}
-diff --git a/apps/web/src/features/058-workunit-editor/components/workunit-editor-layout.tsx b/apps/web/src/features/058-workunit-editor/components/workunit-editor-layout.tsx
-index d30543d..898280a 100644
---- a/apps/web/src/features/058-workunit-editor/components/workunit-editor-layout.tsx
-+++ b/apps/web/src/features/058-workunit-editor/components/workunit-editor-layout.tsx
-@@ -30,7 +30,7 @@ export function WorkUnitEditorLayout({ left, main, right }: WorkUnitEditorLayout
-       </div>
- 
-       {/* Main editor area */}
--      <div className="flex-1 flex flex-col overflow-hidden">{main}</div>
-+      <div className="flex-1 flex flex-col overflow-y-auto">{main}</div>
- 
-       {/* Right metadata panel */}
-       <div
+                 onProvideInput={
+                   selectedNode.unitType === 'user-input' && selectedNodeId
+                     ? () => openHumanInputModal(selectedNodeId)
 diff --git a/apps/web/src/features/058-workunit-editor/components/workunit-editor.tsx b/apps/web/src/features/058-workunit-editor/components/workunit-editor.tsx
-index 7904596..43f83e9 100644
+index be325ac..049fa31 100644
 --- a/apps/web/src/features/058-workunit-editor/components/workunit-editor.tsx
 +++ b/apps/web/src/features/058-workunit-editor/components/workunit-editor.tsx
-@@ -1,10 +1,24 @@
- 'use client';
- 
-+import type { WorkUnitInput, WorkUnitOutput } from '@chainglass/positional-graph';
- import type { WorkUnitSummary } from '@chainglass/positional-graph';
- 
-+import { useAutoSave } from '@/features/_platform/hooks/use-auto-save';
-+import { useCallback, useEffect, useState } from 'react';
-+import { updateUnit } from '../../../../app/actions/workunit-actions';
- import { AgentEditor } from './agent-editor';
- import { CodeUnitEditor } from './code-unit-editor';
-+import type { InputOutputItem } from './input-output-card';
-+import {
-+  InputOutputCardList,
-+  type ListValidationErrors,
-+  hydrateClientIds,
-+  stripClientIds,
-+  validateItems,
-+} from './input-output-card-list';
-+import type { ReservedParam } from './input-output-card-list';
- import { MetadataPanel } from './metadata-panel';
-+import { SaveIndicator } from './save-indicator';
- import { UnitCatalogSidebar } from './unit-catalog-sidebar';
- import { UserInputEditor } from './user-input-editor';
- import { WorkUnitEditorLayout } from './workunit-editor-layout';
-@@ -18,6 +32,8 @@ interface WorkUnitEditorProps {
-   version: string;
-   scriptFilename?: string;
+@@ -34,6 +34,8 @@ interface WorkUnitEditorProps {
    allUnits: WorkUnitSummary[];
-+  inputs: WorkUnitInput[];
-+  outputs: WorkUnitOutput[];
+   inputs: WorkUnitInput[];
+   outputs: WorkUnitOutput[];
++  /** Graph slug to return to when navigated from workflow (AC-23). */
++  returnToWorkflow?: string;
  }
  
  function safeParseUserInputConfig(content: string) {
-@@ -28,9 +44,21 @@ function safeParseUserInputConfig(content: string) {
-   }
- }
+@@ -74,6 +76,7 @@ export function WorkUnitEditor({
+   allUnits,
+   inputs: initialInputs,
+   outputs: initialOutputs,
++  returnToWorkflow,
+ }: WorkUnitEditorProps) {
+   const [inputItems, setInputItems] = useState<InputOutputItem[]>(() =>
+     hydrateClientIds(initialInputs)
+@@ -212,6 +215,18 @@ export function WorkUnitEditor({
+       }
+       main={
+         <div className="flex flex-col">
++          {/* Return navigation breadcrumb (AC-23) */}
++          {returnToWorkflow && (
++            <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-muted/30">
++              <a
++                href={`/workspaces/${workspaceSlug}/workflows/${returnToWorkflow}`}
++                className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
++              >
++                ← Back to Workflow
++              </a>
++            </div>
++          )}
++
+           {/* Type-specific content editor */}
+           {mainEditor}
  
-+/** Get reserved params for the given unit type. */
-+function getReservedParams(unitType: 'agent' | 'code' | 'user-input'): ReservedParam[] {
-+  switch (unitType) {
-+    case 'agent':
-+      return [{ name: 'main-prompt', description: 'Routes to prompt template content' }];
-+    case 'code':
-+      return [{ name: 'main-script', description: 'Routes to script file content' }];
-+    case 'user-input':
-+      return [];
-+  }
+diff --git a/apps/web/src/features/058-workunit-editor/components/workunit-updated-banner.tsx b/apps/web/src/features/058-workunit-editor/components/workunit-updated-banner.tsx
+new file mode 100644
+index 0000000..8d0cc7d
+--- /dev/null
++++ b/apps/web/src/features/058-workunit-editor/components/workunit-updated-banner.tsx
+@@ -0,0 +1,58 @@
++'use client';
++
++/**
++ * Banner component that shows when work unit templates have changed on disk.
++ *
++ * Placed at page layout level (not inside WorkflowEditor) to avoid
++ * coupling with workflow's own toast-based external change handling.
++ *
++ * Per DYK #2: Neutral wording covers both external edits and user's own edits.
++ * Per DYK #4: Page layout level placement.
++ *
++ * Plan 058, Phase 4, T004.
++ */
++
++import { RefreshCw, X } from 'lucide-react';
++import { useRouter } from 'next/navigation';
++
++import { useWorkunitCatalogChanges } from '../hooks/use-workunit-catalog-changes';
++
++/**
++ * Dismissible banner for work unit catalog changes.
++ * Shows "Refresh" button that calls router.refresh() to reload page data.
++ */
++export function WorkUnitUpdatedBanner() {
++  const { changed, dismiss } = useWorkunitCatalogChanges();
++  const router = useRouter();
++
++  if (!changed) return null;
++
++  return (
++    <div className="flex items-center justify-between gap-3 px-4 py-2 text-sm bg-blue-50 dark:bg-blue-950 border-b border-blue-200 dark:border-blue-800">
++      <span className="text-blue-800 dark:text-blue-200">
++        Work unit templates have changed. Refresh to load latest.
++      </span>
++      <div className="flex items-center gap-2 shrink-0">
++        <button
++          type="button"
++          onClick={() => {
++            router.refresh();
++            dismiss();
++          }}
++          className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
++        >
++          <RefreshCw className="h-3 w-3" aria-hidden="true" />
++          Refresh
++        </button>
++        <button
++          type="button"
++          onClick={dismiss}
++          className="p-1 text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
++          aria-label="Dismiss"
++        >
++          <X className="h-3.5 w-3.5" aria-hidden="true" />
++        </button>
++      </div>
++    </div>
++  );
++}
+diff --git a/apps/web/src/features/058-workunit-editor/hooks/use-workunit-catalog-changes.ts b/apps/web/src/features/058-workunit-editor/hooks/use-workunit-catalog-changes.ts
+new file mode 100644
+index 0000000..e93afe8
+--- /dev/null
++++ b/apps/web/src/features/058-workunit-editor/hooks/use-workunit-catalog-changes.ts
+@@ -0,0 +1,59 @@
++'use client';
++
++/**
++ * Hook for tracking work unit catalog changes via SSE events.
++ *
++ * Subscribes to `/api/events/unit-catalog` SSE channel.
++ * Returns whether changes have occurred since last dismiss, with dismiss function.
++ *
++ * Plan 058, Phase 4, T003.
++ */
++
++import { useCallback, useEffect, useRef, useState } from 'react';
++
++interface UseWorkunitCatalogChangesResult {
++  /** Whether unit catalog has changed since last dismiss. */
++  changed: boolean;
++  /** Dismiss the current change notification (hides until next change). */
++  dismiss: () => void;
++  /** Timestamp of the last change event (0 if none). */
++  lastChanged: number;
 +}
 +
- /**
-- * Main work unit editor — 3-panel layout with type-dispatched content editor.
-- * Server Component loads data, this Client Component renders the full editor.
-+ * Main work unit editor — 3-panel layout with type-dispatched content editor
-+ * and inputs/outputs configuration below.
-  */
- export function WorkUnitEditor({
-   workspaceSlug,
-@@ -41,7 +69,114 @@ export function WorkUnitEditor({
-   version,
-   scriptFilename,
-   allUnits,
-+  inputs: initialInputs,
-+  outputs: initialOutputs,
- }: WorkUnitEditorProps) {
-+  const [inputItems, setInputItems] = useState<InputOutputItem[]>(() =>
-+    hydrateClientIds(initialInputs)
-+  );
-+  const [outputItems, setOutputItems] = useState<InputOutputItem[]>(() =>
-+    hydrateClientIds(initialOutputs)
-+  );
-+  const [inputErrors, setInputErrors] = useState<ListValidationErrors>({});
-+  const [outputErrors, setOutputErrors] = useState<ListValidationErrors>({});
++/**
++ * Track work unit catalog file changes via SSE.
++ *
++ * Returns `changed: true` when an SSE event arrives on the unit-catalog channel.
++ * Calling `dismiss()` hides until the next change.
++ */
++export function useWorkunitCatalogChanges(): UseWorkunitCatalogChangesResult {
++  const [lastChanged, setLastChanged] = useState(0);
++  const [dismissedAt, setDismissedAt] = useState(0);
++  const eventSourceRef = useRef<EventSource | null>(null);
 +
-+  // Single auto-save instance for inputs
-+  const inputSaveFn = useCallback(
-+    (value: string) => {
-+      const items = JSON.parse(value) as WorkUnitInput[];
-+      return updateUnit(workspaceSlug, unitSlug, { inputs: items });
-+    },
-+    [workspaceSlug, unitSlug]
-+  );
-+  const {
-+    status: inputStatus,
-+    error: inputError,
-+    trigger: triggerInputSave,
-+    flush: flushInputs,
-+  } = useAutoSave(inputSaveFn, { delay: 500 });
++  useEffect(() => {
++    const es = new EventSource('/api/events/unit-catalog');
++    eventSourceRef.current = es;
 +
-+  // Single auto-save instance for outputs
-+  const outputSaveFn = useCallback(
-+    (value: string) => {
-+      const items = JSON.parse(value) as WorkUnitOutput[];
-+      return updateUnit(workspaceSlug, unitSlug, { outputs: items });
-+    },
-+    [workspaceSlug, unitSlug]
-+  );
-+  const {
-+    status: outputStatus,
-+    error: outputError,
-+    trigger: triggerOutputSave,
-+    flush: flushOutputs,
-+  } = useAutoSave(outputSaveFn, { delay: 500 });
++    es.onmessage = () => {
++      setLastChanged(Date.now());
++    };
 +
-+  // Flush pending saves on unmount (DYK R1-#4)
-+  useEffect(() => () => flushInputs(), [flushInputs]);
-+  useEffect(() => () => flushOutputs(), [flushOutputs]);
++    es.onerror = () => {
++      // SSE reconnects automatically; no action needed
++    };
 +
-+  // Handle input field edits — validate + debounced save
-+  const handleInputFieldChange = useCallback(
-+    (items: InputOutputItem[]) => {
-+      setInputItems(items);
-+      const errors = validateItems(items);
-+      setInputErrors(errors);
-+      if (Object.keys(errors).length === 0) {
-+        const stripped = stripClientIds(items);
-+        triggerInputSave(JSON.stringify(stripped));
-+      }
-+    },
-+    [triggerInputSave]
-+  );
++    return () => {
++      es.close();
++      eventSourceRef.current = null;
++    };
++  }, []);
 +
-+  // Handle output field edits — validate + debounced save
-+  const handleOutputFieldChange = useCallback(
-+    (items: InputOutputItem[]) => {
-+      setOutputItems(items);
-+      const errors = validateItems(items);
-+      setOutputErrors(errors);
-+      if (Object.keys(errors).length === 0) {
-+        const stripped = stripClientIds(items);
-+        triggerOutputSave(JSON.stringify(stripped));
-+      }
-+    },
-+    [triggerOutputSave]
-+  );
++  const changed = lastChanged > 0 && lastChanged > dismissedAt;
 +
-+  // Handle input structural changes (add/remove/reorder) — flush + trigger + flush for immediate save
-+  const handleInputStructuralChange = useCallback(
-+    (items: InputOutputItem[]) => {
-+      flushInputs();
-+      setInputItems(items);
-+      const errors = validateItems(items);
-+      setInputErrors(errors);
-+      if (Object.keys(errors).length === 0) {
-+        const stripped = stripClientIds(items);
-+        triggerInputSave(JSON.stringify(stripped));
-+        flushInputs();
-+      }
-+    },
-+    [flushInputs, triggerInputSave]
-+  );
++  const dismiss = useCallback(() => {
++    setDismissedAt(Date.now());
++  }, []);
 +
-+  // Handle output structural changes — flush + trigger + flush for immediate save
-+  const handleOutputStructuralChange = useCallback(
-+    (items: InputOutputItem[]) => {
-+      flushOutputs();
-+      setOutputItems(items);
-+      const errors = validateItems(items);
-+      setOutputErrors(errors);
-+      if (Object.keys(errors).length === 0) {
-+        const stripped = stripClientIds(items);
-+        triggerOutputSave(JSON.stringify(stripped));
-+        flushOutputs();
-+      }
-+    },
-+    [flushOutputs, triggerOutputSave]
-+  );
-+
-+  const reservedParams = getReservedParams(unitType);
-+
-   const mainEditor = (() => {
-     switch (unitType) {
-       case 'agent':
-@@ -73,7 +208,43 @@ export function WorkUnitEditor({
-       left={
-         <UnitCatalogSidebar workspaceSlug={workspaceSlug} units={allUnits} currentSlug={unitSlug} />
-       }
--      main={mainEditor}
-+      main={
-+        <div className="flex flex-col">
-+          {/* Type-specific content editor */}
-+          {mainEditor}
-+
-+          {/* Inputs/Outputs configuration */}
-+          <div className="border-t border-gray-200 dark:border-gray-700 p-4 space-y-6">
-+            <div>
-+              <div className="flex items-center justify-between mb-2">
-+                <h3 className="text-sm font-medium text-muted-foreground">Inputs & Outputs</h3>
-+                <div className="flex items-center gap-3">
-+                  <SaveIndicator status={inputStatus} error={inputError} />
-+                  <SaveIndicator status={outputStatus} error={outputError} />
-+                </div>
-+              </div>
-+            </div>
-+
-+            <InputOutputCardList
-+              label="Inputs"
-+              items={inputItems}
-+              onStructuralChange={handleInputStructuralChange}
-+              onFieldChange={handleInputFieldChange}
-+              reservedParams={reservedParams}
-+              validationErrors={inputErrors}
-+            />
-+
-+            <InputOutputCardList
-+              label="Outputs"
-+              items={outputItems}
-+              onStructuralChange={handleOutputStructuralChange}
-+              onFieldChange={handleOutputFieldChange}
-+              requireMinOne
-+              validationErrors={outputErrors}
-+            />
-+          </div>
-+        </div>
-+      }
-       right={
-         <MetadataPanel
-           workspaceSlug={workspaceSlug}
-diff --git a/docs/plans/058-workunit-editor/tasks/phase-3-inputs-outputs-configuration/execution.log.md b/docs/plans/058-workunit-editor/tasks/phase-3-inputs-outputs-configuration/execution.log.md
++  return { changed, dismiss, lastChanged };
++}
+diff --git a/docs/plans/058-workunit-editor/tasks/phase-4-change-notifications-workflow-integration/execution.log.md b/docs/plans/058-workunit-editor/tasks/phase-4-change-notifications-workflow-integration/execution.log.md
 new file mode 100644
-index 0000000..1de151d
+index 0000000..3426c24
 --- /dev/null
-+++ b/docs/plans/058-workunit-editor/tasks/phase-3-inputs-outputs-configuration/execution.log.md
-@@ -0,0 +1,57 @@
-+# Execution Log: Phase 3 — Inputs/Outputs Configuration
++++ b/docs/plans/058-workunit-editor/tasks/phase-4-change-notifications-workflow-integration/execution.log.md
+@@ -0,0 +1,53 @@
++# Execution Log: Phase 4 — Change Notifications & Workflow Integration
 +
 +**Started**: 2026-03-01
 +**Completed**: 2026-03-01
-+**Phase**: Phase 3: Inputs/Outputs Configuration
++**Phase**: Phase 4: Change Notifications & Workflow Integration
 +**Plan**: [workunit-editor-plan.md](../../workunit-editor-plan.md)
 +
 +---
 +
 +## Task Log
 +
-+### T001: InputOutputCard
-+- Created `input-output-card.tsx` — expandable card with collapsed summary (name, type badge, required indicator, drag handle/lock icon) and expanded form (name, type, data_type conditional, required checkbox, description)
-+- ARIA: `aria-expanded`, `aria-controls`, `ChevronRight` rotate-90, `useId()` for unique IDs, `htmlFor`/`id` on all labels
-+- Accepts sortable refs (`sortableRef`, `activatorRef`, `dragListeners`) as props for dnd-kit integration
-+- Locked mode for reserved params: lock icon, disabled fields, no drag handle, no delete
++### T001: Verify CentralWatcherService paths
++- **No-op**: Source watcher already watches entire worktree root (line 293: `watcher.add(wt.path)`), which includes `.chainglass/units/`. No code changes needed (DYK #1 confirmed).
 +
-+### T002: InputOutputCardList
-+- Created `input-output-card-list.tsx` — DndContext + SortableContext container with PointerSensor (distance:8) + KeyboardSensor
-+- SortableCard wrapper uses `useSortable` with `setActivatorNodeRef` (v10 API) on grip handle
-+- Two callbacks: `onStructuralChange` (add/remove/reorder) and `onFieldChange` (field edits)
-+- Empty state message: "No inputs defined. Click + to add an input."
-+- `hydrateClientIds()` / `stripClientIds()` / `validateItems()` exported for reuse
-+- `_clientId` via `crypto.randomUUID()` for stable SortableContext keys
++### T002: WorkUnitCatalogWatcherAdapter
++- Created `workunit-catalog-watcher.adapter.ts` in `023-central-watcher-notifications/` (DYK #5)
++- Follows WorkflowWatcherAdapter pattern: self-filter by regex, 200ms debounce, subscriber dispatch with error isolation
++- Regex: `/units\/([^/]+)\/(unit\.yaml|templates\/.+)$/`
++- Exported from feature barrel + workflow package index
 +
-+### T003: Drag reorder
-+- Built into T002's SortableCard component — `useSortable`, `CSS.Transform.toString()`, `arrayMove`, `setActivatorNodeRef` on grip handle
-+- Auto-collapse on drag start, reduced opacity + shadow during drag
++### T003: State event + hook (SSE-based)
++- Created `use-workunit-catalog-changes.ts` — subscribes to `/api/events/unit-catalog` SSE channel
++- Returns `{ changed, dismiss, lastChanged }` — changed becomes true on SSE event, dismiss hides until next
++- Discovery: GlobalStateSystem requires domain registration + React context — SSE is the established pattern for server→client events. Switched from state system to SSE approach.
 +
-+### T004: Reserved params
-+- `getReservedParams(unitType)` returns `main-prompt` for agent, `main-script` for code, empty for user-input
-+- Injected via `reservedParams` prop — rendered as locked cards above user cards, never in save payload
++### T004: WorkUnitUpdatedBanner
++- Created `workunit-updated-banner.tsx` — dismissible banner with Refresh button
++- Neutral wording: "Work unit templates have changed. Refresh to load latest." (DYK #2)
++- Placed at page layout level in workflow editor page, above `<WorkflowEditor>` (DYK #4)
++- Refresh calls `router.refresh()` + `dismiss()`
 +
-+### T005: Validation
-+- `validateItems()` — name required, regex `/^[a-z][a-z0-9_]*$/`, uniqueness (flags both occurrences), data_type required when type='data'
-+- Red border + inline error text on invalid fields
++### T005: Edit Template button
++- Added `onEditTemplate` prop to `NodePropertiesPanelProps`
++- Button shown when `node.unitSlug` exists (DYK #3 — confirmed unitSlug is on NodeStatusResultBase)
++- Navigates to `/workspaces/[slug]/work-units/[unitSlug]?from=workflow&graph=[graphSlug]`
++- Styled with blue variant to differentiate from existing violet/gray buttons
 +
-+### T006: Wire into WorkUnitEditor + editor page
-+- Layout fix: main panel `overflow-hidden` → `overflow-y-auto`
-+- CodeMirror fix: agent/code editors `h-full` → removed, `flex-1 min-h-0` → `min-h-[400px]`
-+- Editor page passes `unit.inputs` and `unit.outputs` as props
-+- WorkUnitEditor renders InputOutputCardList sections below content editor with SaveIndicator
++### T006: Return navigation from editor
++- Editor page reads `searchParams.from` and `searchParams.graph` (async Next.js 16 pattern)
++- Passes `returnToWorkflow` prop to WorkUnitEditor
++- Renders "← Back to Workflow" link above content editor when `from=workflow`
 +
-+### T007: Auto-save + tests
-+- Dual auto-save instances (inputs + outputs) with delay:500ms
-+- Structural ops: `flush()` → `trigger(newArray)` → `flush()` for immediate save
-+- Field edits: `trigger(newArray)` only (debounced 500ms)
-+- Unmount cleanup: `useEffect(() => () => flush(), [flush])` for both lists
-+- 12 tests: hydrateClientIds, stripClientIds, validateItems (empty name, invalid format, duplicates, data_type conditional, reserved name rejection)
++### T007: Register adapter in DI
++- Added `UnitCatalog` to `WorkspaceDomain` enum in shared package
++- Created `UnitCatalogDomainEventAdapter` following WorkflowDomainEventAdapter pattern
++- Registered in `start-central-notifications.ts`: create adapter, register with watcher, subscribe events
 +
 +## Evidence
 +
-+- **Tests**: 335 files, 4739 tests passed (+12 new)
-+- **`just fft`**: passes clean (lint + format + typecheck + test)
-+- **Next.js MCP `get_errors`**: "No errors detected" across all 3 unit types
-+- **Browser verification**: Screenshots confirm agent editor (main-prompt reserved), code editor (main-script reserved), user-input editor (no reserved params, empty inputs state)
++- **Tests**: 335 files, 4744 tests passed (no new tests — infrastructure wiring)
++- **`just fft`**: passes clean
 +- **TypeScript**: `tsc --noEmit` passes clean
-diff --git a/docs/plans/058-workunit-editor/tasks/phase-3-inputs-outputs-configuration/tasks.fltplan.md b/docs/plans/058-workunit-editor/tasks/phase-3-inputs-outputs-configuration/tasks.fltplan.md
-index 724ca78..0859a44 100644
---- a/docs/plans/058-workunit-editor/tasks/phase-3-inputs-outputs-configuration/tasks.fltplan.md
-+++ b/docs/plans/058-workunit-editor/tasks/phase-3-inputs-outputs-configuration/tasks.fltplan.md
++- **Packages built**: shared + workflow rebuilt successfully
+diff --git a/docs/plans/058-workunit-editor/tasks/phase-4-change-notifications-workflow-integration/tasks.fltplan.md b/docs/plans/058-workunit-editor/tasks/phase-4-change-notifications-workflow-integration/tasks.fltplan.md
+index bab9344..43a56f9 100644
+--- a/docs/plans/058-workunit-editor/tasks/phase-4-change-notifications-workflow-integration/tasks.fltplan.md
++++ b/docs/plans/058-workunit-editor/tasks/phase-4-change-notifications-workflow-integration/tasks.fltplan.md
 @@ -3,7 +3,7 @@
  **Plan**: [workunit-editor-plan.md](../../workunit-editor-plan.md)
- **Phase**: Phase 3: Inputs/Outputs Configuration
- **Generated**: 2026-02-28
+ **Phase**: Phase 4: Change Notifications & Workflow Integration
+ **Generated**: 2026-03-01
 -**Status**: Ready for takeoff
 +**Status**: Landed
  
  ---
  
-@@ -53,7 +53,7 @@ stateDiagram-v2
+@@ -55,7 +55,7 @@ stateDiagram-v2
      S2 --> S3
      S3 --> [*]
  
@@ -1020,287 +425,248 @@ index 724ca78..0859a44 100644
  ```
  
  **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
-@@ -62,9 +62,9 @@ stateDiagram-v2
- 
+@@ -65,8 +65,8 @@ stateDiagram-v2
  ## Stages
  
--- [ ] **Stage 1: Card + list components** — Build InputOutputCard (expandable, ARIA) and InputOutputCardList (DndContext, add/delete) (`input-output-card.tsx`, `input-output-card-list.tsx` — new files)
--- [ ] **Stage 2: DnD + reserved + validation** — Wire useSortable drag reorder, reserved param locking, real-time name/type validation (`input-output-card.tsx`, `input-output-card-list.tsx`)
--- [ ] **Stage 3: Wire into editor + save + tests** — Integrate into WorkUnitEditor, wire dual auto-save (0ms structural, 500ms fields), pass data from server, add tests (`workunit-editor.tsx`, `page.tsx`, test file)
-+- [x] **Stage 1: Card + list components** — Build InputOutputCard (expandable, ARIA) and InputOutputCardList (DndContext, add/delete) (`input-output-card.tsx`, `input-output-card-list.tsx` — new files)
-+- [x] **Stage 2: DnD + reserved + validation** — Wire useSortable drag reorder, reserved param locking, real-time name/type validation (`input-output-card.tsx`, `input-output-card-list.tsx`)
-+- [x] **Stage 3: Wire into editor + save + tests** — Integrate into WorkUnitEditor, wire dual auto-save (0ms structural, 500ms fields), pass data from server, add tests (`workunit-editor.tsx`, `page.tsx`, test file)
+ - [ ] **Stage 1: Watcher infrastructure** — Verify/extend CentralWatcherService paths, create WorkUnitCatalogWatcherAdapter, register in DI (`central-watcher.service.ts`, `workunit-catalog-watcher.adapter.ts`, `start-central-notifications.ts`)
+-- [ ] **Stage 2: State events + banner** — Publish state event, create hook, build dismissible banner on workflow page (`use-workunit-catalog-changes.ts`, `workunit-updated-banner.tsx`)
+-- [ ] **Stage 3: Edit Template + return nav** — Add button on NodePropertiesPanel, add return breadcrumb on editor page (`node-properties-panel.tsx`, `workunit-editor.tsx`, `page.tsx`)
++- [x] **Stage 2: State events + banner** — Publish state event, create hook, build dismissible banner on workflow page (`use-workunit-catalog-changes.ts`, `workunit-updated-banner.tsx`)
++- [x] **Stage 3: Edit Template + return nav** — Add button on NodePropertiesPanel, add return breadcrumb on editor page (`node-properties-panel.tsx`, `workunit-editor.tsx`, `page.tsx`)
  
  ---
  
-@@ -102,12 +102,12 @@ flowchart LR
+@@ -110,11 +110,11 @@ flowchart LR
  
  ## Acceptance Criteria
  
--- [ ] AC-10: Add, edit, reorder, remove inputs
--- [ ] AC-11: Add, edit, reorder, remove outputs
--- [ ] AC-12: Name validation with real-time feedback
--- [ ] AC-13: data_type conditional on type
--- [ ] AC-14: Reserved params read-only
--- [ ] AC-15: At least one output enforced
-+- [x] AC-10: Add, edit, reorder, remove inputs
-+- [x] AC-11: Add, edit, reorder, remove outputs
-+- [x] AC-12: Name validation with real-time feedback
-+- [x] AC-13: data_type conditional on type
-+- [x] AC-14: Reserved params read-only
-+- [x] AC-15: At least one output enforced
+-- [ ] AC-22: "Edit Template" on workflow node properties panel
+-- [ ] AC-23: Return context preserved (back to workflow)
+-- [ ] AC-24: Banner appears on unit file change
+-- [ ] AC-25: Banner dismissible, re-appears on next change
+-- [ ] AC-26: Refresh picks up all unit changes
++- [x] AC-22: "Edit Template" on workflow node properties panel
++- [x] AC-23: Return context preserved (back to workflow)
++- [x] AC-24: Banner appears on unit file change
++- [x] AC-25: Banner dismissible, re-appears on next change
++- [x] AC-26: Refresh picks up all unit changes
  
  ## Goals & Non-Goals
  
-@@ -119,10 +119,10 @@ flowchart LR
+@@ -126,10 +126,10 @@ flowchart LR
  
  ## Checklist
  
--- [ ] T001: Build InputOutputCard (expandable, form fields, ARIA)
--- [ ] T002: Build InputOutputCardList (DndContext, add/delete)
--- [ ] T003: Drag reorder (useSortable, arrayMove, grip handle)
--- [ ] T004: Reserved params (locked, non-editable, non-draggable)
--- [ ] T005: Real-time validation (name regex, data_type conditional, uniqueness)
--- [ ] T006: Wire into WorkUnitEditor + editor page
--- [ ] T007: Auto-save (dual delay) + tests
-+- [x] T001: Build InputOutputCard (expandable, form fields, ARIA)
-+- [x] T002: Build InputOutputCardList (DndContext, add/delete)
-+- [x] T003: Drag reorder (useSortable, arrayMove, grip handle)
-+- [x] T004: Reserved params (locked, non-editable, non-draggable)
-+- [x] T005: Real-time validation (name regex, data_type conditional, uniqueness)
-+- [x] T006: Wire into WorkUnitEditor + editor page
-+- [x] T007: Auto-save (dual delay) + tests
-diff --git a/docs/plans/058-workunit-editor/tasks/phase-3-inputs-outputs-configuration/tasks.md b/docs/plans/058-workunit-editor/tasks/phase-3-inputs-outputs-configuration/tasks.md
-index e5c5a15..c72a7e2 100644
---- a/docs/plans/058-workunit-editor/tasks/phase-3-inputs-outputs-configuration/tasks.md
-+++ b/docs/plans/058-workunit-editor/tasks/phase-3-inputs-outputs-configuration/tasks.md
-@@ -71,16 +71,18 @@
- ```mermaid
- flowchart TD
-     classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
-+    classDef inprogress fill:#FFC107,stroke:#FFA000,color:#000
-+    classDef completed fill:#4CAF50,stroke:#388E3C,color:#fff
-     classDef phase2 fill:#4CAF50,stroke:#388E3C,color:#fff
+-- [ ] T001: Verify/extend CentralWatcherService paths
+-- [ ] T002: Create WorkUnitCatalogWatcherAdapter
+-- [ ] T003: Publish state event + create hook
+-- [ ] T004: Build WorkUnitUpdatedBanner
+-- [ ] T005: Add "Edit Template" button on NodePropertiesPanel
+-- [ ] T006: Return navigation from editor
+-- [ ] T007: Register adapter in DI + start-central-notifications
++- [x] T001: Verify/extend CentralWatcherService paths
++- [x] T002: Create WorkUnitCatalogWatcherAdapter
++- [x] T003: Publish state event + create hook
++- [x] T004: Build WorkUnitUpdatedBanner
++- [x] T005: Add "Edit Template" button on NodePropertiesPanel
++- [x] T006: Return navigation from editor
++- [x] T007: Register adapter in DI + start-central-notifications
+diff --git a/docs/plans/058-workunit-editor/tasks/phase-4-change-notifications-workflow-integration/tasks.md b/docs/plans/058-workunit-editor/tasks/phase-4-change-notifications-workflow-integration/tasks.md
+index 0a1c156..f1fc040 100644
+--- a/docs/plans/058-workunit-editor/tasks/phase-4-change-notifications-workflow-integration/tasks.md
++++ b/docs/plans/058-workunit-editor/tasks/phase-4-change-notifications-workflow-integration/tasks.md
+@@ -93,13 +93,13 @@ flowchart TD
+     classDef completed fill:#4CAF50,stroke:#388E3C,color:#fff
  
-     subgraph Phase3["Phase 3: Inputs/Outputs Configuration"]
--        T001["T001: InputOutputCard"]:::pending
--        T002["T002: InputOutputCardList"]:::pending
--        T003["T003: Drag reorder"]:::pending
--        T004["T004: Reserved params"]:::pending
--        T005["T005: Validation"]:::pending
--        T006["T006: Wire into editor"]:::pending
--        T007["T007: Auto-save + tests"]:::pending
-+        T001["T001: InputOutputCard"]:::completed
-+        T002["T002: InputOutputCardList"]:::completed
-+        T003["T003: Drag reorder"]:::completed
-+        T004["T004: Reserved params"]:::completed
-+        T005["T005: Validation"]:::completed
-+        T006["T006: Wire into editor"]:::completed
-+        T007["T007: Auto-save + tests"]:::completed
+     subgraph Phase4["Phase 4: Change Notifications & Workflow Integration"]
+-        T001["T001: Extend watcher paths"]:::pending
+-        T002["T002: WorkUnitCatalogWatcherAdapter"]:::pending
+-        T003["T003: State event + hook"]:::pending
+-        T004["T004: WorkUnitUpdatedBanner"]:::pending
+-        T005["T005: Edit Template button"]:::pending
+-        T006["T006: Return navigation"]:::pending
+-        T007["T007: Register in DI"]:::pending
++        T001["T001: Extend watcher paths"]:::completed
++        T002["T002: WorkUnitCatalogWatcherAdapter"]:::completed
++        T003["T003: State event + hook"]:::completed
++        T004["T004: WorkUnitUpdatedBanner"]:::completed
++        T005["T005: Edit Template button"]:::completed
++        T006["T006: Return navigation"]:::completed
++        T007["T007: Register in DI"]:::completed
  
          T001 --> T002
          T002 --> T003
-@@ -109,13 +111,13 @@ flowchart TD
+@@ -128,13 +128,13 @@ flowchart TD
  
  | Status | ID | Task | Domain | Path(s) | Done When | Notes |
  |--------|-----|------|--------|---------|-----------|-------|
--| [ ] | T001 | **Build InputOutputCard** — Expandable card component. **Collapsed**: shows name, type badge (`data`/`file`), required indicator, drag handle (grip icon), hover-reveal delete button. **Expanded**: form with name input (`htmlFor`/`id`), type select, data_type select (shown only when `type='data'`, hidden when `type='file'`), required checkbox, description input. Expand/collapse with `ChevronRight` rotation + `aria-expanded` + `aria-controls` (adapt from ToolCallCard). Uses `useId()` for ARIA IDs. | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/features/058-workunit-editor/components/input-output-card.tsx` | Card renders collapsed summary. Click expands form. All fields editable. ARIA attributes present. data_type conditional on type. `htmlFor`/`id` on all labels. | Per W005 Decisions 1, 3, 7. Adapt ToolCallCard ARIA pattern (`aria-expanded`, `aria-controls`, ChevronRight `rotate-90`). |
--| [ ] | T002 | **Build InputOutputCardList** — Container wrapping cards in `DndContext` + `SortableContext` with `verticalListSortingStrategy`. Sensors: `PointerSensor` (distance: 8) + `KeyboardSensor` (sortableKeyboardCoordinates). Add button appends card with defaults (`type:'data'`, `data_type:'text'`, `required:true`, name: `''`) and auto-expands. Delete button on cards — blocked if last output (AC-15). Section header ("Inputs" / "Outputs") with count badge. Accepts optional `reservedParams` prop for display-only locked cards. Each list manages its own `expandedId` state independently. | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/features/058-workunit-editor/components/input-output-card-list.tsx` | Cards render in order. Add appends + auto-expands new card. Delete removes card (blocked for last output). DndContext wraps list. Sensors configured. Reserved params rendered as locked cards above user cards (not included in save payload). | Per W005 Decisions 2, 4, 5. Adapt DndContext + sensor pattern from KanbanContent. Use `arrayMove` from `@dnd-kit/sortable`. Memoize card IDs for SortableContext. **DYK #2**: Reserved params are virtual (not in `unit.inputs[]`) — inject via `reservedParams` prop derived from unit type. **DYK #5**: Per-list expand state (not global) — user can reference input while editing output. |
--| [ ] | T003 | **Drag reorder** — Wire `useSortable` on each InputOutputCard with drag handle (grip icon, not whole card). On `dragEnd`, reorder array via `arrayMove` and trigger immediate save. Visual feedback: reduced opacity + shadow during drag. Auto-collapse card when drag starts. Keyboard: Space to grab, arrows to move, Space to drop. | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/features/058-workunit-editor/components/input-output-card.tsx`, `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/features/058-workunit-editor/components/input-output-card-list.tsx` | Cards reorder via drag handle. Order persists after save. Reserved params not draggable. Smooth animation via `CSS.Transform.toString()`. | Per W005 Decision 4. Adapt `useSortable` pattern from KanbanCard (lines 40-64). |
--| [ ] | T004 | **Reserved params** — Show `main-prompt` (agent units) and `main-script` (code units) as locked display-only cards at top of inputs list. These are **virtual inputs** — they don't exist in `unit.inputs[]` but are special routing params defined in `reserved-params.ts`. Inject via `reservedParams` prop on `InputOutputCardList`. Muted/dimmed styling, lock icon. No drag handle, no delete button, not draggable. Fields disabled. User-input units have no reserved params. Never included in save payload. | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/features/058-workunit-editor/components/input-output-card.tsx`, `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/features/058-workunit-editor/components/input-output-card-list.tsx` | Reserved params render with lock icon above user cards. Form fields disabled. No delete. No drag handle. Not included in save array. | Per AC-14, W005 Decision 8. **DYK #2**: Reserved params are virtual — import `RESERVED_INPUT_PARAMS` from `@chainglass/positional-graph` and filter by unit type (agent→`main-prompt`, code→`main-script`). |
--| [ ] | T005 | **Real-time validation** — Name: required + regex `/^[a-z][a-z0-9_]*$/` + unique within list. data_type: required when `type='data'`. At least one output enforced (AC-15). Show red border + inline error text on invalid fields. Two-tier: immediate UI feedback + Zod re-validation on server via `updateUnit`. | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/features/058-workunit-editor/components/input-output-card.tsx` | Invalid names show red border + error text. Duplicate names flagged. data_type required when type='data'. Missing required fields flagged. | Per AC-12, W005 Decision 6. **DYK #3**: No "not a reserved name" check needed — regex allows only underscores, reserved params use hyphens, collision is impossible by design. |
--| [ ] | T006 | **Wire into WorkUnitEditor** — Add Inputs and Outputs `InputOutputCardList` sections to editor page main area, below the type-specific content editor. Pass `unit.inputs` and `unit.outputs` from loaded unit. Update editor page to pass these arrays as props. Wire `onChange` to `updateUnit`. | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/features/058-workunit-editor/components/workunit-editor.tsx`, `/Users/jordanknight/substrate/058-workunit-editor/apps/web/app/(dashboard)/workspaces/[slug]/work-units/[unitSlug]/page.tsx` | Inputs and Outputs sections visible below content editor on editor page. Data loads from unit. Changes round-trip through server action. | Load `unit.inputs` and `unit.outputs` from `LoadUnitResult.unit`. Add props to `WorkUnitEditor`. |
--| [ ] | T007 | **Auto-save + tests** — Use a **single** `useAutoSave` instance per list. Structural changes (add/remove/reorder) call `flush()` first then `trigger(newArray)` for immediate save. Field edits on blur use `trigger(newArray)` normally with 500ms debounce. Show `SaveIndicator`. Add `flush()` call in component cleanup effect (`useEffect(() => () => flush(), [flush])`) to prevent data loss on navigation. Write tests for InputOutputCardList (add, remove, reorder, validation, reserved params). Use `DndTestWrapper` from `test/fakes/`. | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/features/058-workunit-editor/components/input-output-card-list.tsx`, `/Users/jordanknight/substrate/058-workunit-editor/test/unit/web/features/058-workunit-editor/input-output-card-list.test.tsx` | Structural changes save immediately. Field edits save debounced. No race conditions between structural and field saves. Pending saves flush on unmount. SaveIndicator shows status. Tests cover add/remove/validation/reserved. | **DYK #1**: Single useAutoSave instance — structural ops call `flush()` + `trigger()`, field ops call `trigger()` only. Prevents race where stale field-save overwrites structural change. **DYK #4**: Call `flush()` in cleanup effect to prevent data loss when navigating away. Save via `updateUnit(slug, { inputs: [...] })` — arrays replace wholesale. Use `DndTestWrapper` for test setup. |
-+| [x] | T001 | **Build InputOutputCard** — Expandable card component. **Collapsed**: shows name, type badge (`data`/`file`), required indicator, drag handle (grip icon), hover-reveal delete button. **Expanded**: form with name input (`htmlFor`/`id`), type select, data_type select (shown only when `type='data'`, hidden when `type='file'`), required checkbox, description input. Expand/collapse with `ChevronRight` rotation + `aria-expanded` + `aria-controls` (adapt from ToolCallCard). Uses `useId()` for ARIA IDs. | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/features/058-workunit-editor/components/input-output-card.tsx` | Card renders collapsed summary. Click expands form. All fields editable. ARIA attributes present. data_type conditional on type. `htmlFor`/`id` on all labels. | Per W005 Decisions 1, 3, 7. Adapt ToolCallCard ARIA pattern (`aria-expanded`, `aria-controls`, ChevronRight `rotate-90`). |
-+| [x] | T002 | **Build InputOutputCardList** — Container wrapping cards in `DndContext` + `SortableContext` with `verticalListSortingStrategy`. Sensors: `PointerSensor` (distance: 8) + `KeyboardSensor` (sortableKeyboardCoordinates). Add button appends card with defaults (`type:'data'`, `data_type:'text'`, `required:true`, name: `''`) and auto-expands. Delete button on cards — blocked if last output (AC-15). Section header ("Inputs" / "Outputs") with count badge. Accepts optional `reservedParams` prop for display-only locked cards. Each list manages its own `expandedId` state independently. Empty state: show "No inputs defined. Click + to add an input." when list is empty. Generate `_clientId` via `crypto.randomUUID()` for each card on load/add — use as `SortableContext items` key, strip before save. | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/features/058-workunit-editor/components/input-output-card-list.tsx` | Cards render in order. Add appends + auto-expands new card. Delete removes card (blocked for last output). DndContext wraps list. Sensors configured. Reserved params rendered as locked cards above user cards (not included in save payload). Empty state message when no items. | Per W005 Decisions 2, 4, 5. Adapt DndContext + sensor pattern from KanbanContent. Use `arrayMove` from `@dnd-kit/sortable`. **DYK R1-#2**: Reserved params are virtual — inject via `reservedParams` prop. **DYK R1-#5**: Per-list expand state. **DYK R2-#4**: Empty state message for zero inputs. **DYK R2-#5**: Use synthetic `_clientId` for SortableContext items (not name, not index). |
-+| [x] | T003 | **Drag reorder** — Wire `useSortable` on each InputOutputCard. Use v10's `setActivatorNodeRef` on grip handle element to cleanly separate drag activation from card click-to-expand. On `dragEnd`, reorder array via `arrayMove` and trigger immediate save. Visual feedback: reduced opacity + shadow during drag. Auto-collapse card when drag starts. Keyboard: Space to grab, arrows to move, Space to drop. | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/features/058-workunit-editor/components/input-output-card.tsx`, `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/features/058-workunit-editor/components/input-output-card-list.tsx` | Cards reorder via drag handle. Order persists after save. Reserved params not draggable. Smooth animation via `CSS.Transform.toString()`. | Per W005 Decision 4. **DYK R2-#3**: Use `setActivatorNodeRef` from `useSortable()` (v10 API) on grip element — first-class drag handle support, prevents click-to-expand accidentally triggering drag. |
-+| [x] | T004 | **Reserved params** — Show `main-prompt` (agent units) and `main-script` (code units) as locked display-only cards at top of inputs list. These are **virtual inputs** — they don't exist in `unit.inputs[]` but are special routing params defined in `reserved-params.ts`. Inject via `reservedParams` prop on `InputOutputCardList`. Muted/dimmed styling, lock icon. No drag handle, no delete button, not draggable. Fields disabled. User-input units have no reserved params. Never included in save payload. | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/features/058-workunit-editor/components/input-output-card.tsx`, `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/features/058-workunit-editor/components/input-output-card-list.tsx` | Reserved params render with lock icon above user cards. Form fields disabled. No delete. No drag handle. Not included in save array. | Per AC-14, W005 Decision 8. **DYK #2**: Reserved params are virtual — import `RESERVED_INPUT_PARAMS` from `@chainglass/positional-graph` and filter by unit type (agent→`main-prompt`, code→`main-script`). |
-+| [x] | T005 | **Real-time validation** — Name: required + regex `/^[a-z][a-z0-9_]*$/` + unique within list. data_type: required when `type='data'`. At least one output enforced (AC-15). Show red border + inline error text on invalid fields. Two-tier: immediate UI feedback + Zod re-validation on server via `updateUnit`. | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/features/058-workunit-editor/components/input-output-card.tsx` | Invalid names show red border + error text. Duplicate names flagged. data_type required when type='data'. Missing required fields flagged. | Per AC-12, W005 Decision 6. **DYK #3**: No "not a reserved name" check needed — regex allows only underscores, reserved params use hyphens, collision is impossible by design. |
-+| [x] | T006 | **Wire into WorkUnitEditor** — Add Inputs and Outputs `InputOutputCardList` sections to editor page main area, below the type-specific content editor. Pass `unit.inputs` and `unit.outputs` from loaded unit. Update editor page to pass these arrays as props. Wire `onChange` to `updateUnit`. **Layout fix**: Change `WorkUnitEditorLayout` main panel from `overflow-hidden` to `overflow-y-auto`. Change content editors (agent, code) from `h-full` + `flex-1 min-h-0` to `min-h-[400px]` so CodeMirror has guaranteed visible area in scrollable parent. User-input editor already works in scrollable context. | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/features/058-workunit-editor/components/workunit-editor.tsx`, `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/features/058-workunit-editor/components/workunit-editor-layout.tsx`, `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/features/058-workunit-editor/components/agent-editor.tsx`, `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/features/058-workunit-editor/components/code-unit-editor.tsx`, `/Users/jordanknight/substrate/058-workunit-editor/apps/web/app/(dashboard)/workspaces/[slug]/work-units/[unitSlug]/page.tsx` | Inputs and Outputs sections visible below content editor. Main panel scrolls. CodeMirror has 400px min height. Data loads from unit. Changes round-trip through server action. | **DYK R2-#1**: Main panel `overflow-hidden` clips I/O sections — must change to `overflow-y-auto`. **DYK R2-#2**: CodeMirror collapses to 0px in scrollable parent — replace `h-full`+`flex-1 min-h-0` with `min-h-[400px]` on agent/code editors. Load `unit.inputs` and `unit.outputs` from `LoadUnitResult.unit`. |
-+| [x] | T007 | **Auto-save + tests** — Use a **single** `useAutoSave` instance per list. Structural changes (add/remove/reorder) call `flush()` first then `trigger(newArray)` for immediate save. Field edits on blur use `trigger(newArray)` normally with 500ms debounce. Show `SaveIndicator`. Add `flush()` call in component cleanup effect (`useEffect(() => () => flush(), [flush])`) to prevent data loss on navigation. Write tests for InputOutputCardList (add, remove, reorder, validation, reserved params). Use `DndTestWrapper` from `test/fakes/`. | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/features/058-workunit-editor/components/input-output-card-list.tsx`, `/Users/jordanknight/substrate/058-workunit-editor/test/unit/web/features/058-workunit-editor/input-output-card-list.test.tsx` | Structural changes save immediately. Field edits save debounced. No race conditions between structural and field saves. Pending saves flush on unmount. SaveIndicator shows status. Tests cover add/remove/validation/reserved. | **DYK #1**: Single useAutoSave instance — structural ops call `flush()` + `trigger()`, field ops call `trigger()` only. Prevents race where stale field-save overwrites structural change. **DYK #4**: Call `flush()` in cleanup effect to prevent data loss when navigating away. Save via `updateUnit(slug, { inputs: [...] })` — arrays replace wholesale. Use `DndTestWrapper` for test setup. |
+-| [ ] | T001 | **Verify/extend CentralWatcherService paths** — Confirm `.chainglass/units/` is watched. The source watcher watches the entire worktree root, so events for units/ may already flow — verify first and skip extension if covered. If not, add it to the watched directories alongside `.chainglass/data/`. Guard against duplicate events if adding a new path. | `_platform/events` | `/Users/jordanknight/substrate/058-workunit-editor/packages/workflow/src/features/023-central-watcher-notifications/central-watcher.service.ts` | Units dir changes trigger watcher events. | Per plan finding 02. **DYK #1**: Source watcher may already cover units/ — check before extending; avoid duplicate events. |
+-| [ ] | T002 | **Create WorkUnitCatalogWatcherAdapter** — Filter events matching `units/*/unit.yaml` and `units/*/templates/*`. 200ms debounce. Emit typed events: `onUnitChanged(callback)` returning unsubscribe. Follow `WorkflowWatcherAdapter` pattern: self-filter by regex, subscriber dispatch loop, error isolation. | `_platform/events` | `/Users/jordanknight/substrate/058-workunit-editor/packages/workflow/src/features/023-central-watcher-notifications/workunit-catalog-watcher.adapter.ts` | Adapter fires on unit file create/modify/delete. Events debounced at 200ms. | Follow `WorkflowWatcherAdapter` pattern exactly. Regex: `/units\/[^/]+\/(unit\.yaml|templates\/.+)$/`. **DYK #5**: Place alongside existing adapters in `023-central-watcher-notifications/`, not a new feature folder. |
+-| [ ] | T003 | **Publish state event + create hook** — On adapter `onUnitChanged`, publish to state system at path `unit-catalog:changed` with timestamp value. Create `useWorkunitCatalogChanges()` hook wrapping `useGlobalState('unit-catalog', 'changed')` that returns `{ changed: boolean, dismiss: () => void, lastChanged: number }`. | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/features/058-workunit-editor/hooks/use-workunit-catalog-changes.ts` | `useGlobalState('unit-catalog', 'changed')` receives events. Hook exposes changed/dismiss/lastChanged. | Per W001 simplified sync model. |
+-| [ ] | T004 | **Build WorkUnitUpdatedBanner** — Dismissible banner at top of workflow page. Shows "Work unit templates have changed. Refresh to load latest." with "Refresh" button calling `router.refresh()`. Uses `useWorkunitCatalogChanges()` hook. Dismissible (hides until next change event). Styled consistently with existing toast/banner patterns. Neutral tone covers both external edits and user's own edits returning from editor. **Place at page layout level** (workflow page Server Component or direct child), not inside WorkflowEditor — avoids coupling with workflow's own toast-based external change handling. | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/features/058-workunit-editor/components/workunit-updated-banner.tsx` | Banner appears on unit change. Dismiss hides it. Re-appears on next change. Refresh reloads page data. | Per AC-24/25/26. **DYK #2**: User's own edits also trigger banner on return — neutral wording avoids confusion. **DYK #4**: Place at page layout level to avoid conflicting with WorkflowEditor's own toast system. |
+-| [ ] | T005 | **Add "Edit Template" button on NodePropertiesPanel** — Add button in the actions section (alongside "Provide Input" / "Edit Properties"). Navigates to `/workspaces/[slug]/work-units/[unitSlug]?from=workflow&graph=[graphSlug]`. Only shown for nodes that have a `unit_slug`. Use `workspaceHref` for URL construction. **Start by reading NodePropertiesPanel's prop types and tracing how node data flows from selection → panel to confirm `unit_slug` is accessible.** If not in props, add plumbing. | `workflow-ui` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/features/050-workflow-page/components/node-properties-panel.tsx` | Button visible on unit-backed nodes. Navigates to editor with return context query params. | Per AC-22. **DYK #3**: Verify `unit_slug` is in panel props — may be under `node.config` or require service call. Trace data flow first. |
+-| [ ] | T006 | **Return navigation from editor** — Read `from` and `graph` searchParams in editor page. When `from=workflow`, show a "Back to Workflow" link/breadcrumb above the editor. Navigates to `/workspaces/[slug]/workflows/[graphSlug]`. Pass searchParams through Server Component to Client Component props. | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/app/(dashboard)/workspaces/[slug]/work-units/[unitSlug]/page.tsx`, `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/features/058-workunit-editor/components/workunit-editor.tsx` | "Back to Workflow" link appears when `from=workflow` query param present. Link navigates to correct workflow. | Per AC-23. Async searchParams pattern (Next.js 16). |
+-| [ ] | T007 | **Register adapter in DI + start-central-notifications** — Create and register `WorkUnitCatalogWatcherAdapter` in `start-central-notifications.ts`. Subscribe adapter events to state system publish. Ensure idempotent (globalThis guard). | cross-domain | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/features/027-central-notify-events/start-central-notifications.ts`, `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/lib/di-container.ts` | Watcher active when dev server runs. Unit file changes trigger banner on workflow page. | Follow existing WorkflowWatcherAdapter registration pattern. |
++| [x] | T001 | **Verify/extend CentralWatcherService paths** — Confirm `.chainglass/units/` is watched. The source watcher watches the entire worktree root, so events for units/ may already flow — verify first and skip extension if covered. If not, add it to the watched directories alongside `.chainglass/data/`. Guard against duplicate events if adding a new path. | `_platform/events` | `/Users/jordanknight/substrate/058-workunit-editor/packages/workflow/src/features/023-central-watcher-notifications/central-watcher.service.ts` | Units dir changes trigger watcher events. | Per plan finding 02. **DYK #1**: Source watcher may already cover units/ — check before extending; avoid duplicate events. |
++| [x] | T002 | **Create WorkUnitCatalogWatcherAdapter** — Filter events matching `units/*/unit.yaml` and `units/*/templates/*`. 200ms debounce. Emit typed events: `onUnitChanged(callback)` returning unsubscribe. Follow `WorkflowWatcherAdapter` pattern: self-filter by regex, subscriber dispatch loop, error isolation. | `_platform/events` | `/Users/jordanknight/substrate/058-workunit-editor/packages/workflow/src/features/023-central-watcher-notifications/workunit-catalog-watcher.adapter.ts` | Adapter fires on unit file create/modify/delete. Events debounced at 200ms. | Follow `WorkflowWatcherAdapter` pattern exactly. Regex: `/units\/[^/]+\/(unit\.yaml|templates\/.+)$/`. **DYK #5**: Place alongside existing adapters in `023-central-watcher-notifications/`, not a new feature folder. |
++| [x] | T003 | **Publish state event + create hook** — On adapter `onUnitChanged`, publish to state system at path `unit-catalog:changed` with timestamp value. Create `useWorkunitCatalogChanges()` hook wrapping `useGlobalState('unit-catalog', 'changed')` that returns `{ changed: boolean, dismiss: () => void, lastChanged: number }`. | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/features/058-workunit-editor/hooks/use-workunit-catalog-changes.ts` | `useGlobalState('unit-catalog', 'changed')` receives events. Hook exposes changed/dismiss/lastChanged. | Per W001 simplified sync model. |
++| [x] | T004 | **Build WorkUnitUpdatedBanner** — Dismissible banner at top of workflow page. Shows "Work unit templates have changed. Refresh to load latest." with "Refresh" button calling `router.refresh()`. Uses `useWorkunitCatalogChanges()` hook. Dismissible (hides until next change event). Styled consistently with existing toast/banner patterns. Neutral tone covers both external edits and user's own edits returning from editor. **Place at page layout level** (workflow page Server Component or direct child), not inside WorkflowEditor — avoids coupling with workflow's own toast-based external change handling. | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/features/058-workunit-editor/components/workunit-updated-banner.tsx` | Banner appears on unit change. Dismiss hides it. Re-appears on next change. Refresh reloads page data. | Per AC-24/25/26. **DYK #2**: User's own edits also trigger banner on return — neutral wording avoids confusion. **DYK #4**: Place at page layout level to avoid conflicting with WorkflowEditor's own toast system. |
++| [x] | T005 | **Add "Edit Template" button on NodePropertiesPanel** — Add button in the actions section (alongside "Provide Input" / "Edit Properties"). Navigates to `/workspaces/[slug]/work-units/[unitSlug]?from=workflow&graph=[graphSlug]`. Only shown for nodes that have a `unit_slug`. Use `workspaceHref` for URL construction. **Start by reading NodePropertiesPanel's prop types and tracing how node data flows from selection → panel to confirm `unit_slug` is accessible.** If not in props, add plumbing. | `workflow-ui` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/features/050-workflow-page/components/node-properties-panel.tsx` | Button visible on unit-backed nodes. Navigates to editor with return context query params. | Per AC-22. **DYK #3**: Verify `unit_slug` is in panel props — may be under `node.config` or require service call. Trace data flow first. |
++| [x] | T006 | **Return navigation from editor** — Read `from` and `graph` searchParams in editor page. When `from=workflow`, show a "Back to Workflow" link/breadcrumb above the editor. Navigates to `/workspaces/[slug]/workflows/[graphSlug]`. Pass searchParams through Server Component to Client Component props. | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/app/(dashboard)/workspaces/[slug]/work-units/[unitSlug]/page.tsx`, `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/features/058-workunit-editor/components/workunit-editor.tsx` | "Back to Workflow" link appears when `from=workflow` query param present. Link navigates to correct workflow. | Per AC-23. Async searchParams pattern (Next.js 16). |
++| [x] | T007 | **Register adapter in DI + start-central-notifications** — Create and register `WorkUnitCatalogWatcherAdapter` in `start-central-notifications.ts`. Subscribe adapter events to state system publish. Ensure idempotent (globalThis guard). | cross-domain | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/features/027-central-notify-events/start-central-notifications.ts`, `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/lib/di-container.ts` | Watcher active when dev server runs. Unit file changes trigger banner on workflow page. | Follow existing WorkflowWatcherAdapter registration pattern. |
  
  ---
  
-@@ -200,6 +202,11 @@ _Populated during implementation by plan-6._
- | 2026-02-28 | T005 | insight | Name collision with reserved params is impossible — regex allows underscores only, reserved use hyphens | Skip redundant "not reserved" validation check | DYK #3 |
- | 2026-02-28 | T007 | gotcha | Blur + navigation cancels pending useAutoSave via clearTimeout on unmount — last edit lost | Call flush() in component cleanup effect: useEffect(() => () => flush(), [flush]) | DYK #4 |
- | 2026-02-28 | T002 | decision | Single-expand across two lists ambiguous — per-list simpler and more useful | Each InputOutputCardList manages its own expandedId state independently | DYK #5 |
-+| 2026-03-01 | T006 | gotcha | Main panel uses overflow-hidden — I/O sections below content editor will be clipped | Change WorkUnitEditorLayout main panel to overflow-y-auto | DYK R2-#1 |
-+| 2026-03-01 | T006 | gotcha | CodeMirror uses h-full + flex-1 min-h-0 — collapses to 0px in scrollable parent | Replace with min-h-[400px] on agent/code editor containers | DYK R2-#2 |
-+| 2026-03-01 | T003 | insight | dnd-kit v10 has setActivatorNodeRef — first-class drag handle support | Use setActivatorNodeRef on grip element instead of manual listeners spread | DYK R2-#3 |
-+| 2026-03-01 | T002 | insight | New units scaffold with inputs:[] — empty list looks broken to users | Add empty state message: "No inputs defined. Click + to add an input." | DYK R2-#4 |
-+| 2026-03-01 | T002 | gotcha | SortableContext needs stable unique IDs — name can be empty, index breaks reorder | Generate _clientId via crypto.randomUUID() on load/add, strip before save | DYK R2-#5 |
+@@ -220,6 +220,8 @@ _Populated during implementation by plan-6._
+ | 2026-03-01 | T005 | gotcha | unit_slug may not be directly available in NodePropertiesPanel props — need to trace data flow | Verify prop types and plumb if needed | DYK #3 |
+ | 2026-03-01 | T004 | decision | Banner placement: workflow editor has its own toast for workflow changes, adding unit banner inside would couple two systems | Place banner at page layout level, not inside WorkflowEditor | DYK #4 |
+ | 2026-03-01 | T002 | decision | Adapter domain placement: plan had 058-workunit-editor folder in workflow package, but adapters belong with CentralWatcherService | Place in 023-central-watcher-notifications/ alongside WorkflowWatcherAdapter | DYK #5 |
++| 2026-03-01 | T003 | discovery | GlobalStateSystem requires domain registration + React context; SSE is the established server→client event pattern | Switched hook from useGlobalState to EventSource SSE subscription | Implementation |
++| 2026-03-01 | T005 | insight | unitSlug is on NodeStatusResultBase — available directly in NodePropertiesPanel props, no plumbing needed | Used `node.unitSlug` directly | DYK #3 confirmed |
  
  ---
  
 diff --git a/docs/plans/058-workunit-editor/workunit-editor-plan.md b/docs/plans/058-workunit-editor/workunit-editor-plan.md
-index ea54356..a598108 100644
+index d4f8754..23dba57 100644
 --- a/docs/plans/058-workunit-editor/workunit-editor-plan.md
 +++ b/docs/plans/058-workunit-editor/workunit-editor-plan.md
 @@ -3,7 +3,7 @@
  **Plan Version**: 1.0.0
  **Created**: 2026-02-28
  **Spec**: [workunit-editor-spec.md](./workunit-editor-spec.md)
--**Status**: IN PROGRESS (Phase 1 + Phase 2 complete)
-+**Status**: IN PROGRESS (Phase 1 + Phase 2 + Phase 3 complete)
+-**Status**: IN PROGRESS (Phase 1 + Phase 2 + Phase 3 complete)
++**Status**: IN PROGRESS (Phase 1 + Phase 2 + Phase 3 + Phase 4 complete)
  **Mode**: Full
  **Complexity**: CS-4 (large)
  
-@@ -312,7 +312,7 @@ Graph nodes store only a `unit_slug` reference and always load the latest unit f
- |-------|--------|------|-------|-------|
+@@ -314,7 +314,7 @@ Graph nodes store only a `unit_slug` reference and always load the latest unit f
  | Phase 1: Service Layer | ✅ Complete | 2026-02-28 | +37 tests (4718 total) | 10/10 tasks done. Interface extended, fake updated, contract tests passing, all CRUD implemented. |
  | Phase 2: Editor Page | ✅ Complete | 2026-02-28 | +9 tests (4727 total) | 11/11 tasks done. Pages, editors, server actions, useAutoSave, domain registered. Code review fixes applied. |
--| Phase 3: Inputs/Outputs | ⬜ Not started | — | — | Task dossier ready with 5 DYK findings applied. Next to implement. |
-+| Phase 3: Inputs/Outputs | ✅ Complete | 2026-03-01 | +12 tests (4739 total) | 7/7 tasks done. InputOutputCard, InputOutputCardList, drag reorder, reserved params, validation, wired into editor, auto-save + tests. Browser-verified on all 3 unit types. |
- | Phase 4: Notifications | ⬜ Not started | — | — | Depends on Phase 2. File watcher uses new native watcher (Plan 060). |
+ | Phase 3: Inputs/Outputs | ✅ Complete | 2026-03-01 | +12 tests (4739 total) | 7/7 tasks done. InputOutputCard, InputOutputCardList, drag reorder, reserved params, validation, wired into editor, auto-save + tests. Browser-verified on all 3 unit types. |
+-| Phase 4: Notifications | ⬜ Not started | — | — | Depends on Phase 2. File watcher uses new native watcher (Plan 060). |
++| Phase 4: Notifications | ✅ Complete | 2026-03-01 | +0 tests (4744 total) | 7/7 tasks done. WorkUnitCatalogWatcherAdapter, SSE-based banner, Edit Template button, return navigation. |
  | Phase 5: Polish | ⬜ Not started | — | — | Depends on Phases 1-4. |
  
-diff --git a/test/unit/web/features/058-workunit-editor/input-output-card-list.test.ts b/test/unit/web/features/058-workunit-editor/input-output-card-list.test.ts
+ ### Domain Changes Log
+diff --git a/packages/shared/src/features/027-central-notify-events/workspace-domain.ts b/packages/shared/src/features/027-central-notify-events/workspace-domain.ts
+index 6a3b370..bed0a64 100644
+--- a/packages/shared/src/features/027-central-notify-events/workspace-domain.ts
++++ b/packages/shared/src/features/027-central-notify-events/workspace-domain.ts
+@@ -18,6 +18,8 @@ export const WorkspaceDomain = {
+   FileChanges: 'file-changes',
+   /** SSE channel: `'workflows'` — matches `/api/events/workflows` subscription path (Plan 050) */
+   Workflows: 'workflows',
++  /** SSE channel: `'unit-catalog'` — matches `/api/events/unit-catalog` subscription path (Plan 058) */
++  UnitCatalog: 'unit-catalog',
+ } as const;
+ 
+ /**
+diff --git a/packages/workflow/src/features/023-central-watcher-notifications/index.ts b/packages/workflow/src/features/023-central-watcher-notifications/index.ts
+index 56edb14..95c0250 100644
+--- a/packages/workflow/src/features/023-central-watcher-notifications/index.ts
++++ b/packages/workflow/src/features/023-central-watcher-notifications/index.ts
+@@ -34,3 +34,7 @@ export { FakeFileChangeWatcherAdapter } from './fake-file-change-watcher.js';
+ // Workflow watcher adapter (Plan 050 Phase 6)
+ export { WorkflowWatcherAdapter } from './workflow-watcher.adapter.js';
+ export type { WorkflowChangedEvent } from './workflow-watcher.adapter.js';
++
++// Work unit catalog watcher adapter (Plan 058 Phase 4)
++export { WorkUnitCatalogWatcherAdapter } from './workunit-catalog-watcher.adapter.js';
++export type { UnitCatalogChangedEvent } from './workunit-catalog-watcher.adapter.js';
+diff --git a/packages/workflow/src/features/023-central-watcher-notifications/workunit-catalog-watcher.adapter.ts b/packages/workflow/src/features/023-central-watcher-notifications/workunit-catalog-watcher.adapter.ts
 new file mode 100644
-index 0000000..fc4cfe3
+index 0000000..02c9b10
 --- /dev/null
-+++ b/test/unit/web/features/058-workunit-editor/input-output-card-list.test.ts
-@@ -0,0 +1,143 @@
++++ b/packages/workflow/src/features/023-central-watcher-notifications/workunit-catalog-watcher.adapter.ts
+@@ -0,0 +1,78 @@
 +/**
-+ * Tests for InputOutputCardList component and validation utilities.
++ * Work unit catalog watcher adapter — filters filesystem events for unit catalog changes.
 + *
-+ * Plan 058, Phase 3, T007.
-+ *
-+ * @vitest-environment jsdom
++ * Emits events when unit.yaml or template files change in .chainglass/units/.
++ * Per Plan 058 Phase 4: Change Notifications & Workflow Integration.
++ * Per ADR-02: Self-filtering adapter — receives all events, filters internally.
++ * Per DYK #5: Placed alongside existing adapters in 023-central-watcher-notifications.
 + */
 +
-+import { describe, expect, it } from 'vitest';
++import type { IWatcherAdapter, WatcherEvent } from './watcher-adapter.interface.js';
 +
-+import type { InputOutputItem } from '@/features/058-workunit-editor/components/input-output-card';
-+import {
-+  hydrateClientIds,
-+  stripClientIds,
-+  validateItems,
-+} from '@/features/058-workunit-editor/components/input-output-card-list';
++export interface UnitCatalogChangedEvent {
++  unitSlug: string;
++  workspaceSlug: string;
++  worktreePath: string;
++  filePath: string;
++  timestamp: Date;
++}
 +
-+// ─── hydrateClientIds ────────────────────────────────────────────────
++type UnitCatalogChangedCallback = (event: UnitCatalogChangedEvent) => void;
 +
-+describe('hydrateClientIds', () => {
-+  it('assigns unique _clientId to each item', () => {
-+    const items = [
-+      { name: 'input_a', type: 'data' as const, data_type: 'text' as const, required: true },
-+      { name: 'input_b', type: 'file' as const, required: false },
-+    ];
-+    const hydrated = hydrateClientIds(items);
++/** Match unit.yaml or template files in units/{slug}/ */
++const UNIT_FILE_REGEX = /units\/([^/]+)\/(unit\.yaml|templates\/.+)$/;
 +
-+    expect(hydrated).toHaveLength(2);
-+    expect(hydrated[0]._clientId).toBeDefined();
-+    expect(hydrated[1]._clientId).toBeDefined();
-+    expect(hydrated[0]._clientId).not.toBe(hydrated[1]._clientId);
-+    // Original fields preserved
-+    expect(hydrated[0].name).toBe('input_a');
-+    expect(hydrated[1].type).toBe('file');
-+  });
++export class WorkUnitCatalogWatcherAdapter implements IWatcherAdapter {
++  readonly name = 'workunit-catalog-watcher';
 +
-+  it('handles empty array', () => {
-+    expect(hydrateClientIds([])).toEqual([]);
-+  });
-+});
++  private readonly subscribers = new Set<UnitCatalogChangedCallback>();
++  private debounceTimer: ReturnType<typeof setTimeout> | null = null;
++  private pendingEvent: UnitCatalogChangedEvent | null = null;
 +
-+// ─── stripClientIds ──────────────────────────────────────────────────
++  constructor(private readonly debounceMs = 200) {}
 +
-+describe('stripClientIds', () => {
-+  it('removes _clientId from all items', () => {
-+    const items: InputOutputItem[] = [
-+      {
-+        _clientId: 'abc-123',
-+        name: 'input_a',
-+        type: 'data',
-+        data_type: 'text',
-+        required: true,
-+      },
-+    ];
-+    const stripped = stripClientIds(items);
++  handleEvent(event: WatcherEvent): void {
++    const match = event.path.match(UNIT_FILE_REGEX);
++    if (!match) return;
 +
-+    expect(stripped).toHaveLength(1);
-+    expect(stripped[0]).toEqual({
-+      name: 'input_a',
-+      type: 'data',
-+      data_type: 'text',
-+      required: true,
++    const unitSlug = match[1];
++    this.debounce({
++      unitSlug,
++      workspaceSlug: event.workspaceSlug,
++      worktreePath: event.worktreePath,
++      filePath: event.path,
++      timestamp: new Date(),
 +    });
-+    expect('_clientId' in stripped[0]).toBe(false);
-+  });
-+});
++  }
 +
-+// ─── validateItems ───────────────────────────────────────────────────
-+
-+describe('validateItems', () => {
-+  function makeItem(overrides: Partial<InputOutputItem> = {}): InputOutputItem {
-+    return {
-+      _clientId: crypto.randomUUID(),
-+      name: 'valid_name',
-+      type: 'data',
-+      data_type: 'text',
-+      required: true,
-+      ...overrides,
++  onUnitChanged(callback: UnitCatalogChangedCallback): () => void {
++    this.subscribers.add(callback);
++    return () => {
++      this.subscribers.delete(callback);
 +    };
 +  }
 +
-+  it('returns empty errors for valid items', () => {
-+    const items = [makeItem({ name: 'input_a' }), makeItem({ name: 'input_b' })];
-+    expect(validateItems(items)).toEqual({});
-+  });
++  private debounce(event: UnitCatalogChangedEvent): void {
++    this.pendingEvent = event;
++    if (this.debounceTimer) clearTimeout(this.debounceTimer);
++    this.debounceTimer = setTimeout(() => {
++      if (this.pendingEvent) {
++        this.dispatch(this.pendingEvent);
++        this.pendingEvent = null;
++      }
++    }, this.debounceMs);
++  }
 +
-+  it('flags empty name as required', () => {
-+    const item = makeItem({ name: '' });
-+    const errors = validateItems([item]);
-+    expect(errors[item._clientId]).toBeDefined();
-+    expect(errors[item._clientId].some((e) => e.field === 'name')).toBe(true);
-+  });
-+
-+  it('flags invalid name format', () => {
-+    const item = makeItem({ name: 'Invalid-Name' });
-+    const errors = validateItems([item]);
-+    expect(errors[item._clientId]).toBeDefined();
-+    expect(errors[item._clientId][0].field).toBe('name');
-+    expect(errors[item._clientId][0].message).toContain('a-z');
-+  });
-+
-+  it('flags names starting with number', () => {
-+    const item = makeItem({ name: '0invalid' });
-+    const errors = validateItems([item]);
-+    expect(errors[item._clientId]).toBeDefined();
-+  });
-+
-+  it('accepts valid snake_case names', () => {
-+    const item = makeItem({ name: 'my_input_123' });
-+    expect(validateItems([item])).toEqual({});
-+  });
-+
-+  it('flags duplicate names on both occurrences', () => {
-+    const item1 = makeItem({ name: 'dup_name' });
-+    const item2 = makeItem({ name: 'dup_name' });
-+    const errors = validateItems([item1, item2]);
-+
-+    expect(errors[item1._clientId]).toBeDefined();
-+    expect(errors[item2._clientId]).toBeDefined();
-+    expect(errors[item1._clientId].some((e) => e.message === 'Duplicate name')).toBe(true);
-+    expect(errors[item2._clientId].some((e) => e.message === 'Duplicate name')).toBe(true);
-+  });
-+
-+  it('flags missing data_type when type is data', () => {
-+    const item = makeItem({ type: 'data', data_type: undefined });
-+    const errors = validateItems([item]);
-+    expect(errors[item._clientId]).toBeDefined();
-+    expect(errors[item._clientId].some((e) => e.field === 'data_type')).toBe(true);
-+  });
-+
-+  it('does not flag missing data_type when type is file', () => {
-+    const item = makeItem({ type: 'file', data_type: undefined });
-+    expect(validateItems([item])).toEqual({});
-+  });
-+
-+  it('allows reserved-style names with hyphens to fail regex', () => {
-+    // Reserved params use hyphens — user names can't collide because regex rejects hyphens
-+    const item = makeItem({ name: 'main-prompt' });
-+    const errors = validateItems([item]);
-+    expect(errors[item._clientId]).toBeDefined();
-+    expect(errors[item._clientId][0].field).toBe('name');
-+  });
-+});
++  private dispatch(event: UnitCatalogChangedEvent): void {
++    for (const callback of this.subscribers) {
++      try {
++        callback(event);
++      } catch (error) {
++        console.warn(`[${this.name}] Subscriber callback threw`, {
++          unitSlug: event.unitSlug,
++          error,
++        });
++      }
++    }
++  }
++}
+diff --git a/packages/workflow/src/index.ts b/packages/workflow/src/index.ts
+index a57cceb..3b9d9fb 100644
+--- a/packages/workflow/src/index.ts
++++ b/packages/workflow/src/index.ts
+@@ -475,6 +475,8 @@ export { SOURCE_WATCHER_IGNORED } from './features/023-central-watcher-notificat
+ export { FakeFileChangeWatcherAdapter } from './features/023-central-watcher-notifications/index.js';
+ export { WorkflowWatcherAdapter } from './features/023-central-watcher-notifications/index.js';
+ export type { WorkflowChangedEvent } from './features/023-central-watcher-notifications/index.js';
++export { WorkUnitCatalogWatcherAdapter } from './features/023-central-watcher-notifications/index.js';
++export type { UnitCatalogChangedEvent } from './features/023-central-watcher-notifications/index.js';
+ 
+ // Workspace palettes (Plan 041: File Browser)
+ export {

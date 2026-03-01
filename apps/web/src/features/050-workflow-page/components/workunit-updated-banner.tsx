@@ -15,7 +15,7 @@
 import { RefreshCw, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
-import { useWorkunitCatalogChanges } from '../hooks/use-workunit-catalog-changes';
+import { useWorkunitCatalogChanges } from '@/features/058-workunit-editor/hooks/use-workunit-catalog-changes';
 
 /**
  * Dismissible banner for work unit catalog changes.

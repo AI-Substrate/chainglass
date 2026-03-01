@@ -18,6 +18,10 @@ export class UnitCatalogDomainEventAdapter extends DomainEventAdapter<UnitCatalo
   }
 
   extractData(event: UnitCatalogChangedEvent): Record<string, unknown> {
-    return { unitSlug: event.unitSlug };
+    return {
+      unitSlug: event.unitSlug,
+      workspaceSlug: event.workspaceSlug,
+      worktreePath: event.worktreePath,
+    };
   }
 }

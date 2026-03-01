@@ -7,7 +7,7 @@
  */
 
 import { WorkflowEditor } from '@/features/050-workflow-page/components/workflow-editor';
-import { WorkUnitUpdatedBanner } from '@/features/058-workunit-editor/components/workunit-updated-banner';
+import { WorkUnitUpdatedBanner } from '@/features/050-workflow-page/components/workunit-updated-banner';
 import { Suspense } from 'react';
 import { listWorkUnits, loadWorkflow } from '../../../../../actions/workflow-actions';
 

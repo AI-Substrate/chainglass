@@ -357,7 +357,10 @@ export function WorkflowEditor({
                 onEditTemplate={
                   selectedNode.unitSlug
                     ? () => {
-                        window.location.href = `/workspaces/${workspaceSlug}/work-units/${selectedNode.unitSlug}?from=workflow&graph=${graphSlug}`;
+                        const wtParam = worktreePath
+                          ? `&worktree=${encodeURIComponent(worktreePath)}`
+                          : '';
+                        window.location.href = `/workspaces/${workspaceSlug}/work-units/${selectedNode.unitSlug}?from=workflow&graph=${graphSlug}${wtParam}`;
                       }
                     : undefined
                 }

@@ -59,3 +59,4 @@ Visual editor for creating, editing, and managing work unit templates. Work unit
 |------|-------|--------|
 | 2026-02-28 | Phase 2 | Domain created: pages, server actions, type-specific editors, creation modal |
 | 2026-03-01 | Phase 3 | Added inputs/outputs configuration: InputOutputCard, InputOutputCardList, DnD reorder, reserved params, validation, dual auto-save |
+| 2026-03-01 | Phase 4 | Added change notifications (SSE hook, watcher adapter), Edit Template button on workflow nodes, Back to Workflow return navigation |

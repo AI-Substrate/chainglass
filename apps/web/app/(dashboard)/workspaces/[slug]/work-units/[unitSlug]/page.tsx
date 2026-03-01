@@ -15,6 +15,7 @@ export default async function WorkUnitEditorPage({ params, searchParams }: PageP
   const sp = await searchParams;
   const returnToWorkflow =
     sp.from === 'workflow' && typeof sp.graph === 'string' ? sp.graph : undefined;
+  const returnWorktree = typeof sp.worktree === 'string' ? sp.worktree : undefined;
 
   const [unitResult, contentResult, unitsResult] = await Promise.all([
     loadUnit(slug, unitSlug),
@@ -58,6 +59,7 @@ export default async function WorkUnitEditorPage({ params, searchParams }: PageP
         inputs={unit.inputs ?? []}
         outputs={unit.outputs ?? []}
         returnToWorkflow={returnToWorkflow}
+        returnWorktree={returnWorktree}
       />
     </Suspense>
   );

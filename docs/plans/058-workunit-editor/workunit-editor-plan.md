@@ -53,6 +53,10 @@ Graph nodes store only a `unit_slug` reference and always load the latest unit f
 | `apps/web/src/features/058-workunit-editor/types.ts` | `058-workunit-editor` | internal | Shared types for editor feature |
 | `apps/web/src/lib/navigation-utils.ts` | cross-domain | cross-domain | Add "Work Units" to WORKSPACE_NAV_ITEMS |
 | **Phase 3 — Inputs/Outputs** | | | |
+| `packages/workflow/src/features/023-central-watcher-notifications/workunit-catalog-watcher.adapter.ts` | `_platform/events` | internal | Work unit catalog file watcher adapter |
+| `apps/web/src/features/027-central-notify-events/unit-catalog-domain-event.adapter.ts` | `_platform/events` | internal | SSE event bridge for unit catalog changes |
+| `apps/web/src/features/050-workflow-page/components/workunit-updated-banner.tsx` | `workflow-ui` | internal | Dismissible banner for unit catalog changes |
+| `apps/web/src/features/058-workunit-editor/hooks/use-workunit-catalog-changes.ts` | `058-workunit-editor` | contract | SSE hook for unit catalog change subscription |
 | `apps/web/src/features/058-workunit-editor/components/input-output-card-list.tsx` | `058-workunit-editor` | internal | Expandable card list container with DnD |
 | `apps/web/src/features/058-workunit-editor/components/input-output-card.tsx` | `058-workunit-editor` | internal | Individual card with form fields |
 | `test/unit/web/features/058-workunit-editor/input-output-card-list.test.ts` | test | internal | Validation + interaction tests |

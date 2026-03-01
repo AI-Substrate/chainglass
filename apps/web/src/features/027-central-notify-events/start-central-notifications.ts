@@ -21,7 +21,7 @@ import {
 } from '@chainglass/workflow';
 import { getContainer } from '../../lib/bootstrap-singleton';
 import { FileChangeDomainEventAdapter } from './file-change-domain-event-adapter';
-import { UnitCatalogDomainEventAdapter } from './unit-catalog-domain-event-adapter';
+import { UnitCatalogDomainEventAdapter } from './unit-catalog-domain-event.adapter';
 import { WorkflowDomainEventAdapter } from './workflow-domain-event-adapter';
 
 declare global {
