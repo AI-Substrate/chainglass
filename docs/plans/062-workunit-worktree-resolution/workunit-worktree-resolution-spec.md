@@ -117,3 +117,36 @@ None — all questions were resolved in Workshop 006 and the research dossier.
 ## Workshop Opportunities
 
 None — Workshop 006 (`058/workshops/006-workunit-worktree-resolution.md`) already provides the complete design with exact code patterns for all 9 file changes. No further workshops needed.
+
+---
+
+## Testing Strategy
+
+- **Approach**: Hybrid — TDD for resolver function, lightweight for prop-threading
+- **Rationale**: The `resolveWorkspaceContext` function has real branching logic (validate worktree, fallback). The rest is mechanical prop-threading that's verified by `just fft` and manual Playwright check.
+- **Focus Areas**:
+  - Unit tests for `resolveWorkspaceContext(slug, worktreePath?)` — valid worktree, invalid worktree, missing worktree, missing workspace
+  - Manual Playwright verification that `?worktree=` produces correct data
+- **Mock Usage**: Fakes only (no mocks). Use `FakeWorkspaceService` or equivalent fake that controls `getInfo()` return values including `worktrees[]` array.
+- **Excluded**: E2E browser tests for prop-threading (covered by `just fft` typecheck + manual spot-check)
+
+---
+
+## Documentation Strategy
+
+- **Approach**: No new documentation
+- **Rationale**: Workshop 006 already fully documents the worktree threading pattern with exact code snippets. Domain history will be updated as part of implementation.
+
+---
+
+## Clarifications
+
+### Session 2026-03-01
+
+| # | Question | Answer | Updated |
+|---|----------|--------|---------|
+| Q1 | Workflow Mode | **Simple** — single phase, inline tasks | Header confirmed |
+| Q2 | Testing Strategy | **Hybrid** — TDD for resolver, lightweight for prop-threading | Added § Testing Strategy |
+| Q3 | Mock Usage | **Fakes only** — no mocks, use FakeWorkspaceService | Added to § Testing Strategy |
+| Q4 | Documentation Strategy | **No new docs** — Workshop 006 covers it | Added § Documentation Strategy |
+| Q5 | Domain Review | **Confirmed** — 1 modified domain, 2 consumed, no boundary issues | § Target Domains unchanged |
