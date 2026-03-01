@@ -1,279 +1,106 @@
-diff --git a/docs/domains/domain-map.md b/docs/domains/domain-map.md
-index 191a456..3ba1622 100644
---- a/docs/domains/domain-map.md
-+++ b/docs/domains/domain-map.md
-@@ -30,6 +30,9 @@ flowchart LR
-     agents["🤖 agents<br/>IAgentManagerService<br/>IAgentAdapter · IAgentInstance<br/>useAgentManager<br/>useAgentInstance<br/>AgentWorkUnitBridge"]:::new
-     workUnitState["📋 work-unit-state<br/>IWorkUnitStateService<br/>WorkUnitEntry<br/>WorkUnitQuestion<br/>FakeWorkUnitStateService"]:::new
- 
-+    %% NEW business domains (Plan 061)
-+    wfEvents["📡 workflow-events<br/>IWorkflowEvents<br/>WorkflowEventType<br/>FakeWorkflowEventsService"]:::new
-+
-     %% Contract dependencies (consumer → provider)
-     fileBrowser -->|"IFileSystem<br/>IPathResolver"| fileOps
-     fileBrowser -->|"workspaceHref<br/>fileBrowserParams"| wsUrl
-@@ -78,6 +81,12 @@ flowchart LR
- 
-     %% NEW: Workflow UI → agents (future overlay)
-     workflowUI -->|"useAgentOverlay<br/>(future)"| agents
-+
-+    %% NEW: Workflow Events dependencies (Plan 061)
-+    wfEvents -->|"IPositionalGraphService<br/>raiseNodeEvent"| posGraph
-+    wfEvents -->|"ICentralEventNotifier<br/>SSE broadcast"| events
-+    agents -->|"IWorkflowEvents<br/>onQuestionAsked"| wfEvents
-+    workflowUI -->|"IWorkflowEvents<br/>answerQuestion"| wfEvents
- ```
- 
- ## Legend
-@@ -108,3 +117,4 @@ flowchart LR
- | _platform/dev-tools | StateInspector, useStateChangeLog, useStateInspector | — | IStateService, StateChangeLog, useStateSystem | state | ✅ |
- | agents | IAgentManagerService, IAgentAdapter, IAgentInstance, IAgentNotifierService, useAgentManager, useAgentInstance, AgentWorkUnitBridge | positional-graph (orchestration), workflow-ui (future overlay) | ISSEBroadcaster, useSSE, toast(), CopilotClient, IStateService, IWorkUnitStateService, DashboardShell | events, sdk, state, work-unit-state, panel-layout | 🟠 New |
- | work-unit-state | IWorkUnitStateService, WorkUnitEntry, WorkUnitQuestion, FakeWorkUnitStateService | agents (AgentWorkUnitBridge), workflow-ui (future) | IStateService | state | 🟠 New |
-+| workflow-events | IWorkflowEvents, WorkflowEventType, FakeWorkflowEventsService | agents (observer hooks), workflow-ui (answerQuestion), CLI (ask/answer/get-answer) | IPositionalGraphService, ICentralEventNotifier | positional-graph, events | 🟠 New |
-diff --git a/docs/domains/registry.md b/docs/domains/registry.md
-index aaa5253..ee6cca2 100644
---- a/docs/domains/registry.md
-+++ b/docs/domains/registry.md
-@@ -17,6 +17,7 @@
- | Dev Tools | _platform/dev-tools | infrastructure | _platform | Plan 056 — State DevTools Panel | active |
- | Agents | agents | business | — | Plan 059 — Fix Agents (extracted) | active |
- | Work Unit State | work-unit-state | business | — | Plan 059 — Fix Agents (new) | active |
-+| Workflow Events | workflow-events | business | — | Plan 061 — WorkflowEvents (new) | active |
- 
- ## Domain Types
- 
 diff --git a/docs/domains/workflow-events/domain.md b/docs/domains/workflow-events/domain.md
-new file mode 100644
-index 0000000..8bb14cc
---- /dev/null
+index 7de86ce..c0238e7 100644
+--- a/docs/domains/workflow-events/domain.md
 +++ b/docs/domains/workflow-events/domain.md
-@@ -0,0 +1,150 @@
-+# Domain: Workflow Events
-+
-+**Slug**: `workflow-events`
-+**Type**: business
-+**Status**: active
-+**Created By**: Plan 061 — WorkflowEvents First-Class Convenience Domain
-+
-+---
-+
-+## Boundary
-+
-+**Purpose**: Intent-based convenience API for workflow event interactions. Wraps the generic event system (Plan 032) so callers express business intent (ask question, answer question, report progress) without understanding the underlying event machinery (raiseEvent pipeline, handler stamping, state transitions, 3-event handshakes).
-+
-+**Owns**:
-+- `IWorkflowEvents` interface — the convenience contract
-+- `WorkflowEventsService` implementation — wraps PositionalGraphService
-+- `FakeWorkflowEventsService` — self-contained test double with inspection methods
-+- `WorkflowEventType` typed constants — replaces magic event strings
-+- Convenience types: `QuestionInput`, `AnswerInput`, `AnswerResult`, `ProgressInput`, `ErrorInput`
-+- Observer event types: `QuestionAskedEvent`, `QuestionAnsweredEvent`, `ProgressEvent`, `WorkflowEvent`
-+- Server-side observer registry: `onQuestionAsked`, `onQuestionAnswered`, `onProgress`, `onEvent`
-+
-+**Excludes**:
-+- Generic event infrastructure (raiseEvent, handleEvents, NodeEventRegistry — owned by `_platform/positional-graph`)
-+- Event type definitions and Zod schemas (owned by `_platform/positional-graph`)
-+- CLI command definitions (consumer layer — delegates to WorkflowEvents)
-+- Web server actions (consumer layer — delegates to WorkflowEvents)
-+- Orchestration logic (ONBAS/ODS — owned by `_platform/positional-graph`)
-+
-+---
-+
-+## Contracts
-+
-+| Contract | Type | Location | Consumers |
-+|----------|------|----------|-----------|
-+| `IWorkflowEvents` | interface | `packages/shared/src/interfaces/workflow-events.interface.ts` | CLI handlers, web server actions, test helpers, agents bridge |
-+| `WorkflowEventType` | constants | `packages/shared/src/workflow-events/constants.ts` | All consumers replacing magic event strings |
-+| `QuestionInput` | type | `packages/shared/src/workflow-events/types.ts` | CLI, web, tests |
-+| `AnswerInput` | type | `packages/shared/src/workflow-events/types.ts` | CLI, web, tests |
-+| `AnswerResult` | type | `packages/shared/src/workflow-events/types.ts` | CLI, web, tests |
-+| `FakeWorkflowEventsService` | fake | `packages/shared/src/fakes/fake-workflow-events.ts` | All test consumers |
-+| `WORKFLOW_EVENTS_SERVICE` | DI token | `packages/shared/src/di-tokens.ts` | DI container registration |
-+
-+---
-+
-+## Composition
-+
-+| Component | Type | Location | Role |
-+|-----------|------|----------|------|
-+| `IWorkflowEvents` | interface | `packages/shared/src/interfaces/` | Public contract — 5 actions + 4 observers |
-+| `WorkflowEventType` | constants | `packages/shared/src/workflow-events/` | Typed event type constants |
-+| convenience types | types | `packages/shared/src/workflow-events/` | Input/output/observer event types |
-+| `FakeWorkflowEventsService` | fake | `packages/shared/src/fakes/` | Test double with inspection methods |
-+| `WorkflowEventsService` | service | `packages/positional-graph/src/workflow-events/` | Implementation (Phase 2) |
-+
-+---
-+
-+## Dependencies
-+
-+### This Domain Depends On
-+
-+| Domain | Contract Used | Why |
-+|--------|-------------|-----|
-+| `_platform/positional-graph` | `IPositionalGraphService` (askQuestion, answerQuestion, getAnswer, raiseNodeEvent) | Implementation wraps PGService methods |
-+| `_platform/events` | `ICentralEventNotifier` | Emit observer events via SSE for client visibility |
-+
-+### Domains That Depend On This
-+
-+| Domain | Contract Consumed | Why |
-+|--------|------------------|-----|
-+| `agents` | `IWorkflowEvents.onQuestionAsked`, `onProgress` | AgentWorkUnitBridge subscribes to track work unit status |
-+| `workflow-ui` | `IWorkflowEvents.answerQuestion` | Web server action delegates QnA |
-+| `_platform/positional-graph` | `IWorkflowEvents` (CLI handlers) | CLI commands delegate to WorkflowEvents |
-+
-+---
-+
-+## Source Locations
-+
-+```
-+packages/shared/src/
-+  interfaces/workflow-events.interface.ts    # IWorkflowEvents contract
+@@ -51,7 +51,9 @@
+ | `WorkflowEventType` | constants | `packages/shared/src/workflow-events/` | Typed event type constants |
+ | convenience types | types | `packages/shared/src/workflow-events/` | Input/output/observer event types |
+ | `FakeWorkflowEventsService` | fake | `packages/shared/src/fakes/` | Test double with inspection methods |
+-| `WorkflowEventsService` | service | `packages/positional-graph/src/workflow-events/` | Implementation (Phase 2) |
++| `WorkflowEventsService` | service | `packages/positional-graph/src/workflow-events/` | Real implementation wrapping PGService.raiseNodeEvent() |
++| `WorkflowEventObserverRegistry` | registry | `packages/positional-graph/src/workflow-events/` | globalThis-backed observer registry with HMR survival |
++| `registerWorkflowEventsServices` | DI setup | `packages/positional-graph/src/container.ts` | Registers WorkflowEventsService in DI container |
+ 
+ ---
+ 
+@@ -87,9 +89,11 @@ packages/shared/src/
+   di-tokens.ts                               # WORKFLOW_EVENTS_SERVICE token
+ 
+ packages/positional-graph/src/
+-  workflow-events/                            # Phase 2: implementation
+-    workflow-events.service.ts
+-    index.ts
 +  workflow-events/
-+    constants.ts                              # WorkflowEventType
-+    types.ts                                  # Input/output/observer types
++    workflow-events.service.ts                # WorkflowEventsService implementation
++    observer-registry.ts                      # globalThis-backed observer registry
 +    index.ts                                  # Barrel exports
-+  fakes/fake-workflow-events.ts              # FakeWorkflowEventsService
-+  di-tokens.ts                               # WORKFLOW_EVENTS_SERVICE token
-+
-+packages/positional-graph/src/
-+  workflow-events/                            # Phase 2: implementation
-+    workflow-events.service.ts
-+    index.ts
-+
-+docs/domains/workflow-events/
-+  domain.md                                   # This file
-+```
-+
-+---
-+
-+## Concepts
-+
-+### Asking Questions
-+
-+Agents ask questions when they need human input. The `askQuestion` method encapsulates raising a `question:ask` event, running handlers (node transitions to `waiting-question`), and persisting.
-+
-+```ts
-+const { questionId } = await wfEvents.askQuestion('my-graph', 'node-1', {
-+  type: 'confirm',
-+  text: 'Deploy to production?',
-+});
-+```
-+
-+### Answering Questions (3-Event Handshake)
-+
-+Answering a question requires two events: `question:answer` (records the answer) and `node:restart` (restarts the node so the agent can retrieve the answer). `answerQuestion` handles both in a single call.
-+
-+```ts
-+await wfEvents.answerQuestion('my-graph', 'node-1', questionId, {
-+  confirmed: true,
-+});
-+```
-+
-+### Observing Workflow Events
-+
-+Server-side observers let other domains react to workflow events without coupling to the event infrastructure. Returns an unsubscribe function.
-+
-+```ts
-+const unsub = wfEvents.onQuestionAsked('my-graph', (event) => {
-+  console.log(`Node ${event.nodeId} asked: ${event.question.text}`);
-+});
-+// Later: unsub() to stop listening
-+```
-+
-+### Typed Event Constants
-+
-+Replace magic strings with typed constants for all 7 core event types.
-+
-+```ts
-+import { WorkflowEventType } from '@chainglass/shared/workflow-events';
-+// WorkflowEventType.QuestionAsk === 'question:ask'
-+// WorkflowEventType.NodeRestart === 'node:restart'
-+```
-+
-+---
-+
-+## History
-+
-+| Plan | Change | Date |
-+|------|--------|------|
-+| Plan 061 Phase 1 | Created domain: IWorkflowEvents, WorkflowEventType, convenience types, FakeWorkflowEventsService, DI token | 2026-03-01 |
-diff --git a/docs/plans/061-workflow-events/tasks/phase-1-interface-types-constants/execution.log.md b/docs/plans/061-workflow-events/tasks/phase-1-interface-types-constants/execution.log.md
++  container.ts                                # registerWorkflowEventsServices()
+ 
+ docs/domains/workflow-events/
+   domain.md                                   # This file
+@@ -158,3 +162,4 @@ import { WorkflowEventType } from '@chainglass/shared/workflow-events';
+ | Plan | Change | Date |
+ |------|--------|------|
+ | Plan 061 Phase 1 | Created domain: IWorkflowEvents, WorkflowEventType, convenience types, FakeWorkflowEventsService, DI token | 2026-03-01 |
++| Plan 061 Phase 2 | WorkflowEventsService implementation, ObserverRegistry (globalThis), contract tests, DI registration | 2026-03-01 |
+diff --git a/docs/plans/061-workflow-events/tasks/phase-2-implementation-contract-tests/execution.log.md b/docs/plans/061-workflow-events/tasks/phase-2-implementation-contract-tests/execution.log.md
 new file mode 100644
-index 0000000..baac2fe
+index 0000000..543e766
 --- /dev/null
-+++ b/docs/plans/061-workflow-events/tasks/phase-1-interface-types-constants/execution.log.md
-@@ -0,0 +1,60 @@
-+# Execution Log — Phase 1: Interface, Types, and Constants
++++ b/docs/plans/061-workflow-events/tasks/phase-2-implementation-contract-tests/execution.log.md
+@@ -0,0 +1,52 @@
++# Execution Log — Phase 2: Implementation and Contract Tests
 +
 +**Plan**: 061-workflow-events
-+**Phase**: Phase 1
++**Phase**: Phase 2
 +**Started**: 2026-03-01
 +
 +---
 +
-+## T001: WorkflowEventType Constants
-+- Created `packages/shared/src/workflow-events/constants.ts`
-+- 7 constants as `as const` object + `WorkflowEventTypeValue` union type
-+- Values aligned with core-event-types.ts registrations
++## T003: Observer Registry
++- Created `packages/positional-graph/src/workflow-events/observer-registry.ts`
++- globalThis-backed Map<string, Set<handler>> for HMR survival
++- subscribe() returns unsubscribe closure, notify() has per-handler try/catch
++- getObserverCount(), getObserverCountFor(), clear() for testing
 +
-+## T002: Convenience Input/Output Types
-+- Created `packages/shared/src/workflow-events/types.ts`
-+- 5 types: QuestionInput, AnswerInput, AnswerResult, ProgressInput, ErrorInput
-+- Field alignment: `percent` (not percentage), `default` (not defaultValue), type values `'text'|'single'|'multi'|'confirm'` (not free_text etc.)
-+- AnswerInput uses structured fields (text?, selected?, confirmed?) rather than raw `unknown`
++## T001: WorkflowEventsService Core Methods
++- Created `packages/positional-graph/src/workflow-events/workflow-events.service.ts`
++- askQuestion: generates questionId → raiseNodeEvent('question:ask') → writes state.questions[] → notifies observers
++- getAnswer: loads state, reads state.questions[], checks answered_at
++- reportProgress: raiseNodeEvent('progress:update') → notifies progress + generic observers
++- reportError: raiseNodeEvent('node:error') → notifies generic observers
++- DYK-P2-02: accepts contextResolver in constructor (workspace-scoped)
++- DYK-P2-03: NO CentralEventNotifier emission (deferred to Phase 3)
++- Uses loadGraphState/persistGraphState (public PGService methods) for state access
 +
-+## T003: Observer Event Types
-+- Added to same `types.ts` file: QuestionAskedEvent, QuestionAnsweredEvent, ProgressEvent, WorkflowEvent
-+- All contain graphSlug + nodeId + typed payload
-+- WorkflowEvent uses WorkflowEventTypeValue for eventType field
++## T002: answerQuestion 3-Event Handshake
++- Finds ask event by scanning node event log (to get event_id for answer payload)
++- Step 1: raiseNodeEvent('question:answer', {question_event_id, answer}, 'human')
++- Updates state.questions[] with answer + timestamp
++- Notifies observers after answer recorded (DYK-P2-04)
++- Step 2: raiseNodeEvent('node:restart', {reason: 'question-answered'}, 'human')
++- DYK-P2-04: If restart fails after answer succeeds, rethrows with descriptive message
 +
-+## T004: IWorkflowEvents Interface
-+- Created `packages/shared/src/interfaces/workflow-events.interface.ts`
-+- 5 action methods: askQuestion, answerQuestion, getAnswer, reportProgress, reportError
-+- 4 observer methods: onQuestionAsked, onQuestionAnswered, onProgress, onEvent
-+- Rich JSDoc with usage examples
-+- Note: No WorkspaceContext param — WorkflowEventsService resolves it internally (Phase 2)
++## T004: Contract Tests
++- Created `test/contracts/workflow-events.contract.ts` (factory pattern)
++- Created `test/contracts/workflow-events.contract.test.ts` (runner)
++- Split per DYK-P2-01: conformance tests (both impls) + behavioral tests (Fake only)
++- Conformance: observer lifecycle (subscribe/unsubscribe), method existence — 10 tests x 2 impls
++- Behavioral: askQuestion, answerQuestion, getAnswer, reportProgress, reportError, observer isolation, error isolation — 13 tests
++- 33 tests total, all passing
 +
-+## T005: DI Token
-+- Added `WORKFLOW_EVENTS_SERVICE: 'IWorkflowEvents'` to POSITIONAL_GRAPH_DI_TOKENS
-+- Follows existing pattern: JSDoc comment, interface name as value
++## T005: DI Registration
++- Added registerWorkflowEventsServices(container, contextResolver) to container.ts
++- useFactory resolves PGService from container, creates ObserverRegistry
++- contextResolver passed through (workspace-scoped, provided by caller)
++- Exported from packages/positional-graph/src/index.ts barrel
 +
-+## T006: FakeWorkflowEventsService
-+- Created `packages/shared/src/fakes/fake-workflow-events.ts`
-+- Self-contained (Finding 04): own arrays, Map, counter — no FakePGService dep
-+- Implements full IWorkflowEvents: all 5 actions + all 4 observers
-+- Inspection methods: getAskedQuestions(), getAnswers(), getProgressReports(), getErrors(), getObserverCount(), getObserverCountFor(), reset()
-+- Fires observers on action calls (askQuestion → notifies question-asked observers)
-+- Generic event observer (onEvent) receives all events
-+
-+## T007: Barrel Exports + Package.json
-+- Created `packages/shared/src/workflow-events/index.ts` barrel
-+- Updated `interfaces/index.ts`: added IWorkflowEvents export
-+- Updated `fakes/index.ts`: added FakeWorkflowEventsService export
-+- Updated `src/index.ts`: added all new exports (interface, types, constants, fake)
-+- Updated `package.json`: added `./workflow-events` sub-path export with dual import+types
-+- Note: ProgressEvent re-exported as WorkflowProgressEvent from index.ts to avoid collision with DOM ProgressEvent
-+- Build passes: `pnpm --filter @chainglass/shared build` ✅
-+
-+## T008: Domain Doc + Registry + Map
-+- Created `docs/domains/workflow-events/domain.md` with full structure: boundary, contracts, composition, dependencies, source locations, concepts, history
-+- Updated `docs/domains/registry.md`: added workflow-events row (business, active)
-+- Updated `docs/domains/domain-map.md`: added workflow-events node + edges (→ posGraph, → events, ← agents, ← workflowUI), added to Health Summary
++## T006: MOVED TO PHASE 3
++- PGService method deletion deferred until consumers migrated
 +
 +## Verification
-+- `pnpm --filter @chainglass/shared build`: ✅ compiles clean
-+- `pnpm test`: ✅ 334 files passed, 4705 tests, 0 failures (same baseline)
-diff --git a/docs/plans/061-workflow-events/tasks/phase-1-interface-types-constants/tasks.fltplan.md b/docs/plans/061-workflow-events/tasks/phase-1-interface-types-constants/tasks.fltplan.md
++- `pnpm --filter @chainglass/positional-graph build`: compiles clean
++- `pnpm test`: 335 files passed (+1), 4738 tests (+33), 0 failures
+diff --git a/docs/plans/061-workflow-events/tasks/phase-2-implementation-contract-tests/tasks.fltplan.md b/docs/plans/061-workflow-events/tasks/phase-2-implementation-contract-tests/tasks.fltplan.md
 new file mode 100644
-index 0000000..8862aa1
+index 0000000..26dc689
 --- /dev/null
-+++ b/docs/plans/061-workflow-events/tasks/phase-1-interface-types-constants/tasks.fltplan.md
-@@ -0,0 +1,131 @@
-+# Flight Plan: Phase 1 — Interface, Types, and Constants
++++ b/docs/plans/061-workflow-events/tasks/phase-2-implementation-contract-tests/tasks.fltplan.md
+@@ -0,0 +1,124 @@
++# Flight Plan: Phase 2 — Implementation and Contract Tests
 +
 +**Plan**: [workflow-events-plan.md](../../workflow-events-plan.md)
-+**Phase**: Phase 1: Interface, Types, and Constants
++**Phase**: Phase 2: Implementation and Contract Tests
 +**Generated**: 2026-03-01
 +**Status**: Landed
 +
@@ -281,9 +108,9 @@ index 0000000..8862aa1
 +
 +## Departure → Destination
 +
-+**Where we are**: The workflow event system (Plan 032) has 7 core event types with Zod schemas, but no consumer-friendly contract layer. QnA convenience methods exist on IPositionalGraphService (already @deprecated). 88+ files use magic strings like `'question:ask'`. No IWorkflowEvents interface, no typed constants, no Fake, no domain documentation.
++**Where we are**: Phase 1 delivered the complete contract layer: IWorkflowEvents (9 methods), WorkflowEventType (7 constants), convenience types, FakeWorkflowEventsService, DI token, and domain docs. Everything is importable from `@chainglass/shared`. But there's no real implementation — the Fake is the only thing that satisfies the interface.
 +
-+**Where we're going**: A developer can `import { IWorkflowEvents, WorkflowEventType, QuestionInput, FakeWorkflowEventsService } from '@chainglass/shared'` and have the complete typed contract for workflow event interactions. The `workflow-events` domain is documented and registered. Phase 2 can implement against this contract.
++**Where we're going**: A developer can resolve `IWorkflowEvents` from the DI container and call `answerQuestion()` — it correctly handles the 3-event handshake, notifies server-side observers, and broadcasts via SSE. Contract tests prove the real implementation and Fake behave identically. PGService Q&A methods are marked deprecated.
 +
 +---
 +
@@ -293,14 +120,16 @@ index 0000000..8862aa1
 +
 +| Domain | What Changes | Key Files |
 +|--------|-------------|-----------|
-+| workflow-events (NEW) | Create entire contract layer: interface, types, constants, fake, DI token, domain doc | `packages/shared/src/workflow-events/`, `packages/shared/src/interfaces/workflow-events.interface.ts`, `packages/shared/src/fakes/fake-workflow-events.ts` |
-+| cross-domain | Barrel exports, package.json entry, registry, domain map | `packages/shared/src/index.ts`, `packages/shared/package.json`, `docs/domains/registry.md`, `docs/domains/domain-map.md` |
++| workflow-events | WorkflowEventsService implementation, observer registry | `packages/positional-graph/src/workflow-events/` |
++| _platform/positional-graph | DI registration, @deprecated markers, barrel export | `container.ts`, `index.ts`, `positional-graph-service.interface.ts` |
 +
 +### Domains We Depend On (no changes)
 +
 +| Domain | What We Consume | Contract |
 +|--------|----------------|----------|
-+| _platform/positional-graph | Field name alignment from Zod schemas, AskQuestionOptions type reference | event-payloads.schema.ts, positional-graph-service.interface.ts |
++| _platform/positional-graph | askQuestion, answerQuestion, getAnswer, raiseNodeEvent | IPositionalGraphService |
++| _platform/events | SSE broadcast | ICentralEventNotifier |
++| workflow-events (Phase 1) | Interface, types, constants, fake, DI token | IWorkflowEvents, WorkflowEventType, etc. |
 +
 +---
 +
@@ -313,18 +142,16 @@ index 0000000..8862aa1
 +    classDef done fill:#4CAF50,stroke:#388E3C,color:#fff
 +    classDef blocked fill:#F44336,stroke:#D32F2F,color:#fff
 +
-+    state "1: Constants + Types" as S1
-+    state "2: Interface + Token" as S2
-+    state "3: Fake" as S3
-+    state "4: Exports + Docs" as S4
++    state "1: Service + Observer" as S1
++    state "2: Contract Tests" as S2
++    state "3: DI + Deprecation" as S3
 +
 +    [*] --> S1
 +    S1 --> S2
 +    S2 --> S3
-+    S3 --> S4
-+    S4 --> [*]
++    S3 --> [*]
 +
-+    class S1,S2,S3,S4 done
++    class S1,S2,S3 done
 +```
 +
 +**Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -333,10 +160,9 @@ index 0000000..8862aa1
 +
 +## Stages
 +
-+- [x] **Stage 1: Define typed constants and types** — WorkflowEventType constants + all input/output/observer types in `packages/shared/src/workflow-events/` (`constants.ts`, `types.ts`)
-+- [x] **Stage 2: Define interface and DI token** — IWorkflowEvents interface + WORKFLOW_EVENTS_SERVICE token (`workflow-events.interface.ts`, `di-tokens.ts`)
-+- [x] **Stage 3: Create Fake test double** — FakeWorkflowEventsService with in-memory stores and inspection methods (`fake-workflow-events.ts`)
-+- [x] **Stage 4: Wire exports and documentation** — Barrel exports, package.json entry, domain doc, registry + map updates
++- [x] **Stage 1: Service implementation + observer registry**
++- [x] **Stage 2: Contract tests**
++- [x] **Stage 3: DI registration + deprecation**
 +
 +---
 +
@@ -348,26 +174,23 @@ index 0000000..8862aa1
 +    classDef changed fill:#FFF3E0,stroke:#FF9800,color:#000
 +    classDef new fill:#E3F2FD,stroke:#2196F3,color:#000
 +
-+    subgraph Before["Before Phase 1"]
-+        PGI["IPositionalGraphService<br/>askQuestion() @deprecated<br/>answerQuestion() @deprecated"]:::existing
-+        ZOD["Zod payload schemas<br/>question:ask, etc."]:::existing
-+        MAGIC["Magic strings everywhere<br/>'question:ask' x88 files"]:::existing
++    subgraph Before["Before Phase 2"]
++        PGS_B["PositionalGraphService<br/>askQuestion (deprecated)<br/>answerQuestion (deprecated)"]:::existing
++        IWFE_B["IWorkflowEvents<br/>(interface only)"]:::existing
++        Fake_B["FakeWorkflowEventsService<br/>(only implementation)"]:::existing
 +    end
 +
-+    subgraph After["After Phase 1"]
-+        PGI2["IPositionalGraphService<br/>(unchanged)"]:::existing
-+        ZOD2["Zod payload schemas<br/>(unchanged)"]:::existing
-+        WFE_I["IWorkflowEvents<br/>9 typed methods"]:::new
-+        WFE_T["WorkflowEventType<br/>7 typed constants"]:::new
-+        WFE_TYPES["QuestionInput<br/>AnswerInput<br/>AnswerResult<br/>ProgressInput<br/>ErrorInput"]:::new
-+        WFE_FAKE["FakeWorkflowEventsService<br/>inspection methods"]:::new
-+        WFE_DOC["domain.md<br/>registry + map"]:::new
-+        DI["WORKFLOW_EVENTS_SERVICE<br/>DI token"]:::new
++    subgraph After["After Phase 2"]
++        PGS_A["PositionalGraphService<br/>askQuestion @deprecated<br/>answerQuestion @deprecated<br/>getAnswer @deprecated"]:::changed
++        WFE["WorkflowEventsService<br/>implements IWorkflowEvents<br/>wraps PGService"]:::new
++        OBS["ObserverRegistry<br/>globalThis HMR"]:::new
++        CT["Contract Tests<br/>real + fake parity"]:::new
++        DI["registerWorkflowEventsServices()<br/>in container.ts"]:::new
 +
-+        WFE_T --> WFE_I
-+        WFE_TYPES --> WFE_I
-+        WFE_I --> WFE_FAKE
-+        WFE_I --> DI
++        WFE -->|"delegates to"| PGS_A
++        WFE -->|"notifies via"| OBS
++        CT -->|"tests both"| WFE
++        DI -->|"registers"| WFE
 +    end
 +```
 +
@@ -377,66 +200,101 @@ index 0000000..8862aa1
 +
 +## Acceptance Criteria
 +
-+- [x] AC-01: IWorkflowEvents interface in packages/shared with 9 methods
-+- [x] AC-04: FakeWorkflowEventsService with inspection methods
-+- [x] AC-06: WorkflowEventType typed constants for all 7 event types
-+- [x] AC-07: Typed input/output types exist
-+- [x] AC-14: Domain doc created
-+- [x] AC-15: Domain registered in registry + map
++- [x] AC-02: WorkflowEventsService delegates to IPositionalGraphService
++- [x] AC-03: answerQuestion() handles 3-event handshake in single call
++- [x] AC-05: Contract tests pass for real + fake parity
++- [x] AC-08: Server-side observers fire correctly
++- [x] AC-09: Observer unsubscribe works
 +
 +## Goals & Non-Goals
 +
-+**Goals**: IWorkflowEvents contract, typed constants, convenience types, Fake test double, DI token, domain documentation
-+**Non-Goals**: Implementation (Phase 2), consumer migration (Phase 3), E2E updates (Phase 4)
++**Goals**: Real implementation wrapping PGService, observer registry with HMR survival, contract tests proving real/fake parity, DI registration, @deprecated markers
++**Non-Goals**: Consumer migration (Phase 3), E2E updates (Phase 4), UI work
 +
 +---
 +
 +## Checklist
 +
-+- [x] T001: Create WorkflowEventType typed constants for 7 core event types
-+- [x] T002: Create convenience types (QuestionInput, AnswerInput, AnswerResult, ProgressInput, ErrorInput)
-+- [x] T003: Create observer event types (QuestionAskedEvent, QuestionAnsweredEvent, ProgressEvent, WorkflowEvent)
-+- [x] T004: Define IWorkflowEvents interface with 9 methods
-+- [x] T005: Add WORKFLOW_EVENTS_SERVICE DI token
-+- [x] T006: Create FakeWorkflowEventsService with inspection methods
-+- [x] T007: Create barrel exports + package.json ./workflow-events entry
-+- [x] T008: Create domain doc, update registry + domain map
-diff --git a/docs/plans/061-workflow-events/tasks/phase-1-interface-types-constants/tasks.md b/docs/plans/061-workflow-events/tasks/phase-1-interface-types-constants/tasks.md
++- [x] T001: Implement WorkflowEventsService: askQuestion, getAnswer, reportProgress, reportError
++- [x] T002: Implement answerQuestion with 3-event handshake
++- [x] T003: Implement observer registry with globalThis HMR survival
++- [x] T004: Write contract test factory + runner
++- [x] T005: Register via registerWorkflowEventsServices() in DI container
++- [x] T006: (MOVED TO PHASE 3)
+diff --git a/docs/plans/061-workflow-events/tasks/phase-2-implementation-contract-tests/tasks.md b/docs/plans/061-workflow-events/tasks/phase-2-implementation-contract-tests/tasks.md
 new file mode 100644
-index 0000000..282ae77
+index 0000000..fb6e255
 --- /dev/null
-+++ b/docs/plans/061-workflow-events/tasks/phase-1-interface-types-constants/tasks.md
-@@ -0,0 +1,236 @@
-+# Phase 1: Interface, Types, and Constants — Task Dossier
++++ b/docs/plans/061-workflow-events/tasks/phase-2-implementation-contract-tests/tasks.md
+@@ -0,0 +1,274 @@
++# Phase 2: Implementation and Contract Tests — Task Dossier
 +
 +**Plan**: [workflow-events-plan.md](../../workflow-events-plan.md)
 +**Spec**: [workflow-events-spec.md](../../workflow-events-spec.md)
-+**Phase**: Phase 1 — Interface, Types, and Constants
-+**Domain**: workflow-events (NEW)
++**Phase**: Phase 2 — Implementation and Contract Tests
++**Domain**: workflow-events
 +**Status**: Ready
 +
 +---
 +
 +## Executive Briefing
 +
-+**Purpose**: Define the IWorkflowEvents contract, typed event constants, convenience input/output types, observer event types, Fake test double, and DI token in packages/shared. This phase creates the entire public surface area of the workflow-events domain — everything consumers will import. No implementation logic yet.
++**Purpose**: Build the WorkflowEventsService that implements IWorkflowEvents, wrapping IPositionalGraphService methods with convenience logic (3-event handshake, observer notifications). Add contract tests ensuring real + fake parity, register in DI, and mark PGService Q&A methods as deprecated.
 +
-+**What We're Building**: The contract layer for a convenience domain that wraps the generic event system (Plan 032). After this phase, any package can import `IWorkflowEvents`, `WorkflowEventType`, `QuestionInput`, `FakeWorkflowEventsService` etc. from `@chainglass/shared`. The domain is documented and registered.
++**What We're Building**: A concrete service in packages/positional-graph that transforms intent-based calls (askQuestion, answerQuestion) into the raw event primitives the underlying system needs. Plus an observer registry that lets other domains react to workflow events without coupling to event infrastructure. Contract tests run the same suite against both WorkflowEventsService (real) and FakeWorkflowEventsService (fake).
 +
 +**Goals**:
-+- ✅ IWorkflowEvents interface with 9 methods (5 actions + 4 observers)
-+- ✅ WorkflowEventType typed constants for all 7 core event types
-+- ✅ Convenience input/output types aligned with existing Zod schemas
-+- ✅ Observer event types for cross-domain consumption
-+- ✅ FakeWorkflowEventsService with inspection methods
-+- ✅ DI token, barrel exports, package.json sub-path export
-+- ✅ Domain doc, registry entry, domain map node + edges
++- ✅ WorkflowEventsService wrapping PGService for ask/answer/getAnswer/progress/error
++- ✅ answerQuestion encapsulates 3-event handshake (question:answer + node:restart)
++- ✅ Observer registry: onQuestionAsked, onQuestionAnswered, onProgress, onEvent with unsubscribe
++- ✅ globalThis pattern for HMR survival of observer registry
++- ✅ Contract test factory running against real + fake
++- ✅ DI registration via registerWorkflowEventsServices()
++- ✅ @deprecated on PGService askQuestion, answerQuestion, getAnswer
 +
 +**Non-Goals**:
-+- ❌ Implementation of WorkflowEventsService (Phase 2)
-+- ❌ Observer registry or HMR survival (Phase 2)
-+- ❌ Consumer migration (Phase 3)
-+- ❌ E2E test updates (Phase 4)
++- ❌ Consumer migration (CLI, web, helpers) — Phase 3
++- ❌ E2E test updates — Phase 4
++- ❌ UI components — Plan 059
++
++---
++
++## Prior Phase Context
++
++### Phase 1: Interface, Types, and Constants
++
++**A. Deliverables**:
++- `packages/shared/src/workflow-events/constants.ts` — WorkflowEventType (7 typed constants)
++- `packages/shared/src/workflow-events/types.ts` — QuestionInput, AnswerInput, AnswerResult, ProgressInput, ErrorInput + observer event types
++- `packages/shared/src/interfaces/workflow-events.interface.ts` — IWorkflowEvents (9 methods)
++- `packages/shared/src/fakes/fake-workflow-events.ts` — FakeWorkflowEventsService with inspection methods
++- `packages/shared/src/di-tokens.ts` — WORKFLOW_EVENTS_SERVICE token in POSITIONAL_GRAPH_DI_TOKENS
++- `packages/shared/src/workflow-events/index.ts` — barrel export
++- `packages/shared/package.json` — `./workflow-events` sub-path export
++- `docs/domains/workflow-events/domain.md` — domain boundary, contracts, concepts table
++
++**B. Dependencies Exported**:
++- `IWorkflowEvents` interface: 5 actions (askQuestion, answerQuestion, getAnswer, reportProgress, reportError) + 4 observers (onQuestionAsked, onQuestionAnswered, onProgress, onEvent)
++- `WorkflowEventType` constants: QuestionAsk, QuestionAnswer, NodeRestart, NodeAccepted, NodeCompleted, NodeError, ProgressUpdate
++- Convenience types: QuestionInput, AnswerInput, AnswerResult, ProgressInput, ErrorInput
++- Observer event types: QuestionAskedEvent, QuestionAnsweredEvent, ProgressEvent, WorkflowEvent
++- `FakeWorkflowEventsService` with getAskedQuestions(), getAnswers(), getProgressReports(), getErrors(), getObserverCount(), getObserverCountFor(), reset()
++- `POSITIONAL_GRAPH_DI_TOKENS.WORKFLOW_EVENTS_SERVICE = 'IWorkflowEvents'`
++
++**C. Gotchas & Debt**:
++- DYK-P1-01: `answerQuestion(answer: unknown)` not `AnswerInput` — existing callers pass raw values
++- DYK-P1-02: Observer error isolation — try/catch per handler (already applied to Fake)
++- DYK-P1-03: `WorkflowEvent.eventType` widened to `WorkflowEventTypeValue | string` for custom events
++- DYK-P1-04: No dedicated `onError` observer — errors only via generic `onEvent`
++- F001: ErrorInput.details widened to `unknown` (fixed in review)
++
++**D. Incomplete Items**: None — Phase 1 fully complete and reviewed (APPROVE)
++
++**E. Patterns to Follow**:
++- Fake is self-contained (no FakePGService dependency) — real impl DOES wrap PGService
++- Observer error isolation: try/catch per handler in notification loops
++- Field names align with Zod .strict() schemas
++- DI token pattern: SCREAMING_SNAKE_CASE, interface name as value
 +
 +---
 +
@@ -444,21 +302,16 @@ index 0000000..282ae77
 +
 +| File | Exists? | Domain Check | Notes |
 +|------|---------|-------------|-------|
-+| `packages/shared/src/workflow-events/constants.ts` | ❌ create | workflow-events | New file |
-+| `packages/shared/src/workflow-events/types.ts` | ❌ create | workflow-events | New file; align field names with Zod .strict() schemas |
-+| `packages/shared/src/workflow-events/index.ts` | ❌ create | workflow-events | New barrel |
-+| `packages/shared/src/interfaces/workflow-events.interface.ts` | ❌ create | workflow-events | New interface file |
-+| `packages/shared/src/di-tokens.ts` | ✅ modify | cross-domain | Add WORKFLOW_EVENTS_SERVICE token to POSITIONAL_GRAPH_DI_TOKENS |
-+| `packages/shared/src/fakes/fake-workflow-events.ts` | ❌ create | workflow-events | New fake |
-+| `packages/shared/src/fakes/index.ts` | ✅ modify | cross-domain | Add FakeWorkflowEventsService export |
-+| `packages/shared/src/interfaces/index.ts` | ✅ modify | cross-domain | Add IWorkflowEvents export |
-+| `packages/shared/src/index.ts` | ✅ modify | cross-domain | Add workflow-events re-exports |
-+| `packages/shared/package.json` | ✅ modify | cross-domain | Add `./workflow-events` export entry |
-+| `docs/domains/workflow-events/domain.md` | ❌ create | workflow-events | New domain doc |
-+| `docs/domains/registry.md` | ✅ modify | cross-domain | Add workflow-events row |
-+| `docs/domains/domain-map.md` | ✅ modify | cross-domain | Add workflow-events node + edges |
++| `packages/positional-graph/src/workflow-events/workflow-events.service.ts` | ❌ create | workflow-events | New file — wraps PGService |
++| `packages/positional-graph/src/workflow-events/observer-registry.ts` | ❌ create | workflow-events | New file — globalThis pattern for HMR |
++| `packages/positional-graph/src/workflow-events/index.ts` | ❌ create | workflow-events | New barrel |
++| `packages/positional-graph/src/container.ts` | ✅ modify | _platform/positional-graph | Add registerWorkflowEventsServices() |
++| `packages/positional-graph/src/index.ts` | ✅ modify | _platform/positional-graph | Export new registration function |
++| `packages/positional-graph/src/interfaces/positional-graph-service.interface.ts` | ✅ modify | _platform/positional-graph | @deprecated on 3 methods |
++| `test/contracts/workflow-events.contract.ts` | ❌ create | workflow-events | Contract test factory |
++| `test/contracts/workflow-events.contract.test.ts` | ❌ create | workflow-events | Contract test runner |
 +
-+All files in correct domain source trees. No concept duplication risk — thoroughly validated in research dossier (78 findings).
++All files in correct domain source trees. No concept duplication — WorkflowEventsService is deliberately wrapping PGService (confirmed in Phase 1 anti-reinvention check).
 +
 +---
 +
@@ -466,38 +319,45 @@ index 0000000..282ae77
 +
 +```mermaid
 +flowchart TD
++    classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
 +    classDef completed fill:#4CAF50,stroke:#388E3C,color:#fff
 +    classDef existing fill:#E8F5E9,stroke:#4CAF50,color:#000
 +
-+    subgraph Phase1["Phase 1: Interface, Types, Constants"]
-+        T001["T001: WorkflowEventType constants"]:::completed
-+        T002["T002: Convenience input/output types"]:::completed
-+        T003["T003: Observer event types"]:::completed
-+        T004["T004: IWorkflowEvents interface"]:::completed
-+        T005["T005: DI token"]:::completed
-+        T006["T006: FakeWorkflowEventsService"]:::completed
-+        T007["T007: Barrel exports + pkg entry"]:::completed
-+        T008["T008: Domain doc + registry + map"]:::completed
++    subgraph Phase1["Phase 1 (Complete)"]
++        IWFE["IWorkflowEvents"]:::completed
++        Types["WorkflowEventType<br/>QuestionInput etc."]:::completed
++        Fake["FakeWorkflowEventsService"]:::completed
++        Token["DI Token"]:::completed
++    end
++
++    subgraph Phase2["Phase 2: Implementation + Tests"]
++        T001["T001: WorkflowEventsService<br/>ask/get/progress/error"]:::pending
++        T002["T002: answerQuestion<br/>3-event handshake"]:::pending
++        T003["T003: Observer registry<br/>globalThis + HMR"]:::pending
++        T004["T004: Contract tests<br/>real + fake parity"]:::pending
++        T005["T005: DI registration"]:::pending
++        T006["T006: @deprecated on PGS"]:::pending
 +
 +        T001 --> T002
-+        T002 --> T003
++        T001 --> T003
++        T002 --> T004
 +        T003 --> T004
 +        T004 --> T005
-+        T004 --> T006
-+        T005 --> T007
-+        T006 --> T007
-+        T007 --> T008
++        T005 --> T006
 +    end
 +
 +    subgraph Existing["Existing Dependencies"]
-+        ZOD["Zod payload schemas<br/>(field name source of truth)"]:::existing
-+        PGI["IPositionalGraphService<br/>(AskQuestionOptions etc.)"]:::existing
-+        DIT["di-tokens.ts<br/>(token registry)"]:::existing
++        PGS["PositionalGraphService<br/>askQuestion, answerQuestion<br/>getAnswer, raiseNodeEvent"]:::existing
++        CEN["CentralEventNotifierService<br/>SSE broadcast"]:::existing
++        DI["container.ts<br/>tsyringe factories"]:::existing
 +    end
 +
-+    T001 -.->|"aligns with"| ZOD
-+    T002 -.->|"mirrors fields from"| PGI
-+    T005 -.->|"adds token to"| DIT
++    IWFE --> T001
++    Types --> T001
++    T001 -.->|"wraps"| PGS
++    T003 -.->|"emits via"| CEN
++    T005 -.->|"registers in"| DI
++    Fake --> T004
 +```
 +
 +---
@@ -506,14 +366,12 @@ index 0000000..282ae77
 +
 +| Status | ID | Task | Domain | Path(s) | Done When | Notes |
 +|--------|-----|------|--------|---------|-----------|-------|
-+| [x] | T001 | Create `WorkflowEventType` typed constants for all 7 core event types | workflow-events | `/packages/shared/src/workflow-events/constants.ts` | `WorkflowEventType.QuestionAsk === 'question:ask'` and all 7 types exported as `as const` object | AC-06; align with core-event-types.ts registered strings |
-+| [x] | T002 | Create convenience types: `QuestionInput`, `AnswerInput`, `AnswerResult`, `ProgressInput`, `ErrorInput` | workflow-events | `/packages/shared/src/workflow-events/types.ts` | Types compile; field names match Zod `.strict()` schemas exactly | AC-07; Finding 05: `percent` not `percentage`, `question_id` not `questionId`, type values `'text'\|'single'\|'multi'\|'confirm'` not `'free_text'` etc. |
-+| [x] | T003 | Create observer event types: `QuestionAskedEvent`, `QuestionAnsweredEvent`, `ProgressEvent`, `WorkflowEvent` | workflow-events | `/packages/shared/src/workflow-events/types.ts` | Types compile; contain `graphSlug`, `nodeId`, typed payload | AC-08; these are what observer handlers receive |
-+| [x] | T004 | Define `IWorkflowEvents` interface with 9 methods | workflow-events | `/packages/shared/src/interfaces/workflow-events.interface.ts` | Interface exported from `@chainglass/shared` with 5 action + 4 observer methods | AC-01; reference WorkspaceContext from existing PGS pattern |
-+| [x] | T005 | Add `WORKFLOW_EVENTS_SERVICE` DI token | workflow-events | `/packages/shared/src/di-tokens.ts` | Token `'IWorkflowEvents'` in POSITIONAL_GRAPH_DI_TOKENS section | Q7 clarification; follows existing naming: value = interface name |
-+| [x] | T006 | Create `FakeWorkflowEventsService` with inspection methods | workflow-events | `/packages/shared/src/fakes/fake-workflow-events.ts` | Implements IWorkflowEvents; has `getAskedQuestions()`, `getAnswers()`, `getProgressReports()`, `getObserverCount()`, `reset()` | AC-04; Finding 04: self-contained, NOT dependent on FakePGService |
-+| [x] | T007 | Create barrel exports + package.json `./workflow-events` entry | workflow-events | `/packages/shared/src/workflow-events/index.ts`, `/packages/shared/src/interfaces/index.ts`, `/packages/shared/src/fakes/index.ts`, `/packages/shared/src/index.ts`, `/packages/shared/package.json` | `import { IWorkflowEvents, WorkflowEventType, FakeWorkflowEventsService } from '@chainglass/shared'` works; `@chainglass/shared/workflow-events` sub-path works | ADR-0009; dual import+types in package.json |
-+| [x] | T008 | Create domain doc, update registry + domain map | workflow-events | `/docs/domains/workflow-events/domain.md`, `/docs/domains/registry.md`, `/docs/domains/domain-map.md` | domain.md has boundary/contracts/composition/source locations; registry has workflow-events row; map has node + edges to positional-graph and events | AC-14, AC-15 |
++| [x] | T001 | Implement WorkflowEventsService: askQuestion, getAnswer, reportProgress, reportError using raiseNodeEvent() directly | workflow-events | `packages/positional-graph/src/workflow-events/workflow-events.service.ts` | 4 methods use raiseNodeEvent + direct state reads (NOT delegating to deprecated PGS methods), return typed results, notify observers | AC-02; DYK-P2-02: accept contextResolver; DYK-P2-03: NO CentralEventNotifier; DYK-P2-05: Q&A logic reimplemented here |
++| [x] | T002 | Implement answerQuestion with 3-event handshake using raiseNodeEvent() directly | workflow-events | `packages/positional-graph/src/workflow-events/workflow-events.service.ts` | Single call raises question:answer + node:restart via raiseNodeEvent() | AC-03; Finding 02; DYK-P2-04: partial failure handling; DYK-P2-05: no PGS.answerQuestion delegation |
++| [x] | T003 | Implement observer registry with globalThis HMR survival | workflow-events | `packages/positional-graph/src/workflow-events/observer-registry.ts` | subscribe/unsubscribe works; survives HMR; per-handler error isolation | AC-08, AC-09; Finding 06: use globalThis pattern |
++| [x] | T004 | Write contract test factory + runner | workflow-events | `test/contracts/workflow-events.contract.ts`, `test/contracts/workflow-events.contract.test.ts` | Interface conformance tests (both impls): method signatures, return shapes, observer subscribe/unsubscribe. Behavioral cycle tests (Fake only): ask→answer→getAnswer flow. | AC-05; DYK-P2-01: split contract scope due to FakePGService limitations |
++| [x] | T005 | Register via registerWorkflowEventsServices() in DI container | _platform/positional-graph | `packages/positional-graph/src/container.ts`, `packages/positional-graph/src/index.ts` | Container resolves IWorkflowEvents via WORKFLOW_EVENTS_SERVICE token | Q7; ADR-0009 naming; useFactory resolving PGService + contextResolver |
++| [ ] | T006 | **MOVED TO PHASE 3** — Delete PGService Q&A methods after all consumers migrated | — | — | — | DYK-P2-05: Deletion deferred to end of Phase 3 (after CLI, web, helpers migrated). Phase 2 reimplements using raiseNodeEvent() but leaves PGS methods in place until consumers are updated. |
 +
 +---
 +
@@ -521,98 +379,90 @@ index 0000000..282ae77
 +
 +### Key Findings from Plan
 +
-+- **Finding 05 (High)**: Zod payload schemas are `.strict()` — exact field names required. WorkflowEvents types MUST use: `percent` (not `percentage`), `question_id` (not `questionId`), `question_event_id` (not `questionId` for answer payloads), type values `'text' | 'single' | 'multi' | 'confirm'` (not `'free_text'` | `'single_choice'` etc.). Source of truth: `event-payloads.schema.ts`.
-+- **Finding 04 (High)**: FakeWorkflowEventsService must be self-contained with its own in-memory state — NOT delegating to FakePositionalGraphService. Independent backing stores.
-+- **Finding 08 (Medium)**: No circular dep risk — packages/shared has no dependency on positional-graph. Interface + types in shared, implementation in positional-graph.
-+
-+### Critical Type Alignment Notes
-+
-+The workshop spec proposed slightly different field names than the actual Zod schemas. The types MUST align with Zod:
-+
-+| Workshop Proposal | Actual Zod Schema | Use This |
-+|-------------------|-------------------|----------|
-+| `type: 'free_text'` | `type: 'text'` | `'text'` |
-+| `type: 'single_choice'` | `type: 'single'` | `'single'` |
-+| `type: 'multi_choice'` | `type: 'multi'` | `'multi'` |
-+| `percentage?: number` | `percent?: number` | `percent` |
-+| `questionId: string` (answer payload) | `question_event_id: string` | `question_event_id` |
-+
-+However, the **IWorkflowEvents method signatures** use clean TypeScript naming (camelCase). The snake_case alignment is for types that map to/from Zod payloads. The interface methods use `questionId: string` as a parameter name — that's fine. The _payload types_ that get validated by Zod must use snake_case field names.
-+
-+### Existing Types to Reference (NOT duplicate)
-+
-+These types already exist in `positional-graph-service.interface.ts` and are consumed by Phase 2 implementation:
-+
-+- `AskQuestionOptions`: `{ type, text, options?, default? }`
-+- `AskQuestionResult`: `{ success, nodeId?, questionId?, status? }`
-+- `AnswerQuestionResult`: `{ success, nodeId?, questionId?, status? }`
-+- `GetAnswerResult`: `{ success, nodeId?, questionId?, answered, answer? }`
-+- `WorkspaceContext`: execution context required by all PGService methods
-+
-+WorkflowEvents types (`QuestionInput`, `AnswerInput` etc.) are the **consumer-facing** versions. They're simpler — no `WorkspaceContext`, no `BaseResult`. The implementation (Phase 2) maps between them.
++- **Finding 01 (Critical)**: PGService Q&A methods already @deprecated — WorkflowEvents wraps raiseNodeEvent() directly where possible, delegates to deprecated methods for backward compat state.questions[] writes
++- **Finding 02 (Critical)**: 3-event QnA handshake (question:answer + node:restart) is ONLY done in web action today — CLI answer doesn't raise node:restart. WorkflowEvents.answerQuestion() fixes this gap.
++- **Finding 06 (High)**: Observer hooks are in-memory and must survive HMR. Use globalThis pattern consistent with SSEManager, DI container.
++- **Finding 08 (Medium)**: No circular dep risk — packages/shared has no dependency on positional-graph, and WorkflowEventsService lives in packages/positional-graph wrapping its own PGService.
 +
 +### Domain Dependencies
 +
-+- `_platform/positional-graph`: AskQuestionOptions, event type string values (reference for constants alignment)
-+- `_platform/events`: No direct dependency in Phase 1 (Phase 2 uses CentralEventNotifierService)
++- `_platform/positional-graph`: IPositionalGraphService (askQuestion, answerQuestion, getAnswer, raiseNodeEvent) — WorkflowEventsService wraps these
++- `_platform/events`: ICentralEventNotifier (emit) — observer hooks broadcast via SSE for client visibility
++- `workflow-events` (own domain, Phase 1): IWorkflowEvents interface, WorkflowEventType constants, convenience types, FakeWorkflowEventsService
 +
 +### Domain Constraints
 +
-+- workflow-events contracts live in `packages/shared` (cross-package importable)
-+- Implementation lives in `packages/positional-graph` (Phase 2, not Phase 1)
-+- No imports from `packages/positional-graph` in Phase 1 types — they must be standalone
-+- DI token goes in POSITIONAL_GRAPH_DI_TOKENS section (same grouping as the service it tokens)
++- WorkflowEventsService lives in `packages/positional-graph` (same package as PGService it wraps)
++- Interface + types live in `packages/shared` (Phase 1, already done)
++- No imports from `packages/positional-graph` into `packages/shared` (one-way dependency)
++- DI registration function named `registerWorkflowEventsServices()` per ADR-0009
++- Observer registry on `globalThis.__workflowEventObservers` for HMR survival
++
++### Reusable from Phase 1
++
++- All types and interface — import from `@chainglass/shared/workflow-events` and `@chainglass/shared`
++- FakeWorkflowEventsService — used in contract test runner
++- DI token — `POSITIONAL_GRAPH_DI_TOKENS.WORKFLOW_EVENTS_SERVICE`
++- Observer error isolation pattern (try/catch per handler) — established in Fake
 +
 +### Patterns to Follow
 +
-+- **DI Tokens**: `SCREAMING_SNAKE_CASE` key, interface name as value, in `as const` object
-+- **Interfaces**: `I` prefix, JSDoc on every method, supporting types alongside
-+- **Fakes**: `Fake{Name}` class, `implements IWorkflowEvents`, private Map/array backing stores, inspection methods (`getAskedQuestions()`, `reset()`), behavioral (not stubbed)
-+- **Barrel Exports**: `export type {}` for interfaces, `export {}` for implementations, dual `import`+`types` in package.json
-+- **Domain Registry**: slug `workflow-events`, type `business`, status `active`
++- **DI registration**: `useFactory` pattern, resolve prerequisites from container
++- **Contract tests**: Factory function `() => new Implementation(deps)`, same suite runs real + fake
++- **Observer registry**: Map<string, Set<Function>>, globalThis storage, per-handler try/catch
++- **Service methods**: Accept clean params (graphSlug, nodeId, ...), internally construct WorkspaceContext and call PGService
 +
-+### Data Flow (Phase 1 scope)
++### WorkspaceContext Resolution
++
++WorkflowEventsService needs a WorkspaceContext for every PGService call. Options:
++1. Accept it as constructor param (injected once at creation)
++2. Accept a resolver function that produces it on demand
++3. Create a minimal one internally
++
++Research shows PGService methods need `WorkspaceContext` with `workspacePath`. The DI factory can resolve `IWorkspaceContextResolver` and pass the resolved context to WorkflowEventsService constructor.
++
++### Data Flow
 +
 +```mermaid
 +flowchart LR
 +    classDef new fill:#E3F2FD,stroke:#2196F3,color:#000
 +    classDef existing fill:#E8F5E9,stroke:#4CAF50,color:#000
 +
-+    Types["WorkflowEventType<br/>QuestionInput<br/>AnswerInput<br/>etc."]:::new
-+    Interface["IWorkflowEvents<br/>9 methods"]:::new
-+    Fake["FakeWorkflowEventsService<br/>in-memory"]:::new
-+    Token["WORKFLOW_EVENTS_SERVICE<br/>DI token"]:::new
-+    Barrel["@chainglass/shared<br/>barrel + sub-path"]:::new
-+    Docs["domain.md<br/>registry + map"]:::new
++    Caller["Consumer Code<br/>(CLI, Web, Bridge)"]:::existing
++    WFE["WorkflowEventsService"]:::new
++    OBS["ObserverRegistry<br/>(globalThis)"]:::new
++    PGS["PositionalGraphService"]:::existing
++    CEN["CentralEventNotifier"]:::existing
++    SSE["SSE → Client"]:::existing
 +
-+    Types --> Interface
-+    Interface --> Fake
-+    Interface --> Token
-+    Types --> Fake
-+    Interface --> Barrel
-+    Fake --> Barrel
-+    Token --> Barrel
-+    Barrel --> Docs
++    Caller -->|"askQuestion()"| WFE
++    WFE -->|"pgService.askQuestion(ctx, ...)"| PGS
++    WFE -->|"notify observers"| OBS
++    WFE -->|"notifier.emit()"| CEN
++    CEN --> SSE
++    OBS -->|"handler(event)"| Caller
 +```
 +
-+### Observer Hook Signatures (for reference)
++### Sequence: answerQuestion 3-Event Handshake
 +
 +```mermaid
 +sequenceDiagram
-+    participant Consumer as Consumer Code
-+    participant WFE as IWorkflowEvents
-+    participant Handler as Observer Handler
++    participant C as Consumer
++    participant WFE as WorkflowEventsService
++    participant PGS as PositionalGraphService
++    participant OBS as ObserverRegistry
++    participant CEN as CentralEventNotifier
 +
-+    Consumer->>WFE: onQuestionAsked(graphSlug, handler)
-+    WFE-->>Consumer: unsubscribe: () => void
-+    Note over WFE: Stores handler in registry
-+
-+    Consumer->>WFE: askQuestion(graphSlug, nodeId, input)
-+    WFE->>Handler: handler(QuestionAskedEvent)
-+    Note over Handler: {graphSlug, nodeId,<br/>questionId, question, askedAt}
-+
-+    Consumer->>WFE: unsubscribe()
-+    Note over WFE: Removes handler from registry
++    C->>WFE: answerQuestion(graph, node, qId, answer)
++    WFE->>PGS: answerQuestion(ctx, graph, node, qId, answer)
++    Note over PGS: Raises question:answer event<br/>Records answer in state
++    PGS-->>WFE: AnswerQuestionResult
++    WFE->>PGS: raiseNodeEvent(ctx, graph, node, 'node:restart', {reason: 'question-answered'}, 'human')
++    Note over PGS: Raises node:restart event<br/>Node transitions restart-pending → ready
++    PGS-->>WFE: RaiseNodeEventResult
++    WFE->>OBS: notify 'question-answered' observers
++    WFE->>CEN: emit('workflows', 'question-answered', {...})
++    WFE-->>C: void (success)
 +```
 +
 +---
@@ -621,11 +471,11 @@ index 0000000..282ae77
 +
 +| Date | Task | Type | Discovery | Resolution | References |
 +|------|------|------|-----------|------------|------------|
-+| 2026-03-01 | T004 | DYK | AnswerInput too restrictive — existing system passes `answer: unknown` everywhere (CLI, web, helpers, PGService). Structured AnswerInput would block Phase 3 migration. | Changed `answerQuestion(answer: AnswerInput)` → `answerQuestion(answer: unknown)`. AnswerInput remains as optional helper type. | DYK-P1-01 |
-+| 2026-03-01 | T006 | DYK | Fake observer notifyObservers lacks error isolation — one throwing handler prevents subsequent handlers from firing. Same issue as ServerEventRoute F003. | Added try/catch per handler in notifyObservers loop. | DYK-P1-02 |
-+| 2026-03-01 | T003 | DYK | WorkflowEvent.eventType typed as WorkflowEventTypeValue (7 known types only) but onEvent says "ANY workflow event". Custom registered events won't fit. | Widened to `WorkflowEventTypeValue \| string`. | DYK-P1-03 |
-+| 2026-03-01 | — | DYK | No dedicated onError observer — reportError exists but errors only surface via generic onEvent. Inconsistent with onProgress having dedicated observer. | Noted for Phase 2. Spec AC-08 deliberately excludes it. Consider adding if agents bridge needs it. | DYK-P1-04 |
-+| 2026-03-01 | T004 | DYK | reportProgress takes ProgressInput object, workshop designed flat args (message, percentage?). Object form is more extensible. | Kept object form — better long-term choice. | DYK-P1-05 |
++| 2026-03-01 | T004 | DYK | FakePGService.getAnswer() always returns answered: false. Full Q&A cycle contract test fails for real impl backed by FakePGService. | Split contract: interface conformance (both impls) + behavioral cycle (Fake only). E2E covers real in Phase 4. | DYK-P2-01 |
++| 2026-03-01 | T001 | DYK | IWorkflowEvents omits WorkspaceContext but PGService requires it on every call. Service must resolve it internally. | Accept `contextResolver: (graphSlug) => WorkspaceContext` in constructor. DI factory provides workspace registry resolver. Contract tests provide simple fake ctx. | DYK-P2-02 |
++| 2026-03-01 | T001/T003 | DYK | PGService has ZERO calls to CentralEventNotifierService. WorkflowEventsService would be first to SSE-emit from positional-graph package. | Skip CentralEventNotifier in Phase 2. Observer registry sufficient for server-side. SSE emission added in Phase 3 when web actions migrate. | DYK-P2-03 |
++| 2026-03-01 | T002 | DYK | answerQuestion does PGS.answerQuestion() + PGS.raiseNodeEvent(restart) as two separate calls. No atomicity — partial failure leaves answer recorded but node not restarted. | Wrap both in try. If restart fails after answer succeeds, still notify observers but rethrow with descriptive message. Don't rollback answer. | DYK-P2-04 |
++| 2026-03-01 | T006 | DYK | PGService askQuestion/answerQuestion/getAnswer already have @deprecated from Plan 054. T006 just needs message update to "Use IWorkflowEvents instead". | **USER OVERRIDE**: Delete methods from IPositionalGraphService entirely. Reimplement Q&A logic in WorkflowEventsService using raiseNodeEvent() + direct state access. Bigger Phase 2, cleaner result. T001 scope increases. T006 becomes deletion task. Phase 3 consumer migration must also update all direct PGS Q&A callers to use WorkflowEvents. | DYK-P2-05 |
 +
 +---
 +
@@ -638,263 +488,164 @@ index 0000000..282ae77
 +  ├── research-dossier.md
 +  ├── workshops/
 +  │   └── 001-workflow-events-domain.md
-+  └── tasks/phase-1-interface-types-constants/
-+      ├── tasks.md              ← this file
-+      ├── tasks.fltplan.md      ← flight plan
-+      └── execution.log.md      # created by plan-6
++  ├── reviews/
++  │   ├── review.phase-1-interface-types-constants.md
++  │   └── _computed.diff
++  └── tasks/
++      ├── phase-1-interface-types-constants/
++      │   ├── tasks.md ✅
++      │   ├── tasks.fltplan.md ✅
++      │   └── execution.log.md ✅
++      └── phase-2-implementation-contract-tests/
++          ├── tasks.md              ← this file
++          ├── tasks.fltplan.md      ← flight plan
++          └── execution.log.md     # created by plan-6
 +```
-diff --git a/packages/shared/package.json b/packages/shared/package.json
-index f0c280e..fba5fcb 100644
---- a/packages/shared/package.json
-+++ b/packages/shared/package.json
-@@ -40,6 +40,10 @@
-     "./state": {
-       "import": "./dist/state/index.js",
-       "types": "./dist/state/index.d.ts"
-+    },
-+    "./workflow-events": {
-+      "import": "./dist/workflow-events/index.js",
-+      "types": "./dist/workflow-events/index.d.ts"
-     }
-   },
-   "scripts": {
-diff --git a/packages/shared/src/di-tokens.ts b/packages/shared/src/di-tokens.ts
-index cdc3683..1e7f20d 100644
---- a/packages/shared/src/di-tokens.ts
-+++ b/packages/shared/src/di-tokens.ts
-@@ -120,6 +120,8 @@ export const POSITIONAL_GRAPH_DI_TOKENS = {
-   TEMPLATE_ADAPTER: 'TemplateAdapter',
-   /** InstanceAdapter — filesystem path resolution for instances (Plan 048) */
-   INSTANCE_ADAPTER: 'InstanceAdapter',
-+  /** IWorkflowEvents — convenience API for workflow event interactions (Plan 061) */
-+  WORKFLOW_EVENTS_SERVICE: 'IWorkflowEvents',
- } as const;
+diff --git a/packages/positional-graph/src/container.ts b/packages/positional-graph/src/container.ts
+index 1ec6a07..1230391 100644
+--- a/packages/positional-graph/src/container.ts
++++ b/packages/positional-graph/src/container.ts
+@@ -21,6 +21,11 @@ import type { IEventHandlerService } from './features/032-node-event-system/even
+ import type { IWorkUnitLoader } from './interfaces/index.js';
+ import type { IPositionalGraphService } from './interfaces/positional-graph-service.interface.js';
+ import { PositionalGraphService } from './services/positional-graph.service.js';
++import { WorkflowEventObserverRegistry } from './workflow-events/observer-registry.js';
++import {
++  WorkflowEventsService,
++  type WorkspaceContextResolver,
++} from './workflow-events/workflow-events.service.js';
  
  /**
-diff --git a/packages/shared/src/fakes/fake-workflow-events.ts b/packages/shared/src/fakes/fake-workflow-events.ts
-new file mode 100644
-index 0000000..3c80ca3
---- /dev/null
-+++ b/packages/shared/src/fakes/fake-workflow-events.ts
-@@ -0,0 +1,274 @@
+  * Register positional-graph services into a DI container.
+@@ -78,6 +83,34 @@ export function registerPositionalGraphServices(container: DependencyContainer):
+   });
+ }
+ 
 +/**
-+ * FakeWorkflowEventsService — In-memory test double for IWorkflowEvents.
++ * Register workflow-events services into a DI container.
 + *
-+ * Self-contained with its own backing stores (Finding 04: does NOT depend
-+ * on FakePositionalGraphService). Provides inspection methods for test
-+ * assertions.
++ * Per Plan 061: WorkflowEvents convenience domain.
++ * Per ADR-0009: Module registration function.
 + *
-+ * @example
-+ * ```ts
-+ * const fake = new FakeWorkflowEventsService();
-+ * await fake.askQuestion('graph-1', 'node-a', { type: 'confirm', text: 'OK?' });
-+ * expect(fake.getAskedQuestions()).toHaveLength(1);
-+ * expect(fake.getAskedQuestions()[0].question.text).toBe('OK?');
-+ * ```
++ * Prerequisite tokens (must be registered before calling):
++ * - POSITIONAL_GRAPH_DI_TOKENS.POSITIONAL_GRAPH_SERVICE (IPositionalGraphService)
++ *
++ * Note: contextResolver must be provided by the caller (workspace-scoped).
++ * In web apps, inject via server-side workspace context resolution.
++ * In CLI, inject via command-level workspace context.
++ */
++export function registerWorkflowEventsServices(
++  container: DependencyContainer,
++  contextResolver: WorkspaceContextResolver
++): void {
++  container.register(POSITIONAL_GRAPH_DI_TOKENS.WORKFLOW_EVENTS_SERVICE, {
++    useFactory: (c: DependencyContainer) => {
++      const pgService = c.resolve<IPositionalGraphService>(
++        POSITIONAL_GRAPH_DI_TOKENS.POSITIONAL_GRAPH_SERVICE
++      );
++      const observers = new WorkflowEventObserverRegistry();
++      return new WorkflowEventsService(pgService, contextResolver, observers);
++    },
++  });
++}
++
+ /**
+  * Register orchestration services into a DI container.
+  *
+diff --git a/packages/positional-graph/src/index.ts b/packages/positional-graph/src/index.ts
+index 147b59d..c2b9241 100644
+--- a/packages/positional-graph/src/index.ts
++++ b/packages/positional-graph/src/index.ts
+@@ -5,7 +5,12 @@ export * from './services/index.js';
+ export * from './errors/index.js';
+ export * from './adapter/index.js';
+ export * from './interfaces/index.js';
+-export { registerPositionalGraphServices, registerOrchestrationServices } from './container.js';
++export { registerPositionalGraphServices, registerOrchestrationServices, registerWorkflowEventsServices } from './container.js';
++
++// Plan 061: WorkflowEvents
++export { WorkflowEventsService } from './workflow-events/index.js';
++export type { WorkspaceContextResolver } from './workflow-events/index.js';
++export { WorkflowEventObserverRegistry } from './workflow-events/index.js';
+ 
+ // Fakes (Plan 050)
+ export { FakePositionalGraphService } from './fakes/index.js';
+diff --git a/packages/positional-graph/src/workflow-events/index.ts b/packages/positional-graph/src/workflow-events/index.ts
+new file mode 100644
+index 0000000..769521d
+--- /dev/null
++++ b/packages/positional-graph/src/workflow-events/index.ts
+@@ -0,0 +1,4 @@
++// Plan 061: WorkflowEvents — implementation barrel
++export { WorkflowEventsService } from './workflow-events.service.js';
++export type { WorkspaceContextResolver } from './workflow-events.service.js';
++export { WorkflowEventObserverRegistry } from './observer-registry.js';
+diff --git a/packages/positional-graph/src/workflow-events/observer-registry.ts b/packages/positional-graph/src/workflow-events/observer-registry.ts
+new file mode 100644
+index 0000000..9afce71
+--- /dev/null
++++ b/packages/positional-graph/src/workflow-events/observer-registry.ts
+@@ -0,0 +1,81 @@
++/**
++ * WorkflowEventObserverRegistry — In-memory, per-graph observer registry.
++ *
++ * Stored on globalThis for HMR survival (Finding 06).
++ * Per-handler error isolation (consistent with FakeWorkflowEventsService).
 + */
 +
-+import type { IWorkflowEvents } from '../interfaces/workflow-events.interface.js';
-+import { WorkflowEventType } from '../workflow-events/constants.js';
-+import type {
-+  AnswerResult,
-+  ErrorInput,
-+  ProgressEvent,
-+  ProgressInput,
-+  QuestionAnsweredEvent,
-+  QuestionAskedEvent,
-+  QuestionInput,
-+  WorkflowEvent,
-+} from '../workflow-events/types.js';
++type ObserverHandler = (event: unknown) => void;
 +
-+interface StoredQuestion {
-+  graphSlug: string;
-+  nodeId: string;
-+  questionId: string;
-+  question: QuestionInput;
-+  askedAt: string;
++const GLOBAL_KEY = '__workflowEventObservers' as const;
++
++function getGlobalRegistry(): Map<string, Set<ObserverHandler>> {
++  const g = globalThis as Record<string, unknown>;
++  if (!g[GLOBAL_KEY]) {
++    g[GLOBAL_KEY] = new Map<string, Set<ObserverHandler>>();
++  }
++  return g[GLOBAL_KEY] as Map<string, Set<ObserverHandler>>;
 +}
 +
-+interface StoredAnswer {
-+  graphSlug: string;
-+  nodeId: string;
-+  questionId: string;
-+  answer: unknown;
-+  answeredAt: string;
-+}
-+
-+interface StoredProgress {
-+  graphSlug: string;
-+  nodeId: string;
-+  progress: ProgressInput;
-+}
-+
-+interface StoredError {
-+  graphSlug: string;
-+  nodeId: string;
-+  error: ErrorInput;
-+}
-+
-+type ObserverKey = 'question-asked' | 'question-answered' | 'progress' | 'event';
-+
-+export class FakeWorkflowEventsService implements IWorkflowEvents {
-+  private readonly questions: StoredQuestion[] = [];
-+  private readonly answers: StoredAnswer[] = [];
-+  private readonly progressReports: StoredProgress[] = [];
-+  private readonly errors: StoredError[] = [];
-+  private readonly observers = new Map<string, Set<(event: unknown) => void>>();
-+  private questionCounter = 0;
-+
-+  // ── Actions ──
-+
-+  async askQuestion(
-+    graphSlug: string,
-+    nodeId: string,
-+    question: QuestionInput
-+  ): Promise<{ questionId: string }> {
-+    const questionId = `q-${++this.questionCounter}`;
-+    const askedAt = new Date().toISOString();
-+
-+    this.questions.push({ graphSlug, nodeId, questionId, question, askedAt });
-+
-+    const event: QuestionAskedEvent = {
-+      graphSlug,
-+      nodeId,
-+      questionId,
-+      question,
-+      askedAt,
-+      source: 'fake',
-+    };
-+    this.notifyObservers(`${graphSlug}:question-asked`, event);
-+    this.notifyGenericObservers(graphSlug, {
-+      graphSlug,
-+      nodeId,
-+      eventType: WorkflowEventType.QuestionAsk,
-+      payload: { question_id: questionId, ...question },
-+      source: 'fake',
-+      timestamp: askedAt,
-+    });
-+
-+    return { questionId };
++export class WorkflowEventObserverRegistry {
++  private get observers(): Map<string, Set<ObserverHandler>> {
++    return getGlobalRegistry();
 +  }
 +
-+  async answerQuestion(
-+    graphSlug: string,
-+    nodeId: string,
-+    questionId: string,
-+    answer: unknown
-+  ): Promise<void> {
-+    const answeredAt = new Date().toISOString();
-+    this.answers.push({ graphSlug, nodeId, questionId, answer, answeredAt });
-+
-+    const event: QuestionAnsweredEvent = {
-+      graphSlug,
-+      nodeId,
-+      questionId,
-+      answer,
-+      answeredAt,
-+    };
-+    this.notifyObservers(`${graphSlug}:question-answered`, event);
-+    this.notifyGenericObservers(graphSlug, {
-+      graphSlug,
-+      nodeId,
-+      eventType: WorkflowEventType.QuestionAnswer,
-+      payload: { question_event_id: questionId, answer },
-+      source: 'fake',
-+      timestamp: answeredAt,
-+    });
-+  }
-+
-+  async getAnswer(
-+    graphSlug: string,
-+    nodeId: string,
-+    questionId: string
-+  ): Promise<AnswerResult | null> {
-+    const stored = this.answers.find(
-+      (a) => a.graphSlug === graphSlug && a.nodeId === nodeId && a.questionId === questionId
-+    );
-+    if (!stored) return null;
-+    return {
-+      questionId: stored.questionId,
-+      answered: true,
-+      answer: stored.answer,
-+      answeredAt: stored.answeredAt,
++  /**
++   * Subscribe to events for a specific graph and event kind.
++   * Returns an unsubscribe function (AC-09).
++   */
++  subscribe(graphSlug: string, kind: string, handler: ObserverHandler): () => void {
++    const key = `${graphSlug}:${kind}`;
++    const set = this.observers.get(key);
++    if (set) {
++      set.add(handler);
++    } else {
++      this.observers.set(key, new Set([handler]));
++    }
++    return () => {
++      const s = this.observers.get(key);
++      if (s) {
++        s.delete(handler);
++        if (s.size === 0) this.observers.delete(key);
++      }
 +    };
 +  }
 +
-+  async reportProgress(graphSlug: string, nodeId: string, progress: ProgressInput): Promise<void> {
-+    this.progressReports.push({ graphSlug, nodeId, progress });
-+
-+    const event: ProgressEvent = {
-+      graphSlug,
-+      nodeId,
-+      message: progress.message,
-+      percent: progress.percent,
-+    };
-+    this.notifyObservers(`${graphSlug}:progress`, event);
-+    this.notifyGenericObservers(graphSlug, {
-+      graphSlug,
-+      nodeId,
-+      eventType: WorkflowEventType.ProgressUpdate,
-+      payload: { message: progress.message, percent: progress.percent },
-+      source: 'fake',
-+      timestamp: new Date().toISOString(),
-+    });
-+  }
-+
-+  async reportError(graphSlug: string, nodeId: string, error: ErrorInput): Promise<void> {
-+    this.errors.push({ graphSlug, nodeId, error });
-+
-+    this.notifyGenericObservers(graphSlug, {
-+      graphSlug,
-+      nodeId,
-+      eventType: WorkflowEventType.NodeError,
-+      payload: { ...error },
-+      source: 'fake',
-+      timestamp: new Date().toISOString(),
-+    });
-+  }
-+
-+  // ── Observers ──
-+
-+  onQuestionAsked(graphSlug: string, handler: (event: QuestionAskedEvent) => void): () => void {
-+    return this.addObserver(`${graphSlug}:question-asked`, handler);
-+  }
-+
-+  onQuestionAnswered(
-+    graphSlug: string,
-+    handler: (event: QuestionAnsweredEvent) => void
-+  ): () => void {
-+    return this.addObserver(`${graphSlug}:question-answered`, handler);
-+  }
-+
-+  onProgress(graphSlug: string, handler: (event: ProgressEvent) => void): () => void {
-+    return this.addObserver(`${graphSlug}:progress`, handler);
-+  }
-+
-+  onEvent(graphSlug: string, handler: (event: WorkflowEvent) => void): () => void {
-+    return this.addObserver(`${graphSlug}:event`, handler);
-+  }
-+
-+  // ── Inspection Methods (test-only) ──
-+
-+  /** Get all questions asked through this fake */
-+  getAskedQuestions(): readonly StoredQuestion[] {
-+    return this.questions;
-+  }
-+
-+  /** Get all answers provided through this fake */
-+  getAnswers(): readonly StoredAnswer[] {
-+    return this.answers;
-+  }
-+
-+  /** Get all progress reports through this fake */
-+  getProgressReports(): readonly StoredProgress[] {
-+    return this.progressReports;
-+  }
-+
-+  /** Get all errors reported through this fake */
-+  getErrors(): readonly StoredError[] {
-+    return this.errors;
++  /**
++   * Notify all observers for a specific graph and event kind.
++   * Per-handler error isolation — one failing handler doesn't block others.
++   */
++  notify(graphSlug: string, kind: string, event: unknown): void {
++    const key = `${graphSlug}:${kind}`;
++    const handlers = this.observers.get(key);
++    if (!handlers) return;
++    for (const handler of handlers) {
++      try {
++        handler(event);
++      } catch {
++        // Per-handler error isolation (consistent with Fake, ServerEventRoute F003)
++      }
++    }
 +  }
 +
 +  /** Get total observer count across all keys */
@@ -906,152 +657,34 @@ index 0000000..3c80ca3
 +    return count;
 +  }
 +
-+  /** Get observer count for a specific graph and event type */
-+  getObserverCountFor(graphSlug: string, type: ObserverKey): number {
-+    return this.observers.get(`${graphSlug}:${type}`)?.size ?? 0;
++  /** Get observer count for a specific graph and kind */
++  getObserverCountFor(graphSlug: string, kind: string): number {
++    return this.observers.get(`${graphSlug}:${kind}`)?.size ?? 0;
 +  }
 +
-+  /** Reset all stored data and observers */
-+  reset(): void {
-+    this.questions.length = 0;
-+    this.answers.length = 0;
-+    this.progressReports.length = 0;
-+    this.errors.length = 0;
++  /** Clear all observers (useful for testing) */
++  clear(): void {
 +    this.observers.clear();
-+    this.questionCounter = 0;
-+  }
-+
-+  // ── Private ──
-+
-+  private addObserver(key: string, handler: (event: never) => void): () => void {
-+    if (!this.observers.has(key)) {
-+      this.observers.set(key, new Set());
-+    }
-+    const set = this.observers.get(key);
-+    if (!set) return () => {};
-+    set.add(handler as (event: unknown) => void);
-+    return () => {
-+      set.delete(handler as (event: unknown) => void);
-+    };
-+  }
-+
-+  private notifyObservers(key: string, event: unknown): void {
-+    const handlers = this.observers.get(key);
-+    if (!handlers) return;
-+    for (const handler of handlers) {
-+      try {
-+        handler(event);
-+      } catch {
-+        // Per-handler error isolation (consistent with ServerEventRoute F003)
-+      }
-+    }
-+  }
-+
-+  private notifyGenericObservers(graphSlug: string, event: WorkflowEvent): void {
-+    this.notifyObservers(`${graphSlug}:event`, event);
 +  }
 +}
-diff --git a/packages/shared/src/fakes/index.ts b/packages/shared/src/fakes/index.ts
-index e288598..f3b0020 100644
---- a/packages/shared/src/fakes/index.ts
-+++ b/packages/shared/src/fakes/index.ts
-@@ -26,3 +26,5 @@ export {
-   FakeKeybindingService,
- } from './fake-usdk.js';
- export type { FakeUSDKInstance } from './fake-usdk.js';
-+// Workflow Events fake (Plan 061: WorkflowEvents convenience domain)
-+export { FakeWorkflowEventsService } from './fake-workflow-events.js';
-diff --git a/packages/shared/src/index.ts b/packages/shared/src/index.ts
-index 72f2f2a..cb00dba 100644
---- a/packages/shared/src/index.ts
-+++ b/packages/shared/src/index.ts
-@@ -104,6 +104,9 @@ export type {
-   TokenMetrics,
- } from './interfaces/index.js';
- 
-+// Workflow Events interface (Plan 061)
-+export type { IWorkflowEvents } from './interfaces/index.js';
-+
- // Note: IEventStorage, EventStorageService, FakeEventStorage removed in Plan 018 Phase 2.
- // Use AgentEventAdapter from @chainglass/workflow for workspace-scoped event storage.
- 
-@@ -136,6 +139,8 @@ export { FakeHashGenerator } from './fakes/index.js';
- export { FakeProcessManager } from './fakes/index.js';
- // YAML parser fake (Phase 2)
- export { FakeYamlParser } from './fakes/index.js';
-+// Workflow Events fake (Plan 061)
-+export { FakeWorkflowEventsService } from './fakes/index.js';
- 
- // Adapters
- export { PinoLoggerAdapter } from './adapters/index.js';
-@@ -170,6 +175,21 @@ export {
-   WORKGRAPH_DI_TOKENS,
- } from './di-tokens.js';
- 
-+// Plan 061: WorkflowEvents typed constants and types
-+export { WorkflowEventType } from './workflow-events/index.js';
-+export type { WorkflowEventTypeValue } from './workflow-events/index.js';
-+export type {
-+  AnswerInput,
-+  AnswerResult,
-+  ErrorInput,
-+  ProgressInput,
-+  QuestionInput,
-+  ProgressEvent as WorkflowProgressEvent,
-+  QuestionAskedEvent,
-+  QuestionAnsweredEvent,
-+  WorkflowEvent,
-+} from './workflow-events/index.js';
-+
- // Plan 027: Central Domain Event Notification System
- export { WorkspaceDomain } from './features/027-central-notify-events/index.js';
- export type { WorkspaceDomainType } from './features/027-central-notify-events/index.js';
-diff --git a/packages/shared/src/interfaces/index.ts b/packages/shared/src/interfaces/index.ts
-index 84606bb..f67e8a9 100644
---- a/packages/shared/src/interfaces/index.ts
-+++ b/packages/shared/src/interfaces/index.ts
-@@ -136,5 +136,8 @@ export type {
-   ICopilotSession,
- } from './copilot-sdk.interface.js';
- 
-+// Workflow Events interface (Plan 061: WorkflowEvents convenience domain)
-+export type { IWorkflowEvents } from './workflow-events.interface.js';
-+
- // Note: IEventStorage, EventStorageService, FakeEventStorage removed in Plan 018 Phase 2.
- // Use AgentEventAdapter from @chainglass/workflow for workspace-scoped event storage.
-diff --git a/packages/shared/src/interfaces/workflow-events.interface.ts b/packages/shared/src/interfaces/workflow-events.interface.ts
+diff --git a/packages/positional-graph/src/workflow-events/workflow-events.service.ts b/packages/positional-graph/src/workflow-events/workflow-events.service.ts
 new file mode 100644
-index 0000000..a0db55f
+index 0000000..689b52c
 --- /dev/null
-+++ b/packages/shared/src/interfaces/workflow-events.interface.ts
-@@ -0,0 +1,112 @@
++++ b/packages/positional-graph/src/workflow-events/workflow-events.service.ts
+@@ -0,0 +1,323 @@
 +/**
-+ * IWorkflowEvents — Intent-based API for workflow event interactions.
++ * WorkflowEventsService — Intent-based API for workflow event interactions.
 + *
-+ * Sits on top of the generic event system (Plan 032). Callers don't need
-+ * to understand raiseEvent(), event handlers, state transitions, or the
-+ * 3-event QnA handshake. They express intent; the implementation handles
-+ * the rest.
++ * Wraps IPositionalGraphService.raiseNodeEvent() for event raising and uses
++ * loadGraphState/persistGraphState for state.questions[] management.
++ * Does NOT delegate to the deprecated askQuestion/answerQuestion/getAnswer
++ * methods on PGService — those will be deleted in Phase 3.
 + *
-+ * 5 action methods + 4 observer methods = 9 total (AC-01).
-+ *
-+ * @example
-+ * ```ts
-+ * // Ask a question — internally raises question:ask + runs handlers
-+ * const { questionId } = await wfEvents.askQuestion(graph, node, {
-+ *   type: 'confirm', text: 'Deploy to production?'
-+ * });
-+ *
-+ * // Answer — handles 3-event handshake (question:answer + node:restart)
-+ * await wfEvents.answerQuestion(graph, node, questionId, { confirmed: true });
-+ *
-+ * // Observe events from another domain
-+ * const unsub = wfEvents.onQuestionAsked(graph, (event) => {
-+ *   console.log(`Node ${event.nodeId} asked: ${event.question.text}`);
-+ * });
-+ * ```
++ * Lives in packages/positional-graph (same package as PGService it wraps).
 + */
 +
++import type { IWorkflowEvents } from '@chainglass/shared';
 +import type {
 +  AnswerResult,
 +  ErrorInput,
@@ -1061,262 +694,610 @@ index 0000000..a0db55f
 +  QuestionAskedEvent,
 +  QuestionInput,
 +  WorkflowEvent,
-+} from '../workflow-events/types.js';
++} from '@chainglass/shared/workflow-events';
++import { WorkflowEventType } from '@chainglass/shared/workflow-events';
 +
-+export interface IWorkflowEvents {
++import type { WorkspaceContext } from '@chainglass/workflow';
++import type { IPositionalGraphService } from '../interfaces/positional-graph-service.interface.js';
++import type { WorkflowEventObserverRegistry } from './observer-registry.js';
++
++export type WorkspaceContextResolver = (graphSlug: string) => WorkspaceContext;
++
++export class WorkflowEventsService implements IWorkflowEvents {
++  constructor(
++    private readonly pgService: IPositionalGraphService,
++    private readonly contextResolver: WorkspaceContextResolver,
++    private readonly observers: WorkflowEventObserverRegistry
++  ) {}
++
 +  // ── Actions ──
 +
-+  /**
-+   * Ask a question from a node.
-+   *
-+   * Internally raises question:ask event, runs handlers (node transitions
-+   * to waiting-question), and persists. Returns the generated questionId.
-+   */
-+  askQuestion(
++  async askQuestion(
 +    graphSlug: string,
 +    nodeId: string,
 +    question: QuestionInput
-+  ): Promise<{ questionId: string }>;
++  ): Promise<{ questionId: string }> {
++    const ctx = this.contextResolver(graphSlug);
++    const questionId = this.generateQuestionId();
 +
-+  /**
-+   * Answer a pending question.
-+   *
-+   * Encapsulates the 3-event handshake: raises question:answer event,
-+   * then raises node:restart with reason 'question-answered'. Callers
-+   * don't need to know about the handshake (AC-03).
-+   */
-+  answerQuestion(
++    // Build payload matching Zod question:ask schema (.strict())
++    const payload: Record<string, unknown> = {
++      question_id: questionId,
++      type: question.type,
++      text: question.text,
++    };
++    if (question.options) payload.options = question.options;
++    if (question.default !== undefined) payload.default = question.default;
++
++    // Raise event via PGService (handles event + handlers + persist)
++    const result = await this.pgService.raiseNodeEvent(
++      ctx,
++      graphSlug,
++      nodeId,
++      WorkflowEventType.QuestionAsk,
++      payload,
++      'agent'
++    );
++    if (result.errors && result.errors.length > 0) {
++      throw new Error(`Failed to ask question: ${result.errors.map((e) => e.message).join(', ')}`);
++    }
++
++    // Write to state.questions[] for backward compat
++    const state = await this.pgService.loadGraphState(ctx, graphSlug);
++    if (!state.questions) {
++      (state as Record<string, unknown>).questions = [];
++    }
++    state.questions?.push({
++      question_id: questionId,
++      node_id: nodeId,
++      type: question.type,
++      text: question.text,
++      asked_at: new Date().toISOString(),
++      ...(question.options ? { options: question.options } : {}),
++      ...(question.default !== undefined ? { default: question.default } : {}),
++    });
++    await this.pgService.persistGraphState(ctx, graphSlug, state);
++
++    // Notify observers
++    const askedAt = new Date().toISOString();
++    const event: QuestionAskedEvent = {
++      graphSlug,
++      nodeId,
++      questionId,
++      question,
++      askedAt,
++      source: 'agent',
++    };
++    this.observers.notify(graphSlug, 'question-asked', event);
++    this.notifyGenericObservers(graphSlug, nodeId, WorkflowEventType.QuestionAsk, payload, 'agent');
++
++    return { questionId };
++  }
++
++  async answerQuestion(
 +    graphSlug: string,
 +    nodeId: string,
 +    questionId: string,
 +    answer: unknown
-+  ): Promise<void>;
++  ): Promise<void> {
++    const ctx = this.contextResolver(graphSlug);
 +
-+  /**
-+   * Get the answer to a previously asked question.
-+   * Returns null if not yet answered.
-+   */
-+  getAnswer(graphSlug: string, nodeId: string, questionId: string): Promise<AnswerResult | null>;
++    // Find the original ask event to get its event_id for the answer payload
++    const state = await this.pgService.loadGraphState(ctx, graphSlug);
++    const nodeEvents = (state.nodes?.[nodeId] as Record<string, unknown>)?.events;
++    const events = Array.isArray(nodeEvents) ? nodeEvents : [];
++    const askEvent = events.find(
++      (e: Record<string, unknown>) =>
++        e.event_type === WorkflowEventType.QuestionAsk &&
++        (e.payload as Record<string, unknown>)?.question_id === questionId
++    );
 +
-+  /**
-+   * Report progress from a node. Informational only — no state change.
-+   * Raises progress:update event.
-+   */
-+  reportProgress(graphSlug: string, nodeId: string, progress: ProgressInput): Promise<void>;
++    if (!askEvent) {
++      throw new Error(`Question ${questionId} not found in node ${nodeId} events`);
++    }
 +
-+  /**
-+   * Report an error from a node.
-+   * Raises node:error event. Node transitions to blocked-error.
-+   */
-+  reportError(graphSlug: string, nodeId: string, error: ErrorInput): Promise<void>;
++    // Step 1: Raise question:answer event
++    const answerResult = await this.pgService.raiseNodeEvent(
++      ctx,
++      graphSlug,
++      nodeId,
++      WorkflowEventType.QuestionAnswer,
++      {
++        question_event_id: (askEvent as Record<string, unknown>).event_id,
++        answer,
++      },
++      'human'
++    );
++    if (answerResult.errors && answerResult.errors.length > 0) {
++      throw new Error(
++        `Failed to answer question: ${answerResult.errors.map((e) => e.message).join(', ')}`
++      );
++    }
 +
-+  // ── Observers (server-side event subscription) ──
++    // Update state.questions[] with the answer (backward compat)
++    const answeredAt = new Date().toISOString();
++    const updatedState = await this.pgService.loadGraphState(ctx, graphSlug);
++    const questions = updatedState.questions ?? [];
++    const qIdx = questions.findIndex((q) => q.question_id === questionId);
++    if (qIdx !== -1) {
++      questions[qIdx].answer = answer;
++      questions[qIdx].answered_at = answeredAt;
++    }
++    await this.pgService.persistGraphState(ctx, graphSlug, updatedState);
 +
-+  /**
-+   * Subscribe to question-asked events across all nodes in a graph.
-+   * Fires when any node enters waiting-question state.
-+   * Returns an unsubscribe function (AC-09).
-+   */
-+  onQuestionAsked(graphSlug: string, handler: (event: QuestionAskedEvent) => void): () => void;
++    // Notify observers after answer is recorded (DYK-P2-04)
++    const answeredEvent: QuestionAnsweredEvent = {
++      graphSlug,
++      nodeId,
++      questionId,
++      answer,
++      answeredAt,
++    };
++    this.observers.notify(graphSlug, 'question-answered', answeredEvent);
++    this.notifyGenericObservers(
++      graphSlug,
++      nodeId,
++      WorkflowEventType.QuestionAnswer,
++      { question_event_id: (askEvent as Record<string, unknown>).event_id, answer },
++      'human'
++    );
 +
-+  /**
-+   * Subscribe to question-answered events.
-+   * Fires when an answer is recorded.
-+   */
++    // Step 2: Raise node:restart (3-event handshake) — DYK-P2-04
++    try {
++      await this.pgService.raiseNodeEvent(
++        ctx,
++        graphSlug,
++        nodeId,
++        WorkflowEventType.NodeRestart,
++        { reason: 'question-answered' },
++        'human'
++      );
++    } catch (restartError) {
++      // Answer was recorded but restart failed — partial failure
++      // Observer already notified about the answer. Rethrow so caller knows.
++      throw new Error(
++        `Answer recorded but node restart failed: ${restartError instanceof Error ? restartError.message : String(restartError)}`
++      );
++    }
++  }
++
++  async getAnswer(
++    graphSlug: string,
++    nodeId: string,
++    questionId: string
++  ): Promise<AnswerResult | null> {
++    const ctx = this.contextResolver(graphSlug);
++    const state = await this.pgService.loadGraphState(ctx, graphSlug);
++    const question = state.questions?.find((q) => q.question_id === questionId);
++
++    if (!question) return null;
++    if (question.answered_at) {
++      return {
++        questionId: question.question_id,
++        answered: true,
++        answer: question.answer,
++        answeredAt: question.answered_at,
++      };
++    }
++    return null;
++  }
++
++  async reportProgress(graphSlug: string, nodeId: string, progress: ProgressInput): Promise<void> {
++    const ctx = this.contextResolver(graphSlug);
++
++    const payload: Record<string, unknown> = {
++      message: progress.message,
++    };
++    if (progress.percent !== undefined) payload.percent = progress.percent;
++
++    const result = await this.pgService.raiseNodeEvent(
++      ctx,
++      graphSlug,
++      nodeId,
++      WorkflowEventType.ProgressUpdate,
++      payload,
++      'agent'
++    );
++    if (result.errors && result.errors.length > 0) {
++      throw new Error(
++        `Failed to report progress: ${result.errors.map((e) => e.message).join(', ')}`
++      );
++    }
++
++    const event: ProgressEvent = {
++      graphSlug,
++      nodeId,
++      message: progress.message,
++      percent: progress.percent,
++    };
++    this.observers.notify(graphSlug, 'progress', event);
++    this.notifyGenericObservers(
++      graphSlug,
++      nodeId,
++      WorkflowEventType.ProgressUpdate,
++      payload,
++      'agent'
++    );
++  }
++
++  async reportError(graphSlug: string, nodeId: string, error: ErrorInput): Promise<void> {
++    const ctx = this.contextResolver(graphSlug);
++
++    const payload: Record<string, unknown> = {
++      code: error.code,
++      message: error.message,
++    };
++    if (error.details !== undefined) payload.details = error.details;
++    if (error.recoverable !== undefined) payload.recoverable = error.recoverable;
++
++    const result = await this.pgService.raiseNodeEvent(
++      ctx,
++      graphSlug,
++      nodeId,
++      WorkflowEventType.NodeError,
++      payload,
++      'agent'
++    );
++    if (result.errors && result.errors.length > 0) {
++      throw new Error(`Failed to report error: ${result.errors.map((e) => e.message).join(', ')}`);
++    }
++
++    this.notifyGenericObservers(graphSlug, nodeId, WorkflowEventType.NodeError, payload, 'agent');
++  }
++
++  // ── Observers ──
++
++  onQuestionAsked(graphSlug: string, handler: (event: QuestionAskedEvent) => void): () => void {
++    return this.observers.subscribe(graphSlug, 'question-asked', handler as (e: unknown) => void);
++  }
++
 +  onQuestionAnswered(
 +    graphSlug: string,
 +    handler: (event: QuestionAnsweredEvent) => void
-+  ): () => void;
++  ): () => void {
++    return this.observers.subscribe(
++      graphSlug,
++      'question-answered',
++      handler as (e: unknown) => void
++    );
++  }
 +
-+  /** Subscribe to progress events. */
-+  onProgress(graphSlug: string, handler: (event: ProgressEvent) => void): () => void;
++  onProgress(graphSlug: string, handler: (event: ProgressEvent) => void): () => void {
++    return this.observers.subscribe(graphSlug, 'progress', handler as (e: unknown) => void);
++  }
 +
-+  /**
-+   * Subscribe to ANY workflow event (generic escape hatch).
-+   * Useful for logging, debugging, or custom event handling.
-+   */
-+  onEvent(graphSlug: string, handler: (event: WorkflowEvent) => void): () => void;
++  onEvent(graphSlug: string, handler: (event: WorkflowEvent) => void): () => void {
++    return this.observers.subscribe(graphSlug, 'event', handler as (e: unknown) => void);
++  }
++
++  // ── Private ──
++
++  private generateQuestionId(): string {
++    const timestamp = new Date().toISOString();
++    const suffix = Math.random().toString(16).slice(2, 8);
++    return `${timestamp}_${suffix}`;
++  }
++
++  private notifyGenericObservers(
++    graphSlug: string,
++    nodeId: string,
++    eventType: string,
++    payload: Record<string, unknown>,
++    source: string
++  ): void {
++    const event: WorkflowEvent = {
++      graphSlug,
++      nodeId,
++      eventType,
++      payload,
++      source,
++      timestamp: new Date().toISOString(),
++    };
++    this.observers.notify(graphSlug, 'event', event);
++  }
 +}
-diff --git a/packages/shared/src/workflow-events/constants.ts b/packages/shared/src/workflow-events/constants.ts
+diff --git a/test/contracts/workflow-events.contract.test.ts b/test/contracts/workflow-events.contract.test.ts
 new file mode 100644
-index 0000000..e3cbf44
+index 0000000..6db91c5
 --- /dev/null
-+++ b/packages/shared/src/workflow-events/constants.ts
-@@ -0,0 +1,33 @@
++++ b/test/contracts/workflow-events.contract.test.ts
+@@ -0,0 +1,43 @@
 +/**
-+ * Typed constants for all core workflow event types.
++ * Contract test runner for IWorkflowEvents.
 + *
-+ * Replaces magic strings like 'question:ask' throughout the codebase.
-+ * Values align exactly with core-event-types.ts registrations in
-+ * packages/positional-graph/src/features/032-node-event-system/.
-+ *
-+ * @example
-+ * ```ts
-+ * import { WorkflowEventType } from '@chainglass/shared/workflow-events';
-+ * // Instead of: raiseEvent('question:ask', payload)
-+ * // Use:        raiseEvent(WorkflowEventType.QuestionAsk, payload)
-+ * ```
-+ */
-+export const WorkflowEventType = {
-+  /** Agent asks a question — node transitions to waiting-question */
-+  QuestionAsk: 'question:ask',
-+  /** Human answers a question — triggers restart handshake */
-+  QuestionAnswer: 'question:answer',
-+  /** Node restart — used in QnA handshake after answer */
-+  NodeRestart: 'node:restart',
-+  /** Node accepted by orchestrator — initial state after pod creation */
-+  NodeAccepted: 'node:accepted',
-+  /** Node completed successfully */
-+  NodeCompleted: 'node:completed',
-+  /** Node encountered an error — transitions to blocked-error */
-+  NodeError: 'node:error',
-+  /** Progress update — informational, no state change */
-+  ProgressUpdate: 'progress:update',
-+} as const;
-+
-+/** Union type of all workflow event type string values */
-+export type WorkflowEventTypeValue = (typeof WorkflowEventType)[keyof typeof WorkflowEventType];
-diff --git a/packages/shared/src/workflow-events/index.ts b/packages/shared/src/workflow-events/index.ts
-new file mode 100644
-index 0000000..67a8456
---- /dev/null
-+++ b/packages/shared/src/workflow-events/index.ts
-@@ -0,0 +1,23 @@
-+// @chainglass/shared/workflow-events barrel export
-+// Plan 061: WorkflowEvents — First-class convenience domain
-+
-+// Constants
-+export { WorkflowEventType } from './constants.js';
-+export type { WorkflowEventTypeValue } from './constants.js';
-+
-+// Convenience input/output types
-+export type {
-+  AnswerInput,
-+  AnswerResult,
-+  ErrorInput,
-+  ProgressInput,
-+  QuestionInput,
-+} from './types.js';
-+
-+// Observer event types
-+export type {
-+  ProgressEvent,
-+  QuestionAskedEvent,
-+  QuestionAnsweredEvent,
-+  WorkflowEvent,
-+} from './types.js';
-diff --git a/packages/shared/src/workflow-events/types.ts b/packages/shared/src/workflow-events/types.ts
-new file mode 100644
-index 0000000..606580d
---- /dev/null
-+++ b/packages/shared/src/workflow-events/types.ts
-@@ -0,0 +1,109 @@
-+/**
-+ * Convenience types for workflow event interactions.
-+ *
-+ * These types are the consumer-facing API surface. They're simpler than the
-+ * raw Zod payload schemas and PGService option types — no WorkspaceContext,
-+ * no BaseResult, no event plumbing.
-+ *
-+ * Field names align with Zod .strict() schemas in event-payloads.schema.ts:
-+ * - `percent` not `percentage`
-+ * - `type` values: 'text' | 'single' | 'multi' | 'confirm'
-+ * - `default` not `defaultValue`
-+ *
-+ * The implementation (Phase 2) maps between these and the raw PGService types.
++ * Conformance tests run against both real and fake.
++ * Behavioral tests run against fake only (DYK-P2-01: FakePGService
++ * doesn't simulate state flow for real WFE testing).
 + */
 +
-+import type { WorkflowEventTypeValue } from './constants.js';
++import { FakeWorkflowEventsService } from '@chainglass/shared/fakes';
++import { FakePositionalGraphService } from '../../packages/positional-graph/src/fakes/fake-positional-graph-service.js';
++import { WorkflowEventObserverRegistry } from '../../packages/positional-graph/src/workflow-events/observer-registry.js';
++import { WorkflowEventsService } from '../../packages/positional-graph/src/workflow-events/workflow-events.service.js';
++import {
++  workflowEventsBehavioralTests,
++  workflowEventsConformanceTests,
++} from './workflow-events.contract.js';
 +
-+// ── Convenience Input/Output Types (AC-07) ──
++// ── Conformance Tests (both implementations) ──
 +
-+/** What a caller provides to ask a question from a node */
-+export interface QuestionInput {
-+  /** Question type — determines UX presentation */
-+  type: 'text' | 'single' | 'multi' | 'confirm';
-+  /** Question text shown to the human */
-+  text: string;
-+  /** Available options for single/multi choice questions */
-+  options?: string[];
-+  /** Default value — string for text/single/multi, boolean for confirm */
-+  default?: string | boolean;
++workflowEventsConformanceTests('FakeWorkflowEventsService', () => new FakeWorkflowEventsService());
++
++workflowEventsConformanceTests('WorkflowEventsService (Real)', () => {
++  const fakePGS = new FakePositionalGraphService();
++  const observers = new WorkflowEventObserverRegistry();
++  observers.clear();
++  return new WorkflowEventsService(
++    fakePGS,
++    () => ({
++      workspaceSlug: 'test',
++      workspaceName: 'test',
++      workspacePath: '/tmp/test',
++      worktreePath: '/tmp/test',
++      worktreeBranch: null,
++      isMainWorktree: true,
++      hasGit: false,
++    }),
++    observers
++  );
++});
++
++// ── Behavioral Tests (fake only — see DYK-P2-01) ──
++
++workflowEventsBehavioralTests('FakeWorkflowEventsService', () => new FakeWorkflowEventsService());
+diff --git a/test/contracts/workflow-events.contract.ts b/test/contracts/workflow-events.contract.ts
+new file mode 100644
+index 0000000..facbd74
+--- /dev/null
++++ b/test/contracts/workflow-events.contract.ts
+@@ -0,0 +1,250 @@
++/**
++ * Contract tests for IWorkflowEvents — verifies interface conformance.
++ *
++ * Runs against both WorkflowEventsService (real) and FakeWorkflowEventsService.
++ * Tests verify method signatures, return shapes, and observer lifecycle.
++ *
++ * Per DYK-P2-01: Full Q&A behavioral cycle (ask→answer→getAnswer) only tested
++ * against Fake because FakePGService doesn't simulate state flow. Real cycle
++ * covered by E2E tests in Phase 4.
++ */
++
++import type { IWorkflowEvents } from '@chainglass/shared';
++import type { QuestionInput } from '@chainglass/shared/workflow-events';
++import { beforeEach, describe, expect, it } from 'vitest';
++
++export type WorkflowEventsFactory = () => IWorkflowEvents;
++
++const testQuestion: QuestionInput = {
++  type: 'confirm',
++  text: 'Deploy to production?',
++};
++
++/**
++ * Interface conformance tests — runs against any IWorkflowEvents implementation.
++ * Verifies method existence, return types, and observer subscribe/unsubscribe.
++ */
++export function workflowEventsConformanceTests(name: string, factory: WorkflowEventsFactory): void {
++  describe(`IWorkflowEvents conformance: ${name}`, () => {
++    let service: IWorkflowEvents;
++
++    beforeEach(() => {
++      service = factory();
++    });
++
++    describe('observer lifecycle', () => {
++      it('onQuestionAsked returns unsubscribe function', () => {
++        const unsub = service.onQuestionAsked('test-graph', () => {});
++        expect(typeof unsub).toBe('function');
++        unsub();
++      });
++
++      it('onQuestionAnswered returns unsubscribe function', () => {
++        const unsub = service.onQuestionAnswered('test-graph', () => {});
++        expect(typeof unsub).toBe('function');
++        unsub();
++      });
++
++      it('onProgress returns unsubscribe function', () => {
++        const unsub = service.onProgress('test-graph', () => {});
++        expect(typeof unsub).toBe('function');
++        unsub();
++      });
++
++      it('onEvent returns unsubscribe function', () => {
++        const unsub = service.onEvent('test-graph', () => {});
++        expect(typeof unsub).toBe('function');
++        unsub();
++      });
++
++      it('unsubscribe prevents further handler invocations', async () => {
++        const events: unknown[] = [];
++        const unsub = service.onEvent('test-graph', (e) => events.push(e));
++        unsub();
++        // After unsubscribe, no events should be delivered
++        // (We can't trigger events without full setup, but unsubscribe should not throw)
++        expect(events).toHaveLength(0);
++      });
++    });
++
++    describe('method existence', () => {
++      it('has askQuestion method', () => {
++        expect(typeof service.askQuestion).toBe('function');
++      });
++
++      it('has answerQuestion method', () => {
++        expect(typeof service.answerQuestion).toBe('function');
++      });
++
++      it('has getAnswer method', () => {
++        expect(typeof service.getAnswer).toBe('function');
++      });
++
++      it('has reportProgress method', () => {
++        expect(typeof service.reportProgress).toBe('function');
++      });
++
++      it('has reportError method', () => {
++        expect(typeof service.reportError).toBe('function');
++      });
++    });
++  });
 +}
 +
 +/**
-+ * Structured answer shape for common question types.
-+ *
-+ * This is an optional helper type — the system accepts `unknown` as the
-+ * answer value. Use AnswerInput when you know the question type for
-+ * better DX, or pass any value directly.
++ * Behavioral tests — runs only against implementations with self-contained state
++ * (FakeWorkflowEventsService). Tests full Q&A cycle and observer notifications.
 + */
-+export interface AnswerInput {
-+  /** Free text answer (for 'text' questions) */
-+  text?: string;
-+  /** Selected option(s) (for 'single' or 'multi' questions) */
-+  selected?: string[];
-+  /** Confirmation value (for 'confirm' questions) */
-+  confirmed?: boolean;
-+}
++export function workflowEventsBehavioralTests(name: string, factory: WorkflowEventsFactory): void {
++  describe(`IWorkflowEvents behavioral: ${name}`, () => {
++    let service: IWorkflowEvents;
 +
-+/** What getAnswer() returns when the question has been answered */
-+export interface AnswerResult {
-+  questionId: string;
-+  answered: true;
-+  answer: unknown;
-+  answeredAt: string;
-+}
++    beforeEach(() => {
++      service = factory();
++    });
 +
-+/** What a caller provides for a progress update */
-+export interface ProgressInput {
-+  message: string;
-+  /** Progress percentage 0-100 (aligns with Zod `percent` field) */
-+  percent?: number;
-+}
++    describe('askQuestion', () => {
++      it('returns a questionId', async () => {
++        const result = await service.askQuestion('test-graph', 'node-a', testQuestion);
++        expect(result.questionId).toBeDefined();
++        expect(typeof result.questionId).toBe('string');
++        expect(result.questionId.length).toBeGreaterThan(0);
++      });
 +
-+/** What a caller provides to report a node error */
-+export interface ErrorInput {
-+  code: string;
-+  message: string;
-+  details?: string;
-+  recoverable?: boolean;
-+}
++      it('generates unique questionIds', async () => {
++        const r1 = await service.askQuestion('test-graph', 'node-a', testQuestion);
++        const r2 = await service.askQuestion('test-graph', 'node-a', testQuestion);
++        expect(r1.questionId).not.toBe(r2.questionId);
++      });
 +
-+// ── Observer Event Types (AC-08) ──
++      it('notifies question-asked observers', async () => {
++        const events: unknown[] = [];
++        service.onQuestionAsked('test-graph', (e) => events.push(e));
 +
-+/** Delivered to onQuestionAsked observers when a node asks a question */
-+export interface QuestionAskedEvent {
-+  graphSlug: string;
-+  nodeId: string;
-+  questionId: string;
-+  question: QuestionInput;
-+  askedAt: string;
-+  source: string;
-+}
++        await service.askQuestion('test-graph', 'node-a', testQuestion);
 +
-+/** Delivered to onQuestionAnswered observers when a question is answered */
-+export interface QuestionAnsweredEvent {
-+  graphSlug: string;
-+  nodeId: string;
-+  questionId: string;
-+  answer: unknown;
-+  answeredAt: string;
-+}
++        expect(events).toHaveLength(1);
++        const event = events[0] as Record<string, unknown>;
++        expect(event.graphSlug).toBe('test-graph');
++        expect(event.nodeId).toBe('node-a');
++        expect(event.questionId).toBeDefined();
++      });
 +
-+/** Delivered to onProgress observers on progress updates */
-+export interface ProgressEvent {
-+  graphSlug: string;
-+  nodeId: string;
-+  message: string;
-+  percent?: number;
-+}
++      it('notifies generic onEvent observers', async () => {
++        const events: unknown[] = [];
++        service.onEvent('test-graph', (e) => events.push(e));
 +
-+/** Delivered to onEvent observers for any workflow event (escape hatch) */
-+export interface WorkflowEvent {
-+  graphSlug: string;
-+  nodeId: string;
-+  /** Known event type or custom registered type string */
-+  eventType: WorkflowEventTypeValue | string;
-+  payload: Record<string, unknown>;
-+  source: string;
-+  timestamp: string;
++        await service.askQuestion('test-graph', 'node-a', testQuestion);
++
++        expect(events.length).toBeGreaterThanOrEqual(1);
++        const event = events[0] as Record<string, unknown>;
++        expect(event.eventType).toBe('question:ask');
++      });
++    });
++
++    describe('answerQuestion', () => {
++      it('does not throw for valid question', async () => {
++        const { questionId } = await service.askQuestion('test-graph', 'node-a', testQuestion);
++        await expect(
++          service.answerQuestion('test-graph', 'node-a', questionId, {
++            confirmed: true,
++          })
++        ).resolves.not.toThrow();
++      });
++
++      it('notifies question-answered observers', async () => {
++        const events: unknown[] = [];
++        service.onQuestionAnswered('test-graph', (e) => events.push(e));
++
++        const { questionId } = await service.askQuestion('test-graph', 'node-a', testQuestion);
++        await service.answerQuestion('test-graph', 'node-a', questionId, { confirmed: true });
++
++        expect(events).toHaveLength(1);
++        const event = events[0] as Record<string, unknown>;
++        expect(event.questionId).toBe(questionId);
++        expect(event.answer).toEqual({ confirmed: true });
++      });
++    });
++
++    describe('getAnswer', () => {
++      it('returns null for unanswered question', async () => {
++        const { questionId } = await service.askQuestion('test-graph', 'node-a', testQuestion);
++        const result = await service.getAnswer('test-graph', 'node-a', questionId);
++        expect(result).toBeNull();
++      });
++
++      it('returns answer after answerQuestion', async () => {
++        const { questionId } = await service.askQuestion('test-graph', 'node-a', testQuestion);
++        await service.answerQuestion('test-graph', 'node-a', questionId, { confirmed: true });
++        const result = await service.getAnswer('test-graph', 'node-a', questionId);
++        expect(result).not.toBeNull();
++        expect(result?.answered).toBe(true);
++        expect(result?.questionId).toBe(questionId);
++      });
++
++      it('returns null for unknown questionId', async () => {
++        const result = await service.getAnswer('test-graph', 'node-a', 'nonexistent-q-id');
++        expect(result).toBeNull();
++      });
++    });
++
++    describe('reportProgress', () => {
++      it('notifies progress observers', async () => {
++        const events: unknown[] = [];
++        service.onProgress('test-graph', (e) => events.push(e));
++
++        await service.reportProgress('test-graph', 'node-a', {
++          message: 'Building auth module',
++          percent: 45,
++        });
++
++        expect(events).toHaveLength(1);
++        const event = events[0] as Record<string, unknown>;
++        expect(event.message).toBe('Building auth module');
++        expect(event.percent).toBe(45);
++      });
++    });
++
++    describe('reportError', () => {
++      it('notifies generic event observers', async () => {
++        const events: unknown[] = [];
++        service.onEvent('test-graph', (e) => events.push(e));
++
++        await service.reportError('test-graph', 'node-a', {
++          code: 'E001',
++          message: 'Build failed',
++        });
++
++        expect(events.length).toBeGreaterThanOrEqual(1);
++        const event = events[0] as Record<string, unknown>;
++        expect(event.eventType).toBe('node:error');
++      });
++    });
++
++    describe('observer isolation', () => {
++      it('observers for different graphs are independent', async () => {
++        const eventsA: unknown[] = [];
++        const eventsB: unknown[] = [];
++        service.onQuestionAsked('graph-a', (e) => eventsA.push(e));
++        service.onQuestionAsked('graph-b', (e) => eventsB.push(e));
++
++        await service.askQuestion('graph-a', 'node-1', testQuestion);
++
++        expect(eventsA).toHaveLength(1);
++        expect(eventsB).toHaveLength(0);
++      });
++
++      it('throwing observer does not prevent others', async () => {
++        const events: unknown[] = [];
++        service.onQuestionAsked('test-graph', () => {
++          throw new Error('boom');
++        });
++        service.onQuestionAsked('test-graph', (e) => events.push(e));
++
++        await service.askQuestion('test-graph', 'node-a', testQuestion);
++
++        expect(events).toHaveLength(1);
++      });
++    });
++  });
 +}

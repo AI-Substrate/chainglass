@@ -89,6 +89,10 @@ export function registerPositionalGraphServices(container: DependencyContainer):
  * Per Plan 061: WorkflowEvents convenience domain.
  * Per ADR-0009: Module registration function.
  *
+ * This is composition-root wiring — importing implementation internals here
+ * is intentional, consistent with registerOrchestrationServices importing
+ * ODS/ONBAS/PodManager. Container files are the designated composition boundary.
+ *
  * Prerequisite tokens (must be registered before calling):
  * - POSITIONAL_GRAPH_DI_TOKENS.POSITIONAL_GRAPH_SERVICE (IPositionalGraphService)
  *

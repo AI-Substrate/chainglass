@@ -57,13 +57,9 @@ export function workflowEventsConformanceTests(name: string, factory: WorkflowEv
         unsub();
       });
 
-      it('unsubscribe prevents further handler invocations', async () => {
-        const events: unknown[] = [];
-        const unsub = service.onEvent('test-graph', (e) => events.push(e));
-        unsub();
-        // After unsubscribe, no events should be delivered
-        // (We can't trigger events without full setup, but unsubscribe should not throw)
-        expect(events).toHaveLength(0);
+      it('unsubscribe does not throw', () => {
+        const unsub = service.onEvent('test-graph', () => {});
+        expect(() => unsub()).not.toThrow();
       });
     });
 
@@ -244,6 +240,38 @@ export function workflowEventsBehavioralTests(name: string, factory: WorkflowEve
         await service.askQuestion('test-graph', 'node-a', testQuestion);
 
         expect(events).toHaveLength(1);
+      });
+
+      it('unsubscribe prevents handler from receiving subsequent events (AC-09)', async () => {
+        const events: unknown[] = [];
+        const unsub = service.onQuestionAsked('test-graph', (e) => events.push(e));
+
+        await service.askQuestion('test-graph', 'node-a', testQuestion);
+        expect(events).toHaveLength(1);
+
+        unsub();
+
+        await service.askQuestion('test-graph', 'node-a', testQuestion);
+        expect(events).toHaveLength(1); // still 1 — no new event after unsub
+      });
+    });
+
+    describe('answerQuestion handshake (AC-03)', () => {
+      it('answerQuestion completes without error for valid question', async () => {
+        const { questionId } = await service.askQuestion('test-graph', 'node-a', testQuestion);
+        // answerQuestion should handle the 3-event handshake internally
+        await expect(
+          service.answerQuestion('test-graph', 'node-a', questionId, 'yes')
+        ).resolves.not.toThrow();
+      });
+
+      it('getAnswer returns result after answerQuestion completes handshake', async () => {
+        const { questionId } = await service.askQuestion('test-graph', 'node-a', testQuestion);
+        await service.answerQuestion('test-graph', 'node-a', questionId, 'yes');
+        const result = await service.getAnswer('test-graph', 'node-a', questionId);
+        expect(result).not.toBeNull();
+        expect(result?.answered).toBe(true);
+        expect(result?.answer).toBe('yes');
       });
     });
   });

@@ -31,8 +31,10 @@ Workflow event interactions (QnA, progress, errors) are scattered across 88+ fil
 | `packages/shared/src/di-tokens.ts` | workflow-events | cross-domain | Add WORKFLOW_EVENTS_SERVICE token |
 | `packages/shared/src/fakes/fake-workflow-events.ts` | workflow-events | contract | FakeWorkflowEventsService with inspection methods |
 | `packages/positional-graph/src/workflow-events/workflow-events.service.ts` | workflow-events | internal | WorkflowEventsService implementation wrapping PGService |
+| `packages/positional-graph/src/workflow-events/observer-registry.ts` | workflow-events | internal | globalThis-backed observer registry |
 | `packages/positional-graph/src/workflow-events/index.ts` | workflow-events | internal | Barrel exports |
 | `packages/positional-graph/src/container.ts` | _platform/positional-graph | cross-domain | Register WorkflowEventsService in DI |
+| `packages/positional-graph/src/index.ts` | _platform/positional-graph | cross-domain | Barrel export for WorkflowEventsService |
 | `packages/positional-graph/src/interfaces/positional-graph-service.interface.ts` | _platform/positional-graph | contract | Add @deprecated to askQuestion, answerQuestion, getAnswer |
 | `test/contracts/workflow-events.contract.ts` | workflow-events | contract | Contract test factory |
 | `test/contracts/workflow-events.contract.test.ts` | workflow-events | contract | Contract test runner |

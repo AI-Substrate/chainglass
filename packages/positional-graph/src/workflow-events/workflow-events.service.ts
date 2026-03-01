@@ -69,6 +69,7 @@ export class WorkflowEventsService implements IWorkflowEvents {
 
     // Write to state.questions[] for backward compat
     const state = await this.pgService.loadGraphState(ctx, graphSlug);
+    const askedAt = new Date().toISOString();
     if (!state.questions) {
       (state as Record<string, unknown>).questions = [];
     }
@@ -77,14 +78,13 @@ export class WorkflowEventsService implements IWorkflowEvents {
       node_id: nodeId,
       type: question.type,
       text: question.text,
-      asked_at: new Date().toISOString(),
+      asked_at: askedAt,
       ...(question.options ? { options: question.options } : {}),
       ...(question.default !== undefined ? { default: question.default } : {}),
     });
     await this.pgService.persistGraphState(ctx, graphSlug, state);
 
-    // Notify observers
-    const askedAt = new Date().toISOString();
+    // Notify observers (reuse same timestamp for consistency — F008)
     const event: QuestionAskedEvent = {
       graphSlug,
       nodeId,

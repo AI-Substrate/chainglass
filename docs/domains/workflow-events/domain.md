@@ -63,8 +63,8 @@
 
 | Domain | Contract Used | Why |
 |--------|-------------|-----|
-| `_platform/positional-graph` | `IPositionalGraphService` (askQuestion, answerQuestion, getAnswer, raiseNodeEvent) | Implementation wraps PGService methods |
-| `_platform/events` | `ICentralEventNotifier` | Emit observer events via SSE for client visibility |
+| `_platform/positional-graph` | `IPositionalGraphService` (raiseNodeEvent, loadGraphState, persistGraphState) | Implementation wraps PGService methods |
+| `_platform/events` | `ICentralEventNotifier` (Phase 3 — not yet integrated) | Will emit observer events via SSE for client visibility |
 
 ### Domains That Depend On This
 

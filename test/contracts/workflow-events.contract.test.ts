@@ -6,10 +6,9 @@
  * doesn't simulate state flow for real WFE testing).
  */
 
+import { FakePositionalGraphService } from '@chainglass/positional-graph';
+import { WorkflowEventObserverRegistry, WorkflowEventsService } from '@chainglass/positional-graph';
 import { FakeWorkflowEventsService } from '@chainglass/shared/fakes';
-import { FakePositionalGraphService } from '../../packages/positional-graph/src/fakes/fake-positional-graph-service.js';
-import { WorkflowEventObserverRegistry } from '../../packages/positional-graph/src/workflow-events/observer-registry.js';
-import { WorkflowEventsService } from '../../packages/positional-graph/src/workflow-events/workflow-events.service.js';
 import {
   workflowEventsBehavioralTests,
   workflowEventsConformanceTests,
