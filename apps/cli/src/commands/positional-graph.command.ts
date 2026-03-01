@@ -25,13 +25,11 @@
  * Per DYK-P6-I5: Imports shared helpers from command-helpers.ts.
  */
 
-import type {
-  AskQuestionOptions,
-  EventSource,
-  IPositionalGraphService,
-} from '@chainglass/positional-graph';
+import type { EventSource, IPositionalGraphService } from '@chainglass/positional-graph';
 import {
   type IWorkUnitService,
+  WorkflowEventObserverRegistry,
+  WorkflowEventsService,
   isReservedInputParam,
   workunitTypeMismatchError,
 } from '@chainglass/positional-graph';
@@ -42,7 +40,10 @@ import {
   formatInspectNode,
   formatInspectOutputs,
 } from '@chainglass/positional-graph';
+import type { IWorkflowEvents } from '@chainglass/shared';
 import { ORCHESTRATION_DI_TOKENS, POSITIONAL_GRAPH_DI_TOKENS } from '@chainglass/shared';
+import { WorkflowEventError } from '@chainglass/shared/workflow-events';
+import type { WorkspaceContext } from '@chainglass/workflow';
 import type { Command } from 'commander';
 import { cliDriveGraph } from '../features/036-cli-orchestration-driver/cli-drive-handler.js';
 import { createCliProductionContainer } from '../lib/container.js';
@@ -163,6 +164,19 @@ function getWorkUnitService(): IWorkUnitService {
 function getOrchestrationService(): IOrchestrationService {
   const container = createCliProductionContainer();
   return container.resolve<IOrchestrationService>(ORCHESTRATION_DI_TOKENS.ORCHESTRATION_SERVICE);
+}
+
+/**
+ * Create a WorkflowEventsService for a per-request context.
+ *
+ * Per DYK-P3-01: constructed per-request (not from DI) because the CLI resolves
+ * WorkspaceContext per-handler with --workspace-path override. The contextResolver
+ * closure returns the already-resolved ctx for any graphSlug.
+ */
+function createWorkflowEventsService(ctx: WorkspaceContext): IWorkflowEvents {
+  const pgService = getPositionalGraphService();
+  const observers = new WorkflowEventObserverRegistry();
+  return new WorkflowEventsService(pgService, () => ctx, observers);
 }
 
 // ============================================
@@ -881,7 +895,8 @@ async function handleNodeEnd(
 }
 
 // ============================================
-// Question/Answer Handlers (Phase 4, Plan 028)
+// Question/Answer Handlers (Plan 061: WorkflowEvents)
+// Migrated from PGService direct calls to WorkflowEventsService.
 // ============================================
 
 async function handleNodeAsk(
@@ -914,19 +929,36 @@ async function handleNodeAsk(
     process.exit(1);
   }
 
-  const askOptions: AskQuestionOptions = {
+  const question: {
+    type: 'text' | 'single' | 'multi' | 'confirm';
+    text: string;
+    options?: string[];
+  } = {
     type: options.type as 'text' | 'single' | 'multi' | 'confirm',
     text: options.text,
   };
   if (options.options && options.options.length > 0) {
-    askOptions.options = options.options;
+    question.options = options.options;
   }
 
-  const service = getPositionalGraphService();
-  const result = await service.askQuestion(ctx, graphSlug, nodeId, askOptions);
-  console.log(adapter.format('wf.node.ask', result));
-
-  if (result.errors.length > 0) process.exit(1);
+  try {
+    const wfEvents = createWorkflowEventsService(ctx);
+    const result = await wfEvents.askQuestion(graphSlug, nodeId, question);
+    console.log(adapter.format('wf.node.ask', { questionId: result.questionId, errors: [] }));
+  } catch (error) {
+    if (error instanceof WorkflowEventError) {
+      console.log(adapter.format('wf.node.ask', { errors: error.errors }));
+    } else {
+      console.log(
+        adapter.format('wf.node.ask', {
+          errors: [
+            { code: 'E_WORKFLOW', message: error instanceof Error ? error.message : String(error) },
+          ],
+        })
+      );
+    }
+    process.exit(1);
+  }
 }
 
 async function handleNodeAnswer(
@@ -953,11 +985,24 @@ async function handleNodeAnswer(
     // Keep as string if not valid JSON
   }
 
-  const service = getPositionalGraphService();
-  const result = await service.answerQuestion(ctx, graphSlug, nodeId, questionId, parsedAnswer);
-  console.log(adapter.format('wf.node.answer', result));
-
-  if (result.errors.length > 0) process.exit(1);
+  try {
+    const wfEvents = createWorkflowEventsService(ctx);
+    await wfEvents.answerQuestion(graphSlug, nodeId, questionId, parsedAnswer);
+    console.log(adapter.format('wf.node.answer', { errors: [] }));
+  } catch (error) {
+    if (error instanceof WorkflowEventError) {
+      console.log(adapter.format('wf.node.answer', { errors: error.errors }));
+    } else {
+      console.log(
+        adapter.format('wf.node.answer', {
+          errors: [
+            { code: 'E_WORKFLOW', message: error instanceof Error ? error.message : String(error) },
+          ],
+        })
+      );
+    }
+    process.exit(1);
+  }
 }
 
 async function handleNodeGetAnswer(
@@ -975,11 +1020,29 @@ async function handleNodeGetAnswer(
     process.exit(1);
   }
 
-  const service = getPositionalGraphService();
-  const result = await service.getAnswer(ctx, graphSlug, nodeId, questionId);
-  console.log(adapter.format('wf.node.get-answer', result));
-
-  if (result.errors.length > 0) process.exit(1);
+  try {
+    const wfEvents = createWorkflowEventsService(ctx);
+    const result = await wfEvents.getAnswer(graphSlug, nodeId, questionId);
+    if (result) {
+      console.log(adapter.format('wf.node.get-answer', { ...result, errors: [] }));
+    } else {
+      console.log(adapter.format('wf.node.get-answer', { answered: false, errors: [] }));
+    }
+  } catch (error) {
+    if (error instanceof WorkflowEventError) {
+      console.log(adapter.format('wf.node.get-answer', { answered: false, errors: error.errors }));
+    } else {
+      console.log(
+        adapter.format('wf.node.get-answer', {
+          answered: false,
+          errors: [
+            { code: 'E_WORKFLOW', message: error instanceof Error ? error.message : String(error) },
+          ],
+        })
+      );
+    }
+    process.exit(1);
+  }
 }
 
 // ============================================

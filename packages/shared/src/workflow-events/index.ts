@@ -21,3 +21,6 @@ export type {
   QuestionAnsweredEvent,
   WorkflowEvent,
 } from './types.js';
+
+// Errors (Plan 061 Phase 3 — DYK-P3-02)
+export { WorkflowEventError } from './errors.js';

@@ -17,12 +17,8 @@ import type {
   AddLineResult,
   AddNodeOptions,
   AddNodeResult,
-  AnswerQuestionResult,
-  AskQuestionOptions,
-  AskQuestionResult,
   CanEndResult,
   EndNodeResult,
-  GetAnswerResult,
   GetInputDataResult,
   GetInputFileResult,
   GetNodeEventsFilter,
@@ -490,42 +486,6 @@ export class FakePositionalGraphService implements IPositionalGraphService {
       status: 'complete' as const,
       completedAt: new Date().toISOString(),
     };
-  }
-
-  async askQuestion(
-    ctx: WorkspaceContext,
-    graphSlug: string,
-    nodeId: string,
-    options: AskQuestionOptions
-  ): Promise<AskQuestionResult> {
-    this.track('askQuestion', [ctx, graphSlug, nodeId, options]);
-    return {
-      ...emptyBaseResult(),
-      nodeId,
-      questionId: 'q-fake-1',
-      status: 'waiting-question' as const,
-    };
-  }
-
-  async answerQuestion(
-    ctx: WorkspaceContext,
-    graphSlug: string,
-    nodeId: string,
-    questionId: string,
-    answer: unknown
-  ): Promise<AnswerQuestionResult> {
-    this.track('answerQuestion', [ctx, graphSlug, nodeId, questionId, answer]);
-    return { ...emptyBaseResult(), nodeId, questionId, status: 'waiting-question' as const };
-  }
-
-  async getAnswer(
-    ctx: WorkspaceContext,
-    graphSlug: string,
-    nodeId: string,
-    questionId: string
-  ): Promise<GetAnswerResult> {
-    this.track('getAnswer', [ctx, graphSlug, nodeId, questionId]);
-    return { ...emptyBaseResult(), nodeId, questionId, answered: false };
   }
 
   async getInputData(

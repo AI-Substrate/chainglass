@@ -466,36 +466,6 @@ export interface EndNodeResult extends BaseResult {
 // Result Types — Question/Answer Protocol (Phase 4, Plan 028)
 // ============================================
 
-/** Input options for askQuestion @deprecated Q&A protocol is scaffolding — not integrated into real agent execution. Human input collection is a web-layer concern. */
-export interface AskQuestionOptions {
-  type: 'text' | 'single' | 'multi' | 'confirm';
-  text: string;
-  options?: string[];
-  default?: string | boolean;
-}
-
-/** Result from askQuestion @deprecated Q&A protocol is scaffolding — not integrated into real agent execution. */
-export interface AskQuestionResult extends BaseResult {
-  nodeId?: string;
-  questionId?: string;
-  status?: 'waiting-question';
-}
-
-/** Result from answerQuestion @deprecated Q&A protocol is scaffolding — not integrated into real agent execution. */
-export interface AnswerQuestionResult extends BaseResult {
-  nodeId?: string;
-  questionId?: string;
-  status?: 'waiting-question';
-}
-
-/** Result from getAnswer @deprecated Q&A protocol is scaffolding — not integrated into real agent execution. */
-export interface GetAnswerResult extends BaseResult {
-  nodeId?: string;
-  questionId?: string;
-  answered: boolean;
-  answer?: unknown;
-}
-
 // ============================================
 // Result Types — Node Event System (Phase 6, Plan 032)
 // ============================================
@@ -742,34 +712,6 @@ export interface IPositionalGraphService {
     nodeId: string,
     message?: string
   ): Promise<EndNodeResult>;
-
-  // Question/Answer Protocol (Phase 4, Plan 028)
-  // @deprecated Q&A protocol is scaffolding — not integrated into real agent execution.
-  // Human input collection is a web-layer concern (Plan 054). These methods are only
-  // called by CLI `cg wf node ask/answer` and the web's answerQuestion server action
-  // (which answers pre-baked dope questions). No real agent calls askQuestion.
-  /** @deprecated Use web-layer human input submission instead. */
-  askQuestion(
-    ctx: WorkspaceContext,
-    graphSlug: string,
-    nodeId: string,
-    options: AskQuestionOptions
-  ): Promise<AskQuestionResult>;
-  /** @deprecated Use web-layer human input submission instead. */
-  answerQuestion(
-    ctx: WorkspaceContext,
-    graphSlug: string,
-    nodeId: string,
-    questionId: string,
-    answer: unknown
-  ): Promise<AnswerQuestionResult>;
-  /** @deprecated Use web-layer human input submission instead. */
-  getAnswer(
-    ctx: WorkspaceContext,
-    graphSlug: string,
-    nodeId: string,
-    questionId: string
-  ): Promise<GetAnswerResult>;
 
   // Input Retrieval (Phase 5, Plan 028)
   getInputData(

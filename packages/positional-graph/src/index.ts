@@ -5,7 +5,11 @@ export * from './services/index.js';
 export * from './errors/index.js';
 export * from './adapter/index.js';
 export * from './interfaces/index.js';
-export { registerPositionalGraphServices, registerOrchestrationServices, registerWorkflowEventsServices } from './container.js';
+export {
+  registerPositionalGraphServices,
+  registerOrchestrationServices,
+  registerWorkflowEventsServices,
+} from './container.js';
 
 // Plan 061: WorkflowEvents
 export { WorkflowEventsService } from './workflow-events/index.js';

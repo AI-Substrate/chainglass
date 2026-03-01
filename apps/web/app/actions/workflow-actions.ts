@@ -14,7 +14,10 @@
 
 import type { IPositionalGraphService } from '@chainglass/positional-graph';
 import type { IWorkUnitService } from '@chainglass/positional-graph';
+import { WorkflowEventObserverRegistry, WorkflowEventsService } from '@chainglass/positional-graph';
+import type { IWorkflowEvents } from '@chainglass/shared';
 import { POSITIONAL_GRAPH_DI_TOKENS, WORKSPACE_DI_TOKENS } from '@chainglass/shared';
+import { WorkflowEventError } from '@chainglass/shared/workflow-events';
 import type { ITemplateService, IWorkspaceService, WorkspaceContext } from '@chainglass/workflow';
 import type {
   AddNodeMutationResult,
@@ -75,6 +78,16 @@ function resolveWorkUnitService(): IWorkUnitService {
 function resolveTemplateService(): ITemplateService {
   const container = getContainer();
   return container.resolve<ITemplateService>(POSITIONAL_GRAPH_DI_TOKENS.TEMPLATE_SERVICE);
+}
+
+/**
+ * Create a WorkflowEventsService for a per-request context.
+ * Per DYK-P3-01: constructed per-request because web resolves ctx async per action.
+ */
+function createWorkflowEventsService(ctx: WorkspaceContext): IWorkflowEvents {
+  const pgService = resolveGraphService();
+  const observers = new WorkflowEventObserverRegistry();
+  return new WorkflowEventsService(pgService, () => ctx, observers);
 }
 
 const NOT_FOUND_ERROR = { code: 'E000', message: 'Workspace not found', action: '' } as const;
@@ -424,22 +437,19 @@ export async function answerQuestion(
   const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
   if (!ctx) return { errors: [NOT_FOUND_ERROR] };
 
-  const svc = resolveGraphService();
-
-  // Step 1: Record the answer (node stays waiting-question)
-  const answerResult = await svc.answerQuestion(ctx, graphSlug, nodeId, questionId, answer);
-  if (answerResult.errors.length > 0) return { errors: answerResult.errors };
-
-  // Step 2: Raise node:restart to resume execution
-  const restartResult = await svc.raiseNodeEvent(
-    ctx,
-    graphSlug,
-    nodeId,
-    'node:restart',
-    { reason: 'question-answered' },
-    'human'
-  );
-  if (restartResult.errors.length > 0) return { errors: restartResult.errors };
+  try {
+    const wfEvents = createWorkflowEventsService(ctx);
+    await wfEvents.answerQuestion(graphSlug, nodeId, questionId, answer);
+  } catch (error) {
+    if (error instanceof WorkflowEventError) {
+      return { errors: [...error.errors] };
+    }
+    return {
+      errors: [
+        { code: 'E_WORKFLOW', message: error instanceof Error ? error.message : String(error) },
+      ],
+    };
+  }
 
   return reloadStatus(ctx, graphSlug);
 }

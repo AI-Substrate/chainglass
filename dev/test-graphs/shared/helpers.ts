@@ -6,6 +6,7 @@
 
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
+import { WorkflowEventObserverRegistry, WorkflowEventsService } from '@chainglass/positional-graph';
 import type {
   IPositionalGraphService,
   IWorkUnitLoader,
@@ -88,7 +89,10 @@ export async function clearErrorAndRestart(
 
 /**
  * Answer a question on a waiting-question node and restart it.
- * Calls answerQuestion then raises node:restart to resume execution.
+ * Delegates to WorkflowEventsService.answerQuestion() which handles the
+ * 3-event handshake (question:answer + node:restart) in a single call.
+ *
+ * Per Plan 061 Phase 3: migrated from 2 PGService calls to WorkflowEvents.
  */
 export async function answerNodeQuestion(
   service: IPositionalGraphService,
@@ -98,15 +102,9 @@ export async function answerNodeQuestion(
   questionId: string,
   answer: unknown
 ): Promise<void> {
-  await service.answerQuestion(ctx, graphSlug, nodeId, questionId, answer);
-  await service.raiseNodeEvent(
-    ctx,
-    graphSlug,
-    nodeId,
-    'node:restart',
-    { reason: 'Question answered' },
-    'orchestrator'
-  );
+  const observers = new WorkflowEventObserverRegistry();
+  const wfEvents = new WorkflowEventsService(service, () => ctx, observers);
+  await wfEvents.answerQuestion(graphSlug, nodeId, questionId, answer);
 }
 
 /**

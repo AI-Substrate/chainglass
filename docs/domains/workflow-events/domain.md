@@ -40,6 +40,7 @@
 | `AnswerResult` | type | `packages/shared/src/workflow-events/types.ts` | CLI, web, tests |
 | `FakeWorkflowEventsService` | fake | `packages/shared/src/fakes/fake-workflow-events.ts` | All test consumers |
 | `WORKFLOW_EVENTS_SERVICE` | DI token | `packages/shared/src/di-tokens.ts` | DI container registration |
+| `WorkflowEventError` | error class | `packages/shared/src/workflow-events/errors.ts` | Structured error with ResultError[] for CLI JSON output |
 
 ---
 
@@ -84,6 +85,7 @@ packages/shared/src/
   workflow-events/
     constants.ts                              # WorkflowEventType
     types.ts                                  # Input/output/observer types
+    errors.ts                                 # WorkflowEventError class
     index.ts                                  # Barrel exports
   fakes/fake-workflow-events.ts              # FakeWorkflowEventsService
   di-tokens.ts                               # WORKFLOW_EVENTS_SERVICE token
@@ -163,3 +165,4 @@ import { WorkflowEventType } from '@chainglass/shared/workflow-events';
 |------|--------|------|
 | Plan 061 Phase 1 | Created domain: IWorkflowEvents, WorkflowEventType, convenience types, FakeWorkflowEventsService, DI token | 2026-03-01 |
 | Plan 061 Phase 2 | WorkflowEventsService implementation, ObserverRegistry (globalThis), contract tests, DI registration | 2026-03-01 |
+| Plan 061 Phase 3 | Consumer migration: CLI/web/helpers delegate to WorkflowEvents. WorkflowEventError class. PGService Q&A methods deleted. 5 QnA integration tests. | 2026-03-01 |

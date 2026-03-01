@@ -20,7 +20,7 @@ import type {
   QuestionInput,
   WorkflowEvent,
 } from '@chainglass/shared/workflow-events';
-import { WorkflowEventType } from '@chainglass/shared/workflow-events';
+import { WorkflowEventError, WorkflowEventType } from '@chainglass/shared/workflow-events';
 
 import type { WorkspaceContext } from '@chainglass/workflow';
 import type { IPositionalGraphService } from '../interfaces/positional-graph-service.interface.js';
@@ -64,7 +64,10 @@ export class WorkflowEventsService implements IWorkflowEvents {
       'agent'
     );
     if (result.errors && result.errors.length > 0) {
-      throw new Error(`Failed to ask question: ${result.errors.map((e) => e.message).join(', ')}`);
+      throw new WorkflowEventError(
+        `Failed to ask question: ${result.errors.map((e) => e.message).join(', ')}`,
+        result.errors
+      );
     }
 
     // Write to state.questions[] for backward compat
@@ -134,8 +137,9 @@ export class WorkflowEventsService implements IWorkflowEvents {
       'human'
     );
     if (answerResult.errors && answerResult.errors.length > 0) {
-      throw new Error(
-        `Failed to answer question: ${answerResult.errors.map((e) => e.message).join(', ')}`
+      throw new WorkflowEventError(
+        `Failed to answer question: ${answerResult.errors.map((e) => e.message).join(', ')}`,
+        answerResult.errors
       );
     }
 
@@ -224,8 +228,9 @@ export class WorkflowEventsService implements IWorkflowEvents {
       'agent'
     );
     if (result.errors && result.errors.length > 0) {
-      throw new Error(
-        `Failed to report progress: ${result.errors.map((e) => e.message).join(', ')}`
+      throw new WorkflowEventError(
+        `Failed to report progress: ${result.errors.map((e) => e.message).join(', ')}`,
+        result.errors
       );
     }
 
@@ -264,7 +269,10 @@ export class WorkflowEventsService implements IWorkflowEvents {
       'agent'
     );
     if (result.errors && result.errors.length > 0) {
-      throw new Error(`Failed to report error: ${result.errors.map((e) => e.message).join(', ')}`);
+      throw new WorkflowEventError(
+        `Failed to report error: ${result.errors.map((e) => e.message).join(', ')}`,
+        result.errors
+      );
     }
 
     this.notifyGenericObservers(graphSlug, nodeId, WorkflowEventType.NodeError, payload, 'agent');
