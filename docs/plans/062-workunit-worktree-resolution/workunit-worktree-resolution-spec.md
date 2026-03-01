@@ -87,7 +87,7 @@ No new domains needed.
 4. **AC-04**: Creating a new unit via the creation modal scaffolds in the specified worktree
 5. **AC-05**: Deleting or renaming a unit operates on the specified worktree
 6. **AC-06**: Links within the work-unit list and editor sidebar preserve `?worktree=` when navigating between units
-7. **AC-07**: Missing `?worktree=` parameter redirects or shows an error — does NOT silently fall back to main workspace
+7. **AC-07**: Missing `?worktree=` parameter redirects to the workspace worktree picker page — does NOT silently fall back to main workspace
 8. **AC-08**: The "Edit Template" round-trip from workflow → editor → workflow preserves worktree context for data operations (not just the return link)
 9. **AC-09**: `just fft` passes after all changes
 10. **AC-10**: Unit tests verify the fixed `resolveWorkspaceContext` function validates worktree against `info.worktrees[]`
@@ -153,4 +153,4 @@ None — Workshop 006 (`058/workshops/006-workunit-worktree-resolution.md`) alre
 | Q3 | Mock Usage | **Fakes only** — no mocks, use FakeWorkspaceService | Added to § Testing Strategy |
 | Q4 | Documentation Strategy | **No new docs** — Workshop 006 covers it | Added § Documentation Strategy |
 | Q5 | Domain Review | **Confirmed** — 1 modified domain, 2 consumed, no boundary issues | § Target Domains unchanged |
-| Q6 | Fallback Behavior | **No silent fallback** — missing `?worktree=` must redirect/error, not silently use main workspace. Diverges from workflow pattern intentionally. | § Goals + AC-07 updated |
+| Q7 | Redirect Target | **Worktree picker page** — redirect to `/workspaces/${slug}` (workspace home with worktree selection), not back to current page. Avoids redirect loop when sidebar nav doesn't have worktree context yet. | § AC-07 updated |

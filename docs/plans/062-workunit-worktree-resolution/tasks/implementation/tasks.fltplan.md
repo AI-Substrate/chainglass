@@ -113,7 +113,7 @@ flowchart LR
 - [ ] AC-04: Creating scaffolds in specified worktree
 - [ ] AC-05: Deleting/renaming operates on specified worktree
 - [ ] AC-06: Links preserve `?worktree=` between units
-- [ ] AC-07: Missing `?worktree=` redirects (no silent fallback)
+- [ ] AC-07: Missing `?worktree=` redirects to worktree picker (no silent fallback)
 - [ ] AC-08: Edit Template round-trip preserves worktree for data ops
 - [ ] AC-09: `just fft` passes
 - [ ] AC-10: Unit tests verify resolver validates worktree
