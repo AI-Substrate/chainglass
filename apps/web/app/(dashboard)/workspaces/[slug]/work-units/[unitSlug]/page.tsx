@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 
 import { WorkUnitEditor } from '@/features/058-workunit-editor/components/workunit-editor';
@@ -13,14 +14,18 @@ interface PageProps {
 export default async function WorkUnitEditorPage({ params, searchParams }: PageProps) {
   const { slug, unitSlug } = await params;
   const sp = await searchParams;
+  const worktreePath = typeof sp.worktree === 'string' ? sp.worktree : undefined;
   const returnToWorkflow =
     sp.from === 'workflow' && typeof sp.graph === 'string' ? sp.graph : undefined;
-  const returnWorktree = typeof sp.worktree === 'string' ? sp.worktree : undefined;
+
+  if (!worktreePath) {
+    redirect(`/workspaces/${slug}`);
+  }
 
   const [unitResult, contentResult, unitsResult] = await Promise.all([
-    loadUnit(slug, unitSlug),
-    loadUnitContent(slug, unitSlug),
-    listUnits(slug),
+    loadUnit(slug, unitSlug, worktreePath),
+    loadUnitContent(slug, unitSlug, worktreePath),
+    listUnits(slug, worktreePath),
   ]);
 
   if (unitResult.errors.length > 0 || !unitResult.unit) {
@@ -41,7 +46,6 @@ export default async function WorkUnitEditorPage({ params, searchParams }: PageP
 
   const unit = unitResult.unit;
 
-  // Extract script filename for code units
   const scriptFilename =
     unit.type === 'code' ? (unit as { code?: { script?: string } }).code?.script : undefined;
 
@@ -59,7 +63,8 @@ export default async function WorkUnitEditorPage({ params, searchParams }: PageP
         inputs={unit.inputs ?? []}
         outputs={unit.outputs ?? []}
         returnToWorkflow={returnToWorkflow}
-        returnWorktree={returnWorktree}
+        returnWorktree={worktreePath}
+        worktreePath={worktreePath}
       />
     </Suspense>
   );

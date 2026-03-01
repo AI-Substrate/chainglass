@@ -3,7 +3,7 @@
 **Plan**: [workunit-worktree-resolution-plan.md](../../workunit-worktree-resolution-plan.md)
 **Phase**: Implementation (Simple Mode)
 **Generated**: 2026-03-01
-**Status**: Ready for takeoff
+**Status**: Landed
 
 ---
 
@@ -59,7 +59,9 @@ stateDiagram-v2
     S5 --> S6
     S6 --> [*]
 
-    class S1,S2,S3,S4,S5,S6 pending
+    class S1 done
+    class S2 active
+    class S3,S4,S5,S6 pending
 ```
 
 **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -70,12 +72,12 @@ stateDiagram-v2
 
 <!-- Updated by /plan-6-v2 during implementation: [ ] → [~] → [x] -->
 
-- [ ] **Stage 1: TDD RED** — Write 4+ resolver tests with fakes (`workunit-actions-worktree.test.ts` — new file)
-- [ ] **Stage 2: TDD GREEN** — Fix `resolveWorkspaceContext`, add `worktreePath?` to 8 actions (`workunit-actions.ts`)
-- [ ] **Stage 3: Page threading** — Read `?worktree=`, redirect if missing, thread to actions (`page.tsx` × 2)
-- [ ] **Stage 4: Component props** — Thread worktreePath to 5 components, append to links + save calls
-- [ ] **Stage 5: Verification** — `just fft` + Next.js MCP + Playwright screenshots
-- [ ] **Stage 6: Domain docs** — Update domain.md history
+- [x] **Stage 1: TDD RED** — Write 4+ resolver tests with fakes (`workunit-actions-worktree.test.ts` — new file)
+- [x] **Stage 2: TDD GREEN** — Fix `resolveWorkspaceContext`, add `worktreePath?` to 8 actions (`workunit-actions.ts`)
+- [x] **Stage 3: Page threading** — Read `?worktree=`, redirect if missing, thread to actions (`page.tsx` × 2)
+- [x] **Stage 4: Component props** — Thread worktreePath to 5 components, append to links + save calls
+- [x] **Stage 5: Verification** — `just fft` + Next.js MCP + Playwright screenshots
+- [x] **Stage 6: Domain docs** — Update domain.md history
 
 ---
 
@@ -107,18 +109,18 @@ flowchart LR
 
 ## Acceptance Criteria
 
-- [ ] AC-01: List page with `?worktree=` lists units from specified worktree
-- [ ] AC-02: Editor page with `?worktree=` loads content from specified worktree
-- [ ] AC-03: Editing saves to specified worktree
-- [ ] AC-04: Creating scaffolds in specified worktree
-- [ ] AC-05: Deleting/renaming operates on specified worktree
-- [ ] AC-06: Links preserve `?worktree=` between units
-- [ ] AC-07: Missing `?worktree=` redirects to worktree picker (no silent fallback)
-- [ ] AC-08: Edit Template round-trip preserves worktree for data ops
-- [ ] AC-09: `just fft` passes
-- [ ] AC-10: Unit tests verify resolver validates worktree
-- [ ] AC-11: Next.js MCP: zero errors
-- [ ] AC-12: Playwright screenshots confirm correct behavior
+- [x] AC-01: List page with `?worktree=` lists units from specified worktree
+- [x] AC-02: Editor page with `?worktree=` loads content from specified worktree
+- [x] AC-03: Editing saves to specified worktree
+- [x] AC-04: Creating scaffolds in specified worktree
+- [x] AC-05: Deleting/renaming operates on specified worktree
+- [x] AC-06: Links preserve `?worktree=` between units
+- [x] AC-07: Missing `?worktree=` redirects to worktree picker (no silent fallback)
+- [x] AC-08: Edit Template round-trip preserves worktree for data ops
+- [x] AC-09: `just fft` passes
+- [x] AC-10: Unit tests verify resolver validates worktree
+- [x] AC-11: Next.js MCP: zero errors
+- [x] AC-12: Playwright screenshots confirm correct behavior
 
 ## Goals & Non-Goals
 
@@ -138,9 +140,9 @@ flowchart LR
 
 ## Checklist
 
-- [ ] T001: TDD RED — write resolver tests (4+ cases, fakes only)
-- [ ] T002: TDD GREEN — fix resolver + add worktreePath to 8 actions
-- [ ] T003: Pages — read searchParams.worktree, redirect if missing
-- [ ] T004: Components — thread worktreePath to 5 components
-- [ ] T005: Verification — just fft + MCP + Playwright screenshots
-- [ ] T006: Domain docs — update domain.md history
+- [x] T001: TDD RED — write resolver tests (4+ cases, fakes only)
+- [~] T002: TDD GREEN — fix resolver + add worktreePath to 8 actions
+- [x] T003: Pages — read searchParams.worktree, redirect if missing
+- [x] T004: Components — thread worktreePath to 5 components
+- [x] T005: Verification — just fft + MCP + Playwright screenshots
+- [x] T006: Domain docs — update domain.md history

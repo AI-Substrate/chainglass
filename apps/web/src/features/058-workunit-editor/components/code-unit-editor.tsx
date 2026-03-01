@@ -13,6 +13,7 @@ interface CodeUnitEditorProps {
   initialContent: string;
   /** Script filename for language detection (e.g., "code.sh", "script.py") */
   scriptFilename?: string;
+  worktreePath?: string;
 }
 
 /**
@@ -24,13 +25,14 @@ export function CodeUnitEditor({
   unitSlug,
   initialContent,
   scriptFilename,
+  worktreePath,
 }: CodeUnitEditorProps) {
   const [content, setContent] = useState(initialContent);
   const language = detectLanguage(scriptFilename ?? 'script.sh');
 
   const saveFn = useCallback(
-    (value: string) => saveUnitContent(workspaceSlug, unitSlug, 'code', value),
-    [workspaceSlug, unitSlug]
+    (value: string) => saveUnitContent(workspaceSlug, unitSlug, 'code', value, worktreePath),
+    [workspaceSlug, unitSlug, worktreePath]
   );
 
   const { status, error, trigger } = useAutoSave(saveFn, { delay: 500 });

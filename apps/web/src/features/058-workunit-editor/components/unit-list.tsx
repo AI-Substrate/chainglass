@@ -13,6 +13,7 @@ interface UnitSummary {
 interface UnitListProps {
   workspaceSlug: string;
   units: UnitSummary[];
+  worktreePath?: string;
 }
 
 const TYPE_LABELS: Record<string, { label: string; color: string }> = {
@@ -34,7 +35,7 @@ const TYPE_LABELS: Record<string, { label: string; color: string }> = {
  * Work unit catalog list — grouped by type with create button.
  * Click navigates to editor. Server Component loads data, this renders.
  */
-export function UnitList({ workspaceSlug, units }: UnitListProps) {
+export function UnitList({ workspaceSlug, units, worktreePath }: UnitListProps) {
   const [showCreate, setShowCreate] = useState(false);
 
   // Group by type
@@ -78,7 +79,7 @@ export function UnitList({ workspaceSlug, units }: UnitListProps) {
                   {items.map((unit) => (
                     <Link
                       key={unit.slug}
-                      href={`/workspaces/${workspaceSlug}/work-units/${unit.slug}`}
+                      href={`/workspaces/${workspaceSlug}/work-units/${unit.slug}${worktreePath ? `?worktree=${encodeURIComponent(worktreePath)}` : ''}`}
                       className="flex items-center gap-3 p-3 rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                     >
                       <span className={`text-xs px-2 py-0.5 rounded ${typeInfo.color}`}>
@@ -97,6 +98,7 @@ export function UnitList({ workspaceSlug, units }: UnitListProps) {
 
       <UnitCreationModal
         workspaceSlug={workspaceSlug}
+        worktreePath={worktreePath}
         open={showCreate}
         onClose={() => setShowCreate(false)}
       />

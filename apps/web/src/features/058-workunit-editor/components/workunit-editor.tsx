@@ -38,6 +38,8 @@ interface WorkUnitEditorProps {
   returnToWorkflow?: string;
   /** Worktree path to preserve in return navigation. */
   returnWorktree?: string;
+  /** Worktree path for data operations (Plan 062). */
+  worktreePath?: string;
 }
 
 function safeParseUserInputConfig(content: string) {
@@ -80,6 +82,7 @@ export function WorkUnitEditor({
   outputs: initialOutputs,
   returnToWorkflow,
   returnWorktree,
+  worktreePath,
 }: WorkUnitEditorProps) {
   const [inputItems, setInputItems] = useState<InputOutputItem[]>(() =>
     hydrateClientIds(initialInputs)
@@ -94,9 +97,9 @@ export function WorkUnitEditor({
   const inputSaveFn = useCallback(
     (value: string) => {
       const items = JSON.parse(value) as WorkUnitInput[];
-      return updateUnit(workspaceSlug, unitSlug, { inputs: items });
+      return updateUnit(workspaceSlug, unitSlug, { inputs: items }, worktreePath);
     },
-    [workspaceSlug, unitSlug]
+    [workspaceSlug, unitSlug, worktreePath]
   );
   const {
     status: inputStatus,
@@ -109,9 +112,9 @@ export function WorkUnitEditor({
   const outputSaveFn = useCallback(
     (value: string) => {
       const items = JSON.parse(value) as WorkUnitOutput[];
-      return updateUnit(workspaceSlug, unitSlug, { outputs: items });
+      return updateUnit(workspaceSlug, unitSlug, { outputs: items }, worktreePath);
     },
-    [workspaceSlug, unitSlug]
+    [workspaceSlug, unitSlug, worktreePath]
   );
   const {
     status: outputStatus,
@@ -189,7 +192,12 @@ export function WorkUnitEditor({
     switch (unitType) {
       case 'agent':
         return (
-          <AgentEditor workspaceSlug={workspaceSlug} unitSlug={unitSlug} initialContent={content} />
+          <AgentEditor
+            workspaceSlug={workspaceSlug}
+            unitSlug={unitSlug}
+            initialContent={content}
+            worktreePath={worktreePath}
+          />
         );
       case 'code':
         return (
@@ -198,6 +206,7 @@ export function WorkUnitEditor({
             unitSlug={unitSlug}
             initialContent={content}
             scriptFilename={scriptFilename}
+            worktreePath={worktreePath}
           />
         );
       case 'user-input':
@@ -206,6 +215,7 @@ export function WorkUnitEditor({
             workspaceSlug={workspaceSlug}
             unitSlug={unitSlug}
             initialConfig={safeParseUserInputConfig(content)}
+            worktreePath={worktreePath}
           />
         );
     }
@@ -214,7 +224,12 @@ export function WorkUnitEditor({
   return (
     <WorkUnitEditorLayout
       left={
-        <UnitCatalogSidebar workspaceSlug={workspaceSlug} units={allUnits} currentSlug={unitSlug} />
+        <UnitCatalogSidebar
+          workspaceSlug={workspaceSlug}
+          units={allUnits}
+          currentSlug={unitSlug}
+          worktreePath={worktreePath}
+        />
       }
       main={
         <div className="flex flex-col">
@@ -272,6 +287,7 @@ export function WorkUnitEditor({
           unitType={unitType}
           initialDescription={description}
           initialVersion={version}
+          worktreePath={worktreePath}
         />
       }
     />

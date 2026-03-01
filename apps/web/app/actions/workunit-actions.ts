@@ -30,11 +30,15 @@ import {
 } from '@chainglass/shared';
 import type { IWorkspaceService, WorkspaceContext } from '@chainglass/workflow';
 
+import { resolveWorktreeContext } from '../../src/features/058-workunit-editor/lib/resolve-worktree-context';
 import { getContainer } from '../../src/lib/bootstrap-singleton';
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
-async function resolveWorkspaceContext(slug: string): Promise<WorkspaceContext | null> {
+async function resolveWorkspaceContext(
+  slug: string,
+  worktreePath?: string
+): Promise<WorkspaceContext | null> {
   const container = getContainer();
   const workspaceService = container.resolve<IWorkspaceService>(
     WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE
@@ -42,15 +46,7 @@ async function resolveWorkspaceContext(slug: string): Promise<WorkspaceContext |
   const info = await workspaceService.getInfo(slug);
   if (!info) return null;
 
-  return {
-    workspaceSlug: slug,
-    workspaceName: info.name,
-    workspacePath: info.path,
-    worktreePath: info.path,
-    worktreeBranch: null,
-    isMainWorktree: true,
-    hasGit: info.hasGit,
-  };
+  return resolveWorktreeContext(info, worktreePath);
 }
 
 function resolveWorkUnitService(): IWorkUnitService {
@@ -62,16 +58,23 @@ const NOT_FOUND_ERROR: ResultError = { code: 'E000', message: 'Workspace not fou
 
 // ─── Read Actions ────────────────────────────────────────────────────
 
-export async function listUnits(workspaceSlug: string): Promise<ListUnitsResult> {
-  const ctx = await resolveWorkspaceContext(workspaceSlug);
+export async function listUnits(
+  workspaceSlug: string,
+  worktreePath?: string
+): Promise<ListUnitsResult> {
+  const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
   if (!ctx) return { units: [], errors: [NOT_FOUND_ERROR] };
 
   const service = resolveWorkUnitService();
   return service.list(ctx);
 }
 
-export async function loadUnit(workspaceSlug: string, unitSlug: string): Promise<LoadUnitResult> {
-  const ctx = await resolveWorkspaceContext(workspaceSlug);
+export async function loadUnit(
+  workspaceSlug: string,
+  unitSlug: string,
+  worktreePath?: string
+): Promise<LoadUnitResult> {
+  const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
   if (!ctx) return { errors: [NOT_FOUND_ERROR] };
 
   const service = resolveWorkUnitService();
@@ -81,9 +84,10 @@ export async function loadUnit(workspaceSlug: string, unitSlug: string): Promise
 /** Unified content loader — returns content string regardless of unit type. */
 export async function loadUnitContent(
   workspaceSlug: string,
-  unitSlug: string
+  unitSlug: string,
+  worktreePath?: string
 ): Promise<{ content: string; errors: ResultError[] }> {
-  const ctx = await resolveWorkspaceContext(workspaceSlug);
+  const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
   if (!ctx) return { content: '', errors: [NOT_FOUND_ERROR] };
 
   const service = resolveWorkUnitService();
@@ -128,9 +132,10 @@ export async function loadUnitContent(
 
 export async function createUnit(
   workspaceSlug: string,
-  spec: CreateUnitSpec
+  spec: CreateUnitSpec,
+  worktreePath?: string
 ): Promise<CreateUnitResult> {
-  const ctx = await resolveWorkspaceContext(workspaceSlug);
+  const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
   if (!ctx) return { slug: '', type: spec.type, errors: [NOT_FOUND_ERROR] };
 
   const service = resolveWorkUnitService();
@@ -140,9 +145,10 @@ export async function createUnit(
 export async function updateUnit(
   workspaceSlug: string,
   unitSlug: string,
-  patch: UpdateUnitPatch
+  patch: UpdateUnitPatch,
+  worktreePath?: string
 ): Promise<UpdateUnitResult> {
-  const ctx = await resolveWorkspaceContext(workspaceSlug);
+  const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
   if (!ctx) return { slug: unitSlug, errors: [NOT_FOUND_ERROR] };
 
   const service = resolveWorkUnitService();
@@ -151,9 +157,10 @@ export async function updateUnit(
 
 export async function deleteUnit(
   workspaceSlug: string,
-  unitSlug: string
+  unitSlug: string,
+  worktreePath?: string
 ): Promise<DeleteUnitResult> {
-  const ctx = await resolveWorkspaceContext(workspaceSlug);
+  const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
   if (!ctx) return { deleted: false, errors: [NOT_FOUND_ERROR] };
 
   const service = resolveWorkUnitService();
@@ -163,9 +170,10 @@ export async function deleteUnit(
 export async function renameUnit(
   workspaceSlug: string,
   oldSlug: string,
-  newSlug: string
+  newSlug: string,
+  worktreePath?: string
 ): Promise<RenameUnitResult> {
-  const ctx = await resolveWorkspaceContext(workspaceSlug);
+  const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
   if (!ctx) return { newSlug: '', updatedFiles: [], errors: [NOT_FOUND_ERROR] };
 
   const service = resolveWorkUnitService();
@@ -180,9 +188,10 @@ export async function saveUnitContent(
   workspaceSlug: string,
   unitSlug: string,
   unitType: 'agent' | 'code' | 'user-input',
-  content: string
+  content: string,
+  worktreePath?: string
 ): Promise<{ errors: ResultError[] }> {
-  const ctx = await resolveWorkspaceContext(workspaceSlug);
+  const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
   if (!ctx) return { errors: [NOT_FOUND_ERROR] };
 
   const service = resolveWorkUnitService();

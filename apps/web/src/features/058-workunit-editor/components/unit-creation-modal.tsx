@@ -8,6 +8,7 @@ interface UnitCreationModalProps {
   workspaceSlug: string;
   open: boolean;
   onClose: () => void;
+  worktreePath?: string;
 }
 
 const UNIT_TYPES = [
@@ -26,7 +27,12 @@ const SLUG_PATTERN = /^[a-z][a-z0-9-]*$/;
  * Modal for creating new work units — type picker + slug naming.
  * Per W002 + clarification Q6: scaffold with boilerplate.
  */
-export function UnitCreationModal({ workspaceSlug, open, onClose }: UnitCreationModalProps) {
+export function UnitCreationModal({
+  workspaceSlug,
+  open,
+  onClose,
+  worktreePath,
+}: UnitCreationModalProps) {
   const router = useRouter();
   const [selectedType, setSelectedType] = useState<'agent' | 'code' | 'user-input' | null>(null);
   const [slug, setSlug] = useState('');
@@ -41,11 +47,15 @@ export function UnitCreationModal({ workspaceSlug, open, onClose }: UnitCreation
     setCreating(true);
     setError(null);
 
-    const result = await createUnit(workspaceSlug, {
-      slug,
-      type: selectedType,
-      description: description || undefined,
-    });
+    const result = await createUnit(
+      workspaceSlug,
+      {
+        slug,
+        type: selectedType,
+        description: description || undefined,
+      },
+      worktreePath
+    );
 
     if (result.errors.length > 0) {
       setError(result.errors[0].message);
@@ -54,9 +64,11 @@ export function UnitCreationModal({ workspaceSlug, open, onClose }: UnitCreation
     }
 
     onClose();
-    router.push(`/workspaces/${workspaceSlug}/work-units/${slug}`);
+    router.push(
+      `/workspaces/${workspaceSlug}/work-units/${slug}${worktreePath ? `?worktree=${encodeURIComponent(worktreePath)}` : ''}`
+    );
     router.refresh();
-  }, [selectedType, slug, slugValid, description, workspaceSlug, onClose, router]);
+  }, [selectedType, slug, slugValid, description, workspaceSlug, onClose, router, worktreePath]);
 
   if (!open) return null;
 

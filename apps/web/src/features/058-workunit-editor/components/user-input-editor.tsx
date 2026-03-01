@@ -22,6 +22,7 @@ interface UserInputEditorProps {
   workspaceSlug: string;
   unitSlug: string;
   initialConfig: UserInputConfig;
+  worktreePath?: string;
 }
 
 const QUESTION_TYPES = [
@@ -36,12 +37,17 @@ const QUESTION_TYPES = [
  * Auto-saves via unified saveUnitContent (routes to update type_config).
  * Mirrors Plan 054 HumanInputModal config structure.
  */
-export function UserInputEditor({ workspaceSlug, unitSlug, initialConfig }: UserInputEditorProps) {
+export function UserInputEditor({
+  workspaceSlug,
+  unitSlug,
+  initialConfig,
+  worktreePath,
+}: UserInputEditorProps) {
   const [config, setConfig] = useState<UserInputConfig>(initialConfig);
 
   const saveFn = useCallback(
-    (value: string) => saveUnitContent(workspaceSlug, unitSlug, 'user-input', value),
-    [workspaceSlug, unitSlug]
+    (value: string) => saveUnitContent(workspaceSlug, unitSlug, 'user-input', value, worktreePath),
+    [workspaceSlug, unitSlug, worktreePath]
   );
 
   const { status, error, trigger } = useAutoSave(saveFn, { delay: 500 });

@@ -10,18 +10,24 @@ interface AgentEditorProps {
   workspaceSlug: string;
   unitSlug: string;
   initialContent: string;
+  worktreePath?: string;
 }
 
 /**
  * Agent prompt editor — CodeMirror with markdown highlighting.
  * Auto-saves via unified saveUnitContent action with 500ms debounce.
  */
-export function AgentEditor({ workspaceSlug, unitSlug, initialContent }: AgentEditorProps) {
+export function AgentEditor({
+  workspaceSlug,
+  unitSlug,
+  initialContent,
+  worktreePath,
+}: AgentEditorProps) {
   const [content, setContent] = useState(initialContent);
 
   const saveFn = useCallback(
-    (value: string) => saveUnitContent(workspaceSlug, unitSlug, 'agent', value),
-    [workspaceSlug, unitSlug]
+    (value: string) => saveUnitContent(workspaceSlug, unitSlug, 'agent', value, worktreePath),
+    [workspaceSlug, unitSlug, worktreePath]
   );
 
   const { status, error, trigger } = useAutoSave(saveFn, { delay: 500 });

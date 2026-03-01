@@ -4,7 +4,7 @@
 **Plan Version**: 1.0.0
 **Created**: 2026-03-01
 **Spec**: [workunit-worktree-resolution-spec.md](./workunit-worktree-resolution-spec.md)
-**Status**: DRAFT
+**Status**: COMPLETE
 **Complexity**: CS-2 (small)
 
 ## Summary
@@ -63,18 +63,18 @@ Work unit pages hardcode `worktreePath: info.path` in `workunit-actions.ts`, mak
 
 ### Acceptance Criteria
 
-- [ ] AC-01: `/work-units?worktree={path}` lists units from specified worktree
-- [ ] AC-02: `/work-units/{unitSlug}?worktree={path}` loads content from specified worktree
-- [ ] AC-03: Editing saves to specified worktree
-- [ ] AC-04: Creating scaffolds in specified worktree
-- [ ] AC-05: Deleting/renaming operates on specified worktree
-- [ ] AC-06: Links preserve `?worktree=` between units
-- [ ] AC-07: Missing `?worktree=` redirects to worktree picker (no silent fallback)
-- [ ] AC-08: Edit Template round-trip preserves worktree for data ops
-- [ ] AC-09: `just fft` passes
-- [ ] AC-10: Unit tests verify resolver validates worktree against `info.worktrees[]`
-- [ ] AC-11: Next.js MCP: zero compilation/runtime errors
-- [ ] AC-12: Playwright screenshots confirm correct worktree behavior
+- [x] AC-01: `/work-units?worktree={path}` lists units from specified worktree
+- [x] AC-02: `/work-units/{unitSlug}?worktree={path}` loads content from specified worktree
+- [x] AC-03: Editing saves to specified worktree
+- [x] AC-04: Creating scaffolds in specified worktree
+- [x] AC-05: Deleting/renaming operates on specified worktree
+- [x] AC-06: Links preserve `?worktree=` between units
+- [x] AC-07: Missing `?worktree=` redirects to worktree picker (no silent fallback)
+- [x] AC-08: Edit Template round-trip preserves worktree for data ops
+- [x] AC-09: `just fft` passes
+- [x] AC-10: Unit tests verify resolver validates worktree against `info.worktrees[]`
+- [x] AC-11: Next.js MCP: zero compilation/runtime errors
+- [x] AC-12: Playwright screenshots confirm correct worktree behavior
 
 ### Risks
 

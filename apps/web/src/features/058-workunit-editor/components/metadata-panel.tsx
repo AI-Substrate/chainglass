@@ -11,6 +11,7 @@ interface MetadataPanelProps {
   unitType: 'agent' | 'code' | 'user-input';
   initialDescription: string;
   initialVersion: string;
+  worktreePath?: string;
 }
 
 /**
@@ -23,6 +24,7 @@ export function MetadataPanel({
   unitType,
   initialDescription,
   initialVersion,
+  worktreePath,
 }: MetadataPanelProps) {
   const [description, setDescription] = useState(initialDescription);
   const [version, setVersion] = useState(initialVersion);
@@ -30,9 +32,9 @@ export function MetadataPanel({
   const saveFn = useCallback(
     (value: string) => {
       const patch = JSON.parse(value);
-      return updateUnit(workspaceSlug, unitSlug, patch);
+      return updateUnit(workspaceSlug, unitSlug, patch, worktreePath);
     },
-    [workspaceSlug, unitSlug]
+    [workspaceSlug, unitSlug, worktreePath]
   );
 
   const { status, error, trigger } = useAutoSave(saveFn, { delay: 0 });
